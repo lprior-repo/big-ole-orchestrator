@@ -1,6 +1,6 @@
 //! wtf-common — shared types for wtf-engine.
 //!
-//! The central type is [`WorkflowEvent`] — the only type written to NATS JetStream.
+//! The central type is [`WorkflowEvent`] — the only type written to NATS `JetStream`.
 
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::expect_used)]

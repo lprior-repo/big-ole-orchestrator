@@ -17,7 +17,7 @@ use thiserror::Error;
 /// Error returned when an ID contains characters that are illegal in NATS subjects.
 ///
 /// NATS subject components must not contain `.`, `>`, `*`, or whitespace.
-/// A dot in a NamespaceId would corrupt the subject `wtf.log.<ns>.<id>` by adding
+/// A dot in a `NamespaceId` would corrupt the subject `wtf.log.<ns>.<id>` by adding
 /// extra segments, causing subscriptions to miss events (ADR-013).
 #[derive(Debug, Error, PartialEq, Eq)]
 #[error("ID contains NATS-illegal characters (., >, *, whitespace): {0:?}")]
@@ -199,7 +199,7 @@ impl FromStr for TimerId {
 /// Top-level error type for wtf-engine public API surface.
 #[derive(Debug, Error)]
 pub enum WtfError {
-    /// NATS JetStream publish failed before receiving a PublishAck (ADR-015).
+    /// NATS `JetStream` publish failed before receiving a `PublishAck` (ADR-015).
     #[error("NATS publish failed: {message}")]
     NatsPublish { message: String },
 

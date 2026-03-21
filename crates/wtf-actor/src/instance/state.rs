@@ -1,0 +1,64 @@
+//! In-memory state of a running WorkflowInstance.
+
+use super::lifecycle::ParadigmState;
+use crate::messages::{InstanceArguments, InstancePhase, WorkflowParadigm};
+use bytes::Bytes;
+use ractor::RpcReplyPort;
+use std::collections::HashMap;
+use wtf_common::{ActivityId, WtfError};
+
+/// In-memory state of a running WorkflowInstance.
+#[derive(Debug)]
+pub struct InstanceState {
+    /// Immutable spawn arguments.
+    pub args: InstanceArguments,
+    /// Current execution phase (Replay or Live).
+    pub phase: InstancePhase,
+    /// Total events applied (monotonically increasing).
+    pub total_events_applied: u64,
+    /// Events since last snapshot (reset at SNAPSHOT_INTERVAL).
+    pub events_since_snapshot: u32,
+    /// Current state of the execution paradigm.
+    pub paradigm_state: ParadigmState,
+
+    /// Pending RPC calls from procedural workflows waiting for activity results.
+    /// Keyed by ActivityId. Not persisted in snapshots.
+    pub pending_activity_calls: HashMap<ActivityId, RpcReplyPort<Result<Bytes, WtfError>>>,
+
+    /// Pending RPC calls from procedural workflows waiting for timers.
+    /// Keyed by TimerId. Not persisted in snapshots.
+    pub pending_timer_calls: HashMap<wtf_common::TimerId, RpcReplyPort<Result<(), WtfError>>>,
+
+    /// Join handle for the procedural workflow task.
+    pub procedural_task: Option<tokio::task::JoinHandle<()>>,
+}
+
+impl InstanceState {
+    /// Create the initial state for a new workflow instance.
+    #[must_use]
+    pub fn initial(args: InstanceArguments) -> Self {
+        let paradigm_state = initialize_paradigm_state(&args);
+        Self {
+            args,
+            phase: InstancePhase::Replay,
+            total_events_applied: 0,
+            events_since_snapshot: 0,
+            paradigm_state,
+            pending_activity_calls: HashMap::new(),
+            pending_timer_calls: HashMap::new(),
+            procedural_task: None,
+        }
+    }
+}
+
+pub fn initialize_paradigm_state(args: &InstanceArguments) -> ParadigmState {
+    match args.paradigm {
+        WorkflowParadigm::Fsm => ParadigmState::Fsm(crate::fsm::FsmActorState::new("Initial")),
+        WorkflowParadigm::Dag => ParadigmState::Dag(crate::dag::DagActorState::new(
+            std::collections::HashMap::new(),
+        )),
+        WorkflowParadigm::Procedural => {
+            ParadigmState::Procedural(crate::procedural::ProceduralActorState::new())
+        }
+    }
+}

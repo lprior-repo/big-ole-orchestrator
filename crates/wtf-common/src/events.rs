@@ -1,7 +1,7 @@
-//! WorkflowEvent — the only type written to NATS JetStream (ADR-013).
+//! `WorkflowEvent` — the only type written to NATS `JetStream` (ADR-013).
 //!
 //! This is a closed enum. No other type is appended to the event log.
-//! Serialized with msgpack (rmp-serde) for JetStream; JSON-serializable for debugging.
+//! Serialized with msgpack (rmp-serde) for `JetStream`; JSON-serializable for debugging.
 
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::expect_used)]
@@ -49,12 +49,12 @@ impl Default for RetryPolicy {
     }
 }
 
-/// Every durable state transition is recorded as a `WorkflowEvent` in NATS JetStream.
+/// Every durable state transition is recorded as a `WorkflowEvent` in NATS `JetStream`.
 ///
 /// **Invariant:** This enum is exhaustive. Only these variants are ever appended
 /// to the `wtf-events` stream. New variants require an ADR amendment.
 ///
-/// Serialization note: msgpack via `rmp_serde::to_vec_named` for JetStream.
+/// Serialization note: msgpack via `rmp_serde::to_vec_named` for `JetStream`.
 /// The `#[serde(tag = "type", rename_all = "snake_case")]` ensures forward-compatible
 /// JSON representations for debugging and the Monitor UI.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -107,7 +107,7 @@ pub enum WorkflowEvent {
     // ── Activity lifecycle (shared by all paradigms) ──────────────────────────
     /// An activity was dispatched to the worker queue.
     ActivityDispatched {
-        /// Unique ID for this activity invocation (operation_id for Procedural).
+        /// Unique ID for this activity invocation (`operation_id` for Procedural).
         activity_id: String,
         /// Name of the activity type (matches the worker registration).
         activity_type: String,
@@ -198,9 +198,9 @@ pub enum WorkflowEvent {
     /// Actor state was snapshotted to sled (ADR-019).
     ///
     /// Recovery uses this as the cursor: load the sled snapshot for `seq`,
-    /// then replay JetStream from `seq + 1` to the tail.
+    /// then replay `JetStream` from `seq + 1` to the tail.
     SnapshotTaken {
-        /// JetStream sequence number of the last event applied before this snapshot.
+        /// `JetStream` sequence number of the last event applied before this snapshot.
         seq: u64,
         /// CRC32 checksum of the serialized state bytes (for corruption detection).
         checksum: u32,
@@ -208,7 +208,7 @@ pub enum WorkflowEvent {
 }
 
 impl WorkflowEvent {
-    /// Serialize to msgpack bytes for appending to NATS JetStream.
+    /// Serialize to msgpack bytes for appending to NATS `JetStream`.
     ///
     /// # Errors
     /// Returns an error if serialization fails (should never happen for well-formed events).
@@ -216,7 +216,7 @@ impl WorkflowEvent {
         rmp_serde::to_vec_named(self)
     }
 
-    /// Deserialize from msgpack bytes read from NATS JetStream.
+    /// Deserialize from msgpack bytes read from NATS `JetStream`.
     ///
     /// # Errors
     /// Returns an error if the bytes are not a valid msgpack-encoded `WorkflowEvent`.
