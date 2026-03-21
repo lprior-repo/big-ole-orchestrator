@@ -39,6 +39,10 @@ pub enum WorkflowNode {
     Awakeable(AwakeableConfig),
     ResolvePromise(ResolvePromiseConfig),
     SignalHandler(SignalHandlerConfig),
+    CtxActivity(CtxActivityConfig),
+    CtxSleep(CtxSleepConfig),
+    CtxWaitSignal(CtxWaitSignalConfig),
+    CtxNow(CtxNowConfig),
 }
 
 impl Default for WorkflowNode {
@@ -178,6 +182,36 @@ pub struct ResolvePromiseConfig {
 pub struct SignalHandlerConfig {
     pub signal_name: Option<String>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CtxActivityConfig {
+    pub name: Option<String>,
+    pub activity_type: Option<String>,
+    pub input_schema: Option<String>,
+}
+
+impl Default for CtxActivityConfig {
+    fn default() -> Self {
+        Self {
+            name: None,
+            activity_type: None,
+            input_schema: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CtxSleepConfig {
+    pub duration_ms: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CtxWaitSignalConfig {
+    pub signal_name: String,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct CtxNowConfig;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -323,18 +357,22 @@ impl WorkflowNode {
             | Self::ObjectCall(_)
             | Self::WorkflowCall(_)
             | Self::SendMessage(_)
-            | Self::DelayedSend(_) => NodeCategory::Durable,
+            | Self::DelayedSend(_)
+            | Self::CtxActivity(_) => NodeCategory::Durable,
             Self::GetState(_) | Self::SetState(_) | Self::ClearState(_) => NodeCategory::State,
             Self::Condition(_)
             | Self::Switch(_)
             | Self::Loop(_)
             | Self::Parallel(_)
             | Self::Compensate(_) => NodeCategory::Flow,
-            Self::Sleep(_) | Self::Timeout(_) => NodeCategory::Timing,
+            Self::Sleep(_) | Self::Timeout(_) | Self::CtxSleep(_) | Self::CtxNow(_) => {
+                NodeCategory::Timing
+            }
             Self::DurablePromise(_)
             | Self::Awakeable(_)
             | Self::ResolvePromise(_)
-            | Self::SignalHandler(_) => NodeCategory::Signal,
+            | Self::SignalHandler(_)
+            | Self::CtxWaitSignal(_) => NodeCategory::Signal,
         }
     }
 
@@ -366,6 +404,10 @@ impl WorkflowNode {
             Self::Awakeable(_) => "radio",
             Self::ResolvePromise(_) => "check-circle",
             Self::SignalHandler(_) => "bell",
+            Self::CtxActivity(_) => "zap",
+            Self::CtxSleep(_) => "moon",
+            Self::CtxWaitSignal(_) => "bell",
+            Self::CtxNow(_) => "clock",
         }
     }
 
@@ -457,6 +499,10 @@ impl WorkflowNode {
             Self::Awakeable(_) => "Awakeable",
             Self::ResolvePromise(_) => "Resolve Promise",
             Self::SignalHandler(_) => "Signal Handler",
+            Self::CtxActivity(_) => "Activity",
+            Self::CtxSleep(_) => "Sleep",
+            Self::CtxWaitSignal(_) => "Wait Signal",
+            Self::CtxNow(_) => "Now",
         }
     }
 
@@ -472,7 +518,8 @@ impl WorkflowNode {
             Self::DurablePromise(_)
             | Self::Awakeable(_)
             | Self::ResolvePromise(_)
-            | Self::SignalHandler(_) => PortType::Signal,
+            | Self::SignalHandler(_)
+            | Self::CtxWaitSignal(_) => PortType::Signal,
             _ => PortType::Any,
         }
     }
@@ -517,6 +564,10 @@ impl fmt::Display for WorkflowNode {
             Self::Awakeable(_) => "awakeable",
             Self::ResolvePromise(_) => "resolve-promise",
             Self::SignalHandler(_) => "signal-handler",
+            Self::CtxActivity(_) => "ctx-activity",
+            Self::CtxSleep(_) => "ctx-sleep",
+            Self::CtxWaitSignal(_) => "ctx-wait-signal",
+            Self::CtxNow(_) => "ctx-now",
         };
         write!(f, "{type_str}")
     }
@@ -551,6 +602,12 @@ impl FromStr for WorkflowNode {
             "awakeable" => Ok(Self::Awakeable(AwakeableConfig::default())),
             "resolve-promise" => Ok(Self::ResolvePromise(ResolvePromiseConfig::default())),
             "signal-handler" => Ok(Self::SignalHandler(SignalHandlerConfig::default())),
+            "ctx-activity" => Ok(Self::CtxActivity(CtxActivityConfig::default())),
+            "ctx-sleep" => Ok(Self::CtxSleep(CtxSleepConfig { duration_ms: 0 })),
+            "ctx-wait-signal" => Ok(Self::CtxWaitSignal(CtxWaitSignalConfig {
+                signal_name: String::new(),
+            })),
+            "ctx-now" => Ok(Self::CtxNow(CtxNowConfig)),
             _ => Err(UnknownNodeTypeError(s.to_string())),
         }
     }
@@ -587,6 +644,10 @@ mod tests {
             "awakeable",
             "resolve-promise",
             "signal-handler",
+            "ctx-activity",
+            "ctx-sleep",
+            "ctx-wait-signal",
+            "ctx-now",
         ]
     }
 
@@ -594,9 +655,9 @@ mod tests {
         use super::*;
 
         #[test]
-        fn given_all_24_node_types_when_parsing_then_each_maps_to_variant() {
+        fn given_all_28_node_types_when_parsing_then_each_maps_to_variant() {
             let node_types = all_node_types();
-            assert_eq!(node_types.len(), 24, "Expected 24 node types");
+            assert_eq!(node_types.len(), 28, "Expected 28 node types");
 
             for node_type in node_types {
                 let result = WorkflowNode::from_str(node_type);
@@ -819,8 +880,8 @@ mod tests {
         }
 
         #[test]
-        fn given_all_variants_when_counting_then_is_24() {
-            assert_eq!(all_node_types().len(), 24);
+        fn given_all_variants_when_counting_then_is_28() {
+            assert_eq!(all_node_types().len(), 28);
         }
 
         #[test]
