@@ -1,28 +1,4 @@
-//! HTTP handlers for wtf-api v3 endpoints (beads wtf-7mif, wtf-016l, wtf-meua, wtf-k0ck).
-//!
-//! Each handler extracts the `OrchestratorMsg` actor ref from the axum `Extension`
-//! and calls the MasterOrchestrator via ractor RPC (`actor_ref.call()`).
-//!
-//! # Namespace / ID routing
-//! The `:id` path parameter is `<namespace>/<instance_id>` (URL-encoded slash or
-//! a literal `/`). Handlers split on the first `/` to separate the two components.
-//! Example: `/api/v1/workflows/payments/01ARZ3NDEKTSV4RRFFQ69G5FAV`.
-//!
-//! # Error mapping
-//! - `OrchestratorMsg::StartWorkflow` → `StartError::AtCapacity` → 503
-//! - `StartError::AlreadyExists` → 409
-//! - `StartError::SpawnFailed` → 500
-//! - `WtfError::InstanceNotFound` → 404
-//! - Actor timeout → 503
-
-#![deny(clippy::unwrap_used)]
-#![deny(clippy::expect_used)]
-#![deny(clippy::panic)]
-#![warn(clippy::pedantic)]
-#![forbid(unsafe_code)]
-
 use std::time::Duration;
-
 use axum::{
     extract::{Extension, Path},
     http::StatusCode,
@@ -33,20 +9,15 @@ use bytes::Bytes;
 use ractor::rpc::CallResult;
 use ractor::ActorRef;
 use ulid::Ulid;
-use wtf_actor::{messages::WorkflowParadigm, OrchestratorMsg, StartError};
+use wtf_actor::{OrchestratorMsg, StartError};
 use wtf_common::{InstanceId, NamespaceId};
 
-use crate::types::{ApiError, V3SignalRequest, V3StartRequest, V3StartResponse, V3StatusResponse};
+use crate::types::{ApiError, V3StartRequest, V3StartResponse, V3StatusResponse};
+use crate::handlers::helpers::{parse_paradigm, split_path_id, paradigm_to_str, phase_to_str};
 
-/// Timeout for all actor RPC calls from HTTP handlers.
 const ACTOR_CALL_TIMEOUT: Duration = Duration::from_secs(5);
 
-// ── POST /api/v1/workflows ───────────────────────────────────────────────────
-
 /// POST /api/v1/workflows — start a new workflow instance (bead wtf-7mif).
-///
-/// Request body: [`V3StartRequest`] (JSON).
-/// Response: 201 with [`V3StartResponse`] or 4xx/5xx with [`ApiError`].
 pub async fn start_workflow(
     Extension(master): Extension<ActorRef<OrchestratorMsg>>,
     Json(req): Json<V3StartRequest>,
@@ -190,12 +161,7 @@ pub async fn start_workflow(
     }
 }
 
-// ── GET /api/v1/workflows/:id ────────────────────────────────────────────────
-
 /// GET /api/v1/workflows/:id — get instance status (bead wtf-016l).
-///
-/// Path: `:id` = `<namespace>/<instance_id>`.
-/// Response: 200 with [`V3StatusResponse`] or 404 / 503.
 pub async fn get_workflow(
     Extension(master): Extension<ActorRef<OrchestratorMsg>>,
     Path(id): Path<String>,
@@ -272,12 +238,7 @@ pub async fn get_workflow(
     }
 }
 
-// ── DELETE /api/v1/workflows/:id ─────────────────────────────────────────────
-
 /// DELETE /api/v1/workflows/:id — terminate a running instance (bead wtf-016l).
-///
-/// Path: `:id` = `<namespace>/<instance_id>`.
-/// Response: 204 on success, 404 not found, 503 actor unavailable.
 pub async fn terminate_workflow(
     Extension(master): Extension<ActorRef<OrchestratorMsg>>,
     Path(id): Path<String>,
@@ -346,11 +307,7 @@ pub async fn terminate_workflow(
     }
 }
 
-// ── GET /api/v1/workflows (list) ─────────────────────────────────────────────
-
 /// GET /api/v1/workflows — list all active workflow instances.
-///
-/// Response: 200 with JSON array of [`V3StatusResponse`].
 pub async fn list_workflows(
     Extension(master): Extension<ActorRef<OrchestratorMsg>>,
 ) -> impl IntoResponse {
@@ -396,213 +353,6 @@ pub async fn list_workflows(
                 })
                 .collect();
             (StatusCode::OK, Json(views)).into_response()
-        }
-    }
-}
-
-// ── POST /api/v1/workflows/:id/signals ───────────────────────────────────────
-
-/// POST /api/v1/workflows/:id/signals — send a signal to a running instance (bead wtf-meua).
-///
-/// Path: `:id` = `<namespace>/<instance_id>`.
-/// Request body: [`V3SignalRequest`] (JSON).
-/// Response: 202 on success, 404 not found, 503 actor unavailable.
-pub async fn send_signal(
-    Extension(master): Extension<ActorRef<OrchestratorMsg>>,
-    Path(id): Path<String>,
-    Json(req): Json<V3SignalRequest>,
-) -> impl IntoResponse {
-    let (_, instance_id) = match split_path_id(&id) {
-        Some(pair) => pair,
-        None => {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(ApiError::new(
-                    "invalid_id",
-                    "id must be <namespace>/<instance_id>",
-                )),
-            )
-                .into_response();
-        }
-    };
-
-    // Serialize signal payload to bytes.
-    let payload = match serde_json::to_vec(&req.payload) {
-        Ok(v) => Bytes::from(v),
-        Err(e) => {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(ApiError::new(
-                    "invalid_payload",
-                    format!("failed to encode payload: {e}"),
-                )),
-            )
-                .into_response();
-        }
-    };
-
-    let call_result = master
-        .call(
-            |tx| OrchestratorMsg::Signal {
-                instance_id,
-                signal_name: req.signal_name.clone(),
-                payload,
-                reply: tx,
-            },
-            Some(ACTOR_CALL_TIMEOUT),
-        )
-        .await;
-
-    match call_result {
-        Err(e) => (
-            StatusCode::SERVICE_UNAVAILABLE,
-            Json(ApiError::new("actor_unavailable", e.to_string())),
-        )
-            .into_response(),
-        Ok(CallResult::Timeout) => (
-            StatusCode::SERVICE_UNAVAILABLE,
-            Json(ApiError::new(
-                "actor_timeout",
-                "orchestrator did not respond",
-            )),
-        )
-            .into_response(),
-        Ok(CallResult::SenderError) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiError::new(
-                "actor_error",
-                "orchestrator dropped the reply",
-            )),
-        )
-            .into_response(),
-        Ok(CallResult::Success(Err(e))) => (
-            StatusCode::NOT_FOUND,
-            Json(ApiError::new("signal_failed", e.to_string())),
-        )
-            .into_response(),
-        Ok(CallResult::Success(Ok(()))) => StatusCode::ACCEPTED.into_response(),
-    }
-}
-
-// ── GET /api/v1/workflows/:id/events ─────────────────────────────────────────
-
-/// GET /api/v1/workflows/:id/events — fetch the JetStream event log (bead wtf-k0ck).
-///
-/// Returns events as a JSON array. Full SSE streaming is in bead wtf-wdxg.
-/// This stub returns NOT_IMPLEMENTED — a NATS connection is needed (see wtf-k0ck).
-pub async fn get_events(
-    Extension(_master): Extension<ActorRef<OrchestratorMsg>>,
-    Path(_id): Path<String>,
-) -> impl IntoResponse {
-    // Full implementation requires JetStream access injected via Extension<Context>.
-    // That's wired up in bead wtf-k0ck alongside the NATS connection setup.
-    (
-        StatusCode::NOT_IMPLEMENTED,
-        Json(ApiError::new(
-            "not_implemented",
-            "event log streaming: see bead wtf-k0ck",
-        )),
-    )
-        .into_response()
-}
-
-// ── Pure helper functions ─────────────────────────────────────────────────────
-
-/// Split a path `<namespace>/<instance_id>` into the two parts.
-///
-/// Returns `None` if the path has no `/` separator.
-fn split_path_id(path: &str) -> Option<(String, InstanceId)> {
-    let slash = path.find('/')?;
-    let namespace = path[..slash].to_owned();
-    let instance_id = InstanceId::new(path[slash + 1..].to_owned());
-    Some((namespace, instance_id))
-}
-
-fn parse_paradigm(s: &str) -> Option<WorkflowParadigm> {
-    match s {
-        "fsm" => Some(WorkflowParadigm::Fsm),
-        "dag" => Some(WorkflowParadigm::Dag),
-        "procedural" => Some(WorkflowParadigm::Procedural),
-        _ => None,
-    }
-}
-
-fn paradigm_to_str(p: WorkflowParadigm) -> &'static str {
-    match p {
-        WorkflowParadigm::Fsm => "fsm",
-        WorkflowParadigm::Dag => "dag",
-        WorkflowParadigm::Procedural => "procedural",
-    }
-}
-
-fn phase_to_str(p: wtf_actor::messages::InstancePhaseView) -> &'static str {
-    match p {
-        wtf_actor::messages::InstancePhaseView::Replay => "replay",
-        wtf_actor::messages::InstancePhaseView::Live => "live",
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn split_path_id_valid() {
-        let result = split_path_id("payments/01ARZ3NDEKTSV4RRFFQ69G5FAV");
-        assert!(result.is_some());
-        let (ns, id) = result.map(|(n, i)| (n, i)).expect("some");
-        assert_eq!(ns, "payments");
-        assert_eq!(id.as_str(), "01ARZ3NDEKTSV4RRFFQ69G5FAV");
-    }
-
-    #[test]
-    fn split_path_id_missing_slash_returns_none() {
-        let result = split_path_id("no-slash-here");
-        assert!(result.is_none());
-    }
-
-    #[test]
-    fn split_path_id_multiple_slashes_splits_on_first() {
-        let result = split_path_id("ns/id/extra");
-        let (ns, id) = result.expect("some");
-        assert_eq!(ns, "ns");
-        assert_eq!(id.as_str(), "id/extra");
-    }
-
-    #[test]
-    fn parse_paradigm_fsm() {
-        assert_eq!(parse_paradigm("fsm"), Some(WorkflowParadigm::Fsm));
-    }
-
-    #[test]
-    fn parse_paradigm_dag() {
-        assert_eq!(parse_paradigm("dag"), Some(WorkflowParadigm::Dag));
-    }
-
-    #[test]
-    fn parse_paradigm_procedural() {
-        assert_eq!(
-            parse_paradigm("procedural"),
-            Some(WorkflowParadigm::Procedural)
-        );
-    }
-
-    #[test]
-    fn parse_paradigm_invalid_returns_none() {
-        assert!(parse_paradigm("").is_none());
-        assert!(parse_paradigm("FSM").is_none());
-        assert!(parse_paradigm("state_machine").is_none());
-    }
-
-    #[test]
-    fn paradigm_to_str_roundtrip() {
-        for p in [
-            WorkflowParadigm::Fsm,
-            WorkflowParadigm::Dag,
-            WorkflowParadigm::Procedural,
-        ] {
-            let s = paradigm_to_str(p);
-            assert_eq!(parse_paradigm(s), Some(p));
         }
     }
 }
