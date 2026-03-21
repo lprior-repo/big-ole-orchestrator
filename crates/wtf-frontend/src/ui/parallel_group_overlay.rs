@@ -1,6 +1,6 @@
 use dioxus::prelude::*;
-use oya_frontend::graph::{Connection, ExecutionState, Node, NodeId};
 use oya_frontend::graph::workflow_node::WorkflowNode;
+use oya_frontend::graph::{Connection, ExecutionState, Node, NodeId};
 use std::collections::HashMap;
 use std::str::FromStr;
 
@@ -271,8 +271,9 @@ mod tests {
     use uuid::Uuid;
 
     fn make_node(id: Uuid, node_type: &str, x: f32, y: f32) -> Node {
-        let wfn = WorkflowNode::from_str(node_type)
-            .unwrap_or_else(|_| WorkflowNode::Run(oya_frontend::graph::workflow_node::RunConfig::default()));
+        let wfn = WorkflowNode::from_str(node_type).unwrap_or_else(|_| {
+            WorkflowNode::Run(oya_frontend::graph::workflow_node::RunConfig::default())
+        });
         let mut node = Node::from_workflow_node(format!("{node_type} node"), wfn, x, y);
         node.id = NodeId(id);
         node

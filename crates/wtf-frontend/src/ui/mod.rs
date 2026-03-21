@@ -6,7 +6,6 @@ pub mod config_panel;
 pub mod design_mode;
 pub mod domain_types;
 pub mod edges;
-pub mod panel_types;
 pub mod editor_interactions;
 pub mod execution_history_panel;
 pub mod execution_plan_panel;
@@ -18,6 +17,7 @@ pub mod interaction_guards;
 pub mod minimap;
 pub mod monitor_mode;
 pub mod node;
+pub mod panel_types;
 pub mod parallel_group_overlay;
 pub mod payload_preview_panel;
 pub mod prototype_palette;
@@ -25,6 +25,7 @@ pub mod run_status_bar;
 pub mod selected_node_panel;
 pub mod sidebar;
 pub mod time_travel;
+pub mod simulate_mode;
 pub mod toolbar;
 pub mod validation_panel;
 
@@ -56,5 +57,6 @@ pub use time_travel::{
     clamp_step_index, next_step, prev_step, validate_step_index, DiffEntry, OrderedStep,
     StateDiff, StepIndex, TimeTravelError,
 };
+pub use simulate_mode::{SimError, SimOp, SimProceduralState, SimWorkflowEvent};
 pub use toolbar::FlowToolbar;
 pub use validation_panel::ValidationPanel;

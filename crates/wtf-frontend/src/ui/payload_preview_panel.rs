@@ -4,7 +4,7 @@
 #![warn(clippy::pedantic)]
 #![forbid(unsafe_code)]
 
-use crate::ui::panel_types::{CollapseState, PayloadShape, chevron_rotation_class};
+use crate::ui::panel_types::{chevron_rotation_class, CollapseState, PayloadShape};
 use dioxus::prelude::*;
 use oya_frontend::graph::{NodeId, Workflow};
 use std::collections::HashMap;

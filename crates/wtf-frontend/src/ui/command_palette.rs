@@ -15,9 +15,12 @@ pub struct CommandTemplate {
 
 pub fn filtered_templates(query: &str) -> Vec<CommandTemplate> {
     let normalized_query = query.trim().to_lowercase();
-    
+
     if normalized_query.is_empty() {
-        return NodeTemplateId::all().into_iter().map(|id| CommandTemplate { node_type: id }).collect();
+        return NodeTemplateId::all()
+            .into_iter()
+            .map(|id| CommandTemplate { node_type: id })
+            .collect();
     }
 
     NodeTemplateId::all()
@@ -47,9 +50,13 @@ mod tests {
         let by_hint = filtered_templates("durably");
         let by_type = filtered_templates("kafka-handler");
 
-        assert!(by_label.iter().any(|t| t.node_type == NodeTemplateId::HttpHandler));
+        assert!(by_label
+            .iter()
+            .any(|t| t.node_type == NodeTemplateId::HttpHandler));
         assert!(by_hint.iter().any(|t| t.node_type == NodeTemplateId::Sleep));
-        assert!(by_type.iter().any(|t| t.node_type == NodeTemplateId::KafkaHandler));
+        assert!(by_type
+            .iter()
+            .any(|t| t.node_type == NodeTemplateId::KafkaHandler));
     }
 
     #[test]
@@ -62,7 +69,9 @@ mod tests {
     fn given_query_with_leading_and_trailing_whitespace_then_query_is_trimmed() {
         let templates = filtered_templates("  HTTP  ");
         assert!(!templates.is_empty());
-        assert!(templates.iter().any(|t| t.node_type == NodeTemplateId::HttpHandler));
+        assert!(templates
+            .iter()
+            .any(|t| t.node_type == NodeTemplateId::HttpHandler));
     }
 
     #[test]

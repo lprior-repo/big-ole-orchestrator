@@ -891,11 +891,7 @@ fn push_timeline(
         message,
         metadata,
     }];
-    new_timeline.extend(
-        timeline
-            .into_iter()
-            .take(11),
-    );
+    new_timeline.extend(timeline.into_iter().take(11));
     new_timeline
 }
 
@@ -949,11 +945,7 @@ fn remember_extension_snapshot(
         workflow_before,
     };
     let mut new_snapshots = vec![snapshot];
-    new_snapshots.extend(
-        snapshots
-            .into_iter()
-            .take(23),
-    );
+    new_snapshots.extend(snapshots.into_iter().take(23));
 
     (
         new_snapshots,

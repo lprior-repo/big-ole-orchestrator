@@ -147,8 +147,15 @@ pub fn icon(icon_id: IconId, class: String) -> Element {
         IconId::Loader => rsx! { LoaderIcon { class } },
         IconId::CheckCircle => rsx! { CheckCircleIcon { class } },
         IconId::X => rsx! { XIcon { class } },
-        IconId::Target | IconId::Radio | IconId::Bell | IconId::Alarm | IconId::Timer 
-        | IconId::Play | IconId::Kafka | IconId::Undo | IconId::Info => rsx! {
+        IconId::Target
+        | IconId::Radio
+        | IconId::Bell
+        | IconId::Alarm
+        | IconId::Timer
+        | IconId::Play
+        | IconId::Kafka
+        | IconId::Undo
+        | IconId::Info => rsx! {
             svg {
                 xmlns: "http://www.w3.org/2000/svg",
                 view_box: "0 0 24 24",

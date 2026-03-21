@@ -27,8 +27,12 @@ pub fn ValidationPanel(
     let status_text = build_status_text(error_count, warning_count);
 
     let status_icon: Option<Element> = match category {
-        ValidationResultCategory::HasErrors => Some(rsx! { AlertCircleIcon { class: "h-4 w-4 text-red-500" } }),
-        ValidationResultCategory::HasWarningsOnly => Some(rsx! { AlertTriangleIcon { class: "h-4 w-4 text-amber-500" } }),
+        ValidationResultCategory::HasErrors => {
+            Some(rsx! { AlertCircleIcon { class: "h-4 w-4 text-red-500" } })
+        }
+        ValidationResultCategory::HasWarningsOnly => {
+            Some(rsx! { AlertTriangleIcon { class: "h-4 w-4 text-amber-500" } })
+        }
         ValidationResultCategory::Valid => None,
     };
 
@@ -99,8 +103,12 @@ fn IssueRow(
     };
 
     let icon = match issue.severity {
-        ValidationSeverity::Error => rsx! { AlertCircleIcon { class: "h-3.5 w-3.5 text-red-500 shrink-0" } },
-        ValidationSeverity::Warning => rsx! { AlertTriangleIcon { class: "h-3.5 w-3.5 text-amber-500 shrink-0" } },
+        ValidationSeverity::Error => {
+            rsx! { AlertCircleIcon { class: "h-3.5 w-3.5 text-red-500 shrink-0" } }
+        }
+        ValidationSeverity::Warning => {
+            rsx! { AlertTriangleIcon { class: "h-3.5 w-3.5 text-amber-500 shrink-0" } }
+        }
     };
 
     if let Some(nid) = node_id {

@@ -215,7 +215,7 @@ pub fn PrototypePalette(
 
 #[cfg(test)]
 mod tests {
-    use super::{generate_skeleton, SketchNode, NodeTemplateId};
+    use super::{generate_skeleton, NodeTemplateId, SketchNode};
 
     fn node(node_type: NodeTemplateId) -> SketchNode {
         SketchNode {
@@ -250,7 +250,11 @@ mod tests {
 
     #[test]
     fn given_three_nodes_when_generating_skeleton_then_linear_chain_is_correct() {
-        let nodes = vec![node(NodeTemplateId::HttpHandler), node(NodeTemplateId::Run), node(NodeTemplateId::Sleep)];
+        let nodes = vec![
+            node(NodeTemplateId::HttpHandler),
+            node(NodeTemplateId::Run),
+            node(NodeTemplateId::Sleep),
+        ];
         let result = generate_skeleton(&nodes);
 
         let lines: Vec<&str> = result.lines().collect();
