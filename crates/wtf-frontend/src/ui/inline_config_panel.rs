@@ -84,7 +84,13 @@ fn entry_config(icon: &str, config: &Value, on_change: EventHandler<Value>) -> E
         }
         "clock" => text_field("Schedule", "schedule", config, "0 */5 * * *", on_change),
         "kafka" => text_field("Topic", "topic", config, "orders-topic", on_change),
-        "play" => text_field("Workflow Name", "workflow_name", config, "SignupWorkflow", on_change),
+        "play" => text_field(
+            "Workflow Name",
+            "workflow_name",
+            config,
+            "SignupWorkflow",
+            on_change,
+        ),
         _ => rsx! { div { class: "text-[10px] italic text-slate-400", "No quick config" } },
     }
 }

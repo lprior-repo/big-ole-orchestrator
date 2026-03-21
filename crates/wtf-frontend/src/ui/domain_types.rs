@@ -240,7 +240,10 @@ mod tests {
 
     #[test]
     fn given_invalid_http_method_when_parsing_then_defaults_to_post() {
-        assert_eq!(HttpMethod::from_str_ignore_case("invalid"), HttpMethod::Post);
+        assert_eq!(
+            HttpMethod::from_str_ignore_case("invalid"),
+            HttpMethod::Post
+        );
     }
 
     #[test]

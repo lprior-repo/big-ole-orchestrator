@@ -5,8 +5,8 @@
 #![forbid(unsafe_code)]
 
 use crate::ui::panel_types::{
-    CollapseState, RunOutcome, PayloadShape,
     chevron_rotation_class, outcome_badge_style, outcome_icon_class, panel_height_class,
+    CollapseState, PayloadShape, RunOutcome,
 };
 use dioxus::prelude::*;
 use oya_frontend::graph::{NodeId, RunRecord};
@@ -91,13 +91,14 @@ fn truncate_preview(input: &str, max_chars: usize) -> String {
 fn is_failed_step_result(result: &serde_json::Value) -> bool {
     match result {
         serde_json::Value::Null => true,
-        serde_json::Value::Object(map) => map.get("error").is_some_and(|error_value| {
-            match error_value {
-                serde_json::Value::Null => false,
-                serde_json::Value::String(message) => !message.is_empty(),
-                _ => true,
-            }
-        }),
+        serde_json::Value::Object(map) => {
+            map.get("error")
+                .is_some_and(|error_value| match error_value {
+                    serde_json::Value::Null => false,
+                    serde_json::Value::String(message) => !message.is_empty(),
+                    _ => true,
+                })
+        }
         _ => false,
     }
 }
@@ -119,8 +120,7 @@ fn derive_step_counts(run: &RunRecord) -> (usize, usize) {
 mod tests {
     use super::{
         derive_step_counts, format_elapsed, format_run_duration, format_run_status,
-        run_status_badge_class, status_badge_classes, truncate_id, truncate_preview,
-        RunOutcome,
+        run_status_badge_class, status_badge_classes, truncate_id, truncate_preview, RunOutcome,
     };
     use oya_frontend::graph::{NodeId, RunRecord};
     use std::collections::HashMap;
@@ -350,8 +350,7 @@ pub fn ExecutionHistoryPanel(
     on_run_select: EventHandler<uuid::Uuid>,
     on_exit_frozen: EventHandler<()>,
 ) -> Element {
-    let mut expanded_runs: Signal<HashSet<uuid::Uuid>> =
-        use_signal(HashSet::new);
+    let mut expanded_runs: Signal<HashSet<uuid::Uuid>> = use_signal(HashSet::new);
     let history_len = history.read().len();
     let collapse_state = CollapseState::from_bool(*collapsed.read());
     let height_class = panel_height_class(collapse_state);

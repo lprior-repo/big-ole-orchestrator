@@ -24,12 +24,7 @@ pub fn clamp_menu_position(
 
 /// Generates viewport-safe CSS style string for menu positioning.
 #[inline]
-pub fn generate_menu_style(
-    x: f32,
-    y: f32,
-    viewport_width: f32,
-    viewport_height: f32,
-) -> String {
+pub fn generate_menu_style(x: f32, y: f32, viewport_width: f32, viewport_height: f32) -> String {
     let (clamped_x, clamped_y) = clamp_menu_position(x, y, viewport_width, viewport_height);
     format!("left: {}px; top: {}px;", clamped_x, clamped_y)
 }

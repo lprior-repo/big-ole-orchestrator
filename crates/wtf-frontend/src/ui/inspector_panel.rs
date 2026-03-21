@@ -5,7 +5,9 @@
 #![warn(clippy::nursery)]
 #![forbid(unsafe_code)]
 
-use crate::ui::panel_types::{CollapseState, InvocationStatus, invocation_badge_style, chevron_rotation_class};
+use crate::ui::panel_types::{
+    chevron_rotation_class, invocation_badge_style, CollapseState, InvocationStatus,
+};
 use dioxus::prelude::*;
 use oya_frontend::graph::{ExecutionState, Node};
 

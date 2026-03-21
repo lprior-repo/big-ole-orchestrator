@@ -6,8 +6,8 @@
 use super::get_str_val;
 use crate::ui::icons::{icon_by_name, CopyIcon};
 use crate::ui::panel_types::{
-    ExecutionEventCategory, InvocationStatus, OutputOrigin, PayloadShape, StatusBadgeStyle,
-    invocation_badge_style,
+    invocation_badge_style, ExecutionEventCategory, InvocationStatus, OutputOrigin, PayloadShape,
+    StatusBadgeStyle,
 };
 use dioxus::prelude::*;
 use oya_frontend::graph::ExecutionState;
@@ -133,18 +133,10 @@ pub(super) fn ExecutionTab(
     on_pin_sample: EventHandler<Option<Value>>,
 ) -> Element {
     let invocation_status = resolve_invocation_status(execution_state, &execution_data, &config);
-    let journal_idx = read_u64_with_legacy_fallback(
-        &execution_data,
-        &config,
-        "journal_index",
-        "journalIndex",
-    );
-    let retry_count = read_u64_with_legacy_fallback(
-        &execution_data,
-        &config,
-        "retry_count",
-        "retryCount",
-    );
+    let journal_idx =
+        read_u64_with_legacy_fallback(&execution_data, &config, "journal_index", "journalIndex");
+    let retry_count =
+        read_u64_with_legacy_fallback(&execution_data, &config, "retry_count", "retryCount");
     let timeline = build_execution_timeline(invocation_status, journal_idx, retry_count);
     let pinned_output = get_pinned_output(&config);
     let output_payload = last_output.clone().or_else(|| pinned_output.clone());
@@ -342,7 +334,10 @@ fn get_pinned_output(config: &Value) -> Option<Value> {
     config.get(PINNED_OUTPUT_KEY).cloned()
 }
 
-fn runtime_status(execution_state: ExecutionState, execution_data: &Value) -> Option<InvocationStatus> {
+fn runtime_status(
+    execution_state: ExecutionState,
+    execution_data: &Value,
+) -> Option<InvocationStatus> {
     let runtime_status = execution_data
         .get("status")
         .and_then(Value::as_str)
@@ -413,25 +408,23 @@ mod tests {
 
     #[test]
     fn timeline_includes_status_journal_and_retry_when_present() {
-        let timeline = build_execution_timeline(
-            Some(InvocationStatus::Retrying),
-            Some(7),
-            Some(2),
-        );
+        let timeline = build_execution_timeline(Some(InvocationStatus::Retrying), Some(7), Some(2));
 
         assert_eq!(timeline.len(), 3);
-        assert!(matches!(timeline[0].category, ExecutionEventCategory::Status));
+        assert!(matches!(
+            timeline[0].category,
+            ExecutionEventCategory::Status
+        ));
         assert!(timeline[1].detail.contains("#7"));
-        assert!(matches!(timeline[2].category, ExecutionEventCategory::Retry));
+        assert!(matches!(
+            timeline[2].category,
+            ExecutionEventCategory::Retry
+        ));
     }
 
     #[test]
     fn timeline_skips_retry_when_zero() {
-        let timeline = build_execution_timeline(
-            Some(InvocationStatus::Running),
-            Some(1),
-            Some(0),
-        );
+        let timeline = build_execution_timeline(Some(InvocationStatus::Running), Some(1), Some(0));
 
         assert_eq!(timeline.len(), 2);
         assert!(!timeline
@@ -470,10 +463,16 @@ mod tests {
 
     #[test]
     fn status_falls_back_to_execution_state_and_then_legacy_config() {
-        let from_state =
-            resolve_invocation_status(ExecutionState::Running, &json!({}), &json!({"status": "failed"}));
-        let from_config =
-            resolve_invocation_status(ExecutionState::Idle, &json!({}), &json!({"status": "suspended"}));
+        let from_state = resolve_invocation_status(
+            ExecutionState::Running,
+            &json!({}),
+            &json!({"status": "failed"}),
+        );
+        let from_config = resolve_invocation_status(
+            ExecutionState::Idle,
+            &json!({}),
+            &json!({"status": "suspended"}),
+        );
 
         assert_eq!(from_state, Some(InvocationStatus::Running));
         assert_eq!(from_config, Some(InvocationStatus::Suspended));

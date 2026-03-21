@@ -5,8 +5,7 @@
 #![forbid(unsafe_code)]
 
 use crate::ui::panel_types::{
-    CollapseState, InvocationStatus,
-    chevron_rotation_class, panel_height_class,
+    chevron_rotation_class, panel_height_class, CollapseState, InvocationStatus,
 };
 use dioxus::prelude::*;
 use oya_frontend::graph::{ExecutionState, Node, NodeId, Workflow};
@@ -222,7 +221,9 @@ fn QueueItem(
     let label = node
         .as_ref()
         .map_or_else(|| "Unknown".to_string(), |n| n.name.clone());
-    let status = node.as_ref().map_or(InvocationStatus::Queued, node_invocation_status);
+    let status = node
+        .as_ref()
+        .map_or(InvocationStatus::Queued, node_invocation_status);
     let active_class = if is_current {
         "ring-1 ring-indigo-300 bg-indigo-50"
     } else {
@@ -275,7 +276,9 @@ fn LayerNodeItem(
     let label = node
         .as_ref()
         .map_or_else(|| "Unknown".to_string(), |n| n.name.clone());
-    let status = node.as_ref().map_or(InvocationStatus::Queued, node_invocation_status);
+    let status = node
+        .as_ref()
+        .map_or(InvocationStatus::Queued, node_invocation_status);
     let badge = status_badge_classes(status);
 
     rsx! {

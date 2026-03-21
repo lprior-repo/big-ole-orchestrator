@@ -291,13 +291,17 @@ mod tests {
                     status: "running".to_string(),
                 })
                 .collect();
-            
+
             let start = std::time::Instant::now();
             let json = serde_json::to_string_pretty(&invocations).unwrap();
             let duration = start.elapsed();
-            
+
             assert!(json.len() > 10000);
-            assert!(duration.as_millis() < 100, "Serialization took too long: {:?}", duration);
+            assert!(
+                duration.as_millis() < 100,
+                "Serialization took too long: {:?}",
+                duration
+            );
         }
     }
 }

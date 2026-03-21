@@ -1,5 +1,7 @@
+use oya_frontend::graph::workflow_node::{
+    ConditionConfig, HttpHandlerConfig, RunConfig, WorkflowNode,
+};
 use oya_frontend::graph::{ExecutionState, Node, NodeCategory, NodeId, Viewport, Workflow};
-use oya_frontend::graph::workflow_node::{WorkflowNode, HttpHandlerConfig, RunConfig, ConditionConfig};
 
 pub fn default_workflow() -> Workflow {
     Workflow {
