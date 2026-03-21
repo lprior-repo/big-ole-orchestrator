@@ -3,6 +3,7 @@ pub mod app_io;
 pub mod canvas_context_menu;
 pub mod command_palette;
 pub mod config_panel;
+pub mod design_mode;
 pub mod domain_types;
 pub mod edges;
 pub mod panel_types;
@@ -28,6 +29,10 @@ pub mod validation_panel;
 pub use canvas_context_menu::CanvasContextMenu;
 pub use command_palette::NodeCommandPalette;
 pub use config_panel::NodeConfigEditor;
+pub use design_mode::{
+    deploy_handler, validate_before_deploy, DeployError, DeployResult, GeneratedCode, LintError,
+    WorkflowDefinition, WorkflowParadigm,
+};
 pub use domain_types::{HandleKind, HttpMethod, NodeTemplateId};
 pub use edges::{FlowEdges, Position as FlowPosition};
 pub use execution_history_panel::ExecutionHistoryPanel;
