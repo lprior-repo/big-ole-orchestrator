@@ -21,6 +21,10 @@ mod metadata;
 mod view;
 
 pub mod expressions;
+pub mod fsm_dag_types;
+pub mod node_type;
+pub mod fsm_validation;
+pub mod dag_validation;
 pub mod layout;
 pub mod restate_types;
 pub mod validation;
@@ -30,6 +34,9 @@ pub use connectivity::{ConnectionError, ConnectionResult};
 pub use domain_types::{
     EmptyStringError, NodeIcon, NodeMetadata, NodeUiState, NonEmptyString, PositiveDuration,
     RunOutcome, ServiceName, StateKey, UnknownIconError,
+};
+pub use fsm_dag_types::{
+    dag, fsm, GraphValidationError, GraphValidationResult, NodeType, ParseNodeTypeError,
 };
 pub use execution_record::{
     AttemptNumber, EmptyErrorMessage, ExecutionError, ExecutionOverallStatus, ExecutionRecord,
