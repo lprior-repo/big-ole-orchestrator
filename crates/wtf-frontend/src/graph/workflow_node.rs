@@ -43,6 +43,9 @@ pub enum WorkflowNode {
     CtxSleep(CtxSleepConfig),
     CtxWaitSignal(CtxWaitSignalConfig),
     CtxNow(CtxNowConfig),
+    DagActivity(DagActivityConfig),
+    DagFanOut(DagFanOutConfig),
+    DagFanIn(DagFanInConfig),
 }
 
 impl Default for WorkflowNode {
@@ -568,6 +571,9 @@ impl fmt::Display for WorkflowNode {
             Self::CtxSleep(_) => "ctx-sleep",
             Self::CtxWaitSignal(_) => "ctx-wait-signal",
             Self::CtxNow(_) => "ctx-now",
+            Self::DagActivity(_) => "dag-activity",
+            Self::DagFanOut(_) => "dag-fan-out",
+            Self::DagFanIn(_) => "dag-fan-in",
         };
         write!(f, "{type_str}")
     }

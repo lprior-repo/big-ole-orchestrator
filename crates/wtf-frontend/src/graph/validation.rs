@@ -120,6 +120,7 @@ pub fn validate_workflow(workflow: &Workflow) -> ValidationResult {
     validate_required_config(workflow, &mut issues);
     validate_connection_validity(workflow, &mut issues);
     validate_connection_types(workflow, &mut issues);
+    validate_dag_edges(workflow, &mut issues);
 
     ValidationResult { issues }
 }
@@ -526,6 +527,44 @@ fn validate_node_config(
                 ));
             }
         }
+        WorkflowNode::DagActivity(config) => {
+            if config.activity_type.is_none()
+                || config
+                    .activity_type
+                    .as_ref()
+                    .is_some_and(std::string::String::is_empty)
+            {
+                issues.push(ValidationIssue::error_for_node(
+                    "DAG Activity requires an activity type".to_string(),
+                    node.id,
+                ));
+            }
+            if config.retry_policy.max_attempts.is_none()
+                || config.retry_policy.max_attempts.is_some_and(|a| a < 1)
+            {
+                issues.push(ValidationIssue::warning_for_node(
+                    "DAG Activity should have max_attempts >= 1".to_string(),
+                    node.id,
+                ));
+            }
+            if config.retry_policy.backoff_ms.is_none()
+                || config.retry_policy.backoff_ms.is_some_and(|b| b == 0)
+            {
+                issues.push(ValidationIssue::warning_for_node(
+                    "DAG Activity should have backoff_ms > 0".to_string(),
+                    node.id,
+                ));
+            }
+        }
+        WorkflowNode::DagFanOut(config) => {
+            if config.branch_count.is_none() || config.branch_count.is_some_and(|b| b < 2) {
+                issues.push(ValidationIssue::warning_for_node(
+                    "DAG FanOut should have branch_count >= 2".to_string(),
+                    node.id,
+                ));
+            }
+        }
+        WorkflowNode::DagFanIn(_) => {}
         WorkflowNode::Run(_) | WorkflowNode::Compensate(_) => {}
     }
 }
@@ -601,6 +640,53 @@ fn get_input_port_type(node: &Node) -> Option<PortType> {
     workflow_node_from_persisted(node)
         .ok()
         .map(|workflow_node| workflow_node.input_port_type())
+}
+
+fn validate_dag_edges(workflow: &Workflow, issues: &mut Vec<ValidationIssue>) {
+    for node in &workflow.nodes {
+        let workflow_node_result = workflow_node_from_persisted(node);
+        let workflow_node = match workflow_node_result {
+            Ok(wn) => wn,
+            Err(_) => continue,
+        };
+
+        match workflow_node {
+            WorkflowNode::DagFanOut(config) => {
+                let outgoing_count = workflow
+                    .connections
+                    .iter()
+                    .filter(|c| c.source == node.id)
+                    .count();
+                let expected = config.branch_count();
+                if outgoing_count != expected {
+                    issues.push(ValidationIssue::error_for_node(
+                        format!(
+                            "DAG FanOut has {} outgoing edges but branch_count is {}",
+                            outgoing_count, expected
+                        ),
+                        node.id,
+                    ));
+                }
+            }
+            WorkflowNode::DagFanIn(_) => {
+                let incoming_count = workflow
+                    .connections
+                    .iter()
+                    .filter(|c| c.target == node.id)
+                    .count();
+                if incoming_count < 2 {
+                    issues.push(ValidationIssue::error_for_node(
+                        format!(
+                            "DAG FanIn has {} incoming edges but requires at least 2",
+                            incoming_count
+                        ),
+                        node.id,
+                    ));
+                }
+            }
+            _ => {}
+        }
+    }
 }
 
 #[cfg(test)]
