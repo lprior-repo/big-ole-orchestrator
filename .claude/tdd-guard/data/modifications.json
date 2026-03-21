@@ -1,0 +1,12 @@
+{
+  "session_id": "1df17acd-9a98-4674-9dbf-55efc6841cfb",
+  "transcript_path": "/home/lewis/.claude/projects/-home-lewis-src-wtf-engine/1df17acd-9a98-4674-9dbf-55efc6841cfb.jsonl",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Edit",
+  "tool_input": {
+    "file_path": "/home/lewis/src/wtf-engine/crates/wtf-actor/src/procedural.rs",
+    "old_string": "use std::collections::{HashMap, HashSet};\n\nuse bytes::Bytes;\nuse serde::{Deserialize, Serialize};\nuse wtf_common::{ActivityId, InstanceId, WorkflowEvent};",
+    "new_string": "use std::collections::{HashMap, HashSet};\nuse std::sync::Arc;\nuse std::sync::atomic::{AtomicU32, Ordering};\n\nuse bytes::Bytes;\nuse serde::{Deserialize, Serialize};\nuse wtf_common::{ActivityId, InstanceId, WorkflowEvent};",
+    "replace_all": false
+  }
+}

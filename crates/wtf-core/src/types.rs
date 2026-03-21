@@ -1,15 +1,7 @@
-//! types.rs - Core type definitions for wtf-core
+//! Core type stubs — concrete types are defined in subsequent beads.
 
-use std::sync::Arc;
-
-// Placeholder - actual types to be defined in subsequent beads
+/// Placeholder for the petgraph-backed workflow DAG (implemented in wtf-core dag bead).
 pub struct WorkflowGraph;
 
-// InstanceConfig holds runtime configuration for a workflow instance
-pub struct InstanceConfig {
-    pub invocation_id: String,
-    pub input: Vec<u8>,
-    pub storage: Arc<sled::Db>,
-}
-
-pub struct JournalCursor(pub u32);
+/// Byte offset into a JetStream stream (used during replay).
+pub struct JournalCursor(pub u64);

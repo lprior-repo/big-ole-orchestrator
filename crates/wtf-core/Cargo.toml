@@ -27,7 +27,6 @@ uuid = { workspace = true }
 chrono = { workspace = true }
 tracing = { workspace = true }
 tap = { workspace = true }
-sled = { workspace = true }
 
 [dev-dependencies]
 tokio-test = "0.4"

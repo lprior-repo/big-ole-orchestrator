@@ -9,11 +9,12 @@ wtf-common = { path = "../wtf-common" }
 wtf-core = { path = "../wtf-core" }
 wtf-storage = { path = "../wtf-storage" }
 
+# External (accessed through wtf-storage types)
+async-nats = { workspace = true }
+sled = "0.34"
+
 # Actor framework
 ractor = { workspace = true, features = ["async-trait"] }
-
-# Embedded database
-sled = { workspace = true }
 
 # Async
 tokio = { workspace = true }
@@ -23,6 +24,7 @@ async-trait = { workspace = true }
 # Serialization
 serde = { workspace = true }
 serde_json = { workspace = true }
+rmp-serde = { workspace = true }
 
 # Utilities
 thiserror = { workspace = true }
@@ -30,6 +32,8 @@ anyhow = { workspace = true }
 chrono = { workspace = true }
 tracing = { workspace = true }
 ulid = { workspace = true }
+bytes = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
+tokio = { workspace = true, features = ["test-util"] }

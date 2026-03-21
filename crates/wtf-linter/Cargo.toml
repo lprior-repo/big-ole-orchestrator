@@ -1,0 +1,17 @@
+[package]
+name = "wtf-linter"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+# AST parsing and walking (ADR-020)
+syn = { workspace = true }
+quote = { workspace = true }
+
+# Utilities
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+[dev-dependencies]
+rstest = { workspace = true }

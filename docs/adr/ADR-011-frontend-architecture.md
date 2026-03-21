@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted
+Superseded by ADR-018 (Dioxus Compiler Control Plane)
+
+The Oya fork approach is abandoned. The frontend is rebuilt from scratch in Dioxus (Rust). This is not a downgrade — it is a fundamental architectural elevation: the Dioxus application is a *compiler*, not just a dashboard. It traverses user-designed workflow graphs and emits deterministic Rust source code (state enums, event enums, reducer match arms) that the engine executes natively. The real-time monitor still exists (live overlays on the same graph, event log timeline, time-travel scrubber) but is implemented via NATS KV watch proxied through an axum SSE endpoint, not HTTP polling. See ADR-018 for the full design.
 
 ## Context
 

@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted
+Amended by ADR-013, ADR-014, ADR-019
+
+sled is no longer the primary source of truth. NATS JetStream (ADR-013) is the immutable event log. NATS KV (ADR-014) is the materialized view. sled is retained exclusively as the **local snapshot store** (ADR-019): it caches derived state at known event sequence numbers so recovery can replay only the tail of the log rather than from seq=1. The original rationale for sled (single binary, no external process) still holds for the snapshot role.
 
 ## Context
 

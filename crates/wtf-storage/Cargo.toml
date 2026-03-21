@@ -7,8 +7,11 @@ license.workspace = true
 [dependencies]
 wtf-common = { path = "../wtf-common" }
 
-# Database
-sled = { workspace = true }
+# Embedded snapshot store (NOT source of truth — see ADR-019)
+sled = "0.34"
+
+# NATS (source of truth — JetStream event log + KV materialized view)
+async-nats = { workspace = true }
 
 # Async
 tokio = { workspace = true }
@@ -18,9 +21,17 @@ futures = { workspace = true }
 # Serialization
 serde = { workspace = true }
 serde_json = { workspace = true }
+rmp-serde = { workspace = true }
+
+# Checksum for snapshot integrity (ADR-019)
+crc32fast = { workspace = true }
 
 # Utilities
 thiserror = { workspace = true }
 anyhow = { workspace = true }
 chrono = { workspace = true }
 tracing = { workspace = true }
+bytes = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

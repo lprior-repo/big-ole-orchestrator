@@ -1,0 +1,10 @@
+/target
+**/*.rs.bk
+Cargo.lock
+
+# Dolt database files (added by bd init)
+.dolt/
+*.db
+
+# macOS
+.DS_Store

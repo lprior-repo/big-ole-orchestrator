@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted
+Superseded by ADR-013 (NATS JetStream Event Log) and ADR-016 (Deterministic Replay Model)
+
+The journal concept is correct but the storage backend changed. The append-only event log now lives in NATS JetStream (replicated, durable, ordered), not sled. The `JournalEntry` enum is replaced by the typed `WorkflowEvent` enum defined in ADR-013. The replay algorithm described here is preserved in ADR-016 with the critical addition of the write-ahead guarantee: events are committed to JetStream *before* side effects execute, not after.
 
 ## Context
 

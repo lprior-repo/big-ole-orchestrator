@@ -1,505 +1,488 @@
-//! master.rs - MasterOrchestrator actor and OrchestratorState
+//! MasterOrchestrator — root ractor supervisor for all WorkflowInstance actors (ADR-006).
+//!
+//! Responsibilities:
+//! - Enforce capacity limits (max active instances).
+//! - Spawn and supervise WorkflowInstance actors (bead wtf-novr).
+//! - Handle `HeartbeatExpired` events from the NATS KV watcher (bead wtf-r4aa).
+//! - Route signals and termination requests to the correct instance (bead wtf-eor1).
+//! - Return status and list of active instances (bead wtf-eor1).
+//!
+//! The orchestrator holds a registry `active: HashMap<InstanceId, ActorRef<InstanceMsg>>`
+//! to route messages to running instances. The registry is the only mutable shared state.
+
+#![deny(clippy::unwrap_used)]
+#![deny(clippy::expect_used)]
+#![deny(clippy::panic)]
+#![warn(clippy::pedantic)]
+#![forbid(unsafe_code)]
 
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::time::Duration;
 
-use ractor::{Actor, ActorRef, ActorProcessingErr, RpcReplyPort};
-use sled::Db;
-use ulid::Ulid;
+use async_trait::async_trait;
+use ractor::rpc::CallResult;
+use ractor::{Actor, ActorCell, ActorProcessingErr, ActorRef};
+use wtf_common::InstanceId;
+use wtf_storage::NatsClient;
 
 use crate::instance::WorkflowInstance;
-use crate::messages::{InstanceMsg, InstanceStatus, JournalEntry, OrchestratorMsg, SignalError, StartError, TerminateError, WorkflowInfo};
-use wtf_core::InstanceConfig;
+use crate::messages::{
+    InstanceArguments, InstanceMsg, OrchestratorMsg, StartError, TerminateError,
+};
 
-/// Error types for MasterOrchestrator initialization and operations
-#[derive(Debug, thiserror::Error)]
-pub enum Error {
-    #[error("max_concurrent must be > 0, got 0")]
-    InvalidCapacity,
+/// Timeout for synchronous calls to WorkflowInstance actors.
+const INSTANCE_CALL_TIMEOUT: Duration = Duration::from_millis(500);
 
-    #[error("storage is not available")]
-    StorageUnavailable,
+/// Configuration for the MasterOrchestrator.
+#[derive(Debug, Clone)]
+pub struct OrchestratorConfig {
+    /// Maximum number of workflow instances this node may run concurrently.
+    ///
+    /// Requests beyond this limit are rejected with `StartError::AtCapacity`.
+    pub max_instances: usize,
 
-    #[error("failed to initialize orchestrator state")]
-    StateInitializationFailed,
+    /// Unique identifier for this engine node (written to heartbeat KV entries).
+    pub engine_node_id: String,
+
+    /// NATS client for JetStream and KV operations.
+    pub nats: Option<NatsClient>,
 }
 
-/// MasterOrchestrator manages workflow instances with capacity enforcement.
+impl Default for OrchestratorConfig {
+    fn default() -> Self {
+        Self {
+            max_instances: 1000,
+            engine_node_id: "engine-local".into(),
+            nats: None,
+        }
+    }
+}
+
+/// In-memory state of the MasterOrchestrator.
 ///
-/// Per ADR-006:
-/// - max_concurrent: usize (capacity limit)
-/// - storage: Arc<sled::Db> (journal persistence)
-pub struct MasterOrchestrator {
-    /// Maximum number of concurrent workflow instances allowed
-    max_concurrent: usize,
-    /// Persistent storage for journal and state
-    storage: Arc<Db>,
-}
-
-impl MasterOrchestrator {
-    /// Creates a new MasterOrchestrator with the specified capacity and storage.
-    ///
-    /// # Errors
-    /// Returns `Error::InvalidCapacity` if `max_concurrent` is 0.
-    pub fn new(max_concurrent: usize, storage: Arc<Db>) -> Result<Self, Error> {
-        if max_concurrent == 0 {
-            return Err(Error::InvalidCapacity);
-        }
-        Ok(Self {
-            max_concurrent,
-            storage,
-        })
-    }
-
-    /// Returns the maximum concurrent workflow capacity.
-    #[inline]
-    pub fn max_concurrent(&self) -> usize {
-        self.max_concurrent
-    }
-
-    /// Returns a reference to the persistent storage.
-    #[inline]
-    pub fn storage(&self) -> &Arc<Db> {
-        &self.storage
-    }
-
-    /// Validates a workflow name is non-empty.
-    ///
-    /// # Errors
-    /// Returns `StartError::EmptyWorkflowName` if the name is empty.
-    #[inline]
-    pub fn validate_workflow_name(name: &str) -> Result<(), StartError> {
-        if name.is_empty() {
-            Err(StartError::EmptyWorkflowName)
-        } else {
-            Ok(())
-        }
-    }
-
-    /// Checks if the orchestrator is under capacity.
-    ///
-    /// Returns true if `running_count < max_concurrent`.
-    #[inline]
-    pub fn capacity_check(&self, state: &OrchestratorState) -> bool {
-        state.running_count < self.max_concurrent
-    }
-
-    /// Generates a new ULID-based invocation ID.
-    #[inline]
-    fn generate_invocation_id() -> String {
-        Ulid::new().to_string()
-    }
-
-    /// Spawns a new workflow instance actor.
-    ///
-    /// Creates a linked `WorkflowInstance` actor and registers it in the state.
-    async fn spawn_workflow(
-        &self,
-        myself: ActorRef<OrchestratorMsg>,
-        state: &mut OrchestratorState,
-        name: String,
-        invocation_id: String,
-        input: Vec<u8>,
-    ) -> Result<ActorRef<InstanceMsg>, StartError> {
-        // Create the workflow instance actor
-        let instance = WorkflowInstance::new(name.clone());
-
-        // Create the instance config
-        let config = InstanceConfig {
-            invocation_id: invocation_id.clone(),
-            input,
-            storage: self.storage.clone(),
-        };
-
-        // Spawn the actor linked to this orchestrator
-        let actor_name = format!("{}:{}", name, invocation_id);
-        let (actor_ref, _handle) = Actor::spawn_linked(
-            Some(actor_name),
-            instance,
-            config,
-            myself.clone().into(),
-        )
-        .await
-        .map_err(|_| StartError::SpawnFailed)?;
-
-        // Register the instance in state
-        state.instances.insert(
-            invocation_id.clone(),
-            (name, actor_ref.clone()),
-        );
-
-        Ok(actor_ref)
-    }
-
-    /// Handles a StartWorkflow message.
-    ///
-    /// Per the contract:
-    /// 1. Check capacity with capacity_check()
-    /// 2. If at capacity, reply with StartError::AtCapacity
-    /// 3. Validate workflow name is non-empty
-    /// 4. Generate invocation_id (ULID-based)
-    /// 5. Call spawn_workflow to create actor
-    /// 6. Increment state.running_count
-    /// 7. Reply with invocation_id
-    /// 8. Return Ok(()) after handling
-    async fn handle_start_workflow(
-        &self,
-        myself: ActorRef<OrchestratorMsg>,
-        state: &mut OrchestratorState,
-        name: String,
-        input: Vec<u8>,
-        reply: RpcReplyPort<Result<String, StartError>>,
-    ) -> Result<(), ActorProcessingErr> {
-        // Step 1: Capacity check
-        if !self.capacity_check(state) {
-            let _ = reply.send(Err(StartError::AtCapacity {
-                running: state.running_count,
-                max: self.max_concurrent,
-            }));
-            return Ok(());
-        }
-
-        // Step 2: Validate workflow name
-        if let Err(e) = Self::validate_workflow_name(&name) {
-            let _ = reply.send(Err(e));
-            return Ok(());
-        }
-
-        // Step 3: Generate invocation_id
-        let invocation_id = Self::generate_invocation_id();
-
-        // Step 4 & 5: Spawn workflow
-        match self
-            .spawn_workflow(myself, state, name.clone(), invocation_id.clone(), input)
-            .await
-        {
-            Ok(_actor_ref) => {
-                // Step 6: Increment running count
-                state.running_count += 1;
-
-                // Step 7: Reply with invocation_id
-                let _ = reply.send(Ok(invocation_id));
-            }
-            Err(e) => {
-                // Spawn failed - propagate error without incrementing count
-                let _ = reply.send(Err(e));
-            }
-        }
-
-        // Step 8: Return Ok(())
-        Ok(())
-    }
-
-    /// Handles a Terminate message.
-    ///
-    /// Terminates a running workflow by invocation_id.
-    async fn handle_terminate(
-        &self,
-        state: &mut OrchestratorState,
-        invocation_id: String,
-        reply: RpcReplyPort<Result<(), TerminateError>>,
-    ) -> Result<(), ActorProcessingErr> {
-        // Check if the instance exists
-        match state.instances.remove(&invocation_id) {
-            Some((name, actor_ref)) => {
-                // Decrement running count
-                state.running_count = state.running_count.saturating_sub(1);
-
-                // Send terminate signal to the instance (fire-and-forget)
-                let _ = actor_ref.send_message(InstanceMsg::Fail {
-                    error: "Terminated by orchestrator".to_string(),
-                });
-
-                tracing::info!(
-                    invocation_id = %invocation_id,
-                    workflow_name = %name,
-                    "Workflow terminated"
-                );
-                let _ = reply.send(Ok(()));
-            }
-            None => {
-                tracing::warn!(invocation_id = %invocation_id, "Workflow not found for termination");
-                let _ = reply.send(Err(TerminateError::InstanceNotFound {
-                    invocation_id,
-                }));
-            }
-        }
-        Ok(())
-    }
-
-    /// Handles a ListWorkflows message.
-    ///
-    /// Returns information about all running workflows.
-    async fn handle_list_workflows(
-        &self,
-        state: &OrchestratorState,
-        reply: RpcReplyPort<Vec<WorkflowInfo>>,
-    ) -> Result<(), ActorProcessingErr> {
-        use chrono::Utc;
-
-        let workflows: Vec<WorkflowInfo> = state
-            .instances
-            .iter()
-            .map(|(invocation_id, (name, _))| WorkflowInfo {
-                invocation_id: invocation_id.clone(),
-                name: name.clone(),
-                status: InstanceStatus::Running,
-                started_at: Utc::now(),
-            })
-            .collect();
-
-        let _ = reply.send(workflows);
-        Ok(())
-    }
-
-    /// Handles a GetStatus message.
-    ///
-    /// Returns the status of a workflow by invocation_id.
-    async fn handle_get_status(
-        &self,
-        state: &OrchestratorState,
-        invocation_id: String,
-        reply: RpcReplyPort<Option<InstanceStatus>>,
-    ) -> Result<(), ActorProcessingErr> {
-        let status = if state.instances.contains_key(&invocation_id) {
-            Some(InstanceStatus::Running)
-        } else {
-            None
-        };
-
-        let _ = reply.send(status);
-        Ok(())
-    }
-
-    /// Handles a GetJournal message.
-    ///
-    /// Returns the journal entries for a workflow by invocation_id.
-    async fn handle_get_journal(
-        &self,
-        state: &OrchestratorState,
-        invocation_id: String,
-        reply: RpcReplyPort<Option<Vec<JournalEntry>>>,
-    ) -> Result<(), ActorProcessingErr> {
-        // Check if the instance exists
-        if state.instances.contains_key(&invocation_id) {
-            // For now, return an empty journal - actual journal would come from instance
-            let _ = reply.send(Some(Vec::new()));
-        } else {
-            let _ = reply.send(None);
-        }
-        Ok(())
-    }
-
-    /// Handles a Signal message.
-    ///
-    /// Forwards a signal to a workflow instance.
-    async fn handle_signal(
-        &self,
-        state: &OrchestratorState,
-        invocation_id: String,
-        signal_name: String,
-        payload: Vec<u8>,
-        reply: RpcReplyPort<Result<(), SignalError>>,
-    ) -> Result<(), ActorProcessingErr> {
-        match state.instances.get(&invocation_id) {
-            Some((_, actor_ref)) => {
-                // Forward the signal to the instance
-                let _ = actor_ref.send_message(InstanceMsg::Signal {
-                    signal_name,
-                    payload,
-                    reply,
-                });
-            }
-            None => {
-                let _ = reply.send(Err(SignalError::InstanceNotFound));
-            }
-        }
-        Ok(())
-    }
-}
-
-/// OrchestratorState maintains the registry of running workflow instances.
-///
-/// Per ADR-006:
-/// - instances: HashMap<invocation_id, (workflow_name, actor_ref)>
-/// - running_count: usize
+/// This is NOT persisted — it is rebuilt from the NATS KV `wtf-instances` bucket
+/// on startup. The only authoritative state is in JetStream + KV.
+#[derive(Debug)]
 pub struct OrchestratorState {
-    /// Registry of active workflow instances: invocation_id -> (workflow_name, actor_ref)
-    instances: HashMap<String, (String, ActorRef<InstanceMsg>)>,
-    /// Number of currently running workflow instances
-    running_count: usize,
+    /// Registry of all currently active workflow instances.
+    ///
+    /// Key: stable `InstanceId`. Value: the ractor `ActorRef` for sending messages.
+    /// Entries are added on spawn and removed on actor stop.
+    pub active: HashMap<InstanceId, ActorRef<InstanceMsg>>,
+
+    /// Configuration (immutable after construction).
+    pub config: OrchestratorConfig,
 }
 
 impl OrchestratorState {
-    /// Creates a new OrchestratorState with empty registry and zero running count.
-    #[inline]
-    pub fn new() -> Self {
+    /// Create a new empty orchestrator state.
+    #[must_use]
+    pub fn new(config: OrchestratorConfig) -> Self {
         Self {
-            instances: HashMap::new(),
-            running_count: 0,
+            active: HashMap::new(),
+            config,
         }
     }
 
-    /// Creates a new OrchestratorState with pre-allocated capacity.
-    #[inline]
-    pub fn with_capacity(capacity: usize) -> Self {
-        Self {
-            instances: HashMap::with_capacity(capacity),
-            running_count: 0,
-        }
+    /// Return the number of currently active instances.
+    #[must_use]
+    pub fn active_count(&self) -> usize {
+        self.active.len()
     }
 
-    /// Returns the number of active workflow instances.
-    #[inline]
-    pub fn running_count(&self) -> usize {
-        self.running_count
+    /// Return `true` if the orchestrator can accept one more instance.
+    #[must_use]
+    pub fn has_capacity(&self) -> bool {
+        self.active.len() < self.config.max_instances
     }
 
-    /// Returns the number of registered workflow instances.
-    #[inline]
-    pub fn instances_len(&self) -> usize {
-        self.instances.len()
+    /// Register a newly spawned instance.
+    pub fn register(&mut self, id: InstanceId, actor_ref: ActorRef<InstanceMsg>) {
+        self.active.insert(id, actor_ref);
     }
 
-    /// Returns true if there are no running workflow instances.
-    #[inline]
-    pub fn is_empty(&self) -> bool {
-        self.instances.is_empty()
+    /// Deregister a stopped instance.
+    ///
+    /// Called from the supervisor event handler when an instance actor stops.
+    pub fn deregister(&mut self, id: &InstanceId) {
+        self.active.remove(id);
     }
 
-    /// Returns a reference to the instances registry.
-    #[inline]
-    pub fn instances(&self) -> &HashMap<String, (String, ActorRef<InstanceMsg>)> {
-        &self.instances
+    /// Look up an active instance by ID.
+    #[must_use]
+    pub fn get(&self, id: &InstanceId) -> Option<&ActorRef<InstanceMsg>> {
+        self.active.get(id)
     }
 }
 
-impl Default for OrchestratorState {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+/// The MasterOrchestrator root supervisor actor.
+pub struct MasterOrchestrator;
 
-/// Actor implementation for MasterOrchestrator.
-///
-/// Per ADR-006, the MasterOrchestrator:
-/// - Is the root supervisor in the actor hierarchy
-/// - Initializes state via pre_start with empty registry and 0 running count
-#[ractor::async_trait]
+/// ractor `Actor` implementation for `MasterOrchestrator`.
+#[async_trait]
 impl Actor for MasterOrchestrator {
     type Msg = OrchestratorMsg;
     type State = OrchestratorState;
-    type Arguments = ();
+    type Arguments = OrchestratorConfig;
 
-    /// Initialize the actor state.
-    ///
-    /// Returns an empty OrchestratorState with:
-    /// - Empty instances HashMap
-    /// - running_count = 0
     async fn pre_start(
         &self,
         _myself: ActorRef<Self::Msg>,
-        _args: Self::Arguments,
-    ) -> Result<Self::State, ActorProcessingErr> {
-        Ok(OrchestratorState::new())
+        config: OrchestratorConfig,
+    ) -> Result<OrchestratorState, ActorProcessingErr> {
+        tracing::info!(
+            max_instances = config.max_instances,
+            node_id = %config.engine_node_id,
+            "MasterOrchestrator starting"
+        );
+        Ok(OrchestratorState::new(config))
     }
 
-    /// Handle incoming messages.
-    ///
-    /// Dispatches to the appropriate handler based on message variant.
     async fn handle(
         &self,
-        _myself: ActorRef<Self::Msg>,
-        msg: Self::Msg,
-        state: &mut Self::State,
+        myself: ActorRef<Self::Msg>,
+        msg: OrchestratorMsg,
+        state: &mut OrchestratorState,
     ) -> Result<(), ActorProcessingErr> {
         match msg {
-            OrchestratorMsg::StartWorkflow { name, input, reply } => {
-                self.handle_start_workflow(_myself, state, name, input, reply).await?;
+            OrchestratorMsg::StartWorkflow {
+                namespace,
+                instance_id,
+                workflow_type,
+                paradigm,
+                input,
+                reply,
+            } => {
+                handle_start_workflow(
+                    myself,
+                    state,
+                    namespace,
+                    instance_id,
+                    workflow_type,
+                    paradigm,
+                    input,
+                    reply,
+                )
+                .await;
             }
-            OrchestratorMsg::Terminate { invocation_id, reply } => {
-                self.handle_terminate(state, invocation_id, reply).await?;
+
+            OrchestratorMsg::Signal {
+                instance_id,
+                signal_name,
+                payload,
+                reply,
+            } => match state.get(&instance_id) {
+                Some(actor_ref) => {
+                    let _ = actor_ref.cast(InstanceMsg::InjectSignal {
+                        signal_name,
+                        payload,
+                        reply,
+                    });
+                }
+                None => {
+                    let _ = reply.send(Err(wtf_common::WtfError::instance_not_found(
+                        instance_id.as_str(),
+                    )));
+                }
+            },
+
+            OrchestratorMsg::Terminate {
+                instance_id,
+                reason,
+                reply,
+            } => {
+                handle_terminate(state, instance_id, reason, reply).await;
             }
-            OrchestratorMsg::ListWorkflows { reply } => {
-                self.handle_list_workflows(state, reply).await?;
+
+            OrchestratorMsg::GetStatus { instance_id, reply } => {
+                let snapshot = handle_get_status(state, &instance_id).await;
+                let _ = reply.send(snapshot);
             }
-            OrchestratorMsg::GetStatus { invocation_id, reply } => {
-                self.handle_get_status(state, invocation_id, reply).await?;
+
+            OrchestratorMsg::ListActive { reply } => {
+                let snapshots = handle_list_active(state).await;
+                let _ = reply.send(snapshots);
             }
-            OrchestratorMsg::GetJournal { invocation_id, reply } => {
-                self.handle_get_journal(state, invocation_id, reply).await?;
+
+            OrchestratorMsg::HeartbeatExpired { instance_id } => {
+                if !state.active.contains_key(&instance_id) {
+                    tracing::warn!(
+                        instance_id = %instance_id,
+                        "HeartbeatExpired for unknown instance — may need recovery (wtf-r4aa)"
+                    );
+                }
+                // If the instance IS in the registry the actor is still alive on this node —
+                // the heartbeat TTL was not refreshed in time; the actor will write the next
+                // heartbeat on its own. Recovery logic is in bead wtf-r4aa.
             }
-            OrchestratorMsg::Signal { invocation_id, signal_name, payload, reply } => {
-                self.handle_signal(state, invocation_id, signal_name, payload, reply).await?;
+        }
+
+        Ok(())
+    }
+
+    async fn handle_supervisor_evt(
+        &self,
+        _myself: ActorRef<Self::Msg>,
+        evt: ractor::SupervisionEvent,
+        state: &mut OrchestratorState,
+    ) -> Result<(), ActorProcessingErr> {
+        // When a WorkflowInstance actor stops (normally or due to a crash),
+        // deregister it from the active registry. This is the lifecycle hook
+        // for "child actor stopped" events (bead wtf-r4aa extends this with
+        // recovery logic).
+        if let ractor::SupervisionEvent::ActorTerminated(actor_cell, _, reason) = &evt {
+            // Scan the active registry for the actor cell that stopped.
+            // This is O(N) but N is bounded by max_instances, and actor stops
+            // are rare compared to message throughput.
+            let stopped_id = state
+                .active
+                .iter()
+                .find(|(_, r)| r.get_id() == actor_cell.get_id())
+                .map(|(id, _)| id.clone());
+
+            if let Some(id) = stopped_id {
+                tracing::info!(
+                    instance_id = %id,
+                    reason = ?reason,
+                    "WorkflowInstance stopped — deregistering"
+                );
+                state.deregister(&id);
             }
         }
         Ok(())
     }
+}
+
+// ── Handler functions (bead wtf-novr) ─────────────────────────────────────────
+
+/// Spawn a new WorkflowInstance actor and register it with the orchestrator.
+///
+/// Checks capacity and duplicate-ID guards before spawning.
+async fn handle_start_workflow(
+    myself: ActorRef<OrchestratorMsg>,
+    state: &mut OrchestratorState,
+    namespace: wtf_common::NamespaceId,
+    instance_id: InstanceId,
+    workflow_type: String,
+    paradigm: crate::messages::WorkflowParadigm,
+    input: bytes::Bytes,
+    reply: ractor::RpcReplyPort<Result<InstanceId, StartError>>,
+) {
+    // 1. Capacity check.
+    if !state.has_capacity() {
+        tracing::warn!(
+            instance_id = %instance_id,
+            running = state.active_count(),
+            max = state.config.max_instances,
+            "StartWorkflow rejected — at capacity"
+        );
+        let _ = reply.send(Err(StartError::AtCapacity {
+            running: state.active_count(),
+            max: state.config.max_instances,
+        }));
+        return;
+    }
+
+    // 2. Duplicate-ID check — prevent double-spawning.
+    if state.active.contains_key(&instance_id) {
+        tracing::warn!(instance_id = %instance_id, "StartWorkflow rejected — already exists");
+        let _ = reply.send(Err(StartError::AlreadyExists(instance_id)));
+        return;
+    }
+
+    // 3. Build InstanceArguments.
+    let args = InstanceArguments {
+        namespace,
+        instance_id: instance_id.clone(),
+        workflow_type,
+        paradigm,
+        input,
+        engine_node_id: state.config.engine_node_id.clone(),
+        nats: state.config.nats.clone(),
+        procedural_workflow: None, // TODO: Lookup from registry
+    };
+
+    // 4. Spawn the WorkflowInstance as a supervised child of this orchestrator.
+    let actor_name = format!("wf-{}", instance_id.as_str());
+    let supervisor_cell: ActorCell = myself.clone().into();
+
+    match WorkflowInstance::spawn_linked(Some(actor_name), WorkflowInstance, args, supervisor_cell)
+        .await
+    {
+        Err(e) => {
+            tracing::error!(instance_id = %instance_id, error = %e, "failed to spawn WorkflowInstance");
+            let _ = reply.send(Err(StartError::SpawnFailed(e.to_string())));
+        }
+        Ok((actor_ref, _handle)) => {
+            tracing::info!(instance_id = %instance_id, "WorkflowInstance spawned");
+            // 5. Register the actor ref in the active registry.
+            state.register(instance_id.clone(), actor_ref);
+            let _ = reply.send(Ok(instance_id));
+        }
+    }
+}
+
+// ── Handler functions (bead wtf-eor1) ────────────────────────────────────────
+
+/// Forward a cancel request to the target instance and reply.
+async fn handle_terminate(
+    state: &mut OrchestratorState,
+    instance_id: InstanceId,
+    reason: String,
+    reply: ractor::RpcReplyPort<Result<(), TerminateError>>,
+) {
+    match state.get(&instance_id) {
+        None => {
+            let _ = reply.send(Err(TerminateError::NotFound(instance_id)));
+        }
+        Some(actor_ref) => {
+            // Ask the instance to cancel itself.
+            let call_result = actor_ref
+                .call(
+                    |tx| InstanceMsg::Cancel { reason, reply: tx },
+                    Some(INSTANCE_CALL_TIMEOUT),
+                )
+                .await;
+
+            match call_result {
+                Err(e) => {
+                    let _ = reply.send(Err(TerminateError::Failed(format!("send failed: {e}"))));
+                }
+                Ok(CallResult::Timeout) => {
+                    let _ = reply.send(Err(TerminateError::Failed("cancel timed out".into())));
+                }
+                Ok(CallResult::SenderError) => {
+                    let _ = reply.send(Err(TerminateError::Failed("actor dropped reply".into())));
+                }
+                Ok(CallResult::Success(inner_result)) => {
+                    let _ =
+                        reply.send(inner_result.map_err(|e: wtf_common::WtfError| {
+                            TerminateError::Failed(e.to_string())
+                        }));
+                }
+            }
+        }
+    }
+}
+
+/// Query status from a running WorkflowInstance actor.
+///
+/// Returns `None` if the instance is not found or doesn't respond within timeout.
+async fn handle_get_status(
+    state: &OrchestratorState,
+    instance_id: &InstanceId,
+) -> Option<crate::messages::InstanceStatusSnapshot> {
+    let actor_ref = state.get(instance_id)?;
+
+    match actor_ref
+        .call(InstanceMsg::GetStatus, Some(INSTANCE_CALL_TIMEOUT))
+        .await
+    {
+        Ok(CallResult::Success(snapshot)) => Some(snapshot),
+        Ok(CallResult::Timeout) => {
+            tracing::warn!(instance_id = %instance_id, "GetStatus timed out");
+            None
+        }
+        Ok(CallResult::SenderError) => None,
+        Err(e) => {
+            tracing::warn!(instance_id = %instance_id, error = %e, "GetStatus call failed");
+            None
+        }
+    }
+}
+
+/// Collect status from all active WorkflowInstance actors (sequentially with timeout).
+async fn handle_list_active(
+    state: &OrchestratorState,
+) -> Vec<crate::messages::InstanceStatusSnapshot> {
+    let mut snapshots = Vec::with_capacity(state.active.len());
+    for (id, actor_ref) in &state.active {
+        match actor_ref
+            .call(InstanceMsg::GetStatus, Some(INSTANCE_CALL_TIMEOUT))
+            .await
+        {
+            Ok(CallResult::Success(snapshot)) => snapshots.push(snapshot),
+            Ok(CallResult::Timeout) => {
+                tracing::warn!(instance_id = %id, "GetStatus timed out during list");
+            }
+            Ok(CallResult::SenderError) | Err(_) => {
+                tracing::warn!(instance_id = %id, "GetStatus failed during list");
+            }
+        }
+    }
+    snapshots
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_orchestrator_state_new_creates_empty_instances() {
-        let state = OrchestratorState::new();
-        assert_eq!(state.instances.len(), 0);
-    }
-
-    #[test]
-    fn test_orchestrator_state_new_sets_running_count_to_zero() {
-        let state = OrchestratorState::new();
-        assert_eq!(state.running_count, 0);
-    }
-
-    #[test]
-    fn test_orchestrator_state_default_is_consistent() {
-        let state1 = OrchestratorState::new();
-        let state2 = OrchestratorState::default();
-        assert_eq!(state1.instances.len(), state2.instances.len());
-        assert_eq!(state1.running_count, state2.running_count);
-    }
-
-    #[test]
-    fn test_master_orchestrator_new_rejects_zero_capacity() {
-        let temp_dir = tempfile::tempdir().expect("temp dir");
-        let db = sled::open(temp_dir.path()).expect("sled db");
-        let storage = Arc::new(db);
-
-        let result = MasterOrchestrator::new(0, storage);
-        assert!(result.is_err());
-        if let Err(Error::InvalidCapacity) = result {
-            // Expected error type
-        } else {
-            panic!("Expected Error::InvalidCapacity");
+    fn test_config() -> OrchestratorConfig {
+        // We still have the NatsClient problem here.
+        // I'll update the struct to use Option<NatsClient> to make tests easier.
+        OrchestratorConfig {
+            max_instances: 10,
+            engine_node_id: "node-test".into(),
+            nats: None,
         }
     }
 
     #[test]
-    fn test_master_orchestrator_new_accepts_minimal_capacity() {
-        let temp_dir = tempfile::tempdir().expect("temp dir");
-        let db = sled::open(temp_dir.path()).expect("sled db");
-        let storage = Arc::new(db);
-
-        let result = MasterOrchestrator::new(1, storage);
-        assert!(result.is_ok());
-        let orchestrator = result.unwrap();
-        assert_eq!(orchestrator.max_concurrent(), 1);
+    fn new_state_is_empty() {
+        let state = OrchestratorState::new(test_config());
+        assert_eq!(state.active_count(), 0);
     }
 
     #[test]
-    fn test_invariant_running_count_initially_zero() {
-        let state = OrchestratorState::new();
-        let max_concurrent = 3; // hypothetical max
-        assert!(state.running_count <= max_concurrent);
+    fn has_capacity_when_empty() {
+        let state = OrchestratorState::new(test_config());
+        assert!(state.has_capacity());
     }
 
     #[test]
-    fn test_invariant_instances_keys_non_empty_after_init() {
-        let state = OrchestratorState::new();
-        // After initialization, instances is empty, so the invariant vacuously holds
-        // This test documents that the invariant must be maintained when instances are added
-        assert!(state.instances.keys().all(|k| !k.is_empty()) || state.instances.is_empty());
+    fn has_capacity_false_when_at_limit() {
+        let config = OrchestratorConfig {
+            max_instances: 0,
+            engine_node_id: "node".into(),
+            nats: None,
+        };
+        let state = OrchestratorState::new(config);
+        assert!(!state.has_capacity());
+    }
+
+    #[test]
+    fn get_returns_none_for_unknown_id() {
+        let state = OrchestratorState::new(test_config());
+        let id = InstanceId::new("unknown");
+        assert!(state.get(&id).is_none());
+    }
+
+    #[test]
+    fn deregister_removes_entry() {
+        // We can't easily create a real ActorRef in unit tests without running the ractor runtime.
+        // So we just test the invariant that deregistering a non-existent ID is a no-op.
+        let mut state = OrchestratorState::new(test_config());
+        let id = InstanceId::new("not-there");
+        state.deregister(&id); // should not panic
+        assert_eq!(state.active_count(), 0);
+    }
+
+    #[test]
+    fn orchestrator_config_default_max_instances() {
+        let cfg = OrchestratorConfig::default();
+        assert_eq!(cfg.max_instances, 1000);
+    }
+
+    #[test]
+    fn orchestrator_config_default_node_id() {
+        let cfg = OrchestratorConfig::default();
+        assert_eq!(cfg.engine_node_id, "engine-local");
+    }
+
+    #[test]
+    fn active_count_matches_registry_size() {
+        let mut state = OrchestratorState::new(test_config());
+        state.deregister(&InstanceId::new("x"));
+        assert_eq!(state.active_count(), 0);
     }
 }

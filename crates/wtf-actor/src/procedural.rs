@@ -19,6 +19,9 @@
 
 use std::collections::{HashMap, HashSet};
 
+use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::Arc;
+
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use wtf_common::{ActivityId, InstanceId, WorkflowEvent};
@@ -284,12 +287,166 @@ pub fn apply_event(
     Ok(result)
 }
 
+use ractor::ActorRef;
+use crate::messages::InstanceMsg;
+
+/// Context passed to a procedural workflow function.
+///
+/// Provides methods for dispatching activities, sleeping, and managing
+/// state that is deterministic across replays.
+#[derive(Clone)]
+pub struct WorkflowContext {
+    pub instance_id: InstanceId,
+    pub op_counter: Arc<AtomicU32>,
+    pub myself: ActorRef<InstanceMsg>,
+}
+
+impl WorkflowContext {
+    /// Create a new context.
+    #[must_use]
+    pub fn new(instance_id: InstanceId, initial_op_counter: u32, myself: ActorRef<InstanceMsg>) -> Self {
+        Self {
+            instance_id,
+            op_counter: Arc::new(AtomicU32::new(initial_op_counter)),
+            myself,
+        }
+    }
+
+    /// Return the next deterministic operation ID for this instance.
+    #[must_use]
+    pub fn next_op_id(&self) -> ActivityId {
+        ActivityId::procedural(&self.instance_id, self.op_counter.load(Ordering::SeqCst))
+    }
+
+    /// Dispatch an activity and wait for its completion.
+    ///
+    /// If replaying, returns the cached result from the checkpoint map.
+    /// If live, dispatches to the worker queue and suspends the workflow task.
+    pub async fn activity(&self, activity_type: &str, payload: Bytes) -> anyhow::Result<Bytes> {
+        let op_id = self.op_counter.load(Ordering::SeqCst);
+
+        // 1. Check for checkpoint (Replay logic)
+        let checkpoint = self
+            .myself
+            .call(
+                |reply| InstanceMsg::GetProceduralCheckpoint {
+                    operation_id: op_id,
+                    reply,
+                },
+                None,
+            )
+            .await?;
+
+        let checkpoint = match checkpoint {
+            ractor::rpc::CallResult::Success(c) => c,
+            _ => anyhow::bail!("Actor call failed"),
+        };
+
+        if let Some(cp) = checkpoint {
+            // Found checkpoint — skip dispatch
+            self.op_counter.fetch_add(1, Ordering::SeqCst);
+            return Ok(cp.result);
+        }
+
+        // 2. Dispatch and wait (Live logic)
+        let result = self
+            .myself
+            .call(
+                |reply| InstanceMsg::ProceduralDispatch {
+                    activity_type: activity_type.to_owned(),
+                    payload,
+                    reply,
+                },
+                None,
+            )
+            .await?;
+
+        let result = match result {
+            ractor::rpc::CallResult::Success(r) => r?,
+            _ => anyhow::bail!("Actor call failed"),
+        };
+
+        self.op_counter.fetch_add(1, Ordering::SeqCst);
+        Ok(result)
+    }
+
+    /// Sleep for the given duration.
+    ///
+    /// Produces a `TimerScheduled` event and suspends the workflow task
+    /// until `TimerFired` is received.
+    pub async fn sleep(&self, duration: std::time::Duration) -> anyhow::Result<()> {
+        let op_id = self.op_counter.load(Ordering::SeqCst);
+
+        // 1. Check for checkpoint (Sleep also uses checkpoints for determinism)
+        let checkpoint = self
+            .myself
+            .call(
+                |reply| InstanceMsg::GetProceduralCheckpoint {
+                    operation_id: op_id,
+                    reply,
+                },
+                None,
+            )
+            .await?;
+
+        let checkpoint = match checkpoint {
+            ractor::rpc::CallResult::Success(c) => c,
+            _ => anyhow::bail!("Actor call failed"),
+        };
+
+        if checkpoint.is_some() {
+            self.op_counter.fetch_add(1, Ordering::SeqCst);
+            return Ok(());
+        }
+
+        // 2. Dispatch sleep and wait
+        let result = self
+            .myself
+            .call(
+                |reply| InstanceMsg::ProceduralSleep { duration, reply },
+                None,
+            )
+            .await?;
+
+        match result {
+            ractor::rpc::CallResult::Success(r) => r?,
+            _ => anyhow::bail!("Actor call failed"),
+        };
+
+        self.op_counter.fetch_add(1, Ordering::SeqCst);
+        Ok(())
+    }
+}
+
+/// A procedural workflow implementation.
+///
+/// This trait is implemented by workflow code that runs in the [`ProceduralActor`].
+#[async_trait::async_trait]
+pub trait WorkflowFn: std::fmt::Debug + Send + Sync + 'static {
+    /// Execute the workflow logic using the provided context.
+    async fn execute(&self, ctx: WorkflowContext) -> anyhow::Result<()>;
+}
+
+/// Runtime container for a procedural workflow and its current state.
+pub struct ProceduralActorRuntime {
+    pub state: ProceduralActorState,
+    pub workflow_fn: Box<dyn WorkflowFn>,
+}
+
+impl ProceduralActorRuntime {
+    /// Create a new runtime.
+    #[must_use]
+    pub fn new(state: ProceduralActorState, workflow_fn: Box<dyn WorkflowFn>) -> Self {
+        Self { state, workflow_fn }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use async_trait::async_trait;
-    use std::sync::Arc;
     use std::sync::atomic::{AtomicU32, Ordering};
+    use std::sync::Arc;
 
     fn dispatch(id: &str) -> WorkflowEvent {
         WorkflowEvent::ActivityDispatched {
@@ -475,10 +632,8 @@ mod tests {
         // next_op_id first call → "inst-01:0", second → "inst-01:1".
         let counter = Arc::new(AtomicU32::new(0));
         let instance_id = InstanceId::new("inst-01");
-        let id0 =
-            ActivityId::procedural(&instance_id, counter.fetch_add(1, Ordering::SeqCst));
-        let id1 =
-            ActivityId::procedural(&instance_id, counter.fetch_add(1, Ordering::SeqCst));
+        let id0 = ActivityId::procedural(&instance_id, counter.fetch_add(1, Ordering::SeqCst));
+        let id1 = ActivityId::procedural(&instance_id, counter.fetch_add(1, Ordering::SeqCst));
         assert_eq!(id0.as_str(), "inst-01:0");
         assert_eq!(id1.as_str(), "inst-01:1");
     }
@@ -491,5 +646,38 @@ mod tests {
         let _ = counter.fetch_add(1, Ordering::SeqCst);
         let _ = counter.fetch_add(1, Ordering::SeqCst);
         assert_eq!(counter2.load(Ordering::SeqCst), 2);
+    }
+
+    #[tokio::test]
+    async fn workflow_fn_trait_is_object_safe_and_boxable() {
+        // WorkflowFn must be object safe so we can store it in ProceduralActorRuntime.
+        #[derive(Debug)]
+        struct MyWorkflow;
+        #[async_trait]
+        impl WorkflowFn for MyWorkflow {
+            async fn execute(&self, _ctx: WorkflowContext) -> anyhow::Result<()> {
+                Ok(())
+            }
+        }
+
+        let _: Box<dyn WorkflowFn> = Box::new(MyWorkflow);
+    }
+
+    #[test]
+    fn procedural_actor_runtime_holds_state_and_fn() {
+        #[derive(Debug)]
+        struct MyWorkflow;
+        #[async_trait]
+        impl WorkflowFn for MyWorkflow {
+            async fn execute(&self, _ctx: WorkflowContext) -> anyhow::Result<()> { Ok(()) }
+        }
+
+        let state = ProceduralActorState::new();
+        let runtime = ProceduralActorRuntime::new(
+            state,
+            Box::new(MyWorkflow),
+        );
+
+        assert_eq!(runtime.state.operation_counter, 0);
     }
 }

@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted
+Amended by ADR-013
+
+The single-binary goal is preserved but NATS is now a required external dependency. The engine binary embeds the Dioxus frontend, the Ractor supervisor tree, the axum API server, and the sled snapshot store. NATS (3-node cluster or single-node for dev) is external. For local development, the engine binary ships with a `--nats-embedded` flag that starts a bundled NATS server in-process. Production deployments use a real NATS cluster. This preserves the "download and run" developer experience while enabling distributed durability.
 
 ## Context
 

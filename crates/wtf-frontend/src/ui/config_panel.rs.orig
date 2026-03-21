@@ -1,0 +1,480 @@
+use crate::ui::icons::icon_by_name;
+use dioxus::prelude::*;
+use oya_frontend::graph::{Node, NodeCategory};
+use serde_json::Value;
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Tab {
+    Config,
+    Execution,
+}
+
+#[component]
+pub fn NodeConfigEditor(node: Node, on_change: EventHandler<Value>) -> Element {
+    let mut tab = use_signal(|| Tab::Config);
+    let config = node.config.clone();
+
+    let tab_val = *tab.read();
+
+    let config_tab_class = if tab_val == Tab::Config {
+        "flex-1 border-b-2 border-indigo-500 py-2 text-[11px] font-medium capitalize text-slate-100 transition-colors"
+    } else {
+        "flex-1 border-b-2 border-transparent py-2 text-[11px] font-medium capitalize text-slate-500 transition-colors hover:text-slate-300"
+    };
+
+    let exec_tab_class = if tab_val == Tab::Execution {
+        "flex-1 border-b-2 border-indigo-500 py-2 text-[11px] font-medium capitalize text-slate-100 transition-colors"
+    } else {
+        "flex-1 border-b-2 border-transparent py-2 text-[11px] font-medium capitalize text-slate-500 transition-colors hover:text-slate-300"
+    };
+
+    rsx! {
+        div { class: "flex flex-col gap-0",
+            div { class: "flex border-b border-slate-800",
+                button {
+                    class: "{config_tab_class}",
+                    onclick: move |_| tab.set(Tab::Config),
+                    "Configuration"
+                }
+                button {
+                    class: "{exec_tab_class}",
+                    onclick: move |_| tab.set(Tab::Execution),
+                    "Execution"
+                }
+            }
+
+            div { class: "pt-4",
+                match tab_val {
+                    Tab::Config => rsx! {
+                        ConfigTab { node: node.clone(), on_change: on_change }
+                    },
+                    Tab::Execution => rsx! {
+                        ExecutionTab { config: config }
+                    },
+                }
+            }
+        }
+    }
+}
+
+#[component]
+fn ConfigTab(node: Node, on_change: EventHandler<Value>) -> Element {
+    let config = node.config.clone();
+
+    // Helper for updating string values cleanly
+    let update_str = {
+        let config = config.clone();
+        move |key: String, val: String| {
+            let mut new_config = config.clone();
+            if let Some(obj) = new_config.as_object_mut() {
+                obj.insert(key, Value::String(val));
+                on_change.call(new_config);
+            }
+        }
+    };
+
+    let update_u64 = {
+        let config = config.clone();
+        move |key: String, val: u64| {
+            let mut new_config = config.clone();
+            if let Some(obj) = new_config.as_object_mut() {
+                obj.insert(key, Value::Number(val.into()));
+                on_change.call(new_config);
+            }
+        }
+    };
+
+    let input_cls = "h-8 w-full rounded-md border border-slate-700 bg-slate-950 px-3 font-mono text-[12px] text-slate-100 outline-none transition-colors focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/30";
+
+    rsx! {
+        div { class: "flex flex-col gap-4",
+            match node.category {
+                NodeCategory::Entry => rsx! { EntryConfig { icon: node.icon.clone(), config: config.clone(), update_str: update_str.clone(), input_cls } },
+                NodeCategory::Durable => rsx! { DurableConfig { icon: node.icon.clone(), config: config.clone(), update_str: update_str.clone(), input_cls } },
+                NodeCategory::State => rsx! { StateConfig { icon: node.icon.clone(), config: config.clone(), update_str: update_str.clone(), input_cls } },
+                NodeCategory::Flow => rsx! { FlowConfig { icon: node.icon.clone(), config: config.clone(), update_str: update_str.clone(), input_cls } },
+                NodeCategory::Timing => rsx! { TimingConfig { icon: node.icon.clone(), config: config.clone(), update_str: update_str.clone(), update_u64: update_u64.clone(), input_cls } },
+                NodeCategory::Signal => rsx! { SignalConfig { icon: node.icon.clone(), config: config.clone(), update_str: update_str.clone(), input_cls } },
+            }
+
+            div { class: "h-px bg-slate-800" }
+
+            CommonConfig { config: config, update_u64: update_u64, update_str: update_str, input_cls }
+        }
+    }
+}
+
+fn get_str_val(config: &Value, key: &str) -> String {
+    config.get(key).and_then(Value::as_str).unwrap_or("").to_string()
+}
+
+fn get_u64_val(config: &Value, key: &str) -> Option<u64> {
+    config.get(key).and_then(Value::as_u64)
+}
+
+#[component]
+fn EntryConfig(icon: String, config: Value, update_str: EventHandler<(String, String)>, input_cls: &'static str) -> Element {
+    rsx! {
+        match icon.as_str() {
+            "clock" => rsx! {
+                div { class: "flex flex-col gap-1.5",
+                    label { class: "text-[11px] font-medium uppercase tracking-wide text-slate-500", "Cron Expression" }
+                    input {
+                        class: "{input_cls}",
+                        placeholder: "\"0 */5 * * *\" (every 5 min)",
+                        value: "{get_str_val(&config, \"cronExpression\")}",
+                        oninput: move |e| update_str.call(("cronExpression".to_string(), e.value()))
+                    }
+                }
+            },
+            "kafka" => rsx! {
+                div { class: "flex flex-col gap-1.5",
+                    label { class: "text-[11px] font-medium uppercase tracking-wide text-slate-500", "Kafka Topic" }
+                    input {
+                        class: "{input_cls}",
+                        placeholder: "orders-topic",
+                        value: "{get_str_val(&config, \"topic\")}",
+                        oninput: move |e| update_str.call(("topic".to_string(), e.value()))
+                    }
+                }
+            },
+            "play-circle" => rsx! {
+                div { class: "flex flex-col gap-1.5",
+                    label { class: "text-[11px] font-medium uppercase tracking-wide text-slate-500", "Workflow Key" }
+                    input {
+                        class: "{input_cls}",
+                        placeholder: "user-123",
+                        value: "{get_str_val(&config, \"workflowKey\")}",
+                        oninput: move |e| update_str.call(("workflowKey".to_string(), e.value()))
+                    }
+                }
+            },
+            _ => rsx! {}
+        }
+    }
+}
+
+#[component]
+fn DurableConfig(icon: String, config: Value, update_str: EventHandler<(String, String)>, input_cls: &'static str) -> Element {
+    rsx! {
+        div { class: "flex flex-col gap-1.5",
+            label { class: "text-[11px] font-medium uppercase tracking-wide text-slate-500", "Step Name" }
+            input {
+                class: "{input_cls}",
+                placeholder: "e.g. \"create-user\"",
+                value: "{get_str_val(&config, \"durableStepName\")}",
+                oninput: move |e| update_str.call(("durableStepName".to_string(), e.value()))
+            }
+            span { class: "font-mono text-[10px] text-slate-500", "ctx.run(\"name\", () => ...)" }
+        }
+
+        div { class: "flex flex-col gap-1.5",
+            label { class: "text-[11px] font-medium uppercase tracking-wide text-slate-500", "Target Service" }
+            input {
+                class: "{input_cls}",
+                placeholder: "PaymentService",
+                value: "{get_str_val(&config, \"targetService\")}",
+                oninput: move |e| update_str.call(("targetService".to_string(), e.value()))
+            }
+            span { class: "font-mono text-[10px] text-slate-500", "ctx.serviceClient<T>(\"name\")" }
+        }
+
+        div { class: "flex flex-col gap-1.5",
+            label { class: "text-[11px] font-medium uppercase tracking-wide text-slate-500", "Handler / Method" }
+            input {
+                class: "{input_cls}",
+                placeholder: "processPayment",
+                value: "{get_str_val(&config, \"targetHandler\")}",
+                oninput: move |e| update_str.call(("targetHandler".to_string(), e.value()))
+            }
+            span { class: "font-mono text-[10px] text-slate-500", ".processPayment(req)" }
+        }
+
+        if icon == "send" {
+            div { class: "rounded-lg border border-dashed border-indigo-500/30 bg-indigo-500/5 p-2",
+                p { class: "text-[10px] text-slate-400", "Fire-and-forget: ctx.objectSendClient<T>(key).method(req)" }
+            }
+        }
+
+        if icon == "clock-send" {
+            div { class: "flex flex-col gap-1.5",
+                label { class: "text-[11px] font-medium uppercase tracking-wide text-slate-500", "Delay Duration" }
+                input {
+                    class: "{input_cls}",
+                    placeholder: "\"1h\", \"30m\"",
+                    value: "{get_str_val(&config, \"sleepDuration\")}",
+                    oninput: move |e| update_str.call(("sleepDuration".to_string(), e.value()))
+                }
+                span { class: "font-mono text-[10px] text-slate-500", "ctx.objectSendClient(key, {{ delay: ... }})" }
+            }
+        }
+    }
+}
+
+#[component]
+fn StateConfig(icon: String, config: Value, update_str: EventHandler<(String, String)>, input_cls: &'static str) -> Element {
+    rsx! {
+        div { class: "flex flex-col gap-1.5",
+            label { class: "text-[11px] font-medium uppercase tracking-wide text-slate-500", "State Key" }
+            input {
+                class: "{input_cls}",
+                placeholder: "\"cart\", \"profile\"",
+                value: "{get_str_val(&config, \"stateKey\")}",
+                oninput: move |e| update_str.call(("stateKey".to_string(), e.value()))
+            }
+        }
+        div { class: "rounded-lg border border-dashed border-orange-500/30 bg-orange-500/5 p-2",
+            p { class: "font-mono text-[10px] leading-relaxed text-slate-400",
+                if icon == "download" { "await ctx.get<T>(\"key\")" }
+                else if icon == "upload" { "ctx.set(\"key\", value)" }
+                else if icon == "eraser" { "ctx.clear(\"key\") | clearAll()" }
+            }
+        }
+    }
+}
+
+#[component]
+fn FlowConfig(icon: String, config: Value, update_str: EventHandler<(String, String)>, input_cls: &'static str) -> Element {
+    rsx! {
+        match icon.as_str() {
+            "git-branch" => rsx! {
+                div { class: "flex flex-col gap-1.5",
+                    label { class: "text-[11px] font-medium uppercase tracking-wide text-slate-500", "Condition Expression" }
+                    textarea {
+                        class: "resize-none rounded-md border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-[11px] text-slate-100 outline-none transition-colors focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/30",
+                        rows: "2",
+                        placeholder: "user.verified === true",
+                        value: "{get_str_val(&config, \"conditionExpression\")}",
+                        oninput: move |e| update_str.call(("conditionExpression".to_string(), e.value()))
+                    }
+                }
+            },
+            "repeat" => rsx! {
+                div { class: "flex flex-col gap-1.5",
+                    label { class: "text-[11px] font-medium uppercase tracking-wide text-slate-500", "Loop Iterator" }
+                    input {
+                        class: "{input_cls}",
+                        placeholder: "items, userIds, tasks",
+                        value: "{get_str_val(&config, \"loopIterator\")}",
+                        oninput: move |e| update_str.call(("loopIterator".to_string(), e.value()))
+                    }
+                    span { class: "font-mono text-[10px] text-slate-500", "for (const item of items) {{ ... }}" }
+                }
+            },
+            "undo" => rsx! {
+                div { class: "flex flex-col gap-1.5",
+                    label { class: "text-[11px] font-medium uppercase tracking-wide text-slate-500", "Compensation Handler" }
+                    input {
+                        class: "{input_cls}",
+                        placeholder: "refundPayment",
+                        value: "{get_str_val(&config, \"compensationHandler\")}",
+                        oninput: move |e| update_str.call(("compensationHandler".to_string(), e.value()))
+                    }
+                    span { class: "text-[10px] text-slate-500", "Saga rollback logic" }
+                }
+            },
+            _ => rsx! {}
+        }
+    }
+}
+
+#[component]
+fn TimingConfig(icon: String, config: Value, update_str: EventHandler<(String, String)>, update_u64: EventHandler<(String, u64)>, input_cls: &'static str) -> Element {
+    rsx! {
+        match icon.as_str() {
+            "timer" => rsx! {
+                div { class: "flex flex-col gap-1.5",
+                    label { class: "text-[11px] font-medium uppercase tracking-wide text-slate-500", "Sleep Duration" }
+                    input {
+                        class: "{input_cls}",
+                        placeholder: "\"5m\", \"1h\", \"30s\"",
+                        value: "{get_str_val(&config, \"sleepDuration\")}",
+                        oninput: move |e| update_str.call(("sleepDuration".to_string(), e.value()))
+                    }
+                    span { class: "font-mono text-[10px] text-slate-500", "await ctx.sleep(duration)" }
+                }
+            },
+            "alarm" => rsx! {
+                div { class: "flex flex-col gap-1.5",
+                    label { class: "text-[11px] font-medium uppercase tracking-wide text-slate-500", "Timeout (ms)" }
+                    input {
+                        r#type: "number",
+                        class: "{input_cls}",
+                        placeholder: "30000",
+                        value: "{get_u64_val(&config, \"timeoutMs\").unwrap_or(30000)}",
+                        oninput: move |e| {
+                            if let Ok(val) = e.value().parse::<u64>() {
+                                update_u64.call(("timeoutMs".to_string(), val));
+                            }
+                        }
+                    }
+                    span { class: "font-mono text-[10px] text-slate-500", "promise.orTimeout(ms)" }
+                }
+            },
+            _ => rsx! {}
+        }
+    }
+}
+
+#[component]
+fn SignalConfig(icon: String, config: Value, update_str: EventHandler<(String, String)>, input_cls: &'static str) -> Element {
+    rsx! {
+        if icon == "sparkles" || icon == "bell" {
+            div { class: "flex flex-col gap-1.5",
+                label { class: "text-[11px] font-medium uppercase tracking-wide text-slate-500", "Promise Name" }
+                input {
+                    class: "{input_cls}",
+                    placeholder: "\"payment-completed\"",
+                    value: "{get_str_val(&config, \"promiseName\")}",
+                    oninput: move |e| update_str.call(("promiseName".to_string(), e.value()))
+                }
+                span { class: "font-mono text-[10px] text-slate-500",
+                    if icon == "sparkles" { "await ctx.promise<T>(\"name\")" }
+                    else { "const {{ id, promise }} = ctx.awakeable<T>()" }
+                }
+            }
+        } else if icon == "check-circle" {
+            div { class: "flex flex-col gap-1.5",
+                label { class: "text-[11px] font-medium uppercase tracking-wide text-slate-500", "Promise to Resolve" }
+                input {
+                    class: "{input_cls}",
+                    placeholder: "\"payment-completed\"",
+                    value: "{get_str_val(&config, \"promiseName\")}",
+                    oninput: move |e| update_str.call(("promiseName".to_string(), e.value()))
+                }
+                span { class: "font-mono text-[10px] text-slate-500", "ctx.promiseManager().resolve(\"name\", val)" }
+            }
+        }
+        div { class: "rounded-lg border border-dashed border-blue-500/30 bg-blue-500/5 p-2",
+            p { class: "text-[10px] leading-relaxed text-slate-400", "Durable promises suspend execution until resolved externally via HTTP or SDK." }
+        }
+    }
+}
+
+#[component]
+fn CommonConfig(config: Value, update_u64: EventHandler<(String, u64)>, update_str: EventHandler<(String, String)>, input_cls: &'static str) -> Element {
+    let max_retries = get_u64_val(&config, "maxRetries").unwrap_or(3);
+    let backoff_ms = get_u64_val(&config, "backoffMs").unwrap_or(1000);
+    let idempotency_key = get_str_val(&config, "idempotencyKey");
+
+    rsx! {
+        // Retry Policy
+        div { class: "flex flex-col gap-3",
+            label { class: "text-[11px] font-medium uppercase tracking-wide text-slate-500", "Retry Policy" }
+            div { class: "grid grid-cols-2 gap-2",
+                div { class: "flex flex-col gap-1",
+                    span { class: "text-[10px] text-slate-500", "Max Retries" }
+                    input {
+                        r#type: "number",
+                        class: "{input_cls}",
+                        value: "{max_retries}",
+                        oninput: move |e| {
+                            if let Ok(val) = e.value().parse::<u64>() {
+                                update_u64.call(("maxRetries".to_string(), val));
+                            }
+                        }
+                    }
+                }
+                div { class: "flex flex-col gap-1",
+                    span { class: "text-[10px] text-slate-500", "Backoff (ms)" }
+                    input {
+                        r#type: "number",
+                        class: "{input_cls}",
+                        value: "{backoff_ms}",
+                        oninput: move |e| {
+                            if let Ok(val) = e.value().parse::<u64>() {
+                                update_u64.call(("backoffMs".to_string(), val));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Idempotency Key
+        div { class: "flex flex-col gap-1.5",
+            label { class: "text-[11px] font-medium uppercase tracking-wide text-slate-500", "Idempotency Key" }
+            input {
+                class: "{input_cls}",
+                placeholder: "ctx.rand.uuidv4()",
+                value: "{idempotency_key}",
+                oninput: move |e| update_str.call(("idempotencyKey".to_string(), e.value()))
+            }
+            span { class: "text-[10px] text-slate-500", "Auto-generated if blank. Ensures exactly-once execution." }
+        }
+    }
+}
+
+#[component]
+fn ExecutionTab(config: Value) -> Element {
+    let status = get_str_val(&config, "status");
+    let is_executed = !status.is_empty();
+
+    let journal_idx = get_u64_val(&config, "journalIndex");
+    let retry_count = get_u64_val(&config, "retryCount");
+
+    rsx! {
+        div { class: "flex flex-col gap-4",
+            div { class: "flex flex-col gap-2",
+                label { class: "text-[11px] font-medium uppercase tracking-wide text-slate-500", "Invocation Status" }
+                if is_executed {
+                    {
+                        let (bg_color, text_color, border_color, icon_name, is_spin) = match status.as_str() {
+                            "running" => ("bg-indigo-500/15", "text-indigo-400", "border-indigo-500/30", "loader", true),
+                            "suspended" => ("bg-pink-500/15", "text-pink-400", "border-pink-500/30", "pause", false),
+                            "completed" => ("bg-emerald-500/15", "text-emerald-400", "border-emerald-500/30", "check-circle", false),
+                            "failed" => ("bg-red-500/15", "text-red-400", "border-red-500/30", "alert-circle", false),
+                            "retrying" => ("bg-amber-500/15", "text-amber-400", "border-amber-500/30", "refresh", true),
+                            _ => ("bg-slate-500/15", "text-slate-400", "border-slate-500/30", "help-circle", false),
+                        };
+                        let label = match status.as_str() {
+                            "running" => "Running",
+                            "suspended" => "Suspended",
+                            "completed" => "Completed",
+                            "failed" => "Failed",
+                            "retrying" => "Retrying",
+                            other => other,
+                        };
+                        let icon_class = if is_spin { "h-3 w-3 animate-spin".to_string() } else { "h-3 w-3".to_string() };
+                        rsx! {
+                            div {
+                                class: "inline-flex self-start items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-medium {bg_color} {text_color} {border_color}",
+                                {icon_by_name(icon_name, icon_class)}
+                                "{label}"
+                            }
+                        }
+                    }
+                } else {
+                    span { class: "text-[11px] text-slate-500", "Not yet executed" }
+                }
+            }
+
+            if let Some(idx) = journal_idx {
+                div { class: "flex flex-col gap-1",
+                    label { class: "text-[11px] font-medium uppercase tracking-wide text-slate-500", "Journal Entry" }
+                    div { class: "flex items-center gap-2",
+                        span { class: "rounded bg-slate-800 px-2 py-0.5 font-mono text-[11px] text-slate-300", "#{idx}" }
+                        span { class: "text-[10px] text-slate-500", "Position in durable execution log" }
+                    }
+                }
+            }
+
+            if let Some(count) = retry_count {
+                if count > 0 {
+                    div { class: "flex flex-col gap-1",
+                        label { class: "text-[11px] font-medium uppercase tracking-wide text-slate-500", "Retry Attempts" }
+                        div { class: "flex items-center gap-2",
+                            span { class: "rounded bg-red-500/10 px-2 py-0.5 font-mono text-[11px] text-red-400", "{count}" }
+                            span { class: "text-[10px] text-slate-500", "Times retried before success/failure" }
+                        }
+                    }
+                }
+            }
+
+            div { class: "h-px bg-slate-800" }
+            div { class: "rounded-lg border border-dashed border-slate-700 bg-slate-800/50 p-3",
+                p { class: "text-[11px] leading-relaxed text-slate-400", "Restate persists each step in a durable journal. On failure, execution replays from the journal, skipping already-completed steps. This ensures exactly-once semantics." }
+            }
+        }
+    }
+}

@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted
+Amended by ADR-013, ADR-014, ADR-019
+
+The full 7-tree schema is superseded. NATS JetStream and NATS KV now own the primary data. sled retains a single tree: `snapshots` (key: `invocation_id`, value: serialized actor state + the JetStream sequence number at which it was taken). All other trees (journal, timers, signals, run_queue, activities, workflows) are replaced by the NATS streams and KV buckets defined in ADR-013 and ADR-014.
 
 ## Context
 

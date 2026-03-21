@@ -1,0 +1,28 @@
+{
+  "testModules": [
+    {
+      "moduleId": "compilation",
+      "tests": [
+        {
+          "name": "build",
+          "fullName": "compilation::build",
+          "state": "failed",
+          "errors": [
+            {
+              "message": "[E0432] crates/wtf-actor/tests/procedural_context.rs:5:5: unresolved import `wtf_actor::procedural::WorkflowContext`",
+              "location": "crates/wtf-actor/tests/procedural_context.rs:5:5",
+              "code": "E0432"
+            },
+            {
+              "message": "could not compile `wtf-actor` (test \"procedural_context\") due to 1 previous error; 3 warnings emitted"
+            },
+            {
+              "message": "command `/home/lewis/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo test --no-run --message-format json-render-diagnostics --package wtf-actor --test procedural_context` exited with code 101"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "reason": "failed"
+}
