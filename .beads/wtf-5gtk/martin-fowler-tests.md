@@ -49,9 +49,24 @@
 
 ---
 
-### 4. Invalid Input Tests
+### 4. Routing-Layer Rejection Tests (Path Structure)
 
-#### GIVEN an empty string as the instance ID
+#### GIVEN a request with double-slash in path (e.g., `/api/v1/workflows//journal`)
+#### WHEN GET /api/v1/workflows/:id/journal is called
+#### THEN the response status is 404 Not Found
+#### AND the error code is "route_not_found"
+#### AND the handler is NOT invoked
+
+#### GIVEN a request with missing ID segment (e.g., `/api/v1/workflows//journal`)
+#### WHEN the router cannot match the route pattern
+#### THEN the response status is 404 Not Found
+#### AND the error code is "route_not_found"
+
+---
+
+### 5. Handler-Layer Input Validation Tests
+
+#### GIVEN an empty string as the instance ID (routing passes, handler receives empty string)
 #### WHEN GET /api/v1/workflows/:id/journal is called
 #### THEN the response status is 400 Bad Request
 #### AND the error code is "invalid_id"
@@ -69,7 +84,7 @@
 
 ---
 
-### 5. Edge Case: Single Event
+### 6. Edge Case: Single Event
 
 #### GIVEN a valid instance ID with exactly one journal event
 #### WHEN GET /api/v1/workflows/:id/journal is called
@@ -78,7 +93,7 @@
 
 ---
 
-### 6. Edge Case: Large Event List
+### 7. Edge Case: Large Event List
 
 #### GIVEN a valid instance ID with many events (100+)
 #### WHEN GET /api/v1/workflows/:id/journal is called
@@ -88,7 +103,7 @@
 
 ---
 
-### 7. Sorting Verification Tests
+### 8. Sorting Verification Tests
 
 #### GIVEN events are stored out-of-order in the journal
 #### WHEN journal is requested
@@ -100,7 +115,7 @@
 
 ---
 
-### 8. Storage Error Tests
+### 9. Storage Error Tests
 
 #### GIVEN the event store is unavailable
 #### WHEN GET /api/v1/workflows/:id/journal is called
@@ -115,7 +130,7 @@
 
 ---
 
-### 9. Contract Verification Tests
+### 10. Contract Verification Tests
 
 #### GIVEN a successful journal response
 #### THEN validate() on JournalResponse returns Ok(()) (entries are sorted)
@@ -125,7 +140,7 @@
 
 ---
 
-### 10. Event Field Mapping Tests
+### 11. Event Field Mapping Tests
 
 #### GIVEN an ActivityDispatched event with activity_type="process_payment" and payload={"amount": 100}
 #### WHEN mapped to JournalEntry
@@ -148,7 +163,7 @@
 
 ---
 
-### 11. Response Structure Tests
+### 12. Response Structure Tests
 
 #### GIVEN a valid journal response
 #### THEN the JSON contains "invocation_id" field

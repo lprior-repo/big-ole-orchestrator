@@ -30,9 +30,55 @@ pub async fn get_journal(
 | Status | Body | Description |
 |--------|------|-------------|
 | 200 OK | `JournalResponse` | Events found (or empty list) |
-| 400 Bad Request | `ApiError` | Invalid or empty ID |
-| 404 Not Found | `ApiError` | Instance not found in storage |
+| 400 Bad Request | `ApiError` | Handler-layer: empty or whitespace ID (only if routing passes) |
+| 404 Not Found | `ApiError` | Routing-layer: invalid path structure (double-slash, missing segments) OR Handler-layer: instance not found |
 | 500 Internal Server Error | `ApiError` | Event store unavailable or replay error |
+
+### HTTP Status Code Decision Tree
+
+```
+Request arrives at router
+        │
+        ▼
+┌───────────────────────────────────────┐
+│ Does path match /api/v1/workflows/:id/journal? │
+└───────────────────────────────────────┘
+        │
+   NO   │   YES
+    ┌───┴────────┐
+    ▼            ▼
+  404         ┌───────────────────────────────────────┐
+(routing)     │ Is :id parameter empty or whitespace? │
+              └───────────────────────────────────────┘
+                    │                    │
+               YES  │                    │  NO
+              ┌─────┴─────┐              ▼
+              ▼           ▼     ┌───────────────────┐
+            400           400   │ Instance exists    │
+          (handler)    (handler) │ in event store?   │
+                                └───────────────────┘
+                                      │           │
+                                 YES  │           │  NO
+                                 ┌────┴───┐       ▼
+                                 ▼        ▼     404
+                               200      200   (handler)
+                              (empty)  (events)
+```
+
+### Routing-Layer Rejections (404)
+
+- **Double-slash in path**: `/api/v1/workflows//journal` → 404 (router rejects before handler)
+- **Missing path segments**: `/api/v1/workflows/` → 404 (no `:id` parameter captured)
+- **Wrong HTTP method**: Any non-GET → 405 Method Not Allowed
+
+### Handler-Layer Rejections
+
+| Condition | Status | Error Code |
+|-----------|--------|------------|
+| Empty string ID | 400 | `invalid_id` |
+| Whitespace-only ID | 400 | `invalid_id` |
+| ID without namespace separator | 400 | `invalid_id` |
+| Instance not found in event store | 404 | `not_found` |
 
 ### JournalResponse
 
@@ -70,9 +116,10 @@ pub enum JournalEntryType {
 
 ## Preconditions
 
-1. **ID format**: The `id` path parameter must be non-empty and match the format `namespace/instance_id`
-2. **ID whitespace**: The ID must not be empty or whitespace-only after trimming
-3. **Event store availability**: The orchestrator's event store must be accessible
+1. **Valid path structure**: The request path must be well-formed (routing layer)
+2. **ID format**: If routing passes, the `id` path parameter must be non-empty and match the format `namespace/instance_id`
+3. **ID whitespace**: If routing passes, the ID must not be empty or whitespace-only after trimming
+4. **Event store availability**: The orchestrator's event store must be accessible
 
 ## Postconditions
 
@@ -81,9 +128,10 @@ pub enum JournalEntryType {
    - `entries` contains all journal entries for the instance
    - Entries are sorted by `seq` in ascending order
    - If no events exist, returns empty `entries` vector (not an error)
-2. **Invalid ID (400)**: Returns `ApiError` with code `"invalid_id"` and message `"empty invocation id"` or `"bad id"`
-3. **Instance Not Found (404)**: Returns `ApiError` with code `"not_found"` and the requested ID in the message
-4. **Storage Error (500)**: Returns `ApiError` with code `"actor_error"` or `"journal_error"`
+2. **Invalid Path Structure (404)**: Routing-layer rejects malformed paths before handler runs
+3. **Invalid ID (400)**: Returns `ApiError` with code `"invalid_id"` and message `"empty invocation id"` or `"bad id"` (only if routing passes)
+4. **Instance Not Found (404)**: Returns `ApiError` with code `"not_found"` and the requested ID in the message
+5. **Storage Error (500)**: Returns `ApiError` with code `"actor_error"` or `"journal_error"`
 
 ## Invariants
 
@@ -93,12 +141,14 @@ pub enum JournalEntryType {
 
 ## Error Taxonomy
 
-| Error Code | HTTP Status | Condition |
-|------------|-------------|-----------|
-| `invalid_id` | 400 | Empty or malformed instance ID |
-| `not_found` | 404 | Instance ID not found in event store |
-| `actor_error` | 500 | Event store unavailable |
-| `journal_error` | 500 | Error during journal replay |
+| Error Code | HTTP Status | Layer | Condition |
+|------------|-------------|-------|-----------|
+| `invalid_id` | 400 | Handler | Empty or whitespace instance ID |
+| `not_found` | 404 | Handler | Instance ID not found in event store |
+| `route_not_found` | 404 | Routing | Invalid path structure (double-slash, missing segments) |
+| `method_not_allowed` | 405 | Routing | Wrong HTTP method |
+| `actor_error` | 500 | Handler | Event store unavailable |
+| `journal_error` | 500 | Handler | Error during journal replay |
 
 ## Event Type Mapping
 
@@ -120,8 +170,10 @@ pub enum JournalEntryType {
 
 ## Violation Examples
 
-1. **Precondition violation**: Empty ID string → 400 with `"invalid_id"`
-2. **Precondition violation**: Whitespace-only ID → 400 with `"invalid_id"`
-3. **Postcondition violation**: Unsorted entries → Sort occurs before response
-4. **Invariant violation**: Negative sequence number → Map to `u32::MAX`
-5. **Not found**: Valid format but non-existent instance → 404 with `"not_found"`
+1. **Precondition violation (routing)**: Double-slash in path → 404 with `"route_not_found"`
+2. **Precondition violation (routing)**: Missing `:id` segment → 404 with `"route_not_found"`
+3. **Precondition violation (handler)**: Empty ID string → 400 with `"invalid_id"`
+4. **Precondition violation (handler)**: Whitespace-only ID → 400 with `"invalid_id"`
+5. **Postcondition violation**: Unsorted entries → Sort occurs before response
+6. **Invariant violation**: Negative sequence number → Map to `u32::MAX`
+7. **Not found (handler)**: Valid format but non-existent instance → 404 with `"not_found"`
