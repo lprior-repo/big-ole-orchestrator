@@ -5235,9 +5235,11 @@ dependencies = [
  "thiserror 1.0.69",
  "tokio",
  "tracing",
+ "tracing-subscriber",
  "wtf-actor",
  "wtf-common",
  "wtf-core",
+ "wtf-linter",
  "wtf-storage",
  "wtf-worker",
 ]
