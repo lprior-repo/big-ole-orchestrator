@@ -4,9 +4,9 @@
   "hook_event_name": "PreToolUse",
   "tool_name": "Edit",
   "tool_input": {
-    "file_path": "/home/lewis/src/wtf-engine/crates/wtf-actor/src/procedural/context.rs",
-    "old_string": "    /// Sample a deterministic random u64.\n    pub async fn random_u64(&self) -> anyhow::Result<u64> {\n        let result = self\n            .myself\n            .call(\n                |reply| crate::messages::InstanceMsg::ProceduralRandom { reply },\n                None,\n            )\n            .await?;",
-    "new_string": "    /// Sample a deterministic random u64.\n    pub async fn random_u64(&self) -> anyhow::Result<u64> {\n        let operation_id = self.op_counter.load(Ordering::SeqCst);\n        let result = self\n            .myself\n            .call(\n                |reply| crate::messages::InstanceMsg::ProceduralRandom { operation_id, reply },\n                None,\n            )\n            .await?;",
+    "file_path": "/home/lewis/src/wtf-engine/crates/wtf-actor/tests/procedural_ctx_start_at_zero.rs",
+    "old_string": "/// A workflow function that captures the initial op_counter value from its context.\nstruct CaptureInitialOpCounter {",
+    "new_string": "/// A workflow function that captures the initial op_counter value from its context.\n#[derive(Debug)]\nstruct CaptureInitialOpCounter {",
     "replace_all": false
   }
 }
