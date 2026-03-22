@@ -8,7 +8,6 @@ use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use wtf_linter::diagnostic::LintError;
-use wtf_linter::lint_workflow_code;
 use wtf_linter::Diagnostic;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]

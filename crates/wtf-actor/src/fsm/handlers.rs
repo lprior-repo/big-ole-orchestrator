@@ -1,7 +1,7 @@
 use super::state::FsmActorState;
 use super::types::{ApplyResult, ExecutionPhase};
 use bytes::Bytes;
-use wtf_common::{ActivityId, EffectDeclaration, WorkflowEvent};
+use wtf_common::{ActivityId, EffectDeclaration};
 
 pub fn handle_transition(
     state: &FsmActorState,

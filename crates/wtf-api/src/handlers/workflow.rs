@@ -4,11 +4,10 @@ use ractor::rpc::CallResult;
 use ractor::{ActorRef, MessagingErr};
 use wtf_actor::{OrchestratorMsg, StartError, InstanceStatusSnapshot, TerminateError};
 use std::sync::Arc;
-use wtf_common::{InstanceId, NamespaceId, WorkflowParadigm, InstanceMetadata, EventStore};
+use wtf_common::{InstanceId, NamespaceId, WorkflowParadigm, EventStore};
 use wtf_common::storage::ReplayBatch;
 use crate::types::{ApiError, V3StartRequest, V3StartResponse, V3StatusResponse};
 use super::{ACTOR_CALL_TIMEOUT, split_path_id, parse_paradigm, paradigm_to_str, phase_to_str, get_event_store, get_state_store, get_db};
-use tokio_stream::StreamExt;
 
 /// POST /api/v1/workflows — start a new workflow instance.
 pub async fn start_workflow(

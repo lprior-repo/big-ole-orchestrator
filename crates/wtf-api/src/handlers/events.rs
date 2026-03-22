@@ -1,5 +1,5 @@
 use axum::{extract::{Extension, Path, Query}, http::{header, StatusCode}, response::IntoResponse};
-use futures::{StreamExt, stream};
+use futures::stream;
 use ractor::ActorRef;
 use wtf_actor::OrchestratorMsg;
 use wtf_common::NamespaceId;
@@ -23,7 +23,7 @@ pub async fn get_events(
     
     let from_seq = query.from_seq.unwrap_or(0);
     match store.open_replay_stream(&ns, &inst_id, from_seq).await {
-        Ok(mut stream) => {
+        Ok(stream) => {
             let s = stream::unfold(stream, |mut stream| async move {
                 match stream.next_event().await {
                     Ok(ReplayBatch::Event(replayed)) => Some((map_replayed_event(replayed), stream)),
