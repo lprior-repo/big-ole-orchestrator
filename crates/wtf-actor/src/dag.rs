@@ -280,7 +280,9 @@ pub fn apply_event(
         | WorkflowEvent::ChildStarted { .. }
         | WorkflowEvent::ChildCompleted { .. }
         | WorkflowEvent::ChildFailed { .. }
-        | WorkflowEvent::ActivityHeartbeat { .. } => {
+        | WorkflowEvent::ActivityHeartbeat { .. }
+        | WorkflowEvent::NowSampled { .. }
+        | WorkflowEvent::RandomSampled { .. } => {
             let mut next = state.clone();
             next.applied_seq.insert(seq);
             next.events_since_snapshot += 1;

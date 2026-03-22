@@ -236,3 +236,51 @@ mod tests {
         assert_eq!(result.expect("checkpoint present").result, Bytes::from_static(b"done"));
     }
 }
+
+pub async fn handle_now(
+    state: &mut InstanceState,
+    reply: ractor::RpcReplyPort<chrono::DateTime<chrono::Utc>>,
+) {
+    if let super::lifecycle::ParadigmState::Procedural(s) = &state.paradigm_state {
+        let op_id = s.operation_counter;
+        if let Some(cp) = s.get_checkpoint(op_id) {
+            let millis = i64::from_le_bytes(cp.result.as_ref().try_into().unwrap_or([0u8; 8]));
+            let ts = chrono::DateTime::from_timestamp_millis(millis)
+                .unwrap_or_else(chrono::Utc::now);
+            let _ = reply.send(ts);
+            return;
+        }
+        let ts = chrono::Utc::now();
+        let event = wtf_common::WorkflowEvent::NowSampled { operation_id: op_id, ts };
+        if let Some(nats) = &state.args.nats {
+            let js = nats.jetstream();
+            if let Ok(seq) = wtf_storage::append_event(js, &state.args.namespace, &state.args.instance_id, &event).await {
+                let _ = super::handle_inject_event(state, seq, &event).await;
+            }
+        }
+        let _ = reply.send(ts);
+    }
+}
+
+pub async fn handle_random(
+    state: &mut InstanceState,
+    reply: ractor::RpcReplyPort<u64>,
+) {
+    if let super::lifecycle::ParadigmState::Procedural(s) = &state.paradigm_state {
+        let op_id = s.operation_counter;
+        if let Some(cp) = s.get_checkpoint(op_id) {
+            let value = u64::from_le_bytes(cp.result.as_ref().try_into().unwrap_or([0u8; 8]));
+            let _ = reply.send(value);
+            return;
+        }
+        let value: u64 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.subsec_nanos() as u64 ^ (d.as_secs() << 32));
+        let event = wtf_common::WorkflowEvent::RandomSampled { operation_id: op_id, value };
+        if let Some(nats) = &state.args.nats {
+            let js = nats.jetstream();
+            if let Ok(seq) = wtf_storage::append_event(js, &state.args.namespace, &state.args.instance_id, &event).await {
+                let _ = super::handle_inject_event(state, seq, &event).await;
+            }
+        }
+        let _ = reply.send(value);
+    }
+}

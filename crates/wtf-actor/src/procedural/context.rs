@@ -134,6 +134,42 @@ impl WorkflowContext {
         self.op_counter.fetch_add(1, Ordering::SeqCst);
         Ok(())
     }
+
+    /// Sample the current UTC time deterministically.
+    pub async fn now(&self) -> anyhow::Result<chrono::DateTime<chrono::Utc>> {
+        let result = self
+            .myself
+            .call(
+                |reply| crate::messages::InstanceMsg::ProceduralNow { reply },
+                None,
+            )
+            .await?;
+        match result {
+            ractor::rpc::CallResult::Success(ts) => {
+                self.op_counter.fetch_add(1, Ordering::SeqCst);
+                Ok(ts)
+            }
+            _ => anyhow::bail!("Actor call failed"),
+        }
+    }
+
+    /// Sample a deterministic random u64.
+    pub async fn random_u64(&self) -> anyhow::Result<u64> {
+        let result = self
+            .myself
+            .call(
+                |reply| crate::messages::InstanceMsg::ProceduralRandom { reply },
+                None,
+            )
+            .await?;
+        match result {
+            ractor::rpc::CallResult::Success(v) => {
+                self.op_counter.fetch_add(1, Ordering::SeqCst);
+                Ok(v)
+            }
+            _ => anyhow::bail!("Actor call failed"),
+        }
+    }
 }
 
 #[cfg(test)]

@@ -202,6 +202,30 @@ pub fn apply_event(
             (next, ProceduralApplyResult::None)
         }
 
+        WorkflowEvent::NowSampled { operation_id, ts } => {
+            let mut next = state.clone();
+            let result_bytes = Bytes::copy_from_slice(&ts.timestamp_millis().to_le_bytes());
+            next.checkpoint_map.insert(
+                *operation_id,
+                Checkpoint { result: result_bytes, completed_seq: seq },
+            );
+            next.applied_seq.insert(seq);
+            next.events_since_snapshot += 1;
+            (next, ProceduralApplyResult::None)
+        }
+
+        WorkflowEvent::RandomSampled { operation_id, value } => {
+            let mut next = state.clone();
+            let result_bytes = Bytes::copy_from_slice(&value.to_le_bytes());
+            next.checkpoint_map.insert(
+                *operation_id,
+                Checkpoint { result: result_bytes, completed_seq: seq },
+            );
+            next.applied_seq.insert(seq);
+            next.events_since_snapshot += 1;
+            (next, ProceduralApplyResult::None)
+        }
+
         WorkflowEvent::SnapshotTaken { .. } => {
             let mut next = state.clone();
             next.applied_seq.insert(seq);

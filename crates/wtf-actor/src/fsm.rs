@@ -159,6 +159,13 @@ pub fn apply_event(
             next.events_since_snapshot = 0;
             (next, ApplyResult::None)
         }
+
+        WorkflowEvent::NowSampled { .. } | WorkflowEvent::RandomSampled { .. } => {
+            let mut next = state.clone();
+            next.applied_seq.insert(seq);
+            next.events_since_snapshot += 1;
+            (next, ApplyResult::None)
+        }
     };
 
     Ok(result)

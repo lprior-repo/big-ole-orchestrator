@@ -134,6 +134,12 @@ async fn pre_start(
             InstanceMsg::ProceduralSleep { duration, reply } => {
                 procedural::handle_sleep(state, duration, reply).await;
             }
+            InstanceMsg::ProceduralNow { reply } => {
+                procedural::handle_now(state, reply).await;
+            }
+            InstanceMsg::ProceduralRandom { reply } => {
+                procedural::handle_random(state, reply).await;
+            }
             InstanceMsg::ProceduralWorkflowCompleted => {
                 procedural::handle_completed(myself_ref, state).await;
             }

@@ -202,6 +202,27 @@ pub enum WorkflowEvent {
         error: String,
     },
 
+    // ── Procedural deterministic sampling (ADR-020) ──────────────────────────
+    /// A deterministic timestamp was sampled for a procedural workflow operation.
+    ///
+    /// Appended in place of `chrono::Utc::now()` so replay returns the same value.
+    NowSampled {
+        /// Operation ID that requested the timestamp.
+        operation_id: u32,
+        /// The wall-clock time recorded at first execution.
+        ts: DateTime<Utc>,
+    },
+
+    /// A deterministic random `u64` was sampled for a procedural workflow operation.
+    ///
+    /// Appended in place of `rand::random::<u64>()` so replay returns the same value.
+    RandomSampled {
+        /// Operation ID that requested the value.
+        operation_id: u32,
+        /// The random value recorded at first execution.
+        value: u64,
+    },
+
     // ── Snapshot ─────────────────────────────────────────────────────────────
     /// Actor state was snapshotted to sled (ADR-019).
     ///
@@ -236,6 +257,19 @@ impl WorkflowEvent {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn roundtrip_msgpack_now_sampled() {
+        let event = WorkflowEvent::NowSampled {
+            operation_id: 3,
+            ts: DateTime::parse_from_rfc3339("2026-01-01T12:00:00Z")
+                .expect("parse")
+                .with_timezone(&Utc),
+        };
+        let bytes = event.to_msgpack().expect("encode");
+        let decoded = WorkflowEvent::from_msgpack(&bytes).expect("decode");
+        assert_eq!(event, decoded);
+    }
 
     fn activity_completed() -> WorkflowEvent {
         WorkflowEvent::ActivityCompleted {

@@ -159,6 +159,16 @@ pub enum InstanceMsg {
         reply: RpcReplyPort<Result<(), wtf_common::WtfError>>,
     },
 
+    /// Request the current deterministic timestamp for a procedural operation.
+    ProceduralNow {
+        reply: ractor::RpcReplyPort<chrono::DateTime<chrono::Utc>>,
+    },
+
+    /// Request a deterministic random u64 for a procedural operation.
+    ProceduralRandom {
+        reply: ractor::RpcReplyPort<u64>,
+    },
+
     /// Procedural workflow task completed successfully.
     ProceduralWorkflowCompleted,
 

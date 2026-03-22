@@ -154,3 +154,45 @@ fn snapshot_taken_resets_events_since_snapshot() {
     let (next, _) = apply_event(&s, &event, 11).expect("snapshot");
     assert_eq!(next.events_since_snapshot, 0);
 }
+
+#[test]
+fn now_sampled_stores_checkpoint_with_encoded_ts() {
+    let s0 = ProceduralActorState::new();
+    let ts = chrono::DateTime::parse_from_rfc3339("2026-03-21T10:00:00Z")
+        .expect("parse")
+        .with_timezone(&chrono::Utc);
+    let event = wtf_common::WorkflowEvent::NowSampled { operation_id: 0, ts };
+    let (s1, _) = apply_event(&s0, &event, 1).expect("now sampled");
+    assert!(s1.checkpoint_map.contains_key(&0), "checkpoint must be stored for op 0");
+}
+
+#[test]
+fn random_sampled_stores_checkpoint_with_encoded_value() {
+    let s0 = ProceduralActorState::new();
+    let event = wtf_common::WorkflowEvent::RandomSampled { operation_id: 0, value: 42 };
+    let (s1, _) = apply_event(&s0, &event, 1).expect("random sampled");
+    assert!(s1.checkpoint_map.contains_key(&0), "checkpoint must be stored for op 0");
+    let stored = u64::from_le_bytes(s1.checkpoint_map[&0].result.as_ref().try_into().expect("8 bytes"));
+    assert_eq!(stored, 42);
+}
+
+// Compile-time guard: ProceduralNow and ProceduralRandom must exist as InstanceMsg variants.
+// This test won't compile if the variants are missing.
+#[test]
+fn instance_msg_has_procedural_now_and_random_variants() {
+    use crate::messages::InstanceMsg;
+    // Just reference the variant names — the test body is intentionally empty.
+    let _: fn(ractor::RpcReplyPort<chrono::DateTime<chrono::Utc>>) -> InstanceMsg =
+        |reply| InstanceMsg::ProceduralNow { reply };
+    let _: fn(ractor::RpcReplyPort<u64>) -> InstanceMsg =
+        |reply| InstanceMsg::ProceduralRandom { reply };
+}
+
+// Compile-time guard: WorkflowContext must have now() and random_u64() methods.
+#[allow(dead_code)]
+fn _context_has_now_and_random_methods(ctx: &crate::procedural::WorkflowContext) {
+    let _: std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<chrono::DateTime<chrono::Utc>>>>> =
+        Box::pin(ctx.now());
+    let _: std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<u64>>>> =
+        Box::pin(ctx.random_u64());
+}
