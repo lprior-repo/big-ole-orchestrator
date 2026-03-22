@@ -1,113 +1,127 @@
-# Contract: Phase 4 — API Layer (wtf-5gtk)
+# Contract Specification: Journal Replay Endpoint
 
-bead_id: wtf-5gtk
-bead_title: epic: Phase 4 — API Layer (wtf-api)
-phase: 4
-updated_at: 2026-03-21T04:12:32Z
+## Endpoint
 
----
+```
+GET /api/v1/workflows/:id/journal
+```
 
-## Epic Overview
+## Handler
 
-The API Layer provides an HTTP API for the wtf-engine based on axum. It exposes workflow management endpoints, real-time dashboard updates via SSE, and workflow definition validation via the integrated linter.
+`crates/wtf-api/src/handlers/journal.rs::get_journal`
 
-## Scope
+## Type Signature
 
-### Already Implemented (inherited from previous phases)
+```rust
+pub async fn get_journal(
+    Extension(master): Extension<ActorRef<OrchestratorMsg>>,
+    Path(id): Path<String>,
+) -> impl IntoResponse
+```
 
-1. **Core HTTP Server** (`wtf-api` crate)
-   - `app.rs`: Axum router assembly with API routes, health/metrics endpoints
-   - `handlers.rs`: HTTP handlers for workflow CRUD operations
-   - `routes.rs`: Route definitions
-   - `types.rs`: API request/response types
+## Request
 
-2. **Workflow Management Endpoints** (DONE)
-   - `POST /api/v1/workflows` — start workflow instance
-   - `GET /api/v1/workflows` — list active instances
-   - `GET /api/v1/workflows/:id` — get instance status
-   - `DELETE /api/v1/workflows/:id` — terminate instance
-   - `POST /api/v1/workflows/:id/signals` — send signal to instance
+| Field | Location | Type | Description |
+|-------|----------|------|-------------|
+| `id` | Path parameter | `String` | Namespaced instance ID in format `namespace/instance_id` (e.g., `payments/01ARZ3NDEKTSV4RRFFQ69G5FAV`) |
 
-3. **Health/Metrics** (DONE)
-   - `GET /health` — liveness probe
-   - `GET /metrics` — Prometheus metrics stub
+## Response
 
-### Already Spin-off to Child Beads
+| Status | Body | Description |
+|--------|------|-------------|
+| 200 OK | `JournalResponse` | Events found (or empty list) |
+| 400 Bad Request | `ApiError` | Invalid or empty ID |
+| 404 Not Found | `ApiError` | Instance not found in storage |
+| 500 Internal Server Error | `ApiError` | Event store unavailable or replay error |
 
-1. **wtf-wdxg** — SSE watch endpoint for real-time Dioxus dashboard updates
-   - `GET /api/v1/watch/:namespace` — NATS KV watch proxy
-   - `GET /api/v1/watch` — watch all namespaces
+### JournalResponse
 
-2. **wtf-k0ck** — Time-travel replay endpoint
-   - `GET /api/v1/workflows/:id/events` — JetStream log stream
-   - `GET /api/v1/instances/:id/replay-to/:seq` — replay to sequence
-
-### Remaining Work (to be spin-off as child bead)
-
-3. **Workflow Definition Ingestion with Linter** (NOT YET STARTED)
-   - `POST /api/v1/workflows/validate` — accept workflow Rust source code, run linter, return diagnostics
-   - Integrates with `wtf-linter` crate (rules L001-L006)
-   - ADR-020 defines the linting architecture
-
----
-
-## Contract for Remaining Work: Workflow Definition Ingestion
-
-### Endpoint
-
-`POST /api/v1/workflows/validate`
-
-### Request
-
-```json
-{
-  "workflow_source": "<rust source code as string>"
+```rust
+pub struct JournalResponse {
+    pub invocation_id: String,
+    pub entries: Vec<JournalEntry>,
 }
 ```
 
-### Response (200 OK)
+### JournalEntry
 
-```json
-{
-  "valid": true|false,
-  "diagnostics": [
-    {
-      "code": "WTF-L001",
-      "severity": "error|warning",
-      "message": "Human readable message",
-      "suggestion": "Optional fix suggestion",
-      "span": [start_byte, end_byte]
-    }
-  ]
+```rust
+pub struct JournalEntry {
+    pub seq: u32,                    // Sequence number (1-indexed)
+    pub entry_type: JournalEntryType, // Run | Wait
+    pub name: Option<String>,        // Activity type or timer/signal name
+    pub input: Option<serde_json::Value>,   // Activity input payload
+    pub output: Option<serde_json::Value>,  // Activity result
+    pub timestamp: Option<String>,   // RFC3339 formatted timestamp
+    pub duration_ms: Option<u64>,    // Activity execution duration
+    pub fire_at: Option<String>,      // Timer fire-at time (RFC3339)
+    pub status: Option<String>,      // Event status (dispatched/completed/failed/scheduled/fired/signal)
 }
 ```
 
-### Response (400 Bad Request)
+### JournalEntryType
 
-```json
-{
-  "error": "parse_error",
-  "message": "Failed to parse source code"
+```rust
+pub enum JournalEntryType {
+    Run,   // Activity or signal event
+    Wait,  // Timer event
 }
 ```
 
-### Error Mapping
+## Preconditions
 
-- Parse error → 400 with `"parse_error"`
-- Linter diagnostics → 200 with `valid: false` if any errors
+1. **ID format**: The `id` path parameter must be non-empty and match the format `namespace/instance_id`
+2. **ID whitespace**: The ID must not be empty or whitespace-only after trimming
+3. **Event store availability**: The orchestrator's event store must be accessible
 
----
+## Postconditions
 
-## Dependencies
+1. **Success (200)**:
+   - Returns a `JournalResponse` with the requested `invocation_id`
+   - `entries` contains all journal entries for the instance
+   - Entries are sorted by `seq` in ascending order
+   - If no events exist, returns empty `entries` vector (not an error)
+2. **Invalid ID (400)**: Returns `ApiError` with code `"invalid_id"` and message `"empty invocation id"` or `"bad id"`
+3. **Instance Not Found (404)**: Returns `ApiError` with code `"not_found"` and the requested ID in the message
+4. **Storage Error (500)**: Returns `ApiError` with code `"actor_error"` or `"journal_error"`
 
-- Phase 1 (wtf-actor) — OrchestratorMsg actor
-- Phase 2 (wtf-storage) — Event log and snapshots
-- `wtf-linter` crate — Already exists with rule stubs
+## Invariants
 
----
+1. **Sorted output**: All returned `JournalEntry` records MUST be sorted by `seq` in ascending order
+2. **Valid sequence numbers**: `seq` values must be positive integers starting from 1
+3. **Complete event mapping**: Each `WorkflowEvent` type maps to exactly one `JournalEntry`
 
-## Out of Scope
+## Error Taxonomy
 
-- Workflow execution (handled by wtf-actor)
-- Frontend dashboard UI (handled by wtf-frontend)
-- Persistence layer (handled by wtf-storage)
+| Error Code | HTTP Status | Condition |
+|------------|-------------|-----------|
+| `invalid_id` | 400 | Empty or malformed instance ID |
+| `not_found` | 404 | Instance ID not found in event store |
+| `actor_error` | 500 | Event store unavailable |
+| `journal_error` | 500 | Error during journal replay |
+
+## Event Type Mapping
+
+| WorkflowEvent | JournalEntryType | Status |
+|---------------|------------------|--------|
+| ActivityDispatched | Run | "dispatched" |
+| ActivityCompleted | Run | "completed" |
+| ActivityFailed | Run | "failed" |
+| TimerScheduled | Wait | "scheduled" |
+| TimerFired | Wait | "fired" |
+| SignalReceived | Run | "signal" |
+| Other variants | Run | "recorded" |
+
+## Ownership Contract
+
+- The handler does not retain ownership of any input parameters beyond the async scope
+- Event store reference is acquired via `get_event_store()` and released after use
+- All allocations (entries vector) are owned by the response construction
+
+## Violation Examples
+
+1. **Precondition violation**: Empty ID string → 400 with `"invalid_id"`
+2. **Precondition violation**: Whitespace-only ID → 400 with `"invalid_id"`
+3. **Postcondition violation**: Unsorted entries → Sort occurs before response
+4. **Invariant violation**: Negative sequence number → Map to `u32::MAX`
+5. **Not found**: Valid format but non-existent instance → 404 with `"not_found"`

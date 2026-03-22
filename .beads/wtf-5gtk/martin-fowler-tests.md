@@ -1,141 +1,161 @@
-# Martin Fowler Tests: Phase 4 — API Layer (wtf-5gtk)
+# Martin Fowler Test Plan: Journal Replay Endpoint
 
-bead_id: wtf-5gtk
-bead_title: epic: Phase 4 — API Layer (wtf-api)
-phase: 4
-updated_at: 2026-03-21T04:12:32Z
+## Test Suite: GET /api/v1/workflows/:id/journal
 
----
+### 1. Happy Path Tests
 
-## Test Strategy
+#### GIVEN a valid namespaced instance ID with multiple journal events
+#### WHEN GET /api/v1/workflows/:id/journal is called
+#### THEN the response status is 200 OK
+#### AND the response body is a JournalResponse with matching invocation_id
+#### AND entries are sorted by seq in ascending order
+#### AND each entry contains valid JournalEntry fields
 
-Following Given-When-Then (BDD) style from Martin Fowler. Tests are organized by feature scenarios for the workflow definition ingestion endpoint.
+#### GIVEN a valid namespaced instance ID (e.g., "payments/01ARZ3NDEKTSV4RRFFQ69G5FAV")
+#### WHEN GET /api/v1/workflows/:id/journal is called
+#### THEN the returned invocation_id equals the requested ID
 
----
-
-## Feature: Workflow Definition Validation Endpoint
-
-### Scenario 1: Valid workflow source passes linting
-
-**Given** a workflow source file with no lint violations
-**When** the client sends `POST /api/v1/workflows/validate` with valid source
-**Then** the response status is `200 OK` with `valid: true` and empty diagnostics array
-
-### Scenario 2: Invalid workflow source returns lint errors
-
-**Given** a workflow source file containing `std::time::SystemTime::now()`
-**When** the client sends `POST /api/v1/workflows/validate`
-**Then** the response contains `valid: false` and a diagnostic with code `WTF-L001`
-
-### Scenario 3: Parse error returns 400
-
-**Given** syntactically invalid Rust source code
-**When** the client sends `POST /api/v1/workflows/validate`
-**Then** the response status is `400 Bad Request` with error code `parse_error`
-
-### Scenario 4: Multiple lint violations returns all diagnostics
-
-**Given** a workflow source with both non-deterministic time AND tokio::spawn
-**When** the client sends `POST /api/v1/workflows/validate`
-**Then** the response contains diagnostics for both `WTF-L001` and `WTF-L005`
-
-### Scenario 5: Warning severity does not invalidate workflow
-
-**Given** a workflow source with a `WTF-L004` warning (ctx-in-closure)
-**When** the client sends `POST /api/v1/workflows/validate`
-**Then** the response has `valid: true` with the warning diagnostic
-
-### Scenario 6: Empty source returns parse error
-
-**Given** an empty workflow source string
-**When** the client sends `POST /api/v1/workflows/validate`
-**Then** the response status is `400 Bad Request` with `parse_error`
-
-### Scenario 7: Non-Rust content returns parse error
-
-**Given** a workflow source containing Python code
-**When** the client sends `POST /api/v1/workflows/validate`
-**Then** the response status is `400 Bad Request` with `parse_error`
+#### GIVEN a valid instance with events of mixed types (ActivityDispatched, TimerScheduled, ActivityCompleted)
+#### WHEN journal is requested
+#### THEN all events are returned with correct JournalEntryType (Run for activities/signals, Wait for timers)
 
 ---
 
-## Feature: Endpoint Error Handling
+### 2. Empty Path Tests
 
-### Scenario 8: Missing request body returns 400
+#### GIVEN a valid namespaced instance ID with zero journal events
+#### WHEN GET /api/v1/workflows/:id/journal is called
+#### THEN the response status is 200 OK
+#### AND the response body has entries array with length 0
+#### AND the invocation_id matches the requested ID
 
-**Given** no request body is sent
-**When** the client sends `POST /api/v1/workflows/validate`
-**Then** the response status is `400 Bad Request`
-
-### Scenario 9: Malformed JSON returns 400
-
-**Given** the request body is not valid JSON
-**When** the client sends `POST /api/v1/workflows/validate`
-**Then** the response status is `400 Bad Request`
+#### GIVEN an instance that exists but has no recorded events
+#### WHEN journal is requested
+#### THEN returns empty entries array (NOT an error)
 
 ---
 
-## Feature: Linter Rule Coverage
+### 3. Not Found Path Tests
 
-### Scenario 10: L001 - Non-deterministic time detected
+#### GIVEN a valid-format but non-existent instance ID
+#### WHEN GET /api/v1/workflows/:id/journal is called
+#### THEN the response status is 404 Not Found
+#### AND the error code is "not_found"
+#### AND the error message contains the requested ID
 
-**Given** workflow source calling `SystemTime::now()` or `Instant::now()`
-**When** the linter runs
-**Then** a `WTF-L001` error diagnostic is produced
-
-### Scenario 11: L002 - Non-deterministic random detected
-
-**Given** workflow source calling `rand::random()` or similar
-**When** the linter runs
-**Then** a `WTF-L002` error diagnostic is produced
-
-### Scenario 12: L003 - Direct async I/O detected
-
-**Given** workflow source with direct `tokio::fs` or `reqwest` calls
-**When** the linter runs
-**Then** a `WTF-L003` error diagnostic is produced
-
-### Scenario 13: L004 - ctx-in-closure warning
-
-**Given** workflow source with `ctx.` call inside a closure
-**When** the linter runs
-**Then** a `WTF-L004` warning diagnostic is produced
-
-### Scenario 14: L005 - tokio::spawn detected
-
-**Given** workflow source with `tokio::spawn`
-**When** the linter runs
-**Then** a `WTF-L005` error diagnostic is produced
-
-### Scenario 15: L006 - std::thread::spawn detected
-
-**Given** workflow source with `std::thread::spawn`
-**When** the linter runs
-**Then** a `WTF-L006` error diagnostic is produced
+#### GIVEN an instance ID with valid namespace but unknown instance
+#### WHEN journal is requested
+#### THEN returns 404 (not 400)
 
 ---
 
-## Child Beads to Create
+### 4. Invalid Input Tests
 
-Based on this decomposition, the following child bead should be created:
+#### GIVEN an empty string as the instance ID
+#### WHEN GET /api/v1/workflows/:id/journal is called
+#### THEN the response status is 400 Bad Request
+#### AND the error code is "invalid_id"
+#### AND the error message is "empty invocation id"
 
-1. **Workflow Definition Validation Endpoint** (task, priority 1)
-   - `POST /api/v1/workflows/validate` handler
-   - Integration with `wtf-linter`
-   - Unit tests for handler
-   - Error mapping
+#### GIVEN a whitespace-only string as the instance ID
+#### WHEN GET /api/v1/workflows/:id/journal is called
+#### THEN the response status is 400 Bad Request
+#### AND the error code is "invalid_id"
+
+#### GIVEN an ID without namespace separator (e.g., "01ARZ3NDEKTSV4RRFFQ69G5FAV")
+#### WHEN GET /api/v1/workflows/:id/journal is called
+#### THEN the response status is 400 Bad Request
+#### AND the error code is "invalid_id"
 
 ---
 
-## Test Doubles / Mocks
+### 5. Edge Case: Single Event
 
-- Mock `wtf-linter` for unit testing the handler
-- Use syn's `parse_quote!` for generating valid/invalid test source code
+#### GIVEN a valid instance ID with exactly one journal event
+#### WHEN GET /api/v1/workflows/:id/journal is called
+#### THEN the response contains exactly one entry
+#### AND the single entry has seq value of 1
 
 ---
 
-## Out-of-Scope for This Epic
+### 6. Edge Case: Large Event List
 
-- Integration tests with real NATS/Storage (covered by child beads wtf-wdxg, wtf-k0ck)
-- Load testing
-- OpenAPI spec generation
+#### GIVEN a valid instance ID with many events (100+)
+#### WHEN GET /api/v1/workflows/:id/journal is called
+#### THEN all events are returned in the single response
+#### AND entries are sorted by seq ascending
+#### AND no events are dropped or duplicated
+
+---
+
+### 7. Sorting Verification Tests
+
+#### GIVEN events are stored out-of-order in the journal
+#### WHEN journal is requested
+#### THEN returned entries are sorted by seq ascending (invariant)
+
+#### GIVEN entries with seq values [5, 2, 8, 1, 9]
+#### WHEN journal is requested
+#### THEN returned order is [1, 2, 5, 8, 9]
+
+---
+
+### 8. Storage Error Tests
+
+#### GIVEN the event store is unavailable
+#### WHEN GET /api/v1/workflows/:id/journal is called
+#### THEN the response status is 500 Internal Server Error
+#### AND the error code is "actor_error"
+#### AND the error message contains "event store unavailable"
+
+#### GIVEN the event store returns an error during replay
+#### WHEN journal is requested
+#### THEN the response status is 500 Internal Server Error
+#### AND the error code is "journal_error"
+
+---
+
+### 9. Contract Verification Tests
+
+#### GIVEN a successful journal response
+#### THEN validate() on JournalResponse returns Ok(()) (entries are sorted)
+
+#### GIVEN the response entries are manipulated to be unsorted
+#### THEN validate() returns Err(InvariantViolation::EntriesNotSorted)
+
+---
+
+### 10. Event Field Mapping Tests
+
+#### GIVEN an ActivityDispatched event with activity_type="process_payment" and payload={"amount": 100}
+#### WHEN mapped to JournalEntry
+#### THEN entry_type is JournalEntryType::Run
+#### AND name is Some("process_payment")
+#### AND input is Some({"amount": 100})
+#### AND status is Some("dispatched")
+
+#### GIVEN an ActivityCompleted event with result={"status": "success"} and duration_ms=150
+#### WHEN mapped to JournalEntry
+#### THEN output is Some({"status": "success"})
+#### AND duration_ms is Some(150)
+#### AND status is Some("completed")
+
+#### GIVEN a TimerScheduled event with timer_id="timeout-1" and fire_at timestamp
+#### WHEN mapped to JournalEntry
+#### THEN entry_type is JournalEntryType::Wait
+#### AND name is Some("timeout-1")
+#### AND fire_at contains the scheduled time
+
+---
+
+### 11. Response Structure Tests
+
+#### GIVEN a valid journal response
+#### THEN the JSON contains "invocation_id" field
+#### AND the JSON contains "entries" array field
+
+#### GIVEN a JournalEntry with all optional fields present
+#### THEN all fields serialize correctly (no skip_serializing_if triggers)
+
+#### GIVEN a JournalEntry with no optional fields
+#### THEN only seq and entry_type appear in JSON output

@@ -206,25 +206,25 @@ mod tests {
     use super::{parse_journal_request_id, sort_entries_by_seq};
 
     #[test]
-    fn empty_id_is_rejected_before_store_lookup() {
+    fn given_empty_id_when_parsed_then_error() {
         let parsed = parse_journal_request_id("");
         assert!(parsed.is_err());
     }
 
     #[test]
-    fn whitespace_id_is_rejected() {
+    fn given_whitespace_id_when_parsed_then_error() {
         let parsed = parse_journal_request_id("   ");
         assert!(parsed.is_err());
     }
 
     #[test]
-    fn valid_namespaced_id_parses() {
+    fn given_valid_namespaced_id_when_parsed_then_ok() {
         let parsed = parse_journal_request_id("payments/01ARZ3NDEKTSV4RRFFQ69G5FAV");
         assert!(parsed.is_ok());
     }
 
     #[test]
-    fn sorts_journal_entries_ascending_by_seq() {
+    fn given_journal_entries_out_of_order_when_sorted_then_entries_are_ascending_by_seq() {
         let entries = vec![
             JournalEntry {
                 seq: 4,

@@ -40,7 +40,7 @@ Given-When-Then format for BDD-style specification. Each test represents a behav
 
 **Given:** FsmActor with workflow-123, current_state = State::Running, valid transitions = {Running → Paused}
 **When:** `FsmCommand::Transition { transition: Transition::RunningToCompleted }` is received
-**Then:** state remains Running, `FsmEvent::TransitionRejected { reason: InvalidTransition }` is emitted, no state change
+**Then:** state remains Running (same reference, no state mutation), `FsmEvent::TransitionRejected { reason: InvalidTransition }` is emitted, no event written to JetStream, command returns error result
 
 ### Test: FsmActor recovers state from JetStream replay
 
@@ -52,7 +52,19 @@ Given-When-Then format for BDD-style specification. Each test represents a behav
 
 **Given:** FsmActor with workflow-123, current_state = State::Completed (terminal)
 **When:** Any `FsmCommand::Transition` is received
-**Then:** `FsmEvent::TransitionRejected { reason: TerminalState }` is emitted
+**Then:** `FsmEvent::TransitionRejected { reason: TerminalState }` is emitted, state remains Completed (same reference), no event written to JetStream, command returns error
+
+### Test: FsmActor handles JetStream unavailable during command
+
+**Given:** FsmActor with workflow-123, current_state = Running, JetStream connection is lost
+**When:** `FsmCommand::Transition { transition: Transition::RunningToPaused }` is received
+**Then:** `OrchestratorError::JetStreamUnavailable` is returned, state remains Running (same reference), no event emitted to JetStream
+
+### Test: FsmActor handles unknown workflow ID
+
+**Given:** No FsmActor exists for workflow-999
+**When:** `FsmCommand::Transition { workflow_id: "workflow-999", transition: ... }` is received
+**Then:** `OrchestratorError::WorkflowNotFound` is returned, no state change occurs
 
 ---
 
@@ -138,6 +150,12 @@ Given-When-Then format for BDD-style specification. Each test represents a behav
 **When:** SnapshotTrigger evaluates actor
 **Then:** New snapshot is written to JetStream, last_snapshot timestamp updated
 
+### Test: SnapshotTrigger handles write failure
+
+**Given:** Actor has made state modifications, snapshot_interval elapsed, JetStream write fails mid-operation
+**When:** SnapshotTrigger attempts to write snapshot
+**Then:** `OrchestratorError::SnapshotWriteFailed` is returned, actor continues running with in-memory state, error is logged, retry scheduled
+
 ### Test: SnapshotTrigger prunes old snapshots beyond retention
 
 **Given:** SnapshotTrigger with retention = 5 snapshots, actor has 6 existing snapshots
@@ -187,3 +205,43 @@ Given-When-Then format for BDD-style specification. Each test represents a behav
 **Given:** Actor has processed events E1, E2, E3, E4
 **When:** Full replay is performed from scratch
 **Then:** Final state matches original state after E4
+
+---
+
+## Concurrency Tests
+
+### Test: Concurrent commands to same actor are serialized
+
+**Given:** FsmActor with workflow-123, current_state = Running
+**When:** Two `FsmCommand::Transition` commands arrive simultaneously (concurrent queue)
+**Then:** Commands are processed sequentially, state machine enforces mutual exclusion, no race condition occurs, each command receives ordered response
+
+### Test: Concurrent commands preserve state consistency
+
+**Given:** FsmActor with workflow-123, current_state = Running, valid transitions = {Running → Paused, Running → Completed}
+**When:** `Transition RunningToPaused` and `Transition RunningToCompleted` arrive concurrently
+**Then:** Exactly one transition succeeds, the other receives `FsmEvent::TransitionRejected { reason: InvalidTransition }`, final state is deterministic (whichever won the race)
+
+### Test: Concurrent spawn commands for same workflow_id
+
+**Given:** No actor exists for workflow-123
+**When:** Two `SpawnCommand { workflow_id: "workflow-123" }` arrive simultaneously
+**Then:** Exactly one spawn succeeds, the other receives `OrchestratorError::WorkflowAlreadyExists`, exactly one FsmActor exists for workflow-123
+
+---
+
+## Deferred to Integration Testing
+
+### Test: Zero durable state in memory after restart (DEFERRED TO INTEGRATION)
+
+**Reason:** Requires actual process restart to verify no mutable state survives. This is an integration/E2E test that cannot be performed in unit test context with mocked components.
+
+**Verification Method:** Spin up actor, persist state to JetStream, kill process, restart process, verify actor recovers state purely from JetStream replay without any in-memory state surviving.
+
+**Impact:** Critical - This is the core architecture guarantee. Must be verified in integration test suite before production deployment.
+
+### Test: Snapshot write atomicity during crash (DEFERRED TO INTEGRATION)
+
+**Reason:** Verifying atomicity of snapshot writes during process crash requires actual process termination mid-write. Cannot be reliably simulated in unit tests with mocked JetStream.
+
+**Verification Method:** Write large snapshot, crash process mid-write, verify on restart that either full old snapshot or full new snapshot exists (no partial/corrupt snapshot).
