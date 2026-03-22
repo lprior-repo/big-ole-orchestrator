@@ -197,3 +197,89 @@ fn is_std_thread_sleep_path(path: &syn::Path) -> bool {
         && path.segments[1].ident == "thread"
         && path.segments[2].ident == "sleep"
 }
+
+#[cfg(test)]
+mod tests {
+    use super::lint_workflow_code;
+    use crate::diagnostic::LintCode;
+
+    #[test]
+    fn emits_no_diagnostic_for_code_without_thread_spawn() {
+        let source = r#"
+impl Workflow for MyWf {
+    async fn execute(&self) {
+        let _x = 1 + 1;
+    }
+}
+"#;
+
+        let result = lint_workflow_code(source);
+        assert!(result.is_ok());
+        if let Ok(diags) = result {
+            assert!(diags.is_empty());
+        }
+    }
+
+    #[test]
+    fn emits_diagnostic_for_std_thread_spawn_in_workflow_execute() {
+        let source = r#"
+impl Workflow for MyWf {
+    async fn execute(&self) {
+        std::thread::spawn(|| {});
+    }
+}
+"#;
+
+        let result = lint_workflow_code(source);
+        assert!(result.is_ok());
+        if let Ok(diags) = result {
+            assert_eq!(diags.len(), 1);
+            assert_eq!(diags[0].code, LintCode::L006);
+            assert!(diags[0]
+                .suggestion
+                .as_ref()
+                .is_some_and(|message| message.contains("activity")));
+        }
+    }
+
+    #[test]
+    fn emits_no_diagnostic_for_spawn_in_non_workflow_fn() {
+        let source = r#"
+async fn helper() {
+    std::thread::spawn(|| {});
+}
+"#;
+
+        let result = lint_workflow_code(source);
+        assert!(result.is_ok());
+        if let Ok(diags) = result {
+            assert!(diags.is_empty());
+        }
+    }
+
+    #[test]
+    fn emits_multiple_diagnostics_for_multiple_spawn_calls() {
+        let source = r#"
+impl Workflow for MyWf {
+    async fn execute(&self) {
+        std::thread::spawn(|| {});
+        std::thread::spawn(|| {});
+    }
+}
+"#;
+
+        let result = lint_workflow_code(source);
+        assert!(result.is_ok());
+        if let Ok(diags) = result {
+            assert_eq!(diags.len(), 2);
+            assert!(diags.iter().all(|diag| diag.code == LintCode::L006));
+        }
+    }
+
+    #[test]
+    fn returns_parse_error_for_invalid_rust() {
+        let source = "impl Workflow for MyWf { async fn execute(&self) {";
+        let result = lint_workflow_code(source);
+        assert!(result.is_err());
+    }
+}
