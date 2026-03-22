@@ -40,3 +40,9 @@ pub struct V3SignalRequest {
     pub signal_name: String,
     pub payload: serde_json::Value,
 }
+
+/// POST /api/v1/workflows/validate request body.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ValidateWorkflowRequest {
+    pub source: String,
+}
