@@ -51,3 +51,16 @@ Implemented all request/response types per ADR-012:
 
 ## Pre-existing Issues
 handlers.rs has stub functions with type inference issues (Err(StatusCode::NOT_IMPLEMENTED) without type annotation). These are being fixed as part of Moon gate.
+
+## Iteration 2 (Contract parity hardening)
+
+- Added additional API type contract tests in `crates/wtf-api/src/types/tests.rs`:
+  - workflow name uppercase rejection
+  - signal single-char rejection
+  - retry-after zero rejection
+  - `StartWorkflowResponse::validate()` rejects non-running status
+  - `JournalResponse::validate()` rejects unsorted entries
+  - `ErrorResponse::new()` rejects retry hints for non-retryable errors
+
+- Verification:
+  - `cargo test -p wtf-api -- --nocapture`

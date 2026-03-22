@@ -1,4 +1,4 @@
-use wtf_linter::{lint_workflow_source, LintCode};
+use wtf_linter::{lint_workflow_source, LintCode, Severity};
 
 #[test]
 fn test_integration_l006_l006b_violations() {
@@ -143,4 +143,29 @@ async fn helper() {
         !result.has_errors,
         "thread::spawn and thread::sleep outside workflow should not be flagged"
     );
+}
+
+#[test]
+fn test_warning_only_diagnostics_do_not_set_has_errors() {
+    let source = r#"
+impl WorkflowFn for MyWorkflow {
+    async fn execute(&self, ctx: WorkflowContext) -> anyhow::Result<()> {
+        let xs = vec![1,2,3];
+        xs.iter().for_each(|_| {
+            let _ = ctx.now();
+        });
+        Ok(())
+    }
+}
+"#;
+
+    let result = lint_workflow_source(source).unwrap_or_else(|_| unreachable!());
+    assert!(
+        !result.has_errors,
+        "warning-only results should not be errorful"
+    );
+    assert!(result
+        .diagnostics
+        .iter()
+        .all(|diagnostic| diagnostic.severity == Severity::Warning));
 }

@@ -35,3 +35,17 @@
 - Individual lint rules (L001-L006) will be implemented in separate beads
 - Current implementation provides the infrastructure; rules array is empty
 - When rules are added, they will implement `LintVisitor` and be passed to `walk_workflow_functions`
+
+## Iteration 2 (infrastructure parity updates)
+
+- Updated `LintResult::new()` semantics in `crates/wtf-linter/src/lib.rs`:
+  - `has_errors` now reflects error-severity diagnostics only (warning-only sets `false`).
+- Added diagnostics deduplication by `(code, span)` prior to building `LintResult`.
+- Added infra tests in `lib.rs` and `engine.rs`:
+  - warning-only `has_errors == false`
+  - error diagnostic `has_errors == true`
+  - invalid source returns parse error
+  - empty source handled successfully
+
+- Verification:
+  - `cargo test -p wtf-linter -- --nocapture`

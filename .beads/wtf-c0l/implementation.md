@@ -42,6 +42,15 @@
 
 - `cargo test -p wtf-api -- --nocapture`
 
+## Iteration 2 (contract hardening)
+
+- Extracted deterministic sorter helper for journal entries and added unit coverage:
+  - `sort_entries_by_seq(Vec<JournalEntry>) -> Vec<JournalEntry>`
+  - test ensures unsorted inputs are returned in ascending sequence order
+
+- Verification rerun:
+  - `cargo test -p wtf-api -- --nocapture`
+
 ## Files changed
 
 - `crates/wtf-api/src/handlers/journal.rs` (new)

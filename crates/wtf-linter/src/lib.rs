@@ -9,6 +9,7 @@
 // Rules WTF-L001 through WTF-L006 — see individual rule modules.
 
 pub mod diagnostic;
+pub mod engine;
 pub mod l001_time;
 pub mod l003_direct_io;
 pub mod l004;
@@ -18,6 +19,7 @@ pub mod rules;
 pub mod visitor;
 
 pub use diagnostic::{Diagnostic, LintCode, LintError, Severity};
+pub use engine::{linter_with_all_rules, Linter, VisitRule};
 pub use l004::lint_workflow_code as lint_workflow_code_l004;
 pub use l005::lint_workflow_code;
 pub use l006::lint_workflow_code as lint_workflow_code_l006;
@@ -31,7 +33,9 @@ pub struct LintResult {
 impl LintResult {
     #[must_use]
     pub fn new(diagnostics: Vec<Diagnostic>) -> Self {
-        let has_errors = !diagnostics.is_empty();
+        let has_errors = diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.severity == Severity::Error);
         Self {
             diagnostics,
             has_errors,
@@ -44,17 +48,43 @@ impl LintResult {
 /// # Errors
 /// Returns `LintError::ParseError` if the source cannot be parsed.
 pub fn lint_workflow_source(source: &str) -> Result<LintResult, LintError> {
-    let mut all_diagnostics: Vec<Diagnostic> = Vec::new();
+    linter_with_all_rules()
+        .lint_source(source)
+        .map(deduplicate_diagnostics)
+        .map(LintResult::new)
+}
 
-    all_diagnostics.extend(l001_time::lint_workflow_code(source)?);
-    all_diagnostics.extend(l003_direct_io::lint_workflow_code(source)?);
-    all_diagnostics.extend(l004::lint_workflow_code(source)?);
+fn deduplicate_diagnostics(diagnostics: Vec<Diagnostic>) -> Vec<Diagnostic> {
+    diagnostics
+        .into_iter()
+        .fold(
+            (std::collections::HashSet::new(), Vec::new()),
+            |(mut seen, mut unique), diagnostic| {
+                let key = (diagnostic.code.as_str().to_owned(), diagnostic.span);
+                if seen.insert(key) {
+                    unique.push(diagnostic);
+                }
+                (seen, unique)
+            },
+        )
+        .1
+}
 
-    let l005_result = l005::lint_workflow_code(source)?;
-    all_diagnostics.extend(l005_result);
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    let l006_result = l006::lint_workflow_code(source)?;
-    all_diagnostics.extend(l006_result);
+    #[test]
+    fn lint_result_has_errors_false_for_warning_only() {
+        let diagnostics = vec![Diagnostic::new(LintCode::L004, "warning")];
+        let result = LintResult::new(diagnostics);
+        assert!(!result.has_errors);
+    }
 
-    Ok(LintResult::new(all_diagnostics))
+    #[test]
+    fn lint_result_has_errors_true_for_error_diagnostic() {
+        let diagnostics = vec![Diagnostic::new(LintCode::L001, "error")];
+        let result = LintResult::new(diagnostics);
+        assert!(result.has_errors);
+    }
 }

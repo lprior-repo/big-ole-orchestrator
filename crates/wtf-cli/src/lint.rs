@@ -237,3 +237,53 @@ fn emit_json(diagnostics: &[Diagnostic]) {
         eprintln!("failed to serialize diagnostics: {e}");
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    #[test]
+    fn explain_rule_returns_known_explanation() {
+        let explanation = explain_rule("WTF-L001");
+        assert!(explanation.is_some());
+    }
+
+    #[test]
+    fn explain_rule_returns_none_for_unknown_rule() {
+        let explanation = explain_rule("WTF-L999");
+        assert!(explanation.is_none());
+    }
+
+    #[test]
+    fn lint_single_file_reports_parse_error_for_invalid_rust() {
+        let path = std::env::temp_dir().join("wtf_cli_invalid_lint.rs");
+        let write_result = fs::write(&path, "fn broken( {");
+        assert!(write_result.is_ok());
+
+        let result = lint_single_file(&path);
+        assert!(result.is_err());
+
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn lint_single_file_allows_clean_rust_file() {
+        let path = std::env::temp_dir().join("wtf_cli_clean_lint.rs");
+        let source = r#"
+impl WorkflowFn for MyWorkflow {
+    async fn execute(&self, ctx: WorkflowContext) -> anyhow::Result<()> {
+        let _ = ctx.now();
+        Ok(())
+    }
+}
+"#;
+        let write_result = fs::write(&path, source);
+        assert!(write_result.is_ok());
+
+        let result = lint_single_file(&path);
+        assert!(result.is_ok());
+
+        let _ = fs::remove_file(path);
+    }
+}

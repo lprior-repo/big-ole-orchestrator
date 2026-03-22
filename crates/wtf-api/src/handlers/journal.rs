@@ -63,7 +63,7 @@ pub async fn get_journal(
         }
     }
 
-    entries.sort_by_key(|entry| entry.seq);
+    let entries = sort_entries_by_seq(entries);
 
     (
         StatusCode::OK,
@@ -193,9 +193,17 @@ fn map_event_fields(
     }
 }
 
+fn sort_entries_by_seq(entries: Vec<JournalEntry>) -> Vec<JournalEntry> {
+    let mut sorted = entries;
+    sorted.sort_by_key(|entry| entry.seq);
+    sorted
+}
+
 #[cfg(test)]
 mod tests {
-    use super::parse_journal_request_id;
+    use crate::types::{JournalEntry, JournalEntryType};
+
+    use super::{parse_journal_request_id, sort_entries_by_seq};
 
     #[test]
     fn empty_id_is_rejected_before_store_lookup() {
@@ -213,5 +221,37 @@ mod tests {
     fn valid_namespaced_id_parses() {
         let parsed = parse_journal_request_id("payments/01ARZ3NDEKTSV4RRFFQ69G5FAV");
         assert!(parsed.is_ok());
+    }
+
+    #[test]
+    fn sorts_journal_entries_ascending_by_seq() {
+        let entries = vec![
+            JournalEntry {
+                seq: 4,
+                entry_type: JournalEntryType::Run,
+                name: None,
+                input: None,
+                output: None,
+                timestamp: None,
+                duration_ms: None,
+                fire_at: None,
+                status: None,
+            },
+            JournalEntry {
+                seq: 2,
+                entry_type: JournalEntryType::Wait,
+                name: None,
+                input: None,
+                output: None,
+                timestamp: None,
+                duration_ms: None,
+                fire_at: None,
+                status: None,
+            },
+        ];
+
+        let sorted = sort_entries_by_seq(entries);
+        assert_eq!(sorted[0].seq, 2);
+        assert_eq!(sorted[1].seq, 4);
     }
 }

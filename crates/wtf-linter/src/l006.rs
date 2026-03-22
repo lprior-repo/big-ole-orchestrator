@@ -282,4 +282,62 @@ impl Workflow for MyWf {
         let result = lint_workflow_code(source);
         assert!(result.is_err());
     }
+
+    #[test]
+    fn emits_l006b_for_thread_sleep_in_workflow() {
+        let source = r#"
+impl Workflow for MyWf {
+    async fn execute(&self) {
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+}
+"#;
+
+        let result = lint_workflow_code(source);
+        assert!(result.is_ok());
+        if let Ok(diags) = result {
+            assert!(diags.iter().any(|diag| diag.code == LintCode::L006b));
+        }
+    }
+
+    #[test]
+    fn does_not_emit_for_ctx_sleep_call() {
+        let source = r#"
+impl Workflow for MyWf {
+    async fn execute(&self) {
+        ctx.sleep(std::time::Duration::from_millis(1));
+    }
+}
+"#;
+
+        let result = lint_workflow_code(source);
+        assert!(result.is_ok());
+        if let Ok(diags) = result {
+            assert!(diags.is_empty());
+        }
+    }
+
+    #[test]
+    fn emits_multiple_for_nested_spawn_calls() {
+        let source = r#"
+impl Workflow for MyWf {
+    async fn execute(&self) {
+        if true {
+            std::thread::spawn(|| {});
+            std::thread::spawn(|| {});
+        }
+    }
+}
+"#;
+
+        let result = lint_workflow_code(source);
+        assert!(result.is_ok());
+        if let Ok(diags) = result {
+            let l006_count = diags
+                .iter()
+                .filter(|diag| diag.code == LintCode::L006)
+                .count();
+            assert_eq!(l006_count, 2);
+        }
+    }
 }

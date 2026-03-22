@@ -38,3 +38,13 @@
 ## Verification
 
 - `cargo test -p wtf-cli -- --nocapture`
+
+## Iteration 2 (CLI contract confidence)
+
+- Added explicit lint-command unit tests in `crates/wtf-cli/src/lint.rs`:
+  - known and unknown rule explanation behavior
+  - invalid Rust file returns parse/lint error
+  - clean Rust file lints successfully
+
+- Verification rerun:
+  - `cargo test -p wtf-cli -- --nocapture`

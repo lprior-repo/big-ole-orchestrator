@@ -38,3 +38,15 @@ updated_at: 2026-03-21T00:00:00Z
 - No panics/unwrap/expect used
 - All clippy lints pass
 - All tests pass
+
+## Iteration 2 (contract test expansion)
+
+- Expanded L006 test coverage in `crates/wtf-linter/src/l006.rs`:
+  - detects `std::thread::sleep` as `WTF-L006b`
+  - no false positive for `ctx.sleep(...)`
+  - nested/multiple `std::thread::spawn` produce multiple diagnostics
+- Added integration-level check in `crates/wtf-linter/tests/integration_test.rs`:
+  - warning-only lint source keeps `has_errors == false`
+
+- Verification rerun:
+  - `cargo test -p wtf-linter -- --nocapture`
