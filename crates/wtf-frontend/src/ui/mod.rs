@@ -58,5 +58,8 @@ pub use time_travel::{
     StateDiff, StepIndex, TimeTravelError,
 };
 pub use simulate_mode::{SimError, SimOp, SimProceduralState, SimWorkflowEvent};
+pub use simulate_mode::{
+    complete_node, is_dag_complete, readiness_check, SimDagState, WorkflowEvent,
+};
 pub use toolbar::FlowToolbar;
 pub use validation_panel::ValidationPanel;
