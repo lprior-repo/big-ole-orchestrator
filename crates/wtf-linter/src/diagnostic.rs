@@ -16,9 +16,9 @@ pub enum LintCode {
     L003,
     /// ctx.* call inside closure with non-deterministic dispatch order.
     L004,
-    /// tokio::spawn inside workflow function.
+    /// `tokio::spawn` inside workflow function.
     L005,
-    /// std::thread::spawn inside workflow function.
+    /// `std::thread::spawn` inside workflow function.
     L006,
 }
 

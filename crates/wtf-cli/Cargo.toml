@@ -10,6 +10,7 @@ wtf-core = { path = "../wtf-core" }
 wtf-storage = { path = "../wtf-storage" }
 wtf-actor = { path = "../wtf-actor" }
 wtf-worker = { path = "../wtf-worker" }
+wtf-linter = { path = "../wtf-linter" }
 
 # CLI
 clap = { workspace = true }
@@ -30,3 +31,4 @@ thiserror = { workspace = true }
 anyhow = { workspace = true }
 chrono = { workspace = true }
 tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
