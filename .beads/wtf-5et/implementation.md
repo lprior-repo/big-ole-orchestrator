@@ -64,6 +64,15 @@ test master::tests::test_master_orchestrator_new_accepts_minimal_capacity ... ok
 test result: ok. 7 passed; 0 failed
 ```
 
+## Iteration 2 (contract hardening)
+
+- Added focused handler-level coverage for capacity precondition in StartWorkflow path:
+  - `validate_request_rejects_when_at_capacity`
+  - `validate_request_accepts_when_capacity_available`
+
+- Verification:
+  - `cargo test -p wtf-actor master::handlers::start::tests -- --nocapture`
+
 ---
 
 bead_id: wtf-5et

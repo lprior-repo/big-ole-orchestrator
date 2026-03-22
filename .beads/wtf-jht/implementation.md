@@ -46,3 +46,11 @@ updated_at: "2026-03-21T00:10:00Z"
 - Implementation follows functional-rust principles (Data->Calc->Actions)
 - Error handling uses `Result<T, E>` pattern
 - Timeout of 5 seconds matches existing handler patterns
+
+## Iteration 2 (contract hardening)
+
+- Added explicit list handler test for empty-state read path:
+  - `list_active_returns_empty_when_no_instances`
+
+- Verification:
+  - `cargo test -p wtf-actor master::handlers::list::tests -- --nocapture`

@@ -59,3 +59,8 @@ All 7 existing tests continue to pass.
 2. **Supervisor handling**: The handle_supervisor_evt for decrementing running_count on actor termination is not yet implemented - will be added in a subsequent bead.
 
 3. **Other message variants**: GetStatus, Signal, and other OrchestratorMsg variants are not yet implemented - the handle method has placeholder cases for them.
+
+## Iteration 2 (contract hardening)
+
+- StartWorkflow validation path now has explicit unit tests ensuring capacity guard behavior and acceptance behavior under available capacity.
+- Verification rerun via targeted actor handler tests.

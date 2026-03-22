@@ -93,3 +93,30 @@ async fn persist_metadata(state: &OrchestratorState, args: &InstanceArguments) {
 
     let _ = store.put_instance_metadata(metadata).await;
 }
+
+#[cfg(test)]
+mod tests {
+    use super::validate_request;
+    use crate::master::state::{OrchestratorConfig, OrchestratorState};
+    use wtf_common::InstanceId;
+
+    #[test]
+    fn validate_request_rejects_when_at_capacity() {
+        let state = OrchestratorState::new(OrchestratorConfig {
+            max_instances: 0,
+            ..OrchestratorConfig::default()
+        });
+        let result = validate_request(&state, &InstanceId::new("inst-1"));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn validate_request_accepts_when_capacity_available() {
+        let state = OrchestratorState::new(OrchestratorConfig {
+            max_instances: 10,
+            ..OrchestratorConfig::default()
+        });
+        let result = validate_request(&state, &InstanceId::new("inst-1"));
+        assert!(result.is_ok());
+    }
+}

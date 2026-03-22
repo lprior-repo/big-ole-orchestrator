@@ -13,3 +13,16 @@ pub async fn handle_list_active(
     }
     snapshots
 }
+
+#[cfg(test)]
+mod tests {
+    use super::handle_list_active;
+    use crate::master::state::{OrchestratorConfig, OrchestratorState};
+
+    #[tokio::test]
+    async fn list_active_returns_empty_when_no_instances() {
+        let state = OrchestratorState::new(OrchestratorConfig::default());
+        let snapshots = handle_list_active(&state).await;
+        assert!(snapshots.is_empty());
+    }
+}

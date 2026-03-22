@@ -40,3 +40,32 @@ async fn call_cancel(
         Err(e) => Err(TerminateError::Failed(format!("send failed: {e}"))),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::handle_terminate;
+    use crate::master::state::{OrchestratorConfig, OrchestratorState};
+    use ractor::concurrency::oneshot;
+    use wtf_common::InstanceId;
+
+    #[tokio::test]
+    async fn terminate_returns_not_found_for_unknown_instance() {
+        let mut state = OrchestratorState::new(OrchestratorConfig::default());
+        let (tx, rx) = oneshot();
+        let instance_id = InstanceId::new("missing-inst");
+
+        handle_terminate(
+            &mut state,
+            instance_id.clone(),
+            "test".to_owned(),
+            tx.into(),
+        )
+        .await;
+
+        let reply = rx.await;
+        assert!(reply.is_ok());
+        if let Ok(reply) = reply {
+            assert!(matches!(reply, Err(crate::messages::TerminateError::NotFound(id)) if id == instance_id));
+        }
+    }
+}

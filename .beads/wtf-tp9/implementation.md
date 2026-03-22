@@ -63,3 +63,11 @@ Tests written in `handlers.rs` module `tests`:
 - `test_postcondition_204_on_success` - placeholder
 - `test_postcondition_404_on_not_found` - placeholder
 - `test_invariant_no_partial_state_changes` - placeholder
+
+## Iteration 2 (contract hardening)
+
+- Added terminate handler contract test in actor handler module:
+  - unknown invocation id returns `TerminateError::NotFound`
+
+- Verification:
+  - `cargo test -p wtf-actor master::handlers::terminate::tests -- --nocapture`

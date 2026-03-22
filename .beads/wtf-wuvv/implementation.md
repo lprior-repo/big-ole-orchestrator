@@ -24,3 +24,11 @@
 ## Files changed
 
 - `crates/wtf-worker/src/worker.rs`
+
+## Iteration 2 (stability verification)
+
+- Re-verified graceful shutdown paths under integration load:
+  - worker processing completion path
+  - unknown activity ack path
+  - shutdown signal response path
+- Confirmed no regressions while extending neighboring timeout contracts.
