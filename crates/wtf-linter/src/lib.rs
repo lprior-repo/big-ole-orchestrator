@@ -9,8 +9,11 @@
 // Rules WTF-L001 through WTF-L006 — see individual rule modules.
 
 pub mod diagnostic;
+pub mod l005;
+pub mod l006;
 pub mod rules;
 pub mod visitor;
 
 pub use diagnostic::{Diagnostic, LintCode, Severity};
-pub use rules::check_random_in_workflow;
+pub use l005::lint_workflow_code;
+pub use l006::lint_workflow_code as lint_workflow_code_l006;
