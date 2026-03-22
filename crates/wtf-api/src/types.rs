@@ -397,6 +397,35 @@ pub struct ListWorkflowsResponse {
 }
 
 // ============================================================================
+// DEFINITION INGESTION TYPES (bead wtf-qyxl)
+// ============================================================================
+
+/// POST /api/v1/definitions/<type> request body.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DefinitionRequest {
+    pub source: String,
+}
+
+/// Diagnostic from the linter.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiagnosticDto {
+    pub code: String,
+    pub severity: String,
+    pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub suggestion: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub span: Option<(usize, usize)>,
+}
+
+/// Response to POST /api/v1/definitions/<type>.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DefinitionResponse {
+    pub valid: bool,
+    pub diagnostics: Vec<DiagnosticDto>,
+}
+
+// ============================================================================
 // V3 API REQUEST/RESPONSE TYPES (bead wtf-bjn0)
 // ============================================================================
 

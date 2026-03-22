@@ -6,7 +6,7 @@
 // Placeholder — the syn Visit trait implementations live in the rule modules.
 // This module will re-export the combined visitor once rules are implemented.
 
-use syn::{visit::Visit, Expr, ExprCall, ExprMethodCall, Path};
+use syn::{spanned::Spanned, visit::Visit, Expr, ExprCall, ExprMethodCall, Path};
 
 use crate::diagnostic::{Diagnostic, LintCode};
 
@@ -86,12 +86,14 @@ impl DirectAsyncIoVisitor {
     fn check_expr(&mut self, expr: &Expr) {
         match expr {
             Expr::Call(call_expr) => {
-                if self.is_reqwest_get_call(&call_expr.func) {
-                    let span = loc_of(expr);
-                    self.emit_diagnostic(span);
-                } else if self.is_sqlx_query_call(&call_expr.func) {
-                    let span = loc_of(expr);
-                    self.emit_diagnostic(span);
+                if let Expr::Path(path_expr) = call_expr.func.as_ref() {
+                    if self.is_reqwest_get_call(&path_expr.path) {
+                        let span = loc_of(expr);
+                        self.emit_diagnostic(span);
+                    } else if self.is_sqlx_query_call(&path_expr.path) {
+                        let span = loc_of(expr);
+                        self.emit_diagnostic(span);
+                    }
                 }
             }
             Expr::MethodCall(method_expr) => {
@@ -100,9 +102,11 @@ impl DirectAsyncIoVisitor {
                     self.emit_diagnostic(span);
                 } else if self.is_sqlx_fetch_method(&method_expr.method) {
                     if let Expr::Call(inner_call) = method_expr.receiver.as_ref() {
-                        if self.is_sqlx_query_call(&inner_call.func) {
-                            let span = loc_of(expr);
-                            self.emit_diagnostic(span);
+                        if let Expr::Path(path_expr) = inner_call.func.as_ref() {
+                            if self.is_sqlx_query_call(&path_expr.path) {
+                                let span = loc_of(expr);
+                                self.emit_diagnostic(span);
+                            }
                         }
                     }
                 }

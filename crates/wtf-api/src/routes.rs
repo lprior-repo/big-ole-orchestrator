@@ -1,7 +1,7 @@
 //! routes.rs - HTTP routes for wtf-api
 
 use axum::{
-    routing::{delete, get},
+    routing::{delete, get, post},
     Router,
 };
 use ractor::ActorRef;
@@ -21,5 +21,6 @@ pub fn create_routes(master: ActorRef<OrchestratorMsg>) -> Router {
             "/workflows/:invocation_id/events",
             get(handlers::get_events),
         )
+        .route("/definitions/:type", post(handlers::ingest_definition))
         .with_state(master)
 }

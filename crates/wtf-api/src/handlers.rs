@@ -36,7 +36,7 @@ use ulid::Ulid;
 use wtf_actor::{messages::WorkflowParadigm, OrchestratorMsg, StartError};
 use wtf_common::{InstanceId, NamespaceId};
 
-use crate::types::{ApiError, V3SignalRequest, V3StartRequest, V3StartResponse, V3StatusResponse};
+use crate::types::{ApiError, DefinitionRequest, DefinitionResponse, DiagnosticDto, V3SignalRequest, V3StartRequest, V3StartResponse, V3StatusResponse};
 
 /// Timeout for all actor RPC calls from HTTP handlers.
 const ACTOR_CALL_TIMEOUT: Duration = Duration::from_secs(5);
@@ -504,6 +504,44 @@ pub async fn get_events(
         )),
     )
         .into_response()
+}
+
+// ── POST /api/v1/definitions/:type ──────────────────────────────────────────
+
+/// POST /api/v1/definitions/:type — ingest and lint a workflow definition (bead wtf-qyxl).
+///
+/// Accepts Rust source code for a procedural workflow, runs the wtf-linter,
+/// and returns lint diagnostics. Returns 422 if violations are found.
+///
+/// Path: `:type` = definition type identifier (e.g., "workflow", "activity").
+/// Request body: [`DefinitionRequest`] with `source` field containing Rust source.
+/// Response: 200 with [`DefinitionResponse`] or 400 with [`ApiError`] on parse failure.
+pub async fn ingest_definition(
+    Path(_definition_type): Path<String>,
+    Json(req): Json<DefinitionRequest>,
+) -> impl IntoResponse {
+    match wtf_linter::lint_workflow_code(&req.source) {
+        Ok(diagnostics) => {
+            let dtos: Vec<DiagnosticDto> = diagnostics
+                .into_iter()
+                .map(|d| DiagnosticDto {
+                    code: d.code.as_str().to_owned(),
+                    severity: d.severity.to_string(),
+                    message: d.message,
+                    suggestion: d.suggestion,
+                    span: d.span,
+                })
+                .collect();
+            let valid = dtos.iter().all(|d| d.severity != "error");
+            (StatusCode::OK, Json(DefinitionResponse { valid, diagnostics: dtos }))
+                .into_response()
+        }
+        Err(e) => (
+            StatusCode::BAD_REQUEST,
+            Json(ApiError::new("parse_error", e.to_string())),
+        )
+            .into_response(),
+    }
 }
 
 // ── Pure helper functions ─────────────────────────────────────────────────────

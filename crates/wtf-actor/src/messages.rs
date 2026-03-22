@@ -61,6 +61,8 @@ pub struct InstanceArguments {
     pub engine_node_id: String,
     /// NATS client for JetStream and KV operations (optional for tests).
     pub nats: Option<NatsClient>,
+    /// Sled database handle for snapshot storage (optional for tests).
+    pub snapshot_db: Option<sled::Db>,
     /// Procedural workflow function (if paradigm is Procedural).
     pub procedural_workflow: Option<Arc<dyn WorkflowFn>>,
 }

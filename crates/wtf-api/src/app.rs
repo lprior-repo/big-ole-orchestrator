@@ -38,6 +38,7 @@ use crate::{handlers, health};
 /// - `DELETE /api/v1/workflows/:id` — terminate instance
 /// - `POST /api/v1/workflows/:id/signals` — send a signal
 /// - `GET /api/v1/workflows/:id/events` — stream event log
+/// - `POST /api/v1/definitions/:type` — ingest and lint workflow definition
 #[must_use]
 pub fn build_app(master: ActorRef<OrchestratorMsg>) -> Router {
     let api_routes = Router::new()

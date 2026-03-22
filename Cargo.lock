@@ -5217,6 +5217,7 @@ dependencies = [
  "wtf-actor",
  "wtf-common",
  "wtf-core",
+ "wtf-linter",
  "wtf-storage",
  "wtf-worker",
 ]

@@ -144,7 +144,8 @@ pub fn apply_event(
         | WorkflowEvent::InstanceCancelled { .. }
         | WorkflowEvent::ChildStarted { .. }
         | WorkflowEvent::ChildCompleted { .. }
-        | WorkflowEvent::ChildFailed { .. } => {
+        | WorkflowEvent::ChildFailed { .. }
+        | WorkflowEvent::ActivityHeartbeat { .. } => {
             let mut next = state.clone();
             next.applied_seq.insert(seq);
             next.events_since_snapshot += 1;
@@ -231,8 +232,7 @@ pub fn plan_fsm_signal(
         to_state: to_state.to_owned(),
         effects: effects.to_vec(),
     };
-    let (next_state, _) =
-        apply_event(state, &transition_event, 0, ExecutionPhase::Live).ok()?;
+    let (next_state, _) = apply_event(state, &transition_event, 0, ExecutionPhase::Live).ok()?;
     Some(FsmTransitionPlan {
         transition_event,
         next_state,
