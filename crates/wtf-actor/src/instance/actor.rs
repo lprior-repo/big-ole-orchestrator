@@ -3,13 +3,11 @@
 use async_trait::async_trait;
 use ractor::{Actor, ActorProcessingErr, ActorRef};
 
-use crate::messages::{
-    InstanceMsg, InstancePhase,
-};
-use wtf_common::WorkflowParadigm;
-use super::state::InstanceState;
 use super::handlers;
 use super::init;
+use super::state::InstanceState;
+use crate::messages::{InstanceMsg, InstancePhase};
+use wtf_common::WorkflowParadigm;
 
 /// The WorkflowInstance ractor actor.
 pub struct WorkflowInstance;
@@ -37,7 +35,13 @@ impl Actor for WorkflowInstance {
         let (event_log, consumer) = init::replay_events(&mut state, from_seq).await?;
 
         if let Some(queue) = &state.args.task_queue {
-            init::transition_to_live(&state.args, &state.paradigm_state, &event_log, queue.as_ref()).await?;
+            init::transition_to_live(
+                &state.args,
+                &state.paradigm_state,
+                &event_log,
+                queue.as_ref(),
+            )
+            .await?;
         }
 
         if let Some(c) = consumer {

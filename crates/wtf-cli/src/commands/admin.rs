@@ -4,8 +4,8 @@ use anyhow::Context;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use std::time::Instant;
-use wtf_storage::nats::{connect, NatsConfig};
 use wtf_storage::kv::{provision_kv_buckets, KvStores};
+use wtf_storage::nats::{connect, NatsConfig};
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct RebuildViewsConfig {
@@ -45,11 +45,7 @@ impl ViewName {
     }
 
     pub fn all() -> Vec<Self> {
-        vec![
-            Self::Instances,
-            Self::Timers,
-            Self::Definitions,
-        ]
+        vec![Self::Instances, Self::Timers, Self::Definitions]
     }
 }
 
@@ -60,7 +56,9 @@ impl FromStr for ViewName {
     }
 }
 
-pub async fn run_rebuild_views(config: RebuildViewsConfig) -> anyhow::Result<std::process::ExitCode> {
+pub async fn run_rebuild_views(
+    config: RebuildViewsConfig,
+) -> anyhow::Result<std::process::ExitCode> {
     if config.dry_run {
         return run_dry_run(&config);
     }
@@ -84,9 +82,14 @@ pub async fn run_rebuild_views(config: RebuildViewsConfig) -> anyhow::Result<std
 
     let view_filter = config.view.as_ref().map(parse_view_name);
     let start = Instant::now();
-    let stats = rebuild_views(&stores, &config.namespace, view_filter.as_ref(), config.show_progress)
-        .await
-        .context("rebuild failed")?;
+    let stats = rebuild_views(
+        &stores,
+        &config.namespace,
+        view_filter.as_ref(),
+        config.show_progress,
+    )
+    .await
+    .context("rebuild failed")?;
 
     print_rebuild_summary(stats, start.elapsed());
     Ok(std::process::ExitCode::SUCCESS)
@@ -105,7 +108,10 @@ fn run_dry_run(config: &RebuildViewsConfig) -> anyhow::Result<std::process::Exit
 
 fn parse_view_name(v: &String) -> ViewName {
     ViewName::parse(v).unwrap_or_else(|| {
-        eprintln!("error: invalid view '{}'. Valid views: instances, timers, definitions, heartbeats", v);
+        eprintln!(
+            "error: invalid view '{}'. Valid views: instances, timers, definitions, heartbeats",
+            v
+        );
         std::process::exit(1);
     })
 }

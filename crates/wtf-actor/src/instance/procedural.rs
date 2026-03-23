@@ -1,12 +1,12 @@
 //! Procedural-specific message handlers for WorkflowInstance.
 
-use bytes::Bytes;
-use wtf_common::{ActivityId, WtfError, WorkflowEvent};
-use super::state::InstanceState;
-use super::lifecycle::ParadigmState;
 use super::handlers;
+use super::lifecycle::ParadigmState;
+use super::state::InstanceState;
+use bytes::Bytes;
+use wtf_common::{ActivityId, WorkflowEvent, WtfError};
 
-pub use super::procedural_utils::{handle_now, handle_random, handle_completed, handle_failed};
+pub use super::procedural_utils::{handle_completed, handle_failed, handle_now, handle_random};
 
 pub async fn handle_get_checkpoint(
     state: &InstanceState,
@@ -54,11 +54,14 @@ async fn append_and_inject_event(
         }
     };
 
-    match store.publish(
-        &state.args.namespace,
-        &state.args.instance_id,
-        event.clone(),
-    ).await {
+    match store
+        .publish(
+            &state.args.namespace,
+            &state.args.instance_id,
+            event.clone(),
+        )
+        .await
+    {
         Ok(seq) => {
             if let Some(aid) = activity_id {
                 state.pending_activity_calls.insert(aid, reply);
@@ -79,8 +82,8 @@ pub async fn handle_sleep(
 ) {
     if let ParadigmState::Procedural(_) = &state.paradigm_state {
         let timer_id = wtf_common::TimerId::procedural(&state.args.instance_id, operation_id);
-        let fire_at = chrono::Utc::now() + chrono::Duration::from_std(duration)
-            .unwrap_or_else(|_| chrono::Duration::zero());
+        let fire_at = chrono::Utc::now()
+            + chrono::Duration::from_std(duration).unwrap_or_else(|_| chrono::Duration::zero());
 
         let event = WorkflowEvent::TimerScheduled {
             timer_id: timer_id.to_string(),
@@ -105,11 +108,14 @@ async fn append_and_inject_timer_event(
         }
     };
 
-    match store.publish(
-        &state.args.namespace,
-        &state.args.instance_id,
-        event.clone(),
-    ).await {
+    match store
+        .publish(
+            &state.args.namespace,
+            &state.args.instance_id,
+            event.clone(),
+        )
+        .await
+    {
         Ok(seq) => {
             state.pending_timer_calls.insert(timer_id, reply);
             let _ = handlers::inject_event(state, seq, &event).await;
@@ -123,12 +129,12 @@ async fn append_and_inject_timer_event(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::messages::{InstanceArguments, InstancePhase, WorkflowParadigm};
-    use crate::instance::state::InstanceState;
     use crate::instance::lifecycle::ParadigmState;
+    use crate::instance::state::InstanceState;
+    use crate::messages::{InstanceArguments, InstancePhase, WorkflowParadigm};
     use bytes::Bytes;
     use std::collections::HashMap;
-    use wtf_common::{NamespaceId, InstanceId};
+    use wtf_common::{InstanceId, NamespaceId};
 
     #[tokio::test]
     async fn get_checkpoint_returns_none_for_empty_state() {
@@ -147,7 +153,9 @@ mod tests {
             workflow_definition: None,
         };
         let state = InstanceState {
-            paradigm_state: ParadigmState::Procedural(crate::procedural::ProceduralActorState::new()),
+            paradigm_state: ParadigmState::Procedural(
+                crate::procedural::ProceduralActorState::new(),
+            ),
             phase: InstancePhase::Live,
             total_events_applied: 0,
             events_since_snapshot: 0,
@@ -214,7 +222,13 @@ mod tests {
         let (tx, rx) = tokio::sync::oneshot::channel();
         handle_get_checkpoint(&state, 0, tx.into()).await;
         let result = rx.await.expect("reply");
-        assert!(result.is_some(), "checkpoint must be present after ActivityCompleted");
-        assert_eq!(result.expect("checkpoint present").result, Bytes::from_static(b"done"));
+        assert!(
+            result.is_some(),
+            "checkpoint must be present after ActivityCompleted"
+        );
+        assert_eq!(
+            result.expect("checkpoint present").result,
+            Bytes::from_static(b"done")
+        );
     }
 }

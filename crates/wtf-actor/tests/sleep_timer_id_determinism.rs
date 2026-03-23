@@ -5,11 +5,7 @@ use bytes::Bytes;
 use std::collections::HashMap;
 use std::sync::Arc;
 use wtf_actor::{
-    instance::{
-        lifecycle::ParadigmState,
-        procedural::handle_sleep,
-        state::InstanceState,
-    },
+    instance::{lifecycle::ParadigmState, procedural::handle_sleep, state::InstanceState},
     messages::{InstanceArguments, InstancePhase, WorkflowParadigm},
     procedural::ProceduralActorState,
 };
@@ -80,7 +76,13 @@ async fn handle_sleep_uses_deterministic_timer_id_from_op_id() {
     let mut state = test_state(instance_id);
     let (tx, _rx) = tokio::sync::oneshot::channel::<Result<(), WtfError>>();
 
-    handle_sleep(&mut state, op_id, std::time::Duration::from_secs(1), tx.into()).await;
+    handle_sleep(
+        &mut state,
+        op_id,
+        std::time::Duration::from_secs(1),
+        tx.into(),
+    )
+    .await;
 
     assert!(
         state.pending_timer_calls.contains_key(&expected_timer_id),
@@ -98,13 +100,28 @@ async fn handle_sleep_same_op_id_produces_same_timer_id_on_restart() {
 
     let mut state1 = test_state(instance_id);
     let (tx1, _rx1) = tokio::sync::oneshot::channel::<Result<(), WtfError>>();
-    handle_sleep(&mut state1, op_id, std::time::Duration::from_secs(5), tx1.into()).await;
+    handle_sleep(
+        &mut state1,
+        op_id,
+        std::time::Duration::from_secs(5),
+        tx1.into(),
+    )
+    .await;
 
     let mut state2 = test_state(instance_id);
     let (tx2, _rx2) = tokio::sync::oneshot::channel::<Result<(), WtfError>>();
-    handle_sleep(&mut state2, op_id, std::time::Duration::from_secs(5), tx2.into()).await;
+    handle_sleep(
+        &mut state2,
+        op_id,
+        std::time::Duration::from_secs(5),
+        tx2.into(),
+    )
+    .await;
 
     let keys1: Vec<_> = state1.pending_timer_calls.keys().cloned().collect();
     let keys2: Vec<_> = state2.pending_timer_calls.keys().cloned().collect();
-    assert_eq!(keys1, keys2, "same op_id must yield identical timer_id across restarts");
+    assert_eq!(
+        keys1, keys2,
+        "same op_id must yield identical timer_id across restarts"
+    );
 }

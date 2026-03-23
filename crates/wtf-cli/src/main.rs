@@ -148,12 +148,14 @@ async fn handle_lint(
     };
 
     let path_bufs: Vec<PathBuf> = paths.into_iter().map(PathBuf::from).collect();
-    let exit_code = run_lint(&path_bufs, output_format, check)
-        .map_err(|e| anyhow::anyhow!("{e}"))?;
+    let exit_code =
+        run_lint(&path_bufs, output_format, check).map_err(|e| anyhow::anyhow!("{e}"))?;
     Ok(exit_code)
 }
 
 async fn handle_admin(cmd: AdminCommands) -> anyhow::Result<std::process::ExitCode> {
     let config = RebuildViewsConfig::from(&cmd);
-    run_rebuild_views(config).await.context("rebuild-views command failed")
+    run_rebuild_views(config)
+        .await
+        .context("rebuild-views command failed")
 }

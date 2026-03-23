@@ -45,51 +45,63 @@ pub async fn provision_kv_buckets(js: &Context) -> Result<KvStores, WtfError> {
 }
 
 async fn provision_instances_kv(js: &Context) -> Result<Store, WtfError> {
-    create_or_get_kv(js, KvConfig {
-        bucket: bucket_names::INSTANCES.to_owned(),
-        description: "Current status of workflow instances".to_owned(),
-        num_replicas: 1,
-        storage: async_nats::jetstream::stream::StorageType::File,
-        history: 1,
-        ..Default::default()
-    })
+    create_or_get_kv(
+        js,
+        KvConfig {
+            bucket: bucket_names::INSTANCES.to_owned(),
+            description: "Current status of workflow instances".to_owned(),
+            num_replicas: 1,
+            storage: async_nats::jetstream::stream::StorageType::File,
+            history: 1,
+            ..Default::default()
+        },
+    )
     .await
 }
 
 async fn provision_timers_kv(js: &Context) -> Result<Store, WtfError> {
-    create_or_get_kv(js, KvConfig {
-        bucket: bucket_names::TIMERS.to_owned(),
-        description: "Pending workflow timers".to_owned(),
-        num_replicas: 1,
-        storage: async_nats::jetstream::stream::StorageType::File,
-        history: 1,
-        ..Default::default()
-    })
+    create_or_get_kv(
+        js,
+        KvConfig {
+            bucket: bucket_names::TIMERS.to_owned(),
+            description: "Pending workflow timers".to_owned(),
+            num_replicas: 1,
+            storage: async_nats::jetstream::stream::StorageType::File,
+            history: 1,
+            ..Default::default()
+        },
+    )
     .await
 }
 
 async fn provision_definitions_kv(js: &Context) -> Result<Store, WtfError> {
-    create_or_get_kv(js, KvConfig {
-        bucket: bucket_names::DEFINITIONS.to_owned(),
-        description: "Workflow type definitions".to_owned(),
-        num_replicas: 1,
-        storage: async_nats::jetstream::stream::StorageType::File,
-        history: 5,
-        ..Default::default()
-    })
+    create_or_get_kv(
+        js,
+        KvConfig {
+            bucket: bucket_names::DEFINITIONS.to_owned(),
+            description: "Workflow type definitions".to_owned(),
+            num_replicas: 1,
+            storage: async_nats::jetstream::stream::StorageType::File,
+            history: 5,
+            ..Default::default()
+        },
+    )
     .await
 }
 
 async fn provision_heartbeats_kv(js: &Context) -> Result<Store, WtfError> {
-    create_or_get_kv(js, KvConfig {
-        bucket: bucket_names::HEARTBEATS.to_owned(),
-        description: "Engine actor heartbeats — expiry triggers crash recovery".to_owned(),
-        num_replicas: 1,
-        storage: async_nats::jetstream::stream::StorageType::Memory,
-        history: 1,
-        max_age: Duration::from_secs(10),
-        ..Default::default()
-    })
+    create_or_get_kv(
+        js,
+        KvConfig {
+            bucket: bucket_names::HEARTBEATS.to_owned(),
+            description: "Engine actor heartbeats — expiry triggers crash recovery".to_owned(),
+            num_replicas: 1,
+            storage: async_nats::jetstream::stream::StorageType::Memory,
+            history: 1,
+            max_age: Duration::from_secs(10),
+            ..Default::default()
+        },
+    )
     .await
 }
 

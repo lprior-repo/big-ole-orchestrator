@@ -212,19 +212,28 @@ pub fn apply_event(
             let result_bytes = Bytes::copy_from_slice(&ts.timestamp_millis().to_le_bytes());
             next.checkpoint_map.insert(
                 *operation_id,
-                Checkpoint { result: result_bytes, completed_seq: seq },
+                Checkpoint {
+                    result: result_bytes,
+                    completed_seq: seq,
+                },
             );
             next.applied_seq.insert(seq);
             next.events_since_snapshot += 1;
             (next, ProceduralApplyResult::None)
         }
 
-        WorkflowEvent::RandomSampled { operation_id, value } => {
+        WorkflowEvent::RandomSampled {
+            operation_id,
+            value,
+        } => {
             let mut next = state.clone();
             let result_bytes = Bytes::copy_from_slice(&value.to_le_bytes());
             next.checkpoint_map.insert(
                 *operation_id,
-                Checkpoint { result: result_bytes, completed_seq: seq },
+                Checkpoint {
+                    result: result_bytes,
+                    completed_seq: seq,
+                },
             );
             next.applied_seq.insert(seq);
             next.events_since_snapshot += 1;
@@ -249,7 +258,10 @@ pub fn apply_event(
             if let Some(op_id) = next.in_flight_timers.remove(timer_id.as_str()) {
                 next.checkpoint_map.insert(
                     op_id,
-                    Checkpoint { result: Bytes::new(), completed_seq: seq },
+                    Checkpoint {
+                        result: Bytes::new(),
+                        completed_seq: seq,
+                    },
                 );
             }
             next.applied_seq.insert(seq);

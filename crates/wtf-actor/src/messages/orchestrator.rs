@@ -1,6 +1,6 @@
 //! MasterOrchestrator message types.
 
-use super::errors::{StartError, TerminateError};
+use super::errors::{GetStatusError, StartError, TerminateError};
 use super::instance::InstanceStatusSnapshot;
 use bytes::Bytes;
 use ractor::RpcReplyPort;
@@ -40,7 +40,7 @@ pub enum OrchestratorMsg {
     /// Query the status of a running instance.
     GetStatus {
         instance_id: InstanceId,
-        reply: RpcReplyPort<Option<InstanceStatusSnapshot>>,
+        reply: RpcReplyPort<Result<Option<InstanceStatusSnapshot>, GetStatusError>>,
     },
 
     /// List all currently active instances.

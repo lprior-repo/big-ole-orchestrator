@@ -1,11 +1,9 @@
+use super::INSTANCE_CALL_TIMEOUT;
+use crate::master::state::OrchestratorState;
+use crate::messages::{InstanceMsg, TerminateError};
 use ractor::rpc::CallResult;
 use ractor::RpcReplyPort;
 use wtf_common::InstanceId;
-use crate::messages::{InstanceMsg, TerminateError};
-use crate::master::state::OrchestratorState;
-use std::time::Duration;
-
-const INSTANCE_CALL_TIMEOUT: Duration = Duration::from_millis(500);
 
 pub async fn handle_terminate(
     state: &mut OrchestratorState,
@@ -14,9 +12,11 @@ pub async fn handle_terminate(
     reply: RpcReplyPort<Result<(), TerminateError>>,
 ) {
     match state.get(&instance_id) {
-        None => { let _ = reply.send(Err(TerminateError::NotFound(instance_id))); }
+        None => {
+            let _ = reply.send(Err(TerminateError::NotFound(instance_id)));
+        }
         Some(actor_ref) => {
-            let res = call_cancel(actor_ref, reason).await;
+            let res = call_cancel(actor_ref, &instance_id, reason).await;
             let _ = reply.send(res);
         }
     }
@@ -24,6 +24,7 @@ pub async fn handle_terminate(
 
 async fn call_cancel(
     actor_ref: &ractor::ActorRef<InstanceMsg>,
+    instance_id: &InstanceId,
     reason: String,
 ) -> Result<(), TerminateError> {
     let call_result = actor_ref
@@ -34,10 +35,15 @@ async fn call_cancel(
         .await;
 
     match call_result {
-        Ok(CallResult::Success(inner)) => inner.map_err(|e: wtf_common::WtfError| TerminateError::Failed(e.to_string())),
-        Ok(CallResult::Timeout) => Err(TerminateError::Failed("cancel timed out".into())),
-        Ok(CallResult::SenderError) => Err(TerminateError::Failed("actor dropped reply".into())),
-        Err(e) => Err(TerminateError::Failed(format!("send failed: {e}"))),
+        Ok(CallResult::Success(Ok(()))) => Ok(()),
+        Ok(CallResult::Success(Err(_))) => {
+            // The Cancel handler always replies Ok(()) — this arm is defensive but
+            // unreachable given the current handler implementation.
+            Ok(())
+        }
+        Ok(CallResult::Timeout) => Err(TerminateError::Timeout(instance_id.clone())),
+        Ok(CallResult::SenderError) => Err(TerminateError::NotFound(instance_id.clone())),
+        Err(_) => Err(TerminateError::NotFound(instance_id.clone())),
     }
 }
 
@@ -65,7 +71,9 @@ mod tests {
         let reply = rx.await;
         assert!(reply.is_ok());
         if let Ok(reply) = reply {
-            assert!(matches!(reply, Err(crate::messages::TerminateError::NotFound(id)) if id == instance_id));
+            assert!(
+                matches!(reply, Err(crate::messages::TerminateError::NotFound(id)) if id == instance_id)
+            );
         }
     }
 }

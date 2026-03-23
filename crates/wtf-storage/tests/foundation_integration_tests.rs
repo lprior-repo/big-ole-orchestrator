@@ -8,8 +8,8 @@ use bytes::Bytes;
 
 use wtf_common::{InstanceId, NamespaceId, WorkflowEvent};
 use wtf_storage::{
-    connect, provision_kv_buckets, provision_streams, write_heartbeat, delete_heartbeat,
-    heartbeat_key, NatsConfig, NatsClient,
+    connect, delete_heartbeat, heartbeat_key, provision_kv_buckets, provision_streams,
+    write_heartbeat, NatsClient, NatsConfig,
 };
 
 struct NatsTestServer {
@@ -107,7 +107,10 @@ async fn provision_streams_is_idempotent() {
     assert!(result1.is_ok(), "First provision should succeed");
 
     let result2 = provision_streams(js).await;
-    assert!(result2.is_ok(), "Second provision should also succeed (idempotent)");
+    assert!(
+        result2.is_ok(),
+        "Second provision should also succeed (idempotent)"
+    );
 }
 
 #[tokio::test]
@@ -118,7 +121,10 @@ async fn verify_streams_passes_when_all_streams_exist() {
     provision_streams(js).await.expect("provision streams");
 
     let result = wtf_storage::verify_streams(js).await;
-    assert!(result.is_ok(), "verify_streams should pass when all streams exist");
+    assert!(
+        result.is_ok(),
+        "verify_streams should pass when all streams exist"
+    );
 }
 
 #[test]
@@ -134,7 +140,9 @@ async fn write_heartbeat_creates_entry_with_ttl() {
     let js = server.client.jetstream();
 
     provision_streams(js).await.expect("provision streams");
-    let kv_stores = provision_kv_buckets(js).await.expect("provision KV buckets");
+    let kv_stores = provision_kv_buckets(js)
+        .await
+        .expect("provision KV buckets");
 
     let instance_id = InstanceId::new("01ARZHB");
     let node_id = "node-1";
@@ -149,7 +157,9 @@ async fn delete_heartbeat_removes_entry() {
     let js = server.client.jetstream();
 
     provision_streams(js).await.expect("provision streams");
-    let kv_stores = provision_kv_buckets(js).await.expect("provision KV buckets");
+    let kv_stores = provision_kv_buckets(js)
+        .await
+        .expect("provision KV buckets");
 
     let instance_id = InstanceId::new("01ARZDEL");
     let node_id = "node-1";
@@ -195,10 +205,7 @@ fn write_and_read_snapshot_roundtrip() {
 
     let read_result = read_snapshot(&db, &instance_id).expect("read snapshot should succeed");
 
-    assert!(
-        read_result.is_some(),
-        "Snapshot should exist after write"
-    );
+    assert!(read_result.is_some(), "Snapshot should exist after write");
 
     let read_record = read_result.expect("snapshot");
     assert_eq!(read_record.seq, 42, "Sequence should match");
@@ -219,10 +226,7 @@ fn read_snapshot_returns_none_for_missing_key() {
     let instance_id = InstanceId::new("NONEXISTENT");
 
     let result = read_snapshot(&db, &instance_id).expect("read_snapshot should succeed");
-    assert!(
-        result.is_none(),
-        "Missing snapshot should return None"
-    );
+    assert!(result.is_none(), "Missing snapshot should return None");
 }
 
 #[test]
@@ -332,7 +336,7 @@ async fn full_lifecycle_append_provision_snapshot_replay() {
     assert!(seq2 > seq1, "Second event should have higher sequence");
 
     use tempfile::TempDir;
-    use wtf_storage::{open_snapshot_db, write_snapshot, read_snapshot, SnapshotRecord};
+    use wtf_storage::{open_snapshot_db, read_snapshot, write_snapshot, SnapshotRecord};
 
     let temp_dir = TempDir::new().expect("temp dir");
     let db = open_snapshot_db(temp_dir.path()).expect("open snapshot db");
@@ -346,5 +350,9 @@ async fn full_lifecycle_append_provision_snapshot_replay() {
         .expect("snapshot should exist");
 
     let replay_from = wtf_storage::replay_start_seq(Some(recovered.seq));
-    assert_eq!(replay_from, seq2 + 1, "Replay should start after snapshot seq");
+    assert_eq!(
+        replay_from,
+        seq2 + 1,
+        "Replay should start after snapshot seq"
+    );
 }

@@ -2,9 +2,9 @@
 //!
 //! Removes direct dependency on `wtf-storage` in core actor types (ADR-006 drift).
 
+use crate::{InstanceId, InstanceMetadata, NamespaceId, WorkflowEvent, WtfError};
 use async_trait::async_trait;
 use bytes::Bytes;
-use crate::{InstanceId, NamespaceId, WorkflowEvent, WtfError, InstanceMetadata};
 
 /// A single decoded event from the replay stream.
 #[derive(Debug, Clone)]
@@ -58,7 +58,10 @@ pub trait StateStore: Send + Sync + std::fmt::Debug + 'static {
     async fn put_instance_metadata(&self, metadata: InstanceMetadata) -> Result<(), WtfError>;
 
     /// Retrieve instance metadata from the registry by ID.
-    async fn get_instance_metadata(&self, instance_id: &InstanceId) -> Result<Option<InstanceMetadata>, WtfError>;
+    async fn get_instance_metadata(
+        &self,
+        instance_id: &InstanceId,
+    ) -> Result<Option<InstanceMetadata>, WtfError>;
 
     /// Update the heartbeat for a running instance.
     async fn put_heartbeat(&self, node_id: &str, instance_id: &InstanceId) -> Result<(), WtfError>;

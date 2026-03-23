@@ -1,14 +1,14 @@
 //! Initialization and replay logic for WorkflowInstance actors.
 
+use super::lifecycle::{
+    compute_live_transition, deserialize_paradigm_state, execute_transition_actions, ParadigmState,
+};
+use super::state::InstanceState;
+use crate::messages::{InstanceArguments, InstanceMsg, InstancePhase};
 use ractor::{ActorProcessingErr, ActorRef};
 use std::sync::Arc;
 use wtf_common::storage::{ReplayBatch, ReplayStream, TaskQueue};
 use wtf_common::WorkflowEvent;
-use crate::messages::{
-    InstanceArguments, InstanceMsg, InstancePhase,
-};
-use super::state::InstanceState;
-use super::lifecycle::{ParadigmState, deserialize_paradigm_state, compute_live_transition, execute_transition_actions};
 
 pub async fn load_initial_state(
     args: InstanceArguments,
@@ -31,13 +31,17 @@ pub async fn replay_events(
     state: &mut InstanceState,
     from_seq: u64,
 ) -> Result<(Vec<WorkflowEvent>, Option<Box<dyn ReplayStream>>), ActorProcessingErr> {
-    let store = state.args.event_store.as_ref()
+    let store = state
+        .args
+        .event_store
+        .as_ref()
         .ok_or_else(|| ActorProcessingErr::from("No event store available"))?;
-    
-    let mut consumer = store.open_replay_stream(&state.args.namespace, &state.args.instance_id, from_seq)
+
+    let mut consumer = store
+        .open_replay_stream(&state.args.namespace, &state.args.instance_id, from_seq)
         .await
         .map_err(|e| ActorProcessingErr::from(Box::new(e)))?;
-    
+
     let mut event_log = Vec::new();
 
     while let Some(event) = next_replayed_event(consumer.as_mut(), state).await? {
@@ -76,12 +80,8 @@ pub async fn transition_to_live(
     event_log: &[WorkflowEvent],
     task_queue: &dyn TaskQueue,
 ) -> Result<(), ActorProcessingErr> {
-    let actions = compute_live_transition(
-        &args.instance_id,
-        args.paradigm,
-        paradigm_state,
-        event_log,
-    );
+    let actions =
+        compute_live_transition(&args.instance_id, args.paradigm, paradigm_state, event_log);
 
     if let Some(store) = &args.state_store {
         execute_transition_actions(task_queue, store.as_ref(), actions)

@@ -1,28 +1,40 @@
-use ractor::{Actor, ActorRef, RpcReplyPort};
-use wtf_common::{InstanceId, NamespaceId, WorkflowParadigm, InstanceMetadata};
-use crate::messages::{InstanceArguments, OrchestratorMsg, StartError};
-use crate::master::state::OrchestratorState;
 use crate::instance::WorkflowInstance;
+use crate::master::state::OrchestratorState;
+use crate::messages::{InstanceArguments, InstanceSeed, OrchestratorMsg, StartError};
+use ractor::{Actor as _, ActorRef, RpcReplyPort};
+use wtf_common::{InstanceId, InstanceMetadata, NamespaceId, WorkflowParadigm, WtfError};
+
+/// Groups the per-request parameters for starting a new workflow instance.
+pub struct StartWorkflowParams {
+    pub namespace: NamespaceId,
+    pub instance_id: InstanceId,
+    pub workflow_type: String,
+    pub paradigm: WorkflowParadigm,
+    pub input: bytes::Bytes,
+    pub reply: RpcReplyPort<Result<InstanceId, StartError>>,
+}
 
 /// Handle a StartWorkflow message.
 pub async fn handle_start_workflow(
     myself: ActorRef<OrchestratorMsg>,
     state: &mut OrchestratorState,
-    namespace: NamespaceId,
-    instance_id: InstanceId,
-    workflow_type: String,
-    paradigm: WorkflowParadigm,
-    input: bytes::Bytes,
-    reply: RpcReplyPort<Result<InstanceId, StartError>>,
+    params: StartWorkflowParams,
 ) {
-    if let Err(e) = validate_request(state, &instance_id) {
-        let _ = reply.send(Err(e));
+    if let Err(e) = validate_request(state, &params.instance_id) {
+        let _ = params.reply.send(Err(e));
         return;
     }
 
-    let args = build_args(state, namespace, instance_id, workflow_type, paradigm, input);
+    let seed = InstanceSeed {
+        namespace: params.namespace,
+        instance_id: params.instance_id,
+        workflow_type: params.workflow_type.clone(),
+        paradigm: params.paradigm,
+        input: params.input,
+    };
+    let args = state.build_instance_args(seed);
     let result = spawn_and_register(myself, state, args).await;
-    let _ = reply.send(result);
+    let _ = params.reply.send(result);
 }
 
 fn validate_request(state: &OrchestratorState, id: &InstanceId) -> Result<(), StartError> {
@@ -38,30 +50,6 @@ fn validate_request(state: &OrchestratorState, id: &InstanceId) -> Result<(), St
     Ok(())
 }
 
-fn build_args(
-    state: &OrchestratorState,
-    ns: NamespaceId,
-    id: InstanceId,
-    wtype: String,
-    paradigm: WorkflowParadigm,
-    input: bytes::Bytes,
-) -> InstanceArguments {
-    InstanceArguments {
-        namespace: ns,
-        instance_id: id,
-        workflow_type: wtype.clone(),
-        paradigm,
-        input,
-        engine_node_id: state.config.engine_node_id.clone(),
-        event_store: state.config.event_store.clone(),
-        state_store: state.config.state_store.clone(),
-        task_queue: state.config.task_queue.clone(),
-        snapshot_db: state.config.snapshot_db.clone(),
-        procedural_workflow: state.registry.get_procedural(&wtype),
-        workflow_definition: state.registry.get_definition(&wtype),
-    }
-}
-
 async fn spawn_and_register(
     myself: ActorRef<OrchestratorMsg>,
     state: &mut OrchestratorState,
@@ -69,18 +57,31 @@ async fn spawn_and_register(
 ) -> Result<InstanceId, StartError> {
     let id = args.instance_id.clone();
     let name = format!("wf-{}", id.as_str());
-    let (actor_ref, _) = WorkflowInstance::spawn_linked(
-        Some(name), WorkflowInstance, args.clone(), myself.into()
-    ).await.map_err(|e| StartError::SpawnFailed(e.to_string()))?;
+    let (actor_ref, _) =
+        WorkflowInstance::spawn_linked(Some(name), WorkflowInstance, args.clone(), myself.into())
+            .await
+            .map_err(|e| StartError::SpawnFailed(e.to_string()))?;
 
-    persist_metadata(state, &args).await;
+    if let Err(e) = persist_metadata(state, &args).await {
+        tracing::error!(
+            instance_id = id.as_str(),
+            namespace = args.namespace.as_str(),
+            error = %e,
+            "metadata persistence failed — killing spawned actor"
+        );
+        actor_ref.stop(Some("metadata persistence failed".into()));
+        return Err(StartError::PersistenceFailed(e.to_string()));
+    }
     state.register(id.clone(), actor_ref);
     Ok(id)
 }
 
-async fn persist_metadata(state: &OrchestratorState, args: &InstanceArguments) {
+async fn persist_metadata(
+    state: &OrchestratorState,
+    args: &InstanceArguments,
+) -> Result<(), WtfError> {
     let Some(store) = &state.config.state_store else {
-        return;
+        return Ok(());
     };
 
     let metadata = InstanceMetadata {
@@ -91,14 +92,34 @@ async fn persist_metadata(state: &OrchestratorState, args: &InstanceArguments) {
         engine_node_id: state.config.engine_node_id.clone(),
     };
 
-    let _ = store.put_instance_metadata(metadata).await;
+    store.put_instance_metadata(metadata).await
 }
 
 #[cfg(test)]
 mod tests {
     use super::validate_request;
     use crate::master::state::{OrchestratorConfig, OrchestratorState};
+    use crate::messages::{InstanceMsg, StartError};
+    use ractor::{Actor as _, ActorRef};
     use wtf_common::InstanceId;
+
+    /// Minimal actor that discards all messages — used to obtain a valid `ActorRef<InstanceMsg>`.
+    struct NullActor;
+
+    #[async_trait::async_trait]
+    impl ractor::Actor for NullActor {
+        type Msg = InstanceMsg;
+        type State = ();
+        type Arguments = ();
+
+        async fn pre_start(
+            &self,
+            _: ActorRef<Self::Msg>,
+            _: Self::Arguments,
+        ) -> Result<(), ractor::ActorProcessingErr> {
+            Ok(())
+        }
+    }
 
     #[test]
     fn validate_request_rejects_when_at_capacity() {
@@ -118,5 +139,20 @@ mod tests {
         });
         let result = validate_request(&state, &InstanceId::new("inst-1"));
         assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn validate_request_rejects_when_instance_already_exists() {
+        let mut state = OrchestratorState::new(OrchestratorConfig {
+            max_instances: 10,
+            ..OrchestratorConfig::default()
+        });
+        let id = InstanceId::new("inst-1");
+        let (actor_ref, _handle) = NullActor::spawn(None, NullActor, ())
+            .await
+            .expect("null actor spawned");
+        state.register(id.clone(), actor_ref);
+        let result = validate_request(&state, &id);
+        assert!(matches!(result, Err(StartError::AlreadyExists(_))));
     }
 }

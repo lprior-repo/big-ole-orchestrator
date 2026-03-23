@@ -11,7 +11,10 @@ pub mod queue;
 pub mod timer;
 pub mod worker;
 
-pub use activity::{calculate_backoff_delay, complete_activity, fail_activity, retries_exhausted, send_heartbeat, HeartbeatSender};
+pub use activity::{
+    calculate_backoff_delay, complete_activity, fail_activity, retries_exhausted, send_heartbeat,
+    HeartbeatSender,
+};
 pub use queue::{enqueue_activity, ActivityTask, WorkQueueConsumer, WORK_STREAM_NAME};
 pub use timer::{
     delete_timer, fire_timer, run_timer_loop, store_timer, TimerRecord, TIMER_POLL_INTERVAL,

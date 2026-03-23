@@ -12,6 +12,8 @@ pub enum StartError {
     AlreadyExists(InstanceId),
     #[error("failed to spawn actor: {0}")]
     SpawnFailed(String),
+    #[error("metadata persistence failed: {0}")]
+    PersistenceFailed(String),
 }
 
 /// Error terminating a workflow instance.
@@ -19,8 +21,17 @@ pub enum StartError {
 pub enum TerminateError {
     #[error("instance not found: {0}")]
     NotFound(InstanceId),
-    #[error("termination failed: {0}")]
-    Failed(String),
+    #[error("cancel timed out for instance: {0}")]
+    Timeout(InstanceId),
+}
+
+/// Error querying instance status from the orchestrator.
+#[derive(Debug, Clone, thiserror::Error, Serialize, Deserialize)]
+pub enum GetStatusError {
+    #[error("instance actor timed out")]
+    Timeout,
+    #[error("instance actor died or was killed")]
+    ActorDied,
 }
 
 /// Error during heartbeat-driven crash recovery.

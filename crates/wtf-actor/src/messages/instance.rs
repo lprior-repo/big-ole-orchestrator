@@ -33,6 +33,15 @@ pub struct InstanceArguments {
     pub workflow_definition: Option<WorkflowDefinition>,
 }
 
+/// Per-instance identity fields shared between fresh spawn and crash recovery.
+pub struct InstanceSeed {
+    pub namespace: NamespaceId,
+    pub instance_id: InstanceId,
+    pub workflow_type: String,
+    pub paradigm: WorkflowParadigm,
+    pub input: Bytes,
+}
+
 /// Execution phase of a WorkflowInstance (ADR-016).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InstancePhase {

@@ -1,11 +1,11 @@
-use std::time::Duration;
+use super::ops::fire_timer;
+use super::record::TimerRecord;
 use async_nats::jetstream::kv::{Entry, Operation, Store};
 use async_nats::jetstream::Context;
 use chrono::{DateTime, Utc};
 use futures::StreamExt;
+use std::time::Duration;
 use wtf_common::WtfError;
-use super::record::TimerRecord;
-use super::ops::fire_timer;
 
 pub const TIMER_POLL_INTERVAL: Duration = Duration::from_secs(1);
 
@@ -105,19 +105,17 @@ fn process_watch_entry(kv_entry: &Entry) -> Option<TimerRecord> {
             tracing::debug!(key = %kv_entry.key, "timer deleted — skipping");
             None
         }
-        Operation::Put => {
-            match TimerRecord::from_msgpack(&kv_entry.value) {
-                Ok(record) => Some(record),
-                Err(e) => {
-                    tracing::warn!(
-                        key = %kv_entry.key,
-                        error = %e,
-                        "failed to deserialize timer record — skipping"
-                    );
-                    None
-                }
+        Operation::Put => match TimerRecord::from_msgpack(&kv_entry.value) {
+            Ok(record) => Some(record),
+            Err(e) => {
+                tracing::warn!(
+                    key = %kv_entry.key,
+                    error = %e,
+                    "failed to deserialize timer record — skipping"
+                );
+                None
             }
-        }
+        },
     }
 }
 

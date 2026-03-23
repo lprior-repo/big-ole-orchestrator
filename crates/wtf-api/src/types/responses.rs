@@ -34,17 +34,6 @@ impl StartWorkflowResponse {
     }
 }
 
-/// Detailed workflow status
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WorkflowStatus {
-    pub instance_id: String,
-    pub namespace: String,
-    pub workflow_type: String,
-    pub paradigm: String,
-    pub phase: String,
-    pub events_applied: u64,
-}
-
 /// Event record for NDJSON streaming.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EventRecord {
@@ -83,12 +72,6 @@ impl JournalResponse {
         }
         Ok(())
     }
-}
-
-/// Response containing list of running workflows
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ListWorkflowsResponse {
-    pub workflows: Vec<WorkflowStatus>,
 }
 
 /// Diagnostic from the linter.

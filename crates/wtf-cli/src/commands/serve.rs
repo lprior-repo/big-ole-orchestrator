@@ -6,13 +6,11 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use ractor::actor::Actor;
-use tokio::task::JoinHandle;
 use tokio::sync::watch;
+use tokio::task::JoinHandle;
 use wtf_actor::master::{MasterOrchestrator, OrchestratorConfig};
 use wtf_api::app::{build_app, serve as serve_api};
-use wtf_storage::{
-    connect, open_snapshot_db, provision_kv_buckets, provision_streams, NatsConfig,
-};
+use wtf_storage::{connect, open_snapshot_db, provision_kv_buckets, provision_streams, NatsConfig};
 use wtf_worker::timer::run_timer_loop;
 
 /// Configuration for the `serve` command.
@@ -41,11 +39,10 @@ impl From<ServeConfig> for NatsConfig {
 /// and blocks until shutdown signal.
 pub async fn run_serve(config: ServeConfig) -> anyhow::Result<()> {
     let snapshot_db_path = config.data_dir.join("snapshots.db");
-    let snapshot_db = open_snapshot_db(&snapshot_db_path)
-        .context("failed to open snapshot db")?;
+    let snapshot_db = open_snapshot_db(&snapshot_db_path).context("failed to open snapshot db")?;
 
     let nats_config = NatsConfig::from(config.clone());
-    
+
     let nats = connect(&nats_config)
         .await
         .context("failed to connect to NATS")?;
@@ -117,7 +114,9 @@ where
     Ok(())
 }
 
-async fn provision_storage(nats: &wtf_storage::NatsClient) -> anyhow::Result<wtf_storage::KvStores> {
+async fn provision_storage(
+    nats: &wtf_storage::NatsClient,
+) -> anyhow::Result<wtf_storage::KvStores> {
     provision_streams(nats.jetstream())
         .await
         .context("failed to provision JetStream streams")?;
@@ -151,8 +150,8 @@ async fn wait_for_shutdown_signal() {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
     use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Arc;
 
     use super::drain_runtime;
     use tokio::sync::watch;

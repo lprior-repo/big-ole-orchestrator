@@ -1,13 +1,11 @@
 //! Message handlers for WorkflowInstance actors.
 
-use ractor::{ActorProcessingErr, ActorRef, RpcReplyPort};
-use bytes::Bytes;
-use wtf_common::{ActivityId, WtfError, WorkflowEvent};
-use crate::messages::{
-    InstanceMsg, InstancePhaseView, InstanceStatusSnapshot,
-};
-use super::state::InstanceState;
 use super::procedural;
+use super::state::InstanceState;
+use crate::messages::{InstanceMsg, InstancePhaseView, InstanceStatusSnapshot};
+use bytes::Bytes;
+use ractor::{ActorProcessingErr, ActorRef, RpcReplyPort};
+use wtf_common::{ActivityId, WorkflowEvent, WtfError};
 
 pub async fn handle_msg(
     myself_ref: ActorRef<InstanceMsg>,
@@ -16,10 +14,19 @@ pub async fn handle_msg(
 ) -> Result<(), ActorProcessingErr> {
     match msg {
         InstanceMsg::InjectEvent { seq, event } => handle_inject_event_msg(state, seq, event).await,
-        InstanceMsg::InjectSignal { signal_name, payload, reply } => handle_signal(state, signal_name, payload, reply).await,
+        InstanceMsg::InjectSignal {
+            signal_name,
+            payload,
+            reply,
+        } => handle_signal(state, signal_name, payload, reply).await,
         InstanceMsg::Heartbeat => handle_heartbeat(state).await,
-        InstanceMsg::Cancel { reason, reply } => handle_cancel(state, reason, reply).await,
-        InstanceMsg::GetProceduralCheckpoint { operation_id, reply } => {
+        InstanceMsg::Cancel { reason, reply } => {
+            handle_cancel(myself_ref, state, reason, reply).await
+        }
+        InstanceMsg::GetProceduralCheckpoint {
+            operation_id,
+            reply,
+        } => {
             procedural::handle_get_checkpoint(state, operation_id, reply).await;
             Ok(())
         }
@@ -33,16 +40,30 @@ async fn handle_procedural_msg(
     state: &mut InstanceState,
 ) -> Result<(), ActorProcessingErr> {
     match msg {
-        InstanceMsg::ProceduralDispatch { activity_type, payload, reply } => {
+        InstanceMsg::ProceduralDispatch {
+            activity_type,
+            payload,
+            reply,
+        } => {
             procedural::handle_dispatch(state, activity_type, payload, reply).await;
         }
-        InstanceMsg::ProceduralSleep { operation_id, duration, reply } => {
+        InstanceMsg::ProceduralSleep {
+            operation_id,
+            duration,
+            reply,
+        } => {
             procedural::handle_sleep(state, operation_id, duration, reply).await;
         }
-        InstanceMsg::ProceduralNow { operation_id, reply } => {
+        InstanceMsg::ProceduralNow {
+            operation_id,
+            reply,
+        } => {
             procedural::handle_now(state, operation_id, reply).await;
         }
-        InstanceMsg::ProceduralRandom { operation_id, reply } => {
+        InstanceMsg::ProceduralRandom {
+            operation_id,
+            reply,
+        } => {
             procedural::handle_random(state, operation_id, reply).await;
         }
         InstanceMsg::ProceduralWorkflowCompleted => {
@@ -54,7 +75,11 @@ async fn handle_procedural_msg(
         InstanceMsg::GetStatus(reply) => {
             let _ = handle_get_status(state, reply);
         }
-        _ => return Err(ActorProcessingErr::from("Unexpected message in procedural handler")),
+        _ => {
+            return Err(ActorProcessingErr::from(
+                "Unexpected message in procedural handler",
+            ))
+        }
     }
     Ok(())
 }
@@ -66,7 +91,12 @@ async fn handle_inject_event_msg(
 ) -> Result<(), ActorProcessingErr> {
     inject_event(state, seq, &event).await?;
 
-    if let WorkflowEvent::ActivityCompleted { activity_id, result, .. } = &event {
+    if let WorkflowEvent::ActivityCompleted {
+        activity_id,
+        result,
+        ..
+    } = &event
+    {
         let aid = ActivityId::new(activity_id);
         if let Some(port) = state.pending_activity_calls.remove(&aid) {
             let _ = port.send(Ok::<Bytes, WtfError>(result.clone()));
@@ -100,12 +130,18 @@ async fn handle_signal(
 
 async fn handle_heartbeat(state: &InstanceState) -> Result<(), ActorProcessingErr> {
     if let Some(store) = &state.args.state_store {
-        let _ = store.put_heartbeat(&state.args.engine_node_id, &state.args.instance_id).await;
+        if let Err(e) = store
+            .put_heartbeat(&state.args.engine_node_id, &state.args.instance_id)
+            .await
+        {
+            tracing::error!(error = %e, "heartbeat persistence failed");
+        }
     }
     Ok(())
 }
 
 async fn handle_cancel(
+    myself_ref: ActorRef<InstanceMsg>,
     state: &InstanceState,
     reason: String,
     reply: RpcReplyPort<Result<(), WtfError>>,
@@ -115,7 +151,26 @@ async fn handle_cancel(
         reason = %reason,
         "cancellation requested"
     );
+
+    let event = WorkflowEvent::InstanceCancelled {
+        reason: reason.clone(),
+    };
+    if let Some(store) = &state.args.event_store {
+        if let Err(e) = store
+            .publish(&state.args.namespace, &state.args.instance_id, event)
+            .await
+        {
+            tracing::error!(
+                instance_id = %state.args.instance_id,
+                error = %e,
+                "failed to persist InstanceCancelled event — \
+                 recovery may resurrect this workflow"
+            );
+        }
+    }
+
     let _ = reply.send(Ok(()));
+    myself_ref.stop(Some(reason));
     Ok(())
 }
 
@@ -142,7 +197,8 @@ pub async fn inject_event(
     seq: u64,
     event: &WorkflowEvent,
 ) -> Result<(), ActorProcessingErr> {
-    state.paradigm_state = state.paradigm_state
+    state.paradigm_state = state
+        .paradigm_state
         .apply_event(event, seq, state.phase)
         .map_err(|e| ActorProcessingErr::from(Box::new(e)))?;
 

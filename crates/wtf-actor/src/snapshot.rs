@@ -17,7 +17,7 @@
 #![forbid(unsafe_code)]
 
 use bytes::Bytes;
-use wtf_common::{InstanceId, NamespaceId, WorkflowEvent, WtfError, EventStore};
+use wtf_common::{EventStore, InstanceId, NamespaceId, WorkflowEvent, WtfError};
 use wtf_storage::snapshots::{write_snapshot, SnapshotRecord};
 
 use crate::instance::handlers::SNAPSHOT_INTERVAL;
@@ -57,9 +57,14 @@ pub async fn write_instance_snapshot(
 
     persist_local_snapshot(db, instance_id, &record);
 
-    let jetstream_seq =
-        publish_snapshot_event(event_store, namespace, instance_id, last_applied_seq, checksum)
-            .await?;
+    let jetstream_seq = publish_snapshot_event(
+        event_store,
+        namespace,
+        instance_id,
+        last_applied_seq,
+        checksum,
+    )
+    .await?;
 
     Ok(SnapshotResult {
         jetstream_seq,

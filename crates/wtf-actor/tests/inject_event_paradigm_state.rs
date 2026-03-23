@@ -50,7 +50,10 @@ async fn inject_live_activity_completed_clears_in_flight_and_records_checkpoint(
         attempt: 1,
     };
     let (s1, _) = proc_apply(&s0, &dispatch_ev, 1).expect("dispatch");
-    assert!(s1.in_flight.contains_key(&0), "precondition: op 0 in_flight");
+    assert!(
+        s1.in_flight.contains_key(&0),
+        "precondition: op 0 in_flight"
+    );
 
     let args = test_args();
     let mut state = InstanceState {

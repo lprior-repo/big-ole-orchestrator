@@ -15,14 +15,14 @@ pub mod procedural_utils;
 pub mod state;
 
 pub use self::actor::WorkflowInstance;
-pub use self::state::InstanceState;
 pub use self::handlers::SNAPSHOT_INTERVAL;
+pub use self::state::InstanceState;
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashMap;
     use crate::messages::{InstanceArguments, InstancePhase, WorkflowParadigm};
+    use std::collections::HashMap;
 
     fn test_args(paradigm: WorkflowParadigm) -> InstanceArguments {
         InstanceArguments {

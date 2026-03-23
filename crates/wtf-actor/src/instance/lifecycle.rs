@@ -5,14 +5,14 @@
 //! - Calc: [`compute_live_transition`] — pure function determining re-dispatches.
 //! - Actions: [`execute_transition_actions`] — side effects in the actor shell.
 
-use std::collections::HashMap;
-use wtf_common::storage::{StateStore, TaskQueue};
-use wtf_common::{ActivityId, InstanceId, WorkflowEvent, WtfError, WorkflowParadigm};
+use crate::dag::DagActorState;
+use crate::fsm::{ExecutionPhase, FsmActorState};
 use crate::messages::InstancePhase;
 use crate::procedural::ProceduralActorState;
-use crate::fsm::{FsmActorState, ExecutionPhase};
-use crate::dag::DagActorState;
 use ractor::ActorProcessingErr;
+use std::collections::HashMap;
+use wtf_common::storage::{StateStore, TaskQueue};
+use wtf_common::{ActivityId, InstanceId, WorkflowEvent, WorkflowParadigm, WtfError};
 
 /// Unified error for event application across all paradigms.
 #[derive(Debug, thiserror::Error)]
@@ -137,7 +137,12 @@ pub async fn execute_transition_actions(
     actions: TransitionActions,
 ) -> Result<(), WtfError> {
     for event in actions.re_dispatch {
-        if let WorkflowEvent::ActivityDispatched { activity_type, payload, .. } = event {
+        if let WorkflowEvent::ActivityDispatched {
+            activity_type,
+            payload,
+            ..
+        } = event
+        {
             task_queue.dispatch(&activity_type, payload).await?;
         }
     }
@@ -153,11 +158,18 @@ pub async fn execute_transition_actions(
     Ok(())
 }
 
-fn find_original_dispatch(log: &[WorkflowEvent], activity_id: &ActivityId) -> Option<WorkflowEvent> {
-    log.iter().find(|e| match e {
-        WorkflowEvent::ActivityDispatched { activity_id: id, .. } => id == activity_id.as_str(),
-        _ => false,
-    }).cloned()
+fn find_original_dispatch(
+    log: &[WorkflowEvent],
+    activity_id: &ActivityId,
+) -> Option<WorkflowEvent> {
+    log.iter()
+        .find(|e| match e {
+            WorkflowEvent::ActivityDispatched {
+                activity_id: id, ..
+            } => id == activity_id.as_str(),
+            _ => false,
+        })
+        .cloned()
 }
 
 fn find_pending_timers(log: &[WorkflowEvent]) -> Vec<WorkflowEvent> {

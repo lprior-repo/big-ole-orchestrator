@@ -1,7 +1,7 @@
-use std::sync::Arc;
-use async_nats::jetstream::Context;
-use wtf_common::{ActivityId, InstanceId, NamespaceId, WtfError};
 use super::reporting::send_heartbeat;
+use async_nats::jetstream::Context;
+use std::sync::Arc;
+use wtf_common::{ActivityId, InstanceId, NamespaceId, WtfError};
 
 /// A handle for sending heartbeats during activity execution.
 #[derive(Debug, Clone)]
@@ -49,6 +49,7 @@ impl HeartbeatSender {
 
     /// Stop sending heartbeats and release resources.
     pub fn stop(&self) {
-        self.stopped.store(true, std::sync::atomic::Ordering::SeqCst);
+        self.stopped
+            .store(true, std::sync::atomic::Ordering::SeqCst);
     }
 }

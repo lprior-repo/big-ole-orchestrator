@@ -6,6 +6,8 @@ pub mod journal;
 pub mod signal;
 pub mod validate;
 pub mod workflow;
+pub mod workflow_mappers;
+pub mod workflow_replay;
 
 pub use definitions::*;
 pub use events::*;
@@ -13,11 +15,12 @@ pub use journal::*;
 pub use signal::*;
 pub use validate::*;
 pub use workflow::*;
+pub use workflow_replay::replay_to;
 
+use ractor::{rpc::CallResult, ActorRef};
 use std::time::Duration;
 use wtf_actor::OrchestratorMsg;
 use wtf_common::{InstanceId, WorkflowParadigm};
-use ractor::{ActorRef, rpc::CallResult};
 
 /// Timeout for all actor RPC calls from HTTP handlers.
 pub const ACTOR_CALL_TIMEOUT: Duration = Duration::from_secs(5);
@@ -26,24 +29,45 @@ use std::sync::Arc;
 use wtf_common::{EventStore, StateStore};
 
 pub async fn get_event_store(master: &ActorRef<OrchestratorMsg>) -> Option<Arc<dyn EventStore>> {
-    master.call(|tx| OrchestratorMsg::GetEventStore { reply: tx }, Some(ACTOR_CALL_TIMEOUT))
+    master
+        .call(
+            |tx| OrchestratorMsg::GetEventStore { reply: tx },
+            Some(ACTOR_CALL_TIMEOUT),
+        )
         .await
         .ok()
-        .and_then(|r| match r { CallResult::Success(s) => s, _ => None })
+        .and_then(|r| match r {
+            CallResult::Success(s) => s,
+            _ => None,
+        })
 }
 
 pub async fn get_state_store(master: &ActorRef<OrchestratorMsg>) -> Option<Arc<dyn StateStore>> {
-    master.call(|tx| OrchestratorMsg::GetStateStore { reply: tx }, Some(ACTOR_CALL_TIMEOUT))
+    master
+        .call(
+            |tx| OrchestratorMsg::GetStateStore { reply: tx },
+            Some(ACTOR_CALL_TIMEOUT),
+        )
         .await
         .ok()
-        .and_then(|r| match r { CallResult::Success(s) => s, _ => None })
+        .and_then(|r| match r {
+            CallResult::Success(s) => s,
+            _ => None,
+        })
 }
 
 pub async fn get_db(master: &ActorRef<OrchestratorMsg>) -> Option<sled::Db> {
-    master.call(|tx| OrchestratorMsg::GetSnapshotDb { reply: tx }, Some(ACTOR_CALL_TIMEOUT))
+    master
+        .call(
+            |tx| OrchestratorMsg::GetSnapshotDb { reply: tx },
+            Some(ACTOR_CALL_TIMEOUT),
+        )
         .await
         .ok()
-        .and_then(|r| match r { CallResult::Success(s) => s, _ => None })
+        .and_then(|r| match r {
+            CallResult::Success(s) => s,
+            _ => None,
+        })
 }
 
 /// Split a path `<namespace>/<instance_id>` into the two parts.

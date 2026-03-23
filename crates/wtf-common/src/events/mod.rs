@@ -4,9 +4,9 @@ use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-mod types;
 #[cfg(test)]
 mod tests;
+mod types;
 
 pub use types::*;
 
@@ -21,17 +21,11 @@ pub enum WorkflowEvent {
         input: Bytes,
     },
     /// The workflow completed successfully and its output is recorded.
-    InstanceCompleted {
-        output: Bytes,
-    },
+    InstanceCompleted { output: Bytes },
     /// The workflow failed with an unrecoverable error.
-    InstanceFailed {
-        error: String,
-    },
+    InstanceFailed { error: String },
     /// The workflow was cancelled by an external request.
-    InstanceCancelled {
-        reason: String,
-    },
+    InstanceCancelled { reason: String },
     /// An FSM state transition was applied.
     TransitionApplied {
         from_state: String,
@@ -70,48 +64,29 @@ pub enum WorkflowEvent {
         fire_at: DateTime<Utc>,
     },
     /// A scheduled timer fired.
-    TimerFired {
-        timer_id: String,
-    },
+    TimerFired { timer_id: String },
     /// A timer was cancelled before it fired.
-    TimerCancelled {
-        timer_id: String,
-    },
+    TimerCancelled { timer_id: String },
     /// An external signal was received by this workflow instance.
-    SignalReceived {
-        signal_name: String,
-        payload: Bytes,
-    },
+    SignalReceived { signal_name: String, payload: Bytes },
     /// A child workflow was started by this instance.
     ChildStarted {
         child_id: String,
         workflow_type: String,
     },
     /// A child workflow completed.
-    ChildCompleted {
-        child_id: String,
-        result: Bytes,
-    },
+    ChildCompleted { child_id: String, result: Bytes },
     /// A child workflow failed.
-    ChildFailed {
-        child_id: String,
-        error: String,
-    },
+    ChildFailed { child_id: String, error: String },
     /// A deterministic timestamp was sampled for a procedural workflow operation.
     NowSampled {
         operation_id: u32,
         ts: DateTime<Utc>,
     },
     /// A deterministic random `u64` was sampled for a procedural workflow operation.
-    RandomSampled {
-        operation_id: u32,
-        value: u64,
-    },
+    RandomSampled { operation_id: u32, value: u64 },
     /// Actor state was snapshotted to sled (ADR-019).
-    SnapshotTaken {
-        seq: u64,
-        checksum: u32,
-    },
+    SnapshotTaken { seq: u64, checksum: u32 },
 }
 
 impl WorkflowEvent {

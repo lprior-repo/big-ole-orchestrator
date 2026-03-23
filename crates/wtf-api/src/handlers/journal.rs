@@ -65,14 +65,12 @@ pub async fn get_journal(
 
     let entries = sort_entries_by_seq(entries);
 
-    (
-        StatusCode::OK,
-        Json(JournalResponse::new(id, entries)),
-    )
-        .into_response()
+    (StatusCode::OK, Json(JournalResponse::new(id, entries))).into_response()
 }
 
-fn parse_journal_request_id(id: &str) -> Result<(wtf_common::NamespaceId, wtf_common::InstanceId), (StatusCode, Json<ApiError>)> {
+fn parse_journal_request_id(
+    id: &str,
+) -> Result<(wtf_common::NamespaceId, wtf_common::InstanceId), (StatusCode, Json<ApiError>)> {
     if id.trim().is_empty() {
         return Err((
             StatusCode::BAD_REQUEST,

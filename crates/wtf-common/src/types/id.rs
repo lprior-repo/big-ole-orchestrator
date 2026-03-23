@@ -178,7 +178,10 @@ mod timer_id_determinism_tests {
         let id1 = TimerId::procedural(&instance_id, op_id);
         let id2 = TimerId::procedural(&instance_id, op_id);
 
-        assert_eq!(id1, id2, "same op_id must yield the same timer_id on every call");
+        assert_eq!(
+            id1, id2,
+            "same op_id must yield the same timer_id on every call"
+        );
         assert_eq!(id1.as_str(), "inst-01:t:3");
     }
 

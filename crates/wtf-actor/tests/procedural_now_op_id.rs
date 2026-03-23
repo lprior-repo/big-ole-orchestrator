@@ -17,11 +17,7 @@
 use bytes::Bytes;
 use std::collections::HashMap;
 use wtf_actor::{
-    instance::{
-        procedural_utils::handle_now,
-        lifecycle::ParadigmState,
-        state::InstanceState,
-    },
+    instance::{lifecycle::ParadigmState, procedural_utils::handle_now, state::InstanceState},
     messages::{InstanceArguments, InstancePhase, WorkflowParadigm},
     procedural::{
         state::{apply_event as proc_apply, Checkpoint},
@@ -68,7 +64,10 @@ fn build_state_with_now_checkpoint_at_op1() -> (InstanceState, chrono::DateTime<
         attempt: 1,
     };
     let (s1, _) = proc_apply(&s0, &dispatch0, 1).expect("dispatch0");
-    assert_eq!(s1.operation_counter, 1, "precondition: op_counter=1 after first dispatch");
+    assert_eq!(
+        s1.operation_counter, 1,
+        "precondition: op_counter=1 after first dispatch"
+    );
 
     // Apply NowSampled at operation_id=1
     let now_ev = WorkflowEvent::NowSampled {
@@ -76,8 +75,14 @@ fn build_state_with_now_checkpoint_at_op1() -> (InstanceState, chrono::DateTime<
         ts: fixed_ts,
     };
     let (s2, _) = proc_apply(&s1, &now_ev, 2).expect("now_sampled");
-    assert!(s2.checkpoint_map.contains_key(&1), "precondition: checkpoint_map[1] exists");
-    assert_eq!(s2.operation_counter, 1, "precondition: op_counter unchanged by NowSampled");
+    assert!(
+        s2.checkpoint_map.contains_key(&1),
+        "precondition: checkpoint_map[1] exists"
+    );
+    assert_eq!(
+        s2.operation_counter, 1,
+        "precondition: op_counter unchanged by NowSampled"
+    );
 
     // Apply ActivityDispatched for op 2 — this increments operation_counter to 2
     let dispatch2 = WorkflowEvent::ActivityDispatched {
@@ -88,8 +93,14 @@ fn build_state_with_now_checkpoint_at_op1() -> (InstanceState, chrono::DateTime<
         attempt: 1,
     };
     let (s3, _) = proc_apply(&s2, &dispatch2, 3).expect("dispatch2");
-    assert_eq!(s3.operation_counter, 2, "precondition: op_counter=2 after second dispatch");
-    assert!(!s3.checkpoint_map.contains_key(&2), "precondition: no checkpoint at index 2");
+    assert_eq!(
+        s3.operation_counter, 2,
+        "precondition: op_counter=2 after second dispatch"
+    );
+    assert!(
+        !s3.checkpoint_map.contains_key(&2),
+        "precondition: no checkpoint at index 2"
+    );
 
     let state = InstanceState {
         paradigm_state: ParadigmState::Procedural(s3),

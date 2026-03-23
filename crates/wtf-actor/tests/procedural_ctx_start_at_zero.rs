@@ -16,11 +16,7 @@ use ractor::{Actor, ActorProcessingErr, ActorRef};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use wtf_actor::{
-    instance::{
-        init::start_procedural_workflow,
-        lifecycle::ParadigmState,
-        state::InstanceState,
-    },
+    instance::{init::start_procedural_workflow, lifecycle::ParadigmState, state::InstanceState},
     messages::{InstanceArguments, InstanceMsg, InstancePhase, WorkflowParadigm},
     procedural::{
         state::apply_event as proc_apply, ProceduralActorState, WorkflowContext, WorkflowFn,
@@ -101,7 +97,10 @@ async fn start_procedural_workflow_creates_ctx_with_zero_op_counter_after_replay
     };
     let (s1, _) = proc_apply(&s0, &ev0, 1).expect("ev0");
     let (s2, _) = proc_apply(&s1, &ev1, 2).expect("ev1");
-    assert_eq!(s2.operation_counter, 2, "precondition: counter=2 after two dispatches");
+    assert_eq!(
+        s2.operation_counter, 2,
+        "precondition: counter=2 after two dispatches"
+    );
 
     let captured = Arc::new(Mutex::new(None::<u32>));
     let wf_fn: Arc<dyn WorkflowFn> = Arc::new(CaptureInitialOpCounter {

@@ -1,5 +1,5 @@
-use axum::{extract::Path, http::StatusCode, response::IntoResponse, Json};
 use crate::types::{ApiError, DefinitionRequest, DefinitionResponse, DiagnosticDto};
+use axum::{extract::Path, http::StatusCode, response::IntoResponse, Json};
 
 /// POST /api/v1/definitions/:type — ingest and lint a workflow definition (bead wtf-qyxl).
 pub async fn ingest_definition(
@@ -19,7 +19,13 @@ pub async fn ingest_definition(
                 })
                 .collect();
             let valid = dtos.iter().all(|d| d.severity != "error");
-            (StatusCode::OK, Json(DefinitionResponse { valid, diagnostics: dtos }))
+            (
+                StatusCode::OK,
+                Json(DefinitionResponse {
+                    valid,
+                    diagnostics: dtos,
+                }),
+            )
                 .into_response()
         }
         Err(e) => (

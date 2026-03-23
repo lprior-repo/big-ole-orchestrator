@@ -1,14 +1,10 @@
 use axum::{http::StatusCode, response::IntoResponse, Json};
 use std::panic::AssertUnwindSafe;
 
-use crate::types::{
-    ApiError, DiagnosticDto, ValidateWorkflowRequest, ValidateWorkflowResponse,
-};
+use crate::types::{ApiError, DiagnosticDto, ValidateWorkflowRequest, ValidateWorkflowResponse};
 
 /// POST /api/v1/workflows/validate — lint workflow Rust source.
-pub async fn validate_workflow(
-    Json(req): Json<ValidateWorkflowRequest>,
-) -> impl IntoResponse {
+pub async fn validate_workflow(Json(req): Json<ValidateWorkflowRequest>) -> impl IntoResponse {
     let lint_result = std::panic::catch_unwind(AssertUnwindSafe(|| {
         wtf_linter::lint_workflow_source(&req.source)
     }));

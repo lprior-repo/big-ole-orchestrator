@@ -6,14 +6,14 @@
 #![warn(clippy::pedantic)]
 #![forbid(unsafe_code)]
 
-pub mod state;
 pub mod context;
+pub mod state;
 
+pub use self::context::WorkflowContext;
 pub use self::state::{
     apply_event, Checkpoint, OperationId, ProceduralActorState, ProceduralApplyError,
     ProceduralApplyResult,
 };
-pub use self::context::WorkflowContext;
 
 /// A procedural workflow implementation.
 #[async_trait::async_trait]
@@ -61,14 +61,13 @@ mod tests {
         struct MyWorkflow;
         #[async_trait]
         impl WorkflowFn for MyWorkflow {
-            async fn execute(&self, _ctx: WorkflowContext) -> anyhow::Result<()> { Ok(()) }
+            async fn execute(&self, _ctx: WorkflowContext) -> anyhow::Result<()> {
+                Ok(())
+            }
         }
 
         let state = ProceduralActorState::new();
-        let runtime = ProceduralActorRuntime::new(
-            state,
-            Box::new(MyWorkflow),
-        );
+        let runtime = ProceduralActorRuntime::new(state, Box::new(MyWorkflow));
 
         assert_eq!(runtime.state.operation_counter, 0);
     }

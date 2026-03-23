@@ -6,7 +6,7 @@
 
 use std::time::Duration;
 
-use dioxus::prelude::{ReadSignal, ReadableExt, WritableExt, use_future, use_signal};
+use dioxus::prelude::{use_future, use_signal, ReadSignal, ReadableExt, WritableExt};
 use futures::{stream, Stream, StreamExt};
 use serde_json::Value;
 use tap::Pipe;
@@ -241,20 +241,20 @@ async fn sleep_for(duration: Duration) {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
     use std::time::Duration;
     use std::time::Instant;
 
-    use futures::StreamExt;
     use futures::pin_mut;
+    use futures::StreamExt;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::TcpListener;
     use tokio::task::JoinHandle;
 
     use super::{
-        BackoffPolicy, parse_first_instance_line, parse_first_sse_data_payload,
-        watch_namespace_with_policy,
+        parse_first_instance_line, parse_first_sse_data_payload, watch_namespace_with_policy,
+        BackoffPolicy,
     };
 
     #[test]

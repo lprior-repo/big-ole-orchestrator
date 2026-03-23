@@ -1,8 +1,8 @@
+use super::record::TimerRecord;
 use async_nats::jetstream::kv::Store;
 use async_nats::jetstream::Context;
 use wtf_common::{TimerId, WorkflowEvent, WtfError};
 use wtf_storage::append_event;
-use super::record::TimerRecord;
 
 /// Write a timer record into the `wtf-timers` KV bucket.
 pub async fn store_timer(timers: &Store, record: &TimerRecord) -> Result<(), WtfError> {

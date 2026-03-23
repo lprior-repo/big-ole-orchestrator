@@ -11,7 +11,7 @@ pub mod procedural;
 pub mod snapshot;
 
 pub use messages::{
-    InstanceArguments, InstanceMsg, InstancePhase, InstancePhaseView, InstanceStatusSnapshot,
-    OrchestratorMsg, StartError, TerminateError,
+    GetStatusError, InstanceArguments, InstanceMsg, InstancePhase, InstancePhaseView,
+    InstanceStatusSnapshot, OrchestratorMsg, StartError, TerminateError,
 };
 pub use wtf_common::WorkflowParadigm;

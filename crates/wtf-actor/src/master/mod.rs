@@ -1,12 +1,12 @@
-pub mod state;
-pub mod registry;
 pub mod handlers;
+pub mod registry;
+pub mod state;
 
+pub use self::registry::{WorkflowDefinition, WorkflowRegistry};
+pub use self::state::{OrchestratorConfig, OrchestratorState};
+use crate::messages::OrchestratorMsg;
 use async_trait::async_trait;
 use ractor::{Actor, ActorProcessingErr, ActorRef};
-use crate::messages::OrchestratorMsg;
-pub use self::state::{OrchestratorConfig, OrchestratorState};
-pub use self::registry::{WorkflowRegistry, WorkflowDefinition};
 
 /// The MasterOrchestrator root supervisor actor.
 pub struct MasterOrchestrator;
@@ -60,8 +60,16 @@ impl Actor for MasterOrchestrator {
         evt: ractor::SupervisionEvent,
         state: &mut OrchestratorState,
     ) -> Result<(), ActorProcessingErr> {
-        if let ractor::SupervisionEvent::ActorTerminated(actor_cell, _, reason) = &evt {
-            handle_child_termination(state, actor_cell, reason);
+        match &evt {
+            ractor::SupervisionEvent::ActorTerminated(cell, _, reason) => {
+                handle_child_termination(state, cell, reason);
+            }
+            ractor::SupervisionEvent::ActorFailed(cell, err) => {
+                tracing::error!(error = %err, "WorkflowInstance crashed — deregistering zombie");
+                handle_child_termination(state, cell, &Some(err.to_string()));
+            }
+            ractor::SupervisionEvent::ActorStarted(_)
+            | ractor::SupervisionEvent::ProcessGroupChanged(_) => {}
         }
         Ok(())
     }
@@ -73,13 +81,37 @@ async fn handle_other_msg(
     state: &mut OrchestratorState,
 ) {
     match msg {
-        OrchestratorMsg::StartWorkflow { namespace, instance_id, workflow_type, paradigm, input, reply } => {
-            handlers::handle_start_workflow(myself, state, namespace, instance_id, workflow_type, paradigm, input, reply).await;
+        OrchestratorMsg::StartWorkflow {
+            namespace,
+            instance_id,
+            workflow_type,
+            paradigm,
+            input,
+            reply,
+        } => {
+            let params = handlers::StartWorkflowParams {
+                namespace,
+                instance_id,
+                workflow_type,
+                paradigm,
+                input,
+                reply,
+            };
+            handlers::handle_start_workflow(myself, state, params).await;
         }
-        OrchestratorMsg::Signal { instance_id, signal_name, payload, reply } => {
+        OrchestratorMsg::Signal {
+            instance_id,
+            signal_name,
+            payload,
+            reply,
+        } => {
             handlers::handle_signal(state, instance_id, signal_name, payload, reply);
         }
-        OrchestratorMsg::Terminate { instance_id, reason, reply } => {
+        OrchestratorMsg::Terminate {
+            instance_id,
+            reason,
+            reply,
+        } => {
             handlers::handle_terminate(state, instance_id, reason, reply).await;
         }
         OrchestratorMsg::GetStatus { instance_id, reply } => {
@@ -91,7 +123,11 @@ async fn handle_other_msg(
         OrchestratorMsg::HeartbeatExpired { instance_id } => {
             handlers::handle_heartbeat_expired(myself, state, instance_id).await;
         }
-        _ => {}
+        // Exhaustiveness guard: Get* variants are handled by `handle()` before
+        // delegation; this wildcard catches any future OrchestratorMsg additions.
+        ref unhandled => {
+            tracing::warn!(msg = ?unhandled, "MasterOrchestrator received unhandled message variant");
+        }
     }
 }
 
@@ -100,7 +136,9 @@ fn handle_child_termination(
     cell: &ractor::ActorCell,
     reason: &Option<String>,
 ) {
-    let stopped_id = state.active.iter()
+    let stopped_id = state
+        .active
+        .iter()
         .find(|(_, r)| r.get_id() == cell.get_id())
         .map(|(id, _)| id.clone());
 

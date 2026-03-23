@@ -1,5 +1,5 @@
 use crate::master::registry::WorkflowRegistry;
-use crate::messages::InstanceMsg;
+use crate::messages::{InstanceArguments, InstanceMsg, InstanceSeed};
 use ractor::ActorRef;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -84,11 +84,34 @@ impl OrchestratorState {
     pub fn get(&self, id: &InstanceId) -> Option<&ActorRef<InstanceMsg>> {
         self.active.get(id)
     }
+
+    /// Build `InstanceArguments` from infrastructure config + per-instance seed.
+    ///
+    /// This is the single source of truth for wiring config and registry fields
+    /// into the argument struct, used by both fresh-spawn and crash-recovery paths.
+    #[must_use]
+    pub fn build_instance_args(&self, seed: InstanceSeed) -> InstanceArguments {
+        InstanceArguments {
+            namespace: seed.namespace,
+            instance_id: seed.instance_id,
+            workflow_type: seed.workflow_type.clone(),
+            paradigm: seed.paradigm,
+            input: seed.input,
+            engine_node_id: self.config.engine_node_id.clone(),
+            event_store: self.config.event_store.clone(),
+            state_store: self.config.state_store.clone(),
+            task_queue: self.config.task_queue.clone(),
+            snapshot_db: self.config.snapshot_db.clone(),
+            procedural_workflow: self.registry.get_procedural(&seed.workflow_type),
+            workflow_definition: self.registry.get_definition(&seed.workflow_type),
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ractor::Actor as _;
 
     fn test_config() -> OrchestratorConfig {
         OrchestratorConfig {
@@ -140,6 +163,46 @@ mod tests {
         let id = InstanceId::new("not-there");
         state.deregister(&id); // should not panic
         assert_eq!(state.active_count(), 0);
+    }
+
+    /// Minimal actor that discards all messages — used to obtain a valid `ActorRef<InstanceMsg>` for tests.
+    struct NullActor;
+
+    #[async_trait::async_trait]
+    impl ractor::Actor for NullActor {
+        type Msg = InstanceMsg;
+        type State = ();
+        type Arguments = ();
+
+        async fn pre_start(
+            &self,
+            _: ractor::ActorRef<Self::Msg>,
+            _: Self::Arguments,
+        ) -> Result<(), ractor::ActorProcessingErr> {
+            Ok(())
+        }
+    }
+
+    fn single_instance_config() -> OrchestratorConfig {
+        OrchestratorConfig {
+            max_instances: 1,
+            engine_node_id: "node".into(),
+            snapshot_db: None,
+            event_store: None,
+            state_store: None,
+            task_queue: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn has_capacity_false_when_exactly_one_at_max_one() {
+        let mut state = OrchestratorState::new(single_instance_config());
+        let id = InstanceId::new("only-instance");
+        let (actor_ref, _handle) = NullActor::spawn(None, NullActor, ())
+            .await
+            .expect("null actor spawned");
+        state.register(id, actor_ref);
+        assert!(!state.has_capacity());
     }
 
     #[test]

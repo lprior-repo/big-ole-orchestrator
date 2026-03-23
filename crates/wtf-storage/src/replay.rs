@@ -23,7 +23,7 @@ use async_nats::jetstream::{
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use futures::StreamExt;
-use wtf_common::storage::{ReplayBatch, ReplayedEvent, ReplayStream};
+use wtf_common::storage::{ReplayBatch, ReplayStream, ReplayedEvent};
 use wtf_common::{InstanceId, NamespaceId, WorkflowEvent, WtfError};
 
 use crate::journal::build_subject;
@@ -81,9 +81,7 @@ impl ReplayConsumer {
     /// Returns `WtfError::NatsPublish` if the NATS stream errors.
     pub async fn next_event_internal(&mut self) -> Result<ReplayBatch, WtfError> {
         match tokio::time::timeout(self.tail_timeout, self.messages.next()).await {
-            Ok(Some(Ok(msg))) => {
-                Ok(ReplayBatch::Event(self.decode_msg(msg)?))
-            }
+            Ok(Some(Ok(msg))) => Ok(ReplayBatch::Event(self.decode_msg(msg)?)),
             Ok(Some(Err(e))) => Err(WtfError::nats_publish(format!("replay stream error: {e}"))),
             Ok(None) => {
                 // Stream closed — treat as tail reached.
@@ -114,7 +112,11 @@ impl ReplayConsumer {
         let timestamp = DateTime::<Utc>::from_timestamp(ts.unix_timestamp(), ts.nanosecond())
             .unwrap_or_default();
         let event = decode_event(msg.payload.clone())?;
-        Ok(ReplayedEvent { seq, event, timestamp })
+        Ok(ReplayedEvent {
+            seq,
+            event,
+            timestamp,
+        })
     }
 }
 
@@ -152,14 +154,20 @@ pub async fn create_replay_consumer(
     let deliver_subject = generate_replay_inbox(instance_id);
     let consumer_config = build_push_config(deliver_subject, subject, config.from_seq);
 
-    let stream = js.get_stream(crate::provision::stream_names::EVENTS).await
+    let stream = js
+        .get_stream(crate::provision::stream_names::EVENTS)
+        .await
         .map_err(|e| WtfError::nats_publish(format!("get stream for replay: {e}")))?;
 
-    let consumer = stream.create_consumer(consumer_config).await
+    let consumer = stream
+        .create_consumer(consumer_config)
+        .await
         .map_err(|e| WtfError::nats_publish(format!("create replay consumer: {e}")))?;
 
     Ok(ReplayConsumer {
-        messages: consumer.messages().await
+        messages: consumer
+            .messages()
+            .await
             .map_err(|e| WtfError::nats_publish(format!("replay consumer messages(): {e}")))?,
         tail_timeout: config.tail_timeout,
     })
@@ -173,7 +181,11 @@ fn generate_replay_inbox(instance_id: &InstanceId) -> String {
     format!("_INBOX.wtf.replay.{}.{ts}", instance_id.as_str())
 }
 
-fn build_push_config(deliver_subject: String, filter_subject: String, start_seq: u64) -> PushConfig {
+fn build_push_config(
+    deliver_subject: String,
+    filter_subject: String,
+    start_seq: u64,
+) -> PushConfig {
     PushConfig {
         deliver_subject,
         deliver_policy: DeliverPolicy::ByStartSequence {

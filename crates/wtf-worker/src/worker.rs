@@ -31,7 +31,9 @@ use bytes::Bytes;
 use tokio::time::Duration;
 use wtf_common::WtfError;
 
-use crate::activity::{calculate_backoff_delay, complete_activity, fail_activity, retries_exhausted};
+use crate::activity::{
+    calculate_backoff_delay, complete_activity, fail_activity, retries_exhausted,
+};
 use crate::queue::{enqueue_activity, ActivityTask, WorkQueueConsumer};
 
 /// Configuration for graceful worker drain on shutdown.
@@ -195,8 +197,8 @@ impl Worker {
             }
         }
 
-        let drain_duration_ms = drain_started_at
-            .map_or(0_u64, |started| started.elapsed().as_millis() as u64);
+        let drain_duration_ms =
+            drain_started_at.map_or(0_u64, |started| started.elapsed().as_millis() as u64);
 
         Ok(ShutdownResult {
             completed_count,
