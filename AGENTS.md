@@ -22,25 +22,6 @@ cargo test --workspace
 
 ---
 
-## Issue Tracking with Beads
-
-**⚠️ Dolt/bd database is NOT available** in this environment (`database "wtf" not found on 127.0.0.1:3308`).
-
-Beads are tracked in `.beads/<bead-id>/` directories. Since bd is unavailable, contracts and test plans must be **synthesized from actual implementation code** — not pulled from a database.
-
-### Current Bead Status
-
-| Category | Count | Notes |
-|----------|-------|-------|
-| **LANDED (STATE 8)** | 48 | Fully implemented, tested, committed |
-| **GHOST (STATE 1, empty)** | 11 | Need cleanup or re-implementation |
-| **Total** | 60 | |
-
-**Ghost beads (empty, no artifacts):**
-`wtf-2q3d`, `wtf-5eii`, `wtf-772u`, `wtf-bqiq`, `wtf-ibdy`, `wtf-iu4d`, `wtf-lrko`, `wtf-p19r`, `wtf-pc26`, `wtf-wygu`, `wtf-xgxr`
-
----
-
 ## Running Tests
 
 ```bash
@@ -67,26 +48,20 @@ cargo clippy --workspace -- -D warnings
 
 **MANDATORY WORKFLOW:**
 
-1. **File issues for remaining work** — Create beads for anything that needs follow-up:
-   ```bash
-   mkdir -p .beads/wtf-<id>
-   echo "STATE 1" > .beads/wtf-<id>/STATE.md
-   ```
-
-2. **Run quality gates** (if code changed):
+1. **Run quality gates** (if code changed):
    ```bash
    cargo test --workspace
    cargo clippy --workspace -- -D warnings
    cargo check --workspace
    ```
 
-3. **Commit and push**:
+2. **Commit and push via jj**:
    ```bash
    jj describe -m "description"
    jj git push
    ```
 
-4. **Verify**:
+3. **Verify**:
    ```bash
    jj log --no-graph -r "main | main@origin"
    # Must show synced
@@ -101,7 +76,7 @@ cargo clippy --workspace -- -D warnings
 
 ## Go-skill Pipeline (Implementing New Features)
 
-Since bd is unavailable, use the go-skill pipeline with contract synthesis from existing code:
+Use the go-skill pipeline with contract synthesis from existing code:
 
 ```
 STATE 1 → rust-contract (synthesize contract.md + martin-fowler-tests.md from implementation)
@@ -159,6 +134,5 @@ cp -rf source dest
 ## Known Issues
 
 1. **7 journal_test failures** — assertions don't provide required `Extension<ActorRef<OrchestratorMsg>>`, all return 500 instead of expected status codes
-2. **11 ghost beads** — empty STATE 1 directories, no artifacts, no implementation
-3. **wtf-cli has 0 tests** — no test coverage
-4. **wtf-worker has 0 tests** — no test coverage
+2. **wtf-cli has 0 tests** — no test coverage
+3. **wtf-worker has 0 tests** — no test coverage

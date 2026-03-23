@@ -79,23 +79,17 @@ Test connection:
 cargo run -p wtf-storage --bin nats_connect_test
 ```
 
-## Beads (Issue Tracking)
+## Bead Tracking (jj-first)
 
-**⚠️ Dolt/bd database is NOT available** in this environment. Contracts must be synthesized from actual implementation code.
+Beads are tracked via **jj commits** — each feature/refactor gets its own jj commit.
+The `.beads/` directory is the **Dolt/bd database** (not bead artifacts).
 
-Beads are tracked in `.beads/<bead-id>/` directories with `STATE.md` files.
-
-### Bead States
-- **48 LANDED** (STATE 8) — fully implemented and tested
-- **11 GHOST** (STATE 1) — empty placeholders with no artifacts: `wtf-2q3d`, `wtf-5eii`, `wtf-772u`, `wtf-bqiq`, `wtf-ibdy`, `wtf-iu4d`, `wtf-lrko`, `wtf-p19r`, `wtf-pc26`, `wtf-wygu`, `wtf-xgxr`
-- **1 IN-FLIGHT** — `wtf-gz7z` (WTF-L001 linter, just landed)
-
-### Go-skill Pipeline (for implementing new beads)
+### Go-skill Pipeline (for implementing new features)
 ```
 STATE 1 → rust-contract (synthesize from code, not bd)
 STATE 2 → test-reviewer
 STATE 3 → functional-rust
-STATE 4 → Moon Gate (compile, test, clippy)
+STATE 4 → Moon Gate (cargo check, cargo test, cargo clippy)
 STATE 4.5 → qa-enforcer
 STATE 4.6 → QA review
 STATE 5 → red-queen (adversarial)
@@ -129,5 +123,4 @@ Key architectural decisions in `docs/adr/`:
 ## Known Issues
 
 1. **7 journal_test failures** — tests assert wrong status codes (missing Extension setup)
-2. **11 ghost beads** — empty STATE 1 dirs, need cleanup or re-implementation
-3. **wtf-cli and wtf-worker have NO tests** — 0 test lines each
+2. **wtf-cli and wtf-worker have NO tests** — 0 test lines each
