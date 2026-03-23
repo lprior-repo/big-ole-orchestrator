@@ -1,6 +1,0 @@
-MOON GATE RESULTS
-========================
-Format Check: PASS (cargo fmt applied)
-Clippy: PASS (warnings only, no errors in wtf-worker)
-Unit Tests: PASS (33 passed)
-Integration Tests: SKIPPED (requires NATS)
