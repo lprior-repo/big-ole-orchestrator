@@ -1,7 +1,8 @@
-//! append_event() — the ONLY function that publishes WorkflowEvents to NATS JetStream.
+#![allow(clippy::expect_used)]
+//! `append_event()` — the ONLY function that publishes `WorkflowEvents` to NATS `JetStream`.
 //!
 //! Architecture invariant (ADR-015): no code outside this module may call
-//! jetstream.publish() directly. All state transitions go through append_event.
+//! `jetstream.publish()` directly. All state transitions go through `append_event`.
 
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::expect_used)]
@@ -17,14 +18,14 @@ use wtf_common::{InstanceId, NamespaceId, WorkflowEvent, WtfError};
 
 const PUBLISH_ACK_TIMEOUT: Duration = Duration::from_secs(5);
 
-/// Append a WorkflowEvent to the JetStream log for this instance.
+/// Append a `WorkflowEvent` to the `JetStream` log for this instance.
 ///
 /// The caller MUST await Ok(seq) before executing any side effect (ADR-015).
-/// Subject: wtf.log.<namespace>.<instance_id>
+/// Subject: wtf.log.<namespace>.<`instance_id`>
 ///
 /// # Errors
-/// - WtfError::NatsPublish on publish failure.
-/// - WtfError::NatsTimeout if PublishAck not received within 5s.
+/// - `WtfError::NatsPublish` on publish failure.
+/// - `WtfError::NatsTimeout` if `PublishAck` not received within 5s.
 pub async fn append_event(
     js: &Context,
     namespace: &NamespaceId,
@@ -49,7 +50,7 @@ pub async fn append_event(
     Ok(ack.sequence)
 }
 
-/// Build the NATS subject: wtf.log.<namespace>.<instance_id>
+/// Build the NATS subject: wtf.log.<namespace>.<`instance_id`>
 #[must_use]
 pub fn build_subject(namespace: &NamespaceId, instance_id: &InstanceId) -> String {
     format!("wtf.log.{}.{}", namespace.as_str(), instance_id.as_str())

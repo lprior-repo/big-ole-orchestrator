@@ -38,7 +38,7 @@ pub async fn handle_start_workflow(
 }
 
 fn validate_request(state: &OrchestratorState, id: &InstanceId) -> Result<(), StartError> {
-    if !state.has_capacity() {
+    if !state.capacity_check() {
         return Err(StartError::AtCapacity {
             running: state.active_count(),
             max: state.config.max_instances,

@@ -11,16 +11,13 @@ use wtf_linter::diagnostic::LintError;
 use wtf_linter::Diagnostic;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+#[derive(Default)]
 pub enum OutputFormat {
+    #[default]
     Human,
     Json,
 }
 
-impl Default for OutputFormat {
-    fn default() -> Self {
-        Self::Human
-    }
-}
 
 #[derive(Debug, Clone, Serialize)]
 struct JsonDiagnostic {

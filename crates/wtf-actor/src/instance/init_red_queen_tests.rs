@@ -175,8 +175,7 @@ async fn adversarial_publish_returns_error() {
     let err_msg = format!("{:?}", result.err());
     assert!(
         err_msg.contains("forced failure") || err_msg.contains("nats_publish"),
-        "Error should contain failure reason, got: {}",
-        err_msg
+        "Error should contain failure reason, got: {err_msg}"
     );
 }
 
@@ -311,7 +310,7 @@ async fn adversarial_empty_workflow_type() {
         return_seq: 1,
     });
     let mut args = make_args(store);
-    args.workflow_type = "".into();
+    args.workflow_type = String::new();
 
     let result: std::result::Result<(), ractor::ActorProcessingErr> =
         publish_instance_started(&args, 1, &[]).await;
@@ -351,7 +350,7 @@ async fn adversarial_double_publish_both_succeed() {
         ) -> Result<u64, WtfError> {
             let mut count = self.counter.lock().unwrap();
             *count += 1;
-            Ok(*count as u64)
+            Ok(u64::from(*count))
         }
 
         async fn open_replay_stream(

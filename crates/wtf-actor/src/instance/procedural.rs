@@ -1,4 +1,4 @@
-//! Procedural-specific message handlers for WorkflowInstance.
+//! Procedural-specific message handlers for `WorkflowInstance`.
 
 use super::handlers;
 use super::lifecycle::ParadigmState;
@@ -46,12 +46,9 @@ async fn append_and_inject_event(
     activity_id: Option<ActivityId>,
     reply: ractor::RpcReplyPort<Result<Bytes, WtfError>>,
 ) {
-    let store = match &state.args.event_store {
-        Some(s) => s,
-        None => {
-            let _ = reply.send(Err(WtfError::nats_publish("Event store missing")));
-            return;
-        }
+    let store = if let Some(s) = &state.args.event_store { s } else {
+        let _ = reply.send(Err(WtfError::nats_publish("Event store missing")));
+        return;
     };
 
     match store
@@ -153,12 +150,9 @@ async fn append_and_inject_timer_event(
     timer_id: wtf_common::TimerId,
     reply: ractor::RpcReplyPort<Result<(), WtfError>>,
 ) {
-    let store = match &state.args.event_store {
-        Some(s) => s,
-        None => {
-            let _ = reply.send(Err(WtfError::nats_publish("Event store missing")));
-            return;
-        }
+    let store = if let Some(s) = &state.args.event_store { s } else {
+        let _ = reply.send(Err(WtfError::nats_publish("Event store missing")));
+        return;
     };
 
     match store

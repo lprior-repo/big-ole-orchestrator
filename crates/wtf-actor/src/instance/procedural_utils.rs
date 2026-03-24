@@ -74,7 +74,7 @@ pub async fn handle_random(
         }
         let value: u64 = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .map_or(0, |d| d.subsec_nanos() as u64 ^ (d.as_secs() << 32));
+            .map_or(0, |d| u64::from(d.subsec_nanos()) ^ (d.as_secs() << 32));
         let event = WorkflowEvent::RandomSampled {
             operation_id: op_id,
             value,

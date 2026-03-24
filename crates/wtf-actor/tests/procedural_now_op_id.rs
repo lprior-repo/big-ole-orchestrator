@@ -20,7 +20,7 @@ use wtf_actor::{
     instance::{lifecycle::ParadigmState, procedural_utils::handle_now, state::InstanceState},
     messages::{InstanceArguments, InstancePhase, WorkflowParadigm},
     procedural::{
-        state::{apply_event as proc_apply, Checkpoint},
+        state::apply_event as proc_apply,
         ProceduralActorState,
     },
 };
@@ -51,7 +51,7 @@ fn test_args() -> InstanceArguments {
 /// Note: ActivityDispatched at op 2 means s.operation_counter = 3 now.
 fn build_state_with_now_checkpoint_at_op1() -> (InstanceState, chrono::DateTime<chrono::Utc>) {
     let fixed_ts = chrono::DateTime::from_timestamp_millis(1_700_000_000_000).unwrap();
-    let ts_bytes = Bytes::copy_from_slice(&fixed_ts.timestamp_millis().to_le_bytes());
+    let _ts_bytes = Bytes::copy_from_slice(&fixed_ts.timestamp_millis().to_le_bytes());
 
     let s0 = ProceduralActorState::new();
 

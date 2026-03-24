@@ -30,7 +30,7 @@ pub async fn get_journal(
         None => {
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiError::new("actor_error", "event store unavailable")),
+                Json(ApiError::new("internal_error", "Service temporarily unavailable")),
             )
                 .into_response();
         }
@@ -41,7 +41,7 @@ pub async fn get_journal(
         Err(_) => {
             return (
                 StatusCode::NOT_FOUND,
-                Json(ApiError::new("not_found", format!("{id}"))),
+                Json(ApiError::new("not_found", id.to_string())),
             )
                 .into_response();
         }
@@ -90,10 +90,7 @@ fn parse_journal_request_id(
 fn map_replayed_event(replayed: ReplayedEvent) -> JournalEntry {
     let (entry_type, name, input, output, duration_ms, status) = map_event_fields(&replayed.event);
 
-    let seq = match u32::try_from(replayed.seq) {
-        Ok(seq) => seq,
-        Err(_) => u32::MAX,
-    };
+    let seq = u32::try_from(replayed.seq).unwrap_or(u32::MAX);
 
     JournalEntry {
         seq,

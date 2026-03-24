@@ -25,17 +25,14 @@ impl Actor for MockOrchestrator {
     }
 
     async fn handle(&self, _myself: ActorRef<Self::Msg>, msg: Self::Msg, _state: &mut Self::State) -> Result<(), ActorProcessingErr> {
-        match msg {
-            OrchestratorMsg::Signal { instance_id, reply, .. } => {
-                if instance_id.as_str() == "nonexistent" {
-                    let _ = reply.send(Err(wtf_common::WtfError::instance_not_found("nonexistent")));
-                } else if instance_id.as_str() == "timeout" {
-                    // Don't reply to simulate timeout
-                } else {
-                    let _ = reply.send(Ok(()));
-                }
+        if let OrchestratorMsg::Signal { instance_id, reply, .. } = msg {
+            if instance_id.as_str() == "nonexistent" {
+                let _ = reply.send(Err(wtf_common::WtfError::instance_not_found("nonexistent")));
+            } else if instance_id.as_str() == "timeout" {
+                // Don't reply to simulate timeout
+            } else {
+                let _ = reply.send(Ok(()));
             }
-            _ => {}
         }
         Ok(())
     }

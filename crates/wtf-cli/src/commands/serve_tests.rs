@@ -101,15 +101,14 @@ async fn drain_runtime_propagates_worker_error() {
     });
     let worker = tokio::spawn(async move {
         let _ = rx4.changed().await;
-        Err::<(), std::io::Error>(std::io::Error::new(
-            std::io::ErrorKind::Other,
+        Err::<(), std::io::Error>(std::io::Error::other(
             "worker boom",
         ))
     });
 
     let result = drain_runtime(shutdown_tx, api, timer, heartbeat, worker, || {}).await;
     assert!(result.is_err());
-    let err = result.err().expect("already asserted is_err");
+    let err = result.expect_err("already asserted is_err");
     let err_msg = err.to_string();
     assert!(
         err_msg.contains("builtin worker failed"),

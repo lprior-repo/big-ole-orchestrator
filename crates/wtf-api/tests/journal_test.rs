@@ -38,11 +38,8 @@ impl Actor for MockOrchestrator {
         msg: Self::Msg,
         _state: &mut Self::State,
     ) -> Result<(), ActorProcessingErr> {
-        match msg {
-            OrchestratorMsg::GetEventStore { reply } => {
-                let _ = reply.send(None);
-            }
-            _ => {}
+        if let OrchestratorMsg::GetEventStore { reply } = msg {
+            let _ = reply.send(None);
         }
         Ok(())
     }

@@ -70,12 +70,6 @@ impl OrchestratorState {
         self.active.len()
     }
 
-    /// Return `true` if the orchestrator can accept one more instance.
-    #[must_use]
-    pub fn has_capacity(&self) -> bool {
-        self.active.len() < self.config.max_instances
-    }
-
     /// Returns `true` when `self.active.len() < self.config.max_instances`.
     ///
     /// This method is **pure** — it performs no state mutation.
@@ -154,7 +148,7 @@ mod tests {
     #[test]
     fn has_capacity_when_empty() {
         let state = OrchestratorState::new(test_config());
-        assert!(state.has_capacity());
+        assert!(state.capacity_check());
     }
 
     #[test]
@@ -169,7 +163,7 @@ mod tests {
             definitions: Vec::new(),
         };
         let state = OrchestratorState::new(config);
-        assert!(!state.has_capacity());
+        assert!(!state.capacity_check());
     }
 
     #[test]
@@ -225,7 +219,7 @@ mod tests {
             .await
             .expect("null actor spawned");
         state.register(id, actor_ref);
-        assert!(!state.has_capacity());
+        assert!(!state.capacity_check());
     }
 
     #[test]

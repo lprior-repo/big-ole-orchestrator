@@ -85,7 +85,7 @@ fn watch_namespace_with_policy(
     stream::unfold(state, |state| async move {
         let event = fetch_one_event(&state.client, &state.url).await;
 
-        let next_state = if let Ok(_) = &event {
+        let next_state = if event.is_ok() {
             WatchState {
                 attempt: 0,
                 ..state

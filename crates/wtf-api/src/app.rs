@@ -3,7 +3,7 @@
 //! Builds the full `axum::Router` with:
 //! - API routes under `/api/v1/`
 //! - Health + metrics at `/health` and `/metrics`
-//! - `OrchestratorMsg` ActorRef injected via `Extension`
+//! - `OrchestratorMsg` `ActorRef` injected via `Extension`
 //! - Request tracing middleware (tower-http `TraceLayer`)
 
 #![deny(clippy::unwrap_used)]

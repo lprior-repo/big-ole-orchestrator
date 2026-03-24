@@ -56,10 +56,7 @@ fn replay_phase_returns_no_effects() {
     let state = FsmActorState::new("Pending");
     let event = transition("Pending", "Charge", "Charged", vec![effect]);
     let (_, result) = apply_event(&state, &event, 1, ExecutionPhase::Replay).expect("apply");
-    match result {
-        ApplyResult::Effects(e) => assert!(e.is_empty(), "replay should not return effects"),
-        _ => {}
-    }
+    if let ApplyResult::Effects(e) = result { assert!(e.is_empty(), "replay should not return effects") }
 }
 
 #[test]

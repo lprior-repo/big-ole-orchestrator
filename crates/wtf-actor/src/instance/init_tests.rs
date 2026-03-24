@@ -105,7 +105,7 @@ async fn fresh_instance_publishes_started_event() {
             assert_eq!(workflow_type, "order_flow");
             assert_eq!(input.as_ref(), b"{\"order\": 42}");
         }
-        other => panic!("Expected InstanceStarted variant, got {:?}", other),
+        other => panic!("Expected InstanceStarted variant, got {other:?}"),
     }
 }
 
@@ -139,11 +139,10 @@ async fn no_event_store_returns_error() {
     let result = publish_instance_started(&args, 1, &event_log).await;
 
     assert!(result.is_err(), "Expected Err for missing event_store");
-    let err_msg = format!("{:?}", result.err().expect("is err"));
+    let err_msg = format!("{:?}", result.expect_err("is err"));
     assert!(
         err_msg.contains("No event store"),
-        "Error should mention 'No event store', got: {}",
-        err_msg
+        "Error should mention 'No event store', got: {err_msg}"
     );
 }
 

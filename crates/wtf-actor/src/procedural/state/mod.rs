@@ -26,7 +26,7 @@ pub type OperationId = ActivityId;
 pub struct Checkpoint {
     /// Result bytes returned to the workflow code.
     pub result: Bytes,
-    /// JetStream sequence number of the `ActivityCompleted` event.
+    /// `JetStream` sequence number of the `ActivityCompleted` event.
     pub completed_seq: u64,
 }
 
@@ -52,7 +52,7 @@ pub struct ProceduralActorState {
     #[serde(default)]
     pub received_signals: HashMap<String, Vec<Bytes>>,
 
-    /// JetStream sequence numbers already applied (idempotency — ADR-016).
+    /// `JetStream` sequence numbers already applied (idempotency — ADR-016).
     pub applied_seq: HashSet<u64>,
 
     /// Events processed since the last snapshot.

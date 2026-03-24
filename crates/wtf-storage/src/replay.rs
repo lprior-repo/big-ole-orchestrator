@@ -1,4 +1,4 @@
-//! JetStream replay consumer — ordered event replay for crash recovery (ADR-016).
+//! `JetStream` replay consumer — ordered event replay for crash recovery (ADR-016).
 //!
 //! Recovery procedure (ADR-019):
 //! 1. Load snapshot from sled (if present and valid).
@@ -140,7 +140,7 @@ pub async fn replay_events(
     }))
 }
 
-/// Create an ephemeral ordered JetStream push consumer for replay.
+/// Create an ephemeral ordered `JetStream` push consumer for replay.
 ///
 /// # Errors
 /// Returns `WtfError::NatsPublish` if consumer creation fails.

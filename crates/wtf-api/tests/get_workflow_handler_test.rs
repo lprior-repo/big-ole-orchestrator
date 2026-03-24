@@ -46,21 +46,18 @@ impl Actor for MockOrchestrator {
         msg: Self::Msg,
         _state: &mut Self::State,
     ) -> Result<(), ActorProcessingErr> {
-        match msg {
-            OrchestratorMsg::GetStatus { instance_id, reply } => {
-                if instance_id.as_str() == "01ARZ3NDEKTSV4RRFFQ69G5FAV" {
-                    let _ = reply.send(Ok(Some(test_snapshot())));
-                } else if instance_id.as_str() == "nonexistent" {
-                    let _ = reply.send(Ok(None));
-                } else if instance_id.as_str() == "dead" {
-                    let _ = reply.send(Err(GetStatusError::ActorDied));
-                } else if instance_id.as_str() == "timeout" {
-                    // Drop reply to simulate timeout
-                } else {
-                    let _ = reply.send(Ok(None));
-                }
+        if let OrchestratorMsg::GetStatus { instance_id, reply } = msg {
+            if instance_id.as_str() == "01ARZ3NDEKTSV4RRFFQ69G5FAV" {
+                let _ = reply.send(Ok(Some(test_snapshot())));
+            } else if instance_id.as_str() == "nonexistent" {
+                let _ = reply.send(Ok(None));
+            } else if instance_id.as_str() == "dead" {
+                let _ = reply.send(Err(GetStatusError::ActorDied));
+            } else if instance_id.as_str() == "timeout" {
+                // Drop reply to simulate timeout
+            } else {
+                let _ = reply.send(Ok(None));
             }
-            _ => {}
         }
         Ok(())
     }

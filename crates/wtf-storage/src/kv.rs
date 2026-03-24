@@ -1,6 +1,6 @@
 //! NATS KV bucket provisioning and operations — materialized view layer (ADR-014).
 //!
-//! The KV stores are the QUERY side of the CQRS split. They are derived from JetStream
+//! The KV stores are the QUERY side of the CQRS split. They are derived from `JetStream`
 //! and can be fully reconstructed from the event log (`wtf admin rebuild-views`).
 //! They are NEVER the source of truth.
 
@@ -159,7 +159,7 @@ pub fn instance_key(namespace: &str, instance_id: &InstanceId) -> String {
 /// Build the KV key for a workflow definition.
 #[must_use]
 pub fn definition_key(namespace: &str, workflow_type: &str) -> String {
-    format!("{}/{}", namespace, workflow_type)
+    format!("{namespace}/{workflow_type}")
 }
 
 /// KV bucket names — stable constants (changing breaks existing deployments).

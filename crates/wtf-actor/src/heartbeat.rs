@@ -2,11 +2,11 @@
 //!
 //! Watches the `wtf-heartbeats` NATS KV bucket (ADR-014) for entry deletions
 //! caused by TTL expiry. When an entry expires, the watcher sends
-//! `OrchestratorMsg::HeartbeatExpired { instance_id }` to the MasterOrchestrator,
+//! `OrchestratorMsg::HeartbeatExpired { instance_id }` to the `MasterOrchestrator`,
 //! which decides whether to trigger crash recovery.
 //!
 //! # Architecture
-//! - The `wtf-heartbeats` bucket has `max_age = 10s`. Each live WorkflowInstance
+//! - The `wtf-heartbeats` bucket has `max_age = 10s`. Each live `WorkflowInstance`
 //!   calls `write_heartbeat()` every ≤5s to refresh its entry.
 //! - When the entry expires (TTL elapsed), NATS emits a `Delete` operation on the
 //!   bucket's watch stream.

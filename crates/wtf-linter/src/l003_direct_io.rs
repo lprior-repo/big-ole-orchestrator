@@ -247,12 +247,12 @@ async fn workflow() -> Result<(), Error> {
 
     #[test]
     fn test_emits_diagnostic_for_hyper_request() {
-        let source = r#"
+        let source = r"
 async fn workflow() -> Result<(), Error> {
     hyper::Client::request(request).await;
     Ok(())
 }
-"#;
+";
         let result = check(source).expect("should parse");
         assert!(!result.is_empty());
         assert!(result.iter().all(|d| d.code == LintCode::L003));

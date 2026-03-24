@@ -1,4 +1,4 @@
-//! JetStream stream provisioning — idempotent setup for all wtf-engine streams (ADR-013).
+//! `JetStream` stream provisioning — idempotent setup for all wtf-engine streams (ADR-013).
 
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::expect_used)]
@@ -14,7 +14,7 @@ use async_nats::jetstream::{
 };
 use wtf_common::WtfError;
 
-/// Provision all four JetStream streams if they don't already exist.
+/// Provision all four `JetStream` streams if they don't already exist.
 ///
 /// This function is idempotent — safe to call on every engine startup.
 /// If a stream already exists with a compatible config, `create_stream` returns it unchanged.
@@ -37,8 +37,8 @@ pub async fn provision_streams(js: &Context) -> Result<(), WtfError> {
 
 /// wtf-events: the immutable event log — source of truth for all workflow state (ADR-013).
 ///
-/// Subjects: `wtf.log.>` (namespace + instance_id encoded in subject segments).
-/// Retention: Limits (keep all events up to max_age).
+/// Subjects: `wtf.log.>` (namespace + `instance_id` encoded in subject segments).
+/// Retention: Limits (keep all events up to `max_age`).
 /// Max age: 90 days (configurable).
 async fn create_events_stream(js: &Context) -> Result<(), WtfError> {
     js.create_stream(StreamConfig {
@@ -59,8 +59,8 @@ async fn create_events_stream(js: &Context) -> Result<(), WtfError> {
 
 /// wtf-work: work queue for dispatching activities to workers.
 ///
-/// Subjects: `wtf.work.>` (activity_type encoded in subject).
-/// Retention: WorkQueue (each message delivered exactly once, then deleted).
+/// Subjects: `wtf.work.>` (`activity_type` encoded in subject).
+/// Retention: `WorkQueue` (each message delivered exactly once, then deleted).
 async fn create_work_stream(js: &Context) -> Result<(), WtfError> {
     js.create_stream(StreamConfig {
         name: "wtf-work".to_owned(),

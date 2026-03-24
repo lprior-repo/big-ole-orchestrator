@@ -1,11 +1,11 @@
-//! Snapshot trigger — write sled snapshot + `SnapshotTaken` JetStream event (ADR-019).
+//! Snapshot trigger — write sled snapshot + `SnapshotTaken` `JetStream` event (ADR-019).
 //!
 //! Called when `events_since_snapshot >= SNAPSHOT_INTERVAL` (every 100 events).
 //!
 //! The procedure (write-ahead, ADR-015):
 //! 1. Serialize actor state to msgpack bytes.
 //! 2. Write `SnapshotRecord` to sled (local, fast).
-//! 3. Append `SnapshotTaken { seq, checksum }` to JetStream (durable, crash-safe).
+//! 3. Append `SnapshotTaken { seq, checksum }` to `JetStream` (durable, crash-safe).
 //!
 //! On crash, recovery loads the sled snapshot and replays only events AFTER `seq`.
 //! If the sled snapshot is corrupt or missing, full replay from seq=1 is the fallback.
@@ -25,7 +25,7 @@ use crate::instance::handlers::SNAPSHOT_INTERVAL;
 /// The result of a successful snapshot write.
 #[derive(Debug, Clone)]
 pub struct SnapshotResult {
-    /// JetStream sequence number of the `SnapshotTaken` event.
+    /// `JetStream` sequence number of the `SnapshotTaken` event.
     pub jetstream_seq: u64,
     /// CRC32 checksum of the written state bytes.
     pub checksum: u32,
@@ -34,16 +34,16 @@ pub struct SnapshotResult {
 /// Write a snapshot for a workflow instance.
 ///
 /// # Arguments
-/// - `event_store`: EventStore for appending `SnapshotTaken`.
+/// - `event_store`: `EventStore` for appending `SnapshotTaken`.
 /// - `db`: sled database for writing the `SnapshotRecord`.
 /// - `namespace`: instance namespace.
 /// - `instance_id`: instance being snapshotted.
-/// - `last_applied_seq`: JetStream sequence of the last applied event.
-/// - `state_bytes`: msgpack-encoded actor state (FsmActorState / DagActorState / ProceduralActorState).
+/// - `last_applied_seq`: `JetStream` sequence of the last applied event.
+/// - `state_bytes`: msgpack-encoded actor state (`FsmActorState` / `DagActorState` / `ProceduralActorState`).
 ///
 /// # Errors
 /// - `WtfError::SledError` if sled write fails (non-fatal: caller falls back to full replay).
-/// - `WtfError::NatsPublish` if JetStream `SnapshotTaken` publish fails (non-fatal).
+/// - `WtfError::NatsPublish` if `JetStream` `SnapshotTaken` publish fails (non-fatal).
 pub async fn write_instance_snapshot(
     event_store: &dyn EventStore,
     db: &sled::Db,

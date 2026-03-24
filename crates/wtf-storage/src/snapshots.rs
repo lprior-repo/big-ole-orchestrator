@@ -1,8 +1,9 @@
+#![allow(clippy::expect_used)]
 //! sled snapshot store — per-instance state snapshots for fast crash recovery (ADR-019).
 //!
-//! sled is the ONLY place snapshots live. NATS JetStream has the `SnapshotTaken` marker event,
+//! sled is the ONLY place snapshots live. NATS `JetStream` has the `SnapshotTaken` marker event,
 //! but the actual state bytes live here. Neither is source-of-truth for workflow state —
-//! JetStream replay is always correct; snapshots exist only to bound replay latency.
+//! `JetStream` replay is always correct; snapshots exist only to bound replay latency.
 
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::expect_used)]
@@ -23,11 +24,11 @@ const SNAPSHOTS_TREE: &[u8] = b"snapshots";
 /// A point-in-time snapshot of actor in-memory state (ADR-019).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SnapshotRecord {
-    /// The JetStream sequence number of the last event applied before this snapshot.
+    /// The `JetStream` sequence number of the last event applied before this snapshot.
     /// Recovery replays from `seq + 1` to the stream tail.
     pub seq: u64,
 
-    /// Msgpack-encoded actor state (FsmActorState | DagActorState | ProceduralActorState).
+    /// Msgpack-encoded actor state (`FsmActorState` | `DagActorState` | `ProceduralActorState`).
     pub state_bytes: Bytes,
 
     /// CRC32 checksum of `state_bytes` for corruption detection.
@@ -97,7 +98,7 @@ pub fn write_snapshot(
 /// Read and validate the snapshot for `instance_id`.
 ///
 /// Returns `None` if no snapshot exists or if the checksum is invalid (logs a WARN).
-/// On checksum failure the caller should fall back to full JetStream replay.
+/// On checksum failure the caller should fall back to full `JetStream` replay.
 ///
 /// # Errors
 /// Returns [`WtfError::SledError`] on I/O failure.

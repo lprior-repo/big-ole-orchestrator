@@ -1,4 +1,4 @@
-//! Message handlers for WorkflowInstance actors.
+//! Message handlers for `WorkflowInstance` actors.
 
 pub(crate) mod snapshot;
 
@@ -165,12 +165,9 @@ pub(crate) async fn handle_signal(
     payload: Bytes,
     reply: RpcReplyPort<Result<(), WtfError>>,
 ) -> Result<(), ActorProcessingErr> {
-    let store = match &state.args.event_store {
-        Some(s) => s,
-        None => {
-            let _ = reply.send(Err(WtfError::nats_publish("Event store missing")));
-            return Ok(());
-        }
+    let store = if let Some(s) = &state.args.event_store { s } else {
+        let _ = reply.send(Err(WtfError::nats_publish("Event store missing")));
+        return Ok(());
     };
 
     let event = WorkflowEvent::SignalReceived {
@@ -325,7 +322,7 @@ pub(crate) async fn handle_cancel(
     }
 
     match publish_result {
-        Ok(_) => {
+        Ok(()) => {
             tracing::debug!(instance_id = %state.args.instance_id, "InstanceCancelled persisted");
         }
         Err(CancelError::ActorNotRunning) => {

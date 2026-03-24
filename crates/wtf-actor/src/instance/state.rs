@@ -1,4 +1,4 @@
-//! In-memory state of a running WorkflowInstance.
+//! In-memory state of a running `WorkflowInstance`.
 
 use super::lifecycle::ParadigmState;
 use crate::messages::{InstanceArguments, InstancePhase};
@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use wtf_common::WorkflowParadigm;
 use wtf_common::{ActivityId, WorkflowEvent, WtfError};
 
-/// In-memory state of a running WorkflowInstance.
+/// In-memory state of a running `WorkflowInstance`.
 #[derive(Debug)]
 pub struct InstanceState {
     /// Immutable spawn arguments.
@@ -17,7 +17,7 @@ pub struct InstanceState {
     pub phase: InstancePhase,
     /// Total events applied (monotonically increasing).
     pub total_events_applied: u64,
-    /// Events since last snapshot (reset at SNAPSHOT_INTERVAL).
+    /// Events since last snapshot (reset at `SNAPSHOT_INTERVAL`).
     pub events_since_snapshot: u32,
     /// Current state of the execution paradigm.
     pub paradigm_state: ParadigmState,
@@ -27,11 +27,11 @@ pub struct InstanceState {
     pub outbox: Vec<WorkflowEvent>,
 
     /// Pending RPC calls from procedural workflows waiting for activity results.
-    /// Keyed by ActivityId. Not persisted in snapshots.
+    /// Keyed by `ActivityId`. Not persisted in snapshots.
     pub pending_activity_calls: HashMap<ActivityId, RpcReplyPort<Result<Bytes, WtfError>>>,
 
     /// Pending RPC calls from procedural workflows waiting for timers.
-    /// Keyed by TimerId. Not persisted in snapshots.
+    /// Keyed by `TimerId`. Not persisted in snapshots.
     pub pending_timer_calls: HashMap<wtf_common::TimerId, RpcReplyPort<Result<(), WtfError>>>,
 
     /// Pending RPC calls from procedural workflows waiting for signals.

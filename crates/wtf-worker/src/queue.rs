@@ -1,11 +1,11 @@
 //! Activity work queue consumer (bead wtf-1qx1).
 //!
-//! Workers pull `ActivityTask` messages from the `wtf-work` NATS JetStream
+//! Workers pull `ActivityTask` messages from the `wtf-work` NATS `JetStream`
 //! stream. Each task encapsulates everything the worker needs to execute the
 //! activity and report the result.
 //!
 //! # Work queue flow
-//! 1. Actor appends `ActivityDispatched` to JetStream (write-ahead — ADR-015).
+//! 1. Actor appends `ActivityDispatched` to `JetStream` (write-ahead — ADR-015).
 //! 2. Actor publishes an `ActivityTask` payload to `wtf.work.<activity_type>`.
 //! 3. Worker fetches via pull consumer, executes, reports result via `activity.rs`.
 //! 4. Worker acks (success/failure) — NATS removes the message from the queue.
@@ -29,7 +29,7 @@ use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use wtf_common::{ActivityId, InstanceId, NamespaceId, RetryPolicy, WtfError};
 
-/// NATS JetStream stream name for the activity work queue.
+/// NATS `JetStream` stream name for the activity work queue.
 pub const WORK_STREAM_NAME: &str = "wtf-work";
 /// NATS subject prefix for work items: `wtf.work.<activity_type>`.
 pub const WORK_SUBJECT_PREFIX: &str = "wtf.work";
@@ -89,7 +89,7 @@ impl ActivityTask {
     pub fn from_msgpack(bytes: &[u8]) -> Result<Self, WtfError> {
         rmp_serde::from_slice(bytes)
             .map_err(|e| WtfError::nats_publish(format!("deserialize ActivityTask: {e}")))
-            .and_then(|task: Self| task.validate().map(|_| task))
+            .and_then(|task: Self| task.validate().map(|()| task))
     }
 
     /// Build the NATS subject for dispatching this task.
@@ -133,7 +133,7 @@ pub struct AckableTask {
 impl AckableTask {
     /// Acknowledge this task — removes it from the work queue.
     ///
-    /// Call this AFTER successfully appending the result to JetStream.
+    /// Call this AFTER successfully appending the result to `JetStream`.
     ///
     /// # Errors
     /// Returns `WtfError::NatsPublish` if the ack delivery fails.
@@ -165,7 +165,7 @@ impl std::fmt::Debug for AckableTask {
     }
 }
 
-/// Pull consumer wrapper for the `wtf-work` JetStream stream.
+/// Pull consumer wrapper for the `wtf-work` `JetStream` stream.
 ///
 /// Create via [`WorkQueueConsumer::create`] then call [`WorkQueueConsumer::next_task`]
 /// in a loop to process activities.
@@ -176,15 +176,13 @@ pub struct WorkQueueConsumer {
 impl WorkQueueConsumer {
     fn durable_for(filter_subject: &Option<String>, worker_name: &str) -> String {
         let name = filter_subject
-            .as_ref()
-            .map(|subject| {
+            .as_ref().map_or_else(|| "work_all".to_owned(), |subject| {
                 let stable = subject
                     .chars()
                     .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
                     .collect::<String>();
                 format!("work_{stable}")
-            })
-            .unwrap_or_else(|| "work_all".to_owned());
+            });
 
         if name.is_empty() {
             worker_name.to_owned()
@@ -252,7 +250,7 @@ impl WorkQueueConsumer {
 
 // ── Publish helper used by the engine actor ───────────────────────────────────
 
-/// Publish an `ActivityTask` to the `wtf-work` JetStream stream.
+/// Publish an `ActivityTask` to the `wtf-work` `JetStream` stream.
 ///
 /// Called by the actor AFTER appending `ActivityDispatched` to the event log
 /// (ADR-015: write-ahead guarantee). This is the second step in the dispatch

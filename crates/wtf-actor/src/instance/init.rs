@@ -1,4 +1,4 @@
-//! Initialization and replay logic for WorkflowInstance actors.
+//! Initialization and replay logic for `WorkflowInstance` actors.
 
 use super::lifecycle::{
     compute_live_transition, deserialize_paradigm_state, execute_transition_actions, ParadigmState,
@@ -133,7 +133,7 @@ async fn run_procedural(
     myself: ActorRef<InstanceMsg>,
 ) {
     match wf_fn.execute(ctx).await {
-        Ok(_) => {
+        Ok(()) => {
             let _ = myself.cast(InstanceMsg::ProceduralWorkflowCompleted);
         }
         Err(e) => {
@@ -146,12 +146,12 @@ async fn run_procedural(
 /// Must be called AFTER `spawn_live_subscription` and BEFORE phase transitions to Live.
 ///
 /// # Arguments
-/// * `args` - The InstanceArguments containing namespace, instance_id, workflow_type, input
+/// * `args` - The `InstanceArguments` containing namespace, `instance_id`, `workflow_type`, input
 /// * `event_log` - The replayed events (empty = fresh instance, non-empty = crash recovery)
 ///
 /// # Returns
 /// * `Ok(())` - Event published successfully, or skipped (crash recovery)
-/// * `Err(ActorProcessingErr)` - If no event_store is configured or publish fails
+/// * `Err(ActorProcessingErr)` - If no `event_store` is configured or publish fails
 ///
 /// # Guards
 /// - Returns `Ok(())` immediately if `event_log` is non-empty (crash recovery path)
@@ -183,8 +183,7 @@ pub async fn publish_instance_started(
 
     debug_assert!(
         seq >= 1,
-        "EventStore returned invalid sequence number: {} (must be >= 1)",
-        seq
+        "EventStore returned invalid sequence number: {seq} (must be >= 1)"
     );
 
     tracing::info!(

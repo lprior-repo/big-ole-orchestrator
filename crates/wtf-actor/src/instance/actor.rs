@@ -1,4 +1,4 @@
-//! The WorkflowInstance ractor actor implementation.
+//! The `WorkflowInstance` ractor actor implementation.
 
 use async_trait::async_trait;
 use ractor::{Actor, ActorProcessingErr, ActorRef};
@@ -9,7 +9,7 @@ use super::state::InstanceState;
 use crate::messages::{InstanceMsg, InstancePhase};
 use wtf_common::WorkflowParadigm;
 
-/// The WorkflowInstance ractor actor.
+/// The `WorkflowInstance` ractor actor.
 pub struct WorkflowInstance;
 
 #[async_trait]

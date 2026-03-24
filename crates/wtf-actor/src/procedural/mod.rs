@@ -1,4 +1,4 @@
-//! ProceduralActor — Procedural paradigm actor state and event application (ADR-017).
+//! `ProceduralActor` — Procedural paradigm actor state and event application (ADR-017).
 
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::expect_used)]

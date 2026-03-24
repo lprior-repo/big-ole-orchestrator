@@ -12,7 +12,7 @@ use wtf_actor::{
     instance::{
         handlers,
         lifecycle::ParadigmState,
-        state::{initialize_paradigm_state, InstanceState},
+        state::InstanceState,
     },
     messages::{InstanceArguments, InstancePhase, WorkflowParadigm},
     procedural::{apply_event as proc_apply, ProceduralActorState},

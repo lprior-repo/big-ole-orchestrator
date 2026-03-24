@@ -175,9 +175,9 @@ impl FromStr for TimerId {
 mod timer_id_determinism_tests {
     use super::*;
 
-    /// TimerId::procedural must produce a deterministic id from instance_id + op_id.
-    /// Bug: handle_sleep uses ulid::Ulid::new() — different on each restart.
-    /// Fix: TimerId must derive from (instance_id, op_id) so restarts reproduce the same id.
+    /// `TimerId::procedural` must produce a deterministic id from `instance_id` + `op_id`.
+    /// Bug: `handle_sleep` uses `ulid::Ulid::new()` — different on each restart.
+    /// Fix: `TimerId` must derive from (`instance_id`, `op_id`) so restarts reproduce the same id.
     #[test]
     fn timer_id_procedural_is_deterministic_for_same_op_id() {
         let instance_id = InstanceId::new("inst-01");

@@ -1,4 +1,4 @@
-//! Lifecycle logic for WorkflowInstance actors (ADR-016).
+//! Lifecycle logic for `WorkflowInstance` actors (ADR-016).
 //!
 //! Follows "Functional Rust" Data -> Calc -> Actions:
 //! - Data: [`ParadigmState`].

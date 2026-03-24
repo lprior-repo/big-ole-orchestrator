@@ -130,7 +130,7 @@ impl Worker {
     /// For each task pulled from the queue:
     /// 1. Look up the registered handler for `task.activity_type`.
     /// 2. Execute the handler.
-    /// 3. Append `ActivityCompleted` or `ActivityFailed` to JetStream.
+    /// 3. Append `ActivityCompleted` or `ActivityFailed` to `JetStream`.
     /// 4. Ack the work-queue message.
     ///
     /// Tasks with no registered handler are acked without execution and logged

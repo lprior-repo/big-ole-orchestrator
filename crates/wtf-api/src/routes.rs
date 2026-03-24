@@ -68,11 +68,11 @@ impl<S> Layer<S> for JsonBodyLayer {
 ///
 /// # Middleware (outermost → innermost)
 /// 1. `TraceLayer::new_for_http()` - HTTP request tracing
-/// 2. `Extension(master)` - ActorRef injection
+/// 2. `Extension(master)` - `ActorRef` injection
 /// 3. `JsonBodyLayer` - JSON body extraction
 ///
 /// # Arguments
-/// * `master` - ActorRef to the Orchestrator actor
+/// * `master` - `ActorRef` to the Orchestrator actor
 ///
 /// # Returns
 /// A `Router` instance with all routes and middleware configured.
@@ -278,7 +278,7 @@ mod tests {
     #[tokio::test]
     async fn test_json_body_layer_can_be_constructed() {
         let _layer = JsonBodyLayer::new();
-        let _layer_default = JsonBodyLayer::default();
+        let _layer_default = JsonBodyLayer;
     }
 
     #[tokio::test]

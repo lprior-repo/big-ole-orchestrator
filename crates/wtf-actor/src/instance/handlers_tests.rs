@@ -28,7 +28,7 @@ impl ReplayStream for EmptyReplayStream {
     }
 }
 
-/// EventStore that publishes successfully and returns seq=42.
+/// `EventStore` that publishes successfully and returns seq=42.
 #[derive(Debug)]
 struct MockOkEventStore;
 
@@ -52,7 +52,7 @@ impl EventStore for MockOkEventStore {
     }
 }
 
-/// EventStore that always fails on publish (for failure-path tests).
+/// `EventStore` that always fails on publish (for failure-path tests).
 #[derive(Debug)]
 struct MockFailEventStore;
 
@@ -332,8 +332,7 @@ async fn handle_signal_returns_error_without_event_store() {
     let err_msg = format!("{:?}", result.expect_err("is err"));
     assert!(
         err_msg.contains("Event store missing"),
-        "error message must mention 'Event store missing', got: {}",
-        err_msg
+        "error message must mention 'Event store missing', got: {err_msg}"
     );
 
     // State must NOT be modified
@@ -855,7 +854,7 @@ async fn invariant_received_signals_fifo_ordering() {
 // Run: cargo test -p wtf-actor -- terminate
 // ---------------------------------------------------------------------------
 
-/// EventStore that captures the last published event for assertion.
+/// `EventStore` that captures the last published event for assertion.
 #[derive(Debug)]
 struct CapturingEventStore {
     last_published: std::sync::Mutex<Option<WorkflowEvent>>,
@@ -918,7 +917,7 @@ fn cancel_test_state(
     InstanceState::initial(args)
 }
 
-/// Helper: spawn a NullActor that accepts InstanceMsg so we get a valid ActorRef.
+/// Helper: spawn a `NullActor` that accepts `InstanceMsg` so we get a valid `ActorRef`.
 /// The actor ignores all messages (including Cancel).
 async fn spawn_null_instance_actor() -> ActorRef<InstanceMsg> {
     struct NullInstanceActor;
@@ -1031,8 +1030,7 @@ async fn terminate_publishes_instance_cancelled_event() {
         );
     } else {
         panic!(
-            "expected WorkflowEvent::InstanceCancelled, got: {:?}",
-            captured
+            "expected WorkflowEvent::InstanceCancelled, got: {captured:?}"
         );
     }
 
@@ -1065,8 +1063,7 @@ async fn terminate_nonexistent_instance_returns_not_found() {
         assert_eq!(id, instance_id);
     } else {
         panic!(
-            "expected TerminateError::NotFound, got: {:?}",
-            reply
+            "expected TerminateError::NotFound, got: {reply:?}"
         );
     }
 }
@@ -1113,8 +1110,7 @@ async fn double_terminate_returns_not_found() {
     let reply = rx2.await.expect("second reply received");
     assert!(
         matches!(reply, Err(TerminateError::NotFound(_))),
-        "double terminate must return NotFound, got: {:?}",
-        reply
+        "double terminate must return NotFound, got: {reply:?}"
     );
 }
 
@@ -1141,8 +1137,7 @@ async fn terminate_returns_timeout_when_instance_does_not_respond() {
     let reply = rx.await.expect("timeout reply received");
     assert!(
         matches!(reply, Err(TerminateError::Timeout(ref id)) if id == &instance_id),
-        "expected TerminateError::Timeout, got: {:?}",
-        reply
+        "expected TerminateError::Timeout, got: {reply:?}"
     );
 
     silent_ref.stop(Some("test complete".into()));
@@ -1203,7 +1198,7 @@ async fn terminate_when_publish_fails_still_replies_ok() {
     actor_ref.stop(Some("test complete".into()));
 }
 
-/// EventStore that always fails on publish — used to test the data-loss path.
+/// `EventStore` that always fails on publish — used to test the data-loss path.
 #[derive(Debug)]
 struct FailingEventStore;
 
@@ -1252,8 +1247,7 @@ async fn terminate_reason_propagates_to_instance_cancelled_event() {
         );
     } else {
         panic!(
-            "expected WorkflowEvent::InstanceCancelled, got: {:?}",
-            captured
+            "expected WorkflowEvent::InstanceCancelled, got: {captured:?}"
         );
     }
 }
@@ -1272,8 +1266,7 @@ fn invariant_reply_sent_before_actor_stop() {
         .expect("source must contain handle_cancel");
     let cancel_end = source[cancel_start..]
         .find("\nasync fn ")
-        .map(|i| cancel_start + i)
-        .unwrap_or(source.len());
+        .map_or(source.len(), |i| cancel_start + i);
     let cancel_fn = &source[cancel_start..cancel_end];
 
     let reply_pos = cancel_fn
@@ -1285,9 +1278,7 @@ fn invariant_reply_sent_before_actor_stop() {
 
     assert!(
         reply_pos < stop_pos,
-        "I-2 violated: 'reply.send' (pos {}) must appear before 'myself_ref.stop' (pos {})",
-        reply_pos,
-        stop_pos
+        "I-2 violated: 'reply.send' (pos {reply_pos}) must appear before 'myself_ref.stop' (pos {stop_pos})"
     );
 }
 
@@ -1303,8 +1294,7 @@ fn invariant_event_published_before_actor_stop() {
         .expect("source must contain handle_cancel");
     let cancel_end = source[cancel_start..]
         .find("\nasync fn ")
-        .map(|i| cancel_start + i)
-        .unwrap_or(source.len());
+        .map_or(source.len(), |i| cancel_start + i);
     let cancel_fn = &source[cancel_start..cancel_end];
 
     let publish_pos = cancel_fn
@@ -1316,9 +1306,7 @@ fn invariant_event_published_before_actor_stop() {
 
     assert!(
         publish_pos < stop_pos,
-        "I-1 violated: '.publish(' (pos {}) must appear before 'myself_ref.stop' (pos {})",
-        publish_pos,
-        stop_pos
+        "I-1 violated: '.publish(' (pos {publish_pos}) must appear before 'myself_ref.stop' (pos {stop_pos})"
     );
 }
 
@@ -1333,8 +1321,7 @@ fn invariant_no_unwrap_in_terminate_path() {
         .expect("source must contain handle_cancel");
     let cancel_end = source[cancel_start..]
         .find("\nasync fn ")
-        .map(|i| cancel_start + i)
-        .unwrap_or(source.len());
+        .map_or(source.len(), |i| cancel_start + i);
     let cancel_fn = &source[cancel_start..cancel_end];
 
     assert!(

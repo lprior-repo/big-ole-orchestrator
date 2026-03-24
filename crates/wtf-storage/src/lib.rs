@@ -1,4 +1,4 @@
-//! wtf-storage — NATS JetStream event log, NATS KV materialized view, sled snapshot cache.
+//! wtf-storage — NATS `JetStream` event log, NATS KV materialized view, sled snapshot cache.
 
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::expect_used)]
@@ -164,7 +164,7 @@ async fn find_instance_metadata_key(
 #[async_trait]
 impl TaskQueue for NatsClient {
     async fn dispatch(&self, activity_type: &str, payload: Bytes) -> Result<(), WtfError> {
-        let subject = format!("wtf.work.{}", activity_type);
+        let subject = format!("wtf.work.{activity_type}");
         self.jetstream
             .publish(subject, payload)
             .await

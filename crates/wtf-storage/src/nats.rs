@@ -1,4 +1,4 @@
-//! NATS connection manager — async-nats client + JetStream context (ADR-013, ADR-008).
+//! NATS connection manager — async-nats client + `JetStream` context (ADR-013, ADR-008).
 
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::expect_used)]
@@ -40,7 +40,7 @@ impl Default for NatsConfig {
     }
 }
 
-/// A connected NATS client together with a JetStream context.
+/// A connected NATS client together with a `JetStream` context.
 ///
 /// This is the entry-point for all NATS operations in wtf-engine.
 /// Clone is cheap — the inner `async_nats::Client` is `Arc`-backed.
@@ -57,14 +57,14 @@ impl NatsClient {
         &self.client
     }
 
-    /// Return a reference to the JetStream context.
+    /// Return a reference to the `JetStream` context.
     #[must_use]
     pub fn jetstream(&self) -> &jetstream::Context {
         &self.jetstream
     }
 }
 
-/// Connect to NATS and obtain a JetStream context.
+/// Connect to NATS and obtain a `JetStream` context.
 ///
 /// Retries up to 3 times with exponential backoff (500ms, 1s, 2s).
 /// If `config.embedded` is true, starts an embedded `nats-server` subprocess first.
@@ -79,8 +79,7 @@ pub async fn connect(config: &NatsConfig) -> Result<NatsClient, WtfError> {
     let url = config
         .urls
         .first()
-        .map(String::as_str)
-        .unwrap_or("nats://127.0.0.1:4222");
+        .map_or("nats://127.0.0.1:4222", String::as_str);
 
     let timeout = Duration::from_millis(config.connect_timeout_ms);
 

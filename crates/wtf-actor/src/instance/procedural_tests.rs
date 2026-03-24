@@ -167,7 +167,7 @@ async fn wait_for_signal_consumes_fifo_from_vec() {
     // Buffer should be empty now
     if let ParadigmState::Procedural(s) = &state.paradigm_state {
         assert!(
-            s.received_signals.get("retry").map_or(true, |v| v.is_empty()),
+            s.received_signals.get("retry").is_none_or(std::vec::Vec::is_empty),
             "buffer must be empty after consuming both signals"
         );
     }

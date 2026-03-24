@@ -140,10 +140,8 @@ fn fsm_apply_event_transitions_to_authorized_state() {
 
 #[test]
 fn fsm_replay_reconstructs_state_from_events() {
-    let events = vec![
-        create_instance_started_event("test-01", "checkout"),
-        create_transition_event("Created", "authorize", "Authorized"),
-    ];
+    let events = [create_instance_started_event("test-01", "checkout"),
+        create_transition_event("Created", "authorize", "Authorized")];
 
     let mut fsm_state = FsmActorState::new("Initialized");
 
@@ -162,11 +160,9 @@ fn fsm_replay_reconstructs_state_from_events() {
 
 #[test]
 fn fsm_replay_handles_multiple_transitions() {
-    let events = vec![
-        create_instance_started_event("test-02", "checkout"),
+    let events = [create_instance_started_event("test-02", "checkout"),
         create_transition_event("Created", "authorize", "Authorized"),
-        create_transition_event("Authorized", "fulfill", "Fulfilled"),
-    ];
+        create_transition_event("Authorized", "fulfill", "Fulfilled")];
 
     let mut fsm_state = FsmActorState::new("Initialized");
 

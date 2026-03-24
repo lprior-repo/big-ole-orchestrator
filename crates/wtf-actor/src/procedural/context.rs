@@ -137,7 +137,7 @@ impl WorkflowContext {
         match result {
             ractor::rpc::CallResult::Success(r) => r?,
             _ => anyhow::bail!("Actor call failed"),
-        };
+        }
 
         self.op_counter.fetch_add(1, Ordering::SeqCst);
         Ok(())

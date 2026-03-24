@@ -1,4 +1,4 @@
-//! WorkflowInstance actor — per-instance ractor actor with two-phase lifecycle (ADR-016).
+//! `WorkflowInstance` actor — per-instance ractor actor with two-phase lifecycle (ADR-016).
 
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::expect_used)]
