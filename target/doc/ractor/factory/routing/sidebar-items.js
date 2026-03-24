@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["RouteResult"],"struct":["CustomRouting","KeyPersistentRouting","QueuerRouting","RoundRobinRouting","StickyQueuerRouting"],"trait":["CustomHashFunction","Router"]};

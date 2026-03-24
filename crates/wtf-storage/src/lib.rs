@@ -34,6 +34,7 @@ pub use wtf_common::storage::{ReplayBatch, ReplayedEvent};
 
 use async_trait::async_trait;
 use bytes::Bytes;
+use futures::TryStreamExt;
 use wtf_common::storage::{EventStore, ReplayStream, StateStore, TaskQueue};
 use wtf_common::{InstanceId, InstanceMetadata, NamespaceId, WorkflowEvent, WtfError};
 
@@ -93,7 +94,10 @@ impl StateStore for NatsClient {
             .await
             .map_err(|e| WtfError::nats_publish(format!("get instances KV: {e}")))?;
 
-        let key = instance_key("", instance_id);
+        let Some(key) = find_instance_metadata_key(&kv, instance_id).await? else {
+            return Ok(None);
+        };
+
         let entry = kv.get(&key).await.ok().flatten();
 
         if let Some(e) = entry {
@@ -133,6 +137,28 @@ impl StateStore for NatsClient {
 
         Ok(())
     }
+}
+
+async fn find_instance_metadata_key(
+    kv: &async_nats::jetstream::kv::Store,
+    instance_id: &InstanceId,
+) -> Result<Option<String>, WtfError> {
+    let mut keys = kv
+        .keys()
+        .await
+        .map_err(|e| WtfError::nats_publish(format!("list instance keys: {e}")))?;
+
+    while let Some(key) = keys
+        .try_next()
+        .await
+        .map_err(|e| WtfError::nats_publish(format!("read instance key: {e}")))?
+    {
+        if key.rsplit('/').next() == Some(instance_id.as_str()) {
+            return Ok(Some(key));
+        }
+    }
+
+    Ok(None)
 }
 
 #[async_trait]

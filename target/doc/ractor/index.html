@@ -1,0 +1,140 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="`ractor`: A pure-Rust actor framework. Inspired from Erlang’s `gen_server`, with the speed + performance of Rust!"><title>ractor - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-77263533.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="ractor" data-themes="" data-resource-suffix="" data-rustdoc-version="1.94.0 (4a4ef493e 2026-03-02)" data-channel="1.94.0" data-search-js="search-9e2438ea.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-c38705f0.js" ><script src="../static.files/storage-e2aeef58.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-7bab91a1.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-ffcac47a.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Crate ractor</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../ractor/index.html">ractor</a><span class="version">0.15.12</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section id="rustdoc-toc"><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#installation" title="Installation">Installation</a></li><li><a href="#getting-started" title="Getting started">Getting started</a></li><li><a href="#supervision" title="Supervision">Supervision</a></li><li><a href="#messaging-actors" title="Messaging actors">Messaging actors</a></li></ul><h3><a href="#reexports">Crate Items</a></h3><ul class="block"><li><a href="#reexports" title="Re-exports">Re-exports</a></li><li><a href="#modules" title="Modules">Modules</a></li><li><a href="#macros" title="Macros">Macros</a></li><li><a href="#traits" title="Traits">Traits</a></li><li><a href="#functions" title="Functions">Functions</a></li><li><a href="#types" title="Type Aliases">Type Aliases</a></li><li><a href="#attributes" title="Attribute Macros">Attribute Macros</a></li></ul></section><div id="rustdoc-modnav"></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content"><div class="main-heading"><h1>Crate <span>ractor</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/ractor/lib.rs.html#6-285">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p><code>ractor</code>: A pure-Rust actor framework. Inspired from <a href="https://www.erlang.org/doc/man/gen_server.html">Erlang’s <code>gen_server</code></a>,
+with the speed + performance of Rust!</p>
+<h3 id="installation"><a class="doc-anchor" href="#installation">§</a>Installation</h3>
+<p>Install <code>ractor</code> by adding the following to your Cargo.toml dependencies</p>
+<div class="example-wrap"><pre class="language-toml"><code>[dependencies]
+ractor = &quot;0.15&quot;</code></pre></div>
+<p>The minimum supported Rust version (MSRV) is 1.64. However if you disable the <code>async-trait</code> feature, then you need Rust &gt;= 1.75 due to the native
+use of <code>async fn</code> in traits. See the <a href="https://blog.rust-lang.org/2023/12/21/async-fn-rpit-in-traits.html">Rust blog</a>.</p>
+<h3 id="getting-started"><a class="doc-anchor" href="#getting-started">§</a>Getting started</h3>
+<p>An example “ping-pong” actor might be the following</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>ractor::Actor;
+<span class="kw">use </span>ractor::ActorProcessingErr;
+<span class="kw">use </span>ractor::ActorRef;
+
+<span class="doccomment">/// [PingPong] is a basic actor that will print
+/// ping..pong.. repeatedly until some exit
+/// condition is met (a counter hits 10). Then
+/// it will exit
+</span><span class="kw">pub struct </span>PingPong;
+
+<span class="doccomment">/// This is the types of message [PingPong] supports
+</span><span class="attr">#[derive(Debug, Clone)]
+</span><span class="kw">pub enum </span>Message {
+    Ping,
+    Pong,
+}
+<span class="attr">#[cfg(feature = <span class="string">"cluster"</span>)]
+</span><span class="kw">impl </span>ractor::Message <span class="kw">for </span>Message {}
+
+<span class="kw">impl </span>Message {
+    <span class="comment">// retrieve the next message in the sequence
+    </span><span class="kw">fn </span>next(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="self">Self </span>{
+        <span class="kw">match </span><span class="self">self </span>{
+            <span class="self">Self</span>::Ping =&gt; <span class="self">Self</span>::Pong,
+            <span class="self">Self</span>::Pong =&gt; <span class="self">Self</span>::Ping,
+        }
+    }
+    <span class="comment">// print out this message
+    </span><span class="kw">fn </span>print(<span class="kw-2">&amp;</span><span class="self">self</span>) {
+        <span class="kw">match </span><span class="self">self </span>{
+            <span class="self">Self</span>::Ping =&gt; <span class="macro">print!</span>(<span class="string">"ping.."</span>),
+            <span class="self">Self</span>::Pong =&gt; <span class="macro">print!</span>(<span class="string">"pong.."</span>),
+        }
+    }
+}
+
+<span class="comment">// the implementation of our actor's "logic"
+</span><span class="attr">#[cfg_attr(feature = <span class="string">"async-trait"</span>, ractor::async_trait)]
+</span><span class="kw">impl </span>Actor <span class="kw">for </span>PingPong {
+    <span class="comment">// An actor has a message type
+    </span><span class="kw">type </span>Msg = Message;
+    <span class="comment">// and (optionally) internal state
+    </span><span class="kw">type </span>State = u8;
+    <span class="comment">// Startup arguments for actor initialization
+    </span><span class="kw">type </span>Arguments = ();
+
+    <span class="comment">// Initially we need to create our state, and potentially
+    // start some internal processing (by posting a message for
+    // example)
+    </span><span class="kw">async fn </span>pre_start(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        myself: ActorRef&lt;<span class="self">Self</span>::Msg&gt;,
+        <span class="kw">_</span>: (),
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>::State, ActorProcessingErr&gt; {
+        <span class="comment">// startup the event processing
+        </span>myself.send_message(Message::Ping).unwrap();
+        <span class="prelude-val">Ok</span>(<span class="number">0u8</span>)
+    }
+
+    <span class="comment">// This is our main message handler
+    </span><span class="kw">async fn </span>handle(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        myself: ActorRef&lt;<span class="self">Self</span>::Msg&gt;,
+        message: <span class="self">Self</span>::Msg,
+        state: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::State,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ActorProcessingErr&gt; {
+        <span class="kw">if </span><span class="kw-2">*</span>state &lt; <span class="number">10u8 </span>{
+            message.print();
+            myself.send_message(message.next()).unwrap();
+            <span class="kw-2">*</span>state += <span class="number">1</span>;
+        } <span class="kw">else </span>{
+            myself.stop(<span class="prelude-val">None</span>);
+            <span class="comment">// don't send another message, rather stop the agent after 10 iterations
+        </span>}
+        <span class="prelude-val">Ok</span>(())
+    }
+}
+
+<span class="kw">async fn </span>run() {
+    <span class="kw">let </span>(<span class="kw">_</span>, actor_handle) = Actor::spawn(<span class="prelude-val">None</span>, PingPong, ())
+        .<span class="kw">await
+        </span>.expect(<span class="string">"Failed to start actor"</span>);
+    actor_handle.<span class="kw">await</span>.expect(<span class="string">"Actor failed to exit cleanly"</span>);
+}</code></pre></div>
+<p>which will output</p>
+<div class="example-wrap"><pre class="language-bash"><code>$ cargo run
+ping..pong..ping..pong..ping..pong..ping..pong..ping..pong..
+$</code></pre></div><h3 id="supervision"><a class="doc-anchor" href="#supervision">§</a>Supervision</h3>
+<p>Actors in <code>ractor</code> also support supervision. This is done by “linking” actors together in a supervisor-child relationship.
+A supervisor is responsible for the life cycle of the child actor, and as such is notified when the actor starts,
+stops, and fails (panics). If you set <code>panic = 'abort'</code> in your <code>Cargo.toml</code>, panics <strong>will</strong> start cause program termination
+and not be caught in the supervision flow.</p>
+<p>Supervision is presently left to the implementor to outline handling of supervision events, but you can see a suite of
+supervision tests in <code>crate::actor::tests::supervisor</code> for examples on the supported functionality.</p>
+<p>NOTE: panic’s in <code>pre_start</code> of an actor will cause failures to spawn, rather than supervision notified failures as the actor hasn’t “linked”
+to its supervisor yet. However failures in <code>post_start</code>, <code>handle</code>, <code>handle_supervisor_evt</code>, <code>post_stop</code> will notify the supervisor should a failure
+occur. See <a href="actor/trait.Actor.html" title="trait ractor::actor::Actor">crate::Actor</a> documentation for more information</p>
+<p>There is additionally a “monitor” API which gives non-direct-supervision logic style monitoring akin to Erlang’s <a href="https://www.erlang.org/doc/system/ref_man_processes.html#monitors">process monitors</a>.
+This functionality is opt-in via feature <code>monitors</code> on the <code>ractor</code> crate.</p>
+<h3 id="messaging-actors"><a class="doc-anchor" href="#messaging-actors">§</a>Messaging actors</h3>
+<p>The means of communication between actors is that they pass messages to each other. A developer can define any message type which is <code>Send + 'static</code> and it
+will be supported by <code>ractor</code>. There are 4 concurrent message types, which are listened to in priority. They are</p>
+<ol>
+<li>Signals: Signals are the highest-priority of all and will interrupt the actor wherever processing currently is (this includes terminating async work). There
+is only 1 signal today, which is <code>Signal::Kill</code>, and it immediately terminates all work. This includes message processing or supervision event processing.</li>
+<li>Stop: There is also a pre-defined stop signal. You can give a “stop reason” if you want, but it’s optional. Stop is a graceful exit, meaning currently executing async
+work will complete, and on the next message processing iteration Stop will take priority over future supervision events or regular messages. It will <strong>not</strong> terminate
+currently executing work, regardless of the provided reason.</li>
+<li>SupervisionEvent: Supervision events are messages from child actors to their supervisors in the event of their startup, death, and/or unhandled panic. Supervision events
+are how an actor’s supervisor(s) are notified of events of their children and can handle lifetime events for them.</li>
+<li>Messages: Regular, user-defined, messages are the last channel of communication to actors. They are the lowest priority of the 4 message types and denote general actor work. The first
+3 messages types (signals, stop, supervision) are generally quiet unless it’s a lifecycle event for the actor, but this channel is the “work” channel doing what your actor wants to do!</li>
+</ol>
+</div></details><h2 id="reexports" class="section-header">Re-exports<a href="#reexports" class="anchor">§</a></h2><dl class="item-table reexports"><dt id="reexport.ActorCell"><code>pub use actor::actor_cell::<a class="struct" href="actor/actor_cell/struct.ActorCell.html" title="struct ractor::actor::actor_cell::ActorCell">ActorCell</a>;</code></dt><dt id="reexport.ActorStatus"><code>pub use actor::actor_cell::<a class="enum" href="actor/actor_cell/enum.ActorStatus.html" title="enum ractor::actor::actor_cell::ActorStatus">ActorStatus</a>;</code></dt><dt id="reexport.ACTIVE_STATES"><code>pub use actor::actor_cell::<a class="constant" href="actor/actor_cell/constant.ACTIVE_STATES.html" title="constant ractor::actor::actor_cell::ACTIVE_STATES">ACTIVE_STATES</a>;</code></dt><dt id="reexport.ActorId"><code>pub use actor::actor_id::<a class="enum" href="actor/actor_id/enum.ActorId.html" title="enum ractor::actor::actor_id::ActorId">ActorId</a>;</code></dt><dt id="reexport.ActorRef"><code>pub use actor::actor_ref::<a class="struct" href="actor/actor_ref/struct.ActorRef.html" title="struct ractor::actor::actor_ref::ActorRef">ActorRef</a>;</code></dt><dt id="reexport.DerivedActorRef"><code>pub use actor::derived_actor::<a class="struct" href="actor/derived_actor/struct.DerivedActorRef.html" title="struct ractor::actor::derived_actor::DerivedActorRef">DerivedActorRef</a>;</code></dt><dt id="reexport.Signal"><code>pub use actor::messages::<a class="enum" href="actor/messages/enum.Signal.html" title="enum ractor::actor::messages::Signal">Signal</a>;</code></dt><dt id="reexport.SupervisionEvent"><code>pub use actor::messages::<a class="enum" href="actor/messages/enum.SupervisionEvent.html" title="enum ractor::actor::messages::SupervisionEvent">SupervisionEvent</a>;</code></dt><dt id="reexport.Actor"><code>pub use actor::<a class="trait" href="actor/trait.Actor.html" title="trait ractor::actor::Actor">Actor</a>;</code></dt><dt id="reexport.ActorRuntime"><code>pub use actor::<a class="struct" href="actor/struct.ActorRuntime.html" title="struct ractor::actor::ActorRuntime">ActorRuntime</a>;</code></dt><dt id="reexport.ActorErr"><code>pub use errors::<a class="enum" href="errors/enum.ActorErr.html" title="enum ractor::errors::ActorErr">ActorErr</a>;</code></dt><dt id="reexport.ActorProcessingErr"><code>pub use errors::<a class="type" href="errors/type.ActorProcessingErr.html" title="type ractor::errors::ActorProcessingErr">ActorProcessingErr</a>;</code></dt><dt id="reexport.MessagingErr"><code>pub use errors::<a class="enum" href="errors/enum.MessagingErr.html" title="enum ractor::errors::MessagingErr">MessagingErr</a>;</code></dt><dt id="reexport.RactorErr"><code>pub use errors::<a class="enum" href="errors/enum.RactorErr.html" title="enum ractor::errors::RactorErr">RactorErr</a>;</code></dt><dt id="reexport.SpawnErr"><code>pub use errors::<a class="enum" href="errors/enum.SpawnErr.html" title="enum ractor::errors::SpawnErr">SpawnErr</a>;</code></dt><dt id="reexport.Message"><code>pub use message::<a class="trait" href="message/trait.Message.html" title="trait ractor::message::Message">Message</a>;</code></dt><dt id="reexport.OutputMessage"><code>pub use port::<a class="trait" href="port/output/trait.OutputMessage.html" title="trait ractor::port::output::OutputMessage">OutputMessage</a>;</code></dt><dt id="reexport.OutputPort"><code>pub use port::<a class="struct" href="port/output/struct.OutputPort.html" title="struct ractor::port::output::OutputPort">OutputPort</a>;</code></dt><dt id="reexport.RpcReplyPort"><code>pub use port::<a class="struct" href="port/struct.RpcReplyPort.html" title="struct ractor::port::RpcReplyPort">RpcReplyPort</a>;</code></dt></dl><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><dl class="item-table"><dt><a class="mod" href="actor/index.html" title="mod ractor::actor">actor</a></dt><dd>This module contains the basic building blocks of an actor.</dd><dt><a class="mod" href="concurrency/index.html" title="mod ractor::concurrency">concurrency</a></dt><dd>Shared concurrency primitives utilized within the library for different frameworks (tokio, async-std, etc)</dd><dt><a class="mod" href="errors/index.html" title="mod ractor::errors">errors</a></dt><dd>Actor error types</dd><dt><a class="mod" href="factory/index.html" title="mod ractor::factory">factory</a></dt><dd>Factory actors</dd><dt><a class="mod" href="macros/index.html" title="mod ractor::macros">macros</a></dt><dd>Macro helpers for remote procedure calls</dd><dt><a class="mod" href="message/index.html" title="mod ractor::message">message</a></dt><dd>Message trait definition for inter-actor messaging. Additionally
+with the <code>cluster</code> feature, it controls serialization logic for
+over-the-wire inter-actor communications</dd><dt><a class="mod" href="pg/index.html" title="mod ractor::pg">pg</a></dt><dd>Process groups (PG) are named groups of actors with a friendly name
+which can be used for retrieval of the process groups. Then within
+the group, either a random actor (for dispatch) can be selected or
+the whole group (broadcast), or a subset (partial-broadcast) can have
+a message sent to them. Common operations are to (a) upcast the group
+members to a strong-type’d actor then dispatch a message with <a href="macro.call.html" title="macro ractor::call">crate::call</a>
+or <a href="macro.cast.html" title="macro ractor::cast">crate::cast</a>.</dd><dt><a class="mod" href="port/index.html" title="mod ractor::port">port</a></dt><dd>Port implementations for signaling and reception of messages in the Ractor environment</dd><dt><a class="mod" href="registry/index.html" title="mod ractor::registry">registry</a></dt><dd>Represents an actor registry.</dd><dt><a class="mod" href="rpc/index.html" title="mod ractor::rpc">rpc</a></dt><dd>Remote procedure calls (RPC) are helpful communication primitives to communicate with actors</dd><dt><a class="mod" href="thread_local/index.html" title="mod ractor::thread_local">thread_<wbr>local</a></dt><dd>The thread-local module provides support for managing tasks which are not <a href="https://doc.rust-lang.org/1.94.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a>
+safe, and must remain pinned to the same thread for their lifetime.</dd><dt><a class="mod" href="time/index.html" title="mod ractor::time">time</a></dt><dd>Timers for sending messages to actors periodically</dd></dl><h2 id="macros" class="section-header">Macros<a href="#macros" class="anchor">§</a></h2><dl class="item-table"><dt><a class="macro" href="macro.call.html" title="macro ractor::call">call</a></dt><dd><code>call!</code>: Perform an infinite-time remote procedure call to an <a href="actor/trait.Actor.html" title="trait ractor::actor::Actor">crate::Actor</a></dd><dt><a class="macro" href="macro.call_t.html" title="macro ractor::call_t">call_t</a></dt><dd><code>call_t!</code>: Perform an finite-time remote procedure call to an <a href="actor/trait.Actor.html" title="trait ractor::actor::Actor">crate::Actor</a></dd><dt><a class="macro" href="macro.cast.html" title="macro ractor::cast">cast</a></dt><dd><code>cast!</code> takes an actor and a message and emits a <a href="errors/enum.RactorErr.html" title="enum ractor::errors::RactorErr">crate::RactorErr</a> error
+which can be pattern matched on in order to derive the output.</dd><dt><a class="macro" href="macro.forward.html" title="macro ractor::forward">forward</a></dt><dd><code>forward!</code>: Perform a remote procedure call to a <a href="actor/trait.Actor.html" title="trait ractor::actor::Actor">crate::Actor</a>
+and forwards the result to another actor if successful</dd></dl><h2 id="traits" class="section-header">Traits<a href="#traits" class="anchor">§</a></h2><dl class="item-table"><dt><a class="trait" href="trait.State.html" title="trait ractor::State">State</a></dt><dd>Represents the state of an actor. Must be safe
+to send between threads (same bounds as a <a href="message/trait.Message.html" title="trait ractor::message::Message">Message</a>)</dd></dl><h2 id="functions" class="section-header">Functions<a href="#functions" class="anchor">§</a></h2><dl class="item-table"><dt><a class="fn" href="fn.spawn.html" title="fn ractor::spawn">spawn</a></dt><dd>Perform a background-spawn of an actor. This is a utility wrapper over <a href="actor/trait.Actor.html#method.spawn" title="associated function ractor::actor::Actor::spawn">Actor::spawn</a> which
+assumes the actor implementation implements <a href="https://doc.rust-lang.org/1.94.0/core/default/trait.Default.html" title="trait core::default::Default">Default</a>.</dd><dt><a class="fn" href="fn.spawn_local.html" title="fn ractor::spawn_local">spawn_<wbr>local</a></dt><dd>Perform a background-spawn of an thread-local actor. This is a utility wrapper over <a href="thread_local/trait.ThreadLocalActor.html#method.spawn" title="associated function ractor::thread_local::ThreadLocalActor::spawn">thread_local::ThreadLocalActor::spawn</a>
+which assumes the actor implementation implements <a href="https://doc.rust-lang.org/1.94.0/core/default/trait.Default.html" title="trait core::default::Default">Default</a>.</dd><dt><a class="fn" href="fn.spawn_named.html" title="fn ractor::spawn_named">spawn_<wbr>named</a></dt><dd>Perform a background-spawn of an actor with the provided name. This is a utility wrapper
+over <a href="actor/trait.Actor.html#method.spawn" title="associated function ractor::actor::Actor::spawn">Actor::spawn</a> which assumes the actor implementation implements <a href="https://doc.rust-lang.org/1.94.0/core/default/trait.Default.html" title="trait core::default::Default">Default</a>.</dd></dl><h2 id="types" class="section-header">Type Aliases<a href="#types" class="anchor">§</a></h2><dl class="item-table"><dt><a class="type" href="type.ActorName.html" title="type ractor::ActorName">Actor<wbr>Name</a></dt><dd>An actor’s name, equivalent to an <a href="https://www.erlang.org/doc/reference_manual/data_types.html#atom">Erlang <code>atom()</code></a></dd><dt><a class="type" href="type.GroupName.html" title="type ractor::GroupName">Group<wbr>Name</a></dt><dd>A process group’s name, equivalent to an <a href="https://www.erlang.org/doc/reference_manual/data_types.html#atom">Erlang <code>atom()</code></a></dd><dt><a class="type" href="type.ScopeName.html" title="type ractor::ScopeName">Scope<wbr>Name</a></dt><dd>A scope’s name, equivalent to an <a href="https://www.erlang.org/doc/reference_manual/data_types.html#atom">Erlang <code>atom()</code></a></dd></dl><h2 id="attributes" class="section-header">Attribute Macros<a href="#attributes" class="anchor">§</a></h2><dl class="item-table"><dt><a class="attr" href="attr.async_trait.html" title="attr ractor::async_trait">async_<wbr>trait</a></dt></dl><script type="text/json" id="notable-traits-data">{"&[u8]":"<h3>Notable traits for <code>&amp;[<a class=\"primitive\" href=\"https://doc.rust-lang.org/1.94.0/std/primitive.u8.html\">u8</a>]</code></h3><pre><code><div class=\"where\">impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.94.0/std/io/trait.Read.html\" title=\"trait std::io::Read\">Read</a> for &amp;[<a class=\"primitive\" href=\"https://doc.rust-lang.org/1.94.0/std/primitive.u8.html\">u8</a>]</div>","&mut Vec<u8>":"<h3>Notable traits for <code><a class=\"struct\" href=\"https://doc.rust-lang.org/1.94.0/alloc/vec/struct.Vec.html\" title=\"struct alloc::vec::Vec\">Vec</a>&lt;<a class=\"primitive\" href=\"https://doc.rust-lang.org/1.94.0/std/primitive.u8.html\">u8</a>, A&gt;</code></h3><pre><code><div class=\"where\">impl&lt;A&gt; <a class=\"trait\" href=\"https://doc.rust-lang.org/1.94.0/std/io/trait.Write.html\" title=\"trait std::io::Write\">Write</a> for <a class=\"struct\" href=\"https://doc.rust-lang.org/1.94.0/alloc/vec/struct.Vec.html\" title=\"struct alloc::vec::Vec\">Vec</a>&lt;<a class=\"primitive\" href=\"https://doc.rust-lang.org/1.94.0/std/primitive.u8.html\">u8</a>, A&gt;<div class=\"where\">where\n    A: <a class=\"trait\" href=\"https://doc.rust-lang.org/1.94.0/core/alloc/trait.Allocator.html\" title=\"trait core::alloc::Allocator\">Allocator</a>,</div></div>","Vec<u8>":"<h3>Notable traits for <code><a class=\"struct\" href=\"https://doc.rust-lang.org/1.94.0/alloc/vec/struct.Vec.html\" title=\"struct alloc::vec::Vec\">Vec</a>&lt;<a class=\"primitive\" href=\"https://doc.rust-lang.org/1.94.0/std/primitive.u8.html\">u8</a>, A&gt;</code></h3><pre><code><div class=\"where\">impl&lt;A&gt; <a class=\"trait\" href=\"https://doc.rust-lang.org/1.94.0/std/io/trait.Write.html\" title=\"trait std::io::Write\">Write</a> for <a class=\"struct\" href=\"https://doc.rust-lang.org/1.94.0/alloc/vec/struct.Vec.html\" title=\"struct alloc::vec::Vec\">Vec</a>&lt;<a class=\"primitive\" href=\"https://doc.rust-lang.org/1.94.0/std/primitive.u8.html\">u8</a>, A&gt;<div class=\"where\">where\n    A: <a class=\"trait\" href=\"https://doc.rust-lang.org/1.94.0/core/alloc/trait.Allocator.html\" title=\"trait core::alloc::Allocator\">Allocator</a>,</div></div>"}</script></section></div></main></body></html>

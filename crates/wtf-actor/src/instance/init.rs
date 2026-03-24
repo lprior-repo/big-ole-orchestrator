@@ -138,3 +138,55 @@ async fn run_procedural(
         }
     }
 }
+
+/// Publish the `InstanceStarted` event for a fresh (non-replayed) instance.
+/// Must be called AFTER `spawn_live_subscription` and BEFORE phase transitions to Live.
+///
+/// # Arguments
+/// * `args` - The InstanceArguments containing namespace, instance_id, workflow_type, input
+/// * `event_log` - The replayed events (empty = fresh instance, non-empty = crash recovery)
+///
+/// # Returns
+/// * `Ok(())` - Event published successfully, or skipped (crash recovery)
+/// * `Err(ActorProcessingErr)` - If no event_store is configured or publish fails
+///
+/// # Guards
+/// - Returns `Ok(())` immediately if `event_log` is non-empty (crash recovery path)
+/// - Returns `Err` if `args.event_store` is `None`
+pub async fn publish_instance_started(
+    args: &InstanceArguments,
+    from_seq: u64,
+    event_log: &[WorkflowEvent],
+) -> Result<(), ActorProcessingErr> {
+    if should_skip_instance_started(from_seq, event_log) {
+        return Ok(());
+    }
+
+    let store = args
+        .event_store
+        .as_ref()
+        .ok_or_else(|| ActorProcessingErr::from("No event store available for InstanceStarted publish"))?;
+
+    let event = WorkflowEvent::InstanceStarted {
+        instance_id: args.instance_id.to_string(),
+        workflow_type: args.workflow_type.clone(),
+        input: args.input.clone(),
+    };
+
+    store
+        .publish(&args.namespace, &args.instance_id, event)
+        .await
+        .map_err(|e| ActorProcessingErr::from(Box::new(e)))?;
+
+    tracing::info!(
+        instance_id = %args.instance_id,
+        "InstanceStarted event published"
+    );
+
+    Ok(())
+}
+
+#[must_use]
+pub fn should_skip_instance_started(from_seq: u64, event_log: &[WorkflowEvent]) -> bool {
+    from_seq > 1 || !event_log.is_empty()
+}

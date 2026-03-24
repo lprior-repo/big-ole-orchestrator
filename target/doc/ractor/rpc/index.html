@@ -1,0 +1,90 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Remote procedure calls (RPC) are helpful communication primitives to communicate with actors"><title>ractor::rpc - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-77263533.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="ractor" data-themes="" data-resource-suffix="" data-rustdoc-version="1.94.0 (4a4ef493e 2026-03-02)" data-channel="1.94.0" data-search-js="search-9e2438ea.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-c38705f0.js" ><script src="../../static.files/storage-e2aeef58.js"></script><script defer src="../sidebar-items.js"></script><script defer src="../../static.files/main-7bab91a1.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-ffcac47a.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc mod"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Module rpc</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../ractor/index.html">ractor</a><span class="version">0.15.12</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Module rpc</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#examples" title="Examples">Examples</a></li></ul><h3><a href="#reexports">Module Items</a></h3><ul class="block"><li><a href="#reexports" title="Re-exports">Re-exports</a></li><li><a href="#modules" title="Modules">Modules</a></li><li><a href="#functions" title="Functions">Functions</a></li></ul></section><div id="rustdoc-modnav"><h2 class="in-crate"><a href="../index.html">In crate ractor</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../index.html">ractor</a></div><h1>Module <span>rpc</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../src/ractor/rpc.rs.html#6-390">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Remote procedure calls (RPC) are helpful communication primitives to communicate with actors</p>
+<p>There are generally 2 kinds of RPCs, <code>cast</code> and <code>call</code>, and their definition comes from the
+standard <a href="https://www.erlang.org/doc/man/gen_server.html#cast-2">Erlang <code>gen_server</code></a>.
+The tl;dr is that <code>cast</code> is an send without waiting on a reply while <code>call</code> is expecting
+a reply from the actor being communicated with.</p>
+<h3 id="examples"><a class="doc-anchor" href="#examples">§</a>Examples</h3>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>ractor::call;
+<span class="kw">use </span>ractor::call_t;
+<span class="kw">use </span>ractor::cast;
+<span class="kw">use </span>ractor::concurrency::Duration;
+<span class="kw">use </span>ractor::Actor;
+<span class="kw">use </span>ractor::ActorProcessingErr;
+<span class="kw">use </span>ractor::ActorRef;
+<span class="kw">use </span>ractor::RpcReplyPort;
+
+<span class="kw">struct </span>ExampleActor;
+
+<span class="kw">enum </span>ExampleMessage {
+    Cast,
+    Call(RpcReplyPort&lt;String&gt;),
+}
+
+<span class="attr">#[cfg(feature = <span class="string">"cluster"</span>)]
+</span><span class="kw">impl </span>ractor::Message <span class="kw">for </span>ExampleMessage {}
+
+<span class="attr">#[cfg_attr(feature = <span class="string">"async-trait"</span>, ractor::async_trait)]
+</span><span class="kw">impl </span>Actor <span class="kw">for </span>ExampleActor {
+    <span class="kw">type </span>Msg = ExampleMessage;
+    <span class="kw">type </span>State = ();
+    <span class="kw">type </span>Arguments = ();
+
+    <span class="kw">async fn </span>pre_start(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        _myself: ActorRef&lt;<span class="self">Self</span>::Msg&gt;,
+        _args: <span class="self">Self</span>::Arguments,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>::State, ActorProcessingErr&gt; {
+        <span class="macro">println!</span>(<span class="string">"Starting"</span>);
+        <span class="prelude-val">Ok</span>(())
+    }
+
+    <span class="kw">async fn </span>handle(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        _myself: ActorRef&lt;<span class="self">Self</span>::Msg&gt;,
+        message: <span class="self">Self</span>::Msg,
+        _state: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::State,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ActorProcessingErr&gt; {
+        <span class="kw">match </span>message {
+            ExampleMessage::Cast =&gt; <span class="macro">println!</span>(<span class="string">"Cast message"</span>),
+            ExampleMessage::Call(reply) =&gt; {
+                <span class="macro">println!</span>(<span class="string">"Call message"</span>);
+                <span class="kw">let _ </span>= reply.send(<span class="string">"a reply"</span>.to_string());
+            }
+        }
+        <span class="prelude-val">Ok</span>(())
+    }
+}
+
+<span class="attr">#[tokio::main]
+</span><span class="kw">async fn </span>main() {
+    <span class="kw">let </span>(actor, handle) = Actor::spawn(<span class="prelude-val">None</span>, ExampleActor, ())
+        .<span class="kw">await
+        </span>.expect(<span class="string">"Failed to startup dummy actor"</span>);
+
+    <span class="comment">// send a 1-way message (equivalent patterns)
+    </span>actor
+        .cast(ExampleMessage::Cast)
+        .expect(<span class="string">"Failed to send message"</span>);
+    <span class="macro">cast!</span>(actor, ExampleMessage::Cast).expect(<span class="string">"Failed to send message"</span>);
+
+    <span class="comment">// Send a message to the actor, with an associated reply channel,
+    // and wait for the reply from the actor (optionally up to a timeout)
+    </span><span class="kw">let </span>_result = actor
+        .call(ExampleMessage::Call, <span class="prelude-val">Some</span>(Duration::from_millis(<span class="number">100</span>)))
+        .<span class="kw">await
+        </span>.expect(<span class="string">"Failed to call actor"</span>);
+    <span class="kw">let </span>_result = <span class="macro">call!</span>(actor, ExampleMessage::Call).expect(<span class="string">"Failed to call actor"</span>);
+    <span class="kw">let </span>_result =
+        <span class="macro">call_t!</span>(actor, ExampleMessage::Call, <span class="number">100</span>).expect(<span class="string">"Failed to call actor with timeout"</span>);
+
+    <span class="comment">// wait for actor exit
+    </span>actor.stop(<span class="prelude-val">None</span>);
+    handle.<span class="kw">await</span>.unwrap();
+}</code></pre></div></div></details><h2 id="reexports" class="section-header">Re-exports<a href="#reexports" class="anchor">§</a></h2><dl class="item-table reexports"><dt id="reexport.CallResult"><code>pub use call_result::<a class="enum" href="call_result/enum.CallResult.html" title="enum ractor::rpc::call_result::CallResult">CallResult</a>;</code></dt></dl><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><dl class="item-table"><dt><a class="mod" href="call_result/index.html" title="mod ractor::rpc::call_result">call_<wbr>result</a></dt><dd>This module contains the remote procedure call’s <a href="call_result/enum.CallResult.html" title="enum ractor::rpc::call_result::CallResult">CallResult</a> structure
+and supported operations</dd></dl><h2 id="functions" class="section-header">Functions<a href="#functions" class="anchor">§</a></h2><dl class="item-table"><dt><a class="fn" href="fn.call.html" title="fn ractor::rpc::call">call</a></dt><dd>Sends an asynchronous request to the specified actor, building a one-time
+use reply channel and awaiting the result with the specified timeout</dd><dt><a class="fn" href="fn.call_and_forward.html" title="fn ractor::rpc::call_and_forward">call_<wbr>and_<wbr>forward</a></dt><dd>Send a message asynchronously to another actor, waiting in a new task for the reply
+and then forwarding the reply to a followup-actor. If this <a href="call_result/enum.CallResult.html" title="enum ractor::rpc::call_result::CallResult">CallResult</a> from the first
+actor is not success, the forward is not sent.</dd><dt><a class="fn" href="fn.cast.html" title="fn ractor::rpc::cast">cast</a></dt><dd>Sends an asynchronous request to the specified actor, ignoring if the
+actor is alive or healthy and simply returns immediately</dd><dt><a class="fn" href="fn.multi_call.html" title="fn ractor::rpc::multi_call">multi_<wbr>call</a></dt><dd>Sends an asynchronous request to the specified actors, building a one-time
+use reply channel for each actor and awaiting the results with the
+specified timeout</dd></dl></section></div></main></body></html>

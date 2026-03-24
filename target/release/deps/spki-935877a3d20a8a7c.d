@@ -1,0 +1,12 @@
+/home/lewis/src/wtf-engine/target/release/deps/spki-935877a3d20a8a7c.d: /cache/cargo-shared/registry/src/index.crates.io-1949cf8c6b5b557f/spki-0.7.3/src/lib.rs /cache/cargo-shared/registry/src/index.crates.io-1949cf8c6b5b557f/spki-0.7.3/src/algorithm.rs /cache/cargo-shared/registry/src/index.crates.io-1949cf8c6b5b557f/spki-0.7.3/src/error.rs /cache/cargo-shared/registry/src/index.crates.io-1949cf8c6b5b557f/spki-0.7.3/src/spki.rs /cache/cargo-shared/registry/src/index.crates.io-1949cf8c6b5b557f/spki-0.7.3/src/traits.rs /cache/cargo-shared/registry/src/index.crates.io-1949cf8c6b5b557f/spki-0.7.3/src/../README.md
+
+/home/lewis/src/wtf-engine/target/release/deps/libspki-935877a3d20a8a7c.rlib: /cache/cargo-shared/registry/src/index.crates.io-1949cf8c6b5b557f/spki-0.7.3/src/lib.rs /cache/cargo-shared/registry/src/index.crates.io-1949cf8c6b5b557f/spki-0.7.3/src/algorithm.rs /cache/cargo-shared/registry/src/index.crates.io-1949cf8c6b5b557f/spki-0.7.3/src/error.rs /cache/cargo-shared/registry/src/index.crates.io-1949cf8c6b5b557f/spki-0.7.3/src/spki.rs /cache/cargo-shared/registry/src/index.crates.io-1949cf8c6b5b557f/spki-0.7.3/src/traits.rs /cache/cargo-shared/registry/src/index.crates.io-1949cf8c6b5b557f/spki-0.7.3/src/../README.md
+
+/home/lewis/src/wtf-engine/target/release/deps/libspki-935877a3d20a8a7c.rmeta: /cache/cargo-shared/registry/src/index.crates.io-1949cf8c6b5b557f/spki-0.7.3/src/lib.rs /cache/cargo-shared/registry/src/index.crates.io-1949cf8c6b5b557f/spki-0.7.3/src/algorithm.rs /cache/cargo-shared/registry/src/index.crates.io-1949cf8c6b5b557f/spki-0.7.3/src/error.rs /cache/cargo-shared/registry/src/index.crates.io-1949cf8c6b5b557f/spki-0.7.3/src/spki.rs /cache/cargo-shared/registry/src/index.crates.io-1949cf8c6b5b557f/spki-0.7.3/src/traits.rs /cache/cargo-shared/registry/src/index.crates.io-1949cf8c6b5b557f/spki-0.7.3/src/../README.md
+
+/cache/cargo-shared/registry/src/index.crates.io-1949cf8c6b5b557f/spki-0.7.3/src/lib.rs:
+/cache/cargo-shared/registry/src/index.crates.io-1949cf8c6b5b557f/spki-0.7.3/src/algorithm.rs:
+/cache/cargo-shared/registry/src/index.crates.io-1949cf8c6b5b557f/spki-0.7.3/src/error.rs:
+/cache/cargo-shared/registry/src/index.crates.io-1949cf8c6b5b557f/spki-0.7.3/src/spki.rs:
+/cache/cargo-shared/registry/src/index.crates.io-1949cf8c6b5b557f/spki-0.7.3/src/traits.rs:
+/cache/cargo-shared/registry/src/index.crates.io-1949cf8c6b5b557f/spki-0.7.3/src/../README.md:

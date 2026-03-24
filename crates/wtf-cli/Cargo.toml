@@ -14,6 +14,7 @@ wtf-linter = { path = "../wtf-linter" }
 wtf-api = { path = "../wtf-api" }
 
 ractor = { workspace = true }
+async-nats = { workspace = true }
 
 # CLI
 clap = { workspace = true }

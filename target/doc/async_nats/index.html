@@ -1,0 +1,109 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="A Rust asynchronous client for the NATS.io ecosystem."><title>async_nats - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-77263533.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="async_nats" data-themes="" data-resource-suffix="" data-rustdoc-version="1.94.0 (4a4ef493e 2026-03-02)" data-channel="1.94.0" data-search-js="search-9e2438ea.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-c38705f0.js" ><script src="../static.files/storage-e2aeef58.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-7bab91a1.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-ffcac47a.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Crate async_nats</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../async_nats/index.html">async_<wbr>nats</a><span class="version">0.46.0</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section id="rustdoc-toc"><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#examples" title="Examples">Examples</a><ul><li><a href="#complete-example" title="Complete example">Complete example</a></li><li><a href="#publish" title="Publish">Publish</a></li><li><a href="#subscribe" title="Subscribe">Subscribe</a></li><li><a href="#jetstream" title="JetStream">JetStream</a></li><li><a href="#key-value-store" title="Key-value Store">Key-value Store</a></li><li><a href="#object-store" title="Object Store">Object Store</a></li><li><a href="#service-api" title="Service API">Service API</a></li></ul></li></ul><h3><a href="#reexports">Crate Items</a></h3><ul class="block"><li><a href="#reexports" title="Re-exports">Re-exports</a></li><li><a href="#modules" title="Modules">Modules</a></li><li><a href="#structs" title="Structs">Structs</a></li><li><a href="#enums" title="Enums">Enums</a></li><li><a href="#traits" title="Traits">Traits</a></li><li><a href="#functions" title="Functions">Functions</a></li><li><a href="#types" title="Type Aliases">Type Aliases</a></li></ul></section><div id="rustdoc-modnav"></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content"><div class="main-heading"><h1>Crate <span>async_<wbr>nats</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/async_nats/lib.rs.html#14-1855">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>A Rust asynchronous client for the NATS.io ecosystem.</p>
+<p>To access the repository, you can clone it by running:</p>
+<div class="example-wrap"><pre class="language-bash"><code>git clone https://github.com/nats-io/nats.rs</code></pre></div>
+<p>NATS.io is a simple, secure, and high-performance open-source messaging
+system designed for cloud-native applications, IoT messaging, and microservices
+architectures.</p>
+<p><strong>Note</strong>: The synchronous NATS API is deprecated and no longer actively maintained. If you need to use the deprecated synchronous API, you can refer to:
+<a href="https://crates.io/crates/nats">https://crates.io/crates/nats</a></p>
+<p>For more information on NATS.io visit: <a href="https://nats.io">https://nats.io</a></p>
+<h3 id="examples"><a class="doc-anchor" href="#examples">§</a>Examples</h3>
+<p>Below, you can find some basic examples on how to use this library.</p>
+<p>For more details, please refer to the specific methods and structures documentation.</p>
+<h4 id="complete-example"><a class="doc-anchor" href="#complete-example">§</a>Complete example</h4>
+<p>Connect to the NATS server, publish messages and subscribe to receive messages.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>bytes::Bytes;
+<span class="kw">use </span>futures_util::StreamExt;
+
+<span class="attr">#[tokio::main]
+</span><span class="kw">async fn </span>main() -&gt; <span class="prelude-ty">Result</span>&lt;(), async_nats::Error&gt; {
+    <span class="comment">// Connect to the NATS server
+    </span><span class="kw">let </span>client = async_nats::connect(<span class="string">"demo.nats.io"</span>).<span class="kw">await</span><span class="question-mark">?</span>;
+
+    <span class="comment">// Subscribe to the "messages" subject
+    </span><span class="kw">let </span><span class="kw-2">mut </span>subscriber = client.subscribe(<span class="string">"messages"</span>).<span class="kw">await</span><span class="question-mark">?</span>;
+
+    <span class="comment">// Publish messages to the "messages" subject
+    </span><span class="kw">for _ in </span><span class="number">0</span>..<span class="number">10 </span>{
+        client.publish(<span class="string">"messages"</span>, <span class="string">"data"</span>.into()).<span class="kw">await</span><span class="question-mark">?</span>;
+    }
+
+    <span class="comment">// Receive and process messages
+    </span><span class="kw">while let </span><span class="prelude-val">Some</span>(message) = subscriber.next().<span class="kw">await </span>{
+        <span class="macro">println!</span>(<span class="string">"Received message {:?}"</span>, message);
+    }
+
+    <span class="prelude-val">Ok</span>(())
+}</code></pre></div><h4 id="publish"><a class="doc-anchor" href="#publish">§</a>Publish</h4>
+<p>Connect to the NATS server and publish messages to a subject.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="comment">// Connect to the NATS server
+</span><span class="kw">let </span>client = async_nats::connect(<span class="string">"demo.nats.io"</span>).<span class="kw">await</span><span class="question-mark">?</span>;
+
+<span class="comment">// Prepare the subject and data
+</span><span class="kw">let </span>subject = <span class="string">"foo"</span>;
+<span class="kw">let </span>data = Bytes::from(<span class="string">"bar"</span>);
+
+<span class="comment">// Publish messages to the NATS server
+</span><span class="kw">for _ in </span><span class="number">0</span>..<span class="number">10 </span>{
+    client.publish(subject, data.clone()).<span class="kw">await</span><span class="question-mark">?</span>;
+}
+
+<span class="comment">// Flush internal buffer before exiting to make sure all messages are sent
+</span>client.flush().<span class="kw">await</span><span class="question-mark">?</span>;
+</code></pre></div><h4 id="subscribe"><a class="doc-anchor" href="#subscribe">§</a>Subscribe</h4>
+<p>Connect to the NATS server, subscribe to a subject and receive messages.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="comment">// Connect to the NATS server
+</span><span class="kw">let </span>client = async_nats::connect(<span class="string">"demo.nats.io"</span>).<span class="kw">await</span><span class="question-mark">?</span>;
+
+<span class="comment">// Subscribe to the "foo" subject
+</span><span class="kw">let </span><span class="kw-2">mut </span>subscriber = client.subscribe(<span class="string">"foo"</span>).<span class="kw">await</span>.unwrap();
+
+<span class="comment">// Receive and process messages
+</span><span class="kw">while let </span><span class="prelude-val">Some</span>(message) = subscriber.next().<span class="kw">await </span>{
+    <span class="macro">println!</span>(<span class="string">"Received message {:?}"</span>, message);
+}</code></pre></div><h4 id="jetstream"><a class="doc-anchor" href="#jetstream">§</a>JetStream</h4>
+<p>To access JetStream API, create a JetStream <a href="jetstream/context/struct.Context.html" title="struct async_nats::jetstream::context::Context">jetstream::Context</a>.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="comment">// Connect to the NATS server
+</span><span class="kw">let </span>client = async_nats::connect(<span class="string">"demo.nats.io"</span>).<span class="kw">await</span><span class="question-mark">?</span>;
+<span class="comment">// Create a JetStream context.
+</span><span class="kw">let </span>jetstream = async_nats::jetstream::new(client);
+
+<span class="comment">// Publish JetStream messages, manage streams, consumers, etc.
+</span>jetstream.publish(<span class="string">"foo"</span>, <span class="string">"bar"</span>.into()).<span class="kw">await</span><span class="question-mark">?</span>;</code></pre></div><h4 id="key-value-store"><a class="doc-anchor" href="#key-value-store">§</a>Key-value Store</h4>
+<p>Key-value <a href="jetstream/kv/struct.Store.html" title="struct async_nats::jetstream::kv::Store">Store</a> is accessed through <a href="jetstream/context/struct.Context.html" title="struct async_nats::jetstream::context::Context">jetstream::Context</a>.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="comment">// Connect to the NATS server
+</span><span class="kw">let </span>client = async_nats::connect(<span class="string">"demo.nats.io"</span>).<span class="kw">await</span><span class="question-mark">?</span>;
+<span class="comment">// Create a JetStream context.
+</span><span class="kw">let </span>jetstream = async_nats::jetstream::new(client);
+<span class="comment">// Access an existing key-value.
+</span><span class="kw">let </span>kv = jetstream.get_key_value(<span class="string">"store"</span>).<span class="kw">await</span><span class="question-mark">?</span>;</code></pre></div><h4 id="object-store"><a class="doc-anchor" href="#object-store">§</a>Object Store</h4>
+<p>Object <a href="jetstream/object_store/struct.ObjectStore.html" title="struct async_nats::jetstream::object_store::ObjectStore">Store</a> is accessed through <a href="jetstream/context/struct.Context.html" title="struct async_nats::jetstream::context::Context">jetstream::Context</a>.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="comment">// Connect to the NATS server
+</span><span class="kw">let </span>client = async_nats::connect(<span class="string">"demo.nats.io"</span>).<span class="kw">await</span><span class="question-mark">?</span>;
+<span class="comment">// Create a JetStream context.
+</span><span class="kw">let </span>jetstream = async_nats::jetstream::new(client);
+<span class="comment">// Access an existing key-value.
+</span><span class="kw">let </span>kv = jetstream.get_object_store(<span class="string">"store"</span>).<span class="kw">await</span><span class="question-mark">?</span>;</code></pre></div><h4 id="service-api"><a class="doc-anchor" href="#service-api">§</a>Service API</h4>
+<p><a href="service/struct.Service.html" title="struct async_nats::service::Service">Service API</a> is accessible through <a href="client/struct.Client.html" title="struct async_nats::client::Client">Client</a> after importing its trait.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>async_nats::service::ServiceExt;
+<span class="comment">// Connect to the NATS server
+</span><span class="kw">let </span>client = async_nats::connect(<span class="string">"demo.nats.io"</span>).<span class="kw">await</span><span class="question-mark">?</span>;
+<span class="kw">let </span><span class="kw-2">mut </span>service = client
+    .service_builder()
+    .description(<span class="string">"some service"</span>)
+    .stats_handler(|endpoint, stats| <span class="macro">serde_json::json!</span>({ <span class="string">"endpoint"</span>: endpoint }))
+    .start(<span class="string">"products"</span>, <span class="string">"1.0.0"</span>)
+    .<span class="kw">await</span><span class="question-mark">?</span>;</code></pre></div></div></details><h2 id="reexports" class="section-header">Re-exports<a href="#reexports" class="anchor">§</a></h2><dl class="item-table reexports"><dt id="reexport.HeaderMap"><code>pub use header::<a class="struct" href="header/struct.HeaderMap.html" title="struct async_nats::header::HeaderMap">HeaderMap</a>;</code></dt><dt id="reexport.HeaderName"><code>pub use header::<a class="struct" href="header/struct.HeaderName.html" title="struct async_nats::header::HeaderName">HeaderName</a>;</code></dt><dt id="reexport.HeaderValue"><code>pub use header::<a class="struct" href="header/struct.HeaderValue.html" title="struct async_nats::header::HeaderValue">HeaderValue</a>;</code></dt><dt id="reexport.Subject"><code>pub use subject::<a class="struct" href="subject/struct.Subject.html" title="struct async_nats::subject::Subject">Subject</a>;</code></dt><dt id="reexport.Client"><code>pub use client::<a class="struct" href="client/struct.Client.html" title="struct async_nats::client::Client">Client</a>;</code></dt><dt id="reexport.PublishError"><code>pub use client::<a class="type" href="client/type.PublishError.html" title="type async_nats::client::PublishError">PublishError</a>;</code></dt><dt id="reexport.Request"><code>pub use client::<a class="struct" href="client/struct.Request.html" title="struct async_nats::client::Request">Request</a>;</code></dt><dt id="reexport.RequestError"><code>pub use client::<a class="type" href="client/type.RequestError.html" title="type async_nats::client::RequestError">RequestError</a>;</code></dt><dt id="reexport.RequestErrorKind"><code>pub use client::<a class="enum" href="client/enum.RequestErrorKind.html" title="enum async_nats::client::RequestErrorKind">RequestErrorKind</a>;</code></dt><dt id="reexport.Statistics"><code>pub use client::<a class="struct" href="client/struct.Statistics.html" title="struct async_nats::client::Statistics">Statistics</a>;</code></dt><dt id="reexport.SubscribeError"><code>pub use client::<a class="struct" href="client/struct.SubscribeError.html" title="struct async_nats::client::SubscribeError">SubscribeError</a>;</code></dt><dt id="reexport.Message"><code>pub use message::<a class="struct" href="message/struct.Message.html" title="struct async_nats::message::Message">Message</a>;</code></dt><dt id="reexport.StatusCode"><code>pub use status::<a class="struct" href="status/struct.StatusCode.html" title="struct async_nats::status::StatusCode">StatusCode</a>;</code></dt><dt id="reexport.rustls"><code>pub use tokio_rustls::rustls;</code></dt></dl><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><dl class="item-table"><dt><a class="mod" href="client/index.html" title="mod async_nats::client">client</a></dt><dt><a class="mod" href="connection/index.html" title="mod async_nats::connection">connection</a></dt><dd>This module provides a connection implementation for communicating with a NATS server.</dd><dt><a class="mod" href="error/index.html" title="mod async_nats::error">error</a></dt><dt><a class="mod" href="header/index.html" title="mod async_nats::header">header</a></dt><dd>NATS <a href="message/struct.Message.html" title="struct async_nats::message::Message">Message</a> headers, modeled loosely after the <code>http::header</code> crate.</dd><dt><a class="mod" href="jetstream/index.html" title="mod async_nats::jetstream">jetstream</a></dt><dd>JetStream is a built-in persistence layer for NATS that provides powerful
+<a href="jetstream/stream/struct.Stream.html" title="struct async_nats::jetstream::stream::Stream">stream</a>-based messaging capabilities,
+with integrated support for both <em>at least once</em> and <em>exactly once</em> delivery semantics.</dd><dt><a class="mod" href="message/index.html" title="mod async_nats::message">message</a></dt><dd>A Core NATS message.</dd><dt><a class="mod" href="service/index.html" title="mod async_nats::service">service</a></dt><dt><a class="mod" href="status/index.html" title="mod async_nats::status">status</a></dt><dd>NATS status codes.</dd><dt><a class="mod" href="subject/index.html" title="mod async_nats::subject">subject</a></dt></dl><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><dl class="item-table"><dt><a class="struct" href="struct.Auth.html" title="struct async_nats::Auth">Auth</a></dt><dt><a class="struct" href="struct.AuthError.html" title="struct async_nats::AuthError">Auth<wbr>Error</a></dt><dd>Error report from signing callback.</dd><dt><a class="struct" href="struct.ConnectInfo.html" title="struct async_nats::ConnectInfo">Connect<wbr>Info</a></dt><dd>Info to construct a CONNECT message.</dd><dt><a class="struct" href="struct.ConnectOptions.html" title="struct async_nats::ConnectOptions">Connect<wbr>Options</a></dt><dd>Connect options. Used to connect with NATS when custom config is needed.</dd><dt><a class="struct" href="struct.ServerAddr.html" title="struct async_nats::ServerAddr">Server<wbr>Addr</a></dt><dd>Address of a NATS server.</dd><dt><a class="struct" href="struct.ServerInfo.html" title="struct async_nats::ServerInfo">Server<wbr>Info</a></dt><dd>Information sent by the server back to this client
+during initial connection, and possibly again later.</dd><dt><a class="struct" href="struct.Subscriber.html" title="struct async_nats::Subscriber">Subscriber</a></dt><dd>Retrieves messages from given <code>subscription</code> created by <a href="client/struct.Client.html#method.subscribe" title="method async_nats::client::Client::subscribe">Client::subscribe</a>.</dd><dt><a class="struct" href="struct.UnsubscribeError.html" title="struct async_nats::UnsubscribeError">Unsubscribe<wbr>Error</a></dt></dl><h2 id="enums" class="section-header">Enums<a href="#enums" class="anchor">§</a></h2><dl class="item-table"><dt><a class="enum" href="enum.CallbackError.html" title="enum async_nats::CallbackError">Callback<wbr>Error</a></dt><dt><a class="enum" href="enum.ClientError.html" title="enum async_nats::ClientError">Client<wbr>Error</a></dt><dt><a class="enum" href="enum.ConnectErrorKind.html" title="enum async_nats::ConnectErrorKind">Connect<wbr>Error<wbr>Kind</a></dt><dt><a class="enum" href="enum.Event.html" title="enum async_nats::Event">Event</a></dt><dt><a class="enum" href="enum.Protocol.html" title="enum async_nats::Protocol">Protocol</a></dt><dd>Protocol version used by the client.</dd><dt><a class="enum" href="enum.ServerError.html" title="enum async_nats::ServerError">Server<wbr>Error</a></dt></dl><h2 id="traits" class="section-header">Traits<a href="#traits" class="anchor">§</a></h2><dl class="item-table"><dt><a class="trait" href="trait.ToServerAddrs.html" title="trait async_nats::ToServerAddrs">ToServer<wbr>Addrs</a></dt><dd>Capability to convert into a list of NATS server addresses.</dd></dl><h2 id="functions" class="section-header">Functions<a href="#functions" class="anchor">§</a></h2><dl class="item-table"><dt><a class="fn" href="fn.connect.html" title="fn async_nats::connect">connect</a></dt><dd>Connects to NATS with default config.</dd><dt><a class="fn" href="fn.connect_with_options.html" title="fn async_nats::connect_with_options">connect_<wbr>with_<wbr>options</a></dt><dd>Connects to NATS with specified options.</dd></dl><h2 id="types" class="section-header">Type Aliases<a href="#types" class="anchor">§</a></h2><dl class="item-table"><dt><a class="type" href="type.ConnectError.html" title="type async_nats::ConnectError">Connect<wbr>Error</a></dt><dd>Returned when initial connection fails.
+To be enumerate over the variants, call <a href="error/struct.Error.html#method.kind" title="method async_nats::error::Error::kind">ConnectError::kind</a>.</dd><dt><a class="type" href="type.Error.html" title="type async_nats::Error">Error</a></dt><dt><a class="type" href="type.PublishMessage.html" title="type async_nats::PublishMessage">Publish<wbr>Message</a><wbr><span class="stab deprecated" title="">Deprecated</span></dt><dd>An alias. This is done to avoid breaking changes
+in the public API. However this will get deprecated in the future in favor of
+<a href="message/struct.OutboundMessage.html" title="struct async_nats::message::OutboundMessage">crate::message::OutboundMessage</a>.</dd></dl><script type="text/json" id="notable-traits-data">{"&[u8]":"<h3>Notable traits for <code>&amp;[<a class=\"primitive\" href=\"https://doc.rust-lang.org/1.94.0/std/primitive.u8.html\">u8</a>]</code></h3><pre><code><div class=\"where\">impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.94.0/std/io/trait.Read.html\" title=\"trait std::io::Read\">Read</a> for &amp;[<a class=\"primitive\" href=\"https://doc.rust-lang.org/1.94.0/std/primitive.u8.html\">u8</a>]</div>"}</script></section></div></main></body></html>

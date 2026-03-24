@@ -30,6 +30,10 @@ pub struct InstanceState {
     /// Keyed by TimerId. Not persisted in snapshots.
     pub pending_timer_calls: HashMap<wtf_common::TimerId, RpcReplyPort<Result<(), WtfError>>>,
 
+    /// Pending RPC calls from procedural workflows waiting for signals.
+    /// Keyed by signal name (String). Not persisted in snapshots.
+    pub pending_signal_calls: HashMap<String, RpcReplyPort<Result<Bytes, WtfError>>>,
+
     /// Join handle for the procedural workflow task.
     pub procedural_task: Option<tokio::task::JoinHandle<()>>,
 
@@ -50,6 +54,7 @@ impl InstanceState {
             paradigm_state,
             pending_activity_calls: HashMap::new(),
             pending_timer_calls: HashMap::new(),
+            pending_signal_calls: HashMap::new(),
             procedural_task: None,
             live_subscription_task: None,
         }
@@ -59,9 +64,14 @@ impl InstanceState {
 pub fn initialize_paradigm_state(args: &InstanceArguments) -> ParadigmState {
     match args.paradigm {
         WorkflowParadigm::Fsm => ParadigmState::Fsm(crate::fsm::FsmActorState::new("Initial")),
-        WorkflowParadigm::Dag => ParadigmState::Dag(crate::dag::DagActorState::new(
-            std::collections::HashMap::new(),
-        )),
+        WorkflowParadigm::Dag => {
+            let nodes = args
+                .workflow_definition
+                .as_ref()
+                .and_then(|def| crate::dag::parse::parse_dag_graph(&def.graph_raw).ok())
+                .unwrap_or_default();
+            ParadigmState::Dag(crate::dag::DagActorState::new(nodes))
+        }
         WorkflowParadigm::Procedural => {
             ParadigmState::Procedural(crate::procedural::ProceduralActorState::new())
         }

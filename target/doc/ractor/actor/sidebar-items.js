@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":["actor_cell","actor_id","actor_ref","derived_actor","messages"],"struct":["ActorRuntime"],"trait":["Actor"]};

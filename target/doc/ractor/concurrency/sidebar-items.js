@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["broadcast","mpsc_bounded","mpsc_unbounded","oneshot"],"mod":["tokio_primitives"],"struct":["Timeout"],"type":["BroadcastReceiver","BroadcastSender","MpscReceiver","MpscSender","MpscUnboundedReceiver","MpscUnboundedSender","Notify","OneshotReceiver","OneshotSender"]};

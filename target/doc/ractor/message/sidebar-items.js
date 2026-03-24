@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":["BoxedDowncastErr","BoxedMessage"],"trait":["Message"]};

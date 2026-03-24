@@ -5,13 +5,17 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::Context;
+use async_nats::jetstream::kv::Store;
+use futures::StreamExt;
 use ractor::actor::Actor;
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
-use wtf_actor::master::{MasterOrchestrator, OrchestratorConfig};
+use wtf_actor::master::{MasterOrchestrator, OrchestratorConfig, WorkflowDefinition};
 use wtf_api::app::{build_app, serve as serve_api};
 use wtf_storage::{connect, open_snapshot_db, provision_kv_buckets, provision_streams, NatsConfig};
+use wtf_actor::heartbeat::run_heartbeat_watcher;
 use wtf_worker::timer::run_timer_loop;
+use wtf_worker::Worker;
 
 /// Configuration for the `serve` command.
 #[derive(Debug, Clone)]
@@ -49,6 +53,10 @@ pub async fn run_serve(config: ServeConfig) -> anyhow::Result<()> {
 
     let kv = provision_storage(&nats).await?;
 
+    let definitions = load_definitions_from_kv(&kv.definitions)
+        .await
+        .context("failed to load definitions from KV")?;
+
     let event_store = Arc::new(nats.clone());
     let state_store = Arc::new(nats.clone());
     let task_queue = Arc::new(nats.clone());
@@ -60,6 +68,7 @@ pub async fn run_serve(config: ServeConfig) -> anyhow::Result<()> {
         event_store: Some(event_store),
         state_store: Some(state_store),
         task_queue: Some(task_queue),
+        definitions,
     };
 
     let (master, _master_handle) = MasterOrchestrator::spawn(
@@ -75,7 +84,9 @@ pub async fn run_serve(config: ServeConfig) -> anyhow::Result<()> {
 
     let (shutdown_tx, shutdown_rx) = watch::channel(false);
     let api_shutdown = shutdown_rx.clone();
-    let timer_shutdown = shutdown_rx;
+    let heartbeat_shutdown = shutdown_rx.clone();
+    let timer_shutdown = shutdown_rx.clone();
+    let worker_shutdown = shutdown_rx;
 
     let api_task = tokio::spawn(async move { serve_api(addr, app, api_shutdown).await });
     let timer_task = tokio::spawn(run_timer_loop(
@@ -83,33 +94,99 @@ pub async fn run_serve(config: ServeConfig) -> anyhow::Result<()> {
         kv.timers.clone(),
         timer_shutdown,
     ));
+    let heartbeat_task = tokio::spawn(run_heartbeat_watcher(
+        kv.heartbeats.clone(),
+        master.clone(),
+        heartbeat_shutdown,
+    ));
+    let worker = Worker::new(nats.jetstream().clone(), "builtin-worker", None);
+    let worker_task = tokio::spawn(async move {
+        worker.run(worker_shutdown).await
+    });
 
     wait_for_shutdown_signal().await;
-    drain_runtime(shutdown_tx, api_task, timer_task, || master.stop(None)).await?;
+    drain_runtime(
+        shutdown_tx,
+        api_task,
+        timer_task,
+        heartbeat_task,
+        worker_task,
+        || master.stop(None),
+    )
+    .await?;
 
     Ok(())
 }
 
-async fn drain_runtime<EApi, ETimer, FStop>(
+/// Scan all keys in the definitions KV bucket, deserialize each as [`WorkflowDefinition`],
+/// and return the successfully parsed entries.
+///
+/// Malformed entries are logged at `warn` level and skipped. An empty bucket
+/// is valid — an info message is logged and an empty vec is returned.
+///
+/// # Errors
+/// Returns an error if the KV scan itself fails (NATS connection issue).
+async fn load_definitions_from_kv(
+    store: &Store,
+) -> anyhow::Result<Vec<(String, WorkflowDefinition)>> {
+    let mut keys = store
+        .keys()
+        .await
+        .context("failed to scan definition keys from KV")?;
+
+    let mut definitions = Vec::new();
+
+    while let Some(key_result) = keys.next().await {
+        let Ok(key) = key_result else {
+            continue;
+        };
+        let Ok(Some(value)) = store.get(&key).await else {
+            continue;
+        };
+        match serde_json::from_slice::<WorkflowDefinition>(value.as_ref()) {
+            Ok(def) => definitions.push((key, def)),
+            Err(e) => tracing::warn!(key = %key, error = %e, "skipping malformed definition in KV"),
+        }
+    }
+
+    if definitions.is_empty() {
+        tracing::info!("No workflow definitions found in KV");
+    } else {
+        tracing::info!(count = definitions.len(), "Loaded workflow definitions from KV");
+    }
+
+    Ok(definitions)
+}
+
+async fn drain_runtime<EApi, ETimer, EWorker, FStop>(
     shutdown_tx: watch::Sender<bool>,
     api_task: JoinHandle<Result<(), EApi>>,
     timer_task: JoinHandle<Result<(), ETimer>>,
+    heartbeat_task: JoinHandle<Result<(), String>>,
+    worker_task: JoinHandle<Result<(), EWorker>>,
     stop_master: FStop,
 ) -> anyhow::Result<()>
 where
     EApi: std::error::Error + Send + Sync + 'static,
     ETimer: std::error::Error + Send + Sync + 'static,
+    EWorker: std::error::Error + Send + Sync + 'static,
     FStop: FnOnce(),
 {
     let _ = shutdown_tx.send(true);
 
     let api_result: Result<(), EApi> = api_task.await.context("api task join failed")?;
     let timer_result: Result<(), ETimer> = timer_task.await.context("timer task join failed")?;
+    let heartbeat_result = heartbeat_task.await.context("heartbeat watcher task join failed")?;
+    let worker_result: Result<(), EWorker> =
+        worker_task.await.context("worker task join failed")?;
 
     stop_master();
 
     api_result.context("api server failed")?;
     timer_result.context("timer loop failed")?;
+    heartbeat_result
+        .map_err(|e| anyhow::anyhow!("heartbeat watcher failed: {e}"))?;
+    worker_result.context("builtin worker failed")?;
 
     Ok(())
 }
@@ -149,55 +226,5 @@ async fn wait_for_shutdown_signal() {
 }
 
 #[cfg(test)]
-mod tests {
-    use std::sync::atomic::{AtomicBool, Ordering};
-    use std::sync::Arc;
-
-    use super::drain_runtime;
-    use tokio::sync::watch;
-
-    #[tokio::test]
-    async fn drain_runtime_signals_shutdown_and_waits_for_tasks() {
-        let (shutdown_tx, shutdown_rx) = watch::channel(false);
-        let api_drained = Arc::new(AtomicBool::new(false));
-        let timer_drained = Arc::new(AtomicBool::new(false));
-        let stopped = Arc::new(AtomicBool::new(false));
-
-        let api_handle = {
-            let mut rx = shutdown_rx.clone();
-            let drained = Arc::clone(&api_drained);
-            tokio::spawn(async move {
-                let changed = rx.changed().await;
-                if changed.is_ok() {
-                    drained.store(true, Ordering::SeqCst);
-                }
-                Result::<(), std::io::Error>::Ok(())
-            })
-        };
-
-        let timer_handle = {
-            let mut rx = shutdown_rx;
-            let drained = Arc::clone(&timer_drained);
-            tokio::spawn(async move {
-                let changed = rx.changed().await;
-                if changed.is_ok() {
-                    drained.store(true, Ordering::SeqCst);
-                }
-                Result::<(), std::io::Error>::Ok(())
-            })
-        };
-
-        let drain_result = drain_runtime(shutdown_tx, api_handle, timer_handle, {
-            let stopped = Arc::clone(&stopped);
-            move || {
-                stopped.store(true, Ordering::SeqCst);
-            }
-        })
-        .await;
-
-        assert!(drain_result.is_ok());
-        assert!(api_drained.load(Ordering::SeqCst));
-        assert!(timer_drained.load(Ordering::SeqCst));
-        assert!(stopped.load(Ordering::SeqCst));
-    }
-}
+#[path = "serve_tests.rs"]
+mod tests;

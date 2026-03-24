@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["FactoryMessage"],"mod":["discard","factoryimpl","hash","job","lifecycle","queues","ratelim","routing","stats","worker"],"struct":["UpdateSettingsRequest","UpdateSettingsRequestBuilder"],"type":["WorkerId"]};

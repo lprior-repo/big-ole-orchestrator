@@ -5231,6 +5231,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sled",
+ "tempfile",
  "thiserror 1.0.69",
  "tokio",
  "tokio-stream",
@@ -5252,6 +5253,7 @@ name = "wtf-cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-nats",
  "chrono",
  "clap",
  "futures",
@@ -5373,6 +5375,7 @@ dependencies = [
  "futures",
  "rmp-serde",
  "serde",
+ "serde_json",
  "thiserror 1.0.69",
  "tokio",
  "tracing",

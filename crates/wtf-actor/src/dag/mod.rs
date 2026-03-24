@@ -1,11 +1,13 @@
 //! DagActor — DAG paradigm actor state and event application (ADR-017).
 
 pub mod apply;
+pub mod parse;
 pub mod state;
 #[cfg(test)]
 mod tests;
 
 pub use apply::*;
+pub use parse::*;
 pub use state::*;
 
 /// Compute the set of nodes that are ready to dispatch.

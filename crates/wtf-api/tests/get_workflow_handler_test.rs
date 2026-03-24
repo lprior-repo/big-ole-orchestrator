@@ -20,6 +20,7 @@ fn test_snapshot() -> InstanceStatusSnapshot {
         paradigm: WorkflowParadigm::Fsm,
         phase: InstancePhaseView::Live,
         events_applied: 42,
+        current_state: Some("Authorized".to_owned()),
     }
 }
 
@@ -98,6 +99,7 @@ async fn get_existing_workflow_returns_200() {
     assert_eq!(res.workflow_type, "checkout");
     assert_eq!(res.paradigm, "fsm");
     assert_eq!(res.events_applied, 42);
+    assert_eq!(res.current_state.as_deref(), Some("Authorized"));
 }
 
 #[tokio::test]

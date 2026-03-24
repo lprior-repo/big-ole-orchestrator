@@ -61,6 +61,7 @@ fn test_state(instance_id: &str) -> InstanceState {
         events_since_snapshot: 0,
         pending_activity_calls: HashMap::new(),
         pending_timer_calls: HashMap::new(),
+        pending_signal_calls: HashMap::new(),
         procedural_task: None,
         live_subscription_task: None,
     }

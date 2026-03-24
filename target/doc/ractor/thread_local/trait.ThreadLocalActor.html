@@ -1,0 +1,251 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="ThreadLocalActor defines the behavior of an Actor. It specifies the Message type, State type, and all processing logic for the actor"><title>ThreadLocalActor in ractor::thread_local - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-77263533.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="ractor" data-themes="" data-resource-suffix="" data-rustdoc-version="1.94.0 (4a4ef493e 2026-03-02)" data-channel="1.94.0" data-search-js="search-9e2438ea.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-c38705f0.js" ><script src="../../static.files/storage-e2aeef58.js"></script><script defer src="sidebar-items.js"></script><script defer src="../../static.files/main-7bab91a1.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-ffcac47a.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc trait"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">ThreadLocalActor</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../ractor/index.html">ractor</a><span class="version">0.15.12</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Thread<wbr>Local<wbr>Actor</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#example" title="Example">Example</a></li></ul><h3><a href="#required-associated-types">Required Associated Types</a></h3><ul class="block"><li><a href="#associatedtype.Arguments" title="Arguments">Arguments</a></li><li><a href="#associatedtype.Msg" title="Msg">Msg</a></li><li><a href="#associatedtype.State" title="State">State</a></li></ul><h3><a href="#required-methods">Required Methods</a></h3><ul class="block"><li><a href="#tymethod.pre_start" title="pre_start">pre_start</a></li></ul><h3><a href="#provided-methods">Provided Methods</a></h3><ul class="block"><li><a href="#method.handle" title="handle">handle</a></li><li><a href="#method.handle_supervisor_evt" title="handle_supervisor_evt">handle_supervisor_evt</a></li><li><a href="#method.post_start" title="post_start">post_start</a></li><li><a href="#method.post_stop" title="post_stop">post_stop</a></li><li><a href="#method.spawn" title="spawn">spawn</a></li><li><a href="#method.spawn_instant" title="spawn_instant">spawn_instant</a></li><li><a href="#method.spawn_linked" title="spawn_linked">spawn_linked</a></li><li><a href="#method.spawn_linked_instant" title="spawn_linked_instant">spawn_linked_instant</a></li></ul><h3><a href="#dyn-compatibility">Dyn Compatibility</a></h3><h3><a href="#implementors">Implementors</a></h3></section><div id="rustdoc-modnav"><h2><a href="index.html">In ractor::<wbr>thread_<wbr>local</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../index.html">ractor</a>::<wbr><a href="index.html">thread_local</a></div><h1>Trait <span class="trait">Thread<wbr>Local<wbr>Actor</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../src/ractor/thread_local.rs.html#107-320">Source</a> </span></div><pre class="rust item-decl"><code>pub trait ThreadLocalActor:
+    <a class="trait" href="https://doc.rust-lang.org/1.94.0/core/default/trait.Default.html" title="trait core::default::Default">Default</a>
+    + <a class="trait" href="https://doc.rust-lang.org/1.94.0/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a>
+    + 'static {
+    type <a href="#associatedtype.Msg" class="associatedtype">Msg</a>: <a class="trait" href="../message/trait.Message.html" title="trait ractor::message::Message">Message</a>;
+    type <a href="#associatedtype.State" class="associatedtype">State</a>;
+    type <a href="#associatedtype.Arguments" class="associatedtype">Arguments</a>: <a class="trait" href="../trait.State.html" title="trait ractor::State">State</a>;
+
+    // Required method
+    fn <a href="#tymethod.pre_start" class="fn">pre_start</a>(
+        &amp;self,
+        myself: <a class="struct" href="../actor/actor_ref/struct.ActorRef.html" title="struct ractor::actor::actor_ref::ActorRef">ActorRef</a>&lt;Self::<a class="associatedtype" href="trait.ThreadLocalActor.html#associatedtype.Msg" title="type ractor::thread_local::ThreadLocalActor::Msg">Msg</a>&gt;,
+        args: Self::<a class="associatedtype" href="trait.ThreadLocalActor.html#associatedtype.Arguments" title="type ractor::thread_local::ThreadLocalActor::Arguments">Arguments</a>,
+    ) -&gt; impl <a class="trait" href="https://doc.rust-lang.org/1.94.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.94.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Self::<a class="associatedtype" href="trait.ThreadLocalActor.html#associatedtype.State" title="type ractor::thread_local::ThreadLocalActor::State">State</a>, <a class="type" href="../errors/type.ActorProcessingErr.html" title="type ractor::errors::ActorProcessingErr">ActorProcessingErr</a>&gt;&gt;;
+
+    // Provided methods
+    fn <a href="#method.post_start" class="fn">post_start</a>(
+        &amp;self,
+        myself: <a class="struct" href="../actor/actor_ref/struct.ActorRef.html" title="struct ractor::actor::actor_ref::ActorRef">ActorRef</a>&lt;Self::<a class="associatedtype" href="trait.ThreadLocalActor.html#associatedtype.Msg" title="type ractor::thread_local::ThreadLocalActor::Msg">Msg</a>&gt;,
+        state: &amp;mut Self::<a class="associatedtype" href="trait.ThreadLocalActor.html#associatedtype.State" title="type ractor::thread_local::ThreadLocalActor::State">State</a>,
+    ) -&gt; impl <a class="trait" href="https://doc.rust-lang.org/1.94.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.94.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.94.0/std/primitive.unit.html">()</a>, <a class="type" href="../errors/type.ActorProcessingErr.html" title="type ractor::errors::ActorProcessingErr">ActorProcessingErr</a>&gt;&gt; { ... }
+<span class="item-spacer"></span>    fn <a href="#method.post_stop" class="fn">post_stop</a>(
+        &amp;self,
+        myself: <a class="struct" href="../actor/actor_ref/struct.ActorRef.html" title="struct ractor::actor::actor_ref::ActorRef">ActorRef</a>&lt;Self::<a class="associatedtype" href="trait.ThreadLocalActor.html#associatedtype.Msg" title="type ractor::thread_local::ThreadLocalActor::Msg">Msg</a>&gt;,
+        state: &amp;mut Self::<a class="associatedtype" href="trait.ThreadLocalActor.html#associatedtype.State" title="type ractor::thread_local::ThreadLocalActor::State">State</a>,
+    ) -&gt; impl <a class="trait" href="https://doc.rust-lang.org/1.94.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.94.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.94.0/std/primitive.unit.html">()</a>, <a class="type" href="../errors/type.ActorProcessingErr.html" title="type ractor::errors::ActorProcessingErr">ActorProcessingErr</a>&gt;&gt; { ... }
+<span class="item-spacer"></span>    fn <a href="#method.handle" class="fn">handle</a>(
+        &amp;self,
+        myself: <a class="struct" href="../actor/actor_ref/struct.ActorRef.html" title="struct ractor::actor::actor_ref::ActorRef">ActorRef</a>&lt;Self::<a class="associatedtype" href="trait.ThreadLocalActor.html#associatedtype.Msg" title="type ractor::thread_local::ThreadLocalActor::Msg">Msg</a>&gt;,
+        message: Self::<a class="associatedtype" href="trait.ThreadLocalActor.html#associatedtype.Msg" title="type ractor::thread_local::ThreadLocalActor::Msg">Msg</a>,
+        state: &amp;mut Self::<a class="associatedtype" href="trait.ThreadLocalActor.html#associatedtype.State" title="type ractor::thread_local::ThreadLocalActor::State">State</a>,
+    ) -&gt; impl <a class="trait" href="https://doc.rust-lang.org/1.94.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.94.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.94.0/std/primitive.unit.html">()</a>, <a class="type" href="../errors/type.ActorProcessingErr.html" title="type ractor::errors::ActorProcessingErr">ActorProcessingErr</a>&gt;&gt; { ... }
+<span class="item-spacer"></span>    fn <a href="#method.handle_supervisor_evt" class="fn">handle_supervisor_evt</a>(
+        &amp;self,
+        myself: <a class="struct" href="../actor/actor_ref/struct.ActorRef.html" title="struct ractor::actor::actor_ref::ActorRef">ActorRef</a>&lt;Self::<a class="associatedtype" href="trait.ThreadLocalActor.html#associatedtype.Msg" title="type ractor::thread_local::ThreadLocalActor::Msg">Msg</a>&gt;,
+        message: <a class="enum" href="../actor/messages/enum.SupervisionEvent.html" title="enum ractor::actor::messages::SupervisionEvent">SupervisionEvent</a>,
+        state: &amp;mut Self::<a class="associatedtype" href="trait.ThreadLocalActor.html#associatedtype.State" title="type ractor::thread_local::ThreadLocalActor::State">State</a>,
+    ) -&gt; impl <a class="trait" href="https://doc.rust-lang.org/1.94.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.94.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.94.0/std/primitive.unit.html">()</a>, <a class="type" href="../errors/type.ActorProcessingErr.html" title="type ractor::errors::ActorProcessingErr">ActorProcessingErr</a>&gt;&gt; { ... }
+<span class="item-spacer"></span>    fn <a href="#method.spawn" class="fn">spawn</a>(
+        name: <a class="enum" href="https://doc.rust-lang.org/1.94.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="type" href="../type.ActorName.html" title="type ractor::ActorName">ActorName</a>&gt;,
+        startup_args: Self::<a class="associatedtype" href="trait.ThreadLocalActor.html#associatedtype.Arguments" title="type ractor::thread_local::ThreadLocalActor::Arguments">Arguments</a>,
+        spawner: <a class="struct" href="struct.ThreadLocalActorSpawner.html" title="struct ractor::thread_local::ThreadLocalActorSpawner">ThreadLocalActorSpawner</a>,
+    ) -&gt; impl <a class="trait" href="https://doc.rust-lang.org/1.94.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.94.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;(<a class="struct" href="../actor/actor_ref/struct.ActorRef.html" title="struct ractor::actor::actor_ref::ActorRef">ActorRef</a>&lt;Self::<a class="associatedtype" href="trait.ThreadLocalActor.html#associatedtype.Msg" title="type ractor::thread_local::ThreadLocalActor::Msg">Msg</a>&gt;, <a class="type" href="../concurrency/tokio_primitives/type.JoinHandle.html" title="type ractor::concurrency::tokio_primitives::JoinHandle">JoinHandle</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.94.0/std/primitive.unit.html">()</a>&gt;), <a class="enum" href="../errors/enum.SpawnErr.html" title="enum ractor::errors::SpawnErr">SpawnErr</a>&gt;&gt; { ... }
+<span class="item-spacer"></span>    fn <a href="#method.spawn_instant" class="fn">spawn_instant</a>(
+        name: <a class="enum" href="https://doc.rust-lang.org/1.94.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="type" href="../type.ActorName.html" title="type ractor::ActorName">ActorName</a>&gt;,
+        startup_args: Self::<a class="associatedtype" href="trait.ThreadLocalActor.html#associatedtype.Arguments" title="type ractor::thread_local::ThreadLocalActor::Arguments">Arguments</a>,
+        spawner: <a class="struct" href="struct.ThreadLocalActorSpawner.html" title="struct ractor::thread_local::ThreadLocalActorSpawner">ThreadLocalActorSpawner</a>,
+    ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.94.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;(<a class="struct" href="../actor/actor_ref/struct.ActorRef.html" title="struct ractor::actor::actor_ref::ActorRef">ActorRef</a>&lt;Self::<a class="associatedtype" href="trait.ThreadLocalActor.html#associatedtype.Msg" title="type ractor::thread_local::ThreadLocalActor::Msg">Msg</a>&gt;, <a class="type" href="../concurrency/tokio_primitives/type.JoinHandle.html" title="type ractor::concurrency::tokio_primitives::JoinHandle">JoinHandle</a>&lt;<a class="enum" href="https://doc.rust-lang.org/1.94.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="type" href="../concurrency/tokio_primitives/type.JoinHandle.html" title="type ractor::concurrency::tokio_primitives::JoinHandle">JoinHandle</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.94.0/std/primitive.unit.html">()</a>&gt;, <a class="enum" href="../errors/enum.SpawnErr.html" title="enum ractor::errors::SpawnErr">SpawnErr</a>&gt;&gt;), <a class="enum" href="../errors/enum.SpawnErr.html" title="enum ractor::errors::SpawnErr">SpawnErr</a>&gt; { ... }
+<span class="item-spacer"></span>    fn <a href="#method.spawn_linked" class="fn">spawn_linked</a>(
+        name: <a class="enum" href="https://doc.rust-lang.org/1.94.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="type" href="../type.ActorName.html" title="type ractor::ActorName">ActorName</a>&gt;,
+        startup_args: Self::<a class="associatedtype" href="trait.ThreadLocalActor.html#associatedtype.Arguments" title="type ractor::thread_local::ThreadLocalActor::Arguments">Arguments</a>,
+        supervisor: <a class="struct" href="../actor/actor_cell/struct.ActorCell.html" title="struct ractor::actor::actor_cell::ActorCell">ActorCell</a>,
+        spawner: <a class="struct" href="struct.ThreadLocalActorSpawner.html" title="struct ractor::thread_local::ThreadLocalActorSpawner">ThreadLocalActorSpawner</a>,
+    ) -&gt; impl <a class="trait" href="https://doc.rust-lang.org/1.94.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.94.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;(<a class="struct" href="../actor/actor_ref/struct.ActorRef.html" title="struct ractor::actor::actor_ref::ActorRef">ActorRef</a>&lt;Self::<a class="associatedtype" href="trait.ThreadLocalActor.html#associatedtype.Msg" title="type ractor::thread_local::ThreadLocalActor::Msg">Msg</a>&gt;, <a class="type" href="../concurrency/tokio_primitives/type.JoinHandle.html" title="type ractor::concurrency::tokio_primitives::JoinHandle">JoinHandle</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.94.0/std/primitive.unit.html">()</a>&gt;), <a class="enum" href="../errors/enum.SpawnErr.html" title="enum ractor::errors::SpawnErr">SpawnErr</a>&gt;&gt; { ... }
+<span class="item-spacer"></span>    fn <a href="#method.spawn_linked_instant" class="fn">spawn_linked_instant</a>(
+        name: <a class="enum" href="https://doc.rust-lang.org/1.94.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="type" href="../type.ActorName.html" title="type ractor::ActorName">ActorName</a>&gt;,
+        startup_args: Self::<a class="associatedtype" href="trait.ThreadLocalActor.html#associatedtype.Arguments" title="type ractor::thread_local::ThreadLocalActor::Arguments">Arguments</a>,
+        supervisor: <a class="struct" href="../actor/actor_cell/struct.ActorCell.html" title="struct ractor::actor::actor_cell::ActorCell">ActorCell</a>,
+        spawner: <a class="struct" href="struct.ThreadLocalActorSpawner.html" title="struct ractor::thread_local::ThreadLocalActorSpawner">ThreadLocalActorSpawner</a>,
+    ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.94.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;(<a class="struct" href="../actor/actor_ref/struct.ActorRef.html" title="struct ractor::actor::actor_ref::ActorRef">ActorRef</a>&lt;Self::<a class="associatedtype" href="trait.ThreadLocalActor.html#associatedtype.Msg" title="type ractor::thread_local::ThreadLocalActor::Msg">Msg</a>&gt;, <a class="type" href="../concurrency/tokio_primitives/type.JoinHandle.html" title="type ractor::concurrency::tokio_primitives::JoinHandle">JoinHandle</a>&lt;<a class="enum" href="https://doc.rust-lang.org/1.94.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="type" href="../concurrency/tokio_primitives/type.JoinHandle.html" title="type ractor::concurrency::tokio_primitives::JoinHandle">JoinHandle</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.94.0/std/primitive.unit.html">()</a>&gt;, <a class="enum" href="../errors/enum.SpawnErr.html" title="enum ractor::errors::SpawnErr">SpawnErr</a>&gt;&gt;), <a class="enum" href="../errors/enum.SpawnErr.html" title="enum ractor::errors::SpawnErr">SpawnErr</a>&gt; { ... }
+}</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p><a href="trait.ThreadLocalActor.html" title="trait ractor::thread_local::ThreadLocalActor">ThreadLocalActor</a> defines the behavior of an Actor. It specifies the
+Message type, State type, and all processing logic for the actor</p>
+<p>NOTE: All of the implemented trait functions</p>
+<ul>
+<li><code>pre_start</code></li>
+<li><code>post_start</code></li>
+<li><code>post_stop</code></li>
+<li><code>handle</code></li>
+<li><code>handle_serialized</code> (Available with <code>cluster</code> feature only)</li>
+<li><code>handle_supervisor_evt</code></li>
+</ul>
+<p>return a <a href="https://doc.rust-lang.org/1.94.0/core/result/enum.Result.html" title="enum core::result::Result">Result&lt;_, ActorProcessingError&gt;</a> where the error type is an
+alias of [Box&lt;dyn std::error::Error + Send + Sync + ’static&gt;]. This is treated
+as an “unhandled” error and will terminate the actor + execute necessary supervision
+patterns. Panics are also captured from the inner functions and wrapped into an Error
+type, however should an [Err(_)] result from any of these functions the <strong>actor will
+terminate</strong> and cleanup.</p>
+<h2 id="example"><a class="doc-anchor" href="#example">§</a>Example</h2>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>ractor::thread_local::ThreadLocalActor;
+<span class="kw">use </span>ractor::thread_local::ThreadLocalActorSpawner;
+<span class="kw">use </span>ractor::ActorProcessingErr;
+<span class="kw">use </span>ractor::ActorRef;
+
+<span class="attr">#[derive(Default)]
+</span><span class="kw">struct </span>TheActor;
+
+<span class="kw">impl </span>ThreadLocalActor <span class="kw">for </span>TheActor {
+    <span class="kw">type </span>Msg = ();
+    <span class="kw">type </span>Arguments = String;
+    <span class="kw">type </span>State = String;
+
+    <span class="kw">async fn </span>pre_start(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        _myself: ActorRef&lt;<span class="self">Self</span>::Msg&gt;,
+        args: <span class="self">Self</span>::Arguments,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>::State, ActorProcessingErr&gt; {
+        <span class="prelude-val">Ok</span>(args)
+    }
+
+    <span class="kw">async fn </span>handle(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        _myself: ActorRef&lt;<span class="self">Self</span>::Msg&gt;,
+        _msg: (),
+        state: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::State,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ActorProcessingErr&gt; {
+        <span class="macro">println!</span>(<span class="string">"Message! {state}"</span>);
+        <span class="prelude-val">Ok</span>(())
+    }
+}
+
+<span class="attr">#[tokio::main]
+</span><span class="kw">async fn </span>main() {
+    <span class="comment">// Create the thread-local spawner
+    </span><span class="kw">let </span>spawner = ThreadLocalActorSpawner::new();
+    <span class="comment">// spawn the actor
+    </span><span class="kw">let </span>(who, handle) =
+        ractor::spawn_local::&lt;TheActor&gt;(<span class="string">"Something"</span>.to_string(), spawner.clone())
+            .<span class="kw">await
+            </span>.expect(<span class="string">"Failed to spawn thread-local actor!"</span>);
+
+    <span class="comment">// send messages to the actor
+    </span>who.cast(()).expect(<span class="string">"Failed to send"</span>);
+    who.cast(()).expect(<span class="string">"Failed to send"</span>);
+
+    <span class="comment">// Tell the actor to drain then stop
+    </span>who.drain();
+
+    <span class="comment">// wait for the termination
+    </span>handle.<span class="kw">await</span>.unwrap();
+}</code></pre></div></div></details><h2 id="required-associated-types" class="section-header">Required Associated Types<a href="#required-associated-types" class="anchor">§</a></h2><div class="methods"><details class="toggle" open><summary><section id="associatedtype.Msg" class="method"><a class="src rightside" href="../../src/ractor/thread_local.rs.html#109">Source</a><h4 class="code-header">type <a href="#associatedtype.Msg" class="associatedtype">Msg</a>: <a class="trait" href="../message/trait.Message.html" title="trait ractor::message::Message">Message</a></h4></section></summary><div class="docblock"><p>The message type for this actor</p>
+</div></details><details class="toggle" open><summary><section id="associatedtype.State" class="method"><a class="src rightside" href="../../src/ractor/thread_local.rs.html#114">Source</a><h4 class="code-header">type <a href="#associatedtype.State" class="associatedtype">State</a></h4></section></summary><div class="docblock"><p>The type of state this actor manages internally. This type
+has no bound requirements, and needs to neither be <a href="https://doc.rust-lang.org/1.94.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> nor
+<a href="https://doc.rust-lang.org/1.94.0/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> when used in a <a href="trait.ThreadLocalActor.html" title="trait ractor::thread_local::ThreadLocalActor">ThreadLocalActor</a> context.</p>
+</div></details><details class="toggle" open><summary><section id="associatedtype.Arguments" class="method"><a class="src rightside" href="../../src/ractor/thread_local.rs.html#120">Source</a><h4 class="code-header">type <a href="#associatedtype.Arguments" class="associatedtype">Arguments</a>: <a class="trait" href="../trait.State.html" title="trait ractor::State">State</a></h4></section></summary><div class="docblock"><p>Initialization arguments. These must be <a href="https://doc.rust-lang.org/1.94.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> as they are
+sent to the pinned thread in order to startup the actor.
+However the actor’s local <a href="trait.ThreadLocalActor.html#associatedtype.State" title="associated type ractor::thread_local::ThreadLocalActor::State">ThreadLocalActor::State</a> does
+NOT need to be <a href="https://doc.rust-lang.org/1.94.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> and neither does the actor instance.</p>
+</div></details></div><h2 id="required-methods" class="section-header">Required Methods<a href="#required-methods" class="anchor">§</a></h2><div class="methods"><details class="toggle method-toggle" open><summary><section id="tymethod.pre_start" class="method"><a class="src rightside" href="../../src/ractor/thread_local.rs.html#136-140">Source</a><h4 class="code-header">fn <a href="#tymethod.pre_start" class="fn">pre_start</a>(
+    &amp;self,
+    myself: <a class="struct" href="../actor/actor_ref/struct.ActorRef.html" title="struct ractor::actor::actor_ref::ActorRef">ActorRef</a>&lt;Self::<a class="associatedtype" href="trait.ThreadLocalActor.html#associatedtype.Msg" title="type ractor::thread_local::ThreadLocalActor::Msg">Msg</a>&gt;,
+    args: Self::<a class="associatedtype" href="trait.ThreadLocalActor.html#associatedtype.Arguments" title="type ractor::thread_local::ThreadLocalActor::Arguments">Arguments</a>,
+) -&gt; impl <a class="trait" href="https://doc.rust-lang.org/1.94.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.94.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Self::<a class="associatedtype" href="trait.ThreadLocalActor.html#associatedtype.State" title="type ractor::thread_local::ThreadLocalActor::State">State</a>, <a class="type" href="../errors/type.ActorProcessingErr.html" title="type ractor::errors::ActorProcessingErr">ActorProcessingErr</a>&gt;&gt;</h4></section></summary><div class="docblock"><p>Invoked when an actor is being started by the system.</p>
+<p>Any initialization inherent to the actor’s role should be
+performed here hence why it returns the initial state.</p>
+<p>Panics in <code>pre_start</code> do not invoke the
+supervision strategy and the actor won’t be started. <a href="trait.ThreadLocalActor.html" title="trait ractor::thread_local::ThreadLocalActor">ThreadLocalActor</a>::<code>spawn</code>
+will return an error to the caller</p>
+<ul>
+<li><code>myself</code> - A handle to the <a href="../actor/actor_cell/struct.ActorCell.html" title="struct ractor::actor::actor_cell::ActorCell">ActorCell</a> representing this actor</li>
+<li><code>args</code> - Arguments that are passed in the spawning of the actor which might
+be necessary to construct the initial state</li>
+</ul>
+<p>Returns an initial <a href="trait.ThreadLocalActor.html#associatedtype.State" title="associated type ractor::thread_local::ThreadLocalActor::State">ThreadLocalActor::State</a> to bootstrap the actor</p>
+</div></details></div><h2 id="provided-methods" class="section-header">Provided Methods<a href="#provided-methods" class="anchor">§</a></h2><div class="methods"><details class="toggle method-toggle" open><summary><section id="method.post_start" class="method"><a class="src rightside" href="../../src/ractor/thread_local.rs.html#152-158">Source</a><h4 class="code-header">fn <a href="#method.post_start" class="fn">post_start</a>(
+    &amp;self,
+    myself: <a class="struct" href="../actor/actor_ref/struct.ActorRef.html" title="struct ractor::actor::actor_ref::ActorRef">ActorRef</a>&lt;Self::<a class="associatedtype" href="trait.ThreadLocalActor.html#associatedtype.Msg" title="type ractor::thread_local::ThreadLocalActor::Msg">Msg</a>&gt;,
+    state: &amp;mut Self::<a class="associatedtype" href="trait.ThreadLocalActor.html#associatedtype.State" title="type ractor::thread_local::ThreadLocalActor::State">State</a>,
+) -&gt; impl <a class="trait" href="https://doc.rust-lang.org/1.94.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.94.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.94.0/std/primitive.unit.html">()</a>, <a class="type" href="../errors/type.ActorProcessingErr.html" title="type ractor::errors::ActorProcessingErr">ActorProcessingErr</a>&gt;&gt;</h4></section></summary><div class="docblock"><p>Invoked after an actor has started.</p>
+<p>Any post initialization can be performed here, such as writing
+to a log file, emitting metrics.</p>
+<p>Panics in <code>post_start</code> follow the supervision strategy.</p>
+<ul>
+<li><code>myself</code> - A handle to the <a href="../actor/actor_cell/struct.ActorCell.html" title="struct ractor::actor::actor_cell::ActorCell">ActorCell</a> representing this actor</li>
+<li><code>state</code> - A mutable reference to the internal actor’s state</li>
+</ul>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.post_stop" class="method"><a class="src rightside" href="../../src/ractor/thread_local.rs.html#169-175">Source</a><h4 class="code-header">fn <a href="#method.post_stop" class="fn">post_stop</a>(
+    &amp;self,
+    myself: <a class="struct" href="../actor/actor_ref/struct.ActorRef.html" title="struct ractor::actor::actor_ref::ActorRef">ActorRef</a>&lt;Self::<a class="associatedtype" href="trait.ThreadLocalActor.html#associatedtype.Msg" title="type ractor::thread_local::ThreadLocalActor::Msg">Msg</a>&gt;,
+    state: &amp;mut Self::<a class="associatedtype" href="trait.ThreadLocalActor.html#associatedtype.State" title="type ractor::thread_local::ThreadLocalActor::State">State</a>,
+) -&gt; impl <a class="trait" href="https://doc.rust-lang.org/1.94.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.94.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.94.0/std/primitive.unit.html">()</a>, <a class="type" href="../errors/type.ActorProcessingErr.html" title="type ractor::errors::ActorProcessingErr">ActorProcessingErr</a>&gt;&gt;</h4></section></summary><div class="docblock"><p>Invoked after an actor has been stopped to perform final cleanup. In the
+event the actor is terminated with <code>Signal::Kill</code> or has self-panicked,
+<code>post_stop</code> won’t be called.</p>
+<p>Panics in <code>post_stop</code> follow the supervision strategy.</p>
+<ul>
+<li><code>myself</code> - A handle to the <a href="../actor/actor_cell/struct.ActorCell.html" title="struct ractor::actor::actor_cell::ActorCell">ActorCell</a> representing this actor</li>
+<li><code>state</code> - A mutable reference to the internal actor’s last known state</li>
+</ul>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.handle" class="method"><a class="src rightside" href="../../src/ractor/thread_local.rs.html#184-191">Source</a><h4 class="code-header">fn <a href="#method.handle" class="fn">handle</a>(
+    &amp;self,
+    myself: <a class="struct" href="../actor/actor_ref/struct.ActorRef.html" title="struct ractor::actor::actor_ref::ActorRef">ActorRef</a>&lt;Self::<a class="associatedtype" href="trait.ThreadLocalActor.html#associatedtype.Msg" title="type ractor::thread_local::ThreadLocalActor::Msg">Msg</a>&gt;,
+    message: Self::<a class="associatedtype" href="trait.ThreadLocalActor.html#associatedtype.Msg" title="type ractor::thread_local::ThreadLocalActor::Msg">Msg</a>,
+    state: &amp;mut Self::<a class="associatedtype" href="trait.ThreadLocalActor.html#associatedtype.State" title="type ractor::thread_local::ThreadLocalActor::State">State</a>,
+) -&gt; impl <a class="trait" href="https://doc.rust-lang.org/1.94.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.94.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.94.0/std/primitive.unit.html">()</a>, <a class="type" href="../errors/type.ActorProcessingErr.html" title="type ractor::errors::ActorProcessingErr">ActorProcessingErr</a>&gt;&gt;</h4></section></summary><div class="docblock"><p>Handle the incoming message from the event processing loop. Unhandled panickes will be
+captured and sent to the supervisor(s)</p>
+<ul>
+<li><code>myself</code> - A handle to the <a href="../actor/actor_cell/struct.ActorCell.html" title="struct ractor::actor::actor_cell::ActorCell">ActorCell</a> representing this actor</li>
+<li><code>message</code> - The message to process</li>
+<li><code>state</code> - A mutable reference to the internal actor’s state</li>
+</ul>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.handle_supervisor_evt" class="method"><a class="src rightside" href="../../src/ractor/thread_local.rs.html#218-234">Source</a><h4 class="code-header">fn <a href="#method.handle_supervisor_evt" class="fn">handle_supervisor_evt</a>(
+    &amp;self,
+    myself: <a class="struct" href="../actor/actor_ref/struct.ActorRef.html" title="struct ractor::actor::actor_ref::ActorRef">ActorRef</a>&lt;Self::<a class="associatedtype" href="trait.ThreadLocalActor.html#associatedtype.Msg" title="type ractor::thread_local::ThreadLocalActor::Msg">Msg</a>&gt;,
+    message: <a class="enum" href="../actor/messages/enum.SupervisionEvent.html" title="enum ractor::actor::messages::SupervisionEvent">SupervisionEvent</a>,
+    state: &amp;mut Self::<a class="associatedtype" href="trait.ThreadLocalActor.html#associatedtype.State" title="type ractor::thread_local::ThreadLocalActor::State">State</a>,
+) -&gt; impl <a class="trait" href="https://doc.rust-lang.org/1.94.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.94.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.94.0/std/primitive.unit.html">()</a>, <a class="type" href="../errors/type.ActorProcessingErr.html" title="type ractor::errors::ActorProcessingErr">ActorProcessingErr</a>&gt;&gt;</h4></section></summary><div class="docblock"><p>Handle the incoming supervision event. Unhandled panics will be captured and
+sent the the supervisor(s). The default supervision behavior is to exit the
+supervisor on any child exit. To override this behavior, implement this function.</p>
+<ul>
+<li><code>myself</code> - A handle to the <a href="../actor/actor_cell/struct.ActorCell.html" title="struct ractor::actor::actor_cell::ActorCell">ActorCell</a> representing this actor</li>
+<li><code>message</code> - The message to process</li>
+<li><code>state</code> - A mutable reference to the internal actor’s state</li>
+</ul>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.spawn" class="method"><a class="src rightside" href="../../src/ractor/thread_local.rs.html#247-253">Source</a><h4 class="code-header">fn <a href="#method.spawn" class="fn">spawn</a>(
+    name: <a class="enum" href="https://doc.rust-lang.org/1.94.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="type" href="../type.ActorName.html" title="type ractor::ActorName">ActorName</a>&gt;,
+    startup_args: Self::<a class="associatedtype" href="trait.ThreadLocalActor.html#associatedtype.Arguments" title="type ractor::thread_local::ThreadLocalActor::Arguments">Arguments</a>,
+    spawner: <a class="struct" href="struct.ThreadLocalActorSpawner.html" title="struct ractor::thread_local::ThreadLocalActorSpawner">ThreadLocalActorSpawner</a>,
+) -&gt; impl <a class="trait" href="https://doc.rust-lang.org/1.94.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.94.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;(<a class="struct" href="../actor/actor_ref/struct.ActorRef.html" title="struct ractor::actor::actor_ref::ActorRef">ActorRef</a>&lt;Self::<a class="associatedtype" href="trait.ThreadLocalActor.html#associatedtype.Msg" title="type ractor::thread_local::ThreadLocalActor::Msg">Msg</a>&gt;, <a class="type" href="../concurrency/tokio_primitives/type.JoinHandle.html" title="type ractor::concurrency::tokio_primitives::JoinHandle">JoinHandle</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.94.0/std/primitive.unit.html">()</a>&gt;), <a class="enum" href="../errors/enum.SpawnErr.html" title="enum ractor::errors::SpawnErr">SpawnErr</a>&gt;&gt;</h4></section></summary><div class="docblock"><p>Spawn an actor of this type, which is unsupervised, automatically starting</p>
+<ul>
+<li><code>name</code>: A name to give the actor. Useful for global referencing or debug printing</li>
+<li><code>startup_args</code>: Arguments passed to the <code>pre_start</code> call of the <a href="trait.ThreadLocalActor.html" title="trait ractor::thread_local::ThreadLocalActor">ThreadLocalActor</a> to facilitate startup and
+initial state creation</li>
+<li><code>spawner</code>: The <a href="struct.ThreadLocalActorSpawner.html" title="struct ractor::thread_local::ThreadLocalActorSpawner">ThreadLocalActorSpawner</a> which will control starting this actor on a specific
+thread</li>
+</ul>
+<p>Returns a [Ok((ActorRef, JoinHandle&lt;()&gt;))] upon successful start, denoting the actor reference
+along with the join handle which will complete when the actor terminates. Returns [Err(SpawnErr)] if
+the actor failed to start</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.spawn_instant" class="method"><a class="src rightside" href="../../src/ractor/thread_local.rs.html#261-273">Source</a><h4 class="code-header">fn <a href="#method.spawn_instant" class="fn">spawn_instant</a>(
+    name: <a class="enum" href="https://doc.rust-lang.org/1.94.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="type" href="../type.ActorName.html" title="type ractor::ActorName">ActorName</a>&gt;,
+    startup_args: Self::<a class="associatedtype" href="trait.ThreadLocalActor.html#associatedtype.Arguments" title="type ractor::thread_local::ThreadLocalActor::Arguments">Arguments</a>,
+    spawner: <a class="struct" href="struct.ThreadLocalActorSpawner.html" title="struct ractor::thread_local::ThreadLocalActorSpawner">ThreadLocalActorSpawner</a>,
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.94.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;(<a class="struct" href="../actor/actor_ref/struct.ActorRef.html" title="struct ractor::actor::actor_ref::ActorRef">ActorRef</a>&lt;Self::<a class="associatedtype" href="trait.ThreadLocalActor.html#associatedtype.Msg" title="type ractor::thread_local::ThreadLocalActor::Msg">Msg</a>&gt;, <a class="type" href="../concurrency/tokio_primitives/type.JoinHandle.html" title="type ractor::concurrency::tokio_primitives::JoinHandle">JoinHandle</a>&lt;<a class="enum" href="https://doc.rust-lang.org/1.94.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="type" href="../concurrency/tokio_primitives/type.JoinHandle.html" title="type ractor::concurrency::tokio_primitives::JoinHandle">JoinHandle</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.94.0/std/primitive.unit.html">()</a>&gt;, <a class="enum" href="../errors/enum.SpawnErr.html" title="enum ractor::errors::SpawnErr">SpawnErr</a>&gt;&gt;), <a class="enum" href="../errors/enum.SpawnErr.html" title="enum ractor::errors::SpawnErr">SpawnErr</a>&gt;</h4></section></summary><div class="docblock"><p>Spawn an actor instantly, not waiting on the actor’s <code>pre_start</code> routine.</p>
+<p>Returns a [Ok((ActorRef, JoinHandle&lt;Result&lt;JoinHandle&lt;()&gt;, SpawnErr&gt;&gt;))] upon successful creation of the
+message queues, so you can begin sending messages. However the associated <a href="../concurrency/tokio_primitives/type.JoinHandle.html" title="type ractor::concurrency::tokio_primitives::JoinHandle">JoinHandle</a> contains the inner
+information around if the actor successfully started or not in it’s <code>pre_start</code> routine. Returns [Err(SpawnErr)] if
+the actor name is already allocated</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.spawn_linked" class="method"><a class="src rightside" href="../../src/ractor/thread_local.rs.html#286-298">Source</a><h4 class="code-header">fn <a href="#method.spawn_linked" class="fn">spawn_linked</a>(
+    name: <a class="enum" href="https://doc.rust-lang.org/1.94.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="type" href="../type.ActorName.html" title="type ractor::ActorName">ActorName</a>&gt;,
+    startup_args: Self::<a class="associatedtype" href="trait.ThreadLocalActor.html#associatedtype.Arguments" title="type ractor::thread_local::ThreadLocalActor::Arguments">Arguments</a>,
+    supervisor: <a class="struct" href="../actor/actor_cell/struct.ActorCell.html" title="struct ractor::actor::actor_cell::ActorCell">ActorCell</a>,
+    spawner: <a class="struct" href="struct.ThreadLocalActorSpawner.html" title="struct ractor::thread_local::ThreadLocalActorSpawner">ThreadLocalActorSpawner</a>,
+) -&gt; impl <a class="trait" href="https://doc.rust-lang.org/1.94.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.94.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;(<a class="struct" href="../actor/actor_ref/struct.ActorRef.html" title="struct ractor::actor::actor_ref::ActorRef">ActorRef</a>&lt;Self::<a class="associatedtype" href="trait.ThreadLocalActor.html#associatedtype.Msg" title="type ractor::thread_local::ThreadLocalActor::Msg">Msg</a>&gt;, <a class="type" href="../concurrency/tokio_primitives/type.JoinHandle.html" title="type ractor::concurrency::tokio_primitives::JoinHandle">JoinHandle</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.94.0/std/primitive.unit.html">()</a>&gt;), <a class="enum" href="../errors/enum.SpawnErr.html" title="enum ractor::errors::SpawnErr">SpawnErr</a>&gt;&gt;</h4></section></summary><div class="docblock"><p>Spawn an actor of this type with a supervisor, automatically starting the actor</p>
+<ul>
+<li><code>name</code>: A name to give the actor. Useful for global referencing or debug printing</li>
+<li><code>startup_args</code>: Arguments passed to the <code>pre_start</code> call of the <a href="trait.ThreadLocalActor.html" title="trait ractor::thread_local::ThreadLocalActor">ThreadLocalActor</a> to
+facilitate startup and initial state creation</li>
+<li><code>supervisor</code>: The <a href="../actor/actor_cell/struct.ActorCell.html" title="struct ractor::actor::actor_cell::ActorCell">ActorCell</a> which is to become the supervisor (parent) of this actor</li>
+<li><code>spawner</code>: The <a href="struct.ThreadLocalActorSpawner.html" title="struct ractor::thread_local::ThreadLocalActorSpawner">ThreadLocalActorSpawner</a> which will control starting this actor on a specific
+thread</li>
+</ul>
+<p>Returns a [Ok((ActorRef, JoinHandle&lt;()&gt;))] upon successful start, denoting the actor reference
+along with the join handle which will complete when the actor terminates. Returns [Err(SpawnErr)] if
+the actor failed to start</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.spawn_linked_instant" class="method"><a class="src rightside" href="../../src/ractor/thread_local.rs.html#301-319">Source</a><h4 class="code-header">fn <a href="#method.spawn_linked_instant" class="fn">spawn_linked_instant</a>(
+    name: <a class="enum" href="https://doc.rust-lang.org/1.94.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="type" href="../type.ActorName.html" title="type ractor::ActorName">ActorName</a>&gt;,
+    startup_args: Self::<a class="associatedtype" href="trait.ThreadLocalActor.html#associatedtype.Arguments" title="type ractor::thread_local::ThreadLocalActor::Arguments">Arguments</a>,
+    supervisor: <a class="struct" href="../actor/actor_cell/struct.ActorCell.html" title="struct ractor::actor::actor_cell::ActorCell">ActorCell</a>,
+    spawner: <a class="struct" href="struct.ThreadLocalActorSpawner.html" title="struct ractor::thread_local::ThreadLocalActorSpawner">ThreadLocalActorSpawner</a>,
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.94.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;(<a class="struct" href="../actor/actor_ref/struct.ActorRef.html" title="struct ractor::actor::actor_ref::ActorRef">ActorRef</a>&lt;Self::<a class="associatedtype" href="trait.ThreadLocalActor.html#associatedtype.Msg" title="type ractor::thread_local::ThreadLocalActor::Msg">Msg</a>&gt;, <a class="type" href="../concurrency/tokio_primitives/type.JoinHandle.html" title="type ractor::concurrency::tokio_primitives::JoinHandle">JoinHandle</a>&lt;<a class="enum" href="https://doc.rust-lang.org/1.94.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="type" href="../concurrency/tokio_primitives/type.JoinHandle.html" title="type ractor::concurrency::tokio_primitives::JoinHandle">JoinHandle</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.94.0/std/primitive.unit.html">()</a>&gt;, <a class="enum" href="../errors/enum.SpawnErr.html" title="enum ractor::errors::SpawnErr">SpawnErr</a>&gt;&gt;), <a class="enum" href="../errors/enum.SpawnErr.html" title="enum ractor::errors::SpawnErr">SpawnErr</a>&gt;</h4></section></summary><div class="docblock"><p>Spawn an actor instantly with a supervisor, not waiting on the actor’s <code>pre_start</code> routine.</p>
+</div></details></div><h2 id="dyn-compatibility" class="section-header">Dyn Compatibility<a href="#dyn-compatibility" class="anchor">§</a></h2><div class="dyn-compatibility-info"><p>This trait is <b>not</b> <a href="https://doc.rust-lang.org/1.94.0/reference/items/traits.html#dyn-compatibility">dyn compatible</a>.</p><p><i>In older versions of Rust, dyn compatibility was called "object safety", so this trait is not object safe.</i></p></div><h2 id="implementors" class="section-header">Implementors<a href="#implementors" class="anchor">§</a></h2><div id="implementors-list"><div class="negative-marker"></div><details class="toggle implementors-toggle"><summary><section id="impl-ThreadLocalActor-for-T" class="impl"><a class="src rightside" href="../../src/ractor/thread_local.rs.html#322-373">Source</a><a href="#impl-ThreadLocalActor-for-T" class="anchor">§</a><h3 class="code-header">impl&lt;T&gt; <a class="trait" href="trait.ThreadLocalActor.html" title="trait ractor::thread_local::ThreadLocalActor">ThreadLocalActor</a> for T<div class="where">where
+    T: <a class="trait" href="../actor/trait.Actor.html" title="trait ractor::actor::Actor">SendActor</a> + <a class="trait" href="https://doc.rust-lang.org/1.94.0/core/default/trait.Default.html" title="trait core::default::Default">Default</a>,</div></h3></section></summary><div class="impl-items"><section id="associatedtype.Msg-1" class="associatedtype trait-impl"><a class="src rightside" href="../../src/ractor/thread_local.rs.html#326">Source</a><a href="#associatedtype.Msg-1" class="anchor">§</a><h4 class="code-header">type <a href="#associatedtype.Msg" class="associatedtype">Msg</a> = &lt;T as <a class="trait" href="../actor/trait.Actor.html" title="trait ractor::actor::Actor">Actor</a>&gt;::<a class="associatedtype" href="../actor/trait.Actor.html#associatedtype.Msg" title="type ractor::actor::Actor::Msg">Msg</a></h4></section><section id="associatedtype.State-1" class="associatedtype trait-impl"><a class="src rightside" href="../../src/ractor/thread_local.rs.html#327">Source</a><a href="#associatedtype.State-1" class="anchor">§</a><h4 class="code-header">type <a href="#associatedtype.State" class="associatedtype">State</a> = &lt;T as <a class="trait" href="../actor/trait.Actor.html" title="trait ractor::actor::Actor">Actor</a>&gt;::<a class="associatedtype" href="../actor/trait.Actor.html#associatedtype.State" title="type ractor::actor::Actor::State">State</a></h4></section><section id="associatedtype.Arguments-1" class="associatedtype trait-impl"><a class="src rightside" href="../../src/ractor/thread_local.rs.html#328">Source</a><a href="#associatedtype.Arguments-1" class="anchor">§</a><h4 class="code-header">type <a href="#associatedtype.Arguments" class="associatedtype">Arguments</a> = &lt;T as <a class="trait" href="../actor/trait.Actor.html" title="trait ractor::actor::Actor">Actor</a>&gt;::<a class="associatedtype" href="../actor/trait.Actor.html#associatedtype.Arguments" title="type ractor::actor::Actor::Arguments">Arguments</a></h4></section></div></details></div><script src="../../trait.impl/ractor/thread_local/trait.ThreadLocalActor.js" async></script></section></div></main></body></html>

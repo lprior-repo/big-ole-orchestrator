@@ -213,6 +213,7 @@ impl From<InstanceStatusSnapshot> for V3StatusResponse {
             paradigm: paradigm_to_str(s.paradigm).to_owned(),
             phase: phase_to_str(s.phase).to_owned(),
             events_applied: s.events_applied,
+            current_state: s.current_state,
         }
     }
 }

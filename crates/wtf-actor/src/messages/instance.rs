@@ -1,5 +1,6 @@
 //! WorkflowInstance message types and phase management (ADR-016).
 
+use crate::instance::lifecycle::ParadigmState;
 use crate::procedural::WorkflowFn;
 use bytes::Bytes;
 use ractor::RpcReplyPort;
@@ -89,6 +90,11 @@ pub enum InstanceMsg {
         operation_id: u32,
         reply: RpcReplyPort<u64>,
     },
+    ProceduralWaitForSignal {
+        operation_id: u32,
+        signal_name: String,
+        reply: RpcReplyPort<Result<Bytes, WtfError>>,
+    },
     ProceduralWorkflowCompleted,
     ProceduralWorkflowFailed(String),
 }
@@ -102,6 +108,7 @@ pub struct InstanceStatusSnapshot {
     pub paradigm: WorkflowParadigm,
     pub phase: InstancePhaseView,
     pub events_applied: u64,
+    pub current_state: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -116,5 +123,13 @@ impl From<InstancePhase> for InstancePhaseView {
             InstancePhase::Replay => InstancePhaseView::Replay,
             InstancePhase::Live => InstancePhaseView::Live,
         }
+    }
+}
+
+#[must_use]
+pub fn current_state_view(paradigm_state: &ParadigmState) -> Option<String> {
+    match paradigm_state {
+        ParadigmState::Fsm(state) => Some(state.current_state.clone()),
+        ParadigmState::Dag(_) | ParadigmState::Procedural(_) => None,
     }
 }

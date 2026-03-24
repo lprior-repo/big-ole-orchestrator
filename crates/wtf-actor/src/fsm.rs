@@ -5,7 +5,7 @@ pub mod state;
 mod tests;
 pub mod types;
 
-pub use definition::FsmDefinition;
+pub use definition::{parse_fsm, FsmDefinition, ParseFsmError};
 pub use state::FsmActorState;
 pub use types::*;
 

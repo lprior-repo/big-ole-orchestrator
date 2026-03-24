@@ -35,6 +35,7 @@ use crate::messages::OrchestratorMsg;
 #[must_use]
 pub fn instance_id_from_heartbeat_key(key: &str) -> Option<InstanceId> {
     key.strip_prefix("hb/")
+        .filter(|id| !id.is_empty() && !id.contains('/'))
         .map(|id| InstanceId::new(id.to_owned()))
 }
 
@@ -148,10 +149,9 @@ mod tests {
     }
 
     #[test]
-    fn parse_hb_prefix_only_returns_empty_id() {
-        // "hb/" → strip_prefix gives "" → InstanceId::new("") is valid (empty)
+    fn parse_hb_prefix_only_returns_none() {
         let result = instance_id_from_heartbeat_key("hb/");
-        assert_eq!(result.map(|id| id.as_str().to_owned()), Some(String::new()));
+        assert!(result.is_none());
     }
 
     #[test]
@@ -161,6 +161,12 @@ mod tests {
             result.map(|id| id.as_str().to_owned()),
             Some("order_flow_01ARZ".to_owned())
         );
+    }
+
+    #[test]
+    fn parse_hb_key_with_extra_segment_returns_none() {
+        let result = instance_id_from_heartbeat_key("hb/inst-001/extra");
+        assert!(result.is_none());
     }
 
     // run_heartbeat_watcher requires a live NATS server — covered by integration tests.

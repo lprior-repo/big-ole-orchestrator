@@ -1,0 +1,151 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Factory actors"><title>ractor::factory - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-77263533.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="ractor" data-themes="" data-resource-suffix="" data-rustdoc-version="1.94.0 (4a4ef493e 2026-03-02)" data-channel="1.94.0" data-search-js="search-9e2438ea.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-c38705f0.js" ><script src="../../static.files/storage-e2aeef58.js"></script><script defer src="../sidebar-items.js"></script><script defer src="../../static.files/main-7bab91a1.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-ffcac47a.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc mod"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Module factory</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../ractor/index.html">ractor</a><span class="version">0.15.12</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Module factory</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#factory-actors" title="Factory actors">Factory actors</a><ul><li><a href="#worker-message-routing-mode" title="Worker message routing mode">Worker message routing mode</a></li><li><a href="#factory-queueing" title="Factory queueing">Factory queueing</a></li><li><a href="#worker-lifecycle" title="Worker lifecycle">Worker lifecycle</a></li><li><a href="#example-factory" title="Example Factory">Example Factory</a></li></ul></li></ul><h3><a href="#reexports">Module Items</a></h3><ul class="block"><li><a href="#reexports" title="Re-exports">Re-exports</a></li><li><a href="#modules" title="Modules">Modules</a></li><li><a href="#structs" title="Structs">Structs</a></li><li><a href="#enums" title="Enums">Enums</a></li><li><a href="#types" title="Type Aliases">Type Aliases</a></li></ul></section><div id="rustdoc-modnav"><h2 class="in-crate"><a href="../index.html">In crate ractor</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../index.html">ractor</a></div><h1>Module <span>factory</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../src/ractor/factory.rs.html#6-356">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h2 id="factory-actors"><a class="doc-anchor" href="#factory-actors">§</a>Factory actors</h2>
+<p>A factory is a manager of a pool of workers on the same node. This
+is helpful for job dispatch and load balancing when single-threaded execution
+of a single <a href="../actor/trait.Actor.html" title="trait ractor::actor::Actor">crate::Actor</a> may not be sufficient. Factories have a set “Job” syntax
+which denotes a key and message payload for each action. Workers are effectively mindless
+agents of the factory’s will.</p>
+<h3 id="worker-message-routing-mode"><a class="doc-anchor" href="#worker-message-routing-mode">§</a>Worker message routing mode</h3>
+<p>The factory has a series of dispatch modes which are defined in the <a href="routing/index.html" title="mod ractor::factory::routing">routing</a> module and
+control the way the factory dispatches work to workers. This should be selected based
+on the intended workload. Some general guidance:</p>
+<ol>
+<li>If you need to process a sequence of operations on a given key (i.e. the Job is a user, and
+there’s a sequential list of updates to that user). You then want the job to land on the same
+worker and should select <a href="routing/struct.KeyPersistentRouting.html" title="struct ractor::factory::routing::KeyPersistentRouting">routing::KeyPersistentRouting</a> or <a href="routing/struct.StickyQueuerRouting.html" title="struct ractor::factory::routing::StickyQueuerRouting">routing::StickyQueuerRouting</a>.</li>
+<li>If you don’t need a sequence of operations then <a href="routing/struct.QueuerRouting.html" title="struct ractor::factory::routing::QueuerRouting">routing::QueuerRouting</a> is likely a good choice.</li>
+<li>If your workers are making remote calls to other services/actors you probably want <a href="routing/struct.QueuerRouting.html" title="struct ractor::factory::routing::QueuerRouting">routing::QueuerRouting</a>
+or <a href="routing/struct.StickyQueuerRouting.html" title="struct ractor::factory::routing::StickyQueuerRouting">routing::StickyQueuerRouting</a> to prevent head-of-the-line contention. Otherwise <a href="routing/struct.KeyPersistentRouting.html" title="struct ractor::factory::routing::KeyPersistentRouting">routing::KeyPersistentRouting</a>
+is sufficient.</li>
+<li>For some custom defined routing, you can define your own <a href="routing/trait.CustomHashFunction.html" title="trait ractor::factory::routing::CustomHashFunction">routing::CustomHashFunction</a> which will be
+used in conjunction with <a href="routing/struct.CustomRouting.html" title="struct ractor::factory::routing::CustomRouting">routing::CustomRouting</a> to take the incoming job key and
+the space which should be hashed to (i.e. the number of workers).</li>
+<li>If you just want load balancing there’s also <a href="routing/struct.RoundRobinRouting.html" title="struct ractor::factory::routing::RoundRobinRouting">routing::RoundRobinRouting</a> for general 1-off
+dispatching of jobs</li>
+</ol>
+<h3 id="factory-queueing"><a class="doc-anchor" href="#factory-queueing">§</a>Factory queueing</h3>
+<p>The factory can also support factory-side or worker-side queueing of extra work messages based on the definition
+of the <a href="routing/trait.Router.html" title="trait ractor::factory::routing::Router">routing::Router</a> and <a href="queues/trait.Queue.html" title="trait ractor::factory::queues::Queue">queues::Queue</a> assigned to the factory.</p>
+<p>Supported queueing protocols today for factory-side queueing is</p>
+<ol>
+<li>Default, no-priority, queueing: <a href="queues/struct.DefaultQueue.html" title="struct ractor::factory::queues::DefaultQueue">queues::DefaultQueue</a></li>
+<li>Priority-based queuing, based on a constant number of priorities <a href="queues/struct.PriorityQueue.html" title="struct ractor::factory::queues::PriorityQueue">queues::PriorityQueue</a></li>
+</ol>
+<h3 id="worker-lifecycle"><a class="doc-anchor" href="#worker-lifecycle">§</a>Worker lifecycle</h3>
+<p>A worker’s lifecycle is managed by the factory. If the worker dies or crashes, the factory will
+replace the worker with a new instance and continue processing jobs for that worker. The
+factory also maintains the worker’s message queue’s so messages won’t be lost which were in the
+“worker”’s queue.</p>
+<h3 id="example-factory"><a class="doc-anchor" href="#example-factory">§</a>Example Factory</h3>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>ractor::concurrency::Duration;
+<span class="kw">use </span>ractor::factory::<span class="kw-2">*</span>;
+<span class="kw">use </span>ractor::Actor;
+<span class="kw">use </span>ractor::ActorProcessingErr;
+<span class="kw">use </span>ractor::ActorRef;
+<span class="kw">use </span>ractor::RpcReplyPort;
+
+<span class="attr">#[derive(Debug)]
+</span><span class="kw">enum </span>ExampleMessage {
+    PrintValue(u64),
+    EchoValue(u64, RpcReplyPort&lt;u64&gt;),
+}
+
+<span class="attr">#[cfg(feature = <span class="string">"cluster"</span>)]
+</span><span class="kw">impl </span>ractor::Message <span class="kw">for </span>ExampleMessage {}
+
+<span class="doccomment">/// The worker's specification for the factory. This defines
+/// the business logic for each message that will be done in parallel.
+</span><span class="kw">struct </span>ExampleWorker;
+<span class="attr">#[cfg_attr(feature = <span class="string">"async-trait"</span>, ractor::async_trait)]
+</span><span class="kw">impl </span>Worker <span class="kw">for </span>ExampleWorker {
+    <span class="kw">type </span>Key = ();
+    <span class="kw">type </span>Message = ExampleMessage;
+    <span class="kw">type </span>State = ();
+    <span class="kw">type </span>Arguments = ();
+    <span class="kw">async fn </span>pre_start(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        wid: WorkerId,
+        factory: <span class="kw-2">&amp;</span>ActorRef&lt;FactoryMessage&lt;(), ExampleMessage&gt;&gt;,
+        startup_context: <span class="self">Self</span>::Arguments,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>::State, ActorProcessingErr&gt; {
+        <span class="prelude-val">Ok</span>(startup_context)
+    }
+    <span class="kw">async fn </span>handle(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        wid: WorkerId,
+        factory: <span class="kw-2">&amp;</span>ActorRef&lt;FactoryMessage&lt;(), ExampleMessage&gt;&gt;,
+        Job { msg, key, .. }: Job&lt;(), ExampleMessage&gt;,
+        _state: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::State,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ActorProcessingErr&gt; {
+        <span class="comment">// Actual business logic that we want to parallelize
+        </span><span class="macro">tracing::trace!</span>(<span class="string">"Worker {} received {:?}"</span>, wid, msg);
+        <span class="kw">match </span>msg {
+            ExampleMessage::PrintValue(value) =&gt; {
+                <span class="macro">tracing::info!</span>(<span class="string">"Worker {} printing value {value}"</span>, wid);
+            }
+            ExampleMessage::EchoValue(value, reply) =&gt; {
+                <span class="macro">tracing::info!</span>(<span class="string">"Worker {} echoing value {value}"</span>, wid);
+                <span class="kw">let _ </span>= reply.send(value);
+            }
+        }
+        <span class="prelude-val">Ok</span>(key)
+    }
+}
+<span class="doccomment">/// Used by the factory to build new [ExampleWorker]s.
+</span><span class="kw">struct </span>ExampleWorkerBuilder;
+<span class="kw">impl </span>WorkerBuilder&lt;ExampleWorker, ()&gt; <span class="kw">for </span>ExampleWorkerBuilder {
+    <span class="kw">fn </span>build(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _wid: usize) -&gt; (ExampleWorker, ()) {
+        (ExampleWorker, ())
+    }
+}
+<span class="attr">#[tokio::main]
+</span><span class="kw">async fn </span>main() {
+    <span class="kw">let </span>factory_def = Factory::&lt;
+        (),
+        ExampleMessage,
+        (),
+        ExampleWorker,
+        routing::QueuerRouting&lt;(), ExampleMessage&gt;,
+        queues::DefaultQueue&lt;(), ExampleMessage&gt;,
+    &gt;::default();
+    <span class="kw">let </span>factory_args = FactoryArguments::builder()
+        .worker_builder(Box::new(ExampleWorkerBuilder))
+        .queue(Default::default())
+        .router(Default::default())
+        .num_initial_workers(<span class="number">5</span>)
+        .build();
+
+    <span class="kw">let </span>(factory, handle) = Actor::spawn(<span class="prelude-val">None</span>, factory_def, factory_args)
+        .<span class="kw">await
+        </span>.expect(<span class="string">"Failed to startup factory"</span>);
+    <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..<span class="number">99 </span>{
+        factory
+            .cast(FactoryMessage::Dispatch(Job {
+                key: (),
+                msg: ExampleMessage::PrintValue(i),
+                options: JobOptions::default(),
+                accepted: <span class="prelude-val">None</span>,
+            }))
+            .expect(<span class="string">"Failed to send to factory"</span>);
+    }
+    <span class="kw">let </span>reply = factory
+        .call(
+            |prt| {
+                FactoryMessage::Dispatch(Job {
+                    key: (),
+                    msg: ExampleMessage::EchoValue(<span class="number">123</span>, prt),
+                    options: JobOptions::default(),
+                    accepted: <span class="prelude-val">None</span>,
+                })
+            },
+            <span class="prelude-val">None</span>,
+        )
+        .<span class="kw">await
+        </span>.expect(<span class="string">"Failed to send to factory"</span>)
+        .expect(<span class="string">"Failed to parse reply"</span>);
+    <span class="macro">assert_eq!</span>(reply, <span class="number">123</span>);
+    factory.stop(<span class="prelude-val">None</span>);
+    handle.<span class="kw">await</span>.unwrap();
+}</code></pre></div></div></details><h2 id="reexports" class="section-header">Re-exports<a href="#reexports" class="anchor">§</a></h2><dl class="item-table reexports"><dt id="reexport.DiscardHandler"><code>pub use discard::<a class="trait" href="discard/trait.DiscardHandler.html" title="trait ractor::factory::discard::DiscardHandler">DiscardHandler</a>;</code></dt><dt id="reexport.DiscardMode"><code>pub use discard::<a class="enum" href="discard/enum.DiscardMode.html" title="enum ractor::factory::discard::DiscardMode">DiscardMode</a>;</code></dt><dt id="reexport.DiscardReason"><code>pub use discard::<a class="enum" href="discard/enum.DiscardReason.html" title="enum ractor::factory::discard::DiscardReason">DiscardReason</a>;</code></dt><dt id="reexport.DiscardSettings"><code>pub use discard::<a class="enum" href="discard/enum.DiscardSettings.html" title="enum ractor::factory::discard::DiscardSettings">DiscardSettings</a>;</code></dt><dt id="reexport.DynamicDiscardController"><code>pub use discard::<a class="trait" href="discard/trait.DynamicDiscardController.html" title="trait ractor::factory::discard::DynamicDiscardController">DynamicDiscardController</a>;</code></dt><dt id="reexport.Factory"><code>pub use factoryimpl::<a class="struct" href="factoryimpl/struct.Factory.html" title="struct ractor::factory::factoryimpl::Factory">Factory</a>;</code></dt><dt id="reexport.FactoryArguments"><code>pub use factoryimpl::<a class="struct" href="factoryimpl/struct.FactoryArguments.html" title="struct ractor::factory::factoryimpl::FactoryArguments">FactoryArguments</a>;</code></dt><dt id="reexport.FactoryArgumentsBuilder"><code>pub use factoryimpl::<a class="struct" href="factoryimpl/struct.FactoryArgumentsBuilder.html" title="struct ractor::factory::factoryimpl::FactoryArgumentsBuilder">FactoryArgumentsBuilder</a>;</code></dt><dt id="reexport.Job"><code>pub use job::<a class="struct" href="job/struct.Job.html" title="struct ractor::factory::job::Job">Job</a>;</code></dt><dt id="reexport.JobKey"><code>pub use job::<a class="trait" href="job/trait.JobKey.html" title="trait ractor::factory::job::JobKey">JobKey</a>;</code></dt><dt id="reexport.JobOptions"><code>pub use job::<a class="struct" href="job/struct.JobOptions.html" title="struct ractor::factory::job::JobOptions">JobOptions</a>;</code></dt><dt id="reexport.MessageRetryStrategy"><code>pub use job::<a class="enum" href="job/enum.MessageRetryStrategy.html" title="enum ractor::factory::job::MessageRetryStrategy">MessageRetryStrategy</a>;</code></dt><dt id="reexport.RetriableMessage"><code>pub use job::<a class="struct" href="job/struct.RetriableMessage.html" title="struct ractor::factory::job::RetriableMessage">RetriableMessage</a>;</code></dt><dt id="reexport.FactoryLifecycleHooks"><code>pub use lifecycle::<a class="trait" href="lifecycle/trait.FactoryLifecycleHooks.html" title="trait ractor::factory::lifecycle::FactoryLifecycleHooks">FactoryLifecycleHooks</a>;</code></dt><dt id="reexport.LeakyBucketRateLimiter"><code>pub use ratelim::<a class="struct" href="ratelim/struct.LeakyBucketRateLimiter.html" title="struct ractor::factory::ratelim::LeakyBucketRateLimiter">LeakyBucketRateLimiter</a>;</code></dt><dt id="reexport.RateLimitedRouter"><code>pub use ratelim::<a class="struct" href="ratelim/struct.RateLimitedRouter.html" title="struct ractor::factory::ratelim::RateLimitedRouter">RateLimitedRouter</a>;</code></dt><dt id="reexport.RateLimiter"><code>pub use ratelim::<a class="trait" href="ratelim/trait.RateLimiter.html" title="trait ractor::factory::ratelim::RateLimiter">RateLimiter</a>;</code></dt><dt id="reexport.DeadMansSwitchConfiguration"><code>pub use worker::<a class="struct" href="worker/struct.DeadMansSwitchConfiguration.html" title="struct ractor::factory::worker::DeadMansSwitchConfiguration">DeadMansSwitchConfiguration</a>;</code></dt><dt id="reexport.Worker"><code>pub use worker::<a class="trait" href="worker/trait.Worker.html" title="trait ractor::factory::worker::Worker">Worker</a>;</code></dt><dt id="reexport.WorkerBuilder"><code>pub use worker::<a class="trait" href="worker/trait.WorkerBuilder.html" title="trait ractor::factory::worker::WorkerBuilder">WorkerBuilder</a>;</code></dt><dt id="reexport.WorkerCapacityController"><code>pub use worker::<a class="trait" href="worker/trait.WorkerCapacityController.html" title="trait ractor::factory::worker::WorkerCapacityController">WorkerCapacityController</a>;</code></dt><dt id="reexport.WorkerMessage"><code>pub use worker::<a class="enum" href="worker/enum.WorkerMessage.html" title="enum ractor::factory::worker::WorkerMessage">WorkerMessage</a>;</code></dt><dt id="reexport.WorkerProperties"><code>pub use worker::<a class="struct" href="worker/struct.WorkerProperties.html" title="struct ractor::factory::worker::WorkerProperties">WorkerProperties</a>;</code></dt><dt id="reexport.WorkerStartContext"><code>pub use worker::<a class="struct" href="worker/struct.WorkerStartContext.html" title="struct ractor::factory::worker::WorkerStartContext">WorkerStartContext</a>;</code></dt></dl><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><dl class="item-table"><dt><a class="mod" href="discard/index.html" title="mod ractor::factory::discard">discard</a></dt><dd>Discard handler managing when jobs are discarded</dd><dt><a class="mod" href="factoryimpl/index.html" title="mod ractor::factory::factoryimpl">factoryimpl</a></dt><dd>Factory definition</dd><dt><a class="mod" href="hash/index.html" title="mod ractor::factory::hash">hash</a></dt><dd>Factory’s defaulting routing hash mechanism. Hashes a <a href="job/trait.JobKey.html" title="trait ractor::factory::job::JobKey">super::JobKey</a> to a finite
+space</dd><dt><a class="mod" href="job/index.html" title="mod ractor::factory::job">job</a></dt><dd>Specification for a <a href="job/struct.Job.html" title="struct ractor::factory::job::Job">Job</a> sent to a factory</dd><dt><a class="mod" href="lifecycle/index.html" title="mod ractor::factory::lifecycle">lifecycle</a></dt><dd>Lifecycle hooks support interjecting external logic into the factory’s
+lifecycle (startup/shutdown/etc) such that users can intercept and
+adjust factory functionality at key interjection points.</dd><dt><a class="mod" href="queues/index.html" title="mod ractor::factory::queues">queues</a></dt><dd>Queue implementations for Factories</dd><dt><a class="mod" href="ratelim/index.html" title="mod ractor::factory::ratelim">ratelim</a></dt><dd>Rate limiting protocols for factory routers</dd><dt><a class="mod" href="routing/index.html" title="mod ractor::factory::routing">routing</a></dt><dd>Routing protocols for Factories</dd><dt><a class="mod" href="stats/index.html" title="mod ractor::factory::stats">stats</a></dt><dd>Statistics management + collection for factories</dd><dt><a class="mod" href="worker/index.html" title="mod ractor::factory::worker">worker</a></dt><dd>Factory worker properties</dd></dl><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><dl class="item-table"><dt><a class="struct" href="struct.UpdateSettingsRequest.html" title="struct ractor::factory::UpdateSettingsRequest">Update<wbr>Settings<wbr>Request</a></dt><dd>The settings to change for an update request to the factory at runtime.</dd><dt><a class="struct" href="struct.UpdateSettingsRequestBuilder.html" title="struct ractor::factory::UpdateSettingsRequestBuilder">Update<wbr>Settings<wbr>Request<wbr>Builder</a></dt><dd>Use builder syntax to set the required parameters and finish by calling the method <a href="struct.UpdateSettingsRequestBuilder.html#method.build" title="method ractor::factory::UpdateSettingsRequestBuilder::build"><code>Self::build()</code></a>.</dd></dl><h2 id="enums" class="section-header">Enums<a href="#enums" class="anchor">§</a></h2><dl class="item-table"><dt><a class="enum" href="enum.FactoryMessage.html" title="enum ractor::factory::FactoryMessage">Factory<wbr>Message</a></dt><dd>Messages to a factory.</dd></dl><h2 id="types" class="section-header">Type Aliases<a href="#types" class="anchor">§</a></h2><dl class="item-table"><dt><a class="type" href="type.WorkerId.html" title="type ractor::factory::WorkerId">Worker<wbr>Id</a></dt><dd>Unique identifier of a disctinct worker in the factory</dd></dl></section></div></main></body></html>

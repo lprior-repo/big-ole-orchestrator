@@ -1,0 +1,67 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Process groups (PG) are named groups of actors with a friendly name which can be used for retrieval of the process groups. Then within the group, either a random actor (for dispatch) can be selected or the whole group (broadcast), or a subset (partial-broadcast) can have a message sent to them. Common operations are to (a) upcast the group members to a strong-type’d actor then dispatch a message with crate::call or crate::cast."><title>ractor::pg - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-77263533.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="ractor" data-themes="" data-resource-suffix="" data-rustdoc-version="1.94.0 (4a4ef493e 2026-03-02)" data-channel="1.94.0" data-search-js="search-9e2438ea.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-c38705f0.js" ><script src="../../static.files/storage-e2aeef58.js"></script><script defer src="../sidebar-items.js"></script><script defer src="../../static.files/main-7bab91a1.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-ffcac47a.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc mod"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Module pg</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../ractor/index.html">ractor</a><span class="version">0.15.12</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Module pg</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#examples" title="Examples">Examples</a></li></ul><h3><a href="#structs">Module Items</a></h3><ul class="block"><li><a href="#structs" title="Structs">Structs</a></li><li><a href="#enums" title="Enums">Enums</a></li><li><a href="#constants" title="Constants">Constants</a></li><li><a href="#functions" title="Functions">Functions</a></li></ul></section><div id="rustdoc-modnav"><h2 class="in-crate"><a href="../index.html">In crate ractor</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../index.html">ractor</a></div><h1>Module <span>pg</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../src/ractor/pg.rs.html#6-625">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Process groups (PG) are named groups of actors with a friendly name
+which can be used for retrieval of the process groups. Then within
+the group, either a random actor (for dispatch) can be selected or
+the whole group (broadcast), or a subset (partial-broadcast) can have
+a message sent to them. Common operations are to (a) upcast the group
+members to a strong-type’d actor then dispatch a message with <a href="../macro.call.html" title="macro ractor::call">crate::call</a>
+or <a href="../macro.cast.html" title="macro ractor::cast">crate::cast</a>.</p>
+<p>Process groups can also be monitored for changes with calling <a href="fn.monitor.html" title="fn ractor::pg::monitor">monitor</a> to
+subscribe to changes and <a href="fn.demonitor.html" title="fn ractor::pg::demonitor">demonitor</a> to unsubscribe. Subscribers will receive
+process group change notifications via a <a href="../actor/messages/enum.SupervisionEvent.html" title="enum ractor::actor::messages::SupervisionEvent">SupervisionEvent</a> called on the
+supervision port of the <a href="../actor/trait.Actor.html" title="trait ractor::actor::Actor">crate::Actor</a></p>
+<p>Inspired from <a href="https://www.erlang.org/doc/man/pg.html">Erlang’s <code>pg</code> module</a></p>
+<h3 id="examples"><a class="doc-anchor" href="#examples">§</a>Examples</h3>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>ractor::pg;
+<span class="kw">use </span>ractor::Actor;
+<span class="kw">use </span>ractor::ActorProcessingErr;
+<span class="kw">use </span>ractor::ActorRef;
+
+<span class="kw">struct </span>ExampleActor;
+
+<span class="attr">#[cfg_attr(feature = <span class="string">"async-trait"</span>, ractor::async_trait)]
+</span><span class="kw">impl </span>Actor <span class="kw">for </span>ExampleActor {
+    <span class="kw">type </span>Msg = ();
+    <span class="kw">type </span>State = ();
+    <span class="kw">type </span>Arguments = ();
+
+    <span class="kw">async fn </span>pre_start(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        _myself: ActorRef&lt;<span class="self">Self</span>::Msg&gt;,
+        _args: <span class="self">Self</span>::Arguments,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>::State, ActorProcessingErr&gt; {
+        <span class="macro">println!</span>(<span class="string">"Starting"</span>);
+        <span class="prelude-val">Ok</span>(())
+    }
+}
+
+<span class="attr">#[tokio::main]
+</span><span class="kw">async fn </span>main() {
+    <span class="kw">let </span>(actor, handle) = Actor::spawn(<span class="prelude-val">None</span>, ExampleActor, ())
+        .<span class="kw">await
+        </span>.expect(<span class="string">"Failed to startup dummy actor"</span>);
+    <span class="kw">let </span>group = <span class="string">"the_group"</span>.to_string();
+
+    <span class="comment">// Join the actor to a group. This is also commonly done in `pre_start` or `post_start`
+    // of the actor itself without having to do it externally by some coordinator
+    </span>pg::join(group.clone(), <span class="macro">vec!</span>[actor.get_cell()]);
+    <span class="comment">// Retrieve the pg group membership
+    </span><span class="kw">let </span>members = pg::get_members(<span class="kw-2">&amp;</span>group);
+    <span class="comment">// Send a message to the up-casted actor
+    </span><span class="kw">let </span>the_actor: ActorRef&lt;()&gt; = members.get(<span class="number">0</span>).unwrap().clone().into();
+    <span class="macro">ractor::cast!</span>(the_actor, ()).expect(<span class="string">"Failed to send message"</span>);
+
+    <span class="comment">// wait for actor exit
+    </span>actor.stop(<span class="prelude-val">None</span>);
+    handle.<span class="kw">await</span>.unwrap();
+
+    <span class="comment">// The actor will automatically be removed from the group upon shutdown.
+    </span><span class="kw">let </span>members = pg::get_members(<span class="kw-2">&amp;</span>group);
+    <span class="macro">assert_eq!</span>(members.len(), <span class="number">0</span>);
+}</code></pre></div></div></details><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><dl class="item-table"><dt><a class="struct" href="struct.ScopeGroupKey.html" title="struct ractor::pg::ScopeGroupKey">Scope<wbr>Group<wbr>Key</a></dt><dd>Represents the combination of a <code>ScopeName</code> and a <code>GroupName</code>
+that uniquely identifies a specific group in a specific scope</dd></dl><h2 id="enums" class="section-header">Enums<a href="#enums" class="anchor">§</a></h2><dl class="item-table"><dt><a class="enum" href="enum.GroupChangeMessage.html" title="enum ractor::pg::GroupChangeMessage">Group<wbr>Change<wbr>Message</a></dt><dd>Represents a change in a process group’s membership</dd></dl><h2 id="constants" class="section-header">Constants<a href="#constants" class="anchor">§</a></h2><dl class="item-table"><dt><a class="constant" href="constant.ALL_GROUPS_NOTIFICATION.html" title="constant ractor::pg::ALL_GROUPS_NOTIFICATION">ALL_<wbr>GROUPS_<wbr>NOTIFICATION</a></dt><dd>Key to monitor all of the groups in a scope</dd><dt><a class="constant" href="constant.ALL_SCOPES_NOTIFICATION.html" title="constant ractor::pg::ALL_SCOPES_NOTIFICATION">ALL_<wbr>SCOPES_<wbr>NOTIFICATION</a></dt><dd>Key to monitor all of the scopes</dd><dt><a class="constant" href="constant.DEFAULT_SCOPE.html" title="constant ractor::pg::DEFAULT_SCOPE">DEFAULT_<wbr>SCOPE</a></dt><dd>Key to set the default scope</dd></dl><h2 id="functions" class="section-header">Functions<a href="#functions" class="anchor">§</a></h2><dl class="item-table"><dt><a class="fn" href="fn.demonitor.html" title="fn ractor::pg::demonitor">demonitor</a></dt><dd>Unsubscribes the provided <a href="../actor/trait.Actor.html" title="trait ractor::actor::Actor">crate::Actor</a> for updates from the group
+in default scope</dd><dt><a class="fn" href="fn.demonitor_scope.html" title="fn ractor::pg::demonitor_scope">demonitor_<wbr>scope</a></dt><dd>Unsubscribes the provided <a href="../actor/trait.Actor.html" title="trait ractor::actor::Actor">crate::Actor</a> from the scope for updates</dd><dt><a class="fn" href="fn.get_local_members.html" title="fn ractor::pg::get_local_members">get_<wbr>local_<wbr>members</a></dt><dd>Returns all actors running on the local node in the group <code>group</code>
+in the default scope.</dd><dt><a class="fn" href="fn.get_members.html" title="fn ractor::pg::get_members">get_<wbr>members</a></dt><dd>Returns all the actors running on any node in the group <code>group</code>
+in the default scope.</dd><dt><a class="fn" href="fn.get_scoped_local_members.html" title="fn ractor::pg::get_scoped_local_members">get_<wbr>scoped_<wbr>local_<wbr>members</a></dt><dd>Returns all actors running on the local node in the group <code>group</code>
+in scope <code>scope</code></dd><dt><a class="fn" href="fn.get_scoped_members.html" title="fn ractor::pg::get_scoped_members">get_<wbr>scoped_<wbr>members</a></dt><dd>Returns all the actors running on any node in the group <code>group</code>
+in the scope <code>scope</code>.</dd><dt><a class="fn" href="fn.join.html" title="fn ractor::pg::join">join</a></dt><dd>Join actors to the group <code>group</code> in the default scope</dd><dt><a class="fn" href="fn.join_scoped.html" title="fn ractor::pg::join_scoped">join_<wbr>scoped</a></dt><dd>Join actors to the group <code>group</code> within the scope <code>scope</code></dd><dt><a class="fn" href="fn.leave.html" title="fn ractor::pg::leave">leave</a></dt><dd>Leaves the specified <a href="../actor/trait.Actor.html" title="trait ractor::actor::Actor">crate::Actor</a>s from the PG group in the default scope</dd><dt><a class="fn" href="fn.leave_scoped.html" title="fn ractor::pg::leave_scoped">leave_<wbr>scoped</a></dt><dd>Leaves the specified <a href="../actor/trait.Actor.html" title="trait ractor::actor::Actor">crate::Actor</a>s from the PG group within the scope <code>scope</code></dd><dt><a class="fn" href="fn.monitor.html" title="fn ractor::pg::monitor">monitor</a></dt><dd>Subscribes the provided <a href="../actor/trait.Actor.html" title="trait ractor::actor::Actor">crate::Actor</a> to the group in the default scope
+for updates</dd><dt><a class="fn" href="fn.monitor_scope.html" title="fn ractor::pg::monitor_scope">monitor_<wbr>scope</a></dt><dd>Subscribes the provided <a href="../actor/trait.Actor.html" title="trait ractor::actor::Actor">crate::Actor</a> to the scope for updates</dd><dt><a class="fn" href="fn.which_groups.html" title="fn ractor::pg::which_groups">which_<wbr>groups</a></dt><dd>Return a list of all known groups</dd><dt><a class="fn" href="fn.which_scoped_groups.html" title="fn ractor::pg::which_scoped_groups">which_<wbr>scoped_<wbr>groups</a></dt><dd>Returns a list of all known groups in scope <code>scope</code></dd><dt><a class="fn" href="fn.which_scopes.html" title="fn ractor::pg::which_scopes">which_<wbr>scopes</a></dt><dd>Returns a list of all known scopes</dd><dt><a class="fn" href="fn.which_scopes_and_groups.html" title="fn ractor::pg::which_scopes_and_groups">which_<wbr>scopes_<wbr>and_<wbr>groups</a></dt><dd>Returns a list of all known scope-group combinations.</dd></dl></section></div></main></body></html>

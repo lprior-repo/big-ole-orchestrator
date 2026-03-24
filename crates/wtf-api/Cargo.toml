@@ -44,5 +44,6 @@ regex = { workspace = true }
 sled = "0.34"
 
 [dev-dependencies]
+tempfile = { workspace = true }
 tower = { workspace = true, features = ["util"] }
 hyper = { version = "1", features = ["full"] }

@@ -48,6 +48,8 @@ impl Actor for WorkflowInstance {
             init::spawn_live_subscription(&mut state, &myself, c);
         }
 
+        init::publish_instance_started(&state.args, from_seq, &event_log).await?;
+
         state.phase = InstancePhase::Live;
 
         // Start heartbeat timer

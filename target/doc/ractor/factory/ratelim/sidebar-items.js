@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["MAX_LB_BALANCE"],"struct":["LeakyBucketRateLimiter","LeakyBucketRateLimiterBuilder","RateLimitedRouter","RateLimitedRouterBuilder"],"trait":["RateLimiter"]};

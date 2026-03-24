@@ -1,8 +1,11 @@
 //! Message handlers for WorkflowInstance actors.
 
+pub(crate) mod snapshot;
+
+use super::lifecycle::ParadigmState;
 use super::procedural;
 use super::state::InstanceState;
-use crate::messages::{InstanceMsg, InstancePhaseView, InstanceStatusSnapshot};
+use crate::messages::{current_state_view, InstanceMsg, InstancePhaseView, InstanceStatusSnapshot};
 use bytes::Bytes;
 use ractor::{ActorProcessingErr, ActorRef, RpcReplyPort};
 use wtf_common::{ActivityId, WorkflowEvent, WtfError};
@@ -66,6 +69,13 @@ async fn handle_procedural_msg(
         } => {
             procedural::handle_random(state, operation_id, reply).await;
         }
+        InstanceMsg::ProceduralWaitForSignal {
+            operation_id,
+            signal_name,
+            reply,
+        } => {
+            procedural::handle_wait_for_signal(state, operation_id, signal_name, reply).await;
+        }
         InstanceMsg::ProceduralWorkflowCompleted => {
             procedural::handle_completed(myself_ref, state).await;
         }
@@ -110,21 +120,61 @@ async fn handle_inject_event_msg(
         }
     }
 
+    if let WorkflowEvent::SignalReceived {
+        signal_name,
+        payload,
+    } = &event
+    {
+        if let Some(port) = state.pending_signal_calls.remove(signal_name) {
+            let _ = port.send(Ok::<Bytes, WtfError>(payload.clone()));
+        }
+    }
+
     Ok(())
 }
 
-async fn handle_signal(
-    state: &InstanceState,
+pub(crate) async fn handle_signal(
+    state: &mut InstanceState,
     signal_name: String,
-    _payload: Bytes,
+    payload: Bytes,
     reply: RpcReplyPort<Result<(), WtfError>>,
 ) -> Result<(), ActorProcessingErr> {
-    tracing::debug!(
-        instance_id = %state.args.instance_id,
-        signal = %signal_name,
-        "signal received (stub)"
-    );
-    let _ = reply.send(Ok(()));
+    let store = match &state.args.event_store {
+        Some(s) => s,
+        None => {
+            let _ = reply.send(Err(WtfError::nats_publish("Event store missing")));
+            return Ok(());
+        }
+    };
+
+    let event = WorkflowEvent::SignalReceived {
+        signal_name: signal_name.clone(),
+        payload: payload.clone(),
+    };
+
+    match store
+        .publish(&state.args.namespace, &state.args.instance_id, event.clone())
+        .await
+    {
+        Ok(seq) => {
+            // Deliver to pending RPC port if one is registered
+            if let Some(port) = state.pending_signal_calls.remove(&signal_name) {
+                let _ = port.send(Ok(payload));
+            } else if let ParadigmState::Procedural(s) = &mut state.paradigm_state {
+                // Buffer the signal for a future wait_for_signal call
+                s.received_signals
+                    .entry(signal_name)
+                    .or_default()
+                    .push(payload);
+            }
+            let _ = inject_event(state, seq, &event).await;
+            let _ = reply.send(Ok(()));
+        }
+        Err(e) => {
+            let _ = reply.send(Err(e));
+        }
+    }
+
     Ok(())
 }
 
@@ -140,7 +190,7 @@ async fn handle_heartbeat(state: &InstanceState) -> Result<(), ActorProcessingEr
     Ok(())
 }
 
-async fn handle_cancel(
+pub(crate) async fn handle_cancel(
     myself_ref: ActorRef<InstanceMsg>,
     state: &InstanceState,
     reason: String,
@@ -185,6 +235,7 @@ fn handle_get_status(
         paradigm: state.args.paradigm,
         phase: InstancePhaseView::from(state.phase),
         events_applied: state.total_events_applied,
+        current_state: current_state_view(&state.paradigm_state),
     });
     Ok(())
 }
@@ -206,17 +257,8 @@ pub async fn inject_event(
     state.events_since_snapshot += 1;
 
     if state.events_since_snapshot >= SNAPSHOT_INTERVAL {
-        handle_snapshot_trigger(state);
+        snapshot::handle_snapshot_trigger(state).await?;
     }
 
     Ok(())
-}
-
-fn handle_snapshot_trigger(state: &mut InstanceState) {
-    tracing::debug!(
-        instance_id = %state.args.instance_id,
-        total = state.total_events_applied,
-        "snapshot trigger (stub — see wtf-flbh)"
-    );
-    state.events_since_snapshot = 0;
 }

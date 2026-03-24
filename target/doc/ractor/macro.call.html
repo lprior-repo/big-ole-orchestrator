@@ -1,0 +1,59 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="`call!`: Perform an infinite-time remote procedure call to an crate::Actor"><title>call in ractor - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-77263533.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="ractor" data-themes="" data-resource-suffix="" data-rustdoc-version="1.94.0 (4a4ef493e 2026-03-02)" data-channel="1.94.0" data-search-js="search-9e2438ea.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-c38705f0.js" ><script src="../static.files/storage-e2aeef58.js"></script><script defer src="sidebar-items.js"></script><script defer src="../static.files/main-7bab91a1.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-ffcac47a.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc macro"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">call</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../ractor/index.html">ractor</a><span class="version">0.15.12</span></h2></div><div class="sidebar-elems"><div id="rustdoc-modnav"></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="index.html">ractor</a></div><h1>Macro <span class="macro">call</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/ractor/macros.rs.html#75-98">Source</a> </span></div><pre class="rust item-decl"><code>macro_rules! call {
+    ($actor:expr, $msg:expr) =&gt; { ... };
+    ($actor:expr, $msg:expr, $($args:expr),*) =&gt; { ... };
+}</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p><code>call!</code>: Perform an infinite-time remote procedure call to an <a href="actor/trait.Actor.html" title="trait ractor::actor::Actor">crate::Actor</a></p>
+<ul>
+<li><code>$actor</code> - The actor to call</li>
+<li><code>$msg</code> - The message builder which takes in a <a href="port/struct.RpcReplyPort.html" title="struct ractor::port::RpcReplyPort">crate::port::RpcReplyPort</a> and emits a message which
+the actor supports</li>
+<li><code>$args</code> - (optional) Variable length arguments which will PRECEDE the reply channel when
+constructing the message payload</li>
+</ul>
+<p>Returns [Ok(_)] with the result on successful RPC or [Err(crate::RactorErr)] on failure
+Example usage (without the <code>cluster</code> feature)</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>ractor::{call, Actor, RpcReplyPort, ActorRef, ActorProcessingErr};
+<span class="kw">struct </span>TestActor;
+<span class="kw">enum </span>MessageFormat {
+    TestRpc(String, RpcReplyPort&lt;String&gt;),
+}
+<span class="attr">#[cfg(feature = <span class="string">"cluster"</span>)]
+</span><span class="kw">impl </span>ractor::Message <span class="kw">for </span>MessageFormat {}
+
+<span class="attr">#[cfg_attr(feature = <span class="string">"async-trait"</span>, ractor::async_trait)]
+</span><span class="kw">impl </span>Actor <span class="kw">for </span>TestActor {
+    <span class="kw">type </span>Msg = MessageFormat;
+    <span class="kw">type </span>Arguments = ();
+    <span class="kw">type </span>State = ();
+
+    <span class="kw">async fn </span>pre_start(<span class="kw-2">&amp;</span><span class="self">self</span>, _this_actor: ActorRef&lt;<span class="self">Self</span>::Msg&gt;, <span class="kw">_</span>: ()) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>::State, ActorProcessingErr&gt; {
+        <span class="prelude-val">Ok</span>(())
+    }
+
+    <span class="kw">async fn </span>handle(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        _this_actor: ActorRef&lt;<span class="self">Self</span>::Msg&gt;,
+        message: <span class="self">Self</span>::Msg,
+        _state: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::State,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ActorProcessingErr&gt; {
+        <span class="kw">match </span>message {
+            <span class="self">Self</span>::Msg::TestRpc(arg, reply) =&gt; {
+                <span class="comment">// An error sending means no one is listening anymore (the receiver was dropped),
+                // so we should shortcut the processing of this message probably!
+                </span><span class="kw">if </span>!reply.is_closed() {
+                    <span class="kw">let _ </span>= reply.send(arg);
+                }
+            }
+        }
+        <span class="prelude-val">Ok</span>(())
+    }
+}
+
+<span class="attr">#[tokio::main]
+</span><span class="kw">async fn </span>main() {
+    <span class="kw">let </span>(actor, handle) = Actor::spawn(<span class="prelude-val">None</span>, TestActor, ()).<span class="kw">await</span>.unwrap();
+    <span class="kw">let </span>result = <span class="macro">call!</span>(actor, MessageFormat::TestRpc, <span class="string">"Something"</span>.to_string()).unwrap();
+    <span class="macro">assert_eq!</span>(result, <span class="string">"Something"</span>.to_string());
+    actor.stop(<span class="prelude-val">None</span>);
+    handle.<span class="kw">await</span>.unwrap();
+}</code></pre></div></div></details></section></div></main></body></html>

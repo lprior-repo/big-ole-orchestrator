@@ -1,0 +1,129 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="`bon` is a Rust crate for generating compile-time-checked builders for functions and structs. It also provides idiomatic partial application with optional and named parameters for functions and methods."><title>bon - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-77263533.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="bon" data-themes="" data-resource-suffix="" data-rustdoc-version="1.94.0 (4a4ef493e 2026-03-02)" data-channel="1.94.0" data-search-js="search-9e2438ea.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-c38705f0.js" ><script src="../static.files/storage-e2aeef58.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-7bab91a1.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-ffcac47a.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Crate bon</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../bon/index.html">bon</a><span class="version">2.3.0</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section id="rustdoc-toc"><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#quick-examples" title="Quick examples">Quick examples</a><ul><li><a href="#builder-for-a-free-function" title="Builder for a free function">Builder for a free function</a></li><li><a href="#builder-for-an-associated-method" title="Builder for an associated method">Builder for an associated method</a></li><li><a href="#builder-for-a-struct" title="Builder for a struct">Builder for a struct</a></li></ul></li></ul><h3><a href="#macros">Crate Items</a></h3><ul class="block"><li><a href="#macros" title="Macros">Macros</a></li><li><a href="#attributes" title="Attribute Macros">Attribute Macros</a></li><li><a href="#derives" title="Derive Macros">Derive Macros</a></li></ul></section><div id="rustdoc-modnav"></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content"><div class="main-heading"><h1>Crate <span>bon</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/bon/lib.rs.html#1-162">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><a href="https://elastio.github.io/bon/guide/overview">
+    <!--
+    We use an absolute link to the image here because this README is hosted on crates.io,
+    lib.rs and docs.rs where this image isn't available through the relative link.
+    -->
+    <img
+        src="https://elastio.github.io/bon/bon-home.png"
+        alt="bon home"
+    />
+</a>
+<p align="center">
+    <a href="https://github.com/elastio/bon"><img
+        alt="github"
+        src="https://img.shields.io/badge/github-elastio/bon-228b22?style=for-the-badge&labelColor=555555&logo=github"
+        height="25"
+    /></a>
+    <a href="https://crates.io/crates/bon"><img
+        alt="crates.io"
+        src="https://img.shields.io/crates/v/bon.svg?style=for-the-badge&color=e37602&logo=rust"
+        height="25"
+    /></a>
+    <a href="https://docs.rs/bon/latest/bon/"><img
+        alt="docs.rs"
+        src="https://img.shields.io/badge/docs.rs-bon-3b74d1?style=for-the-badge&labelColor=555555&logo=docs.rs"
+        height="25"
+    /></a>
+      <a href="https://docs.rs/bon/latest/bon/"><img
+        alt="docs.rs"
+        src="https://img.shields.io/badge/MSRV-1.59.0-b83fbf?style=for-the-badge&labelColor=555555&logo=docs.rs"
+        height="25"
+    /></a>
+</p>
+<p><code>bon</code> is a Rust crate for generating compile-time-checked builders for functions and structs. It also provides idiomatic partial application with optional and named parameters for functions and methods.</p>
+<p>Visit the <a href="https://elastio.github.io/bon/guide/overview">guide for a complete overview of the crate</a>.</p>
+<h3 id="quick-examples"><a class="doc-anchor" href="#quick-examples">§</a>Quick examples</h3><h4 id="builder-for-a-free-function"><a class="doc-anchor" href="#builder-for-a-free-function">§</a>Builder for a free function</h4>
+<p>You can turn a function with positional parameters into a function with named parameters just by placing the <code>#[builder]</code> attribute on top of it.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>bon::builder;
+
+<span class="attr">#[builder]
+</span><span class="kw">fn </span>greet(name: <span class="kw-2">&amp;</span>str, level: <span class="prelude-ty">Option</span>&lt;u32&gt;) -&gt; String {
+    <span class="kw">let </span>level = level.unwrap_or(<span class="number">0</span>);
+
+    <span class="macro">format!</span>(<span class="string">"Hello {name}! Your level is {level}"</span>)
+}
+
+<span class="kw">let </span>greeting = greet()
+    .name(<span class="string">"Bon"</span>)
+    .level(<span class="number">24</span>) <span class="comment">// &lt;- setting `level` is optional, we could omit it
+    </span>.call();
+
+<span class="macro">assert_eq!</span>(greeting, <span class="string">"Hello Bon! Your level is 24"</span>);</code></pre></div><h4 id="builder-for-an-associated-method"><a class="doc-anchor" href="#builder-for-an-associated-method">§</a>Builder for an associated method</h4>
+<p>For associated methods you also need to add the <code>#[bon]</code> macro on top of the impl block.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>bon::bon;
+
+<span class="kw">struct </span>User {
+    id: u32,
+    name: String,
+}
+
+<span class="attr">#[bon] </span><span class="comment">// &lt;- this attribute is required on impl blocks that contain `#[builder]`
+</span><span class="kw">impl </span>User {
+    <span class="attr">#[builder]
+    </span><span class="kw">fn </span>new(id: u32, name: String) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{ id, name }
+    }
+
+    <span class="attr">#[builder]
+    </span><span class="kw">fn </span>greet(<span class="kw-2">&amp;</span><span class="self">self</span>, target: <span class="kw-2">&amp;</span>str, level: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;) -&gt; String {
+        <span class="kw">let </span>level = level.unwrap_or(<span class="string">"INFO"</span>);
+        <span class="kw">let </span>name = <span class="kw-2">&amp;</span><span class="self">self</span>.name;
+
+        <span class="macro">format!</span>(<span class="string">"[{level}] {name} says hello to {target}"</span>)
+    }
+}
+
+<span class="comment">// The method named `new` generates `builder()/build()` methods
+</span><span class="kw">let </span>user = User::builder()
+    .id(<span class="number">1</span>)
+    .name(<span class="string">"Bon"</span>.to_owned())
+    .build();
+
+<span class="comment">// All other methods generate `method_name()/call()` methods
+</span><span class="kw">let </span>greeting = user
+    .greet()
+    .target(<span class="string">"the world"</span>)
+    <span class="comment">// `level` is optional, we can omit it here
+    </span>.call();
+
+<span class="macro">assert_eq!</span>(user.id, <span class="number">1</span>);
+<span class="macro">assert_eq!</span>(user.name, <span class="string">"Bon"</span>);
+<span class="macro">assert_eq!</span>(greeting, <span class="string">"[INFO] Bon says hello to the world"</span>);</code></pre></div><h4 id="builder-for-a-struct"><a class="doc-anchor" href="#builder-for-a-struct">§</a>Builder for a struct</h4>
+<p>The <code>#[derive(Builder)]</code> macro generates a builder for a struct.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>bon::Builder;
+
+<span class="attr">#[derive(Builder)]
+</span><span class="kw">struct </span>User {
+    name: String,
+    is_admin: bool,
+    level: <span class="prelude-ty">Option</span>&lt;u32&gt;,
+}
+
+<span class="kw">let </span>user = User::builder()
+    .name(<span class="string">"Bon"</span>.to_owned())
+    <span class="comment">// `level` is optional, we could omit it here
+    </span>.level(<span class="number">24</span>)
+    <span class="comment">// call setters in any order
+    </span>.is_admin(<span class="bool-val">true</span>)
+    .build();
+
+<span class="macro">assert_eq!</span>(user.name, <span class="string">"Bon"</span>);
+<span class="macro">assert_eq!</span>(user.level, <span class="prelude-val">Some</span>(<span class="number">24</span>));
+<span class="macro">assert!</span>(user.is_admin);</code></pre></div>
+<p>See <a href="https://elastio.github.io/bon/guide/overview">the guide</a> for the rest.</p>
+<hr />
+<p>If you like the idea of this crate and want to say “thank you” or “keep doing this” consider giving us a <a href="https://github.com/elastio/bon">star ⭐ on Github</a>. Any support and contribution are appreciated 🐱!</p>
+<h5 id="license"><a class="doc-anchor" href="#license">§</a>License</h5><sup>
+Licensed under either of <a href="https://github.com/elastio/bon/blob/master/LICENSE-APACHE">Apache License, Version
+2.0</a> or <a href="https://github.com/elastio/bon/blob/master/LICENSE-MIT">MIT license</a> at your option.
+</sup>
+<br>
+<sub>
+Unless you explicitly state otherwise, any contribution intentionally submitted
+for inclusion in the work by you, as defined in the Apache-2.0 license, shall be
+dual licensed as above, without any additional terms or conditions.
+</sub></div></details><h2 id="macros" class="section-header">Macros<a href="#macros" class="anchor">§</a></h2><dl class="item-table"><dt><a class="macro" href="macro.arr.html" title="macro bon::arr">arr</a></dt><dd>Creates a fixed-size array literal with each element converted with <a href="https://doc.rust-lang.org/1.94.0/core/convert/trait.Into.html" title="trait core::convert::Into"><code>Into</code></a>.</dd><dt><a class="macro" href="macro.map.html" title="macro bon::map">map</a></dt><dd>Creates any map-like collection that implements <a href="https://doc.rust-lang.org/stable/std/iter/trait.FromIterator.html"><code>FromIterator&lt;(K, V)&gt;</code></a>.</dd><dt><a class="macro" href="macro.set.html" title="macro bon::set">set</a></dt><dd>Creates any set-like collection that implements <a href="https://doc.rust-lang.org/stable/std/iter/trait.FromIterator.html"><code>FromIterator&lt;T&gt;</code></a>.</dd><dt><a class="macro" href="macro.vec.html" title="macro bon::vec">vec</a></dt><dd>Same as <a href="https://doc.rust-lang.org/1.94.0/alloc/macro.vec.html" title="macro alloc::vec"><code>std::vec!</code></a> but converts each element with <a href="https://doc.rust-lang.org/1.94.0/core/convert/trait.Into.html" title="trait core::convert::Into"><code>Into</code></a>.</dd></dl><h2 id="attributes" class="section-header">Attribute Macros<a href="#attributes" class="anchor">§</a></h2><dl class="item-table"><dt><a class="attr" href="attr.bon.html" title="attr bon::bon">bon</a></dt><dd>Companion macro for <a href="attr.builder.html" title="attr bon::builder"><code>builder</code></a>. You should place it on top of the <code>impl</code> block
+where you want to define methods with the <a href="attr.builder.html" title="attr bon::builder"><code>builder</code></a> macro.</dd><dt><a class="attr" href="attr.builder.html" title="attr bon::builder">builder</a></dt><dd>Generates a builder for the function or method it’s placed on.</dd></dl><h2 id="derives" class="section-header">Derive Macros<a href="#derives" class="anchor">§</a></h2><dl class="item-table"><dt><a class="derive" href="derive.Builder.html" title="derive bon::Builder">Builder</a></dt><dd>Derives a builder for the struct it’s placed on.</dd></dl></section></div></main></body></html>

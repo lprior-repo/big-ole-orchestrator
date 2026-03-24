@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"attr":["async_trait"],"fn":["spawn","spawn_local","spawn_named"],"macro":["call","call_t","cast","forward"],"mod":["actor","concurrency","errors","factory","macros","message","pg","port","registry","rpc","thread_local","time"],"trait":["State"],"type":["ActorName","GroupName","ScopeName"]};

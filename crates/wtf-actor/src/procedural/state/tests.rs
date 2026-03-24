@@ -1,5 +1,6 @@
 use super::*;
 use bytes::Bytes;
+use wtf_common::WorkflowEvent;
 
 fn dispatch(id: &str) -> WorkflowEvent {
     WorkflowEvent::ActivityDispatched {
@@ -220,4 +221,71 @@ fn _context_has_now_and_random_methods(ctx: &crate::procedural::WorkflowContext)
     > = Box::pin(ctx.now());
     let _: std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<u64>>>> =
         Box::pin(ctx.random_u64());
+}
+
+// ---------------------------------------------------------------------------
+// SignalReceived tests
+// ---------------------------------------------------------------------------
+
+#[test]
+fn signal_received_creates_checkpoint() {
+    let s0 = ProceduralActorState::new();
+    let event = WorkflowEvent::SignalReceived {
+        signal_name: "approval".to_string(),
+        payload: Bytes::from_static(b"ok"),
+    };
+    let (s1, _) = apply_event(&s0, &event, 100).expect("signal received");
+    assert!(
+        s1.checkpoint_map.contains_key(&0),
+        "checkpoint must be stored for op 0"
+    );
+    assert_eq!(
+        s1.checkpoint_map[&0].result,
+        Bytes::from_static(b"ok"),
+        "checkpoint result must be the signal payload"
+    );
+    assert_eq!(
+        s1.checkpoint_map[&0].completed_seq, 100,
+        "completed_seq must be the event sequence"
+    );
+    assert_eq!(s1.operation_counter, 1, "operation_counter must increment");
+}
+
+#[test]
+fn duplicate_signal_received_returns_already_applied() {
+    let s0 = ProceduralActorState::new();
+    let event = WorkflowEvent::SignalReceived {
+        signal_name: "sig".to_string(),
+        payload: Bytes::from_static(b"p"),
+    };
+    let (s1, _) = apply_event(&s0, &event, 50).expect("first");
+    let (_, result) = apply_event(&s1, &event, 50).expect("dup");
+    assert!(
+        matches!(result, ProceduralApplyResult::AlreadyApplied),
+        "duplicate seq must return AlreadyApplied"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Compile-time guards for new variant and method
+// ---------------------------------------------------------------------------
+
+#[test]
+fn instance_msg_has_procedural_wait_for_signal_variant() {
+    use crate::messages::InstanceMsg;
+    let _: fn(
+        u32,
+        String,
+        ractor::RpcReplyPort<Result<Bytes, wtf_common::WtfError>>,
+    ) -> InstanceMsg = |operation_id, signal_name, reply| InstanceMsg::ProceduralWaitForSignal {
+        operation_id,
+        signal_name,
+        reply,
+    };
+}
+
+#[allow(dead_code)]
+fn _context_has_wait_for_signal_method(ctx: &crate::procedural::WorkflowContext) {
+    let _: std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<Bytes>>>> =
+        Box::pin(ctx.wait_for_signal("test"));
 }

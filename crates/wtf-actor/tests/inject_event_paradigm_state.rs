@@ -64,6 +64,7 @@ async fn inject_live_activity_completed_clears_in_flight_and_records_checkpoint(
         events_since_snapshot: 1,
         pending_activity_calls: HashMap::new(),
         pending_timer_calls: HashMap::new(),
+        pending_signal_calls: HashMap::new(),
         procedural_task: None,
         live_subscription_task: None,
     };

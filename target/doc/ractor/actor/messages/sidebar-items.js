@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Signal","StopMessage","SupervisionEvent"],"struct":["BoxedState"]};

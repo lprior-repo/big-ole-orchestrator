@@ -117,6 +117,7 @@ pub struct V3StatusResponse {
     pub paradigm: String,
     pub phase: String,
     pub events_applied: u64,
+    pub current_state: Option<String>,
 }
 
 /// Generic API error response.

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"attr":["test"],"fn":["interval","sleep","spawn","spawn_local","spawn_named","timeout"],"type":["Duration","Instant","Interval","JoinHandle","JoinSet"]};

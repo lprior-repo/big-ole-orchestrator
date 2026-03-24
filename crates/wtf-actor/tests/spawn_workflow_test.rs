@@ -220,6 +220,7 @@ async fn get_status_returns_snapshot_after_spawn() {
     assert_eq!(snap.instance_id.as_str(), id_str);
     assert_eq!(snap.namespace.as_str(), "test-ns");
     assert_eq!(snap.workflow_type, "test-workflow");
+    assert!(snap.current_state.is_none());
 
     orchestrator.stop(Some("test complete".into()));
 }

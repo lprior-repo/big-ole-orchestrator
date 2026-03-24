@@ -1,0 +1,95 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="JetStream is a built-in persistence layer for NATS that provides powerful stream-based messaging capabilities, with integrated support for both at least once and exactly once delivery semantics."><title>async_nats::jetstream - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-77263533.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="async_nats" data-themes="" data-resource-suffix="" data-rustdoc-version="1.94.0 (4a4ef493e 2026-03-02)" data-channel="1.94.0" data-search-js="search-9e2438ea.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-c38705f0.js" ><script src="../../static.files/storage-e2aeef58.js"></script><script defer src="../sidebar-items.js"></script><script defer src="../../static.files/main-7bab91a1.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-ffcac47a.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc mod"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Module jetstream</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../async_nats/index.html">async_<wbr>nats</a><span class="version">0.46.0</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Module jetstream</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#examples" title="Examples">Examples</a><ul><li><a href="#publishing-and-consuming-messages" title="Publishing and Consuming Messages">Publishing and Consuming Messages</a></li><li><a href="#consuming-messages-in-batches" title="Consuming Messages in Batches">Consuming Messages in Batches</a></li></ul></li></ul><h3><a href="#reexports">Module Items</a></h3><ul class="block"><li><a href="#reexports" title="Re-exports">Re-exports</a></li><li><a href="#modules" title="Modules">Modules</a></li><li><a href="#structs" title="Structs">Structs</a></li><li><a href="#functions" title="Functions">Functions</a></li></ul></section><div id="rustdoc-modnav"><h2 class="in-crate"><a href="../index.html">In crate async_<wbr>nats</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../index.html">async_nats</a></div><h1>Module <span>jetstream</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../src/async_nats/jetstream/mod.rs.html#14-230">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>JetStream is a built-in persistence layer for NATS that provides powerful
+<a href="stream/struct.Stream.html" title="struct async_nats::jetstream::stream::Stream">stream</a>-based messaging capabilities,
+with integrated support for both <em>at least once</em> and <em>exactly once</em> delivery semantics.</p>
+<p>To begin using JetStream, you need to create a new <a href="context/struct.Context.html" title="struct async_nats::jetstream::context::Context">Context</a> object, which serves as the entry point to the JetStream API.</p>
+<h2 id="examples"><a class="doc-anchor" href="#examples">§</a>Examples</h2>
+<p>Below are some examples that demonstrate how to use JetStream for publishing and consuming messages.</p>
+<h4 id="publishing-and-consuming-messages"><a class="doc-anchor" href="#publishing-and-consuming-messages">§</a>Publishing and Consuming Messages</h4>
+<p>This example demonstrates how to publish messages to a JetStream stream and consume them using a pull-based consumer.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>futures_util::StreamExt;
+<span class="kw">use </span>futures_util::TryStreamExt;
+
+<span class="comment">// Connect to NATS server
+</span><span class="kw">let </span>client = async_nats::connect(<span class="string">"localhost:4222"</span>).<span class="kw">await</span><span class="question-mark">?</span>;
+
+<span class="comment">// Create a JetStream instance
+</span><span class="kw">let </span>jetstream = async_nats::jetstream::new(client);
+
+<span class="comment">// Get or create a stream
+</span><span class="kw">let </span>stream = jetstream
+    .get_or_create_stream(async_nats::jetstream::stream::Config {
+        name: <span class="string">"events"</span>.to_string(),
+        max_messages: <span class="number">10_000</span>,
+        ..Default::default()
+    })
+    .<span class="kw">await</span><span class="question-mark">?</span>;
+
+<span class="comment">// Publish a message to the stream
+</span>jetstream.publish(<span class="string">"events"</span>, <span class="string">"data"</span>.into()).<span class="kw">await</span><span class="question-mark">?</span>;
+
+<span class="comment">// Get or create a pull-based consumer
+</span><span class="kw">let </span>consumer = stream
+    .get_or_create_consumer(
+        <span class="string">"consumer"</span>,
+        async_nats::jetstream::consumer::pull::Config {
+            durable_name: <span class="prelude-val">Some</span>(<span class="string">"consumer"</span>.to_string()),
+            ..Default::default()
+        },
+    )
+    .<span class="kw">await</span><span class="question-mark">?</span>;
+
+<span class="comment">// Consume messages from the consumer
+</span><span class="kw">let </span><span class="kw-2">mut </span>messages = consumer.messages().<span class="kw">await</span><span class="question-mark">?</span>.take(<span class="number">100</span>);
+<span class="kw">while let </span><span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(message)) = messages.try_next().<span class="kw">await </span>{
+    <span class="macro">println!</span>(<span class="string">"message receiver: {:?}"</span>, message);
+    message.ack().<span class="kw">await</span><span class="question-mark">?</span>;
+}
+
+<span class="prelude-val">Ok</span>(())</code></pre></div><h4 id="consuming-messages-in-batches"><a class="doc-anchor" href="#consuming-messages-in-batches">§</a>Consuming Messages in Batches</h4>
+<p>This example demonstrates how to consume messages in batches from a JetStream stream using a sequence-based consumer.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>futures_util::StreamExt;
+<span class="kw">use </span>futures_util::TryStreamExt;
+
+<span class="comment">// Connect to NATS server
+</span><span class="kw">let </span>client = async_nats::connect(<span class="string">"localhost:4222"</span>).<span class="kw">await</span><span class="question-mark">?</span>;
+
+<span class="comment">// Create a JetStream instance
+</span><span class="kw">let </span>jetstream = async_nats::jetstream::new(client);
+
+<span class="comment">// Get or create a stream
+</span><span class="kw">let </span>stream = jetstream
+    .get_or_create_stream(async_nats::jetstream::stream::Config {
+        name: <span class="string">"events"</span>.to_string(),
+        max_messages: <span class="number">10_000</span>,
+        ..Default::default()
+    })
+    .<span class="kw">await</span><span class="question-mark">?</span>;
+
+<span class="comment">// Publish a message to the stream
+</span>jetstream.publish(<span class="string">"events"</span>, <span class="string">"data"</span>.into()).<span class="kw">await</span><span class="question-mark">?</span>;
+
+<span class="comment">// Get or create a pull-based consumer
+</span><span class="kw">let </span>consumer = stream
+    .get_or_create_consumer(
+        <span class="string">"consumer"</span>,
+        async_nats::jetstream::consumer::pull::Config {
+            durable_name: <span class="prelude-val">Some</span>(<span class="string">"consumer"</span>.to_string()),
+            ..Default::default()
+        },
+    )
+    .<span class="kw">await</span><span class="question-mark">?</span>;
+
+<span class="comment">// Consume messages from the consumer in batches
+</span><span class="kw">let </span><span class="kw-2">mut </span>batches = consumer.sequence(<span class="number">50</span>)<span class="question-mark">?</span>.take(<span class="number">10</span>);
+<span class="kw">while let </span><span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(<span class="kw-2">mut </span>batch)) = batches.try_next().<span class="kw">await </span>{
+    <span class="kw">while let </span><span class="prelude-val">Some</span>(<span class="prelude-val">Ok</span>(message)) = batch.next().<span class="kw">await </span>{
+        <span class="macro">println!</span>(<span class="string">"message receiver: {:?}"</span>, message);
+        message.ack().<span class="kw">await</span><span class="question-mark">?</span>;
+    }
+}
+
+<span class="prelude-val">Ok</span>(())</code></pre></div></div></details><h2 id="reexports" class="section-header">Re-exports<a href="#reexports" class="anchor">§</a></h2><dl class="item-table reexports"><dt id="reexport.Context"><code>pub use context::<a class="struct" href="context/struct.Context.html" title="struct async_nats::jetstream::context::Context">Context</a>;</code></dt><dt id="reexport.ContextBuilder"><code>pub use context::<a class="struct" href="context/struct.ContextBuilder.html" title="struct async_nats::jetstream::context::ContextBuilder">ContextBuilder</a>;</code></dt><dt id="reexport.AckKind"><code>pub use message::<a class="enum" href="message/enum.AckKind.html" title="enum async_nats::jetstream::message::AckKind">AckKind</a>;</code></dt><dt id="reexport.Message"><code>pub use message::<a class="struct" href="message/struct.Message.html" title="struct async_nats::jetstream::message::Message">Message</a>;</code></dt></dl><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><dl class="item-table"><dt><a class="mod" href="account/index.html" title="mod async_nats::jetstream::account">account</a></dt><dt><a class="mod" href="consumer/index.html" title="mod async_nats::jetstream::consumer">consumer</a></dt><dd>Push and Pull <a href="consumer/struct.Consumer.html" title="struct async_nats::jetstream::consumer::Consumer">Consumer</a> API.</dd><dt><a class="mod" href="context/index.html" title="mod async_nats::jetstream::context">context</a></dt><dd>Manage operations on <a href="context/struct.Context.html" title="struct async_nats::jetstream::context::Context">Context</a>, create/delete/update <a href="stream/struct.Stream.html" title="struct async_nats::jetstream::stream::Stream">Stream</a></dd><dt><a class="mod" href="kv/index.html" title="mod async_nats::jetstream::kv">kv</a></dt><dd>A Key-Value store built on top of JetStream, allowing you to store and retrieve data using simple key-value pairs.</dd><dt><a class="mod" href="message/index.html" title="mod async_nats::jetstream::message">message</a></dt><dd>A wrapped <code>crate::Message</code> with <code>JetStream</code> related methods.</dd><dt><a class="mod" href="object_store/index.html" title="mod async_nats::jetstream::object_store">object_<wbr>store</a></dt><dd>Object Store module</dd><dt><a class="mod" href="publish/index.html" title="mod async_nats::jetstream::publish">publish</a></dt><dd>Publish <code>JetStream</code> messages.</dd><dt><a class="mod" href="response/index.html" title="mod async_nats::jetstream::response">response</a></dt><dd>A low level <code>JetStream</code> responses.</dd><dt><a class="mod" href="stream/index.html" title="mod async_nats::jetstream::stream">stream</a></dt><dd>Manage operations on a <a href="stream/struct.Stream.html" title="struct async_nats::jetstream::stream::Stream">Stream</a>, create/delete/update <a href="consumer/struct.Consumer.html" title="struct async_nats::jetstream::consumer::Consumer">Consumer</a>.</dd></dl><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><dl class="item-table"><dt><a class="struct" href="struct.Error.html" title="struct async_nats::jetstream::Error">Error</a></dt><dd><code>Error</code> type returned from an API response when an error occurs.</dd><dt><a class="struct" href="struct.ErrorCode.html" title="struct async_nats::jetstream::ErrorCode">Error<wbr>Code</a></dt></dl><h2 id="functions" class="section-header">Functions<a href="#functions" class="anchor">§</a></h2><dl class="item-table"><dt><a class="fn" href="fn.new.html" title="fn async_nats::jetstream::new">new</a></dt><dd>Creates a new JetStream <a href="context/struct.Context.html" title="struct async_nats::jetstream::context::Context">Context</a> that provides JetStream API for managing and using <a href="stream/struct.Stream.html" title="struct async_nats::jetstream::stream::Stream">Streams</a>,
+<a href="consumer/struct.Consumer.html" title="struct async_nats::jetstream::consumer::Consumer">Consumers</a>, key value and object store.</dd><dt><a class="fn" href="fn.with_domain.html" title="fn async_nats::jetstream::with_domain">with_<wbr>domain</a></dt><dd>Creates a new JetStream <a href="context/struct.Context.html" title="struct async_nats::jetstream::context::Context">Context</a> with given JetStream domain.</dd><dt><a class="fn" href="fn.with_prefix.html" title="fn async_nats::jetstream::with_prefix">with_<wbr>prefix</a></dt><dd>Creates a new JetStream <a href="context/struct.Context.html" title="struct async_nats::jetstream::context::Context">Context</a> with given JetStream prefix.
+By default it is <code>$JS.API</code>.</dd></dl></section></div></main></body></html>

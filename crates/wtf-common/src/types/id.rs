@@ -32,6 +32,10 @@ impl InstanceId {
         Self(id.into())
     }
 
+    /// Construct an instance id after validating it is safe for NATS subject usage.
+    ///
+    /// # Errors
+    /// Returns [`InvalidNatsId`] when the id contains `.`, `>`, `*`, or whitespace.
     pub fn try_new(id: impl Into<String>) -> Result<Self, InvalidNatsId> {
         let s = id.into();
         validate_nats_component(&s).map(|()| Self(s))
@@ -67,6 +71,10 @@ impl NamespaceId {
         Self(id.into())
     }
 
+    /// Construct a namespace id after validating it is safe for NATS subject usage.
+    ///
+    /// # Errors
+    /// Returns [`InvalidNatsId`] when the namespace contains `.`, `>`, `*`, or whitespace.
     pub fn try_new(id: impl Into<String>) -> Result<Self, InvalidNatsId> {
         let s = id.into();
         validate_nats_component(&s).map(|()| Self(s))

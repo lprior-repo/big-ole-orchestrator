@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ConsumerRecreateErrorKind","MessagesErrorKind","OrderedErrorKind"],"struct":["Config","Messages","Ordered","OrderedConfig"],"type":["ConsumerRecreateError","MessagesError","OrderedError"]};

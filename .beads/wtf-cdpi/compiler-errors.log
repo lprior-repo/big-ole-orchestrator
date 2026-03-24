@@ -1,0 +1,46 @@
+
+running 41 tests
+test handlers::definitions::tests::definition_key_uses_default_namespace ... ok
+test handlers::definitions::tests::definition_key_uses_workflow_type_from_request ... ok
+test handlers::journal::tests::given_whitespace_id_when_parsed_then_error ... ok
+test handlers::journal::tests::given_valid_namespaced_id_when_parsed_then_ok ... ok
+test handlers::journal::tests::given_empty_id_when_parsed_then_error ... ok
+test handlers::journal::tests::given_journal_entries_out_of_order_when_sorted_then_entries_are_ascending_by_seq ... ok
+test handlers::workflow::tests::parse_paradigm_dag ... ok
+test handlers::workflow::tests::parse_paradigm_fsm ... ok
+test app::tests::unknown_route_returns_404 ... ok
+test handlers::workflow::tests::paradigm_to_str_roundtrip ... ok
+test app::tests::health_endpoint_returns_200 ... ok
+test handlers::workflow::tests::parse_paradigm_invalid_returns_none ... ok
+test handlers::workflow::tests::parse_paradigm_procedural ... ok
+test handlers::workflow::tests::split_path_id_missing_slash_returns_none ... ok
+test handlers::workflow::tests::split_path_id_multiple_slashes_splits_on_first ... ok
+test handlers::workflow::tests::split_path_id_valid ... ok
+test health::tests::health_response_serializes ... ok
+test app::tests::metrics_endpoint_returns_200 ... ok
+test health::tests::health_response_has_ok_status ... ok
+test health::tests::metrics_response_is_200 ... ok
+test handlers::definitions::tests::parse_error_not_stored ... ok
+test handlers::definitions::tests::valid_definition_returns_200_with_valid_true ... ok
+test tests::unit::test_send_signal_invalid_id ... ok
+test tests::unit_terminate::terminate_existing_returns_204 ... ok
+test tests::unit::test_send_signal_success ... ok
+test tests::unit::test_send_signal_not_found ... ok
+test types::tests::test_error_response_rejects_retry_for_non_retryable_error ... ok
+test types::tests::test_journal_response_validate_requires_sorted_entries ... ok
+test types::tests::test_retry_after_seconds_rejects_zero ... ok
+test types::tests::test_retry_after_seconds_valid ... ok
+test types::tests::test_timestamp_valid ... ok
+test tests::unit_terminate::terminate_bad_path_returns_400 ... ok
+test tests::unit_terminate::terminate_timeout_returns_503 ... ok
+test tests::unit_terminate::terminate_unknown_returns_404 ... ok
+test types::tests::test_invocation_id_valid ... ok
+test types::tests::test_start_workflow_response_validate_running_only ... ok
+test types::tests::test_signal_name_rejects_single_char ... ok
+test types::tests::test_workflow_name_rejects_uppercase ... ok
+test types::tests::test_workflow_name_invalid ... ok
+test types::tests::test_signal_name_valid ... ok
+test types::tests::test_workflow_name_valid ... ok
+
+test result: ok. 41 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

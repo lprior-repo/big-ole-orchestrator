@@ -1,4 +1,4 @@
-use crate::master::registry::WorkflowRegistry;
+use crate::master::registry::{WorkflowDefinition, WorkflowRegistry};
 use crate::messages::{InstanceArguments, InstanceMsg, InstanceSeed};
 use ractor::ActorRef;
 use std::collections::HashMap;
@@ -20,6 +20,8 @@ pub struct OrchestratorConfig {
     pub state_store: Option<Arc<dyn StateStore>>,
     /// Abstract task queue for activity dispatch.
     pub task_queue: Option<Arc<dyn TaskQueue>>,
+    /// Pre-seeded workflow definitions loaded from KV on startup.
+    pub definitions: Vec<(String, WorkflowDefinition)>,
 }
 
 impl Default for OrchestratorConfig {
@@ -31,6 +33,7 @@ impl Default for OrchestratorConfig {
             event_store: None,
             state_store: None,
             task_queue: None,
+            definitions: Vec::new(),
         }
     }
 }
@@ -47,13 +50,17 @@ pub struct OrchestratorState {
 }
 
 impl OrchestratorState {
-    /// Create a new empty orchestrator state.
+    /// Create a new orchestrator state with the given config and pre-seeded definitions.
     #[must_use]
     pub fn new(config: OrchestratorConfig) -> Self {
+        let mut registry = WorkflowRegistry::new();
+        for (name, definition) in &config.definitions {
+            registry.register_definition(name, definition.clone());
+        }
         Self {
             active: HashMap::new(),
             config,
-            registry: WorkflowRegistry::new(),
+            registry,
         }
     }
 
@@ -121,6 +128,7 @@ mod tests {
             event_store: None,
             state_store: None,
             task_queue: None,
+            definitions: Vec::new(),
         }
     }
 
@@ -145,6 +153,7 @@ mod tests {
             event_store: None,
             state_store: None,
             task_queue: None,
+            definitions: Vec::new(),
         };
         let state = OrchestratorState::new(config);
         assert!(!state.has_capacity());
@@ -191,6 +200,7 @@ mod tests {
             event_store: None,
             state_store: None,
             task_queue: None,
+            definitions: Vec::new(),
         }
     }
 
@@ -215,5 +225,52 @@ mod tests {
     fn orchestrator_config_default_node_id() {
         let cfg = OrchestratorConfig::default();
         assert_eq!(cfg.engine_node_id, "engine-local");
+    }
+
+    #[test]
+    fn new_state_with_pre_seeded_definitions_populates_registry() {
+        let def = WorkflowDefinition {
+            paradigm: wtf_common::WorkflowParadigm::Fsm,
+            graph_raw: r#"{"states":[],"transitions":[]}"#.to_owned(),
+            description: Some("test def".to_owned()),
+        };
+        let config = OrchestratorConfig {
+            definitions: vec![("payments/checkout".to_owned(), def.clone())],
+            ..OrchestratorConfig::default()
+        };
+        let state = OrchestratorState::new(config);
+        let looked_up = state.registry.get_definition("payments/checkout");
+        assert_eq!(looked_up, Some(def));
+    }
+
+    #[test]
+    fn new_state_with_multiple_definitions() {
+        let def_a = WorkflowDefinition {
+            paradigm: wtf_common::WorkflowParadigm::Dag,
+            graph_raw: r#"{"nodes":[],"edges":[]}"#.to_owned(),
+            description: None,
+        };
+        let def_b = WorkflowDefinition {
+            paradigm: wtf_common::WorkflowParadigm::Fsm,
+            graph_raw: r#"{"states":["a","b"],"transitions":[]}"#.to_owned(),
+            description: Some("B workflow".to_owned()),
+        };
+        let config = OrchestratorConfig {
+            definitions: vec![
+                ("ns1/wf-a".to_owned(), def_a),
+                ("ns2/wf-b".to_owned(), def_b),
+            ],
+            ..OrchestratorConfig::default()
+        };
+        let state = OrchestratorState::new(config);
+        assert!(state.registry.get_definition("ns1/wf-a").is_some());
+        assert!(state.registry.get_definition("ns2/wf-b").is_some());
+        assert!(state.registry.get_definition("nonexistent").is_none());
+    }
+
+    #[test]
+    fn new_state_with_empty_definitions_has_empty_registry() {
+        let state = OrchestratorState::new(OrchestratorConfig::default());
+        assert!(state.registry.get_definition("anything").is_none());
     }
 }

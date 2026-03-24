@@ -1,7 +1,0 @@
-{
-  "database": "dolt",
-  "backend": "dolt",
-  "dolt_mode": "server",
-  "dolt_database": "wtf-engine-database",
-  "project_id": "a4b05c90-eb6d-4e6b-959d-c2ba550cf1cc"
-}

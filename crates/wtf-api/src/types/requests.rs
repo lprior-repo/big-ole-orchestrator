@@ -21,6 +21,7 @@ pub struct SignalRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DefinitionRequest {
     pub source: String,
+    pub workflow_type: String,
 }
 
 /// POST /api/v1/workflows request body.

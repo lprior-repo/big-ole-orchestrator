@@ -1,0 +1,25 @@
+
+running 10 tests
+test admin::tests::rebuild_stats_default_is_zero ... ok
+test admin::tests::view_name_all_returns_three ... ok
+test admin::tests::view_name_parse_instances ... ok
+test lint::tests::explain_rule_returns_none_for_unknown_rule ... ok
+test admin::tests::view_name_parse_invalid ... ok
+test lint::tests::explain_rule_returns_known_explanation ... ok
+test lint::tests::lint_single_file_reports_parse_error_for_invalid_rust ... ok
+test serve::tests::drain_runtime_propagates_worker_error ... ok
+test serve::tests::drain_runtime_signals_shutdown_and_waits_for_four_tasks ... ok
+test lint::tests::lint_single_file_allows_clean_rust_file ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

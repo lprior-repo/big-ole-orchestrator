@@ -90,10 +90,18 @@ pub enum WorkflowEvent {
 }
 
 impl WorkflowEvent {
+    /// Serialize the event to `MessagePack` with named fields.
+    ///
+    /// # Errors
+    /// Returns the `MessagePack` encoder error if serialization fails.
     pub fn to_msgpack(&self) -> Result<Vec<u8>, rmp_serde::encode::Error> {
         rmp_serde::to_vec_named(self)
     }
 
+    /// Deserialize a workflow event from `MessagePack` bytes.
+    ///
+    /// # Errors
+    /// Returns the `MessagePack` decoder error if the bytes do not represent a valid event.
     pub fn from_msgpack(bytes: &[u8]) -> Result<Self, rmp_serde::decode::Error> {
         rmp_serde::from_slice(bytes)
     }

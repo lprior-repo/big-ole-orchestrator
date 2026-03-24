@@ -1,0 +1,9 @@
+(function() {
+    const implementors = Object.fromEntries([["async_nats",[["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.94.0/core/future/into_future/trait.IntoFuture.html\" title=\"trait core::future::into_future::IntoFuture\">IntoFuture</a> for <a class=\"struct\" href=\"async_nats/jetstream/context/struct.PublishAckFuture.html\" title=\"struct async_nats::jetstream::context::PublishAckFuture\">PublishAckFuture</a>",0],["impl&lt;S, K&gt; <a class=\"trait\" href=\"https://doc.rust-lang.org/1.94.0/core/future/into_future/trait.IntoFuture.html\" title=\"trait core::future::into_future::IntoFuture\">IntoFuture</a> for <a class=\"struct\" href=\"async_nats/jetstream/stream/struct.Purge.html\" title=\"struct async_nats::jetstream::stream::Purge\">Purge</a>&lt;S, K&gt;<div class=\"where\">where\n    S: <a class=\"trait\" href=\"async_nats/jetstream/stream/trait.ToAssign.html\" title=\"trait async_nats::jetstream::stream::ToAssign\">ToAssign</a> + <a class=\"trait\" href=\"https://doc.rust-lang.org/1.94.0/core/marker/trait.Send.html\" title=\"trait core::marker::Send\">Send</a>,\n    K: <a class=\"trait\" href=\"async_nats/jetstream/stream/trait.ToAssign.html\" title=\"trait async_nats::jetstream::stream::ToAssign\">ToAssign</a> + <a class=\"trait\" href=\"https://doc.rust-lang.org/1.94.0/core/marker/trait.Send.html\" title=\"trait core::marker::Send\">Send</a>,</div>",0]]]]);
+    if (window.register_implementors) {
+        window.register_implementors(implementors);
+    } else {
+        window.pending_implementors = implementors;
+    }
+})()
+//{"start":59,"fragment_lengths":[1345]}

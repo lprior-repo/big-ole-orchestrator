@@ -94,6 +94,59 @@ pub async fn handle_sleep(
     }
 }
 
+pub async fn handle_wait_for_signal(
+    state: &mut InstanceState,
+    operation_id: u32,
+    signal_name: String,
+    reply: ractor::RpcReplyPort<Result<Bytes, WtfError>>,
+) {
+    if let ParadigmState::Procedural(s) = &mut state.paradigm_state {
+        // Check if a buffered signal exists for this name.
+        if let Some(queue) = s.received_signals.get_mut(&signal_name) {
+            if !queue.is_empty() {
+                let payload_to_return = queue.remove(0);
+                if queue.is_empty() {
+                    s.received_signals.remove(&signal_name);
+                }
+                // Publish the SignalReceived event so it gets checkpointed.
+                publish_signal_event(
+                    state,
+                    signal_name.clone(),
+                    payload_to_return.clone(),
+                    operation_id,
+                )
+                .await;
+                let _ = reply.send(Ok(payload_to_return));
+                return;
+            }
+        }
+        // No buffered signal — register as a pending waiter.
+        state
+            .pending_signal_calls
+            .insert(signal_name, reply);
+    }
+}
+
+async fn publish_signal_event(
+    state: &mut InstanceState,
+    signal_name: String,
+    payload: Bytes,
+    _operation_id: u32,
+) {
+    let event = WorkflowEvent::SignalReceived {
+        signal_name,
+        payload,
+    };
+    if let Some(store) = &state.args.event_store {
+        if let Ok(seq) = store
+            .publish(&state.args.namespace, &state.args.instance_id, event.clone())
+            .await
+        {
+            let _ = handlers::inject_event(state, seq, &event).await;
+        }
+    }
+}
+
 async fn append_and_inject_timer_event(
     state: &mut InstanceState,
     event: WorkflowEvent,
@@ -127,108 +180,5 @@ async fn append_and_inject_timer_event(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::instance::lifecycle::ParadigmState;
-    use crate::instance::state::InstanceState;
-    use crate::messages::{InstanceArguments, InstancePhase, WorkflowParadigm};
-    use bytes::Bytes;
-    use std::collections::HashMap;
-    use wtf_common::{InstanceId, NamespaceId};
-
-    #[tokio::test]
-    async fn get_checkpoint_returns_none_for_empty_state() {
-        let args = InstanceArguments {
-            namespace: NamespaceId::new("ns"),
-            instance_id: InstanceId::new("i1"),
-            workflow_type: "wf".into(),
-            paradigm: WorkflowParadigm::Procedural,
-            input: Bytes::new(),
-            engine_node_id: "n1".into(),
-            event_store: None,
-            state_store: None,
-            task_queue: None,
-            snapshot_db: None,
-            procedural_workflow: None,
-            workflow_definition: None,
-        };
-        let state = InstanceState {
-            paradigm_state: ParadigmState::Procedural(
-                crate::procedural::ProceduralActorState::new(),
-            ),
-            phase: InstancePhase::Live,
-            total_events_applied: 0,
-            events_since_snapshot: 0,
-            pending_activity_calls: HashMap::new(),
-            pending_timer_calls: HashMap::new(),
-            procedural_task: None,
-            live_subscription_task: None,
-            args,
-        };
-        let (tx, rx) = tokio::sync::oneshot::channel();
-        handle_get_checkpoint(&state, 0, tx.into()).await;
-        let result = rx.await.expect("reply");
-        assert!(result.is_none());
-    }
-
-    #[tokio::test]
-    async fn get_checkpoint_returns_some_after_activity_completed() {
-        use crate::procedural::state::apply_event;
-        use wtf_common::WorkflowEvent;
-
-        let dispatch_ev = WorkflowEvent::ActivityDispatched {
-            activity_id: "i1:0".into(),
-            activity_type: "work".into(),
-            payload: Bytes::new(),
-            retry_policy: wtf_common::RetryPolicy::default(),
-            attempt: 1,
-        };
-        let complete_ev = WorkflowEvent::ActivityCompleted {
-            activity_id: "i1:0".into(),
-            result: Bytes::from_static(b"done"),
-            duration_ms: 1,
-        };
-
-        let s0 = crate::procedural::ProceduralActorState::new();
-        let (s1, _) = apply_event(&s0, &dispatch_ev, 1).expect("dispatch");
-        let (s2, _) = apply_event(&s1, &complete_ev, 2).expect("complete");
-
-        let args = InstanceArguments {
-            namespace: NamespaceId::new("ns"),
-            instance_id: InstanceId::new("i1"),
-            workflow_type: "wf".into(),
-            paradigm: WorkflowParadigm::Procedural,
-            input: Bytes::new(),
-            engine_node_id: "n1".into(),
-            event_store: None,
-            state_store: None,
-            task_queue: None,
-            snapshot_db: None,
-            procedural_workflow: None,
-            workflow_definition: None,
-        };
-        let state = InstanceState {
-            paradigm_state: ParadigmState::Procedural(s2),
-            phase: InstancePhase::Live,
-            total_events_applied: 2,
-            events_since_snapshot: 2,
-            pending_activity_calls: HashMap::new(),
-            pending_timer_calls: HashMap::new(),
-            procedural_task: None,
-            live_subscription_task: None,
-            args,
-        };
-
-        let (tx, rx) = tokio::sync::oneshot::channel();
-        handle_get_checkpoint(&state, 0, tx.into()).await;
-        let result = rx.await.expect("reply");
-        assert!(
-            result.is_some(),
-            "checkpoint must be present after ActivityCompleted"
-        );
-        assert_eq!(
-            result.expect("checkpoint present").result,
-            Bytes::from_static(b"done")
-        );
-    }
-}
+#[path = "procedural_tests.rs"]
+mod tests;
