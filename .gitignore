@@ -2,3 +2,20 @@
 # Dolt database files (added by bd init)
 .dolt/
 *.db
+
+# Beads local runtime state
+.beads/backup/
+.beads/dolt/
+.beads/dolt-server.pid
+.beads/dolt-server.lock
+.beads/dolt-server.port
+.beads/dolt-server.log
+.beads/.local_version
+.beads/last-touched
+.beads/metadata.json
+.beads/.beads-credential-key
+
+# Rust
+/target
+Cargo.lock
+**/*.rs.bk
