@@ -1,95 +1,47 @@
 # CLAUDE.md — wtf-engine
 
-**Version:** 3.0
+**Version:** 4.0 (V2 Architecture)
 **Language:** Rust (end-to-end)
-**Model:** Deterministic Event-Sourced Replay
+**Model:** Single-Binary, Fjall-backed, FaaS Orchestrator
+**Build:** `moon run :ci`
 
 ## What This System Is
+`wtf-engine` is the Indestructible Rust Orchestrator. It is a true single-binary engine (no Docker, no NATS, no Postgres) that provides:
+1. **Durable Execution:** Event-Sourcing backed by `fjall` (LSM-Tree) for face-melting disk IO.
+2. **FaaS Subprocesses:** Workflows are strictly compiled Rust binaries spawned via `tokio::process::Command` (no Wasm/Docker).
+3. **The BEAM Model:** `ractor` manages lock-free workflow state machines and hibernates them to disk when waiting.
+4. **Visibility:** An embedded Dioxus WASM UI for n8n-style real-time graphs.
 
-wtf-engine is a durable execution runtime for long-lived workflows (payments, data pipelines, approval chains, ETL). It guarantees **no transition is ever lost** — if the process crashes mid-execution, it replays the NATS JetStream event log and arrives at exactly the correct state.
+## Core V2 Architecture Rules (Must Read: `docs/adr/v2/`)
+1. **Strictly Rust Binaries:** Workflows and Tasks are written using the `wtf-sdk` and compiled to raw binaries. The engine discovers them via `./binary --graph` and executes them via `./binary --execute-node <name>`.
+2. **FD3 / FD4 IPC:** The Engine NEVER uses `stdout` for state. It pipes input JSON to the child via FD3, and reads output JSON from FD4.
+3. **Group Commits:** Actors NEVER write to `fjall` directly. All events are sent to the `DbWriterActor` to be batch-committed to prevent SSD lock contention.
+4. **AI-Native:** CLI interfaces (`wtf-cli history --json`) and definition schemas must output strict JSON intended for consumption by autonomous AI agents.
 
-## Architecture
+## Project Structure
+| Crate | Purpose |
+|-------|---------|
+| `wtf-common` | Shared types (`WorkflowEvent`, `InstanceId`) |
+| `wtf-core` | Minimal core types |
+| `wtf-actor` | `ractor` state machines (DAGs, FSMs, Procedural), Hibernation, and Subprocess Execution |
+| `wtf-storage` | `fjall` wrapper (`events`, `instances`, `timers` partitions) + `DbWriterActor` |
+| `wtf-api` | `axum` HTTP server (Webhook triggers, SSE telemetry) |
+| `wtf-cli` | Agent-first CLI (`wtf-cli history`, `wtf-cli check`) |
+| `wtf-sdk` | The developer macro crate (`#[wtf_task]`, `Dag::new()`) |
+| `wtf-ui` | Dioxus WASM visual dashboard (Ported from Oya) |
 
-```
-Layer 1: Control Plane (Dioxus WASM) — Design Mode, Simulate Mode, Monitor Mode
-Layer 2: Execution Engine (Ractor + axum) — MasterOrchestrator, WorkflowInstance actors
-Layer 3: Data Plane (NATS JetStream + KV) — event log, materialized view, sled snapshots
-```
+## Development & AI Guidelines
+1. **Zero External DBs:** Never introduce dependencies on Redis, Postgres, or NATS.
+2. **Zero Wasm execution:** The engine executes OS binaries. Wasm is strictly for the UI.
+3. **At-Most-One Actor:** The engine guarantees exactly one active `ractor` instance per workflow ID at any time.
+4. **No Cargo Commands:** Ensure all checks run via `moon run :ci`.
 
-## Crates
-
-| Crate | LOC | Purpose |
-|-------|-----|---------|
-| `wtf-common` | 690 | Shared types: `WorkflowEvent`, `InstanceId`, `RetryPolicy` |
-| `wtf-core` | 44 | Minimal core types |
-| `wtf-actor` | 3,896 | Ractor actors: MasterOrchestrator, FsmActor, DagActor, ProceduralActor |
-| `wtf-storage` | 1,362 | NATS JetStream + KV wrappers, sled snapshot store |
-| `wtf-worker` | 1,334 | Activity worker SDK |
-| `wtf-api` | 1,786 | axum HTTP server, SSE, ingestion |
-| `wtf-cli` | 996 | `wtf serve`, `wtf lint`, `wtf admin` |
-| `wtf-linter` | 1,968 | Procedural workflow static analysis (6 rules) |
-| `wtf-frontend` | 27,145 | Dioxus WASM dashboard |
-
-**Total: ~39,221 Rust source lines, ~3,600 test lines**
-
-## Three Execution Paradigms (ADR-017)
-
-- **FSM** (`wtf-actor/src/fsm/`) — payment flows, order state, explicit named transitions
-- **DAG** (`wtf-actor/src/dag/`) — pipelines, parallel fan-out/fan-in
-- **Procedural** (`wtf-actor/src/procedural/`) — conditional logic, human loops, `ctx.activity()` checkpoint model
-
-## Linter Rules (ADR-020)
-
-All 6 rules implemented in `wtf-linter`:
-
-| Rule | File | Status |
-|------|------|--------|
-| WTF-L001 non-deterministic-time | `l001_time.rs` | LANDED |
-| WTF-L002 non-deterministic-random | `rules.rs` | ✅ Implemented |
-| WTF-L003 direct-async-io | `l003_direct_io.rs` | ✅ Implemented |
-| WTF-L004 ctx-in-closure | `l004.rs` | ✅ Implemented |
-| WTF-L005 tokio-spawn | `l005.rs` | ✅ Implemented |
-| WTF-L006 std-thread-spawn | `l006.rs` | ✅ Implemented |
-
-## Running Tests
-
-```bash
-# All tests (NATS must be running in Docker)
-cargo test --workspace
-
-# Specific crate
-cargo test -p wtf-actor
-cargo test -p wtf-storage
-cargo test -p wtf-linter
-
-# With output
-cargo test --workspace -- --nocapture
-```
-
-## NATS Connection
-
-NATS is running in Docker:
-```bash
-docker ps | grep nats
-# wtf-nats-test  nats:2  "/nats-server -js"  4222/tcp
-```
-
-Test connection:
-```bash
-cargo run -p wtf-storage --bin nats_connect_test
-```
-
-## Bead Tracking (jj-first)
-
-Beads are tracked via **jj commits** — each feature/refactor gets its own jj commit.
-The `.beads/` directory is the **Dolt/bd database** (not bead artifacts).
-
-### Go-skill Pipeline (for implementing new features)
+## Go-skill Pipeline (for implementing new features)
 ```
 STATE 1 → rust-contract (synthesize from code, not bd)
 STATE 2 → test-reviewer
 STATE 3 → functional-rust
-STATE 4 → Moon Gate (cargo check, cargo test, cargo clippy)
+STATE 4 → Moon Gate (moon run :ci)
 STATE 4.5 → qa-enforcer
 STATE 4.6 → QA review
 STATE 5 → red-queen (adversarial)
@@ -99,32 +51,6 @@ STATE 6 → repair loop
 STATE 7 → architectural-drift
 STATE 8 → jj git push --bookmark main
 ```
-
-## ADRs
-
-Key architectural decisions in `docs/adr/`:
-- ADR-013: NATS JetStream as event log
-- ADR-014: NATS KV materialized view
-- ADR-015: Write-ahead guarantee
-- ADR-016: Deterministic replay model
-- ADR-017: Three execution paradigms
-- ADR-018: Dioxus as compiler
-- ADR-019: Snapshot recovery
-- ADR-020: Procedural workflow linter
-
-## Key Files
-
-- `crates/wtf-common/src/events/mod.rs` — `WorkflowEvent` enum (19 variants)
-- `crates/wtf-actor/src/procedural/context.rs` — `WorkflowContext` with `ctx.activity()`, `ctx.now()`, `ctx.sleep()`, `ctx.random_u64()`
-- `crates/wtf-storage/src/journal.rs` — `append_event` (write-ahead publish+ack)
-- `crates/wtf-storage/src/replay.rs` — `replay_events`, `create_replay_consumer`
-- `crates/wtf-api/src/routes.rs` — HTTP endpoint definitions
-
-## Known Issues
-
-1. **7 journal_test failures** — tests assert wrong status codes (missing Extension setup)
-2. **wtf-cli and wtf-worker have NO tests** — 0 test lines each
-
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:b9766037 -->
 ## Beads Issue Tracker
@@ -153,7 +79,7 @@ bd close <id>         # Complete work
 **MANDATORY WORKFLOW:**
 
 1. **File issues for remaining work** - Create issues for anything that needs follow-up
-2. **Run quality gates** (if code changed) - Tests, linters, builds
+2. **Run quality gates** (if code changed) - `moon run :ci`
 3. **Update issue status** - Close finished work, update in-progress items
 4. **PUSH TO REMOTE** - This is MANDATORY:
    ```bash
