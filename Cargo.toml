@@ -5,7 +5,6 @@ members = [
     "crates/wtf-core",
     "crates/wtf-storage",
     "crates/wtf-actor",
-    "crates/wtf-worker",
     "crates/wtf-api",
     "crates/wtf-cli",
     "crates/wtf-frontend",
@@ -26,9 +25,6 @@ async-trait = "0.1"
 
 # Actor framework
 ractor = "0.15"
-
-# NATS messaging
-async-nats = "0.46"
 
 # Graph
 petgraph = "0.6"
