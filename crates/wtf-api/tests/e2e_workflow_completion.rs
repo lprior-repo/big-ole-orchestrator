@@ -115,6 +115,7 @@ async fn boot_server() -> Result<E2eTestServer, Box<dyn std::error::Error>> {
         state_store: Some(state_store),
         task_queue: None,
         definitions: Vec::new(),
+        procedural_workflows: Vec::new(),
     };
 
     let (master, _handle) = ractor::Actor::spawn(None, MasterOrchestrator, orch_config).await?;

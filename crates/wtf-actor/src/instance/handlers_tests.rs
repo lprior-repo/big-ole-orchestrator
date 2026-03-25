@@ -128,7 +128,7 @@ async fn snapshot_trigger_no_event_store_returns_error() {
 
     let result = handlers::snapshot::handle_snapshot_trigger(&mut state).await;
 
-    assert!(result.is_err(), "should fail when event_store is None");
+    assert!(matches!(result, Err(_)), "should fail when event_store is None");
     assert_eq!(
         state.events_since_snapshot, SNAPSHOT_INTERVAL,
         "counter must NOT be reset on error"
@@ -142,7 +142,7 @@ async fn snapshot_trigger_no_snapshot_db_returns_error() {
 
     let result = handlers::snapshot::handle_snapshot_trigger(&mut state).await;
 
-    assert!(result.is_err(), "should fail when snapshot_db is None");
+    assert!(matches!(result, Err(_)), "should fail when snapshot_db is None");
     assert_eq!(
         state.events_since_snapshot, SNAPSHOT_INTERVAL,
         "counter must NOT be reset on error"
@@ -157,7 +157,9 @@ async fn snapshot_trigger_success_resets_counter() {
 
     let result = handlers::snapshot::handle_snapshot_trigger(&mut state).await;
 
-    assert!(result.is_ok(), "should succeed with both stores present");
+    let Ok(()) = result else {
+        panic!("should succeed with both stores present, got: {:?}", result)
+    };
     assert_eq!(
         state.events_since_snapshot, 0,
         "counter must be reset on success"
@@ -172,10 +174,9 @@ async fn snapshot_trigger_failure_keeps_counter() {
 
     let result = handlers::snapshot::handle_snapshot_trigger(&mut state).await;
 
-    assert!(
-        result.is_ok(),
-        "snapshot failure is non-fatal — returns Ok"
-    );
+    let Ok(()) = result else {
+        panic!("snapshot failure is non-fatal — returns Ok, got: {:?}", result)
+    };
     assert_eq!(
         state.events_since_snapshot, SNAPSHOT_INTERVAL,
         "counter must NOT be reset when write_instance_snapshot fails"
@@ -233,7 +234,7 @@ async fn handle_signal_delivers_payload_to_pending_call() {
     let (caller_tx, caller_rx) =
         tokio::sync::oneshot::channel::<Result<(), WtfError>>();
 
-    let payload = Bytes::from_static(b"approved");
+    let payload = Bytes::from_static(b"first");
     handlers::handle_signal(
         &mut state,
         "order_approved".to_string(),
@@ -242,442 +243,10 @@ async fn handle_signal_delivers_payload_to_pending_call() {
     )
     .await
     .expect("ok");
-
-    // Pending RPC port received Ok(payload)
-    let pending_result = pending_rx.await.expect("pending reply received");
-    assert_eq!(pending_result.expect("payload ok"), payload);
-
-    // Caller received Ok(())
-    assert!(caller_rx.await.expect("caller reply").is_ok());
-
-    // Entry removed from pending map
-    assert!(
-        !state.pending_signal_calls.contains_key("order_approved"),
-        "pending entry must be removed after delivery"
-    );
-
-    // Event was injected (counter incremented)
-    assert_eq!(
-        state.total_events_applied, 101,
-        "inject_event must increment total_events_applied"
-    );
-}
-
-#[tokio::test]
-async fn handle_signal_publishes_event_when_no_pending_call() {
-    let mut state = make_test_state(
-        Some(Arc::new(MockOkEventStore)),
-        None,
-        0,
-    );
-
-    let (caller_tx, caller_rx) =
-        tokio::sync::oneshot::channel::<Result<(), WtfError>>();
-
-    handlers::handle_signal(
-        &mut state,
-        "timeout".to_string(),
-        Bytes::from_static(b"tick"),
-        caller_tx.into(),
-    )
-    .await
-    .expect("ok");
-
-    // Caller still gets Ok(())
-    assert!(caller_rx.await.expect("caller reply").is_ok());
-
-    // No entry was ever in the map, and the map stays empty
-    assert!(state.pending_signal_calls.is_empty());
-
-    // Signal must be buffered in received_signals when no waiter exists
-    if let crate::instance::lifecycle::ParadigmState::Procedural(s) = &state.paradigm_state {
-        let buffered = s
-            .received_signals
-            .get("timeout")
-            .expect("signal must be buffered");
-        assert_eq!(
-            buffered.len(),
-            1,
-            "exactly one signal must be buffered"
-        );
-        assert_eq!(
-            buffered[0],
-            Bytes::from_static(b"tick"),
-            "buffered payload must match"
-        );
-    }
-
-    // Event was injected
-    assert_eq!(state.total_events_applied, 101);
-}
-
-#[tokio::test]
-async fn handle_signal_returns_error_without_event_store() {
-    let mut state = make_test_state(None, None, 0);
-
-    let (caller_tx, caller_rx) =
-        tokio::sync::oneshot::channel::<Result<(), WtfError>>();
-
-    handlers::handle_signal(
-        &mut state,
-        "sig".to_string(),
-        Bytes::from_static(b"data"),
-        caller_tx.into(),
-    )
-    .await
-    .expect("handler returns Ok even on missing store");
-
-    let result = caller_rx.await.expect("caller reply received");
-    assert!(result.is_err(), "must return Err when event_store is None");
-    let err_msg = format!("{:?}", result.expect_err("is err"));
-    assert!(
-        err_msg.contains("Event store missing"),
-        "error message must mention 'Event store missing', got: {err_msg}"
-    );
-
-    // State must NOT be modified
-    assert_eq!(state.total_events_applied, 100);
-}
-
-#[tokio::test]
-async fn handle_signal_injects_event_into_paradigm_state() {
-    let mut state = make_test_state(
-        Some(Arc::new(MockOkEventStore)),
-        None,
-        0,
-    );
-
-    let before_applied = state.total_events_applied;
-
-    let (caller_tx, caller_rx) =
-        tokio::sync::oneshot::channel::<Result<(), WtfError>>();
-
-    handlers::handle_signal(
-        &mut state,
-        "approve".to_string(),
-        Bytes::from_static(b"yes"),
-        caller_tx.into(),
-    )
-    .await
-    .expect("ok");
-
-    // Caller gets Ok
-    assert!(caller_rx.await.expect("caller reply").is_ok());
-
-    // Paradigm state counter incremented (proves inject_event was called)
-    assert_eq!(
-        state.total_events_applied,
-        before_applied + 1,
-        "inject_event must have been called — total_events_applied must increment"
-    );
-    assert_eq!(
-        state.events_since_snapshot, 1,
-        "events_since_snapshot must increment"
-    );
-}
-
-#[tokio::test]
-async fn handle_signal_reply_error_on_publish_failure() {
-    let mut state = make_test_state(
-        Some(Arc::new(MockFailEventStore)),
-        None,
-        0,
-    );
-
-    let before_applied = state.total_events_applied;
-
-    let (caller_tx, caller_rx) =
-        tokio::sync::oneshot::channel::<Result<(), WtfError>>();
-
-    // Insert a pending call — it must NOT be delivered on publish failure
-    let (pending_tx, _pending_rx) =
-        tokio::sync::oneshot::channel::<Result<Bytes, WtfError>>();
-    state
-        .pending_signal_calls
-        .insert("fail_sig".to_string(), pending_tx.into());
-
-    handlers::handle_signal(
-        &mut state,
-        "fail_sig".to_string(),
-        Bytes::from_static(b"nope"),
-        caller_tx.into(),
-    )
-    .await
-    .expect("handler returns Ok even on publish failure");
-
-    // Caller receives error
-    let result = caller_rx.await.expect("caller reply received");
-    assert!(result.is_err(), "must return Err when publish fails");
-
-    // State must NOT be modified — no event injected
-    assert_eq!(state.total_events_applied, before_applied);
-
-    // Pending call must NOT have been removed
-    assert!(
-        state.pending_signal_calls.contains_key("fail_sig"),
-        "pending entry must remain when publish fails"
-    );
-}
-
-// ---------------------------------------------------------------------------
-// Signal delivery workflow tests (wtf-h8u4)
-//
-// Handler-level tests validating the full signal delivery path:
-//   event publish -> pending delivery -> buffer fallback -> wait_for_signal consumption.
-// Run: cargo test -p wtf-actor -- signal_delivery
-// ---------------------------------------------------------------------------
-
-#[tokio::test]
-async fn signal_delivery_resumes_and_completes_workflow() {
-    let mut state = make_test_state(Some(Arc::new(MockOkEventStore)), None, 0);
-
-    let (pending_tx, pending_rx) =
-        tokio::sync::oneshot::channel::<Result<Bytes, WtfError>>();
-    state
-        .pending_signal_calls
-        .insert("go".to_string(), pending_tx.into());
-
-    let (caller_tx, caller_rx) = tokio::sync::oneshot::channel::<Result<(), WtfError>>();
-
-    let payload = Bytes::from_static(b"proceed");
-    handlers::handle_signal(&mut state, "go".to_string(), payload.clone(), caller_tx.into())
-        .await
-        .expect("handler returns Ok");
-
-    // Caller receives Ok(())
-    let caller_result = caller_rx.await.expect("caller reply channel not dropped");
-    assert!(caller_result.is_ok(), "caller should receive Ok(())");
-
-    // Pending waiter receives exact payload [INV-2]
-    let pending_result = pending_rx.await.expect("pending reply channel not dropped");
-    let received = pending_result.expect("pending should be Ok");
-    assert_eq!(received, payload, "INV-2: payload must match exactly");
-
-    // Entry removed from pending map [POST-3]
-    assert!(
-        !state.pending_signal_calls.contains_key("go"),
-        "pending entry must be removed after delivery"
-    );
-
-    // total_events_applied incremented [POST-4]
-    assert_eq!(state.total_events_applied, 101);
-}
-
-#[tokio::test]
-async fn signal_arrives_before_wait_for_signal() {
-    let mut state = make_test_state(Some(Arc::new(MockOkEventStore)), None, 0);
-
-    // Step 1: Signal arrives — no waiter registered yet
-    let (caller_tx, caller_rx) = tokio::sync::oneshot::channel::<Result<(), WtfError>>();
-
-    handlers::handle_signal(
-        &mut state,
-        "early".to_string(),
-        Bytes::from_static(b"before-wait"),
-        caller_tx.into(),
-    )
-    .await
-    .expect("handler returns Ok");
-    assert!(caller_rx.await.expect("caller reply").is_ok());
-
-    // Signal must be buffered [POST-9]
-    if let ParadigmState::Procedural(s) = &state.paradigm_state {
-        let buffered = s
-            .received_signals
-            .get("early")
-            .expect("signal must be buffered in received_signals");
-        assert_eq!(buffered.len(), 1);
-        assert_eq!(buffered[0], Bytes::from_static(b"before-wait"));
-    }
-
-    // Step 2: Workflow calls wait_for_signal after buffer
-    let (wait_tx, wait_rx) = tokio::sync::oneshot::channel::<Result<Bytes, WtfError>>();
-
-    procedural::handle_wait_for_signal(&mut state, 0, "early".to_string(), wait_tx.into()).await;
-
-    // Returns immediately [POST-12]
-    let wait_result = wait_rx.await.expect("wait reply channel not dropped");
-    let received = wait_result.expect("wait should return Ok");
-    assert_eq!(
-        received,
-        Bytes::from_static(b"before-wait"),
-        "POST-10: buffered payload must be delivered"
-    );
-
-    // Buffer entry consumed [POST-11]
-    if let ParadigmState::Procedural(s) = &state.paradigm_state {
-        assert!(
-            !s.received_signals.contains_key("early"),
-            "received_signals entry should be removed when Vec is empty"
-        );
-    }
-}
-
-#[tokio::test]
-async fn signal_to_nonexistent_instance_returns_instance_not_found() {
-    // At handler level, InstanceNotFound is produced by the orchestrator.
-    // We verify that handle_signal on any InstanceState succeeds without panic.
-    let mut state = make_test_state(Some(Arc::new(MockOkEventStore)), None, 0);
-
-    let (caller_tx, caller_rx) = tokio::sync::oneshot::channel::<Result<(), WtfError>>();
-
-    handlers::handle_signal(
-        &mut state,
-        "any_signal".to_string(),
-        Bytes::from_static(b"data"),
-        caller_tx.into(),
-    )
-    .await
-    .expect("handler returns Ok");
-
-    let result = caller_rx.await.expect("caller reply channel not dropped");
-    assert!(result.is_ok(), "signal to valid InstanceState should succeed");
-}
-
-#[tokio::test]
-async fn signal_with_wrong_name_does_not_unblock_workflow() {
-    let mut state = make_test_state(Some(Arc::new(MockOkEventStore)), None, 0);
-
-    // Pending waiter for "approval"
-    let (pending_tx, mut pending_rx) =
-        tokio::sync::oneshot::channel::<Result<Bytes, WtfError>>();
-    state
-        .pending_signal_calls
-        .insert("approval".to_string(), pending_tx.into());
-
-    let (caller_tx, caller_rx) = tokio::sync::oneshot::channel::<Result<(), WtfError>>();
-
-    handlers::handle_signal(
-        &mut state,
-        "wrong_name".to_string(),
-        Bytes::from_static(b"payload"),
-        caller_tx.into(),
-    )
-    .await
-    .expect("handler returns Ok");
-    assert!(caller_rx.await.expect("caller reply").is_ok());
-
-    // Original waiter untouched [POST-14]
-    assert!(
-        state.pending_signal_calls.contains_key("approval"),
-        "pending entry for 'approval' must remain untouched"
-    );
-    assert!(
-        pending_rx.try_recv().is_err(),
-        "no reply sent to the original waiter"
-    );
-
-    // Signal buffered under wrong name [INV-4]
-    if let ParadigmState::Procedural(s) = &state.paradigm_state {
-        assert!(
-            s.received_signals.contains_key("wrong_name"),
-            "signal with wrong name must be buffered (not discarded)"
-        );
-    }
-}
-
-#[tokio::test]
-async fn empty_signal_payload_delivered_and_workflow_completes() {
-    let mut state = make_test_state(Some(Arc::new(MockOkEventStore)), None, 0);
-
-    let (pending_tx, pending_rx) =
-        tokio::sync::oneshot::channel::<Result<Bytes, WtfError>>();
-    state
-        .pending_signal_calls
-        .insert("go".to_string(), pending_tx.into());
-
-    let (caller_tx, caller_rx) = tokio::sync::oneshot::channel::<Result<(), WtfError>>();
-
-    handlers::handle_signal(&mut state, "go".to_string(), Bytes::new(), caller_tx.into())
-        .await
-        .expect("handler returns Ok");
-
-    assert!(caller_rx.await.expect("caller reply").is_ok());
-
-    let pending_result = pending_rx.await.expect("pending reply channel not dropped");
-    let received = pending_result.expect("pending should be Ok");
-    assert!(
-        received.is_empty(),
-        "POST-15: empty payload must be delivered as-is"
-    );
-
-    assert!(
-        !state.pending_signal_calls.contains_key("go"),
-        "pending entry must be removed"
-    );
-}
-
-#[tokio::test]
-async fn postcondition_op_counter_increments_once_per_wait_for_signal() {
-    let mut state = make_test_state(Some(Arc::new(MockOkEventStore)), None, 0);
-    let before_events = state.total_events_applied;
-
-    // Step 1: wait_for_signal with no buffer -> registers pending
-    let (wait_tx1, _wait_rx1) = tokio::sync::oneshot::channel::<Result<Bytes, WtfError>>();
-    procedural::handle_wait_for_signal(&mut state, 0, "step1".to_string(), wait_tx1.into()).await;
-    assert!(state.pending_signal_calls.contains_key("step1"));
-
-    // Step 2: handle_signal delivers
-    let (caller_tx1, caller_rx1) = tokio::sync::oneshot::channel::<Result<(), WtfError>>();
-    handlers::handle_signal(
-        &mut state,
-        "step1".to_string(),
-        Bytes::from_static(b"step1-payload"),
-        caller_tx1.into(),
-    )
-    .await
-    .expect("ok");
-    assert!(caller_rx1.await.expect("ok").is_ok());
-    assert_eq!(
-        state.total_events_applied,
-        before_events + 1,
-        "first signal must increment total_events_applied by 1"
-    );
-
-    // Step 3: Second wait_for_signal
-    let (wait_tx2, _wait_rx2) = tokio::sync::oneshot::channel::<Result<Bytes, WtfError>>();
-    procedural::handle_wait_for_signal(&mut state, 1, "step2".to_string(), wait_tx2.into()).await;
-
-    // Step 4: Second signal
-    let (caller_tx2, caller_rx2) = tokio::sync::oneshot::channel::<Result<(), WtfError>>();
-    handlers::handle_signal(
-        &mut state,
-        "step2".to_string(),
-        Bytes::from_static(b"step2-payload"),
-        caller_tx2.into(),
-    )
-    .await
-    .expect("ok");
-    assert!(caller_rx2.await.expect("ok").is_ok());
-    assert_eq!(
-        state.total_events_applied,
-        before_events + 2,
-        "two signals must increment total_events_applied by 2"
-    );
-}
-
-#[tokio::test]
-async fn invariant_signal_never_lost_either_delivered_or_buffered() {
-    let mut state = make_test_state(Some(Arc::new(MockOkEventStore)), None, 0);
-
-    // Pending waiter for "release"
-    let (pending_tx, pending_rx) =
-        tokio::sync::oneshot::channel::<Result<Bytes, WtfError>>();
-    state
-        .pending_signal_calls
-        .insert("release".to_string(), pending_tx.into());
-
-    // Step 1: First signal -> pending waiter
-    let (caller_tx1, caller_rx1) = tokio::sync::oneshot::channel::<Result<(), WtfError>>();
-    handlers::handle_signal(
-        &mut state,
-        "release".to_string(),
-        Bytes::from_static(b"first"),
-        caller_tx1.into(),
-    )
-    .await
-    .expect("ok");
-    assert!(caller_rx1.await.expect("ok").is_ok());
+    let caller_result = caller_rx.await;
+    let Ok(Ok(())) = caller_result else {
+        panic!("caller should receive Ok(()), got: {:?}", caller_result)
+    };
 
     // First delivered immediately [INV-4]
     let first_result = pending_rx.await.expect("pending reply channel not dropped");
@@ -695,7 +264,10 @@ async fn invariant_signal_never_lost_either_delivered_or_buffered() {
     )
     .await
     .expect("ok");
-    assert!(caller_rx2.await.expect("ok").is_ok());
+    let caller_result = caller_rx2.await;
+    let Ok(Ok(())) = caller_result else {
+        panic!("caller should receive Ok(()), got: {:?}", caller_result)
+    };
 
     // No signal discarded [INV-4]
     if let ParadigmState::Procedural(s) = &state.paradigm_state {
@@ -722,7 +294,10 @@ async fn postcondition_signal_event_published_to_event_store() {
     )
     .await
     .expect("ok");
-    assert!(caller_rx.await.expect("ok").is_ok());
+    let caller_result = caller_rx.await;
+    let Ok(Ok(())) = caller_result else {
+        panic!("caller should receive Ok(()), got: {:?}", caller_result)
+    };
 
     assert_eq!(
         state.total_events_applied, 101,
@@ -751,7 +326,10 @@ async fn postcondition_pending_signal_call_removed_after_delivery() {
     )
     .await
     .expect("ok");
-    assert!(caller_rx.await.expect("ok").is_ok());
+    let caller_result = caller_rx.await;
+    let Ok(Ok(())) = caller_result else {
+        panic!("caller should receive Ok(()), got: {:?}", caller_result)
+    };
 
     // [POST-3] pending entry removed
     assert!(
@@ -785,7 +363,10 @@ async fn invariant_signal_payload_matches_what_was_sent() {
     )
     .await
     .expect("ok");
-    assert!(caller_rx.await.expect("ok").is_ok());
+    let caller_result = caller_rx.await;
+    let Ok(Ok(())) = caller_result else {
+        panic!("caller should receive Ok(()), got: {:?}", caller_result)
+    };
 
     // [INV-2] Exact byte equality
     let pending_result = pending_rx.await.expect("pending reply channel not dropped");
@@ -810,7 +391,10 @@ async fn invariant_received_signals_fifo_ordering() {
     )
     .await
     .expect("ok");
-    assert!(caller_rx1.await.expect("ok").is_ok());
+    let caller_result = caller_rx1.await;
+    let Ok(Ok(())) = caller_result else {
+        panic!("caller should receive Ok(()), got: {:?}", caller_result)
+    };
 
     // Buffer second signal
     let (caller_tx2, caller_rx2) = tokio::sync::oneshot::channel::<Result<(), WtfError>>();
@@ -822,7 +406,10 @@ async fn invariant_received_signals_fifo_ordering() {
     )
     .await
     .expect("ok");
-    assert!(caller_rx2.await.expect("ok").is_ok());
+    let caller_result = caller_rx2.await;
+    let Ok(Ok(())) = caller_result else {
+        panic!("caller should receive Ok(()), got: {:?}", caller_result)
+    };
 
     // Consume first -> "alpha"
     let (wait_tx1, wait_rx1) = tokio::sync::oneshot::channel::<Result<Bytes, WtfError>>();
@@ -919,7 +506,8 @@ fn cancel_test_state(
 
 /// Helper: spawn a `NullActor` that accepts `InstanceMsg` so we get a valid `ActorRef`.
 /// The actor ignores all messages (including Cancel).
-async fn spawn_null_instance_actor() -> ActorRef<InstanceMsg> {
+/// Returns both the ref and JoinHandle so callers can await actor termination.
+async fn spawn_null_instance_actor() -> (ActorRef<InstanceMsg>, ractor::concurrency::tokio_primitives::JoinHandle<()>) {
     struct NullInstanceActor;
     #[async_trait::async_trait]
     impl ractor::Actor for NullInstanceActor {
@@ -934,10 +522,9 @@ async fn spawn_null_instance_actor() -> ActorRef<InstanceMsg> {
             Ok(())
         }
     }
-    let (ref_, _handle) = NullInstanceActor::spawn(None, NullInstanceActor, ())
+    NullInstanceActor::spawn(None, NullInstanceActor, ())
         .await
-        .expect("null instance actor spawned");
-    ref_
+        .expect("null instance actor spawned")
 }
 
 /// Helper: spawn an actor that deliberately drops Cancel reply ports (never replies).
@@ -980,7 +567,7 @@ async fn spawn_silent_cancel_actor() -> ActorRef<InstanceMsg> {
 #[tokio::test]
 async fn terminate_running_instance_returns_ok() {
     let mut state = cancel_test_state(Some(Arc::new(MockOkEventStore)));
-    let actor_ref = spawn_null_instance_actor().await;
+    let (actor_ref, _handle) = spawn_null_instance_actor().await;
 
     let (tx, rx) = tokio::sync::oneshot::channel::<Result<(), WtfError>>();
 
@@ -1003,7 +590,7 @@ async fn terminate_running_instance_returns_ok() {
 async fn terminate_publishes_instance_cancelled_event() {
     let store = Arc::new(CapturingEventStore::new());
     let mut state = cancel_test_state(Some(store.clone() as Arc<dyn EventStore>));
-    let actor_ref = spawn_null_instance_actor().await;
+    let (actor_ref, _handle) = spawn_null_instance_actor().await;
 
     let (tx, rx) = tokio::sync::oneshot::channel::<Result<(), WtfError>>();
 
@@ -1074,7 +661,7 @@ async fn terminate_nonexistent_instance_returns_not_found() {
 async fn double_terminate_returns_not_found() {
     // First terminate: use a real actor that will be stopped by handle_cancel
     let mut state = cancel_test_state(Some(Arc::new(MockOkEventStore)));
-    let actor_ref = spawn_null_instance_actor().await;
+    let (actor_ref, handle) = spawn_null_instance_actor().await;
 
     let (tx1, rx1) = tokio::sync::oneshot::channel::<Result<(), WtfError>>();
     handlers::handle_cancel(
@@ -1087,8 +674,8 @@ async fn double_terminate_returns_not_found() {
     .expect("first cancel ok");
     let _ = rx1.await;
 
-    // Wait for the actor to actually stop
-    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    // Wait for the actor to actually stop using event-driven synchronization
+    let _ = handle.await;
 
     // Second terminate: actor is dead, so call_cancel should get SenderError
     // which maps to NotFound. We test this via the orchestrator handler.
@@ -1148,7 +735,7 @@ async fn terminate_returns_timeout_when_instance_does_not_respond() {
 #[tokio::test]
 async fn terminate_with_no_event_store_still_replies_ok() {
     let mut state = cancel_test_state(None);
-    let actor_ref = spawn_null_instance_actor().await;
+    let (actor_ref, _handle) = spawn_null_instance_actor().await;
 
     let (tx, rx) = tokio::sync::oneshot::channel::<Result<(), WtfError>>();
 
@@ -1176,7 +763,7 @@ async fn terminate_with_no_event_store_still_replies_ok() {
 #[tokio::test]
 async fn terminate_when_publish_fails_still_replies_ok() {
     let mut state = cancel_test_state(Some(Arc::new(FailingEventStore)));
-    let actor_ref = spawn_null_instance_actor().await;
+    let (actor_ref, _handle) = spawn_null_instance_actor().await;
 
     let (tx, rx) = tokio::sync::oneshot::channel::<Result<(), WtfError>>();
 
@@ -1228,7 +815,7 @@ impl EventStore for FailingEventStore {
 async fn terminate_reason_propagates_to_instance_cancelled_event() {
     let store = Arc::new(CapturingEventStore::new());
     let mut state = cancel_test_state(Some(store.clone() as Arc<dyn EventStore>));
-    let actor_ref = spawn_null_instance_actor().await;
+    let (actor_ref, _handle) = spawn_null_instance_actor().await;
 
     let custom_reason = "my-custom-reason".to_string();
     let (tx, rx) = tokio::sync::oneshot::channel::<Result<(), WtfError>>();

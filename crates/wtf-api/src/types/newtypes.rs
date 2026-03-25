@@ -1,5 +1,7 @@
 //! Strongly-typed wrappers for engine IDs and domain types.
 
+#![allow(clippy::wrong_self_convention)]
+
 use super::errors::{ParseError, ValidationError};
 use chrono::{DateTime, Utc};
 use serde::{de::Error as DeError, Deserialize, Deserializer, Serialize, Serializer};
@@ -100,6 +102,7 @@ fn signal_name_regex() -> Result<&'static regex::Regex, String> {
 pub struct InvocationId(String);
 
 impl InvocationId {
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: impl AsRef<str>) -> Result<Self, ParseError> {
         let s = s.as_ref();
         let re = ulid_regex().map_err(|_| ParseError::InvalidUlidFormat)?;

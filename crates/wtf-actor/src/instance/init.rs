@@ -1,5 +1,7 @@
 //! Initialization and replay logic for `WorkflowInstance` actors.
 
+#![allow(clippy::missing_errors_doc, clippy::unused_async)]
+
 use super::lifecycle::{
     compute_live_transition, deserialize_paradigm_state, execute_transition_actions, ParadigmState,
 };

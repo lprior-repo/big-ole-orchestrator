@@ -83,13 +83,13 @@ pub async fn connect(config: &NatsConfig) -> Result<NatsClient, WtfError> {
 
     let timeout = Duration::from_millis(config.connect_timeout_ms);
 
-    try_connect(url, &config.credentials_path, timeout).await
+    try_connect(url, config.credentials_path.as_ref(), timeout).await
 }
 
 /// Attempt connection with up to 3 retries (500ms / 1s / 2s backoff).
 async fn try_connect(
     url: &str,
-    credentials_path: &Option<PathBuf>,
+    credentials_path: Option<&PathBuf>,
     timeout: Duration,
 ) -> Result<NatsClient, WtfError> {
     let delays_ms: [u64; 3] = [500, 1_000, 2_000];
@@ -116,7 +116,7 @@ async fn try_connect(
 
 async fn attempt_connect(
     url: &str,
-    credentials_path: &Option<PathBuf>,
+    credentials_path: Option<&PathBuf>,
     _timeout: Duration,
 ) -> Result<NatsClient, WtfError> {
     let connect_options = match credentials_path {

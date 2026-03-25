@@ -81,7 +81,7 @@ impl ReplayConsumer {
     /// Returns `WtfError::NatsPublish` if the NATS stream errors.
     pub async fn next_event_internal(&mut self) -> Result<ReplayBatch, WtfError> {
         match tokio::time::timeout(self.tail_timeout, self.messages.next()).await {
-            Ok(Some(Ok(msg))) => Ok(ReplayBatch::Event(self.decode_msg(msg)?)),
+            Ok(Some(Ok(msg))) => Ok(ReplayBatch::Event(Self::decode_msg(&msg)?)),
             Ok(Some(Err(e))) => Err(WtfError::nats_publish(format!("replay stream error: {e}"))),
             Ok(None) => {
                 // Stream closed — treat as tail reached.
@@ -97,13 +97,13 @@ impl ReplayConsumer {
     /// Returns `WtfError::NatsPublish` if the NATS stream errors or closes.
     pub async fn next_live_event_internal(&mut self) -> Result<ReplayedEvent, WtfError> {
         match self.messages.next().await {
-            Some(Ok(msg)) => self.decode_msg(msg),
+            Some(Ok(msg)) => Self::decode_msg(&msg),
             Some(Err(e)) => Err(WtfError::nats_publish(format!("live stream error: {e}"))),
             None => Err(WtfError::nats_publish("live stream closed unexpectedly")),
         }
     }
 
-    fn decode_msg(&self, msg: async_nats::jetstream::Message) -> Result<ReplayedEvent, WtfError> {
+    fn decode_msg(msg: &async_nats::jetstream::Message) -> Result<ReplayedEvent, WtfError> {
         let info = msg
             .info()
             .map_err(|e| WtfError::nats_publish(format!("read msg info: {e}")))?;
@@ -111,7 +111,7 @@ impl ReplayConsumer {
         let ts = info.published;
         let timestamp = DateTime::<Utc>::from_timestamp(ts.unix_timestamp(), ts.nanosecond())
             .unwrap_or_default();
-        let event = decode_event(msg.payload.clone())?;
+        let event = decode_event(&msg.payload.clone())?;
         Ok(ReplayedEvent {
             seq,
             event,
@@ -198,8 +198,8 @@ fn build_push_config(
     }
 }
 
-fn decode_event(payload: Bytes) -> Result<WorkflowEvent, WtfError> {
-    WorkflowEvent::from_msgpack(&payload)
+fn decode_event(payload: &Bytes) -> Result<WorkflowEvent, WtfError> {
+    WorkflowEvent::from_msgpack(payload)
         .map_err(|e| WtfError::nats_publish(format!("decode event: {e}")))
 }
 

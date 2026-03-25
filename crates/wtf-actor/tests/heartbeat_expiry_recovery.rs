@@ -55,6 +55,7 @@ async fn setup_harness(test_name: &str) -> Result<Harness, Box<dyn std::error::E
             "checkout-fsm".to_owned(),
             fsm_definition(),
         )],
+        procedural_workflows: Vec::new(),
     };
 
     let (orchestrator, _) = MasterOrchestrator::spawn(

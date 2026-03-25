@@ -5,6 +5,7 @@
 #![deny(clippy::panic)]
 #![warn(clippy::pedantic)]
 #![forbid(unsafe_code)]
+#![allow(clippy::missing_errors_doc, clippy::manual_let_else)]
 
 use crate::messages::InstanceMsg;
 use bytes::Bytes;

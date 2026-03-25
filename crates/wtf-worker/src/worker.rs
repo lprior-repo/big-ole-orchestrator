@@ -44,6 +44,10 @@ pub struct DrainConfig {
 }
 
 impl DrainConfig {
+    /// Create a new `DrainConfig`.
+    ///
+    /// # Errors
+    /// Returns `WtfError::InvalidInput` if `drain_timeout` is zero.
     pub fn new(drain_timeout: Duration, nak_on_timeout: bool) -> Result<Self, WtfError> {
         if drain_timeout.is_zero() {
             return Err(WtfError::InvalidInput {
@@ -87,7 +91,7 @@ type ActivityHandler = Arc<
 /// [`Worker::register`] and start the loop with [`Worker::run`].
 pub struct Worker {
     js: Context,
-    worker_name: String,
+    name: String,
     filter_subject: Option<String>,
     handlers: HashMap<String, ActivityHandler>,
 }
@@ -106,7 +110,7 @@ impl Worker {
     ) -> Self {
         Self {
             js,
-            worker_name: worker_name.into(),
+            name: worker_name.into(),
             filter_subject,
             handlers: HashMap::new(),
         }
@@ -148,13 +152,17 @@ impl Worker {
             .map(|_| ())
     }
 
+    /// Run the worker with a drain configuration.
+    ///
+    /// # Errors
+    /// Returns `WtfError` if creating the consumer fails.
     pub async fn run_with_drain(
         &self,
         mut shutdown_rx: tokio::sync::watch::Receiver<bool>,
         _drain_config: DrainConfig,
     ) -> Result<ShutdownResult, WtfError> {
         let mut consumer =
-            WorkQueueConsumer::create(&self.js, &self.worker_name, self.filter_subject.clone())
+            WorkQueueConsumer::create(&self.js, &self.name, self.filter_subject.clone())
                 .await?;
 
         let mut drain_started_at: Option<Instant> = None;
@@ -162,7 +170,7 @@ impl Worker {
         let interrupted_count: u32 = 0;
 
         tracing::info!(
-            worker = %self.worker_name,
+            worker = %self.name,
             "worker started"
         );
 
@@ -171,10 +179,10 @@ impl Worker {
                 result = consumer.next_task() => {
                     match result {
                         Err(e) => {
-                            tracing::error!(worker = %self.worker_name, error = %e, "queue error");
+                            tracing::error!(worker = %self.name, error = %e, "queue error");
                         }
                         Ok(None) => {
-                            tracing::info!(worker = %self.worker_name, "work queue closed — shutting down");
+                            tracing::info!(worker = %self.name, "work queue closed — shutting down");
                             break;
                         }
                         Ok(Some(ackable)) => {
@@ -186,7 +194,7 @@ impl Worker {
                 result = shutdown_rx.changed() => {
                     match result {
                         Ok(()) | Err(_) => {
-                            tracing::info!(worker = %self.worker_name, "worker entering drain phase");
+                            tracing::info!(worker = %self.name, "worker entering drain phase");
                             if drain_started_at.is_none() {
                                 drain_started_at = Some(Instant::now());
                             }
@@ -198,7 +206,7 @@ impl Worker {
         }
 
         let drain_duration_ms =
-            drain_started_at.map_or(0_u64, |started| started.elapsed().as_millis() as u64);
+            drain_started_at.map_or(0_u64, |started| u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX));
 
         Ok(ShutdownResult {
             completed_count,
@@ -213,7 +221,7 @@ impl Worker {
 
         let Some(handler) = handler else {
             tracing::warn!(
-                worker = %self.worker_name,
+                worker = %self.name,
                 activity_type = %task.activity_type,
                 activity_id = %task.activity_id,
                 "no handler registered — acking to avoid queue stall"
@@ -225,7 +233,7 @@ impl Worker {
         let task_clone = ackable.task.clone();
         let start = Instant::now();
         let handler_result = handler(task_clone).await;
-        let duration_ms = start.elapsed().as_millis() as u64;
+        let duration_ms = u64::try_from(start.elapsed().as_millis()).unwrap_or(u64::MAX);
 
         match handler_result {
             Ok(result) => {

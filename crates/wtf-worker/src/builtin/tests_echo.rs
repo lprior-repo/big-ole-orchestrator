@@ -33,8 +33,7 @@ async fn test_echo_preserves_large_payload_1mb() {
     let large = vec![0xAB_u8; 1_048_576]; // 1 MB
     let task = make_task("echo", &large);
     let result = echo_handler(task).await;
-    assert!(result.is_ok());
-    assert_eq!(result.unwrap().len(), 1_048_576);
+    assert_eq!(result.as_ref().map(|v| v.len()), Ok(1_048_576));
 }
 
 #[tokio::test]
@@ -58,7 +57,7 @@ async fn test_invariant_echo_handler_never_panics() {
     for payload in payloads {
         let task = make_task("echo", payload);
         let result = tokio::spawn(echo_handler(task)).await;
-        assert!(result.is_ok(), "echo should not panic for any payload");
-        assert!(result.unwrap().is_ok(), "echo should always return Ok");
+        let Ok(inner) = result else { panic!("echo task panicked for payload: {payload:?}") };
+        assert!(inner.is_ok(), "echo should always return Ok, got: {:?}", inner.err());
     }
 }

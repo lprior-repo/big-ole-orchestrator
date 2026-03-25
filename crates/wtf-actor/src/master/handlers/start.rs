@@ -128,7 +128,7 @@ mod tests {
             ..OrchestratorConfig::default()
         });
         let result = validate_request(&state, &InstanceId::new("inst-1"));
-        assert!(result.is_err());
+        assert!(matches!(result, Err(StartError::AtCapacity { .. })));
     }
 
     #[test]
@@ -138,7 +138,7 @@ mod tests {
             ..OrchestratorConfig::default()
         });
         let result = validate_request(&state, &InstanceId::new("inst-1"));
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "expected Ok(()) for available capacity");
     }
 
     #[tokio::test]

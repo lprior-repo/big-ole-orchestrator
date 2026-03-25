@@ -90,7 +90,9 @@ async fn fresh_instance_publishes_started_event() {
 
     let result = publish_instance_started(&args, 1, &event_log).await;
 
-    assert!(result.is_ok(), "Expected Ok(()) but got {:?}", result.err());
+    let Ok(()) = result else {
+        panic!("Expected Ok(()), got: {:?}", result.err());
+    };
 
     let published = capture.lock().expect("lock").clone();
     assert_eq!(published.len(), 1, "Expected exactly 1 published event");
@@ -118,7 +120,9 @@ async fn crash_recovery_skips_started_event() {
 
     let result = publish_instance_started(&args, 1, &event_log).await;
 
-    assert!(result.is_ok(), "Expected Ok(()) but got {:?}", result.err());
+    let Ok(()) = result else {
+        panic!("Expected Ok(()), got: {:?}", result.err());
+    };
 
     let published = capture.lock().expect("lock").clone();
     assert!(
@@ -138,7 +142,7 @@ async fn no_event_store_returns_error() {
 
     let result = publish_instance_started(&args, 1, &event_log).await;
 
-    assert!(result.is_err(), "Expected Err for missing event_store");
+    assert!(matches!(result, Err(_)), "Expected Err for missing event_store");
     let err_msg = format!("{:?}", result.expect_err("is err"));
     assert!(
         err_msg.contains("No event store"),

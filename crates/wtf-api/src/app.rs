@@ -44,7 +44,6 @@ use crate::{handlers, health, sse};
 /// - `POST /api/v1/definitions/:type` — ingest and lint workflow definition
 /// - `GET /api/v1/watch` — watch all workflow instances
 /// - `GET /api/v1/watch/:namespace` — watch instances in namespace
-#[must_use]
 pub fn build_app(master: ActorRef<OrchestratorMsg>, kv: KvStores) -> Router {
     let sse_semaphore = Arc::new(Semaphore::new(sse::MAX_SSE_WATCHERS));
 

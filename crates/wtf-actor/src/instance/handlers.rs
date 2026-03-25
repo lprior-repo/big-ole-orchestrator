@@ -1,5 +1,7 @@
 //! Message handlers for `WorkflowInstance` actors.
 
+#![allow(clippy::missing_errors_doc, clippy::manual_let_else, clippy::unused_async)]
+
 pub(crate) mod snapshot;
 
 use super::lifecycle::ParadigmState;
@@ -14,6 +16,7 @@ use wtf_common::{ActivityId, EventStore, WorkflowEvent, WtfError};
 
 /// Saga compensation errors for cancellation.
 #[derive(Debug, Error)]
+#[expect(dead_code)]
 pub(crate) enum CancelError {
     #[error("publish failed after {0} retries: {1}")]
     PublishFailed(u32, WtfError),
@@ -109,7 +112,7 @@ async fn handle_procedural_msg(
             let _ = procedural::handle_failed(myself_ref, state, err).await;
         }
         InstanceMsg::GetStatus(reply) => {
-            let _ = handle_get_status(state, reply);
+            handle_get_status(state, reply);
         }
         _ => {
             return Err(ActorProcessingErr::from(
@@ -165,7 +168,7 @@ pub(crate) async fn handle_signal(
     payload: Bytes,
     reply: RpcReplyPort<Result<(), WtfError>>,
 ) -> Result<(), ActorProcessingErr> {
-    let store = if let Some(s) = &state.args.event_store { s } else {
+    let Some(store) = &state.args.event_store else {
         let _ = reply.send(Err(WtfError::nats_publish("Event store missing")));
         return Ok(());
     };
@@ -362,7 +365,7 @@ async fn drain_outbox(
 fn handle_get_status(
     state: &InstanceState,
     reply: RpcReplyPort<InstanceStatusSnapshot>,
-) -> Result<(), ActorProcessingErr> {
+) {
     let _ = reply.send(InstanceStatusSnapshot {
         instance_id: state.args.instance_id.clone(),
         namespace: state.args.namespace.clone(),
@@ -372,7 +375,6 @@ fn handle_get_status(
         events_applied: state.total_events_applied,
         current_state: current_state_view(&state.paradigm_state),
     });
-    Ok(())
 }
 
 /// Write a snapshot every 100 events (ADR-019).

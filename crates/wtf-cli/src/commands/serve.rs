@@ -69,6 +69,7 @@ pub async fn run_serve(config: ServeConfig) -> anyhow::Result<()> {
         state_store: Some(state_store),
         task_queue: Some(task_queue),
         definitions,
+        procedural_workflows: Vec::new(),
     };
 
     let (master, _master_handle) = MasterOrchestrator::spawn(

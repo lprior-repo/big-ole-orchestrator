@@ -2,6 +2,7 @@
 #![deny(clippy::expect_used)]
 #![deny(clippy::panic)]
 #![forbid(unsafe_code)]
+#![allow(clippy::type_complexity)]
 
 use clap::ValueEnum;
 use serde::Serialize;
@@ -10,14 +11,12 @@ use std::process::ExitCode;
 use wtf_linter::diagnostic::LintError;
 use wtf_linter::Diagnostic;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum, Default)]
 pub enum OutputFormat {
     #[default]
     Human,
     Json,
 }
-
 
 #[derive(Debug, Clone, Serialize)]
 struct JsonDiagnostic {
@@ -256,10 +255,13 @@ mod tests {
     fn lint_single_file_reports_parse_error_for_invalid_rust() {
         let path = std::env::temp_dir().join("wtf_cli_invalid_lint.rs");
         let write_result = fs::write(&path, "fn broken( {");
-        assert!(write_result.is_ok());
+        assert!(write_result.is_ok(), "file write should succeed");
 
         let result = lint_single_file(&path);
-        assert!(result.is_err());
+        assert!(
+            result.is_err(),
+            "linting broken code should produce an error"
+        );
 
         let _ = fs::remove_file(path);
     }
@@ -276,10 +278,10 @@ impl WorkflowFn for MyWorkflow {
 }
 "#;
         let write_result = fs::write(&path, source);
-        assert!(write_result.is_ok());
+        assert!(write_result.is_ok(), "file write should succeed");
 
         let result = lint_single_file(&path);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "linting clean code should succeed");
 
         let _ = fs::remove_file(path);
     }

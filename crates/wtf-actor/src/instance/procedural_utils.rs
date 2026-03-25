@@ -1,5 +1,7 @@
 //! Utilities and completion handlers for procedural workflows.
 
+#![allow(clippy::missing_errors_doc)]
+
 use super::handlers;
 use super::lifecycle::ParadigmState;
 use super::state::InstanceState;

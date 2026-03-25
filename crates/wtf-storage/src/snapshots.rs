@@ -110,12 +110,11 @@ pub fn read_snapshot(
         .open_tree(SNAPSHOTS_TREE)
         .map_err(|e| WtfError::sled_error(format!("open tree: {e}")))?;
 
-    let bytes = match tree
+    let Some(bytes) = tree
         .get(instance_id.as_str().as_bytes())
         .map_err(|e| WtfError::sled_error(format!("read {instance_id}: {e}")))?
-    {
-        Some(b) => b,
-        None => return Ok(None),
+    else {
+        return Ok(None);
     };
 
     let record: SnapshotRecord = rmp_serde::from_slice(&bytes)

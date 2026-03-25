@@ -43,7 +43,7 @@ pub async fn append_event(
     let ack = tokio::time::timeout(PUBLISH_ACK_TIMEOUT, ack_future)
         .await
         .map_err(|_| {
-            WtfError::nats_timeout("await PublishAck", PUBLISH_ACK_TIMEOUT.as_millis() as u64)
+            WtfError::nats_timeout("await PublishAck", u64::try_from(PUBLISH_ACK_TIMEOUT.as_millis()).unwrap_or(u64::MAX))
         })?
         .map_err(|e| WtfError::nats_publish(format!("ack error: {e}")))?;
 

@@ -15,6 +15,7 @@ fn orchestrator_config(max_instances: usize) -> OrchestratorConfig {
         state_store: None,
         task_queue: None,
         definitions: Vec::new(),
+        procedural_workflows: Vec::new(),
     }
 }
 

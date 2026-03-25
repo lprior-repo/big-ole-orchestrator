@@ -76,7 +76,6 @@ impl<S> Layer<S> for JsonBodyLayer {
 ///
 /// # Returns
 /// A `Router` instance with all routes and middleware configured.
-#[must_use]
 pub fn create_routes(master: ActorRef<OrchestratorMsg>) -> Router {
     Router::new()
         .route("/health", get(health::health_handler))

@@ -1,3 +1,5 @@
+#![allow(clippy::type_complexity)]
+
 use axum::{
     extract::{Extension, Path},
     http::StatusCode,

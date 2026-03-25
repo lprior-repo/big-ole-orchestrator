@@ -70,6 +70,9 @@ pub struct Database {
 
 impl Database {
     /// Open a database at the given path, initializing all required trees.
+    ///
+    /// # Errors
+    /// Returns [`StorageError`] if the database cannot be opened or trees cannot be initialized.
     pub fn open(path: impl AsRef<Path>) -> Result<Self, StorageError> {
         let db = sled::open(path)?;
 

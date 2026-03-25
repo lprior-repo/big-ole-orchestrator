@@ -1,5 +1,6 @@
 use crate::master::registry::{WorkflowDefinition, WorkflowRegistry};
 use crate::messages::{InstanceArguments, InstanceMsg, InstanceSeed};
+use crate::procedural::WorkflowFn;
 use ractor::ActorRef;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -22,6 +23,8 @@ pub struct OrchestratorConfig {
     pub task_queue: Option<Arc<dyn TaskQueue>>,
     /// Pre-seeded workflow definitions loaded from KV on startup.
     pub definitions: Vec<(String, WorkflowDefinition)>,
+    /// Procedural workflow functions keyed by workflow type name.
+    pub procedural_workflows: Vec<(String, Arc<dyn WorkflowFn>)>,
 }
 
 impl Default for OrchestratorConfig {
@@ -34,6 +37,7 @@ impl Default for OrchestratorConfig {
             state_store: None,
             task_queue: None,
             definitions: Vec::new(),
+            procedural_workflows: Vec::new(),
         }
     }
 }
@@ -56,6 +60,9 @@ impl OrchestratorState {
         let mut registry = WorkflowRegistry::new();
         for (name, definition) in &config.definitions {
             registry.register_definition(name, definition.clone());
+        }
+        for (name, workflow_fn) in &config.procedural_workflows {
+            registry.register_procedural(name, workflow_fn.clone());
         }
         Self {
             active: HashMap::new(),
@@ -136,6 +143,7 @@ mod tests {
             state_store: None,
             task_queue: None,
             definitions: Vec::new(),
+            procedural_workflows: Vec::new(),
         }
     }
 
@@ -161,6 +169,7 @@ mod tests {
             state_store: None,
             task_queue: None,
             definitions: Vec::new(),
+            procedural_workflows: Vec::new(),
         };
         let state = OrchestratorState::new(config);
         assert!(!state.capacity_check());
@@ -208,6 +217,7 @@ mod tests {
             state_store: None,
             task_queue: None,
             definitions: Vec::new(),
+            procedural_workflows: Vec::new(),
         }
     }
 

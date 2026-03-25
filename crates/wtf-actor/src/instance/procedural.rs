@@ -1,5 +1,7 @@
 //! Procedural-specific message handlers for `WorkflowInstance`.
 
+#![allow(clippy::missing_errors_doc, clippy::unused_async, clippy::manual_let_else)]
+
 use super::handlers;
 use super::lifecycle::ParadigmState;
 use super::state::InstanceState;

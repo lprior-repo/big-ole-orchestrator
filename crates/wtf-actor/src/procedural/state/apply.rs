@@ -1,5 +1,7 @@
 //! Event application logic for Procedural workflow state (ADR-017).
 
+#![allow(clippy::missing_errors_doc, clippy::too_many_lines)]
+
 use super::{Checkpoint, ProceduralActorState};
 use bytes::Bytes;
 use wtf_common::{ActivityId, WorkflowEvent};

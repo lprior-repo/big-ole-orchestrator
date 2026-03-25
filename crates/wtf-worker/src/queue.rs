@@ -103,12 +103,14 @@ mod timeout_serde {
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
     use std::time::Duration;
 
+    #[allow(clippy::ref_option)]
     pub fn serialize<S>(value: &Option<Duration>, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
         value
-            .map(|timeout| timeout.as_millis() as u64)
+            .as_ref()
+            .map(|timeout| u64::try_from(timeout.as_millis()).unwrap_or(u64::MAX))
             .serialize(serializer)
     }
 
@@ -174,7 +176,7 @@ pub struct WorkQueueConsumer {
 }
 
 impl WorkQueueConsumer {
-    fn durable_for(filter_subject: &Option<String>, worker_name: &str) -> String {
+    fn durable_for(filter_subject: Option<&String>, worker_name: &str) -> String {
         let name = filter_subject
             .as_ref().map_or_else(|| "work_all".to_owned(), |subject| {
                 let stable = subject
@@ -204,7 +206,7 @@ impl WorkQueueConsumer {
         worker_name: &str,
         filter_subject: Option<String>,
     ) -> Result<Self, WtfError> {
-        let durable_name = Self::durable_for(&filter_subject, worker_name);
+        let durable_name = Self::durable_for(filter_subject.as_ref(), worker_name);
         let config = pull::Config {
             durable_name: Some(durable_name.clone()),
             filter_subject: filter_subject.unwrap_or_else(|| format!("{WORK_SUBJECT_PREFIX}.>")),
@@ -333,7 +335,7 @@ mod tests {
     #[test]
     fn activity_task_from_msgpack_invalid_bytes_returns_error() {
         let result = ActivityTask::from_msgpack(b"not msgpack at all!!!");
-        assert!(result.is_err());
+        assert!(result.is_err(), "expected error for invalid msgpack bytes");
     }
 
     #[test]

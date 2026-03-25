@@ -1,5 +1,7 @@
 //! Pure data-transformation mappers for workflow HTTP handlers.
 
+#![allow(clippy::type_complexity)]
+
 use super::{paradigm_to_str, parse_paradigm, phase_to_str};
 use crate::types::{ApiError, V3StartRequest, V3StartResponse, V3StatusResponse};
 use axum::{

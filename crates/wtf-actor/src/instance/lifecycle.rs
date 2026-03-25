@@ -5,6 +5,8 @@
 //! - Calc: [`compute_live_transition`] — pure function determining re-dispatches.
 //! - Actions: [`execute_transition_actions`] — side effects in the actor shell.
 
+#![allow(clippy::missing_errors_doc)]
+
 use crate::dag::DagActorState;
 use crate::fsm::{ExecutionPhase, FsmActorState};
 use crate::messages::InstancePhase;

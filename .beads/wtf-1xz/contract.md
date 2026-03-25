@@ -10,6 +10,7 @@
     - `WtfError`: Domain error type for wtf-engine.
 - Assumptions:
     - The `id` Path parameter is expected to be in `<namespace>/<id>` format based on `split_path_id`.
+    - `split_path_id` only validates the presence of `/`; it does NOT validate that the `id` portion is a valid ULID.
     - The orchestrator handles the routing of signals to the specific workflow instance.
     - `ACTOR_CALL_TIMEOUT` is the standard timeout for actor RPC calls.
 - Open questions:
@@ -17,7 +18,7 @@
 
 ## Preconditions
 - [ ] `master` ActorRef must be valid and reachable.
-- [ ] `id` must be a valid path string that `split_path_id` can parse into `(namespace, InstanceId)`.
+- [ ] `id` must be a path string with at least one `/` that `split_path_id` can parse into `(namespace, InstanceId)`. Note: `InstanceId` accepts any string; no ULID validation is performed.
 - [ ] `req.payload` must be serializable to JSON bytes.
 
 ## Postconditions
@@ -29,7 +30,7 @@
 - [ ] The system state remains consistent regardless of whether the signal is successfully delivered to the specific instance (at the API layer).
 
 ## Error Taxonomy
-- `ApiError::InvalidId` (400 Bad Request) - when `id` path is malformed (e.g., missing slash, non-ULID id if required).
+- `ApiError::InvalidId` (400 Bad Request) - when `id` path is malformed (e.g., missing slash).
 - `ApiError::InvalidPayload` (400 Bad Request) - when `V3SignalRequest` payload cannot be serialized to bytes or is malformed.
 - `ApiError::InstanceNotFound` (404 Not Found) - when the orchestrator returns `Ok(CallResult::Success(Err(WtfError::InstanceNotFound)))`.
 - `ApiError::ActorTimeout` (500 Internal Server Error) - when the actor call times out (`ACTOR_CALL_TIMEOUT`).

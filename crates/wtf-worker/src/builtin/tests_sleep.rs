@@ -13,8 +13,10 @@ async fn test_sleep_returns_ok_slept_after_duration_10ms() {
     let join = tokio::spawn(sleep_handler(task));
     time::advance(Duration::from_millis(10)).await;
     let result = join.await;
-    assert!(result.is_ok());
-    assert_eq!(result.unwrap(), Ok(SLEPT_RESULT.clone()));
+    let Ok(Ok(bytes)) = result else {
+        panic!("expected Ok(Ok(_)), got: {:?}", result)
+    };
+    assert_eq!(bytes.as_ref(), SLEPT_RESULT.as_ref());
 }
 
 #[tokio::test]
@@ -30,8 +32,7 @@ async fn test_sleep_returns_ok_slept_after_duration_0ms() {
 async fn test_sleep_rejects_non_utf8_payload() {
     let task = make_task("sleep", b"\xff\xfe");
     let result = sleep_handler(task).await;
-    assert!(result.is_err());
-    let err = result.unwrap_err();
+    let Err(err) = result else { panic!("expected Err, got {:?}", result) };
     assert!(err.contains("invalid payload"), "got: {err}");
 }
 
@@ -39,8 +40,7 @@ async fn test_sleep_rejects_non_utf8_payload() {
 async fn test_sleep_rejects_invalid_json_payload() {
     let task = make_task("sleep", b"not json");
     let result = sleep_handler(task).await;
-    assert!(result.is_err());
-    let err = result.unwrap_err();
+    let Err(err) = result else { panic!("expected Err, got {:?}", result) };
     assert!(err.contains("invalid payload"), "got: {err}");
 }
 
@@ -48,8 +48,7 @@ async fn test_sleep_rejects_invalid_json_payload() {
 async fn test_sleep_rejects_json_without_ms_field() {
     let task = make_task("sleep", br#"{"other":42}"#);
     let result = sleep_handler(task).await;
-    assert!(result.is_err());
-    let err = result.unwrap_err();
+    let Err(err) = result else { panic!("expected Err, got {:?}", result) };
     assert!(err.contains("invalid payload"), "got: {err}");
 }
 
@@ -57,8 +56,7 @@ async fn test_sleep_rejects_json_without_ms_field() {
 async fn test_sleep_rejects_ms_field_with_string_value() {
     let task = make_task("sleep", br#"{"ms":"fast"}"#);
     let result = sleep_handler(task).await;
-    assert!(result.is_err());
-    let err = result.unwrap_err();
+    let Err(err) = result else { panic!("expected Err, got {:?}", result) };
     assert!(err.contains("invalid payload"), "got: {err}");
 }
 
@@ -66,8 +64,7 @@ async fn test_sleep_rejects_ms_field_with_string_value() {
 async fn test_sleep_rejects_ms_field_with_float_value() {
     let task = make_task("sleep", br#"{"ms":10.5}"#);
     let result = sleep_handler(task).await;
-    assert!(result.is_err());
-    let err = result.unwrap_err();
+    let Err(err) = result else { panic!("expected Err, got {:?}", result) };
     assert!(err.contains("invalid payload"), "got: {err}");
 }
 
@@ -75,8 +72,7 @@ async fn test_sleep_rejects_ms_field_with_float_value() {
 async fn test_sleep_rejects_ms_field_with_negative_number() {
     let task = make_task("sleep", br#"{"ms":-1}"#);
     let result = sleep_handler(task).await;
-    assert!(result.is_err());
-    let err = result.unwrap_err();
+    let Err(err) = result else { panic!("expected Err, got {:?}", result) };
     assert!(err.contains("invalid payload"), "got: {err}");
 }
 
@@ -84,8 +80,7 @@ async fn test_sleep_rejects_ms_field_with_negative_number() {
 async fn test_sleep_rejects_ms_field_with_nested_object() {
     let task = make_task("sleep", br#"{"ms":{"nested":true}}"#);
     let result = sleep_handler(task).await;
-    assert!(result.is_err());
-    let err = result.unwrap_err();
+    let Err(err) = result else { panic!("expected Err, got {:?}", result) };
     assert!(err.contains("invalid payload"), "got: {err}");
 }
 
@@ -93,8 +88,7 @@ async fn test_sleep_rejects_ms_field_with_nested_object() {
 async fn test_sleep_rejects_empty_payload() {
     let task = make_task("sleep", b"");
     let result = sleep_handler(task).await;
-    assert!(result.is_err());
-    let err = result.unwrap_err();
+    let Err(err) = result else { panic!("expected Err, got {:?}", result) };
     assert!(err.contains("invalid payload"), "got: {err}");
 }
 
@@ -102,8 +96,7 @@ async fn test_sleep_rejects_empty_payload() {
 async fn test_sleep_rejects_json_array_payload() {
     let task = make_task("sleep", b"[1,2,3]");
     let result = sleep_handler(task).await;
-    assert!(result.is_err());
-    let err = result.unwrap_err();
+    let Err(err) = result else { panic!("expected Err, got {:?}", result) };
     assert!(err.contains("invalid payload"), "got: {err}");
 }
 
@@ -111,8 +104,7 @@ async fn test_sleep_rejects_json_array_payload() {
 async fn test_sleep_rejects_json_number_payload() {
     let task = make_task("sleep", b"42");
     let result = sleep_handler(task).await;
-    assert!(result.is_err());
-    let err = result.unwrap_err();
+    let Err(err) = result else { panic!("expected Err, got {:?}", result) };
     assert!(err.contains("invalid payload"), "got: {err}");
 }
 
@@ -120,8 +112,7 @@ async fn test_sleep_rejects_json_number_payload() {
 async fn test_sleep_rejects_json_null_payload() {
     let task = make_task("sleep", b"null");
     let result = sleep_handler(task).await;
-    assert!(result.is_err());
-    let err = result.unwrap_err();
+    let Err(err) = result else { panic!("expected Err, got {:?}", result) };
     assert!(err.contains("invalid payload"), "got: {err}");
 }
 
@@ -129,8 +120,7 @@ async fn test_sleep_rejects_json_null_payload() {
 async fn test_sleep_rejects_json_string_payload() {
     let task = make_task("sleep", br#""hello""#);
     let result = sleep_handler(task).await;
-    assert!(result.is_err());
-    let err = result.unwrap_err();
+    let Err(err) = result else { panic!("expected Err, got {:?}", result) };
     assert!(err.contains("invalid payload"), "got: {err}");
 }
 
@@ -138,8 +128,7 @@ async fn test_sleep_rejects_json_string_payload() {
 async fn test_sleep_rejects_json_boolean_payload() {
     let task = make_task("sleep", b"true");
     let result = sleep_handler(task).await;
-    assert!(result.is_err());
-    let err = result.unwrap_err();
+    let Err(err) = result else { panic!("expected Err, got {:?}", result) };
     assert!(err.contains("invalid payload"), "got: {err}");
 }
 
@@ -154,8 +143,10 @@ async fn test_sleep_accepts_payload_with_extra_json_fields() {
     let join = tokio::spawn(sleep_handler(task));
     time::advance(Duration::from_millis(10)).await;
     let result = join.await;
-    assert!(result.is_ok());
-    assert_eq!(result.unwrap(), Ok(SLEPT_RESULT.clone()));
+    let Ok(Ok(bytes)) = result else {
+        panic!("expected Ok(Ok(_)), got: {:?}", result)
+    };
+    assert_eq!(bytes.as_ref(), SLEPT_RESULT.as_ref());
 }
 
 // Note: u64::MAX as a sleep duration (~584M years) is accepted by the parse

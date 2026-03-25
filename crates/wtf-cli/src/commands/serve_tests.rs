@@ -71,7 +71,7 @@ async fn drain_runtime_signals_shutdown_and_waits_for_four_tasks() {
     )
     .await;
 
-    assert!(drain_result.is_ok());
+    assert!(drain_result.is_ok(), "drain should succeed, got: {:?}", drain_result);
     assert!(api_drained.load(Ordering::SeqCst));
     assert!(timer_drained.load(Ordering::SeqCst));
     assert!(heartbeat_drained.load(Ordering::SeqCst));
@@ -107,7 +107,7 @@ async fn drain_runtime_propagates_worker_error() {
     });
 
     let result = drain_runtime(shutdown_tx, api, timer, heartbeat, worker, || {}).await;
-    assert!(result.is_err());
+    assert!(matches!(result, Err(_)));
     let err = result.expect_err("already asserted is_err");
     let err_msg = err.to_string();
     assert!(
