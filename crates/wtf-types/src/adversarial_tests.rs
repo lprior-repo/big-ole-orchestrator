@@ -18,49 +18,64 @@ fn rq_node_name_rejects_emoji() {
 #[test]
 fn rq_workflow_name_rejects_zero_width_space() {
     let result = WorkflowName::parse("deploy\u{200B}prod");
-    assert!(result.is_err());
+    assert!(
+        result.is_err(),
+        "WorkflowName should reject zero-width space"
+    );
 }
 
 #[test]
 fn rq_workflow_name_rejects_zero_width_joiner() {
     let result = WorkflowName::parse("deploy\u{200D}prod");
-    assert!(result.is_err());
+    assert!(
+        result.is_err(),
+        "WorkflowName should reject zero-width joiner"
+    );
 }
 
 #[test]
 fn rq_workflow_name_rejects_right_to_left_mark() {
     let result = WorkflowName::parse("deploy\u{200F}prod");
-    assert!(result.is_err());
+    assert!(
+        result.is_err(),
+        "WorkflowName should reject right-to-left mark"
+    );
 }
 
 #[test]
 fn rq_workflow_name_rejects_fullwidth_digit() {
     let result = WorkflowName::parse("deploy-\u{FF12}");
-    assert!(result.is_err());
+    assert!(
+        result.is_err(),
+        "WorkflowName should reject fullwidth digit"
+    );
 }
 
 #[test]
 fn rq_node_name_rejects_null_byte() {
     let result = NodeName::parse("compile\x00artifact");
-    assert!(result.is_err());
+    assert!(result.is_err(), "NodeName should reject null byte");
 }
 
 #[test]
 fn rq_workflow_name_rejects_tab() {
     let result = WorkflowName::parse("deploy\tprod");
-    assert!(result.is_err());
+    assert!(result.is_err(), "WorkflowName should reject tab");
 }
 
 #[test]
 fn rq_workflow_name_rejects_newline() {
     let result = WorkflowName::parse("deploy\nprod");
-    assert!(result.is_err());
+    assert!(result.is_err(), "WorkflowName should reject newline");
 }
 
 #[test]
 fn rq_workflow_name_rejects_carriage_return() {
     let result = WorkflowName::parse("deploy\rprod");
-    assert!(result.is_err());
+    assert!(
+        result.is_err(),
+        "WorkflowName should reject carriage return"
+    );
 }
 
 // --- InstanceId Crockford Base32 edge cases ---
@@ -68,13 +83,15 @@ fn rq_workflow_name_rejects_carriage_return() {
 #[test]
 fn rq_instance_id_accepts_lowercase_ulid() {
     let result = InstanceId::parse("01h5jyv4xhgsr2f8kz9bwnrfma");
-    assert!(result.is_ok());
+    let val = result.expect("lowercase ULID should be accepted");
+    assert_eq!(val.as_str(), "01h5jyv4xhgsr2f8kz9bwnrfma");
 }
 
 #[test]
 fn rq_instance_id_accepts_mixed_case_ulid() {
     let result = InstanceId::parse("01H5jyv4XHGSR2F8KZ9BWNRFMA");
-    assert!(result.is_ok());
+    let val = result.expect("mixed-case ULID should be accepted");
+    assert_eq!(val.as_str(), "01H5jyv4XHGSR2F8KZ9BWNRFMA");
 }
 
 #[test]
@@ -87,13 +104,13 @@ fn rq_instance_id_preserves_original_case() {
 #[test]
 fn rq_instance_id_rejects_25_chars() {
     let result = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFM");
-    assert!(result.is_err());
+    assert!(result.is_err(), "InstanceId should reject 25-char string");
 }
 
 #[test]
 fn rq_instance_id_rejects_27_chars() {
     let result = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMAA");
-    assert!(result.is_err());
+    assert!(result.is_err(), "InstanceId should reject 27-char string");
 }
 
 // --- BinaryHash edge cases ---
@@ -101,31 +118,43 @@ fn rq_instance_id_rejects_27_chars() {
 #[test]
 fn rq_binary_hash_rejects_single_char() {
     let result = BinaryHash::parse("a");
-    assert!(result.is_err());
+    assert!(result.is_err(), "BinaryHash should reject single char");
 }
 
 #[test]
 fn rq_binary_hash_rejects_7_chars_odd() {
     let result = BinaryHash::parse("abcdef0");
-    assert!(result.is_err());
+    assert!(
+        result.is_err(),
+        "BinaryHash should reject 7-char (odd length) string"
+    );
 }
 
 #[test]
 fn rq_binary_hash_rejects_2_chars_below_min() {
     let result = BinaryHash::parse("ab");
-    assert!(result.is_err());
+    assert!(
+        result.is_err(),
+        "BinaryHash should reject 2-char string (below minimum 8)"
+    );
 }
 
 #[test]
 fn rq_binary_hash_rejects_4_chars_below_min() {
     let result = BinaryHash::parse("abcd");
-    assert!(result.is_err());
+    assert!(
+        result.is_err(),
+        "BinaryHash should reject 4-char string (below minimum 8)"
+    );
 }
 
 #[test]
 fn rq_binary_hash_rejects_6_chars_even_below_min() {
     let result = BinaryHash::parse("abcdef");
-    assert!(result.is_err());
+    assert!(
+        result.is_err(),
+        "BinaryHash should reject 6-char string (below minimum 8)"
+    );
 }
 
 // --- Integer edge cases ---
@@ -178,19 +207,32 @@ fn rq_very_long_integer_parses() {
 fn rq_plus_prefix_accepted_by_u64_from_str() {
     let result = SequenceNumber::parse("+42");
     assert!(result.is_ok(), "+42 accepted by u64::from_str");
-    assert_eq!(result.unwrap().as_u64(), 42);
+    let val = result.expect("should parse +42");
+    assert_eq!(val.as_u64(), 42);
 }
 
 #[test]
 fn rq_whitespace_only_rejected() {
-    assert!(SequenceNumber::parse(" ").is_err());
-    assert!(DurationMs::parse(" ").is_err());
+    assert!(
+        SequenceNumber::parse(" ").is_err(),
+        "SequenceNumber should reject whitespace-only"
+    );
+    assert!(
+        DurationMs::parse(" ").is_err(),
+        "DurationMs should reject whitespace-only"
+    );
 }
 
 #[test]
 fn rq_scientific_notation_rejected() {
-    assert!(SequenceNumber::parse("1e5").is_err());
-    assert!(DurationMs::parse("1e5").is_err());
+    assert!(
+        SequenceNumber::parse("1e5").is_err(),
+        "SequenceNumber should reject scientific notation"
+    );
+    assert!(
+        DurationMs::parse("1e5").is_err(),
+        "DurationMs should reject scientific notation"
+    );
 }
 
 // --- TimerId/IdempotencyKey: opaque type behavior ---
@@ -198,19 +240,22 @@ fn rq_scientific_notation_rejected() {
 #[test]
 fn rq_timer_id_accepts_null_byte() {
     let result = TimerId::parse("timer\x00id");
-    assert!(result.is_ok(), "TimerId is opaque");
+    let val = result.expect("TimerId is opaque and should accept null byte");
+    assert!(val.as_str().contains('\x00'));
 }
 
 #[test]
 fn rq_timer_id_accepts_newlines() {
     let result = TimerId::parse("timer\nid");
-    assert!(result.is_ok(), "TimerId is opaque");
+    let val = result.expect("TimerId is opaque and should accept newlines");
+    assert!(val.as_str().contains('\n'));
 }
 
 #[test]
 fn rq_idempotency_key_accepts_null_byte() {
     let result = IdempotencyKey::parse("key\x00val");
-    assert!(result.is_ok(), "IdempotencyKey is opaque");
+    let val = result.expect("IdempotencyKey is opaque and should accept null byte");
+    assert!(val.as_str().contains('\x00'));
 }
 
 #[test]
@@ -224,20 +269,28 @@ fn rq_timer_id_null_byte_serde_round_trip() {
 #[test]
 fn rq_timer_id_rejects_257_ascii() {
     let input = "a".repeat(257);
-    assert!(TimerId::parse(&input).is_err());
+    assert!(
+        TimerId::parse(&input).is_err(),
+        "TimerId should reject 257 ASCII chars"
+    );
 }
 
 #[test]
 fn rq_timer_id_accepts_256_multi_byte() {
     let input = "\u{1F600}".repeat(256);
     assert_eq!(input.chars().count(), 256);
-    assert!(TimerId::parse(&input).is_ok());
+    let result = TimerId::parse(&input);
+    let val = result.expect("TimerId should accept 256 multi-byte chars");
+    assert_eq!(val.as_str().chars().count(), 256);
 }
 
 #[test]
 fn rq_idempotency_key_rejects_1025_ascii() {
     let input = "b".repeat(1025);
-    assert!(IdempotencyKey::parse(&input).is_err());
+    assert!(
+        IdempotencyKey::parse(&input).is_err(),
+        "IdempotencyKey should reject 1025 ASCII chars"
+    );
 }
 
 // --- Trait checks ---
@@ -329,22 +382,32 @@ fn rq_error_type_name_matches_for_all_types() {
 
 #[test]
 fn rq_workflow_name_hyphen_underscore_combo() {
-    assert!(WorkflowName::parse("-_").is_err());
+    assert!(
+        WorkflowName::parse("-_").is_err(),
+        "WorkflowName should reject \"-_\""
+    );
 }
 
 #[test]
 fn rq_workflow_name_underscore_hyphen_combo() {
-    assert!(WorkflowName::parse("_-").is_err());
+    assert!(
+        WorkflowName::parse("_-").is_err(),
+        "WorkflowName should reject \"_-\""
+    );
 }
 
 #[test]
 fn rq_node_name_double_hyphen_middle_valid() {
-    assert!(NodeName::parse("compile--artifact").is_ok());
+    let result = NodeName::parse("compile--artifact");
+    let val = result.expect("NodeName should accept double hyphen in middle");
+    assert_eq!(val.as_str(), "compile--artifact");
 }
 
 #[test]
 fn rq_node_name_double_underscore_middle_valid() {
-    assert!(NodeName::parse("compile__artifact").is_ok());
+    let result = NodeName::parse("compile__artifact");
+    let val = result.expect("NodeName should accept double underscore in middle");
+    assert_eq!(val.as_str(), "compile__artifact");
 }
 
 // --- as_str lifetime ---
@@ -360,29 +423,74 @@ fn rq_as_str_borrowed_from_struct() {
 
 #[test]
 fn rq_try_from_u64_rejects_zero() {
-    assert!(SequenceNumber::try_from(0u64).is_err());
-    assert!(EventVersion::try_from(0u64).is_err());
-    assert!(AttemptNumber::try_from(0u64).is_err());
-    assert!(TimeoutMs::try_from(0u64).is_err());
-    assert!(MaxAttempts::try_from(0u64).is_err());
+    assert!(
+        SequenceNumber::try_from(0u64).is_err(),
+        "SequenceNumber should reject zero"
+    );
+    assert!(
+        EventVersion::try_from(0u64).is_err(),
+        "EventVersion should reject zero"
+    );
+    assert!(
+        AttemptNumber::try_from(0u64).is_err(),
+        "AttemptNumber should reject zero"
+    );
+    assert!(
+        TimeoutMs::try_from(0u64).is_err(),
+        "TimeoutMs should reject zero"
+    );
+    assert!(
+        MaxAttempts::try_from(0u64).is_err(),
+        "MaxAttempts should reject zero"
+    );
 }
 
 #[test]
 fn rq_try_from_u64_accepts_one() {
-    assert!(SequenceNumber::try_from(1u64).is_ok());
-    assert!(EventVersion::try_from(1u64).is_ok());
-    assert!(AttemptNumber::try_from(1u64).is_ok());
-    assert!(TimeoutMs::try_from(1u64).is_ok());
-    assert!(MaxAttempts::try_from(1u64).is_ok());
+    assert!(
+        SequenceNumber::try_from(1u64).is_ok(),
+        "SequenceNumber should accept 1"
+    );
+    assert!(
+        EventVersion::try_from(1u64).is_ok(),
+        "EventVersion should accept 1"
+    );
+    assert!(
+        AttemptNumber::try_from(1u64).is_ok(),
+        "AttemptNumber should accept 1"
+    );
+    assert!(
+        TimeoutMs::try_from(1u64).is_ok(),
+        "TimeoutMs should accept 1"
+    );
+    assert!(
+        MaxAttempts::try_from(1u64).is_ok(),
+        "MaxAttempts should accept 1"
+    );
 }
 
 #[test]
 fn rq_try_from_u64_accepts_max() {
-    assert!(SequenceNumber::try_from(u64::MAX).is_ok());
-    assert!(EventVersion::try_from(u64::MAX).is_ok());
-    assert!(AttemptNumber::try_from(u64::MAX).is_ok());
-    assert!(TimeoutMs::try_from(u64::MAX).is_ok());
-    assert!(MaxAttempts::try_from(u64::MAX).is_ok());
+    assert!(
+        SequenceNumber::try_from(u64::MAX).is_ok(),
+        "SequenceNumber should accept u64::MAX"
+    );
+    assert!(
+        EventVersion::try_from(u64::MAX).is_ok(),
+        "EventVersion should accept u64::MAX"
+    );
+    assert!(
+        AttemptNumber::try_from(u64::MAX).is_ok(),
+        "AttemptNumber should accept u64::MAX"
+    );
+    assert!(
+        TimeoutMs::try_from(u64::MAX).is_ok(),
+        "TimeoutMs should accept u64::MAX"
+    );
+    assert!(
+        MaxAttempts::try_from(u64::MAX).is_ok(),
+        "MaxAttempts should accept u64::MAX"
+    );
 }
 
 // --- From<T> no bypass ---
@@ -463,21 +571,21 @@ mod proptests {
 
         #[test]
         fn sequence_number_round_trip(value in 1u64..) {
-            let v = SequenceNumber(NonZeroU64::new(value).unwrap());
+            let v = SequenceNumber(NonZeroU64::new(value).expect("nonzero value from proptest strategy"));
             let result = SequenceNumber::parse(&v.to_string());
             prop_assert_eq!(result, Ok(v));
         }
 
         #[test]
         fn event_version_round_trip(value in 1u64..) {
-            let v = EventVersion(NonZeroU64::new(value).unwrap());
+            let v = EventVersion(NonZeroU64::new(value).expect("nonzero value from proptest strategy"));
             let result = EventVersion::parse(&v.to_string());
             prop_assert_eq!(result, Ok(v));
         }
 
         #[test]
         fn attempt_number_round_trip(value in 1u64..) {
-            let v = AttemptNumber(NonZeroU64::new(value).unwrap());
+            let v = AttemptNumber(NonZeroU64::new(value).expect("nonzero value from proptest strategy"));
             let result = AttemptNumber::parse(&v.to_string());
             prop_assert_eq!(result, Ok(v));
         }
@@ -498,7 +606,7 @@ mod proptests {
 
         #[test]
         fn timeout_ms_round_trip(value in 1u64..) {
-            let v = TimeoutMs(NonZeroU64::new(value).unwrap());
+            let v = TimeoutMs(NonZeroU64::new(value).expect("nonzero value from proptest strategy"));
             let result = TimeoutMs::parse(&v.to_string());
             prop_assert_eq!(result, Ok(v));
         }
@@ -526,7 +634,7 @@ mod proptests {
 
         #[test]
         fn max_attempts_round_trip(value in 1u64..) {
-            let v = MaxAttempts(NonZeroU64::new(value).unwrap());
+            let v = MaxAttempts(NonZeroU64::new(value).expect("nonzero value from proptest strategy"));
             let result = MaxAttempts::parse(&v.to_string());
             prop_assert_eq!(result, Ok(v));
         }
@@ -539,14 +647,14 @@ mod proptests {
 
         #[test]
         fn integer_newtype_display_is_decimal(value in 1u64..) {
-            let v = SequenceNumber(NonZeroU64::new(value).unwrap());
+            let v = SequenceNumber(NonZeroU64::new(value).expect("nonzero value from proptest strategy"));
             prop_assert_eq!(v.to_string(), v.as_u64().to_string());
         }
 
         #[test]
         fn hash_consistency(a in 1u64.., b in 1u64..) {
-            let va = SequenceNumber(NonZeroU64::new(a).unwrap());
-            let vb = SequenceNumber(NonZeroU64::new(b).unwrap());
+            let va = SequenceNumber(NonZeroU64::new(a).expect("nonzero value from proptest strategy"));
+            let vb = SequenceNumber(NonZeroU64::new(b).expect("nonzero value from proptest strategy"));
             let mut h1 = DefaultHasher::new();
             va.hash(&mut h1);
             let ha = h1.finish();
@@ -564,37 +672,37 @@ mod proptests {
 
         #[test]
         fn copy_equal(value in 1u64..) {
-            let v = SequenceNumber(NonZeroU64::new(value).unwrap());
+            let v = SequenceNumber(NonZeroU64::new(value).expect("nonzero value from proptest strategy"));
             let copy = v;
             prop_assert_eq!(copy, v);
         }
 
         #[test]
         fn ord_consistent(a in 1u64.., b in 1u64..) {
-            let va = SequenceNumber(NonZeroU64::new(a).unwrap());
-            let vb = SequenceNumber(NonZeroU64::new(b).unwrap());
+            let va = SequenceNumber(NonZeroU64::new(a).expect("nonzero value from proptest strategy"));
+            let vb = SequenceNumber(NonZeroU64::new(b).expect("nonzero value from proptest strategy"));
             prop_assert_eq!(va.cmp(&vb), a.cmp(&b));
         }
 
         #[test]
         fn serde_round_trip_duration_ms(value in 0u64..) {
             let v = DurationMs(value);
-            let json = serde_json::to_value(&v).unwrap();
-            let restored: DurationMs = serde_json::from_value(json).unwrap();
+            let json = serde_json::to_value(&v).expect("serialize DurationMs in proptest");
+            let restored: DurationMs = serde_json::from_value(json).expect("deserialize DurationMs in proptest");
             prop_assert_eq!(restored, v);
         }
 
         #[test]
         fn serde_round_trip_sequence_number(value in 1u64..) {
-            let v = SequenceNumber(NonZeroU64::new(value).unwrap());
-            let json = serde_json::to_value(&v).unwrap();
-            let restored: SequenceNumber = serde_json::from_value(json).unwrap();
+            let v = SequenceNumber(NonZeroU64::new(value).expect("nonzero value from proptest strategy"));
+            let json = serde_json::to_value(&v).expect("serialize SequenceNumber in proptest");
+            let restored: SequenceNumber = serde_json::from_value(json).expect("deserialize SequenceNumber in proptest");
             prop_assert_eq!(restored, v);
         }
 
         #[test]
         fn timeout_ms_to_duration(value in 1u64..) {
-            let v = TimeoutMs(NonZeroU64::new(value).unwrap());
+            let v = TimeoutMs(NonZeroU64::new(value).expect("nonzero value from proptest strategy"));
             prop_assert_eq!(v.to_duration(), Duration::from_millis(value));
         }
 
@@ -619,8 +727,8 @@ mod proptests {
 
         #[test]
         fn max_attempts_is_exhausted(max_val in 1u64.., attempt_val in 1u64..) {
-            let m = MaxAttempts(NonZeroU64::new(max_val).unwrap());
-            let a = AttemptNumber(NonZeroU64::new(attempt_val).unwrap());
+            let m = MaxAttempts(NonZeroU64::new(max_val).expect("nonzero value from proptest strategy"));
+            let a = AttemptNumber(NonZeroU64::new(attempt_val).expect("nonzero value from proptest strategy"));
             prop_assert_eq!(m.is_exhausted(a), attempt_val >= max_val);
         }
     }
