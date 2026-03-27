@@ -1,0 +1,17 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 1ca3edc5760f2a65415cd7c11e4cd137864355c1234b6bb446196e02f15ff553 # shrinks to value = 1
+cc e22254555904aa5aad8a84941ea5a23fed7f5ed68f5ac34c7b311cf07abae684 # shrinks to value = 0
+cc 536e0bd1af48b710560983ecc60fca89398979bfa4b02cf95e6d1078af681264 # shrinks to value = 1
+cc a6d2fbc256e92021a6aadb7ee004c35b38dbba737cd289fa39cac5a4731aa5ea # shrinks to value = 0
+cc cbe1b74955a107219c8d6c6cee0b09c1c271156ee698f2d6841de60550110723 # shrinks to value = 1
+cc 578c1a7ceb922628b13d2580f5aca990e60e195e70d813234c1f0c6a865c7df0 # shrinks to value = 13
+cc 7a108f01098fe882fbf12f3d882202a6cdc13f7e11236873c0b596cf4eefd295 # shrinks to max_val = 1, attempt_val = 1
+cc 94bc5899e991c3dee2b84449f6bf33385ed0ff9c0f4a85f9de9e11269e1ed875 # shrinks to fire_at = 0, now = 1
+cc 4cfbe87a80b553cc824efa876e10331509e94ba4fd8d75960573093c42203d33 # shrinks to s = "JMAAJ0AP0MAVVPVV0P0A0PPVAM"
+cc 407521a61af94b6ece61613742be7f08e9de2dbf7c11ce860d1655c73f78a6ba # shrinks to s = "0aaa0aa0"
+cc 6c9df951015fca841084412f467ddc66c699166dacfdec04693378a72c4c367c # shrinks to s = " "

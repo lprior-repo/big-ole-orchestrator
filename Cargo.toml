@@ -1,14 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/wtf-common",
-    "crates/wtf-core",
-    "crates/wtf-storage",
-    "crates/wtf-actor",
-    "crates/wtf-api",
-    "crates/wtf-cli",
-    "crates/wtf-frontend",
-    "crates/wtf-linter",
+    "crates/wtf-types",
 ]
 
 [workspace.package]
@@ -76,6 +69,7 @@ strum = { version = "0.24", features = ["derive"] }
 
 # Testing
 rstest = "0.18"
+proptest = "1"
 
 [profile.release]
 opt-level = 3
