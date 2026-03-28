@@ -6,9 +6,10 @@ edition.workspace = true
 [dependencies]
 thiserror.workspace = true
 serde.workspace = true
-serde_json.workspace = true
 ulid.workspace = true
+uuid.workspace = true
 
 [dev-dependencies]
 rstest.workspace = true
 proptest = "1"
+serde_json.workspace = true

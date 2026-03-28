@@ -15,7 +15,7 @@ use crate::{NodeName, WorkflowName};
 
 /// Errors returned by `WorkflowDefinition::parse`.
 ///
-/// NOTE: `serde_json::Error` does not implement `Clone` or `PartialEq`, so
+/// NOTE: Serde deserialization errors do not implement `Clone` or `PartialEq`, so
 /// `DeserializationFailed` stores the error's Display representation as a
 /// `String`. `PartialEq` for `DeserializationFailed` compares only the discriminant.
 #[derive(Debug, Clone, PartialEq, thiserror::Error)]
@@ -61,16 +61,37 @@ pub struct WorkflowDefinition {
 }
 
 impl WorkflowDefinition {
-    /// Parse a JSON byte slice into a validated WorkflowDefinition.
+    /// Parse from any serde `Deserializer`.
+    ///
+    /// This is the format-agnostic entry point. Production callers should
+    /// supply a concrete deserializer (e.g. `serde_json::Deserializer`).
     ///
     /// Validation order:
-    /// 1. JSON deserialization into intermediate struct
+    /// 1. Deserialization into intermediate struct
     /// 2. Non-empty nodes check
     /// 3. RetryPolicy validation per node
     /// 4. Edge referential integrity (source and target node names must exist)
     /// 5. DFS cycle detection
-    pub fn parse(json_bytes: &[u8]) -> Result<Self, WorkflowDefinitionError> {
+    pub fn from_deserializer<'de, D>(deserializer: D) -> Result<Self, WorkflowDefinitionError>
+    where
+        D: serde::de::Deserializer<'de>,
+    {
         // Step 1: Deserialize into unvalidated intermediate struct
+        let unvalidated: UnvalidatedWorkflow = serde::Deserialize::deserialize(deserializer)
+            .map_err(|source| WorkflowDefinitionError::DeserializationFailed {
+                message: source.to_string(),
+            })?;
+
+        Self::validate_unvalidated(unvalidated)
+    }
+
+    /// Parse a JSON byte slice into a validated WorkflowDefinition.
+    ///
+    /// Convenience wrapper that uses `serde_json::from_slice` internally.
+    /// Only available in test builds; production code should call
+    /// `from_deserializer` directly.
+    #[cfg(test)]
+    pub fn parse(json_bytes: &[u8]) -> Result<Self, WorkflowDefinitionError> {
         let unvalidated: UnvalidatedWorkflow =
             serde_json::from_slice(json_bytes).map_err(|source| {
                 WorkflowDefinitionError::DeserializationFailed {
@@ -78,6 +99,20 @@ impl WorkflowDefinition {
                 }
             })?;
 
+        Self::validate_unvalidated(unvalidated)
+    }
+
+    /// Look up a DagNode by NodeName. Returns None if not found.
+    pub fn get_node(&self, name: &NodeName) -> Option<&DagNode> {
+        self.nodes.as_slice().iter().find(|n| &n.node_name == name)
+    }
+
+    /// Run the full validation pipeline on an already-deserialized intermediate struct.
+    ///
+    /// Steps 2–5 from [`Self::from_deserializer`].
+    fn validate_unvalidated(
+        unvalidated: UnvalidatedWorkflow,
+    ) -> Result<Self, WorkflowDefinitionError> {
         // Step 2: Non-empty nodes check
         if unvalidated.nodes.is_empty() {
             return Err(WorkflowDefinitionError::EmptyWorkflow);
@@ -125,11 +160,6 @@ impl WorkflowDefinition {
             nodes: NonEmptyVec::new_unchecked(unvalidated.nodes),
             edges: unvalidated.edges,
         })
-    }
-
-    /// Look up a DagNode by NodeName. Returns None if not found.
-    pub fn get_node(&self, name: &NodeName) -> Option<&DagNode> {
-        self.nodes.as_slice().iter().find(|n| &n.node_name == name)
     }
 }
 
