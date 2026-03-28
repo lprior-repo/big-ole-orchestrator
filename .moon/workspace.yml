@@ -1,5 +1,9 @@
 projects:
   root: "."
+  crates/wtf-types: "crates/wtf-types"
+  crates/wtf-api: "crates/wtf-api"
+  crates/wtf-cli: "crates/wtf-cli"
+  crates/wtf-worker: "crates/wtf-worker"
 
 vcs:
   client: git
