@@ -28,7 +28,7 @@ fn copy_to_clipboard(text: &str) -> bool {
                 js_sys::Reflect::get(&clipboard, &js_sys::JsString::from("writeText"))
             {
                 if let Some(write_text_fn) = write_text.dyn_ref::<js_sys::Function>() {
-                    let _ = write_text_fn.call1(&clipboard, &js_sys::JsString::from(text));
+                    write_text_fn.call1(&clipboard, &js_sys::JsString::from(text)).unwrap();
                     return true;
                 }
             }

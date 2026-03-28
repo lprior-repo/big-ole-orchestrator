@@ -293,8 +293,8 @@ mod tests {
 
     #[test]
     fn check_boundaries_valid() {
-        assert!(check_identifier_boundaries("abc", "T").is_ok());
-        assert!(check_identifier_boundaries("a-b_c", "T").is_ok());
+        check_identifier_boundaries("abc", "T").unwrap();
+        check_identifier_boundaries("a-b_c", "T").unwrap();
     }
 
     #[test]

@@ -86,7 +86,7 @@ fn build_plan_snapshot(workflow: &Workflow) -> PlanSnapshot {
         available.clear();
 
         for id in &current {
-            let _ = visited.insert(*id);
+            visited.insert(*id).unwrap();
             if let Some(targets) = outgoing.get(id) {
                 for target in targets {
                     if let Some(count) = indegree.get_mut(target) {
@@ -156,7 +156,7 @@ pub fn ExecutionPlanPanel(
                 button {
                     class: "flex items-center gap-2 text-slate-700 hover:text-slate-900 transition-colors",
                     onclick: move |_| {
-                        let _ = collapsed.try_write().map(|mut c| *c = !*c);
+                        collapsed.try_write().map(|mut c| *c = !*c).unwrap();
                     },
                     crate::ui::icons::LayersIcon { class: "h-4 w-4 text-slate-500" }
                     span { class: "text-[12px] font-semibold", "Execution Plan" }
@@ -337,8 +337,8 @@ mod tests {
         let b = workflow.add_node("run", 300.0, 0.0);
         let c = workflow.add_node("run", 600.0, 0.0);
         let main = oya_frontend::graph::PortName::from("main");
-        let _ = workflow.add_connection(a, b, &main, &main);
-        let _ = workflow.add_connection(b, c, &main, &main);
+        workflow.add_connection(a, b, &main, &main).unwrap();
+        workflow.add_connection(b, c, &main, &main).unwrap();
 
         let snapshot = build_plan_snapshot(&workflow);
 

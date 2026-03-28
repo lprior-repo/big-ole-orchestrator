@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "crates/wtf-types",
+    "crates/wtf-engine",
 ]
 
 [workspace.package]

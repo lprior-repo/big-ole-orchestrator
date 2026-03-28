@@ -209,7 +209,7 @@ mod tests {
     #[test]
     fn given_failed_run_without_step_errors_when_deriving_counts_then_steps_are_not_all_failed() {
         let mut results = HashMap::new();
-        let _ = results.insert(NodeId::new(), serde_json::json!({"ok": true}));
+        results.insert(NodeId::new(), serde_json::json!({"ok": true})).unwrap();
 
         let run = RunRecord {
             id: Uuid::new_v4(),
@@ -224,9 +224,9 @@ mod tests {
     #[test]
     fn given_mixed_step_results_when_deriving_counts_then_ok_and_failed_are_counted_per_result() {
         let mut results = HashMap::new();
-        let _ = results.insert(NodeId::new(), serde_json::json!({"value": 1}));
-        let _ = results.insert(NodeId::new(), serde_json::json!({"error": "boom"}));
-        let _ = results.insert(NodeId::new(), serde_json::json!(null));
+        results.insert(NodeId::new(), serde_json::json!({"value": 1})).unwrap();
+        results.insert(NodeId::new(), serde_json::json!({"error": "boom"})).unwrap();
+        results.insert(NodeId::new(), serde_json::json!(null)).unwrap();
 
         let run = RunRecord {
             id: Uuid::new_v4(),
@@ -367,7 +367,7 @@ pub fn ExecutionHistoryPanel(
                 button {
                     class: "flex items-center gap-2 text-slate-700 hover:text-slate-900 transition-colors",
                     onclick: move |_| {
-                        let _ = collapsed.try_write().map(|mut c| *c = !*c);
+                        collapsed.try_write().map(|mut c| *c = !*c).unwrap();
                     },
                     crate::ui::icons::ClockIcon { class: "h-4 w-4 text-slate-500" }
                     span { class: "text-[12px] font-semibold", "Execution History" }

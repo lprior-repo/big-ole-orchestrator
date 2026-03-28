@@ -831,7 +831,7 @@ fn record_suggestion_decision(key: &str, accepted: bool, source: &str) {
     };
 
     let store = MetricsStore::new(Path::new("."));
-    let _ = store.record_suggestion_decision(metrics);
+    store.record_suggestion_decision(metrics).unwrap();
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -1000,7 +1000,7 @@ mod tests {
         let (dot, label_class, label) = event_appearance(ExtensionTimelineEventKind::Failed);
 
         assert_eq!(dot, "bg-red-500");
-        assert!(label_class.contains("text-red-700"));
+        label_class.contains("text-red-700"));
         assert_eq!(label, "Failed");
     }
 
@@ -1044,7 +1044,7 @@ mod tests {
     #[test]
     fn collect_previews_deduplicates_duplicate_keys() {
         let mut workflow = Workflow::new();
-        let _ = workflow.add_node("run", 10.0, 10.0);
+        workflow.add_node("run", 10.0, 10.0).unwrap();
         let keys = vec![
             "add-timeout-guard".to_string(),
             "add-timeout-guard".to_string(),
@@ -1058,7 +1058,7 @@ mod tests {
     #[test]
     fn collect_previews_ignores_unknown_keys_but_keeps_valid_previews() {
         let mut workflow = Workflow::new();
-        let _ = workflow.add_node("run", 10.0, 10.0);
+        workflow.add_node("run", 10.0, 10.0).unwrap();
         let keys = vec![
             "unknown-extension-key".to_string(),
             "add-timeout-guard".to_string(),
@@ -1067,7 +1067,7 @@ mod tests {
         let previews = collect_previews(&workflow, &keys);
         let expected = preview_extension(&workflow, "add-timeout-guard");
 
-        assert!(expected.is_ok());
+        assert!(expected.unwrap();
         let expected = expected.ok().flatten();
         assert!(expected.is_some());
         assert_eq!(previews.len(), 1);

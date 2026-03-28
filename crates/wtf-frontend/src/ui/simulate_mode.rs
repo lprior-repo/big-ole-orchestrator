@@ -172,7 +172,7 @@ mod tests {
     #[test]
     fn initial_state_has_empty_checkpoint_map() {
         let state = SimProceduralState::new();
-        assert!(state.checkpoint_map.is_empty());
+        state.checkpoint_map.is_empty());
     }
 
     #[test]
@@ -258,7 +258,7 @@ mod tests {
     fn provide_result_returns_empty_result_error_when_result_is_empty() {
         let mut state = SimProceduralState::new();
         let result = state.provide_result(String::new(), "act-001", 3);
-        assert!(result.is_err());
+        assert!(matches!(result, Err(_)));
         assert!(matches!(result.unwrap_err(), SimError::EmptyResult));
     }
 
@@ -270,7 +270,7 @@ mod tests {
             event_log: Vec::new(),
         };
         let result = state.provide_result("ok".to_string(), "act-1", 5);
-        assert!(result.is_err());
+        assert!(matches!(result, Err(_)));
         assert!(matches!(result.unwrap_err(), SimError::AlreadyCompleted));
     }
 
@@ -278,7 +278,7 @@ mod tests {
     fn provide_result_returns_no_ops_when_ops_list_empty() {
         let mut state = SimProceduralState::new();
         let result = state.provide_result("ok".to_string(), "act-1", 0);
-        assert!(result.is_err());
+        assert!(matches!(result, Err(_)));
         assert!(matches!(result.unwrap_err(), SimError::NoOpsAvailable));
     }
 
@@ -287,7 +287,7 @@ mod tests {
         let mut state = SimProceduralState::new();
         for i in 0..5 {
             let result = state.provide_result(format!("r{i}"), format!("act-{i}"), 5);
-            assert!(result.is_ok());
+            assert!(result.unwrap();
         }
         assert!(!state.can_advance(5));
     }

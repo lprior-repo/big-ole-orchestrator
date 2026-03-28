@@ -28,9 +28,6 @@ const WORKSPACE_ROOT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/..");
 /// Allowed dependencies — the EXACT set permitted in [dependencies].
 const ALLOWED_DEPS: &[&str] = &["serde", "thiserror", "uuid", "ulid"];
 
-/// Forbidden infra dependencies — must not appear anywhere in Cargo.toml.
-const FORBIDDEN_DEPS: &[&str] = &["tokio", "axum", "ractor", "fjall", "tower", "reqwest"];
-
 // ---------------------------------------------------------------------------
 // Helper functions
 // ---------------------------------------------------------------------------
@@ -39,36 +36,31 @@ const FORBIDDEN_DEPS: &[&str] = &["tokio", "axum", "ractor", "fjall", "tower", "
 ///
 /// Handles both `key.workspace = true` and `key = "version"` forms.
 fn parse_section_keys(content: &str, target_section: &str) -> BTreeSet<String> {
-    let mut current_section: Option<String> = None;
-    let mut keys = BTreeSet::new();
-
-    for line in content.lines() {
-        let trimmed = line.trim();
-
-        // Detect section headers: [dependencies], [dev-dependencies], etc.
-        if let Some(header) = trimmed.strip_prefix('[').and_then(|s| s.strip_suffix(']')) {
-            current_section = Some(header.trim().to_string());
-            continue;
-        }
-
-        // Skip empty lines and comments
-        if trimmed.is_empty() || trimmed.starts_with('#') {
-            continue;
-        }
-
-        // Only process lines in the target section
-        if current_section.as_deref() == Some(target_section) {
-            // Extract the key name: everything before the first '=' or '.'
-            if let Some(key_end) = trimmed.find(|c: char| c == '=' || c == '.') {
-                let key = trimmed[..key_end].trim();
-                if !key.is_empty() {
-                    keys.insert(key.to_string());
+    content
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty() && !line.starts_with('#'))
+        .scan(None::<String>, |state, line| {
+            if let Some(header) = line.strip_prefix('[').and_then(|s| s.strip_suffix(']')) {
+                *state = Some(header.trim().to_string());
+                Some(None)
+            } else {
+                Some(Some((state.clone(), line)))
+            }
+        })
+        .flatten()
+        .filter_map(|(current_section, line)| {
+            if current_section.as_deref() == Some(target_section) {
+                if let Some(key_end) = line.find(['=', '.']) {
+                    let key = line[..key_end].trim();
+                    if !key.is_empty() {
+                        return Some(key.to_string());
+                    }
                 }
             }
-        }
-    }
-
-    keys
+            None
+        })
+        .collect()
 }
 
 /// Parse the `[dependencies]` section and return dep names.
@@ -102,12 +94,22 @@ fn cargo_toml_contains_allowed_dependencies_when_inspected() {
     let deps = parse_dependencies(&content);
 
     // Then: "serde", "thiserror", "ulid", and "uuid" are all present
-    for allowed in ALLOWED_DEPS {
-        assert!(
-            deps.contains(*allowed),
-            "Expected dependency '{allowed}' in [dependencies], found: {deps:?}"
-        );
-    }
+    assert!(
+        deps.contains("serde"),
+        "Expected dependency 'serde' in [dependencies], found: {deps:?}"
+    );
+    assert!(
+        deps.contains("thiserror"),
+        "Expected dependency 'thiserror' in [dependencies], found: {deps:?}"
+    );
+    assert!(
+        deps.contains("uuid"),
+        "Expected dependency 'uuid' in [dependencies], found: {deps:?}"
+    );
+    assert!(
+        deps.contains("ulid"),
+        "Expected dependency 'ulid' in [dependencies], found: {deps:?}"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -159,12 +161,30 @@ fn cargo_toml_excludes_all_infra_dependencies_when_inspected() {
 
     // When: the entire file is scanned
     // Then: none of the forbidden deps appear anywhere
-    for forbidden in FORBIDDEN_DEPS {
-        assert!(
-            !content.contains(forbidden),
-            "Forbidden dependency '{forbidden}' must not appear anywhere in Cargo.toml"
-        );
-    }
+    assert!(
+        !content.contains("tokio"),
+        "Forbidden dependency 'tokio' must not appear anywhere in Cargo.toml"
+    );
+    assert!(
+        !content.contains("axum"),
+        "Forbidden dependency 'axum' must not appear anywhere in Cargo.toml"
+    );
+    assert!(
+        !content.contains("ractor"),
+        "Forbidden dependency 'ractor' must not appear anywhere in Cargo.toml"
+    );
+    assert!(
+        !content.contains("fjall"),
+        "Forbidden dependency 'fjall' must not appear anywhere in Cargo.toml"
+    );
+    assert!(
+        !content.contains("tower"),
+        "Forbidden dependency 'tower' must not appear anywhere in Cargo.toml"
+    );
+    assert!(
+        !content.contains("reqwest"),
+        "Forbidden dependency 'reqwest' must not appear anywhere in Cargo.toml"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -406,14 +426,14 @@ fn integer_types_are_publicly_accessible_when_crate_used() {
     assert!(std::any::type_name::<MaxAttempts>().contains("MaxAttempts"));
 
     // Verify the types have public constructors accessible from outside the crate
-    assert!(SequenceNumber::parse("1").is_ok());
-    assert!(EventVersion::parse("1").is_ok());
-    assert!(AttemptNumber::parse("1").is_ok());
-    assert!(TimeoutMs::parse("1").is_ok());
-    assert!(DurationMs::parse("0").is_ok());
-    assert!(TimestampMs::parse("0").is_ok());
-    assert!(FireAtMs::parse("0").is_ok());
-    assert!(MaxAttempts::parse("1").is_ok());
+    SequenceNumber::parse("1").unwrap();
+    EventVersion::parse("1").unwrap();
+    AttemptNumber::parse("1").unwrap();
+    TimeoutMs::parse("1").unwrap();
+    DurationMs::parse("0").unwrap();
+    TimestampMs::parse("0").unwrap();
+    FireAtMs::parse("0").unwrap();
+    MaxAttempts::parse("1").unwrap();
 }
 
 // ---------------------------------------------------------------------------

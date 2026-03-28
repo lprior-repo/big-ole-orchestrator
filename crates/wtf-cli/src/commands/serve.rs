@@ -107,7 +107,7 @@ pub async fn run_serve_loop(
     let signal_handle = tokio::spawn(async move {
         let _ = tokio::signal::ctrl_c().await;
         tracing::info!("received shutdown signal (Ctrl+C)");
-        let _ = shutdown_tx_for_signal.send(true);
+        shutdown_tx_for_signal.send(true).unwrap();
     });
 
     tracing::info!("starting API server on {}", addr);
@@ -118,7 +118,7 @@ pub async fn run_serve_loop(
 
     tracing::info!("initiating shutdown sequence");
 
-    let _ = shutdown_tx.send(true);
+    shutdown_tx.send(true).unwrap();
 
     let heartbeat_result = timeout(Duration::from_secs(5), heartbeat_handle).await;
 

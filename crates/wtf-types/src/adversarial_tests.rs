@@ -6,20 +6,20 @@ use std::num::NonZeroU64;
 #[test]
 fn rq_workflow_name_rejects_emoji() {
     let result = WorkflowName::parse("deploy-rocket-\u{1F680}");
-    assert!(result.is_err(), "WorkflowName should reject emoji");
+    assert!(matches!(result, Err(_)), "WorkflowName should reject emoji");
 }
 
 #[test]
 fn rq_node_name_rejects_emoji() {
     let result = NodeName::parse("compile-\u{1F525}");
-    assert!(result.is_err(), "NodeName should reject emoji");
+    assert!(matches!(result, Err(_)), "NodeName should reject emoji");
 }
 
 #[test]
 fn rq_workflow_name_rejects_zero_width_space() {
     let result = WorkflowName::parse("deploy\u{200B}prod");
     assert!(
-        result.is_err(),
+        matches!(result, Err(_)),
         "WorkflowName should reject zero-width space"
     );
 }
@@ -28,7 +28,7 @@ fn rq_workflow_name_rejects_zero_width_space() {
 fn rq_workflow_name_rejects_zero_width_joiner() {
     let result = WorkflowName::parse("deploy\u{200D}prod");
     assert!(
-        result.is_err(),
+        matches!(result, Err(_)),
         "WorkflowName should reject zero-width joiner"
     );
 }
@@ -37,7 +37,7 @@ fn rq_workflow_name_rejects_zero_width_joiner() {
 fn rq_workflow_name_rejects_right_to_left_mark() {
     let result = WorkflowName::parse("deploy\u{200F}prod");
     assert!(
-        result.is_err(),
+        matches!(result, Err(_)),
         "WorkflowName should reject right-to-left mark"
     );
 }
@@ -46,7 +46,7 @@ fn rq_workflow_name_rejects_right_to_left_mark() {
 fn rq_workflow_name_rejects_fullwidth_digit() {
     let result = WorkflowName::parse("deploy-\u{FF12}");
     assert!(
-        result.is_err(),
+        matches!(result, Err(_)),
         "WorkflowName should reject fullwidth digit"
     );
 }
@@ -54,26 +54,29 @@ fn rq_workflow_name_rejects_fullwidth_digit() {
 #[test]
 fn rq_node_name_rejects_null_byte() {
     let result = NodeName::parse("compile\x00artifact");
-    assert!(result.is_err(), "NodeName should reject null byte");
+    assert!(matches!(result, Err(_)), "NodeName should reject null byte");
 }
 
 #[test]
 fn rq_workflow_name_rejects_tab() {
     let result = WorkflowName::parse("deploy\tprod");
-    assert!(result.is_err(), "WorkflowName should reject tab");
+    assert!(matches!(result, Err(_)), "WorkflowName should reject tab");
 }
 
 #[test]
 fn rq_workflow_name_rejects_newline() {
     let result = WorkflowName::parse("deploy\nprod");
-    assert!(result.is_err(), "WorkflowName should reject newline");
+    assert!(
+        matches!(result, Err(_)),
+        "WorkflowName should reject newline"
+    );
 }
 
 #[test]
 fn rq_workflow_name_rejects_carriage_return() {
     let result = WorkflowName::parse("deploy\rprod");
     assert!(
-        result.is_err(),
+        matches!(result, Err(_)),
         "WorkflowName should reject carriage return"
     );
 }
@@ -104,13 +107,19 @@ fn rq_instance_id_preserves_original_case() {
 #[test]
 fn rq_instance_id_rejects_25_chars() {
     let result = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFM");
-    assert!(result.is_err(), "InstanceId should reject 25-char string");
+    assert!(
+        matches!(result, Err(_)),
+        "InstanceId should reject 25-char string"
+    );
 }
 
 #[test]
 fn rq_instance_id_rejects_27_chars() {
     let result = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMAA");
-    assert!(result.is_err(), "InstanceId should reject 27-char string");
+    assert!(
+        matches!(result, Err(_)),
+        "InstanceId should reject 27-char string"
+    );
 }
 
 // --- BinaryHash edge cases ---
@@ -118,14 +127,17 @@ fn rq_instance_id_rejects_27_chars() {
 #[test]
 fn rq_binary_hash_rejects_single_char() {
     let result = BinaryHash::parse("a");
-    assert!(result.is_err(), "BinaryHash should reject single char");
+    assert!(
+        matches!(result, Err(_)),
+        "BinaryHash should reject single char"
+    );
 }
 
 #[test]
 fn rq_binary_hash_rejects_7_chars_odd() {
     let result = BinaryHash::parse("abcdef0");
     assert!(
-        result.is_err(),
+        matches!(result, Err(_)),
         "BinaryHash should reject 7-char (odd length) string"
     );
 }
@@ -134,7 +146,7 @@ fn rq_binary_hash_rejects_7_chars_odd() {
 fn rq_binary_hash_rejects_2_chars_below_min() {
     let result = BinaryHash::parse("ab");
     assert!(
-        result.is_err(),
+        matches!(result, Err(_)),
         "BinaryHash should reject 2-char string (below minimum 8)"
     );
 }
@@ -143,7 +155,7 @@ fn rq_binary_hash_rejects_2_chars_below_min() {
 fn rq_binary_hash_rejects_4_chars_below_min() {
     let result = BinaryHash::parse("abcd");
     assert!(
-        result.is_err(),
+        matches!(result, Err(_)),
         "BinaryHash should reject 4-char string (below minimum 8)"
     );
 }
@@ -152,7 +164,7 @@ fn rq_binary_hash_rejects_4_chars_below_min() {
 fn rq_binary_hash_rejects_6_chars_even_below_min() {
     let result = BinaryHash::parse("abcdef");
     assert!(
-        result.is_err(),
+        matches!(result, Err(_)),
         "BinaryHash should reject 6-char string (below minimum 8)"
     );
 }
@@ -206,19 +218,18 @@ fn rq_very_long_integer_parses() {
 #[test]
 fn rq_plus_prefix_accepted_by_u64_from_str() {
     let result = SequenceNumber::parse("+42");
-    assert!(result.is_ok(), "+42 accepted by u64::from_str");
-    let val = result.expect("should parse +42");
+    let val = result.expect("+42 accepted by u64::from_str");
     assert_eq!(val.as_u64(), 42);
 }
 
 #[test]
 fn rq_whitespace_only_rejected() {
     assert!(
-        SequenceNumber::parse(" ").is_err(),
+        matches!(SequenceNumber::parse(" "), Err(_)),
         "SequenceNumber should reject whitespace-only"
     );
     assert!(
-        DurationMs::parse(" ").is_err(),
+        matches!(DurationMs::parse(" "), Err(_)),
         "DurationMs should reject whitespace-only"
     );
 }
@@ -226,11 +237,11 @@ fn rq_whitespace_only_rejected() {
 #[test]
 fn rq_scientific_notation_rejected() {
     assert!(
-        SequenceNumber::parse("1e5").is_err(),
+        matches!(SequenceNumber::parse("1e5"), Err(_)),
         "SequenceNumber should reject scientific notation"
     );
     assert!(
-        DurationMs::parse("1e5").is_err(),
+        matches!(DurationMs::parse("1e5"), Err(_)),
         "DurationMs should reject scientific notation"
     );
 }
@@ -270,7 +281,7 @@ fn rq_timer_id_null_byte_serde_round_trip() {
 fn rq_timer_id_rejects_257_ascii() {
     let input = "a".repeat(257);
     assert!(
-        TimerId::parse(&input).is_err(),
+        matches!(TimerId::parse(&input), Err(_)),
         "TimerId should reject 257 ASCII chars"
     );
 }
@@ -288,7 +299,7 @@ fn rq_timer_id_accepts_256_multi_byte() {
 fn rq_idempotency_key_rejects_1025_ascii() {
     let input = "b".repeat(1025);
     assert!(
-        IdempotencyKey::parse(&input).is_err(),
+        matches!(IdempotencyKey::parse(&input), Err(_)),
         "IdempotencyKey should reject 1025 ASCII chars"
     );
 }
@@ -383,7 +394,7 @@ fn rq_error_type_name_matches_for_all_types() {
 #[test]
 fn rq_workflow_name_hyphen_underscore_combo() {
     assert!(
-        WorkflowName::parse("-_").is_err(),
+        matches!(WorkflowName::parse("-_"), Err(_)),
         "WorkflowName should reject \"-_\""
     );
 }
@@ -391,7 +402,7 @@ fn rq_workflow_name_hyphen_underscore_combo() {
 #[test]
 fn rq_workflow_name_underscore_hyphen_combo() {
     assert!(
-        WorkflowName::parse("_-").is_err(),
+        matches!(WorkflowName::parse("_-"), Err(_)),
         "WorkflowName should reject \"_-\""
     );
 }
@@ -424,73 +435,43 @@ fn rq_as_str_borrowed_from_struct() {
 #[test]
 fn rq_try_from_u64_rejects_zero() {
     assert!(
-        SequenceNumber::try_from(0u64).is_err(),
+        matches!(SequenceNumber::try_from(0u64), Err(_)),
         "SequenceNumber should reject zero"
     );
     assert!(
-        EventVersion::try_from(0u64).is_err(),
+        matches!(EventVersion::try_from(0u64), Err(_)),
         "EventVersion should reject zero"
     );
     assert!(
-        AttemptNumber::try_from(0u64).is_err(),
+        matches!(AttemptNumber::try_from(0u64), Err(_)),
         "AttemptNumber should reject zero"
     );
     assert!(
-        TimeoutMs::try_from(0u64).is_err(),
+        matches!(TimeoutMs::try_from(0u64), Err(_)),
         "TimeoutMs should reject zero"
     );
     assert!(
-        MaxAttempts::try_from(0u64).is_err(),
+        matches!(MaxAttempts::try_from(0u64), Err(_)),
         "MaxAttempts should reject zero"
     );
 }
 
 #[test]
 fn rq_try_from_u64_accepts_one() {
-    assert!(
-        SequenceNumber::try_from(1u64).is_ok(),
-        "SequenceNumber should accept 1"
-    );
-    assert!(
-        EventVersion::try_from(1u64).is_ok(),
-        "EventVersion should accept 1"
-    );
-    assert!(
-        AttemptNumber::try_from(1u64).is_ok(),
-        "AttemptNumber should accept 1"
-    );
-    assert!(
-        TimeoutMs::try_from(1u64).is_ok(),
-        "TimeoutMs should accept 1"
-    );
-    assert!(
-        MaxAttempts::try_from(1u64).is_ok(),
-        "MaxAttempts should accept 1"
-    );
+    SequenceNumber::try_from(1u64).expect("SequenceNumber should accept 1");
+    EventVersion::try_from(1u64).expect("EventVersion should accept 1");
+    AttemptNumber::try_from(1u64).expect("AttemptNumber should accept 1");
+    TimeoutMs::try_from(1u64).expect("TimeoutMs should accept 1");
+    MaxAttempts::try_from(1u64).expect("MaxAttempts should accept 1");
 }
 
 #[test]
 fn rq_try_from_u64_accepts_max() {
-    assert!(
-        SequenceNumber::try_from(u64::MAX).is_ok(),
-        "SequenceNumber should accept u64::MAX"
-    );
-    assert!(
-        EventVersion::try_from(u64::MAX).is_ok(),
-        "EventVersion should accept u64::MAX"
-    );
-    assert!(
-        AttemptNumber::try_from(u64::MAX).is_ok(),
-        "AttemptNumber should accept u64::MAX"
-    );
-    assert!(
-        TimeoutMs::try_from(u64::MAX).is_ok(),
-        "TimeoutMs should accept u64::MAX"
-    );
-    assert!(
-        MaxAttempts::try_from(u64::MAX).is_ok(),
-        "MaxAttempts should accept u64::MAX"
-    );
+    SequenceNumber::try_from(u64::MAX).expect("SequenceNumber should accept u64::MAX");
+    EventVersion::try_from(u64::MAX).expect("EventVersion should accept u64::MAX");
+    AttemptNumber::try_from(u64::MAX).expect("AttemptNumber should accept u64::MAX");
+    TimeoutMs::try_from(u64::MAX).expect("TimeoutMs should accept u64::MAX");
+    MaxAttempts::try_from(u64::MAX).expect("MaxAttempts should accept u64::MAX");
 }
 
 // --- From<T> no bypass ---
@@ -687,7 +668,7 @@ mod proptests {
         #[test]
         fn serde_round_trip_duration_ms(value in 0u64..) {
             let v = DurationMs(value);
-            let json = serde_json::to_value(&v).expect("serialize DurationMs in proptest");
+            let json = serde_json::to_value(v).expect("serialize DurationMs in proptest");
             let restored: DurationMs = serde_json::from_value(json).expect("deserialize DurationMs in proptest");
             prop_assert_eq!(restored, v);
         }
@@ -695,7 +676,7 @@ mod proptests {
         #[test]
         fn serde_round_trip_sequence_number(value in 1u64..) {
             let v = SequenceNumber(NonZeroU64::new(value).expect("nonzero value from proptest strategy"));
-            let json = serde_json::to_value(&v).expect("serialize SequenceNumber in proptest");
+            let json = serde_json::to_value(v).expect("serialize SequenceNumber in proptest");
             let restored: SequenceNumber = serde_json::from_value(json).expect("deserialize SequenceNumber in proptest");
             prop_assert_eq!(restored, v);
         }

@@ -223,77 +223,77 @@ fn serde_deserialize_valid_max_attempts() {
 fn serde_deserialize_rejects_empty_instance_id() {
     let json = "\"\"";
     let result: Result<InstanceId, _> = serde_json::from_str(json);
-    assert!(result.is_err(), "expected error for: {json}");
+    assert!(matches!(result, Err(_)), "expected error for: {json}");
 }
 
 #[test]
 fn serde_deserialize_rejects_empty_workflow_name() {
     let json = "\"\"";
     let result: Result<WorkflowName, _> = serde_json::from_str(json);
-    assert!(result.is_err(), "expected error for: {json}");
+    assert!(matches!(result, Err(_)), "expected error for: {json}");
 }
 
 #[test]
 fn serde_deserialize_rejects_empty_node_name() {
     let json = "\"\"";
     let result: Result<NodeName, _> = serde_json::from_str(json);
-    assert!(result.is_err(), "expected error for: {json}");
+    assert!(matches!(result, Err(_)), "expected error for: {json}");
 }
 
 #[test]
 fn serde_deserialize_rejects_empty_binary_hash() {
     let json = "\"\"";
     let result: Result<BinaryHash, _> = serde_json::from_str(json);
-    assert!(result.is_err(), "expected error for: {json}");
+    assert!(matches!(result, Err(_)), "expected error for: {json}");
 }
 
 #[test]
 fn serde_deserialize_rejects_empty_timer_id() {
     let json = "\"\"";
     let result: Result<TimerId, _> = serde_json::from_str(json);
-    assert!(result.is_err(), "expected error for: {json}");
+    assert!(matches!(result, Err(_)), "expected error for: {json}");
 }
 
 #[test]
 fn serde_deserialize_rejects_empty_idempotency_key() {
     let json = "\"\"";
     let result: Result<IdempotencyKey, _> = serde_json::from_str(json);
-    assert!(result.is_err(), "expected error for: {json}");
+    assert!(matches!(result, Err(_)), "expected error for: {json}");
 }
 
 #[test]
 fn serde_deserialize_rejects_zero_sequence_number() {
     let json = "0";
     let result: Result<SequenceNumber, _> = serde_json::from_str(json);
-    assert!(result.is_err(), "expected error for: {json}");
+    assert!(matches!(result, Err(_)), "expected error for: {json}");
 }
 
 #[test]
 fn serde_deserialize_rejects_zero_event_version() {
     let json = "0";
     let result: Result<EventVersion, _> = serde_json::from_str(json);
-    assert!(result.is_err(), "expected error for: {json}");
+    assert!(matches!(result, Err(_)), "expected error for: {json}");
 }
 
 #[test]
 fn serde_deserialize_rejects_zero_attempt_number() {
     let json = "0";
     let result: Result<AttemptNumber, _> = serde_json::from_str(json);
-    assert!(result.is_err(), "expected error for: {json}");
+    assert!(matches!(result, Err(_)), "expected error for: {json}");
 }
 
 #[test]
 fn serde_deserialize_rejects_zero_timeout_ms() {
     let json = "0";
     let result: Result<TimeoutMs, _> = serde_json::from_str(json);
-    assert!(result.is_err(), "expected error for: {json}");
+    assert!(matches!(result, Err(_)), "expected error for: {json}");
 }
 
 #[test]
 fn serde_deserialize_rejects_zero_max_attempts() {
     let json = "0";
     let result: Result<MaxAttempts, _> = serde_json::from_str(json);
-    assert!(result.is_err(), "expected error for: {json}");
+    assert!(matches!(result, Err(_)), "expected error for: {json}");
 }
 
 // --- Serde Round-trip ---
@@ -419,7 +419,7 @@ fn serde_string_type_rejects_unquoted_number() {
     let json = "42";
     let result: Result<InstanceId, _> = serde_json::from_str(json);
     assert!(
-        result.is_err(),
+        matches!(result, Err(_)),
         "InstanceId should reject bare integer JSON"
     );
 }
@@ -429,7 +429,7 @@ fn serde_integer_type_rejects_string() {
     let json = "\"42\"";
     let result: Result<SequenceNumber, _> = serde_json::from_str(json);
     assert!(
-        result.is_err(),
+        matches!(result, Err(_)),
         "SequenceNumber should reject quoted string JSON"
     );
 }
@@ -438,28 +438,40 @@ fn serde_integer_type_rejects_string() {
 fn serde_rejects_null_for_instance_id() {
     let json = "null";
     let result: Result<InstanceId, _> = serde_json::from_str(json);
-    assert!(result.is_err(), "expected error for null as InstanceId");
+    assert!(
+        matches!(result, Err(_)),
+        "expected error for null as InstanceId"
+    );
 }
 
 #[test]
 fn serde_rejects_null_for_sequence_number() {
     let json = "null";
     let result: Result<SequenceNumber, _> = serde_json::from_str(json);
-    assert!(result.is_err(), "expected error for null as SequenceNumber");
+    assert!(
+        matches!(result, Err(_)),
+        "expected error for null as SequenceNumber"
+    );
 }
 
 #[test]
 fn serde_rejects_null_for_duration_ms() {
     let json = "null";
     let result: Result<DurationMs, _> = serde_json::from_str(json);
-    assert!(result.is_err(), "expected error for null as DurationMs");
+    assert!(
+        matches!(result, Err(_)),
+        "expected error for null as DurationMs"
+    );
 }
 
 #[test]
 fn serde_rejects_array_for_workflow_name() {
     let json = "[\"deploy-prod\"]";
     let result: Result<WorkflowName, _> = serde_json::from_str(json);
-    assert!(result.is_err(), "expected error for array as WorkflowName");
+    assert!(
+        matches!(result, Err(_)),
+        "expected error for array as WorkflowName"
+    );
 }
 
 #[test]
@@ -467,7 +479,7 @@ fn serde_rejects_array_for_sequence_number() {
     let json = "[42]";
     let result: Result<SequenceNumber, _> = serde_json::from_str(json);
     assert!(
-        result.is_err(),
+        matches!(result, Err(_)),
         "expected error for array as SequenceNumber"
     );
 }
@@ -476,7 +488,10 @@ fn serde_rejects_array_for_sequence_number() {
 fn serde_rejects_object_for_instance_id() {
     let json = "{\"value\": \"01H5JYV4XHGSR2F8KZ9BWNRFMA\"}";
     let result: Result<InstanceId, _> = serde_json::from_str(json);
-    assert!(result.is_err(), "expected error for object as InstanceId");
+    assert!(
+        matches!(result, Err(_)),
+        "expected error for object as InstanceId"
+    );
 }
 
 #[test]
@@ -484,7 +499,7 @@ fn serde_rejects_boolean_for_sequence_number() {
     let json = "true";
     let result: Result<SequenceNumber, _> = serde_json::from_str(json);
     assert!(
-        result.is_err(),
+        matches!(result, Err(_)),
         "expected error for boolean as SequenceNumber"
     );
 }
@@ -494,7 +509,7 @@ fn serde_rejects_negative_for_sequence_number() {
     let json = "-1";
     let result: Result<SequenceNumber, _> = serde_json::from_str(json);
     assert!(
-        result.is_err(),
+        matches!(result, Err(_)),
         "expected error for negative as SequenceNumber"
     );
 }
@@ -503,7 +518,10 @@ fn serde_rejects_negative_for_sequence_number() {
 fn serde_rejects_float_for_timeout_ms() {
     let json = "3.14";
     let result: Result<TimeoutMs, _> = serde_json::from_str(json);
-    assert!(result.is_err(), "expected error for float as TimeoutMs");
+    assert!(
+        matches!(result, Err(_)),
+        "expected error for float as TimeoutMs"
+    );
 }
 
 #[test]
@@ -511,7 +529,7 @@ fn serde_rejects_empty_string_for_sequence_number() {
     let json = "\"\"";
     let result: Result<SequenceNumber, _> = serde_json::from_str(json);
     assert!(
-        result.is_err(),
+        matches!(result, Err(_)),
         "expected error for empty string as SequenceNumber"
     );
 }
@@ -520,7 +538,10 @@ fn serde_rejects_empty_string_for_sequence_number() {
 fn serde_rejects_string_for_event_version() {
     let json = "\"1\"";
     let result: Result<EventVersion, _> = serde_json::from_str(json);
-    assert!(result.is_err(), "expected error for string as EventVersion");
+    assert!(
+        matches!(result, Err(_)),
+        "expected error for string as EventVersion"
+    );
 }
 
 #[test]
@@ -528,7 +549,7 @@ fn serde_rejects_string_for_attempt_number() {
     let json = "\"3\"";
     let result: Result<AttemptNumber, _> = serde_json::from_str(json);
     assert!(
-        result.is_err(),
+        matches!(result, Err(_)),
         "expected error for string as AttemptNumber"
     );
 }
@@ -537,35 +558,50 @@ fn serde_rejects_string_for_attempt_number() {
 fn serde_rejects_string_for_max_attempts() {
     let json = "\"3\"";
     let result: Result<MaxAttempts, _> = serde_json::from_str(json);
-    assert!(result.is_err(), "expected error for string as MaxAttempts");
+    assert!(
+        matches!(result, Err(_)),
+        "expected error for string as MaxAttempts"
+    );
 }
 
 #[test]
 fn serde_rejects_string_for_fire_at_ms() {
     let json = "\"1710000000000\"";
     let result: Result<FireAtMs, _> = serde_json::from_str(json);
-    assert!(result.is_err(), "expected error for string as FireAtMs");
+    assert!(
+        matches!(result, Err(_)),
+        "expected error for string as FireAtMs"
+    );
 }
 
 #[test]
 fn serde_rejects_string_for_timestamp_ms() {
     let json = "\"1710000000000\"";
     let result: Result<TimestampMs, _> = serde_json::from_str(json);
-    assert!(result.is_err(), "expected error for string as TimestampMs");
+    assert!(
+        matches!(result, Err(_)),
+        "expected error for string as TimestampMs"
+    );
 }
 
 #[test]
 fn serde_rejects_string_for_timeout_ms() {
     let json = "\"5000\"";
     let result: Result<TimeoutMs, _> = serde_json::from_str(json);
-    assert!(result.is_err(), "expected error for string as TimeoutMs");
+    assert!(
+        matches!(result, Err(_)),
+        "expected error for string as TimeoutMs"
+    );
 }
 
 #[test]
 fn serde_rejects_string_for_duration_ms() {
     let json = "\"1500\"";
     let result: Result<DurationMs, _> = serde_json::from_str(json);
-    assert!(result.is_err(), "expected error for string as DurationMs");
+    assert!(
+        matches!(result, Err(_)),
+        "expected error for string as DurationMs"
+    );
 }
 
 #[test]
@@ -589,7 +625,7 @@ fn serde_rejects_malformed_json_instance_id() {
     let json = "\"unterminated";
     let result: Result<InstanceId, _> = serde_json::from_str(json);
     assert!(
-        result.is_err(),
+        matches!(result, Err(_)),
         "expected error for malformed JSON InstanceId"
     );
 }
@@ -599,7 +635,7 @@ fn serde_rejects_malformed_json_sequence_number() {
     let json = "not a number";
     let result: Result<SequenceNumber, _> = serde_json::from_str(json);
     assert!(
-        result.is_err(),
+        matches!(result, Err(_)),
         "expected error for malformed JSON SequenceNumber"
     );
 }
@@ -609,7 +645,7 @@ fn serde_string_type_rejects_number_for_workflow_name() {
     let json = "42";
     let result: Result<WorkflowName, _> = serde_json::from_str(json);
     assert!(
-        result.is_err(),
+        matches!(result, Err(_)),
         "expected error for bare number as WorkflowName"
     );
 }
@@ -619,7 +655,7 @@ fn serde_string_type_rejects_number_for_node_name() {
     let json = "42";
     let result: Result<NodeName, _> = serde_json::from_str(json);
     assert!(
-        result.is_err(),
+        matches!(result, Err(_)),
         "expected error for bare number as NodeName"
     );
 }
@@ -629,7 +665,7 @@ fn serde_string_type_rejects_number_for_binary_hash() {
     let json = "42";
     let result: Result<BinaryHash, _> = serde_json::from_str(json);
     assert!(
-        result.is_err(),
+        matches!(result, Err(_)),
         "expected error for bare number as BinaryHash"
     );
 }
@@ -638,7 +674,10 @@ fn serde_string_type_rejects_number_for_binary_hash() {
 fn serde_string_type_rejects_number_for_timer_id() {
     let json = "42";
     let result: Result<TimerId, _> = serde_json::from_str(json);
-    assert!(result.is_err(), "expected error for bare number as TimerId");
+    assert!(
+        matches!(result, Err(_)),
+        "expected error for bare number as TimerId"
+    );
 }
 
 #[test]
@@ -646,7 +685,7 @@ fn serde_string_type_rejects_number_for_idempotency_key() {
     let json = "42";
     let result: Result<IdempotencyKey, _> = serde_json::from_str(json);
     assert!(
-        result.is_err(),
+        matches!(result, Err(_)),
         "expected error for bare number as IdempotencyKey"
     );
 }

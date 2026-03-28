@@ -58,7 +58,7 @@ mod tests {
     #[test]
     fn timer_record_from_msgpack_invalid_bytes_returns_error() {
         let result = TimerRecord::from_msgpack(b"not valid msgpack!!!");
-        assert!(result.is_err());
+        assert!(matches!(result, Err(_)));
     }
 
     #[test]

@@ -74,7 +74,7 @@ fn edge_condition_strategy() -> impl Strategy<Value = EdgeCondition> {
 #[test]
 fn rq_nan_multiplier_rejected_by_retry_policy_new() {
     let result = RetryPolicy::new(1, 0, f32::NAN);
-    assert!(result.is_err(), "NaN must be rejected");
+    assert!(matches!(result, Err(_)), "NaN must be rejected");
     let err = result.unwrap_err();
     assert!(err.to_string().contains("backoff_multiplier"));
 }
@@ -84,11 +84,7 @@ fn rq_nan_multiplier_rejected_by_retry_policy_new() {
 #[test]
 fn rq_infinity_multiplier_passes_through_retry_policy_new() {
     let result = RetryPolicy::new(1, 0, f32::INFINITY);
-    assert!(
-        result.is_ok(),
-        "INFINITY passes because INFINITY < 1.0 is false"
-    );
-    let policy = result.unwrap();
+    let policy = result.expect("INFINITY passes because INFINITY < 1.0 is false");
     assert!(
         policy.backoff_multiplier.is_infinite() && policy.backoff_multiplier.is_sign_positive()
     );
@@ -98,7 +94,7 @@ fn rq_infinity_multiplier_passes_through_retry_policy_new() {
 #[test]
 fn rq_neg_infinity_multiplier_rejected() {
     let result = RetryPolicy::new(1, 0, f32::NEG_INFINITY);
-    assert!(result.is_err());
+    assert!(matches!(result, Err(_)));
     assert!(matches!(
         result,
         Err(RetryPolicyError::InvalidMultiplier { .. })
@@ -111,7 +107,7 @@ fn rq_nan_multiplier_in_json_rejected_by_serde() {
     let json = r#"{"max_attempts": 1, "backoff_ms": 0, "backoff_multiplier": NaN}"#;
     let result: Result<RetryPolicy, _> = serde_json::from_str(json);
     assert!(
-        result.is_err(),
+        matches!(result, Err(_)),
         "serde_json must reject NaN in JSON by default"
     );
 }
@@ -122,7 +118,7 @@ fn rq_infinity_multiplier_in_json_rejected_by_serde() {
     let json = r#"{"max_attempts": 1, "backoff_ms": 0, "backoff_multiplier": Infinity}"#;
     let result: Result<RetryPolicy, _> = serde_json::from_str(json);
     assert!(
-        result.is_err(),
+        matches!(result, Err(_)),
         "serde_json must reject INFINITY in JSON by default"
     );
 }
@@ -133,7 +129,7 @@ fn rq_neg_infinity_multiplier_in_json_rejected_by_serde() {
     let json = r#"{"max_attempts": 1, "backoff_ms": 0, "backoff_multiplier": -Infinity}"#;
     let result: Result<RetryPolicy, _> = serde_json::from_str(json);
     assert!(
-        result.is_err(),
+        matches!(result, Err(_)),
         "serde_json must reject -INFINITY in JSON by default"
     );
 }
@@ -235,10 +231,7 @@ fn rq_extra_json_fields_ignored() {
     });
     let bytes = serde_json::to_vec(&json).unwrap();
     let result = WorkflowDefinition::parse(&bytes);
-    assert!(
-        result.is_ok(),
-        "extra JSON fields should be silently ignored"
-    );
+    result.expect("extra JSON fields should be silently ignored");
 }
 
 // RQ-10: Wrong type for workflow_name (number instead of string)
@@ -761,7 +754,6 @@ fn rq_next_nodes_mixed_conditions_three_targets() {
 #[test]
 fn rq_max_attempts_u8_max_accepted() {
     let result = RetryPolicy::new(u8::MAX, 0, 1.0);
-    assert!(result.is_ok());
     assert_eq!(result.unwrap().max_attempts, 255);
 }
 
@@ -769,7 +761,6 @@ fn rq_max_attempts_u8_max_accepted() {
 #[test]
 fn rq_backoff_ms_u64_max_accepted() {
     let result = RetryPolicy::new(1, u64::MAX, 1.0);
-    assert!(result.is_ok());
     assert_eq!(result.unwrap().backoff_ms, u64::MAX);
 }
 
@@ -778,35 +769,35 @@ fn rq_backoff_ms_u64_max_accepted() {
 fn rq_negative_zero_multiplier_rejected() {
     let result = RetryPolicy::new(1, 0, -0.0f32);
     // -0.0 == 0.0, and 0.0 < 1.0 is true, so -0.0 < 1.0 is true → rejected
-    assert!(result.is_err());
+    assert!(matches!(result, Err(_)));
 }
 
 // RQ-39: Very small positive multiplier just below 1.0 is rejected
 #[test]
 fn rq_very_small_positive_multiplier_rejected() {
     let result = RetryPolicy::new(1, 0, 0.9999999f32);
-    assert!(result.is_err());
+    assert!(matches!(result, Err(_)));
 }
 
 // RQ-40: Very large multiplier is accepted
 #[test]
 fn rq_very_large_multiplier_accepted() {
     let result = RetryPolicy::new(1, 0, 1e38f32);
-    assert!(result.is_ok());
+    result.unwrap();
 }
 
 // RQ-41: backoff_multiplier exactly 1.0 accepted (boundary)
 #[test]
 fn rq_multiplier_exactly_1_accepted() {
     let result = RetryPolicy::new(1, 0, 1.0f32);
-    assert!(result.is_ok());
+    result.unwrap();
 }
 
 // RQ-42: max_attempts = 1 accepted (minimum boundary)
 #[test]
 fn rq_max_attempts_1_accepted() {
     let result = RetryPolicy::new(1, 0, 1.0);
-    assert!(result.is_ok());
+    result.unwrap();
 }
 
 // RQ-43: max_attempts = 0 rejected
@@ -820,7 +811,6 @@ fn rq_max_attempts_0_rejected() {
 #[test]
 fn rq_backoff_ms_0_accepted() {
     let result = RetryPolicy::new(1, 0, 1.0);
-    assert!(result.is_ok());
     assert_eq!(result.unwrap().backoff_ms, 0);
 }
 
@@ -884,11 +874,15 @@ fn rq_edge_serde_round_trip_all_conditions() {
 // RQ-48: StepOutcome serde round-trip
 #[test]
 fn rq_step_outcome_serde_round_trip() {
-    for outcome in [StepOutcome::Success, StepOutcome::Failure] {
-        let json = serde_json::to_value(outcome).unwrap();
-        let restored: StepOutcome = serde_json::from_value(json).unwrap();
-        assert_eq!(restored, outcome);
-    }
+    let outcome = StepOutcome::Success;
+    let json = serde_json::to_value(outcome).unwrap();
+    let restored: StepOutcome = serde_json::from_value(json).unwrap();
+    assert_eq!(restored, outcome);
+
+    let outcome = StepOutcome::Failure;
+    let json = serde_json::to_value(outcome).unwrap();
+    let restored: StepOutcome = serde_json::from_value(json).unwrap();
+    assert_eq!(restored, outcome);
 }
 
 // RQ-49: NonEmptyVec serde round-trip with many elements
@@ -1109,7 +1103,7 @@ mod proptests {
             multiplier in -1e38f32..0.9999f32,
         ) {
             let result = RetryPolicy::new(max_attempts, backoff_ms, multiplier);
-            prop_assert!(result.is_err(), "multiplier {} should be rejected", multiplier);
+            prop_assert!(matches!(result, Err(_)), "multiplier {} should be rejected", multiplier);
         }
 
         // RQ-PROP-02: RetryPolicy::new accepts all multipliers >= 1.0
@@ -1120,7 +1114,7 @@ mod proptests {
             multiplier in 1.0f32..1e38f32,
         ) {
             let result = RetryPolicy::new(max_attempts, backoff_ms, multiplier);
-            prop_assert!(result.is_ok(), "multiplier {} should be accepted", multiplier);
+            let _ = result.unwrap();
         }
 
         // RQ-PROP-03: next_nodes result nodes all live in def (pointer equality)
@@ -1137,10 +1131,8 @@ mod proptests {
                 ],
             );
             let result = next_nodes(&NodeName("a".into()), outcome, &def);
-            for node in &result {
-                let found = def.nodes.as_slice().iter().any(|n| std::ptr::eq(n, *node));
-                prop_assert!(found, "next_nodes returned a &DagNode not from def.nodes");
-            }
+            let all_found = result.iter().all(|node| def.nodes.as_slice().iter().any(|n| std::ptr::eq(n, *node)));
+            prop_assert!(all_found, "next_nodes returned a &DagNode not from def.nodes");
         }
 
         // RQ-PROP-04: parse never panics with arbitrary valid-structure JSON
@@ -1158,8 +1150,8 @@ mod proptests {
                 "edges": []
             });
             let bytes = serde_json::to_vec(&json).unwrap();
-            let _ = std::panic::catch_unwind(|| {
-                let _ = WorkflowDefinition::parse(&bytes);
+            let _result = std::panic::catch_unwind(|| {
+                let _ignored = WorkflowDefinition::parse(&bytes);
             });
             // If we reach here, no panic occurred
         }

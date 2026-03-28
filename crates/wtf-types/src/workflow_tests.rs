@@ -74,11 +74,16 @@ fn step_outcome_has_exactly_two_variants_when_checked() {
 // B-12: StepOutcome serde round-trips for both variants
 #[test]
 fn step_outcome_serde_round_trips_for_both_variants() -> Result<(), Box<dyn std::error::Error>> {
-    for variant in [StepOutcome::Success, StepOutcome::Failure] {
-        let json = serde_json::to_value(variant)?;
-        let restored: StepOutcome = serde_json::from_value(json)?;
-        assert_eq!(restored, variant);
-    }
+    let variant = StepOutcome::Success;
+    let json = serde_json::to_value(variant)?;
+    let restored: StepOutcome = serde_json::from_value(json)?;
+    assert_eq!(restored, variant);
+
+    let variant = StepOutcome::Failure;
+    let json = serde_json::to_value(variant)?;
+    let restored: StepOutcome = serde_json::from_value(json)?;
+    assert_eq!(restored, variant);
+
     Ok(())
 }
 
@@ -108,15 +113,21 @@ fn edge_condition_has_exactly_three_variants_when_checked() {
 // B-14: EdgeCondition serde round-trips for all variants
 #[test]
 fn edge_condition_serde_round_trips_for_all_variants() -> Result<(), Box<dyn std::error::Error>> {
-    for variant in [
-        EdgeCondition::Always,
-        EdgeCondition::OnSuccess,
-        EdgeCondition::OnFailure,
-    ] {
-        let json = serde_json::to_value(variant)?;
-        let restored: EdgeCondition = serde_json::from_value(json)?;
-        assert_eq!(restored, variant);
-    }
+    let variant = EdgeCondition::Always;
+    let json = serde_json::to_value(variant)?;
+    let restored: EdgeCondition = serde_json::from_value(json)?;
+    assert_eq!(restored, variant);
+
+    let variant = EdgeCondition::OnSuccess;
+    let json = serde_json::to_value(variant)?;
+    let restored: EdgeCondition = serde_json::from_value(json)?;
+    assert_eq!(restored, variant);
+
+    let variant = EdgeCondition::OnFailure;
+    let json = serde_json::to_value(variant)?;
+    let restored: EdgeCondition = serde_json::from_value(json)?;
+    assert_eq!(restored, variant);
+
     Ok(())
 }
 
@@ -1075,10 +1086,8 @@ mod proptests {
                 vec![("a", "b", EdgeCondition::Always)],
             );
             let result = next_nodes(&NodeName("a".into()), outcome, &def);
-            for node in &result {
-                let found = def.nodes.as_slice().iter().any(|n| n.node_name == node.node_name);
-                prop_assert!(found, "next_nodes returned node not in def");
-            }
+            let all_found = result.iter().all(|node| def.nodes.as_slice().iter().any(|n| n.node_name == node.node_name));
+            prop_assert!(all_found, "next_nodes returned node not in def");
         }
 
         /// Invariant: next_nodes result matches edge targets
