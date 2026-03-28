@@ -2,6 +2,6 @@ $schema: "https://moonrepo.dev/schemas/project.json"
 
 tasks:
   ci:
-    command: 'moon ci'
+    command: 'moon run :check :test :lint-src'
     options:
       runInCI: true
