@@ -12,6 +12,22 @@ bd close <id>         # Complete work
 bd dolt push          # Push beads data to remote
 ```
 
+## Dolt Troubleshooting
+
+If you encounter `dolt` server unreachable, corruption, or missing database issues during `bd` execution, use the following recovery pipeline to forcefully clean the environment and restore your local tracker context:
+
+```bash
+bd dolt stop
+rm -rf .beads/wtf .beads/dolt
+mkdir -p .beads/dolt
+cd .beads/dolt
+dolt init
+dolt sql -q "CREATE DATABASE wtf;"
+cd ../..
+bd dolt start
+bd backup restore
+```
+
 ## Non-Interactive Shell Commands
 
 **ALWAYS use non-interactive flags** with file operations to avoid hanging on confirmation prompts.
