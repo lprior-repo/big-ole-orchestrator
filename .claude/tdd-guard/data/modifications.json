@@ -1,10 +1,10 @@
 {
   "session_id": "43b685e4-bcfd-464f-9b2a-75fd63952e3b",
-  "transcript_path": "/home/lewis/.claude/projects/-home-lewis-src-wtf-engine/43b685e4-bcfd-464f-9b2a-75fd63952e3b.jsonl",
+  "transcript_path": "/home/lewis/.claude/projects/-home-lewis-src-vo-engine/43b685e4-bcfd-464f-9b2a-75fd63952e3b.jsonl",
   "hook_event_name": "PreToolUse",
   "tool_name": "Edit",
   "tool_input": {
-    "file_path": "/home/lewis/src/wtf-engine/crates/wtf-actor/src/instance/procedural_utils.rs",
+    "file_path": "/home/lewis/src/vo-engine/crates/vo-actor/src/instance/procedural_utils.rs",
     "old_string": "        let value: u64 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.subsec_nanos() as u64 ^ (d.as_secs() << 32));\n        let event = WorkflowEvent::RandomSampled { operation_id: op_id, value };\n        if let Some(store) = &state.args.event_store {\n            if let Ok(seq) = store.publish(&state.args.namespace, &state.args.instance_id, event.clone()).await {\n                let _ = handlers::inject_event(state, seq, &event).await;\n            }\n        }\n        let _ = reply.send(value);\n    }\n}",
     "new_string": "        let value: u64 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.subsec_nanos() as u64 ^ (d.as_secs() << 32));\n        let event = WorkflowEvent::RandomSampled { operation_id: op_id, value };\n        if let Some(store) = &state.args.event_store {\n            if let Ok(seq) = store.publish(&state.args.namespace, &state.args.instance_id, event.clone()).await {\n                let _ = handlers::inject_event(state, seq, &event).await;\n                let _ = reply.send(value);\n            }\n            // If publish failed, drop reply — caller will timeout/error rather than get a\n            // non-deterministic value that wasn't persisted.\n        }\n        // If no event_store, drop reply — operation cannot be made deterministic.\n    }\n}",
     "replace_all": false

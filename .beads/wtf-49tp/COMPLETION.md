@@ -1,6 +1,6 @@
-# Bead Lifecycle Completion: wtf-49tp
+# Bead Lifecycle Completion: vo-49tp
 
-- **bead_id**: wtf-49tp
+- **bead_id**: vo-49tp
 - **title**: instance: Implement snapshot trigger
 - **completed_at**: 2026-03-23T19:15:00Z
 

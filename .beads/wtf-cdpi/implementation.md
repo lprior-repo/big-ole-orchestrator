@@ -1,18 +1,18 @@
-# Implementation Summary: wtf-cdpi
+# Implementation Summary: vo-cdpi
 
-- **bead_id**: wtf-cdpi
+- **bead_id**: vo-cdpi
 - **bead_title**: definitions: Store definition source in KV after lint
 - **phase**: STATE-3
 - **updated_at**: 2026-03-23T00:00:00Z
 
 ## Files Modified
 
-### `crates/wtf-api/src/types/requests.rs` (line 22-24)
+### `crates/vo-api/src/types/requests.rs` (line 22-24)
 - Added `workflow_type: String` field to `DefinitionRequest` struct
 - Field is serialized/deserialized via serde — non-breaking addition
 
-### `crates/wtf-api/src/handlers/definitions.rs` (full rewrite, 49 lines production + 128 lines tests)
-- **Imports**: Added `axum::extract::Extension`, `wtf_storage::kv::{definition_key, KvStores}`
+### `crates/vo-api/src/handlers/definitions.rs` (full rewrite, 49 lines production + 128 lines tests)
+- **Imports**: Added `axum::extract::Extension`, `vo_storage::kv::{definition_key, KvStores}`
 - **Signature**: `ingest_definition` now accepts `Extension(kv): Extension<KvStores>` as second parameter
 - **KV store logic** (lines 26-37):
   - After `valid == true` check, builds KV key via `definition_key("default", &req.workflow_type)`
@@ -62,11 +62,11 @@ test handlers::definitions::tests::valid_definition_returns_200_with_valid_true 
 test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 37 filtered out
 ```
 
-Full `cargo test -p wtf-api`: 41 tests passed, 0 failed.
+Full `cargo test -p vo-api`: 41 tests passed, 0 failed.
 
 ## cargo clippy Output
 
-Zero new warnings in modified files (`definitions.rs`, `requests.rs`). Pre-existing warnings in `wtf-common`, `wtf-core`, `app.rs`, `journal.rs`, `workflow_mappers.rs`, `newtypes.rs` are unrelated to this bead.
+Zero new warnings in modified files (`definitions.rs`, `requests.rs`). Pre-existing warnings in `vo-common`, `vo-core`, `app.rs`, `journal.rs`, `workflow_mappers.rs`, `newtypes.rs` are unrelated to this bead.
 
 ## Data->Calc->Actions Architecture
 

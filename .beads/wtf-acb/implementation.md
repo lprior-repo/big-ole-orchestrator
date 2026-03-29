@@ -1,4 +1,4 @@
-# Implementation Summary: wtf-acb -- wtf-types: define all semantic newtypes
+# Implementation Summary: vo-acb -- vo-types: define all semantic newtypes
 
 ## Status: COMPLETE
 
@@ -8,10 +8,10 @@
 
 | File | Change |
 |------|--------|
-| `crates/wtf-types/Cargo.toml` | Added `ulid.workspace = true` dependency |
-| `crates/wtf-types/src/types.rs` | Replaced all stub implementations with full validation logic |
-| `crates/wtf-types/src/errors.rs` | Unchanged (was already correct) |
-| `crates/wtf-types/src/lib.rs` | Unchanged (was already correct) |
+| `crates/vo-types/Cargo.toml` | Added `ulid.workspace = true` dependency |
+| `crates/vo-types/src/types.rs` | Replaced all stub implementations with full validation logic |
+| `crates/vo-types/src/errors.rs` | Unchanged (was already correct) |
+| `crates/vo-types/src/lib.rs` | Unchanged (was already correct) |
 
 ## Implementation Details
 

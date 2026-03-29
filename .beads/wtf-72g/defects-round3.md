@@ -1,4 +1,4 @@
-# Black Hat Review — Round 3 — wtf-72g (get_workflow handler)
+# Black Hat Review — Round 3 — vo-72g (get_workflow handler)
 
 **Reviewer:** Black Hat  
 **Date:** 2026-03-23  
@@ -27,8 +27,8 @@
 
 **Proof:**
 ```
-$ cargo test -p wtf-api --test get_workflow_handler_test
-error: no test target named `get_workflow_handler_test` in `wtf-api` package
+$ cargo test -p vo-api --test get_workflow_handler_test
+error: no test target named `get_workflow_handler_test` in `vo-api` package
 help: available test targets: journal_test, validate_workflow_test
 ```
 
@@ -40,7 +40,7 @@ use crate::handlers::workflow::get_workflow;
 use crate::types::{ApiError, V3StatusResponse};
 ```
 
-Even if the file were moved to `tests/`, integration tests cannot use `crate::` — they're external crates. These must be `wtf_api::handlers::workflow::get_workflow` and `wtf_api::types::{ApiError, V3StatusResponse}`. The `handlers` and `types` modules would need to be `pub`.
+Even if the file were moved to `tests/`, integration tests cannot use `crate::` — they're external crates. These must be `vo_api::handlers::workflow::get_workflow` and `vo_api::types::{ApiError, V3StatusResponse}`. The `handlers` and `types` modules would need to be `pub`.
 
 **This means DEFECT-04 is NOT fixed.** Tests exist on disk but are structurally non-functional. Zero tests actually run.
 
@@ -159,7 +159,7 @@ Line 62: `_ => map_actor_error(res).into_response()`. The `CallResult::Success(O
 
 ## Mandatory Fix List (Before Re-review)
 
-1. **CRITICAL-01:** Move `get_workflow_handler_test.rs` from `tests/unit/` to `tests/`. Fix all `crate::` imports to `wtf_api::`. Ensure the `handlers` module is `pub` (or re-export `get_workflow`). Verify `cargo test -p wtf-api --test get_workflow_handler_test` compiles and all 4 tests pass.
+1. **CRITICAL-01:** Move `get_workflow_handler_test.rs` from `tests/unit/` to `tests/`. Fix all `crate::` imports to `vo_api::`. Ensure the `handlers` module is `pub` (or re-export `get_workflow`). Verify `cargo test -p vo-api --test get_workflow_handler_test` compiles and all 4 tests pass.
 2. **DDD-01:** Wire `Retry-After` header into the 503 timeout response, or delete `ErrorResponse`/`RetryAfterSeconds` as YAGNI dead code.
 
 ---

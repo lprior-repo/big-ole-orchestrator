@@ -1,13 +1,13 @@
-# Contract: wtf-qz46 — wtf serve actor assembly, axum binding, and graceful shutdown
+# Contract: vo-qz46 — wtf serve actor assembly, axum binding, and graceful shutdown
 
-bead_id: wtf-qz46
-bead_title: wtf-cli: wtf serve actor assembly, axum binding, and graceful shutdown
+bead_id: vo-qz46
+bead_title: vo-cli: wtf serve actor assembly, axum binding, and graceful shutdown
 phase: contract
 updated_at: 2026-03-21T04:27:00Z
 
 ## Context
 
-Bead wtf-4mym provides a ready `NatsClient` with provisioned JetStream streams and KV buckets. Bead wtf-egjj provides the `build_app()` function to assemble the axum Router. Bead wtf-r4aa provides the `run_heartbeat_watcher()` function for heartbeat expiry detection.
+Bead vo-4mym provides a ready `NatsClient` with provisioned JetStream streams and KV buckets. Bead vo-egjj provides the `build_app()` function to assemble the axum Router. Bead vo-r4aa provides the `run_heartbeat_watcher()` function for heartbeat expiry detection.
 
 This bead assembles the complete run loop:
 1. Spawn MasterOrchestrator actor
@@ -34,7 +34,7 @@ This bead assembles the complete run loop:
 1. **Actor Spawned**: `MasterOrchestrator` actor is spawned and responsive
 2. **Router Assembled**: `build_app(orch_ref, kv)` produces a `Router` with all API routes
 3. **TCP Bound**: Axum server is listening on `host:port`
-4. **Heartbeat Watcher Running**: Background task watching `wtf-heartbeats` KV bucket
+4. **Heartbeat Watcher Running**: Background task watching `vo-heartbeats` KV bucket
 5. **Signal Handlers Registered**: SIGTERM/SIGINT trigger graceful shutdown
 6. **Shutdown Sequence**:
    - Server stops accepting new connections
@@ -78,6 +78,6 @@ run_serve_loop(config: ServeConfig, nats: NatsClient, sled_db: Arc<sled::Db>, kv
 
 ## Dependencies
 
-- `wtf-4mym`: NatsContext (CLOSED)
-- `wtf-egjj`: build_app() (CLOSED)
-- `wtf-r4aa`: run_heartbeat_watcher() (CLOSED)
+- `vo-4mym`: NatsContext (CLOSED)
+- `vo-egjj`: build_app() (CLOSED)
+- `vo-r4aa`: run_heartbeat_watcher() (CLOSED)

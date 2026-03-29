@@ -1,6 +1,6 @@
-# Red Queen Adversarial Report — wtf-2nty
+# Red Queen Adversarial Report — vo-2nty
 
-**Target:** `load_definitions_from_kv` in `crates/wtf-cli/src/commands/serve.rs:129-159`
+**Target:** `load_definitions_from_kv` in `crates/vo-cli/src/commands/serve.rs:129-159`
 **Subject:** serve: Load definitions from KV into registry
 **Date:** 2026-03-23
 
@@ -39,13 +39,13 @@ Ok(definitions)
 
 ### 4. Missing `workflow_type` in stored JSON — SURVIVED
 
-**Analysis:** `WorkflowDefinition` struct (`crates/wtf-common/src/types/workflow.rs:19-26`) does NOT have a `workflow_type` field. Its fields are `paradigm`, `graph_raw`, `description`. The key in KV *is* the workflow type (function signature: `Vec<(String, WorkflowDefinition)>`). So "missing workflow_type" is impossible — the key is always present from the KV iteration.
+**Analysis:** `WorkflowDefinition` struct (`crates/vo-common/src/types/workflow.rs:19-26`) does NOT have a `workflow_type` field. Its fields are `paradigm`, `graph_raw`, `description`. The key in KV *is* the workflow type (function signature: `Vec<(String, WorkflowDefinition)>`). So "missing workflow_type" is impossible — the key is always present from the KV iteration.
 
 If `paradigm` is missing from JSON, `serde_json::from_slice` returns `Err` (missing required field), which falls into the `Err` arm at `serve.rs:148`. **SURVIVED.**
 
 ### 5. Test isolation — SURVIVED
 
-**Command:** `cargo test -p wtf-actor --lib` (run twice)
+**Command:** `cargo test -p vo-actor --lib` (run twice)
 
 | Run | Result |
 |-----|--------|
@@ -56,7 +56,7 @@ If `paradigm` is missing from JSON, `serde_json::from_slice` returns `Err` (miss
 
 ### 6. Clippy strict — SURVIVED
 
-**Command:** `cargo clippy -p wtf-actor -p wtf-cli -- -W clippy::unwrap_used`
+**Command:** `cargo clippy -p vo-actor -p vo-cli -- -W clippy::unwrap_used`
 
 **Result:** 0 errors. 0 `unwrap_used` violations. 33 pedantic warnings (all `doc_markdown`, `missing_errors_doc`, `uninlined_format_args` — pre-existing, not from this bead).
 

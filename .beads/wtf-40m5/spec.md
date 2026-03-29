@@ -1,4 +1,4 @@
-# Bead Spec: wtf-40m5
+# Bead Spec: vo-40m5
 
 **Title:** serve: Start heartbeat watcher in serve.rs
 **Effort:** 15min
@@ -9,13 +9,13 @@
 
 ## Section 0: Clarifications
 
-- None. The function `run_heartbeat_watcher` already exists at `wtf_actor::heartbeat::run_heartbeat_watcher` (line 55 of `crates/wtf-actor/src/heartbeat.rs`). The `serve.rs` already spawns `api_task` and `timer_task` with the same shutdown pattern. This bead wires the heartbeat watcher into the serve startup in an identical fashion.
+- None. The function `run_heartbeat_watcher` already exists at `vo_actor::heartbeat::run_heartbeat_watcher` (line 55 of `crates/vo-actor/src/heartbeat.rs`). The `serve.rs` already spawns `api_task` and `timer_task` with the same shutdown pattern. This bead wires the heartbeat watcher into the serve startup in an identical fashion.
 
 ---
 
 ## Section 1: EARS Requirements
 
-- **WHEN** `run_serve` is called, **THE SYSTEM SHALL** spawn a heartbeat watcher task via `tokio::spawn` that calls `wtf_actor::heartbeat::run_heartbeat_watcher(kv.heartbeats.clone(), master.clone(), shutdown_rx)`.
+- **WHEN** `run_serve` is called, **THE SYSTEM SHALL** spawn a heartbeat watcher task via `tokio::spawn` that calls `vo_actor::heartbeat::run_heartbeat_watcher(kv.heartbeats.clone(), master.clone(), shutdown_rx)`.
 - **THE SYSTEM SHALL** pass a cloned `shutdown_rx` (from the existing `watch::channel`) to the heartbeat watcher so it shuts down with the rest of the server.
 - **WHEN** the heartbeat watcher task panics or returns `Err`, **THE SYSTEM SHALL** propagate the error during `drain_runtime`.
 
@@ -42,9 +42,9 @@
 ## Section 2.5: Research Requirements
 
 None. All types and functions are already implemented and tested:
-- `wtf_actor::heartbeat::run_heartbeat_watcher(Store, ActorRef<OrchestratorMsg>, watch::Receiver<bool>) -> Result<(), String>` — `crates/wtf-actor/src/heartbeat.rs:55`
-- `kv.heartbeats: Store` — `crates/wtf-storage/src/kv.rs:31`
-- `master: ActorRef<OrchestratorMsg>` — returned by `MasterOrchestrator::spawn()` at `crates/wtf-cli/src/commands/serve.rs:65`
+- `vo_actor::heartbeat::run_heartbeat_watcher(Store, ActorRef<OrchestratorMsg>, watch::Receiver<bool>) -> Result<(), String>` — `crates/vo-actor/src/heartbeat.rs:55`
+- `kv.heartbeats: Store` — `crates/vo-storage/src/kv.rs:31`
+- `master: ActorRef<OrchestratorMsg>` — returned by `MasterOrchestrator::spawn()` at `crates/vo-cli/src/commands/serve.rs:65`
 
 ---
 
@@ -58,19 +58,19 @@ None. No new traits, no DI containers, no strategy pattern. Direct function call
 
 ### Test 1: Compilation
 ```bash
-cargo check -p wtf-cli
+cargo check -p vo-cli
 ```
 Must succeed with zero errors.
 
 ### Test 2: Clippy
 ```bash
-cargo clippy -p wtf-cli -- -D warnings
+cargo clippy -p vo-cli -- -D warnings
 ```
 Must pass.
 
 ### Test 3: Existing tests still pass
 ```bash
-cargo test -p wtf-cli
+cargo test -p vo-cli
 ```
 The existing `drain_runtime_signals_shutdown_and_waits_for_tasks` test must pass unchanged.
 
@@ -84,7 +84,7 @@ All existing tests pass.
 
 ## Section 5: E2E Tests
 
-No new E2E tests. The heartbeat watcher itself is integration-tested via NATS (see `crates/wtf-actor/src/heartbeat.rs:166`). This bead only wires it into serve startup.
+No new E2E tests. The heartbeat watcher itself is integration-tested via NATS (see `crates/vo-actor/src/heartbeat.rs:166`). This bead only wires it into serve startup.
 
 **Manual verification:** Run `wtf serve`, observe log line `"heartbeat expiry watcher started"` from the spawned task.
 
@@ -92,26 +92,26 @@ No new E2E tests. The heartbeat watcher itself is integration-tested via NATS (s
 
 ## Section 5.5: Verification Checkpoints
 
-1. `cargo check -p wtf-cli` compiles
-2. `cargo clippy -p wtf-cli -- -D warnings` passes
+1. `cargo check -p vo-cli` compiles
+2. `cargo clippy -p vo-cli -- -D warnings` passes
 3. `cargo test --workspace` passes
 4. `drain_runtime` signature updated to accept the third `JoinHandle`
 5. `shutdown_rx` is cloned for the heartbeat watcher (not moved — timer_task already uses the original)
-6. The import `wtf_actor::heartbeat::run_heartbeat_watcher` is added
+6. The import `vo_actor::heartbeat::run_heartbeat_watcher` is added
 
 ---
 
 ## Section 6: Implementation Tasks
 
 ### Task 1: Add import (1 line)
-**File:** `crates/wtf-cli/src/commands/serve.rs`
+**File:** `crates/vo-cli/src/commands/serve.rs`
 **Change:** Add to the existing imports block:
 ```rust
-use wtf_actor::heartbeat::run_heartbeat_watcher;
+use vo_actor::heartbeat::run_heartbeat_watcher;
 ```
 
 ### Task 2: Spawn heartbeat watcher (1 line)
-**File:** `crates/wtf-cli/src/commands/serve.rs`
+**File:** `crates/vo-cli/src/commands/serve.rs`
 **Change:** After line 78 (where `timer_shutdown` is assigned), before line 80 (api_task spawn), add:
 ```rust
 let heartbeat_shutdown = shutdown_rx.clone();
@@ -123,7 +123,7 @@ let heartbeat_task = tokio::spawn(run_heartbeat_watcher(
 ```
 
 ### Task 3: Update `drain_runtime` to await the heartbeat task
-**File:** `crates/wtf-cli/src/commands/serve.rs`
+**File:** `crates/vo-cli/src/commands/serve.rs`
 **Change:**
 - Add `heartbeat_task: JoinHandle<Result<(), String>>` parameter to `drain_runtime`.
 - Inside the function body, add: `let heartbeat_result = heartbeat_task.await.context("heartbeat watcher task join failed")?;`
@@ -132,7 +132,7 @@ let heartbeat_task = tokio::spawn(run_heartbeat_watcher(
 - Update the generic bounds — the heartbeat task's error type is `String` (not `std::error::Error`), so either convert with `.map_err()` at the spawn site, or use a separate `.await` in the drain function. Simplest: `.map_err(|e| anyhow::anyhow!("{e}"))` in the task, making it `JoinHandle<Result<(), anyhow::Error>>`.
 
 ### Task 4: Update call site
-**File:** `crates/wtf-cli/src/commands/serve.rs`
+**File:** `crates/vo-cli/src/commands/serve.rs`
 **Change:** Line 88 becomes:
 ```rust
 drain_runtime(shutdown_tx, api_task, timer_task, heartbeat_task, || master.stop(None)).await?;
@@ -153,18 +153,18 @@ drain_runtime(shutdown_tx, api_task, timer_task, heartbeat_task, || master.stop(
 
 ## Section 7.5: Anti-Hallucination
 
-- `run_heartbeat_watcher` signature is `pub async fn run_heartbeat_watcher(heartbeats: Store, orchestrator: ActorRef<OrchestratorMsg>, shutdown_rx: tokio::sync::watch::Receiver<bool>) -> Result<(), String>` — confirmed at `crates/wtf-actor/src/heartbeat.rs:55`.
-- `kv.heartbeats` is `pub heartbeats: Store` — confirmed at `crates/wtf-storage/src/kv.rs:31`.
-- `master` is `ActorRef<OrchestratorMsg>` — confirmed by `MasterOrchestrator::spawn()` return type at `crates/wtf-cli/src/commands/serve.rs:65`.
-- `wtf_actor::heartbeat` is a public module — confirmed at `crates/wtf-actor/src/lib.rs:6`.
-- `drain_runtime` currently accepts exactly 2 `JoinHandle` params (api_task, timer_task) — confirmed at `crates/wtf-cli/src/commands/serve.rs:93-97`. Adding a third requires updating the function signature.
+- `run_heartbeat_watcher` signature is `pub async fn run_heartbeat_watcher(heartbeats: Store, orchestrator: ActorRef<OrchestratorMsg>, shutdown_rx: tokio::sync::watch::Receiver<bool>) -> Result<(), String>` — confirmed at `crates/vo-actor/src/heartbeat.rs:55`.
+- `kv.heartbeats` is `pub heartbeats: Store` — confirmed at `crates/vo-storage/src/kv.rs:31`.
+- `master` is `ActorRef<OrchestratorMsg>` — confirmed by `MasterOrchestrator::spawn()` return type at `crates/vo-cli/src/commands/serve.rs:65`.
+- `vo_actor::heartbeat` is a public module — confirmed at `crates/vo-actor/src/lib.rs:6`.
+- `drain_runtime` currently accepts exactly 2 `JoinHandle` params (api_task, timer_task) — confirmed at `crates/vo-cli/src/commands/serve.rs:93-97`. Adding a third requires updating the function signature.
 - `Result<(), String>` does NOT implement `std::error::Error` — the generic bound `E: std::error::Error + Send + Sync + 'static` on lines 100-101 will NOT match. Must map the error.
 
 ---
 
 ## Section 7.6: Context Survival
 
-- **Files modified:** 1 file (`crates/wtf-cli/src/commands/serve.rs`)
+- **Files modified:** 1 file (`crates/vo-cli/src/commands/serve.rs`)
 - **Lines added:** ~10 (import + spawn + drain update)
 - **Lines removed:** ~5 (drain_runtime signature/body restructured)
 - **New dependencies:** None
@@ -175,13 +175,13 @@ drain_runtime(shutdown_tx, api_task, timer_task, heartbeat_task, || master.stop(
 
 ## Section 8: Completion Checklist
 
-- [ ] `use wtf_actor::heartbeat::run_heartbeat_watcher;` added to imports
+- [ ] `use vo_actor::heartbeat::run_heartbeat_watcher;` added to imports
 - [ ] `heartbeat_task` spawned with `kv.heartbeats.clone()`, `master.clone()`, `shutdown_rx.clone()`
 - [ ] `drain_runtime` accepts and awaits the heartbeat `JoinHandle`
 - [ ] Error type correctly handled (`String` → `anyhow::Error`)
 - [ ] Call site passes `heartbeat_task` to `drain_runtime`
-- [ ] `cargo check -p wtf-cli` succeeds
-- [ ] `cargo clippy -p wtf-cli -- -D warnings` passes
+- [ ] `cargo check -p vo-cli` succeeds
+- [ ] `cargo clippy -p vo-cli -- -D warnings` passes
 - [ ] `cargo test --workspace` passes
 - [ ] No `unwrap()` or `expect()` introduced
 
@@ -189,8 +189,8 @@ drain_runtime(shutdown_tx, api_task, timer_task, heartbeat_task, || master.stop(
 
 ## Section 9: Context
 
-- **Bead:** wtf-40m5
-- **Depends on:** wtf-r4aa (heartbeat watcher implementation — already merged)
+- **Bead:** vo-40m5
+- **Depends on:** vo-r4aa (heartbeat watcher implementation — already merged)
 - **ADR:** ADR-014 (heartbeat KV bucket, TTL=10s)
 - **Pattern:** Same spawn pattern as `timer_task` at `serve.rs:81-85`
 - **Precedent:** `api_task` and `timer_task` both use `tokio::spawn` + `shutdown_rx.clone()` + drain in `drain_runtime`

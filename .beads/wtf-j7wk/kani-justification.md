@@ -1,7 +1,7 @@
 # Kani Justification
 
-bead_id: wtf-j7wk
-bead_title: "wtf-frontend: Simulate Mode Procedural — step through ctx calls, show checkpoint map"
+bead_id: vo-j7wk
+bead_title: "vo-frontend: Simulate Mode Procedural — step through ctx calls, show checkpoint map"
 phase: kani-justification
 updated_at: 2026-03-21T18:05:00Z
 

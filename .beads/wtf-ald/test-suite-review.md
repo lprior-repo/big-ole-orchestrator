@@ -1,9 +1,9 @@
-bead_id: wtf-ald
-bead_title: wtf-types: define WorkflowDefinition and DAG node types
+bead_id: vo-ald
+bead_title: vo-types: define WorkflowDefinition and DAG node types
 phase: state-4.7-test-suite-review-retry-1
 updated_at: 2026-03-27T21:30:00Z
 
-# Test Suite Review: wtf-ald -- WorkflowDefinition and DAG Node Types (RE-REVIEW)
+# Test Suite Review: vo-ald -- WorkflowDefinition and DAG Node Types (RE-REVIEW)
 
 ## VERDICT: REJECTED
 
@@ -67,7 +67,7 @@ Production code loops (lines 188, 203, 281, 284, 331) are not test code.
 
 ### Tier 1 -- Execution
 
-**[FAIL] Clippy: 7 warnings in bead code (19 total, 12 pre-existing from wtf-acb)**
+**[FAIL] Clippy: 7 warnings in bead code (19 total, 12 pre-existing from vo-acb)**
 
 Bead-specific clippy failures:
 
@@ -81,7 +81,7 @@ Bead-specific clippy failures:
 | workflow.rs:590 | needless_borrows_for_generic_args | Same pattern |
 | workflow.rs:1420 | needless_borrows_for_generic_args | Same pattern |
 
-**[PASS] Tests: 560 passed, 0 failed, 0 ignored, 0 flaky** (cargo test -p wtf-types --lib)
+**[PASS] Tests: 560 passed, 0 failed, 0 ignored, 0 flaky** (cargo test -p vo-types --lib)
 
 **[SKIP] Ordering probe** -- nextest not available; single-threaded execution confirmed by standard cargo test.
 

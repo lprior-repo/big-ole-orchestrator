@@ -19,7 +19,7 @@ The Engine must **never** block synchronously on pipe I/O.
 5. The Engine calls `waitpid()` on the child.
 
 ### The SDK Sequence
-The `wtf-sdk` enforces a strict sequence on the binary side:
+The `vo-sdk` enforces a strict sequence on the binary side:
 1. Read all data from FD3 until EOF.
 2. **Close FD3 immediately.**
 3. Execute the user's task logic.

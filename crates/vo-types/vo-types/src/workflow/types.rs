@@ -7,7 +7,7 @@ use crate::NodeName;
 // ---------------------------------------------------------------------------
 
 /// Outcome of executing a single DAG node.
-/// Defined locally in wtf-types to avoid circular deps with wtf-icg.
+/// Defined locally in vo-types to avoid circular deps with vo-icg.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum StepOutcome {
     Success,

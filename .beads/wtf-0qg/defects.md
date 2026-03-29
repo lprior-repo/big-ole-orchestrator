@@ -1,17 +1,17 @@
-# Black Hat Review — Bead wtf-0qg: spawn_workflow method
+# Black Hat Review — Bead vo-0qg: spawn_workflow method
 
 **Reviewer:** Black Hat  
 **Date:** 2026-03-23  
 **Verdict:** REJECTED  
 **Files Inspected:**
-- `crates/wtf-actor/src/master/handlers/start.rs` (122 lines)
-- `crates/wtf-actor/src/master/mod.rs` (111 lines)
-- `crates/wtf-actor/src/master/handlers/mod.rs` (13 lines)
-- `crates/wtf-actor/src/master/state.rs` (156 lines)
-- `crates/wtf-actor/src/messages/instance.rs` (111 lines)
-- `crates/wtf-actor/src/messages/errors.rs` (37 lines)
-- `crates/wtf-actor/src/instance/actor.rs` (83 lines)
-- `crates/wtf-actor/src/master/handlers/heartbeat.rs` (77 lines)
+- `crates/vo-actor/src/master/handlers/start.rs` (122 lines)
+- `crates/vo-actor/src/master/mod.rs` (111 lines)
+- `crates/vo-actor/src/master/handlers/mod.rs` (13 lines)
+- `crates/vo-actor/src/master/state.rs` (156 lines)
+- `crates/vo-actor/src/messages/instance.rs` (111 lines)
+- `crates/vo-actor/src/messages/errors.rs` (37 lines)
+- `crates/vo-actor/src/instance/actor.rs` (83 lines)
+- `crates/vo-actor/src/master/handlers/heartbeat.rs` (77 lines)
 
 ---
 
@@ -55,7 +55,7 @@
 **start.rs:72-73** — `WorkflowInstance` is a unit struct (see `actor.rs:15`), not constructed with `::new(name)`. The `name` is passed as the first arg to `spawn_linked`. The supervisor conversion also omits `.clone()` — though this works because `myself` is passed by value.
 
 ### C-06: No contract-spec.md or martin-fowler-tests.md (MUST FIX)
-**`.beads/wtf-0qg/`** — Directory is empty. No contract spec. No test plan. No acceptance criteria beyond the bd description. This is a governance failure.
+**`.beads/vo-0qg/`** — Directory is empty. No contract spec. No test plan. No acceptance criteria beyond the bd description. This is a governance failure.
 
 ### C-07: Missing test for AlreadyExists branch (MUST FIX)
 **start.rs:28-39** — `validate_request` has two error branches: `AtCapacity` (line 29-33, tested) and `AlreadyExists` (line 35-37, **NOT TESTED**). The duplicate-instance guard has zero test coverage. Anyone can refactor it away without a test screaming.
@@ -163,7 +163,7 @@ The code itself is not terrible — it's clean, short functions, reasonable deco
 
 **Mandatory before re-review:**
 1. Update bead description to match actual implementation, OR rewrite code to match bead.
-2. Create `contract-spec.md` and `martin-fowler-tests.md` in `.beads/wtf-0qg/`.
+2. Create `contract-spec.md` and `martin-fowler-tests.md` in `.beads/vo-0qg/`.
 3. Fix N-01: `persist_metadata` must return `Result` or log at `error!` level. Silent `let _ =` on durability writes is a firing offense.
 4. Write integration test for `spawn_and_register` that verifies actor spawns, registers in state, and persists metadata.
 5. Write unit test for `AlreadyExists` validation branch.

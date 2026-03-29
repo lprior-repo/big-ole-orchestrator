@@ -1,7 +1,7 @@
 # Martin Fowler Test Plan
 
 ## Metadata
-- **bead_id**: wtf-qgum
+- **bead_id**: vo-qgum
 - **bead_title**: worker: Implement echo and sleep activity handlers
 - **phase**: STATE 2 (test plan)
 - **updated_at**: 2026-03-23
@@ -260,13 +260,13 @@
 
 ```bash
 # Unit tests for builtin module (handler functions only — no NATS, no Worker)
-cargo test -p wtf-worker -- builtin --test-threads=1
+cargo test -p vo-worker -- builtin --test-threads=1
 
 # Integration tests for defaults and round-trips (requires NATS at 127.0.0.1:4222)
 cargo test --test worker_integration -- builtin_defaults -- --test-threads=1
 
 # Clippy lint check
-cargo clippy -p wtf-worker -- -D warnings
+cargo clippy -p vo-worker -- -D warnings
 
 # Full workspace compilation check
 cargo check --workspace

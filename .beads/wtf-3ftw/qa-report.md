@@ -1,7 +1,7 @@
-# QA Report: wtf-3ftw — parse_fsm
+# QA Report: vo-3ftw — parse_fsm
 
 **Date**: 2026-03-23
-**File**: `crates/wtf-actor/src/fsm/definition.rs` (405 lines)
+**File**: `crates/vo-actor/src/fsm/definition.rs` (405 lines)
 
 ---
 
@@ -17,7 +17,7 @@ All 18 `unwrap`/`expect` occurrences are inside `#[cfg(test)]` block (lines 196�
 
 ### 1.3 Test execution
 ```
-cargo test -p wtf-actor --lib -- fsm::definition
+cargo test -p vo-actor --lib -- fsm::definition
 test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 106 filtered out
 ```
 PASS — All 17 tests green.
@@ -43,14 +43,14 @@ FAIL — Exceeds 300-line limit. (Note: if tests are excluded, it's under 300. B
 **N/A** — Input is `&str` (already valid UTF-8). Payload is extracted from JSON string values, which serde guarantees are UTF-8. The `Bytes::from(s.as_bytes().to_vec())` conversion is safe. No attack surface.
 
 ### 2.5 Clippy unwrap_used
-**PASS** — `cargo clippy -p wtf-actor -- -W clippy::unwrap_used` produces zero warnings for `definition.rs`.
+**PASS** — `cargo clippy -p vo-actor -- -W clippy::unwrap_used` produces zero warnings for `definition.rs`.
 
 ---
 
 ## 3. BLACK HAT REVIEW
 
 ### 3.1 Signature matches usage
-PASS — `parse_fsm` is re-exported via `crates/wtf-actor/src/fsm.rs:8`:
+PASS — `parse_fsm` is re-exported via `crates/vo-actor/src/fsm.rs:8`:
 ```rust
 pub use definition::{parse_fsm, FsmDefinition, ParseFsmError};
 ```
@@ -60,7 +60,7 @@ Signature `parse_fsm(graph_raw: &str) -> Result<FsmDefinition, ParseFsmError>` m
 PASS — No hallucinated API calls. All used types are:
 - `serde_json` (standard serde JSON)
 - `bytes::Bytes` (crate dependency)
-- `wtf_common::EffectDeclaration` (workspace crate)
+- `vo_common::EffectDeclaration` (workspace crate)
 - Standard library (`HashMap`, `HashSet`)
 
 ---

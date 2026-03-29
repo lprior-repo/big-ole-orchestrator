@@ -1,4 +1,4 @@
-# QA Report — wtf-2nty: serve: Load definitions from KV into registry on startup
+# QA Report — vo-2nty: serve: Load definitions from KV into registry on startup
 
 **Date:** 2026-03-23
 **Executor:** QA Enforcer (actual CLI execution)
@@ -22,14 +22,14 @@ Defaulted to `Vec::new()` in `Default` impl (line 36). Consumed in `Orchestrator
 ### 3. No unwrap/expect in production code
 **PASS.** Grep for `\.unwrap\(\)|\.expect\(` in serve.rs returned zero matches. The only error handling uses `context()`, `let Ok(...) else { continue; }`, and `match` — all graceful.
 
-### 4. `cargo test -p wtf-cli -- serve`
+### 4. `cargo test -p vo-cli -- serve`
 **PASS.** 2 tests passed, 0 failed:
 - `drain_runtime_signals_shutdown_and_waits_for_four_tasks` ... ok
 - `drain_runtime_propagates_worker_error` ... ok
 
 (Note: no unit test for `load_definitions_from_kv` itself — requires live NATS. Integration coverage noted.)
 
-### 5. `cargo test -p wtf-actor --lib -- definitions`
+### 5. `cargo test -p vo-actor --lib -- definitions`
 **PASS.** 3 tests passed, 0 failed:
 - `new_state_with_pre_seeded_definitions_populates_registry` ... ok
 - `new_state_with_multiple_definitions` ... ok

@@ -1,13 +1,13 @@
-# wtf-5fow
+# vo-5fow
 
 ## 0 Clarifications
 
 | # | Question | Answer |
 |---|----------|--------|
-| 1 | NATS test container name? | `wtf-nats-test` on port 4222 (per AGENTS.md) |
-| 2 | Heartbeat TTL? | 10s (`max_age: Duration::from_secs(10)` in `crates/wtf-storage/src/kv.rs:101`) |
-| 3 | Heartbeat interval? | 5s (`Duration::from_secs(5)` in `crates/wtf-actor/src/instance/actor.rs:54`) |
-| 4 | Heartbeat KV bucket name? | `wtf-heartbeats` (key prefix `hb/<instance_id>`) |
+| 1 | NATS test container name? | `vo-nats-test` on port 4222 (per AGENTS.md) |
+| 2 | Heartbeat TTL? | 10s (`max_age: Duration::from_secs(10)` in `crates/vo-storage/src/kv.rs:101`) |
+| 3 | Heartbeat interval? | 5s (`Duration::from_secs(5)` in `crates/vo-actor/src/instance/actor.rs:54`) |
+| 4 | Heartbeat KV bucket name? | `vo-heartbeats` (key prefix `hb/<instance_id>`) |
 | 5 | Crash simulation method? | Stop the `WorkflowInstance` actor via `ActorRef::stop()` — triggers `post_stop`, aborts tasks, and deregisters from `OrchestratorState.active` via supervision |
 | 6 | Which paradigm for E2E? | FSM — simplest to verify state reconstruction without procedural checkpoint complexity |
 | 7 | Snapshot strategy? | ADR-019 sled snapshots at `SNAPSHOT_INTERVAL = 100` events (stub currently). Recovery may do full replay. Test must work with or without snapshots. |
@@ -19,7 +19,7 @@
 
 | ID | Requirement |
 |----|-------------|
-| E1 | **WHEN** a `WorkflowInstance` actor stops (crash) **THEN** its heartbeat entry in `wtf-heartbeats` KV **SHALL** expire within 10s due to `max_age` TTL |
+| E1 | **WHEN** a `WorkflowInstance` actor stops (crash) **THEN** its heartbeat entry in `vo-heartbeats` KV **SHALL** expire within 10s due to `max_age` TTL |
 | E2 | **WHILE** the heartbeat watcher is running, **IF** a heartbeat entry is deleted/purged by TTL, **THEN** the watcher **SHALL** send `OrchestratorMsg::HeartbeatExpired { instance_id }` to the `MasterOrchestrator` |
 | E3 | **WHEN** `HeartbeatExpired` arrives and the instance is NOT in `OrchestratorState.active`, **THEN** `handle_heartbeat_expired` **SHALL** fetch `InstanceMetadata` from the state store and spawn a new `WorkflowInstance` via `spawn_linked` |
 | E4 | **AFTER** the recovered instance spawns, it **SHALL** load initial state via `load_initial_state` (snapshot + replay) and reach `InstancePhase::Live` |
@@ -33,7 +33,7 @@
 ### Contract C1: HeartbeatWatcherDetectsExpiry
 
 ```rust
-// File: crates/wtf-actor/src/heartbeat.rs
+// File: crates/vo-actor/src/heartbeat.rs
 // Function: process_heartbeat_entry
 
 // PRE: entry.operation == Delete | Purge, key starts with "hb/"
@@ -44,7 +44,7 @@
 ### Contract C2: RecoverySkipsActiveInstance
 
 ```rust
-// File: crates/wtf-actor/src/master/handlers/heartbeat.rs
+// File: crates/vo-actor/src/master/handlers/heartbeat.rs
 // Function: check_recovery_preconditions
 
 // PRE: state.active.contains_key(&instance_id) == true
@@ -55,7 +55,7 @@
 ### Contract C3: RecoverySpawnsFromMetadata
 
 ```rust
-// File: crates/wtf-actor/src/master/handlers/heartbeat.rs
+// File: crates/vo-actor/src/master/handlers/heartbeat.rs
 // Function: attempt_recovery
 
 // PRE: state.config.state_store is Some with valid InstanceMetadata
@@ -67,7 +67,7 @@
 ### Contract C4: RecoveredInstanceReplaysCorrectly
 
 ```rust
-// File: crates/wtf-actor/src/instance/init.rs
+// File: crates/vo-actor/src/instance/init.rs
 // Functions: load_initial_state, replay_events
 
 // PRE: snapshot_db has SnapshotRecord{seq: N}, JetStream has events 1..=M where M > N
@@ -80,12 +80,12 @@
 ### Contract C5: HeartbeatWrittenEvery5s
 
 ```rust
-// File: crates/wtf-actor/src/instance/actor.rs (pre_start) + instance/handlers.rs (handle_heartbeat)
+// File: crates/vo-actor/src/instance/actor.rs (pre_start) + instance/handlers.rs (handle_heartbeat)
 // Trigger: send_interval(Duration::from_secs(5), || InstanceMsg::Heartbeat)
 
 // PRE: state.args.state_store is Some
 // POST: store.put_heartbeat(engine_node_id, instance_id) called
-// INVARIANT: Key format "hb/{instance_id}" in wtf-heartbeats bucket
+// INVARIANT: Key format "hb/{instance_id}" in vo-heartbeats bucket
 ```
 
 ---
@@ -96,18 +96,18 @@
 
 | File | Lines | Role |
 |------|-------|------|
-| `crates/wtf-actor/src/heartbeat.rs` | 167 | Heartbeat expiry watcher — watches KV for Delete/Purge ops |
-| `crates/wtf-actor/src/master/handlers/heartbeat.rs` | 99 | Recovery handler — fetches metadata, spawns recovered instance |
-| `crates/wtf-actor/src/master/mod.rs` | 149 | `MasterOrchestrator` actor — dispatches `HeartbeatExpired` to handler |
-| `crates/wtf-actor/src/master/state.rs` | 219 | `OrchestratorState.active` map — deregistered on child termination |
-| `crates/wtf-actor/src/instance/actor.rs` | 87 | `WorkflowInstance` — heartbeat timer at 5s, aborts tasks in `post_stop` |
-| `crates/wtf-actor/src/instance/init.rs` | 140 | `load_initial_state` + `replay_events` — snapshot + JetStream replay |
-| `crates/wtf-actor/src/instance/handlers.rs` | 222 | `handle_heartbeat` — writes to `wtf-heartbeats` KV |
-| `crates/wtf-actor/src/instance/state.rs` | 69 | `InstanceState` — `paradigm_state`, `total_events_applied` |
-| `crates/wtf-storage/src/kv.rs` | 209 | KV provisioning — `wtf-heartbeats` with `max_age: 10s`, `heartbeat_key()` |
-| `crates/wtf-storage/src/snapshots.rs` | 258 | sled snapshots — `read_snapshot`, `write_snapshot`, CRC32 validation |
-| `crates/wtf-storage/src/replay.rs` | 255 | `ReplayConsumer` — ephemeral push consumer from `from_seq` |
-| `crates/wtf-storage/src/provision.rs` | 204 | Stream provisioning — `wtf-events` stream |
+| `crates/vo-actor/src/heartbeat.rs` | 167 | Heartbeat expiry watcher — watches KV for Delete/Purge ops |
+| `crates/vo-actor/src/master/handlers/heartbeat.rs` | 99 | Recovery handler — fetches metadata, spawns recovered instance |
+| `crates/vo-actor/src/master/mod.rs` | 149 | `MasterOrchestrator` actor — dispatches `HeartbeatExpired` to handler |
+| `crates/vo-actor/src/master/state.rs` | 219 | `OrchestratorState.active` map — deregistered on child termination |
+| `crates/vo-actor/src/instance/actor.rs` | 87 | `WorkflowInstance` — heartbeat timer at 5s, aborts tasks in `post_stop` |
+| `crates/vo-actor/src/instance/init.rs` | 140 | `load_initial_state` + `replay_events` — snapshot + JetStream replay |
+| `crates/vo-actor/src/instance/handlers.rs` | 222 | `handle_heartbeat` — writes to `vo-heartbeats` KV |
+| `crates/vo-actor/src/instance/state.rs` | 69 | `InstanceState` — `paradigm_state`, `total_events_applied` |
+| `crates/vo-storage/src/kv.rs` | 209 | KV provisioning — `vo-heartbeats` with `max_age: 10s`, `heartbeat_key()` |
+| `crates/vo-storage/src/snapshots.rs` | 258 | sled snapshots — `read_snapshot`, `write_snapshot`, CRC32 validation |
+| `crates/vo-storage/src/replay.rs` | 255 | `ReplayConsumer` — ephemeral push consumer from `from_seq` |
+| `crates/vo-storage/src/provision.rs` | 204 | Stream provisioning — `vo-events` stream |
 
 ### Recovery Data Flow
 
@@ -128,7 +128,7 @@ WorkflowInstance dies
 
 ### Test Infrastructure Gaps
 
-- Existing tests in `crates/wtf-actor/tests/` are unit-level (no live NATS, no actor spawning)
+- Existing tests in `crates/vo-actor/tests/` are unit-level (no live NATS, no actor spawning)
 - No existing test uses `run_heartbeat_watcher` or `handle_heartbeat_expired`
 - `spawn_workflow_test.rs` is the closest to an integration test — examine its NATS setup pattern
 
@@ -151,10 +151,10 @@ WorkflowInstance dies
 ### T1: `heartbeat_key_parsed_correctly_for_recovery`
 
 ```rust
-// File: crates/wtf-actor/tests/heartbeat_expiry_recovery.rs
+// File: crates/vo-actor/tests/heartbeat_expiry_recovery.rs
 #[test]
 fn heartbeat_key_parsed_correctly_for_recovery() {
-    use wtf_actor::heartbeat::instance_id_from_heartbeat_key;
+    use vo_actor::heartbeat::instance_id_from_heartbeat_key;
     let key = "hb/crash-test-inst-001";
     let id = instance_id_from_heartbeat_key(key);
     assert!(id.is_some());
@@ -190,7 +190,7 @@ async fn duplicate_heartbeat_expired_triggers_single_recovery() {
 ```rust
 #[test]
 fn snapshot_replay_determinism() {
-    use wtf_actor::fsm::{apply_event, ExecutionPhase, FsmActorState};
+    use vo_actor::fsm::{apply_event, ExecutionPhase, FsmActorState};
     // Build FSM state through events, serialize snapshot, deserialize,
     // replay remaining events, assert final state matches.
 }
@@ -201,7 +201,7 @@ fn snapshot_replay_determinism() {
 ```rust
 #[test]
 fn recovery_args_built_from_metadata() {
-    use wtf_common::{InstanceId, InstanceMetadata, WorkflowParadigm};
+    use vo_common::{InstanceId, InstanceMetadata, WorkflowParadigm};
     let meta = InstanceMetadata {
         namespace: "test".into(),
         instance_id: InstanceId::new("inst-1"),
@@ -219,13 +219,13 @@ fn recovery_args_built_from_metadata() {
 
 ### E2E-1: `crash_recovery_fsm_heartbeat_expiry` (primary)
 
-**Location:** `crates/wtf-actor/tests/heartbeat_expiry_recovery.rs`
+**Location:** `crates/vo-actor/tests/heartbeat_expiry_recovery.rs`
 
-**Prerequisites:** NATS running (`wtf-nats-test` container, port 4222)
+**Prerequisites:** NATS running (`vo-nats-test` container, port 4222)
 
 **Setup (per test):**
 1. Connect to NATS, create JetStream context
-2. Provision `wtf-events` stream and `wtf-heartbeats` KV bucket via `wtf_storage::provision`
+2. Provision `vo-events` stream and `vo-heartbeats` KV bucket via `vo_storage::provision`
 3. Create temp sled dir for snapshots
 4. Build `OrchestratorConfig` with real `event_store`, `state_store`, `snapshot_db`
 5. Spawn `MasterOrchestrator` via `Actor::spawn`
@@ -293,10 +293,10 @@ THEN: run_heartbeat_watcher returns Ok(())
 
 | Gate | Command | Criteria |
 |------|---------|----------|
-| Compile | `cargo check -p wtf-actor` | Zero errors, zero warnings |
-| Unit tests | `cargo test -p wtf-actor` | All pass |
-| E2E tests | `cargo test -p wtf-actor --test heartbeat_expiry_recovery -- --nocapture` | Pass (requires NATS) |
-| Clippy | `cargo clippy -p wtf-actor -- -D warnings` | Zero warnings |
+| Compile | `cargo check -p vo-actor` | Zero errors, zero warnings |
+| Unit tests | `cargo test -p vo-actor` | All pass |
+| E2E tests | `cargo test -p vo-actor --test heartbeat_expiry_recovery -- --nocapture` | Pass (requires NATS) |
+| Clippy | `cargo clippy -p vo-actor -- -D warnings` | Zero warnings |
 | Full workspace | `cargo test --workspace` | No regressions |
 
 ---
@@ -305,7 +305,7 @@ THEN: run_heartbeat_watcher returns Ok(())
 
 | # | Task | File | Est |
 |---|------|------|-----|
-| 1 | Create `crates/wtf-actor/tests/heartbeat_expiry_recovery.rs` scaffolding | new file | 15m |
+| 1 | Create `crates/vo-actor/tests/heartbeat_expiry_recovery.rs` scaffolding | new file | 15m |
 | 2 | Implement NATS test harness (connect, provision streams + KV, sled tempdir) | test file | 30m |
 | 3 | Build `OrchestratorConfig` with real stores for test | test file | 20m |
 | 4 | Spawn `MasterOrchestrator` + heartbeat watcher in test setup | test file | 20m |
@@ -337,16 +337,16 @@ THEN: run_heartbeat_watcher returns Ok(())
 
 | # | Claim | Verification |
 |---|-------|-------------|
-| AH1 | `wtf-heartbeats` has `max_age: 10s` | Confirmed: `crates/wtf-storage/src/kv.rs:101` |
-| AH2 | Heartbeat interval is 5s | Confirmed: `crates/wtf-actor/src/instance/actor.rs:54` |
-| AH3 | Key format is `hb/{instance_id}` | Confirmed: `crates/wtf-storage/src/kv.rs:149` (`heartbeat_key()`) |
-| AH4 | `handle_heartbeat_expired` exists | Confirmed: `crates/wtf-actor/src/master/handlers/heartbeat.rs:68` |
-| AH5 | Recovery fetches `InstanceMetadata` | Confirmed: `crates/wtf-actor/src/master/handlers/heartbeat.rs:79` (`fetch_metadata`) |
-| AH6 | `OrchestratorState.active` is `HashMap<InstanceId, ActorRef<InstanceMsg>>` | Confirmed: `crates/wtf-actor/src/master/state.rs:42` |
-| AH7 | `WorkflowInstance::spawn_linked` exists | Confirmed: `crates/wtf-actor/src/master/handlers/heartbeat.rs:59` |
-| AH8 | `handle_heartbeat` writes via `state_store.put_heartbeat` | Confirmed: `crates/wtf-actor/src/instance/handlers.rs:133` |
-| AH9 | `post_stop` aborts `procedural_task` and `live_subscription_task` | Confirmed: `crates/wtf-actor/src/instance/actor.rs:79-84` |
-| AH10 | `SNAPSHOT_INTERVAL = 100` | Confirmed: `crates/wtf-actor/src/instance/handlers.rs:193` |
+| AH1 | `vo-heartbeats` has `max_age: 10s` | Confirmed: `crates/vo-storage/src/kv.rs:101` |
+| AH2 | Heartbeat interval is 5s | Confirmed: `crates/vo-actor/src/instance/actor.rs:54` |
+| AH3 | Key format is `hb/{instance_id}` | Confirmed: `crates/vo-storage/src/kv.rs:149` (`heartbeat_key()`) |
+| AH4 | `handle_heartbeat_expired` exists | Confirmed: `crates/vo-actor/src/master/handlers/heartbeat.rs:68` |
+| AH5 | Recovery fetches `InstanceMetadata` | Confirmed: `crates/vo-actor/src/master/handlers/heartbeat.rs:79` (`fetch_metadata`) |
+| AH6 | `OrchestratorState.active` is `HashMap<InstanceId, ActorRef<InstanceMsg>>` | Confirmed: `crates/vo-actor/src/master/state.rs:42` |
+| AH7 | `WorkflowInstance::spawn_linked` exists | Confirmed: `crates/vo-actor/src/master/handlers/heartbeat.rs:59` |
+| AH8 | `handle_heartbeat` writes via `state_store.put_heartbeat` | Confirmed: `crates/vo-actor/src/instance/handlers.rs:133` |
+| AH9 | `post_stop` aborts `procedural_task` and `live_subscription_task` | Confirmed: `crates/vo-actor/src/instance/actor.rs:79-84` |
+| AH10 | `SNAPSHOT_INTERVAL = 100` | Confirmed: `crates/vo-actor/src/instance/handlers.rs:193` |
 
 ---
 
@@ -354,31 +354,31 @@ THEN: run_heartbeat_watcher returns Ok(())
 
 If the agent loses context mid-implementation:
 
-1. **Read this spec** at `.beads/wtf-5fow/spec.md`
+1. **Read this spec** at `.beads/vo-5fow/spec.md`
 2. **Read the primary source files**:
-   - `crates/wtf-actor/src/heartbeat.rs` — watcher implementation
-   - `crates/wtf-actor/src/master/handlers/heartbeat.rs` — recovery handler
-   - `crates/wtf-actor/src/instance/actor.rs` — WorkflowInstance actor
-   - `crates/wtf-storage/src/kv.rs` — KV bucket provisioning
-3. **Check existing test patterns** at `crates/wtf-actor/tests/spawn_workflow_test.rs`
+   - `crates/vo-actor/src/heartbeat.rs` — watcher implementation
+   - `crates/vo-actor/src/master/handlers/heartbeat.rs` — recovery handler
+   - `crates/vo-actor/src/instance/actor.rs` — WorkflowInstance actor
+   - `crates/vo-storage/src/kv.rs` — KV bucket provisioning
+3. **Check existing test patterns** at `crates/vo-actor/tests/spawn_workflow_test.rs`
 4. **Key types to reference**:
-   - `wtf_actor::OrchestratorMsg::HeartbeatExpired { instance_id }`
-   - `wtf_actor::heartbeat::run_heartbeat_watcher(heartbeats, orchestrator, shutdown_rx)`
-   - `wtf_storage::kv::provision_kv_buckets(js)`
-   - `wtf_storage::provision::provision_streams(js)`
-   - `wtf_storage::snapshots::open_snapshot_db(path)`
+   - `vo_actor::OrchestratorMsg::HeartbeatExpired { instance_id }`
+   - `vo_actor::heartbeat::run_heartbeat_watcher(heartbeats, orchestrator, shutdown_rx)`
+   - `vo_storage::kv::provision_kv_buckets(js)`
+   - `vo_storage::provision::provision_streams(js)`
+   - `vo_storage::snapshots::open_snapshot_db(path)`
 5. **NATS connection**: `async_nats::connect("nats://localhost:4222").await`
 
 ---
 
 ## 8 Completion
 
-- [ ] `crates/wtf-actor/tests/heartbeat_expiry_recovery.rs` created
+- [ ] `crates/vo-actor/tests/heartbeat_expiry_recovery.rs` created
 - [ ] E2E-1 `crash_recovery_fsm_heartbeat_expiry` passes with NATS
 - [ ] E2E-2 `no_recovery_when_instance_active` passes
 - [ ] E2E-3 `heartbeat_watcher_shutdown_clean` passes
 - [ ] Unit tests T1–T5 pass
-- [ ] `cargo clippy -p wtf-actor -- -D warnings` clean
+- [ ] `cargo clippy -p vo-actor -- -D warnings` clean
 - [ ] `cargo test --workspace` no regressions
 - [ ] Test file < 300 lines (architectural drift check)
 
@@ -386,25 +386,25 @@ If the agent loses context mid-implementation:
 
 ## 9 Context
 
-**Project:** wtf-engine — durable execution runtime (Rust, Ractor, NATS JetStream)
-**Bead ID:** wtf-5fow
+**Project:** vo-engine — durable execution runtime (Rust, Ractor, NATS JetStream)
+**Bead ID:** vo-5fow
 **Title:** e2e: Test crash recovery via heartbeat expiry
 **Priority:** 1 (High — validates core crash recovery path)
 **Type:** task
 **Effort:** 4hr
 **Dependencies:** None (requires NATS running)
-**Crate:** `wtf-actor` (test file in `crates/wtf-actor/tests/`)
+**Crate:** `vo-actor` (test file in `crates/vo-actor/tests/`)
 
 ---
 
 ## 10 AI Hints
 
-1. **Use `ractor::Actor::spawn` to create the orchestrator** — see `crates/wtf-actor/src/master/mod.rs` for the `MasterOrchestrator` struct.
+1. **Use `ractor::Actor::spawn` to create the orchestrator** — see `crates/vo-actor/src/master/mod.rs` for the `MasterOrchestrator` struct.
 2. **The heartbeat watcher is a plain async function** (not an actor) — spawn it via `tokio::spawn` and communicate shutdown via `tokio::sync::watch`.
 3. **For FSM test workflow**: Create a simple 2-state FSM definition (Created → Authorized) and register it in `WorkflowRegistry` before starting the orchestrator.
-4. **To publish events directly**: Use the `EventStore` trait impl to publish `WorkflowEvent::InstanceStarted` and `WorkflowEvent::TransitionApplied` events to the `wtf-events` stream.
+4. **To publish events directly**: Use the `EventStore` trait impl to publish `WorkflowEvent::InstanceStarted` and `WorkflowEvent::TransitionApplied` events to the `vo-events` stream.
 5. **To kill the instance**: Get `ActorRef<InstanceMsg>` from `OrchestratorState.get(&instance_id)`, call `.stop(Some("crash".into()))`. Then wait briefly for the supervision `ActorTerminated` event to deregister it.
 6. **To verify recovery**: After 15s, use `OrchestratorMsg::GetStatus { instance_id, reply }` to query the recovered instance's state.
-7. **sled tempdir**: Use `tempfile::tempdir()` and pass the path to `wtf_storage::snapshots::open_snapshot_db`.
+7. **sled tempdir**: Use `tempfile::tempdir()` and pass the path to `vo_storage::snapshots::open_snapshot_db`.
 8. **Mark E2E tests with `#[tokio::test]`** and add `#[ignore]` annotation if NATS may not be available in CI.
 9. **The `in_flight_guard` in `check_recovery_preconditions` uses a process-level `static OnceLock<Mutex<HashSet>>`** — it persists across tests within the same process. Each test must use a unique `instance_id` to avoid interference.

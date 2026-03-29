@@ -1,4 +1,4 @@
-# QA Report: wtf-49tp — instance: Implement snapshot trigger
+# QA Report: vo-49tp — instance: Implement snapshot trigger
 
 ## Checklist
 
@@ -40,7 +40,7 @@ test instance::handlers::tests::snapshot_trigger_preserves_paradigm_state ... ok
 test result: ok. 5 passed; 0 failed
 ```
 
-### 7. Full wtf-actor lib tests
+### 7. Full vo-actor lib tests
 **PASS**
 ```
 running 123 tests

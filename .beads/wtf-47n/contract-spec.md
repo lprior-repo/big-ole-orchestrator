@@ -1,10 +1,10 @@
-# Contract Specification: capacity_check method (wtf-47n)
+# Contract Specification: capacity_check method (vo-47n)
 
 ## Context
 
 - **Feature:** `capacity_check` method on `MasterOrchestrator`
-- **Bead:** wtf-47n
-- **Location:** `wtf-actor/src/master/`
+- **Bead:** vo-47n
+- **Location:** `vo-actor/src/master/`
 - **Purpose:** Determines if the orchestrator can accept new workflow instances
 
 ## Domain Terms

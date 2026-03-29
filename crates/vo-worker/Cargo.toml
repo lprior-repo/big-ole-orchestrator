@@ -1,12 +1,12 @@
 [package]
-name = "wtf-worker"
+name = "vo-worker"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [dependencies]
-wtf-common = { path = "../wtf-common" }
-wtf-storage = { path = "../wtf-storage" }
+vo-common = { path = "../vo-common" }
+vo-storage = { path = "../vo-storage" }
 
 # Async
 tokio = { workspace = true }

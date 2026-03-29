@@ -1,4 +1,4 @@
-# Martin Fowler Test Plan: wtf-ww0p -- E2E Workflow Completion Test
+# Martin Fowler Test Plan: vo-ww0p -- E2E Workflow Completion Test
 
 ## Verified Facts (source-read 2026-03-23)
 
@@ -10,8 +10,8 @@
 | paradigm "" | `mod.rs:80` parse_paradigm | `None` -> 400 `invalid_paradigm` |
 | valid: false path | `definitions.rs:46-49` | HTTP 200 with `{ valid: false, diagnostics }` |
 | AlreadyExists | `workflow_mappers.rs:80-84` | HTTP 409 `{ error: "already_exists" }` |
-| KvStores constructor | `kv.rs:38` | `provision_kv_buckets(&js) -> Result<KvStores, WtfError>` (no `db` param, no `::new()`) |
-| Lint rules used by handler | `definitions.rs:21`, `lib.rs:24` | `wtf_linter::lint_workflow_code` re-exports **l005 only** (tokio::spawn check) |
+| KvStores constructor | `kv.rs:38` | `provision_kv_buckets(&js) -> Result<KvStores, VoError>` (no `db` param, no `::new()`) |
+| Lint rules used by handler | `definitions.rs:21`, `lib.rs:24` | `vo_linter::lint_workflow_code` re-exports **l005 only** (tokio::spawn check) |
 | Test source passes l005 | `l005.rs` | No `tokio::spawn` in source -> clean pass |
 
 ## URL Construction Reference
@@ -62,7 +62,7 @@ The `:id` must carry `namespace/instance_id` as a URL-encoded compound value:
 ## Given-When-Then Scenarios
 
 ### Scenario 1: Definition ingestion returns valid for clean procedural source
-**Given**: a running wtf-api server connected to real NATS JetStream
+**Given**: a running vo-api server connected to real NATS JetStream
 **And**: a procedural workflow source with no l005 violations (no `tokio::spawn`):
 ```
 "impl WorkflowFn for EchoWorkflow {
@@ -72,7 +72,7 @@ The `:id` must carry `namespace/instance_id` as a URL-encoded compound value:
     }
 }"
 ```
-> **Note (m1)**: The definitions handler calls `wtf_linter::lint_workflow_code` which only runs
+> **Note (m1)**: The definitions handler calls `vo_linter::lint_workflow_code` which only runs
 > l005 (tokio::spawn detection). This source has no closures, no spawn, no async IO, no time
 > calls, and no thread ops -- it passes l005 with zero diagnostics.
 
@@ -82,7 +82,7 @@ The `:id` must carry `namespace/instance_id` as a URL-encoded compound value:
 - Response body matches `DefinitionResponse { valid: true, diagnostics: [] }`
 
 ### Scenario 2: Start workflow returns 201 with instance_id
-**Given**: a running wtf-api server connected to real NATS JetStream
+**Given**: a running vo-api server connected to real NATS JetStream
 **When**: `POST /api/v1/workflows` is called with body:
 ```json
 {
@@ -103,7 +103,7 @@ The `:id` must carry `namespace/instance_id` as a URL-encoded compound value:
 - `instance_id` is exactly 26 characters (standard ULID length)
 
 ### Scenario 3: Journal contains entries after workflow start
-**Given**: a running wtf-api server connected to real NATS JetStream
+**Given**: a running vo-api server connected to real NATS JetStream
 **And**: a workflow has been started via `POST /api/v1/workflows` returning `instance_id = "<id>"`
 **When**: `GET /api/v1/workflows/e2e%2F<id>/journal` is polled every 200ms for up to 10 seconds
 **Then**:
@@ -119,7 +119,7 @@ The `:id` must carry `namespace/instance_id` as a URL-encoded compound value:
 > The server's `split_path_id()` decodes this back to `("e2e", "01ARZ3NDEKTSV4RRFFQ69G5FAV")`.
 
 ### Scenario 4: Workflow status returns V3StatusResponse with live phase
-**Given**: a running wtf-api server connected to real NATS JetStream
+**Given**: a running vo-api server connected to real NATS JetStream
 **And**: a workflow has been started with `instance_id = "<id>"`
 **When**: `GET /api/v1/workflows/e2e%2F<id>` is called after a brief settle delay
 **Then**:
@@ -139,7 +139,7 @@ The `:id` must carry `namespace/instance_id` as a URL-encoded compound value:
 > delay. The orchestrator's `InstancePhaseView::Live` is set after `transition_to_live` completes.
 
 ### Scenario 5: List workflows includes the started instance
-**Given**: a running wtf-api server connected to real NATS JetStream
+**Given**: a running vo-api server connected to real NATS JetStream
 **And**: a workflow has been started with `instance_id = "<id>"`
 **When**: `GET /api/v1/workflows` is called
 **Then**:
@@ -149,7 +149,7 @@ The `:id` must carry `namespace/instance_id` as a URL-encoded compound value:
 - At least one element has `instance_id == "<id>"`
 
 ### Scenario 6: Invalid paradigm (unknown string) returns 400
-**Given**: a running wtf-api server connected to real NATS JetStream
+**Given**: a running vo-api server connected to real NATS JetStream
 **When**: `POST /api/v1/workflows` is called with body:
 ```json
 {
@@ -164,7 +164,7 @@ The `:id` must carry `namespace/instance_id` as a URL-encoded compound value:
 - Response body matches `ApiError { error: "invalid_paradigm", message: "bad paradigm" }`
 
 ### Scenario 7: Empty paradigm returns 400 invalid_paradigm (C3)
-**Given**: a running wtf-api server connected to real NATS JetStream
+**Given**: a running vo-api server connected to real NATS JetStream
 **When**: `POST /api/v1/workflows` is called with body:
 ```json
 {
@@ -183,7 +183,7 @@ The `:id` must carry `namespace/instance_id` as a URL-encoded compound value:
 > error path from unknown paradigm strings -- both hit the same error code.
 
 ### Scenario 8: Invalid namespace returns 400
-**Given**: a running wtf-api server connected to real NATS JetStream
+**Given**: a running vo-api server connected to real NATS JetStream
 **When**: `POST /api/v1/workflows` is called with body:
 ```json
 {
@@ -202,7 +202,7 @@ The `:id` must carry `namespace/instance_id` as a URL-encoded compound value:
 > (no illegal chars found).
 
 ### Scenario 9: Definition with empty workflow_type returns 400
-**Given**: a running wtf-api server connected to real NATS JetStream
+**Given**: a running vo-api server connected to real NATS JetStream
 **When**: `POST /api/v1/definitions/procedural` is called with body:
 ```json
 {
@@ -215,7 +215,7 @@ The `:id` must carry `namespace/instance_id` as a URL-encoded compound value:
 - Response body matches `ApiError { error: "invalid_request", message: "workflow_type must be non-empty" }`
 
 ### Scenario 10: Definition with malformed source returns 400
-**Given**: a running wtf-api server connected to real NATS JetStream
+**Given**: a running vo-api server connected to real NATS JetStream
 **When**: `POST /api/v1/definitions/procedural` is called with body:
 ```json
 {
@@ -228,7 +228,7 @@ The `:id` must carry `namespace/instance_id` as a URL-encoded compound value:
 - Response body matches `ApiError { error: "parse_error" }`
 
 ### Scenario 11: Definition with lint errors returns 200 { valid: false } (M1)
-**Given**: a running wtf-api server connected to real NATS JetStream
+**Given**: a running vo-api server connected to real NATS JetStream
 **When**: `POST /api/v1/definitions/procedural` is called with body:
 ```json
 {
@@ -241,7 +241,7 @@ The `:id` must carry `namespace/instance_id` as a URL-encoded compound value:
 - Response body matches `DefinitionResponse { valid: false, diagnostics: [<non-empty array>] }`
 - At least one diagnostic has `code: "L005"` and `severity: "error"`
 
-> **FACT (M1)**: The definitions handler at `definitions.rs:21` calls `wtf_linter::lint_workflow_code`
+> **FACT (M1)**: The definitions handler at `definitions.rs:21` calls `vo_linter::lint_workflow_code`
 > (l005 re-export). If parsing succeeds but l005 fires an error-severity diagnostic (e.g.
 > `tokio::spawn`), the handler returns HTTP 200 with `valid: false` and the diagnostic details.
 > The `valid` flag is `dtos.iter().all(|d| d.severity != "error")` -- so any error-severity
@@ -249,7 +249,7 @@ The `:id` must carry `namespace/instance_id` as a URL-encoded compound value:
 > (see `definitions.rs:34-48`: KV write only happens inside `if valid` block).
 
 ### Scenario 12: Duplicate instance_id start returns 409 (M2)
-**Given**: a running wtf-api server connected to real NATS JetStream
+**Given**: a running vo-api server connected to real NATS JetStream
 **And**: a workflow has been started with `instance_id = "<id>"` returned from the first start
 **When**: `POST /api/v1/workflows` is called again with body:
 ```json
@@ -271,14 +271,14 @@ The `:id` must carry `namespace/instance_id` as a URL-encoded compound value:
 > `spawn_workflow_test.rs:185-186`.
 
 ### Scenario 13: Journal for non-existent instance returns 404
-**Given**: a running wtf-api server connected to real NATS JetStream
+**Given**: a running vo-api server connected to real NATS JetStream
 **When**: `GET /api/v1/workflows/e2e%2Fnonexistent-id-12345/journal` is called
 **Then**:
 - HTTP 404 is returned
 - Response body matches `ApiError { error: "not_found" }`
 
 ### Scenario 14: Status for non-existent instance returns 404
-**Given**: a running wtf-api server connected to real NATS JetStream
+**Given**: a running vo-api server connected to real NATS JetStream
 **When**: `GET /api/v1/workflows/e2e%2Fnonexistent-id-12345` is called
 **Then**:
 - HTTP 404 is returned
@@ -332,7 +332,7 @@ The `E2eTestServer::new()` boot sequence must use the ACTUAL `KvStores` construc
 let kv = provision_kv_buckets(&js).await?;
 ```
 
-`provision_kv_buckets` takes only `&Context` and returns `Result<KvStores, WtfError>`.
+`provision_kv_buckets` takes only `&Context` and returns `Result<KvStores, VoError>`.
 There is no `db` parameter. The `sled::Db` is only needed for `OrchestratorConfig.snapshot_db`.
 
 ## Test Execution Matrix
@@ -358,26 +358,26 @@ There is no `db` parameter. The `sled::Db` is only needed for `OrchestratorConfi
 
 ```bash
 # Full E2E suite (requires NATS)
-cargo test -p wtf-api --test e2e_workflow_test -- --test-threads=1 --nocapture
+cargo test -p vo-api --test e2e_workflow_test -- --test-threads=1 --nocapture
 
 # Individual tests
-cargo test -p wtf-api --test e2e_workflow_test e2e_definition_ingestion -- --test-threads=1 --nocapture
-cargo test -p wtf-api --test e2e_workflow_test e2e_start_workflow -- --test-threads=1 --nocapture
-cargo test -p wtf-api --test e2e_workflow_test e2e_journal -- --test-threads=1 --nocapture
-cargo test -p wtf-api --test e2e_workflow_test e2e_workflow_status -- --test-threads=1 --nocapture
-cargo test -p wtf-api --test e2e_workflow_test e2e_list_workflows -- --test-threads=1 --nocapture
-cargo test -p wtf-api --test e2e_workflow_test e2e_invalid_paradigm -- --test-threads=1 --nocapture
-cargo test -p wtf-api --test e2e_workflow_test e2e_empty_paradigm -- --test-threads=1 --nocapture
-cargo test -p wtf-api --test e2e_workflow_test e2e_invalid_namespace -- --test-threads=1 --nocapture
-cargo test -p wtf-api --test e2e_workflow_test e2e_definition_empty_type -- --test-threads=1 --nocapture
-cargo test -p wtf-api --test e2e_workflow_test e2e_definition_malformed -- --test-threads=1 --nocapture
-cargo test -p wtf-api --test e2e_workflow_test e2e_definition_lint_errors -- --test-threads=1 --nocapture
-cargo test -p wtf-api --test e2e_workflow_test e2e_duplicate_instance_id -- --test-threads=1 --nocapture
-cargo test -p wtf-api --test e2e_workflow_test e2e_journal_404 -- --test-threads=1 --nocapture
-cargo test -p wtf-api --test e2e_workflow_test e2e_status_404 -- --test-threads=1 --nocapture
+cargo test -p vo-api --test e2e_workflow_test e2e_definition_ingestion -- --test-threads=1 --nocapture
+cargo test -p vo-api --test e2e_workflow_test e2e_start_workflow -- --test-threads=1 --nocapture
+cargo test -p vo-api --test e2e_workflow_test e2e_journal -- --test-threads=1 --nocapture
+cargo test -p vo-api --test e2e_workflow_test e2e_workflow_status -- --test-threads=1 --nocapture
+cargo test -p vo-api --test e2e_workflow_test e2e_list_workflows -- --test-threads=1 --nocapture
+cargo test -p vo-api --test e2e_workflow_test e2e_invalid_paradigm -- --test-threads=1 --nocapture
+cargo test -p vo-api --test e2e_workflow_test e2e_empty_paradigm -- --test-threads=1 --nocapture
+cargo test -p vo-api --test e2e_workflow_test e2e_invalid_namespace -- --test-threads=1 --nocapture
+cargo test -p vo-api --test e2e_workflow_test e2e_definition_empty_type -- --test-threads=1 --nocapture
+cargo test -p vo-api --test e2e_workflow_test e2e_definition_malformed -- --test-threads=1 --nocapture
+cargo test -p vo-api --test e2e_workflow_test e2e_definition_lint_errors -- --test-threads=1 --nocapture
+cargo test -p vo-api --test e2e_workflow_test e2e_duplicate_instance_id -- --test-threads=1 --nocapture
+cargo test -p vo-api --test e2e_workflow_test e2e_journal_404 -- --test-threads=1 --nocapture
+cargo test -p vo-api --test e2e_workflow_test e2e_status_404 -- --test-threads=1 --nocapture
 
 # Clippy validation
-cargo clippy -p wtf-api --tests -- -D warnings
+cargo clippy -p vo-api --tests -- -D warnings
 ```
 
 ## Defect Resolution Summary
@@ -401,5 +401,5 @@ cargo clippy -p wtf-api --tests -- -D warnings
 - Every invariant (I-1 through I-12) has at least one test verifying it
 - All test names describe behavior unambiguously without referencing implementation details
 - No `unwrap()` or `expect()` in test harness code (only `?` with `Box<dyn Error>`)
-- `cargo clippy -p wtf-api --tests -- -D warnings` passes with zero warnings
+- `cargo clippy -p vo-api --tests -- -D warnings` passes with zero warnings
 - All assertions match verified source behavior (no assumptions without proof)

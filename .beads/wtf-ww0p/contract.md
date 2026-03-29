@@ -1,14 +1,14 @@
-# Contract Specification: wtf-ww0p — E2E Workflow Completion Test
+# Contract Specification: vo-ww0p — E2E Workflow Completion Test
 
 ## Context
 - **Feature**: End-to-end integration test that exercises the full vertical slice: HTTP request -> axum handler -> Ractor orchestrator -> NATS JetStream -> journal replay -> HTTP response
 - **Domain terms**:
   - `E2eTestServer`: Shared test harness that boots real NATS, Ractor orchestrator, and axum app
-  - `MasterOrchestrator`: Ractor root supervisor actor (`wtf_actor::master::MasterOrchestrator`)
+  - `MasterOrchestrator`: Ractor root supervisor actor (`vo_actor::master::MasterOrchestrator`)
   - `OrchestratorConfig`: Configuration struct requiring `event_store`, `state_store`, `snapshot_db`, `task_queue`, and `definitions`
   - `OrchestratorMsg`: Enum of all orchestrator RPC messages (`StartWorkflow`, `GetStatus`, `GetEventStore`, `ListActive`, etc.)
   - `KvStores`: NATS JetStream KV bucket collection (`definitions`, `timers`, `heartbeats`)
-  - `provision_streams`: Creates JetStream streams `wtf-work`, `wtf-events`, `wtf-signals`, `wtf-archive`
+  - `provision_streams`: Creates JetStream streams `vo-work`, `vo-events`, `vo-signals`, `vo-archive`
   - `provision_kv_buckets`: Creates KV buckets required by `KvStores`
   - `V3StartRequest`: `{ namespace, workflow_type, paradigm, input, instance_id? }` — POST /api/v1/workflows body
   - `V3StartResponse`: `{ instance_id, namespace, workflow_type }` — HTTP 201 body
@@ -21,9 +21,9 @@
   - `global_test_lock()`: `Arc<Mutex<()>>` via `OnceLock` for sequential test execution
 - **Assumptions**:
   - NATS JetStream is running at `127.0.0.1:4222` (or `NATS_URL` env override) with JetStream enabled
-  - `wtf-nats-test` Docker container is healthy and accepting connections
-  - `reqwest` is available as a dependency in `wtf-api` (already in `[dependencies]`)
-  - `sled` is available as a dependency in `wtf-api` (already present)
+  - `vo-nats-test` Docker container is healthy and accepting connections
+  - `reqwest` is available as a dependency in `vo-api` (already in `[dependencies]`)
+  - `sled` is available as a dependency in `vo-api` (already present)
   - Tests are run with `--test-threads=1` to prevent cross-test contamination
   - The orchestrator can be spawned with `MasterOrchestrator::spawn(None, MasterOrchestrator, config)` in test context
   - `provision_kv_buckets` must be called alongside `provision_streams` (matching `serve.rs` pattern)
@@ -33,7 +33,7 @@
 - **Open questions**:
   - Whether `NamespaceId::try_new` rejects "has spaces!" — confirmed: yes, namespace validation will reject it (the spec's Test 7 expects 400 `invalid_namespace`, which aligns)
   - Whether the orchestrator can function without `task_queue` for procedural workflows — needs verification; safe to include `None` for task_queue since no activities are dispatched
-  - Exact `KvStores` constructor signature — check `wtf_storage::kv::KvStores` source
+  - Exact `KvStores` constructor signature — check `vo_storage::kv::KvStores` source
 
 ## Preconditions
 - NATS JetStream server is reachable at the configured URL
@@ -45,7 +45,7 @@
 - TCP listener binds to `127.0.0.1:0` (ephemeral port available)
 - axum server accepts connections within 500ms of spawn (startup latency budget)
 - `DefinitionRequest.workflow_type` is non-empty (validated by handler; empty returns 400 `invalid_request`)
-- `DefinitionRequest.source` is valid Rust syntax (parseable by `wtf_linter::lint_workflow_code`)
+- `DefinitionRequest.source` is valid Rust syntax (parseable by `vo_linter::lint_workflow_code`)
 - `V3StartRequest.namespace` passes `NamespaceId::try_new` validation (no spaces, no special chars)
 - `V3StartRequest.paradigm` is one of `"fsm"`, `"dag"`, `"procedural"` (validated by `parse_paradigm`)
 - `V3StartRequest.input` is valid JSON (serializable to `serde_json::Value`)
@@ -65,7 +65,7 @@
 
 ## Invariants
 - **I-1: Real NATS only** — No mocks for NATS, JetStream, or the event store. If NATS is unreachable, the test must fail with a clear connection error.
-- **I-2: Fresh streams per test** — Each `E2eTestServer::new()` call deletes and re-provisions all JetStream streams (`wtf-work`, `wtf-events`, `wtf-signals`, `wtf-archive`) to guarantee isolation.
+- **I-2: Fresh streams per test** — Each `E2eTestServer::new()` call deletes and re-provisions all JetStream streams (`vo-work`, `vo-events`, `vo-signals`, `vo-archive`) to guarantee isolation.
 - **I-3: Sequential execution** — All tests hold `global_test_lock()` via `OwnedMutexGuard` for the test's lifetime. Running with `--test-threads=1` is required.
 - **I-4: Ephemeral port** — Each test binds to `127.0.0.1:0`. No hardcoded ports. No port conflict between tests.
 - **I-5: Journal seq ordering** — All `JournalResponse.entries` have strictly ascending `seq` values. The server-side `sort_entries_by_seq` must enforce this; the test also verifies it client-side.
@@ -80,7 +80,7 @@
 ## Error Taxonomy
 
 ### E2E Infrastructure Errors
-- `E2eError::NatsConnectionFailed` — `wtf_storage::connect` returns an error (NATS unreachable, auth failure, timeout)
+- `E2eError::NatsConnectionFailed` — `vo_storage::connect` returns an error (NATS unreachable, auth failure, timeout)
 - `E2eError::StreamProvisionFailed` — `provision_streams` or `provision_kv_buckets` fails (NATS JetStream not enabled, permission denied)
 - `E2eError::StreamResetFailed` — `delete_stream` for a non-existent stream returns an error (non-fatal; logged and skipped)
 - `E2eError::OrchestratorSpawnFailed` — `MasterOrchestrator::spawn` fails (actor system panic, invalid config)
@@ -181,7 +181,7 @@ let client = connect(&config).await?;
 let js = client.jetstream().clone();
 
 // 4. Reset and provision streams (isolation)
-for name in ["wtf-work", "wtf-events", "wtf-signals", "wtf-archive"] {
+for name in ["vo-work", "vo-events", "vo-signals", "vo-archive"] {
     let _ = js.delete_stream(name).await; // non-fatal
 }
 provision_streams(&js).await?;
@@ -244,7 +244,7 @@ async fn e2e_invalid_namespace_returns_400() -> Result<(), Box<dyn std::error::E
 ```
 
 ## Non-goals
-- Running a `wtf-worker` to process activities (no activity handlers in scope)
+- Running a `vo-worker` to process activities (no activity handlers in scope)
 - Testing DAG or FSM paradigms (procedural only)
 - Testing signal handling, timer scheduling, or event streaming (SSE)
 - Testing crash recovery or replay-from-snapshot scenarios

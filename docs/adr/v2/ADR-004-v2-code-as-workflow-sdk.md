@@ -9,15 +9,15 @@ v1 assumed workflows would be defined as raw JSON documents adhering to the AWS 
 While JSON is excellent for serialization and UI rendering, it is "dead configuration" for developers. Writing complex Directed Acyclic Graphs (DAGs) in raw JSON is error-prone, lacks compile-time safety, and prevents dynamic graph generation (e.g., loops).
 
 ## Decision
-We adopt the "Code-as-Workflow" paradigm. Workflows are defined strictly in Rust code using the `wtf-sdk`, rather than standalone JSON files.
+We adopt the "Code-as-Workflow" paradigm. Workflows are defined strictly in Rust code using the `vo-sdk`, rather than standalone JSON files.
 
 ### The Fluent Builder
 Developers use the SDK in their `main.rs` to define the DAG programmatically:
 ```rust
-let mut engine = wtf_engine::Engine::new();
+let mut engine = vo_engine::Engine::new();
 
 engine.register_workflow("checkout_flow", || {
-    wtf_sdk::Dag::new()
+    vo_sdk::Dag::new()
         .add_node("validate", BinaryNode::new("validate_cart"))
         .add_node("charge", BinaryNode::new("charge_stripe").retries(3))
         .connect("validate", "charge")

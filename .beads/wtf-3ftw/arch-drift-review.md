@@ -1,6 +1,6 @@
-# Architectural Drift Review — wtf-3ftw
+# Architectural Drift Review — vo-3ftw
 
-**File under review:** `crates/wtf-actor/src/fsm/definition.rs`
+**File under review:** `crates/vo-actor/src/fsm/definition.rs`
 
 ## Line Counts
 

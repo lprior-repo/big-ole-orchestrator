@@ -1,6 +1,6 @@
-# Bead Lifecycle Completion: wtf-m60g
+# Bead Lifecycle Completion: vo-m60g
 
-- **bead_id**: wtf-m60g
+- **bead_id**: vo-m60g
 - **title**: instance: Publish InstanceStarted event
 - **completed_at**: 2026-03-23T19:22:00Z
 

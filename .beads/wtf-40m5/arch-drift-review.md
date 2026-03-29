@@ -1,4 +1,4 @@
-# Architectural Drift Review — Bead wtf-40m5
+# Architectural Drift Review — Bead vo-40m5
 
 **Date:** 2026-03-23
 **Reviewer:** Architectural Drift Agent
@@ -37,5 +37,5 @@ No DDD violations found.
 
 ## Verification
 
-- `cargo test -p wtf-cli`: **10/10 tests pass** ✅
-- `cargo clippy -p wtf-cli -- -D warnings`: **clean** ✅ (pre-existing errors in `wtf-common` are unrelated)
+- `cargo test -p vo-cli`: **10/10 tests pass** ✅
+- `cargo clippy -p vo-cli -- -D warnings`: **clean** ✅ (pre-existing errors in `vo-common` are unrelated)

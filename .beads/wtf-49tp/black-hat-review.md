@@ -1,4 +1,4 @@
-# Black Hat Review — wtf-49tp: "instance: Implement snapshot trigger"
+# Black Hat Review — vo-49tp: "instance: Implement snapshot trigger"
 
 Reviewer: Black Hat (adversarial audit)
 Date: 2026-03-23
@@ -30,7 +30,7 @@ pub async fn write_instance_snapshot(
     instance_id: &InstanceId,
     last_applied_seq: u64,
     state_bytes: Bytes,
-) -> Result<SnapshotResult, WtfError>
+) -> Result<SnapshotResult, VoError>
 ```
 
 All 6 parameters match in type and order. The `SnapshotResult` fields

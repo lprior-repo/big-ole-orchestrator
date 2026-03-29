@@ -1,17 +1,17 @@
 [package]
-name = "wtf-cli"
+name = "vo-cli"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [dependencies]
-wtf-common = { path = "../wtf-common" }
-wtf-core = { path = "../wtf-core" }
-wtf-storage = { path = "../wtf-storage" }
-wtf-actor = { path = "../wtf-actor" }
-wtf-worker = { path = "../wtf-worker" }
-wtf-linter = { path = "../wtf-linter" }
-wtf-api = { path = "../wtf-api" }
+vo-common = { path = "../vo-common" }
+vo-core = { path = "../vo-core" }
+vo-storage = { path = "../vo-storage" }
+vo-actor = { path = "../vo-actor" }
+vo-worker = { path = "../vo-worker" }
+vo-linter = { path = "../vo-linter" }
+vo-api = { path = "../vo-api" }
 
 # UUID generation
 uuid = { workspace = true }

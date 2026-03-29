@@ -1,7 +1,7 @@
-# Test Plan: wtf-qz46 — wtf serve actor assembly
+# Test Plan: vo-qz46 — wtf serve actor assembly
 
-bead_id: wtf-qz46
-bead_title: wtf-cli: wtf serve actor assembly, axum binding, and graceful shutdown
+bead_id: vo-qz46
+bead_title: vo-cli: wtf serve actor assembly, axum binding, and graceful shutdown
 phase: test-plan
 updated_at: 2026-03-21T04:27:00Z
 
@@ -105,7 +105,7 @@ updated_at: 2026-03-21T04:27:00Z
 1. Start `wtf serve`
 2. Submit a workflow definition
 3. Start a workflow instance
-4. Verify instance appears in `wtf-instances` KV
+4. Verify instance appears in `vo-instances` KV
 5. Signal the instance
 6. Verify state transitions
 7. Terminate via SIGTERM

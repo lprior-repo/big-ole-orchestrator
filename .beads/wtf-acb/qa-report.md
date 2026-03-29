@@ -1,36 +1,36 @@
-# QA Report: wtf-acb — wtf-types: define all semantic newtypes
+# QA Report: vo-acb — vo-types: define all semantic newtypes
 
 **Date**: 2026-03-27
-**Bead**: wtf-acb
-**Contract**: `.beads/wtf-acb/contract.md`
+**Bead**: vo-acb
+**Contract**: `.beads/vo-acb/contract.md`
 **QA Enforcer**: Full execution, no hallucinations.
 
 ---
 
 ## Execution Evidence
 
-### 1. Full Test Suite — `cargo test -p wtf-types`
+### 1. Full Test Suite — `cargo test -p vo-types`
 
 ```
-$ cargo test -p wtf-types 2>&1
+$ cargo test -p vo-types 2>&1
 running 310 tests
 [... 310 tests listed ...]
 test result: ok. 310 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
 
-Doc-tests wtf_types
+Doc-tests vo_types
 running 0 tests
 test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
 ```
 
 - **Exit code**: 0
 - **310 tests passed**, 0 failed, 0 ignored
-- **`cargo test -p wtf-types -- --list | grep -c 'test$'`** → 310 (confirms all tests listed)
-- **`cargo test -p wtf-types -- --list | grep -i 'ignored'`** → no output (zero ignored tests)
+- **`cargo test -p vo-types -- --list | grep -c 'test$'`** → 310 (confirms all tests listed)
+- **`cargo test -p vo-types -- --list | grep -i 'ignored'`** → no output (zero ignored tests)
 
-### 2. Clippy — `cargo clippy -p wtf-types -- -D warnings`
+### 2. Clippy — `cargo clippy -p vo-types -- -D warnings`
 
 ```
-$ cargo clippy -p wtf-types -- -D warnings 2>&1
+$ cargo clippy -p vo-types -- -D warnings 2>&1
 Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.06s
 ```
 
@@ -41,7 +41,7 @@ Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.06s
 
 ```
 $ cargo check --workspace 2>&1
-Checking wtf-types v0.1.0 (/home/lewis/src/wtf-acb/crates/wtf-types)
+Checking vo-types v0.1.0 (/home/lewis/src/vo-acb/crates/vo-types)
 Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.32s
 ```
 
@@ -50,21 +50,21 @@ Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.32s
 
 ### 4. Spot-Check Contract Invariants
 
-**Parse constructor tests** (`cargo test -p wtf-types -- parse`):
+**Parse constructor tests** (`cargo test -p vo-types -- parse`):
 ```
 running 0 tests
 test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 ```
 - Note: 0 filtered because test names don't contain bare word `parse`. The word appears inside test function bodies, not in test names. **Not a finding** — the full suite already validates parse behavior (310 tests include all parse paths).
 
-**NonZero invariant tests** (`cargo test -p wtf-types -- nonzero`):
+**NonZero invariant tests** (`cargo test -p vo-types -- nonzero`):
 ```
 running 0 tests
 test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 ```
 - Note: Same as above — test names use different naming (e.g., `rejects_zero_with_zero_value`). **Not a finding**.
 
-**Boundary violation tests** (`cargo test -p wtf-types -- boundary`):
+**Boundary violation tests** (`cargo test -p vo-types -- boundary`):
 ```
 running 0 tests
 test result: ok. 0 failed; 0 ignored; 0 measured; 0 filtered out
@@ -72,13 +72,13 @@ test result: ok. 0 failed; 0 ignored; 0 measured; 0 filtered out
 - Note: Same as above — test names use `boundary_violation` (with underscore). **Not a finding**.
 
 **Re-running with correct filter to prove they exist**:
-- `cargo test -p wtf-types -- boundary_violation` → filters 12 tests (WorkflowName + NodeName boundary tests)
-- `cargo test -p wtf-types -- zero_value` → filters 5 tests (NonZero type zero-rejection tests)
+- `cargo test -p vo-types -- boundary_violation` → filters 12 tests (WorkflowName + NodeName boundary tests)
+- `cargo test -p vo-types -- zero_value` → filters 5 tests (NonZero type zero-rejection tests)
 
 ### 5. Unwrap/Expect in Production Code
 
 ```
-$ rg 'unwrap\(\)|expect\(' crates/wtf-types/src/types.rs
+$ rg 'unwrap\(\)|expect\(' crates/vo-types/src/types.rs
 ```
 
 **Production code findings** (lines 1–813, pre-`#[cfg(test)]`):
@@ -95,17 +95,17 @@ All 5 `expect()` calls are inside `new_unchecked()` methods, which the contract 
 ### 6. Default Derive Check
 
 ```
-$ rg 'derive.*Default' crates/wtf-types/src/types.rs
+$ rg 'derive.*Default' crates/vo-types/src/types.rs
 ```
 - **No output. Zero matches.**
-- Also checked `crates/wtf-types/src/` recursively: zero matches.
+- Also checked `crates/vo-types/src/` recursively: zero matches.
 - **PASS** — I-1 invariant satisfied.
 
 ### 7. File Line Count (Architectural Drift Rule: <300 lines)
 
 ```
-$ wc -l crates/wtf-types/src/types.rs
-3273 crates/wtf-types/src/types.rs
+$ wc -l crates/vo-types/src/types.rs
+3273 crates/vo-types/src/types.rs
 ```
 
 Breakdown:
@@ -122,27 +122,27 @@ Breakdown:
 
 #### M-1: types.rs production code exceeds 300-line architectural drift limit
 
-- **File**: `crates/wtf-types/src/types.rs`
+- **File**: `crates/vo-types/src/types.rs`
 - **Production lines**: 813 (686 non-blank)
 - **Limit**: 300 lines
 - **Note**: The file contains 2460 lines of inline tests (`#[cfg(test)]` module starting at line 814). Production code alone is 813 lines — still over 300. Tests are inline (not in a separate `tests/` directory), which inflates the file.
-- **Reproduction**: `head -813 crates/wtf-types/src/types.rs | wc -l`
+- **Reproduction**: `head -813 crates/vo-types/src/types.rs | wc -l`
 - **Impact**: Code organization. No functional defect. All invariants are enforced by tests.
-- **Recommendation**: Consider extracting tests to `crates/wtf-types/tests/` integration test files, or splitting production code across `types/string_types.rs` and `types/integer_types.rs` submodules.
+- **Recommendation**: Consider extracting tests to `crates/vo-types/tests/` integration test files, or splitting production code across `types/string_types.rs` and `types/integer_types.rs` submodules.
 
 ### OBSERVATION
 
 #### O-1: Inner fields use `pub(crate)` not fully private
 
-- **File**: `crates/wtf-types/src/types.rs`, lines 68–124
+- **File**: `crates/vo-types/src/types.rs`, lines 68–124
 - **Contract says**: `pub struct InstanceId(/* private */ String);`
 - **Actual**: `pub struct InstanceId(pub(crate) String);`
 - **Assessment**: `pub(crate)` prevents external access — satisfies I-4 ("External code accesses it only through `as_str()` or `as_u64()`"). The `pub(crate)` visibility is a practical choice that allows crate-internal code (tests, serde impls) to access the field without accessor overhead. **Not a contract violation.**
 
 #### O-2: 0 doc-tests
 
-- **File**: `crates/wtf-types/src/`
-- **Evidence**: `running 0 tests` under `Doc-tests wtf_types`
+- **File**: `crates/vo-types/src/`
+- **Evidence**: `running 0 tests` under `Doc-tests vo_types`
 - **Assessment**: No `/// ```rust` code examples in doc comments. All testing is via `#[test]` functions. This is acceptable — 310 unit/integration/proptest tests provide thorough coverage. Doc examples would be a nice-to-have for API documentation.
 
 ---

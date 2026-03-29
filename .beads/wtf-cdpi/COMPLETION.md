@@ -1,6 +1,6 @@
-# Bead Lifecycle Completion: wtf-cdpi
+# Bead Lifecycle Completion: vo-cdpi
 
-- **bead_id**: wtf-cdpi
+- **bead_id**: vo-cdpi
 - **title**: definitions: Store definition source in KV after lint
 - **completed_at**: 2026-03-23T18:50:00Z
 

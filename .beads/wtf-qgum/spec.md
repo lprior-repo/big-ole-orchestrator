@@ -1,5 +1,5 @@
 ---
-bead_id: wtf-qgum
+bead_id: vo-qgum
 title: "worker: Implement echo and sleep activity handlers"
 effort_estimate: "30min"
 status: draft
@@ -11,9 +11,9 @@ labels: [worker, activities, builtins, dispatch, integration]
 # Section 0: Clarifications
 
 - **Scope**: Add two built-in activity handlers to `Worker` via a `register_defaults()` method: `"echo"` (returns input payload unchanged) and `"sleep"` (tokio::sleep then returns empty success). This proves the dispatch chain works end-to-end without custom handler registration.
-- **Location**: New file `crates/wtf-worker/src/builtin.rs` with a `pub fn register_defaults(worker: &mut Worker)` function. Re-export from `crates/wtf-worker/src/lib.rs`.
+- **Location**: New file `crates/vo-worker/src/builtin.rs` with a `pub fn register_defaults(worker: &mut Worker)` function. Re-export from `crates/vo-worker/src/lib.rs`.
 - **Pattern**: Follows the existing `Worker::register()` signature — handlers are `Fn(ActivityTask) -> Pin<Box<dyn Future<Output = Result<Bytes, String>> + Send>>`.
-- **Integration test**: Extend `crates/wtf-worker/tests/worker_integration_tests.rs` with tests that use `register_defaults()` and enqueue `"echo"` / `"sleep"` tasks to verify full NATS round-trip.
+- **Integration test**: Extend `crates/vo-worker/tests/worker_integration_tests.rs` with tests that use `register_defaults()` and enqueue `"echo"` / `"sleep"` tasks to verify full NATS round-trip.
 
 ---
 
@@ -112,11 +112,11 @@ let (shutdown_tx, shutdown_rx) = watch::channel(false);
 // spawn shutdown after delay, run worker with timeout
 ```
 
-**Key types from `wtf_common`:**
-- `WtfError` — error type used across crates
-- `ActivityId`, `InstanceId`, `NamespaceId`, `RetryPolicy` — all in `wtf_common`
+**Key types from `vo_common`:**
+- `VoError` — error type used across crates
+- `ActivityId`, `InstanceId`, `NamespaceId`, `RetryPolicy` — all in `vo_common`
 
-**Key types from `wtf_worker::queue`:**
+**Key types from `vo_worker::queue`:**
 - `ActivityTask { activity_id, activity_type, payload, namespace, instance_id, attempt, retry_policy, timeout }` at `queue.rs:41-59`
 
 ---
@@ -126,7 +126,7 @@ let (shutdown_tx, shutdown_rx) = watch::channel(false);
 | # | Dependency | Strategy |
 |---|-----------|----------|
 | 1 | `tokio::time::sleep` runtime | Already available — `tokio` is a workspace dependency in `Cargo.toml` |
-| 2 | `serde_json` for parsing sleep payload | NOT currently a dependency of `wtf-worker` — use `rmp_serde` (already available) or add `serde_json` to `Cargo.toml` |
+| 2 | `serde_json` for parsing sleep payload | NOT currently a dependency of `vo-worker` — use `rmp_serde` (already available) or add `serde_json` to `Cargo.toml` |
 | 3 | Live NATS server for integration tests | Same pattern as existing tests — `NatsTestServer` helper at `worker_integration_tests.rs:28-66` |
 
 ---
@@ -277,13 +277,13 @@ async fn worker_with_defaults_ignores_unknown_type() {
 
 ```bash
 # Unit tests
-cargo test -p wtf-worker -- builtin
+cargo test -p vo-worker -- builtin
 
 # Integration tests (requires NATS)
 cargo test --test worker_integration -- builtin_defaults
 
 # Lint
-cargo clippy -p wtf-worker -- -D warnings
+cargo clippy -p vo-worker -- -D warnings
 
 # Full workspace check
 cargo check --workspace
@@ -293,19 +293,19 @@ cargo check --workspace
 
 # Section 6: Implementation Tasks
 
-1. **Create `crates/wtf-worker/src/builtin.rs`** — new module with:
+1. **Create `crates/vo-worker/src/builtin.rs`** — new module with:
    - `pub fn register_defaults(worker: &mut Worker)` — calls `worker.register("echo", echo_handler)` and `worker.register("sleep", sleep_handler)`
    - `async fn echo_handler(task: ActivityTask) -> Result<Bytes, String>` — returns `Ok(task.payload)`
    - `async fn sleep_handler(task: ActivityTask) -> Result<Bytes, String>` — parses `{"ms": u64}` from `task.payload`, `tokio::time::sleep(Duration::from_millis(ms)).await`, returns `Ok(Bytes::from_static(b"\"slept\""))`; returns `Err` on parse failure
    - Add `#![deny(clippy::unwrap_used)]`, `#![deny(clippy::expect_used)]`, `#![deny(clippy::panic)]`, `#![warn(clippy::pedantic)]`, `#![forbid(unsafe_code)]` at module top
    - Unit tests in `#[cfg(test)] mod tests`
 
-2. **Add `serde_json` to `crates/wtf-worker/Cargo.toml`** — needed for parsing the sleep payload JSON. Alternatively, since `rmp-serde` is already available and `serde_json::from_slice` is the standard approach, add `serde_json = { workspace = true }` to `[dependencies]`.
+2. **Add `serde_json` to `crates/vo-worker/Cargo.toml`** — needed for parsing the sleep payload JSON. Alternatively, since `rmp-serde` is already available and `serde_json::from_slice` is the standard approach, add `serde_json = { workspace = true }` to `[dependencies]`.
 
-3. **Update `crates/wtf-worker/src/lib.rs`** — add `pub mod builtin;` and `pub use builtin::register_defaults;`.
+3. **Update `crates/vo-worker/src/lib.rs`** — add `pub mod builtin;` and `pub use builtin::register_defaults;`.
 
-4. **Add integration tests to `crates/wtf-worker/tests/worker_integration_tests.rs`**:
-   - Import `wtf_worker::register_defaults`
+4. **Add integration tests to `crates/vo-worker/tests/worker_integration_tests.rs`**:
+   - Import `vo_worker::register_defaults`
    - Add `echo_task_round_trip_through_worker` test
    - Add `sleep_task_round_trip_through_worker` test
    - Add `worker_with_defaults_ignores_unknown_type` test
@@ -325,10 +325,10 @@ cargo check --workspace
 
 # Section 7.5: Anti-Hallucination
 
-- `Worker::register()` exists at `crates/wtf-worker/src/worker.rs:119-126` — do NOT reimplement it.
-- `ActivityTask` struct is at `crates/wtf-worker/src/queue.rs:41-59` — do NOT add fields to it.
-- `complete_activity` function is at `crates/wtf-worker/src/activity/reporting.rs` — called by the Worker internally, NOT by the handlers.
-- `wtf-common` types `ActivityId`, `InstanceId`, `NamespaceId`, `RetryPolicy` are used in `ActivityTask` construction — they already exist.
+- `Worker::register()` exists at `crates/vo-worker/src/worker.rs:119-126` — do NOT reimplement it.
+- `ActivityTask` struct is at `crates/vo-worker/src/queue.rs:41-59` — do NOT add fields to it.
+- `complete_activity` function is at `crates/vo-worker/src/activity/reporting.rs` — called by the Worker internally, NOT by the handlers.
+- `vo-common` types `ActivityId`, `InstanceId`, `NamespaceId`, `RetryPolicy` are used in `ActivityTask` construction — they already exist.
 - The handler type is `ActivityHandler` (type alias at `worker.rs:78-82`) — do NOT change it.
 - `tokio::time::sleep` requires `tokio` which is already a dependency (`Cargo.toml:13`).
 - `serde_json` may NOT be in the workspace — check `Cargo.toml` workspace `[dependencies]` before adding it. If not present, add it to the workspace root `Cargo.toml` first.
@@ -339,25 +339,25 @@ cargo check --workspace
 # Section 7.6: Context Survival
 
 If the LLM context is lost, the following files contain the complete picture:
-- `crates/wtf-worker/src/worker.rs` — `Worker::register()` at line 119-126, `process_task` at line 210-303
-- `crates/wtf-worker/src/queue.rs` — `ActivityTask` struct at line 41-59
-- `crates/wtf-worker/src/lib.rs` — module re-exports, add `pub mod builtin;` and `pub use builtin::register_defaults;`
-- `crates/wtf-worker/Cargo.toml` — dependencies list, add `serde_json` if not present
-- `crates/wtf-worker/tests/worker_integration_tests.rs` — existing integration test pattern, `NatsTestServer` helper, `make_task()` helper
+- `crates/vo-worker/src/worker.rs` — `Worker::register()` at line 119-126, `process_task` at line 210-303
+- `crates/vo-worker/src/queue.rs` — `ActivityTask` struct at line 41-59
+- `crates/vo-worker/src/lib.rs` — module re-exports, add `pub mod builtin;` and `pub use builtin::register_defaults;`
+- `crates/vo-worker/Cargo.toml` — dependencies list, add `serde_json` if not present
+- `crates/vo-worker/tests/worker_integration_tests.rs` — existing integration test pattern, `NatsTestServer` helper, `make_task()` helper
 
 ---
 
 # Section 8: Completion Criteria
 
-- [ ] `crates/wtf-worker/src/builtin.rs` exists with `register_defaults`, `echo_handler`, `sleep_handler`
+- [ ] `crates/vo-worker/src/builtin.rs` exists with `register_defaults`, `echo_handler`, `sleep_handler`
 - [ ] `echo_handler` returns `Ok(task.payload)` — unit test passes
 - [ ] `sleep_handler` parses `{"ms": u64}`, sleeps, returns `Ok(Bytes::from_static(b"\"slept\""))` — unit tests pass
 - [ ] `sleep_handler` returns `Err` on invalid JSON / missing `"ms"` — unit tests pass
 - [ ] `register_defaults` wired into `lib.rs` as `pub use builtin::register_defaults`
 - [ ] Integration test: echo task round-trips through worker and is acked
 - [ ] Integration test: sleep task round-trips through worker and is acked
-- [ ] `cargo clippy -p wtf-worker -- -D warnings` passes
-- [ ] `cargo test -p wtf-worker` passes (unit + integration)
+- [ ] `cargo clippy -p vo-worker -- -D warnings` passes
+- [ ] `cargo test -p vo-worker` passes (unit + integration)
 - [ ] Zero `unwrap()` or `expect()` in new code
 - [ ] Module-level clippy lints match existing pattern (`#![deny(clippy::unwrap_used)]` etc.)
 
@@ -369,7 +369,7 @@ This bead proves the full activity dispatch chain works end-to-end: NATS enqueue
 
 ```rust
 let mut worker = Worker::new(js, "builtin-worker", None);
-wtf_worker::register_defaults(&mut worker);
+vo_worker::register_defaults(&mut worker);
 worker.run(shutdown_rx).await?;
 ```
 

@@ -1,6 +1,6 @@
-# Test Suite Inquisition — wtf-types (Retry 3, FINAL)
+# Test Suite Inquisition — vo-types (Retry 3, FINAL)
 
-**Crate**: `crates/wtf-types/`
+**Crate**: `crates/vo-types/`
 **Date**: 2026-03-27
 **Reviewer**: test-reviewer (Mode 2: Suite Inquisition)
 **Previous rejections**: R1 (65+ bare unwrap), R2 (35 NonZeroU64 unwrap + 10 bare is_err)
@@ -50,12 +50,12 @@
 
 **[PASS] Clippy: 0 warnings**
 ```
-cargo clippy -p wtf-types -- -D warnings → clean exit
+cargo clippy -p vo-types -- -D warnings → clean exit
 ```
 
 **[PASS] Tests: 310 passed, 0 failed, 0 flaky**
 ```
-cargo test -p wtf-types → test result: ok. 310 passed; 0 failed; 0 ignored
+cargo test -p vo-types → test result: ok. 310 passed; 0 failed; 0 ignored
 ```
 
 **[PASS] Ordering probe: consistent**

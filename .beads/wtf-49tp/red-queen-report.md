@@ -1,7 +1,7 @@
-# Red Queen Report — wtf-49tp: Instance Snapshot Trigger
+# Red Queen Report — vo-49tp: Instance Snapshot Trigger
 
 **Date:** 2026-03-23
-**Target:** `handle_snapshot_trigger` in `crates/wtf-actor/src/instance/handlers.rs:263-311`
+**Target:** `handle_snapshot_trigger` in `crates/vo-actor/src/instance/handlers.rs:263-311`
 **Tests:** 5 snapshot_trigger tests, all passing
 
 ---
@@ -59,7 +59,7 @@ Ractor actors process messages **serially** on a single `handle` future. There i
 
 ## Attack Vector 6: Test isolation
 
-**Attack:** Run `cargo test -p wtf-actor --lib -- snapshot_trigger` twice. Same results?
+**Attack:** Run `cargo test -p vo-actor --lib -- snapshot_trigger` twice. Same results?
 
 **Result: SURVIVED**
 
@@ -74,7 +74,7 @@ Identical. Each test creates a fresh `tempfile::tempdir()` sled DB and fresh `In
 
 ## Attack Vector 7: Clippy strict
 
-**Attack:** `cargo clippy -p wtf-actor -- -W clippy::unwrap_used -W clippy::expect_used`
+**Attack:** `cargo clippy -p vo-actor -- -W clippy::unwrap_used -W clippy::expect_used`
 
 **Result: SURVIVED**
 
@@ -93,7 +93,7 @@ Zero errors. Only pedantic warnings (doc markdown, missing_errors_doc, manual_le
 
 **Why this matters:** The whole point of ADR-019 is bounding replay latency. If sled silently fails, that guarantee is broken for an entire window.
 
-**Recommended fix:** `persist_local_snapshot` should return `Result<(), WtfError>`, and `write_instance_snapshot` should propagate it. Then `handle_snapshot_trigger`'s `Err` arm keeps the counter intact.
+**Recommended fix:** `persist_local_snapshot` should return `Result<(), VoError>`, and `write_instance_snapshot` should propagate it. Then `handle_snapshot_trigger`'s `Err` arm keeps the counter intact.
 
 ---
 

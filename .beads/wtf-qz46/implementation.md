@@ -1,20 +1,20 @@
-# Implementation: wtf-qz46 — wtf serve actor assembly
+# Implementation: vo-qz46 — wtf serve actor assembly
 
-bead_id: wtf-qz46
-bead_title: wtf-cli: wtf serve actor assembly, axum binding, and graceful shutdown
+bead_id: vo-qz46
+bead_title: vo-cli: wtf serve actor assembly, axum binding, and graceful shutdown
 phase: implementation
 updated_at: 2026-03-21T12:00:00Z
 
 ## Summary
 
 Implemented `run_serve_loop()` function that ties together the previously implemented components:
-- `wtf-4mym`: NATS connection and storage provisioning
-- `wtf-egjj`: Axum Router assembly with `build_app()`
-- `wtf-r4aa`: Heartbeat expiry watcher with `run_heartbeat_watcher()`
+- `vo-4mym`: NATS connection and storage provisioning
+- `vo-egjj`: Axum Router assembly with `build_app()`
+- `vo-r4aa`: Heartbeat expiry watcher with `run_heartbeat_watcher()`
 
 ## Changes
 
-### crates/wtf-cli/src/commands/serve.rs
+### crates/vo-cli/src/commands/serve.rs
 
 Added `run_serve_loop()` function that:
 
@@ -27,7 +27,7 @@ Added `run_serve_loop()` function that:
 4. **Builds axum Router** via `build_app(orch_ref, kv)`
 5. **Starts heartbeat watcher** as background task
 6. **Registers Ctrl+C signal handler** for graceful shutdown
-7. **Starts API server** via `wtf_api::serve()` with graceful shutdown
+7. **Starts API server** via `vo_api::serve()` with graceful shutdown
 8. **Executes shutdown sequence**:
    - Signals all tasks to stop
    - Waits for heartbeat watcher (5s timeout)
@@ -35,16 +35,16 @@ Added `run_serve_loop()` function that:
    - Stops MasterOrchestrator actor (30s timeout)
    - Closes NATS connection
 
-### crates/wtf-cli/src/main.rs
+### crates/vo-cli/src/main.rs
 
 Updated `handle_serve()` to call `run_serve_loop()` after `run_serve()` completes:
-- `run_serve()` - provisions NATS storage (from wtf-4mym)
-- `run_serve_loop()` - runs the actual server loop (new in wtf-qz46)
+- `run_serve()` - provisions NATS storage (from vo-4mym)
+- `run_serve_loop()` - runs the actual server loop (new in vo-qz46)
 
-### crates/wtf-cli/Cargo.toml
+### crates/vo-cli/Cargo.toml
 
 Added dependencies:
-- `wtf-api` - for `build_app()` and `serve()`
+- `vo-api` - for `build_app()` and `serve()`
 - `uuid` - for generating unique engine node IDs
 - `ractor` - for actor runtime
 

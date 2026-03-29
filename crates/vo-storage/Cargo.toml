@@ -1,5 +1,5 @@
 [package]
-name = "wtf-storage"
+name = "vo-storage"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,7 +7,7 @@ edition = "2021"
 fjall = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-wtf-types = { workspace = true }
+vo-types = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

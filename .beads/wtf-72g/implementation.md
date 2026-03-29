@@ -10,12 +10,12 @@ Applied targeted fixes for two defects in the `get_workflow` handler path:
 
 | File | Change |
 |------|--------|
-| `crates/wtf-actor/src/messages/errors.rs` | Added `GetStatusError` enum with `Timeout` variant |
-| `crates/wtf-actor/src/messages/orchestrator.rs` | Updated `GetStatus` reply type from `RpcReplyPort<Option<...>>` to `RpcReplyPort<Result<Option<...>, GetStatusError>>` |
-| `crates/wtf-actor/src/master/handlers/status.rs` | Changed return type to `Result<Option<InstanceStatusSnapshot>, GetStatusError>`; timeout maps to `Err(Timeout)`, missing actor maps to `Ok(None)` |
-| `crates/wtf-actor/src/master/handlers/list.rs` | Updated caller to match on `Result` instead of `Option`; skips timed-out instances explicitly |
-| `crates/wtf-actor/src/lib.rs` | Exported `GetStatusError` from crate root |
-| `crates/wtf-api/src/handlers/workflow.rs` | Updated `map_status_result` to handle `GetStatusError::Timeout` → 503; updated `get_instance_paradigm` to unwrap double-Result; improved `map_actor_error` with 5 distinct error variants |
+| `crates/vo-actor/src/messages/errors.rs` | Added `GetStatusError` enum with `Timeout` variant |
+| `crates/vo-actor/src/messages/orchestrator.rs` | Updated `GetStatus` reply type from `RpcReplyPort<Option<...>>` to `RpcReplyPort<Result<Option<...>, GetStatusError>>` |
+| `crates/vo-actor/src/master/handlers/status.rs` | Changed return type to `Result<Option<InstanceStatusSnapshot>, GetStatusError>`; timeout maps to `Err(Timeout)`, missing actor maps to `Ok(None)` |
+| `crates/vo-actor/src/master/handlers/list.rs` | Updated caller to match on `Result` instead of `Option`; skips timed-out instances explicitly |
+| `crates/vo-actor/src/lib.rs` | Exported `GetStatusError` from crate root |
+| `crates/vo-api/src/handlers/workflow.rs` | Updated `map_status_result` to handle `GetStatusError::Timeout` → 503; updated `get_instance_paradigm` to unwrap double-Result; improved `map_actor_error` with 5 distinct error variants |
 
 ## Constraint Adherence
 
@@ -49,7 +49,7 @@ This benefits all handlers that use `map_actor_error` (`start_workflow`, `termin
 
 ## Test Results
 
-- `wtf-actor`: 68/68 unit tests pass ✅
-- `wtf-api`: 33/33 unit tests pass ✅
+- `vo-actor`: 68/68 unit tests pass ✅
+- `vo-api`: 33/33 unit tests pass ✅
 - `cargo check --workspace`: clean ✅
 - `journal_test`: 7 failures — pre-existing known issue (AGENTS.md item 1), not caused by these changes

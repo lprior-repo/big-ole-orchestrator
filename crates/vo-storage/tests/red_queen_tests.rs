@@ -63,7 +63,7 @@ impl DependencyChecker {
 
         let (_, deps, all_deps) = parsed;
 
-        let required = ["fjall", "serde", "serde_json", "wtf-types"];
+        let required = ["fjall", "serde", "serde_json", "vo-types"];
         let allowed_dev = ["tempfile", "thiserror", "proptest", "rstest"];
 
         if let Some(missing) = required
@@ -171,7 +171,7 @@ fn test_adversarial_dependency_quotes() {
 "fjall" = "1.0"
 serde = "1.0"
 serde_json = "1.0"
-wtf-types = "1.0"
+vo-types = "1.0"
 "#;
     // Should pass, but it fails because it expects exactly "fjall" without quotes
     let res = DependencyChecker::validate(toml);
@@ -188,7 +188,7 @@ version = "1.0"
 fjall = "1.0"
 serde = "1.0"
 serde_json = "1.0"
-wtf-types = "1.0"
+vo-types = "1.0"
 "#;
     // Tokio is added, it should throw DisallowedDependency { name: "tokio" }
     // But it will throw DisallowedDependency { name: "version" }
@@ -208,7 +208,7 @@ fn test_adversarial_disallowed_inline_table() {
 fjall = "1.0"
 serde = "1.0"
 serde_json = "1.0"
-wtf-types = "1.0"
+vo-types = "1.0"
 axum = { version = "1.0" }
 "#;
     // Does it catch axum? Yes, because key is `axum`.

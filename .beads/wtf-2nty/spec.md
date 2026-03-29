@@ -1,4 +1,4 @@
-# Bead: wtf-2nty
+# Bead: vo-2nty
 
 ## Title
 serve: Load definitions from KV into registry on startup
@@ -12,12 +12,12 @@ serve: Load definitions from KV into registry on startup
 
 - **clarification_status**: closed
 - **resolved_clarifications**:
-  - The `wtf-definitions` KV bucket stores definitions as JSON-serialized `WorkflowDefinition` (with key format `<ns>/<workflow_type>`). On startup, `serve.rs` must scan all keys and register each into the in-memory `WorkflowRegistry`.
+  - The `vo-definitions` KV bucket stores definitions as JSON-serialized `WorkflowDefinition` (with key format `<ns>/<workflow_type>`). On startup, `serve.rs` must scan all keys and register each into the in-memory `WorkflowRegistry`.
   - The registry lives inside `OrchestratorState` which is owned by the `MasterOrchestrator` actor. The load must happen BEFORE the orchestrator starts (or via a new actor message). Decision: load into registry before `MasterOrchestrator::spawn`, populating `OrchestratorConfig` with a pre-seeded registry, OR add a `definitions` field to `OrchestratorConfig`. Chosen approach: add `pub definitions: Vec<(String, WorkflowDefinition)>` to `OrchestratorConfig` and consume them in `OrchestratorState::new()` or `MasterOrchestrator::pre_start()`.
-  - KV scan uses `Store::keys()` + `Store::get()` — same pattern as `wtf-worker/src/timer/loop.rs:128-143`.
-  - Definition values are JSON-serialized `WorkflowDefinition` (from `wtf_common::WorkflowDefinition`).
+  - KV scan uses `Store::keys()` + `Store::get()` — same pattern as `vo-worker/src/timer/loop.rs:128-143`.
+  - Definition values are JSON-serialized `WorkflowDefinition` (from `vo_common::WorkflowDefinition`).
 - **assumptions**:
-  - The `wtf-definitions` bucket is already provisioned by `provision_kv_buckets()` before this code runs.
+  - The `vo-definitions` bucket is already provisioned by `provision_kv_buckets()` before this code runs.
   - KV values are JSON-encoded `WorkflowDefinition` structs (not MessagePack).
   - Malformed entries are logged and skipped (no abort).
   - Empty bucket is a valid state (no definitions loaded).
@@ -27,15 +27,15 @@ serve: Load definitions from KV into registry on startup
 ## Section 1: EARS Requirements
 
 ### Ubiquitous
-- THE SYSTEM SHALL load all workflow definitions from the `wtf-definitions` NATS KV bucket into the `WorkflowRegistry` before accepting any workflow start requests.
+- THE SYSTEM SHALL load all workflow definitions from the `vo-definitions` NATS KV bucket into the `WorkflowRegistry` before accepting any workflow start requests.
 
 ### Event-Driven
-- WHEN `wtf serve` starts and KV buckets are provisioned, THE SYSTEM SHALL scan every key in the `wtf-definitions` bucket and deserialize each value as `WorkflowDefinition`.
+- WHEN `wtf serve` starts and KV buckets are provisioned, THE SYSTEM SHALL scan every key in the `vo-definitions` bucket and deserialize each value as `WorkflowDefinition`.
 - WHEN a definition key fails to deserialize, THE SYSTEM SHALL log a warning with the key name and continue loading remaining definitions.
 
 ### Unwanted Behaviour
-- IF the `wtf-definitions` bucket is empty, THE SYSTEM SHALL proceed with an empty registry and log an info-level message "No workflow definitions found in KV".
-- IF the `wtf-definitions` bucket contains a key with invalid JSON, THE SYSTEM SHALL NOT abort startup.
+- IF the `vo-definitions` bucket is empty, THE SYSTEM SHALL proceed with an empty registry and log an info-level message "No workflow definitions found in KV".
+- IF the `vo-definitions` bucket contains a key with invalid JSON, THE SYSTEM SHALL NOT abort startup.
 
 ---
 
@@ -44,11 +44,11 @@ serve: Load definitions from KV into registry on startup
 ### Preconditions
 - **P-KV-READY**: `provision_kv_buckets()` has returned `Ok(KvStores)` containing a valid `definitions: Store`.
 - **required_inputs**:
-  - `kv.definitions` — a `Store` handle for the `wtf-definitions` bucket
+  - `kv.definitions` — a `Store` handle for the `vo-definitions` bucket
   - NATS connection is alive and KV bucket is reachable
 
 ### Postconditions
-- **P-REGISTRY-LOADED**: `WorkflowRegistry` in `OrchestratorState` contains one entry per valid key in `wtf-definitions`.
+- **P-REGISTRY-LOADED**: `WorkflowRegistry` in `OrchestratorState` contains one entry per valid key in `vo-definitions`.
 - **P-COUNT-LOGGED**: A log line states how many definitions were loaded (e.g. `"Loaded N workflow definitions from KV"`).
 
 ### Invariants
@@ -61,14 +61,14 @@ serve: Load definitions from KV into registry on startup
 ## Section 2.5: Research Requirements
 
 - **files_to_read**:
-  - `/home/lewis/src/wtf-engine/crates/wtf-cli/src/commands/serve.rs` — insertion point
-  - `/home/lewis/src/wtf-engine/crates/wtf-actor/src/master/state.rs` — `OrchestratorConfig`, `OrchestratorState`
-  - `/home/lewis/src/wtf-engine/crates/wtf-actor/src/master/registry.rs` — `WorkflowRegistry::register_definition`
-  - `/home/lewis/src/wtf-engine/crates/wtf-actor/src/master/mod.rs` — `MasterOrchestrator::pre_start`
-  - `/home/lewis/src/wtf-engine/crates/wtf-actor/src/messages/orchestrator.rs` — `OrchestratorMsg` enum
-  - `/home/lewis/src/wtf-engine/crates/wtf-common/src/types/workflow.rs` — `WorkflowDefinition` struct
-  - `/home/lewis/src/wtf-engine/crates/wtf-storage/src/kv.rs` — `Store`, `definition_key`
-  - `/home/lewis/src/wtf-engine/crates/wtf-worker/src/timer/loop.rs` — KV key scan pattern (`Store::keys()`)
+  - `/home/lewis/src/vo-engine/crates/vo-cli/src/commands/serve.rs` — insertion point
+  - `/home/lewis/src/vo-engine/crates/vo-actor/src/master/state.rs` — `OrchestratorConfig`, `OrchestratorState`
+  - `/home/lewis/src/vo-engine/crates/vo-actor/src/master/registry.rs` — `WorkflowRegistry::register_definition`
+  - `/home/lewis/src/vo-engine/crates/vo-actor/src/master/mod.rs` — `MasterOrchestrator::pre_start`
+  - `/home/lewis/src/vo-engine/crates/vo-actor/src/messages/orchestrator.rs` — `OrchestratorMsg` enum
+  - `/home/lewis/src/vo-engine/crates/vo-common/src/types/workflow.rs` — `WorkflowDefinition` struct
+  - `/home/lewis/src/vo-engine/crates/vo-storage/src/kv.rs` — `Store`, `definition_key`
+  - `/home/lewis/src/vo-engine/crates/vo-worker/src/timer/loop.rs` — KV key scan pattern (`Store::keys()`)
 - **research_questions**:
   - What serialization format is used for definition values in KV? (Assume JSON from `serde_json` — verify by checking any existing write path.)
   - Is there an existing write path that stores definitions into KV, to confirm the serialization format?
@@ -122,7 +122,7 @@ serve: Load definitions from KV into registry on startup
 ### Pipeline Test: `serve_loads_definitions_on_startup`
 
 **Setup**:
-1. Start NATS (Docker `wtf-nats-test` on port 4222).
+1. Start NATS (Docker `vo-nats-test` on port 4222).
 2. Connect and provision KV buckets via `provision_kv_buckets()`.
 3. Write test definition: `kv.definitions.put("test-ns/my-wf", serde_json::to_vec(&WorkflowDefinition { paradigm: WorkflowParadigm::Dag, graph_raw: r#"{"nodes":[],"edges":[]}"#.to_owned(), description: Some("test".to_owned()) }).unwrap().into()).await`.
 4. Invoke `load_definitions_from_kv(&kv.definitions)`.
@@ -135,7 +135,7 @@ serve: Load definitions from KV into registry on startup
 - Deserialized paradigm is `WorkflowParadigm::Dag`.
 
 **Cleanup**:
-- Purge `wtf-definitions` bucket or use unique test key prefix.
+- Purge `vo-definitions` bucket or use unique test key prefix.
 
 ---
 
@@ -151,13 +151,13 @@ serve: Load definitions from KV into registry on startup
 ## Section 6: Implementation Tasks
 
 ### Phase 0: Modify `OrchestratorConfig` to accept pre-seeded definitions
-- [ ] Add `pub definitions: Vec<(String, WorkflowDefinition)>` field to `OrchestratorState::new()` in `crates/wtf-actor/src/master/state.rs`
+- [ ] Add `pub definitions: Vec<(String, WorkflowDefinition)>` field to `OrchestratorState::new()` in `crates/vo-actor/src/master/state.rs`
 - [ ] Update `OrchestratorState::new()` to accept and register definitions
 - [ ] Update `Default` for `OrchestratorConfig` if needed (empty vec)
 - **parallelization**: none
 
 ### Phase 1: Create `load_definitions_from_kv` function
-- [ ] Add `load_definitions_from_kv(store: &Store) -> anyhow::Result<Vec<(String, WorkflowDefinition)>>` in `crates/wtf-cli/src/commands/serve.rs` (or a new `crates/wtf-storage/src/definitions.rs`)
+- [ ] Add `load_definitions_from_kv(store: &Store) -> anyhow::Result<Vec<(String, WorkflowDefinition)>>` in `crates/vo-cli/src/commands/serve.rs` (or a new `crates/vo-storage/src/definitions.rs`)
 - [ ] Use `store.keys().await` → iterate → `store.get(&key).await` → `serde_json::from_slice::<WorkflowDefinition>(&value)`
 - [ ] Log count on success, warn on each failure, info on empty
 - **parallelization**: none
@@ -187,26 +187,26 @@ serve: Load definitions from KV into registry on startup
 | Panic on startup | `serde_json::from_slice` result not handled | Use `match` or `if let Ok(...)` — never unwrap |
 | Registry empty after startup with valid definitions | `Store::keys()` pagination not awaited fully | Use `while let Some(result) = keys.next().await` loop (same as `timer/loop.rs:128-143`) |
 | Duplicate definition overwrites | KV history > 1 and scan returns stale keys | KV `history: 5` on definitions bucket; `Store::keys()` returns latest value per key — this is correct |
-| Compile error: `WorkflowDefinition` not in scope | Missing import | Add `use wtf_actor::WorkflowDefinition` or `use wtf_common::WorkflowDefinition` |
+| Compile error: `WorkflowDefinition` not in scope | Missing import | Add `use vo_actor::WorkflowDefinition` or `use vo_common::WorkflowDefinition` |
 
 ---
 
 ## Section 7.5: Anti-Hallucination
 
 - **read_before_write**:
-  - `/home/lewis/src/wtf-engine/crates/wtf-cli/src/commands/serve.rs` — before adding load call
-  - `/home/lewis/src/wtf-engine/crates/wtf-actor/src/master/state.rs` — before modifying `OrchestratorState`
-  - `/home/lewis/src/wtf-engine/crates/wtf-actor/src/master/registry.rs` — verify `register_definition` signature
-  - `/home/lewis/src/wtf-engine/crates/wtf-actor/src/master/mod.rs` — before changing `pre_start`
-  - `/home/lewis/src/wtf-engine/crates/wtf-common/src/types/workflow.rs` — verify `WorkflowDefinition` fields
-  - `/home/lewis/src/wtf-engine/crates/wtf-storage/src/kv.rs` — verify `Store` import path
-  - `/home/lewis/src/wtf-engine/crates/wtf-worker/src/timer/loop.rs` — verify `keys()` scan pattern
+  - `/home/lewis/src/vo-engine/crates/vo-cli/src/commands/serve.rs` — before adding load call
+  - `/home/lewis/src/vo-engine/crates/vo-actor/src/master/state.rs` — before modifying `OrchestratorState`
+  - `/home/lewis/src/vo-engine/crates/vo-actor/src/master/registry.rs` — verify `register_definition` signature
+  - `/home/lewis/src/vo-engine/crates/vo-actor/src/master/mod.rs` — before changing `pre_start`
+  - `/home/lewis/src/vo-engine/crates/vo-common/src/types/workflow.rs` — verify `WorkflowDefinition` fields
+  - `/home/lewis/src/vo-engine/crates/vo-storage/src/kv.rs` — verify `Store` import path
+  - `/home/lewis/src/vo-engine/crates/vo-worker/src/timer/loop.rs` — verify `keys()` scan pattern
 
 ---
 
 ## Section 7.6: Context Survival
 
-- **progress_file**: `.beads/wtf-2nty/progress.md`
+- **progress_file**: `.beads/vo-2nty/progress.md`
 - **recovery_instructions**:
   1. Read this spec and all files in `read_before_write`.
   2. Check `progress.md` for last completed phase.
@@ -231,14 +231,14 @@ serve: Load definitions from KV into registry on startup
 ## Section 9: Context
 
 - **related_files**:
-  - `crates/wtf-cli/src/commands/serve.rs` — insertion point for load call (PRIMARY)
-  - `crates/wtf-actor/src/master/state.rs` — `OrchestratorConfig`, `OrchestratorState` (MODIFY)
-  - `crates/wtf-actor/src/master/registry.rs` — `WorkflowRegistry::register_definition` (READ)
-  - `crates/wtf-actor/src/master/mod.rs` — `MasterOrchestrator::pre_start` (MODIFY)
-  - `crates/wtf-common/src/types/workflow.rs` — `WorkflowDefinition` (READ)
-  - `crates/wtf-storage/src/kv.rs` — `Store`, `KvStores`, `definition_key` (READ)
-  - `crates/wtf-worker/src/timer/loop.rs` — KV scan pattern reference (READ)
-  - `crates/wtf-actor/src/messages/orchestrator.rs` — `OrchestratorMsg` enum (READ, may not need changes)
+  - `crates/vo-cli/src/commands/serve.rs` — insertion point for load call (PRIMARY)
+  - `crates/vo-actor/src/master/state.rs` — `OrchestratorConfig`, `OrchestratorState` (MODIFY)
+  - `crates/vo-actor/src/master/registry.rs` — `WorkflowRegistry::register_definition` (READ)
+  - `crates/vo-actor/src/master/mod.rs` — `MasterOrchestrator::pre_start` (MODIFY)
+  - `crates/vo-common/src/types/workflow.rs` — `WorkflowDefinition` (READ)
+  - `crates/vo-storage/src/kv.rs` — `Store`, `KvStores`, `definition_key` (READ)
+  - `crates/vo-worker/src/timer/loop.rs` — KV scan pattern reference (READ)
+  - `crates/vo-actor/src/messages/orchestrator.rs` — `OrchestratorMsg` enum (READ, may not need changes)
 
 ---
 

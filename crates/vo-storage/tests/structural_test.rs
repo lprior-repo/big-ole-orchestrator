@@ -71,7 +71,7 @@ impl DependencyChecker {
 
         let (_, deps, all_deps) = parsed;
 
-        let required = ["fjall", "serde", "serde_json", "wtf-types"];
+        let required = ["fjall", "serde", "serde_json", "vo-types"];
         let allowed_dev = ["tempfile", "thiserror", "proptest", "rstest"];
 
         if let Some(missing) = required
@@ -214,7 +214,7 @@ fn dependency_checker_returns_ok_when_cargo_toml_is_valid() {
 fjall = "1.0"
 serde = "1.0"
 serde_json = "1.0"
-wtf-types = "1.0"
+vo-types = "1.0"
 "#;
     let result = DependencyChecker::validate(toml);
     assert_eq!(result, Ok(()));
@@ -226,7 +226,7 @@ fn dependency_checker_returns_missing_dependency_error_when_fjall_absent() {
 [dependencies]
 serde = "1.0"
 serde_json = "1.0"
-wtf-types = "1.0"
+vo-types = "1.0"
 "#;
     let result = DependencyChecker::validate(toml);
     assert_eq!(
@@ -238,7 +238,7 @@ wtf-types = "1.0"
 }
 
 #[test]
-fn dependency_checker_returns_missing_dependency_error_when_wtf_types_absent() {
+fn dependency_checker_returns_missing_dependency_error_when_vo_types_absent() {
     let toml = r#"
 [dependencies]
 fjall = "1.0"
@@ -249,7 +249,7 @@ serde_json = "1.0"
     assert_eq!(
         result,
         Err(StructuralError::MissingDependency {
-            name: "wtf-types".to_string()
+            name: "vo-types".to_string()
         })
     );
 }
@@ -260,7 +260,7 @@ fn dependency_checker_returns_missing_dependency_error_when_serde_absent() {
 [dependencies]
 fjall = "1.0"
 serde_json = "1.0"
-wtf-types = "1.0"
+vo-types = "1.0"
 "#;
     let result = DependencyChecker::validate(toml);
     assert_eq!(
@@ -277,7 +277,7 @@ fn dependency_checker_returns_missing_dependency_error_when_serde_json_absent() 
 [dependencies]
 fjall = "1.0"
 serde = "1.0"
-wtf-types = "1.0"
+vo-types = "1.0"
 "#;
     let result = DependencyChecker::validate(toml);
     assert_eq!(
@@ -295,7 +295,7 @@ fn dependency_checker_returns_disallowed_dependency_error_when_tokio_present() {
 fjall = "1.0"
 serde = "1.0"
 serde_json = "1.0"
-wtf-types = "1.0"
+vo-types = "1.0"
 tokio = "1.0"
 "#;
     let result = DependencyChecker::validate(toml);
@@ -314,7 +314,7 @@ fn dependency_checker_returns_disallowed_dependency_error_when_arbitrary_unliste
 fjall = "1.0"
 serde = "1.0"
 serde_json = "1.0"
-wtf-types = "1.0"
+vo-types = "1.0"
 postgres = "1.0"
 "#;
     let result = DependencyChecker::validate(toml);
@@ -333,7 +333,7 @@ fn dependency_checker_returns_missing_dependency_error_when_fjall_is_commented_o
 # fjall = "1.0"
 serde = "1.0"
 serde_json = "1.0"
-wtf-types = "1.0"
+vo-types = "1.0"
 "#;
     let result = DependencyChecker::validate(toml);
     assert_eq!(
@@ -350,7 +350,7 @@ fn dependency_checker_returns_missing_dependency_error_when_fjall_is_only_in_dev
 [dependencies]
 serde = "1.0"
 serde_json = "1.0"
-wtf-types = "1.0"
+vo-types = "1.0"
 
 [dev-dependencies]
 fjall = "1.0"
@@ -398,7 +398,7 @@ fn dependency_checker_returns_disallowed_dependency_error_when_tokio_in_dev_depe
 fjall = "1.0"
 serde = "1.0"
 serde_json = "1.0"
-wtf-types = "1.0"
+vo-types = "1.0"
 
 [dev-dependencies]
 tokio = "1.0"
@@ -419,7 +419,7 @@ fn dependency_checker_returns_disallowed_dependency_error_when_tokio_in_build_de
 fjall = "1.0"
 serde = "1.0"
 serde_json = "1.0"
-wtf-types = "1.0"
+vo-types = "1.0"
 
 [build-dependencies]
 tokio = "1.0"
@@ -440,7 +440,7 @@ fn dependency_checker_returns_disallowed_dependency_error_when_serde_json_core_i
 fjall = "1.0"
 serde = "1.0"
 serde_json = "1.0"
-wtf-types = "1.0"
+vo-types = "1.0"
 serde_json_core = "1.0"
 "#;
     let result = DependencyChecker::validate(toml);
@@ -461,7 +461,7 @@ fn dependency_checker_returns_ok_when_cargo_toml_is_exactly_maximum_size() {
 fjall = "1.0"
 serde = "1.0"
 serde_json = "1.0"
-wtf-types = "1.0"
+vo-types = "1.0"
 {}
 "#,
         padding
@@ -479,7 +479,7 @@ fn dependency_checker_returns_malformed_file_error_when_cargo_toml_exceeds_maxim
 fjall = "1.0"
 serde = "1.0"
 serde_json = "1.0"
-wtf-types = "1.0"
+vo-types = "1.0"
 {}
 "#,
         padding
@@ -723,7 +723,7 @@ mod timer_index;
 // --- INTEGRATION TESTS (4 tests) ---
 
 #[test]
-fn checker_returns_ok_when_validating_real_wtf_storage_project_on_disk() {
+fn checker_returns_ok_when_validating_real_vo_storage_project_on_disk() {
     let project_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let result = WorkspaceChecker::validate_directory(&project_dir);
     assert_eq!(result, Ok(()));
@@ -734,7 +734,7 @@ fn checker_returns_error_when_validating_real_project_with_missing_module_on_dis
     let temp_dir = tempfile::tempdir().unwrap();
     std::fs::write(
         temp_dir.path().join("Cargo.toml"),
-        "[dependencies]\nfjall = \"1\"\nserde = \"1\"\nserde_json = \"1\"\nwtf-types = \"1\"",
+        "[dependencies]\nfjall = \"1\"\nserde = \"1\"\nserde_json = \"1\"\nvo-types = \"1\"",
     )
     .unwrap();
     // In a real test, setup invalid files here
@@ -761,7 +761,7 @@ fn checker_returns_error_when_validating_real_project_with_missing_dependency_on
 }
 
 #[test]
-fn workspace_checker_returns_cyclic_dependency_error_when_wtf_types_depends_on_wtf_storage() {
+fn workspace_checker_returns_cyclic_dependency_error_when_vo_types_depends_on_vo_storage() {
     let result = WorkspaceChecker::validate_workspace_graph();
     assert_eq!(result, Err(StructuralError::CyclicDependency));
 }

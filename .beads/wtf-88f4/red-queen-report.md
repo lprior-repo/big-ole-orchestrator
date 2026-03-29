@@ -1,4 +1,4 @@
-# Red Queen Report — wtf-88f4: "Store signal in InstanceState"
+# Red Queen Report — vo-88f4: "Store signal in InstanceState"
 
 **Date:** 2026-03-23
 **Verdict:** 1 BROKE, 6 SURVIVED
@@ -55,7 +55,7 @@ Multiple waiters consume FIFO via `queue.remove(0)`, verified by test `wait_for_
 
 `handle_signal` does NOT validate `signal_name`. An empty string "" would be accepted, published, and buffered as a valid HashMap key. No panic, no crash.
 
-The API layer (`wtf-api/types/newtypes.rs`) validates `signal_name` against `[a-z][a-z0-9_]+` before reaching the actor, so "" is blocked at the HTTP boundary.
+The API layer (`vo-api/types/newtypes.rs`) validates `signal_name` against `[a-z][a-z0-9_]+` before reaching the actor, so "" is blocked at the HTTP boundary.
 
 **Risk:** Any code path that bypasses the API (e.g., internal actor messaging, test mocks) could inject a "" signal name without error.
 
@@ -69,7 +69,7 @@ The API layer (`wtf-api/types/newtypes.rs`) validates `signal_name` against `[a-
 
 ## Attack 6: Test isolation — SURVIVED
 
-Ran `cargo test -p wtf-actor --lib -- signal` twice consecutively:
+Ran `cargo test -p vo-actor --lib -- signal` twice consecutively:
 
 ```
 Run 1: 13 passed, 0 failed, 0 ignored
@@ -83,7 +83,7 @@ No shared mutable state between test runs. All state is constructed fresh per te
 ## Attack 7: Clippy strict — SURVIVED
 
 ```
-cargo clippy -p wtf-actor -- -W clippy::unwrap_used -W clippy::expect_used
+cargo clippy -p vo-actor -- -W clippy::unwrap_used -W clippy::expect_used
 ```
 
 - **0 errors**

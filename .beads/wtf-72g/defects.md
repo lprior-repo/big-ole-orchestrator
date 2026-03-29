@@ -1,4 +1,4 @@
-# BLACK HAT REVIEW — Bead wtf-72g: Implement get_workflow handler
+# BLACK HAT REVIEW — Bead vo-72g: Implement get_workflow handler
 
 **Reviewer:** Black Hat  
 **Verdict:** **REJECTED**  
@@ -69,7 +69,7 @@ There are **no tests** for `get_workflow`. Period.
 
 - `workflow.rs:187-249` contains tests only for `split_path_id`, `parse_paradigm`, and `paradigm_to_str` — all pure utility functions.
 - No `#[tokio::test]` exercises `get_workflow`, `map_status_result`, or the 404/200/503 code paths.
-- No integration test exists in `crates/wtf-api/tests/` (the directory is empty — no `*.rs` files found).
+- No integration test exists in `crates/vo-api/tests/` (the directory is empty — no `*.rs` files found).
 - The `signal_handler_test.rs` proves the pattern exists (spawn mock actor, build app, oneshot request) but was not replicated for workflow handlers.
 
 The `list_workflows` handler at line 59-63 has the same problem — untested.
@@ -196,7 +196,7 @@ This is textbook duplication. One type should exist. Pick one, delete the other,
 `workflow.rs:179-184`:
 
 ```rust
-Ok((wtf_actor::instance::state::initialize_paradigm_state(&wtf_actor::InstanceArguments {
+Ok((vo_actor::instance::state::initialize_paradigm_state(&vo_actor::InstanceArguments {
     namespace: NamespaceId::new(""), instance_id: id.clone(), workflow_type: "".to_owned(), paradigm,
     input: Bytes::new(), engine_node_id: "".to_owned(), snapshot_db: None,
     procedural_workflow: None, workflow_definition: None,

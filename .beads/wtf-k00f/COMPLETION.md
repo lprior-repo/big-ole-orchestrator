@@ -1,6 +1,6 @@
-# Bead Lifecycle Completion: wtf-k00f
+# Bead Lifecycle Completion: vo-k00f
 
-- **bead_id**: wtf-k00f
+- **bead_id**: vo-k00f
 - **completed_at**: 2026-03-23T21:00:00Z
 
 ## Lifecycle Summary

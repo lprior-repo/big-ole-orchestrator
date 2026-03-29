@@ -1,6 +1,6 @@
-# QA Report: wtf-ww0p E2E Workflow Completion Tests
+# QA Report: vo-ww0p E2E Workflow Completion Tests
 
-**File:** `crates/wtf-api/tests/e2e_workflow_completion.rs` (595 lines)
+**File:** `crates/vo-api/tests/e2e_workflow_completion.rs` (595 lines)
 **Date:** 2026-03-23
 **Reviewers:** QA Enforcer, Red Queen, Black Hat
 
@@ -70,7 +70,7 @@ Port 0 requests an ephemeral port from the OS. The global mutex serializes all t
 
 ### 2.3 NATS State Pollution — PASS
 
-`reset_all_streams()` deletes all 4 streams (`wtf-events`, `wtf-work`, `wtf-signals`, `wtf-archive`) and all 4 KV buckets (`wtf-instances`, `wtf-timers`, `wtf-definitions`, `wtf-heartbeats`) before each test. Then `provision_streams()` and `provision_kv_buckets()` recreate them from scratch. This is complete isolation — no residual state from prior runs.
+`reset_all_streams()` deletes all 4 streams (`vo-events`, `vo-work`, `vo-signals`, `vo-archive`) and all 4 KV buckets (`vo-instances`, `vo-timers`, `vo-definitions`, `vo-heartbeats`) before each test. Then `provision_streams()` and `provision_kv_buckets()` recreate them from scratch. This is complete isolation — no residual state from prior runs.
 
 ### 2.4 Test Ordering Independence — PASS
 

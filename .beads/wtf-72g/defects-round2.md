@@ -1,4 +1,4 @@
-# Black Hat Review — Round 2: Bead wtf-72g (get_workflow handler)
+# Black Hat Review — Round 2: Bead vo-72g (get_workflow handler)
 
 **Reviewer:** Black Hat Reviewer  
 **Date:** 2026-03-23  
@@ -35,7 +35,7 @@ The actor handler in `status.rs:19` returns `Err(GetStatusError::Timeout)` on no
 ### DEFECT-04 (CRITICAL): Zero HTTP tests for get_workflow — VERDICT: NOT FIXED ❌
 
 **Zero HTTP integration tests exist for `get_workflow`.** Verified by:
-- No file matching `*get_workflow*test*` or `*workflow*test*` exists under `crates/wtf-api/tests/`
+- No file matching `*get_workflow*test*` or `*workflow*test*` exists under `crates/vo-api/tests/`
 - No grep hit for `get_workflow` or `GetStatus` in any test file
 - The only tests in `workflow.rs` are unit tests for `split_path_id` and `parse_paradigm` (lines 219-282) — **these are parser utility tests, not handler tests**
 

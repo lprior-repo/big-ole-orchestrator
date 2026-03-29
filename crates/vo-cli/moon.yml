@@ -2,28 +2,28 @@ $schema: "https://moonrepo.dev/schemas/project.json"
 
 tasks:
   check:
-    command: 'cargo check -p wtf-cli'
+    command: 'cargo check -p vo-cli'
     toolchains:
       - rust
     options:
       runInCI: true
 
   fmt:
-    command: 'cargo fmt -p wtf-cli -- --check'
+    command: 'cargo fmt -p vo-cli -- --check'
     toolchains:
       - rust
     options:
       runInCI: true
 
   lint-src:
-    command: 'cargo clippy -p wtf-cli --lib --bins --examples -- -D warnings -W clippy::all'
+    command: 'cargo clippy -p vo-cli --lib --bins --examples -- -D warnings -W clippy::all'
     toolchains:
       - rust
     options:
       runInCI: true
 
   test:
-    command: 'cargo test -p wtf-cli'
+    command: 'cargo test -p vo-cli'
     toolchains:
       - rust
     options:

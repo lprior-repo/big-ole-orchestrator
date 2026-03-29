@@ -1,4 +1,4 @@
-# QA Report: wtf-88f4 — instance: Store signal in InstanceState
+# QA Report: vo-88f4 — instance: Store signal in InstanceState
 
 **Date:** 2026-03-23
 **Verdict: PASS**
@@ -9,7 +9,7 @@
 
 **PASS** — `state.rs:35` defines:
 ```rust
-pub pending_signal_calls: HashMap<String, RpcReplyPort<Result<Bytes, WtfError>>>,
+pub pending_signal_calls: HashMap<String, RpcReplyPort<Result<Bytes, VoError>>>,
 ```
 Initialized to `HashMap::new()` in `state.rs:57`. Documented as "Not persisted in snapshots."
 
@@ -64,7 +64,7 @@ Publish is the first side effect. On publish failure, no state mutation occurs �
 ## 5. Signal-specific test results
 
 ```
-cargo test -p wtf-actor --lib -- signal
+cargo test -p vo-actor --lib -- signal
 running 13 tests
 test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 110 filtered out
 ```
@@ -76,7 +76,7 @@ test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 110 filtered out
 ## 6. Full crate test results
 
 ```
-cargo test -p wtf-actor --lib
+cargo test -p vo-actor --lib
 running 123 tests
 test result: ok. 123 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 ```

@@ -38,7 +38,7 @@ The `:id` path parameter does not capture `/` characters. All tests using namesp
 
 ## Files Changed
 
-- `crates/wtf-api/tests/journal_test.rs` — complete rewrite
+- `crates/vo-api/tests/journal_test.rs` — complete rewrite
 
 ## Constraint Adherence
 
@@ -50,6 +50,6 @@ The `:id` path parameter does not capture `/` characters. All tests using namesp
 ## Verification
 
 ```
-cargo test -p wtf-api --test journal_test -- --nocapture
+cargo test -p vo-api --test journal_test -- --nocapture
 test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 ```

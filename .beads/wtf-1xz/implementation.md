@@ -1,12 +1,12 @@
-# Implementation Summary - Bead wtf-1xz
+# Implementation Summary - Bead vo-1xz
 
 ## Changes
-- Implemented `send_signal` handler in `crates/wtf-api/src/handlers/signal.rs`.
+- Implemented `send_signal` handler in `crates/vo-api/src/handlers/signal.rs`.
 - Adhered to `Data->Calc->Actions` pattern:
     - **Data**: `V3SignalRequest` and `Path(id)`.
     - **Calc**: `split_path_id` and `map_signal_result`.
     - **Actions**: Actor call via `master.call`.
-- Added `SignalResponse` to `crates/wtf-api/src/types/responses.rs` for `{"acknowledged": true}` body.
+- Added `SignalResponse` to `crates/vo-api/src/types/responses.rs` for `{"acknowledged": true}` body.
 - Verified with unit tests covering:
     - Successful signal delivery (202 Accepted).
     - Invalid ID format (400 Bad Request).
@@ -14,7 +14,7 @@
 - Zero `panic!`, `unwrap()`, or `mut` used in the handler logic.
 
 ## Verification Results
-- `cargo check -p wtf-api` passed.
+- `cargo check -p vo-api` passed.
 - Unit tests `tests::unit::test_send_signal_success`, `test_send_signal_invalid_id`, `test_send_signal_not_found` passed.
 
 ## Manual Test Command (Example)

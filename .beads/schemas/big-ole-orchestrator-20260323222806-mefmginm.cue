@@ -21,7 +21,7 @@ import "list"
 
     // Specific preconditions that must be verified
     precondition_checks: [
-      "NATS KV wtf-definitions is provisioned",
+      "NATS KV vo-definitions is provisioned",
     ]
 
     // Specific postconditions that must be verified

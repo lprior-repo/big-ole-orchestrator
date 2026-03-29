@@ -1,4 +1,4 @@
-# CLAUDE.md — wtf-engine
+# CLAUDE.md — vo-engine
 
 **Version:** 4.0 (V2 Architecture)
 **Language:** Rust (end-to-end)
@@ -6,29 +6,29 @@
 **Build:** `moon run :ci`
 
 ## What This System Is
-`wtf-engine` is the Indestructible Rust Orchestrator. It is a true single-binary engine (no Docker, no NATS, no Postgres) that provides:
+`vo-engine` is the Indestructible Rust Orchestrator. It is a true single-binary engine (no Docker, no NATS, no Postgres) that provides:
 1. **Durable Execution:** Event-Sourcing backed by `fjall` (LSM-Tree) for face-melting disk IO.
 2. **FaaS Subprocesses:** Workflows are strictly compiled Rust binaries spawned via `tokio::process::Command` (no Wasm/Docker).
 3. **The BEAM Model:** `ractor` manages lock-free workflow state machines and hibernates them to disk when waiting.
 4. **Visibility:** An embedded Dioxus WASM UI for n8n-style real-time graphs.
 
 ## Core V2 Architecture Rules (Must Read: `docs/adr/v2/`)
-1. **Strictly Rust Binaries:** Workflows and Tasks are written using the `wtf-sdk` and compiled to raw binaries. The engine discovers them via `./binary --graph` and executes them via `./binary --execute-node <name>`.
+1. **Strictly Rust Binaries:** Workflows and Tasks are written using the `vo-sdk` and compiled to raw binaries. The engine discovers them via `./binary --graph` and executes them via `./binary --execute-node <name>`.
 2. **FD3 / FD4 IPC:** The Engine NEVER uses `stdout` for state. It pipes input JSON to the child via FD3, and reads output JSON from FD4.
 3. **Group Commits:** Actors NEVER write to `fjall` directly. All events are sent to the `DbWriterActor` to be batch-committed to prevent SSD lock contention.
-4. **AI-Native:** CLI interfaces (`wtf-cli history --json`) and definition schemas must output strict JSON intended for consumption by autonomous AI agents.
+4. **AI-Native:** CLI interfaces (`vo-cli history --json`) and definition schemas must output strict JSON intended for consumption by autonomous AI agents.
 
 ## Project Structure
 | Crate | Purpose |
 |-------|---------|
-| `wtf-common` | Shared types (`WorkflowEvent`, `InstanceId`) |
-| `wtf-core` | Minimal core types |
-| `wtf-actor` | `ractor` state machines (DAGs, FSMs, Procedural), Hibernation, and Subprocess Execution |
-| `wtf-storage` | `fjall` wrapper (`events`, `instances`, `timers` partitions) + `DbWriterActor` |
-| `wtf-api` | `axum` HTTP server (Webhook triggers, SSE telemetry) |
-| `wtf-cli` | Agent-first CLI (`wtf-cli history`, `wtf-cli check`) |
-| `wtf-sdk` | The developer macro crate (`#[wtf_task]`, `Dag::new()`) |
-| `wtf-ui` | Dioxus WASM visual dashboard (Ported from Oya) |
+| `vo-common` | Shared types (`WorkflowEvent`, `InstanceId`) |
+| `vo-core` | Minimal core types |
+| `vo-actor` | `ractor` state machines (DAGs, FSMs, Procedural), Hibernation, and Subprocess Execution |
+| `vo-storage` | `fjall` wrapper (`events`, `instances`, `timers` partitions) + `DbWriterActor` |
+| `vo-api` | `axum` HTTP server (Webhook triggers, SSE telemetry) |
+| `vo-cli` | Agent-first CLI (`vo-cli history`, `vo-cli check`) |
+| `vo-sdk` | The developer macro crate (`#[vo_task]`, `Dag::new()`) |
+| `vo-ui` | Dioxus WASM visual dashboard (Ported from Oya) |
 
 ## Development & AI Guidelines
 1. **Zero External DBs:** Never introduce dependencies on Redis, Postgres, or NATS.

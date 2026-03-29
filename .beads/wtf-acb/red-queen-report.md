@@ -1,7 +1,7 @@
-# Red Queen Adversarial Report: wtf-types
+# Red Queen Adversarial Report: vo-types
 
-**Target**: 14 semantic newtypes in `crates/wtf-types/src/types.rs`
-**Contract**: `.beads/wtf-acb/contract.md`
+**Target**: 14 semantic newtypes in `crates/vo-types/src/types.rs`
+**Contract**: `.beads/vo-acb/contract.md`
 **Date**: 2026-03-27
 **Tests generated**: 87 (Section 5: red_queen module)
 **Total test suite**: 388 passing, 0 failing

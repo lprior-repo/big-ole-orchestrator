@@ -4,7 +4,7 @@
 Accepted
 
 ## Context
-v1 used NATS JetStream as the durable event log. To achieve a true "Single Binary" architecture without sacrificing Event Sourced write-throughput, we must embed the storage engine directly into the `wtf-engine` process. 
+v1 used NATS JetStream as the durable event log. To achieve a true "Single Binary" architecture without sacrificing Event Sourced write-throughput, we must embed the storage engine directly into the `vo-engine` process. 
 
 Relational embedded databases (like SQLite) suffer from global write-locks, which throttle throughput when 10,000 concurrent actors attempt to append events simultaneously.
 

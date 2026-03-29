@@ -1,9 +1,9 @@
-bead_id: wtf-acb
-bead_title: wtf-types: define all semantic newtypes
+bead_id: vo-acb
+bead_title: vo-types: define all semantic newtypes
 phase: state-1.5-retry-1
 updated_at: 2026-03-27T05:12:00Z
 
-# Test Plan: wtf-types: define all semantic newtypes
+# Test Plan: vo-types: define all semantic newtypes
 
 ## Summary
 
@@ -2187,8 +2187,8 @@ Rationale: With ~210 hand-written BDD scenarios plus 26 proptest invariants, the
 ### Mutation testing command
 
 ```bash
-cargo mutants --workspace --exclude wtf-common --exclude wtf-core --exclude wtf-storage \
-  --exclude wtf-actor --exclude wtf-api --exclude wtf-cli --exclude wtf-frontend --exclude wtf-linter
+cargo mutants --workspace --exclude vo-common --exclude vo-core --exclude vo-storage \
+  --exclude vo-actor --exclude vo-api --exclude vo-cli --exclude vo-frontend --exclude vo-linter
 ```
 
 ---

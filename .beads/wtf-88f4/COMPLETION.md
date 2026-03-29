@@ -1,6 +1,6 @@
-# Bead Lifecycle Completion: wtf-88f4
+# Bead Lifecycle Completion: vo-88f4
 
-- **bead_id**: wtf-88f4
+- **bead_id**: vo-88f4
 - **title**: instance: Store signal in InstanceState
 - **completed_at**: 2026-03-23T19:30:00Z
 
@@ -18,7 +18,7 @@
 | 8 (Landing) | DEFERRED | — |
 
 ## Cross-bead Defect (tracked)
-Red Queen found handle_wait_for_signal (wtf-3cv7) removes buffer BEFORE publish.
-This will be addressed when gating wtf-3cv7.
+Red Queen found handle_wait_for_signal (vo-3cv7) removes buffer BEFORE publish.
+This will be addressed when gating vo-3cv7.
 
 ## Total Retries: 0

@@ -1,4 +1,4 @@
-# QA Report: wtf-40m5 — "serve: Start heartbeat watcher in serve.rs"
+# QA Report: vo-40m5 — "serve: Start heartbeat watcher in serve.rs"
 
 **Date:** 2026-03-23
 **Enforcer:** qa-enforcer (actual execution)
@@ -30,7 +30,7 @@ let heartbeat_task = tokio::spawn(run_heartbeat_watcher(
 **Evidence:** `serve.rs:16`
 
 ```rust
-use wtf_actor::heartbeat::run_heartbeat_watcher;
+use vo_actor::heartbeat::run_heartbeat_watcher;
 ```
 
 Import present and correct path.
@@ -73,11 +73,11 @@ async fn drain_runtime<EApi, ETimer, EWorker, FStop>(
 
 ---
 
-## Check 5: `cargo test -p wtf-cli -- serve`
+## Check 5: `cargo test -p vo-cli -- serve`
 
 **Status:** PASS
 
-**Command:** `cargo test -p wtf-cli -- serve`
+**Command:** `cargo test -p vo-cli -- serve`
 
 **Output:**
 ```
@@ -89,11 +89,11 @@ test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 8 filtered out
 
 ---
 
-## Check 6: `cargo test -p wtf-cli` (full suite)
+## Check 6: `cargo test -p vo-cli` (full suite)
 
 **Status:** PASS
 
-**Command:** `cargo test -p wtf-cli`
+**Command:** `cargo test -p vo-cli`
 
 **Output:**
 ```
@@ -163,8 +163,8 @@ drain_runtime(
 | 2 | Import present | PASS |
 | 3 | No unwrap/expect in production code | PASS |
 | 4 | drain_runtime accepts 4th JoinHandle | PASS |
-| 5 | `cargo test -p wtf-cli -- serve` | PASS |
-| 6 | `cargo test -p wtf-cli` (full) | PASS |
+| 5 | `cargo test -p vo-cli -- serve` | PASS |
+| 6 | `cargo test -p vo-cli` (full) | PASS |
 | 7 | Line count under 300 | **FAIL** (354 lines) |
 | 8 | heartbeat_task passed to drain_runtime | PASS |
 

@@ -1,7 +1,7 @@
 use fjall::Config;
 
 #[test]
-fn cargo_check_workspace_compiles_wtf_storage_cleanly_after_scaffold() {
+fn cargo_check_workspace_compiles_vo_storage_cleanly_after_scaffold() {
     let folder = tempfile::tempdir().expect("Failed to create temp dir");
     let _keyspace = Config::new(folder.path())
         .open()

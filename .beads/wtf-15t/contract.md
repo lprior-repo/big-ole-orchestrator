@@ -2,7 +2,7 @@
 
 ## Context
 - Feature: HTTP GET /api/v1/workflows/:id/journal endpoint
-- Location: wtf-api/src/handlers/journal.rs
+- Location: vo-api/src/handlers/journal.rs
 - Purpose: Replay and return all journal entries for a workflow instance
 
 ## Preconditions

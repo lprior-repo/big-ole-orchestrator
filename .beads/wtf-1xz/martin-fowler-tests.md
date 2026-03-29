@@ -17,7 +17,7 @@
     - **Then**: Returns `400 Bad Request` with error code "invalid_payload".
 - `test_returns_not_found_when_workflow_instance_missing`
     - **Given**: A valid `id` path but the instance does not exist in the system.
-    - **When**: Orchestrator returns `Ok(CallResult::Success(Err(WtfError::InstanceNotFound)))`.
+    - **When**: Orchestrator returns `Ok(CallResult::Success(Err(VoError::InstanceNotFound)))`.
     - **Then**: Returns `404 Not Found` with error code "instance_not_found".
 - `test_returns_internal_server_error_on_actor_timeout`
     - **Given**: The master actor does not respond within `ACTOR_CALL_TIMEOUT`.
@@ -61,7 +61,7 @@ Then:
 Given:
 - A running master orchestrator actor (mocked).
 - A workflow ID "default/missing-id".
-- The mock is programmed to return `Ok(CallResult::Success(Err(WtfError::InstanceNotFound)))`.
+- The mock is programmed to return `Ok(CallResult::Success(Err(VoError::InstanceNotFound)))`.
 When:
 - `send_signal` is called.
 Then:

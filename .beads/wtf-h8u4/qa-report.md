@@ -1,4 +1,4 @@
-# wtf-h8u4 Signal Delivery Tests — QA Report
+# vo-h8u4 Signal Delivery Tests — QA Report
 
 **Date:** 2026-03-23
 **Reviewer:** Automated QA / Red Queen / Black Hat / Arch Drift
@@ -10,7 +10,7 @@
 
 ### 1.1 Test count verification
 
-11 new wtf-h8u4 signal delivery tests confirmed (lines 430–847):
+11 new vo-h8u4 signal delivery tests confirmed (lines 430–847):
 
 | # | Test Name | Line |
 |---|-----------|------|
@@ -31,7 +31,7 @@
 ### 1.2 Test execution
 
 ```
-cargo test -p wtf-actor -- signal
+cargo test -p vo-actor -- signal
 
 test result: ok. 24 passed; 0 failed; 0 ignored; 0 measured; 113 filtered out
 ```
@@ -88,7 +88,7 @@ Cross-referenced every assertion against `handlers.rs:136-179` and `procedural.r
 
 | Assertion | Handler Code | Match |
 |-----------|-------------|-------|
-| Error on missing event_store | `handlers.rs:142-148`: sends `Err(WtfError::nats_publish("Event store missing"))` | **YES** |
+| Error on missing event_store | `handlers.rs:142-148`: sends `Err(VoError::nats_publish("Event store missing"))` | **YES** |
 | Pending delivery removes from map | `handlers.rs:161`: `state.pending_signal_calls.remove(&signal_name)` | **YES** |
 | Pending receives exact payload | `handlers.rs:162`: `port.send(Ok(payload))` | **YES** |
 | Buffer fallback when no pending | `handlers.rs:163-168`: `s.received_signals.entry(...).or_default().push(payload)` | **YES** |
@@ -149,7 +149,7 @@ If the file grows further, consider extracting the snapshot tests and signal tes
 
 | Gate | Status | Notes |
 |------|--------|-------|
-| 11 new tests exist | **PASS** | All 11 wtf-h8u4 tests present |
+| 11 new tests exist | **PASS** | All 11 vo-h8u4 tests present |
 | All tests pass | **PASS** | 24/24 signal tests green |
 | Zero unwrap | **PASS** | 0 unwrap calls |
 | Zero expect | **ADVISORY** | 63 expect calls in test assertions (idiomatic) |

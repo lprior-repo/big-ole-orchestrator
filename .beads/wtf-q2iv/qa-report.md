@@ -1,4 +1,4 @@
-# QA Report — wtf-q2iv: "serve: Scaffold built-in worker"
+# QA Report — vo-q2iv: "serve: Scaffold built-in worker"
 
 **Date:** 2026-03-23
 **Reviewer:** opencode (automated)
@@ -56,10 +56,10 @@ Drain sequence:
 Worker is awaited *before* master stop, which is correct — ensures in-flight activities drain before orchestrator shuts down. Error propagation for worker: `worker_result.context("builtin worker failed")?` — tested in `drain_runtime_propagates_worker_error`.
 
 ### 2.3 Test isolation
-**PASS.** Two consecutive `cargo test -p wtf-cli -- serve` runs both pass. No shared state leaks.
+**PASS.** Two consecutive `cargo test -p vo-cli -- serve` runs both pass. No shared state leaks.
 
 ### 2.4 Clippy strict
-**PASS (for this crate's code).** `cargo clippy -p wtf-cli -- -D warnings` fails, but all 4 errors are in `wtf-common` (pre-existing `missing_errors_doc` on `to_msgpack`/`from_msgpack`/`try_new`). Zero clippy issues originate from serve.rs or serve_tests.rs.
+**PASS (for this crate's code).** `cargo clippy -p vo-cli -- -D warnings` fails, but all 4 errors are in `vo-common` (pre-existing `missing_errors_doc` on `to_msgpack`/`from_msgpack`/`try_new`). Zero clippy issues originate from serve.rs or serve_tests.rs.
 
 ---
 
@@ -78,13 +78,13 @@ Exact signature match with call site `Worker::new(nats.jetstream().clone(), "bui
 
 ### 3.2 Hallucinated APIs?
 **NONE FOUND.** All imports resolve:
-- `wtf_worker::Worker` — re-exported from `crates/wtf-worker/src/lib.rs:22`
-- `worker.run(shutdown_rx)` — method `run(&self, shutdown_rx: watch::Receiver<bool>) -> Result<(), WtfError>` at worker.rs:142-149
+- `vo_worker::Worker` — re-exported from `crates/vo-worker/src/lib.rs:22`
+- `worker.run(shutdown_rx)` — method `run(&self, shutdown_rx: watch::Receiver<bool>) -> Result<(), VoError>` at worker.rs:142-149
 - `tokio::sync::watch::Receiver<bool>` — shutdown_rx type matches `run()` parameter
-- `JoinHandle<Result<(), EWorker>>` — `WtfError` implements `std::error::Error + Send + Sync + 'static`, satisfying the trait bounds in `drain_runtime`
+- `JoinHandle<Result<(), EWorker>>` — `VoError` implements `std::error::Error + Send + Sync + 'static`, satisfying the trait bounds in `drain_runtime`
 
 ### 3.3 Import correctness
-**PASS.** Line 18: `use wtf_worker::Worker;` — clean, minimal import.
+**PASS.** Line 18: `use vo_worker::Worker;` — clean, minimal import.
 
 ---
 

@@ -2,12 +2,12 @@
 
 ## Context
 - Feature: Load workflow definitions from NATS KV on startup and populate WorkflowRegistry
-- Location: wtf-cli/src/commands/serve.rs (load_definitions_from_kv)
-- Related: wtf-actor/src/master/registry.rs (WorkflowRegistry)
+- Location: vo-cli/src/commands/serve.rs (load_definitions_from_kv)
+- Related: vo-actor/src/master/registry.rs (WorkflowRegistry)
 - EARS Requirement: THE SYSTEM SHALL load definition sources from KV on startup
 
 ## Preconditions
-- [ ] NATS KV wtf-definitions bucket is provisioned
+- [ ] NATS KV vo-definitions bucket is provisioned
 - [ ] NATS connection is established
 - [ ] KV store is accessible
 

@@ -21,7 +21,7 @@ import "list"
 
     // Specific preconditions that must be verified
     precondition_checks: [
-      "wtf-worker SDK is functional",
+      "vo-worker SDK is functional",
     ]
 
     // Specific postconditions that must be verified

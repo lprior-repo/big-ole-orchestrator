@@ -20,12 +20,12 @@ When the Engine dictates that a `Task` node should execute:
 ### Security and Isolation
 Because we do not use Docker or Wasm sandboxing, the Engine protects itself via the OS:
 - **Timeouts:** Every subprocess is wrapped in a `tokio::time::timeout`. Hanging binaries are aggressively killed via `SIGKILL`.
-- **Secret Injection:** The Engine clears the host's environment variables and explicitly injects scoped vault secrets (e.g., `WTF_SECRET_STRIPE_KEY`) directly into the child process.
+- **Secret Injection:** The Engine clears the host's environment variables and explicitly injects scoped vault secrets (e.g., `VO_SECRET_STRIPE_KEY`) directly into the child process.
 
 ### The SDK Macro
-To make this ergonomic, we provide a `wtf-sdk` crate. The developer writes:
+To make this ergonomic, we provide a `vo-sdk` crate. The developer writes:
 ```rust
-#[wtf_task]
+#[vo_task]
 async fn my_task(ctx: Context, input: Input) -> Output { ... }
 ```
 The macro generates the `main()` function that handles reading `stdin`, parsing JSON, managing errors, and serializing `stdout`.

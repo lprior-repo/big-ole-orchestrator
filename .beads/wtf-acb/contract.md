@@ -1,15 +1,15 @@
-bead_id: wtf-acb
-bead_title: wtf-types: define all semantic newtypes
+bead_id: vo-acb
+bead_title: vo-types: define all semantic newtypes
 phase: state-1
 updated_at: 2026-03-27T04:34:22Z
 
-# Contract Specification: wtf-acb -- wtf-types: define all semantic newtypes
+# Contract Specification: vo-acb -- vo-types: define all semantic newtypes
 
 ## Context
 
-- **Feature**: A `wtf-types` crate containing 14 semantic newtypes that enforce domain invariants at the type boundary. Every newtype exposes a `parse()` smart constructor returning `Result<Self, ParseError>`. The inner representation is never directly accessible -- only through controlled accessor methods. No `Default` derive is permitted on any validated domain type. No raw primitives cross public API boundaries.
+- **Feature**: A `vo-types` crate containing 14 semantic newtypes that enforce domain invariants at the type boundary. Every newtype exposes a `parse()` smart constructor returning `Result<Self, ParseError>`. The inner representation is never directly accessible -- only through controlled accessor methods. No `Default` derive is permitted on any validated domain type. No raw primitives cross public API boundaries.
 - **Domain terms**:
-  - `wtf-types`: New crate in `crates/wtf-types/`. Not yet listed in workspace `Cargo.toml` members (implementation concern).
+  - `vo-types`: New crate in `crates/vo-types/`. Not yet listed in workspace `Cargo.toml` members (implementation concern).
   - `InstanceId`: Unique workflow instance identifier. ULID-encoded 26-character string (Crockford Base32). Used as Fjall key component (ADR-020).
   - `WorkflowName`: Human-readable workflow definition name. Constrained to `[a-zA-Z0-9_-]` characters. Used in `dag.add_node("name", fn)` (ADR-010) and CLI/API display.
   - `NodeName`: Human-readable node name within a DAG. Same character constraints as `WorkflowName`. Used in `dag.add_node("name", fn)` and Fjall event queries.
@@ -30,8 +30,8 @@ updated_at: 2026-03-27T04:34:22Z
   - The `thiserror` crate (v1, already in workspace dependencies) is used for `ParseError` derivation.
   - The `serde` crate (v1 with derive, already in workspace dependencies) provides `Serialize`/`Deserialize` for all newtypes.
   - Serde deserialization MUST route through `parse()` -- no raw string/integer deserialization that bypasses validation.
-  - The workspace `Cargo.toml` will be updated to include `"crates/wtf-types"` in the `members` array (implementation concern).
-  - `wtf-common` (listed as "Shared types (WorkflowEvent, InstanceId)" in CLAUDE.md) will depend on `wtf-types` rather than duplicating these definitions.
+  - The workspace `Cargo.toml` will be updated to include `"crates/vo-types"` in the `members` array (implementation concern).
+  - `vo-common` (listed as "Shared types (WorkflowEvent, InstanceId)" in CLAUDE.md) will depend on `vo-types` rather than duplicating these definitions.
   - Timestamps use `u64` (not `i64`) per ADR-020 big-endian encoding convention. Pre-epoch timestamps are out of scope.
   - BinaryHash uses lowercase hex encoding only (uppercase rejected at parse time).
   - `TimerId` and `IdempotencyKey` are opaque strings with no format constraints beyond non-emptiness. Their internal structure (e.g., UUID, ULID, hash) is a caller concern.
@@ -261,7 +261,7 @@ pub enum ParseError {
 ### Module structure
 
 ```rust
-// crates/wtf-types/src/lib.rs
+// crates/vo-types/src/lib.rs
 mod errors;
 mod types;
 
@@ -278,7 +278,7 @@ pub use types::{
 ### ParseError
 
 ```rust
-// crates/wtf-types/src/errors.rs
+// crates/vo-types/src/errors.rs
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum ParseError {
     #[error("{type_name}: value must not be empty")]

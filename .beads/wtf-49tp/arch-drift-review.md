@@ -1,10 +1,10 @@
-# Architecture Drift Review — Bead wtf-49tp
+# Architecture Drift Review — Bead vo-49tp
 
 **STATUS: REFACTORED**
 
 ## Problem
 
-`crates/wtf-actor/src/instance/handlers.rs` was **731 lines** (limit: 300).
+`crates/vo-actor/src/instance/handlers.rs` was **731 lines** (limit: 300).
 - Production code: lines 1–312 (312 lines, 12 over limit)
 - Test code: lines 313–731 (418 lines)
 
@@ -39,9 +39,9 @@
 
 ## Verification
 
-- `cargo check -p wtf-actor` — ✅ compiles clean
-- `cargo test -p wtf-actor --lib` — ✅ all 123 tests pass
-- `cargo clippy -p wtf-actor` — ✅ no new warnings from changed files (pre-existing doc style nits only)
+- `cargo check -p vo-actor` — ✅ compiles clean
+- `cargo test -p vo-actor --lib` — ✅ all 123 tests pass
+- `cargo clippy -p vo-actor` — ✅ no new warnings from changed files (pre-existing doc style nits only)
 
 ## DDD Compliance
 

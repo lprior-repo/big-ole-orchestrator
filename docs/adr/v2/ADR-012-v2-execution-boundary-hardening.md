@@ -14,13 +14,13 @@ When an orchestrator spawns un-sandboxed OS child processes, the boundary betwee
 We enforce a strictly hardened OS boundary using the following mechanisms.
 
 ### 1. Process Grouping and Graceful Death
-- **Linux:** The `wtf-sdk` generated `main()` must call `prctl(PR_SET_PDEATHSIG, SIGTERM)` as its first instruction. This ensures children receive a kill signal if the parent engine dies.
+- **Linux:** The `vo-sdk` generated `main()` must call `prctl(PR_SET_PDEATHSIG, SIGTERM)` as its first instruction. This ensures children receive a kill signal if the parent engine dies.
 - **Graceful Exit:** We use `SIGTERM` (not `SIGKILL`) to allow the child to flush local state, catch the signal, and exit cleanly. If a child hangs, a sweeping `SIGKILL` on Engine startup will clear leftover binaries based on process path.
 
 ### 2. IPC via File Descriptor 3 (FD3)
 - `stdout` is strictly reserved for user logging.
 - The Engine maps a new pipe to **FD 3** before spawning the child.
-- The `wtf-sdk` writes the state payload exclusively to FD 3, formatted with a **4-byte big-endian length prefix**.
+- The `vo-sdk` writes the state payload exclusively to FD 3, formatted with a **4-byte big-endian length prefix**.
 - The Engine reads exactly that many bytes, preventing ambiguous boundaries.
 
 ### 3. Memory Bomb Protection

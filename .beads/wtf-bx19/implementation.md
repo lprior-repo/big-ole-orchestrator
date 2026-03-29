@@ -1,7 +1,7 @@
-# Implementation Summary — wtf-bx19
+# Implementation Summary — vo-bx19
 
 ```yaml
-bead_id: wtf-bx19
+bead_id: vo-bx19
 bead_title: "dag: Parse graph_raw into DAG node set"
 phase: STATE-3
 updated_at: 2026-03-23T12:00:00Z
@@ -11,10 +11,10 @@ updated_at: 2026-03-23T12:00:00Z
 
 | File | Action | Lines |
 |------|--------|-------|
-| `crates/wtf-actor/src/dag/parse.rs` | **CREATED** | 240 |
-| `crates/wtf-actor/src/dag/mod.rs` | **MODIFIED** | +2 (added `pub mod parse;` and `pub use parse::*;`) |
-| `crates/wtf-actor/src/dag/tests.rs` | **MODIFIED** | +172 (15 new parse tests) |
-| `crates/wtf-actor/src/instance/state.rs` | **MODIFIED** | Rewired `Dag` arm to call `parse_dag_graph` |
+| `crates/vo-actor/src/dag/parse.rs` | **CREATED** | 240 |
+| `crates/vo-actor/src/dag/mod.rs` | **MODIFIED** | +2 (added `pub mod parse;` and `pub use parse::*;`) |
+| `crates/vo-actor/src/dag/tests.rs` | **MODIFIED** | +172 (15 new parse tests) |
+| `crates/vo-actor/src/instance/state.rs` | **MODIFIED** | Rewired `Dag` arm to call `parse_dag_graph` |
 
 ## Implementation
 
@@ -81,12 +81,12 @@ updated_at: 2026-03-23T12:00:00Z
 ## Verification
 
 ```
-$ cargo test -p wtf-actor
+$ cargo test -p vo-actor
   124 lib tests PASSED, 0 FAILED
   31 integration tests PASSED, 0 FAILED
   Total: 155 PASSED, 0 FAILED
 
-$ cargo clippy -p wtf-actor -- -W clippy::pedantic -A clippy::missing-errors-doc
+$ cargo clippy -p vo-actor -- -W clippy::pedantic -A clippy::missing-errors-doc
   Zero warnings from dag/parse.rs
   Zero warnings from dag/mod.rs
   Zero warnings from instance/state.rs

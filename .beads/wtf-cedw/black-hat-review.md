@@ -1,4 +1,4 @@
-# Black Hat Review: wtf-cedw
+# Black Hat Review: vo-cedw
 
 **STATUS: APPROVED**
 
@@ -59,8 +59,8 @@
 - [x] `WorkflowContext::wait_for_signal()` follows the checkpoint-first pattern.
 - [x] `InstanceMsg::ProceduralWaitForSignal` variant exists and is handled.
 - [x] `InstanceState::pending_signal_calls` is initialized to empty `HashMap`.
-- [x] `cargo test -p wtf-actor` passes (all tests green).
-- [x] `cargo clippy -p wtf-actor -- -D warnings` — wtf-actor is clean; pre-existing failures in wtf-common are unrelated.
+- [x] `cargo test -p vo-actor` passes (all tests green).
+- [x] `cargo clippy -p vo-actor -- -D warnings` — vo-actor is clean; pre-existing failures in vo-common are unrelated.
 
 ---
 

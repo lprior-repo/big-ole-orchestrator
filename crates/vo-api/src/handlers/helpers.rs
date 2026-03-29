@@ -1,5 +1,5 @@
-use wtf_actor::messages::WorkflowParadigm;
-use wtf_common::InstanceId;
+use vo_actor::messages::WorkflowParadigm;
+use vo_common::InstanceId;
 
 /// Split a path `<namespace>/<instance_id>` into the two parts.
 ///
@@ -32,9 +32,9 @@ pub fn paradigm_to_str(p: WorkflowParadigm) -> &'static str {
 }
 
 #[must_use]
-pub fn phase_to_str(p: wtf_actor::messages::InstancePhaseView) -> &'static str {
+pub fn phase_to_str(p: vo_actor::messages::InstancePhaseView) -> &'static str {
     match p {
-        wtf_actor::messages::InstancePhaseView::Replay => "replay",
-        wtf_actor::messages::InstancePhaseView::Live => "live",
+        vo_actor::messages::InstancePhaseView::Replay => "replay",
+        vo_actor::messages::InstancePhaseView::Live => "live",
     }
 }

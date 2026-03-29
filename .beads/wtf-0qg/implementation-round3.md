@@ -1,4 +1,4 @@
-# Implementation Round 3 — Bead wtf-0qg (spawn_workflow)
+# Implementation Round 3 — Bead vo-0qg (spawn_workflow)
 
 ## Summary
 
@@ -8,13 +8,13 @@ Fixed all 4 mandatory items from Round 3 black-hat review. All 99 tests pass (68
 
 ### N-15 (HIGH): Event publish error logging in `handle_cancel`
 
-**File:** `crates/wtf-actor/src/instance/handlers.rs` (lines 122-138)
+**File:** `crates/vo-actor/src/instance/handlers.rs` (lines 122-138)
 
 The `let _ = store.publish(...)` on the cancellation event publish was already fixed in a prior edit (same bug class as N-09 which was fixed in Round 2). The fix adds structured error logging with `instance_id` and `error` fields at `error!` level.
 
 ### N-02 (HIGH): Integration test for `spawn_and_register`
 
-**File:** `crates/wtf-actor/tests/spawn_workflow_test.rs` (NEW — 205 lines)
+**File:** `crates/vo-actor/tests/spawn_workflow_test.rs` (NEW — 205 lines)
 
 Created 4 integration tests that exercise the full MasterOrchestrator RPC path:
 
@@ -27,7 +27,7 @@ Required a mock `EventStore` + `ReplayStream` (`EmptyReplayStream` that immediat
 
 ### Farley: `handle_heartbeat_expired` split (37 lines → 3 functions ≤25 lines each)
 
-**File:** `crates/wtf-actor/src/master/handlers/heartbeat.rs`
+**File:** `crates/vo-actor/src/master/handlers/heartbeat.rs`
 
 Extracted two functions from `handle_heartbeat_expired`:
 
@@ -38,9 +38,9 @@ Extracted two functions from `handle_heartbeat_expired`:
 ### Farley: `handle_start_workflow` param reduction (8 params → 3 params)
 
 **Files:**
-- `crates/wtf-actor/src/master/handlers/start.rs` — Introduced `StartWorkflowParams` struct grouping namespace, instance_id, workflow_type, paradigm, input, reply.
-- `crates/wtf-actor/src/master/handlers/mod.rs` — Re-exported `StartWorkflowParams`.
-- `crates/wtf-actor/src/master/mod.rs` — Updated call site to construct `StartWorkflowParams` before delegating.
+- `crates/vo-actor/src/master/handlers/start.rs` — Introduced `StartWorkflowParams` struct grouping namespace, instance_id, workflow_type, paradigm, input, reply.
+- `crates/vo-actor/src/master/handlers/mod.rs` — Re-exported `StartWorkflowParams`.
+- `crates/vo-actor/src/master/mod.rs` — Updated call site to construct `StartWorkflowParams` before delegating.
 
 `handle_start_workflow` now has 3 params: `(myself, state, params)`.
 
@@ -57,11 +57,11 @@ Extracted two functions from `handle_heartbeat_expired`:
 
 ## Files Changed
 
-1. `crates/wtf-actor/src/instance/handlers.rs` — N-15 error logging (pre-existing fix verified)
-2. `crates/wtf-actor/src/master/handlers/heartbeat.rs` — Split `handle_heartbeat_expired` into 3 functions
-3. `crates/wtf-actor/src/master/handlers/start.rs` — Introduced `StartWorkflowParams`, reduced params
-4. `crates/wtf-actor/src/master/handlers/mod.rs` — Re-exported `StartWorkflowParams`
-5. `crates/wtf-actor/src/master/mod.rs` — Updated call site
-6. `crates/wtf-actor/tests/spawn_workflow_test.rs` — NEW integration test file (4 tests)
+1. `crates/vo-actor/src/instance/handlers.rs` — N-15 error logging (pre-existing fix verified)
+2. `crates/vo-actor/src/master/handlers/heartbeat.rs` — Split `handle_heartbeat_expired` into 3 functions
+3. `crates/vo-actor/src/master/handlers/start.rs` — Introduced `StartWorkflowParams`, reduced params
+4. `crates/vo-actor/src/master/handlers/mod.rs` — Re-exported `StartWorkflowParams`
+5. `crates/vo-actor/src/master/mod.rs` — Updated call site
+6. `crates/vo-actor/tests/spawn_workflow_test.rs` — NEW integration test file (4 tests)
 
 FIXES APPLIED

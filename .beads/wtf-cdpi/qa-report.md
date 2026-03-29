@@ -1,6 +1,6 @@
-# QA Report: wtf-cdpi
+# QA Report: vo-cdpi
 
-- **bead_id**: wtf-cdpi
+- **bead_id**: vo-cdpi
 - **phase**: STATE-4.5
 - **updated_at**: 2026-03-23T12:00:00Z
 - **verdict**: **PASS** (with advisory notes)
@@ -38,7 +38,7 @@ The spec requires "Zero unwrap() or expect() calls in **new code**" — the hand
 **Evidence**: `definitions.rs:1-3`:
 ```rust
 use axum::extract::Extension;
-use wtf_storage::kv::{definition_key, KvStores};
+use vo_storage::kv::{definition_key, KvStores};
 ```
 Both required imports present.
 
@@ -48,7 +48,7 @@ Both required imports present.
 
 ### 6. Tests pass — PASS
 
-**Command**: `cargo test -p wtf-api --lib -- definitions`
+**Command**: `cargo test -p vo-api --lib -- definitions`
 
 **Output**:
 ```

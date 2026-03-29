@@ -3,8 +3,8 @@
 ## Context
 
 - **Feature:** End-to-end test for the workflow termination path -- from `DELETE /api/v1/workflows/:id` through the actor system to JetStream persistence and actor stop.
-- **Bead:** `wtf-k00f`
-- **Test file:** `crates/wtf-actor/tests/terminate_e2e.rs` (actor-level integration test, NOT HTTP-level)
+- **Bead:** `vo-k00f`
+- **Test file:** `crates/vo-actor/tests/terminate_e2e.rs` (actor-level integration test, NOT HTTP-level)
 
 ### Domain Terms
 
@@ -21,8 +21,8 @@
 
 ### Assumptions
 
-1. NATS server is running in Docker container `wtf-nats-test` on `localhost:4222`.
-2. JetStream stream `wtf-events` is provisioned via `provision_streams()` before any operations.
+1. NATS server is running in Docker container `vo-nats-test` on `localhost:4222`.
+2. JetStream stream `vo-events` is provisioned via `provision_streams()` before any operations.
 3. Test operates at the **actor level** -- uses `OrchestratorMsg::Terminate` directly, NOT the HTTP layer.
 4. Real `NatsClient` is used as `EventStore` -- no mocks (this is E2E).
 5. A procedural `WorkflowFn` with a long `tokio::time::sleep(60s)` keeps the instance alive during cancel.
@@ -37,7 +37,7 @@ None -- all questions resolved in `spec.md` `resolved_clarifications`.
 ## Preconditions
 
 - **P-1:** NATS server is reachable on `localhost:4222`.
-- **P-2:** JetStream stream `wtf-events` is provisioned.
+- **P-2:** JetStream stream `vo-events` is provisioned.
 - **P-3:** `NatsClient` is connected and implements `EventStore` trait.
 - **P-4:** `MasterOrchestrator` actor is spawned with `OrchestratorConfig` containing `event_store: Some(Arc::new(nats_client))`.
 - **P-5:** A procedural `WorkflowFn` is registered in the orchestrator's workflow registry (e.g. `"e2e-terminate-test"`).
@@ -99,7 +99,7 @@ async fn handle_cancel(
     myself_ref: ActorRef<InstanceMsg>,
     state: &InstanceState,
     reason: String,
-    reply: RpcReplyPort<Result<(), WtfError>>,
+    reply: RpcReplyPort<Result<(), VoError>>,
 ) -> Result<(), ActorProcessingErr>
 
 // JetStream publish (called internally by handle_cancel)
@@ -108,7 +108,7 @@ fn publish(
     namespace: &NamespaceId,
     instance_id: &InstanceId,
     event: WorkflowEvent,
-) -> impl Future<Output = Result<u64, WtfError>>
+) -> impl Future<Output = Result<u64, VoError>>
 
 // Journal replay (test uses this to verify InstanceCancelled)
 fn open_replay_stream(
@@ -116,7 +116,7 @@ fn open_replay_stream(
     namespace: &NamespaceId,
     instance_id: &InstanceId,
     from_seq: u64,
-) -> impl Future<Output = Result<Box<dyn ReplayStream>, WtfError>>
+) -> impl Future<Output = Result<Box<dyn ReplayStream>, VoError>>
 
 // Status check (test uses this to verify actor is dead)
 // OrchestratorMsg::GetStatus { instance_id, reply }

@@ -1,4 +1,4 @@
-//! Domain state types for the wtf-engine.
+//! Domain state types for the vo-engine.
 //!
 //! Lifecycle state machine with exhaustive transition rules.
 #![allow(dead_code)]

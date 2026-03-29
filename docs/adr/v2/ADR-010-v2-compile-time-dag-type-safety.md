@@ -6,10 +6,10 @@ Accepted
 ## Context
 Traditional orchestrators (Temporal, Restate, Airflow) rely on dynamic typing or runtime reflection to move data between workflow steps. If Step A outputs an `Order` object, but Step B expects a `Receipt` object, the system only discovers this mismatch at runtime when Step B crashes.
 
-Because `wtf-engine` compiles an entire workflow (all steps and DAG topology) into a single Rust binary (ADR-009), we have a unique opportunity to leverage the `rustc` compiler to validate the entire workflow graph before it ever runs.
+Because `vo-engine` compiles an entire workflow (all steps and DAG topology) into a single Rust binary (ADR-009), we have a unique opportunity to leverage the `rustc` compiler to validate the entire workflow graph before it ever runs.
 
 ## Decision
-We will enforce cross-node type safety at compile time using a heavily constrained generic `NodeHandle<I, O>` pattern in the `wtf-sdk`.
+We will enforce cross-node type safety at compile time using a heavily constrained generic `NodeHandle<I, O>` pattern in the `vo-sdk`.
 
 ### Implementation Strategy
 When a developer registers a task function, the SDK wraps it in a typed handle:

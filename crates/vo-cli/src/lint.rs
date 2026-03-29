@@ -7,8 +7,8 @@ use clap::ValueEnum;
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
-use wtf_linter::diagnostic::LintError;
-use wtf_linter::Diagnostic;
+use vo_linter::diagnostic::LintError;
+use vo_linter::Diagnostic;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 #[derive(Default)]

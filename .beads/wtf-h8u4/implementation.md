@@ -1,4 +1,4 @@
-# Implementation: wtf-h8u4 — Signal Delivery Workflow Tests
+# Implementation: vo-h8u4 — Signal Delivery Workflow Tests
 
 ## Summary
 
@@ -10,7 +10,7 @@ Implemented 11 handler-level test scenarios validating the full signal delivery 
 
 | File | Action | Lines |
 |------|--------|-------|
-| `crates/wtf-actor/src/instance/handlers_tests.rs` | Modified | +427 lines (11 new tests + 1 import) |
+| `crates/vo-actor/src/instance/handlers_tests.rs` | Modified | +427 lines (11 new tests + 1 import) |
 
 ## Tests Added
 
@@ -90,16 +90,16 @@ These tests use `.expect("descriptive message")` on channel receivers (standard 
 ## Verification
 
 ```bash
-$ cargo test -p wtf-actor -- signal
+$ cargo test -p vo-actor -- signal
 # 24 signal-related tests pass (11 new + 13 existing)
 
-$ cargo test -p wtf-actor
+$ cargo test -p vo-actor
 # 137 unit tests + 31 integration tests pass, 0 failures
 ```
 
 ## Deviations from Contract
 
-1. **Test file location**: Contract specified `crates/wtf-actor/tests/signal_delivery_e2e.rs` but `pub(crate)` visibility on handlers prevents external test access. Tests appended to `handlers_tests.rs` following the C1 fix in martin-fowler-tests.md.
+1. **Test file location**: Contract specified `crates/vo-actor/tests/signal_delivery_e2e.rs` but `pub(crate)` visibility on handlers prevents external test access. Tests appended to `handlers_tests.rs` following the C1 fix in martin-fowler-tests.md.
 2. **Scenario 3 scope**: InstanceNotFound is an orchestrator-level error, not testable at the handler level. Test verifies the handler succeeds without panic on any InstanceState.
 3. **Scenario 6 scope clarification**: Handlers do NOT increment `operation_counter` (that's WorkflowContext's job). Test verifies `total_events_applied` increments instead, which IS the handler's contract per C3 fix.
 4. **Removed tests**: `signal_rpc_returns_ok_even_when_workflow_already_stopped` (not testable at handler level per M6 fix).

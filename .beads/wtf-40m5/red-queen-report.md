@@ -1,9 +1,9 @@
-# Red Queen Report — wtf-40m5: "serve: Start heartbeat watcher in serve.rs"
+# Red Queen Report — vo-40m5: "serve: Start heartbeat watcher in serve.rs"
 
 **Date:** 2026-03-23
 **Files under test:**
-- `crates/wtf-cli/src/commands/serve.rs` (354 lines)
-- `crates/wtf-actor/src/heartbeat.rs` (167 lines)
+- `crates/vo-cli/src/commands/serve.rs` (354 lines)
+- `crates/vo-actor/src/heartbeat.rs` (167 lines)
 
 ---
 
@@ -84,14 +84,14 @@ Exactly one spawn site in production code. No path for double spawn.
 
 ---
 
-## Attack 5: Test isolation — run `cargo test -p wtf-cli` twice
+## Attack 5: Test isolation — run `cargo test -p vo-cli` twice
 
 **Attack:** Flaky tests that depend on shared state (NATS, ports, filesystem) could pass once and fail on repeat.
 
 **Commands:**
 ```
-cargo test -p wtf-cli -- --nocapture  # Pass 1
-cargo test -p wtf-cli -- --nocapture  # Pass 2
+cargo test -p vo-cli -- --nocapture  # Pass 1
+cargo test -p vo-cli -- --nocapture  # Pass 2
 ```
 
 **Results:**
@@ -110,13 +110,13 @@ Both passes identical. All 10 tests stable across runs.
 
 **Commands:**
 ```
-cargo clippy -p wtf-cli -- -W clippy::unwrap_used -W clippy::expect_used
-cargo clippy -p wtf-actor -- -W clippy::unwrap_used -W clippy::expect_used
+cargo clippy -p vo-cli -- -W clippy::unwrap_used -W clippy::expect_used
+cargo clippy -p vo-actor -- -W clippy::unwrap_used -W clippy::expect_used
 ```
 
 **Findings:**
-- `wtf-cli/serve.rs`: No unwrap/expect in production code. One `.expect("already asserted is_err")` on line 338, but this is in `#[cfg(test)]` block — acceptable (test-only assertion after prior `assert!`).
-- `wtf-actor/heartbeat.rs`: No unwrap/expect anywhere. The file already has `#![deny(clippy::unwrap_used)]` and `#![deny(clippy::expect_used)]` at module level (lines 19-20).
+- `vo-cli/serve.rs`: No unwrap/expect in production code. One `.expect("already asserted is_err")` on line 338, but this is in `#[cfg(test)]` block — acceptable (test-only assertion after prior `assert!`).
+- `vo-actor/heartbeat.rs`: No unwrap/expect anywhere. The file already has `#![deny(clippy::unwrap_used)]` and `#![deny(clippy::expect_used)]` at module level (lines 19-20).
 - No clippy errors (only pedantic doc-markdown warnings in dependency crates, not in the target files).
 
 **Result: SURVIVED**

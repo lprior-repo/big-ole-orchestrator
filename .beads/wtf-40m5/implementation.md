@@ -1,6 +1,6 @@
-# Implementation Summary: wtf-40m5
+# Implementation Summary: vo-40m5
 
-- **bead_id:** wtf-40m5
+- **bead_id:** vo-40m5
 - **bead_title:** serve: Start heartbeat watcher in serve.rs
 - **phase:** STATE-3
 - **updated_at:** 2026-03-23T12:00:00Z
@@ -9,12 +9,12 @@
 
 | File | Lines | Change |
 |------|-------|--------|
-| `crates/wtf-cli/src/commands/serve.rs` | L14 | Added `use wtf_actor::heartbeat::run_heartbeat_watcher;` import |
-| `crates/wtf-cli/src/commands/serve.rs` | L79 | Added `let heartbeat_shutdown = shutdown_rx.clone();` before `timer_shutdown` move |
-| `crates/wtf-cli/src/commands/serve.rs` | L88-92 | Spawned heartbeat watcher task with `kv.heartbeats.clone()`, `master.clone()`, `heartbeat_shutdown` |
-| `crates/wtf-cli/src/commands/serve.rs` | L95 | Updated call site to pass `heartbeat_task` to `drain_runtime` |
-| `crates/wtf-cli/src/commands/serve.rs` | L100-126 | Updated `drain_runtime` signature to accept `JoinHandle<Result<(), String>>` for heartbeat, await it, and propagate errors |
-| `crates/wtf-cli/src/commands/serve.rs` | L162-228 | Updated test to provide third heartbeat handle and assert it drains |
+| `crates/vo-cli/src/commands/serve.rs` | L14 | Added `use vo_actor::heartbeat::run_heartbeat_watcher;` import |
+| `crates/vo-cli/src/commands/serve.rs` | L79 | Added `let heartbeat_shutdown = shutdown_rx.clone();` before `timer_shutdown` move |
+| `crates/vo-cli/src/commands/serve.rs` | L88-92 | Spawned heartbeat watcher task with `kv.heartbeats.clone()`, `master.clone()`, `heartbeat_shutdown` |
+| `crates/vo-cli/src/commands/serve.rs` | L95 | Updated call site to pass `heartbeat_task` to `drain_runtime` |
+| `crates/vo-cli/src/commands/serve.rs` | L100-126 | Updated `drain_runtime` signature to accept `JoinHandle<Result<(), String>>` for heartbeat, await it, and propagate errors |
+| `crates/vo-cli/src/commands/serve.rs` | L162-228 | Updated test to provide third heartbeat handle and assert it drains |
 
 ## Design Decision: Error Type Handling
 
@@ -41,26 +41,26 @@ The spec suggested Option 1 (wrap `String` error in `anyhow::Error` at spawn sit
 ## Verification
 
 ```
-$ cargo check -p wtf-cli --tests
+$ cargo check -p vo-cli --tests
 Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.25s
 
-$ cargo test -p wtf-cli
+$ cargo test -p vo-cli
 running 9 tests
 test serve::tests::drain_runtime_signals_shutdown_and_waits_for_tasks ... ok
 test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 
-$ cargo clippy -p wtf-cli
-No new warnings introduced. Pre-existing warnings in wtf-common (missing_errors_doc) block
+$ cargo clippy -p vo-cli
+No new warnings introduced. Pre-existing warnings in vo-common (missing_errors_doc) block
 `-D warnings` but are unrelated to this bead.
 ```
 
 ## Spec Checklist
 
-- [x] `use wtf_actor::heartbeat::run_heartbeat_watcher;` added to imports
+- [x] `use vo_actor::heartbeat::run_heartbeat_watcher;` added to imports
 - [x] `heartbeat_task` spawned with `kv.heartbeats.clone()`, `master.clone()`, `shutdown_rx.clone()`
 - [x] `drain_runtime` accepts and awaits the heartbeat `JoinHandle`
 - [x] Error type correctly handled (`String` -> `anyhow::Error` via `.map_err()`)
 - [x] Call site passes `heartbeat_task` to `drain_runtime`
-- [x] `cargo check -p wtf-cli --tests` succeeds
-- [x] `cargo test -p wtf-cli` passes (9/9)
+- [x] `cargo check -p vo-cli --tests` succeeds
+- [x] `cargo test -p vo-cli` passes (9/9)
 - [x] No `unwrap()` or `expect()` introduced

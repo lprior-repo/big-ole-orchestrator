@@ -1,11 +1,11 @@
-# Implementation Summary: wtf-k00f — E2E: Terminate Workflow
+# Implementation Summary: vo-k00f — E2E: Terminate Workflow
 
 ## Changed Files
 
 | File | Change | Lines |
 |------|--------|-------|
-| `crates/wtf-actor/src/instance/handlers.rs` | Made `handle_cancel` `pub(crate)` to enable direct handler-level testing | 1 |
-| `crates/wtf-actor/src/instance/handlers_tests.rs` | Added 13 terminate/cancel handler-level tests | ~490 |
+| `crates/vo-actor/src/instance/handlers.rs` | Made `handle_cancel` `pub(crate)` to enable direct handler-level testing | 1 |
+| `crates/vo-actor/src/instance/handlers_tests.rs` | Added 13 terminate/cancel handler-level tests | ~490 |
 
 ## Test Inventory
 
@@ -86,7 +86,7 @@ The contract specifies NATS-dependent E2E tests, but the user instructions expli
 
 - **`MockOkEventStore`** (pre-existing) — publishes successfully, returns `seq=42`
 - **`CapturingEventStore`** (new) — captures last published `WorkflowEvent` for assertion
-- **`FailingEventStore`** (new) — always returns `Err(WtfError::nats_publish(...))`
+- **`FailingEventStore`** (new) — always returns `Err(VoError::nats_publish(...))`
 - **`NullInstanceActor`** (new helper) — spawns a real `ActorRef<InstanceMsg>` that ignores all messages
 - **`SilentCancelActor`** (new helper) — spawns an actor that swallows `Cancel` messages (never replies), used to trigger the `INSTANCE_CALL_TIMEOUT` path
 

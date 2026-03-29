@@ -1,6 +1,6 @@
-# BEAD: wtf-h8u4 - e2e: Test signal delivery workflow
+# BEAD: vo-h8u4 - e2e: Test signal delivery workflow
 
-id: "wtf-h8u4"
+id: "vo-h8u4"
 title: "e2e: Test signal delivery workflow"
 type: feature
 priority: 1
@@ -11,16 +11,16 @@ clarification_status: "RESOLVED"
 
 resolved_clarifications:
   - question: "Which crate should the e2e test live in?"
-    answer: "wtf-actor/tests/signal_delivery_e2e.rs — same pattern as spawn_workflow_test.rs and fsm_crash_replay.rs. The test spawns MasterOrchestrator with a MockEventStore, registers a procedural WorkflowFn that calls wait_for_signal, then sends a signal via OrchestratorMsg::Signal RPC."
-    decided_by: "Existing integration tests in wtf-actor/tests/ all use MockEventStore + MasterOrchestrator::spawn."
+    answer: "vo-actor/tests/signal_delivery_e2e.rs — same pattern as spawn_workflow_test.rs and fsm_crash_replay.rs. The test spawns MasterOrchestrator with a MockEventStore, registers a procedural WorkflowFn that calls wait_for_signal, then sends a signal via OrchestratorMsg::Signal RPC."
+    decided_by: "Existing integration tests in vo-actor/tests/ all use MockEventStore + MasterOrchestrator::spawn."
     date: "2026-03-23"
   - question: "Is wait_for_signal already implemented on WorkflowContext?"
-    answer: "No. Beads wtf-88f4, wtf-3cv7, and wtf-cedw cover implementing wait_for_signal, pending_signal_calls, and SignalReceived persistence. This e2e test assumes those beads are implemented first (or the test itself verifies the full pipe). The test MUST document the dependency chain."
-    decided_by: "wtf-3cv7 spec lines 399-406 list wait_for_signal as implementation output. InstanceState has no pending_signal_calls field yet (state.rs:13-38)."
+    answer: "No. Beads vo-88f4, vo-3cv7, and vo-cedw cover implementing wait_for_signal, pending_signal_calls, and SignalReceived persistence. This e2e test assumes those beads are implemented first (or the test itself verifies the full pipe). The test MUST document the dependency chain."
+    decided_by: "vo-3cv7 spec lines 399-406 list wait_for_signal as implementation output. InstanceState has no pending_signal_calls field yet (state.rs:13-38)."
     date: "2026-03-23"
   - question: "Does the test need a real NATS server?"
     answer: "No. The existing MockEventStore pattern (spawn_workflow_test.rs:44-65) returns Ok(1) from publish() and EmptyReplayStream from open_replay_stream(). The e2e test uses this pattern — it validates the actor message flow, not NATS durability. A separate integration test with real NATS is out of scope."
-    decided_by: "All existing wtf-actor integration tests use MockEventStore (spawn_workflow_test.rs:44-65, fsm_crash_replay.rs)."
+    decided_by: "All existing vo-actor integration tests use MockEventStore (spawn_workflow_test.rs:44-65, fsm_crash_replay.rs)."
     date: "2026-03-23"
   - question: "How does the test verify the workflow completed after receiving the signal?"
     answer: "The test WorkflowFn calls ctx.wait_for_signal(\"go\").await, then returns Ok(()). After sending the signal via OrchestratorMsg::Signal, the test polls GetStatus until the instance is no longer listed, or uses a tokio::time::timeout to confirm the workflow task completes within a deadline."
@@ -28,9 +28,9 @@ resolved_clarifications:
     date: "2026-03-23"
 
 assumptions:
-  - assumption: "Beads wtf-88f4 (pending_signal_calls), wtf-3cv7 (wait_for_signal on WorkflowContext), and wtf-cedw (SignalReceived persistence + wake) are implemented before this test"
+  - assumption: "Beads vo-88f4 (pending_signal_calls), vo-3cv7 (wait_for_signal on WorkflowContext), and vo-cedw (SignalReceived persistence + wake) are implemented before this test"
     risk_if_wrong: "Test will fail to compile — WorkflowContext::wait_for_signal and InstanceState::pending_signal_calls won't exist"
-  - assumption: "InstanceMsg::InjectSignal wakes pending waiters after wtf-cedw is implemented"
+  - assumption: "InstanceMsg::InjectSignal wakes pending waiters after vo-cedw is implemented"
     risk_if_wrong: "Signal will be sent but workflow will hang forever — test will timeout"
   - assumption: "MockEventStore returning Ok(1) from publish() is sufficient for the actor to proceed with event injection"
     risk_if_wrong: "Signal delivery path may require seq to be meaningful — but spawn_workflow_test.rs proves seq=1 works"
@@ -72,23 +72,23 @@ contracts:
 
 research_requirements:
   files_to_read:
-    - file: "crates/wtf-actor/tests/spawn_workflow_test.rs"
+    - file: "crates/vo-actor/tests/spawn_workflow_test.rs"
       reason: "Reference pattern: MockEventStore, EmptyReplayStream, MasterOrchestrator::spawn, RPC helpers"
-    - file: "crates/wtf-actor/tests/fsm_crash_replay.rs"
+    - file: "crates/vo-actor/tests/fsm_crash_replay.rs"
       reason: "Reference pattern: integration test with event replay and workflow lifecycle"
-    - file: "crates/wtf-actor/src/messages/instance.rs"
-      reason: "InstanceMsg::InjectSignal variant at line 59-63, InstanceMsg::ProceduralWaitForSignal (if added by wtf-3cv7)"
-    - file: "crates/wtf-actor/src/messages/orchestrator.rs"
+    - file: "crates/vo-actor/src/messages/instance.rs"
+      reason: "InstanceMsg::InjectSignal variant at line 59-63, InstanceMsg::ProceduralWaitForSignal (if added by vo-3cv7)"
+    - file: "crates/vo-actor/src/messages/orchestrator.rs"
       reason: "OrchestratorMsg::Signal at line 26-31 — the RPC used to send signals from the test"
-    - file: "crates/wtf-actor/src/instance/handlers.rs"
+    - file: "crates/vo-actor/src/instance/handlers.rs"
       reason: "handle_signal at line 116-129 (currently a stub), handle_inject_event_msg for SignalReceived wake"
-    - file: "crates/wtf-actor/src/instance/state.rs"
-      reason: "InstanceState struct — pending_signal_calls field (to be added by wtf-88f4)"
-    - file: "crates/wtf-actor/src/procedural/context.rs"
-      reason: "WorkflowContext::wait_for_signal (to be added by wtf-3cv7)"
-    - file: "crates/wtf-api/src/handlers/signal.rs"
+    - file: "crates/vo-actor/src/instance/state.rs"
+      reason: "InstanceState struct — pending_signal_calls field (to be added by vo-88f4)"
+    - file: "crates/vo-actor/src/procedural/context.rs"
+      reason: "WorkflowContext::wait_for_signal (to be added by vo-3cv7)"
+    - file: "crates/vo-api/src/handlers/signal.rs"
       reason: "HTTP signal handler — validates the V3SignalRequest shape"
-    - file: "crates/wtf-common/src/events/mod.rs"
+    - file: "crates/vo-common/src/events/mod.rs"
       reason: "WorkflowEvent::SignalReceived at line 71"
 
   research_questions: []
@@ -121,9 +121,9 @@ acceptance_tests:
       given: "MasterOrchestrator spawned; no instance with id \"ghost\""
       when: "OrchestratorMsg::Signal { instance_id: InstanceId::new(\"ghost\"), signal_name: \"x\", payload: b'' } is sent"
       then:
-        - "Signal RPC returns Err(WtfError::InstanceNotFound)"
+        - "Signal RPC returns Err(VoError::InstanceNotFound)"
       real_input: "OrchestratorMsg::Signal for non-existent instance"
-      expected_output: "Err(WtfError::InstanceNotFound { .. })"
+      expected_output: "Err(VoError::InstanceNotFound { .. })"
 
   sad_paths:
     - name: "e2e_signal_with_wrong_name_does_not_unblock"
@@ -144,84 +144,84 @@ implementation_tasks:
   - task: "Copy MockEventStore + EmptyReplayStream from spawn_workflow_test.rs"
     done_when: "MockEventStore and EmptyReplayStream structs available in test file"
     files:
-      - path: "crates/wtf-actor/tests/signal_delivery_e2e.rs"
+      - path: "crates/vo-actor/tests/signal_delivery_e2e.rs"
         action: create
 
   - task: "Implement SignalWorkflowFn — procedural workflow that waits for signal then completes"
     done_when: "SignalWorkflowFn implements WorkflowFn trait, calls ctx.wait_for_signal(\"go\"), returns Ok(())"
     files:
-      - path: "crates/wtf-actor/tests/signal_delivery_e2e.rs"
+      - path: "crates/vo-actor/tests/signal_delivery_e2e.rs"
         action: create
 
   - task: "Implement test_config with procedural_workflow: Some(Arc::new(SignalWorkflowFn))"
     done_when: "OrchestratorConfig includes the signal-waiting workflow function"
     files:
-      - path: "crates/wtf-actor/tests/signal_delivery_e2e.rs"
+      - path: "crates/vo-actor/tests/signal_delivery_e2e.rs"
         action: create
 
   - task: "Implement send_signal_rpc helper using OrchestratorMsg::Signal"
-    done_when: "Helper function sends signal and returns Result<(), WtfError>"
+    done_when: "Helper function sends signal and returns Result<(), VoError>"
     files:
-      - path: "crates/wtf-actor/tests/signal_delivery_e2e.rs"
+      - path: "crates/vo-actor/tests/signal_delivery_e2e.rs"
         action: create
 
   - task: "Write e2e_signal_delivery_resumes_and_completes_workflow test"
     done_when: "Test spawns orchestrator, starts workflow, sends signal, verifies completion"
     files:
-      - path: "crates/wtf-actor/tests/signal_delivery_e2e.rs"
+      - path: "crates/vo-actor/tests/signal_delivery_e2e.rs"
         action: create
 
   - task: "Write e2e_signal_to_nonexistent_instance test"
     done_when: "Test verifies InstanceNotFound error for ghost instance"
     files:
-      - path: "crates/wtf-actor/tests/signal_delivery_e2e.rs"
+      - path: "crates/vo-actor/tests/signal_delivery_e2e.rs"
         action: create
 
   - task: "Write e2e_signal_arrives_before_wait_for_signal test"
     done_when: "Test sends signal before workflow reaches wait_for_signal, verifies buffered delivery"
     files:
-      - path: "crates/wtf-actor/tests/signal_delivery_e2e.rs"
+      - path: "crates/vo-actor/tests/signal_delivery_e2e.rs"
         action: create
 
   - task: "Write e2e_signal_with_wrong_name_does_not_unblock test"
     done_when: "Test verifies wrong signal name does not unblock workflow (timeout assertion)"
     files:
-      - path: "crates/wtf-actor/tests/signal_delivery_e2e.rs"
+      - path: "crates/vo-actor/tests/signal_delivery_e2e.rs"
         action: create
 
 potential_pitfalls:
   - symptom: "Test hangs forever — signal sent but workflow never resumes"
     likely_cause: "handle_signal (handlers.rs:116-129) is still a stub and does not wake pending_signal_calls waiters"
-    fix_pattern: "Ensure wtf-cedw is implemented: handle_signal publishes WorkflowEvent::SignalReceived, handle_inject_event_msg wakes pending waiter"
+    fix_pattern: "Ensure vo-cedw is implemented: handle_signal publishes WorkflowEvent::SignalReceived, handle_inject_event_msg wakes pending waiter"
 
   - symptom: "Test fails to compile — wait_for_signal method not found on WorkflowContext"
-    likely_cause: "wtf-3cv7 not yet implemented"
-    fix_pattern: "Implement bead wtf-3cv7 first, or gate test behind #[cfg(feature = \"signals\")]"
+    likely_cause: "vo-3cv7 not yet implemented"
+    fix_pattern: "Implement bead vo-3cv7 first, or gate test behind #[cfg(feature = \"signals\")]"
 
   - symptom: "Test fails to compile — pending_signal_calls field not found on InstanceState"
-    likely_cause: "wtf-88f4 not yet implemented"
-    fix_pattern: "Implement bead wtf-88f4 first"
+    likely_cause: "vo-88f4 not yet implemented"
+    fix_pattern: "Implement bead vo-88f4 first"
 
   - symptom: "Signal RPC returns Ok(()) but workflow hangs"
     likely_cause: "InjectSignal arrives before wait_for_signal registers its RPC port — signal is discarded (stub handler does not buffer)"
-    fix_pattern: "Ensure handle_signal buffers in pending_signal_calls when no waiter exists (wtf-88f4)"
+    fix_pattern: "Ensure handle_signal buffers in pending_signal_calls when no waiter exists (vo-88f4)"
 
   - symptom: "tokio test timeout — MockEventStore publish returns Ok(1) but event injection doesn't happen"
     likely_cause: "handle_signal stub does not call inject_event — SignalReceived event never applied to paradigm state"
-    fix_pattern: "Ensure wtf-cedw wires handle_signal to publish + inject"
+    fix_pattern: "Ensure vo-cedw wires handle_signal to publish + inject"
 
 dependencies:
   blocking:
-    - bead: "wtf-88f4"
+    - bead: "vo-88f4"
       reason: "Adds pending_signal_calls field to InstanceState and wires handle_signal to buffer signals"
-    - bead: "wtf-3cv7"
+    - bead: "vo-3cv7"
       reason: "Implements WorkflowContext::wait_for_signal() with dual-phase checkpoint pattern"
-    - bead: "wtf-cedw"
+    - bead: "vo-cedw"
       reason: "Persists SignalReceived event, wakes pending waiters in handle_inject_event_msg"
   blocked_by: []
 
 verification_criteria:
-  - criterion: "cargo test -p wtf-actor --test signal_delivery_e2e passes"
+  - criterion: "cargo test -p vo-actor --test signal_delivery_e2e passes"
   - criterion: "cargo clippy --workspace -- -D warnings passes"
   - criterion: "All 4 acceptance tests pass: signal delivery, early signal, nonexistent instance, wrong name"
 
@@ -259,10 +259,10 @@ code_snippets:
 
       #[async_trait]
       impl EventStore for MockEventStore {
-          async fn publish(&self, _ns: &NamespaceId, _inst: &InstanceId, _event: WorkflowEvent) -> Result<u64, WtfError> {
+          async fn publish(&self, _ns: &NamespaceId, _inst: &InstanceId, _event: WorkflowEvent) -> Result<u64, VoError> {
               Ok(1)
           }
-          async fn open_replay_stream(&self, _ns: &NamespaceId, _inst: &InstanceId, _from_seq: u64) -> Result<Box<dyn ReplayStream>, WtfError> {
+          async fn open_replay_stream(&self, _ns: &NamespaceId, _inst: &InstanceId, _from_seq: u64) -> Result<Box<dyn ReplayStream>, VoError> {
               Ok(Box::new(EmptyReplayStream))
           }
       }
@@ -290,7 +290,7 @@ code_snippets:
           instance_id: &str,
           signal_name: &str,
           payload: Bytes,
-      ) -> Result<(), WtfError> {
+      ) -> Result<(), VoError> {
           let result = orchestrator
               .call(|reply| OrchestratorMsg::Signal {
                   instance_id: InstanceId::new(instance_id),
@@ -302,16 +302,16 @@ code_snippets:
           match result {
               Ok(CallResult::Success(Ok(()))) => Ok(()),
               Ok(CallResult::Success(Err(e))) => Err(e),
-              Ok(CallResult::Timeout) => Err(WtfError::nats_publish("RPC timeout")),
-              _ => Err(WtfError::nats_publish("RPC call failed")),
+              Ok(CallResult::Timeout) => Err(VoError::nats_publish("RPC timeout")),
+              _ => Err(VoError::nats_publish("RPC call failed")),
           }
       }
 
 files_to_modify:
-  - path: "crates/wtf-actor/tests/signal_delivery_e2e.rs"
+  - path: "crates/vo-actor/tests/signal_delivery_e2e.rs"
     action: create
     relevance: "New integration test file — all tests live here"
-  - path: "crates/wtf-actor/Cargo.toml"
+  - path: "crates/vo-actor/Cargo.toml"
     action: check
     relevance: "Verify dev-dependencies include async-trait, bytes, ractor — already present (used by spawn_workflow_test.rs)"
 
@@ -325,18 +325,18 @@ boundaries:
     - "Edge case: wrong signal name does not unblock"
 
   out_of_scope:
-    - "HTTP-level signal test (POST /api/v1/workflows/:id/signals) — covered by crates/wtf-api/tests/unit/signal_handler_test.rs"
+    - "HTTP-level signal test (POST /api/v1/workflows/:id/signals) — covered by crates/vo-api/tests/unit/signal_handler_test.rs"
     - "NATS JetStream durability test (real NATS server) — separate integration test"
     - "Signal delivery during crash recovery / replay"
     - "Multiple waiters for the same signal name"
 
 rollout_strategy:
-  - "Add crates/wtf-actor/tests/signal_delivery_e2e.rs"
-  - "Run with: cargo test -p wtf-actor --test signal_delivery_e2e -- --test-threads=1"
-  - "Test is gated by wait_for_signal implementation — will not compile until wtf-3cv7, wtf-88f4, wtf-cedw are done"
+  - "Add crates/vo-actor/tests/signal_delivery_e2e.rs"
+  - "Run with: cargo test -p vo-actor --test signal_delivery_e2e -- --test-threads=1"
+  - "Test is gated by wait_for_signal implementation — will not compile until vo-3cv7, vo-88f4, vo-cedw are done"
 
 decisions:
-  - decision: "Test file lives in wtf-actor/tests/ not wtf-api/tests/"
+  - decision: "Test file lives in vo-actor/tests/ not vo-api/tests/"
     rationale: "Signal delivery is an actor-layer concern. The API handler (signal.rs) is already unit-tested. This test validates the full actor message flow: OrchestratorMsg::Signal → InjectSignal → handle_signal → waiter wake."
   - decision: "No #[ignore] attribute — test is gated by compilation (missing wait_for_signal)"
     rationale: "If the prerequisite beads are not implemented, the test simply won't compile. No need for runtime gating."

@@ -1,4 +1,4 @@
-# Architecture Drift Review — wtf-3cv7
+# Architecture Drift Review — vo-3cv7
 
 **STATUS: REFACTORED**
 
@@ -34,5 +34,5 @@ Three files exceeded the 300-line limit. All were refactored via pure structural
 
 ## Verification
 
-- `cargo check -p wtf-actor` ✅
-- `cargo test -p wtf-actor` ✅ (123 unit tests + 32 integration tests, 0 failures)
+- `cargo check -p vo-actor` ✅
+- `cargo test -p vo-actor` ✅ (123 unit tests + 32 integration tests, 0 failures)

@@ -1,6 +1,6 @@
-# BEAD: wtf-3cv7 - procedural: Implement wait_for_signal in WorkflowContext
+# BEAD: vo-3cv7 - procedural: Implement wait_for_signal in WorkflowContext
 
-id: "wtf-3cv7"
+id: "vo-3cv7"
 title: "procedural: Implement wait_for_signal in WorkflowContext"
 type: feature
 priority: 1
@@ -19,11 +19,11 @@ resolved_clarifications:
     decided_by: "No signal buffering exists yet in InstanceState or ProceduralActorState — must be added."
     date: "2026-03-23"
   - question: "What new InstanceMsg variants are needed?"
-    answer: "Two new variants on InstanceMsg: (1) ProceduralWaitForSignal { operation_id: u32, signal_name: String, reply: RpcReplyPort<Result<Bytes, WtfError>> } for the context to request waiting, (2) The existing InjectSignal path must be extended to check waiters and buffer undelivered signals."
+    answer: "Two new variants on InstanceMsg: (1) ProceduralWaitForSignal { operation_id: u32, signal_name: String, reply: RpcReplyPort<Result<Bytes, VoError>> } for the context to request waiting, (2) The existing InjectSignal path must be extended to check waiters and buffer undelivered signals."
     decided_by: "InstanceMsg at messages/instance.rs:52-94 — follows the ProceduralDispatch/ProceduralSleep pattern."
     date: "2026-03-23"
   - question: "How are pending signal waiters tracked in InstanceState?"
-    answer: "New field on InstanceState: `pending_signal_calls: HashMap<String, RpcReplyPort<Result<Bytes, WtfError>>>` keyed by signal_name. This mirrors pending_activity_calls (state.rs:27) and pending_timer_calls (state.rs:31)."
+    answer: "New field on InstanceState: `pending_signal_calls: HashMap<String, RpcReplyPort<Result<Bytes, VoError>>>` keyed by signal_name. This mirrors pending_activity_calls (state.rs:27) and pending_timer_calls (state.rs:31)."
     decided_by: "InstanceState at instance/state.rs:13-38 — same pattern as pending_activity_calls and pending_timer_calls."
     date: "2026-03-23"
 
@@ -31,8 +31,8 @@ assumptions:
   - assumption: "ProceduralActorState is Clone (state/mod.rs:30 derives Clone)"
     validation_method: "See state/mod.rs:30: #[derive(Debug, Clone, Serialize, Deserialize)]"
     risk_if_wrong: "apply_event clone pattern would break — trivially caught at compile"
-  - assumption: "WorkflowEvent::SignalReceived { signal_name: String, payload: Bytes } exists in wtf-common"
-    validation_method: "See crates/wtf-common/src/events/mod.rs:71"
+  - assumption: "WorkflowEvent::SignalReceived { signal_name: String, payload: Bytes } exists in vo-common"
+    validation_method: "See crates/vo-common/src/events/mod.rs:71"
     risk_if_wrong: "Cannot replay signal events — but this is a core event type, already defined"
   - assumption: "InstanceMsg::InjectSignal already exists at messages/instance.rs:59-63"
     validation_method: "See messages/instance.rs:59-63"
@@ -99,17 +99,17 @@ contracts:
 
 research_requirements:
   files_to_read:
-    - path: "crates/wtf-actor/src/procedural/context.rs"
+    - path: "crates/vo-actor/src/procedural/context.rs"
       what_to_extract: "WorkflowContext struct, activity() and sleep() dual-phase pattern (checkpoint check then live dispatch), op_counter usage"
-    - path: "crates/wtf-actor/src/procedural/state/mod.rs"
+    - path: "crates/vo-actor/src/procedural/state/mod.rs"
       what_to_extract: "ProceduralActorState struct, Checkpoint struct, checkpoint_map, apply_event function for SignalReceived handling"
-    - path: "crates/wtf-actor/src/instance/state.rs"
+    - path: "crates/vo-actor/src/instance/state.rs"
       what_to_extract: "InstanceState struct, pending_activity_calls and pending_timer_calls patterns for waiter registration"
-    - path: "crates/wtf-actor/src/messages/instance.rs"
+    - path: "crates/vo-actor/src/messages/instance.rs"
       what_to_extract: "InstanceMsg enum, InjectSignal variant, ProceduralDispatch/ProceduralSleep message patterns for new variant design"
-    - path: "crates/wtf-actor/src/instance/handlers.rs"
+    - path: "crates/vo-actor/src/instance/handlers.rs"
       what_to_extract: "handle_procedural_msg dispatch, handle_inject_event_msg for event replay wake-up pattern"
-    - path: "crates/wtf-common/src/events/mod.rs"
+    - path: "crates/vo-common/src/events/mod.rs"
       what_to_extract: "WorkflowEvent::SignalReceived { signal_name: String, payload: Bytes }"
   research_questions:
     - question: "Does apply_event in state/mod.rs handle WorkflowEvent::SignalReceived?"
@@ -197,7 +197,7 @@ e2e_tests:
     description: "Procedural workflow calls wait_for_signal -> external signal sent -> workflow resumes -> completes"
     setup:
       precondition_commands:
-        - "docker start wtf-nats-test"
+        - "docker start vo-nats-test"
     execute:
       steps:
         - "Spawn a procedural workflow that calls ctx.wait_for_signal(\"go\").await"
@@ -246,7 +246,7 @@ verification_checkpoints:
       - "[ ] handle_inject_event_msg extended to wake signal waiters on SignalReceived replay"
       - "[ ] handle_procedural_msg extended to dispatch ProceduralWaitForSignal"
     evidence_required:
-      - "cargo test -p wtf-actor shows green"
+      - "cargo test -p vo-actor shows green"
       - "cargo clippy --workspace -- -D warnings passes"
 
 implementation_tasks:
@@ -255,102 +255,102 @@ implementation_tasks:
     gate_required: "gate_0_research"
     tasks:
       - task: "Add received_signals field to ProceduralActorState"
-        file: "crates/wtf-actor/src/procedural/state/mod.rs:31-50"
+        file: "crates/vo-actor/src/procedural/state/mod.rs:31-50"
         done_when: "received_signals: HashMap<String, Vec<Bytes>> field added with #[serde(default)]"
       - task: "Add pending_signal_calls field to InstanceState"
-        file: "crates/wtf-actor/src/instance/state.rs:13-38"
-        done_when: "pending_signal_calls: HashMap<String, RpcReplyPort<Result<Bytes, WtfError>>> field added"
+        file: "crates/vo-actor/src/instance/state.rs:13-38"
+        done_when: "pending_signal_calls: HashMap<String, RpcReplyPort<Result<Bytes, VoError>>> field added"
       - task: "Add ProceduralWaitForSignal variant to InstanceMsg"
-        file: "crates/wtf-actor/src/messages/instance.rs:52-94"
-        done_when: "ProceduralWaitForSignal { operation_id: u32, signal_name: String, reply: RpcReplyPort<Result<Bytes, WtfError>> } added"
+        file: "crates/vo-actor/src/messages/instance.rs:52-94"
+        done_when: "ProceduralWaitForSignal { operation_id: u32, signal_name: String, reply: RpcReplyPort<Result<Bytes, VoError>> } added"
       - task: "Add SignalReceived handling to apply_event"
-        file: "crates/wtf-actor/src/procedural/state/mod.rs:126-285"
+        file: "crates/vo-actor/src/procedural/state/mod.rs:126-285"
         done_when: "WorkflowEvent::SignalReceived arm creates checkpoint_map entry from payload, removes from received_signals"
   phase_1_actor_handlers:
     parallelizable: false
     gate_required: "gate_0_research"
     tasks:
       - task: "Extend handle_signal to check pending_signal_calls and buffer in received_signals"
-        file: "crates/wtf-actor/src/instance/handlers.rs:116-129"
+        file: "crates/vo-actor/src/instance/handlers.rs:116-129"
         done_when: "If pending_signal_calls contains signal_name: remove and reply with payload. Else: buffer in received_signals via ProceduralActorState."
       - task: "Add ProceduralWaitForSignal handler in procedural handler module"
-        file: "crates/wtf-actor/src/instance/handlers.rs:37-85"
+        file: "crates/vo-actor/src/instance/handlers.rs:37-85"
         done_when: "handle_procedural_msg dispatches ProceduralWaitForSignal to procedural::handle_wait_for_signal"
       - task: "Extend handle_inject_event_msg to wake signal waiters on SignalReceived replay"
-        file: "crates/wtf-actor/src/instance/handlers.rs:87-113"
+        file: "crates/vo-actor/src/instance/handlers.rs:87-113"
         done_when: "After applying SignalReceived event, check pending_signal_calls and wake waiter if present"
   phase_2_context_impl:
     parallelizable: false
     gate_required: "gate_1_tests"
     tasks:
       - task: "Implement wait_for_signal on WorkflowContext"
-        file: "crates/wtf-actor/src/procedural/context.rs:29-189"
+        file: "crates/vo-actor/src/procedural/context.rs:29-189"
         done_when: "Dual-phase method: (1) load op_id, (2) check checkpoint, (3) if replay: return checkpoint.result, (4) if live: send ProceduralWaitForSignal, await reply, increment counter"
   phase_3_tests:
     parallelizable: true
     gate_required: "gate_2_implementation"
     tasks:
       - task: "Add unit tests for wait_for_signal in context.rs mod tests"
-        file: "crates/wtf-actor/src/procedural/context.rs:191-258"
+        file: "crates/vo-actor/src/procedural/context.rs:191-258"
         done_when: "Tests cover replay path, buffered path, live-wait path, error path"
       - task: "Add tests for signal event application in state/tests.rs"
-        file: "crates/wtf-actor/src/procedural/state/tests.rs"
+        file: "crates/vo-actor/src/procedural/state/tests.rs"
         done_when: "SignalReceived creates checkpoint and removes from received_signals"
 
 failure_modes:
   - symptom: "wait_for_signal hangs forever — signal sent but workflow never resumes"
     likely_cause: "handle_signal not checking pending_signal_calls, or signal_name mismatch"
     where_to_look:
-      - file: "crates/wtf-actor/src/instance/handlers.rs:116-129"
+      - file: "crates/vo-actor/src/instance/handlers.rs:116-129"
         what_to_check: "Does handle_signal check state.pending_signal_calls.get(&signal_name)?"
     fix_pattern: "Ensure handle_signal checks pending_signal_calls first, then buffers"
   - symptom: "Replay creates checkpoint but wait_for_signal doesn't find it"
     likely_cause: "SignalReceived arm in apply_event doesn't create checkpoint_map entry, or op_id mismatch"
     where_to_look:
-      - file: "crates/wtf-actor/src/procedural/state/mod.rs:279"
+      - file: "crates/vo-actor/src/procedural/state/mod.rs:279"
         what_to_check: "Does the SignalReceived arm (currently in catch-all) create a checkpoint_map entry?"
     fix_pattern: "Add explicit WorkflowEvent::SignalReceived arm that creates Checkpoint { result: payload.clone(), completed_seq: seq }"
   - symptom: "SignalReceived event not being applied during replay"
     likely_cause: "handle_inject_event_msg doesn't route SignalReceived to wake waiters"
     where_to_look:
-      - file: "crates/wtf-actor/src/instance/handlers.rs:94-113"
+      - file: "crates/vo-actor/src/instance/handlers.rs:94-113"
         what_to_check: "Is there a match arm for WorkflowEvent::SignalReceived after the TimerFired arm?"
     fix_pattern: "Add: if let WorkflowEvent::SignalReceived { signal_name, payload } = &event { check pending_signal_calls and wake }"
   - symptom: "Compile error: cannot find ProceduralWaitForSignal in scope"
     likely_cause: "InstanceMsg variant not added or not imported"
     where_to_look:
-      - file: "crates/wtf-actor/src/messages/instance.rs:52-94"
+      - file: "crates/vo-actor/src/messages/instance.rs:52-94"
         what_to_check: "Is ProceduralWaitForSignal variant defined?"
     fix_pattern: "Add the variant to InstanceMsg enum"
 
 anti_hallucination:
   read_before_write:
-    - file: "crates/wtf-actor/src/procedural/context.rs"
+    - file: "crates/vo-actor/src/procedural/context.rs"
       must_read_first: true
       key_sections_to_understand:
         - "activity() at lines 51-96 — the canonical dual-phase (checkpoint then live) pattern"
         - "op_counter.load(Ordering::SeqCst) at line 52 — read current op_id without incrementing"
         - "op_counter.fetch_add(1, Ordering::SeqCst) at lines 72, 94 — increment AFTER checkpoint check and after live dispatch"
         - "self.myself.call(|reply| InstanceMsg::..., None).await? pattern at lines 56-64"
-    - file: "crates/wtf-actor/src/procedural/state/mod.rs"
+    - file: "crates/vo-actor/src/procedural/state/mod.rs"
       must_read_first: true
       key_sections_to_understand:
         - "ProceduralActorState struct at lines 31-50 — no received_signals field exists yet"
         - "apply_event catch-all at line 279-284 — SignalReceived currently falls through here with no checkpoint"
         - "Checkpoint struct at lines 22-27: { result: Bytes, completed_seq: u64 }"
-    - file: "crates/wtf-actor/src/instance/state.rs"
+    - file: "crates/vo-actor/src/instance/state.rs"
       must_read_first: true
       key_sections_to_understand:
         - "InstanceState at lines 13-38 — no pending_signal_calls field yet"
-        - "pending_activity_calls: HashMap<ActivityId, RpcReplyPort<Result<Bytes, WtfError>>> at line 27 — the template pattern"
-        - "pending_timer_calls: HashMap<TimerId, RpcReplyPort<Result<(), WtfError>>> at line 31"
-    - file: "crates/wtf-actor/src/messages/instance.rs"
+        - "pending_activity_calls: HashMap<ActivityId, RpcReplyPort<Result<Bytes, VoError>>> at line 27 — the template pattern"
+        - "pending_timer_calls: HashMap<TimerId, RpcReplyPort<Result<(), VoError>>> at line 31"
+    - file: "crates/vo-actor/src/messages/instance.rs"
       must_read_first: true
       key_sections_to_understand:
         - "InstanceMsg enum at lines 52-94"
-        - "InjectSignal at lines 59-63: { signal_name: String, payload: Bytes, reply: RpcReplyPort<Result<(), WtfError>> }"
+        - "InjectSignal at lines 59-63: { signal_name: String, payload: Bytes, reply: RpcReplyPort<Result<(), VoError>> }"
         - "ProceduralDispatch at lines 74-78 — pattern for new ProceduralWaitForSignal variant"
-    - file: "crates/wtf-actor/src/instance/handlers.rs"
+    - file: "crates/vo-actor/src/instance/handlers.rs"
       must_read_first: true
       key_sections_to_understand:
         - "handle_procedural_msg at lines 37-85 — dispatch table for procedural messages"
@@ -360,12 +360,12 @@ anti_hallucination:
     - "Do NOT use placeholder signal payloads — use actual Bytes::from_static(b\"payload\") in tests"
     - "Do NOT invent new message types — follow InstanceMsg patterns exactly"
     - "Do NOT modify WorkflowEvent::SignalReceived — it already exists at events/mod.rs:71"
-    - "Do NOT change the handle_signal reply type — keep RpcReplyPort<Result<(), WtfError>> for InjectSignal, the waiter reply is separate"
+    - "Do NOT change the handle_signal reply type — keep RpcReplyPort<Result<(), VoError>> for InjectSignal, the waiter reply is separate"
     - "Do NOT add received_signals as HashMap<String, Bytes> — must be HashMap<String, Vec<Bytes>> to handle multiple signals of same name arriving before a waiter"
 
 context_survival:
   progress_file:
-    path: ".beads/wtf-3cv7/progress.txt"
+    path: ".beads/vo-3cv7/progress.txt"
     format: "Markdown checklist"
   recovery_instructions: |
     Read progress.txt and continue from last incomplete task.
@@ -387,10 +387,10 @@ completion_checklist:
     - "[ ] Unit test: InjectSignal with no waiter gets buffered"
     - "[ ] Unit test: SignalReceived event creates checkpoint in apply_event"
     - "[ ] Unit test: SignalReceived removes from received_signals on replay"
-    - "[ ] cargo test -p wtf-actor passes"
+    - "[ ] cargo test -p vo-actor passes"
   code:
     - "[ ] ProceduralActorState has received_signals: HashMap<String, Vec<Bytes>>"
-    - "[ ] InstanceState has pending_signal_calls: HashMap<String, RpcReplyPort<Result<Bytes, WtfError>>>"
+    - "[ ] InstanceState has pending_signal_calls: HashMap<String, RpcReplyPort<Result<Bytes, VoError>>>"
     - "[ ] InstanceMsg has ProceduralWaitForSignal variant"
     - "[ ] apply_event handles WorkflowEvent::SignalReceived (creates checkpoint)"
     - "[ ] handle_signal checks pending_signal_calls and buffers to received_signals"
@@ -399,23 +399,23 @@ completion_checklist:
     - "[ ] WorkflowContext::wait_for_signal implemented with dual-phase pattern"
     - "[ ] Zero unwrap() or expect() calls in new code"
   ci:
-    - "[ ] cargo test -p wtf-actor passes"
+    - "[ ] cargo test -p vo-actor passes"
     - "[ ] cargo clippy --workspace -- -D warnings passes"
     - "[ ] cargo check --workspace passes"
 
 context:
   related_files:
-    - path: "crates/wtf-actor/src/procedural/context.rs"
+    - path: "crates/vo-actor/src/procedural/context.rs"
       relevance: "Primary file — implement wait_for_signal method on WorkflowContext (after line 188)"
-    - path: "crates/wtf-actor/src/procedural/state/mod.rs"
+    - path: "crates/vo-actor/src/procedural/state/mod.rs"
       relevance: "Add received_signals field to ProceduralActorState (line 31-50); add SignalReceived arm to apply_event (line 279)"
-    - path: "crates/wtf-actor/src/instance/state.rs"
+    - path: "crates/vo-actor/src/instance/state.rs"
       relevance: "Add pending_signal_calls field to InstanceState (line 27-31 area)"
-    - path: "crates/wtf-actor/src/messages/instance.rs"
+    - path: "crates/vo-actor/src/messages/instance.rs"
       relevance: "Add ProceduralWaitForSignal variant to InstanceMsg (line 92 area)"
-    - path: "crates/wtf-actor/src/instance/handlers.rs"
+    - path: "crates/vo-actor/src/instance/handlers.rs"
       relevance: "Extend handle_signal (116-129), handle_procedural_msg (37-85), handle_inject_event_msg (87-113)"
-    - path: "crates/wtf-common/src/events/mod.rs"
+    - path: "crates/vo-common/src/events/mod.rs"
       relevance: "WorkflowEvent::SignalReceived already defined at line 71 — read-only reference"
   design_decisions:
     - decision: "received_signals uses HashMap<String, Vec<Bytes>> not HashMap<String, Bytes>"
@@ -424,7 +424,7 @@ context:
     - decision: "SignalReceived in apply_event creates checkpoint from event payload directly"
       rationale: "On replay, the event already contains the payload. No need to track separate signal state for replay — checkpoint_map is the source of truth."
       reversible: false
-    - decision: "InjectSignal reply remains Result<(), WtfError> — waiter reply is separate"
+    - decision: "InjectSignal reply remains Result<(), VoError> — waiter reply is separate"
       rationale: "InjectSignal is the external API contract (POST /workflows/:id/signals). The waiter is internal plumbing. Changing InjectSignal reply type would break the API handler."
       reversible: false
     - decision: "wait_for_signal returns anyhow::Result<Bytes> not Result<SignalPayload, ...>"
@@ -438,12 +438,12 @@ ai_hints:
     - "Use received_signals.entry(signal_name).or_default().push(payload.clone()) for buffering"
     - "Use received_signals.entry(signal_name).or_default().pop() for consuming (VecDeque would be better but HashMap<String, Vec> is simpler)"
     - "Add #[serde(default)] to received_signals to handle snapshots created before this field existed"
-    - "Match the exact RpcReplyPort type: RpcReplyPort<Result<Bytes, WtfError>>"
+    - "Match the exact RpcReplyPort type: RpcReplyPort<Result<Bytes, VoError>>"
     - "In apply_event, the SignalReceived arm must also remove from received_signals to keep buffer clean during replay"
     - "In handle_inject_event_msg, after applying SignalReceived event, check pending_signal_calls and wake the waiter"
   do_not:
     - "Do NOT use .unwrap() or .expect() — use match or map_err"
-    - "Do NOT change the WorkflowEvent::SignalReceived variant in wtf-common"
+    - "Do NOT change the WorkflowEvent::SignalReceived variant in vo-common"
     - "Do NOT change the InjectSignal reply type in InstanceMsg"
     - "Do NOT increment op_counter before the checkpoint check — load first, increment after"
     - "Do NOT use tokio::sync::watch or broadcast for signal delivery — RpcReplyPort is the established pattern"

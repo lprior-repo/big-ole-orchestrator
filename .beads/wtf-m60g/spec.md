@@ -1,6 +1,6 @@
-# wtf-m60g — instance: Publish InstanceStarted event
+# vo-m60g — instance: Publish InstanceStarted event
 
-**Bead ID:** wtf-m60g
+**Bead ID:** vo-m60g
 **Status:** ready
 **Priority:** 1
 **Type:** feature
@@ -14,7 +14,7 @@ Publish a `WorkflowEvent::InstanceStarted` event to NATS JetStream during instan
 
 ## 2. Context
 
-Currently, `WorkflowInstance::pre_start` (in `crates/wtf-actor/src/instance/actor.rs:21-62`) performs replay, transitions to live, spawns subscriptions, and sets the phase to `Live` — but never writes an `InstanceStarted` event. The event variant already exists in `crates/wtf-common/src/events/mod.rs:18-22`:
+Currently, `WorkflowInstance::pre_start` (in `crates/vo-actor/src/instance/actor.rs:21-62`) performs replay, transitions to live, spawns subscriptions, and sets the phase to `Live` — but never writes an `InstanceStarted` event. The event variant already exists in `crates/vo-common/src/events/mod.rs:18-22`:
 
 ```rust
 InstanceStarted {
@@ -24,7 +24,7 @@ InstanceStarted {
 }
 ```
 
-The `EventStore::publish` method (in `crates/wtf-common/src/storage.rs:28-33`) provides the write path:
+The `EventStore::publish` method (in `crates/vo-common/src/storage.rs:28-33`) provides the write path:
 
 ```rust
 async fn publish(
@@ -32,7 +32,7 @@ async fn publish(
     ns: &NamespaceId,
     inst: &InstanceId,
     event: WorkflowEvent,
-) -> Result<u64, WtfError>;
+) -> Result<u64, VoError>;
 ```
 
 ## 3. Scope
@@ -51,7 +51,7 @@ async fn publish(
 ## 4. Contract
 
 ```rust
-// In crates/wtf-actor/src/instance/init.rs
+// In crates/vo-actor/src/instance/init.rs
 
 /// Publish the InstanceStarted event for a fresh (non-replayed) instance.
 /// Must be called AFTER spawn_live_subscription and BEFORE phase transitions to Live.
@@ -83,14 +83,14 @@ pub async fn publish_instance_started(
 
 | File | Change |
 |------|--------|
-| `crates/wtf-actor/src/instance/init.rs` | Add `publish_instance_started` function |
-| `crates/wtf-actor/src/instance/actor.rs` | Call `publish_instance_started` in `pre_start` |
-| `crates/wtf-actor/src/instance/mod.rs` | Export `publish_instance_started` if needed |
+| `crates/vo-actor/src/instance/init.rs` | Add `publish_instance_started` function |
+| `crates/vo-actor/src/instance/actor.rs` | Call `publish_instance_started` in `pre_start` |
+| `crates/vo-actor/src/instance/mod.rs` | Export `publish_instance_started` if needed |
 
 ## 7. Dependencies
 
-- `wtf-common::WorkflowEvent::InstanceStarted` — already exists
-- `wtf-common::storage::EventStore::publish` — already exists
+- `vo-common::WorkflowEvent::InstanceStarted` — already exists
+- `vo-common::storage::EventStore::publish` — already exists
 - `crate::messages::InstanceArguments` — provides `namespace`, `instance_id`, `workflow_type`, `input`, `event_store`
 
 ## 8. Risks
@@ -150,7 +150,7 @@ pre_start (actor.rs:21)
 
 ## 11. Acceptance Criteria
 
-- [ ] `publish_instance_started` function added to `crates/wtf-actor/src/instance/init.rs`
+- [ ] `publish_instance_started` function added to `crates/vo-actor/src/instance/init.rs`
 - [ ] Called in `pre_start` after `spawn_live_subscription` (line 48 of actor.rs)
 - [ ] Publishes `WorkflowEvent::InstanceStarted { instance_id, workflow_type, input }`
 - [ ] Skipped on crash recovery (non-empty `event_log`)
@@ -161,7 +161,7 @@ pre_start (actor.rs:21)
 ## 12. Implementation Sketch
 
 ```rust
-// Add to crates/wtf-actor/src/instance/init.rs
+// Add to crates/vo-actor/src/instance/init.rs
 
 pub async fn publish_instance_started(
     args: &InstanceArguments,
@@ -197,7 +197,7 @@ pub async fn publish_instance_started(
 ```
 
 ```rust
-// Add to crates/wtf-actor/src/instance/actor.rs pre_start, after spawn_live_subscription:
+// Add to crates/vo-actor/src/instance/actor.rs pre_start, after spawn_live_subscription:
 if let Some(c) = consumer {
     init::spawn_live_subscription(&mut state, &myself, c);
 }
@@ -211,9 +211,9 @@ state.phase = InstancePhase::Live;
 
 | Test | File | Assert |
 |------|------|--------|
-| Fresh instance publishes | `crates/wtf-actor/src/instance/init.rs` (mod tests) | Mock `EventStore::publish` called once with correct variant |
-| Crash recovery skips | `crates/wtf-actor/src/instance/init.rs` (mod tests) | Non-empty event_log → publish not called |
-| Missing event_store | `crates/wtf-actor/src/instance/init.rs` (mod tests) | Returns ActorProcessingErr |
+| Fresh instance publishes | `crates/vo-actor/src/instance/init.rs` (mod tests) | Mock `EventStore::publish` called once with correct variant |
+| Crash recovery skips | `crates/vo-actor/src/instance/init.rs` (mod tests) | Non-empty event_log → publish not called |
+| Missing event_store | `crates/vo-actor/src/instance/init.rs` (mod tests) | Returns ActorProcessingErr |
 
 ## 14. Non-Goals
 

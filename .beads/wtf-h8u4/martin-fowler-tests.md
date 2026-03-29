@@ -1,7 +1,7 @@
 # Martin Fowler Test Plan: E2E Signal Delivery
 
-**Test file:** `crates/wtf-actor/tests/signal_delivery_e2e.rs`
-**Run:** `cargo test -p wtf-actor --test signal_delivery_e2e -- --test-threads=1`
+**Test file:** `crates/vo-actor/tests/signal_delivery_e2e.rs`
+**Run:** `cargo test -p vo-actor --test signal_delivery_e2e -- --test-threads=1`
 
 **Approach (C1 fix):** Tests use the handler-level pattern from `handlers_tests.rs` —
 construct `InstanceState` with `MockOkEventStore`, call
@@ -96,10 +96,10 @@ Then:  1. Creates a oneshot::channel for caller reply
 Given:
   - state = make_test_state(Some(Arc::new(MockOkEventStore)), None, 0)
   - A pending signal call pre-registered:
-      let (pending_tx, pending_rx) = oneshot::channel::<Result<Bytes, WtfError>>();
+      let (pending_tx, pending_rx) = oneshot::channel::<Result<Bytes, VoError>>();
       state.pending_signal_calls.insert("go".to_string(), pending_tx.into());
   - Caller reply channel:
-      let (caller_tx, caller_rx) = oneshot::channel::<Result<(), WtfError>>();
+      let (caller_tx, caller_rx) = oneshot::channel::<Result<(), VoError>>();
 
 When:
   - handlers::handle_signal(&mut state, "go".to_string(),
@@ -171,7 +171,7 @@ Then:
 Given:
   - state = make_test_state(Some(Arc::new(MockOkEventStore)), None, 0)
   - A pending signal call registered for "approval":
-      let (pending_tx, pending_rx) = oneshot::channel::<Result<Bytes, WtfError>>();
+      let (pending_tx, pending_rx) = oneshot::channel::<Result<Bytes, VoError>>();
       state.pending_signal_calls.insert("approval".to_string(), pending_tx.into());
 
 When:
@@ -203,7 +203,7 @@ Verification mechanism (C5 fix): Direct state inspection —
 Given:
   - state = make_test_state(Some(Arc::new(MockOkEventStore)), None, 0)
   - A pending signal call pre-registered for "go":
-      let (pending_tx, pending_rx) = oneshot::channel::<Result<Bytes, WtfError>>();
+      let (pending_tx, pending_rx) = oneshot::channel::<Result<Bytes, VoError>>();
       state.pending_signal_calls.insert("go".to_string(), pending_tx.into());
 
 When:
@@ -274,7 +274,7 @@ which IS the handler's contract.
 Given:
   - state = make_test_state(Some(Arc::new(MockOkEventStore)), None, 0)
   - A pending signal call registered for "release":
-      let (pending_tx, pending_rx) = oneshot::channel::<Result<Bytes, WtfError>>();
+      let (pending_tx, pending_rx) = oneshot::channel::<Result<Bytes, VoError>>();
       state.pending_signal_calls.insert("release".to_string(), pending_tx.into());
 
 When:

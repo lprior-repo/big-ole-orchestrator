@@ -1,13 +1,13 @@
 # Implementation Summary
 
-bead_id: wtf-j7wk
-bead_title: "wtf-frontend: Simulate Mode Procedural — step through ctx calls, show checkpoint map"
+bead_id: vo-j7wk
+bead_title: "vo-frontend: Simulate Mode Procedural — step through ctx calls, show checkpoint map"
 phase: implementation
 updated_at: 2026-03-21T17:45:00Z
 
 ## Implementation Overview
 
-Created `crates/wtf-frontend/src/ui/simulate_mode.rs` with:
+Created `crates/vo-frontend/src/ui/simulate_mode.rs` with:
 
 ### Core Types
 
@@ -16,7 +16,7 @@ Created `crates/wtf-frontend/src/ui/simulate_mode.rs` with:
   - `current_op: u32` — index into ordered ops list
   - `event_log: Vec<SimWorkflowEvent>` — append-only event log
 
-- **`SimWorkflowEvent`**: Event enum (matches wtf_common::WorkflowEvent structure):
+- **`SimWorkflowEvent`**: Event enum (matches vo_common::WorkflowEvent structure):
   - `ActivityDispatched`, `ActivityCompleted`, `ActivityFailed`
   - `TimerScheduled`, `TimerFired`
   - `SignalReceived`
@@ -41,7 +41,7 @@ Created `crates/wtf-frontend/src/ui/simulate_mode.rs` with:
 
 ### Design Decisions
 
-1. Used `Bytes` for payload fields to match `wtf_common::WorkflowEvent`
+1. Used `Bytes` for payload fields to match `vo_common::WorkflowEvent`
 2. Used `chrono::DateTime<Utc>` for timer timestamps
 3. `provide_result` validates preconditions before mutating state
 4. All operations are fallible and return `Result`
@@ -60,4 +60,4 @@ Created `crates/wtf-frontend/src/ui/simulate_mode.rs` with:
 
 - The `extract_ctx_ops_from_workflow` function is a placeholder (returns empty Vec)
 - The Dioxus UI component (SimulateProcedural) will be implemented in a subsequent bead
-- The `SimWorkflowEvent` type mirrors `wtf_common::WorkflowEvent` for compatibility
+- The `SimWorkflowEvent` type mirrors `vo_common::WorkflowEvent` for compatibility

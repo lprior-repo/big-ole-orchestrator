@@ -1,10 +1,10 @@
-# Black Hat Review: Bead wtf-4bz — capacity_check method
+# Black Hat Review: Bead vo-4bz — capacity_check method
 
 **Reviewed:** 2026-03-23
 **Reviewer:** black-hat-reviewer (glm-5-turbo)
 **Files inspected:**
-- `crates/wtf-actor/src/master/state.rs` (lines 1–156)
-- `crates/wtf-actor/src/master/handlers/start.rs` (lines 1–122)
+- `crates/vo-actor/src/master/state.rs` (lines 1–156)
+- `crates/vo-actor/src/master/handlers/start.rs` (lines 1–122)
 - `beads/master-orchestrator.json` (bead spec, line 13)
 - `docs/adr/ADR-006-master-orchestrator-hierarchy.md` (ADR, line 163)
 
@@ -26,7 +26,7 @@
 
 ### DEFECT C-4: No `contract.md` or `martin-fowler-tests.md` for this bead
 
-The `.beads/wtf-4bz/` directory did not exist before this review. Per the go-skill pipeline, every bead should produce a `contract.md` and `martin-fowler-tests.md`. Neither exists.
+The `.beads/vo-4bz/` directory did not exist before this review. Per the go-skill pipeline, every bead should produce a `contract.md` and `martin-fowler-tests.md`. Neither exists.
 
 ---
 

@@ -1,7 +1,7 @@
-# Black Hat Review — wtf-2nty
+# Black Hat Review — vo-2nty
 
 **Date:** 2026-03-23
-**Scope:** `crates/wtf-actor/src/master/state.rs`, `crates/wtf-cli/src/commands/serve.rs`
+**Scope:** `crates/vo-actor/src/master/state.rs`, `crates/vo-cli/src/commands/serve.rs`
 
 ---
 
@@ -11,12 +11,12 @@
 
 ## 1. Hallucinated APIs
 
-### 1a. Does `WorkflowDefinition` exist in `wtf_common`?
+### 1a. Does `WorkflowDefinition` exist in `vo_common`?
 
-**PASS.** `WorkflowDefinition` is defined at `crates/wtf-common/src/types/workflow.rs:19` and re-exported through the chain:
-- `wtf_common` -> `wtf_actor::master::registry` (pub use at `registry.rs:4`) -> `wtf_actor::master` (pub use at `mod.rs:5`)
+**PASS.** `WorkflowDefinition` is defined at `crates/vo-common/src/types/workflow.rs:19` and re-exported through the chain:
+- `vo_common` -> `vo_actor::master::registry` (pub use at `registry.rs:4`) -> `vo_actor::master` (pub use at `mod.rs:5`)
 
-The import `use wtf_actor::master::{MasterOrchestrator, OrchestratorConfig, WorkflowDefinition}` at `serve.rs:13` resolves correctly.
+The import `use vo_actor::master::{MasterOrchestrator, OrchestratorConfig, WorkflowDefinition}` at `serve.rs:13` resolves correctly.
 
 ### 1b. Does `Store::keys()` match usage?
 
@@ -92,7 +92,7 @@ Wait — re-checking: `Arc` at line 5 is imported but not directly used in `stat
 - `StreamExt` — `keys.next().await`
 - `Actor` — `MasterOrchestrator::spawn()` (trait bound)
 - `watch`, `JoinHandle` — shutdown signaling and task types
-- All `wtf_*` imports — actively used
+- All `vo_*` imports — actively used
 
 ---
 

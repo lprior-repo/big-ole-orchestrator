@@ -1,15 +1,15 @@
-# wtf-bx19 — dag: Parse graph_raw into DAG node set
+# vo-bx19 — dag: Parse graph_raw into DAG node set
 
 ```yaml
-id: wtf-bx19
+id: vo-bx19
 title: "dag: Parse graph_raw into DAG node set"
 status: ready
 effort: 2hr
 priority: 2
 type: feature
 crates:
-  - wtf-actor
-  - wtf-common
+  - vo-actor
+  - vo-common
 dependencies: []
 ```
 
@@ -17,20 +17,20 @@ dependencies: []
 
 ## Section 1 — Problem Statement
 
-`WorkflowDefinition.graph_raw` (a `String` field at `crates/wtf-common/src/types/workflow.rs:23`) holds the serialized DAG graph, but nothing parses it into `HashMap<NodeId, DagNode>` for `DagActorState::new()`. Currently `initialize_paradigm_state` in `crates/wtf-actor/src/instance/state.rs:62` passes an **empty** `HashMap` to `DagActorState::new()`, meaning DAG instances have no nodes and `ready_nodes()` always returns `[]`. This bead creates the parser that bridges `graph_raw` → `DagActorState`.
+`WorkflowDefinition.graph_raw` (a `String` field at `crates/vo-common/src/types/workflow.rs:23`) holds the serialized DAG graph, but nothing parses it into `HashMap<NodeId, DagNode>` for `DagActorState::new()`. Currently `initialize_paradigm_state` in `crates/vo-actor/src/instance/state.rs:62` passes an **empty** `HashMap` to `DagActorState::new()`, meaning DAG instances have no nodes and `ready_nodes()` always returns `[]`. This bead creates the parser that bridges `graph_raw` → `DagActorState`.
 
 ---
 
 ## Section 2 — Scope
 
 **In scope:**
-- New `parse` module under `crates/wtf-actor/src/dag/parse.rs`
+- New `parse` module under `crates/vo-actor/src/dag/parse.rs`
 - `parse_dag_graph` function: `&str` → `Result<HashMap<NodeId, DagNode>, DagParseError>`
 - Error enum `DagParseError` with structured variants
 - Cycle detection (reject cyclic graphs)
 - Duplicate node detection
 - Missing predecessor detection
-- Integration: wire into `initialize_paradigm_state` in `crates/wtf-actor/src/instance/state.rs`
+- Integration: wire into `initialize_paradigm_state` in `crates/vo-actor/src/instance/state.rs`
 - Unit tests covering happy path, error cases, cycle detection
 
 **Out of scope:**
@@ -46,16 +46,16 @@ dependencies: []
 ### Types consumed (read-only)
 
 ```rust
-// crates/wtf-actor/src/dag/state.rs:10-13
+// crates/vo-actor/src/dag/state.rs:10-13
 pub struct DagNode {
     pub activity_type: String,
     pub predecessors: Vec<NodeId>,
 }
 
-// crates/wtf-actor/src/dag/state.rs:17
+// crates/vo-actor/src/dag/state.rs:17
 pub struct NodeId(pub String);
 
-// crates/wtf-common/src/types/workflow.rs:18-26
+// crates/vo-common/src/types/workflow.rs:18-26
 pub struct WorkflowDefinition {
     pub paradigm: WorkflowParadigm,
     pub graph_raw: String,       // <-- input to parser
@@ -66,14 +66,14 @@ pub struct WorkflowDefinition {
 ### Function consumed (read-only)
 
 ```rust
-// crates/wtf-actor/src/dag/state.rs:56
+// crates/vo-actor/src/dag/state.rs:56
 pub fn DagActorState::new(nodes: HashMap<NodeId, DagNode>) -> Self
 ```
 
 ### Function modified (integration point)
 
 ```rust
-// crates/wtf-actor/src/instance/state.rs:59-68
+// crates/vo-actor/src/instance/state.rs:59-68
 pub fn initialize_paradigm_state(args: &InstanceArguments) -> ParadigmState {
     match args.paradigm {
         WorkflowParadigm::Dag => ParadigmState::Dag(/* currently empty HashMap */),
@@ -89,7 +89,7 @@ pub fn initialize_paradigm_state(args: &InstanceArguments) -> ParadigmState {
 ### New types
 
 ```rust
-// crates/wtf-actor/src/dag/parse.rs
+// crates/vo-actor/src/dag/parse.rs
 
 /// Error returned when parsing a DAG graph definition.
 #[derive(Debug, thiserror::Error)]
@@ -139,7 +139,7 @@ pub fn parse_dag_graph(
 ### Modified function
 
 ```rust
-// crates/wtf-actor/src/instance/state.rs
+// crates/vo-actor/src/instance/state.rs
 pub fn initialize_paradigm_state(args: &InstanceArguments) -> ParadigmState {
     match args.paradigm {
         WorkflowParadigm::Dag => {
@@ -235,10 +235,10 @@ parse_dag_graph(graph_raw: &str) -> Result<HashMap<NodeId, DagNode>, DagParseErr
 
 | File | Action | Description |
 |------|--------|-------------|
-| `crates/wtf-actor/src/dag/parse.rs` | **CREATE** | `DagParseError` enum, `parse_dag_graph` function |
-| `crates/wtf-actor/src/dag/mod.rs` | **MODIFY** | Add `pub mod parse;` and `pub use parse::*;` |
-| `crates/wtf-actor/src/dag/tests.rs` | **MODIFY** | Add parse unit tests (happy path, error variants, cycle) |
-| `crates/wtf-actor/src/instance/state.rs` | **MODIFY** | Wire `parse_dag_graph` into `initialize_paradigm_state` for `Dag` arm |
+| `crates/vo-actor/src/dag/parse.rs` | **CREATE** | `DagParseError` enum, `parse_dag_graph` function |
+| `crates/vo-actor/src/dag/mod.rs` | **MODIFY** | Add `pub mod parse;` and `pub use parse::*;` |
+| `crates/vo-actor/src/dag/tests.rs` | **MODIFY** | Add parse unit tests (happy path, error variants, cycle) |
+| `crates/vo-actor/src/instance/state.rs` | **MODIFY** | Wire `parse_dag_graph` into `initialize_paradigm_state` for `Dag` arm |
 
 ---
 
@@ -390,10 +390,10 @@ All errors are fatal — `initialize_paradigm_state` falls back to empty map via
 ## Section 11 — Dependencies
 
 **Workspace crates:**
-- `wtf-actor` (this is where the code lives)
-- `wtf-common` (provides `WorkflowDefinition`, but only read for `graph_raw: String`)
+- `vo-actor` (this is where the code lives)
+- `vo-common` (provides `WorkflowDefinition`, but only read for `graph_raw: String`)
 
-**External deps (already in `wtf-actor/Cargo.toml`):**
+**External deps (already in `vo-actor/Cargo.toml`):**
 - `serde` + `serde_json` — JSON parsing
 - `thiserror` — error derive
 - `std::collections::{HashMap, HashSet, VecDeque}` — Kahn's algorithm
@@ -415,12 +415,12 @@ All errors are fatal — `initialize_paradigm_state` falls back to empty map via
 
 ## Section 13 — Checklist
 
-- [ ] Create `crates/wtf-actor/src/dag/parse.rs` with `DagParseError` and `parse_dag_graph`
-- [ ] Add `pub mod parse;` and `pub use parse::*;` to `crates/wtf-actor/src/dag/mod.rs`
-- [ ] Wire into `initialize_paradigm_state` in `crates/wtf-actor/src/instance/state.rs`
-- [ ] Add 10 unit tests to `crates/wtf-actor/src/dag/tests.rs`
-- [ ] `cargo test -p wtf-actor` passes
-- [ ] `cargo clippy -p wtf-actor -- -D warnings` passes
+- [ ] Create `crates/vo-actor/src/dag/parse.rs` with `DagParseError` and `parse_dag_graph`
+- [ ] Add `pub mod parse;` and `pub use parse::*;` to `crates/vo-actor/src/dag/mod.rs`
+- [ ] Wire into `initialize_paradigm_state` in `crates/vo-actor/src/instance/state.rs`
+- [ ] Add 10 unit tests to `crates/vo-actor/src/dag/tests.rs`
+- [ ] `cargo test -p vo-actor` passes
+- [ ] `cargo clippy -p vo-actor -- -D warnings` passes
 - [ ] `cargo test --workspace` passes (no regressions)
 
 ---
@@ -440,7 +440,7 @@ All errors are fatal — `initialize_paradigm_state` falls back to empty map via
 
 - **API validation bead:** Reject `graph_raw` at `POST /workflows` registration time, not at instance spawn
 - **YAML support:** Add optional YAML parsing alongside JSON
-- **DAG linter rules:** Extend `wtf-linter` to validate DAG-specific properties (max fan-in, max depth, etc.)
+- **DAG linter rules:** Extend `vo-linter` to validate DAG-specific properties (max fan-in, max depth, etc.)
 - **Schema validation:** Verify `activity_type` values against registered workflow types
 
 ---

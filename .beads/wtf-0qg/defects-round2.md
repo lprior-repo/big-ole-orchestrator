@@ -1,8 +1,8 @@
-# Black Hat Review — Round 2 — Bead wtf-0qg (spawn_workflow / spawn_and_register)
+# Black Hat Review — Round 2 — Bead vo-0qg (spawn_workflow / spawn_and_register)
 
 **Reviewer:** Black Hat  
 **Date:** 2026-03-23  
-**Files inspected:** 6 files across `wtf-actor/src/master/handlers/`, `messages/`, `master/state.rs`, `master/mod.rs`  
+**Files inspected:** 6 files across `vo-actor/src/master/handlers/`, `messages/`, `master/state.rs`, `master/mod.rs`  
 **Verdict:** `STATUS: REJECTED`
 
 ---
@@ -20,11 +20,11 @@
 
 ## PHASE 1: Contract & Bead Parity
 
-**No bead spec found.** The `.beads/wtf-0qg/` directory was empty before this review. There is no `contract-spec.md` or `martin-fowler-tests.md` to verify against. The bead contract is a **fiction** — there's nothing to have parity with. This alone would justify rejection.
+**No bead spec found.** The `.beads/vo-0qg/` directory was empty before this review. There is no `contract-spec.md` or `martin-fowler-tests.md` to verify against. The bead contract is a **fiction** — there's nothing to have parity with. This alone would justify rejection.
 
 ### N-03 (REOPENED): Bead contract does not exist
 - Severity: **HIGH**
-- Location: `.beads/wtf-0qg/`
+- Location: `.beads/vo-0qg/`
 - The bead has no contract spec. You cannot claim to have "fixed" contract parity when there was never a contract to begin with.
 
 ---
@@ -33,7 +33,7 @@
 
 ### N-02 (REOPENED): Zero integration tests for the spawn path
 - Severity: **HIGH**
-- Location: `crates/wtf-actor/tests/`
+- Location: `crates/vo-actor/tests/`
 - `cargo test` shows 8 integration test files exist for crash replay, determinism, FSM terminal states — **none** test the `StartWorkflow → spawn_and_register → register` path.
 - The 3 unit tests in start.rs:107-166 only test `validate_request`. The actual async spawn, persistence, and registration path (`handle_start_workflow` lines 8-26, `spawn_and_register` lines 65-86) has **zero** test coverage.
 - `spawn_and_register` is the most critical 20 lines in the crate. It spawns an actor, persists metadata, and registers it in the orchestrator's active map. **Untested.**

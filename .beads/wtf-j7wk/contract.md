@@ -1,14 +1,14 @@
 # Contract Specification
 
-bead_id: wtf-j7wk
-bead_title: "wtf-frontend: Simulate Mode Procedural — step through ctx calls, show checkpoint map"
+bead_id: vo-j7wk
+bead_title: "vo-frontend: Simulate Mode Procedural — step through ctx calls, show checkpoint map"
 phase: contract
 updated_at: 2026-03-21T17:30:00Z
 
 ## Context
 
 - **Feature**: SimulateProcedural UI component for stepwise workflow replay
-- **Location**: `crates/wtf-frontend/src/ui/simulate_mode.rs`
+- **Location**: `crates/vo-frontend/src/ui/simulate_mode.rs`
 - **Domain terms**:
   - `SimProceduralState` — local UI state for the simulator
   - `checkpoint_map` — accumulated key→value pairs from completed ops
@@ -17,10 +17,10 @@ updated_at: 2026-03-21T17:30:00Z
   - `CtxActivity`, `CtxSleep`, `CtxWaitSignal` — node types representing context operations
 - **Assumptions**:
   - Workflow graph is available via existing `Workflow` struct
-  - `WorkflowEvent` types from `wtf_common` are used for event_log
+  - `WorkflowEvent` types from `vo_common` are used for event_log
   - Dioxus 0.7 signals/stores for UI state management
 - **Open questions**:
-  - How to extract ctx nodes from an existing workflow graph? (pending parent bead wtf-7n80)
+  - How to extract ctx nodes from an existing workflow graph? (pending parent bead vo-7n80)
   - Mock result input format (string vs JSON)?
 
 ## Preconditions

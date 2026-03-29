@@ -1,6 +1,6 @@
-# wtf-ww0p — e2e: Test happy path workflow completion
+# vo-ww0p — e2e: Test happy path workflow completion
 
-**Bead ID:** wtf-ww0p
+**Bead ID:** vo-ww0p
 **Status:** ready
 **Priority:** 1
 **Type:** feature
@@ -10,47 +10,47 @@
 
 ## 1. Objective
 
-Create `crates/wtf-api/tests/e2e_workflow_test.rs` that spins up a real NATS JetStream server (`wtf-nats-test` on port 4222, or `NATS_URL`), provisions streams, boots the full wtf-api axum application with a live Ractor orchestrator, uploads a simple procedural workflow definition via `POST /api/v1/definitions/procedural`, starts an instance via `POST /api/v1/workflows`, and polls `GET /api/v1/workflows/:id/journal` until the workflow reaches a terminal state — proving the entire write-read path works end-to-end with no mocks.
+Create `crates/vo-api/tests/e2e_workflow_test.rs` that spins up a real NATS JetStream server (`vo-nats-test` on port 4222, or `NATS_URL`), provisions streams, boots the full vo-api axum application with a live Ractor orchestrator, uploads a simple procedural workflow definition via `POST /api/v1/definitions/procedural`, starts an instance via `POST /api/v1/workflows`, and polls `GET /api/v1/workflows/:id/journal` until the workflow reaches a terminal state — proving the entire write-read path works end-to-end with no mocks.
 
 ## 2. Context
 
-The project has HTTP-layer tests (`crates/wtf-api/tests/journal_test.rs`) that mock the `OrchestratorMsg` actor ref, so they never exercise NATS or the actor system. The worker crate has full integration tests (`crates/wtf-worker/tests/worker_integration_tests.rs`) that connect to real NATS but don't touch the API layer. There is no test that exercises the complete vertical slice: HTTP request → axum handler → Ractor orchestrator → NATS JetStream → journal replay → HTTP response.
+The project has HTTP-layer tests (`crates/vo-api/tests/journal_test.rs`) that mock the `OrchestratorMsg` actor ref, so they never exercise NATS or the actor system. The worker crate has full integration tests (`crates/vo-worker/tests/worker_integration_tests.rs`) that connect to real NATS but don't touch the API layer. There is no test that exercises the complete vertical slice: HTTP request → axum handler → Ractor orchestrator → NATS JetStream → journal replay → HTTP response.
 
 Key components and their locations:
 
-- **Router**: `crates/wtf-api/src/app.rs` — `build_app(master, kv)` creates the full axum `Router` nested under `/api/v1/`
-- **Start handler**: `crates/wtf-api/src/handlers/workflow.rs:18` — `start_workflow` extracts `Extension<ActorRef<OrchestratorMsg>>`, calls `OrchestratorMsg::StartWorkflow`
-- **Definition handler**: `crates/wtf-api/src/handlers/definitions.rs:5` — `ingest_definition` calls `wtf_linter::lint_workflow_code`, returns `DefinitionResponse { valid, diagnostics }`
-- **Journal handler**: `crates/wtf-api/src/handlers/journal.rs:19` — `get_journal` gets the `EventStore` from the orchestrator, opens a replay stream, maps `ReplayedEvent`s to `JournalEntry`s
-- **Journal storage**: `crates/wtf-storage/src/journal.rs:28` — `append_event` publishes to NATS subject `wtf.log.<namespace>.<instance_id>` via msgpack
-- **NATS connection**: `crates/wtf-storage/src/lib.rs` — `connect(&NatsConfig)` and `provision_streams(&Context)`
-- **Worker integration test pattern**: `crates/wtf-worker/tests/worker_integration_tests.rs` — `NatsTestServer` struct with `global_test_lock()`, `provision()`, `reset_streams()`
+- **Router**: `crates/vo-api/src/app.rs` — `build_app(master, kv)` creates the full axum `Router` nested under `/api/v1/`
+- **Start handler**: `crates/vo-api/src/handlers/workflow.rs:18` — `start_workflow` extracts `Extension<ActorRef<OrchestratorMsg>>`, calls `OrchestratorMsg::StartWorkflow`
+- **Definition handler**: `crates/vo-api/src/handlers/definitions.rs:5` — `ingest_definition` calls `vo_linter::lint_workflow_code`, returns `DefinitionResponse { valid, diagnostics }`
+- **Journal handler**: `crates/vo-api/src/handlers/journal.rs:19` — `get_journal` gets the `EventStore` from the orchestrator, opens a replay stream, maps `ReplayedEvent`s to `JournalEntry`s
+- **Journal storage**: `crates/vo-storage/src/journal.rs:28` — `append_event` publishes to NATS subject `wtf.log.<namespace>.<instance_id>` via msgpack
+- **NATS connection**: `crates/vo-storage/src/lib.rs` — `connect(&NatsConfig)` and `provision_streams(&Context)`
+- **Worker integration test pattern**: `crates/vo-worker/tests/worker_integration_tests.rs` — `NatsTestServer` struct with `global_test_lock()`, `provision()`, `reset_streams()`
 
 Request/response types:
 
-- `V3StartRequest`: `{ namespace, workflow_type, paradigm, input, instance_id? }` → `crates/wtf-api/src/types/requests.rs:28`
-- `V3StartResponse`: `{ instance_id, namespace, workflow_type }` → HTTP 201 → `crates/wtf-api/src/types/responses.rs:105`
-- `DefinitionRequest`: `{ source }` → `crates/wtf-api/src/types/requests.rs:22`
-- `DefinitionResponse`: `{ valid, diagnostics }` → HTTP 200 → `crates/wtf-api/src/types/responses.rs:91`
-- `JournalResponse`: `{ invocation_id, entries }` → `crates/wtf-api/src/types/responses.rs:54`
-- `JournalEntry`: `{ seq, entry_type, name?, input?, output?, timestamp?, duration_ms?, fire_at?, status? }` → `crates/wtf-api/src/types/mod.rs:25`
+- `V3StartRequest`: `{ namespace, workflow_type, paradigm, input, instance_id? }` → `crates/vo-api/src/types/requests.rs:28`
+- `V3StartResponse`: `{ instance_id, namespace, workflow_type }` → HTTP 201 → `crates/vo-api/src/types/responses.rs:105`
+- `DefinitionRequest`: `{ source }` → `crates/vo-api/src/types/requests.rs:22`
+- `DefinitionResponse`: `{ valid, diagnostics }` → HTTP 200 → `crates/vo-api/src/types/responses.rs:91`
+- `JournalResponse`: `{ invocation_id, entries }` → `crates/vo-api/src/types/responses.rs:54`
+- `JournalEntry`: `{ seq, entry_type, name?, input?, output?, timestamp?, duration_ms?, fire_at?, status? }` → `crates/vo-api/src/types/mod.rs:25`
 
 ## 3. Scope
 
 ### In Scope
-- Create `crates/wtf-api/tests/e2e_workflow_test.rs` with `#[tokio::test]` tests
-- Connect to real NATS JetStream (reusing `wtf-storage::connect` / `provision_streams`)
-- Boot the orchestrator actor system and build the axum app via `wtf_api::app::build_app`
+- Create `crates/vo-api/tests/e2e_workflow_test.rs` with `#[tokio::test]` tests
+- Connect to real NATS JetStream (reusing `vo-storage::connect` / `provision_streams`)
+- Boot the orchestrator actor system and build the axum app via `vo_api::app::build_app`
 - Bind the app to a random ephemeral port (e.g. `127.0.0.1:0`) and make real HTTP calls via `reqwest`
 - `POST /api/v1/definitions/procedural` with a valid clean procedural source
 - `POST /api/v1/workflows` with `{ namespace: "e2e", workflow_type: "echo", paradigm: "procedural", input: {} }`
 - `GET /api/v1/workflows/e2e/<instance_id>/journal` and assert entries are non-empty and seq-ordered
 - `GET /api/v1/workflows/e2e/<instance_id>` and assert the response matches `V3StatusResponse`
-- Add `reqwest` to `[dev-dependencies]` in `crates/wtf-api/Cargo.toml` if not already present (it is in `[dependencies]`)
-- Add `wtf-linter` to `[dev-dependencies]` if needed for definition linting in tests
+- Add `reqwest` to `[dev-dependencies]` in `crates/vo-api/Cargo.toml` if not already present (it is in `[dependencies]`)
+- Add `vo-linter` to `[dev-dependencies]` if needed for definition linting in tests
 
 ### Out of Scope
-- Running a `wtf-worker` to process activities (no activity handlers in scope)
+- Running a `vo-worker` to process activities (no activity handlers in scope)
 - Testing DAG or FSM paradigms (procedural only)
 - Testing signal handling or timer scheduling
 - Performance benchmarks or load testing
@@ -59,10 +59,10 @@ Request/response types:
 ## 4. Contract
 
 ```rust
-// crates/wtf-api/tests/e2e_workflow_test.rs
+// crates/vo-api/tests/e2e_workflow_test.rs
 
 /// Shared test harness: NATS connection, stream provisioning, app bootstrap, ephemeral HTTP listener.
-/// Follows the NatsTestServer pattern from crates/wtf-worker/tests/worker_integration_tests.rs.
+/// Follows the NatsTestServer pattern from crates/vo-worker/tests/worker_integration_tests.rs.
 struct E2eTestServer {
     http_client: reqwest::Client,
     base_url: String,
@@ -121,17 +121,17 @@ impl E2eTestServer {
 
 | File | Change |
 |------|--------|
-| `crates/wtf-api/tests/e2e_workflow_test.rs` | **New file** — full e2e test suite |
-| `crates/wtf-api/Cargo.toml` | Add `wtf-linter` to `[dev-dependencies]` if needed |
+| `crates/vo-api/tests/e2e_workflow_test.rs` | **New file** — full e2e test suite |
+| `crates/vo-api/Cargo.toml` | Add `vo-linter` to `[dev-dependencies]` if needed |
 
 ## 7. Dependencies
 
-- `wtf-storage::connect` / `wtf-storage::provision_streams` — NATS bootstrap (already a dependency)
-- `wtf-storage::kv::KvStores` — required by `build_app(master, kv)` (already a dependency)
-- `wtf-actor::OrchestratorMsg` — actor messages (already a dependency)
-- `wtf_api::app::build_app` — axum router factory
+- `vo-storage::connect` / `vo-storage::provision_streams` — NATS bootstrap (already a dependency)
+- `vo-storage::kv::KvStores` — required by `build_app(master, kv)` (already a dependency)
+- `vo-actor::OrchestratorMsg` — actor messages (already a dependency)
+- `vo_api::app::build_app` — axum router factory
 - `reqwest` — HTTP client for test assertions (already in `[dependencies]`, usable in tests)
-- Live NATS server at `127.0.0.1:4222` (Docker container `wtf-nats-test`) or `NATS_URL` env override
+- Live NATS server at `127.0.0.1:4222` (Docker container `vo-nats-test`) or `NATS_URL` env override
 
 ## 8. Risks
 
@@ -139,7 +139,7 @@ impl E2eTestServer {
 |------|-----------|------------|
 | Orchestrator requires sled DB path that may conflict | Medium | Use `sled::Config::temporary().open()` for test-only in-memory sled |
 | Orchestrator spawn fails because streams not yet provisioned | Low | Provision streams BEFORE spawning orchestrator |
-| Definition handler uses `wtf_linter::lint_workflow_code` which may parse-fail on malformed source | Low | Use a known-clean procedural source (no `thread::spawn`, no direct IO) |
+| Definition handler uses `vo_linter::lint_workflow_code` which may parse-fail on malformed source | Low | Use a known-clean procedural source (no `thread::spawn`, no direct IO) |
 | Journal entries empty because workflow hasn't processed yet | Medium | Poll with 200ms intervals up to 10s timeout (matching worker integration test patterns) |
 | Test flakes due to NATS timing | Low | Sequential test execution via `global_test_lock()` and `--test-threads=1` |
 | `KvStores` construction requires NATS context | Medium | Construct `KvStores` from the same JetStream context used for provisioning |
@@ -148,7 +148,7 @@ impl E2eTestServer {
 
 ### Test 1: Ingest definition returns valid for clean procedural source
 ```gherkin
-Given a running wtf-api server connected to real NATS
+Given a running vo-api server connected to real NATS
   And a procedural workflow source with no lint violations:
     "impl WorkflowFn for EchoWorkflow {
        async fn execute(&self, ctx: WorkflowContext) -> anyhow::Result<()> {
@@ -163,7 +163,7 @@ Then HTTP 200 is returned
 
 ### Test 2: Start workflow returns 201 with instance_id
 ```gherkin
-Given a running wtf-api server connected to real NATS
+Given a running vo-api server connected to real NATS
 When POST /api/v1/workflows is called with body:
     {
       "namespace": "e2e",
@@ -181,7 +181,7 @@ Then HTTP 201 is returned
 
 ### Test 3: Journal contains entries after workflow start
 ```gherkin
-Given a running wtf-api server connected to real NATS
+Given a running vo-api server connected to real NATS
   And a workflow has been started via POST /api/v1/workflows with instance_id = "<id>"
 When GET /api/v1/workflows/e2e/<id>/journal is polled every 200ms for up to 10s
 Then HTTP 200 is eventually returned
@@ -194,7 +194,7 @@ Then HTTP 200 is eventually returned
 
 ### Test 4: Workflow status returns V3StatusResponse
 ```gherkin
-Given a running wtf-api server connected to real NATS
+Given a running vo-api server connected to real NATS
   And a workflow has been started with instance_id = "<id>"
 When GET /api/v1/workflows/e2e/<id> is called
 Then HTTP 200 is returned
@@ -210,7 +210,7 @@ Then HTTP 200 is returned
 
 ### Test 5: List workflows includes the started instance
 ```gherkin
-Given a running wtf-api server connected to real NATS
+Given a running vo-api server connected to real NATS
   And a workflow has been started with instance_id = "<id>"
 When GET /api/v1/workflows is called
 Then HTTP 200 is returned
@@ -220,7 +220,7 @@ Then HTTP 200 is returned
 
 ### Test 6: Invalid paradigm returns 400
 ```gherkin
-Given a running wtf-api server connected to real NATS
+Given a running vo-api server connected to real NATS
 When POST /api/v1/workflows is called with body:
     {
       "namespace": "e2e",
@@ -234,7 +234,7 @@ Then HTTP 400 is returned
 
 ### Test 7: Invalid namespace returns 400
 ```gherkin
-Given a running wtf-api server connected to real NATS
+Given a running vo-api server connected to real NATS
 When POST /api/v1/workflows is called with body:
     {
       "namespace": "has spaces!",
@@ -254,9 +254,9 @@ Test function
   ├─ E2eTestServer::new()
   │    ├─ global_test_lock().lock_owned()
   │    ├─ NatsConfig { urls: ["nats://127.0.0.1:4222"], embedded: true }
-  │    ├─ wtf_storage::connect(&config) → async_nats::Client
+  │    ├─ vo_storage::connect(&config) → async_nats::Client
   │    ├─ client.jetstream() → js: Context
-  │    ├─ provision_streams(&js)  // creates wtf-work, wtf-events, wtf-signals, wtf-archive
+  │    ├─ provision_streams(&js)  // creates vo-work, vo-events, vo-signals, vo-archive
   │    ├─ sled::Config::temporary().open() → db
   │    ├─ KvStores::new(js.clone(), db.clone())  // or equivalent constructor
   │    ├─ spawn Orchestrator actor (with js, db, kv)
@@ -265,7 +265,7 @@ Test function
   │    └─ tokio::spawn(axum::serve(listener, app))
   │
   ├─ POST /api/v1/definitions/procedural
-  │    └─ wtf_linter::lint_workflow_code(&source) → DefinitionResponse
+  │    └─ vo_linter::lint_workflow_code(&source) → DefinitionResponse
   │
   ├─ POST /api/v1/workflows
   │    └─ OrchestratorMsg::StartWorkflow → orchestrator spawns WorkflowInstance actor
@@ -285,10 +285,10 @@ Test function
 
 ## 11. Acceptance Criteria
 
-- [ ] `crates/wtf-api/tests/e2e_workflow_test.rs` exists with all 7 tests
-- [ ] Tests connect to real NATS (no mocks) using `wtf-storage::connect`
-- [ ] Tests provision NATS streams via `wtf-storage::provision_streams`
-- [ ] Tests boot the full axum app via `wtf_api::app::build_app`
+- [ ] `crates/vo-api/tests/e2e_workflow_test.rs` exists with all 7 tests
+- [ ] Tests connect to real NATS (no mocks) using `vo-storage::connect`
+- [ ] Tests provision NATS streams via `vo-storage::provision_streams`
+- [ ] Tests boot the full axum app via `vo_api::app::build_app`
 - [ ] Tests bind to ephemeral port and make HTTP calls via `reqwest`
 - [ ] Definition ingestion returns `{ valid: true, diagnostics: [] }` for clean source
 - [ ] Workflow start returns HTTP 201 with `V3StartResponse` containing a non-empty `instance_id`
@@ -296,14 +296,14 @@ Test function
 - [ ] Status endpoint returns `V3StatusResponse` with matching `instance_id` and `paradigm: "procedural"`
 - [ ] List endpoint includes the started instance
 - [ ] Invalid paradigm and invalid namespace return HTTP 400
-- [ ] `cargo test -p wtf-api --test e2e_workflow -- --test-threads=1` passes (requires NATS)
-- [ ] `cargo clippy -p wtf-api -- -D warnings` passes
+- [ ] `cargo test -p vo-api --test e2e_workflow -- --test-threads=1` passes (requires NATS)
+- [ ] `cargo clippy -p vo-api -- -D warnings` passes
 - [ ] No `unwrap()` or `expect()` in test harness code (use `?` with `Box<dyn Error>`)
 
 ## 12. Implementation Sketch
 
 ```rust
-// crates/wtf-api/tests/e2e_workflow_test.rs
+// crates/vo-api/tests/e2e_workflow_test.rs
 
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
@@ -312,7 +312,7 @@ use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{watch, Mutex, OwnedMutexGuard};
 
-use wtf_storage::{connect, provision_streams, NatsConfig};
+use vo_storage::{connect, provision_streams, NatsConfig};
 
 // Reuse type shapes from the API crate for deserialization
 #[derive(Debug, Deserialize)]
@@ -398,7 +398,7 @@ impl E2eTestServer {
         let js = client.jetstream().clone();
 
         // Reset and provision streams
-        for name in ["wtf-work", "wtf-events", "wtf-signals", "wtf-archive"] {
+        for name in ["vo-work", "vo-events", "vo-signals", "vo-archive"] {
             let _ = js.delete_stream(name).await;
         }
         provision_streams(&js).await?;
@@ -407,17 +407,17 @@ impl E2eTestServer {
         let db = sled::Config::temporary().open()?;
 
         // Create KvStores (check actual constructor signature)
-        let kv = wtf_storage::kv::KvStores::new(js.clone(), db.clone())?;
+        let kv = vo_storage::kv::KvStores::new(js.clone(), db.clone())?;
 
         // Spawn orchestrator — needs the real Orchestrator actor.
-        // Use wtf_actor::Orchestrator or the public spawn function.
-        let master = wtf_actor::spawn_orchestrator(
+        // Use vo_actor::Orchestrator or the public spawn function.
+        let master = vo_actor::spawn_orchestrator(
             js.clone(),
             db,
             kv.clone(),
         ).await?;
 
-        let app = wtf_api::app::build_app(master, kv);
+        let app = vo_api::app::build_app(master, kv);
 
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
         let port = listener.local_addr()?.port();
@@ -657,15 +657,15 @@ async fn e2e_invalid_namespace_returns_400() {
 
 | Test | Run Command | Assert |
 |------|-------------|--------|
-| Definition ingestion | `cargo test -p wtf-api --test e2e_workflow e2e_ingest -- --test-threads=1 --nocapture` | HTTP 200, `valid: true`, empty diagnostics |
-| Start workflow 201 | `cargo test -p wtf-api --test e2e_workflow e2e_start_workflow -- --test-threads=1 --nocapture` | HTTP 201, non-empty `instance_id`, `workflow_type: "echo"` |
-| Journal non-empty | `cargo test -p wtf-api --test e2e_workflow e2e_journal -- --test-threads=1 --nocapture` | HTTP 200, `entries.len() > 0`, seq ascending |
-| Status match | `cargo test -p wtf-api --test e2e_workflow e2e_workflow_status -- --test-threads=1 --nocapture` | HTTP 200, matching `instance_id`, `paradigm: "procedural"`, `phase: "live"` |
-| List includes | `cargo test -p wtf-api --test e2e_workflow e2e_list_workflows -- --test-threads=1 --nocapture` | HTTP 200, array contains started instance |
-| Invalid paradigm | `cargo test -p wtf-api --test e2e_workflow e2e_invalid_paradigm -- --test-threads=1 --nocapture` | HTTP 400, `error: "invalid_paradigm"` |
-| Invalid namespace | `cargo test -p wtf-api --test e2e_workflow e2e_invalid_namespace -- --test-threads=1 --nocapture` | HTTP 400, `error: "invalid_namespace"` |
-| Full suite | `cargo test -p wtf-api --test e2e_workflow -- --test-threads=1` | All 7 tests pass |
-| Clippy | `cargo clippy -p wtf-api -- -D warnings` | No warnings |
+| Definition ingestion | `cargo test -p vo-api --test e2e_workflow e2e_ingest -- --test-threads=1 --nocapture` | HTTP 200, `valid: true`, empty diagnostics |
+| Start workflow 201 | `cargo test -p vo-api --test e2e_workflow e2e_start_workflow -- --test-threads=1 --nocapture` | HTTP 201, non-empty `instance_id`, `workflow_type: "echo"` |
+| Journal non-empty | `cargo test -p vo-api --test e2e_workflow e2e_journal -- --test-threads=1 --nocapture` | HTTP 200, `entries.len() > 0`, seq ascending |
+| Status match | `cargo test -p vo-api --test e2e_workflow e2e_workflow_status -- --test-threads=1 --nocapture` | HTTP 200, matching `instance_id`, `paradigm: "procedural"`, `phase: "live"` |
+| List includes | `cargo test -p vo-api --test e2e_workflow e2e_list_workflows -- --test-threads=1 --nocapture` | HTTP 200, array contains started instance |
+| Invalid paradigm | `cargo test -p vo-api --test e2e_workflow e2e_invalid_paradigm -- --test-threads=1 --nocapture` | HTTP 400, `error: "invalid_paradigm"` |
+| Invalid namespace | `cargo test -p vo-api --test e2e_workflow e2e_invalid_namespace -- --test-threads=1 --nocapture` | HTTP 400, `error: "invalid_namespace"` |
+| Full suite | `cargo test -p vo-api --test e2e_workflow -- --test-threads=1` | All 7 tests pass |
+| Clippy | `cargo clippy -p vo-api -- -D warnings` | No warnings |
 
 ## 14. Non-Goals
 
@@ -679,14 +679,14 @@ async fn e2e_invalid_namespace_returns_400() {
 
 ## 15. Rollback Plan
 
-Delete `crates/wtf-api/tests/e2e_workflow_test.rs` and revert `Cargo.toml` dev-dependencies changes. No production code changes, no schema migrations, no state changes. The test file is purely additive.
+Delete `crates/vo-api/tests/e2e_workflow_test.rs` and revert `Cargo.toml` dev-dependencies changes. No production code changes, no schema migrations, no state changes. The test file is purely additive.
 
 ## 16. Definition of Done
 
-1. `crates/wtf-api/tests/e2e_workflow_test.rs` created with all 7 test functions
+1. `crates/vo-api/tests/e2e_workflow_test.rs` created with all 7 test functions
 2. `E2eTestServer` harness connects to real NATS, provisions streams, boots axum app on ephemeral port
-3. All 7 tests pass with `cargo test -p wtf-api --test e2e_workflow -- --test-threads=1` (NATS required)
-4. `cargo clippy -p wtf-api -- -D warnings` — clean
+3. All 7 tests pass with `cargo test -p vo-api --test e2e_workflow -- --test-threads=1` (NATS required)
+4. `cargo clippy -p vo-api -- -D warnings` — clean
 5. No `unwrap()` or `expect()` in test harness (only in test assertion helpers where failure is the expected signal)
 6. Journal entries verified to have strictly ascending `seq` values
 7. HTTP status codes verified: 200, 201, 400

@@ -1,6 +1,6 @@
-# Architectural Drift Review — wtf-q2iv
+# Architectural Drift Review — vo-q2iv
 
-**File:** `crates/wtf-cli/src/commands/serve.rs`
+**File:** `crates/vo-cli/src/commands/serve.rs`
 **Date:** 2026-03-23
 
 ## STATUS: PERFECT

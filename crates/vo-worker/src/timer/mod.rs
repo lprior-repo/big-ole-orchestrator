@@ -10,7 +10,7 @@ mod tests {
     use super::record::TimerRecord;
     use chrono::{DateTime, Utc, Duration as ChronoDuration};
     use std::time::Duration;
-    use wtf_common::{InstanceId, NamespaceId, TimerId};
+    use vo_common::{InstanceId, NamespaceId, TimerId};
 
     fn make_record(timer_id: &str, fire_at: DateTime<Utc>) -> TimerRecord {
         TimerRecord {

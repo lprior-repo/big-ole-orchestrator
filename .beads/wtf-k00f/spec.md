@@ -1,6 +1,6 @@
-# BEAD: wtf-k00f - e2e: Test terminate workflow
+# BEAD: vo-k00f - e2e: Test terminate workflow
 
-id: "wtf-k00f"
+id: "vo-k00f"
 title: "e2e: Test terminate workflow"
 type: task
 priority: 1
@@ -23,7 +23,7 @@ resolved_clarifications:
     decided_by: "actor.rs:57-59 starts procedural workflow in pre_start; start.rs spawns with paradigm from request"
     date: "2026-03-23"
   - question: "Where should the E2E test file live?"
-    answer: "New file crates/wtf-actor/tests/terminate_e2e.rs as an integration test (tests/ directory, not #[cfg(test)] in src). This requires spawning real Ractor actors and a live NATS JetStream connection."
+    answer: "New file crates/vo-actor/tests/terminate_e2e.rs as an integration test (tests/ directory, not #[cfg(test)] in src). This requires spawning real Ractor actors and a live NATS JetStream connection."
     decided_by: "Workspace convention — integration tests with external deps go in tests/"
     date: "2026-03-23"
   - question: "How to verify the actor actually stopped?"
@@ -32,13 +32,13 @@ resolved_clarifications:
     date: "2026-03-23"
 
 assumptions:
-  - assumption: "NATS server is running in Docker container wtf-nats-test on localhost:4222"
-    validation_method: "AGENTS.md specifies this; cargo run -p wtf-storage --bin nats_connect_test"
+  - assumption: "NATS server is running in Docker container vo-nats-test on localhost:4222"
+    validation_method: "AGENTS.md specifies this; cargo run -p vo-storage --bin nats_connect_test"
     risk_if_wrong: "All integration tests fail with connection refused — non-recoverable in test"
-  - assumption: "JetStream stream wtf-events is provisioned (via provision_streams)"
-    validation_method: "Called during startup; provision.rs provisions wtf-events stream"
+  - assumption: "JetStream stream vo-events is provisioned (via provision_streams)"
+    validation_method: "Called during startup; provision.rs provisions vo-events stream"
     risk_if_wrong: "append_event() fails with stream not found error"
-  - assumption: "wtf-storage NatsClient implements EventStore trait (lib.rs:41-64)"
+  - assumption: "vo-storage NatsClient implements EventStore trait (lib.rs:41-64)"
     validation_method: "See lib.rs:40-64 — EventStore impl for NatsClient delegates to journal::append_event"
     risk_if_wrong: "Cannot compile — would be caught immediately"
   - assumption: "The terminate handler in instance/handlers.rs:143-175 always calls myself_ref.stop(Some(reason)) after publishing InstanceCancelled"
@@ -87,12 +87,12 @@ contracts:
         constraints: "Instance must be registered in OrchestratorState.active and in Live phase"
     system_state:
       - "NATS server running on localhost:4222"
-      - "JetStream stream wtf-events is provisioned"
+      - "JetStream stream vo-events is provisioned"
       - "MasterOrchestrator actor is running with at least one active instance"
       - "EventStore is available (NatsClient with JetStream context)"
   postconditions:
     state_changes:
-      - "WorkflowEvent::InstanceCancelled { reason: \"api-terminate\" } is persisted in JetStream stream wtf-events"
+      - "WorkflowEvent::InstanceCancelled { reason: \"api-terminate\" } is persisted in JetStream stream vo-events"
       - "WorkflowInstance actor is stopped (post_stop called)"
       - "OrchestratorState.active no longer contains the instance_id (actor death deregisters via supervision)"
     return_guarantees:
@@ -111,33 +111,33 @@ contracts:
     - "Terminate handler ALWAYS replies Ok(()) before stopping (handlers.rs:172-173)"
     - "reason string passed to terminate_workflow is \"api-terminate\" (workflow.rs:88)"
     - "Journal entries are sorted by seq ascending (journal.rs:194-198)"
-    - "No unwrap() or expect() in terminate path — all errors mapped to WtfError or TerminateError"
+    - "No unwrap() or expect() in terminate path — all errors mapped to VoError or TerminateError"
 
 research_requirements:
   files_to_read:
-    - path: "crates/wtf-api/src/handlers/workflow.rs"
+    - path: "crates/vo-api/src/handlers/workflow.rs"
       what_to_extract: "terminate_workflow handler (lines 70-95) — DELETE handler, split_path_id, OrchestratorMsg::Terminate construction, map_terminate_result"
-    - path: "crates/wtf-api/src/app.rs"
+    - path: "crates/vo-api/src/app.rs"
       what_to_extract: "Route registration (line 56) — delete(handlers::terminate_workflow), Extension<ActorRef<OrchestratorMsg>> injection"
-    - path: "crates/wtf-actor/src/master/handlers/terminate.rs"
+    - path: "crates/vo-actor/src/master/handlers/terminate.rs"
       what_to_extract: "handle_terminate (lines 8-23) — looks up instance in OrchestratorState.active, calls call_cancel; call_cancel (lines 25-48) — sends InstanceMsg::Cancel via actor_ref.call()"
-    - path: "crates/wtf-actor/src/instance/handlers.rs"
+    - path: "crates/vo-actor/src/instance/handlers.rs"
       what_to_extract: "handle_cancel (lines 143-175) — publishes WorkflowEvent::InstanceCancelled via state.args.event_store, replies Ok(()), calls myself_ref.stop()"
-    - path: "crates/wtf-storage/src/journal.rs"
+    - path: "crates/vo-storage/src/journal.rs"
       what_to_extract: "append_event (lines 28-50) — publishes to JetStream subject wtf.log.<ns>.<inst>, returns Ok(seq)"
-    - path: "crates/wtf-common/src/events/mod.rs"
+    - path: "crates/vo-common/src/events/mod.rs"
       what_to_extract: "WorkflowEvent::InstanceCancelled { reason: String } (line 28)"
-    - path: "crates/wtf-api/src/handlers/journal.rs"
+    - path: "crates/vo-api/src/handlers/journal.rs"
       what_to_extract: "get_journal handler (lines 19-69), map_event_fields (lines 111-192) — catch-all at line 183 maps InstanceCancelled to JournalEntryType::Run"
-    - path: "crates/wtf-actor/src/messages/orchestrator.rs"
+    - path: "crates/vo-actor/src/messages/orchestrator.rs"
       what_to_extract: "OrchestratorMsg::Terminate { instance_id, reason, reply } (lines 34-38)"
-    - path: "crates/wtf-actor/src/messages/instance.rs"
+    - path: "crates/vo-actor/src/messages/instance.rs"
       what_to_extract: "InstanceMsg::Cancel { reason, reply } (lines 65-68)"
-    - path: "crates/wtf-actor/src/messages/errors.rs"
+    - path: "crates/vo-actor/src/messages/errors.rs"
       what_to_extract: "TerminateError::NotFound(InstanceId) and TerminateError::Timeout(InstanceId) (lines 20-26)"
-    - path: "crates/wtf-api/src/handlers/workflow_mappers.rs"
+    - path: "crates/vo-api/src/handlers/workflow_mappers.rs"
       what_to_extract: "map_terminate_result (lines 131-152) — Ok(()) -> 204, NotFound -> 404, Timeout -> 503"
-    - path: "crates/wtf-actor/src/instance/actor.rs"
+    - path: "crates/vo-actor/src/instance/actor.rs"
       what_to_extract: "post_stop (lines 73-86) — aborts procedural_task and live_subscription_task"
   research_questions:
     - question: "Does the orchestrator deregister the instance from active on actor death?"
@@ -216,7 +216,7 @@ e2e_tests:
     description: "Start a procedural workflow, terminate it, verify InstanceCancelled in journal and actor stopped"
     setup:
       precondition_commands:
-        - "docker start wtf-nats-test"
+        - "docker start vo-nats-test"
     execute:
       steps:
         - description: "Start a procedural workflow with long sleep"
@@ -242,7 +242,7 @@ e2e_tests:
       exit_code: 0
       stdout_contains: []
       side_effects:
-        - "JetStream stream wtf-events contains message on subject wtf.log.e2e-term.<instance_id> with InstanceCancelled payload"
+        - "JetStream stream vo-events contains message on subject wtf.log.e2e-term.<instance_id> with InstanceCancelled payload"
 
 verification_checkpoints:
   gate_0_research:
@@ -262,7 +262,7 @@ verification_checkpoints:
     name: "Test Gate"
     must_pass_before: "Writing implementation code"
     checks:
-      - "[ ] Integration test file crates/wtf-actor/tests/terminate_e2e.rs exists"
+      - "[ ] Integration test file crates/vo-actor/tests/terminate_e2e.rs exists"
       - "[ ] Test spawns MasterOrchestrator with real NATS EventStore"
       - "[ ] Test starts a procedural workflow instance"
       - "[ ] Test sends InstanceMsg::Cancel (or OrchestratorMsg::Terminate) and verifies Ok(())"
@@ -270,7 +270,7 @@ verification_checkpoints:
       - "[ ] Test verifies actor is stopped after cancel"
       - "[ ] Test compiles and runs with NATS available"
     evidence_required:
-      - "Test file exists and cargo test -p wtf-actor --test terminate_e2e compiles"
+      - "Test file exists and cargo test -p vo-actor --test terminate_e2e compiles"
   gate_2_implementation:
     name: "Implementation Gate"
     must_pass_before: "Declaring task complete"
@@ -280,7 +280,7 @@ verification_checkpoints:
       - "[ ] Test uses real NatsClient, not mocks"
       - "[ ] Test cleans up spawned actors"
     evidence_required:
-      - "cargo test -p wtf-actor --test terminate_e2e shows all green"
+      - "cargo test -p vo-actor --test terminate_e2e shows all green"
       - "cargo test --workspace passes (no regressions)"
 
 implementation_tasks:
@@ -288,120 +288,120 @@ implementation_tasks:
     parallelizable: true
     tasks:
       - task: "Understand MasterOrchestrator spawn and supervision setup"
-        file: "crates/wtf-actor/src/master/mod.rs"
+        file: "crates/vo-actor/src/master/mod.rs"
         done_when: "Know how to spawn MasterOrchestrator with OrchestratorConfig that includes EventStore"
       - task: "Understand procedural workflow registration and WorkflowFn trait"
-        file: "crates/wtf-actor/src/procedural/mod.rs"
+        file: "crates/vo-actor/src/procedural/mod.rs"
         done_when: "Know how to create a test WorkflowFn that sleeps long enough for cancel"
       - task: "Check existing integration test patterns in workspace"
-        file: "crates/wtf-storage/src/nats.rs"
+        file: "crates/vo-storage/src/nats.rs"
         done_when: "Know how tests create NatsClient and connect to NATS"
   phase_1_tests_first:
     parallelizable: true
     gate_required: "gate_0_research"
     tasks:
-      - task: "Create test file crates/wtf-actor/tests/terminate_e2e.rs"
-        file: "crates/wtf-actor/tests/terminate_e2e.rs"
+      - task: "Create test file crates/vo-actor/tests/terminate_e2e.rs"
+        file: "crates/vo-actor/tests/terminate_e2e.rs"
         done_when: "File created with #[tokio::test] scaffold and use imports"
       - task: "Write test helper: connect to NATS, provision streams, create NatsClient with EventStore"
-        file: "crates/wtf-actor/tests/terminate_e2e.rs"
+        file: "crates/vo-actor/tests/terminate_e2e.rs"
         done_when: "Helper function nats_setup() returns (NatsClient, JetStream context) — pattern from existing tests"
       - task: "Write test helper: spawn MasterOrchestrator with EventStore config"
-        file: "crates/wtf-actor/tests/terminate_e2e.rs"
+        file: "crates/vo-actor/tests/terminate_e2e.rs"
         done_when: "Helper function spawn_orchestrator(nats_client) returns ActorRef<OrchestratorMsg>"
       - task: "Write test: start procedural workflow, terminate, verify InstanceCancelled in journal, verify actor stopped"
-        file: "crates/wtf-actor/tests/terminate_e2e.rs"
+        file: "crates/vo-actor/tests/terminate_e2e.rs"
         done_when: "Test compiles, runs against NATS, all assertions pass"
       - task: "Write test: terminate non-existent instance returns TerminateError::NotFound"
-        file: "crates/wtf-actor/tests/terminate_e2e.rs"
+        file: "crates/vo-actor/tests/terminate_e2e.rs"
         done_when: "Test compiles and passes"
   phase_2_implementation:
     parallelizable: false
     gate_required: "gate_1_tests"
     tasks:
       - task: "Ensure OrchestratorConfig in test includes event_store: Some(Arc::new(nats_client))"
-        file: "crates/wtf-actor/tests/terminate_e2e.rs"
+        file: "crates/vo-actor/tests/terminate_e2e.rs"
         done_when: "MasterOrchestrator spawned with real EventStore so InstanceCancelled gets published to JetStream"
       - task: "Register a procedural workflow that sleeps long enough (60s) before terminating"
-        file: "crates/wtf-actor/tests/terminate_e2e.rs"
+        file: "crates/vo-actor/tests/terminate_e2e.rs"
         done_when: "WorkflowFn registered via OrchestratorState.registry or appropriate mechanism — instance stays alive during cancel"
       - task: "After terminate, read journal via replay_events from JetStream and assert InstanceCancelled present"
-        file: "crates/wtf-actor/tests/terminate_e2e.rs"
+        file: "crates/vo-actor/tests/terminate_e2e.rs"
         done_when: "Replay from seq=1, find WorkflowEvent::InstanceCancelled { reason } in events, assert reason == \"api-terminate\""
       - task: "After terminate, verify actor stopped by sending GetStatus and expecting ActorDied/NotFound"
-        file: "crates/wtf-actor/tests/terminate_e2e.rs"
+        file: "crates/vo-actor/tests/terminate_e2e.rs"
         done_when: "OrchestratorMsg::GetStatus returns Err(GetStatusError::ActorDied) or Ok(None) after cancel"
 
 failure_modes:
   - symptom: "Test fails to start instance — SpawnFailed error"
     likely_cause: "Missing EventStore in OrchestratorConfig, or NATS not running"
     where_to_look:
-      - file: "crates/wtf-actor/tests/terminate_e2e.rs"
-        what_to_check: "Is nats_client passed as event_store in OrchestratorConfig? Is docker wtf-nats-test running?"
-    fix_pattern: "Add event_store: Some(Arc::new(nats_client)) to config; run docker start wtf-nats-test"
+      - file: "crates/vo-actor/tests/terminate_e2e.rs"
+        what_to_check: "Is nats_client passed as event_store in OrchestratorConfig? Is docker vo-nats-test running?"
+    fix_pattern: "Add event_store: Some(Arc::new(nats_client)) to config; run docker start vo-nats-test"
   - symptom: "Terminate returns 204 but InstanceCancelled not in journal"
     likely_cause: "Reading journal too fast before JetStream consumer catches up, or EventStore is None in InstanceArguments"
     where_to_look:
-      - file: "crates/wtf-actor/tests/terminate_e2e.rs"
+      - file: "crates/vo-actor/tests/terminate_e2e.rs"
         what_to_check: "Is there a tokio::time::sleep after terminate before reading journal? Is OrchestratorConfig.event_store set?"
     fix_pattern: "Add 100ms sleep between terminate and journal read. Verify event_store is Some in config."
   - symptom: "Instance never reaches Live phase — terminate times out"
     likely_cause: "Replay hangs or pre_start fails silently"
     where_to_look:
-      - file: "crates/wtf-actor/src/instance/init.rs"
+      - file: "crates/vo-actor/src/instance/init.rs"
         what_to_check: "Is replay_events returning? Is create_replay_consumer timing out on empty stream?"
     fix_pattern: "Ensure ReplayConfig.tail_timeout is reasonable (200ms default). Check tracing logs for replay phase."
   - symptom: "Actor does not stop after cancel"
     likely_cause: "handle_cancel not reached — message dispatched to wrong handler arm"
     where_to_look:
-      - file: "crates/wtf-actor/src/instance/handlers.rs:15"
+      - file: "crates/vo-actor/src/instance/handlers.rs:15"
         what_to_check: "Is InstanceMsg::Cancel matched in handle_msg at line 23-25? Does it reach handle_cancel?"
     fix_pattern: "Verify the message enum arm. The Cancel variant is at instance.rs:65-68."
   - symptom: "compile error: use of undeclared type ReplayedEvent or ReplayBatch"
-    likely_cause: "Missing use import for wtf_common::storage::{ReplayBatch, ReplayedEvent}"
+    likely_cause: "Missing use import for vo_common::storage::{ReplayBatch, ReplayedEvent}"
     where_to_look:
-      - file: "crates/wtf-actor/tests/terminate_e2e.rs"
+      - file: "crates/vo-actor/tests/terminate_e2e.rs"
         what_to_check: "Imports section"
-    fix_pattern: "Add: use wtf_common::storage::{ReplayBatch, ReplayedEvent};"
+    fix_pattern: "Add: use vo_common::storage::{ReplayBatch, ReplayedEvent};"
 
 anti_hallucination:
   read_before_write:
-    - file: "crates/wtf-actor/tests/"
+    - file: "crates/vo-actor/tests/"
       must_read_first: true
       key_sections_to_understand:
         - "Check if tests/ directory exists — if not, create it"
         - "Look for existing integration test patterns (e.g., other test files)"
-    - file: "crates/wtf-actor/src/master/mod.rs"
+    - file: "crates/vo-actor/src/master/mod.rs"
       must_read_first: true
       key_sections_to_understand:
         - "How MasterOrchestrator is spawned (Actor spawn pattern)"
         - "How OrchestratorConfig is constructed and passed"
         - "How the supervision link is set up (spawn_linked in start.rs:60-63)"
-    - file: "crates/wtf-actor/src/procedural/mod.rs"
+    - file: "crates/vo-actor/src/procedural/mod.rs"
       must_read_first: true
       key_sections_to_understand:
         - "WorkflowFn trait definition"
         - "How procedural workflows are registered in the registry"
         - "start_procedural_workflow function signature"
-    - file: "crates/wtf-storage/src/nats.rs"
+    - file: "crates/vo-storage/src/nats.rs"
       must_read_first: true
       key_sections_to_understand:
         - "NatsClient struct, NatsConfig, connect() function"
         - "How to create NatsClient for tests"
-    - file: "crates/wtf-storage/src/provision.rs"
+    - file: "crates/vo-storage/src/provision.rs"
       must_read_first: true
       key_sections_to_understand:
         - "provision_streams() — needed before using JetStream"
-    - file: "crates/wtf-common/src/storage.rs"
+    - file: "crates/vo-common/src/storage.rs"
       must_read_first: true
       key_sections_to_understand:
         - "ReplayStream trait — next_event() method"
         - "EventStore trait — publish() and open_replay_stream() methods"
-    - file: "crates/wtf-actor/Cargo.toml"
+    - file: "crates/vo-actor/Cargo.toml"
       must_read_first: true
       key_sections_to_understand:
         - "dev-dependencies — what testing libraries are available"
-        - "dependencies — wtf-storage, wtf-common available?"
+        - "dependencies — vo-storage, vo-common available?"
   no_placeholder_values:
     - "Do NOT use placeholder instance IDs — generate via InstanceId::new(ulid::Ulid::new().to_string())"
     - "Do NOT guess the WorkflowFn trait — read procedural/mod.rs to get the exact signature"
@@ -412,7 +412,7 @@ anti_hallucination:
 
 context_survival:
   progress_file:
-    path: ".beads/wtf-k00f/progress.txt"
+    path: ".beads/vo-k00f/progress.txt"
     format: "Markdown checklist"
   recovery_instructions: |
     Read progress.txt and continue from last incomplete task.
@@ -420,8 +420,8 @@ context_survival:
     - Terminate flow: DELETE -> terminate_workflow (workflow.rs:70) -> OrchestratorMsg::Terminate (orchestrator.rs:34) -> handle_terminate (terminate.rs:8) -> InstanceMsg::Cancel (instance.rs:65) -> handle_cancel (handlers.rs:143) -> append_event InstanceCancelled -> myself_ref.stop()
     - InstanceCancelled variant: WorkflowEvent::InstanceCancelled { reason: String } at events/mod.rs:28
     - JetStream subject: wtf.log.<namespace>.<instance_id> at journal.rs:54-56
-    - Test file: crates/wtf-actor/tests/terminate_e2e.rs (new file)
-    - Requires: NATS running (docker start wtf-nats-test), provision_streams called, real NatsClient as EventStore
+    - Test file: crates/vo-actor/tests/terminate_e2e.rs (new file)
+    - Requires: NATS running (docker start vo-nats-test), provision_streams called, real NatsClient as EventStore
     - Verification: replay journal via ReplayStream, check for InstanceCancelled; check actor stopped via GetStatus returning ActorDied
     - ACTOR_CALL_TIMEOUT: 5s at handlers/mod.rs:26
     - INSTANCE_CALL_TIMEOUT: check master/handlers/mod.rs for exact value
@@ -432,7 +432,7 @@ completion_checklist:
     - "[ ] Integration test: journal contains InstanceCancelled after terminate"
     - "[ ] Integration test: actor is stopped after terminate (GetStatus returns ActorDied)"
     - "[ ] Integration test: terminate non-existent instance returns TerminateError::NotFound"
-    - "[ ] cargo test -p wtf-actor --test terminate_e2e passes"
+    - "[ ] cargo test -p vo-actor --test terminate_e2e passes"
     - "[ ] cargo test --workspace passes (no regressions)"
   code:
     - "[ ] Zero unwrap() or expect() in test code"
@@ -441,43 +441,43 @@ completion_checklist:
     - "[ ] Actors cleaned up after test (stop or let supervision handle it)"
     - "[ ] InstanceCancelled reason verified as \"api-terminate\""
   ci:
-    - "[ ] cargo test -p wtf-actor --test terminate_e2e passes"
+    - "[ ] cargo test -p vo-actor --test terminate_e2e passes"
     - "[ ] cargo clippy --workspace -- -D warnings passes"
     - "[ ] cargo check --workspace passes"
 
 context:
   related_files:
-    - path: "crates/wtf-actor/tests/terminate_e2e.rs"
+    - path: "crates/vo-actor/tests/terminate_e2e.rs"
       relevance: "Primary file — new E2E integration test for terminate path"
-    - path: "crates/wtf-api/src/handlers/workflow.rs"
+    - path: "crates/vo-api/src/handlers/workflow.rs"
       relevance: "terminate_workflow HTTP handler (line 70-95) — DELETE endpoint"
-    - path: "crates/wtf-actor/src/master/handlers/terminate.rs"
+    - path: "crates/vo-actor/src/master/handlers/terminate.rs"
       relevance: "handle_terminate orchestrator handler (line 8-23) — forwards Cancel to instance actor"
-    - path: "crates/wtf-actor/src/instance/handlers.rs"
+    - path: "crates/vo-actor/src/instance/handlers.rs"
       relevance: "handle_cancel (line 143-175) — publishes InstanceCancelled, stops actor"
-    - path: "crates/wtf-storage/src/journal.rs"
+    - path: "crates/vo-storage/src/journal.rs"
       relevance: "append_event (line 28-50) — JetStream publish, subject wtf.log.<ns>.<id>"
-    - path: "crates/wtf-common/src/events/mod.rs"
+    - path: "crates/vo-common/src/events/mod.rs"
       relevance: "WorkflowEvent::InstanceCancelled { reason } (line 28)"
-    - path: "crates/wtf-api/src/handlers/journal.rs"
+    - path: "crates/vo-api/src/handlers/journal.rs"
       relevance: "get_journal (line 19-69) — journal read endpoint"
-    - path: "crates/wtf-actor/src/messages/orchestrator.rs"
+    - path: "crates/vo-actor/src/messages/orchestrator.rs"
       relevance: "OrchestratorMsg::Terminate { instance_id, reason, reply } (line 34-38)"
-    - path: "crates/wtf-actor/src/messages/instance.rs"
+    - path: "crates/vo-actor/src/messages/instance.rs"
       relevance: "InstanceMsg::Cancel { reason, reply } (line 65-68)"
-    - path: "crates/wtf-actor/src/messages/errors.rs"
+    - path: "crates/vo-actor/src/messages/errors.rs"
       relevance: "TerminateError enum (line 20-26)"
-    - path: "crates/wtf-api/src/handlers/workflow_mappers.rs"
+    - path: "crates/vo-api/src/handlers/workflow_mappers.rs"
       relevance: "map_terminate_result (line 131-152) — 204/404/503 mapping"
-    - path: "crates/wtf-actor/src/instance/actor.rs"
+    - path: "crates/vo-actor/src/instance/actor.rs"
       relevance: "post_stop (line 73-86) — cleanup on actor stop"
-    - path: "crates/wtf-actor/src/master/mod.rs"
+    - path: "crates/vo-actor/src/master/mod.rs"
       relevance: "MasterOrchestrator spawn and supervision"
-    - path: "crates/wtf-storage/src/nats.rs"
+    - path: "crates/vo-storage/src/nats.rs"
       relevance: "NatsClient, NatsConfig, connect() for test setup"
-    - path: "crates/wtf-storage/src/provision.rs"
+    - path: "crates/vo-storage/src/provision.rs"
       relevance: "provision_streams() required before JetStream operations"
-    - path: "crates/wtf-common/src/storage.rs"
+    - path: "crates/vo-common/src/storage.rs"
       relevance: "EventStore trait (publish), ReplayStream trait (next_event)"
   design_decisions:
     - decision: "Test at actor level (not HTTP level) — use OrchestratorMsg::Terminate directly"

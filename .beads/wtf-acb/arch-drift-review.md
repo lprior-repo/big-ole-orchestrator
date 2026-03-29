@@ -1,7 +1,7 @@
-# Architectural Drift Review — wtf-types
+# Architectural Drift Review — vo-types
 
 **Date**: 2026-03-27
-**Crate**: `crates/wtf-types`
+**Crate**: `crates/vo-types`
 **Reviewer**: Automated (architectural-drift + scott-ddd-refactor skills)
 
 ## Summary
@@ -78,7 +78,7 @@ ULID crate accepts mixed-case but does NOT normalize. Two InstanceIds with diffe
 ## File Structure
 
 ```
-crates/wtf-types/src/
+crates/vo-types/src/
   lib.rs              (17 lines)  — module declarations + pub re-exports
   types.rs            (74 lines)  — shared helpers + re-exports
   string_types.rs    (246 lines)  — 6 string newtypes

@@ -1,4 +1,4 @@
-# Implementation Summary: Bead wtf-4bz — capacity_check method
+# Implementation Summary: Bead vo-4bz — capacity_check method
 
 **Date:** 2026-03-23
 **Agent:** functional-rust repair (glm-5-turbo)
@@ -30,7 +30,7 @@ The bead says `capacity_check`, ADR says `running_count`/`max_concurrent`, code 
 
 ## Changed Files
 
-### 1. `crates/wtf-actor/src/master/state.rs`
+### 1. `crates/vo-actor/src/master/state.rs`
 
 **Added:**
 - `NullActor` struct + `ractor::Actor` impl (lines 146-162) — minimal test-only actor for obtaining a valid `ActorRef<InstanceMsg>` without spawning a real workflow instance
@@ -40,7 +40,7 @@ The bead says `capacity_check`, ADR says `running_count`/`max_concurrent`, code 
 
 **Why `#[tokio::test]`:** `ractor::Actor::spawn` requires an async runtime. The test module now uses `tokio::test` for this single async test while all other tests remain sync `#[test]`.
 
-### 2. `crates/wtf-actor/src/master/handlers/start.rs`
+### 2. `crates/vo-actor/src/master/handlers/start.rs`
 
 **Fixed pre-existing compile errors in test module:**
 - Replaced broken `dummy_instance_ref()` (used `ractor::concurrency::join` which doesn't exist) with `NullActor::spawn` pattern matching the codebase convention from `tests/procedural_ctx_start_at_zero.rs`
@@ -48,7 +48,7 @@ The bead says `capacity_check`, ADR says `running_count`/`max_concurrent`, code 
 - Added `StartError` import in test module scope
 - Changed `use ractor::Actor` → `use ractor::Actor as _` at file top (trait only needed for method resolution, not name)
 
-### 3. `.beads/wtf-4bz/defects.md`
+### 3. `.beads/vo-4bz/defects.md`
 
 **Updated:**
 - C-1: Marked **ACCEPTED, NO FIX** with resolution note
@@ -59,7 +59,7 @@ The bead says `capacity_check`, ADR says `running_count`/`max_concurrent`, code 
 - Verdict: Changed from **REJECTED** → **ACCEPTED** (paper-trail fixed)
 - Mandatory actions: Replaced with resolution checklist
 
-### 4. `.beads/wtf-4bz/implementation.md`
+### 4. `.beads/vo-4bz/implementation.md`
 
 **Created:** This file.
 
@@ -80,7 +80,7 @@ The bead says `capacity_check`, ADR says `running_count`/`max_concurrent`, code 
 
 ## Test Execution Note
 
-`cargo test -p wtf-actor` could not be run due to a **pre-existing compile error** in `crates/wtf-actor/src/master/mod.rs:93` (mismatched types: `Result<Option<...>, GetStatusError>` vs `Option<InstanceStatusSnapshot>`). This error exists on the parent change (`yxxlnwtt`) and is outside the scope of bead wtf-4bz. The test code is syntactically verified via file review; it follows the identical NullActor pattern used in the passing integration test `tests/procedural_ctx_start_at_zero.rs`.
+`cargo test -p vo-actor` could not be run due to a **pre-existing compile error** in `crates/vo-actor/src/master/mod.rs:93` (mismatched types: `Result<Option<...>, GetStatusError>` vs `Option<InstanceStatusSnapshot>`). This error exists on the parent change (`yxxlnwtt`) and is outside the scope of bead vo-4bz. The test code is syntactically verified via file review; it follows the identical NullActor pattern used in the passing integration test `tests/procedural_ctx_start_at_zero.rs`.
 
 ---
 

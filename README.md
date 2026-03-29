@@ -1,4 +1,4 @@
-# wtf-engine
+# vo-engine
 
 DAG-based durable workflow execution engine combining:
 
@@ -39,14 +39,14 @@ cargo run --release -- --help
 
 | Crate | Description |
 |-------|-------------|
-| `wtf-core` | Core types, DAG, journal, replay |
-| `wtf-storage` | sled persistence layer |
-| `wtf-actor` | ractor actors |
-| `wtf-worker` | Worker loop, activity execution |
-| `wtf-api` | Axum HTTP API |
-| `wtf-cli` | CLI client |
-| `wtf-frontend` | Dioxus web UI |
-| `wtf-common` | Shared types |
+| `vo-core` | Core types, DAG, journal, replay |
+| `vo-storage` | sled persistence layer |
+| `vo-actor` | ractor actors |
+| `vo-worker` | Worker loop, activity execution |
+| `vo-api` | Axum HTTP API |
+| `vo-cli` | CLI client |
+| `vo-frontend` | Dioxus web UI |
+| `vo-common` | Shared types |
 
 ## License
 

@@ -1,18 +1,18 @@
-# Implementation Summary: wtf-49tp
+# Implementation Summary: vo-49tp
 
-- **bead_id**: wtf-49tp
+- **bead_id**: vo-49tp
 - **bead_title**: instance: Implement snapshot trigger
 - **phase**: STATE-3
 - **updated_at**: 2026-03-23T00:00:00Z
 
 ## Files Modified
 
-### `crates/wtf-actor/src/instance/handlers.rs` (PRIMARY)
+### `crates/vo-actor/src/instance/handlers.rs` (PRIMARY)
 - **Lines 208-210**: Updated call site — `handle_snapshot_trigger(state)` → `handle_snapshot_trigger(state).await?`
 - **Lines 215-263**: Replaced stub `fn handle_snapshot_trigger` with real `async fn handle_snapshot_trigger` implementation
 - **Lines 265-463**: Added `#[cfg(test)] mod tests` with 5 unit tests, 3 mock types, 3 helper functions
 
-### `crates/wtf-actor/src/instance/mod.rs` (ANCILLARY FIX)
+### `crates/vo-actor/src/instance/mod.rs` (ANCILLARY FIX)
 - **Lines 21-47**: Updated pre-existing test module — added `MockOkEventStore` + `EmptyReplayStream` mocks and wired `event_store` + `snapshot_db` into `test_args()` helper so that `snapshot_resets_counter_at_interval` passes with the real implementation
 
 ## Implementation Details
@@ -65,9 +65,9 @@ test result: ok. 73 passed; 0 failed; 0 ignored
 
 ## cargo clippy Output
 
-`cargo clippy -p wtf-actor` — zero warnings in `handlers.rs`. All 5 warnings referencing `handlers.rs` are pre-existing (missing `# Errors` doc sections, unused `async`, etc.).
+`cargo clippy -p vo-actor` — zero warnings in `handlers.rs`. All 5 warnings referencing `handlers.rs` are pre-existing (missing `# Errors` doc sections, unused `async`, etc.).
 
-`cargo clippy -p wtf-actor -- -D warnings` — 4 pre-existing errors in `wtf-common` (`missing_errors_doc` lint on `to_msgpack`/`from_msgpack`/`try_new`). No new warnings or errors introduced.
+`cargo clippy -p vo-actor -- -D warnings` — 4 pre-existing errors in `vo-common` (`missing_errors_doc` lint on `to_msgpack`/`from_msgpack`/`try_new`). No new warnings or errors introduced.
 
 ## Acceptance Criteria Status
 
@@ -75,6 +75,6 @@ test result: ok. 73 passed; 0 failed; 0 ignored
 2. On success: sled has SnapshotRecord, JetStream has SnapshotTaken, counter reset — DONE (delegated to `write_instance_snapshot`)
 3. On failure: counter NOT reset, workflow continues — DONE
 4. Missing stores: returns error — DONE
-5. `cargo clippy -p wtf-actor -- -D warnings` — pre-existing failures in wtf-common only
-6. `cargo test -p wtf-actor` passes — DONE (73/73 unit, 31/31 integration)
+5. `cargo clippy -p vo-actor -- -D warnings` — pre-existing failures in vo-common only
+6. `cargo test -p vo-actor` passes — DONE (73/73 unit, 31/31 integration)
 7. No `unwrap` or `expect` in new code — DONE

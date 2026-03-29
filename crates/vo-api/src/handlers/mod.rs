@@ -10,7 +10,7 @@ pub use events::*;
 #[cfg(test)]
 mod tests {
     use super::helpers::*;
-    use wtf_actor::messages::WorkflowParadigm;
+    use vo_actor::messages::WorkflowParadigm;
 
     #[test]
     fn split_path_id_returns_namespace_and_id_when_valid() {

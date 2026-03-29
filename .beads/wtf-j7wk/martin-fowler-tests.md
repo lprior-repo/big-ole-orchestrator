@@ -1,7 +1,7 @@
 # Martin Fowler Test Plan
 
-bead_id: wtf-j7wk
-bead_title: "wtf-frontend: Simulate Mode Procedural — step through ctx calls, show checkpoint map"
+bead_id: vo-j7wk
+bead_title: "vo-frontend: Simulate Mode Procedural — step through ctx calls, show checkpoint map"
 phase: test-plan
 updated_at: 2026-03-21T17:30:00Z
 

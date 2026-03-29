@@ -1,25 +1,25 @@
-# wtf-cedw
+# vo-cedw
 
 ## instance: Implement handle_signal wake in instance handlers
 
 ### 1. identity
 
-- **bead_id:** wtf-cedw
+- **bead_id:** vo-cedw
 - **title:** instance: Implement handle_signal wake in instance handlers
 - **type:** feature
 - **priority:** 2
 - **effort_estimate:** 1hr
 - **status:** planned
-- **crates:** wtf-actor
+- **crates:** vo-actor
 - **branch:** main
 
 ### 2. problem
 
-`handle_signal` in `crates/wtf-actor/src/instance/handlers.rs:116-129` is a stub. When an external signal arrives via `InstanceMsg::InjectSignal`, the handler logs "signal received (stub)" and acks the reply, but does nothing else. Procedural workflows have no way to wait for a signal, and signals are not persisted to the event store. This means signals are silently discarded.
+`handle_signal` in `crates/vo-actor/src/instance/handlers.rs:116-129` is a stub. When an external signal arrives via `InstanceMsg::InjectSignal`, the handler logs "signal received (stub)" and acks the reply, but does nothing else. Procedural workflows have no way to wait for a signal, and signals are not persisted to the event store. This means signals are silently discarded.
 
 ### 3. context
 
-Signals enter the system via `crates/wtf-actor/src/master/handlers/signal.rs:8-26`, which calls `actor_ref.cast(InstanceMsg::InjectSignal { ... })`. The `WorkflowEvent::SignalReceived { signal_name: String, payload: Bytes }` variant already exists in `crates/wtf-common/src/events/mod.rs:71`.
+Signals enter the system via `crates/vo-actor/src/master/handlers/signal.rs:8-26`, which calls `actor_ref.cast(InstanceMsg::InjectSignal { ... })`. The `WorkflowEvent::SignalReceived { signal_name: String, payload: Bytes }` variant already exists in `crates/vo-common/src/events/mod.rs:71`.
 
 The existing wake pattern is established by `handle_inject_event_msg` (lines 87-113) which: persists the event, then wakes pending waiters by removing from `state.pending_activity_calls` / `state.pending_timer_calls` and sending the result through the `RpcReplyPort`.
 
@@ -41,7 +41,7 @@ The existing wake pattern is established by `handle_inject_event_msg` (lines 87-
 - Handle signal replay via `inject_event`.
 
 **Out of scope:**
-- Frontend `WaitForSignal` node editing (already exists in `wtf-frontend`).
+- Frontend `WaitForSignal` node editing (already exists in `vo-frontend`).
 - Linter rules for signal usage.
 - Multiple waiters for the same signal name.
 
@@ -50,12 +50,12 @@ The existing wake pattern is established by `handle_inject_event_msg` (lines 87-
 #### 6.1. handle_signal must persist event before waking
 
 ```rust
-// In crates/wtf-actor/src/instance/handlers.rs
+// In crates/vo-actor/src/instance/handlers.rs
 async fn handle_signal(
     state: &mut InstanceState,
     signal_name: String,
     payload: Bytes,
-    reply: RpcReplyPort<Result<(), WtfError>>,
+    reply: RpcReplyPort<Result<(), VoError>>,
 ) -> Result<(), ActorProcessingErr>;
 ```
 
@@ -74,8 +74,8 @@ async fn handle_signal(
 #### 6.2. InstanceState gains pending_signal_calls
 
 ```rust
-// In crates/wtf-actor/src/instance/state.rs
-pub pending_signal_calls: HashMap<String, RpcReplyPort<Result<Bytes, WtfError>>>,
+// In crates/vo-actor/src/instance/state.rs
+pub pending_signal_calls: HashMap<String, RpcReplyPort<Result<Bytes, VoError>>>,
 ```
 
 - Key: signal name (exact match).
@@ -85,17 +85,17 @@ pub pending_signal_calls: HashMap<String, RpcReplyPort<Result<Bytes, WtfError>>>
 #### 6.3. InstanceMsg::ProceduralWaitForSignal variant
 
 ```rust
-// In crates/wtf-actor/src/messages/instance.rs
+// In crates/vo-actor/src/messages/instance.rs
 ProceduralWaitForSignal {
     signal_name: String,
-    reply: RpcReplyPort<Result<Bytes, WtfError>>,
+    reply: RpcReplyPort<Result<Bytes, VoError>>,
 },
 ```
 
 #### 6.4. WorkflowContext::wait_for_signal
 
 ```rust
-// In crates/wtf-actor/src/procedural/context.rs
+// In crates/vo-actor/src/procedural/context.rs
 pub async fn wait_for_signal(&self, signal_name: &str) -> anyhow::Result<Bytes>;
 ```
 
@@ -110,7 +110,7 @@ In `handle_inject_event_msg` (line 87), add a match arm for `WorkflowEvent::Sign
 ```rust
 if let WorkflowEvent::SignalReceived { signal_name, payload } = &event {
     if let Some(port) = state.pending_signal_calls.remove(signal_name) {
-        let _ = port.send(Ok::<Bytes, WtfError>(payload.clone()));
+        let _ = port.send(Ok::<Bytes, VoError>(payload.clone()));
     }
 }
 ```
@@ -119,28 +119,28 @@ if let WorkflowEvent::SignalReceived { signal_name, payload } = &event {
 
 #### State changes
 
-**`InstanceState`** (`crates/wtf-actor/src/instance/state.rs`):
-- Add field: `pub pending_signal_calls: HashMap<String, RpcReplyPort<Result<Bytes, WtfError>>>`
+**`InstanceState`** (`crates/vo-actor/src/instance/state.rs`):
+- Add field: `pub pending_signal_calls: HashMap<String, RpcReplyPort<Result<Bytes, VoError>>>`
 - Initialize to `HashMap::new()` in `InstanceState::initial()`.
 
-**`InstanceMsg`** (`crates/wtf-actor/src/messages/instance.rs`):
-- Add variant `ProceduralWaitForSignal { signal_name: String, reply: RpcReplyPort<Result<Bytes, WtfError>> }`.
+**`InstanceMsg`** (`crates/vo-actor/src/messages/instance.rs`):
+- Add variant `ProceduralWaitForSignal { signal_name: String, reply: RpcReplyPort<Result<Bytes, VoError>> }`.
 
 #### Handler changes
 
-**`handle_signal`** (`crates/wtf-actor/src/instance/handlers.rs:116-129`):
+**`handle_signal`** (`crates/vo-actor/src/instance/handlers.rs:116-129`):
 - Change `state: &InstanceState` to `state: &mut InstanceState`.
 - Publish `WorkflowEvent::SignalReceived { signal_name, payload }` to the event store.
 - Remove matching entry from `state.pending_signal_calls`, send payload through the port.
 - Ack reply.
 
-**`handle_inject_event_msg`** (`crates/wtf-actor/src/instance/handlers.rs:87-113`):
+**`handle_inject_event_msg`** (`crates/vo-actor/src/instance/handlers.rs:87-113`):
 - Add `WorkflowEvent::SignalReceived` wake arm after the `TimerFired` arm.
 
-**`handle_procedural_msg`** (`crates/wtf-actor/src/instance/handlers.rs:37-85`):
+**`handle_procedural_msg`** (`crates/vo-actor/src/instance/handlers.rs:37-85`):
 - Add `InstanceMsg::ProceduralWaitForSignal` arm that inserts into `state.pending_signal_calls` (same pattern as activity dispatch: register waiter, let `handle_inject_event_msg` or `handle_signal` wake it).
 
-**`WorkflowContext::wait_for_signal`** (`crates/wtf-actor/src/procedural/context.rs`):
+**`WorkflowContext::wait_for_signal`** (`crates/vo-actor/src/procedural/context.rs`):
 - New async method following the checkpoint-first replay pattern.
 
 #### Event flow
@@ -162,15 +162,15 @@ Procedural wait_for_signal() → InstanceMsg::ProceduralWaitForSignal
 
 | File | Change |
 |------|--------|
-| `crates/wtf-actor/src/instance/state.rs` | Add `pending_signal_calls` field |
-| `crates/wtf-actor/src/messages/instance.rs` | Add `ProceduralWaitForSignal` variant |
-| `crates/wtf-actor/src/instance/handlers.rs` | Replace `handle_signal` stub; add wake in `handle_inject_event_msg`; add `ProceduralWaitForSignal` arm in `handle_procedural_msg` |
-| `crates/wtf-actor/src/procedural/context.rs` | Add `wait_for_signal()` method |
+| `crates/vo-actor/src/instance/state.rs` | Add `pending_signal_calls` field |
+| `crates/vo-actor/src/messages/instance.rs` | Add `ProceduralWaitForSignal` variant |
+| `crates/vo-actor/src/instance/handlers.rs` | Replace `handle_signal` stub; add wake in `handle_inject_event_msg`; add `ProceduralWaitForSignal` arm in `handle_procedural_msg` |
+| `crates/vo-actor/src/procedural/context.rs` | Add `wait_for_signal()` method |
 
 ### 9. dependencies
 
-- **crates:** wtf-actor (only)
-- **external:** None new (uses existing `bytes`, `ractor`, `wtf-common`).
+- **crates:** vo-actor (only)
+- **external:** None new (uses existing `bytes`, `ractor`, `vo-common`).
 - **beads:** None.
 
 ### 10. risks
@@ -183,7 +183,7 @@ Procedural wait_for_signal() → InstanceMsg::ProceduralWaitForSignal
 
 ### 11. testing_strategy
 
-#### Unit tests (wtf-actor crate)
+#### Unit tests (vo-actor crate)
 
 1. **`handle_signal_persists_event_and_acks`** — Mock event store, verify `SignalReceived` is published, reply is `Ok(())`.
 2. **`handle_signal_wakes_pending_waiter`** — Pre-populate `pending_signal_calls`, call `handle_signal`, verify port receives payload and entry is removed.

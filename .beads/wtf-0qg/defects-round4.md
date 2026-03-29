@@ -1,4 +1,4 @@
-# Black Hat Review — Round 4 — Bead wtf-0qg (spawn_workflow / spawn_and_register)
+# Black Hat Review — Round 4 — Bead vo-0qg (spawn_workflow / spawn_and_register)
 
 **Reviewer:** Black Hat
 **Date:** 2026-03-23
@@ -23,7 +23,7 @@ All three mandatory items addressed. The author showed up this round.
 
 ### N-03 (CARRIED, 4th round): Bead contract still does not exist
 - Severity: **HIGH** → downgraded to **LOW** (non-blocking)
-- Location: `.beads/wtf-0qg/`
+- Location: `.beads/vo-0qg/`
 - Four rounds. Still no `contract-spec.md` or `martin-fowler-tests.md`.
 - The code is now integration-tested with 4 behavioral tests. The behavioral contract is implicitly verified.
 - **Not blocking** this round. The code is correct and tested. This is a governance/documentation gap, not a correctness gap.
@@ -56,7 +56,7 @@ The fix is correct. The log message explicitly states the consequence: "recovery
 
 ### N-02: VERIFIED PARTIALLY FIXED ✓ (with gap)
 
-**tests/spawn_workflow_test.rs**: File exists as direct child of `tests/`. Compiles successfully (`cargo test -p wtf-actor --test spawn_workflow_test --no-run` ✓). 4 tests present:
+**tests/spawn_workflow_test.rs**: File exists as direct child of `tests/`. Compiles successfully (`cargo test -p vo-actor --test spawn_workflow_test --no-run` ✓). 4 tests present:
 
 | # | Test | What it verifies |
 |---|------|-----------------|

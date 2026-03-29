@@ -1,4 +1,4 @@
-# Black Hat Review — Bead wtf-3hz: ROUND 2
+# Black Hat Review — Bead vo-3hz: ROUND 2
 
 **Reviewer:** Black Hat (glm-5-turbo)
 **Date:** 2026-03-23
@@ -32,7 +32,7 @@ HTTP boundary at `workflow.rs:145` maps `TerminateError::NotFound` → `404 NOT_
 
 **Status: NOT FIXED** ❌
 
-Grep of all files under `crates/wtf-api/tests/` for "terminate" returns **zero results**. There is still not a single HTTP-layer test for `DELETE /api/v1/workflows/:id`.
+Grep of all files under `crates/vo-api/tests/` for "terminate" returns **zero results**. There is still not a single HTTP-layer test for `DELETE /api/v1/workflows/:id`.
 
 The signal handler at `tests/unit/signal_handler_test.rs` demonstrates the exact test pattern required: a `MockOrchestrator` actor, `Router::new()` with `.layer(Extension(actor))`, and `oneshot` requests testing 200/400/404. The terminate handler has **none of this**.
 
@@ -170,13 +170,13 @@ The code has a clear distinction:
 - **Terminate** (HTTP layer + orchestrator): "Delete this workflow" — the user-facing operation
 - **Cancel** (instance actor): "Stop processing" — the actor-level operation
 
-This is correct. `TerminateError` is the orchestrator-level error (NotFound/Failed). The instance reply is `Result<(), WtfError>`. The type boundaries are clean. ✅ PASS
+This is correct. `TerminateError` is the orchestrator-level error (NotFound/Failed). The instance reply is `Result<(), VoError>`. The type boundaries are clean. ✅ PASS
 
 ### 4.2 TerminateError Expressiveness
 
 **DEFECT D-09 (LOW): `TerminateError::Failed(String)` is a String-typed error.**
 
-`errors.rs:23`: `Failed(String)` is an opaque bag. The caller gets a string like `"cancel timed out"` or a `WtfError` message. There's no way to programmatically distinguish between "timed out", "event store down", or "actor panicked" at the HTTP boundary.
+`errors.rs:23`: `Failed(String)` is an opaque bag. The caller gets a string like `"cancel timed out"` or a `VoError` message. There's no way to programmatically distinguish between "timed out", "event store down", or "actor panicked" at the HTTP boundary.
 
 This should ideally be:
 ```rust

@@ -1,4 +1,4 @@
-# Architecture Drift Review — wtf-2nty
+# Architecture Drift Review — vo-2nty
 
 **Date:** 2026-03-23
 **Agent:** architectural-drift
@@ -7,8 +7,8 @@
 
 | File | Lines | Limit | Verdict |
 |------|-------|-------|---------|
-| `crates/wtf-cli/src/commands/serve.rs` | 230 | 300 | ✅ PASS |
-| `crates/wtf-actor/src/master/state.rs` | 276 | 300 | ✅ PASS |
+| `crates/vo-cli/src/commands/serve.rs` | 230 | 300 | ✅ PASS |
+| `crates/vo-actor/src/master/state.rs` | 276 | 300 | ✅ PASS |
 
 ## DDD / Scott Wlaschin Assessment
 

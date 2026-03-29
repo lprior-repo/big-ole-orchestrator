@@ -1,4 +1,4 @@
-# Black Hat Review — Bead wtf-3hz: ROUND 4
+# Black Hat Review — Bead vo-3hz: ROUND 4
 
 **Reviewer:** Black Hat (glm-5-turbo)
 **Date:** 2026-03-23
@@ -208,11 +208,11 @@ None blocking.
 ## Test Execution Verification
 
 ```
-$ cargo test -p wtf-actor -- terminate
+$ cargo test -p vo-actor -- terminate
   test master::handlers::terminate::tests::terminate_returns_not_found_for_unknown_instance ... ok
   1 passed; 0 failed
 
-$ cargo test -p wtf-api -- terminate
+$ cargo test -p vo-api -- terminate
   test tests::unit_terminate::terminate_bad_path_returns_400 ... ok
   test tests::unit_terminate::terminate_existing_returns_204 ... ok
   test tests::unit_terminate::terminate_timeout_returns_503 ... ok

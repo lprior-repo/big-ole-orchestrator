@@ -1,6 +1,6 @@
-# QA Review: wtf-49tp
+# QA Review: vo-49tp
 
-- **bead_id**: wtf-49tp
+- **bead_id**: vo-49tp
 - **phase**: STATE-4.6
 - **updated_at**: 2026-03-23T19:05:00Z
 - **decision**: PASS (with mandatory routing to State 7)

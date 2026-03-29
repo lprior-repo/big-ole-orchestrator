@@ -1,6 +1,6 @@
-//! Red Queen adversarial tests for wtf-types workflow module.
+//! Red Queen adversarial tests for vo-types workflow module.
 //!
-//! bead_id: wtf-ald
+//! bead_id: vo-ald
 //! phase: state-5-red-queen
 //!
 //! Dimensions attacked:

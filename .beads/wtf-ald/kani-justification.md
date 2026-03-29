@@ -1,15 +1,15 @@
-bead_id: wtf-ald
-bead_title: wtf-types: define WorkflowDefinition and DAG node types
+bead_id: vo-ald
+bead_title: vo-types: define WorkflowDefinition and DAG node types
 phase: state-5.7-kani-justification
 updated_at: 2026-03-27T22:00:00Z
 
-# Kani Model Checking Justification — wtf-ald
+# Kani Model Checking Justification — vo-ald
 
 ## Why Kani is Not Required for This Bead
 
 ### 1. Pure Domain Types with No Unsafe Beyond Sound Indexing
 
-The `wtf-types` crate is pure domain logic — no I/O, no concurrency, no `unsafe` beyond a single sound `get_unchecked(0)` in `NonEmptyVec::first()` (where the invariant is structurally guaranteed). Kani's primary value is verifying concurrency and memory safety in unsafe code, neither of which applies here.
+The `vo-types` crate is pure domain logic — no I/O, no concurrency, no `unsafe` beyond a single sound `get_unchecked(0)` in `NonEmptyVec::first()` (where the invariant is structurally guaranteed). Kani's primary value is verifying concurrency and memory safety in unsafe code, neither of which applies here.
 
 ### 2. All Critical Invariants Already Exhaustively Tested
 

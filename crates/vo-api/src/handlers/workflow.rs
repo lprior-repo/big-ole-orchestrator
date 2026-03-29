@@ -9,15 +9,15 @@ use bytes::Bytes;
 use ractor::rpc::CallResult;
 use ractor::ActorRef;
 use ulid::Ulid;
-use wtf_actor::{OrchestratorMsg, StartError};
-use wtf_common::{InstanceId, NamespaceId};
+use vo_actor::{OrchestratorMsg, StartError};
+use vo_common::{InstanceId, NamespaceId};
 
 use crate::types::{ApiError, V3StartRequest, V3StartResponse, V3StatusResponse};
 use crate::handlers::helpers::{parse_paradigm, split_path_id, paradigm_to_str, phase_to_str};
 
 const ACTOR_CALL_TIMEOUT: Duration = Duration::from_secs(5);
 
-/// POST /api/v1/workflows — start a new workflow instance (bead wtf-7mif).
+/// POST /api/v1/workflows — start a new workflow instance (bead vo-7mif).
 pub async fn start_workflow(
     Extension(master): Extension<ActorRef<OrchestratorMsg>>,
     Json(req): Json<V3StartRequest>,
@@ -161,7 +161,7 @@ pub async fn start_workflow(
     }
 }
 
-/// GET /api/v1/workflows/:id — get instance status (bead wtf-016l).
+/// GET /api/v1/workflows/:id — get instance status (bead vo-016l).
 pub async fn get_workflow(
     Extension(master): Extension<ActorRef<OrchestratorMsg>>,
     Path(id): Path<String>,
@@ -238,7 +238,7 @@ pub async fn get_workflow(
     }
 }
 
-/// DELETE /api/v1/workflows/:id — terminate a running instance (bead wtf-016l).
+/// DELETE /api/v1/workflows/:id — terminate a running instance (bead vo-016l).
 pub async fn terminate_workflow(
     Extension(master): Extension<ActorRef<OrchestratorMsg>>,
     Path(id): Path<String>,
@@ -290,7 +290,7 @@ pub async fn terminate_workflow(
             )),
         )
             .into_response(),
-        Ok(CallResult::Success(Err(wtf_actor::messages::TerminateError::NotFound(id)))) => (
+        Ok(CallResult::Success(Err(vo_actor::messages::TerminateError::NotFound(id)))) => (
             StatusCode::NOT_FOUND,
             Json(ApiError::new(
                 "not_found",
@@ -298,7 +298,7 @@ pub async fn terminate_workflow(
             )),
         )
             .into_response(),
-        Ok(CallResult::Success(Err(wtf_actor::messages::TerminateError::Failed(msg)))) => (
+        Ok(CallResult::Success(Err(vo_actor::messages::TerminateError::Failed(msg)))) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ApiError::new("terminate_failed", msg)),
         )

@@ -1,7 +1,7 @@
-# QA Report: wtf-qz46
+# QA Report: vo-qz46
 
-bead_id: wtf-qz46
-bead_title: wtf-cli: wtf serve actor assembly, axum binding, and graceful shutdown
+bead_id: vo-qz46
+bead_title: vo-cli: wtf serve actor assembly, axum binding, and graceful shutdown
 phase: qa
 updated_at: 2026-03-21T12:00:00Z
 
@@ -9,12 +9,12 @@ updated_at: 2026-03-21T12:00:00Z
 
 - **cargo check**: PASS
 - **cargo build**: PASS
-- **cargo clippy** (wtf-cli only): PASS (0 warnings)
+- **cargo clippy** (vo-cli only): PASS (0 warnings)
 
 ## Unit Tests
 
-- **cargo test -p wtf-cli**: PASS (4 tests)
-- **cargo test** (full workspace): 67 tests pass, 1 pre-existing failure in wtf-actor
+- **cargo test -p vo-cli**: PASS (4 tests)
+- **cargo test** (full workspace): 67 tests pass, 1 pre-existing failure in vo-actor
 
 ## Implementation Verification
 
@@ -24,7 +24,7 @@ Verified the implementation matches the contract:
 
 1. **Actor Spawn**: `MasterOrchestrator::spawn()` is called with correct config
 2. **Router Assembly**: `build_app(orch_ref, kv)` produces Router with all API routes
-3. **TCP Binding**: `wtf_api::serve()` binds to configured port
+3. **TCP Binding**: `vo_api::serve()` binds to configured port
 4. **Heartbeat Watcher**: `run_heartbeat_watcher()` spawned as background task
 5. **Signal Handling**: Ctrl+C triggers shutdown via `tokio::signal::ctrl_c()`
 6. **Graceful Shutdown**: Implemented via `with_graceful_shutdown()` on axum server
@@ -34,14 +34,14 @@ Verified the implementation matches the contract:
 
 ## Dependencies
 
-- wtf-4mym (CLOSED): NATS connection and storage provisioning ✓
-- wtf-egjj (CLOSED): build_app() and serve() ✓
-- wtf-r4aa (CLOSED): run_heartbeat_watcher() ✓
+- vo-4mym (CLOSED): NATS connection and storage provisioning ✓
+- vo-egjj (CLOSED): build_app() and serve() ✓
+- vo-r4aa (CLOSED): run_heartbeat_watcher() ✓
 
 ## Pre-existing Issues
 
-- 1 failing test in wtf-actor (procedural_ctx_start_at_zero) - not related to this bead
-- Multiple clippy warnings in other crates (wtf-api, wtf-linter, etc.) - not related to this bead
+- 1 failing test in vo-actor (procedural_ctx_start_at_zero) - not related to this bead
+- Multiple clippy warnings in other crates (vo-api, vo-linter, etc.) - not related to this bead
 
 ## Conclusion
 

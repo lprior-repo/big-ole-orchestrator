@@ -1,4 +1,4 @@
-# Black Hat Review — Round 4 — wtf-72g (get_workflow handler)
+# Black Hat Review — Round 4 — vo-72g (get_workflow handler)
 
 **Reviewer:** Black Hat  
 **Date:** 2026-03-23  
@@ -11,8 +11,8 @@
 | Fix | Status | Evidence |
 |-----|--------|----------|
 | CRITICAL-01: File moved to `tests/get_workflow_handler_test.rs` | **PASS** | File exists at `tests/get_workflow_handler_test.rs` (direct child of `tests/`) |
-| CRITICAL-01: Imports use `wtf_api::` not `crate::` | **PASS** | Lines 13-14: `use wtf_api::handlers::get_workflow;` and `use wtf_api::types::{ApiError, V3StatusResponse};` — zero `crate::` imports |
-| CRITICAL-01: `cargo test` compiles and runs | **PASS** | `cargo test -p wtf-api --test get_workflow_handler_test` → `test result: ok. 4 passed; 0 failed` (live execution) |
+| CRITICAL-01: Imports use `vo_api::` not `crate::` | **PASS** | Lines 13-14: `use vo_api::handlers::get_workflow;` and `use vo_api::types::{ApiError, V3StatusResponse};` — zero `crate::` imports |
+| CRITICAL-01: `cargo test` compiles and runs | **PASS** | `cargo test -p vo-api --test get_workflow_handler_test` → `test result: ok. 4 passed; 0 failed` (live execution) |
 | DDD-01: 503 responses include Retry-After header | **PASS** | All 9 `SERVICE_UNAVAILABLE` responses in `workflow.rs` include `[("Retry-After", "5")]` — verified via `rg` |
 | R2-01: GetStatusError has Timeout + ActorDied | **PASS** | `errors.rs:32-37` — two variants, unchanged |
 | R2-01: status.rs explicit matching | **PASS** | `status.rs:15-20` — no wildcards |
@@ -27,7 +27,7 @@
 The `get_workflow` handler now has:
 
 - ✅ Working integration tests (4 tests, all pass)
-- ✅ Correct imports (`wtf_api::`, not `crate::`)
+- ✅ Correct imports (`vo_api::`, not `crate::`)
 - ✅ File in the correct location for Cargo discovery
 - ✅ Tests cover: 200 (existing), 404 (not found), 400 (bad path), 503 with Retry-After (timeout)
 
@@ -125,7 +125,7 @@ Still present at `responses.rs:9-17`. Used by `StartWorkflowResponse.status`. No
 ### BITTER-01: Tests are no longer theater — PASS
 
 ```
-$ cargo test -p wtf-api --test get_workflow_handler_test
+$ cargo test -p vo-api --test get_workflow_handler_test
 test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 ```
 
@@ -180,7 +180,7 @@ Line 32: `let (_, inst_id) = match split_path_id(&id)`. The `_` discards the nam
 
 Round 3's two fatal defects are **verified fixed** with live execution evidence:
 
-1. **CRITICAL-01 (tests dead code):** File moved to `tests/get_workflow_handler_test.rs`, imports corrected to `wtf_api::`, `cargo test` discovers and runs all 4 tests successfully.
+1. **CRITICAL-01 (tests dead code):** File moved to `tests/get_workflow_handler_test.rs`, imports corrected to `vo_api::`, `cargo test` discovers and runs all 4 tests successfully.
 2. **DDD-01 (no Retry-After):** All 9 `SERVICE_UNAVAILABLE` responses now include `[("Retry-After", "5")]`. The test explicitly asserts the header.
 
 The remaining findings are one MEDIUM gap (missing ActorDied test — the mock already supports it, trivially fixable) and six LOW pre-existing flags that predate this bead. None are regressions. None block approval.

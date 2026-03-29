@@ -1,8 +1,8 @@
-# Black Hat Review — Bead wtf-7fe: MasterOrchestrator struct and OrchestratorState
+# Black Hat Review — Bead vo-7fe: MasterOrchestrator struct and OrchestratorState
 
 **Reviewer:** Black Hat Reviewer
 **Date:** 2026-03-23
-**Scope:** `crates/wtf-actor/src/master/` (mod.rs, state.rs, registry.rs, handlers/)
+**Scope:** `crates/vo-actor/src/master/` (mod.rs, state.rs, registry.rs, handlers/)
 
 ---
 

@@ -1,10 +1,10 @@
-# Implementation Summary — Bead wtf-3hz: terminate_workflow Defect Repairs
+# Implementation Summary — Bead vo-3hz: terminate_workflow Defect Repairs
 
 ## Defects Fixed
 
 ### D-03 (CRITICAL): `handle_cancel` was a no-op
 
-**File:** `crates/wtf-actor/src/instance/handlers.rs`
+**File:** `crates/vo-actor/src/instance/handlers.rs`
 
 **Problem:** `handle_cancel` logged "cancellation requested" and returned `Ok(())` immediately, without stopping the actor. The HTTP caller received 204 but the workflow kept running — a semantic lie.
 
@@ -18,7 +18,7 @@
 
 ### D-04 (HIGH): Dead actor returns 500 instead of 404
 
-**File:** `crates/wtf-actor/src/master/handlers/terminate.rs`
+**File:** `crates/vo-actor/src/master/handlers/terminate.rs`
 
 **Problem:** If the instance actor died between `state.get()` and `call_cancel()`, the RPC would fail with `CallResult::SenderError`, which was mapped to `TerminateError::Failed(...)` → HTTP 500. The correct semantic is `TerminateError::NotFound` → HTTP 404, since the actor is no longer there.
 
@@ -46,15 +46,15 @@
 ## Verification
 
 ```
-cargo check -p wtf-actor    → Finished (0 errors, 0 warnings)
-cargo test -p wtf-actor     → 68 unit tests passed, 27 integration tests passed, 0 failed
+cargo check -p vo-actor    → Finished (0 errors, 0 warnings)
+cargo test -p vo-actor     → 68 unit tests passed, 27 integration tests passed, 0 failed
 ```
 
 ## Changed Files
 
 | File | Change |
 |---|---|
-| `crates/wtf-actor/src/instance/handlers.rs` | D-03: `handle_cancel` now publishes `InstanceCancelled` event and calls `myself_ref.stop()` |
-| `crates/wtf-actor/src/master/handlers/terminate.rs` | D-04: `call_cancel` maps `SenderError` and send failure to `NotFound` |
-| `crates/wtf-actor/src/master/mod.rs` | Incidental: removed double-`Ok()` wrapper |
-| `crates/wtf-actor/src/master/handlers/heartbeat.rs` | Incidental: scoped MutexGuard for `Send` compliance |
+| `crates/vo-actor/src/instance/handlers.rs` | D-03: `handle_cancel` now publishes `InstanceCancelled` event and calls `myself_ref.stop()` |
+| `crates/vo-actor/src/master/handlers/terminate.rs` | D-04: `call_cancel` maps `SenderError` and send failure to `NotFound` |
+| `crates/vo-actor/src/master/mod.rs` | Incidental: removed double-`Ok()` wrapper |
+| `crates/vo-actor/src/master/handlers/heartbeat.rs` | Incidental: scoped MutexGuard for `Send` compliance |

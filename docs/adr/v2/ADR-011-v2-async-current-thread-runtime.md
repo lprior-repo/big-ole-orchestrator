@@ -6,18 +6,18 @@ Accepted
 ## Context
 A workflow step (e.g., "Charge Stripe") almost always requires network I/O, meaning the developer's function must be `async` to use crates like `reqwest` or `sqlx`. 
 
-However, because the `wtf-engine` executes each step by spawning a completely fresh OS subprocess (ADR-003), spinning up a full Tokio multi-threaded work-stealing runtime inside that child process just to run a single `async` function introduces unacceptable cold-start latency (~200ms per step).
+However, because the `vo-engine` executes each step by spawning a completely fresh OS subprocess (ADR-003), spinning up a full Tokio multi-threaded work-stealing runtime inside that child process just to run a single `async` function introduces unacceptable cold-start latency (~200ms per step).
 
 We need a way to support `async` Rust inside the binary without paying the cost of a full async runtime initialization.
 
 ## Decision
 We will use Tokio's **Current-Thread Runtime** to execute the user's workflow steps inside the SDK.
 
-When the Engine invokes a binary with `./binary --execute-node <name>`, the `wtf_sdk::start()` initialization logic will not use `#[tokio::main]`. Instead, it will manually construct an ultra-lightweight, single-threaded async runtime.
+When the Engine invokes a binary with `./binary --execute-node <name>`, the `vo_sdk::start()` initialization logic will not use `#[tokio::main]`. Instead, it will manually construct an ultra-lightweight, single-threaded async runtime.
 
 ### Implementation
 ```rust
-// Inside wtf_sdk::start() execution path
+// Inside vo_sdk::start() execution path
 let rt = tokio::runtime::Builder::new_current_thread()
     .enable_all()
     .build()

@@ -1,4 +1,4 @@
-# Implementation Summary — Round 2 Fixes for wtf-72g
+# Implementation Summary — Round 2 Fixes for vo-72g
 
 **Date:** 2026-03-23  
 **Defects Addressed:** DEFECT-04, DEFECT-R2-01, DEFECT-01  
@@ -13,7 +13,7 @@
 
 ### Changes
 
-**`crates/wtf-actor/src/messages/errors.rs`** — Added `ActorDied` variant:
+**`crates/vo-actor/src/messages/errors.rs`** — Added `ActorDied` variant:
 ```rust
 pub enum GetStatusError {
     #[error("instance actor timed out")]
@@ -23,13 +23,13 @@ pub enum GetStatusError {
 }
 ```
 
-**`crates/wtf-actor/src/master/handlers/status.rs`** — Replaced `_` wildcard with explicit matching:
+**`crates/vo-actor/src/master/handlers/status.rs`** — Replaced `_` wildcard with explicit matching:
 - `Ok(CallResult::Success(snapshot))` → `Ok(Some(snapshot))`
 - `Ok(CallResult::Timeout)` → `Err(GetStatusError::Timeout)`
 - `Ok(CallResult::SenderError)` → `Err(GetStatusError::ActorDied)`
 - `Err(_)` → `Err(GetStatusError::ActorDied)`
 
-**`crates/wtf-api/src/handlers/workflow.rs`** — Updated `map_status_result`:
+**`crates/vo-api/src/handlers/workflow.rs`** — Updated `map_status_result`:
 - `GetStatusError::Timeout` → 503 SERVICE_UNAVAILABLE (transient, retry is reasonable)
 - `GetStatusError::ActorDied` → 404 NOT_FOUND (permanent, no point retrying)
 
@@ -47,13 +47,13 @@ Zero HTTP tests existed for `get_workflow`. The `signal_handler_test.rs` scaffol
 
 ### Changes
 
-**`crates/wtf-api/tests/unit/get_workflow_handler_test.rs`** — New file with 4 tests:
+**`crates/vo-api/tests/unit/get_workflow_handler_test.rs`** — New file with 4 tests:
 1. **`get_existing_workflow_returns_200`** — Mock returns `Some(snapshot)` → asserts 200 + JSON body with correct field values
 2. **`get_unknown_workflow_returns_404`** — Mock returns `None` → asserts 404 + `ApiError` with `error: "not_found"`
 3. **`get_workflow_bad_path_returns_400`** — No `/` in path → asserts 400 + `ApiError` with `error: "invalid_id"`
 4. **`get_workflow_timeout_returns_503`** — Mock drops reply → asserts 503
 
-**`crates/wtf-api/src/lib.rs`** — Added `mod unit_get_workflow` include to wire the test into the test harness.
+**`crates/vo-api/src/lib.rs`** — Added `mod unit_get_workflow` include to wire the test into the test harness.
 
 ### Constraint Verification
 - Uses proven `MockOrchestrator` + `Router::new()` + `oneshot()` pattern
@@ -70,12 +70,12 @@ Three structurally identical status types existed: `WorkflowStatus`, `V3StatusRe
 
 ### Changes
 
-**`crates/wtf-api/src/types/responses.rs`** — Removed:
+**`crates/vo-api/src/types/responses.rs`** — Removed:
 - `WorkflowStatus` struct (was lines 37-46)
 - `ListWorkflowsResponse` struct (was lines 88-92)
 
 ### Verification
-- `cargo check -p wtf-api` passes — no references remain
+- `cargo check -p vo-api` passes — no references remain
 - `V3StatusResponse` is the single canonical status response type
 
 ---
@@ -84,21 +84,21 @@ Three structurally identical status types existed: `WorkflowStatus`, `V3StatusRe
 
 | File | Change |
 |------|--------|
-| `crates/wtf-actor/src/messages/errors.rs` | Added `GetStatusError::ActorDied` variant |
-| `crates/wtf-actor/src/master/handlers/status.rs` | Explicit match on all `CallResult` variants |
-| `crates/wtf-api/src/handlers/workflow.rs` | `map_status_result` handles `ActorDied` → 404 |
-| `crates/wtf-api/src/types/responses.rs` | Deleted `WorkflowStatus` + `ListWorkflowsResponse` |
-| `crates/wtf-api/tests/unit/get_workflow_handler_test.rs` | **NEW** — 4 HTTP handler tests |
-| `crates/wtf-api/src/lib.rs` | Wired `get_workflow_handler_test.rs` into test harness |
+| `crates/vo-actor/src/messages/errors.rs` | Added `GetStatusError::ActorDied` variant |
+| `crates/vo-actor/src/master/handlers/status.rs` | Explicit match on all `CallResult` variants |
+| `crates/vo-api/src/handlers/workflow.rs` | `map_status_result` handles `ActorDied` → 404 |
+| `crates/vo-api/src/types/responses.rs` | Deleted `WorkflowStatus` + `ListWorkflowsResponse` |
+| `crates/vo-api/tests/unit/get_workflow_handler_test.rs` | **NEW** — 4 HTTP handler tests |
+| `crates/vo-api/src/lib.rs` | Wired `get_workflow_handler_test.rs` into test harness |
 
 ---
 
 ## Test Results
 
 ```
-wtf-actor:  68 unit tests PASSED
-wtf-api:    41 lib tests PASSED (including 4 new get_workflow tests)
-cargo check: CLEAN (wtf-actor + wtf-api)
+vo-actor:  68 unit tests PASSED
+vo-api:    41 lib tests PASSED (including 4 new get_workflow tests)
+cargo check: CLEAN (vo-actor + vo-api)
 ```
 
 Pre-existing journal_test failures (7) are unrelated — documented in AGENTS.md.

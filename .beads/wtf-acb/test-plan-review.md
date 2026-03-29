@@ -1,10 +1,10 @@
-bead_id: wtf-acb
-bead_title: wtf-types: define all semantic newtypes
+bead_id: vo-acb
+bead_title: vo-types: define all semantic newtypes
 phase: state-1.5
 updated_at: 2026-03-27T05:45:00Z
 reviewer: test-inquisitor (Mode 1 — Plan Inquisition, Re-review)
 
-# Test Plan Review: wtf-types: define all semantic newtypes (Re-review)
+# Test Plan Review: vo-types: define all semantic newtypes (Re-review)
 
 ## VERDICT: APPROVED
 

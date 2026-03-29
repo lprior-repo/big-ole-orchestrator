@@ -1,4 +1,4 @@
-# Black Hat Review — Bead wtf-7fe: MasterOrchestrator (ROUND 2)
+# Black Hat Review — Bead vo-7fe: MasterOrchestrator (ROUND 2)
 
 **Reviewer:** Black Hat Reviewer
 **Date:** 2026-03-23
@@ -267,7 +267,7 @@ Instances that time out or deregister between list start and query are silently 
 
 ### Justification
 
-The three blocking defects from Round 1 are **genuinely fixed**. The fixes are correct, minimal, and introduce zero new panics/unwrap/regressions in correctness. The code compiles, all 68 unit tests + 27 integration tests pass, and clippy is clean on the `wtf-actor` crate.
+The three blocking defects from Round 1 are **genuinely fixed**. The fixes are correct, minimal, and introduce zero new panics/unwrap/regressions in correctness. The code compiles, all 68 unit tests + 27 integration tests pass, and clippy is clean on the `vo-actor` crate.
 
 The two new MEDIUM findings (D21, D22) are **advisories, not rejection grounds**:
 - **D21** (silent spawn failure) is a one-line fix: add an `else` branch with `tracing::error!`. Not a correctness bug — a monitoring gap.

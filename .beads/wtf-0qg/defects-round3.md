@@ -1,8 +1,8 @@
-# Black Hat Review — Round 3 — Bead wtf-0qg (spawn_workflow / spawn_and_register)
+# Black Hat Review — Round 3 — Bead vo-0qg (spawn_workflow / spawn_and_register)
 
 **Reviewer:** Black Hat
 **Date:** 2026-03-23
-**Files inspected:** 7 files across `wtf-actor/src/` (start.rs, errors.rs, instance/handlers.rs, heartbeat.rs, state.rs, master/mod.rs, messages/instance.rs)
+**Files inspected:** 7 files across `vo-actor/src/` (start.rs, errors.rs, instance/handlers.rs, heartbeat.rs, state.rs, master/mod.rs, messages/instance.rs)
 **Verdict:** `STATUS: REJECTED`
 
 ---
@@ -26,7 +26,7 @@ The author fixed 3 of 6 mandatory items and introduced no regressions. The fixes
 
 ### N-03 (CARRIED): Bead contract still does not exist
 - Severity: **HIGH**
-- Location: `.beads/wtf-0qg/`
+- Location: `.beads/vo-0qg/`
 - Third round. Still no `contract-spec.md` or `martin-fowler-tests.md`. The `implementation-round2.md` exists but it describes what was changed, not what should exist. A contract defines preconditions, postconditions, and invariants — none of which are documented anywhere.
 - This has been flagged in Round 1 (C-06), Round 2 (N-03), and now Round 3. Three rounds of "no contract" is a governance failure.
 
@@ -36,7 +36,7 @@ The author fixed 3 of 6 mandatory items and introduced no regressions. The fixes
 
 ### N-02 (CARRIED): Zero integration tests for the spawn path
 - Severity: **HIGH**
-- Location: `crates/wtf-actor/tests/`
+- Location: `crates/vo-actor/tests/`
 - `spawn_and_register` is the single most critical function in the crate. It spawns an actor, persists metadata to the state store, and registers it in the orchestrator's active map. After THREE rounds of review, it has **zero** integration test coverage.
 - The 3 unit tests in `start.rs:118-151` cover `validate_request` only. The async spawn + persist + register path is completely untested.
 - The Round 2 fix for N-07 (kill actor on persist failure) is itself untested. There is no test that verifies: spawn succeeds → persist fails → actor is killed → error is returned. This is the kind of bug that gets re-introduced because nobody noticed the test was never written.
@@ -146,7 +146,7 @@ These are the same bug class as N-15 but in files outside the 7 specified for th
 - Severity: **LOW** (carried from Round 2)
 - Location: `start.rs:101-116` and `state.rs:169-184`
 - Identical `NullActor` struct and `Actor` impl in two test modules. Third round.
-- `wtf-actor/src/` has no `test_support` module. This should be one.
+- `vo-actor/src/` has no `test_support` module. This should be one.
 
 ### N-13/N-14 (CARRIED): Missing newtypes for domain identifiers
 - Severity: **LOW** (carried from Round 2)

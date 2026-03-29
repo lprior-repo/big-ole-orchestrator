@@ -1,4 +1,4 @@
-# Architectural Drift Review — wtf-bx19
+# Architectural Drift Review — vo-bx19
 
 **Date:** 2026-03-23
 **Agent:** architectural-drift
@@ -7,9 +7,9 @@
 
 | File | Lines | Limit | Status |
 |------|-------|-------|--------|
-| `crates/wtf-actor/src/dag/parse.rs` | 240 | 300 | ✅ Pass |
-| `crates/wtf-actor/src/dag/state.rs` | 66 | 300 | ✅ Pass |
-| `crates/wtf-actor/src/instance/state.rs` | 79 | 300 | ✅ Pass |
+| `crates/vo-actor/src/dag/parse.rs` | 240 | 300 | ✅ Pass |
+| `crates/vo-actor/src/dag/state.rs` | 66 | 300 | ✅ Pass |
+| `crates/vo-actor/src/instance/state.rs` | 79 | 300 | ✅ Pass |
 
 ## DDD / Scott Wlaschin Compliance
 
@@ -26,7 +26,7 @@
 - **Single responsibility**: Only type definitions and a constructor. No logic leaks in.
 
 ### `instance/state.rs`
-- **Domain types used**: `ActivityId`, `TimerId`, `RpcReplyPort<Result<Bytes, WtfError>>` — no raw primitives.
+- **Domain types used**: `ActivityId`, `TimerId`, `RpcReplyPort<Result<Bytes, VoError>>` — no raw primitives.
 - **Factory pattern**: `initial()` constructs from `InstanceArguments`; `initialize_paradigm_state()` dispatches cleanly via match.
 - **Single responsibility**: Instance state definition + paradigm initialization. 79 lines total.
 

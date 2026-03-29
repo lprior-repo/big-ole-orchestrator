@@ -1,11 +1,11 @@
-# Black Hat Review — wtf-40m5: "serve: Start heartbeat watcher in serve.rs"
+# Black Hat Review — vo-40m5: "serve: Start heartbeat watcher in serve.rs"
 
 **Reviewer:** Black Hat
 **Date:** 2026-03-23
 
 ## 1. Hallucinated APIs — `run_heartbeat_watcher`
 
-**VERIFIED OK.** `run_heartbeat_watcher` exists at `crates/wtf-actor/src/heartbeat.rs:55`.
+**VERIFIED OK.** `run_heartbeat_watcher` exists at `crates/vo-actor/src/heartbeat.rs:55`.
 
 Signature:
 ```rust
@@ -17,8 +17,8 @@ pub async fn run_heartbeat_watcher(
 ```
 
 Call site at `serve.rs:97-101` passes:
-- `kv.heartbeats.clone()` — `KvStores.heartbeats: Store` (verified `crates/wtf-storage/src/kv.rs:31`)
-- `master.clone()` — `ActorRef<OrchestratorMsg>` (verified `crates/wtf-actor/src/master/mod.rs:16`: `type Msg = OrchestratorMsg`)
+- `kv.heartbeats.clone()` — `KvStores.heartbeats: Store` (verified `crates/vo-storage/src/kv.rs:31`)
+- `master.clone()` — `ActorRef<OrchestratorMsg>` (verified `crates/vo-actor/src/master/mod.rs:16`: `type Msg = OrchestratorMsg`)
 - `heartbeat_shutdown` — `watch::Receiver<bool>`
 
 All types match. No hallucination.
@@ -67,7 +67,7 @@ No contract violation.
 
 ## 6. Bonus: Pre-existing Clippy Failures
 
-`cargo clippy --workspace -D warnings` fails due to 4 pre-existing `missing_errors_doc` warnings in `wtf-common/src/types/id.rs` and `wtf-common/src/events/mod.rs`. These are NOT caused by this bead.
+`cargo clippy --workspace -D warnings` fails due to 4 pre-existing `missing_errors_doc` warnings in `vo-common/src/types/id.rs` and `vo-common/src/events/mod.rs`. These are NOT caused by this bead.
 
 ## Verdict
 

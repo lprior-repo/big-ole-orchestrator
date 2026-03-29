@@ -28,11 +28,11 @@
 
 ## Defect Fixed
 
-- Removed dead `TerminateError::Failed(msg)` match arm — this variant doesn't exist in `wtf_actor::TerminateError`. This was a pre-existing compilation error in the original file.
+- Removed dead `TerminateError::Failed(msg)` match arm — this variant doesn't exist in `vo_actor::TerminateError`. This was a pre-existing compilation error in the original file.
 
 ## Verification
 
 ```
-cargo check -p wtf-api  → ✅ clean compile
-cargo test -p wtf-api   → ✅ 53/53 tests pass (37 lib + 16 integration)
+cargo check -p vo-api  → ✅ clean compile
+cargo test -p vo-api   → ✅ 53/53 tests pass (37 lib + 16 integration)
 ```

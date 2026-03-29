@@ -1,9 +1,9 @@
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use wtf_common::{InstanceId, NamespaceId, TimerId, WtfError};
+use vo_common::{InstanceId, NamespaceId, TimerId, VoError};
 
-/// A pending timer stored in the `wtf-timers` KV bucket.
+/// A pending timer stored in the `vo-timers` KV bucket.
 ///
 /// Serialized as msgpack. The KV key is the `timer_id`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -22,20 +22,20 @@ impl TimerRecord {
     /// Serialize to msgpack bytes for KV storage.
     ///
     /// # Errors
-    /// Returns `WtfError::NatsPublish` if serialization fails.
-    pub fn to_msgpack(&self) -> Result<Bytes, WtfError> {
+    /// Returns `VoError::NatsPublish` if serialization fails.
+    pub fn to_msgpack(&self) -> Result<Bytes, VoError> {
         rmp_serde::to_vec_named(self)
             .map(Bytes::from)
-            .map_err(|e| WtfError::nats_publish(format!("serialize TimerRecord: {e}")))
+            .map_err(|e| VoError::nats_publish(format!("serialize TimerRecord: {e}")))
     }
 
     /// Deserialize from msgpack bytes.
     ///
     /// # Errors
-    /// Returns `WtfError::NatsPublish` if deserialization fails.
-    pub fn from_msgpack(bytes: &[u8]) -> Result<Self, WtfError> {
+    /// Returns `VoError::NatsPublish` if deserialization fails.
+    pub fn from_msgpack(bytes: &[u8]) -> Result<Self, VoError> {
         rmp_serde::from_slice(bytes)
-            .map_err(|e| WtfError::nats_publish(format!("deserialize TimerRecord: {e}")))
+            .map_err(|e| VoError::nats_publish(format!("deserialize TimerRecord: {e}")))
     }
 
     /// Whether this timer is due to fire at or before `now`.

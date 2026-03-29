@@ -1,4 +1,4 @@
-# Implementation Summary: capacity_check method (wtf-47n)
+# Implementation Summary: capacity_check method (vo-47n)
 
 ## Contract Adherence
 
@@ -75,7 +75,7 @@ All tests from the Martin Fowler test plan were implemented in `#[cfg(test)]` mo
 
 | File | Change |
 |------|--------|
-| `crates/wtf-actor/src/master/mod.rs` | Added `capacity_check` method and 13 unit tests |
+| `crates/vo-actor/src/master/mod.rs` | Added `capacity_check` method and 13 unit tests |
 
 ## Test Results
 

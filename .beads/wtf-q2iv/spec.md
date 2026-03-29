@@ -1,13 +1,13 @@
-# wtf-q2iv — serve: Scaffold built-in worker in serve.rs
+# vo-q2iv — serve: Scaffold built-in worker in serve.rs
 
 ```yaml
-bead_id: wtf-q2iv
+bead_id: vo-q2iv
 title: "serve: Scaffold built-in worker in serve.rs"
 effort_estimate: "1hr"
 status: planned
 files:
-  - crates/wtf-cli/src/commands/serve.rs
-  - crates/wtf-worker/src/worker.rs
+  - crates/vo-cli/src/commands/serve.rs
+  - crates/vo-worker/src/worker.rs
 ```
 
 ---
@@ -17,7 +17,7 @@ files:
 | # | Question | Decision | Rationale |
 |---|----------|----------|-----------|
 | 0.1 | What activity types should the built-in worker handle? | None — empty handler map. This bead only scaffolds the spawn + shutdown wiring. | The built-in worker is a no-op dispatcher initially; real handlers are registered by plugins in future beads. |
-| 0.2 | Should `Worker::new` take the raw `async_nats::Client` or the `jetstream::Context`? | `async_nats::jetstream::Context` (matches existing `Worker::new(js, ...)` signature). | Consistent with `wtf-worker/src/worker.rs:102-113`. |
+| 0.2 | Should `Worker::new` take the raw `async_nats::Client` or the `jetstream::Context`? | `async_nats::jetstream::Context` (matches existing `Worker::new(js, ...)` signature). | Consistent with `vo-worker/src/worker.rs:102-113`. |
 | 0.3 | What durable consumer name for the built-in worker? | `"builtin-worker"` — hardcoded constant in serve.rs. | Single-node default; overridable via config in a future bead. |
 | 0.4 | Should worker failure crash the server? | No — log the error, continue draining. The `drain_runtime` function will `context()` the join error. | Matches existing pattern: `timer_task` failure is non-fatal to the join but logged. |
 | 0.5 | Shutdown ordering? | Worker receives `shutdown_rx` clone same as api_task and timer_task. All three are awaited in `drain_runtime`. | Existing watch channel pattern — all tasks observe the same shutdown signal. |
@@ -34,7 +34,7 @@ files:
 
 **1.4** IF the worker task returns an error, THE SYSTEM SHALL log the error and return it from `run_serve` as part of the combined drain result (non-fatal to other tasks).
 
-**1.5** THE SYSTEM SHALL NOT modify `wtf-worker/src/worker.rs` — the `Worker` struct already provides the required `new()`, `register()`, and `run()` API.
+**1.5** THE SYSTEM SHALL NOT modify `vo-worker/src/worker.rs` — the `Worker` struct already provides the required `new()`, `register()`, and `run()` API.
 
 ---
 
@@ -43,7 +43,7 @@ files:
 ### Contract 2.1: `run_serve` spawns built-in worker
 
 ```rust
-// FILE: crates/wtf-cli/src/commands/serve.rs
+// FILE: crates/vo-cli/src/commands/serve.rs
 
 // PRE-CONDITION: nats is a connected async_nats::Client with JetStream
 // PRE-CONDITION: shutdown_rx is a watch::Receiver<bool> clone (initial value false)
@@ -52,7 +52,7 @@ files:
 // INVARIANT: Worker filter_subject is None (consumes all wtf.work.*)
 
 let js = nats.jetstream().clone();
-let worker = wtf_worker::Worker::new(js, "builtin-worker", None);
+let worker = vo_worker::Worker::new(js, "builtin-worker", None);
 let worker_shutdown = shutdown_rx.clone();
 let worker_task = tokio::spawn(async move {
     worker.run(worker_shutdown).await.map_err(|e| anyhow::anyhow!("builtin worker: {e}"))
@@ -84,10 +84,10 @@ where
 ### Contract 2.3: `Worker` SDK (unchanged — reference only)
 
 ```rust
-// FILE: crates/wtf-worker/src/worker.rs
+// FILE: crates/vo-worker/src/worker.rs
 // Worker::new(js: Context, worker_name: impl Into<String>, filter_subject: Option<String>) -> Worker
 // Worker::register(&mut self, activity_type: impl Into<String>, handler: F)
-// Worker::run(&self, shutdown_rx: tokio::sync::watch::Receiver<bool>) -> Result<(), WtfError>
+// Worker::run(&self, shutdown_rx: tokio::sync::watch::Receiver<bool>) -> Result<(), VoError>
 ```
 
 ---
@@ -97,12 +97,12 @@ where
 | Topic | Finding | Relevance |
 |-------|---------|-----------|
 | Existing spawn pattern in serve.rs | Lines 80-85: `tokio::spawn` wraps `serve_api()` and `run_timer_loop()`. Both take a `watch::Receiver<bool>` clone. | Worker spawn follows identical pattern. |
-| `Worker::run` signature | `pub async fn run(&self, shutdown_rx: tokio::sync::watch::Receiver<bool>) -> Result<(), WtfError>` — takes `&self` so Worker must be moved into the spawn closure. | Worker is moved into the `async move` block. |
+| `Worker::run` signature | `pub async fn run(&self, shutdown_rx: tokio::sync::watch::Receiver<bool>) -> Result<(), VoError>` — takes `&self` so Worker must be moved into the spawn closure. | Worker is moved into the `async move` block. |
 | `drain_runtime` generic bounds | Lines 93-115: generic over `EApi`, `ETimer`, error types, plus a `FStop` closure. | Must extend to 3 type params (`EWorker`) and 4th argument. |
-| `WtfError` impl | `wtf_common::WtfError` — implements `std::error::Error + Send + Sync + 'static` | Satisfies the `drain_runtime` generic bound for `EWorker`. |
+| `VoError` impl | `vo_common::VoError` — implements `std::error::Error + Send + Sync + 'static` | Satisfies the `drain_runtime` generic bound for `EWorker`. |
 | Existing test | `drain_runtime_signals_shutdown_and_waits_for_tasks` (line 160) — uses 2 task handles. | Must extend to 3 task handles. |
-| `wtf-cli` already depends on `wtf-worker` | Cargo.toml line 12: `wtf-worker = { path = "../wtf-worker" }` | No Cargo.toml changes needed. |
-| `wtf-worker::Worker` re-exported | `lib.rs` line 22: `pub use worker::Worker;` | Import path is `wtf_worker::Worker`. |
+| `vo-cli` already depends on `vo-worker` | Cargo.toml line 12: `vo-worker = { path = "../vo-worker" }` | No Cargo.toml changes needed. |
+| `vo-worker::Worker` re-exported | `lib.rs` line 22: `pub use worker::Worker;` | Import path is `vo_worker::Worker`. |
 
 ---
 
@@ -136,7 +136,7 @@ main()
 ### Test 4.1: `drain_runtime` signals shutdown and waits for all three tasks
 
 ```rust
-// FILE: crates/wtf-cli/src/commands/serve.rs (mod tests)
+// FILE: crates/vo-cli/src/commands/serve.rs (mod tests)
 
 #[tokio::test]
 async fn drain_runtime_signals_shutdown_and_waits_for_three_tasks() {
@@ -220,12 +220,12 @@ async fn drain_runtime_propagates_worker_error() {
 ### Test 5.1: `run_serve` starts and stops with worker (requires NATS)
 
 ```rust
-// FILE: crates/wtf-cli/tests/serve_worker_integration.rs
-// Requires: NATS running (wtf-nats-test container)
+// FILE: crates/vo-cli/tests/serve_worker_integration.rs
+// Requires: NATS running (vo-nats-test container)
 
 #[tokio::test]
 async fn serve_starts_builtin_worker_and_shutdown_drains_it() {
-    use wtf_cli::commands::serve::ServeConfig;
+    use vo_cli::commands::serve::ServeConfig;
     use std::path::PathBuf;
     use tokio::time::{timeout, Duration};
 
@@ -238,7 +238,7 @@ async fn serve_starts_builtin_worker_and_shutdown_drains_it() {
         max_concurrent: 1,
     };
 
-    let handle = tokio::spawn(async move { wtf_cli::commands::serve::run_serve(config).await });
+    let handle = tokio::spawn(async move { vo_cli::commands::serve::run_serve(config).await });
 
     tokio::time::sleep(Duration::from_millis(500)).await;
 
@@ -246,7 +246,7 @@ async fn serve_starts_builtin_worker_and_shutdown_drains_it() {
     // by checking NATS consumer exists
     let client = async_nats::connect("nats://127.0.0.1:4222").await.unwrap();
     let js = client.jetstream();
-    let consumer = js.get_consumer("wtf-work", "builtin-worker").await;
+    let consumer = js.get_consumer("vo-work", "builtin-worker").await;
     assert!(consumer.is_ok(), "builtin-worker consumer should exist");
 
     drop(client);
@@ -261,9 +261,9 @@ async fn serve_starts_builtin_worker_and_shutdown_drains_it() {
 
 | Gate | Command | Expected |
 |------|---------|----------|
-| Compile | `cargo check -p wtf-cli` | No errors |
-| Unit tests | `cargo test -p wtf-cli` | All pass |
-| Clippy | `cargo clippy -p wtf-cli -- -D warnings` | No warnings |
+| Compile | `cargo check -p vo-cli` | No errors |
+| Unit tests | `cargo test -p vo-cli` | All pass |
+| Clippy | `cargo clippy -p vo-cli -- -D warnings` | No warnings |
 | Integration | `cargo test --workspace` (requires NATS) | No regressions |
 
 ---
@@ -272,7 +272,7 @@ async fn serve_starts_builtin_worker_and_shutdown_drains_it() {
 
 | # | Task | File | LOC est. |
 |---|------|------|----------|
-| 6.1 | Add `use wtf_worker::Worker;` import to serve.rs | `serve.rs:14` | 1 |
+| 6.1 | Add `use vo_worker::Worker;` import to serve.rs | `serve.rs:14` | 1 |
 | 6.2 | Create `Worker::new(nats.jetstream().clone(), "builtin-worker", None)` after timer_task spawn | `serve.rs:85-88` | 3 |
 | 6.3 | Clone `shutdown_rx` for worker: `let worker_shutdown = shutdown_rx.clone();` | `serve.rs:78` | 1 |
 | 6.4 | `tokio::spawn` the worker: `let worker_task = tokio::spawn(async move { worker.run(worker_shutdown).await.map_err(\|e\| anyhow::anyhow!("builtin worker: {e}")) });` | `serve.rs:89-93` | 5 |
@@ -292,10 +292,10 @@ async fn serve_starts_builtin_worker_and_shutdown_drains_it() {
 | # | Failure | Detection | Mitigation |
 |---|---------|-----------|------------|
 | 7.1 | `Worker::new` panics (clippy deny) | N/A — `Worker::new` is infallible, returns `Self` | Not possible. |
-| 7.2 | `Worker::run` fails to create JetStream consumer (stream not provisioned) | Returns `Err(WtfError::NatsPublish(...))` | `drain_runtime` propagates via `context("worker task join failed")`. |
+| 7.2 | `Worker::run` fails to create JetStream consumer (stream not provisioned) | Returns `Err(VoError::NatsPublish(...))` | `drain_runtime` propagates via `context("worker task join failed")`. |
 | 7.3 | `Worker::run` panics inside spawn | `JoinHandle` returns `Err(JoinError)` | `drain_runtime` `context("worker task join failed")` catches it. |
 | 7.4 | Shutdown signal race — worker sees shutdown before consumer is created | Worker breaks out of `run` immediately | Safe — `ShutdownResult` with zero counts. |
-| 7.5 | NATS connection drops mid-worker-run | `WorkQueueConsumer::next_task` returns `Err(WtfError)` | Worker logs error, continues loop. |
+| 7.5 | NATS connection drops mid-worker-run | `WorkQueueConsumer::next_task` returns `Err(VoError)` | Worker logs error, continues loop. |
 
 ---
 
@@ -303,13 +303,13 @@ async fn serve_starts_builtin_worker_and_shutdown_drains_it() {
 
 | Claim | Verification |
 |-------|-------------|
-| `wtf_worker::Worker` is already a dependency of `wtf-cli` | `crates/wtf-cli/Cargo.toml:12` — confirmed |
-| `Worker::new` takes `Context`, `impl Into<String>`, `Option<String>` | `crates/wtf-worker/src/worker.rs:102-113` — confirmed |
-| `Worker::run` takes `watch::Receiver<bool>`, returns `Result<(), WtfError>` | `crates/wtf-worker/src/worker.rs:142-149` — confirmed |
-| `WtfError` implements `Error + Send + Sync + 'static` | `crates/wtf-common/src/lib.rs` — derives `thiserror::Error` (implicitly `std::error::Error`) |
-| `drain_runtime` currently takes 2 tasks | `crates/wtf-cli/src/commands/serve.rs:93-115` — confirmed |
-| `drain_runtime` test uses 2 handles | `crates/wtf-cli/src/commands/serve.rs:160-202` — confirmed |
-| No Cargo.toml changes needed | `wtf-worker` already in `wtf-cli` dependencies |
+| `vo_worker::Worker` is already a dependency of `vo-cli` | `crates/vo-cli/Cargo.toml:12` — confirmed |
+| `Worker::new` takes `Context`, `impl Into<String>`, `Option<String>` | `crates/vo-worker/src/worker.rs:102-113` — confirmed |
+| `Worker::run` takes `watch::Receiver<bool>`, returns `Result<(), VoError>` | `crates/vo-worker/src/worker.rs:142-149` — confirmed |
+| `VoError` implements `Error + Send + Sync + 'static` | `crates/vo-common/src/lib.rs` — derives `thiserror::Error` (implicitly `std::error::Error`) |
+| `drain_runtime` currently takes 2 tasks | `crates/vo-cli/src/commands/serve.rs:93-115` — confirmed |
+| `drain_runtime` test uses 2 handles | `crates/vo-cli/src/commands/serve.rs:160-202` — confirmed |
+| No Cargo.toml changes needed | `vo-worker` already in `vo-cli` dependencies |
 
 ---
 
@@ -319,10 +319,10 @@ If this bead is interrupted and resumed mid-implementation:
 
 | Step | What to verify | How |
 |------|---------------|-----|
-| Import added | `use wtf_worker::Worker;` exists at top of serve.rs | `rg "use wtf_worker" crates/wtf-cli/src/commands/serve.rs` |
-| Worker spawned | `worker_task` variable exists and is passed to `drain_runtime` | `rg "worker_task" crates/wtf-cli/src/commands/serve.rs` |
-| `drain_runtime` extended | Function signature has 4 generic params (`EApi, ETimer, EWorker`) | `rg "EWorker" crates/wtf-cli/src/commands/serve.rs` |
-| Tests updated | 3-task drain test exists | `rg "worker_drained" crates/wtf-cli/src/commands/serve.rs` |
+| Import added | `use vo_worker::Worker;` exists at top of serve.rs | `rg "use vo_worker" crates/vo-cli/src/commands/serve.rs` |
+| Worker spawned | `worker_task` variable exists and is passed to `drain_runtime` | `rg "worker_task" crates/vo-cli/src/commands/serve.rs` |
+| `drain_runtime` extended | Function signature has 4 generic params (`EApi, ETimer, EWorker`) | `rg "EWorker" crates/vo-cli/src/commands/serve.rs` |
+| Tests updated | 3-task drain test exists | `rg "worker_drained" crates/vo-cli/src/commands/serve.rs` |
 
 ---
 
@@ -330,10 +330,10 @@ If this bead is interrupted and resumed mid-implementation:
 
 ```yaml
 done_when:
-  - cargo check -p wtf-cli succeeds
-  - cargo test -p wtf-cli passes (including new 3-task drain tests)
-  - cargo clippy -p wtf-cli -- -D warnings passes
-  - crates/wtf-worker/src/worker.rs is UNCHANGED (git diff shows no modifications)
+  - cargo check -p vo-cli succeeds
+  - cargo test -p vo-cli passes (including new 3-task drain tests)
+  - cargo clippy -p vo-cli -- -D warnings passes
+  - crates/vo-worker/src/worker.rs is UNCHANGED (git diff shows no modifications)
   - drain_runtime accepts 3 JoinHandles
   - run_serve spawns a Worker with name "builtin-worker" and no filter
 ```
@@ -347,16 +347,16 @@ domain: "Durable workflow execution engine"
 architecture: "Ractor actors + NATS JetStream event sourcing + Dioxus WASM frontend"
 runtime: "tokio async, Rust edition 2021"
 key_types:
-  - "wtf_worker::Worker — high-level activity dispatch loop"
-  - "wtf_common::WtfError — domain error type (thiserror)"
+  - "vo_worker::Worker — high-level activity dispatch loop"
+  - "vo_common::VoError — domain error type (thiserror)"
   - "async_nats::jetstream::Context — JetStream context"
   - "tokio::sync::watch::Receiver<bool> — shutdown signal channel"
 key_modules:
-  - "crates/wtf-cli/src/commands/serve.rs — server entrypoint"
-  - "crates/wtf-worker/src/worker.rs — Worker SDK (DO NOT MODIFY)"
-  - "crates/wtf-worker/src/lib.rs — re-exports Worker"
+  - "crates/vo-cli/src/commands/serve.rs — server entrypoint"
+  - "crates/vo-worker/src/worker.rs — Worker SDK (DO NOT MODIFY)"
+  - "crates/vo-worker/src/lib.rs — re-exports Worker"
 constraints:
-  - "No changes to wtf-worker crate"
+  - "No changes to vo-worker crate"
   - "No new Cargo.toml dependencies"
   - "No unsafe code"
   - "clippy::unwrap_used + clippy::expect_used + clippy::panic denied"
@@ -376,4 +376,4 @@ constraints:
 
 5. **`Worker::run` takes `&self`** — the `Worker` value must be moved into the `async move` closure, not borrowed. Since `run` takes `&self`, the moved `Worker` is accessed by reference inside the closure.
 
-6. **Error type bridging** — `WtfError` is not `anyhow::Error`. The spawn closure must `.map_err(|e| anyhow::anyhow!("builtin worker: {e}"))` to convert `WtfError` → `anyhow::Error` for the `JoinHandle<Result<(), anyhow::Error>>` that `drain_runtime` expects.
+6. **Error type bridging** — `VoError` is not `anyhow::Error`. The spawn closure must `.map_err(|e| anyhow::anyhow!("builtin worker: {e}"))` to convert `VoError` → `anyhow::Error` for the `JoinHandle<Result<(), anyhow::Error>>` that `drain_runtime` expects.

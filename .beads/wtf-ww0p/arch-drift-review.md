@@ -1,4 +1,4 @@
-# Architectural Drift Review — wtf-ww0p
+# Architectural Drift Review — vo-ww0p
 
 **Date:** 2026-03-23
 **Reviewer:** architectural-drift agent
@@ -7,7 +7,7 @@
 
 | File | Lines | Status |
 |------|------:|--------|
-| `crates/wtf-api/tests/e2e_workflow_completion.rs` | 595 | ⚪ EXEMPT (E2E test) |
+| `crates/vo-api/tests/e2e_workflow_completion.rs` | 595 | ⚪ EXEMPT (E2E test) |
 
 ## Assessment
 

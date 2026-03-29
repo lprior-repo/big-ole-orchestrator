@@ -1,13 +1,13 @@
-bead_id: wtf-ald
-bead_title: wtf-types: define WorkflowDefinition and DAG node types
+bead_id: vo-ald
+bead_title: vo-types: define WorkflowDefinition and DAG node types
 phase: state-4.5-qa-execution
 updated_at: 2026-03-27T14:30:00Z
 
-# QA Report: wtf-ald
+# QA Report: vo-ald
 
 ## Execution Evidence
 
-All commands executed in `/home/lewis/src/wtf-ald`. Every line below is real terminal output.
+All commands executed in `/home/lewis/src/vo-ald`. Every line below is real terminal output.
 
 ---
 
@@ -15,7 +15,7 @@ All commands executed in `/home/lewis/src/wtf-ald`. Every line below is real ter
 
 #### Check 1: Compilation
 
-**Command:** `cargo check -p wtf-types 2>&1`
+**Command:** `cargo check -p vo-types 2>&1`
 
 **Output:**
 ```
@@ -32,7 +32,7 @@ Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.02s
 
 #### Check 2: Full test suite (557 tests)
 
-**Command:** `cargo test -p wtf-types --lib 2>&1`
+**Command:** `cargo test -p vo-types --lib 2>&1`
 
 **Output (summary):**
 ```
@@ -53,11 +53,11 @@ test result: ok. 557 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fi
 
 #### Check 3: Clippy (production code)
 
-**Command:** `cargo clippy -p wtf-types -- -D warnings 2>&1`
+**Command:** `cargo clippy -p vo-types -- -D warnings 2>&1`
 
 **Output:**
 ```
-Checking wtf-types v0.1.0 (...)
+Checking vo-types v0.1.0 (...)
 Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.53s
 ```
 
@@ -71,7 +71,7 @@ Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.53s
 
 #### Check 4: Format check
 
-**Command:** `cargo fmt -p wtf-types -- --check 2>&1`
+**Command:** `cargo fmt -p vo-types -- --check 2>&1`
 
 **Output:** (empty -- no diffs)
 
@@ -87,17 +87,17 @@ Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.53s
 
 #### Check 5: No unwrap/expect in non-test code
 
-**Command:** `grep -rn 'unwrap()\|expect(' crates/wtf-types/src/workflow.rs crates/wtf-types/src/non_empty_vec.rs`
+**Command:** `grep -rn 'unwrap()\|expect(' crates/vo-types/src/workflow.rs crates/vo-types/src/non_empty_vec.rs`
 
 **Output:**
 ```
-crates/wtf-types/src/workflow.rs:1444:    .expect("serialize");
-crates/wtf-types/src/workflow.rs:1445:    .expect("deserialize");
-crates/wtf-types/src/workflow.rs:1463:    .expect("serialize");
-crates/wtf-types/src/workflow.rs:1464:    .expect("deserialize");
-crates/wtf-types/src/non_empty_vec.rs:44:  .expect("NonEmptyVec invariant violated: empty vec")
-crates/wtf-types/src/non_empty_vec.rs:200: .expect("serialize");
-crates/wtf-types/src/non_empty_vec.rs:201: .expect("deserialize");
+crates/vo-types/src/workflow.rs:1444:    .expect("serialize");
+crates/vo-types/src/workflow.rs:1445:    .expect("deserialize");
+crates/vo-types/src/workflow.rs:1463:    .expect("serialize");
+crates/vo-types/src/workflow.rs:1464:    .expect("deserialize");
+crates/vo-types/src/non_empty_vec.rs:44:  .expect("NonEmptyVec invariant violated: empty vec")
+crates/vo-types/src/non_empty_vec.rs:200: .expect("serialize");
+crates/vo-types/src/non_empty_vec.rs:201: .expect("deserialize");
 ```
 
 **Analysis:**
@@ -111,7 +111,7 @@ crates/wtf-types/src/non_empty_vec.rs:201: .expect("deserialize");
 
 #### Check 6: No panic/todo/unimplemented in non-test code
 
-**Command:** `grep -rn 'panic!\|todo!\|unimplemented!' crates/wtf-types/src/workflow.rs crates/wtf-types/src/non_empty_vec.rs`
+**Command:** `grep -rn 'panic!\|todo!\|unimplemented!' crates/vo-types/src/workflow.rs crates/vo-types/src/non_empty_vec.rs`
 
 **Output:** (no matches -- exit code 1)
 
@@ -125,7 +125,7 @@ crates/wtf-types/src/non_empty_vec.rs:201: .expect("deserialize");
 
 #### Check 7: DagNode has no binary_path field
 
-**Command:** `grep -n 'binary_path' crates/wtf-types/src/workflow.rs`
+**Command:** `grep -n 'binary_path' crates/vo-types/src/workflow.rs`
 
 **Output:**
 ```
@@ -148,7 +148,7 @@ The `DagNode` struct (lines 95-99) has exactly two fields: `node_name` and `retr
 
 #### Check 8: All types implement required traits
 
-**Command:** `grep -n 'derive.*Serialize\|derive.*Deserialize\|derive.*Clone\|derive.*Debug\|derive.*PartialEq' crates/wtf-types/src/workflow.rs`
+**Command:** `grep -n 'derive.*Serialize\|derive.*Deserialize\|derive.*Clone\|derive.*Debug\|derive.*PartialEq' crates/vo-types/src/workflow.rs`
 
 **Output:**
 ```
@@ -185,7 +185,7 @@ The `DagNode` struct (lines 95-99) has exactly two fields: `node_name` and `retr
 
 #### Check 9: WorkflowDefinitionError has all 5 variants
 
-**Command:** `grep -n 'EmptyWorkflow\|CycleDetected\|UnknownNode\|InvalidRetryPolicy\|DeserializationFailed' crates/wtf-types/src/workflow.rs`
+**Command:** `grep -n 'EmptyWorkflow\|CycleDetected\|UnknownNode\|InvalidRetryPolicy\|DeserializationFailed' crates/vo-types/src/workflow.rs`
 
 **Output:** All 5 variants found in the enum definition at lines 128, 132, 136, 140, 147.
 
@@ -203,7 +203,7 @@ The `DagNode` struct (lines 95-99) has exactly two fields: `node_name` and `retr
 
 #### Check 10: RetryPolicyError has both variants
 
-**Command:** `grep -n 'ZeroAttempts\|InvalidMultiplier' crates/wtf-types/src/workflow.rs`
+**Command:** `grep -n 'ZeroAttempts\|InvalidMultiplier' crates/vo-types/src/workflow.rs`
 
 **Output:** Both variants found at lines 44 and 48.
 
@@ -223,7 +223,7 @@ The `DagNode` struct (lines 95-99) has exactly two fields: `node_name` and `retr
 **Test:** Covered by existing test `parse_empty_nodes_returns_empty_workflow` (B-32).
 **Verification:** Run the exact test:
 
-**Command:** `cargo test -p wtf-types --lib parse_empty_nodes -- --nocapture 2>&1`
+**Command:** `cargo test -p vo-types --lib parse_empty_nodes -- --nocapture 2>&1`
 
 **Output:**
 ```
@@ -243,7 +243,7 @@ test workflow::tests::parse_empty_nodes_returns_empty_workflow ... ok
 **Test:** Covered by existing test `parse_cyclic_workflow_a_b_a_returns_cycle_detected` (B-39).
 **Verification:**
 
-**Command:** `cargo test -p wtf-types --lib parse_cyclic_workflow -- --nocapture 2>&1`
+**Command:** `cargo test -p vo-types --lib parse_cyclic_workflow -- --nocapture 2>&1`
 
 **Output:**
 ```
@@ -262,7 +262,7 @@ test workflow::tests::parse_cyclic_workflow_a_b_a_returns_cycle_detected ... ok
 
 **Test:** Covered by existing test `parse_rejects_dangling_edge_with_unknown_node_when_target_missing` (B-37).
 
-**Command:** `cargo test -p wtf-types --lib parse_rejects_dangling_edge_with_unknown_node_when_target_missing -- --nocapture 2>&1`
+**Command:** `cargo test -p vo-types --lib parse_rejects_dangling_edge_with_unknown_node_when_target_missing -- --nocapture 2>&1`
 
 **Output:**
 ```
@@ -281,7 +281,7 @@ test workflow::tests::parse_rejects_dangling_edge_with_unknown_node_when_target_
 
 **Test:** Covered by existing test `retry_policy_rejects_zero_attempts_with_zero_attempts_error_when_max_is_zero` (B-16).
 
-**Command:** `cargo test -p wtf-types --lib retry_policy_rejects_zero_attempts -- --nocapture 2>&1`
+**Command:** `cargo test -p vo-types --lib retry_policy_rejects_zero_attempts -- --nocapture 2>&1`
 
 **Output:**
 ```
@@ -300,7 +300,7 @@ test workflow::tests::retry_policy_rejects_zero_attempts_with_zero_attempts_erro
 
 **Test:** Covered by existing test `retry_policy_rejects_low_multiplier_with_invalid_multiplier_error_when_below_1` (B-17).
 
-**Command:** `cargo test -p wtf-types --lib retry_policy_rejects_low_multiplier -- --nocapture 2>&1`
+**Command:** `cargo test -p vo-types --lib retry_policy_rejects_low_multiplier -- --nocapture 2>&1`
 
 **Output:**
 ```
@@ -319,7 +319,7 @@ test workflow::tests::retry_policy_rejects_low_multiplier_with_invalid_multiplie
 
 **Test:** Covered by existing test `next_nodes_returns_next_hop_when_linear_chain_traversed` (B-57).
 
-**Command:** `cargo test -p wtf-types --lib next_nodes_returns_next_hop_when_linear_chain_traversed -- --nocapture 2>&1`
+**Command:** `cargo test -p vo-types --lib next_nodes_returns_next_hop_when_linear_chain_traversed -- --nocapture 2>&1`
 
 **Output:**
 ```
@@ -338,7 +338,7 @@ test workflow::tests::next_nodes_returns_next_hop_when_linear_chain_traversed ..
 
 #### Check 17: No Default impl on WorkflowDefinition, DagNode, Edge, RetryPolicy
 
-**Command:** `grep -rn 'impl.*Default\|derive.*Default' crates/wtf-types/src/workflow.rs crates/wtf-types/src/non_empty_vec.rs`
+**Command:** `grep -rn 'impl.*Default\|derive.*Default' crates/vo-types/src/workflow.rs crates/vo-types/src/non_empty_vec.rs`
 
 **Output:** (no matches -- exit code 1)
 
@@ -348,7 +348,7 @@ test workflow::tests::next_nodes_returns_next_hop_when_linear_chain_traversed ..
 
 #### Check 18: No petgraph types in public API
 
-**Command:** `grep -rn 'petgraph' crates/wtf-types/src/workflow.rs crates/wtf-types/src/non_empty_vec.rs`
+**Command:** `grep -rn 'petgraph' crates/vo-types/src/workflow.rs crates/vo-types/src/non_empty_vec.rs`
 
 **Output:** (no matches -- exit code 1)
 
@@ -360,7 +360,7 @@ test workflow::tests::next_nodes_returns_next_hop_when_linear_chain_traversed ..
 
 **Test:** Covered by existing test `non_empty_vec_rejects_empty_when_constructed` (B-2) and the `should_panic` test for deserialization (B-10).
 
-**Command:** `cargo test -p wtf-types --lib non_empty_vec_rejects_empty -- --nocapture 2>&1`
+**Command:** `cargo test -p vo-types --lib non_empty_vec_rejects_empty -- --nocapture 2>&1`
 
 **Output:**
 ```
@@ -375,7 +375,7 @@ test non_empty_vec::tests::non_empty_vec_rejects_empty_when_constructed ... ok
 
 #### Check 20: EdgeCondition has exactly 3 variants
 
-**Command:** `cargo test -p wtf-types --lib edge_condition_has_exactly_three_variants -- --nocapture 2>&1`
+**Command:** `cargo test -p vo-types --lib edge_condition_has_exactly_three_variants -- --nocapture 2>&1`
 
 **Output:**
 ```
@@ -390,7 +390,7 @@ test workflow::tests::edge_condition_has_exactly_three_variants_when_checked ...
 
 #### Check 21: StepOutcome has exactly 2 variants
 
-**Command:** `cargo test -p wtf-types --lib step_outcome_has_exactly_two_variants -- --nocapture 2>&1`
+**Command:** `cargo test -p vo-types --lib step_outcome_has_exactly_two_variants -- --nocapture 2>&1`
 
 **Output:**
 ```
@@ -405,7 +405,7 @@ test workflow::tests::step_outcome_has_exactly_two_variants_when_checked ... ok
 
 #### Check 22: Serde round-trip identity
 
-**Command:** `cargo test -p wtf-types --lib workflow_definition_json_roundtrip -- --nocapture 2>&1`
+**Command:** `cargo test -p vo-types --lib workflow_definition_json_roundtrip -- --nocapture 2>&1`
 
 **Output:**
 ```
@@ -420,7 +420,7 @@ test workflow::tests::workflow_definition_json_roundtrip ... ok
 
 #### Check 23: Error priority ordering
 
-**Command:** `cargo test -p wtf-types --lib parse_returns -- --nocapture 2>&1`
+**Command:** `cargo test -p vo-types --lib parse_returns -- --nocapture 2>&1`
 
 **Output:**
 ```
@@ -438,7 +438,7 @@ test workflow::tests::parse_returns_unknown_node_before_cycle_detected_when_both
 
 #### Check 24: Public API exports match contract
 
-**Command:** `grep -A3 'pub use workflow' crates/wtf-types/src/lib.rs`
+**Command:** `grep -A3 'pub use workflow' crates/vo-types/src/lib.rs`
 
 **Output:**
 ```
@@ -476,7 +476,7 @@ None.
 
 **MINOR-1: Unused `proptest::prelude::*` import in test code**
 
-- **File:** `crates/wtf-types/src/non_empty_vec.rs:190`
+- **File:** `crates/vo-types/src/non_empty_vec.rs:190`
 - **Evidence:** Compiler warning during `cargo test`: `warning: unused import: proptest::prelude::*`
 - **Impact:** Zero impact on production code. Only appears during test compilation. The `proptest!` macro implicitly imports what it needs; the explicit `use` is redundant.
 - **Recommendation:** Remove line 190 (`use proptest::prelude::*;`) from the test submodule.
@@ -485,14 +485,14 @@ None.
 
 **OBS-1: `unreachable!` in `WorkflowDefinitionError::Clone` impl**
 
-- **File:** `crates/wtf-types/src/workflow.rs:208`
+- **File:** `crates/vo-types/src/workflow.rs:208`
 - **Context:** The `Clone` impl for `WorkflowDefinitionError` uses `unreachable!()` for the `DeserializationFailed` variant because `serde_json::Error` doesn't implement `Clone`.
 - **Impact:** If someone actually clones a `DeserializationFailed` error, this will panic. However, the contract notes this error is returned and consumed, not stored. The `Clone` impl is only needed for `PartialEq` matching in tests. This is an acceptable tradeoff documented with a clear comment.
 - **Recommendation:** No action needed. The comment explains the reasoning clearly.
 
 **OBS-2: `assert!` in `NonEmptyVec::new_unchecked`**
 
-- **File:** `crates/wtf-types/src/non_empty_vec.rs:35`
+- **File:** `crates/vo-types/src/non_empty_vec.rs:35`
 - **Context:** The contract specifies `new_unchecked` "Panics if empty" and this is the documented behavior. The `assert!` is intentional and matches the contract.
 - **Recommendation:** No action needed. This is correct per contract.
 
@@ -541,4 +541,4 @@ None. All checks pass.
 
 ### VERDICT: PASS
 
-All 24 checks pass. Zero critical, zero major findings. One minor observation (unused test import). The implementation faithfully satisfies the contract specification for wtf-ald.
+All 24 checks pass. Zero critical, zero major findings. One minor observation (unused test import). The implementation faithfully satisfies the contract specification for vo-ald.

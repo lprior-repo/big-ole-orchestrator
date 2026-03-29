@@ -3,8 +3,8 @@
 ## Context
 
 - **Feature:** End-to-end integration test validating signal delivery through the actor message pipeline
-- **Bead:** wtf-h8u4
-- **Test file:** `crates/wtf-actor/tests/signal_delivery_e2e.rs`
+- **Bead:** vo-h8u4
+- **Test file:** `crates/vo-actor/tests/signal_delivery_e2e.rs`
 
 ### Domain Terms
 
@@ -15,7 +15,7 @@
 | `handle_signal` | Instance handler: persists SignalReceived event, delivers to pending waiter OR buffers |
 | `handle_wait_for_signal` | Instance handler: checks buffer first, then registers RPC port in `pending_signal_calls` |
 | `WorkflowContext::wait_for_signal` | Dual-phase API on procedural context: checkpoint check, then RPC to instance actor |
-| `pending_signal_calls` | `HashMap<String, RpcReplyPort<Result<Bytes, WtfError>>>` on InstanceState |
+| `pending_signal_calls` | `HashMap<String, RpcReplyPort<Result<Bytes, VoError>>>` on InstanceState |
 | `received_signals` | `HashMap<String, Vec<Bytes>>` on ProceduralActorState — FIFO buffer for early-arriving signals |
 | `MockEventStore` | Test double returning `Ok(1)` from publish, `EmptyReplayStream` from replay |
 | `SignalReceived` | `WorkflowEvent` variant: `{ signal_name: String, payload: Bytes }` |
@@ -35,7 +35,7 @@ All contract statements are grounded in the actual codebase:
 
 ### Assumptions
 
-- Beads wtf-88f4 (pending_signal_calls), wtf-3cv7 (wait_for_signal), wtf-cedw (SignalReceived persistence + wake) are ALREADY implemented (codebase confirms: all three exist)
+- Beads vo-88f4 (pending_signal_calls), vo-3cv7 (wait_for_signal), vo-cedw (SignalReceived persistence + wake) are ALREADY implemented (codebase confirms: all three exist)
 - `MockEventStore` returning `Ok(1)` from publish is sufficient for actor to proceed with event injection
 - Test does NOT require a real NATS server (proven by spawn_workflow_test.rs pattern)
 
@@ -84,7 +84,7 @@ None — all implementation code is present and readable.
 
 ### Error paths
 
-- **POST-13:** Signal to nonexistent instance: `OrchestratorMsg::Signal` returns `Err(WtfError::InstanceNotFound { .. })`
+- **POST-13:** Signal to nonexistent instance: `OrchestratorMsg::Signal` returns `Err(VoError::InstanceNotFound { .. })`
 - **POST-14:** Signal with wrong name to a waiting workflow: workflow remains blocked; signal is buffered in `received_signals` under the wrong name (not discarded)
 
 ### Edge cases
@@ -105,9 +105,9 @@ None — all implementation code is present and readable.
 
 | Error Variant | When It Occurs | Source |
 |---------------|----------------|--------|
-| `WtfError::InstanceNotFound { instance_id }` | Signal sent to instance_id not registered in orchestrator state | `master/handlers/signal.rs:24` |
-| `WtfError::NatsPublish { .. }` | EventStore.publish fails when persisting SignalReceived | `instance/handlers.rs:173-175` |
-| `WtfError::NatsPublish { .. }` (missing store) | EventStore is None on InstanceState | `instance/handlers.rs:145-146` |
+| `VoError::InstanceNotFound { instance_id }` | Signal sent to instance_id not registered in orchestrator state | `master/handlers/signal.rs:24` |
+| `VoError::NatsPublish { .. }` | EventStore.publish fails when persisting SignalReceived | `instance/handlers.rs:173-175` |
+| `VoError::NatsPublish { .. }` (missing store) | EventStore is None on InstanceState | `instance/handlers.rs:145-146` |
 | `anyhow::Error` ("Actor call failed") | Ractor RPC returns non-Success variant | `context.rs:238` |
 | `ractor::rpc::CallResult::Timeout` | RPC call exceeds timeout duration | N/A in this test (no timeout set on wait_for_signal) |
 
@@ -121,21 +121,21 @@ OrchestratorMsg::Signal {
     instance_id: InstanceId,
     signal_name: String,
     payload: Bytes,
-    reply: RpcReplyPort<Result<(), WtfError>>,
+    reply: RpcReplyPort<Result<(), VoError>>,
 }
 
 // Internal instance message (cast, not RPC)
 InstanceMsg::InjectSignal {
     signal_name: String,
     payload: Bytes,
-    reply: RpcReplyPort<Result<(), WtfError>>,
+    reply: RpcReplyPort<Result<(), VoError>>,
 }
 
 // Internal instance RPC (workflow context waiting)
 InstanceMsg::ProceduralWaitForSignal {
     operation_id: u32,
     signal_name: String,
-    reply: RpcReplyPort<Result<Bytes, WtfError>>,
+    reply: RpcReplyPort<Result<Bytes, VoError>>,
 }
 ```
 
@@ -155,7 +155,7 @@ async fn send_signal_rpc(
     instance_id: &str,
     signal_name: &str,
     payload: Bytes,
-) -> Result<(), WtfError>;
+) -> Result<(), VoError>;
 
 async fn start_workflow_rpc(
     orchestrator: &ActorRef<OrchestratorMsg>,
@@ -179,7 +179,7 @@ impl WorkflowFn for SignalWorkflowFn {
 
 ## Non-goals
 
-- HTTP-level signal tests (covered by `crates/wtf-api/src/handlers/signal.rs` tests)
+- HTTP-level signal tests (covered by `crates/vo-api/src/handlers/signal.rs` tests)
 - NATS JetStream durability tests (separate integration test with real NATS)
 - Signal delivery during crash recovery / event replay
 - Multiple waiters for the same signal name

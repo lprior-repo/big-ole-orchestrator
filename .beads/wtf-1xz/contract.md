@@ -1,13 +1,13 @@
 # Contract Specification
 
 ## Context
-- Feature: Implement `send_signal` handler for Bead wtf-1xz per ADR-012.
+- Feature: Implement `send_signal` handler for Bead vo-1xz per ADR-012.
 - Domain terms:
     - `instance_id`: Unique identifier for a workflow instance.
     - `signal_name`: The identifier for the event/signal being sent.
     - `payload`: Data associated with the signal (JSON).
     - `ActorRef<OrchestratorMsg>`: Reference to the master orchestrator actor (Ractor).
-    - `WtfError`: Domain error type for wtf-engine.
+    - `VoError`: Domain error type for vo-engine.
 - Assumptions:
     - The `id` Path parameter is expected to be in `<namespace>/<id>` format based on `split_path_id`.
     - `split_path_id` only validates the presence of `/`; it does NOT validate that the `id` portion is a valid ULID.
@@ -32,7 +32,7 @@
 ## Error Taxonomy
 - `ApiError::InvalidId` (400 Bad Request) - when `id` path is malformed (e.g., missing slash).
 - `ApiError::InvalidPayload` (400 Bad Request) - when `V3SignalRequest` payload cannot be serialized to bytes or is malformed.
-- `ApiError::InstanceNotFound` (404 Not Found) - when the orchestrator returns `Ok(CallResult::Success(Err(WtfError::InstanceNotFound)))`.
+- `ApiError::InstanceNotFound` (404 Not Found) - when the orchestrator returns `Ok(CallResult::Success(Err(VoError::InstanceNotFound)))`.
 - `ApiError::ActorTimeout` (500 Internal Server Error) - when the actor call times out (`ACTOR_CALL_TIMEOUT`).
 - `ApiError::ActorError` (500 Internal Server Error) - for other actor communication failures (MessagingErr, CallResult::Error).
 
@@ -57,12 +57,12 @@
 - **Approach**:
     1. Define a mock orchestrator that accepts `OrchestratorMsg::Signal`.
     2. Use `master.call` and verify the received message fields (`instance_id`, `signal_name`, `payload`).
-    3. Program the mock to return `Ok(Ok(()))`, `Ok(Err(WtfError::InstanceNotFound))`, `Ok(CallResult::Timeout)`, or `Err(MessagingErr)`.
+    3. Program the mock to return `Ok(Ok(()))`, `Ok(Err(VoError::InstanceNotFound))`, `Ok(CallResult::Timeout)`, or `Err(MessagingErr)`.
     4. Assert that the HTTP response matches the expected status code and body for each mock behavior.
 
 ## Contract Signatures
 - `pub async fn send_signal(Extension(master): Extension<ActorRef<OrchestratorMsg>>, Path(id): Path<String>, Json(req): Json<V3SignalRequest>) -> impl IntoResponse`
-- `fn map_signal_result(res: Result<CallResult<Result<(), WtfError>>, MessagingErr<OrchestratorMsg>>) -> impl IntoResponse`
+- `fn map_signal_result(res: Result<CallResult<Result<(), VoError>>, MessagingErr<OrchestratorMsg>>) -> impl IntoResponse`
 
 ## Non-goals
 - [ ] Validating the internal structure of the `payload` against a workflow-specific schema.

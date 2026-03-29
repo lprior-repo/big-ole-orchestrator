@@ -1,9 +1,9 @@
-bead_id: wtf-ald
-bead_title: wtf-types: define WorkflowDefinition and DAG node types
+bead_id: vo-ald
+bead_title: vo-types: define WorkflowDefinition and DAG node types
 phase: state-1-contract-synthesis
 updated_at: 2026-03-27T08:45:00Z
 
-# Contract Specification: wtf-ald -- wtf-types: define WorkflowDefinition and DAG node types
+# Contract Specification: vo-ald -- vo-types: define WorkflowDefinition and DAG node types
 
 ## Context
 
@@ -14,22 +14,22 @@ updated_at: 2026-03-27T08:45:00Z
   - `Edge`: A directed connection from one node to another, annotated with an `EdgeCondition` that determines when traversal occurs.
   - `EdgeCondition`: Enum discriminating conditional traversal: `Always` (unconditional), `OnSuccess` (only if the source node succeeded), `OnFailure` (only if the source node failed).
   - `RetryPolicy`: Per-node retry configuration with exponential backoff. `max_attempts >= 1`, `backoff_multiplier >= 1.0`.
-  - `StepOutcome`: Result discriminant from `wtf-icg` (success/failure). Used by `next_nodes` to filter edges. NOT defined in this crate -- either a re-export stub or a `cfg`-gated local definition is needed.
+  - `StepOutcome`: Result discriminant from `vo-icg` (success/failure). Used by `next_nodes` to filter edges. NOT defined in this crate -- either a re-export stub or a `cfg`-gated local definition is needed.
   - `NonEmptyVec`: A `Vec<T>` guaranteed to contain at least one element. Enforces the "at least one node" invariant structurally.
-- **Existing types in wtf-types** (from wtf-acb, already implemented):
+- **Existing types in vo-types** (from vo-acb, already implemented):
   - `WorkflowName` -- `pub(crate) String`, validated: non-empty, `[a-zA-Z0-9_-]`, max 128 chars, no leading/trailing `-`/`_`. Implements `Serialize`, `Deserialize`, `Clone`, `Debug`, `PartialEq`, `Eq`, `Hash`, `Display`.
   - `NodeName` -- same validation as `WorkflowName`. Same trait impls.
   - `ParseError` -- existing error enum with variants `Empty`, `InvalidCharacters`, `InvalidFormat`, `ExceedsMaxLength`, `BoundaryViolation`, `NotAnInteger`, `ZeroValue`, `OutOfRange`.
   - `MaxAttempts` -- `NonZeroU64` newtype. This is NOT the same as `RetryPolicy.max_attempts` (which is `u8`). `MaxAttempts` is used elsewhere for engine-level attempt tracking. `RetryPolicy` has its own field.
 - **Assumptions**:
   - `WorkflowName` and `NodeName` are reused from `string_types.rs` -- NOT redefined.
-  - `StepOutcome` is defined in `wtf-icg` (not yet available). For this bead, a minimal local enum or trait object is used to decouple. The contract specifies the shape: `StepOutcome { Success, Failure }`.
+  - `StepOutcome` is defined in `vo-icg` (not yet available). For this bead, a minimal local enum or trait object is used to decouple. The contract specifies the shape: `StepOutcome { Success, Failure }`.
   - `NonEmptyVec<T>` does not exist in the crate and must be defined here.
-  - `serde_json` must be promoted from `[dev-dependencies]` to `[dependencies]` in `wtf-types/Cargo.toml` since `WorkflowDefinition::parse` deserializes JSON in non-test code.
+  - `serde_json` must be promoted from `[dev-dependencies]` to `[dependencies]` in `vo-types/Cargo.toml` since `WorkflowDefinition::parse` deserializes JSON in non-test code.
   - `petgraph` is available as a workspace dependency and may be used for cycle detection, but the public API does NOT expose petgraph types.
   - The cycle detection algorithm (DFS per ADR-022) reports the exact node names forming the cycle in the error variant.
 - **Open questions**:
-  - OQ-1: Should `StepOutcome` be defined locally in `wtf-types` or imported from `wtf-icg`? Recommendation: define a minimal `StepOutcome` enum in `wtf-types` to avoid a circular dependency. `wtf-icg` can `From`-convert its own outcome type.
+  - OQ-1: Should `StepOutcome` be defined locally in `vo-types` or imported from `vo-icg`? Recommendation: define a minimal `StepOutcome` enum in `vo-types` to avoid a circular dependency. `vo-icg` can `From`-convert its own outcome type.
   - OQ-2: Should `NonEmptyVec` be a full newtype with accessor methods, or just a type alias with validation? Recommendation: full newtype with `first()`, `rest()`, `as_slice()`, `into_vec()`.
   - OQ-3: Should `Edge` use `NodeName` references or owned values? Recommendation: owned `NodeName` (consistent with the rest of the crate's ownership model).
 
@@ -178,7 +178,7 @@ pub enum RetryPolicyError {
 ### Module structure
 
 ```rust
-// crates/wtf-types/src/lib.rs (additions only, existing modules untouched)
+// crates/vo-types/src/lib.rs (additions only, existing modules untouched)
 mod workflow;
 mod non_empty_vec;
 
@@ -237,8 +237,8 @@ impl<T> IntoIterator for NonEmptyVec<T> { /* delegates to inner Vec */ }
 
 ```rust
 /// Outcome of executing a single DAG node.
-/// Defined locally in wtf-types to avoid circular deps with wtf-icg.
-/// wtf-icg should From-convert its own outcome type to this.
+/// Defined locally in vo-types to avoid circular deps with vo-icg.
+/// vo-icg should From-convert its own outcome type to this.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum StepOutcome {
     Success,

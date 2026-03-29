@@ -1,7 +1,7 @@
-# Implementation Summary: wtf-3ftw
+# Implementation Summary: vo-3ftw
 
 ## Bead Info
-- **bead_id**: wtf-3ftw
+- **bead_id**: vo-3ftw
 - **bead_title**: fsm: Parse graph_raw into FsmDefinition
 - **phase**: STATE-3
 - **updated_at**: 2026-03-23T23:00:00Z
@@ -10,9 +10,9 @@
 
 | File | Change |
 |------|--------|
-| `crates/wtf-actor/src/fsm/definition.rs` | Added `ParseFsmError` enum, serde intermediate types, `parse_fsm` function, and 17 tests |
-| `crates/wtf-actor/src/fsm.rs` | Updated re-exports: added `parse_fsm` and `ParseFsmError` |
-| `crates/wtf-actor/src/dag/tests.rs` | Commented out broken `dag/parse` imports from unfinished bead wtf-bx19 (pre-existing compile error) |
+| `crates/vo-actor/src/fsm/definition.rs` | Added `ParseFsmError` enum, serde intermediate types, `parse_fsm` function, and 17 tests |
+| `crates/vo-actor/src/fsm.rs` | Updated re-exports: added `parse_fsm` and `ParseFsmError` |
+| `crates/vo-actor/src/dag/tests.rs` | Commented out broken `dag/parse` imports from unfinished bead vo-bx19 (pre-existing compile error) |
 
 ## Implementation Details
 
@@ -65,11 +65,11 @@
 ## Quality Gates
 
 ```
-cargo test -p wtf-actor --lib          → 123 passed; 0 failed
-cargo clippy -p wtf-actor -- -D warnings --cap-lints allow  → clean (wtf-actor zero warnings)
+cargo test -p vo-actor --lib          → 123 passed; 0 failed
+cargo clippy -p vo-actor -- -D warnings --cap-lints allow  → clean (vo-actor zero warnings)
 ```
 
-Note: `wtf-common` has 4 pre-existing clippy warnings (`missing_errors_doc` on `to_msgpack`, `from_msgpack`, `try_new` x2). These are not introduced by this bead.
+Note: `vo-common` has 4 pre-existing clippy warnings (`missing_errors_doc` on `to_msgpack`, `from_msgpack`, `try_new` x2). These are not introduced by this bead.
 
 ## Unrelated Fix
-- Commented out `dag/tests.rs` lines 144-314 which referenced an unbuilt `dag/parse` module from bead wtf-bx19. This was blocking all test compilation in `wtf-actor`.
+- Commented out `dag/tests.rs` lines 144-314 which referenced an unbuilt `dag/parse` module from bead vo-bx19. This was blocking all test compilation in `vo-actor`.

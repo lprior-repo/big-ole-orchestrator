@@ -1,24 +1,24 @@
 # QA Report
 
-bead_id: wtf-j7wk
-bead_title: "wtf-frontend: Simulate Mode Procedural — step through ctx calls, show checkpoint map"
+bead_id: vo-j7wk
+bead_title: "vo-frontend: Simulate Mode Procedural — step through ctx calls, show checkpoint map"
 phase: qa
 updated_at: 2026-03-21T17:50:00Z
 
 ## QA Execution Summary
 
 ### Compilation Check
-- **Command**: `cargo check -p wtf-frontend`
+- **Command**: `cargo check -p vo-frontend`
 - **Result**: PASS
 - **Output**: Code compiles successfully with only pre-existing warnings
 
 ### Clippy Check
-- **Command**: `cargo clippy -p wtf-frontend`
+- **Command**: `cargo clippy -p vo-frontend`
 - **Result**: PASS
 - **Output**: No new warnings or errors introduced
 
 ### Fmt Check
-- **Command**: `cargo fmt --check -p wtf-frontend`
+- **Command**: `cargo fmt --check -p vo-frontend`
 - **Result**: PASS
 - **Output**: Code is properly formatted
 

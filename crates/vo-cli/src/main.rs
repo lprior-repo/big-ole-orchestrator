@@ -6,8 +6,8 @@
 use anyhow::Context;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
-use wtf_cli::admin::{run_rebuild_views, RebuildViewsConfig};
-use wtf_cli::serve::{run_serve, run_serve_loop, ServeConfig};
+use vo_cli::admin::{run_rebuild_views, RebuildViewsConfig};
+use vo_cli::serve::{run_serve, run_serve_loop, ServeConfig};
 
 #[derive(Parser)]
 #[command(name = "wtf")]

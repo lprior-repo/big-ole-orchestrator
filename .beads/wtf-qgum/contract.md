@@ -1,7 +1,7 @@
 # Contract Specification
 
 ## Metadata
-- **bead_id**: wtf-qgum
+- **bead_id**: vo-qgum
 - **bead_title**: worker: Implement echo and sleep activity handlers
 - **phase**: STATE 2 (contract-first)
 - **updated_at**: 2026-03-23
@@ -23,7 +23,7 @@ Add two built-in activity handlers to `Worker` via `register_defaults()` in a ne
 | `process_task` | Dispatch loop at `worker.rs:210-303` — clones task, calls handler, acks on success/fail, naks on JetStream append failure |
 
 ### Assumptions
-- `serde_json` is already a workspace dependency (root `Cargo.toml:38`); safe to add to `wtf-worker/Cargo.toml`.
+- `serde_json` is already a workspace dependency (root `Cargo.toml:38`); safe to add to `vo-worker/Cargo.toml`.
 - `tokio::time::sleep` is already available via the existing `tokio` workspace dependency.
 - Handlers are standalone `async fn` values — they capture nothing from environment.
 - The `Bytes` type in `ActivityTask.payload` allows move semantics (no clone required for echo).

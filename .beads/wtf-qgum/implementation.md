@@ -1,7 +1,7 @@
 # Implementation Summary
 
 ## Metadata
-- **bead_id**: wtf-qgum
+- **bead_id**: vo-qgum
 - **phase**: STATE 3 (implementation)
 - **date**: 2026-03-23
 
@@ -9,9 +9,9 @@
 
 | File | Action | Description |
 |------|--------|-------------|
-| `crates/wtf-worker/src/builtin.rs` | **NEW** | Built-in activity handlers module |
-| `crates/wtf-worker/src/lib.rs` | **MODIFIED** | Added `pub mod builtin;` and `pub use builtin::register_defaults;` |
-| `crates/wtf-worker/Cargo.toml` | **MODIFIED** | Added `serde_json = { workspace = true }` dependency |
+| `crates/vo-worker/src/builtin.rs` | **NEW** | Built-in activity handlers module |
+| `crates/vo-worker/src/lib.rs` | **MODIFIED** | Added `pub mod builtin;` and `pub use builtin::register_defaults;` |
+| `crates/vo-worker/Cargo.toml` | **MODIFIED** | Added `serde_json = { workspace = true }` dependency |
 
 ## Implementation Details
 
@@ -71,13 +71,13 @@ All 32 tests pass. Uses `tokio::time::pause()` / `start_paused = true` for deter
 
 ### Completion Criteria Checklist
 
-- [x] `crates/wtf-worker/src/builtin.rs` exists with `register_defaults`, `echo_handler`, `sleep_handler`
+- [x] `crates/vo-worker/src/builtin.rs` exists with `register_defaults`, `echo_handler`, `sleep_handler`
 - [x] `echo_handler` returns `Ok(task.payload)` — unit test passes
 - [x] `sleep_handler` parses `{"ms": u64}`, sleeps, returns `Ok(Bytes::from_static(b"\"slept\""))` — unit tests pass
 - [x] `sleep_handler` returns `Err` on invalid JSON / missing `"ms"` — unit tests pass
 - [x] `register_defaults` wired into `lib.rs` as `pub use builtin::register_defaults`
-- [x] `cargo clippy -p wtf-worker` passes (zero new warnings)
-- [x] `cargo test -p wtf-worker --lib` passes (69/69 tests green)
+- [x] `cargo clippy -p vo-worker` passes (zero new warnings)
+- [x] `cargo test -p vo-worker --lib` passes (69/69 tests green)
 - [x] Zero `unwrap()` or `expect()` in new production code
 - [x] Module-level clippy lints match existing pattern
 - [ ] Integration tests (requires NATS — deferred to NATS-available environment)

@@ -7,10 +7,10 @@ Accepted
 When the Engine's timeout fires, it sends `SIGTERM` to the child binary. The child is expected to flush state and exit cleanly. However, in Rust, signal handlers cannot safely allocate memory or perform I/O. The standard pattern of setting an `AtomicBool` and checking it in a loop fails here because the user's task code *is* the main loop, and it might be blocked on a 45-second ML inference call. The `SIGTERM` would be ignored, forcing the Engine to escalate to `SIGKILL` and losing the graceful shutdown.
 
 ## Decision
-The `wtf-sdk` will intercept and manage signals using a dedicated background thread.
+The `vo-sdk` will intercept and manage signals using a dedicated background thread.
 
 ### The Implementation
-When the `wtf_sdk::start()` function initializes the current-thread runtime:
+When the `vo_sdk::start()` function initializes the current-thread runtime:
 1. It spawns a dedicated background `std::thread` to listen for OS signals (using `ctrlc` or a `SignalFd`).
 2. The main thread executes the user's task function.
 3. If the background thread receives `SIGTERM`, it is allowed to perform any necessary SDK-level cleanup (because it is a normal thread, not a restricted signal handler context).

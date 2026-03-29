@@ -1,685 +1,685 @@
-   Compiling wtf-engine v0.1.0 (/home/lewis/src/wtf-k6u/crates/wtf-engine)
+   Compiling vo-engine v0.1.0 (/home/lewis/src/vo-k6u/crates/vo-engine)
     Finished `test` profile [unoptimized + debuginfo] target(s) in 0.35s
 ────────────
  Nextest run ID f0896d98-634e-4383-b32a-0a15ee28f213 with nextest profile: default
     Starting 678 tests across 4 binaries
-        PASS [   0.002s] (  1/678) wtf-engine binary_registry::tests::copy_to_versions_returns_copy_failed_when_source_unreadable
-        PASS [   0.002s] (  2/678) wtf-engine binary_registry::tests::copy_to_versions_handles_sizes_gracefully::case_2
-        PASS [   0.002s] (  3/678) wtf-engine binary_registry::tests::copy_to_versions_handles_sizes_gracefully::case_3
-        PASS [   0.003s] (  4/678) wtf-engine binary_registry::tests::copy_to_versions_handles_sizes_gracefully::case_1
-        PASS [   0.003s] (  5/678) wtf-engine binary_registry::tests::deactivate_returns_not_found_when_unregistered
-        PASS [   0.003s] (  6/678) wtf-engine binary_registry::tests::discover_graph_returns_definition_when_valid_json
-        PASS [   0.003s] (  7/678) wtf-engine binary_registry::tests::deactivate_is_idempotent_when_already_deactivated
-        PASS [   0.003s] (  8/678) wtf-engine binary_registry::tests::register_returns_binary_not_found
-        PASS [   0.006s] (  9/678) wtf-types adversarial_tests::proptests::copy_equal
-        PASS [   0.005s] ( 10/678) wtf-types adversarial_tests::proptests::duration_ms_to_duration
-        PASS [   0.006s] ( 11/678) wtf-types adversarial_tests::proptests::fire_at_ms_has_elapsed
-        PASS [   0.006s] ( 12/678) wtf-types adversarial_tests::proptests::fire_at_ms_round_trip
-        PASS [   0.006s] ( 13/678) wtf-types adversarial_tests::proptests::hash_consistency
-        PASS [   0.006s] ( 14/678) wtf-types adversarial_tests::proptests::event_version_round_trip
-        PASS [   0.006s] ( 15/678) wtf-types adversarial_tests::proptests::duration_ms_round_trip
-        PASS [   0.014s] ( 16/678) wtf-engine::integration_tests integration_copy_to_versions_with_real_tempfiles
-        PASS [   0.006s] ( 17/678) wtf-types adversarial_tests::proptests::integer_newtype_display_is_decimal
-        PASS [   0.003s] ( 18/678) wtf-engine::integration_tests integration_successful_reap_deletes_file
-        PASS [   0.014s] ( 19/678) wtf-engine binary_registry::tests::discover_graph_returns_invalid_graph_output_when_empty
-        PASS [   0.014s] ( 20/678) wtf-types adversarial_tests::instance_id_display_round_trip
-        PASS [   0.014s] ( 21/678) wtf-engine::integration_tests integration_successful_register_hitting_real_disk
-        PASS [   0.014s] ( 22/678) wtf-engine binary_registry::tests::reap_deactivated_retains_when_one_instance
-        PASS [   0.006s] ( 23/678) wtf-types adversarial_tests::proptests::ord_consistent
-        PASS [   0.003s] ( 24/678) wtf-engine binary_registry::tests::resolve_returns_ok_when_min_name_seeded
-        PASS [   0.003s] ( 25/678) wtf-engine binary_registry::tests::resolve_returns_not_found_when_unregistered
-        PASS [   0.006s] ( 26/678) wtf-types adversarial_tests::proptests::max_attempts_is_exhausted
-        PASS [   0.006s] ( 27/678) wtf-types adversarial_tests::proptests::max_attempts_round_trip
-        PASS [   0.004s] ( 28/678) wtf-engine binary_registry::tests::deactivate_transitions_to_deactivated_when_active
-        PASS [   0.005s] ( 29/678) wtf-engine binary_registry::tests::discover_graph_returns_failed_when_nonzero_exit
-        PASS [   0.005s] ( 30/678) wtf-engine binary_registry::tests::resolve_returns_not_found_when_name_empty
-        PASS [   0.005s] ( 31/678) wtf-engine binary_registry::tests::resolve_returns_workflow_deactivated_when_status_is_deactivated
-        PASS [   0.017s] ( 32/678) wtf-engine binary_registry::tests::register_returns_not_executable
-        PASS [   0.005s] ( 33/678) wtf-engine binary_registry::tests::resolve_returns_ok_when_max_name_seeded
-        PASS [   0.017s] ( 34/678) wtf-engine binary_registry::tests::resolve_returns_exact_data_when_active_workflow_seeded
-        PASS [   0.005s] ( 35/678) wtf-engine::integration_tests integration_idempotent_copy_skips_overwrite
-        PASS [   0.007s] ( 36/678) wtf-engine::integration_tests integration_toctou_register_failure
-        PASS [   0.018s] ( 37/678) wtf-engine binary_registry::tests::reap_deactivated_deletes_when_zero_instances
-        PASS [   0.018s] ( 38/678) wtf-engine binary_registry::tests::register_succeeds_when_valid
-        PASS [   0.006s] ( 39/678) wtf-engine binary_registry::tests::resolve_returns_not_found_when_registry_empty
-        PASS [   0.018s] ( 40/678) wtf-types adversarial_tests::proptests::attempt_number_round_trip
-        PASS [   0.003s] ( 41/678) wtf-types adversarial_tests::rq_debug_output_contains_value_for_string
-        PASS [   0.003s] ( 42/678) wtf-types adversarial_tests::rq_empty_string_for_integer_types
-        PASS [   0.003s] ( 43/678) wtf-types adversarial_tests::rq_debug_output_contains_type_name
-        PASS [   0.004s] ( 44/678) wtf-types adversarial_tests::rq_binary_hash_rejects_7_chars_odd
-        PASS [   0.005s] ( 45/678) wtf-types adversarial_tests::rq_binary_hash_rejects_2_chars_below_min
-        PASS [   0.003s] ( 46/678) wtf-types adversarial_tests::rq_binary_hash_rejects_single_char
-        PASS [   0.002s] ( 47/678) wtf-types adversarial_tests::rq_error_type_name_matches_for_all_types
-        PASS [   0.003s] ( 48/678) wtf-types adversarial_tests::rq_instance_id_accepts_mixed_case_ulid
-        PASS [   0.003s] ( 49/678) wtf-types adversarial_tests::rq_idempotency_key_accepts_null_byte
-        PASS [   0.005s] ( 50/678) wtf-types adversarial_tests::rq_debug_output_contains_value_for_integer
-        PASS [   0.007s] ( 51/678) wtf-types adversarial_tests::proptests::timeout_ms_to_duration
-        PASS [   0.003s] ( 52/678) wtf-types adversarial_tests::rq_idempotency_key_rejects_1025_ascii
-        PASS [   0.007s] ( 53/678) wtf-types adversarial_tests::proptests::serde_round_trip_sequence_number
-        PASS [   0.003s] ( 54/678) wtf-types adversarial_tests::rq_instance_id_accepts_lowercase_ulid
-        PASS [   0.003s] ( 55/678) wtf-types adversarial_tests::rq_instance_id_preserves_original_case
-        PASS [   0.003s] ( 56/678) wtf-types adversarial_tests::rq_instance_id_rejects_25_chars
-        PASS [   0.003s] ( 57/678) wtf-types adversarial_tests::rq_instance_id_rejects_27_chars
-        PASS [   0.003s] ( 58/678) wtf-types adversarial_tests::rq_integer_types_are_copy
-        PASS [   0.009s] ( 59/678) wtf-types adversarial_tests::proptests::timeout_ms_round_trip
-        PASS [   0.004s] ( 60/678) wtf-types adversarial_tests::rq_negative_zero_rejected
-        PASS [   0.003s] ( 61/678) wtf-types adversarial_tests::rq_no_from_string_for_string_types
-        PASS [   0.003s] ( 62/678) wtf-types adversarial_tests::rq_node_name_double_hyphen_middle_valid
-        PASS [   0.009s] ( 63/678) wtf-types adversarial_tests::proptests::serde_round_trip_duration_ms
-        PASS [   0.002s] ( 64/678) wtf-types adversarial_tests::rq_node_name_rejects_emoji
-        PASS [   0.002s] ( 65/678) wtf-types adversarial_tests::rq_ord_consistent_with_as_u64
-        PASS [   0.003s] ( 66/678) wtf-types adversarial_tests::rq_node_name_double_underscore_middle_valid
-        PASS [   0.010s] ( 67/678) wtf-types adversarial_tests::proptests::sequence_number_round_trip
-        PASS [   0.004s] ( 68/678) wtf-types adversarial_tests::rq_scientific_notation_rejected
-        PASS [   0.004s] ( 69/678) wtf-types adversarial_tests::rq_node_name_rejects_null_byte
-        PASS [   0.004s] ( 70/678) wtf-types adversarial_tests::rq_plus_prefix_accepted_by_u64_from_str
-        PASS [   0.011s] ( 71/678) wtf-types adversarial_tests::proptests::timestamp_ms_to_system_time
-        PASS [   0.004s] ( 72/678) wtf-types adversarial_tests::rq_string_types_are_not_copy
-        PASS [   0.004s] ( 73/678) wtf-types adversarial_tests::rq_timer_id_accepts_256_multi_byte
-        PASS [   0.004s] ( 74/678) wtf-types adversarial_tests::rq_timer_id_accepts_newlines
-        PASS [   0.003s] ( 75/678) wtf-types adversarial_tests::rq_timer_id_accepts_null_byte
-        PASS [   0.003s] ( 76/678) wtf-types adversarial_tests::rq_timer_id_null_byte_serde_round_trip
-        PASS [   0.003s] ( 77/678) wtf-types adversarial_tests::rq_timer_id_rejects_257_ascii
-        PASS [   0.003s] ( 78/678) wtf-types adversarial_tests::rq_very_long_integer_parses
-        PASS [   0.003s] ( 79/678) wtf-types adversarial_tests::rq_try_from_u64_accepts_max
-        PASS [   0.003s] ( 80/678) wtf-types adversarial_tests::rq_try_from_u64_rejects_zero
-        PASS [   0.003s] ( 81/678) wtf-types adversarial_tests::rq_workflow_name_rejects_carriage_return
-        PASS [   0.003s] ( 82/678) wtf-types adversarial_tests::rq_try_from_u64_accepts_one
-        PASS [   0.003s] ( 83/678) wtf-types adversarial_tests::rq_workflow_name_hyphen_underscore_combo
-        PASS [   0.003s] ( 84/678) wtf-types adversarial_tests::rq_workflow_name_rejects_fullwidth_digit
-        PASS [   0.014s] ( 85/678) wtf-types adversarial_tests::proptests::timestamp_ms_round_trip
-        PASS [   0.005s] ( 86/678) wtf-types adversarial_tests::rq_whitespace_only_rejected
-        PASS [   0.003s] ( 87/678) wtf-types adversarial_tests::rq_workflow_name_rejects_right_to_left_mark
-        PASS [   0.002s] ( 88/678) wtf-types adversarial_tests::rq_workflow_name_underscore_hyphen_combo
-        PASS [   0.014s] ( 89/678) wtf-types adversarial_tests::rq_as_str_borrowed_from_struct
-        PASS [   0.005s] ( 90/678) wtf-types adversarial_tests::rq_workflow_name_rejects_emoji
-        PASS [   0.003s] ( 91/678) wtf-types adversarial_tests::rq_workflow_name_rejects_tab
-        PASS [   0.003s] ( 92/678) wtf-types adversarial_tests::rq_workflow_name_rejects_zero_width_space
-        PASS [   0.003s] ( 93/678) wtf-types adversarial_tests::rq_workflow_name_rejects_zero_width_joiner
-        PASS [   0.003s] ( 94/678) wtf-types cross_cutting_tests::attempt_number_accepts_leading_zeros
-        PASS [   0.003s] ( 95/678) wtf-types cross_cutting_tests::attempt_number_rejects_binary_prefix
-        PASS [   0.003s] ( 96/678) wtf-types cross_cutting_tests::duration_ms_accepts_leading_zeros
-        PASS [   0.014s] ( 97/678) wtf-types adversarial_tests::rq_binary_hash_rejects_6_chars_even_below_min
-        PASS [   0.015s] ( 98/678) wtf-types adversarial_tests::rq_binary_hash_rejects_4_chars_below_min
-        PASS [   0.022s] ( 99/678) wtf-types adversarial_tests::proptests::instance_id_round_trip
-        PASS [   0.004s] (100/678) wtf-types adversarial_tests::rq_workflow_name_rejects_newline
-        PASS [   0.004s] (101/678) wtf-types cross_cutting_tests::attempt_number_rejects_float_notation
-        PASS [   0.004s] (102/678) wtf-types cross_cutting_tests::attempt_number_rejects_negative
-        PASS [   0.003s] (103/678) wtf-types cross_cutting_tests::attempt_number_rejects_leading_whitespace
-        PASS [   0.003s] (104/678) wtf-types cross_cutting_tests::attempt_number_rejects_octal_prefix
-        PASS [   0.003s] (105/678) wtf-types cross_cutting_tests::attempt_number_rejects_overflow
-        PASS [   0.004s] (106/678) wtf-types cross_cutting_tests::duration_ms_rejects_hex_prefix
-        PASS [   0.003s] (107/678) wtf-types cross_cutting_tests::duration_ms_rejects_octal_prefix
-        PASS [   0.004s] (108/678) wtf-types cross_cutting_tests::duration_ms_rejects_binary_prefix
-        PASS [   0.004s] (109/678) wtf-types cross_cutting_tests::duration_ms_rejects_float_notation
-        PASS [   0.004s] (110/678) wtf-types cross_cutting_tests::duration_ms_rejects_leading_whitespace
-        PASS [   0.006s] (111/678) wtf-types cross_cutting_tests::attempt_number_rejects_hex_prefix
-        PASS [   0.003s] (112/678) wtf-types cross_cutting_tests::event_version_accepts_leading_zeros
-        PASS [   0.002s] (113/678) wtf-types cross_cutting_tests::event_version_rejects_leading_whitespace
-        PASS [   0.003s] (114/678) wtf-types cross_cutting_tests::duration_ms_rejects_overflow
-        PASS [   0.002s] (115/678) wtf-types cross_cutting_tests::event_version_rejects_binary_prefix
-        PASS [   0.004s] (116/678) wtf-types cross_cutting_tests::duration_ms_rejects_negative
-        PASS [   0.003s] (117/678) wtf-types cross_cutting_tests::event_version_rejects_hex_prefix
-        PASS [   0.003s] (118/678) wtf-types cross_cutting_tests::event_version_rejects_octal_prefix
-        PASS [   0.003s] (119/678) wtf-types cross_cutting_tests::fire_at_ms_rejects_binary_prefix
-        PASS [   0.003s] (120/678) wtf-types cross_cutting_tests::event_version_rejects_float_notation
-        PASS [   0.003s] (121/678) wtf-types cross_cutting_tests::fire_at_ms_rejects_leading_whitespace
-        PASS [   0.003s] (122/678) wtf-types cross_cutting_tests::event_version_rejects_negative
-        PASS [   0.004s] (123/678) wtf-types cross_cutting_tests::event_version_rejects_overflow
-        PASS [   0.004s] (124/678) wtf-types cross_cutting_tests::fire_at_ms_rejects_octal_prefix
-        PASS [   0.004s] (125/678) wtf-types cross_cutting_tests::fire_at_ms_rejects_negative
-        PASS [   0.004s] (126/678) wtf-types cross_cutting_tests::fire_at_ms_rejects_hex_prefix
-        PASS [   0.004s] (127/678) wtf-types cross_cutting_tests::fire_at_ms_rejects_float_notation
-        PASS [   0.003s] (128/678) wtf-types cross_cutting_tests::sequence_number_accepts_leading_zeros
-        PASS [   0.003s] (129/678) wtf-types cross_cutting_tests::fire_at_ms_rejects_overflow
-        PASS [   0.003s] (130/678) wtf-types cross_cutting_tests::max_attempts_rejects_float_notation
-        PASS [   0.003s] (131/678) wtf-types cross_cutting_tests::max_attempts_rejects_overflow
-        PASS [   0.005s] (132/678) wtf-types cross_cutting_tests::fire_at_ms_accepts_leading_zeros
-        PASS [   0.003s] (133/678) wtf-types cross_cutting_tests::max_attempts_rejects_hex_prefix
-        PASS [   0.003s] (134/678) wtf-types cross_cutting_tests::max_attempts_rejects_octal_prefix
-        PASS [   0.003s] (135/678) wtf-types cross_cutting_tests::sequence_number_rejects_float_notation
-        PASS [   0.003s] (136/678) wtf-types cross_cutting_tests::sequence_number_rejects_binary_prefix
-        PASS [   0.003s] (137/678) wtf-types cross_cutting_tests::sequence_number_rejects_leading_whitespace
-        PASS [   0.003s] (138/678) wtf-types cross_cutting_tests::sequence_number_rejects_overflow
-        PASS [   0.003s] (139/678) wtf-types cross_cutting_tests::sequence_number_rejects_negative
-        PASS [   0.003s] (140/678) wtf-types cross_cutting_tests::sequence_number_rejects_octal_prefix
-        PASS [   0.004s] (141/678) wtf-types cross_cutting_tests::max_attempts_rejects_leading_whitespace
-        PASS [   0.005s] (142/678) wtf-types cross_cutting_tests::max_attempts_accepts_leading_zeros
-        PASS [   0.005s] (143/678) wtf-types cross_cutting_tests::max_attempts_rejects_binary_prefix
-        PASS [   0.003s] (144/678) wtf-types cross_cutting_tests::timeout_ms_accepts_leading_zeros
-        PASS [   0.003s] (145/678) wtf-types cross_cutting_tests::timeout_ms_rejects_hex_prefix
-        PASS [   0.003s] (146/678) wtf-types cross_cutting_tests::timeout_ms_rejects_leading_whitespace
-        PASS [   0.006s] (147/678) wtf-types cross_cutting_tests::max_attempts_rejects_negative
-        PASS [   0.003s] (148/678) wtf-types cross_cutting_tests::timeout_ms_rejects_float_notation
-        PASS [   0.003s] (149/678) wtf-types cross_cutting_tests::timeout_ms_rejects_negative
-        PASS [   0.005s] (150/678) wtf-types cross_cutting_tests::sequence_number_rejects_hex_prefix
-        PASS [   0.004s] (151/678) wtf-types cross_cutting_tests::timeout_ms_rejects_binary_prefix
-        PASS [   0.003s] (152/678) wtf-types cross_cutting_tests::timestamp_ms_rejects_binary_prefix
-        PASS [   0.003s] (153/678) wtf-types cross_cutting_tests::timeout_ms_rejects_octal_prefix
-        PASS [   0.003s] (154/678) wtf-types cross_cutting_tests::timestamp_ms_rejects_float_notation
-        PASS [   0.003s] (155/678) wtf-types cross_cutting_tests::timestamp_ms_accepts_leading_zeros
-        PASS [   0.004s] (156/678) wtf-types cross_cutting_tests::timestamp_ms_rejects_negative
-        PASS [   0.003s] (157/678) wtf-types cross_cutting_tests::timestamp_ms_rejects_overflow
-        PASS [   0.003s] (158/678) wtf-types errors::tests::parse_error_exceeds_max_length_displays_bounds_when_formatted
-        PASS [   0.003s] (159/678) wtf-types integer_types::tests::attempt_number_accepts_minimum_when_value_is_1
-        PASS [   0.006s] (160/678) wtf-types cross_cutting_tests::timestamp_ms_rejects_leading_whitespace
-        PASS [   0.004s] (161/678) wtf-types errors::tests::parse_error_zero_value_displays_type_name_when_formatted
-        PASS [   0.004s] (162/678) wtf-types integer_types::tests::attempt_number_display_round_trips_through_parse_when_valid
-        PASS [   0.004s] (163/678) wtf-types integer_types::tests::attempt_number_accepts_valid_nonzero_decimal_when_input_parses
-        PASS [   0.004s] (164/678) wtf-types integer_types::tests::attempt_number_accepts_u64_max_when_at_upper_boundary
-        PASS [   0.006s] (165/678) wtf-types cross_cutting_tests::timeout_ms_rejects_overflow
-        PASS [   0.004s] (166/678) wtf-types integer_types::tests::attempt_number_display_equals_decimal
-        PASS [   0.006s] (167/678) wtf-types cross_cutting_tests::timestamp_ms_rejects_hex_prefix
-        PASS [   0.004s] (168/678) wtf-types errors::tests::parse_error_out_of_range_displays_bounds_when_formatted
-        PASS [   0.006s] (169/678) wtf-types errors::tests::parse_error_boundary_violation_displays_reason_when_formatted
-        PASS [   0.005s] (170/678) wtf-types errors::tests::parse_error_empty_displays_type_name_when_formatted
-        PASS [   0.005s] (171/678) wtf-types errors::tests::parse_error_not_an_integer_displays_input_when_formatted
-        PASS [   0.006s] (172/678) wtf-types cross_cutting_tests::timestamp_ms_rejects_octal_prefix
-        PASS [   0.003s] (173/678) wtf-types integer_types::tests::attempt_number_rejects_zero_with_zero_value_when_input_is_zero
-        PASS [   0.003s] (174/678) wtf-types integer_types::tests::attempt_number_rejects_non_integer_with_not_an_integer_when_input_is_alpha
-        PASS [   0.003s] (175/678) wtf-types errors::tests::parse_error_invalid_characters_displays_details_when_formatted
-        PASS [   0.003s] (176/678) wtf-types integer_types::tests::attempt_number_new_unchecked_panics_when_value_is_zero
-        PASS [   0.003s] (177/678) wtf-types integer_types::tests::attempt_number_new_unchecked_constructs_when_value_is_nonzero
-        PASS [   0.003s] (178/678) wtf-types integer_types::tests::duration_ms_accepts_zero_when_input_is_zero
-        PASS [   0.003s] (179/678) wtf-types integer_types::tests::duration_ms_accepts_nonzero_decimal_when_input_parses
-        PASS [   0.041s] (180/678) wtf-types adversarial_tests::proptests::clone_equality
-        PASS [   0.006s] (181/678) wtf-types errors::tests::parse_error_invalid_format_displays_reason_when_formatted
-        PASS [   0.003s] (182/678) wtf-types integer_types::tests::duration_ms_accepts_u64_max_when_at_upper_boundary
-        PASS [   0.003s] (183/678) wtf-types integer_types::tests::duration_ms_display_equals_decimal
-        PASS [   0.044s] (184/678) wtf-engine binary_registry::tests::concurrent_registry_access_proptest
-        PASS [   0.003s] (185/678) wtf-types integer_types::tests::duration_ms_rejects_non_integer_with_not_an_integer_when_input_is_float_string
-        PASS [   0.003s] (186/678) wtf-types integer_types::tests::event_version_accepts_minimum_when_value_is_1
-        PASS [   0.003s] (187/678) wtf-types integer_types::tests::event_version_new_unchecked_constructs_when_value_is_nonzero
-        PASS [   0.003s] (188/678) wtf-types integer_types::tests::event_version_rejects_non_integer_with_not_an_integer_when_input_is_alpha
-        PASS [   0.003s] (189/678) wtf-types integer_types::tests::event_version_new_unchecked_panics_when_value_is_zero
-        PASS [   0.003s] (190/678) wtf-types integer_types::tests::duration_ms_display_round_trips_through_parse_when_valid
-        PASS [   0.003s] (191/678) wtf-types integer_types::tests::fire_at_ms_accepts_u64_max_when_at_upper_boundary
-        PASS [   0.003s] (192/678) wtf-types integer_types::tests::event_version_display_round_trips_through_parse_when_valid
-        PASS [   0.003s] (193/678) wtf-types integer_types::tests::event_version_accepts_u64_max_when_at_upper_boundary
-        PASS [   0.003s] (194/678) wtf-types integer_types::tests::fire_at_ms_has_elapsed_returns_false_when_fire_at_is_after_now
-        PASS [   0.004s] (195/678) wtf-types integer_types::tests::duration_ms_to_duration_returns_zero_duration_when_value_is_zero
-        PASS [   0.047s] (196/678) wtf-engine binary_registry::tests::binary_hash_determinism_proptest
-        PASS [   0.003s] (197/678) wtf-types integer_types::tests::fire_at_ms_has_elapsed_returns_true_when_fire_at_is_before_now
-        PASS [   0.004s] (198/678) wtf-types integer_types::tests::event_version_rejects_zero_with_zero_value_when_input_is_zero
-        PASS [   0.005s] (199/678) wtf-types integer_types::tests::fire_at_ms_accepts_nonzero_decimal_when_input_parses
-        PASS [   0.004s] (200/678) wtf-types integer_types::tests::fire_at_ms_display_equals_decimal
-        PASS [   0.004s] (201/678) wtf-types integer_types::tests::fire_at_ms_display_round_trips_through_parse_when_valid
-        PASS [   0.005s] (202/678) wtf-types integer_types::tests::duration_ms_rejects_negative_with_not_an_integer_when_input_starts_with_minus
-        PASS [   0.005s] (203/678) wtf-types integer_types::tests::event_version_accepts_valid_nonzero_decimal_when_input_parses
-        PASS [   0.003s] (204/678) wtf-types integer_types::tests::fire_at_ms_rejects_non_integer_with_not_an_integer_when_input_is_alpha
-        PASS [   0.006s] (205/678) wtf-types integer_types::tests::event_version_display_equals_decimal
-        PASS [   0.004s] (206/678) wtf-types integer_types::tests::fire_at_ms_to_system_time_returns_correct_time_when_called
-        PASS [   0.006s] (207/678) wtf-types integer_types::tests::duration_ms_to_duration_returns_correct_duration_when_value_is_nonzero
-        PASS [   0.006s] (208/678) wtf-types integer_types::tests::fire_at_ms_accepts_zero_when_input_is_zero
-        PASS [   0.003s] (209/678) wtf-types integer_types::tests::max_attempts_accepts_minimum_when_value_is_1
-        PASS [   0.003s] (210/678) wtf-types integer_types::tests::from_sequence_number_into_u64
-        PASS [   0.003s] (211/678) wtf-types integer_types::tests::max_attempts_is_exhausted_returns_false_when_attempt_less_than_max
-        PASS [   0.006s] (212/678) wtf-types integer_types::tests::fire_at_ms_rejects_negative_with_not_an_integer_when_input_starts_with_minus
-        PASS [   0.003s] (213/678) wtf-types integer_types::tests::max_attempts_accepts_u64_max_when_at_upper_boundary
-        PASS [   0.003s] (214/678) wtf-types integer_types::tests::max_attempts_display_equals_decimal
-        PASS [   0.003s] (215/678) wtf-types integer_types::tests::max_attempts_display_round_trips_through_parse_when_valid
-        PASS [   0.003s] (216/678) wtf-types integer_types::tests::from_sequence_number_returns_correct_nonzero_u64_when_converted
-        PASS [   0.004s] (217/678) wtf-types integer_types::tests::from_duration_ms_into_u64
-        PASS [   0.003s] (218/678) wtf-types integer_types::tests::max_attempts_accepts_valid_nonzero_decimal_when_input_parses
-        PASS [   0.003s] (219/678) wtf-types integer_types::tests::max_attempts_is_exhausted_returns_true_when_attempt_equals_max
-        PASS [   0.003s] (220/678) wtf-types integer_types::tests::max_attempts_new_unchecked_constructs_when_value_is_nonzero
-        PASS [   0.003s] (221/678) wtf-types integer_types::tests::max_attempts_new_unchecked_panics_when_value_is_zero
-        PASS [   0.003s] (222/678) wtf-types integer_types::tests::max_attempts_is_exhausted_returns_true_when_max_is_1_and_attempt_is_1
-        PASS [   0.003s] (223/678) wtf-types integer_types::tests::max_attempts_rejects_negative_with_not_an_integer_when_input_starts_with_minus
-        PASS [   0.003s] (224/678) wtf-types integer_types::tests::max_attempts_rejects_zero_with_zero_value_when_input_is_zero
-        PASS [   0.003s] (225/678) wtf-types integer_types::tests::max_attempts_rejects_non_integer_with_not_an_integer_when_input_is_alpha
-        PASS [   0.007s] (226/678) wtf-types integer_types::tests::fire_at_ms_has_elapsed_returns_deterministic_result_when_fire_at_equals_now
-        PASS [   0.005s] (227/678) wtf-types integer_types::tests::max_attempts_is_exhausted_returns_false_when_attempt_is_max_minus_one
-        PASS [   0.005s] (228/678) wtf-types integer_types::tests::max_attempts_is_exhausted_returns_true_when_attempt_exceeds_max
-        PASS [   0.043s] (229/678) wtf-types adversarial_tests::proptests::node_name_round_trip
-        PASS [   0.003s] (230/678) wtf-types integer_types::tests::sequence_number_accepts_u64_max_when_at_upper_boundary
-        PASS [   0.003s] (231/678) wtf-types integer_types::tests::sequence_number_new_unchecked_constructs_when_value_is_nonzero
-        PASS [   0.003s] (232/678) wtf-types integer_types::tests::sequence_number_rejects_non_integer_with_not_an_integer_when_input_is_alpha
-        PASS [   0.006s] (233/678) wtf-types integer_types::tests::proptests::duration_ms_round_trip_proptest
-        PASS [   0.007s] (234/678) wtf-types integer_types::tests::proptests::attempt_number_round_trip_proptest
-        PASS [   0.003s] (235/678) wtf-types integer_types::tests::serde_round_trip_duration_ms_inline
-        PASS [   0.004s] (236/678) wtf-types integer_types::tests::sequence_number_new_unchecked_panics_when_value_is_zero
-        PASS [   0.005s] (237/678) wtf-types integer_types::tests::sequence_number_display_equals_decimal
-        PASS [   0.007s] (238/678) wtf-types integer_types::tests::proptests::duration_ms_to_duration_proptest
-        PASS [   0.005s] (239/678) wtf-types integer_types::tests::sequence_number_rejects_zero_with_zero_value_when_input_is_zero
-        PASS [   0.005s] (240/678) wtf-types integer_types::tests::sequence_number_display_round_trips_through_parse_when_valid
-        PASS [   0.002s] (241/678) wtf-types integer_types::tests::serde_round_trip_event_version_inline
-        PASS [   0.003s] (242/678) wtf-types integer_types::tests::serde_round_trip_fire_at_ms_inline
-        PASS [   0.006s] (243/678) wtf-types integer_types::tests::sequence_number_accepts_minimum_when_value_is_1
-        PASS [   0.003s] (244/678) wtf-types integer_types::tests::serde_round_trip_sequence_number_inline
-        PASS [   0.006s] (245/678) wtf-types integer_types::tests::sequence_number_accepts_valid_nonzero_decimal_when_input_parses
-        PASS [   0.007s] (246/678) wtf-types integer_types::tests::proptests::fire_at_ms_has_elapsed_proptest
-        PASS [   0.006s] (247/678) wtf-types integer_types::tests::serde_round_trip_attempt_number_inline
-        PASS [   0.003s] (248/678) wtf-types integer_types::tests::serde_round_trip_max_attempts_inline
-        PASS [   0.003s] (249/678) wtf-types integer_types::tests::serde_round_trip_timestamp_ms_inline
-        PASS [   0.007s] (250/678) wtf-types integer_types::tests::proptests::event_version_round_trip_proptest
-        PASS [   0.008s] (251/678) wtf-types integer_types::tests::proptests::integer_display_is_decimal_no_padding
-        PASS [   0.008s] (252/678) wtf-types integer_types::tests::proptests::fire_at_ms_round_trip_proptest
-        PASS [   0.008s] (253/678) wtf-types integer_types::tests::proptests::max_attempts_is_exhausted_proptest
-        PASS [   0.008s] (254/678) wtf-types integer_types::tests::proptests::sequence_number_round_trip_proptest
-        PASS [   0.003s] (255/678) wtf-types integer_types::tests::timeout_ms_accepts_minimum_when_value_is_1
-        PASS [   0.008s] (256/678) wtf-types integer_types::tests::proptests::timestamp_ms_round_trip_proptest
-        PASS [   0.008s] (257/678) wtf-types integer_types::tests::proptests::max_attempts_round_trip_proptest
-        PASS [   0.003s] (258/678) wtf-types integer_types::tests::serde_round_trip_timeout_ms_inline
-        PASS [   0.003s] (259/678) wtf-types integer_types::tests::timeout_ms_accepts_valid_nonzero_decimal_when_input_parses
-        PASS [   0.003s] (260/678) wtf-types integer_types::tests::timeout_ms_display_round_trips_through_parse_when_valid
-        PASS [   0.003s] (261/678) wtf-types integer_types::tests::timeout_ms_accepts_u64_max_when_at_upper_boundary
-        PASS [   0.044s] (262/678) wtf-types adversarial_tests::proptests::string_newtype_display_is_identity
-        PASS [   0.008s] (263/678) wtf-types integer_types::tests::proptests::serde_round_trip_duration_ms_proptest
-        PASS [   0.045s] (264/678) wtf-types adversarial_tests::proptests::timer_id_round_trip
-        PASS [   0.008s] (265/678) wtf-types integer_types::tests::proptests::timestamp_ms_to_system_time_proptest
-        PASS [   0.003s] (266/678) wtf-types integer_types::tests::timeout_ms_rejects_negative_with_not_an_integer_when_input_starts_with_minus
-        PASS [   0.003s] (267/678) wtf-types integer_types::tests::timeout_ms_rejects_zero_with_zero_value_when_input_is_zero
-        PASS [   0.003s] (268/678) wtf-types integer_types::tests::timeout_ms_rejects_non_integer_with_not_an_integer_when_input_is_duration_string
-        PASS [   0.003s] (269/678) wtf-types integer_types::tests::timeout_ms_new_unchecked_panics_when_value_is_zero
-        PASS [   0.004s] (270/678) wtf-types integer_types::tests::timeout_ms_display_equals_decimal
-        PASS [   0.009s] (271/678) wtf-types integer_types::tests::proptests::serde_round_trip_sequence_number_proptest
-        PASS [   0.003s] (272/678) wtf-types integer_types::tests::timeout_ms_to_duration_returns_correct_duration_when_called
-        PASS [   0.011s] (273/678) wtf-types integer_types::tests::proptests::timeout_ms_to_duration_proptest
-        PASS [   0.003s] (274/678) wtf-types integer_types::tests::timestamp_ms_accepts_nonzero_decimal_when_input_parses
-        PASS [   0.003s] (275/678) wtf-types integer_types::tests::try_from_u64_duration_ms_valid
-        PASS [   0.003s] (276/678) wtf-types integer_types::tests::timestamp_ms_accepts_u64_max_when_at_upper_boundary
-        PASS [   0.011s] (277/678) wtf-types integer_types::tests::proptests::timeout_ms_round_trip_proptest
-        PASS [   0.003s] (278/678) wtf-types non_empty_vec::tests::non_empty_vec_is_empty_always_returns_false_when_called
-        PASS [   0.003s] (279/678) wtf-types integer_types::tests::try_from_u64_sequence_number_valid
-        PASS [   0.003s] (280/678) wtf-types integer_types::tests::timestamp_ms_rejects_non_integer_with_not_an_integer_when_input_is_alpha
-        PASS [   0.003s] (281/678) wtf-types non_empty_vec::tests::non_empty_vec_accepts_non_empty_when_constructed
-        PASS [   0.004s] (282/678) wtf-types integer_types::tests::timestamp_ms_display_round_trips_through_parse_when_valid
-        PASS [   0.003s] (283/678) wtf-types non_empty_vec::tests::non_empty_vec_rest_returns_empty_slice_when_singleton
-        PASS [   0.007s] (284/678) wtf-types integer_types::tests::timeout_ms_new_unchecked_constructs_when_value_is_nonzero
-        PASS [   0.004s] (285/678) wtf-types integer_types::tests::timestamp_ms_now_returns_parseable_value_when_system_clock_available
-        PASS [   0.004s] (286/678) wtf-types integer_types::tests::try_from_u64_duration_ms_nonzero
-        PASS [   0.003s] (287/678) wtf-types non_empty_vec::tests::non_empty_vec_rejects_empty_when_constructed
-        PASS [   0.004s] (288/678) wtf-types integer_types::tests::timestamp_ms_rejects_negative_with_not_an_integer_when_input_starts_with_minus
-        PASS [   0.004s] (289/678) wtf-types non_empty_vec::tests::non_empty_vec_new_unchecked_constructs_when_vec_is_non_empty
-        PASS [   0.004s] (290/678) wtf-types integer_types::tests::timestamp_ms_to_system_time_returns_correct_time_when_value_is_positive
-        PASS [   0.003s] (291/678) wtf-types non_empty_vec::tests::non_empty_vec_returns_full_slice_when_as_slice_called
-        PASS [   0.004s] (292/678) wtf-types integer_types::tests::timestamp_ms_to_system_time_returns_unix_epoch_when_value_is_zero
-        PASS [   0.003s] (293/678) wtf-types non_empty_vec::tests::non_empty_vec_returns_first_element_when_first_called
-        PASS [   0.003s] (294/678) wtf-types non_empty_vec::tests::non_empty_vec_returns_inner_vec_when_into_vec_called
-        PASS [   0.004s] (295/678) wtf-types non_empty_vec::tests::non_empty_vec_returns_element_count_when_len_called
-        PASS [   0.005s] (296/678) wtf-types non_empty_vec::tests::non_empty_vec_deserialization_rejects_empty_json_array_when_input_is_empty
-        PASS [   0.005s] (297/678) wtf-types integer_types::tests::timestamp_ms_display_equals_decimal
-        PASS [   0.005s] (298/678) wtf-types non_empty_vec::tests::non_empty_vec_new_unchecked_panics_when_vec_is_empty
-        PASS [   0.050s] (299/678) wtf-types adversarial_tests::proptests::workflow_name_round_trip
-        PASS [   0.003s] (300/678) wtf-types non_empty_vec::tests::non_empty_vec_yields_all_elements_in_order_when_iterated
-        PASS [   0.004s] (301/678) wtf-types non_empty_vec::tests::non_empty_vec_returns_rest_excluding_first_when_rest_called
-        PASS [   0.002s] (302/678) wtf-types red_queen_tests::rq_backoff_ms_0_accepted
-        PASS [   0.003s] (303/678) wtf-types red_queen_tests::rq_array_instead_of_object_rejected
-        PASS [   0.007s] (304/678) wtf-types integer_types::tests::timestamp_ms_accepts_zero_when_input_is_zero
-        PASS [   0.007s] (305/678) wtf-types integer_types::tests::try_from_u64_sequence_number_zero
-        PASS [   0.004s] (306/678) wtf-types red_queen_tests::rq_backoff_ms_u64_max_accepted
-        PASS [   0.004s] (307/678) wtf-types red_queen_tests::rq_boolean_edge_condition_rejected
-        PASS [   0.004s] (308/678) wtf-types red_queen_tests::rq_cycle_in_disconnected_component_detected
-        PASS [   0.004s] (309/678) wtf-types red_queen_tests::rq_edge_serde_round_trip_all_conditions
-        PASS [   0.006s] (310/678) wtf-types non_empty_vec::tests::non_empty_vec_yields_single_element_when_singleton_iterated
-        PASS [   0.004s] (311/678) wtf-types red_queen_tests::rq_direct_retry_policy_construction_allows_invalid_state
-        PASS [   0.004s] (312/678) wtf-types red_queen_tests::rq_empty_bytes_rejected
-        PASS [   0.002s] (313/678) wtf-types red_queen_tests::rq_invalid_edge_condition_string_rejected
-        PASS [   0.005s] (314/678) wtf-types red_queen_tests::rq_diamond_with_cycle_in_branch_detected
-        PASS [   0.003s] (315/678) wtf-types red_queen_tests::rq_error_priority_retry_policy_before_unknown_node
-        PASS [   0.004s] (316/678) wtf-types red_queen_tests::rq_edge_condition_is_copy
-        PASS [   0.003s] (317/678) wtf-types red_queen_tests::rq_infinity_multiplier_passes_through_retry_policy_new
-        PASS [   0.003s] (318/678) wtf-types red_queen_tests::rq_infinity_multiplier_in_json_rejected_by_serde
-        PASS [   0.003s] (319/678) wtf-types red_queen_tests::rq_extra_json_fields_ignored
-        PASS [   0.004s] (320/678) wtf-types red_queen_tests::rq_error_priority_empty_before_invalid_retry
-        PASS [   0.006s] (321/678) wtf-types red_queen_tests::rq_dag_node_is_clone_not_copy
-        PASS [   0.007s] (322/678) wtf-types red_queen_tests::proptests::rq_retry_policy_rejects_all_multipliers_below_1
-        PASS [   0.004s] (323/678) wtf-types red_queen_tests::rq_isolated_node_with_cycle_elsewhere_detected
-        PASS [   0.003s] (324/678) wtf-types red_queen_tests::rq_large_5_node_cycle_detected
-        PASS [   0.011s] (325/678) wtf-types integer_types::tests::timestamp_ms_now_is_approximately_current_time_when_called
-        PASS [   0.008s] (326/678) wtf-types red_queen_tests::proptests::rq_retry_policy_serde_round_trip
-        PASS [   0.005s] (327/678) wtf-types red_queen_tests::rq_error_priority_unknown_before_cycle
-        PASS [   0.008s] (328/678) wtf-types red_queen_tests::proptests::rq_retry_policy_accepts_all_multipliers_ge_1
-        PASS [   0.003s] (329/678) wtf-types red_queen_tests::rq_neg_infinity_multiplier_in_json_rejected_by_serde
-        PASS [   0.003s] (330/678) wtf-types red_queen_tests::rq_max_attempts_u8_max_accepted
-        PASS [   0.003s] (331/678) wtf-types red_queen_tests::rq_negative_zero_multiplier_rejected
-        PASS [   0.003s] (332/678) wtf-types red_queen_tests::rq_multiplier_exactly_1_accepted
-        PASS [   0.003s] (333/678) wtf-types red_queen_tests::rq_max_attempts_0_rejected
-        PASS [   0.003s] (334/678) wtf-types red_queen_tests::rq_next_nodes_always_edge_matches_both_outcomes
-        PASS [   0.003s] (335/678) wtf-types red_queen_tests::rq_nan_multiplier_rejected_by_retry_policy_new
-        PASS [   0.003s] (336/678) wtf-types red_queen_tests::rq_next_nodes_mixed_conditions_three_targets
-        PASS [   0.003s] (337/678) wtf-types red_queen_tests::rq_neg_infinity_multiplier_rejected
-        PASS [   0.003s] (338/678) wtf-types red_queen_tests::rq_max_attempts_1_accepted
-        PASS [   0.003s] (339/678) wtf-types red_queen_tests::rq_next_nodes_on_failure_only_returns_nothing_on_success
-        PASS [   0.009s] (340/678) wtf-types red_queen_tests::proptests::rq_next_nodes_result_nodes_are_from_def
-        PASS [   0.010s] (341/678) wtf-types red_queen_tests::proptests::rq_non_empty_vec_serde_round_trip
-        PASS [   0.005s] (342/678) wtf-types red_queen_tests::rq_nan_multiplier_in_json_rejected_by_serde
-        PASS [   0.003s] (343/678) wtf-types red_queen_tests::rq_next_nodes_terminal_node_empty_for_both_outcomes
-        PASS [   0.010s] (344/678) wtf-types red_queen_tests::proptests::rq_get_node_none_for_missing
-        PASS [   0.004s] (345/678) wtf-types red_queen_tests::rq_next_nodes_nonexistent_current_returns_empty
-        PASS [   0.002s] (346/678) wtf-types red_queen_tests::rq_retry_policy_is_copy
-        PASS [   0.003s] (347/678) wtf-types red_queen_tests::rq_next_nodes_same_target_different_conditions_success
-        PASS [   0.003s] (348/678) wtf-types red_queen_tests::rq_next_nodes_on_success_only_returns_nothing_on_failure
-        PASS [   0.003s] (349/678) wtf-types red_queen_tests::rq_non_empty_vec_serde_round_trip_many_elements
-        PASS [   0.003s] (350/678) wtf-types red_queen_tests::rq_null_retry_policy_rejected
-        PASS [   0.003s] (351/678) wtf-types red_queen_tests::rq_retry_policy_serde_round_trip_1_0_multiplier
-        PASS [   0.003s] (352/678) wtf-types red_queen_tests::rq_null_workflow_name_rejected
-        PASS [   0.005s] (353/678) wtf-types red_queen_tests::rq_next_nodes_duplicate_edges_returns_duplicates
-        PASS [   0.005s] (354/678) wtf-types red_queen_tests::rq_next_nodes_nonexistent_current_failure_returns_empty
-        PASS [   0.003s] (355/678) wtf-types red_queen_tests::rq_parse_error_deterministic
-        PASS [   0.003s] (356/678) wtf-types red_queen_tests::rq_serde_round_trip_boundary_values
-        PASS [   0.003s] (357/678) wtf-types red_queen_tests::rq_step_outcome_serde_round_trip
-        PASS [   0.003s] (358/678) wtf-types red_queen_tests::rq_string_nan_for_multiplier_rejected
-        PASS [   0.003s] (359/678) wtf-types red_queen_tests::rq_string_types_are_clone
-        PASS [   0.004s] (360/678) wtf-types red_queen_tests::rq_retry_policy_partial_eq_with_nan
-        PASS [   0.004s] (361/678) wtf-types red_queen_tests::rq_parse_deterministic_complex_workflow
-        PASS [   0.003s] (362/678) wtf-types red_queen_tests::rq_unknown_source_error_message_is_misleading
-        PASS [   0.004s] (363/678) wtf-types red_queen_tests::rq_two_separate_cycles_both_detected
-        PASS [   0.003s] (364/678) wtf-types red_queen_tests::rq_wrong_type_edge_condition_rejected
-        PASS [   0.003s] (365/678) wtf-types red_queen_tests::rq_workflow_serde_produces_re_parsable_json
-        PASS [   0.003s] (366/678) wtf-types red_queen_tests::rq_very_large_multiplier_accepted
-        PASS [   0.003s] (367/678) wtf-types red_queen_tests::rq_very_small_positive_multiplier_rejected
-        PASS [   0.005s] (368/678) wtf-types red_queen_tests::rq_self_loop_on_non_first_node_detected
-        PASS [   0.003s] (369/678) wtf-types serde_tests::serde_deserialize_rejects_empty_binary_hash
-        PASS [   0.003s] (370/678) wtf-types red_queen_tests::rq_wrong_type_max_attempts_rejected
-        PASS [   0.003s] (371/678) wtf-types serde_tests::serde_deserialize_rejects_empty_node_name
-        PASS [   0.003s] (372/678) wtf-types red_queen_tests::rq_wrong_type_workflow_name_rejected
-        PASS [   0.003s] (373/678) wtf-types serde_tests::serde_deserialize_rejects_empty_instance_id
-        PASS [   0.003s] (374/678) wtf-types red_queen_tests::rq_wrong_type_node_name_rejected
-        PASS [   0.003s] (375/678) wtf-types serde_tests::serde_deserialize_rejects_empty_timer_id
-        PASS [   0.003s] (376/678) wtf-types serde_tests::serde_deserialize_rejects_zero_attempt_number
-        PASS [   0.005s] (377/678) wtf-types red_queen_tests::rq_unknown_target_error_message_is_correct
-        PASS [   0.003s] (378/678) wtf-types serde_tests::serde_deserialize_rejects_zero_sequence_number
-        PASS [   0.003s] (379/678) wtf-types serde_tests::serde_deserialize_rejects_zero_max_attempts
-        PASS [   0.003s] (380/678) wtf-types serde_tests::serde_deserialize_rejects_zero_timeout_ms
-        PASS [   0.003s] (381/678) wtf-types serde_tests::serde_deserialize_rejects_zero_event_version
-        PASS [   0.015s] (382/678) wtf-types non_empty_vec::tests::proptests::non_empty_vec_serde_round_trip_proptest
-        PASS [   0.004s] (383/678) wtf-types serde_tests::serde_deserialize_valid_attempt_number
-        PASS [   0.005s] (384/678) wtf-types serde_tests::serde_deserialize_rejects_empty_workflow_name
-        PASS [   0.008s] (385/678) wtf-types red_queen_tests::rq_step_outcome_is_copy
-        PASS [   0.004s] (386/678) wtf-types serde_tests::serde_deserialize_valid_binary_hash
-        PASS [   0.006s] (387/678) wtf-types serde_tests::serde_deserialize_rejects_empty_idempotency_key
-        PASS [   0.003s] (388/678) wtf-types serde_tests::serde_deserialize_valid_instance_id
-        PASS [   0.003s] (389/678) wtf-types serde_tests::serde_deserialize_valid_sequence_number
-        PASS [   0.003s] (390/678) wtf-types serde_tests::serde_deserialize_valid_fire_at_ms
-        PASS [   0.003s] (391/678) wtf-types serde_tests::serde_deserialize_valid_timer_id
-        PASS [   0.004s] (392/678) wtf-types serde_tests::serde_deserialize_valid_event_version
-        PASS [   0.003s] (393/678) wtf-types serde_tests::serde_deserialize_valid_idempotency_key
-        PASS [   0.004s] (394/678) wtf-types serde_tests::serde_deserialize_valid_duration_ms
-        PASS [   0.003s] (395/678) wtf-types serde_tests::serde_deserialize_valid_timeout_ms
-        PASS [   0.003s] (396/678) wtf-types serde_tests::serde_deserialize_valid_node_name
-        PASS [   0.004s] (397/678) wtf-types serde_tests::serde_deserialize_valid_max_attempts
-        PASS [   0.003s] (398/678) wtf-types serde_tests::serde_rejects_empty_string_for_sequence_number
-        PASS [   0.003s] (399/678) wtf-types serde_tests::serde_rejects_boolean_for_sequence_number
-        PASS [   0.003s] (400/678) wtf-types serde_tests::serde_rejects_malformed_json_instance_id
-        PASS [   0.003s] (401/678) wtf-types serde_tests::serde_rejects_float_for_timeout_ms
-        PASS [   0.017s] (402/678) wtf-types red_queen_tests::proptests::rq_parse_never_panics
-        PASS [   0.004s] (403/678) wtf-types serde_tests::serde_integer_type_rejects_string
-        PASS [   0.005s] (404/678) wtf-types serde_tests::serde_rejects_malformed_json_sequence_number
-        PASS [   0.003s] (405/678) wtf-types serde_tests::serde_rejects_string_for_duration_ms
-        PASS [   0.005s] (406/678) wtf-types serde_tests::serde_deserialize_valid_timestamp_ms
-        PASS [   0.005s] (407/678) wtf-types serde_tests::serde_json_u64_max_for_sequence_number
-        PASS [   0.003s] (408/678) wtf-types serde_tests::serde_rejects_string_for_timestamp_ms
-        PASS [   0.005s] (409/678) wtf-types serde_tests::serde_rejects_array_for_workflow_name
-        PASS [   0.003s] (410/678) wtf-types serde_tests::serde_rejects_negative_for_sequence_number
-        PASS [   0.003s] (411/678) wtf-types serde_tests::serde_rejects_string_for_timeout_ms
-        PASS [   0.005s] (412/678) wtf-types serde_tests::serde_rejects_array_for_sequence_number
-        PASS [   0.003s] (413/678) wtf-types serde_tests::serde_rejects_null_for_sequence_number
-        PASS [   0.003s] (414/678) wtf-types serde_tests::serde_rejects_string_for_fire_at_ms
-        PASS [   0.003s] (415/678) wtf-types serde_tests::serde_round_trip_attempt_number
-        PASS [   0.004s] (416/678) wtf-types serde_tests::serde_rejects_null_for_instance_id
-        PASS [   0.003s] (417/678) wtf-types serde_tests::serde_round_trip_duration_ms
-        PASS [   0.003s] (418/678) wtf-types serde_tests::serde_round_trip_binary_hash
-        PASS [   0.004s] (419/678) wtf-types serde_tests::serde_rejects_null_for_duration_ms
-        PASS [   0.006s] (420/678) wtf-types serde_tests::serde_json_zero_for_duration_ms
-        PASS [   0.004s] (421/678) wtf-types serde_tests::serde_rejects_object_for_instance_id
-        PASS [   0.003s] (422/678) wtf-types serde_tests::serde_round_trip_fire_at_ms
-        PASS [   0.006s] (423/678) wtf-types serde_tests::serde_deserialize_valid_workflow_name
-        PASS [   0.004s] (424/678) wtf-types serde_tests::serde_rejects_string_for_max_attempts
-        PASS [   0.004s] (425/678) wtf-types serde_tests::serde_rejects_string_for_event_version
-        PASS [   0.004s] (426/678) wtf-types serde_tests::serde_rejects_string_for_attempt_number
-        PASS [   0.003s] (427/678) wtf-types serde_tests::serde_round_trip_event_version
-        PASS [   0.003s] (428/678) wtf-types serde_tests::serde_round_trip_instance_id
-        PASS [   0.003s] (429/678) wtf-types serde_tests::serde_round_trip_node_name
-        PASS [   0.003s] (430/678) wtf-types serde_tests::serde_round_trip_max_attempts
-        PASS [   0.003s] (431/678) wtf-types serde_tests::serde_round_trip_timer_id
-        PASS [   0.003s] (432/678) wtf-types serde_tests::serde_serialize_idempotency_key_matches_display
-        PASS [   0.003s] (433/678) wtf-types serde_tests::serde_round_trip_workflow_name
-        PASS [   0.004s] (434/678) wtf-types serde_tests::serde_round_trip_idempotency_key
-        PASS [   0.003s] (435/678) wtf-types serde_tests::serde_round_trip_timeout_ms
-        PASS [   0.003s] (436/678) wtf-types serde_tests::serde_round_trip_sequence_number
-        PASS [   0.003s] (437/678) wtf-types serde_tests::serde_serialize_max_attempts_matches_display
-        PASS [   0.003s] (438/678) wtf-types serde_tests::serde_round_trip_timestamp_ms
-        PASS [   0.003s] (439/678) wtf-types serde_tests::serde_serialize_node_name_matches_display
-        PASS [   0.003s] (440/678) wtf-types serde_tests::serde_serialize_instance_id_matches_display
-        PASS [   0.003s] (441/678) wtf-types serde_tests::serde_serialize_binary_hash_matches_display
-        PASS [   0.003s] (442/678) wtf-types serde_tests::serde_serialize_sequence_number_matches_display
-        PASS [   0.003s] (443/678) wtf-types serde_tests::serde_string_type_rejects_number_for_idempotency_key
-        PASS [   0.004s] (444/678) wtf-types serde_tests::serde_serialize_attempt_number_matches_display
-        PASS [   0.003s] (445/678) wtf-types serde_tests::serde_serialize_timer_id_matches_display
-        PASS [   0.003s] (446/678) wtf-types serde_tests::serde_string_type_rejects_number_for_binary_hash
-        PASS [   0.003s] (447/678) wtf-types serde_tests::serde_string_type_rejects_number_for_workflow_name
-        PASS [   0.004s] (448/678) wtf-types serde_tests::serde_serialize_event_version_matches_display
-        PASS [   0.003s] (449/678) wtf-types serde_tests::serde_serialize_timeout_ms_matches_display
-        PASS [   0.003s] (450/678) wtf-types serde_tests::serde_serialize_timestamp_ms_matches_display
-        PASS [   0.004s] (451/678) wtf-types serde_tests::serde_serialize_duration_ms_matches_display
-        PASS [   0.004s] (452/678) wtf-types serde_tests::serde_serialize_fire_at_ms_matches_display
-        PASS [   0.003s] (453/678) wtf-types string_types::tests::binary_hash_accepts_100_char_hex_when_within_valid_range
-        PASS [   0.004s] (454/678) wtf-types serde_tests::serde_string_type_rejects_number_for_timer_id
-        PASS [   0.004s] (455/678) wtf-types serde_tests::serde_string_type_rejects_number_for_node_name
-        PASS [   0.077s] (456/678) wtf-types adversarial_tests::proptests::binary_hash_round_trip
-        PASS [   0.002s] (457/678) wtf-types string_types::tests::binary_hash_rejects_6_chars_with_invalid_format_when_below_minimum
-        PASS [   0.003s] (458/678) wtf-types string_types::tests::binary_hash_display_equals_inner_string
-        PASS [   0.004s] (459/678) wtf-types string_types::tests::binary_hash_accepts_8_char_hex_when_at_minimum_boundary
-        PASS [   0.003s] (460/678) wtf-types string_types::tests::binary_hash_accepts_all_zeros_when_at_minimum_boundary
-        PASS [   0.002s] (461/678) wtf-types string_types::tests::binary_hash_rejects_too_short_with_invalid_format_when_length_is_less_than_8
-        PASS [   0.002s] (462/678) wtf-types string_types::tests::idempotency_key_accepts_non_empty_string_when_within_length_limit
-        PASS [   0.003s] (463/678) wtf-types string_types::tests::binary_hash_rejects_mixed_case_with_invalid_chars_when_input_has_uppercase
-        PASS [   0.006s] (464/678) wtf-types serde_tests::serde_serialize_workflow_name_matches_display
-        PASS [   0.003s] (465/678) wtf-types string_types::tests::binary_hash_rejects_empty_with_empty_error_when_input_is_empty
-        PASS [   0.004s] (466/678) wtf-types string_types::tests::binary_hash_accepts_valid_lowercase_hex_when_input_is_wellformed
-        PASS [   0.003s] (467/678) wtf-types string_types::tests::binary_hash_rejects_trailing_whitespace_with_invalid_chars_when_input_has_space_suffix
-        PASS [   0.004s] (468/678) wtf-types string_types::tests::binary_hash_display_round_trips_through_parse_when_valid
-        PASS [   0.007s] (469/678) wtf-types serde_tests::serde_string_type_rejects_unquoted_number
-        PASS [   0.003s] (470/678) wtf-types string_types::tests::idempotency_key_display_equals_inner_string
-        PASS [   0.004s] (471/678) wtf-types string_types::tests::binary_hash_rejects_leading_whitespace_with_invalid_chars_when_input_has_space_prefix
-        PASS [   0.003s] (472/678) wtf-types string_types::tests::idempotency_key_accepts_trailing_whitespace_when_opaque_type_preserves_input
-        PASS [   0.004s] (473/678) wtf-types string_types::tests::idempotency_key_accepts_any_non_empty_chars_when_opaque_string
-        PASS [   0.003s] (474/678) wtf-types string_types::tests::idempotency_key_accepts_unicode_when_input_has_non_ascii_chars
-        PASS [   0.004s] (475/678) wtf-types string_types::tests::idempotency_key_accepts_exactly_1024_chars_when_at_boundary
-        PASS [   0.004s] (476/678) wtf-types string_types::tests::binary_hash_rejects_odd_length_with_invalid_format_when_length_is_odd
-        PASS [   0.004s] (477/678) wtf-types string_types::tests::binary_hash_rejects_uppercase_hex_with_invalid_chars_when_input_has_uppercase
-        PASS [   0.004s] (478/678) wtf-types string_types::tests::idempotency_key_rejects_exceeds_max_length_when_input_is_1025_chars
-        PASS [   0.005s] (479/678) wtf-types string_types::tests::idempotency_key_accepts_single_char_when_input_is_one_character
-        PASS [   0.005s] (480/678) wtf-types string_types::tests::binary_hash_rejects_non_hex_with_invalid_chars_when_input_has_non_hex
-        PASS [   0.005s] (481/678) wtf-types string_types::tests::idempotency_key_display_round_trips_through_parse_when_valid
-        PASS [   0.003s] (482/678) wtf-types string_types::tests::instance_id_rejects_empty_with_empty_error_when_input_is_empty
-        PASS [   0.003s] (483/678) wtf-types string_types::tests::instance_id_display_round_trips_through_parse_when_valid
-        PASS [   0.003s] (484/678) wtf-types string_types::tests::instance_id_rejects_invalid_chars_with_invalid_format_when_input_has_non_crockford_chars
-        PASS [   0.003s] (485/678) wtf-types string_types::tests::instance_id_rejects_leading_whitespace_with_invalid_format_when_input_has_space_prefix
-        PASS [   0.029s] (486/678) wtf-types red_queen_tests::proptests::rq_workflow_parse_round_trip_identity
-        PASS [   0.005s] (487/678) wtf-types string_types::tests::idempotency_key_rejects_empty_with_empty_error_when_input_is_empty
-        PASS [   0.006s] (488/678) wtf-types string_types::tests::instance_id_accepts_valid_ulid_when_input_is_wellformed
-        PASS [   0.004s] (489/678) wtf-types string_types::tests::instance_id_from_into_string
-        PASS [   0.004s] (490/678) wtf-types string_types::tests::instance_id_rejects_trailing_whitespace_with_invalid_format_when_input_has_space_suffix
-        PASS [   0.003s] (491/678) wtf-types string_types::tests::instance_id_try_from_string_invalid
-        PASS [   0.004s] (492/678) wtf-types string_types::tests::instance_id_rejects_long_input_with_invalid_format_when_input_exceeds_26_chars
-        PASS [   0.004s] (493/678) wtf-types string_types::tests::instance_id_rejects_wrong_length_with_invalid_format_when_input_is_not_26_chars
-        PASS [   0.004s] (494/678) wtf-types string_types::tests::instance_id_rejects_malformed_ulid_with_invalid_format_when_ulid_validation_fails
-        PASS [   0.003s] (495/678) wtf-types string_types::tests::node_name_accepts_valid_with_underscore_when_input_contains_underscore
-        PASS [   0.003s] (496/678) wtf-types string_types::tests::node_name_accepts_valid_with_digits_when_input_contains_digits
-        PASS [   0.004s] (497/678) wtf-types string_types::tests::node_name_accepts_single_char_when_input_is_one_valid_character
-        PASS [   0.003s] (498/678) wtf-types string_types::tests::node_name_display_equals_inner_string
-        PASS [   0.003s] (499/678) wtf-types string_types::tests::node_name_display_round_trips_through_parse_when_valid
-        PASS [   0.003s] (500/678) wtf-types string_types::tests::node_name_rejects_exceeds_max_length_when_input_is_129_chars
-        PASS [   0.004s] (501/678) wtf-types string_types::tests::node_name_accepts_exactly_128_chars_when_at_boundary
-        PASS [   0.003s] (502/678) wtf-types string_types::tests::node_name_rejects_hyphen_only_with_boundary_violation_when_input_is_single_hyphen
-        PASS [   0.004s] (503/678) wtf-types string_types::tests::node_name_accepts_valid_with_hyphen_when_input_contains_hyphen
-        PASS [   0.004s] (504/678) wtf-types string_types::tests::node_name_rejects_empty_with_empty_error_when_input_is_empty
-        PASS [   0.003s] (505/678) wtf-types string_types::tests::node_name_rejects_invalid_chars_when_input_contains_space
-        PASS [   0.003s] (506/678) wtf-types string_types::tests::node_name_rejects_leading_underscore_with_boundary_violation_when_starts_with_underscore
-        PASS [   0.004s] (507/678) wtf-types string_types::tests::node_name_accepts_valid_identifier_when_chars_match_pattern
-        PASS [   0.003s] (508/678) wtf-types string_types::tests::node_name_rejects_null_byte_with_invalid_chars_when_input_contains_null
-        PASS [   0.003s] (509/678) wtf-types string_types::tests::node_name_rejects_underscore_only_with_boundary_violation_when_input_is_single_underscore
-        PASS [   0.003s] (510/678) wtf-types string_types::tests::node_name_rejects_leading_hyphen_with_boundary_violation_when_starts_with_hyphen
-        PASS [   0.003s] (511/678) wtf-types string_types::tests::node_name_rejects_leading_whitespace_with_invalid_chars_when_input_starts_with_space
-        PASS [   0.007s] (512/678) wtf-types string_types::tests::instance_id_display_equals_inner_string
-        PASS [   0.003s] (513/678) wtf-types string_types::tests::node_name_rejects_trailing_whitespace_with_invalid_chars_when_input_ends_with_space
-        PASS [   0.003s] (514/678) wtf-types string_types::tests::node_name_rejects_trailing_hyphen_with_boundary_violation_when_ends_with_hyphen
-        PASS [   0.002s] (515/678) wtf-types string_types::tests::serde_round_trip_idempotency_key_inline
-        PASS [   0.003s] (516/678) wtf-types string_types::tests::timer_id_accepts_trailing_whitespace_when_opaque_type_preserves_input
-        PASS [   0.004s] (517/678) wtf-types string_types::tests::serde_round_trip_timer_id_inline
-        PASS [   0.003s] (518/678) wtf-types string_types::tests::timer_id_rejects_empty_with_empty_error_when_input_is_empty
-        PASS [   0.004s] (519/678) wtf-types string_types::tests::timer_id_accepts_single_char_when_input_is_one_character
-        PASS [   0.004s] (520/678) wtf-types string_types::tests::timer_id_accepts_exactly_256_chars_when_at_boundary
-        PASS [   0.006s] (521/678) wtf-types string_types::tests::node_name_rejects_trailing_underscore_with_boundary_violation_when_ends_with_underscore
-        PASS [   0.004s] (522/678) wtf-types string_types::tests::serde_round_trip_workflow_name_inline
-        PASS [   0.004s] (523/678) wtf-types string_types::tests::serde_round_trip_binary_hash_inline
-        PASS [   0.004s] (524/678) wtf-types string_types::tests::serde_round_trip_node_name_inline
-        PASS [   0.003s] (525/678) wtf-types string_types::tests::timer_id_display_round_trips_through_parse_when_valid
-        PASS [   0.003s] (526/678) wtf-types string_types::tests::workflow_name_accepts_single_char_when_input_is_one_valid_character
-        PASS [   0.008s] (527/678) wtf-types string_types::tests::instance_id_try_from_string_valid
-        PASS [   0.004s] (528/678) wtf-types string_types::tests::timer_id_accepts_any_non_empty_chars_when_opaque_string
-        PASS [   0.035s] (529/678) wtf-types red_queen_tests::proptests::rq_edge_serde_round_trip
-        PASS [   0.004s] (530/678) wtf-types string_types::tests::timer_id_accepts_non_empty_string_when_within_length_limit
-        PASS [   0.004s] (531/678) wtf-types string_types::tests::serde_round_trip_instance_id_inline
-        PASS [   0.003s] (532/678) wtf-types string_types::tests::workflow_name_accepts_valid_identifier_when_chars_match_pattern
-        PASS [   0.004s] (533/678) wtf-types string_types::tests::timer_id_display_equals_inner_string
-        PASS [   0.003s] (534/678) wtf-types string_types::tests::workflow_name_accepts_valid_with_digits_when_input_contains_digits
-        PASS [   0.005s] (535/678) wtf-types string_types::tests::timer_id_accepts_unicode_when_input_has_non_ascii_chars
-        PASS [   0.006s] (536/678) wtf-types string_types::tests::workflow_name_accepts_exactly_128_chars_when_at_boundary
-        PASS [   0.003s] (537/678) wtf-types string_types::tests::workflow_name_accepts_valid_with_hyphen_when_input_contains_hyphen
-        PASS [   0.005s] (538/678) wtf-types string_types::tests::timer_id_rejects_exceeds_max_length_when_input_is_257_chars
-        PASS [   0.008s] (539/678) wtf-types string_types::tests::proptests::binary_hash_round_trip_proptest
-        PASS [   0.003s] (540/678) wtf-types string_types::tests::workflow_name_display_round_trips_through_parse_when_valid
-        PASS [   0.003s] (541/678) wtf-types string_types::tests::workflow_name_accepts_valid_with_underscore_when_input_contains_underscore
-        PASS [   0.003s] (542/678) wtf-types string_types::tests::workflow_name_rejects_trailing_underscore_with_boundary_violation_when_ends_with_underscore
-        PASS [   0.003s] (543/678) wtf-types string_types::tests::workflow_name_rejects_null_byte_with_invalid_chars_when_input_contains_null
-        PASS [   0.003s] (544/678) wtf-types string_types::tests::workflow_name_rejects_empty_with_empty_error_when_input_is_empty
-        PASS [   0.003s] (545/678) wtf-types string_types::tests::workflow_name_rejects_exceeds_max_length_when_input_is_129_chars
-        PASS [   0.003s] (546/678) wtf-types string_types::tests::workflow_name_rejects_whitespace_only_with_invalid_chars_when_input_is_single_space
-        PASS [   0.004s] (547/678) wtf-types string_types::tests::workflow_name_rejects_leading_whitespace_with_invalid_chars_when_input_starts_with_space
-        PASS [   0.004s] (548/678) wtf-types string_types::tests::workflow_name_rejects_trailing_whitespace_with_invalid_chars_when_input_ends_with_space
-        PASS [   0.003s] (549/678) wtf-types types::tests::check_boundaries_rejects_leading_underscore
-        PASS [   0.004s] (550/678) wtf-types string_types::tests::workflow_name_rejects_invalid_chars_when_input_contains_space
-        PASS [   0.004s] (551/678) wtf-types string_types::tests::workflow_name_display_equals_inner_string
-        PASS [   0.004s] (552/678) wtf-types string_types::tests::workflow_name_rejects_unicode_combining_char_with_invalid_chars_when_input_has_composing_mark
-        PASS [   0.004s] (553/678) wtf-types string_types::tests::workflow_name_rejects_trailing_hyphen_with_boundary_violation_when_ends_with_hyphen
-        PASS [   0.004s] (554/678) wtf-types string_types::tests::workflow_name_rejects_underscore_only_with_boundary_violation_when_input_is_single_underscore
-        PASS [   0.004s] (555/678) wtf-types string_types::tests::workflow_name_rejects_hyphen_only_with_boundary_violation_when_input_is_single_hyphen
-        PASS [   0.004s] (556/678) wtf-types types::tests::check_boundaries_rejects_leading_hyphen
-        PASS [   0.004s] (557/678) wtf-types string_types::tests::workflow_name_rejects_leading_underscore_with_boundary_violation_when_starts_with_underscore
-        PASS [   0.004s] (558/678) wtf-types string_types::tests::workflow_name_rejects_leading_hyphen_with_boundary_violation_when_starts_with_hyphen
-        PASS [   0.003s] (559/678) wtf-types types::tests::check_boundaries_rejects_trailing_hyphen
-        PASS [   0.003s] (560/678) wtf-types types::tests::check_boundaries_single_underscore_rejects_leading
-        PASS [   0.003s] (561/678) wtf-types types::tests::check_boundaries_rejects_trailing_underscore
-        PASS [   0.003s] (562/678) wtf-types types::tests::check_boundaries_single_hyphen_rejects_leading
-        PASS [   0.002s] (563/678) wtf-types types::tests::extract_invalid_chars_keeps_only_invalid_chars
-        PASS [   0.002s] (564/678) wtf-types types::tests::extract_invalid_chars_empty_input
-        PASS [   0.003s] (565/678) wtf-types types::tests::check_boundaries_valid
-        PASS [   0.003s] (566/678) wtf-types types::tests::extract_invalid_chars_returns_all_when_none_valid
-        PASS [   0.003s] (567/678) wtf-types types::tests::is_identifier_char_rejects_other_chars
-        PASS [   0.003s] (568/678) wtf-types types::tests::extract_invalid_chars_returns_empty_when_all_valid
-        PASS [   0.003s] (569/678) wtf-types types::tests::is_identifier_char_accepts_hyphen_and_underscore
-        PASS [   0.003s] (570/678) wtf-types types::tests::is_identifier_char_accepts_alphanumeric
-        PASS [   0.002s] (571/678) wtf-types types::tests::is_lowercase_hex_rejects_non_hex
-        PASS [   0.002s] (572/678) wtf-types types::tests::is_lowercase_hex_accepts_digits
-        PASS [   0.002s] (573/678) wtf-types types::tests::parse_u64_str_rejects_empty
-        PASS [   0.003s] (574/678) wtf-types types::tests::parse_u64_str_max
-        PASS [   0.003s] (575/678) wtf-types types::tests::is_lowercase_hex_rejects_uppercase
-        PASS [   0.003s] (576/678) wtf-types types::tests::parse_u64_str_valid_integer
-        PASS [   0.004s] (577/678) wtf-types types::tests::parse_nonzero_u64_zero
-        PASS [   0.004s] (578/678) wtf-types types::tests::parse_nonzero_u64_valid
-        PASS [   0.004s] (579/678) wtf-types types::tests::parse_u64_str_rejects_alpha
-        PASS [   0.004s] (580/678) wtf-types types::tests::parse_u64_str_leading_zeros
-        PASS [   0.004s] (581/678) wtf-types types::tests::parse_nonzero_u64_non_integer
-        PASS [   0.004s] (582/678) wtf-types types::tests::parse_u64_str_rejects_float
-        PASS [   0.003s] (583/678) wtf-types types::tests::parse_u64_str_rejects_overflow
-        PASS [   0.005s] (584/678) wtf-types types::tests::is_lowercase_hex_accepts_lowercase_letters
-        PASS [   0.003s] (585/678) wtf-types types::tests::require_nonzero_max
-        PASS [   0.003s] (586/678) wtf-types workflow_tests::edge_condition_has_exactly_three_variants_when_checked
-        PASS [   0.003s] (587/678) wtf-types types::tests::parse_u64_str_zero
-        PASS [   0.003s] (588/678) wtf-types workflow_tests::edge_holds_source_target_and_condition_when_constructed
-        PASS [   0.003s] (589/678) wtf-types types::tests::require_nonzero_valid
-        PASS [   0.003s] (590/678) wtf-types workflow_tests::edge_condition_serde_round_trips_for_all_variants
-        PASS [   0.003s] (591/678) wtf-types workflow_tests::dag_node_has_no_binary_path_field_when_serialized
-        PASS [   0.003s] (592/678) wtf-types workflow_tests::get_node_returns_none_when_node_name_not_found
-        PASS [   0.003s] (593/678) wtf-types types::tests::require_nonzero_zero
-        PASS [   0.003s] (594/678) wtf-types workflow_tests::next_nodes_returns_empty_when_node_has_no_outgoing_edges
-        PASS [   0.003s] (595/678) wtf-types workflow_tests::next_nodes_returns_correct_nodes_when_mixed_edge_conditions
-        PASS [   0.003s] (596/678) wtf-types workflow_tests::edge_serde_round_trips_for_valid_edge
-        PASS [   0.003s] (597/678) wtf-types workflow_tests::next_nodes_returns_empty_when_on_failure_edge_and_success_outcome
-        PASS [   0.003s] (598/678) wtf-types workflow_tests::next_nodes_with_on_success_edge_routes_correctly_on_success_outcome
-        PASS [   0.003s] (599/678) wtf-types workflow_tests::next_nodes_returns_empty_when_on_success_edge_and_failure_outcome
-        PASS [   0.005s] (600/678) wtf-types workflow_tests::get_node_returns_some_when_node_name_exists
-        PASS [   0.004s] (601/678) wtf-types workflow_tests::next_nodes_returns_successor_when_always_edge_and_failure_outcome
-        PASS [   0.003s] (602/678) wtf-types workflow_tests::next_nodes_returns_successor_when_always_edge_matches
-        PASS [   0.004s] (603/678) wtf-types workflow_tests::next_nodes_returns_multiple_successors_when_multiple_always_edges
-        PASS [   0.003s] (604/678) wtf-types workflow_tests::next_nodes_with_on_failure_edge_routes_correctly_on_failure_outcome
-        PASS [   0.004s] (605/678) wtf-types workflow_tests::next_nodes_returns_next_hop_when_linear_chain_traversed
-        PASS [   0.003s] (606/678) wtf-types workflow_tests::parse_diamond_workflow_succeeds_and_next_nodes_a_returns_b_and_c
-        PASS [   0.007s] (607/678) wtf-types types::tests::parse_u64_str_rejects_negative
-        PASS [   0.004s] (608/678) wtf-types workflow_tests::parse_accepts_single_node_workflow_when_no_edges
-        PASS [   0.003s] (609/678) wtf-types workflow_tests::parse_cyclic_workflow_a_b_a_returns_cycle_detected
-        PASS [   0.003s] (610/678) wtf-types workflow_tests::parse_rejects_dangling_edge_with_unknown_node_when_source_missing
-        PASS [   0.003s] (611/678) wtf-types workflow_tests::parse_empty_nodes_returns_empty_workflow
-        PASS [   0.003s] (612/678) wtf-types workflow_tests::parse_rejects_low_multiplier_with_invalid_retry_policy_when_node_has_low_multiplier
-        PASS [   0.003s] (613/678) wtf-types workflow_tests::parse_linear_3_node_workflow_a_b_c_succeeds_and_next_nodes_a_returns_b
-        PASS [   0.003s] (614/678) wtf-types workflow_tests::parse_rejects_3_node_cycle_a_b_c_a_with_cycle_detected
-        PASS [   0.003s] (615/678) wtf-types workflow_tests::parse_rejects_zero_max_attempts_with_invalid_retry_policy_when_node_has_zero_attempts
-        PASS [   0.004s] (616/678) wtf-types workflow_tests::parse_rejects_malformed_json_with_deserialization_failed_when_bytes_invalid
-        PASS [   0.004s] (617/678) wtf-types workflow_tests::parse_rejects_dangling_edge_with_unknown_node_when_target_missing
-        PASS [   0.004s] (618/678) wtf-types workflow_tests::parse_rejects_missing_fields_with_deserialization_failed_when_json_incomplete
-        PASS [   0.003s] (619/678) wtf-types workflow_tests::parse_returns_deserialization_failed_before_empty_workflow_when_json_malformed
-        PASS [   0.005s] (620/678) wtf-types workflow_tests::parse_rejects_self_loop_with_cycle_detected_when_node_edges_to_itself
-        PASS [   0.003s] (621/678) wtf-types workflow_tests::parse_returns_unknown_node_before_cycle_detected_when_both_present
-        PASS [   0.003s] (622/678) wtf-types workflow_tests::parse_returns_identical_result_when_called_twice_with_same_input
-        PASS [   0.003s] (623/678) wtf-types workflow_tests::retry_policy_accepts_backoff_ms_zero_when_no_delay_requested
-        PASS [   0.003s] (624/678) wtf-types workflow_tests::retry_policy_accepts_max_attempts_255_at_maximum_boundary
-        PASS [   0.003s] (625/678) wtf-types workflow_tests::retry_policy_accepts_multiplier_1_at_minimum_boundary
-        PASS [   0.003s] (626/678) wtf-types workflow_tests::retry_policy_accepts_valid_params_when_all_constraints_satisfied
-        PASS [   0.003s] (627/678) wtf-types workflow_tests::retry_policy_error_zero_attempts_displays_correct_message_when_formatted
-        PASS [   0.005s] (628/678) wtf-types workflow_tests::parse_returns_empty_workflow_before_invalid_retry_policy_when_nodes_empty
-        PASS [   0.005s] (629/678) wtf-types workflow_tests::parse_returns_invalid_retry_policy_before_unknown_node_when_both_present
-        PASS [   0.004s] (630/678) wtf-types workflow_tests::retry_policy_error_invalid_multiplier_displays_got_value_when_formatted
-        PASS [   0.003s] (631/678) wtf-types workflow_tests::retry_policy_returns_zero_attempts_when_both_zero_and_low_multiplier
-        PASS [   0.003s] (632/678) wtf-types workflow_tests::retry_policy_rejects_low_multiplier_with_invalid_multiplier_error_when_below_1
-        PASS [   0.005s] (633/678) wtf-types workflow_tests::retry_policy_accepts_max_attempts_1_at_minimum_boundary
-        PASS [   0.003s] (634/678) wtf-types workflow_tests::step_outcome_has_exactly_two_variants_when_checked
-        PASS [   0.004s] (635/678) wtf-types workflow_tests::retry_policy_serde_round_trips_for_valid_policy
-        PASS [   0.003s] (636/678) wtf-types workflow_tests::step_outcome_serde_round_trips_for_both_variants
-        PASS [   0.004s] (637/678) wtf-types workflow_tests::retry_policy_rejects_zero_attempts_with_zero_attempts_error_when_max_is_zero
-        PASS [   0.003s] (638/678) wtf-types workflow_tests::workflow_definition_error_cycle_detected_displays_node_names_when_formatted
-        PASS [   0.023s] (639/678) wtf-types string_types::tests::proptests::instance_id_round_trip_proptest
-        PASS [   0.003s] (640/678) wtf-types workflow_tests::workflow_definition_error_deserialization_failed_displays_message_when_formatted
-        PASS [   0.003s] (641/678) wtf-types workflow_tests::workflow_definition_error_empty_workflow_displays_message_when_formatted
-        PASS [   0.003s] (642/678) wtf-types workflow_tests::workflow_definition_error_invalid_retry_policy_displays_node_and_reason_when_formatted
-        PASS [   0.003s] (643/678) wtf-types workflow_tests::workflow_definition_error_unknown_node_displays_names_when_formatted
-        PASS [   0.007s] (644/678) wtf-types workflow_tests::proptests::retry_policy_new_proptest_low_multiplier_always_fails
-        PASS [   0.003s] (645/678) wtf-types workflow_tests::workflow_definition_json_roundtrip
-        PASS [   0.003s] (646/678) wtf-types::scaffold_compliance cargo_toml_contains_allowed_dependencies_when_inspected
-        PASS [   0.003s] (647/678) wtf-types::scaffold_compliance cargo_toml_dependencies_are_exact_allowed_set_when_inspected
-        PASS [   0.003s] (648/678) wtf-types::scaffold_compliance cargo_toml_contains_serde_json_in_dev_dependencies_when_inspected
-        PASS [   0.002s] (649/678) wtf-types::scaffold_compliance cargo_toml_excludes_serde_json_from_dependencies_when_inspected
-        PASS [   0.008s] (650/678) wtf-types workflow_tests::proptests::retry_policy_serde_round_trip_proptest
-        PASS [   0.002s] (651/678) wtf-types::scaffold_compliance cargo_toml_excludes_all_infra_dependencies_when_inspected
-        PASS [   0.009s] (652/678) wtf-types workflow_tests::proptests::retry_policy_new_proptest_accepted_values_satisfy_invariants
-        PASS [   0.009s] (653/678) wtf-types workflow_tests::proptests::retry_policy_new_proptest_zero_attempts_always_fails
-        PASS [   0.003s] (654/678) wtf-types::scaffold_compliance integer_types_are_publicly_accessible_when_crate_used
-        PASS [   0.002s] (655/678) wtf-types::scaffold_compliance serde_json_compiles_in_test_context_when_referenced
-        PASS [   0.003s] (656/678) wtf-types::scaffold_compliance cargo_toml_uses_workspace_version_and_edition_when_inspected
-        PASS [   0.003s] (657/678) wtf-types::scaffold_compliance events_rs_contains_doc_comment_when_inspected
-        PASS [   0.009s] (658/678) wtf-types workflow_tests::proptests::next_nodes_always_returns_nodes_from_def_proptest
-        PASS [   0.003s] (659/678) wtf-types::scaffold_compliance non_empty_vec_is_publicly_accessible_when_crate_used
-        PASS [   0.003s] (660/678) wtf-types::scaffold_compliance lib_rs_declares_events_and_state_modules_when_inspected
-        PASS [   0.003s] (661/678) wtf-types::scaffold_compliance state_rs_contains_doc_comment_when_inspected
-        PASS [   0.003s] (662/678) wtf-types::scaffold_compliance string_types_are_publicly_accessible_when_crate_used
-        PASS [   0.010s] (663/678) wtf-types workflow_tests::proptests::next_nodes_matches_edge_targets_proptest
-        PASS [   0.004s] (664/678) wtf-types::scaffold_compliance parse_error_is_publicly_accessible_when_crate_used
-        PASS [   0.003s] (665/678) wtf-types::scaffold_compliance workflow_types_are_publicly_accessible_when_crate_used
-        PASS [   0.042s] (666/678) wtf-types string_types::tests::proptests::node_name_round_trip_proptest
-        PASS [   0.042s] (667/678) wtf-types string_types::tests::proptests::serde_round_trip_timer_id_proptest
-        PASS [   0.042s] (668/678) wtf-types string_types::tests::proptests::workflow_name_round_trip_proptest
-        PASS [   0.031s] (669/678) wtf-types types::tests::proptests::extract_invalid_chars_proptest
-        PASS [   0.043s] (670/678) wtf-types string_types::tests::proptests::timer_id_round_trip_proptest
-        PASS [   0.044s] (671/678) wtf-types string_types::tests::proptests::serde_round_trip_workflow_name_proptest
-        PASS [   0.028s] (672/678) wtf-types workflow_tests::proptests::workflow_definition_parse_serialize_round_trip_proptest
-        PASS [   0.151s] (673/678) wtf-types adversarial_tests::proptests::idempotency_key_round_trip
-        PASS [   0.065s] (674/678) wtf-types workflow_tests::proptests::edge_serde_round_trip_proptest
-        PASS [   0.127s] (675/678) wtf-types string_types::tests::proptests::idempotency_key_round_trip_proptest
-        PASS [   0.108s] (676/678) wtf-types::scaffold_compliance stub_files_exist_and_compile_when_workspace_checked
-        PASS [   0.112s] (677/678) wtf-types::scaffold_compliance workspace_compiles_with_zero_warnings_when_cargo_check_runs
-        PASS [   0.185s] (678/678) wtf-types::scaffold_compliance workspace_passes_clippy_with_zero_warnings_when_clippy_runs
+        PASS [   0.002s] (  1/678) vo-engine binary_registry::tests::copy_to_versions_returns_copy_failed_when_source_unreadable
+        PASS [   0.002s] (  2/678) vo-engine binary_registry::tests::copy_to_versions_handles_sizes_gracefully::case_2
+        PASS [   0.002s] (  3/678) vo-engine binary_registry::tests::copy_to_versions_handles_sizes_gracefully::case_3
+        PASS [   0.003s] (  4/678) vo-engine binary_registry::tests::copy_to_versions_handles_sizes_gracefully::case_1
+        PASS [   0.003s] (  5/678) vo-engine binary_registry::tests::deactivate_returns_not_found_when_unregistered
+        PASS [   0.003s] (  6/678) vo-engine binary_registry::tests::discover_graph_returns_definition_when_valid_json
+        PASS [   0.003s] (  7/678) vo-engine binary_registry::tests::deactivate_is_idempotent_when_already_deactivated
+        PASS [   0.003s] (  8/678) vo-engine binary_registry::tests::register_returns_binary_not_found
+        PASS [   0.006s] (  9/678) vo-types adversarial_tests::proptests::copy_equal
+        PASS [   0.005s] ( 10/678) vo-types adversarial_tests::proptests::duration_ms_to_duration
+        PASS [   0.006s] ( 11/678) vo-types adversarial_tests::proptests::fire_at_ms_has_elapsed
+        PASS [   0.006s] ( 12/678) vo-types adversarial_tests::proptests::fire_at_ms_round_trip
+        PASS [   0.006s] ( 13/678) vo-types adversarial_tests::proptests::hash_consistency
+        PASS [   0.006s] ( 14/678) vo-types adversarial_tests::proptests::event_version_round_trip
+        PASS [   0.006s] ( 15/678) vo-types adversarial_tests::proptests::duration_ms_round_trip
+        PASS [   0.014s] ( 16/678) vo-engine::integration_tests integration_copy_to_versions_with_real_tempfiles
+        PASS [   0.006s] ( 17/678) vo-types adversarial_tests::proptests::integer_newtype_display_is_decimal
+        PASS [   0.003s] ( 18/678) vo-engine::integration_tests integration_successful_reap_deletes_file
+        PASS [   0.014s] ( 19/678) vo-engine binary_registry::tests::discover_graph_returns_invalid_graph_output_when_empty
+        PASS [   0.014s] ( 20/678) vo-types adversarial_tests::instance_id_display_round_trip
+        PASS [   0.014s] ( 21/678) vo-engine::integration_tests integration_successful_register_hitting_real_disk
+        PASS [   0.014s] ( 22/678) vo-engine binary_registry::tests::reap_deactivated_retains_when_one_instance
+        PASS [   0.006s] ( 23/678) vo-types adversarial_tests::proptests::ord_consistent
+        PASS [   0.003s] ( 24/678) vo-engine binary_registry::tests::resolve_returns_ok_when_min_name_seeded
+        PASS [   0.003s] ( 25/678) vo-engine binary_registry::tests::resolve_returns_not_found_when_unregistered
+        PASS [   0.006s] ( 26/678) vo-types adversarial_tests::proptests::max_attempts_is_exhausted
+        PASS [   0.006s] ( 27/678) vo-types adversarial_tests::proptests::max_attempts_round_trip
+        PASS [   0.004s] ( 28/678) vo-engine binary_registry::tests::deactivate_transitions_to_deactivated_when_active
+        PASS [   0.005s] ( 29/678) vo-engine binary_registry::tests::discover_graph_returns_failed_when_nonzero_exit
+        PASS [   0.005s] ( 30/678) vo-engine binary_registry::tests::resolve_returns_not_found_when_name_empty
+        PASS [   0.005s] ( 31/678) vo-engine binary_registry::tests::resolve_returns_workflow_deactivated_when_status_is_deactivated
+        PASS [   0.017s] ( 32/678) vo-engine binary_registry::tests::register_returns_not_executable
+        PASS [   0.005s] ( 33/678) vo-engine binary_registry::tests::resolve_returns_ok_when_max_name_seeded
+        PASS [   0.017s] ( 34/678) vo-engine binary_registry::tests::resolve_returns_exact_data_when_active_workflow_seeded
+        PASS [   0.005s] ( 35/678) vo-engine::integration_tests integration_idempotent_copy_skips_overwrite
+        PASS [   0.007s] ( 36/678) vo-engine::integration_tests integration_toctou_register_failure
+        PASS [   0.018s] ( 37/678) vo-engine binary_registry::tests::reap_deactivated_deletes_when_zero_instances
+        PASS [   0.018s] ( 38/678) vo-engine binary_registry::tests::register_succeeds_when_valid
+        PASS [   0.006s] ( 39/678) vo-engine binary_registry::tests::resolve_returns_not_found_when_registry_empty
+        PASS [   0.018s] ( 40/678) vo-types adversarial_tests::proptests::attempt_number_round_trip
+        PASS [   0.003s] ( 41/678) vo-types adversarial_tests::rq_debug_output_contains_value_for_string
+        PASS [   0.003s] ( 42/678) vo-types adversarial_tests::rq_empty_string_for_integer_types
+        PASS [   0.003s] ( 43/678) vo-types adversarial_tests::rq_debug_output_contains_type_name
+        PASS [   0.004s] ( 44/678) vo-types adversarial_tests::rq_binary_hash_rejects_7_chars_odd
+        PASS [   0.005s] ( 45/678) vo-types adversarial_tests::rq_binary_hash_rejects_2_chars_below_min
+        PASS [   0.003s] ( 46/678) vo-types adversarial_tests::rq_binary_hash_rejects_single_char
+        PASS [   0.002s] ( 47/678) vo-types adversarial_tests::rq_error_type_name_matches_for_all_types
+        PASS [   0.003s] ( 48/678) vo-types adversarial_tests::rq_instance_id_accepts_mixed_case_ulid
+        PASS [   0.003s] ( 49/678) vo-types adversarial_tests::rq_idempotency_key_accepts_null_byte
+        PASS [   0.005s] ( 50/678) vo-types adversarial_tests::rq_debug_output_contains_value_for_integer
+        PASS [   0.007s] ( 51/678) vo-types adversarial_tests::proptests::timeout_ms_to_duration
+        PASS [   0.003s] ( 52/678) vo-types adversarial_tests::rq_idempotency_key_rejects_1025_ascii
+        PASS [   0.007s] ( 53/678) vo-types adversarial_tests::proptests::serde_round_trip_sequence_number
+        PASS [   0.003s] ( 54/678) vo-types adversarial_tests::rq_instance_id_accepts_lowercase_ulid
+        PASS [   0.003s] ( 55/678) vo-types adversarial_tests::rq_instance_id_preserves_original_case
+        PASS [   0.003s] ( 56/678) vo-types adversarial_tests::rq_instance_id_rejects_25_chars
+        PASS [   0.003s] ( 57/678) vo-types adversarial_tests::rq_instance_id_rejects_27_chars
+        PASS [   0.003s] ( 58/678) vo-types adversarial_tests::rq_integer_types_are_copy
+        PASS [   0.009s] ( 59/678) vo-types adversarial_tests::proptests::timeout_ms_round_trip
+        PASS [   0.004s] ( 60/678) vo-types adversarial_tests::rq_negative_zero_rejected
+        PASS [   0.003s] ( 61/678) vo-types adversarial_tests::rq_no_from_string_for_string_types
+        PASS [   0.003s] ( 62/678) vo-types adversarial_tests::rq_node_name_double_hyphen_middle_valid
+        PASS [   0.009s] ( 63/678) vo-types adversarial_tests::proptests::serde_round_trip_duration_ms
+        PASS [   0.002s] ( 64/678) vo-types adversarial_tests::rq_node_name_rejects_emoji
+        PASS [   0.002s] ( 65/678) vo-types adversarial_tests::rq_ord_consistent_with_as_u64
+        PASS [   0.003s] ( 66/678) vo-types adversarial_tests::rq_node_name_double_underscore_middle_valid
+        PASS [   0.010s] ( 67/678) vo-types adversarial_tests::proptests::sequence_number_round_trip
+        PASS [   0.004s] ( 68/678) vo-types adversarial_tests::rq_scientific_notation_rejected
+        PASS [   0.004s] ( 69/678) vo-types adversarial_tests::rq_node_name_rejects_null_byte
+        PASS [   0.004s] ( 70/678) vo-types adversarial_tests::rq_plus_prefix_accepted_by_u64_from_str
+        PASS [   0.011s] ( 71/678) vo-types adversarial_tests::proptests::timestamp_ms_to_system_time
+        PASS [   0.004s] ( 72/678) vo-types adversarial_tests::rq_string_types_are_not_copy
+        PASS [   0.004s] ( 73/678) vo-types adversarial_tests::rq_timer_id_accepts_256_multi_byte
+        PASS [   0.004s] ( 74/678) vo-types adversarial_tests::rq_timer_id_accepts_newlines
+        PASS [   0.003s] ( 75/678) vo-types adversarial_tests::rq_timer_id_accepts_null_byte
+        PASS [   0.003s] ( 76/678) vo-types adversarial_tests::rq_timer_id_null_byte_serde_round_trip
+        PASS [   0.003s] ( 77/678) vo-types adversarial_tests::rq_timer_id_rejects_257_ascii
+        PASS [   0.003s] ( 78/678) vo-types adversarial_tests::rq_very_long_integer_parses
+        PASS [   0.003s] ( 79/678) vo-types adversarial_tests::rq_try_from_u64_accepts_max
+        PASS [   0.003s] ( 80/678) vo-types adversarial_tests::rq_try_from_u64_rejects_zero
+        PASS [   0.003s] ( 81/678) vo-types adversarial_tests::rq_workflow_name_rejects_carriage_return
+        PASS [   0.003s] ( 82/678) vo-types adversarial_tests::rq_try_from_u64_accepts_one
+        PASS [   0.003s] ( 83/678) vo-types adversarial_tests::rq_workflow_name_hyphen_underscore_combo
+        PASS [   0.003s] ( 84/678) vo-types adversarial_tests::rq_workflow_name_rejects_fullwidth_digit
+        PASS [   0.014s] ( 85/678) vo-types adversarial_tests::proptests::timestamp_ms_round_trip
+        PASS [   0.005s] ( 86/678) vo-types adversarial_tests::rq_whitespace_only_rejected
+        PASS [   0.003s] ( 87/678) vo-types adversarial_tests::rq_workflow_name_rejects_right_to_left_mark
+        PASS [   0.002s] ( 88/678) vo-types adversarial_tests::rq_workflow_name_underscore_hyphen_combo
+        PASS [   0.014s] ( 89/678) vo-types adversarial_tests::rq_as_str_borrowed_from_struct
+        PASS [   0.005s] ( 90/678) vo-types adversarial_tests::rq_workflow_name_rejects_emoji
+        PASS [   0.003s] ( 91/678) vo-types adversarial_tests::rq_workflow_name_rejects_tab
+        PASS [   0.003s] ( 92/678) vo-types adversarial_tests::rq_workflow_name_rejects_zero_width_space
+        PASS [   0.003s] ( 93/678) vo-types adversarial_tests::rq_workflow_name_rejects_zero_width_joiner
+        PASS [   0.003s] ( 94/678) vo-types cross_cutting_tests::attempt_number_accepts_leading_zeros
+        PASS [   0.003s] ( 95/678) vo-types cross_cutting_tests::attempt_number_rejects_binary_prefix
+        PASS [   0.003s] ( 96/678) vo-types cross_cutting_tests::duration_ms_accepts_leading_zeros
+        PASS [   0.014s] ( 97/678) vo-types adversarial_tests::rq_binary_hash_rejects_6_chars_even_below_min
+        PASS [   0.015s] ( 98/678) vo-types adversarial_tests::rq_binary_hash_rejects_4_chars_below_min
+        PASS [   0.022s] ( 99/678) vo-types adversarial_tests::proptests::instance_id_round_trip
+        PASS [   0.004s] (100/678) vo-types adversarial_tests::rq_workflow_name_rejects_newline
+        PASS [   0.004s] (101/678) vo-types cross_cutting_tests::attempt_number_rejects_float_notation
+        PASS [   0.004s] (102/678) vo-types cross_cutting_tests::attempt_number_rejects_negative
+        PASS [   0.003s] (103/678) vo-types cross_cutting_tests::attempt_number_rejects_leading_whitespace
+        PASS [   0.003s] (104/678) vo-types cross_cutting_tests::attempt_number_rejects_octal_prefix
+        PASS [   0.003s] (105/678) vo-types cross_cutting_tests::attempt_number_rejects_overflow
+        PASS [   0.004s] (106/678) vo-types cross_cutting_tests::duration_ms_rejects_hex_prefix
+        PASS [   0.003s] (107/678) vo-types cross_cutting_tests::duration_ms_rejects_octal_prefix
+        PASS [   0.004s] (108/678) vo-types cross_cutting_tests::duration_ms_rejects_binary_prefix
+        PASS [   0.004s] (109/678) vo-types cross_cutting_tests::duration_ms_rejects_float_notation
+        PASS [   0.004s] (110/678) vo-types cross_cutting_tests::duration_ms_rejects_leading_whitespace
+        PASS [   0.006s] (111/678) vo-types cross_cutting_tests::attempt_number_rejects_hex_prefix
+        PASS [   0.003s] (112/678) vo-types cross_cutting_tests::event_version_accepts_leading_zeros
+        PASS [   0.002s] (113/678) vo-types cross_cutting_tests::event_version_rejects_leading_whitespace
+        PASS [   0.003s] (114/678) vo-types cross_cutting_tests::duration_ms_rejects_overflow
+        PASS [   0.002s] (115/678) vo-types cross_cutting_tests::event_version_rejects_binary_prefix
+        PASS [   0.004s] (116/678) vo-types cross_cutting_tests::duration_ms_rejects_negative
+        PASS [   0.003s] (117/678) vo-types cross_cutting_tests::event_version_rejects_hex_prefix
+        PASS [   0.003s] (118/678) vo-types cross_cutting_tests::event_version_rejects_octal_prefix
+        PASS [   0.003s] (119/678) vo-types cross_cutting_tests::fire_at_ms_rejects_binary_prefix
+        PASS [   0.003s] (120/678) vo-types cross_cutting_tests::event_version_rejects_float_notation
+        PASS [   0.003s] (121/678) vo-types cross_cutting_tests::fire_at_ms_rejects_leading_whitespace
+        PASS [   0.003s] (122/678) vo-types cross_cutting_tests::event_version_rejects_negative
+        PASS [   0.004s] (123/678) vo-types cross_cutting_tests::event_version_rejects_overflow
+        PASS [   0.004s] (124/678) vo-types cross_cutting_tests::fire_at_ms_rejects_octal_prefix
+        PASS [   0.004s] (125/678) vo-types cross_cutting_tests::fire_at_ms_rejects_negative
+        PASS [   0.004s] (126/678) vo-types cross_cutting_tests::fire_at_ms_rejects_hex_prefix
+        PASS [   0.004s] (127/678) vo-types cross_cutting_tests::fire_at_ms_rejects_float_notation
+        PASS [   0.003s] (128/678) vo-types cross_cutting_tests::sequence_number_accepts_leading_zeros
+        PASS [   0.003s] (129/678) vo-types cross_cutting_tests::fire_at_ms_rejects_overflow
+        PASS [   0.003s] (130/678) vo-types cross_cutting_tests::max_attempts_rejects_float_notation
+        PASS [   0.003s] (131/678) vo-types cross_cutting_tests::max_attempts_rejects_overflow
+        PASS [   0.005s] (132/678) vo-types cross_cutting_tests::fire_at_ms_accepts_leading_zeros
+        PASS [   0.003s] (133/678) vo-types cross_cutting_tests::max_attempts_rejects_hex_prefix
+        PASS [   0.003s] (134/678) vo-types cross_cutting_tests::max_attempts_rejects_octal_prefix
+        PASS [   0.003s] (135/678) vo-types cross_cutting_tests::sequence_number_rejects_float_notation
+        PASS [   0.003s] (136/678) vo-types cross_cutting_tests::sequence_number_rejects_binary_prefix
+        PASS [   0.003s] (137/678) vo-types cross_cutting_tests::sequence_number_rejects_leading_whitespace
+        PASS [   0.003s] (138/678) vo-types cross_cutting_tests::sequence_number_rejects_overflow
+        PASS [   0.003s] (139/678) vo-types cross_cutting_tests::sequence_number_rejects_negative
+        PASS [   0.003s] (140/678) vo-types cross_cutting_tests::sequence_number_rejects_octal_prefix
+        PASS [   0.004s] (141/678) vo-types cross_cutting_tests::max_attempts_rejects_leading_whitespace
+        PASS [   0.005s] (142/678) vo-types cross_cutting_tests::max_attempts_accepts_leading_zeros
+        PASS [   0.005s] (143/678) vo-types cross_cutting_tests::max_attempts_rejects_binary_prefix
+        PASS [   0.003s] (144/678) vo-types cross_cutting_tests::timeout_ms_accepts_leading_zeros
+        PASS [   0.003s] (145/678) vo-types cross_cutting_tests::timeout_ms_rejects_hex_prefix
+        PASS [   0.003s] (146/678) vo-types cross_cutting_tests::timeout_ms_rejects_leading_whitespace
+        PASS [   0.006s] (147/678) vo-types cross_cutting_tests::max_attempts_rejects_negative
+        PASS [   0.003s] (148/678) vo-types cross_cutting_tests::timeout_ms_rejects_float_notation
+        PASS [   0.003s] (149/678) vo-types cross_cutting_tests::timeout_ms_rejects_negative
+        PASS [   0.005s] (150/678) vo-types cross_cutting_tests::sequence_number_rejects_hex_prefix
+        PASS [   0.004s] (151/678) vo-types cross_cutting_tests::timeout_ms_rejects_binary_prefix
+        PASS [   0.003s] (152/678) vo-types cross_cutting_tests::timestamp_ms_rejects_binary_prefix
+        PASS [   0.003s] (153/678) vo-types cross_cutting_tests::timeout_ms_rejects_octal_prefix
+        PASS [   0.003s] (154/678) vo-types cross_cutting_tests::timestamp_ms_rejects_float_notation
+        PASS [   0.003s] (155/678) vo-types cross_cutting_tests::timestamp_ms_accepts_leading_zeros
+        PASS [   0.004s] (156/678) vo-types cross_cutting_tests::timestamp_ms_rejects_negative
+        PASS [   0.003s] (157/678) vo-types cross_cutting_tests::timestamp_ms_rejects_overflow
+        PASS [   0.003s] (158/678) vo-types errors::tests::parse_error_exceeds_max_length_displays_bounds_when_formatted
+        PASS [   0.003s] (159/678) vo-types integer_types::tests::attempt_number_accepts_minimum_when_value_is_1
+        PASS [   0.006s] (160/678) vo-types cross_cutting_tests::timestamp_ms_rejects_leading_whitespace
+        PASS [   0.004s] (161/678) vo-types errors::tests::parse_error_zero_value_displays_type_name_when_formatted
+        PASS [   0.004s] (162/678) vo-types integer_types::tests::attempt_number_display_round_trips_through_parse_when_valid
+        PASS [   0.004s] (163/678) vo-types integer_types::tests::attempt_number_accepts_valid_nonzero_decimal_when_input_parses
+        PASS [   0.004s] (164/678) vo-types integer_types::tests::attempt_number_accepts_u64_max_when_at_upper_boundary
+        PASS [   0.006s] (165/678) vo-types cross_cutting_tests::timeout_ms_rejects_overflow
+        PASS [   0.004s] (166/678) vo-types integer_types::tests::attempt_number_display_equals_decimal
+        PASS [   0.006s] (167/678) vo-types cross_cutting_tests::timestamp_ms_rejects_hex_prefix
+        PASS [   0.004s] (168/678) vo-types errors::tests::parse_error_out_of_range_displays_bounds_when_formatted
+        PASS [   0.006s] (169/678) vo-types errors::tests::parse_error_boundary_violation_displays_reason_when_formatted
+        PASS [   0.005s] (170/678) vo-types errors::tests::parse_error_empty_displays_type_name_when_formatted
+        PASS [   0.005s] (171/678) vo-types errors::tests::parse_error_not_an_integer_displays_input_when_formatted
+        PASS [   0.006s] (172/678) vo-types cross_cutting_tests::timestamp_ms_rejects_octal_prefix
+        PASS [   0.003s] (173/678) vo-types integer_types::tests::attempt_number_rejects_zero_with_zero_value_when_input_is_zero
+        PASS [   0.003s] (174/678) vo-types integer_types::tests::attempt_number_rejects_non_integer_with_not_an_integer_when_input_is_alpha
+        PASS [   0.003s] (175/678) vo-types errors::tests::parse_error_invalid_characters_displays_details_when_formatted
+        PASS [   0.003s] (176/678) vo-types integer_types::tests::attempt_number_new_unchecked_panics_when_value_is_zero
+        PASS [   0.003s] (177/678) vo-types integer_types::tests::attempt_number_new_unchecked_constructs_when_value_is_nonzero
+        PASS [   0.003s] (178/678) vo-types integer_types::tests::duration_ms_accepts_zero_when_input_is_zero
+        PASS [   0.003s] (179/678) vo-types integer_types::tests::duration_ms_accepts_nonzero_decimal_when_input_parses
+        PASS [   0.041s] (180/678) vo-types adversarial_tests::proptests::clone_equality
+        PASS [   0.006s] (181/678) vo-types errors::tests::parse_error_invalid_format_displays_reason_when_formatted
+        PASS [   0.003s] (182/678) vo-types integer_types::tests::duration_ms_accepts_u64_max_when_at_upper_boundary
+        PASS [   0.003s] (183/678) vo-types integer_types::tests::duration_ms_display_equals_decimal
+        PASS [   0.044s] (184/678) vo-engine binary_registry::tests::concurrent_registry_access_proptest
+        PASS [   0.003s] (185/678) vo-types integer_types::tests::duration_ms_rejects_non_integer_with_not_an_integer_when_input_is_float_string
+        PASS [   0.003s] (186/678) vo-types integer_types::tests::event_version_accepts_minimum_when_value_is_1
+        PASS [   0.003s] (187/678) vo-types integer_types::tests::event_version_new_unchecked_constructs_when_value_is_nonzero
+        PASS [   0.003s] (188/678) vo-types integer_types::tests::event_version_rejects_non_integer_with_not_an_integer_when_input_is_alpha
+        PASS [   0.003s] (189/678) vo-types integer_types::tests::event_version_new_unchecked_panics_when_value_is_zero
+        PASS [   0.003s] (190/678) vo-types integer_types::tests::duration_ms_display_round_trips_through_parse_when_valid
+        PASS [   0.003s] (191/678) vo-types integer_types::tests::fire_at_ms_accepts_u64_max_when_at_upper_boundary
+        PASS [   0.003s] (192/678) vo-types integer_types::tests::event_version_display_round_trips_through_parse_when_valid
+        PASS [   0.003s] (193/678) vo-types integer_types::tests::event_version_accepts_u64_max_when_at_upper_boundary
+        PASS [   0.003s] (194/678) vo-types integer_types::tests::fire_at_ms_has_elapsed_returns_false_when_fire_at_is_after_now
+        PASS [   0.004s] (195/678) vo-types integer_types::tests::duration_ms_to_duration_returns_zero_duration_when_value_is_zero
+        PASS [   0.047s] (196/678) vo-engine binary_registry::tests::binary_hash_determinism_proptest
+        PASS [   0.003s] (197/678) vo-types integer_types::tests::fire_at_ms_has_elapsed_returns_true_when_fire_at_is_before_now
+        PASS [   0.004s] (198/678) vo-types integer_types::tests::event_version_rejects_zero_with_zero_value_when_input_is_zero
+        PASS [   0.005s] (199/678) vo-types integer_types::tests::fire_at_ms_accepts_nonzero_decimal_when_input_parses
+        PASS [   0.004s] (200/678) vo-types integer_types::tests::fire_at_ms_display_equals_decimal
+        PASS [   0.004s] (201/678) vo-types integer_types::tests::fire_at_ms_display_round_trips_through_parse_when_valid
+        PASS [   0.005s] (202/678) vo-types integer_types::tests::duration_ms_rejects_negative_with_not_an_integer_when_input_starts_with_minus
+        PASS [   0.005s] (203/678) vo-types integer_types::tests::event_version_accepts_valid_nonzero_decimal_when_input_parses
+        PASS [   0.003s] (204/678) vo-types integer_types::tests::fire_at_ms_rejects_non_integer_with_not_an_integer_when_input_is_alpha
+        PASS [   0.006s] (205/678) vo-types integer_types::tests::event_version_display_equals_decimal
+        PASS [   0.004s] (206/678) vo-types integer_types::tests::fire_at_ms_to_system_time_returns_correct_time_when_called
+        PASS [   0.006s] (207/678) vo-types integer_types::tests::duration_ms_to_duration_returns_correct_duration_when_value_is_nonzero
+        PASS [   0.006s] (208/678) vo-types integer_types::tests::fire_at_ms_accepts_zero_when_input_is_zero
+        PASS [   0.003s] (209/678) vo-types integer_types::tests::max_attempts_accepts_minimum_when_value_is_1
+        PASS [   0.003s] (210/678) vo-types integer_types::tests::from_sequence_number_into_u64
+        PASS [   0.003s] (211/678) vo-types integer_types::tests::max_attempts_is_exhausted_returns_false_when_attempt_less_than_max
+        PASS [   0.006s] (212/678) vo-types integer_types::tests::fire_at_ms_rejects_negative_with_not_an_integer_when_input_starts_with_minus
+        PASS [   0.003s] (213/678) vo-types integer_types::tests::max_attempts_accepts_u64_max_when_at_upper_boundary
+        PASS [   0.003s] (214/678) vo-types integer_types::tests::max_attempts_display_equals_decimal
+        PASS [   0.003s] (215/678) vo-types integer_types::tests::max_attempts_display_round_trips_through_parse_when_valid
+        PASS [   0.003s] (216/678) vo-types integer_types::tests::from_sequence_number_returns_correct_nonzero_u64_when_converted
+        PASS [   0.004s] (217/678) vo-types integer_types::tests::from_duration_ms_into_u64
+        PASS [   0.003s] (218/678) vo-types integer_types::tests::max_attempts_accepts_valid_nonzero_decimal_when_input_parses
+        PASS [   0.003s] (219/678) vo-types integer_types::tests::max_attempts_is_exhausted_returns_true_when_attempt_equals_max
+        PASS [   0.003s] (220/678) vo-types integer_types::tests::max_attempts_new_unchecked_constructs_when_value_is_nonzero
+        PASS [   0.003s] (221/678) vo-types integer_types::tests::max_attempts_new_unchecked_panics_when_value_is_zero
+        PASS [   0.003s] (222/678) vo-types integer_types::tests::max_attempts_is_exhausted_returns_true_when_max_is_1_and_attempt_is_1
+        PASS [   0.003s] (223/678) vo-types integer_types::tests::max_attempts_rejects_negative_with_not_an_integer_when_input_starts_with_minus
+        PASS [   0.003s] (224/678) vo-types integer_types::tests::max_attempts_rejects_zero_with_zero_value_when_input_is_zero
+        PASS [   0.003s] (225/678) vo-types integer_types::tests::max_attempts_rejects_non_integer_with_not_an_integer_when_input_is_alpha
+        PASS [   0.007s] (226/678) vo-types integer_types::tests::fire_at_ms_has_elapsed_returns_deterministic_result_when_fire_at_equals_now
+        PASS [   0.005s] (227/678) vo-types integer_types::tests::max_attempts_is_exhausted_returns_false_when_attempt_is_max_minus_one
+        PASS [   0.005s] (228/678) vo-types integer_types::tests::max_attempts_is_exhausted_returns_true_when_attempt_exceeds_max
+        PASS [   0.043s] (229/678) vo-types adversarial_tests::proptests::node_name_round_trip
+        PASS [   0.003s] (230/678) vo-types integer_types::tests::sequence_number_accepts_u64_max_when_at_upper_boundary
+        PASS [   0.003s] (231/678) vo-types integer_types::tests::sequence_number_new_unchecked_constructs_when_value_is_nonzero
+        PASS [   0.003s] (232/678) vo-types integer_types::tests::sequence_number_rejects_non_integer_with_not_an_integer_when_input_is_alpha
+        PASS [   0.006s] (233/678) vo-types integer_types::tests::proptests::duration_ms_round_trip_proptest
+        PASS [   0.007s] (234/678) vo-types integer_types::tests::proptests::attempt_number_round_trip_proptest
+        PASS [   0.003s] (235/678) vo-types integer_types::tests::serde_round_trip_duration_ms_inline
+        PASS [   0.004s] (236/678) vo-types integer_types::tests::sequence_number_new_unchecked_panics_when_value_is_zero
+        PASS [   0.005s] (237/678) vo-types integer_types::tests::sequence_number_display_equals_decimal
+        PASS [   0.007s] (238/678) vo-types integer_types::tests::proptests::duration_ms_to_duration_proptest
+        PASS [   0.005s] (239/678) vo-types integer_types::tests::sequence_number_rejects_zero_with_zero_value_when_input_is_zero
+        PASS [   0.005s] (240/678) vo-types integer_types::tests::sequence_number_display_round_trips_through_parse_when_valid
+        PASS [   0.002s] (241/678) vo-types integer_types::tests::serde_round_trip_event_version_inline
+        PASS [   0.003s] (242/678) vo-types integer_types::tests::serde_round_trip_fire_at_ms_inline
+        PASS [   0.006s] (243/678) vo-types integer_types::tests::sequence_number_accepts_minimum_when_value_is_1
+        PASS [   0.003s] (244/678) vo-types integer_types::tests::serde_round_trip_sequence_number_inline
+        PASS [   0.006s] (245/678) vo-types integer_types::tests::sequence_number_accepts_valid_nonzero_decimal_when_input_parses
+        PASS [   0.007s] (246/678) vo-types integer_types::tests::proptests::fire_at_ms_has_elapsed_proptest
+        PASS [   0.006s] (247/678) vo-types integer_types::tests::serde_round_trip_attempt_number_inline
+        PASS [   0.003s] (248/678) vo-types integer_types::tests::serde_round_trip_max_attempts_inline
+        PASS [   0.003s] (249/678) vo-types integer_types::tests::serde_round_trip_timestamp_ms_inline
+        PASS [   0.007s] (250/678) vo-types integer_types::tests::proptests::event_version_round_trip_proptest
+        PASS [   0.008s] (251/678) vo-types integer_types::tests::proptests::integer_display_is_decimal_no_padding
+        PASS [   0.008s] (252/678) vo-types integer_types::tests::proptests::fire_at_ms_round_trip_proptest
+        PASS [   0.008s] (253/678) vo-types integer_types::tests::proptests::max_attempts_is_exhausted_proptest
+        PASS [   0.008s] (254/678) vo-types integer_types::tests::proptests::sequence_number_round_trip_proptest
+        PASS [   0.003s] (255/678) vo-types integer_types::tests::timeout_ms_accepts_minimum_when_value_is_1
+        PASS [   0.008s] (256/678) vo-types integer_types::tests::proptests::timestamp_ms_round_trip_proptest
+        PASS [   0.008s] (257/678) vo-types integer_types::tests::proptests::max_attempts_round_trip_proptest
+        PASS [   0.003s] (258/678) vo-types integer_types::tests::serde_round_trip_timeout_ms_inline
+        PASS [   0.003s] (259/678) vo-types integer_types::tests::timeout_ms_accepts_valid_nonzero_decimal_when_input_parses
+        PASS [   0.003s] (260/678) vo-types integer_types::tests::timeout_ms_display_round_trips_through_parse_when_valid
+        PASS [   0.003s] (261/678) vo-types integer_types::tests::timeout_ms_accepts_u64_max_when_at_upper_boundary
+        PASS [   0.044s] (262/678) vo-types adversarial_tests::proptests::string_newtype_display_is_identity
+        PASS [   0.008s] (263/678) vo-types integer_types::tests::proptests::serde_round_trip_duration_ms_proptest
+        PASS [   0.045s] (264/678) vo-types adversarial_tests::proptests::timer_id_round_trip
+        PASS [   0.008s] (265/678) vo-types integer_types::tests::proptests::timestamp_ms_to_system_time_proptest
+        PASS [   0.003s] (266/678) vo-types integer_types::tests::timeout_ms_rejects_negative_with_not_an_integer_when_input_starts_with_minus
+        PASS [   0.003s] (267/678) vo-types integer_types::tests::timeout_ms_rejects_zero_with_zero_value_when_input_is_zero
+        PASS [   0.003s] (268/678) vo-types integer_types::tests::timeout_ms_rejects_non_integer_with_not_an_integer_when_input_is_duration_string
+        PASS [   0.003s] (269/678) vo-types integer_types::tests::timeout_ms_new_unchecked_panics_when_value_is_zero
+        PASS [   0.004s] (270/678) vo-types integer_types::tests::timeout_ms_display_equals_decimal
+        PASS [   0.009s] (271/678) vo-types integer_types::tests::proptests::serde_round_trip_sequence_number_proptest
+        PASS [   0.003s] (272/678) vo-types integer_types::tests::timeout_ms_to_duration_returns_correct_duration_when_called
+        PASS [   0.011s] (273/678) vo-types integer_types::tests::proptests::timeout_ms_to_duration_proptest
+        PASS [   0.003s] (274/678) vo-types integer_types::tests::timestamp_ms_accepts_nonzero_decimal_when_input_parses
+        PASS [   0.003s] (275/678) vo-types integer_types::tests::try_from_u64_duration_ms_valid
+        PASS [   0.003s] (276/678) vo-types integer_types::tests::timestamp_ms_accepts_u64_max_when_at_upper_boundary
+        PASS [   0.011s] (277/678) vo-types integer_types::tests::proptests::timeout_ms_round_trip_proptest
+        PASS [   0.003s] (278/678) vo-types non_empty_vec::tests::non_empty_vec_is_empty_always_returns_false_when_called
+        PASS [   0.003s] (279/678) vo-types integer_types::tests::try_from_u64_sequence_number_valid
+        PASS [   0.003s] (280/678) vo-types integer_types::tests::timestamp_ms_rejects_non_integer_with_not_an_integer_when_input_is_alpha
+        PASS [   0.003s] (281/678) vo-types non_empty_vec::tests::non_empty_vec_accepts_non_empty_when_constructed
+        PASS [   0.004s] (282/678) vo-types integer_types::tests::timestamp_ms_display_round_trips_through_parse_when_valid
+        PASS [   0.003s] (283/678) vo-types non_empty_vec::tests::non_empty_vec_rest_returns_empty_slice_when_singleton
+        PASS [   0.007s] (284/678) vo-types integer_types::tests::timeout_ms_new_unchecked_constructs_when_value_is_nonzero
+        PASS [   0.004s] (285/678) vo-types integer_types::tests::timestamp_ms_now_returns_parseable_value_when_system_clock_available
+        PASS [   0.004s] (286/678) vo-types integer_types::tests::try_from_u64_duration_ms_nonzero
+        PASS [   0.003s] (287/678) vo-types non_empty_vec::tests::non_empty_vec_rejects_empty_when_constructed
+        PASS [   0.004s] (288/678) vo-types integer_types::tests::timestamp_ms_rejects_negative_with_not_an_integer_when_input_starts_with_minus
+        PASS [   0.004s] (289/678) vo-types non_empty_vec::tests::non_empty_vec_new_unchecked_constructs_when_vec_is_non_empty
+        PASS [   0.004s] (290/678) vo-types integer_types::tests::timestamp_ms_to_system_time_returns_correct_time_when_value_is_positive
+        PASS [   0.003s] (291/678) vo-types non_empty_vec::tests::non_empty_vec_returns_full_slice_when_as_slice_called
+        PASS [   0.004s] (292/678) vo-types integer_types::tests::timestamp_ms_to_system_time_returns_unix_epoch_when_value_is_zero
+        PASS [   0.003s] (293/678) vo-types non_empty_vec::tests::non_empty_vec_returns_first_element_when_first_called
+        PASS [   0.003s] (294/678) vo-types non_empty_vec::tests::non_empty_vec_returns_inner_vec_when_into_vec_called
+        PASS [   0.004s] (295/678) vo-types non_empty_vec::tests::non_empty_vec_returns_element_count_when_len_called
+        PASS [   0.005s] (296/678) vo-types non_empty_vec::tests::non_empty_vec_deserialization_rejects_empty_json_array_when_input_is_empty
+        PASS [   0.005s] (297/678) vo-types integer_types::tests::timestamp_ms_display_equals_decimal
+        PASS [   0.005s] (298/678) vo-types non_empty_vec::tests::non_empty_vec_new_unchecked_panics_when_vec_is_empty
+        PASS [   0.050s] (299/678) vo-types adversarial_tests::proptests::workflow_name_round_trip
+        PASS [   0.003s] (300/678) vo-types non_empty_vec::tests::non_empty_vec_yields_all_elements_in_order_when_iterated
+        PASS [   0.004s] (301/678) vo-types non_empty_vec::tests::non_empty_vec_returns_rest_excluding_first_when_rest_called
+        PASS [   0.002s] (302/678) vo-types red_queen_tests::rq_backoff_ms_0_accepted
+        PASS [   0.003s] (303/678) vo-types red_queen_tests::rq_array_instead_of_object_rejected
+        PASS [   0.007s] (304/678) vo-types integer_types::tests::timestamp_ms_accepts_zero_when_input_is_zero
+        PASS [   0.007s] (305/678) vo-types integer_types::tests::try_from_u64_sequence_number_zero
+        PASS [   0.004s] (306/678) vo-types red_queen_tests::rq_backoff_ms_u64_max_accepted
+        PASS [   0.004s] (307/678) vo-types red_queen_tests::rq_boolean_edge_condition_rejected
+        PASS [   0.004s] (308/678) vo-types red_queen_tests::rq_cycle_in_disconnected_component_detected
+        PASS [   0.004s] (309/678) vo-types red_queen_tests::rq_edge_serde_round_trip_all_conditions
+        PASS [   0.006s] (310/678) vo-types non_empty_vec::tests::non_empty_vec_yields_single_element_when_singleton_iterated
+        PASS [   0.004s] (311/678) vo-types red_queen_tests::rq_direct_retry_policy_construction_allows_invalid_state
+        PASS [   0.004s] (312/678) vo-types red_queen_tests::rq_empty_bytes_rejected
+        PASS [   0.002s] (313/678) vo-types red_queen_tests::rq_invalid_edge_condition_string_rejected
+        PASS [   0.005s] (314/678) vo-types red_queen_tests::rq_diamond_with_cycle_in_branch_detected
+        PASS [   0.003s] (315/678) vo-types red_queen_tests::rq_error_priority_retry_policy_before_unknown_node
+        PASS [   0.004s] (316/678) vo-types red_queen_tests::rq_edge_condition_is_copy
+        PASS [   0.003s] (317/678) vo-types red_queen_tests::rq_infinity_multiplier_passes_through_retry_policy_new
+        PASS [   0.003s] (318/678) vo-types red_queen_tests::rq_infinity_multiplier_in_json_rejected_by_serde
+        PASS [   0.003s] (319/678) vo-types red_queen_tests::rq_extra_json_fields_ignored
+        PASS [   0.004s] (320/678) vo-types red_queen_tests::rq_error_priority_empty_before_invalid_retry
+        PASS [   0.006s] (321/678) vo-types red_queen_tests::rq_dag_node_is_clone_not_copy
+        PASS [   0.007s] (322/678) vo-types red_queen_tests::proptests::rq_retry_policy_rejects_all_multipliers_below_1
+        PASS [   0.004s] (323/678) vo-types red_queen_tests::rq_isolated_node_with_cycle_elsewhere_detected
+        PASS [   0.003s] (324/678) vo-types red_queen_tests::rq_large_5_node_cycle_detected
+        PASS [   0.011s] (325/678) vo-types integer_types::tests::timestamp_ms_now_is_approximately_current_time_when_called
+        PASS [   0.008s] (326/678) vo-types red_queen_tests::proptests::rq_retry_policy_serde_round_trip
+        PASS [   0.005s] (327/678) vo-types red_queen_tests::rq_error_priority_unknown_before_cycle
+        PASS [   0.008s] (328/678) vo-types red_queen_tests::proptests::rq_retry_policy_accepts_all_multipliers_ge_1
+        PASS [   0.003s] (329/678) vo-types red_queen_tests::rq_neg_infinity_multiplier_in_json_rejected_by_serde
+        PASS [   0.003s] (330/678) vo-types red_queen_tests::rq_max_attempts_u8_max_accepted
+        PASS [   0.003s] (331/678) vo-types red_queen_tests::rq_negative_zero_multiplier_rejected
+        PASS [   0.003s] (332/678) vo-types red_queen_tests::rq_multiplier_exactly_1_accepted
+        PASS [   0.003s] (333/678) vo-types red_queen_tests::rq_max_attempts_0_rejected
+        PASS [   0.003s] (334/678) vo-types red_queen_tests::rq_next_nodes_always_edge_matches_both_outcomes
+        PASS [   0.003s] (335/678) vo-types red_queen_tests::rq_nan_multiplier_rejected_by_retry_policy_new
+        PASS [   0.003s] (336/678) vo-types red_queen_tests::rq_next_nodes_mixed_conditions_three_targets
+        PASS [   0.003s] (337/678) vo-types red_queen_tests::rq_neg_infinity_multiplier_rejected
+        PASS [   0.003s] (338/678) vo-types red_queen_tests::rq_max_attempts_1_accepted
+        PASS [   0.003s] (339/678) vo-types red_queen_tests::rq_next_nodes_on_failure_only_returns_nothing_on_success
+        PASS [   0.009s] (340/678) vo-types red_queen_tests::proptests::rq_next_nodes_result_nodes_are_from_def
+        PASS [   0.010s] (341/678) vo-types red_queen_tests::proptests::rq_non_empty_vec_serde_round_trip
+        PASS [   0.005s] (342/678) vo-types red_queen_tests::rq_nan_multiplier_in_json_rejected_by_serde
+        PASS [   0.003s] (343/678) vo-types red_queen_tests::rq_next_nodes_terminal_node_empty_for_both_outcomes
+        PASS [   0.010s] (344/678) vo-types red_queen_tests::proptests::rq_get_node_none_for_missing
+        PASS [   0.004s] (345/678) vo-types red_queen_tests::rq_next_nodes_nonexistent_current_returns_empty
+        PASS [   0.002s] (346/678) vo-types red_queen_tests::rq_retry_policy_is_copy
+        PASS [   0.003s] (347/678) vo-types red_queen_tests::rq_next_nodes_same_target_different_conditions_success
+        PASS [   0.003s] (348/678) vo-types red_queen_tests::rq_next_nodes_on_success_only_returns_nothing_on_failure
+        PASS [   0.003s] (349/678) vo-types red_queen_tests::rq_non_empty_vec_serde_round_trip_many_elements
+        PASS [   0.003s] (350/678) vo-types red_queen_tests::rq_null_retry_policy_rejected
+        PASS [   0.003s] (351/678) vo-types red_queen_tests::rq_retry_policy_serde_round_trip_1_0_multiplier
+        PASS [   0.003s] (352/678) vo-types red_queen_tests::rq_null_workflow_name_rejected
+        PASS [   0.005s] (353/678) vo-types red_queen_tests::rq_next_nodes_duplicate_edges_returns_duplicates
+        PASS [   0.005s] (354/678) vo-types red_queen_tests::rq_next_nodes_nonexistent_current_failure_returns_empty
+        PASS [   0.003s] (355/678) vo-types red_queen_tests::rq_parse_error_deterministic
+        PASS [   0.003s] (356/678) vo-types red_queen_tests::rq_serde_round_trip_boundary_values
+        PASS [   0.003s] (357/678) vo-types red_queen_tests::rq_step_outcome_serde_round_trip
+        PASS [   0.003s] (358/678) vo-types red_queen_tests::rq_string_nan_for_multiplier_rejected
+        PASS [   0.003s] (359/678) vo-types red_queen_tests::rq_string_types_are_clone
+        PASS [   0.004s] (360/678) vo-types red_queen_tests::rq_retry_policy_partial_eq_with_nan
+        PASS [   0.004s] (361/678) vo-types red_queen_tests::rq_parse_deterministic_complex_workflow
+        PASS [   0.003s] (362/678) vo-types red_queen_tests::rq_unknown_source_error_message_is_misleading
+        PASS [   0.004s] (363/678) vo-types red_queen_tests::rq_two_separate_cycles_both_detected
+        PASS [   0.003s] (364/678) vo-types red_queen_tests::rq_wrong_type_edge_condition_rejected
+        PASS [   0.003s] (365/678) vo-types red_queen_tests::rq_workflow_serde_produces_re_parsable_json
+        PASS [   0.003s] (366/678) vo-types red_queen_tests::rq_very_large_multiplier_accepted
+        PASS [   0.003s] (367/678) vo-types red_queen_tests::rq_very_small_positive_multiplier_rejected
+        PASS [   0.005s] (368/678) vo-types red_queen_tests::rq_self_loop_on_non_first_node_detected
+        PASS [   0.003s] (369/678) vo-types serde_tests::serde_deserialize_rejects_empty_binary_hash
+        PASS [   0.003s] (370/678) vo-types red_queen_tests::rq_wrong_type_max_attempts_rejected
+        PASS [   0.003s] (371/678) vo-types serde_tests::serde_deserialize_rejects_empty_node_name
+        PASS [   0.003s] (372/678) vo-types red_queen_tests::rq_wrong_type_workflow_name_rejected
+        PASS [   0.003s] (373/678) vo-types serde_tests::serde_deserialize_rejects_empty_instance_id
+        PASS [   0.003s] (374/678) vo-types red_queen_tests::rq_wrong_type_node_name_rejected
+        PASS [   0.003s] (375/678) vo-types serde_tests::serde_deserialize_rejects_empty_timer_id
+        PASS [   0.003s] (376/678) vo-types serde_tests::serde_deserialize_rejects_zero_attempt_number
+        PASS [   0.005s] (377/678) vo-types red_queen_tests::rq_unknown_target_error_message_is_correct
+        PASS [   0.003s] (378/678) vo-types serde_tests::serde_deserialize_rejects_zero_sequence_number
+        PASS [   0.003s] (379/678) vo-types serde_tests::serde_deserialize_rejects_zero_max_attempts
+        PASS [   0.003s] (380/678) vo-types serde_tests::serde_deserialize_rejects_zero_timeout_ms
+        PASS [   0.003s] (381/678) vo-types serde_tests::serde_deserialize_rejects_zero_event_version
+        PASS [   0.015s] (382/678) vo-types non_empty_vec::tests::proptests::non_empty_vec_serde_round_trip_proptest
+        PASS [   0.004s] (383/678) vo-types serde_tests::serde_deserialize_valid_attempt_number
+        PASS [   0.005s] (384/678) vo-types serde_tests::serde_deserialize_rejects_empty_workflow_name
+        PASS [   0.008s] (385/678) vo-types red_queen_tests::rq_step_outcome_is_copy
+        PASS [   0.004s] (386/678) vo-types serde_tests::serde_deserialize_valid_binary_hash
+        PASS [   0.006s] (387/678) vo-types serde_tests::serde_deserialize_rejects_empty_idempotency_key
+        PASS [   0.003s] (388/678) vo-types serde_tests::serde_deserialize_valid_instance_id
+        PASS [   0.003s] (389/678) vo-types serde_tests::serde_deserialize_valid_sequence_number
+        PASS [   0.003s] (390/678) vo-types serde_tests::serde_deserialize_valid_fire_at_ms
+        PASS [   0.003s] (391/678) vo-types serde_tests::serde_deserialize_valid_timer_id
+        PASS [   0.004s] (392/678) vo-types serde_tests::serde_deserialize_valid_event_version
+        PASS [   0.003s] (393/678) vo-types serde_tests::serde_deserialize_valid_idempotency_key
+        PASS [   0.004s] (394/678) vo-types serde_tests::serde_deserialize_valid_duration_ms
+        PASS [   0.003s] (395/678) vo-types serde_tests::serde_deserialize_valid_timeout_ms
+        PASS [   0.003s] (396/678) vo-types serde_tests::serde_deserialize_valid_node_name
+        PASS [   0.004s] (397/678) vo-types serde_tests::serde_deserialize_valid_max_attempts
+        PASS [   0.003s] (398/678) vo-types serde_tests::serde_rejects_empty_string_for_sequence_number
+        PASS [   0.003s] (399/678) vo-types serde_tests::serde_rejects_boolean_for_sequence_number
+        PASS [   0.003s] (400/678) vo-types serde_tests::serde_rejects_malformed_json_instance_id
+        PASS [   0.003s] (401/678) vo-types serde_tests::serde_rejects_float_for_timeout_ms
+        PASS [   0.017s] (402/678) vo-types red_queen_tests::proptests::rq_parse_never_panics
+        PASS [   0.004s] (403/678) vo-types serde_tests::serde_integer_type_rejects_string
+        PASS [   0.005s] (404/678) vo-types serde_tests::serde_rejects_malformed_json_sequence_number
+        PASS [   0.003s] (405/678) vo-types serde_tests::serde_rejects_string_for_duration_ms
+        PASS [   0.005s] (406/678) vo-types serde_tests::serde_deserialize_valid_timestamp_ms
+        PASS [   0.005s] (407/678) vo-types serde_tests::serde_json_u64_max_for_sequence_number
+        PASS [   0.003s] (408/678) vo-types serde_tests::serde_rejects_string_for_timestamp_ms
+        PASS [   0.005s] (409/678) vo-types serde_tests::serde_rejects_array_for_workflow_name
+        PASS [   0.003s] (410/678) vo-types serde_tests::serde_rejects_negative_for_sequence_number
+        PASS [   0.003s] (411/678) vo-types serde_tests::serde_rejects_string_for_timeout_ms
+        PASS [   0.005s] (412/678) vo-types serde_tests::serde_rejects_array_for_sequence_number
+        PASS [   0.003s] (413/678) vo-types serde_tests::serde_rejects_null_for_sequence_number
+        PASS [   0.003s] (414/678) vo-types serde_tests::serde_rejects_string_for_fire_at_ms
+        PASS [   0.003s] (415/678) vo-types serde_tests::serde_round_trip_attempt_number
+        PASS [   0.004s] (416/678) vo-types serde_tests::serde_rejects_null_for_instance_id
+        PASS [   0.003s] (417/678) vo-types serde_tests::serde_round_trip_duration_ms
+        PASS [   0.003s] (418/678) vo-types serde_tests::serde_round_trip_binary_hash
+        PASS [   0.004s] (419/678) vo-types serde_tests::serde_rejects_null_for_duration_ms
+        PASS [   0.006s] (420/678) vo-types serde_tests::serde_json_zero_for_duration_ms
+        PASS [   0.004s] (421/678) vo-types serde_tests::serde_rejects_object_for_instance_id
+        PASS [   0.003s] (422/678) vo-types serde_tests::serde_round_trip_fire_at_ms
+        PASS [   0.006s] (423/678) vo-types serde_tests::serde_deserialize_valid_workflow_name
+        PASS [   0.004s] (424/678) vo-types serde_tests::serde_rejects_string_for_max_attempts
+        PASS [   0.004s] (425/678) vo-types serde_tests::serde_rejects_string_for_event_version
+        PASS [   0.004s] (426/678) vo-types serde_tests::serde_rejects_string_for_attempt_number
+        PASS [   0.003s] (427/678) vo-types serde_tests::serde_round_trip_event_version
+        PASS [   0.003s] (428/678) vo-types serde_tests::serde_round_trip_instance_id
+        PASS [   0.003s] (429/678) vo-types serde_tests::serde_round_trip_node_name
+        PASS [   0.003s] (430/678) vo-types serde_tests::serde_round_trip_max_attempts
+        PASS [   0.003s] (431/678) vo-types serde_tests::serde_round_trip_timer_id
+        PASS [   0.003s] (432/678) vo-types serde_tests::serde_serialize_idempotency_key_matches_display
+        PASS [   0.003s] (433/678) vo-types serde_tests::serde_round_trip_workflow_name
+        PASS [   0.004s] (434/678) vo-types serde_tests::serde_round_trip_idempotency_key
+        PASS [   0.003s] (435/678) vo-types serde_tests::serde_round_trip_timeout_ms
+        PASS [   0.003s] (436/678) vo-types serde_tests::serde_round_trip_sequence_number
+        PASS [   0.003s] (437/678) vo-types serde_tests::serde_serialize_max_attempts_matches_display
+        PASS [   0.003s] (438/678) vo-types serde_tests::serde_round_trip_timestamp_ms
+        PASS [   0.003s] (439/678) vo-types serde_tests::serde_serialize_node_name_matches_display
+        PASS [   0.003s] (440/678) vo-types serde_tests::serde_serialize_instance_id_matches_display
+        PASS [   0.003s] (441/678) vo-types serde_tests::serde_serialize_binary_hash_matches_display
+        PASS [   0.003s] (442/678) vo-types serde_tests::serde_serialize_sequence_number_matches_display
+        PASS [   0.003s] (443/678) vo-types serde_tests::serde_string_type_rejects_number_for_idempotency_key
+        PASS [   0.004s] (444/678) vo-types serde_tests::serde_serialize_attempt_number_matches_display
+        PASS [   0.003s] (445/678) vo-types serde_tests::serde_serialize_timer_id_matches_display
+        PASS [   0.003s] (446/678) vo-types serde_tests::serde_string_type_rejects_number_for_binary_hash
+        PASS [   0.003s] (447/678) vo-types serde_tests::serde_string_type_rejects_number_for_workflow_name
+        PASS [   0.004s] (448/678) vo-types serde_tests::serde_serialize_event_version_matches_display
+        PASS [   0.003s] (449/678) vo-types serde_tests::serde_serialize_timeout_ms_matches_display
+        PASS [   0.003s] (450/678) vo-types serde_tests::serde_serialize_timestamp_ms_matches_display
+        PASS [   0.004s] (451/678) vo-types serde_tests::serde_serialize_duration_ms_matches_display
+        PASS [   0.004s] (452/678) vo-types serde_tests::serde_serialize_fire_at_ms_matches_display
+        PASS [   0.003s] (453/678) vo-types string_types::tests::binary_hash_accepts_100_char_hex_when_within_valid_range
+        PASS [   0.004s] (454/678) vo-types serde_tests::serde_string_type_rejects_number_for_timer_id
+        PASS [   0.004s] (455/678) vo-types serde_tests::serde_string_type_rejects_number_for_node_name
+        PASS [   0.077s] (456/678) vo-types adversarial_tests::proptests::binary_hash_round_trip
+        PASS [   0.002s] (457/678) vo-types string_types::tests::binary_hash_rejects_6_chars_with_invalid_format_when_below_minimum
+        PASS [   0.003s] (458/678) vo-types string_types::tests::binary_hash_display_equals_inner_string
+        PASS [   0.004s] (459/678) vo-types string_types::tests::binary_hash_accepts_8_char_hex_when_at_minimum_boundary
+        PASS [   0.003s] (460/678) vo-types string_types::tests::binary_hash_accepts_all_zeros_when_at_minimum_boundary
+        PASS [   0.002s] (461/678) vo-types string_types::tests::binary_hash_rejects_too_short_with_invalid_format_when_length_is_less_than_8
+        PASS [   0.002s] (462/678) vo-types string_types::tests::idempotency_key_accepts_non_empty_string_when_within_length_limit
+        PASS [   0.003s] (463/678) vo-types string_types::tests::binary_hash_rejects_mixed_case_with_invalid_chars_when_input_has_uppercase
+        PASS [   0.006s] (464/678) vo-types serde_tests::serde_serialize_workflow_name_matches_display
+        PASS [   0.003s] (465/678) vo-types string_types::tests::binary_hash_rejects_empty_with_empty_error_when_input_is_empty
+        PASS [   0.004s] (466/678) vo-types string_types::tests::binary_hash_accepts_valid_lowercase_hex_when_input_is_wellformed
+        PASS [   0.003s] (467/678) vo-types string_types::tests::binary_hash_rejects_trailing_whitespace_with_invalid_chars_when_input_has_space_suffix
+        PASS [   0.004s] (468/678) vo-types string_types::tests::binary_hash_display_round_trips_through_parse_when_valid
+        PASS [   0.007s] (469/678) vo-types serde_tests::serde_string_type_rejects_unquoted_number
+        PASS [   0.003s] (470/678) vo-types string_types::tests::idempotency_key_display_equals_inner_string
+        PASS [   0.004s] (471/678) vo-types string_types::tests::binary_hash_rejects_leading_whitespace_with_invalid_chars_when_input_has_space_prefix
+        PASS [   0.003s] (472/678) vo-types string_types::tests::idempotency_key_accepts_trailing_whitespace_when_opaque_type_preserves_input
+        PASS [   0.004s] (473/678) vo-types string_types::tests::idempotency_key_accepts_any_non_empty_chars_when_opaque_string
+        PASS [   0.003s] (474/678) vo-types string_types::tests::idempotency_key_accepts_unicode_when_input_has_non_ascii_chars
+        PASS [   0.004s] (475/678) vo-types string_types::tests::idempotency_key_accepts_exactly_1024_chars_when_at_boundary
+        PASS [   0.004s] (476/678) vo-types string_types::tests::binary_hash_rejects_odd_length_with_invalid_format_when_length_is_odd
+        PASS [   0.004s] (477/678) vo-types string_types::tests::binary_hash_rejects_uppercase_hex_with_invalid_chars_when_input_has_uppercase
+        PASS [   0.004s] (478/678) vo-types string_types::tests::idempotency_key_rejects_exceeds_max_length_when_input_is_1025_chars
+        PASS [   0.005s] (479/678) vo-types string_types::tests::idempotency_key_accepts_single_char_when_input_is_one_character
+        PASS [   0.005s] (480/678) vo-types string_types::tests::binary_hash_rejects_non_hex_with_invalid_chars_when_input_has_non_hex
+        PASS [   0.005s] (481/678) vo-types string_types::tests::idempotency_key_display_round_trips_through_parse_when_valid
+        PASS [   0.003s] (482/678) vo-types string_types::tests::instance_id_rejects_empty_with_empty_error_when_input_is_empty
+        PASS [   0.003s] (483/678) vo-types string_types::tests::instance_id_display_round_trips_through_parse_when_valid
+        PASS [   0.003s] (484/678) vo-types string_types::tests::instance_id_rejects_invalid_chars_with_invalid_format_when_input_has_non_crockford_chars
+        PASS [   0.003s] (485/678) vo-types string_types::tests::instance_id_rejects_leading_whitespace_with_invalid_format_when_input_has_space_prefix
+        PASS [   0.029s] (486/678) vo-types red_queen_tests::proptests::rq_workflow_parse_round_trip_identity
+        PASS [   0.005s] (487/678) vo-types string_types::tests::idempotency_key_rejects_empty_with_empty_error_when_input_is_empty
+        PASS [   0.006s] (488/678) vo-types string_types::tests::instance_id_accepts_valid_ulid_when_input_is_wellformed
+        PASS [   0.004s] (489/678) vo-types string_types::tests::instance_id_from_into_string
+        PASS [   0.004s] (490/678) vo-types string_types::tests::instance_id_rejects_trailing_whitespace_with_invalid_format_when_input_has_space_suffix
+        PASS [   0.003s] (491/678) vo-types string_types::tests::instance_id_try_from_string_invalid
+        PASS [   0.004s] (492/678) vo-types string_types::tests::instance_id_rejects_long_input_with_invalid_format_when_input_exceeds_26_chars
+        PASS [   0.004s] (493/678) vo-types string_types::tests::instance_id_rejects_wrong_length_with_invalid_format_when_input_is_not_26_chars
+        PASS [   0.004s] (494/678) vo-types string_types::tests::instance_id_rejects_malformed_ulid_with_invalid_format_when_ulid_validation_fails
+        PASS [   0.003s] (495/678) vo-types string_types::tests::node_name_accepts_valid_with_underscore_when_input_contains_underscore
+        PASS [   0.003s] (496/678) vo-types string_types::tests::node_name_accepts_valid_with_digits_when_input_contains_digits
+        PASS [   0.004s] (497/678) vo-types string_types::tests::node_name_accepts_single_char_when_input_is_one_valid_character
+        PASS [   0.003s] (498/678) vo-types string_types::tests::node_name_display_equals_inner_string
+        PASS [   0.003s] (499/678) vo-types string_types::tests::node_name_display_round_trips_through_parse_when_valid
+        PASS [   0.003s] (500/678) vo-types string_types::tests::node_name_rejects_exceeds_max_length_when_input_is_129_chars
+        PASS [   0.004s] (501/678) vo-types string_types::tests::node_name_accepts_exactly_128_chars_when_at_boundary
+        PASS [   0.003s] (502/678) vo-types string_types::tests::node_name_rejects_hyphen_only_with_boundary_violation_when_input_is_single_hyphen
+        PASS [   0.004s] (503/678) vo-types string_types::tests::node_name_accepts_valid_with_hyphen_when_input_contains_hyphen
+        PASS [   0.004s] (504/678) vo-types string_types::tests::node_name_rejects_empty_with_empty_error_when_input_is_empty
+        PASS [   0.003s] (505/678) vo-types string_types::tests::node_name_rejects_invalid_chars_when_input_contains_space
+        PASS [   0.003s] (506/678) vo-types string_types::tests::node_name_rejects_leading_underscore_with_boundary_violation_when_starts_with_underscore
+        PASS [   0.004s] (507/678) vo-types string_types::tests::node_name_accepts_valid_identifier_when_chars_match_pattern
+        PASS [   0.003s] (508/678) vo-types string_types::tests::node_name_rejects_null_byte_with_invalid_chars_when_input_contains_null
+        PASS [   0.003s] (509/678) vo-types string_types::tests::node_name_rejects_underscore_only_with_boundary_violation_when_input_is_single_underscore
+        PASS [   0.003s] (510/678) vo-types string_types::tests::node_name_rejects_leading_hyphen_with_boundary_violation_when_starts_with_hyphen
+        PASS [   0.003s] (511/678) vo-types string_types::tests::node_name_rejects_leading_whitespace_with_invalid_chars_when_input_starts_with_space
+        PASS [   0.007s] (512/678) vo-types string_types::tests::instance_id_display_equals_inner_string
+        PASS [   0.003s] (513/678) vo-types string_types::tests::node_name_rejects_trailing_whitespace_with_invalid_chars_when_input_ends_with_space
+        PASS [   0.003s] (514/678) vo-types string_types::tests::node_name_rejects_trailing_hyphen_with_boundary_violation_when_ends_with_hyphen
+        PASS [   0.002s] (515/678) vo-types string_types::tests::serde_round_trip_idempotency_key_inline
+        PASS [   0.003s] (516/678) vo-types string_types::tests::timer_id_accepts_trailing_whitespace_when_opaque_type_preserves_input
+        PASS [   0.004s] (517/678) vo-types string_types::tests::serde_round_trip_timer_id_inline
+        PASS [   0.003s] (518/678) vo-types string_types::tests::timer_id_rejects_empty_with_empty_error_when_input_is_empty
+        PASS [   0.004s] (519/678) vo-types string_types::tests::timer_id_accepts_single_char_when_input_is_one_character
+        PASS [   0.004s] (520/678) vo-types string_types::tests::timer_id_accepts_exactly_256_chars_when_at_boundary
+        PASS [   0.006s] (521/678) vo-types string_types::tests::node_name_rejects_trailing_underscore_with_boundary_violation_when_ends_with_underscore
+        PASS [   0.004s] (522/678) vo-types string_types::tests::serde_round_trip_workflow_name_inline
+        PASS [   0.004s] (523/678) vo-types string_types::tests::serde_round_trip_binary_hash_inline
+        PASS [   0.004s] (524/678) vo-types string_types::tests::serde_round_trip_node_name_inline
+        PASS [   0.003s] (525/678) vo-types string_types::tests::timer_id_display_round_trips_through_parse_when_valid
+        PASS [   0.003s] (526/678) vo-types string_types::tests::workflow_name_accepts_single_char_when_input_is_one_valid_character
+        PASS [   0.008s] (527/678) vo-types string_types::tests::instance_id_try_from_string_valid
+        PASS [   0.004s] (528/678) vo-types string_types::tests::timer_id_accepts_any_non_empty_chars_when_opaque_string
+        PASS [   0.035s] (529/678) vo-types red_queen_tests::proptests::rq_edge_serde_round_trip
+        PASS [   0.004s] (530/678) vo-types string_types::tests::timer_id_accepts_non_empty_string_when_within_length_limit
+        PASS [   0.004s] (531/678) vo-types string_types::tests::serde_round_trip_instance_id_inline
+        PASS [   0.003s] (532/678) vo-types string_types::tests::workflow_name_accepts_valid_identifier_when_chars_match_pattern
+        PASS [   0.004s] (533/678) vo-types string_types::tests::timer_id_display_equals_inner_string
+        PASS [   0.003s] (534/678) vo-types string_types::tests::workflow_name_accepts_valid_with_digits_when_input_contains_digits
+        PASS [   0.005s] (535/678) vo-types string_types::tests::timer_id_accepts_unicode_when_input_has_non_ascii_chars
+        PASS [   0.006s] (536/678) vo-types string_types::tests::workflow_name_accepts_exactly_128_chars_when_at_boundary
+        PASS [   0.003s] (537/678) vo-types string_types::tests::workflow_name_accepts_valid_with_hyphen_when_input_contains_hyphen
+        PASS [   0.005s] (538/678) vo-types string_types::tests::timer_id_rejects_exceeds_max_length_when_input_is_257_chars
+        PASS [   0.008s] (539/678) vo-types string_types::tests::proptests::binary_hash_round_trip_proptest
+        PASS [   0.003s] (540/678) vo-types string_types::tests::workflow_name_display_round_trips_through_parse_when_valid
+        PASS [   0.003s] (541/678) vo-types string_types::tests::workflow_name_accepts_valid_with_underscore_when_input_contains_underscore
+        PASS [   0.003s] (542/678) vo-types string_types::tests::workflow_name_rejects_trailing_underscore_with_boundary_violation_when_ends_with_underscore
+        PASS [   0.003s] (543/678) vo-types string_types::tests::workflow_name_rejects_null_byte_with_invalid_chars_when_input_contains_null
+        PASS [   0.003s] (544/678) vo-types string_types::tests::workflow_name_rejects_empty_with_empty_error_when_input_is_empty
+        PASS [   0.003s] (545/678) vo-types string_types::tests::workflow_name_rejects_exceeds_max_length_when_input_is_129_chars
+        PASS [   0.003s] (546/678) vo-types string_types::tests::workflow_name_rejects_whitespace_only_with_invalid_chars_when_input_is_single_space
+        PASS [   0.004s] (547/678) vo-types string_types::tests::workflow_name_rejects_leading_whitespace_with_invalid_chars_when_input_starts_with_space
+        PASS [   0.004s] (548/678) vo-types string_types::tests::workflow_name_rejects_trailing_whitespace_with_invalid_chars_when_input_ends_with_space
+        PASS [   0.003s] (549/678) vo-types types::tests::check_boundaries_rejects_leading_underscore
+        PASS [   0.004s] (550/678) vo-types string_types::tests::workflow_name_rejects_invalid_chars_when_input_contains_space
+        PASS [   0.004s] (551/678) vo-types string_types::tests::workflow_name_display_equals_inner_string
+        PASS [   0.004s] (552/678) vo-types string_types::tests::workflow_name_rejects_unicode_combining_char_with_invalid_chars_when_input_has_composing_mark
+        PASS [   0.004s] (553/678) vo-types string_types::tests::workflow_name_rejects_trailing_hyphen_with_boundary_violation_when_ends_with_hyphen
+        PASS [   0.004s] (554/678) vo-types string_types::tests::workflow_name_rejects_underscore_only_with_boundary_violation_when_input_is_single_underscore
+        PASS [   0.004s] (555/678) vo-types string_types::tests::workflow_name_rejects_hyphen_only_with_boundary_violation_when_input_is_single_hyphen
+        PASS [   0.004s] (556/678) vo-types types::tests::check_boundaries_rejects_leading_hyphen
+        PASS [   0.004s] (557/678) vo-types string_types::tests::workflow_name_rejects_leading_underscore_with_boundary_violation_when_starts_with_underscore
+        PASS [   0.004s] (558/678) vo-types string_types::tests::workflow_name_rejects_leading_hyphen_with_boundary_violation_when_starts_with_hyphen
+        PASS [   0.003s] (559/678) vo-types types::tests::check_boundaries_rejects_trailing_hyphen
+        PASS [   0.003s] (560/678) vo-types types::tests::check_boundaries_single_underscore_rejects_leading
+        PASS [   0.003s] (561/678) vo-types types::tests::check_boundaries_rejects_trailing_underscore
+        PASS [   0.003s] (562/678) vo-types types::tests::check_boundaries_single_hyphen_rejects_leading
+        PASS [   0.002s] (563/678) vo-types types::tests::extract_invalid_chars_keeps_only_invalid_chars
+        PASS [   0.002s] (564/678) vo-types types::tests::extract_invalid_chars_empty_input
+        PASS [   0.003s] (565/678) vo-types types::tests::check_boundaries_valid
+        PASS [   0.003s] (566/678) vo-types types::tests::extract_invalid_chars_returns_all_when_none_valid
+        PASS [   0.003s] (567/678) vo-types types::tests::is_identifier_char_rejects_other_chars
+        PASS [   0.003s] (568/678) vo-types types::tests::extract_invalid_chars_returns_empty_when_all_valid
+        PASS [   0.003s] (569/678) vo-types types::tests::is_identifier_char_accepts_hyphen_and_underscore
+        PASS [   0.003s] (570/678) vo-types types::tests::is_identifier_char_accepts_alphanumeric
+        PASS [   0.002s] (571/678) vo-types types::tests::is_lowercase_hex_rejects_non_hex
+        PASS [   0.002s] (572/678) vo-types types::tests::is_lowercase_hex_accepts_digits
+        PASS [   0.002s] (573/678) vo-types types::tests::parse_u64_str_rejects_empty
+        PASS [   0.003s] (574/678) vo-types types::tests::parse_u64_str_max
+        PASS [   0.003s] (575/678) vo-types types::tests::is_lowercase_hex_rejects_uppercase
+        PASS [   0.003s] (576/678) vo-types types::tests::parse_u64_str_valid_integer
+        PASS [   0.004s] (577/678) vo-types types::tests::parse_nonzero_u64_zero
+        PASS [   0.004s] (578/678) vo-types types::tests::parse_nonzero_u64_valid
+        PASS [   0.004s] (579/678) vo-types types::tests::parse_u64_str_rejects_alpha
+        PASS [   0.004s] (580/678) vo-types types::tests::parse_u64_str_leading_zeros
+        PASS [   0.004s] (581/678) vo-types types::tests::parse_nonzero_u64_non_integer
+        PASS [   0.004s] (582/678) vo-types types::tests::parse_u64_str_rejects_float
+        PASS [   0.003s] (583/678) vo-types types::tests::parse_u64_str_rejects_overflow
+        PASS [   0.005s] (584/678) vo-types types::tests::is_lowercase_hex_accepts_lowercase_letters
+        PASS [   0.003s] (585/678) vo-types types::tests::require_nonzero_max
+        PASS [   0.003s] (586/678) vo-types workflow_tests::edge_condition_has_exactly_three_variants_when_checked
+        PASS [   0.003s] (587/678) vo-types types::tests::parse_u64_str_zero
+        PASS [   0.003s] (588/678) vo-types workflow_tests::edge_holds_source_target_and_condition_when_constructed
+        PASS [   0.003s] (589/678) vo-types types::tests::require_nonzero_valid
+        PASS [   0.003s] (590/678) vo-types workflow_tests::edge_condition_serde_round_trips_for_all_variants
+        PASS [   0.003s] (591/678) vo-types workflow_tests::dag_node_has_no_binary_path_field_when_serialized
+        PASS [   0.003s] (592/678) vo-types workflow_tests::get_node_returns_none_when_node_name_not_found
+        PASS [   0.003s] (593/678) vo-types types::tests::require_nonzero_zero
+        PASS [   0.003s] (594/678) vo-types workflow_tests::next_nodes_returns_empty_when_node_has_no_outgoing_edges
+        PASS [   0.003s] (595/678) vo-types workflow_tests::next_nodes_returns_correct_nodes_when_mixed_edge_conditions
+        PASS [   0.003s] (596/678) vo-types workflow_tests::edge_serde_round_trips_for_valid_edge
+        PASS [   0.003s] (597/678) vo-types workflow_tests::next_nodes_returns_empty_when_on_failure_edge_and_success_outcome
+        PASS [   0.003s] (598/678) vo-types workflow_tests::next_nodes_with_on_success_edge_routes_correctly_on_success_outcome
+        PASS [   0.003s] (599/678) vo-types workflow_tests::next_nodes_returns_empty_when_on_success_edge_and_failure_outcome
+        PASS [   0.005s] (600/678) vo-types workflow_tests::get_node_returns_some_when_node_name_exists
+        PASS [   0.004s] (601/678) vo-types workflow_tests::next_nodes_returns_successor_when_always_edge_and_failure_outcome
+        PASS [   0.003s] (602/678) vo-types workflow_tests::next_nodes_returns_successor_when_always_edge_matches
+        PASS [   0.004s] (603/678) vo-types workflow_tests::next_nodes_returns_multiple_successors_when_multiple_always_edges
+        PASS [   0.003s] (604/678) vo-types workflow_tests::next_nodes_with_on_failure_edge_routes_correctly_on_failure_outcome
+        PASS [   0.004s] (605/678) vo-types workflow_tests::next_nodes_returns_next_hop_when_linear_chain_traversed
+        PASS [   0.003s] (606/678) vo-types workflow_tests::parse_diamond_workflow_succeeds_and_next_nodes_a_returns_b_and_c
+        PASS [   0.007s] (607/678) vo-types types::tests::parse_u64_str_rejects_negative
+        PASS [   0.004s] (608/678) vo-types workflow_tests::parse_accepts_single_node_workflow_when_no_edges
+        PASS [   0.003s] (609/678) vo-types workflow_tests::parse_cyclic_workflow_a_b_a_returns_cycle_detected
+        PASS [   0.003s] (610/678) vo-types workflow_tests::parse_rejects_dangling_edge_with_unknown_node_when_source_missing
+        PASS [   0.003s] (611/678) vo-types workflow_tests::parse_empty_nodes_returns_empty_workflow
+        PASS [   0.003s] (612/678) vo-types workflow_tests::parse_rejects_low_multiplier_with_invalid_retry_policy_when_node_has_low_multiplier
+        PASS [   0.003s] (613/678) vo-types workflow_tests::parse_linear_3_node_workflow_a_b_c_succeeds_and_next_nodes_a_returns_b
+        PASS [   0.003s] (614/678) vo-types workflow_tests::parse_rejects_3_node_cycle_a_b_c_a_with_cycle_detected
+        PASS [   0.003s] (615/678) vo-types workflow_tests::parse_rejects_zero_max_attempts_with_invalid_retry_policy_when_node_has_zero_attempts
+        PASS [   0.004s] (616/678) vo-types workflow_tests::parse_rejects_malformed_json_with_deserialization_failed_when_bytes_invalid
+        PASS [   0.004s] (617/678) vo-types workflow_tests::parse_rejects_dangling_edge_with_unknown_node_when_target_missing
+        PASS [   0.004s] (618/678) vo-types workflow_tests::parse_rejects_missing_fields_with_deserialization_failed_when_json_incomplete
+        PASS [   0.003s] (619/678) vo-types workflow_tests::parse_returns_deserialization_failed_before_empty_workflow_when_json_malformed
+        PASS [   0.005s] (620/678) vo-types workflow_tests::parse_rejects_self_loop_with_cycle_detected_when_node_edges_to_itself
+        PASS [   0.003s] (621/678) vo-types workflow_tests::parse_returns_unknown_node_before_cycle_detected_when_both_present
+        PASS [   0.003s] (622/678) vo-types workflow_tests::parse_returns_identical_result_when_called_twice_with_same_input
+        PASS [   0.003s] (623/678) vo-types workflow_tests::retry_policy_accepts_backoff_ms_zero_when_no_delay_requested
+        PASS [   0.003s] (624/678) vo-types workflow_tests::retry_policy_accepts_max_attempts_255_at_maximum_boundary
+        PASS [   0.003s] (625/678) vo-types workflow_tests::retry_policy_accepts_multiplier_1_at_minimum_boundary
+        PASS [   0.003s] (626/678) vo-types workflow_tests::retry_policy_accepts_valid_params_when_all_constraints_satisfied
+        PASS [   0.003s] (627/678) vo-types workflow_tests::retry_policy_error_zero_attempts_displays_correct_message_when_formatted
+        PASS [   0.005s] (628/678) vo-types workflow_tests::parse_returns_empty_workflow_before_invalid_retry_policy_when_nodes_empty
+        PASS [   0.005s] (629/678) vo-types workflow_tests::parse_returns_invalid_retry_policy_before_unknown_node_when_both_present
+        PASS [   0.004s] (630/678) vo-types workflow_tests::retry_policy_error_invalid_multiplier_displays_got_value_when_formatted
+        PASS [   0.003s] (631/678) vo-types workflow_tests::retry_policy_returns_zero_attempts_when_both_zero_and_low_multiplier
+        PASS [   0.003s] (632/678) vo-types workflow_tests::retry_policy_rejects_low_multiplier_with_invalid_multiplier_error_when_below_1
+        PASS [   0.005s] (633/678) vo-types workflow_tests::retry_policy_accepts_max_attempts_1_at_minimum_boundary
+        PASS [   0.003s] (634/678) vo-types workflow_tests::step_outcome_has_exactly_two_variants_when_checked
+        PASS [   0.004s] (635/678) vo-types workflow_tests::retry_policy_serde_round_trips_for_valid_policy
+        PASS [   0.003s] (636/678) vo-types workflow_tests::step_outcome_serde_round_trips_for_both_variants
+        PASS [   0.004s] (637/678) vo-types workflow_tests::retry_policy_rejects_zero_attempts_with_zero_attempts_error_when_max_is_zero
+        PASS [   0.003s] (638/678) vo-types workflow_tests::workflow_definition_error_cycle_detected_displays_node_names_when_formatted
+        PASS [   0.023s] (639/678) vo-types string_types::tests::proptests::instance_id_round_trip_proptest
+        PASS [   0.003s] (640/678) vo-types workflow_tests::workflow_definition_error_deserialization_failed_displays_message_when_formatted
+        PASS [   0.003s] (641/678) vo-types workflow_tests::workflow_definition_error_empty_workflow_displays_message_when_formatted
+        PASS [   0.003s] (642/678) vo-types workflow_tests::workflow_definition_error_invalid_retry_policy_displays_node_and_reason_when_formatted
+        PASS [   0.003s] (643/678) vo-types workflow_tests::workflow_definition_error_unknown_node_displays_names_when_formatted
+        PASS [   0.007s] (644/678) vo-types workflow_tests::proptests::retry_policy_new_proptest_low_multiplier_always_fails
+        PASS [   0.003s] (645/678) vo-types workflow_tests::workflow_definition_json_roundtrip
+        PASS [   0.003s] (646/678) vo-types::scaffold_compliance cargo_toml_contains_allowed_dependencies_when_inspected
+        PASS [   0.003s] (647/678) vo-types::scaffold_compliance cargo_toml_dependencies_are_exact_allowed_set_when_inspected
+        PASS [   0.003s] (648/678) vo-types::scaffold_compliance cargo_toml_contains_serde_json_in_dev_dependencies_when_inspected
+        PASS [   0.002s] (649/678) vo-types::scaffold_compliance cargo_toml_excludes_serde_json_from_dependencies_when_inspected
+        PASS [   0.008s] (650/678) vo-types workflow_tests::proptests::retry_policy_serde_round_trip_proptest
+        PASS [   0.002s] (651/678) vo-types::scaffold_compliance cargo_toml_excludes_all_infra_dependencies_when_inspected
+        PASS [   0.009s] (652/678) vo-types workflow_tests::proptests::retry_policy_new_proptest_accepted_values_satisfy_invariants
+        PASS [   0.009s] (653/678) vo-types workflow_tests::proptests::retry_policy_new_proptest_zero_attempts_always_fails
+        PASS [   0.003s] (654/678) vo-types::scaffold_compliance integer_types_are_publicly_accessible_when_crate_used
+        PASS [   0.002s] (655/678) vo-types::scaffold_compliance serde_json_compiles_in_test_context_when_referenced
+        PASS [   0.003s] (656/678) vo-types::scaffold_compliance cargo_toml_uses_workspace_version_and_edition_when_inspected
+        PASS [   0.003s] (657/678) vo-types::scaffold_compliance events_rs_contains_doc_comment_when_inspected
+        PASS [   0.009s] (658/678) vo-types workflow_tests::proptests::next_nodes_always_returns_nodes_from_def_proptest
+        PASS [   0.003s] (659/678) vo-types::scaffold_compliance non_empty_vec_is_publicly_accessible_when_crate_used
+        PASS [   0.003s] (660/678) vo-types::scaffold_compliance lib_rs_declares_events_and_state_modules_when_inspected
+        PASS [   0.003s] (661/678) vo-types::scaffold_compliance state_rs_contains_doc_comment_when_inspected
+        PASS [   0.003s] (662/678) vo-types::scaffold_compliance string_types_are_publicly_accessible_when_crate_used
+        PASS [   0.010s] (663/678) vo-types workflow_tests::proptests::next_nodes_matches_edge_targets_proptest
+        PASS [   0.004s] (664/678) vo-types::scaffold_compliance parse_error_is_publicly_accessible_when_crate_used
+        PASS [   0.003s] (665/678) vo-types::scaffold_compliance workflow_types_are_publicly_accessible_when_crate_used
+        PASS [   0.042s] (666/678) vo-types string_types::tests::proptests::node_name_round_trip_proptest
+        PASS [   0.042s] (667/678) vo-types string_types::tests::proptests::serde_round_trip_timer_id_proptest
+        PASS [   0.042s] (668/678) vo-types string_types::tests::proptests::workflow_name_round_trip_proptest
+        PASS [   0.031s] (669/678) vo-types types::tests::proptests::extract_invalid_chars_proptest
+        PASS [   0.043s] (670/678) vo-types string_types::tests::proptests::timer_id_round_trip_proptest
+        PASS [   0.044s] (671/678) vo-types string_types::tests::proptests::serde_round_trip_workflow_name_proptest
+        PASS [   0.028s] (672/678) vo-types workflow_tests::proptests::workflow_definition_parse_serialize_round_trip_proptest
+        PASS [   0.151s] (673/678) vo-types adversarial_tests::proptests::idempotency_key_round_trip
+        PASS [   0.065s] (674/678) vo-types workflow_tests::proptests::edge_serde_round_trip_proptest
+        PASS [   0.127s] (675/678) vo-types string_types::tests::proptests::idempotency_key_round_trip_proptest
+        PASS [   0.108s] (676/678) vo-types::scaffold_compliance stub_files_exist_and_compile_when_workspace_checked
+        PASS [   0.112s] (677/678) vo-types::scaffold_compliance workspace_compiles_with_zero_warnings_when_cargo_check_runs
+        PASS [   0.185s] (678/678) vo-types::scaffold_compliance workspace_passes_clippy_with_zero_warnings_when_clippy_runs
 ────────────
      Summary [   0.303s] 678 tests run: 678 passed, 0 skipped

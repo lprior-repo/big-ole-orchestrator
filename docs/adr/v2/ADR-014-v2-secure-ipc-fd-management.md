@@ -20,7 +20,7 @@ We implement a strictly isolated, dual-pipe IPC architecture using `O_CLOEXEC` a
 When the Engine creates the pipes for FD3 and FD4, it must set the `O_CLOEXEC` flag. This guarantees that if the user's task binary uses `std::process::Command` to spawn a subprocess, the OS will automatically close the pipes for the subprocess, preventing inherited FD hangs.
 
 ### 3. In-Memory Secret Vault
-Secrets are never passed as environment variables. They are injected as part of the initial JSON payload sent over FD3. The `wtf-sdk` reads this payload into heap memory, zeroizes the buffer if necessary, and exposes the secrets via `ctx.secret("STRIPE_KEY")`. The secrets never touch `procfs`.
+Secrets are never passed as environment variables. They are injected as part of the initial JSON payload sent over FD3. The `vo-sdk` reads this payload into heap memory, zeroizes the buffer if necessary, and exposes the secrets via `ctx.secret("STRIPE_KEY")`. The secrets never touch `procfs`.
 
 ## Consequences
 - **Positive:** Zero secret leakage to the host OS.

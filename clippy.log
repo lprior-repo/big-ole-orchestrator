@@ -52,11 +52,11 @@
     Checking proptest v1.11.0
     Checking futures v0.3.32
     Checking tokio v1.50.0
-    Checking wtf-types v0.1.0 (/home/lewis/src/wtf-k6u/crates/wtf-types)
+    Checking vo-types v0.1.0 (/home/lewis/src/vo-k6u/crates/vo-types)
     Checking kani-verifier v0.58.0
     Checking rstest v0.18.2
 error: this manual char comparison can be written more succinctly
-  --> crates/wtf-types/tests/scaffold_compliance.rs:62:49
+  --> crates/vo-types/tests/scaffold_compliance.rs:62:49
    |
 62 |             if let Some(key_end) = trimmed.find(|c: char| c == '=' || c == '.') {
    |                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: consider using an array of `char`: `['=', '.']`
@@ -65,10 +65,10 @@ error: this manual char comparison can be written more succinctly
    = note: `-D clippy::manual-pattern-char-comparison` implied by `-D warnings`
    = help: to override `-D warnings` add `#[allow(clippy::manual_pattern_char_comparison)]`
 
-error: could not compile `wtf-types` (test "scaffold_compliance") due to 1 previous error
+error: could not compile `vo-types` (test "scaffold_compliance") due to 1 previous error
 warning: build failed, waiting for other jobs to finish...
 error: the borrowed expression implements the required traits
-   --> crates/wtf-types/src/integer_types.rs:871:41
+   --> crates/vo-types/src/integer_types.rs:871:41
     |
 871 |         let json = serde_json::to_value(&original).expect("serialize");
     |                                         ^^^^^^^^^ help: change this to: `original`
@@ -78,7 +78,7 @@ error: the borrowed expression implements the required traits
     = help: to override `-D warnings` add `#[allow(clippy::needless_borrows_for_generic_args)]`
 
 error: the borrowed expression implements the required traits
-   --> crates/wtf-types/src/integer_types.rs:879:41
+   --> crates/vo-types/src/integer_types.rs:879:41
     |
 879 |         let json = serde_json::to_value(&original).expect("serialize");
     |                                         ^^^^^^^^^ help: change this to: `original`
@@ -86,7 +86,7 @@ error: the borrowed expression implements the required traits
     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#needless_borrows_for_generic_args
 
 error: the borrowed expression implements the required traits
-   --> crates/wtf-types/src/integer_types.rs:887:41
+   --> crates/vo-types/src/integer_types.rs:887:41
     |
 887 |         let json = serde_json::to_value(&original).expect("serialize");
     |                                         ^^^^^^^^^ help: change this to: `original`
@@ -94,7 +94,7 @@ error: the borrowed expression implements the required traits
     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#needless_borrows_for_generic_args
 
 error: the borrowed expression implements the required traits
-   --> crates/wtf-types/src/integer_types.rs:895:41
+   --> crates/vo-types/src/integer_types.rs:895:41
     |
 895 |         let json = serde_json::to_value(&original).expect("serialize");
     |                                         ^^^^^^^^^ help: change this to: `original`
@@ -102,7 +102,7 @@ error: the borrowed expression implements the required traits
     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#needless_borrows_for_generic_args
 
 error: the borrowed expression implements the required traits
-   --> crates/wtf-types/src/integer_types.rs:903:41
+   --> crates/vo-types/src/integer_types.rs:903:41
     |
 903 |         let json = serde_json::to_value(&original).expect("serialize");
     |                                         ^^^^^^^^^ help: change this to: `original`
@@ -110,7 +110,7 @@ error: the borrowed expression implements the required traits
     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#needless_borrows_for_generic_args
 
 error: the borrowed expression implements the required traits
-   --> crates/wtf-types/src/integer_types.rs:911:41
+   --> crates/vo-types/src/integer_types.rs:911:41
     |
 911 |         let json = serde_json::to_value(&original).expect("serialize");
     |                                         ^^^^^^^^^ help: change this to: `original`
@@ -118,7 +118,7 @@ error: the borrowed expression implements the required traits
     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#needless_borrows_for_generic_args
 
 error: the borrowed expression implements the required traits
-   --> crates/wtf-types/src/integer_types.rs:919:41
+   --> crates/vo-types/src/integer_types.rs:919:41
     |
 919 |         let json = serde_json::to_value(&original).expect("serialize");
     |                                         ^^^^^^^^^ help: change this to: `original`
@@ -126,7 +126,7 @@ error: the borrowed expression implements the required traits
     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#needless_borrows_for_generic_args
 
 error: the borrowed expression implements the required traits
-   --> crates/wtf-types/src/integer_types.rs:927:41
+   --> crates/vo-types/src/integer_types.rs:927:41
     |
 927 |         let json = serde_json::to_value(&original).expect("serialize");
     |                                         ^^^^^^^^^ help: change this to: `original`
@@ -134,7 +134,7 @@ error: the borrowed expression implements the required traits
     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#needless_borrows_for_generic_args
 
 error: the borrowed expression implements the required traits
-    --> crates/wtf-types/src/integer_types.rs:1072:49
+    --> crates/vo-types/src/integer_types.rs:1072:49
      |
 1072 |                 let json = serde_json::to_value(&v).expect("serialize");
      |                                                 ^^ help: change this to: `v`
@@ -142,7 +142,7 @@ error: the borrowed expression implements the required traits
      = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#needless_borrows_for_generic_args
 
 error: the borrowed expression implements the required traits
-    --> crates/wtf-types/src/integer_types.rs:1080:49
+    --> crates/vo-types/src/integer_types.rs:1080:49
      |
 1080 |                 let json = serde_json::to_value(&v).expect("serialize");
      |                                                 ^^ help: change this to: `v`
@@ -150,7 +150,7 @@ error: the borrowed expression implements the required traits
      = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#needless_borrows_for_generic_args
 
 error: the borrowed expression implements the required traits
-   --> crates/wtf-types/src/adversarial_tests.rs:690:45
+   --> crates/vo-types/src/adversarial_tests.rs:690:45
     |
 690 |             let json = serde_json::to_value(&v).expect("serialize DurationMs in proptest");
     |                                             ^^ help: change this to: `v`
@@ -158,11 +158,11 @@ error: the borrowed expression implements the required traits
     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#needless_borrows_for_generic_args
 
 error: the borrowed expression implements the required traits
-   --> crates/wtf-types/src/adversarial_tests.rs:698:45
+   --> crates/vo-types/src/adversarial_tests.rs:698:45
     |
 698 |             let json = serde_json::to_value(&v).expect("serialize SequenceNumber in proptest");
     |                                             ^^ help: change this to: `v`
     |
     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#needless_borrows_for_generic_args
 
-error: could not compile `wtf-types` (lib test) due to 12 previous errors
+error: could not compile `vo-types` (lib test) due to 12 previous errors

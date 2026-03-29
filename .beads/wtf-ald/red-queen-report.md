@@ -1,5 +1,5 @@
-bead_id: wtf-ald
-bead_title: wtf-types: define WorkflowDefinition and DAG node types
+bead_id: vo-ald
+bead_title: vo-types: define WorkflowDefinition and DAG node types
 phase: state-5-red-queen
 updated_at: 2026-03-27T09:30:00Z
 

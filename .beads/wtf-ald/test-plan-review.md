@@ -1,9 +1,9 @@
-bead_id: wtf-ald
-bead_title: wtf-types: define WorkflowDefinition and DAG node types
+bead_id: vo-ald
+bead_title: vo-types: define WorkflowDefinition and DAG node types
 phase: state-1.7-test-plan-review-retry-1
 updated_at: 2026-03-27T15:30:00Z
 
-# Test Plan Review: wtf-ald (Retry 1)
+# Test Plan Review: vo-ald (Retry 1)
 
 ## VERDICT: APPROVED
 

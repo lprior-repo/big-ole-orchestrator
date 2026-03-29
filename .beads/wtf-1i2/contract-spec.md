@@ -2,9 +2,9 @@
 
 ## Context
 
-- **Bead ID:** wtf-1i2
+- **Bead ID:** vo-1i2
 - **Title:** Implement create_routes function with all middleware layers
-- **Location:** `wtf-api/src/routes.rs`
+- **Location:** `vo-api/src/routes.rs`
 - **Feature:** Axum HTTP router construction with middleware composition per ADR-012
 
 ### Domain Terms
@@ -195,7 +195,7 @@ pub async fn get_journal(
 | `tower-http` | `TraceLayer` for HTTP request tracing |
 | `tower` | Layer trait for middleware composition |
 | `ractor` | ActorRef for OrchestratorMsg |
-| `wtf-actor` | OrchestratorMsg message types |
+| `vo-actor` | OrchestratorMsg message types |
 | `serde` | JSON serialization |
 | `serde_json` | JSON parsing with error location |
 | `bytes` | Bytes for binary body handling |

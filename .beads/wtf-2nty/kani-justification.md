@@ -1,6 +1,6 @@
-# Kani Justification: wtf-2nty
+# Kani Justification: vo-2nty
 
-- **bead_id**: wtf-2nty
+- **bead_id**: vo-2nty
 - **phase**: STATE-5.7
 - **updated_at**: 2026-03-23T19:35:00Z
 

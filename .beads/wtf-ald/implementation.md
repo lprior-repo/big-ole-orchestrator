@@ -1,16 +1,16 @@
-bead_id: wtf-ald
-bead_title: wtf-types: define WorkflowDefinition and DAG node types
+bead_id: vo-ald
+bead_title: vo-types: define WorkflowDefinition and DAG node types
 phase: state-3-implementation
 updated_at: 2026-03-27T13:45:00Z
 
-# Implementation Summary: wtf-ald
+# Implementation Summary: vo-ald
 
 ## Files Changed
 
 | File | Change |
 |------|--------|
-| `crates/wtf-types/src/non_empty_vec.rs` | Replaced 7 `todo!()` stubs with full implementations; replaced `#[derive(Deserialize)]` with custom `Deserialize` impl that rejects empty arrays |
-| `crates/wtf-types/src/workflow.rs` | Replaced 4 `todo!()` stubs (`RetryPolicy::new`, `WorkflowDefinition::parse`, `WorkflowDefinition::get_node`, `next_nodes`); added `UnvalidatedWorkflow` intermediate struct, `detect_cycle` DFS function, and `dfs_cycle` recursive helper; gated `edge_matches_outcome` with `#[cfg(test)]` |
+| `crates/vo-types/src/non_empty_vec.rs` | Replaced 7 `todo!()` stubs with full implementations; replaced `#[derive(Deserialize)]` with custom `Deserialize` impl that rejects empty arrays |
+| `crates/vo-types/src/workflow.rs` | Replaced 4 `todo!()` stubs (`RetryPolicy::new`, `WorkflowDefinition::parse`, `WorkflowDefinition::get_node`, `next_nodes`); added `UnvalidatedWorkflow` intermediate struct, `detect_cycle` DFS function, and `dfs_cycle` recursive helper; gated `edge_matches_outcome` with `#[cfg(test)]` |
 
 ## Implementation Details
 
@@ -70,7 +70,7 @@ Five-step validation pipeline (per contract error priority):
 | Zero `todo!()` | Compliant | All 11 `todo!()` stubs replaced. |
 | Make illegal states unrepresentable | Compliant | `NonEmptyVec` enforces >=1 element. `RetryPolicy::new` validates constraints. `WorkflowDefinition::parse` validates the full graph. |
 | Expression-based | Compliant | All functions use expression-based returns, early returns via `?`, and iterator pipelines. |
-| Clippy flawless | Compliant | `cargo clippy -p wtf-types -- -D warnings` passes with zero warnings. |
+| Clippy flawless | Compliant | `cargo clippy -p vo-types -- -D warnings` passes with zero warnings. |
 | thiserror for errors | Compliant | `RetryPolicyError` and `WorkflowDefinitionError` both derive `thiserror::Error`. |
 | Validation order | Compliant | deser -> empty -> retry -> edges -> cycle (matches contract spec). |
 | Serde round-trip | Compliant | All types implement `Serialize`/`Deserialize`. `NonEmptyVec` custom deserialize rejects empty. |

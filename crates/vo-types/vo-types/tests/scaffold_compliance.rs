@@ -1,4 +1,4 @@
-//! Scaffold compliance integration tests for wtf-types crate.
+//! Scaffold compliance integration tests for vo-types crate.
 //!
 //! These tests verify the crate meets the scaffold specification:
 //! - Dependency purity (only allowed deps: serde, thiserror, uuid, ulid)
@@ -87,7 +87,7 @@ fn has_exact_line(content: &str, expected: &str) -> bool {
 
 #[test]
 fn cargo_toml_contains_allowed_dependencies_when_inspected() {
-    // Given: wtf-types/Cargo.toml exists as a workspace member
+    // Given: vo-types/Cargo.toml exists as a workspace member
     let content = std::fs::read_to_string(CARGO_TOML_PATH).expect("Failed to read Cargo.toml");
 
     // When: [dependencies] section is parsed
@@ -118,7 +118,7 @@ fn cargo_toml_contains_allowed_dependencies_when_inspected() {
 
 #[test]
 fn cargo_toml_excludes_serde_json_from_dependencies_when_inspected() {
-    // Given: wtf-types/Cargo.toml exists
+    // Given: vo-types/Cargo.toml exists
     let content = std::fs::read_to_string(CARGO_TOML_PATH).expect("Failed to read Cargo.toml");
 
     // When: [dependencies] section is parsed
@@ -137,7 +137,7 @@ fn cargo_toml_excludes_serde_json_from_dependencies_when_inspected() {
 
 #[test]
 fn cargo_toml_contains_serde_json_in_dev_dependencies_when_inspected() {
-    // Given: wtf-types/Cargo.toml exists
+    // Given: vo-types/Cargo.toml exists
     let content = std::fs::read_to_string(CARGO_TOML_PATH).expect("Failed to read Cargo.toml");
 
     // When: [dev-dependencies] section is parsed
@@ -156,7 +156,7 @@ fn cargo_toml_contains_serde_json_in_dev_dependencies_when_inspected() {
 
 #[test]
 fn cargo_toml_excludes_all_infra_dependencies_when_inspected() {
-    // Given: wtf-types/Cargo.toml exists
+    // Given: vo-types/Cargo.toml exists
     let content = std::fs::read_to_string(CARGO_TOML_PATH).expect("Failed to read Cargo.toml");
 
     // When: the entire file is scanned
@@ -193,7 +193,7 @@ fn cargo_toml_excludes_all_infra_dependencies_when_inspected() {
 
 #[test]
 fn cargo_toml_uses_workspace_version_and_edition_when_inspected() {
-    // Given: wtf-types/Cargo.toml exists
+    // Given: vo-types/Cargo.toml exists
     let content = std::fs::read_to_string(CARGO_TOML_PATH).expect("Failed to read Cargo.toml");
 
     // When: [package] section is parsed
@@ -214,7 +214,7 @@ fn cargo_toml_uses_workspace_version_and_edition_when_inspected() {
 
 #[test]
 fn cargo_toml_dependencies_are_exact_allowed_set_when_inspected() {
-    // Given: wtf-types/Cargo.toml exists
+    // Given: vo-types/Cargo.toml exists
     let content = std::fs::read_to_string(CARGO_TOML_PATH).expect("Failed to read Cargo.toml");
 
     // When: [dependencies] section is parsed into a set of key names
@@ -235,7 +235,7 @@ fn cargo_toml_dependencies_are_exact_allowed_set_when_inspected() {
 
 #[test]
 fn lib_rs_declares_events_and_state_modules_when_inspected() {
-    // Given: crates/wtf-types/src/lib.rs exists
+    // Given: crates/vo-types/src/lib.rs exists
     let content = std::fs::read_to_string(LIB_RS_PATH).expect("Failed to read lib.rs");
 
     // When: the file content is scanned
@@ -256,7 +256,7 @@ fn lib_rs_declares_events_and_state_modules_when_inspected() {
 
 #[test]
 fn stub_files_exist_and_compile_when_workspace_checked() {
-    // Given: crates/wtf-types is a workspace member
+    // Given: crates/vo-types is a workspace member
     // When: src/events.rs and src/state.rs are checked
     // Then: both files exist on disk
     assert!(
@@ -293,8 +293,8 @@ fn events_rs_contains_doc_comment_when_inspected() {
 
     // Then: doc comment is present
     assert!(
-        content.contains("//! Domain events for the wtf-engine."),
-        "events.rs must contain doc comment '//! Domain events for the wtf-engine.'"
+        content.contains("//! Domain events for the vo-engine."),
+        "events.rs must contain doc comment '//! Domain events for the vo-engine.'"
     );
 }
 
@@ -305,8 +305,8 @@ fn state_rs_contains_doc_comment_when_inspected() {
 
     // Then: doc comment is present
     assert!(
-        content.contains("//! Domain state types for the wtf-engine."),
-        "state.rs must contain doc comment '//! Domain state types for the wtf-engine.'"
+        content.contains("//! Domain state types for the vo-engine."),
+        "state.rs must contain doc comment '//! Domain state types for the vo-engine.'"
     );
 }
 
@@ -374,9 +374,9 @@ fn workspace_passes_clippy_with_zero_warnings_when_clippy_runs() {
 
 #[test]
 fn parse_error_is_publicly_accessible_when_crate_used() {
-    // Given: wtf-types compiles as a workspace member
+    // Given: vo-types compiles as a workspace member
     // When: external code references ParseError
-    let type_name = std::any::type_name::<wtf_types::ParseError>();
+    let type_name = std::any::type_name::<vo_types::ParseError>();
 
     // Then: the type resolves successfully
     assert!(
@@ -391,9 +391,9 @@ fn parse_error_is_publicly_accessible_when_crate_used() {
 
 #[test]
 fn non_empty_vec_is_publicly_accessible_when_crate_used() {
-    // Given: wtf-types compiles as a workspace member
+    // Given: vo-types compiles as a workspace member
     // When: external code references NonEmptyVec
-    let type_name = std::any::type_name::<wtf_types::NonEmptyVec<()>>();
+    let type_name = std::any::type_name::<vo_types::NonEmptyVec<()>>();
 
     // Then: the type resolves successfully
     assert!(
@@ -408,9 +408,9 @@ fn non_empty_vec_is_publicly_accessible_when_crate_used() {
 
 #[test]
 fn integer_types_are_publicly_accessible_when_crate_used() {
-    // Given: wtf-types compiles as a workspace member
+    // Given: vo-types compiles as a workspace member
     // When: external code imports all integer types
-    use wtf_types::{
+    use vo_types::{
         AttemptNumber, DurationMs, EventVersion, FireAtMs, MaxAttempts, SequenceNumber, TimeoutMs,
         TimestampMs,
     };
@@ -442,9 +442,9 @@ fn integer_types_are_publicly_accessible_when_crate_used() {
 
 #[test]
 fn string_types_are_publicly_accessible_when_crate_used() {
-    // Given: wtf-types compiles as a workspace member
+    // Given: vo-types compiles as a workspace member
     // When: external code imports all string types
-    use wtf_types::{BinaryHash, IdempotencyKey, InstanceId, NodeName, TimerId, WorkflowName};
+    use vo_types::{BinaryHash, IdempotencyKey, InstanceId, NodeName, TimerId, WorkflowName};
 
     // Then: all types compile without error
     assert!(std::any::type_name::<InstanceId>().contains("InstanceId"));
@@ -461,9 +461,9 @@ fn string_types_are_publicly_accessible_when_crate_used() {
 
 #[test]
 fn workflow_types_are_publicly_accessible_when_crate_used() {
-    // Given: wtf-types compiles as a workspace member
+    // Given: vo-types compiles as a workspace member
     // When: external code imports all workflow types and the next_nodes function
-    use wtf_types::{
+    use vo_types::{
         next_nodes, DagNode, Edge, EdgeCondition, RetryPolicy, RetryPolicyError, StepOutcome,
         WorkflowDefinition, WorkflowDefinitionError,
     };
@@ -493,7 +493,7 @@ fn workflow_types_are_publicly_accessible_when_crate_used() {
 
 #[test]
 fn serde_json_compiles_in_test_context_when_referenced() {
-    // Given: serde_json is in [dev-dependencies] of wtf-types
+    // Given: serde_json is in [dev-dependencies] of vo-types
     // When: a test function calls serde_json::to_value
     let value = serde_json::to_value(42_i32).expect("serde_json::to_value should work");
 

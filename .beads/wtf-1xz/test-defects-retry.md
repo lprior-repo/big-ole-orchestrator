@@ -1,4 +1,4 @@
-# Test Defects - Bead wtf-1xz
+# Test Defects - Bead vo-1xz
 
 ## Domain: Consistency
 - **Defect**: The contract explicitly mentions a discrepancy between ADR-012 (200 OK) and current implementation (202 Accepted). While it acknowledges this, it doesn't resolve it, leading to ambiguous test expectations.
@@ -13,7 +13,7 @@
 - **Reference**: Contract.md line 32, 34 vs martin-fowler-tests.md line 17.
 
 ## Domain: Testing Trophy (Integration)
-- **Defect**: There is no mention of how the `Extension<ActorRef<OrchestratorMsg>>` is initialized or mocked for these tests. Since `wtf-engine` relies heavily on Ractor actors, a test plan without a clear strategy for actor isolation or integration (e.g., using a test probe or a mock orchestrator) is incomplete for ATDD.
+- **Defect**: There is no mention of how the `Extension<ActorRef<OrchestratorMsg>>` is initialized or mocked for these tests. Since `vo-engine` relies heavily on Ractor actors, a test plan without a clear strategy for actor isolation or integration (e.g., using a test probe or a mock orchestrator) is incomplete for ATDD.
 - **Reference**: Dave Farley's emphasis on executable specifications.
 
 ## Domain: Invariants

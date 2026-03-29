@@ -1,4 +1,4 @@
-# Architectural Drift Review — wtf-cdpi
+# Architectural Drift Review — vo-cdpi
 
 **Bead:** Store definition source in KV after lint  
 **Date:** 2026-03-23  
@@ -11,8 +11,8 @@
 
 | File | Lines | Limit | Status |
 |------|-------|-------|--------|
-| `crates/wtf-api/src/handlers/definitions.rs` | 260 | 300 | ✅ |
-| `crates/wtf-api/src/types/requests.rs` | 49 | 300 | ✅ |
+| `crates/vo-api/src/handlers/definitions.rs` | 260 | 300 | ✅ |
+| `crates/vo-api/src/types/requests.rs` | 49 | 300 | ✅ |
 
 No files exceed the 300-line limit.
 

@@ -1,7 +1,7 @@
 import re
 
 def fix_api_tests():
-    with open('/home/lewis/src/wtf-k6u/crates/wtf-api/src/types/tests.rs', 'r') as f:
+    with open('/home/lewis/src/vo-k6u/crates/vo-api/src/types/tests.rs', 'r') as f:
         content = f.read()
 
     # We will just rewrite the file content manually for simplicity in python since there are a few predictable tests
@@ -260,7 +260,7 @@ fn test_serde_roundtrip_signal_request() -> anyhow::Result<()> {
     Ok(())
 }
 """
-    with open('/home/lewis/src/wtf-k6u/crates/wtf-api/src/types/tests.rs', 'w') as f:
+    with open('/home/lewis/src/vo-k6u/crates/vo-api/src/types/tests.rs', 'w') as f:
         f.write(new_content)
 
 fix_api_tests()

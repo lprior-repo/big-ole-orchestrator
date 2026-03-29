@@ -1,4 +1,4 @@
-# QA Report: wtf-3cv7 — procedural: Implement wait_for_signal
+# QA Report: vo-3cv7 — procedural: Implement wait_for_signal
 
 **Date:** 2026-03-23
 **Status:** PASS (1 defect noted, non-blocking)
@@ -14,7 +14,7 @@
 **PASS** — `instance/procedural.rs:97-128`. Checks `received_signals` buffer first (FIFO via `Vec::remove(0)`), falls back to registering a pending waiter in `pending_signal_calls`.
 
 ### 3. `ProceduralWaitForSignal` variant in messages/instance.rs
-**PASS** — `messages/instance.rs:92-96`. Fields: `operation_id: u32`, `signal_name: String`, `reply: RpcReplyPort<Result<Bytes, WtfError>>`. Consistent with sibling variants.
+**PASS** — `messages/instance.rs:92-96`. Fields: `operation_id: u32`, `signal_name: String`, `reply: RpcReplyPort<Result<Bytes, VoError>>`. Consistent with sibling variants.
 
 ### 4. KNOWN DEFECT: buffer removal before publish
 **CONFIRMED — DEFECT STILL PRESENT.**

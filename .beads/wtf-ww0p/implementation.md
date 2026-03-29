@@ -1,4 +1,4 @@
-# Implementation Summary: wtf-ww0p — E2E Workflow Completion Test
+# Implementation Summary: vo-ww0p — E2E Workflow Completion Test
 
 ## Status: COMPLETE
 
@@ -6,13 +6,13 @@
 
 | File | Action |
 |------|--------|
-| `crates/wtf-api/tests/e2e_workflow_completion.rs` | **Created** — 14 E2E integration tests |
-| `crates/wtf-api/Cargo.toml` | **Modified** — Added `tempfile` to `[dev-dependencies]` |
-| `.beads/wtf-ww0p/implementation.md` | **Created** — This file |
+| `crates/vo-api/tests/e2e_workflow_completion.rs` | **Created** — 14 E2E integration tests |
+| `crates/vo-api/Cargo.toml` | **Modified** — Added `tempfile` to `[dev-dependencies]` |
+| `.beads/vo-ww0p/implementation.md` | **Created** — This file |
 
 ## Test Inventory
 
-All 14 tests pass (`cargo test -p wtf-api --test e2e_workflow_completion -- --test-threads=1`):
+All 14 tests pass (`cargo test -p vo-api --test e2e_workflow_completion -- --test-threads=1`):
 
 ### Happy Path (5 tests)
 | # | Test | Scenario | Result |
@@ -40,7 +40,7 @@ All 14 tests pass (`cargo test -p wtf-api --test e2e_workflow_completion -- --te
 
 ### Functional Rust Constraints
 - **I-12 Railway error handling**: All harness methods return `Result<..., Box<dyn std::error::Error>>`. Zero `unwrap()` or `expect()` in harness code. Test assertion failures use `assert_eq!` / `assert!` (standard test failure signals).
-- **I-1 Real NATS only**: Connects via `wtf_storage::connect(&config)` with no mocks.
+- **I-1 Real NATS only**: Connects via `vo_storage::connect(&config)` with no mocks.
 - **I-2 Fresh streams per test**: `reset_all_streams()` deletes all 4 streams and all 4 KV buckets before provisioning.
 - **I-3 Sequential execution**: `global_test_lock()` via `OnceLock<Arc<Mutex<()>>>` + `OwnedMutexGuard`.
 - **I-4 Ephemeral port**: Binds to `127.0.0.1:0` every test.
@@ -89,15 +89,15 @@ Example: `GET /api/v1/workflows/e2e%2F01ARZ3NDEKTSV4RRFFQ69G5FAV/journal`
 
 ```bash
 # Full suite
-cargo test -p wtf-api --test e2e_workflow_completion -- --test-threads=1 --nocapture
+cargo test -p vo-api --test e2e_workflow_completion -- --test-threads=1 --nocapture
 
 # Individual tests
-cargo test -p wtf-api --test e2e_workflow_completion e2e_definition_ingestion -- --test-threads=1
-cargo test -p wtf-api --test e2e_workflow_completion e2e_start_workflow -- --test-threads=1
-cargo test -p wtf-api --test e2e_workflow_completion e2e_journal -- --test-threads=1
+cargo test -p vo-api --test e2e_workflow_completion e2e_definition_ingestion -- --test-threads=1
+cargo test -p vo-api --test e2e_workflow_completion e2e_start_workflow -- --test-threads=1
+cargo test -p vo-api --test e2e_workflow_completion e2e_journal -- --test-threads=1
 
 # Clippy (zero warnings from test file)
-cargo clippy -p wtf-api --tests -- -W clippy::all -A clippy::missing-errors-doc
+cargo clippy -p vo-api --tests -- -W clippy::all -A clippy::missing-errors-doc
 ```
 
 ## Defects Encountered and Resolved

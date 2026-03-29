@@ -1,4 +1,4 @@
-# Black Hat Review: wtf-m60g — "instance: Publish InstanceStarted event"
+# Black Hat Review: vo-m60g — "instance: Publish InstanceStarted event"
 
 ## Verdict: APPROVED
 
@@ -6,7 +6,7 @@
 
 ### 1. Hallucinated APIs — `WorkflowEvent::InstanceStarted`
 
-**PASS.** Verified in `crates/wtf-common/src/events/mod.rs:18-22`:
+**PASS.** Verified in `crates/vo-common/src/events/mod.rs:18-22`:
 
 ```rust
 InstanceStarted {
@@ -20,10 +20,10 @@ The construction at `init.rs:169-173` matches exactly: `instance_id`, `workflow_
 
 ### 2. Event Store API — `EventStore::publish` signature
 
-**PASS.** Verified in `crates/wtf-common/src/storage.rs:28-33`:
+**PASS.** Verified in `crates/vo-common/src/storage.rs:28-33`:
 
 ```rust
-async fn publish(&self, ns: &NamespaceId, inst: &InstanceId, event: WorkflowEvent) -> Result<u64, WtfError>;
+async fn publish(&self, ns: &NamespaceId, inst: &InstanceId, event: WorkflowEvent) -> Result<u64, VoError>;
 ```
 
 Call site at `init.rs:175-178`:
@@ -32,7 +32,7 @@ Call site at `init.rs:175-178`:
 store.publish(&args.namespace, &args.instance_id, event).await.map_err(|e| ActorProcessingErr::from(Box::new(e)))?;
 ```
 
-Signature matches: `&NamespaceId`, `&InstanceId`, `WorkflowEvent`. Return type `Result<u64, WtfError>` — `u64` is discarded (seq not needed here), error is propagated correctly via `?`.
+Signature matches: `&NamespaceId`, `&InstanceId`, `WorkflowEvent`. Return type `Result<u64, VoError>` — `u64` is discarded (seq not needed here), error is propagated correctly via `?`.
 
 ### 3. Silent Failures
 

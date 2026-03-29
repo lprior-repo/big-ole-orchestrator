@@ -1,4 +1,4 @@
-# QA Report: wtf-m60g — "instance: Publish InstanceStarted event"
+# QA Report: vo-m60g — "instance: Publish InstanceStarted event"
 
 ## Check 1: `publish_instance_started` exists in init.rs
 
@@ -45,7 +45,7 @@ test instance::init::tests::crash_recovery_skips_started_event ... ok
 test instance::init::tests::no_event_store_returns_error ... ok
 ```
 
-## Check 7: Full wtf-actor lib test suite
+## Check 7: Full vo-actor lib test suite
 
 **PASS** — 123 passed, 0 failed, 0 ignored.
 

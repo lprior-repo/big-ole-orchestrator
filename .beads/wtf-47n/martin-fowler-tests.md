@@ -1,4 +1,4 @@
-# Martin Fowler Test Plan: capacity_check method (wtf-47n)
+# Martin Fowler Test Plan: capacity_check method (vo-47n)
 
 ## Overview
 

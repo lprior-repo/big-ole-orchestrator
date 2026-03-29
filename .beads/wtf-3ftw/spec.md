@@ -1,4 +1,4 @@
-# Bead: wtf-3ftw
+# Bead: vo-3ftw
 
 ## Title
 fsm: Parse graph_raw into FsmDefinition
@@ -12,7 +12,7 @@ fsm: Parse graph_raw into FsmDefinition
 
 - **clarification_status**: closed
 - **resolved_clarifications**:
-  - The `graph_raw` field on `wtf_common::WorkflowDefinition` is a JSON string containing the FSM graph. A schema must be defined for its structure. Chosen schema:
+  - The `graph_raw` field on `vo_common::WorkflowDefinition` is a JSON string containing the FSM graph. A schema must be defined for its structure. Chosen schema:
     ```json
     {
       "initial_state": "Pending",
@@ -26,7 +26,7 @@ fsm: Parse graph_raw into FsmDefinition
     }
     ```
   - The parser is a pure function: `parse_fsm(graph_raw: &str) -> Result<FsmDefinition, ParseFsmError>`.
-  - It lives in `crates/wtf-actor/src/fsm/definition.rs` alongside the `FsmDefinition` struct.
+  - It lives in `crates/vo-actor/src/fsm/definition.rs` alongside the `FsmDefinition` struct.
   - `EffectDeclaration` fields: `effect_type: String`, `payload: Bytes`. The JSON `payload` is a string (base64 or raw UTF-8) — deserialized via `Bytes::from(payload_str.as_bytes())`.
   - `terminal_states` is optional in the JSON — if missing, the set is empty.
   - `initial_state` is optional — if missing, no initial state is enforced at parse time (the FSM actor sets its own initial state from instance arguments).
@@ -75,15 +75,15 @@ fsm: Parse graph_raw into FsmDefinition
 ## Section 2.5: Research Requirements
 
 - **files_to_read**:
-  - `/home/lewis/src/wtf-engine/crates/wtf-actor/src/fsm/definition.rs` — target struct `FsmDefinition`, new `parse_fsm` function home
-  - `/home/lewis/src/wtf-engine/crates/wtf-actor/src/fsm.rs` — re-exports, `plan_fsm_signal` usage of `FsmDefinition`
-  - `/home/lewis/src/wtf-engine/crates/wtf-common/src/types/workflow.rs` — `WorkflowDefinition` with `graph_raw` field
-  - `/home/lewis/src/wtf-engine/crates/wtf-common/src/events/types.rs` — `EffectDeclaration` struct
-  - `/home/lewis/src/wtf-engine/crates/wtf-actor/src/fsm/tests.rs` — existing FSM test patterns
-  - `/home/lewis/src/wtf-engine/crates/wtf-actor/src/master/state.rs:106` — where `workflow_definition` is passed to `InstanceArguments`
+  - `/home/lewis/src/vo-engine/crates/vo-actor/src/fsm/definition.rs` — target struct `FsmDefinition`, new `parse_fsm` function home
+  - `/home/lewis/src/vo-engine/crates/vo-actor/src/fsm.rs` — re-exports, `plan_fsm_signal` usage of `FsmDefinition`
+  - `/home/lewis/src/vo-engine/crates/vo-common/src/types/workflow.rs` — `WorkflowDefinition` with `graph_raw` field
+  - `/home/lewis/src/vo-engine/crates/vo-common/src/events/types.rs` — `EffectDeclaration` struct
+  - `/home/lewis/src/vo-engine/crates/vo-actor/src/fsm/tests.rs` — existing FSM test patterns
+  - `/home/lewis/src/vo-engine/crates/vo-actor/src/master/state.rs:106` — where `workflow_definition` is passed to `InstanceArguments`
 - **research_questions**:
-  - Is `serde_json` already a dependency of `wtf-actor`? (Check `Cargo.toml`.)
-  - Are there any existing JSON parsing patterns in the `wtf-actor` crate to follow?
+  - Is `serde_json` already a dependency of `vo-actor`? (Check `Cargo.toml`.)
+  - Are there any existing JSON parsing patterns in the `vo-actor` crate to follow?
 
 ---
 
@@ -178,9 +178,9 @@ fsm: Parse graph_raw into FsmDefinition
 
 ## Section 5.5: Verification Checkpoints
 
-- **Gate 0 (compile)**: `cargo check -p wtf-actor` passes.
-- **Gate 1 (clippy)**: `cargo clippy -p wtf-actor -- -D warnings` passes.
-- **Gate 2 (unit tests)**: `cargo test -p wtf-actor -- fsm::definition` passes — all HP and EP tests green.
+- **Gate 0 (compile)**: `cargo check -p vo-actor` passes.
+- **Gate 1 (clippy)**: `cargo clippy -p vo-actor -- -D warnings` passes.
+- **Gate 2 (unit tests)**: `cargo test -p vo-actor -- fsm::definition` passes — all HP and EP tests green.
 - **Gate 3 (workspace)**: `cargo test --workspace` passes — no regressions.
 
 ---
@@ -188,18 +188,18 @@ fsm: Parse graph_raw into FsmDefinition
 ## Section 6: Implementation Tasks
 
 ### Phase 0: Define JSON schema types and error enum
-- [ ] Add `serde` intermediate structs (`FsmGraph`, `FsmTransitionJson`, `FsmEffectJson`) in `crates/wtf-actor/src/fsm/definition.rs`
+- [ ] Add `serde` intermediate structs (`FsmGraph`, `FsmTransitionJson`, `FsmEffectJson`) in `crates/vo-actor/src/fsm/definition.rs`
 - [ ] Add `ParseFsmError` enum with variants: `InvalidJson(String)`, `MissingField(&'static str)`, `InvalidEffect(String)`
 - [ ] Implement `std::fmt::Display` and `std::error::Error` for `ParseFsmError`
 - **parallelization**: none
 
 ### Phase 1: Implement `parse_fsm` function
-- [ ] Add `pub fn parse_fsm(graph_raw: &str) -> Result<FsmDefinition, ParseFsmError>` in `crates/wtf-actor/src/fsm/definition.rs`
+- [ ] Add `pub fn parse_fsm(graph_raw: &str) -> Result<FsmDefinition, ParseFsmError>` in `crates/vo-actor/src/fsm/definition.rs`
 - [ ] Deserialize `graph_raw` into `FsmGraph` using `serde_json::from_str`
 - [ ] Iterate transitions, validate required fields (`from`, `event`, `to`)
 - [ ] Convert each effect JSON to `EffectDeclaration { effect_type, payload: Bytes::from(payload_str) }`
 - [ ] Populate `FsmDefinition` via `add_transition` and `add_terminal_state`
-- [ ] Re-export `parse_fsm` and `ParseFsmError` from `crates/wtf-actor/src/fsm.rs`
+- [ ] Re-export `parse_fsm` and `ParseFsmError` from `crates/vo-actor/src/fsm.rs`
 - **parallelization**: none
 
 ### Phase 2: Unit tests
@@ -229,11 +229,11 @@ fsm: Parse graph_raw into FsmDefinition
 ## Section 7.5: Anti-Hallucination
 
 - **read_before_write**:
-  - `/home/lewis/src/wtf-engine/crates/wtf-actor/src/fsm/definition.rs` — before adding `parse_fsm` and `ParseFsmError`
-  - `/home/lewis/src/wtf-engine/crates/wtf-actor/src/fsm.rs` — before adding re-exports
-  - `/home/lewis/src/wtf-engine/crates/wtf-actor/src/fsm/tests.rs` — verify existing test patterns
-  - `/home/lewis/src/wtf-engine/crates/wtf-common/src/events/types.rs` — verify `EffectDeclaration` fields
-  - `/home/lewis/src/wtf-engine/crates/wtf-actor/Cargo.toml` — verify `serde_json` dependency exists
+  - `/home/lewis/src/vo-engine/crates/vo-actor/src/fsm/definition.rs` — before adding `parse_fsm` and `ParseFsmError`
+  - `/home/lewis/src/vo-engine/crates/vo-actor/src/fsm.rs` — before adding re-exports
+  - `/home/lewis/src/vo-engine/crates/vo-actor/src/fsm/tests.rs` — verify existing test patterns
+  - `/home/lewis/src/vo-engine/crates/vo-common/src/events/types.rs` — verify `EffectDeclaration` fields
+  - `/home/lewis/src/vo-engine/crates/vo-actor/Cargo.toml` — verify `serde_json` dependency exists
 - **no_invent**:
   - Do NOT add fields to `FsmDefinition` — it has exactly `transitions: HashMap<(String, String), (String, Vec<EffectDeclaration>)>` and `terminal_states: HashSet<String>`
   - Do NOT add methods to `FsmDefinition` that already exist (`add_transition`, `add_terminal_state`, `is_terminal`, `transition`)
@@ -243,7 +243,7 @@ fsm: Parse graph_raw into FsmDefinition
 
 ## Section 7.6: Context Survival
 
-- **progress_file**: `.beads/wtf-3ftw/progress.md`
+- **progress_file**: `.beads/vo-3ftw/progress.md`
 - **recovery_instructions**:
   1. Read this spec and all files in `read_before_write`.
   2. Check `progress.md` for last completed phase.
@@ -257,7 +257,7 @@ fsm: Parse graph_raw into FsmDefinition
 - [ ] `ParseFsmError` enum with `InvalidJson`, `MissingField`, `InvalidEffect` variants
 - [ ] `parse_fsm(graph_raw: &str) -> Result<FsmDefinition, ParseFsmError>` implemented
 - [ ] `serde_json` intermediate structs for deserialization
-- [ ] `parse_fsm` and `ParseFsmError` re-exported from `wtf_actor::fsm`
+- [ ] `parse_fsm` and `ParseFsmError` re-exported from `vo_actor::fsm`
 - [ ] HP-1 through HP-5 tests pass
 - [ ] EP-1 through EP-4 error path tests pass
 - [ ] E2E roundtrip test with `plan_fsm_signal` passes
@@ -269,13 +269,13 @@ fsm: Parse graph_raw into FsmDefinition
 ## Section 9: Context
 
 - **related_files**:
-  - `crates/wtf-actor/src/fsm/definition.rs` — `FsmDefinition` struct, new `parse_fsm` home (PRIMARY, MODIFY)
-  - `crates/wtf-actor/src/fsm.rs` — re-exports (MODIFY)
-  - `crates/wtf-common/src/types/workflow.rs` — `WorkflowDefinition.graph_raw` (READ)
-  - `crates/wtf-common/src/events/types.rs` — `EffectDeclaration { effect_type, payload }` (READ)
-  - `crates/wtf-actor/src/fsm/tests.rs` — existing test patterns (READ)
-  - `crates/wtf-actor/Cargo.toml` — verify `serde_json` dep (READ)
-  - `crates/wtf-actor/src/master/state.rs:106` — downstream consumer of `WorkflowDefinition` (READ)
+  - `crates/vo-actor/src/fsm/definition.rs` — `FsmDefinition` struct, new `parse_fsm` home (PRIMARY, MODIFY)
+  - `crates/vo-actor/src/fsm.rs` — re-exports (MODIFY)
+  - `crates/vo-common/src/types/workflow.rs` — `WorkflowDefinition.graph_raw` (READ)
+  - `crates/vo-common/src/events/types.rs` — `EffectDeclaration { effect_type, payload }` (READ)
+  - `crates/vo-actor/src/fsm/tests.rs` — existing test patterns (READ)
+  - `crates/vo-actor/Cargo.toml` — verify `serde_json` dep (READ)
+  - `crates/vo-actor/src/master/state.rs:106` — downstream consumer of `WorkflowDefinition` (READ)
 
 ---
 
@@ -284,7 +284,7 @@ fsm: Parse graph_raw into FsmDefinition
 - **do**:
   - Use intermediate `serde` structs (`FsmGraph`, `FsmTransitionJson`, `FsmEffectJson`) with `#[derive(Deserialize)]` — keep them private to `definition.rs`
   - Use `Bytes::from(payload_str.as_bytes())` for effect payloads (the JSON `payload` field is a UTF-8 string)
-  - Use `thiserror` for `ParseFsmError` — it's already in `wtf-actor` dependencies (see `types.rs:28`)
+  - Use `thiserror` for `ParseFsmError` — it's already in `vo-actor` dependencies (see `types.rs:28`)
   - Put unit tests in a `#[cfg(test)] mod tests` block inside `definition.rs` — matches the pattern in `state.rs`
   - Re-export from `fsm.rs` via `pub use definition::{parse_fsm, ParseFsmError}`
 - **do_not**:

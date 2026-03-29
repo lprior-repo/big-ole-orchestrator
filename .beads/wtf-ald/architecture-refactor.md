@@ -1,4 +1,4 @@
-# Architecture Refactor Report — wtf-ald
+# Architecture Refactor Report — vo-ald
 
 ## Status: REFACTORED
 

@@ -1,4 +1,4 @@
-//! Domain events for the wtf-engine.
+//! Domain events for the vo-engine.
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;

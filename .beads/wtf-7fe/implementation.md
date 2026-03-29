@@ -1,4 +1,4 @@
-# Implementation Summary — Bead wtf-7fe Repair Loop
+# Implementation Summary — Bead vo-7fe Repair Loop
 
 **Date:** 2026-03-23
 **Scope:** Fix blocking defects D11, D19, D14/D15 from black-hat review
@@ -10,7 +10,7 @@
 
 ### D11 (HIGH): Wildcard `_ => {}` silently drops unhandled OrchestratorMsg variants
 
-**File:** `crates/wtf-actor/src/master/mod.rs` (lines 101-105)
+**File:** `crates/vo-actor/src/master/mod.rs` (lines 101-105)
 
 **Before:**
 ```rust
@@ -34,7 +34,7 @@ ref unhandled => {
 
 ### D19 (HIGH): `ActorFailed` supervision event not handled — zombie instances
 
-**File:** `crates/wtf-actor/src/master/mod.rs` (lines 57-74)
+**File:** `crates/vo-actor/src/master/mod.rs` (lines 57-74)
 
 **Before:**
 ```rust
@@ -71,7 +71,7 @@ async fn handle_supervisor_evt(...) {
 
 ### D14/D15 (HIGH): Mutex poisoning in global `OnceLock<Mutex<HashSet>>` causes data loss
 
-**File:** `crates/wtf-actor/src/master/handlers/heartbeat.rs` (lines 9-19, 32-39, 43, 57)
+**File:** `crates/vo-actor/src/master/handlers/heartbeat.rs` (lines 9-19, 32-39, 43, 57)
 
 **Before:** Three separate `lock()` calls, each with different poison-handling strategies:
 ```rust
@@ -107,7 +107,7 @@ fn acquire_in_flight_guard() -> std::sync::MutexGuard<'static, HashSet<String>> 
 
 ## Verification
 
-- **Compilation:** `cargo check -p wtf-actor` passes cleanly
+- **Compilation:** `cargo check -p vo-actor` passes cleanly
 - **Tests:** 68 unit tests + 27 integration tests pass (0 failures)
 - **Zero panics/unwrap:** No `unwrap()`, `expect()`, or `panic!()` added to non-test code
 - **Function lengths:** All new/modified functions under 25 lines
@@ -116,8 +116,8 @@ fn acquire_in_flight_guard() -> std::sync::MutexGuard<'static, HashSet<String>> 
 
 | File | Change |
 |---|---|
-| `crates/wtf-actor/src/master/mod.rs` | D11: exhaustiveness guard with `tracing::warn!`; D19: `ActorFailed` handling |
-| `crates/wtf-actor/src/master/handlers/heartbeat.rs` | D14/D15: `acquire_in_flight_guard()` helper with poison recovery |
+| `crates/vo-actor/src/master/mod.rs` | D11: exhaustiveness guard with `tracing::warn!`; D19: `ActorFailed` handling |
+| `crates/vo-actor/src/master/handlers/heartbeat.rs` | D14/D15: `acquire_in_flight_guard()` helper with poison recovery |
 
 ## Outstanding Items (not in scope)
 

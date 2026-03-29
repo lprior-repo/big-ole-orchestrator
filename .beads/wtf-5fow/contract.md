@@ -9,10 +9,10 @@
   - `HeartbeatExpired` — Message sent to orchestrator when a KV entry is TTL-deleted
   - `in_flight_guard` — Process-level `OnceLock<Mutex<HashSet<String>>>` preventing duplicate recovery
   - `OrchestratorState.active` — `HashMap<InstanceId, ActorRef<InstanceMsg>>` of currently running instances
-  - `wtf-heartbeats` — NATS KV bucket with `max_age = 10s`, `storage = Memory`, `history = 1`
+  - `vo-heartbeats` — NATS KV bucket with `max_age = 10s`, `storage = Memory`, `history = 1`
   - `ParadigmState` — Discriminated enum holding FSM/DAG/Procedural state
 - **Assumptions:**
-  - NATS is running (`wtf-nats-test` container on port 4222)
+  - NATS is running (`vo-nats-test` container on port 4222)
   - Heartbeat interval is 5s (`actor.rs:56`), TTL is 10s (`kv.rs:101`)
   - FSM paradigm used for E2E test (simplest state reconstruction)
   - sled snapshot DB provisioned via `tempfile::tempdir()`
@@ -26,8 +26,8 @@
 ### Global (all tests)
 - [P1] NATS server reachable at `nats://localhost:4222`
 - [P2] JetStream context obtained from NATS connection
-- [P3] `wtf-events` stream provisioned via `wtf_storage::provision::provision_streams(js)`
-- [P4] `wtf-heartbeats` KV bucket provisioned via `wtf_storage::kv::provision_kv_buckets(js)` with `max_age: 10s`
+- [P3] `vo-events` stream provisioned via `vo_storage::provision::provision_streams(js)`
+- [P4] `vo-heartbeats` KV bucket provisioned via `vo_storage::kv::provision_kv_buckets(js)` with `max_age: 10s`
 - [P5] sled snapshot database opened at a temp directory path
 - [P6] `OrchestratorConfig` built with real `event_store`, `state_store`, `snapshot_db`, `task_queue`
 - [P7] `MasterOrchestrator` spawned via `Actor::spawn` with linked supervision
@@ -65,7 +65,7 @@
 
 ## Invariants
 
-- [I1] KV key format is always `"hb/{instance_id}"` — never any other prefix in `wtf-heartbeats` bucket
+- [I1] KV key format is always `"hb/{instance_id}"` — never any other prefix in `vo-heartbeats` bucket
 - [I2] Heartbeat watcher NEVER sends `HeartbeatExpired` for `Operation::Put` entries (only `Delete | Purge`)
 - [I3] Heartbeat watcher NEVER sends `HeartbeatExpired` for keys that do not start with `"hb/"`
 - [I4] `in_flight_guard` set is process-global (`static OnceLock`) — persists across all tests in same binary
@@ -81,7 +81,7 @@
 
 | Variant | When | Source |
 |---------|------|--------|
-| `WtfError::NatsPublish` | KV bucket creation fails, heartbeat write/delete fails, event publish fails | `wtf-storage/src/kv.rs`, `wtf-storage/src/journal.rs` |
+| `VoError::NatsPublish` | KV bucket creation fails, heartbeat write/delete fails, event publish fails | `vo-storage/src/kv.rs`, `vo-storage/src/journal.rs` |
 | `ActorProcessingErr` | `pre_start` fails during `load_initial_state`, `replay_events`, or `transition_to_live` | `ractor` framework |
 | `Err(String)` | `run_heartbeat_watcher` initial `watch_all()` fails | `heartbeat.rs:63` |
 | Recovery skipped (no error) | `check_recovery_preconditions` returns `None` — instance still active or in-flight guard blocks | `heartbeat.rs:27-38` |
@@ -137,15 +137,15 @@ InstanceMsg::Heartbeat
 InstanceMsg::GetStatus(RpcReplyPort<InstanceStatusSnapshot>)
 
 // storage/kv.rs — KV operations
-pub async fn provision_kv_buckets(js: &Context) -> Result<KvStores, WtfError>
-pub async fn write_heartbeat(heartbeats: &Store, instance_id: &InstanceId, engine_node_id: &str) -> Result<(), WtfError>
+pub async fn provision_kv_buckets(js: &Context) -> Result<KvStores, VoError>
+pub async fn write_heartbeat(heartbeats: &Store, instance_id: &InstanceId, engine_node_id: &str) -> Result<(), VoError>
 pub fn heartbeat_key(instance_id: &InstanceId) -> String
 
 // storage/provision.rs
-pub async fn provision_streams(js: &Context) -> Result<(), WtfError>
+pub async fn provision_streams(js: &Context) -> Result<(), VoError>
 
 // storage/snapshots.rs
-pub fn open_snapshot_db(path: &std::path::Path) -> Result<sled::Db, WtfError>
+pub fn open_snapshot_db(path: &std::path::Path) -> Result<sled::Db, VoError>
 
 // master/state.rs — orchestrator state management
 impl OrchestratorState {

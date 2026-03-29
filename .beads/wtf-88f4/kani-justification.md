@@ -1,6 +1,6 @@
-# Kani Justification: wtf-88f4
+# Kani Justification: vo-88f4
 
-- **bead_id**: wtf-88f4
+- **bead_id**: vo-88f4
 - **phase**: STATE-5.7
 - **updated_at**: 2026-03-23T19:28:00Z
 
@@ -26,5 +26,5 @@ No loops, no branching beyond the waiter check, no concurrent shared mutation.
 ## Conclusion
 No state machine to model. Sequential pipeline with one conditional. Kani adds nothing over borrow checker + tests.
 
-## Cross-bead Defect (tracked for wtf-3cv7)
-Red Queen found that handle_wait_for_signal (wtf-3cv7) removes buffered payload BEFORE publishing. This is out of scope for wtf-88f4 but will be addressed when gating wtf-3cv7.
+## Cross-bead Defect (tracked for vo-3cv7)
+Red Queen found that handle_wait_for_signal (vo-3cv7) removes buffered payload BEFORE publishing. This is out of scope for vo-88f4 but will be addressed when gating vo-3cv7.

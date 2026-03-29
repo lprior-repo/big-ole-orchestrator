@@ -1,7 +1,7 @@
-# QA Report: wtf-bx19 — dag: Parse graph_raw into DAG node set
+# QA Report: vo-bx19 — dag: Parse graph_raw into DAG node set
 
 **Date**: 2026-03-23
-**File**: `crates/wtf-actor/src/dag/parse.rs` (240 lines)
+**File**: `crates/vo-actor/src/dag/parse.rs` (240 lines)
 **Reviewer**: Automated QA / Red Queen / Black Hat
 
 ---
@@ -12,7 +12,7 @@
 |---|-------|--------|
 | 1 | `parse_dag_graph` exists with correct signature | PASS — `parse.rs:51`, returns `Result<HashMap<NodeId, DagNode>, DagParseError>` |
 | 2 | No `unwrap()`/`expect()` in production code | PASS — zero matches via `rg` |
-| 3 | `cargo test -p wtf-actor --lib -- dag::tests` | PASS — **22/22 passed** (7 apply + 15 parse tests) |
+| 3 | `cargo test -p vo-actor --lib -- dag::tests` | PASS — **22/22 passed** (7 apply + 15 parse tests) |
 | 4 | Line count under 300 | PASS — 240 lines |
 
 ### Test Coverage (16 parse-specific tests)
@@ -45,7 +45,7 @@
 | 2 | Diamond dependency (A->B, A->C, B->D, C->D) | Valid graph, 4 nodes | Valid, 4 nodes | PASS |
 | 3 | Missing predecessor reference ("NONEXISTENT") | `UnknownPredecessor` | `UnknownPredecessor` | PASS |
 | 4 | Empty JSON array `{"nodes":[]}` | Valid empty graph | `Ok({})` | PASS |
-| 5 | `cargo clippy -p wtf-actor -- -W clippy::unwrap_used` | No warnings in parse.rs | Zero warnings from parse.rs | PASS |
+| 5 | `cargo clippy -p vo-actor -- -W clippy::unwrap_used` | No warnings in parse.rs | Zero warnings from parse.rs | PASS |
 
 ### Kahn's Algorithm Stress Analysis
 

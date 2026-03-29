@@ -53,7 +53,7 @@ Verifies that when `OrchestratorConfig.event_store` is `None` (no JetStream), `h
 ### `test_terminate_when_jetstream_publish_fails_still_stops_actor`
 Verifies that when `EventStore::publish` returns `Err`, `handle_cancel` logs the error, still replies `Ok(())`, and still calls `myself_ref.stop()` — resulting in a data-loss scenario where `InstanceCancelled` is NOT persisted but the actor IS stopped.
 
-**Implementation approach:** Use a `MockEventStore` (only for this test) whose `publish()` method returns `Err(WtfError::nats_publish("simulated failure"))`. Assert: (1) reply is `Ok(())`, (2) actor is dead after terminate, (3) journal replay does NOT contain `InstanceCancelled`. This verifies the defensive error-logging path at `handlers.rs:213-218` and the data-loss risk documented in the comment.
+**Implementation approach:** Use a `MockEventStore` (only for this test) whose `publish()` method returns `Err(VoError::nats_publish("simulated failure"))`. Assert: (1) reply is `Ok(())`, (2) actor is dead after terminate, (3) journal replay does NOT contain `InstanceCancelled`. This verifies the defensive error-logging path at `handlers.rs:213-218` and the data-loss risk documented in the comment.
 
 > **Note:** This is the ONLY test in the plan that uses a mock. All other tests use real `NatsClient`. The mock is justified because inducing a real JetStream publish failure would require killing the NATS server mid-stream, which is unreliable and affects other tests.
 
@@ -91,7 +91,7 @@ Verifies that exactly one `WorkflowEvent::InstanceCancelled` event exists in the
 
 ```
 Given: NATS server running on localhost:4222
-  And: JetStream stream wtf-events is provisioned
+  And: JetStream stream vo-events is provisioned
   And: MasterOrchestrator actor is spawned with real NatsClient as EventStore
   And: A procedural WorkflowFn "e2e-terminate-test" is registered (sleeps 60s)
   And: A workflow instance is started via OrchestratorMsg::StartWorkflow
@@ -207,7 +207,7 @@ Then: The reply receives Ok(())
 
 ```
 Given: MasterOrchestrator spawned with MockEventStore whose publish() returns
-       Err(WtfError::nats_publish("simulated failure"))
+       Err(VoError::nats_publish("simulated failure"))
   And: A workflow instance is started and in the Live phase
 
 When: OrchestratorMsg::Terminate { instance_id, reason: "publish-fail", reply } is sent

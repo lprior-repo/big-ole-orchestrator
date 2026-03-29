@@ -1,21 +1,21 @@
-# wtf-cedw Implementation Summary
+# vo-cedw Implementation Summary
 
-- **bead_id:** wtf-cedw
+- **bead_id:** vo-cedw
 - **bead_title:** instance: Implement handle_signal wake in instance handlers
 - **phase:** STATE-3
 - **updated_at:** 2026-03-23T00:00:00Z
-- **status:** ALREADY IMPLEMENTED by wtf-88f4 + wtf-3cv7
+- **status:** ALREADY IMPLEMENTED by vo-88f4 + vo-3cv7
 
 ## Analysis
 
-This bead's spec (`.beads/wtf-cedw/spec.md`) defines 7 objectives across 4 affected files. After thorough code inspection, **all objectives are fully implemented** by the combination of prior beads wtf-88f4 and wtf-3cv7. No code changes were required.
+This bead's spec (`.beads/vo-cedw/spec.md`) defines 7 objectives across 4 affected files. After thorough code inspection, **all objectives are fully implemented** by the combination of prior beads vo-88f4 and vo-3cv7. No code changes were required.
 
 ### Objective-by-Objective Evidence
 
 | # | Objective | Status | Evidence |
 |---|-----------|--------|----------|
 | 1 | Persist signals to event store as `WorkflowEvent::SignalReceived` | ✅ Done | `handlers.rs:148-155` — `handle_signal` publishes `WorkflowEvent::SignalReceived { signal_name, payload }` to the event store via `store.publish()` |
-| 2 | Store signal in `InstanceState` for replay | ✅ Done | `state.rs:33-35` — `pending_signal_calls: HashMap<String, RpcReplyPort<Result<Bytes, WtfError>>>` field exists and initialized to `HashMap::new()` at `state.rs:57` |
+| 2 | Store signal in `InstanceState` for replay | ✅ Done | `state.rs:33-35` — `pending_signal_calls: HashMap<String, RpcReplyPort<Result<Bytes, VoError>>>` field exists and initialized to `HashMap::new()` at `state.rs:57` |
 | 3 | Wake pending `wait_for_signal` caller via `RpcReplyPort` | ✅ Done | `handlers.rs:159` — `state.pending_signal_calls.remove(&signal_name)` sends payload through port; also `handlers.rs:121-129` wakes during `handle_inject_event_msg` replay |
 | 4 | `handle_signal` stub replaced with real implementation | ✅ Done | `handlers.rs:134-177` — full implementation with event store publish, waiter wake, signal buffering, and error handling |
 | 5 | `InstanceMsg::ProceduralWaitForSignal` variant exists | ✅ Done | `messages/instance.rs:92-96` — variant with `operation_id`, `signal_name`, `reply` fields |
@@ -54,11 +54,11 @@ The prior beads implemented **signal buffering** (`handle_signal` lines 161-167)
 ### Test & Clippy Results
 
 ```
-cargo test -p wtf-actor → ALL PASS (0 failures)
-cargo clippy -p wtf-actor → 0 warnings in wtf-actor source
-  (4 pre-existing clippy errors in wtf-common/types/id.rs — missing # Errors docs — unrelated to this bead)
+cargo test -p vo-actor → ALL PASS (0 failures)
+cargo clippy -p vo-actor → 0 warnings in vo-actor source
+  (4 pre-existing clippy errors in vo-common/types/id.rs — missing # Errors docs — unrelated to this bead)
 ```
 
 ## Conclusion
 
-**No code changes were made.** The entire spec for wtf-cedw was already implemented by the combination of wtf-88f4 (handle_signal publishing, pending_signal_calls, RpcReplyPort wake) and wtf-3cv7 (wait_for_signal context method, ProceduralWaitForSignal message, signal buffering, replay handling). All acceptance criteria from spec §12 are met. All tests pass.
+**No code changes were made.** The entire spec for vo-cedw was already implemented by the combination of vo-88f4 (handle_signal publishing, pending_signal_calls, RpcReplyPort wake) and vo-3cv7 (wait_for_signal context method, ProceduralWaitForSignal message, signal buffering, replay handling). All acceptance criteria from spec §12 are met. All tests pass.

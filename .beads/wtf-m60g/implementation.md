@@ -1,6 +1,6 @@
-# Implementation Summary: wtf-m60g
+# Implementation Summary: vo-m60g
 
-- **bead_id:** wtf-m60g
+- **bead_id:** vo-m60g
 - **bead_title:** instance: Publish InstanceStarted event
 - **phase:** STATE-3
 - **updated_at:** 2026-03-23T00:00:00Z
@@ -9,8 +9,8 @@
 
 | File | Lines Changed | Description |
 |------|--------------|-------------|
-| `crates/wtf-actor/src/instance/init.rs` | 142–338 | Added `publish_instance_started` function (lines 142–186) and 3 unit tests with mock infrastructure (lines 188–338) |
-| `crates/wtf-actor/src/instance/actor.rs` | 51 | Added `init::publish_instance_started(&state.args, &event_log).await?;` call after `spawn_live_subscription`, before `state.phase = InstancePhase::Live` |
+| `crates/vo-actor/src/instance/init.rs` | 142–338 | Added `publish_instance_started` function (lines 142–186) and 3 unit tests with mock infrastructure (lines 188–338) |
+| `crates/vo-actor/src/instance/actor.rs` | 51 | Added `init::publish_instance_started(&state.args, &event_log).await?;` call after `spawn_live_subscription`, before `state.phase = InstancePhase::Live` |
 
 ## Implementation Details
 

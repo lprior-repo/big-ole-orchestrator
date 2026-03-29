@@ -1,6 +1,6 @@
-# Kani Justification: wtf-3cv7
+# Kani Justification: vo-3cv7
 
-- **bead_id**: wtf-3cv7
+- **bead_id**: vo-3cv7
 - **phase**: STATE-5.7
 - **updated_at**: 2026-03-23T19:42:00Z
 

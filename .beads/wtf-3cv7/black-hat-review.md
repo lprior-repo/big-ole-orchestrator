@@ -1,4 +1,4 @@
-# Black Hat Review — wtf-3cv7
+# Black Hat Review — vo-3cv7
 
 **Reviewer:** adversarial-audit  
 **Date:** 2026-03-23  

@@ -1,9 +1,9 @@
-# Red Queen Report — wtf-cdpi
+# Red Queen Report — vo-cdpi
 
-- **bead_id:** wtf-cdpi
+- **bead_id:** vo-cdpi
 - **phase:** STATE-5
 - **updated_at:** 2026-03-23T00:00:00Z
-- **target:** `crates/wtf-api/src/handlers/definitions.rs` (180 lines)
+- **target:** `crates/vo-api/src/handlers/definitions.rs` (180 lines)
 - **attacker:** Red Queen adversarial QA
 
 ---
@@ -36,7 +36,7 @@
 
 **Evidence:** The handler does no size validation. `req.source.as_bytes().to_vec().into()` allocates the full body in memory. NATS KV has server-side limits (default ~1MB) that will reject oversized puts with an error, which is caught by the `Err(e)` branch → 500 + `kv_store_failure`.
 
-**Verdict:** SURVIVED. KV failure is handled. But there's no **early rejection** — the entire body is parsed by the Rust compiler (via `wtf_linter::lint_workflow_code`) before KV is even attempted. An enormous payload would waste CPU on linting before NATS rejects the store.
+**Verdict:** SURVIVED. KV failure is handled. But there's no **early rejection** — the entire body is parsed by the Rust compiler (via `vo_linter::lint_workflow_code`) before KV is even attempted. An enormous payload would waste CPU on linting before NATS rejects the store.
 
 ---
 
@@ -62,7 +62,7 @@
 
 ### 6. Test isolation — SURVIVED
 
-**Command:** `cargo test -p wtf-api --lib -- definitions` run twice in sequence.
+**Command:** `cargo test -p vo-api --lib -- definitions` run twice in sequence.
 
 **Evidence:** Both runs: 4 passed, 0 failed. Tests use `lint_only_app()` which creates a fresh router per test — no shared state.
 
@@ -72,9 +72,9 @@
 
 ### 7. Clippy on definitions.rs — SURVIVED
 
-**Command:** `cargo clippy -p wtf-api -- -W clippy::unwrap_used -W clippy::expect_used`
+**Command:** `cargo clippy -p vo-api -- -W clippy::unwrap_used -W clippy::expect_used`
 
-**Evidence:** Zero warnings for `definitions.rs`. (Warnings exist elsewhere in wtf-api but not in this file.)
+**Evidence:** Zero warnings for `definitions.rs`. (Warnings exist elsewhere in vo-api but not in this file.)
 
 **Verdict:** SURVIVED. Clean.
 

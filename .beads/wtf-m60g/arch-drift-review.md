@@ -1,4 +1,4 @@
-# Architectural Drift Review — wtf-m60g
+# Architectural Drift Review — vo-m60g
 
 ## STATUS: REFACTORED
 
@@ -28,5 +28,5 @@
 
 ## Verification
 
-- `cargo test -p wtf-actor -- init` — 27 tests passed, 0 failed
+- `cargo test -p vo-actor -- init` — 27 tests passed, 0 failed
 - All 3 `init_tests` tests run correctly from the new file location

@@ -4,7 +4,7 @@
 Accepted
 
 ## Context
-Because `wtf-engine` is designed to be a "Single Node Supreme" architecture, it must aggressively protect its host operating system. 
+Because `vo-engine` is designed to be a "Single Node Supreme" architecture, it must aggressively protect its host operating system. 
 
 While the `fjall` database and `ractor` actors can handle millions of operations in memory, the Execution Layer relies on `tokio::process::Command` to spawn physical OS subprocesses for user binaries. 
 

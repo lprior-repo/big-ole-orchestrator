@@ -3,35 +3,35 @@ use async_nats::jetstream::kv::Store;
 use async_nats::jetstream::Context;
 use chrono::Utc;
 use futures::StreamExt;
-use wtf_common::{TimerId, WorkflowEvent, WtfError};
-use wtf_storage::append_event;
+use vo_common::{TimerId, WorkflowEvent, VoError};
+use vo_storage::append_event;
 use crate::timer::record::TimerRecord;
 
 pub const TIMER_POLL_INTERVAL: Duration = Duration::from_secs(1);
 
-/// Write a timer record into the `wtf-timers` KV bucket.
+/// Write a timer record into the `vo-timers` KV bucket.
 ///
 /// # Errors
-/// Returns `WtfError::NatsPublish` on serialize or KV write failure.
-pub async fn store_timer(timers: &Store, record: &TimerRecord) -> Result<(), WtfError> {
+/// Returns `VoError::NatsPublish` on serialize or KV write failure.
+pub async fn store_timer(timers: &Store, record: &TimerRecord) -> Result<(), VoError> {
     let key = record.timer_id.as_str().to_owned();
     let payload = record.to_msgpack()?;
     timers
         .put(&key, payload)
         .await
-        .map_err(|e| WtfError::nats_publish(format!("store timer {}: {e}", record.timer_id)))?;
+        .map_err(|e| VoError::nats_publish(format!("store timer {}: {e}", record.timer_id)))?;
     Ok(())
 }
 
-/// Delete a timer record from the `wtf-timers` KV bucket.
+/// Delete a timer record from the `vo-timers` KV bucket.
 ///
 /// # Errors
-/// Returns `WtfError::NatsPublish` on KV delete failure.
-pub async fn delete_timer(timers: &Store, timer_id: &TimerId) -> Result<(), WtfError> {
+/// Returns `VoError::NatsPublish` on KV delete failure.
+pub async fn delete_timer(timers: &Store, timer_id: &TimerId) -> Result<(), VoError> {
     timers
         .delete(timer_id.as_str())
         .await
-        .map_err(|e| WtfError::nats_publish(format!("delete timer {timer_id}: {e}")))?;
+        .map_err(|e| VoError::nats_publish(format!("delete timer {timer_id}: {e}")))?;
     Ok(())
 }
 
@@ -40,7 +40,7 @@ pub async fn fire_timer(
     js: &Context,
     timers: &Store,
     record: &TimerRecord,
-) -> Result<u64, WtfError> {
+) -> Result<u64, VoError> {
     let event = WorkflowEvent::TimerFired {
         timer_id: record.timer_id.as_str().to_owned(),
     };
@@ -71,7 +71,7 @@ pub async fn run_timer_loop(
     js: Context,
     timers: Store,
     mut shutdown_rx: tokio::sync::watch::Receiver<bool>,
-) -> Result<(), WtfError> {
+) -> Result<(), VoError> {
     tracing::info!("timer loop started");
     let mut interval = tokio::time::interval(TIMER_POLL_INTERVAL);
 
@@ -94,13 +94,13 @@ pub async fn run_timer_loop(
     Ok(())
 }
 
-async fn poll_and_fire(js: &Context, timers: &Store) -> Result<(), WtfError> {
+async fn poll_and_fire(js: &Context, timers: &Store) -> Result<(), VoError> {
     let now = Utc::now();
 
     let mut keys = timers
         .keys()
         .await
-        .map_err(|e| WtfError::nats_publish(format!("list timer keys: {e}")))?;
+        .map_err(|e| VoError::nats_publish(format!("list timer keys: {e}")))?;
 
     while let Some(key_result) = keys.next().await {
         if let Ok(key) = key_result {

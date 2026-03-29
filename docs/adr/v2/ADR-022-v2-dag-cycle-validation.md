@@ -10,7 +10,7 @@ Additionally, for branch-conditional DAGs (e.g., Node C depends on either the "Y
 ## Decision
 
 ### 1. Compile-Time/Discovery Validation
-The `wtf-sdk` must run a cycle detection algorithm (Kahn's or DFS) *before* serializing the DAG during the `--graph` call. 
+The `vo-sdk` must run a cycle detection algorithm (Kahn's or DFS) *before* serializing the DAG during the `--graph` call. 
 If a cycle is detected, the SDK prints a fatal error to `stderr` specifying the exact node names forming the cycle and exits with a non-zero code. The Engine treats this as an invalid binary and refuses to register it. Cycles are caught at compile/discovery time, never at runtime.
 
 ### 2. Runtime Execution Traversal Semantics

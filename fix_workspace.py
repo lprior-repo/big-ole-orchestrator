@@ -2,7 +2,7 @@ import os
 import re
 import glob
 
-workspace = "/home/lewis/src/wtf-k6u"
+workspace = "/home/lewis/src/vo-k6u"
 
 def fix_let_underscore(filepath):
     with open(filepath, 'r') as f:

@@ -1,6 +1,6 @@
-# Bead Lifecycle Completion: wtf-40m5
+# Bead Lifecycle Completion: vo-40m5
 
-- **bead_id**: wtf-40m5
+- **bead_id**: vo-40m5
 - **title**: serve: Start heartbeat watcher in serve.rs
 - **completed_at**: 2026-03-23T19:02:00Z
 

@@ -1,6 +1,6 @@
-# Red Queen Report: wtf-3cv7 — wait_for_signal
+# Red Queen Report: vo-3cv7 — wait_for_signal
 
-**Target**: `crates/wtf-actor/src/instance/procedural.rs` (handle_wait_for_signal L97-128)
+**Target**: `crates/vo-actor/src/instance/procedural.rs` (handle_wait_for_signal L97-128)
 **Known defect (excluded)**: Buffer consumed before publish — already tracked.
 **Scope**: NEW issues only.
 
@@ -50,7 +50,7 @@ Since all three (`handle_wait_for_signal`, `handle_inject_event_msg`, `handle_si
 
 **Question**: Do tests pass consistently across multiple runs?
 
-**Command**: `cargo test -p wtf-actor --lib -- wait_for_signal` (ran twice)
+**Command**: `cargo test -p vo-actor --lib -- wait_for_signal` (ran twice)
 
 **Run 1**: 4 passed, 0 failed
 **Run 2**: 4 passed, 0 failed
@@ -67,13 +67,13 @@ Tests:
 
 ## ATTACK VECTOR 5: Clippy strict
 
-**Question**: Does `wtf-actor` compile clean with `-W clippy::unwrap_used -W clippy::expect_used`?
+**Question**: Does `vo-actor` compile clean with `-W clippy::unwrap_used -W clippy::expect_used`?
 
-**Command**: `cargo clippy -p wtf-actor -- -W clippy::unwrap_used -W clippy::expect_used`
+**Command**: `cargo clippy -p vo-actor -- -W clippy::unwrap_used -W clippy::expect_used`
 
-**Result**: No errors. Only pedantic warnings (doc_markdown, manual_let_else, single_match_else, etc.) — zero `unwrap_used` or `expect_used` violations in `wtf-actor`.
+**Result**: No errors. Only pedantic warnings (doc_markdown, manual_let_else, single_match_else, etc.) — zero `unwrap_used` or `expect_used` violations in `vo-actor`.
 
-Note: `wtf-actor` already has `#![deny(clippy::unwrap_used)]` and `#![deny(clippy::expect_used)]` at the module level in both `procedural/context.rs` and `procedural/mod.rs` and `procedural/state/mod.rs`.
+Note: `vo-actor` already has `#![deny(clippy::unwrap_used)]` and `#![deny(clippy::expect_used)]` at the module level in both `procedural/context.rs` and `procedural/mod.rs` and `procedural/state/mod.rs`.
 
 **Verdict**: **SURVIVED** — Zero unwrap/expect violations.
 

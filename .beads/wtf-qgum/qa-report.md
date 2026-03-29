@@ -1,7 +1,7 @@
-# QA Report: wtf-qgum — "worker: Implement echo and sleep activity handlers"
+# QA Report: vo-qgum — "worker: Implement echo and sleep activity handlers"
 
 **Date:** 2026-03-23
-**File:** `crates/wtf-worker/src/builtin.rs` (421 lines; 91 prod / 330 test)
+**File:** `crates/vo-worker/src/builtin.rs` (421 lines; 91 prod / 330 test)
 
 ---
 
@@ -21,7 +21,7 @@
 
 ### 1.3 Test execution
 ```
-cargo test -p wtf-worker --lib -- builtin
+cargo test -p vo-worker --lib -- builtin
 running 32 tests
 test result: ok. 32 passed; 0 failed; 0 ignored; 0 measured; 37 filtered out
 ```
@@ -61,10 +61,10 @@ No shared mutable state, no global state, no ordering dependencies.
 - **PASS**
 
 ### 2.5 Clippy strict
-- 4 clippy errors in `wtf-common` (pre-existing, `missing_errors_doc` on `to_msgpack`/`from_msgpack`/`try_new`)
+- 4 clippy errors in `vo-common` (pre-existing, `missing_errors_doc` on `to_msgpack`/`from_msgpack`/`try_new`)
 - These are NOT introduced by this bead — they block all downstream clippy
 - `builtin.rs` itself: `#![warn(clippy::pedantic)]` + deny unwrap/expect/panic
-- **PASS** (no new clippy issues; pre-existing wtf-common issues are out of scope)
+- **PASS** (no new clippy issues; pre-existing vo-common issues are out of scope)
 
 ---
 

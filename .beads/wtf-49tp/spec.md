@@ -1,7 +1,7 @@
-# Bead Specification: wtf-49tp
+# Bead Specification: vo-49tp
 
 ```yaml
-id: wtf-49tp
+id: vo-49tp
 title: "instance: Implement snapshot trigger"
 status: ready
 priority: 2
@@ -14,7 +14,7 @@ created: "2026-03-23"
 
 ## Section 1: Objective
 
-Replace the stub at `crates/wtf-actor/src/instance/handlers.rs:215-222` (`handle_snapshot_trigger`) with a real implementation that serializes the current `ParadigmState`, writes a `SnapshotRecord` to sled, publishes a `SnapshotTaken` JetStream event, and resets `events_since_snapshot`. This completes ADR-019 snapshotting for live event processing.
+Replace the stub at `crates/vo-actor/src/instance/handlers.rs:215-222` (`handle_snapshot_trigger`) with a real implementation that serializes the current `ParadigmState`, writes a `SnapshotRecord` to sled, publishes a `SnapshotTaken` JetStream event, and resets `events_since_snapshot`. This completes ADR-019 snapshotting for live event processing.
 
 ## Section 2: Scope
 
@@ -35,15 +35,15 @@ Replace the stub at `crates/wtf-actor/src/instance/handlers.rs:215-222` (`handle
 
 | File | Action | Lines |
 |------|--------|-------|
-| `crates/wtf-actor/src/instance/handlers.rs` | MODIFY | 215-222 (replace stub) |
-| `crates/wtf-storage/src/snapshots.rs` | READ-ONLY | `write_snapshot`, `SnapshotRecord::new` |
+| `crates/vo-actor/src/instance/handlers.rs` | MODIFY | 215-222 (replace stub) |
+| `crates/vo-storage/src/snapshots.rs` | READ-ONLY | `write_snapshot`, `SnapshotRecord::new` |
 
-No changes to `wtf-storage`. The `snapshot.rs` module in `wtf-actor` already contains `write_instance_snapshot` which is the entry point.
+No changes to `vo-storage`. The `snapshot.rs` module in `vo-actor` already contains `write_instance_snapshot` which is the entry point.
 
 ## Section 4: Dependencies
 
 **Internal (already resolved):**
-- `crate::snapshot::write_instance_snapshot` — exists at `crates/wtf-actor/src/snapshot.rs:47`, signature:
+- `crate::snapshot::write_instance_snapshot` — exists at `crates/vo-actor/src/snapshot.rs:47`, signature:
   ```rust
   pub async fn write_instance_snapshot(
       event_store: &dyn EventStore,
@@ -52,13 +52,13 @@ No changes to `wtf-storage`. The `snapshot.rs` module in `wtf-actor` already con
       instance_id: &InstanceId,
       last_applied_seq: u64,
       state_bytes: Bytes,
-  ) -> Result<SnapshotResult, WtfError>
+  ) -> Result<SnapshotResult, VoError>
   ```
 - `rmp_serde::to_vec_named` — available in workspace Cargo.toml
 
 **External:**
-- `rmp_serde` — msgpack serialization (already in `crates/wtf-actor/Cargo.toml`)
-- `sled` — embedded KV (already in `crates/wtf-actor/Cargo.toml`)
+- `rmp_serde` — msgpack serialization (already in `crates/vo-actor/Cargo.toml`)
+- `sled` — embedded KV (already in `crates/vo-actor/Cargo.toml`)
 - `bytes::Bytes` — already imported in `handlers.rs:6`
 
 ## Section 5: Current State
@@ -69,7 +69,7 @@ fn handle_snapshot_trigger(state: &mut InstanceState) {
     tracing::debug!(
         instance_id = %state.args.instance_id,
         total = state.total_events_applied,
-        "snapshot trigger (stub — see wtf-flbh)"
+        "snapshot trigger (stub — see vo-flbh)"
     );
     state.events_since_snapshot = 0;
 }
@@ -178,7 +178,7 @@ handle_snapshot_trigger(state)  <-- THIS BEAD
   |       |
   |       +-- SnapshotRecord::new(seq, state_bytes)  ->  SnapshotRecord { seq, state_bytes, checksum, taken_at }
   |       |
-  |       +-- wtf_storage::snapshots::write_snapshot(db, instance_id, &record)  ->  sled insert + flush
+  |       +-- vo_storage::snapshots::write_snapshot(db, instance_id, &record)  ->  sled insert + flush
   |       |
   |       +-- event_store.publish(namespace, instance_id, SnapshotTaken { seq, checksum })  ->  JetStream append
   |
@@ -196,7 +196,7 @@ handle_snapshot_trigger(state)  <-- THIS BEAD
 7. **Handle success**: log info, reset `state.events_since_snapshot = 0`
 8. **Handle failure**: log warn, do NOT reset counter
 9. **Update call site**: `inject_event` at line 209 change `handle_snapshot_trigger(state)` to `handle_snapshot_trigger(state).await?`
-10. **Run quality gates**: `cargo check -p wtf-actor && cargo clippy -p wtf-actor -- -D warnings`
+10. **Run quality gates**: `cargo check -p vo-actor && cargo clippy -p vo-actor -- -D warnings`
 
 ## Section 11: Testing Strategy
 
@@ -241,8 +241,8 @@ handle_snapshot_trigger(state)  <-- THIS BEAD
 2. On success: sled has a `SnapshotRecord` for the instance, JetStream has `SnapshotTaken` event, counter reset
 3. On failure (sled or JetStream): counter NOT reset, workflow continues
 4. Missing `event_store` or `snapshot_db`: returns error
-5. `cargo clippy -p wtf-actor -- -D warnings` passes
-6. `cargo test -p wtf-actor` passes (existing tests not broken)
+5. `cargo clippy -p vo-actor -- -D warnings` passes
+6. `cargo test -p vo-actor` passes (existing tests not broken)
 7. No `unwrap` or `expect` in new code (matches project `deny` policy)
 
 ## Section 15: Rollback Plan
@@ -253,10 +253,10 @@ Revert the single commit. The stub is already safe — it resets the counter and
 
 - **ADR-019**: Snapshot trigger every 100 events for bounded replay latency
 - **ADR-015**: Write-ahead pattern (sled before JetStream)
-- `crates/wtf-actor/src/snapshot.rs:47-73` — `write_instance_snapshot` implementation
-- `crates/wtf-storage/src/snapshots.rs:76-95` — `write_snapshot` sled write
-- `crates/wtf-storage/src/snapshots.rs:40-58` — `SnapshotRecord::new` with CRC32
-- `crates/wtf-actor/src/instance/lifecycle.rs:29-35` — `ParadigmState` enum (derives `Serialize`)
-- `crates/wtf-actor/src/instance/state.rs:21` — `events_since_snapshot: u32` field
-- `crates/wtf-actor/src/instance/handlers.rs:193` — `SNAPSHOT_INTERVAL = 100` constant
-- `crates/wtf-actor/src/messages/instance.rs:29` — `snapshot_db: Option<sled::Db>` field
+- `crates/vo-actor/src/snapshot.rs:47-73` — `write_instance_snapshot` implementation
+- `crates/vo-storage/src/snapshots.rs:76-95` — `write_snapshot` sled write
+- `crates/vo-storage/src/snapshots.rs:40-58` — `SnapshotRecord::new` with CRC32
+- `crates/vo-actor/src/instance/lifecycle.rs:29-35` — `ParadigmState` enum (derives `Serialize`)
+- `crates/vo-actor/src/instance/state.rs:21` — `events_since_snapshot: u32` field
+- `crates/vo-actor/src/instance/handlers.rs:193` — `SNAPSHOT_INTERVAL = 100` constant
+- `crates/vo-actor/src/messages/instance.rs:29` — `snapshot_db: Option<sled::Db>` field

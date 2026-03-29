@@ -1,6 +1,6 @@
-# Black Hat Review: wtf-cdpi (RETRY)
+# Black Hat Review: vo-cdpi (RETRY)
 
-- **bead_id**: wtf-cdpi
+- **bead_id**: vo-cdpi
 - **phase**: STATE-5.5
 - **updated_at**: 2026-03-23T12:30:00Z
 - **reviewer**: black-hat
@@ -12,7 +12,7 @@
 
 ### DEFECT-1 (MAJOR): Empty workflow_type not validated — FIXED
 
-Read `crates/wtf-api/src/handlers/definitions.rs:13-19`. Guard exists at top of handler, before lint and KV store. Returns 400 with structured error. Uses `.trim().is_empty()` which correctly catches whitespace-only strings. Two tests verify this path.
+Read `crates/vo-api/src/handlers/definitions.rs:13-19`. Guard exists at top of handler, before lint and KV store. Returns 400 with structured error. Uses `.trim().is_empty()` which correctly catches whitespace-only strings. Two tests verify this path.
 
 ### DEFECT-2 (MINOR): KV integration paths untested — PARTIALLY FIXED
 
@@ -27,7 +27,7 @@ Sub-agent claimed 3 tests were added for KV integration. **This claim is mislead
 - No dead code added.
 - No unsafe introduced.
 - Test helper `lint_only_app()` correctly mirrors the guard (line 97-106) — duplication is pre-existing, not new.
-- All 7 tests pass: `cargo test -p wtf-api --lib -- definitions` → 7 passed, 0 failed.
+- All 7 tests pass: `cargo test -p vo-api --lib -- definitions` → 7 passed, 0 failed.
 
 ---
 

@@ -1,4 +1,4 @@
-# Defects Report: wtf-acb — wtf-types: define all semantic newtypes
+# Defects Report: vo-acb — vo-types: define all semantic newtypes
 
 **Reviewer**: Black Hat Reviewer
 **Date**: 2026-03-27

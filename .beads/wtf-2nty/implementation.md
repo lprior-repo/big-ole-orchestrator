@@ -1,21 +1,21 @@
-# Implementation: wtf-2nty
+# Implementation: vo-2nty
 
-- **bead_id**: wtf-2nty
+- **bead_id**: vo-2nty
 - **bead_title**: serve: Load definitions from KV into registry on startup
 - **phase**: STATE-3
 - **updated_at**: 2026-03-23T12:00:00Z
 
 ## Summary
 
-Implemented KV-to-registry loading on startup. When `wtf serve` starts, after provisioning KV buckets, it scans every key in the `wtf-definitions` bucket, deserializes each value as `WorkflowDefinition` (JSON), and seeds them into `OrchestratorState.registry` via the new `OrchestratorConfig.definitions` field.
+Implemented KV-to-registry loading on startup. When `wtf serve` starts, after provisioning KV buckets, it scans every key in the `vo-definitions` bucket, deserializes each value as `WorkflowDefinition` (JSON), and seeds them into `OrchestratorState.registry` via the new `OrchestratorConfig.definitions` field.
 
 ## Files Modified
 
 | File | Lines Changed | Description |
 |------|---------------|-------------|
-| `crates/wtf-actor/src/master/state.rs` | 1, 23-24, 36, 52-65, 123-275 | Added `definitions: Vec<(String, WorkflowDefinition)>` to `OrchestratorConfig`; updated `OrchestratorState::new()` to iterate and register pre-seeded definitions; added 3 unit tests |
-| `crates/wtf-cli/src/commands/serve.rs` | 8-9, 13, 55-57, 70, 107-145 | Added `load_definitions_from_kv()` function; wired into `run_serve()` after `provision_storage()` and before orchestrator spawn |
-| `crates/wtf-cli/Cargo.toml` | 17 | Added `async-nats = { workspace = true }` dependency (required for `Store` type) |
+| `crates/vo-actor/src/master/state.rs` | 1, 23-24, 36, 52-65, 123-275 | Added `definitions: Vec<(String, WorkflowDefinition)>` to `OrchestratorConfig`; updated `OrchestratorState::new()` to iterate and register pre-seeded definitions; added 3 unit tests |
+| `crates/vo-cli/src/commands/serve.rs` | 8-9, 13, 55-57, 70, 107-145 | Added `load_definitions_from_kv()` function; wired into `run_serve()` after `provision_storage()` and before orchestrator spawn |
+| `crates/vo-cli/Cargo.toml` | 17 | Added `async-nats = { workspace = true }` dependency (required for `Store` type) |
 
 ## Implementation Details
 
@@ -39,23 +39,23 @@ Implemented KV-to-registry loading on startup. When `wtf serve` starts, after pr
 
 | Test Name | Location | Status |
 |-----------|----------|--------|
-| `new_state_with_pre_seeded_definitions_populates_registry` | `wtf-actor/src/master/state.rs:231` | PASS |
-| `new_state_with_multiple_definitions` | `wtf-actor/src/master/state.rs:247` | PASS |
-| `new_state_with_empty_definitions_has_empty_registry` | `wtf-actor/src/master/state.rs:272` | PASS |
+| `new_state_with_pre_seeded_definitions_populates_registry` | `vo-actor/src/master/state.rs:231` | PASS |
+| `new_state_with_multiple_definitions` | `vo-actor/src/master/state.rs:247` | PASS |
+| `new_state_with_empty_definitions_has_empty_registry` | `vo-actor/src/master/state.rs:272` | PASS |
 
 Note: `load_definitions_from_kv` requires a live NATS connection for integration testing. Unit testing is covered by the `OrchestratorState::new()` tests above which verify the consumption path.
 
 ## cargo test Output
 
 ```
-$ cargo test -p wtf-actor --lib
+$ cargo test -p vo-actor --lib
 running 91 tests
 test master::state::tests::new_state_with_pre_seeded_definitions_populates_registry ... ok
 test master::state::tests::new_state_with_multiple_definitions ... ok
 test master::state::tests::new_state_with_empty_definitions_has_empty_registry ... ok
 test result: ok. 91 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
 
-$ cargo test -p wtf-cli
+$ cargo test -p vo-cli
 running 9 tests
 test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
 ```
@@ -63,10 +63,10 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ## cargo clippy Output
 
 ```
-$ cargo clippy -p wtf-actor -p wtf-cli
-    Checking wtf-actor v0.1.0
-    Checking wtf-cli v0.1.0
+$ cargo clippy -p vo-actor -p vo-cli
+    Checking vo-actor v0.1.0
+    Checking vo-cli v0.1.0
     Finished `dev` profile [unoptimized + debuginfo] target(s) in X.XXs
 ```
 
-No new warnings introduced. All pre-existing warnings are in dependency crates (wtf-common, wtf-storage, wtf-worker).
+No new warnings introduced. All pre-existing warnings are in dependency crates (vo-common, vo-storage, vo-worker).

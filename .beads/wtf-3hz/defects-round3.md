@@ -1,4 +1,4 @@
-# Black Hat Review — Round 3 — wtf-3hz (terminate_workflow handler)
+# Black Hat Review — Round 3 — vo-3hz (terminate_workflow handler)
 
 **Reviewer:** Black Hat
 **Date:** 2026-03-23
@@ -21,7 +21,7 @@
 **D-01 Verification (HTTP Tests):**
 - `terminate_handler_test.rs`: 129 lines, 4 tests.
 - Tests: `terminate_existing_returns_204`, `terminate_unknown_returns_404`, `terminate_bad_path_returns_400`, `terminate_timeout_returns_503`.
-- All 4 tests PASS (confirmed via `cargo test -p wtf-api -- "terminate"`).
+- All 4 tests PASS (confirmed via `cargo test -p vo-api -- "terminate"`).
 - Pattern matches `signal_handler_test.rs`: mock actor, oneshot Router, `axum::body::to_bytes`, `ApiError` deserialization.
 
 **PASS.** Tests exist, pass, and follow established patterns.
@@ -124,7 +124,7 @@ The `InstanceCancelled` event is published to the event store, but failure is si
 
 This was flagged in Round 1 as "handle_cancel no-op" and was acknowledged. However, the fix applied (publishing the event) **silently drops the publish result**. The event is ATTEMPTED but not GUARANTEED.
 
-**SEVERITY: MEDIUM-HIGH** — This violates the core invariant of the wtf-engine ("guaranteed no lost transitions"). The event store publish MUST succeed before acknowledging cancellation, OR the actor must not stop.
+**SEVERITY: MEDIUM-HIGH** — This violates the core invariant of the vo-engine ("guaranteed no lost transitions"). The event store publish MUST succeed before acknowledging cancellation, OR the actor must not stop.
 
 ### SenderError Semantic Mapping
 
@@ -171,7 +171,7 @@ The tests cover `NotFound`, `Timeout`, success, and bad path — but there is **
 
 The three Round 2 defects (D-01, D-06, D-10) are **correctly fixed and verified**. The code compiles, tests pass, and the stated fixes are in place.
 
-However, **D-16 is a critical invariant violation** that was partially addressed (the event publish was added) but done in a way that silently drops failures. The entire point of the wtf-engine is durable execution with "guaranteed no lost transitions." Publishing a cancellation event and ignoring the result breaks this guarantee. This MUST be addressed before this bead can ship.
+However, **D-16 is a critical invariant violation** that was partially addressed (the event publish was added) but done in a way that silently drops failures. The entire point of the vo-engine is durable execution with "guaranteed no lost transitions." Publishing a cancellation event and ignoring the result breaks this guarantee. This MUST be addressed before this bead can ship.
 
 ---
 
@@ -179,7 +179,7 @@ However, **D-16 is a critical invariant violation** that was partially addressed
 
 **STATUS: REJECTED**
 
-**Reason:** D-16 (silent event store publish failure in `handle_cancel`) violates the core invariant of the system. The fix from Round 1 added the publish call but did not ensure it succeeds. This is the kind of bug that causes silent data loss in production — exactly what the wtf-engine is designed to prevent.
+**Reason:** D-16 (silent event store publish failure in `handle_cancel`) violates the core invariant of the system. The fix from Round 1 added the publish call but did not ensure it succeeds. This is the kind of bug that causes silent data loss in production — exactly what the vo-engine is designed to prevent.
 
 **Required before Round 4:**
 1. **D-16:** `handle_cancel` must propagate `store.publish()` failure. Options: (a) return `Err` from `handle_cancel` so the caller (orchestrator) knows cancel failed, (b) retry the publish, or (c) at minimum log at `error!` level instead of `let _ =`.

@@ -1,7 +1,7 @@
-# Implementation Summary — wtf-q2iv
+# Implementation Summary — vo-q2iv
 
 ```yaml
-bead_id: wtf-q2iv
+bead_id: vo-q2iv
 bead_title: "serve: Scaffold built-in worker"
 phase: STATE-3
 updated_at: "2026-03-23T00:00:00Z"
@@ -11,26 +11,26 @@ updated_at: "2026-03-23T00:00:00Z"
 
 | File | Change |
 |------|--------|
-| `crates/wtf-cli/src/commands/serve.rs` | Added Worker spawn + extended drain_runtime to 4 tasks + 2 new tests |
+| `crates/vo-cli/src/commands/serve.rs` | Added Worker spawn + extended drain_runtime to 4 tasks + 2 new tests |
 
 ## Files Unchanged (Verified)
 
-- `crates/wtf-worker/src/worker.rs` — NOT modified (spec constraint Section 1.5)
-- `crates/wtf-worker/src/lib.rs` — NOT modified
-- `crates/wtf-cli/Cargo.toml` — NOT modified (wtf-worker already a dependency)
+- `crates/vo-worker/src/worker.rs` — NOT modified (spec constraint Section 1.5)
+- `crates/vo-worker/src/lib.rs` — NOT modified
+- `crates/vo-cli/Cargo.toml` — NOT modified (vo-worker already a dependency)
 
 ## Implementation Details
 
 ### 1. Import Added
 ```rust
-use wtf_worker::Worker;
+use vo_worker::Worker;
 ```
 
 ### 2. Worker Spawn in `run_serve`
 - Created `Worker::new(nats.jetstream().clone(), "builtin-worker", None)` — no handlers, no filter subject
 - Spawned with `tokio::spawn(async move { worker.run(worker_shutdown).await })`
 - Worker receives a `watch::Receiver<bool>` clone from the shared shutdown channel
-- Error type is `Result<(), WtfError>` which satisfies the `drain_runtime` generic bound (`WtfError: Error + Send + Sync + 'static`)
+- Error type is `Result<(), VoError>` which satisfies the `drain_runtime` generic bound (`VoError: Error + Send + Sync + 'static`)
 - No `map_err` to `anyhow::Error` needed — avoids the `anyhow::Error: !Error` trait bound issue
 
 ### 3. `drain_runtime` Extended
@@ -40,7 +40,7 @@ use wtf_worker::Worker;
 - Propagates: `worker_result.context("builtin worker failed")?`
 
 ### 4. Adaptation from Spec
-The spec assumed 2 tasks (api + timer). The actual codebase already had 3 (api + timer + heartbeat from wtf-40m5). The implementation correctly extended from 3 to 4 tasks rather than 2 to 3.
+The spec assumed 2 tasks (api + timer). The actual codebase already had 3 (api + timer + heartbeat from vo-40m5). The implementation correctly extended from 3 to 4 tasks rather than 2 to 3.
 
 ## Tests Written
 
@@ -54,8 +54,8 @@ The spec assumed 2 tasks (api + timer). The actual codebase already had 3 (api +
 | Constraint | Status | Evidence |
 |------------|--------|----------|
 | Zero `unwrap()`/`expect()` in source | ✅ | No unwrap/expect in serve.rs source code |
-| `wtf-worker` crate unchanged | ✅ | `git diff` confirms no modifications |
-| No new Cargo.toml dependencies | ✅ | wtf-worker already in wtf-cli deps |
+| `vo-worker` crate unchanged | ✅ | `git diff` confirms no modifications |
+| No new Cargo.toml dependencies | ✅ | vo-worker already in vo-cli deps |
 | No unsafe code | ✅ | No `unsafe` blocks |
 | Data→Calc→Actions | ✅ | Worker construction is Data, drain is Actions (I/O) |
 | `mut` banned in source | ✅ | Only `mut` in test code (allowed per functional-rust skill) |
@@ -63,10 +63,10 @@ The spec assumed 2 tasks (api + timer). The actual codebase already had 3 (api +
 ## Verification Output
 
 ```
-$ cargo check -p wtf-cli
+$ cargo check -p vo-cli
     Finished `dev` profile [unoptimized + debuginfo] target(s)
 
-$ cargo test -p wtf-cli
+$ cargo test -p vo-cli
     Running unittests src/lib.rs
     running 10 tests
     test serve::tests::drain_runtime_signals_shutdown_and_waits_for_four_tasks ... ok
@@ -74,12 +74,12 @@ $ cargo test -p wtf-cli
     (8 other tests) ... ok
     test result: ok. 10 passed; 0 failed
 
-$ cargo test -p wtf-worker
+$ cargo test -p vo-worker
     running 37 tests (unit) ... ok
     running 19 tests (integration) ... ok
     test result: ok. 56 passed; 0 failed
 
-$ cargo clippy -p wtf-cli -p wtf-worker
-    Zero errors in wtf-cli and wtf-worker source.
-    All warnings are pre-existing in dependency crates (wtf-common, wtf-storage, wtf-actor, wtf-linter).
+$ cargo clippy -p vo-cli -p vo-worker
+    Zero errors in vo-cli and vo-worker source.
+    All warnings are pre-existing in dependency crates (vo-common, vo-storage, vo-actor, vo-linter).
 ```

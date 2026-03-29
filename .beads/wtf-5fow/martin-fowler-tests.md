@@ -1,9 +1,9 @@
 # Martin Fowler Test Plan: E2E Crash Recovery via Heartbeat Expiry
 
-**Bead:** wtf-5fow
-**Test file:** `crates/wtf-actor/tests/heartbeat_expiry_recovery.rs`
+**Bead:** vo-5fow
+**Test file:** `crates/vo-actor/tests/heartbeat_expiry_recovery.rs`
 **Paradigm:** FSM
-**NATS:** Required (`wtf-nats-test`, port 4222)
+**NATS:** Required (`vo-nats-test`, port 4222)
 
 ---
 
@@ -307,8 +307,8 @@ All integration tests (I1-I4) share this setup:
 async fn setup_test_infrastructure() -> TestHarness {
     // 1. Connect NATS: async_nats::connect("nats://localhost:4222").await
     // 2. Create JetStream context
-    // 3. provision_streams(js) — creates wtf-events stream
-    // 4. provision_kv_buckets(js) — creates wtf-heartbeats (max_age=10s)
+    // 3. provision_streams(js) — creates vo-events stream
+    // 4. provision_kv_buckets(js) — creates vo-heartbeats (max_age=10s)
     // 5. Open sled snapshot db: tempfile::tempdir() + open_snapshot_db()
     // 6. Build OrchestratorConfig with real stores
     // 7. Register FSM definition "checkout-fsm" (Created -> Authorized)
@@ -361,19 +361,19 @@ impl Drop for TestHarness {
 
 ```bash
 # Compile check
-cargo check -p wtf-actor
+cargo check -p vo-actor
 
 # Unit tests (no NATS)
-cargo test -p wtf-actor -- heartbeat_expiry_recovery
+cargo test -p vo-actor -- heartbeat_expiry_recovery
 
 # E2E tests (requires NATS)
-cargo test -p wtf-actor --test heartbeat_expiry_recovery -- --nocapture
+cargo test -p vo-actor --test heartbeat_expiry_recovery -- --nocapture
 
 # E2E tests with ignored tests included
-cargo test -p wtf-actor --test heartbeat_expiry_recovery -- --nocapture --ignored
+cargo test -p vo-actor --test heartbeat_expiry_recovery -- --nocapture --ignored
 
 # Clippy
-cargo clippy -p wtf-actor -- -D warnings
+cargo clippy -p vo-actor -- -D warnings
 
 # Full workspace regression
 cargo test --workspace

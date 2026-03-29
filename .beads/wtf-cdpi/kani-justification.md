@@ -1,4 +1,4 @@
-# Kani Justification: wtf-cdpi
+# Kani Justification: vo-cdpi
 
 ## Decision: Kani model checking NOT required.
 

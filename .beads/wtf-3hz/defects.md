@@ -1,4 +1,4 @@
-# Black Hat Review — Bead wtf-3hz: Implement terminate_workflow handler
+# Black Hat Review — Bead vo-3hz: Implement terminate_workflow handler
 
 **Reviewer:** Black Hat (glm-5-turbo)
 **Date:** 2026-03-23
@@ -57,11 +57,11 @@ No function exceeds 5 parameters. **PASS.**
 
 **CRITICAL DEFECT D-01: ZERO integration tests for the terminate endpoint.**
 
-The test landscape for `wtf-api` has:
+The test landscape for `vo-api` has:
 - `tests/journal_test.rs` — 7 integration tests for journal
 - `tests/validate_workflow_test.rs` — 5 integration tests for validate
 - `tests/unit/signal_handler_test.rs` — 3 unit tests for signal
-- **ZERO tests for terminate_workflow.** Not a single `DELETE /api/v1/workflows/:id` test exists anywhere in `wtf-api/tests/`.
+- **ZERO tests for terminate_workflow.** Not a single `DELETE /api/v1/workflows/:id` test exists anywhere in `vo-api/tests/`.
 
 The only test that exists is in `terminate.rs:52-69` — a **unit test** for `handle_terminate` at the actor level that only tests the `NotFound` path. There are NO tests for:
 - ✗ Happy path: DELETE returns 204 for an existing workflow
@@ -153,7 +153,7 @@ Verified:
 async fn handle_cancel(
     state: &InstanceState,
     reason: String,
-    reply: RpcReplyPort<Result<(), WtfError>>,
+    reply: RpcReplyPort<Result<(), VoError>>,
 ) -> Result<(), ActorProcessingErr> {
     tracing::info!(...);
     let _ = reply.send(Ok(()));  // ← Immediately returns success

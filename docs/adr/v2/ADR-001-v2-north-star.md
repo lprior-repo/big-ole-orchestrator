@@ -4,7 +4,7 @@
 Accepted
 
 ## Context
-The v1 architecture of `wtf-engine` relied heavily on NATS JetStream for durable event logs and queueing, mimicking the Temporal architecture. While highly scalable for distributed datacenters, it violated the core goals of the project:
+The v1 architecture of `vo-engine` relied heavily on NATS JetStream for durable event logs and queueing, mimicking the Temporal architecture. While highly scalable for distributed datacenters, it violated the core goals of the project:
 1. True "Single Binary" deployments (zero external infrastructure/daemons).
 2. Pure Rust ecosystem.
 3. Ruthless execution speed without network overhead.
@@ -19,7 +19,7 @@ The engine is a single Rust framework. It combines the visual observability of n
 1. **Storage:** `fjall` (Pure Rust LSM-Tree). Provides face-melting disk I/O without requiring external databases.
 2. **Concurrency:** `ractor`. Every workflow is a lock-free actor that sequentially processes events and hibernates to disk when suspended.
 3. **Execution:** Standard OS Subprocesses. The engine spawns compiled Rust binaries via `tokio::process::Command`, piping JSON payloads via `stdin`/`stdout`.
-4. **Definition:** Code-as-Workflow. Workflows are defined strictly in Rust code (`main.rs`) using the `wtf-sdk`, not in JSON files.
+4. **Definition:** Code-as-Workflow. Workflows are defined strictly in Rust code (`main.rs`) using the `vo-sdk`, not in JSON files.
 5. **Observability:** An embedded Axum router serving a Dioxus WASM UI that tails the LSM-Tree via Server-Sent Events (SSE) for real-time glowing node graphs.
 
 ## Consequences

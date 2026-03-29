@@ -1,7 +1,7 @@
-# wtf-k00f QA Report — Combined QA + Red Queen + Black Hat + Arch Drift
+# vo-k00f QA Report — Combined QA + Red Queen + Black Hat + Arch Drift
 
 **Date:** 2026-03-23
-**Scope:** `crates/wtf-actor/src/instance/handlers.rs` (production) + `handlers_tests.rs` (tests)
+**Scope:** `crates/vo-actor/src/instance/handlers.rs` (production) + `handlers_tests.rs` (tests)
 **Verdict: APPROVED**
 
 ---
@@ -27,7 +27,7 @@
 Additionally: `master::handlers::terminate::tests::terminate_returns_not_found_for_unknown_instance` (PASS).
 Total terminate-related: **12 tests, 12 passed**.
 
-### 1.2 `cargo test -p wtf-actor --lib -- terminate`
+### 1.2 `cargo test -p vo-actor --lib -- terminate`
 
 ```
 test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 138 filtered out
@@ -80,8 +80,8 @@ Both runs identical. Tests use tempdir sled databases and fresh actor spawns —
 Both are used consistently:
 - `handlers/terminate.rs` — maps `CallResult::Timeout` and `CallResult::SenderError` correctly
 - `handlers_tests.rs` — asserts on both variants
-- `workflow_mappers.rs` (wtf-api) — maps both to HTTP status codes
-- `terminate_handler_test.rs` (wtf-api) — mocks both variants
+- `workflow_mappers.rs` (vo-api) — maps both to HTTP status codes
+- `terminate_handler_test.rs` (vo-api) — mocks both variants
 
 **Verdict:** No hallucinated variants. Two real variants, both exercised end-to-end.
 

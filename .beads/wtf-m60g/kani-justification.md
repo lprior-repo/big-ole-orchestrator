@@ -1,6 +1,6 @@
-# Kani Justification: wtf-m60g
+# Kani Justification: vo-m60g
 
-- **bead_id**: wtf-m60g
+- **bead_id**: vo-m60g
 - **phase**: STATE-5.7
 - **updated_at**: 2026-03-23T19:20:00Z
 

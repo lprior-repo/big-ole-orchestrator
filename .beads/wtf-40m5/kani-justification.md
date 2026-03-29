@@ -1,6 +1,6 @@
-# Kani Justification: wtf-40m5
+# Kani Justification: vo-40m5
 
-- **bead_id**: wtf-40m5
+- **bead_id**: vo-40m5
 - **phase**: STATE-5.7
 - **updated_at**: 2026-03-23T19:00:00Z
 
@@ -17,7 +17,7 @@ None. This bead wires an existing actor (`run_heartbeat_watcher`) into `serve.rs
 ## What Tests Already Guarantee
 - `drain_runtime_signals_shutdown_and_waits_for_three_tasks` verifies all tasks drain
 - `drain_runtime_propagates_worker_error` verifies error propagation
-- Clippy strict mode passes on wtf-cli source
+- Clippy strict mode passes on vo-cli source
 
 ## Conclusion
 Kani model checking would not find any reachable invalid states that the borrow checker and test suite don't already exclude. The code is a wiring layer with no internal state machine.

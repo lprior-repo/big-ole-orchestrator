@@ -1,15 +1,15 @@
 [package]
-name = "wtf-api"
+name = "vo-api"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [dependencies]
-wtf-common = { path = "../wtf-common" }
-wtf-core = { path = "../wtf-core" }
-wtf-storage = { path = "../wtf-storage" }
-wtf-actor = { path = "../wtf-actor" }
-wtf-worker = { path = "../wtf-worker" }
+vo-common = { path = "../vo-common" }
+vo-core = { path = "../vo-core" }
+vo-storage = { path = "../vo-storage" }
+vo-actor = { path = "../vo-actor" }
+vo-worker = { path = "../vo-worker" }
 
 ractor = { workspace = true }
 

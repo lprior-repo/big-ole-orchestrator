@@ -1,5 +1,5 @@
-//! `wtf serve` — run the wtf-engine server.
-//! This module implements the run loop bead (wtf-qz46).
+//! `wtf serve` — run the vo-engine server.
+//! This module implements the run loop bead (vo-qz46).
 
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -10,10 +10,10 @@ use ractor::Actor;
 use tokio::sync::watch;
 use tokio::time::{timeout, Duration};
 use uuid::Uuid;
-use wtf_api::app::{build_app, serve};
-use wtf_actor::heartbeat::run_heartbeat_watcher;
-use wtf_actor::master::{MasterOrchestrator, OrchestratorConfig};
-use wtf_storage::{
+use vo_api::app::{build_app, serve};
+use vo_actor::heartbeat::run_heartbeat_watcher;
+use vo_actor::master::{MasterOrchestrator, OrchestratorConfig};
+use vo_storage::{
     connect, open_snapshot_db, provision_kv_buckets, provision_streams, NatsClient, NatsConfig,
 };
 

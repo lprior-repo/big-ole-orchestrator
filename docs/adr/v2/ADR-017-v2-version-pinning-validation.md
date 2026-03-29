@@ -16,13 +16,13 @@ The Engine enforces strict version pinning for all workflow executions to guaran
 - The binary is copied to an immutable path: `/var/wtf/versions/<hash>/binary_name`.
 - When a workflow instance starts, it is permanently pinned to that `<hash>`. 
 - If a developer updates the binary, it receives a new hash. New workflow instances use the new hash. In-flight instances finish their execution on the old hash.
-- The UI and CLI must explicitly expose this hash (`wtf-cli status <id>` shows the pinned version) so the developer understands *why* their in-flight workflow is using older logic.
+- The UI and CLI must explicitly expose this hash (`vo-cli status <id>` shows the pinned version) so the developer understands *why* their in-flight workflow is using older logic.
 
 ### 2. Startup Architecture Validation
 To prevent the Engine from attempting to execute incompatible binaries, the discovery phase acts as a strict architectural gate.
 - When the Engine calls `./binary --graph` to discover the workflow topology, it wraps the call in a rigorous error handler.
 - If the OS returns an `Exec format error` (e.g., wrong architecture or missing libc), the Engine explicitly logs a "Build Target Mismatch" error, refuses to register the workflow, and prevents any instances from being scheduled against it.
-- We will provide a CLI command (`wtf-cli check`) that proactively scans all registered binaries and validates their ELF/Mach-O headers against the host OS.
+- We will provide a CLI command (`vo-cli check`) that proactively scans all registered binaries and validates their ELF/Mach-O headers against the host OS.
 
 ## Consequences
 - **Positive:** In-flight workflows are completely insulated from breaking changes deployed mid-execution.

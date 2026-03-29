@@ -3,7 +3,7 @@
   "remotes": {
     "origin": {
       "name": "origin",
-      "url": "https://doltremoteapi.dolthub.com/priorlewis43/wtf-engine-database",
+      "url": "https://doltremoteapi.dolthub.com/priorlewis43/vo-engine-database",
       "fetch_specs": [
         "refs/heads/*:refs/remotes/origin/*"
       ],

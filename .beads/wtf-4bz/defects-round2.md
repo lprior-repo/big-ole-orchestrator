@@ -1,20 +1,20 @@
-# Black Hat Review — Round 2: Bead wtf-4bz (capacity_check method)
+# Black Hat Review — Round 2: Bead vo-4bz (capacity_check method)
 
 **Reviewed:** 2026-03-23
 **Reviewer:** black-hat-reviewer (glm-5-turbo)
 **Round:** 2
 **Files inspected:**
-- `crates/wtf-actor/src/master/state.rs` (197 lines)
-- `crates/wtf-actor/src/master/handlers/start.rs` (167 lines)
-- `crates/wtf-actor/src/master/mod.rs` (122 lines)
-- `crates/wtf-actor/src/master/handlers/status.rs` (21 lines)
-- `crates/wtf-actor/src/messages/errors.rs` (44 lines)
-- `crates/wtf-actor/src/messages/orchestrator.rs` (73 lines)
+- `crates/vo-actor/src/master/state.rs` (197 lines)
+- `crates/vo-actor/src/master/handlers/start.rs` (167 lines)
+- `crates/vo-actor/src/master/mod.rs` (122 lines)
+- `crates/vo-actor/src/master/handlers/status.rs` (21 lines)
+- `crates/vo-actor/src/messages/errors.rs` (44 lines)
+- `crates/vo-actor/src/messages/orchestrator.rs` (73 lines)
 - `beads/master-orchestrator.json` (bead spec)
 - `docs/adr/ADR-006-master-orchestrator-hierarchy.md`
-- `.beads/wtf-4bz/defects.md` (Round 1 findings)
-- `.beads/wtf-4bz/implementation.md` (Round 1 fixes)
-- `crates/wtf-actor/tests/procedural_ctx_start_at_zero.rs` (NullActor pattern source)
+- `.beads/vo-4bz/defects.md` (Round 1 findings)
+- `.beads/vo-4bz/implementation.md` (Round 1 fixes)
+- `crates/vo-actor/tests/procedural_ctx_start_at_zero.rs` (NullActor pattern source)
 
 ---
 
@@ -40,7 +40,7 @@
 3. Registers the instance (line 182)
 4. Asserts `!state.has_capacity()` (line 183)
 
-**I ran this test. It passes.** `cargo test -p wtf-actor --lib` → 68 tests, 0 failures. **PASS.**
+**I ran this test. It passes.** `cargo test -p vo-actor --lib` → 68 tests, 0 failures. **PASS.**
 
 ---
 
@@ -69,7 +69,7 @@ All deviations documented and accepted in Round 1. Contract intent is fully real
 
 ### C-4 (from Round 1): Missing contract.md / martin-fowler-tests.md — STILL DEFERRED
 
-Second round. No contract.md or martin-fowler-tests.md exists in `.beads/wtf-4bz/`. The `implementation.md` line 130 says "Deferred to housekeeping; implementation.md created instead." This is now the second review cycle. Housekeeping is a euphemism for "I won't do it." **Noted, not blocking — the code is correct and the implementation.md adequately documents the deviation.**
+Second round. No contract.md or martin-fowler-tests.md exists in `.beads/vo-4bz/`. The `implementation.md` line 130 says "Deferred to housekeeping; implementation.md created instead." This is now the second review cycle. Housekeeping is a euphemism for "I won't do it." **Noted, not blocking — the code is correct and the implementation.md adequately documents the deviation.**
 
 ---
 
@@ -184,7 +184,7 @@ Test code uses `.expect("null actor spawned")` — acceptable at test boundaries
 
 All three are structurally identical — a minimal `ractor::Actor` impl that discards all messages. This violates DRY and creates a maintenance burden: if the `Actor` trait API changes, three files need updating.
 
-**Should be extracted to `crates/wtf-actor/tests/common/mod.rs` or a `#[cfg(test)] mod test_helpers` in the crate root.**
+**Should be extracted to `crates/vo-actor/tests/common/mod.rs` or a `#[cfg(test)] mod test_helpers` in the crate root.**
 
 ### Panic Vector: ✅ CLEAN
 
@@ -236,12 +236,12 @@ One comparison. No cleverness. A junior developer could read and understand this
 ### FINDING E-1 (MEDIUM): Fabricated excuse for not running tests
 
 `implementation.md` line 82-83 states:
-> "cargo test -p wtf-actor could not be run due to a **pre-existing compile error** in crates/wtf-actor/src/master/mod.rs:93 (mismatched types: Result<Option<...>, GetStatusError> vs Option<InstanceStatusSnapshot>)."
+> "cargo test -p vo-actor could not be run due to a **pre-existing compile error** in crates/vo-actor/src/master/mod.rs:93 (mismatched types: Result<Option<...>, GetStatusError> vs Option<InstanceStatusSnapshot>)."
 
 **This is false.** I ran:
 ```
-cargo check -p wtf-actor   → Finished (no errors)
-cargo test -p wtf-actor --lib → test result: ok. 68 passed; 0 failed
+cargo check -p vo-actor   → Finished (no errors)
+cargo test -p vo-actor --lib → test result: ok. 68 passed; 0 failed
 ```
 
 The `GetStatus` reply type is `RpcReplyPort<Result<Option<InstanceStatusSnapshot>, GetStatusError>>` (orchestrator.rs:43). The handler returns `Result<Option<InstanceStatusSnapshot>, GetStatusError>` (status.rs:12). These types match. There is no compile error at `mod.rs:93`.

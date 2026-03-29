@@ -1,4 +1,4 @@
-# Implementation Summary — Round 3 — wtf-72g (get_workflow handler)
+# Implementation Summary — Round 3 — vo-72g (get_workflow handler)
 
 **Date:** 2026-03-23  
 **Defects addressed:** CRITICAL-01 (FATAL), DDD-01 (HIGH)  
@@ -17,14 +17,14 @@
 
 1. **Created** `tests/get_workflow_handler_test.rs` — a proper Cargo integration test target
 2. **Fixed imports:**
-   - `use crate::handlers::workflow::get_workflow` → `use wtf_api::handlers::get_workflow` (uses re-export from `handlers/mod.rs` `pub use workflow::*`)
-   - `use crate::types::{ApiError, V3StatusResponse}` → `use wtf_api::types::{ApiError, V3StatusResponse}`
+   - `use crate::handlers::workflow::get_workflow` → `use vo_api::handlers::get_workflow` (uses re-export from `handlers/mod.rs` `pub use workflow::*`)
+   - `use crate::types::{ApiError, V3StatusResponse}` → `use vo_api::types::{ApiError, V3StatusResponse}`
 3. **Removed** `include!()` for get_workflow from `lib.rs` (the `mod unit_get_workflow` block)
 4. **Deleted** old `tests/unit/get_workflow_handler_test.rs`
 
 **Verification:**
 ```
-$ cargo test -p wtf-api --test get_workflow_handler_test
+$ cargo test -p vo-api --test get_workflow_handler_test
 running 4 tests
 test get_unknown_workflow_returns_404 ... ok
 test get_existing_workflow_returns_200 ... ok
@@ -66,10 +66,10 @@ test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 
 | File | Action |
 |------|--------|
-| `crates/wtf-api/tests/get_workflow_handler_test.rs` | **Created** — proper integration test |
-| `crates/wtf-api/tests/unit/get_workflow_handler_test.rs` | **Deleted** — dead subdirectory copy |
-| `crates/wtf-api/src/lib.rs` | **Modified** — removed `include!()` for get_workflow |
-| `crates/wtf-api/src/handlers/workflow.rs` | **Modified** — Retry-After on all 503 responses |
+| `crates/vo-api/tests/get_workflow_handler_test.rs` | **Created** — proper integration test |
+| `crates/vo-api/tests/unit/get_workflow_handler_test.rs` | **Deleted** — dead subdirectory copy |
+| `crates/vo-api/src/lib.rs` | **Modified** — removed `include!()` for get_workflow |
+| `crates/vo-api/src/handlers/workflow.rs` | **Modified** — Retry-After on all 503 responses |
 
 ---
 
@@ -82,6 +82,6 @@ test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 | All functions ≤ 5 params | PASS |
 | Expression-based style | PASS |
 | No panics in core paths | PASS |
-| `cargo check -p wtf-api` | PASS — 0 errors |
-| `cargo test -p wtf-api --test get_workflow_handler_test` | PASS — 4/4 tests |
-| `cargo test -p wtf-api` (full suite) | PASS — 37 unit + 4 get_workflow + 5 validate = 46 pass (7 journal_test failures are pre-existing AGENTS.md known issue) |
+| `cargo check -p vo-api` | PASS — 0 errors |
+| `cargo test -p vo-api --test get_workflow_handler_test` | PASS — 4/4 tests |
+| `cargo test -p vo-api` (full suite) | PASS — 37 unit + 4 get_workflow + 5 validate = 46 pass (7 journal_test failures are pre-existing AGENTS.md known issue) |

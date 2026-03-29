@@ -12,7 +12,7 @@ We need a mechanism to suspend the execution of an actor, free its memory, and p
 We implement a **Suspend-to-Disk Hibernation Model** leveraging `ractor` and `fjall`.
 
 ### 1. The Suspension Trigger
-When an actor reaches a `Wait` node in the DAG, or when an executed binary outputs a `{"_wtf_directive": "suspend"}` JSON payload via `stdout` (e.g., waiting for a human approval webhook), the Actor initiates hibernation.
+When an actor reaches a `Wait` node in the DAG, or when an executed binary outputs a `{"_vo_directive": "suspend"}` JSON payload via `stdout` (e.g., waiting for a human approval webhook), the Actor initiates hibernation.
 
 ### 2. The Persistence
 Before terminating, the actor:
