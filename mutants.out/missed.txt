@@ -1,2 +1,0 @@
-crates/vo-storage/src/codec.rs:13:9: replace <impl fmt::Display for StorageError>::fmt -> fmt::Result with Ok(Default::default())
-crates/vo-storage/src/codec.rs:210:9: replace verification::verify_codec_length_bounds with ()

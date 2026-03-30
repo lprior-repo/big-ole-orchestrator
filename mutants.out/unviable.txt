@@ -1,1 +1,0 @@
-crates/vo-storage/src/codec.rs:46:5: replace decode_event_key -> Result<(InstanceId, SequenceNumber), StorageError> with Ok((Default::default(), Default::default()))
