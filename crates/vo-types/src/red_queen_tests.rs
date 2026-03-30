@@ -15,6 +15,7 @@
 
 use crate::*;
 use proptest::prelude::*;
+use rstest::rstest;
 use std::collections::HashSet;
 
 // ===========================================================================
@@ -74,7 +75,10 @@ fn edge_condition_strategy() -> impl Strategy<Value = EdgeCondition> {
 #[test]
 fn rq_nan_multiplier_rejected_by_retry_policy_new() {
     let result = RetryPolicy::new(1, 0, f32::NAN);
-    assert!(result.is_err(), "NaN must be rejected");
+    assert!(
+        matches!(result, Err(RetryPolicyError::InvalidMultiplier { .. })),
+        "NaN must be rejected"
+    );
     let err = result.unwrap_err();
     assert!(err.to_string().contains("backoff_multiplier"));
 }
@@ -94,7 +98,6 @@ fn rq_infinity_multiplier_passes_through_retry_policy_new() {
 #[test]
 fn rq_neg_infinity_multiplier_rejected() {
     let result = RetryPolicy::new(1, 0, f32::NEG_INFINITY);
-    assert!(result.is_err());
     assert!(matches!(
         result,
         Err(RetryPolicyError::InvalidMultiplier { .. })
@@ -106,10 +109,7 @@ fn rq_neg_infinity_multiplier_rejected() {
 fn rq_nan_multiplier_in_json_rejected_by_serde() {
     let json = r#"{"max_attempts": 1, "backoff_ms": 0, "backoff_multiplier": NaN}"#;
     let result: Result<RetryPolicy, _> = serde_json::from_str(json);
-    assert!(
-        result.is_err(),
-        "serde_json must reject NaN in JSON by default"
-    );
+    result.unwrap_err();
 }
 
 // RQ-05: INFINITY multiplier in JSON is rejected by serde
@@ -117,10 +117,7 @@ fn rq_nan_multiplier_in_json_rejected_by_serde() {
 fn rq_infinity_multiplier_in_json_rejected_by_serde() {
     let json = r#"{"max_attempts": 1, "backoff_ms": 0, "backoff_multiplier": Infinity}"#;
     let result: Result<RetryPolicy, _> = serde_json::from_str(json);
-    assert!(
-        result.is_err(),
-        "serde_json must reject INFINITY in JSON by default"
-    );
+    result.unwrap_err();
 }
 
 // RQ-05b: -INFINITY multiplier in JSON is rejected by serde
@@ -128,10 +125,7 @@ fn rq_infinity_multiplier_in_json_rejected_by_serde() {
 fn rq_neg_infinity_multiplier_in_json_rejected_by_serde() {
     let json = r#"{"max_attempts": 1, "backoff_ms": 0, "backoff_multiplier": -Infinity}"#;
     let result: Result<RetryPolicy, _> = serde_json::from_str(json);
-    assert!(
-        result.is_err(),
-        "serde_json must reject -INFINITY in JSON by default"
-    );
+    result.unwrap_err();
 }
 
 // RQ-06: Direct RetryPolicy construction bypasses validation (fields are pub)
@@ -769,14 +763,20 @@ fn rq_backoff_ms_u64_max_accepted() {
 fn rq_negative_zero_multiplier_rejected() {
     let result = RetryPolicy::new(1, 0, -0.0f32);
     // -0.0 == 0.0, and 0.0 < 1.0 is true, so -0.0 < 1.0 is true → rejected
-    assert!(result.is_err());
+    assert!(matches!(
+        result,
+        Err(RetryPolicyError::InvalidMultiplier { .. })
+    ));
 }
 
 // RQ-39: Very small positive multiplier just below 1.0 is rejected
 #[test]
 fn rq_very_small_positive_multiplier_rejected() {
     let result = RetryPolicy::new(1, 0, 0.9999999f32);
-    assert!(result.is_err());
+    assert!(matches!(
+        result,
+        Err(RetryPolicyError::InvalidMultiplier { .. })
+    ));
 }
 
 // RQ-40: Very large multiplier is accepted
@@ -853,22 +853,19 @@ fn rq_retry_policy_serde_round_trip_1_0_multiplier() {
 }
 
 // RQ-47: Edge serde round-trip with all condition types
-#[test]
-fn rq_edge_serde_round_trip_all_conditions() {
-    for condition in [
-        EdgeCondition::Always,
-        EdgeCondition::OnSuccess,
-        EdgeCondition::OnFailure,
-    ] {
-        let edge = Edge {
-            source_node: NodeName("src".into()),
-            target_node: NodeName("tgt".into()),
-            condition,
-        };
-        let json = serde_json::to_value(&edge).unwrap();
-        let restored: Edge = serde_json::from_value(json).unwrap();
-        assert_eq!(restored, edge);
-    }
+#[rstest]
+#[case(EdgeCondition::Always)]
+#[case(EdgeCondition::OnSuccess)]
+#[case(EdgeCondition::OnFailure)]
+fn rq_edge_serde_round_trip_all_conditions(#[case] condition: EdgeCondition) {
+    let edge = Edge {
+        source_node: NodeName("src".into()),
+        target_node: NodeName("tgt".into()),
+        condition,
+    };
+    let json = serde_json::to_value(&edge).unwrap();
+    let restored: Edge = serde_json::from_value(json).unwrap();
+    assert_eq!(restored, edge);
 }
 
 // RQ-48: StepOutcome serde round-trip
@@ -1103,7 +1100,7 @@ mod proptests {
             multiplier in -1e38f32..0.9999f32,
         ) {
             let result = RetryPolicy::new(max_attempts, backoff_ms, multiplier);
-            prop_assert!(result.is_err(), "multiplier {} should be rejected", multiplier);
+            prop_assert!(matches!(result, Err(RetryPolicyError::InvalidMultiplier { .. })), "multiplier {} should be rejected", multiplier);
         }
 
         // RQ-PROP-02: RetryPolicy::new accepts all multipliers >= 1.0
@@ -1114,7 +1111,7 @@ mod proptests {
             multiplier in 1.0f32..1e38f32,
         ) {
             let result = RetryPolicy::new(max_attempts, backoff_ms, multiplier);
-            let _ = result.unwrap();
+            result.unwrap();
         }
 
         // RQ-PROP-03: next_nodes result nodes all live in def (pointer equality)
@@ -1275,4 +1272,42 @@ mod proptests {
             prop_assert_eq!(restored.as_slice(), items.as_slice());
         }
     }
+}
+
+// RQ-26b: Exponential paths DAG (tests that memoization is present)
+#[test]
+fn rq_exponential_paths_dag_does_not_timeout() {
+    let mut nodes = Vec::new();
+    let mut edges = Vec::new();
+    let n = 40;
+
+    for i in 0..n {
+        nodes.push(serde_json::json!({
+            "node_name": format!("n{}", i),
+            "retry_policy": {"max_attempts": 1, "backoff_ms": 0, "backoff_multiplier": 1.0}
+        }));
+        if i + 1 < n {
+            edges.push(serde_json::json!({
+                "source_node": format!("n{}", i),
+                "target_node": format!("n{}", i+1),
+                "condition": "Always"
+            }));
+        }
+        if i + 2 < n {
+            edges.push(serde_json::json!({
+                "source_node": format!("n{}", i),
+                "target_node": format!("n{}", i+2),
+                "condition": "Always"
+            }));
+        }
+    }
+
+    let json = serde_json::json!({
+        "workflow_name": "test",
+        "nodes": nodes,
+        "edges": edges
+    });
+    let bytes = serde_json::to_vec(&json).unwrap();
+    let result = WorkflowDefinition::parse(&bytes);
+    result.unwrap();
 }

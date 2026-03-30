@@ -74,7 +74,7 @@ pub fn download_workflow_json(name: &str, workflow: &Workflow) {
     let element = match document.create_element("a") {
         Ok(value) => value,
         Err(_) => {
-            let _ = Url::revoke_object_url(&url);
+            Url::revoke_object_url(&url).unwrap_or(());
             return;
         }
     };
@@ -82,7 +82,7 @@ pub fn download_workflow_json(name: &str, workflow: &Workflow) {
     let anchor = match element.dyn_into::<HtmlAnchorElement>() {
         Ok(value) => value,
         Err(_) => {
-            let _ = Url::revoke_object_url(&url);
+            Url::revoke_object_url(&url).unwrap_or(());
             return;
         }
     };
@@ -104,7 +104,7 @@ pub fn download_workflow_json(name: &str, workflow: &Workflow) {
     anchor.set_href(&url);
     anchor.set_download(&filename);
     anchor.click();
-    let _ = Url::revoke_object_url(&url);
+    Url::revoke_object_url(&url).unwrap_or(());
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -139,7 +139,7 @@ pub fn export_restate_history<T: serde::Serialize>(invocations: &[T]) {
     let element = match document.create_element("a") {
         Ok(value) => value,
         Err(_) => {
-            let _ = Url::revoke_object_url(&url);
+            Url::revoke_object_url(&url).unwrap_or(());
             return;
         }
     };
@@ -147,7 +147,7 @@ pub fn export_restate_history<T: serde::Serialize>(invocations: &[T]) {
     let anchor = match element.dyn_into::<HtmlAnchorElement>() {
         Ok(value) => value,
         Err(_) => {
-            let _ = Url::revoke_object_url(&url);
+            Url::revoke_object_url(&url).unwrap_or(());
             return;
         }
     };
@@ -158,7 +158,7 @@ pub fn export_restate_history<T: serde::Serialize>(invocations: &[T]) {
     anchor.set_href(&url);
     anchor.set_download(&filename);
     anchor.click();
-    let _ = Url::revoke_object_url(&url);
+    Url::revoke_object_url(&url).unwrap_or(());
 }
 
 #[cfg(all(test, not(target_arch = "wasm32")))]

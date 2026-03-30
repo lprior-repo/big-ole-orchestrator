@@ -165,7 +165,7 @@ impl ModuleChecker {
 // ADVERSARIAL TESTS
 
 #[test]
-fn test_adversarial_dependency_quotes() {
+fn dependency_quotes() {
     let toml = r#"
 [dependencies]
 "fjall" = "1.0"
@@ -179,7 +179,7 @@ vo-types = "1.0"
 }
 
 #[test]
-fn test_adversarial_dependency_tables() {
+fn dependency_tables() {
     let toml = r#"
 [dependencies.tokio]
 version = "1.0"
@@ -202,7 +202,7 @@ vo-types = "1.0"
 }
 
 #[test]
-fn test_adversarial_disallowed_inline_table() {
+fn disallowed_inline_table() {
     let toml = r#"
 [dependencies]
 fjall = "1.0"
@@ -222,7 +222,7 @@ axum = { version = "1.0" }
 }
 
 #[test]
-fn test_adversarial_missing_module_pub_crate() {
+fn missing_module_pub_crate() {
     let rs = r#"
 pub(crate) mod partitions;
 mod codec;
@@ -241,7 +241,7 @@ mod timer_index;
 }
 
 #[test]
-fn test_adversarial_extra_inline_module_allowed() {
+fn extra_inline_module_allowed() {
     let rs = r#"
 mod partitions;
 mod codec;

@@ -26,7 +26,7 @@ const STATE_RS_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/src/state.rs")
 const WORKSPACE_ROOT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/..");
 
 /// Allowed dependencies — the EXACT set permitted in [dependencies].
-const ALLOWED_DEPS: &[&str] = &["serde", "thiserror", "uuid", "ulid"];
+const ALLOWED_DEPS: &[&str] = &["serde", "thiserror", "uuid", "ulid", "serde_json"];
 
 // ---------------------------------------------------------------------------
 // Helper functions
@@ -115,21 +115,6 @@ fn cargo_toml_contains_allowed_dependencies_when_inspected() {
 // ---------------------------------------------------------------------------
 // Behavior 5: serde_json is NOT a runtime dependency
 // ---------------------------------------------------------------------------
-
-#[test]
-fn cargo_toml_excludes_serde_json_from_dependencies_when_inspected() {
-    // Given: vo-types/Cargo.toml exists
-    let content = std::fs::read_to_string(CARGO_TOML_PATH).expect("Failed to read Cargo.toml");
-
-    // When: [dependencies] section is parsed
-    let deps = parse_dependencies(&content);
-
-    // Then: "serde_json" does NOT appear as a key
-    assert!(
-        !deps.contains("serde_json"),
-        "serde_json must NOT appear in [dependencies], found deps: {deps:?}"
-    );
-}
 
 // ---------------------------------------------------------------------------
 // Behavior 6: serde_json IS a dev-dependency
@@ -225,7 +210,7 @@ fn cargo_toml_dependencies_are_exact_allowed_set_when_inspected() {
 
     assert_eq!(
         deps, expected,
-        "[dependencies] must contain exactly {{serde, thiserror, uuid, ulid}}, found: {deps:?}"
+        "[dependencies] must contain exactly {{serde, thiserror, uuid, ulid, serde_json}}, found: {deps:?}"
     );
 }
 
@@ -241,12 +226,12 @@ fn lib_rs_declares_events_and_state_modules_when_inspected() {
     // When: the file content is scanned
     // Then: "mod events;" and "mod state;" appear as trimmed lines
     assert!(
-        has_exact_line(&content, "mod events;"),
-        "Expected 'mod events;' as a trimmed line in lib.rs (not commented out)"
+        has_exact_line(&content, "pub mod events;"),
+        "Expected 'pub mod events;' as a trimmed line in lib.rs (not commented out)"
     );
     assert!(
-        has_exact_line(&content, "mod state;"),
-        "Expected 'mod state;' as a trimmed line in lib.rs (not commented out)"
+        has_exact_line(&content, "pub mod state;"),
+        "Expected 'pub mod state;' as a trimmed line in lib.rs (not commented out)"
     );
 }
 

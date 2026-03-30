@@ -1,0 +1,26 @@
+--- crates/vo-storage/src/codec.rs
++++ replace encode_event_key -> Result<[u8; 24], StorageError> with Ok([1; 24])
+@@ -23,22 +23,17 @@
+ ///
+ /// # Errors
+ ///
+ /// Returns `StorageError::Other` if the `InstanceId` cannot be converted to bytes.
+ pub fn encode_event_key(
+     instance_id: &InstanceId,
+     sequence: &SequenceNumber,
+ ) -> Result<[u8; 24], StorageError> {
+-    let id_bytes = instance_id.to_bytes().map_err(|_| StorageError::Other)?;
+-    let seq_bytes = sequence.as_u64().to_be_bytes();
+-    let mut key = [0u8; 24];
+-    key[..16].copy_from_slice(&id_bytes);
+-    key[16..].copy_from_slice(&seq_bytes);
+-    Ok(key)
++    Ok([1; 24]) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Decodes a 24-byte event key into an `InstanceId` and `SequenceNumber`.
+ ///
+ /// # Errors
+ ///
+ /// Returns `StorageError::CorruptKey` if `bytes` is not exactly 24 bytes long,
+ /// or if the sequence number is 0.

@@ -3,6 +3,8 @@
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::payload_parser::{optional_u64, require_string, require_string_field, require_u64};
+
 pub const MAX_SUPPORTED_VERSION: u8 = 1;
 
 #[derive(Debug, Error, PartialEq, Eq)]
@@ -71,41 +73,18 @@ impl EventEnvelope {
         let value: serde_json::Value =
             serde_json::from_str(input).map_err(|_| Error::InvalidEnvelopeFormat)?;
 
-        let version = value
-            .get("version")
-            .ok_or_else(|| Error::MissingEnvelopeField("version".to_string()))?
-            .as_u64()
-            .ok_or_else(|| Error::InvalidEnvelopeField("version must be an integer".to_string()))?
-            as u8;
+        let obj = value.as_object().ok_or(Error::InvalidEnvelopeFormat)?;
 
-        let instance_id = value
-            .get("instance_id")
-            .ok_or_else(|| Error::MissingEnvelopeField("instance_id".to_string()))?
-            .as_str()
-            .ok_or_else(|| Error::InvalidEnvelopeField("instance_id must be a string".to_string()))?
-            .to_string();
+        let version = envelope_u64(obj, "version")? as u8;
+        let instance_id = envelope_string(obj, "instance_id")?;
+        let sequence = envelope_u64(obj, "sequence")?;
+        let timestamp_ms = envelope_u64(obj, "timestamp_ms")?;
 
-        let sequence = value
-            .get("sequence")
-            .ok_or_else(|| Error::MissingEnvelopeField("sequence".to_string()))?
-            .as_u64()
-            .ok_or_else(|| {
-                Error::InvalidEnvelopeField("sequence must be an integer".to_string())
-            })?;
-
-        let timestamp_ms = value
-            .get("timestamp_ms")
-            .ok_or_else(|| Error::MissingEnvelopeField("timestamp_ms".to_string()))?
-            .as_u64()
-            .ok_or_else(|| {
-                Error::InvalidEnvelopeField("timestamp_ms must be an integer".to_string())
-            })?;
-
-        let payload = value
+        let payload = obj
             .get("payload")
             .ok_or_else(|| Error::MissingEnvelopeField("payload".to_string()))?;
 
-        let metadata = value
+        let metadata = obj
             .get("metadata")
             .ok_or_else(|| Error::MissingEnvelopeField("metadata".to_string()))?
             .as_object()
@@ -200,341 +179,70 @@ pub enum EventPayload {
 
 impl EventPayload {
     pub fn try_from_json(payload_json: serde_json::Value) -> Result<Self, Error> {
-        let value = payload_json
+        let obj = payload_json
             .as_object()
             .ok_or(Error::InvalidPayloadFormat)?;
 
-        let payload_type = value
-            .get("type")
-            .ok_or_else(|| Error::MissingPayloadField("type".to_string()))?
-            .as_str()
-            .ok_or_else(|| Error::InvalidPayloadField("type must be a string".to_string()))?;
-
-        let payload_version = value.get("version").and_then(|v| v.as_u64()).unwrap_or(0) as u8;
+        let payload_type = require_string(obj, "type")?;
+        let payload_version = optional_u64(obj, "version", 0) as u8;
         if payload_version > MAX_SUPPORTED_VERSION {
             return Err(Error::UnsupportedPayloadVersion(payload_version));
         }
 
-        match payload_type {
-            "WorkflowStarted" => {
-                let workflow_id = value
-                    .get("workflow_id")
-                    .ok_or_else(|| {
-                        Error::InvalidPayloadField("workflow_id is required".to_string())
-                    })?
-                    .as_str()
-                    .ok_or_else(|| {
-                        Error::InvalidPayloadField("workflow_id must be a string".to_string())
-                    })?
-                    .to_string();
-                Ok(EventPayload::WorkflowStarted { workflow_id })
-            }
-            "WorkflowCompleted" => {
-                let workflow_id = value
-                    .get("workflow_id")
-                    .ok_or_else(|| {
-                        Error::InvalidPayloadField("workflow_id is required".to_string())
-                    })?
-                    .as_str()
-                    .ok_or_else(|| {
-                        Error::InvalidPayloadField("workflow_id must be a string".to_string())
-                    })?
-                    .to_string();
-                let completion_time_ms = value
-                    .get("completion_time_ms")
-                    .ok_or_else(|| Error::MissingPayloadField("completion_time_ms".to_string()))?
-                    .as_u64()
-                    .ok_or_else(|| {
-                        Error::InvalidPayloadField(
-                            "completion_time_ms must be an integer".to_string(),
-                        )
-                    })?;
-                Ok(EventPayload::WorkflowCompleted {
-                    workflow_id,
-                    completion_time_ms,
-                })
-            }
-            "WorkflowFailed" => {
-                let workflow_id = value
-                    .get("workflow_id")
-                    .ok_or_else(|| {
-                        Error::InvalidPayloadField("workflow_id is required".to_string())
-                    })?
-                    .as_str()
-                    .ok_or_else(|| {
-                        Error::InvalidPayloadField("workflow_id must be a string".to_string())
-                    })?
-                    .to_string();
-                let failure_reason = value
-                    .get("failure_reason")
-                    .ok_or_else(|| Error::MissingPayloadField("failure_reason".to_string()))?
-                    .as_str()
-                    .ok_or_else(|| {
-                        Error::InvalidPayloadField("failure_reason must be a string".to_string())
-                    })?
-                    .to_string();
-                Ok(EventPayload::WorkflowFailed {
-                    workflow_id,
-                    failure_reason,
-                })
-            }
-            "WorkflowCancelled" => {
-                let workflow_id = value
-                    .get("workflow_id")
-                    .ok_or_else(|| {
-                        Error::InvalidPayloadField("workflow_id is required".to_string())
-                    })?
-                    .as_str()
-                    .ok_or_else(|| {
-                        Error::InvalidPayloadField("workflow_id must be a string".to_string())
-                    })?
-                    .to_string();
-                let cancelled_by = value
-                    .get("cancelled_by")
-                    .ok_or_else(|| Error::MissingPayloadField("cancelled_by".to_string()))?
-                    .as_str()
-                    .ok_or_else(|| {
-                        Error::InvalidPayloadField("cancelled_by must be a string".to_string())
-                    })?
-                    .to_string();
-                Ok(EventPayload::WorkflowCancelled {
-                    workflow_id,
-                    cancelled_by,
-                })
-            }
-            "StepScheduled" => {
-                let workflow_id = value
-                    .get("workflow_id")
-                    .ok_or_else(|| {
-                        Error::InvalidPayloadField("workflow_id is required".to_string())
-                    })?
-                    .as_str()
-                    .ok_or_else(|| {
-                        Error::InvalidPayloadField("workflow_id must be a string".to_string())
-                    })?
-                    .to_string();
-                let step_id = value
-                    .get("step_id")
-                    .ok_or_else(|| Error::MissingPayloadField("step_id".to_string()))?
-                    .as_str()
-                    .ok_or_else(|| {
-                        Error::InvalidPayloadField("step_id must be a string".to_string())
-                    })?
-                    .to_string();
-                Ok(EventPayload::StepScheduled {
-                    workflow_id,
-                    step_id,
-                })
-            }
-            "StepStarted" => {
-                let workflow_id = value
-                    .get("workflow_id")
-                    .ok_or_else(|| {
-                        Error::InvalidPayloadField("workflow_id is required".to_string())
-                    })?
-                    .as_str()
-                    .ok_or_else(|| {
-                        Error::InvalidPayloadField("workflow_id must be a string".to_string())
-                    })?
-                    .to_string();
-                let step_id = value
-                    .get("step_id")
-                    .ok_or_else(|| Error::MissingPayloadField("step_id".to_string()))?
-                    .as_str()
-                    .ok_or_else(|| {
-                        Error::InvalidPayloadField("step_id must be a string".to_string())
-                    })?
-                    .to_string();
-                let started_at_ms = value
-                    .get("started_at_ms")
-                    .ok_or_else(|| Error::MissingPayloadField("started_at_ms".to_string()))?
-                    .as_u64()
-                    .ok_or_else(|| {
-                        Error::InvalidPayloadField("started_at_ms must be an integer".to_string())
-                    })?;
-                Ok(EventPayload::StepStarted {
-                    workflow_id,
-                    step_id,
-                    started_at_ms,
-                })
-            }
-            "StepCompleted" => {
-                let workflow_id = value
-                    .get("workflow_id")
-                    .ok_or_else(|| {
-                        Error::InvalidPayloadField("workflow_id is required".to_string())
-                    })?
-                    .as_str()
-                    .ok_or_else(|| {
-                        Error::InvalidPayloadField("workflow_id must be a string".to_string())
-                    })?
-                    .to_string();
-                let step_id = value
-                    .get("step_id")
-                    .ok_or_else(|| Error::MissingPayloadField("step_id".to_string()))?
-                    .as_str()
-                    .ok_or_else(|| {
-                        Error::InvalidPayloadField("step_id must be a string".to_string())
-                    })?
-                    .to_string();
-                let completed_at_ms = value
-                    .get("completed_at_ms")
-                    .ok_or_else(|| Error::MissingPayloadField("completed_at_ms".to_string()))?
-                    .as_u64()
-                    .ok_or_else(|| {
-                        Error::InvalidPayloadField("completed_at_ms must be an integer".to_string())
-                    })?;
-                Ok(EventPayload::StepCompleted {
-                    workflow_id,
-                    step_id,
-                    completed_at_ms,
-                })
-            }
-            "StepFailed" => {
-                let workflow_id = value
-                    .get("workflow_id")
-                    .ok_or_else(|| {
-                        Error::InvalidPayloadField("workflow_id is required".to_string())
-                    })?
-                    .as_str()
-                    .ok_or_else(|| {
-                        Error::InvalidPayloadField("workflow_id must be a string".to_string())
-                    })?
-                    .to_string();
-                let step_id = value
-                    .get("step_id")
-                    .ok_or_else(|| Error::MissingPayloadField("step_id".to_string()))?
-                    .as_str()
-                    .ok_or_else(|| {
-                        Error::InvalidPayloadField("step_id must be a string".to_string())
-                    })?
-                    .to_string();
-                let failure_reason = value
-                    .get("failure_reason")
-                    .ok_or_else(|| Error::MissingPayloadField("failure_reason".to_string()))?
-                    .as_str()
-                    .ok_or_else(|| {
-                        Error::InvalidPayloadField("failure_reason must be a string".to_string())
-                    })?
-                    .to_string();
-                Ok(EventPayload::StepFailed {
-                    workflow_id,
-                    step_id,
-                    failure_reason,
-                })
-            }
-            "TimerSet" => {
-                let workflow_id = value
-                    .get("workflow_id")
-                    .ok_or_else(|| {
-                        Error::InvalidPayloadField("workflow_id is required".to_string())
-                    })?
-                    .as_str()
-                    .ok_or_else(|| {
-                        Error::InvalidPayloadField("workflow_id must be a string".to_string())
-                    })?
-                    .to_string();
-                let timer_id = value
-                    .get("timer_id")
-                    .ok_or_else(|| Error::MissingPayloadField("timer_id".to_string()))?
-                    .as_str()
-                    .ok_or_else(|| {
-                        Error::InvalidPayloadField("timer_id must be a string".to_string())
-                    })?
-                    .to_string();
-                let fire_at_ms = value
-                    .get("fire_at_ms")
-                    .ok_or_else(|| Error::MissingPayloadField("fire_at_ms".to_string()))?
-                    .as_u64()
-                    .ok_or_else(|| {
-                        Error::InvalidPayloadField("fire_at_ms must be an integer".to_string())
-                    })?;
-                Ok(EventPayload::TimerSet {
-                    workflow_id,
-                    timer_id,
-                    fire_at_ms,
-                })
-            }
-            "TimerFired" => {
-                let workflow_id = value
-                    .get("workflow_id")
-                    .ok_or_else(|| {
-                        Error::InvalidPayloadField("workflow_id is required".to_string())
-                    })?
-                    .as_str()
-                    .ok_or_else(|| {
-                        Error::InvalidPayloadField("workflow_id must be a string".to_string())
-                    })?
-                    .to_string();
-                let timer_id = value
-                    .get("timer_id")
-                    .ok_or_else(|| Error::MissingPayloadField("timer_id".to_string()))?
-                    .as_str()
-                    .ok_or_else(|| {
-                        Error::InvalidPayloadField("timer_id must be a string".to_string())
-                    })?
-                    .to_string();
-                let fired_at_ms = value
-                    .get("fired_at_ms")
-                    .ok_or_else(|| Error::MissingPayloadField("fired_at_ms".to_string()))?
-                    .as_u64()
-                    .ok_or_else(|| {
-                        Error::InvalidPayloadField("fired_at_ms must be an integer".to_string())
-                    })?;
-                Ok(EventPayload::TimerFired {
-                    workflow_id,
-                    timer_id,
-                    fired_at_ms,
-                })
-            }
-            "CancelRequested" => {
-                let workflow_id = value
-                    .get("workflow_id")
-                    .ok_or_else(|| {
-                        Error::InvalidPayloadField("workflow_id is required".to_string())
-                    })?
-                    .as_str()
-                    .ok_or_else(|| {
-                        Error::InvalidPayloadField("workflow_id must be a string".to_string())
-                    })?
-                    .to_string();
-                let requested_by = value
-                    .get("requested_by")
-                    .ok_or_else(|| Error::MissingPayloadField("requested_by".to_string()))?
-                    .as_str()
-                    .ok_or_else(|| {
-                        Error::InvalidPayloadField("requested_by must be a string".to_string())
-                    })?
-                    .to_string();
-                Ok(EventPayload::CancelRequested {
-                    workflow_id,
-                    requested_by,
-                })
-            }
-            "InstanceResumed" => {
-                let workflow_id = value
-                    .get("workflow_id")
-                    .ok_or_else(|| {
-                        Error::InvalidPayloadField("workflow_id is required".to_string())
-                    })?
-                    .as_str()
-                    .ok_or_else(|| {
-                        Error::InvalidPayloadField("workflow_id must be a string".to_string())
-                    })?
-                    .to_string();
-                let resumed_at_ms = value
-                    .get("resumed_at_ms")
-                    .ok_or_else(|| Error::MissingPayloadField("resumed_at_ms".to_string()))?
-                    .as_u64()
-                    .ok_or_else(|| {
-                        Error::InvalidPayloadField("resumed_at_ms must be an integer".to_string())
-                    })?;
-                Ok(EventPayload::InstanceResumed {
-                    workflow_id,
-                    resumed_at_ms,
-                })
-            }
-            _ => Err(Error::UnknownPayloadType(payload_type.to_string())),
+        match payload_type.as_str() {
+            "WorkflowStarted" => Ok(EventPayload::WorkflowStarted {
+                workflow_id: require_string_field(obj, "workflow_id")?,
+            }),
+            "WorkflowCompleted" => Ok(EventPayload::WorkflowCompleted {
+                workflow_id: require_string_field(obj, "workflow_id")?,
+                completion_time_ms: require_u64(obj, "completion_time_ms")?,
+            }),
+            "WorkflowFailed" => Ok(EventPayload::WorkflowFailed {
+                workflow_id: require_string_field(obj, "workflow_id")?,
+                failure_reason: require_string(obj, "failure_reason")?,
+            }),
+            "WorkflowCancelled" => Ok(EventPayload::WorkflowCancelled {
+                workflow_id: require_string_field(obj, "workflow_id")?,
+                cancelled_by: require_string(obj, "cancelled_by")?,
+            }),
+            "StepScheduled" => Ok(EventPayload::StepScheduled {
+                workflow_id: require_string_field(obj, "workflow_id")?,
+                step_id: require_string(obj, "step_id")?,
+            }),
+            "StepStarted" => Ok(EventPayload::StepStarted {
+                workflow_id: require_string_field(obj, "workflow_id")?,
+                step_id: require_string(obj, "step_id")?,
+                started_at_ms: require_u64(obj, "started_at_ms")?,
+            }),
+            "StepCompleted" => Ok(EventPayload::StepCompleted {
+                workflow_id: require_string_field(obj, "workflow_id")?,
+                step_id: require_string(obj, "step_id")?,
+                completed_at_ms: require_u64(obj, "completed_at_ms")?,
+            }),
+            "StepFailed" => Ok(EventPayload::StepFailed {
+                workflow_id: require_string_field(obj, "workflow_id")?,
+                step_id: require_string(obj, "step_id")?,
+                failure_reason: require_string(obj, "failure_reason")?,
+            }),
+            "TimerSet" => Ok(EventPayload::TimerSet {
+                workflow_id: require_string_field(obj, "workflow_id")?,
+                timer_id: require_string(obj, "timer_id")?,
+                fire_at_ms: require_u64(obj, "fire_at_ms")?,
+            }),
+            "TimerFired" => Ok(EventPayload::TimerFired {
+                workflow_id: require_string_field(obj, "workflow_id")?,
+                timer_id: require_string(obj, "timer_id")?,
+                fired_at_ms: require_u64(obj, "fired_at_ms")?,
+            }),
+            "CancelRequested" => Ok(EventPayload::CancelRequested {
+                workflow_id: require_string_field(obj, "workflow_id")?,
+                requested_by: require_string(obj, "requested_by")?,
+            }),
+            "InstanceResumed" => Ok(EventPayload::InstanceResumed {
+                workflow_id: require_string_field(obj, "workflow_id")?,
+                resumed_at_ms: require_u64(obj, "resumed_at_ms")?,
+            }),
+            other => Err(Error::UnknownPayloadType(other.to_string())),
         }
     }
 
@@ -561,15 +269,40 @@ pub fn decode_event(input: &[u8]) -> Result<(EventEnvelope, EventPayload), Error
     Ok((envelope, payload))
 }
 
+// ---------------------------------------------------------------------------
+// Envelope field extraction helpers (EnvelopeError variant)
+// ---------------------------------------------------------------------------
+
+fn envelope_string(
+    obj: &serde_json::Map<String, serde_json::Value>,
+    field: &'static str,
+) -> Result<String, Error> {
+    obj.get(field)
+        .ok_or_else(|| Error::MissingEnvelopeField(field.to_string()))?
+        .as_str()
+        .ok_or_else(|| Error::InvalidEnvelopeField(format!("{field} must be a string")))
+        .map(|s| s.to_string())
+}
+
+fn envelope_u64(
+    obj: &serde_json::Map<String, serde_json::Value>,
+    field: &'static str,
+) -> Result<u64, Error> {
+    obj.get(field)
+        .ok_or_else(|| Error::MissingEnvelopeField(field.to_string()))?
+        .as_u64()
+        .ok_or_else(|| Error::InvalidEnvelopeField(format!("{field} must be an integer")))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::rstest;
 
     #[test]
     fn envelope_from_bytes_returns_ok_when_input_is_valid_json() {
         let json = r#"{"version": 1, "instance_id": "wf-123", "sequence": 1, "timestamp_ms": 1000, "payload": {"type": "WorkflowStarted", "workflow_id": "wf-123"}, "metadata": {}}"#;
         let result = EventEnvelope::from_bytes(json.as_bytes());
-        assert!(result.is_ok());
         let envelope = result.unwrap();
         assert_eq!(envelope.version, 1);
         assert_eq!(envelope.instance_id, "wf-123");
@@ -697,7 +430,7 @@ mod tests {
     fn envelope_from_str_returns_ok_when_input_is_valid_json() {
         let json = r#"{"version": 1, "instance_id": "wf-123", "sequence": 1, "timestamp_ms": 1000, "payload": {"type": "WorkflowStarted", "workflow_id": "wf-123"}, "metadata": {}}"#;
         let result = EventEnvelope::from_str(json);
-        assert!(result.is_ok());
+        result.unwrap();
     }
 
     #[test]
@@ -971,7 +704,6 @@ mod tests {
     fn decode_event_returns_ok_when_envelope_and_payload_are_valid() {
         let json = r#"{"version": 1, "instance_id": "wf-123", "sequence": 1, "timestamp_ms": 1000, "payload": {"type": "WorkflowStarted", "workflow_id": "wf-123", "version": 1}, "metadata": {}}"#;
         let result = decode_event(json.as_bytes());
-        assert!(result.is_ok());
         let (envelope, payload) = result.unwrap();
         assert_eq!(envelope.version, 1);
         assert_eq!(envelope.instance_id, "wf-123");
@@ -1001,44 +733,51 @@ mod tests {
         assert_eq!(result, Err(Error::PayloadDecodeSkipped));
     }
 
-    #[test]
-    fn proptest_envelope_roundtrip_preserves_data() {
-        let test_cases = vec![(0u64, 1, "wf-1", 0), (1u64, 100, "wf-abc", 1000)];
-
-        for (version, seq, instance_id, ts) in test_cases {
-            let json = serde_json::json!({
-                "version": version,
-                "instance_id": instance_id,
-                "sequence": seq,
-                "timestamp_ms": ts,
-                "payload": {"type": "WorkflowStarted", "workflow_id": "wf-123", "version": 1},
-                "metadata": {}
-            });
-            let bytes = serde_json::to_vec(&json).unwrap();
-            let result = EventEnvelope::from_bytes(&bytes);
-            assert!(result.is_ok(), "Failed for version {}", version);
-        }
+    #[rstest]
+    #[case(0u64, 1, "wf-1", 0)]
+    #[case(1u64, 100, "wf-abc", 1000)]
+    fn proptest_envelope_roundtrip_preserves_data(
+        #[case] version: u64,
+        #[case] seq: u64,
+        #[case] instance_id: &str,
+        #[case] ts: u64,
+    ) {
+        let json = serde_json::json!({
+            "version": version,
+            "instance_id": instance_id,
+            "sequence": seq,
+            "timestamp_ms": ts,
+            "payload": {"type": "WorkflowStarted", "workflow_id": "wf-123", "version": 1},
+            "metadata": {}
+        });
+        let bytes = serde_json::to_vec(&json).unwrap();
+        let result = EventEnvelope::from_bytes(&bytes);
+        assert!(matches!(result, Ok(_)));
     }
 
-    #[test]
-    fn proptest_version_support_is_consistent_across_envelope_and_payload() {
-        for version in 0..=5u8 {
-            let envelope = EventEnvelope {
-                version,
-                instance_id: "wf-123".to_string(),
-                sequence: 1,
-                timestamp_ms: 1000,
-                payload: serde_json::json!({}),
-                metadata: serde_json::json!({}),
-            };
-            let envelope_supported = envelope.is_supported();
-            let payload_supported = EventPayload::is_version_supported(version);
-            assert_eq!(
-                envelope_supported, payload_supported,
-                "Inconsistent for version {}",
-                version
-            );
-        }
+    #[rstest]
+    #[case(0)]
+    #[case(1)]
+    #[case(2)]
+    #[case(3)]
+    #[case(4)]
+    #[case(5)]
+    fn proptest_version_support_is_consistent_across_envelope_and_payload(#[case] version: u8) {
+        let envelope = EventEnvelope {
+            version,
+            instance_id: "wf-123".to_string(),
+            sequence: 1,
+            timestamp_ms: 1000,
+            payload: serde_json::json!({}),
+            metadata: serde_json::json!({}),
+        };
+        let envelope_supported = envelope.is_supported();
+        let payload_supported = EventPayload::is_version_supported(version);
+        assert_eq!(
+            envelope_supported, payload_supported,
+            "Inconsistent for version {}",
+            version
+        );
     }
 
     #[test]
@@ -1057,7 +796,7 @@ mod tests {
             });
             let bytes = serde_json::to_vec(&json).unwrap();
             let result = EventEnvelope::from_bytes(&bytes);
-            assert!(result.is_ok(), "Failed for valid sequence: {}", seq);
+            result.unwrap();
         }
 
         for (seq, instance_id) in invalid_cases {
@@ -1071,7 +810,7 @@ mod tests {
             });
             let bytes = serde_json::to_vec(&json).unwrap();
             let result = EventEnvelope::from_bytes(&bytes);
-            assert!(result.is_err(), "Should have failed for sequence: {}", seq);
+            assert!(matches!(result, Err(Error::InvalidEnvelopeField(_))));
         }
     }
 
@@ -1091,11 +830,7 @@ mod tests {
             });
             let bytes = serde_json::to_vec(&json).unwrap();
             let result = EventEnvelope::from_bytes(&bytes);
-            assert!(
-                result.is_ok(),
-                "Failed for valid instance_id: {}",
-                instance_id
-            );
+            result.unwrap();
         }
 
         for instance_id in invalid_cases {
@@ -1109,7 +844,7 @@ mod tests {
             });
             let bytes = serde_json::to_vec(&json).unwrap();
             let result = EventEnvelope::from_bytes(&bytes);
-            assert!(result.is_err(), "Should have failed for empty instance_id");
+            assert!(matches!(result, Err(Error::InvalidEnvelopeField(_))));
         }
     }
 
@@ -1139,7 +874,7 @@ mod tests {
             });
             let bytes = serde_json::to_vec(&json).unwrap();
             let result = EventEnvelope::from_bytes(&bytes);
-            assert!(result.is_ok(), "Failed for valid metadata");
+            result.unwrap();
         }
 
         for metadata in invalid_metadata {
@@ -1153,7 +888,78 @@ mod tests {
             });
             let bytes = serde_json::to_vec(&json).unwrap();
             let result = EventEnvelope::from_bytes(&bytes);
-            assert!(result.is_err(), "Should have failed for invalid metadata");
+            assert!(matches!(result, Err(Error::InvalidEnvelopeField(_))));
         }
+    }
+
+    #[rstest]
+    #[case(r#"{"version": 1, "instance_id": "wf-123", "sequence": "bad", "timestamp_ms": 1000, "payload": {"type": "WorkflowStarted", "workflow_id": "w1"}, "metadata": {}}"#, Error::InvalidEnvelopeField("sequence must be an integer".to_string()))]
+    #[case(r#"{"version": 1, "instance_id": "wf-123", "sequence": 1, "timestamp_ms": "bad", "payload": {"type": "WorkflowStarted", "workflow_id": "w1"}, "metadata": {}}"#, Error::InvalidEnvelopeField("timestamp_ms must be an integer".to_string()))]
+    fn envelope_from_str_invalid_types(#[case] json: &str, #[case] expected: Error) {
+        let result = EventEnvelope::from_str(json);
+        assert_eq!(result, Err(expected));
+    }
+
+    #[rstest]
+    #[case(serde_json::json!({"type": "WorkflowStarted", "version": 1}), Error::InvalidPayloadField("workflow_id is required".to_string()))]
+    #[case(serde_json::json!({"type": "WorkflowStarted", "workflow_id": 123, "version": 1}), Error::InvalidPayloadField("workflow_id must be a string".to_string()))]
+    #[case(serde_json::json!({"type": "WorkflowCompleted", "version": 1}), Error::InvalidPayloadField("workflow_id is required".to_string()))]
+    #[case(serde_json::json!({"type": "WorkflowCompleted", "workflow_id": 123, "version": 1}), Error::InvalidPayloadField("workflow_id must be a string".to_string()))]
+    #[case(serde_json::json!({"type": "WorkflowCompleted", "workflow_id": "w1", "version": 1}), Error::MissingPayloadField("completion_time_ms".to_string()))]
+    #[case(serde_json::json!({"type": "WorkflowCompleted", "workflow_id": "w1", "completion_time_ms": "bad", "version": 1}), Error::InvalidPayloadField("completion_time_ms must be an integer".to_string()))]
+    #[case(serde_json::json!({"type": "WorkflowFailed", "version": 1}), Error::InvalidPayloadField("workflow_id is required".to_string()))]
+    #[case(serde_json::json!({"type": "WorkflowFailed", "workflow_id": 123, "version": 1}), Error::InvalidPayloadField("workflow_id must be a string".to_string()))]
+    #[case(serde_json::json!({"type": "WorkflowFailed", "workflow_id": "w1", "version": 1}), Error::MissingPayloadField("failure_reason".to_string()))]
+    #[case(serde_json::json!({"type": "WorkflowFailed", "workflow_id": "w1", "failure_reason": 123, "version": 1}), Error::InvalidPayloadField("failure_reason must be a string".to_string()))]
+    #[case(serde_json::json!({"type": "WorkflowCancelled", "version": 1}), Error::InvalidPayloadField("workflow_id is required".to_string()))]
+    #[case(serde_json::json!({"type": "WorkflowCancelled", "workflow_id": 123, "version": 1}), Error::InvalidPayloadField("workflow_id must be a string".to_string()))]
+    #[case(serde_json::json!({"type": "WorkflowCancelled", "workflow_id": "w1", "version": 1}), Error::MissingPayloadField("cancelled_by".to_string()))]
+    #[case(serde_json::json!({"type": "WorkflowCancelled", "workflow_id": "w1", "cancelled_by": 123, "version": 1}), Error::InvalidPayloadField("cancelled_by must be a string".to_string()))]
+    #[case(serde_json::json!({"type": "StepScheduled", "version": 1}), Error::InvalidPayloadField("workflow_id is required".to_string()))]
+    #[case(serde_json::json!({"type": "StepScheduled", "workflow_id": 123, "version": 1}), Error::InvalidPayloadField("workflow_id must be a string".to_string()))]
+    #[case(serde_json::json!({"type": "StepScheduled", "workflow_id": "w1", "version": 1}), Error::MissingPayloadField("step_id".to_string()))]
+    #[case(serde_json::json!({"type": "StepScheduled", "workflow_id": "w1", "step_id": 123, "version": 1}), Error::InvalidPayloadField("step_id must be a string".to_string()))]
+    #[case(serde_json::json!({"type": "StepStarted", "version": 1}), Error::InvalidPayloadField("workflow_id is required".to_string()))]
+    #[case(serde_json::json!({"type": "StepStarted", "workflow_id": 123, "version": 1}), Error::InvalidPayloadField("workflow_id must be a string".to_string()))]
+    #[case(serde_json::json!({"type": "StepStarted", "workflow_id": "w1", "version": 1}), Error::MissingPayloadField("step_id".to_string()))]
+    #[case(serde_json::json!({"type": "StepStarted", "workflow_id": "w1", "step_id": 123, "version": 1}), Error::InvalidPayloadField("step_id must be a string".to_string()))]
+    #[case(serde_json::json!({"type": "StepStarted", "workflow_id": "w1", "step_id": "s1", "version": 1}), Error::MissingPayloadField("started_at_ms".to_string()))]
+    #[case(serde_json::json!({"type": "StepStarted", "workflow_id": "w1", "step_id": "s1", "started_at_ms": "bad", "version": 1}), Error::InvalidPayloadField("started_at_ms must be an integer".to_string()))]
+    #[case(serde_json::json!({"type": "StepCompleted", "version": 1}), Error::InvalidPayloadField("workflow_id is required".to_string()))]
+    #[case(serde_json::json!({"type": "StepCompleted", "workflow_id": 123, "version": 1}), Error::InvalidPayloadField("workflow_id must be a string".to_string()))]
+    #[case(serde_json::json!({"type": "StepCompleted", "workflow_id": "w1", "version": 1}), Error::MissingPayloadField("step_id".to_string()))]
+    #[case(serde_json::json!({"type": "StepCompleted", "workflow_id": "w1", "step_id": 123, "version": 1}), Error::InvalidPayloadField("step_id must be a string".to_string()))]
+    #[case(serde_json::json!({"type": "StepCompleted", "workflow_id": "w1", "step_id": "s1", "version": 1}), Error::MissingPayloadField("completed_at_ms".to_string()))]
+    #[case(serde_json::json!({"type": "StepCompleted", "workflow_id": "w1", "step_id": "s1", "completed_at_ms": "bad", "version": 1}), Error::InvalidPayloadField("completed_at_ms must be an integer".to_string()))]
+    #[case(serde_json::json!({"type": "StepFailed", "version": 1}), Error::InvalidPayloadField("workflow_id is required".to_string()))]
+    #[case(serde_json::json!({"type": "StepFailed", "workflow_id": 123, "version": 1}), Error::InvalidPayloadField("workflow_id must be a string".to_string()))]
+    #[case(serde_json::json!({"type": "StepFailed", "workflow_id": "w1", "version": 1}), Error::MissingPayloadField("step_id".to_string()))]
+    #[case(serde_json::json!({"type": "StepFailed", "workflow_id": "w1", "step_id": 123, "version": 1}), Error::InvalidPayloadField("step_id must be a string".to_string()))]
+    #[case(serde_json::json!({"type": "StepFailed", "workflow_id": "w1", "step_id": "s1", "version": 1}), Error::MissingPayloadField("failure_reason".to_string()))]
+    #[case(serde_json::json!({"type": "StepFailed", "workflow_id": "w1", "step_id": "s1", "failure_reason": 123, "version": 1}), Error::InvalidPayloadField("failure_reason must be a string".to_string()))]
+    #[case(serde_json::json!({"type": "TimerSet", "version": 1}), Error::InvalidPayloadField("workflow_id is required".to_string()))]
+    #[case(serde_json::json!({"type": "TimerSet", "workflow_id": 123, "version": 1}), Error::InvalidPayloadField("workflow_id must be a string".to_string()))]
+    #[case(serde_json::json!({"type": "TimerSet", "workflow_id": "w1", "version": 1}), Error::MissingPayloadField("timer_id".to_string()))]
+    #[case(serde_json::json!({"type": "TimerSet", "workflow_id": "w1", "timer_id": 123, "version": 1}), Error::InvalidPayloadField("timer_id must be a string".to_string()))]
+    #[case(serde_json::json!({"type": "TimerSet", "workflow_id": "w1", "timer_id": "t1", "version": 1}), Error::MissingPayloadField("fire_at_ms".to_string()))]
+    #[case(serde_json::json!({"type": "TimerSet", "workflow_id": "w1", "timer_id": "t1", "fire_at_ms": "bad", "version": 1}), Error::InvalidPayloadField("fire_at_ms must be an integer".to_string()))]
+    #[case(serde_json::json!({"type": "TimerFired", "version": 1}), Error::InvalidPayloadField("workflow_id is required".to_string()))]
+    #[case(serde_json::json!({"type": "TimerFired", "workflow_id": 123, "version": 1}), Error::InvalidPayloadField("workflow_id must be a string".to_string()))]
+    #[case(serde_json::json!({"type": "TimerFired", "workflow_id": "w1", "version": 1}), Error::MissingPayloadField("timer_id".to_string()))]
+    #[case(serde_json::json!({"type": "TimerFired", "workflow_id": "w1", "timer_id": 123, "version": 1}), Error::InvalidPayloadField("timer_id must be a string".to_string()))]
+    #[case(serde_json::json!({"type": "TimerFired", "workflow_id": "w1", "timer_id": "t1", "version": 1}), Error::MissingPayloadField("fired_at_ms".to_string()))]
+    #[case(serde_json::json!({"type": "TimerFired", "workflow_id": "w1", "timer_id": "t1", "fired_at_ms": "bad", "version": 1}), Error::InvalidPayloadField("fired_at_ms must be an integer".to_string()))]
+    #[case(serde_json::json!({"type": "CancelRequested", "version": 1}), Error::InvalidPayloadField("workflow_id is required".to_string()))]
+    #[case(serde_json::json!({"type": "CancelRequested", "workflow_id": 123, "version": 1}), Error::InvalidPayloadField("workflow_id must be a string".to_string()))]
+    #[case(serde_json::json!({"type": "CancelRequested", "workflow_id": "w1", "version": 1}), Error::MissingPayloadField("requested_by".to_string()))]
+    #[case(serde_json::json!({"type": "CancelRequested", "workflow_id": "w1", "requested_by": 123, "version": 1}), Error::InvalidPayloadField("requested_by must be a string".to_string()))]
+    #[case(serde_json::json!({"type": "InstanceResumed", "version": 1}), Error::InvalidPayloadField("workflow_id is required".to_string()))]
+    #[case(serde_json::json!({"type": "InstanceResumed", "workflow_id": 123, "version": 1}), Error::InvalidPayloadField("workflow_id must be a string".to_string()))]
+    #[case(serde_json::json!({"type": "InstanceResumed", "workflow_id": "w1", "version": 1}), Error::MissingPayloadField("resumed_at_ms".to_string()))]
+    #[case(serde_json::json!({"type": "InstanceResumed", "workflow_id": "w1", "resumed_at_ms": "bad", "version": 1}), Error::InvalidPayloadField("resumed_at_ms must be an integer".to_string()))]
+
+    fn payload_invalid_fields(#[case] json: serde_json::Value, #[case] expected: Error) {
+        let result = EventPayload::try_from_json(json);
+        assert_eq!(result, Err(expected));
     }
 }

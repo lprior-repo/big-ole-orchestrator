@@ -119,7 +119,7 @@ impl WorkflowDefinition {
         }
 
         // Step 3: RetryPolicy validation per node
-        for node in &unvalidated.nodes {
+        unvalidated.nodes.iter().try_for_each(|node| {
             RetryPolicy::new(
                 node.retry_policy.max_attempts,
                 node.retry_policy.backoff_ms,
@@ -129,12 +129,13 @@ impl WorkflowDefinition {
                 node_name: node.node_name.clone(),
                 reason,
             })?;
-        }
+            Ok::<(), WorkflowDefinitionError>(())
+        })?;
 
         // Step 4: Edge referential integrity
         let node_names: HashSet<&NodeName> =
             unvalidated.nodes.iter().map(|n| &n.node_name).collect();
-        for edge in &unvalidated.edges {
+        unvalidated.edges.iter().try_for_each(|edge| {
             if !node_names.contains(&edge.source_node) {
                 return Err(WorkflowDefinitionError::UnknownNode {
                     edge_source: edge.source_node.clone(),
@@ -147,7 +148,8 @@ impl WorkflowDefinition {
                     unknown_target: edge.target_node.clone(),
                 });
             }
-        }
+            Ok(())
+        })?;
 
         // Step 5: DFS cycle detection
         if let Some(cycle_nodes) = detect_cycle(&unvalidated.nodes, &unvalidated.edges) {
@@ -257,10 +259,11 @@ fn dfs_cycle<'a>(
             path.push(current.clone());
 
             if let Some(neighbors) = adj.get(current) {
-                for neighbor in neighbors.iter() {
-                    if let Some(cycle) = dfs_cycle(neighbor, adj, state, path) {
-                        return Some(cycle);
-                    }
+                if let Some(cycle) = neighbors
+                    .iter()
+                    .find_map(|neighbor| dfs_cycle(neighbor, adj, state, path))
+                {
+                    return Some(cycle);
                 }
             }
 

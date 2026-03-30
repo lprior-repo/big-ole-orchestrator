@@ -106,3 +106,34 @@ pub struct Edge {
     pub target_node: NodeName,
     pub condition: EdgeCondition,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn retry_policy_new_returns_zero_attempts_error_when_max_attempts_is_zero() {
+        let err = RetryPolicy::new(0, 100, 2.0).unwrap_err();
+        assert!(matches!(err, RetryPolicyError::ZeroAttempts));
+        assert_eq!(err.to_string(), "max_attempts must be >= 1, got 0");
+    }
+
+    #[test]
+    fn retry_policy_new_returns_invalid_multiplier_error_when_multiplier_is_less_than_one() {
+        let err = RetryPolicy::new(3, 100, 0.5).unwrap_err();
+        assert!(matches!(err, RetryPolicyError::InvalidMultiplier { got } if got == 0.5));
+        assert_eq!(
+            err.to_string(),
+            "backoff_multiplier must be >= 1.0, got 0.5"
+        );
+    }
+
+    #[test]
+    fn retry_policy_new_returns_invalid_multiplier_error_when_multiplier_is_nan() {
+        let err = RetryPolicy::new(3, 100, f32::NAN).unwrap_err();
+        assert!(matches!(err, RetryPolicyError::InvalidMultiplier { .. }));
+        assert!(err
+            .to_string()
+            .contains("backoff_multiplier must be >= 1.0"));
+    }
+}

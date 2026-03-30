@@ -158,7 +158,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "NonEmptyVec")]
     fn non_empty_vec_new_unchecked_panics_when_vec_is_empty() {
-        let _ = NonEmptyVec::new_unchecked(Vec::<i32>::new());
+        NonEmptyVec::new_unchecked(Vec::<i32>::new());
     }
 
     // B-63: NonEmptyVec yields all elements in insertion order when consumed via IntoIterator
