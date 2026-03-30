@@ -1,5 +1,6 @@
 mod errors;
 pub mod events;
+mod instance_status;
 mod integer_types;
 mod non_empty_vec;
 mod payload_parser;
@@ -10,6 +11,7 @@ mod workflow;
 
 pub use errors::ParseError;
 pub use events::{Error as EventError, EventEnvelope};
+pub use instance_status::InstanceStatus;
 pub use non_empty_vec::NonEmptyVec;
 pub use types::{
     AttemptNumber, BinaryHash, DurationMs, EventVersion, FireAtMs, IdempotencyKey, InstanceId,

@@ -9,6 +9,7 @@
 
 pub mod append;
 pub mod codec;
+pub mod instance_index;
 pub mod partitions;
 pub mod query;
 pub mod timer_index;
