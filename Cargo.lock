@@ -2890,26 +2890,9 @@ dependencies = [
 name = "vo-cli"
 version = "0.1.0"
 dependencies = [
- "anyhow",
- "chrono",
  "clap",
- "futures",
- "ractor",
- "reqwest",
- "serde",
- "serde_json",
- "thiserror",
- "tokio",
- "tracing",
- "tracing-subscriber",
- "uuid",
- "vo-actor",
- "vo-api",
- "vo-common",
- "vo-core",
- "vo-linter",
- "vo-storage",
- "vo-worker",
+ "proptest",
+ "rstest",
 ]
 
 [[package]]

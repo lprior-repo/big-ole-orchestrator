@@ -752,7 +752,7 @@ mod tests {
         });
         let bytes = serde_json::to_vec(&json).unwrap();
         let result = EventEnvelope::from_bytes(&bytes);
-        assert!(matches!(result, Ok(_)));
+        assert!(result.is_ok());
     }
 
     #[rstest]

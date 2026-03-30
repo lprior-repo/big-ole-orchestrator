@@ -1,41 +1,11 @@
 [package]
 name = "vo-cli"
-version.workspace = true
-edition.workspace = true
-license.workspace = true
+version = "0.1.0"
+edition = "2021"
 
 [dependencies]
-vo-common = { path = "../vo-common" }
-vo-core = { path = "../vo-core" }
-vo-storage = { path = "../vo-storage" }
-vo-actor = { path = "../vo-actor" }
-vo-worker = { path = "../vo-worker" }
-vo-linter = { path = "../vo-linter" }
-vo-api = { path = "../vo-api" }
+clap = { version = "4.4", features = ["derive"] }
 
-# UUID generation
-uuid = { workspace = true }
-
-# CLI
-clap = { workspace = true }
-
-# HTTP client
-reqwest = { workspace = true }
-
-# Async
-tokio = { workspace = true }
-futures = { workspace = true }
-
-# Serialization
-serde = { workspace = true }
-serde_json = { workspace = true }
-
-# Utilities
-thiserror = { workspace = true }
-anyhow = { workspace = true }
-chrono = { workspace = true }
-tracing = { workspace = true }
-tracing-subscriber = { workspace = true }
-
-# Actor runtime
-ractor = { workspace = true }
+[dev-dependencies]
+proptest = "1.4"
+rstest = "0.18"
