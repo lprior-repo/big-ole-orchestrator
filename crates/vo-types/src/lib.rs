@@ -2,6 +2,7 @@ mod errors;
 pub mod events;
 mod integer_types;
 mod non_empty_vec;
+mod payload_parser;
 pub mod state;
 mod string_types;
 mod types;

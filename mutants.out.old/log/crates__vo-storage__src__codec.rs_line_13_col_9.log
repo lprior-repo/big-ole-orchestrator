@@ -1,0 +1,348 @@
+
+*** crates/vo-storage/src/codec.rs:13:9: replace <impl fmt::Display for StorageError>::fmt -> fmt::Result with Ok(Default::default())
+
+*** mutation diff:
+--- crates/vo-storage/src/codec.rs
++++ replace <impl fmt::Display for StorageError>::fmt -> fmt::Result with Ok(Default::default())
+@@ -5,20 +5,17 @@
+ #[derive(Debug, PartialEq, Eq)]
+ pub enum StorageError {
+     CorruptKey,
+     Other,
+ }
+ 
+ impl fmt::Display for StorageError {
+     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+-        match self {
+-            Self::CorruptKey => write!(f, "corrupt key"),
+-            Self::Other => write!(f, "other error"),
+-        }
++        Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ impl std::error::Error for StorageError {}
+ 
+ /// Encodes an `(InstanceId, SequenceNumber)` pair into a 24-byte event key.
+ ///
+ /// # Errors
+
+
+*** /home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo test --no-run --verbose --package=vo-storage@0.1.0
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+       Fresh cfg-if v1.0.4
+       Fresh unicode-ident v1.0.24
+       Fresh once_cell v1.21.4
+       Fresh bitflags v2.11.0
+       Fresh libc v0.2.183
+       Fresh linux-raw-sys v0.12.1
+       Fresh fastrand v2.3.0
+       Fresh path-dedot v3.1.1
+       Fresh memchr v2.8.0
+       Fresh compare v0.0.6
+       Fresh semver v1.0.27
+       Fresh regex-syntax v0.8.10
+       Fresh futures-core v0.3.32
+       Fresh futures-sink v0.3.32
+       Fresh autocfg v1.5.0
+       Fresh smallvec v1.15.1
+       Fresh pin-project-lite v0.2.17
+       Fresh slab v0.4.12
+       Fresh byteview v0.6.1
+       Fresh futures-io v0.3.32
+       Fresh scopeguard v1.2.0
+       Fresh varint-rs v2.2.0
+       Fresh byteorder v1.5.0
+       Fresh proc-macro2 v1.0.106
+       Fresh getrandom v0.4.2
+       Fresh getrandom v0.3.4
+       Fresh zerocopy v0.8.47
+       Fresh rustix v1.1.4
+       Fresh crossbeam-utils v0.8.21
+       Fresh rustc_version v0.4.1
+       Fresh aho-corasick v1.1.4
+       Fresh path-absolutize v3.1.1
+       Fresh futures-channel v0.3.32
+       Fresh interval-heap v0.0.5
+       Fresh rustc-hash v2.1.2
+       Fresh hashbrown v0.16.1
+       Fresh futures-task v0.3.32
+       Fresh equivalent v1.0.2
+       Fresh log v0.4.29
+       Fresh xxhash-rust v0.8.15
+       Fresh lock_api v0.4.14
+       Fresh lz4_flex v0.11.6
+       Fresh hashbrown v0.14.5
+       Fresh guardian v1.3.0
+       Fresh itoa v1.0.18
+       Fresh self_cell v1.2.2
+       Fresh double-ended-peekable v0.1.0
+       Fresh wait-timeout v0.2.1
+       Fresh glob v0.3.3
+       Fresh quote v1.0.45
+       Fresh rand_core v0.9.5
+       Fresh tempfile v3.27.0
+       Fresh ppv-lite86 v0.2.21
+       Fresh serde_core v1.0.228
+       Fresh crossbeam-epoch v0.9.18
+       Fresh quick_cache v0.6.21
+       Fresh zmij v1.0.21
+       Fresh parking_lot_core v0.9.12
+       Fresh regex-automata v0.4.14
+       Fresh std-semaphore v0.1.0
+       Fresh quick-error v1.2.3
+       Fresh fnv v1.0.7
+       Fresh relative-path v1.9.3
+       Fresh bit-vec v0.8.0
+       Fresh unarray v0.1.4
+       Fresh futures-timer v3.0.3
+       Fresh syn v2.0.117
+       Fresh rand_chacha v0.9.0
+       Fresh value-log v1.9.0
+       Fresh crossbeam-skiplist v0.1.3
+       Fresh serde_json v1.0.149
+       Fresh dashmap v6.1.0
+       Fresh uuid v1.23.0
+       Fresh regex v1.12.3
+       Fresh rand_xorshift v0.4.0
+       Fresh rusty-fork v0.3.1
+       Fresh bit-set v0.8.0
+       Fresh num-traits v0.2.19
+       Fresh futures-macro v0.3.32
+       Fresh rand v0.9.2
+       Fresh thiserror-impl v1.0.69
+       Fresh serde_derive v1.0.228
+       Fresh enum_dispatch v0.3.13
+       Fresh rstest_macros v0.18.2
+       Fresh futures-util v0.3.32
+       Fresh lsm-tree v2.10.4
+       Fresh serde v1.0.228
+       Fresh ulid v1.2.1
+       Fresh thiserror v1.0.69
+       Fresh proptest v1.11.0
+       Fresh futures-executor v0.3.32
+       Fresh fjall v2.11.2
+       Fresh vo-types v0.1.0 (/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/crates/vo-types)
+       Fresh futures v0.3.32
+       Dirty vo-storage v0.1.0 (/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/crates/vo-storage): the file `crates/vo-storage/src/codec.rs` has changed (1774848068.811848019s, 499824772ns after last build at 1774848068.312023247s)
+   Compiling vo-storage v0.1.0 (/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/crates/vo-storage)
+       Fresh rstest v0.18.2
+     Running `sccache /home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/rustc --crate-name vo_storage --edition=2021 crates/vo-storage/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --emit=dep-info,link -C embed-bitcode=no -C debuginfo=2 --test --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=318efd972d892fe6 -C extra-filename=-94922b57b3523eb6 --out-dir /tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps -C incremental=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/incremental -L dependency=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps --extern fjall=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/libfjall-abfe8d737f32f68d.rlib --extern proptest=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/libproptest-216a766c56ac4476.rlib --extern rstest=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/librstest-ce971fceb7271210.rlib --extern serde=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/libserde-65225f6523a3f7e1.rlib --extern serde_json=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/libserde_json-74f26af1301414df.rlib --extern tempfile=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/libtempfile-8ce133578a770185.rlib --extern thiserror=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/libthiserror-0f760a551262ab92.rlib --extern vo_types=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/libvo_types-45222441ae9421e4.rlib`
+     Running `sccache /home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/rustc --crate-name vo_storage --edition=2021 crates/vo-storage/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no -C debuginfo=2 --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=76f244fc58526e88 -C extra-filename=-f746caa4842587f3 --out-dir /tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps -C incremental=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/incremental -L dependency=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps --extern fjall=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/libfjall-abfe8d737f32f68d.rmeta --extern serde=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/libserde-65225f6523a3f7e1.rmeta --extern serde_json=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/libserde_json-74f26af1301414df.rmeta --extern vo_types=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/libvo_types-45222441ae9421e4.rmeta`
+warning: unused variable: `f`
+  --> crates/vo-storage/src/codec.rs:12:19
+   |
+12 |     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+   |                   ^ help: if this is intentional, prefix it with an underscore: `_f`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `vo-storage` (lib) generated 1 warning (run `cargo fix --lib -p vo-storage` to apply 1 suggestion)
+     Running `sccache /home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/rustc --crate-name fjall_integration --edition=2021 crates/vo-storage/tests/fjall_integration.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --emit=dep-info,link -C embed-bitcode=no -C debuginfo=2 --test --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=9f594d2fe4813f42 -C extra-filename=-9a94b34122a0cbb3 --out-dir /tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps -C incremental=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/incremental -L dependency=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps --extern fjall=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/libfjall-abfe8d737f32f68d.rlib --extern proptest=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/libproptest-216a766c56ac4476.rlib --extern rstest=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/librstest-ce971fceb7271210.rlib --extern serde=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/libserde-65225f6523a3f7e1.rlib --extern serde_json=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/libserde_json-74f26af1301414df.rlib --extern tempfile=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/libtempfile-8ce133578a770185.rlib --extern thiserror=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/libthiserror-0f760a551262ab92.rlib --extern vo_storage=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/libvo_storage-f746caa4842587f3.rlib --extern vo_types=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/libvo_types-45222441ae9421e4.rlib`
+     Running `sccache /home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/rustc --crate-name red_queen_tests --edition=2021 crates/vo-storage/tests/red_queen_tests.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --emit=dep-info,link -C embed-bitcode=no -C debuginfo=2 --test --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=4d4a40e2e5047faa -C extra-filename=-a130a505e7a3aa99 --out-dir /tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps -C incremental=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/incremental -L dependency=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps --extern fjall=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/libfjall-abfe8d737f32f68d.rlib --extern proptest=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/libproptest-216a766c56ac4476.rlib --extern rstest=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/librstest-ce971fceb7271210.rlib --extern serde=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/libserde-65225f6523a3f7e1.rlib --extern serde_json=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/libserde_json-74f26af1301414df.rlib --extern tempfile=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/libtempfile-8ce133578a770185.rlib --extern thiserror=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/libthiserror-0f760a551262ab92.rlib --extern vo_storage=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/libvo_storage-f746caa4842587f3.rlib --extern vo_types=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/libvo_types-45222441ae9421e4.rlib`
+warning: `vo-storage` (lib test) generated 1 warning (1 duplicate)
+     Running `sccache /home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/rustc --crate-name structural_test --edition=2021 crates/vo-storage/tests/structural_test.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --emit=dep-info,link -C embed-bitcode=no -C debuginfo=2 --test --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=0559d17984ea5e75 -C extra-filename=-a902747d701c75c7 --out-dir /tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps -C incremental=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/incremental -L dependency=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps --extern fjall=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/libfjall-abfe8d737f32f68d.rlib --extern proptest=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/libproptest-216a766c56ac4476.rlib --extern rstest=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/librstest-ce971fceb7271210.rlib --extern serde=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/libserde-65225f6523a3f7e1.rlib --extern serde_json=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/libserde_json-74f26af1301414df.rlib --extern tempfile=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/libtempfile-8ce133578a770185.rlib --extern thiserror=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/libthiserror-0f760a551262ab92.rlib --extern vo_storage=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/libvo_storage-f746caa4842587f3.rlib --extern vo_types=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/libvo_types-45222441ae9421e4.rlib`
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.66s
+  Executable `/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/vo_storage-94922b57b3523eb6`
+  Executable `/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/fjall_integration-9a94b34122a0cbb3`
+  Executable `/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/red_queen_tests-a130a505e7a3aa99`
+  Executable `/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/structural_test-a902747d701c75c7`
+
+*** result: Success
+
+*** /home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo test --verbose --package=vo-storage@0.1.0
+       Fresh cfg-if v1.0.4
+       Fresh libc v0.2.183
+       Fresh unicode-ident v1.0.24
+       Fresh proc-macro2 v1.0.106
+       Fresh quote v1.0.45
+       Fresh syn v2.0.117
+       Fresh once_cell v1.21.4
+       Fresh getrandom v0.4.2
+       Fresh getrandom v0.3.4
+       Fresh bitflags v2.11.0
+       Fresh linux-raw-sys v0.12.1
+       Fresh rustix v1.1.4
+       Fresh rand_core v0.9.5
+       Fresh zerocopy v0.8.47
+       Fresh fastrand v2.3.0
+       Fresh tempfile v3.27.0
+       Fresh ppv-lite86 v0.2.21
+       Fresh crossbeam-utils v0.8.21
+       Fresh rand_chacha v0.9.0
+       Fresh serde_core v1.0.228
+       Fresh path-dedot v3.1.1
+       Fresh memchr v2.8.0
+       Fresh futures-core v0.3.32
+       Fresh semver v1.0.27
+       Fresh futures-sink v0.3.32
+       Fresh regex-syntax v0.8.10
+       Fresh compare v0.0.6
+       Fresh interval-heap v0.0.5
+       Fresh futures-channel v0.3.32
+       Fresh rustc_version v0.4.1
+       Fresh aho-corasick v1.1.4
+       Fresh path-absolutize v3.1.1
+       Fresh rand v0.9.2
+       Fresh crossbeam-epoch v0.9.18
+       Fresh futures-macro v0.3.32
+       Fresh slab v0.4.12
+       Fresh equivalent v1.0.2
+       Fresh hashbrown v0.16.1
+       Fresh pin-project-lite v0.2.17
+       Fresh autocfg v1.5.0
+       Fresh smallvec v1.15.1
+       Fresh futures-io v0.3.32
+       Fresh scopeguard v1.2.0
+       Fresh futures-task v0.3.32
+       Fresh xxhash-rust v0.8.15
+       Fresh log v0.4.29
+       Fresh rustc-hash v2.1.2
+       Fresh varint-rs v2.2.0
+       Fresh byteorder v1.5.0
+       Fresh byteview v0.6.1
+       Fresh value-log v1.9.0
+       Fresh futures-util v0.3.32
+       Fresh lock_api v0.4.14
+       Fresh parking_lot_core v0.9.12
+       Fresh quick_cache v0.6.21
+       Fresh crossbeam-skiplist v0.1.3
+       Fresh regex-automata v0.4.14
+       Fresh zmij v1.0.21
+       Fresh enum_dispatch v0.3.13
+       Fresh serde_derive v1.0.228
+       Fresh thiserror-impl v1.0.69
+       Fresh lz4_flex v0.11.6
+       Fresh double-ended-peekable v0.1.0
+       Fresh guardian v1.3.0
+       Fresh itoa v1.0.18
+       Fresh hashbrown v0.14.5
+       Fresh self_cell v1.2.2
+       Fresh lsm-tree v2.10.4
+       Fresh dashmap v6.1.0
+       Fresh serde_json v1.0.149
+       Fresh thiserror v1.0.69
+       Fresh serde v1.0.228
+       Fresh regex v1.12.3
+       Fresh futures-executor v0.3.32
+       Fresh ulid v1.2.1
+       Fresh uuid v1.23.0
+       Fresh wait-timeout v0.2.1
+       Fresh relative-path v1.9.3
+       Fresh fnv v1.0.7
+       Fresh std-semaphore v0.1.0
+       Fresh glob v0.3.3
+       Fresh bit-vec v0.8.0
+       Fresh quick-error v1.2.3
+       Fresh rusty-fork v0.3.1
+       Fresh bit-set v0.8.0
+       Fresh rstest_macros v0.18.2
+       Fresh fjall v2.11.2
+       Fresh vo-types v0.1.0 (/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/crates/vo-types)
+       Fresh futures v0.3.32
+       Fresh num-traits v0.2.19
+       Fresh rand_xorshift v0.4.0
+       Fresh unarray v0.1.4
+       Fresh futures-timer v3.0.3
+       Fresh rstest v0.18.2
+       Fresh proptest v1.11.0
+warning: unused variable: `f`
+  --> crates/vo-storage/src/codec.rs:12:19
+   |
+12 |     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+   |                   ^ help: if this is intentional, prefix it with an underscore: `_f`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `vo-storage` (lib) generated 1 warning (run `cargo fix --lib -p vo-storage` to apply 1 suggestion)
+       Fresh vo-storage v0.1.0 (/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/crates/vo-storage)
+warning: `vo-storage` (lib test) generated 1 warning (1 duplicate)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.08s
+     Running `/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/vo_storage-94922b57b3523eb6`
+
+running 11 tests
+test codec::tests::decode_event_key_returns_corrupt_key_error_when_bytes_are_empty ... ok
+test codec::tests::decode_event_key_returns_corrupt_key_error_when_bytes_are_too_short ... ok
+test codec::tests::decode_event_key_returns_corrupt_key_error_when_bytes_are_too_long ... ok
+test codec::tests::decode_event_key_returns_exact_components_when_bytes_have_mixed_endianness ... ok
+test codec::tests::decode_event_key_returns_exact_components_when_bytes_are_minimum_valid ... ok
+test codec::tests::decode_event_key_returns_error_when_sequence_is_zero ... ok
+test codec::tests::encode_event_key_returns_exact_bytes_when_inputs_are_maximums ... ok
+test codec::tests::decode_event_key_returns_exact_components_when_bytes_are_maximum_valid ... ok
+test codec::tests::encode_event_key_returns_exact_bytes_when_inputs_are_minimums ... ok
+test codec::tests::encode_event_key_returns_concrete_big_endian_bytes_to_preserve_ordering ... ok
+test codec::proptests::roundtrip_encode_decode ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running `/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/fjall_integration-9a94b34122a0cbb3`
+
+running 1 test
+test cargo_check_workspace_compiles_vo_storage_cleanly_after_scaffold ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running `/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/red_queen_tests-a130a505e7a3aa99`
+
+running 5 tests
+test dependency_tables ... ok
+test disallowed_inline_table ... ok
+test extra_inline_module_allowed ... ok
+test missing_module_pub_crate ... ok
+test dependency_quotes ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running `/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/structural_test-a902747d701c75c7`
+
+running 37 tests
+test dependency_checker_returns_disallowed_dependency_error_when_serde_json_core_is_present ... ok
+test dependency_checker_returns_disallowed_dependency_error_when_tokio_present ... ok
+test dependency_checker_returns_malformed_file_error_when_toml_is_invalid ... ok
+test dependency_checker_returns_missing_dependency_error_when_cargo_toml_is_empty ... ok
+test checker_returns_ok_when_validating_real_vo_storage_project_on_disk ... ok
+test dependency_checker_returns_missing_dependency_error_when_fjall_is_commented_out ... ok
+test dependency_checker_returns_missing_dependency_error_when_fjall_is_only_in_dev_dependencies ... ok
+test dependency_checker_returns_disallowed_dependency_error_when_tokio_in_build_dependencies ... ok
+test checker_returns_error_when_validating_real_project_with_missing_dependency_on_disk ... ok
+test dependency_checker_fuzz_placeholder ... ok
+test dependency_checker_returns_disallowed_dependency_error_when_tokio_in_dev_dependencies ... ok
+test dependency_checker_returns_missing_dependency_error_when_fjall_absent ... ok
+test dependency_checker_returns_missing_dependency_error_when_serde_json_absent ... ok
+test checker_returns_error_when_validating_real_project_with_missing_module_on_disk ... ok
+test module_checker_returns_missing_module_error_when_partitions_absent ... ok
+test module_checker_returns_ok_when_lib_rs_is_valid ... ok
+test workspace_checker_returns_cyclic_dependency_error_when_vo_types_depends_on_vo_storage ... ok
+test module_checker_returns_missing_module_error_when_append_absent ... ok
+test dependency_checker_returns_missing_dependency_error_when_serde_absent ... ok
+test dependency_checker_returns_ok_when_cargo_toml_is_valid ... ok
+test module_checker_fuzz_placeholder ... ok
+test module_checker_returns_missing_module_error_when_lib_rs_is_empty ... ok
+test module_checker_returns_missing_module_error_when_module_is_commented_out ... ok
+test module_checker_returns_missing_module_error_when_query_absent ... ok
+test module_checker_returns_missing_module_error_when_timer_index_absent ... ok
+test dependency_checker_returns_disallowed_dependency_error_when_arbitrary_unlisted_dep_present ... ok
+test module_checker_returns_missing_module_error_when_module_is_nested ... ok
+test dependency_checker_returns_missing_dependency_error_when_vo_types_absent ... ok
+test module_checker_returns_malformed_file_error_when_rust_syntax_is_invalid ... ok
+test module_checker_returns_missing_module_error_when_codec_absent ... ok
+test module_checker_returns_missing_module_error_when_module_is_inside_test_scope ... ok
+test dependency_checker_returns_malformed_file_error_when_cargo_toml_exceeds_maximum_size ... ok
+test dependency_checker_returns_ok_when_cargo_toml_is_exactly_maximum_size ... ok
+test module_checker_returns_ok_when_lib_rs_is_exactly_maximum_size ... ok
+test module_checker_returns_malformed_file_error_when_lib_rs_exceeds_maximum_size ... ok
+test valid_toml_generated_passes_or_fails_correctly ... ok
+test valid_rust_ast_generated_passes_or_fails_correctly ... ok
+
+test result: ok. 37 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+   Doc-tests vo_storage
+     Running `/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/rustdoc --edition=2021 --crate-type lib --color auto --crate-name vo_storage --test crates/vo-storage/src/lib.rs --test-run-directory /tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/crates/vo-storage --extern fjall=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/libfjall-abfe8d737f32f68d.rlib --extern proptest=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/libproptest-216a766c56ac4476.rlib --extern rstest=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/librstest-ce971fceb7271210.rlib --extern serde=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/libserde-65225f6523a3f7e1.rlib --extern serde_json=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/libserde_json-74f26af1301414df.rlib --extern tempfile=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/libtempfile-8ce133578a770185.rlib --extern thiserror=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/libthiserror-0f760a551262ab92.rlib --extern vo_storage=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/libvo_storage-f746caa4842587f3.rlib --extern vo_types=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps/libvo_types-45222441ae9421e4.rlib -L dependency=/tmp/cargo-mutants-vel-bsl-VzuOVH.tmp/target/debug/deps -C embed-bitcode=no --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' --error-format human`
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+*** result: Success

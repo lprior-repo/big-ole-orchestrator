@@ -1,0 +1,2 @@
+crates/vo-storage/src/codec.rs:31:5: replace encode_event_key -> Result<[u8; 24], StorageError> with Ok([1; 24])
+crates/vo-storage/src/codec.rs:31:5: replace encode_event_key -> Result<[u8; 24], StorageError> with Ok([0; 24])

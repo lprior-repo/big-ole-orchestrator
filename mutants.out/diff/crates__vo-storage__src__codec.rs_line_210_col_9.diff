@@ -1,0 +1,16 @@
+--- crates/vo-storage/src/codec.rs
++++ replace verification::verify_codec_length_bounds with ()
+@@ -202,12 +202,11 @@
+ mod verification {
+     use super::*;
+ 
+     #[kani::proof]
+     fn verify_codec_length_bounds() {
+         // Can't easily use InstanceId parsing in Kani without it blowing up on regex/string allocs
+         // We'll mock it if it was required, but we can't here easily unless we bypass.
+         // For the sake of the red phase test stub, this function just has to compile.
+-        let bytes: [u8; 24] = kani::any();
+-        decode_event_key(&bytes).unwrap_or((min_id(), SequenceNumber::try_from(1u64).unwrap()));
++        () /* ~ changed by cargo-mutants ~ */
+     }
+ }

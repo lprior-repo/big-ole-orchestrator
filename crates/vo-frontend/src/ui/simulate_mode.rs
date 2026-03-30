@@ -172,7 +172,7 @@ mod tests {
     #[test]
     fn initial_state_has_empty_checkpoint_map() {
         let state = SimProceduralState::new();
-        state.checkpoint_map.is_empty());
+        assert!(state.checkpoint_map.is_empty());
     }
 
     #[test]
@@ -285,33 +285,33 @@ mod tests {
     #[test]
     fn invariant_current_op_never_exceeds_ops_length() {
         let mut state = SimProceduralState::new();
-        for i in 0..5 {
+        (0..5).for_each(|i| {
             let result = state.provide_result(format!("r{i}"), format!("act-{i}"), 5);
-            assert!(result.unwrap();
-        }
+            result.unwrap();
+        });
         assert!(!state.can_advance(5));
     }
 
     #[test]
     fn invariant_checkpoint_map_len_matches_current_op() {
         let mut state = SimProceduralState::new();
-        for i in 0..3 {
+        (0..3).for_each(|i| {
             state
                 .provide_result(format!("r{i}"), format!("act-{i}"), 3)
                 .unwrap();
             assert_eq!(state.checkpoint_map.len(), state.current_op as usize);
-        }
+        });
     }
 
     #[test]
     fn invariant_event_log_len_matches_current_op() {
         let mut state = SimProceduralState::new();
-        for i in 0..3 {
+        (0..3).for_each(|i| {
             state
                 .provide_result(format!("r{i}"), format!("act-{i}"), 3)
                 .unwrap();
             assert_eq!(state.event_log.len(), state.current_op as usize);
-        }
+        });
     }
 
     #[test]

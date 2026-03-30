@@ -8,8 +8,8 @@ use rstest::rstest;
 #[case("checkout")]
 #[case("order_2_process")]
 #[case("abc123")]
-fn test_workflow_name_valid(#[case] name: &str) {
-    assert!(WorkflowName::new(name).is_ok(), "Expected {name} to be valid");
+fn workflow_name_valid(#[case] name: &str) {
+    WorkflowName::new(name).unwrap();
 }
 
 #[rstest]
@@ -17,17 +17,16 @@ fn test_workflow_name_valid(#[case] name: &str) {
 #[case("Invalid")]
 #[case("1order")]
 #[case("order-name")]
-fn test_workflow_name_invalid(#[case] name: &str) {
+fn workflow_name_invalid(#[case] name: &str) {
     let result = WorkflowName::new(name);
-    assert!(result.is_err(), "Expected {name} to be invalid");
-}
+    assert!(result, Err(_)));}
 
 #[rstest]
 #[case("payment_approved")]
 #[case("cancel")]
 #[case("signal_2")]
-fn test_signal_name_valid(#[case] name: &str) {
-    assert!(SignalName::new(name).is_ok(), "Expected {name} to be valid");
+fn signal_name_valid(#[case] name: &str) {
+    SignalName::new(name).unwrap();
 }
 
 #[rstest]
@@ -35,15 +34,14 @@ fn test_signal_name_valid(#[case] name: &str) {
 #[case("a")]
 #[case("Invalid")]
 #[case("signal-name")]
-fn test_signal_name_invalid(#[case] name: &str) {
+fn signal_name_invalid(#[case] name: &str) {
     let result = SignalName::new(name);
-    assert!(result.is_err(), "Expected {name} to be invalid");
-}
+    assert!(result, Err(_)));}
 
 #[test]
-fn test_invocation_id_valid() {
+fn invocation_id_valid() {
     let result = InvocationId::from_str("01ARZ3NDEKTSV4RRFFQ69G5FAV");
-    assert!(result.is_ok(), "Valid ULID should pass");
+    assert!(matches!(result, Ok(_)));
 }
 
 #[rstest]
@@ -52,42 +50,39 @@ fn test_invocation_id_valid() {
 #[case("01ARZ3NDEKTSV4RRFFQ69G5FA")]
 #[case("01ARZ3NDEKTSV4RRFFQ69G5FAVX")]
 #[case("INVALID123")]
-fn test_invocation_id_invalid(#[case] id: &str) {
+fn invocation_id_invalid(#[case] id: &str) {
     let result = InvocationId::from_str(id);
-    assert!(result.is_err(), "Expected {id} to be invalid");
-}
+    assert!(result, Err(_)));}
 
 #[test]
-fn test_retry_after_seconds_valid() -> Result<(), crate::types::errors::ValidationError> {
+fn retry_after_seconds_valid() -> Result<(), crate::types::errors::ValidationError> {
     let result = RetryAfterSeconds::new(5)?;
     assert_eq!(result.get(), 5);
     Ok(())
 }
 
 #[test]
-fn test_retry_after_seconds_zero_invalid() {
+fn retry_after_seconds_zero_invalid() {
     let result = RetryAfterSeconds::new(0);
-    assert!(result.is_err());
-}
+    assert!(matches!(result, Err(crate::types::errors::ValidationError::InvalidRetryAfterSeconds)));}
 
 #[rstest]
 #[case("2024-01-15T10:30:00Z")]
 #[case("2024-01-15T10:30:00+05:00")]
-fn test_timestamp_valid(#[case] ts: &str) {
+fn timestamp_valid(#[case] ts: &str) {
     let result = Timestamp::new(ts);
-    assert!(result.is_ok(), "Expected {ts} to be valid");
+    assert!(matches!(result, Ok(_)));
 }
 
 #[rstest]
 #[case("invalid")]
 #[case("2024-13-45T99:99:99Z")]
-fn test_timestamp_invalid(#[case] ts: &str) {
+fn timestamp_invalid(#[case] ts: &str) {
     let result = Timestamp::new(ts);
-    assert!(result.is_err(), "Expected {ts} to be invalid");
-}
+    assert!(result, Err(_)));}
 
 #[test]
-fn test_workflow_status_validate_timestamps() -> anyhow::Result<()> {
+fn workflow_status_validate_timestamps() -> anyhow::Result<()> {
     let started = Timestamp::new("2024-01-15T10:31:00Z").map_err(|e| anyhow::anyhow!(e))?;
     let updated_before = Timestamp::new("2024-01-15T10:30:00Z").map_err(|e| anyhow::anyhow!(e))?;
     let updated_after = Timestamp::new("2024-01-15T10:32:00Z").map_err(|e| anyhow::anyhow!(e))?;
@@ -101,8 +96,7 @@ fn test_workflow_status_validate_timestamps() -> anyhow::Result<()> {
         started_at: started.clone(),
         updated_at: updated_before,
     };
-    assert!(status_before.validate().is_err());
-
+    assert!(matches!(status_before.validate(), Err(crate::types::errors::InvariantViolation::UpdatedBeforeStarted)));
     let status_after = WorkflowStatus {
         invocation_id: InvocationId::from_str("01ARZ3NDEKTSV4RRFFQ69G5FAV")
             .map_err(|e| anyhow::anyhow!(e))?,
@@ -112,12 +106,12 @@ fn test_workflow_status_validate_timestamps() -> anyhow::Result<()> {
         started_at: started,
         updated_at: updated_after,
     };
-    assert!(status_after.validate().is_ok());
+    status_after.validate().unwrap();
     Ok(())
 }
 
 #[test]
-fn test_journal_response_validate_sorted() -> anyhow::Result<()> {
+fn journal_response_validate_sorted() -> anyhow::Result<()> {
     let invocation_id =
         InvocationId::from_str("01ARZ3NDEKTSV4RRFFQ69G5FAV").map_err(|e| anyhow::anyhow!(e))?;
 
@@ -148,8 +142,7 @@ fn test_journal_response_validate_sorted() -> anyhow::Result<()> {
             },
         ],
     };
-    assert!(unsorted.validate().is_err());
-
+    assert!(matches!(unsorted.validate(), Err(crate::types::errors::InvariantViolation::EntriesNotSorted)));
     let sorted = JournalResponse {
         invocation_id,
         entries: vec![
@@ -177,30 +170,27 @@ fn test_journal_response_validate_sorted() -> anyhow::Result<()> {
             },
         ],
     };
-    assert!(sorted.validate().is_ok());
+    sorted.validate().unwrap();
     Ok(())
 }
 
 #[test]
-fn test_error_response_retryable_validation() -> anyhow::Result<()> {
+fn error_response_retryable_validation() -> anyhow::Result<()> {
     let retry = RetryAfterSeconds::new(5).map_err(|e| anyhow::anyhow!(e))?;
 
-    let err = ErrorResponse::new("at_capacity", "Capacity reached", Some(retry.clone()));
-    assert!(err.is_ok(), "at_capacity with retry should be ok");
+    let err = ErrorResponse::new("at_capacity", "Capacity reached", Some(retry.clone()));    assert!(matches!(err, Ok(_)));
 
     let err = ErrorResponse::new("at_capacity", "Capacity reached", None);
-    assert!(err.is_err(), "at_capacity without retry should fail");
-
+    assert!(err, Err(_)));
     let err = ErrorResponse::new("not_found", "Not found", None);
-    assert!(err.is_ok(), "not_found without retry should be ok");
+    assert!(matches!(err, Ok(_)));
 
     let err = ErrorResponse::new("not_found", "Not found", Some(retry));
-    assert!(err.is_err(), "not_found with retry should fail");
-    Ok(())
+    assert!(err, Err(_)));    Ok(())
 }
 
 #[test]
-fn test_start_workflow_response_validate() -> anyhow::Result<()> {
+fn start_workflow_response_validate() -> anyhow::Result<()> {
     let resp = StartWorkflowResponse {
         invocation_id: InvocationId::from_str("01ARZ3NDEKTSV4RRFFQ69G5FAV")
             .map_err(|e| anyhow::anyhow!(e))?,
@@ -208,7 +198,7 @@ fn test_start_workflow_response_validate() -> anyhow::Result<()> {
         status: WorkflowStatusValue::Running,
         started_at: Timestamp::new("2024-01-15T10:30:00Z").map_err(|e| anyhow::anyhow!(e))?,
     };
-    assert!(resp.validate().is_ok());
+    resp.validate().unwrap();
 
     let resp = StartWorkflowResponse {
         invocation_id: InvocationId::from_str("01ARZ3NDEKTSV4RRFFQ69G5FAV")
@@ -217,12 +207,11 @@ fn test_start_workflow_response_validate() -> anyhow::Result<()> {
         status: WorkflowStatusValue::Completed,
         started_at: Timestamp::new("2024-01-15T10:30:00Z").map_err(|e| anyhow::anyhow!(e))?,
     };
-    assert!(resp.validate().is_err());
-    Ok(())
+    assert!(matches!(resp.validate(), Err(crate::types::errors::InvariantViolation::InvalidStatusForResponse)));    Ok(())
 }
 
 #[test]
-fn test_serde_roundtrip_start_workflow_request() -> anyhow::Result<()> {
+fn serde_roundtrip_start_workflow_request() -> anyhow::Result<()> {
     let request = StartWorkflowRequest {
         workflow_name: WorkflowName::new("checkout").map_err(|e| anyhow::anyhow!(e))?,
         input: serde_json::json!({ "order_id": "ord_123" }),
@@ -238,7 +227,7 @@ fn test_serde_roundtrip_start_workflow_request() -> anyhow::Result<()> {
 }
 
 #[test]
-fn test_serde_roundtrip_signal_request() -> anyhow::Result<()> {
+fn serde_roundtrip_signal_request() -> anyhow::Result<()> {
     let request = SignalRequest {
         signal_name: SignalName::new("payment_approved").map_err(|e| anyhow::anyhow!(e))?,
         payload: serde_json::json!({ "approved": true }),

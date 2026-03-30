@@ -713,12 +713,13 @@ mod tests {
     }
 
     #[test]
-    fn fire_at_ms_has_elapsed_returns_deterministic_result_when_fire_at_equals_now() {
+    fn fire_at_ms_has_elapsed_returns_false_when_fire_at_equals_now() {
         let fa = FireAtMs(2000);
         let now = TimestampMs(2000);
-        let result1 = fa.has_elapsed(now);
-        let result2 = fa.has_elapsed(now);
-        assert_eq!(result1, result2, "has_elapsed must be deterministic");
+        assert!(
+            !fa.has_elapsed(now),
+            "has_elapsed must be false when times are equal"
+        );
     }
 
     #[test]

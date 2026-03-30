@@ -66,10 +66,7 @@ fn rq_workflow_name_rejects_tab() {
 #[test]
 fn rq_workflow_name_rejects_newline() {
     let result = WorkflowName::parse("deploy\nprod");
-    assert!(
-        result.is_err(),
-        "WorkflowName should reject newline"
-    );
+    assert!(result.is_err(), "WorkflowName should reject newline");
 }
 
 #[test]
@@ -87,39 +84,33 @@ fn rq_workflow_name_rejects_carriage_return() {
 fn rq_instance_id_accepts_lowercase_ulid() {
     let result = InstanceId::parse("01h5jyv4xhgsr2f8kz9bwnrfma");
     let val = result.expect("lowercase ULID should be accepted");
-    assert_eq!(val.as_str(), "01h5jyv4xhgsr2f8kz9bwnrfma");
+    assert_eq!(val.as_str(), "01H5JYV4XHGSR2F8KZ9BWNRFMA");
 }
 
 #[test]
 fn rq_instance_id_accepts_mixed_case_ulid() {
     let result = InstanceId::parse("01H5jyv4XHGSR2F8KZ9BWNRFMA");
     let val = result.expect("mixed-case ULID should be accepted");
-    assert_eq!(val.as_str(), "01H5jyv4XHGSR2F8KZ9BWNRFMA");
+    assert_eq!(val.as_str(), "01H5JYV4XHGSR2F8KZ9BWNRFMA");
 }
 
 #[test]
-fn rq_instance_id_preserves_original_case() {
+fn rq_instance_id_normalizes_case_to_uppercase() {
     let lower = InstanceId::parse("01h5jyv4xhgsr2f8kz9bwnrfma").expect("valid");
     let upper = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").expect("valid");
-    assert_ne!(lower, upper, "different case = different InstanceId");
+    assert_eq!(lower, upper, "different case = same normalized InstanceId");
 }
 
 #[test]
 fn rq_instance_id_rejects_25_chars() {
     let result = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFM");
-    assert!(
-        result.is_err(),
-        "InstanceId should reject 25-char string"
-    );
+    assert!(result.is_err(), "InstanceId should reject 25-char string");
 }
 
 #[test]
 fn rq_instance_id_rejects_27_chars() {
     let result = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMAA");
-    assert!(
-        result.is_err(),
-        "InstanceId should reject 27-char string"
-    );
+    assert!(result.is_err(), "InstanceId should reject 27-char string");
 }
 
 // --- BinaryHash edge cases ---
@@ -127,10 +118,7 @@ fn rq_instance_id_rejects_27_chars() {
 #[test]
 fn rq_binary_hash_rejects_single_char() {
     let result = BinaryHash::parse("a");
-    assert!(
-        result.is_err(),
-        "BinaryHash should reject single char"
-    );
+    assert!(result.is_err(), "BinaryHash should reject single char");
 }
 
 #[test]
@@ -522,7 +510,7 @@ mod proptests {
 
     proptest! {
         #[test]
-        fn instance_id_round_trip(s in "[0-9A-HJKMNP-TV-Z]{26}") {
+        fn instance_id_round_trip(s in "[0-7][0-9A-HJKMNP-TV-Z]{25}") {
             let v = InstanceId(s);
             let result = InstanceId::parse(&v.to_string());
             prop_assert_eq!(result, Ok(v));

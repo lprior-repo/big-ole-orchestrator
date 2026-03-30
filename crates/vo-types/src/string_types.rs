@@ -66,6 +66,14 @@ impl InstanceId {
                 reason: format!("expected 26 characters, got {}", input.len()),
             });
         }
+        if let Some(first_char) = input.chars().next() {
+            if first_char > '7' {
+                return Err(ParseError::InvalidFormat {
+                    type_name: TYPE_NAME,
+                    reason: "invalid ULID validation: exceeds maximum 128-bit value".to_string(),
+                });
+            }
+        }
         let ulid = ulid::Ulid::from_string(input).map_err(|e| ParseError::InvalidFormat {
             type_name: TYPE_NAME,
             reason: format!("invalid ULID: {}", e),
@@ -76,11 +84,32 @@ impl InstanceId {
                 reason: "invalid ULID validation: nil value not permitted".to_string(),
             });
         }
-        Ok(Self(input.to_string()))
+        Ok(Self(input.to_uppercase()))
     }
 
+    #[must_use]
     pub fn as_str(&self) -> &str {
         &self.0
+    }
+
+    /// Converts this `InstanceId` to its 16-byte big-endian representation.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ParseError::InvalidFormat` if the internal string cannot be
+    /// decoded as a ULID (should never happen for a properly constructed value).
+    pub fn to_bytes(&self) -> Result<[u8; 16], ParseError> {
+        ulid::Ulid::from_string(&self.0)
+            .map(|u| u.0.to_be_bytes())
+            .map_err(|e| ParseError::InvalidFormat {
+                type_name: "InstanceId",
+                reason: format!("cannot convert to bytes: {e}"),
+            })
+    }
+
+    #[must_use]
+    pub fn from_bytes(bytes: [u8; 16]) -> Self {
+        Self(ulid::Ulid(u128::from_be_bytes(bytes)).to_string())
     }
 }
 string_newtype!(InstanceId);
@@ -1090,6 +1119,24 @@ mod tests {
         assert_eq!(IdempotencyKey::parse(&s), Ok(ik));
     }
 
+    // ========== to_bytes / from_bytes ==========
+
+    #[test]
+    fn instance_id_to_bytes_returns_correct_bytes_for_valid_ulid() {
+        let id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+        let bytes = id.to_bytes().expect("valid ULID should convert to bytes");
+        assert_ne!(bytes, [0; 16]);
+        assert_ne!(bytes, [1; 16]);
+        let reconstructed = InstanceId::from_bytes(bytes);
+        assert_eq!(reconstructed.as_str(), "01H5JYV4XHGSR2F8KZ9BWNRFMA");
+    }
+
+    #[test]
+    fn instance_id_to_bytes_returns_error_when_ulid_invalid() {
+        let id = InstanceId("invalid".to_string());
+        assert!(id.to_bytes().is_err());
+    }
+
     // ========== Serde round-trip (inline) ==========
 
     #[test]
@@ -1180,7 +1227,7 @@ mod tests {
             }
 
             #[test]
-            fn instance_id_round_trip_proptest(s in "[0-9A-HJKMNP-TV-Z]{26}") {
+            fn instance_id_round_trip_proptest(s in "[0-7][0-9A-HJKMNP-TV-Z]{25}") {
                 let v = InstanceId(s);
                 prop_assert_eq!(InstanceId::parse(&v.to_string()), Ok(v));
             }
