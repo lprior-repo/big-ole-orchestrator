@@ -18,6 +18,7 @@ impl NodeName {
         Self(name.into())
     }
 
+    #[must_use]
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -28,10 +29,12 @@ impl NodeName {
 pub struct TimerId(u64);
 
 impl TimerId {
+    #[must_use]
     pub fn new(id: u64) -> Self {
         Self(id)
     }
 
+    #[must_use]
     pub fn inner(&self) -> u64 {
         self.0
     }
@@ -42,6 +45,7 @@ impl TimerId {
 pub struct AttemptNumber(u32);
 
 impl AttemptNumber {
+    #[must_use]
     pub fn new(num: u32) -> Option<Self> {
         if num == 0 {
             None
@@ -50,6 +54,7 @@ impl AttemptNumber {
         }
     }
 
+    #[must_use]
     pub fn inner(&self) -> u32 {
         self.0
     }
@@ -89,34 +94,32 @@ pub enum LifecycleState {
 
 impl LifecycleState {
     /// Get the operational status for a given state
+    #[must_use]
     pub fn get_operational_status(&self) -> OperationalStatus {
         match self {
-            LifecycleState::Pending => OperationalStatus::Healthy,
-            LifecycleState::RunningDecision => OperationalStatus::Healthy,
-            LifecycleState::StepScheduled => OperationalStatus::Healthy,
-            LifecycleState::StepExecuting => OperationalStatus::Healthy,
-            LifecycleState::WaitingForTimer => OperationalStatus::Healthy,
-            LifecycleState::Completed => OperationalStatus::Blocked(BlockedReason::ManualHold),
+            LifecycleState::Pending
+            | LifecycleState::RunningDecision
+            | LifecycleState::StepScheduled
+            | LifecycleState::StepExecuting
+            | LifecycleState::WaitingForTimer => OperationalStatus::Healthy,
+            LifecycleState::Completed | LifecycleState::Cancelled => {
+                OperationalStatus::Blocked(BlockedReason::ManualHold)
+            }
             LifecycleState::Failed => OperationalStatus::Recovering,
-            LifecycleState::Cancelled => OperationalStatus::Blocked(BlockedReason::ManualHold),
         }
     }
 
     /// Check if a state is terminal
+    #[must_use]
     pub fn is_terminal(&self) -> bool {
-        match self {
-            LifecycleState::Completed => true,
-            LifecycleState::Failed => true,
-            LifecycleState::Cancelled => true,
-            LifecycleState::Pending => false,
-            LifecycleState::RunningDecision => false,
-            LifecycleState::StepScheduled => false,
-            LifecycleState::StepExecuting => false,
-            LifecycleState::WaitingForTimer => false,
-        }
+        matches!(
+            self,
+            LifecycleState::Completed | LifecycleState::Failed | LifecycleState::Cancelled
+        )
     }
 
     /// Get all valid transitions from a state
+    #[must_use]
     pub fn get_valid_transitions(&self) -> Vec<TransitionEvent> {
         match self {
             LifecycleState::Pending => {
@@ -148,9 +151,8 @@ impl LifecycleState {
                 TransitionEvent::Cancel,
                 TransitionEvent::Fail,
             ],
-            LifecycleState::Completed => vec![],
+            LifecycleState::Completed | LifecycleState::Cancelled => vec![],
             LifecycleState::Failed => vec![TransitionEvent::InstanceResumed],
-            LifecycleState::Cancelled => vec![],
         }
     }
 }
@@ -208,7 +210,8 @@ pub enum TransitionEvent {
 }
 
 impl TransitionEvent {
-    /// Get all valid TransitionEvent variants for iteration
+    /// Get all valid `TransitionEvent` variants for iteration
+    #[must_use]
     pub fn all_variants() -> &'static [TransitionEvent] {
         &[
             TransitionEvent::AssignToNode,
@@ -270,180 +273,86 @@ impl std::error::Error for TransitionError {}
 /// * `Ok(NewState)` - Transition succeeded
 /// * `Err(TransitionError)` - Transition rejected
 ///
+/// # Errors
+///
+/// Returns `TransitionError::TerminalStateTransition` if the current state is terminal
+/// (except `InstanceResumed` from `Failed`), or `TransitionError::InvalidTransition`
+/// if the event is not valid for the current state.
+///
 /// # Invariants Enforced
-/// * INV-001: Terminal states reject all transitions (except InstanceResumed from Failed)
+/// * INV-001: Terminal states reject all transitions (except `InstanceResumed` from Failed)
 /// * INV-002: No self-loops or cycles
-/// * INV-004: Only Failed accepts InstanceResumed
+/// * INV-004: Only Failed accepts `InstanceResumed`
 pub fn apply(
     current_state: LifecycleState,
     event: TransitionEvent,
 ) -> Result<LifecycleState, TransitionError> {
     match (current_state, event) {
-        // From Pending
-        (LifecycleState::Pending, TransitionEvent::AssignToNode) => {
+        // Valid transitions from non-terminal states
+        (LifecycleState::Pending, TransitionEvent::AssignToNode)
+        | (LifecycleState::Failed, TransitionEvent::InstanceResumed) => {
             Ok(LifecycleState::RunningDecision)
         }
-        (LifecycleState::Pending, TransitionEvent::Cancel) => Ok(LifecycleState::Cancelled),
-        (LifecycleState::Pending, TransitionEvent::StepScheduled) => {
-            Err(TransitionError::InvalidTransition)
-        }
-        (LifecycleState::Pending, TransitionEvent::ExecuteStep) => {
-            Err(TransitionError::InvalidTransition)
-        }
-        (LifecycleState::Pending, TransitionEvent::WaitForTimer) => {
-            Err(TransitionError::InvalidTransition)
-        }
-        (LifecycleState::Pending, TransitionEvent::CompleteStep) => {
-            Err(TransitionError::InvalidTransition)
-        }
-        (LifecycleState::Pending, TransitionEvent::TimerFired) => {
-            Err(TransitionError::InvalidTransition)
-        }
-        (LifecycleState::Pending, TransitionEvent::TimerExpired) => {
-            Err(TransitionError::InvalidTransition)
-        }
-        (LifecycleState::Pending, TransitionEvent::Fail) => Err(TransitionError::InvalidTransition),
-        (LifecycleState::Pending, TransitionEvent::InstanceResumed) => {
-            Err(TransitionError::InvalidTransition)
-        }
-
-        // From RunningDecision
         (LifecycleState::RunningDecision, TransitionEvent::StepScheduled) => {
             Ok(LifecycleState::StepScheduled)
         }
-        (LifecycleState::RunningDecision, TransitionEvent::Cancel) => Ok(LifecycleState::Cancelled),
-        (LifecycleState::RunningDecision, TransitionEvent::Fail) => Ok(LifecycleState::Failed),
-        (LifecycleState::RunningDecision, TransitionEvent::AssignToNode) => {
-            Err(TransitionError::InvalidTransition)
-        }
-        (LifecycleState::RunningDecision, TransitionEvent::ExecuteStep) => {
-            Err(TransitionError::InvalidTransition)
-        }
-        (LifecycleState::RunningDecision, TransitionEvent::WaitForTimer) => {
-            Err(TransitionError::InvalidTransition)
-        }
-        (LifecycleState::RunningDecision, TransitionEvent::CompleteStep) => {
-            Err(TransitionError::InvalidTransition)
-        }
-        (LifecycleState::RunningDecision, TransitionEvent::TimerFired) => {
-            Err(TransitionError::InvalidTransition)
-        }
-        (LifecycleState::RunningDecision, TransitionEvent::TimerExpired) => {
-            Err(TransitionError::InvalidTransition)
-        }
-        (LifecycleState::RunningDecision, TransitionEvent::InstanceResumed) => {
-            Err(TransitionError::InvalidTransition)
-        }
-
-        // From StepScheduled
-        (LifecycleState::StepScheduled, TransitionEvent::ExecuteStep) => {
+        (LifecycleState::StepScheduled, TransitionEvent::ExecuteStep)
+        | (LifecycleState::WaitingForTimer, TransitionEvent::TimerFired) => {
             Ok(LifecycleState::StepExecuting)
         }
-        (LifecycleState::StepScheduled, TransitionEvent::Cancel) => Ok(LifecycleState::Cancelled),
-        (LifecycleState::StepScheduled, TransitionEvent::Fail) => Ok(LifecycleState::Failed),
-        (LifecycleState::StepScheduled, TransitionEvent::AssignToNode) => {
-            Err(TransitionError::InvalidTransition)
-        }
-        (LifecycleState::StepScheduled, TransitionEvent::StepScheduled) => {
-            Err(TransitionError::InvalidTransition)
-        }
-        (LifecycleState::StepScheduled, TransitionEvent::WaitForTimer) => {
-            Err(TransitionError::InvalidTransition)
-        }
-        (LifecycleState::StepScheduled, TransitionEvent::CompleteStep) => {
-            Err(TransitionError::InvalidTransition)
-        }
-        (LifecycleState::StepScheduled, TransitionEvent::TimerFired) => {
-            Err(TransitionError::InvalidTransition)
-        }
-        (LifecycleState::StepScheduled, TransitionEvent::TimerExpired) => {
-            Err(TransitionError::InvalidTransition)
-        }
-        (LifecycleState::StepScheduled, TransitionEvent::InstanceResumed) => {
-            Err(TransitionError::InvalidTransition)
-        }
-
-        // From StepExecuting
         (LifecycleState::StepExecuting, TransitionEvent::WaitForTimer) => {
             Ok(LifecycleState::WaitingForTimer)
         }
         (LifecycleState::StepExecuting, TransitionEvent::CompleteStep) => {
             Ok(LifecycleState::Completed)
         }
-        (LifecycleState::StepExecuting, TransitionEvent::Cancel) => Ok(LifecycleState::Cancelled),
-        (LifecycleState::StepExecuting, TransitionEvent::Fail) => Ok(LifecycleState::Failed),
-        (LifecycleState::StepExecuting, TransitionEvent::AssignToNode) => {
-            Err(TransitionError::InvalidTransition)
-        }
-        (LifecycleState::StepExecuting, TransitionEvent::StepScheduled) => {
-            Err(TransitionError::InvalidTransition)
-        }
-        (LifecycleState::StepExecuting, TransitionEvent::ExecuteStep) => {
-            Err(TransitionError::InvalidTransition)
-        }
-        (LifecycleState::StepExecuting, TransitionEvent::TimerFired) => {
-            Err(TransitionError::InvalidTransition)
-        }
-        (LifecycleState::StepExecuting, TransitionEvent::TimerExpired) => {
-            Err(TransitionError::InvalidTransition)
-        }
-        (LifecycleState::StepExecuting, TransitionEvent::InstanceResumed) => {
-            Err(TransitionError::InvalidTransition)
-        }
-
-        // From WaitingForTimer
-        (LifecycleState::WaitingForTimer, TransitionEvent::TimerFired) => {
-            Ok(LifecycleState::StepExecuting)
-        }
         (LifecycleState::WaitingForTimer, TransitionEvent::TimerExpired) => {
             Ok(LifecycleState::Failed)
         }
-        (LifecycleState::WaitingForTimer, TransitionEvent::Cancel) => Ok(LifecycleState::Cancelled),
-        (LifecycleState::WaitingForTimer, TransitionEvent::Fail) => Ok(LifecycleState::Failed),
-        (LifecycleState::WaitingForTimer, TransitionEvent::AssignToNode) => {
-            Err(TransitionError::InvalidTransition)
-        }
-        (LifecycleState::WaitingForTimer, TransitionEvent::StepScheduled) => {
-            Err(TransitionError::InvalidTransition)
-        }
-        (LifecycleState::WaitingForTimer, TransitionEvent::ExecuteStep) => {
-            Err(TransitionError::InvalidTransition)
-        }
-        (LifecycleState::WaitingForTimer, TransitionEvent::CompleteStep) => {
-            Err(TransitionError::InvalidTransition)
-        }
-        (LifecycleState::WaitingForTimer, TransitionEvent::WaitForTimer) => {
-            Err(TransitionError::InvalidTransition)
-        }
-        (LifecycleState::WaitingForTimer, TransitionEvent::InstanceResumed) => {
-            Err(TransitionError::InvalidTransition)
+
+        // Cancel from any non-terminal state
+        (
+            LifecycleState::Pending
+            | LifecycleState::RunningDecision
+            | LifecycleState::StepScheduled
+            | LifecycleState::StepExecuting
+            | LifecycleState::WaitingForTimer,
+            TransitionEvent::Cancel,
+        ) => Ok(LifecycleState::Cancelled),
+
+        // Fail from eligible non-terminal states
+        (
+            LifecycleState::RunningDecision
+            | LifecycleState::StepScheduled
+            | LifecycleState::StepExecuting
+            | LifecycleState::WaitingForTimer,
+            TransitionEvent::Fail,
+        ) => Ok(LifecycleState::Failed),
+
+        // Terminal states reject all other transitions
+        (LifecycleState::Completed | LifecycleState::Failed | LifecycleState::Cancelled, _) => {
+            Err(TransitionError::TerminalStateTransition)
         }
 
-        // From Completed (terminal - rejects all)
-        (LifecycleState::Completed, _) => Err(TransitionError::TerminalStateTransition),
-
-        // From Failed (only InstanceResumed valid)
-        (LifecycleState::Failed, TransitionEvent::InstanceResumed) => {
-            Ok(LifecycleState::RunningDecision)
-        }
-        (LifecycleState::Failed, _) => Err(TransitionError::TerminalStateTransition),
-
-        // From Cancelled (terminal - rejects all)
-        (LifecycleState::Cancelled, _) => Err(TransitionError::TerminalStateTransition),
+        // All other combinations are invalid
+        _ => Err(TransitionError::InvalidTransition),
     }
 }
 
 /// Get the operational status for a given state
+#[must_use]
 pub fn get_operational_status(state: LifecycleState) -> OperationalStatus {
     state.get_operational_status()
 }
 
 /// Check if a state is terminal
+#[must_use]
 pub fn is_terminal(state: LifecycleState) -> bool {
     state.is_terminal()
 }
 
 /// Get all valid transitions from a state
+#[must_use]
 pub fn get_valid_transitions(state: LifecycleState) -> Vec<TransitionEvent> {
     state.get_valid_transitions()
 }

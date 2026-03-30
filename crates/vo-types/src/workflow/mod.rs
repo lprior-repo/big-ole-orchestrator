@@ -39,7 +39,7 @@ pub enum WorkflowDefinitionError {
         unknown_target: NodeName,
     },
 
-    /// A DagNode contains an invalid RetryPolicy.
+    /// A `DagNode` contains an invalid `RetryPolicy`.
     #[error("node '{node_name}' has invalid retry policy: {reason}")]
     InvalidRetryPolicy {
         node_name: NodeName,
@@ -69,9 +69,14 @@ impl WorkflowDefinition {
     /// Validation order:
     /// 1. Deserialization into intermediate struct
     /// 2. Non-empty nodes check
-    /// 3. RetryPolicy validation per node
+    /// 3. `RetryPolicy` validation per node
     /// 4. Edge referential integrity (source and target node names must exist)
     /// 5. DFS cycle detection
+    ///
+    /// # Errors
+    ///
+    /// Returns `WorkflowDefinitionError` if deserialization fails, the graph is
+    /// empty, contains invalid retry policies, unknown edge references, or cycles.
     pub fn from_deserializer<'de, D>(deserializer: D) -> Result<Self, WorkflowDefinitionError>
     where
         D: serde::de::Deserializer<'de>,
@@ -102,7 +107,8 @@ impl WorkflowDefinition {
         Self::validate_unvalidated(unvalidated)
     }
 
-    /// Look up a DagNode by NodeName. Returns None if not found.
+    /// Look up a `DagNode` by `NodeName`. Returns `None` if not found.
+    #[must_use]
     pub fn get_node(&self, name: &NodeName) -> Option<&DagNode> {
         self.nodes.as_slice().iter().find(|n| &n.node_name == name)
     }
@@ -170,6 +176,7 @@ impl WorkflowDefinition {
 // ---------------------------------------------------------------------------
 
 /// Pure function: find the successor nodes for a given current node and outcome.
+#[must_use]
 pub fn next_nodes<'a>(
     current: &NodeName,
     last_outcome: StepOutcome,
@@ -195,7 +202,7 @@ pub fn next_nodes<'a>(
 // ---------------------------------------------------------------------------
 
 /// Intermediate struct for JSON deserialization without validation.
-/// RetryPolicy and edge references are validated after deserialization.
+/// `RetryPolicy` and edge references are validated after deserialization.
 #[derive(Deserialize)]
 struct UnvalidatedWorkflow {
     workflow_name: WorkflowName,
@@ -203,8 +210,8 @@ struct UnvalidatedWorkflow {
     edges: Vec<Edge>,
 }
 
-/// DFS-based cycle detection. Returns Some(cycle_nodes) if a cycle is found,
-/// where cycle_nodes contains the path from the cycle start back to itself
+/// DFS-based cycle detection. Returns `Some(cycle_nodes)` if a cycle is found,
+/// where `cycle_nodes` contains the path from the cycle start back to itself
 /// (first node repeated at end). Returns None if the graph is acyclic.
 fn detect_cycle(nodes: &[DagNode], edges: &[Edge]) -> Option<Vec<NodeName>> {
     // Build adjacency list: node_name -> [target_node_names]

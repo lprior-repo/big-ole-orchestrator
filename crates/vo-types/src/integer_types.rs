@@ -83,12 +83,25 @@ pub struct TimestampMs(pub(crate) u64);
 pub struct FireAtMs(pub(crate) u64);
 
 impl SequenceNumber {
+    /// Parse a `SequenceNumber` from a decimal string.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ParseError` if the input is not a valid nonzero u64.
     pub fn parse(input: &str) -> Result<Self, ParseError> {
         parse_nonzero_u64(input, "SequenceNumber").map(Self)
     }
+    #[must_use]
     pub fn as_u64(self) -> u64 {
         self.0.get()
     }
+    /// Create a `SequenceNumber` without validation.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `value` is zero.
+    #[must_use]
+    #[allow(clippy::expect_used)] // Intentional: new_unchecked is a test-convenience constructor
     pub fn new_unchecked(value: u64) -> Self {
         Self(NonZeroU64::new(value).expect("SequenceNumber must be nonzero"))
     }
@@ -101,12 +114,25 @@ impl From<SequenceNumber> for NonZeroU64 {
 nonzero_newtype!(SequenceNumber);
 
 impl EventVersion {
+    /// Parse an `EventVersion` from a decimal string.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ParseError` if the input is not a valid nonzero u64.
     pub fn parse(input: &str) -> Result<Self, ParseError> {
         parse_nonzero_u64(input, "EventVersion").map(Self)
     }
+    #[must_use]
     pub fn as_u64(self) -> u64 {
         self.0.get()
     }
+    /// Create an `EventVersion` without validation.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `value` is zero.
+    #[must_use]
+    #[allow(clippy::expect_used)] // Intentional: new_unchecked is a test-convenience constructor
     pub fn new_unchecked(value: u64) -> Self {
         Self(NonZeroU64::new(value).expect("EventVersion must be nonzero"))
     }
@@ -114,12 +140,25 @@ impl EventVersion {
 nonzero_newtype!(EventVersion);
 
 impl AttemptNumber {
+    /// Parse an `AttemptNumber` from a decimal string.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ParseError` if the input is not a valid nonzero u64.
     pub fn parse(input: &str) -> Result<Self, ParseError> {
         parse_nonzero_u64(input, "AttemptNumber").map(Self)
     }
+    #[must_use]
     pub fn as_u64(self) -> u64 {
         self.0.get()
     }
+    /// Create an `AttemptNumber` without validation.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `value` is zero.
+    #[must_use]
+    #[allow(clippy::expect_used)] // Intentional: new_unchecked is a test-convenience constructor
     pub fn new_unchecked(value: u64) -> Self {
         Self(NonZeroU64::new(value).expect("AttemptNumber must be nonzero"))
     }
@@ -127,15 +166,29 @@ impl AttemptNumber {
 nonzero_newtype!(AttemptNumber);
 
 impl TimeoutMs {
+    /// Parse a `TimeoutMs` from a decimal string.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ParseError` if the input is not a valid nonzero u64.
     pub fn parse(input: &str) -> Result<Self, ParseError> {
         parse_nonzero_u64(input, "TimeoutMs").map(Self)
     }
+    #[must_use]
     pub fn as_u64(self) -> u64 {
         self.0.get()
     }
+    #[must_use]
     pub fn to_duration(self) -> Duration {
         Duration::from_millis(self.0.get())
     }
+    /// Create a `TimeoutMs` without validation.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `value` is zero.
+    #[must_use]
+    #[allow(clippy::expect_used)] // Intentional: new_unchecked is a test-convenience constructor
     pub fn new_unchecked(value: u64) -> Self {
         Self(NonZeroU64::new(value).expect("TimeoutMs must be nonzero"))
     }
@@ -143,12 +196,19 @@ impl TimeoutMs {
 nonzero_newtype!(TimeoutMs);
 
 impl DurationMs {
+    /// Parse a `DurationMs` from a decimal string.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ParseError` if the input is not a valid u64.
     pub fn parse(input: &str) -> Result<Self, ParseError> {
         parse_u64_str(input, "DurationMs").map(Self)
     }
+    #[must_use]
     pub fn as_u64(self) -> u64 {
         self.0
     }
+    #[must_use]
     pub fn to_duration(self) -> Duration {
         Duration::from_millis(self.0)
     }
@@ -156,15 +216,24 @@ impl DurationMs {
 u64_newtype!(DurationMs);
 
 impl TimestampMs {
+    /// Parse a `TimestampMs` from a decimal string.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ParseError` if the input is not a valid u64.
     pub fn parse(input: &str) -> Result<Self, ParseError> {
         parse_u64_str(input, "TimestampMs").map(Self)
     }
+    #[must_use]
     pub fn as_u64(self) -> u64 {
         self.0
     }
+    #[must_use]
     pub fn to_system_time(self) -> SystemTime {
         SystemTime::UNIX_EPOCH + Duration::from_millis(self.0)
     }
+    #[must_use]
+    #[allow(clippy::cast_possible_truncation)] // millis since epoch fits in u64 until year 584M
     pub fn now() -> Self {
         Self(
             SystemTime::now()
@@ -176,15 +245,23 @@ impl TimestampMs {
 u64_newtype!(TimestampMs);
 
 impl FireAtMs {
+    /// Parse a `FireAtMs` from a decimal string.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ParseError` if the input is not a valid u64.
     pub fn parse(input: &str) -> Result<Self, ParseError> {
         parse_u64_str(input, "FireAtMs").map(Self)
     }
+    #[must_use]
     pub fn as_u64(self) -> u64 {
         self.0
     }
+    #[must_use]
     pub fn to_system_time(self) -> SystemTime {
         SystemTime::UNIX_EPOCH + Duration::from_millis(self.0)
     }
+    #[must_use]
     pub fn has_elapsed(self, now: TimestampMs) -> bool {
         self.0 < now.0
     }
@@ -192,15 +269,29 @@ impl FireAtMs {
 u64_newtype!(FireAtMs);
 
 impl MaxAttempts {
+    /// Parse a `MaxAttempts` from a decimal string.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ParseError` if the input is not a valid nonzero u64.
     pub fn parse(input: &str) -> Result<Self, ParseError> {
         parse_nonzero_u64(input, "MaxAttempts").map(Self)
     }
+    #[must_use]
     pub fn as_u64(self) -> u64 {
         self.0.get()
     }
+    #[must_use]
     pub fn is_exhausted(self, attempt: AttemptNumber) -> bool {
         attempt.as_u64() >= self.0.get()
     }
+    /// Create a `MaxAttempts` without validation.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `value` is zero.
+    #[must_use]
+    #[allow(clippy::expect_used)] // Intentional: new_unchecked is a test-convenience constructor
     pub fn new_unchecked(value: u64) -> Self {
         Self(NonZeroU64::new(value).expect("MaxAttempts must be nonzero"))
     }

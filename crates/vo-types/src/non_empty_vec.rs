@@ -20,7 +20,11 @@ impl<'de, T: Deserialize<'de>> Deserialize<'de> for NonEmptyVec<T> {
 }
 
 impl<T> NonEmptyVec<T> {
-    /// Construct from a Vec. Returns Err if the vec is empty.
+    /// Construct from a `Vec`. Returns `Err` if the vec is empty.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string if `items` is empty.
     pub fn new(items: Vec<T>) -> Result<Self, &'static str> {
         if items.is_empty() {
             Err("NonEmptyVec must not be empty")
@@ -29,15 +33,20 @@ impl<T> NonEmptyVec<T> {
         }
     }
 
-    /// Construct from a Vec without validation.
+    /// Construct from a `Vec` without validation.
+    ///
+    /// # Panics
+    ///
     /// Panics if the vec is empty.
+    #[must_use]
     pub fn new_unchecked(items: Vec<T>) -> Self {
         assert!(!items.is_empty(), "NonEmptyVec must not be empty");
         NonEmptyVec(items)
     }
 
     /// Borrow the first element.
-    /// SAFETY: NonEmptyVec invariant guarantees self.0 is non-empty.
+    /// SAFETY: `NonEmptyVec` invariant guarantees self.0 is non-empty.
+    #[must_use]
     pub fn first(&self) -> &T {
         // SAFETY: The NonEmptyVec invariant (established by `new` / `new_unchecked`
         // and preserved by all public methods) guarantees the inner vec is non-empty.
@@ -45,26 +54,31 @@ impl<T> NonEmptyVec<T> {
     }
 
     /// Borrow all elements except the first.
+    #[must_use]
     pub fn rest(&self) -> &[T] {
         &self.0[1..]
     }
 
     /// Borrow the full inner slice.
+    #[must_use]
     pub fn as_slice(&self) -> &[T] {
         &self.0
     }
 
-    /// Consume and return the inner Vec.
+    /// Consume and return the inner `Vec`.
+    #[must_use]
     pub fn into_vec(self) -> Vec<T> {
         self.0
     }
 
     /// Number of elements.
+    #[must_use]
     pub fn len(&self) -> usize {
         self.0.len()
     }
 
     /// Always false (by invariant).
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         false
     }

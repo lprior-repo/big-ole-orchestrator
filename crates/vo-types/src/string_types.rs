@@ -53,6 +53,11 @@ pub struct TimerId(pub(crate) String);
 pub struct IdempotencyKey(pub(crate) String);
 
 impl InstanceId {
+    /// Parse an `InstanceId` from a ULID string.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ParseError` if the input is empty, wrong length, or not a valid ULID.
     pub fn parse(input: &str) -> Result<Self, ParseError> {
         const TYPE_NAME: &str = "InstanceId";
         if input.is_empty() {
@@ -76,7 +81,7 @@ impl InstanceId {
         }
         let ulid = ulid::Ulid::from_string(input).map_err(|e| ParseError::InvalidFormat {
             type_name: TYPE_NAME,
-            reason: format!("invalid ULID: {}", e),
+            reason: format!("invalid ULID: {e}"),
         })?;
         if ulid.0 == 0 {
             return Err(ParseError::InvalidFormat {
@@ -115,6 +120,12 @@ impl InstanceId {
 string_newtype!(InstanceId);
 
 impl WorkflowName {
+    /// Parse a `WorkflowName` from an identifier string.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ParseError` if the input is empty, contains invalid characters,
+    /// exceeds the maximum length, or has invalid boundary characters.
     pub fn parse(input: &str) -> Result<Self, ParseError> {
         const TYPE_NAME: &str = "WorkflowName";
         const MAX_LEN: usize = 128;
@@ -142,6 +153,7 @@ impl WorkflowName {
         Ok(Self(input.to_string()))
     }
 
+    #[must_use]
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -149,6 +161,12 @@ impl WorkflowName {
 string_newtype!(WorkflowName);
 
 impl NodeName {
+    /// Parse a `NodeName` from an identifier string.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ParseError` if the input is empty, contains invalid characters,
+    /// exceeds the maximum length, or has invalid boundary characters.
     pub fn parse(input: &str) -> Result<Self, ParseError> {
         const TYPE_NAME: &str = "NodeName";
         const MAX_LEN: usize = 128;
@@ -176,6 +194,7 @@ impl NodeName {
         Ok(Self(input.to_string()))
     }
 
+    #[must_use]
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -183,6 +202,12 @@ impl NodeName {
 string_newtype!(NodeName);
 
 impl BinaryHash {
+    /// Parse a `BinaryHash` from a lowercase hex string.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ParseError` if the input is empty, contains non-hex characters,
+    /// has odd length, or is shorter than the minimum length.
     pub fn parse(input: &str) -> Result<Self, ParseError> {
         const TYPE_NAME: &str = "BinaryHash";
         const MIN_LEN: usize = 8;
@@ -207,15 +232,13 @@ impl BinaryHash {
         if input.len() < MIN_LEN {
             return Err(ParseError::InvalidFormat {
                 type_name: TYPE_NAME,
-                reason: format!(
-                    "hex string must be at least {} characters (minimum)",
-                    MIN_LEN
-                ),
+                reason: format!("hex string must be at least {MIN_LEN} characters (minimum)"),
             });
         }
         Ok(Self(input.to_string()))
     }
 
+    #[must_use]
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -223,6 +246,11 @@ impl BinaryHash {
 string_newtype!(BinaryHash);
 
 impl TimerId {
+    /// Parse a `TimerId` from a string.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ParseError` if the input is empty or exceeds the maximum length.
     pub fn parse(input: &str) -> Result<Self, ParseError> {
         const TYPE_NAME: &str = "TimerId";
         const MAX_LEN: usize = 256;
@@ -242,6 +270,7 @@ impl TimerId {
         Ok(Self(input.to_string()))
     }
 
+    #[must_use]
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -249,6 +278,11 @@ impl TimerId {
 string_newtype!(TimerId);
 
 impl IdempotencyKey {
+    /// Parse an `IdempotencyKey` from a string.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ParseError` if the input is empty or exceeds the maximum length.
     pub fn parse(input: &str) -> Result<Self, ParseError> {
         const TYPE_NAME: &str = "IdempotencyKey";
         const MAX_LEN: usize = 1024;
@@ -268,6 +302,7 @@ impl IdempotencyKey {
         Ok(Self(input.to_string()))
     }
 
+    #[must_use]
     pub fn as_str(&self) -> &str {
         &self.0
     }

@@ -36,11 +36,11 @@ pub enum EdgeCondition {
 /// Errors returned by `RetryPolicy::new`.
 #[derive(Debug, Clone, PartialEq, thiserror::Error)]
 pub enum RetryPolicyError {
-    /// max_attempts was zero.
+    /// `max_attempts` was zero.
     #[error("max_attempts must be >= 1, got 0")]
     ZeroAttempts,
 
-    /// backoff_multiplier was less than 1.0.
+    /// `backoff_multiplier` was less than 1.0.
     #[error("backoff_multiplier must be >= 1.0, got {got}")]
     InvalidMultiplier { got: f32 },
 }
@@ -61,7 +61,12 @@ pub struct RetryPolicy {
 }
 
 impl RetryPolicy {
-    /// Construct a new RetryPolicy with validation.
+    /// Construct a new `RetryPolicy` with validation.
+    ///
+    /// # Errors
+    ///
+    /// Returns `RetryPolicyError::ZeroAttempts` if `max_attempts` is 0,
+    /// or `RetryPolicyError::InvalidMultiplier` if `backoff_multiplier` < 1.0 or NaN.
     pub fn new(
         max_attempts: u8,
         backoff_ms: u64,
@@ -88,7 +93,7 @@ impl RetryPolicy {
 // ---------------------------------------------------------------------------
 
 /// A single step in the workflow DAG.
-/// Per ADR-009: binary_path is NOT stored here.
+/// Per ADR-009: `binary_path` is NOT stored here.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DagNode {
     pub node_name: NodeName,

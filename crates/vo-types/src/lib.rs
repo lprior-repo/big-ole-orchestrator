@@ -4,6 +4,7 @@ mod instance_status;
 mod integer_types;
 mod non_empty_vec;
 mod payload_parser;
+mod registration_status;
 pub mod state;
 mod string_types;
 mod types;
@@ -13,6 +14,7 @@ pub use errors::ParseError;
 pub use events::{Error as EventError, EventEnvelope};
 pub use instance_status::InstanceStatus;
 pub use non_empty_vec::NonEmptyVec;
+pub use registration_status::RegistrationStatus;
 pub use types::{
     AttemptNumber, BinaryHash, DurationMs, EventVersion, FireAtMs, IdempotencyKey, InstanceId,
     MaxAttempts, NodeName, SequenceNumber, TimeoutMs, TimerId, TimestampMs, WorkflowName,

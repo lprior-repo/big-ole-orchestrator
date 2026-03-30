@@ -12,6 +12,7 @@ pub mod codec;
 pub mod instance_index;
 pub mod partitions;
 pub mod query;
+pub mod status_store;
 pub mod timer_index;
 
 /// Appends an event to the storage backend.

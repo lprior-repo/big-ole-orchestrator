@@ -18,7 +18,7 @@ pub(crate) fn require_string_field(
         .ok_or_else(|| Error::InvalidPayloadField(format!("{field} is required")))?
         .as_str()
         .ok_or_else(|| Error::InvalidPayloadField(format!("{field} must be a string")))
-        .map(|s| s.to_string())
+        .map(std::string::ToString::to_string)
 }
 
 /// Extract a required `String` field that uses `MissingPayloadField` for absence.
@@ -33,7 +33,7 @@ pub(crate) fn require_string(
         .ok_or_else(|| Error::MissingPayloadField(field.to_string()))?
         .as_str()
         .ok_or_else(|| Error::InvalidPayloadField(format!("{field} must be a string")))
-        .map(|s| s.to_string())
+        .map(std::string::ToString::to_string)
 }
 
 /// Extract a required `u64` field from a JSON object.
@@ -58,7 +58,9 @@ pub(crate) fn optional_u64(
     field: &str,
     default: u64,
 ) -> u64 {
-    obj.get(field).and_then(|v| v.as_u64()).unwrap_or(default)
+    obj.get(field)
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or(default)
 }
 
 #[cfg(test)]

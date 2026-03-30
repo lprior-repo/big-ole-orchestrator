@@ -63,11 +63,23 @@ pub struct EventEnvelope {
 }
 
 impl EventEnvelope {
+    /// Decode an `EventEnvelope` from raw bytes.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::InvalidInput` if the bytes are not valid UTF-8, or
+    /// various envelope errors if the JSON is malformed or missing required fields.
     pub fn from_bytes(input: &[u8]) -> Result<Self, Error> {
         let json_str = std::str::from_utf8(input).map_err(|_| Error::InvalidInput)?;
         Self::from_str(json_str)
     }
 
+    /// Decode an `EventEnvelope` from a JSON string.
+    ///
+    /// # Errors
+    ///
+    /// Returns envelope-level errors if the JSON is malformed, missing
+    /// required fields, or contains an unsupported version.
     #[allow(clippy::should_implement_trait)]
     pub fn from_str(input: &str) -> Result<Self, Error> {
         let value: serde_json::Value =
@@ -75,6 +87,8 @@ impl EventEnvelope {
 
         let obj = value.as_object().ok_or(Error::InvalidEnvelopeFormat)?;
 
+        #[allow(clippy::cast_possible_truncation)]
+        // version validated <= MAX_SUPPORTED_VERSION (u8)
         let version = envelope_u64(obj, "version")? as u8;
         let instance_id = envelope_string(obj, "instance_id")?;
         let sequence = envelope_u64(obj, "sequence")?;
@@ -116,6 +130,7 @@ impl EventEnvelope {
         })
     }
 
+    #[must_use]
     pub fn is_supported(&self) -> bool {
         self.version <= MAX_SUPPORTED_VERSION
     }
@@ -178,12 +193,20 @@ pub enum EventPayload {
 }
 
 impl EventPayload {
-    pub fn try_from_json(payload_json: serde_json::Value) -> Result<Self, Error> {
+    /// Decode an `EventPayload` from a JSON value.
+    ///
+    /// # Errors
+    ///
+    /// Returns payload-level errors if the JSON is not a valid object,
+    /// missing required fields, or has an unsupported version/type.
+    pub fn try_from_json(payload_json: &serde_json::Value) -> Result<Self, Error> {
         let obj = payload_json
             .as_object()
             .ok_or(Error::InvalidPayloadFormat)?;
 
         let payload_type = require_string(obj, "type")?;
+        #[allow(clippy::cast_possible_truncation)]
+        // version validated <= MAX_SUPPORTED_VERSION (u8)
         let payload_version = optional_u64(obj, "version", 0) as u8;
         if payload_version > MAX_SUPPORTED_VERSION {
             return Err(Error::UnsupportedPayloadVersion(payload_version));
@@ -246,11 +269,19 @@ impl EventPayload {
         }
     }
 
+    #[must_use]
     pub fn is_version_supported(version: u8) -> bool {
         version <= MAX_SUPPORTED_VERSION
     }
 }
 
+/// Decode a full event (envelope + payload) from raw bytes.
+///
+/// # Errors
+///
+/// Returns `Error::PayloadDecodeSkipped` if the envelope version is unsupported,
+/// `Error::EnvelopeDecodeFailed` on envelope parse failures, or
+/// `Error::PayloadDecodeFailed` on payload parse failures.
 pub fn decode_event(input: &[u8]) -> Result<(EventEnvelope, EventPayload), Error> {
     let envelope = match EventEnvelope::from_bytes(input) {
         Err(Error::UnsupportedEnvelopeVersion(_)) => {
@@ -264,7 +295,7 @@ pub fn decode_event(input: &[u8]) -> Result<(EventEnvelope, EventPayload), Error
     if !envelope.is_supported() {
         return Err(Error::PayloadDecodeSkipped);
     }
-    let payload = EventPayload::try_from_json(envelope.payload.clone())
+    let payload = EventPayload::try_from_json(&envelope.payload)
         .map_err(|e| Error::PayloadDecodeFailed(Box::new(e)))?;
     Ok((envelope, payload))
 }
@@ -281,7 +312,7 @@ fn envelope_string(
         .ok_or_else(|| Error::MissingEnvelopeField(field.to_string()))?
         .as_str()
         .ok_or_else(|| Error::InvalidEnvelopeField(format!("{field} must be a string")))
-        .map(|s| s.to_string())
+        .map(std::string::ToString::to_string)
 }
 
 fn envelope_u64(
@@ -483,7 +514,7 @@ mod tests {
     fn payload_try_from_json_returns_workflow_started_when_type_is_workflow_started() {
         let json =
             serde_json::json!({"type": "WorkflowStarted", "workflow_id": "wf-123", "version": 1});
-        let result = EventPayload::try_from_json(json);
+        let result = EventPayload::try_from_json(&json);
         assert_eq!(
             result,
             Ok(EventPayload::WorkflowStarted {
@@ -495,7 +526,7 @@ mod tests {
     #[test]
     fn payload_try_from_json_returns_workflow_completed_when_type_is_workflow_completed() {
         let json = serde_json::json!({"type": "WorkflowCompleted", "workflow_id": "wf-123", "completion_time_ms": 1000, "version": 1});
-        let result = EventPayload::try_from_json(json);
+        let result = EventPayload::try_from_json(&json);
         assert_eq!(
             result,
             Ok(EventPayload::WorkflowCompleted {
@@ -508,7 +539,7 @@ mod tests {
     #[test]
     fn payload_try_from_json_returns_workflow_failed_when_type_is_workflow_failed() {
         let json = serde_json::json!({"type": "WorkflowFailed", "workflow_id": "wf-123", "failure_reason": "timeout", "version": 1});
-        let result = EventPayload::try_from_json(json);
+        let result = EventPayload::try_from_json(&json);
         assert_eq!(
             result,
             Ok(EventPayload::WorkflowFailed {
@@ -521,7 +552,7 @@ mod tests {
     #[test]
     fn payload_try_from_json_returns_workflow_cancelled_when_type_is_workflow_cancelled() {
         let json = serde_json::json!({"type": "WorkflowCancelled", "workflow_id": "wf-123", "cancelled_by": "user", "version": 1});
-        let result = EventPayload::try_from_json(json);
+        let result = EventPayload::try_from_json(&json);
         assert_eq!(
             result,
             Ok(EventPayload::WorkflowCancelled {
@@ -534,7 +565,7 @@ mod tests {
     #[test]
     fn payload_try_from_json_returns_step_scheduled_when_type_is_step_scheduled() {
         let json = serde_json::json!({"type": "StepScheduled", "workflow_id": "wf-123", "step_id": "step-1", "version": 1});
-        let result = EventPayload::try_from_json(json);
+        let result = EventPayload::try_from_json(&json);
         assert_eq!(
             result,
             Ok(EventPayload::StepScheduled {
@@ -547,7 +578,7 @@ mod tests {
     #[test]
     fn payload_try_from_json_returns_step_started_when_type_is_step_started() {
         let json = serde_json::json!({"type": "StepStarted", "workflow_id": "wf-123", "step_id": "step-1", "started_at_ms": 1000, "version": 1});
-        let result = EventPayload::try_from_json(json);
+        let result = EventPayload::try_from_json(&json);
         assert_eq!(
             result,
             Ok(EventPayload::StepStarted {
@@ -561,7 +592,7 @@ mod tests {
     #[test]
     fn payload_try_from_json_returns_step_completed_when_type_is_step_completed() {
         let json = serde_json::json!({"type": "StepCompleted", "workflow_id": "wf-123", "step_id": "step-1", "completed_at_ms": 1000, "version": 1});
-        let result = EventPayload::try_from_json(json);
+        let result = EventPayload::try_from_json(&json);
         assert_eq!(
             result,
             Ok(EventPayload::StepCompleted {
@@ -575,7 +606,7 @@ mod tests {
     #[test]
     fn payload_try_from_json_returns_step_failed_when_type_is_step_failed() {
         let json = serde_json::json!({"type": "StepFailed", "workflow_id": "wf-123", "step_id": "step-1", "failure_reason": "error", "version": 1});
-        let result = EventPayload::try_from_json(json);
+        let result = EventPayload::try_from_json(&json);
         assert_eq!(
             result,
             Ok(EventPayload::StepFailed {
@@ -589,7 +620,7 @@ mod tests {
     #[test]
     fn payload_try_from_json_returns_timer_set_when_type_is_timer_set() {
         let json = serde_json::json!({"type": "TimerSet", "workflow_id": "wf-123", "timer_id": "timer-1", "fire_at_ms": 1000, "version": 1});
-        let result = EventPayload::try_from_json(json);
+        let result = EventPayload::try_from_json(&json);
         assert_eq!(
             result,
             Ok(EventPayload::TimerSet {
@@ -603,7 +634,7 @@ mod tests {
     #[test]
     fn payload_try_from_json_returns_timer_fired_when_type_is_timer_fired() {
         let json = serde_json::json!({"type": "TimerFired", "workflow_id": "wf-123", "timer_id": "timer-1", "fired_at_ms": 1000, "version": 1});
-        let result = EventPayload::try_from_json(json);
+        let result = EventPayload::try_from_json(&json);
         assert_eq!(
             result,
             Ok(EventPayload::TimerFired {
@@ -617,7 +648,7 @@ mod tests {
     #[test]
     fn payload_try_from_json_returns_cancel_requested_when_type_is_cancel_requested() {
         let json = serde_json::json!({"type": "CancelRequested", "workflow_id": "wf-123", "requested_by": "user", "version": 1});
-        let result = EventPayload::try_from_json(json);
+        let result = EventPayload::try_from_json(&json);
         assert_eq!(
             result,
             Ok(EventPayload::CancelRequested {
@@ -630,7 +661,7 @@ mod tests {
     #[test]
     fn payload_try_from_json_returns_instance_resumed_when_type_is_instance_resumed() {
         let json = serde_json::json!({"type": "InstanceResumed", "workflow_id": "wf-123", "resumed_at_ms": 1000, "version": 1});
-        let result = EventPayload::try_from_json(json);
+        let result = EventPayload::try_from_json(&json);
         assert_eq!(
             result,
             Ok(EventPayload::InstanceResumed {
@@ -644,7 +675,7 @@ mod tests {
     fn payload_try_from_json_returns_unknown_payload_type_when_type_is_unrecognized() {
         let json =
             serde_json::json!({"type": "UnknownType", "workflow_id": "wf-123", "version": 1});
-        let result = EventPayload::try_from_json(json);
+        let result = EventPayload::try_from_json(&json);
         assert_eq!(
             result,
             Err(Error::UnknownPayloadType("UnknownType".to_string()))
@@ -655,28 +686,28 @@ mod tests {
     fn payload_try_from_json_returns_unsupported_payload_version_when_version_exceeds_max() {
         let json =
             serde_json::json!({"type": "WorkflowStarted", "workflow_id": "wf-123", "version": 2});
-        let result = EventPayload::try_from_json(json);
+        let result = EventPayload::try_from_json(&json);
         assert_eq!(result, Err(Error::UnsupportedPayloadVersion(2)));
     }
 
     #[test]
     fn payload_try_from_json_returns_missing_payload_field_when_type_is_absent() {
         let json = serde_json::json!({"workflow_id": "wf-123", "version": 1});
-        let result = EventPayload::try_from_json(json);
+        let result = EventPayload::try_from_json(&json);
         assert_eq!(result, Err(Error::MissingPayloadField("type".to_string())));
     }
 
     #[test]
     fn payload_try_from_json_returns_invalid_payload_field_when_variant_field_is_absent() {
         let json = serde_json::json!({"type": "WorkflowStarted", "version": 1});
-        let result = EventPayload::try_from_json(json);
+        let result = EventPayload::try_from_json(&json);
         assert!(matches!(result, Err(Error::InvalidPayloadField(_))));
     }
 
     #[test]
     fn payload_try_from_json_returns_invalid_payload_format_when_json_is_malformed() {
         let json = serde_json::Value::String("not an object".to_string());
-        let result = EventPayload::try_from_json(json);
+        let result = EventPayload::try_from_json(&json);
         assert_eq!(result, Err(Error::InvalidPayloadFormat));
     }
 
@@ -959,7 +990,7 @@ mod tests {
     #[case(serde_json::json!({"type": "InstanceResumed", "workflow_id": "w1", "resumed_at_ms": "bad", "version": 1}), Error::InvalidPayloadField("resumed_at_ms must be an integer".to_string()))]
 
     fn payload_invalid_fields(#[case] json: serde_json::Value, #[case] expected: Error) {
-        let result = EventPayload::try_from_json(json);
+        let result = EventPayload::try_from_json(&json);
         assert_eq!(result, Err(expected));
     }
 }

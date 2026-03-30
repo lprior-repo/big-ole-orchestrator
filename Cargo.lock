@@ -2902,6 +2902,17 @@ version = "0.1.0"
 [[package]]
 name = "vo-core"
 version = "0.1.0"
+dependencies = [
+ "dashmap",
+ "fjall",
+ "proptest",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+ "vo-storage",
+ "vo-types",
+]
 
 [[package]]
 name = "vo-frontend"
