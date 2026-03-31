@@ -7,7 +7,11 @@ mod payload_parser;
 mod registration_status;
 pub mod state;
 mod string_types;
+#[cfg(test)]
+mod string_types_tests;
 mod types;
+#[cfg(test)]
+mod types_tests;
 mod workflow;
 
 pub use errors::ParseError;

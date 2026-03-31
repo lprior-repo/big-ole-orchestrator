@@ -299,6 +299,7 @@ impl MaxAttempts {
 nonzero_newtype!(MaxAttempts);
 
 #[cfg(test)]
+#[allow(unused_must_use)]
 mod tests {
     use super::*;
     use crate::ParseError;

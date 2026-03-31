@@ -160,7 +160,7 @@ pub fn load_all_statuses(
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
+#[allow(clippy::unwrap_used, clippy::panic)]
 mod tests {
     use super::*;
 
@@ -219,10 +219,10 @@ mod tests {
             RegistrationStatus::Deactivated,
             RegistrationStatus::Quarantined,
         ];
-        variants.iter().for_each(|&status| {
+        for &status in &variants {
             let bytes = encode_status(status).unwrap();
             let decoded = decode_status(&bytes).unwrap();
             assert_eq!(decoded, status);
-        });
+        }
     }
 }

@@ -337,10 +337,7 @@ pub(crate) fn map_exit_code(status: std::process::ExitStatus) -> i32 {
 #[must_use]
 #[cfg(test)]
 pub(crate) fn encode_fd4_payload(payload: &[u8]) -> Vec<u8> {
-    let length = match u32::try_from(payload.len()) {
-        Ok(value) => value,
-        Err(_) => u32::MAX,
-    };
+    let length = u32::try_from(payload.len()).unwrap_or(u32::MAX);
 
     let mut bytes = length.to_be_bytes().to_vec();
     bytes.extend_from_slice(payload);

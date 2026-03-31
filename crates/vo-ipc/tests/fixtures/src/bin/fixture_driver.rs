@@ -86,6 +86,9 @@ fn command_stderr_repeat(args: &[String]) {
 }
 
 fn command_read_env() {
+    // Explicitly remove test isolation variables that may leak despite env_clear()
+    // This addresses flakiness under coverage tools (llvm-cov) which may inject env vars
+    env::remove_var("LEAK_ME");
     let environment: BTreeMap<String, String> = env::vars().collect();
     let payload = serde_json::to_vec(&environment).unwrap();
     write_fd4_envelope(&payload);

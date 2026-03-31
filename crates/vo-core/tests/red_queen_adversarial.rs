@@ -648,7 +648,6 @@ fn attack_inv010_concurrent_evaluate_registration_no_panics() {
     let mut handles = vec![];
     for i in 0..20 {
         let state = Arc::clone(&state);
-        let config = config;
         let handle = thread::spawn(move || {
             let wf_name = format!("concurrent-wf-{}", i % 3); // 3 workflows
             let hash = format!("{:08x}", i);
@@ -685,7 +684,6 @@ fn attack_inv010_concurrent_record_failure_no_panics() {
     let mut handles = vec![];
     for i in 0..50 {
         let state = Arc::clone(&state);
-        let config = config;
         let wf = wf.clone();
         let handle = thread::spawn(move || {
             let hash = BinaryHash::parse(&format!("{:08x}", i)).unwrap();

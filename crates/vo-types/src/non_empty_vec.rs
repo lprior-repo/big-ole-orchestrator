@@ -94,6 +94,7 @@ impl<T> IntoIterator for NonEmptyVec<T> {
 }
 
 #[cfg(test)]
+#[allow(unused_must_use)]
 mod tests {
     use super::*;
     use proptest::prelude::*;
