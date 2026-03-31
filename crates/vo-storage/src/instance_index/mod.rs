@@ -4,7 +4,7 @@
 //! `decode_instance_index_key`) → Actions (`instance_index_upsert`, `scan_by_status`,
 //! `scan_all_instances`).
 
-use crate::query::StorageError;
+use crate::codec::StorageError;
 use vo_types::{InstanceId, InstanceStatus, TimestampMs};
 
 #[cfg(test)]

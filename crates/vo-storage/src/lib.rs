@@ -11,6 +11,7 @@ pub mod append;
 pub mod codec;
 pub mod instance_index;
 pub mod partitions;
+pub mod purge;
 pub mod query;
 pub mod status_store;
 pub mod timer_index;

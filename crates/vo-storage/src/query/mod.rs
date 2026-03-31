@@ -4,35 +4,10 @@
 //! `prefix_generator`, `error_mapper`) → Actions (`EventReplayIterator`, `replay_events`).
 
 use vo_types::{EventEnvelope, EventError, InstanceId};
+use crate::codec::StorageError;
 
 #[cfg(test)]
 mod tests;
-
-// ---------------------------------------------------------------------------
-// Data layer — error enum
-// ---------------------------------------------------------------------------
-
-/// Storage-layer replay errors.
-///
-/// This enum is intentionally `#[non_exhaustive]` because storage-facing
-/// replay can gain more precise failure modes over time without breaking
-/// downstream callers.
-#[non_exhaustive]
-#[derive(Debug, PartialEq, Eq)]
-pub enum StorageError {
-    /// Encountered a non-consecutive sequence number during replay.
-    SequenceGap,
-    /// The stored envelope bytes could not be decoded into a valid envelope.
-    CorruptEventPayload,
-    /// The envelope version is syntactically valid but unsupported.
-    UnsupportedVersion,
-    /// A lower-level storage boundary failed (bad key width, partition read, etc.).
-    Storage,
-    /// Caller supplied an invalid argument or a decoded value violated invariants.
-    InvalidArgument,
-    /// A stored key is malformed or has an invalid length/status byte.
-    CorruptKey,
-}
 
 // ---------------------------------------------------------------------------
 // Calc layer — pure functions

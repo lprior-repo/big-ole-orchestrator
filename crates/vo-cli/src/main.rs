@@ -15,7 +15,10 @@ fn main() -> ExitCode {
         match interpret_cli_from(std::env::args_os()) {
             Ok(cli) => match dispatch(cli).await {
                 Ok(()) => 0,
-                Err(e) => code_to_u8(map_error_to_exit_code(&e)),
+                Err(e) => {
+                    eprintln!("error: {e}");
+                    code_to_u8(map_error_to_exit_code(&e))
+                }
             },
             Err(e) => {
                 let _ = e.print();

@@ -10,6 +10,8 @@ tokio = { workspace = true }
 reqwest = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+fjall.workspace = true
+vo-storage = { version = "0.1.0", path = "../vo-storage" }
 
 [dev-dependencies]
 proptest = "1.4"

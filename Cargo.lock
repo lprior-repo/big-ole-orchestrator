@@ -2897,6 +2897,7 @@ name = "vo-cli"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "fjall",
  "proptest",
  "reqwest",
  "rstest",
@@ -2905,6 +2906,7 @@ dependencies = [
  "tempfile",
  "thiserror",
  "tokio",
+ "vo-storage",
 ]
 
 [[package]]

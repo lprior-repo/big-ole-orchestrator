@@ -1,11 +1,20 @@
 #![allow(unexpected_cfgs)]
 use std::fmt;
-use vo_types::{InstanceId, SequenceNumber};
+use vo_types::{InstanceId, SequenceNumber, ParseError};
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum StorageError {
     CorruptKey,
     Other,
+    BatchCommitFailed,
+    ScanFailed,
+    InstanceRunning,
+    InvalidInstanceId(ParseError),
+    SequenceGap,
+    CorruptEventPayload,
+    UnsupportedVersion,
+    Storage,
+    InvalidArgument,
 }
 
 impl fmt::Display for StorageError {
@@ -13,6 +22,15 @@ impl fmt::Display for StorageError {
         match self {
             Self::CorruptKey => write!(f, "corrupt key"),
             Self::Other => write!(f, "other error"),
+            Self::BatchCommitFailed => write!(f, "batch commit failed"),
+            Self::ScanFailed => write!(f, "scan failed"),
+            Self::InstanceRunning => write!(f, "instance is running"),
+            Self::InvalidInstanceId(e) => write!(f, "invalid instance ID: {e}"),
+            Self::SequenceGap => write!(f, "sequence gap"),
+            Self::CorruptEventPayload => write!(f, "corrupt event payload"),
+            Self::UnsupportedVersion => write!(f, "unsupported version"),
+            Self::Storage => write!(f, "storage error"),
+            Self::InvalidArgument => write!(f, "invalid argument"),
         }
     }
 }
@@ -210,6 +228,6 @@ mod verification {
         // We'll mock it if it was required, but we can't here easily unless we bypass.
         // For the sake of the red phase test stub, this function just has to compile.
         let bytes: [u8; 24] = kani::any();
-        decode_event_key(&bytes).unwrap_or((min_id(), SequenceNumber::try_from(1u64).unwrap()));
+        let _ = decode_event_key(&bytes);
     }
 }
