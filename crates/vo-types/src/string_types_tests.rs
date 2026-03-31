@@ -368,6 +368,46 @@ mod tests {
     }
 
     #[test]
+    fn workflow_name_rejects_consecutive_hyphens_with_specific_error() {
+        assert_eq!(
+            WorkflowName::parse("deploy--prod"),
+            Err(ParseError::ConsecutiveHyphens {
+                type_name: "WorkflowName"
+            })
+        );
+    }
+
+    #[test]
+    fn workflow_name_rejects_consecutive_underscores_with_specific_error() {
+        assert_eq!(
+            WorkflowName::parse("deploy__prod"),
+            Err(ParseError::ConsecutiveSeparators {
+                type_name: "WorkflowName"
+            })
+        );
+    }
+
+    #[test]
+    fn workflow_name_rejects_mixed_separators_hyphen_underscore_with_specific_error() {
+        assert_eq!(
+            WorkflowName::parse("deploy-_prod"),
+            Err(ParseError::ConsecutiveSeparators {
+                type_name: "WorkflowName"
+            })
+        );
+    }
+
+    #[test]
+    fn workflow_name_rejects_mixed_separators_underscore_hyphen_with_specific_error() {
+        assert_eq!(
+            WorkflowName::parse("deploy_-prod"),
+            Err(ParseError::ConsecutiveSeparators {
+                type_name: "WorkflowName"
+            })
+        );
+    }
+
+    #[test]
     fn workflow_name_display_equals_inner_string() {
         let wn = WorkflowName::parse("deploy-prod").expect("valid");
         assert_eq!(format!("{wn}"), "deploy-prod");
@@ -917,7 +957,10 @@ mod tests {
     #[test]
     fn instance_id_to_bytes_returns_error_when_ulid_invalid() {
         let id = InstanceId("invalid".to_string());
-        assert!(id.to_bytes().is_err());
+        assert!(matches!(
+            id.to_bytes(),
+            Err(ParseError::InvalidFormat { .. })
+        ));
     }
 
     // ========== Serde round-trip (inline) ==========
@@ -978,7 +1021,8 @@ mod tests {
 
         proptest! {
             #[test]
-            fn workflow_name_round_trip_proptest(s in "[a-zA-Z0-9][a-zA-Z0-9_-]{0,126}[a-zA-Z0-9]") {
+            fn workflow_name_round_trip_proptest(s in "([a-zA-Z0-9_][a-zA-Z0-9_-]*[a-zA-Z0-9])|[a-zA-Z0-9]".prop_filter("no consecutive separators", |s| !s.contains("--") && !s.contains("__") && !s.contains("-_") && !s.contains("_-"))) {
+                prop_assume!(s.len() <= 128);
                 let v = WorkflowName(s);
                 prop_assert_eq!(WorkflowName::parse(&v.to_string()), Ok(v));
             }
@@ -1016,7 +1060,8 @@ mod tests {
             }
 
             #[test]
-            fn serde_round_trip_workflow_name_proptest(s in "[a-zA-Z0-9][a-zA-Z0-9_-]{0,126}[a-zA-Z0-9]") {
+            fn serde_round_trip_workflow_name_proptest(s in "([a-zA-Z0-9_][a-zA-Z0-9_-]*[a-zA-Z0-9])|[a-zA-Z0-9]".prop_filter("no consecutive separators", |s| !s.contains("--") && !s.contains("__") && !s.contains("-_") && !s.contains("_-"))) {
+                prop_assume!(s.len() <= 128);
                 let v = WorkflowName(s);
                 let json = serde_json::to_value(&v).expect("serialize");
                 let restored: WorkflowName = serde_json::from_value(json).expect("deserialize");
@@ -1033,14 +1078,6 @@ mod tests {
 
             // === CONTRACT VIOLATION FIX PROPTESTS (vel-205) ===
             // These proptests verify the CORRECT behavior after the bug fix.
-            // They FAIL against the buggy code and PASS after the fix.
-
-            #[test]
-            fn workflow_name_underscore_prefix_round_trip_proptest(s in "_[a-zA-Z0-9][a-zA-Z0-9_-]{0,125}[a-zA-Z0-9]") {
-                // After fix: underscore-prefixed identifiers should parse successfully
-                let v = WorkflowName(s.clone());
-                prop_assert_eq!(WorkflowName::parse(&v.to_string()), Ok(v));
-            }
 
             #[test]
             fn node_name_underscore_prefix_round_trip_proptest(s in "_[a-zA-Z0-9][a-zA-Z0-9_-]{0,125}[a-zA-Z0-9]") {

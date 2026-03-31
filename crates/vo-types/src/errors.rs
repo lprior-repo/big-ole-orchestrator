@@ -28,6 +28,12 @@ pub enum ParseError {
         reason: String,
     },
 
+    #[error("{type_name}: consecutive hyphens not permitted")]
+    ConsecutiveHyphens { type_name: &'static str },
+
+    #[error("{type_name}: consecutive underscores or mixed separators not permitted")]
+    ConsecutiveSeparators { type_name: &'static str },
+
     #[error("{type_name}: not a valid unsigned integer: {input}")]
     NotAnInteger {
         type_name: &'static str,
@@ -98,6 +104,15 @@ mod tests {
         };
         let msg = err.to_string();
         assert!(msg.contains("WorkflowName: must not start with hyphen"));
+    }
+
+    #[test]
+    fn parse_error_consecutive_hyphens_displays_type_name_when_formatted() {
+        let err = ParseError::ConsecutiveHyphens {
+            type_name: "WorkflowName",
+        };
+        let msg = err.to_string();
+        assert!(msg.contains("WorkflowName: consecutive hyphens not permitted"));
     }
 
     #[test]

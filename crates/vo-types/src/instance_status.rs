@@ -202,8 +202,11 @@ mod tests {
             ]
         );
         // Additionally verify byte ordering: all_variants()[i].to_byte() == (i + 1) as u8
-        for (i, variant) in variants.iter().enumerate() {
-            assert_eq!(variant.to_byte(), (i + 1) as u8);
-        }
+        assert_eq!(variants[0].to_byte(), 1);
+        assert_eq!(variants[1].to_byte(), 2);
+        assert_eq!(variants[2].to_byte(), 3);
+        assert_eq!(variants[3].to_byte(), 4);
+        assert_eq!(variants[4].to_byte(), 5);
+        assert_eq!(variants[5].to_byte(), 6);
     }
 }

@@ -295,15 +295,14 @@ mod tests {
 
     mod proptests {
         use super::*;
+        use proptest::prop_assert;
 
         #[test]
         fn extract_invalid_chars_proptest() {
             proptest::proptest!(|(s in "[a-zA-Z0-9_-]{0,100}")| {
                 let invalid = extract_invalid_chars(&s, is_identifier_char);
                 // Every char in the invalid set must NOT be an identifier char
-                for c in invalid.chars() {
-                    assert!(!is_identifier_char(c));
-                }
+                prop_assert!(invalid.chars().all(|c| !is_identifier_char(c)));
             });
         }
     }

@@ -134,6 +134,7 @@ impl WorkflowName {
                 type_name: TYPE_NAME,
             });
         }
+        // Character set validation: ASCII alphanumeric, hyphens, and underscores
         let invalid = extract_invalid_chars(input, is_identifier_char);
         if !invalid.is_empty() {
             return Err(ParseError::InvalidCharacters {
@@ -149,7 +150,21 @@ impl WorkflowName {
                 actual: char_count,
             });
         }
+        // Consecutive hyphen validation: no "--"
+        if input.contains("--") {
+            return Err(ParseError::ConsecutiveHyphens {
+                type_name: TYPE_NAME,
+            });
+        }
+        // Consecutive underscores or mixed separators validation: no "__", "-_", "_-"
+        if input.contains("__") || input.contains("-_") || input.contains("_-") {
+            return Err(ParseError::ConsecutiveSeparators {
+                type_name: TYPE_NAME,
+            });
+        }
+
         check_identifier_boundaries(input, TYPE_NAME)?;
+
         Ok(Self(input.to_string()))
     }
 

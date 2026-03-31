@@ -106,21 +106,18 @@ fn vo_types_validation_edge_cases() {
 
 #[test]
 fn workflow_name_consecutive_hyphens() {
-    // DOCUMENTS ACTUAL BEHAVIOR (not ideal):
-    // vo-types currently ACCEPTS consecutive hyphens (--) in WorkflowName.
-    // This is a known bug filed as vel-c7u.
-    //
     // IDEAL behavior: should reject consecutive hyphens as invalid identifier format.
-    // ACTUAL behavior: accepts them.
+    // BUG (vel-c7u) was fixed, so this should now return Err(ParseError::ConsecutiveHyphens).
 
-    use vo_types::WorkflowName;
+    use vo_types::{ParseError, WorkflowName};
 
     let with_consecutive_hyphens = WorkflowName::parse("invalid--name");
 
-    // Document actual behavior: succeeds when ideally it should fail
-    assert!(
-        with_consecutive_hyphens.is_ok(),
-        "BUG (vel-c7u): WorkflowName currently accepts consecutive hyphens -- this should be rejected"
+    assert_eq!(
+        with_consecutive_hyphens,
+        Err(ParseError::ConsecutiveHyphens {
+            type_name: "WorkflowName"
+        })
     );
 }
 

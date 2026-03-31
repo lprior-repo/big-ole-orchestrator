@@ -1277,30 +1277,37 @@ mod proptests {
 // RQ-26b: Exponential paths DAG (tests that memoization is present)
 #[test]
 fn rq_exponential_paths_dag_does_not_timeout() {
-    let mut nodes = Vec::new();
-    let mut edges = Vec::new();
     let n = 40;
 
-    for i in 0..n {
-        nodes.push(serde_json::json!({
-            "node_name": format!("n{}", i),
-            "retry_policy": {"max_attempts": 1, "backoff_ms": 0, "backoff_multiplier": 1.0}
-        }));
-        if i + 1 < n {
-            edges.push(serde_json::json!({
-                "source_node": format!("n{}", i),
-                "target_node": format!("n{}", i+1),
-                "condition": "Always"
-            }));
-        }
-        if i + 2 < n {
-            edges.push(serde_json::json!({
-                "source_node": format!("n{}", i),
-                "target_node": format!("n{}", i+2),
-                "condition": "Always"
-            }));
-        }
-    }
+    let nodes: Vec<_> = (0..n)
+        .map(|i| {
+            serde_json::json!({
+                "node_name": format!("n{}", i),
+                "retry_policy": {"max_attempts": 1, "backoff_ms": 0, "backoff_multiplier": 1.0}
+            })
+        })
+        .collect();
+
+    let edges: Vec<_> = (0..n)
+        .flat_map(|i| {
+            let mut res = Vec::new();
+            if i + 1 < n {
+                res.push(serde_json::json!({
+                    "source_node": format!("n{}", i),
+                    "target_node": format!("n{}", i+1),
+                    "condition": "Always"
+                }));
+            }
+            if i + 2 < n {
+                res.push(serde_json::json!({
+                    "source_node": format!("n{}", i),
+                    "target_node": format!("n{}", i+2),
+                    "condition": "Always"
+                }));
+            }
+            res
+        })
+        .collect();
 
     let json = serde_json::json!({
         "workflow_name": "test",

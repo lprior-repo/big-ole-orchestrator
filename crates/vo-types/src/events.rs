@@ -765,10 +765,10 @@ mod tests {
     }
 
     #[rstest]
-    #[case(0u64, 1, "wf-1", 0)]
-    #[case(1u64, 100, "wf-abc", 1000)]
-    fn proptest_envelope_roundtrip_preserves_data(
-        #[case] version: u64,
+    #[case(0, 1, "wf-1", 0)]
+    #[case(1, 100, "wf-abc", 1000)]
+    fn envelope_roundtrip_preserves_data(
+        #[case] version: u8,
         #[case] seq: u64,
         #[case] instance_id: &str,
         #[case] ts: u64,
@@ -783,7 +783,16 @@ mod tests {
         });
         let bytes = serde_json::to_vec(&json).unwrap();
         let result = EventEnvelope::from_bytes(&bytes);
-        assert!(result.is_ok());
+        
+        let expected = EventEnvelope {
+            version,
+            instance_id: instance_id.to_string(),
+            sequence: seq,
+            timestamp_ms: ts,
+            payload: serde_json::json!({"type": "WorkflowStarted", "workflow_id": "wf-123", "version": 1}),
+            metadata: serde_json::json!({}),
+        };
+        assert_eq!(result, Ok(expected));
     }
 
     #[rstest]
@@ -811,116 +820,127 @@ mod tests {
         );
     }
 
-    #[test]
-    fn proptest_sequence_is_always_positive_on_success() {
-        let valid_cases = vec![(1u64, "wf-1"), (100u64, "wf-100"), (999999999u64, "wf-max")];
-        let invalid_cases = vec![(0u64, "wf-zero")];
-
-        for (seq, instance_id) in valid_cases {
-            let json = serde_json::json!({
-                "version": 1,
-                "instance_id": instance_id,
-                "sequence": seq,
-                "timestamp_ms": 1000,
-                "payload": {"type": "WorkflowStarted", "workflow_id": "wf-123", "version": 1},
-                "metadata": {}
-            });
-            let bytes = serde_json::to_vec(&json).unwrap();
-            let result = EventEnvelope::from_bytes(&bytes);
-            result.unwrap();
-        }
-
-        for (seq, instance_id) in invalid_cases {
-            let json = serde_json::json!({
-                "version": 1,
-                "instance_id": instance_id,
-                "sequence": seq,
-                "timestamp_ms": 1000,
-                "payload": {"type": "WorkflowStarted", "workflow_id": "wf-123", "version": 1},
-                "metadata": {}
-            });
-            let bytes = serde_json::to_vec(&json).unwrap();
-            let result = EventEnvelope::from_bytes(&bytes);
-            assert!(matches!(result, Err(Error::InvalidEnvelopeField(_))));
-        }
+    #[rstest]
+    #[case(1, "wf-1")]
+    #[case(100, "wf-100")]
+    #[case(999_999_999, "wf-max")]
+    fn envelope_parsing_accepts_positive_sequence(#[case] seq: u64, #[case] instance_id: &str) {
+        let json = serde_json::json!({
+            "version": 1,
+            "instance_id": instance_id,
+            "sequence": seq,
+            "timestamp_ms": 1000,
+            "payload": {"type": "WorkflowStarted", "workflow_id": "wf-123", "version": 1},
+            "metadata": {}
+        });
+        let bytes = serde_json::to_vec(&json).unwrap();
+        let result = EventEnvelope::from_bytes(&bytes);
+        let Ok(envelope) = result else {
+            panic!("Expected Ok, got {:?}", result);
+        };
+        assert_eq!(envelope.sequence, seq);
     }
 
-    #[test]
-    fn proptest_instance_id_is_always_nonempty_on_success() {
-        let valid_cases = vec!["a", "wf-123", "instance_with_underscores"];
-        let invalid_cases = vec![""];
-
-        for instance_id in valid_cases {
-            let json = serde_json::json!({
-                "version": 1,
-                "instance_id": instance_id,
-                "sequence": 1,
-                "timestamp_ms": 1000,
-                "payload": {"type": "WorkflowStarted", "workflow_id": "wf-123", "version": 1},
-                "metadata": {}
-            });
-            let bytes = serde_json::to_vec(&json).unwrap();
-            let result = EventEnvelope::from_bytes(&bytes);
-            result.unwrap();
-        }
-
-        for instance_id in invalid_cases {
-            let json = serde_json::json!({
-                "version": 1,
-                "instance_id": instance_id,
-                "sequence": 1,
-                "timestamp_ms": 1000,
-                "payload": {"type": "WorkflowStarted", "workflow_id": "wf-123", "version": 1},
-                "metadata": {}
-            });
-            let bytes = serde_json::to_vec(&json).unwrap();
-            let result = EventEnvelope::from_bytes(&bytes);
-            assert!(matches!(result, Err(Error::InvalidEnvelopeField(_))));
-        }
+    #[rstest]
+    #[case(0, "wf-zero")]
+    fn envelope_parsing_rejects_zero_sequence(#[case] seq: u64, #[case] instance_id: &str) {
+        let json = serde_json::json!({
+            "version": 1,
+            "instance_id": instance_id,
+            "sequence": seq,
+            "timestamp_ms": 1000,
+            "payload": {"type": "WorkflowStarted", "workflow_id": "wf-123", "version": 1},
+            "metadata": {}
+        });
+        let bytes = serde_json::to_vec(&json).unwrap();
+        let result = EventEnvelope::from_bytes(&bytes);
+        let Err(err) = result else {
+            panic!("Expected Err, got {:?}", result);
+        };
+        assert!(matches!(err, Error::InvalidEnvelopeField(_)));
     }
 
-    #[test]
-    fn proptest_metadata_is_always_object_on_success() {
-        let valid_metadata = vec![
-            serde_json::json!({}),
-            serde_json::json!({"key": "value"}),
-            serde_json::json!({"key1": "value1", "key2": 123}),
-        ];
+    #[rstest]
+    #[case("a")]
+    #[case("wf-123")]
+    #[case("instance_with_underscores")]
+    fn envelope_parsing_accepts_nonempty_instance_id(#[case] instance_id: &str) {
+        let json = serde_json::json!({
+            "version": 1,
+            "instance_id": instance_id,
+            "sequence": 1,
+            "timestamp_ms": 1000,
+            "payload": {"type": "WorkflowStarted", "workflow_id": "wf-123", "version": 1},
+            "metadata": {}
+        });
+        let bytes = serde_json::to_vec(&json).unwrap();
+        let result = EventEnvelope::from_bytes(&bytes);
+        let Ok(envelope) = result else {
+            panic!("Expected Ok, got {:?}", result);
+        };
+        assert_eq!(envelope.instance_id, instance_id);
+    }
 
-        let invalid_metadata = vec![
-            serde_json::json!([]),
-            serde_json::json!("string"),
-            serde_json::Value::Null,
-            serde_json::json!(123),
-        ];
+    #[rstest]
+    #[case("")]
+    fn envelope_parsing_rejects_empty_instance_id(#[case] instance_id: &str) {
+        let json = serde_json::json!({
+            "version": 1,
+            "instance_id": instance_id,
+            "sequence": 1,
+            "timestamp_ms": 1000,
+            "payload": {"type": "WorkflowStarted", "workflow_id": "wf-123", "version": 1},
+            "metadata": {}
+        });
+        let bytes = serde_json::to_vec(&json).unwrap();
+        let result = EventEnvelope::from_bytes(&bytes);
+        let Err(err) = result else {
+            panic!("Expected Err, got {:?}", result);
+        };
+        assert!(matches!(err, Error::InvalidEnvelopeField(_)));
+    }
 
-        for metadata in valid_metadata {
-            let json = serde_json::json!({
-                "version": 1,
-                "instance_id": "wf-123",
-                "sequence": 1,
-                "timestamp_ms": 1000,
-                "payload": {"type": "WorkflowStarted", "workflow_id": "wf-123", "version": 1},
-                "metadata": metadata
-            });
-            let bytes = serde_json::to_vec(&json).unwrap();
-            let result = EventEnvelope::from_bytes(&bytes);
-            result.unwrap();
-        }
+    #[rstest]
+    #[case(serde_json::json!({}))]
+    #[case(serde_json::json!({"key": "value"}))]
+    #[case(serde_json::json!({"key1": "value1", "key2": 123}))]
+    fn envelope_parsing_accepts_object_metadata(#[case] metadata: serde_json::Value) {
+        let json = serde_json::json!({
+            "version": 1,
+            "instance_id": "wf-123",
+            "sequence": 1,
+            "timestamp_ms": 1000,
+            "payload": {"type": "WorkflowStarted", "workflow_id": "wf-123", "version": 1},
+            "metadata": metadata
+        });
+        let bytes = serde_json::to_vec(&json).unwrap();
+        let result = EventEnvelope::from_bytes(&bytes);
+        let Ok(envelope) = result else {
+            panic!("Expected Ok, got {:?}", result);
+        };
+        assert_eq!(envelope.metadata, metadata);
+    }
 
-        for metadata in invalid_metadata {
-            let json = serde_json::json!({
-                "version": 1,
-                "instance_id": "wf-123",
-                "sequence": 1,
-                "timestamp_ms": 1000,
-                "payload": {"type": "WorkflowStarted", "workflow_id": "wf-123", "version": 1},
-                "metadata": metadata
-            });
-            let bytes = serde_json::to_vec(&json).unwrap();
-            let result = EventEnvelope::from_bytes(&bytes);
-            assert!(matches!(result, Err(Error::InvalidEnvelopeField(_))));
-        }
+    #[rstest]
+    #[case(serde_json::json!([]))]
+    #[case(serde_json::json!("string"))]
+    #[case(serde_json::Value::Null)]
+    #[case(serde_json::json!(123))]
+    fn envelope_parsing_rejects_non_object_metadata(#[case] metadata: serde_json::Value) {
+        let json = serde_json::json!({
+            "version": 1,
+            "instance_id": "wf-123",
+            "sequence": 1,
+            "timestamp_ms": 1000,
+            "payload": {"type": "WorkflowStarted", "workflow_id": "wf-123", "version": 1},
+            "metadata": metadata
+        });
+        let bytes = serde_json::to_vec(&json).unwrap();
+        let result = EventEnvelope::from_bytes(&bytes);
+        let Err(err) = result else {
+            panic!("Expected Err, got {:?}", result);
+        };
+        assert!(matches!(err, Error::InvalidEnvelopeField(_)));
     }
 
     #[rstest]
