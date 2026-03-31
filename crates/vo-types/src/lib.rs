@@ -3,8 +3,6 @@ pub mod events;
 mod instance_status;
 mod integer_types;
 #[cfg(test)]
-mod events_tests;
-#[cfg(test)]
 mod integer_types_tests;
 mod non_empty_vec;
 mod payload_parser;

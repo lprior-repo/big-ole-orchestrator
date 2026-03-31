@@ -1,4 +1,4 @@
-use vo_types::WorkflowName;
+use vo_types::{WorkflowName, ParseError};
 
 fn main() {
     let cases = vec![
@@ -30,10 +30,10 @@ fn main() {
         let expected_str = if expected_success { "Success" } else { "Error" };
         
         println!("{:<10} | {:<10} | {:<10} | {:<10}", input, expected_str, actual_str, status);
-        if let Err(_e) = result {
+        if let Err(e) = result {
             if !expected_success {
                  // Optionally print error type for debugging
-                 // println!("   Error detail: {:?}", _e);
+                 // println!("   Error detail: {:?}", e);
             }
         }
     }

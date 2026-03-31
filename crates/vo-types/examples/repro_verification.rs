@@ -1,4 +1,4 @@
-use vo_types::WorkflowName;
+use vo_types::{WorkflowName, ParseError};
 
 fn main() {
     let cases = vec![
