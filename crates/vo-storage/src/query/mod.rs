@@ -4,7 +4,7 @@
 //! `prefix_generator`, `error_mapper`) → Actions (`EventReplayIterator`, `replay_events`).
 
 use vo_types::{EventEnvelope, EventError, InstanceId};
-use crate::codec::StorageError;
+pub use crate::codec::StorageError;
 
 #[cfg(test)]
 mod tests;
