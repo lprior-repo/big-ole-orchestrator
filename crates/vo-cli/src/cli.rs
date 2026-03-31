@@ -1,11 +1,19 @@
-use clap::Command;
+use std::path::PathBuf;
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum CliError {
-    Clap(clap::Error),
+    #[error("{0}")]
+    Clap(#[from] clap::Error),
+    #[error("invalid numeric: {0}")]
     InvalidNumeric(String),
+    #[error("invalid NATS URL: {0}")]
     InvalidNatsUrl(String),
+    #[error("dispatch error: {0}")]
     Dispatch(String),
+    #[error(transparent)]
+    Check(#[from] crate::commands::check::CheckError),
+    #[error(transparent)]
+    Gc(#[from] crate::commands::gc::GcError),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -15,8 +23,16 @@ pub struct NatsUrl {
 }
 
 #[derive(Debug, PartialEq, Clone)]
+pub enum Command {
+    Start,
+    Purge { instance: String },
+    Check { path: PathBuf },
+    Gc { engine_url: String, dry_run: bool },
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub struct Cli {
-    pub command: String,
+    pub command: Command,
 }
 
 /// Interpret CLI arguments from an iterator.
@@ -28,22 +44,78 @@ where
     I: IntoIterator<Item = T>,
     T: Into<std::ffi::OsString> + Clone,
 {
-    let cmd = Command::new("vo")
+    let cmd = clap::Command::new("vo")
         .version("0.1.0")
         .subcommand_required(true)
         .arg_required_else_help(true)
-        .subcommand(Command::new("start"));
+        .subcommand(clap::Command::new("start"))
+        .subcommand(
+            clap::Command::new("purge").arg(
+                clap::Arg::new("instance")
+                    .long("instance")
+                    .required(true)
+                    .value_name("ID")
+                    .help("The instance ID to purge"),
+            ),
+        )
+        .subcommand(clap::Command::new("check").arg(clap::Arg::new("path").required(true).index(1)))
+        .subcommand(
+            clap::Command::new("gc")
+                .arg(
+                    clap::Arg::new("engine-url")
+                        .long("engine-url")
+                        .env("VO_ENGINE_URL")
+                        .default_value("http://localhost:3000"),
+                )
+                .arg(
+                    clap::Arg::new("dry-run")
+                        .long("dry-run")
+                        .action(clap::ArgAction::SetTrue),
+                ),
+        );
 
     let matches = cmd.try_get_matches_from(args)?;
 
-    if let Some((name, _)) = matches.subcommand() {
-        Ok(Cli {
-            command: name.to_string(),
-        })
-    } else {
-        Ok(Cli {
-            command: String::new(),
-        })
+    match matches.subcommand() {
+        Some(("start", _)) => Ok(Cli {
+            command: Command::Start,
+        }),
+        Some(("purge", purge_matches)) => {
+            let instance = purge_matches
+                .get_one::<String>("instance")
+                .cloned()
+                .unwrap_or_default();
+            Ok(Cli {
+                command: Command::Purge { instance },
+            })
+        }
+        Some(("check", sub_matches)) => {
+            let path = match sub_matches.get_one::<String>("path") {
+                Some(p) => PathBuf::from(p),
+                None => {
+                    return Err(clap::Error::new(
+                        clap::error::ErrorKind::MissingRequiredArgument,
+                    ))
+                }
+            };
+            Ok(Cli {
+                command: Command::Check { path },
+            })
+        }
+        Some(("gc", sub_matches)) => {
+            let engine_url = match sub_matches.get_one::<String>("engine-url") {
+                Some(u) => u.clone(),
+                None => "http://localhost:3000".to_string(),
+            };
+            let dry_run = sub_matches.get_flag("dry-run");
+            Ok(Cli {
+                command: Command::Gc {
+                    engine_url,
+                    dry_run,
+                },
+            })
+        }
+        _ => Err(clap::Error::new(clap::error::ErrorKind::InvalidSubcommand)),
     }
 }
 
@@ -58,5 +130,7 @@ pub fn map_error_to_exit_code(err: &CliError) -> i32 {
         },
         CliError::Dispatch(_) => 1,
         CliError::InvalidNumeric(_) | CliError::InvalidNatsUrl(_) => 2,
+        CliError::Check(_) => 1,
+        CliError::Gc(_) => 1,
     }
 }
