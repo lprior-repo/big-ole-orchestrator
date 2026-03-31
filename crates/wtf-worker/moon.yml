@@ -1,0 +1,30 @@
+$schema: "https://moonrepo.dev/schemas/project.json"
+
+tasks:
+  check:
+    command: 'cargo check -p wtf-worker'
+    toolchains:
+      - rust
+    options:
+      runInCI: true
+
+  fmt:
+    command: 'cargo fmt -p wtf-worker -- --check'
+    toolchains:
+      - rust
+    options:
+      runInCI: true
+
+  lint-src:
+    command: 'cargo clippy -p wtf-worker --lib --bins --examples -- -D warnings -W clippy::all'
+    toolchains:
+      - rust
+    options:
+      runInCI: true
+
+  test:
+    command: 'cargo test -p wtf-worker'
+    toolchains:
+      - rust
+    options:
+      runInCI: true

@@ -1,1 +1,6 @@
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.03s
+[1m[92m    Blocking[0m waiting for file lock on package cache
+[1m[92m    Blocking[0m waiting for file lock on package cache
+[1m[92m    Blocking[0m waiting for file lock on package cache
+[1m[92m    Blocking[0m waiting for file lock on package cache
+[1m[92m    Blocking[0m waiting for file lock on build directory
+[1m[92m    Finished[0m `dev` profile [unoptimized + debuginfo] target(s) in 6.86s

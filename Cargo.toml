@@ -12,6 +12,7 @@ members = [
     "crates/vo-core",
     "crates/vo-common",
     "crates/vo-ipc",
+    "crates/wtf-types",
 ]
 
 [workspace.package]

@@ -1,0 +1,77 @@
+pub mod helpers;
+pub mod workflow;
+pub mod signal;
+pub mod events;
+
+pub use workflow::*;
+pub use signal::*;
+pub use events::*;
+
+#[cfg(test)]
+mod tests {
+    use super::helpers::*;
+    use wtf_actor::messages::WorkflowParadigm;
+
+    #[test]
+    fn test_split_path_id_valid() {
+        let result = split_path_id("payments/01ARZ3NDEKTSV4RRFFQ69G5FAV");
+        assert!(result.is_some());
+        if let Some((ns, id)) = result {
+            assert_eq!(ns, "payments");
+            assert_eq!(id.as_str(), "01ARZ3NDEKTSV4RRFFQ69G5FAV");
+        }
+    }
+
+    #[test]
+    fn test_split_path_id_missing_slash_returns_none() {
+        let result = split_path_id("no-slash-here");
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_split_path_id_multiple_slashes_splits_on_first() {
+        let result = split_path_id("ns/id/extra");
+        assert!(result.is_some());
+        if let Some((ns, id)) = result {
+            assert_eq!(ns, "ns");
+            assert_eq!(id.as_str(), "id/extra");
+        }
+    }
+
+    #[test]
+    fn test_parse_paradigm_fsm() {
+        assert_eq!(parse_paradigm("fsm"), Some(WorkflowParadigm::Fsm));
+    }
+
+    #[test]
+    fn test_parse_paradigm_dag() {
+        assert_eq!(parse_paradigm("dag"), Some(WorkflowParadigm::Dag));
+    }
+
+    #[test]
+    fn test_parse_paradigm_procedural() {
+        assert_eq!(
+            parse_paradigm("procedural"),
+            Some(WorkflowParadigm::Procedural)
+        );
+    }
+
+    #[test]
+    fn test_parse_paradigm_invalid_returns_none() {
+        assert!(parse_paradigm("").is_none());
+        assert!(parse_paradigm("FSM").is_none());
+        assert!(parse_paradigm("state_machine").is_none());
+    }
+
+    #[test]
+    fn test_paradigm_to_str_roundtrip() {
+        for p in [
+            WorkflowParadigm::Fsm,
+            WorkflowParadigm::Dag,
+            WorkflowParadigm::Procedural,
+        ] {
+            let s = paradigm_to_str(p);
+            assert_eq!(parse_paradigm(s), Some(p));
+        }
+    }
+}
