@@ -81,6 +81,9 @@ dioxus-router = "0.7"
 nom = "7"
 strum = { version = "0.24", features = ["derive"] }
 
+# Cryptography
+sha2 = "0.10"
+
 # Testing
 rstest = "0.18"
 proptest = "1"
