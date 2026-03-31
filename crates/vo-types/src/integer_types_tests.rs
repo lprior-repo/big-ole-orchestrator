@@ -66,7 +66,7 @@ fn sequence_number_new_unchecked_constructs_when_value_is_nonzero() {
 #[test]
 #[should_panic(expected = "SequenceNumber must be nonzero")]
 fn sequence_number_new_unchecked_panics_when_value_is_zero() {
-    SequenceNumber::new_unchecked(0);
+    let _ = SequenceNumber::new_unchecked(0);
 }
 
 #[test]
@@ -139,7 +139,7 @@ fn event_version_new_unchecked_constructs_when_value_is_nonzero() {
 #[test]
 #[should_panic(expected = "EventVersion must be nonzero")]
 fn event_version_new_unchecked_panics_when_value_is_zero() {
-    EventVersion::new_unchecked(0);
+    let _ = EventVersion::new_unchecked(0);
 }
 
 // ========== AttemptNumber ==========
@@ -205,7 +205,7 @@ fn attempt_number_new_unchecked_constructs_when_value_is_nonzero() {
 #[test]
 #[should_panic(expected = "AttemptNumber must be nonzero")]
 fn attempt_number_new_unchecked_panics_when_value_is_zero() {
-    AttemptNumber::new_unchecked(0);
+    let _ = AttemptNumber::new_unchecked(0);
 }
 
 // ========== TimeoutMs ==========
@@ -288,7 +288,7 @@ fn timeout_ms_new_unchecked_constructs_when_value_is_nonzero() {
 #[test]
 #[should_panic(expected = "TimeoutMs must be nonzero")]
 fn timeout_ms_new_unchecked_panics_when_value_is_zero() {
-    TimeoutMs::new_unchecked(0);
+    let _ = TimeoutMs::new_unchecked(0);
 }
 
 // ========== DurationMs ==========
@@ -650,7 +650,7 @@ fn max_attempts_new_unchecked_constructs_when_value_is_nonzero() {
 #[test]
 #[should_panic(expected = "MaxAttempts must be nonzero")]
 fn max_attempts_new_unchecked_panics_when_value_is_zero() {
-    MaxAttempts::new_unchecked(0);
+    let _ = MaxAttempts::new_unchecked(0);
 }
 
 // ========== Serde round-trip (inline) ==========

@@ -140,6 +140,8 @@ impl EventEnvelope {
 pub enum EventPayload {
     WorkflowStarted {
         workflow_id: String,
+        dag_topology: serde_json::Value,
+        binary_hash: String,
     },
     WorkflowCompleted {
         workflow_id: String,
@@ -156,6 +158,8 @@ pub enum EventPayload {
     StepScheduled {
         workflow_id: String,
         step_id: String,
+        attempt: u32,
+        execution_id: String,
     },
     StepStarted {
         workflow_id: String,
@@ -166,11 +170,13 @@ pub enum EventPayload {
         workflow_id: String,
         step_id: String,
         completed_at_ms: u64,
+        output: serde_json::Value,
     },
     StepFailed {
         workflow_id: String,
         step_id: String,
         failure_reason: String,
+        attempt: u32,
     },
     TimerSet {
         workflow_id: String,
@@ -215,6 +221,11 @@ impl EventPayload {
         match payload_type.as_str() {
             "WorkflowStarted" => Ok(EventPayload::WorkflowStarted {
                 workflow_id: require_string_field(obj, "workflow_id")?,
+                dag_topology: obj
+                    .get("dag_topology")
+                    .cloned()
+                    .unwrap_or(serde_json::Value::Null),
+                binary_hash: require_string(obj, "binary_hash")?,
             }),
             "WorkflowCompleted" => Ok(EventPayload::WorkflowCompleted {
                 workflow_id: require_string_field(obj, "workflow_id")?,
@@ -231,6 +242,9 @@ impl EventPayload {
             "StepScheduled" => Ok(EventPayload::StepScheduled {
                 workflow_id: require_string_field(obj, "workflow_id")?,
                 step_id: require_string(obj, "step_id")?,
+                #[allow(clippy::cast_possible_truncation)]
+                attempt: require_u64(obj, "attempt")? as u32,
+                execution_id: require_string(obj, "execution_id")?,
             }),
             "StepStarted" => Ok(EventPayload::StepStarted {
                 workflow_id: require_string_field(obj, "workflow_id")?,
@@ -241,11 +255,17 @@ impl EventPayload {
                 workflow_id: require_string_field(obj, "workflow_id")?,
                 step_id: require_string(obj, "step_id")?,
                 completed_at_ms: require_u64(obj, "completed_at_ms")?,
+                output: obj
+                    .get("output")
+                    .cloned()
+                    .unwrap_or(serde_json::Value::Null),
             }),
             "StepFailed" => Ok(EventPayload::StepFailed {
                 workflow_id: require_string_field(obj, "workflow_id")?,
                 step_id: require_string(obj, "step_id")?,
                 failure_reason: require_string(obj, "failure_reason")?,
+                #[allow(clippy::cast_possible_truncation)]
+                attempt: require_u64(obj, "attempt")? as u32,
             }),
             "TimerSet" => Ok(EventPayload::TimerSet {
                 workflow_id: require_string_field(obj, "workflow_id")?,
@@ -512,13 +532,14 @@ mod tests {
 
     #[test]
     fn payload_try_from_json_returns_workflow_started_when_type_is_workflow_started() {
-        let json =
-            serde_json::json!({"type": "WorkflowStarted", "workflow_id": "wf-123", "version": 1});
+        let json = serde_json::json!({"type": "WorkflowStarted", "workflow_id": "wf-123", "dag_topology": {}, "binary_hash": "abc123", "version": 1});
         let result = EventPayload::try_from_json(&json);
         assert_eq!(
             result,
             Ok(EventPayload::WorkflowStarted {
-                workflow_id: "wf-123".to_string()
+                workflow_id: "wf-123".to_string(),
+                dag_topology: serde_json::json!({}),
+                binary_hash: "abc123".to_string()
             })
         );
     }
@@ -564,13 +585,15 @@ mod tests {
 
     #[test]
     fn payload_try_from_json_returns_step_scheduled_when_type_is_step_scheduled() {
-        let json = serde_json::json!({"type": "StepScheduled", "workflow_id": "wf-123", "step_id": "step-1", "version": 1});
+        let json = serde_json::json!({"type": "StepScheduled", "workflow_id": "wf-123", "step_id": "step-1", "attempt": 1, "execution_id": "inst::step::1", "version": 1});
         let result = EventPayload::try_from_json(&json);
         assert_eq!(
             result,
             Ok(EventPayload::StepScheduled {
                 workflow_id: "wf-123".to_string(),
-                step_id: "step-1".to_string()
+                step_id: "step-1".to_string(),
+                attempt: 1,
+                execution_id: "inst::step::1".to_string()
             })
         );
     }
@@ -591,28 +614,30 @@ mod tests {
 
     #[test]
     fn payload_try_from_json_returns_step_completed_when_type_is_step_completed() {
-        let json = serde_json::json!({"type": "StepCompleted", "workflow_id": "wf-123", "step_id": "step-1", "completed_at_ms": 1000, "version": 1});
+        let json = serde_json::json!({"type": "StepCompleted", "workflow_id": "wf-123", "step_id": "step-1", "completed_at_ms": 1000, "output": null, "version": 1});
         let result = EventPayload::try_from_json(&json);
         assert_eq!(
             result,
             Ok(EventPayload::StepCompleted {
                 workflow_id: "wf-123".to_string(),
                 step_id: "step-1".to_string(),
-                completed_at_ms: 1000
+                completed_at_ms: 1000,
+                output: serde_json::Value::Null
             })
         );
     }
 
     #[test]
     fn payload_try_from_json_returns_step_failed_when_type_is_step_failed() {
-        let json = serde_json::json!({"type": "StepFailed", "workflow_id": "wf-123", "step_id": "step-1", "failure_reason": "error", "version": 1});
+        let json = serde_json::json!({"type": "StepFailed", "workflow_id": "wf-123", "step_id": "step-1", "failure_reason": "error", "attempt": 1, "version": 1});
         let result = EventPayload::try_from_json(&json);
         assert_eq!(
             result,
             Ok(EventPayload::StepFailed {
                 workflow_id: "wf-123".to_string(),
                 step_id: "step-1".to_string(),
-                failure_reason: "error".to_string()
+                failure_reason: "error".to_string(),
+                attempt: 1
             })
         );
     }
@@ -733,7 +758,7 @@ mod tests {
 
     #[test]
     fn decode_event_returns_ok_when_envelope_and_payload_are_valid() {
-        let json = r#"{"version": 1, "instance_id": "wf-123", "sequence": 1, "timestamp_ms": 1000, "payload": {"type": "WorkflowStarted", "workflow_id": "wf-123", "version": 1}, "metadata": {}}"#;
+        let json = r#"{"version": 1, "instance_id": "wf-123", "sequence": 1, "timestamp_ms": 1000, "payload": {"type": "WorkflowStarted", "workflow_id": "wf-123", "binary_hash": "abc123", "version": 1}, "metadata": {}}"#;
         let result = decode_event(json.as_bytes());
         let (envelope, payload) = result.unwrap();
         assert_eq!(envelope.version, 1);
@@ -783,7 +808,7 @@ mod tests {
         });
         let bytes = serde_json::to_vec(&json).unwrap();
         let result = EventEnvelope::from_bytes(&bytes);
-        
+
         let expected = EventEnvelope {
             version,
             instance_id: instance_id.to_string(),
@@ -951,6 +976,157 @@ mod tests {
         assert_eq!(result, Err(expected));
     }
 
+    // -------------------------------------------------------------------------
+    // ADR-027: Error-path tests for new required fields (binary_hash, attempt,
+    // execution_id, dag_topology, output)
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn payload_try_from_json_returns_missing_payload_field_when_binary_hash_is_absent() {
+        let json =
+            serde_json::json!({"type": "WorkflowStarted", "workflow_id": "w1", "version": 1});
+        let result = EventPayload::try_from_json(&json);
+        assert_eq!(
+            result,
+            Err(Error::MissingPayloadField("binary_hash".to_string()))
+        );
+    }
+
+    #[test]
+    fn payload_try_from_json_returns_missing_payload_field_when_attempt_is_absent_for_step_scheduled(
+    ) {
+        let json = serde_json::json!({"type": "StepScheduled", "workflow_id": "w1", "step_id": "s1", "execution_id": "e1", "version": 1});
+        let result = EventPayload::try_from_json(&json);
+        assert_eq!(
+            result,
+            Err(Error::MissingPayloadField("attempt".to_string()))
+        );
+    }
+
+    #[test]
+    fn payload_try_from_json_returns_invalid_payload_field_when_attempt_is_not_integer_for_step_scheduled(
+    ) {
+        let json = serde_json::json!({"type": "StepScheduled", "workflow_id": "w1", "step_id": "s1", "attempt": "bad", "execution_id": "e1", "version": 1});
+        let result = EventPayload::try_from_json(&json);
+        assert_eq!(
+            result,
+            Err(Error::InvalidPayloadField(
+                "attempt must be an integer".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn payload_try_from_json_returns_missing_payload_field_when_execution_id_is_absent() {
+        let json = serde_json::json!({"type": "StepScheduled", "workflow_id": "w1", "step_id": "s1", "attempt": 1, "version": 1});
+        let result = EventPayload::try_from_json(&json);
+        assert_eq!(
+            result,
+            Err(Error::MissingPayloadField("execution_id".to_string()))
+        );
+    }
+
+    #[test]
+    fn payload_try_from_json_returns_missing_payload_field_when_attempt_is_absent_for_step_failed()
+    {
+        let json = serde_json::json!({"type": "StepFailed", "workflow_id": "w1", "step_id": "s1", "failure_reason": "err", "version": 1});
+        let result = EventPayload::try_from_json(&json);
+        assert_eq!(
+            result,
+            Err(Error::MissingPayloadField("attempt".to_string()))
+        );
+    }
+
+    #[test]
+    fn payload_try_from_json_defaults_dag_topology_to_null_when_absent() {
+        let json = serde_json::json!({"type": "WorkflowStarted", "workflow_id": "w1", "binary_hash": "abc123", "version": 1});
+        let result = EventPayload::try_from_json(&json);
+        assert_eq!(
+            result,
+            Ok(EventPayload::WorkflowStarted {
+                workflow_id: "w1".into(),
+                dag_topology: serde_json::Value::Null,
+                binary_hash: "abc123".into(),
+            })
+        );
+    }
+
+    #[test]
+    fn payload_try_from_json_defaults_output_to_null_when_absent() {
+        let json = serde_json::json!({"type": "StepCompleted", "workflow_id": "w1", "step_id": "s1", "completed_at_ms": 1000, "version": 1});
+        let result = EventPayload::try_from_json(&json);
+        assert_eq!(
+            result,
+            Ok(EventPayload::StepCompleted {
+                workflow_id: "w1".into(),
+                step_id: "s1".into(),
+                completed_at_ms: 1000,
+                output: serde_json::Value::Null,
+            })
+        );
+    }
+
+    #[test]
+    fn decode_event_returns_correct_binary_hash_and_dag_topology_in_full_pipeline() {
+        let json = serde_json::json!({
+            "version": 1,
+            "instance_id": "inst-1",
+            "sequence": 1,
+            "timestamp_ms": 1000,
+            "payload": {
+                "type": "WorkflowStarted",
+                "workflow_id": "wf-123",
+                "dag_topology": {"nodes": []},
+                "binary_hash": "sha256abc",
+                "version": 1
+            },
+            "metadata": {}
+        });
+        let bytes = serde_json::to_vec(&json).unwrap();
+        let result = decode_event(&bytes);
+        let (_envelope, payload) = result.unwrap();
+        match payload {
+            EventPayload::WorkflowStarted {
+                workflow_id,
+                dag_topology,
+                binary_hash,
+            } => {
+                assert_eq!(workflow_id, "wf-123");
+                assert_eq!(dag_topology, serde_json::json!({"nodes": []}));
+                assert_eq!(binary_hash, "sha256abc");
+            }
+            other => panic!("Expected WorkflowStarted, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn payload_try_from_json_handles_attempt_at_u32_max() {
+        let json = serde_json::json!({"type": "StepScheduled", "workflow_id": "w1", "step_id": "s1", "attempt": 4294967295_u64, "execution_id": "e1", "version": 1});
+        let result = EventPayload::try_from_json(&json);
+        assert_eq!(
+            result,
+            Ok(EventPayload::StepScheduled {
+                workflow_id: "w1".into(),
+                step_id: "s1".into(),
+                attempt: u32::MAX,
+                execution_id: "e1".into(),
+            })
+        );
+    }
+
+    #[test]
+    fn payload_try_from_json_returns_invalid_payload_field_when_attempt_is_not_integer_for_step_failed(
+    ) {
+        let json = serde_json::json!({"type": "StepFailed", "workflow_id": "w1", "step_id": "s1", "failure_reason": "err", "attempt": "bad", "version": 1});
+        let result = EventPayload::try_from_json(&json);
+        assert_eq!(
+            result,
+            Err(Error::InvalidPayloadField(
+                "attempt must be an integer".to_string()
+            ))
+        );
+    }
+
     #[rstest]
     #[case(serde_json::json!({"type": "WorkflowStarted", "version": 1}), Error::InvalidPayloadField("workflow_id is required".to_string()))]
     #[case(serde_json::json!({"type": "WorkflowStarted", "workflow_id": 123, "version": 1}), Error::InvalidPayloadField("workflow_id must be a string".to_string()))]
@@ -1008,6 +1184,11 @@ mod tests {
     #[case(serde_json::json!({"type": "InstanceResumed", "workflow_id": 123, "version": 1}), Error::InvalidPayloadField("workflow_id must be a string".to_string()))]
     #[case(serde_json::json!({"type": "InstanceResumed", "workflow_id": "w1", "version": 1}), Error::MissingPayloadField("resumed_at_ms".to_string()))]
     #[case(serde_json::json!({"type": "InstanceResumed", "workflow_id": "w1", "resumed_at_ms": "bad", "version": 1}), Error::InvalidPayloadField("resumed_at_ms must be an integer".to_string()))]
+    // ADR-027: new required-field missing cases for binary_hash, attempt, execution_id
+    #[case(serde_json::json!({"type": "WorkflowStarted", "workflow_id": "w1", "version": 1}), Error::MissingPayloadField("binary_hash".to_string()))]
+    #[case(serde_json::json!({"type": "StepScheduled", "workflow_id": "w1", "step_id": "s1", "execution_id": "e1", "version": 1}), Error::MissingPayloadField("attempt".to_string()))]
+    #[case(serde_json::json!({"type": "StepScheduled", "workflow_id": "w1", "step_id": "s1", "attempt": 1, "version": 1}), Error::MissingPayloadField("execution_id".to_string()))]
+    #[case(serde_json::json!({"type": "StepFailed", "workflow_id": "w1", "step_id": "s1", "failure_reason": "err", "version": 1}), Error::MissingPayloadField("attempt".to_string()))]
 
     fn payload_invalid_fields(#[case] json: serde_json::Value, #[case] expected: Error) {
         let result = EventPayload::try_from_json(&json);
