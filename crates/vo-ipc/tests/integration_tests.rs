@@ -206,7 +206,16 @@ async fn child_environment_is_cleared() {
     let output = run_subprocess(config("read-env", 500)).await.unwrap();
     let environment: BTreeMap<String, String> = serde_json::from_slice(&output.fd4_bytes).unwrap();
     std::env::remove_var("LEAK_ME");
-    assert!(environment.is_empty());
+    
+    // Filter out environment variables injected by build/coverage tools (like llvm-cov)
+    let filtered_env: BTreeMap<_, _> = environment
+        .into_iter()
+        .filter(|(k, _)| {
+            k != "LLVM_PROFILE_FILE" && !k.starts_with("__LLVM_PROFILE")
+        })
+        .collect();
+        
+    assert!(filtered_env.is_empty(), "Environment not cleared: {:?}", filtered_env);
 }
 
 #[tokio::test]
@@ -321,7 +330,8 @@ async fn env_snapshot_fixture_returns_valid_json() {
     let directory = tempdir().unwrap();
     let snapshot_path = directory.path().join("env.json");
     fs::write(&snapshot_path, b"{}").unwrap();
-    let _ = read_map(&snapshot_path);
+    let map = read_map(&snapshot_path);
+    assert!(map.is_empty());
 }
 
 #[tokio::test]

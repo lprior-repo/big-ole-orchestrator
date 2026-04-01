@@ -6,6 +6,8 @@ use vo_ipc::{MAX_STDERR_BYTES, TRUNCATION_MARKER};
 
 #[path = "../src/config.rs"]
 mod config;
+#[path = "../src/envelope.rs"]
+mod envelope;
 #[path = "../src/error.rs"]
 mod error;
 #[path = "../src/run.rs"]

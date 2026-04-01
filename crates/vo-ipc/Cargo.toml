@@ -5,9 +5,11 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+serde.workspace = true
 tokio.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
+tracing.workspace = true
 libc = "0.2"
 
 [dev-dependencies]
@@ -19,3 +21,23 @@ tempfile.workspace = true
 [[bin]]
 name = "fixture_driver"
 path = "tests/fixtures/src/bin/fixture_driver.rs"
+
+[[test]]
+name = "envelope_tests"
+path = "tests/envelope_tests.rs"
+
+[[test]]
+name = "integration_tests"
+path = "tests/integration_tests.rs"
+
+[[test]]
+name = "proptest_tests"
+path = "tests/proptest_tests.rs"
+
+[[test]]
+name = "error_tests"
+path = "tests/error_tests.rs"
+
+[[test]]
+name = "adversary_tests"
+path = "tests/adversary_tests.rs"

@@ -11,7 +11,7 @@ pub enum ConfigError {
     ProgramNotExecutable { path: PathBuf },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Error)]
+#[derive(Debug, Error)]
 pub enum IpcError {
     #[error(transparent)]
     Config(#[from] ConfigError),
@@ -25,6 +25,8 @@ pub enum IpcError {
     WaitFailed { detail: String },
     #[error("failed to read fd4 payload: {detail}")]
     Fd4ReadFailed { detail: String },
+    #[error("failed to write fd3 payload: {detail}")]
+    Fd3WriteFailed { detail: String },
     #[error("failed to capture stderr: {detail}")]
     StderrReadFailed { detail: String },
     #[error("failed to signal subprocess: {detail}")]
@@ -41,4 +43,23 @@ pub enum IpcError {
         stderr_bytes: Vec<u8>,
         stderr_truncated: bool,
     },
+    #[error("Payload too large: {0} bytes")]
+    PayloadTooLarge(u32),
+    #[error("Incomplete read: expected {expected} bytes, got {actual}")]
+    IncompleteRead { expected: usize, actual: usize },
+    #[error("Invalid JSON or UTF-8: {0}")]
+    InvalidJson(String),
+    #[error("Version mismatch: expected 1, got {0}")]
+    VersionMismatch(u8),
+    #[error("Schema violation: {0}")]
+    SchemaViolation(String),
+    #[error("Identity mismatch: expected {expected_instance}:{expected_node}, got {actual_instance}:{actual_node}")]
+    IdentityMismatch {
+        expected_instance: String,
+        expected_node: String,
+        actual_instance: String,
+        actual_node: String,
+    },
+    #[error("IO error: {0}")]
+    IoError(#[from] std::io::Error),
 }

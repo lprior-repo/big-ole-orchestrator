@@ -2939,11 +2939,13 @@ dependencies = [
  "libc",
  "proptest",
  "rstest",
+ "serde",
  "serde_json",
  "tempfile",
  "thiserror",
  "tokio",
  "toml",
+ "tracing",
 ]
 
 [[package]]

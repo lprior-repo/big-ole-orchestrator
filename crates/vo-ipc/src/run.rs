@@ -1,4 +1,5 @@
 use crate::config::SubprocessConfig;
+use crate::envelope;
 use crate::error::IpcError;
 use crate::stderr::{read_bounded_stderr, StderrCapture};
 use std::fs::File;
@@ -173,11 +174,11 @@ fn create_pipe() -> Result<(OwnedFd, OwnedFd), IpcError> {
         })
 }
 
-fn spawn_fd3_writer(fd: OwnedFd, payload: Vec<u8>) -> JoinHandle<()> {
+fn spawn_fd3_writer(fd: OwnedFd, payload: Vec<u8>) -> JoinHandle<std::io::Result<()>> {
     tokio::task::spawn_blocking(move || {
         let mut file = File::from(fd);
-        let _ = file.write_all(&payload);
-        let _ = file.flush();
+        file.write_all(&payload)?;
+        file.flush()
     })
 }
 
@@ -197,7 +198,16 @@ fn read_fd4_payload(mut file: File) -> std::io::Result<Vec<u8>> {
     file.read_exact(&mut rest)?;
 
     let header = [first[0], rest[0], rest[1], rest[2]];
-    let payload_length = usize::try_from(u32::from_be_bytes(header)).map_err(|_| {
+    let payload_u32 = u32::from_be_bytes(header);
+    
+    if payload_u32 > envelope::MAX_PAYLOAD_SIZE {
+        return Err(Error::new(
+            ErrorKind::InvalidData,
+            format!("fd4 payload too large: {payload_u32} bytes (max {})", envelope::MAX_PAYLOAD_SIZE),
+        ));
+    }
+
+    let payload_length = usize::try_from(payload_u32).map_err(|_| {
         Error::new(
             ErrorKind::InvalidData,
             "fd4 payload length does not fit in usize",
@@ -213,24 +223,34 @@ async fn complete_non_timeout(
     result: std::io::Result<std::process::ExitStatus>,
     stderr_task: JoinHandle<std::io::Result<StderrCapture>>,
     fd4_task: JoinHandle<std::io::Result<Vec<u8>>>,
-    fd3_task: JoinHandle<()>,
+    fd3_task: JoinHandle<std::io::Result<()>>,
 ) -> Result<SubprocessOutput, IpcError> {
     let exit_status = result.map_err(|error| IpcError::WaitFailed {
         detail: error.to_string(),
     })?;
 
     let stderr_capture = join_stderr_task(stderr_task).await?;
-    let _ = fd3_task.await;
 
     if exit_status.success() {
+        if let Err(error) = join_fd3_task(fd3_task).await {
+            tracing::warn!("secondary error joining fd3 task after process success: {error}");
+        }
         let fd4_bytes = join_fd4_task(fd4_task).await?;
+
         Ok(SubprocessOutput {
             fd4_bytes,
             stderr_bytes: stderr_capture.bytes,
             stderr_truncated: stderr_capture.truncated,
         })
     } else {
-        let _ = join_fd4_task(fd4_task).await;
+        if let Err(error) = join_fd3_task(fd3_task).await {
+            tracing::warn!("secondary error joining fd3 task after process failure: {error}");
+        }
+
+        if let Err(error) = join_fd4_task(fd4_task).await {
+            tracing::warn!("secondary error joining fd4 task after process failure: {error}");
+        }
+
         Err(IpcError::ProcessFailed {
             exit_code: map_exit_code(exit_status),
             stderr_bytes: stderr_capture.bytes,
@@ -246,7 +266,7 @@ async fn complete_timeout(
     start: Instant,
     stderr_task: JoinHandle<std::io::Result<StderrCapture>>,
     fd4_task: JoinHandle<std::io::Result<Vec<u8>>>,
-    fd3_task: JoinHandle<()>,
+    fd3_task: JoinHandle<std::io::Result<()>>,
 ) -> Result<SubprocessOutput, IpcError> {
     send_signal_to_process_group(pid, libc::SIGTERM)?;
 
@@ -268,8 +288,14 @@ async fn complete_timeout(
     }
 
     let stderr_capture = join_stderr_task(stderr_task).await?;
-    let _ = fd3_task.await;
-    let _ = join_fd4_task(fd4_task).await;
+
+    if let Err(error) = join_fd3_task(fd3_task).await {
+        tracing::warn!("secondary error joining fd3 task after timeout: {error}");
+    }
+
+    if let Err(error) = join_fd4_task(fd4_task).await {
+        tracing::warn!("secondary error joining fd4 task after timeout: {error}");
+    }
 
     Err(IpcError::Timeout {
         elapsed_ms: elapsed_ms(start),
@@ -284,6 +310,16 @@ async fn join_fd4_task(task: JoinHandle<std::io::Result<Vec<u8>>>) -> Result<Vec
             detail: error.to_string(),
         })?
         .map_err(|error| IpcError::Fd4ReadFailed {
+            detail: error.to_string(),
+        })
+}
+
+async fn join_fd3_task(task: JoinHandle<std::io::Result<()>>) -> Result<(), IpcError> {
+    task.await
+        .map_err(|error| IpcError::Fd3WriteFailed {
+            detail: error.to_string(),
+        })?
+        .map_err(|error| IpcError::Fd3WriteFailed {
             detail: error.to_string(),
         })
 }

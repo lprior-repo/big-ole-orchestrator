@@ -63,7 +63,7 @@ fn command_stderr_text(args: &[String]) {
         .get(3)
         .and_then(|value| value.parse::<i32>().ok())
         .unwrap_or(0);
-    let _ = std::io::stderr().write_all(text.as_bytes());
+    drop(std::io::stderr().write_all(text.as_bytes()));
     std::process::exit(exit_code);
 }
 
@@ -81,7 +81,7 @@ fn command_stderr_repeat(args: &[String]) {
         .and_then(|value| value.parse::<i32>().ok())
         .unwrap_or(0);
     let stderr = vec![byte; count];
-    let _ = std::io::stderr().write_all(&stderr);
+    drop(std::io::stderr().write_all(&stderr));
     std::process::exit(exit_code);
 }
 
@@ -130,17 +130,17 @@ fn command_timeout_term_exit(args: &[String]) {
     let stderr_prefix = args.get(5).cloned().unwrap_or_default();
 
     if pid_path != "none" {
-        let _ = fs::write(&pid_path, std::process::id().to_string());
+        drop(fs::write(&pid_path, std::process::id().to_string()));
     }
 
     if !stderr_prefix.is_empty() {
-        let _ = std::io::stderr().write_all(stderr_prefix.as_bytes());
+        drop(std::io::stderr().write_all(stderr_prefix.as_bytes()));
     }
 
     loop {
         if RECEIVED_SIGTERM.load(Ordering::SeqCst) {
-            let _ = fs::write(&marker_path, "SIGTERM");
-            let _ = std::io::stderr().write_all(b"sigterm");
+            drop(fs::write(&marker_path, "SIGTERM"));
+            drop(std::io::stderr().write_all(b"sigterm"));
             std::thread::sleep(Duration::from_millis(delay_after_term));
             std::process::exit(91);
         }
@@ -155,7 +155,7 @@ fn command_timeout_ignore(args: &[String]) {
     let mode = args.get(3).map_or("sleep", String::as_str);
 
     if pid_path != "none" {
-        let _ = fs::write(&pid_path, std::process::id().to_string());
+        drop(fs::write(&pid_path, std::process::id().to_string()));
     }
 
     match mode {
@@ -165,11 +165,11 @@ fn command_timeout_ignore(args: &[String]) {
                 if RECEIVED_SIGPIPE.load(Ordering::SeqCst) {
                     std::process::exit(77);
                 }
-                let _ = std::io::stderr().write_all(&chunk);
+                std::io::stderr().write_all(&chunk).expect("failed to flood stderr");
             }
         }
         _ => loop {
-            let _ = RECEIVED_SIGTERM.load(Ordering::SeqCst);
+            RECEIVED_SIGTERM.load(Ordering::SeqCst);
             std::thread::sleep(Duration::from_millis(50));
         },
     }
@@ -181,7 +181,7 @@ fn command_pid_and_exit(args: &[String]) {
         .get(3)
         .and_then(|value| value.parse::<i32>().ok())
         .unwrap_or(0);
-    let _ = fs::write(pid_path, std::process::id().to_string());
+    drop(fs::write(pid_path, std::process::id().to_string()));
     write_fd4_envelope(b"pid-ready");
     std::process::exit(exit_code);
 }
@@ -191,15 +191,15 @@ fn command_grandchild_hold(args: &[String]) {
         .get(2)
         .and_then(|value| value.parse::<u64>().ok())
         .unwrap_or(1000);
-    let _ = set_cloexec(3);
-    let _ = set_cloexec(4);
+    drop(set_cloexec(3));
+    drop(set_cloexec(4));
     let current = env::current_exe().unwrap();
-    let _ = Command::new(current)
+    drop(Command::new(current)
         .args(["hold-open", &sleep_ms.to_string()])
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
-        .spawn();
+        .spawn());
     write_fd4_envelope(b"child-done");
 }
 
@@ -215,14 +215,14 @@ fn command_hold_open(args: &[String]) {
 }
 
 fn command_close_fd3() {
-    let _ = close_fd3();
+    drop(close_fd3());
     write_fd4_envelope(b"closed-fd3");
 }
 
 fn read_fd3_all() -> Vec<u8> {
     let mut file = fd3_file();
     let mut bytes = Vec::new();
-    let _ = file.read_to_end(&mut bytes);
+    drop(file.read_to_end(&mut bytes));
     bytes
 }
 
@@ -231,9 +231,9 @@ fn write_fd4_envelope(payload: &[u8]) {
     let length = u32::try_from(payload.len())
         .unwrap_or(u32::MAX)
         .to_be_bytes();
-    let _ = file.write_all(&length);
-    let _ = file.write_all(payload);
-    let _ = file.flush();
+    drop(file.write_all(&length));
+    drop(file.write_all(payload));
+    drop(file.flush());
 }
 
 fn install_handler(signal: i32, handler: extern "C" fn(i32)) {
@@ -271,5 +271,5 @@ fn fd4_file() -> File {
 
 #[allow(dead_code)]
 fn _write_marker(path: &Path, value: &str) {
-    let _ = fs::write(path, value);
+    drop(fs::write(path, value));
 }
