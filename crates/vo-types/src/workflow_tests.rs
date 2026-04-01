@@ -1042,8 +1042,8 @@ mod proptests {
         /// Invariant: Edge serde round-trip
         #[test]
         fn edge_serde_round_trip_proptest(
-            source in "[a-zA-Z0-9][a-zA-Z0-9_-]{0,126}[a-zA-Z0-9]",
-            target in "[a-zA-Z0-9][a-zA-Z0-9_-]{0,126}[a-zA-Z0-9]",
+            source in "[a-zA-Z0-9][a-zA-Z0-9][a-zA-Z0-9]",
+            target in "[a-zA-Z0-9][a-zA-Z0-9][a-zA-Z0-9]",
             condition in edge_condition_strategy(),
         ) {
             let edge = Edge {

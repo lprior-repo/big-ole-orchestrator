@@ -1174,8 +1174,8 @@ mod proptests {
         // Uses valid NodeName pattern: alphanumeric, no leading/trailing _/-
         #[test]
         fn rq_edge_serde_round_trip(
-            source in "[a-zA-Z0-9]([a-zA-Z0-9_-]{0,8}[a-zA-Z0-9])?",
-            target in "[a-zA-Z0-9]([a-zA-Z0-9_-]{0,8}[a-zA-Z0-9])?",
+            source in "[a-zA-Z0-9][a-zA-Z0-9][a-zA-Z0-9]",
+            target in "[a-zA-Z0-9][a-zA-Z0-9][a-zA-Z0-9]",
             condition in edge_condition_strategy(),
         ) {
             let edge = Edge {

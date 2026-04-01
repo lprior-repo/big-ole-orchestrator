@@ -205,6 +205,16 @@ impl NodeName {
                 actual: char_count,
             });
         }
+        if input.contains("--") {
+            return Err(ParseError::ConsecutiveHyphens {
+                type_name: TYPE_NAME,
+            });
+        }
+        if input.contains("__") || input.contains("-_") || input.contains("_-") {
+            return Err(ParseError::ConsecutiveSeparators {
+                type_name: TYPE_NAME,
+            });
+        }
         check_identifier_boundaries(input, TYPE_NAME)?;
         Ok(Self(input.to_string()))
     }

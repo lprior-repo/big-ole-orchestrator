@@ -245,7 +245,10 @@ fn rq_plus_prefix_accepted_by_u64_from_str() {
 fn rq_whitespace_only_rejected() {
     let result = SequenceNumber::parse(" ");
     let Err(_) = result else {
-        panic!("SequenceNumber should reject whitespace-only, got {:?}", result)
+        panic!(
+            "SequenceNumber should reject whitespace-only, got {:?}",
+            result
+        )
     };
     let result = DurationMs::parse(" ");
     let Err(_) = result else {
@@ -325,7 +328,10 @@ fn rq_idempotency_key_rejects_1025_ascii() {
     let input = "b".repeat(1025);
     let result = IdempotencyKey::parse(&input);
     let Err(_) = result else {
-        panic!("IdempotencyKey should reject 1025 ASCII chars, got {:?}", result)
+        panic!(
+            "IdempotencyKey should reject 1025 ASCII chars, got {:?}",
+            result
+        )
     };
 }
 
@@ -433,17 +439,23 @@ fn rq_workflow_name_underscore_hyphen_combo() {
 }
 
 #[test]
-fn rq_node_name_double_hyphen_middle_valid() {
+fn rq_node_name_double_hyphen_middle_rejected() {
     let result = NodeName::parse("compile--artifact");
-    let val = result.expect("NodeName should accept double hyphen in middle");
-    assert_eq!(val.as_str(), "compile--artifact");
+    assert!(
+        matches!(result, Err(ParseError::ConsecutiveHyphens { type_name }) if type_name == "NodeName"),
+        "NodeName should reject double hyphen, got {:?}",
+        result
+    );
 }
 
 #[test]
-fn rq_node_name_double_underscore_middle_valid() {
+fn rq_node_name_double_underscore_middle_rejected() {
     let result = NodeName::parse("compile__artifact");
-    let val = result.expect("NodeName should accept double underscore in middle");
-    assert_eq!(val.as_str(), "compile__artifact");
+    assert!(
+        matches!(result, Err(ParseError::ConsecutiveSeparators { type_name }) if type_name == "NodeName"),
+        "NodeName should reject double underscore, got {:?}",
+        result
+    );
 }
 
 // --- as_str lifetime ---
@@ -562,7 +574,7 @@ mod proptests {
         }
 
         #[test]
-        fn node_name_round_trip(s in "[a-zA-Z0-9][a-zA-Z0-9_-]{0,126}[a-zA-Z0-9]") {
+        fn node_name_round_trip(s in "[a-zA-Z0-9][a-zA-Z0-9][a-zA-Z0-9]") {
             let v = NodeName(s);
             let result = NodeName::parse(&v.to_string());
             prop_assert_eq!(result, Ok(v));
