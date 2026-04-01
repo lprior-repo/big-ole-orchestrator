@@ -15,8 +15,6 @@ pub enum ConfigError {
 pub enum IpcError {
     #[error(transparent)]
     Config(#[from] ConfigError),
-    #[error("vo-ipc requires unix process support")]
-    UnsupportedPlatform,
     #[error("failed to create subprocess pipes: {detail}")]
     PipeSetupFailed { detail: String },
     #[error("failed to spawn subprocess: {detail}")]

@@ -33,6 +33,7 @@ fn main() {
         "read-env" => command_read_env(),
         "read-argv" => command_read_argv(&args),
         "sleep-exit" => command_sleep_exit(&args),
+        "stderr-sleep-exit" => command_stderr_sleep_exit(&args),
         "timeout-term-exit" => command_timeout_term_exit(&args),
         "timeout-ignore" => command_timeout_ignore(&args),
         "pid-and-exit" => command_pid_and_exit(&args),
@@ -64,6 +65,22 @@ fn command_stderr_text(args: &[String]) {
         .and_then(|value| value.parse::<i32>().ok())
         .unwrap_or(0);
     drop(std::io::stderr().write_all(text.as_bytes()));
+    std::process::exit(exit_code);
+}
+
+fn command_stderr_sleep_exit(args: &[String]) {
+    let text = args.get(2).map_or("", String::as_str);
+    let delay_ms = args
+        .get(3)
+        .and_then(|value| value.parse::<u64>().ok())
+        .unwrap_or(0);
+    let exit_code = args
+        .get(4)
+        .and_then(|value| value.parse::<i32>().ok())
+        .unwrap_or(0);
+    let _ = std::io::stderr().write_all(text.as_bytes());
+    std::io::stderr().flush().unwrap();
+    std::thread::sleep(Duration::from_millis(delay_ms));
     std::process::exit(exit_code);
 }
 
@@ -209,7 +226,10 @@ fn command_hold_open(args: &[String]) {
         .and_then(|value| value.parse::<u64>().ok())
         .unwrap_or(1000);
     let deadline = Instant::now() + Duration::from_millis(sleep_ms);
-    while Instant::now() < deadline {
+    for _ in 0..10000 { // NASA/JPL Rule 2: Explicit iteration ceiling
+        if Instant::now() >= deadline {
+            break;
+        }
         std::thread::sleep(Duration::from_millis(10));
     }
 }

@@ -9,12 +9,6 @@ fn ipc_error_config_display() {
 }
 
 #[test]
-fn ipc_error_unsupported_platform_display() {
-    let err = IpcError::UnsupportedPlatform;
-    assert_eq!(format!("{}", err), "vo-ipc requires unix process support");
-}
-
-#[test]
 fn ipc_error_pipe_setup_failed_display() {
     let err = IpcError::PipeSetupFailed { detail: "oops".to_string() };
     assert_eq!(format!("{}", err), "failed to create subprocess pipes: oops");

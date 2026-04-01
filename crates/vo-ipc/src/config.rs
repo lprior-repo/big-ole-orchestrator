@@ -1,6 +1,5 @@
 use crate::error::ConfigError;
 use std::ffi::OsString;
-use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
@@ -12,31 +11,32 @@ pub struct SubprocessConfig {
 }
 
 impl SubprocessConfig {
-    /// Creates a validated subprocess configuration.
+    /// Creates a new `SubprocessConfig`.
     ///
     /// # Errors
-    /// Returns [`ConfigError`] when the timeout is zero, the program path is missing,
-    /// or the target path is not executable.
+    ///
+    /// Returns `ConfigError` if:
+    /// - `timeout_ms` is zero
+    /// - Program path does not exist
+    /// - Program path is not a file
+    /// - Program path is not executable
     pub fn new<P, B>(path: P, timeout_ms: u64, fd3_payload: B) -> Result<Self, ConfigError>
     where
         P: AsRef<Path>,
         B: Into<Vec<u8>>,
     {
-        let payload = fd3_payload.into();
-        let provided_path = path.as_ref().to_path_buf();
-
+        let p = path.as_ref();
         validate_timeout(timeout_ms)?;
-        validate_program_path(&provided_path)?;
+        validate_program_path(p)?;
 
-        let executable_path =
-            fs::canonicalize(&provided_path).map_err(|_| ConfigError::ProgramMissing {
-                path: provided_path.clone(),
-            })?;
+        let canonical_path = p
+            .canonicalize()
+            .map_err(|_| ConfigError::ProgramMissing { path: p.to_path_buf() })?;
 
         Ok(Self {
-            executable_path,
+            executable_path: canonical_path,
             timeout_ms,
-            fd3_payload: payload,
+            fd3_payload: fd3_payload.into(),
         })
     }
 
@@ -61,34 +61,38 @@ impl SubprocessConfig {
     }
 }
 
-pub(crate) fn validate_timeout(timeout_ms: u64) -> Result<(), ConfigError> {
-    (timeout_ms > 0)
-        .then_some(())
-        .ok_or(ConfigError::TimeoutMustBePositive { timeout_ms })
+pub(crate) const fn validate_timeout(timeout_ms: u64) -> Result<(), ConfigError> {
+    if timeout_ms == 0 {
+        return Err(ConfigError::TimeoutMustBePositive { timeout_ms });
+    }
+    Ok(())
 }
 
 pub(crate) fn validate_program_path(path: &Path) -> Result<(), ConfigError> {
-    let metadata = fs::metadata(path).map_err(|_| ConfigError::ProgramMissing {
-        path: path.to_path_buf(),
-    })?;
+    if !path.exists() {
+        return Err(ConfigError::ProgramMissing { path: path.to_path_buf() });
+    }
 
-    let is_executable = metadata.permissions().mode() & 0o111 != 0;
+    let metadata = path
+        .metadata()
+        .map_err(|_| ConfigError::ProgramMissing { path: path.to_path_buf() })?;
 
-    is_executable
-        .then_some(())
-        .ok_or_else(|| ConfigError::ProgramNotExecutable {
-            path: path.to_path_buf(),
-        })
+    if !metadata.is_file() {
+        return Err(ConfigError::ProgramMissing { path: path.to_path_buf() });
+    }
+
+    let permissions = metadata.permissions();
+    if permissions.mode() & 0o111 == 0 {
+        return Err(ConfigError::ProgramNotExecutable { path: path.to_path_buf() });
+    }
+
+    Ok(())
 }
 
 #[must_use]
 pub(crate) fn parse_fd3_payload_as_argv(payload: &[u8]) -> Vec<OsString> {
-    std::str::from_utf8(payload).map_or_else(
-        |_| Vec::new(),
-        |text| {
-            text.split_whitespace()
-                .map(OsString::from)
-                .collect::<Vec<_>>()
-        },
-    )
+    String::from_utf8_lossy(payload)
+        .split_whitespace()
+        .map(OsString::from)
+        .collect()
 }
