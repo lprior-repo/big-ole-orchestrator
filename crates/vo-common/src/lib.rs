@@ -1,4 +1,8 @@
-// Stub file
+//! Common utilities and types for vo-engine.
+//!
+//! Shared functionality used across multiple crates including
+//! type aliases and common event definitions.
+
 pub type InstanceId = String;
 pub type NamespaceId = String;
 pub type TimerId = String;

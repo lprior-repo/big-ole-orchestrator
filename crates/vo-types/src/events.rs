@@ -87,9 +87,10 @@ impl EventEnvelope {
 
         let obj = value.as_object().ok_or(Error::InvalidEnvelopeFormat)?;
 
-        #[allow(clippy::cast_possible_truncation)]
-        // version validated <= MAX_SUPPORTED_VERSION (u8)
-        let version = envelope_u64(obj, "version")? as u8;
+        let version_u64 = envelope_u64(obj, "version")?;
+        let version = u8::try_from(version_u64).map_err(|_| {
+            Error::InvalidEnvelopeField("version exceeds maximum supported value".to_string())
+        })?;
         let instance_id = envelope_string(obj, "instance_id")?;
         let sequence = envelope_u64(obj, "sequence")?;
         let timestamp_ms = envelope_u64(obj, "timestamp_ms")?;
@@ -211,9 +212,10 @@ impl EventPayload {
             .ok_or(Error::InvalidPayloadFormat)?;
 
         let payload_type = require_string(obj, "type")?;
-        #[allow(clippy::cast_possible_truncation)]
-        // version validated <= MAX_SUPPORTED_VERSION (u8)
-        let payload_version = optional_u64(obj, "version", 0) as u8;
+        let payload_version_u64 = optional_u64(obj, "version", 0);
+        let payload_version = u8::try_from(payload_version_u64).map_err(|_| {
+            Error::InvalidPayloadField("version exceeds maximum supported value".to_string())
+        })?;
         if payload_version > MAX_SUPPORTED_VERSION {
             return Err(Error::UnsupportedPayloadVersion(payload_version));
         }

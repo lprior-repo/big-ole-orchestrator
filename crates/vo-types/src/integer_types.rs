@@ -233,12 +233,12 @@ impl TimestampMs {
         SystemTime::UNIX_EPOCH + Duration::from_millis(self.0)
     }
     #[must_use]
-    #[allow(clippy::cast_possible_truncation)] // millis since epoch fits in u64 until year 584M
     pub fn now() -> Self {
+        let millis = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .map_or(0, |d| d.as_millis());
         Self(
-            SystemTime::now()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .map_or(0, |d| d.as_millis() as u64),
+            u64::try_from(millis).expect("timestamp milliseconds exceed u64::MAX before year 584M"),
         )
     }
 }

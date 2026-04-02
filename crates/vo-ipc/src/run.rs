@@ -1,7 +1,7 @@
 use crate::config::SubprocessConfig;
 use crate::envelope;
 use crate::error::IpcError;
-use crate::stderr::read_bounded_stderr;
+use crate::stderr::{read_bounded_stderr, StderrCapture};
 use std::os::fd::{FromRawFd, RawFd};
 use std::os::unix::process::ExitStatusExt;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -89,7 +89,10 @@ pub async fn run_subprocess(config: SubprocessConfig) -> Result<SubprocessOutput
         let stderr_res = stderr_task.await.map_err(|e| IpcError::StderrReadFailed {
             detail: e.to_string(),
         })?;
-        let capture = stderr_res.unwrap_or_default();
+        let capture = stderr_res.unwrap_or_else(|e| {
+            tracing::warn!(error = %e, "failed to capture stderr during timeout");
+            StderrCapture::empty()
+        });
 
         return Err(IpcError::Timeout {
             elapsed_ms: timeout_ms,
@@ -101,7 +104,10 @@ pub async fn run_subprocess(config: SubprocessConfig) -> Result<SubprocessOutput
     let stderr_res = stderr_task.await.map_err(|e| IpcError::StderrReadFailed {
         detail: e.to_string(),
     })?;
-    let capture = stderr_res.unwrap_or_default();
+    let capture = stderr_res.unwrap_or_else(|e| {
+        tracing::warn!(error = %e, "failed to capture stderr after process exit");
+        StderrCapture::empty()
+    });
 
     match res {
         Ok(mut output) => {
