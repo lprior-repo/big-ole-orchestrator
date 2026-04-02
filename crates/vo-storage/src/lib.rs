@@ -13,6 +13,7 @@ pub mod instance_index;
 pub mod partitions;
 pub mod purge;
 pub mod query;
+pub mod snapshots;
 pub mod status_store;
 pub mod timer_index;
 

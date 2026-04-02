@@ -64,6 +64,11 @@ impl AttemptNumber {
 // Lifecycle State Machine
 // ============================================================================
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub struct InstanceState {
+    pub counter: u64,
+}
+
 /// Lifecycle state of a bead in the workflow
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum LifecycleState {

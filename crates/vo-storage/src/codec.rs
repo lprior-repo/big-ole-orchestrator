@@ -15,6 +15,10 @@ pub enum StorageError {
     UnsupportedVersion,
     Storage,
     InvalidArgument,
+    SerializationFailed,
+    DeserializationFailed,
+    FjallError,
+    InvalidKey,
 }
 
 impl fmt::Display for StorageError {
@@ -31,6 +35,10 @@ impl fmt::Display for StorageError {
             Self::UnsupportedVersion => write!(f, "unsupported version"),
             Self::Storage => write!(f, "storage error"),
             Self::InvalidArgument => write!(f, "invalid argument"),
+            Self::SerializationFailed => write!(f, "serialization failed"),
+            Self::DeserializationFailed => write!(f, "deserialization failed"),
+            Self::FjallError => write!(f, "fjall error"),
+            Self::InvalidKey => write!(f, "invalid key"),
         }
     }
 }
