@@ -14,6 +14,7 @@
 //!   - proptest-property-attacks: fuzz RetryPolicy, next_nodes, parse
 
 use crate::*;
+#[cfg(feature = "proptest")]
 use proptest::prelude::*;
 use rstest::rstest;
 use std::collections::HashSet;
@@ -53,10 +54,12 @@ fn make_def(
     }
 }
 
+#[cfg(feature = "proptest")]
 fn step_outcome_strategy() -> impl Strategy<Value = StepOutcome> {
     proptest::prop_oneof![Just(StepOutcome::Success), Just(StepOutcome::Failure),]
 }
 
+#[cfg(feature = "proptest")]
 fn edge_condition_strategy() -> impl Strategy<Value = EdgeCondition> {
     proptest::prop_oneof![
         Just(EdgeCondition::Always),
@@ -1088,6 +1091,7 @@ fn rq_retry_policy_partial_eq_with_nan() {
 // DIMENSION: proptest-property-attacks
 // ===========================================================================
 
+#[cfg(feature = "proptest")]
 mod proptests {
     use super::*;
 

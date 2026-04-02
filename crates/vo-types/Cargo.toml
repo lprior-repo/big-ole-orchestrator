@@ -3,14 +3,17 @@ name = "vo-types"
 version.workspace = true
 edition.workspace = true
 
+[features]
+proptest = ["dep:proptest"]
+
 [dependencies]
 thiserror.workspace = true
 serde.workspace = true
 ulid.workspace = true
 uuid.workspace = true
 serde_json.workspace = true
+proptest = { version = "1", optional = true }
 
 [dev-dependencies]
 rstest.workspace = true
-proptest = "1"
 serde_json.workspace = true

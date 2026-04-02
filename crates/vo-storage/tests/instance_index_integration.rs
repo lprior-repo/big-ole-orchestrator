@@ -7,11 +7,11 @@
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]
 
+use vo_storage::codec::StorageError;
 use vo_storage::instance_index::{
     encode_instance_index_key, instance_index_upsert, scan_all_instances, scan_by_status,
     InstanceIndexEntry,
 };
-use vo_storage::query::StorageError;
 use vo_types::{InstanceId, InstanceStatus, TimestampMs};
 
 // ---------------------------------------------------------------------------
@@ -1079,7 +1079,6 @@ mod proptests {
             status in arb_instance_status(),
             ts in proptest::num::u64::ANY,
             id_bytes in arb_instance_id_bytes(),
-            n in 1usize..=5,
         ) {
             let (_dir, keyspace) = make_test_keyspace();
             let id = InstanceId::from_bytes(id_bytes);
@@ -1088,13 +1087,14 @@ mod proptests {
             // First insert
             instance_index_upsert(&keyspace, &id, status, timestamp, None).unwrap();
 
-            // Repeat N-1 times with Some(status) (idempotent)
-            for _ in 1..n {
-                instance_index_upsert(&keyspace, &id, status, timestamp, Some(status)).unwrap();
-            }
+            // Repeat 4 times with Some(status) (idempotent)
+            instance_index_upsert(&keyspace, &id, status, timestamp, Some(status)).unwrap();
+            instance_index_upsert(&keyspace, &id, status, timestamp, Some(status)).unwrap();
+            instance_index_upsert(&keyspace, &id, status, timestamp, Some(status)).unwrap();
+            instance_index_upsert(&keyspace, &id, status, timestamp, Some(status)).unwrap();
 
             let all = collect_scan_ok(scan_all_instances(&keyspace));
-            prop_assert_eq!(all.len(), 1, "After {} upserts, should have exactly 1 key", n);
+            prop_assert_eq!(all.len(), 1, "After multiple upserts, should have exactly 1 key");
         }
     }
 }

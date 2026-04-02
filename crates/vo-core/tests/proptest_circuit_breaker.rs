@@ -1,3 +1,4 @@
+#![allow(clippy::needless_for_each)]
 //! Property-based integration tests for the circuit breaker.
 //!
 //! PROP-01: INV-001 — Threshold always triggers quarantine
@@ -55,11 +56,11 @@ proptest! {
 
         // Record exactly `threshold` unique hashes
         let mut last_result = None;
-        for i in 0..usize::from(threshold) {
+        (0..usize::from(threshold)).for_each(|i| {
             let hash = hash_from_idx(i);
             let result = record_failure(&wf, &hash, &config, &state, now);
             last_result = Some(result);
-        }
+        });
 
         // The last record_failure call should have returned a QuarantineEvent
         let last = last_result.expect("should have at least one result");
@@ -89,14 +90,12 @@ proptest! {
         let wf = make_wf("prop-wf-01a");
 
         // Record threshold-1 unique hashes
-        for i in 0..usize::from(threshold - 1) {
+        let all_ok = (0..usize::from(threshold - 1)).into_iter().all(|i| {
             let hash = hash_from_idx(i);
             let result = record_failure(&wf, &hash, &config, &state, now);
-            prop_assert!(
-                matches!(result, Ok(None)),
-                "Expected Ok(None) for failure {i} but got {result:?}"
-            );
-        }
+            matches!(result, Ok(None))
+        });
+        prop_assert!(all_ok, "Expected Ok(None) for all threshold-1 unique hashes");
 
         // Status should remain Active
         let status = state
@@ -200,7 +199,7 @@ proptest! {
         let actual_ops = num_ops.min(op_types.len()).min(time_advances.len());
         let mut current_time = t0;
 
-        for i in 0..actual_ops {
+        (0..actual_ops).into_iter().try_for_each(|i| -> Result<(), proptest::test_runner::TestCaseError> {
             current_time += Duration::from_secs(time_advances[i]);
 
             match op_types[i] % 3 {
@@ -243,7 +242,8 @@ proptest! {
                 "Quarantine should be monotonic, but status changed after op {}",
                 i
             );
-        }
+            Ok(())
+        })?;
     }
 }
 
@@ -263,15 +263,11 @@ proptest! {
         state.rate_limiter.insert(wf.clone(), t0);
 
         // Pre-load failures — assert each setup call succeeds
-        for i in 0..initial_failures {
+        let setup_ok = (0..initial_failures).into_iter().all(|i| {
             let hash = hash_from_idx(i);
-            let setup_result = record_failure(&wf, &hash, &config, &state, t0);
-            prop_assert_eq!(
-                setup_result,
-                Ok(None),
-                "Setup record_failure should succeed with Ok(None)"
-            );
-        }
+            record_failure(&wf, &hash, &config, &state, t0) == Ok(None)
+        });
+        prop_assert!(setup_ok, "Setup record_failure should succeed with Ok(None)");
 
         // Get failure count before rate-limited attempt
         let count_before = state

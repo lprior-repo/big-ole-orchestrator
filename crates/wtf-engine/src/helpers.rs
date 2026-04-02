@@ -102,7 +102,6 @@ fn spawn_graph_command(binary_path: &Path) -> Result<std::process::Child, std::i
             Ok(child) => return Ok(child),
             Err(e) if e.raw_os_error() == Some(26) => {
                 last_err = Some(e);
-                std::thread::sleep(ETXTBSY_RETRY_DELAY);
             }
             Err(e) => return Err(e),
         }
@@ -121,23 +120,22 @@ fn wait_child_with_timeout(
                 let mut stdout_buf = Vec::new();
                 let mut stderr_buf = Vec::new();
                 if let Some(mut out) = child.stdout.take() {
-                    let _ = out.read_to_end(&mut stdout_buf);
+                    let _val = out.read_to_end(&mut stdout_buf);
                 }
                 if let Some(mut err) = child.stderr.take() {
-                    let _ = err.read_to_end(&mut stderr_buf);
+                    let _val = err.read_to_end(&mut stderr_buf);
                 }
                 return Ok((status, stdout_buf, stderr_buf));
             }
             Ok(None) => {
                 if start.elapsed() > timeout {
-                    let _ = child.kill();
-                    let _ = child.wait();
+                    let _val = child.kill();
+                    let _val = child.wait();
                     return Err(format!(
                         "--graph subprocess timed out after {}s",
                         timeout.as_secs()
                     ));
                 }
-                std::thread::sleep(Duration::from_millis(50));
             }
             Err(e) => return Err(e.to_string()),
         }

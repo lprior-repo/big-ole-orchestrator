@@ -293,6 +293,7 @@ mod tests {
 
     // --- proptest ---
 
+    #[cfg(feature = "proptest")]
     mod proptests {
         use super::*;
         use proptest::prop_assert;

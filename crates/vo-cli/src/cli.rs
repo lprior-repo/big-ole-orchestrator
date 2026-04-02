@@ -128,9 +128,30 @@ pub fn map_error_to_exit_code(err: &CliError) -> i32 {
             | clap::error::ErrorKind::DisplayVersion => 0,
             _ => 2,
         },
-        CliError::Dispatch(_) => 1,
+        CliError::Dispatch(_) | CliError::Check(_) | CliError::Gc(_) => 1,
         CliError::InvalidNumeric(_) | CliError::InvalidNatsUrl(_) => 2,
-        CliError::Check(_) => 1,
-        CliError::Gc(_) => 1,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::ffi::OsString;
+
+    #[test]
+    fn cli_purges_matches_when_purge_subcommand_provided() {
+        let args: Vec<OsString> = vec![
+            "vo".into(),
+            "purge".into(),
+            "--instance".into(),
+            "123".into(),
+        ];
+        let cli = interpret_cli_from(args).unwrap();
+        assert_eq!(
+            cli.command,
+            Command::Purge {
+                instance: "123".to_string()
+            }
+        );
     }
 }

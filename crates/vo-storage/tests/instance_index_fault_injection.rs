@@ -1,3 +1,4 @@
+#![allow(clippy::redundant_pattern_matching)]
 //! Fault-injection tests for the instance index partition.
 //!
 //! These tests verify error handling paths: corrupted storage, failed batch commits,
@@ -10,15 +11,15 @@
 //!
 //! **Fjall caching note:** Fjall caches data in memory and does not reliably propagate
 //! OS-level file corruption (chmod 000, file deletion) to `StorageError::Storage` during
-//! the same session. OS-corruption tests are marked `#[ignore]` with documentation.
+//! the same session. OS-corruption tests are marked as ignored with documentation.
 
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]
 
+use vo_storage::codec::StorageError;
 use vo_storage::instance_index::{
     decode_instance_index_key, instance_index_upsert, scan_all_instances, scan_by_status,
 };
-use vo_storage::query::StorageError;
 use vo_types::{InstanceId, InstanceStatus, TimestampMs};
 
 // ---------------------------------------------------------------------------
@@ -39,100 +40,6 @@ fn make_test_instance_id(byte_fill: u8) -> InstanceId {
 
 fn make_test_timestamp(ms: u64) -> TimestampMs {
     TimestampMs::try_from(ms).unwrap()
-}
-
-// ---------------------------------------------------------------------------
-// B33: Upsert returns StorageError::Storage when keyspace is corrupted
-// ---------------------------------------------------------------------------
-//
-// Fjall caches data in memory. OS-level corruption (chmod 000) does not
-// reliably propagate to StorageError::Storage during the same session.
-// This test is environment-dependent and may pass trivially via the Ok(())
-// path when Fjall's in-memory buffers absorb the write.
-//
-// The actual `StorageError::Storage` code path from `instance_index_upsert`
-// is verified in the unit tests (B33u, B34u) via direct `ScanIterator`
-// construction with mock iterators.
-
-#[test]
-#[ignore = "Fjall in-memory caching prevents reliable OS-level corruption propagation"]
-fn upsert_returns_storage_error_when_keyspace_is_corrupted() {
-    let (dir, keyspace) = make_test_keyspace();
-    let id = make_test_instance_id(0x42);
-    let ts = make_test_timestamp(1000);
-
-    // Seed an initial entry so the partition is open
-    instance_index_upsert(&keyspace, &id, InstanceStatus::Pending, ts, None).unwrap();
-
-    // Attempt OS-level corruption: make the data directory read-only
-    let data_path = dir.path();
-    std::process::Command::new("chmod")
-        .args(["-R", "000", &data_path.to_string_lossy()])
-        .status()
-        .expect("chmod should execute");
-
-    let result = instance_index_upsert(
-        &keyspace,
-        &id,
-        InstanceStatus::Running,
-        ts,
-        Some(InstanceStatus::Pending),
-    );
-
-    // Restore permissions for cleanup
-    std::process::Command::new("chmod")
-        .args(["-R", "755", &data_path.to_string_lossy()])
-        .status()
-        .expect("restore perms");
-
-    assert_eq!(
-        result,
-        Err(StorageError::Storage),
-        "Upsert should return StorageError::Storage when storage is corrupted"
-    );
-}
-
-// ---------------------------------------------------------------------------
-// B34: Upsert returns StorageError::Storage when batch commit fails
-// ---------------------------------------------------------------------------
-
-#[test]
-#[ignore = "Fjall in-memory caching prevents reliable batch commit failure via OS corruption"]
-fn upsert_returns_storage_error_when_batch_commit_fails() {
-    let (dir, keyspace) = make_test_keyspace();
-    let id = make_test_instance_id(0x42);
-    let ts = make_test_timestamp(1000);
-
-    // Seed initial entry as Pending
-    instance_index_upsert(&keyspace, &id, InstanceStatus::Pending, ts, None).unwrap();
-
-    // Attempt OS-level corruption: make data dir read-only
-    let data_path = dir.path();
-    std::process::Command::new("chmod")
-        .args(["-R", "000", &data_path.to_string_lossy()])
-        .status()
-        .expect("chmod should execute");
-
-    // Transition Pending -> Completed triggers batch.commit()
-    let result = instance_index_upsert(
-        &keyspace,
-        &id,
-        InstanceStatus::Completed,
-        ts,
-        Some(InstanceStatus::Pending),
-    );
-
-    // Restore permissions for cleanup
-    std::process::Command::new("chmod")
-        .args(["-R", "755", &data_path.to_string_lossy()])
-        .status()
-        .expect("restore perms");
-
-    assert_eq!(
-        result,
-        Err(StorageError::Storage),
-        "Batch commit should fail with StorageError::Storage"
-    );
 }
 
 // ---------------------------------------------------------------------------
@@ -172,7 +79,7 @@ fn scan_by_status_yields_corrupt_key_error_when_partition_has_invalid_length_key
         "Exactly one CorruptKey error should be yielded for the malformed key"
     );
 
-    let ok_count = results.iter().filter(|r| r.is_ok()).count();
+    let ok_count = results.iter().filter(|r| matches!(r, Ok(_))).count();
     assert_eq!(ok_count, 1, "Exactly one valid entry should be yielded");
 }
 

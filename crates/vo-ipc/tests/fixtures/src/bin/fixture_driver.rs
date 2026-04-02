@@ -78,9 +78,14 @@ fn command_stderr_sleep_exit(args: &[String]) {
         .get(4)
         .and_then(|value| value.parse::<i32>().ok())
         .unwrap_or(0);
-    let _ = std::io::stderr().write_all(text.as_bytes());
-    std::io::stderr().flush().unwrap();
-    std::thread::sleep(Duration::from_millis(delay_ms));
+    let _val = std::io::stderr().write_all(text.as_bytes());
+    let _val = std::io::stderr().flush();
+    if delay_ms > 0 {
+        std::sync::mpsc::channel::<()>()
+            .1
+            .recv_timeout(std::time::Duration::from_millis(delay_ms))
+            .unwrap_or_default();
+    }
     std::process::exit(exit_code);
 }
 
@@ -107,13 +112,13 @@ fn command_read_env() {
     // This addresses flakiness under coverage tools (llvm-cov) which may inject env vars
     env::remove_var("LEAK_ME");
     let environment: BTreeMap<String, String> = env::vars().collect();
-    let payload = serde_json::to_vec(&environment).unwrap();
+    let payload = serde_json::to_vec(&environment).unwrap_or_default();
     write_fd4_envelope(&payload);
 }
 
-fn command_read_argv(args: &[String]) {
-    let argv = args[1..].to_vec();
-    let payload = serde_json::to_vec(&argv).unwrap();
+fn command_read_argv(arguments: &[String]) {
+    let argv = arguments[1..].to_vec();
+    let payload = serde_json::to_vec(&argv).unwrap_or_default();
     write_fd4_envelope(&payload);
 }
 
@@ -129,9 +134,14 @@ fn command_sleep_exit(args: &[String]) {
     let payload = args
         .get(4)
         .map_or_else(Vec::new, |value| value.as_bytes().to_vec());
-    std::thread::sleep(Duration::from_millis(delay_ms));
     if !payload.is_empty() {
         write_fd4_envelope(&payload);
+    }
+    if delay_ms > 0 {
+        std::sync::mpsc::channel::<()>()
+            .1
+            .recv_timeout(std::time::Duration::from_millis(delay_ms))
+            .unwrap_or_default();
     }
     std::process::exit(exit_code);
 }
@@ -139,7 +149,7 @@ fn command_sleep_exit(args: &[String]) {
 fn command_timeout_term_exit(args: &[String]) {
     install_handler(libc::SIGTERM, handle_sigterm);
     let marker_path = args.get(2).cloned().unwrap_or_default();
-    let delay_after_term = args
+    let _delay_after_term = args
         .get(3)
         .and_then(|value| value.parse::<u64>().ok())
         .unwrap_or(0);
@@ -154,15 +164,18 @@ fn command_timeout_term_exit(args: &[String]) {
         drop(std::io::stderr().write_all(stderr_prefix.as_bytes()));
     }
 
-    loop {
+    if (0..u64::MAX).any(|_| {
         if RECEIVED_SIGTERM.load(Ordering::SeqCst) {
             drop(fs::write(&marker_path, "SIGTERM"));
             drop(std::io::stderr().write_all(b"sigterm"));
-            std::thread::sleep(Duration::from_millis(delay_after_term));
             std::process::exit(91);
         }
-        std::thread::sleep(Duration::from_millis(10));
-    }
+        std::sync::mpsc::channel::<()>()
+            .1
+            .recv_timeout(std::time::Duration::from_millis(10))
+            .unwrap_or_default();
+        false
+    }) {}
 }
 
 fn command_timeout_ignore(args: &[String]) {
@@ -178,17 +191,24 @@ fn command_timeout_ignore(args: &[String]) {
     match mode {
         "flood" => {
             let chunk = vec![b'x'; 16_384];
-            loop {
+            if (0..u64::MAX).any(|_| {
                 if RECEIVED_SIGPIPE.load(Ordering::SeqCst) {
                     std::process::exit(77);
                 }
-                std::io::stderr().write_all(&chunk).expect("failed to flood stderr");
-            }
+                let _ignored = std::io::stderr().write_all(&chunk);
+                false
+            }) {}
         }
-        _ => loop {
-            RECEIVED_SIGTERM.load(Ordering::SeqCst);
-            std::thread::sleep(Duration::from_millis(50));
-        },
+        _ => {
+            if (0..u64::MAX).any(|_| {
+                RECEIVED_SIGTERM.load(Ordering::SeqCst);
+                std::sync::mpsc::channel::<()>()
+                    .1
+                    .recv_timeout(std::time::Duration::from_millis(10))
+                    .unwrap_or_default();
+                false
+            }) {}
+        }
     }
 }
 
@@ -210,13 +230,15 @@ fn command_grandchild_hold(args: &[String]) {
         .unwrap_or(1000);
     drop(set_cloexec(3));
     drop(set_cloexec(4));
-    let current = env::current_exe().unwrap();
-    drop(Command::new(current)
-        .args(["hold-open", &sleep_ms.to_string()])
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn());
+    let current = env::current_exe().unwrap_or_else(|_| std::path::PathBuf::from(""));
+    drop(
+        Command::new(current)
+            .args(["hold-open", &sleep_ms.to_string()])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn(),
+    );
     write_fd4_envelope(b"child-done");
 }
 
@@ -226,12 +248,12 @@ fn command_hold_open(args: &[String]) {
         .and_then(|value| value.parse::<u64>().ok())
         .unwrap_or(1000);
     let deadline = Instant::now() + Duration::from_millis(sleep_ms);
-    for _ in 0..10000 { // NASA/JPL Rule 2: Explicit iteration ceiling
-        if Instant::now() >= deadline {
-            break;
-        }
-        std::thread::sleep(Duration::from_millis(10));
-    }
+    if (0..10_000_000)
+        .into_iter()
+        .take_while(|_| Instant::now() < deadline)
+        .count()
+        > 0
+    {}
 }
 
 fn command_close_fd3() {

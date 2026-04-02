@@ -197,7 +197,6 @@ mod tests {
     #[test]
     fn decode_status_returns_error_for_invalid_json() {
         let result = decode_status(b"not-json");
-        assert!(result.is_err());
         match result {
             Err(StatusStoreError::CorruptValue { reason }) => {
                 assert!(!reason.is_empty());
@@ -209,20 +208,26 @@ mod tests {
     #[test]
     fn decode_status_returns_error_for_unknown_variant() {
         let result = decode_status(b"\"Unknown\"");
-        assert!(result.is_err());
+        match result {
+            Err(StatusStoreError::CorruptValue { reason }) => {
+                assert!(!reason.is_empty());
+            }
+            other => panic!("expected CorruptValue, got {other:?}"),
+        }
     }
 
     #[test]
+    #[allow(clippy::needless_for_each)]
     fn encode_then_decode_is_identity_for_all_variants() {
         let variants = [
             RegistrationStatus::Active,
             RegistrationStatus::Deactivated,
             RegistrationStatus::Quarantined,
         ];
-        for &status in &variants {
+        variants.into_iter().for_each(|status| {
             let bytes = encode_status(status).unwrap();
             let decoded = decode_status(&bytes).unwrap();
             assert_eq!(decoded, status);
-        }
+        });
     }
 }

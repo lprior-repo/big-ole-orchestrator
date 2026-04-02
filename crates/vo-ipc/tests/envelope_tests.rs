@@ -1,15 +1,15 @@
+use rstest::rstest;
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
-use serde::{Serialize, Deserialize};
 use std::io::Cursor;
 use vo_ipc::*;
-use rstest::rstest;
 
 #[test]
 fn fd3_envelope_roundtrip_is_idempotent() {
     // Given
     let mut secrets = BTreeMap::new();
     secrets.insert("api_key".to_string(), "supersecret".to_string());
-    
+
     let env = Fd3Envelope {
         version: 1,
         instance_id: "inst1".to_string(),
@@ -18,14 +18,14 @@ fn fd3_envelope_roundtrip_is_idempotent() {
         secrets,
         metadata: BTreeMap::new(),
     };
-    
+
     let mut buffer = Vec::new();
-    
+
     // When
     write_envelope(&mut buffer, &env).unwrap();
     let mut reader = Cursor::new(buffer);
     let decoded: Fd3Envelope = read_envelope(&mut reader).unwrap();
-    
+
     // Then
     assert_eq!(env, decoded);
 }
@@ -41,14 +41,14 @@ fn fd4_success_roundtrip_is_idempotent() {
             output: serde_json::json!({"result": 42}),
         },
     };
-    
+
     let mut buffer = Vec::new();
-    
+
     // When
     write_envelope(&mut buffer, &env).unwrap();
     let mut reader = Cursor::new(buffer);
     let decoded: Fd4Envelope = read_envelope(&mut reader).unwrap();
-    
+
     // Then
     assert_eq!(env, decoded);
 }
@@ -77,7 +77,7 @@ fn read_envelope_succeeds_at_exactly_limit() {
         secrets: BTreeMap::new(),
         metadata: BTreeMap::new(),
     };
-    
+
     // We want to construct an envelope that is exactly 'limit' bytes when serialized.
     // The base JSON size (without padding) is:
     let _base_json = serde_json::to_vec(&env).unwrap();
@@ -87,7 +87,7 @@ fn read_envelope_succeeds_at_exactly_limit() {
     let overhead = 85; // Approximate overhead for the envelope structure with IDs
     let padding_size = limit as usize - overhead;
     env.input = serde_json::json!("x".repeat(padding_size));
-    
+
     let mut json = serde_json::to_vec(&env).unwrap();
     // Adjust precisely
     if json.len() < limit as usize {
@@ -99,8 +99,12 @@ fn read_envelope_succeeds_at_exactly_limit() {
         env.input = serde_json::json!("x".repeat(padding_size - diff));
         json = serde_json::to_vec(&env).unwrap();
     }
-    
-    assert_eq!(json.len(), limit as usize, "Failed to construct exact limit JSON");
+
+    assert_eq!(
+        json.len(),
+        limit as usize,
+        "Failed to construct exact limit JSON"
+    );
 
     let mut buffer = (json.len() as u32).to_be_bytes().to_vec();
     buffer.extend(json);
@@ -128,15 +132,20 @@ fn read_envelope_validates_ids(#[case] invalid_id: &str, #[case] expected_msg: &
     let payload = serde_json::to_vec(&env_json).unwrap();
     let mut buffer = (payload.len() as u32).to_be_bytes().to_vec();
     buffer.extend(payload);
-    
+
     let mut reader = Cursor::new(buffer);
-    
+
     // When
     let result: Result<Fd3Envelope, IpcError> = read_envelope(&mut reader);
-    
+
     // Then
     match result {
-        Err(IpcError::SchemaViolation(msg)) => assert!(msg.contains(expected_msg), "Expected message containing '{}', got '{}'", expected_msg, msg),
+        Err(IpcError::SchemaViolation(msg)) => assert!(
+            msg.contains(expected_msg),
+            "Expected message containing '{}', got '{}'",
+            expected_msg,
+            msg
+        ),
         other => panic!("Expected SchemaViolation, got {:?}", other),
     }
 }
@@ -148,9 +157,11 @@ fn validate_identity_succeeds_on_match() {
         version: 1,
         instance_id: "inst1".to_string(),
         node_id: "node1".to_string(),
-        result: TaskResult::Success { output: serde_json::Value::Null },
+        result: TaskResult::Success {
+            output: serde_json::Value::Null,
+        },
     };
-    
+
     // When / Then
     validate_identity(&env, "inst1", "node1").expect("Should match");
 }
@@ -162,15 +173,19 @@ fn validate_identity_fails_on_mismatched_instance_id() {
         version: 1,
         instance_id: "inst1".to_string(),
         node_id: "node1".to_string(),
-        result: TaskResult::Success { output: serde_json::Value::Null },
+        result: TaskResult::Success {
+            output: serde_json::Value::Null,
+        },
     };
-    
+
     // When
     let result = validate_identity(&env, "inst2", "node1");
-    
+
     // Then
     match result {
-        Err(IpcError::IdentityMismatch { expected_instance, .. }) => {
+        Err(IpcError::IdentityMismatch {
+            expected_instance, ..
+        }) => {
             assert_eq!(expected_instance, "inst2");
         }
         other => panic!("Expected IdentityMismatch, got {:?}", other),
@@ -192,26 +207,28 @@ fn fd4_failure_roundtrip_is_idempotent() {
             },
         },
     };
-    
+
     let mut buffer = Vec::new();
     write_envelope(&mut buffer, &env).unwrap();
     let mut reader = Cursor::new(buffer);
     let decoded: Fd4Envelope = read_envelope(&mut reader).unwrap();
-    
+
     assert_eq!(env, decoded);
 }
 
 #[test]
 fn write_envelope_works_with_generic_struct() {
     #[derive(Serialize, Deserialize, Debug, PartialEq)]
-    struct Simple { a: i32 }
+    struct Simple {
+        a: i32,
+    }
     let val = Simple { a: 42 };
-    
+
     let mut buffer = Vec::new();
     write_envelope(&mut buffer, &val).unwrap();
-    
+
     assert_eq!(&buffer[..4], &[0, 0, 0, 8]); // {"a":42} is 8 bytes
-    
+
     let mut reader = Cursor::new(buffer);
     let decoded: Simple = read_envelope(&mut reader).unwrap();
     assert_eq!(val, decoded);
@@ -240,7 +257,10 @@ fn read_envelope_fails_on_truncated_length_prefix() {
     let mut reader = Cursor::new(buffer);
     let result: Result<Fd3Envelope, IpcError> = read_envelope(&mut reader);
     match result {
-        Err(IpcError::IncompleteRead { expected: 4, actual: 3 }) => (),
+        Err(IpcError::IncompleteRead {
+            expected: 4,
+            actual: 3,
+        }) => (),
         other => panic!("Expected IncompleteRead(4, 3), got {:?}", other),
     }
 }
@@ -252,7 +272,10 @@ fn read_envelope_fails_on_truncated_payload_body() {
     let mut reader = Cursor::new(buffer);
     let result: Result<Fd3Envelope, IpcError> = read_envelope(&mut reader);
     match result {
-        Err(IpcError::IncompleteRead { expected: 10, actual: 5 }) => (),
+        Err(IpcError::IncompleteRead {
+            expected: 10,
+            actual: 5,
+        }) => (),
         other => panic!("Expected IncompleteRead(10, 5), got {:?}", other),
     }
 }
@@ -343,11 +366,13 @@ fn engine_receive_envelope_succeeds_on_identity_match() {
         version: 1,
         instance_id: "inst1".into(),
         node_id: "node1".into(),
-        result: TaskResult::Success { output: serde_json::json!({}) },
+        result: TaskResult::Success {
+            output: serde_json::json!({}),
+        },
     };
     let mut buffer = Vec::new();
     write_envelope(&mut buffer, &env).unwrap();
-    
+
     let mut reader = Cursor::new(buffer);
     let result = engine_receive_envelope(&mut reader, "inst1", "node1");
     match result {
@@ -362,11 +387,13 @@ fn engine_receive_envelope_fails_on_identity_mismatch() {
         version: 1,
         instance_id: "inst1".into(),
         node_id: "node1".into(),
-        result: TaskResult::Success { output: serde_json::json!({}) },
+        result: TaskResult::Success {
+            output: serde_json::json!({}),
+        },
     };
     let mut buffer = Vec::new();
     write_envelope(&mut buffer, &env).unwrap();
-    
+
     let mut reader = Cursor::new(buffer);
     let result = engine_receive_envelope(&mut reader, "inst2", "node1");
     assert!(matches!(result, Err(IpcError::IdentityMismatch { .. })));

@@ -65,11 +65,11 @@ pub fn generate_skeleton(nodes: &[SketchNode]) -> String {
 
     for (i, node) in nodes.iter().enumerate() {
         let step_id = format!("step-{}", i + 1);
-        let _ = writeln!(out, "  - id: {step_id}");
-        let _ = writeln!(out, "    type: {}", node.node_type);
+        let _val = writeln!(out, "  - id: {step_id}");
+        let _val = writeln!(out, "    type: {}", node.node_type);
         if i > 0 {
             let prev_id = format!("step-{i}");
-            let _ = writeln!(out, "    depends_on: [{prev_id}]");
+            let _val = writeln!(out, "    depends_on: [{prev_id}]");
         }
         out.push_str("    config: {}\n");
     }

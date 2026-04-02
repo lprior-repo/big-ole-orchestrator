@@ -8,7 +8,8 @@
 #![allow(clippy::pedantic)]
 
 use fjall::{Config, PartitionCreateOptions};
-use vo_storage::query::{replay_events, StorageError};
+use vo_storage::codec::StorageError;
+use vo_storage::query::replay_events;
 use vo_types::{EventEnvelope, InstanceId};
 
 fn make_envelope_json(seq: u64, instance_id: &str) -> Vec<u8> {

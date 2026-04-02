@@ -2,11 +2,11 @@
 
 use std::collections::BTreeMap;
 use std::fs;
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 use tempfile::tempdir;
 use vo_ipc::{run_subprocess, IpcError, SubprocessConfig, MAX_STDERR_BYTES, TRUNCATION_MARKER};
-use std::os::unix::fs::PermissionsExt;
 
 fn fixture_binary() -> PathBuf {
     PathBuf::from(env!("CARGO_BIN_EXE_fixture_driver"))
@@ -146,7 +146,6 @@ async fn timeout_path_reaps_child() {
     let pid: i32 = fs::read_to_string(&pid_path).unwrap().parse().unwrap();
     assert!(matches!(error, IpcError::Timeout { .. }));
     // Give it a moment to be reaped
-    std::thread::sleep(Duration::from_millis(200));
     assert!(!proc_exists(pid));
 }
 
@@ -208,16 +207,18 @@ async fn child_environment_is_cleared() {
     let output = run_subprocess(config("read-env", 500)).await.unwrap();
     let environment: BTreeMap<String, String> = serde_json::from_slice(&output.fd4_bytes).unwrap();
     std::env::remove_var("LEAK_ME");
-    
+
     // Filter out environment variables injected by build/coverage tools (like llvm-cov)
     let filtered_env: BTreeMap<_, _> = environment
         .into_iter()
-        .filter(|(k, _)| {
-            k != "LLVM_PROFILE_FILE" && !k.starts_with("__LLVM_PROFILE")
-        })
+        .filter(|(k, _)| k != "LLVM_PROFILE_FILE" && !k.starts_with("__LLVM_PROFILE"))
         .collect();
-        
-    assert!(filtered_env.is_empty(), "Environment not cleared: {:?}", filtered_env);
+
+    assert!(
+        filtered_env.is_empty(),
+        "Environment not cleared: {:?}",
+        filtered_env
+    );
 }
 
 #[tokio::test]
@@ -249,11 +250,15 @@ async fn run_subprocess_returns_fd4_read_failed_on_huge_payload() {
     let directory = tempdir().unwrap();
     let script = directory.path().join("huge_fd4.py");
     // Write 4 bytes representing a huge length (e.g., 100MB) to FD4
-    std::fs::write(&script, "import os; os.write(4, (100 * 1024 * 1024).to_bytes(4, 'big'))\n").unwrap();
+    std::fs::write(
+        &script,
+        "import os; os.write(4, (100 * 1024 * 1024).to_bytes(4, 'big'))\n",
+    )
+    .unwrap();
     let mut perms = std::fs::metadata(&script).unwrap().permissions();
     perms.set_mode(0o755);
     std::fs::set_permissions(&script, perms).unwrap();
-    
+
     // Pass the script path as payload so it becomes the argument to python
     let payload = script.to_str().unwrap().as_bytes().to_vec();
     let config = SubprocessConfig::new("/usr/bin/python3", 500, payload).unwrap();
@@ -274,10 +279,13 @@ async fn run_subprocess_returns_fd4_read_failed_on_partial_header() {
     let mut perms = std::fs::metadata(&script).unwrap().permissions();
     perms.set_mode(0o755);
     std::fs::set_permissions(&script, perms).unwrap();
-    
+
     let config = SubprocessConfig::new(&script, 500, vec![]).unwrap();
     let result = run_subprocess(config).await;
-    assert!(matches!(result.unwrap_err(), IpcError::Fd4ReadFailed { .. }));
+    assert!(matches!(
+        result.unwrap_err(),
+        IpcError::Fd4ReadFailed { .. }
+    ));
 }
 
 #[tokio::test]

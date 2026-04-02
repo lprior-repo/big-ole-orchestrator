@@ -6,6 +6,7 @@ mod integer_types;
 mod integer_types_tests;
 mod non_empty_vec;
 mod payload_parser;
+pub mod proptest_verifier;
 mod registration_status;
 pub mod state;
 mod string_types;

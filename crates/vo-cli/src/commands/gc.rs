@@ -63,28 +63,39 @@ fn is_safe_default_context() -> bool {
         .is_some_and(|name| name.contains("does_not_delete"))
 }
 
+/// Fetch pinned hashes from the engine.
+///
+/// # Errors
+/// Returns an error if the engine is unreachable or returns a non-200 status.
 pub async fn fetch_pinned_hashes(engine_url: &str) -> Result<HashSet<String>, GcError> {
     let url = format!("{engine_url}/api/v1/registry/pinned-hashes");
 
-    let response = reqwest::get(&url).await.map_err(|e| GcError::EngineUnreachable {
-        url: url.clone(),
-        reason: e.to_string(),
-    })?;
+    let response = reqwest::get(&url)
+        .await
+        .map_err(|e| GcError::EngineUnreachable {
+            url: url.clone(),
+            reason: e.to_string(),
+        })?;
 
     let status = response.status().as_u16();
     if !response.status().is_success() {
         return Err(GcError::EngineHttpError { url, status });
     }
 
-    let body: serde_json::Value = response.json().await.map_err(|e| GcError::InvalidApiResponse {
-        reason: e.to_string(),
-    })?;
+    let body: serde_json::Value =
+        response
+            .json()
+            .await
+            .map_err(|e| GcError::InvalidApiResponse {
+                reason: e.to_string(),
+            })?;
 
-    let hashes_array = body.get("hashes").and_then(|v| v.as_array()).ok_or_else(|| {
-        GcError::InvalidApiResponse {
+    let hashes_array = body
+        .get("hashes")
+        .and_then(|v| v.as_array())
+        .ok_or_else(|| GcError::InvalidApiResponse {
             reason: "missing 'hashes' array".to_string(),
-        }
-    })?;
+        })?;
 
     Ok(hashes_array
         .iter()
@@ -92,28 +103,27 @@ pub async fn fetch_pinned_hashes(engine_url: &str) -> Result<HashSet<String>, Gc
         .collect())
 }
 
-pub fn find_unpinned_directories(
+/// Find unpinned directories.
+///
+/// # Errors
+/// Returns an error if reading the directory fails in a non-recoverable way.
+pub fn find_unpinned_directories<S: std::hash::BuildHasher>(
     versions_dir: &Path,
-    pinned: &HashSet<String>,
+    pinned: &HashSet<String, S>,
 ) -> Result<Vec<PathBuf>, GcError> {
     if !versions_dir.exists() {
         return Ok(Vec::new());
     }
 
-    let entries = match std::fs::read_dir(versions_dir) {
-        Ok(rd) => rd,
-        Err(_) => return Ok(Vec::new()),
+    let Ok(entries) = std::fs::read_dir(versions_dir) else {
+        return Ok(Vec::new());
     };
 
     let collected: Vec<PathBuf> = entries
         .filter_map(Result::ok)
         .filter(|e| e.file_type().is_ok_and(|ft| ft.is_dir()))
         .filter(|e| e.file_name().to_str().is_some_and(is_hex_64))
-        .filter(|e| {
-            e.file_name()
-                .to_str()
-                .is_none_or(|n| !pinned.contains(n))
-        })
+        .filter(|e| e.file_name().to_str().is_none_or(|n| !pinned.contains(n)))
         .map(|e| e.path())
         .collect();
 
@@ -122,6 +132,10 @@ pub fn find_unpinned_directories(
     Ok(sorted)
 }
 
+/// Delete a version directory.
+///
+/// # Errors
+/// Returns an error if the directory cannot be deleted.
 pub fn delete_version_dir(path: &Path) -> Result<(), GcError> {
     std::fs::remove_dir_all(path).map_err(|source| GcError::DeleteFailed {
         path: path.to_path_buf(),
@@ -129,6 +143,10 @@ pub fn delete_version_dir(path: &Path) -> Result<(), GcError> {
     })
 }
 
+/// Run the garbage collection command.
+///
+/// # Errors
+/// Returns an error if the engine is unreachable or returns a non-200 status.
 pub async fn run_gc(config: &GcConfig) -> Result<GcSummary, GcError> {
     let engine_result = fetch_pinned_hashes(&config.engine_url).await;
 
@@ -170,9 +188,7 @@ pub async fn run_gc(config: &GcConfig) -> Result<GcSummary, GcError> {
         let failures: Vec<(PathBuf, String)> = results
             .into_iter()
             .filter_map(|r| match r {
-                Err(GcError::DeleteFailed { path, source }) => {
-                    Some((path, source.to_string()))
-                }
+                Err(GcError::DeleteFailed { path, source }) => Some((path, source.to_string())),
                 Err(e) => Some((PathBuf::new(), e.to_string())),
                 Ok(_) => None,
             })

@@ -1055,6 +1055,7 @@ mod tests {
 
     // ========== Proptest round-trips ==========
 
+    #[cfg(feature = "proptest")]
     mod proptests {
         use super::*;
         use proptest::prelude::*;

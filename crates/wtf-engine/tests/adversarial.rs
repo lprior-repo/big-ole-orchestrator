@@ -66,14 +66,14 @@ fn adv002_concurrent_register_same_workflow_last_writer_wins_no_panic() {
     let barrier = Arc::new(Barrier::new(3));
     let mut handles: Vec<thread::JoinHandle<Result<(), BinaryRegistryError>>> = Vec::new();
 
-    for src in [src1, src2] {
+    ([src1, src2]).into_iter().for_each(|src| {
         let reg = Arc::clone(&registry);
         let bar = Arc::clone(&barrier);
         handles.push(thread::spawn(move || {
             bar.wait();
             reg.register(&bp(&src), wn("same-wf"))
         }));
-    }
+    });
 
     barrier.wait();
     let results: Vec<Result<(), BinaryRegistryError>> = handles
@@ -82,7 +82,7 @@ fn adv002_concurrent_register_same_workflow_last_writer_wins_no_panic() {
         .collect();
 
     assert!(
-        results.iter().all(|r| r.is_ok()),
+        results.iter().all(|r| matches!(r, Ok(_))),
         "both concurrent registers should succeed: {:?}",
         results
     );
@@ -114,28 +114,28 @@ fn adv003_concurrent_deactivate_and_resolve_no_panic_or_wrong_error() {
     let bar1 = Arc::clone(&barrier);
     handles.push(thread::spawn(move || {
         bar1.wait();
-        let _ = reg1.deactivate(&wn("race-wf"));
+        let _val = reg1.deactivate(&wn("race-wf"));
     }));
 
     let reg2 = Arc::clone(&registry);
     let bar2 = Arc::clone(&barrier);
     handles.push(thread::spawn(move || {
         bar2.wait();
-        for _ in 0..100 {
-            match reg2.resolve(&wn("race-wf")) {
+        (0..100)
+            .into_iter()
+            .for_each(|_| match reg2.resolve(&wn("race-wf")) {
                 Ok(_) | Err(BinaryRegistryError::WorkflowDeactivated { .. }) => {}
                 Err(other) => panic!(
                     "resolve returned unexpected error during concurrent deactivate: {:?}",
                     other
                 ),
-            }
-        }
+            });
     }));
 
     barrier.wait();
-    for h in handles {
+    (handles).into_iter().for_each(|h| {
         h.join().expect("no panic");
-    }
+    });
 }
 
 /// ADV-004: Concurrent register + deactivate — no panic, consistent state.
@@ -152,24 +152,24 @@ fn adv004_concurrent_register_and_deactivate_no_panic() {
     let src = make_test_binary(temp_dir.path(), &valid_single_node_graph());
     handles.push(thread::spawn(move || {
         bar1.wait();
-        for _ in 0..50 {
-            let _ = reg1.register(&bp(&src), wn("reg-deact-wf"));
-        }
+        (0..50).into_iter().for_each(|_| {
+            let _val = reg1.register(&bp(&src), wn("reg-deact-wf"));
+        });
     }));
 
     let reg2 = Arc::clone(&registry);
     let bar2 = Arc::clone(&barrier);
     handles.push(thread::spawn(move || {
         bar2.wait();
-        for _ in 0..50 {
-            let _ = reg2.deactivate(&wn("reg-deact-wf"));
-        }
+        (0..50).into_iter().for_each(|_| {
+            let _val = reg2.deactivate(&wn("reg-deact-wf"));
+        });
     }));
 
     barrier.wait();
-    for h in handles {
+    (handles).into_iter().for_each(|h| {
         h.join().expect("no panic");
-    }
+    });
 
     assert!(registry.len() <= 1, "at most one entry should exist");
 }
@@ -195,17 +195,18 @@ fn adv005_concurrent_reap_and_resolve_no_panic() {
     let bar1 = Arc::clone(&barrier);
     handles.push(thread::spawn(move || {
         bar1.wait();
-        for _ in 0..100 {
-            let _ = reg1.reap(|_| false);
-        }
+        (0..100).into_iter().for_each(|_| {
+            let _val = reg1.reap(|_| false);
+        });
     }));
 
     let reg2 = Arc::clone(&registry);
     let bar2 = Arc::clone(&barrier);
     handles.push(thread::spawn(move || {
         bar2.wait();
-        for _ in 0..100 {
-            match reg2.resolve(&wn("reap-resolve-wf")) {
+        (0..100)
+            .into_iter()
+            .for_each(|_| match reg2.resolve(&wn("reap-resolve-wf")) {
                 Ok(_)
                 | Err(BinaryRegistryError::WorkflowDeactivated { .. })
                 | Err(BinaryRegistryError::NotFound { .. }) => {}
@@ -213,14 +214,13 @@ fn adv005_concurrent_reap_and_resolve_no_panic() {
                     "unexpected error during concurrent reap+resolve: {:?}",
                     other
                 ),
-            }
-        }
+            });
     }));
 
     barrier.wait();
-    for h in handles {
+    (handles).into_iter().for_each(|h| {
         h.join().expect("no panic");
-    }
+    });
 }
 
 // ===========================================================================
@@ -459,7 +459,7 @@ exit 1
         Ok(()) => {
             let resolved = registry.resolve(&wn("large-wf"));
             assert!(
-                resolved.is_ok(),
+                matches!(resolved, Ok(_)),
                 "if register succeeded, resolve should too"
             );
         }
@@ -488,7 +488,7 @@ fn adv015_stress_16_concurrent_registrations_then_deactivate_and_reap() {
     let barrier = Arc::new(Barrier::new(n + 1));
     let mut handles: Vec<thread::JoinHandle<Result<(), BinaryRegistryError>>> = Vec::new();
 
-    for i in 0..n {
+    (0..n).into_iter().for_each(|i| {
         let reg = Arc::clone(&registry);
         let bar = Arc::clone(&barrier);
         let graph = valid_graph_single_node(&format!("node-{i}"));
@@ -497,21 +497,21 @@ fn adv015_stress_16_concurrent_registrations_then_deactivate_and_reap() {
             bar.wait();
             reg.register(&bp(&src), wn(&format!("stress-{i}")))
         }));
-    }
+    });
 
     barrier.wait();
-    for h in handles {
+    (handles).into_iter().for_each(|h| {
         let r = h.join().expect("no panic");
-        assert!(r.is_ok(), "register should succeed");
-    }
+        assert!(matches!(r, Ok(_)), "register should succeed");
+    });
 
     assert_eq!(registry.len(), n);
 
-    for i in 0..n {
+    (0..n).into_iter().for_each(|i| {
         registry
             .deactivate(&wn(&format!("stress-{i}")))
             .expect("deactivate");
-    }
+    });
 
     let report = registry.reap(|_| false);
     assert_eq!(report.reaped.len(), n);
@@ -540,7 +540,7 @@ fn adv016_reap_preserves_active_workflows_when_active_instances_empty() {
         "active workflow should not be skipped"
     );
     assert_eq!(registry.len(), 1);
-    assert!(registry.resolve(&wn("stay-active")).is_ok());
+    drop(registry.resolve(&wn("stay-active")).unwrap());
 }
 
 /// ADV-017: Register after deactivate (without reap) — re-activation.
@@ -606,19 +606,19 @@ fn adv019_concurrent_reap_from_multiple_threads_no_panic() {
     let barrier = Arc::new(Barrier::new(5));
     let mut handles: Vec<thread::JoinHandle<()>> = Vec::new();
 
-    for _ in 0..4 {
+    (0..4).into_iter().for_each(|_| {
         let reg = Arc::clone(&registry);
         let bar = Arc::clone(&barrier);
         handles.push(thread::spawn(move || {
             bar.wait();
-            let _ = reg.reap(|_| false);
+            let _val = reg.reap(|_| false);
         }));
-    }
+    });
 
     barrier.wait();
-    for h in handles {
+    (handles).into_iter().for_each(|h| {
         h.join().expect("no panic");
-    }
+    });
 
     assert!(
         registry.len() <= 1,

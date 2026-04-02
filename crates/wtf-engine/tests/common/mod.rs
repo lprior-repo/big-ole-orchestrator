@@ -176,7 +176,7 @@ pub fn bh(hex: &str) -> wtf_types::BinaryHash {
 }
 
 /// Create an InstanceId for testing.
-pub fn test_instance_id() -> wtf_types::InstanceId {
+pub fn generate_instance_id() -> wtf_types::InstanceId {
     let ulid = ulid::Ulid::new();
     wtf_types::InstanceId::parse(&ulid.to_string()).expect("valid instance id")
 }

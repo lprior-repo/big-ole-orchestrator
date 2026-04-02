@@ -116,6 +116,17 @@ mod tests {
     }
 
     #[test]
+    fn parse_error_consecutive_separators_displays_type_name_when_formatted() {
+        let err = ParseError::ConsecutiveSeparators {
+            type_name: "WorkflowName",
+        };
+        let msg = err.to_string();
+        assert!(
+            msg.contains("WorkflowName: consecutive underscores or mixed separators not permitted")
+        );
+    }
+
+    #[test]
     fn parse_error_not_an_integer_displays_input_when_formatted() {
         let err = ParseError::NotAnInteger {
             type_name: "SequenceNumber",

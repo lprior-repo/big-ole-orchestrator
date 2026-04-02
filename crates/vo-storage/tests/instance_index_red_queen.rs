@@ -1,3 +1,6 @@
+#![allow(clippy::needless_for_each)]
+#![allow(clippy::useless_conversion)]
+#![allow(clippy::into_iter_on_ref)]
 //! Red Queen adversarial tests for the instance index partition.
 //!
 //! These tests attempt to break the implementation through:
@@ -14,11 +17,11 @@
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]
 
+use vo_storage::codec::StorageError;
 use vo_storage::instance_index::{
     decode_instance_index_key, encode_instance_index_key, instance_index_upsert,
     scan_all_instances, scan_by_status, InstanceIndexEntry,
 };
-use vo_storage::query::StorageError;
 use vo_types::{InstanceId, InstanceStatus, TimestampMs};
 
 // ---------------------------------------------------------------------------
@@ -75,15 +78,14 @@ fn collect_scan_ok(
 
 #[test]
 fn rq_decode_rejects_every_invalid_status_byte_exhaustively() {
-    for byte in 0u8..=0xFF {
+    (0u8..=0xFF).into_iter().for_each(|byte| {
         let mut key = [0x01u8; 25]; // valid 25-byte key template
         key[0] = byte;
         let result = decode_instance_index_key(&key);
         if (0x01..=0x06).contains(&byte) {
-            assert!(
-                result.is_ok(),
-                "Status byte 0x{byte:02X} should be valid, got {result:?}"
-            );
+            let Ok(_val) = result else {
+                panic!("Status byte 0x{byte:02X} should be valid, got {result:?}");
+            };
         } else {
             assert_eq!(
                 result,
@@ -91,7 +93,7 @@ fn rq_decode_rejects_every_invalid_status_byte_exhaustively() {
                 "Status byte 0x{byte:02X} should be rejected"
             );
         }
-    }
+    });
 }
 
 // ---------------------------------------------------------------------------
@@ -100,11 +102,13 @@ fn rq_decode_rejects_every_invalid_status_byte_exhaustively() {
 
 #[test]
 fn rq_decode_rejects_every_invalid_length_from_0_to_50() {
-    for len in 0usize..=50 {
+    (0usize..=50).into_iter().for_each(|len| {
         let key = vec![0x01u8; len];
         let result = decode_instance_index_key(&key);
         if len == 25 {
-            assert!(result.is_ok(), "Length 25 should be valid, got {result:?}");
+            let Ok(_val) = result else {
+                panic!("Length 25 should be valid, got {result:?}");
+            };
         } else {
             assert_eq!(
                 result,
@@ -112,7 +116,7 @@ fn rq_decode_rejects_every_invalid_length_from_0_to_50() {
                 "Length {len} should be rejected"
             );
         }
-    }
+    });
 }
 
 // ---------------------------------------------------------------------------
@@ -296,7 +300,7 @@ fn rq_same_timestamp_different_ids_produce_deterministic_scan_order() {
 fn rq_all_instances_same_status_returns_all_in_status_scan_none_in_others() {
     let (_dir, keyspace) = make_test_keyspace();
 
-    for i in 0u16..10 {
+    (0u16..10).into_iter().for_each(|i| {
         let id = make_unique_instance_id(i);
         seed_instance(
             &keyspace,
@@ -304,24 +308,26 @@ fn rq_all_instances_same_status_returns_all_in_status_scan_none_in_others() {
             InstanceStatus::Paused,
             make_test_timestamp(u64::from(i) * 100),
         );
-    }
+    });
 
     let paused = collect_scan_ok(scan_by_status(&keyspace, InstanceStatus::Paused));
     assert_eq!(paused.len(), 10);
 
     // Every other status must be empty
-    for status in InstanceStatus::all_variants() {
-        if *status != InstanceStatus::Paused {
-            let scan = collect_scan_ok(scan_by_status(&keyspace, *status));
-            assert_eq!(
-                scan.len(),
-                0,
-                "Status {:?} should have 0 entries, found {}",
-                status,
-                scan.len()
-            );
-        }
-    }
+    InstanceStatus::all_variants()
+        .into_iter()
+        .for_each(|status| {
+            if *status != InstanceStatus::Paused {
+                let scan = collect_scan_ok(scan_by_status(&keyspace, *status));
+                assert_eq!(
+                    scan.len(),
+                    0,
+                    "Status {:?} should have 0 entries, found {}",
+                    status,
+                    scan.len()
+                );
+            }
+        });
 }
 
 // ---------------------------------------------------------------------------
@@ -475,7 +481,7 @@ fn rq_adjacent_status_boundaries_do_not_cross_contaminate() {
     // This tests ALL 5 adjacent boundaries
     let statuses = InstanceStatus::all_variants();
 
-    for i in 0..statuses.len() - 1 {
+    (0..statuses.len() - 1).into_iter().for_each(|i| {
         let current = statuses[i];
         let next = statuses[i + 1];
 
@@ -493,19 +499,21 @@ fn rq_adjacent_status_boundaries_do_not_cross_contaminate() {
 
         seed_instance(&keyspace, &max_id, current, ts_max);
         seed_instance(&keyspace, &min_id, next, ts_zero);
-    }
+    });
 
     // Verify isolation: each status scan returns only its own entries
-    for status in statuses {
-        let entries = collect_scan_ok(scan_by_status(&keyspace, *status));
-        for entry in &entries {
-            assert_eq!(
-                entry.status, *status,
-                "Scan for {:?} returned entry with status {:?}",
-                status, entry.status
-            );
-        }
-    }
+    InstanceStatus::all_variants()
+        .into_iter()
+        .for_each(|status| {
+            let entries = collect_scan_ok(scan_by_status(&keyspace, *status));
+            (&entries).into_iter().for_each(|entry| {
+                assert_eq!(
+                    entry.status, *status,
+                    "Scan for {:?} returned entry with status {:?}",
+                    status, entry.status
+                );
+            });
+        });
 }
 
 // ---------------------------------------------------------------------------
@@ -538,7 +546,7 @@ fn rq_manually_injected_boundary_key_stays_in_correct_prefix_range() {
     // Pending scan should find exactly the max Pending key
     let pending: Vec<_> = scan_by_status(&keyspace, InstanceStatus::Pending).collect();
     assert_eq!(pending.len(), 1, "Pending scan should find exactly 1 entry");
-    assert!(pending[0].is_ok(), "Max Pending key should decode OK");
+    assert_eq!(pending[0].as_ref().unwrap().status, InstanceStatus::Pending);
 
     // Running scan should find exactly the min Running key
     let running: Vec<_> = scan_by_status(&keyspace, InstanceStatus::Running).collect();
@@ -564,15 +572,17 @@ fn rq_key_with_zero_status_byte_not_returned_by_any_valid_status_scan() {
     partition.insert(zero_status_key, &[] as &[u8]).unwrap();
 
     // No valid status scan should find it
-    for status in InstanceStatus::all_variants() {
-        let entries: Vec<_> = scan_by_status(&keyspace, *status).collect();
-        assert_eq!(
-            entries.len(),
-            0,
-            "Status {:?} scan should not return key with 0x00 status byte",
-            status
-        );
-    }
+    InstanceStatus::all_variants()
+        .into_iter()
+        .for_each(|status| {
+            let entries: Vec<_> = scan_by_status(&keyspace, *status).collect();
+            assert_eq!(
+                entries.len(),
+                0,
+                "Status {:?} scan should not return key with 0x00 status byte",
+                status
+            );
+        });
 
     // But scan_all_instances uses prefix([]) so it SHOULD find it and yield CorruptKey
     let all: Vec<_> = scan_all_instances(&keyspace).collect();
@@ -664,12 +674,12 @@ fn rq_1000_instances_across_all_statuses_scan_returns_correct_counts() {
     let statuses = InstanceStatus::all_variants();
 
     // Insert 1000 instances: ~166-167 per status
-    for i in 0u16..1000 {
+    (0u16..1000).for_each(|i| {
         let id = make_unique_instance_id(i);
         let status = statuses[(i as usize) % statuses.len()];
         let ts = make_test_timestamp(u64::from(i));
         seed_instance(&keyspace, &id, status, ts);
-    }
+    });
 
     // Verify total
     let all = collect_scan_ok(scan_all_instances(&keyspace));
@@ -677,32 +687,34 @@ fn rq_1000_instances_across_all_statuses_scan_returns_correct_counts() {
 
     // Verify per-status counts
     let mut per_status_total = 0usize;
-    for (idx, status) in statuses.iter().enumerate() {
-        let entries = collect_scan_ok(scan_by_status(&keyspace, *status));
-        let expected = if idx < 4 { 167 } else { 166 }; // 1000 / 6 = 166 r 4
-        assert_eq!(
-            entries.len(),
-            expected,
-            "Status {:?} should have {expected} entries, found {}",
-            status,
-            entries.len()
-        );
-        per_status_total += entries.len();
-
-        // Verify all entries have correct status
-        for entry in &entries {
-            assert_eq!(entry.status, *status);
-        }
-
-        // Verify ordering within status
-        for pair in entries.windows(2) {
-            assert!(
-                pair[0].created_at.as_u64() <= pair[1].created_at.as_u64(),
-                "Within {:?}: entries not ordered by created_at",
-                status
+    (statuses.iter().enumerate())
+        .into_iter()
+        .for_each(|(idx, status)| {
+            let entries = collect_scan_ok(scan_by_status(&keyspace, *status));
+            let expected = if idx < 4 { 167 } else { 166 }; // 1000 / 6 = 166 r 4
+            assert_eq!(
+                entries.len(),
+                expected,
+                "Status {:?} should have {expected} entries, found {}",
+                status,
+                entries.len()
             );
-        }
-    }
+            per_status_total += entries.len();
+
+            // Verify all entries have correct status
+            entries.iter().for_each(|entry| {
+                assert_eq!(entry.status, *status);
+            });
+
+            // Verify ordering within status
+            entries.windows(2).for_each(|pair| {
+                assert!(
+                    pair[0].created_at.as_u64() <= pair[1].created_at.as_u64(),
+                    "Within {:?}: entries not ordered by created_at",
+                    status
+                );
+            });
+        });
 
     assert_eq!(
         per_status_total, 1000,
@@ -732,16 +744,16 @@ fn rq_scan_all_returns_globally_ordered_by_status_byte_then_created_at() {
         (8, InstanceStatus::Completed, 250),
     ];
 
-    for (idx, status, ts) in data {
+    (data).into_iter().for_each(|(idx, status, ts)| {
         let id = make_unique_instance_id(*idx);
         seed_instance(&keyspace, &id, *status, make_test_timestamp(*ts));
-    }
+    });
 
     let all = collect_scan_ok(scan_all_instances(&keyspace));
     assert_eq!(all.len(), data.len());
 
     // Verify global ordering: (status_byte, created_at) ascending
-    for pair in all.windows(2) {
+    all.windows(2).for_each(|pair| {
         let a_status = pair[0].status.to_byte();
         let b_status = pair[1].status.to_byte();
         let a_ts = pair[0].created_at.as_u64();
@@ -751,7 +763,7 @@ fn rq_scan_all_returns_globally_ordered_by_status_byte_then_created_at() {
             (a_status, a_ts) <= (b_status, b_ts),
             "Global ordering violated: ({a_status:#04x}, {a_ts}) > ({b_status:#04x}, {b_ts})"
         );
-    }
+    });
 }
 
 // ---------------------------------------------------------------------------
@@ -763,7 +775,7 @@ fn rq_rapid_transitions_on_50_instances_leave_exactly_50_keys() {
     let (_dir, keyspace) = make_test_keyspace();
 
     // Insert 50 instances as Pending
-    for i in 0u16..50 {
+    (0u16..50).for_each(|i| {
         let id = make_unique_instance_id(i);
         seed_instance(
             &keyspace,
@@ -771,10 +783,10 @@ fn rq_rapid_transitions_on_50_instances_leave_exactly_50_keys() {
             InstanceStatus::Pending,
             make_test_timestamp(u64::from(i)),
         );
-    }
+    });
 
     // Rapid transitions: each instance goes Pending → Running → Completed
-    for i in 0u16..50 {
+    (0u16..50).for_each(|i| {
         let id = make_unique_instance_id(i);
         let ts = make_test_timestamp(u64::from(i));
 
@@ -794,7 +806,7 @@ fn rq_rapid_transitions_on_50_instances_leave_exactly_50_keys() {
             Some(InstanceStatus::Running),
         )
         .unwrap();
-    }
+    });
 
     let all = collect_scan_ok(scan_all_instances(&keyspace));
     assert_eq!(
@@ -804,9 +816,9 @@ fn rq_rapid_transitions_on_50_instances_leave_exactly_50_keys() {
     );
 
     // All should be Completed
-    for entry in &all {
+    all.iter().for_each(|entry| {
         assert_eq!(entry.status, InstanceStatus::Completed);
-    }
+    });
 
     // Pending and Running should be empty
     assert_eq!(
@@ -897,17 +909,19 @@ fn rq_all_six_status_variants_encode_decode_round_trip() {
     let id = make_test_instance_id(0x42);
     let ts = make_test_timestamp(12345);
 
-    for status in InstanceStatus::all_variants() {
-        let key = encode_instance_index_key(*status, ts, &id).unwrap();
-        let entry = decode_instance_index_key(&key).unwrap();
-        assert_eq!(
-            entry.status, *status,
-            "Status {:?} failed round-trip",
-            status
-        );
-        assert_eq!(entry.created_at, ts);
-        assert_eq!(entry.instance_id, id);
-    }
+    (InstanceStatus::all_variants())
+        .into_iter()
+        .for_each(|status| {
+            let key = encode_instance_index_key(*status, ts, &id).unwrap();
+            let entry = decode_instance_index_key(&key).unwrap();
+            assert_eq!(
+                entry.status, *status,
+                "Status {:?} failed round-trip",
+                status
+            );
+            assert_eq!(entry.created_at, ts);
+            assert_eq!(entry.instance_id, id);
+        });
 }
 
 // ---------------------------------------------------------------------------
@@ -921,16 +935,18 @@ fn rq_key_layout_matches_contract_specification_for_all_statuses() {
     let ts_value = 0x0102030405060708u64;
     let ts = make_test_timestamp(ts_value);
 
-    for status in InstanceStatus::all_variants() {
-        let key = encode_instance_index_key(*status, ts, &id).unwrap();
+    (InstanceStatus::all_variants())
+        .into_iter()
+        .for_each(|status| {
+            let key = encode_instance_index_key(*status, ts, &id).unwrap();
 
-        // Byte 0: status byte
-        assert_eq!(key[0], status.to_byte());
-        // Bytes 1..9: created_at as big-endian u64
-        assert_eq!(&key[1..9], &ts_value.to_be_bytes());
-        // Bytes 9..25: instance_id bytes
-        assert_eq!(&key[9..25], &id_bytes);
-    }
+            // Byte 0: status byte
+            assert_eq!(key[0], status.to_byte());
+            // Bytes 1..9: created_at as big-endian u64
+            assert_eq!(&key[1..9], &ts_value.to_be_bytes());
+            // Bytes 9..25: instance_id bytes
+            assert_eq!(&key[9..25], &id_bytes);
+        });
 }
 
 // ---------------------------------------------------------------------------
@@ -1066,10 +1082,12 @@ fn rq_value_is_empty_after_idempotent_upsert() {
 fn rq_scan_all_finds_entries_across_all_six_status_buckets() {
     let (_dir, keyspace) = make_test_keyspace();
 
-    for (i, status) in InstanceStatus::all_variants().iter().enumerate() {
-        let id = make_unique_instance_id(i as u16);
-        seed_instance(&keyspace, &id, *status, make_test_timestamp(i as u64));
-    }
+    (InstanceStatus::all_variants().iter().enumerate())
+        .into_iter()
+        .for_each(|(i, status)| {
+            let id = make_unique_instance_id(i as u16);
+            seed_instance(&keyspace, &id, *status, make_test_timestamp(i as u64));
+        });
 
     let all = collect_scan_ok(scan_all_instances(&keyspace));
     assert_eq!(
@@ -1080,13 +1098,15 @@ fn rq_scan_all_finds_entries_across_all_six_status_buckets() {
 
     // Verify all 6 statuses are represented
     let found_statuses: Vec<_> = all.iter().map(|e| e.status).collect();
-    for status in InstanceStatus::all_variants() {
-        assert!(
-            found_statuses.contains(status),
-            "scan_all missing status {:?}",
-            status
-        );
-    }
+    (InstanceStatus::all_variants())
+        .into_iter()
+        .for_each(|status| {
+            assert!(
+                found_statuses.contains(status),
+                "scan_all missing status {:?}",
+                status
+            );
+        });
 }
 
 // ---------------------------------------------------------------------------
@@ -1119,8 +1139,11 @@ fn rq_scan_all_with_mixed_corrupt_and_valid_keys_yields_errors_and_entries() {
         "Should yield 3 items (2 corrupt + 1 valid)"
     );
 
-    let corrupt_count = results.iter().filter(|r| r.is_err()).count();
-    let ok_count = results.iter().filter(|r| r.is_ok()).count();
+    let corrupt_count = results
+        .iter()
+        .filter(|r| matches!(r, Err(StorageError::CorruptKey)))
+        .count();
+    let ok_count = results.len() - corrupt_count;
 
     assert_eq!(corrupt_count, 2, "Should have 2 corrupt entries");
     assert_eq!(ok_count, 1, "Should have 1 valid entry");

@@ -1,3 +1,4 @@
+#![allow(clippy::redundant_pattern_matching)]
 //! Integration tests for RegistrationStatus persistence via Fjall.
 //!
 //! Tests B-34 to B-38 (Persistence behaviors) and PROP-12 (Fjall round-trip).
@@ -264,16 +265,23 @@ mod proptests {
         })
     }
 
+    thread_local! {
+        static PROPTEST_DB: (std::rc::Rc<tempfile::TempDir>, fjall::Keyspace, fjall::PartitionHandle) = {
+            let (dir, ks, partition) = setup_partition();
+            (std::rc::Rc::new(dir), ks, partition)
+        };
+    }
+
     proptest! {
         #[test]
         fn write_then_read_is_identity(
             wf_name in arb_workflow_name(),
             status in arb_status(),
         ) {
-            let (_dir, _ks, partition) = setup_partition();
+            let partition = PROPTEST_DB.with(|db| db.2.clone());
 
             let write_result = write_registration_status(&partition, &wf_name, status);
-            prop_assert!(write_result.is_ok(), "write should succeed");
+            prop_assert!(matches!(write_result, Ok(_)), "write should succeed");
 
             let read_result = read_registration_status(&partition, &wf_name);
             prop_assert_eq!(read_result, Ok(Some(status)));

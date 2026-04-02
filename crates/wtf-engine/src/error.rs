@@ -139,3 +139,81 @@ impl PartialEq for BinaryRegistryError {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io;
+
+    #[test]
+    fn error_variants_are_correct() {
+        let err1 = BinaryRegistryError::BinaryNotFound {
+            path: BinaryPath::new(std::path::PathBuf::from("/a")).unwrap(),
+        };
+        assert_eq!(
+            err1,
+            BinaryRegistryError::BinaryNotFound {
+                path: BinaryPath::new(std::path::PathBuf::from("/a")).unwrap()
+            }
+        );
+
+        let err2 = BinaryRegistryError::NotExecutable {
+            path: BinaryPath::new(std::path::PathBuf::from("/a")).unwrap(),
+        };
+        assert_ne!(err1, err2);
+        assert_eq!(err2.to_string(), "binary is not executable: /a");
+
+        let err3 = BinaryRegistryError::HashFailed {
+            path: BinaryPath::new(std::path::PathBuf::from("/a")).unwrap(),
+            source: io::Error::new(io::ErrorKind::NotFound, "err"),
+        };
+        assert_ne!(err2, err3);
+
+        let err4 = BinaryRegistryError::CopyFailed {
+            src: BinaryPath::new(std::path::PathBuf::from("/a")).unwrap(),
+            dst: BinaryPath::new(std::path::PathBuf::from("/b")).unwrap(),
+            source: io::Error::new(io::ErrorKind::NotFound, "err"),
+        };
+        assert_ne!(err3, err4);
+
+        let err5 = BinaryRegistryError::GraphDiscoveryFailed {
+            workflow_name: WorkflowName("w".to_string()),
+            exit_code: 1,
+            stderr: "err".to_string(),
+        };
+        assert_ne!(err4, err5);
+
+        let err6 = BinaryRegistryError::InvalidGraphOutput {
+            workflow_name: WorkflowName("w".to_string()),
+            parse_error: "err".to_string(),
+        };
+        assert_ne!(err5, err6);
+
+        let err7 = BinaryRegistryError::WorkflowDeactivated {
+            workflow_name: WorkflowName("w".to_string()),
+        };
+        assert_ne!(err6, err7);
+
+        let err8 = BinaryRegistryError::NotFound {
+            workflow_name: WorkflowName("w".to_string()),
+        };
+        assert_ne!(err7, err8);
+
+        let err9 = BinaryRegistryError::ReaperDeleteFailed {
+            path: BinaryPath::new(std::path::PathBuf::from("/a")).unwrap(),
+            source: io::Error::new(io::ErrorKind::NotFound, "err"),
+        };
+        assert_ne!(err8, err9);
+
+        let err10 = BinaryRegistryError::NonAbsolutePath {
+            path: "a".to_string(),
+        };
+        assert_ne!(err9, err10);
+
+        let err11 = BinaryRegistryError::WorkflowDefinitionInvalid {
+            workflow_name: WorkflowName("w".to_string()),
+            reason: "err".to_string(),
+        };
+        assert_ne!(err10, err11);
+    }
+}

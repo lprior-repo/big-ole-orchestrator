@@ -30,7 +30,7 @@ fn register_stores_versioned_binary_when_source_binary_exists_and_supports_graph
     assert_eq!(result, Ok(()));
     let resolved = registry.resolve(&name).expect("resolved");
     assert!(resolved.0.as_path().starts_with(temp_dir.path()));
-    assert!(std::fs::metadata(resolved.0.as_path()).is_ok());
+    drop(std::fs::metadata(resolved.0.as_path()).unwrap());
 }
 
 // B-REG-15
@@ -193,7 +193,7 @@ fn register_replaces_existing_registration_with_exact_new_hash_when_same_workflo
         .contains(&new_hash_str));
     // Old versioned binary still exists on disk
     let old_versioned = temp_dir.path().join(&old_hash_str);
-    assert!(std::fs::metadata(&old_versioned).is_ok());
+    drop(std::fs::metadata(&old_versioned).unwrap());
 }
 
 // B-REG-21
@@ -726,7 +726,7 @@ fn deactivate_does_not_delete_versioned_binary_from_disk() {
 
     // Then
     assert_eq!(result, Ok(()));
-    assert!(std::fs::metadata(versioned_path.as_path()).is_ok());
+    drop(std::fs::metadata(versioned_path.as_path()).unwrap());
 }
 
 // B-REG-54
@@ -839,7 +839,7 @@ fn reap_deletes_versioned_binaries_from_disk_for_reaped_workflows() {
 
     // Then
     assert_eq!(report.reaped, vec![name]);
-    assert!(std::fs::metadata(versioned_path.as_path()).is_err());
+    drop(std::fs::metadata(versioned_path.as_path()).unwrap_err());
 }
 
 // B-REG-40
@@ -895,7 +895,7 @@ fn reap_skips_deactivated_registrations_with_active_instances() {
         registry.resolve(&name),
         Err(BinaryRegistryError::WorkflowDeactivated { .. })
     ));
-    assert!(std::fs::metadata(versioned_path.as_path()).is_ok());
+    drop(std::fs::metadata(versioned_path.as_path()).unwrap());
 }
 
 // B-REG-42
@@ -938,7 +938,7 @@ fn reap_continues_sweep_and_preserves_registration_when_individual_binary_deleti
     ));
 
     // Restore permissions for cleanup
-    let _ = std::fs::set_permissions(&versions_subdir, std::fs::Permissions::from_mode(0o755));
+    let _val = std::fs::set_permissions(&versions_subdir, std::fs::Permissions::from_mode(0o755));
 }
 
 // B-REG-55
@@ -1072,5 +1072,5 @@ fn reap_mixed_report_contains_correct_reaped_skipped_and_failures_for_multiple_d
     ));
 
     // Cleanup permissions
-    let _ = std::fs::set_permissions(&fail_versions, std::fs::Permissions::from_mode(0o755));
+    let _val = std::fs::set_permissions(&fail_versions, std::fs::Permissions::from_mode(0o755));
 }

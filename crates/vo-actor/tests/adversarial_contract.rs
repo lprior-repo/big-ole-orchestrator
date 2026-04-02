@@ -40,29 +40,29 @@ fn message_exhaustiveness() {
     let iid = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
 
     // InstanceActorMessage has 6 variants
-    let _ = InstanceActorMessage::new_start_workflow(
+    let _val = InstanceActorMessage::new_start_workflow(
         iid.clone(),
         WorkflowName::parse("w").unwrap(),
         NodeName::parse("n").unwrap(),
     );
-    let _ = InstanceActorMessage::new_step_completed(
+    let _val = InstanceActorMessage::new_step_completed(
         iid.clone(),
         NodeName::parse("n").unwrap(),
         SequenceNumber::new_unchecked(1),
     );
-    let _ = InstanceActorMessage::new_step_failed(
+    let _val = InstanceActorMessage::new_step_failed(
         iid.clone(),
         NodeName::parse("n").unwrap(),
         SequenceNumber::new_unchecked(1),
         "e".to_string(),
     );
-    let _ = InstanceActorMessage::new_timer_fired(iid.clone(), TimerId::parse("t").unwrap());
-    let _ = InstanceActorMessage::new_cancel_requested(iid.clone());
-    let _ = InstanceActorMessage::new_get_status(iid.clone());
+    let _val = InstanceActorMessage::new_timer_fired(iid.clone(), TimerId::parse("t").unwrap());
+    let _val = InstanceActorMessage::new_cancel_requested(iid.clone());
+    let _val = InstanceActorMessage::new_get_status(iid.clone());
 
     // ControlActorMessage has 2 variants
-    let _ = ControlActorMessage::new_cancel(iid.clone());
-    let _ = ControlActorMessage::new_resume(iid);
+    let _val = ControlActorMessage::new_cancel(iid.clone());
+    let _val = ControlActorMessage::new_resume(iid);
 }
 
 #[test]
@@ -79,7 +79,7 @@ fn immutability_guarantee() {
     );
 
     // Messages should be cloneable (they derive Clone)
-    let _ = msg.clone();
+    let _val = msg.clone();
 
     // But we can't get &mut to the internal fields
     // If this test compiles and passes, immutability is preserved
@@ -91,17 +91,17 @@ fn vo_types_validation_edge_cases() {
     use vo_types::{InstanceId, NodeName, SequenceNumber, TimerId, WorkflowName};
 
     // Empty strings should fail
-    assert!(InstanceId::parse("").is_err());
-    assert!(WorkflowName::parse("").is_err());
-    assert!(NodeName::parse("").is_err());
-    assert!(TimerId::parse("").is_err());
+    drop(InstanceId::parse("").unwrap_err());
+    drop(WorkflowName::parse("").unwrap_err());
+    drop(NodeName::parse("").unwrap_err());
+    drop(TimerId::parse("").unwrap_err());
 
     // Invalid ULID format should fail
-    assert!(InstanceId::parse("NOT-ULID").is_err());
+    drop(InstanceId::parse("NOT-ULID").unwrap_err());
 
     // Zero sequence should panic (via new_unchecked)
     let result = std::panic::catch_unwind(|| SequenceNumber::new_unchecked(0));
-    assert!(result.is_err());
+    drop(result.unwrap_err());
 }
 
 #[test]
@@ -127,10 +127,10 @@ fn unicode_identifiers() {
     use vo_types::{NodeName, WorkflowName};
 
     // Unicode in WorkflowName should fail (identifier must be ASCII)
-    assert!(WorkflowName::parse("workflow_日本語").is_err());
+    drop(WorkflowName::parse("workflow_日本語").unwrap_err());
 
     // Unicode in NodeName should fail
-    assert!(NodeName::parse("node_日本語").is_err());
+    drop(NodeName::parse("node_日本語").unwrap_err());
 }
 
 #[test]
@@ -144,7 +144,7 @@ fn max_length_workflow_name() {
 
     // If this succeeds when it should fail due to length limit, bug exists
     // If this fails because it exceeds max length, that's correct behavior
-    let _ = result; // Just check it doesn't panic
+    let _val = result; // Just check it doesn't panic
 }
 
 #[test]
@@ -180,7 +180,7 @@ fn error_string_handling() {
     match msg2 {
         InstanceActorMessage::StepFailed { error, .. } => {
             assert_eq!(error.len(), 1_000_000);
-            assert!(std::str::from_utf8(error.as_bytes()).is_ok());
+            std::str::from_utf8(error.as_bytes()).unwrap();
         }
         _ => panic!("Wrong variant"),
     }
@@ -195,7 +195,7 @@ fn error_string_handling() {
     );
     match msg3 {
         InstanceActorMessage::StepFailed { error, .. } => {
-            assert!(std::str::from_utf8(error.as_bytes()).is_ok());
+            std::str::from_utf8(error.as_bytes()).unwrap();
         }
         _ => panic!("Wrong variant"),
     }

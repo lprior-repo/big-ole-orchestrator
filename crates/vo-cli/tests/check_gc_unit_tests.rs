@@ -1,12 +1,13 @@
+#![allow(clippy::redundant_pattern_matching)]
+#![allow(clippy::needless_for_each)]
 use std::collections::HashSet;
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
 use vo_cli::commands::check::{
-    validate_binary_header, run_check, BinaryFormat, CheckError,
-    ELF_MAGIC, MACHO_MAGIC_32_BE, MACHO_MAGIC_32_LE, MACHO_MAGIC_64_BE, MACHO_MAGIC_64_LE,
-    KNOWN_MAGICS,
+    run_check, validate_binary_header, BinaryFormat, CheckError, ELF_MAGIC, KNOWN_MAGICS,
+    MACHO_MAGIC_32_BE, MACHO_MAGIC_32_LE, MACHO_MAGIC_64_BE, MACHO_MAGIC_64_LE,
 };
 use vo_cli::commands::gc::{
     delete_version_dir, find_unpinned_directories, run_gc, GcConfig, GcError,
@@ -24,10 +25,10 @@ fn sha256_hex(seed: &str) -> String {
 
 fn create_versions_dir(entries: &[&str]) -> tempfile::TempDir {
     let dir = tempfile::tempdir().expect("tempdir");
-    for name in entries {
+    entries.iter().for_each(|name| {
         let hash = sha256_hex(name);
         fs::create_dir_all(dir.path().join(&hash)).expect("mkdir");
-    }
+    });
     dir
 }
 
@@ -46,7 +47,11 @@ fn check_valid_elf_binary_returns_elf_format() {
 #[test]
 fn check_valid_macho_64le_returns_correct_format() {
     let dir = tempfile::tempdir().expect("tempdir");
-    let path = create_file_with_bytes(dir.path(), "macho64le.bin", &[0xCF, 0xFA, 0xED, 0xFE, 0x07, 0x00]);
+    let path = create_file_with_bytes(
+        dir.path(),
+        "macho64le.bin",
+        &[0xCF, 0xFA, 0xED, 0xFE, 0x07, 0x00],
+    );
     let result = validate_binary_header(&path);
     assert_eq!(result, Ok(BinaryFormat::MachO64LittleEndian));
 }
@@ -54,7 +59,11 @@ fn check_valid_macho_64le_returns_correct_format() {
 #[test]
 fn check_valid_macho_64be_returns_correct_format() {
     let dir = tempfile::tempdir().expect("tempdir");
-    let path = create_file_with_bytes(dir.path(), "macho64be.bin", &[0xFE, 0xED, 0xFA, 0xCF, 0x00, 0x00]);
+    let path = create_file_with_bytes(
+        dir.path(),
+        "macho64be.bin",
+        &[0xFE, 0xED, 0xFA, 0xCF, 0x00, 0x00],
+    );
     let result = validate_binary_header(&path);
     assert_eq!(result, Ok(BinaryFormat::MachO64BigEndian));
 }
@@ -83,16 +92,22 @@ fn check_valid_macho_32be_returns_correct_format() {
 fn check_nonexistent_file_returns_file_not_found() {
     let path = PathBuf::from("/tmp/nonexistent-vel-co5-test-binary-xyz");
     let result = validate_binary_header(&path);
-    assert!(matches!(result, Err(CheckError::FileNotFound { .. })),
-        "expected FileNotFound, got {:?}", result);
+    assert!(
+        matches!(result, Err(CheckError::FileNotFound { .. })),
+        "expected FileNotFound, got {:?}",
+        result
+    );
 }
 
 #[test]
 fn check_directory_returns_not_regular_file() {
     let dir = tempfile::tempdir().expect("tempdir");
     let result = validate_binary_header(dir.path());
-    assert!(matches!(result, Err(CheckError::NotRegularFile { .. })),
-        "expected NotRegularFile, got {:?}", result);
+    assert!(
+        matches!(result, Err(CheckError::NotRegularFile { .. })),
+        "expected NotRegularFile, got {:?}",
+        result
+    );
 }
 
 #[test]
@@ -102,8 +117,11 @@ fn check_symlink_returns_not_regular_file() {
     let link_path = dir.path().join("link.bin");
     std::os::unix::fs::symlink(&target, &link_path).expect("symlink");
     let result = validate_binary_header(&link_path);
-    assert!(matches!(result, Err(CheckError::NotRegularFile { .. })),
-        "expected NotRegularFile for symlink, got {:?}", result);
+    assert!(
+        matches!(result, Err(CheckError::NotRegularFile { .. })),
+        "expected NotRegularFile for symlink, got {:?}",
+        result
+    );
 }
 
 #[test]
@@ -111,8 +129,11 @@ fn check_empty_file_returns_file_too_small() {
     let dir = tempfile::tempdir().expect("tempdir");
     let path = create_file_with_bytes(dir.path(), "empty.bin", &[]);
     let result = validate_binary_header(&path);
-    assert!(matches!(result, Err(CheckError::FileTooSmall { .. })),
-        "expected FileTooSmall for 0 bytes, got {:?}", result);
+    assert!(
+        matches!(result, Err(CheckError::FileTooSmall { .. })),
+        "expected FileTooSmall for 0 bytes, got {:?}",
+        result
+    );
 }
 
 #[test]
@@ -120,8 +141,11 @@ fn check_3byte_file_returns_file_too_small() {
     let dir = tempfile::tempdir().expect("tempdir");
     let path = create_file_with_bytes(dir.path(), "small.bin", &[0x7F, 0x45, 0x4C]);
     let result = validate_binary_header(&path);
-    assert!(matches!(result, Err(CheckError::FileTooSmall { .. })),
-        "expected FileTooSmall for 3 bytes, got {:?}", result);
+    assert!(
+        matches!(result, Err(CheckError::FileTooSmall { .. })),
+        "expected FileTooSmall for 3 bytes, got {:?}",
+        result
+    );
 }
 
 #[test]
@@ -159,8 +183,11 @@ fn check_text_file_returns_invalid_magic() {
     let dir = tempfile::tempdir().expect("tempdir");
     let path = create_file_with_bytes(dir.path(), "hello.txt", b"Hello, World!\n");
     let result = validate_binary_header(&path);
-    assert!(matches!(result, Err(CheckError::InvalidMagic { .. })),
-        "expected InvalidMagic for text file, got {:?}", result);
+    assert!(
+        matches!(result, Err(CheckError::InvalidMagic { .. })),
+        "expected InvalidMagic for text file, got {:?}",
+        result
+    );
 }
 
 // ============================================================
@@ -174,22 +201,34 @@ fn display_name_elf() {
 
 #[test]
 fn display_name_macho_32be() {
-    assert_eq!(BinaryFormat::MachO32BigEndian.display_name(), "valid Mach-O 32-bit binary");
+    assert_eq!(
+        BinaryFormat::MachO32BigEndian.display_name(),
+        "valid Mach-O 32-bit binary"
+    );
 }
 
 #[test]
 fn display_name_macho_32le() {
-    assert_eq!(BinaryFormat::MachO32LittleEndian.display_name(), "valid Mach-O 32-bit binary");
+    assert_eq!(
+        BinaryFormat::MachO32LittleEndian.display_name(),
+        "valid Mach-O 32-bit binary"
+    );
 }
 
 #[test]
 fn display_name_macho_64be() {
-    assert_eq!(BinaryFormat::MachO64BigEndian.display_name(), "valid Mach-O 64-bit binary");
+    assert_eq!(
+        BinaryFormat::MachO64BigEndian.display_name(),
+        "valid Mach-O 64-bit binary"
+    );
 }
 
 #[test]
 fn display_name_macho_64le() {
-    assert_eq!(BinaryFormat::MachO64LittleEndian.display_name(), "valid Mach-O 64-bit binary");
+    assert_eq!(
+        BinaryFormat::MachO64LittleEndian.display_name(),
+        "valid Mach-O 64-bit binary"
+    );
 }
 
 // ============================================================
@@ -201,7 +240,7 @@ fn run_check_valid_elf_returns_ok() {
     let dir = tempfile::tempdir().expect("tempdir");
     let path = create_file_with_bytes(dir.path(), "elf.bin", &[0x7F, 0x45, 0x4C, 0x46, 0x00]);
     let result = run_check(&path);
-    assert!(result.is_ok());
+    assert!(matches!(result, Ok(_)));
 }
 
 #[test]
@@ -254,7 +293,9 @@ fn known_magics_contains_exactly_5_entries() {
 
 #[test]
 fn check_error_file_not_found_display() {
-    let err = CheckError::FileNotFound { path: PathBuf::from("/tmp/test") };
+    let err = CheckError::FileNotFound {
+        path: PathBuf::from("/tmp/test"),
+    };
     let msg = format!("{}", err);
     assert!(msg.contains("/tmp/test"));
     assert!(msg.contains("file not found"));
@@ -262,14 +303,18 @@ fn check_error_file_not_found_display() {
 
 #[test]
 fn check_error_not_regular_file_display() {
-    let err = CheckError::NotRegularFile { path: PathBuf::from("/tmp/dir") };
+    let err = CheckError::NotRegularFile {
+        path: PathBuf::from("/tmp/dir"),
+    };
     let msg = format!("{}", err);
     assert!(msg.contains("not a regular file"));
 }
 
 #[test]
 fn check_error_file_too_small_display() {
-    let err = CheckError::FileTooSmall { path: PathBuf::from("/tmp/small") };
+    let err = CheckError::FileTooSmall {
+        path: PathBuf::from("/tmp/small"),
+    };
     let msg = format!("{}", err);
     assert!(msg.contains("file too small"));
 }
@@ -287,7 +332,9 @@ fn check_error_invalid_magic_display() {
 
 #[test]
 fn check_error_permission_denied_display() {
-    let err = CheckError::PermissionDenied { path: PathBuf::from("/tmp/secret") };
+    let err = CheckError::PermissionDenied {
+        path: PathBuf::from("/tmp/secret"),
+    };
     let msg = format!("{}", err);
     assert!(msg.contains("permission denied"));
 }
@@ -311,18 +358,19 @@ fn gc_config_default_values() {
 #[test]
 fn find_unpinned_returns_correct_set_difference() {
     let dir = create_versions_dir(&["aaa", "bbb", "ccc"]);
-    let pinned: HashSet<String> = [
-        sha256_hex("aaa"),
-        sha256_hex("ccc"),
-    ].into_iter().collect();
+    let pinned: HashSet<String> = [sha256_hex("aaa"), sha256_hex("ccc")].into_iter().collect();
 
     let result = find_unpinned_directories(dir.path(), &pinned);
-    assert!(result.is_ok());
+    assert!(matches!(result, Ok(_)));
 
     let unpinned = result.expect("ok");
     assert_eq!(unpinned.len(), 1);
     assert_eq!(
-        unpinned[0].file_name().expect("name").to_str().expect("str"),
+        unpinned[0]
+            .file_name()
+            .expect("name")
+            .to_str()
+            .expect("str"),
         sha256_hex("bbb")
     );
 }
@@ -330,13 +378,10 @@ fn find_unpinned_returns_correct_set_difference() {
 #[test]
 fn find_unpinned_returns_empty_when_all_pinned() {
     let dir = create_versions_dir(&["aaa", "bbb"]);
-    let pinned: HashSet<String> = [
-        sha256_hex("aaa"),
-        sha256_hex("bbb"),
-    ].into_iter().collect();
+    let pinned: HashSet<String> = [sha256_hex("aaa"), sha256_hex("bbb")].into_iter().collect();
 
     let result = find_unpinned_directories(dir.path(), &pinned);
-    assert!(result.is_ok());
+    assert!(matches!(result, Ok(_)));
     assert!(result.expect("ok").is_empty());
 }
 
@@ -346,7 +391,7 @@ fn find_unpinned_returns_all_when_none_pinned() {
     let pinned: HashSet<String> = HashSet::new();
 
     let result = find_unpinned_directories(dir.path(), &pinned);
-    assert!(result.is_ok());
+    assert!(matches!(result, Ok(_)));
     assert_eq!(result.expect("ok").len(), 2);
 }
 
@@ -357,7 +402,7 @@ fn find_unpinned_returns_empty_when_dir_not_exists_inv4() {
         PathBuf::from("/tmp/nonexistent-versions-vel-co5-test").as_path(),
         &pinned,
     );
-    assert!(result.is_ok());
+    assert!(matches!(result, Ok(_)));
     assert!(result.expect("ok").is_empty());
 }
 
@@ -370,12 +415,16 @@ fn find_unpinned_skips_non_directory_entries() {
 
     let pinned: HashSet<String> = HashSet::new();
     let result = find_unpinned_directories(dir.path(), &pinned);
-    assert!(result.is_ok());
+    assert!(matches!(result, Ok(_)));
 
     let unpinned = result.expect("ok");
     assert_eq!(unpinned.len(), 1);
     assert_eq!(
-        unpinned[0].file_name().expect("name").to_str().expect("str"),
+        unpinned[0]
+            .file_name()
+            .expect("name")
+            .to_str()
+            .expect("str"),
         hash
     );
 }
@@ -389,12 +438,16 @@ fn find_unpinned_skips_non_hex_directory_names() {
 
     let pinned: HashSet<String> = HashSet::new();
     let result = find_unpinned_directories(dir.path(), &pinned);
-    assert!(result.is_ok());
+    assert!(matches!(result, Ok(_)));
 
     let unpinned = result.expect("ok");
     assert_eq!(unpinned.len(), 1);
     assert_eq!(
-        unpinned[0].file_name().expect("name").to_str().expect("str"),
+        unpinned[0]
+            .file_name()
+            .expect("name")
+            .to_str()
+            .expect("str"),
         good_hash
     );
 }
@@ -408,7 +461,7 @@ fn find_unpinned_skips_short_directory_names() {
 
     let pinned: HashSet<String> = HashSet::new();
     let result = find_unpinned_directories(dir.path(), &pinned);
-    assert!(result.is_ok());
+    assert!(matches!(result, Ok(_)));
 
     let unpinned = result.expect("ok");
     assert_eq!(unpinned.len(), 1);
@@ -419,7 +472,7 @@ fn find_unpinned_returns_empty_for_empty_versions_dir() {
     let dir = tempfile::tempdir().expect("tempdir");
     let pinned: HashSet<String> = HashSet::new();
     let result = find_unpinned_directories(dir.path(), &pinned);
-    assert!(result.is_ok());
+    assert!(matches!(result, Ok(_)));
     assert!(result.expect("ok").is_empty());
 }
 
@@ -433,12 +486,16 @@ fn find_unpinned_skips_65_char_directory_names() {
 
     let pinned: HashSet<String> = HashSet::new();
     let result = find_unpinned_directories(dir.path(), &pinned);
-    assert!(result.is_ok());
+    assert!(matches!(result, Ok(_)));
 
     let unpinned = result.expect("ok");
     assert_eq!(unpinned.len(), 1);
     assert_eq!(
-        unpinned[0].file_name().expect("name").to_str().expect("str"),
+        unpinned[0]
+            .file_name()
+            .expect("name")
+            .to_str()
+            .expect("str"),
         good_hash
     );
 }
@@ -455,7 +512,7 @@ fn delete_existing_directory_succeeds() {
     fs::write(target.join("file.dat"), b"data").expect("write");
 
     let result = delete_version_dir(&target);
-    assert!(result.is_ok());
+    assert!(matches!(result, Ok(_)));
     assert!(!target.exists());
 }
 
@@ -463,8 +520,11 @@ fn delete_existing_directory_succeeds() {
 fn delete_nonexistent_directory_fails() {
     let path = PathBuf::from("/tmp/nonexistent-dir-vel-co5-delete-test");
     let result = delete_version_dir(&path);
-    assert!(matches!(result, Err(GcError::DeleteFailed { .. })),
-        "expected DeleteFailed, got {:?}", result);
+    assert!(
+        matches!(result, Err(GcError::DeleteFailed { .. })),
+        "expected DeleteFailed, got {:?}",
+        result
+    );
 }
 
 #[test]
@@ -478,9 +538,9 @@ fn delete_readonly_directory_fails() {
 
     let result = delete_version_dir(&target);
 
-    fs::set_permissions(&target, fs::Permissions::from_mode(0o755)).ok();
+    fs::set_permissions(&target, fs::Permissions::from_mode(0o755)).expect("chmod restore");
 
-    assert!(result.is_err());
+    assert!(matches!(result, Err(_)));
 }
 
 // ============================================================
@@ -541,7 +601,7 @@ async fn run_gc_does_not_delete_pinned_version_inv2() {
     };
 
     let result = run_gc(&config).await;
-    assert!(result.is_ok());
+    assert!(matches!(result, Ok(_)));
 
     let summary = result.expect("ok");
     assert!(dir.path().join(sha256_hex("aaa")).exists() || summary.deleted_count == 0);
@@ -557,7 +617,7 @@ async fn run_gc_empty_pinned_deletes_all_inv3() {
     };
 
     let result = run_gc(&config).await;
-    assert!(result.is_ok());
+    assert!(matches!(result, Ok(_)));
 
     let summary = result.expect("ok");
     assert_eq!(summary.scanned_count, 2);
@@ -573,7 +633,7 @@ async fn run_gc_versions_dir_not_exists_is_noop_inv4() {
     };
 
     let result = run_gc(&config).await;
-    assert!(result.is_ok());
+    assert!(matches!(result, Ok(_)));
 
     let summary = result.expect("ok");
     assert_eq!(summary.scanned_count, 0);

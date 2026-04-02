@@ -60,34 +60,42 @@ pub async fn run_subprocess(config: SubprocessConfig) -> Result<SubprocessOutput
 
     let fd3_writer = unsafe { tokio::fs::File::from_std(std::fs::File::from_raw_fd(fd3_write)) };
     let fd4_reader = unsafe { tokio::fs::File::from_std(std::fs::File::from_raw_fd(fd4_read)) };
-    let stderr_reader = child.stderr.take().ok_or_else(|| IpcError::StderrReadFailed {
-        detail: "Failed to take stderr".to_string(),
-    })?;
+    let stderr_reader = child
+        .stderr
+        .take()
+        .ok_or_else(|| IpcError::StderrReadFailed {
+            detail: "Failed to take stderr".to_string(),
+        })?;
 
     let timeout_ms = config.timeout_ms();
     let fd3_payload = config.fd3_payload().to_vec();
 
     let stderr_task = tokio::task::spawn(read_bounded_stderr(stderr_reader));
 
-    let res = tokio::select! {
-        res = perform_ipc(&mut child, fd3_writer, fd4_reader, fd3_payload) => res,
-        () = tokio::time::sleep(std::time::Duration::from_millis(timeout_ms)) => {
-            let Some(pid) = child.id() else {
-                return Err(IpcError::SignalFailed { detail: "PID not found".to_string() });
-            };
-            terminate_pg(pid).await?;
-            
-            let stderr_res = stderr_task.await.map_err(|e| IpcError::StderrReadFailed {
-                detail: e.to_string(),
-            })?;
-            let capture = stderr_res.unwrap_or_default();
-            
-            return Err(IpcError::Timeout {
-                elapsed_ms: timeout_ms,
-                stderr_bytes: capture.bytes,
-                stderr_truncated: capture.truncated,
+    let timeout_res = tokio::time::timeout(
+        std::time::Duration::from_millis(timeout_ms),
+        perform_ipc(&mut child, fd3_writer, fd4_reader, fd3_payload),
+    )
+    .await;
+
+    let Ok(res) = timeout_res else {
+        let Some(_pid) = child.id() else {
+            return Err(IpcError::SignalFailed {
+                detail: "PID not found".to_string(),
             });
-        }
+        };
+        terminate_child(&mut child).await;
+
+        let stderr_res = stderr_task.await.map_err(|e| IpcError::StderrReadFailed {
+            detail: e.to_string(),
+        })?;
+        let capture = stderr_res.unwrap_or_default();
+
+        return Err(IpcError::Timeout {
+            elapsed_ms: timeout_ms,
+            stderr_bytes: capture.bytes,
+            stderr_truncated: capture.truncated,
+        });
     };
 
     let stderr_res = stderr_task.await.map_err(|e| IpcError::StderrReadFailed {
@@ -101,13 +109,11 @@ pub async fn run_subprocess(config: SubprocessConfig) -> Result<SubprocessOutput
             output.stderr_truncated = capture.truncated;
             Ok(output)
         }
-        Err(IpcError::ProcessFailed { exit_code, .. }) => {
-            Err(IpcError::ProcessFailed {
-                exit_code,
-                stderr_bytes: capture.bytes,
-                stderr_truncated: capture.truncated,
-            })
-        }
+        Err(IpcError::ProcessFailed { exit_code, .. }) => Err(IpcError::ProcessFailed {
+            exit_code,
+            stderr_bytes: capture.bytes,
+            stderr_truncated: capture.truncated,
+        }),
         Err(e) => Err(e),
     }
 }
@@ -200,21 +206,25 @@ fn create_pipe() -> Result<(RawFd, RawFd), IpcError> {
     Ok(fds.into())
 }
 
-async fn terminate_pg(pid: u32) -> Result<(), IpcError> {
-    const GRACE_PERIOD: std::time::Duration = std::time::Duration::from_millis(100);
+async fn terminate_child(child: &mut tokio::process::Child) {
+    let Some(pid) = child.id() else {
+        return;
+    };
     let kill_pgid = pid.cast_signed();
     unsafe {
         libc::kill(-kill_pgid, libc::SIGTERM);
     }
-    // Give the process group a moment to exit gracefully before SIGKILL.
-    tokio::time::sleep(GRACE_PERIOD).await;
-    unsafe {
-        libc::kill(-kill_pgid, libc::SIGKILL);
+    let res = tokio::time::timeout(std::time::Duration::from_millis(100), child.wait()).await;
+    if res.is_err() {
+        unsafe {
+            libc::kill(-kill_pgid, libc::SIGKILL);
+        }
     }
-    Ok(())
 }
 
 #[must_use]
 pub(crate) fn map_exit_code(status: std::process::ExitStatus) -> i32 {
-    status.code().unwrap_or_else(|| status.signal().map_or(-1, |s| 128 + s))
+    status
+        .code()
+        .unwrap_or_else(|| status.signal().map_or(-1, |s| 128 + s))
 }

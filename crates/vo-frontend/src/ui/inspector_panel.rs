@@ -103,10 +103,10 @@ fn CopyButton(text: String) -> Element {
                 {
                     use web_sys::window;
                     if let Some(w) = window() {
-                        let _ = w.navigator().clipboard().write_text(&payload);
+                        let _val = w.navigator().clipboard().write_text(&payload);
                     }
                 }
-                let _ = payload;
+                let _val = payload;
             },
             crate::ui::icons::CopyIcon { class: "h-3 w-3" }
             "Copy"

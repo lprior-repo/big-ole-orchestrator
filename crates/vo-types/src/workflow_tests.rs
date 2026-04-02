@@ -1,4 +1,5 @@
 use crate::*;
+#[cfg(feature = "proptest")]
 use proptest::prelude::*;
 use std::collections::HashSet;
 
@@ -39,10 +40,12 @@ fn make_workflow(
 // -----------------------------------------------------------------------
 // Proptest strategy helpers
 // -----------------------------------------------------------------------
+#[cfg(feature = "proptest")]
 fn step_outcome_strategy() -> impl Strategy<Value = StepOutcome> {
     proptest::prop_oneof![Just(StepOutcome::Success), Just(StepOutcome::Failure),]
 }
 
+#[cfg(feature = "proptest")]
 fn edge_condition_strategy() -> impl Strategy<Value = EdgeCondition> {
     proptest::prop_oneof![
         Just(EdgeCondition::Always),
@@ -1000,6 +1003,7 @@ fn workflow_definition_error_invalid_retry_policy_displays_node_and_reason_when_
 // ===================================================================
 // Proptests
 // ===================================================================
+#[cfg(feature = "proptest")]
 mod proptests {
     use super::*;
 
@@ -1206,6 +1210,7 @@ mod proptests {
 }
 
 /// Helper for proptests: check if an EdgeCondition matches a StepOutcome
+#[cfg(feature = "proptest")]
 fn edge_matches_outcome(condition: &EdgeCondition, outcome: &StepOutcome) -> bool {
     match condition {
         EdgeCondition::Always => true,

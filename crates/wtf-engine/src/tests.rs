@@ -533,7 +533,7 @@ mod proptests {
         fn binary_path_new_accepts_absolute_paths(s in "/[a-zA-Z0-9_./-]{1,255}") {
             let path = PathBuf::from(&s);
             let result = BinaryPath::new(path.clone());
-            prop_assert!(result.is_ok());
+            prop_assert!(matches!(result, Ok(_)));
             let bp = result.unwrap();
             prop_assert_eq!(bp.as_path(), path.as_path());
         }
@@ -580,7 +580,7 @@ mod proptests {
             use sha2::{Sha256, Digest};
             let hash = Sha256::digest(&bytes);
             let hex = format!("{:x}", hash);
-            prop_assert!(BinaryHash::parse(&hex).is_ok());
+            prop_assert!(matches!(BinaryHash::parse(&hex), Ok(_)));
         }
     }
 }

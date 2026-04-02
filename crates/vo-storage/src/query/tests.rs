@@ -2,6 +2,7 @@
 
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]
+#![allow(clippy::panic)]
 
 use super::*;
 use proptest::prelude::*;
@@ -59,10 +60,17 @@ fn decode_key_returns_error_for_zero_sequence() {
 
 #[test]
 fn decode_key_roundtrips_with_encode_key() {
-    for seq in [1u64, 100, u64::MAX, 42, 999_999] {
-        let encoded = encode_key(seq).expect("valid seq should encode");
-        assert_eq!(decode_key(&encoded), Ok(seq));
-    }
+    let seqs = [1u64, 100, u64::MAX, 42, 999_999];
+    let encoded0 = encode_key(seqs[0]).expect("valid seq should encode");
+    assert_eq!(decode_key(&encoded0), Ok(seqs[0]));
+    let encoded1 = encode_key(seqs[1]).expect("valid seq should encode");
+    assert_eq!(decode_key(&encoded1), Ok(seqs[1]));
+    let encoded2 = encode_key(seqs[2]).expect("valid seq should encode");
+    assert_eq!(decode_key(&encoded2), Ok(seqs[2]));
+    let encoded3 = encode_key(seqs[3]).expect("valid seq should encode");
+    assert_eq!(decode_key(&encoded3), Ok(seqs[3]));
+    let encoded4 = encode_key(seqs[4]).expect("valid seq should encode");
+    assert_eq!(decode_key(&encoded4), Ok(seqs[4]));
 }
 
 // ---- prefix_generator tests ----
@@ -74,8 +82,9 @@ fn decode_key_roundtrips_with_encode_key() {
 fn prefix_generator_returns_bytes_for_valid_instance_id() {
     let id = InstanceId::from_bytes([0x01; 16]);
     let result = prefix_generator(&id);
-    assert!(result.is_ok());
-    let bytes = result.unwrap();
+    let Ok(bytes) = result else {
+        panic!("result should be Ok");
+    };
     assert_eq!(bytes, id.as_str().as_bytes().to_vec());
 }
 

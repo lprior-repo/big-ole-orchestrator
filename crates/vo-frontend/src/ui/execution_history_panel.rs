@@ -419,7 +419,7 @@ pub fn ExecutionHistoryPanel(
                                             button {
                                                 class: "flex w-full items-center gap-2 px-3 py-2 hover:bg-slate-50 transition-colors",
                                                 onclick: move |_| {
-                                                    let _ = expanded_runs.try_write().map(|mut set| {
+                                                    let _val = expanded_runs.try_write().map(|mut set| {
                                                         if set.contains(&run_id) {
                                                             set.remove(&run_id);
                                                         } else {

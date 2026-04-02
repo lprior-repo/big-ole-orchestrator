@@ -57,7 +57,7 @@ fn full_lifecycle_register_resolve_deactivate_reap_transitions_correctly() {
 
     // Step 7: versioned binary should no longer exist on disk
     assert!(
-        std::fs::metadata(versioned_path.as_path()).is_err(),
+        matches!(std::fs::metadata(versioned_path.as_path()), Err(_)),
         "versioned binary should be deleted after reap"
     );
 }
@@ -75,66 +75,166 @@ fn registry_handles_concurrent_register_and_resolve_from_multiple_threads() {
 
     // Pre-create 4 test binaries with unique names
     let mut sources = Vec::new();
-    for i in 0..4u32 {
-        let graph = valid_graph_single_node(&format!("node-{i}"));
-        let source = make_test_binary(temp_dir.path(), &graph);
-        sources.push(source);
-    }
+    let graph0 = valid_graph_single_node("node-0");
+    sources.push(make_test_binary(temp_dir.path(), &graph0));
+    let graph1 = valid_graph_single_node("node-1");
+    sources.push(make_test_binary(temp_dir.path(), &graph1));
+    let graph2 = valid_graph_single_node("node-2");
+    sources.push(make_test_binary(temp_dir.path(), &graph2));
+    let graph3 = valid_graph_single_node("node-3");
+    sources.push(make_test_binary(temp_dir.path(), &graph3));
 
     let barrier = Arc::new(Barrier::new(5)); // 4 workers + 1 coordinator
 
     // When: 4 threads concurrently register
     let mut handles = Vec::new();
-    for i in 0..4u32 {
-        let registry = Arc::clone(&registry);
-        let barrier = Arc::clone(&barrier);
-        let source_path = bp(&sources[i as usize]);
-        let name = wn(&format!("wf-{i}"));
 
-        handles.push(std::thread::spawn(move || {
-            barrier.wait();
-            registry.register(&source_path, name)
-        }));
-    }
+    let registry0 = Arc::clone(&registry);
+    let barrier0 = Arc::clone(&barrier);
+    let source_path0 = bp(&sources[0]);
+    let name0 = wn("wf-0");
+    handles.push(std::thread::spawn(move || {
+        barrier0.wait();
+        registry0.register(&source_path0, name0)
+    }));
+
+    let registry1 = Arc::clone(&registry);
+    let barrier1 = Arc::clone(&barrier);
+    let source_path1 = bp(&sources[1]);
+    let name1 = wn("wf-1");
+    handles.push(std::thread::spawn(move || {
+        barrier1.wait();
+        registry1.register(&source_path1, name1)
+    }));
+
+    let registry2 = Arc::clone(&registry);
+    let barrier2 = Arc::clone(&barrier);
+    let source_path2 = bp(&sources[2]);
+    let name2 = wn("wf-2");
+    handles.push(std::thread::spawn(move || {
+        barrier2.wait();
+        registry2.register(&source_path2, name2)
+    }));
+
+    let registry3 = Arc::clone(&registry);
+    let barrier3 = Arc::clone(&barrier);
+    let source_path3 = bp(&sources[3]);
+    let name3 = wn("wf-3");
+    handles.push(std::thread::spawn(move || {
+        barrier3.wait();
+        registry3.register(&source_path3, name3)
+    }));
 
     // Coordinator waits for all workers
     barrier.wait();
 
     // Wait for all register threads to complete
-    for handle in handles {
-        let _ = handle.join().expect("thread should not panic");
-    }
+    let mut handles_iter = handles.into_iter();
+    handles_iter
+        .next()
+        .unwrap()
+        .join()
+        .expect("thread should not panic");
+    handles_iter
+        .next()
+        .unwrap()
+        .join()
+        .expect("thread should not panic");
+    handles_iter
+        .next()
+        .unwrap()
+        .join()
+        .expect("thread should not panic");
+    handles_iter
+        .next()
+        .unwrap()
+        .join()
+        .expect("thread should not panic");
 
     // Then: 4 threads concurrently resolve
     let barrier2 = Arc::new(Barrier::new(5));
     let mut resolve_handles = Vec::new();
-    for i in 0..4u32 {
-        let registry = Arc::clone(&registry);
-        let barrier = Arc::clone(&barrier2);
-        let name = wn(&format!("wf-{i}"));
 
-        resolve_handles.push(std::thread::spawn(move || {
-            barrier.wait();
-            if registry.resolve(&name).is_err() {
-                panic!("resolve should succeed");
-            }
-        }));
-    }
+    let registry_r0 = Arc::clone(&registry);
+    let barrier_r0 = Arc::clone(&barrier2);
+    let name_r0 = wn("wf-0");
+    resolve_handles.push(std::thread::spawn(move || {
+        barrier_r0.wait();
+        if matches!(registry_r0.resolve(&name_r0), Err(_)) {
+            panic!("resolve should succeed");
+        }
+    }));
+
+    let registry_r1 = Arc::clone(&registry);
+    let barrier_r1 = Arc::clone(&barrier2);
+    let name_r1 = wn("wf-1");
+    resolve_handles.push(std::thread::spawn(move || {
+        barrier_r1.wait();
+        if matches!(registry_r1.resolve(&name_r1), Err(_)) {
+            panic!("resolve should succeed");
+        }
+    }));
+
+    let registry_r2 = Arc::clone(&registry);
+    let barrier_r2 = Arc::clone(&barrier2);
+    let name_r2 = wn("wf-2");
+    resolve_handles.push(std::thread::spawn(move || {
+        barrier_r2.wait();
+        if matches!(registry_r2.resolve(&name_r2), Err(_)) {
+            panic!("resolve should succeed");
+        }
+    }));
+
+    let registry_r3 = Arc::clone(&registry);
+    let barrier_r3 = Arc::clone(&barrier2);
+    let name_r3 = wn("wf-3");
+    resolve_handles.push(std::thread::spawn(move || {
+        barrier_r3.wait();
+        if matches!(registry_r3.resolve(&name_r3), Err(_)) {
+            panic!("resolve should succeed");
+        }
+    }));
 
     barrier2.wait();
 
-    for handle in resolve_handles {
-        handle.join().expect("thread should not panic");
-    }
+    let mut r_handles_iter = resolve_handles.into_iter();
+    r_handles_iter
+        .next()
+        .unwrap()
+        .join()
+        .expect("thread should not panic");
+    r_handles_iter
+        .next()
+        .unwrap()
+        .join()
+        .expect("thread should not panic");
+    r_handles_iter
+        .next()
+        .unwrap()
+        .join()
+        .expect("thread should not panic");
+    r_handles_iter
+        .next()
+        .unwrap()
+        .join()
+        .expect("thread should not panic");
 
     // Then: len should be 4
     assert_eq!(registry.len(), 4);
 
     // And each resolve should succeed
-    for i in 0..4u32 {
-        let name = wn(&format!("wf-{i}"));
-        let _ = registry.resolve(&name).expect("resolve should succeed");
-    }
+    let _val0 = registry
+        .resolve(&wn("wf-0"))
+        .expect("resolve should succeed");
+    let _val1 = registry
+        .resolve(&wn("wf-1"))
+        .expect("resolve should succeed");
+    let _val2 = registry
+        .resolve(&wn("wf-2"))
+        .expect("resolve should succeed");
+    let _val3 = registry
+        .resolve(&wn("wf-3"))
+        .expect("resolve should succeed");
 }
 
 // ===========================================================================
@@ -150,35 +250,144 @@ fn list_returns_exactly_n_entries_after_registering_n_workflows_concurrently() {
 
     // Pre-create 8 test binaries
     let mut sources = Vec::new();
-    for i in 0..8u32 {
-        let graph = valid_graph_single_node(&format!("node-{i}"));
-        let source = make_test_binary(temp_dir.path(), &graph);
-        sources.push(source);
-    }
+    let graph0 = valid_graph_single_node("node-0");
+    sources.push(make_test_binary(temp_dir.path(), &graph0));
+    let graph1 = valid_graph_single_node("node-1");
+    sources.push(make_test_binary(temp_dir.path(), &graph1));
+    let graph2 = valid_graph_single_node("node-2");
+    sources.push(make_test_binary(temp_dir.path(), &graph2));
+    let graph3 = valid_graph_single_node("node-3");
+    sources.push(make_test_binary(temp_dir.path(), &graph3));
+    let graph4 = valid_graph_single_node("node-4");
+    sources.push(make_test_binary(temp_dir.path(), &graph4));
+    let graph5 = valid_graph_single_node("node-5");
+    sources.push(make_test_binary(temp_dir.path(), &graph5));
+    let graph6 = valid_graph_single_node("node-6");
+    sources.push(make_test_binary(temp_dir.path(), &graph6));
+    let graph7 = valid_graph_single_node("node-7");
+    sources.push(make_test_binary(temp_dir.path(), &graph7));
 
     let barrier = Arc::new(Barrier::new(9)); // 8 workers + 1 coordinator
 
     // When: 8 threads concurrently register
     let mut handles = Vec::new();
-    for i in 0..8u32 {
-        let registry = Arc::clone(&registry);
-        let barrier = Arc::clone(&barrier);
-        let source_path = bp(&sources[i as usize]);
-        let name = wn(&format!("wf-{i}"));
+    let registry0 = Arc::clone(&registry);
+    let barrier0 = Arc::clone(&barrier);
+    let source_path0 = bp(&sources[0]);
+    let name0 = wn("wf-0");
+    handles.push(std::thread::spawn(move || {
+        barrier0.wait();
+        registry0.register(&source_path0, name0)
+    }));
 
-        handles.push(std::thread::spawn(move || {
-            barrier.wait();
-            registry.register(&source_path, name)
-        }));
-    }
+    let registry1 = Arc::clone(&registry);
+    let barrier1 = Arc::clone(&barrier);
+    let source_path1 = bp(&sources[1]);
+    let name1 = wn("wf-1");
+    handles.push(std::thread::spawn(move || {
+        barrier1.wait();
+        registry1.register(&source_path1, name1)
+    }));
+
+    let registry2 = Arc::clone(&registry);
+    let barrier2 = Arc::clone(&barrier);
+    let source_path2 = bp(&sources[2]);
+    let name2 = wn("wf-2");
+    handles.push(std::thread::spawn(move || {
+        barrier2.wait();
+        registry2.register(&source_path2, name2)
+    }));
+
+    let registry3 = Arc::clone(&registry);
+    let barrier3 = Arc::clone(&barrier);
+    let source_path3 = bp(&sources[3]);
+    let name3 = wn("wf-3");
+    handles.push(std::thread::spawn(move || {
+        barrier3.wait();
+        registry3.register(&source_path3, name3)
+    }));
+
+    let registry4 = Arc::clone(&registry);
+    let barrier4 = Arc::clone(&barrier);
+    let source_path4 = bp(&sources[4]);
+    let name4 = wn("wf-4");
+    handles.push(std::thread::spawn(move || {
+        barrier4.wait();
+        registry4.register(&source_path4, name4)
+    }));
+
+    let registry5 = Arc::clone(&registry);
+    let barrier5 = Arc::clone(&barrier);
+    let source_path5 = bp(&sources[5]);
+    let name5 = wn("wf-5");
+    handles.push(std::thread::spawn(move || {
+        barrier5.wait();
+        registry5.register(&source_path5, name5)
+    }));
+
+    let registry6 = Arc::clone(&registry);
+    let barrier6 = Arc::clone(&barrier);
+    let source_path6 = bp(&sources[6]);
+    let name6 = wn("wf-6");
+    handles.push(std::thread::spawn(move || {
+        barrier6.wait();
+        registry6.register(&source_path6, name6)
+    }));
+
+    let registry7 = Arc::clone(&registry);
+    let barrier7 = Arc::clone(&barrier);
+    let source_path7 = bp(&sources[7]);
+    let name7 = wn("wf-7");
+    handles.push(std::thread::spawn(move || {
+        barrier7.wait();
+        registry7.register(&source_path7, name7)
+    }));
 
     // Coordinator waits for all workers
     barrier.wait();
 
     // Wait for all register threads to complete
-    for handle in handles {
-        let _ = handle.join().expect("thread should not panic");
-    }
+    let mut handles_iter = handles.into_iter();
+    handles_iter
+        .next()
+        .unwrap()
+        .join()
+        .expect("thread should not panic");
+    handles_iter
+        .next()
+        .unwrap()
+        .join()
+        .expect("thread should not panic");
+    handles_iter
+        .next()
+        .unwrap()
+        .join()
+        .expect("thread should not panic");
+    handles_iter
+        .next()
+        .unwrap()
+        .join()
+        .expect("thread should not panic");
+    handles_iter
+        .next()
+        .unwrap()
+        .join()
+        .expect("thread should not panic");
+    handles_iter
+        .next()
+        .unwrap()
+        .join()
+        .expect("thread should not panic");
+    handles_iter
+        .next()
+        .unwrap()
+        .join()
+        .expect("thread should not panic");
+    handles_iter
+        .next()
+        .unwrap()
+        .join()
+        .expect("thread should not panic");
 
     // Then: list should have exactly 8 entries
     let entries = registry.list();

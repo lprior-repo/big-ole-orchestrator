@@ -1,6 +1,6 @@
 #![allow(unexpected_cfgs)]
 use std::fmt;
-use vo_types::{InstanceId, SequenceNumber, ParseError};
+use vo_types::{InstanceId, ParseError, SequenceNumber};
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum StorageError {
@@ -193,6 +193,22 @@ mod tests {
         let result = decode_event_key(&input);
         assert_eq!(result, Err(StorageError::CorruptKey));
     }
+
+    #[test]
+    fn storage_error_other_variant_is_constructible_and_matchable() {
+        let err = StorageError::Other;
+        assert!(matches!(err, StorageError::Other));
+        let debug_output = format!("{err:?}");
+        assert!(debug_output.contains("Other"));
+    }
+
+    #[test]
+    fn storage_error_batch_commit_failed_variant_is_constructible_and_matchable() {
+        let err = StorageError::BatchCommitFailed;
+        assert!(matches!(err, StorageError::BatchCommitFailed));
+        let debug_output = format!("{err:?}");
+        assert!(debug_output.contains("BatchCommitFailed"));
+    }
 }
 
 #[cfg(test)]
@@ -228,6 +244,6 @@ mod verification {
         // We'll mock it if it was required, but we can't here easily unless we bypass.
         // For the sake of the red phase test stub, this function just has to compile.
         let bytes: [u8; 24] = kani::any();
-        let _ = decode_event_key(&bytes);
+        let _val = decode_event_key(&bytes);
     }
 }

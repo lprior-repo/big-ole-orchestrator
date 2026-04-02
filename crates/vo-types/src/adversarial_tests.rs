@@ -1,5 +1,4 @@
 use crate::*;
-use std::num::NonZeroU64;
 
 // --- Unicode edge cases ---
 
@@ -550,11 +549,13 @@ fn instance_id_display_round_trip() {
 
 // --- Proptest invariants ---
 
+#[cfg(feature = "proptest")]
 mod proptests {
     use super::*;
     use proptest::prelude::*;
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
+    use std::num::NonZeroU64;
     use std::time::{Duration, SystemTime};
 
     proptest! {

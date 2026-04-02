@@ -97,7 +97,6 @@ impl<T> IntoIterator for NonEmptyVec<T> {
 #[allow(unused_must_use)]
 mod tests {
     use super::*;
-    use proptest::prelude::*;
 
     // B-1: NonEmptyVec accepts non-empty vec when constructed via new()
     #[test]
@@ -209,8 +208,10 @@ mod tests {
     }
 
     // Proptest: NonEmptyVec serde round-trip
+    #[cfg(feature = "proptest")]
     mod proptests {
         use super::*;
+        use proptest::prelude::*;
 
         proptest! {
             /// Invariant: For any NonEmptyVec<Vec<u8>> with 1..=100 elements,

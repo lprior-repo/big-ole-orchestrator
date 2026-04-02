@@ -1,6 +1,10 @@
-use crate::config::{SubprocessConfig, parse_fd3_payload_as_argv, validate_timeout, validate_program_path};
+use crate::config::{
+    parse_fd3_payload_as_argv, validate_program_path, validate_timeout, SubprocessConfig,
+};
 use crate::error::{ConfigError, IpcError};
-use crate::stderr::{StderrCapture, MAX_STDERR_BYTES, TRUNCATION_MARKER, update_capture, finalize_capture};
+use crate::stderr::{
+    finalize_capture, update_capture, StderrCapture, MAX_STDERR_BYTES, TRUNCATION_MARKER,
+};
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::process::ExitStatusExt;
@@ -22,7 +26,10 @@ fn executable_file() -> std::path::PathBuf {
 fn config_new_returns_error_when_timeout_is_zero() {
     let path = executable_file();
     let result = SubprocessConfig::new(&path, 0, vec![]);
-    assert_eq!(result.unwrap_err(), ConfigError::TimeoutMustBePositive { timeout_ms: 0 });
+    assert_eq!(
+        result.unwrap_err(),
+        ConfigError::TimeoutMustBePositive { timeout_ms: 0 }
+    );
 }
 
 #[test]
@@ -44,7 +51,10 @@ fn config_new_returns_error_when_program_not_executable() {
     let file = directory.path().join("plain.txt");
     fs::write(&file, "not executable").unwrap();
     let result = SubprocessConfig::new(&file, 100, vec![]);
-    assert!(matches!(result, Err(ConfigError::ProgramNotExecutable { .. })));
+    assert!(matches!(
+        result,
+        Err(ConfigError::ProgramNotExecutable { .. })
+    ));
 }
 
 #[test]
@@ -87,7 +97,10 @@ fn parse_fd3_payload_as_argv_splits_by_whitespace() {
 
 #[test]
 fn validate_timeout_rejects_zero() {
-    assert_eq!(validate_timeout(0), Err(ConfigError::TimeoutMustBePositive { timeout_ms: 0 }));
+    assert_eq!(
+        validate_timeout(0),
+        Err(ConfigError::TimeoutMustBePositive { timeout_ms: 0 })
+    );
 }
 
 #[test]
@@ -145,7 +158,10 @@ fn ipc_error_timeout_contains_truncation_flag() {
         stderr_bytes: vec![],
         stderr_truncated: true,
     };
-    if let IpcError::Timeout { stderr_truncated, .. } = err {
+    if let IpcError::Timeout {
+        stderr_truncated, ..
+    } = err
+    {
         assert!(stderr_truncated);
     } else {
         panic!("Wrong variant");
@@ -211,7 +227,11 @@ fn finalize_capture_adds_marker_once() {
     let second = finalize_capture(first.clone());
     // Check that we don't double-append
     let marker_bytes = TRUNCATION_MARKER.as_bytes();
-    let count = second.bytes.windows(marker_bytes.len()).filter(|&w| w == marker_bytes).count();
+    let count = second
+        .bytes
+        .windows(marker_bytes.len())
+        .filter(|&w| w == marker_bytes)
+        .count();
     assert_eq!(count, 1);
 }
 
@@ -226,37 +246,49 @@ fn update_capture_observed_bytes_counts_all_bytes() {
 
 #[test]
 fn ipc_error_display_pipe_setup_failed() {
-    let err = IpcError::PipeSetupFailed { detail: "oops".to_string() };
+    let err = IpcError::PipeSetupFailed {
+        detail: "oops".to_string(),
+    };
     assert_eq!(err.to_string(), "failed to create subprocess pipes: oops");
 }
 
 #[test]
 fn ipc_error_display_spawn_failed() {
-    let err = IpcError::SpawnFailed { detail: "oops".to_string() };
+    let err = IpcError::SpawnFailed {
+        detail: "oops".to_string(),
+    };
     assert_eq!(err.to_string(), "failed to spawn subprocess: oops");
 }
 
 #[test]
 fn ipc_error_display_wait_failed() {
-    let err = IpcError::WaitFailed { detail: "oops".to_string() };
+    let err = IpcError::WaitFailed {
+        detail: "oops".to_string(),
+    };
     assert_eq!(err.to_string(), "failed to wait for subprocess: oops");
 }
 
 #[test]
 fn ipc_error_display_fd4_read_failed() {
-    let err = IpcError::Fd4ReadFailed { detail: "oops".to_string() };
+    let err = IpcError::Fd4ReadFailed {
+        detail: "oops".to_string(),
+    };
     assert_eq!(err.to_string(), "failed to read fd4 payload: oops");
 }
 
 #[test]
 fn ipc_error_display_stderr_read_failed() {
-    let err = IpcError::StderrReadFailed { detail: "oops".to_string() };
+    let err = IpcError::StderrReadFailed {
+        detail: "oops".to_string(),
+    };
     assert_eq!(err.to_string(), "failed to capture stderr: oops");
 }
 
 #[test]
 fn ipc_error_display_signal_failed() {
-    let err = IpcError::SignalFailed { detail: "oops".to_string() };
+    let err = IpcError::SignalFailed {
+        detail: "oops".to_string(),
+    };
     assert_eq!(err.to_string(), "failed to signal subprocess: oops");
 }
 

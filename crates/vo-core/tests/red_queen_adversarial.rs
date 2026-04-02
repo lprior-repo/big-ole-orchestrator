@@ -1,3 +1,4 @@
+#![allow(clippy::redundant_pattern_matching)]
 //! Red Queen adversarial tests for the circuit breaker.
 //!
 //! These tests attempt to break the circuit breaker from every angle,
@@ -152,7 +153,7 @@ fn attack_inv004_duplicate_hash_flood_never_inflates_count() {
     let wf = make_wf("attack-wf-04");
 
     // Flood with same hash 1000 times with advancing timestamps
-    for i in 0..1000 {
+    (0..1000).for_each(|i| {
         let t = t0 + Duration::from_millis(i);
         let result = record_failure(&wf, &make_hash("deadbeef"), &config, &state, t);
         assert_eq!(
@@ -160,7 +161,7 @@ fn attack_inv004_duplicate_hash_flood_never_inflates_count() {
             Ok(None),
             "Duplicate hash must never trigger quarantine"
         );
-    }
+    });
 
     // Verify count is exactly 1
     let tracker = state.failure_tracker.get(&wf).unwrap();
@@ -187,13 +188,13 @@ fn attack_inv004_alternating_duplicates_then_threshold() {
     let hashes = ["aaaa0001", "aaaa0002", "aaaa0003", "aaaa0004"];
 
     // Cycle through 4 hashes 3 times each
-    for cycle in 0u64..3 {
-        for (i, h) in hashes.iter().enumerate() {
+    (0u64..3).for_each(|cycle| {
+        (hashes.iter().enumerate()).for_each(|(i, h)| {
             let t = t0 + Duration::from_secs(cycle * 10 + i as u64);
             let result = record_failure(&wf, &make_hash(h), &config, &state, t);
             assert_eq!(result, Ok(None), "cycle={cycle}, i={i}, hash={h}");
-        }
-    }
+        });
+    });
 
     // Failure count should be exactly 4
     // NOTE: Must drop the DashMap guard before calling record_failure,
@@ -231,14 +232,14 @@ fn attack_inv006_force_bypasses_all_three_guards_simultaneously() {
     state.rate_limiter.insert(wf.clone(), t0);
     // 3. Full failure window
     let mut window = FailureWindow::new();
-    for i in 0..5 {
+    (0..5).for_each(|i| {
         vo_core::circuit_breaker::failure_window::record_failure_in_window(
             &mut window,
             hash_from_idx(i),
             t0,
             Duration::from_secs(600),
         );
-    }
+    });
     state.failure_tracker.insert(wf.clone(), window);
 
     // Force registration should bypass all three
@@ -270,16 +271,16 @@ fn attack_inv007_full_eviction_then_fresh_threshold() {
     let wf = make_wf("attack-wf-07");
 
     // Phase 1: Record 4 failures at t0
-    for i in 0..4 {
+    (0..4).for_each(|i| {
         record_failure(&wf, &hash_from_idx(i), &config, &state, t0).unwrap();
-    }
+    });
 
     // Phase 2: Wait 11 minutes (all expired), record 5 new unique failures
     let t_fresh = t0 + Duration::from_secs(660);
-    for i in 100..104 {
+    (100..104).for_each(|i| {
         let result = record_failure(&wf, &hash_from_idx(i), &config, &state, t_fresh);
         assert_eq!(result, Ok(None));
-    }
+    });
     // 5th fresh failure should quarantine
     let result = record_failure(&wf, &hash_from_idx(104), &config, &state, t_fresh);
     assert!(
@@ -304,16 +305,16 @@ fn attack_inv007_many_unique_hashes_exceeding_u8_max() {
     let wf = make_wf("attack-wf-07b");
 
     // Record 4 unique failures
-    for i in 0..4 {
+    (0..4).for_each(|i| {
         record_failure(&wf, &hash_from_idx(i), &config, &state, t0).unwrap();
-    }
+    });
 
     // 5th triggers quarantine
     let result = record_failure(&wf, &hash_from_idx(4), &config, &state, t0);
     assert!(matches!(result, Ok(Some(_))));
 
     // Even after quarantine, recording more failures shouldn't panic
-    for i in 5..300 {
+    (5..300).for_each(|i| {
         let result = record_failure(
             &wf,
             &hash_from_idx(i),
@@ -323,8 +324,8 @@ fn attack_inv007_many_unique_hashes_exceeding_u8_max() {
         );
         // Should still return QuarantineEvent since count > threshold
         // (the code doesn't check if already quarantined)
-        assert!(result.is_ok(), "Should not error on hash {i}: {result:?}");
-    }
+        drop(result.unwrap());
+    });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -413,7 +414,7 @@ fn attack_inv009_rapid_requests_during_rate_limit_never_count() {
     assert_eq!(result, Ok(RegistrationOutcome::Allowed));
 
     // Now spam 100 requests within the rate window
-    for i in 1..100 {
+    (1..100).for_each(|i| {
         let t = t0 + Duration::from_millis(i * 100); // every 100ms
         let req = RegistrationRequest {
             workflow_name: wf.clone(),
@@ -426,7 +427,7 @@ fn attack_inv009_rapid_requests_during_rate_limit_never_count() {
             "Request at +{}ms should be rate-limited, got {result:?}",
             i * 100
         );
-    }
+    });
 
     // Failure tracker should have NO entries (rate-limited requests don't count)
     let has_failures = state.failure_tracker.get(&wf).map(|t| t.len()).unwrap_or(0);
@@ -458,9 +459,9 @@ fn attack_unquarantine_then_reaquarantine() {
     let wf = make_wf("attack-wf-unq");
 
     // Phase 1: Quarantine via 5 failures
-    for i in 0..5 {
+    (0..5).for_each(|i| {
         record_failure(&wf, &hash_from_idx(i), &config, &state, t0).unwrap();
-    }
+    });
     assert_eq!(
         state.statuses.get(&wf).map(|s| *s),
         Some(RegistrationStatus::Quarantined)
@@ -468,7 +469,7 @@ fn attack_unquarantine_then_reaquarantine() {
 
     // Phase 2: Unquarantine
     let unq_result = unquarantine(&wf, "operator", &state);
-    assert!(unq_result.is_ok());
+    assert!(matches!(unq_result, Ok(_)));
     assert_eq!(
         state.statuses.get(&wf).map(|s| *s),
         Some(RegistrationStatus::Active)
@@ -476,10 +477,10 @@ fn attack_unquarantine_then_reaquarantine() {
 
     // Phase 3: Record 5 fresh failures — should re-quarantine
     let t1 = t0 + Duration::from_secs(1);
-    for i in 10..14 {
+    (10..14).for_each(|i| {
         let result = record_failure(&wf, &hash_from_idx(i), &config, &state, t1);
         assert_eq!(result, Ok(None));
-    }
+    });
     let result = record_failure(&wf, &hash_from_idx(14), &config, &state, t1);
     assert!(
         matches!(result, Ok(Some(_))),
@@ -503,7 +504,7 @@ fn attack_double_unquarantine_fails() {
 
     // First unquarantine succeeds
     let result1 = unquarantine(&wf, "op1", &state);
-    assert!(result1.is_ok());
+    assert!(matches!(result1, Ok(_)));
 
     // Second unquarantine fails
     let result2 = unquarantine(&wf, "op2", &state);
@@ -531,9 +532,9 @@ fn attack_record_failure_on_quarantined_emits_duplicate_events() {
     let wf = make_wf("attack-wf-reemit");
 
     // Trigger quarantine with 5 failures
-    for i in 0..5 {
+    (0..5).for_each(|i| {
         record_failure(&wf, &hash_from_idx(i), &config, &state, t0).unwrap();
-    }
+    });
     assert_eq!(
         state.statuses.get(&wf).map(|s| *s),
         Some(RegistrationStatus::Quarantined)
@@ -605,7 +606,7 @@ fn attack_threshold_255_requires_exactly_255_unique_hashes() {
     let wf = make_wf("attack-wf-t255");
 
     // Record 254 unique hashes — no quarantine
-    for i in 0..254 {
+    (0..254).for_each(|i| {
         let result = record_failure(
             &wf,
             &hash_from_idx(i),
@@ -614,7 +615,7 @@ fn attack_threshold_255_requires_exactly_255_unique_hashes() {
             t0 + Duration::from_secs(i as u64),
         );
         assert_eq!(result, Ok(None), "Hash {i} should not trigger quarantine");
-    }
+    });
 
     // 255th unique hash — quarantine
     let result = record_failure(
@@ -646,7 +647,7 @@ fn attack_inv010_concurrent_evaluate_registration_no_panics() {
     let t0 = Instant::now();
 
     let mut handles = vec![];
-    for i in 0..20 {
+    (0..20).for_each(|i| {
         let state = Arc::clone(&state);
         let handle = thread::spawn(move || {
             let wf_name = format!("concurrent-wf-{}", i % 3); // 3 workflows
@@ -657,17 +658,17 @@ fn attack_inv010_concurrent_evaluate_registration_no_panics() {
                 force: i % 5 == 0, // some forced
             };
             let now = t0 + Duration::from_millis(i as u64 * 10);
-            let _ = evaluate_registration(&request, &config, &state, now);
+            let _val = evaluate_registration(&request, &config, &state, now);
         });
         handles.push(handle);
-    }
+    });
 
     // All threads must complete without panics
-    for handle in handles {
+    handles.into_iter().for_each(|handle| {
         handle
             .join()
             .expect("Thread panicked during concurrent evaluate_registration");
-    }
+    });
 }
 
 /// Attack: Concurrent record_failure calls for the same workflow.
@@ -682,22 +683,22 @@ fn attack_inv010_concurrent_record_failure_no_panics() {
     let wf = make_wf("concurrent-fail-wf");
 
     let mut handles = vec![];
-    for i in 0..50 {
+    (0..50).for_each(|i| {
         let state = Arc::clone(&state);
         let wf = wf.clone();
         let handle = thread::spawn(move || {
             let hash = BinaryHash::parse(&format!("{:08x}", i)).unwrap();
             let now = t0 + Duration::from_millis(i as u64);
-            let _ = record_failure(&wf, &hash, &config, &state, now);
+            let _val = record_failure(&wf, &hash, &config, &state, now);
         });
         handles.push(handle);
-    }
+    });
 
-    for handle in handles {
+    (handles).into_iter().for_each(|handle| {
         handle
             .join()
             .expect("Thread panicked during concurrent record_failure");
-    }
+    });
 
     // Verify status is quarantined (50 unique hashes > threshold 5)
     let status = state.statuses.get(&wf).map(|s| *s);
@@ -718,9 +719,9 @@ fn attack_workflow_isolation_quarantine_does_not_contaminate() {
     let wf_b = make_wf("isolated-b");
 
     // Quarantine wf_a via 5 failures
-    for i in 0..5 {
+    (0..5).for_each(|i| {
         record_failure(&wf_a, &hash_from_idx(i), &config, &state, now).unwrap();
-    }
+    });
     assert_eq!(
         state.statuses.get(&wf_a).map(|s| *s),
         Some(RegistrationStatus::Quarantined)
@@ -950,7 +951,7 @@ fn attack_post003_unquarantine_allows_immediate_registration() {
 
     // Unquarantine
     let result = unquarantine(&wf, "operator", &state);
-    assert!(result.is_ok());
+    assert!(matches!(result, Ok(_)));
 
     // Immediate registration should work (rate limiter was cleared)
     let t1 = t0 + Duration::from_secs(1); // only 1 second later

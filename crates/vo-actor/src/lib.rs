@@ -31,6 +31,20 @@ pub struct OrchestratorMsg;
 #[derive(Debug)]
 pub struct StartError;
 
+#[cfg(test)]
+mod terminate_error_tests {
+    use super::*;
+
+    #[test]
+    fn terminate_error_variants_can_be_constructed() {
+        let err_not_found = TerminateError::NotFound("wf-123".to_string());
+        assert!(matches!(err_not_found, TerminateError::NotFound(msg) if msg == "wf-123"));
+
+        let err_failed = TerminateError::Failed("crashed".to_string());
+        assert!(matches!(err_failed, TerminateError::Failed(msg) if msg == "crashed"));
+    }
+}
+
 // Actor message types
 pub mod actor_messages {
     // Import types directly from vo-types
@@ -90,6 +104,7 @@ pub mod actor_messages {
 
     impl InstanceActorMessage {
         /// Creates a new `StartWorkflow` message.
+        #[must_use]
         pub fn new_start_workflow(
             instance_id: InstanceId,
             workflow_name: WorkflowName,
@@ -103,6 +118,7 @@ pub mod actor_messages {
         }
 
         /// Creates a new `StepCompleted` message.
+        #[must_use]
         pub fn new_step_completed(
             instance_id: InstanceId,
             node_name: NodeName,
@@ -116,6 +132,7 @@ pub mod actor_messages {
         }
 
         /// Creates a new `StepFailed` message.
+        #[must_use]
         pub fn new_step_failed(
             instance_id: InstanceId,
             node_name: NodeName,
@@ -131,6 +148,7 @@ pub mod actor_messages {
         }
 
         /// Creates a new `TimerFired` message.
+        #[must_use]
         pub fn new_timer_fired(instance_id: InstanceId, timer_id: TimerId) -> Self {
             Self::TimerFired {
                 instance_id,
@@ -139,11 +157,13 @@ pub mod actor_messages {
         }
 
         /// Creates a new `CancelRequested` message.
+        #[must_use]
         pub fn new_cancel_requested(instance_id: InstanceId) -> Self {
             Self::CancelRequested { instance_id }
         }
 
         /// Creates a new `GetStatus` message.
+        #[must_use]
         pub fn new_get_status(instance_id: InstanceId) -> Self {
             Self::GetStatus { instance_id }
         }
@@ -155,11 +175,13 @@ pub mod actor_messages {
 
     impl ControlActorMessage {
         /// Creates a new `Cancel` message.
+        #[must_use]
         pub fn new_cancel(instance_id: InstanceId) -> Self {
             Self::Cancel { instance_id }
         }
 
         /// Creates a new `Resume` message.
+        #[must_use]
         pub fn new_resume(instance_id: InstanceId) -> Self {
             Self::Resume { instance_id }
         }

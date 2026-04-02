@@ -1,3 +1,5 @@
+#![allow(clippy::redundant_pattern_matching)]
+#![allow(clippy::needless_for_each)]
 use proptest::prelude::*;
 use std::collections::HashSet;
 use vo_cli::commands::check::{validate_binary_header, KNOWN_MAGICS};
@@ -17,7 +19,7 @@ proptest! {
     #[test]
     fn parse_nats_url_accepts_valid_urls(host in "[a-z]+", port in 1..=65535u16) {
         let url = format!("{}:{}", host, port);
-        prop_assert!(parse_nats_url(&url).is_ok());
+        prop_assert!(matches!(parse_nats_url(&url), Ok(_)));
     }
 
     #[test]
@@ -25,13 +27,13 @@ proptest! {
         let is_known = KNOWN_MAGICS.contains(&magic);
         let dir = tempfile::tempdir().expect("tempdir");
         let path = dir.path().join("test.bin");
-        std::fs::write(&path, &magic).expect("write");
+        std::fs::write(&path, magic).expect("write");
 
         let result = validate_binary_header(&path);
         if is_known {
-            prop_assert!(result.is_ok());
+            prop_assert!(matches!(result, Ok(_)));
         } else {
-            prop_assert!(result.is_err());
+            prop_assert!(matches!(result, Err(_)));
         }
     }
 
@@ -44,12 +46,12 @@ proptest! {
         let pinned: HashSet<String> = pinned_seeds.iter().map(|s| sha256_hex(s)).collect();
 
         let dir = tempfile::tempdir().expect("tempdir");
-        for hash in &all_hashes {
+        all_hashes.iter().for_each(|hash| {
             std::fs::create_dir_all(dir.path().join(hash)).expect("mkdir");
-        }
+        });
 
         let result = find_unpinned_directories(dir.path(), &pinned);
-        prop_assert!(result.is_ok());
+        prop_assert!(matches!(result, Ok(_)));
 
         let unpinned = result.expect("ok");
         let unpinned_names: HashSet<String> = unpinned

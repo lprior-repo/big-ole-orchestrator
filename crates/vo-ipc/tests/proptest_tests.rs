@@ -1,8 +1,9 @@
+#![allow(clippy::redundant_pattern_matching)]
 use proptest::prelude::*;
-use vo_ipc::SubprocessConfig;
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use tempfile::tempdir;
+use vo_ipc::SubprocessConfig;
 
 fn executable_file() -> std::path::PathBuf {
     let directory = tempdir().unwrap();
@@ -22,7 +23,7 @@ proptest! {
     fn subprocess_config_new_accepts_any_valid_timeout(t in 1..u64::MAX) {
         let path = executable_file();
         let result = SubprocessConfig::new(&path, t, vec![]);
-        prop_assert!(result.is_ok());
+        prop_assert!(matches!(result, Ok(_)));
         prop_assert_eq!(result.unwrap().timeout_ms(), t);
     }
 }

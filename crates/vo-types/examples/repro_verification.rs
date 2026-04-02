@@ -1,4 +1,4 @@
-use vo_types::{WorkflowName, ParseError};
+use vo_types::WorkflowName;
 
 fn main() {
     let cases = vec![
@@ -13,8 +13,14 @@ fn main() {
     for (input, description) in cases {
         let result = WorkflowName::parse(input);
         match result {
-            Ok(_) => println!("✅ Case: {} | Input: '{}' | Result: Success", description, input),
-            Err(e) => println!("❌ Case: {} | Input: '{}' | Result: Error: {:?}", description, input, e),
+            Ok(_) => println!(
+                "✅ Case: {} | Input: '{}' | Result: Success",
+                description, input
+            ),
+            Err(e) => println!(
+                "❌ Case: {} | Input: '{}' | Result: Error: {:?}",
+                description, input, e
+            ),
         }
     }
 }

@@ -24,7 +24,7 @@ async fn dispatch_returns_ok_when_cli_contains_start_command() {
     let cli = Cli {
         command: Command::Start,
     };
-    assert!(dispatch(cli).await.is_ok());
+    dispatch(cli).await.unwrap();
 }
 
 #[test]

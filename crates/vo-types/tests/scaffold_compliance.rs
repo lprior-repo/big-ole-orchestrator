@@ -26,7 +26,15 @@ const STATE_RS_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/src/state.rs")
 const WORKSPACE_ROOT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/..");
 
 /// Allowed dependencies — the EXACT set permitted in [dependencies].
-const ALLOWED_DEPS: &[&str] = &["serde", "thiserror", "uuid", "ulid", "serde_json"];
+/// Note: proptest is optional (feature-gated) and included for test segregation (vel-2a5).
+const ALLOWED_DEPS: &[&str] = &[
+    "serde",
+    "thiserror",
+    "uuid",
+    "ulid",
+    "serde_json",
+    "proptest",
+];
 
 // ---------------------------------------------------------------------------
 // Helper functions

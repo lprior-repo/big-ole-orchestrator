@@ -29,9 +29,9 @@ impl SubprocessConfig {
         validate_timeout(timeout_ms)?;
         validate_program_path(p)?;
 
-        let canonical_path = p
-            .canonicalize()
-            .map_err(|_| ConfigError::ProgramMissing { path: p.to_path_buf() })?;
+        let canonical_path = p.canonicalize().map_err(|_| ConfigError::ProgramMissing {
+            path: p.to_path_buf(),
+        })?;
 
         Ok(Self {
             executable_path: canonical_path,
@@ -70,20 +70,26 @@ pub(crate) const fn validate_timeout(timeout_ms: u64) -> Result<(), ConfigError>
 
 pub(crate) fn validate_program_path(path: &Path) -> Result<(), ConfigError> {
     if !path.exists() {
-        return Err(ConfigError::ProgramMissing { path: path.to_path_buf() });
+        return Err(ConfigError::ProgramMissing {
+            path: path.to_path_buf(),
+        });
     }
 
-    let metadata = path
-        .metadata()
-        .map_err(|_| ConfigError::ProgramMissing { path: path.to_path_buf() })?;
+    let metadata = path.metadata().map_err(|_| ConfigError::ProgramMissing {
+        path: path.to_path_buf(),
+    })?;
 
     if !metadata.is_file() {
-        return Err(ConfigError::ProgramMissing { path: path.to_path_buf() });
+        return Err(ConfigError::ProgramMissing {
+            path: path.to_path_buf(),
+        });
     }
 
     let permissions = metadata.permissions();
     if permissions.mode() & 0o111 == 0 {
-        return Err(ConfigError::ProgramNotExecutable { path: path.to_path_buf() });
+        return Err(ConfigError::ProgramNotExecutable {
+            path: path.to_path_buf(),
+        });
     }
 
     Ok(())

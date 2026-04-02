@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
 use crate::cli::{Cli, CliError, Command};
-use vo_storage::purge::purge_instance;
 use vo_storage::codec::StorageError;
+use vo_storage::purge::purge_instance;
 
 /// Dispatch the parsed CLI command to the corresponding handler.
 ///
@@ -17,7 +17,7 @@ pub async fn dispatch(cli: Cli) -> Result<(), CliError> {
             let keyspace = fjall::Config::new(fjall_path)
                 .open()
                 .map_err(|e| CliError::Dispatch(format!("Failed to open keyspace: {e}")))?;
-            
+
             match purge_instance(&keyspace, &instance) {
                 Ok(count) => {
                     println!("Purged {count} events for instance {instance}.");
@@ -27,16 +27,17 @@ pub async fn dispatch(cli: Cli) -> Result<(), CliError> {
                     eprintln!("Cannot purge a running instance.");
                     Err(CliError::Dispatch("Instance is running".to_string()))
                 }
-                Err(e) => {
-                    Err(CliError::Dispatch(format!("Purge failed: {e}")))
-                }
+                Err(e) => Err(CliError::Dispatch(format!("Purge failed: {e}"))),
             }
         }
         Command::Check { path } => {
             crate::commands::check::run_check(&path)?;
             Ok(())
         }
-        Command::Gc { engine_url, dry_run } => {
+        Command::Gc {
+            engine_url,
+            dry_run,
+        } => {
             let config = crate::commands::gc::GcConfig {
                 engine_url,
                 versions_dir: PathBuf::from("/var/wtf/versions"),

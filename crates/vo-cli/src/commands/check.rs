@@ -28,10 +28,8 @@ impl BinaryFormat {
     pub fn display_name(&self) -> &'static str {
         match self {
             Self::Elf => "valid ELF binary",
-            Self::MachO32BigEndian => "valid Mach-O 32-bit binary",
-            Self::MachO32LittleEndian => "valid Mach-O 32-bit binary",
-            Self::MachO64BigEndian => "valid Mach-O 64-bit binary",
-            Self::MachO64LittleEndian => "valid Mach-O 64-bit binary",
+            Self::MachO32BigEndian | Self::MachO32LittleEndian => "valid Mach-O 32-bit binary",
+            Self::MachO64BigEndian | Self::MachO64LittleEndian => "valid Mach-O 64-bit binary",
         }
     }
 }
@@ -64,14 +62,14 @@ pub enum CheckError {
 impl PartialEq for CheckError {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Self::FileNotFound { path: a }, Self::FileNotFound { path: b }) => a == b,
-            (Self::NotRegularFile { path: a }, Self::NotRegularFile { path: b }) => a == b,
-            (Self::FileTooSmall { path: a }, Self::FileTooSmall { path: b }) => a == b,
+            (Self::FileNotFound { path: a }, Self::FileNotFound { path: b })
+            | (Self::NotRegularFile { path: a }, Self::NotRegularFile { path: b })
+            | (Self::FileTooSmall { path: a }, Self::FileTooSmall { path: b })
+            | (Self::PermissionDenied { path: a }, Self::PermissionDenied { path: b }) => a == b,
             (
                 Self::InvalidMagic { path: a, magic: am },
                 Self::InvalidMagic { path: b, magic: bm },
             ) => a == b && am == bm,
-            (Self::PermissionDenied { path: a }, Self::PermissionDenied { path: b }) => a == b,
             _ => false,
         }
     }
@@ -88,7 +86,12 @@ fn identify_magic(magic: [u8; 4]) -> Option<BinaryFormat> {
     }
 }
 
+/// Validate a binary header.
+///
+/// # Errors
+/// Returns an error if the file does not exist, lacks permission, is not a regular file, or has invalid magic.
 pub fn validate_binary_header(path: &Path) -> Result<BinaryFormat, CheckError> {
+    use std::io::Read;
     let sym_meta = match std::fs::symlink_metadata(path) {
         Ok(m) => m,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
@@ -136,9 +139,9 @@ pub fn validate_binary_header(path: &Path) -> Result<BinaryFormat, CheckError> {
     })?;
 
     let mut reader = std::io::BufReader::new(file);
+
     let mut buf = [0u8; 4];
 
-    use std::io::Read;
     let bytes_read = reader.read(&mut buf).map_err(|e| CheckError::Io {
         path: path.to_path_buf(),
         source: e,
@@ -156,8 +159,33 @@ pub fn validate_binary_header(path: &Path) -> Result<BinaryFormat, CheckError> {
     })
 }
 
+/// Run the check command.
+///
+/// # Errors
+/// Returns an error if the file does not exist, lacks permission, is not a regular file, or has invalid magic.
 pub fn run_check(path: &Path) -> Result<(), CheckError> {
     let fmt = validate_binary_header(path)?;
     println!("{}: {}", path.display(), fmt.display_name());
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn check_error_eq_returns_false_for_different_errors() {
+        let err1 = CheckError::FileNotFound {
+            path: PathBuf::from("a"),
+        };
+        let err2 = CheckError::FileNotFound {
+            path: PathBuf::from("b"),
+        };
+        assert_ne!(err1, err2);
+
+        let err3 = CheckError::NotRegularFile {
+            path: PathBuf::from("a"),
+        };
+        assert_ne!(err1, err3);
+    }
 }

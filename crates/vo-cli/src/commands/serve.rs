@@ -105,7 +105,7 @@ pub async fn run_serve_loop(
 
     let shutdown_tx_for_signal = shutdown_tx.clone();
     let signal_handle = tokio::spawn(async move {
-        let _ = tokio::signal::ctrl_c().await;
+        let _val = tokio::signal::ctrl_c().await;
         tracing::info!("received shutdown signal (Ctrl+C)");
         shutdown_tx_for_signal.send(true).unwrap();
     });
