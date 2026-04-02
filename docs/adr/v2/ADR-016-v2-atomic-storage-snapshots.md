@@ -4,24 +4,30 @@
 Accepted
 
 ## Context
-1. **Multi-Partition Corruption:** We are using `fjall` with multiple partitions (`events`, `instances`, `timers`). If the engine writes an event to the `events` partition, but crashes before updating the `instances` index partition, the UI will display inconsistent data (e.g., UI says "Running", event log says "Failed").
-2. **The Replay Cliff:** An actor rehydrates its state by replaying its event log. If a workflow runs a massive Map loop, generating 20,000 events, rehydration could take seconds. If the engine restarts and 100 actors need to rehydrate 20,000 events each, the startup delay is catastrophic.
+1. **Multi-Partition Corruption:** We are using `fjall` with multiple partitions (`events`, `instances`, `timers`, `dedupe`, `effects`, `leases`, `snapshots`). If the Engine writes an event but crashes before updating the related control-plane records, exact-once semantics collapse.
+2. **The Replay Cliff:** An actor rehydrates its state by replaying its event log. If a workflow runs a massive Map loop, generating 20,000 events, rehydration could take seconds. If the Engine restarts and 100 actors need to rehydrate 20,000 events each, startup delay is catastrophic.
+3. **Blob Publication Hazard:** If the Engine publishes a `StepCompleted.output_ref` before the referenced canonical blob is durable, replay can observe a pointer to missing truth.
 
 ## Decision
 
 ### 1. Atomic WriteBatches
-The `DbWriterActor` is mandated to use `fjall::Batch` for every single state transition. 
-- A transition must write the `WorkflowEvent` to the `events` partition AND update the `InstanceSummary` in the `instances` partition in the exact same atomic transaction. 
-- If the batch fails to commit, neither partition is updated. This guarantees 100% eventual consistency between the Event Log and the Materialized Views.
+The `DbWriterActor` is mandated to use `fjall::Batch` for every single control-plane transition.
+- A transition must atomically update **every** touched control-plane partition in the same batch: `events`, `instances`, `timers`, `dedupe`, `effects`, `leases`, and `snapshots` as applicable.
+- If the batch fails to commit, none of those writes become visible.
+- Observability projections and cold blob writes may be deferred, but exact-once control records may not.
+
+Canonical payload blob publication is governed by ADR-040. A control-plane record may only publish a blob reference once the blob has crossed its durability boundary.
 
 ### 2. Periodic State Snapshotting
-To solve the Replay Cliff, the Engine implements a `snapshots` partition in `fjall`.
-- Every $N$ events (e.g., $N=100$), the actor serializes its fully computed in-memory state.
+To solve the replay cliff, the Engine implements a `snapshots` partition in `fjall`.
+- Every $N$ events, the actor serializes its computed in-memory state, including the current routing state, outstanding timer state, current fence ownership, and in-flight managed-effect bookkeeping.
 - It sends a `SnapshotTaken { sequence_number, state_bytes }` instruction to the `DbWriterActor`.
-- This snapshot is written to the `snapshots` partition as part of the same atomic batch that writes the 100th event.
-- On rehydration, the actor reads the latest snapshot, loads the state into memory, and only replays the events from the `events` partition that have a sequence number greater than the snapshot's sequence number.
+- The snapshot is written as part of the same atomic batch as the event that triggered it.
+- On rehydration, the actor reads the latest snapshot and replays only events with `sequence_number > snapshot.sequence_number`.
+
+Snapshots are an optimization, not a new source of truth. They carry their own schema version and may be discarded and rebuilt if incompatible with the current upcaster chain (ADR-035).
 
 ## Consequences
-- **Positive:** Absolute data consistency between the raw log and the UI dashboard.
-- **Positive:** Rehydration time is strictly bounded to $O(N)$ events, guaranteeing fast crash recovery regardless of how long the workflow has been running.
-- **Negative:** Snapshots consume additional disk space (mitigated by overwriting the previous snapshot for that instance).
+- **Positive:** Exact-once control-plane consistency is preserved across crashes.
+- **Positive:** Rehydration time is strictly bounded to $O(N)$ post-snapshot events.
+- **Negative:** Snapshots consume additional disk space and must be kept small enough to avoid hurting the hot path.

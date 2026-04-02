@@ -1,135 +1,133 @@
-# ADR 027 (v2): Deterministic Event-Sourced Replay and Idempotency
+# ADR 027 (v2): Deterministic Replay and Exactly-Once Core Semantics
 
 ## Status
-Proposed
+Accepted
 
 ## Context
-When the engine crashes or restarts, in-flight workflow instances must resume exactly where they left off — no lost work, no duplicated decisions, no phantom state.
+When the Engine crashes or restarts, in-flight workflow instances must resume exactly where they left off: no lost work, no duplicated control-plane decisions, and no phantom state.
 
-Temporal solves this by re-executing imperative workflow code inside an SDK sandbox that intercepts non-deterministic operations (time, random, UUID) and comparing generated Commands against recorded Events. Restate solves this by re-running handler code and short-circuiting at journal entries with previously recorded results (`ctx.run`).
+Veloxide's architecture differs fundamentally from Temporal and Restate. The engine's decision logic is not imperative user code replayed inside an SDK sandbox. The Engine itself is the orchestrator. It traverses a declarative DAG, pinned to a binary hash and canonical `WorkflowSpec`, while child processes remain opaque compute boundaries communicating over FD3/FD4.
 
-Veloxide's architecture differs fundamentally from both: the engine's decision logic is NOT imperative code running inside an SDK sandbox. The engine IS the orchestrator. It traverses a declarative DAG (discovered via `--graph`, pinned to a binary hash per ADR-017) to decide which nodes to execute next. The subprocess IS the activity — opaque to the engine, communicating only via FD3/FD4 pipes.
-
-This means Temporal/Restate-style replay (re-execute code, intercept non-determinism, compare commands) does not apply. But a simpler, equally correct approach does: **event-sourced state reconstruction through a pure state machine.**
-
-The building blocks already exist in `vo-types`:
-- `LifecycleState` enum with exhaustive transition rules (`state.rs`)
-- `EventPayload` variants including `StepScheduled`, `StepStarted`, `StepCompleted`, `StepFailed` (`events.rs`)
-- Pure `apply(current_state, transition_event) -> Result<LifecycleState, TransitionError>` function (`state.rs`)
-
-This ADR defines the replay contract that binds these pieces together, specifies the event schema changes required, and establishes the idempotency guarantees the engine provides.
+The old contract of "at-least-once invocation with cached results" is insufficient for the v2 goal. We need deterministic replay plus an honest exactly-once model for the engine core.
 
 ## Decision
 
-### 1. Replay Strategy: Event-Sourced State Reconstruction
-The engine does NOT re-execute imperative decision code during replay. Instead:
-1. Read events for an instance from the `events` partition (bounded by the latest snapshot per ADR-016).
-2. Apply each event through the pure `apply()` state machine to reconstruct the instance's current `LifecycleState`.
-3. Using the reconstructed state + the DAG topology + recorded step outputs, determine what action the engine must take next.
+### 1. Guarantee Model
+Veloxide provides the following guarantees:
+1. **Exactly-once admission** for supported external triggers and signals with stable dedupe keys (ADR-028).
+2. **Exactly-once control-plane transitions** inside the Engine via atomic batches, single-active-instance invariants, and fencing.
+3. **Exactly-once managed effects** for supported connectors (ADR-030).
+4. **Exactly-once externally observable semantics** for Pure Steps, even if a deterministic computation is physically recomputed during recovery.
+5. **At-least-once only** for explicitly `Unsafe` activities, which are forbidden in exact workflows.
 
-This is deterministic because `apply()` is a pure function — same event sequence always produces the same state sequence. There is no non-determinism to intercept because the engine's decision logic has no time, random, or external I/O dependencies.
+### 2. Replay Strategy: Event-Sourced State Reconstruction
+The Engine does **not** re-execute imperative workflow decision code during replay. Instead:
+1. Read events for an instance from the `events` partition bounded by the latest snapshot (ADR-016).
+2. Apply each event through the pure `apply()` state machine to reconstruct the current `LifecycleState`.
+3. Load the canonical `WorkflowSpec` from `workflow_versions` using the pinned binary hash and workflow version reference.
+4. Use reconstructed state + canonical workflow topology + recorded routing projections to determine the next legal action.
 
-### 2. DAG Topology Persistence
-The DAG topology is stored in the `WorkflowStarted` event as a serialized JSON value. During replay, the engine uses the stored topology — it does NOT re-run `--graph` against the pinned binary.
+This is deterministic because `apply()` is pure and the Engine's decision logic must not depend on wall-clock time, random iteration order, or mutable external state.
 
-Rationale: Re-running `--graph` spawns a subprocess during recovery, adding latency and a failure mode. The pinned binary's graph cannot change (content-addressed by hash per ADR-012), so storing it once at instance creation is safe and sufficient.
+The lifecycle model itself is hierarchical so that replay cannot enter impossible hybrid states such as "compensating while still owning the old execution fence" (ADR-039).
 
-### 3. The Intent-Before-Execution Contract
-Before the engine spawns a subprocess, it MUST persist a `StepScheduled` event. This serves two purposes:
-- **Replay correctness:** If the engine crashes during subprocess execution, the replay discovers a `StepScheduled` without a corresponding `StepCompleted` or `StepFailed`. The engine knows the step was in-flight and re-executes it.
-- **Decision verification:** During replay, the engine re-derives "which node should execute next" from the DAG + completed set. If the engine decides node X but the next event in the log is `StepScheduled { step_id: "Y" }`, this indicates a non-determinism bug or DAG topology change.
+### 3. Fence-Before-Commit Contract
+Before the Engine spawns a child process, it MUST:
+1. Acquire or advance the current fence token for `(instance_id, step_id)` (ADR-029).
+2. Persist `StepScheduled { step_id, attempt, fence }`.
 
-The full event sequence for a step is:
-```
-StepScheduled → StepStarted → StepCompleted | StepFailed
-```
-Where:
-- `StepScheduled` = engine decided to execute (persisted BEFORE subprocess spawn)
-- `StepStarted` = subprocess began executing (persisted when FD4 handshake confirms process is alive)
-- `StepCompleted` = subprocess returned a result via FD4 (includes step output)
-- `StepFailed` = subprocess failed, timed out, or was killed (includes failure reason)
+All child outputs, effect journal updates, and completion paths carry that fence. If a late or duplicated child reports results with a stale fence, the Engine discards them.
 
-### 4. Deterministic Execution IDs (L2 Idempotency)
-Every `StepScheduled` event carries a deterministic `execution_id` and `attempt` number:
-```
-execution_id = "{instance_id}::{step_id}::{attempt}"
+### 4. Step Event Sequences
+**Pure Step**
+```text
+StepScheduled -> StepStarted -> StepCompleted | StepFailed
 ```
 
-The engine passes this `execution_id` to the subprocess as part of the FD3 input payload. The user's code can use this value as an idempotency key for external side effects (Stripe charges, database writes, API calls). On retry, the `attempt` number increments but the `instance_id` and `step_id` remain the same, giving the user a stable key for deduplication.
+**Managed Effect Step**
+```text
+StepScheduled -> StepStarted -> EffectPrepared -> EffectCommitted -> StepCompleted | StepFailed
+```
 
-### 5. Step Output Caching (L3 Idempotency)
-The `StepCompleted` event stores the step output (the FD4 payload) in the event log. On crash recovery, the replay path works as follows:
+**Wait / Signal Step**
+```text
+StepScheduled -> TimerScheduled | SignalAwaiting -> TimerFired | SignalAccepted -> StepCompleted
+```
 
-- If the engine finds `StepScheduled` WITH a corresponding `StepCompleted` → the step already completed. Read the cached output from the event. Skip re-execution. Move to `RunningDecision` to determine the next node.
-- If the engine finds `StepScheduled` WITHOUT a corresponding `StepCompleted` or `StepFailed` → the step was in-flight at crash time. Re-execute the subprocess (at-least-once).
+### 5. Event Schema Requirements
+The replay contract requires the following durable fields:
 
-This narrows the at-least-once window to the milliseconds between reading the FD4 payload and committing the `fjall::Batch` containing the `StepCompleted` event. Once the batch commits, the result is durable and will never be re-executed.
+#### `WorkflowStarted`
+- `binary_hash: String`
+- `workflow_version_hash: String`
+- `dedupe_key_hash: Option<String>`
 
-### 6. Event Schema Changes
+#### `StepScheduled`
+- `attempt: u32`
+- `fence: u64`
 
-#### `EventPayload::WorkflowStarted`
-Add two fields to the existing `WorkflowStarted` payload:
-- `dag_topology: serde_json::Value` — the serialized DAG graph (nodes, edges, conditions) discovered via `--graph`. Stored once at instance creation. Used during replay to reconstruct the DAG without re-running `--graph`.
-- `binary_hash: String` — the SHA-256 content hash of the pinned binary (per ADR-012). Enables the UI to display which version a workflow ran on, and enables recovery to verify the binary still exists at `/var/wtf/versions/<hash>/`.
+#### `StepCompleted`
+- `attempt: u32`
+- `fence: u64`
+- `routing_projection: serde_json::Value`
+- `output_ref: Option<String>`
+- `output_hash: Option<String>`
 
-#### `EventPayload::StepScheduled`
-Add two fields to the existing `StepScheduled` payload:
-- `attempt: u32` — the attempt number for this step (1-indexed). First execution = 1, first retry = 2, etc.
-- `execution_id: String` — deterministic identifier `{instance_id}::{step_id}::{attempt}`. Passed to the subprocess via FD3 for use as an idempotency key.
+`output_ref` may only be published after the referenced canonical blob becomes durable per ADR-040.
 
-#### `EventPayload::StepCompleted`
-Add one field to the existing `StepCompleted` payload:
-- `output: serde_json::Value` — the step output returned by the subprocess via FD4. Bounded by `MAX_STEP_OUTPUT_BYTES` (5MB, per ADR-012). Used during replay to skip re-execution and by the UI to display step results.
+#### `EffectPrepared`
+- `effect_id: String`
+- `sink_kind: String`
+- `payload_hash: String`
+- `fence: u64`
 
-#### `EventPayload::StepFailed`
-Add one field to the existing `StepFailed` payload:
-- `attempt: u32` — the attempt number that failed. Enables the UI to render a retry timeline showing which attempt failed and why.
+#### `EffectCommitted`
+- `effect_id: String`
+- `external_receipt: serde_json::Value`
+- `fence: u64`
 
-### 7. Determinism Requirements for Engine Code
-The following constraints apply to the engine's DAG traversal and routing logic:
+#### `StepFailed`
+- `attempt: u32`
+- `fence: u64`
 
-1. **Deterministic iteration order.** Candidate node selection must use ordered data structures (`BTreeMap`, `BTreeSet`, or sorted `Vec`). `HashMap` iteration order is non-deterministic across runs. If two nodes are both eligible, the engine must select deterministically (e.g., alphabetical by `step_id`, or by DAG index).
+### 6. Determinism Requirements for Engine Code
+The following constraints apply to Engine traversal and replay logic:
+1. **Deterministic iteration order.** Candidate node selection must use ordered data structures or explicitly sorted vectors.
+2. **No wall-clock time in decisions.** Wall-clock time may trigger timers, but it may not decide branch routing or retry choice.
+3. **Canonical workflow topology.** Replay uses the stored canonical `WorkflowSpec`, never a fresh `--graph` subprocess during recovery.
+4. **Routing uses recorded projections.** Conditional branches evaluate against the recorded `routing_projection`, not against live re-computation.
+5. **One logical managed effect per node in v1.** If a workflow needs two independent side effects, it models them as two nodes.
+6. **Parallel fan-out ordering is read from the event log.** Replay never assumes an implicit completion order.
+7. **Version normalization happens before replay.** Events and snapshots are upcast to the current logical schema before `apply()` runs (ADR-035).
+8. **Signal wake-up matching is deterministic.** Signals resume only the lineage/epoch/wait-state defined by ADR-042.
 
-2. **No wall-clock time in decisions.** The engine must not use `Utc::now()` or `Instant::now()` to decide which node to execute, which branch to take, or whether a step should be retried. Timers are the only time-dependent construct, and their fire/not-fire state is recorded in events (`TimerSet`, `TimerFired`).
+### 7. Replay Path for Crash Recovery
+On crash recovery, the Engine follows this sequence:
+1. Scan the `instances` partition for non-terminal states.
+2. Load the latest snapshot and replay post-snapshot events through `apply()`.
+3. Recover the canonical `WorkflowSpec` from `workflow_versions` via the pinned binary hash.
+4. Inspect the reconstructed state:
+   - `StepScheduled` or `StepStarted` for a Pure Step with no `StepCompleted` -> rerun the child under a new fence. This is safe because the step is pure.
+   - `EffectPrepared` with no `EffectCommitted` -> reconcile the sink using `effect_id`. If already committed, persist `EffectCommitted` and `StepCompleted`. If not committed, commit exactly once through the connector.
+   - `WaitingForTimer` -> re-register the timer using the recorded timer event.
+   - `WaitingForSignal` -> re-register or re-evaluate signal wait state using the deterministic wake-up matching rules in ADR-042.
+   - `Compensating::*` -> replay compensation planning/execution state and reconcile any in-flight compensating effect through the same managed connector contract.
+   - `RunningDecision` -> re-run deterministic DAG traversal.
+5. Throttle recovery per ADR-013 and workload class budgets per ADR-033.
 
-3. **Step outputs drive routing.** Conditional branching in the DAG (e.g., "route to 'refund' if `output.status == 'failed'`") is evaluated against the step output recorded in the `StepCompleted` event. This is deterministic — the recorded output never changes.
-
-4. **Parallel fan-out ordering.** When multiple independent nodes execute in parallel, the engine must not assume a specific completion order during replay. The event log records the actual order via `StepCompleted` timestamps. The engine reads this order from events, not from re-execution.
-
-### 8. Replay Path for Crash Recovery
-On crash recovery (ADR-013), the engine follows this sequence:
-
-1. **Scan the `instances` partition** for instances in non-terminal states (`Running`, `Hibernated`). Skip `Completed`, `Failed`, `Cancelled` — these are cold data.
-
-2. **For each recovered instance**, load the latest snapshot from the `snapshots` partition (ADR-016). Replay events with `sequence_number > snapshot.sequence_number` through `apply()`.
-
-3. **Inspect the reconstructed state:**
-   - `StepScheduled` with no `StepCompleted`/`StepFailed` → step was in-flight at crash time. Re-execute the subprocess (at-least-once). The user's binary must be idempotent.
-   - `WaitingForTimer` → instance was hibernated. Re-register the timer with the Reanimator using the `fire_at` from the `TimerSet` event. Do NOT re-evaluate against wall-clock time.
-   - `RunningDecision` → engine was mid-decision. Re-run the DAG traversal (pure function of DAG + completed set) and proceed.
-   - `StepExecuting` with no `StepCompleted`/`StepFailed` → same as `StepScheduled` re-execution case.
-
-4. **Throttle recovery** per ADR-013 batching (e.g., 50 instances at a time with inter-batch delay).
-
-### 9. Idempotency Contract
-The engine provides **at-least-once invocation with effectively-once result caching**:
-- A step may be invoked more than once if the engine crashes between subprocess completion and `StepCompleted` persistence.
-- If `StepCompleted` is in the event log, the engine reads the cached output and skips re-execution. The subprocess is NOT spawned again.
-- If `StepCompleted` is absent, the engine re-spawns the subprocess regardless of whether the previous invocation completed externally.
-
-The user's subprocess code MUST be idempotent for any operation with external side effects (payment charges, email sends, database writes). The `execution_id` provided via FD3 gives the user a free idempotency key for external systems that support deduplication (Stripe, most databases, most APIs).
-
-This differs from Temporal (which provides effectively-once semantics via deterministic replay + activity result caching) and Restate (which provides exactly-once journaling semantics). Veloxide trades these stronger guarantees for the simplicity and performance of subprocess execution without SDK sandboxing.
+### 8. Exact-Once Contract
+The exact-once contract is now explicit:
+- Duplicate ingress with the same dedupe key returns the existing instance instead of creating a new one within the configured dedupe retention window.
+- A step completion only wins if its fence is current.
+- A managed effect only commits through a supported connector with reconciliation semantics.
+- Pure Steps may be physically recomputed after a crash, but no duplicate externally visible effect is allowed.
+- `Unsafe` nodes are excluded from exact workflows and remain at-least-once.
+- Mutating commands carry durable command identity and causation metadata so duplicate operator or API requests do not create ambiguous histories (ADR-036).
+- Connector execution and reconciliation semantics are governed by ADR-041.
 
 ## Consequences
-- **Positive:** Crash recovery is simple, verifiable, and testable — replay a known event sequence through a pure function and check the result. No SDK interception, no command comparison, no non-determinism detection.
-- **Positive:** The engine's decision logic is trivially auditable. Every decision the engine makes is recorded in the event log. The event log IS the execution trace.
-- **Positive:** Step output caching means completed steps are never re-executed on recovery. The at-least-once window is bounded to the milliseconds between FD4 read and batch commit.
-- **Positive:** Deterministic `execution_id` gives users a free idempotency key with zero SDK effort for external systems that support deduplication.
-- **Positive:** DAG topology stored in `WorkflowStarted` eliminates `--graph` subprocess spawns during recovery, making crash recovery faster and more reliable.
-- **Positive:** `attempt` fields on `StepScheduled` and `StepFailed` enable the UI to render a rich retry timeline — users can see exactly which attempt failed, why, and how many retries occurred.
-- **Positive:** `output` field on `StepCompleted` enables the UI to display step results inline — users can inspect what each step returned without re-running anything.
-- **Negative:** User code must be idempotent for external side effects. This is a real burden on the developer, though the `execution_id` key significantly reduces the effort.
-- **Negative:** Event payloads are larger due to step output caching and DAG topology storage. Mitigated by `MAX_STEP_OUTPUT_BYTES` (5MB cap) and the fact that DAG topologies are typically small (< 10KB for most workflows).
-- **Negative:** DAG topology changes between executions are not tolerated. ADR-017 version pinning mitigates this — active instances are pinned to their original binary hash.
-- **Negative:** The engine must be audited for `HashMap` usage in traversal code and `Utc::now()` usage in decision paths. This is an ongoing code review constraint.
+- **Positive:** Crash recovery remains simple, auditable, and testable: replay events through a pure state machine and reconcile only the managed-effect edge.
+- **Positive:** The Engine can now honestly claim exactly-once core semantics instead of hand-waving around idempotency.
+- **Positive:** Canonical workflow versions remove the need to re-run discovery during recovery.
+- **Negative:** Exact-once is a capability-based contract, not a blanket promise for arbitrary subprocesses.
+- **Negative:** Connectors, fencing, and effect journaling add more Engine complexity than plain at-least-once retries.

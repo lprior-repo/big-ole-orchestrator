@@ -20,4 +20,4 @@ When the `vo_sdk::start()` function initializes the current-thread runtime:
 ## Consequences
 - **Positive:** Deterministic, reliable shutdown behavior that doesn't rely on the developer writing cooperative loop-checking code.
 - **Positive:** Prevents the Engine from having to wait the full 5-second `SIGKILL` escalation window for unresponsive tasks.
-- **Negative:** The user's task is abruptly aborted without being able to run its own custom `Drop` or cleanup logic. (Mitigated by the overarching Event Sourcing at-least-once replay guarantees).
+- **Negative:** The user's task is abruptly aborted without being able to run its own custom `Drop` or cleanup logic. Mitigated by deterministic replay for Pure Steps and managed-effect reconciliation for exact-safe connectors; `Unsafe` activities still carry at-least-once semantics.

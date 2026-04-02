@@ -4,22 +4,32 @@
 Accepted
 
 ## Context
-Fjall is an LSM-tree and operates on raw byte slices. If we encode the event log sequence numbers or timer timestamps as strings (e.g., `instance_abc:9`, `instance_abc:10`), Fjall's lexicographic sorting will place `abc:10` *before* `abc:9` because `1` comes before `9` in ASCII.
-If events or timers are sorted incorrectly, rehydration and sleep wakeups will be fundamentally broken and corrupt the state machine.
+Fjall is an LSM-tree and operates on raw byte slices. If we encode event sequence numbers or timer timestamps as strings, lexicographic ordering will be wrong.
+
+There is a second failure mode as well: concatenating variable-length identifiers without framing can create ambiguous prefixes and broken range scans.
 
 ## Decision
-All numeric components of a Fjall key must be encoded using **fixed-width, big-endian binary encoding**.
+All Fjall keys must follow two rules:
+1. **Numeric components use fixed-width, big-endian binary encoding.**
+2. **Variable-length identifiers are length-prefixed.**
 
 ### Key Formats
 1. **Events Partition:**
-   `[instance_id_bytes][sequence_u64_be]`
-   Using `u64::to_be_bytes()` guarantees that sequence `10` sorts correctly after sequence `9`.
+   `[instance_id_len_u16_be][instance_id_bytes][sequence_u64_be]`
 
 2. **Timers Partition:**
-   `[timestamp_u64_be][instance_id_bytes]`
-   Using big-endian timestamps ensures that the background reanimator loop can safely scan from `[0u64_be]` to `[current_time_be]` to find exactly the timers that have expired, in correct chronological order.
+   `[timestamp_u64_be][instance_id_len_u16_be][instance_id_bytes]`
+
+3. **Any key involving step IDs, workflow names, or dedupe keys:**
+   - length-prefix the string or use a fixed-width hash.
+   - never concatenate raw text segments and hope prefix scans remain safe.
+
+### Additional Guidance
+- Exact-once partitions such as `dedupe`, `effects`, and `leases` must follow the same framing rules.
+- Human readability is provided by CLI tooling, not by making the raw keys unsafe.
 
 ## Consequences
-- **Positive:** Mathematically perfect range scans and chronological replay.
-- **Positive:** Performance optimization (comparing 8 bytes is faster than parsing string representations).
+- **Positive:** Mathematically correct range scans and chronological replay.
+- **Positive:** Ambiguous prefix collisions are eliminated.
+- **Positive:** Performance remains strong because numeric comparison stays binary and fixed-width.
 - **Negative:** Keys are not human-readable in raw database dumps, requiring the CLI to provide custom formatting for debugging.

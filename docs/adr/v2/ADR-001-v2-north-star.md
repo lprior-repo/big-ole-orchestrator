@@ -10,20 +10,37 @@ The v1 architecture of `vo-engine` relied heavily on NATS JetStream for durable 
 3. Ruthless execution speed without network overhead.
 4. "Oban-like" Developer Experience (DevEx).
 
-## Decision
-We are pivoting the entire architecture to a **Local FaaS (Functions-as-a-Service) Orchestrator**. 
+The v2 architecture also targets a stronger contract than generic durable background work: the engine core must provide **exactly-once admission and exactly-once control-plane state transitions** while preserving single-node throughput.
 
-The engine is a single Rust framework. It combines the visual observability of n8n, the raw execution speed of Windmill, the durable execution of Restate, and the lock-free concurrency of the Erlang BEAM.
+## Decision
+We are pivoting the entire architecture to a **Single-Node Local FaaS Orchestrator with an Exactly-Once Core**.
+
+The engine is a single Rust framework. It combines the visual observability of n8n, the raw execution speed of Windmill, the durable execution model of Restate, and the actor/supervision mentality of the Erlang BEAM.
 
 ### Core Pillars
-1. **Storage:** `fjall` (Pure Rust LSM-Tree). Provides face-melting disk I/O without requiring external databases.
-2. **Concurrency:** `ractor`. Every workflow is a lock-free actor that sequentially processes events and hibernates to disk when suspended.
-3. **Execution:** Standard OS Subprocesses. The engine spawns compiled Rust binaries via `tokio::process::Command`, piping JSON payloads via `stdin`/`stdout`.
-4. **Definition:** Code-as-Workflow. Workflows are defined strictly in Rust code (`main.rs`) using the `vo-sdk`, not in JSON files.
-5. **Observability:** An embedded Axum router serving a Dioxus WASM UI that tails the LSM-Tree via Server-Sent Events (SSE) for real-time glowing node graphs.
+1. **Storage:** `fjall` is the embedded durable control-plane store. It holds events, timers, dedupe records, effect journals, leases, snapshots, workflow versions, and cold payload blobs without requiring external databases.
+2. **Concurrency:** `ractor`. Every workflow instance is modeled as a single logical actor with strict single-active-instance invariants, bounded mailboxes, and hibernation to disk when suspended.
+3. **Execution:** Standard OS subprocesses remain the local compute boundary, but exact-safe external side effects move behind engine-managed connectors. Raw subprocesses are fast; opaque side effects are not trusted for exact-once semantics.
+4. **Definition:** Workflows are defined through a canonical `WorkflowSpec` shared by the Rust SDK, the engine, AI tooling, and the future drag-and-drop UI.
+5. **Observability:** An embedded Axum router serves a Dioxus WASM UI. Timeline and history APIs are authoritative; SSE is a best-effort live tail.
+6. **Guarantees:**
+   - Exactly-once admission for supported external triggers and signals within the configured dedupe retention window.
+   - Exactly-once control-plane transitions inside the engine.
+   - Deterministic replay from durable state.
+   - Exactly-once managed effects for supported sinks.
+   - At-least-once only for explicitly unsafe activities.
+
+### Product Boundary
+Veloxide is intentionally **not**:
+1. A hostile multi-tenant sandbox for arbitrary untrusted code.
+2. A distributed consensus workflow cluster.
+3. An exactly-once engine for arbitrary opaque binaries that directly mutate external systems.
+4. A general-purpose document store for massive payloads and unbounded logs.
 
 ## Consequences
-- **Positive:** We achieve absolute bare-metal speed with zero network latency between tasks.
-- **Positive:** Developers get compile-time safety for their workflow graphs.
-- **Positive:** No-Code operators get an n8n-style visual graph generated directly from the compiled code.
-- **Negative:** We lose out-of-the-box distributed clustering (Raft). Scaling beyond a single 16-core machine requires a different paradigm, which is an acceptable tradeoff for 99.9% of use cases.
+- **Positive:** We preserve bare-metal local execution speed while giving the control plane honest exactly-once semantics.
+- **Positive:** SDK, AI tooling, and the future drag-and-drop UI can all target one canonical workflow model.
+- **Positive:** The architecture stays single-node and Rust-native without pretending that raw subprocesses can magically provide exact-once side effects.
+- **Negative:** Exact-once is now a capability-based contract. Only supported ingress types and managed-effect connectors qualify.
+- **Negative:** The engine is more opinionated. Users who want unrestricted subprocess behavior must accept weaker guarantees.
+- **Negative:** We still give up out-of-the-box distributed clustering. Scaling beyond a single strong machine requires a different architecture.

@@ -4,23 +4,43 @@
 Accepted
 
 ## Context
-Because `vo-engine` uses Event Sourcing and records the output of every step into `fjall`, the event log is a complete history of all data that flowed through the system. If a workflow processes healthcare records, passwords, or PII, the `fjall` database becomes a massive compliance liability. 
+Because `vo-engine` uses event sourcing and managed-effect journaling, the durable store can contain a complete history of all data that flowed through the system.
 
-Furthermore, under GDPR, a user has a "Right to Erasure." In a Key-Value store where keys are `<instance_id>:<sequence>`, you cannot easily execute a query like `DELETE WHERE email = 'test@example.com'`.
+Under GDPR, a user has a "Right to Erasure." At the same time, exact-once replay and recovery require the Engine to retain certain canonical facts. A lossy redaction strategy that mutates replay truth before durability breaks exactness.
 
 ## Decision
-We implement a strictly explicit lifecycle for State Privacy and Deletion.
+We implement a dual-representation privacy model.
 
-### 1. The PII Redaction Filter (The Interceptor)
-The Engine config allows operators to define a `state_filter` list of JSON keys (e.g., `["ssn", "credit_card", "password"]`). 
-When an actor receives a JSON payload from a child binary, it performs a fast recursive scrub of those keys, replacing their values with `"[REDACTED]"`.
-**Crucially:** The Engine writes the *scrubbed* JSON to `fjall` for the event log, but pipes the *un-scrubbed* JSON directly to the next binary via `stdin`. The workflow executes with real data, but the disk only stores the redacted data.
+### 1. Canonical Replay Data vs Operator Projection
+For every payload-bearing transition, the Engine produces two representations:
+1. **Canonical replay data**
+   - the exact payload required for deterministic replay, effect reconciliation, and exact-once recovery,
+   - stored encrypted at rest,
+   - never lossy-redacted before durability if the data may affect routing, retries, or reconciliation.
 
-### 2. The GDPR Purge Tool
-We provide a dedicated CLI command: `vo-cli purge --instance <id>`. 
-Because the system stores instance IDs alongside identifying metadata in the `instances` partition, an operator can search for a workflow by ID and execute the purge. The command issues a `fjall.remove()` for every sequence key associated with that instance, physically deleting the event history from the disk.
+2. **Operator projection**
+   - a redacted JSON view intended for UI, CLI, and default AI consumption,
+   - produced by applying the configured `state_filter` recursively,
+   - may omit or redact sensitive fields because it is not the source of truth for replay.
+
+### 2. Encryption and Key Lifecycle
+- Canonical payload blobs are encrypted with a per-instance data encryption key (DEK).
+- The DEK is wrapped by an engine-managed key-encryption key (KEK).
+- Operator projections remain redacted and queryable without decrypting canonical state.
+
+### 3. The GDPR Purge Tool
+We provide `vo-cli purge --instance <id>`.
+
+Purge performs the following steps:
+1. Destroy the per-instance DEK, rendering canonical payload blobs unreadable.
+2. Delete redacted operator projections, instance indexes, and payload blob references.
+3. Queue physical blob and key removal in Fjall for compaction-time reclamation.
+
+Minimal pseudonymous control-plane facts such as dedupe-key hashes, effect IDs, version hashes, sequence numbers, and external receipts may be retained until their configured retention window expires, because they are required for exact-once correctness and contain no business payload.
 
 ## Consequences
-- **Positive:** System is immediately deployable in HIPAA/GDPR environments.
-- **Positive:** Clear, documented boundaries between what the Engine holds in memory (plaintext) and what it writes to disk (redacted).
-- **Negative:** Redaction filtering adds a slight CPU overhead during the event appending phase.
+- **Positive:** Exact replay truth and privacy no longer fight each other.
+- **Positive:** UI, CLI, and AI tooling can default to safe redacted views.
+- **Positive:** Crypto-shredding gives GDPR purge a strong answer even on LSM storage where tombstones may live until compaction.
+- **Negative:** Key management becomes a real subsystem.
+- **Negative:** Some forensic workflows require privileged access to canonical history rather than the default redacted view.
