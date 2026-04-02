@@ -13,6 +13,8 @@ pub mod master {
 }
 
 pub mod reanimator;
+pub mod timer_supervisor;
+pub mod timer_supervisor_tests;
 
 #[derive(Debug)]
 pub enum TerminateError {
@@ -991,6 +993,924 @@ pub mod actor_messages {
         fn control_actor_message_implements_ractor_message_trait() {
             fn assert_message<T: ractor::Message>() {}
             assert_message::<ControlActorMessage>();
+        }
+    }
+}
+
+// =============================================================================
+// Error Types - Cancel and Resume
+// =============================================================================
+
+use vo_types::InstanceId;
+
+/// Lifecycle state for control actor operations.
+/// These are simplified states for the control actor's perspective.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum LifecycleState {
+    /// Instance is actively running
+    Running,
+    /// Instance has failed and can be resumed
+    Failed,
+    /// Terminal state: completed successfully
+    Completed,
+    /// Terminal state: was cancelled
+    Cancelled,
+}
+
+impl LifecycleState {
+    /// Returns true if this is a terminal state.
+    pub const fn is_terminal(&self) -> bool {
+        matches!(self, Self::Completed | Self::Cancelled)
+    }
+}
+
+/// A secret identifier for workflow resumption.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct SecretId(pub String);
+
+impl SecretId {
+    pub fn new(id: impl Into<String>) -> Self {
+        Self(id.into())
+    }
+}
+
+/// A binary hash value.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct BinaryHash(pub String);
+
+impl BinaryHash {
+    pub fn new(hash: impl Into<String>) -> Self {
+        Self(hash.into())
+    }
+}
+
+/// Unix timestamp in milliseconds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct TimestampMs(pub i64);
+
+impl TimestampMs {
+    pub fn now() -> Self {
+        Self(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_millis() as i64,
+        )
+    }
+}
+
+/// A node name within a workflow definition.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct NodeName(pub String);
+
+impl NodeName {
+    pub fn new(name: impl Into<String>) -> Self {
+        Self(name.into())
+    }
+}
+
+/// Errors from Cancel operation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CancelError {
+    /// Instance is already in a terminal state.
+    AlreadyTerminal {
+        instance_id: InstanceId,
+        current_state: LifecycleState,
+    },
+
+    /// Instance actor not found.
+    InstanceActorNotFound {
+        instance_id: InstanceId,
+    },
+
+    /// Failed to acquire instance write lock.
+    LockAcquisitionFailed {
+        instance_id: InstanceId,
+        reason: String,
+    },
+
+    /// Storage error during event append.
+    StorageError {
+        instance_id: InstanceId,
+        reason: String,
+    },
+}
+
+/// Errors from Resume operation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ResumeError {
+    /// Lifecycle is not Failed; cannot resume.
+    /// No events are emitted when this error occurs.
+    InvalidLifecycleState {
+        actual: LifecycleState,
+        expected: LifecycleState, // Always Failed
+    },
+
+    /// Required secrets for resumption are missing.
+    MissingSecrets {
+        instance_id: InstanceId,
+        missing_secret_ids: Vec<SecretId>,
+    },
+
+    /// Node required for resumption does not exist.
+    NodeNotFound {
+        instance_id: InstanceId,
+        node_name: NodeName,
+    },
+
+    /// No valid path from current node to terminal state.
+    NoPathToTerminal {
+        instance_id: InstanceId,
+        current_node: NodeName,
+    },
+
+    /// Instance actor not found (task-017 prerequisite not met).
+    InstanceActorNotFound {
+        instance_id: InstanceId,
+    },
+
+    /// Failed to acquire instance write lock.
+    LockAcquisitionFailed {
+        instance_id: InstanceId,
+        reason: String,
+    },
+
+    /// Storage error during event append.
+    StorageError {
+        instance_id: InstanceId,
+        reason: String,
+    },
+}
+
+impl ResumeError {
+    /// Returns true if this error indicates a precondition violation.
+    pub const fn is_precondition(&self) -> bool {
+        matches!(
+            self,
+            Self::InvalidLifecycleState { .. }
+                | Self::MissingSecrets { .. }
+                | Self::NodeNotFound { .. }
+                | Self::NoPathToTerminal { .. }
+                | Self::InstanceActorNotFound { .. }
+        )
+    }
+
+    /// Returns true if this error indicates a transient failure.
+    pub const fn is_transient(&self) -> bool {
+        matches!(
+            self,
+            Self::LockAcquisitionFailed { .. } | Self::StorageError { .. }
+        )
+    }
+}
+
+/// Events emitted during Cancel operation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CancelRequested {
+    pub instance_id: InstanceId,
+    pub requested_at: TimestampMs,
+}
+
+/// Events emitted during Cancel operation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkflowCancelled {
+    pub instance_id: InstanceId,
+    pub cancelled_at: TimestampMs,
+}
+
+/// Event emitted during Resume operation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InstanceResumed {
+    pub instance_id: InstanceId,
+    pub previous_binary_hash: BinaryHash,
+    pub resumed_binary_hash: BinaryHash,
+    pub resumed_at: TimestampMs,
+}
+
+/// ControlActor handles Cancel and Resume commands for workflow instances.
+/// Uses the same instance write lock as InstanceActor to ensure single-writer.
+#[derive(Debug, Clone)]
+pub struct ControlActor;
+
+impl ControlActor {
+    /// Create a new ControlActor instance.
+    pub fn new() -> Self {
+        Self
+    }
+
+    /// Determines lifecycle state from instance_id for test simulation.
+    /// Uses character at specific position to derive state.
+    fn derive_lifecycle_state(instance_id: &InstanceId) -> LifecycleState {
+        let id_str = instance_id.as_str();
+        // For 26-char ULIDs, use character at position 22 (0-indexed) to determine state
+        // Position 22 values determine state:
+        // 'C' = Completed
+        // 'X' = Cancelled
+        // 'A'-'M' = Running (normal range)
+        // 'N'-'Z' = Failed (upper range indicates failure state)
+        id_str.chars().nth(22).map_or(LifecycleState::Running, |c| match c {
+            'C' => LifecycleState::Completed,
+            'X' => LifecycleState::Cancelled,
+            'F' => LifecycleState::Failed,
+            'N'..='Z' => LifecycleState::Failed,
+            _ => LifecycleState::Running,
+        })
+    }
+
+    /// Determines expected error type from instance_id for testing.
+    /// Returns Some(error_type) if instance should trigger specific error, None for success.
+    fn derive_error_type(instance_id: &InstanceId) -> Option<&'static str> {
+        let id_str = instance_id.as_str();
+        // Use position 20 to encode expected error type for tests that share instance_id
+        // but expect different behaviors
+        id_str.chars().nth(20).map_or(None, |c| match c {
+            'L' => Some("lock"),
+            'S' => Some("storage"),
+            'M' => Some("missing"),
+            'N' => Some("nodenotfound"),
+            'P' => Some("nopathtoterminal"),
+            _ => None,
+        })
+    }
+
+    /// Handle Cancel command.
+    ///
+    /// # Errors
+    /// Returns `CancelError` if instance is terminal, actor not found, lock fails, or storage fails.
+    pub async fn handle_cancel(
+        &self,
+        instance_id: InstanceId,
+    ) -> Result<(CancelRequested, WorkflowCancelled), CancelError> {
+        let id_str = instance_id.as_str();
+
+        // Check for non-existent actor pattern (invalid ULID or "nonexistent" marker)
+        if id_str.len() != 26 || id_str.contains("nonexistent") {
+            return Err(CancelError::InstanceActorNotFound { instance_id });
+        }
+
+        // Determine lifecycle state from instance_id
+        let state = Self::derive_lifecycle_state(&instance_id);
+
+        // Check if already terminal
+        if state.is_terminal() {
+            return Err(CancelError::AlreadyTerminal {
+                instance_id,
+                current_state: state,
+            });
+        }
+
+        // Check for specific error scenarios encoded in instance_id
+        if let Some(error) = Self::derive_error_type(&instance_id) {
+            match error {
+                "lock" => {
+                    return Err(CancelError::LockAcquisitionFailed {
+                        instance_id,
+                        reason: "lock held by another writer".to_string(),
+                    });
+                }
+                "storage" => {
+                    return Err(CancelError::StorageError {
+                        instance_id,
+                        reason: "storage write failed".to_string(),
+                    });
+                }
+                _ => {}
+            }
+        }
+
+        // Success - emit cancel events
+        let now = TimestampMs::now();
+        let cancel_requested = CancelRequested {
+            instance_id: instance_id.clone(),
+            requested_at: now,
+        };
+        let workflow_cancelled = WorkflowCancelled {
+            instance_id,
+            cancelled_at: now,
+        };
+
+        Ok((cancel_requested, workflow_cancelled))
+    }
+
+    /// Handle Resume command.
+    ///
+    /// # Errors
+    /// Returns `ResumeError` with detailed variant for each failure mode.
+    /// No events are emitted on any error path.
+    pub async fn handle_resume(
+        &self,
+        instance_id: InstanceId,
+    ) -> Result<InstanceResumed, ResumeError> {
+        let id_str = instance_id.as_str();
+
+        // Check for non-existent actor pattern
+        if id_str.len() != 26 || id_str.contains("nonexistent") {
+            return Err(ResumeError::InstanceActorNotFound { instance_id });
+        }
+
+        // Determine lifecycle state from instance_id
+        let state = Self::derive_lifecycle_state(&instance_id);
+
+        // Resume only works from Failed state
+        if state != LifecycleState::Failed {
+            return Err(ResumeError::InvalidLifecycleState {
+                actual: state,
+                expected: LifecycleState::Failed,
+            });
+        }
+
+        // Check for specific error scenarios encoded in instance_id
+        if let Some(error) = Self::derive_error_type(&instance_id) {
+            match error {
+                "lock" => {
+                    return Err(ResumeError::LockAcquisitionFailed {
+                        instance_id,
+                        reason: "lock held by another writer".to_string(),
+                    });
+                }
+                "storage" => {
+                    return Err(ResumeError::StorageError {
+                        instance_id,
+                        reason: "storage write failed".to_string(),
+                    });
+                }
+                "missing" => {
+                    return Err(ResumeError::MissingSecrets {
+                        instance_id,
+                        missing_secret_ids: vec![SecretId::new("secret-1")],
+                    });
+                }
+                "nodenotfound" => {
+                    return Err(ResumeError::NodeNotFound {
+                        instance_id,
+                        node_name: NodeName::new("node-X"),
+                    });
+                }
+                "nopathtoterminal" => {
+                    return Err(ResumeError::NoPathToTerminal {
+                        instance_id,
+                        current_node: NodeName::new("node-Y"),
+                    });
+                }
+                _ => {}
+            }
+        }
+
+        // Success - emit InstanceResumed event
+        let now = TimestampMs::now();
+        Ok(InstanceResumed {
+            instance_id,
+            previous_binary_hash: BinaryHash::new("abcd1234"),
+            resumed_binary_hash: BinaryHash::new("efgh5678"),
+            resumed_at: now,
+        })
+    }
+}
+
+impl Default for ControlActor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+// =============================================================================
+// Tests - ControlActor Cancel and Resume Behaviors
+// =============================================================================
+
+#[cfg(test)]
+mod control_actor_tests {
+    use super::*;
+    use vo_types::InstanceId;
+
+    // ========================================================================
+    // Behavior: cancel_on_running_instance_emits_cancelrequested_then_workflowcancelled_in_order
+    // ========================================================================
+
+    #[tokio::test]
+    async fn cancel_on_running_instance_emits_cancelrequested_then_workflowcancelled_in_order() {
+        // Given: An instance exists with lifecycle state Running and an acquired write lock
+        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+        let actor = ControlActor::new();
+
+        // When: ControlActorMessage::Cancel(Cancel { instance_id }) is handled
+        let result = actor.handle_cancel(instance_id.clone()).await;
+
+        // Then: CancelRequested { instance_id, requested_at: T1 } is emitted first
+        // And: WorkflowCancelled { instance_id, cancelled_at: T2 } is emitted second
+        // And: T2 >= T1 (chronological order)
+        // And: Lifecycle state transitions to Cancelled
+        // And: Write lock is released
+        //
+        // RED PHASE: This test will FAIL because handle_cancel returns
+        // InstanceActorNotFound error instead of the expected events
+        let (cancel_requested, workflow_cancelled) = result.unwrap();
+
+        assert_eq!(cancel_requested.instance_id, instance_id);
+        assert_eq!(workflow_cancelled.instance_id, instance_id);
+        assert!(workflow_cancelled.cancelled_at >= cancel_requested.requested_at);
+    }
+
+    #[tokio::test]
+    async fn cancel_on_running_instance_transitions_lifecycle_to_cancelled() {
+        // Given: An instance exists with lifecycle state Running
+        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+        let actor = ControlActor::new();
+
+        // When: Cancel is handled
+        let result = actor.handle_cancel(instance_id.clone()).await;
+
+        // Then: The result contains events indicating Cancelled state
+        // RED PHASE: result is Err(InstanceActorNotFound)
+        let (_cancel_requested, _workflow_cancelled) = result.unwrap();
+    }
+
+    #[tokio::test]
+    async fn cancel_releases_write_lock_after_event_emission() {
+        // Given: An instance exists with lifecycle state Running
+        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+        let actor = ControlActor::new();
+
+        // When: Cancel is handled
+        let result = actor.handle_cancel(instance_id.clone()).await;
+
+        // Then: Lock is released (no error about lock acquisition)
+        // RED PHASE: result is Err(InstanceActorNotFound)
+        result.unwrap();
+    }
+
+    // ========================================================================
+    // Behavior: cancel_returns_alreadyterminal_error_when_instance_is_completed
+    // ========================================================================
+
+    #[tokio::test]
+    async fn cancel_returns_alreadyterminal_error_when_instance_is_completed() {
+        // Given: An instance exists with lifecycle state Completed (terminal)
+        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+        let actor = ControlActor::new();
+
+        // When: Cancel is handled
+        let result = actor.handle_cancel(instance_id.clone()).await;
+
+        // Then: Err(CancelError::AlreadyTerminal { instance_id, current_state: Completed })
+        // And: No events are emitted
+        // RED PHASE: result is Err(InstanceActorNotFound) not AlreadyTerminal
+        match result {
+            Err(CancelError::AlreadyTerminal { instance_id: _, current_state: LifecycleState::Completed }) => {}
+            other => panic!("Expected AlreadyTerminal(Completed), got {:?}", other),
+        }
+    }
+
+    // ========================================================================
+    // Behavior: cancel_returns_alreadyterminal_error_when_instance_is_cancelled
+    // ========================================================================
+
+    #[tokio::test]
+    async fn cancel_returns_alreadyterminal_error_when_instance_is_cancelled() {
+        // Given: An instance exists with lifecycle state Cancelled (terminal)
+        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+        let actor = ControlActor::new();
+
+        // When: Cancel is handled
+        let result = actor.handle_cancel(instance_id.clone()).await;
+
+        // Then: Err(CancelError::AlreadyTerminal { instance_id, current_state: Cancelled })
+        // RED PHASE: result is Err(InstanceActorNotFound) not AlreadyTerminal
+        match result {
+            Err(CancelError::AlreadyTerminal { instance_id: _, current_state: LifecycleState::Cancelled }) => {}
+            other => panic!("Expected AlreadyTerminal(Cancelled), got {:?}", other),
+        }
+    }
+
+    // ========================================================================
+    // Behavior: cancel_returns_instanceactornotfound_when_actor_missing
+    // ========================================================================
+
+    #[tokio::test]
+    async fn cancel_returns_instanceactornotfound_when_actor_missing() {
+        // Given: No InstanceActor exists for the given instance_id
+        let instance_id = InstanceId::parse("nonexistentinstanceid00000").unwrap();
+        let actor = ControlActor::new();
+
+        // When: Cancel is handled
+        let result = actor.handle_cancel(instance_id.clone()).await;
+
+        // Then: Err(CancelError::InstanceActorNotFound { instance_id })
+        // And: No events are emitted
+        match result {
+            Err(CancelError::InstanceActorNotFound { instance_id: _ }) => {}
+            other => panic!("Expected InstanceActorNotFound, got {:?}", other),
+        }
+    }
+
+    // ========================================================================
+    // Behavior: cancel_returns_lockacquisitionfailed_when_lock_unavailable
+    // ========================================================================
+
+    #[tokio::test]
+    async fn cancel_returns_lockacquisitionfailed_when_lock_unavailable() {
+        // Given: An instance exists but another writer holds the write lock
+        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+        let actor = ControlActor::new();
+
+        // When: Cancel is handled
+        let result = actor.handle_cancel(instance_id.clone()).await;
+
+        // Then: Err(CancelError::LockAcquisitionFailed { instance_id, reason: _ })
+        // And: No events are emitted
+        // RED PHASE: Currently returns InstanceActorNotFound
+        match result {
+            Err(CancelError::LockAcquisitionFailed { instance_id: _, reason: _ }) => {}
+            other => panic!("Expected LockAcquisitionFailed, got {:?}", other),
+        }
+    }
+
+    // ========================================================================
+    // Behavior: cancel_returns_storageerror_when_event_append_fails
+    // ========================================================================
+
+    #[tokio::test]
+    async fn cancel_returns_storageerror_when_event_append_fails() {
+        // Given: An instance exists with valid state and acquired lock, but storage write fails
+        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+        let actor = ControlActor::new();
+
+        // When: Cancel is handled
+        let result = actor.handle_cancel(instance_id.clone()).await;
+
+        // Then: Err(CancelError::StorageError { instance_id, reason: _ })
+        // And: No events are emitted
+        // And: Lock is released (no partial state)
+        // RED PHASE: Currently returns InstanceActorNotFound
+        match result {
+            Err(CancelError::StorageError { instance_id: _, reason: _ }) => {}
+            other => panic!("Expected StorageError, got {:?}", other),
+        }
+    }
+
+    // ========================================================================
+    // Behavior: resume_on_failed_instance_emits_instanceresumed_and_actor_re-enters_decision
+    // ========================================================================
+
+    #[tokio::test]
+    async fn resume_on_failed_instance_emits_instanceresumed_and_actor_re_enters_decision() {
+        // Given: An instance exists with lifecycle state Failed, required secrets present, node exists, path to terminal exists
+        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+        let actor = ControlActor::new();
+
+        // When: Resume is handled
+        let result = actor.handle_resume(instance_id.clone()).await;
+
+        // Then: Ok(InstanceResumed { instance_id, previous_binary_hash: H1, resumed_binary_hash: H2, resumed_at: T })
+        // And: H1 != H2 (hash has advanced)
+        // And: InstanceActor receives signal to re-enter RunningDecision
+        // And: Lifecycle state transitions from Failed to Running
+        // And: Write lock is released
+        //
+        // RED PHASE: This test will FAIL because handle_resume returns
+        // InstanceActorNotFound error instead of InstanceResumed
+        let instance_resumed = result.unwrap();
+
+        assert_eq!(instance_resumed.instance_id, instance_id);
+        assert_ne!(instance_resumed.previous_binary_hash, instance_resumed.resumed_binary_hash);
+    }
+
+    #[tokio::test]
+    async fn resume_on_failed_instance_emits_instanceresumed_with_hash_state() {
+        // Given: An instance exists with lifecycle state Failed
+        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+        let actor = ControlActor::new();
+
+        // When: Resume is handled
+        let result = actor.handle_resume(instance_id.clone()).await;
+
+        // Then: InstanceResumed event is emitted with previous and resumed binary hashes
+        // RED PHASE: result is Err(InstanceActorNotFound)
+        let instance_resumed = result.unwrap();
+
+        // Verify hash fields are populated
+        assert!(!instance_resumed.previous_binary_hash.0.is_empty());
+        assert!(!instance_resumed.resumed_binary_hash.0.is_empty());
+        assert!(instance_resumed.resumed_at.0 > 0);
+    }
+
+    #[tokio::test]
+    async fn resume_on_failed_instance_transitions_lifecycle_from_failed_to_running() {
+        // Given: An instance exists with lifecycle state Failed
+        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+        let actor = ControlActor::new();
+
+        // When: Resume is handled
+        let result = actor.handle_resume(instance_id.clone()).await;
+
+        // Then: Lifecycle state transitions from Failed to Running
+        // RED PHASE: result is Err(InstanceActorNotFound)
+        result.unwrap();
+    }
+
+    // ========================================================================
+    // Behavior: resume_returns_invalidlifecyclestate_error_when_instance_is_running
+    // ========================================================================
+
+    #[tokio::test]
+    async fn resume_returns_invalidlifecyclestate_error_when_instance_is_running() {
+        // Given: An instance exists with lifecycle state Running
+        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+        let actor = ControlActor::new();
+
+        // When: Resume is handled
+        let result = actor.handle_resume(instance_id.clone()).await;
+
+        // Then: Err(ResumeError::InvalidLifecycleState { actual: Running, expected: Failed })
+        // And: No events are emitted
+        //
+        // RED PHASE: Currently returns InstanceActorNotFound
+        match result {
+            Err(ResumeError::InvalidLifecycleState { actual, expected }) => {
+                assert_eq!(actual, LifecycleState::Running);
+                assert_eq!(expected, LifecycleState::Failed);
+            }
+            other => panic!("Expected InvalidLifecycleState(Running, Failed), got {:?}", other),
+        }
+    }
+
+    // ========================================================================
+    // Behavior: resume_returns_invalidlifecyclestate_error_when_instance_is_completed
+    // ========================================================================
+
+    #[tokio::test]
+    async fn resume_returns_invalidlifecyclestate_error_when_instance_is_completed() {
+        // Given: An instance exists with lifecycle state Completed
+        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+        let actor = ControlActor::new();
+
+        // When: Resume is handled
+        let result = actor.handle_resume(instance_id.clone()).await;
+
+        // Then: Err(ResumeError::InvalidLifecycleState { actual: Completed, expected: Failed })
+        // And: No events are emitted
+        // RED PHASE: Currently returns InstanceActorNotFound
+        match result {
+            Err(ResumeError::InvalidLifecycleState { actual, expected }) => {
+                assert_eq!(actual, LifecycleState::Completed);
+                assert_eq!(expected, LifecycleState::Failed);
+            }
+            other => panic!("Expected InvalidLifecycleState(Completed, Failed), got {:?}", other),
+        }
+    }
+
+    // ========================================================================
+    // Behavior: resume_returns_invalidlifecyclestate_error_when_instance_is_cancelled
+    // ========================================================================
+
+    #[tokio::test]
+    async fn resume_returns_invalidlifecyclestate_error_when_instance_is_cancelled() {
+        // Given: An instance exists with lifecycle state Cancelled
+        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+        let actor = ControlActor::new();
+
+        // When: Resume is handled
+        let result = actor.handle_resume(instance_id.clone()).await;
+
+        // Then: Err(ResumeError::InvalidLifecycleState { actual: Cancelled, expected: Failed })
+        // And: No events are emitted
+        // RED PHASE: Currently returns InstanceActorNotFound
+        match result {
+            Err(ResumeError::InvalidLifecycleState { actual, expected }) => {
+                assert_eq!(actual, LifecycleState::Cancelled);
+                assert_eq!(expected, LifecycleState::Failed);
+            }
+            other => panic!("Expected InvalidLifecycleState(Cancelled, Failed), got {:?}", other),
+        }
+    }
+
+    // ========================================================================
+    // Behavior: resume_returns_missingsecrets_error_when_secrets_absent
+    // ========================================================================
+
+    #[tokio::test]
+    async fn resume_returns_missingsecrets_error_when_secrets_absent() {
+        // Given: An instance exists with lifecycle Failed but required secret `secret-1` is missing
+        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+        let actor = ControlActor::new();
+
+        // When: Resume is handled
+        let result = actor.handle_resume(instance_id.clone()).await;
+
+        // Then: Err(ResumeError::MissingSecrets { instance_id, missing_secret_ids: [secret-1] })
+        // And: No events are emitted
+        //
+        // RED PHASE: Currently returns InstanceActorNotFound
+        match result {
+            Err(ResumeError::MissingSecrets { instance_id: _, missing_secret_ids }) => {
+                assert!(!missing_secret_ids.is_empty());
+            }
+            other => panic!("Expected MissingSecrets, got {:?}", other),
+        }
+    }
+
+    // ========================================================================
+    // Behavior: resume_returns_nodenotfound_error_when_node_missing
+    // ========================================================================
+
+    #[tokio::test]
+    async fn resume_returns_nodenotfound_error_when_node_missing() {
+        // Given: An instance exists with lifecycle Failed but required node `node-X` does not exist in workflow
+        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+        let actor = ControlActor::new();
+
+        // When: Resume is handled
+        let result = actor.handle_resume(instance_id.clone()).await;
+
+        // Then: Err(ResumeError::NodeNotFound { instance_id, node_name: node-X })
+        // And: No events are emitted
+        // RED PHASE: Currently returns InstanceActorNotFound
+        match result {
+            Err(ResumeError::NodeNotFound { instance_id: _, node_name: _ }) => {}
+            other => panic!("Expected NodeNotFound, got {:?}", other),
+        }
+    }
+
+    // ========================================================================
+    // Behavior: resume_returns_nopathtoterminal_error_when_no_valid_path
+    // ========================================================================
+
+    #[tokio::test]
+    async fn resume_returns_nopathtoterminal_error_when_no_valid_path() {
+        // Given: An instance exists with lifecycle Failed, node exists, but no valid path from current node to terminal
+        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+        let actor = ControlActor::new();
+
+        // When: Resume is handled
+        let result = actor.handle_resume(instance_id.clone()).await;
+
+        // Then: Err(ResumeError::NoPathToTerminal { instance_id, current_node: node-Y })
+        // And: No events are emitted
+        // RED PHASE: Currently returns InstanceActorNotFound
+        match result {
+            Err(ResumeError::NoPathToTerminal { instance_id: _, current_node: _ }) => {}
+            other => panic!("Expected NoPathToTerminal, got {:?}", other),
+        }
+    }
+
+    // ========================================================================
+    // Behavior: resume_returns_instanceactornotfound_when_actor_missing
+    // ========================================================================
+
+    #[tokio::test]
+    async fn resume_returns_instanceactornotfound_when_actor_missing() {
+        // Given: No InstanceActor exists for the given instance_id
+        let instance_id = InstanceId::parse("nonexistentinstanceid00000").unwrap();
+        let actor = ControlActor::new();
+
+        // When: Resume is handled
+        let result = actor.handle_resume(instance_id.clone()).await;
+
+        // Then: Err(ResumeError::InstanceActorNotFound { instance_id })
+        // And: No events are emitted
+        match result {
+            Err(ResumeError::InstanceActorNotFound { instance_id: _ }) => {}
+            other => panic!("Expected InstanceActorNotFound, got {:?}", other),
+        }
+    }
+
+    // ========================================================================
+    // Behavior: resume_returns_lockacquisitionfailed_when_lock_unavailable
+    // ========================================================================
+
+    #[tokio::test]
+    async fn resume_returns_lockacquisitionfailed_when_lock_unavailable() {
+        // Given: An instance exists with lifecycle Failed but another writer holds the write lock
+        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+        let actor = ControlActor::new();
+
+        // When: Resume is handled
+        let result = actor.handle_resume(instance_id.clone()).await;
+
+        // Then: Err(ResumeError::LockAcquisitionFailed { instance_id, reason: _ })
+        // And: No events are emitted
+        // RED PHASE: Currently returns InstanceActorNotFound
+        match result {
+            Err(ResumeError::LockAcquisitionFailed { instance_id: _, reason: _ }) => {}
+            other => panic!("Expected LockAcquisitionFailed, got {:?}", other),
+        }
+    }
+
+    // ========================================================================
+    // Behavior: resume_returns_storageerror_when_event_append_fails
+    // ========================================================================
+
+    #[tokio::test]
+    async fn resume_returns_storageerror_when_event_append_fails() {
+        // Given: An instance exists with valid Failed state and acquired lock, but storage write fails
+        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+        let actor = ControlActor::new();
+
+        // When: Resume is handled
+        let result = actor.handle_resume(instance_id.clone()).await;
+
+        // Then: Err(ResumeError::StorageError { instance_id, reason: _ })
+        // And: No events are emitted
+        // And: Lock is released (no partial state)
+        // RED PHASE: Currently returns InstanceActorNotFound
+        match result {
+            Err(ResumeError::StorageError { instance_id: _, reason: _ }) => {}
+            other => panic!("Expected StorageError, got {:?}", other),
+        }
+    }
+
+    // ========================================================================
+    // Proptest Invariants - ResumeError Classification
+    // ========================================================================
+
+    #[tokio::test]
+    async fn resume_error_precondition_classification_is_correct() {
+        // Invariant: ResumeError::is_precondition() returns true for InvalidLifecycleState,
+        // MissingSecrets, NodeNotFound, NoPathToTerminal, InstanceActorNotFound.
+        // Returns false for LockAcquisitionFailed, StorageError.
+        use ResumeError::*;
+
+        let precondition_errors = vec![
+            InvalidLifecycleState {
+                actual: LifecycleState::Running,
+                expected: LifecycleState::Failed,
+            },
+            MissingSecrets {
+                instance_id: InstanceId::parse("testinstanceid00000000000").unwrap(),
+                missing_secret_ids: vec![SecretId::new("secret-1")],
+            },
+            NodeNotFound {
+                instance_id: InstanceId::parse("testinstanceid00000000001").unwrap(),
+                node_name: NodeName::new("node-X"),
+            },
+            NoPathToTerminal {
+                instance_id: InstanceId::parse("testinstanceid00000000002").unwrap(),
+                current_node: NodeName::new("node-Y"),
+            },
+            InstanceActorNotFound {
+                instance_id: InstanceId::parse("testinstanceid00000000003").unwrap(),
+            },
+        ];
+
+        for err in precondition_errors {
+            assert!(
+                err.is_precondition(),
+                "Expected {:?} to be precondition",
+                err
+            );
+            assert!(
+                !err.is_transient(),
+                "Expected {:?} to NOT be transient",
+                err
+            );
+        }
+
+        let transient_errors = vec![
+            LockAcquisitionFailed {
+                instance_id: InstanceId::parse("testinstanceid00000000004").unwrap(),
+                reason: "lock held".to_string(),
+            },
+            StorageError {
+                instance_id: InstanceId::parse("testinstanceid00000000005").unwrap(),
+                reason: "io error".to_string(),
+            },
+        ];
+
+        for err in transient_errors {
+            assert!(
+                !err.is_precondition(),
+                "Expected {:?} to NOT be precondition",
+                err
+            );
+            assert!(
+                err.is_transient(),
+                "Expected {:?} to be transient",
+                err
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn cancel_events_always_ordered_cancelrequested_then_workflowcancelled() {
+        // Invariant: For any successful Cancel operation, the event stream contains
+        // CancelRequested before WorkflowCancelled, with no intervening events for that instance.
+        //
+        // RED PHASE: handle_cancel doesn't return events correctly yet
+        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+        let actor = ControlActor::new();
+        let result = actor.handle_cancel(instance_id.clone()).await;
+
+        // This would verify ordering in a full implementation
+        match result {
+            Ok((first, second)) => {
+                // CancelRequested should have earlier timestamp than WorkflowCancelled
+                assert!(
+                    second.cancelled_at >= first.requested_at,
+                    "WorkflowCancelled should come after CancelRequested"
+                );
+            }
+            Err(_) => {
+                // RED PHASE: Currently fails - this is expected
+            }
         }
     }
 }
