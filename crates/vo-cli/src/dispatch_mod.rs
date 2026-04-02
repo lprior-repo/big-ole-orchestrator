@@ -11,29 +11,6 @@ use vo_storage::purge::purge_instance;
 #[allow(clippy::needless_pass_by_value)]
 pub async fn dispatch(cli: Cli) -> Result<(), CliError> {
     match cli.command {
-        Command::Start {
-            port,
-            nats_url,
-            embedded_nats,
-            data_dir,
-            max_concurrent,
-        } => {
-            let config = crate::commands::serve::ServeConfig {
-                port,
-                nats_url,
-                embedded_nats,
-                data_dir,
-                max_concurrent,
-            };
-            let nats = crate::commands::serve::run_serve(config.clone())
-                .await
-                .map_err(|e| CliError::Dispatch(format!("Failed to provision storage: {e}")))?;
-
-            crate::commands::serve::run_serve_loop(config, nats)
-                .await
-                .map_err(|e| CliError::Dispatch(format!("Server error: {e}")))?;
-            Ok(())
-        }
         Command::Purge { instance } => {
             let fjall_path = "/home/lewis/.gemini/tmp/veloxide/fjall";
             let keyspace = fjall::Config::new(fjall_path)

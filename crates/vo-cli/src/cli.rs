@@ -6,8 +6,6 @@ pub enum CliError {
     Clap(#[from] clap::Error),
     #[error("invalid numeric: {0}")]
     InvalidNumeric(String),
-    #[error("invalid NATS URL: {0}")]
-    InvalidNatsUrl(String),
     #[error("dispatch error: {0}")]
     Dispatch(String),
     #[error(transparent)]
@@ -17,14 +15,7 @@ pub enum CliError {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct NatsUrl {
-    pub host: String,
-    pub port: Option<u16>,
-}
-
-#[derive(Debug, PartialEq, Clone)]
 pub enum Command {
-    Start,
     Purge { instance: String },
     Check { path: PathBuf },
     Gc { engine_url: String, dry_run: bool },
@@ -48,7 +39,6 @@ where
         .version("0.1.0")
         .subcommand_required(true)
         .arg_required_else_help(true)
-        .subcommand(clap::Command::new("start"))
         .subcommand(
             clap::Command::new("purge").arg(
                 clap::Arg::new("instance")
@@ -77,9 +67,6 @@ where
     let matches = cmd.try_get_matches_from(args)?;
 
     match matches.subcommand() {
-        Some(("start", _)) => Ok(Cli {
-            command: Command::Start,
-        }),
         Some(("purge", purge_matches)) => {
             let instance = purge_matches
                 .get_one::<String>("instance")
@@ -129,7 +116,7 @@ pub fn map_error_to_exit_code(err: &CliError) -> i32 {
             _ => 2,
         },
         CliError::Dispatch(_) | CliError::Check(_) | CliError::Gc(_) => 1,
-        CliError::InvalidNumeric(_) | CliError::InvalidNatsUrl(_) => 2,
+        CliError::InvalidNumeric(_) => 2,
     }
 }
 
