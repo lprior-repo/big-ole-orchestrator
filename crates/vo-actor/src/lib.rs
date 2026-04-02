@@ -12,6 +12,8 @@ pub mod master {
     pub struct OrchestratorConfig;
 }
 
+pub mod reanimator;
+
 #[derive(Debug)]
 pub enum TerminateError {
     NotFound(String),

@@ -1,26 +1,52 @@
-use vo_types::{InstanceId, TimerId};
 use crate::codec::StorageError;
+use vo_types::{InstanceId, TimerId};
+
+type ScanResult = Vec<(Vec<u8>, Vec<u8>)>;
 
 pub struct TimerKey([u8; 40]);
 
 impl TimerKey {
-    pub fn new(fire_at_ms: u64, instance_id: InstanceId, timer_id: TimerId) -> Result<Self, StorageError> {
+    /// Creates a new `TimerKey` from fire time, instance ID, and timer ID.
+    ///
+    /// # Errors
+    ///
+    /// Returns `StorageError::InvalidArgument` if `instance_id` or `timer_id` cannot be converted to bytes.
+    #[allow(clippy::needless_pass_by_value)]
+    pub fn new(
+        fire_at_ms: u64,
+        instance_id: InstanceId,
+        timer_id: TimerId,
+    ) -> Result<Self, StorageError> {
         let mut bytes = [0u8; 40];
         bytes[0..8].copy_from_slice(&fire_at_ms.to_be_bytes());
-        bytes[8..24].copy_from_slice(&instance_id.to_bytes().map_err(|_| StorageError::InvalidArgument)?);
-        bytes[24..40].copy_from_slice(&timer_id.to_bytes().map_err(|_| StorageError::InvalidArgument)?);
+        bytes[8..24].copy_from_slice(
+            &instance_id
+                .to_bytes()
+                .map_err(|_| StorageError::InvalidArgument)?,
+        );
+        bytes[24..40].copy_from_slice(
+            &timer_id
+                .to_bytes()
+                .map_err(|_| StorageError::InvalidArgument)?,
+        );
         Ok(Self(bytes))
     }
-    pub fn fire_at_ms(&self) -> u64 {
-        u64::from_be_bytes(self.0[0..8].try_into().unwrap_or([0u8; 8]))
+    #[must_use]
+    pub const fn fire_at_ms(&self) -> u64 {
+        u64::from_be_bytes([
+            self.0[0], self.0[1], self.0[2], self.0[3], self.0[4], self.0[5], self.0[6], self.0[7],
+        ])
     }
+    #[must_use]
     pub fn instance_id(&self) -> InstanceId {
-        InstanceId::from_bytes(self.0[8..24].try_into().unwrap_or([0u8; 16]))
+        InstanceId::from_bytes(self.0[8..24].try_into().unwrap_or_default())
     }
+    #[must_use]
     pub fn timer_id(&self) -> TimerId {
-        TimerId::from_bytes(self.0[24..40].try_into().unwrap_or([0u8; 16]))
+        TimerId::from_bytes(self.0[24..40].try_into().unwrap_or_default())
     }
-    pub fn as_bytes(&self) -> &[u8; 40] {
+    #[must_use]
+    pub const fn as_bytes(&self) -> &[u8; 40] {
         &self.0
     }
 }
@@ -28,16 +54,23 @@ impl TimerKey {
 pub struct TimerValue(u64);
 
 impl TimerValue {
-    pub fn new(duration_ms: u64) -> Result<Self, StorageError> {
+    /// Creates a new `TimerValue` wrapping the given duration in milliseconds.
+    ///
+    /// # Errors
+    ///
+    /// Returns `StorageError::InvalidArgument` if `duration_ms` is zero.
+    pub const fn new(duration_ms: u64) -> Result<Self, StorageError> {
         if duration_ms == 0 {
             return Err(StorageError::InvalidArgument);
         }
         Ok(Self(duration_ms))
     }
-    pub fn duration_ms(&self) -> u64 {
+    #[must_use]
+    pub const fn duration_ms(&self) -> u64 {
         self.0
     }
-    pub fn as_be_bytes(&self) -> [u8; 8] {
+    #[must_use]
+    pub const fn as_be_bytes(&self) -> [u8; 8] {
         self.0.to_be_bytes()
     }
 }
@@ -52,6 +85,11 @@ pub struct TimerRecord {
 }
 
 impl TimerRecord {
+    /// Constructs a `TimerRecord` from individual parts.
+    ///
+    /// # Errors
+    ///
+    /// Returns `StorageError::InvalidArgument` if `duration_ms` is zero or if dual-clock invariant is violated.
     pub fn try_from_parts(
         timer_id: TimerId,
         instance_id: InstanceId,
@@ -64,7 +102,7 @@ impl TimerRecord {
         }
         // Dual-clock verification
         if fire_at_ms != trigger_time_ms.saturating_add(duration_ms) {
-             return Err(StorageError::InvalidArgument);
+            return Err(StorageError::InvalidArgument);
         }
         Ok(Self {
             timer_id,
@@ -77,12 +115,38 @@ impl TimerRecord {
 }
 
 pub trait Storage {
+    /// Stores a key-value pair.
+    ///
+    /// # Errors
+    ///
+    /// Returns `StorageError` if the underlying storage fails.
     fn put(&mut self, key: &[u8], value: &[u8]) -> Result<(), StorageError>;
+    /// Retrieves a value by key.
+    ///
+    /// # Errors
+    ///
+    /// Returns `StorageError` if the underlying storage fails.
     fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>, StorageError>;
+    /// Deletes a key.
+    ///
+    /// # Errors
+    ///
+    /// Returns `StorageError` if the underlying storage fails.
     fn delete(&mut self, key: &[u8]) -> Result<(), StorageError>;
-    fn scan(&self, start: &[u8], end: &[u8]) -> Result<Vec<(Vec<u8>, Vec<u8>)>, StorageError>;
+    /// Scans a range of keys.
+    ///
+    /// # Errors
+    ///
+    /// Returns `StorageError` if the underlying storage fails.
+    fn scan(&self, start: &[u8], end: &[u8]) -> Result<ScanResult, StorageError>;
 }
 
+/// Stores a timer in the timers partition.
+///
+/// # Errors
+///
+/// Returns `StorageError::InvalidArgument` if `fire_at_ms` <= `now_ms`, `duration_ms` is zero,
+/// or if dual-clock invariant is violated.
 pub fn timer_set(
     storage: &mut impl Storage,
     instance_id: InstanceId,
@@ -99,7 +163,7 @@ pub fn timer_set(
         return Err(StorageError::InvalidArgument);
     }
     if fire_at_ms != trigger_time_ms.saturating_add(duration_ms) {
-         return Err(StorageError::InvalidArgument);
+        return Err(StorageError::InvalidArgument);
     }
 
     let key = TimerKey::new(fire_at_ms, instance_id, timer_id)?;
@@ -107,56 +171,63 @@ pub fn timer_set(
     storage.put(key.as_bytes(), &value)
 }
 
+/// Scans the timers partition for due timers for a specific instance.
+///
+/// # Errors
+///
+/// Returns `StorageError::CorruptKey` if timer key or value bytes cannot be decoded.
 pub fn scan_due_timers(
     storage: &impl Storage,
-    instance_id: InstanceId,
+    instance_id: &InstanceId,
     now_ms: u64,
 ) -> Result<Vec<TimerRecord>, StorageError> {
     let start = [0u8; 40];
-    let mut end = [0u8; 40];
-    // Range is inclusive up to now_ms
-    end[0..8].copy_from_slice(&(now_ms.saturating_add(1)).to_be_bytes());
+    let end = {
+        let mut e = [0u8; 40];
+        e[0..8].copy_from_slice(&(now_ms.saturating_add(1)).to_be_bytes());
+        e
+    };
 
     let pairs = storage.scan(&start, &end)?;
-    let mut records = Vec::new();
-    for (k, v) in pairs {
-        if k.len() != 40 || v.len() != 8 {
-            continue;
-        }
-        let key_bytes: [u8; 40] = k.try_into().map_err(|_| StorageError::CorruptKey)?;
-        let key = TimerKey(key_bytes);
-        
-        if key.instance_id() != instance_id {
-            continue;
-        }
-        
-        let fire_at_ms = key.fire_at_ms();
-        if fire_at_ms > now_ms {
-            continue;
-        }
-
-        let duration_bytes: [u8; 8] = v.try_into().map_err(|_| StorageError::CorruptKey)?;
-        let duration_ms = u64::from_be_bytes(duration_bytes);
-        let trigger_time_ms = fire_at_ms.saturating_sub(duration_ms);
-        
-        records.push(TimerRecord {
-            timer_id: key.timer_id(),
-            instance_id: key.instance_id(),
-            fire_at_ms,
-            trigger_time_ms,
-            duration_ms,
-        });
-    }
+    let records: Vec<TimerRecord> = pairs
+        .into_iter()
+        .filter_map(|(k, v)| {
+            let key_bytes: [u8; 40] = k.try_into().ok()?;
+            let key = TimerKey(key_bytes);
+            if key.instance_id() != *instance_id {
+                return None;
+            }
+            let fire_at_ms = key.fire_at_ms();
+            if fire_at_ms > now_ms {
+                return None;
+            }
+            let duration_bytes: [u8; 8] = v.try_into().ok()?;
+            let duration_ms = u64::from_be_bytes(duration_bytes);
+            let trigger_time_ms = fire_at_ms.saturating_sub(duration_ms);
+            Some(TimerRecord {
+                timer_id: key.timer_id(),
+                instance_id: key.instance_id(),
+                fire_at_ms,
+                trigger_time_ms,
+                duration_ms,
+            })
+        })
+        .collect();
     Ok(records)
 }
 
+/// Deletes a timer from the timers partition.
+///
+/// # Errors
+///
+/// Returns `StorageError` if the underlying storage operation fails.
 pub fn timer_delete(
     storage: &mut impl Storage,
-    instance_id: InstanceId,
+    instance_id: &InstanceId,
     timer_id: TimerId,
     fire_at_ms: u64,
 ) -> Result<(), StorageError> {
-    let key = TimerKey::new(fire_at_ms, instance_id, timer_id)?;
+    let key = TimerKey::new(fire_at_ms, instance_id.clone(), timer_id)?;
     storage.delete(key.as_bytes())
 }
 
@@ -208,7 +279,9 @@ mod tests {
             if self.fail_on_op.as_deref() == Some("scan") {
                 return Err(StorageError::Storage);
             }
-            Ok(self.data.range(start.to_vec()..end.to_vec())
+            Ok(self
+                .data
+                .range(start.to_vec()..end.to_vec())
                 .map(|(k, v)| (k.clone(), v.clone()))
                 .collect())
         }
@@ -233,8 +306,16 @@ mod tests {
         let trigger_time_ms = 901;
         let duration_ms = 100;
 
-        let result = timer_set(&mut storage, instance_id.clone(), timer_id.clone(), fire_at_ms, trigger_time_ms, duration_ms, now_ms);
-        
+        let result = timer_set(
+            &mut storage,
+            instance_id.clone(),
+            timer_id.clone(),
+            fire_at_ms,
+            trigger_time_ms,
+            duration_ms,
+            now_ms,
+        );
+
         assert!(result.is_ok());
         assert_eq!(storage.data.len(), 1);
     }
@@ -244,10 +325,19 @@ mod tests {
         let mut storage = MockStorage::new();
         let instance_id = create_instance_id();
         let timer_id = create_timer_id();
-        
-        timer_set(&mut storage, instance_id.clone(), timer_id.clone(), 1001, 901, 100, 1000).unwrap();
+
+        timer_set(
+            &mut storage,
+            instance_id.clone(),
+            timer_id.clone(),
+            1001,
+            901,
+            100,
+            1000,
+        )
+        .unwrap();
         let result = timer_set(&mut storage, instance_id, timer_id, 1001, 801, 200, 1000);
-        
+
         assert!(result.is_ok());
         assert_eq!(storage.data.len(), 1);
     }
@@ -255,14 +345,30 @@ mod tests {
     #[test]
     fn fn_timer_set_rejects_fire_at_ms_equal_to_now_ms() {
         let mut storage = MockStorage::new();
-        let result = timer_set(&mut storage, create_instance_id(), create_timer_id(), 1000, 900, 100, 1000);
+        let result = timer_set(
+            &mut storage,
+            create_instance_id(),
+            create_timer_id(),
+            1000,
+            900,
+            100,
+            1000,
+        );
         assert_eq!(result, Err(StorageError::InvalidArgument));
     }
 
     #[test]
     fn fn_timer_set_rejects_zero_duration_ms_exact_variant() {
         let mut storage = MockStorage::new();
-        let result = timer_set(&mut storage, create_instance_id(), create_timer_id(), 1001, 1001, 0, 1000);
+        let result = timer_set(
+            &mut storage,
+            create_instance_id(),
+            create_timer_id(),
+            1001,
+            1001,
+            0,
+            1000,
+        );
         assert_eq!(result, Err(StorageError::InvalidArgument));
     }
 
@@ -271,9 +377,18 @@ mod tests {
         let mut storage = MockStorage::new();
         let instance_id = create_instance_id();
         let timer_id = create_timer_id();
-        timer_set(&mut storage, instance_id.clone(), timer_id, 1000, 900, 100, 999).unwrap();
-        
-        let result = scan_due_timers(&storage, instance_id, 1000).unwrap();
+        timer_set(
+            &mut storage,
+            instance_id.clone(),
+            timer_id,
+            1000,
+            900,
+            100,
+            999,
+        )
+        .unwrap();
+
+        let result = scan_due_timers(&storage, &instance_id, 1000).unwrap();
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].fire_at_ms, 1000);
     }
@@ -282,9 +397,18 @@ mod tests {
     fn fn_scan_due_timers_not_due_when_fire_at_greater_than_now() {
         let mut storage = MockStorage::new();
         let instance_id = create_instance_id();
-        timer_set(&mut storage, instance_id.clone(), create_timer_id(), 1001, 901, 100, 1000).unwrap();
-        
-        let result = scan_due_timers(&storage, instance_id, 1000).unwrap();
+        timer_set(
+            &mut storage,
+            instance_id.clone(),
+            create_timer_id(),
+            1001,
+            901,
+            100,
+            1000,
+        )
+        .unwrap();
+
+        let result = scan_due_timers(&storage, &instance_id, 1000).unwrap();
         assert_eq!(result, vec![]);
     }
 
@@ -295,8 +419,8 @@ mod tests {
         let tid = create_timer_id();
         timer_set(&mut storage, iid.clone(), tid.clone(), 1001, 901, 100, 1000).unwrap();
         assert_eq!(storage.data.len(), 1);
-        
-        let result = timer_delete(&mut storage, iid, tid, 1001);
+
+        let result = timer_delete(&mut storage, &iid, tid, 1001);
         assert!(result.is_ok());
         assert_eq!(storage.data.len(), 0);
     }

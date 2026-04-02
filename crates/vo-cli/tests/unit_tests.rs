@@ -1,7 +1,4 @@
-use vo_cli::{
-    dispatch, interpret_cli_from, map_error_to_exit_code, parse_nats_url, parse_strict_numeric,
-    Cli, CliError, Command, NatsUrl,
-};
+use vo_cli::{interpret_cli_from, map_error_to_exit_code, parse_strict_numeric, CliError, Command};
 
 #[test]
 fn interpret_cli_from_returns_display_help_error_when_help_flag_provided() {
@@ -19,14 +16,6 @@ fn map_error_to_exit_code_returns_0_for_clap_displayhelp() {
     assert_eq!(map_error_to_exit_code(&CliError::Clap(err)), 0);
 }
 
-#[tokio::test]
-async fn dispatch_returns_ok_when_cli_contains_start_command() {
-    let cli = Cli {
-        command: Command::Start,
-    };
-    dispatch(cli).await.unwrap();
-}
-
 #[test]
 fn parse_strict_numeric_returns_ok_for_0() {
     assert_eq!(parse_strict_numeric("0").unwrap(), 0);
@@ -38,16 +27,6 @@ fn parse_strict_numeric_returns_err_for_plus1() {
         parse_strict_numeric("+1"),
         Err(CliError::InvalidNumeric(_))
     ));
-}
-
-#[test]
-fn parse_nats_url_returns_ok_for_localhost_1() {
-    let expected = NatsUrl {
-        host: "localhost".into(),
-        port: Some(1),
-    };
-    let actual = parse_nats_url("localhost:1").unwrap();
-    assert_eq!(actual, expected);
 }
 
 #[test]

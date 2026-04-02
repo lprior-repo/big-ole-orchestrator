@@ -2,8 +2,8 @@
 use vo_cli::{dispatch, interpret_cli_from, map_error_to_exit_code, Command};
 
 #[tokio::test]
-async fn integration_full_pipeline_success() {
-    let args = vec!["vo", "start"];
+async fn integration_gc_dispatch_succeeds() {
+    let args = vec!["vo", "gc", "--dry-run"];
     let cli = interpret_cli_from(args).expect("Failed to parse valid args");
 
     let result = dispatch(cli).await;

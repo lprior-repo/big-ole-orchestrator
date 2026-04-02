@@ -10,6 +10,7 @@ use vo_types::InstanceId;
 /// Returns `StorageError::CorruptKey` if the instance ID cannot be serialized.
 /// Returns `StorageError::SerializationFailed` if the state cannot be serialized.
 /// Returns `StorageError::FjallError` if the storage engine fails.
+#[allow(clippy::needless_pass_by_value)]
 pub fn snapshot_write(
     partition: &PartitionHandle,
     instance_id: InstanceId,
@@ -108,8 +109,8 @@ mod tests;
 #[path = "tests_property.rs"]
 mod tests_property;
 
-#[cfg(kani)]
 #[allow(unexpected_cfgs)]
+#[cfg(kani)]
 mod verification {
     use super::*;
 

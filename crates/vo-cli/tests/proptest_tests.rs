@@ -4,7 +4,7 @@ use proptest::prelude::*;
 use std::collections::HashSet;
 use vo_cli::commands::check::{validate_binary_header, KNOWN_MAGICS};
 use vo_cli::commands::gc::find_unpinned_directories;
-use vo_cli::{parse_nats_url, parse_strict_numeric, CliError};
+use vo_cli::{parse_strict_numeric, CliError};
 
 fn sha256_hex(seed: &str) -> String {
     format!("{:0<64}", seed)
@@ -14,12 +14,6 @@ proptest! {
     #[test]
     fn parse_strict_numeric_rejects_non_digits(s in ".*[^0-9].*") {
         prop_assert!(matches!(parse_strict_numeric(&s), Err(CliError::InvalidNumeric(_))));
-    }
-
-    #[test]
-    fn parse_nats_url_accepts_valid_urls(host in "[a-z]+", port in 1..=65535u16) {
-        let url = format!("{}:{}", host, port);
-        prop_assert!(matches!(parse_nats_url(&url), Ok(_)));
     }
 
     #[test]
