@@ -208,7 +208,7 @@ impl FairnessBudget {
     pub fn can_resume(&self, instance_id: &InstanceId) -> bool {
         self.instance_counts
             .get(instance_id)
-            .map_or(true, |count| *count < self.max_per_instance)
+            .is_none_or(|count| *count < self.max_per_instance)
     }
 
     /// Records a resume for an instance, returning true if allowed.
@@ -457,7 +457,7 @@ impl ReanimatorLoop {
         };
 
         // Spawn the background task
-        tokio::spawn(Self::run_loop(
+        tokio::runtime::Handle::current().spawn(Self::run_loop(
             config,
             storage,
             work_queue,

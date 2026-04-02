@@ -10,7 +10,7 @@ ractor.workspace = true
 thiserror = "1"
 async-trait = "0.1"
 tracing = "0.1"
+tokio = { workspace = true, features = ["rt", "sync", "time", "macros"] }
 
 [dev-dependencies]
 proptest.workspace = true
-tokio.workspace = true
