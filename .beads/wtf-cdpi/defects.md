@@ -1,8 +1,8 @@
-# Defects: vo-cdpi
+# Defects: wtf-cdpi
 
 ## DEFECT-1: Empty workflow_type not validated [MAJOR] — FIXED
 
-**Location**: `crates/vo-api/src/handlers/definitions.rs:13-19`
+**Location**: `crates/wtf-api/src/handlers/definitions.rs:13-19`
 
 **Status**: FIXED
 
@@ -19,7 +19,7 @@ if req.workflow_type.trim().is_empty() {
 
 ## DEFECT-2: KV integration paths have zero automated test coverage [MINOR] — PARTIALLY FIXED
 
-**Location**: `crates/vo-api/src/handlers/definitions.rs` tests module
+**Location**: `crates/wtf-api/src/handlers/definitions.rs` tests module
 
 **Status**: PARTIALLY FIXED
 

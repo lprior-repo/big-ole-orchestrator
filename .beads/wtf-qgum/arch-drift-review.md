@@ -1,10 +1,10 @@
-# Arch Drift Review — vo-qgum
+# Arch Drift Review — wtf-qgum
 
 **STATUS: REFACTORED**
 
 ## File Under Review
 
-`crates/vo-worker/src/builtin.rs` — **421 lines** (over 300-line limit)
+`crates/wtf-worker/src/builtin.rs` — **421 lines** (over 300-line limit)
 
 ## Finding
 
@@ -26,13 +26,13 @@ All files are **under 300 lines**.
 ## DDD Compliance
 
 - ✅ **Parse, don't validate** — `parse_sleep_ms` is a pure function at the boundary
-- ✅ **No primitive obsession** — `ActivityId`, `InstanceId`, `NamespaceId` are proper NewTypes (from `vo_common`)
+- ✅ **No primitive obsession** — `ActivityId`, `InstanceId`, `NamespaceId` are proper NewTypes (from `wtf_common`)
 - ✅ **Single responsibility** — each file has one clear purpose
 - ✅ **Constants for domain literals** — `SLEEP_PARSE_ERR`, `SLEPT_RESULT`
 - ✅ **Zero `unwrap()`/`expect()`** — enforced via clippy lints
 
 ## Verification
 
-- `cargo check -p vo-worker` ✅
-- `cargo test -p vo-worker -- builtin` — 32/32 passed ✅
+- `cargo check -p wtf-worker` ✅
+- `cargo test -p wtf-worker -- builtin` — 32/32 passed ✅
 - No public API changes — `register_defaults`, `echo_handler`, `sleep_handler` unchanged

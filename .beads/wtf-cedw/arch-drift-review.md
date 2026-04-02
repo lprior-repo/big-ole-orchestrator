@@ -1,9 +1,9 @@
-# Arch Drift Review — vo-cedw
+# Arch Drift Review — wtf-cedw
 
 **Date:** 2026-03-23
 **Files reviewed:**
-- `crates/vo-actor/src/instance/handlers.rs` (263 lines)
-- `crates/vo-actor/src/instance/state.rs` (79 lines)
+- `crates/wtf-actor/src/instance/handlers.rs` (263 lines)
+- `crates/wtf-actor/src/instance/state.rs` (79 lines)
 
 ## Line Count
 

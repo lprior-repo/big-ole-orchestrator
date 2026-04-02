@@ -1,6 +1,6 @@
 # Test Defects Report
 
-**Bead:** vo-qgum
+**Bead:** wtf-qgum
 **Reviewer:** test-reviewer (glm-5-turbo)
 **Verdict:** REJECTED
 **Date:** 2026-03-23
