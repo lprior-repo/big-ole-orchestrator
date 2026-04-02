@@ -100,3 +100,39 @@ impl Default for CircuitBreakerState {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::circuit_breaker::{FailureWindow, RegistrationStatus};
+    use std::time::Instant;
+    use vo_types::WorkflowName;
+
+    #[test]
+    fn test_circuit_breaker_state() {
+        let state = CircuitBreakerState::default();
+        let wf = WorkflowName::parse("test-wf").unwrap();
+
+        assert_eq!(state.get_status(&wf), RegistrationStatus::Active);
+        assert_eq!(state.get_rate_limit(&wf), None);
+        assert_eq!(state.get_failure_count(&wf), 0);
+
+        let now = Instant::now();
+        state.set_status(wf.clone(), RegistrationStatus::Quarantined);
+        state.set_rate_limit(wf.clone(), now);
+
+        assert_eq!(state.get_status(&wf), RegistrationStatus::Quarantined);
+        assert_eq!(state.get_rate_limit(&wf), Some(now));
+
+        state.remove_rate_limit(&wf);
+        assert_eq!(state.get_rate_limit(&wf), None);
+
+        state
+            .failure_tracker
+            .insert(wf.clone(), FailureWindow::new());
+        assert_eq!(state.get_failure_count(&wf), 0);
+
+        let debug_str = format!("{:?}", state);
+        assert!(debug_str.contains("CircuitBreakerState"));
+    }
+}

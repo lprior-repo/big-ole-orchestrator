@@ -10,7 +10,7 @@ fn main() {
         ("valid-workflow-name-123", "Valid Name"),
     ];
 
-    for (input, description) in cases {
+    (cases).into_iter().for_each(|(input, description)| {
         let result = WorkflowName::parse(input);
         match result {
             Ok(_) => println!(
@@ -22,5 +22,5 @@ fn main() {
                 description, input, e
             ),
         }
-    }
+    });
 }

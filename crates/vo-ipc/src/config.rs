@@ -102,3 +102,90 @@ pub(crate) fn parse_fd3_payload_as_argv(payload: &[u8]) -> Vec<OsString> {
         .map(OsString::from)
         .collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs::File;
+    use std::os::unix::fs::PermissionsExt;
+    use std::path::PathBuf;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_validate_timeout() {
+        assert!(validate_timeout(0).is_err());
+        assert!(validate_timeout(10).is_ok());
+    }
+
+    #[test]
+    fn test_validate_program_path_missing() {
+        let path = PathBuf::from("/does/not/exist");
+        assert!(validate_program_path(&path).is_err());
+    }
+
+    #[test]
+    fn test_validate_program_path_not_file() {
+        let dir = tempdir().unwrap();
+        assert!(validate_program_path(dir.path()).is_err());
+    }
+
+    #[test]
+    fn test_validate_program_path_not_executable() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("not_exec");
+        File::create(&file_path).unwrap();
+        let metadata = std::fs::metadata(&file_path).unwrap();
+        let mut perms = metadata.permissions();
+        perms.set_mode(0o644);
+        std::fs::set_permissions(&file_path, perms).unwrap();
+        assert!(validate_program_path(&file_path).is_err());
+    }
+
+    #[test]
+    fn test_validate_program_path_executable() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("exec");
+        File::create(&file_path).unwrap();
+        let metadata = std::fs::metadata(&file_path).unwrap();
+        let mut perms = metadata.permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&file_path, perms).unwrap();
+        assert!(validate_program_path(&file_path).is_ok());
+    }
+
+    #[test]
+    fn test_subprocess_config_getters() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("exec");
+        File::create(&file_path).unwrap();
+        let mut perms = std::fs::metadata(&file_path).unwrap().permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&file_path, perms).unwrap();
+
+        let config = SubprocessConfig::new(&file_path, 100, b"arg1 arg2".to_vec()).unwrap();
+        assert_eq!(config.timeout_ms(), 100);
+        assert_eq!(config.fd3_payload(), b"arg1 arg2");
+        let argv = config.argv();
+        assert_eq!(argv.len(), 2);
+        assert_eq!(argv[0], "arg1");
+        assert_eq!(argv[1], "arg2");
+    }
+
+    #[test]
+    fn test_subprocess_config_traits() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("exec");
+        File::create(&file_path).unwrap();
+        let mut perms = std::fs::metadata(&file_path).unwrap().permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&file_path, perms).unwrap();
+
+        let config1 = SubprocessConfig::new(&file_path, 100, b"arg1 arg2".to_vec()).unwrap();
+        let config2 = config1.clone();
+
+        assert_eq!(config1, config2);
+
+        let debug_str = format!("{:?}", config1);
+        assert!(debug_str.contains("SubprocessConfig"));
+    }
+}

@@ -111,7 +111,7 @@ pub enum NodeTemplateId {
     SetState,
     Condition,
     Parallel,
-    Sleep,
+    Timer,
     Timeout,
 }
 
@@ -130,7 +130,7 @@ impl NodeTemplateId {
             Self::SetState => "set-state",
             Self::Condition => "condition",
             Self::Parallel => "parallel",
-            Self::Sleep => "sleep",
+            Self::Timer => "timer",
             Self::Timeout => "timeout",
         }
     }
@@ -149,7 +149,7 @@ impl NodeTemplateId {
             Self::SetState => "Set State",
             Self::Condition => "If / Else",
             Self::Parallel => "Parallel",
-            Self::Sleep => "Sleep / Timer",
+            Self::Timer => "Timer / Wait",
             Self::Timeout => "Timeout",
         }
     }
@@ -168,7 +168,7 @@ impl NodeTemplateId {
             Self::SetState => "Write persisted state",
             Self::Condition => "Branch by condition",
             Self::Parallel => "Run branches concurrently",
-            Self::Sleep => "Pause execution durably",
+            Self::Timer => "Pause execution durably",
             Self::Timeout => "Guard a step with deadline",
         }
     }
@@ -187,7 +187,7 @@ impl NodeTemplateId {
             "set-state" => Some(Self::SetState),
             "condition" => Some(Self::Condition),
             "parallel" => Some(Self::Parallel),
-            "sleep" => Some(Self::Sleep),
+            "timer" => Some(Self::Timer),
             "timeout" => Some(Self::Timeout),
             _ => None,
         }
@@ -207,7 +207,7 @@ impl NodeTemplateId {
             Self::SetState,
             Self::Condition,
             Self::Parallel,
-            Self::Sleep,
+            Self::Timer,
             Self::Timeout,
         ]
     }

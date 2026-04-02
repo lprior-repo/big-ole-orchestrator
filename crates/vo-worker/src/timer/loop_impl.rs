@@ -83,7 +83,7 @@ pub async fn run_timer_loop(
                 }
             }
             result = shutdown_rx.changed() => {
-                if result.is_err() || *shutdown_rx.borrow() {
+                if matches!(result, Err(_)) || *shutdown_rx.borrow() {
                     tracing::info!("timer loop shutting down");
                     break;
                 }
