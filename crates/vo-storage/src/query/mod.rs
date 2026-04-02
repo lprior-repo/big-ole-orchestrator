@@ -3,7 +3,7 @@
 //! Architecture: Data (`StorageError`, `IteratorState`) → Calc (`encode_key`, `decode_key`,
 //! `prefix_generator`, `error_mapper`) → Actions (`EventReplayIterator`, `replay_events`).
 
-use crate::codec::StorageError;
+pub use crate::codec::StorageError;
 use vo_types::{EventEnvelope, EventError, InstanceId};
 
 #[cfg(test)]
