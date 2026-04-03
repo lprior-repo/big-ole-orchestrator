@@ -6,3 +6,8 @@
 pub mod admission;
 pub mod circuit_breaker;
 pub mod debounce;
+pub mod upcaster;
+pub mod write_class;
+
+#[cfg(kani)]
+pub mod write_class_verification;
