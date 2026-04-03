@@ -199,6 +199,12 @@ pub struct MockWorkQueue {
     enqueued: std::sync::Mutex<Vec<vo_types::InstanceId>>,
 }
 
+impl Default for MockWorkQueue {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MockWorkQueue {
     pub fn new() -> Self {
         Self {
@@ -370,9 +376,8 @@ impl TimerSupervisor {
     }
 
     /// Shuts down the TimerSupervisor
-    pub async fn shutdown(&self, timeout: Duration) -> Result<(), TimerSupervisorError> {
+    pub async fn shutdown(&self, _timeout: Duration) -> Result<(), TimerSupervisorError> {
         // RED PHASE STUB
-        let _ = timeout;
         Err(TimerSupervisorError::ShutdownTimeout(Duration::from_secs(
             0,
         )))
@@ -432,8 +437,8 @@ mod verify_dual_clock_tests {
         // When
         let result = verify_dual_clock(1000, 800, 200, 1000);
         // Then: Returns true (fire_at == now satisfies <=)
-        assert_eq!(
-            result, true,
+        assert!(
+            result,
             "verify_dual_clock should return true at boundary fire_at = now"
         );
     }
@@ -446,8 +451,8 @@ mod verify_dual_clock_tests {
         // When
         let result = verify_dual_clock(1001, 800, 200, 1000);
         // Then: Returns true (trigger + duration == now satisfies <=)
-        assert_eq!(
-            result, true,
+        assert!(
+            result,
             "verify_dual_clock should return true at boundary elapsed = now"
         );
     }
@@ -459,7 +464,7 @@ mod verify_dual_clock_tests {
         // When
         let result = verify_dual_clock(1000, 800, 200, 1000);
         // Then: Should return true
-        assert_eq!(result, true);
+        assert!(result);
     }
 
     /// Behavior: verify_dual_clock returns true when elapsed_ge_duration
@@ -469,7 +474,7 @@ mod verify_dual_clock_tests {
         // When
         let result = verify_dual_clock(1500, 800, 200, 1000);
         // Then: Should return true
-        assert_eq!(result, true);
+        assert!(result);
     }
 
     /// Behavior: verify_dual_clock returns false when not due
@@ -479,7 +484,7 @@ mod verify_dual_clock_tests {
         // When
         let result = verify_dual_clock(1500, 800, 200, 900);
         // Then: Should return false
-        assert_eq!(result, false);
+        assert!(!result);
     }
 
     /// Behavior: verify_dual_clock returns true when fire_at_one_less_than_now
@@ -489,7 +494,7 @@ mod verify_dual_clock_tests {
         // When
         let result = verify_dual_clock(999, 800, 200, 1000);
         // Then: Returns true
-        assert_eq!(result, true);
+        assert!(result);
     }
 }
 
@@ -508,8 +513,8 @@ mod is_overdue_tests {
         // When
         let result = is_overdue(1000, 1101, 100);
         // Then: Returns true because 1101 > 1100 (one ms past boundary)
-        assert_eq!(
-            result, true,
+        assert!(
+            result,
             "is_overdue should return true when one ms past boundary"
         );
     }
@@ -521,7 +526,7 @@ mod is_overdue_tests {
         // When
         let result = is_overdue(1000, 1200, 100);
         // Then: Returns true
-        assert_eq!(result, true);
+        assert!(result);
     }
 
     /// Behavior: is_overdue returns false when within_tick_interval
@@ -531,7 +536,7 @@ mod is_overdue_tests {
         // When
         let result = is_overdue(1000, 1099, 100);
         // Then: Returns false
-        assert_eq!(result, false);
+        assert!(!result);
     }
 
     /// Behavior: is_overdue returns false when exactly_at_boundary
@@ -541,7 +546,7 @@ mod is_overdue_tests {
         // When
         let result = is_overdue(1000, 1100, 100);
         // Then: Returns false because 1100 is NOT < 1100
-        assert_eq!(result, false);
+        assert!(!result);
     }
 }
 
@@ -601,7 +606,7 @@ mod timer_delete_before_dispatch_tests {
         let instance_id = instance_id();
         let timer = make_timer_record(instance_id.clone(), 1000, 800, 200);
         let storage: Arc<dyn TimerStorage> = Arc::new(MockTimerStorage::new(vec![timer.clone()]));
-        let work_queue: Arc<dyn WorkQueue> = Arc::new(MockWorkQueue::new());
+        let _work_queue: Arc<dyn WorkQueue> = Arc::new(MockWorkQueue::new());
 
         // When
         let result = timer_delete_before_dispatch(&storage, &timer).await;

@@ -72,7 +72,7 @@ impl DependencyChecker {
         let (_, deps, all_deps) = parsed;
 
         let required = ["fjall", "serde", "serde_json", "vo-types"];
-        let allowed_dev = ["tempfile", "thiserror", "proptest", "rstest"];
+        let allowed_dev = ["tempfile", "thiserror", "proptest", "rstest", "ulid"];
 
         if let Some(missing) = required
             .iter()

@@ -1,4 +1,9 @@
-#![allow(clippy::unwrap_used)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::similar_names,
+    clippy::unreadable_literal
+)]
 
 use super::*;
 use vo_types::state::InstanceState;

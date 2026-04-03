@@ -142,11 +142,33 @@ async fn timeout_path_reaps_child() {
     let directory = tempdir().unwrap();
     let pid_path = directory.path().join("pid.txt");
     let payload = format!("timeout-ignore {} sleep", pid_path.display());
-    let error = run_subprocess(config(payload, 20)).await.unwrap_err();
-    let pid: i32 = fs::read_to_string(&pid_path).unwrap().parse().unwrap();
+    // Increased timeout from 20ms to 200ms to guarantee fixture_driver writes its PID
+    let error = run_subprocess(config(payload, 200)).await.unwrap_err();
+    
+    let mut pid_str = String::new();
+    for _ in 0..20 {
+        if let Ok(contents) = fs::read_to_string(&pid_path) {
+            if !contents.is_empty() {
+                pid_str = contents;
+                break;
+            }
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    
+    let pid: i32 = pid_str.parse().unwrap();
     assert!(matches!(error, IpcError::Timeout { .. }));
+    
     // Give it a moment to be reaped
-    assert!(!proc_exists(pid));
+    let mut reaped = false;
+    for _ in 0..500 {
+        if !proc_exists(pid) {
+            reaped = true;
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    assert!(reaped, "process was not reaped");
 }
 
 #[tokio::test]

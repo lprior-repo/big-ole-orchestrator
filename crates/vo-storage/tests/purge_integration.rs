@@ -9,7 +9,8 @@ fn purge_terminal_instance_deletes_all_records() {
     let temp_dir = tempfile::tempdir().unwrap();
     let keyspace = fjall::Config::new(temp_dir.path()).open().unwrap();
 
-    let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+    let instance_id_str = ulid::Ulid::new().to_string();
+    let instance_id = InstanceId::parse(&instance_id_str).unwrap();
     let ts = TimestampMs::try_from(1000u64).unwrap();
 
     // Setup: instances index entry
@@ -44,7 +45,7 @@ fn purge_terminal_instance_deletes_all_records() {
     snapshots_p.insert(key2, b"snapshot-data").unwrap();
 
     // Execute
-    let result = purge_instance(&keyspace, "01H5JYV4XHGSR2F8KZ9BWNRFMA");
+    let result = purge_instance(&keyspace, &instance_id_str);
 
     // Verify
     assert_eq!(result, Ok(3)); // 3 events purged
@@ -67,14 +68,15 @@ fn purge_running_instance_fails() {
     let temp_dir = tempfile::tempdir().unwrap();
     let keyspace = fjall::Config::new(temp_dir.path()).open().unwrap();
 
-    let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+    let instance_id_str = ulid::Ulid::new().to_string();
+    let instance_id = InstanceId::parse(&instance_id_str).unwrap();
     let ts = TimestampMs::try_from(1000u64).unwrap();
 
     // Setup: running instance
     instance_index_upsert(&keyspace, &instance_id, InstanceStatus::Running, ts, None).unwrap();
 
     // Execute
-    let result = purge_instance(&keyspace, "01H5JYV4XHGSR2F8KZ9BWNRFMA");
+    let result = purge_instance(&keyspace, &instance_id_str);
 
     // Verify
     assert_eq!(result, Err(StorageError::InstanceRunning));

@@ -17,3 +17,4 @@ tempfile = { workspace = true }
 thiserror = { workspace = true }
 proptest = { workspace = true }
 rstest = { workspace = true }
+ulid = { workspace = true }

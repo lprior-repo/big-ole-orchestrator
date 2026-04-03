@@ -1,1 +1,1 @@
-   0.027737533s  WARN cargo_mutants::lab: /cache/cargo-shared/registry/src/index.crates.io-1949cf8c6b5b557f/cargo-mutants-27.0.0/src/lab.rs:47: No mutants found under the active filters
+   0.030494562s  WARN cargo_mutants::lab: /cache/cargo-shared/registry/src/index.crates.io-1949cf8c6b5b557f/cargo-mutants-27.0.0/src/lab.rs:47: No mutants found under the active filters

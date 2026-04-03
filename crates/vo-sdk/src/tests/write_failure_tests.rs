@@ -65,7 +65,7 @@ fn write_failure_double_write_returns_already_written() {
     let mut buf: Vec<u8> = Vec::new();
     let mut is_written = false;
 
-    let _ = write_failure_inner(&mut buf, TaskFailureKind::User, "first", &mut is_written);
+    write_failure_inner(&mut buf, TaskFailureKind::User, "first", &mut is_written).unwrap();
 
     let result = write_failure_inner(&mut buf, TaskFailureKind::User, "second", &mut is_written);
 

@@ -52,3 +52,7 @@
 # - linear.api-key
 # - github.org
 # - github.repo
+
+dolt.auto-commit: "batch"
+
+sync.git-remote: "https://doltremoteapi.dolthub.com/priorlewis43/wtf-engine-database"

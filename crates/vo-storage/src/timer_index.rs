@@ -233,6 +233,7 @@ pub fn timer_delete(
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used, clippy::redundant_clone)]
     use super::*;
     use proptest::prelude::*;
 

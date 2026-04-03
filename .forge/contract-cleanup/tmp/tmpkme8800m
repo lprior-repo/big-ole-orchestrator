@@ -1,0 +1,1 @@
+Add file watcher debounce in vo-core so partially written workflow binaries do not trigger invalid registration or graph discovery.

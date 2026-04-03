@@ -1,0 +1,1 @@
+On startup, build a bounded recovery queue from durable instance state, prioritize oldest in-flight instances first, and process recovery in batches to avoid stampeding the runtime.

@@ -26,3 +26,4 @@ Cargo.lock
 # moon
 .moon/cache
 .moon/docker
+cov.json

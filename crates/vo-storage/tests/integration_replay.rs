@@ -29,10 +29,10 @@ fn make_bad_envelope_json() -> Vec<u8> {
     b"not valid json".to_vec()
 }
 
-fn make_unsupported_version_envelope_json() -> Vec<u8> {
+fn make_unsupported_version_envelope_json(instance_id: &str) -> Vec<u8> {
     serde_json::json!({
         "version": 99,
-        "instance_id": "01H5JYV4XHGSR2F8KZ9BWNRFMA",
+        "instance_id": instance_id,
         "sequence": 1,
         "timestamp_ms": 1000,
         "payload": {},
@@ -68,7 +68,8 @@ fn parse_envelope(bytes: &[u8]) -> EventEnvelope {
 #[test]
 fn replay_events_returns_empty_iterator_when_no_events_exist() {
     let (_dir, keyspace) = setup_keyspace();
-    let instance_id = parse_instance_id("01H5JYV4XHGSR2F8KZ9BWNRFMA");
+    let instance_id_string = ulid::Ulid::new().to_string();
+    let instance_id = parse_instance_id(&instance_id_string);
     let iter = replay_events(&keyspace, &instance_id);
     let results: Vec<_> = iter.collect();
     assert!(results.is_empty());
@@ -77,7 +78,8 @@ fn replay_events_returns_empty_iterator_when_no_events_exist() {
 #[test]
 fn replay_events_returns_single_event_in_order() {
     let (_dir, keyspace) = setup_keyspace();
-    let instance_id_str = "01H5JYV4XHGSR2F8KZ9BWNRFMA";
+    let id_string = ulid::Ulid::new().to_string();
+    let instance_id_str = id_string.as_str();
     let instance_id = parse_instance_id(instance_id_str);
     let partition = keyspace
         .open_partition("events", PartitionCreateOptions::default())
@@ -94,7 +96,8 @@ fn replay_events_returns_single_event_in_order() {
 #[test]
 fn replay_events_returns_multiple_events_in_sequence() {
     let (_dir, keyspace) = setup_keyspace();
-    let instance_id_str = "01H5JYV4XHGSR2F8KZ9BWNRFMA";
+    let id_string = ulid::Ulid::new().to_string();
+    let instance_id_str = id_string.as_str();
     let instance_id = parse_instance_id(instance_id_str);
     let partition = keyspace
         .open_partition("events", PartitionCreateOptions::default())
@@ -123,7 +126,8 @@ fn replay_events_returns_multiple_events_in_sequence() {
 #[test]
 fn replay_events_detects_sequence_gap() {
     let (_dir, keyspace) = setup_keyspace();
-    let instance_id_str = "01H5JYV4XHGSR2F8KZ9BWNRFMA";
+    let id_string = ulid::Ulid::new().to_string();
+    let instance_id_str = id_string.as_str();
     let instance_id = parse_instance_id(instance_id_str);
     let partition = keyspace
         .open_partition("events", PartitionCreateOptions::default())
@@ -144,7 +148,8 @@ fn replay_events_detects_sequence_gap() {
 #[test]
 fn replay_events_handles_corrupt_payload() {
     let (_dir, keyspace) = setup_keyspace();
-    let instance_id_str = "01H5JYV4XHGSR2F8KZ9BWNRFMA";
+    let id_string = ulid::Ulid::new().to_string();
+    let instance_id_str = id_string.as_str();
     let instance_id = parse_instance_id(instance_id_str);
     let partition = keyspace
         .open_partition("events", PartitionCreateOptions::default())
@@ -161,12 +166,13 @@ fn replay_events_handles_corrupt_payload() {
 #[test]
 fn replay_events_handles_unsupported_version() {
     let (_dir, keyspace) = setup_keyspace();
-    let instance_id_str = "01H5JYV4XHGSR2F8KZ9BWNRFMA";
+    let id_string = ulid::Ulid::new().to_string();
+    let instance_id_str = id_string.as_str();
     let instance_id = parse_instance_id(instance_id_str);
     let partition = keyspace
         .open_partition("events", PartitionCreateOptions::default())
         .unwrap();
-    let bad_value = make_unsupported_version_envelope_json();
+    let bad_value = make_unsupported_version_envelope_json(instance_id_str);
     insert_event(&partition, instance_id_str, 1, &bad_value);
 
     let iter = replay_events(&keyspace, &instance_id);
@@ -178,7 +184,8 @@ fn replay_events_handles_unsupported_version() {
 #[test]
 fn replay_events_isolates_different_instances() {
     let (_dir, keyspace) = setup_keyspace();
-    let id_a = "01H5JYV4XHGSR2F8KZ9BWNRFMA";
+    let id_a_string = ulid::Ulid::new().to_string();
+    let id_a = id_a_string.as_str();
     let id_b = "01H5JYV4XHGSR2F8KZ9BWNRFMB";
     let partition = keyspace
         .open_partition("events", PartitionCreateOptions::default())
@@ -213,7 +220,8 @@ fn replay_events_isolates_different_instances() {
 #[test]
 fn replay_events_stops_after_first_error() {
     let (_dir, keyspace) = setup_keyspace();
-    let instance_id_str = "01H5JYV4XHGSR2F8KZ9BWNRFMA";
+    let id_string = ulid::Ulid::new().to_string();
+    let instance_id_str = id_string.as_str();
     let instance_id = parse_instance_id(instance_id_str);
     let partition = keyspace
         .open_partition("events", PartitionCreateOptions::default())
@@ -237,7 +245,8 @@ fn replay_events_stops_after_first_error() {
 #[test]
 fn replay_events_accepts_non_one_starting_sequence() {
     let (_dir, keyspace) = setup_keyspace();
-    let instance_id_str = "01H5JYV4XHGSR2F8KZ9BWNRFMA";
+    let id_string = ulid::Ulid::new().to_string();
+    let instance_id_str = id_string.as_str();
     let instance_id = parse_instance_id(instance_id_str);
     let partition = keyspace
         .open_partition("events", PartitionCreateOptions::default())
@@ -261,7 +270,8 @@ fn replay_events_accepts_non_one_starting_sequence() {
 #[test]
 fn replay_events_handles_gap_at_start() {
     let (_dir, keyspace) = setup_keyspace();
-    let instance_id_str = "01H5JYV4XHGSR2F8KZ9BWNRFMA";
+    let id_string = ulid::Ulid::new().to_string();
+    let instance_id_str = id_string.as_str();
     let instance_id = parse_instance_id(instance_id_str);
     let partition = keyspace
         .open_partition("events", PartitionCreateOptions::default())
@@ -293,7 +303,8 @@ fn replay_events_handles_gap_at_start() {
 #[test]
 fn replay_events_handles_large_sequence_range() {
     let (_dir, keyspace) = setup_keyspace();
-    let instance_id_str = "01H5JYV4XHGSR2F8KZ9BWNRFMA";
+    let id_string = ulid::Ulid::new().to_string();
+    let instance_id_str = id_string.as_str();
     let instance_id = parse_instance_id(instance_id_str);
     let partition = keyspace
         .open_partition("events", PartitionCreateOptions::default())

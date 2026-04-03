@@ -10,8 +10,12 @@ thiserror.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 dashmap.workspace = true
+tokio.workspace = true
 
 [dev-dependencies]
+tokio = { workspace = true, features = ["test-util", "rt", "macros", "time", "sync"] }
+notify = "6"
+rstest.workspace = true
 proptest = "1"
 serde_json.workspace = true
 vo-storage = { path = "../vo-storage" }

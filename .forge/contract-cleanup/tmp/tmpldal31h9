@@ -1,0 +1,1 @@
+Add a real workspace proc-macro crate for task entrypoints instead of assuming a nonexistent vo-sdk-macros layout.

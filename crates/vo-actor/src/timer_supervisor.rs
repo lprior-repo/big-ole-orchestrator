@@ -334,7 +334,6 @@ impl TimerSupervisor {
 
         // In a real implementation, we would wait for the background task to finish.
         // For now, we just stop the running flag.
-        tokio::time::sleep(timeout).await;
 
         Err(TimerSupervisorError::ShutdownTimeout(timeout))
     }

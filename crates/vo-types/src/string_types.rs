@@ -54,6 +54,10 @@ pub struct IdempotencyKey(pub(crate) String);
 
 impl InstanceId {
     /// Parse an `InstanceId` from a ULID string.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ParseError` if the input is empty, has invalid length, or contains an invalid ULID.
     pub fn parse(input: &str) -> Result<Self, ParseError> {
         const TYPE_NAME: &str = "InstanceId";
         if input.is_empty() {
@@ -85,6 +89,11 @@ impl InstanceId {
         &self.0
     }
 
+    /// Convert to a 16-byte array.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ParseError` if the inner string cannot be parsed as a ULID.
     pub fn to_bytes(&self) -> Result<[u8; 16], ParseError> {
         ulid::Ulid::from_string(&self.0)
             .map(|u| u.0.to_be_bytes())
@@ -102,6 +111,11 @@ impl InstanceId {
 string_newtype!(InstanceId);
 
 impl WorkflowName {
+    /// Parse a `WorkflowName` from a string.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ParseError` if the input is empty, exceeds max length, or contains invalid characters.
     pub fn parse(input: &str) -> Result<Self, ParseError> {
         const TYPE_NAME: &str = "WorkflowName";
         const MAX_LEN: usize = 128;
@@ -146,6 +160,11 @@ impl WorkflowName {
 string_newtype!(WorkflowName);
 
 impl NodeName {
+    /// Parse a `NodeName` from a string.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ParseError` if the input is empty, exceeds max length, or contains invalid characters.
     pub fn parse(input: &str) -> Result<Self, ParseError> {
         const TYPE_NAME: &str = "NodeName";
         const MAX_LEN: usize = 128;
@@ -190,6 +209,11 @@ impl NodeName {
 string_newtype!(NodeName);
 
 impl BinaryHash {
+    /// Parse a `BinaryHash` from a string.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ParseError` if the input is empty, not a valid lowercase hex, or has invalid length.
     pub fn parse(input: &str) -> Result<Self, ParseError> {
         const TYPE_NAME: &str = "BinaryHash";
         const MIN_LEN: usize = 8;
@@ -228,6 +252,11 @@ impl BinaryHash {
 string_newtype!(BinaryHash);
 
 impl TimerId {
+    /// Parse a `TimerId` from a string.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ParseError` if the input is empty or exceeds max length.
     pub fn parse(input: &str) -> Result<Self, ParseError> {
         const TYPE_NAME: &str = "TimerId";
         const MAX_LEN: usize = 256;
@@ -251,6 +280,11 @@ impl TimerId {
         &self.0
     }
 
+    /// Convert to a 16-byte array.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ParseError` if the inner string cannot be converted to bytes.
     pub fn to_bytes(&self) -> Result<[u8; 16], ParseError> {
         // Attempt to parse as UUID or ULID, otherwise fallback to hash if we must.
         if let Ok(u) = uuid::Uuid::parse_str(&self.0) {
@@ -272,6 +306,11 @@ impl TimerId {
 string_newtype!(TimerId);
 
 impl IdempotencyKey {
+    /// Parse an `IdempotencyKey` from a string.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ParseError` if the input is empty or exceeds max length.
     pub fn parse(input: &str) -> Result<Self, ParseError> {
         const TYPE_NAME: &str = "IdempotencyKey";
         const MAX_LEN: usize = 1024;
@@ -296,3 +335,43 @@ impl IdempotencyKey {
     }
 }
 string_newtype!(IdempotencyKey);
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(try_from = "String", into = "String")]
+pub struct StepId(pub(crate) String);
+
+impl StepId {
+    /// Parse a `StepId` from a string.
+    ///
+    /// # Errors
+    /// Returns `ParseError` if the string contains invalid characters, violates boundary checks, or is empty.
+    pub fn parse(input: &str) -> Result<Self, ParseError> {
+        const TYPE_NAME: &str = "StepId";
+        if input.is_empty() {
+            return Err(ParseError::InvalidCharacters {
+                type_name: TYPE_NAME,
+                invalid_chars: String::new(),
+            });
+        }
+        let invalid = extract_invalid_chars(input, is_identifier_char);
+        if !invalid.is_empty() {
+            return Err(ParseError::InvalidCharacters {
+                type_name: TYPE_NAME,
+                invalid_chars: invalid,
+            });
+        }
+        check_identifier_boundaries(input, TYPE_NAME)?;
+        if input.starts_with('_') {
+            return Err(ParseError::BoundaryViolation {
+                type_name: TYPE_NAME,
+                reason: "must not start with underscore".to_string(),
+            });
+        }
+        Ok(Self(input.to_string()))
+    }
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+string_newtype!(StepId);

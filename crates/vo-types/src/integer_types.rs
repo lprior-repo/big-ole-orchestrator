@@ -233,13 +233,16 @@ impl TimestampMs {
         SystemTime::UNIX_EPOCH + Duration::from_millis(self.0)
     }
     #[must_use]
+    #[allow(clippy::manual_unwrap_or)]
     pub fn now() -> Self {
         let millis = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .map_or(0, |d| d.as_millis());
-        Self(
-            u64::try_from(millis).expect("timestamp milliseconds exceed u64::MAX before year 584M"),
-        )
+        Self(if let Ok(v) = u64::try_from(millis) {
+            v
+        } else {
+            u64::MAX
+        })
     }
 }
 u64_newtype!(TimestampMs);
@@ -297,3 +300,33 @@ impl MaxAttempts {
     }
 }
 nonzero_newtype!(MaxAttempts);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(try_from = "u64", into = "u64")]
+pub struct FenceToken(pub(crate) NonZeroU64);
+
+impl FenceToken {
+    /// Create a new `FenceToken`.
+    ///
+    /// # Errors
+    /// Returns `ParseError` if the value is zero.
+    pub fn new(value: u64) -> Result<Self, ParseError> {
+        require_nonzero(value, "FenceToken").map(Self)
+    }
+    /// Parse a `FenceToken` from a string.
+    ///
+    /// # Errors
+    /// Returns `ParseError` if the string cannot be parsed as a non-zero u64.
+    pub fn parse(input: &str) -> Result<Self, ParseError> {
+        parse_nonzero_u64(input, "FenceToken").map(Self)
+    }
+    #[must_use]
+    pub fn next(&self) -> Self {
+        Self(self.0.saturating_add(1))
+    }
+    #[must_use]
+    pub fn inner(&self) -> NonZeroU64 {
+        self.0
+    }
+}
+nonzero_newtype!(FenceToken);

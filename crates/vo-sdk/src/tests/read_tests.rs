@@ -102,7 +102,7 @@ fn read_double_read_guard_returns_fd_not_open() {
     let mut is_read = false;
 
     // First read succeeds.
-    let _ = read_input_inner(&mut cursor, &mut is_read);
+    read_input_inner(&mut cursor, &mut is_read).unwrap();
     assert!(is_read);
 
     // Second read is rejected.

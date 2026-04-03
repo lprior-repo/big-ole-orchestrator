@@ -751,6 +751,12 @@ pub mod mock {
         should_fail: Mutex<bool>,
     }
 
+    impl Default for MockWorkQueue {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+
     impl MockWorkQueue {
         /// Creates a new MockWorkQueue.
         pub fn new() -> Self {
@@ -870,9 +876,9 @@ mod tests {
             let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
             let fire_at = ts_ms(1000);
             let scheduled = ts_ms(500);
-            let timer_id = vo_types::TimerId::parse("timer-1").ok();
+            let timer_id = vo_types::TimerId::parse("timer-1").unwrap();
 
-            let record = TimerRecord::new(instance_id.clone(), fire_at, timer_id, scheduled);
+            let record = TimerRecord::new(instance_id.clone(), fire_at, Some(timer_id), scheduled);
 
             assert_eq!(record.instance_id, instance_id);
             assert_eq!(record.fire_at_ms, fire_at);
@@ -1076,7 +1082,7 @@ mod tests {
             let mut budget = FairnessBudget::with_limits(1, 100);
 
             // Exhaust budget
-            let _ = budget.record_resume(instance_id.clone());
+            assert!(budget.record_resume(instance_id.clone()));
 
             let timers = vec![TimerRecord::new(
                 instance_id.clone(),
@@ -1168,7 +1174,7 @@ mod tests {
             let mut budget = FairnessBudget::with_limits(1, 100);
 
             // Exhaust budget
-            let _ = budget.record_resume(instance_id.clone());
+            assert!(budget.record_resume(instance_id.clone()));
 
             let result = check_resume_budget(&instance_id, &budget);
             assert!(result.is_err());

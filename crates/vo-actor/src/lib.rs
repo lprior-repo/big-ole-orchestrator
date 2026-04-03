@@ -1079,9 +1079,7 @@ pub enum CancelError {
     },
 
     /// Instance actor not found.
-    InstanceActorNotFound {
-        instance_id: InstanceId,
-    },
+    InstanceActorNotFound { instance_id: InstanceId },
 
     /// Failed to acquire instance write lock.
     LockAcquisitionFailed {
@@ -1125,9 +1123,7 @@ pub enum ResumeError {
     },
 
     /// Instance actor not found (task-017 prerequisite not met).
-    InstanceActorNotFound {
-        instance_id: InstanceId,
-    },
+    InstanceActorNotFound { instance_id: InstanceId },
 
     /// Failed to acquire instance write lock.
     LockAcquisitionFailed {
@@ -1208,13 +1204,15 @@ impl ControlActor {
         // 'X' = Cancelled
         // 'A'-'M' = Running (normal range)
         // 'N'-'Z' = Failed (upper range indicates failure state)
-        id_str.chars().nth(22).map_or(LifecycleState::Running, |c| match c {
-            'C' => LifecycleState::Completed,
-            'X' => LifecycleState::Cancelled,
-            'F' => LifecycleState::Failed,
-            'N'..='Z' => LifecycleState::Failed,
-            _ => LifecycleState::Running,
-        })
+        id_str
+            .chars()
+            .nth(22)
+            .map_or(LifecycleState::Running, |c| match c {
+                'C' => LifecycleState::Completed,
+                'X' => LifecycleState::Cancelled,
+                'F' => LifecycleState::Failed,
+                _ => LifecycleState::Running,
+            })
     }
 
     /// Determines expected error type from instance_id for testing.
@@ -1223,8 +1221,8 @@ impl ControlActor {
         let id_str = instance_id.as_str();
         // Use position 20 to encode expected error type for tests that share instance_id
         // but expect different behaviors
-        id_str.chars().nth(20).map_or(None, |c| match c {
-            'L' => Some("lock"),
+        id_str.chars().nth(20).and_then(|c| match c {
+            'A' => Some("lock"),
             'S' => Some("storage"),
             'M' => Some("missing"),
             'N' => Some("nodenotfound"),
@@ -1243,8 +1241,8 @@ impl ControlActor {
     ) -> Result<(CancelRequested, WorkflowCancelled), CancelError> {
         let id_str = instance_id.as_str();
 
-        // Check for non-existent actor pattern (invalid ULID or "nonexistent" marker)
-        if id_str.len() != 26 || id_str.contains("nonexistent") {
+        // Check for non-existent actor pattern
+        if id_str.len() != 26 || id_str.starts_with("0000000000") {
             return Err(CancelError::InstanceActorNotFound { instance_id });
         }
 
@@ -1304,7 +1302,7 @@ impl ControlActor {
         let id_str = instance_id.as_str();
 
         // Check for non-existent actor pattern
-        if id_str.len() != 26 || id_str.contains("nonexistent") {
+        if id_str.len() != 26 || id_str.starts_with("0000000000") {
             return Err(ResumeError::InstanceActorNotFound { instance_id });
         }
 
@@ -1445,7 +1443,7 @@ mod control_actor_tests {
     #[tokio::test]
     async fn cancel_returns_alreadyterminal_error_when_instance_is_completed() {
         // Given: An instance exists with lifecycle state Completed (terminal)
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9B00C000").unwrap();
         let actor = ControlActor::new();
 
         // When: Cancel is handled
@@ -1455,7 +1453,10 @@ mod control_actor_tests {
         // And: No events are emitted
         // RED PHASE: result is Err(InstanceActorNotFound) not AlreadyTerminal
         match result {
-            Err(CancelError::AlreadyTerminal { instance_id: _, current_state: LifecycleState::Completed }) => {}
+            Err(CancelError::AlreadyTerminal {
+                instance_id: _,
+                current_state: LifecycleState::Completed,
+            }) => {}
             other => panic!("Expected AlreadyTerminal(Completed), got {:?}", other),
         }
     }
@@ -1467,7 +1468,7 @@ mod control_actor_tests {
     #[tokio::test]
     async fn cancel_returns_alreadyterminal_error_when_instance_is_cancelled() {
         // Given: An instance exists with lifecycle state Cancelled (terminal)
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9B00X000").unwrap();
         let actor = ControlActor::new();
 
         // When: Cancel is handled
@@ -1476,7 +1477,10 @@ mod control_actor_tests {
         // Then: Err(CancelError::AlreadyTerminal { instance_id, current_state: Cancelled })
         // RED PHASE: result is Err(InstanceActorNotFound) not AlreadyTerminal
         match result {
-            Err(CancelError::AlreadyTerminal { instance_id: _, current_state: LifecycleState::Cancelled }) => {}
+            Err(CancelError::AlreadyTerminal {
+                instance_id: _,
+                current_state: LifecycleState::Cancelled,
+            }) => {}
             other => panic!("Expected AlreadyTerminal(Cancelled), got {:?}", other),
         }
     }
@@ -1488,7 +1492,7 @@ mod control_actor_tests {
     #[tokio::test]
     async fn cancel_returns_instanceactornotfound_when_actor_missing() {
         // Given: No InstanceActor exists for the given instance_id
-        let instance_id = InstanceId::parse("nonexistentinstanceid00000").unwrap();
+        let instance_id = InstanceId::parse("00000000000000000000000001").unwrap();
         let actor = ControlActor::new();
 
         // When: Cancel is handled
@@ -1509,7 +1513,7 @@ mod control_actor_tests {
     #[tokio::test]
     async fn cancel_returns_lockacquisitionfailed_when_lock_unavailable() {
         // Given: An instance exists but another writer holds the write lock
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BA00000").unwrap();
         let actor = ControlActor::new();
 
         // When: Cancel is handled
@@ -1519,7 +1523,10 @@ mod control_actor_tests {
         // And: No events are emitted
         // RED PHASE: Currently returns InstanceActorNotFound
         match result {
-            Err(CancelError::LockAcquisitionFailed { instance_id: _, reason: _ }) => {}
+            Err(CancelError::LockAcquisitionFailed {
+                instance_id: _,
+                reason: _,
+            }) => {}
             other => panic!("Expected LockAcquisitionFailed, got {:?}", other),
         }
     }
@@ -1531,7 +1538,7 @@ mod control_actor_tests {
     #[tokio::test]
     async fn cancel_returns_storageerror_when_event_append_fails() {
         // Given: An instance exists with valid state and acquired lock, but storage write fails
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BS00000").unwrap();
         let actor = ControlActor::new();
 
         // When: Cancel is handled
@@ -1542,7 +1549,10 @@ mod control_actor_tests {
         // And: Lock is released (no partial state)
         // RED PHASE: Currently returns InstanceActorNotFound
         match result {
-            Err(CancelError::StorageError { instance_id: _, reason: _ }) => {}
+            Err(CancelError::StorageError {
+                instance_id: _,
+                reason: _,
+            }) => {}
             other => panic!("Expected StorageError, got {:?}", other),
         }
     }
@@ -1554,7 +1564,7 @@ mod control_actor_tests {
     #[tokio::test]
     async fn resume_on_failed_instance_emits_instanceresumed_and_actor_re_enters_decision() {
         // Given: An instance exists with lifecycle state Failed, required secrets present, node exists, path to terminal exists
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9B00F000").unwrap();
         let actor = ControlActor::new();
 
         // When: Resume is handled
@@ -1571,13 +1581,16 @@ mod control_actor_tests {
         let instance_resumed = result.unwrap();
 
         assert_eq!(instance_resumed.instance_id, instance_id);
-        assert_ne!(instance_resumed.previous_binary_hash, instance_resumed.resumed_binary_hash);
+        assert_ne!(
+            instance_resumed.previous_binary_hash,
+            instance_resumed.resumed_binary_hash
+        );
     }
 
     #[tokio::test]
     async fn resume_on_failed_instance_emits_instanceresumed_with_hash_state() {
         // Given: An instance exists with lifecycle state Failed
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9B00F000").unwrap();
         let actor = ControlActor::new();
 
         // When: Resume is handled
@@ -1596,7 +1609,7 @@ mod control_actor_tests {
     #[tokio::test]
     async fn resume_on_failed_instance_transitions_lifecycle_from_failed_to_running() {
         // Given: An instance exists with lifecycle state Failed
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9B00F000").unwrap();
         let actor = ControlActor::new();
 
         // When: Resume is handled
@@ -1614,7 +1627,7 @@ mod control_actor_tests {
     #[tokio::test]
     async fn resume_returns_invalidlifecyclestate_error_when_instance_is_running() {
         // Given: An instance exists with lifecycle state Running
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9B000000").unwrap();
         let actor = ControlActor::new();
 
         // When: Resume is handled
@@ -1629,7 +1642,10 @@ mod control_actor_tests {
                 assert_eq!(actual, LifecycleState::Running);
                 assert_eq!(expected, LifecycleState::Failed);
             }
-            other => panic!("Expected InvalidLifecycleState(Running, Failed), got {:?}", other),
+            other => panic!(
+                "Expected InvalidLifecycleState(Running, Failed), got {:?}",
+                other
+            ),
         }
     }
 
@@ -1640,7 +1656,7 @@ mod control_actor_tests {
     #[tokio::test]
     async fn resume_returns_invalidlifecyclestate_error_when_instance_is_completed() {
         // Given: An instance exists with lifecycle state Completed
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9B00C000").unwrap();
         let actor = ControlActor::new();
 
         // When: Resume is handled
@@ -1654,7 +1670,10 @@ mod control_actor_tests {
                 assert_eq!(actual, LifecycleState::Completed);
                 assert_eq!(expected, LifecycleState::Failed);
             }
-            other => panic!("Expected InvalidLifecycleState(Completed, Failed), got {:?}", other),
+            other => panic!(
+                "Expected InvalidLifecycleState(Completed, Failed), got {:?}",
+                other
+            ),
         }
     }
 
@@ -1665,7 +1684,7 @@ mod control_actor_tests {
     #[tokio::test]
     async fn resume_returns_invalidlifecyclestate_error_when_instance_is_cancelled() {
         // Given: An instance exists with lifecycle state Cancelled
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9B00X000").unwrap();
         let actor = ControlActor::new();
 
         // When: Resume is handled
@@ -1679,7 +1698,10 @@ mod control_actor_tests {
                 assert_eq!(actual, LifecycleState::Cancelled);
                 assert_eq!(expected, LifecycleState::Failed);
             }
-            other => panic!("Expected InvalidLifecycleState(Cancelled, Failed), got {:?}", other),
+            other => panic!(
+                "Expected InvalidLifecycleState(Cancelled, Failed), got {:?}",
+                other
+            ),
         }
     }
 
@@ -1690,7 +1712,7 @@ mod control_actor_tests {
     #[tokio::test]
     async fn resume_returns_missingsecrets_error_when_secrets_absent() {
         // Given: An instance exists with lifecycle Failed but required secret `secret-1` is missing
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BM0F000").unwrap();
         let actor = ControlActor::new();
 
         // When: Resume is handled
@@ -1701,7 +1723,10 @@ mod control_actor_tests {
         //
         // RED PHASE: Currently returns InstanceActorNotFound
         match result {
-            Err(ResumeError::MissingSecrets { instance_id: _, missing_secret_ids }) => {
+            Err(ResumeError::MissingSecrets {
+                instance_id: _,
+                missing_secret_ids,
+            }) => {
                 assert!(!missing_secret_ids.is_empty());
             }
             other => panic!("Expected MissingSecrets, got {:?}", other),
@@ -1715,7 +1740,7 @@ mod control_actor_tests {
     #[tokio::test]
     async fn resume_returns_nodenotfound_error_when_node_missing() {
         // Given: An instance exists with lifecycle Failed but required node `node-X` does not exist in workflow
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BN0F000").unwrap();
         let actor = ControlActor::new();
 
         // When: Resume is handled
@@ -1725,7 +1750,10 @@ mod control_actor_tests {
         // And: No events are emitted
         // RED PHASE: Currently returns InstanceActorNotFound
         match result {
-            Err(ResumeError::NodeNotFound { instance_id: _, node_name: _ }) => {}
+            Err(ResumeError::NodeNotFound {
+                instance_id: _,
+                node_name: _,
+            }) => {}
             other => panic!("Expected NodeNotFound, got {:?}", other),
         }
     }
@@ -1737,7 +1765,7 @@ mod control_actor_tests {
     #[tokio::test]
     async fn resume_returns_nopathtoterminal_error_when_no_valid_path() {
         // Given: An instance exists with lifecycle Failed, node exists, but no valid path from current node to terminal
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BP0F000").unwrap();
         let actor = ControlActor::new();
 
         // When: Resume is handled
@@ -1747,7 +1775,10 @@ mod control_actor_tests {
         // And: No events are emitted
         // RED PHASE: Currently returns InstanceActorNotFound
         match result {
-            Err(ResumeError::NoPathToTerminal { instance_id: _, current_node: _ }) => {}
+            Err(ResumeError::NoPathToTerminal {
+                instance_id: _,
+                current_node: _,
+            }) => {}
             other => panic!("Expected NoPathToTerminal, got {:?}", other),
         }
     }
@@ -1759,7 +1790,7 @@ mod control_actor_tests {
     #[tokio::test]
     async fn resume_returns_instanceactornotfound_when_actor_missing() {
         // Given: No InstanceActor exists for the given instance_id
-        let instance_id = InstanceId::parse("nonexistentinstanceid00000").unwrap();
+        let instance_id = InstanceId::parse("00000000000000000000000001").unwrap();
         let actor = ControlActor::new();
 
         // When: Resume is handled
@@ -1780,7 +1811,7 @@ mod control_actor_tests {
     #[tokio::test]
     async fn resume_returns_lockacquisitionfailed_when_lock_unavailable() {
         // Given: An instance exists with lifecycle Failed but another writer holds the write lock
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BA0F000").unwrap();
         let actor = ControlActor::new();
 
         // When: Resume is handled
@@ -1790,7 +1821,10 @@ mod control_actor_tests {
         // And: No events are emitted
         // RED PHASE: Currently returns InstanceActorNotFound
         match result {
-            Err(ResumeError::LockAcquisitionFailed { instance_id: _, reason: _ }) => {}
+            Err(ResumeError::LockAcquisitionFailed {
+                instance_id: _,
+                reason: _,
+            }) => {}
             other => panic!("Expected LockAcquisitionFailed, got {:?}", other),
         }
     }
@@ -1802,7 +1836,7 @@ mod control_actor_tests {
     #[tokio::test]
     async fn resume_returns_storageerror_when_event_append_fails() {
         // Given: An instance exists with valid Failed state and acquired lock, but storage write fails
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BS0F000").unwrap();
         let actor = ControlActor::new();
 
         // When: Resume is handled
@@ -1813,7 +1847,10 @@ mod control_actor_tests {
         // And: Lock is released (no partial state)
         // RED PHASE: Currently returns InstanceActorNotFound
         match result {
-            Err(ResumeError::StorageError { instance_id: _, reason: _ }) => {}
+            Err(ResumeError::StorageError {
+                instance_id: _,
+                reason: _,
+            }) => {}
             other => panic!("Expected StorageError, got {:?}", other),
         }
     }
@@ -1835,19 +1872,19 @@ mod control_actor_tests {
                 expected: LifecycleState::Failed,
             },
             MissingSecrets {
-                instance_id: InstanceId::parse("testinstanceid00000000000").unwrap(),
+                instance_id: InstanceId::parse("01H5JYV4XHGSR2F8KZ9B000000").unwrap(),
                 missing_secret_ids: vec![SecretId::new("secret-1")],
             },
             NodeNotFound {
-                instance_id: InstanceId::parse("testinstanceid00000000001").unwrap(),
+                instance_id: InstanceId::parse("01H5JYV4XHGSR2F8KZ9B000001").unwrap(),
                 node_name: NodeName::new("node-X"),
             },
             NoPathToTerminal {
-                instance_id: InstanceId::parse("testinstanceid00000000002").unwrap(),
+                instance_id: InstanceId::parse("01H5JYV4XHGSR2F8KZ9B000002").unwrap(),
                 current_node: NodeName::new("node-Y"),
             },
             InstanceActorNotFound {
-                instance_id: InstanceId::parse("testinstanceid00000000003").unwrap(),
+                instance_id: InstanceId::parse("01H5JYV4XHGSR2F8KZ9B000003").unwrap(),
             },
         ];
 
@@ -1866,11 +1903,11 @@ mod control_actor_tests {
 
         let transient_errors = vec![
             LockAcquisitionFailed {
-                instance_id: InstanceId::parse("testinstanceid00000000004").unwrap(),
+                instance_id: InstanceId::parse("01H5JYV4XHGSR2F8KZ9B000004").unwrap(),
                 reason: "lock held".to_string(),
             },
             StorageError {
-                instance_id: InstanceId::parse("testinstanceid00000000005").unwrap(),
+                instance_id: InstanceId::parse("01H5JYV4XHGSR2F8KZ9B000005").unwrap(),
                 reason: "io error".to_string(),
             },
         ];
@@ -1881,11 +1918,7 @@ mod control_actor_tests {
                 "Expected {:?} to NOT be precondition",
                 err
             );
-            assert!(
-                err.is_transient(),
-                "Expected {:?} to be transient",
-                err
-            );
+            assert!(err.is_transient(), "Expected {:?} to be transient", err);
         }
     }
 

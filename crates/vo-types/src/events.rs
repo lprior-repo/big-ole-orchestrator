@@ -24,6 +24,15 @@ pub enum Error {
     #[error("Unsupported envelope version: {0}")]
     UnsupportedEnvelopeVersion(u8),
 
+    #[error("Missing schema version")]
+    MissingSchemaVersion,
+
+    #[error("Invalid schema version format")]
+    InvalidSchemaVersionFormat,
+
+    #[error("Unsupported schema version: {0}")]
+    UnsupportedSchemaVersion(u16),
+
     #[error("Payload JSON is malformed")]
     InvalidPayloadFormat,
 
@@ -1195,5 +1204,58 @@ mod tests {
     fn payload_invalid_fields(#[case] json: serde_json::Value, #[case] expected: Error) {
         let result = EventPayload::try_from_json(&json);
         assert_eq!(result, Err(expected));
+    }
+
+    #[test]
+    fn error_serialization_error_displays_correctly() {
+        let err = Error::SerializationError("test_error".to_string());
+        assert_eq!(err.to_string(), "Serialization error: test_error");
+    }
+
+    #[test]
+    fn error_envelope_decode_failed_displays_correctly() {
+        let inner = Error::InvalidInput;
+        let err = Error::EnvelopeDecodeFailed(Box::new(inner));
+        assert_eq!(
+            err.to_string(),
+            "Envelope decode failed: Input bytes are not valid UTF-8"
+        );
+    }
+
+    #[test]
+    fn error_payload_decode_failed_displays_correctly() {
+        let inner = Error::InvalidPayloadFormat;
+        let err = Error::PayloadDecodeFailed(Box::new(inner));
+        assert_eq!(
+            err.to_string(),
+            "Payload decode failed: Payload JSON is malformed"
+        );
+    }
+
+    #[test]
+    fn error_payload_decode_skipped_displays_correctly() {
+        let err = Error::PayloadDecodeSkipped;
+        assert_eq!(
+            err.to_string(),
+            "Payload decode skipped due to unsupported envelope version"
+        );
+    }
+
+    #[test]
+    fn error_invalid_schema_version_format_displays_correctly() {
+        let err = Error::InvalidSchemaVersionFormat;
+        assert_eq!(err.to_string(), "Invalid schema version format");
+    }
+
+    #[test]
+    fn error_unsupported_schema_version_displays_correctly() {
+        let err = Error::UnsupportedSchemaVersion(99);
+        assert_eq!(err.to_string(), "Unsupported schema version: 99");
+    }
+
+    #[test]
+    fn error_missing_schema_version_displays_correctly() {
+        let err = Error::MissingSchemaVersion;
+        assert_eq!(err.to_string(), "Missing schema version");
     }
 }

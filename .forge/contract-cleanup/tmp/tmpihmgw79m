@@ -1,0 +1,1 @@
+Persist workflow registration metadata in vo-storage so registrations survive restart and version-pinned binaries can be reloaded safely.

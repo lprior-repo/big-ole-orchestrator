@@ -2,6 +2,7 @@
 name = "vo-types"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 
 [features]
 proptest = ["dep:proptest"]
@@ -17,3 +18,6 @@ proptest = { version = "1", optional = true }
 [dev-dependencies]
 rstest.workspace = true
 serde_json.workspace = true
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(kani)'] }

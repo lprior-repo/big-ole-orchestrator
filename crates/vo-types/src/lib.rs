@@ -23,8 +23,10 @@ pub use instance_status::InstanceStatus;
 pub use non_empty_vec::NonEmptyVec;
 pub use registration_status::RegistrationStatus;
 pub use types::{
-    AttemptNumber, BinaryHash, DurationMs, EventVersion, FireAtMs, IdempotencyKey, InstanceId,
-    MaxAttempts, NodeName, SequenceNumber, TimeoutMs, TimerId, TimestampMs, WorkflowName,
+    extract_schema_version, AttemptNumber, BinaryHash, DurationMs, EventVersion, FenceToken,
+    FireAtMs, IdempotencyKey, InstanceId, LeaseRecord, MaxAttempts, NodeName, SequenceNumber,
+    Snapshot, State, StepId, TimeoutMs, TimerId, TimestampMs, WorkflowName, WorkflowSpec,
+    MAX_SUPPORTED_SCHEMA_VERSION,
 };
 pub use workflow::{
     next_nodes, DagNode, Edge, EdgeCondition, RetryPolicy, RetryPolicyError, StepOutcome,
@@ -37,6 +39,8 @@ mod adversarial_tests;
 mod cross_cutting_tests;
 #[cfg(test)]
 mod red_queen_tests;
+#[cfg(test)]
+mod schema_version_tests;
 #[cfg(test)]
 mod serde_tests;
 #[cfg(test)]

@@ -3,4 +3,6 @@
 //! Contains the main workflow engine, execution engine, scheduler,
 //! persistence layer, and state machine implementation.
 
+pub mod admission;
 pub mod circuit_breaker;
+pub mod debounce;

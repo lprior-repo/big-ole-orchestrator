@@ -11,7 +11,8 @@ members = [
     "crates/vo-actor",
     "crates/vo-core",
     "crates/vo-common",
-    "crates/vo-ipc", "crates/vo-sdk",
+    "crates/vo-ipc", "crates/vo-sdk", "crates/vo-sdk-macros",
+    "crates/vo-sdk-macros",
 ]
 
 [workspace.package]

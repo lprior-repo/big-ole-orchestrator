@@ -27,7 +27,7 @@ fn write_success_double_write_returns_already_written() {
     let mut buf: Vec<u8> = Vec::new();
     let mut is_written = false;
 
-    let _ = write_success_inner(&mut buf, &output, &mut is_written);
+    write_success_inner(&mut buf, &output, &mut is_written).unwrap();
 
     let result = write_success_inner(&mut buf, &output, &mut is_written);
 
