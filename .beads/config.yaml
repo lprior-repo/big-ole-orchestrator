@@ -54,5 +54,6 @@
 # - github.repo
 
 dolt.auto-commit: "batch"
+dolt.port: 36253
 
 sync.git-remote: "https://doltremoteapi.dolthub.com/priorlewis43/wtf-engine-database"
