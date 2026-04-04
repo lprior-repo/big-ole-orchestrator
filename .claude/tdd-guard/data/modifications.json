@@ -4,9 +4,9 @@
   "hook_event_name": "PreToolUse",
   "tool_name": "Edit",
   "tool_input": {
-    "file_path": "/home/lewis/src/veloxide/crates/vo-storage/src/codec.rs",
-    "old_string": "#[cfg(test)]\n#[allow(clippy::unwrap_used)]\nmod proptests {",
-    "new_string": "#[cfg(feature = \"proptest\")]\n#[allow(clippy::unwrap_used)]\nmod proptests {",
+    "file_path": "/home/lewis/src/veloxide/crates/vo-sdk/src/graph_args.rs",
+    "old_string": "use vo_types::NodeKind;\npub use vo_types::NodeKind;\nuse vo_types::{NodeName, WorkflowName};",
+    "new_string": "pub use vo_types::NodeKind;\nuse vo_types::{NodeName, WorkflowName};",
     "replace_all": false
   }
 }

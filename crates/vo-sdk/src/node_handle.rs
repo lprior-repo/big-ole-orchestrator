@@ -98,9 +98,11 @@ mod tests {
 
     #[test]
     fn different_type_params_are_different_types() {
+        // Compile-time test: these are distinct types and cannot be mixed.
         let _validate: NodeHandle<Order, ValidatedOrder> = NodeHandle::new(nn("validate"));
         let _invoice: NodeHandle<ValidatedOrder, Invoice> = NodeHandle::new(nn("invoice"));
-        // This test merely needs to compile to pass.
-        assert_ne!(_validate, _invoice);
+        // This test merely needs to compile to pass — the phantom type params
+        // enforce edge type compatibility at compile time.
+        let _ = (&_validate, &_invoice);
     }
 }
