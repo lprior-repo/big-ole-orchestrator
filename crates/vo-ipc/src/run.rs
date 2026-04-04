@@ -22,6 +22,7 @@ pub struct SubprocessOutput {
 /// - Subprocess fails to spawn
 /// - IPC fails
 /// - Subprocess times out
+#[tracing::instrument(skip(config))]
 pub async fn run_subprocess(config: SubprocessConfig) -> Result<SubprocessOutput, IpcError> {
     let (fd3_read, fd3_write) = create_pipe()?;
     let (fd4_read, fd4_write) = create_pipe()?;
@@ -124,6 +125,7 @@ pub async fn run_subprocess(config: SubprocessConfig) -> Result<SubprocessOutput
     }
 }
 
+#[tracing::instrument(skip_all)]
 async fn perform_ipc(
     child: &mut tokio::process::Child,
     mut fd3_writer: tokio::fs::File,
@@ -212,6 +214,7 @@ fn create_pipe() -> Result<(RawFd, RawFd), IpcError> {
     Ok(fds.into())
 }
 
+#[tracing::instrument]
 async fn terminate_child(child: &mut tokio::process::Child) {
     let Some(pid) = child.id() else {
         return;

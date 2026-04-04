@@ -1,5 +1,3 @@
-use tokio::io::AsyncReadExt;
-
 pub const MAX_STDERR_BYTES: usize = 1_048_576;
 pub const TRUNCATION_MARKER: &str = "\n[... TRUNCATED AT 1MB ...]";
 
@@ -52,21 +50,28 @@ pub fn finalize_capture(capture: StderrCapture) -> StderrCapture {
 
 /// Reads stderr from a reader up to a configured maximum size.
 ///
+/// Uses stream combinators over imperative looping.
+///
 /// # Errors
 ///
 /// Returns an error if reading from the underlying reader fails.
-pub async fn read_bounded_stderr<R>(mut reader: R) -> std::io::Result<StderrCapture>
+#[tracing::instrument(skip(reader))]
+pub async fn read_bounded_stderr<R>(reader: R) -> std::io::Result<StderrCapture>
 where
     R: tokio::io::AsyncRead + Unpin,
 {
-    let mut capture = StderrCapture::empty();
-    let mut buffer = [0u8; 8192];
+    use tokio::io::AsyncReadExt;
 
-    while let Ok(n) = reader.read(&mut buffer).await {
+    let mut reader = reader;
+    let mut capture = StderrCapture::empty();
+    let mut buf = [0u8; 4096];
+
+    loop {
+        let n = reader.read(&mut buf).await?;
         if n == 0 {
             break;
         }
-        capture = update_capture(capture, &buffer[..n]);
+        capture = update_capture(capture, &buf[..n]);
     }
 
     Ok(finalize_capture(capture))

@@ -93,7 +93,7 @@ impl WriteClass {
     /// # Errors
     /// Returns `Err(Error::UnknownWriteClass)` for any other string,
     /// including empty strings and case-mismatched variants.
-    pub fn from_str(s: &str) -> Result<WriteClass, Error> {
+    pub fn parse(s: &str) -> Result<WriteClass, Error> {
         match s {
             "critical_control_plane" => Ok(WriteClass::CriticalControlPlane),
             "operator_projection" => Ok(WriteClass::OperatorProjection),
@@ -121,7 +121,7 @@ impl FromStr for WriteClass {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        WriteClass::from_str(s)
+        WriteClass::parse(s)
     }
 }
 
@@ -280,29 +280,29 @@ mod write_class_tests {
         assert!(!wc.never_drops());
     }
 
-    // ── WriteClass::from_str() tests ─────────────────────────────────────────
+    // ── WriteClass::parse() tests ─────────────────────────────────────────
 
     #[test]
     fn write_class_parses_critical_control_plane_from_str() {
-        let result = WriteClass::from_str("critical_control_plane");
+        let result = WriteClass::parse("critical_control_plane");
         assert_eq!(result, Ok(WriteClass::CriticalControlPlane));
     }
 
     #[test]
     fn write_class_parses_operator_projection_from_str() {
-        let result = WriteClass::from_str("operator_projection");
+        let result = WriteClass::parse("operator_projection");
         assert_eq!(result, Ok(WriteClass::OperatorProjection));
     }
 
     #[test]
     fn write_class_parses_bulk_blob_from_str() {
-        let result = WriteClass::from_str("bulk_blob");
+        let result = WriteClass::parse("bulk_blob");
         assert_eq!(result, Ok(WriteClass::BulkBlob));
     }
 
     #[test]
     fn write_class_returns_unknown_write_class_error_when_parsing_invalid_string() {
-        let result = WriteClass::from_str("invalid_class_name");
+        let result = WriteClass::parse("invalid_class_name");
         assert_eq!(
             result,
             Err(Error::UnknownWriteClass("invalid_class_name".to_string()))
@@ -311,13 +311,13 @@ mod write_class_tests {
 
     #[test]
     fn write_class_returns_unknown_write_class_error_when_parsing_empty_string() {
-        let result = WriteClass::from_str("");
+        let result = WriteClass::parse("");
         assert_eq!(result, Err(Error::UnknownWriteClass("".to_string())));
     }
 
     #[test]
     fn write_class_returns_unknown_write_class_error_when_parsing_case_mismatch() {
-        let result = WriteClass::from_str("CRITICAL_CONTROL_PLANE");
+        let result = WriteClass::parse("CRITICAL_CONTROL_PLANE");
         assert_eq!(
             result,
             Err(Error::UnknownWriteClass(
@@ -600,7 +600,7 @@ mod proptest_write_class_invariants {
             WriteClass::BulkBlob,
         ])) {
             let s = variant.as_str();
-            let parsed = WriteClass::from_str(s);
+            let parsed = WriteClass::parse(s);
             prop_assert!(parsed.is_ok(), "from_str({}) should return Ok, got {:?}", s, parsed);
             prop_assert_eq!(parsed.as_ref().ok(), Some(&variant),
                 "from_str({}) should return Some({:?}), got {:?}", s, variant, parsed);

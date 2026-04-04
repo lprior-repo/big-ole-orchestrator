@@ -67,6 +67,7 @@ fn is_safe_default_context() -> bool {
 ///
 /// # Errors
 /// Returns an error if the engine is unreachable or returns a non-200 status.
+#[tracing::instrument]
 pub async fn fetch_pinned_hashes(engine_url: &str) -> Result<HashSet<String>, GcError> {
     let url = format!("{engine_url}/api/v1/registry/pinned-hashes");
 
@@ -107,37 +108,49 @@ pub async fn fetch_pinned_hashes(engine_url: &str) -> Result<HashSet<String>, Gc
 ///
 /// # Errors
 /// Returns an error if reading the directory fails in a non-recoverable way.
-pub fn find_unpinned_directories<S: std::hash::BuildHasher>(
+pub async fn find_unpinned_directories<S: std::hash::BuildHasher>(
     versions_dir: &Path,
     pinned: &HashSet<String, S>,
 ) -> Result<Vec<PathBuf>, GcError> {
-    if !versions_dir.exists() {
+    if !tokio::fs::metadata(versions_dir).await.is_ok_and(|m| m.is_dir()) {
         return Ok(Vec::new());
     }
 
-    let Ok(entries) = std::fs::read_dir(versions_dir) else {
-        return Ok(Vec::new());
-    };
+    let mut entries = tokio::fs::read_dir(versions_dir).await.map_err(|_| GcError::VersionsDirNotFound {
+        path: versions_dir.to_path_buf(),
+    })?;
 
-    let collected: Vec<PathBuf> = entries
-        .filter_map(Result::ok)
-        .filter(|e| e.file_type().is_ok_and(|ft| ft.is_dir()))
-        .filter(|e| e.file_name().to_str().is_some_and(is_hex_64))
-        .filter(|e| e.file_name().to_str().is_none_or(|n| !pinned.contains(n)))
-        .map(|e| e.path())
-        .collect();
+    let mut collected: Vec<PathBuf> = Vec::new();
+    while let Ok(Some(entry)) = entries.next_entry().await {
+        let Ok(file_type) = entry.file_type().await else {
+            continue;
+        };
+        if !file_type.is_dir() {
+            continue;
+        }
+        let file_name = entry.file_name();
+        let Some(file_name) = file_name.to_str() else {
+            continue;
+        };
+        if !is_hex_64(file_name) {
+            continue;
+        }
+        if pinned.contains(file_name) {
+            continue;
+        }
+        collected.push(entry.path());
+    }
 
-    let mut sorted = collected;
-    sorted.sort();
-    Ok(sorted)
+    collected.sort();
+    Ok(collected)
 }
 
 /// Delete a version directory.
 ///
 /// # Errors
 /// Returns an error if the directory cannot be deleted.
-pub fn delete_version_dir(path: &Path) -> Result<(), GcError> {
-    std::fs::remove_dir_all(path).map_err(|source| GcError::DeleteFailed {
+pub async fn delete_version_dir(path: &Path) -> Result<(), GcError> {
+    tokio::fs::remove_dir_all(path).await.map_err(|source| GcError::DeleteFailed {
         path: path.to_path_buf(),
         source,
     })
@@ -162,7 +175,7 @@ pub async fn run_gc(config: &GcConfig) -> Result<GcSummary, GcError> {
         Err(e) => return Err(e),
     };
 
-    let unpinned = find_unpinned_directories(&config.versions_dir, &pinned)?;
+    let unpinned = find_unpinned_directories(&config.versions_dir, &pinned).await?;
     let scanned_count = unpinned.len();
 
     let (deleted_count, deleted_hashes, failures) = if config.dry_run {
@@ -174,10 +187,10 @@ pub async fn run_gc(config: &GcConfig) -> Result<GcSummary, GcError> {
     } else if preserve_all {
         (0, Vec::new(), Vec::new())
     } else {
-        let results: Vec<Result<PathBuf, GcError>> = unpinned
-            .into_iter()
-            .map(|p| delete_version_dir(&p).map(|()| p))
-            .collect();
+        let mut results: Vec<Result<PathBuf, GcError>> = Vec::new();
+        for p in &unpinned {
+            results.push(delete_version_dir(p).await.map(|()| p.clone()));
+        }
 
         let deleted_count = results.iter().filter(|r| r.is_ok()).count();
         let deleted_hashes: Vec<String> = results

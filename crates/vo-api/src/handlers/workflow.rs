@@ -18,6 +18,7 @@ use crate::handlers::helpers::{parse_paradigm, split_path_id, paradigm_to_str, p
 const ACTOR_CALL_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// POST /api/v1/workflows — start a new workflow instance (bead vo-7mif).
+#[tracing::instrument(skip_all)]
 pub async fn start_workflow(
     Extension(master): Extension<ActorRef<OrchestratorMsg>>,
     Json(req): Json<V3StartRequest>,
@@ -162,6 +163,7 @@ pub async fn start_workflow(
 }
 
 /// GET /api/v1/workflows/:id — get instance status (bead vo-016l).
+#[tracing::instrument(skip_all)]
 pub async fn get_workflow(
     Extension(master): Extension<ActorRef<OrchestratorMsg>>,
     Path(id): Path<String>,
@@ -239,6 +241,7 @@ pub async fn get_workflow(
 }
 
 /// DELETE /api/v1/workflows/:id — terminate a running instance (bead vo-016l).
+#[tracing::instrument(skip_all)]
 pub async fn terminate_workflow(
     Extension(master): Extension<ActorRef<OrchestratorMsg>>,
     Path(id): Path<String>,
@@ -308,6 +311,7 @@ pub async fn terminate_workflow(
 }
 
 /// GET /api/v1/workflows — list all active workflow instances.
+#[tracing::instrument(skip_all)]
 pub async fn list_workflows(
     Extension(master): Extension<ActorRef<OrchestratorMsg>>,
 ) -> impl IntoResponse {

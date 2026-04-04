@@ -9,7 +9,10 @@
 
 pub mod append;
 pub mod codec;
+pub mod dedupe_partition;
+pub mod effect_journal;
 pub mod instance_index;
+pub mod lease_partition;
 pub mod partitions;
 pub mod purge;
 pub mod query;

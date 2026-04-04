@@ -13,6 +13,7 @@ pub mod master {
 }
 
 pub mod instance_registry;
+pub mod reanimator;
 
 #[cfg(test)]
 pub mod instance_registry_tests;
@@ -1433,7 +1434,7 @@ impl ControlActor {
     ///
     /// # Errors
     /// Returns `CancelError` if instance is terminal, actor not found, lock fails, or storage fails.
-    pub async fn handle_cancel(
+    pub fn handle_cancel(
         &self,
         instance_id: InstanceId,
     ) -> Result<(CancelRequested, WorkflowCancelled), CancelError> {
@@ -1493,7 +1494,7 @@ impl ControlActor {
     /// # Errors
     /// Returns `ResumeError` with detailed variant for each failure mode.
     /// No events are emitted on any error path.
-    pub async fn handle_resume(
+    pub fn handle_resume(
         &self,
         instance_id: InstanceId,
     ) -> Result<InstanceResumed, ResumeError> {
@@ -1563,7 +1564,7 @@ impl ControlActor {
     }
 
     /// Atomically accept a matching signal and resume the instance.
-    pub async fn accept_and_resume(
+    pub fn accept_and_resume(
         &self,
         instance_id: InstanceId,
         wait_key: WaitKey,
@@ -1670,7 +1671,7 @@ mod control_actor_tests {
         let actor = ControlActor::new();
 
         // When: ControlActorMessage::Cancel(Cancel { instance_id }) is handled
-        let result = actor.handle_cancel(instance_id.clone()).await;
+        let result = actor.handle_cancel(instance_id.clone());
 
         // Then: CancelRequested { instance_id, requested_at: T1 } is emitted first
         // And: WorkflowCancelled { instance_id, cancelled_at: T2 } is emitted second
@@ -1694,7 +1695,7 @@ mod control_actor_tests {
         let actor = ControlActor::new();
 
         // When: Cancel is handled
-        let result = actor.handle_cancel(instance_id.clone()).await;
+        let result = actor.handle_cancel(instance_id.clone());
 
         // Then: The result contains events indicating Cancelled state
         // RED PHASE: result is Err(InstanceActorNotFound)
@@ -1708,7 +1709,7 @@ mod control_actor_tests {
         let actor = ControlActor::new();
 
         // When: Cancel is handled
-        let result = actor.handle_cancel(instance_id.clone()).await;
+        let result = actor.handle_cancel(instance_id.clone());
 
         // Then: Lock is released (no error about lock acquisition)
         // RED PHASE: result is Err(InstanceActorNotFound)
@@ -1726,7 +1727,7 @@ mod control_actor_tests {
         let actor = ControlActor::new();
 
         // When: Cancel is handled
-        let result = actor.handle_cancel(instance_id.clone()).await;
+        let result = actor.handle_cancel(instance_id.clone());
 
         // Then: Err(CancelError::AlreadyTerminal { instance_id, current_state: Completed })
         // And: No events are emitted
@@ -1751,7 +1752,7 @@ mod control_actor_tests {
         let actor = ControlActor::new();
 
         // When: Cancel is handled
-        let result = actor.handle_cancel(instance_id.clone()).await;
+        let result = actor.handle_cancel(instance_id.clone());
 
         // Then: Err(CancelError::AlreadyTerminal { instance_id, current_state: Cancelled })
         // RED PHASE: result is Err(InstanceActorNotFound) not AlreadyTerminal
@@ -1775,7 +1776,7 @@ mod control_actor_tests {
         let actor = ControlActor::new();
 
         // When: Cancel is handled
-        let result = actor.handle_cancel(instance_id.clone()).await;
+        let result = actor.handle_cancel(instance_id.clone());
 
         // Then: Err(CancelError::InstanceActorNotFound { instance_id })
         // And: No events are emitted
@@ -1796,7 +1797,7 @@ mod control_actor_tests {
         let actor = ControlActor::new();
 
         // When: Cancel is handled
-        let result = actor.handle_cancel(instance_id.clone()).await;
+        let result = actor.handle_cancel(instance_id.clone());
 
         // Then: Err(CancelError::LockAcquisitionFailed { instance_id, reason: _ })
         // And: No events are emitted
@@ -1821,7 +1822,7 @@ mod control_actor_tests {
         let actor = ControlActor::new();
 
         // When: Cancel is handled
-        let result = actor.handle_cancel(instance_id.clone()).await;
+        let result = actor.handle_cancel(instance_id.clone());
 
         // Then: Err(CancelError::StorageError { instance_id, reason: _ })
         // And: No events are emitted
@@ -1847,7 +1848,7 @@ mod control_actor_tests {
         let actor = ControlActor::new();
 
         // When: Resume is handled
-        let result = actor.handle_resume(instance_id.clone()).await;
+        let result = actor.handle_resume(instance_id.clone());
 
         // Then: Ok(InstanceResumed { instance_id, previous_binary_hash: H1, resumed_binary_hash: H2, resumed_at: T })
         // And: H1 != H2 (hash has advanced)
@@ -1873,7 +1874,7 @@ mod control_actor_tests {
         let actor = ControlActor::new();
 
         // When: Resume is handled
-        let result = actor.handle_resume(instance_id.clone()).await;
+        let result = actor.handle_resume(instance_id.clone());
 
         // Then: InstanceResumed event is emitted with previous and resumed binary hashes
         // RED PHASE: result is Err(InstanceActorNotFound)
@@ -1892,7 +1893,7 @@ mod control_actor_tests {
         let actor = ControlActor::new();
 
         // When: Resume is handled
-        let result = actor.handle_resume(instance_id.clone()).await;
+        let result = actor.handle_resume(instance_id.clone());
 
         // Then: Lifecycle state transitions from Failed to Running
         // RED PHASE: result is Err(InstanceActorNotFound)
@@ -1910,7 +1911,7 @@ mod control_actor_tests {
         let actor = ControlActor::new();
 
         // When: Resume is handled
-        let result = actor.handle_resume(instance_id.clone()).await;
+        let result = actor.handle_resume(instance_id.clone());
 
         // Then: Err(ResumeError::InvalidLifecycleState { actual: Running, expected: Failed })
         // And: No events are emitted
@@ -1939,7 +1940,7 @@ mod control_actor_tests {
         let actor = ControlActor::new();
 
         // When: Resume is handled
-        let result = actor.handle_resume(instance_id.clone()).await;
+        let result = actor.handle_resume(instance_id.clone());
 
         // Then: Err(ResumeError::InvalidLifecycleState { actual: Completed, expected: Failed })
         // And: No events are emitted
@@ -1967,7 +1968,7 @@ mod control_actor_tests {
         let actor = ControlActor::new();
 
         // When: Resume is handled
-        let result = actor.handle_resume(instance_id.clone()).await;
+        let result = actor.handle_resume(instance_id.clone());
 
         // Then: Err(ResumeError::InvalidLifecycleState { actual: Cancelled, expected: Failed })
         // And: No events are emitted
@@ -1995,7 +1996,7 @@ mod control_actor_tests {
         let actor = ControlActor::new();
 
         // When: Resume is handled
-        let result = actor.handle_resume(instance_id.clone()).await;
+        let result = actor.handle_resume(instance_id.clone());
 
         // Then: Err(ResumeError::MissingSecrets { instance_id, missing_secret_ids: [secret-1] })
         // And: No events are emitted
@@ -2023,7 +2024,7 @@ mod control_actor_tests {
         let actor = ControlActor::new();
 
         // When: Resume is handled
-        let result = actor.handle_resume(instance_id.clone()).await;
+        let result = actor.handle_resume(instance_id.clone());
 
         // Then: Err(ResumeError::NodeNotFound { instance_id, node_name: node-X })
         // And: No events are emitted
@@ -2048,7 +2049,7 @@ mod control_actor_tests {
         let actor = ControlActor::new();
 
         // When: Resume is handled
-        let result = actor.handle_resume(instance_id.clone()).await;
+        let result = actor.handle_resume(instance_id.clone());
 
         // Then: Err(ResumeError::NoPathToTerminal { instance_id, current_node: node-Y })
         // And: No events are emitted
@@ -2073,7 +2074,7 @@ mod control_actor_tests {
         let actor = ControlActor::new();
 
         // When: Resume is handled
-        let result = actor.handle_resume(instance_id.clone()).await;
+        let result = actor.handle_resume(instance_id.clone());
 
         // Then: Err(ResumeError::InstanceActorNotFound { instance_id })
         // And: No events are emitted
@@ -2094,7 +2095,7 @@ mod control_actor_tests {
         let actor = ControlActor::new();
 
         // When: Resume is handled
-        let result = actor.handle_resume(instance_id.clone()).await;
+        let result = actor.handle_resume(instance_id.clone());
 
         // Then: Err(ResumeError::LockAcquisitionFailed { instance_id, reason: _ })
         // And: No events are emitted
@@ -2119,7 +2120,7 @@ mod control_actor_tests {
         let actor = ControlActor::new();
 
         // When: Resume is handled
-        let result = actor.handle_resume(instance_id.clone()).await;
+        let result = actor.handle_resume(instance_id.clone());
 
         // Then: Err(ResumeError::StorageError { instance_id, reason: _ })
         // And: No events are emitted
@@ -2209,7 +2210,7 @@ mod control_actor_tests {
         // RED PHASE: handle_cancel doesn't return events correctly yet
         let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
         let actor = ControlActor::new();
-        let result = actor.handle_cancel(instance_id.clone()).await;
+        let result = actor.handle_cancel(instance_id.clone());
 
         // This would verify ordering in a full implementation
         match result {
@@ -2363,7 +2364,6 @@ mod accept_resume_tests {
 
         let result = actor
             .accept_and_resume(instance_id.clone(), wait_key, "sig-1".to_string(), payload)
-            .await;
 
         let outcome = result.unwrap();
         assert_eq!(outcome.accepted.instance_id, instance_id);
@@ -2378,7 +2378,6 @@ mod accept_resume_tests {
 
         let result = actor
             .accept_and_resume(instance_id.clone(), wait_key, "sig-2".to_string(), SignalPayload::empty())
-            .await;
 
         let outcome = result.unwrap();
         assert_eq!(outcome.accepted.instance_id, instance_id);
@@ -2393,7 +2392,6 @@ mod accept_resume_tests {
 
         let result = actor
             .accept_and_resume(instance_id, wait_key, "sig-3".to_string(), SignalPayload::empty())
-            .await;
 
         let outcome = result.unwrap();
         assert!(outcome.resumed.resumed_at >= outcome.accepted.accepted_at);
@@ -2409,7 +2407,6 @@ mod accept_resume_tests {
 
         let result = actor
             .accept_and_resume(instance_id.clone(), wait_key, "sig-1".to_string(), SignalPayload::empty())
-            .await;
 
         match result {
             Err(AcceptResumeError::InstanceActorNotFound { instance_id: _ }) => {}
@@ -2426,7 +2423,6 @@ mod accept_resume_tests {
 
         let result = actor
             .accept_and_resume(instance_id.clone(), wait_key, "sig-1".to_string(), SignalPayload::empty())
-            .await;
 
         match result {
             Err(AcceptResumeError::InvalidLifecycleState { instance_id: _, actual, expected }) => {
@@ -2445,7 +2441,6 @@ mod accept_resume_tests {
 
         let result = actor
             .accept_and_resume(instance_id.clone(), wait_key, "mismatch-sig-1".to_string(), SignalPayload::empty())
-            .await;
 
         match result {
             Err(AcceptResumeError::WaitKeyMismatch {
@@ -2469,7 +2464,6 @@ mod accept_resume_tests {
 
         let result = actor
             .accept_and_resume(instance_id.clone(), wait_key, "sig-1".to_string(), big_payload)
-            .await;
 
         match result {
             Err(AcceptResumeError::PayloadTooLarge {
@@ -2493,7 +2487,6 @@ mod accept_resume_tests {
 
         let result = actor
             .accept_and_resume(instance_id.clone(), wait_key, "sig-1".to_string(), SignalPayload::empty())
-            .await;
 
         match result {
             Err(AcceptResumeError::LockAcquisitionFailed {
@@ -2513,7 +2506,6 @@ mod accept_resume_tests {
 
         let result = actor
             .accept_and_resume(instance_id.clone(), wait_key, "sig-1".to_string(), SignalPayload::empty())
-            .await;
 
         match result {
             Err(AcceptResumeError::StorageError {

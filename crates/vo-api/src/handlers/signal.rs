@@ -16,6 +16,7 @@ use crate::handlers::helpers::split_path_id;
 const ACTOR_CALL_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// POST /api/v1/workflows/:id/signals — send a signal to a running instance (bead vo-meua).
+#[tracing::instrument(skip_all)]
 pub async fn send_signal(
     Extension(master): Extension<ActorRef<OrchestratorMsg>>,
     Path(id): Path<String>,

@@ -1,13 +1,25 @@
+mod blob;
+mod command_metadata;
+mod node_kind;
+mod compensation;
+mod connector;
+mod dedupe;
+#[cfg(test)]
+mod dedupe_tests;
+mod effects;
 mod errors;
 pub mod events;
 mod instance_status;
 mod integer_types;
 #[cfg(test)]
 mod integer_types_tests;
+mod lifecycle_superstate;
+mod lineage;
 mod non_empty_vec;
 mod payload_parser;
 pub mod proptest_verifier;
 mod registration_status;
+mod signal;
 pub mod state;
 mod string_types;
 #[cfg(test)]
@@ -17,11 +29,29 @@ mod types;
 mod types_tests;
 mod workflow;
 
+pub use blob::{BlobRef, BlobStatus, OutputRef, INLINED_MAX_BYTES};
+pub use compensation::{
+    apply_compensation_transition, CompensationRecord, CompensationStatus,
+    CompensationTransitionError, CompensationTransitionEvent,
+};
+pub use connector::{
+    apply_connector_transition, ConnectorResult, ConnectorState, ConnectorTransition,
+    ConnectorTransitionError, ReconcileAction,
+};
+pub use dedupe::{DedupeKey, DedupePartitionKey};
+pub use effects::{
+    apply_effect_transition, CompensationPolicy, EffectIntent, EffectKind, EffectRecord,
+    EffectTransitionError, EffectTransitionEvent,
+};
 pub use errors::ParseError;
 pub use events::{Error as EventError, EventEnvelope};
 pub use instance_status::InstanceStatus;
+pub use lineage::{Epoch, LineageError, WorkflowLineage};
 pub use non_empty_vec::NonEmptyVec;
 pub use registration_status::RegistrationStatus;
+pub use signal::{
+    BufferPolicy, SignalAddress, SignalDedupeKey, SignalDelivery, WaitKey, WaitRecord,
+};
 pub use types::{
     extract_schema_version, AttemptNumber, BinaryHash, DurationMs, EventVersion, FenceToken,
     FireAtMs, IdempotencyKey, InstanceId, LeaseRecord, MaxAttempts, NodeName, SequenceNumber,
@@ -35,6 +65,8 @@ pub use workflow::{
 
 #[cfg(test)]
 mod adversarial_tests;
+#[cfg(test)]
+mod compensation_tests;
 #[cfg(test)]
 mod cross_cutting_tests;
 #[cfg(test)]

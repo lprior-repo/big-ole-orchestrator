@@ -1,9 +1,0 @@
-# Seeds for failure cases proptest has generated in the past. It is
-# automatically read and these particular cases re-run before any
-# novel cases are generated.
-#
-# It is recommended to check this file in to source control so that
-# everyone who runs the test benefits from these saved cases.
-cc 28446df9ea146e27d92b1f61602a60271e52641c7c362b31e70cc595e0f9de92 # shrinks to chain_length = 1
-cc a10642f211679a4938171ce2931f95150f16d24b6c6dbf11092b9cef9ffee446 # shrinks to node_names = ["", ""]
-cc e05834d6c4fad00cc2dd9df834f2c81180aaf15e7d0985504a83151b792a1df2 # shrinks to workflow_name = "", node_name = "𑖀\""

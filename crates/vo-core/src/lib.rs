@@ -5,8 +5,11 @@
 
 pub mod admission;
 pub mod circuit_breaker;
+mod db_writer_message;
 pub mod debounce;
+pub mod replay;
 pub mod upcaster;
+pub mod workflow_version;
 pub mod write_class;
 
 #[cfg(kani)]

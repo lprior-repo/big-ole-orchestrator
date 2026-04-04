@@ -34,12 +34,11 @@ impl Upcaster for Version0To1Upcaster {
         0
     }
 
-    fn upcast(&self, _input: &[u8]) -> Result<Vec<u8>, UpcasterError> {
-        // RED PHASE: This is a stub that returns an error
-        // The test expects Ok(...), so this should FAIL
-        Err(UpcasterError::UpcastingFailed(
-            "stub implementation".to_string(),
-        ))
+    fn upcast(&self, input: &[u8]) -> Result<Vec<u8>, UpcasterError> {
+        let mut value: serde_json::Value = serde_json::from_slice(input)
+            .map_err(|e| UpcasterError::UpcastingFailed(e.to_string()))?;
+        value["version"] = serde_json::json!(1);
+        serde_json::to_vec(&value).map_err(|e| UpcasterError::UpcastingFailed(e.to_string()))
     }
 }
 
@@ -141,7 +140,7 @@ impl ExceedingMaxUpcaster {
 
 impl Upcaster for ExceedingMaxUpcaster {
     fn source_version(&self) -> u8 {
-        0
+        1
     }
 
     fn upcast(&self, _input: &[u8]) -> Result<Vec<u8>, UpcasterError> {
@@ -194,7 +193,7 @@ impl UpcasterRegistry for TestUpcasterRegistry {
     fn register(&self, upcaster: Box<dyn Upcaster>) -> Result<(), UpcasterError> {
         let source_version = upcaster.source_version();
 
-        if source_version > self.max_version {
+        if source_version >= self.max_version {
             return Err(UpcasterError::InvalidTargetVersion(source_version));
         }
 
@@ -403,31 +402,27 @@ fn upcaster_output_is_valid_utf8_when_upcast_succeeds() {
     let input = br#"{"version": 0, "payload": {"data": "test"}}"#;
 
     let result = upcaster.upcast(input);
-    // RED PHASE: Stub returns Err, so exact assertion shows the mismatch
-    assert_eq!(
-        result,
-        Err(UpcasterError::UpcastingFailed(
-            "stub implementation".to_string()
-        )),
-        "Version0To1Upcaster stub returns error"
-    );
+    assert!(result.is_ok(), "upcast should succeed with valid input");
+    let output = result.unwrap();
+    let output_str = std::str::from_utf8(&output).expect("upcast output should be valid UTF-8");
+    assert!(!output_str.is_empty(), "output should not be empty");
 }
 
 #[test]
 fn upcaster_output_contains_incremented_version_field() {
     let upcaster = Version0To1Upcaster::new();
 
-    // RED PHASE: upcast returns Err, so we can't check version
     let input = br#"{"version": 0, "payload": {}}"#;
     let result = upcaster.upcast(input);
 
-    // RED PHASE: Stub returns error, exact assertion shows the mismatch
+    assert!(result.is_ok(), "upcast should succeed: {:?}", result);
+    let output = result.unwrap();
+    let parsed: serde_json::Value =
+        serde_json::from_slice(&output).expect("output should be valid JSON");
     assert_eq!(
-        result,
-        Err(UpcasterError::UpcastingFailed(
-            "stub implementation".to_string()
-        )),
-        "Version0To1Upcaster stub returns error"
+        parsed.get("version").and_then(|v| v.as_u64()),
+        Some(1),
+        "output version should be incremented to 1"
     );
 }
 
@@ -523,14 +518,13 @@ fn registry_applies_single_upcaster_when_version_gap_is_one() {
     // RED PHASE: The upcaster stub returns Err, so upcast_envelope will fail
     let result = registry.upcast_envelope(envelope);
 
-    // This assertion will FAIL because the stub upcaster returns an error
-    assert_eq!(
-        result,
-        Err(UpcasterError::UpcastingFailed(
-            "stub implementation".to_string()
-        )),
-        "upcast_envelope should succeed with working upcaster"
+    assert!(
+        result.is_ok(),
+        "upcast_envelope should succeed: {:?}",
+        result
     );
+    let upcasted = result.unwrap();
+    assert_eq!(upcasted.version, 1, "version should be incremented to 1");
 }
 
 #[test]
@@ -588,14 +582,14 @@ fn registry_rejects_upcaster_when_source_version_exceeds_max() {
     let result = registry.register(upcaster);
     assert_eq!(
         result,
-        Err(UpcasterError::InvalidTargetVersion(0)),
+        Err(UpcasterError::InvalidTargetVersion(1)),
         "registering upcaster exceeding max version should be rejected"
     );
 }
 
 #[test]
 fn registry_returns_circular_chain_error_when_cycle_detected() {
-    let registry = create_test_registry();
+    let registry: Box<dyn UpcasterRegistry> = Box::new(TestUpcasterRegistry::new(2));
     registry.register(CircularUpcasterA::new()).unwrap();
     registry.register(CircularUpcasterB::new()).unwrap();
 
@@ -659,12 +653,19 @@ fn registry_preserves_envelope_fields_when_upcasting() {
     // RED PHASE: The upcaster stub returns Err, so this will fail
     let result = registry.upcast_envelope(envelope.clone());
 
+    assert!(
+        result.is_ok(),
+        "upcast_envelope should succeed: {:?}",
+        result
+    );
+    let upcasted = result.unwrap();
+    assert_eq!(upcasted.version, 1, "version should be incremented");
+    assert_eq!(upcasted.instance_id, envelope.instance_id);
+    assert_eq!(upcasted.sequence, envelope.sequence);
+    assert_eq!(upcasted.timestamp_ms, envelope.timestamp_ms);
     assert_eq!(
-        result,
-        Err(UpcasterError::UpcastingFailed(
-            "stub implementation".to_string()
-        )),
-        "upcast_envelope should succeed with working upcaster"
+        upcasted.metadata, envelope.metadata,
+        "metadata should be preserved"
     );
 }
 
@@ -697,13 +698,9 @@ fn builder_creates_functional_registry_that_can_register_and_upcast() {
 
     // RED PHASE: upcaster stub returns Err, so this will fail
     let result = registry.upcast_envelope(envelope);
-    assert_eq!(
-        result,
-        Err(UpcasterError::UpcastingFailed(
-            "stub implementation".to_string()
-        )),
-        "upcast should succeed with working upcaster"
-    );
+    assert!(result.is_ok(), "upcast should succeed: {:?}", result);
+    let upcasted = result.unwrap();
+    assert_eq!(upcasted.version, 1, "version should be incremented to 1");
 }
 
 #[test]
@@ -752,13 +749,15 @@ fn upcast_envelope_through_full_workflow_when_envelope_enters_at_version_zero_an
     // RED PHASE: upcaster stub returns Err
     let result = registry.upcast_envelope(envelope);
 
-    assert_eq!(
-        result,
-        Err(UpcasterError::UpcastingFailed(
-            "stub implementation".to_string()
-        )),
-        "upcast_envelope should succeed with working upcaster"
+    assert!(
+        result.is_ok(),
+        "upcast_envelope should succeed: {:?}",
+        result
     );
+    let upcasted = result.unwrap();
+    assert_eq!(upcasted.version, 1, "version should be incremented to 1");
+    assert_eq!(upcasted.instance_id, "workflow-123");
+    assert_eq!(upcasted.sequence, 1);
 }
 
 #[test]
@@ -788,13 +787,9 @@ fn idempotent_registration_does_not_double_chain() {
 
     // RED PHASE: upcaster stub returns Err
     let result = registry.upcast_envelope(envelope);
-    assert_eq!(
-        result,
-        Err(UpcasterError::UpcastingFailed(
-            "stub implementation".to_string()
-        )),
-        "upcast should succeed with working upcaster"
-    );
+    assert!(result.is_ok(), "upcast should succeed: {:?}", result);
+    let upcasted = result.unwrap();
+    assert_eq!(upcasted.version, 1, "version should be incremented to 1");
 }
 
 #[test]
@@ -815,11 +810,11 @@ fn envelope_metadata_preserved_through_multi_hop_upcast() {
     };
 
     let result = registry.upcast_envelope(envelope.clone());
+    assert!(result.is_ok(), "upcast should succeed: {:?}", result);
+    let upcasted = result.unwrap();
+    assert_eq!(upcasted.version, 1, "version should be incremented to 1");
     assert_eq!(
-        result,
-        Err(UpcasterError::UpcastingFailed(
-            "stub implementation".to_string()
-        )),
-        "upcast should succeed with working upcaster"
+        upcasted.metadata, envelope.metadata,
+        "metadata should be preserved through upcast"
     );
 }

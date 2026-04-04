@@ -306,7 +306,7 @@ impl TimerSupervisor {
     }
 
     /// Processes one timer scan cycle
-    pub async fn process_cycle(&self) -> Result<CycleResult, TimerSupervisorError> {
+    pub fn process_cycle(&self) -> Result<CycleResult, TimerSupervisorError> {
         use super::timer_supervisor::{is_overdue, verify_dual_clock};
 
         let now_ms = std::time::SystemTime::now()
@@ -376,7 +376,7 @@ impl TimerSupervisor {
     }
 
     /// Shuts down the TimerSupervisor
-    pub async fn shutdown(&self, _timeout: Duration) -> Result<(), TimerSupervisorError> {
+    pub fn shutdown(&self, _timeout: Duration) -> Result<(), TimerSupervisorError> {
         // RED PHASE STUB
         Err(TimerSupervisorError::ShutdownTimeout(Duration::from_secs(
             0,
@@ -393,7 +393,7 @@ impl TimerSupervisorHandle {
         true
     }
 
-    pub async fn stop(self) -> Result<(), TimerSupervisorError> {
+    pub fn stop(self) -> Result<(), TimerSupervisorError> {
         Ok(())
     }
 }
@@ -411,7 +411,7 @@ pub struct CycleResult {
 // =============================================================================
 
 /// Atomically deletes timer before dispatch
-pub async fn timer_delete_before_dispatch(
+pub fn timer_delete_before_dispatch(
     storage: &Arc<dyn TimerStorage>,
     timer: &TimerRecord,
 ) -> Result<(), TimerSupervisorError> {
@@ -609,7 +609,7 @@ mod timer_delete_before_dispatch_tests {
         let _work_queue: Arc<dyn WorkQueue> = Arc::new(MockWorkQueue::new());
 
         // When
-        let result = timer_delete_before_dispatch(&storage, &timer).await;
+        let result = timer_delete_before_dispatch(&storage, &timer);
 
         // Then: Returns Ok
         assert!(result.is_ok());
@@ -651,7 +651,7 @@ mod process_cycle_tests {
         };
 
         // When
-        let result = supervisor.process_cycle().await;
+        let result = supervisor.process_cycle();
 
         // Then: Returns Err(InstanceNotFound)
         assert!(result.is_err());

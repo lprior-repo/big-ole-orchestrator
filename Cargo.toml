@@ -13,6 +13,7 @@ members = [
     "crates/vo-common",
     "crates/vo-ipc", "crates/vo-sdk", "crates/vo-sdk-macros",
     "crates/vo-sdk-macros",
+    "vel-k1t9",
 ]
 
 [workspace.package]
@@ -88,6 +89,7 @@ sha2 = "0.10"
 # Testing
 rstest = "0.18"
 proptest = "1"
+criterion = { version = "0.5", features = ["async_tokio"] }
 
 [profile.release]
 opt-level = 3
@@ -98,3 +100,9 @@ strip = true
 [profile.dev]
 opt-level = 0
 debug = true
+
+[workspace.lints.clippy]
+unused_async = "deny"
+await_holding_lock = "deny"
+await_holding_refcell_ref = "deny"
+large_futures = "warn"

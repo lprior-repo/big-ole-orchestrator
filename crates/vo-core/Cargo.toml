@@ -21,3 +21,6 @@ serde_json.workspace = true
 vo-storage = { path = "../vo-storage" }
 fjall = { workspace = true }
 tempfile = { workspace = true }
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(kani)'] }

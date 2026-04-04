@@ -4,17 +4,20 @@ version = "0.1.0"
 edition = "2021"
 
 [lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(kani)'] }
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(kani)', 'cfg(feature, values("proptest"))'] }
+
+[features]
+proptest = ["dep:proptest"]
 
 [dependencies]
 fjall = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 vo-types = { workspace = true }
+proptest = { workspace = true, optional = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
 thiserror = { workspace = true }
-proptest = { workspace = true }
 rstest = { workspace = true }
 ulid = { workspace = true }

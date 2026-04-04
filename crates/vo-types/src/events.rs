@@ -206,6 +206,13 @@ pub enum EventPayload {
         workflow_id: String,
         resumed_at_ms: u64,
     },
+    /// Emitted when a workflow continues-as-new to a new epoch (ADR-038).
+    ContinuedAsNew {
+        workflow_id: String,
+        lineage_id: String,
+        old_epoch: u64,
+        new_epoch: u64,
+    },
 }
 
 impl EventPayload {
@@ -295,6 +302,12 @@ impl EventPayload {
             "InstanceResumed" => Ok(EventPayload::InstanceResumed {
                 workflow_id: require_string_field(obj, "workflow_id")?,
                 resumed_at_ms: require_u64(obj, "resumed_at_ms")?,
+            }),
+            "ContinuedAsNew" => Ok(EventPayload::ContinuedAsNew {
+                workflow_id: require_string_field(obj, "workflow_id")?,
+                lineage_id: require_string(obj, "lineage_id")?,
+                old_epoch: require_u64(obj, "old_epoch")?,
+                new_epoch: require_u64(obj, "new_epoch")?,
             }),
             other => Err(Error::UnknownPayloadType(other.to_string())),
         }
@@ -704,6 +717,154 @@ mod tests {
                 workflow_id: "wf-123".to_string(),
                 resumed_at_ms: 1000
             })
+        );
+    }
+
+    // -------------------------------------------------------------------------
+    // ADR-038: ContinuedAsNew tests
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn payload_try_from_json_returns_continued_as_new_when_type_matches() {
+        let json = serde_json::json!({
+            "type": "ContinuedAsNew",
+            "workflow_id": "wf-1",
+            "lineage_id": "lin-abc-123",
+            "old_epoch": 0,
+            "new_epoch": 1,
+            "version": 1
+        });
+        let result = EventPayload::try_from_json(&json);
+        assert_eq!(
+            result,
+            Ok(EventPayload::ContinuedAsNew {
+                workflow_id: "wf-1".to_string(),
+                lineage_id: "lin-abc-123".to_string(),
+                old_epoch: 0,
+                new_epoch: 1,
+            })
+        );
+    }
+
+    #[test]
+    fn decode_event_returns_continued_as_new_for_valid_full_event() {
+        let json = serde_json::json!({
+            "version": 1,
+            "instance_id": "inst-1",
+            "sequence": 42,
+            "timestamp_ms": 9999,
+            "payload": {
+                "type": "ContinuedAsNew",
+                "workflow_id": "wf-1",
+                "lineage_id": "lin-1",
+                "old_epoch": 2,
+                "new_epoch": 3,
+                "version": 1
+            },
+            "metadata": {}
+        });
+        let bytes = serde_json::to_vec(&json).expect("serialize");
+        let result = decode_event(&bytes);
+        let (_envelope, payload) = result.expect("decode should succeed");
+        match payload {
+            EventPayload::ContinuedAsNew {
+                workflow_id,
+                lineage_id,
+                old_epoch,
+                new_epoch,
+            } => {
+                assert_eq!(workflow_id, "wf-1");
+                assert_eq!(lineage_id, "lin-1");
+                assert_eq!(old_epoch, 2);
+                assert_eq!(new_epoch, 3);
+            }
+            other => panic!("Expected ContinuedAsNew, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn payload_try_from_json_returns_missing_payload_field_when_lineage_id_absent() {
+        let json = serde_json::json!({
+            "type": "ContinuedAsNew",
+            "workflow_id": "wf-1",
+            "old_epoch": 0,
+            "new_epoch": 1,
+            "version": 1
+        });
+        let result = EventPayload::try_from_json(&json);
+        assert_eq!(
+            result,
+            Err(Error::MissingPayloadField("lineage_id".to_string()))
+        );
+    }
+
+    #[test]
+    fn payload_try_from_json_returns_missing_payload_field_when_old_epoch_absent() {
+        let json = serde_json::json!({
+            "type": "ContinuedAsNew",
+            "workflow_id": "wf-1",
+            "lineage_id": "lin-1",
+            "new_epoch": 1,
+            "version": 1
+        });
+        let result = EventPayload::try_from_json(&json);
+        assert_eq!(
+            result,
+            Err(Error::MissingPayloadField("old_epoch".to_string()))
+        );
+    }
+
+    #[test]
+    fn payload_try_from_json_returns_missing_payload_field_when_new_epoch_absent() {
+        let json = serde_json::json!({
+            "type": "ContinuedAsNew",
+            "workflow_id": "wf-1",
+            "lineage_id": "lin-1",
+            "old_epoch": 0,
+            "version": 1
+        });
+        let result = EventPayload::try_from_json(&json);
+        assert_eq!(
+            result,
+            Err(Error::MissingPayloadField("new_epoch".to_string()))
+        );
+    }
+
+    #[test]
+    fn payload_try_from_json_returns_invalid_payload_field_when_old_epoch_not_integer() {
+        let json = serde_json::json!({
+            "type": "ContinuedAsNew",
+            "workflow_id": "wf-1",
+            "lineage_id": "lin-1",
+            "old_epoch": "bad",
+            "new_epoch": 1,
+            "version": 1
+        });
+        let result = EventPayload::try_from_json(&json);
+        assert_eq!(
+            result,
+            Err(Error::InvalidPayloadField(
+                "old_epoch must be an integer".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn payload_try_from_json_returns_invalid_payload_field_when_new_epoch_not_integer() {
+        let json = serde_json::json!({
+            "type": "ContinuedAsNew",
+            "workflow_id": "wf-1",
+            "lineage_id": "lin-1",
+            "old_epoch": 0,
+            "new_epoch": "bad",
+            "version": 1
+        });
+        let result = EventPayload::try_from_json(&json);
+        assert_eq!(
+            result,
+            Err(Error::InvalidPayloadField(
+                "new_epoch must be an integer".to_string()
+            ))
         );
     }
 

@@ -11,12 +11,18 @@ serde_json.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 libc = "0.2"
+futures = { workspace = true }
 
 [dev-dependencies]
 rstest.workspace = true
 proptest.workspace = true
 toml = "0.8"
 tempfile.workspace = true
+criterion = { workspace = true }
+
+[[bench]]
+name = "ipc_bench"
+harness = false
 
 [[bin]]
 name = "fixture_driver"

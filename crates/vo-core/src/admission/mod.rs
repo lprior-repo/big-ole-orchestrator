@@ -17,7 +17,11 @@
 //! violate control-plane durability boundaries.
 
 pub mod check;
+pub mod control;
 pub mod types;
 
 pub use check::{check_admission, check_admission_with_thresholds};
+pub use control::{
+    AdmissionCheck, AdmissionResult, DedupeToken, DedupeTokenError, RejectionReason,
+};
 pub use types::{AdmissionError, AdmissionThresholds, PressureIndicator, WritePressureState};

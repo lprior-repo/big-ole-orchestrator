@@ -21,6 +21,8 @@ pub enum Error {
     WatcherChannelClosed,
     #[error("Debouncer encountered an internal error")]
     DebouncerInternal,
+    #[error("No tokio runtime available; debouncer requires an active async runtime")]
+    NoRuntime,
 }
 
 #[derive(Debug)]
@@ -55,14 +57,16 @@ impl Debouncer {
 
         let (ready_tx, ready_rx) = tokio::sync::mpsc::channel(10_000);
 
-        if tokio::runtime::Handle::try_current().is_ok() {
-            tokio::spawn(Self::background_task(
-                duration,
-                event_rx,
-                ready_tx,
-                initial_event,
-            ));
+        if tokio::runtime::Handle::try_current().is_err() {
+            return Err(Error::NoRuntime);
         }
+
+        tokio::spawn(Self::background_task(
+            duration,
+            event_rx,
+            ready_tx,
+            initial_event,
+        ));
 
         Ok(Self { duration, ready_rx })
     }
@@ -315,6 +319,17 @@ mod tests {
         drop(tx);
         let result = Debouncer::new(Duration::from_millis(100), rx);
         assert_eq!(result, Err(Error::WatcherChannelClosed));
+    }
+
+    #[test]
+    fn debouncer_new_returns_no_runtime_error_outside_tokio() {
+        let handle = std::thread::spawn(|| {
+            let (tx, rx) = tokio::sync::mpsc::channel::<FileEvent>(10);
+            drop(tx);
+            Debouncer::new(Duration::from_millis(100), rx)
+        });
+        let result = handle.join().unwrap();
+        assert_eq!(result, Err(Error::NoRuntime));
     }
 
     #[tokio::test(start_paused = true)]

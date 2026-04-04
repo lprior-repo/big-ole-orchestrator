@@ -44,7 +44,9 @@ proptest! {
             std::fs::create_dir_all(dir.path().join(hash)).expect("mkdir");
         });
 
-        let result = find_unpinned_directories(dir.path(), &pinned);
+        let result = tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(find_unpinned_directories(dir.path(), &pinned));
         prop_assert!(matches!(result, Ok(_)));
 
         let unpinned = result.expect("ok");

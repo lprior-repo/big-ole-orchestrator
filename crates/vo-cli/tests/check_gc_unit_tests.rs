@@ -355,12 +355,12 @@ fn gc_config_default_values() {
 // find_unpinned_directories
 // ============================================================
 
-#[test]
-fn find_unpinned_returns_correct_set_difference() {
+#[tokio::test]
+async fn find_unpinned_returns_correct_set_difference() {
     let dir = create_versions_dir(&["aaa", "bbb", "ccc"]);
     let pinned: HashSet<String> = [sha256_hex("aaa"), sha256_hex("ccc")].into_iter().collect();
 
-    let result = find_unpinned_directories(dir.path(), &pinned);
+    let result = find_unpinned_directories(dir.path(), &pinned).await;
     assert!(matches!(result, Ok(_)));
 
     let unpinned = result.expect("ok");
@@ -375,46 +375,47 @@ fn find_unpinned_returns_correct_set_difference() {
     );
 }
 
-#[test]
-fn find_unpinned_returns_empty_when_all_pinned() {
+#[tokio::test]
+async fn find_unpinned_returns_empty_when_all_pinned() {
     let dir = create_versions_dir(&["aaa", "bbb"]);
     let pinned: HashSet<String> = [sha256_hex("aaa"), sha256_hex("bbb")].into_iter().collect();
 
-    let result = find_unpinned_directories(dir.path(), &pinned);
+    let result = find_unpinned_directories(dir.path(), &pinned).await;
     assert!(matches!(result, Ok(_)));
     assert!(result.expect("ok").is_empty());
 }
 
-#[test]
-fn find_unpinned_returns_all_when_none_pinned() {
+#[tokio::test]
+async fn find_unpinned_returns_all_when_none_pinned() {
     let dir = create_versions_dir(&["aaa", "bbb"]);
     let pinned: HashSet<String> = HashSet::new();
 
-    let result = find_unpinned_directories(dir.path(), &pinned);
+    let result = find_unpinned_directories(dir.path(), &pinned).await;
     assert!(matches!(result, Ok(_)));
     assert_eq!(result.expect("ok").len(), 2);
 }
 
-#[test]
-fn find_unpinned_returns_empty_when_dir_not_exists_inv4() {
+#[tokio::test]
+async fn find_unpinned_returns_empty_when_dir_not_exists_inv4() {
     let pinned: HashSet<String> = HashSet::new();
     let result = find_unpinned_directories(
         PathBuf::from("/tmp/nonexistent-versions-vel-co5-test").as_path(),
         &pinned,
-    );
+    )
+    .await;
     assert!(matches!(result, Ok(_)));
     assert!(result.expect("ok").is_empty());
 }
 
-#[test]
-fn find_unpinned_skips_non_directory_entries() {
+#[tokio::test]
+async fn find_unpinned_skips_non_directory_entries() {
     let dir = tempfile::tempdir().expect("tempdir");
     let hash = sha256_hex("aaa");
     fs::create_dir_all(dir.path().join(&hash)).expect("mkdir");
     fs::write(dir.path().join("readme.txt"), "hello").expect("write");
 
     let pinned: HashSet<String> = HashSet::new();
-    let result = find_unpinned_directories(dir.path(), &pinned);
+    let result = find_unpinned_directories(dir.path(), &pinned).await;
     assert!(matches!(result, Ok(_)));
 
     let unpinned = result.expect("ok");
@@ -429,15 +430,15 @@ fn find_unpinned_skips_non_directory_entries() {
     );
 }
 
-#[test]
-fn find_unpinned_skips_non_hex_directory_names() {
+#[tokio::test]
+async fn find_unpinned_skips_non_hex_directory_names() {
     let dir = tempfile::tempdir().expect("tempdir");
     let good_hash = sha256_hex("aaa");
     fs::create_dir_all(dir.path().join(&good_hash)).expect("mkdir");
     fs::create_dir_all(dir.path().join("GGGGGGGG")).expect("mkdir");
 
     let pinned: HashSet<String> = HashSet::new();
-    let result = find_unpinned_directories(dir.path(), &pinned);
+    let result = find_unpinned_directories(dir.path(), &pinned).await;
     assert!(matches!(result, Ok(_)));
 
     let unpinned = result.expect("ok");
@@ -452,32 +453,32 @@ fn find_unpinned_skips_non_hex_directory_names() {
     );
 }
 
-#[test]
-fn find_unpinned_skips_short_directory_names() {
+#[tokio::test]
+async fn find_unpinned_skips_short_directory_names() {
     let dir = tempfile::tempdir().expect("tempdir");
     let good_hash = sha256_hex("aaa");
     fs::create_dir_all(dir.path().join(&good_hash)).expect("mkdir");
     fs::create_dir_all(dir.path().join("abc")).expect("mkdir");
 
     let pinned: HashSet<String> = HashSet::new();
-    let result = find_unpinned_directories(dir.path(), &pinned);
+    let result = find_unpinned_directories(dir.path(), &pinned).await;
     assert!(matches!(result, Ok(_)));
 
     let unpinned = result.expect("ok");
     assert_eq!(unpinned.len(), 1);
 }
 
-#[test]
-fn find_unpinned_returns_empty_for_empty_versions_dir() {
+#[tokio::test]
+async fn find_unpinned_returns_empty_for_empty_versions_dir() {
     let dir = tempfile::tempdir().expect("tempdir");
     let pinned: HashSet<String> = HashSet::new();
-    let result = find_unpinned_directories(dir.path(), &pinned);
+    let result = find_unpinned_directories(dir.path(), &pinned).await;
     assert!(matches!(result, Ok(_)));
     assert!(result.expect("ok").is_empty());
 }
 
-#[test]
-fn find_unpinned_skips_65_char_directory_names() {
+#[tokio::test]
+async fn find_unpinned_skips_65_char_directory_names() {
     let dir = tempfile::tempdir().expect("tempdir");
     let good_hash = sha256_hex("aaa");
     fs::create_dir_all(dir.path().join(&good_hash)).expect("mkdir");
@@ -485,7 +486,7 @@ fn find_unpinned_skips_65_char_directory_names() {
     fs::create_dir_all(dir.path().join(&long_name)).expect("mkdir");
 
     let pinned: HashSet<String> = HashSet::new();
-    let result = find_unpinned_directories(dir.path(), &pinned);
+    let result = find_unpinned_directories(dir.path(), &pinned).await;
     assert!(matches!(result, Ok(_)));
 
     let unpinned = result.expect("ok");
@@ -504,22 +505,22 @@ fn find_unpinned_skips_65_char_directory_names() {
 // delete_version_dir
 // ============================================================
 
-#[test]
-fn delete_existing_directory_succeeds() {
+#[tokio::test]
+async fn delete_existing_directory_succeeds() {
     let dir = tempfile::tempdir().expect("tempdir");
     let target = dir.path().join("target");
     fs::create_dir_all(&target).expect("mkdir");
     fs::write(target.join("file.dat"), b"data").expect("write");
 
-    let result = delete_version_dir(&target);
+    let result = delete_version_dir(&target).await;
     assert!(matches!(result, Ok(_)));
     assert!(!target.exists());
 }
 
-#[test]
-fn delete_nonexistent_directory_fails() {
+#[tokio::test]
+async fn delete_nonexistent_directory_fails() {
     let path = PathBuf::from("/tmp/nonexistent-dir-vel-co5-delete-test");
-    let result = delete_version_dir(&path);
+    let result = delete_version_dir(&path).await;
     assert!(
         matches!(result, Err(GcError::DeleteFailed { .. })),
         "expected DeleteFailed, got {:?}",
@@ -527,8 +528,8 @@ fn delete_nonexistent_directory_fails() {
     );
 }
 
-#[test]
-fn delete_readonly_directory_fails() {
+#[tokio::test]
+async fn delete_readonly_directory_fails() {
     let dir = tempfile::tempdir().expect("tempdir");
     let target = dir.path().join("readonly");
     fs::create_dir_all(&target).expect("mkdir");
@@ -536,7 +537,7 @@ fn delete_readonly_directory_fails() {
 
     fs::set_permissions(&target, fs::Permissions::from_mode(0o555)).expect("chmod");
 
-    let result = delete_version_dir(&target);
+    let result = delete_version_dir(&target).await;
 
     fs::set_permissions(&target, fs::Permissions::from_mode(0o755)).expect("chmod restore");
 

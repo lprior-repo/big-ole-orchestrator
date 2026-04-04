@@ -5,11 +5,13 @@
 //! - For every timer key found, atomically records TimerFired and deletes the wake-up key
 //! - Enqueues resume work for instance_id under fairness budget rules
 
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
 use thiserror::Error;
 use tokio::sync::{broadcast, watch};
+use tokio::task::JoinHandle;
 use tokio::time::{interval, MissedTickBehavior};
 use vo_types::{InstanceId, TimestampMs};
 
@@ -391,11 +393,13 @@ pub fn check_resume_budget(
 pub struct ReanimatorHandle {
     state_sender: watch::Sender<ReanimatorState>,
     shutdown_trigger: broadcast::Sender<()>,
+    task_handle: Option<JoinHandle<()>>,
 }
 
 impl ReanimatorHandle {
     /// Requests the reanimator to shut down.
-    pub async fn shutdown(self) -> Result<(), ReanimatorError> {
+    #[tracing::instrument(skip(self))]
+    pub async fn shutdown(mut self) -> Result<(), ReanimatorError> {
         // Signal shutdown
         let _ = self.shutdown_trigger.send(());
 
@@ -406,7 +410,7 @@ impl ReanimatorHandle {
                 Ok(()) => {
                     let state = (*receiver.borrow()).clone();
                     match state {
-                        ReanimatorState::ShutDown => return Ok(()),
+                        ReanimatorState::ShutDown => break,
                         ReanimatorState::ShuttingDown => continue,
                         _ => {
                             return Err(ReanimatorError::AtomicityViolation(format!(
@@ -421,6 +425,22 @@ impl ReanimatorHandle {
                 }
             }
         }
+
+        // Await the background task to ensure clean exit
+        if let Some(task) = self.task_handle.take() {
+            match task.await {
+                Ok(()) => {}
+                Err(e) => {
+                    if !e.is_panic() {
+                        tracing::warn!("Reanimator task cancelled during shutdown");
+                    } else {
+                        tracing::error!("Reanimator task panicked during shutdown");
+                    }
+                }
+            }
+        }
+
+        Ok(())
     }
 
     /// Gets the current state of the reanimator.
@@ -451,31 +471,43 @@ impl ReanimatorLoop {
         let (state_sender, _) = watch::channel(ReanimatorState::Stopped);
         let (shutdown_trigger, _) = broadcast::channel(1);
 
+        let state_sender_clone = state_sender.clone();
+        let shutdown_receiver = shutdown_trigger.subscribe();
+
+        // Spawn the background task
+        let task_handle = tokio::runtime::Handle::current().spawn(async move {
+            let result = Self::run_loop_inner(
+                config,
+                storage,
+                work_queue,
+                state_sender_clone,
+                shutdown_receiver,
+            )
+            .await;
+            if let Err(e) = result {
+                tracing::error!("Reanimator loop exited with error: {}", e);
+            }
+        });
+
         let handle = ReanimatorHandle {
             state_sender,
             shutdown_trigger: shutdown_trigger.clone(),
+            task_handle: Some(task_handle),
         };
-
-        // Spawn the background task
-        tokio::runtime::Handle::current().spawn(Self::run_loop(
-            config,
-            storage,
-            work_queue,
-            handle.state_sender.clone(),
-            shutdown_trigger.subscribe(),
-        ));
 
         Ok(handle)
     }
 
     /// The main loop implementation.
-    async fn run_loop<S, Q>(
+    #[tracing::instrument(skip_all)]
+    async fn run_loop_inner<S, Q>(
         config: ReanimatorConfig,
         storage: Arc<S>,
         work_queue: Arc<Q>,
         state_sender: watch::Sender<ReanimatorState>,
         mut shutdown_receiver: broadcast::Receiver<()>,
-    ) where
+    ) -> Result<(), ReanimatorError>
+    where
         S: TimerStorage + 'static,
         Q: WorkQueue + 'static,
     {
@@ -505,11 +537,9 @@ impl ReanimatorLoop {
                             max_already_processed = processed;
                         }
                         Err(e) if e.is_transient() => {
-                            // Log and continue
                             tracing::warn!("Transient error in reanimator cycle: {}", e);
                         }
                         Err(e) if e.is_fatal() => {
-                            // Log and continue but don't die
                             tracing::error!("Fatal error in reanimator cycle: {}", e);
                         }
                         Err(e) => {
@@ -521,9 +551,15 @@ impl ReanimatorLoop {
         }
 
         let _ = state_sender.send(ReanimatorState::ShutDown);
+        Ok(())
     }
 
-    /// Processes a single scan cycle.
+     /// Processes a single scan cycle.
+    ///
+    /// Uses delete-before-dispatch ordering (INV-2): timer is deleted from
+    /// storage BEFORE any dispatch occurs. If dispatch fails after delete,
+    /// the timer is lost but no double-fire is possible.
+    #[tracing::instrument(skip_all, fields(processed, failed_count))]
     async fn process_cycle<S, Q>(
         config: &ReanimatorConfig,
         storage: &Arc<S>,
@@ -549,77 +585,82 @@ impl ReanimatorLoop {
         // Reset budget for this cycle
         budget.reset();
 
-        let mut processed = 0u32;
-        let mut failed_count = 0u32;
+        let concurrency_limit = config.max_concurrent_resumes as usize;
+        let storage_ref = storage.clone();
+        let work_queue_ref = work_queue.clone();
 
-        // Process each timer
-        for timer in scan_result
-            .iter()
-            .take(config.max_timers_per_cycle as usize)
-        {
-            // Validate timer
-            if let Err(e) = validate_timer_record(timer) {
-                tracing::error!("Invalid timer record: {}", e);
-                continue;
-            }
+        let processed = Arc::new(AtomicU32::new(0));
+        let failed_count = Arc::new(AtomicU32::new(0));
 
-            // Check budget
-            if !budget.can_resume(&timer.instance_id) {
-                tracing::debug!("Instance {} exceeded budget, skipping", timer.instance_id);
-                continue;
-            }
+        use futures::StreamExt;
+        futures::stream::iter(
+            scan_result
+                .iter()
+                .take(config.max_timers_per_cycle as usize),
+        )
+        .filter(|timer| {
+            let valid = validate_timer_record(timer).is_ok();
+            let within_budget = budget.can_resume(&timer.instance_id);
+            std::future::ready(valid && within_budget)
+        })
+        .for_each_concurrent(concurrency_limit, |timer| {
+            let storage = storage_ref.clone();
+            let work_queue = work_queue_ref.clone();
+            let processed = Arc::clone(&processed);
+            let failed_count = Arc::clone(&failed_count);
+            async move {
+                let delete_result = storage
+                    .delete_timer(&timer.instance_id, timer.fire_at_ms)
+                    .await;
 
-            // Atomically record TimerFired and delete timer key
-            let record_result = storage
-                .record_timer_fired(&timer.instance_id, timer.fire_at_ms)
-                .await;
+                match delete_result {
+                    Ok(()) => {
+                        let record_result = storage
+                            .record_timer_fired(&timer.instance_id, timer.fire_at_ms)
+                            .await;
 
-            match record_result {
-                Ok(()) => {
-                    let delete_result = storage
-                        .delete_timer(&timer.instance_id, timer.fire_at_ms)
-                        .await;
-
-                    match delete_result {
-                        Ok(()) => {
-                            // Enqueue resume work
-                            match work_queue.enqueue_resume(timer.instance_id.clone()).await {
-                                Ok(()) => {
-                                    let _ = budget.record_resume(timer.instance_id.clone());
-                                    processed += 1;
-                                }
-                                Err(e) => {
-                                    tracing::error!(
-                                        "Failed to enqueue resume for {}: {}",
-                                        timer.instance_id,
-                                        e
-                                    );
-                                    failed_count += 1;
+                        match record_result {
+                            Ok(()) => {
+                                match work_queue.enqueue_resume(timer.instance_id.clone()).await {
+                                    Ok(()) => {
+                                        processed.fetch_add(1, Ordering::Relaxed);
+                                    }
+                                    Err(e) => {
+                                        tracing::error!(
+                                            instance_id = %timer.instance_id,
+                                            error = %e,
+                                            "Failed to enqueue resume"
+                                        );
+                                        failed_count.fetch_add(1, Ordering::Relaxed);
+                                    }
                                 }
                             }
-                        }
-                        Err(e) => {
-                            tracing::error!(
-                                "Failed to delete timer for {}: {}",
-                                timer.instance_id,
-                                e
-                            );
-                            failed_count += 1;
+                            Err(e) => {
+                                tracing::error!(
+                                    instance_id = %timer.instance_id,
+                                    error = %e,
+                                    "Failed to record TimerFired"
+                                );
+                                failed_count.fetch_add(1, Ordering::Relaxed);
+                            }
                         }
                     }
-                }
-                Err(e) => {
-                    tracing::error!(
-                        "Failed to record TimerFired for {}: {}",
-                        timer.instance_id,
-                        e
-                    );
-                    failed_count += 1;
+                    Err(e) => {
+                        tracing::error!(
+                            instance_id = %timer.instance_id,
+                            error = %e,
+                            "Failed to delete timer before dispatch"
+                        );
+                        failed_count.fetch_add(1, Ordering::Relaxed);
+                    }
                 }
             }
-        }
+        })
+        .await;
 
-        // Reset max_already_processed if we processed any timers
+        let processed = processed.load(Ordering::Relaxed);
+        let failed_count = failed_count.load(Ordering::Relaxed);
+
         let new_max = if processed > 0 {
             0
         } else {
@@ -627,9 +668,9 @@ impl ReanimatorLoop {
         };
 
         tracing::debug!(
-            "Reanimator cycle complete: processed={}, failed={}",
             processed,
-            failed_count
+            failed_count,
+            "Reanimator cycle complete"
         );
 
         Ok(new_max)
@@ -645,7 +686,7 @@ impl ReanimatorLoop {
 pub mod mock {
     use super::*;
     use std::collections::VecDeque;
-    use std::sync::Mutex;
+    use tokio::sync::Mutex;
 
     /// A mock timer storage that stores timers in memory.
     #[derive(Debug)]
@@ -668,18 +709,18 @@ pub mod mock {
         }
 
         /// Sets whether operations should fail.
-        pub fn set_should_fail(&self, should_fail: bool) {
-            *self.should_fail.lock().unwrap() = should_fail;
+        pub async fn set_should_fail(&self, should_fail: bool) {
+            *self.should_fail.lock().await = should_fail;
         }
 
         /// Gets the recorded fire calls.
-        pub fn fire_calls(&self) -> Vec<(InstanceId, TimestampMs)> {
-            self.fire_calls.lock().unwrap().clone()
+        pub async fn fire_calls(&self) -> Vec<(InstanceId, TimestampMs)> {
+            self.fire_calls.lock().await.clone()
         }
 
         /// Gets the recorded delete calls.
-        pub fn delete_calls(&self) -> Vec<(InstanceId, TimestampMs)> {
-            self.delete_calls.lock().unwrap().clone()
+        pub async fn delete_calls(&self) -> Vec<(InstanceId, TimestampMs)> {
+            self.delete_calls.lock().await.clone()
         }
     }
 
@@ -691,11 +732,11 @@ pub mod mock {
             to_timestamp: TimestampMs,
             max_results: u32,
         ) -> Result<Vec<TimerRecord>, ReanimatorError> {
-            if *self.should_fail.lock().unwrap() {
+            if *self.should_fail.lock().await {
                 return Err(ReanimatorError::StorageError("Mock failure".to_string()));
             }
 
-            let timers = self.timers.lock().unwrap();
+            let timers = self.timers.lock().await;
             let due: Vec<TimerRecord> = timers
                 .iter()
                 .filter(|t| t.fire_at_ms <= to_timestamp)
@@ -711,16 +752,16 @@ pub mod mock {
             instance_id: &InstanceId,
             fire_at_ms: TimestampMs,
         ) -> Result<(), ReanimatorError> {
-            if *self.should_fail.lock().unwrap() {
+            if *self.should_fail.lock().await {
                 return Err(ReanimatorError::StorageError("Mock failure".to_string()));
             }
 
             self.delete_calls
                 .lock()
-                .unwrap()
+                .await
                 .push((instance_id.clone(), fire_at_ms));
 
-            let mut timers = self.timers.lock().unwrap();
+            let mut timers = self.timers.lock().await;
             timers.retain(|t| !(t.instance_id == *instance_id && t.fire_at_ms == fire_at_ms));
 
             Ok(())
@@ -731,13 +772,13 @@ pub mod mock {
             instance_id: &InstanceId,
             fire_at_ms: TimestampMs,
         ) -> Result<(), ReanimatorError> {
-            if *self.should_fail.lock().unwrap() {
+            if *self.should_fail.lock().await {
                 return Err(ReanimatorError::StorageError("Mock failure".to_string()));
             }
 
             self.fire_calls
                 .lock()
-                .unwrap()
+                .await
                 .push((instance_id.clone(), fire_at_ms));
 
             Ok(())
@@ -767,23 +808,23 @@ pub mod mock {
         }
 
         /// Sets whether operations should fail.
-        pub fn set_should_fail(&self, should_fail: bool) {
-            *self.should_fail.lock().unwrap() = should_fail;
+        pub async fn set_should_fail(&self, should_fail: bool) {
+            *self.should_fail.lock().await = should_fail;
         }
 
         /// Gets the enqueued instance IDs.
-        pub fn enqueued(&self) -> Vec<InstanceId> {
-            self.enqueued.lock().unwrap().clone()
+        pub async fn enqueued(&self) -> Vec<InstanceId> {
+            self.enqueued.lock().await.clone()
         }
     }
 
     #[async_trait::async_trait]
     impl WorkQueue for MockWorkQueue {
         async fn enqueue_resume(&self, instance_id: InstanceId) -> Result<(), ReanimatorError> {
-            if *self.should_fail.lock().unwrap() {
+            if *self.should_fail.lock().await {
                 return Err(ReanimatorError::EnqueueFailed("Mock failure".to_string()));
             }
-            self.enqueued.lock().unwrap().push(instance_id);
+            self.enqueued.lock().await.push(instance_id);
             Ok(())
         }
     }
@@ -1200,6 +1241,7 @@ mod tests {
             let handle = ReanimatorHandle {
                 state_sender,
                 shutdown_trigger,
+                task_handle: None,
             };
 
             assert_eq!(handle.current_state(), ReanimatorState::Stopped);
@@ -1268,7 +1310,7 @@ mod tests {
                 .await
                 .unwrap();
 
-            let calls = storage.fire_calls();
+            let calls = storage.fire_calls().await;
             assert_eq!(calls.len(), 1);
             assert_eq!(calls[0].0, instance_id);
             assert_eq!(calls[0].1, ts_ms(1000));
@@ -1278,7 +1320,7 @@ mod tests {
         async fn mock_storage_failure_returns_error() {
             let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
             let storage = Arc::new(MockTimerStorage::new(Vec::new()));
-            storage.set_should_fail(true);
+            storage.set_should_fail(true).await;
 
             let result = storage.record_timer_fired(&instance_id, ts_ms(1000)).await;
 
@@ -1301,7 +1343,7 @@ mod tests {
 
             queue.enqueue_resume(instance_id.clone()).await.unwrap();
 
-            let enqueued = queue.enqueued();
+            let enqueued = queue.enqueued().await;
             assert_eq!(enqueued.len(), 1);
             assert_eq!(enqueued[0], instance_id);
         }
@@ -1310,7 +1352,7 @@ mod tests {
         async fn mock_work_queue_failure() {
             let queue = Arc::new(MockWorkQueue::new());
             let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
-            queue.set_should_fail(true);
+            queue.set_should_fail(true).await;
 
             let result = queue.enqueue_resume(instance_id.clone()).await;
 
@@ -1335,7 +1377,7 @@ mod tests {
                 queue.enqueue_resume(instance_id).await.unwrap();
             }
 
-            assert_eq!(queue.enqueued().len(), 5);
+            assert_eq!(queue.enqueued().await.len(), 5);
         }
     }
 }

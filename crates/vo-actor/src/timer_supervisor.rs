@@ -250,7 +250,7 @@ impl TimerSupervisor {
     ///
     /// # Errors
     /// Returns an error if storage operations fail.
-    pub async fn process_cycle(&self) -> Result<CycleResult, TimerSupervisorError> {
+    pub fn process_cycle(&self) -> Result<CycleResult, TimerSupervisorError> {
         #[allow(clippy::cast_possible_truncation)]
         let now_ms = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -286,7 +286,7 @@ impl TimerSupervisor {
             }
 
             // Delete before dispatch (INV-2)
-            match timer_delete_before_dispatch(&self.storage, &timer).await {
+            match timer_delete_before_dispatch(&self.storage, &timer) {
                 Ok(()) => {
                     // Dispatch succeeded
                     match self.work_queue.enqueue_resume(timer.instance_id.clone()) {
@@ -328,7 +328,7 @@ impl TimerSupervisor {
     ///
     /// # Errors
     /// Returns `ShutdownTimeout` if shutdown does not complete within the given timeout.
-    pub async fn shutdown(&self, timeout: Duration) -> Result<(), TimerSupervisorError> {
+    pub fn shutdown(&self, timeout: Duration) -> Result<(), TimerSupervisorError> {
         self.is_running
             .store(false, std::sync::atomic::Ordering::SeqCst);
 
@@ -449,8 +449,7 @@ pub fn is_overdue(fire_at_ms: u64, now_ms: u64, tick_interval_ms: u64) -> bool {
 /// # Errors
 /// * `StorageError` - If the delete operation fails before dispatch
 /// * `AtomicityViolation` - If dispatch succeeds but delete fails afterward
-#[allow(clippy::unused_async)]
-pub async fn timer_delete_before_dispatch(
+pub fn timer_delete_before_dispatch(
     storage: &Arc<dyn TimerStorage>,
     timer: &TimerRecord,
 ) -> Result<(), TimerSupervisorError> {
