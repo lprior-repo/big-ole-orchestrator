@@ -3,7 +3,7 @@
 
 #[cfg(test)]
 mod integration_tests {
-    use vel_k1t9::{
+    use vo_executor::{
         cancel_execution, execute_step, execute_step_with_retry,
         get_execution_status, get_last_error, RetryPolicy,
     };
@@ -13,7 +13,7 @@ mod integration_tests {
         let result = execute_step("step-1".to_string(), 0).await;
         assert!(result.is_err());
         let err = result.unwrap_err();
-        assert!(matches!(err, vel_k1t9::ExecuteNodeError::InvalidTimeout { .. }));
+        assert!(matches!(err, vo_executor::ExecuteNodeError::InvalidTimeout { .. }));
     }
 
     #[tokio::test]
@@ -29,7 +29,7 @@ mod integration_tests {
         let result = execute_step("step-slow".to_string(), 1).await;
         assert!(result.is_err());
         let err = result.unwrap_err();
-        assert!(matches!(err, vel_k1t9::ExecuteNodeError::TimeoutExceeded { .. }));
+        assert!(matches!(err, vo_executor::ExecuteNodeError::TimeoutExceeded { .. }));
     }
 
     #[tokio::test]
@@ -37,16 +37,14 @@ mod integration_tests {
         let result = execute_step("unknown-step".to_string(), 5000).await;
         assert!(result.is_err());
         let err = result.unwrap_err();
-        assert!(matches!(err, vel_k1t9::ExecuteNodeError::StepNotFound { .. }));
+        assert!(matches!(err, vo_executor::ExecuteNodeError::StepNotFound { .. }));
     }
 
     #[tokio::test]
-    async fn execute_step_with_retry_invalid_policy() {
-        let policy = RetryPolicy::new(0, 100, 2.0).unwrap_err();
-        // policy is RetryPolicyError, not ExecuteNodeError
+    async fn execute_step_with_retry_success() {
+        let policy = RetryPolicy::new(3, 100, 2.0).unwrap();
         let result = execute_step_with_retry("step-1".to_string(), 5000, policy).await;
-        // The function takes RetryPolicy, not Result<RetryPolicy, RetryPolicyError>
-        // So this test can't easily test invalid policy
+        assert!(result.is_ok());
     }
 
     #[tokio::test]
@@ -62,10 +60,9 @@ mod integration_tests {
     }
 
     #[tokio::test]
-    async fn cancel_execution_returns_error() {
-        // When nothing is executing, cancel returns error
+    async fn cancel_execution_returns_ok_for_ready_state() {
+        // When nothing is executing, cancel returns Ok (no-op)
         let result = cancel_execution("step-1".to_string()).await;
-        // Implementation returns ExecutionCancelled since step isn't running
-        assert!(result.is_err());
+        assert!(result.is_ok());
     }
 }

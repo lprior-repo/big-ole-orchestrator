@@ -1,4 +1,4 @@
-//! Proptest invariants for vel-k1t9
+//! Proptest invariants for vo-executor
 //!
 //! These tests verify critical invariants using property-based testing:
 //! 1. RetryPolicy::new never panics
@@ -6,7 +6,7 @@
 //! 3. RetryPolicy invariants hold for arbitrary valid inputs
 
 use proptest::prelude::*;
-use vel_k1t9::{RetryPolicy, RetryPolicyError};
+use vo_executor::{RetryPolicy, RetryPolicyError};
 
 // ============================================================================
 // Proptest: RetryPolicy::new never panics

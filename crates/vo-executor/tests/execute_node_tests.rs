@@ -8,7 +8,7 @@
 //! Unit tests (RetryPolicy, StepResult, ExecutionStatus, error types) are fully implemented.
 //! Integration tests are placeholders that will compile when implementation is added.
 
-use vel_k1t9::{ExecuteNodeError, ExecutionStatus, RetryPolicy, RetryPolicyError, StepResult};
+use vo_executor::{ExecuteNodeError, ExecutionStatus, RetryPolicy, RetryPolicyError, StepResult};
 
 // ============================================================================
 // UNIT TESTS: RetryPolicy validation
@@ -434,11 +434,11 @@ mod execute_node_error_tests {
 // ============================================================================
 
 // The following tests reference functions that do not exist yet in the crate:
-// - vel_k1t9::execute_step
-// - vel_k1t9::execute_step_with_retry
-// - vel_k1t9::cancel_execution
-// - vel_k1t9::get_execution_status
-// - vel_k1t9::get_last_error
+// - vo_executor::execute_step
+// - vo_executor::execute_step_with_retry
+// - vo_executor::cancel_execution
+// - vo_executor::get_execution_status
+// - vo_executor::get_last_error
 //
 // These tests are documented here as a specification for when the implementation
 // is added. They will be uncommented and marked as #[test] when the implementation
@@ -461,7 +461,7 @@ mod integration_tests_documented {
 
         #[tokio::test]
         async fn execute_step_returns_success_when_step_completes_within_timeout() {
-            let result = vel_k1t9::execute_step("step-1".to_string(), 5000).await;
+            let result = vo_executor::execute_step("step-1".to_string(), 5000).await;
             assert!(result.is_ok());
             let step_result = result.unwrap();
             assert!(step_result.is_success());
@@ -469,7 +469,7 @@ mod integration_tests_documented {
 
         #[tokio::test]
         async fn execute_step_returns_failure_when_step_completes_with_failure() {
-            let result = vel_k1t9::execute_step("step-fail".to_string(), 5000).await;
+            let result = vo_executor::execute_step("step-fail".to_string(), 5000).await;
             assert!(result.is_ok());
             let step_result = result.unwrap();
             assert!(!step_result.is_success());
@@ -477,7 +477,7 @@ mod integration_tests_documented {
 
         #[tokio::test]
         async fn execute_step_returns_transient_error_when_step_fails_with_transient_error() {
-            let result = vel_k1t9::execute_step("step-transient".to_string(), 5000).await;
+            let result = vo_executor::execute_step("step-transient".to_string(), 5000).await;
             assert!(result.is_err());
             let err = result.unwrap_err();
             assert!(matches!(err, ExecuteNodeError::TransientError { recoverable: true, .. }));
@@ -485,7 +485,7 @@ mod integration_tests_documented {
 
         #[tokio::test]
         async fn execute_step_returns_step_not_found_when_step_does_not_exist() {
-            let result = vel_k1t9::execute_step("nonexistent".to_string(), 5000).await;
+            let result = vo_executor::execute_step("nonexistent".to_string(), 5000).await;
             assert!(result.is_err());
             assert_eq!(
                 result.unwrap_err(),
@@ -497,7 +497,7 @@ mod integration_tests_documented {
 
         #[tokio::test]
         async fn execute_step_returns_invalid_timeout_when_timeout_is_zero() {
-            let result = vel_k1t9::execute_step("step-1".to_string(), 0).await;
+            let result = vo_executor::execute_step("step-1".to_string(), 0).await;
             assert!(result.is_err());
             assert_eq!(
                 result.unwrap_err(),
@@ -510,7 +510,7 @@ mod integration_tests_documented {
 
         #[tokio::test]
         async fn execute_step_returns_invalid_timeout_when_timeout_is_max() {
-            let result = vel_k1t9::execute_step("step-1".to_string(), u64::MAX).await;
+            let result = vo_executor::execute_step("step-1".to_string(), u64::MAX).await;
             assert!(result.is_err());
             assert!(matches!(
                 result.unwrap_err(),
@@ -520,7 +520,7 @@ mod integration_tests_documented {
 
         #[tokio::test]
         async fn execute_step_returns_timeout_exceeded_when_step_exceeds_timeout() {
-            let result = vel_k1t9::execute_step("step-slow".to_string(), 1000).await;
+            let result = vo_executor::execute_step("step-slow".to_string(), 1000).await;
             assert!(result.is_err());
             assert!(matches!(
                 result.unwrap_err(),
@@ -530,8 +530,8 @@ mod integration_tests_documented {
 
         #[tokio::test]
         async fn execute_step_rejects_invalid_transition_when_called_during_executing() {
-            let _ = vel_k1t9::execute_step("step-1".to_string(), 5000).await;
-            let result = vel_k1t9::execute_step("step-1".to_string(), 5000).await;
+            let _ = vo_executor::execute_step("step-1".to_string(), 5000).await;
+            let result = vo_executor::execute_step("step-1".to_string(), 5000).await;
             assert!(result.is_err());
             assert_eq!(
                 result.unwrap_err(),
@@ -545,21 +545,21 @@ mod integration_tests_documented {
         #[tokio::test]
         async fn execute_step_transitions_state_to_executing_when_called() {
             assert_eq!(
-                vel_k1t9::get_execution_status("step-1"),
+                vo_executor::get_execution_status("step-1"),
                 ExecutionStatus::Ready
             );
-            let _ = vel_k1t9::execute_step("step-1".to_string(), 5000).await;
-            let status = vel_k1t9::get_execution_status("step-1");
+            let _ = vo_executor::execute_step("step-1".to_string(), 5000).await;
+            let status = vo_executor::get_execution_status("step-1");
             assert!(!matches!(status, ExecutionStatus::Ready));
         }
 
         #[tokio::test]
         async fn execute_step_transitions_state_back_to_ready_after_successful_completion() {
-            let result = vel_k1t9::execute_step("step-1".to_string(), 5000).await;
+            let result = vo_executor::execute_step("step-1".to_string(), 5000).await;
             if result.is_ok() {
                 tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
                 assert_eq!(
-                    vel_k1t9::get_execution_status("step-1"),
+                    vo_executor::get_execution_status("step-1"),
                     ExecutionStatus::Ready
                 );
             }
@@ -568,12 +568,12 @@ mod integration_tests_documented {
         #[tokio::test]
         async fn execute_step_leaves_state_unchanged_when_rejecting_invalid_timeout() {
             assert_eq!(
-                vel_k1t9::get_execution_status("step-1"),
+                vo_executor::get_execution_status("step-1"),
                 ExecutionStatus::Ready
             );
-            let _ = vel_k1t9::execute_step("step-1".to_string(), 0).await;
+            let _ = vo_executor::execute_step("step-1".to_string(), 0).await;
             assert_eq!(
-                vel_k1t9::get_execution_status("step-1"),
+                vo_executor::get_execution_status("step-1"),
                 ExecutionStatus::Ready
             );
         }
@@ -589,7 +589,7 @@ mod integration_tests_documented {
         #[tokio::test]
         async fn execute_step_with_retry_returns_success_on_first_attempt() {
             let policy = RetryPolicy::new(3, 100, 2.0).unwrap();
-            let result = vel_k1t9::execute_step_with_retry("step-good".to_string(), 5000, policy).await;
+            let result = vo_executor::execute_step_with_retry("step-good".to_string(), 5000, policy).await;
             assert!(result.is_ok());
             assert!(result.unwrap().is_success());
         }
@@ -597,7 +597,7 @@ mod integration_tests_documented {
         #[tokio::test]
         async fn execute_step_with_retry_returns_retry_exhausted_when_all_retries_consumed() {
             let policy = RetryPolicy::new(2, 100, 2.0).unwrap();
-            let result = vel_k1t9::execute_step_with_retry("step-flaky".to_string(), 5000, policy).await;
+            let result = vo_executor::execute_step_with_retry("step-flaky".to_string(), 5000, policy).await;
             assert!(result.is_err());
             let err = result.unwrap_err();
             assert!(matches!(err, ExecuteNodeError::RetryExhausted { attempts: 2, .. }));
@@ -606,7 +606,7 @@ mod integration_tests_documented {
         #[tokio::test]
         async fn execute_step_with_retry_returns_invalid_retry_policy_when_max_attempts_is_zero() {
             let policy = RetryPolicy::new(0, 100, 2.0).unwrap();
-            let result = vel_k1t9::execute_step_with_retry("step-1".to_string(), 5000, policy).await;
+            let result = vo_executor::execute_step_with_retry("step-1".to_string(), 5000, policy).await;
             assert!(result.is_err());
             assert!(matches!(
                 result.unwrap_err(),
@@ -617,7 +617,7 @@ mod integration_tests_documented {
         #[tokio::test]
         async fn execute_step_with_retry_decrements_retry_count_and_re_executes_on_transient_error() {
             let policy = RetryPolicy::new(3, 100, 2.0).unwrap();
-            let result = vel_k1t9::execute_step_with_retry("step-flaky".to_string(), 5000, policy).await;
+            let result = vo_executor::execute_step_with_retry("step-flaky".to_string(), 5000, policy).await;
             if result.is_err() {
                 let err = result.unwrap_err();
                 assert!(matches!(err, ExecuteNodeError::RetryExhausted { attempts: 3, .. }));
@@ -628,7 +628,7 @@ mod integration_tests_documented {
         async fn execute_step_with_retry_applies_exponential_backoff_between_retries() {
             let policy = RetryPolicy::new(3, 100, 2.0).unwrap();
             let start = std::time::Instant::now();
-            let _ = vel_k1t9::execute_step_with_retry("step-flaky".to_string(), 5000, policy).await;
+            let _ = vo_executor::execute_step_with_retry("step-flaky".to_string(), 5000, policy).await;
             let elapsed = start.elapsed().as_millis() as u64;
             assert!(elapsed >= 300); // At least 3 backoff intervals
         }
@@ -643,10 +643,10 @@ mod integration_tests_documented {
 
         #[tokio::test]
         async fn cancel_execution_returns_ok_and_sets_state_to_cancelled_when_called_from_ready() {
-            let result = vel_k1t9::cancel_execution("step-1".to_string()).await;
+            let result = vo_executor::cancel_execution("step-1".to_string()).await;
             assert!(result.is_ok());
             assert_eq!(
-                vel_k1t9::get_execution_status("step-1"),
+                vo_executor::get_execution_status("step-1"),
                 ExecutionStatus::Cancelled {
                     reason: "cancelled by user".to_string()
                 }
@@ -655,19 +655,19 @@ mod integration_tests_documented {
 
         #[tokio::test]
         async fn cancel_execution_returns_err_when_called_during_executing() {
-            let _ = vel_k1t9::execute_step("step-1".to_string(), 5000).await;
-            let result = vel_k1t9::cancel_execution("step-1".to_string()).await;
+            let _ = vo_executor::execute_step("step-1".to_string(), 5000).await;
+            let result = vo_executor::cancel_execution("step-1".to_string()).await;
             assert!(result.is_err());
             assert!(matches!(result.unwrap_err(), ExecuteNodeError::ExecutionCancelled { .. }));
         }
 
         #[tokio::test]
         async fn cancel_execution_returns_ok_from_cancelled_state_as_noop() {
-            let _ = vel_k1t9::cancel_execution("step-1".to_string()).await;
-            let result = vel_k1t9::cancel_execution("step-1".to_string()).await;
+            let _ = vo_executor::cancel_execution("step-1".to_string()).await;
+            let result = vo_executor::cancel_execution("step-1".to_string()).await;
             assert!(result.is_ok());
             assert_eq!(
-                vel_k1t9::get_execution_status("step-1"),
+                vo_executor::get_execution_status("step-1"),
                 ExecutionStatus::Cancelled {
                     reason: "cancelled by user".to_string()
                 }
@@ -676,15 +676,15 @@ mod integration_tests_documented {
 
         #[tokio::test]
         async fn cancel_execution_returns_ok_from_completed_state_as_noop() {
-            let _ = vel_k1t9::execute_step("step-good".to_string(), 5000).await;
-            let result = vel_k1t9::cancel_execution("step-good".to_string()).await;
+            let _ = vo_executor::execute_step("step-good".to_string(), 5000).await;
+            let result = vo_executor::cancel_execution("step-good".to_string()).await;
             assert!(result.is_ok());
         }
 
         #[tokio::test]
         async fn cancel_execution_cleans_up_pending_timers_and_resources() {
-            let _ = vel_k1t9::cancel_execution("step-1".to_string()).await;
-            let status = vel_k1t9::get_execution_status("step-1");
+            let _ = vo_executor::cancel_execution("step-1".to_string()).await;
+            let status = vo_executor::get_execution_status("step-1");
             assert!(matches!(status, ExecutionStatus::Cancelled { .. }));
         }
     }
@@ -698,29 +698,29 @@ mod integration_tests_documented {
 
         #[test]
         fn get_execution_status_returns_ready_when_no_step_is_running() {
-            let status = vel_k1t9::get_execution_status("step-1");
+            let status = vo_executor::get_execution_status("step-1");
             assert_eq!(status, ExecutionStatus::Ready);
         }
 
         #[tokio::test]
         async fn get_execution_status_returns_executing_during_step_execution() {
-            let _handle = vel_k1t9::execute_step("step-1".to_string(), 5000);
+            let _handle = vo_executor::execute_step("step-1".to_string(), 5000);
             tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
-            let status = vel_k1t9::get_execution_status("step-1");
+            let status = vo_executor::get_execution_status("step-1");
             assert!(matches!(status, ExecutionStatus::Executing { step_id, .. } if step_id == "step-1"));
         }
 
         #[tokio::test]
         async fn get_execution_status_returns_cancelled_after_cancellation() {
-            let _ = vel_k1t9::cancel_execution("step-1".to_string()).await;
-            let status = vel_k1t9::get_execution_status("step-1");
+            let _ = vo_executor::cancel_execution("step-1".to_string()).await;
+            let status = vo_executor::get_execution_status("step-1");
             assert!(matches!(status, ExecutionStatus::Cancelled { .. }));
         }
 
         #[tokio::test]
         async fn get_execution_status_returns_completed_after_successful_completion() {
-            let _ = vel_k1t9::execute_step("step-good".to_string(), 5000).await;
-            let status = vel_k1t9::get_execution_status("step-good");
+            let _ = vo_executor::execute_step("step-good".to_string(), 5000).await;
+            let status = vo_executor::get_execution_status("step-good");
             assert!(matches!(status, ExecutionStatus::Completed { .. }));
         }
     }
@@ -734,14 +734,14 @@ mod integration_tests_documented {
 
         #[test]
         fn get_last_error_returns_none_immediately_after_successful_execute_step() {
-            let err = vel_k1t9::get_last_error("step-good");
+            let err = vo_executor::get_last_error("step-good");
             assert!(err.is_none());
         }
 
         #[tokio::test]
         async fn get_last_error_returns_some_after_transient_failure() {
-            let _ = vel_k1t9::execute_step("step-transient".to_string(), 5000).await;
-            let err = vel_k1t9::get_last_error("step-transient");
+            let _ = vo_executor::execute_step("step-transient".to_string(), 5000).await;
+            let err = vo_executor::get_last_error("step-transient");
             assert!(err.is_some());
             assert!(matches!(err.unwrap(), ExecuteNodeError::TransientError { recoverable: true, .. }));
         }
@@ -749,8 +749,8 @@ mod integration_tests_documented {
         #[tokio::test]
         async fn get_last_error_returns_some_with_invalid_retry_policy_after_retry_policy_validation_failure() {
             let policy = RetryPolicy::new(0, 100, 2.0).unwrap();
-            let _ = vel_k1t9::execute_step_with_retry("step-1".to_string(), 5000, policy).await;
-            let err = vel_k1t9::get_last_error("step-1");
+            let _ = vo_executor::execute_step_with_retry("step-1".to_string(), 5000, policy).await;
+            let err = vo_executor::get_last_error("step-1");
             assert!(err.is_some());
             assert!(matches!(err.unwrap(), ExecuteNodeError::InvalidRetryPolicy { reason: RetryPolicyError::ZeroAttempts, .. }));
         }
@@ -768,35 +768,35 @@ mod integration_tests_documented {
             let policy = RetryPolicy::new(3, 100, 2.0).unwrap();
 
             assert_eq!(
-                vel_k1t9::get_execution_status("workflow-step-1"),
+                vo_executor::get_execution_status("workflow-step-1"),
                 ExecutionStatus::Ready
             );
 
-            let result = vel_k1t9::execute_step_with_retry("workflow-step-1".to_string(), 5000, policy).await;
+            let result = vo_executor::execute_step_with_retry("workflow-step-1".to_string(), 5000, policy).await;
             assert!(result.is_ok());
 
             assert_eq!(
-                vel_k1t9::get_execution_status("workflow-step-1"),
+                vo_executor::get_execution_status("workflow-step-1"),
                 ExecutionStatus::Completed {
                     output: "done".to_string()
                 }
             );
 
-            assert!(vel_k1t9::get_last_error("workflow-step-1").is_none());
+            assert!(vo_executor::get_last_error("workflow-step-1").is_none());
         }
 
         #[tokio::test]
         async fn e2e_full_workflow_execution_from_submit_to_cancellation() {
             assert_eq!(
-                vel_k1t9::get_execution_status("workflow-step-2"),
+                vo_executor::get_execution_status("workflow-step-2"),
                 ExecutionStatus::Ready
             );
 
-            let result = vel_k1t9::cancel_execution("workflow-step-2".to_string()).await;
+            let result = vo_executor::cancel_execution("workflow-step-2".to_string()).await;
             assert!(result.is_ok());
 
             assert_eq!(
-                vel_k1t9::get_execution_status("workflow-step-2"),
+                vo_executor::get_execution_status("workflow-step-2"),
                 ExecutionStatus::Cancelled {
                     reason: "cancelled by user".to_string()
                 }
