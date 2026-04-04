@@ -1,4 +1,4 @@
-//! Integration and unit tests for vel-k1t9 workflow execution engine.
+//! Integration and unit tests for vo_executor workflow execution engine.
 //!
 //! These tests cover:
 //! - Unit tests for RetryPolicy validation and error construction
@@ -8,7 +8,9 @@
 //! Unit tests (RetryPolicy, StepResult, ExecutionStatus, error types) are fully implemented.
 //! Integration tests are placeholders that will compile when implementation is added.
 
-use vo_executor::{ExecuteNodeError, ExecutionStatus, RetryPolicy, RetryPolicyError, StepResult};
+use vo_executor::{
+    ExecuteNodeError, ExecutionStatus, RetryPolicy, RetryPolicyError, StepId, StepResult,
+};
 
 // ============================================================================
 // UNIT TESTS: RetryPolicy validation
@@ -194,7 +196,7 @@ mod execution_status_tests {
     #[test]
     fn execution_status_is_ready_returns_false_for_executing() {
         let status = ExecutionStatus::Executing {
-            step_id: "step-1".to_string(),
+            step_id: StepId::new("step-1".to_string()),
             elapsed_ms: 100,
         };
         assert!(!status.is_ready());
@@ -219,13 +221,13 @@ mod execution_status_tests {
     #[test]
     fn execution_status_executing_contains_step_id_and_elapsed() {
         let status = ExecutionStatus::Executing {
-            step_id: "step-1".to_string(),
+            step_id: StepId::new("step-1".to_string()),
             elapsed_ms: 1500,
         };
         assert_eq!(
             status,
             ExecutionStatus::Executing {
-                step_id: "step-1".to_string(),
+                step_id: StepId::new("step-1".to_string()),
                 elapsed_ms: 1500,
             }
         );
@@ -268,13 +270,13 @@ mod execute_node_error_tests {
     #[test]
     fn execute_node_error_step_not_found_equality() {
         let err1 = ExecuteNodeError::StepNotFound {
-            step_id: "step-1".to_string(),
+            step_id: StepId::new("step-1".to_string()),
         };
         let err2 = ExecuteNodeError::StepNotFound {
-            step_id: "step-1".to_string(),
+            step_id: StepId::new("step-1".to_string()),
         };
         let err3 = ExecuteNodeError::StepNotFound {
-            step_id: "step-2".to_string(),
+            step_id: StepId::new("step-2".to_string()),
         };
         assert_eq!(err1, err2);
         assert_ne!(err1, err3);
@@ -383,7 +385,7 @@ mod execute_node_error_tests {
         // Ensure all variants can be formatted without panicking
         let variants = [
             ExecuteNodeError::StepNotFound {
-                step_id: "test".to_string(),
+                step_id: StepId::new("test".to_string()),
             },
             ExecuteNodeError::InvalidTimeout {
                 value: 0,

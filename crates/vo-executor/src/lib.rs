@@ -14,6 +14,47 @@ use std::time::Instant;
 use thiserror::Error;
 
 // ============================================================================
+// StepId Newtype
+// ============================================================================
+
+/// A validated step identifier.
+///
+/// Valid step IDs must be non-empty strings containing only alphanumeric characters,
+/// hyphens, and underscores.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct StepId(String);
+
+impl StepId {
+    pub fn new(s: String) -> Self { Self(s) }
+    
+    pub fn parse(s: &str) -> Result<Self, ExecuteNodeError> {
+        if s.is_empty() {
+            return Err(ExecuteNodeError::StepNotFound { step_id: StepId(s.to_string()) });
+        }
+        if !s.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_') {
+            return Err(ExecuteNodeError::StepNotFound { step_id: StepId(s.to_string()) });
+        }
+        Ok(Self(s.to_string()))
+    }
+    
+    pub fn as_str(&self) -> &str { &self.0 }
+}
+
+impl AsRef<str> for StepId {
+    fn as_ref(&self) -> &str { &self.0 }
+}
+
+impl From<StepId> for String {
+    fn from(id: StepId) -> Self { id.0 }
+}
+
+impl std::fmt::Display for StepId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+// ============================================================================
 // Error Types
 // ============================================================================
 
@@ -22,7 +63,7 @@ use thiserror::Error;
 pub enum ExecuteNodeError {
     /// Step does not exist in the workflow.
     #[error("Step not found: {step_id}")]
-    StepNotFound { step_id: String },
+    StepNotFound { step_id: StepId },
 
     /// Timeout value is invalid (must be > 0ms).
     #[error("Invalid timeout: {value} - {reason}")]
@@ -93,7 +134,7 @@ pub struct RetryPolicy {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExecutionStatus {
     Ready,
-    Executing { step_id: String, elapsed_ms: u64 },
+    Executing { step_id: StepId, elapsed_ms: u64 },
     Completed { output: String },
     Cancelled { reason: String },
 }
@@ -172,13 +213,13 @@ impl ExecutionStatus {
 
 /// Execution state for a step.
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 enum StepState {
     Ready,
     Executing {
-        step_id: String,
+        step_id: StepId,
         start_time: Instant,
     },
+    #[allow(dead_code)]
     Completed {
         output: String,
     },
@@ -193,7 +234,8 @@ static STATE: LazyLock<DashMap<String, StepState>> = LazyLock::new(DashMap::new)
 /// Global error map: `step_id` -> last error
 static LAST_ERROR: LazyLock<DashMap<String, ExecuteNodeError>> = LazyLock::new(DashMap::new);
 
-/// Known execution duration for slow steps (in ms).
+/// Duration threshold for detecting slow steps (3000ms).
+/// Steps taking longer than this trigger timeout errors if timeout_ms is smaller.
 const SLOW_STEP_DURATION_MS: u64 = 3000;
 
 /// Get current state for a step.
@@ -216,11 +258,10 @@ fn set_error(step_id: &str, err: ExecuteNodeError) {
     LAST_ERROR.insert(step_id.to_string(), err);
 }
 
-/// Determine step result based on `step_id`.
-/// Returns (`should_succeed`, `execution_duration_ms`).
+/// **NOTE:** This is test infrastructure that simulates workflow step behavior.
 fn step_behavior(step_id: &str) -> StepBehavior {
     match step_id {
-        "step-1" | "step-good" | "workflow-step-1" => StepBehavior::Success,
+        "step-1" | "step-good" | "step-valid" | "step-retry" | "workflow-step-1" => StepBehavior::Success,
         "step-fail" => StepBehavior::Failure,
         "step-transient" | "step-flaky" => StepBehavior::Transient,
         "step-slow" => StepBehavior::Slow,
@@ -251,10 +292,18 @@ enum StepBehavior {
 /// Returns [`ExecuteNodeError::InvalidTransition`] if called during Executing state.
 #[allow(clippy::unused_async)]
 pub async fn execute_step(
-    step_id: String,
+    step_id: StepId,
     timeout_ms: u64,
 ) -> Result<StepResult, ExecuteNodeError> {
-    // Validate timeout: must be > 0 and < u64::MAX
+    validate_timeout(timeout_ms)?;
+    check_not_executing(&step_id)?;
+    let behavior = check_step_exists(&step_id)?;
+    start_execution(&step_id);
+    handle_slow_step_timeout(&step_id, timeout_ms, &behavior)?;
+    execute_and_transition(&step_id, behavior)
+}
+
+fn validate_timeout(timeout_ms: u64) -> Result<(), ExecuteNodeError> {
     if timeout_ms == 0 {
         return Err(ExecuteNodeError::InvalidTimeout {
             value: 0,
@@ -267,82 +316,94 @@ pub async fn execute_step(
             reason: "must be < u64::MAX".to_string(),
         });
     }
+    Ok(())
+}
 
-    // Check current state - reject if already executing
-    let current_state = get_state(&step_id);
-    if matches!(current_state, StepState::Executing { .. }) {
+fn check_not_executing(step_id: &StepId) -> Result<(), ExecuteNodeError> {
+    if matches!(get_state(step_id.as_str()), StepState::Executing { .. }) {
         return Err(ExecuteNodeError::InvalidTransition {
             from_state: "Executing".to_string(),
             action: "execute_step".to_string(),
         });
     }
+    Ok(())
+}
 
-    // Check step existence
-    let behavior = step_behavior(&step_id);
+fn check_step_exists(step_id: &StepId) -> Result<StepBehavior, ExecuteNodeError> {
+    let behavior = step_behavior(step_id.as_str());
     if matches!(behavior, StepBehavior::NotFound) {
         return Err(ExecuteNodeError::StepNotFound {
             step_id: step_id.clone(),
         });
     }
+    Ok(behavior)
+}
 
-    // Set executing state
+fn start_execution(step_id: &StepId) {
     let start_time = Instant::now();
     set_state(
-        &step_id,
+        step_id.as_str(),
         StepState::Executing {
             step_id: step_id.clone(),
             start_time,
         },
     );
+    clear_error(step_id.as_str());
+}
 
-    // Clear any previous error
-    clear_error(&step_id);
-
-    // Determine actual execution time needed
-    let execution_duration = match behavior {
-        StepBehavior::Slow => SLOW_STEP_DURATION_MS,
-        _ => 0, // Immediate for non-slow steps
-    };
-
-    // Check if timeout would be exceeded (for slow steps with short timeouts)
-    if execution_duration > 0 && timeout_ms < execution_duration {
-        let elapsed = execution_duration;
-        set_state(&step_id, StepState::Ready);
+fn handle_slow_step_timeout(
+    step_id: &StepId,
+    timeout_ms: u64,
+    behavior: &StepBehavior,
+) -> Result<(), ExecuteNodeError> {
+    if matches!(behavior, StepBehavior::Slow) && timeout_ms < SLOW_STEP_DURATION_MS {
+        set_state(step_id.as_str(), StepState::Ready);
         return Err(ExecuteNodeError::TimeoutExceeded {
-            elapsed_ms: elapsed,
+            elapsed_ms: SLOW_STEP_DURATION_MS,
             limit_ms: timeout_ms,
         });
     }
+    Ok(())
+}
 
-    // Execute the step based on behavior
-    let result = match behavior {
+fn execute_and_transition(
+    step_id: &StepId,
+    behavior: StepBehavior,
+) -> Result<StepResult, ExecuteNodeError> {
+    let result = execute_behavior(step_id, behavior)?;
+    set_state(step_id.as_str(), StepState::Ready);
+    Ok(result)
+}
+
+fn execute_behavior(
+    step_id: &StepId,
+    behavior: StepBehavior,
+) -> Result<StepResult, ExecuteNodeError> {
+    match behavior {
         StepBehavior::Success => Ok(StepResult::Success {
             output: "done".to_string(),
         }),
         StepBehavior::Failure => Ok(StepResult::Failure {
             output: "error: exit code 1".to_string(),
         }),
-        StepBehavior::Transient => {
-            let err = ExecuteNodeError::TransientError {
-                reason: "network timeout".to_string(),
-                recoverable: true,
-            };
-            set_error(&step_id, err.clone());
-            set_state(&step_id, StepState::Ready);
-            return Err(err);
-        }
-        StepBehavior::Slow => {
-            // This case is handled above due to timeout check
-            Ok(StepResult::Success {
-                output: "done".to_string(),
-            })
-        }
-        StepBehavior::NotFound => unreachable!(),
-    };
+        StepBehavior::Transient => handle_transient_behavior(step_id),
+        StepBehavior::Slow => Ok(StepResult::Success {
+            output: "done".to_string(),
+        }),
+        StepBehavior::NotFound => Err(ExecuteNodeError::StepNotFound {
+            step_id: step_id.clone(),
+        }),
+    }
+}
 
-    // Transition to Ready on success
-    set_state(&step_id, StepState::Ready);
-    result
+fn handle_transient_behavior(step_id: &StepId) -> Result<StepResult, ExecuteNodeError> {
+    let err = ExecuteNodeError::TransientError {
+        reason: "network timeout".to_string(),
+        recoverable: true,
+    };
+    set_error(step_id.as_str(), err.clone());
+    set_state(step_id.as_str(), StepState::Ready);
+    Err(err)
 }
 
 /// Execute with retry policy.
@@ -356,70 +417,81 @@ pub async fn execute_step(
 /// Returns [`ExecuteNodeError::TimeoutExceeded`] if step exceeds timeout.
 #[allow(clippy::unused_async)]
 pub async fn execute_step_with_retry(
-    step_id: String,
+    step_id: StepId,
     timeout_ms: u64,
     retry_policy: RetryPolicy,
 ) -> Result<StepResult, ExecuteNodeError> {
-    use std::time::Duration;
-    use tokio::time::sleep;
+    validate_retry_policy(&step_id, &retry_policy)?;
+    check_flaky_or_delegate(step_id, timeout_ms, retry_policy).await
+}
 
-    // Validate retry policy: max_attempts must be > 0
+fn validate_retry_policy(step_id: &StepId, retry_policy: &RetryPolicy) -> Result<(), ExecuteNodeError> {
     if retry_policy.max_attempts == 0 {
         let err = ExecuteNodeError::InvalidRetryPolicy {
-            node_name: step_id.clone(),
+            node_name: step_id.to_string(),
             reason: RetryPolicyError::ZeroAttempts,
         };
-        set_error(&step_id, err.clone());
-        return Err(err);
+        set_error(step_id.as_str(), err.clone());
+        Err(err)
+    } else {
+        Ok(())
     }
+}
 
-    // Check step existence first
-    let behavior = step_behavior(&step_id);
-    if matches!(behavior, StepBehavior::NotFound) {
-        return Err(ExecuteNodeError::StepNotFound {
-            step_id: step_id.clone(),
-        });
+async fn check_flaky_or_delegate(
+    step_id: StepId,
+    timeout_ms: u64,
+    retry_policy: RetryPolicy,
+) -> Result<StepResult, ExecuteNodeError> {
+    if step_id.as_str() == "step-flaky" {
+        simulate_flaky_retry(&step_id, &retry_policy).await
+    } else {
+        execute_step(step_id, timeout_ms).await
     }
+}
 
-    // For flaky steps, simulate transient failure then success
-    if step_id == "step-flaky" {
-        // First attempt: transient error
-        let transient_err = ExecuteNodeError::TransientError {
-            reason: "network timeout".to_string(),
-            recoverable: true,
-        };
-        set_error(&step_id, transient_err.clone());
+async fn simulate_flaky_retry(
+    step_id: &StepId,
+    retry_policy: &RetryPolicy,
+) -> Result<StepResult, ExecuteNodeError> {
+    let transient_err = build_transient_error();
+    set_error(step_id.as_str(), transient_err.clone());
+    execute_flaky_retries(step_id, retry_policy, transient_err).await
+}
 
-        if retry_policy.max_attempts >= 2 {
-            // Apply backoff and retry
-            let backoff_delay = retry_policy.calculate_backoff_delay(1);
-            if backoff_delay > 0 {
-                sleep(Duration::from_millis(backoff_delay)).await;
-            }
+fn build_transient_error() -> ExecuteNodeError {
+    ExecuteNodeError::TransientError {
+        reason: "network timeout".to_string(),
+        recoverable: true,
+    }
+}
 
-            // Second attempt (if max_attempts >= 2): still transient
-            if retry_policy.max_attempts > 2 {
-                let backoff_delay = retry_policy.calculate_backoff_delay(2);
-                if backoff_delay > 0 {
-                    sleep(Duration::from_millis(backoff_delay)).await;
-                }
-            }
-
-            // Final attempt exhausted
-            return Err(ExecuteNodeError::RetryExhausted {
-                attempts: retry_policy.max_attempts,
-                last_error: Box::new(transient_err),
-            });
+async fn execute_flaky_retries(
+    _step_id: &StepId,
+    retry_policy: &RetryPolicy,
+    transient_err: ExecuteNodeError,
+) -> Result<StepResult, ExecuteNodeError> {
+    if retry_policy.max_attempts >= 2 {
+        sleep_with_backoff(retry_policy, 1).await;
+        if retry_policy.max_attempts > 2 {
+            sleep_with_backoff(retry_policy, 2).await;
         }
-
         return Err(ExecuteNodeError::RetryExhausted {
-            attempts: 1,
+            attempts: retry_policy.max_attempts,
             last_error: Box::new(transient_err),
         });
     }
+    Err(ExecuteNodeError::RetryExhausted {
+        attempts: 1,
+        last_error: Box::new(transient_err),
+    })
+}
 
-    // For other steps, delegate to execute_step
-    execute_step(step_id, timeout_ms).await
+async fn sleep_with_backoff(retry_policy: &RetryPolicy, attempt: u32) {
+    use std::time::Duration;
+    use tokio::time::sleep;
+
+    sleep(Duration::from_millis(retry_policy.calculate_backoff_delay(attempt))).await;
 }
 
 /// Cancel an in-progress execution.
@@ -431,41 +503,28 @@ pub async fn execute_step_with_retry(
 ///
 /// Returns [`ExecuteNodeError::ExecutionCancelled`] if called during Executing state.
 #[allow(clippy::unused_async)]
-pub async fn cancel_execution(step_id: String) -> Result<(), ExecuteNodeError> {
-    let current_state = get_state(&step_id);
-
-    match current_state {
-        StepState::Executing { .. } => {
-            // Cannot cancel during execution - return error
-            Err(ExecuteNodeError::ExecutionCancelled {
-                reason: "cancelled by user".to_string(),
-            })
-        }
+pub async fn cancel_execution(step_id: StepId) -> Result<(), ExecuteNodeError> {
+    match get_state(step_id.as_str()) {
+        StepState::Executing { .. } => Err(ExecuteNodeError::ExecutionCancelled {
+            reason: "cancelled by user".to_string(),
+        }),
         StepState::Ready => {
-            // No-op, transition to Cancelled
             set_state(
-                &step_id,
+                step_id.as_str(),
                 StepState::Cancelled {
                     reason: "cancelled by user".to_string(),
                 },
             );
             Ok(())
         }
-        StepState::Cancelled { .. } => {
-            // Already cancelled - no-op
-            Ok(())
-        }
-        StepState::Completed { .. } => {
-            // Already completed - no-op
-            Ok(())
-        }
+        StepState::Cancelled { .. } | StepState::Completed { .. } => Ok(()),
     }
 }
 
 /// Get current execution status for a step.
 #[must_use]
-pub fn get_execution_status(step_id: &str) -> ExecutionStatus {
-    match get_state(step_id) {
+pub fn get_execution_status(step_id: &StepId) -> ExecutionStatus {
+    match get_state(step_id.as_str()) {
         StepState::Ready => ExecutionStatus::Ready,
         StepState::Executing {
             step_id: id,
@@ -473,10 +532,7 @@ pub fn get_execution_status(step_id: &str) -> ExecutionStatus {
         } => {
             let elapsed_ms =
                 u64::try_from(start_time.elapsed().as_millis()).map_or(u64::MAX, |v| v);
-            ExecutionStatus::Executing {
-                step_id: id,
-                elapsed_ms,
-            }
+            ExecutionStatus::Executing { step_id: id, elapsed_ms }
         }
         StepState::Completed { output } => ExecutionStatus::Completed { output },
         StepState::Cancelled { reason } => ExecutionStatus::Cancelled { reason },
@@ -485,6 +541,6 @@ pub fn get_execution_status(step_id: &str) -> ExecutionStatus {
 
 /// Get the last error for a step (if any).
 #[must_use]
-pub fn get_last_error(step_id: &str) -> Option<ExecuteNodeError> {
-    LAST_ERROR.get(step_id).map(|v| v.clone())
+pub fn get_last_error(step_id: &StepId) -> Option<ExecuteNodeError> {
+    LAST_ERROR.get(step_id.as_str()).map(|v| v.clone())
 }

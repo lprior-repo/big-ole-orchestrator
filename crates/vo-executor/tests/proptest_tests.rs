@@ -1,4 +1,4 @@
-//! Proptest invariants for vo-executor
+//! Proptest invariants for vel-k1t9
 //!
 //! These tests verify critical invariants using property-based testing:
 //! 1. RetryPolicy::new never panics
