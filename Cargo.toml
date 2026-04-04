@@ -11,8 +11,10 @@ members = [
     "crates/vo-actor",
     "crates/vo-core",
     "crates/vo-common",
-    "crates/vo-ipc", "crates/vo-sdk", "crates/vo-sdk-macros",
+    "crates/vo-ipc",
+    "crates/vo-sdk",
     "crates/vo-sdk-macros",
+    "crates/vo-executor",
     "vel-k1t9",
 ]
 

@@ -123,6 +123,27 @@ impl LifecycleState {
         )
     }
 
+    /// Map this flat state to its hierarchical superstate (ADR-039).
+    #[must_use]
+    pub fn superstate(&self) -> super::lifecycle_superstate::LifecycleSuperstate {
+        match self {
+            LifecycleState::Pending
+            | LifecycleState::RunningDecision
+            | LifecycleState::StepScheduled
+            | LifecycleState::StepExecuting => {
+                super::lifecycle_superstate::LifecycleSuperstate::Active
+            }
+            LifecycleState::WaitingForTimer => {
+                super::lifecycle_superstate::LifecycleSuperstate::Suspended
+            }
+            LifecycleState::Completed
+            | LifecycleState::Failed
+            | LifecycleState::Cancelled => {
+                super::lifecycle_superstate::LifecycleSuperstate::Terminal
+            }
+        }
+    }
+
     /// Get all valid transitions from a state
     #[must_use]
     pub fn get_valid_transitions(&self) -> Vec<TransitionEvent> {
