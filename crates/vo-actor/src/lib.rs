@@ -2363,7 +2363,7 @@ mod accept_resume_tests {
         let payload = SignalPayload::empty();
 
         let result = actor
-            .accept_and_resume(instance_id.clone(), wait_key, "sig-1".to_string(), payload)
+            .accept_and_resume(instance_id.clone(), wait_key, "sig-1".to_string(), payload);
 
         let outcome = result.unwrap();
         assert_eq!(outcome.accepted.instance_id, instance_id);
@@ -2377,7 +2377,7 @@ mod accept_resume_tests {
         let wait_key = WaitKey::parse("approval-v2").unwrap();
 
         let result = actor
-            .accept_and_resume(instance_id.clone(), wait_key, "sig-2".to_string(), SignalPayload::empty())
+            .accept_and_resume(instance_id.clone(), wait_key, "sig-2".to_string(), SignalPayload::empty());
 
         let outcome = result.unwrap();
         assert_eq!(outcome.accepted.instance_id, instance_id);
@@ -2391,7 +2391,7 @@ mod accept_resume_tests {
         let wait_key = WaitKey::parse("approval-v2").unwrap();
 
         let result = actor
-            .accept_and_resume(instance_id, wait_key, "sig-3".to_string(), SignalPayload::empty())
+            .accept_and_resume(instance_id, wait_key, "sig-3".to_string(), SignalPayload::empty());
 
         let outcome = result.unwrap();
         assert!(outcome.resumed.resumed_at >= outcome.accepted.accepted_at);
@@ -2406,7 +2406,7 @@ mod accept_resume_tests {
         let wait_key = WaitKey::parse("approval-v2").unwrap();
 
         let result = actor
-            .accept_and_resume(instance_id.clone(), wait_key, "sig-1".to_string(), SignalPayload::empty())
+            .accept_and_resume(instance_id.clone(), wait_key, "sig-1".to_string(), SignalPayload::empty());
 
         match result {
             Err(AcceptResumeError::InstanceActorNotFound { instance_id: _ }) => {}
@@ -2422,7 +2422,7 @@ mod accept_resume_tests {
         let wait_key = WaitKey::parse("approval-v2").unwrap();
 
         let result = actor
-            .accept_and_resume(instance_id.clone(), wait_key, "sig-1".to_string(), SignalPayload::empty())
+            .accept_and_resume(instance_id.clone(), wait_key, "sig-1".to_string(), SignalPayload::empty());
 
         match result {
             Err(AcceptResumeError::InvalidLifecycleState { instance_id: _, actual, expected }) => {
@@ -2440,7 +2440,7 @@ mod accept_resume_tests {
         let wait_key = WaitKey::parse("wrong-key").unwrap();
 
         let result = actor
-            .accept_and_resume(instance_id.clone(), wait_key, "mismatch-sig-1".to_string(), SignalPayload::empty())
+            .accept_and_resume(instance_id.clone(), wait_key, "mismatch-sig-1".to_string(), SignalPayload::empty());
 
         match result {
             Err(AcceptResumeError::WaitKeyMismatch {
@@ -2463,7 +2463,7 @@ mod accept_resume_tests {
         let big_payload = SignalPayload::new_unchecked(vec![0u8; 65537]);
 
         let result = actor
-            .accept_and_resume(instance_id.clone(), wait_key, "sig-1".to_string(), big_payload)
+            .accept_and_resume(instance_id.clone(), wait_key, "sig-1".to_string(), big_payload);
 
         match result {
             Err(AcceptResumeError::PayloadTooLarge {
@@ -2486,7 +2486,7 @@ mod accept_resume_tests {
         let wait_key = WaitKey::parse("approval-v2").unwrap();
 
         let result = actor
-            .accept_and_resume(instance_id.clone(), wait_key, "sig-1".to_string(), SignalPayload::empty())
+            .accept_and_resume(instance_id.clone(), wait_key, "sig-1".to_string(), SignalPayload::empty());
 
         match result {
             Err(AcceptResumeError::LockAcquisitionFailed {
@@ -2505,7 +2505,7 @@ mod accept_resume_tests {
         let wait_key = WaitKey::parse("approval-v2").unwrap();
 
         let result = actor
-            .accept_and_resume(instance_id.clone(), wait_key, "sig-1".to_string(), SignalPayload::empty())
+            .accept_and_resume(instance_id.clone(), wait_key, "sig-1".to_string(), SignalPayload::empty());
 
         match result {
             Err(AcceptResumeError::StorageError {
