@@ -12,7 +12,10 @@ pub mod master {
     pub struct OrchestratorConfig;
 }
 
-pub mod reanimator;
+pub mod instance_registry;
+
+#[cfg(test)]
+pub mod instance_registry_tests;
 pub mod timer_supervisor;
 pub mod timer_supervisor_tests;
 
