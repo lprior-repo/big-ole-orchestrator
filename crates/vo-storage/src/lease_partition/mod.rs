@@ -12,11 +12,19 @@ use vo_types::{FenceToken, InstanceId, LeaseRecord, StepId};
 
 #[cfg(all(test, feature = "proptest"))]
 mod proptests;
-#[cfg(all(test, not(feature = "proptest")))]
-mod tests;
-#[cfg(all(test, not(feature = "proptest")))]
-mod tests_integration;
-#[cfg(kani)]
+#[cfg(test)]
+mod tests_codec;
+#[cfg(test)]
+mod tests_integration_acquire;
+#[cfg(test)]
+mod tests_integration_expiry;
+#[cfg(test)]
+mod tests_integration_release;
+#[cfg(test)]
+mod tests_integration_stale;
+#[cfg(test)]
+mod tests_lease_entry;
+#[cfg(any(test, kani))]
 mod verification;
 
 // ---------------------------------------------------------------------------
@@ -42,6 +50,12 @@ pub enum LeaseStoreError {
     /// The fence token does not match (stale completion).
     StaleFence { expected: String, actual: String },
 
+    /// The fence-token space for this lease pair is exhausted.
+    FenceTokenExhausted {
+        instance_id: String,
+        step_id: String,
+    },
+
     /// Storage operation failed.
     Storage { reason: String },
 
@@ -66,6 +80,10 @@ impl fmt::Display for LeaseStoreError {
             Self::StaleFence { expected, actual } => {
                 write!(f, "stale fence: expected {expected}, got {actual}")
             }
+            Self::FenceTokenExhausted {
+                instance_id,
+                step_id,
+            } => write!(f, "fence token exhausted for {instance_id}::{step_id}"),
             Self::Storage { reason } => write!(f, "lease storage error: {reason}"),
             Self::Codec { reason } => write!(f, "lease codec error: {reason}"),
             Self::InvalidArgument => write!(f, "invalid lease argument"),
@@ -208,10 +226,10 @@ pub fn decode_lease_key(bytes: &[u8]) -> Result<(InstanceId, StepId), LeaseStore
 ///
 /// # Errors
 ///
-/// Returns `LeaseStoreError::Codec` if serialization fails.
+/// Returns `LeaseStoreError::Codec` if JSON serialization fails.
 pub fn encode_lease_entry(entry: &LeaseEntry) -> Result<Vec<u8>, LeaseStoreError> {
-    serde_json::to_vec(entry).map_err(|e| LeaseStoreError::Codec {
-        reason: e.to_string(),
+    serde_json::to_vec(entry).map_err(|error| LeaseStoreError::Codec {
+        reason: error.to_string(),
     })
 }
 
@@ -243,6 +261,7 @@ pub trait LeaseStore {
     ///
     /// Returns `LeaseStoreError::InvalidArgument` if `ttl_ms` is zero.
     /// Returns `LeaseStoreError::LeaseAlreadyHeld` if the lease is held.
+    /// Returns `LeaseStoreError::FenceTokenExhausted` if the per-pair token space is exhausted.
     /// Returns `LeaseStoreError::Storage` if the underlying storage fails.
     fn acquire(
         &self,

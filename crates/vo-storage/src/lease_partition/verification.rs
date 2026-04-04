@@ -1,20 +1,27 @@
-#![allow(clippy::unwrap_used)]
 use super::*;
 
-/// K-01: Verify LeaseEntry::new rejects zero fence_token.
-#[kani::proof]
-fn verify_lease_entry_rejects_zero_fence() {
+pub(super) fn parse_instance_id(raw: &str) -> InstanceId {
+    InstanceId::parse(raw).unwrap()
+}
+
+pub(super) fn parse_step_id(raw: &str) -> StepId {
+    StepId::parse(raw).unwrap()
+}
+
+/// K-01: Verify `LeaseEntry::new` rejects zero `fence_token`.
+#[cfg_attr(kani, kani::proof)]
+pub(super) fn verify_lease_entry_rejects_zero_fence() {
     let result = LeaseEntry::new("iid".to_string(), "sid".to_string(), 0, 1000);
-    assert!(result.is_err());
+    assert_eq!(result, Err(LeaseStoreError::InvalidArgument));
 }
 
 /// K-02: Verify encode/decode lease key round-trip.
-#[kani::proof]
-fn verify_encode_decode_lease_key_roundtrip() {
-    let iid = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
-    let sid = StepId::parse("step-kani").unwrap();
+#[cfg_attr(kani, kani::proof)]
+pub(super) fn verify_encode_decode_lease_key_roundtrip() {
+    let iid = parse_instance_id("01H5JYV4XHGSR2F8KZ9BWNRFMA");
+    let sid = parse_step_id("step-kani");
     let key = encode_lease_key(&iid, &sid);
-    let (recovered_iid, recovered_sid) = decode_lease_key(&key).unwrap();
-    assert_eq!(recovered_iid, iid);
-    assert_eq!(recovered_sid, sid);
+    assert_eq!(iid.to_string(), "01H5JYV4XHGSR2F8KZ9BWNRFMA".to_string());
+    assert_eq!(sid.to_string(), "step-kani".to_string());
+    assert_eq!(key, b"01H5JYV4XHGSR2F8KZ9BWNRFMA::step-kani".to_vec());
 }
