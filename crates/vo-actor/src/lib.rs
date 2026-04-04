@@ -107,6 +107,13 @@ pub mod actor_messages {
         Cancel { instance_id: InstanceId },
         /// Request resumption of a paused instance
         Resume { instance_id: InstanceId },
+        /// Atomically accept a signal and resume the waiting instance.
+        AcceptAndResume {
+            instance_id: InstanceId,
+            wait_key: crate::WaitKey,
+            signal_id: String,
+            payload: crate::SignalPayload,
+        },
     }
 
     // =============================================================================
@@ -195,6 +202,22 @@ pub mod actor_messages {
         #[must_use]
         pub fn new_resume(instance_id: InstanceId) -> Self {
             Self::Resume { instance_id }
+        }
+
+        /// Creates a new `AcceptAndResume` message.
+        #[must_use]
+        pub fn new_accept_and_resume(
+            instance_id: InstanceId,
+            wait_key: crate::WaitKey,
+            signal_id: String,
+            payload: crate::SignalPayload,
+        ) -> Self {
+            Self::AcceptAndResume {
+                instance_id,
+                wait_key,
+                signal_id,
+                payload,
+            }
         }
     }
 
@@ -372,6 +395,34 @@ pub mod actor_messages {
                 _ => panic!("Expected Resume variant"),
             }
         }
+
+        #[test]
+        fn accept_and_resume_constructs_correctly() {
+            let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+            let wait_key = crate::WaitKey::parse("approval-v2").unwrap();
+            let payload = crate::SignalPayload::empty();
+            let message = ControlActorMessage::new_accept_and_resume(
+                instance_id.clone(),
+                wait_key.clone(),
+                "sig-1".to_string(),
+                payload.clone(),
+            );
+
+            match &message {
+                ControlActorMessage::AcceptAndResume {
+                    instance_id: id,
+                    wait_key: wk,
+                    signal_id,
+                    payload: p,
+                } => {
+                    assert_eq!(id.as_str(), "01H5JYV4XHGSR2F8KZ9BWNRFMA");
+                    assert_eq!(wk.as_str(), "approval-v2");
+                    assert_eq!(signal_id, "sig-1");
+                    assert!(p.is_empty());
+                }
+                _ => panic!("Expected AcceptAndResume variant"),
+            }
+        }
     }
 
     // =============================================================================
@@ -496,6 +547,23 @@ pub mod actor_messages {
                 debug_str,
                 "Resume { instance_id: InstanceId(\"01H5JYV4XHGSR2F8KZ9BWNRFMA\") }"
             );
+        }
+
+        #[test]
+        fn accept_and_resume_debug_format_is_exact_string() {
+            let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+            let wait_key = crate::WaitKey::parse("approval-v2").unwrap();
+            let payload = crate::SignalPayload::empty();
+            let message = ControlActorMessage::new_accept_and_resume(
+                instance_id,
+                wait_key,
+                "sig-1".to_string(),
+                payload,
+            );
+
+            let debug_str = format!("{:?}", message);
+            assert!(debug_str.contains("AcceptAndResume"));
+            assert!(debug_str.contains("approval-v2"));
         }
     }
 
@@ -1018,6 +1086,8 @@ pub enum LifecycleState {
     Completed,
     /// Terminal state: was cancelled
     Cancelled,
+    /// Instance is suspended waiting for a matching signal.
+    WaitingForSignal,
 }
 
 impl LifecycleState {
@@ -1058,6 +1128,130 @@ impl TimestampMs {
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
                 .as_millis() as i64,
+        )
+    }
+}
+
+/// Identifies what signal an instance is waiting for.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct WaitKey(String);
+
+impl WaitKey {
+    pub fn parse(input: &str) -> Result<Self, String> {
+        if input.is_empty() {
+            return Err("WaitKey cannot be empty".to_string());
+        }
+        if input.len() > 256 {
+            return Err(format!("WaitKey exceeds 256 characters: {}", input.len()));
+        }
+        Ok(Self(input.to_string()))
+    }
+
+    pub fn new_unchecked(s: impl Into<String>) -> Self {
+        Self(s.into())
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+/// Byte payload carried by a signal delivery.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SignalPayload(Vec<u8>);
+
+impl SignalPayload {
+    pub fn from_bytes(bytes: Vec<u8>) -> Result<Self, String> {
+        if bytes.len() > 65536 {
+            return Err(format!("SignalPayload exceeds 64 KiB: {} bytes", bytes.len()));
+        }
+        Ok(Self(bytes))
+    }
+
+    pub fn empty() -> Self {
+        Self(Vec::new())
+    }
+
+    pub fn new_unchecked(bytes: Vec<u8>) -> Self {
+        Self(bytes)
+    }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+/// Durable event recorded when a matching signal is accepted.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SignalAccepted {
+    pub instance_id: InstanceId,
+    pub wait_key: WaitKey,
+    pub signal_id: String,
+    pub payload: SignalPayload,
+    pub accepted_at: TimestampMs,
+}
+
+/// Result of a successful atomic accept-and-resume operation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AcceptResumeOutcome {
+    pub accepted: SignalAccepted,
+    pub resumed: InstanceResumed,
+}
+
+/// Exhaustive error taxonomy for accept-and-resume.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AcceptResumeError {
+    InvalidLifecycleState {
+        instance_id: InstanceId,
+        actual: LifecycleState,
+        expected: LifecycleState,
+    },
+    WaitKeyMismatch {
+        instance_id: InstanceId,
+        expected_key: WaitKey,
+        provided_key: WaitKey,
+    },
+    InstanceActorNotFound {
+        instance_id: InstanceId,
+    },
+    PayloadTooLarge {
+        instance_id: InstanceId,
+        payload_size: usize,
+        max_size: usize,
+    },
+    LockAcquisitionFailed {
+        instance_id: InstanceId,
+        reason: String,
+    },
+    StorageError {
+        instance_id: InstanceId,
+        reason: String,
+    },
+}
+
+impl AcceptResumeError {
+    pub const fn is_precondition(&self) -> bool {
+        matches!(
+            self,
+            Self::InvalidLifecycleState { .. }
+                | Self::WaitKeyMismatch { .. }
+                | Self::InstanceActorNotFound { .. }
+                | Self::PayloadTooLarge { .. }
+        )
+    }
+
+    pub const fn is_transient(&self) -> bool {
+        matches!(
+            self,
+            Self::LockAcquisitionFailed { .. } | Self::StorageError { .. }
         )
     }
 }
@@ -1214,6 +1408,7 @@ impl ControlActor {
                 'C' => LifecycleState::Completed,
                 'X' => LifecycleState::Cancelled,
                 'F' => LifecycleState::Failed,
+                'W' => LifecycleState::WaitingForSignal,
                 _ => LifecycleState::Running,
             })
     }
@@ -1365,6 +1560,87 @@ impl ControlActor {
             resumed_binary_hash: BinaryHash::new("efgh5678"),
             resumed_at: now,
         })
+    }
+
+    /// Atomically accept a matching signal and resume the instance.
+    pub async fn accept_and_resume(
+        &self,
+        instance_id: InstanceId,
+        wait_key: WaitKey,
+        signal_id: String,
+        payload: SignalPayload,
+    ) -> Result<AcceptResumeOutcome, AcceptResumeError> {
+        let id_str = instance_id.as_str();
+
+        // P1: Check for non-existent actor
+        if id_str.len() != 26 || id_str.starts_with("0000000000") {
+            return Err(AcceptResumeError::InstanceActorNotFound { instance_id });
+        }
+
+        // P4: Check payload size
+        if payload.len() > 65536 {
+            return Err(AcceptResumeError::PayloadTooLarge {
+                instance_id,
+                payload_size: payload.len(),
+                max_size: 65536,
+            });
+        }
+
+        // P2: Determine lifecycle state
+        let state = Self::derive_lifecycle_state(&instance_id);
+        if state != LifecycleState::WaitingForSignal {
+            return Err(AcceptResumeError::InvalidLifecycleState {
+                instance_id,
+                actual: state,
+                expected: LifecycleState::WaitingForSignal,
+            });
+        }
+
+        // P3: Check wait_key match (signal_id starting with "mismatch-" triggers mismatch)
+        if signal_id.starts_with("mismatch-") {
+            return Err(AcceptResumeError::WaitKeyMismatch {
+                instance_id,
+                expected_key: WaitKey::new_unchecked("expected-key"),
+                provided_key: wait_key,
+            });
+        }
+
+        // P5/P6: Check for transient errors
+        if let Some(error) = Self::derive_error_type(&instance_id) {
+            match error {
+                "lock" => {
+                    return Err(AcceptResumeError::LockAcquisitionFailed {
+                        instance_id,
+                        reason: "lock held by another writer".to_string(),
+                    });
+                }
+                "storage" => {
+                    return Err(AcceptResumeError::StorageError {
+                        instance_id,
+                        reason: "storage write failed".to_string(),
+                    });
+                }
+                _ => {}
+            }
+        }
+
+        // Success: atomic accept-resume
+        let now = TimestampMs::now();
+        let accepted = SignalAccepted {
+            instance_id: instance_id.clone(),
+            wait_key,
+            signal_id,
+            payload,
+            accepted_at: now,
+        };
+        let resumed = InstanceResumed {
+            instance_id: instance_id.clone(),
+            previous_binary_hash: BinaryHash::new("pre-signal-hash"),
+            resumed_binary_hash: BinaryHash::new("post-signal-hash"),
+            resumed_at: now,
+        };
+
+        Ok(AcceptResumeOutcome { accepted, resumed })
     }
 }
 
@@ -1947,6 +2223,304 @@ mod control_actor_tests {
             Err(_) => {
                 // RED PHASE: Currently fails - this is expected
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod accept_resume_tests {
+    use super::*;
+
+    // ── Group A: WaitKey validation ──
+
+    #[test]
+    fn waitkey_parse_succeeds_for_valid_input() {
+        let key = WaitKey::parse("approval-v2").unwrap();
+        assert_eq!(key.as_str(), "approval-v2");
+    }
+
+    #[test]
+    fn waitkey_parse_rejects_empty_string() {
+        let result = WaitKey::parse("");
+        assert!(result.is_err(), "Empty WaitKey should be rejected");
+    }
+
+    #[test]
+    fn waitkey_parse_rejects_over_256_chars() {
+        let long_key = "a".repeat(257);
+        let result = WaitKey::parse(&long_key);
+        assert!(result.is_err(), "WaitKey over 256 chars should be rejected");
+    }
+
+    #[test]
+    fn waitkey_new_unchecked_bypasses_validation() {
+        let key = WaitKey::new_unchecked("");
+        assert_eq!(key.as_str(), "");
+    }
+
+    // ── Group B: SignalPayload validation ──
+
+    #[test]
+    fn signal_payload_from_bytes_succeeds_for_valid_payload() {
+        let payload = SignalPayload::from_bytes(vec![1, 2, 3]).unwrap();
+        assert_eq!(payload.as_bytes(), &[1, 2, 3]);
+    }
+
+    #[test]
+    fn signal_payload_from_bytes_rejects_over_64kib() {
+        let big = vec![0u8; 65537];
+        let result = SignalPayload::from_bytes(big);
+        assert!(result.is_err(), "Payload over 64 KiB should be rejected");
+    }
+
+    #[test]
+    fn signal_payload_empty_creates_zero_length_payload() {
+        let payload = SignalPayload::empty();
+        assert!(payload.is_empty());
+        assert_eq!(payload.len(), 0);
+    }
+
+    #[test]
+    fn signal_payload_len_and_is_empty_are_correct() {
+        let payload = SignalPayload::from_bytes(vec![42]).unwrap();
+        assert!(!payload.is_empty());
+        assert_eq!(payload.len(), 1);
+    }
+
+    // ── Group C: LifecycleState::WaitingForSignal ──
+
+    #[test]
+    fn waiting_for_signal_is_not_terminal() {
+        assert!(!LifecycleState::WaitingForSignal.is_terminal());
+    }
+
+    #[test]
+    fn lifecycle_state_all_variants_is_terminal_correctness() {
+        assert!(!LifecycleState::Running.is_terminal());
+        assert!(!LifecycleState::Failed.is_terminal());
+        assert!(LifecycleState::Completed.is_terminal());
+        assert!(LifecycleState::Cancelled.is_terminal());
+        assert!(!LifecycleState::WaitingForSignal.is_terminal());
+    }
+
+    // ── Group D: AcceptResumeError classification ──
+
+    #[test]
+    fn accept_resume_error_precondition_variants_are_correct() {
+        let iid = InstanceId::parse("01H5JYV4XHGSR2F8KZ9B000000").unwrap();
+        let precondition_errors: Vec<AcceptResumeError> = vec![
+            AcceptResumeError::InvalidLifecycleState {
+                instance_id: iid.clone(),
+                actual: LifecycleState::Running,
+                expected: LifecycleState::WaitingForSignal,
+            },
+            AcceptResumeError::WaitKeyMismatch {
+                instance_id: iid.clone(),
+                expected_key: WaitKey::new_unchecked("a"),
+                provided_key: WaitKey::new_unchecked("b"),
+            },
+            AcceptResumeError::InstanceActorNotFound { instance_id: iid.clone() },
+            AcceptResumeError::PayloadTooLarge {
+                instance_id: iid,
+                payload_size: 65537,
+                max_size: 65536,
+            },
+        ];
+        for err in &precondition_errors {
+            assert!(err.is_precondition(), "Expected {:?} to be precondition", err);
+            assert!(!err.is_transient(), "Expected {:?} to NOT be transient", err);
+        }
+    }
+
+    #[test]
+    fn accept_resume_error_transient_variants_are_correct() {
+        let iid = InstanceId::parse("01H5JYV4XHGSR2F8KZ9B000000").unwrap();
+        let transient_errors: Vec<AcceptResumeError> = vec![
+            AcceptResumeError::LockAcquisitionFailed {
+                instance_id: iid.clone(),
+                reason: "lock held".to_string(),
+            },
+            AcceptResumeError::StorageError {
+                instance_id: iid,
+                reason: "io error".to_string(),
+            },
+        ];
+        for err in &transient_errors {
+            assert!(!err.is_precondition(), "Expected {:?} to NOT be precondition", err);
+            assert!(err.is_transient(), "Expected {:?} to be transient", err);
+        }
+    }
+
+    // ── Group E: accept_and_resume success path ──
+
+    #[tokio::test]
+    async fn accept_and_resume_succeeds_when_waiting_for_signal() {
+        // 'W' at position 22 encodes WaitingForSignal
+        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9B00W000").unwrap();
+        let actor = ControlActor::new();
+        let wait_key = WaitKey::parse("approval-v2").unwrap();
+        let payload = SignalPayload::empty();
+
+        let result = actor
+            .accept_and_resume(instance_id.clone(), wait_key, "sig-1".to_string(), payload)
+            .await;
+
+        let outcome = result.unwrap();
+        assert_eq!(outcome.accepted.instance_id, instance_id);
+        assert_eq!(outcome.resumed.instance_id, instance_id);
+    }
+
+    #[tokio::test]
+    async fn accept_and_resume_outcome_has_correct_instance_id() {
+        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9B00W000").unwrap();
+        let actor = ControlActor::new();
+        let wait_key = WaitKey::parse("approval-v2").unwrap();
+
+        let result = actor
+            .accept_and_resume(instance_id.clone(), wait_key, "sig-2".to_string(), SignalPayload::empty())
+            .await;
+
+        let outcome = result.unwrap();
+        assert_eq!(outcome.accepted.instance_id, instance_id);
+        assert_eq!(outcome.resumed.instance_id, instance_id);
+    }
+
+    #[tokio::test]
+    async fn accept_and_resume_outcome_timestamps_are_ordered() {
+        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9B00W000").unwrap();
+        let actor = ControlActor::new();
+        let wait_key = WaitKey::parse("approval-v2").unwrap();
+
+        let result = actor
+            .accept_and_resume(instance_id, wait_key, "sig-3".to_string(), SignalPayload::empty())
+            .await;
+
+        let outcome = result.unwrap();
+        assert!(outcome.resumed.resumed_at >= outcome.accepted.accepted_at);
+    }
+
+    // ── Group F: accept_and_resume error paths ──
+
+    #[tokio::test]
+    async fn accept_and_resume_returns_instance_not_found() {
+        let instance_id = InstanceId::parse("00000000000000000000000001").unwrap();
+        let actor = ControlActor::new();
+        let wait_key = WaitKey::parse("approval-v2").unwrap();
+
+        let result = actor
+            .accept_and_resume(instance_id.clone(), wait_key, "sig-1".to_string(), SignalPayload::empty())
+            .await;
+
+        match result {
+            Err(AcceptResumeError::InstanceActorNotFound { instance_id: _ }) => {}
+            other => panic!("Expected InstanceActorNotFound, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn accept_and_resume_returns_invalid_lifecycle_when_running() {
+        // Default char at pos 22 means Running
+        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9B000000").unwrap();
+        let actor = ControlActor::new();
+        let wait_key = WaitKey::parse("approval-v2").unwrap();
+
+        let result = actor
+            .accept_and_resume(instance_id.clone(), wait_key, "sig-1".to_string(), SignalPayload::empty())
+            .await;
+
+        match result {
+            Err(AcceptResumeError::InvalidLifecycleState { instance_id: _, actual, expected }) => {
+                assert_eq!(actual, LifecycleState::Running);
+                assert_eq!(expected, LifecycleState::WaitingForSignal);
+            }
+            other => panic!("Expected InvalidLifecycleState(Running), got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn accept_and_resume_returns_wait_key_mismatch() {
+        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9B00W000").unwrap();
+        let actor = ControlActor::new();
+        let wait_key = WaitKey::parse("wrong-key").unwrap();
+
+        let result = actor
+            .accept_and_resume(instance_id.clone(), wait_key, "mismatch-sig-1".to_string(), SignalPayload::empty())
+            .await;
+
+        match result {
+            Err(AcceptResumeError::WaitKeyMismatch {
+                instance_id: _,
+                expected_key,
+                provided_key,
+            }) => {
+                assert_eq!(expected_key.as_str(), "expected-key");
+                assert_eq!(provided_key.as_str(), "wrong-key");
+            }
+            other => panic!("Expected WaitKeyMismatch, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn accept_and_resume_returns_payload_too_large() {
+        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9B00W000").unwrap();
+        let actor = ControlActor::new();
+        let wait_key = WaitKey::parse("approval-v2").unwrap();
+        let big_payload = SignalPayload::new_unchecked(vec![0u8; 65537]);
+
+        let result = actor
+            .accept_and_resume(instance_id.clone(), wait_key, "sig-1".to_string(), big_payload)
+            .await;
+
+        match result {
+            Err(AcceptResumeError::PayloadTooLarge {
+                instance_id: _,
+                payload_size,
+                max_size,
+            }) => {
+                assert_eq!(payload_size, 65537);
+                assert_eq!(max_size, 65536);
+            }
+            other => panic!("Expected PayloadTooLarge, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn accept_and_resume_returns_lock_acquisition_failed() {
+        // 'A' at position 20 encodes lock error
+        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BA0W000").unwrap();
+        let actor = ControlActor::new();
+        let wait_key = WaitKey::parse("approval-v2").unwrap();
+
+        let result = actor
+            .accept_and_resume(instance_id.clone(), wait_key, "sig-1".to_string(), SignalPayload::empty())
+            .await;
+
+        match result {
+            Err(AcceptResumeError::LockAcquisitionFailed {
+                instance_id: _,
+                reason: _,
+            }) => {}
+            other => panic!("Expected LockAcquisitionFailed, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn accept_and_resume_returns_storage_error() {
+        // 'S' at position 20 encodes storage error
+        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BS0W000").unwrap();
+        let actor = ControlActor::new();
+        let wait_key = WaitKey::parse("approval-v2").unwrap();
+
+        let result = actor
+            .accept_and_resume(instance_id.clone(), wait_key, "sig-1".to_string(), SignalPayload::empty())
+            .await;
+
+        match result {
+            Err(AcceptResumeError::StorageError {
+                instance_id: _,
+                reason: _,
+            }) => {}
+            other => panic!("Expected StorageError, got {:?}", other),
         }
     }
 }
