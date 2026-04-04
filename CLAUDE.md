@@ -66,12 +66,13 @@ bd update <id> --claim  # Claim work
 bd close <id>         # Complete work
 ```
 
-### Dolt Remote
+### Local-Only Mode
 
-The beads Dolt database syncs to DoltHub:
-- **Remote:** `doltremoteapi.dolthub.com/priorlewis43/wtf-engine-database`
-- **Web:** https://www.dolthub.com/repositories/priorlewis43/wtf-engine-database
-- **Config:** `sync.git-remote` in `.beads/config.yaml`
+This project uses **local-only beads** with JSONL persistence. No remote Dolt sync.
+
+- Beads are stored in `.beads/issues.jsonl`
+- Each session auto-commits to local Dolt history
+- No `bd dolt push` needed — beads persist locally
 
 ### Rules
 
@@ -91,7 +92,6 @@ The beads Dolt database syncs to DoltHub:
 4. **PUSH TO REMOTE** - This is MANDATORY:
    ```bash
    git pull --rebase
-   bd dolt push
    git push
    git status  # MUST show "up to date with origin"
    ```

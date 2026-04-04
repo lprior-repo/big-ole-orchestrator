@@ -9,31 +9,26 @@ bd ready              # Find available work
 bd show <id>          # View issue details
 bd update <id> --claim  # Claim work atomically
 bd close <id>         # Complete work
-bd dolt push          # Push beads data to remote
 ```
 
-## Dolt Remote
+## Local-Only Beads Setup
 
-The beads Dolt database syncs to DoltHub:
-- **Remote:** `doltremoteapi.dolthub.com/priorlewis43/wtf-engine-database`
-- **Web:** https://www.dolthub.com/repositories/priorlewis43/wtf-engine-database
-- **Config:** `sync.git-remote` in `.beads/config.yaml`
+This project uses **local-only beads** with JSONL persistence. No remote Dolt sync.
 
-## Dolt Troubleshooting
+- Beads are stored in `.beads/issues.jsonl`
+- Each session auto-commits to local Dolt history
+- No `bd dolt push` needed — beads persist locally
 
-If you encounter `dolt` server unreachable, corruption, or missing database issues during `bd` execution, use the following recovery pipeline to forcefully clean the environment and restore your local tracker context:
+## Local Beads Recovery
+
+If beads become corrupted or missing, reset the local tracker:
 
 ```bash
 bd dolt stop
-rm -rf .beads/wtf .beads/dolt
-mkdir -p .beads/dolt
-cd .beads/dolt
-dolt init
-dolt sql -q "CREATE DATABASE wtf;"
+rm -f .beads/issues.jsonl
+cd .beads/dolt && dolt init && dolt sql -q "CREATE DATABASE IF NOT EXISTS wtf;"
 cd ../..
 bd dolt start
-bd dolt remote add origin https://doltremoteapi.dolthub.com/priorlewis43/wtf-engine-database
-bd backup restore
 ```
 
 ## Non-Interactive Shell Commands
@@ -54,23 +49,6 @@ rm -rf directory            # NOT: rm -r directory
 cp -rf source dest          # NOT: cp -r source dest
 ```
 
-## Landing the Plane (Session Completion)
-
-**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
-
-**MANDATORY WORKFLOW:**
-
-1. **File issues for remaining work** - Create issues for anything that needs follow-up
-2. **Run quality gates** (if code changed) - `moon run :ci`
-3. **Update issue status** - Close finished work, update in-progress items
-4. **PUSH TO REMOTE** - This is MANDATORY:
-   ```bash
-   git pull --rebase
-   bd dolt push
-   git push
-   git status  # MUST show "up to date with origin"
-   ```
-
 <!-- BEGIN BEADS INTEGRATION v:1 profile:full hash:d4f96305 -->
 ## Issue Tracking with bd (beads)
 
@@ -82,6 +60,10 @@ cp -rf source dest          # NOT: cp -r source dest
 - Git-friendly: Dolt-powered version control with native sync
 - Agent-optimized: JSON output, ready work detection, discovered-from links
 - Prevents duplicate tracking systems and confusion
+
+### Local-Only Mode
+
+Beads persist locally in `.beads/issues.jsonl`. No remote sync required.
 
 ### Quick Start
 
@@ -138,11 +120,10 @@ bd close bd-42 --reason "Completed" --json
 
 ### Auto-Sync
 
-bd automatically syncs via Dolt:
+bd automatically syncs via local Dolt:
 
 - Each write auto-commits to Dolt history
-- Use `bd dolt push`/`bd dolt pull` for remote sync
-- No manual export/import needed!
+- No remote sync needed
 
 ### Important Rules
 
@@ -163,12 +144,11 @@ For more details, see README.md and docs/QUICKSTART.md.
 **MANDATORY WORKFLOW:**
 
 1. **File issues for remaining work** - Create issues for anything that needs follow-up
-2. **Run quality gates** (if code changed) - Tests, linters, builds
+2. **Run quality gates** (if code changed) - Tests, linters, builds via `moon run :ci`
 3. **Update issue status** - Close finished work, update in-progress items
 4. **PUSH TO REMOTE** - This is MANDATORY:
    ```bash
    git pull --rebase
-   bd dolt push
    git push
    git status  # MUST show "up to date with origin"
    ```
