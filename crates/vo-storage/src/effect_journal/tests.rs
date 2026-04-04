@@ -3,6 +3,7 @@ use super::*;
 use rstest::rstest;
 use serde_json::json;
 use std::collections::HashMap;
+use vo_types::{EffectIntent, EffectKind};
 
 // Helper: valid InstanceId for tests
 fn test_instance_id() -> InstanceId {

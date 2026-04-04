@@ -1,6 +1,7 @@
 #![allow(clippy::unwrap_used)]
 use super::*;
 use proptest::prelude::*;
+use vo_types::{EffectIntent, EffectKind};
 
 proptest! {
     /// INV-EJ-PROP-001: EffectId serde round-trip preserves equality.

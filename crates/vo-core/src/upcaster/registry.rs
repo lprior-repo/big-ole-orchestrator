@@ -92,7 +92,7 @@ impl UpcasterRegistry for UpcasterRegistryImpl {
     /// output that cannot be parsed as a valid envelope.
     fn upcast_envelope(&self, envelope: EventEnvelope) -> Result<EventEnvelope, UpcasterError> {
         // If already at or above max version, return unchanged
-        if envelope.version >= self.max_version {
+        if envelope.schema_version >= self.max_version {
             return Ok(envelope);
         }
 
@@ -101,7 +101,7 @@ impl UpcasterRegistry for UpcasterRegistryImpl {
             .lock()
             .map_err(|_| UpcasterError::UpcastingFailed("lock poisoned".to_string()))?;
 
-        let mut current_version = envelope.version;
+        let mut current_version = envelope.schema_version;
         let mut current_payload = envelope.payload.clone();
 
         // Track visited versions to detect cycles
@@ -194,7 +194,7 @@ impl UpcasterRegistry for UpcasterRegistryImpl {
         }
 
         Ok(EventEnvelope {
-            version: current_version,
+            schema_version: current_version,
             instance_id: envelope.instance_id,
             sequence: envelope.sequence,
             timestamp_ms: envelope.timestamp_ms,

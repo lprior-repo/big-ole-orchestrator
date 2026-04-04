@@ -11,6 +11,9 @@
 //! The failure message limit (1024) is enforced in **bytes**, not characters.
 //! A multibyte UTF-8 message may be rejected below 1024 chars if it exceeds 1024 bytes.
 
+pub mod dag;
+pub mod graph_args;
+pub mod node_handle;
 mod read;
 mod write;
 

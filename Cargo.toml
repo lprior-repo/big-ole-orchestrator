@@ -15,7 +15,6 @@ members = [
     "crates/vo-sdk",
     "crates/vo-sdk-macros",
     "crates/vo-executor",
-    "vel-k1t9",
 ]
 
 [workspace.package]

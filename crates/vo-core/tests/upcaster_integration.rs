@@ -209,12 +209,12 @@ impl UpcasterRegistry for TestUpcasterRegistry {
 
     fn upcast_envelope(&self, envelope: EventEnvelope) -> Result<EventEnvelope, UpcasterError> {
         // If already at max version, return unchanged
-        if envelope.version >= self.max_version {
+        if envelope.schema_version >= self.max_version {
             return Ok(envelope);
         }
 
         let upcasters = self.upcasters.lock().unwrap();
-        let mut current_version = envelope.version;
+        let mut current_version = envelope.schema_version;
         let mut current_payload = envelope.payload.clone();
 
         // Track visited versions to detect cycles
@@ -291,7 +291,7 @@ impl UpcasterRegistry for TestUpcasterRegistry {
         }
 
         Ok(EventEnvelope {
-            version: current_version,
+            schema_version: current_version,
             instance_id: envelope.instance_id,
             sequence: envelope.sequence,
             timestamp_ms: envelope.timestamp_ms,
@@ -485,7 +485,7 @@ fn registry_returns_error_when_no_upcaster_registered_for_version() {
 
     // No upcasters registered, try to upcast version 0
     let envelope = EventEnvelope {
-        version: 0,
+        schema_version: 0,
         instance_id: "test".to_string(),
         sequence: 1,
         timestamp_ms: 1000,
@@ -507,7 +507,7 @@ fn registry_applies_single_upcaster_when_version_gap_is_one() {
     registry.register(Version0To1Upcaster::new()).unwrap();
 
     let envelope = EventEnvelope {
-        version: 0,
+        schema_version: 0,
         instance_id: "test".to_string(),
         sequence: 1,
         timestamp_ms: 1000,
@@ -524,7 +524,10 @@ fn registry_applies_single_upcaster_when_version_gap_is_one() {
         result
     );
     let upcasted = result.unwrap();
-    assert_eq!(upcasted.version, 1, "version should be incremented to 1");
+    assert_eq!(
+        upcasted.schema_version, 1,
+        "version should be incremented to 1"
+    );
 }
 
 #[test]
@@ -533,7 +536,7 @@ fn registry_returns_envelope_unchanged_when_already_at_max_version() {
     registry.register(Version0To1Upcaster::new()).unwrap();
 
     let envelope = EventEnvelope {
-        version: MAX_SUPPORTED_VERSION, // 1
+        schema_version: MAX_SUPPORTED_VERSION, // 1
         instance_id: "test".to_string(),
         sequence: 1,
         timestamp_ms: 1000,
@@ -556,7 +559,7 @@ fn registry_short_circuits_chain_when_envelope_at_max_despite_registered_upcaste
 
     // Envelope already at MAX_VERSION
     let envelope = EventEnvelope {
-        version: MAX_SUPPORTED_VERSION,
+        schema_version: MAX_SUPPORTED_VERSION,
         instance_id: "test".to_string(),
         sequence: 1,
         timestamp_ms: 1000,
@@ -594,7 +597,7 @@ fn registry_returns_circular_chain_error_when_cycle_detected() {
     registry.register(CircularUpcasterB::new()).unwrap();
 
     let envelope = EventEnvelope {
-        version: 0,
+        schema_version: 0,
         instance_id: "test".to_string(),
         sequence: 1,
         timestamp_ms: 1000,
@@ -617,7 +620,7 @@ fn registry_propagates_event_envelope_error_when_upcaster_produces_invalid_envel
     registry.register(GarbageProducingUpcaster::new()).unwrap();
 
     let envelope = EventEnvelope {
-        version: 0,
+        schema_version: 0,
         instance_id: "test".to_string(),
         sequence: 1,
         timestamp_ms: 1000,
@@ -642,7 +645,7 @@ fn registry_preserves_envelope_fields_when_upcasting() {
     registry.register(Version0To1Upcaster::new()).unwrap();
 
     let envelope = EventEnvelope {
-        version: 0,
+        schema_version: 0,
         instance_id: "test-instance".to_string(),
         sequence: 42,
         timestamp_ms: 1234567890,
@@ -659,7 +662,7 @@ fn registry_preserves_envelope_fields_when_upcasting() {
         result
     );
     let upcasted = result.unwrap();
-    assert_eq!(upcasted.version, 1, "version should be incremented");
+    assert_eq!(upcasted.schema_version, 1, "version should be incremented");
     assert_eq!(upcasted.instance_id, envelope.instance_id);
     assert_eq!(upcasted.sequence, envelope.sequence);
     assert_eq!(upcasted.timestamp_ms, envelope.timestamp_ms);
@@ -688,7 +691,7 @@ fn builder_creates_functional_registry_that_can_register_and_upcast() {
 
     // Should be able to upcast
     let envelope = EventEnvelope {
-        version: 0,
+        schema_version: 0,
         instance_id: "test".to_string(),
         sequence: 1,
         timestamp_ms: 1000,
@@ -700,7 +703,10 @@ fn builder_creates_functional_registry_that_can_register_and_upcast() {
     let result = registry.upcast_envelope(envelope);
     assert!(result.is_ok(), "upcast should succeed: {:?}", result);
     let upcasted = result.unwrap();
-    assert_eq!(upcasted.version, 1, "version should be incremented to 1");
+    assert_eq!(
+        upcasted.schema_version, 1,
+        "version should be incremented to 1"
+    );
 }
 
 #[test]
@@ -708,7 +714,7 @@ fn registry_handles_empty_registry_gracefully() {
     let registry = create_test_registry();
 
     let envelope = EventEnvelope {
-        version: 0,
+        schema_version: 0,
         instance_id: "test".to_string(),
         sequence: 1,
         timestamp_ms: 1000,
@@ -734,7 +740,7 @@ fn upcast_envelope_through_full_workflow_when_envelope_enters_at_version_zero_an
     registry.register(Version0To1Upcaster::new()).unwrap();
 
     let envelope = EventEnvelope {
-        version: 0,
+        schema_version: 0,
         instance_id: "workflow-123".to_string(),
         sequence: 1,
         timestamp_ms: 1000000,
@@ -755,7 +761,10 @@ fn upcast_envelope_through_full_workflow_when_envelope_enters_at_version_zero_an
         result
     );
     let upcasted = result.unwrap();
-    assert_eq!(upcasted.version, 1, "version should be incremented to 1");
+    assert_eq!(
+        upcasted.schema_version, 1,
+        "version should be incremented to 1"
+    );
     assert_eq!(upcasted.instance_id, "workflow-123");
     assert_eq!(upcasted.sequence, 1);
 }
@@ -777,7 +786,7 @@ fn idempotent_registration_does_not_double_chain() {
 
     // Only one upcaster should be registered
     let envelope = EventEnvelope {
-        version: 0,
+        schema_version: 0,
         instance_id: "test".to_string(),
         sequence: 1,
         timestamp_ms: 1000,
@@ -789,7 +798,10 @@ fn idempotent_registration_does_not_double_chain() {
     let result = registry.upcast_envelope(envelope);
     assert!(result.is_ok(), "upcast should succeed: {:?}", result);
     let upcasted = result.unwrap();
-    assert_eq!(upcasted.version, 1, "version should be incremented to 1");
+    assert_eq!(
+        upcasted.schema_version, 1,
+        "version should be incremented to 1"
+    );
 }
 
 #[test]
@@ -801,7 +813,7 @@ fn envelope_metadata_preserved_through_multi_hop_upcast() {
     registry.register(Version0To1Upcaster::new()).unwrap();
 
     let envelope = EventEnvelope {
-        version: 0,
+        schema_version: 0,
         instance_id: "test".to_string(),
         sequence: 1,
         timestamp_ms: 1000,
@@ -812,7 +824,10 @@ fn envelope_metadata_preserved_through_multi_hop_upcast() {
     let result = registry.upcast_envelope(envelope.clone());
     assert!(result.is_ok(), "upcast should succeed: {:?}", result);
     let upcasted = result.unwrap();
-    assert_eq!(upcasted.version, 1, "version should be incremented to 1");
+    assert_eq!(
+        upcasted.schema_version, 1,
+        "version should be incremented to 1"
+    );
     assert_eq!(
         upcasted.metadata, envelope.metadata,
         "metadata should be preserved through upcast"

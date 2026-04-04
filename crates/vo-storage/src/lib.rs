@@ -18,6 +18,7 @@ pub mod purge;
 pub mod query;
 pub mod snapshots;
 pub mod status_store;
+pub mod key_encoding;
 pub mod timer_index;
 
 /// Appends an event to the storage backend.

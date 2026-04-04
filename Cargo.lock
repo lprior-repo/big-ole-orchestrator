@@ -620,19 +620,6 @@ dependencies = [
 
 [[package]]
 name = "dashmap"
-version = "5.5.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "978747c1d849a7d2ee5e8adc0159961c48fb7e5db2f06af6723b80123bb53856"
-dependencies = [
- "cfg-if",
- "hashbrown 0.14.5",
- "lock_api",
- "once_cell",
- "parking_lot_core",
-]
-
-[[package]]
-name = "dashmap"
 version = "6.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5041cc499144891f3790297212f32a74fb938e5136a14943f338ef9e0ae276cf"
@@ -807,7 +794,7 @@ checksum = "0b25ad44cd4360a0448a9b5a0a6f1c7a621101cca4578706d43c9a821418aebc"
 dependencies = [
  "byteorder",
  "byteview",
- "dashmap 6.1.0",
+ "dashmap",
  "log",
  "lsm-tree",
  "path-absolutize",
@@ -2029,7 +2016,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4a64ac8ba2e8d71b25c55ab7acafc481ae4c9175f3ee8f7c36b66c4cad369bb5"
 dependencies = [
  "bon",
- "dashmap 6.1.0",
+ "dashmap",
  "futures",
  "js-sys",
  "once_cell",
@@ -3362,18 +3349,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
 
 [[package]]
-name = "vel-k1t9"
-version = "0.1.0"
-dependencies = [
- "dashmap 5.5.3",
- "proptest",
- "serde",
- "serde_json",
- "thiserror",
- "tokio",
-]
-
-[[package]]
 name = "version_check"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3455,7 +3430,7 @@ version = "0.1.0"
 name = "vo-core"
 version = "0.1.0"
 dependencies = [
- "dashmap 6.1.0",
+ "dashmap",
  "fjall",
  "notify",
  "proptest",
@@ -3473,7 +3448,7 @@ dependencies = [
 name = "vo-executor"
 version = "0.1.0"
 dependencies = [
- "dashmap 5.5.3",
+ "dashmap",
  "proptest",
  "serde",
  "serde_json",

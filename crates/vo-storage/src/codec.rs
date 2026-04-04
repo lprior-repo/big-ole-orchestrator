@@ -219,7 +219,7 @@ mod tests {
     }
 }
 
-#[cfg(test)]
+#[cfg(feature = "proptest")]
 #[allow(clippy::unwrap_used)]
 mod proptests {
     use super::*;

@@ -63,7 +63,7 @@ pub enum Error {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct EventEnvelope {
-    pub version: u8,
+    pub schema_version: u8,
     pub instance_id: String,
     pub sequence: u64,
     pub timestamp_ms: u64,
@@ -131,7 +131,7 @@ impl EventEnvelope {
         }
 
         Ok(EventEnvelope {
-            version,
+            schema_version: version,
             instance_id,
             sequence,
             timestamp_ms,
@@ -142,7 +142,7 @@ impl EventEnvelope {
 
     #[must_use]
     pub fn is_supported(&self) -> bool {
-        self.version <= MAX_SUPPORTED_VERSION
+        self.schema_version <= MAX_SUPPORTED_VERSION
     }
 }
 
@@ -379,7 +379,7 @@ mod tests {
         let json = r#"{"version": 1, "instance_id": "wf-123", "sequence": 1, "timestamp_ms": 1000, "payload": {"type": "WorkflowStarted", "workflow_id": "wf-123"}, "metadata": {}}"#;
         let result = EventEnvelope::from_bytes(json.as_bytes());
         let envelope = result.unwrap();
-        assert_eq!(envelope.version, 1);
+        assert_eq!(envelope.schema_version, 1);
         assert_eq!(envelope.instance_id, "wf-123");
         assert_eq!(envelope.sequence, 1);
         assert_eq!(envelope.timestamp_ms, 1000);
@@ -518,7 +518,7 @@ mod tests {
     #[test]
     fn envelope_is_supported_returns_true_when_version_is_zero() {
         let envelope = EventEnvelope {
-            version: 0,
+            schema_version: 0,
             instance_id: "wf-123".to_string(),
             sequence: 1,
             timestamp_ms: 1000,
@@ -531,7 +531,7 @@ mod tests {
     #[test]
     fn envelope_is_supported_returns_true_when_version_is_one() {
         let envelope = EventEnvelope {
-            version: 1,
+            schema_version: 1,
             instance_id: "wf-123".to_string(),
             sequence: 1,
             timestamp_ms: 1000,
@@ -544,7 +544,7 @@ mod tests {
     #[test]
     fn envelope_is_supported_returns_false_when_version_is_two() {
         let envelope = EventEnvelope {
-            version: 2,
+            schema_version: 2,
             instance_id: "wf-123".to_string(),
             sequence: 1,
             timestamp_ms: 1000,
@@ -933,7 +933,7 @@ mod tests {
         let json = r#"{"version": 1, "instance_id": "wf-123", "sequence": 1, "timestamp_ms": 1000, "payload": {"type": "WorkflowStarted", "workflow_id": "wf-123", "binary_hash": "abc123", "version": 1}, "metadata": {}}"#;
         let result = decode_event(json.as_bytes());
         let (envelope, payload) = result.unwrap();
-        assert_eq!(envelope.version, 1);
+        assert_eq!(envelope.schema_version, 1);
         assert_eq!(envelope.instance_id, "wf-123");
         assert_eq!(envelope.sequence, 1);
         assert_eq!(envelope.timestamp_ms, 1000);
@@ -982,7 +982,7 @@ mod tests {
         let result = EventEnvelope::from_bytes(&bytes);
 
         let expected = EventEnvelope {
-            version,
+            schema_version: version,
             instance_id: instance_id.to_string(),
             sequence: seq,
             timestamp_ms: ts,
@@ -1001,7 +1001,7 @@ mod tests {
     #[case(5)]
     fn proptest_version_support_is_consistent_across_envelope_and_payload(#[case] version: u8) {
         let envelope = EventEnvelope {
-            version,
+            schema_version: version,
             instance_id: "wf-123".to_string(),
             sequence: 1,
             timestamp_ms: 1000,

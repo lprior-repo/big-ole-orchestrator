@@ -85,11 +85,11 @@ mod verification {
         }
 
         fn upcast_envelope(&self, envelope: EventEnvelope) -> Result<EventEnvelope, UpcasterError> {
-            if envelope.version >= self.max_version {
+            if envelope.schema_version >= self.max_version {
                 return Ok(envelope);
             }
 
-            let mut current_version = envelope.version;
+            let mut current_version = envelope.schema_version;
             let mut current_payload = envelope.payload.clone();
 
             loop {
@@ -136,7 +136,7 @@ mod verification {
             }
 
             Ok(EventEnvelope {
-                version: current_version,
+                schema_version: current_version,
                 instance_id: envelope.instance_id,
                 sequence: envelope.sequence,
                 timestamp_ms: envelope.timestamp_ms,
@@ -157,7 +157,7 @@ mod verification {
 
         // Create an arbitrary envelope with valid version
         let envelope = EventEnvelope {
-            version: kani::any(),
+            schema_version: kani::any(),
             instance_id: "test".to_string(),
             sequence: 1,
             timestamp_ms: 1000,
@@ -166,7 +166,7 @@ mod verification {
         };
 
         // Assume version is within valid range
-        kani::assume(envelope.version <= MAX_SUPPORTED_VERSION);
+        kani::assume(envelope.schema_version <= MAX_SUPPORTED_VERSION);
 
         // Execute upcast_envelope
         let result = registry.upcast_envelope(envelope.clone());
@@ -185,7 +185,7 @@ mod verification {
 
         // Create an envelope at exactly MAX_VERSION
         let envelope = EventEnvelope {
-            version: MAX_SUPPORTED_VERSION,
+            schema_version: MAX_SUPPORTED_VERSION,
             instance_id: kani::any(),
             sequence: kani::any(),
             timestamp_ms: kani::any(),
@@ -197,12 +197,12 @@ mod verification {
 
         // If at MAX_VERSION, result should be Ok with unchanged envelope
         assert_eq!(
-            result.as_ref().map(|e| e.version),
-            Ok(envelope.version),
+            result.as_ref().map(|e| e.schema_version),
+            Ok(envelope.schema_version),
             "envelope at max version should return unchanged"
         );
         let upcasted = result.unwrap();
-        assert_eq!(upcasted.version, envelope.version);
+        assert_eq!(upcasted.schema_version, envelope.schema_version);
     }
 }
 

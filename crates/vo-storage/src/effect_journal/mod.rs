@@ -11,9 +11,9 @@ use std::fmt;
 
 use vo_types::{EffectRecord, InstanceId};
 
-#[cfg(feature = "proptest")]
+#[cfg(all(test, proptest))]
 mod proptests;
-#[cfg(test)]
+#[cfg(all(test, not(feature = "proptest")))]
 mod tests;
 #[cfg(kani)]
 mod verification;

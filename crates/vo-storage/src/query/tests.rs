@@ -170,7 +170,7 @@ fn iterator_state_handles_u64_overflow_checked_add() {
 
 fn make_envelope(seq: u64) -> EventEnvelope {
     EventEnvelope {
-        version: 1,
+        schema_version: 1,
         instance_id: "test-instance".to_string(),
         sequence: seq,
         timestamp_ms: 1000,

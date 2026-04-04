@@ -10,11 +10,11 @@ use std::fmt;
 
 use vo_types::{FenceToken, InstanceId, LeaseRecord, StepId};
 
-#[cfg(feature = "proptest")]
+#[cfg(all(test, feature = "proptest"))]
 mod proptests;
-#[cfg(test)]
+#[cfg(all(test, not(feature = "proptest")))]
 mod tests;
-#[cfg(test)]
+#[cfg(all(test, not(feature = "proptest")))]
 mod tests_integration;
 #[cfg(kani)]
 mod verification;

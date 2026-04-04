@@ -4,9 +4,9 @@
   "hook_event_name": "PreToolUse",
   "tool_name": "Edit",
   "tool_input": {
-    "file_path": "/home/lewis/src/veloxide/crates/vo-types/src/lifecycle_superstate.rs",
-    "old_string": "#[cfg(test)]\nmod tests {\n    use super::*;\n    use serde_json;\n\n    #[test]\n    fn active_serializes_to_snake_case() {\n        let json = serde_json::to_string(&LifecycleSuperstate::Active).unwrap();\n        assert_eq!(json, \"\\\"active\\\"\");\n    }\n\n    #[test]\n    fn suspended_serializes_to_snake_case() {\n        let json = serde_json::to_string(&LifecycleSuperstate::Suspended).unwrap();\n        assert_eq!(json, \"\\\"suspended\\\"\");\n    }\n}",
-    "new_string": "#[cfg(test)]\nmod tests {\n    use super::*;\n    use serde_json;\n\n    #[test]\n    fn active_serializes_to_snake_case() {\n        let json = serde_json::to_string(&LifecycleSuperstate::Active).unwrap();\n        assert_eq!(json, \"\\\"active\\\"\");\n    }\n\n    // suspended test deferred — variant not yet TDD'd\n}",
+    "file_path": "/home/lewis/src/veloxide/crates/vo-storage/src/codec.rs",
+    "old_string": "#[cfg(test)]\n#[allow(clippy::unwrap_used)]\nmod proptests {",
+    "new_string": "#[cfg(feature = \"proptest\")]\n#[allow(clippy::unwrap_used)]\nmod proptests {",
     "replace_all": false
   }
 }

@@ -279,7 +279,7 @@ mod tests {
     /// Helper: create a valid EventEnvelope for testing.
     fn make_event(instance_id: &str, sequence: u64, payload: serde_json::Value) -> EventEnvelope {
         EventEnvelope {
-            version: 1,
+            schema_version: 1,
             instance_id: instance_id.to_string(),
             sequence,
             timestamp_ms: 1000 * sequence,
@@ -888,7 +888,7 @@ mod tests {
         let seq: u64 = kani::any();
         if seq >= 1 {
             let event = EventEnvelope {
-                version: 1,
+                schema_version: 1,
                 instance_id: "inst-1".to_string(),
                 sequence: seq,
                 timestamp_ms: 1000,
@@ -904,7 +904,7 @@ mod tests {
     fn kani_replay_determinism() {
         let engine = ReplayEngine::new();
         let event = EventEnvelope {
-            version: 1,
+            schema_version: 1,
             instance_id: "inst-1".to_string(),
             sequence: 1,
             timestamp_ms: 1000,
@@ -914,7 +914,7 @@ mod tests {
         let events = [event.clone(), event.clone()];
         // Clone is not available on EventEnvelope, so we construct two identical ones
         let r1 = engine.replay(&[EventEnvelope {
-            version: 1,
+            schema_version: 1,
             instance_id: "inst-1".to_string(),
             sequence: 1,
             timestamp_ms: 1000,
@@ -922,7 +922,7 @@ mod tests {
             metadata: json!({}),
         }]);
         let r2 = engine.replay(&[EventEnvelope {
-            version: 1,
+            schema_version: 1,
             instance_id: "inst-1".to_string(),
             sequence: 1,
             timestamp_ms: 1000,

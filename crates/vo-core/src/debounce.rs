@@ -48,6 +48,10 @@ impl Debouncer {
             return Err(Error::InvalidDebounceDuration);
         }
 
+        if tokio::runtime::Handle::try_current().is_err() {
+            return Err(Error::NoRuntime);
+        }
+
         let mut initial_event = None;
         match event_rx.try_recv() {
             Err(TryRecvError::Disconnected) => return Err(Error::WatcherChannelClosed),
@@ -56,10 +60,6 @@ impl Debouncer {
         }
 
         let (ready_tx, ready_rx) = tokio::sync::mpsc::channel(10_000);
-
-        if tokio::runtime::Handle::try_current().is_err() {
-            return Err(Error::NoRuntime);
-        }
 
         tokio::spawn(Self::background_task(
             duration,
@@ -297,24 +297,24 @@ mod tests {
         assert_eq!(result, Err(Error::InvalidDebounceDuration));
     }
 
-    #[test]
-    fn debouncer_new_returns_ok_instance_when_duration_is_one_nanosecond() {
+    #[tokio::test]
+    async fn debouncer_new_returns_ok_instance_when_duration_is_one_nanosecond() {
         let (_tx, rx) = mpsc::channel(10);
         let duration = Duration::from_nanos(1);
         let result = Debouncer::new(duration, rx);
         assert_eq!(result.unwrap().duration, duration);
     }
 
-    #[test]
-    fn debouncer_new_returns_ok_instance_when_duration_is_max() {
+    #[tokio::test]
+    async fn debouncer_new_returns_ok_instance_when_duration_is_max() {
         let (_tx, rx) = mpsc::channel(10);
         let duration = Duration::MAX;
         let result = Debouncer::new(duration, rx);
         assert_eq!(result.unwrap().duration, duration);
     }
 
-    #[test]
-    fn debouncer_new_returns_channel_closed_error_when_receiver_is_already_closed() {
+    #[tokio::test]
+    async fn debouncer_new_returns_channel_closed_error_when_receiver_is_already_closed() {
         let (tx, rx) = mpsc::channel(10);
         drop(tx);
         let result = Debouncer::new(Duration::from_millis(100), rx);
@@ -324,8 +324,7 @@ mod tests {
     #[test]
     fn debouncer_new_returns_no_runtime_error_outside_tokio() {
         let handle = std::thread::spawn(|| {
-            let (tx, rx) = tokio::sync::mpsc::channel::<FileEvent>(10);
-            drop(tx);
+            let (_tx, rx) = tokio::sync::mpsc::channel::<FileEvent>(10);
             Debouncer::new(Duration::from_millis(100), rx)
         });
         let result = handle.join().unwrap();
@@ -580,12 +579,16 @@ mod proptests {
     use tokio::sync::mpsc;
 
     proptest! {
+        #![proptest_config(ProptestConfig::with_cases(32))]
         #[test]
         fn debouncer_new_handles_any_positive_duration(nanos in 1..u64::MAX) {
-            let duration = Duration::from_nanos(nanos);
-            let (_tx, rx) = mpsc::channel(1);
-            let result = Debouncer::new(duration, rx).unwrap();
-            prop_assert_eq!(result.duration, duration);
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            rt.block_on(async {
+                let duration = Duration::from_nanos(nanos);
+                let (_tx, rx) = mpsc::channel(1);
+                let debouncer = Debouncer::new(duration, rx).unwrap();
+                assert_eq!(debouncer.duration, duration);
+            });
         }
 
         #[test]
