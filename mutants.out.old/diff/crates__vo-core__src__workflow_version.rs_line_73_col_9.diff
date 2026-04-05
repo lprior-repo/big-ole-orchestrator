@@ -1,0 +1,21 @@
+--- crates/vo-core/src/workflow_version.rs
++++ replace WorkflowVersion::schema_version -> u16 with 0
+@@ -65,17 +65,17 @@
+     #[must_use]
+     pub fn registered_at(&self) -> TimestampMs {
+         self.registered_at
+     }
+ 
+     /// Returns the schema version for serialization compatibility.
+     #[must_use]
+     pub const fn schema_version(&self) -> u16 {
+-        self.schema_version
++        0 /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ #[cfg(test)]
+ mod tests {
+     use vo_types::{BinaryHash, TimestampMs, WorkflowName};
+ 
+     #[test]

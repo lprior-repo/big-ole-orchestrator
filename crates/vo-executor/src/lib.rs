@@ -25,10 +25,17 @@ use thiserror::Error;
 pub struct StepId(String);
 
 impl StepId {
+    #[must_use]
     pub fn new(s: String) -> Self {
         Self(s)
     }
 
+    /// Parse a string into a `StepId`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ExecuteNodeError::StepNotFound`] if the string is empty
+    /// or contains invalid characters (only alphanumeric, hyphens, and underscores allowed).
     pub fn parse(s: &str) -> Result<Self, ExecuteNodeError> {
         if s.is_empty() {
             return Err(ExecuteNodeError::StepNotFound {
@@ -46,6 +53,7 @@ impl StepId {
         Ok(Self(s.to_string()))
     }
 
+    #[must_use]
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -250,7 +258,7 @@ static STATE: LazyLock<DashMap<String, StepState>> = LazyLock::new(DashMap::new)
 static LAST_ERROR: LazyLock<DashMap<String, ExecuteNodeError>> = LazyLock::new(DashMap::new);
 
 /// Duration threshold for detecting slow steps (3000ms).
-/// Steps taking longer than this trigger timeout errors if timeout_ms is smaller.
+/// Steps taking longer than this trigger timeout errors if `timeout_ms` is smaller.
 const SLOW_STEP_DURATION_MS: u64 = 3000;
 
 /// Get current state for a step.
@@ -286,7 +294,7 @@ fn step_behavior(step_id: &str) -> StepBehavior {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 enum StepBehavior {
     Success,
     Failure,
@@ -316,7 +324,7 @@ pub async fn execute_step(
     check_not_executing(&step_id)?;
     let behavior = check_step_exists(&step_id)?;
     start_execution(&step_id);
-    handle_slow_step_timeout(&step_id, timeout_ms, &behavior)?;
+    handle_slow_step_timeout(&step_id, timeout_ms, behavior)?;
     execute_and_transition(&step_id, behavior)
 }
 
@@ -371,7 +379,7 @@ fn start_execution(step_id: &StepId) {
 fn handle_slow_step_timeout(
     step_id: &StepId,
     timeout_ms: u64,
-    behavior: &StepBehavior,
+    behavior: StepBehavior,
 ) -> Result<(), ExecuteNodeError> {
     if matches!(behavior, StepBehavior::Slow) && timeout_ms < SLOW_STEP_DURATION_MS {
         set_state(step_id.as_str(), StepState::Ready);
@@ -397,16 +405,13 @@ fn execute_behavior(
     behavior: StepBehavior,
 ) -> Result<StepResult, ExecuteNodeError> {
     match behavior {
-        StepBehavior::Success => Ok(StepResult::Success {
+        StepBehavior::Success | StepBehavior::Slow => Ok(StepResult::Success {
             output: "done".to_string(),
         }),
         StepBehavior::Failure => Ok(StepResult::Failure {
             output: "error: exit code 1".to_string(),
         }),
         StepBehavior::Transient => handle_transient_behavior(step_id),
-        StepBehavior::Slow => Ok(StepResult::Success {
-            output: "done".to_string(),
-        }),
         StepBehavior::NotFound => Err(ExecuteNodeError::StepNotFound {
             step_id: step_id.clone(),
         }),

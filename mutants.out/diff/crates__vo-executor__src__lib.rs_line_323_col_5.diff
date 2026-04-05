@@ -1,0 +1,26 @@
+--- crates/vo-executor/src/lib.rs
++++ replace execute_step -> Result<StepResult, ExecuteNodeError> with Ok(Default::default())
+@@ -315,22 +315,17 @@
+ /// Returns [`ExecuteNodeError::StepNotFound`] if step does not exist.
+ /// Returns [`ExecuteNodeError::TimeoutExceeded`] if step exceeds timeout.
+ /// Returns [`ExecuteNodeError::InvalidTransition`] if called during Executing state.
+ #[allow(clippy::unused_async)]
+ pub async fn execute_step(
+     step_id: StepId,
+     timeout_ms: u64,
+ ) -> Result<StepResult, ExecuteNodeError> {
+-    validate_timeout(timeout_ms)?;
+-    check_not_executing(&step_id)?;
+-    let behavior = check_step_exists(&step_id)?;
+-    start_execution(&step_id);
+-    handle_slow_step_timeout(&step_id, timeout_ms, behavior)?;
+-    execute_and_transition(&step_id, behavior)
++    Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ fn validate_timeout(timeout_ms: u64) -> Result<(), ExecuteNodeError> {
+     if timeout_ms == 0 {
+         return Err(ExecuteNodeError::InvalidTimeout {
+             value: 0,
+             reason: "must be > 0ms".to_string(),
+         });

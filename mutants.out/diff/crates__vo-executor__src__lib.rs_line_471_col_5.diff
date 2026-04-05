@@ -1,0 +1,25 @@
+--- crates/vo-executor/src/lib.rs
++++ replace check_flaky_or_delegate -> Result<StepResult, ExecuteNodeError> with Ok(Default::default())
+@@ -463,21 +463,17 @@
+     }
+ }
+ 
+ async fn check_flaky_or_delegate(
+     step_id: StepId,
+     timeout_ms: u64,
+     retry_policy: RetryPolicy,
+ ) -> Result<StepResult, ExecuteNodeError> {
+-    if step_id.as_str() == "step-flaky" {
+-        simulate_flaky_retry(&step_id, &retry_policy).await
+-    } else {
+-        execute_step(step_id, timeout_ms).await
+-    }
++    Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ async fn simulate_flaky_retry(
+     step_id: &StepId,
+     retry_policy: &RetryPolicy,
+ ) -> Result<StepResult, ExecuteNodeError> {
+     let transient_err = build_transient_error();
+     set_error(step_id.as_str(), transient_err.clone());

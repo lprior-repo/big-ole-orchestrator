@@ -1,0 +1,28 @@
+--- crates/vo-executor/src/lib.rs
++++ replace handle_slow_step_timeout -> Result<(), ExecuteNodeError> with Ok(())
+@@ -376,24 +376,17 @@
+     clear_error(step_id.as_str());
+ }
+ 
+ fn handle_slow_step_timeout(
+     step_id: &StepId,
+     timeout_ms: u64,
+     behavior: StepBehavior,
+ ) -> Result<(), ExecuteNodeError> {
+-    if matches!(behavior, StepBehavior::Slow) && timeout_ms < SLOW_STEP_DURATION_MS {
+-        set_state(step_id.as_str(), StepState::Ready);
+-        return Err(ExecuteNodeError::TimeoutExceeded {
+-            elapsed_ms: SLOW_STEP_DURATION_MS,
+-            limit_ms: timeout_ms,
+-        });
+-    }
+-    Ok(())
++    Ok(()) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ fn execute_and_transition(
+     step_id: &StepId,
+     behavior: StepBehavior,
+ ) -> Result<StepResult, ExecuteNodeError> {
+     let result = execute_behavior(step_id, behavior)?;
+     set_state(step_id.as_str(), StepState::Ready);

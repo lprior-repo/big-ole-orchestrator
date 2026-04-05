@@ -1,0 +1,21 @@
+--- crates/vo-core/src/circuit_breaker/rate_limiter.rs
++++ replace > with < in check_rate_limit
+@@ -21,17 +21,17 @@
+     now: Instant,
+ ) -> Option<u64> {
+     let last = last_registration?;
+     let elapsed = now.duration_since(last);
+     if elapsed >= rate_limit_window {
+         None
+     } else {
+         let remaining = rate_limit_window.saturating_sub(elapsed);
+-        let secs = remaining.as_secs() + u64::from(remaining.subsec_nanos() > 0);
++        let secs = remaining.as_secs() + u64::from(remaining.subsec_nanos() < /* ~ changed by cargo-mutants ~ */ 0);
+         Some(secs)
+     }
+ }
+ 
+ /// Update the rate limiter with the current timestamp for a workflow.
+ ///
+ /// Returns the new timestamp for storage.
+ /// Called after a successful registration.

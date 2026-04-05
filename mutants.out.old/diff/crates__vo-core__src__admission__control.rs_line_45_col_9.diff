@@ -1,0 +1,21 @@
+--- crates/vo-core/src/admission/control.rs
++++ replace DedupeToken::as_str -> &str with ""
+@@ -37,17 +37,17 @@
+     /// Per INV-ADM-004: "DedupeToken is non-empty on construction".
+     #[must_use]
+     pub fn new(value: String) -> Self {
+         Self(value)
+     }
+ 
+     #[must_use]
+     pub fn as_str(&self) -> &str {
+-        &self.0
++        "" /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ impl fmt::Display for DedupeToken {
+     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+         f.write_str(&self.0)
+     }
+ }

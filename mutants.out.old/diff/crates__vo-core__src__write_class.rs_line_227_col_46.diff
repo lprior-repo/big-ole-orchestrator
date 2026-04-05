@@ -1,0 +1,21 @@
+--- crates/vo-core/src/write_class.rs
++++ replace += with -= in WriteBudget::reserve
+@@ -219,17 +219,17 @@
+         match class {
+             WriteClass::CriticalControlPlane => {
+                 *self.critical_used.borrow_mut() += size_bytes;
+             }
+             WriteClass::OperatorProjection => {
+                 *self.projection_used.borrow_mut() += size_bytes;
+             }
+             WriteClass::BulkBlob => {
+-                *self.blob_used.borrow_mut() += size_bytes;
++                *self.blob_used.borrow_mut() -= /* ~ changed by cargo-mutants ~ */ size_bytes;
+             }
+         }
+ 
+         Ok(())
+     }
+ }
+ 
+ // ─────────────────────────────────────────────────────────────────────────────

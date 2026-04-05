@@ -1,0 +1,21 @@
+--- crates/vo-core/src/circuit_breaker/failure_window.rs
++++ replace <= with > in record_failure_in_window
+@@ -73,17 +73,17 @@
+     if let Some(existing) = window.records.iter_mut().find(|r| r.hash == hash) {
+         // Duplicate: update timestamp only, no count change
+         existing.failed_at = failed_at;
+         // Re-sort to maintain ordering invariant
+         window.records.sort_by_key(|r| r.failed_at);
+     } else {
+         // Novel hash: insert in sorted position
+         let record = FailureRecord { hash, failed_at };
+-        let pos = window.records.partition_point(|r| r.failed_at <= failed_at);
++        let pos = window.records.partition_point(|r| r.failed_at > /* ~ changed by cargo-mutants ~ */ failed_at);
+         window.records.insert(pos, record);
+     }
+ 
+     window.records.len()
+ }
+ 
+ /// Count unique hashes in the failure window, evicting expired entries.
+ ///

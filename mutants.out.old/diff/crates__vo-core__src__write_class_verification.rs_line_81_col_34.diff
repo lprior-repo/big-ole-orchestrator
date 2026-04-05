@@ -1,0 +1,21 @@
+--- crates/vo-core/src/write_class_verification.rs
++++ replace >= with < in verification::verify_write_budget_reserve_no_overflow
+@@ -73,17 +73,17 @@
+         let result = budget.reserve(class, size);
+ 
+         // If reserve succeeded, verify the arithmetic is correct
+         if result.is_ok() {
+             let new_remaining = budget.remaining(class);
+ 
+             // The difference should equal the size
+             // But we need to be careful about u64 arithmetic
+-            if initial_remaining >= size {
++            if initial_remaining < /* ~ changed by cargo-mutants ~ */ size {
+                 assert_eq!(new_remaining, initial_remaining - size);
+             }
+         }
+     }
+ 
+     /// KANI-03: Verify never_drops() is correct for all variants.
+     ///
+     /// Property: never_drops() returns true only for CriticalControlPlane

@@ -1,0 +1,21 @@
+--- crates/vo-executor/src/lib.rs
++++ replace >= with < in execute_flaky_retries
+@@ -491,17 +491,17 @@
+     }
+ }
+ 
+ async fn execute_flaky_retries(
+     _step_id: &StepId,
+     retry_policy: &RetryPolicy,
+     transient_err: ExecuteNodeError,
+ ) -> Result<StepResult, ExecuteNodeError> {
+-    if retry_policy.max_attempts >= 2 {
++    if retry_policy.max_attempts < /* ~ changed by cargo-mutants ~ */ 2 {
+         sleep_with_backoff(retry_policy, 1).await;
+         if retry_policy.max_attempts > 2 {
+             sleep_with_backoff(retry_policy, 2).await;
+         }
+         return Err(ExecuteNodeError::RetryExhausted {
+             attempts: retry_policy.max_attempts,
+             last_error: Box::new(transient_err),
+         });

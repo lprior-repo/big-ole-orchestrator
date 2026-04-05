@@ -1,0 +1,21 @@
+--- crates/vo-core/src/workflow_version.rs
++++ replace WorkflowVersion::hash -> &BinaryHash with Box::leak(Box::new(Default::default()))
+@@ -54,17 +54,17 @@
+ 
+     #[must_use]
+     pub fn name(&self) -> &WorkflowName {
+         &self.name
+     }
+ 
+     #[must_use]
+     pub fn hash(&self) -> &BinaryHash {
+-        &self.hash
++        Box::leak(Box::new(Default::default())) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     #[must_use]
+     pub fn registered_at(&self) -> TimestampMs {
+         self.registered_at
+     }
+ 
+     /// Returns the schema version for serialization compatibility.

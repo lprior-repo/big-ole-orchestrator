@@ -1,0 +1,21 @@
+--- crates/vo-core/src/write_class_verification.rs
++++ replace / with * in verification::verify_write_budget_reserve_no_overflow
+@@ -59,17 +59,17 @@
+ 
+         // Get a symbolic class
+         let class: WriteClass = kani::any();
+ 
+         // Get a symbolic reserve size
+         let size: u64 = kani::any();
+ 
+         // Assume size is reasonable to avoid trivial overflows in the model
+-        kani::assume(size <= u64::MAX / 2);
++        kani::assume(size <= u64::MAX * /* ~ changed by cargo-mutants ~ */ 2);
+ 
+         // Get initial remaining
+         let initial_remaining = budget.remaining(class);
+ 
+         // Attempt reserve
+         let result = budget.reserve(class, size);
+ 
+         // If reserve succeeded, verify the arithmetic is correct

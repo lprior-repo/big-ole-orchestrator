@@ -1,0 +1,21 @@
+--- crates/vo-core/src/replay.rs
++++ replace - with + in ReplayEngine::replay
+@@ -158,17 +158,17 @@
+         for (i, event) in events.iter().enumerate() {
+             if i == 0 {
+                 expected_seq = event.sequence;
+                 continue;
+             }
+             if event.sequence == expected_seq {
+                 return Err(ReplayError::SequenceDuplicate {
+                     sequence: event.sequence,
+-                    first_at_index: i - 1,
++                    first_at_index: i + /* ~ changed by cargo-mutants ~ */ 1,
+                     second_at_index: i,
+                 });
+             }
+             if event.sequence != expected_seq + 1 {
+                 return Err(ReplayError::SequenceGap {
+                     expected: expected_seq + 1,
+                     actual: event.sequence,
+                     at_index: i,

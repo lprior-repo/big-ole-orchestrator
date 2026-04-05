@@ -1,0 +1,21 @@
+--- crates/vo-core/src/circuit_breaker/state.rs
++++ replace CircuitBreakerState::set_status with ()
+@@ -62,17 +62,17 @@
+     pub fn get_status(&self, workflow_name: &WorkflowName) -> RegistrationStatus {
+         self.statuses
+             .get(workflow_name)
+             .map_or(RegistrationStatus::Active, |s| *s)
+     }
+ 
+     /// Insert or update a workflow's registration status.
+     pub fn set_status(&self, workflow_name: WorkflowName, status: RegistrationStatus) {
+-        self.statuses.insert(workflow_name, status);
++        () /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// Read the last registration timestamp for rate limiting.
+     #[must_use]
+     pub fn get_rate_limit(&self, workflow_name: &WorkflowName) -> Option<Instant> {
+         self.rate_limiter.get(workflow_name).map(|r| *r)
+     }
+ 

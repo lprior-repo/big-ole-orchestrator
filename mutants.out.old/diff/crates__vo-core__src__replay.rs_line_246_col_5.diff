@@ -1,0 +1,42 @@
+--- crates/vo-core/src/replay.rs
++++ replace payload_to_transition -> Result<TransitionEvent, ReplayError> with Ok(Default::default())
+@@ -238,38 +238,17 @@
+     }
+ }
+ 
+ /// Map an `EventPayload` variant to a `TransitionEvent` for replay.
+ fn payload_to_transition(
+     payload: &EventPayload,
+     sequence: u64,
+ ) -> Result<TransitionEvent, ReplayError> {
+-    match payload {
+-        EventPayload::WorkflowStarted { .. } => Ok(TransitionEvent::AssignToNode),
+-        EventPayload::StepScheduled { .. } => Ok(TransitionEvent::StepScheduled),
+-        EventPayload::StepStarted { .. } => Ok(TransitionEvent::ExecuteStep),
+-        EventPayload::StepCompleted { .. } => Ok(TransitionEvent::CompleteStep),
+-        EventPayload::StepFailed { .. } => Ok(TransitionEvent::Fail),
+-        EventPayload::TimerSet { .. } => Ok(TransitionEvent::WaitForTimer),
+-        EventPayload::TimerFired { .. } => Ok(TransitionEvent::TimerFired),
+-        EventPayload::WorkflowCompleted { .. } => Ok(TransitionEvent::CompleteStep),
+-        EventPayload::WorkflowFailed { .. } => Ok(TransitionEvent::Fail),
+-        EventPayload::WorkflowCancelled { .. } => Ok(TransitionEvent::Cancel),
+-        EventPayload::CancelRequested { .. } => Ok(TransitionEvent::Cancel),
+-        EventPayload::InstanceResumed { .. } => Ok(TransitionEvent::InstanceResumed),
+-        EventPayload::ContinuedAsNew { .. } => {
+-            // Handled as a no-op in the replay loop before calling this function.
+-            // This branch should never be reached.
+-            Err(ReplayError::UnexpectedEventType {
+-                payload_type: "ContinuedAsNew".to_string(),
+-                sequence,
+-            })
+-        }
+-    }
++    Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ // ============================================================================
+ // Tests
+ // ============================================================================
+ 
+ #[cfg(test)]
+ mod tests {

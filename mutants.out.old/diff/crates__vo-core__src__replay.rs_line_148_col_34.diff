@@ -1,0 +1,21 @@
+--- crates/vo-core/src/replay.rs
++++ replace != with == in ReplayEngine::replay
+@@ -140,17 +140,17 @@
+                 final_state: None,
+                 events_applied: 0,
+             });
+         }
+ 
+         // Validate instance_id consistency
+         let expected_instance_id = &events[0].instance_id;
+         for event in events.iter().skip(1) {
+-            if event.instance_id != *expected_instance_id {
++            if event.instance_id == /* ~ changed by cargo-mutants ~ */ *expected_instance_id {
+                 return Err(ReplayError::InstanceMismatch {
+                     expected: expected_instance_id.clone(),
+                     actual: event.instance_id.clone(),
+                 });
+             }
+         }
+ 
+         // Validate sequence ordering

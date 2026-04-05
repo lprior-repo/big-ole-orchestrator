@@ -1,0 +1,21 @@
+--- crates/vo-core/src/debounce.rs
++++ replace <= with > in Debouncer::calculate_deadlines
+@@ -188,17 +188,17 @@
+     fn calculate_deadlines(
+         pending: &mut HashMap<PathBuf, Instant>,
+     ) -> (Vec<PathBuf>, Option<Instant>) {
+         let now = Instant::now();
+         let mut next_deadline = None;
+         let mut expired = Vec::new();
+ 
+         for (path, &deadline) in pending.iter() {
+-            if deadline <= now {
++            if deadline > /* ~ changed by cargo-mutants ~ */ now {
+                 expired.push(path.clone());
+             } else {
+                 next_deadline = Some(match next_deadline {
+                     Some(d) => std::cmp::min(d, deadline),
+                     None => deadline,
+                 });
+             }
+         }

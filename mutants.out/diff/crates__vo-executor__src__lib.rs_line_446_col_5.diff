@@ -1,0 +1,22 @@
+--- crates/vo-executor/src/lib.rs
++++ replace execute_step_with_retry -> Result<StepResult, ExecuteNodeError> with Ok(Default::default())
+@@ -438,18 +438,17 @@
+ /// Returns [`ExecuteNodeError::StepNotFound`] if step does not exist.
+ /// Returns [`ExecuteNodeError::TimeoutExceeded`] if step exceeds timeout.
+ #[allow(clippy::unused_async)]
+ pub async fn execute_step_with_retry(
+     step_id: StepId,
+     timeout_ms: u64,
+     retry_policy: RetryPolicy,
+ ) -> Result<StepResult, ExecuteNodeError> {
+-    validate_retry_policy(&step_id, &retry_policy)?;
+-    check_flaky_or_delegate(step_id, timeout_ms, retry_policy).await
++    Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ fn validate_retry_policy(
+     step_id: &StepId,
+     retry_policy: &RetryPolicy,
+ ) -> Result<(), ExecuteNodeError> {
+     if retry_policy.max_attempts == 0 {
+         let err = ExecuteNodeError::InvalidRetryPolicy {

@@ -274,7 +274,7 @@ fn retry_policy_error_nan_multiplier_debug_format_never_panics() {
 #[test]
 fn retry_policy_error_clone_never_panics() {
     // Verify that RetryPolicyError can be cloned without panic
-    let errors = vec![
+    let errors = [
         RetryPolicyError::ZeroAttempts,
         RetryPolicyError::InvalidMultiplier { got: 0.0 },
         RetryPolicyError::InvalidMultiplier { got: f64::NAN },
@@ -282,21 +282,15 @@ fn retry_policy_error_clone_never_panics() {
         RetryPolicyError::InvalidMultiplier { got: f64::INFINITY },
     ];
 
-    let cloned_errors: Vec<_> = errors.iter().cloned().collect();
-    assert_eq!(
-        errors
-            .iter()
-            .zip(cloned_errors.iter())
-            .all(|(err, cloned)| format!("{:?}", err) == format!("{:?}", cloned)),
-        true
-    );
-    assert_eq!(
-        errors
-            .iter()
-            .zip(cloned_errors.iter())
-            .all(|(err, cloned)| format!("{}", err) == format!("{}", cloned)),
-        true
-    );
+    let cloned_errors = errors.to_vec();
+    assert!(errors
+        .iter()
+        .zip(cloned_errors.iter())
+        .all(|(err, cloned)| format!("{:?}", err) == format!("{:?}", cloned)));
+    assert!(errors
+        .iter()
+        .zip(cloned_errors.iter())
+        .all(|(err, cloned)| format!("{}", err) == format!("{}", cloned)));
 }
 
 // ============================================================================
@@ -313,7 +307,7 @@ proptest! {
         let result = timeout_ms.checked_add(elapsed_ms).and_then(|sum| sum.checked_add(1));
         prop_assert!(result.is_some(), "Addition should not overflow");
         // Result is u64 which is always <= u64::MAX, just verify it's Some
-        let _ = result.unwrap();
+        result.unwrap();
     }
 }
 

@@ -1,0 +1,34 @@
+--- crates/vo-core/src/write_class_verification.rs
++++ replace verification::verify_write_class_tier_exhaustive with ()
+@@ -17,30 +17,17 @@
+     ///
+     /// Bound: All 3 enum variants covered
+     /// Rationale: Ensures tier() is truly exhaustive. If a new variant is
+     ///             added without updating tier(), Kani will detect the
+     ///             non-exhaustive match. Critical for ADR-032 compliance.
+     #[kani::proof]
+     fn verify_write_class_tier_exhaustive() {
+         // Get a symbolic WriteClass
+-        let wc: WriteClass = kani::any();
+-
+-        // Get the tier value - must not panic and must be in {1, 2, 3}
+-        let tier = wc.tier();
+-
+-        // Assert tier is valid (1, 2, or 3)
+-        assert!(tier >= 1 && tier <= 3);
+-
+-        // Assert specific values for each variant
+-        match wc {
+-            WriteClass::CriticalControlPlane => assert_eq!(tier, 1),
+-            WriteClass::OperatorProjection => assert_eq!(tier, 2),
+-            WriteClass::BulkBlob => assert_eq!(tier, 3),
+-        }
++        () /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// KANI-02: Verify WriteBudget reserve arithmetic never overflows.
+     ///
+     /// Property: For any WriteBudget with u64 limits, reserve() that returns
+     ///           Ok(()) implies remaining(class) == old_remaining - requested,
+     ///           and remaining >= 0
+     ///

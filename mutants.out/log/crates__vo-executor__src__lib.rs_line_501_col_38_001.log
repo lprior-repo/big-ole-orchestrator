@@ -1,0 +1,282 @@
+
+*** crates/vo-executor/src/lib.rs:501:38: replace > with < in execute_flaky_retries
+
+*** mutation diff:
+--- crates/vo-executor/src/lib.rs
++++ replace > with < in execute_flaky_retries
+@@ -493,17 +493,17 @@
+ 
+ async fn execute_flaky_retries(
+     _step_id: &StepId,
+     retry_policy: &RetryPolicy,
+     transient_err: ExecuteNodeError,
+ ) -> Result<StepResult, ExecuteNodeError> {
+     if retry_policy.max_attempts >= 2 {
+         sleep_with_backoff(retry_policy, 1).await;
+-        if retry_policy.max_attempts > 2 {
++        if retry_policy.max_attempts < /* ~ changed by cargo-mutants ~ */ 2 {
+             sleep_with_backoff(retry_policy, 2).await;
+         }
+         return Err(ExecuteNodeError::RetryExhausted {
+             attempts: retry_policy.max_attempts,
+             last_error: Box::new(transient_err),
+         });
+     }
+     Err(ExecuteNodeError::RetryExhausted {
+
+
+*** /home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo test --no-run --verbose --package=vo-executor@0.1.0
+       Fresh cfg-if v1.0.4
+       Fresh unicode-ident v1.0.24
+       Fresh libc v0.2.183
+       Fresh scopeguard v1.2.0
+       Fresh once_cell v1.21.4
+       Fresh smallvec v1.15.1
+       Fresh bitflags v2.11.0
+       Fresh linux-raw-sys v0.12.1
+       Fresh autocfg v1.5.0
+       Fresh fastrand v2.3.0
+       Fresh hashbrown v0.14.5
+       Fresh quick-error v1.2.3
+       Fresh fnv v1.0.7
+       Fresh bytes v1.11.1
+       Fresh pin-project-lite v0.2.17
+       Fresh bit-vec v0.8.0
+       Fresh unarray v0.1.4
+       Fresh regex-syntax v0.8.10
+       Fresh memchr v2.8.0
+       Fresh itoa v1.0.18
+       Fresh proc-macro2 v1.0.106
+       Fresh lock_api v0.4.14
+       Fresh errno v0.3.14
+       Fresh mio v1.2.0
+       Fresh socket2 v0.6.3
+       Fresh wait-timeout v0.2.1
+       Fresh bit-set v0.8.0
+       Fresh quote v1.0.45
+       Fresh getrandom v0.3.4
+       Fresh parking_lot_core v0.9.12
+       Fresh serde_core v1.0.228
+       Fresh zerocopy v0.8.47
+       Fresh rustix v1.1.4
+       Fresh getrandom v0.4.2
+       Fresh crossbeam-utils v0.8.21
+       Fresh signal-hook-registry v1.4.8
+       Fresh zmij v1.0.21
+       Fresh syn v2.0.117
+       Fresh rand_core v0.9.5
+       Fresh ppv-lite86 v0.2.21
+       Fresh tempfile v3.27.0
+       Fresh parking_lot v0.12.5
+       Fresh num-traits v0.2.19
+       Fresh dashmap v6.1.0
+       Fresh serde_json v1.0.149
+       Fresh tokio-macros v2.6.1
+       Fresh thiserror-impl v1.0.69
+       Fresh serde_derive v1.0.228
+       Fresh rand v0.9.2
+       Fresh rand_chacha v0.9.0
+       Fresh rusty-fork v0.3.1
+       Fresh rand_xorshift v0.4.0
+       Fresh serde v1.0.228
+       Fresh tokio v1.50.0
+       Fresh thiserror v1.0.69
+       Fresh proptest v1.11.0
+       Dirty vo-executor v0.1.0 (/tmp/cargo-mutants-veloxide-D5FnUO.tmp/crates/vo-executor): the file `crates/vo-executor/src/lib.rs` has changed (1775366243.139328355s, 1s after last build at 1775366242.206310113s)
+   Compiling vo-executor v0.1.0 (/tmp/cargo-mutants-veloxide-D5FnUO.tmp/crates/vo-executor)
+     Running `sccache /home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/rustc --crate-name vo_executor --edition=2021 crates/vo-executor/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --emit=dep-info,link -C embed-bitcode=no -C debuginfo=2 --test --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=99d9d14597389dd3 -C extra-filename=-89a82915341cc837 --out-dir /tmp/cargo-mutants-veloxide-D5FnUO.tmp/target/debug/deps -C incremental=/tmp/cargo-mutants-veloxide-D5FnUO.tmp/target/debug/incremental -L dependency=/tmp/cargo-mutants-veloxide-D5FnUO.tmp/target/debug/deps --extern dashmap=/tmp/cargo-mutants-veloxide-D5FnUO.tmp/target/debug/deps/libdashmap-e36d576a90134ef4.rlib --extern proptest=/tmp/cargo-mutants-veloxide-D5FnUO.tmp/target/debug/deps/libproptest-aec12d5eb058f8fe.rlib --extern serde=/tmp/cargo-mutants-veloxide-D5FnUO.tmp/target/debug/deps/libserde-19948d952cd4942b.rlib --extern serde_json=/tmp/cargo-mutants-veloxide-D5FnUO.tmp/target/debug/deps/libserde_json-f90686df57d7c4a6.rlib --extern thiserror=/tmp/cargo-mutants-veloxide-D5FnUO.tmp/target/debug/deps/libthiserror-df4a5b796341e916.rlib --extern tokio=/tmp/cargo-mutants-veloxide-D5FnUO.tmp/target/debug/deps/libtokio-da6bb745549c0aa6.rlib`
+     Running `sccache /home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/rustc --crate-name vo_executor --edition=2021 crates/vo-executor/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no -C debuginfo=2 --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=3902da75fd01f014 -C extra-filename=-c12ed10a4bf0b4cb --out-dir /tmp/cargo-mutants-veloxide-D5FnUO.tmp/target/debug/deps -C incremental=/tmp/cargo-mutants-veloxide-D5FnUO.tmp/target/debug/incremental -L dependency=/tmp/cargo-mutants-veloxide-D5FnUO.tmp/target/debug/deps --extern dashmap=/tmp/cargo-mutants-veloxide-D5FnUO.tmp/target/debug/deps/libdashmap-e36d576a90134ef4.rmeta --extern serde=/tmp/cargo-mutants-veloxide-D5FnUO.tmp/target/debug/deps/libserde-19948d952cd4942b.rmeta --extern thiserror=/tmp/cargo-mutants-veloxide-D5FnUO.tmp/target/debug/deps/libthiserror-df4a5b796341e916.rmeta --extern tokio=/tmp/cargo-mutants-veloxide-D5FnUO.tmp/target/debug/deps/libtokio-da6bb745549c0aa6.rmeta`
+     Running `sccache /home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/rustc --crate-name integration_tests --edition=2021 crates/vo-executor/tests/integration_tests.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --emit=dep-info,link -C embed-bitcode=no -C debuginfo=2 --test --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=a146aafa79df3cf0 -C extra-filename=-1696d476f255049b --out-dir /tmp/cargo-mutants-veloxide-D5FnUO.tmp/target/debug/deps -C incremental=/tmp/cargo-mutants-veloxide-D5FnUO.tmp/target/debug/incremental -L dependency=/tmp/cargo-mutants-veloxide-D5FnUO.tmp/target/debug/deps --extern dashmap=/tmp/cargo-mutants-veloxide-D5FnUO.tmp/target/debug/deps/libdashmap-e36d576a90134ef4.rlib --extern proptest=/tmp/cargo-mutants-veloxide-D5FnUO.tmp/target/debug/deps/libproptest-aec12d5eb058f8fe.rlib --extern serde=/tmp/cargo-mutants-veloxide-D5FnUO.tmp/target/debug/deps/libserde-19948d952cd4942b.rlib --extern serde_json=/tmp/cargo-mutants-veloxide-D5FnUO.tmp/target/debug/deps/libserde_json-f90686df57d7c4a6.rlib --extern thiserror=/tmp/cargo-mutants-veloxide-D5FnUO.tmp/target/debug/deps/libthiserror-df4a5b796341e916.rlib --extern tokio=/tmp/cargo-mutants-veloxide-D5FnUO.tmp/target/debug/deps/libtokio-da6bb745549c0aa6.rlib --extern vo_executor=/tmp/cargo-mutants-veloxide-D5FnUO.tmp/target/debug/deps/libvo_executor-c12ed10a4bf0b4cb.rlib`
+     Running `sccache /home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/rustc --crate-name execute_node_tests --edition=2021 crates/vo-executor/tests/execute_node_tests.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --emit=dep-info,link -C embed-bitcode=no -C debuginfo=2 --test --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=358be8046f93a5bd -C extra-filename=-298c5d2f5a5cd66d --out-dir /tmp/cargo-mutants-veloxide-D5FnUO.tmp/target/debug/deps -C incremental=/tmp/cargo-mutants-veloxide-D5FnUO.tmp/target/debug/incremental -L dependency=/tmp/cargo-mutants-veloxide-D5FnUO.tmp/target/debug/deps --extern dashmap=/tmp/cargo-mutants-veloxide-D5FnUO.tmp/target/debug/deps/libdashmap-e36d576a90134ef4.rlib --extern proptest=/tmp/cargo-mutants-veloxide-D5FnUO.tmp/target/debug/deps/libproptest-aec12d5eb058f8fe.rlib --extern serde=/tmp/cargo-mutants-veloxide-D5FnUO.tmp/target/debug/deps/libserde-19948d952cd4942b.rlib --extern serde_json=/tmp/cargo-mutants-veloxide-D5FnUO.tmp/target/debug/deps/libserde_json-f90686df57d7c4a6.rlib --extern thiserror=/tmp/cargo-mutants-veloxide-D5FnUO.tmp/target/debug/deps/libthiserror-df4a5b796341e916.rlib --extern tokio=/tmp/cargo-mutants-veloxide-D5FnUO.tmp/target/debug/deps/libtokio-da6bb745549c0aa6.rlib --extern vo_executor=/tmp/cargo-mutants-veloxide-D5FnUO.tmp/target/debug/deps/libvo_executor-c12ed10a4bf0b4cb.rlib`
+     Running `sccache /home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/rustc --crate-name proptest_tests --edition=2021 crates/vo-executor/tests/proptest_tests.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --emit=dep-info,link -C embed-bitcode=no -C debuginfo=2 --test --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=67e4037a9c9d3370 -C extra-filename=-43f5f4b28c2e2061 --out-dir /tmp/cargo-mutants-veloxide-D5FnUO.tmp/target/debug/deps -C incremental=/tmp/cargo-mutants-veloxide-D5FnUO.tmp/target/debug/incremental -L dependency=/tmp/cargo-mutants-veloxide-D5FnUO.tmp/target/debug/deps --extern dashmap=/tmp/cargo-mutants-veloxide-D5FnUO.tmp/target/debug/deps/libdashmap-e36d576a90134ef4.rlib --extern proptest=/tmp/cargo-mutants-veloxide-D5FnUO.tmp/target/debug/deps/libproptest-aec12d5eb058f8fe.rlib --extern serde=/tmp/cargo-mutants-veloxide-D5FnUO.tmp/target/debug/deps/libserde-19948d952cd4942b.rlib --extern serde_json=/tmp/cargo-mutants-veloxide-D5FnUO.tmp/target/debug/deps/libserde_json-f90686df57d7c4a6.rlib --extern thiserror=/tmp/cargo-mutants-veloxide-D5FnUO.tmp/target/debug/deps/libthiserror-df4a5b796341e916.rlib --extern tokio=/tmp/cargo-mutants-veloxide-D5FnUO.tmp/target/debug/deps/libtokio-da6bb745549c0aa6.rlib --extern vo_executor=/tmp/cargo-mutants-veloxide-D5FnUO.tmp/target/debug/deps/libvo_executor-c12ed10a4bf0b4cb.rlib`
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.34s
+  Executable `/tmp/cargo-mutants-veloxide-D5FnUO.tmp/target/debug/deps/vo_executor-89a82915341cc837`
+  Executable `/tmp/cargo-mutants-veloxide-D5FnUO.tmp/target/debug/deps/execute_node_tests-298c5d2f5a5cd66d`
+  Executable `/tmp/cargo-mutants-veloxide-D5FnUO.tmp/target/debug/deps/integration_tests-1696d476f255049b`
+  Executable `/tmp/cargo-mutants-veloxide-D5FnUO.tmp/target/debug/deps/proptest_tests-43f5f4b28c2e2061`
+
+*** result: Success
+
+*** /home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo test --verbose --package=vo-executor@0.1.0
+       Fresh cfg-if v1.0.4
+       Fresh unicode-ident v1.0.24
+       Fresh once_cell v1.21.4
+       Fresh smallvec v1.15.1
+       Fresh scopeguard v1.2.0
+       Fresh autocfg v1.5.0
+       Fresh linux-raw-sys v0.12.1
+       Fresh bitflags v2.11.0
+       Fresh fastrand v2.3.0
+       Fresh bytes v1.11.1
+       Fresh pin-project-lite v0.2.17
+       Fresh hashbrown v0.14.5
+       Fresh quick-error v1.2.3
+       Fresh bit-vec v0.8.0
+       Fresh fnv v1.0.7
+       Fresh memchr v2.8.0
+       Fresh regex-syntax v0.8.10
+       Fresh libc v0.2.183
+       Fresh lock_api v0.4.14
+       Fresh bit-set v0.8.0
+       Fresh itoa v1.0.18
+       Fresh unarray v0.1.4
+       Fresh proc-macro2 v1.0.106
+       Fresh getrandom v0.3.4
+       Fresh parking_lot_core v0.9.12
+       Fresh serde_core v1.0.228
+       Fresh rustix v1.1.4
+       Fresh getrandom v0.4.2
+       Fresh errno v0.3.14
+       Fresh zerocopy v0.8.47
+       Fresh socket2 v0.6.3
+       Fresh mio v1.2.0
+       Fresh crossbeam-utils v0.8.21
+       Fresh wait-timeout v0.2.1
+       Fresh zmij v1.0.21
+       Fresh quote v1.0.45
+       Fresh rand_core v0.9.5
+       Fresh tempfile v3.27.0
+       Fresh signal-hook-registry v1.4.8
+       Fresh parking_lot v0.12.5
+       Fresh ppv-lite86 v0.2.21
+       Fresh dashmap v6.1.0
+       Fresh num-traits v0.2.19
+       Fresh serde_json v1.0.149
+       Fresh syn v2.0.117
+       Fresh rand_xorshift v0.4.0
+       Fresh rand_chacha v0.9.0
+       Fresh rand v0.9.2
+       Fresh rusty-fork v0.3.1
+       Fresh tokio-macros v2.6.1
+       Fresh serde_derive v1.0.228
+       Fresh thiserror-impl v1.0.69
+       Fresh proptest v1.11.0
+       Fresh thiserror v1.0.69
+       Fresh serde v1.0.228
+       Fresh tokio v1.50.0
+       Fresh vo-executor v0.1.0 (/tmp/cargo-mutants-veloxide-D5FnUO.tmp/crates/vo-executor)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.05s
+     Running `/tmp/cargo-mutants-veloxide-D5FnUO.tmp/target/debug/deps/vo_executor-89a82915341cc837`
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running `/tmp/cargo-mutants-veloxide-D5FnUO.tmp/target/debug/deps/execute_node_tests-298c5d2f5a5cd66d`
+
+running 34 tests
+test execute_node_error_tests::execute_node_error_execution_cancelled_equality ... ok
+test execute_node_error_tests::execute_node_error_all_variants_display_without_panic ... ok
+test execute_node_error_tests::execute_node_error_invalid_transition_equality ... ok
+test execute_node_error_tests::execute_node_error_retry_exhausted_equality ... ok
+test execute_node_error_tests::execute_node_error_invalid_timeout_equality ... ok
+test execute_node_error_tests::execute_node_error_invalid_retry_policy_equality ... ok
+test execute_node_error_tests::execute_node_error_step_not_found_equality ... ok
+test execute_node_error_tests::execute_node_error_timeout_exceeded_equality ... ok
+test execute_node_error_tests::execute_node_error_transient_error_equality ... ok
+test execution_status_tests::execution_status_cancelled_contains_reason ... ok
+test execution_status_tests::execution_status_completed_contains_output ... ok
+test execution_status_tests::execution_status_executing_contains_step_id_and_elapsed ... ok
+test execution_status_tests::execution_status_is_ready_returns_false_for_cancelled ... ok
+test execution_status_tests::execution_status_is_ready_returns_false_for_completed ... ok
+test execution_status_tests::execution_status_is_ready_returns_true_for_ready ... ok
+test execution_status_tests::execution_status_is_ready_returns_false_for_executing ... ok
+test retry_policy_validation::retry_policy_accepts_arbitrary_backoff_ms ... ok
+test retry_policy_validation::retry_policy_accepts_maximum_valid_configuration ... ok
+test retry_policy_validation::retry_policy_accepts_minimum_valid_configuration ... ok
+test retry_policy_validation::retry_policy_accepts_multiplier_of_exactly_one ... ok
+test retry_policy_validation::retry_policy_preserves_fields_after_construction ... ok
+test retry_policy_validation::retry_policy_rejects_infinity_multiplier ... ok
+test retry_policy_validation::retry_policy_rejects_multiplier_below_one ... ok
+test retry_policy_validation::retry_policy_rejects_multiplier_of_zero ... ok
+test retry_policy_validation::retry_policy_rejects_nan_multiplier ... ok
+test retry_policy_validation::retry_policy_rejects_negative_multiplier ... ok
+test retry_policy_validation::retry_policy_rejects_subnormal_multiplier ... ok
+test retry_policy_validation::retry_policy_rejects_zero_max_attempts ... ok
+test static_analysis::placeholder_clippy_check ... ok
+test static_analysis::placeholder_deny_check ... ok
+test step_result_tests::step_result_is_success_returns_false_for_failure_variant ... ok
+test step_result_tests::step_result_failure_contains_output ... ok
+test step_result_tests::step_result_is_success_returns_true_for_success_variant ... ok
+test step_result_tests::step_result_success_contains_output ... ok
+
+test result: ok. 34 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running `/tmp/cargo-mutants-veloxide-D5FnUO.tmp/target/debug/deps/integration_tests-1696d476f255049b`
+
+running 51 tests
+test integration_tests::execute_step_rejects_max_u64_timeout ... ok
+test integration_tests::execute_node_error_display_formats_correctly ... ok
+test integration_tests::execute_step_rejects_zero_timeout ... ok
+test integration_tests::execute_step_not_found_for_unknown_step ... ok
+test integration_tests::cancel_execution_returns_cancelled_error_for_already_cancelled ... ok
+test integration_tests::cancel_execution_returns_ok_for_ready_state ... ok
+test integration_tests::execute_step_returns_transient_error_for_step_transient ... ok
+test integration_tests::execute_step_timeout_for_slow_step ... ok
+test integration_tests::execute_step_on_already_executing_step_returns_invalid_transition ... ok
+test integration_tests::execute_step_failure_for_step_fail ... ok
+test integration_tests::execute_step_twice_in_sequence_succeeds ... ok
+test integration_tests::execute_step_with_retry_handles_flaky_step_with_1_attempt ... ok
+test integration_tests::execute_step_with_retry_timeout_exceeded ... ok
+test integration_tests::execute_step_success_for_step_1 ... ok
+test integration_tests::execute_step_with_retry_success ... ok
+test integration_tests::execute_step_with_retry_step_not_found ... ok
+test integration_tests::execute_step_with_retry_success_for_non_flaky_step ... ok
+test integration_tests::execution_status_is_ready_returns_true_for_ready ... ok
+test integration_tests::execute_step_with_retry_rejects_invalid_policy_zero_attempts ... ok
+test integration_tests::execution_status_debug_format ... ok
+test integration_tests::execution_status_is_ready_returns_false_for_executing ... ok
+test integration_tests::get_execution_status_returns_cancelled_after_cancel ... ok
+test integration_tests::execution_status_is_executing_during_step_execution ... ok
+test integration_tests::get_execution_status_returns_completed_after_successful_execution ... ok
+test integration_tests::get_execution_status_returns_executing_during_step_execution ... ok
+test integration_tests::get_last_error_returns_error_after_transient_failure ... ok
+test integration_tests::get_execution_status_returns_ready ... ok
+test integration_tests::get_last_error_returns_none ... ok
+test integration_tests::get_last_error_returns_none_after_error_is_cleared ... ok
+test integration_tests::retry_policy_calculate_backoff_delay_returns_expected_values ... ok
+test integration_tests::retry_policy_calculate_backoff_delay_with_large_multiplier ... ok
+test integration_tests::retry_policy_clone_works ... ok
+test integration_tests::retry_policy_calculate_backoff_delay_with_zero_backoff ... ok
+test integration_tests::retry_policy_error_display_formats_correctly ... ok
+test integration_tests::slow_step_timeout_boundary_exactly_at_threshold ... ok
+test integration_tests::slow_step_with_sufficient_timeout_does_not_timeout ... ok
+test integration_tests::step_id_display_trait_works ... ok
+test integration_tests::step_id_as_ref_works ... ok
+test integration_tests::step_id_from_trait_works ... ok
+test integration_tests::step_id_parse_accepts_valid_id ... ok
+test integration_tests::step_id_parse_rejects_empty_string ... ok
+test integration_tests::step_id_parse_rejects_invalid_characters ... ok
+test integration_tests::step_result_is_success_returns_false_for_failure ... ok
+test integration_tests::step_result_is_success_returns_true_for_success ... ok
+test integration_tests::step_result_debug_format ... ok
+test integration_tests::transient_error_is_not_persisted_across_different_steps ... ok
+test integration_tests::execute_step_with_retry_handles_flaky_step_with_2_attempts ... ok
+test integration_tests::execute_step_with_retry_handles_flaky_step_with_3_attempts ... ok
+test integration_tests::execute_step_with_retry_verifies_one_sleep_for_max_attempts_2 ... ok
+test integration_tests::execute_step_with_retry_verifies_two_sleeps_for_max_attempts_3 ... FAILED
+test integration_tests::execute_step_with_retry_verifies_backoff_timing ... FAILED
+
+failures:
+
+---- integration_tests::execute_step_with_retry_verifies_two_sleeps_for_max_attempts_3 stdout ----
+
+thread 'integration_tests::execute_step_with_retry_verifies_two_sleeps_for_max_attempts_3' (761317) panicked at crates/vo-executor/tests/integration_tests.rs:731:9:
+Expected at least ~300ms of backoff sleep (2 sleeps) for max_attempts=3, got 101ms. If `>` was changed to `==`, only one sleep (100ms) would occur.
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- integration_tests::execute_step_with_retry_verifies_backoff_timing stdout ----
+
+thread 'integration_tests::execute_step_with_retry_verifies_backoff_timing' (761315) panicked at crates/vo-executor/tests/integration_tests.rs:809:9:
+Expected ~450ms of backoff sleep for exponential backoff (150ms * 2^0 + 150ms * 2^1), got 151ms. If sleep_with_backoff was deleted, elapsed would be ~0ms.
+
+
+failures:
+    integration_tests::execute_step_with_retry_verifies_backoff_timing
+    integration_tests::execute_step_with_retry_verifies_two_sleeps_for_max_attempts_3
+
+test result: FAILED. 49 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.15s
+
+error: test failed, to rerun pass `-p vo-executor --test integration_tests`
+
+*** result: Failure(101)

@@ -1,0 +1,23 @@
+--- crates/vo-executor/src/lib.rs
++++ replace simulate_flaky_retry -> Result<StepResult, ExecuteNodeError> with Ok(Default::default())
+@@ -474,19 +474,17 @@
+         execute_step(step_id, timeout_ms).await
+     }
+ }
+ 
+ async fn simulate_flaky_retry(
+     step_id: &StepId,
+     retry_policy: &RetryPolicy,
+ ) -> Result<StepResult, ExecuteNodeError> {
+-    let transient_err = build_transient_error();
+-    set_error(step_id.as_str(), transient_err.clone());
+-    execute_flaky_retries(step_id, retry_policy, transient_err).await
++    Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ fn build_transient_error() -> ExecuteNodeError {
+     ExecuteNodeError::TransientError {
+         reason: "network timeout".to_string(),
+         recoverable: true,
+     }
+ }

@@ -1,0 +1,43 @@
+--- crates/vo-core/src/write_class.rs
++++ replace WriteBudget::reserve -> Result<(), Error> with Ok(())
+@@ -201,39 +201,17 @@
+     /// # Arguments
+     /// * `class` - The write class
+     /// * `size_bytes` - The size of the write in bytes
+     ///
+     /// # Errors
+     /// Returns `Err(Error::BudgetExceeded)` if the write would exceed
+     /// the available budget for that class.
+     pub fn reserve(&self, class: WriteClass, size_bytes: u64) -> Result<(), Error> {
+-        let remaining = self.remaining(class);
+-        if remaining < size_bytes {
+-            return Err(Error::BudgetExceeded {
+-                class,
+-                requested: size_bytes,
+-                available: remaining,
+-            });
+-        }
+-
+-        // Mutate internal state via RefCell
+-        match class {
+-            WriteClass::CriticalControlPlane => {
+-                *self.critical_used.borrow_mut() += size_bytes;
+-            }
+-            WriteClass::OperatorProjection => {
+-                *self.projection_used.borrow_mut() += size_bytes;
+-            }
+-            WriteClass::BulkBlob => {
+-                *self.blob_used.borrow_mut() += size_bytes;
+-            }
+-        }
+-
+-        Ok(())
++        Ok(()) /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ // ─────────────────────────────────────────────────────────────────────────────
+ // Unit Tests
+ // ─────────────────────────────────────────────────────────────────────────────
+ 
+ #[cfg(test)]

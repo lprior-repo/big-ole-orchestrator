@@ -14,7 +14,11 @@ use vo_types::{DedupeKey, InstanceId};
 #[cfg(all(test, feature = "proptest"))]
 mod proptests;
 #[cfg(test)]
-mod red_queen_tests;
+mod red_queen_constants_expiry;
+#[cfg(test)]
+mod red_queen_serde_behavior;
+#[cfg(test)]
+mod red_queen_validation;
 #[cfg(test)]
 mod tests;
 #[cfg(kani)]

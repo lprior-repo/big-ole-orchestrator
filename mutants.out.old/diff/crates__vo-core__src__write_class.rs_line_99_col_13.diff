@@ -1,0 +1,21 @@
+--- crates/vo-core/src/write_class.rs
++++ delete match arm "operator_projection" in WriteClass::parse
+@@ -91,17 +91,17 @@
+     ///   - `"bulk_blob"` → `Ok(WriteClass::BulkBlob)`
+     ///
+     /// # Errors
+     /// Returns `Err(Error::UnknownWriteClass)` for any other string,
+     /// including empty strings and case-mismatched variants.
+     pub fn parse(s: &str) -> Result<WriteClass, Error> {
+         match s {
+             "critical_control_plane" => Ok(WriteClass::CriticalControlPlane),
+-            "operator_projection" => Ok(WriteClass::OperatorProjection),
++             /* ~ changed by cargo-mutants ~ */
+             "bulk_blob" => Ok(WriteClass::BulkBlob),
+             _ => Err(Error::UnknownWriteClass(s.to_string())),
+         }
+     }
+ 
+     /// Returns the canonical name of the write class.
+     ///
+     /// # Returns

@@ -1,0 +1,70 @@
+--- crates/vo-core/src/circuit_breaker/mod.rs
++++ replace evaluate_registration -> Result<RegistrationOutcome, CircuitBreakerError> with Ok(Default::default())
+@@ -42,66 +42,17 @@
+ /// Returns `CircuitBreakerError` on storage failure.
+ pub fn evaluate_registration(
+     request: &RegistrationRequest,
+     config: &CircuitBreakerConfig,
+     state: &CircuitBreakerState,
+     now: Instant,
+ ) -> Result<RegistrationOutcome, CircuitBreakerError> {
+     // POST-005: Force flag bypasses ALL registration guards
+-    if request.force {
+-        // Update rate limiter even on forced registration (POST-005, B-09)
+-        state.set_rate_limit(request.workflow_name.clone(), update_rate_limit(now));
+-        return Ok(RegistrationOutcome::Allowed);
+-    }
+-
+-    // MAJ-002: Check quarantine/deactivation status BEFORE rate limit.
+-    // Permanent blocks take precedence over temporary cooldowns.
+-    let status = state.get_status(&request.workflow_name);
+-
+-    match status {
+-        RegistrationStatus::Quarantined => {
+-            return Ok(RegistrationOutcome::WorkflowQuarantined {
+-                workflow_name: request.workflow_name.clone(),
+-            });
+-        }
+-        RegistrationStatus::Deactivated => {
+-            return Ok(RegistrationOutcome::WorkflowDeactivated {
+-                workflow_name: request.workflow_name.clone(),
+-            });
+-        }
+-        RegistrationStatus::Active => {}
+-    }
+-
+-    // Layer 1: Rate limit check (INV-002)
+-    // CRIT-001: Use DashMap::entry() for atomic read-modify-write
+-    // to prevent TOCTOU race between get() and insert().
+-    let wf = request.workflow_name.clone();
+-    let rate_limit_window = config.rate_limit_window;
+-
+-    // Atomic entry-based rate limit: read existing, check, and update in one lock
+-    let entry = state.rate_limiter.entry(wf);
+-    match entry {
+-        dashmap::mapref::entry::Entry::Occupied(mut occupied) => {
+-            let last = *occupied.get();
+-            if let Some(retry_after_secs) = check_rate_limit(Some(last), rate_limit_window, now) {
+-                // INV-009: Rate-limited requests do NOT count as failures
+-                Ok(RegistrationOutcome::RateLimited { retry_after_secs })
+-            } else {
+-                // Registration allowed — atomically update rate limiter (POST-006)
+-                *occupied.get_mut() = update_rate_limit(now);
+-                Ok(RegistrationOutcome::Allowed)
+-            }
+-        }
+-        dashmap::mapref::entry::Entry::Vacant(vacant) => {
+-            // No prior registration — allowed. Insert atomically.
+-            vacant.insert(update_rate_limit(now));
+-            Ok(RegistrationOutcome::Allowed)
+-        }
+-    }
++    Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Record a runtime failure for a workflow's binary.
+ ///
+ /// # Postconditions
+ /// - If hash is new in window: added to `FailureWindow`, count incremented
+ /// - If hash already in window: timestamp updated, count unchanged (INV-004)
+ /// - If unique count >= threshold: status set to Quarantined (INV-001)

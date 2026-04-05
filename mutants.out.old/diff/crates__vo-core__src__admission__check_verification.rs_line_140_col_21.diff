@@ -1,0 +1,19 @@
+--- crates/vo-core/src/admission/check_verification.rs
++++ delete ! in verification::multiple_indicators_error_contains_exactly_failures
+@@ -132,15 +132,15 @@
+                     !indicators.contains(&PressureIndicator::CompactionStall),
+                     "CompactionStall should not be in error if not active",
+                 );
+             }
+ 
+             // StorageStall NOT in error implies storage_stall_active == false
+             if !state.storage_stall_active {
+                 kani::assert(
+-                    !indicators.contains(&PressureIndicator::StorageStall),
++                     /* ~ changed by cargo-mutants ~ */indicators.contains(&PressureIndicator::StorageStall),
+                     "StorageStall should not be in error if not active",
+                 );
+             }
+         }
+     }
+ }

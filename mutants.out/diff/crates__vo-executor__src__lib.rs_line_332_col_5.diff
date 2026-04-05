@@ -1,0 +1,33 @@
+--- crates/vo-executor/src/lib.rs
++++ replace validate_timeout -> Result<(), ExecuteNodeError> with Ok(())
+@@ -324,29 +324,17 @@
+     check_not_executing(&step_id)?;
+     let behavior = check_step_exists(&step_id)?;
+     start_execution(&step_id);
+     handle_slow_step_timeout(&step_id, timeout_ms, behavior)?;
+     execute_and_transition(&step_id, behavior)
+ }
+ 
+ fn validate_timeout(timeout_ms: u64) -> Result<(), ExecuteNodeError> {
+-    if timeout_ms == 0 {
+-        return Err(ExecuteNodeError::InvalidTimeout {
+-            value: 0,
+-            reason: "must be > 0ms".to_string(),
+-        });
+-    }
+-    if timeout_ms == u64::MAX {
+-        return Err(ExecuteNodeError::InvalidTimeout {
+-            value: u64::MAX,
+-            reason: "must be < u64::MAX".to_string(),
+-        });
+-    }
+-    Ok(())
++    Ok(()) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ fn check_not_executing(step_id: &StepId) -> Result<(), ExecuteNodeError> {
+     if matches!(get_state(step_id.as_str()), StepState::Executing { .. }) {
+         return Err(ExecuteNodeError::InvalidTransition {
+             from_state: "Executing".to_string(),
+             action: "execute_step".to_string(),
+         });

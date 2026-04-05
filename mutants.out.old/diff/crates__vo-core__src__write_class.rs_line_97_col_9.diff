@@ -1,0 +1,26 @@
+--- crates/vo-core/src/write_class.rs
++++ replace WriteClass::parse -> Result<WriteClass, Error> with Ok(Default::default())
+@@ -89,22 +89,17 @@
+     ///   - `"critical_control_plane"` → `Ok(WriteClass::CriticalControlPlane)`
+     ///   - `"operator_projection"` → `Ok(WriteClass::OperatorProjection)`
+     ///   - `"bulk_blob"` → `Ok(WriteClass::BulkBlob)`
+     ///
+     /// # Errors
+     /// Returns `Err(Error::UnknownWriteClass)` for any other string,
+     /// including empty strings and case-mismatched variants.
+     pub fn parse(s: &str) -> Result<WriteClass, Error> {
+-        match s {
+-            "critical_control_plane" => Ok(WriteClass::CriticalControlPlane),
+-            "operator_projection" => Ok(WriteClass::OperatorProjection),
+-            "bulk_blob" => Ok(WriteClass::BulkBlob),
+-            _ => Err(Error::UnknownWriteClass(s.to_string())),
+-        }
++        Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// Returns the canonical name of the write class.
+     ///
+     /// # Returns
+     /// - `"critical_control_plane"` for `CriticalControlPlane`
+     /// - `"operator_projection"` for `OperatorProjection`
+     /// - `"bulk_blob"` for `BulkBlob`

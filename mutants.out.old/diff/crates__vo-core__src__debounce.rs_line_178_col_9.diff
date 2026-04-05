@@ -1,0 +1,28 @@
+--- crates/vo-core/src/debounce.rs
++++ replace Debouncer::handle_event_or_fail -> Result<(), ()> with Ok(())
+@@ -170,24 +170,17 @@
+     }
+ 
+     async fn handle_event_or_fail(
+         pending: &mut HashMap<PathBuf, Instant>,
+         duration: Duration,
+         event: FileEvent,
+         ready_tx: &Sender<Result<PathBuf, Error>>,
+     ) -> Result<(), ()> {
+-        if Self::process_single_event_sync(pending, duration, event, Instant::now()).is_err() {
+-            if ready_tx.send(Err(Error::DebouncerInternal)).await.is_err() {
+-                // Ignore send error
+-            }
+-            Err(())
+-        } else {
+-            Ok(())
+-        }
++        Ok(()) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     fn calculate_deadlines(
+         pending: &mut HashMap<PathBuf, Instant>,
+     ) -> (Vec<PathBuf>, Option<Instant>) {
+         let now = Instant::now();
+         let mut next_deadline = None;
+         let mut expired = Vec::new();

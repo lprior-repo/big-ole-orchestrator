@@ -1,0 +1,995 @@
+
+*** crates/vo-core/src/upcaster/kani_harnesses.rs:156:9: replace verification::verify_version_bound_preservation with ()
+
+*** mutation diff:
+--- crates/vo-core/src/upcaster/kani_harnesses.rs
++++ replace verification::verify_version_bound_preservation with ()
+@@ -148,40 +148,17 @@
+         fn max_supported_version(&self) -> u8 {
+             self.max_version
+         }
+     }
+ 
+     #[kani::proof]
+     fn verify_version_bound_preservation() {
+         // Create a registry with a simple upcaster v0 -> v1
+-        let registry = MockRegistry::new();
+-
+-        // Create an arbitrary envelope with valid version
+-        let envelope = EventEnvelope {
+-            schema_version: kani::any(),
+-            instance_id: "test".to_string(),
+-            sequence: 1,
+-            timestamp_ms: 1000,
+-            payload: serde_json::json!({}),
+-            metadata: serde_json::json!({}),
+-        };
+-
+-        // Assume version is within valid range
+-        kani::assume(envelope.schema_version <= MAX_SUPPORTED_VERSION);
+-
+-        // Execute upcast_envelope
+-        let result = registry.upcast_envelope(envelope.clone());
+-
+-        // Verify the property
+-        if result.is_ok() {
+-            let upcasted = result.unwrap();
+-            // In a real proof, we would verify:
+-            // assert!(upcasted.version <= MAX_SUPPORTED_VERSION);
+-        }
++        () /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     #[kani::proof]
+     fn verify_max_version_returns_unchanged() {
+         let registry = MockRegistry::new();
+ 
+         // Create an envelope at exactly MAX_VERSION
+         let envelope = EventEnvelope {
+
+
+*** /home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo test --no-run --verbose --package=vo-core@0.1.0
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+       Fresh libc v0.2.183
+       Fresh cfg-if v1.0.4
+       Fresh unicode-ident v1.0.24
+       Fresh proc-macro2 v1.0.106
+       Fresh quote v1.0.45
+       Fresh syn v2.0.117
+       Fresh once_cell v1.21.4
+       Fresh getrandom v0.4.2
+       Fresh crossbeam-utils v0.8.21
+       Fresh getrandom v0.3.4
+       Fresh rand_core v0.9.5
+       Fresh zerocopy v0.8.47
+       Fresh linux-raw-sys v0.12.1
+       Fresh bitflags v2.11.0
+       Fresh rustix v1.1.4
+       Fresh ppv-lite86 v0.2.21
+       Fresh fastrand v2.3.0
+       Fresh smallvec v1.15.1
+       Fresh scopeguard v1.2.0
+       Fresh lock_api v0.4.14
+       Fresh parking_lot_core v0.9.12
+       Fresh tempfile v3.27.0
+       Fresh rand_chacha v0.9.0
+       Fresh serde_core v1.0.228
+       Fresh log v0.4.29
+       Fresh pin-project-lite v0.2.17
+       Fresh rand v0.9.2
+       Fresh path-dedot v3.1.1
+       Fresh futures-sink v0.3.32
+       Fresh semver v1.0.27
+       Fresh memchr v2.8.0
+       Fresh compare v0.0.6
+       Fresh regex-syntax v0.8.10
+       Fresh futures-core v0.3.32
+       Fresh futures-channel v0.3.32
+       Fresh interval-heap v0.0.5
+       Fresh aho-corasick v1.1.4
+       Fresh rustc_version v0.4.1
+       Fresh path-absolutize v3.1.1
+       Fresh zmij v1.0.21
+       Fresh crossbeam-epoch v0.9.18
+       Fresh thiserror-impl v1.0.69
+       Fresh futures-macro v0.3.32
+       Fresh serde_derive v1.0.228
+       Fresh itoa v1.0.18
+       Fresh autocfg v1.5.0
+       Fresh rustc-hash v2.1.2
+       Fresh varint-rs v2.2.0
+       Fresh sha1_smol v1.0.1
+       Fresh futures-io v0.3.32
+       Fresh byteorder v1.5.0
+       Fresh slab v0.4.12
+       Fresh xxhash-rust v0.8.15
+       Fresh equivalent v1.0.2
+       Fresh hashbrown v0.14.5
+       Fresh hashbrown v0.16.1
+       Fresh futures-task v0.3.32
+       Fresh byteview v0.6.1
+       Fresh value-log v1.9.0
+       Fresh futures-util v0.3.32
+       Fresh quick_cache v0.6.21
+       Fresh dashmap v6.1.0
+       Fresh uuid v1.23.0
+       Fresh serde_json v1.0.149
+       Fresh serde v1.0.228
+       Fresh thiserror v1.0.69
+       Fresh crossbeam-skiplist v0.1.3
+       Fresh regex-automata v0.4.14
+       Fresh ulid v1.2.1
+       Fresh enum_dispatch v0.3.13
+       Fresh errno v0.3.14
+       Fresh guardian v1.3.0
+       Fresh lz4_flex v0.11.6
+       Fresh double-ended-peekable v0.1.0
+       Fresh self_cell v1.2.2
+       Fresh lsm-tree v2.10.4
+       Fresh signal-hook-registry v1.4.8
+       Fresh vo-types v0.1.0 (/tmp/cargo-mutants-veloxide-v6pbSE.tmp/crates/vo-types)
+       Fresh regex v1.12.3
+       Fresh futures-executor v0.3.32
+       Fresh parking_lot v0.12.5
+       Fresh tokio-macros v2.6.1
+       Fresh wait-timeout v0.2.1
+       Fresh mio v1.2.0
+       Fresh inotify-sys v0.1.5
+       Fresh socket2 v0.6.3
+       Fresh same-file v1.0.6
+       Fresh std-semaphore v0.1.0
+       Fresh bit-vec v0.8.0
+       Fresh bitflags v1.3.2
+       Fresh glob v0.3.3
+       Fresh bytes v1.11.1
+       Fresh relative-path v1.9.3
+       Fresh quick-error v1.2.3
+       Fresh fnv v1.0.7
+       Fresh rusty-fork v0.3.1
+       Fresh rstest_macros v0.18.2
+       Fresh tokio v1.50.0
+       Fresh inotify v0.9.6
+       Fresh bit-set v0.8.0
+       Fresh fjall v2.11.2
+       Fresh walkdir v2.5.0
+       Fresh futures v0.3.32
+       Fresh num-traits v0.2.19
+       Fresh mio v0.8.11
+       Fresh rand_xorshift v0.4.0
+       Fresh crossbeam-channel v0.5.15
+       Fresh filetime v0.2.27
+       Fresh unarray v0.1.4
+       Fresh futures-timer v3.0.3
+       Fresh rstest v0.18.2
+       Fresh proptest v1.11.0
+       Fresh notify v6.1.1
+       Fresh vo-storage v0.1.0 (/tmp/cargo-mutants-veloxide-v6pbSE.tmp/crates/vo-storage)
+warning: enum `DbWriterMessageError` is never used
+  --> crates/vo-core/src/db_writer_message.rs:18:10
+   |
+18 | pub enum DbWriterMessageError {
+   |          ^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: associated items `new`, `sequence_number`, and `state_bytes` are never used
+  --> crates/vo-core/src/db_writer_message.rs:63:12
+   |
+58 | impl SnapshotData {
+   | ----------------- associated items in this implementation
+...
+63 |     pub fn new(sequence_number: SequenceNumber, state_bytes: Vec<u8>) -> Option<Self> {
+   |            ^^^
+...
+74 |     pub fn sequence_number(&self) -> SequenceNumber {
+   |            ^^^^^^^^^^^^^^^
+...
+79 |     pub fn state_bytes(&self) -> &[u8] {
+   |            ^^^^^^^^^^^
+
+warning: `vo-core` (lib) generated 2 warnings
+       Fresh vo-core v0.1.0 (/tmp/cargo-mutants-veloxide-v6pbSE.tmp/crates/vo-core)
+warning: unexpected `cfg` condition value: `proptest`
+   --> crates/vo-core/src/replay.rs:939:11
+    |
+939 |     #[cfg(feature = "proptest")]
+    |           ^^^^^^^^^^^^^^^^^^^^ help: remove the condition
+    |
+    = note: no expected values for `feature`
+    = help: consider adding `proptest` as a feature in `Cargo.toml`
+    = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+    = note: requested on the command line with `-W unexpected-cfgs`
+
+warning: unused doc comment
+   --> crates/vo-core/src/write_class.rs:565:5
+    |
+565 |     /// PROP-01: INV-001 — tier() is always 1, 2, or 3
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+    = note: `#[warn(unused_doc_comments)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused doc comment
+   --> crates/vo-core/src/write_class.rs:578:5
+    |
+578 |     /// PROP-02: INV-002 — never_drops() is true only for CriticalControlPlane
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> crates/vo-core/src/write_class.rs:594:5
+    |
+594 |     /// PROP-03: INV-003 — as_str() round-trips through from_str()
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> crates/vo-core/src/write_class.rs:610:5
+    |
+610 |     /// PROP-04: INV-004 — JSON serialization round-trip
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> crates/vo-core/src/write_class.rs:626:5
+    |
+626 |     /// PROP-05: INV-005 — WriteBudget reserve never produces negative remaining
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> crates/vo-core/src/write_class.rs:652:5
+    |
+652 |     /// PROP-06: INV-006 — can_write and reserve are consistent
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: methods `sequence_number` and `state_bytes` are never used
+  --> crates/vo-core/src/db_writer_message.rs:74:12
+   |
+58 | impl SnapshotData {
+   | ----------------- methods in this implementation
+...
+74 |     pub fn sequence_number(&self) -> SequenceNumber {
+   |            ^^^^^^^^^^^^^^^
+...
+79 |     pub fn state_bytes(&self) -> &[u8] {
+   |            ^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `vo-core` (lib test) generated 8 warnings
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.08s
+  Executable `/tmp/cargo-mutants-veloxide-v6pbSE.tmp/target/debug/deps/vo_core-0065b03eca8e6c6a`
+  Executable `/tmp/cargo-mutants-veloxide-v6pbSE.tmp/target/debug/deps/admission_integration-b0d9a25b1c29665f`
+  Executable `/tmp/cargo-mutants-veloxide-v6pbSE.tmp/target/debug/deps/admission_property-0dd61aeb36aceb5b`
+  Executable `/tmp/cargo-mutants-veloxide-v6pbSE.tmp/target/debug/deps/circuit_breaker_integration-acb295e8f30cebc7`
+  Executable `/tmp/cargo-mutants-veloxide-v6pbSE.tmp/target/debug/deps/persistence_restart_integration-451c3e0383f84b84`
+  Executable `/tmp/cargo-mutants-veloxide-v6pbSE.tmp/target/debug/deps/proptest_circuit_breaker-8496dc2f8e637bb9`
+  Executable `/tmp/cargo-mutants-veloxide-v6pbSE.tmp/target/debug/deps/red_queen_adversarial-632fe0157724ba3f`
+  Executable `/tmp/cargo-mutants-veloxide-v6pbSE.tmp/target/debug/deps/upcaster_integration-c0777a68888b6267`
+  Executable `/tmp/cargo-mutants-veloxide-v6pbSE.tmp/target/debug/deps/upcaster_proptest-0bb797f85a64855c`
+  Executable `/tmp/cargo-mutants-veloxide-v6pbSE.tmp/target/debug/deps/write_class_integration-d7a5f46e7246ca28`
+
+*** result: Success
+
+*** /home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo test --verbose --package=vo-core@0.1.0
+       Fresh cfg-if v1.0.4
+       Fresh unicode-ident v1.0.24
+       Fresh once_cell v1.21.4
+       Fresh linux-raw-sys v0.12.1
+       Fresh bitflags v2.11.0
+       Fresh smallvec v1.15.1
+       Fresh scopeguard v1.2.0
+       Fresh fastrand v2.3.0
+       Fresh pin-project-lite v0.2.17
+       Fresh log v0.4.29
+       Fresh compare v0.0.6
+       Fresh memchr v2.8.0
+       Fresh futures-core v0.3.32
+       Fresh regex-syntax v0.8.10
+       Fresh futures-sink v0.3.32
+       Fresh semver v1.0.27
+       Fresh varint-rs v2.2.0
+       Fresh itoa v1.0.18
+       Fresh libc v0.2.183
+       Fresh lock_api v0.4.14
+       Fresh path-dedot v3.1.1
+       Fresh futures-channel v0.3.32
+       Fresh rustc_version v0.4.1
+       Fresh aho-corasick v1.1.4
+       Fresh interval-heap v0.0.5
+       Fresh byteview v0.6.1
+       Fresh rustc-hash v2.1.2
+       Fresh equivalent v1.0.2
+       Fresh sha1_smol v1.0.1
+       Fresh futures-task v0.3.32
+       Fresh slab v0.4.12
+       Fresh xxhash-rust v0.8.15
+       Fresh hashbrown v0.14.5
+       Fresh futures-io v0.3.32
+       Fresh hashbrown v0.16.1
+       Fresh autocfg v1.5.0
+       Fresh byteorder v1.5.0
+       Fresh guardian v1.3.0
+       Fresh proc-macro2 v1.0.106
+       Fresh getrandom v0.4.2
+       Fresh crossbeam-utils v0.8.21
+       Fresh getrandom v0.3.4
+       Fresh zerocopy v0.8.47
+       Fresh rustix v1.1.4
+       Fresh serde_core v1.0.228
+       Fresh parking_lot_core v0.9.12
+       Fresh zmij v1.0.21
+       Fresh path-absolutize v3.1.1
+       Fresh regex-automata v0.4.14
+       Fresh errno v0.3.14
+       Fresh quick_cache v0.6.21
+       Fresh double-ended-peekable v0.1.0
+       Fresh lz4_flex v0.11.6
+       Fresh self_cell v1.2.2
+       Fresh socket2 v0.6.3
+       Fresh mio v1.2.0
+       Fresh wait-timeout v0.2.1
+       Fresh inotify-sys v0.1.5
+       Fresh same-file v1.0.6
+       Fresh bitflags v1.3.2
+       Fresh bytes v1.11.1
+       Fresh quick-error v1.2.3
+       Fresh fnv v1.0.7
+       Fresh bit-vec v0.8.0
+       Fresh glob v0.3.3
+       Fresh std-semaphore v0.1.0
+       Fresh relative-path v1.9.3
+       Fresh filetime v0.2.27
+       Fresh mio v0.8.11
+       Fresh quote v1.0.45
+       Fresh rand_core v0.9.5
+       Fresh ppv-lite86 v0.2.21
+       Fresh tempfile v3.27.0
+       Fresh crossbeam-epoch v0.9.18
+       Fresh serde_json v1.0.149
+       Fresh dashmap v6.1.0
+       Fresh uuid v1.23.0
+       Fresh signal-hook-registry v1.4.8
+       Fresh parking_lot v0.12.5
+       Fresh regex v1.12.3
+       Fresh crossbeam-channel v0.5.15
+       Fresh bit-set v0.8.0
+       Fresh walkdir v2.5.0
+       Fresh inotify v0.9.6
+       Fresh futures-timer v3.0.3
+       Fresh unarray v0.1.4
+       Fresh syn v2.0.117
+       Fresh rand_chacha v0.9.0
+       Fresh value-log v1.9.0
+       Fresh crossbeam-skiplist v0.1.3
+       Fresh rand_xorshift v0.4.0
+       Fresh num-traits v0.2.19
+       Fresh rusty-fork v0.3.1
+       Fresh notify v6.1.1
+       Fresh rand v0.9.2
+       Fresh futures-macro v0.3.32
+       Fresh thiserror-impl v1.0.69
+       Fresh serde_derive v1.0.228
+       Fresh enum_dispatch v0.3.13
+       Fresh tokio-macros v2.6.1
+       Fresh rstest_macros v0.18.2
+       Fresh serde v1.0.228
+       Fresh futures-util v0.3.32
+       Fresh thiserror v1.0.69
+       Fresh ulid v1.2.1
+       Fresh lsm-tree v2.10.4
+       Fresh tokio v1.50.0
+       Fresh proptest v1.11.0
+       Fresh futures-executor v0.3.32
+       Fresh vo-types v0.1.0 (/tmp/cargo-mutants-veloxide-v6pbSE.tmp/crates/vo-types)
+       Fresh fjall v2.11.2
+       Fresh futures v0.3.32
+       Fresh vo-storage v0.1.0 (/tmp/cargo-mutants-veloxide-v6pbSE.tmp/crates/vo-storage)
+warning: enum `DbWriterMessageError` is never used
+  --> crates/vo-core/src/db_writer_message.rs:18:10
+   |
+18 | pub enum DbWriterMessageError {
+   |          ^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: associated items `new`, `sequence_number`, and `state_bytes` are never used
+  --> crates/vo-core/src/db_writer_message.rs:63:12
+   |
+58 | impl SnapshotData {
+   | ----------------- associated items in this implementation
+...
+63 |     pub fn new(sequence_number: SequenceNumber, state_bytes: Vec<u8>) -> Option<Self> {
+   |            ^^^
+...
+74 |     pub fn sequence_number(&self) -> SequenceNumber {
+   |            ^^^^^^^^^^^^^^^
+...
+79 |     pub fn state_bytes(&self) -> &[u8] {
+   |            ^^^^^^^^^^^
+
+warning: `vo-core` (lib) generated 2 warnings
+       Fresh rstest v0.18.2
+warning: unexpected `cfg` condition value: `proptest`
+   --> crates/vo-core/src/replay.rs:939:11
+    |
+939 |     #[cfg(feature = "proptest")]
+    |           ^^^^^^^^^^^^^^^^^^^^ help: remove the condition
+    |
+    = note: no expected values for `feature`
+    = help: consider adding `proptest` as a feature in `Cargo.toml`
+    = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+    = note: requested on the command line with `-W unexpected-cfgs`
+
+warning: unused doc comment
+   --> crates/vo-core/src/write_class.rs:565:5
+    |
+565 |     /// PROP-01: INV-001 — tier() is always 1, 2, or 3
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+    = note: `#[warn(unused_doc_comments)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused doc comment
+   --> crates/vo-core/src/write_class.rs:578:5
+    |
+578 |     /// PROP-02: INV-002 — never_drops() is true only for CriticalControlPlane
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> crates/vo-core/src/write_class.rs:594:5
+    |
+594 |     /// PROP-03: INV-003 — as_str() round-trips through from_str()
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> crates/vo-core/src/write_class.rs:610:5
+    |
+610 |     /// PROP-04: INV-004 — JSON serialization round-trip
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> crates/vo-core/src/write_class.rs:626:5
+    |
+626 |     /// PROP-05: INV-005 — WriteBudget reserve never produces negative remaining
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> crates/vo-core/src/write_class.rs:652:5
+    |
+652 |     /// PROP-06: INV-006 — can_write and reserve are consistent
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: methods `sequence_number` and `state_bytes` are never used
+  --> crates/vo-core/src/db_writer_message.rs:74:12
+   |
+58 | impl SnapshotData {
+   | ----------------- methods in this implementation
+...
+74 |     pub fn sequence_number(&self) -> SequenceNumber {
+   |            ^^^^^^^^^^^^^^^
+...
+79 |     pub fn state_bytes(&self) -> &[u8] {
+   |            ^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+       Fresh vo-core v0.1.0 (/tmp/cargo-mutants-veloxide-v6pbSE.tmp/crates/vo-core)
+warning: `vo-core` (lib test) generated 8 warnings
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+     Running `/tmp/cargo-mutants-veloxide-v6pbSE.tmp/target/debug/deps/vo_core-0065b03eca8e6c6a`
+
+running 295 tests
+test admission::check_tests::check_admission_boundary_writer_exactly_at_threshold ... ok
+test admission::check_tests::check_admission_boundary_writer_just_above_threshold ... ok
+test admission::check_tests::check_admission_boundary_writer_just_below_threshold ... ok
+test admission::check_tests::check_admission_is_idempotent ... ok
+test admission::check_tests::check_admission_collects_all_failed_indicators_not_just_first ... ok
+test admission::check_tests::check_admission_detects_threshold_swap_mutation ... ok
+test admission::check_tests::check_admission_rejects_max_u64_values ... ok
+test admission::check_tests::check_admission_returns_batch_commit_latency_exceeded_just_over_threshold ... ok
+test admission::check_tests::check_admission_returns_batch_commit_latency_exceeded_when_over_threshold ... ok
+test admission::check_tests::check_admission_returns_blob_queue_depth_exceeded_just_over_threshold ... ok
+test admission::check_tests::check_admission_returns_blob_queue_depth_exceeded_when_over_threshold ... ok
+test admission::check_tests::check_admission_returns_compaction_stall_active_when_indicator_true ... ok
+test admission::check_tests::check_admission_returns_error_just_over_threshold ... ok
+test admission::check_tests::check_admission_returns_multiple_pressure_indicators_all_five_exceeded ... ok
+test admission::check_tests::check_admission_returns_multiple_pressure_indicators_when_multiple_exceeded ... ok
+test admission::check_tests::check_admission_returns_ok_at_exact_blob_threshold ... ok
+test admission::check_tests::check_admission_returns_ok_at_exact_latency_threshold ... ok
+test admission::check_tests::check_admission_returns_ok_at_exact_threshold ... ok
+test admission::check_tests::check_admission_returns_ok_when_all_indicators_within_thresholds ... ok
+test admission::check_tests::check_admission_returns_ok_when_compaction_stall_false ... ok
+test admission::check_tests::check_admission_returns_ok_when_storage_stall_false ... ok
+test admission::check_tests::check_admission_returns_ok_with_all_zero_values ... ok
+test admission::check_tests::check_admission_returns_storage_stall_active_when_indicator_true ... ok
+test admission::check_tests::check_admission_returns_writer_queue_depth_exceeded_when_over_threshold ... ok
+test admission::check_tests::check_admission_with_custom_thresholds_rejects_over_blob_threshold ... ok
+test admission::check_tests::check_admission_with_custom_thresholds_returns_error_when_exceeded ... ok
+test admission::check_tests::check_admission_with_thresholds_detects_blob_threshold_swap ... ok
+test admission::check_tests::check_admission_with_custom_thresholds_returns_ok_when_within_custom_limits ... ok
+test admission::check_tests::check_admission_with_thresholds_is_idempotent ... ok
+test admission::check_tests::check_admission_with_zero_thresholds_accepts_zero_values ... ok
+test admission::check_tests::check_admission_with_zero_thresholds_rejects_nonzero_values ... ok
+test admission::control_tests::admission_result_admitted_constructs_correctly ... ok
+test admission::control_tests::admission_result_clone_and_equality ... ok
+test admission::control_tests::admission_result_duplicate_constructs_correctly ... ok
+test admission::control_tests::admission_result_inequality_between_variants ... ok
+test admission::control_tests::admission_result_is_exhaustive_three_variants ... ok
+test admission::control_tests::admission_result_rejected_constructs_correctly ... ok
+test admission::control_tests::check_deduplicate_returns_admitted_for_new_key ... ok
+test admission::control_tests::check_deduplicate_returns_duplicate_for_seen_key ... ok
+test admission::control_tests::check_fence_returns_admitted_when_token_matches ... ok
+test admission::control_tests::check_fence_returns_rejected_on_stale_token ... ok
+test admission::control_tests::check_fence_returns_rejected_when_no_lease ... ok
+test admission::control_tests::dedupe_token_clone_equality ... ok
+test admission::control_tests::dedupe_token_display_returns_inner_string ... ok
+test admission::control_tests::dedupe_token_hash_consistency ... ok
+test admission::control_tests::dedupe_token_new_creates_token_with_valid_value ... ok
+test admission::control_tests::rejection_reason_fence_token_mismatch ... ok
+test admission::control_tests::rejection_reason_is_exhaustive_five_variants ... ok
+test admission::control_tests::rejection_reason_no_active_lease ... ok
+test admission::control_tests::rejection_reason_dedupe_key_too_long ... ok
+test admission::control_tests::rejection_reason_missing_dedupe_key ... ok
+test admission::types::tests::admission_error_batch_commit_latency_exceeded ... ok
+test admission::types::tests::admission_thresholds_can_be_constructed_with_custom_values ... ok
+test admission::types::tests::pressure_indicator_all_variants_exist ... ok
+test admission::types::tests::admission_thresholds_default_produces_zero_thresholds ... ok
+test admission::types::tests::admission_error_blob_queue_depth_exceeded ... ok
+test admission::types::tests::pressure_indicator_equality ... ok
+test admission::types::tests::pressure_indicator_inequality ... ok
+test admission::types::tests::admission_error_compaction_stall_active ... ok
+test admission::types::tests::admission_error_metrics_unavailable ... ok
+test admission::types::tests::write_pressure_state_accepts_all_zero_values ... ok
+test admission::types::tests::write_pressure_state_accepts_max_u64_values ... ok
+test admission::types::tests::admission_error_invalid_admission_context ... ok
+test admission::types::tests::write_pressure_state_default_is_all_zero ... ok
+test circuit_breaker::config::tests::config_accepts_maximum_valid_values ... ok
+test admission::types::tests::admission_error_multiple_pressure_indicators ... ok
+test admission::types::tests::admission_error_storage_stall_active ... ok
+test circuit_breaker::config::tests::config_accepts_valid_non_zero_values ... ok
+test circuit_breaker::config::tests::config_accepts_minimum_valid_values ... ok
+test circuit_breaker::config::tests::config_rejects_zero_failure_window ... ok
+test circuit_breaker::config::tests::config_rejects_zero_rate_limit_window ... ok
+test circuit_breaker::config::tests::config_rejects_all_zero_with_first_zero_field ... ok
+test admission::types::tests::admission_error_writer_queue_depth_exceeded ... ok
+test circuit_breaker::config::tests::config_rejects_zero_failure_threshold ... ok
+test circuit_breaker::failure_window::tests::record_failure_in_window_readds_expired_duplicate_as_fresh ... ok
+test circuit_breaker::failure_window::tests::record_failure_in_window_evicts_expired_entries_before_insertion ... ok
+test admission::control_tests::rejection_reason_policy_violation ... ok
+test circuit_breaker::rate_limiter::tests::check_rate_limit_returns_none_at_exactly_60_seconds ... ok
+test circuit_breaker::registration_status::tests::registration_status_serde_round_trip_is_identity_for_deactivated ... ok
+test circuit_breaker::rate_limiter::tests::update_rate_limit_sets_timestamp_so_check_returns_remaining ... ok
+test circuit_breaker::rate_limiter::tests::check_rate_limit_returns_some_1_at_59_seconds ... ok
+test db_writer_message::tests::acquire_lease_round_trips_through_serde_json ... ok
+test db_writer_message::tests::append_event_serializes_with_snake_case_tag ... ok
+test db_writer_message::tests::atomic_transition_serializes_with_snake_case_tag ... ok
+test db_writer_message::tests::atomic_transition_round_trips_through_serde_json_with_minimal_fields ... ok
+test db_writer_message::tests::atomic_transition_round_trips_through_serde_json_with_all_fields ... ok
+test circuit_breaker::rate_limiter::tests::check_rate_limit_returns_none_when_window_elapsed ... ok
+test db_writer_message::tests::append_event_round_trips_through_serde_json ... ok
+test db_writer_message::tests::db_writer_message_error_missing_field_displays_field_name ... ok
+test db_writer_message::tests::db_writer_message_error_serialization_error_displays_inner_message ... ok
+test db_writer_message::tests::db_writer_message_error_unknown_variant_displays_variant_name ... ok
+test db_writer_message::tests::db_writer_message_error_zero_fence_token_displays_expected_message ... ok
+test db_writer_message::tests::db_writer_message_error_zero_sequence_number_displays_expected_message ... ok
+test db_writer_message::tests::db_writer_message_rejects_malformed_json_when_deserializing ... ok
+test circuit_breaker::rate_limiter::tests::check_rate_limit_returns_some_30_when_30s_remaining ... ok
+test db_writer_message::tests::db_writer_message_rejects_missing_required_field_when_deserializing ... ok
+test db_writer_message::tests::db_writer_message_rejects_truncated_json_when_deserializing ... ok
+test db_writer_message::tests::db_writer_message_rejects_unknown_variant_when_deserializing ... ok
+test db_writer_message::tests::delete_timer_round_trips_through_serde_json ... ok
+test db_writer_message::tests::delete_timer_serializes_with_snake_case_tag ... ok
+test db_writer_message::tests::fence_token_rejects_zero_value_when_constructed ... ok
+test db_writer_message::tests::fence_token_rejects_zero_value_when_deserialized_from_json ... ok
+test db_writer_message::tests::idempotency_key_rejects_empty_string_when_parsed ... ok
+test db_writer_message::tests::instance_id_rejects_empty_string_when_parsed ... ok
+test circuit_breaker::registration_status::tests::registration_status_serde_round_trips_for_all_variants ... ok
+test db_writer_message::tests::record_effect_round_trips_through_serde_json ... ok
+test db_writer_message::tests::record_effect_serializes_with_snake_case_tag ... ok
+test db_writer_message::tests::record_instance_status_round_trips_through_serde_json ... ok
+test db_writer_message::tests::record_instance_status_serializes_with_snake_case_tag ... ok
+test db_writer_message::tests::release_lease_round_trips_through_serde_json ... ok
+test db_writer_message::tests::release_lease_serializes_with_snake_case_tag ... ok
+test db_writer_message::tests::sequence_number_rejects_zero_value_when_constructed ... ok
+test db_writer_message::tests::sequence_number_rejects_zero_value_when_deserialized_from_json ... ok
+test db_writer_message::tests::snapshot_data_different_state_bytes_compare_unequal ... ok
+test db_writer_message::tests::snapshot_data_new_returns_none_when_state_bytes_empty ... ok
+test db_writer_message::tests::snapshot_data_new_returns_some_when_state_bytes_non_empty ... ok
+test circuit_breaker::registration_status::tests::registration_status_quarantined_serde_round_trip ... ok
+test db_writer_message::tests::snapshot_data_round_trips_through_serde_json ... ok
+test db_writer_message::tests::step_id_rejects_empty_string_when_parsed ... ok
+test db_writer_message::tests::take_snapshot_round_trips_through_serde_json ... ok
+test db_writer_message::tests::take_snapshot_serializes_with_snake_case_tag ... ok
+test db_writer_message::tests::timer_id_rejects_empty_string_when_parsed ... ok
+test db_writer_message::tests::timer_op_delete_round_trips_through_serde_json ... ok
+test db_writer_message::tests::timer_op_different_variants_compare_unequal ... ok
+test db_writer_message::tests::timer_op_upsert_round_trips_through_serde_json ... ok
+test db_writer_message::tests::upsert_timer_round_trips_through_serde_json ... ok
+test db_writer_message::tests::upsert_timer_serializes_with_snake_case_tag ... ok
+test debounce::tests::debouncer_new_returns_invalid_duration_error_when_duration_is_zero ... ok
+test debounce::tests::debouncer_new_returns_no_runtime_error_outside_tokio ... ok
+test debounce::tests::debouncer_new_returns_channel_closed_error_when_receiver_is_already_closed ... ok
+test debounce::tests::debouncer_new_returns_ok_instance_when_duration_is_max ... ok
+test debounce::tests::debouncer_new_returns_ok_instance_when_duration_is_one_nanosecond ... ok
+test debounce::tests::next_debounced_event_remains_pending_when_polled_with_no_events ... ok
+test debounce::tests::next_debounced_event_drops_pending_path_when_deletion_event_arrives ... ok
+test circuit_breaker::failure_window::tests::record_failure_in_window_returns_2_when_mixed_expired_and_live ... ok
+test debounce::tests::next_debounced_event_collapses_multiple_events_for_same_file_into_single_yield ... ok
+test db_writer_message::tests::db_writer_message_different_variants_compare_unequal ... ok
+test debounce::tests::next_debounced_event_handles_multiple_concurrent_distinct_files ... ok
+test admission::control_tests::rejection_reason_implements_error ... ok
+test db_writer_message::tests::db_writer_message_equal_values_compare_equal ... ok
+test circuit_breaker::failure_window::tests::record_failure_in_window_returns_5_when_fifth_unique_hash ... ok
+test circuit_breaker::failure_window::tests::record_failure_in_window_returns_same_count_when_duplicate_hash ... ok
+test debounce::tests::next_debounced_event_returns_debouncer_internal_error_when_timer_fails ... ok
+test debounce::tests::next_debounced_event_returns_channel_closed_error_when_sender_dropped ... ok
+test debounce::tests::next_debounced_event_resets_timer_when_event_arrives_exactly_at_debounce_duration ... ok
+test circuit_breaker::failure_window::tests::unique_failures_in_window_returns_0_when_all_expired ... ok
+test circuit_breaker::failure_window::tests::unique_failures_in_window_returns_0_when_empty ... ok
+test circuit_breaker::failure_window::tests::unique_failures_in_window_returns_2_after_evicting_1_expired ... ok
+test circuit_breaker::rate_limiter::tests::check_rate_limit_returns_full_window_when_just_registered ... ok
+test circuit_breaker::rate_limiter::tests::check_rate_limit_returns_none_when_well_past_window ... ok
+test circuit_breaker::rate_limiter::tests::proptests::check_rate_limit_returns_ceiling_of_remaining_seconds ... ok
+test circuit_breaker::failure_window::tests::record_failure_in_window_returns_1_when_first_unique_hash ... ok
+test circuit_breaker::failure_window::tests::record_failure_in_window_returns_4_when_duplicate_of_existing ... ok
+test circuit_breaker::rate_limiter::tests::proptests::check_rate_limit_returns_none_when_elapsed_exceeds_window ... ok
+test circuit_breaker::registration_status::tests::registration_status_serde_round_trip_is_identity_for_active ... ok
+test circuit_breaker::config::tests::proptests::config_new_succeeds_iff_all_fields_nonzero ... ok
+test circuit_breaker::state::tests::circuit_breaker_state_tracks_status_rate_limit_and_failure_window ... ok
+test circuit_breaker::rate_limiter::tests::proptests::rate_limit_is_uniform_across_workflows ... ok
+test circuit_breaker::failure_window::tests::proptests::expired_entries_always_evicted_after_unique_failures_call ... ok
+test circuit_breaker::failure_window::tests::proptests::failure_window_records_sorted_by_failed_at ... ok
+test debounce::proptests::event_stream_deduplicates_multiple_events_for_same_file ... ok
+test circuit_breaker::failure_window::tests::proptests::duplicate_hashes_never_double_count ... ok
+test circuit_breaker::failure_window::tests::record_failure_in_window_returns_2_when_second_unique_hash ... ok
+test db_writer_message::tests::acquire_lease_serializes_with_snake_case_tag ... ok
+test circuit_breaker::registration_status::tests::registration_status_has_exactly_three_variants ... ok
+test replay::tests::replay_engine_default_creates_instance ... ok
+test replay::tests::replay_engine_new_creates_instance ... ok
+test replay::tests::replay_full_lifecycle_pending_to_completed ... ok
+test debounce::tests::next_debounced_event_yields_empty_path_when_received ... ok
+test replay::tests::replay_failure_recovery_cycle ... ok
+test replay::tests::replay_full_lifecycle_with_timer_round_trip ... ok
+test debounce::tests::next_debounced_event_yields_multiple_distinct_files_when_events_interleaved ... ok
+test debounce::tests::next_debounced_event_yields_ok_path_after_continuous_writes_cease ... ok
+test replay::tests::replay_is_deterministic_same_events_produce_same_result ... ok
+test replay::tests::replay_maps_cancel_requested_to_cancel_transition ... ok
+test replay::tests::replay_maps_step_completed_to_complete_step_transition ... ok
+test debounce::tests::next_debounced_event_yields_ok_path_when_path_length_is_maximum ... ok
+test replay::tests::replay_maps_step_failed_to_fail_transition ... ok
+test replay::tests::replay_maps_instance_resumed_to_instance_resumed_transition ... ok
+test replay::tests::replay_maps_step_scheduled_to_step_scheduled_transition ... ok
+test replay::tests::replay_maps_step_started_to_execute_step_transition ... ok
+test debounce::tests::next_debounced_event_yields_pending_events_before_returning_channel_closed_error ... ok
+test replay::tests::replay_maps_timer_set_to_wait_for_timer_transition ... ok
+test replay::tests::replay_maps_timer_fired_to_timer_fired_transition ... ok
+test replay::tests::replay_maps_workflow_cancelled_to_cancel_transition ... ok
+test debounce::tests::next_debounced_event_returns_internal_error_on_timer_overflow ... ok
+test replay::tests::replay_maps_workflow_failed_to_fail_transition ... ok
+test replay::tests::replay_returns_sequence_duplicate_when_duplicate_sequence_found ... ok
+test replay::tests::replay_returns_transition_failed_when_apply_rejects_transition ... ok
+test replay::tests::replay_returns_sequence_gap_when_sequence_numbers_have_gap ... ok
+test replay::tests::replay_stops_processing_after_reaching_cancelled_state ... ok
+test replay::tests::replay_treats_continued_as_new_as_noop ... ok
+test replay::tests::replay_stops_processing_after_reaching_completed_state ... ok
+test replay::tests::replay_maps_workflow_started_to_assign_to_node_transition ... ok
+test circuit_breaker::rate_limiter::tests::check_rate_limit_returns_none_when_no_prior_registration ... ok
+test snapshot_compat::tests::is_snapshot_compatible_returns_false_for_mismatched_versions ... ok
+test snapshot_compat::tests::is_snapshot_compatible_returns_true_for_matching_versions ... ok
+test replay::tests::replay_works_with_real_event_envelope_serialization ... ok
+test snapshot_compat::tests::matching_versions_returns_compatible ... ok
+test snapshot_compat::tests::serde_roundtrip_preserves_compatible ... ok
+test snapshot_compat::tests::serde_roundtrip_preserves_incompatible ... ok
+test snapshot_compat::tests::serde_roundtrip_preserves_needs_upcast ... ok
+test snapshot_compat::tests::snapshot_newer_than_engine_returns_incompatible ... ok
+test snapshot_compat::tests::snapshot_older_than_engine_returns_needs_upcast ... ok
+test snapshot_compat::tests::version_zero_engine_is_incompatible ... ok
+test replay::tests::replay_reports_correct_events_applied_count ... ok
+test snapshot_compat::tests::version_zero_snapshot_is_incompatible ... ok
+test upcaster::error_tests::upcaster_error_circular_chain_equality ... ok
+test replay::tests::replay_returns_empty_result_when_event_list_is_empty ... ok
+test upcaster::error_tests::upcaster_error_circular_chain_message_contains_version ... ok
+test upcaster::error_tests::upcaster_error_debug_format ... ok
+test upcaster::error_tests::upcaster_error_invalid_target_version_equality ... ok
+test upcaster::error_tests::upcaster_error_invalid_target_version_message_contains_version_and_max ... ok
+test replay::tests::replay_returns_payload_decode_failed_when_payload_is_invalid ... ok
+test debounce::tests::next_debounced_event_yields_exact_path_when_debounce_duration_elapses ... ok
+test replay::tests::replay_returns_instance_mismatch_when_events_have_different_instance_ids ... ok
+test upcaster::error_tests::upcaster_error_invalid_upcasted_envelope_contains_inner_error ... ok
+test upcaster::error_tests::upcaster_error_invalid_upcasted_envelope_from_error ... ok
+test upcaster::error_tests::upcaster_error_no_upcaster_registered_equality ... ok
+test upcaster::error_tests::upcaster_error_no_upcaster_registered_message_contains_version ... ok
+test upcaster::error_tests::upcaster_error_upcasting_failed_equality ... ok
+test upcaster::event_envelope_error_tests::event_envelope_error_envelope_decode_failed_message ... ok
+test upcaster::error_tests::upcaster_error_upcasting_failed_message_contains_reason ... ok
+test upcaster::event_envelope_error_tests::event_envelope_error_invalid_envelope_field_equality ... ok
+test upcaster::event_envelope_error_tests::event_envelope_error_invalid_envelope_format_equality ... ok
+test upcaster::event_envelope_error_tests::event_envelope_error_invalid_envelope_field_message_contains_field_name ... ok
+test upcaster::event_envelope_error_tests::event_envelope_error_invalid_envelope_format_message_contains_malformed ... ok
+test upcaster::event_envelope_error_tests::event_envelope_error_invalid_payload_field_message ... ok
+test upcaster::event_envelope_error_tests::event_envelope_error_invalid_input_equality ... ok
+test upcaster::event_envelope_error_tests::event_envelope_error_invalid_input_message_contains_not_utf8 ... ok
+test upcaster::event_envelope_error_tests::event_envelope_error_missing_envelope_field_equality ... ok
+test upcaster::event_envelope_error_tests::event_envelope_error_missing_envelope_field_message_contains_field_name ... ok
+test upcaster::event_envelope_error_tests::event_envelope_error_missing_payload_field_message ... ok
+test upcaster::event_envelope_error_tests::event_envelope_error_payload_decode_failed_message ... ok
+test upcaster::event_envelope_error_tests::event_envelope_error_payload_decode_skipped_message ... ok
+test upcaster::event_envelope_error_tests::event_envelope_error_serialization_error_message ... ok
+test upcaster::event_envelope_error_tests::event_envelope_error_unsupported_envelope_version_equality ... ok
+test upcaster::event_envelope_error_tests::event_envelope_error_unsupported_envelope_version_message_contains_max_info ... ok
+test upcaster::event_envelope_error_tests::event_envelope_error_unsupported_payload_version_message ... ok
+test upcaster::event_envelope_error_tests::event_envelope_error_unknown_payload_type_equality ... ok
+test workflow_version::tests::new_rejects_hash_shorter_than_64_chars ... ok
+test workflow_version::tests::new_sets_schema_version_to_one ... ok
+test workflow_version::tests::new_creates_version_with_correct_binary_path_format ... ok
+test workflow_version::tests::binary_path_returns_str_ref_not_string ... ok
+test upcaster::event_envelope_error_tests::event_envelope_error_unknown_payload_type_message ... ok
+test workflow_version::tests::workflow_version_is_hashable_for_use_in_hashset ... ok
+test workflow_version::tests::serde_roundtrip_preserves_all_fields ... ok
+test upcaster::event_envelope_error_tests::event_envelope_error_unsupported_envelope_version_message_contains_version ... ok
+test workflow_version::tests::binary_path_returns_string_starting_with_prefix ... ok
+test write_class::write_class_tests::write_budget_can_write_returns_true_when_under_limit ... ok
+test write_class::write_class_tests::write_budget_creates_with_given_limits ... ok
+test write_class::write_class_tests::error_budget_exceeded_displays_details ... ok
+test write_class::write_class_tests::error_taxonomy_not_initialized_displays_message ... ok
+test write_class::write_class_tests::error_serialization_error_displays_message ... ok
+test write_class::write_class_tests::error_unknown_write_class_displays_class_name ... ok
+test upcaster::event_envelope_error_tests::event_envelope_error_invalid_payload_format_message ... ok
+test write_class::write_class_tests::write_budget_can_write_returns_true_when_zero_bytes ... ok
+test write_class::write_class_tests::taxonomy_returns_not_initialized_error_when_accessed_before_init ... ok
+test write_class::write_class_tests::write_budget_can_write_returns_false_when_exhausted ... ok
+test write_class::write_class_tests::write_budget_can_write_returns_false_when_over_limit ... ok
+test write_class::write_class_tests::write_budget_can_write_returns_true_when_at_exact_limit ... ok
+test write_class::write_class_tests::write_budget_creates_with_max_limits ... ok
+test write_class::write_class_tests::write_budget_creates_with_zero_limits ... ok
+test write_class::write_class_tests::write_budget_remaining_returns_correct_initial_values ... ok
+test write_class::write_class_tests::write_budget_remaining_returns_zero_after_exhaustion ... ok
+test write_class::write_class_tests::write_budget_remaining_unchanged_after_failed_reserve ... ok
+test write_class::write_class_tests::write_budget_reserve_deducts_bytes_on_success ... ok
+test write_class::write_class_tests::write_budget_reserve_returns_budget_exceeded_when_exhausted_plus_one ... ok
+test write_class::write_class_tests::write_budget_reserve_returns_budget_exceeded_when_over_limit ... ok
+test write_class::write_class_tests::write_budget_reserve_succeeds_when_at_exact_limit ... ok
+test write_class::write_class_tests::write_budget_reserve_zero_bytes_succeeds ... ok
+test write_class::write_class_tests::write_class_as_str_returns_bulk_blob_when_bulk_blob ... ok
+test write_class::write_class_tests::write_class_as_str_returns_critical_control_plane_when_critical_control_plane ... ok
+test write_class::write_class_tests::write_class_as_str_returns_operator_projection_when_operator_projection ... ok
+test write_class::write_class_tests::write_class_never_drops_returns_false_when_bulk_blob ... ok
+test write_class::write_class_tests::write_class_never_drops_returns_false_when_operator_projection ... ok
+test write_class::write_class_tests::write_class_never_drops_returns_true_when_critical_control_plane ... ok
+test write_class::write_class_tests::write_class_parses_bulk_blob_from_str ... ok
+test write_class::write_class_tests::write_class_parses_critical_control_plane_from_str ... ok
+test write_class::write_class_tests::write_class_parses_operator_projection_from_str ... ok
+test write_class::write_class_tests::write_class_returns_serialization_error_when_deserializing_malformed_json ... ok
+test write_class::write_class_tests::write_class_returns_serialization_error_when_deserializing_truncated_json ... ok
+test write_class::write_class_tests::write_class_returns_tier_1_when_critical_control_plane ... ok
+test write_class::write_class_tests::write_class_returns_tier_2_when_operator_projection ... ok
+test write_class::write_class_tests::write_class_returns_tier_3_when_bulk_blob ... ok
+test write_class::write_class_tests::write_class_returns_unknown_write_class_error_when_parsing_case_mismatch ... ok
+test write_class::write_class_tests::write_class_returns_unknown_write_class_error_when_parsing_empty_string ... ok
+test write_class::write_class_tests::write_class_returns_unknown_write_class_error_when_parsing_invalid_string ... ok
+test write_class::proptest_write_class_invariants::write_class_tier_always_returns_1_2_or_3 ... ok
+test write_class::proptest_write_class_invariants::write_budget_can_write_and_reserve_are_consistent ... ok
+test write_class::proptest_write_class_invariants::write_class_as_str_roundtrips_through_from_str ... ok
+test write_class::proptest_write_class_invariants::write_budget_reserve_never_produces_negative_remaining ... ok
+test write_class::proptest_write_class_invariants::write_class_json_roundtrip_preserves_variant ... ok
+test write_class::proptest_write_class_invariants::write_class_never_drops_true_only_for_critical_control_plane ... ok
+test debounce::proptests::debouncer_new_handles_any_positive_duration ... ok
+
+test result: ok. 295 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
+
+     Running `/tmp/cargo-mutants-veloxide-v6pbSE.tmp/target/debug/deps/admission_integration-b0d9a25b1c29665f`
+
+running 20 tests
+test admission_accepts_at_exact_threshold_boundary ... ok
+test admission_rejects_just_over_threshold_boundary ... ok
+test admission_accepts_just_below_threshold_boundary ... ok
+test admission_grants_access_when_all_pressure_indicators_within_default_thresholds ... ok
+test admission_rejects_when_blob_queue_depth_exceeds_default_threshold ... ok
+test admission_rejects_when_batch_commit_latency_exceeds_default_threshold ... ok
+test admission_rejects_when_compaction_stall_is_active ... ok
+test admission_rejects_when_storage_stall_is_active ... ok
+test admission_rejects_when_writer_queue_depth_exceeds_default_threshold ... ok
+test admission_rejects_with_multiple_pressure_indicators_when_all_five_exceed ... ok
+test admission_rejects_with_multiple_pressure_indicators_when_two_indicators_exceed ... ok
+test admission_with_custom_thresholds_accepts_higher_limits ... ok
+test admission_with_custom_thresholds_rejects_blob_when_exceeds_custom_threshold ... ok
+test admission_with_thresholds_detects_writer_blob_threshold_swap ... ok
+test admission_with_zero_thresholds_accepts_zero_values ... ok
+test admission_with_zero_thresholds_rejects_any_nonzero_value ... ok
+test admission_with_thresholds_detects_blob_writer_threshold_swap ... ok
+test check_admission_is_idempotent_on_repeated_calls ... ok
+test admission_with_custom_thresholds_rejects_when_custom_threshold_exceeded ... ok
+test check_admission_with_thresholds_is_idempotent_on_repeated_calls ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running `/tmp/cargo-mutants-veloxide-v6pbSE.tmp/target/debug/deps/admission_property-0dd61aeb36aceb5b`
+
+running 16 tests
+test admission_just_over_max_u64_threshold_is_impossible ... ok
+test admission_at_max_u64_threshold_boundary ... ok
+test admission_with_zero_thresholds_strict ... ok
+test writer_queue_depth_error_contains_correct_values ... ok
+test compaction_stall_active_always_rejects ... ok
+test batch_commit_latency_error_contains_correct_values ... ok
+test check_admission_idempotent ... ok
+test at_exact_threshold_returns_ok ... ok
+test check_admission_with_thresholds_idempotent ... ok
+test multiple_pressure_indicators_contains_exactly_failed_indicators ... ok
+test storage_stall_active_always_rejects ... ok
+test multiple_pressure_indicators_has_no_duplicates ... ok
+test blob_queue_depth_error_contains_correct_values ... ok
+test tighter_thresholds_never_pass_when_looser_fails ... ok
+test admission_thresholds_json_roundtrip ... ok
+test write_pressure_state_json_roundtrip ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running `/tmp/cargo-mutants-veloxide-v6pbSE.tmp/target/debug/deps/circuit_breaker_integration-acb295e8f30cebc7`
+
+running 30 tests
+test circuit_breaker_error_rate_limited_variant_is_constructable_and_matchable ... ok
+test circuit_breaker_error_workflow_deactivated_variant_is_constructable_and_matchable ... ok
+test circuit_breaker_error_has_exactly_six_variants ... ok
+test circuit_breaker_error_storage_error_variant_is_constructable_and_matchable ... ok
+test circuit_breaker_error_workflow_quarantined_variant_is_constructable_and_matchable ... ok
+test default_config_returns_60s_rate_limit_600s_failure_window_threshold_5 ... ok
+test circuit_breaker_state_new_has_empty_maps ... ok
+test evaluate_registration_returns_allowed_when_force_true_and_deactivated ... ok
+test evaluate_registration_returns_allowed_when_force_true_and_quarantined ... ok
+test evaluate_registration_does_not_record_failure_when_rate_limited ... ok
+test evaluate_registration_returns_allowed_when_force_true_and_rate_limited ... ok
+test evaluate_registration_returns_allowed_when_force_true_and_within_rate_window ... ok
+test evaluate_registration_returns_allowed_when_active_and_no_rate_limit ... ok
+test evaluate_registration_returns_deactivated_when_status_is_deactivated ... ok
+test evaluate_registration_updates_rate_limiter_on_allowed ... ok
+test evaluate_registration_returns_quarantined_when_status_is_quarantined ... ok
+test failure_window_new_is_empty ... ok
+test evaluate_registration_updates_rate_limiter_on_force_allowed ... ok
+test evaluate_registration_returns_rate_limited_with_30s_when_last_was_30s_ago ... ok
+test record_failure_returns_none_when_below_threshold ... ok
+test record_failure_returns_quarantine_event_when_fifth_unique_hash ... ok
+test record_failure_returns_storage_error_when_fjall_write_fails ... ok
+test record_failure_sets_quarantined_status_when_threshold_reached ... ok
+test unquarantine_removes_rate_limiter_entry ... ok
+test unquarantine_returns_correct_result_when_no_failures_tracked ... ok
+test unquarantine_persists_active_status ... ok
+test unquarantine_returns_not_quarantined_when_active ... ok
+test unquarantine_returns_not_quarantined_when_deactivated ... ok
+test unquarantine_returns_result_with_cleared_failures_when_quarantined ... ok
+test unquarantine_returns_workflow_not_found_when_unknown ... ok
+
+test result: ok. 30 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running `/tmp/cargo-mutants-veloxide-v6pbSE.tmp/target/debug/deps/persistence_restart_integration-451c3e0383f84b84`
+
+running 1 test
+test quarantine_blocks_registration_after_restart_hydration ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.25s
+
+     Running `/tmp/cargo-mutants-veloxide-v6pbSE.tmp/target/debug/deps/proptest_circuit_breaker-8496dc2f8e637bb9`
+
+running 6 tests
+test force_always_returns_allowed ... ok
+test below_threshold_does_not_trigger_quarantine ... ok
+test non_force_quarantined_returns_quarantined ... ok
+test rate_limited_requests_never_change_failure_count ... ok
+test threshold_unique_failures_always_triggers_quarantine ... ok
+test quarantine_is_monotonic_under_random_operations ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running `/tmp/cargo-mutants-veloxide-v6pbSE.tmp/target/debug/deps/red_queen_adversarial-632fe0157724ba3f`
+
+running 25 tests
+test attack_evaluation_order_rate_limit_fires_before_quarantine ... ok
+test attack_double_unquarantine_fails ... ok
+test attack_inv001_boundary_plus_one_second_evicts_first ... ok
+test attack_evaluation_order_quarantine_after_rate_limit_expiry ... ok
+test attack_inv001_boundary_five_failures_at_window_edge ... ok
+test attack_inv006_force_bypasses_all_three_guards_simultaneously ... ok
+test attack_inv008_quarantine_monotonicity_after_force_registration ... ok
+test attack_inv004_alternating_duplicates_then_threshold ... ok
+test attack_inv008_quarantine_survives_one_year_of_time ... ok
+test attack_inv007_full_eviction_then_fresh_threshold ... ok
+test attack_inv005_unknown_workflow_defaults_to_active ... ok
+test attack_inv007_many_unique_hashes_exceeding_u8_max ... ok
+test attack_inv009_rapid_requests_during_rate_limit_never_count ... ok
+test attack_post003_unquarantine_allows_immediate_registration ... ok
+test attack_rate_limit_ceiling_at_59_999 ... ok
+test attack_record_failure_on_quarantined_emits_duplicate_events ... ok
+test attack_threshold_1_immediate_quarantine ... ok
+test attack_rate_limit_ceiling_at_subsecond_boundary ... ok
+test attack_toctou_documentation_rate_limit_check_and_update_not_atomic ... ok
+test attack_unquarantine_then_reaquarantine ... ok
+test attack_workflow_isolation_quarantine_does_not_contaminate ... ok
+test attack_inv010_concurrent_evaluate_registration_no_panics ... ok
+test attack_inv004_duplicate_hash_flood_never_inflates_count ... ok
+test attack_inv010_concurrent_record_failure_no_panics ... ok
+test attack_threshold_255_requires_exactly_255_unique_hashes ... ok
+
+test result: ok. 25 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running `/tmp/cargo-mutants-veloxide-v6pbSE.tmp/target/debug/deps/upcaster_integration-c0777a68888b6267`
+
+running 25 tests
+test registry_accepts_valid_upcaster_and_returns_ok ... ok
+test registry_handles_empty_registry_gracefully ... ok
+test builder_creates_functional_registry_that_can_register_and_upcast ... ok
+test envelope_metadata_preserved_through_multi_hop_upcast ... ok
+test idempotent_registration_does_not_double_chain ... ok
+test registry_rejects_duplicate_upcaster_when_same_version_registered_twice ... ok
+test registry_applies_single_upcaster_when_version_gap_is_one ... ok
+test registry_propagates_event_envelope_error_when_upcaster_produces_invalid_envelope ... ok
+test registry_rejects_upcaster_when_source_version_exceeds_max ... ok
+test registry_returns_correct_max_supported_version ... ok
+test registry_returns_circular_chain_error_when_cycle_detected ... ok
+test registry_preserves_envelope_fields_when_upcasting ... ok
+test registry_returns_error_when_no_upcaster_registered_for_version ... ok
+test registry_returns_envelope_unchanged_when_already_at_max_version ... ok
+test registry_short_circuits_chain_when_envelope_at_max_despite_registered_upcasters ... ok
+test upcaster_is_idempotent_when_called_multiple_times_with_same_input ... ok
+test upcaster_output_contains_incremented_version_field ... ok
+test upcaster_output_is_valid_utf8_when_upcast_succeeds ... ok
+test upcast_envelope_through_full_workflow_when_envelope_enters_at_version_zero_and_must_reach_max ... ok
+test upcaster_returns_identical_output_on_repeated_calls ... ok
+test upcaster_returns_source_version_idempotently ... ok
+test upcaster_returns_source_version_when_source_version_called ... ok
+test upcaster_returns_upcasting_failed_when_transform_produces_invalid_json ... ok
+test upcaster_returns_upcasting_failed_with_parse_error_details ... ok
+test upcaster_transforms_valid_json_bytes_to_newer_schema_version ... ok
+
+test result: ok. 25 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running `/tmp/cargo-mutants-veloxide-v6pbSE.tmp/target/debug/deps/upcaster_proptest-0bb797f85a64855c`
+
+running 1 test
+test upcaster_is_deterministic ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running `/tmp/cargo-mutants-veloxide-v6pbSE.tmp/target/debug/deps/write_class_integration-d7a5f46e7246ca28`
+
+running 10 tests
+test write_budget_can_write_at_boundary_after_partial_reserve ... ok
+test write_budget_concurrent_reserve_same_class_isolated ... ok
+test write_class_deserializes_from_json_when_critical_control_plane ... ok
+test write_budget_exhaustion_isolation_between_classes ... ok
+test write_budget_multiple_reserves_across_classes ... ok
+test write_class_serializes_to_json_when_critical_control_plane ... ok
+test write_class_serializes_to_json_when_operator_projection ... ok
+test write_class_deserializes_from_json_when_bulk_blob ... ok
+test write_class_serializes_to_json_when_bulk_blob ... ok
+test write_class_deserializes_from_json_when_operator_projection ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests vo_core
+     Running `/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/rustdoc --edition=2021 --crate-type lib --color auto --crate-name vo_core --test crates/vo-core/src/lib.rs --test-run-directory /tmp/cargo-mutants-veloxide-v6pbSE.tmp/crates/vo-core --warn=unexpected_cfgs --check-cfg 'cfg(kani)' --extern dashmap=/tmp/cargo-mutants-veloxide-v6pbSE.tmp/target/debug/deps/libdashmap-e36d576a90134ef4.rlib --extern fjall=/tmp/cargo-mutants-veloxide-v6pbSE.tmp/target/debug/deps/libfjall-abfe8d737f32f68d.rlib --extern notify=/tmp/cargo-mutants-veloxide-v6pbSE.tmp/target/debug/deps/libnotify-8320f6757a526399.rlib --extern proptest=/tmp/cargo-mutants-veloxide-v6pbSE.tmp/target/debug/deps/libproptest-216a766c56ac4476.rlib --extern rstest=/tmp/cargo-mutants-veloxide-v6pbSE.tmp/target/debug/deps/librstest-ce971fceb7271210.rlib --extern serde=/tmp/cargo-mutants-veloxide-v6pbSE.tmp/target/debug/deps/libserde-65225f6523a3f7e1.rlib --extern serde_json=/tmp/cargo-mutants-veloxide-v6pbSE.tmp/target/debug/deps/libserde_json-74f26af1301414df.rlib --extern tempfile=/tmp/cargo-mutants-veloxide-v6pbSE.tmp/target/debug/deps/libtempfile-8ce133578a770185.rlib --extern thiserror=/tmp/cargo-mutants-veloxide-v6pbSE.tmp/target/debug/deps/libthiserror-0f760a551262ab92.rlib --extern tokio=/tmp/cargo-mutants-veloxide-v6pbSE.tmp/target/debug/deps/libtokio-80d9cc738f474eea.rlib --extern vo_core=/tmp/cargo-mutants-veloxide-v6pbSE.tmp/target/debug/deps/libvo_core-8096aeeac9fc7893.rlib --extern vo_storage=/tmp/cargo-mutants-veloxide-v6pbSE.tmp/target/debug/deps/libvo_storage-069610b2624a88b4.rlib --extern vo_types=/tmp/cargo-mutants-veloxide-v6pbSE.tmp/target/debug/deps/libvo_types-cb83cbd4b68501ac.rlib -L dependency=/tmp/cargo-mutants-veloxide-v6pbSE.tmp/target/debug/deps -C embed-bitcode=no --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' --error-format human`
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+*** result: Success

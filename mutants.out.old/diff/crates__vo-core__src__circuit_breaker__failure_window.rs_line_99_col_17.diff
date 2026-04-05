@@ -1,0 +1,21 @@
+--- crates/vo-core/src/circuit_breaker/failure_window.rs
++++ replace <= with > in unique_failures_in_window
+@@ -91,17 +91,17 @@
+ pub fn unique_failures_in_window(
+     window: &mut FailureWindow,
+     now: Instant,
+     window_duration: Duration,
+ ) -> usize {
+     // INV-007: evict expired entries
+     window.records.retain(|r| {
+         let elapsed = now.duration_since(r.failed_at);
+-        elapsed <= window_duration
++        elapsed > /* ~ changed by cargo-mutants ~ */ window_duration
+     });
+ 
+     window.records.len()
+ }
+ 
+ #[cfg(test)]
+ #[path = "failure_window_tests.rs"]
+ mod tests;

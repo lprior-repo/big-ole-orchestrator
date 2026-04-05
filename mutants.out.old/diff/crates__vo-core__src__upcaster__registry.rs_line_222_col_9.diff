@@ -1,0 +1,15 @@
+--- crates/vo-core/src/upcaster/registry.rs
++++ replace <impl UpcasterRegistryBuilder for DefaultUpcasterRegistryBuilder>::build -> Box<dyn UpcasterRegistry> with Box::new(Default::default())
+@@ -214,11 +214,11 @@
+ // =============================================================================
+ 
+ /// Builder for constructing an UpcasterRegistryImpl.
+ pub struct DefaultUpcasterRegistryBuilder;
+ 
+ impl UpcasterRegistryBuilder for DefaultUpcasterRegistryBuilder {
+     /// Build a new UpcasterRegistryImpl with MAX_SUPPORTED_VERSION as max version.
+     fn build() -> Box<dyn UpcasterRegistry> {
+-        Box::new(UpcasterRegistryImpl::new(MAX_SUPPORTED_VERSION))
++        Box::new(Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ }

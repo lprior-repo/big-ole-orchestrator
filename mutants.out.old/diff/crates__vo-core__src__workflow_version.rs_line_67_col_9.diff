@@ -1,0 +1,21 @@
+--- crates/vo-core/src/workflow_version.rs
++++ replace WorkflowVersion::registered_at -> TimestampMs with Default::default()
+@@ -59,17 +59,17 @@
+ 
+     #[must_use]
+     pub fn hash(&self) -> &BinaryHash {
+         &self.hash
+     }
+ 
+     #[must_use]
+     pub fn registered_at(&self) -> TimestampMs {
+-        self.registered_at
++        Default::default() /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// Returns the schema version for serialization compatibility.
+     #[must_use]
+     pub const fn schema_version(&self) -> u16 {
+         self.schema_version
+     }
+ }

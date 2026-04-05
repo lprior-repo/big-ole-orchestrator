@@ -1,0 +1,24 @@
+--- crates/vo-core/src/debounce.rs
++++ replace Debouncer::next_debounced_event -> Result<PathBuf, Error> with Ok(Default::default())
+@@ -72,20 +72,17 @@
+     }
+ 
+     /// Waits for the next debounced file event.
+     ///
+     /// # Errors
+     /// Returns `Error::WatcherChannelClosed` if the underlying watcher drops and all events are yielded.
+     /// Returns `Error::DebouncerInternal` if an internal error occurs (e.g., timer overflow).
+     pub async fn next_debounced_event(&mut self) -> Result<PathBuf, Error> {
+-        self.ready_rx
+-            .recv()
+-            .await
+-            .unwrap_or(Err(Error::WatcherChannelClosed))
++        Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     async fn background_task(
+         duration: Duration,
+         mut event_rx: Receiver<FileEvent>,
+         ready_tx: Sender<Result<PathBuf, Error>>,
+         initial_event: Option<FileEvent>,
+     ) {

@@ -1,0 +1,52 @@
+--- crates/vo-core/src/write_class_verification.rs
++++ replace verification::verify_write_budget_reserve_no_overflow with ()
+@@ -45,48 +45,17 @@
+     ///           and remaining >= 0
+     ///
+     /// Bound: u64::MAX as budget limit, u64::MAX as requested
+     /// Rationale: Budget arithmetic must be proven correct under all u64
+     ///            inputs. Overflow would violate ADR-032's budget tracking guarantees.
+     #[kani::proof]
+     fn verify_write_budget_reserve_no_overflow() {
+         // Get symbolic budget limits
+-        let critical_limit: u64 = kani::any();
+-        let projection_limit: u64 = kani::any();
+-        let blob_limit: u64 = kani::any();
+-
+-        // Create budget
+-        let budget = WriteBudget::new(critical_limit, projection_limit, blob_limit);
+-
+-        // Get a symbolic class
+-        let class: WriteClass = kani::any();
+-
+-        // Get a symbolic reserve size
+-        let size: u64 = kani::any();
+-
+-        // Assume size is reasonable to avoid trivial overflows in the model
+-        kani::assume(size <= u64::MAX / 2);
+-
+-        // Get initial remaining
+-        let initial_remaining = budget.remaining(class);
+-
+-        // Attempt reserve
+-        let result = budget.reserve(class, size);
+-
+-        // If reserve succeeded, verify the arithmetic is correct
+-        if result.is_ok() {
+-            let new_remaining = budget.remaining(class);
+-
+-            // The difference should equal the size
+-            // But we need to be careful about u64 arithmetic
+-            if initial_remaining >= size {
+-                assert_eq!(new_remaining, initial_remaining - size);
+-            }
+-        }
++        () /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// KANI-03: Verify never_drops() is correct for all variants.
+     ///
+     /// Property: never_drops() returns true only for CriticalControlPlane
+     #[kani::proof]
+     fn verify_never_drops_only_critical() {
+         let wc: WriteClass = kani::any();

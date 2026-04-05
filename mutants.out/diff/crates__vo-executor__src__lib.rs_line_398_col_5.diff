@@ -1,0 +1,23 @@
+--- crates/vo-executor/src/lib.rs
++++ replace execute_and_transition -> Result<StepResult, ExecuteNodeError> with Ok(Default::default())
+@@ -390,19 +390,17 @@
+     }
+     Ok(())
+ }
+ 
+ fn execute_and_transition(
+     step_id: &StepId,
+     behavior: StepBehavior,
+ ) -> Result<StepResult, ExecuteNodeError> {
+-    let result = execute_behavior(step_id, behavior)?;
+-    set_state(step_id.as_str(), StepState::Ready);
+-    Ok(result)
++    Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ fn execute_behavior(
+     step_id: &StepId,
+     behavior: StepBehavior,
+ ) -> Result<StepResult, ExecuteNodeError> {
+     match behavior {
+         StepBehavior::Success | StepBehavior::Slow => Ok(StepResult::Success {

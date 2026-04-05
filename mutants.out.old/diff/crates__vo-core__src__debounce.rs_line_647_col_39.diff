@@ -1,0 +1,18 @@
+--- crates/vo-core/src/debounce.rs
++++ replace + with - in verification::verify_event_tracking_state_bounds
+@@ -639,14 +639,14 @@
+     #[kani::proof]
+     fn verify_event_tracking_state_bounds() {
+         let count: u8 = kani::any();
+         let added: u8 = kani::any();
+         let removed: u8 = kani::any();
+ 
+         kani::assume(count <= 5);
+         kani::assume(added <= 5 - count);
+-        kani::assume(removed <= count + added);
++        kani::assume(removed <= count - /* ~ changed by cargo-mutants ~ */ added);
+ 
+         let final_count = count + added - removed;
+         assert!(final_count <= 5);
+     }
+ }

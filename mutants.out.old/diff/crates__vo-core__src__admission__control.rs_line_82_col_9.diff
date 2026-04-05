@@ -1,0 +1,39 @@
+--- crates/vo-core/src/admission/control.rs
++++ replace <impl fmt::Display for RejectionReason>::fmt -> fmt::Result with Ok(Default::default())
+@@ -74,35 +74,17 @@
+     /// No active lease exists for the (instance_id, step_id) pair.
+     NoActiveLease,
+     /// A generic admission policy violation with a human-readable message.
+     PolicyViolation(String),
+ }
+ 
+ impl fmt::Display for RejectionReason {
+     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+-        match self {
+-            RejectionReason::MissingDedupeKey => write!(f, "missing dedupe key"),
+-            RejectionReason::DedupeKeyTooLong {
+-                max_length,
+-                actual_length,
+-            } => {
+-                write!(
+-                    f,
+-                    "dedupe key too long: {actual_length} characters exceeds maximum of {max_length}"
+-                )
+-            }
+-            RejectionReason::FenceTokenMismatch { expected, actual } => {
+-                write!(f, "fence token mismatch: expected {expected}, got {actual}")
+-            }
+-            RejectionReason::NoActiveLease => {
+-                write!(f, "no active lease for the given instance and step")
+-            }
+-            RejectionReason::PolicyViolation(msg) => write!(f, "policy violation: {msg}"),
+-        }
++        Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ impl std::error::Error for RejectionReason {}
+ 
+ // ============================================================================
+ // AdmissionResult
+ // ============================================================================

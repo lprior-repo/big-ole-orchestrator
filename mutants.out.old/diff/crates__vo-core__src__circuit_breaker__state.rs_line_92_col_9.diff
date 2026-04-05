@@ -1,0 +1,23 @@
+--- crates/vo-core/src/circuit_breaker/state.rs
++++ replace CircuitBreakerState::get_failure_count -> usize with 0
+@@ -84,19 +84,17 @@
+     /// Remove the rate limiter entry for a workflow.
+     pub fn remove_rate_limit(&self, workflow_name: &WorkflowName) {
+         self.rate_limiter.remove(workflow_name);
+     }
+ 
+     /// Get the failure count for a workflow (guards dropped before return).
+     #[must_use]
+     pub fn get_failure_count(&self, workflow_name: &WorkflowName) -> usize {
+-        self.failure_tracker
+-            .get(workflow_name)
+-            .map_or(0, |w| w.len())
++        0 /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ impl Default for CircuitBreakerState {
+     fn default() -> Self {
+         Self::new()
+     }
+ }

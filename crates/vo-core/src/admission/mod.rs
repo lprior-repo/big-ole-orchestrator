@@ -20,8 +20,13 @@ pub mod check;
 pub mod control;
 pub mod types;
 
+#[cfg(test)]
+pub mod check_tests;
+#[cfg(kani)]
+pub mod check_verification;
+#[cfg(test)]
+pub mod control_tests;
+
 pub use check::{check_admission, check_admission_with_thresholds};
-pub use control::{
-    AdmissionCheck, AdmissionResult, DedupeToken, DedupeTokenError, RejectionReason,
-};
+pub use control::{AdmissionCheck, AdmissionResult, DedupeToken, RejectionReason};
 pub use types::{AdmissionError, AdmissionThresholds, PressureIndicator, WritePressureState};

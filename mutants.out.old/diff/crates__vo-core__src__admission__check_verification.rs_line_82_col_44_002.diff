@@ -1,0 +1,21 @@
+--- crates/vo-core/src/admission/check_verification.rs
++++ replace > with >= in verification::multiple_indicators_error_contains_exactly_failures
+@@ -74,17 +74,17 @@
+                     state.batch_commit_latency_ms > thresholds.batch_commit_latency_ms_threshold,
+                     "BatchCommitLatency in error must exceed threshold",
+                 );
+             }
+ 
+             // BlobQueueDepth in error implies blob_queue_depth > blob_threshold
+             if indicators.contains(&PressureIndicator::BlobQueueDepth) {
+                 kani::assert(
+-                    state.blob_queue_depth > thresholds.blob_queue_depth_threshold,
++                    state.blob_queue_depth >= /* ~ changed by cargo-mutants ~ */ thresholds.blob_queue_depth_threshold,
+                     "BlobQueueDepth in error must exceed threshold",
+                 );
+             }
+ 
+             // CompactionStall in error implies compaction_stall_active == true
+             if indicators.contains(&PressureIndicator::CompactionStall) {
+                 kani::assert(
+                     state.compaction_stall_active,

@@ -1,0 +1,21 @@
+--- crates/vo-core/src/upcaster/registry.rs
++++ replace == with != in <impl UpcasterRegistry for UpcasterRegistryImpl>::upcast_envelope
+@@ -105,17 +105,17 @@
+         let mut current_payload = envelope.payload.clone();
+ 
+         // Track visited versions to detect cycles
+         let mut visited = HashMap::new();
+         visited.insert(current_version, true);
+ 
+         loop {
+             // Check for circular chain - if we've seen this version before, error
+-            if visited.get(&current_version) == Some(&true) {
++            if visited.get(&current_version) != /* ~ changed by cargo-mutants ~ */ Some(&true) {
+                 return Err(UpcasterError::CircularChain(current_version));
+             }
+ 
+             // If we've reached max version, we're done
+             if current_version >= self.max_version {
+                 break;
+             }
+ 

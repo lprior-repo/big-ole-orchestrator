@@ -9,7 +9,8 @@
 
 use std::sync::{Arc, Mutex};
 use vo_core::upcaster::{
-    Upcaster, UpcasterError, UpcasterRegistry, UpcasterRegistryBuilder, MAX_SUPPORTED_VERSION,
+    Upcaster, UpcasterError, UpcasterRegistry, UpcasterRegistryBuilder, UpcasterRegistryImpl,
+    MAX_SUPPORTED_VERSION,
 };
 use vo_types::events::EventEnvelope;
 
@@ -819,5 +820,119 @@ fn envelope_metadata_preserved_through_multi_hop_upcast() {
     assert_eq!(
         upcasted.metadata, envelope.metadata,
         "metadata should be preserved through upcast"
+    );
+}
+
+// =============================================================================
+// UpcasterRegistryImpl Direct Tests (not TestUpcasterRegistry)
+// =============================================================================
+// These tests kill mutations that survive only when testing the real implementation.
+// The TestUpcasterRegistry is a test double that may have different behavior.
+
+/// An upcaster with source_version = MAX_SUPPORTED_VERSION for boundary testing.
+struct MaxVersionBoundaryUpcaster;
+
+impl MaxVersionBoundaryUpcaster {
+    fn new() -> Box<dyn Upcaster> {
+        Box::new(Self)
+    }
+}
+
+impl Upcaster for MaxVersionBoundaryUpcaster {
+    fn source_version(&self) -> u8 {
+        MAX_SUPPORTED_VERSION
+    }
+
+    fn upcast(&self, input: &[u8]) -> Result<Vec<u8>, UpcasterError> {
+        let mut value: serde_json::Value = serde_json::from_slice(input)
+            .map_err(|e| UpcasterError::UpcastingFailed(e.to_string()))?;
+        value["version"] = serde_json::json!(MAX_SUPPORTED_VERSION + 1);
+        serde_json::to_vec(&value).map_err(|e| UpcasterError::UpcastingFailed(e.to_string()))
+    }
+}
+
+/// An upcaster with source_version = MAX_SUPPORTED_VERSION - 1 (valid boundary).
+struct OneBelowMaxUpcaster;
+
+impl OneBelowMaxUpcaster {
+    fn new() -> Box<dyn Upcaster> {
+        Box::new(Self)
+    }
+}
+
+impl Upcaster for OneBelowMaxUpcaster {
+    fn source_version(&self) -> u8 {
+        MAX_SUPPORTED_VERSION - 1
+    }
+
+    fn upcast(&self, input: &[u8]) -> Result<Vec<u8>, UpcasterError> {
+        let mut value: serde_json::Value = serde_json::from_slice(input)
+            .map_err(|e| UpcasterError::UpcastingFailed(e.to_string()))?;
+        value["version"] = serde_json::json!(MAX_SUPPORTED_VERSION);
+        serde_json::to_vec(&value).map_err(|e| UpcasterError::UpcastingFailed(e.to_string()))
+    }
+}
+
+#[test]
+fn upcaster_registry_impl_constructs_directly_with_valid_max_version() {
+    // Given/When: Construct UpcasterRegistryImpl directly (not via builder)
+    let registry = UpcasterRegistryImpl::new(MAX_SUPPORTED_VERSION);
+
+    // Then: max_supported_version returns the configured value
+    assert_eq!(
+        registry.max_supported_version(),
+        MAX_SUPPORTED_VERSION,
+        "max_supported_version should return the value passed to new()"
+    );
+}
+
+#[test]
+fn upcaster_registry_impl_rejects_upcaster_when_source_version_equals_max() {
+    // Given: UpcasterRegistryImpl with max_version = MAX_SUPPORTED_VERSION
+    let registry = UpcasterRegistryImpl::new(MAX_SUPPORTED_VERSION);
+
+    // When: Try to register an upcaster with source_version == max_version
+    let upcaster = MaxVersionBoundaryUpcaster::new();
+
+    // Then: Should be rejected with InvalidTargetVersion error
+    let result = registry.register(upcaster);
+    assert_eq!(
+        result,
+        Err(UpcasterError::InvalidTargetVersion(MAX_SUPPORTED_VERSION)),
+        "upcaster with source_version == max_version should be rejected"
+    );
+}
+
+#[test]
+fn upcaster_registry_impl_accepts_upcaster_when_source_version_one_below_max() {
+    // Given: UpcasterRegistryImpl with max_version = MAX_SUPPORTED_VERSION
+    let registry = UpcasterRegistryImpl::new(MAX_SUPPORTED_VERSION);
+
+    // When: Register an upcaster with source_version = MAX - 1
+    let upcaster = OneBelowMaxUpcaster::new();
+
+    // Then: Should succeed
+    let result = registry.register(upcaster);
+    assert_eq!(
+        result,
+        Ok(()),
+        "upcaster with source_version == max_version - 1 should be accepted"
+    );
+}
+
+#[test]
+fn upcaster_registry_impl_direct_instantiation_max_version_zero() {
+    // Given: UpcasterRegistryImpl with max_version = 0
+    let registry = UpcasterRegistryImpl::new(0);
+
+    // When: Try to register any upcaster (even source_version = 0)
+    let upcaster = OneBelowMaxUpcaster::new(); // source_version = MAX - 1, which is 0
+
+    // Then: Should be rejected because 0 >= 0
+    let result = registry.register(upcaster);
+    assert_eq!(
+        result,
+        Err(UpcasterError::InvalidTargetVersion(0)),
+        "upcaster with source_version >= max_version (0) should be rejected"
     );
 }

@@ -1,0 +1,27 @@
+--- crates/vo-executor/src/lib.rs
++++ replace check_step_exists -> Result<StepBehavior, ExecuteNodeError> with Ok(Default::default())
+@@ -350,23 +350,17 @@
+             from_state: "Executing".to_string(),
+             action: "execute_step".to_string(),
+         });
+     }
+     Ok(())
+ }
+ 
+ fn check_step_exists(step_id: &StepId) -> Result<StepBehavior, ExecuteNodeError> {
+-    let behavior = step_behavior(step_id.as_str());
+-    if matches!(behavior, StepBehavior::NotFound) {
+-        return Err(ExecuteNodeError::StepNotFound {
+-            step_id: step_id.clone(),
+-        });
+-    }
+-    Ok(behavior)
++    Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ fn start_execution(step_id: &StepId) {
+     let start_time = Instant::now();
+     set_state(
+         step_id.as_str(),
+         StepState::Executing {
+             step_id: step_id.clone(),

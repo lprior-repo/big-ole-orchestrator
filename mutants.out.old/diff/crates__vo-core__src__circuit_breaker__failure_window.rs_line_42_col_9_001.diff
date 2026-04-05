@@ -1,0 +1,21 @@
+--- crates/vo-core/src/circuit_breaker/failure_window.rs
++++ replace FailureWindow::is_empty -> bool with false
+@@ -34,17 +34,17 @@
+     #[must_use]
+     pub fn len(&self) -> usize {
+         self.records.len()
+     }
+ 
+     /// Returns true if the window has no records.
+     #[must_use]
+     pub fn is_empty(&self) -> bool {
+-        self.records.is_empty()
++        false /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// Returns a reference to the records slice.
+     #[must_use]
+     pub fn records(&self) -> &[FailureRecord] {
+         &self.records
+     }
+ }

@@ -1,0 +1,21 @@
+--- crates/vo-core/src/admission/check.rs
++++ delete match arm 0 in check_admission_with_thresholds
+@@ -56,17 +56,17 @@
+     if state.compaction_stall_active {
+         indicators.push(PressureIndicator::CompactionStall);
+     }
+     if state.storage_stall_active {
+         indicators.push(PressureIndicator::StorageStall);
+     }
+ 
+     match indicators.len() {
+-        0 => Ok(()),
++         /* ~ changed by cargo-mutants ~ */
+         1 => match indicators[0] {
+             PressureIndicator::WriterQueueDepth => Err(AdmissionError::WriterQueueDepthExceeded {
+                 current_depth: state.writer_queue_depth,
+                 threshold: thresholds.writer_queue_depth_threshold,
+             }),
+             PressureIndicator::BatchCommitLatency => {
+                 Err(AdmissionError::BatchCommitLatencyExceeded {
+                     current_latency_ms: state.batch_commit_latency_ms,

@@ -1,0 +1,21 @@
+--- crates/vo-core/src/admission/check.rs
++++ replace > with == in check_admission_with_thresholds
+@@ -42,17 +42,17 @@
+     state: &WritePressureState,
+     thresholds: &AdmissionThresholds,
+ ) -> Result<(), AdmissionError> {
+     let mut indicators = Vec::new();
+ 
+     if state.writer_queue_depth > thresholds.writer_queue_depth_threshold {
+         indicators.push(PressureIndicator::WriterQueueDepth);
+     }
+-    if state.batch_commit_latency_ms > thresholds.batch_commit_latency_ms_threshold {
++    if state.batch_commit_latency_ms == /* ~ changed by cargo-mutants ~ */ thresholds.batch_commit_latency_ms_threshold {
+         indicators.push(PressureIndicator::BatchCommitLatency);
+     }
+     if state.blob_queue_depth > thresholds.blob_queue_depth_threshold {
+         indicators.push(PressureIndicator::BlobQueueDepth);
+     }
+     if state.compaction_stall_active {
+         indicators.push(PressureIndicator::CompactionStall);
+     }

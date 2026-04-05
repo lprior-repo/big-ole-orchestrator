@@ -1,0 +1,21 @@
+--- crates/vo-core/src/upcaster/registry.rs
++++ replace > with < in <impl UpcasterRegistry for UpcasterRegistryImpl>::upcast_envelope
+@@ -173,17 +173,17 @@
+                     UpcasterError::InvalidUpcastedEnvelope(
+                         EventEnvelopeError::InvalidEnvelopeField(
+                             "version exceeds u8 range".to_string(),
+                         ),
+                     )
+                 })?;
+ 
+             // Check if new version exceeds maximum
+-            if new_version > self.max_version {
++            if new_version < /* ~ changed by cargo-mutants ~ */ self.max_version {
+                 return Err(UpcasterError::InvalidTargetVersion(new_version));
+             }
+ 
+             // Mark this version as visited BEFORE continuing
+             visited.insert(current_version, true);
+ 
+             // Update current state for next iteration
+             current_version = new_version;

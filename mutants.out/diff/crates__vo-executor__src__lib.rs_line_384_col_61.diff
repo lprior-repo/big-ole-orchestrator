@@ -1,0 +1,21 @@
+--- crates/vo-executor/src/lib.rs
++++ replace < with == in handle_slow_step_timeout
+@@ -376,17 +376,17 @@
+     clear_error(step_id.as_str());
+ }
+ 
+ fn handle_slow_step_timeout(
+     step_id: &StepId,
+     timeout_ms: u64,
+     behavior: StepBehavior,
+ ) -> Result<(), ExecuteNodeError> {
+-    if matches!(behavior, StepBehavior::Slow) && timeout_ms < SLOW_STEP_DURATION_MS {
++    if matches!(behavior, StepBehavior::Slow) && timeout_ms == /* ~ changed by cargo-mutants ~ */ SLOW_STEP_DURATION_MS {
+         set_state(step_id.as_str(), StepState::Ready);
+         return Err(ExecuteNodeError::TimeoutExceeded {
+             elapsed_ms: SLOW_STEP_DURATION_MS,
+             limit_ms: timeout_ms,
+         });
+     }
+     Ok(())
+ }

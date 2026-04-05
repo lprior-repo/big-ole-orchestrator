@@ -1,0 +1,38 @@
+--- crates/vo-core/src/snapshot_compat.rs
++++ replace check_snapshot_compat -> SnapshotCompat with Default::default()
+@@ -35,34 +35,17 @@
+ pub fn is_snapshot_compatible(snapshot_version: u16, engine_version: u16) -> bool {
+     snapshot_version == engine_version
+ }
+ 
+ /// Full compatibility assessment between a snapshot's schema version and the
+ /// engine's current maximum supported schema version.
+ #[must_use]
+ pub fn check_snapshot_compat(snapshot_version: u16, engine_version: u16) -> SnapshotCompat {
+-    if snapshot_version == 0 || engine_version == 0 {
+-        return SnapshotCompat::Incompatible {
+-            snapshot: snapshot_version,
+-            engine: engine_version,
+-        };
+-    }
+-
+-    match snapshot_version.cmp(&engine_version) {
+-        std::cmp::Ordering::Equal => SnapshotCompat::Compatible,
+-        std::cmp::Ordering::Less => SnapshotCompat::NeedsUpcast {
+-            from: snapshot_version,
+-            to: engine_version,
+-        },
+-        std::cmp::Ordering::Greater => SnapshotCompat::Incompatible {
+-            snapshot: snapshot_version,
+-            engine: engine_version,
+-        },
+-    }
++    Default::default() /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ #[cfg(test)]
+ mod tests {
+     use super::*;
+ 
+     #[test]
+     fn matching_versions_returns_compatible() {

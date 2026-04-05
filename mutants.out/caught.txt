@@ -1,125 +1,44 @@
-crates/vo-storage/src/codec.rs:57:5: replace encode_event_key -> Result<[u8; 24], StorageError> with Ok([1; 24])
-crates/vo-storage/src/codec.rs:57:5: replace encode_event_key -> Result<[u8; 24], StorageError> with Ok([0; 24])
-crates/vo-storage/src/dedupe_partition/mod.rs:69:9: replace DedupeEntry::dedupe_key -> &str with ""
-crates/vo-storage/src/dedupe_partition/mod.rs:69:9: replace DedupeEntry::dedupe_key -> &str with "xyzzy"
-crates/vo-storage/src/dedupe_partition/mod.rs:74:9: replace DedupeEntry::instance_id -> &str with "xyzzy"
-crates/vo-storage/src/dedupe_partition/mod.rs:74:9: replace DedupeEntry::instance_id -> &str with ""
-crates/vo-storage/src/dedupe_partition/mod.rs:79:9: replace DedupeEntry::expires_at -> u64 with 0
-crates/vo-storage/src/dedupe_partition/mod.rs:79:9: replace DedupeEntry::expires_at -> u64 with 1
-crates/vo-storage/src/dedupe_partition/mod.rs:85:9: replace DedupeEntry::is_expired -> bool with false
-crates/vo-storage/src/dedupe_partition/mod.rs:85:9: replace DedupeEntry::is_expired -> bool with true
-crates/vo-storage/src/dedupe_partition/mod.rs:85:16: replace >= with < in DedupeEntry::is_expired
-crates/vo-storage/src/dedupe_partition/mod.rs:107:9: replace <impl fmt::Display for DedupeStoreError>::fmt -> fmt::Result with Ok(Default::default())
-crates/vo-storage/src/dedupe_partition/mod.rs:124:5: replace encode_dedupe_key -> Vec<u8> with vec![]
-crates/vo-storage/src/dedupe_partition/mod.rs:124:5: replace encode_dedupe_key -> Vec<u8> with vec![0]
-crates/vo-storage/src/dedupe_partition/mod.rs:124:5: replace encode_dedupe_key -> Vec<u8> with vec![1]
-crates/vo-storage/src/dedupe_partition/mod.rs:151:5: replace encode_dedupe_entry -> Result<Vec<u8>, DedupeStoreError> with Ok(vec![])
-crates/vo-storage/src/dedupe_partition/mod.rs:151:5: replace encode_dedupe_entry -> Result<Vec<u8>, DedupeStoreError> with Ok(vec![0])
-crates/vo-storage/src/dedupe_partition/mod.rs:151:5: replace encode_dedupe_entry -> Result<Vec<u8>, DedupeStoreError> with Ok(vec![1])
-crates/vo-storage/src/effect_journal/mod.rs:52:9: replace EffectId::as_str -> &str with ""
-crates/vo-storage/src/effect_journal/mod.rs:52:9: replace EffectId::as_str -> &str with "xyzzy"
-crates/vo-storage/src/effect_journal/mod.rs:70:9: replace <impl From<EffectId> for String>::from -> String with String::new()
-crates/vo-storage/src/effect_journal/mod.rs:70:9: replace <impl From<EffectId> for String>::from -> String with "xyzzy".into()
-crates/vo-storage/src/effect_journal/mod.rs:103:9: replace <impl fmt::Display for EffectJournalError>::fmt -> fmt::Result with Ok(Default::default())
-crates/vo-storage/src/effect_journal/mod.rs:130:5: replace encode_effect_key -> Vec<u8> with vec![]
-crates/vo-storage/src/effect_journal/mod.rs:130:5: replace encode_effect_key -> Vec<u8> with vec![0]
-crates/vo-storage/src/effect_journal/mod.rs:130:5: replace encode_effect_key -> Vec<u8> with vec![1]
-crates/vo-storage/src/effect_journal/mod.rs:160:5: replace encode_effect_record -> Result<Vec<u8>, EffectJournalError> with Ok(vec![])
-crates/vo-storage/src/effect_journal/mod.rs:160:5: replace encode_effect_record -> Result<Vec<u8>, EffectJournalError> with Ok(vec![0])
-crates/vo-storage/src/effect_journal/mod.rs:160:5: replace encode_effect_record -> Result<Vec<u8>, EffectJournalError> with Ok(vec![1])
-crates/vo-storage/src/effect_journal/mod.rs:285:9: replace <impl EffectJournal for InMemoryEffectJournal>::commit -> Result<(), EffectJournalError> with Ok(())
-crates/vo-storage/src/effect_journal/mod.rs:329:9: replace <impl EffectJournal for InMemoryEffectJournal>::rollback -> Result<(), EffectJournalError> with Ok(())
-crates/vo-storage/src/effect_journal/mod.rs:371:9: replace <impl EffectJournal for InMemoryEffectJournal>::list_pending -> Result<Vec<EffectRecord>, EffectJournalError> with Ok(vec![])
-crates/vo-storage/src/effect_journal/mod.rs:381:67: replace == with != in <impl EffectJournal for InMemoryEffectJournal>::list_pending
-crates/vo-storage/src/effect_journal/mod.rs:381:53: replace && with || in <impl EffectJournal for InMemoryEffectJournal>::list_pending
-crates/vo-storage/src/instance_index/mod.rs:48:5: replace encode_instance_index_key -> Result<[u8; 25], StorageError> with Ok([0; 25])
-crates/vo-storage/src/instance_index/mod.rs:48:5: replace encode_instance_index_key -> Result<[u8; 25], StorageError> with Ok([1; 25])
-crates/vo-storage/src/instance_index/mod.rs:65:20: replace != with == in decode_instance_index_key
-crates/vo-storage/src/instance_index/mod.rs:109:5: replace instance_index_upsert -> Result<(), StorageError> with Ok(())
-crates/vo-storage/src/instance_index/mod.rs:116:29: replace match guard old_status != status with false in instance_index_upsert
-crates/vo-storage/src/instance_index/mod.rs:116:40: replace != with == in instance_index_upsert
-crates/vo-storage/src/instance_index/mod.rs:155:5: replace scan_by_status -> impl Iterator<Item = Result<InstanceIndexEntry, StorageError>> with ::std::iter::empty()
-crates/vo-storage/src/instance_index/mod.rs:133:5: replace atomic_status_transition -> Result<(), StorageError> with Ok(())
-crates/vo-storage/src/instance_index/mod.rs:189:5: replace scan_all_instances -> impl Iterator<Item = Result<InstanceIndexEntry, StorageError>> with ::std::iter::empty()
-crates/vo-storage/src/instance_index/mod.rs:220:9: replace <impl Iterator for ScanIterator>::next -> Option<Self::Item> with None
-crates/vo-storage/src/lease_partition/mod.rs:71:9: replace <impl fmt::Display for LeaseStoreError>::fmt -> fmt::Result with Ok(Default::default())
-crates/vo-storage/src/lease_partition/mod.rs:138:9: replace LeaseEntry::instance_id -> &str with ""
-crates/vo-storage/src/lease_partition/mod.rs:138:9: replace LeaseEntry::instance_id -> &str with "xyzzy"
-crates/vo-storage/src/lease_partition/mod.rs:143:9: replace LeaseEntry::step_id -> &str with ""
-crates/vo-storage/src/lease_partition/mod.rs:143:9: replace LeaseEntry::step_id -> &str with "xyzzy"
-crates/vo-storage/src/lease_partition/mod.rs:148:9: replace LeaseEntry::fence_token -> u64 with 0
-crates/vo-storage/src/lease_partition/mod.rs:153:9: replace LeaseEntry::expires_at -> u64 with 0
-crates/vo-storage/src/lease_partition/mod.rs:148:9: replace LeaseEntry::fence_token -> u64 with 1
-crates/vo-storage/src/lease_partition/mod.rs:153:9: replace LeaseEntry::expires_at -> u64 with 1
-crates/vo-storage/src/lease_partition/mod.rs:159:9: replace LeaseEntry::is_expired -> bool with true
-crates/vo-storage/src/lease_partition/mod.rs:159:9: replace LeaseEntry::is_expired -> bool with false
-crates/vo-storage/src/lease_partition/mod.rs:159:16: replace >= with < in LeaseEntry::is_expired
-crates/vo-storage/src/lease_partition/mod.rs:194:5: replace encode_lease_key -> Vec<u8> with vec![]
-crates/vo-storage/src/lease_partition/mod.rs:194:5: replace encode_lease_key -> Vec<u8> with vec![0]
-crates/vo-storage/src/lease_partition/mod.rs:194:5: replace encode_lease_key -> Vec<u8> with vec![1]
-crates/vo-storage/src/lease_partition/mod.rs:231:5: replace encode_lease_entry -> Result<Vec<u8>, LeaseStoreError> with Ok(vec![])
-crates/vo-storage/src/lease_partition/mod.rs:231:5: replace encode_lease_entry -> Result<Vec<u8>, LeaseStoreError> with Ok(vec![0])
-crates/vo-storage/src/lease_partition/mod.rs:231:5: replace encode_lease_entry -> Result<Vec<u8>, LeaseStoreError> with Ok(vec![1])
-crates/vo-storage/src/purge.rs:15:5: replace purge_instance -> Result<u64, StorageError> with Ok(0)
-crates/vo-storage/src/purge.rs:28:58: replace == with != in purge_instance
-crates/vo-storage/src/purge.rs:15:5: replace purge_instance -> Result<u64, StorageError> with Ok(1)
-crates/vo-storage/src/purge.rs:57:21: replace += with -= in purge_instance
-crates/vo-storage/src/purge.rs:33:8: delete ! in purge_instance
-crates/vo-storage/src/purge.rs:57:21: replace += with *= in purge_instance
-crates/vo-storage/src/purge.rs:80:5: replace is_terminal -> bool with true
-crates/vo-storage/src/purge.rs:80:5: replace is_terminal -> bool with false
-crates/vo-storage/src/query/mod.rs:23:5: replace encode_key -> Result<[u8; 8], StorageError> with Ok([0; 8])
-crates/vo-storage/src/query/mod.rs:23:5: replace encode_key -> Result<[u8; 8], StorageError> with Ok([1; 8])
-crates/vo-storage/src/query/mod.rs:23:17: replace == with != in encode_key
-crates/vo-storage/src/query/mod.rs:36:5: replace decode_key -> Result<u64, StorageError> with Ok(0)
-crates/vo-storage/src/query/mod.rs:36:5: replace decode_key -> Result<u64, StorageError> with Ok(1)
-crates/vo-storage/src/query/mod.rs:38:12: replace == with != in decode_key
-crates/vo-storage/src/query/mod.rs:54:5: replace prefix_generator -> Result<Vec<u8>, StorageError> with Ok(vec![])
-crates/vo-storage/src/query/mod.rs:54:5: replace prefix_generator -> Result<Vec<u8>, StorageError> with Ok(vec![0])
-crates/vo-storage/src/query/mod.rs:54:5: replace prefix_generator -> Result<Vec<u8>, StorageError> with Ok(vec![1])
-crates/vo-storage/src/query/mod.rs:55:21: replace > with < in prefix_generator
-crates/vo-storage/src/query/mod.rs:83:9: delete match arm EventError::UnsupportedEnvelopeVersion(_) in error_mapper
-crates/vo-storage/src/query/mod.rs:117:9: replace IteratorState::advance -> Option<Result<EventEnvelope, StorageError>> with None
-crates/vo-storage/src/query/mod.rs:117:18: replace == with != in IteratorState::advance
-crates/vo-storage/src/query/mod.rs:120:12: delete ! in IteratorState::advance
-crates/vo-storage/src/query/mod.rs:126:31: replace match guard found != expected with true in IteratorState::advance
-crates/vo-storage/src/query/mod.rs:126:31: replace match guard found != expected with false in IteratorState::advance
-crates/vo-storage/src/query/mod.rs:126:37: replace != with == in IteratorState::advance
-crates/vo-storage/src/query/mod.rs:150:9: replace <impl Iterator for EventReplayIterator>::next -> Option<Self::Item> with None
-crates/vo-storage/src/query/mod.rs:173:9: replace EventReplayIterator::process_kv -> Option<Result<EventEnvelope, StorageError>> with None
-crates/vo-storage/src/query/mod.rs:174:26: replace < with > in EventReplayIterator::process_kv
-crates/vo-storage/src/snapshots/mod.rs:20:5: replace snapshot_write -> Result<(), StorageError> with Ok(())
-crates/vo-storage/src/snapshots/mod.rs:42:5: replace snapshot_load_latest -> Result<Option<(u64, InstanceState)>, StorageError> with Ok(None)
-crates/vo-storage/src/query/mod.rs:178:48: replace - with + in EventReplayIterator::process_kv
-crates/vo-storage/src/snapshots/mod.rs:73:5: replace encode_snapshot_key -> Result<[u8; 24], StorageError> with Ok([0; 24])
-crates/vo-storage/src/snapshots/mod.rs:73:5: replace encode_snapshot_key -> Result<[u8; 24], StorageError> with Ok([1; 24])
-crates/vo-storage/src/status_store.rs:27:9: replace <impl std::fmt::Display for StatusStoreError>::fmt -> std::fmt::Result with Ok(Default::default())
-crates/vo-storage/src/status_store.rs:46:5: replace encode_status -> Result<Vec<u8>, StatusStoreError> with Ok(vec![])
-crates/vo-storage/src/status_store.rs:46:5: replace encode_status -> Result<Vec<u8>, StatusStoreError> with Ok(vec![0])
-crates/vo-storage/src/status_store.rs:46:5: replace encode_status -> Result<Vec<u8>, StatusStoreError> with Ok(vec![1])
-crates/vo-storage/src/status_store.rs:82:5: replace read_registration_status -> Result<Option<RegistrationStatus>, StatusStoreError> with Ok(None)
-crates/vo-storage/src/status_store.rs:105:5: replace write_registration_status -> Result<(), StatusStoreError> with Ok(())
-crates/vo-storage/src/status_store.rs:124:5: replace load_all_statuses -> Result<Vec<(WorkflowName, RegistrationStatus)>, StatusStoreError> with Ok(vec![])
-crates/vo-storage/src/timer_index.rs:36:9: replace TimerKey::fire_at_ms -> u64 with 0
-crates/vo-storage/src/timer_index.rs:36:9: replace TimerKey::fire_at_ms -> u64 with 1
-crates/vo-storage/src/timer_index.rs:70:9: replace TimerValue::duration_ms -> u64 with 0
-crates/vo-storage/src/timer_index.rs:70:9: replace TimerValue::duration_ms -> u64 with 1
-crates/vo-storage/src/timer_index.rs:74:9: replace TimerValue::as_be_bytes -> [u8; 8] with [0; 8]
-crates/vo-storage/src/timer_index.rs:74:9: replace TimerValue::as_be_bytes -> [u8; 8] with [1; 8]
-crates/vo-storage/src/timer_index.rs:100:24: replace == with != in TimerRecord::try_from_parts
-crates/vo-storage/src/timer_index.rs:104:23: replace != with == in TimerRecord::try_from_parts
-crates/vo-storage/src/timer_index.rs:159:19: replace <= with > in timer_set
-crates/vo-storage/src/timer_index.rs:159:5: replace timer_set -> Result<(), StorageError> with Ok(())
-crates/vo-storage/src/timer_index.rs:162:20: replace == with != in timer_set
-crates/vo-storage/src/timer_index.rs:165:19: replace != with == in timer_set
-crates/vo-storage/src/timer_index.rs:184:5: replace scan_due_timers -> Result<Vec<TimerRecord>, StorageError> with Ok(vec![])
-crates/vo-storage/src/timer_index.rs:197:34: replace != with == in scan_due_timers
-crates/vo-storage/src/timer_index.rs:201:27: replace > with == in scan_due_timers
-crates/vo-storage/src/timer_index.rs:201:27: replace > with >= in scan_due_timers
-crates/vo-storage/src/query/mod.rs:178:48: replace - with / in EventReplayIterator::process_kv
-crates/vo-storage/src/timer_index.rs:230:5: replace timer_delete -> Result<(), StorageError> with Ok(())
-crates/vo-storage/src/dedupe_partition/verification.rs:6:5: replace verify_dedupe_entry_rejects_empty_key_returns_invalid_argument with ()
-crates/vo-storage/src/dedupe_partition/verification.rs:14:5: replace verify_encode_decode_dedupe_key_roundtrip_returns_original_key with ()
-crates/vo-storage/src/dedupe_partition/verification.rs:16:18: delete ! in verify_encode_decode_dedupe_key_roundtrip_returns_original_key
-crates/vo-storage/src/effect_journal/verification.rs:6:5: replace verify_effect_id_rejects_empty_intent_id with ()
-crates/vo-storage/src/effect_journal/verification.rs:14:5: replace verify_encode_decode_key_roundtrip with ()
+crates/vo-executor/src/lib.rs:45:12: delete ! in StepId::parse
+crates/vo-executor/src/lib.rs:47:59: replace == with != in StepId::parse
+crates/vo-executor/src/lib.rs:58:9: replace StepId::as_str -> &str with ""
+crates/vo-executor/src/lib.rs:58:9: replace StepId::as_str -> &str with "xyzzy"
+crates/vo-executor/src/lib.rs:47:47: replace == with != in StepId::parse
+crates/vo-executor/src/lib.rs:47:54: replace || with && in StepId::parse
+crates/vo-executor/src/lib.rs:47:42: replace || with && in StepId::parse
+crates/vo-executor/src/lib.rs:64:9: replace <impl AsRef<str> for StepId>::as_ref -> &str with ""
+crates/vo-executor/src/lib.rs:206:9: replace RetryPolicy::calculate_backoff_delay -> u64 with 0
+crates/vo-executor/src/lib.rs:64:9: replace <impl AsRef<str> for StepId>::as_ref -> &str with "xyzzy"
+crates/vo-executor/src/lib.rs:76:9: replace <impl std::fmt::Display for StepId>::fmt -> std::fmt::Result with Ok(Default::default())
+crates/vo-executor/src/lib.rs:70:9: replace <impl From<StepId> for String>::from -> Self with Default::default()
+crates/vo-executor/src/lib.rs:206:9: replace RetryPolicy::calculate_backoff_delay -> u64 with 1
+crates/vo-executor/src/lib.rs:221:9: replace StepResult::is_success -> bool with true
+crates/vo-executor/src/lib.rs:209:46: replace * with + in RetryPolicy::calculate_backoff_delay
+crates/vo-executor/src/lib.rs:221:9: replace StepResult::is_success -> bool with false
+crates/vo-executor/src/lib.rs:209:46: replace * with / in RetryPolicy::calculate_backoff_delay
+crates/vo-executor/src/lib.rs:229:9: replace ExecutionStatus::is_ready -> bool with true
+crates/vo-executor/src/lib.rs:229:9: replace ExecutionStatus::is_ready -> bool with false
+crates/vo-executor/src/lib.rs:271:5: replace set_state with ()
+crates/vo-executor/src/lib.rs:281:5: replace set_error with ()
+crates/vo-executor/src/lib.rs:287:9: delete match arm "step-1" | "step-good" | "step-valid" | "step-retry" | "workflow-step-1" in step_behavior
+crates/vo-executor/src/lib.rs:290:9: delete match arm "step-fail" in step_behavior
+crates/vo-executor/src/lib.rs:291:9: delete match arm "step-transient" | "step-flaky" in step_behavior
+crates/vo-executor/src/lib.rs:292:9: delete match arm "step-slow" in step_behavior
+crates/vo-executor/src/lib.rs:332:5: replace validate_timeout -> Result<(), ExecuteNodeError> with Ok(())
+crates/vo-executor/src/lib.rs:332:19: replace == with != in validate_timeout
+crates/vo-executor/src/lib.rs:338:19: replace == with != in validate_timeout
+crates/vo-executor/src/lib.rs:348:5: replace check_not_executing -> Result<(), ExecuteNodeError> with Ok(())
+crates/vo-executor/src/lib.rs:384:5: replace handle_slow_step_timeout -> Result<(), ExecuteNodeError> with Ok(())
+crates/vo-executor/src/lib.rs:384:47: replace && with || in handle_slow_step_timeout
+crates/vo-executor/src/lib.rs:384:61: replace < with == in handle_slow_step_timeout
+crates/vo-executor/src/lib.rs:454:34: replace == with != in validate_retry_policy
+crates/vo-executor/src/lib.rs:384:61: replace < with > in handle_slow_step_timeout
+crates/vo-executor/src/lib.rs:384:61: replace < with <= in handle_slow_step_timeout
+crates/vo-executor/src/lib.rs:454:5: replace validate_retry_policy -> Result<(), ExecuteNodeError> with Ok(())
+crates/vo-executor/src/lib.rs:499:34: replace >= with < in execute_flaky_retries
+crates/vo-executor/src/lib.rs:501:38: replace > with == in execute_flaky_retries
+crates/vo-executor/src/lib.rs:501:38: replace > with < in execute_flaky_retries
+crates/vo-executor/src/lib.rs:501:38: replace > with >= in execute_flaky_retries
+crates/vo-executor/src/lib.rs:516:5: replace sleep_with_backoff with ()
+crates/vo-executor/src/lib.rs:535:5: replace cancel_execution -> Result<(), ExecuteNodeError> with Ok(())
+crates/vo-executor/src/lib.rs:576:5: replace get_last_error -> Option<ExecuteNodeError> with None
+crates/vo-executor/src/lib.rs:471:25: replace == with != in check_flaky_or_delegate

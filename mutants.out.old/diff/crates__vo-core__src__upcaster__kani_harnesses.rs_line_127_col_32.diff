@@ -1,0 +1,21 @@
+--- crates/vo-core/src/upcaster/kani_harnesses.rs
++++ replace > with == in verification::<impl UpcasterRegistry for MockRegistry>::upcast_envelope
+@@ -119,17 +119,17 @@
+                 let input_bytes = serde_json::to_vec(&envelope_json).unwrap();
+                 let output_bytes = upcaster.upcast(&input_bytes).unwrap();
+ 
+                 let output_json: serde_json::Value = serde_json::from_slice(&output_bytes).unwrap();
+                 let output_obj = output_json.as_object().unwrap();
+ 
+                 let new_version = output_obj.get("version").and_then(|v| v.as_u64()).unwrap() as u8;
+ 
+-                if new_version > self.max_version {
++                if new_version == /* ~ changed by cargo-mutants ~ */ self.max_version {
+                     return Err(UpcasterError::InvalidTargetVersion(new_version));
+                 }
+ 
+                 current_version = new_version;
+                 current_payload = output_obj
+                     .get("payload")
+                     .cloned()
+                     .unwrap_or(serde_json::Value::Null);

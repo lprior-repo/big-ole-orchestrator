@@ -1,0 +1,28 @@
+--- crates/vo-core/src/write_class_verification.rs
++++ replace verification::verify_never_drops_only_critical with ()
+@@ -84,24 +84,17 @@
+         }
+     }
+ 
+     /// KANI-03: Verify never_drops() is correct for all variants.
+     ///
+     /// Property: never_drops() returns true only for CriticalControlPlane
+     #[kani::proof]
+     fn verify_never_drops_only_critical() {
+-        let wc: WriteClass = kani::any();
+-        let never_drops = wc.never_drops();
+-
+-        match wc {
+-            WriteClass::CriticalControlPlane => assert!(never_drops),
+-            WriteClass::OperatorProjection => assert!(!never_drops),
+-            WriteClass::BulkBlob => assert!(!never_drops),
+-        }
++        () /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// KANI-04: Verify can_write and reserve consistency.
+     ///
+     /// Property: can_write(class, size) == true iff reserve(class, size) succeeds
+     #[kani::proof]
+     fn verify_can_write_reserve_consistency() {
+         let budget = WriteBudget::new(100, 200, 300);

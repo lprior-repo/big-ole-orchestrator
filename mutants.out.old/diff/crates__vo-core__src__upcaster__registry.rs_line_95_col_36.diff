@@ -1,0 +1,21 @@
+--- crates/vo-core/src/upcaster/registry.rs
++++ replace >= with < in <impl UpcasterRegistry for UpcasterRegistryImpl>::upcast_envelope
+@@ -87,17 +87,17 @@
+     /// version exceeding the maximum supported version.
+     ///
+     /// Returns `UpcasterError::CircularChain` if the upcasters form a cycle.
+     ///
+     /// Returns `UpcasterError::InvalidUpcastedEnvelope` if an upcaster produces
+     /// output that cannot be parsed as a valid envelope.
+     fn upcast_envelope(&self, envelope: EventEnvelope) -> Result<EventEnvelope, UpcasterError> {
+         // If already at or above max version, return unchanged
+-        if envelope.schema_version >= self.max_version {
++        if envelope.schema_version < /* ~ changed by cargo-mutants ~ */ self.max_version {
+             return Ok(envelope);
+         }
+ 
+         let upcasters = self
+             .upcasters
+             .lock()
+             .map_err(|_| UpcasterError::UpcastingFailed("lock poisoned".to_string()))?;
+ 

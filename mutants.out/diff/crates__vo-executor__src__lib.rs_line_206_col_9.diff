@@ -1,0 +1,28 @@
+--- crates/vo-executor/src/lib.rs
++++ replace RetryPolicy::calculate_backoff_delay -> u64 with 0
+@@ -198,24 +198,17 @@
+     /// Calculate the backoff delay for a given attempt.
+     ///
+     /// Formula: `backoff_ms * multiplier^(attempt - 1)`
+     ///
+     /// Returns `u64::MAX` if the calculation would overflow.
+     #[must_use]
+     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+     pub fn calculate_backoff_delay(&self, attempt: u32) -> u64 {
+-        let exponent = attempt.saturating_sub(1).cast_signed();
+-        let multiplier_pow = self.backoff_multiplier.powi(exponent);
+-        #[allow(clippy::cast_precision_loss)]
+-        let product = self.backoff_ms as f64 * multiplier_pow;
+-        // Clamp to u64::MAX to prevent overflow
+-        #[allow(clippy::cast_precision_loss)]
+-        let clamped = product.min(u64::MAX as f64);
+-        clamped as u64
++        0 /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ impl StepResult {
+     /// Check if the step result indicates success.
+     #[must_use]
+     pub fn is_success(&self) -> bool {
+         matches!(self, StepResult::Success { .. })

@@ -1,0 +1,21 @@
+--- crates/vo-core/src/admission/check_verification.rs
++++ replace <= with > in verification::multiple_indicators_error_contains_exactly_failures
+@@ -106,17 +106,17 @@
+             if state.writer_queue_depth <= thresholds.writer_queue_depth_threshold {
+                 kani::assert(
+                     !indicators.contains(&PressureIndicator::WriterQueueDepth),
+                     "WriterQueueDepth should not be in error if within threshold",
+                 );
+             }
+ 
+             // BatchCommitLatency NOT in error implies batch_commit_latency_ms <= latency_threshold
+-            if state.batch_commit_latency_ms <= thresholds.batch_commit_latency_ms_threshold {
++            if state.batch_commit_latency_ms > /* ~ changed by cargo-mutants ~ */ thresholds.batch_commit_latency_ms_threshold {
+                 kani::assert(
+                     !indicators.contains(&PressureIndicator::BatchCommitLatency),
+                     "BatchCommitLatency should not be in error if within threshold",
+                 );
+             }
+ 
+             // BlobQueueDepth NOT in error implies blob_queue_depth <= blob_threshold
+             if state.blob_queue_depth <= thresholds.blob_queue_depth_threshold {

@@ -1,0 +1,22 @@
+--- crates/vo-core/src/write_class_verification.rs
++++ replace verification::verify_can_write_reserve_consistency with ()
+@@ -99,18 +99,11 @@
+         }
+     }
+ 
+     /// KANI-04: Verify can_write and reserve consistency.
+     ///
+     /// Property: can_write(class, size) == true iff reserve(class, size) succeeds
+     #[kani::proof]
+     fn verify_can_write_reserve_consistency() {
+-        let budget = WriteBudget::new(100, 200, 300);
+-        let class: WriteClass = kani::any();
+-        let size: u64 = kani::any();
+-
+-        let can_write = budget.can_write(class, size);
+-        let reserve_result = budget.reserve(class, size);
+-
+-        assert_eq!(can_write, reserve_result.is_ok());
++        () /* ~ changed by cargo-mutants ~ */
+     }
+ }

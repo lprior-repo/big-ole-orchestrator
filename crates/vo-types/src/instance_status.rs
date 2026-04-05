@@ -5,11 +5,13 @@
 //! This is an index-level projection of `LifecycleState`, NOT a state machine.
 //! It exists solely for key encoding in the instances partition.
 
+use serde::{Deserialize, Serialize};
+
 /// Coarse-grained instance status for the instances index partition.
 ///
 /// Invariant: Each variant maps to exactly one non-zero byte in `[0x01..=0x06]`.
 /// Invariant: The byte mapping is stable and append-only (never reorder or reassign).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[repr(u8)]
 pub enum InstanceStatus {
     Pending = 0x01,

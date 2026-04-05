@@ -1,0 +1,21 @@
+--- crates/vo-core/src/circuit_breaker/rate_limiter.rs
++++ replace update_rate_limit -> Instant with Default::default()
+@@ -32,17 +32,17 @@
+ }
+ 
+ /// Update the rate limiter with the current timestamp for a workflow.
+ ///
+ /// Returns the new timestamp for storage.
+ /// Called after a successful registration.
+ #[must_use]
+ pub fn update_rate_limit(now: Instant) -> Instant {
+-    now
++    Default::default() /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ #[cfg(test)]
+ mod tests {
+     use super::*;
+     use std::time::{Duration, Instant};
+ 
+     // B-21: No prior registration

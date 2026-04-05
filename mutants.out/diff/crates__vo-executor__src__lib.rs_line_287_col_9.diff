@@ -1,0 +1,23 @@
+--- crates/vo-executor/src/lib.rs
++++ delete match arm "step-1" | "step-good" | "step-valid" | "step-retry" | "workflow-step-1" in step_behavior
+@@ -279,19 +279,17 @@
+ /// Store an error for a step.
+ fn set_error(step_id: &str, err: ExecuteNodeError) {
+     LAST_ERROR.insert(step_id.to_string(), err);
+ }
+ 
+ /// **NOTE:** This is test infrastructure that simulates workflow step behavior.
+ fn step_behavior(step_id: &str) -> StepBehavior {
+     match step_id {
+-        "step-1" | "step-good" | "step-valid" | "step-retry" | "workflow-step-1" => {
+-            StepBehavior::Success
+-        }
++         /* ~ changed by cargo-mutants ~ */
+         "step-fail" => StepBehavior::Failure,
+         "step-transient" | "step-flaky" => StepBehavior::Transient,
+         "step-slow" => StepBehavior::Slow,
+         _ => StepBehavior::NotFound,
+     }
+ }
+ 
+ #[derive(Debug, Clone, Copy)]

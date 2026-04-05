@@ -1,0 +1,129 @@
+--- crates/vo-core/src/upcaster/registry.rs
++++ replace <impl UpcasterRegistry for UpcasterRegistryImpl>::upcast_envelope -> Result<EventEnvelope, UpcasterError> with Ok(Default::default())
+@@ -87,125 +87,17 @@
+     /// version exceeding the maximum supported version.
+     ///
+     /// Returns `UpcasterError::CircularChain` if the upcasters form a cycle.
+     ///
+     /// Returns `UpcasterError::InvalidUpcastedEnvelope` if an upcaster produces
+     /// output that cannot be parsed as a valid envelope.
+     fn upcast_envelope(&self, envelope: EventEnvelope) -> Result<EventEnvelope, UpcasterError> {
+         // If already at or above max version, return unchanged
+-        if envelope.schema_version >= self.max_version {
+-            return Ok(envelope);
+-        }
+-
+-        let upcasters = self
+-            .upcasters
+-            .lock()
+-            .map_err(|_| UpcasterError::UpcastingFailed("lock poisoned".to_string()))?;
+-
+-        let mut current_version = envelope.schema_version;
+-        let mut current_payload = envelope.payload.clone();
+-
+-        // Track visited versions to detect cycles
+-        let mut visited = HashMap::new();
+-        visited.insert(current_version, true);
+-
+-        loop {
+-            // Check for circular chain - if we've seen this version before, error
+-            if visited.get(&current_version) == Some(&true) {
+-                return Err(UpcasterError::CircularChain(current_version));
+-            }
+-
+-            // If we've reached max version, we're done
+-            if current_version >= self.max_version {
+-                break;
+-            }
+-
+-            let upcaster = upcasters
+-                .get(&current_version)
+-                .ok_or(UpcasterError::NoUpcasterRegistered(current_version))?;
+-
+-            // Serialize current state as envelope JSON for upcaster input
+-            let mut envelope_json = serde_json::Map::new();
+-            envelope_json.insert("version".to_string(), serde_json::json!(current_version));
+-            envelope_json.insert(
+-                "instance_id".to_string(),
+-                serde_json::json!(envelope.instance_id.clone()),
+-            );
+-            envelope_json.insert("sequence".to_string(), serde_json::json!(envelope.sequence));
+-            envelope_json.insert(
+-                "timestamp_ms".to_string(),
+-                serde_json::json!(envelope.timestamp_ms),
+-            );
+-            envelope_json.insert("payload".to_string(), current_payload);
+-            envelope_json.insert("metadata".to_string(), envelope.metadata.clone());
+-
+-            let input_bytes = serde_json::to_vec(&envelope_json).map_err(|e| {
+-                UpcasterError::UpcastingFailed(format!("serialization error: {}", e))
+-            })?;
+-
+-            let output_bytes = upcaster.upcast(&input_bytes)?;
+-
+-            // Parse the output as JSON
+-            let output_json: serde_json::Value =
+-                serde_json::from_slice(&output_bytes).map_err(|_| {
+-                    UpcasterError::InvalidUpcastedEnvelope(
+-                        EventEnvelopeError::InvalidEnvelopeFormat,
+-                    )
+-                })?;
+-
+-            let output_obj =
+-                output_json
+-                    .as_object()
+-                    .ok_or(UpcasterError::InvalidUpcastedEnvelope(
+-                        EventEnvelopeError::InvalidEnvelopeFormat,
+-                    ))?;
+-
+-            // Extract new version from output
+-            let new_version = output_obj
+-                .get("version")
+-                .and_then(|v| v.as_u64())
+-                .map(u8::try_from)
+-                .ok_or_else(|| {
+-                    UpcasterError::InvalidUpcastedEnvelope(
+-                        EventEnvelopeError::MissingEnvelopeField("version".to_string()),
+-                    )
+-                })?
+-                .map_err(|_| {
+-                    UpcasterError::InvalidUpcastedEnvelope(
+-                        EventEnvelopeError::InvalidEnvelopeField(
+-                            "version exceeds u8 range".to_string(),
+-                        ),
+-                    )
+-                })?;
+-
+-            // Check if new version exceeds maximum
+-            if new_version > self.max_version {
+-                return Err(UpcasterError::InvalidTargetVersion(new_version));
+-            }
+-
+-            // Mark this version as visited BEFORE continuing
+-            visited.insert(current_version, true);
+-
+-            // Update current state for next iteration
+-            current_version = new_version;
+-            current_payload = output_obj
+-                .get("payload")
+-                .cloned()
+-                .unwrap_or(serde_json::Value::Null);
+-        }
+-
+-        Ok(EventEnvelope {
+-            schema_version: current_version,
+-            instance_id: envelope.instance_id,
+-            sequence: envelope.sequence,
+-            timestamp_ms: envelope.timestamp_ms,
+-            payload: current_payload,
+-            metadata: envelope.metadata,
+-        })
++        Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// Get the current maximum supported version.
+     fn max_supported_version(&self) -> u8 {
+         self.max_version
+     }
+ }
+ 

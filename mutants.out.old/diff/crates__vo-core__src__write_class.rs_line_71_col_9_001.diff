@@ -1,0 +1,25 @@
+--- crates/vo-core/src/write_class.rs
++++ replace WriteClass::tier -> u8 with 1
+@@ -63,21 +63,17 @@
+ impl WriteClass {
+     /// Returns the QoS tier number (1=critical, 2=projection, 3=blob).
+     ///
+     /// # Returns
+     /// - `1` for `CriticalControlPlane`
+     /// - `2` for `OperatorProjection`
+     /// - `3` for `BulkBlob`
+     pub fn tier(self) -> u8 {
+-        match self {
+-            WriteClass::CriticalControlPlane => 1,
+-            WriteClass::OperatorProjection => 2,
+-            WriteClass::BulkBlob => 3,
+-        }
++        1 /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// Returns `true` if writes of this class are never dropped under pressure.
+     ///
+     /// Only `CriticalControlPlane` returns `true`.
+     pub fn never_drops(self) -> bool {
+         matches!(self, WriteClass::CriticalControlPlane)
+     }

@@ -1,0 +1,21 @@
+--- crates/vo-core/src/snapshot_compat.rs
++++ replace is_snapshot_compatible -> bool with true
+@@ -28,17 +28,17 @@
+ }
+ 
+ /// Returns `true` when the snapshot version exactly matches the engine version.
+ ///
+ /// For the full compatibility assessment (including upcast and incompatible
+ /// cases), use [`check_snapshot_compat`].
+ #[must_use]
+ pub fn is_snapshot_compatible(snapshot_version: u16, engine_version: u16) -> bool {
+-    snapshot_version == engine_version
++    true /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Full compatibility assessment between a snapshot's schema version and the
+ /// engine's current maximum supported schema version.
+ #[must_use]
+ pub fn check_snapshot_compat(snapshot_version: u16, engine_version: u16) -> SnapshotCompat {
+     if snapshot_version == 0 || engine_version == 0 {
+         return SnapshotCompat::Incompatible {

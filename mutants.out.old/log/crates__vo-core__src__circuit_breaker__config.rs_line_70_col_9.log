@@ -1,0 +1,243 @@
+
+*** crates/vo-core/src/circuit_breaker/config.rs:70:9: replace CircuitBreakerConfig::default_config -> Result<Self, ConfigValidationError> with Ok(Default::default())
+
+*** mutation diff:
+--- crates/vo-core/src/circuit_breaker/config.rs
++++ replace CircuitBreakerConfig::default_config -> Result<Self, ConfigValidationError> with Ok(Default::default())
+@@ -62,17 +62,17 @@
+         })
+     }
+ 
+     /// Returns the default config: 60s rate limit, 10min failure window, threshold 5.
+     ///
+     /// # Errors
+     /// Returns `ConfigValidationError` if the hardcoded defaults are invalid (should never happen).
+     pub fn default_config() -> Result<Self, ConfigValidationError> {
+-        Self::new(Duration::from_mins(1), Duration::from_mins(10), 5)
++        Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ #[cfg(test)]
+ mod tests {
+     use super::*;
+     use std::time::Duration;
+ 
+
+
+*** /home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo test --no-run --verbose --package=vo-core@0.1.0
+       Fresh cfg-if v1.0.4
+       Fresh unicode-ident v1.0.24
+       Fresh once_cell v1.21.4
+       Fresh linux-raw-sys v0.12.1
+       Fresh bitflags v2.11.0
+       Fresh fastrand v2.3.0
+       Fresh smallvec v1.15.1
+       Fresh scopeguard v1.2.0
+       Fresh log v0.4.29
+       Fresh pin-project-lite v0.2.17
+       Fresh memchr v2.8.0
+       Fresh futures-sink v0.3.32
+       Fresh compare v0.0.6
+       Fresh regex-syntax v0.8.10
+       Fresh futures-core v0.3.32
+       Fresh semver v1.0.27
+       Fresh hashbrown v0.14.5
+       Fresh sha1_smol v1.0.1
+       Fresh libc v0.2.183
+       Fresh lock_api v0.4.14
+       Fresh path-dedot v3.1.1
+       Fresh aho-corasick v1.1.4
+       Fresh futures-channel v0.3.32
+       Fresh rustc_version v0.4.1
+       Fresh interval-heap v0.0.5
+       Fresh equivalent v1.0.2
+       Fresh hashbrown v0.16.1
+       Fresh autocfg v1.5.0
+       Fresh varint-rs v2.2.0
+       Fresh futures-io v0.3.32
+       Fresh itoa v1.0.18
+       Fresh byteorder v1.5.0
+       Fresh slab v0.4.12
+       Fresh byteview v0.6.1
+       Fresh futures-task v0.3.32
+       Fresh xxhash-rust v0.8.15
+       Fresh rustc-hash v2.1.2
+       Fresh guardian v1.3.0
+       Fresh proc-macro2 v1.0.106
+       Fresh getrandom v0.4.2
+       Fresh crossbeam-utils v0.8.21
+       Fresh getrandom v0.3.4
+       Fresh zerocopy v0.8.47
+       Fresh rustix v1.1.4
+       Fresh serde_core v1.0.228
+       Fresh parking_lot_core v0.9.12
+       Fresh path-absolutize v3.1.1
+       Fresh zmij v1.0.21
+       Fresh regex-automata v0.4.14
+       Fresh errno v0.3.14
+       Fresh quick_cache v0.6.21
+       Fresh double-ended-peekable v0.1.0
+       Fresh lz4_flex v0.11.6
+       Fresh self_cell v1.2.2
+       Fresh socket2 v0.6.3
+       Fresh mio v1.2.0
+       Fresh inotify-sys v0.1.5
+       Fresh wait-timeout v0.2.1
+       Fresh glob v0.3.3
+       Fresh bitflags v1.3.2
+       Fresh same-file v1.0.6
+       Fresh bytes v1.11.1
+       Fresh quick-error v1.2.3
+       Fresh bit-vec v0.8.0
+       Fresh relative-path v1.9.3
+       Fresh fnv v1.0.7
+       Fresh std-semaphore v0.1.0
+       Fresh filetime v0.2.27
+       Fresh mio v0.8.11
+       Fresh quote v1.0.45
+       Fresh rand_core v0.9.5
+       Fresh ppv-lite86 v0.2.21
+       Fresh tempfile v3.27.0
+       Fresh crossbeam-epoch v0.9.18
+       Fresh serde_json v1.0.149
+       Fresh uuid v1.23.0
+       Fresh dashmap v6.1.0
+       Fresh parking_lot v0.12.5
+       Fresh signal-hook-registry v1.4.8
+       Fresh regex v1.12.3
+       Fresh inotify v0.9.6
+       Fresh crossbeam-channel v0.5.15
+       Fresh bit-set v0.8.0
+       Fresh walkdir v2.5.0
+       Fresh unarray v0.1.4
+       Fresh futures-timer v3.0.3
+       Fresh syn v2.0.117
+       Fresh rand_chacha v0.9.0
+       Fresh value-log v1.9.0
+       Fresh crossbeam-skiplist v0.1.3
+       Fresh num-traits v0.2.19
+       Fresh rand_xorshift v0.4.0
+       Fresh rusty-fork v0.3.1
+       Fresh notify v6.1.1
+       Fresh rand v0.9.2
+       Fresh serde_derive v1.0.228
+       Fresh futures-macro v0.3.32
+       Fresh thiserror-impl v1.0.69
+       Fresh enum_dispatch v0.3.13
+       Fresh tokio-macros v2.6.1
+       Fresh rstest_macros v0.18.2
+       Fresh ulid v1.2.1
+       Fresh serde v1.0.228
+       Fresh thiserror v1.0.69
+       Fresh futures-util v0.3.32
+       Fresh lsm-tree v2.10.4
+       Fresh tokio v1.50.0
+       Fresh proptest v1.11.0
+       Fresh vo-types v0.1.0 (/tmp/cargo-mutants-veloxide-lTWIsz.tmp/crates/vo-types)
+       Fresh futures-executor v0.3.32
+       Fresh fjall v2.11.2
+       Fresh futures v0.3.32
+       Fresh vo-storage v0.1.0 (/tmp/cargo-mutants-veloxide-lTWIsz.tmp/crates/vo-storage)
+       Dirty vo-core v0.1.0 (/tmp/cargo-mutants-veloxide-lTWIsz.tmp/crates/vo-core): the file `crates/vo-core/src/circuit_breaker/config.rs` has changed (1775365585.858472229s, 5s after last build at 1775365580.811489795s)
+   Compiling vo-core v0.1.0 (/tmp/cargo-mutants-veloxide-lTWIsz.tmp/crates/vo-core)
+       Fresh rstest v0.18.2
+     Running `sccache /home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/rustc --crate-name vo_core --edition=2021 crates/vo-core/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --emit=dep-info,link -C embed-bitcode=no -C debuginfo=2 --warn=unexpected_cfgs --check-cfg 'cfg(kani)' --test --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=ef90a4cef7a10bc0 -C extra-filename=-0065b03eca8e6c6a --out-dir /tmp/cargo-mutants-veloxide-lTWIsz.tmp/target/debug/deps -C incremental=/tmp/cargo-mutants-veloxide-lTWIsz.tmp/target/debug/incremental -L dependency=/tmp/cargo-mutants-veloxide-lTWIsz.tmp/target/debug/deps --extern dashmap=/tmp/cargo-mutants-veloxide-lTWIsz.tmp/target/debug/deps/libdashmap-e36d576a90134ef4.rlib --extern fjall=/tmp/cargo-mutants-veloxide-lTWIsz.tmp/target/debug/deps/libfjall-abfe8d737f32f68d.rlib --extern notify=/tmp/cargo-mutants-veloxide-lTWIsz.tmp/target/debug/deps/libnotify-8320f6757a526399.rlib --extern proptest=/tmp/cargo-mutants-veloxide-lTWIsz.tmp/target/debug/deps/libproptest-216a766c56ac4476.rlib --extern rstest=/tmp/cargo-mutants-veloxide-lTWIsz.tmp/target/debug/deps/librstest-ce971fceb7271210.rlib --extern serde=/tmp/cargo-mutants-veloxide-lTWIsz.tmp/target/debug/deps/libserde-65225f6523a3f7e1.rlib --extern serde_json=/tmp/cargo-mutants-veloxide-lTWIsz.tmp/target/debug/deps/libserde_json-74f26af1301414df.rlib --extern tempfile=/tmp/cargo-mutants-veloxide-lTWIsz.tmp/target/debug/deps/libtempfile-8ce133578a770185.rlib --extern thiserror=/tmp/cargo-mutants-veloxide-lTWIsz.tmp/target/debug/deps/libthiserror-0f760a551262ab92.rlib --extern tokio=/tmp/cargo-mutants-veloxide-lTWIsz.tmp/target/debug/deps/libtokio-80d9cc738f474eea.rlib --extern vo_storage=/tmp/cargo-mutants-veloxide-lTWIsz.tmp/target/debug/deps/libvo_storage-069610b2624a88b4.rlib --extern vo_types=/tmp/cargo-mutants-veloxide-lTWIsz.tmp/target/debug/deps/libvo_types-cb83cbd4b68501ac.rlib`
+     Running `sccache /home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/rustc --crate-name vo_core --edition=2021 crates/vo-core/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no -C debuginfo=2 --warn=unexpected_cfgs --check-cfg 'cfg(kani)' --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=b25cc896146e1fdb -C extra-filename=-8096aeeac9fc7893 --out-dir /tmp/cargo-mutants-veloxide-lTWIsz.tmp/target/debug/deps -C incremental=/tmp/cargo-mutants-veloxide-lTWIsz.tmp/target/debug/incremental -L dependency=/tmp/cargo-mutants-veloxide-lTWIsz.tmp/target/debug/deps --extern dashmap=/tmp/cargo-mutants-veloxide-lTWIsz.tmp/target/debug/deps/libdashmap-e36d576a90134ef4.rmeta --extern serde=/tmp/cargo-mutants-veloxide-lTWIsz.tmp/target/debug/deps/libserde-65225f6523a3f7e1.rmeta --extern serde_json=/tmp/cargo-mutants-veloxide-lTWIsz.tmp/target/debug/deps/libserde_json-74f26af1301414df.rmeta --extern thiserror=/tmp/cargo-mutants-veloxide-lTWIsz.tmp/target/debug/deps/libthiserror-0f760a551262ab92.rmeta --extern tokio=/tmp/cargo-mutants-veloxide-lTWIsz.tmp/target/debug/deps/libtokio-80d9cc738f474eea.rmeta --extern vo_types=/tmp/cargo-mutants-veloxide-lTWIsz.tmp/target/debug/deps/libvo_types-cb83cbd4b68501ac.rmeta`
+error[E0277]: the trait bound `CircuitBreakerConfig: Default` is not satisfied
+  --> crates/vo-core/src/circuit_breaker/config.rs:70:12
+   |
+70 |         Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+   |            ^^^^^^^^^^^^^^^^^^ the trait `Default` is not implemented for `CircuitBreakerConfig`
+   |
+help: consider annotating `CircuitBreakerConfig` with `#[derive(Default)]`
+   |
+ 8 + #[derive(Default)]
+ 9 | pub struct CircuitBreakerConfig {
+   |
+
+For more information about this error, try `rustc --explain E0277`.
+error: could not compile `vo-core` (lib) due to 1 previous error
+
+Caused by:
+  process didn't exit successfully: `sccache /home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/rustc --crate-name vo_core --edition=2021 crates/vo-core/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no -C debuginfo=2 --warn=unexpected_cfgs --check-cfg 'cfg(kani)' --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=b25cc896146e1fdb -C extra-filename=-8096aeeac9fc7893 --out-dir /tmp/cargo-mutants-veloxide-lTWIsz.tmp/target/debug/deps -C incremental=/tmp/cargo-mutants-veloxide-lTWIsz.tmp/target/debug/incremental -L dependency=/tmp/cargo-mutants-veloxide-lTWIsz.tmp/target/debug/deps --extern dashmap=/tmp/cargo-mutants-veloxide-lTWIsz.tmp/target/debug/deps/libdashmap-e36d576a90134ef4.rmeta --extern serde=/tmp/cargo-mutants-veloxide-lTWIsz.tmp/target/debug/deps/libserde-65225f6523a3f7e1.rmeta --extern serde_json=/tmp/cargo-mutants-veloxide-lTWIsz.tmp/target/debug/deps/libserde_json-74f26af1301414df.rmeta --extern thiserror=/tmp/cargo-mutants-veloxide-lTWIsz.tmp/target/debug/deps/libthiserror-0f760a551262ab92.rmeta --extern tokio=/tmp/cargo-mutants-veloxide-lTWIsz.tmp/target/debug/deps/libtokio-80d9cc738f474eea.rmeta --extern vo_types=/tmp/cargo-mutants-veloxide-lTWIsz.tmp/target/debug/deps/libvo_types-cb83cbd4b68501ac.rmeta` (exit status: 1)
+warning: build failed, waiting for other jobs to finish...
+warning: unexpected `cfg` condition value: `proptest`
+   --> crates/vo-core/src/replay.rs:939:11
+    |
+939 |     #[cfg(feature = "proptest")]
+    |           ^^^^^^^^^^^^^^^^^^^^ help: remove the condition
+    |
+    = note: no expected values for `feature`
+    = help: consider adding `proptest` as a feature in `Cargo.toml`
+    = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+    = note: requested on the command line with `-W unexpected-cfgs`
+
+warning: unused doc comment
+   --> crates/vo-core/src/write_class.rs:565:5
+    |
+565 |     /// PROP-01: INV-001 — tier() is always 1, 2, or 3
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+    = note: `#[warn(unused_doc_comments)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused doc comment
+   --> crates/vo-core/src/write_class.rs:578:5
+    |
+578 |     /// PROP-02: INV-002 — never_drops() is true only for CriticalControlPlane
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> crates/vo-core/src/write_class.rs:594:5
+    |
+594 |     /// PROP-03: INV-003 — as_str() round-trips through from_str()
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> crates/vo-core/src/write_class.rs:610:5
+    |
+610 |     /// PROP-04: INV-004 — JSON serialization round-trip
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> crates/vo-core/src/write_class.rs:626:5
+    |
+626 |     /// PROP-05: INV-005 — WriteBudget reserve never produces negative remaining
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> crates/vo-core/src/write_class.rs:652:5
+    |
+652 |     /// PROP-06: INV-006 — can_write and reserve are consistent
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+error[E0277]: the trait bound `config::CircuitBreakerConfig: Default` is not satisfied
+  --> crates/vo-core/src/circuit_breaker/config.rs:70:12
+   |
+70 |         Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+   |            ^^^^^^^^^^^^^^^^^^ the trait `Default` is not implemented for `config::CircuitBreakerConfig`
+   |
+help: consider annotating `config::CircuitBreakerConfig` with `#[derive(Default)]`
+   |
+ 8 + #[derive(Default)]
+ 9 | pub struct CircuitBreakerConfig {
+   |
+
+warning: `vo-core` (lib test) generated 7 warnings
+error: could not compile `vo-core` (lib test) due to 1 previous error; 7 warnings emitted
+
+Caused by:
+  process didn't exit successfully: `sccache /home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/rustc --crate-name vo_core --edition=2021 crates/vo-core/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --emit=dep-info,link -C embed-bitcode=no -C debuginfo=2 --warn=unexpected_cfgs --check-cfg 'cfg(kani)' --test --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=ef90a4cef7a10bc0 -C extra-filename=-0065b03eca8e6c6a --out-dir /tmp/cargo-mutants-veloxide-lTWIsz.tmp/target/debug/deps -C incremental=/tmp/cargo-mutants-veloxide-lTWIsz.tmp/target/debug/incremental -L dependency=/tmp/cargo-mutants-veloxide-lTWIsz.tmp/target/debug/deps --extern dashmap=/tmp/cargo-mutants-veloxide-lTWIsz.tmp/target/debug/deps/libdashmap-e36d576a90134ef4.rlib --extern fjall=/tmp/cargo-mutants-veloxide-lTWIsz.tmp/target/debug/deps/libfjall-abfe8d737f32f68d.rlib --extern notify=/tmp/cargo-mutants-veloxide-lTWIsz.tmp/target/debug/deps/libnotify-8320f6757a526399.rlib --extern proptest=/tmp/cargo-mutants-veloxide-lTWIsz.tmp/target/debug/deps/libproptest-216a766c56ac4476.rlib --extern rstest=/tmp/cargo-mutants-veloxide-lTWIsz.tmp/target/debug/deps/librstest-ce971fceb7271210.rlib --extern serde=/tmp/cargo-mutants-veloxide-lTWIsz.tmp/target/debug/deps/libserde-65225f6523a3f7e1.rlib --extern serde_json=/tmp/cargo-mutants-veloxide-lTWIsz.tmp/target/debug/deps/libserde_json-74f26af1301414df.rlib --extern tempfile=/tmp/cargo-mutants-veloxide-lTWIsz.tmp/target/debug/deps/libtempfile-8ce133578a770185.rlib --extern thiserror=/tmp/cargo-mutants-veloxide-lTWIsz.tmp/target/debug/deps/libthiserror-0f760a551262ab92.rlib --extern tokio=/tmp/cargo-mutants-veloxide-lTWIsz.tmp/target/debug/deps/libtokio-80d9cc738f474eea.rlib --extern vo_storage=/tmp/cargo-mutants-veloxide-lTWIsz.tmp/target/debug/deps/libvo_storage-069610b2624a88b4.rlib --extern vo_types=/tmp/cargo-mutants-veloxide-lTWIsz.tmp/target/debug/deps/libvo_types-cb83cbd4b68501ac.rlib` (exit status: 1)
+
+*** result: Failure(101)

@@ -1,0 +1,21 @@
+--- crates/vo-core/src/debounce.rs
++++ replace <impl PartialEq for Debouncer>::eq -> bool with true
+@@ -28,17 +28,17 @@
+ #[derive(Debug)]
+ pub struct Debouncer {
+     pub duration: Duration,
+     ready_rx: Receiver<Result<PathBuf, Error>>,
+ }
+ 
+ impl PartialEq for Debouncer {
+     fn eq(&self, other: &Self) -> bool {
+-        self.duration == other.duration
++        true /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ impl Debouncer {
+     /// Creates a new debouncer.
+     ///
+     /// # Errors
+     /// Returns `Error::InvalidDebounceDuration` if the duration is 0.

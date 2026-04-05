@@ -1,0 +1,21 @@
+--- crates/vo-executor/src/lib.rs
++++ replace set_error with ()
+@@ -273,17 +273,17 @@
+ 
+ /// Clear any stored error for a step.
+ fn clear_error(step_id: &str) {
+     LAST_ERROR.remove(step_id);
+ }
+ 
+ /// Store an error for a step.
+ fn set_error(step_id: &str, err: ExecuteNodeError) {
+-    LAST_ERROR.insert(step_id.to_string(), err);
++    () /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// **NOTE:** This is test infrastructure that simulates workflow step behavior.
+ fn step_behavior(step_id: &str) -> StepBehavior {
+     match step_id {
+         "step-1" | "step-good" | "step-valid" | "step-retry" | "workflow-step-1" => {
+             StepBehavior::Success
+         }

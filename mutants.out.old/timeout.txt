@@ -1,0 +1,5 @@
+crates/vo-core/src/debounce.rs:160:9: replace Debouncer::process_single_event_sync -> Result<(), Error> with Ok(())
+crates/vo-core/src/debounce.rs:178:9: replace Debouncer::handle_event_or_fail -> Result<(), ()> with Ok(())
+crates/vo-core/src/debounce.rs:191:9: replace Debouncer::calculate_deadlines -> (Vec<PathBuf>, Option<Instant>) with (vec![], None)
+crates/vo-core/src/debounce.rs:191:9: replace Debouncer::calculate_deadlines -> (Vec<PathBuf>, Option<Instant>) with (vec![Default::default()], None)
+crates/vo-core/src/debounce.rs:243:9: replace Debouncer::wait_for_events -> Result<(), ()> with Ok(())
