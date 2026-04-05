@@ -14,6 +14,10 @@ pub mod master {
 
 pub mod instance_registry;
 pub mod reanimator;
+pub mod signal_buffer;
+
+#[cfg(test)]
+pub mod signal_buffer_tests;
 
 #[cfg(test)]
 pub mod instance_registry_tests;
@@ -40,8 +44,7 @@ pub enum InstancePhaseView {
 #[derive(Debug)]
 pub struct OrchestratorMsg;
 
-#[derive(Debug)]
-pub struct StartError;
+
 
 #[cfg(test)]
 mod terminate_error_tests {
@@ -1384,15 +1387,632 @@ pub struct InstanceResumed {
     pub resumed_at: TimestampMs,
 }
 
+// =============================================================================
+// Signal Storage Trait - Persistence for signal acceptance events
+// =============================================================================
+
+/// Errors from signal storage operations.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SignalStorageError {
+    /// Instance not found in storage.
+    InstanceNotFound(InstanceId),
+    /// Failed to write to storage.
+    WriteError {
+        instance_id: InstanceId,
+        reason: String,
+    },
+    /// Failed to delete compensation record.
+    DeleteError {
+        instance_id: InstanceId,
+        reason: String,
+    },
+}
+
+impl std::fmt::Display for SignalStorageError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::InstanceNotFound(id) => write!(f, "Instance not found: {id}"),
+            Self::WriteError {
+                instance_id,
+                reason,
+            } => write!(f, "Write error for {instance_id}: {reason}"),
+            Self::DeleteError {
+                instance_id,
+                reason,
+            } => write!(f, "Delete error for {instance_id}: {reason}"),
+        }
+    }
+}
+
+impl std::error::Error for SignalStorageError {}
+
+/// Trait for persisting signal acceptance events.
+/// Abstracts the underlying storage implementation.
+pub trait SignalStorage: Send + Sync {
+    /// Persists a signal acceptance event.
+    ///
+    /// # Errors
+    /// Returns `SignalStorageError` if the write fails.
+    fn persist_signal_accepted(&self, accepted: &SignalAccepted) -> Result<(), SignalStorageError>;
+
+    /// Removes a previously persisted signal acceptance event (compensation).
+    ///
+    /// # Errors
+    /// Returns `SignalStorageError` if the delete fails.
+    fn remove_signal_accepted(
+        &self,
+        instance_id: &InstanceId,
+        signal_id: &str,
+    ) -> Result<(), SignalStorageError>;
+}
+
+// =============================================================================
+// Signal Work Queue Trait - Enqueuing workflow wake-up
+// =============================================================================
+
+/// Errors from signal work queue operations.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SignalWorkQueueError {
+    /// Instance not found.
+    InstanceNotFound(InstanceId),
+    /// Failed to enqueue work.
+    EnqueueError {
+        instance_id: InstanceId,
+        reason: String,
+    },
+}
+
+impl std::fmt::Display for SignalWorkQueueError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::InstanceNotFound(id) => write!(f, "Instance not found: {id}"),
+            Self::EnqueueError {
+                instance_id,
+                reason,
+            } => write!(f, "Enqueue error for {instance_id}: {reason}"),
+        }
+    }
+}
+
+impl std::error::Error for SignalWorkQueueError {}
+
+/// Trait for enqueueing workflow resume work.
+/// Abstracts the work queue implementation.
+pub trait SignalWorkQueue: Send + Sync {
+    /// Enqueues a resume work item for the given instance.
+    ///
+    /// # Errors
+    /// Returns `SignalWorkQueueError` if the enqueue fails.
+    fn enqueue_resume(&self, instance_id: InstanceId) -> Result<(), SignalWorkQueueError>;
+}
+
+/// Mock SignalStorage and MockSignalWorkQueue for testing.
+pub mod mock_signal_storage {
+    use super::*;
+
+    /// A mock signal storage that tracks persisted signals in memory.
+    #[derive(Debug, Default)]
+    pub struct MockSignalStorage {
+        persisted: std::sync::Mutex<Vec<SignalAccepted>>,
+        should_fail: std::sync::Mutex<bool>,
+    }
+
+    impl MockSignalStorage {
+        /// Creates a new mock storage.
+        pub fn new() -> Self {
+            Self::default()
+        }
+
+        /// Sets whether operations should fail.
+        pub fn set_should_fail(&self, should_fail: bool) {
+            *self.should_fail.lock().unwrap() = should_fail;
+        }
+
+        /// Gets all persisted signals.
+        pub fn persisted_signals(&self) -> Vec<SignalAccepted> {
+            self.persisted.lock().unwrap().clone()
+        }
+
+        /// Clears all persisted signals.
+        #[allow(dead_code)]
+        pub fn clear(&self) {
+            self.persisted.lock().unwrap().clear();
+        }
+    }
+
+    impl SignalStorage for MockSignalStorage {
+        fn persist_signal_accepted(
+            &self,
+            accepted: &SignalAccepted,
+        ) -> Result<(), SignalStorageError> {
+            if *self.should_fail.lock().unwrap() {
+                return Err(SignalStorageError::WriteError {
+                    instance_id: accepted.instance_id.clone(),
+                    reason: "Mock storage failure".to_string(),
+                });
+            }
+            self.persisted.lock().unwrap().push(accepted.clone());
+            Ok(())
+        }
+
+        fn remove_signal_accepted(
+            &self,
+            instance_id: &InstanceId,
+            signal_id: &str,
+        ) -> Result<(), SignalStorageError> {
+            if *self.should_fail.lock().unwrap() {
+                return Err(SignalStorageError::DeleteError {
+                    instance_id: instance_id.clone(),
+                    reason: "Mock storage failure".to_string(),
+                });
+            }
+            let mut persisted = self.persisted.lock().unwrap();
+            persisted.retain(|s| !(s.instance_id == *instance_id && s.signal_id == signal_id));
+            Ok(())
+        }
+    }
+
+    /// A mock work queue for testing.
+    #[derive(Debug, Default)]
+    pub struct MockSignalWorkQueue {
+        enqueued: std::sync::Mutex<Vec<InstanceId>>,
+        should_fail: std::sync::Mutex<bool>,
+        instance_not_found: std::sync::Mutex<bool>,
+    }
+
+    impl MockSignalWorkQueue {
+        /// Creates a new mock work queue.
+        pub fn new() -> Self {
+            Self::default()
+        }
+
+        /// Sets whether operations should fail.
+        pub fn set_should_fail(&self, should_fail: bool) {
+            *self.should_fail.lock().unwrap() = should_fail;
+        }
+
+        /// Sets whether instances should be marked as not found.
+        pub fn set_instance_not_found(&self, not_found: bool) {
+            *self.instance_not_found.lock().unwrap() = not_found;
+        }
+
+        /// Gets all enqueued instance IDs.
+        pub fn enqueued_instances(&self) -> Vec<InstanceId> {
+            self.enqueued.lock().unwrap().clone()
+        }
+
+        /// Clears all enqueued instances.
+        #[allow(dead_code)]
+        pub fn clear(&self) {
+            self.enqueued.lock().unwrap().clear();
+        }
+    }
+
+    impl SignalWorkQueue for MockSignalWorkQueue {
+        fn enqueue_resume(&self, instance_id: InstanceId) -> Result<(), SignalWorkQueueError> {
+            if *self.instance_not_found.lock().unwrap() {
+                return Err(SignalWorkQueueError::InstanceNotFound(instance_id));
+            }
+            if *self.should_fail.lock().unwrap() {
+                return Err(SignalWorkQueueError::EnqueueError {
+                    instance_id,
+                    reason: "Mock queue failure".to_string(),
+                });
+            }
+            self.enqueued.lock().unwrap().push(instance_id);
+            Ok(())
+        }
+    }
+}
+
+// =============================================================================
+// Workload Classes and Reserved Permit Budget (ADR-033)
+// =============================================================================
+
+/// Workload classification per ADR-033 v2.
+/// Each class receives reserved permit budget for fairness control.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum WorkloadClass {
+    /// Recovery work requiring guaranteed forward progress
+    Recovery,
+    /// New workflow instance instantiation
+    NewInstance,
+    /// Internal control plane / housekeeping
+    Internal,
+}
+
+/// Errors from actor start operations.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StartError {
+    /// Workload class has exhausted its reserved permit budget.
+    BudgetExhaustion {
+        /// The workload class that was exhausted.
+        class: WorkloadClass,
+        /// Number of permits requested.
+        requested: u32,
+        /// Number of permits actually available.
+        available: u32,
+    },
+    /// Invalid configuration provided.
+    InvalidConfig(String),
+}
+
+impl std::fmt::Display for StartError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::BudgetExhaustion {
+                class,
+                requested,
+                available,
+            } => write!(
+                f,
+                "Budget exhausted for {:?}: requested {}, available {}",
+                class, requested, available
+            ),
+            Self::InvalidConfig(msg) => write!(f, "Invalid config: {}", msg),
+        }
+    }
+}
+
+impl std::error::Error for StartError {}
+
+/// Reserved permit budget tracking per workload class.
+/// Ensures each class maintains its reserved capacity per ADR-033.
+#[derive(Debug, Clone)]
+pub struct ReservedPermitBudget {
+    max_per_class: u32,
+    class_counts: std::collections::HashMap<WorkloadClass, u32>,
+}
+
+impl ReservedPermitBudget {
+    /// Creates a new budget with the specified maximum per class.
+    ///
+    /// # Panics
+    /// Panics if `max_per_class` is zero.
+    #[must_use]
+    pub fn new(max_per_class: u32) -> Self {
+        assert!(max_per_class > 0, "max_per_class must be > 0");
+        Self {
+            max_per_class,
+            class_counts: std::collections::HashMap::new(),
+        }
+    }
+
+    /// Attempts to acquire a permit for the given class.
+    ///
+    /// # Errors
+    /// Returns `StartError::BudgetExhaustion` if no permits available.
+    pub fn try_acquire(&mut self, class: WorkloadClass) -> Result<(), StartError> {
+        let current = self.class_counts.get(&class).copied().unwrap_or(0);
+        if current >= self.max_per_class {
+            return Err(StartError::BudgetExhaustion {
+                class,
+                requested: 1,
+                available: self.max_per_class - current,
+            });
+        }
+        *self.class_counts.entry(class).or_insert(0) += 1;
+        Ok(())
+    }
+
+    /// Releases a permit for the given class.
+    /// If count is already zero, this is a no-op.
+    pub fn release(&mut self, class: WorkloadClass) {
+        let count = self.class_counts.get(&class).copied().unwrap_or(0);
+        if count == 0 {
+            return;
+        }
+        self.class_counts.insert(class, count - 1);
+    }
+
+    /// Resets all class counts to zero.
+    pub fn reset(&mut self) {
+        self.class_counts.clear();
+    }
+
+    /// Returns the number of available permits for the given class.
+    #[must_use]
+    pub fn available(&self, class: WorkloadClass) -> u32 {
+        let used = self.class_counts.get(&class).copied().unwrap_or(0);
+        self.max_per_class.saturating_sub(used)
+    }
+
+    /// Returns true if the given class has no available permits.
+    #[must_use]
+    pub fn is_exhausted(&self, class: WorkloadClass) -> bool {
+        self.available(class) == 0
+    }
+}
+
+#[cfg(test)]
+mod reserved_permit_budget_tests {
+    use super::*;
+
+    // =============================================================================
+    // WorkloadClass Tests
+    // =============================================================================
+
+    mod workload_class_tests {
+        use super::*;
+
+        #[test]
+        fn workload_class_variants_exist() {
+            assert!(matches!(WorkloadClass::Recovery, WorkloadClass::Recovery));
+            assert!(matches!(
+                WorkloadClass::NewInstance,
+                WorkloadClass::NewInstance
+            ));
+            assert!(matches!(WorkloadClass::Internal, WorkloadClass::Internal));
+        }
+
+        #[test]
+        fn workload_class_debug_format() {
+            assert_eq!(format!("{:?}", WorkloadClass::Recovery), "Recovery");
+            assert_eq!(format!("{:?}", WorkloadClass::NewInstance), "NewInstance");
+            assert_eq!(format!("{:?}", WorkloadClass::Internal), "Internal");
+        }
+
+        #[test]
+        fn workload_class_eq() {
+            assert_eq!(WorkloadClass::Recovery, WorkloadClass::Recovery);
+            assert_eq!(WorkloadClass::NewInstance, WorkloadClass::NewInstance);
+            assert_eq!(WorkloadClass::Internal, WorkloadClass::Internal);
+            assert_ne!(WorkloadClass::Recovery, WorkloadClass::NewInstance);
+        }
+
+        #[test]
+        fn workload_class_clone() {
+            let a = WorkloadClass::Recovery;
+            let b = a;
+            assert_eq!(a, b);
+        }
+
+        #[test]
+        fn workload_class_copy() {
+            let a = WorkloadClass::Recovery;
+            let b = a;
+            assert_eq!(a, b);
+        }
+    }
+
+    // =============================================================================
+    // StartError Tests
+    // =============================================================================
+
+    mod start_error_tests {
+        use super::*;
+
+        #[test]
+        fn budget_exhaustion_contains_fields() {
+            let err = StartError::BudgetExhaustion {
+                class: WorkloadClass::Recovery,
+                requested: 1,
+                available: 0,
+            };
+            assert!(matches!(err, StartError::BudgetExhaustion { .. }));
+        }
+
+        #[test]
+        fn budget_exhaustion_display() {
+            let err = StartError::BudgetExhaustion {
+                class: WorkloadClass::Recovery,
+                requested: 1,
+                available: 0,
+            };
+            let display = format!("{}", err);
+            assert!(display.contains("Recovery"));
+            assert!(display.contains("requested"));
+            assert!(display.contains("available"));
+        }
+
+        #[test]
+        fn invalid_config_display() {
+            let err = StartError::InvalidConfig("test error".to_string());
+            let display = format!("{}", err);
+            assert!(display.contains("Invalid config"));
+            assert!(display.contains("test error"));
+        }
+
+        #[test]
+        fn budget_exhaustion_partial_eq() {
+            let err1 = StartError::BudgetExhaustion {
+                class: WorkloadClass::Recovery,
+                requested: 1,
+                available: 0,
+            };
+            let err2 = StartError::BudgetExhaustion {
+                class: WorkloadClass::Recovery,
+                requested: 1,
+                available: 0,
+            };
+            assert_eq!(err1, err2);
+        }
+
+        #[test]
+        fn budget_exhaustion_different_classes_not_equal() {
+            let err1 = StartError::BudgetExhaustion {
+                class: WorkloadClass::Recovery,
+                requested: 1,
+                available: 0,
+            };
+            let err2 = StartError::BudgetExhaustion {
+                class: WorkloadClass::NewInstance,
+                requested: 1,
+                available: 0,
+            };
+            assert_ne!(err1, err2);
+        }
+    }
+
+    // =============================================================================
+    // ReservedPermitBudget Tests
+    // =============================================================================
+
+    mod reserved_permit_budget_tests {
+        use super::*;
+
+        #[test]
+        fn budget_creation() {
+            let budget = ReservedPermitBudget::new(5);
+            assert_eq!(budget.available(WorkloadClass::Recovery), 5);
+            assert_eq!(budget.available(WorkloadClass::NewInstance), 5);
+            assert_eq!(budget.available(WorkloadClass::Internal), 5);
+        }
+
+        #[test]
+        fn budget_acquire_decrements_available() {
+            let mut budget = ReservedPermitBudget::new(5);
+            budget.try_acquire(WorkloadClass::Recovery).unwrap();
+            assert_eq!(budget.available(WorkloadClass::Recovery), 4);
+        }
+
+        #[test]
+        fn budget_acquire_multiple() {
+            let mut budget = ReservedPermitBudget::new(5);
+            budget.try_acquire(WorkloadClass::Recovery).unwrap();
+            budget.try_acquire(WorkloadClass::Recovery).unwrap();
+            assert_eq!(budget.available(WorkloadClass::Recovery), 3);
+        }
+
+        #[test]
+        fn budget_acquire_returns_err_when_exhausted() {
+            let mut budget = ReservedPermitBudget::new(2);
+            budget.try_acquire(WorkloadClass::Recovery).unwrap();
+            budget.try_acquire(WorkloadClass::Recovery).unwrap();
+            let result = budget.try_acquire(WorkloadClass::Recovery);
+            assert!(matches!(
+                result,
+                Err(StartError::BudgetExhaustion {
+                    class: WorkloadClass::Recovery,
+                    requested: 1,
+                    available: 0,
+                })
+            ));
+        }
+
+        #[test]
+        fn budget_release_increments_available() {
+            let mut budget = ReservedPermitBudget::new(5);
+            budget.try_acquire(WorkloadClass::Recovery).unwrap();
+            budget.try_acquire(WorkloadClass::Recovery).unwrap();
+            budget.release(WorkloadClass::Recovery);
+            assert_eq!(budget.available(WorkloadClass::Recovery), 4);
+        }
+
+        #[test]
+        fn budget_release_on_zero_is_noop() {
+            let mut budget = ReservedPermitBudget::new(5);
+            budget.release(WorkloadClass::Recovery);
+            assert_eq!(budget.available(WorkloadClass::Recovery), 5);
+        }
+
+        #[test]
+        fn budget_reset_clears_counts() {
+            let mut budget = ReservedPermitBudget::new(5);
+            budget.try_acquire(WorkloadClass::Recovery).unwrap();
+            budget.try_acquire(WorkloadClass::NewInstance).unwrap();
+            budget.reset();
+            assert_eq!(budget.available(WorkloadClass::Recovery), 5);
+            assert_eq!(budget.available(WorkloadClass::NewInstance), 5);
+        }
+
+        #[test]
+        fn budget_is_exhausted_false_when_available() {
+            let budget = ReservedPermitBudget::new(5);
+            assert!(!budget.is_exhausted(WorkloadClass::Recovery));
+        }
+
+        #[test]
+        fn budget_is_exhausted_true_when_empty() {
+            let mut budget = ReservedPermitBudget::new(2);
+            budget.try_acquire(WorkloadClass::Recovery).unwrap();
+            budget.try_acquire(WorkloadClass::Recovery).unwrap();
+            assert!(budget.is_exhausted(WorkloadClass::Recovery));
+        }
+
+        #[test]
+        fn budget_classes_are_independent() {
+            let mut budget = ReservedPermitBudget::new(3);
+            // Exhaust Recovery
+            budget.try_acquire(WorkloadClass::Recovery).unwrap();
+            budget.try_acquire(WorkloadClass::Recovery).unwrap();
+            budget.try_acquire(WorkloadClass::Recovery).unwrap();
+            // Internal should still have capacity
+            assert!(budget.try_acquire(WorkloadClass::Internal).is_ok());
+            assert_eq!(budget.available(WorkloadClass::Internal), 2);
+        }
+
+        #[test]
+        fn budget_exhaustion_error_contains_class_and_available() {
+            let mut budget = ReservedPermitBudget::new(1);
+            budget.try_acquire(WorkloadClass::Recovery).unwrap();
+            let result = budget.try_acquire(WorkloadClass::Recovery);
+            match result {
+                Err(StartError::BudgetExhaustion {
+                    class,
+                    requested: _,
+                    available,
+                }) => {
+                    assert_eq!(class, WorkloadClass::Recovery);
+                    assert_eq!(available, 0);
+                }
+                _ => panic!("Expected BudgetExhaustion error"),
+            }
+        }
+    }
+}
+
 /// ControlActor handles Cancel and Resume commands for workflow instances.
 /// Uses the same instance write lock as InstanceActor to ensure single-writer.
-#[derive(Debug, Clone)]
-pub struct ControlActor;
+#[derive(Clone)]
+pub struct ControlActor {
+    signal_storage: Option<std::sync::Arc<dyn SignalStorage>>,
+    work_queue: Option<std::sync::Arc<dyn SignalWorkQueue>>,
+}
+
+impl std::fmt::Debug for ControlActor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ControlActor")
+            .field(
+                "signal_storage",
+                &if self.signal_storage.is_some() {
+                    "Some(...)"
+                } else {
+                    "None"
+                },
+            )
+            .field(
+                "work_queue",
+                &if self.work_queue.is_some() {
+                    "Some(...)"
+                } else {
+                    "None"
+                },
+            )
+            .finish()
+    }
+}
 
 impl ControlActor {
-    /// Create a new ControlActor instance.
+    /// Create a new ControlActor instance without storage or work queue.
+    /// This is used for testing where the stub behavior is sufficient.
     pub fn new() -> Self {
-        Self
+        Self {
+            signal_storage: None,
+            work_queue: None,
+        }
+    }
+
+    /// Create a new ControlActor instance with storage and work queue.
+    /// This enables the full atomic accept-resume implementation.
+    pub fn with_storage_and_queue(
+        signal_storage: std::sync::Arc<dyn SignalStorage>,
+        work_queue: std::sync::Arc<dyn SignalWorkQueue>,
+    ) -> Self {
+        Self {
+            signal_storage: Some(signal_storage),
+            work_queue: Some(work_queue),
+        }
     }
 
     /// Determines lifecycle state from instance_id for test simulation.
@@ -1625,7 +2245,7 @@ impl ControlActor {
             }
         }
 
-        // Success: atomic accept-resume
+        // Success: atomic accept-resume with persistence and work queue
         let now = TimestampMs::now();
         let accepted = SignalAccepted {
             instance_id: instance_id.clone(),
@@ -1640,6 +2260,27 @@ impl ControlActor {
             resumed_binary_hash: BinaryHash::new("post-signal-hash"),
             resumed_at: now,
         };
+
+        // Atomic persist-then-enqueue with rollback
+        if let (Some(storage), Some(queue)) = (&self.signal_storage, &self.work_queue) {
+            // Step 1: Persist signal acceptance
+            if let Err(e) = storage.persist_signal_accepted(&accepted) {
+                return Err(AcceptResumeError::StorageError {
+                    instance_id,
+                    reason: format!("persist_signal_accepted failed: {}", e),
+                });
+            }
+
+            // Step 2: Enqueue resume work
+            if let Err(e) = queue.enqueue_resume(instance_id.clone()) {
+                // Step 2 failed: rollback step 1
+                let _ = storage.remove_signal_accepted(&instance_id, &accepted.signal_id);
+                return Err(AcceptResumeError::StorageError {
+                    instance_id,
+                    reason: format!("enqueue_resume failed: {}", e),
+                });
+            }
+        }
 
         Ok(AcceptResumeOutcome { accepted, resumed })
     }

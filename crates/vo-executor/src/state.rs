@@ -9,7 +9,7 @@ use crate::types::StepId;
 
 /// Execution state for a step.
 #[derive(Debug, Clone)]
-pub(crate) enum StepState {
+pub enum StepState {
     Ready,
     Executing {
         step_id: StepId,

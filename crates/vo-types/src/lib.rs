@@ -1,4 +1,5 @@
 mod blob;
+mod command_envelope;
 mod command_metadata;
 mod compensation;
 mod connector;
@@ -30,6 +31,7 @@ mod types_tests;
 mod workflow;
 
 pub use blob::{BlobRef, BlobStatus, OutputRef, INLINED_MAX_BYTES};
+pub use command_envelope::{CommandEnvelope, CommandEnvelopeError, MAX_SUPPORTED_COMMAND_VERSION};
 pub use command_metadata::{CommandMetadata, Issuer};
 pub use compensation::{
     apply_compensation_transition, CompensationRecord, CompensationStatus,
@@ -53,7 +55,7 @@ pub use node_kind::NodeKind;
 pub use non_empty_vec::NonEmptyVec;
 pub use registration_status::RegistrationStatus;
 pub use signal::{
-    BufferPolicy, SignalAddress, SignalDedupeKey, SignalDelivery, WaitKey, WaitRecord,
+    BufferPolicy, LineageScope, SignalAddress, SignalDedupeKey, SignalDelivery, WaitKey, WaitRecord,
 };
 pub use types::{
     extract_schema_version, AttemptNumber, BinaryHash, DurationMs, EventVersion, FenceToken,

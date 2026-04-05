@@ -123,7 +123,6 @@ fn build_upcast_chain(
 ) -> Result<UpcasterChain<'_>, UpcasterError> {
     let mut chain = Vec::new();
     let mut visited = HashMap::new();
-    visited.insert(start_version, true);
     let mut current_version = start_version;
 
     while current_version < max_version {

@@ -11,24 +11,54 @@ bd update <id> --claim  # Claim work atomically
 bd close <id>         # Complete work
 ```
 
-## Local-Only Beads Setup
+## Beads Setup (REMOTE-BACKED)
 
-This project uses **local-only beads** with JSONL persistence. No remote Dolt sync.
+This project uses **bd with Dolt remote sync** to prevent data loss.
 
-- Beads are stored in `.beads/issues.jsonl`
-- Each session auto-commits to local Dolt history
-- No `bd dolt push` needed — beads persist locally
+### Database
+- **Remote**: `priorlewis43/veloxide-database` on DoltHub
+- **Local**: `.beads/dolt/` (working set only)
+- **Server mode**: `bd dolt start` runs a local Dolt server on port 3308
 
-## Local Beads Recovery
+### CRITICAL: Never Lose Data Again
 
-If beads become corrupted or missing, reset the local tracker:
+**BEFORE ENDING EVERY SESSION:**
 
 ```bash
+bd dolt push  # Push to DoltHub BEFORE anything else
+```
+
+**START OF EVERY SESSION:**
+
+```bash
+bd dolt pull  # Pull latest from DoltHub
+bd ready      # Get ready work
+```
+
+### Backup Verification
+
+After `bd dolt push`, verify at: https://www.dolthub.com/repositories/priorlewis43/veloxide-database
+
+### If Database Gets Corrupted or Fresh
+
+```bash
+# Stop current server
 bd dolt stop
-rm -f .beads/issues.jsonl
-cd .beads/dolt && dolt init && dolt sql -q "CREATE DATABASE IF NOT EXISTS wtf;"
-cd ../..
-bd dolt start
+
+# Remove corrupted local state (remote is source of truth)
+rm -rf .beads/dolt
+
+# Reinit
+bd init --server
+
+# Add remote
+cd .beads/dolt && dolt remote add origin priorlewis43/veloxide-database
+
+# Pull from remote (will overwrite empty local)
+dolt pull origin main
+
+# If needed, import JSONL backup
+bd import
 ```
 
 ## Non-Interactive Shell Commands
@@ -146,28 +176,32 @@ For more details, see README.md and docs/QUICKSTART.md.
 
 ## Session Completion
 
-**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
+**MANDATORY BEADS SYNC at end of EVERY session:**
 
-**MANDATORY WORKFLOW:**
+```bash
+bd dolt push  # Push beads to DoltHub - this is NON-NEGOTIABLE
+```
 
-1. **File issues for remaining work** - Create issues for anything that needs follow-up
-2. **Run quality gates** (if code changed) - Tests, linters, builds
-3. **Update issue status** - Close finished work, update in-progress items
-4. **PUSH TO REMOTE** - This is MANDATORY:
-   ```bash
-   git pull --rebase
-   bd dolt push
-   git push
-   git status  # MUST show "up to date with origin"
-   ```
-5. **Clean up** - Clear stashes, prune remote branches
-6. **Verify** - All changes committed AND pushed
-7. **Hand off** - Provide context for next session
+**Full workflow:**
 
-**CRITICAL RULES:**
-- Work is NOT complete until `git push` succeeds
-- NEVER stop before pushing - that leaves work stranded locally
-- NEVER say "ready to push when you are" - YOU must push
-- If push fails, resolve and retry until it succeeds
+```bash
+# START OF SESSION
+bd dolt pull  # Pull latest from DoltHub
+bd ready      # Find available work
+
+# DURING SESSION
+bd create "Issue" -p 1 --json
+bd update <id> --claim --json
+bd close <id> --reason "Done" --json
+
+# END OF SESSION - THIS IS MANDATORY
+bd dolt push  # ALWAYS run this before exiting
+```
+
+**CRITICAL:**
+- `bd dolt push` syncs issues to DoltHub (source of truth)
+- `git push` syncs code separately
+- NEVER exit a session without `bd dolt push` - issues will be lost
+- If push fails, fix and retry until it succeeds
 
 <!-- END BEADS INTEGRATION -->

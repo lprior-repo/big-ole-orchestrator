@@ -3,8 +3,8 @@ use std::collections::HashSet;
 use rstest::rstest;
 
 use crate::{
-    BufferPolicy, IdempotencyKey, InstanceId, SignalAddress, SignalDedupeKey, SignalDelivery,
-    TimestampMs, WaitKey, WaitRecord,
+    BufferPolicy, Epoch, IdempotencyKey, InstanceId, LineageScope, SignalAddress, SignalDedupeKey,
+    SignalDelivery, TimestampMs, WaitKey, WaitRecord,
 };
 
 // ---------------------------------------------------------------------------
@@ -162,39 +162,202 @@ fn signaldelivery_variants_are_all_distinct() {
 }
 
 // ===========================================================================
-// SignalAddress — Unit Tests
+// LineageScope — Unit Tests (per ADR-042 Section 2)
 // ===========================================================================
 
 #[test]
-fn signaladdress_new_constructs_with_given_fields() {
-    let instance_id = valid_instance_id();
-    let wait_key = WaitKey::parse("human-approval").expect("valid key");
-    let addr = SignalAddress::new(instance_id.clone(), wait_key.clone());
-
-    assert_eq!(addr.instance_id(), &instance_id);
-    assert_eq!(addr.wait_key(), &wait_key);
+fn lineagescope_is_epoch_local_returns_true_for_epoch_local_variant() {
+    assert!(LineageScope::EpochLocal.is_epoch_local());
 }
 
 #[test]
-fn signaladdress_display_formats_as_instance_id_colon_wait_key() {
+fn lineagescope_is_epoch_local_returns_false_for_lineage_wide_variant() {
+    assert!(!LineageScope::LineageWide.is_epoch_local());
+}
+
+#[test]
+fn lineagescope_is_lineage_wide_returns_true_for_lineage_wide_variant() {
+    assert!(LineageScope::LineageWide.is_lineage_wide());
+}
+
+#[test]
+fn lineagescope_is_lineage_wide_returns_false_for_epoch_local_variant() {
+    assert!(!LineageScope::EpochLocal.is_lineage_wide());
+}
+
+#[test]
+fn lineagescope_exhaustive_match_covers_all_variants() {
+    // This test proves the enum is closed (only two variants exist)
+    let scope = LineageScope::EpochLocal;
+    match scope {
+        LineageScope::EpochLocal => {}
+        LineageScope::LineageWide => {}
+    }
+    let scope = LineageScope::LineageWide;
+    match scope {
+        LineageScope::EpochLocal => {}
+        LineageScope::LineageWide => {}
+    }
+}
+
+// ===========================================================================
+// SignalAddress — Lineage-Aware Unit Tests (per ADR-042)
+// ===========================================================================
+
+#[test]
+fn signaladdress_lineage_wide_constructor_sets_correct_fields() {
+    let lineage_id = valid_instance_id();
     let instance_id = valid_instance_id();
     let wait_key = WaitKey::parse("approval").expect("valid key");
-    let addr = SignalAddress::new(instance_id.clone(), wait_key.clone());
 
-    assert_eq!(
-        format!("{addr}"),
-        format!("{}:{}", instance_id.as_str(), wait_key.as_str())
+    let addr =
+        SignalAddress::lineage_wide(lineage_id.clone(), instance_id.clone(), wait_key.clone());
+
+    assert_eq!(addr.lineage_scope(), LineageScope::LineageWide);
+    assert_eq!(addr.lineage_id(), &lineage_id);
+    assert_eq!(addr.instance_id(), &instance_id);
+    assert_eq!(addr.wait_key(), &wait_key);
+    assert!(addr.epoch_id().is_none());
+    assert!(addr.is_lineage_wide());
+    assert!(!addr.is_epoch_local());
+}
+
+#[test]
+fn signaladdress_epoch_local_constructor_sets_correct_fields() {
+    let lineage_id = valid_instance_id();
+    let instance_id = valid_instance_id();
+    let wait_key = WaitKey::parse("approval").expect("valid key");
+    let epoch = Epoch::new(5);
+
+    let addr = SignalAddress::epoch_local(
+        lineage_id.clone(),
+        epoch,
+        instance_id.clone(),
+        wait_key.clone(),
     );
+
+    assert_eq!(addr.lineage_scope(), LineageScope::EpochLocal);
+    assert_eq!(addr.lineage_id(), &lineage_id);
+    assert_eq!(addr.instance_id(), &instance_id);
+    assert_eq!(addr.wait_key(), &wait_key);
+    assert_eq!(addr.epoch_id(), Some(epoch));
+    assert!(addr.is_epoch_local());
+    assert!(!addr.is_lineage_wide());
+}
+
+#[test]
+fn signaladdress_epoch_local_with_epoch_zero() {
+    let lineage_id = valid_instance_id();
+    let instance_id = valid_instance_id();
+    let wait_key = WaitKey::parse("approval").expect("valid key");
+    let epoch = Epoch::ZERO;
+
+    let addr = SignalAddress::epoch_local(lineage_id, epoch, instance_id, wait_key);
+
+    assert_eq!(addr.epoch_id(), Some(epoch));
+}
+
+#[test]
+fn signaladdress_epoch_local_with_epoch_max() {
+    let lineage_id = valid_instance_id();
+    let instance_id = valid_instance_id();
+    let wait_key = WaitKey::parse("approval").expect("valid key");
+    let epoch = Epoch::new(u64::MAX);
+
+    let addr = SignalAddress::epoch_local(lineage_id, epoch, instance_id, wait_key);
+
+    assert_eq!(addr.epoch_id(), Some(epoch));
+}
+
+#[test]
+fn signaladdress_lineage_wide_preserves_all_fields_exactly() {
+    let lineage_id = valid_instance_id();
+    let instance_id = valid_instance_id();
+    let wait_key = WaitKey::parse("test-key").expect("valid key");
+
+    let addr =
+        SignalAddress::lineage_wide(lineage_id.clone(), instance_id.clone(), wait_key.clone());
+
+    assert_eq!(*addr.lineage_id(), lineage_id);
+    assert_eq!(*addr.instance_id(), instance_id);
+    assert_eq!(*addr.wait_key(), wait_key);
+    assert!(addr.epoch_id().is_none());
+}
+
+#[test]
+fn signaladdress_epoch_local_preserves_all_fields_exactly() {
+    let lineage_id = valid_instance_id();
+    let instance_id = valid_instance_id();
+    let wait_key = WaitKey::parse("test-key").expect("valid key");
+    let epoch = Epoch::new(42);
+
+    let addr = SignalAddress::epoch_local(
+        lineage_id.clone(),
+        epoch,
+        instance_id.clone(),
+        wait_key.clone(),
+    );
+
+    assert_eq!(*addr.lineage_id(), lineage_id);
+    assert_eq!(*addr.instance_id(), instance_id);
+    assert_eq!(*addr.wait_key(), wait_key);
+    assert_eq!(addr.epoch_id(), Some(epoch));
+}
+
+#[test]
+fn signaladdress_lineage_scope_returns_configured_scope() {
+    let lineage_id = valid_instance_id();
+    let instance_id = valid_instance_id();
+    let wait_key = WaitKey::parse("approval").expect("valid key");
+
+    let epoch_addr = SignalAddress::epoch_local(
+        lineage_id.clone(),
+        Epoch::new(1),
+        instance_id.clone(),
+        wait_key.clone(),
+    );
+    assert_eq!(epoch_addr.lineage_scope(), LineageScope::EpochLocal);
+
+    let wide_addr = SignalAddress::lineage_wide(lineage_id, instance_id, wait_key);
+    assert_eq!(wide_addr.lineage_scope(), LineageScope::LineageWide);
+}
+
+#[test]
+fn signaladdress_epoch_id_returns_some_for_epoch_local() {
+    let lineage_id = valid_instance_id();
+    let instance_id = valid_instance_id();
+    let wait_key = WaitKey::parse("approval").expect("valid key");
+    let epoch = Epoch::new(99);
+
+    let addr = SignalAddress::epoch_local(lineage_id, epoch, instance_id, wait_key);
+
+    assert_eq!(addr.epoch_id(), Some(epoch));
+}
+
+#[test]
+fn signaladdress_epoch_id_returns_none_for_lineage_wide() {
+    let lineage_id = valid_instance_id();
+    let instance_id = valid_instance_id();
+    let wait_key = WaitKey::parse("approval").expect("valid key");
+
+    let addr = SignalAddress::lineage_wide(lineage_id, instance_id, wait_key);
+
+    assert!(addr.epoch_id().is_none());
 }
 
 #[test]
 fn signaladdress_equality_works_correctly() {
-    let id = valid_instance_id();
+    let lineage_id = valid_instance_id();
+    let instance_id = valid_instance_id();
     let key = WaitKey::parse("same-key").expect("valid key");
 
-    let a = SignalAddress::new(id.clone(), key.clone());
-    let b = SignalAddress::new(id.clone(), key.clone());
-    let c = SignalAddress::new(id.clone(), WaitKey::parse("other-key").expect("valid key"));
+    let a = SignalAddress::lineage_wide(lineage_id.clone(), instance_id.clone(), key.clone());
+    let b = SignalAddress::lineage_wide(lineage_id.clone(), instance_id.clone(), key.clone());
+    let c = SignalAddress::lineage_wide(
+        lineage_id.clone(),
+        instance_id.clone(),
+        WaitKey::parse("other-key").expect("valid key"),
+    );
 
     assert_eq!(a, b);
     assert_ne!(a, c);
@@ -326,14 +489,36 @@ fn signaldelivery_round_trips_through_serde_json_serialization(#[case] delivery:
 }
 
 #[test]
-fn signaladdress_round_trips_through_serde_json_serialization() {
-    let id = valid_instance_id();
-    let key = WaitKey::parse("serde-addr").expect("valid key");
-    let original = SignalAddress::new(id, key);
+fn signaladdress_lineage_wide_round_trips_through_json() {
+    let lineage_id = valid_instance_id();
+    let instance_id = valid_instance_id();
+    let wait_key = WaitKey::parse("serde-lineage").expect("valid key");
+    let original = SignalAddress::lineage_wide(lineage_id, instance_id, wait_key);
 
     let json = serde_json::to_string(&original).expect("serialize");
     let restored: SignalAddress = serde_json::from_str(&json).expect("deserialize");
     assert_eq!(original, restored);
+}
+
+#[test]
+fn signaladdress_epoch_local_round_trips_through_json() {
+    let lineage_id = valid_instance_id();
+    let instance_id = valid_instance_id();
+    let wait_key = WaitKey::parse("serde-epoch").expect("valid key");
+    let epoch = Epoch::new(7);
+    let original = SignalAddress::epoch_local(lineage_id, epoch, instance_id, wait_key);
+
+    let json = serde_json::to_string(&original).expect("serialize");
+    let restored: SignalAddress = serde_json::from_str(&json).expect("deserialize");
+    assert_eq!(original, restored);
+}
+
+#[test]
+fn lineagescope_serializes_to_json_string() {
+    let json = serde_json::to_string(&LineageScope::EpochLocal).expect("serialize");
+    assert!(json.contains("EpochLocal") || json == "\"EpochLocal\"");
+    let json = serde_json::to_string(&LineageScope::LineageWide).expect("serialize");
+    assert!(json.contains("LineageWide") || json == "\"LineageWide\"");
 }
 
 #[test]
