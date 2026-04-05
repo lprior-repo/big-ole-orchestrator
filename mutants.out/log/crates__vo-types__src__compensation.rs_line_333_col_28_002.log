@@ -1,0 +1,86 @@
+
+*** crates/vo-types/src/compensation.rs:333:28: replace < with <= in verification::verify_compensation_transition_exhaustiveness
+
+*** mutation diff:
+--- crates/vo-types/src/compensation.rs
++++ replace < with <= in verification::verify_compensation_transition_exhaustiveness
+@@ -325,17 +325,17 @@
+     use super::*;
+ 
+     /// K-01: Verify apply_compensation_transition exhaustiveness.
+     /// All 5×3 = 15 combinations must be covered without panic.
+     #[kani::proof]
+     fn verify_compensation_transition_exhaustiveness() {
+         let state: u8 = kani::any();
+         let event: u8 = kani::any();
+-        kani::assume(state < 5);
++        kani::assume(state <= /* ~ changed by cargo-mutants ~ */ 5);
+         kani::assume(event < 3);
+ 
+         let current = match state {
+             0 => CompensationStatus::NotNeeded,
+             1 => CompensationStatus::Pending,
+             2 => CompensationStatus::InProgress,
+             3 => CompensationStatus::Succeeded,
+             _ => CompensationStatus::Failed,
+
+
+*** /home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo check --tests --verbose --package=vo-types@0.1.0
+       Fresh unicode-ident v1.0.24
+       Fresh proc-macro2 v1.0.106
+       Fresh semver v1.0.27
+       Fresh memchr v2.8.0
+       Fresh futures-core v0.3.32
+       Fresh futures-sink v0.3.32
+       Fresh slab v0.4.12
+       Fresh futures-task v0.3.32
+       Fresh futures-io v0.3.32
+       Fresh pin-project-lite v0.2.17
+       Fresh regex-syntax v0.8.10
+       Fresh cfg-if v1.0.4
+       Fresh sha1_smol v1.0.1
+       Fresh glob v0.3.3
+       Fresh relative-path v1.9.3
+       Fresh itoa v1.0.18
+       Fresh futures-timer v3.0.3
+       Fresh quote v1.0.45
+       Fresh libc v0.2.183
+       Fresh zerocopy v0.8.47
+       Fresh rustc_version v0.4.1
+       Fresh serde_core v1.0.228
+       Fresh futures-channel v0.3.32
+       Fresh aho-corasick v1.1.4
+       Fresh syn v2.0.117
+       Fresh getrandom v0.3.4
+       Fresh ppv-lite86 v0.2.21
+       Fresh regex-automata v0.4.14
+       Fresh zmij v1.0.21
+       Fresh getrandom v0.4.2
+       Fresh futures-macro v0.3.32
+       Fresh rand_core v0.9.5
+       Fresh thiserror-impl v1.0.69
+       Fresh regex v1.12.3
+       Fresh serde_derive v1.0.228
+       Fresh serde_json v1.0.149
+       Fresh uuid v1.23.0
+       Fresh rand_chacha v0.9.0
+       Fresh futures-util v0.3.32
+       Fresh thiserror v1.0.69
+       Fresh serde v1.0.228
+       Fresh rstest_macros v0.18.2
+       Fresh rand v0.9.2
+       Fresh futures-executor v0.3.32
+       Fresh ulid v1.2.1
+       Fresh futures v0.3.32
+       Fresh rstest v0.18.2
+       Dirty vo-types v0.1.0 (/tmp/cargo-mutants-veloxide-hkvfld.tmp/crates/vo-types): the file `crates/vo-types/src/compensation.rs` has changed (1775391165.169686771s, 1s after last build at 1775391164.562749124s)
+    Checking vo-types v0.1.0 (/tmp/cargo-mutants-veloxide-hkvfld.tmp/crates/vo-types)
+     Running `sccache /home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/rustc --crate-name vo_types --edition=2021 crates/vo-types/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata -C embed-bitcode=no -C debuginfo=2 --warn=unexpected_cfgs --check-cfg 'cfg(kani)' --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values("proptest"))' -C metadata=872d9fe1017c4b16 -C extra-filename=-452384ee80b7be0b --out-dir /tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/deps -C incremental=/tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/incremental -L dependency=/tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/deps --extern serde=/tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/deps/libserde-49241a3c7c945708.rmeta --extern serde_json=/tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/deps/libserde_json-3680fc2c5db64e10.rmeta --extern thiserror=/tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/deps/libthiserror-b5bacac9152b9590.rmeta --extern ulid=/tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/deps/libulid-e76f44f0dc300a2a.rmeta --extern uuid=/tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/deps/libuuid-3f560604cfd7ea63.rmeta`
+     Running `sccache /home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/rustc --crate-name vo_types --edition=2021 crates/vo-types/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --emit=dep-info,metadata -C embed-bitcode=no -C debuginfo=2 --warn=unexpected_cfgs --check-cfg 'cfg(kani)' --test --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values("proptest"))' -C metadata=17d14cf83508e2de -C extra-filename=-875c2fc64f09ff89 --out-dir /tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/deps -C incremental=/tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/incremental -L dependency=/tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/deps --extern rstest=/tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/deps/librstest-6a236d699b2d275d.rmeta --extern serde=/tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/deps/libserde-49241a3c7c945708.rmeta --extern serde_json=/tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/deps/libserde_json-3680fc2c5db64e10.rmeta --extern thiserror=/tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/deps/libthiserror-b5bacac9152b9590.rmeta --extern ulid=/tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/deps/libulid-e76f44f0dc300a2a.rmeta --extern uuid=/tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/deps/libuuid-3f560604cfd7ea63.rmeta`
+     Running `sccache /home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/rustc --crate-name integration_serialized_payloads --edition=2021 crates/vo-types/tests/integration_serialized_payloads.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --emit=dep-info,metadata -C embed-bitcode=no -C debuginfo=2 --warn=unexpected_cfgs --check-cfg 'cfg(kani)' --test --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values("proptest"))' -C metadata=522aceb8e230c6ea -C extra-filename=-5e4e0857759ec237 --out-dir /tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/deps -C incremental=/tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/incremental -L dependency=/tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/deps --extern rstest=/tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/deps/librstest-6a236d699b2d275d.rmeta --extern serde=/tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/deps/libserde-49241a3c7c945708.rmeta --extern serde_json=/tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/deps/libserde_json-3680fc2c5db64e10.rmeta --extern thiserror=/tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/deps/libthiserror-b5bacac9152b9590.rmeta --extern ulid=/tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/deps/libulid-e76f44f0dc300a2a.rmeta --extern uuid=/tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/deps/libuuid-3f560604cfd7ea63.rmeta --extern vo_types=/tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/deps/libvo_types-452384ee80b7be0b.rmeta`
+     Running `sccache /home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/rustc --crate-name workflow_name_tests --edition=2021 crates/vo-types/tests/workflow_name_tests.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --emit=dep-info,metadata -C embed-bitcode=no -C debuginfo=2 --warn=unexpected_cfgs --check-cfg 'cfg(kani)' --test --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values("proptest"))' -C metadata=0207a67bd2f5aa7e -C extra-filename=-cc23bca051c01d27 --out-dir /tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/deps -C incremental=/tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/incremental -L dependency=/tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/deps --extern rstest=/tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/deps/librstest-6a236d699b2d275d.rmeta --extern serde=/tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/deps/libserde-49241a3c7c945708.rmeta --extern serde_json=/tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/deps/libserde_json-3680fc2c5db64e10.rmeta --extern thiserror=/tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/deps/libthiserror-b5bacac9152b9590.rmeta --extern ulid=/tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/deps/libulid-e76f44f0dc300a2a.rmeta --extern uuid=/tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/deps/libuuid-3f560604cfd7ea63.rmeta --extern vo_types=/tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/deps/libvo_types-452384ee80b7be0b.rmeta`
+     Running `sccache /home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/rustc --crate-name scaffold_compliance --edition=2021 crates/vo-types/tests/scaffold_compliance.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --emit=dep-info,metadata -C embed-bitcode=no -C debuginfo=2 --warn=unexpected_cfgs --check-cfg 'cfg(kani)' --test --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values("proptest"))' -C metadata=21bd30aebba3adda -C extra-filename=-351e46069e8740c8 --out-dir /tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/deps -C incremental=/tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/incremental -L dependency=/tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/deps --extern rstest=/tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/deps/librstest-6a236d699b2d275d.rmeta --extern serde=/tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/deps/libserde-49241a3c7c945708.rmeta --extern serde_json=/tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/deps/libserde_json-3680fc2c5db64e10.rmeta --extern thiserror=/tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/deps/libthiserror-b5bacac9152b9590.rmeta --extern ulid=/tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/deps/libulid-e76f44f0dc300a2a.rmeta --extern uuid=/tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/deps/libuuid-3f560604cfd7ea63.rmeta --extern vo_types=/tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/deps/libvo_types-452384ee80b7be0b.rmeta`
+     Running `sccache /home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/rustc --crate-name red_queen_adversarial --edition=2021 crates/vo-types/tests/red_queen_adversarial.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --emit=dep-info,metadata -C embed-bitcode=no -C debuginfo=2 --warn=unexpected_cfgs --check-cfg 'cfg(kani)' --test --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values("proptest"))' -C metadata=9371890717f3e41d -C extra-filename=-60d5d52f95645a62 --out-dir /tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/deps -C incremental=/tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/incremental -L dependency=/tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/deps --extern rstest=/tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/deps/librstest-6a236d699b2d275d.rmeta --extern serde=/tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/deps/libserde-49241a3c7c945708.rmeta --extern serde_json=/tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/deps/libserde_json-3680fc2c5db64e10.rmeta --extern thiserror=/tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/deps/libthiserror-b5bacac9152b9590.rmeta --extern ulid=/tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/deps/libulid-e76f44f0dc300a2a.rmeta --extern uuid=/tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/deps/libuuid-3f560604cfd7ea63.rmeta --extern vo_types=/tmp/cargo-mutants-veloxide-hkvfld.tmp/target/debug/deps/libvo_types-452384ee80b7be0b.rmeta`
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.65s
+
+*** result: Success

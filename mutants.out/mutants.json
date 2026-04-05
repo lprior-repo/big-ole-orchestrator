@@ -1,1953 +1,1057 @@
 [
   {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace StepId::parse -> Result<Self, ExecuteNodeError> with Ok(Default::default())\n@@ -32,30 +32,17 @@\n \n     /// Parse a string into a `StepId`.\n     ///\n     /// # Errors\n     ///\n     /// Returns [`ExecuteNodeError::StepNotFound`] if the string is empty\n     /// or contains invalid characters (only alphanumeric, hyphens, and underscores allowed).\n     pub fn parse(s: &str) -> Result<Self, ExecuteNodeError> {\n-        if s.is_empty() {\n-            return Err(ExecuteNodeError::StepNotFound {\n-                step_id: StepId(s.to_string()),\n-            });\n-        }\n-        if !s\n-            .chars()\n-            .all(|c| c.is_alphanumeric() || c == '-' || c == '_')\n-        {\n-            return Err(ExecuteNodeError::StepNotFound {\n-                step_id: StepId(s.to_string()),\n-            });\n-        }\n-        Ok(Self(s.to_string()))\n+        Ok(Default::default()) /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[must_use]\n     pub fn as_str(&self) -> &str {\n         &self.0\n     }\n }\n \n",
-    "file": "crates/vo-executor/src/lib.rs",
+    "diff": "--- crates/vo-types/src/compensation.rs\n+++ replace <impl std::fmt::Display for CompensationTransitionError>::fmt -> std::fmt::Result with Ok(Default::default())\n@@ -49,24 +49,17 @@\n     /// Attempted transition from a terminal state (NotNeeded, Succeeded, Failed).\n     TerminalStateTransition,\n     /// Transition event is not valid for the current state.\n     InvalidTransition,\n }\n \n impl std::fmt::Display for CompensationTransitionError {\n     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {\n-        match self {\n-            CompensationTransitionError::TerminalStateTransition => {\n-                write!(f, \"Cannot transition from terminal compensation state\")\n-            }\n-            CompensationTransitionError::InvalidTransition => {\n-                write!(f, \"Invalid compensation state transition\")\n-            }\n-        }\n+        Ok(Default::default()) /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n impl std::error::Error for CompensationTransitionError {}\n \n /// Persisted record of a compensation action for a committed effect (ADR-034).\n #[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]\n pub struct CompensationRecord {\n",
+    "file": "crates/vo-types/src/compensation.rs",
     "function": {
-      "function_name": "StepId::parse",
-      "return_type": "-> Result<Self, ExecuteNodeError>",
-      "span": {
-        "end": {
-          "column": 6,
-          "line": 54
-        },
-        "start": {
-          "column": 5,
-          "line": 33
-        }
-      }
-    },
-    "genre": "FnValue",
-    "name": "crates/vo-executor/src/lib.rs:40:9: replace StepId::parse -> Result<Self, ExecuteNodeError> with Ok(Default::default())",
-    "package": "vo-executor",
-    "replacement": "Ok(Default::default())",
-    "span": {
-      "end": {
-        "column": 32,
-        "line": 53
-      },
-      "start": {
-        "column": 9,
-        "line": 40
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ delete ! in StepId::parse\n@@ -37,17 +37,17 @@\n     /// Returns [`ExecuteNodeError::StepNotFound`] if the string is empty\n     /// or contains invalid characters (only alphanumeric, hyphens, and underscores allowed).\n     pub fn parse(s: &str) -> Result<Self, ExecuteNodeError> {\n         if s.is_empty() {\n             return Err(ExecuteNodeError::StepNotFound {\n                 step_id: StepId(s.to_string()),\n             });\n         }\n-        if !s\n+        if  /* ~ changed by cargo-mutants ~ */s\n             .chars()\n             .all(|c| c.is_alphanumeric() || c == '-' || c == '_')\n         {\n             return Err(ExecuteNodeError::StepNotFound {\n                 step_id: StepId(s.to_string()),\n             });\n         }\n         Ok(Self(s.to_string()))\n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "StepId::parse",
-      "return_type": "-> Result<Self, ExecuteNodeError>",
-      "span": {
-        "end": {
-          "column": 6,
-          "line": 54
-        },
-        "start": {
-          "column": 5,
-          "line": 33
-        }
-      }
-    },
-    "genre": "UnaryOperator",
-    "name": "crates/vo-executor/src/lib.rs:45:12: delete ! in StepId::parse",
-    "package": "vo-executor",
-    "replacement": "",
-    "span": {
-      "end": {
-        "column": 13,
-        "line": 45
-      },
-      "start": {
-        "column": 12,
-        "line": 45
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace || with && in StepId::parse\n@@ -39,17 +39,17 @@\n     pub fn parse(s: &str) -> Result<Self, ExecuteNodeError> {\n         if s.is_empty() {\n             return Err(ExecuteNodeError::StepNotFound {\n                 step_id: StepId(s.to_string()),\n             });\n         }\n         if !s\n             .chars()\n-            .all(|c| c.is_alphanumeric() || c == '-' || c == '_')\n+            .all(|c| c.is_alphanumeric() || c == '-' && /* ~ changed by cargo-mutants ~ */ c == '_')\n         {\n             return Err(ExecuteNodeError::StepNotFound {\n                 step_id: StepId(s.to_string()),\n             });\n         }\n         Ok(Self(s.to_string()))\n     }\n \n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "StepId::parse",
-      "return_type": "-> Result<Self, ExecuteNodeError>",
-      "span": {
-        "end": {
-          "column": 6,
-          "line": 54
-        },
-        "start": {
-          "column": 5,
-          "line": 33
-        }
-      }
-    },
-    "genre": "BinaryOperator",
-    "name": "crates/vo-executor/src/lib.rs:47:54: replace || with && in StepId::parse",
-    "package": "vo-executor",
-    "replacement": "&&",
-    "span": {
-      "end": {
-        "column": 56,
-        "line": 47
-      },
-      "start": {
-        "column": 54,
-        "line": 47
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace || with && in StepId::parse\n@@ -39,17 +39,17 @@\n     pub fn parse(s: &str) -> Result<Self, ExecuteNodeError> {\n         if s.is_empty() {\n             return Err(ExecuteNodeError::StepNotFound {\n                 step_id: StepId(s.to_string()),\n             });\n         }\n         if !s\n             .chars()\n-            .all(|c| c.is_alphanumeric() || c == '-' || c == '_')\n+            .all(|c| c.is_alphanumeric() && /* ~ changed by cargo-mutants ~ */ c == '-' || c == '_')\n         {\n             return Err(ExecuteNodeError::StepNotFound {\n                 step_id: StepId(s.to_string()),\n             });\n         }\n         Ok(Self(s.to_string()))\n     }\n \n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "StepId::parse",
-      "return_type": "-> Result<Self, ExecuteNodeError>",
-      "span": {
-        "end": {
-          "column": 6,
-          "line": 54
-        },
-        "start": {
-          "column": 5,
-          "line": 33
-        }
-      }
-    },
-    "genre": "BinaryOperator",
-    "name": "crates/vo-executor/src/lib.rs:47:42: replace || with && in StepId::parse",
-    "package": "vo-executor",
-    "replacement": "&&",
-    "span": {
-      "end": {
-        "column": 44,
-        "line": 47
-      },
-      "start": {
-        "column": 42,
-        "line": 47
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace == with != in StepId::parse\n@@ -39,17 +39,17 @@\n     pub fn parse(s: &str) -> Result<Self, ExecuteNodeError> {\n         if s.is_empty() {\n             return Err(ExecuteNodeError::StepNotFound {\n                 step_id: StepId(s.to_string()),\n             });\n         }\n         if !s\n             .chars()\n-            .all(|c| c.is_alphanumeric() || c == '-' || c == '_')\n+            .all(|c| c.is_alphanumeric() || c != /* ~ changed by cargo-mutants ~ */ '-' || c == '_')\n         {\n             return Err(ExecuteNodeError::StepNotFound {\n                 step_id: StepId(s.to_string()),\n             });\n         }\n         Ok(Self(s.to_string()))\n     }\n \n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "StepId::parse",
-      "return_type": "-> Result<Self, ExecuteNodeError>",
-      "span": {
-        "end": {
-          "column": 6,
-          "line": 54
-        },
-        "start": {
-          "column": 5,
-          "line": 33
-        }
-      }
-    },
-    "genre": "BinaryOperator",
-    "name": "crates/vo-executor/src/lib.rs:47:47: replace == with != in StepId::parse",
-    "package": "vo-executor",
-    "replacement": "!=",
-    "span": {
-      "end": {
-        "column": 49,
-        "line": 47
-      },
-      "start": {
-        "column": 47,
-        "line": 47
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace == with != in StepId::parse\n@@ -39,17 +39,17 @@\n     pub fn parse(s: &str) -> Result<Self, ExecuteNodeError> {\n         if s.is_empty() {\n             return Err(ExecuteNodeError::StepNotFound {\n                 step_id: StepId(s.to_string()),\n             });\n         }\n         if !s\n             .chars()\n-            .all(|c| c.is_alphanumeric() || c == '-' || c == '_')\n+            .all(|c| c.is_alphanumeric() || c == '-' || c != /* ~ changed by cargo-mutants ~ */ '_')\n         {\n             return Err(ExecuteNodeError::StepNotFound {\n                 step_id: StepId(s.to_string()),\n             });\n         }\n         Ok(Self(s.to_string()))\n     }\n \n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "StepId::parse",
-      "return_type": "-> Result<Self, ExecuteNodeError>",
-      "span": {
-        "end": {
-          "column": 6,
-          "line": 54
-        },
-        "start": {
-          "column": 5,
-          "line": 33
-        }
-      }
-    },
-    "genre": "BinaryOperator",
-    "name": "crates/vo-executor/src/lib.rs:47:59: replace == with != in StepId::parse",
-    "package": "vo-executor",
-    "replacement": "!=",
-    "span": {
-      "end": {
-        "column": 61,
-        "line": 47
-      },
-      "start": {
-        "column": 59,
-        "line": 47
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace StepId::as_str -> &str with \"\"\n@@ -50,17 +50,17 @@\n                 step_id: StepId(s.to_string()),\n             });\n         }\n         Ok(Self(s.to_string()))\n     }\n \n     #[must_use]\n     pub fn as_str(&self) -> &str {\n-        &self.0\n+        \"\" /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n impl AsRef<str> for StepId {\n     fn as_ref(&self) -> &str {\n         &self.0\n     }\n }\n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "StepId::as_str",
-      "return_type": "-> &str",
-      "span": {
-        "end": {
-          "column": 6,
-          "line": 59
-        },
-        "start": {
-          "column": 5,
-          "line": 56
-        }
-      }
-    },
-    "genre": "FnValue",
-    "name": "crates/vo-executor/src/lib.rs:58:9: replace StepId::as_str -> &str with \"\"",
-    "package": "vo-executor",
-    "replacement": "\"\"",
-    "span": {
-      "end": {
-        "column": 16,
-        "line": 58
-      },
-      "start": {
-        "column": 9,
-        "line": 58
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace StepId::as_str -> &str with \"xyzzy\"\n@@ -50,17 +50,17 @@\n                 step_id: StepId(s.to_string()),\n             });\n         }\n         Ok(Self(s.to_string()))\n     }\n \n     #[must_use]\n     pub fn as_str(&self) -> &str {\n-        &self.0\n+        \"xyzzy\" /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n impl AsRef<str> for StepId {\n     fn as_ref(&self) -> &str {\n         &self.0\n     }\n }\n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "StepId::as_str",
-      "return_type": "-> &str",
-      "span": {
-        "end": {
-          "column": 6,
-          "line": 59
-        },
-        "start": {
-          "column": 5,
-          "line": 56
-        }
-      }
-    },
-    "genre": "FnValue",
-    "name": "crates/vo-executor/src/lib.rs:58:9: replace StepId::as_str -> &str with \"xyzzy\"",
-    "package": "vo-executor",
-    "replacement": "\"xyzzy\"",
-    "span": {
-      "end": {
-        "column": 16,
-        "line": 58
-      },
-      "start": {
-        "column": 9,
-        "line": 58
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace <impl AsRef<str> for StepId>::as_ref -> &str with \"\"\n@@ -56,17 +56,17 @@\n     #[must_use]\n     pub fn as_str(&self) -> &str {\n         &self.0\n     }\n }\n \n impl AsRef<str> for StepId {\n     fn as_ref(&self) -> &str {\n-        &self.0\n+        \"\" /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n impl From<StepId> for String {\n     fn from(id: StepId) -> Self {\n         id.0\n     }\n }\n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "<impl AsRef<str> for StepId>::as_ref",
-      "return_type": "-> &str",
-      "span": {
-        "end": {
-          "column": 6,
-          "line": 65
-        },
-        "start": {
-          "column": 5,
-          "line": 63
-        }
-      }
-    },
-    "genre": "FnValue",
-    "name": "crates/vo-executor/src/lib.rs:64:9: replace <impl AsRef<str> for StepId>::as_ref -> &str with \"\"",
-    "package": "vo-executor",
-    "replacement": "\"\"",
-    "span": {
-      "end": {
-        "column": 16,
-        "line": 64
-      },
-      "start": {
-        "column": 9,
-        "line": 64
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace <impl AsRef<str> for StepId>::as_ref -> &str with \"xyzzy\"\n@@ -56,17 +56,17 @@\n     #[must_use]\n     pub fn as_str(&self) -> &str {\n         &self.0\n     }\n }\n \n impl AsRef<str> for StepId {\n     fn as_ref(&self) -> &str {\n-        &self.0\n+        \"xyzzy\" /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n impl From<StepId> for String {\n     fn from(id: StepId) -> Self {\n         id.0\n     }\n }\n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "<impl AsRef<str> for StepId>::as_ref",
-      "return_type": "-> &str",
-      "span": {
-        "end": {
-          "column": 6,
-          "line": 65
-        },
-        "start": {
-          "column": 5,
-          "line": 63
-        }
-      }
-    },
-    "genre": "FnValue",
-    "name": "crates/vo-executor/src/lib.rs:64:9: replace <impl AsRef<str> for StepId>::as_ref -> &str with \"xyzzy\"",
-    "package": "vo-executor",
-    "replacement": "\"xyzzy\"",
-    "span": {
-      "end": {
-        "column": 16,
-        "line": 64
-      },
-      "start": {
-        "column": 9,
-        "line": 64
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace <impl From<StepId> for String>::from -> Self with Default::default()\n@@ -62,17 +62,17 @@\n impl AsRef<str> for StepId {\n     fn as_ref(&self) -> &str {\n         &self.0\n     }\n }\n \n impl From<StepId> for String {\n     fn from(id: StepId) -> Self {\n-        id.0\n+        Default::default() /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n impl std::fmt::Display for StepId {\n     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {\n         write!(f, \"{}\", self.0)\n     }\n }\n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "<impl From<StepId> for String>::from",
-      "return_type": "-> Self",
-      "span": {
-        "end": {
-          "column": 6,
-          "line": 71
-        },
-        "start": {
-          "column": 5,
-          "line": 69
-        }
-      }
-    },
-    "genre": "FnValue",
-    "name": "crates/vo-executor/src/lib.rs:70:9: replace <impl From<StepId> for String>::from -> Self with Default::default()",
-    "package": "vo-executor",
-    "replacement": "Default::default()",
-    "span": {
-      "end": {
-        "column": 13,
-        "line": 70
-      },
-      "start": {
-        "column": 9,
-        "line": 70
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace <impl std::fmt::Display for StepId>::fmt -> std::fmt::Result with Ok(Default::default())\n@@ -68,17 +68,17 @@\n impl From<StepId> for String {\n     fn from(id: StepId) -> Self {\n         id.0\n     }\n }\n \n impl std::fmt::Display for StepId {\n     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {\n-        write!(f, \"{}\", self.0)\n+        Ok(Default::default()) /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n // ============================================================================\n // Error Types\n // ============================================================================\n \n /// Errors from step execution operations.\n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "<impl std::fmt::Display for StepId>::fmt",
+      "function_name": "<impl std::fmt::Display for CompensationTransitionError>::fmt",
       "return_type": "-> std::fmt::Result",
       "span": {
         "end": {
           "column": 6,
-          "line": 77
+          "line": 65
         },
         "start": {
           "column": 5,
-          "line": 75
+          "line": 56
         }
       }
     },
     "genre": "FnValue",
-    "name": "crates/vo-executor/src/lib.rs:76:9: replace <impl std::fmt::Display for StepId>::fmt -> std::fmt::Result with Ok(Default::default())",
-    "package": "vo-executor",
+    "name": "crates/vo-types/src/compensation.rs:57:9: replace <impl std::fmt::Display for CompensationTransitionError>::fmt -> std::fmt::Result with Ok(Default::default())",
+    "package": "vo-types",
     "replacement": "Ok(Default::default())",
-    "span": {
-      "end": {
-        "column": 32,
-        "line": 76
-      },
-      "start": {
-        "column": 9,
-        "line": 76
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace RetryPolicy::calculate_backoff_delay -> u64 with 0\n@@ -198,24 +198,17 @@\n     /// Calculate the backoff delay for a given attempt.\n     ///\n     /// Formula: `backoff_ms * multiplier^(attempt - 1)`\n     ///\n     /// Returns `u64::MAX` if the calculation would overflow.\n     #[must_use]\n     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]\n     pub fn calculate_backoff_delay(&self, attempt: u32) -> u64 {\n-        let exponent = attempt.saturating_sub(1).cast_signed();\n-        let multiplier_pow = self.backoff_multiplier.powi(exponent);\n-        #[allow(clippy::cast_precision_loss)]\n-        let product = self.backoff_ms as f64 * multiplier_pow;\n-        // Clamp to u64::MAX to prevent overflow\n-        #[allow(clippy::cast_precision_loss)]\n-        let clamped = product.min(u64::MAX as f64);\n-        clamped as u64\n+        0 /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n impl StepResult {\n     /// Check if the step result indicates success.\n     #[must_use]\n     pub fn is_success(&self) -> bool {\n         matches!(self, StepResult::Success { .. })\n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "RetryPolicy::calculate_backoff_delay",
-      "return_type": "-> u64",
-      "span": {
-        "end": {
-          "column": 6,
-          "line": 214
-        },
-        "start": {
-          "column": 5,
-          "line": 198
-        }
-      }
-    },
-    "genre": "FnValue",
-    "name": "crates/vo-executor/src/lib.rs:206:9: replace RetryPolicy::calculate_backoff_delay -> u64 with 0",
-    "package": "vo-executor",
-    "replacement": "0",
-    "span": {
-      "end": {
-        "column": 23,
-        "line": 213
-      },
-      "start": {
-        "column": 9,
-        "line": 206
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace RetryPolicy::calculate_backoff_delay -> u64 with 1\n@@ -198,24 +198,17 @@\n     /// Calculate the backoff delay for a given attempt.\n     ///\n     /// Formula: `backoff_ms * multiplier^(attempt - 1)`\n     ///\n     /// Returns `u64::MAX` if the calculation would overflow.\n     #[must_use]\n     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]\n     pub fn calculate_backoff_delay(&self, attempt: u32) -> u64 {\n-        let exponent = attempt.saturating_sub(1).cast_signed();\n-        let multiplier_pow = self.backoff_multiplier.powi(exponent);\n-        #[allow(clippy::cast_precision_loss)]\n-        let product = self.backoff_ms as f64 * multiplier_pow;\n-        // Clamp to u64::MAX to prevent overflow\n-        #[allow(clippy::cast_precision_loss)]\n-        let clamped = product.min(u64::MAX as f64);\n-        clamped as u64\n+        1 /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n impl StepResult {\n     /// Check if the step result indicates success.\n     #[must_use]\n     pub fn is_success(&self) -> bool {\n         matches!(self, StepResult::Success { .. })\n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "RetryPolicy::calculate_backoff_delay",
-      "return_type": "-> u64",
-      "span": {
-        "end": {
-          "column": 6,
-          "line": 214
-        },
-        "start": {
-          "column": 5,
-          "line": 198
-        }
-      }
-    },
-    "genre": "FnValue",
-    "name": "crates/vo-executor/src/lib.rs:206:9: replace RetryPolicy::calculate_backoff_delay -> u64 with 1",
-    "package": "vo-executor",
-    "replacement": "1",
-    "span": {
-      "end": {
-        "column": 23,
-        "line": 213
-      },
-      "start": {
-        "column": 9,
-        "line": 206
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace * with + in RetryPolicy::calculate_backoff_delay\n@@ -201,17 +201,17 @@\n     ///\n     /// Returns `u64::MAX` if the calculation would overflow.\n     #[must_use]\n     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]\n     pub fn calculate_backoff_delay(&self, attempt: u32) -> u64 {\n         let exponent = attempt.saturating_sub(1).cast_signed();\n         let multiplier_pow = self.backoff_multiplier.powi(exponent);\n         #[allow(clippy::cast_precision_loss)]\n-        let product = self.backoff_ms as f64 * multiplier_pow;\n+        let product = self.backoff_ms as f64 + /* ~ changed by cargo-mutants ~ */ multiplier_pow;\n         // Clamp to u64::MAX to prevent overflow\n         #[allow(clippy::cast_precision_loss)]\n         let clamped = product.min(u64::MAX as f64);\n         clamped as u64\n     }\n }\n \n impl StepResult {\n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "RetryPolicy::calculate_backoff_delay",
-      "return_type": "-> u64",
-      "span": {
-        "end": {
-          "column": 6,
-          "line": 214
-        },
-        "start": {
-          "column": 5,
-          "line": 198
-        }
-      }
-    },
-    "genre": "BinaryOperator",
-    "name": "crates/vo-executor/src/lib.rs:209:46: replace * with + in RetryPolicy::calculate_backoff_delay",
-    "package": "vo-executor",
-    "replacement": "+",
-    "span": {
-      "end": {
-        "column": 47,
-        "line": 209
-      },
-      "start": {
-        "column": 46,
-        "line": 209
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace * with / in RetryPolicy::calculate_backoff_delay\n@@ -201,17 +201,17 @@\n     ///\n     /// Returns `u64::MAX` if the calculation would overflow.\n     #[must_use]\n     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]\n     pub fn calculate_backoff_delay(&self, attempt: u32) -> u64 {\n         let exponent = attempt.saturating_sub(1).cast_signed();\n         let multiplier_pow = self.backoff_multiplier.powi(exponent);\n         #[allow(clippy::cast_precision_loss)]\n-        let product = self.backoff_ms as f64 * multiplier_pow;\n+        let product = self.backoff_ms as f64 / /* ~ changed by cargo-mutants ~ */ multiplier_pow;\n         // Clamp to u64::MAX to prevent overflow\n         #[allow(clippy::cast_precision_loss)]\n         let clamped = product.min(u64::MAX as f64);\n         clamped as u64\n     }\n }\n \n impl StepResult {\n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "RetryPolicy::calculate_backoff_delay",
-      "return_type": "-> u64",
-      "span": {
-        "end": {
-          "column": 6,
-          "line": 214
-        },
-        "start": {
-          "column": 5,
-          "line": 198
-        }
-      }
-    },
-    "genre": "BinaryOperator",
-    "name": "crates/vo-executor/src/lib.rs:209:46: replace * with / in RetryPolicy::calculate_backoff_delay",
-    "package": "vo-executor",
-    "replacement": "/",
-    "span": {
-      "end": {
-        "column": 47,
-        "line": 209
-      },
-      "start": {
-        "column": 46,
-        "line": 209
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace StepResult::is_success -> bool with true\n@@ -213,17 +213,17 @@\n         clamped as u64\n     }\n }\n \n impl StepResult {\n     /// Check if the step result indicates success.\n     #[must_use]\n     pub fn is_success(&self) -> bool {\n-        matches!(self, StepResult::Success { .. })\n+        true /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n impl ExecutionStatus {\n     /// Check if the status indicates ready state.\n     #[must_use]\n     pub fn is_ready(&self) -> bool {\n         matches!(self, ExecutionStatus::Ready)\n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "StepResult::is_success",
-      "return_type": "-> bool",
-      "span": {
-        "end": {
-          "column": 6,
-          "line": 222
-        },
-        "start": {
-          "column": 5,
-          "line": 218
-        }
-      }
-    },
-    "genre": "FnValue",
-    "name": "crates/vo-executor/src/lib.rs:221:9: replace StepResult::is_success -> bool with true",
-    "package": "vo-executor",
-    "replacement": "true",
-    "span": {
-      "end": {
-        "column": 51,
-        "line": 221
-      },
-      "start": {
-        "column": 9,
-        "line": 221
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace StepResult::is_success -> bool with false\n@@ -213,17 +213,17 @@\n         clamped as u64\n     }\n }\n \n impl StepResult {\n     /// Check if the step result indicates success.\n     #[must_use]\n     pub fn is_success(&self) -> bool {\n-        matches!(self, StepResult::Success { .. })\n+        false /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n impl ExecutionStatus {\n     /// Check if the status indicates ready state.\n     #[must_use]\n     pub fn is_ready(&self) -> bool {\n         matches!(self, ExecutionStatus::Ready)\n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "StepResult::is_success",
-      "return_type": "-> bool",
-      "span": {
-        "end": {
-          "column": 6,
-          "line": 222
-        },
-        "start": {
-          "column": 5,
-          "line": 218
-        }
-      }
-    },
-    "genre": "FnValue",
-    "name": "crates/vo-executor/src/lib.rs:221:9: replace StepResult::is_success -> bool with false",
-    "package": "vo-executor",
-    "replacement": "false",
-    "span": {
-      "end": {
-        "column": 51,
-        "line": 221
-      },
-      "start": {
-        "column": 9,
-        "line": 221
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace ExecutionStatus::is_ready -> bool with true\n@@ -221,17 +221,17 @@\n         matches!(self, StepResult::Success { .. })\n     }\n }\n \n impl ExecutionStatus {\n     /// Check if the status indicates ready state.\n     #[must_use]\n     pub fn is_ready(&self) -> bool {\n-        matches!(self, ExecutionStatus::Ready)\n+        true /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n // ============================================================================\n // Internal State Management\n // ============================================================================\n \n /// Execution state for a step.\n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "ExecutionStatus::is_ready",
-      "return_type": "-> bool",
-      "span": {
-        "end": {
-          "column": 6,
-          "line": 230
-        },
-        "start": {
-          "column": 5,
-          "line": 226
-        }
-      }
-    },
-    "genre": "FnValue",
-    "name": "crates/vo-executor/src/lib.rs:229:9: replace ExecutionStatus::is_ready -> bool with true",
-    "package": "vo-executor",
-    "replacement": "true",
-    "span": {
-      "end": {
-        "column": 47,
-        "line": 229
-      },
-      "start": {
-        "column": 9,
-        "line": 229
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace ExecutionStatus::is_ready -> bool with false\n@@ -221,17 +221,17 @@\n         matches!(self, StepResult::Success { .. })\n     }\n }\n \n impl ExecutionStatus {\n     /// Check if the status indicates ready state.\n     #[must_use]\n     pub fn is_ready(&self) -> bool {\n-        matches!(self, ExecutionStatus::Ready)\n+        false /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n // ============================================================================\n // Internal State Management\n // ============================================================================\n \n /// Execution state for a step.\n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "ExecutionStatus::is_ready",
-      "return_type": "-> bool",
-      "span": {
-        "end": {
-          "column": 6,
-          "line": 230
-        },
-        "start": {
-          "column": 5,
-          "line": 226
-        }
-      }
-    },
-    "genre": "FnValue",
-    "name": "crates/vo-executor/src/lib.rs:229:9: replace ExecutionStatus::is_ready -> bool with false",
-    "package": "vo-executor",
-    "replacement": "false",
-    "span": {
-      "end": {
-        "column": 47,
-        "line": 229
-      },
-      "start": {
-        "column": 9,
-        "line": 229
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace get_state -> StepState with Default::default()\n@@ -258,17 +258,17 @@\n static LAST_ERROR: LazyLock<DashMap<String, ExecuteNodeError>> = LazyLock::new(DashMap::new);\n \n /// Duration threshold for detecting slow steps (3000ms).\n /// Steps taking longer than this trigger timeout errors if `timeout_ms` is smaller.\n const SLOW_STEP_DURATION_MS: u64 = 3000;\n \n /// Get current state for a step.\n fn get_state(step_id: &str) -> StepState {\n-    STATE.get(step_id).map_or(StepState::Ready, |v| v.clone())\n+    Default::default() /* ~ changed by cargo-mutants ~ */\n }\n \n /// Set state for a step.\n fn set_state(step_id: &str, state: StepState) {\n     STATE.insert(step_id.to_string(), state);\n }\n \n /// Clear any stored error for a step.\n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "get_state",
-      "return_type": "-> StepState",
-      "span": {
-        "end": {
-          "column": 2,
-          "line": 267
-        },
-        "start": {
-          "column": 1,
-          "line": 264
-        }
-      }
-    },
-    "genre": "FnValue",
-    "name": "crates/vo-executor/src/lib.rs:266:5: replace get_state -> StepState with Default::default()",
-    "package": "vo-executor",
-    "replacement": "Default::default()",
-    "span": {
-      "end": {
-        "column": 63,
-        "line": 266
-      },
-      "start": {
-        "column": 5,
-        "line": 266
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace set_state with ()\n@@ -263,17 +263,17 @@\n \n /// Get current state for a step.\n fn get_state(step_id: &str) -> StepState {\n     STATE.get(step_id).map_or(StepState::Ready, |v| v.clone())\n }\n \n /// Set state for a step.\n fn set_state(step_id: &str, state: StepState) {\n-    STATE.insert(step_id.to_string(), state);\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n /// Clear any stored error for a step.\n ///pub for testing\n pub fn clear_error(step_id: &str) {\n     LAST_ERROR.remove(step_id);\n }\n \n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "set_state",
-      "return_type": "",
-      "span": {
-        "end": {
-          "column": 2,
-          "line": 272
-        },
-        "start": {
-          "column": 1,
-          "line": 269
-        }
-      }
-    },
-    "genre": "FnValue",
-    "name": "crates/vo-executor/src/lib.rs:271:5: replace set_state with ()",
-    "package": "vo-executor",
-    "replacement": "()",
-    "span": {
-      "end": {
-        "column": 46,
-        "line": 271
-      },
-      "start": {
-        "column": 5,
-        "line": 271
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace clear_error with ()\n@@ -269,17 +269,17 @@\n /// Set state for a step.\n fn set_state(step_id: &str, state: StepState) {\n     STATE.insert(step_id.to_string(), state);\n }\n \n /// Clear any stored error for a step.\n ///pub for testing\n pub fn clear_error(step_id: &str) {\n-    LAST_ERROR.remove(step_id);\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n /// Store an error for a step.\n ///pub for testing\n pub fn set_error(step_id: &str, err: ExecuteNodeError) {\n     LAST_ERROR.insert(step_id.to_string(), err);\n }\n \n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "clear_error",
-      "return_type": "",
-      "span": {
-        "end": {
-          "column": 2,
-          "line": 278
-        },
-        "start": {
-          "column": 1,
-          "line": 274
-        }
-      }
-    },
-    "genre": "FnValue",
-    "name": "crates/vo-executor/src/lib.rs:277:5: replace clear_error with ()",
-    "package": "vo-executor",
-    "replacement": "()",
-    "span": {
-      "end": {
-        "column": 32,
-        "line": 277
-      },
-      "start": {
-        "column": 5,
-        "line": 277
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace set_error with ()\n@@ -275,17 +275,17 @@\n ///pub for testing\n pub fn clear_error(step_id: &str) {\n     LAST_ERROR.remove(step_id);\n }\n \n /// Store an error for a step.\n ///pub for testing\n pub fn set_error(step_id: &str, err: ExecuteNodeError) {\n-    LAST_ERROR.insert(step_id.to_string(), err);\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n /// **NOTE:** This is test infrastructure that simulates workflow step behavior.\n fn step_behavior(step_id: &str) -> StepBehavior {\n     match step_id {\n         \"step-1\" | \"step-good\" | \"step-valid\" | \"step-retry\" | \"workflow-step-1\" => {\n             StepBehavior::Success\n         }\n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "set_error",
-      "return_type": "",
-      "span": {
-        "end": {
-          "column": 2,
-          "line": 284
-        },
-        "start": {
-          "column": 1,
-          "line": 280
-        }
-      }
-    },
-    "genre": "FnValue",
-    "name": "crates/vo-executor/src/lib.rs:283:5: replace set_error with ()",
-    "package": "vo-executor",
-    "replacement": "()",
-    "span": {
-      "end": {
-        "column": 49,
-        "line": 283
-      },
-      "start": {
-        "column": 5,
-        "line": 283
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace step_behavior -> StepBehavior with Default::default()\n@@ -280,25 +280,17 @@\n /// Store an error for a step.\n ///pub for testing\n pub fn set_error(step_id: &str, err: ExecuteNodeError) {\n     LAST_ERROR.insert(step_id.to_string(), err);\n }\n \n /// **NOTE:** This is test infrastructure that simulates workflow step behavior.\n fn step_behavior(step_id: &str) -> StepBehavior {\n-    match step_id {\n-        \"step-1\" | \"step-good\" | \"step-valid\" | \"step-retry\" | \"workflow-step-1\" => {\n-            StepBehavior::Success\n-        }\n-        \"step-fail\" => StepBehavior::Failure,\n-        \"step-transient\" | \"step-flaky\" => StepBehavior::Transient,\n-        \"step-slow\" => StepBehavior::Slow,\n-        _ => StepBehavior::NotFound,\n-    }\n+    Default::default() /* ~ changed by cargo-mutants ~ */\n }\n \n #[derive(Debug, Clone, Copy)]\n enum StepBehavior {\n     Success,\n     Failure,\n     Transient,\n     Slow,\n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "step_behavior",
-      "return_type": "-> StepBehavior",
-      "span": {
-        "end": {
-          "column": 2,
-          "line": 297
-        },
-        "start": {
-          "column": 1,
-          "line": 286
-        }
-      }
-    },
-    "genre": "FnValue",
-    "name": "crates/vo-executor/src/lib.rs:288:5: replace step_behavior -> StepBehavior with Default::default()",
-    "package": "vo-executor",
-    "replacement": "Default::default()",
-    "span": {
-      "end": {
-        "column": 6,
-        "line": 296
-      },
-      "start": {
-        "column": 5,
-        "line": 288
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ delete match arm \"step-1\" | \"step-good\" | \"step-valid\" | \"step-retry\" | \"workflow-step-1\" in step_behavior\n@@ -281,19 +281,17 @@\n ///pub for testing\n pub fn set_error(step_id: &str, err: ExecuteNodeError) {\n     LAST_ERROR.insert(step_id.to_string(), err);\n }\n \n /// **NOTE:** This is test infrastructure that simulates workflow step behavior.\n fn step_behavior(step_id: &str) -> StepBehavior {\n     match step_id {\n-        \"step-1\" | \"step-good\" | \"step-valid\" | \"step-retry\" | \"workflow-step-1\" => {\n-            StepBehavior::Success\n-        }\n+         /* ~ changed by cargo-mutants ~ */\n         \"step-fail\" => StepBehavior::Failure,\n         \"step-transient\" | \"step-flaky\" => StepBehavior::Transient,\n         \"step-slow\" => StepBehavior::Slow,\n         _ => StepBehavior::NotFound,\n     }\n }\n \n #[derive(Debug, Clone, Copy)]\n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "step_behavior",
-      "return_type": "-> StepBehavior",
-      "span": {
-        "end": {
-          "column": 2,
-          "line": 297
-        },
-        "start": {
-          "column": 1,
-          "line": 286
-        }
-      }
-    },
-    "genre": "MatchArm",
-    "name": "crates/vo-executor/src/lib.rs:289:9: delete match arm \"step-1\" | \"step-good\" | \"step-valid\" | \"step-retry\" | \"workflow-step-1\" in step_behavior",
-    "package": "vo-executor",
-    "replacement": "",
     "span": {
       "end": {
         "column": 10,
-        "line": 291
+        "line": 64
       },
       "start": {
         "column": 9,
-        "line": 289
+        "line": 57
       }
     }
   },
   {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ delete match arm \"step-fail\" in step_behavior\n@@ -284,17 +284,17 @@\n }\n \n /// **NOTE:** This is test infrastructure that simulates workflow step behavior.\n fn step_behavior(step_id: &str) -> StepBehavior {\n     match step_id {\n         \"step-1\" | \"step-good\" | \"step-valid\" | \"step-retry\" | \"workflow-step-1\" => {\n             StepBehavior::Success\n         }\n-        \"step-fail\" => StepBehavior::Failure,\n+         /* ~ changed by cargo-mutants ~ */\n         \"step-transient\" | \"step-flaky\" => StepBehavior::Transient,\n         \"step-slow\" => StepBehavior::Slow,\n         _ => StepBehavior::NotFound,\n     }\n }\n \n #[derive(Debug, Clone, Copy)]\n enum StepBehavior {\n",
-    "file": "crates/vo-executor/src/lib.rs",
+    "diff": "--- crates/vo-types/src/compensation.rs\n+++ replace CompensationStatus::is_terminal -> bool with true\n@@ -81,22 +81,17 @@\n // ============================================================================\n // Calc Layer: Pure Functions\n // ============================================================================\n \n impl CompensationStatus {\n     /// Check if this state is terminal (NotNeeded, Succeeded, or Failed).\n     #[must_use]\n     pub const fn is_terminal(self) -> bool {\n-        matches!(\n-            self,\n-            CompensationStatus::NotNeeded\n-                | CompensationStatus::Succeeded\n-                | CompensationStatus::Failed\n-        )\n+        true /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// Returns all CompensationStatus variants in declaration order.\n     #[must_use]\n     pub const fn all_variants() -> &'static [CompensationStatus] {\n         &[\n             CompensationStatus::NotNeeded,\n             CompensationStatus::Pending,\n",
+    "file": "crates/vo-types/src/compensation.rs",
     "function": {
-      "function_name": "step_behavior",
-      "return_type": "-> StepBehavior",
+      "function_name": "CompensationStatus::is_terminal",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 95
+        },
+        "start": {
+          "column": 5,
+          "line": 86
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "crates/vo-types/src/compensation.rs:89:9: replace CompensationStatus::is_terminal -> bool with true",
+    "package": "vo-types",
+    "replacement": "true",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 94
+      },
+      "start": {
+        "column": 9,
+        "line": 89
+      }
+    }
+  },
+  {
+    "diff": "--- crates/vo-types/src/compensation.rs\n+++ replace CompensationStatus::is_terminal -> bool with false\n@@ -81,22 +81,17 @@\n // ============================================================================\n // Calc Layer: Pure Functions\n // ============================================================================\n \n impl CompensationStatus {\n     /// Check if this state is terminal (NotNeeded, Succeeded, or Failed).\n     #[must_use]\n     pub const fn is_terminal(self) -> bool {\n-        matches!(\n-            self,\n-            CompensationStatus::NotNeeded\n-                | CompensationStatus::Succeeded\n-                | CompensationStatus::Failed\n-        )\n+        false /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// Returns all CompensationStatus variants in declaration order.\n     #[must_use]\n     pub const fn all_variants() -> &'static [CompensationStatus] {\n         &[\n             CompensationStatus::NotNeeded,\n             CompensationStatus::Pending,\n",
+    "file": "crates/vo-types/src/compensation.rs",
+    "function": {
+      "function_name": "CompensationStatus::is_terminal",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 95
+        },
+        "start": {
+          "column": 5,
+          "line": 86
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "crates/vo-types/src/compensation.rs:89:9: replace CompensationStatus::is_terminal -> bool with false",
+    "package": "vo-types",
+    "replacement": "false",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 94
+      },
+      "start": {
+        "column": 9,
+        "line": 89
+      }
+    }
+  },
+  {
+    "diff": "--- crates/vo-types/src/compensation.rs\n+++ replace CompensationStatus::all_variants -> &'static[CompensationStatus] with Vec::leak(Vec::new())\n@@ -92,23 +92,17 @@\n                 | CompensationStatus::Succeeded\n                 | CompensationStatus::Failed\n         )\n     }\n \n     /// Returns all CompensationStatus variants in declaration order.\n     #[must_use]\n     pub const fn all_variants() -> &'static [CompensationStatus] {\n-        &[\n-            CompensationStatus::NotNeeded,\n-            CompensationStatus::Pending,\n-            CompensationStatus::InProgress,\n-            CompensationStatus::Succeeded,\n-            CompensationStatus::Failed,\n-        ]\n+        Vec::leak(Vec::new()) /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n impl CompensationTransitionEvent {\n     /// Returns all CompensationTransitionEvent variants in declaration order.\n     #[must_use]\n     pub const fn all_variants() -> &'static [CompensationTransitionEvent] {\n         &[\n",
+    "file": "crates/vo-types/src/compensation.rs",
+    "function": {
+      "function_name": "CompensationStatus::all_variants",
+      "return_type": "-> &'static[CompensationStatus]",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 107
+        },
+        "start": {
+          "column": 5,
+          "line": 97
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "crates/vo-types/src/compensation.rs:100:9: replace CompensationStatus::all_variants -> &'static[CompensationStatus] with Vec::leak(Vec::new())",
+    "package": "vo-types",
+    "replacement": "Vec::leak(Vec::new())",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 106
+      },
+      "start": {
+        "column": 9,
+        "line": 100
+      }
+    }
+  },
+  {
+    "diff": "--- crates/vo-types/src/compensation.rs\n+++ replace CompensationStatus::all_variants -> &'static[CompensationStatus] with Vec::leak(vec![Default::default()])\n@@ -92,23 +92,17 @@\n                 | CompensationStatus::Succeeded\n                 | CompensationStatus::Failed\n         )\n     }\n \n     /// Returns all CompensationStatus variants in declaration order.\n     #[must_use]\n     pub const fn all_variants() -> &'static [CompensationStatus] {\n-        &[\n-            CompensationStatus::NotNeeded,\n-            CompensationStatus::Pending,\n-            CompensationStatus::InProgress,\n-            CompensationStatus::Succeeded,\n-            CompensationStatus::Failed,\n-        ]\n+        Vec::leak(vec![Default::default()]) /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n impl CompensationTransitionEvent {\n     /// Returns all CompensationTransitionEvent variants in declaration order.\n     #[must_use]\n     pub const fn all_variants() -> &'static [CompensationTransitionEvent] {\n         &[\n",
+    "file": "crates/vo-types/src/compensation.rs",
+    "function": {
+      "function_name": "CompensationStatus::all_variants",
+      "return_type": "-> &'static[CompensationStatus]",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 107
+        },
+        "start": {
+          "column": 5,
+          "line": 97
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "crates/vo-types/src/compensation.rs:100:9: replace CompensationStatus::all_variants -> &'static[CompensationStatus] with Vec::leak(vec![Default::default()])",
+    "package": "vo-types",
+    "replacement": "Vec::leak(vec![Default::default()])",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 106
+      },
+      "start": {
+        "column": 9,
+        "line": 100
+      }
+    }
+  },
+  {
+    "diff": "--- crates/vo-types/src/compensation.rs\n+++ replace CompensationTransitionEvent::all_variants -> &'static[CompensationTransitionEvent] with Vec::leak(Vec::new())\n@@ -106,21 +106,17 @@\n         ]\n     }\n }\n \n impl CompensationTransitionEvent {\n     /// Returns all CompensationTransitionEvent variants in declaration order.\n     #[must_use]\n     pub const fn all_variants() -> &'static [CompensationTransitionEvent] {\n-        &[\n-            CompensationTransitionEvent::Start,\n-            CompensationTransitionEvent::Succeed,\n-            CompensationTransitionEvent::Fail,\n-        ]\n+        Vec::leak(Vec::new()) /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n impl CompensationRecord {\n     /// Construct a new CompensationRecord.\n     ///\n     /// Returns `None` if `effect_id` is empty (INV-COMP-003).\n     #[must_use]\n",
+    "file": "crates/vo-types/src/compensation.rs",
+    "function": {
+      "function_name": "CompensationTransitionEvent::all_variants",
+      "return_type": "-> &'static[CompensationTransitionEvent]",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 119
+        },
+        "start": {
+          "column": 5,
+          "line": 111
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "crates/vo-types/src/compensation.rs:114:9: replace CompensationTransitionEvent::all_variants -> &'static[CompensationTransitionEvent] with Vec::leak(Vec::new())",
+    "package": "vo-types",
+    "replacement": "Vec::leak(Vec::new())",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 118
+      },
+      "start": {
+        "column": 9,
+        "line": 114
+      }
+    }
+  },
+  {
+    "diff": "--- crates/vo-types/src/compensation.rs\n+++ replace CompensationTransitionEvent::all_variants -> &'static[CompensationTransitionEvent] with Vec::leak(vec![Default::default()])\n@@ -106,21 +106,17 @@\n         ]\n     }\n }\n \n impl CompensationTransitionEvent {\n     /// Returns all CompensationTransitionEvent variants in declaration order.\n     #[must_use]\n     pub const fn all_variants() -> &'static [CompensationTransitionEvent] {\n-        &[\n-            CompensationTransitionEvent::Start,\n-            CompensationTransitionEvent::Succeed,\n-            CompensationTransitionEvent::Fail,\n-        ]\n+        Vec::leak(vec![Default::default()]) /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n impl CompensationRecord {\n     /// Construct a new CompensationRecord.\n     ///\n     /// Returns `None` if `effect_id` is empty (INV-COMP-003).\n     #[must_use]\n",
+    "file": "crates/vo-types/src/compensation.rs",
+    "function": {
+      "function_name": "CompensationTransitionEvent::all_variants",
+      "return_type": "-> &'static[CompensationTransitionEvent]",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 119
+        },
+        "start": {
+          "column": 5,
+          "line": 111
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "crates/vo-types/src/compensation.rs:114:9: replace CompensationTransitionEvent::all_variants -> &'static[CompensationTransitionEvent] with Vec::leak(vec![Default::default()])",
+    "package": "vo-types",
+    "replacement": "Vec::leak(vec![Default::default()])",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 118
+      },
+      "start": {
+        "column": 9,
+        "line": 114
+      }
+    }
+  },
+  {
+    "diff": "--- crates/vo-types/src/compensation.rs\n+++ replace CompensationRecord::effect_id -> &str with \"\"\n@@ -142,17 +142,17 @@\n             compensation_effect_id,\n             started_at,\n             completed_at,\n         })\n     }\n \n     #[must_use]\n     pub fn effect_id(&self) -> &str {\n-        &self.effect_id\n+        \"\" /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[must_use]\n     pub fn policy(&self) -> crate::effects::CompensationPolicy {\n         self.policy\n     }\n \n     #[must_use]\n",
+    "file": "crates/vo-types/src/compensation.rs",
+    "function": {
+      "function_name": "CompensationRecord::effect_id",
+      "return_type": "-> &str",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 151
+        },
+        "start": {
+          "column": 5,
+          "line": 148
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "crates/vo-types/src/compensation.rs:150:9: replace CompensationRecord::effect_id -> &str with \"\"",
+    "package": "vo-types",
+    "replacement": "\"\"",
+    "span": {
+      "end": {
+        "column": 24,
+        "line": 150
+      },
+      "start": {
+        "column": 9,
+        "line": 150
+      }
+    }
+  },
+  {
+    "diff": "--- crates/vo-types/src/compensation.rs\n+++ replace CompensationRecord::effect_id -> &str with \"xyzzy\"\n@@ -142,17 +142,17 @@\n             compensation_effect_id,\n             started_at,\n             completed_at,\n         })\n     }\n \n     #[must_use]\n     pub fn effect_id(&self) -> &str {\n-        &self.effect_id\n+        \"xyzzy\" /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[must_use]\n     pub fn policy(&self) -> crate::effects::CompensationPolicy {\n         self.policy\n     }\n \n     #[must_use]\n",
+    "file": "crates/vo-types/src/compensation.rs",
+    "function": {
+      "function_name": "CompensationRecord::effect_id",
+      "return_type": "-> &str",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 151
+        },
+        "start": {
+          "column": 5,
+          "line": 148
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "crates/vo-types/src/compensation.rs:150:9: replace CompensationRecord::effect_id -> &str with \"xyzzy\"",
+    "package": "vo-types",
+    "replacement": "\"xyzzy\"",
+    "span": {
+      "end": {
+        "column": 24,
+        "line": 150
+      },
+      "start": {
+        "column": 9,
+        "line": 150
+      }
+    }
+  },
+  {
+    "diff": "--- crates/vo-types/src/compensation.rs\n+++ replace CompensationRecord::policy -> crate::effects::CompensationPolicy with Default::default()\n@@ -147,17 +147,17 @@\n \n     #[must_use]\n     pub fn effect_id(&self) -> &str {\n         &self.effect_id\n     }\n \n     #[must_use]\n     pub fn policy(&self) -> crate::effects::CompensationPolicy {\n-        self.policy\n+        Default::default() /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[must_use]\n     pub fn status(&self) -> CompensationStatus {\n         self.status\n     }\n \n     #[must_use]\n",
+    "file": "crates/vo-types/src/compensation.rs",
+    "function": {
+      "function_name": "CompensationRecord::policy",
+      "return_type": "-> crate::effects::CompensationPolicy",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 156
+        },
+        "start": {
+          "column": 5,
+          "line": 153
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "crates/vo-types/src/compensation.rs:155:9: replace CompensationRecord::policy -> crate::effects::CompensationPolicy with Default::default()",
+    "package": "vo-types",
+    "replacement": "Default::default()",
+    "span": {
+      "end": {
+        "column": 20,
+        "line": 155
+      },
+      "start": {
+        "column": 9,
+        "line": 155
+      }
+    }
+  },
+  {
+    "diff": "--- crates/vo-types/src/compensation.rs\n+++ replace CompensationRecord::status -> CompensationStatus with Default::default()\n@@ -152,17 +152,17 @@\n \n     #[must_use]\n     pub fn policy(&self) -> crate::effects::CompensationPolicy {\n         self.policy\n     }\n \n     #[must_use]\n     pub fn status(&self) -> CompensationStatus {\n-        self.status\n+        Default::default() /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[must_use]\n     pub fn compensation_effect_id(&self) -> Option<&str> {\n         self.compensation_effect_id.as_deref()\n     }\n \n     #[must_use]\n",
+    "file": "crates/vo-types/src/compensation.rs",
+    "function": {
+      "function_name": "CompensationRecord::status",
+      "return_type": "-> CompensationStatus",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 161
+        },
+        "start": {
+          "column": 5,
+          "line": 158
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "crates/vo-types/src/compensation.rs:160:9: replace CompensationRecord::status -> CompensationStatus with Default::default()",
+    "package": "vo-types",
+    "replacement": "Default::default()",
+    "span": {
+      "end": {
+        "column": 20,
+        "line": 160
+      },
+      "start": {
+        "column": 9,
+        "line": 160
+      }
+    }
+  },
+  {
+    "diff": "--- crates/vo-types/src/compensation.rs\n+++ replace CompensationRecord::compensation_effect_id -> Option<&str> with None\n@@ -157,17 +157,17 @@\n \n     #[must_use]\n     pub fn status(&self) -> CompensationStatus {\n         self.status\n     }\n \n     #[must_use]\n     pub fn compensation_effect_id(&self) -> Option<&str> {\n-        self.compensation_effect_id.as_deref()\n+        None /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[must_use]\n     pub fn started_at(&self) -> Option<&crate::types::TimestampMs> {\n         self.started_at.as_ref()\n     }\n \n     #[must_use]\n",
+    "file": "crates/vo-types/src/compensation.rs",
+    "function": {
+      "function_name": "CompensationRecord::compensation_effect_id",
+      "return_type": "-> Option<&str>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 166
+        },
+        "start": {
+          "column": 5,
+          "line": 163
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "crates/vo-types/src/compensation.rs:165:9: replace CompensationRecord::compensation_effect_id -> Option<&str> with None",
+    "package": "vo-types",
+    "replacement": "None",
+    "span": {
+      "end": {
+        "column": 47,
+        "line": 165
+      },
+      "start": {
+        "column": 9,
+        "line": 165
+      }
+    }
+  },
+  {
+    "diff": "--- crates/vo-types/src/compensation.rs\n+++ replace CompensationRecord::compensation_effect_id -> Option<&str> with Some(\"\")\n@@ -157,17 +157,17 @@\n \n     #[must_use]\n     pub fn status(&self) -> CompensationStatus {\n         self.status\n     }\n \n     #[must_use]\n     pub fn compensation_effect_id(&self) -> Option<&str> {\n-        self.compensation_effect_id.as_deref()\n+        Some(\"\") /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[must_use]\n     pub fn started_at(&self) -> Option<&crate::types::TimestampMs> {\n         self.started_at.as_ref()\n     }\n \n     #[must_use]\n",
+    "file": "crates/vo-types/src/compensation.rs",
+    "function": {
+      "function_name": "CompensationRecord::compensation_effect_id",
+      "return_type": "-> Option<&str>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 166
+        },
+        "start": {
+          "column": 5,
+          "line": 163
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "crates/vo-types/src/compensation.rs:165:9: replace CompensationRecord::compensation_effect_id -> Option<&str> with Some(\"\")",
+    "package": "vo-types",
+    "replacement": "Some(\"\")",
+    "span": {
+      "end": {
+        "column": 47,
+        "line": 165
+      },
+      "start": {
+        "column": 9,
+        "line": 165
+      }
+    }
+  },
+  {
+    "diff": "--- crates/vo-types/src/compensation.rs\n+++ replace CompensationRecord::compensation_effect_id -> Option<&str> with Some(\"xyzzy\")\n@@ -157,17 +157,17 @@\n \n     #[must_use]\n     pub fn status(&self) -> CompensationStatus {\n         self.status\n     }\n \n     #[must_use]\n     pub fn compensation_effect_id(&self) -> Option<&str> {\n-        self.compensation_effect_id.as_deref()\n+        Some(\"xyzzy\") /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[must_use]\n     pub fn started_at(&self) -> Option<&crate::types::TimestampMs> {\n         self.started_at.as_ref()\n     }\n \n     #[must_use]\n",
+    "file": "crates/vo-types/src/compensation.rs",
+    "function": {
+      "function_name": "CompensationRecord::compensation_effect_id",
+      "return_type": "-> Option<&str>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 166
+        },
+        "start": {
+          "column": 5,
+          "line": 163
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "crates/vo-types/src/compensation.rs:165:9: replace CompensationRecord::compensation_effect_id -> Option<&str> with Some(\"xyzzy\")",
+    "package": "vo-types",
+    "replacement": "Some(\"xyzzy\")",
+    "span": {
+      "end": {
+        "column": 47,
+        "line": 165
+      },
+      "start": {
+        "column": 9,
+        "line": 165
+      }
+    }
+  },
+  {
+    "diff": "--- crates/vo-types/src/compensation.rs\n+++ replace CompensationRecord::started_at -> Option<&crate::types::TimestampMs> with None\n@@ -162,17 +162,17 @@\n \n     #[must_use]\n     pub fn compensation_effect_id(&self) -> Option<&str> {\n         self.compensation_effect_id.as_deref()\n     }\n \n     #[must_use]\n     pub fn started_at(&self) -> Option<&crate::types::TimestampMs> {\n-        self.started_at.as_ref()\n+        None /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[must_use]\n     pub fn completed_at(&self) -> Option<&crate::types::TimestampMs> {\n         self.completed_at.as_ref()\n     }\n }\n \n",
+    "file": "crates/vo-types/src/compensation.rs",
+    "function": {
+      "function_name": "CompensationRecord::started_at",
+      "return_type": "-> Option<&crate::types::TimestampMs>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 171
+        },
+        "start": {
+          "column": 5,
+          "line": 168
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "crates/vo-types/src/compensation.rs:170:9: replace CompensationRecord::started_at -> Option<&crate::types::TimestampMs> with None",
+    "package": "vo-types",
+    "replacement": "None",
+    "span": {
+      "end": {
+        "column": 33,
+        "line": 170
+      },
+      "start": {
+        "column": 9,
+        "line": 170
+      }
+    }
+  },
+  {
+    "diff": "--- crates/vo-types/src/compensation.rs\n+++ replace CompensationRecord::started_at -> Option<&crate::types::TimestampMs> with Some(Box::leak(Box::new(Default::default())))\n@@ -162,17 +162,17 @@\n \n     #[must_use]\n     pub fn compensation_effect_id(&self) -> Option<&str> {\n         self.compensation_effect_id.as_deref()\n     }\n \n     #[must_use]\n     pub fn started_at(&self) -> Option<&crate::types::TimestampMs> {\n-        self.started_at.as_ref()\n+        Some(Box::leak(Box::new(Default::default()))) /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[must_use]\n     pub fn completed_at(&self) -> Option<&crate::types::TimestampMs> {\n         self.completed_at.as_ref()\n     }\n }\n \n",
+    "file": "crates/vo-types/src/compensation.rs",
+    "function": {
+      "function_name": "CompensationRecord::started_at",
+      "return_type": "-> Option<&crate::types::TimestampMs>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 171
+        },
+        "start": {
+          "column": 5,
+          "line": 168
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "crates/vo-types/src/compensation.rs:170:9: replace CompensationRecord::started_at -> Option<&crate::types::TimestampMs> with Some(Box::leak(Box::new(Default::default())))",
+    "package": "vo-types",
+    "replacement": "Some(Box::leak(Box::new(Default::default())))",
+    "span": {
+      "end": {
+        "column": 33,
+        "line": 170
+      },
+      "start": {
+        "column": 9,
+        "line": 170
+      }
+    }
+  },
+  {
+    "diff": "--- crates/vo-types/src/compensation.rs\n+++ replace CompensationRecord::completed_at -> Option<&crate::types::TimestampMs> with None\n@@ -167,17 +167,17 @@\n \n     #[must_use]\n     pub fn started_at(&self) -> Option<&crate::types::TimestampMs> {\n         self.started_at.as_ref()\n     }\n \n     #[must_use]\n     pub fn completed_at(&self) -> Option<&crate::types::TimestampMs> {\n-        self.completed_at.as_ref()\n+        None /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n /// Apply a state transition to a CompensationStatus.\n ///\n /// # Errors\n ///\n /// Returns `CompensationTransitionError::TerminalStateTransition` if the current state\n",
+    "file": "crates/vo-types/src/compensation.rs",
+    "function": {
+      "function_name": "CompensationRecord::completed_at",
+      "return_type": "-> Option<&crate::types::TimestampMs>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 176
+        },
+        "start": {
+          "column": 5,
+          "line": 173
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "crates/vo-types/src/compensation.rs:175:9: replace CompensationRecord::completed_at -> Option<&crate::types::TimestampMs> with None",
+    "package": "vo-types",
+    "replacement": "None",
+    "span": {
+      "end": {
+        "column": 35,
+        "line": 175
+      },
+      "start": {
+        "column": 9,
+        "line": 175
+      }
+    }
+  },
+  {
+    "diff": "--- crates/vo-types/src/compensation.rs\n+++ replace CompensationRecord::completed_at -> Option<&crate::types::TimestampMs> with Some(Box::leak(Box::new(Default::default())))\n@@ -167,17 +167,17 @@\n \n     #[must_use]\n     pub fn started_at(&self) -> Option<&crate::types::TimestampMs> {\n         self.started_at.as_ref()\n     }\n \n     #[must_use]\n     pub fn completed_at(&self) -> Option<&crate::types::TimestampMs> {\n-        self.completed_at.as_ref()\n+        Some(Box::leak(Box::new(Default::default()))) /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n /// Apply a state transition to a CompensationStatus.\n ///\n /// # Errors\n ///\n /// Returns `CompensationTransitionError::TerminalStateTransition` if the current state\n",
+    "file": "crates/vo-types/src/compensation.rs",
+    "function": {
+      "function_name": "CompensationRecord::completed_at",
+      "return_type": "-> Option<&crate::types::TimestampMs>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 176
+        },
+        "start": {
+          "column": 5,
+          "line": 173
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "crates/vo-types/src/compensation.rs:175:9: replace CompensationRecord::completed_at -> Option<&crate::types::TimestampMs> with Some(Box::leak(Box::new(Default::default())))",
+    "package": "vo-types",
+    "replacement": "Some(Box::leak(Box::new(Default::default())))",
+    "span": {
+      "end": {
+        "column": 35,
+        "line": 175
+      },
+      "start": {
+        "column": 9,
+        "line": 175
+      }
+    }
+  },
+  {
+    "diff": "--- crates/vo-types/src/compensation.rs\n+++ replace apply_compensation_transition -> Result<CompensationStatus, CompensationTransitionError> with Ok(Default::default())\n@@ -183,47 +183,17 @@\n /// Returns `CompensationTransitionError::TerminalStateTransition` if the current state\n /// is NotNeeded, Succeeded, or Failed (INV-COMP-002).\n /// Returns `CompensationTransitionError::InvalidTransition` if the event is not valid\n /// for the current state.\n pub fn apply_compensation_transition(\n     current: CompensationStatus,\n     event: CompensationTransitionEvent,\n ) -> Result<CompensationStatus, CompensationTransitionError> {\n-    match (current, event) {\n-        // Valid transitions (INV-COMP-001)\n-        (CompensationStatus::Pending, CompensationTransitionEvent::Start) => {\n-            Ok(CompensationStatus::InProgress)\n-        }\n-        (CompensationStatus::Pending, CompensationTransitionEvent::Fail) => {\n-            Ok(CompensationStatus::Failed)\n-        }\n-        (CompensationStatus::InProgress, CompensationTransitionEvent::Succeed) => {\n-            Ok(CompensationStatus::Succeeded)\n-        }\n-        (CompensationStatus::InProgress, CompensationTransitionEvent::Fail) => {\n-            Ok(CompensationStatus::Failed)\n-        }\n-\n-        // Terminal states reject all transitions (INV-COMP-002)\n-        (\n-            CompensationStatus::NotNeeded\n-            | CompensationStatus::Succeeded\n-            | CompensationStatus::Failed,\n-            _,\n-        ) => Err(CompensationTransitionError::TerminalStateTransition),\n-\n-        // Invalid transitions for non-terminal states\n-        (CompensationStatus::Pending, CompensationTransitionEvent::Succeed) => {\n-            Err(CompensationTransitionError::InvalidTransition)\n-        }\n-        (CompensationStatus::InProgress, CompensationTransitionEvent::Start) => {\n-            Err(CompensationTransitionError::InvalidTransition)\n-        }\n-    }\n+    Ok(Default::default()) /* ~ changed by cargo-mutants ~ */\n }\n \n // ============================================================================\n // Proptest Invariants\n // ============================================================================\n \n #[cfg(feature = \"proptest\")]\n #[allow(clippy::unwrap_used)]\n",
+    "file": "crates/vo-types/src/compensation.rs",
+    "function": {
+      "function_name": "apply_compensation_transition",
+      "return_type": "-> Result<CompensationStatus, CompensationTransitionError>",
       "span": {
         "end": {
           "column": 2,
-          "line": 297
+          "line": 222
         },
         "start": {
           "column": 1,
-          "line": 286
+          "line": 179
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "crates/vo-types/src/compensation.rs:191:5: replace apply_compensation_transition -> Result<CompensationStatus, CompensationTransitionError> with Ok(Default::default())",
+    "package": "vo-types",
+    "replacement": "Ok(Default::default())",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 221
+      },
+      "start": {
+        "column": 5,
+        "line": 191
+      }
+    }
+  },
+  {
+    "diff": "--- crates/vo-types/src/compensation.rs\n+++ replace verification::verify_compensation_transition_exhaustiveness with ()\n@@ -323,36 +323,17 @@\n #[cfg(kani)]\n mod verification {\n     use super::*;\n \n     /// K-01: Verify apply_compensation_transition exhaustiveness.\n     /// All 5×3 = 15 combinations must be covered without panic.\n     #[kani::proof]\n     fn verify_compensation_transition_exhaustiveness() {\n-        let state: u8 = kani::any();\n-        let event: u8 = kani::any();\n-        kani::assume(state < 5);\n-        kani::assume(event < 3);\n-\n-        let current = match state {\n-            0 => CompensationStatus::NotNeeded,\n-            1 => CompensationStatus::Pending,\n-            2 => CompensationStatus::InProgress,\n-            3 => CompensationStatus::Succeeded,\n-            _ => CompensationStatus::Failed,\n-        };\n-        let evt = match event {\n-            0 => CompensationTransitionEvent::Start,\n-            1 => CompensationTransitionEvent::Succeed,\n-            _ => CompensationTransitionEvent::Fail,\n-        };\n-\n-        // Must not panic — all combinations handled\n-        let _ = apply_compensation_transition(current, evt);\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// K-02: Verify CompensationRecord::new rejects empty effect_id.\n     #[kani::proof]\n     fn verify_compensation_record_rejects_empty_effect_id() {\n         let effect_id = String::new();\n         let result = CompensationRecord::new(\n             effect_id,\n",
+    "file": "crates/vo-types/src/compensation.rs",
+    "function": {
+      "function_name": "verification::verify_compensation_transition_exhaustiveness",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 351
+        },
+        "start": {
+          "column": 5,
+          "line": 327
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "crates/vo-types/src/compensation.rs:331:9: replace verification::verify_compensation_transition_exhaustiveness with ()",
+    "package": "vo-types",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 61,
+        "line": 350
+      },
+      "start": {
+        "column": 9,
+        "line": 331
+      }
+    }
+  },
+  {
+    "diff": "--- crates/vo-types/src/compensation.rs\n+++ replace < with == in verification::verify_compensation_transition_exhaustiveness\n@@ -325,17 +325,17 @@\n     use super::*;\n \n     /// K-01: Verify apply_compensation_transition exhaustiveness.\n     /// All 5×3 = 15 combinations must be covered without panic.\n     #[kani::proof]\n     fn verify_compensation_transition_exhaustiveness() {\n         let state: u8 = kani::any();\n         let event: u8 = kani::any();\n-        kani::assume(state < 5);\n+        kani::assume(state == /* ~ changed by cargo-mutants ~ */ 5);\n         kani::assume(event < 3);\n \n         let current = match state {\n             0 => CompensationStatus::NotNeeded,\n             1 => CompensationStatus::Pending,\n             2 => CompensationStatus::InProgress,\n             3 => CompensationStatus::Succeeded,\n             _ => CompensationStatus::Failed,\n",
+    "file": "crates/vo-types/src/compensation.rs",
+    "function": {
+      "function_name": "verification::verify_compensation_transition_exhaustiveness",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 351
+        },
+        "start": {
+          "column": 5,
+          "line": 327
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "crates/vo-types/src/compensation.rs:333:28: replace < with == in verification::verify_compensation_transition_exhaustiveness",
+    "package": "vo-types",
+    "replacement": "==",
+    "span": {
+      "end": {
+        "column": 29,
+        "line": 333
+      },
+      "start": {
+        "column": 28,
+        "line": 333
+      }
+    }
+  },
+  {
+    "diff": "--- crates/vo-types/src/compensation.rs\n+++ replace < with > in verification::verify_compensation_transition_exhaustiveness\n@@ -325,17 +325,17 @@\n     use super::*;\n \n     /// K-01: Verify apply_compensation_transition exhaustiveness.\n     /// All 5×3 = 15 combinations must be covered without panic.\n     #[kani::proof]\n     fn verify_compensation_transition_exhaustiveness() {\n         let state: u8 = kani::any();\n         let event: u8 = kani::any();\n-        kani::assume(state < 5);\n+        kani::assume(state > /* ~ changed by cargo-mutants ~ */ 5);\n         kani::assume(event < 3);\n \n         let current = match state {\n             0 => CompensationStatus::NotNeeded,\n             1 => CompensationStatus::Pending,\n             2 => CompensationStatus::InProgress,\n             3 => CompensationStatus::Succeeded,\n             _ => CompensationStatus::Failed,\n",
+    "file": "crates/vo-types/src/compensation.rs",
+    "function": {
+      "function_name": "verification::verify_compensation_transition_exhaustiveness",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 351
+        },
+        "start": {
+          "column": 5,
+          "line": 327
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "crates/vo-types/src/compensation.rs:333:28: replace < with > in verification::verify_compensation_transition_exhaustiveness",
+    "package": "vo-types",
+    "replacement": ">",
+    "span": {
+      "end": {
+        "column": 29,
+        "line": 333
+      },
+      "start": {
+        "column": 28,
+        "line": 333
+      }
+    }
+  },
+  {
+    "diff": "--- crates/vo-types/src/compensation.rs\n+++ replace < with <= in verification::verify_compensation_transition_exhaustiveness\n@@ -325,17 +325,17 @@\n     use super::*;\n \n     /// K-01: Verify apply_compensation_transition exhaustiveness.\n     /// All 5×3 = 15 combinations must be covered without panic.\n     #[kani::proof]\n     fn verify_compensation_transition_exhaustiveness() {\n         let state: u8 = kani::any();\n         let event: u8 = kani::any();\n-        kani::assume(state < 5);\n+        kani::assume(state <= /* ~ changed by cargo-mutants ~ */ 5);\n         kani::assume(event < 3);\n \n         let current = match state {\n             0 => CompensationStatus::NotNeeded,\n             1 => CompensationStatus::Pending,\n             2 => CompensationStatus::InProgress,\n             3 => CompensationStatus::Succeeded,\n             _ => CompensationStatus::Failed,\n",
+    "file": "crates/vo-types/src/compensation.rs",
+    "function": {
+      "function_name": "verification::verify_compensation_transition_exhaustiveness",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 351
+        },
+        "start": {
+          "column": 5,
+          "line": 327
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "crates/vo-types/src/compensation.rs:333:28: replace < with <= in verification::verify_compensation_transition_exhaustiveness",
+    "package": "vo-types",
+    "replacement": "<=",
+    "span": {
+      "end": {
+        "column": 29,
+        "line": 333
+      },
+      "start": {
+        "column": 28,
+        "line": 333
+      }
+    }
+  },
+  {
+    "diff": "--- crates/vo-types/src/compensation.rs\n+++ replace < with == in verification::verify_compensation_transition_exhaustiveness\n@@ -326,17 +326,17 @@\n \n     /// K-01: Verify apply_compensation_transition exhaustiveness.\n     /// All 5×3 = 15 combinations must be covered without panic.\n     #[kani::proof]\n     fn verify_compensation_transition_exhaustiveness() {\n         let state: u8 = kani::any();\n         let event: u8 = kani::any();\n         kani::assume(state < 5);\n-        kani::assume(event < 3);\n+        kani::assume(event == /* ~ changed by cargo-mutants ~ */ 3);\n \n         let current = match state {\n             0 => CompensationStatus::NotNeeded,\n             1 => CompensationStatus::Pending,\n             2 => CompensationStatus::InProgress,\n             3 => CompensationStatus::Succeeded,\n             _ => CompensationStatus::Failed,\n         };\n",
+    "file": "crates/vo-types/src/compensation.rs",
+    "function": {
+      "function_name": "verification::verify_compensation_transition_exhaustiveness",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 351
+        },
+        "start": {
+          "column": 5,
+          "line": 327
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "crates/vo-types/src/compensation.rs:334:28: replace < with == in verification::verify_compensation_transition_exhaustiveness",
+    "package": "vo-types",
+    "replacement": "==",
+    "span": {
+      "end": {
+        "column": 29,
+        "line": 334
+      },
+      "start": {
+        "column": 28,
+        "line": 334
+      }
+    }
+  },
+  {
+    "diff": "--- crates/vo-types/src/compensation.rs\n+++ replace < with > in verification::verify_compensation_transition_exhaustiveness\n@@ -326,17 +326,17 @@\n \n     /// K-01: Verify apply_compensation_transition exhaustiveness.\n     /// All 5×3 = 15 combinations must be covered without panic.\n     #[kani::proof]\n     fn verify_compensation_transition_exhaustiveness() {\n         let state: u8 = kani::any();\n         let event: u8 = kani::any();\n         kani::assume(state < 5);\n-        kani::assume(event < 3);\n+        kani::assume(event > /* ~ changed by cargo-mutants ~ */ 3);\n \n         let current = match state {\n             0 => CompensationStatus::NotNeeded,\n             1 => CompensationStatus::Pending,\n             2 => CompensationStatus::InProgress,\n             3 => CompensationStatus::Succeeded,\n             _ => CompensationStatus::Failed,\n         };\n",
+    "file": "crates/vo-types/src/compensation.rs",
+    "function": {
+      "function_name": "verification::verify_compensation_transition_exhaustiveness",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 351
+        },
+        "start": {
+          "column": 5,
+          "line": 327
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "crates/vo-types/src/compensation.rs:334:28: replace < with > in verification::verify_compensation_transition_exhaustiveness",
+    "package": "vo-types",
+    "replacement": ">",
+    "span": {
+      "end": {
+        "column": 29,
+        "line": 334
+      },
+      "start": {
+        "column": 28,
+        "line": 334
+      }
+    }
+  },
+  {
+    "diff": "--- crates/vo-types/src/compensation.rs\n+++ replace < with <= in verification::verify_compensation_transition_exhaustiveness\n@@ -326,17 +326,17 @@\n \n     /// K-01: Verify apply_compensation_transition exhaustiveness.\n     /// All 5×3 = 15 combinations must be covered without panic.\n     #[kani::proof]\n     fn verify_compensation_transition_exhaustiveness() {\n         let state: u8 = kani::any();\n         let event: u8 = kani::any();\n         kani::assume(state < 5);\n-        kani::assume(event < 3);\n+        kani::assume(event <= /* ~ changed by cargo-mutants ~ */ 3);\n \n         let current = match state {\n             0 => CompensationStatus::NotNeeded,\n             1 => CompensationStatus::Pending,\n             2 => CompensationStatus::InProgress,\n             3 => CompensationStatus::Succeeded,\n             _ => CompensationStatus::Failed,\n         };\n",
+    "file": "crates/vo-types/src/compensation.rs",
+    "function": {
+      "function_name": "verification::verify_compensation_transition_exhaustiveness",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 351
+        },
+        "start": {
+          "column": 5,
+          "line": 327
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "crates/vo-types/src/compensation.rs:334:28: replace < with <= in verification::verify_compensation_transition_exhaustiveness",
+    "package": "vo-types",
+    "replacement": "<=",
+    "span": {
+      "end": {
+        "column": 29,
+        "line": 334
+      },
+      "start": {
+        "column": 28,
+        "line": 334
+      }
+    }
+  },
+  {
+    "diff": "--- crates/vo-types/src/compensation.rs\n+++ delete match arm 0 in verification::verify_compensation_transition_exhaustiveness\n@@ -329,17 +329,17 @@\n     #[kani::proof]\n     fn verify_compensation_transition_exhaustiveness() {\n         let state: u8 = kani::any();\n         let event: u8 = kani::any();\n         kani::assume(state < 5);\n         kani::assume(event < 3);\n \n         let current = match state {\n-            0 => CompensationStatus::NotNeeded,\n+             /* ~ changed by cargo-mutants ~ */\n             1 => CompensationStatus::Pending,\n             2 => CompensationStatus::InProgress,\n             3 => CompensationStatus::Succeeded,\n             _ => CompensationStatus::Failed,\n         };\n         let evt = match event {\n             0 => CompensationTransitionEvent::Start,\n             1 => CompensationTransitionEvent::Succeed,\n",
+    "file": "crates/vo-types/src/compensation.rs",
+    "function": {
+      "function_name": "verification::verify_compensation_transition_exhaustiveness",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 351
+        },
+        "start": {
+          "column": 5,
+          "line": 327
         }
       }
     },
     "genre": "MatchArm",
-    "name": "crates/vo-executor/src/lib.rs:292:9: delete match arm \"step-fail\" in step_behavior",
-    "package": "vo-executor",
+    "name": "crates/vo-types/src/compensation.rs:337:13: delete match arm 0 in verification::verify_compensation_transition_exhaustiveness",
+    "package": "vo-types",
+    "replacement": "",
+    "span": {
+      "end": {
+        "column": 48,
+        "line": 337
+      },
+      "start": {
+        "column": 13,
+        "line": 337
+      }
+    }
+  },
+  {
+    "diff": "--- crates/vo-types/src/compensation.rs\n+++ delete match arm 1 in verification::verify_compensation_transition_exhaustiveness\n@@ -330,17 +330,17 @@\n     fn verify_compensation_transition_exhaustiveness() {\n         let state: u8 = kani::any();\n         let event: u8 = kani::any();\n         kani::assume(state < 5);\n         kani::assume(event < 3);\n \n         let current = match state {\n             0 => CompensationStatus::NotNeeded,\n-            1 => CompensationStatus::Pending,\n+             /* ~ changed by cargo-mutants ~ */\n             2 => CompensationStatus::InProgress,\n             3 => CompensationStatus::Succeeded,\n             _ => CompensationStatus::Failed,\n         };\n         let evt = match event {\n             0 => CompensationTransitionEvent::Start,\n             1 => CompensationTransitionEvent::Succeed,\n             _ => CompensationTransitionEvent::Fail,\n",
+    "file": "crates/vo-types/src/compensation.rs",
+    "function": {
+      "function_name": "verification::verify_compensation_transition_exhaustiveness",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 351
+        },
+        "start": {
+          "column": 5,
+          "line": 327
+        }
+      }
+    },
+    "genre": "MatchArm",
+    "name": "crates/vo-types/src/compensation.rs:338:13: delete match arm 1 in verification::verify_compensation_transition_exhaustiveness",
+    "package": "vo-types",
     "replacement": "",
     "span": {
       "end": {
         "column": 46,
-        "line": 292
+        "line": 338
       },
       "start": {
-        "column": 9,
-        "line": 292
+        "column": 13,
+        "line": 338
       }
     }
   },
   {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ delete match arm \"step-transient\" | \"step-flaky\" in step_behavior\n@@ -285,17 +285,17 @@\n \n /// **NOTE:** This is test infrastructure that simulates workflow step behavior.\n fn step_behavior(step_id: &str) -> StepBehavior {\n     match step_id {\n         \"step-1\" | \"step-good\" | \"step-valid\" | \"step-retry\" | \"workflow-step-1\" => {\n             StepBehavior::Success\n         }\n         \"step-fail\" => StepBehavior::Failure,\n-        \"step-transient\" | \"step-flaky\" => StepBehavior::Transient,\n+         /* ~ changed by cargo-mutants ~ */\n         \"step-slow\" => StepBehavior::Slow,\n         _ => StepBehavior::NotFound,\n     }\n }\n \n #[derive(Debug, Clone, Copy)]\n enum StepBehavior {\n     Success,\n",
-    "file": "crates/vo-executor/src/lib.rs",
+    "diff": "--- crates/vo-types/src/compensation.rs\n+++ delete match arm 2 in verification::verify_compensation_transition_exhaustiveness\n@@ -331,17 +331,17 @@\n         let state: u8 = kani::any();\n         let event: u8 = kani::any();\n         kani::assume(state < 5);\n         kani::assume(event < 3);\n \n         let current = match state {\n             0 => CompensationStatus::NotNeeded,\n             1 => CompensationStatus::Pending,\n-            2 => CompensationStatus::InProgress,\n+             /* ~ changed by cargo-mutants ~ */\n             3 => CompensationStatus::Succeeded,\n             _ => CompensationStatus::Failed,\n         };\n         let evt = match event {\n             0 => CompensationTransitionEvent::Start,\n             1 => CompensationTransitionEvent::Succeed,\n             _ => CompensationTransitionEvent::Fail,\n         };\n",
+    "file": "crates/vo-types/src/compensation.rs",
     "function": {
-      "function_name": "step_behavior",
-      "return_type": "-> StepBehavior",
-      "span": {
-        "end": {
-          "column": 2,
-          "line": 297
-        },
-        "start": {
-          "column": 1,
-          "line": 286
-        }
-      }
-    },
-    "genre": "MatchArm",
-    "name": "crates/vo-executor/src/lib.rs:293:9: delete match arm \"step-transient\" | \"step-flaky\" in step_behavior",
-    "package": "vo-executor",
-    "replacement": "",
-    "span": {
-      "end": {
-        "column": 68,
-        "line": 293
-      },
-      "start": {
-        "column": 9,
-        "line": 293
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ delete match arm \"step-slow\" in step_behavior\n@@ -286,17 +286,17 @@\n /// **NOTE:** This is test infrastructure that simulates workflow step behavior.\n fn step_behavior(step_id: &str) -> StepBehavior {\n     match step_id {\n         \"step-1\" | \"step-good\" | \"step-valid\" | \"step-retry\" | \"workflow-step-1\" => {\n             StepBehavior::Success\n         }\n         \"step-fail\" => StepBehavior::Failure,\n         \"step-transient\" | \"step-flaky\" => StepBehavior::Transient,\n-        \"step-slow\" => StepBehavior::Slow,\n+         /* ~ changed by cargo-mutants ~ */\n         _ => StepBehavior::NotFound,\n     }\n }\n \n #[derive(Debug, Clone, Copy)]\n enum StepBehavior {\n     Success,\n     Failure,\n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "step_behavior",
-      "return_type": "-> StepBehavior",
-      "span": {
-        "end": {
-          "column": 2,
-          "line": 297
-        },
-        "start": {
-          "column": 1,
-          "line": 286
-        }
-      }
-    },
-    "genre": "MatchArm",
-    "name": "crates/vo-executor/src/lib.rs:294:9: delete match arm \"step-slow\" in step_behavior",
-    "package": "vo-executor",
-    "replacement": "",
-    "span": {
-      "end": {
-        "column": 43,
-        "line": 294
-      },
-      "start": {
-        "column": 9,
-        "line": 294
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace execute_step -> Result<StepResult, ExecuteNodeError> with Ok(Default::default())\n@@ -317,22 +317,17 @@\n /// Returns [`ExecuteNodeError::StepNotFound`] if step does not exist.\n /// Returns [`ExecuteNodeError::TimeoutExceeded`] if step exceeds timeout.\n /// Returns [`ExecuteNodeError::InvalidTransition`] if called during Executing state.\n #[allow(clippy::unused_async)]\n pub async fn execute_step(\n     step_id: StepId,\n     timeout_ms: u64,\n ) -> Result<StepResult, ExecuteNodeError> {\n-    validate_timeout(timeout_ms)?;\n-    check_not_executing(&step_id)?;\n-    let behavior = check_step_exists(&step_id)?;\n-    start_execution(&step_id);\n-    handle_slow_step_timeout(&step_id, timeout_ms, behavior)?;\n-    execute_and_transition(&step_id, behavior)\n+    Ok(Default::default()) /* ~ changed by cargo-mutants ~ */\n }\n \n fn validate_timeout(timeout_ms: u64) -> Result<(), ExecuteNodeError> {\n     if timeout_ms == 0 {\n         return Err(ExecuteNodeError::InvalidTimeout {\n             value: 0,\n             reason: \"must be > 0ms\".to_string(),\n         });\n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "execute_step",
-      "return_type": "-> Result<StepResult, ExecuteNodeError>",
-      "span": {
-        "end": {
-          "column": 2,
-          "line": 331
-        },
-        "start": {
-          "column": 1,
-          "line": 312
-        }
-      }
-    },
-    "genre": "FnValue",
-    "name": "crates/vo-executor/src/lib.rs:325:5: replace execute_step -> Result<StepResult, ExecuteNodeError> with Ok(Default::default())",
-    "package": "vo-executor",
-    "replacement": "Ok(Default::default())",
-    "span": {
-      "end": {
-        "column": 47,
-        "line": 330
-      },
-      "start": {
-        "column": 5,
-        "line": 325
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace validate_timeout -> Result<(), ExecuteNodeError> with Ok(())\n@@ -326,29 +326,17 @@\n     check_not_executing(&step_id)?;\n     let behavior = check_step_exists(&step_id)?;\n     start_execution(&step_id);\n     handle_slow_step_timeout(&step_id, timeout_ms, behavior)?;\n     execute_and_transition(&step_id, behavior)\n }\n \n fn validate_timeout(timeout_ms: u64) -> Result<(), ExecuteNodeError> {\n-    if timeout_ms == 0 {\n-        return Err(ExecuteNodeError::InvalidTimeout {\n-            value: 0,\n-            reason: \"must be > 0ms\".to_string(),\n-        });\n-    }\n-    if timeout_ms == u64::MAX {\n-        return Err(ExecuteNodeError::InvalidTimeout {\n-            value: u64::MAX,\n-            reason: \"must be < u64::MAX\".to_string(),\n-        });\n-    }\n-    Ok(())\n+    Ok(()) /* ~ changed by cargo-mutants ~ */\n }\n \n fn check_not_executing(step_id: &StepId) -> Result<(), ExecuteNodeError> {\n     if matches!(get_state(step_id.as_str()), StepState::Executing { .. }) {\n         return Err(ExecuteNodeError::InvalidTransition {\n             from_state: \"Executing\".to_string(),\n             action: \"execute_step\".to_string(),\n         });\n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "validate_timeout",
-      "return_type": "-> Result<(), ExecuteNodeError>",
-      "span": {
-        "end": {
-          "column": 2,
-          "line": 347
-        },
-        "start": {
-          "column": 1,
-          "line": 333
-        }
-      }
-    },
-    "genre": "FnValue",
-    "name": "crates/vo-executor/src/lib.rs:334:5: replace validate_timeout -> Result<(), ExecuteNodeError> with Ok(())",
-    "package": "vo-executor",
-    "replacement": "Ok(())",
-    "span": {
-      "end": {
-        "column": 11,
-        "line": 346
-      },
-      "start": {
-        "column": 5,
-        "line": 334
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace == with != in validate_timeout\n@@ -326,17 +326,17 @@\n     check_not_executing(&step_id)?;\n     let behavior = check_step_exists(&step_id)?;\n     start_execution(&step_id);\n     handle_slow_step_timeout(&step_id, timeout_ms, behavior)?;\n     execute_and_transition(&step_id, behavior)\n }\n \n fn validate_timeout(timeout_ms: u64) -> Result<(), ExecuteNodeError> {\n-    if timeout_ms == 0 {\n+    if timeout_ms != /* ~ changed by cargo-mutants ~ */ 0 {\n         return Err(ExecuteNodeError::InvalidTimeout {\n             value: 0,\n             reason: \"must be > 0ms\".to_string(),\n         });\n     }\n     if timeout_ms == u64::MAX {\n         return Err(ExecuteNodeError::InvalidTimeout {\n             value: u64::MAX,\n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "validate_timeout",
-      "return_type": "-> Result<(), ExecuteNodeError>",
-      "span": {
-        "end": {
-          "column": 2,
-          "line": 347
-        },
-        "start": {
-          "column": 1,
-          "line": 333
-        }
-      }
-    },
-    "genre": "BinaryOperator",
-    "name": "crates/vo-executor/src/lib.rs:334:19: replace == with != in validate_timeout",
-    "package": "vo-executor",
-    "replacement": "!=",
-    "span": {
-      "end": {
-        "column": 21,
-        "line": 334
-      },
-      "start": {
-        "column": 19,
-        "line": 334
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace == with != in validate_timeout\n@@ -332,17 +332,17 @@\n \n fn validate_timeout(timeout_ms: u64) -> Result<(), ExecuteNodeError> {\n     if timeout_ms == 0 {\n         return Err(ExecuteNodeError::InvalidTimeout {\n             value: 0,\n             reason: \"must be > 0ms\".to_string(),\n         });\n     }\n-    if timeout_ms == u64::MAX {\n+    if timeout_ms != /* ~ changed by cargo-mutants ~ */ u64::MAX {\n         return Err(ExecuteNodeError::InvalidTimeout {\n             value: u64::MAX,\n             reason: \"must be < u64::MAX\".to_string(),\n         });\n     }\n     Ok(())\n }\n \n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "validate_timeout",
-      "return_type": "-> Result<(), ExecuteNodeError>",
-      "span": {
-        "end": {
-          "column": 2,
-          "line": 347
-        },
-        "start": {
-          "column": 1,
-          "line": 333
-        }
-      }
-    },
-    "genre": "BinaryOperator",
-    "name": "crates/vo-executor/src/lib.rs:340:19: replace == with != in validate_timeout",
-    "package": "vo-executor",
-    "replacement": "!=",
-    "span": {
-      "end": {
-        "column": 21,
-        "line": 340
-      },
-      "start": {
-        "column": 19,
-        "line": 340
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace check_not_executing -> Result<(), ExecuteNodeError> with Ok(())\n@@ -342,23 +342,17 @@\n             value: u64::MAX,\n             reason: \"must be < u64::MAX\".to_string(),\n         });\n     }\n     Ok(())\n }\n \n fn check_not_executing(step_id: &StepId) -> Result<(), ExecuteNodeError> {\n-    if matches!(get_state(step_id.as_str()), StepState::Executing { .. }) {\n-        return Err(ExecuteNodeError::InvalidTransition {\n-            from_state: \"Executing\".to_string(),\n-            action: \"execute_step\".to_string(),\n-        });\n-    }\n-    Ok(())\n+    Ok(()) /* ~ changed by cargo-mutants ~ */\n }\n \n fn check_step_exists(step_id: &StepId) -> Result<StepBehavior, ExecuteNodeError> {\n     let behavior = step_behavior(step_id.as_str());\n     if matches!(behavior, StepBehavior::NotFound) {\n         return Err(ExecuteNodeError::StepNotFound {\n             step_id: step_id.clone(),\n         });\n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "check_not_executing",
-      "return_type": "-> Result<(), ExecuteNodeError>",
-      "span": {
-        "end": {
-          "column": 2,
-          "line": 357
-        },
-        "start": {
-          "column": 1,
-          "line": 349
-        }
-      }
-    },
-    "genre": "FnValue",
-    "name": "crates/vo-executor/src/lib.rs:350:5: replace check_not_executing -> Result<(), ExecuteNodeError> with Ok(())",
-    "package": "vo-executor",
-    "replacement": "Ok(())",
-    "span": {
-      "end": {
-        "column": 11,
-        "line": 356
-      },
-      "start": {
-        "column": 5,
-        "line": 350
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace check_step_exists -> Result<StepBehavior, ExecuteNodeError> with Ok(Default::default())\n@@ -352,23 +352,17 @@\n             from_state: \"Executing\".to_string(),\n             action: \"execute_step\".to_string(),\n         });\n     }\n     Ok(())\n }\n \n fn check_step_exists(step_id: &StepId) -> Result<StepBehavior, ExecuteNodeError> {\n-    let behavior = step_behavior(step_id.as_str());\n-    if matches!(behavior, StepBehavior::NotFound) {\n-        return Err(ExecuteNodeError::StepNotFound {\n-            step_id: step_id.clone(),\n-        });\n-    }\n-    Ok(behavior)\n+    Ok(Default::default()) /* ~ changed by cargo-mutants ~ */\n }\n \n fn start_execution(step_id: &StepId) {\n     let start_time = Instant::now();\n     set_state(\n         step_id.as_str(),\n         StepState::Executing {\n             step_id: step_id.clone(),\n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "check_step_exists",
-      "return_type": "-> Result<StepBehavior, ExecuteNodeError>",
-      "span": {
-        "end": {
-          "column": 2,
-          "line": 367
-        },
-        "start": {
-          "column": 1,
-          "line": 359
-        }
-      }
-    },
-    "genre": "FnValue",
-    "name": "crates/vo-executor/src/lib.rs:360:5: replace check_step_exists -> Result<StepBehavior, ExecuteNodeError> with Ok(Default::default())",
-    "package": "vo-executor",
-    "replacement": "Ok(Default::default())",
-    "span": {
-      "end": {
-        "column": 17,
-        "line": 366
-      },
-      "start": {
-        "column": 5,
-        "line": 360
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace start_execution with ()\n@@ -362,25 +362,17 @@\n         return Err(ExecuteNodeError::StepNotFound {\n             step_id: step_id.clone(),\n         });\n     }\n     Ok(behavior)\n }\n \n fn start_execution(step_id: &StepId) {\n-    let start_time = Instant::now();\n-    set_state(\n-        step_id.as_str(),\n-        StepState::Executing {\n-            step_id: step_id.clone(),\n-            start_time,\n-        },\n-    );\n-    clear_error(step_id.as_str());\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n fn handle_slow_step_timeout(\n     step_id: &StepId,\n     timeout_ms: u64,\n     behavior: StepBehavior,\n ) -> Result<(), ExecuteNodeError> {\n     if matches!(behavior, StepBehavior::Slow) && timeout_ms < SLOW_STEP_DURATION_MS {\n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "start_execution",
+      "function_name": "verification::verify_compensation_transition_exhaustiveness",
       "return_type": "",
       "span": {
         "end": {
-          "column": 2,
-          "line": 379
+          "column": 6,
+          "line": 351
         },
         "start": {
-          "column": 1,
-          "line": 369
+          "column": 5,
+          "line": 327
+        }
+      }
+    },
+    "genre": "MatchArm",
+    "name": "crates/vo-types/src/compensation.rs:339:13: delete match arm 2 in verification::verify_compensation_transition_exhaustiveness",
+    "package": "vo-types",
+    "replacement": "",
+    "span": {
+      "end": {
+        "column": 49,
+        "line": 339
+      },
+      "start": {
+        "column": 13,
+        "line": 339
+      }
+    }
+  },
+  {
+    "diff": "--- crates/vo-types/src/compensation.rs\n+++ delete match arm 3 in verification::verify_compensation_transition_exhaustiveness\n@@ -332,17 +332,17 @@\n         let event: u8 = kani::any();\n         kani::assume(state < 5);\n         kani::assume(event < 3);\n \n         let current = match state {\n             0 => CompensationStatus::NotNeeded,\n             1 => CompensationStatus::Pending,\n             2 => CompensationStatus::InProgress,\n-            3 => CompensationStatus::Succeeded,\n+             /* ~ changed by cargo-mutants ~ */\n             _ => CompensationStatus::Failed,\n         };\n         let evt = match event {\n             0 => CompensationTransitionEvent::Start,\n             1 => CompensationTransitionEvent::Succeed,\n             _ => CompensationTransitionEvent::Fail,\n         };\n \n",
+    "file": "crates/vo-types/src/compensation.rs",
+    "function": {
+      "function_name": "verification::verify_compensation_transition_exhaustiveness",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 351
+        },
+        "start": {
+          "column": 5,
+          "line": 327
+        }
+      }
+    },
+    "genre": "MatchArm",
+    "name": "crates/vo-types/src/compensation.rs:340:13: delete match arm 3 in verification::verify_compensation_transition_exhaustiveness",
+    "package": "vo-types",
+    "replacement": "",
+    "span": {
+      "end": {
+        "column": 48,
+        "line": 340
+      },
+      "start": {
+        "column": 13,
+        "line": 340
+      }
+    }
+  },
+  {
+    "diff": "--- crates/vo-types/src/compensation.rs\n+++ delete match arm 0 in verification::verify_compensation_transition_exhaustiveness\n@@ -336,17 +336,17 @@\n         let current = match state {\n             0 => CompensationStatus::NotNeeded,\n             1 => CompensationStatus::Pending,\n             2 => CompensationStatus::InProgress,\n             3 => CompensationStatus::Succeeded,\n             _ => CompensationStatus::Failed,\n         };\n         let evt = match event {\n-            0 => CompensationTransitionEvent::Start,\n+             /* ~ changed by cargo-mutants ~ */\n             1 => CompensationTransitionEvent::Succeed,\n             _ => CompensationTransitionEvent::Fail,\n         };\n \n         // Must not panic — all combinations handled\n         let _ = apply_compensation_transition(current, evt);\n     }\n \n",
+    "file": "crates/vo-types/src/compensation.rs",
+    "function": {
+      "function_name": "verification::verify_compensation_transition_exhaustiveness",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 351
+        },
+        "start": {
+          "column": 5,
+          "line": 327
+        }
+      }
+    },
+    "genre": "MatchArm",
+    "name": "crates/vo-types/src/compensation.rs:344:13: delete match arm 0 in verification::verify_compensation_transition_exhaustiveness",
+    "package": "vo-types",
+    "replacement": "",
+    "span": {
+      "end": {
+        "column": 53,
+        "line": 344
+      },
+      "start": {
+        "column": 13,
+        "line": 344
+      }
+    }
+  },
+  {
+    "diff": "--- crates/vo-types/src/compensation.rs\n+++ delete match arm 1 in verification::verify_compensation_transition_exhaustiveness\n@@ -337,17 +337,17 @@\n             0 => CompensationStatus::NotNeeded,\n             1 => CompensationStatus::Pending,\n             2 => CompensationStatus::InProgress,\n             3 => CompensationStatus::Succeeded,\n             _ => CompensationStatus::Failed,\n         };\n         let evt = match event {\n             0 => CompensationTransitionEvent::Start,\n-            1 => CompensationTransitionEvent::Succeed,\n+             /* ~ changed by cargo-mutants ~ */\n             _ => CompensationTransitionEvent::Fail,\n         };\n \n         // Must not panic — all combinations handled\n         let _ = apply_compensation_transition(current, evt);\n     }\n \n     /// K-02: Verify CompensationRecord::new rejects empty effect_id.\n",
+    "file": "crates/vo-types/src/compensation.rs",
+    "function": {
+      "function_name": "verification::verify_compensation_transition_exhaustiveness",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 351
+        },
+        "start": {
+          "column": 5,
+          "line": 327
+        }
+      }
+    },
+    "genre": "MatchArm",
+    "name": "crates/vo-types/src/compensation.rs:345:13: delete match arm 1 in verification::verify_compensation_transition_exhaustiveness",
+    "package": "vo-types",
+    "replacement": "",
+    "span": {
+      "end": {
+        "column": 55,
+        "line": 345
+      },
+      "start": {
+        "column": 13,
+        "line": 345
+      }
+    }
+  },
+  {
+    "diff": "--- crates/vo-types/src/compensation.rs\n+++ replace verification::verify_compensation_record_rejects_empty_effect_id with ()\n@@ -348,20 +348,11 @@\n \n         // Must not panic — all combinations handled\n         let _ = apply_compensation_transition(current, evt);\n     }\n \n     /// K-02: Verify CompensationRecord::new rejects empty effect_id.\n     #[kani::proof]\n     fn verify_compensation_record_rejects_empty_effect_id() {\n-        let effect_id = String::new();\n-        let result = CompensationRecord::new(\n-            effect_id,\n-            crate::effects::CompensationPolicy::Automatic,\n-            CompensationStatus::Pending,\n-            None,\n-            None,\n-            None,\n-        );\n-        assert!(result.is_none());\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n }\n",
+    "file": "crates/vo-types/src/compensation.rs",
+    "function": {
+      "function_name": "verification::verify_compensation_record_rejects_empty_effect_id",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 366
+        },
+        "start": {
+          "column": 5,
+          "line": 353
         }
       }
     },
     "genre": "FnValue",
-    "name": "crates/vo-executor/src/lib.rs:370:5: replace start_execution with ()",
-    "package": "vo-executor",
+    "name": "crates/vo-types/src/compensation.rs:356:9: replace verification::verify_compensation_record_rejects_empty_effect_id with ()",
+    "package": "vo-types",
     "replacement": "()",
     "span": {
       "end": {
         "column": 35,
-        "line": 378
+        "line": 365
       },
       "start": {
-        "column": 5,
-        "line": 370
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace handle_slow_step_timeout -> Result<(), ExecuteNodeError> with Ok(())\n@@ -378,24 +378,17 @@\n     clear_error(step_id.as_str());\n }\n \n fn handle_slow_step_timeout(\n     step_id: &StepId,\n     timeout_ms: u64,\n     behavior: StepBehavior,\n ) -> Result<(), ExecuteNodeError> {\n-    if matches!(behavior, StepBehavior::Slow) && timeout_ms < SLOW_STEP_DURATION_MS {\n-        set_state(step_id.as_str(), StepState::Ready);\n-        return Err(ExecuteNodeError::TimeoutExceeded {\n-            elapsed_ms: SLOW_STEP_DURATION_MS,\n-            limit_ms: timeout_ms,\n-        });\n-    }\n-    Ok(())\n+    Ok(()) /* ~ changed by cargo-mutants ~ */\n }\n \n fn execute_and_transition(\n     step_id: &StepId,\n     behavior: StepBehavior,\n ) -> Result<StepResult, ExecuteNodeError> {\n     let result = execute_behavior(step_id, behavior)?;\n     set_state(step_id.as_str(), StepState::Ready);\n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "handle_slow_step_timeout",
-      "return_type": "-> Result<(), ExecuteNodeError>",
-      "span": {
-        "end": {
-          "column": 2,
-          "line": 394
-        },
-        "start": {
-          "column": 1,
-          "line": 381
-        }
-      }
-    },
-    "genre": "FnValue",
-    "name": "crates/vo-executor/src/lib.rs:386:5: replace handle_slow_step_timeout -> Result<(), ExecuteNodeError> with Ok(())",
-    "package": "vo-executor",
-    "replacement": "Ok(())",
-    "span": {
-      "end": {
-        "column": 11,
-        "line": 393
-      },
-      "start": {
-        "column": 5,
-        "line": 386
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace && with || in handle_slow_step_timeout\n@@ -378,17 +378,17 @@\n     clear_error(step_id.as_str());\n }\n \n fn handle_slow_step_timeout(\n     step_id: &StepId,\n     timeout_ms: u64,\n     behavior: StepBehavior,\n ) -> Result<(), ExecuteNodeError> {\n-    if matches!(behavior, StepBehavior::Slow) && timeout_ms < SLOW_STEP_DURATION_MS {\n+    if matches!(behavior, StepBehavior::Slow) || /* ~ changed by cargo-mutants ~ */ timeout_ms < SLOW_STEP_DURATION_MS {\n         set_state(step_id.as_str(), StepState::Ready);\n         return Err(ExecuteNodeError::TimeoutExceeded {\n             elapsed_ms: SLOW_STEP_DURATION_MS,\n             limit_ms: timeout_ms,\n         });\n     }\n     Ok(())\n }\n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "handle_slow_step_timeout",
-      "return_type": "-> Result<(), ExecuteNodeError>",
-      "span": {
-        "end": {
-          "column": 2,
-          "line": 394
-        },
-        "start": {
-          "column": 1,
-          "line": 381
-        }
-      }
-    },
-    "genre": "BinaryOperator",
-    "name": "crates/vo-executor/src/lib.rs:386:47: replace && with || in handle_slow_step_timeout",
-    "package": "vo-executor",
-    "replacement": "||",
-    "span": {
-      "end": {
-        "column": 49,
-        "line": 386
-      },
-      "start": {
-        "column": 47,
-        "line": 386
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace < with == in handle_slow_step_timeout\n@@ -378,17 +378,17 @@\n     clear_error(step_id.as_str());\n }\n \n fn handle_slow_step_timeout(\n     step_id: &StepId,\n     timeout_ms: u64,\n     behavior: StepBehavior,\n ) -> Result<(), ExecuteNodeError> {\n-    if matches!(behavior, StepBehavior::Slow) && timeout_ms < SLOW_STEP_DURATION_MS {\n+    if matches!(behavior, StepBehavior::Slow) && timeout_ms == /* ~ changed by cargo-mutants ~ */ SLOW_STEP_DURATION_MS {\n         set_state(step_id.as_str(), StepState::Ready);\n         return Err(ExecuteNodeError::TimeoutExceeded {\n             elapsed_ms: SLOW_STEP_DURATION_MS,\n             limit_ms: timeout_ms,\n         });\n     }\n     Ok(())\n }\n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "handle_slow_step_timeout",
-      "return_type": "-> Result<(), ExecuteNodeError>",
-      "span": {
-        "end": {
-          "column": 2,
-          "line": 394
-        },
-        "start": {
-          "column": 1,
-          "line": 381
-        }
-      }
-    },
-    "genre": "BinaryOperator",
-    "name": "crates/vo-executor/src/lib.rs:386:61: replace < with == in handle_slow_step_timeout",
-    "package": "vo-executor",
-    "replacement": "==",
-    "span": {
-      "end": {
-        "column": 62,
-        "line": 386
-      },
-      "start": {
-        "column": 61,
-        "line": 386
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace < with > in handle_slow_step_timeout\n@@ -378,17 +378,17 @@\n     clear_error(step_id.as_str());\n }\n \n fn handle_slow_step_timeout(\n     step_id: &StepId,\n     timeout_ms: u64,\n     behavior: StepBehavior,\n ) -> Result<(), ExecuteNodeError> {\n-    if matches!(behavior, StepBehavior::Slow) && timeout_ms < SLOW_STEP_DURATION_MS {\n+    if matches!(behavior, StepBehavior::Slow) && timeout_ms > /* ~ changed by cargo-mutants ~ */ SLOW_STEP_DURATION_MS {\n         set_state(step_id.as_str(), StepState::Ready);\n         return Err(ExecuteNodeError::TimeoutExceeded {\n             elapsed_ms: SLOW_STEP_DURATION_MS,\n             limit_ms: timeout_ms,\n         });\n     }\n     Ok(())\n }\n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "handle_slow_step_timeout",
-      "return_type": "-> Result<(), ExecuteNodeError>",
-      "span": {
-        "end": {
-          "column": 2,
-          "line": 394
-        },
-        "start": {
-          "column": 1,
-          "line": 381
-        }
-      }
-    },
-    "genre": "BinaryOperator",
-    "name": "crates/vo-executor/src/lib.rs:386:61: replace < with > in handle_slow_step_timeout",
-    "package": "vo-executor",
-    "replacement": ">",
-    "span": {
-      "end": {
-        "column": 62,
-        "line": 386
-      },
-      "start": {
-        "column": 61,
-        "line": 386
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace < with <= in handle_slow_step_timeout\n@@ -378,17 +378,17 @@\n     clear_error(step_id.as_str());\n }\n \n fn handle_slow_step_timeout(\n     step_id: &StepId,\n     timeout_ms: u64,\n     behavior: StepBehavior,\n ) -> Result<(), ExecuteNodeError> {\n-    if matches!(behavior, StepBehavior::Slow) && timeout_ms < SLOW_STEP_DURATION_MS {\n+    if matches!(behavior, StepBehavior::Slow) && timeout_ms <= /* ~ changed by cargo-mutants ~ */ SLOW_STEP_DURATION_MS {\n         set_state(step_id.as_str(), StepState::Ready);\n         return Err(ExecuteNodeError::TimeoutExceeded {\n             elapsed_ms: SLOW_STEP_DURATION_MS,\n             limit_ms: timeout_ms,\n         });\n     }\n     Ok(())\n }\n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "handle_slow_step_timeout",
-      "return_type": "-> Result<(), ExecuteNodeError>",
-      "span": {
-        "end": {
-          "column": 2,
-          "line": 394
-        },
-        "start": {
-          "column": 1,
-          "line": 381
-        }
-      }
-    },
-    "genre": "BinaryOperator",
-    "name": "crates/vo-executor/src/lib.rs:386:61: replace < with <= in handle_slow_step_timeout",
-    "package": "vo-executor",
-    "replacement": "<=",
-    "span": {
-      "end": {
-        "column": 62,
-        "line": 386
-      },
-      "start": {
-        "column": 61,
-        "line": 386
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace execute_and_transition -> Result<StepResult, ExecuteNodeError> with Ok(Default::default())\n@@ -392,19 +392,17 @@\n     }\n     Ok(())\n }\n \n fn execute_and_transition(\n     step_id: &StepId,\n     behavior: StepBehavior,\n ) -> Result<StepResult, ExecuteNodeError> {\n-    let result = execute_behavior(step_id, behavior)?;\n-    set_state(step_id.as_str(), StepState::Ready);\n-    Ok(result)\n+    Ok(Default::default()) /* ~ changed by cargo-mutants ~ */\n }\n \n fn execute_behavior(\n     step_id: &StepId,\n     behavior: StepBehavior,\n ) -> Result<StepResult, ExecuteNodeError> {\n     match behavior {\n         StepBehavior::Success | StepBehavior::Slow => Ok(StepResult::Success {\n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "execute_and_transition",
-      "return_type": "-> Result<StepResult, ExecuteNodeError>",
-      "span": {
-        "end": {
-          "column": 2,
-          "line": 403
-        },
-        "start": {
-          "column": 1,
-          "line": 396
-        }
-      }
-    },
-    "genre": "FnValue",
-    "name": "crates/vo-executor/src/lib.rs:400:5: replace execute_and_transition -> Result<StepResult, ExecuteNodeError> with Ok(Default::default())",
-    "package": "vo-executor",
-    "replacement": "Ok(Default::default())",
-    "span": {
-      "end": {
-        "column": 15,
-        "line": 402
-      },
-      "start": {
-        "column": 5,
-        "line": 400
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace execute_behavior -> Result<StepResult, ExecuteNodeError> with Ok(Default::default())\n@@ -401,28 +401,17 @@\n     set_state(step_id.as_str(), StepState::Ready);\n     Ok(result)\n }\n \n fn execute_behavior(\n     step_id: &StepId,\n     behavior: StepBehavior,\n ) -> Result<StepResult, ExecuteNodeError> {\n-    match behavior {\n-        StepBehavior::Success | StepBehavior::Slow => Ok(StepResult::Success {\n-            output: \"done\".to_string(),\n-        }),\n-        StepBehavior::Failure => Ok(StepResult::Failure {\n-            output: \"error: exit code 1\".to_string(),\n-        }),\n-        StepBehavior::Transient => handle_transient_behavior(step_id),\n-        StepBehavior::NotFound => Err(ExecuteNodeError::StepNotFound {\n-            step_id: step_id.clone(),\n-        }),\n-    }\n+    Ok(Default::default()) /* ~ changed by cargo-mutants ~ */\n }\n \n fn handle_transient_behavior(step_id: &StepId) -> Result<StepResult, ExecuteNodeError> {\n     let err = ExecuteNodeError::TransientError {\n         reason: \"network timeout\".to_string(),\n         recoverable: true,\n     };\n     set_error(step_id.as_str(), err.clone());\n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "execute_behavior",
-      "return_type": "-> Result<StepResult, ExecuteNodeError>",
-      "span": {
-        "end": {
-          "column": 2,
-          "line": 421
-        },
-        "start": {
-          "column": 1,
-          "line": 405
-        }
-      }
-    },
-    "genre": "FnValue",
-    "name": "crates/vo-executor/src/lib.rs:409:5: replace execute_behavior -> Result<StepResult, ExecuteNodeError> with Ok(Default::default())",
-    "package": "vo-executor",
-    "replacement": "Ok(Default::default())",
-    "span": {
-      "end": {
-        "column": 6,
-        "line": 420
-      },
-      "start": {
-        "column": 5,
-        "line": 409
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace handle_transient_behavior -> Result<StepResult, ExecuteNodeError> with Ok(Default::default())\n@@ -416,23 +416,17 @@\n         StepBehavior::Transient => handle_transient_behavior(step_id),\n         StepBehavior::NotFound => Err(ExecuteNodeError::StepNotFound {\n             step_id: step_id.clone(),\n         }),\n     }\n }\n \n fn handle_transient_behavior(step_id: &StepId) -> Result<StepResult, ExecuteNodeError> {\n-    let err = ExecuteNodeError::TransientError {\n-        reason: \"network timeout\".to_string(),\n-        recoverable: true,\n-    };\n-    set_error(step_id.as_str(), err.clone());\n-    set_state(step_id.as_str(), StepState::Ready);\n-    Err(err)\n+    Ok(Default::default()) /* ~ changed by cargo-mutants ~ */\n }\n \n /// Execute with retry policy.\n /// Retries on transient errors up to `max_attempts` times.\n ///\n /// # Errors\n ///\n /// Returns [`ExecuteNodeError::InvalidRetryPolicy`] if retry policy is invalid.\n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "handle_transient_behavior",
-      "return_type": "-> Result<StepResult, ExecuteNodeError>",
-      "span": {
-        "end": {
-          "column": 2,
-          "line": 431
-        },
-        "start": {
-          "column": 1,
-          "line": 423
-        }
-      }
-    },
-    "genre": "FnValue",
-    "name": "crates/vo-executor/src/lib.rs:424:5: replace handle_transient_behavior -> Result<StepResult, ExecuteNodeError> with Ok(Default::default())",
-    "package": "vo-executor",
-    "replacement": "Ok(Default::default())",
-    "span": {
-      "end": {
-        "column": 13,
-        "line": 430
-      },
-      "start": {
-        "column": 5,
-        "line": 424
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace execute_step_with_retry -> Result<StepResult, ExecuteNodeError> with Ok(Default::default())\n@@ -440,18 +440,17 @@\n /// Returns [`ExecuteNodeError::StepNotFound`] if step does not exist.\n /// Returns [`ExecuteNodeError::TimeoutExceeded`] if step exceeds timeout.\n #[allow(clippy::unused_async)]\n pub async fn execute_step_with_retry(\n     step_id: StepId,\n     timeout_ms: u64,\n     retry_policy: RetryPolicy,\n ) -> Result<StepResult, ExecuteNodeError> {\n-    validate_retry_policy(&step_id, &retry_policy)?;\n-    check_flaky_or_delegate(step_id, timeout_ms, retry_policy).await\n+    Ok(Default::default()) /* ~ changed by cargo-mutants ~ */\n }\n \n fn validate_retry_policy(\n     step_id: &StepId,\n     retry_policy: &RetryPolicy,\n ) -> Result<(), ExecuteNodeError> {\n     if retry_policy.max_attempts == 0 {\n         let err = ExecuteNodeError::InvalidRetryPolicy {\n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "execute_step_with_retry",
-      "return_type": "-> Result<StepResult, ExecuteNodeError>",
-      "span": {
-        "end": {
-          "column": 2,
-          "line": 450
-        },
-        "start": {
-          "column": 1,
-          "line": 433
-        }
-      }
-    },
-    "genre": "FnValue",
-    "name": "crates/vo-executor/src/lib.rs:448:5: replace execute_step_with_retry -> Result<StepResult, ExecuteNodeError> with Ok(Default::default())",
-    "package": "vo-executor",
-    "replacement": "Ok(Default::default())",
-    "span": {
-      "end": {
-        "column": 69,
-        "line": 449
-      },
-      "start": {
-        "column": 5,
-        "line": 448
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace validate_retry_policy -> Result<(), ExecuteNodeError> with Ok(())\n@@ -448,26 +448,17 @@\n     validate_retry_policy(&step_id, &retry_policy)?;\n     check_flaky_or_delegate(step_id, timeout_ms, retry_policy).await\n }\n \n fn validate_retry_policy(\n     step_id: &StepId,\n     retry_policy: &RetryPolicy,\n ) -> Result<(), ExecuteNodeError> {\n-    if retry_policy.max_attempts == 0 {\n-        let err = ExecuteNodeError::InvalidRetryPolicy {\n-            node_name: step_id.to_string(),\n-            reason: RetryPolicyError::ZeroAttempts,\n-        };\n-        set_error(step_id.as_str(), err.clone());\n-        Err(err)\n-    } else {\n-        Ok(())\n-    }\n+    Ok(()) /* ~ changed by cargo-mutants ~ */\n }\n \n async fn check_flaky_or_delegate(\n     step_id: StepId,\n     timeout_ms: u64,\n     retry_policy: RetryPolicy,\n ) -> Result<StepResult, ExecuteNodeError> {\n     if step_id.as_str() == \"step-flaky\" {\n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "validate_retry_policy",
-      "return_type": "-> Result<(), ExecuteNodeError>",
-      "span": {
-        "end": {
-          "column": 2,
-          "line": 466
-        },
-        "start": {
-          "column": 1,
-          "line": 452
-        }
-      }
-    },
-    "genre": "FnValue",
-    "name": "crates/vo-executor/src/lib.rs:456:5: replace validate_retry_policy -> Result<(), ExecuteNodeError> with Ok(())",
-    "package": "vo-executor",
-    "replacement": "Ok(())",
-    "span": {
-      "end": {
-        "column": 6,
-        "line": 465
-      },
-      "start": {
-        "column": 5,
-        "line": 456
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace == with != in validate_retry_policy\n@@ -448,17 +448,17 @@\n     validate_retry_policy(&step_id, &retry_policy)?;\n     check_flaky_or_delegate(step_id, timeout_ms, retry_policy).await\n }\n \n fn validate_retry_policy(\n     step_id: &StepId,\n     retry_policy: &RetryPolicy,\n ) -> Result<(), ExecuteNodeError> {\n-    if retry_policy.max_attempts == 0 {\n+    if retry_policy.max_attempts != /* ~ changed by cargo-mutants ~ */ 0 {\n         let err = ExecuteNodeError::InvalidRetryPolicy {\n             node_name: step_id.to_string(),\n             reason: RetryPolicyError::ZeroAttempts,\n         };\n         set_error(step_id.as_str(), err.clone());\n         Err(err)\n     } else {\n         Ok(())\n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "validate_retry_policy",
-      "return_type": "-> Result<(), ExecuteNodeError>",
-      "span": {
-        "end": {
-          "column": 2,
-          "line": 466
-        },
-        "start": {
-          "column": 1,
-          "line": 452
-        }
-      }
-    },
-    "genre": "BinaryOperator",
-    "name": "crates/vo-executor/src/lib.rs:456:34: replace == with != in validate_retry_policy",
-    "package": "vo-executor",
-    "replacement": "!=",
-    "span": {
-      "end": {
-        "column": 36,
-        "line": 456
-      },
-      "start": {
-        "column": 34,
-        "line": 456
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace check_flaky_or_delegate -> Result<StepResult, ExecuteNodeError> with Ok(Default::default())\n@@ -465,21 +465,17 @@\n     }\n }\n \n async fn check_flaky_or_delegate(\n     step_id: StepId,\n     timeout_ms: u64,\n     retry_policy: RetryPolicy,\n ) -> Result<StepResult, ExecuteNodeError> {\n-    if step_id.as_str() == \"step-flaky\" {\n-        simulate_flaky_retry(&step_id, &retry_policy).await\n-    } else {\n-        execute_step(step_id, timeout_ms).await\n-    }\n+    Ok(Default::default()) /* ~ changed by cargo-mutants ~ */\n }\n \n async fn simulate_flaky_retry(\n     step_id: &StepId,\n     retry_policy: &RetryPolicy,\n ) -> Result<StepResult, ExecuteNodeError> {\n     let transient_err = build_transient_error();\n     set_error(step_id.as_str(), transient_err.clone());\n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "check_flaky_or_delegate",
-      "return_type": "-> Result<StepResult, ExecuteNodeError>",
-      "span": {
-        "end": {
-          "column": 2,
-          "line": 478
-        },
-        "start": {
-          "column": 1,
-          "line": 468
-        }
-      }
-    },
-    "genre": "FnValue",
-    "name": "crates/vo-executor/src/lib.rs:473:5: replace check_flaky_or_delegate -> Result<StepResult, ExecuteNodeError> with Ok(Default::default())",
-    "package": "vo-executor",
-    "replacement": "Ok(Default::default())",
-    "span": {
-      "end": {
-        "column": 6,
-        "line": 477
-      },
-      "start": {
-        "column": 5,
-        "line": 473
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace == with != in check_flaky_or_delegate\n@@ -465,17 +465,17 @@\n     }\n }\n \n async fn check_flaky_or_delegate(\n     step_id: StepId,\n     timeout_ms: u64,\n     retry_policy: RetryPolicy,\n ) -> Result<StepResult, ExecuteNodeError> {\n-    if step_id.as_str() == \"step-flaky\" {\n+    if step_id.as_str() != /* ~ changed by cargo-mutants ~ */ \"step-flaky\" {\n         simulate_flaky_retry(&step_id, &retry_policy).await\n     } else {\n         execute_step(step_id, timeout_ms).await\n     }\n }\n \n async fn simulate_flaky_retry(\n     step_id: &StepId,\n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "check_flaky_or_delegate",
-      "return_type": "-> Result<StepResult, ExecuteNodeError>",
-      "span": {
-        "end": {
-          "column": 2,
-          "line": 478
-        },
-        "start": {
-          "column": 1,
-          "line": 468
-        }
-      }
-    },
-    "genre": "BinaryOperator",
-    "name": "crates/vo-executor/src/lib.rs:473:25: replace == with != in check_flaky_or_delegate",
-    "package": "vo-executor",
-    "replacement": "!=",
-    "span": {
-      "end": {
-        "column": 27,
-        "line": 473
-      },
-      "start": {
-        "column": 25,
-        "line": 473
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace simulate_flaky_retry -> Result<StepResult, ExecuteNodeError> with Ok(Default::default())\n@@ -476,19 +476,17 @@\n         execute_step(step_id, timeout_ms).await\n     }\n }\n \n async fn simulate_flaky_retry(\n     step_id: &StepId,\n     retry_policy: &RetryPolicy,\n ) -> Result<StepResult, ExecuteNodeError> {\n-    let transient_err = build_transient_error();\n-    set_error(step_id.as_str(), transient_err.clone());\n-    execute_flaky_retries(step_id, retry_policy, transient_err).await\n+    Ok(Default::default()) /* ~ changed by cargo-mutants ~ */\n }\n \n fn build_transient_error() -> ExecuteNodeError {\n     ExecuteNodeError::TransientError {\n         reason: \"network timeout\".to_string(),\n         recoverable: true,\n     }\n }\n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "simulate_flaky_retry",
-      "return_type": "-> Result<StepResult, ExecuteNodeError>",
-      "span": {
-        "end": {
-          "column": 2,
-          "line": 487
-        },
-        "start": {
-          "column": 1,
-          "line": 480
-        }
-      }
-    },
-    "genre": "FnValue",
-    "name": "crates/vo-executor/src/lib.rs:484:5: replace simulate_flaky_retry -> Result<StepResult, ExecuteNodeError> with Ok(Default::default())",
-    "package": "vo-executor",
-    "replacement": "Ok(Default::default())",
-    "span": {
-      "end": {
-        "column": 70,
-        "line": 486
-      },
-      "start": {
-        "column": 5,
-        "line": 484
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace build_transient_error -> ExecuteNodeError with Default::default()\n@@ -482,20 +482,17 @@\n     retry_policy: &RetryPolicy,\n ) -> Result<StepResult, ExecuteNodeError> {\n     let transient_err = build_transient_error();\n     set_error(step_id.as_str(), transient_err.clone());\n     execute_flaky_retries(step_id, retry_policy, transient_err).await\n }\n \n fn build_transient_error() -> ExecuteNodeError {\n-    ExecuteNodeError::TransientError {\n-        reason: \"network timeout\".to_string(),\n-        recoverable: true,\n-    }\n+    Default::default() /* ~ changed by cargo-mutants ~ */\n }\n \n async fn execute_flaky_retries(\n     _step_id: &StepId,\n     retry_policy: &RetryPolicy,\n     transient_err: ExecuteNodeError,\n ) -> Result<StepResult, ExecuteNodeError> {\n     if retry_policy.max_attempts >= 2 {\n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "build_transient_error",
-      "return_type": "-> ExecuteNodeError",
-      "span": {
-        "end": {
-          "column": 2,
-          "line": 494
-        },
-        "start": {
-          "column": 1,
-          "line": 489
-        }
-      }
-    },
-    "genre": "FnValue",
-    "name": "crates/vo-executor/src/lib.rs:490:5: replace build_transient_error -> ExecuteNodeError with Default::default()",
-    "package": "vo-executor",
-    "replacement": "Default::default()",
-    "span": {
-      "end": {
-        "column": 6,
-        "line": 493
-      },
-      "start": {
-        "column": 5,
-        "line": 490
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace execute_flaky_retries -> Result<StepResult, ExecuteNodeError> with Ok(Default::default())\n@@ -493,30 +493,17 @@\n     }\n }\n \n async fn execute_flaky_retries(\n     _step_id: &StepId,\n     retry_policy: &RetryPolicy,\n     transient_err: ExecuteNodeError,\n ) -> Result<StepResult, ExecuteNodeError> {\n-    if retry_policy.max_attempts >= 2 {\n-        sleep_with_backoff(retry_policy, 1).await;\n-        if retry_policy.max_attempts > 2 {\n-            sleep_with_backoff(retry_policy, 2).await;\n-        }\n-        return Err(ExecuteNodeError::RetryExhausted {\n-            attempts: retry_policy.max_attempts,\n-            last_error: Box::new(transient_err),\n-        });\n-    }\n-    Err(ExecuteNodeError::RetryExhausted {\n-        attempts: 1,\n-        last_error: Box::new(transient_err),\n-    })\n+    Ok(Default::default()) /* ~ changed by cargo-mutants ~ */\n }\n \n async fn sleep_with_backoff(retry_policy: &RetryPolicy, attempt: u32) {\n     use std::time::Duration;\n     use tokio::time::sleep;\n \n     sleep(Duration::from_millis(\n         retry_policy.calculate_backoff_delay(attempt),\n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "execute_flaky_retries",
-      "return_type": "-> Result<StepResult, ExecuteNodeError>",
-      "span": {
-        "end": {
-          "column": 2,
-          "line": 515
-        },
-        "start": {
-          "column": 1,
-          "line": 496
-        }
-      }
-    },
-    "genre": "FnValue",
-    "name": "crates/vo-executor/src/lib.rs:501:5: replace execute_flaky_retries -> Result<StepResult, ExecuteNodeError> with Ok(Default::default())",
-    "package": "vo-executor",
-    "replacement": "Ok(Default::default())",
-    "span": {
-      "end": {
-        "column": 7,
-        "line": 514
-      },
-      "start": {
-        "column": 5,
-        "line": 501
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace >= with < in execute_flaky_retries\n@@ -493,17 +493,17 @@\n     }\n }\n \n async fn execute_flaky_retries(\n     _step_id: &StepId,\n     retry_policy: &RetryPolicy,\n     transient_err: ExecuteNodeError,\n ) -> Result<StepResult, ExecuteNodeError> {\n-    if retry_policy.max_attempts >= 2 {\n+    if retry_policy.max_attempts < /* ~ changed by cargo-mutants ~ */ 2 {\n         sleep_with_backoff(retry_policy, 1).await;\n         if retry_policy.max_attempts > 2 {\n             sleep_with_backoff(retry_policy, 2).await;\n         }\n         return Err(ExecuteNodeError::RetryExhausted {\n             attempts: retry_policy.max_attempts,\n             last_error: Box::new(transient_err),\n         });\n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "execute_flaky_retries",
-      "return_type": "-> Result<StepResult, ExecuteNodeError>",
-      "span": {
-        "end": {
-          "column": 2,
-          "line": 515
-        },
-        "start": {
-          "column": 1,
-          "line": 496
-        }
-      }
-    },
-    "genre": "BinaryOperator",
-    "name": "crates/vo-executor/src/lib.rs:501:34: replace >= with < in execute_flaky_retries",
-    "package": "vo-executor",
-    "replacement": "<",
-    "span": {
-      "end": {
-        "column": 36,
-        "line": 501
-      },
-      "start": {
-        "column": 34,
-        "line": 501
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace > with == in execute_flaky_retries\n@@ -495,17 +495,17 @@\n \n async fn execute_flaky_retries(\n     _step_id: &StepId,\n     retry_policy: &RetryPolicy,\n     transient_err: ExecuteNodeError,\n ) -> Result<StepResult, ExecuteNodeError> {\n     if retry_policy.max_attempts >= 2 {\n         sleep_with_backoff(retry_policy, 1).await;\n-        if retry_policy.max_attempts > 2 {\n+        if retry_policy.max_attempts == /* ~ changed by cargo-mutants ~ */ 2 {\n             sleep_with_backoff(retry_policy, 2).await;\n         }\n         return Err(ExecuteNodeError::RetryExhausted {\n             attempts: retry_policy.max_attempts,\n             last_error: Box::new(transient_err),\n         });\n     }\n     Err(ExecuteNodeError::RetryExhausted {\n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "execute_flaky_retries",
-      "return_type": "-> Result<StepResult, ExecuteNodeError>",
-      "span": {
-        "end": {
-          "column": 2,
-          "line": 515
-        },
-        "start": {
-          "column": 1,
-          "line": 496
-        }
-      }
-    },
-    "genre": "BinaryOperator",
-    "name": "crates/vo-executor/src/lib.rs:503:38: replace > with == in execute_flaky_retries",
-    "package": "vo-executor",
-    "replacement": "==",
-    "span": {
-      "end": {
-        "column": 39,
-        "line": 503
-      },
-      "start": {
-        "column": 38,
-        "line": 503
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace > with < in execute_flaky_retries\n@@ -495,17 +495,17 @@\n \n async fn execute_flaky_retries(\n     _step_id: &StepId,\n     retry_policy: &RetryPolicy,\n     transient_err: ExecuteNodeError,\n ) -> Result<StepResult, ExecuteNodeError> {\n     if retry_policy.max_attempts >= 2 {\n         sleep_with_backoff(retry_policy, 1).await;\n-        if retry_policy.max_attempts > 2 {\n+        if retry_policy.max_attempts < /* ~ changed by cargo-mutants ~ */ 2 {\n             sleep_with_backoff(retry_policy, 2).await;\n         }\n         return Err(ExecuteNodeError::RetryExhausted {\n             attempts: retry_policy.max_attempts,\n             last_error: Box::new(transient_err),\n         });\n     }\n     Err(ExecuteNodeError::RetryExhausted {\n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "execute_flaky_retries",
-      "return_type": "-> Result<StepResult, ExecuteNodeError>",
-      "span": {
-        "end": {
-          "column": 2,
-          "line": 515
-        },
-        "start": {
-          "column": 1,
-          "line": 496
-        }
-      }
-    },
-    "genre": "BinaryOperator",
-    "name": "crates/vo-executor/src/lib.rs:503:38: replace > with < in execute_flaky_retries",
-    "package": "vo-executor",
-    "replacement": "<",
-    "span": {
-      "end": {
-        "column": 39,
-        "line": 503
-      },
-      "start": {
-        "column": 38,
-        "line": 503
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace > with >= in execute_flaky_retries\n@@ -495,17 +495,17 @@\n \n async fn execute_flaky_retries(\n     _step_id: &StepId,\n     retry_policy: &RetryPolicy,\n     transient_err: ExecuteNodeError,\n ) -> Result<StepResult, ExecuteNodeError> {\n     if retry_policy.max_attempts >= 2 {\n         sleep_with_backoff(retry_policy, 1).await;\n-        if retry_policy.max_attempts > 2 {\n+        if retry_policy.max_attempts >= /* ~ changed by cargo-mutants ~ */ 2 {\n             sleep_with_backoff(retry_policy, 2).await;\n         }\n         return Err(ExecuteNodeError::RetryExhausted {\n             attempts: retry_policy.max_attempts,\n             last_error: Box::new(transient_err),\n         });\n     }\n     Err(ExecuteNodeError::RetryExhausted {\n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "execute_flaky_retries",
-      "return_type": "-> Result<StepResult, ExecuteNodeError>",
-      "span": {
-        "end": {
-          "column": 2,
-          "line": 515
-        },
-        "start": {
-          "column": 1,
-          "line": 496
-        }
-      }
-    },
-    "genre": "BinaryOperator",
-    "name": "crates/vo-executor/src/lib.rs:503:38: replace > with >= in execute_flaky_retries",
-    "package": "vo-executor",
-    "replacement": ">=",
-    "span": {
-      "end": {
-        "column": 39,
-        "line": 503
-      },
-      "start": {
-        "column": 38,
-        "line": 503
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace sleep_with_backoff with ()\n@@ -510,23 +510,17 @@\n     }\n     Err(ExecuteNodeError::RetryExhausted {\n         attempts: 1,\n         last_error: Box::new(transient_err),\n     })\n }\n \n async fn sleep_with_backoff(retry_policy: &RetryPolicy, attempt: u32) {\n-    use std::time::Duration;\n-    use tokio::time::sleep;\n-\n-    sleep(Duration::from_millis(\n-        retry_policy.calculate_backoff_delay(attempt),\n-    ))\n-    .await;\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n /// Cancel an in-progress execution.\n ///\n /// Returns Ok(()) from Ready, Cancelled, or Completed states (no-op).\n /// Returns Err(ExecutionCancelled) if called during Executing state.\n ///\n /// # Errors\n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "sleep_with_backoff",
-      "return_type": "",
-      "span": {
-        "end": {
-          "column": 2,
-          "line": 525
-        },
-        "start": {
-          "column": 1,
-          "line": 517
-        }
-      }
-    },
-    "genre": "FnValue",
-    "name": "crates/vo-executor/src/lib.rs:518:5: replace sleep_with_backoff with ()",
-    "package": "vo-executor",
-    "replacement": "()",
-    "span": {
-      "end": {
-        "column": 12,
-        "line": 524
-      },
-      "start": {
-        "column": 5,
-        "line": 518
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace cancel_execution -> Result<(), ExecuteNodeError> with Ok(())\n@@ -529,31 +529,17 @@\n /// Returns Ok(()) from Ready, Cancelled, or Completed states (no-op).\n /// Returns Err(ExecutionCancelled) if called during Executing state.\n ///\n /// # Errors\n ///\n /// Returns [`ExecuteNodeError::ExecutionCancelled`] if called during Executing state.\n #[allow(clippy::unused_async)]\n pub async fn cancel_execution(step_id: StepId) -> Result<(), ExecuteNodeError> {\n-    match get_state(step_id.as_str()) {\n-        StepState::Executing { .. } => Err(ExecuteNodeError::ExecutionCancelled {\n-            reason: \"cancelled by user\".to_string(),\n-        }),\n-        StepState::Ready => {\n-            set_state(\n-                step_id.as_str(),\n-                StepState::Cancelled {\n-                    reason: \"cancelled by user\".to_string(),\n-                },\n-            );\n-            Ok(())\n-        }\n-        StepState::Cancelled { .. } | StepState::Completed { .. } => Ok(()),\n-    }\n+    Ok(()) /* ~ changed by cargo-mutants ~ */\n }\n \n /// Get current execution status for a step.\n #[must_use]\n pub fn get_execution_status(step_id: &StepId) -> ExecutionStatus {\n     match get_state(step_id.as_str()) {\n         StepState::Ready => ExecutionStatus::Ready,\n         StepState::Executing {\n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "cancel_execution",
-      "return_type": "-> Result<(), ExecuteNodeError>",
-      "span": {
-        "end": {
-          "column": 2,
-          "line": 552
-        },
-        "start": {
-          "column": 1,
-          "line": 527
-        }
-      }
-    },
-    "genre": "FnValue",
-    "name": "crates/vo-executor/src/lib.rs:537:5: replace cancel_execution -> Result<(), ExecuteNodeError> with Ok(())",
-    "package": "vo-executor",
-    "replacement": "Ok(())",
-    "span": {
-      "end": {
-        "column": 6,
-        "line": 551
-      },
-      "start": {
-        "column": 5,
-        "line": 537
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace get_execution_status -> ExecutionStatus with Default::default()\n@@ -549,31 +549,16 @@\n         }\n         StepState::Cancelled { .. } | StepState::Completed { .. } => Ok(()),\n     }\n }\n \n /// Get current execution status for a step.\n #[must_use]\n pub fn get_execution_status(step_id: &StepId) -> ExecutionStatus {\n-    match get_state(step_id.as_str()) {\n-        StepState::Ready => ExecutionStatus::Ready,\n-        StepState::Executing {\n-            step_id: id,\n-            start_time,\n-        } => {\n-            let elapsed_ms =\n-                u64::try_from(start_time.elapsed().as_millis()).map_or(u64::MAX, |v| v);\n-            ExecutionStatus::Executing {\n-                step_id: id,\n-                elapsed_ms,\n-            }\n-        }\n-        StepState::Completed { output } => ExecutionStatus::Completed { output },\n-        StepState::Cancelled { reason } => ExecutionStatus::Cancelled { reason },\n-    }\n+    Default::default() /* ~ changed by cargo-mutants ~ */\n }\n \n /// Get the last error for a step (if any).\n #[must_use]\n pub fn get_last_error(step_id: &StepId) -> Option<ExecuteNodeError> {\n     LAST_ERROR.get(step_id.as_str()).map(|v| v.clone())\n }\n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "get_execution_status",
-      "return_type": "-> ExecutionStatus",
-      "span": {
-        "end": {
-          "column": 2,
-          "line": 573
-        },
-        "start": {
-          "column": 1,
-          "line": 554
-        }
-      }
-    },
-    "genre": "FnValue",
-    "name": "crates/vo-executor/src/lib.rs:557:5: replace get_execution_status -> ExecutionStatus with Default::default()",
-    "package": "vo-executor",
-    "replacement": "Default::default()",
-    "span": {
-      "end": {
-        "column": 6,
-        "line": 572
-      },
-      "start": {
-        "column": 5,
-        "line": 557
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace get_last_error -> Option<ExecuteNodeError> with None\n@@ -570,10 +570,10 @@\n         StepState::Completed { output } => ExecutionStatus::Completed { output },\n         StepState::Cancelled { reason } => ExecutionStatus::Cancelled { reason },\n     }\n }\n \n /// Get the last error for a step (if any).\n #[must_use]\n pub fn get_last_error(step_id: &StepId) -> Option<ExecuteNodeError> {\n-    LAST_ERROR.get(step_id.as_str()).map(|v| v.clone())\n+    None /* ~ changed by cargo-mutants ~ */\n }\n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "get_last_error",
-      "return_type": "-> Option<ExecuteNodeError>",
-      "span": {
-        "end": {
-          "column": 2,
-          "line": 579
-        },
-        "start": {
-          "column": 1,
-          "line": 575
-        }
-      }
-    },
-    "genre": "FnValue",
-    "name": "crates/vo-executor/src/lib.rs:578:5: replace get_last_error -> Option<ExecuteNodeError> with None",
-    "package": "vo-executor",
-    "replacement": "None",
-    "span": {
-      "end": {
-        "column": 56,
-        "line": 578
-      },
-      "start": {
-        "column": 5,
-        "line": 578
-      }
-    }
-  },
-  {
-    "diff": "--- crates/vo-executor/src/lib.rs\n+++ replace get_last_error -> Option<ExecuteNodeError> with Some(Default::default())\n@@ -570,10 +570,10 @@\n         StepState::Completed { output } => ExecutionStatus::Completed { output },\n         StepState::Cancelled { reason } => ExecutionStatus::Cancelled { reason },\n     }\n }\n \n /// Get the last error for a step (if any).\n #[must_use]\n pub fn get_last_error(step_id: &StepId) -> Option<ExecuteNodeError> {\n-    LAST_ERROR.get(step_id.as_str()).map(|v| v.clone())\n+    Some(Default::default()) /* ~ changed by cargo-mutants ~ */\n }\n",
-    "file": "crates/vo-executor/src/lib.rs",
-    "function": {
-      "function_name": "get_last_error",
-      "return_type": "-> Option<ExecuteNodeError>",
-      "span": {
-        "end": {
-          "column": 2,
-          "line": 579
-        },
-        "start": {
-          "column": 1,
-          "line": 575
-        }
-      }
-    },
-    "genre": "FnValue",
-    "name": "crates/vo-executor/src/lib.rs:578:5: replace get_last_error -> Option<ExecuteNodeError> with Some(Default::default())",
-    "package": "vo-executor",
-    "replacement": "Some(Default::default())",
-    "span": {
-      "end": {
-        "column": 56,
-        "line": 578
-      },
-      "start": {
-        "column": 5,
-        "line": 578
+        "column": 9,
+        "line": 356
       }
     }
   }

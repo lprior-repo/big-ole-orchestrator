@@ -1,0 +1,21 @@
+--- crates/vo-types/src/compensation.rs
++++ delete match arm 1 in verification::verify_compensation_transition_exhaustiveness
+@@ -337,17 +337,17 @@
+             0 => CompensationStatus::NotNeeded,
+             1 => CompensationStatus::Pending,
+             2 => CompensationStatus::InProgress,
+             3 => CompensationStatus::Succeeded,
+             _ => CompensationStatus::Failed,
+         };
+         let evt = match event {
+             0 => CompensationTransitionEvent::Start,
+-            1 => CompensationTransitionEvent::Succeed,
++             /* ~ changed by cargo-mutants ~ */
+             _ => CompensationTransitionEvent::Fail,
+         };
+ 
+         // Must not panic — all combinations handled
+         let _ = apply_compensation_transition(current, evt);
+     }
+ 
+     /// K-02: Verify CompensationRecord::new rejects empty effect_id.
