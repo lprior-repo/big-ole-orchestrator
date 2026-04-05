@@ -1,7 +1,7 @@
 {
   "database": "dolt",
   "backend": "dolt",
-  "dolt_mode": "embedded",
+  "dolt_mode": "server",
   "dolt_database": "veloxide",
   "project_id": "c1279168-f8e8-458a-b002-a3b088911272"
 }
