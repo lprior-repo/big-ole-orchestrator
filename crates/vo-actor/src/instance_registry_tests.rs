@@ -28,9 +28,8 @@ fn registry_config_with_timeout(timeout: Duration) -> RegistryConfig {
 fn blocking_stop_fn(
     block_for: Duration,
 ) -> impl FnOnce(InstanceActorHandle) -> Result<(), String> + Send {
-    let (_tx, rx) = std::sync::mpsc::channel::<()>();
     move |_| {
-        let _ = rx.recv_timeout(block_for);
+        std::thread::sleep(block_for);
         Ok(())
     }
 }
@@ -770,7 +769,7 @@ mod proptest_invariants {
             let mut registry = InstanceRegistry::new(config);
 
             let id_pool = make_id_pool(20);
-            let mut expected_active = std::collections::HashSet::new();
+            let mut expected_active = std::collections::HashMap::new();
 
             for (is_register, id_idx, handle_id) in ops {
                 let idx = id_idx % id_pool.len();
@@ -782,13 +781,12 @@ mod proptest_invariants {
                         InstanceActorHandle::test(handle_id),
                         |_| Ok(()),
                     );
-                    // register with Ok stop_fn always succeeds
                     prop_assert_eq!(result.clone(), Ok(()), "register should succeed with Ok stop_fn: {:?}", result);
-                    expected_active.insert(id);
+                    expected_active.insert(id, handle_id);
                 } else {
                     let result = registry.deregister(&id);
-                    if expected_active.contains(&id) {
-                        prop_assert_eq!(result.as_ref().map(|handle| handle.handle_id()), Ok(handle_id), "deregister of active id should succeed: {:?}", result);
+                    if let Some(&stored_handle_id) = expected_active.get(&id) {
+                        prop_assert_eq!(result.as_ref().map(|handle| handle.handle_id()), Ok(stored_handle_id), "deregister of active id should succeed: {:?}", result);
                         expected_active.remove(&id);
                     } else {
                         let is_not_reg = matches!(result, Err(RegistryError::NotRegistered { .. }));
@@ -800,14 +798,12 @@ mod proptest_invariants {
                     }
                 }
 
-                // INV-1: count never exceeds pool size (no duplicates)
                 prop_assert!(registry.active_count() <= id_pool.len());
 
                 // INV-3: count matches tracked active set
                 prop_assert_eq!(registry.active_count(), expected_active.len());
 
-                // is_active and lookup agree for all tracked IDs
-                for active_id in &expected_active {
+                for (active_id, _) in &expected_active {
                     prop_assert!(registry.is_active(active_id));
                     prop_assert!(registry.lookup(active_id).is_some());
                 }

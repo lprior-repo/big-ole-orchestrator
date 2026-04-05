@@ -952,14 +952,14 @@ mod tests {
                 let result = engine.replay(&events).expect("replay");
                 prop_assert!(result.events_applied <= events.len());
             }
+        }
 
-            #[test]
-            fn replay_empty_always_returns_none_state(_v in proptest::collection::vec(proptest::arbitrary::any::<u8>(), 0..0)) {
-                let engine = ReplayEngine::new();
-                let result = engine.replay(&[]).expect("replay");
-                prop_assert_eq!(result.final_state, None);
-                prop_assert_eq!(result.events_applied, 0);
-            }
+        #[test]
+        fn replay_empty_always_returns_none_state() {
+            let engine = ReplayEngine::new();
+            let result = engine.replay(&[]).expect("replay");
+            assert_eq!(result.final_state, None);
+            assert_eq!(result.events_applied, 0);
         }
     }
 }

@@ -147,10 +147,10 @@ fn check_circular_chain(version: u8, visited: &HashMap<u8, bool>) -> Result<(), 
 }
 
 /// Retrieves the upcaster for the given version, or error if none registered.
-fn get_upcaster_for_version<'a>(
-    upcasters: &'a HashMap<u8, Box<dyn Upcaster>>,
+fn get_upcaster_for_version(
+    upcasters: &HashMap<u8, Box<dyn Upcaster>>,
     version: u8,
-) -> Result<&'a dyn Upcaster, UpcasterError> {
+) -> Result<&dyn Upcaster, UpcasterError> {
     upcasters
         .get(&version)
         .ok_or(UpcasterError::NoUpcasterRegistered(version))
@@ -267,7 +267,7 @@ fn parse_and_validate_upcasted_envelope(
         UpcasterError::InvalidUpcastedEnvelope(EventEnvelopeError::InvalidEnvelopeFormat)
     })?;
 
-    let output_obj = output_json.as_object().ok_or_else(|| {
+    let output_obj = output_json.as_object().ok_or({
         UpcasterError::InvalidUpcastedEnvelope(EventEnvelopeError::InvalidEnvelopeFormat)
     })?;
 
