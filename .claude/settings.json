@@ -1,12 +1,55 @@
 {
   "hooks": {
-    "PreToolUse": [
+    "PreCompact": [
       {
-        "matcher": "Write|Edit|MultiEdit|TodoWrite",
         "hooks": [
           {
-            "type": "command",
-            "command": "tdd-guard"
+            "command": "bd prime",
+            "type": "command"
+          }
+        ],
+        "matcher": ""
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "tdd-guard",
+            "type": "command"
+          }
+        ],
+        "matcher": "Write|Edit|MultiEdit|TodoWrite"
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "command": "tdd-guard",
+            "type": "command"
+          }
+        ],
+        "matcher": "startup|resume|clear"
+      },
+      {
+        "hooks": [
+          {
+            "command": "bd prime",
+            "type": "command"
+          }
+        ],
+        "matcher": ""
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "command": "cd /home/lewis/src/vo-engine \u0026\u0026 cargo nextest run 2\u003e\u00261 | tdd-guard-rust --project-root /home/lewis/src/vo-engine --passthrough",
+            "statusMessage": "Running TDD guard...",
+            "timeout": 120,
+            "type": "command"
           }
         ]
       }
@@ -15,31 +58,8 @@
       {
         "hooks": [
           {
-            "type": "command",
-            "command": "tdd-guard"
-          }
-        ]
-      }
-    ],
-    "SessionStart": [
-      {
-        "matcher": "startup|resume|clear",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "tdd-guard"
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "cd /home/lewis/src/vo-engine && cargo nextest run 2>&1 | tdd-guard-rust --project-root /home/lewis/src/vo-engine --passthrough",
-            "timeout": 120,
-            "statusMessage": "Running TDD guard..."
+            "command": "tdd-guard",
+            "type": "command"
           }
         ]
       }

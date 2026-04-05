@@ -27,3 +27,6 @@ Cargo.lock
 .moon/cache
 .moon/docker
 cov.json
+
+# Beads / Dolt files (added by bd init)
+.beads-credential-key

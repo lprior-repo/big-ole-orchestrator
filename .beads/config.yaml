@@ -10,7 +10,7 @@
 
 # Use no-db mode: JSONL-only, no Dolt database
 # When true, bd will use .beads/issues.jsonl as the source of truth
-# no-db: false
+no-db: true
 
 # Enable JSON output by default
 # json: false
@@ -55,5 +55,7 @@
 
 dolt.auto-commit: "batch"
 dolt.port: 36253
+dolt.data-dir: ".beads/dolt"
 
-sync.git-remote: "https://doltremoteapi.dolthub.com/priorlewis43/veloxide-database"
+# Use local-only Dolt (no remote sync)
+sync.git-remote: ""
