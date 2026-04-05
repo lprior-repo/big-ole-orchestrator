@@ -59,9 +59,9 @@ mod tests {
     #[test]
     fn node_kind_wait_round_trips_via_serde() {
         let json = "\"wait\"";
-        let result: Result<NodeKind, _> = serde_json::from_str(json);
-        assert!(result.is_ok(), "should deserialize 'wait': {:?}", result);
-        let roundtrip = serde_json::to_string(&result.unwrap()).unwrap();
+        let parsed: NodeKind = serde_json::from_str(json).expect("should deserialize 'wait'");
+        assert_eq!(parsed, NodeKind::Wait);
+        let roundtrip = serde_json::to_string(&parsed).unwrap();
         assert_eq!(roundtrip, json);
     }
 

@@ -53,8 +53,9 @@ impl Dag {
     ///
     /// Returns `DagError::InvalidNodeName` if `name` cannot be parsed.
     pub fn add_node<I, O, F>(&mut self, name: &str, _f: F) -> Result<NodeHandle<I, O>, DagError> {
-        let node_name = NodeName::parse(name)
-            .map_err(|_| DagError::InvalidNodeName { name: name.to_string() })?;
+        let node_name = NodeName::parse(name).map_err(|_| DagError::InvalidNodeName {
+            name: name.to_string(),
+        })?;
         self.node_names.push(node_name.clone());
         Ok(NodeHandle::new(node_name))
     }
@@ -105,7 +106,9 @@ impl Dag {
         self.node_names
             .iter()
             .position(|n| n.as_str() == name)
-            .ok_or_else(|| DagError::NodeNotFound { name: name.to_string() })
+            .ok_or_else(|| DagError::NodeNotFound {
+                name: name.to_string(),
+            })
     }
 }
 

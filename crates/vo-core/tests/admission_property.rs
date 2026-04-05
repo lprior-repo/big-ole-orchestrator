@@ -101,10 +101,9 @@ proptest! {
         let result_a = check_admission_with_thresholds(&state, &thresholds_a);
 
         // If it passes tighter thresholds, it must pass looser
-        if result_a.is_ok() {
-            let result_b = check_admission_with_thresholds(&state, &thresholds_b);
-            prop_assert!(result_b.is_ok(), "State that passes tighter thresholds must pass looser");
-        }
+        let result_b = check_admission_with_thresholds(&state, &thresholds_b);
+        let passes_tighter_and_not_looser = matches!(result_a, Ok(())) && !matches!(result_b, Ok(()));
+        prop_assert_eq!(passes_tighter_and_not_looser, false, "State that passes tighter thresholds must pass looser");
     }
 }
 
@@ -204,7 +203,7 @@ proptest! {
                 other => prop_assert!(false, "Expected WriterQueueDepthExceeded, got {:?}", other),
             }
         } else {
-            prop_assert!(result.is_ok(), "Expected Ok when depth <= threshold");
+            prop_assert_eq!(result, Ok(()), "Expected Ok when depth <= threshold");
         }
     }
 
@@ -237,7 +236,7 @@ proptest! {
                 other => prop_assert!(false, "Expected BatchCommitLatencyExceeded, got {:?}", other),
             }
         } else {
-            prop_assert!(result.is_ok(), "Expected Ok when latency <= threshold");
+            prop_assert_eq!(result, Ok(()), "Expected Ok when latency <= threshold");
         }
     }
 
@@ -270,7 +269,7 @@ proptest! {
                 other => prop_assert!(false, "Expected BlobQueueDepthExceeded, got {:?}", other),
             }
         } else {
-            prop_assert!(result.is_ok(), "Expected Ok when depth <= threshold");
+            prop_assert_eq!(result, Ok(()), "Expected Ok when depth <= threshold");
         }
     }
 }
@@ -333,7 +332,7 @@ proptest! {
         };
 
         let result = check_admission(&state);
-        prop_assert!(result.is_ok(), "At exact threshold should return Ok");
+        prop_assert_eq!(result, Ok(()), "At exact threshold should return Ok");
     }
 }
 
@@ -437,7 +436,13 @@ fn admission_with_zero_thresholds_strict() {
         storage_stall_active: false,
     };
     let result = check_admission_with_thresholds(&state, &thresholds);
-    assert!(result.is_err());
+    assert_eq!(
+        result,
+        Err(AdmissionError::WriterQueueDepthExceeded {
+            current_depth: 1,
+            threshold: 0,
+        })
+    );
 
     // Latency over zero
     let state = WritePressureState {
@@ -448,7 +453,13 @@ fn admission_with_zero_thresholds_strict() {
         storage_stall_active: false,
     };
     let result = check_admission_with_thresholds(&state, &thresholds);
-    assert!(result.is_err());
+    assert_eq!(
+        result,
+        Err(AdmissionError::BatchCommitLatencyExceeded {
+            current_latency_ms: 1,
+            threshold_ms: 0,
+        })
+    );
 
     // Blob over zero
     let state = WritePressureState {
@@ -459,5 +470,11 @@ fn admission_with_zero_thresholds_strict() {
         storage_stall_active: false,
     };
     let result = check_admission_with_thresholds(&state, &thresholds);
-    assert!(result.is_err());
+    assert_eq!(
+        result,
+        Err(AdmissionError::BlobQueueDepthExceeded {
+            current_depth: 1,
+            threshold: 0,
+        })
+    );
 }

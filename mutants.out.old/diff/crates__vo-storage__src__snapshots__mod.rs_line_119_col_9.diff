@@ -1,0 +1,21 @@
+--- crates/vo-storage/src/snapshots/mod.rs
++++ replace verification::encode_snapshot_key_bounds with ()
+@@ -111,17 +111,11 @@
+ 
+ #[allow(unexpected_cfgs)]
+ #[cfg(kani)]
+ mod verification {
+     use super::*;
+ 
+     #[kani::proof]
+     fn encode_snapshot_key_bounds() {
+-        let seq: u64 = kani::any();
+-        let id_bytes: [u8; 16] = kani::any();
+-        let id = InstanceId::from_bytes(id_bytes);
+-
+-        if let Ok(result) = encode_snapshot_key(&id, seq) {
+-            assert!(result.len() == 24);
+-        }
++        () /* ~ changed by cargo-mutants ~ */
+     }
+ }

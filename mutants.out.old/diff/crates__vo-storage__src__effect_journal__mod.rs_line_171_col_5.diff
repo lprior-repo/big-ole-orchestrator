@@ -1,0 +1,23 @@
+--- crates/vo-storage/src/effect_journal/mod.rs
++++ replace decode_effect_record -> Result<EffectRecord, EffectJournalError> with Ok(Default::default())
+@@ -163,19 +163,17 @@
+ }
+ 
+ /// Decode JSON bytes into an `EffectRecord`.
+ ///
+ /// # Errors
+ ///
+ /// Returns `EffectJournalError::Codec` if deserialization fails.
+ pub fn decode_effect_record(bytes: &[u8]) -> Result<EffectRecord, EffectJournalError> {
+-    serde_json::from_slice(bytes).map_err(|e| EffectJournalError::Codec {
+-        reason: e.to_string(),
+-    })
++    Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ // ---------------------------------------------------------------------------
+ // Actions layer — EffectJournal trait
+ // ---------------------------------------------------------------------------
+ 
+ /// Partition name for the effects journal.
+ pub const EFFECTS_PARTITION: &str = "effects";

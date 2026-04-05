@@ -1,5 +1,4 @@
 #![allow(clippy::unwrap_used)]
-use super::*;
 use proptest::prelude::*;
 
 proptest! {
@@ -10,9 +9,9 @@ proptest! {
         instance_id in "[a-zA-Z0-9_-]{1,100}",
         expires_at in 1u64..=u64::MAX,
     ) {
-        let entry = DedupeEntry::new(key, instance_id, expires_at).unwrap();
+        let entry = super::DedupeEntry::new(key, instance_id, expires_at).unwrap();
         let json = serde_json::to_string(&entry).unwrap();
-        let recovered: DedupeEntry = serde_json::from_str(&json).unwrap();
+        let recovered: super::DedupeEntry = serde_json::from_str(&json).unwrap();
         prop_assert_eq!(entry, recovered);
     }
 
@@ -21,9 +20,9 @@ proptest! {
     fn encode_decode_dedupe_key_roundtrip(
         key in "[a-zA-Z0-9_-]{1,256}"
     ) {
-        let dk = DedupeKey::parse(&key).unwrap();
-        let bytes = encode_dedupe_key(&dk);
-        let recovered = decode_dedupe_key(&bytes).unwrap();
+        let dk = super::DedupeKey::parse(&key).unwrap();
+        let bytes = super::encode_dedupe_key(&dk);
+        let recovered = super::decode_dedupe_key(&bytes).unwrap();
         prop_assert_eq!(dk.as_str(), recovered.as_str());
     }
 
@@ -34,7 +33,7 @@ proptest! {
         iid in "[a-zA-Z0-9]{1,50}",
         expires_at in 1u64..=u64::MAX - 1,
     ) {
-        let entry = DedupeEntry::new(key, iid, expires_at).unwrap();
+        let entry = super::DedupeEntry::new(key, iid, expires_at).unwrap();
         if entry.is_expired(expires_at) {
             prop_assert!(entry.is_expired(expires_at + 1));
         }

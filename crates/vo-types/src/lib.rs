@@ -1,6 +1,5 @@
 mod blob;
 mod command_metadata;
-mod node_kind;
 mod compensation;
 mod connector;
 mod dedupe;
@@ -15,6 +14,7 @@ mod integer_types;
 mod integer_types_tests;
 mod lifecycle_superstate;
 mod lineage;
+mod node_kind;
 mod non_empty_vec;
 mod payload_parser;
 pub mod proptest_verifier;
@@ -30,6 +30,7 @@ mod types_tests;
 mod workflow;
 
 pub use blob::{BlobRef, BlobStatus, OutputRef, INLINED_MAX_BYTES};
+pub use command_metadata::{CommandMetadata, Issuer};
 pub use compensation::{
     apply_compensation_transition, CompensationRecord, CompensationStatus,
     CompensationTransitionError, CompensationTransitionEvent,
@@ -43,7 +44,6 @@ pub use effects::{
     apply_effect_transition, CompensationPolicy, EffectIntent, EffectKind, EffectRecord,
     EffectTransitionError, EffectTransitionEvent,
 };
-pub use command_metadata::{CommandMetadata, Issuer};
 pub use errors::ParseError;
 pub use events::{Error as EventError, EventEnvelope};
 pub use instance_status::InstanceStatus;

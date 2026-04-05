@@ -352,7 +352,7 @@ mod write_class_tests {
     fn write_class_returns_serialization_error_when_deserializing_malformed_json() {
         let json = "{ invalid }";
         let result: Result<WriteClass, _> = serde_json::from_str(json);
-        assert!(result.is_err());
+        assert!(matches!(result, Err(_)));
         let err = result.unwrap_err();
         // We expect this to fail with some kind of serde error
         assert!(
@@ -366,7 +366,7 @@ mod write_class_tests {
     fn write_class_returns_serialization_error_when_deserializing_truncated_json() {
         let json = "\"critical_cont";
         let result: Result<WriteClass, _> = serde_json::from_str(json);
-        assert!(result.is_err());
+        assert!(matches!(result, Err(_)));
     }
 
     // ── TaxonomyNotInitialized test ───────────────────────────────────────────
@@ -601,7 +601,7 @@ mod proptest_write_class_invariants {
         ])) {
             let s = variant.as_str();
             let parsed = WriteClass::parse(s);
-            prop_assert!(parsed.is_ok(), "from_str({}) should return Ok, got {:?}", s, parsed);
+            prop_assert_eq!(parsed.clone(), Ok(variant));
             prop_assert_eq!(parsed.as_ref().ok(), Some(&variant),
                 "from_str({}) should return Some({:?}), got {:?}", s, variant, parsed);
         }

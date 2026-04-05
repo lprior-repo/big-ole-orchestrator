@@ -1,0 +1,21 @@
+--- crates/vo-storage/src/purge.rs
++++ replace == with != in purge_instance
+@@ -20,17 +20,17 @@
+         ));
+     }
+ 
+     // 1. Parse InstanceId
+     let parsed_id = InstanceId::parse(instance_id_str).map_err(StorageError::InvalidInstanceId)?;
+ 
+     // 2. Find instance in index to verify status and get metadata for key reconstruction
+     let entry = scan_all_instances(keyspace)
+-        .find(|r| r.as_ref().is_ok_and(|e| e.instance_id == parsed_id))
++        .find(|r| r.as_ref().is_ok_and(|e| e.instance_id != /* ~ changed by cargo-mutants ~ */ parsed_id))
+         .ok_or(StorageError::InstanceRunning)? // Mapping "not found" to InstanceRunning per test expectations for non-terminal
+         .map_err(|_| StorageError::ScanFailed)?;
+ 
+     // 3. Verify status is terminal
+     if !is_terminal(entry.status) {
+         return Err(StorageError::InstanceRunning);
+     }
+ 

@@ -164,6 +164,22 @@ pub fn load_all_statuses(
 mod tests {
     use super::*;
 
+    fn setup_partition() -> (tempfile::TempDir, fjall::Keyspace, fjall::PartitionHandle) {
+        let dir = tempfile::tempdir().unwrap();
+        let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+        let partition = keyspace
+            .open_partition(
+                WORKFLOWS_PARTITION,
+                fjall::PartitionCreateOptions::default(),
+            )
+            .unwrap();
+        (dir, keyspace, partition)
+    }
+
+    fn workflow_name(value: &str) -> WorkflowName {
+        WorkflowName::parse(value).unwrap()
+    }
+
     #[test]
     fn encode_status_returns_json_bytes_for_active() {
         let bytes = encode_status(RegistrationStatus::Active).unwrap();
@@ -192,6 +208,28 @@ mod tests {
     fn decode_status_returns_quarantined_from_valid_json() {
         let result = decode_status(b"\"Quarantined\"").unwrap();
         assert_eq!(result, RegistrationStatus::Quarantined);
+    }
+
+    #[test]
+    fn decode_status_returns_deactivated_from_valid_json() {
+        let result = decode_status(b"\"Deactivated\"").unwrap();
+        assert_eq!(result, RegistrationStatus::Deactivated);
+    }
+
+    #[test]
+    fn status_store_error_display_returns_exact_message_for_storage() {
+        let error = StatusStoreError::Storage {
+            reason: "disk offline".to_string(),
+        };
+        assert_eq!(error.to_string(), "storage error: disk offline");
+    }
+
+    #[test]
+    fn status_store_error_display_returns_exact_message_for_corrupt_value() {
+        let error = StatusStoreError::CorruptValue {
+            reason: "bad json".to_string(),
+        };
+        assert_eq!(error.to_string(), "corrupt status value: bad json");
     }
 
     #[test]
@@ -229,5 +267,84 @@ mod tests {
             let decoded = decode_status(&bytes).unwrap();
             assert_eq!(decoded, status);
         });
+    }
+
+    #[test]
+    fn read_registration_status_returns_none_when_partition_has_no_entry() {
+        let (_dir, _keyspace, partition) = setup_partition();
+        let result = read_registration_status(&partition, &workflow_name("new-workflow"));
+        assert_eq!(result, Ok(None));
+    }
+
+    #[test]
+    fn read_registration_status_returns_written_status_for_existing_entry() {
+        let (_dir, _keyspace, partition) = setup_partition();
+        let wf = workflow_name("existing-workflow");
+
+        let write_result =
+            write_registration_status(&partition, &wf, RegistrationStatus::Quarantined);
+        assert_eq!(write_result, Ok(()));
+
+        let read_result = read_registration_status(&partition, &wf);
+        assert_eq!(read_result, Ok(Some(RegistrationStatus::Quarantined)));
+    }
+
+    #[test]
+    fn load_all_statuses_returns_only_non_active_entries_in_key_order() {
+        let (_dir, _keyspace, partition) = setup_partition();
+        let active = workflow_name("wf-active");
+        let deactivated = workflow_name("wf-deactivated");
+        let quarantined = workflow_name("wf-quarantined");
+
+        assert_eq!(
+            write_registration_status(&partition, &quarantined, RegistrationStatus::Quarantined),
+            Ok(())
+        );
+        assert_eq!(
+            write_registration_status(&partition, &deactivated, RegistrationStatus::Deactivated),
+            Ok(())
+        );
+        assert_eq!(
+            write_registration_status(&partition, &active, RegistrationStatus::Active),
+            Ok(())
+        );
+
+        let result = load_all_statuses(&partition);
+        assert_eq!(
+            result,
+            Ok(vec![
+                (deactivated, RegistrationStatus::Deactivated),
+                (quarantined, RegistrationStatus::Quarantined),
+            ])
+        );
+    }
+
+    #[test]
+    fn load_all_statuses_returns_corrupt_value_when_key_is_not_utf8() {
+        let (_dir, _keyspace, partition) = setup_partition();
+        partition.insert([0xFF_u8], b"\"Quarantined\"").unwrap();
+
+        let result = load_all_statuses(&partition);
+        assert_eq!(
+            result,
+            Err(StatusStoreError::CorruptValue {
+                reason: "invalid UTF-8 key: invalid utf-8 sequence of 1 bytes from index 0"
+                    .to_string(),
+            })
+        );
+    }
+
+    #[test]
+    fn load_all_statuses_returns_corrupt_value_when_stored_status_is_invalid_json() {
+        let (_dir, _keyspace, partition) = setup_partition();
+        partition.insert(b"wf-corrupt", b"not-valid-json").unwrap();
+
+        let result = load_all_statuses(&partition);
+        assert_eq!(
+            result,
+            Err(StatusStoreError::CorruptValue {
+                reason: "expected value at line 1 column 1".to_string(),
+            })
+        );
     }
 }

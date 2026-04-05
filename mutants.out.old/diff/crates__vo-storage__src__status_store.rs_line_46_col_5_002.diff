@@ -1,0 +1,23 @@
+--- crates/vo-storage/src/status_store.rs
++++ replace encode_status -> Result<Vec<u8>, StatusStoreError> with Ok(vec![1])
+@@ -38,19 +38,17 @@
+ // ---------------------------------------------------------------------------
+ 
+ /// Encode a `RegistrationStatus` to JSON bytes.
+ ///
+ /// # Errors
+ /// Returns `StatusStoreError::CorruptValue` if serialization fails (should not happen
+ /// for a well-defined enum, but we handle it explicitly per zero-panic rule).
+ pub fn encode_status(status: RegistrationStatus) -> Result<Vec<u8>, StatusStoreError> {
+-    serde_json::to_vec(&status).map_err(|e| StatusStoreError::CorruptValue {
+-        reason: e.to_string(),
+-    })
++    Ok(vec![1]) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Decode JSON bytes into a `RegistrationStatus`.
+ ///
+ /// # Errors
+ /// Returns `StatusStoreError::CorruptValue` if the bytes are not valid JSON
+ /// or do not represent a known `RegistrationStatus` variant.
+ pub fn decode_status(bytes: &[u8]) -> Result<RegistrationStatus, StatusStoreError> {

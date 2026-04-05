@@ -10,6 +10,28 @@ fn get_typical_id() -> InstanceId {
     InstanceId::from_bytes([1; 16])
 }
 
+fn write_snapshot_range(
+    partition: &fjall::PartitionHandle,
+    id: &InstanceId,
+    range: std::ops::RangeInclusive<u64>,
+) {
+    range
+        .map(|sequence| {
+            snapshot_write(
+                partition,
+                id.clone(),
+                sequence,
+                &InstanceState { counter: sequence },
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+}
+
+fn count_replayed_events_after_snapshot(snapshot_sequence: u64, last_event_sequence: u64) -> usize {
+    ((snapshot_sequence + 1)..=last_event_sequence).count()
+}
+
 #[test]
 fn data_survives_engine_restart() {
     let dir = tempdir().unwrap();
@@ -69,10 +91,7 @@ fn real_disk_io_under_load() {
         .unwrap();
     let id = get_typical_id();
 
-    // Simulate load
-    for i in 1..=10000 {
-        snapshot_write(&partition, id.clone(), i, &InstanceState { counter: i }).unwrap();
-    }
+    write_snapshot_range(&partition, &id, 1..=10_000);
 
     let result = snapshot_load_latest(&partition, &id).unwrap();
     assert_eq!(result, Some((10000, InstanceState { counter: 10000 })));
@@ -94,15 +113,6 @@ fn replay_skips_events_before_snapshot() {
 
     let loaded = snapshot_load_latest(&partition, &id).unwrap().unwrap();
     assert_eq!(loaded.0, 100);
-    // Simulating replay skipping:
-    let mut replay_counter = 0;
-    let events = 1..=150;
-    for event_seq in events {
-        if event_seq <= loaded.0 {
-            // skip
-            continue;
-        }
-        replay_counter += 1;
-    }
-    assert_eq!(replay_counter, 50); // applied events 101..=150
+    let replay_counter = count_replayed_events_after_snapshot(loaded.0, 150);
+    assert_eq!(replay_counter, 50);
 }

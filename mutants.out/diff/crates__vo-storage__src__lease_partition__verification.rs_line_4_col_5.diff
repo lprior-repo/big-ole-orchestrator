@@ -1,0 +1,16 @@
+--- crates/vo-storage/src/lease_partition/verification.rs
++++ replace parse_instance_id -> InstanceId with Default::default()
+@@ -1,12 +1,12 @@
+ use super::*;
+ 
+ pub(super) fn parse_instance_id(raw: &str) -> InstanceId {
+-    InstanceId::parse(raw).unwrap()
++    Default::default() /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ pub(super) fn parse_step_id(raw: &str) -> StepId {
+     StepId::parse(raw).unwrap()
+ }
+ 
+ /// K-01: Verify `LeaseEntry::new` rejects zero `fence_token`.
+ #[cfg_attr(kani, kani::proof)]

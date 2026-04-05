@@ -1,0 +1,27 @@
+--- crates/vo-storage/src/status_store.rs
++++ replace write_registration_status -> Result<(), StatusStoreError> with Ok(())
+@@ -97,23 +97,17 @@
+ /// # Errors
+ /// Returns `StatusStoreError::Storage` on Fjall failure.
+ /// Returns `StatusStoreError::CorruptValue` if serialization fails.
+ pub fn write_registration_status(
+     partition: &fjall::PartitionHandle,
+     workflow_name: &WorkflowName,
+     status: RegistrationStatus,
+ ) -> Result<(), StatusStoreError> {
+-    let key = workflow_name.as_str().as_bytes();
+-    let value = encode_status(status)?;
+-    partition
+-        .insert(key, &value)
+-        .map_err(|e| StatusStoreError::Storage {
+-            reason: e.to_string(),
+-        })
++    Ok(()) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Load all persisted registration statuses from Fjall.
+ ///
+ /// Returns only non-Active entries (Active is the default and need not be persisted).
+ ///
+ /// # Errors
+ /// Returns `StatusStoreError::Storage` on Fjall scan failure.

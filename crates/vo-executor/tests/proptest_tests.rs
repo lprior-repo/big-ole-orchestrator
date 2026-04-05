@@ -28,7 +28,7 @@ proptest! {
                 multiplier,
             )
         });
-        prop_assert!(result.is_ok(), "RetryPolicy::new should not panic");
+        prop_assert_eq!(result.is_ok(), true, "RetryPolicy::new should not panic");
     }
 }
 
@@ -44,7 +44,12 @@ proptest! {
         let result = std::panic::catch_unwind(|| {
             RetryPolicy::new(max_attempts, backoff_ms, multiplier)
         });
-        prop_assert!(result.is_ok(), "Should not panic with backoff_ms = {}", backoff_ms);
+        prop_assert_eq!(
+            result.is_ok(),
+            true,
+            "Should not panic with backoff_ms = {}",
+            backoff_ms
+        );
     }
 }
 
@@ -74,8 +79,7 @@ proptest! {
         multiplier in 1.0f64..=10.0,
     ) {
         let result = RetryPolicy::new(max_attempts, backoff_ms, multiplier);
-        prop_assert!(result.is_err());
-        assert_eq!(result.unwrap_err(), RetryPolicyError::ZeroAttempts);
+        prop_assert_eq!(result, Err(RetryPolicyError::ZeroAttempts));
     }
 }
 
@@ -88,9 +92,10 @@ proptest! {
     ) {
         prop_assume!(multiplier < 1.0, "Only test when multiplier < 1.0");
         let result = RetryPolicy::new(max_attempts, backoff_ms, multiplier);
-        prop_assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert!(matches!(err, RetryPolicyError::InvalidMultiplier { got } if got == multiplier));
+        prop_assert_eq!(
+            result,
+            Err(RetryPolicyError::InvalidMultiplier { got: multiplier })
+        );
     }
 }
 
@@ -101,8 +106,14 @@ proptest! {
         backoff_ms in 0u64..=10_000,
     ) {
         let result = RetryPolicy::new(max_attempts, backoff_ms, 1.0);
-        prop_assert!(result.is_ok());
-        assert_eq!(result.unwrap().backoff_multiplier, 1.0);
+        prop_assert_eq!(
+            result,
+            Ok(RetryPolicy {
+                max_attempts,
+                backoff_ms,
+                backoff_multiplier: 1.0,
+            })
+        );
     }
 }
 
@@ -115,7 +126,16 @@ proptest! {
         // Test with large but valid multipliers
         let large_multiplier = 1_000_000.0f64;
         let result = RetryPolicy::new(max_attempts, backoff_ms, large_multiplier);
-        prop_assert!(result.is_ok(), "Should accept large multiplier {}", large_multiplier);
+        prop_assert_eq!(
+            result,
+            Ok(RetryPolicy {
+                max_attempts,
+                backoff_ms,
+                backoff_multiplier: large_multiplier,
+            }),
+            "Should accept large multiplier {}",
+            large_multiplier
+        );
     }
 }
 
@@ -132,12 +152,10 @@ proptest! {
     ) {
         let policy = RetryPolicy::new(max_attempts, backoff_ms, multiplier).unwrap();
 
-        // Calculate delays for each attempt - implementation clamps to u64::MAX
-        for attempt in 1..=max_attempts {
-            let delay = calculate_backoff_delay(&policy, attempt);
-            // delay is u64 so <= u64::MAX is always true, just verify no panic
-            let _ = delay;
-        }
+        let delays: Vec<u64> = (1..=max_attempts)
+            .map(|attempt| calculate_backoff_delay(&policy, attempt))
+            .collect();
+        prop_assert_eq!(delays.len(), max_attempts as usize);
     }
 }
 
@@ -154,16 +172,19 @@ proptest! {
             .map(|attempt| calculate_backoff_delay(&policy, attempt))
             .collect();
 
-        // Each subsequent delay should be >= previous (non-decreasing)
-        for window in delays.windows(2) {
-            prop_assert!(window[1] >= window[0], "Backoff should not decrease");
-        }
+        prop_assert_eq!(
+            delays.windows(2).all(|window| window[1] >= window[0]),
+            true,
+            "Backoff should not decrease"
+        );
 
         // With multiplier > 1, delays should actually grow
         if multiplier > 1.0 {
-            for window in delays.windows(2) {
-                prop_assert!(window[1] > window[0], "Backoff should grow with multiplier > 1");
-            }
+            prop_assert_eq!(
+                delays.windows(2).all(|window| window[1] > window[0]),
+                true,
+                "Backoff should grow with multiplier > 1"
+            );
         }
     }
 }
@@ -180,12 +201,19 @@ proptest! {
         let first_delay = calculate_backoff_delay(&policy, 1);
         prop_assert_eq!(first_delay, 0, "First delay with 0 initial backoff should be 0");
 
-        // Subsequent delays should still follow exponential growth
-        for attempt in 2..=max_attempts {
-            let delay = calculate_backoff_delay(&policy, attempt);
-            // delay is u64 so >= 0 is always true, but we verify it's non-decreasing
-            prop_assert!(delay >= calculate_backoff_delay(&policy, attempt - 1));
-        }
+        let later_delays: Vec<u64> = (2..=max_attempts)
+            .map(|attempt| calculate_backoff_delay(&policy, attempt))
+            .collect();
+        let prior_delays: Vec<u64> = (1..max_attempts)
+            .map(|attempt| calculate_backoff_delay(&policy, attempt))
+            .collect();
+        prop_assert_eq!(
+            later_delays
+                .iter()
+                .zip(prior_delays.iter())
+                .all(|(later, earlier)| later >= earlier),
+            true
+        );
     }
 }
 
@@ -199,11 +227,10 @@ proptest! {
         let large_multiplier = 1e10_f64;
         let policy = RetryPolicy::new(max_attempts, backoff_ms, large_multiplier).unwrap();
 
-        for attempt in 1..=max_attempts {
-            let delay = calculate_backoff_delay(&policy, attempt);
-            // Just verify no panic - implementation clamps to u64::MAX
-            let _ = delay;
-        }
+        let delays: Vec<u64> = (1..=max_attempts)
+            .map(|attempt| calculate_backoff_delay(&policy, attempt))
+            .collect();
+        prop_assert_eq!(delays.len(), max_attempts as usize);
     }
 }
 
@@ -255,11 +282,21 @@ fn retry_policy_error_clone_never_panics() {
         RetryPolicyError::InvalidMultiplier { got: f64::INFINITY },
     ];
 
-    for err in errors {
-        let cloned = err.clone();
-        assert_eq!(format!("{:?}", err), format!("{:?}", cloned));
-        assert_eq!(format!("{}", err), format!("{}", cloned));
-    }
+    let cloned_errors: Vec<_> = errors.iter().cloned().collect();
+    assert_eq!(
+        errors
+            .iter()
+            .zip(cloned_errors.iter())
+            .all(|(err, cloned)| format!("{:?}", err) == format!("{:?}", cloned)),
+        true
+    );
+    assert_eq!(
+        errors
+            .iter()
+            .zip(cloned_errors.iter())
+            .all(|(err, cloned)| format!("{}", err) == format!("{}", cloned)),
+        true
+    );
 }
 
 // ============================================================================

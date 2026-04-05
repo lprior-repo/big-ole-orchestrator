@@ -320,9 +320,19 @@ impl FenceToken {
     pub fn parse(input: &str) -> Result<Self, ParseError> {
         parse_nonzero_u64(input, "FenceToken").map(Self)
     }
-    #[must_use]
-    pub fn next(&self) -> Self {
-        Self(self.0.saturating_add(1))
+    /// Advance to the next strictly greater fence token.
+    ///
+    /// # Errors
+    /// Returns `ParseError::OutOfRange` when called on `u64::MAX`.
+    pub fn next(&self) -> Result<Self, ParseError> {
+        let current = self.0.get();
+        let next = current.checked_add(1).ok_or(ParseError::OutOfRange {
+            type_name: "FenceToken",
+            value: current,
+            min: 1,
+            max: u64::MAX - 1,
+        })?;
+        Self::new(next)
     }
     #[must_use]
     pub fn inner(&self) -> NonZeroU64 {

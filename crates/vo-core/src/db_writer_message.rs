@@ -7,7 +7,9 @@
 //! (instance_id, step_id) pairs. All completion paths carry the fence.
 
 use serde::{Deserialize, Serialize};
-use vo_types::{EffectRecord, FenceToken, FireAtMs, IdempotencyKey, InstanceId, SequenceNumber, StepId, TimerId};
+use vo_types::{
+    EffectRecord, FenceToken, FireAtMs, IdempotencyKey, InstanceId, SequenceNumber, StepId, TimerId,
+};
 
 /// Messages sent to `DbWriterActor` for atomic batch commits.
 ///
@@ -53,9 +55,7 @@ pub enum DbWriterMessage {
         timer_id: TimerId,
     },
     /// Record an effect in the effect journal.
-    RecordEffect {
-        effect: EffectRecord,
-    },
+    RecordEffect { effect: EffectRecord },
 }
 
 /// Snapshot data for instance state hibernation.
@@ -215,7 +215,8 @@ mod tests {
             serde_json::json!({}),
             EffectIntent::Prepared,
             None,
-        ).expect("valid effect record");
+        )
+        .expect("valid effect record");
         let msg = DbWriterMessage::RecordEffect { effect };
         let json = serde_json::to_string(&msg).expect("serialize");
         assert!(

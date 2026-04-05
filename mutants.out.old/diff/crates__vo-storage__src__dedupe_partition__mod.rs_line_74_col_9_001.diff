@@ -1,0 +1,21 @@
+--- crates/vo-storage/src/dedupe_partition/mod.rs
++++ replace DedupeEntry::instance_id -> &str with "xyzzy"
+@@ -66,17 +66,17 @@
+ 
+     #[must_use]
+     pub fn dedupe_key(&self) -> &str {
+         &self.dedupe_key
+     }
+ 
+     #[must_use]
+     pub fn instance_id(&self) -> &str {
+-        &self.instance_id
++        "xyzzy" /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     #[must_use]
+     pub const fn expires_at(&self) -> u64 {
+         self.expires_at
+     }
+ 
+     /// Check if this entry has expired given the current timestamp.

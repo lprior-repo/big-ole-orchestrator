@@ -1164,7 +1164,10 @@ pub struct SignalPayload(Vec<u8>);
 impl SignalPayload {
     pub fn from_bytes(bytes: Vec<u8>) -> Result<Self, String> {
         if bytes.len() > 65536 {
-            return Err(format!("SignalPayload exceeds 64 KiB: {} bytes", bytes.len()));
+            return Err(format!(
+                "SignalPayload exceeds 64 KiB: {} bytes",
+                bytes.len()
+            ));
         }
         Ok(Self(bytes))
     }
@@ -1494,10 +1497,7 @@ impl ControlActor {
     /// # Errors
     /// Returns `ResumeError` with detailed variant for each failure mode.
     /// No events are emitted on any error path.
-    pub fn handle_resume(
-        &self,
-        instance_id: InstanceId,
-    ) -> Result<InstanceResumed, ResumeError> {
+    pub fn handle_resume(&self, instance_id: InstanceId) -> Result<InstanceResumed, ResumeError> {
         let id_str = instance_id.as_str();
 
         // Check for non-existent actor pattern
@@ -2243,14 +2243,20 @@ mod accept_resume_tests {
     #[test]
     fn waitkey_parse_rejects_empty_string() {
         let result = WaitKey::parse("");
-        assert!(result.is_err(), "Empty WaitKey should be rejected");
+        assert_eq!(result, Err("WaitKey cannot be empty".to_string()));
     }
 
     #[test]
     fn waitkey_parse_rejects_over_256_chars() {
         let long_key = "a".repeat(257);
         let result = WaitKey::parse(&long_key);
-        assert!(result.is_err(), "WaitKey over 256 chars should be rejected");
+        assert_eq!(
+            result,
+            Err(format!(
+                "WaitKey exceeds 256 characters: {}",
+                long_key.len()
+            ))
+        );
     }
 
     #[test]
@@ -2271,7 +2277,10 @@ mod accept_resume_tests {
     fn signal_payload_from_bytes_rejects_over_64kib() {
         let big = vec![0u8; 65537];
         let result = SignalPayload::from_bytes(big);
-        assert!(result.is_err(), "Payload over 64 KiB should be rejected");
+        assert_eq!(
+            result,
+            Err("SignalPayload exceeds 64 KiB: 65537 bytes".to_string())
+        );
     }
 
     #[test]
@@ -2320,7 +2329,9 @@ mod accept_resume_tests {
                 expected_key: WaitKey::new_unchecked("a"),
                 provided_key: WaitKey::new_unchecked("b"),
             },
-            AcceptResumeError::InstanceActorNotFound { instance_id: iid.clone() },
+            AcceptResumeError::InstanceActorNotFound {
+                instance_id: iid.clone(),
+            },
             AcceptResumeError::PayloadTooLarge {
                 instance_id: iid,
                 payload_size: 65537,
@@ -2328,8 +2339,16 @@ mod accept_resume_tests {
             },
         ];
         for err in &precondition_errors {
-            assert!(err.is_precondition(), "Expected {:?} to be precondition", err);
-            assert!(!err.is_transient(), "Expected {:?} to NOT be transient", err);
+            assert!(
+                err.is_precondition(),
+                "Expected {:?} to be precondition",
+                err
+            );
+            assert!(
+                !err.is_transient(),
+                "Expected {:?} to NOT be transient",
+                err
+            );
         }
     }
 
@@ -2347,7 +2366,11 @@ mod accept_resume_tests {
             },
         ];
         for err in &transient_errors {
-            assert!(!err.is_precondition(), "Expected {:?} to NOT be precondition", err);
+            assert!(
+                !err.is_precondition(),
+                "Expected {:?} to NOT be precondition",
+                err
+            );
             assert!(err.is_transient(), "Expected {:?} to be transient", err);
         }
     }
@@ -2362,8 +2385,8 @@ mod accept_resume_tests {
         let wait_key = WaitKey::parse("approval-v2").unwrap();
         let payload = SignalPayload::empty();
 
-        let result = actor
-            .accept_and_resume(instance_id.clone(), wait_key, "sig-1".to_string(), payload);
+        let result =
+            actor.accept_and_resume(instance_id.clone(), wait_key, "sig-1".to_string(), payload);
 
         let outcome = result.unwrap();
         assert_eq!(outcome.accepted.instance_id, instance_id);
@@ -2376,8 +2399,12 @@ mod accept_resume_tests {
         let actor = ControlActor::new();
         let wait_key = WaitKey::parse("approval-v2").unwrap();
 
-        let result = actor
-            .accept_and_resume(instance_id.clone(), wait_key, "sig-2".to_string(), SignalPayload::empty());
+        let result = actor.accept_and_resume(
+            instance_id.clone(),
+            wait_key,
+            "sig-2".to_string(),
+            SignalPayload::empty(),
+        );
 
         let outcome = result.unwrap();
         assert_eq!(outcome.accepted.instance_id, instance_id);
@@ -2390,8 +2417,12 @@ mod accept_resume_tests {
         let actor = ControlActor::new();
         let wait_key = WaitKey::parse("approval-v2").unwrap();
 
-        let result = actor
-            .accept_and_resume(instance_id, wait_key, "sig-3".to_string(), SignalPayload::empty());
+        let result = actor.accept_and_resume(
+            instance_id,
+            wait_key,
+            "sig-3".to_string(),
+            SignalPayload::empty(),
+        );
 
         let outcome = result.unwrap();
         assert!(outcome.resumed.resumed_at >= outcome.accepted.accepted_at);
@@ -2405,8 +2436,12 @@ mod accept_resume_tests {
         let actor = ControlActor::new();
         let wait_key = WaitKey::parse("approval-v2").unwrap();
 
-        let result = actor
-            .accept_and_resume(instance_id.clone(), wait_key, "sig-1".to_string(), SignalPayload::empty());
+        let result = actor.accept_and_resume(
+            instance_id.clone(),
+            wait_key,
+            "sig-1".to_string(),
+            SignalPayload::empty(),
+        );
 
         match result {
             Err(AcceptResumeError::InstanceActorNotFound { instance_id: _ }) => {}
@@ -2421,11 +2456,19 @@ mod accept_resume_tests {
         let actor = ControlActor::new();
         let wait_key = WaitKey::parse("approval-v2").unwrap();
 
-        let result = actor
-            .accept_and_resume(instance_id.clone(), wait_key, "sig-1".to_string(), SignalPayload::empty());
+        let result = actor.accept_and_resume(
+            instance_id.clone(),
+            wait_key,
+            "sig-1".to_string(),
+            SignalPayload::empty(),
+        );
 
         match result {
-            Err(AcceptResumeError::InvalidLifecycleState { instance_id: _, actual, expected }) => {
+            Err(AcceptResumeError::InvalidLifecycleState {
+                instance_id: _,
+                actual,
+                expected,
+            }) => {
                 assert_eq!(actual, LifecycleState::Running);
                 assert_eq!(expected, LifecycleState::WaitingForSignal);
             }
@@ -2439,8 +2482,12 @@ mod accept_resume_tests {
         let actor = ControlActor::new();
         let wait_key = WaitKey::parse("wrong-key").unwrap();
 
-        let result = actor
-            .accept_and_resume(instance_id.clone(), wait_key, "mismatch-sig-1".to_string(), SignalPayload::empty());
+        let result = actor.accept_and_resume(
+            instance_id.clone(),
+            wait_key,
+            "mismatch-sig-1".to_string(),
+            SignalPayload::empty(),
+        );
 
         match result {
             Err(AcceptResumeError::WaitKeyMismatch {
@@ -2462,8 +2509,12 @@ mod accept_resume_tests {
         let wait_key = WaitKey::parse("approval-v2").unwrap();
         let big_payload = SignalPayload::new_unchecked(vec![0u8; 65537]);
 
-        let result = actor
-            .accept_and_resume(instance_id.clone(), wait_key, "sig-1".to_string(), big_payload);
+        let result = actor.accept_and_resume(
+            instance_id.clone(),
+            wait_key,
+            "sig-1".to_string(),
+            big_payload,
+        );
 
         match result {
             Err(AcceptResumeError::PayloadTooLarge {
@@ -2485,8 +2536,12 @@ mod accept_resume_tests {
         let actor = ControlActor::new();
         let wait_key = WaitKey::parse("approval-v2").unwrap();
 
-        let result = actor
-            .accept_and_resume(instance_id.clone(), wait_key, "sig-1".to_string(), SignalPayload::empty());
+        let result = actor.accept_and_resume(
+            instance_id.clone(),
+            wait_key,
+            "sig-1".to_string(),
+            SignalPayload::empty(),
+        );
 
         match result {
             Err(AcceptResumeError::LockAcquisitionFailed {
@@ -2504,8 +2559,12 @@ mod accept_resume_tests {
         let actor = ControlActor::new();
         let wait_key = WaitKey::parse("approval-v2").unwrap();
 
-        let result = actor
-            .accept_and_resume(instance_id.clone(), wait_key, "sig-1".to_string(), SignalPayload::empty());
+        let result = actor.accept_and_resume(
+            instance_id.clone(),
+            wait_key,
+            "sig-1".to_string(),
+            SignalPayload::empty(),
+        );
 
         match result {
             Err(AcceptResumeError::StorageError {

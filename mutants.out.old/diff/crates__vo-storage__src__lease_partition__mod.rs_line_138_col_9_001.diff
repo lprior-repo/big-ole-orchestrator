@@ -1,0 +1,21 @@
+--- crates/vo-storage/src/lease_partition/mod.rs
++++ replace LeaseEntry::instance_id -> &str with "xyzzy"
+@@ -130,17 +130,17 @@
+             step_id,
+             fence_token,
+             expires_at,
+         })
+     }
+ 
+     #[must_use]
+     pub fn instance_id(&self) -> &str {
+-        &self.instance_id
++        "xyzzy" /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     #[must_use]
+     pub fn step_id(&self) -> &str {
+         &self.step_id
+     }
+ 
+     #[must_use]

@@ -1,0 +1,12 @@
+crates/vo-storage/src/codec.rs:26:9: replace <impl fmt::Display for StorageError>::fmt -> fmt::Result with Ok(Default::default())
+crates/vo-storage/src/codec.rs:253:9: replace verification::verify_codec_length_bounds with ()
+crates/vo-storage/src/instance_index/mod.rs:116:29: replace match guard old_status != status with true in instance_index_upsert
+crates/vo-storage/src/query/mod.rs:55:21: replace > with == in prefix_generator
+crates/vo-storage/src/query/mod.rs:55:21: replace > with >= in prefix_generator
+crates/vo-storage/src/query/mod.rs:174:26: replace < with == in EventReplayIterator::process_kv
+crates/vo-storage/src/query/mod.rs:174:26: replace < with <= in EventReplayIterator::process_kv
+crates/vo-storage/src/snapshots/mod.rs:119:9: replace verification::encode_snapshot_key_bounds with ()
+crates/vo-storage/src/timer_index.rs:201:27: replace > with < in scan_due_timers
+crates/vo-storage/src/dedupe_partition/verification.rs:18:26: replace <= with > in verify_encode_decode_dedupe_key_roundtrip_returns_original_key
+crates/vo-storage/src/lease_partition/verification.rs:14:5: replace verify_lease_entry_rejects_zero_fence with ()
+crates/vo-storage/src/lease_partition/verification.rs:21:5: replace verify_encode_decode_lease_key_roundtrip with ()

@@ -862,28 +862,43 @@ fn fencetoken_returns_not_an_integer_error_when_parsed_from_whitespace_string() 
 fn fencetoken_returns_incremented_value_when_next_called_on_minimum_valid_limit() {
     let ft = FenceToken::new(1).unwrap();
     let next = ft.next();
-    assert_eq!(next.inner().get(), 2);
+    assert_eq!(next.map(|token| token.inner().get()), Ok(2));
 }
 
 #[test]
 fn fencetoken_returns_incremented_value_when_next_called_on_typical_value() {
     let ft = FenceToken::new(42).unwrap();
     let next = ft.next();
-    assert_eq!(next.inner().get(), 43);
+    assert_eq!(next.map(|token| token.inner().get()), Ok(43));
 }
 
 #[test]
 fn fencetoken_returns_incremented_value_when_next_called_on_large_value() {
     let ft = FenceToken::new(u64::MAX - 2).unwrap();
     let next = ft.next();
-    assert_eq!(next.inner().get(), u64::MAX - 1);
+    assert_eq!(next.map(|token| token.inner().get()), Ok(u64::MAX - 1));
 }
 
 #[test]
 fn fencetoken_returns_success_when_next_called_multiple_times() {
     let ft = FenceToken::new(1).unwrap();
-    let next = ft.next().next();
-    assert_eq!(next.inner().get(), 3);
+    let next = ft.next().and_then(|token| token.next());
+    assert_eq!(next.map(|token| token.inner().get()), Ok(3));
+}
+
+#[test]
+fn fencetoken_returns_out_of_range_when_next_called_on_u64_max() {
+    let ft = FenceToken::new(u64::MAX).unwrap();
+
+    assert_eq!(
+        ft.next(),
+        Err(crate::ParseError::OutOfRange {
+            type_name: "FenceToken",
+            value: u64::MAX,
+            min: 1,
+            max: u64::MAX - 1,
+        })
+    );
 }
 
 #[test]
@@ -1067,7 +1082,7 @@ mod proptests {
         #[test]
         fn fencetoken_next_monotonicity_proptest(value in 1u64..u64::MAX) {
             let v = FenceToken::new(value).unwrap();
-            prop_assert_eq!(v.next().inner().get(), v.inner().get() + 1);
+            prop_assert_eq!(v.next().map(|token| token.inner().get()), Ok(v.inner().get() + 1));
         }
 
         #[test]
@@ -1095,6 +1110,6 @@ mod verification {
         kani::assume(v < u64::MAX);
         let token = FenceToken::new(v).unwrap();
         let next = token.next();
-        assert!(next.inner().get() == v + 1);
+        assert!(matches!(next, Ok(value) if value.inner().get() == v + 1));
     }
 }

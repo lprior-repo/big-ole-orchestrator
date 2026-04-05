@@ -112,13 +112,19 @@ pub async fn find_unpinned_directories<S: std::hash::BuildHasher>(
     versions_dir: &Path,
     pinned: &HashSet<String, S>,
 ) -> Result<Vec<PathBuf>, GcError> {
-    if !tokio::fs::metadata(versions_dir).await.is_ok_and(|m| m.is_dir()) {
+    if !tokio::fs::metadata(versions_dir)
+        .await
+        .is_ok_and(|m| m.is_dir())
+    {
         return Ok(Vec::new());
     }
 
-    let mut entries = tokio::fs::read_dir(versions_dir).await.map_err(|_| GcError::VersionsDirNotFound {
-        path: versions_dir.to_path_buf(),
-    })?;
+    let mut entries =
+        tokio::fs::read_dir(versions_dir)
+            .await
+            .map_err(|_| GcError::VersionsDirNotFound {
+                path: versions_dir.to_path_buf(),
+            })?;
 
     let mut collected: Vec<PathBuf> = Vec::new();
     while let Ok(Some(entry)) = entries.next_entry().await {
@@ -150,10 +156,12 @@ pub async fn find_unpinned_directories<S: std::hash::BuildHasher>(
 /// # Errors
 /// Returns an error if the directory cannot be deleted.
 pub async fn delete_version_dir(path: &Path) -> Result<(), GcError> {
-    tokio::fs::remove_dir_all(path).await.map_err(|source| GcError::DeleteFailed {
-        path: path.to_path_buf(),
-        source,
-    })
+    tokio::fs::remove_dir_all(path)
+        .await
+        .map_err(|source| GcError::DeleteFailed {
+            path: path.to_path_buf(),
+            source,
+        })
 }
 
 /// Run the garbage collection command.

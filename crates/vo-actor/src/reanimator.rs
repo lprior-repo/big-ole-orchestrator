@@ -554,7 +554,7 @@ impl ReanimatorLoop {
         Ok(())
     }
 
-     /// Processes a single scan cycle.
+    /// Processes a single scan cycle.
     ///
     /// Uses delete-before-dispatch ordering (INV-2): timer is deleted from
     /// storage BEFORE any dispatch occurs. If dispatch fails after delete,
@@ -667,11 +667,7 @@ impl ReanimatorLoop {
             max_already_processed + processed
         };
 
-        tracing::debug!(
-            processed,
-            failed_count,
-            "Reanimator cycle complete"
-        );
+        tracing::debug!(processed, failed_count, "Reanimator cycle complete");
 
         Ok(new_max)
     }
@@ -1161,7 +1157,7 @@ mod tests {
                 None,
                 ts_ms(500),
             );
-            assert!(validate_timer_record(&record).is_ok());
+            assert_eq!(validate_timer_record(&record), Ok(()));
         }
 
         #[test]
@@ -1206,7 +1202,7 @@ mod tests {
             let budget = FairnessBudget::default();
 
             let result = check_resume_budget(&instance_id, &budget);
-            assert!(result.is_ok());
+            assert_eq!(result, Ok(()));
         }
 
         #[test]
@@ -1218,11 +1214,13 @@ mod tests {
             assert!(budget.record_resume(instance_id.clone()));
 
             let result = check_resume_budget(&instance_id, &budget);
-            assert!(result.is_err());
-            assert!(matches!(
-                result.unwrap_err(),
-                ReanimatorError::BudgetExceeded(_)
-            ));
+            assert_eq!(
+                result,
+                Err(ReanimatorError::BudgetExceeded(format!(
+                    "Instance {} has exceeded resume budget",
+                    instance_id
+                )))
+            );
         }
     }
 
@@ -1266,12 +1264,10 @@ mod tests {
                 ts_ms(500),
             )];
 
-            let storage = Arc::new(MockTimerStorage::new(timers));
+            let storage = Arc::new(MockTimerStorage::new(timers.clone()));
             let result = storage.scan_due_timers(ts_ms(0), ts_ms(2000), 100).await;
 
-            assert!(result.is_ok());
-            let timers = result.unwrap();
-            assert_eq!(timers.len(), 1);
+            assert_eq!(result, Ok(timers));
         }
 
         #[tokio::test]
@@ -1324,7 +1320,10 @@ mod tests {
 
             let result = storage.record_timer_fired(&instance_id, ts_ms(1000)).await;
 
-            assert!(result.is_err());
+            assert_eq!(
+                result,
+                Err(ReanimatorError::StorageError("Mock failure".to_string()))
+            );
         }
     }
 
@@ -1356,7 +1355,10 @@ mod tests {
 
             let result = queue.enqueue_resume(instance_id.clone()).await;
 
-            assert!(result.is_err());
+            assert_eq!(
+                result,
+                Err(ReanimatorError::EnqueueFailed("Mock failure".to_string()))
+            );
         }
 
         #[tokio::test]

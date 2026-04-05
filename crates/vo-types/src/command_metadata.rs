@@ -83,8 +83,7 @@ mod tests {
 
     #[test]
     fn issuer_rejects_unknown_variant() {
-        let result: Result<Issuer, serde_json::Error> =
-            serde_json::from_str("\"totally_bogus\"");
+        let result: Result<Issuer, serde_json::Error> = serde_json::from_str("\"totally_bogus\"");
         let err = result.expect_err("should reject unknown variant");
         assert!(err.is_data(), "expected data error, got: {:?}", err);
     }

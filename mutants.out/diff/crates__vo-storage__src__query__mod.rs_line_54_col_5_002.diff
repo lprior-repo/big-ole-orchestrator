@@ -1,0 +1,28 @@
+--- crates/vo-storage/src/query/mod.rs
++++ replace prefix_generator -> Result<Vec<u8>, StorageError> with Ok(vec![1])
+@@ -46,24 +46,17 @@
+ /// Accepts the domain `InstanceId` type directly — callers should not
+ /// pre-extract the string representation.
+ ///
+ /// # Errors
+ ///
+ /// Returns `StorageError::InvalidArgument` if the instance ID exceeds 255 bytes.
+ /// Returns `StorageError::InvalidArgument` if the instance ID contains null bytes.
+ pub fn prefix_generator(instance_id: &InstanceId) -> Result<Vec<u8>, StorageError> {
+-    let id_str = instance_id.as_str();
+-    if id_str.len() > 255 {
+-        return Err(StorageError::InvalidArgument);
+-    }
+-    if id_str.as_bytes().contains(&b'\0') {
+-        return Err(StorageError::InvalidArgument);
+-    }
+-    Ok(id_str.as_bytes().to_vec())
++    Ok(vec![1]) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Map an envelope decode error into the storage-layer replay taxonomy.
+ ///
+ /// ## Why this intentionally collapses errors
+ ///
+ /// `replay_events` is a storage-boundary API. Its responsibility is to:
+ /// - read bytes from storage,

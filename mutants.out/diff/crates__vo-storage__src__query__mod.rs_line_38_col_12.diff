@@ -1,0 +1,21 @@
+--- crates/vo-storage/src/query/mod.rs
++++ replace == with != in decode_key
+@@ -30,17 +30,17 @@
+ ///
+ /// # Errors
+ ///
+ /// Returns `StorageError::Storage` if the slice is not exactly 8 bytes.
+ /// Returns `StorageError::InvalidArgument` if the slice decodes to zero.
+ pub fn decode_key(bytes: &[u8]) -> Result<u64, StorageError> {
+     let arr: [u8; 8] = bytes.try_into().map_err(|_| StorageError::Storage)?;
+     let seq = u64::from_be_bytes(arr);
+-    if seq == 0 {
++    if seq != /* ~ changed by cargo-mutants ~ */ 0 {
+         return Err(StorageError::InvalidArgument);
+     }
+     Ok(seq)
+ }
+ 
+ /// Produce the prefix bytes for range-scanning a given instance.
+ ///
+ /// Accepts the domain `InstanceId` type directly — callers should not

@@ -1,0 +1,33 @@
+--- crates/vo-storage/src/timer_index.rs
++++ replace timer_set -> Result<(), StorageError> with Ok(())
+@@ -151,29 +151,17 @@
+     storage: &mut impl Storage,
+     instance_id: InstanceId,
+     timer_id: TimerId,
+     fire_at_ms: u64,
+     trigger_time_ms: u64,
+     duration_ms: u64,
+     now_ms: u64,
+ ) -> Result<(), StorageError> {
+-    if fire_at_ms <= now_ms {
+-        return Err(StorageError::InvalidArgument);
+-    }
+-    if duration_ms == 0 {
+-        return Err(StorageError::InvalidArgument);
+-    }
+-    if fire_at_ms != trigger_time_ms.saturating_add(duration_ms) {
+-        return Err(StorageError::InvalidArgument);
+-    }
+-
+-    let key = TimerKey::new(fire_at_ms, instance_id, timer_id)?;
+-    let value = duration_ms.to_be_bytes();
+-    storage.put(key.as_bytes(), &value)
++    Ok(()) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Scans the timers partition for due timers for a specific instance.
+ ///
+ /// # Errors
+ ///
+ /// Returns `StorageError::CorruptKey` if timer key or value bytes cannot be decoded.
+ pub fn scan_due_timers(

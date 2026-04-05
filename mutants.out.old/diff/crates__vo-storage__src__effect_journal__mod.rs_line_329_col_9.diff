@@ -1,0 +1,56 @@
+--- crates/vo-storage/src/effect_journal/mod.rs
++++ replace <impl EffectJournal for InMemoryEffectJournal>::rollback -> Result<(), EffectJournalError> with Ok(())
+@@ -321,52 +321,17 @@
+                 })?;
+                 *record = committed;
+                 Ok(())
+             }
+         }
+     }
+ 
+     fn rollback(&self, effect_id: &EffectId) -> Result<(), EffectJournalError> {
+-        let key = effect_id.as_str().to_string();
+-        let mut records = self
+-            .records
+-            .lock()
+-            .map_err(|e| EffectJournalError::Storage {
+-                reason: e.to_string(),
+-            })?;
+-
+-        let record = records
+-            .get_mut(&key)
+-            .ok_or_else(|| EffectJournalError::NotFound {
+-                effect_id: key.clone(),
+-            })?;
+-
+-        match record.status() {
+-            EffectIntent::Committed | EffectIntent::RolledBack => {
+-                Err(EffectJournalError::AlreadyTerminal {
+-                    effect_id: key,
+-                    current_status: format!("{:?}", record.status()),
+-                })
+-            }
+-            EffectIntent::Prepared => {
+-                let rolled_back = EffectRecord::new(
+-                    record.intent_id().to_string(),
+-                    record.kind(),
+-                    record.params_json().clone(),
+-                    EffectIntent::RolledBack,
+-                    None,
+-                )
+-                .ok_or_else(|| EffectJournalError::Storage {
+-                    reason: "failed to create rolled-back record".to_string(),
+-                })?;
+-                *record = rolled_back;
+-                Ok(())
+-            }
+-        }
++        Ok(()) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     fn list_pending(
+         &self,
+         instance_id: &InstanceId,
+     ) -> Result<Vec<EffectRecord>, EffectJournalError> {
+         let records = self
+             .records

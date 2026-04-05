@@ -1,0 +1,28 @@
+--- crates/vo-storage/src/snapshots/mod.rs
++++ replace snapshot_write -> Result<(), StorageError> with Ok(())
+@@ -12,24 +12,17 @@
+ /// Returns `StorageError::FjallError` if the storage engine fails.
+ #[allow(clippy::needless_pass_by_value)]
+ pub fn snapshot_write(
+     partition: &PartitionHandle,
+     instance_id: InstanceId,
+     sequence: u64,
+     state: &InstanceState,
+ ) -> Result<(), StorageError> {
+-    let key = encode_snapshot_key(&instance_id, sequence)?;
+-    serde_json::to_vec(state)
+-        .map_err(|_| StorageError::SerializationFailed)
+-        .and_then(|value| {
+-            partition
+-                .insert(key, value)
+-                .map_err(|_| StorageError::FjallError)
+-        })
++    Ok(()) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Loads the latest (highest-sequence) snapshot for `instance_id`.
+ ///
+ /// # Errors
+ ///
+ /// Returns `StorageError::CorruptKey` if the instance ID cannot be serialized.
+ /// Returns `StorageError::FjallError` if the storage engine fails.

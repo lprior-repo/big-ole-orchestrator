@@ -41,7 +41,7 @@ impl InstanceActorHandle {
 
     /// Returns the test identifier for this handle.
     #[must_use]
-    pub fn test_id(&self) -> u64 {
+    pub fn handle_id(&self) -> u64 {
         self.test_id
     }
 }

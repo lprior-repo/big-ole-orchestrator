@@ -570,9 +570,10 @@ mod timer_supervisor_new_tests {
         let result = TimerSupervisor::new(tick_interval, storage, work_queue);
 
         // Then: Returns Err(InvalidConfig)
-        assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert!(matches!(err, TimerSupervisorError::InvalidConfig(_)));
+        assert_eq!(
+            result.expect_err("zero tick interval must be rejected"),
+            TimerSupervisorError::InvalidConfig("tick_interval must be > 0".to_string())
+        );
     }
 
     /// Behavior: TimerSupervisor constructs successfully when tick_interval > 0
@@ -584,10 +585,9 @@ mod timer_supervisor_new_tests {
         let work_queue: Arc<dyn WorkQueue> = Arc::new(MockWorkQueue::new());
 
         // When
-        let result = TimerSupervisor::new(tick_interval, storage, work_queue);
-
-        // Then: Returns Ok(TimerSupervisor)
-        assert!(result.is_ok());
+        let supervisor = TimerSupervisor::new(tick_interval, storage, work_queue)
+            .expect("valid config should construct supervisor");
+        assert_eq!(supervisor.tick_interval, Duration::from_millis(100));
     }
 }
 
@@ -612,7 +612,7 @@ mod timer_delete_before_dispatch_tests {
         let result = timer_delete_before_dispatch(&storage, &timer);
 
         // Then: Returns Ok
-        assert!(result.is_ok());
+        assert_eq!(result, Ok(()));
 
         // Verify timer was deleted from storage
         let remaining = storage.scan_due_timers(0, 2000, 100);
@@ -654,10 +654,10 @@ mod process_cycle_tests {
         let result = supervisor.process_cycle();
 
         // Then: Returns Err(InstanceNotFound)
-        assert!(result.is_err());
-        let err = result.unwrap_err();
-        let expected_id = unknown_instance.clone();
-        assert!(matches!(err, TimerSupervisorError::InstanceNotFound(id) if id == expected_id));
+        assert_eq!(
+            result,
+            Err(TimerSupervisorError::InstanceNotFound(unknown_instance))
+        );
     }
 }
 
@@ -683,11 +683,11 @@ mod timer_supervisor_spawn_tests {
         };
 
         // When: spawn is called
-        let result = supervisor.spawn();
+        let handle = supervisor
+            .spawn()
+            .expect("spawn should return a running handle");
 
         // Then: Returns Ok(handle)
-        assert!(result.is_ok());
-        let handle = result.unwrap();
         assert!(handle.is_running());
     }
 }

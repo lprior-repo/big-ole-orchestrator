@@ -1,0 +1,21 @@
+--- crates/vo-storage/src/instance_index/mod.rs
++++ replace != with == in instance_index_upsert
+@@ -108,17 +108,17 @@
+ ) -> Result<(), StorageError> {
+     let partition = keyspace
+         .open_partition("instances", fjall::PartitionCreateOptions::default())
+         .map_err(|_| StorageError::Storage)?;
+ 
+     let new_key = encode_instance_index_key(status, created_at, instance_id)?;
+ 
+     match previous_status {
+-        Some(old_status) if old_status != status => {
++        Some(old_status) if old_status == /* ~ changed by cargo-mutants ~ */ status => {
+             let old_key = encode_instance_index_key(old_status, created_at, instance_id)?;
+             atomic_status_transition(keyspace, &partition, &old_key, &new_key)
+         }
+         _ => partition
+             .insert(new_key, &[] as &[u8])
+             .map_err(|_| StorageError::Storage),
+     }
+ }

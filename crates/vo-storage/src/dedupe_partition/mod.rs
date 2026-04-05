@@ -11,8 +11,10 @@ use std::fmt;
 
 use vo_types::{DedupeKey, InstanceId};
 
-#[cfg(feature = "proptest")]
+#[cfg(all(test, feature = "proptest"))]
 mod proptests;
+#[cfg(test)]
+mod red_queen_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(kani)]
@@ -128,7 +130,8 @@ pub fn encode_dedupe_key(key: &DedupeKey) -> Vec<u8> {
 ///
 /// # Errors
 ///
-/// Returns `DedupeStoreError::Codec` if bytes are not valid UTF-8 or empty.
+/// Returns `DedupeStoreError::Codec` if bytes are not valid UTF-8 or if the
+/// resulting string is empty (empty keys are rejected by `DedupeKey::parse`).
 pub fn decode_dedupe_key(bytes: &[u8]) -> Result<DedupeKey, DedupeStoreError> {
     let s = std::str::from_utf8(bytes).map_err(|e| DedupeStoreError::Codec {
         reason: e.to_string(),

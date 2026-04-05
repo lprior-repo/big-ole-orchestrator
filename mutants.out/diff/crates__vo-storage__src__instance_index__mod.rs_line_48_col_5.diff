@@ -1,0 +1,28 @@
+--- crates/vo-storage/src/instance_index/mod.rs
++++ replace encode_instance_index_key -> Result<[u8; 25], StorageError> with Ok([0; 25])
+@@ -40,24 +40,17 @@
+ ///
+ /// Returns `StorageError::CorruptKey` if `instance_id.to_bytes()` fails
+ /// (should never happen for a properly constructed `InstanceId`).
+ pub fn encode_instance_index_key(
+     status: InstanceStatus,
+     created_at: TimestampMs,
+     instance_id: &InstanceId,
+ ) -> Result<[u8; 25], StorageError> {
+-    let id_bytes = instance_id
+-        .to_bytes()
+-        .map_err(|_| StorageError::CorruptKey)?;
+-    let mut key = [0u8; 25];
+-    key[0] = status.to_byte();
+-    key[1..9].copy_from_slice(&created_at.as_u64().to_be_bytes());
+-    key[9..25].copy_from_slice(&id_bytes);
+-    Ok(key)
++    Ok([0; 25]) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Decode a 25-byte composite key into its components.
+ ///
+ /// # Errors
+ ///
+ /// - `StorageError::CorruptKey` if `bytes.len() != 25`
+ /// - `StorageError::CorruptKey` if the status byte is not in `[0x01..=0x06]`

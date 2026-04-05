@@ -1,0 +1,28 @@
+--- crates/vo-storage/src/snapshots/mod.rs
++++ replace encode_snapshot_key -> Result<[u8; 24], StorageError> with Ok([1; 24])
+@@ -65,24 +65,17 @@
+ ///
+ /// # Errors
+ ///
+ /// Returns `StorageError::CorruptKey` if the `InstanceId` cannot be converted to bytes.
+ pub fn encode_snapshot_key(
+     instance_id: &InstanceId,
+     sequence: u64,
+ ) -> Result<[u8; 24], StorageError> {
+-    let id_bytes = instance_id
+-        .to_bytes()
+-        .map_err(|_| StorageError::CorruptKey)?;
+-    let seq_bytes = sequence.to_be_bytes();
+-    let mut key = [0u8; 24];
+-    key[..16].copy_from_slice(&id_bytes);
+-    key[16..].copy_from_slice(&seq_bytes);
+-    Ok(key)
++    Ok([1; 24]) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Decodes a 24-byte snapshot key into an `(InstanceId, u64)` pair.
+ ///
+ /// # Errors
+ ///
+ /// Returns `StorageError::InvalidKey` if `key` is not exactly 24 bytes.
+ pub fn decode_snapshot_key(key: &[u8]) -> Result<(InstanceId, u64), StorageError> {

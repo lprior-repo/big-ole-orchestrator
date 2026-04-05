@@ -1,0 +1,21 @@
+--- crates/vo-storage/src/query/mod.rs
++++ replace == with != in IteratorState::advance
+@@ -109,17 +109,17 @@
+         }
+     }
+ 
+     pub fn advance(
+         &mut self,
+         found: u64,
+         record: EventEnvelope,
+     ) -> Option<Result<EventEnvelope, StorageError>> {
+-        if found == 0 {
++        if found != /* ~ changed by cargo-mutants ~ */ 0 {
+             return Some(Err(StorageError::InvalidArgument));
+         }
+         if !self.started {
+             self.started = true;
+             self.expected = found.checked_add(1);
+             return Some(Ok(record));
+         }
+         match self.expected {

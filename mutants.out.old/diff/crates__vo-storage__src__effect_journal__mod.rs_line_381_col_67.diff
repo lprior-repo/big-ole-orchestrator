@@ -1,0 +1,17 @@
+--- crates/vo-storage/src/effect_journal/mod.rs
++++ replace == with != in <impl EffectJournal for InMemoryEffectJournal>::list_pending
+@@ -373,13 +373,13 @@
+             .lock()
+             .map_err(|e| EffectJournalError::Storage {
+                 reason: e.to_string(),
+             })?;
+ 
+         let prefix = format!("{instance_id}::");
+         Ok(records
+             .iter()
+-            .filter(|(k, v)| k.starts_with(&prefix) && v.status() == EffectIntent::Prepared)
++            .filter(|(k, v)| k.starts_with(&prefix) && v.status() != /* ~ changed by cargo-mutants ~ */ EffectIntent::Prepared)
+             .map(|(_, v)| v.clone())
+             .collect())
+     }
+ }

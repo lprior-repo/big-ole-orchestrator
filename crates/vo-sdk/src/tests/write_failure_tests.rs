@@ -17,7 +17,7 @@ fn write_failure_user_kind() {
         &mut is_written,
     );
 
-    assert!(result.is_ok());
+    assert_eq!(result, Ok(()));
     let written: Value = serde_json::from_slice(&buf).expect("written bytes should be valid JSON");
     assert_eq!(written["status"], "failure");
     assert_eq!(written["kind"], "User");
@@ -36,7 +36,7 @@ fn write_failure_system_kind() {
         &mut is_written,
     );
 
-    assert!(result.is_ok());
+    assert_eq!(result, Ok(()));
     let written: Value = serde_json::from_slice(&buf).expect("written bytes should be valid JSON");
     assert_eq!(written["kind"], "System");
     assert_eq!(written["message"], "internal error");
@@ -54,7 +54,7 @@ fn write_failure_timeout_kind() {
         &mut is_written,
     );
 
-    assert!(result.is_ok());
+    assert_eq!(result, Ok(()));
     let written: Value = serde_json::from_slice(&buf).expect("written bytes should be valid JSON");
     assert_eq!(written["kind"], "Timeout");
     assert_eq!(written["message"], "timed out");
@@ -101,7 +101,7 @@ fn write_failure_message_exactly_at_limit_succeeds() {
         &mut is_written,
     );
 
-    assert!(result.is_ok(), "1024 bytes should be accepted");
+    assert_eq!(result, Ok(()), "1024 bytes should be accepted");
 }
 
 #[test]

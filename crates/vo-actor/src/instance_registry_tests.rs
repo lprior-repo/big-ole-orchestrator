@@ -13,15 +13,25 @@ use vo_types::InstanceId;
 // Test Helpers — fixed InstanceIds for deterministic tests
 // =============================================================================
 
-fn test_config() -> RegistryConfig {
+fn default_registry_config() -> RegistryConfig {
     RegistryConfig {
         stop_timeout: Duration::from_secs(5),
     }
 }
 
-fn test_config_with_timeout(timeout: Duration) -> RegistryConfig {
+fn registry_config_with_timeout(timeout: Duration) -> RegistryConfig {
     RegistryConfig {
         stop_timeout: timeout,
+    }
+}
+
+fn blocking_stop_fn(
+    block_for: Duration,
+) -> impl FnOnce(InstanceActorHandle) -> Result<(), String> + Send {
+    let (_tx, rx) = std::sync::mpsc::channel::<()>();
+    move |_| {
+        let _ = rx.recv_timeout(block_for);
+        Ok(())
     }
 }
 
@@ -52,7 +62,7 @@ fn id_e() -> InstanceId {
 #[test]
 fn registry_has_zero_count_when_created_with_valid_config() {
     // Given: a RegistryConfig with stop_timeout = Duration::from_secs(5)
-    let config = test_config();
+    let config = default_registry_config();
 
     // When: InstanceRegistry::new(config) is called
     let registry = InstanceRegistry::new(config);
@@ -103,7 +113,7 @@ fn registry_config_default_stop_timeout_is_five_seconds() {
 #[test]
 fn register_returns_ok_and_inserts_handle_when_id_not_active() {
     // Given: an empty registry
-    let mut registry = InstanceRegistry::new(test_config());
+    let mut registry = InstanceRegistry::new(default_registry_config());
     let id = id_a();
     let handle = InstanceActorHandle::test(42);
 
@@ -113,7 +123,7 @@ fn register_returns_ok_and_inserts_handle_when_id_not_active() {
     // Then: result == Ok(())
     assert_eq!(result, Ok(()));
     // And: lookup(id) returns Some with the correct handle
-    assert_eq!(registry.lookup(&id).map(|h| h.test_id()), Some(42));
+    assert_eq!(registry.lookup(&id).map(|h| h.handle_id()), Some(42));
     // And: is_active(id) == true
     assert!(registry.is_active(&id));
 }
@@ -125,7 +135,7 @@ fn register_returns_ok_and_inserts_handle_when_id_not_active() {
 #[test]
 fn register_increments_active_count_when_id_not_active() {
     // Given: an empty registry (active_count == 0)
-    let mut registry = InstanceRegistry::new(test_config());
+    let mut registry = InstanceRegistry::new(default_registry_config());
     assert_eq!(registry.active_count(), 0);
 
     // When: register(id_a, handle_a, |_| Ok(())) is called
@@ -144,7 +154,7 @@ fn register_increments_active_count_when_id_not_active() {
 #[test]
 fn register_makes_is_active_true_when_id_not_active() {
     // Given: an empty registry, is_active(id_a) == false
-    let mut registry = InstanceRegistry::new(test_config());
+    let mut registry = InstanceRegistry::new(default_registry_config());
     assert!(!registry.is_active(&id_a()));
 
     // When: register(id_a, handle, |_| Ok(())) is called
@@ -163,7 +173,7 @@ fn register_makes_is_active_true_when_id_not_active() {
 #[test]
 fn register_makes_lookup_return_some_with_exact_handle_when_id_not_active() {
     // Given: an empty registry, lookup(id_a) == None
-    let mut registry = InstanceRegistry::new(test_config());
+    let mut registry = InstanceRegistry::new(default_registry_config());
     assert_eq!(registry.lookup(&id_a()), None);
 
     // When: register(id_a, handle_42, |_| Ok(())) is called
@@ -172,7 +182,7 @@ fn register_makes_lookup_return_some_with_exact_handle_when_id_not_active() {
         .unwrap();
 
     // Then: lookup(id_a) returns Some where test_id() == 42
-    assert_eq!(registry.lookup(&id_a()).map(|h| h.test_id()), Some(42));
+    assert_eq!(registry.lookup(&id_a()).map(|h| h.handle_id()), Some(42));
 }
 
 // =============================================================================
@@ -182,7 +192,7 @@ fn register_makes_lookup_return_some_with_exact_handle_when_id_not_active() {
 #[test]
 fn register_calls_stop_fn_with_prior_handle_when_id_already_active() {
     // Given: a registry where id_a is mapped to handle(1)
-    let mut registry = InstanceRegistry::new(test_config());
+    let mut registry = InstanceRegistry::new(default_registry_config());
     registry
         .register(id_a(), InstanceActorHandle::test(1), |_| Ok(()))
         .unwrap();
@@ -192,7 +202,7 @@ fn register_calls_stop_fn_with_prior_handle_when_id_already_active() {
     let captured_id = Arc::new(AtomicU64::new(0));
     let captured_clone = captured_id.clone();
     let result = registry.register(id_a(), InstanceActorHandle::test(2), move |prior| {
-        captured_clone.store(prior.test_id(), Ordering::SeqCst);
+        captured_clone.store(prior.handle_id(), Ordering::SeqCst);
         Ok(())
     });
 
@@ -208,7 +218,7 @@ fn register_calls_stop_fn_with_prior_handle_when_id_already_active() {
 #[test]
 fn register_replaces_handle_when_id_active_and_stop_fn_succeeds() {
     // Given: a registry where id_a is mapped to handle(1)
-    let mut registry = InstanceRegistry::new(test_config());
+    let mut registry = InstanceRegistry::new(default_registry_config());
     registry
         .register(id_a(), InstanceActorHandle::test(1), |_| Ok(()))
         .unwrap();
@@ -219,7 +229,7 @@ fn register_replaces_handle_when_id_active_and_stop_fn_succeeds() {
     // Then: result == Ok(())
     assert_eq!(result, Ok(()));
     // And: lookup(id_a) returns the NEW handle (test_id == 2, not 1)
-    assert_eq!(registry.lookup(&id_a()).map(|h| h.test_id()), Some(2));
+    assert_eq!(registry.lookup(&id_a()).map(|h| h.handle_id()), Some(2));
 }
 
 // =============================================================================
@@ -229,7 +239,7 @@ fn register_replaces_handle_when_id_active_and_stop_fn_succeeds() {
 #[test]
 fn register_keeps_active_count_unchanged_when_stop_fn_succeeds() {
     // Given: a registry where id_a is active, active_count() == 1
-    let mut registry = InstanceRegistry::new(test_config());
+    let mut registry = InstanceRegistry::new(default_registry_config());
     registry
         .register(id_a(), InstanceActorHandle::test(1), |_| Ok(()))
         .unwrap();
@@ -251,7 +261,7 @@ fn register_keeps_active_count_unchanged_when_stop_fn_succeeds() {
 #[test]
 fn register_lookup_returns_new_handle_after_successful_replace() {
     // Given: a registry where id_a is mapped to handle(1)
-    let mut registry = InstanceRegistry::new(test_config());
+    let mut registry = InstanceRegistry::new(default_registry_config());
     registry
         .register(id_a(), InstanceActorHandle::test(1), |_| Ok(()))
         .unwrap();
@@ -262,7 +272,7 @@ fn register_lookup_returns_new_handle_after_successful_replace() {
         .unwrap();
 
     // Then: lookup(id_a) returns handle with test_id == 99 (NOT 1)
-    assert_eq!(registry.lookup(&id_a()).map(|h| h.test_id()), Some(99));
+    assert_eq!(registry.lookup(&id_a()).map(|h| h.handle_id()), Some(99));
     // And: is_active(id_a) == true
     assert!(registry.is_active(&id_a()));
 }
@@ -274,7 +284,7 @@ fn register_lookup_returns_new_handle_after_successful_replace() {
 #[test]
 fn register_returns_stop_failed_when_stop_fn_returns_err() {
     // Given: a registry where id_a is mapped to handle(1)
-    let mut registry = InstanceRegistry::new(test_config());
+    let mut registry = InstanceRegistry::new(default_registry_config());
     registry
         .register(id_a(), InstanceActorHandle::test(1), |_| Ok(()))
         .unwrap();
@@ -301,7 +311,7 @@ fn register_returns_stop_failed_when_stop_fn_returns_err() {
 #[test]
 fn register_preserves_old_handle_when_stop_fn_returns_err() {
     // Given: a registry where id_a is mapped to handle(1)
-    let mut registry = InstanceRegistry::new(test_config());
+    let mut registry = InstanceRegistry::new(default_registry_config());
     registry
         .register(id_a(), InstanceActorHandle::test(1), |_| Ok(()))
         .unwrap();
@@ -312,7 +322,7 @@ fn register_preserves_old_handle_when_stop_fn_returns_err() {
     });
 
     // Then: lookup(id_a) still points to handle(1) (preserved)
-    assert_eq!(registry.lookup(&id_a()).map(|h| h.test_id()), Some(1));
+    assert_eq!(registry.lookup(&id_a()).map(|h| h.handle_id()), Some(1));
     // And: is_active(id_a) == true
     assert!(registry.is_active(&id_a()));
 }
@@ -324,7 +334,7 @@ fn register_preserves_old_handle_when_stop_fn_returns_err() {
 #[test]
 fn register_preserves_active_count_when_stop_fn_returns_err() {
     // Given: a registry where id_a is active, active_count() == 1
-    let mut registry = InstanceRegistry::new(test_config());
+    let mut registry = InstanceRegistry::new(default_registry_config());
     registry
         .register(id_a(), InstanceActorHandle::test(1), |_| Ok(()))
         .unwrap();
@@ -347,17 +357,18 @@ fn register_preserves_active_count_when_stop_fn_returns_err() {
 fn register_returns_stop_timeout_when_stop_fn_exceeds_timeout() {
     // Given: a registry with config.stop_timeout = 1ms
     //        where id_a is mapped to handle(1)
-    let config = test_config_with_timeout(Duration::from_millis(1));
+    let config = registry_config_with_timeout(Duration::from_millis(1));
     let mut registry = InstanceRegistry::new(config);
     registry
         .register(id_a(), InstanceActorHandle::test(1), |_| Ok(()))
         .unwrap();
 
     // When: register(id_a, handle(2), slow_stop_fn) is called
-    let result = registry.register(id_a(), InstanceActorHandle::test(2), |_| {
-        std::thread::sleep(Duration::from_millis(50));
-        Ok(())
-    });
+    let result = registry.register(
+        id_a(),
+        InstanceActorHandle::test(2),
+        blocking_stop_fn(Duration::from_millis(50)),
+    );
 
     // Then: result == Err(RegistryError::StopTimeout { instance_id, timeout })
     assert_eq!(
@@ -377,20 +388,21 @@ fn register_returns_stop_timeout_when_stop_fn_exceeds_timeout() {
 fn register_preserves_old_handle_when_stop_fn_times_out() {
     // Given: a registry with config.stop_timeout = 1ms
     //        where id_a is mapped to handle(1)
-    let config = test_config_with_timeout(Duration::from_millis(1));
+    let config = registry_config_with_timeout(Duration::from_millis(1));
     let mut registry = InstanceRegistry::new(config);
     registry
         .register(id_a(), InstanceActorHandle::test(1), |_| Ok(()))
         .unwrap();
 
     // When: register(id_a, handle(2), slow_stop_fn) is called
-    let _ = registry.register(id_a(), InstanceActorHandle::test(2), |_| {
-        std::thread::sleep(Duration::from_millis(50));
-        Ok(())
-    });
+    let _ = registry.register(
+        id_a(),
+        InstanceActorHandle::test(2),
+        blocking_stop_fn(Duration::from_millis(50)),
+    );
 
     // Then: lookup(id_a) still points to handle(1) (preserved)
-    assert_eq!(registry.lookup(&id_a()).map(|h| h.test_id()), Some(1));
+    assert_eq!(registry.lookup(&id_a()).map(|h| h.handle_id()), Some(1));
     // And: is_active(id_a) == true
     assert!(registry.is_active(&id_a()));
 }
@@ -403,7 +415,7 @@ fn register_preserves_old_handle_when_stop_fn_times_out() {
 fn register_preserves_active_count_when_stop_fn_times_out() {
     // Given: a registry with config.stop_timeout = 1ms
     //        where id_a is active, active_count() == 1
-    let config = test_config_with_timeout(Duration::from_millis(1));
+    let config = registry_config_with_timeout(Duration::from_millis(1));
     let mut registry = InstanceRegistry::new(config);
     registry
         .register(id_a(), InstanceActorHandle::test(1), |_| Ok(()))
@@ -411,10 +423,11 @@ fn register_preserves_active_count_when_stop_fn_times_out() {
     assert_eq!(registry.active_count(), 1);
 
     // When: register(id_a, handle(2), slow_stop_fn) is called
-    let _ = registry.register(id_a(), InstanceActorHandle::test(2), |_| {
-        std::thread::sleep(Duration::from_millis(50));
-        Ok(())
-    });
+    let _ = registry.register(
+        id_a(),
+        InstanceActorHandle::test(2),
+        blocking_stop_fn(Duration::from_millis(50)),
+    );
 
     // Then: active_count() == 1 (unchanged)
     assert_eq!(registry.active_count(), 1);
@@ -428,17 +441,18 @@ fn register_preserves_active_count_when_stop_fn_times_out() {
 fn register_returns_stop_timeout_with_minimum_valid_stop_timeout() {
     // Given: a RegistryConfig with stop_timeout = Duration::from_nanos(1)
     //        and a registry where id_a is mapped to handle(1)
-    let config = test_config_with_timeout(Duration::from_nanos(1));
+    let config = registry_config_with_timeout(Duration::from_nanos(1));
     let mut registry = InstanceRegistry::new(config);
     registry
         .register(id_a(), InstanceActorHandle::test(1), |_| Ok(()))
         .unwrap();
 
     // When: register(id_a, handle(2), slow_stop_fn) is called
-    let result = registry.register(id_a(), InstanceActorHandle::test(2), |_| {
-        std::thread::sleep(Duration::from_millis(50));
-        Ok(())
-    });
+    let result = registry.register(
+        id_a(),
+        InstanceActorHandle::test(2),
+        blocking_stop_fn(Duration::from_millis(50)),
+    );
 
     // Then: result == Err(RegistryError::StopTimeout { id_a, 1ns })
     assert_eq!(
@@ -449,7 +463,7 @@ fn register_returns_stop_timeout_with_minimum_valid_stop_timeout() {
         })
     );
     // And: lookup(id_a) == Some pointing to handle(1) (preserved)
-    assert_eq!(registry.lookup(&id_a()).map(|h| h.test_id()), Some(1));
+    assert_eq!(registry.lookup(&id_a()).map(|h| h.handle_id()), Some(1));
     // And: active_count() == 1 (unchanged)
     assert_eq!(registry.active_count(), 1);
 }
@@ -461,7 +475,7 @@ fn register_returns_stop_timeout_with_minimum_valid_stop_timeout() {
 #[test]
 fn deregister_returns_exact_handle_when_id_is_active() {
     // Given: a registry where id_a is mapped to handle(42)
-    let mut registry = InstanceRegistry::new(test_config());
+    let mut registry = InstanceRegistry::new(default_registry_config());
     registry
         .register(id_a(), InstanceActorHandle::test(42), |_| Ok(()))
         .unwrap();
@@ -470,7 +484,7 @@ fn deregister_returns_exact_handle_when_id_is_active() {
     let result = registry.deregister(&id_a());
 
     // Then: result == Ok(handle where test_id() == 42)
-    assert_eq!(result.map(|h| h.test_id()), Ok(42));
+    assert_eq!(result.map(|h| h.handle_id()), Ok(42));
 }
 
 // =============================================================================
@@ -480,7 +494,7 @@ fn deregister_returns_exact_handle_when_id_is_active() {
 #[test]
 fn deregister_decrements_active_count_when_id_is_active() {
     // Given: a registry with id_a registered, active_count() == 1
-    let mut registry = InstanceRegistry::new(test_config());
+    let mut registry = InstanceRegistry::new(default_registry_config());
     registry
         .register(id_a(), InstanceActorHandle::test(1), |_| Ok(()))
         .unwrap();
@@ -502,7 +516,7 @@ fn deregister_decrements_active_count_when_id_is_active() {
 #[test]
 fn deregister_makes_is_active_false_after_success() {
     // Given: a registry where id_a is active, is_active(id_a) == true
-    let mut registry = InstanceRegistry::new(test_config());
+    let mut registry = InstanceRegistry::new(default_registry_config());
     registry
         .register(id_a(), InstanceActorHandle::test(1), |_| Ok(()))
         .unwrap();
@@ -524,7 +538,7 @@ fn deregister_makes_is_active_false_after_success() {
 #[test]
 fn deregister_returns_not_registered_when_id_missing() {
     // Given: a registry where id_a is registered but id_b is not
-    let mut registry = InstanceRegistry::new(test_config());
+    let mut registry = InstanceRegistry::new(default_registry_config());
     registry
         .register(id_a(), InstanceActorHandle::test(1), |_| Ok(()))
         .unwrap();
@@ -544,7 +558,7 @@ fn deregister_returns_not_registered_when_id_missing() {
 #[test]
 fn deregister_returns_not_registered_when_registry_is_empty() {
     // Given: an empty registry
-    let mut registry = InstanceRegistry::new(test_config());
+    let mut registry = InstanceRegistry::new(default_registry_config());
 
     // When: deregister(&id_a) is called
     let result = registry.deregister(&id_a());
@@ -567,7 +581,7 @@ fn deregister_returns_not_registered_when_registry_is_empty() {
 #[test]
 fn deregister_leaves_state_unchanged_when_id_not_registered() {
     // Given: a registry with id_a registered, active_count() == 1
-    let mut registry = InstanceRegistry::new(test_config());
+    let mut registry = InstanceRegistry::new(default_registry_config());
     registry
         .register(id_a(), InstanceActorHandle::test(10), |_| Ok(()))
         .unwrap();
@@ -579,7 +593,7 @@ fn deregister_leaves_state_unchanged_when_id_not_registered() {
     // Then: active_count() == 1 (unchanged)
     assert_eq!(registry.active_count(), 1);
     // And: lookup(id_a) still returns Some with handle test_id == 10
-    assert_eq!(registry.lookup(&id_a()).map(|h| h.test_id()), Some(10));
+    assert_eq!(registry.lookup(&id_a()).map(|h| h.handle_id()), Some(10));
     // And: is_active(id_a) == true
     assert!(registry.is_active(&id_a()));
 }
@@ -591,7 +605,7 @@ fn deregister_leaves_state_unchanged_when_id_not_registered() {
 #[test]
 fn deregister_returns_not_registered_on_double_deregister() {
     // Given: a registry where id_a is registered and mapped to handle(1)
-    let mut registry = InstanceRegistry::new(test_config());
+    let mut registry = InstanceRegistry::new(default_registry_config());
     registry
         .register(id_a(), InstanceActorHandle::test(1), |_| Ok(()))
         .unwrap();
@@ -600,7 +614,7 @@ fn deregister_returns_not_registered_on_double_deregister() {
     let first = registry.deregister(&id_a());
 
     // Then: first result == Ok(handle(1))
-    assert_eq!(first.map(|h| h.test_id()), Ok(1));
+    assert_eq!(first.map(|h| h.handle_id()), Ok(1));
     // And: active_count() == 0
     assert_eq!(registry.active_count(), 0);
 
@@ -625,7 +639,7 @@ fn deregister_returns_not_registered_on_double_deregister() {
 #[test]
 fn lookup_returns_none_when_registry_is_empty() {
     // Given: an empty registry
-    let registry = InstanceRegistry::new(test_config());
+    let registry = InstanceRegistry::new(default_registry_config());
 
     // When: lookup(id_a) is called
     let result = registry.lookup(&id_a());
@@ -637,7 +651,7 @@ fn lookup_returns_none_when_registry_is_empty() {
 #[test]
 fn lookup_returns_some_with_exact_handle_when_active() {
     // Given: a registry where id_a is mapped to handle(77)
-    let mut registry = InstanceRegistry::new(test_config());
+    let mut registry = InstanceRegistry::new(default_registry_config());
     registry
         .register(id_a(), InstanceActorHandle::test(77), |_| Ok(()))
         .unwrap();
@@ -646,13 +660,13 @@ fn lookup_returns_some_with_exact_handle_when_active() {
     let result = registry.lookup(&id_a());
 
     // Then: result == Some with test_id() == 77
-    assert_eq!(result.map(|h| h.test_id()), Some(77));
+    assert_eq!(result.map(|h| h.handle_id()), Some(77));
 }
 
 #[test]
 fn lookup_returns_none_when_id_not_registered() {
     // Given: a registry where id_a is registered
-    let mut registry = InstanceRegistry::new(test_config());
+    let mut registry = InstanceRegistry::new(default_registry_config());
     registry
         .register(id_a(), InstanceActorHandle::test(1), |_| Ok(()))
         .unwrap();
@@ -671,7 +685,7 @@ fn lookup_returns_none_when_id_not_registered() {
 #[test]
 fn is_active_is_true_iff_lookup_is_some() {
     // Given: a registry where id_a is registered
-    let mut registry = InstanceRegistry::new(test_config());
+    let mut registry = InstanceRegistry::new(default_registry_config());
     registry
         .register(id_a(), InstanceActorHandle::test(1), |_| Ok(()))
         .unwrap();
@@ -688,7 +702,7 @@ fn is_active_is_true_iff_lookup_is_some() {
 #[test]
 fn is_active_is_false_iff_lookup_is_none() {
     // Given: a registry where id_a is NOT registered
-    let registry = InstanceRegistry::new(test_config());
+    let registry = InstanceRegistry::new(default_registry_config());
 
     // When: is_active(&id_a) and lookup(&id_a) are both called
     let active = registry.is_active(&id_a());
@@ -706,7 +720,7 @@ fn is_active_is_false_iff_lookup_is_none() {
 #[test]
 fn active_count_equals_three_registered_count() {
     // Given: a registry with 3 registered actors (id_a, id_b, id_c)
-    let mut registry = InstanceRegistry::new(test_config());
+    let mut registry = InstanceRegistry::new(default_registry_config());
     registry
         .register(id_a(), InstanceActorHandle::test(1), |_| Ok(()))
         .unwrap();
@@ -769,12 +783,12 @@ mod proptest_invariants {
                         |_| Ok(()),
                     );
                     // register with Ok stop_fn always succeeds
-                    prop_assert!(result.is_ok(), "register should succeed with Ok stop_fn: {:?}", result);
+                    prop_assert_eq!(result.clone(), Ok(()), "register should succeed with Ok stop_fn: {:?}", result);
                     expected_active.insert(id);
                 } else {
                     let result = registry.deregister(&id);
                     if expected_active.contains(&id) {
-                        prop_assert!(result.is_ok(), "deregister of active id should succeed: {:?}", result);
+                        prop_assert_eq!(result.as_ref().map(|handle| handle.handle_id()), Ok(handle_id), "deregister of active id should succeed: {:?}", result);
                         expected_active.remove(&id);
                     } else {
                         let is_not_reg = matches!(result, Err(RegistryError::NotRegistered { .. }));
@@ -835,7 +849,7 @@ mod proptest_invariants {
                     let was_present = registered.remove(&id);
                     let result = registry.deregister(&id);
                     if was_present {
-                        prop_assert!(result.is_ok());
+                        prop_assert_eq!(result.map(|handle| handle.handle_id()), Ok(1));
                         expected_count = expected_count.saturating_sub(1);
                     } else {
                         let is_not_reg = matches!(result, Err(RegistryError::NotRegistered { .. }));
@@ -918,7 +932,7 @@ mod proptest_invariants {
             // Snapshot state before error-inducing register
             let count_before = registry.active_count();
             let is_active_before = registry.is_active(&id);
-            let lookup_before = registry.lookup(&id).map(|h| h.test_id());
+            let lookup_before = registry.lookup(&id).map(|h| h.handle_id());
 
             // Attempt register with failing stop_fn
             let result = registry.register(
@@ -938,7 +952,7 @@ mod proptest_invariants {
             // INV-5: state unchanged after error
             prop_assert_eq!(registry.active_count(), count_before);
             prop_assert_eq!(registry.is_active(&id), is_active_before);
-            prop_assert_eq!(registry.lookup(&id).map(|h| h.test_id()), lookup_before);
+            prop_assert_eq!(registry.lookup(&id).map(|h| h.handle_id()), lookup_before);
         }
     }
 
@@ -964,8 +978,7 @@ mod proptest_invariants {
 
             // Step 2: deregister(id)
             let deregistered = registry.deregister(&id);
-            prop_assert!(deregistered.is_ok());
-            prop_assert_eq!(deregistered.map(|h| h.test_id()), Ok(1));
+            prop_assert_eq!(deregistered.map(|h| h.handle_id()), Ok(1));
             prop_assert!(!registry.is_active(&id));
             prop_assert_eq!(registry.lookup(&id), None);
             prop_assert_eq!(registry.active_count(), 0);
@@ -973,7 +986,7 @@ mod proptest_invariants {
             // Step 3: re-register(id) -> handle(2)
             registry.register(id.clone(), InstanceActorHandle::test(2), |_| Ok(())).unwrap();
             prop_assert!(registry.is_active(&id));
-            prop_assert_eq!(registry.lookup(&id).map(|h| h.test_id()), Some(2));
+            prop_assert_eq!(registry.lookup(&id).map(|h| h.handle_id()), Some(2));
             prop_assert_eq!(registry.active_count(), 1);
 
             // Final state: same as single register, but with handle(2)
@@ -1068,7 +1081,7 @@ mod kani_verification {
         // Snapshot state
         let count_before = registry.active_count();
         let is_active_before = registry.is_active(&id);
-        let lookup_before = registry.lookup(&id).map(|h| h.test_id());
+        let lookup_before = registry.lookup(&id).map(|h| h.handle_id());
 
         // Attempt register with failing stop_fn
         let result = registry.register(id.clone(), InstanceActorHandle::test(99), |_| {
@@ -1081,7 +1094,7 @@ mod kani_verification {
         // INV-5: state unchanged
         assert_eq!(registry.active_count(), count_before);
         assert_eq!(registry.is_active(&id), is_active_before);
-        assert_eq!(registry.lookup(&id).map(|h| h.test_id()), lookup_before);
+        assert_eq!(registry.lookup(&id).map(|h| h.handle_id()), lookup_before);
     }
 
     // =========================================================================

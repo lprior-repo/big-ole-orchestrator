@@ -1,0 +1,21 @@
+--- crates/vo-storage/src/timer_index.rs
++++ replace TimerKey::timer_id -> TimerId with Default::default()
+@@ -38,17 +38,17 @@
+         ])
+     }
+     #[must_use]
+     pub fn instance_id(&self) -> InstanceId {
+         InstanceId::from_bytes(self.0[8..24].try_into().unwrap_or_default())
+     }
+     #[must_use]
+     pub fn timer_id(&self) -> TimerId {
+-        TimerId::from_bytes(self.0[24..40].try_into().unwrap_or_default())
++        Default::default() /* ~ changed by cargo-mutants ~ */
+     }
+     #[must_use]
+     pub const fn as_bytes(&self) -> &[u8; 40] {
+         &self.0
+     }
+ }
+ 
+ pub struct TimerValue(u64);

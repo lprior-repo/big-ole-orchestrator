@@ -1,0 +1,21 @@
+--- crates/vo-storage/src/lease_partition/mod.rs
++++ replace encode_lease_key -> Vec<u8> with vec![0]
+@@ -186,17 +186,17 @@
+ /// Partition name for the lease store.
+ pub const LEASE_PARTITION: &str = "leases";
+ 
+ /// Encode a lease key as `<instance_id>::<step_id>` UTF-8 bytes.
+ ///
+ /// Uses the Display representation of both types with `::` delimiter.
+ #[must_use]
+ pub fn encode_lease_key(instance_id: &InstanceId, step_id: &StepId) -> Vec<u8> {
+-    format!("{instance_id}::{step_id}").into_bytes()
++    vec![0] /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Decode UTF-8 bytes into an `instance_id` and `step_id`.
+ ///
+ /// Expects format `<instance_id>::<step_id>`.
+ ///
+ /// # Errors
+ ///

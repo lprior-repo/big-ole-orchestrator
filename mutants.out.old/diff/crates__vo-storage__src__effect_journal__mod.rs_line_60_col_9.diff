@@ -1,0 +1,24 @@
+--- crates/vo-storage/src/effect_journal/mod.rs
++++ replace <impl TryFrom<String> for EffectId>::try_from -> Result<Self, Self::Error> with Ok(Default::default())
+@@ -52,20 +52,17 @@
+         &self.0
+     }
+ }
+ 
+ impl TryFrom<String> for EffectId {
+     type Error = EffectJournalError;
+ 
+     fn try_from(value: String) -> Result<Self, Self::Error> {
+-        if value.is_empty() {
+-            return Err(EffectJournalError::InvalidArgument);
+-        }
+-        Ok(Self(value))
++        Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ impl From<EffectId> for String {
+     #[allow(clippy::use_self)]
+     fn from(value: EffectId) -> String {
+         value.0
+     }

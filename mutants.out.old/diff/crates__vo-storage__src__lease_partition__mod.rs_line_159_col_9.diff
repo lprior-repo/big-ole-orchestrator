@@ -1,0 +1,21 @@
+--- crates/vo-storage/src/lease_partition/mod.rs
++++ replace LeaseEntry::is_expired -> bool with true
+@@ -151,17 +151,17 @@
+     #[must_use]
+     pub const fn expires_at(&self) -> u64 {
+         self.expires_at
+     }
+ 
+     /// Check if this lease has expired.
+     #[must_use]
+     pub const fn is_expired(&self, now_ms: u64) -> bool {
+-        now_ms >= self.expires_at
++        true /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// Convert to a `LeaseRecord` using a valid `FenceToken`.
+     ///
+     /// # Errors
+     ///
+     /// Returns `LeaseStoreError::Codec` if the `fence_token` is zero or
+     /// `instance_id`/`step_id` cannot be parsed.

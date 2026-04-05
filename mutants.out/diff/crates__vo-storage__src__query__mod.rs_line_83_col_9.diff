@@ -1,0 +1,21 @@
+--- crates/vo-storage/src/query/mod.rs
++++ delete match arm EventError::UnsupportedEnvelopeVersion(_) in error_mapper
+@@ -75,17 +75,17 @@
+ /// - `UnsupportedVersion`: the envelope is well-formed but from an unsupported version.
+ /// - `CorruptEventPayload`: the stored envelope bytes are malformed or incomplete.
+ ///
+ /// This keeps the replay API stable while still distinguishing the only versioning
+ /// concern that callers can reasonably react to differently.
+ #[must_use]
+ pub const fn error_mapper(error: &EventError) -> StorageError {
+     match error {
+-        EventError::UnsupportedEnvelopeVersion(_) => StorageError::UnsupportedVersion,
++         /* ~ changed by cargo-mutants ~ */
+         _ => StorageError::CorruptEventPayload,
+     }
+ }
+ 
+ // ---------------------------------------------------------------------------
+ // Data layer — iterator state machine
+ // ---------------------------------------------------------------------------
+ 

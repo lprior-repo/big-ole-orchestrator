@@ -1,0 +1,23 @@
+--- crates/vo-storage/src/effect_journal/mod.rs
++++ replace encode_effect_record -> Result<Vec<u8>, EffectJournalError> with Ok(vec![0])
+@@ -152,19 +152,17 @@
+ // ---------------------------------------------------------------------------
+ 
+ /// Encode an `EffectRecord` to JSON bytes for storage.
+ ///
+ /// # Errors
+ ///
+ /// Returns `EffectJournalError::Codec` if serialization fails.
+ pub fn encode_effect_record(record: &EffectRecord) -> Result<Vec<u8>, EffectJournalError> {
+-    serde_json::to_vec(record).map_err(|e| EffectJournalError::Codec {
+-        reason: e.to_string(),
+-    })
++    Ok(vec![0]) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Decode JSON bytes into an `EffectRecord`.
+ ///
+ /// # Errors
+ ///
+ /// Returns `EffectJournalError::Codec` if deserialization fails.
+ pub fn decode_effect_record(bytes: &[u8]) -> Result<EffectRecord, EffectJournalError> {

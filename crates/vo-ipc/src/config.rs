@@ -112,25 +112,36 @@ mod tests {
     use tempfile::tempdir;
 
     #[test]
-    fn test_validate_timeout() {
-        assert!(validate_timeout(0).is_err());
-        assert!(validate_timeout(10).is_ok());
+    fn validate_timeout_returns_error_when_timeout_is_zero() {
+        assert_eq!(
+            validate_timeout(0),
+            Err(ConfigError::TimeoutMustBePositive { timeout_ms: 0 })
+        );
+        assert_eq!(validate_timeout(10), Ok(()));
     }
 
     #[test]
-    fn test_validate_program_path_missing() {
+    fn validate_program_path_returns_missing_when_path_does_not_exist() {
         let path = PathBuf::from("/does/not/exist");
-        assert!(validate_program_path(&path).is_err());
+        assert_eq!(
+            validate_program_path(&path),
+            Err(ConfigError::ProgramMissing { path })
+        );
     }
 
     #[test]
-    fn test_validate_program_path_not_file() {
+    fn validate_program_path_returns_missing_when_path_is_directory() {
         let dir = tempdir().unwrap();
-        assert!(validate_program_path(dir.path()).is_err());
+        assert_eq!(
+            validate_program_path(dir.path()),
+            Err(ConfigError::ProgramMissing {
+                path: dir.path().to_path_buf(),
+            })
+        );
     }
 
     #[test]
-    fn test_validate_program_path_not_executable() {
+    fn validate_program_path_returns_not_executable_when_permission_bits_missing() {
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("not_exec");
         File::create(&file_path).unwrap();
@@ -138,11 +149,14 @@ mod tests {
         let mut perms = metadata.permissions();
         perms.set_mode(0o644);
         std::fs::set_permissions(&file_path, perms).unwrap();
-        assert!(validate_program_path(&file_path).is_err());
+        assert_eq!(
+            validate_program_path(&file_path),
+            Err(ConfigError::ProgramNotExecutable { path: file_path })
+        );
     }
 
     #[test]
-    fn test_validate_program_path_executable() {
+    fn validate_program_path_accepts_executable_file() {
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("exec");
         File::create(&file_path).unwrap();
@@ -150,11 +164,11 @@ mod tests {
         let mut perms = metadata.permissions();
         perms.set_mode(0o755);
         std::fs::set_permissions(&file_path, perms).unwrap();
-        assert!(validate_program_path(&file_path).is_ok());
+        assert_eq!(validate_program_path(&file_path), Ok(()));
     }
 
     #[test]
-    fn test_subprocess_config_getters() {
+    fn subprocess_config_returns_expected_getters_when_input_is_valid() {
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("exec");
         File::create(&file_path).unwrap();
@@ -172,7 +186,7 @@ mod tests {
     }
 
     #[test]
-    fn test_subprocess_config_traits() {
+    fn subprocess_config_supports_clone_eq_and_debug() {
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("exec");
         File::create(&file_path).unwrap();

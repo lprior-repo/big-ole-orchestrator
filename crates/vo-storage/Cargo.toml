@@ -7,16 +7,16 @@ edition = "2021"
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(kani)', 'cfg(feature, values("proptest"))'] }
 
 [features]
-proptest = ["dep:proptest"]
+proptest = []
 
 [dependencies]
 fjall = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 vo-types = { workspace = true }
-proptest = { workspace = true, optional = true }
 
 [dev-dependencies]
+proptest = { workspace = true }
 tempfile = { workspace = true }
 thiserror = { workspace = true }
 rstest = { workspace = true }

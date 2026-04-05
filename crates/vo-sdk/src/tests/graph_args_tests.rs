@@ -1,20 +1,25 @@
 //! Tests for graph_args module (--graph CLI argument handling per ADR-004, ADR-009).
 
-use crate::graph_args::{parse_graph_args, GraphArgs, GraphArgsError, NodeSpec, EdgeSpec, NodeKind};
-use vo_types::{WorkflowName, NodeName};
+use crate::graph_args::{
+    parse_graph_args, EdgeSpec, GraphArgs, GraphArgsError, NodeKind, NodeSpec,
+};
+use vo_types::{NodeName, WorkflowName};
 
 #[test]
 fn parse_graph_args_returns_err_when_no_graph_flag() {
     let args: Vec<String> = vec!["my_binary".to_string()];
-    let result = parse_graph_args(&args);
-    assert!(result.is_err(), "should return Err when --graph is absent");
+    assert_eq!(parse_graph_args(&args), Err(GraphArgsError::NoGraphFlag));
 }
 
 #[test]
 fn parse_graph_args_returns_ok_when_graph_flag_present() {
     let args: Vec<String> = vec!["my_binary".to_string(), "--graph".to_string()];
     let result = parse_graph_args(&args);
-    assert_eq!(result, Ok(GraphArgs), "should return Ok(GraphArgs) when --graph is present");
+    assert_eq!(
+        result,
+        Ok(GraphArgs),
+        "should return Ok(GraphArgs) when --graph is present"
+    );
 }
 
 #[test]

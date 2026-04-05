@@ -1,0 +1,23 @@
+--- crates/vo-storage/src/status_store.rs
++++ replace decode_status -> Result<RegistrationStatus, StatusStoreError> with Ok(Default::default())
+@@ -49,19 +49,17 @@
+ }
+ 
+ /// Decode JSON bytes into a `RegistrationStatus`.
+ ///
+ /// # Errors
+ /// Returns `StatusStoreError::CorruptValue` if the bytes are not valid JSON
+ /// or do not represent a known `RegistrationStatus` variant.
+ pub fn decode_status(bytes: &[u8]) -> Result<RegistrationStatus, StatusStoreError> {
+-    serde_json::from_slice(bytes).map_err(|e| StatusStoreError::CorruptValue {
+-        reason: e.to_string(),
+-    })
++    Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ // ---------------------------------------------------------------------------
+ // Actions layer — Fjall operations
+ // ---------------------------------------------------------------------------
+ 
+ /// The partition name used for workflow registration statuses.
+ pub const WORKFLOWS_PARTITION: &str = "workflows";

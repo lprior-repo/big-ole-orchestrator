@@ -125,7 +125,11 @@ impl Debouncer {
             }
 
             if channel_closed && pending.is_empty() {
-                if ready_tx.send(Err(Error::WatcherChannelClosed)).await.is_err() {
+                if ready_tx
+                    .send(Err(Error::WatcherChannelClosed))
+                    .await
+                    .is_err()
+                {
                     // Receiver closed
                 }
                 return;
@@ -608,18 +612,18 @@ mod proptests {
                     Err(e) => panic!("Send failed: {:?}", e),
                 }
                 tokio::time::advance(Duration::from_millis(50)).await;
-                
+
                 match tx.send(FileEvent::Modify(path.clone())).await {
                     Ok(_) => {},
                     Err(e) => panic!("Send failed: {:?}", e),
                 }
                 tokio::time::advance(Duration::from_millis(150)).await;
-                
+
                 drop(tx);
 
                 let actual_path = sut.next_debounced_event().await.unwrap();
                 prop_assert_eq!(actual_path, path);
-                
+
                 let eof_result = sut.next_debounced_event().await;
                 prop_assert_eq!(eof_result, Err(Error::WatcherChannelClosed));
                 Ok(())
@@ -637,11 +641,11 @@ mod verification {
         let count: u8 = kani::any();
         let added: u8 = kani::any();
         let removed: u8 = kani::any();
-        
+
         kani::assume(count <= 5);
         kani::assume(added <= 5 - count);
         kani::assume(removed <= count + added);
-        
+
         let final_count = count + added - removed;
         assert!(final_count <= 5);
     }

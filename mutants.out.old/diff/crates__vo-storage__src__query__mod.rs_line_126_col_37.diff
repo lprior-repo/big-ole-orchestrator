@@ -1,0 +1,21 @@
+--- crates/vo-storage/src/query/mod.rs
++++ replace != with == in IteratorState::advance
+@@ -118,17 +118,17 @@
+             return Some(Err(StorageError::InvalidArgument));
+         }
+         if !self.started {
+             self.started = true;
+             self.expected = found.checked_add(1);
+             return Some(Ok(record));
+         }
+         match self.expected {
+-            Some(expected) if found != expected => Some(Err(StorageError::SequenceGap)),
++            Some(expected) if found == /* ~ changed by cargo-mutants ~ */ expected => Some(Err(StorageError::SequenceGap)),
+             Some(expected) => {
+                 self.expected = expected.checked_add(1);
+                 Some(Ok(record))
+             }
+             None => Some(Err(StorageError::SequenceGap)),
+         }
+     }
+ }

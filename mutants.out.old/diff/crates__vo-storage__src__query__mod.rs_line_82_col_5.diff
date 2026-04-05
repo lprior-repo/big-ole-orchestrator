@@ -1,0 +1,24 @@
+--- crates/vo-storage/src/query/mod.rs
++++ replace error_mapper -> StorageError with Default::default()
+@@ -74,20 +74,17 @@
+ /// `EventError` variant. For replay callers, the actionable distinction is:
+ /// - `UnsupportedVersion`: the envelope is well-formed but from an unsupported version.
+ /// - `CorruptEventPayload`: the stored envelope bytes are malformed or incomplete.
+ ///
+ /// This keeps the replay API stable while still distinguishing the only versioning
+ /// concern that callers can reasonably react to differently.
+ #[must_use]
+ pub const fn error_mapper(error: &EventError) -> StorageError {
+-    match error {
+-        EventError::UnsupportedEnvelopeVersion(_) => StorageError::UnsupportedVersion,
+-        _ => StorageError::CorruptEventPayload,
+-    }
++    Default::default() /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ // ---------------------------------------------------------------------------
+ // Data layer — iterator state machine
+ // ---------------------------------------------------------------------------
+ 
+ pub struct IteratorState {
+     expected: Option<u64>,

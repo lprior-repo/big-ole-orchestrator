@@ -4,47 +4,66 @@
 #[cfg(test)]
 mod integration_tests {
     use vo_executor::{
-        cancel_execution, execute_step, execute_step_with_retry,
-        get_execution_status, get_last_error, RetryPolicy, StepId,
+        cancel_execution, execute_step, execute_step_with_retry, get_execution_status,
+        get_last_error, RetryPolicy, StepId,
     };
 
     #[tokio::test]
     async fn execute_step_rejects_zero_timeout() {
         let result = execute_step(StepId::new("step-1".to_string()), 0).await;
-        assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert!(matches!(err, vo_executor::ExecuteNodeError::InvalidTimeout { .. }));
+        assert_eq!(
+            result,
+            Err(vo_executor::ExecuteNodeError::InvalidTimeout {
+                value: 0,
+                reason: "must be > 0ms".to_string(),
+            })
+        );
     }
 
     #[tokio::test]
     async fn execute_step_success_for_step_1() {
         let result = execute_step(StepId::new("step-1".to_string()), 5000).await;
-        assert!(result.is_ok());
-        let step_result = result.unwrap();
-        assert!(step_result.is_success());
+        assert_eq!(
+            result,
+            Ok(vo_executor::StepResult::Success {
+                output: "done".to_string(),
+            })
+        );
     }
 
     #[tokio::test]
     async fn execute_step_timeout_for_slow_step() {
         let result = execute_step(StepId::new("step-slow".to_string()), 1).await;
-        assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert!(matches!(err, vo_executor::ExecuteNodeError::TimeoutExceeded { .. }));
+        assert_eq!(
+            result,
+            Err(vo_executor::ExecuteNodeError::TimeoutExceeded {
+                elapsed_ms: 3000,
+                limit_ms: 1,
+            })
+        );
     }
 
     #[tokio::test]
     async fn execute_step_not_found_for_unknown_step() {
         let result = execute_step(StepId::new("unknown-step".to_string()), 5000).await;
-        assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert!(matches!(err, vo_executor::ExecuteNodeError::StepNotFound { .. }));
+        assert_eq!(
+            result,
+            Err(vo_executor::ExecuteNodeError::StepNotFound {
+                step_id: StepId::new("unknown-step".to_string()),
+            })
+        );
     }
 
     #[tokio::test]
     async fn execute_step_with_retry_success() {
         let policy = RetryPolicy::new(3, 100, 2.0).unwrap();
         let result = execute_step_with_retry(StepId::new("step-1".to_string()), 5000, policy).await;
-        assert!(result.is_ok());
+        assert_eq!(
+            result,
+            Ok(vo_executor::StepResult::Success {
+                output: "done".to_string(),
+            })
+        );
     }
 
     #[tokio::test]
@@ -63,6 +82,6 @@ mod integration_tests {
     async fn cancel_execution_returns_ok_for_ready_state() {
         // When nothing is executing, cancel returns Ok (no-op)
         let result = cancel_execution(StepId::new("step-1".to_string())).await;
-        assert!(result.is_ok());
+        assert_eq!(result, Ok(()));
     }
 }

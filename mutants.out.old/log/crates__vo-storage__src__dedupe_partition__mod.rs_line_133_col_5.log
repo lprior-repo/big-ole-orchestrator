@@ -1,0 +1,157 @@
+
+*** crates/vo-storage/src/dedupe_partition/mod.rs:133:5: replace decode_dedupe_key -> Result<DedupeKey, DedupeStoreError> with Ok(Default::default())
+
+*** mutation diff:
+--- crates/vo-storage/src/dedupe_partition/mod.rs
++++ replace decode_dedupe_key -> Result<DedupeKey, DedupeStoreError> with Ok(Default::default())
+@@ -125,22 +125,17 @@
+ }
+ 
+ /// Decode UTF-8 bytes into a `DedupeKey`.
+ ///
+ /// # Errors
+ ///
+ /// Returns `DedupeStoreError::Codec` if bytes are not valid UTF-8 or empty.
+ pub fn decode_dedupe_key(bytes: &[u8]) -> Result<DedupeKey, DedupeStoreError> {
+-    let s = std::str::from_utf8(bytes).map_err(|e| DedupeStoreError::Codec {
+-        reason: e.to_string(),
+-    })?;
+-    DedupeKey::parse(s).map_err(|e| DedupeStoreError::Codec {
+-        reason: e.to_string(),
+-    })
++    Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ // ---------------------------------------------------------------------------
+ // Calc layer — entry encoding/decoding
+ // ---------------------------------------------------------------------------
+ 
+ /// Encode a `DedupeEntry` to JSON bytes for storage.
+ ///
+
+
+*** /home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo test --no-run --verbose --package=vo-storage@0.1.0
+       Fresh cfg-if v1.0.4
+       Fresh unicode-ident v1.0.24
+       Fresh once_cell v1.21.4
+       Fresh bitflags v2.11.0
+       Fresh linux-raw-sys v0.12.1
+       Fresh fastrand v2.3.0
+       Fresh semver v1.0.27
+       Fresh regex-syntax v0.8.10
+       Fresh futures-core v0.3.32
+       Fresh compare v0.0.6
+       Fresh futures-sink v0.3.32
+       Fresh libc v0.2.183
+       Fresh path-dedot v3.1.1
+       Fresh memchr v2.8.0
+       Fresh rustc_version v0.4.1
+       Fresh futures-channel v0.3.32
+       Fresh interval-heap v0.0.5
+       Fresh byteorder v1.5.0
+       Fresh varint-rs v2.2.0
+       Fresh xxhash-rust v0.8.15
+       Fresh futures-task v0.3.32
+       Fresh scopeguard v1.2.0
+       Fresh proc-macro2 v1.0.106
+       Fresh getrandom v0.4.2
+       Fresh getrandom v0.3.4
+       Fresh zerocopy v0.8.47
+       Fresh rustix v1.1.4
+       Fresh crossbeam-utils v0.8.21
+       Fresh serde_core v1.0.228
+       Fresh aho-corasick v1.1.4
+       Fresh path-absolutize v3.1.1
+       Fresh hashbrown v0.16.1
+       Fresh rustc-hash v2.1.2
+       Fresh byteview v0.6.1
+       Fresh slab v0.4.12
+       Fresh smallvec v1.15.1
+       Fresh equivalent v1.0.2
+       Fresh autocfg v1.5.0
+       Fresh pin-project-lite v0.2.17
+       Fresh futures-io v0.3.32
+       Fresh log v0.4.29
+       Fresh zmij v1.0.21
+       Fresh quote v1.0.45
+       Fresh rand_core v0.9.5
+       Fresh tempfile v3.27.0
+       Fresh ppv-lite86 v0.2.21
+       Fresh crossbeam-epoch v0.9.18
+       Fresh regex-automata v0.4.14
+       Fresh quick_cache v0.6.21
+       Fresh parking_lot_core v0.9.12
+       Fresh lock_api v0.4.14
+       Fresh self_cell v1.2.2
+       Fresh lz4_flex v0.11.6
+       Fresh double-ended-peekable v0.1.0
+       Fresh hashbrown v0.14.5
+       Fresh itoa v1.0.18
+       Fresh sha1_smol v1.0.1
+       Fresh guardian v1.3.0
+       Fresh wait-timeout v0.2.1
+       Fresh fnv v1.0.7
+       Fresh std-semaphore v0.1.0
+       Fresh glob v0.3.3
+       Fresh relative-path v1.9.3
+       Fresh syn v2.0.117
+       Fresh rand_chacha v0.9.0
+       Fresh value-log v1.9.0
+       Fresh crossbeam-skiplist v0.1.3
+       Fresh serde_json v1.0.149
+       Fresh regex v1.12.3
+       Fresh uuid v1.23.0
+       Fresh dashmap v6.1.0
+       Fresh quick-error v1.2.3
+       Fresh bit-vec v0.8.0
+       Fresh rand_xorshift v0.4.0
+       Fresh unarray v0.1.4
+       Fresh futures-timer v3.0.3
+       Fresh futures-macro v0.3.32
+       Fresh rand v0.9.2
+       Fresh serde_derive v1.0.228
+       Fresh enum_dispatch v0.3.13
+       Fresh thiserror-impl v1.0.69
+       Fresh rstest_macros v0.18.2
+       Fresh num-traits v0.2.19
+       Fresh bit-set v0.8.0
+       Fresh rusty-fork v0.3.1
+       Fresh futures-util v0.3.32
+       Fresh lsm-tree v2.10.4
+       Fresh serde v1.0.228
+       Fresh ulid v1.2.1
+       Fresh thiserror v1.0.69
+       Fresh proptest v1.11.0
+       Fresh futures-executor v0.3.32
+       Fresh fjall v2.11.2
+       Fresh vo-types v0.1.0 (/tmp/cargo-mutants-veloxide-flbwyG.tmp/crates/vo-types)
+       Fresh futures v0.3.32
+       Dirty vo-storage v0.1.0 (/tmp/cargo-mutants-veloxide-flbwyG.tmp/crates/vo-storage): the file `crates/vo-storage/src/dedupe_partition/mod.rs` has changed (1775343307.591886998s, 1s after last build at 1775343306.827429254s)
+   Compiling vo-storage v0.1.0 (/tmp/cargo-mutants-veloxide-flbwyG.tmp/crates/vo-storage)
+       Fresh rstest v0.18.2
+     Running `sccache /home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/rustc --crate-name vo_storage --edition=2021 crates/vo-storage/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --emit=dep-info,link -C embed-bitcode=no -C debuginfo=2 --warn=unexpected_cfgs --check-cfg 'cfg(kani)' --check-cfg 'cfg(feature, values("proptest"))' --test --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values("proptest"))' -C metadata=0160923efe8bc4f1 -C extra-filename=-658380d8969051b2 --out-dir /tmp/cargo-mutants-veloxide-flbwyG.tmp/target/debug/deps -C incremental=/tmp/cargo-mutants-veloxide-flbwyG.tmp/target/debug/incremental -L dependency=/tmp/cargo-mutants-veloxide-flbwyG.tmp/target/debug/deps --extern fjall=/tmp/cargo-mutants-veloxide-flbwyG.tmp/target/debug/deps/libfjall-abfe8d737f32f68d.rlib --extern proptest=/tmp/cargo-mutants-veloxide-flbwyG.tmp/target/debug/deps/libproptest-216a766c56ac4476.rlib --extern rstest=/tmp/cargo-mutants-veloxide-flbwyG.tmp/target/debug/deps/librstest-ce971fceb7271210.rlib --extern serde=/tmp/cargo-mutants-veloxide-flbwyG.tmp/target/debug/deps/libserde-65225f6523a3f7e1.rlib --extern serde_json=/tmp/cargo-mutants-veloxide-flbwyG.tmp/target/debug/deps/libserde_json-74f26af1301414df.rlib --extern tempfile=/tmp/cargo-mutants-veloxide-flbwyG.tmp/target/debug/deps/libtempfile-8ce133578a770185.rlib --extern thiserror=/tmp/cargo-mutants-veloxide-flbwyG.tmp/target/debug/deps/libthiserror-0f760a551262ab92.rlib --extern ulid=/tmp/cargo-mutants-veloxide-flbwyG.tmp/target/debug/deps/libulid-76e66df51ef33b17.rlib --extern vo_types=/tmp/cargo-mutants-veloxide-flbwyG.tmp/target/debug/deps/libvo_types-cb83cbd4b68501ac.rlib`
+     Running `sccache /home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/rustc --crate-name vo_storage --edition=2021 crates/vo-storage/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no -C debuginfo=2 --warn=unexpected_cfgs --check-cfg 'cfg(kani)' --check-cfg 'cfg(feature, values("proptest"))' --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values("proptest"))' -C metadata=c6dd14474b4ca5c1 -C extra-filename=-069610b2624a88b4 --out-dir /tmp/cargo-mutants-veloxide-flbwyG.tmp/target/debug/deps -C incremental=/tmp/cargo-mutants-veloxide-flbwyG.tmp/target/debug/incremental -L dependency=/tmp/cargo-mutants-veloxide-flbwyG.tmp/target/debug/deps --extern fjall=/tmp/cargo-mutants-veloxide-flbwyG.tmp/target/debug/deps/libfjall-abfe8d737f32f68d.rmeta --extern serde=/tmp/cargo-mutants-veloxide-flbwyG.tmp/target/debug/deps/libserde-65225f6523a3f7e1.rmeta --extern serde_json=/tmp/cargo-mutants-veloxide-flbwyG.tmp/target/debug/deps/libserde_json-74f26af1301414df.rmeta --extern vo_types=/tmp/cargo-mutants-veloxide-flbwyG.tmp/target/debug/deps/libvo_types-cb83cbd4b68501ac.rmeta`
+error[E0277]: the trait bound `DedupeKey: Default` is not satisfied
+   --> crates/vo-storage/src/dedupe_partition/mod.rs:133:8
+    |
+133 |     Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+    |        ^^^^^^^^^^^^^^^^^^ the trait `Default` is not implemented for `DedupeKey`
+
+For more information about this error, try `rustc --explain E0277`.
+error: could not compile `vo-storage` (lib) due to 1 previous error
+
+Caused by:
+  process didn't exit successfully: `sccache /home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/rustc --crate-name vo_storage --edition=2021 crates/vo-storage/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no -C debuginfo=2 --warn=unexpected_cfgs --check-cfg 'cfg(kani)' --check-cfg 'cfg(feature, values("proptest"))' --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values("proptest"))' -C metadata=c6dd14474b4ca5c1 -C extra-filename=-069610b2624a88b4 --out-dir /tmp/cargo-mutants-veloxide-flbwyG.tmp/target/debug/deps -C incremental=/tmp/cargo-mutants-veloxide-flbwyG.tmp/target/debug/incremental -L dependency=/tmp/cargo-mutants-veloxide-flbwyG.tmp/target/debug/deps --extern fjall=/tmp/cargo-mutants-veloxide-flbwyG.tmp/target/debug/deps/libfjall-abfe8d737f32f68d.rmeta --extern serde=/tmp/cargo-mutants-veloxide-flbwyG.tmp/target/debug/deps/libserde-65225f6523a3f7e1.rmeta --extern serde_json=/tmp/cargo-mutants-veloxide-flbwyG.tmp/target/debug/deps/libserde_json-74f26af1301414df.rmeta --extern vo_types=/tmp/cargo-mutants-veloxide-flbwyG.tmp/target/debug/deps/libvo_types-cb83cbd4b68501ac.rmeta` (exit status: 1)
+warning: build failed, waiting for other jobs to finish...
+error[E0277]: the trait bound `vo_types::DedupeKey: Default` is not satisfied
+   --> crates/vo-storage/src/dedupe_partition/mod.rs:133:8
+    |
+133 |     Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+    |        ^^^^^^^^^^^^^^^^^^ the trait `Default` is not implemented for `vo_types::DedupeKey`
+
+error: could not compile `vo-storage` (lib test) due to 1 previous error
+
+Caused by:
+  process didn't exit successfully: `sccache /home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/rustc --crate-name vo_storage --edition=2021 crates/vo-storage/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --emit=dep-info,link -C embed-bitcode=no -C debuginfo=2 --warn=unexpected_cfgs --check-cfg 'cfg(kani)' --check-cfg 'cfg(feature, values("proptest"))' --test --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values("proptest"))' -C metadata=0160923efe8bc4f1 -C extra-filename=-658380d8969051b2 --out-dir /tmp/cargo-mutants-veloxide-flbwyG.tmp/target/debug/deps -C incremental=/tmp/cargo-mutants-veloxide-flbwyG.tmp/target/debug/incremental -L dependency=/tmp/cargo-mutants-veloxide-flbwyG.tmp/target/debug/deps --extern fjall=/tmp/cargo-mutants-veloxide-flbwyG.tmp/target/debug/deps/libfjall-abfe8d737f32f68d.rlib --extern proptest=/tmp/cargo-mutants-veloxide-flbwyG.tmp/target/debug/deps/libproptest-216a766c56ac4476.rlib --extern rstest=/tmp/cargo-mutants-veloxide-flbwyG.tmp/target/debug/deps/librstest-ce971fceb7271210.rlib --extern serde=/tmp/cargo-mutants-veloxide-flbwyG.tmp/target/debug/deps/libserde-65225f6523a3f7e1.rlib --extern serde_json=/tmp/cargo-mutants-veloxide-flbwyG.tmp/target/debug/deps/libserde_json-74f26af1301414df.rlib --extern tempfile=/tmp/cargo-mutants-veloxide-flbwyG.tmp/target/debug/deps/libtempfile-8ce133578a770185.rlib --extern thiserror=/tmp/cargo-mutants-veloxide-flbwyG.tmp/target/debug/deps/libthiserror-0f760a551262ab92.rlib --extern ulid=/tmp/cargo-mutants-veloxide-flbwyG.tmp/target/debug/deps/libulid-76e66df51ef33b17.rlib --extern vo_types=/tmp/cargo-mutants-veloxide-flbwyG.tmp/target/debug/deps/libvo_types-cb83cbd4b68501ac.rlib` (exit status: 1)
+
+*** result: Failure(101)

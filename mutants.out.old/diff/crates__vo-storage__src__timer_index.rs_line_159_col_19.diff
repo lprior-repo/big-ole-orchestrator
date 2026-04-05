@@ -1,0 +1,21 @@
+--- crates/vo-storage/src/timer_index.rs
++++ replace <= with > in timer_set
+@@ -151,17 +151,17 @@
+     storage: &mut impl Storage,
+     instance_id: InstanceId,
+     timer_id: TimerId,
+     fire_at_ms: u64,
+     trigger_time_ms: u64,
+     duration_ms: u64,
+     now_ms: u64,
+ ) -> Result<(), StorageError> {
+-    if fire_at_ms <= now_ms {
++    if fire_at_ms > /* ~ changed by cargo-mutants ~ */ now_ms {
+         return Err(StorageError::InvalidArgument);
+     }
+     if duration_ms == 0 {
+         return Err(StorageError::InvalidArgument);
+     }
+     if fire_at_ms != trigger_time_ms.saturating_add(duration_ms) {
+         return Err(StorageError::InvalidArgument);
+     }

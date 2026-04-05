@@ -25,27 +25,42 @@ use thiserror::Error;
 pub struct StepId(String);
 
 impl StepId {
-    pub fn new(s: String) -> Self { Self(s) }
-    
+    pub fn new(s: String) -> Self {
+        Self(s)
+    }
+
     pub fn parse(s: &str) -> Result<Self, ExecuteNodeError> {
         if s.is_empty() {
-            return Err(ExecuteNodeError::StepNotFound { step_id: StepId(s.to_string()) });
+            return Err(ExecuteNodeError::StepNotFound {
+                step_id: StepId(s.to_string()),
+            });
         }
-        if !s.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_') {
-            return Err(ExecuteNodeError::StepNotFound { step_id: StepId(s.to_string()) });
+        if !s
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+        {
+            return Err(ExecuteNodeError::StepNotFound {
+                step_id: StepId(s.to_string()),
+            });
         }
         Ok(Self(s.to_string()))
     }
-    
-    pub fn as_str(&self) -> &str { &self.0 }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
 }
 
 impl AsRef<str> for StepId {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl From<StepId> for String {
-    fn from(id: StepId) -> Self { id.0 }
+    fn from(id: StepId) -> Self {
+        id.0
+    }
 }
 
 impl std::fmt::Display for StepId {
@@ -261,7 +276,9 @@ fn set_error(step_id: &str, err: ExecuteNodeError) {
 /// **NOTE:** This is test infrastructure that simulates workflow step behavior.
 fn step_behavior(step_id: &str) -> StepBehavior {
     match step_id {
-        "step-1" | "step-good" | "step-valid" | "step-retry" | "workflow-step-1" => StepBehavior::Success,
+        "step-1" | "step-good" | "step-valid" | "step-retry" | "workflow-step-1" => {
+            StepBehavior::Success
+        }
         "step-fail" => StepBehavior::Failure,
         "step-transient" | "step-flaky" => StepBehavior::Transient,
         "step-slow" => StepBehavior::Slow,
@@ -425,7 +442,10 @@ pub async fn execute_step_with_retry(
     check_flaky_or_delegate(step_id, timeout_ms, retry_policy).await
 }
 
-fn validate_retry_policy(step_id: &StepId, retry_policy: &RetryPolicy) -> Result<(), ExecuteNodeError> {
+fn validate_retry_policy(
+    step_id: &StepId,
+    retry_policy: &RetryPolicy,
+) -> Result<(), ExecuteNodeError> {
     if retry_policy.max_attempts == 0 {
         let err = ExecuteNodeError::InvalidRetryPolicy {
             node_name: step_id.to_string(),
@@ -491,7 +511,10 @@ async fn sleep_with_backoff(retry_policy: &RetryPolicy, attempt: u32) {
     use std::time::Duration;
     use tokio::time::sleep;
 
-    sleep(Duration::from_millis(retry_policy.calculate_backoff_delay(attempt))).await;
+    sleep(Duration::from_millis(
+        retry_policy.calculate_backoff_delay(attempt),
+    ))
+    .await;
 }
 
 /// Cancel an in-progress execution.
@@ -532,7 +555,10 @@ pub fn get_execution_status(step_id: &StepId) -> ExecutionStatus {
         } => {
             let elapsed_ms =
                 u64::try_from(start_time.elapsed().as_millis()).map_or(u64::MAX, |v| v);
-            ExecutionStatus::Executing { step_id: id, elapsed_ms }
+            ExecutionStatus::Executing {
+                step_id: id,
+                elapsed_ms,
+            }
         }
         StepState::Completed { output } => ExecutionStatus::Completed { output },
         StepState::Cancelled { reason } => ExecutionStatus::Cancelled { reason },

@@ -1,0 +1,52 @@
+--- crates/vo-storage/src/query/mod.rs
++++ replace EventReplayIterator::process_kv -> Option<Result<EventEnvelope, StorageError>> with Some(Ok(Default::default()))
+@@ -165,48 +165,17 @@
+ }
+ 
+ impl EventReplayIterator {
+     fn process_kv(
+         &mut self,
+         k_bytes: &fjall::Slice,
+         v_bytes: &fjall::Slice,
+     ) -> Option<Result<EventEnvelope, StorageError>> {
+-        let seq_len: usize = 8;
+-        if k_bytes.len() < seq_len {
+-            self.inner = None;
+-            return Some(Err(StorageError::Storage));
+-        }
+-        let seq_bytes = &k_bytes[k_bytes.len() - seq_len..];
+-        let found_seq = match decode_key(seq_bytes) {
+-            Ok(s) => s,
+-            Err(e) => {
+-                self.inner = None;
+-                return Some(Err(e));
+-            }
+-        };
+-        let envelope = match EventEnvelope::from_bytes(v_bytes) {
+-            Ok(e) => e,
+-            Err(EventError::UnsupportedEnvelopeVersion(_)) => {
+-                self.inner = None;
+-                return Some(Err(StorageError::UnsupportedVersion));
+-            }
+-            Err(_) => {
+-                self.inner = None;
+-                return Some(Err(StorageError::CorruptEventPayload));
+-            }
+-        };
+-        match self.state.advance(found_seq, envelope) {
+-            Some(Err(e)) => {
+-                self.inner = None;
+-                Some(Err(e))
+-            }
+-            Some(Ok(env)) => Some(Ok(env)),
+-            None => None,
+-        }
++        Some(Ok(Default::default())) /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ #[must_use]
+ pub fn replay_events(keyspace: &fjall::Keyspace, instance_id: &InstanceId) -> EventReplayIterator {
+     let prefix = match prefix_generator(instance_id) {
+         Ok(p) => p,
+         Err(e) => {

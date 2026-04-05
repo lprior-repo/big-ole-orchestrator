@@ -42,25 +42,24 @@ fn write_class_serializes_to_json_when_bulk_blob() {
 #[test]
 fn write_class_deserializes_from_json_when_critical_control_plane() {
     let json = "\"critical_control_plane\"";
-    let result: Result<WriteClass, _> = serde_json::from_str(json);
-    assert!(result.is_ok(), "Expected Ok, got {:?}", result);
-    assert_eq!(result.unwrap(), WriteClass::CriticalControlPlane);
+    let parsed: WriteClass =
+        serde_json::from_str(json).expect("critical_control_plane should deserialize");
+    assert_eq!(parsed, WriteClass::CriticalControlPlane);
 }
 
 #[test]
 fn write_class_deserializes_from_json_when_operator_projection() {
     let json = "\"operator_projection\"";
-    let result: Result<WriteClass, _> = serde_json::from_str(json);
-    assert!(result.is_ok(), "Expected Ok, got {:?}", result);
-    assert_eq!(result.unwrap(), WriteClass::OperatorProjection);
+    let parsed: WriteClass =
+        serde_json::from_str(json).expect("operator_projection should deserialize");
+    assert_eq!(parsed, WriteClass::OperatorProjection);
 }
 
 #[test]
 fn write_class_deserializes_from_json_when_bulk_blob() {
     let json = "\"bulk_blob\"";
-    let result: Result<WriteClass, _> = serde_json::from_str(json);
-    assert!(result.is_ok(), "Expected Ok, got {:?}", result);
-    assert_eq!(result.unwrap(), WriteClass::BulkBlob);
+    let parsed: WriteClass = serde_json::from_str(json).expect("bulk_blob should deserialize");
+    assert_eq!(parsed, WriteClass::BulkBlob);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -72,9 +71,9 @@ fn write_budget_multiple_reserves_across_classes() {
     let budget = standard_budget();
 
     // Reserve from different classes
-    assert!(budget.reserve(WriteClass::CriticalControlPlane, 30).is_ok());
-    assert!(budget.reserve(WriteClass::OperatorProjection, 50).is_ok());
-    assert!(budget.reserve(WriteClass::BulkBlob, 100).is_ok());
+    assert_eq!(budget.reserve(WriteClass::CriticalControlPlane, 30), Ok(()));
+    assert_eq!(budget.reserve(WriteClass::OperatorProjection, 50), Ok(()));
+    assert_eq!(budget.reserve(WriteClass::BulkBlob, 100), Ok(()));
 
     // Check remaining for each class
     assert_eq!(budget.remaining(WriteClass::CriticalControlPlane), 70);
@@ -87,9 +86,10 @@ fn write_budget_exhaustion_isolation_between_classes() {
     let budget = standard_budget();
 
     // Exhaust critical
-    assert!(budget
-        .reserve(WriteClass::CriticalControlPlane, 100)
-        .is_ok());
+    assert_eq!(
+        budget.reserve(WriteClass::CriticalControlPlane, 100),
+        Ok(())
+    );
     assert_eq!(budget.remaining(WriteClass::CriticalControlPlane), 0);
 
     // Other classes should be unaffected
@@ -109,7 +109,7 @@ fn write_budget_can_write_at_boundary_after_partial_reserve() {
     let budget = standard_budget();
 
     // Reserve 50 from critical (leaving 50)
-    assert!(budget.reserve(WriteClass::CriticalControlPlane, 50).is_ok());
+    assert_eq!(budget.reserve(WriteClass::CriticalControlPlane, 50), Ok(()));
 
     // Can still write exactly 50 more
     assert!(budget.can_write(WriteClass::CriticalControlPlane, 50));
@@ -125,9 +125,10 @@ fn write_budget_concurrent_reserve_same_class_isolated() {
     let budget2 = WriteBudget::new(100, 200, 300);
 
     // Reserve from budget1
-    assert!(budget1
-        .reserve(WriteClass::CriticalControlPlane, 50)
-        .is_ok());
+    assert_eq!(
+        budget1.reserve(WriteClass::CriticalControlPlane, 50),
+        Ok(())
+    );
 
     // budget2 should be unaffected
     assert_eq!(budget2.remaining(WriteClass::CriticalControlPlane), 100);

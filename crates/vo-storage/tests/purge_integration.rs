@@ -1,7 +1,7 @@
 use vo_storage::codec::encode_event_key;
 use vo_storage::codec::StorageError;
 use vo_storage::instance_index::instance_index_upsert;
-use vo_storage::purge::purge_instance;
+use vo_storage::purge::{is_terminal, purge_instance};
 use vo_types::{InstanceId, InstanceStatus, SequenceNumber, TimestampMs};
 
 #[test]
@@ -80,4 +80,89 @@ fn purge_running_instance_fails() {
 
     // Verify
     assert_eq!(result, Err(StorageError::InstanceRunning));
+}
+
+#[test]
+fn purge_instance_returns_invalid_instance_id_when_input_empty() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let keyspace = fjall::Config::new(temp_dir.path()).open().unwrap();
+    let result = purge_instance(&keyspace, "");
+    assert_eq!(
+        result,
+        Err(StorageError::InvalidInstanceId(
+            vo_types::ParseError::Empty {
+                type_name: "InstanceId",
+            }
+        ))
+    );
+}
+
+#[test]
+fn purge_instance_returns_invalid_instance_id_when_input_is_malformed() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let keyspace = fjall::Config::new(temp_dir.path()).open().unwrap();
+    let invalid_id = "not-a-ulid";
+    let result = purge_instance(&keyspace, invalid_id);
+    assert_eq!(
+        result,
+        Err(StorageError::InvalidInstanceId(
+            InstanceId::parse(invalid_id).unwrap_err()
+        ))
+    );
+}
+
+#[test]
+fn purge_instance_returns_instance_running_when_instance_is_absent() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let keyspace = fjall::Config::new(temp_dir.path()).open().unwrap();
+    let instance_id = ulid::Ulid::new().to_string();
+    let result = purge_instance(&keyspace, &instance_id);
+    assert_eq!(result, Err(StorageError::InstanceRunning));
+}
+
+#[test]
+fn purge_terminal_instance_returns_zero_when_only_index_entry_exists() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let keyspace = fjall::Config::new(temp_dir.path()).open().unwrap();
+
+    let instance_id_str = ulid::Ulid::new().to_string();
+    let instance_id = InstanceId::parse(&instance_id_str).unwrap();
+    let timestamp = TimestampMs::try_from(2000u64).unwrap();
+
+    instance_index_upsert(
+        &keyspace,
+        &instance_id,
+        InstanceStatus::Failed,
+        timestamp,
+        None,
+    )
+    .unwrap();
+
+    let result = purge_instance(&keyspace, &instance_id_str);
+
+    assert_eq!(result, Ok(0));
+}
+
+#[test]
+fn is_terminal_returns_true_for_terminal_statuses() {
+    assert_eq!(
+        (
+            is_terminal(InstanceStatus::Completed),
+            is_terminal(InstanceStatus::Failed),
+            is_terminal(InstanceStatus::Cancelled)
+        ),
+        (true, true, true)
+    );
+}
+
+#[test]
+fn is_terminal_returns_false_for_non_terminal_statuses() {
+    assert_eq!(
+        (
+            is_terminal(InstanceStatus::Pending),
+            is_terminal(InstanceStatus::Running),
+            is_terminal(InstanceStatus::Paused)
+        ),
+        (false, false, false)
+    );
 }

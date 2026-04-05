@@ -1,0 +1,24 @@
+--- crates/vo-storage/src/query/mod.rs
++++ replace encode_key -> Result<[u8; 8], StorageError> with Ok([0; 8])
+@@ -15,20 +15,17 @@
+ 
+ /// Encode a sequence number as big-endian bytes.
+ ///
+ /// # Errors
+ ///
+ /// Returns `StorageError::InvalidArgument` if `sequence` is zero.
+ #[must_use = "encode_key performs a pure encoding computation"]
+ pub const fn encode_key(sequence: u64) -> Result<[u8; 8], StorageError> {
+-    if sequence == 0 {
+-        return Err(StorageError::InvalidArgument);
+-    }
+-    Ok(sequence.to_be_bytes())
++    Ok([0; 8]) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Decode a big-endian 8-byte slice into a sequence number.
+ ///
+ /// # Errors
+ ///
+ /// Returns `StorageError::Storage` if the slice is not exactly 8 bytes.
+ /// Returns `StorageError::InvalidArgument` if the slice decodes to zero.

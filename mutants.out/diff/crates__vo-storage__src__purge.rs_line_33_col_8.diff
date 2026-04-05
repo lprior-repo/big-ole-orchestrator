@@ -1,0 +1,21 @@
+--- crates/vo-storage/src/purge.rs
++++ delete ! in purge_instance
+@@ -25,17 +25,17 @@
+ 
+     // 2. Find instance in index to verify status and get metadata for key reconstruction
+     let entry = scan_all_instances(keyspace)
+         .find(|r| r.as_ref().is_ok_and(|e| e.instance_id == parsed_id))
+         .ok_or(StorageError::InstanceRunning)? // Mapping "not found" to InstanceRunning per test expectations for non-terminal
+         .map_err(|_| StorageError::ScanFailed)?;
+ 
+     // 3. Verify status is terminal
+-    if !is_terminal(entry.status) {
++    if  /* ~ changed by cargo-mutants ~ */is_terminal(entry.status) {
+         return Err(StorageError::InstanceRunning);
+     }
+ 
+     // 4. Open partitions and prepare atomic batch
+     let opts = fjall::PartitionCreateOptions::default();
+     let events_p = keyspace
+         .open_partition("events", opts.clone())
+         .map_err(|_| StorageError::ScanFailed)?;

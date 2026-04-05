@@ -1,0 +1,34 @@
+--- crates/vo-storage/src/query/mod.rs
++++ replace <impl Iterator for EventReplayIterator>::next -> Option<Self::Item> with Some(Default::default())
+@@ -142,30 +142,17 @@
+     inner: Option<Box<dyn DoubleEndedIterator<Item = fjall::Result<fjall::KvPair>>>>,
+     init_error: Option<StorageError>,
+ }
+ 
+ impl Iterator for EventReplayIterator {
+     type Item = Result<EventEnvelope, StorageError>;
+ 
+     fn next(&mut self) -> Option<Self::Item> {
+-        if let Some(err) = self.init_error.take() {
+-            return Some(Err(err));
+-        }
+-        let Some(inner) = &mut self.inner else {
+-            return None;
+-        };
+-        match inner.next() {
+-            Some(Ok((k_bytes, v_bytes))) => self.process_kv(&k_bytes, &v_bytes),
+-            Some(Err(_)) => {
+-                self.inner = None;
+-                Some(Err(StorageError::Storage))
+-            }
+-            None => None,
+-        }
++        Some(Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ impl EventReplayIterator {
+     fn process_kv(
+         &mut self,
+         k_bytes: &fjall::Slice,
+         v_bytes: &fjall::Slice,

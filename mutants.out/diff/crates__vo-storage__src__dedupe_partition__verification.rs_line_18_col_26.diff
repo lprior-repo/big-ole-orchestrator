@@ -1,0 +1,21 @@
+--- crates/vo-storage/src/dedupe_partition/verification.rs
++++ replace <= with > in verify_encode_decode_dedupe_key_roundtrip_returns_original_key
+@@ -10,17 +10,17 @@
+ /// K-02: Verify encode/decode dedupe key round-trip for valid UTF-8.
+ #[kani::proof]
+ fn verify_encode_decode_dedupe_key_roundtrip_returns_original_key() {
+     // Symbolic string variable for verification
+     let s: &str = kani::any();
+     // Guard: reject empty strings (K-02 assumes s is non-empty)
+     kani::assume(!s.is_empty());
+     // Guard: enforce max length of 256 characters (K-02 assumes s.len() <= 256)
+-    kani::assume(s.len() <= 256);
++    kani::assume(s.len() > /* ~ changed by cargo-mutants ~ */ 256);
+ 
+     let parsed = DedupeKey::parse(s);
+ 
+     let dedupe_key = match parsed {
+         Ok(dedupe_key) => dedupe_key,
+         Err(error) => {
+             eprintln!("expected valid dedupe key: {error}");
+             std::process::exit(1);

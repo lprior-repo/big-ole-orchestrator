@@ -1,0 +1,53 @@
+--- crates/vo-storage/src/timer_index.rs
++++ replace scan_due_timers -> Result<Vec<TimerRecord>, StorageError> with Ok(vec![])
+@@ -176,49 +176,17 @@
+ /// # Errors
+ ///
+ /// Returns `StorageError::CorruptKey` if timer key or value bytes cannot be decoded.
+ pub fn scan_due_timers(
+     storage: &impl Storage,
+     instance_id: &InstanceId,
+     now_ms: u64,
+ ) -> Result<Vec<TimerRecord>, StorageError> {
+-    let start = [0u8; 40];
+-    let end = {
+-        let mut e = [0u8; 40];
+-        e[0..8].copy_from_slice(&(now_ms.saturating_add(1)).to_be_bytes());
+-        e
+-    };
+-
+-    let pairs = storage.scan(&start, &end)?;
+-    let records: Vec<TimerRecord> = pairs
+-        .into_iter()
+-        .filter_map(|(k, v)| {
+-            let key_bytes: [u8; 40] = k.try_into().ok()?;
+-            let key = TimerKey(key_bytes);
+-            if key.instance_id() != *instance_id {
+-                return None;
+-            }
+-            let fire_at_ms = key.fire_at_ms();
+-            if fire_at_ms > now_ms {
+-                return None;
+-            }
+-            let duration_bytes: [u8; 8] = v.try_into().ok()?;
+-            let duration_ms = u64::from_be_bytes(duration_bytes);
+-            let trigger_time_ms = fire_at_ms.saturating_sub(duration_ms);
+-            Some(TimerRecord {
+-                timer_id: key.timer_id(),
+-                instance_id: key.instance_id(),
+-                fire_at_ms,
+-                trigger_time_ms,
+-                duration_ms,
+-            })
+-        })
+-        .collect();
+-    Ok(records)
++    Ok(vec![]) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Deletes a timer from the timers partition.
+ ///
+ /// # Errors
+ ///
+ /// Returns `StorageError` if the underlying storage operation fails.
+ pub fn timer_delete(

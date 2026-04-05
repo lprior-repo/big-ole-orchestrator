@@ -1,0 +1,33 @@
+--- crates/vo-storage/src/effect_journal/mod.rs
++++ replace <impl fmt::Display for EffectJournalError>::fmt -> fmt::Result with Ok(Default::default())
+@@ -95,29 +95,17 @@
+     Codec { reason: String },
+ 
+     /// Invalid argument (e.g., empty `intent_id`).
+     InvalidArgument,
+ }
+ 
+ impl fmt::Display for EffectJournalError {
+     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+-        match self {
+-            Self::AlreadyTerminal {
+-                effect_id,
+-                current_status,
+-            } => write!(
+-                f,
+-                "effect {effect_id} is already terminal with status {current_status}"
+-            ),
+-            Self::NotFound { effect_id } => write!(f, "effect {effect_id} not found"),
+-            Self::Storage { reason } => write!(f, "storage error: {reason}"),
+-            Self::Codec { reason } => write!(f, "codec error: {reason}"),
+-            Self::InvalidArgument => write!(f, "invalid argument"),
+-        }
++        Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ impl std::error::Error for EffectJournalError {}
+ 
+ // ---------------------------------------------------------------------------
+ // Calc layer — key encoding/decoding
+ // ---------------------------------------------------------------------------

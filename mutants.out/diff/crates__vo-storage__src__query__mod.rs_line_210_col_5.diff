@@ -1,0 +1,55 @@
+--- crates/vo-storage/src/query/mod.rs
++++ replace replay_events -> EventReplayIterator with Default::default()
+@@ -202,51 +202,10 @@
+             Some(Ok(env)) => Some(Ok(env)),
+             None => None,
+         }
+     }
+ }
+ 
+ #[must_use]
+ pub fn replay_events(keyspace: &fjall::Keyspace, instance_id: &InstanceId) -> EventReplayIterator {
+-    let prefix = match prefix_generator(instance_id) {
+-        Ok(p) => p,
+-        Err(e) => {
+-            return EventReplayIterator {
+-                state: IteratorState::new(),
+-                inner: None,
+-                init_error: Some(e),
+-            };
+-        }
+-    };
+-    let Ok(partition) = keyspace.open_partition("events", fjall::PartitionCreateOptions::default())
+-    else {
+-        return EventReplayIterator {
+-            state: IteratorState::new(),
+-            inner: None,
+-            init_error: Some(StorageError::Storage),
+-        };
+-    };
+-    let Ok(min_seq) = encode_key(1) else {
+-        return EventReplayIterator {
+-            state: IteratorState::new(),
+-            inner: None,
+-            init_error: Some(StorageError::Storage),
+-        };
+-    };
+-    let Ok(max_seq) = encode_key(u64::MAX) else {
+-        return EventReplayIterator {
+-            state: IteratorState::new(),
+-            inner: None,
+-            init_error: Some(StorageError::Storage),
+-        };
+-    };
+-    let mut start = prefix.clone();
+-    start.extend_from_slice(&min_seq);
+-    let mut end = prefix;
+-    end.extend_from_slice(&max_seq);
+-    let iter = partition.range(start..=end);
+-    EventReplayIterator {
+-        state: IteratorState::new(),
+-        inner: Some(Box::new(iter)),
+-        init_error: None,
+-    }
++    Default::default() /* ~ changed by cargo-mutants ~ */
+ }

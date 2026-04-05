@@ -28,7 +28,11 @@ impl WorkflowVersion {
     /// # Errors
     ///
     /// Returns an error if the hash is shorter than 64 characters.
-    pub fn new(name: WorkflowName, hash: BinaryHash, registered_at: TimestampMs) -> Result<Self, WorkflowVersionError> {
+    pub fn new(
+        name: WorkflowName,
+        hash: BinaryHash,
+        registered_at: TimestampMs,
+    ) -> Result<Self, WorkflowVersionError> {
         if hash.as_str().len() < 64 {
             return Err(WorkflowVersionError::HashTooShort);
         }
@@ -76,7 +80,9 @@ mod tests {
 
     #[test]
     fn new_creates_version_with_correct_binary_path_format() {
-        let hash = BinaryHash::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
+        let hash =
+            BinaryHash::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+                .unwrap();
         let name = WorkflowName::parse("my-workflow").unwrap();
         let ts = TimestampMs::try_from(1712200000000u64).unwrap();
 
@@ -88,7 +94,9 @@ mod tests {
 
     #[test]
     fn new_sets_schema_version_to_one() {
-        let hash = BinaryHash::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
+        let hash =
+            BinaryHash::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+                .unwrap();
         let name = WorkflowName::parse("my-workflow").unwrap();
         let ts = TimestampMs::try_from(1712200000000u64).unwrap();
 
@@ -99,7 +107,9 @@ mod tests {
 
     #[test]
     fn serde_roundtrip_preserves_all_fields() {
-        let hash = BinaryHash::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
+        let hash =
+            BinaryHash::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+                .unwrap();
         let name = WorkflowName::parse("my-workflow").unwrap();
         let ts = TimestampMs::try_from(1712200000000u64).unwrap();
 
@@ -110,8 +120,14 @@ mod tests {
 
         assert_eq!(deserialized, original);
         assert!(json.contains("\"schema_version\""));
-        assert!(json.contains("\"workflow_name\""), "JSON must use workflow_name field: {json}");
-        assert!(json.contains("\"version_hash\""), "JSON must use version_hash field: {json}");
+        assert!(
+            json.contains("\"workflow_name\""),
+            "JSON must use workflow_name field: {json}"
+        );
+        assert!(
+            json.contains("\"version_hash\""),
+            "JSON must use version_hash field: {json}"
+        );
     }
 
     #[test]
@@ -122,12 +138,14 @@ mod tests {
 
         let result = super::WorkflowVersion::new(name, hash, ts);
 
-        assert!(result.is_err());
+        assert_eq!(result, Err(super::WorkflowVersionError::HashTooShort));
     }
 
     #[test]
     fn binary_path_returns_string_starting_with_prefix() {
-        let hash = BinaryHash::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
+        let hash =
+            BinaryHash::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+                .unwrap();
         let name = WorkflowName::parse("my-workflow").unwrap();
         let ts = TimestampMs::try_from(1712200000000u64).unwrap();
 
@@ -139,7 +157,9 @@ mod tests {
 
     #[test]
     fn binary_path_returns_str_ref_not_string() {
-        let hash = BinaryHash::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
+        let hash =
+            BinaryHash::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+                .unwrap();
         let name = WorkflowName::parse("my-workflow").unwrap();
         let ts = TimestampMs::try_from(1712200000000u64).unwrap();
 
@@ -153,7 +173,9 @@ mod tests {
     fn workflow_version_is_hashable_for_use_in_hashset() {
         use std::collections::HashSet;
 
-        let hash = BinaryHash::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
+        let hash =
+            BinaryHash::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+                .unwrap();
         let name = WorkflowName::parse("my-workflow").unwrap();
         let ts = TimestampMs::try_from(1712200000000u64).unwrap();
 

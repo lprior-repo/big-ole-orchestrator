@@ -1,0 +1,21 @@
+--- crates/vo-storage/src/instance_index/mod.rs
++++ replace != with == in decode_instance_index_key
+@@ -57,17 +57,17 @@
+ 
+ /// Decode a 25-byte composite key into its components.
+ ///
+ /// # Errors
+ ///
+ /// - `StorageError::CorruptKey` if `bytes.len() != 25`
+ /// - `StorageError::CorruptKey` if the status byte is not in `[0x01..=0x06]`
+ pub fn decode_instance_index_key(bytes: &[u8]) -> Result<InstanceIndexEntry, StorageError> {
+-    if bytes.len() != 25 {
++    if bytes.len() == /* ~ changed by cargo-mutants ~ */ 25 {
+         return Err(StorageError::CorruptKey);
+     }
+     let status = InstanceStatus::from_byte(bytes[0]).ok_or(StorageError::CorruptKey)?;
+     let ts_bytes: [u8; 8] = bytes[1..9]
+         .try_into()
+         .map_err(|_| StorageError::CorruptKey)?;
+     let created_at = TimestampMs::try_from(u64::from_be_bytes(ts_bytes))
+         .map_err(|_| StorageError::CorruptKey)?;

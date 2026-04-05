@@ -1,0 +1,21 @@
+--- crates/vo-storage/src/effect_journal/mod.rs
++++ replace encode_effect_key -> Vec<u8> with vec![1]
+@@ -122,17 +122,17 @@
+ // Calc layer — key encoding/decoding
+ // ---------------------------------------------------------------------------
+ 
+ /// Encode an `EffectId` as UTF-8 bytes for use as a partition key.
+ ///
+ /// The key format is simply the UTF-8 representation of the `EffectId` string.
+ #[must_use]
+ pub fn encode_effect_key(effect_id: &EffectId) -> Vec<u8> {
+-    effect_id.as_str().as_bytes().to_vec()
++    vec![1] /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Decode UTF-8 bytes into an `EffectId`.
+ ///
+ /// # Errors
+ ///
+ /// Returns `EffectJournalError::Codec` if the bytes are not valid UTF-8 or empty.
+ pub fn decode_effect_key(bytes: &[u8]) -> Result<EffectId, EffectJournalError> {

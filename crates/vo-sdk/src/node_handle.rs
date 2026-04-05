@@ -38,7 +38,6 @@ impl<I, O> NodeHandle<I, O> {
     }
 }
 
-
 impl<I, O> fmt::Display for NodeHandle<I, O> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "NodeHandle({})", self.name)

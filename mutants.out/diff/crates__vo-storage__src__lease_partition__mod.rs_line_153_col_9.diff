@@ -1,0 +1,21 @@
+--- crates/vo-storage/src/lease_partition/mod.rs
++++ replace LeaseEntry::expires_at -> u64 with 0
+@@ -145,17 +145,17 @@
+ 
+     #[must_use]
+     pub const fn fence_token(&self) -> u64 {
+         self.fence_token
+     }
+ 
+     #[must_use]
+     pub const fn expires_at(&self) -> u64 {
+-        self.expires_at
++        0 /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// Check if this lease has expired.
+     #[must_use]
+     pub const fn is_expired(&self, now_ms: u64) -> bool {
+         now_ms >= self.expires_at
+     }
+ 

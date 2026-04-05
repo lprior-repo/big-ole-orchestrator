@@ -73,10 +73,7 @@ mod tests {
     #[test]
     fn snapshot_older_than_engine_returns_needs_upcast() {
         let result = check_snapshot_compat(1, 3);
-        assert_eq!(
-            result,
-            SnapshotCompat::NeedsUpcast { from: 1, to: 3 }
-        );
+        assert_eq!(result, SnapshotCompat::NeedsUpcast { from: 1, to: 3 });
     }
 
     #[test]

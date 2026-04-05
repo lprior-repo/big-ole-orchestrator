@@ -82,3 +82,120 @@ pub const fn is_terminal(status: InstanceStatus) -> bool {
         InstanceStatus::Completed | InstanceStatus::Failed | InstanceStatus::Cancelled
     )
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+    use crate::codec::encode_event_key;
+    use crate::instance_index::instance_index_upsert;
+    use rstest::rstest;
+    use vo_types::{SequenceNumber, TimestampMs};
+
+    fn setup_keyspace() -> (tempfile::TempDir, fjall::Keyspace) {
+        let dir = tempfile::tempdir().unwrap();
+        let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+        (dir, keyspace)
+    }
+
+    fn sample_instance_id_string() -> String {
+        ulid::Ulid::new().to_string()
+    }
+
+    #[test]
+    fn purge_instance_returns_invalid_instance_id_when_input_empty() {
+        let (_dir, keyspace) = setup_keyspace();
+        let result = purge_instance(&keyspace, "");
+        assert_eq!(
+            result,
+            Err(StorageError::InvalidInstanceId(
+                vo_types::ParseError::Empty {
+                    type_name: "InstanceId",
+                }
+            ))
+        );
+    }
+
+    #[test]
+    fn purge_instance_returns_instance_running_when_instance_is_absent() {
+        let (_dir, keyspace) = setup_keyspace();
+        let result = purge_instance(&keyspace, &sample_instance_id_string());
+        assert_eq!(result, Err(StorageError::InstanceRunning));
+    }
+
+    #[test]
+    fn purge_instance_returns_zero_when_terminal_instance_has_no_events() {
+        let (_dir, keyspace) = setup_keyspace();
+        let instance_id_str = sample_instance_id_string();
+        let instance_id = InstanceId::parse(&instance_id_str).unwrap();
+        let created_at = TimestampMs::try_from(1000_u64).unwrap();
+
+        instance_index_upsert(
+            &keyspace,
+            &instance_id,
+            InstanceStatus::Completed,
+            created_at,
+            None,
+        )
+        .unwrap();
+
+        let result = purge_instance(&keyspace, &instance_id_str);
+        assert_eq!(result, Ok(0));
+    }
+
+    #[test]
+    fn purge_instance_deletes_events_snapshots_and_index_for_terminal_instance() {
+        let (_dir, keyspace) = setup_keyspace();
+        let instance_id_str = sample_instance_id_string();
+        let instance_id = InstanceId::parse(&instance_id_str).unwrap();
+        let created_at = TimestampMs::try_from(1000_u64).unwrap();
+
+        instance_index_upsert(
+            &keyspace,
+            &instance_id,
+            InstanceStatus::Failed,
+            created_at,
+            None,
+        )
+        .unwrap();
+
+        let events = keyspace
+            .open_partition("events", fjall::PartitionCreateOptions::default())
+            .unwrap();
+        let snapshots = keyspace
+            .open_partition("snapshots", fjall::PartitionCreateOptions::default())
+            .unwrap();
+        let instances = keyspace
+            .open_partition("instances", fjall::PartitionCreateOptions::default())
+            .unwrap();
+        let sequence_one = SequenceNumber::try_from(1_u64).unwrap();
+        let sequence_two = SequenceNumber::try_from(2_u64).unwrap();
+        let key_one = encode_event_key(&instance_id, &sequence_one).unwrap();
+        let key_two = encode_event_key(&instance_id, &sequence_two).unwrap();
+
+        events.insert(key_one, b"event-one").unwrap();
+        events.insert(key_two, b"event-two").unwrap();
+        snapshots.insert(key_one, b"snapshot-one").unwrap();
+
+        let result = purge_instance(&keyspace, &instance_id_str);
+
+        assert_eq!(result, Ok(2));
+        assert_eq!(events.prefix(instance_id.to_bytes().unwrap()).count(), 0);
+        assert_eq!(snapshots.prefix(instance_id.to_bytes().unwrap()).count(), 0);
+        assert_eq!(instances.prefix([]).count(), 0);
+    }
+
+    #[rstest]
+    #[case(InstanceStatus::Completed, true)]
+    #[case(InstanceStatus::Failed, true)]
+    #[case(InstanceStatus::Cancelled, true)]
+    #[case(InstanceStatus::Pending, false)]
+    #[case(InstanceStatus::Running, false)]
+    #[case(InstanceStatus::Paused, false)]
+    fn is_terminal_returns_expected_value_for_each_status(
+        #[case] status: InstanceStatus,
+        #[case] expected: bool,
+    ) {
+        assert_eq!(is_terminal(status), expected);
+    }
+}

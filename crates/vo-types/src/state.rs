@@ -136,9 +136,7 @@ impl LifecycleState {
             LifecycleState::WaitingForTimer => {
                 super::lifecycle_superstate::LifecycleSuperstate::Suspended
             }
-            LifecycleState::Completed
-            | LifecycleState::Failed
-            | LifecycleState::Cancelled => {
+            LifecycleState::Completed | LifecycleState::Failed | LifecycleState::Cancelled => {
                 super::lifecycle_superstate::LifecycleSuperstate::Terminal
             }
         }

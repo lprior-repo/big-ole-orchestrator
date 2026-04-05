@@ -219,10 +219,9 @@ mod tests {
     }
 }
 
-#[cfg(feature = "proptest")]
+#[cfg(all(test, feature = "proptest"))]
 #[allow(clippy::unwrap_used)]
 mod proptests {
-    use super::*;
     use proptest::prelude::*;
 
     proptest! {
@@ -231,10 +230,10 @@ mod proptests {
             id_str in "[0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{26}",
             seq_val in 1u64..=u64::MAX
         ) {
-            if let Ok(id) = InstanceId::parse(&id_str) {
-                let seq = SequenceNumber::try_from(seq_val).unwrap();
-                let encoded = encode_event_key(&id, &seq).unwrap();
-                let decoded = decode_event_key(&encoded);
+            if let Ok(id) = vo_types::InstanceId::parse(&id_str) {
+                let seq = vo_types::SequenceNumber::try_from(seq_val).unwrap();
+                let encoded = super::encode_event_key(&id, &seq).unwrap();
+                let decoded = super::decode_event_key(&encoded);
                 prop_assert_eq!(decoded, Ok((id, seq)));
             }
         }

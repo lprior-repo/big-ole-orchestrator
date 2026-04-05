@@ -72,20 +72,17 @@ mod tests {
     #[test]
     fn terminal_round_trips_via_serde() {
         let json = "\"terminal\"";
-        let result: Result<LifecycleSuperstate, _> = serde_json::from_str(json);
-        assert!(
-            result.is_ok(),
-            "should deserialize 'terminal': {:?}",
-            result
-        );
-        let roundtrip = serde_json::to_string(&result.unwrap()).unwrap();
+        let parsed: LifecycleSuperstate =
+            serde_json::from_str(json).expect("should deserialize 'terminal'");
+        assert_eq!(parsed, LifecycleSuperstate::Terminal);
+        let roundtrip = serde_json::to_string(&parsed).unwrap();
         assert_eq!(roundtrip, json);
     }
 
     #[test]
     fn rejects_unknown_variant() {
         let result: Result<LifecycleSuperstate, _> = serde_json::from_str("\"bogus\"");
-        assert!(result.is_err());
+        assert!(matches!(result, Err(_)));
     }
 
     // --- LifecycleState::superstate() mapping tests ---

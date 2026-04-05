@@ -109,7 +109,7 @@ mod tests {
     use vo_types::WorkflowName;
 
     #[test]
-    fn test_circuit_breaker_state() {
+    fn circuit_breaker_state_tracks_status_rate_limit_and_failure_window() {
         let state = CircuitBreakerState::default();
         let wf = WorkflowName::parse("test-wf").unwrap();
 

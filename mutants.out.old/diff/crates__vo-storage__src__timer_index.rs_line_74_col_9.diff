@@ -1,0 +1,21 @@
+--- crates/vo-storage/src/timer_index.rs
++++ replace TimerValue::as_be_bytes -> [u8; 8] with [0; 8]
+@@ -66,17 +66,17 @@
+         Ok(Self(duration_ms))
+     }
+     #[must_use]
+     pub const fn duration_ms(&self) -> u64 {
+         self.0
+     }
+     #[must_use]
+     pub const fn as_be_bytes(&self) -> [u8; 8] {
+-        self.0.to_be_bytes()
++        [0; 8] /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ #[derive(Debug, Clone, PartialEq, Eq)]
+ pub struct TimerRecord {
+     pub timer_id: TimerId,
+     pub instance_id: InstanceId,
+     pub fire_at_ms: u64,

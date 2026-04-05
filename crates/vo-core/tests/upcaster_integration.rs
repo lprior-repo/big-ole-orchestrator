@@ -214,81 +214,17 @@ impl UpcasterRegistry for TestUpcasterRegistry {
         }
 
         let upcasters = self.upcasters.lock().unwrap();
-        let mut current_version = envelope.schema_version;
-        let mut current_payload = envelope.payload.clone();
-
-        // Track visited versions to detect cycles
         let mut visited = std::collections::HashSet::new();
-        visited.insert(current_version);
+        visited.insert(envelope.schema_version);
 
-        loop {
-            if current_version >= self.max_version {
-                break;
-            }
-
-            let upcaster = upcasters
-                .get(&current_version)
-                .ok_or(UpcasterError::NoUpcasterRegistered(current_version))?;
-
-            // Serialize current payload with version
-            let mut envelope_json = serde_json::Map::new();
-            envelope_json.insert("version".to_string(), serde_json::json!(current_version));
-            envelope_json.insert(
-                "instance_id".to_string(),
-                serde_json::json!(envelope.instance_id.clone()),
-            );
-            envelope_json.insert("sequence".to_string(), serde_json::json!(envelope.sequence));
-            envelope_json.insert(
-                "timestamp_ms".to_string(),
-                serde_json::json!(envelope.timestamp_ms),
-            );
-            envelope_json.insert("payload".to_string(), current_payload);
-            envelope_json.insert("metadata".to_string(), envelope.metadata.clone());
-
-            let input_bytes = serde_json::to_vec(&envelope_json)
-                .map_err(|e| UpcasterError::UpcastingFailed(format!("serialize error: {}", e)))?;
-
-            let output_bytes = upcaster.upcast(&input_bytes)?;
-
-            // Parse the output back as an envelope
-            let output_json: serde_json::Value =
-                serde_json::from_slice(&output_bytes).map_err(|_| {
-                    UpcasterError::InvalidUpcastedEnvelope(
-                        vo_types::events::Error::InvalidEnvelopeFormat,
-                    )
-                })?;
-
-            let output_obj =
-                output_json
-                    .as_object()
-                    .ok_or(UpcasterError::InvalidUpcastedEnvelope(
-                        vo_types::events::Error::InvalidEnvelopeFormat,
-                    ))?;
-
-            let new_version = output_obj
-                .get("version")
-                .and_then(|v| v.as_u64())
-                .map(|v| v as u8)
-                .ok_or(UpcasterError::InvalidUpcastedEnvelope(
-                    vo_types::events::Error::MissingEnvelopeField("version".to_string()),
-                ))?;
-
-            if new_version > self.max_version {
-                return Err(UpcasterError::InvalidTargetVersion(new_version));
-            }
-
-            // Check for circular chain
-            if visited.contains(&new_version) {
-                return Err(UpcasterError::CircularChain(new_version));
-            }
-            visited.insert(new_version);
-
-            current_version = new_version;
-            current_payload = output_obj
-                .get("payload")
-                .cloned()
-                .unwrap_or(serde_json::Value::Null);
-        }
+        let (current_version, current_payload) = apply_upcast_chain(
+            &upcasters,
+            &envelope,
+            self.max_version,
+            envelope.schema_version,
+            envelope.payload.clone(),
+            &mut visited,
+        )?;
 
         Ok(EventEnvelope {
             schema_version: current_version,
@@ -303,6 +239,78 @@ impl UpcasterRegistry for TestUpcasterRegistry {
     fn max_supported_version(&self) -> u8 {
         self.max_version
     }
+}
+
+fn apply_upcast_chain(
+    upcasters: &std::collections::HashMap<u8, Box<dyn Upcaster>>,
+    envelope: &EventEnvelope,
+    max_version: u8,
+    current_version: u8,
+    current_payload: serde_json::Value,
+    visited: &mut std::collections::HashSet<u8>,
+) -> Result<(u8, serde_json::Value), UpcasterError> {
+    if current_version >= max_version {
+        return Ok((current_version, current_payload));
+    }
+
+    let upcaster = upcasters
+        .get(&current_version)
+        .ok_or(UpcasterError::NoUpcasterRegistered(current_version))?;
+
+    let mut envelope_json = serde_json::Map::new();
+    envelope_json.insert("version".to_string(), serde_json::json!(current_version));
+    envelope_json.insert(
+        "instance_id".to_string(),
+        serde_json::json!(envelope.instance_id.clone()),
+    );
+    envelope_json.insert("sequence".to_string(), serde_json::json!(envelope.sequence));
+    envelope_json.insert(
+        "timestamp_ms".to_string(),
+        serde_json::json!(envelope.timestamp_ms),
+    );
+    envelope_json.insert("payload".to_string(), current_payload);
+    envelope_json.insert("metadata".to_string(), envelope.metadata.clone());
+
+    let input_bytes = serde_json::to_vec(&envelope_json)
+        .map_err(|e| UpcasterError::UpcastingFailed(format!("serialize error: {}", e)))?;
+    let output_bytes = upcaster.upcast(&input_bytes)?;
+    let output_json: serde_json::Value = serde_json::from_slice(&output_bytes).map_err(|_| {
+        UpcasterError::InvalidUpcastedEnvelope(vo_types::events::Error::InvalidEnvelopeFormat)
+    })?;
+    let output_obj = output_json
+        .as_object()
+        .ok_or(UpcasterError::InvalidUpcastedEnvelope(
+            vo_types::events::Error::InvalidEnvelopeFormat,
+        ))?;
+
+    let new_version = output_obj
+        .get("version")
+        .and_then(|v| v.as_u64())
+        .map(|v| v as u8)
+        .ok_or(UpcasterError::InvalidUpcastedEnvelope(
+            vo_types::events::Error::MissingEnvelopeField("version".to_string()),
+        ))?;
+
+    if new_version > max_version {
+        return Err(UpcasterError::InvalidTargetVersion(new_version));
+    }
+
+    if visited.contains(&new_version) {
+        return Err(UpcasterError::CircularChain(new_version));
+    }
+    visited.insert(new_version);
+
+    apply_upcast_chain(
+        upcasters,
+        envelope,
+        max_version,
+        new_version,
+        output_obj
+            .get("payload")
+            .cloned()
+            .unwrap_or(serde_json::Value::Null),
+        visited,
+    )
 }
 
 struct TestUpcasterRegistryBuilder;
@@ -402,8 +410,7 @@ fn upcaster_output_is_valid_utf8_when_upcast_succeeds() {
     let input = br#"{"version": 0, "payload": {"data": "test"}}"#;
 
     let result = upcaster.upcast(input);
-    assert!(result.is_ok(), "upcast should succeed with valid input");
-    let output = result.unwrap();
+    let output = result.expect("upcast should succeed with valid input");
     let output_str = std::str::from_utf8(&output).expect("upcast output should be valid UTF-8");
     assert!(!output_str.is_empty(), "output should not be empty");
 }
@@ -415,8 +422,7 @@ fn upcaster_output_contains_incremented_version_field() {
     let input = br#"{"version": 0, "payload": {}}"#;
     let result = upcaster.upcast(input);
 
-    assert!(result.is_ok(), "upcast should succeed: {:?}", result);
-    let output = result.unwrap();
+    let output = result.expect("upcast should succeed");
     let parsed: serde_json::Value =
         serde_json::from_slice(&output).expect("output should be valid JSON");
     assert_eq!(
@@ -518,12 +524,7 @@ fn registry_applies_single_upcaster_when_version_gap_is_one() {
     // RED PHASE: The upcaster stub returns Err, so upcast_envelope will fail
     let result = registry.upcast_envelope(envelope);
 
-    assert!(
-        result.is_ok(),
-        "upcast_envelope should succeed: {:?}",
-        result
-    );
-    let upcasted = result.unwrap();
+    let upcasted = result.expect("upcast_envelope should succeed");
     assert_eq!(
         upcasted.schema_version, 1,
         "version should be incremented to 1"
@@ -656,12 +657,7 @@ fn registry_preserves_envelope_fields_when_upcasting() {
     // RED PHASE: The upcaster stub returns Err, so this will fail
     let result = registry.upcast_envelope(envelope.clone());
 
-    assert!(
-        result.is_ok(),
-        "upcast_envelope should succeed: {:?}",
-        result
-    );
-    let upcasted = result.unwrap();
+    let upcasted = result.expect("upcast_envelope should succeed");
     assert_eq!(upcasted.schema_version, 1, "version should be incremented");
     assert_eq!(upcasted.instance_id, envelope.instance_id);
     assert_eq!(upcasted.sequence, envelope.sequence);
@@ -701,8 +697,7 @@ fn builder_creates_functional_registry_that_can_register_and_upcast() {
 
     // RED PHASE: upcaster stub returns Err, so this will fail
     let result = registry.upcast_envelope(envelope);
-    assert!(result.is_ok(), "upcast should succeed: {:?}", result);
-    let upcasted = result.unwrap();
+    let upcasted = result.expect("upcast should succeed");
     assert_eq!(
         upcasted.schema_version, 1,
         "version should be incremented to 1"
@@ -755,12 +750,7 @@ fn upcast_envelope_through_full_workflow_when_envelope_enters_at_version_zero_an
     // RED PHASE: upcaster stub returns Err
     let result = registry.upcast_envelope(envelope);
 
-    assert!(
-        result.is_ok(),
-        "upcast_envelope should succeed: {:?}",
-        result
-    );
-    let upcasted = result.unwrap();
+    let upcasted = result.expect("upcast_envelope should succeed");
     assert_eq!(
         upcasted.schema_version, 1,
         "version should be incremented to 1"
@@ -796,8 +786,7 @@ fn idempotent_registration_does_not_double_chain() {
 
     // RED PHASE: upcaster stub returns Err
     let result = registry.upcast_envelope(envelope);
-    assert!(result.is_ok(), "upcast should succeed: {:?}", result);
-    let upcasted = result.unwrap();
+    let upcasted = result.expect("upcast should succeed");
     assert_eq!(
         upcasted.schema_version, 1,
         "version should be incremented to 1"
@@ -822,8 +811,7 @@ fn envelope_metadata_preserved_through_multi_hop_upcast() {
     };
 
     let result = registry.upcast_envelope(envelope.clone());
-    assert!(result.is_ok(), "upcast should succeed: {:?}", result);
-    let upcasted = result.unwrap();
+    let upcasted = result.expect("upcast should succeed");
     assert_eq!(
         upcasted.schema_version, 1,
         "version should be incremented to 1"

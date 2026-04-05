@@ -24,6 +24,32 @@ fn proc_exists(pid: i32) -> bool {
     Path::new(&format!("/proc/{}", pid)).exists()
 }
 
+async fn wait_for_non_empty_file(path: &Path, attempts: usize, delay: Duration) -> String {
+    let mut ticker = tokio::time::interval(delay);
+    let mut contents = String::new();
+    for _ in 0..attempts {
+        if let Ok(candidate) = fs::read_to_string(path) {
+            if !candidate.is_empty() {
+                contents = candidate;
+                break;
+            }
+        }
+        ticker.tick().await;
+    }
+    contents
+}
+
+async fn wait_for_process_reap(pid: i32, attempts: usize, delay: Duration) -> bool {
+    let mut ticker = tokio::time::interval(delay);
+    for _ in 0..attempts {
+        if !proc_exists(pid) {
+            return true;
+        }
+        ticker.tick().await;
+    }
+    false
+}
+
 #[tokio::test]
 async fn fd4_success_echoes_payload() {
     let output = run_subprocess(config("echo-fd3 hello", 500)).await.unwrap();
@@ -121,7 +147,6 @@ async fn sigkill_is_skipped_when_child_exits_during_grace() {
     let marker = marker_dir.path().join("term.txt");
     let payload = format!("timeout-term-exit {} 10 none body", marker.display());
     let error = run_subprocess(config(payload, 20)).await.unwrap_err();
-    let _elapsed = Instant::now() - Instant::now(); // Just to have a variable
     assert!(matches!(error, IpcError::Timeout { .. }));
     assert_eq!(fs::read_to_string(&marker).unwrap(), "SIGTERM");
 }
@@ -144,30 +169,13 @@ async fn timeout_path_reaps_child() {
     let payload = format!("timeout-ignore {} sleep", pid_path.display());
     // Increased timeout from 20ms to 200ms to guarantee fixture_driver writes its PID
     let error = run_subprocess(config(payload, 200)).await.unwrap_err();
-    
-    let mut pid_str = String::new();
-    for _ in 0..20 {
-        if let Ok(contents) = fs::read_to_string(&pid_path) {
-            if !contents.is_empty() {
-                pid_str = contents;
-                break;
-            }
-        }
-        tokio::time::sleep(Duration::from_millis(10)).await;
-    }
-    
+
+    let pid_str = wait_for_non_empty_file(&pid_path, 20, Duration::from_millis(10)).await;
+
     let pid: i32 = pid_str.parse().unwrap();
     assert!(matches!(error, IpcError::Timeout { .. }));
-    
-    // Give it a moment to be reaped
-    let mut reaped = false;
-    for _ in 0..500 {
-        if !proc_exists(pid) {
-            reaped = true;
-            break;
-        }
-        tokio::time::sleep(Duration::from_millis(100)).await;
-    }
+
+    let reaped = wait_for_process_reap(pid, 500, Duration::from_millis(100)).await;
     assert!(reaped, "process was not reaped");
 }
 

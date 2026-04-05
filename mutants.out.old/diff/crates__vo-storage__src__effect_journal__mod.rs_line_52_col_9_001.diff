@@ -1,0 +1,21 @@
+--- crates/vo-storage/src/effect_journal/mod.rs
++++ replace EffectId::as_str -> &str with "xyzzy"
+@@ -44,17 +44,17 @@
+         }
+         let id_str = format!("{instance_id}::{intent_id}");
+         Ok(Self(id_str))
+     }
+ 
+     /// Returns the underlying string representation.
+     #[must_use]
+     pub fn as_str(&self) -> &str {
+-        &self.0
++        "xyzzy" /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ impl TryFrom<String> for EffectId {
+     type Error = EffectJournalError;
+ 
+     fn try_from(value: String) -> Result<Self, Self::Error> {
+         if value.is_empty() {
