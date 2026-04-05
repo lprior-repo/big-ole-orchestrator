@@ -10,7 +10,7 @@
 
 # Use no-db mode: JSONL-only, no Dolt database
 # When true, bd will use .beads/issues.jsonl as the source of truth
-no-db: true
+# no-db: false
 
 # Enable JSON output by default
 # json: false
@@ -20,7 +20,7 @@ no-db: true
 # output:
 #   title-length: 255
 
-# Default actor for audit trails (overridden by BD_ACTOR or --actor)
+# Default actor for audit trails (overridden by BEADS_ACTOR or --actor)
 # actor: ""
 
 # Export events (audit trail) to .beads/events.jsonl on each flush/sync
@@ -52,10 +52,3 @@ no-db: true
 # - linear.api-key
 # - github.org
 # - github.repo
-
-dolt.auto-commit: "batch"
-dolt.port: 36253
-dolt.data-dir: ".beads/dolt"
-
-# Use local-only Dolt (no remote sync)
-sync.git-remote: ""
