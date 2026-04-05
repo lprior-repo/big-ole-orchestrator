@@ -1,0 +1,29 @@
+--- crates/vo-executor/src/lib.rs
++++ replace start_execution with ()
+@@ -362,25 +362,17 @@
+         return Err(ExecuteNodeError::StepNotFound {
+             step_id: step_id.clone(),
+         });
+     }
+     Ok(behavior)
+ }
+ 
+ fn start_execution(step_id: &StepId) {
+-    let start_time = Instant::now();
+-    set_state(
+-        step_id.as_str(),
+-        StepState::Executing {
+-            step_id: step_id.clone(),
+-            start_time,
+-        },
+-    );
+-    clear_error(step_id.as_str());
++    () /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ fn handle_slow_step_timeout(
+     step_id: &StepId,
+     timeout_ms: u64,
+     behavior: StepBehavior,
+ ) -> Result<(), ExecuteNodeError> {
+     if matches!(behavior, StepBehavior::Slow) && timeout_ms < SLOW_STEP_DURATION_MS {

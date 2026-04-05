@@ -8,7 +8,7 @@
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 2.053334999,
+          "duration": 2.104224115,
           "process_status": "Success",
           "argv": [
             "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
@@ -20,7 +20,7 @@
         },
         {
           "phase": "Test",
-          "duration": 0.551250056,
+          "duration": 0.551214882,
           "process_status": "Success",
           "argv": [
             "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
@@ -71,7 +71,7 @@
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.200748756,
+          "duration": 0.251002617,
           "process_status": {
             "Failure": 101
           },
@@ -125,7 +125,7 @@
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.453760334,
+          "duration": 0.652401964,
           "process_status": "Success",
           "argv": [
             "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
@@ -137,7 +137,7 @@
         },
         {
           "phase": "Test",
-          "duration": 0.606235233,
+          "duration": 0.65417699,
           "process_status": {
             "Failure": 101
           },
@@ -190,7 +190,7 @@
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.704034294,
+          "duration": 0.501643387,
           "process_status": "Success",
           "argv": [
             "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
@@ -202,7 +202,7 @@
         },
         {
           "phase": "Test",
-          "duration": 0.551652713,
+          "duration": 0.551196772,
           "process_status": {
             "Failure": 101
           },
@@ -255,7 +255,7 @@
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.351026366,
+          "duration": 0.35087959,
           "process_status": "Success",
           "argv": [
             "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
@@ -267,7 +267,7 @@
         },
         {
           "phase": "Test",
-          "duration": 0.100965493,
+          "duration": 0.100707946,
           "process_status": {
             "Failure": 101
           },
@@ -320,7 +320,7 @@
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.401746181,
+          "duration": 0.50115182,
           "process_status": "Success",
           "argv": [
             "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
@@ -332,137 +332,7 @@
         },
         {
           "phase": "Test",
-          "duration": 0.100806494,
-          "process_status": {
-            "Failure": 101
-          },
-          "argv": [
-            "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
-            "test",
-            "--verbose",
-            "--package=vo-executor@0.1.0"
-          ]
-        }
-      ]
-    },
-    {
-      "scenario": {
-        "Mutant": {
-          "name": "crates/vo-executor/src/lib.rs:47:47: replace == with != in StepId::parse",
-          "package": "vo-executor",
-          "file": "crates/vo-executor/src/lib.rs",
-          "function": {
-            "function_name": "StepId::parse",
-            "return_type": "-> Result<Self, ExecuteNodeError>",
-            "span": {
-              "start": {
-                "line": 33,
-                "column": 5
-              },
-              "end": {
-                "line": 54,
-                "column": 6
-              }
-            }
-          },
-          "span": {
-            "start": {
-              "line": 47,
-              "column": 47
-            },
-            "end": {
-              "line": 47,
-              "column": 49
-            }
-          },
-          "replacement": "!=",
-          "genre": "BinaryOperator"
-        }
-      },
-      "summary": "CaughtMutant",
-      "log_path": "log/crates__vo-executor__src__lib.rs_line_47_col_47.log",
-      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_47_col_47.diff",
-      "phase_results": [
-        {
-          "phase": "Build",
-          "duration": 3.316422871,
-          "process_status": "Success",
-          "argv": [
-            "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
-            "test",
-            "--no-run",
-            "--verbose",
-            "--package=vo-executor@0.1.0"
-          ]
-        },
-        {
-          "phase": "Test",
-          "duration": 0.551184297,
-          "process_status": {
-            "Failure": 101
-          },
-          "argv": [
-            "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
-            "test",
-            "--verbose",
-            "--package=vo-executor@0.1.0"
-          ]
-        }
-      ]
-    },
-    {
-      "scenario": {
-        "Mutant": {
-          "name": "crates/vo-executor/src/lib.rs:47:54: replace || with && in StepId::parse",
-          "package": "vo-executor",
-          "file": "crates/vo-executor/src/lib.rs",
-          "function": {
-            "function_name": "StepId::parse",
-            "return_type": "-> Result<Self, ExecuteNodeError>",
-            "span": {
-              "start": {
-                "line": 33,
-                "column": 5
-              },
-              "end": {
-                "line": 54,
-                "column": 6
-              }
-            }
-          },
-          "span": {
-            "start": {
-              "line": 47,
-              "column": 54
-            },
-            "end": {
-              "line": 47,
-              "column": 56
-            }
-          },
-          "replacement": "&&",
-          "genre": "BinaryOperator"
-        }
-      },
-      "summary": "CaughtMutant",
-      "log_path": "log/crates__vo-executor__src__lib.rs_line_47_col_54.log",
-      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_47_col_54.diff",
-      "phase_results": [
-        {
-          "phase": "Build",
-          "duration": 3.408011675,
-          "process_status": "Success",
-          "argv": [
-            "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
-            "test",
-            "--no-run",
-            "--verbose",
-            "--package=vo-executor@0.1.0"
-          ]
-        },
-        {
-          "phase": "Test",
-          "duration": 0.551244666,
+          "duration": 0.100608897,
           "process_status": {
             "Failure": 101
           },
@@ -515,7 +385,7 @@
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 3.408897457,
+          "duration": 3.214501609,
           "process_status": "Success",
           "argv": [
             "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
@@ -527,7 +397,137 @@
         },
         {
           "phase": "Test",
-          "duration": 0.551027698,
+          "duration": 0.551059872,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=vo-executor@0.1.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "crates/vo-executor/src/lib.rs:47:47: replace == with != in StepId::parse",
+          "package": "vo-executor",
+          "file": "crates/vo-executor/src/lib.rs",
+          "function": {
+            "function_name": "StepId::parse",
+            "return_type": "-> Result<Self, ExecuteNodeError>",
+            "span": {
+              "start": {
+                "line": 33,
+                "column": 5
+              },
+              "end": {
+                "line": 54,
+                "column": 6
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 47,
+              "column": 47
+            },
+            "end": {
+              "line": 47,
+              "column": 49
+            }
+          },
+          "replacement": "!=",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/crates__vo-executor__src__lib.rs_line_47_col_47.log",
+      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_47_col_47.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 3.322396448,
+          "process_status": "Success",
+          "argv": [
+            "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=vo-executor@0.1.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.551017182,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=vo-executor@0.1.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "crates/vo-executor/src/lib.rs:47:54: replace || with && in StepId::parse",
+          "package": "vo-executor",
+          "file": "crates/vo-executor/src/lib.rs",
+          "function": {
+            "function_name": "StepId::parse",
+            "return_type": "-> Result<Self, ExecuteNodeError>",
+            "span": {
+              "start": {
+                "line": 33,
+                "column": 5
+              },
+              "end": {
+                "line": 54,
+                "column": 6
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 47,
+              "column": 54
+            },
+            "end": {
+              "line": 47,
+              "column": 56
+            }
+          },
+          "replacement": "&&",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/crates__vo-executor__src__lib.rs_line_47_col_54.log",
+      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_47_col_54.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 3.412737437,
+          "process_status": "Success",
+          "argv": [
+            "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=vo-executor@0.1.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.550944903,
           "process_status": {
             "Failure": 101
           },
@@ -580,7 +580,7 @@
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.401027187,
+          "duration": 0.30074259,
           "process_status": "Success",
           "argv": [
             "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
@@ -592,72 +592,7 @@
         },
         {
           "phase": "Test",
-          "duration": 0.552734723,
-          "process_status": {
-            "Failure": 101
-          },
-          "argv": [
-            "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
-            "test",
-            "--verbose",
-            "--package=vo-executor@0.1.0"
-          ]
-        }
-      ]
-    },
-    {
-      "scenario": {
-        "Mutant": {
-          "name": "crates/vo-executor/src/lib.rs:206:9: replace RetryPolicy::calculate_backoff_delay -> u64 with 0",
-          "package": "vo-executor",
-          "file": "crates/vo-executor/src/lib.rs",
-          "function": {
-            "function_name": "RetryPolicy::calculate_backoff_delay",
-            "return_type": "-> u64",
-            "span": {
-              "start": {
-                "line": 198,
-                "column": 5
-              },
-              "end": {
-                "line": 214,
-                "column": 6
-              }
-            }
-          },
-          "span": {
-            "start": {
-              "line": 206,
-              "column": 9
-            },
-            "end": {
-              "line": 213,
-              "column": 23
-            }
-          },
-          "replacement": "0",
-          "genre": "FnValue"
-        }
-      },
-      "summary": "CaughtMutant",
-      "log_path": "log/crates__vo-executor__src__lib.rs_line_206_col_9.log",
-      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_206_col_9.diff",
-      "phase_results": [
-        {
-          "phase": "Build",
-          "duration": 0.501461104,
-          "process_status": "Success",
-          "argv": [
-            "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
-            "test",
-            "--no-run",
-            "--verbose",
-            "--package=vo-executor@0.1.0"
-          ]
-        },
-        {
-          "phase": "Test",
-          "duration": 0.100808654,
+          "duration": 0.551082781,
           "process_status": {
             "Failure": 101
           },
@@ -710,7 +645,7 @@
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.301852808,
+          "duration": 0.300965088,
           "process_status": "Success",
           "argv": [
             "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
@@ -722,72 +657,7 @@
         },
         {
           "phase": "Test",
-          "duration": 0.553539427,
-          "process_status": {
-            "Failure": 101
-          },
-          "argv": [
-            "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
-            "test",
-            "--verbose",
-            "--package=vo-executor@0.1.0"
-          ]
-        }
-      ]
-    },
-    {
-      "scenario": {
-        "Mutant": {
-          "name": "crates/vo-executor/src/lib.rs:76:9: replace <impl std::fmt::Display for StepId>::fmt -> std::fmt::Result with Ok(Default::default())",
-          "package": "vo-executor",
-          "file": "crates/vo-executor/src/lib.rs",
-          "function": {
-            "function_name": "<impl std::fmt::Display for StepId>::fmt",
-            "return_type": "-> std::fmt::Result",
-            "span": {
-              "start": {
-                "line": 75,
-                "column": 5
-              },
-              "end": {
-                "line": 77,
-                "column": 6
-              }
-            }
-          },
-          "span": {
-            "start": {
-              "line": 76,
-              "column": 9
-            },
-            "end": {
-              "line": 76,
-              "column": 32
-            }
-          },
-          "replacement": "Ok(Default::default())",
-          "genre": "FnValue"
-        }
-      },
-      "summary": "CaughtMutant",
-      "log_path": "log/crates__vo-executor__src__lib.rs_line_76_col_9.log",
-      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_76_col_9.diff",
-      "phase_results": [
-        {
-          "phase": "Build",
-          "duration": 0.401002617,
-          "process_status": "Success",
-          "argv": [
-            "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
-            "test",
-            "--no-run",
-            "--verbose",
-            "--package=vo-executor@0.1.0"
-          ]
-        },
-        {
-          "phase": "Test",
-          "duration": 0.551211387,
+          "duration": 0.55130557,
           "process_status": {
             "Failure": 101
           },
@@ -840,7 +710,7 @@
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.452529525,
+          "duration": 0.352090929,
           "process_status": "Success",
           "argv": [
             "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
@@ -852,7 +722,137 @@
         },
         {
           "phase": "Test",
-          "duration": 0.551461634,
+          "duration": 0.551033922,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=vo-executor@0.1.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "crates/vo-executor/src/lib.rs:206:9: replace RetryPolicy::calculate_backoff_delay -> u64 with 0",
+          "package": "vo-executor",
+          "file": "crates/vo-executor/src/lib.rs",
+          "function": {
+            "function_name": "RetryPolicy::calculate_backoff_delay",
+            "return_type": "-> u64",
+            "span": {
+              "start": {
+                "line": 198,
+                "column": 5
+              },
+              "end": {
+                "line": 214,
+                "column": 6
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 206,
+              "column": 9
+            },
+            "end": {
+              "line": 213,
+              "column": 23
+            }
+          },
+          "replacement": "0",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/crates__vo-executor__src__lib.rs_line_206_col_9.log",
+      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_206_col_9.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.501084501,
+          "process_status": "Success",
+          "argv": [
+            "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=vo-executor@0.1.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.100547427,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=vo-executor@0.1.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "crates/vo-executor/src/lib.rs:76:9: replace <impl std::fmt::Display for StepId>::fmt -> std::fmt::Result with Ok(Default::default())",
+          "package": "vo-executor",
+          "file": "crates/vo-executor/src/lib.rs",
+          "function": {
+            "function_name": "<impl std::fmt::Display for StepId>::fmt",
+            "return_type": "-> std::fmt::Result",
+            "span": {
+              "start": {
+                "line": 75,
+                "column": 5
+              },
+              "end": {
+                "line": 77,
+                "column": 6
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 76,
+              "column": 9
+            },
+            "end": {
+              "line": 76,
+              "column": 32
+            }
+          },
+          "replacement": "Ok(Default::default())",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/crates__vo-executor__src__lib.rs_line_76_col_9.log",
+      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_76_col_9.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.35086228,
+          "process_status": "Success",
+          "argv": [
+            "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=vo-executor@0.1.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.551061341,
           "process_status": {
             "Failure": 101
           },
@@ -905,7 +905,7 @@
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.250914105,
+          "duration": 0.601583438,
           "process_status": "Success",
           "argv": [
             "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
@@ -917,7 +917,7 @@
         },
         {
           "phase": "Test",
-          "duration": 0.150861584,
+          "duration": 0.100542327,
           "process_status": {
             "Failure": 101
           },
@@ -970,7 +970,7 @@
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.351433222,
+          "duration": 0.401173558,
           "process_status": "Success",
           "argv": [
             "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
@@ -982,7 +982,7 @@
         },
         {
           "phase": "Test",
-          "duration": 0.100676785,
+          "duration": 0.100627936,
           "process_status": {
             "Failure": 101
           },
@@ -1035,7 +1035,7 @@
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.350895517,
+          "duration": 0.400864001,
           "process_status": "Success",
           "argv": [
             "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
@@ -1047,72 +1047,7 @@
         },
         {
           "phase": "Test",
-          "duration": 0.451109686,
-          "process_status": {
-            "Failure": 101
-          },
-          "argv": [
-            "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
-            "test",
-            "--verbose",
-            "--package=vo-executor@0.1.0"
-          ]
-        }
-      ]
-    },
-    {
-      "scenario": {
-        "Mutant": {
-          "name": "crates/vo-executor/src/lib.rs:221:9: replace StepResult::is_success -> bool with false",
-          "package": "vo-executor",
-          "file": "crates/vo-executor/src/lib.rs",
-          "function": {
-            "function_name": "StepResult::is_success",
-            "return_type": "-> bool",
-            "span": {
-              "start": {
-                "line": 218,
-                "column": 5
-              },
-              "end": {
-                "line": 222,
-                "column": 6
-              }
-            }
-          },
-          "span": {
-            "start": {
-              "line": 221,
-              "column": 9
-            },
-            "end": {
-              "line": 221,
-              "column": 51
-            }
-          },
-          "replacement": "false",
-          "genre": "FnValue"
-        }
-      },
-      "summary": "CaughtMutant",
-      "log_path": "log/crates__vo-executor__src__lib.rs_line_221_col_9_001.log",
-      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_221_col_9_001.diff",
-      "phase_results": [
-        {
-          "phase": "Build",
-          "duration": 0.451072947,
-          "process_status": "Success",
-          "argv": [
-            "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
-            "test",
-            "--no-run",
-            "--verbose",
-            "--package=vo-executor@0.1.0"
-          ]
-        },
-        {
-          "phase": "Test",
-          "duration": 0.100716605,
+          "duration": 0.45102306,
           "process_status": {
             "Failure": 101
           },
@@ -1165,7 +1100,7 @@
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.401096116,
+          "duration": 0.60138113,
           "process_status": "Success",
           "argv": [
             "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
@@ -1177,7 +1112,137 @@
         },
         {
           "phase": "Test",
-          "duration": 0.351092825,
+          "duration": 0.300997258,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=vo-executor@0.1.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "crates/vo-executor/src/lib.rs:229:9: replace ExecutionStatus::is_ready -> bool with true",
+          "package": "vo-executor",
+          "file": "crates/vo-executor/src/lib.rs",
+          "function": {
+            "function_name": "ExecutionStatus::is_ready",
+            "return_type": "-> bool",
+            "span": {
+              "start": {
+                "line": 226,
+                "column": 5
+              },
+              "end": {
+                "line": 230,
+                "column": 6
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 229,
+              "column": 9
+            },
+            "end": {
+              "line": 229,
+              "column": 47
+            }
+          },
+          "replacement": "true",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/crates__vo-executor__src__lib.rs_line_229_col_9.log",
+      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_229_col_9.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.300986298,
+          "process_status": "Success",
+          "argv": [
+            "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=vo-executor@0.1.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.100914425,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=vo-executor@0.1.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "crates/vo-executor/src/lib.rs:221:9: replace StepResult::is_success -> bool with false",
+          "package": "vo-executor",
+          "file": "crates/vo-executor/src/lib.rs",
+          "function": {
+            "function_name": "StepResult::is_success",
+            "return_type": "-> bool",
+            "span": {
+              "start": {
+                "line": 218,
+                "column": 5
+              },
+              "end": {
+                "line": 222,
+                "column": 6
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 221,
+              "column": 9
+            },
+            "end": {
+              "line": 221,
+              "column": 51
+            }
+          },
+          "replacement": "false",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/crates__vo-executor__src__lib.rs_line_221_col_9_001.log",
+      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_221_col_9_001.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.50101812,
+          "process_status": "Success",
+          "argv": [
+            "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=vo-executor@0.1.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.100700396,
           "process_status": {
             "Failure": 101
           },
@@ -1230,7 +1295,7 @@
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.150857605,
+          "duration": 0.200918036,
           "process_status": {
             "Failure": 101
           },
@@ -1238,71 +1303,6 @@
             "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
             "test",
             "--no-run",
-            "--verbose",
-            "--package=vo-executor@0.1.0"
-          ]
-        }
-      ]
-    },
-    {
-      "scenario": {
-        "Mutant": {
-          "name": "crates/vo-executor/src/lib.rs:229:9: replace ExecutionStatus::is_ready -> bool with true",
-          "package": "vo-executor",
-          "file": "crates/vo-executor/src/lib.rs",
-          "function": {
-            "function_name": "ExecutionStatus::is_ready",
-            "return_type": "-> bool",
-            "span": {
-              "start": {
-                "line": 226,
-                "column": 5
-              },
-              "end": {
-                "line": 230,
-                "column": 6
-              }
-            }
-          },
-          "span": {
-            "start": {
-              "line": 229,
-              "column": 9
-            },
-            "end": {
-              "line": 229,
-              "column": 47
-            }
-          },
-          "replacement": "true",
-          "genre": "FnValue"
-        }
-      },
-      "summary": "CaughtMutant",
-      "log_path": "log/crates__vo-executor__src__lib.rs_line_229_col_9.log",
-      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_229_col_9.diff",
-      "phase_results": [
-        {
-          "phase": "Build",
-          "duration": 0.300938616,
-          "process_status": "Success",
-          "argv": [
-            "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
-            "test",
-            "--no-run",
-            "--verbose",
-            "--package=vo-executor@0.1.0"
-          ]
-        },
-        {
-          "phase": "Test",
-          "duration": 0.100691896,
-          "process_status": {
-            "Failure": 101
-          },
-          "argv": [
-            "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
-            "test",
             "--verbose",
             "--package=vo-executor@0.1.0"
           ]
@@ -1349,7 +1349,7 @@
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.350977167,
+          "duration": 0.301288535,
           "process_status": "Success",
           "argv": [
             "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
@@ -1361,7 +1361,7 @@
         },
         {
           "phase": "Test",
-          "duration": 0.100959213,
+          "duration": 0.151446481,
           "process_status": {
             "Failure": 101
           },
@@ -1377,7 +1377,7 @@
     {
       "scenario": {
         "Mutant": {
-          "name": "crates/vo-executor/src/lib.rs:286:5: replace step_behavior -> StepBehavior with Default::default()",
+          "name": "crates/vo-executor/src/lib.rs:288:5: replace step_behavior -> StepBehavior with Default::default()",
           "package": "vo-executor",
           "file": "crates/vo-executor/src/lib.rs",
           "function": {
@@ -1385,22 +1385,22 @@
             "return_type": "-> StepBehavior",
             "span": {
               "start": {
-                "line": 284,
+                "line": 286,
                 "column": 1
               },
               "end": {
-                "line": 295,
+                "line": 297,
                 "column": 2
               }
             }
           },
           "span": {
             "start": {
-              "line": 286,
+              "line": 288,
               "column": 5
             },
             "end": {
-              "line": 294,
+              "line": 296,
               "column": 6
             }
           },
@@ -1409,12 +1409,12 @@
         }
       },
       "summary": "Unviable",
-      "log_path": "log/crates__vo-executor__src__lib.rs_line_286_col_5.log",
-      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_286_col_5.diff",
+      "log_path": "log/crates__vo-executor__src__lib.rs_line_288_col_5.log",
+      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_288_col_5.diff",
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.151040383,
+          "duration": 0.201204124,
           "process_status": {
             "Failure": 101
           },
@@ -1468,7 +1468,7 @@
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.350901887,
+          "duration": 0.402227669,
           "process_status": "Success",
           "argv": [
             "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
@@ -1480,7 +1480,7 @@
         },
         {
           "phase": "Test",
-          "duration": 0.551108897,
+          "duration": 0.552392821,
           "process_status": {
             "Failure": 101
           },
@@ -1496,7 +1496,7 @@
     {
       "scenario": {
         "Mutant": {
-          "name": "crates/vo-executor/src/lib.rs:276:5: replace clear_error with ()",
+          "name": "crates/vo-executor/src/lib.rs:277:5: replace clear_error with ()",
           "package": "vo-executor",
           "file": "crates/vo-executor/src/lib.rs",
           "function": {
@@ -1508,18 +1508,18 @@
                 "column": 1
               },
               "end": {
-                "line": 277,
+                "line": 278,
                 "column": 2
               }
             }
           },
           "span": {
             "start": {
-              "line": 276,
+              "line": 277,
               "column": 5
             },
             "end": {
-              "line": 276,
+              "line": 277,
               "column": 32
             }
           },
@@ -1527,13 +1527,13 @@
           "genre": "FnValue"
         }
       },
-      "summary": "MissedMutant",
-      "log_path": "log/crates__vo-executor__src__lib.rs_line_276_col_5.log",
-      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_276_col_5.diff",
+      "summary": "CaughtMutant",
+      "log_path": "log/crates__vo-executor__src__lib.rs_line_277_col_5.log",
+      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_277_col_5.diff",
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.401131316,
+          "duration": 0.501418837,
           "process_status": "Success",
           "argv": [
             "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
@@ -1545,8 +1545,10 @@
         },
         {
           "phase": "Test",
-          "duration": 0.551138387,
-          "process_status": "Success",
+          "duration": 0.551067101,
+          "process_status": {
+            "Failure": 101
+          },
           "argv": [
             "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
             "test",
@@ -1559,7 +1561,7 @@
     {
       "scenario": {
         "Mutant": {
-          "name": "crates/vo-executor/src/lib.rs:281:5: replace set_error with ()",
+          "name": "crates/vo-executor/src/lib.rs:283:5: replace set_error with ()",
           "package": "vo-executor",
           "file": "crates/vo-executor/src/lib.rs",
           "function": {
@@ -1567,22 +1569,22 @@
             "return_type": "",
             "span": {
               "start": {
-                "line": 279,
+                "line": 280,
                 "column": 1
               },
               "end": {
-                "line": 282,
+                "line": 284,
                 "column": 2
               }
             }
           },
           "span": {
             "start": {
-              "line": 281,
+              "line": 283,
               "column": 5
             },
             "end": {
-              "line": 281,
+              "line": 283,
               "column": 49
             }
           },
@@ -1591,12 +1593,12 @@
         }
       },
       "summary": "CaughtMutant",
-      "log_path": "log/crates__vo-executor__src__lib.rs_line_281_col_5.log",
-      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_281_col_5.diff",
+      "log_path": "log/crates__vo-executor__src__lib.rs_line_283_col_5.log",
+      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_283_col_5.diff",
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.401234045,
+          "duration": 0.501178609,
           "process_status": "Success",
           "argv": [
             "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
@@ -1608,7 +1610,7 @@
         },
         {
           "phase": "Test",
-          "duration": 0.551373295,
+          "duration": 0.551266739,
           "process_status": {
             "Failure": 101
           },
@@ -1624,7 +1626,7 @@
     {
       "scenario": {
         "Mutant": {
-          "name": "crates/vo-executor/src/lib.rs:287:9: delete match arm \"step-1\" | \"step-good\" | \"step-valid\" | \"step-retry\" | \"workflow-step-1\" in step_behavior",
+          "name": "crates/vo-executor/src/lib.rs:289:9: delete match arm \"step-1\" | \"step-good\" | \"step-valid\" | \"step-retry\" | \"workflow-step-1\" in step_behavior",
           "package": "vo-executor",
           "file": "crates/vo-executor/src/lib.rs",
           "function": {
@@ -1632,22 +1634,22 @@
             "return_type": "-> StepBehavior",
             "span": {
               "start": {
-                "line": 284,
+                "line": 286,
                 "column": 1
               },
               "end": {
-                "line": 295,
+                "line": 297,
                 "column": 2
               }
             }
           },
           "span": {
             "start": {
-              "line": 287,
+              "line": 289,
               "column": 9
             },
             "end": {
-              "line": 289,
+              "line": 291,
               "column": 10
             }
           },
@@ -1656,12 +1658,12 @@
         }
       },
       "summary": "CaughtMutant",
-      "log_path": "log/crates__vo-executor__src__lib.rs_line_287_col_9.log",
-      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_287_col_9.diff",
+      "log_path": "log/crates__vo-executor__src__lib.rs_line_289_col_9.log",
+      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_289_col_9.diff",
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.350924576,
+          "duration": 0.451096199,
           "process_status": "Success",
           "argv": [
             "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
@@ -1673,7 +1675,7 @@
         },
         {
           "phase": "Test",
-          "duration": 0.551135828,
+          "duration": 0.55105697,
           "process_status": {
             "Failure": 101
           },
@@ -1689,7 +1691,7 @@
     {
       "scenario": {
         "Mutant": {
-          "name": "crates/vo-executor/src/lib.rs:323:5: replace execute_step -> Result<StepResult, ExecuteNodeError> with Ok(Default::default())",
+          "name": "crates/vo-executor/src/lib.rs:325:5: replace execute_step -> Result<StepResult, ExecuteNodeError> with Ok(Default::default())",
           "package": "vo-executor",
           "file": "crates/vo-executor/src/lib.rs",
           "function": {
@@ -1697,22 +1699,22 @@
             "return_type": "-> Result<StepResult, ExecuteNodeError>",
             "span": {
               "start": {
-                "line": 310,
+                "line": 312,
                 "column": 1
               },
               "end": {
-                "line": 329,
+                "line": 331,
                 "column": 2
               }
             }
           },
           "span": {
             "start": {
-              "line": 323,
+              "line": 325,
               "column": 5
             },
             "end": {
-              "line": 328,
+              "line": 330,
               "column": 47
             }
           },
@@ -1721,12 +1723,12 @@
         }
       },
       "summary": "Unviable",
-      "log_path": "log/crates__vo-executor__src__lib.rs_line_323_col_5.log",
-      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_323_col_5.diff",
+      "log_path": "log/crates__vo-executor__src__lib.rs_line_325_col_5.log",
+      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_325_col_5.diff",
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.150597297,
+          "duration": 0.150829236,
           "process_status": {
             "Failure": 101
           },
@@ -1743,7 +1745,7 @@
     {
       "scenario": {
         "Mutant": {
-          "name": "crates/vo-executor/src/lib.rs:290:9: delete match arm \"step-fail\" in step_behavior",
+          "name": "crates/vo-executor/src/lib.rs:292:9: delete match arm \"step-fail\" in step_behavior",
           "package": "vo-executor",
           "file": "crates/vo-executor/src/lib.rs",
           "function": {
@@ -1751,153 +1753,23 @@
             "return_type": "-> StepBehavior",
             "span": {
               "start": {
-                "line": 284,
+                "line": 286,
                 "column": 1
               },
               "end": {
-                "line": 295,
+                "line": 297,
                 "column": 2
               }
             }
           },
           "span": {
             "start": {
-              "line": 290,
+              "line": 292,
               "column": 9
             },
             "end": {
-              "line": 290,
+              "line": 292,
               "column": 46
-            }
-          },
-          "replacement": "",
-          "genre": "MatchArm"
-        }
-      },
-      "summary": "CaughtMutant",
-      "log_path": "log/crates__vo-executor__src__lib.rs_line_290_col_9.log",
-      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_290_col_9.diff",
-      "phase_results": [
-        {
-          "phase": "Build",
-          "duration": 0.300692108,
-          "process_status": "Success",
-          "argv": [
-            "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
-            "test",
-            "--no-run",
-            "--verbose",
-            "--package=vo-executor@0.1.0"
-          ]
-        },
-        {
-          "phase": "Test",
-          "duration": 0.551213767,
-          "process_status": {
-            "Failure": 101
-          },
-          "argv": [
-            "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
-            "test",
-            "--verbose",
-            "--package=vo-executor@0.1.0"
-          ]
-        }
-      ]
-    },
-    {
-      "scenario": {
-        "Mutant": {
-          "name": "crates/vo-executor/src/lib.rs:291:9: delete match arm \"step-transient\" | \"step-flaky\" in step_behavior",
-          "package": "vo-executor",
-          "file": "crates/vo-executor/src/lib.rs",
-          "function": {
-            "function_name": "step_behavior",
-            "return_type": "-> StepBehavior",
-            "span": {
-              "start": {
-                "line": 284,
-                "column": 1
-              },
-              "end": {
-                "line": 295,
-                "column": 2
-              }
-            }
-          },
-          "span": {
-            "start": {
-              "line": 291,
-              "column": 9
-            },
-            "end": {
-              "line": 291,
-              "column": 68
-            }
-          },
-          "replacement": "",
-          "genre": "MatchArm"
-        }
-      },
-      "summary": "CaughtMutant",
-      "log_path": "log/crates__vo-executor__src__lib.rs_line_291_col_9.log",
-      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_291_col_9.diff",
-      "phase_results": [
-        {
-          "phase": "Build",
-          "duration": 0.350806768,
-          "process_status": "Success",
-          "argv": [
-            "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
-            "test",
-            "--no-run",
-            "--verbose",
-            "--package=vo-executor@0.1.0"
-          ]
-        },
-        {
-          "phase": "Test",
-          "duration": 0.551113078,
-          "process_status": {
-            "Failure": 101
-          },
-          "argv": [
-            "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
-            "test",
-            "--verbose",
-            "--package=vo-executor@0.1.0"
-          ]
-        }
-      ]
-    },
-    {
-      "scenario": {
-        "Mutant": {
-          "name": "crates/vo-executor/src/lib.rs:292:9: delete match arm \"step-slow\" in step_behavior",
-          "package": "vo-executor",
-          "file": "crates/vo-executor/src/lib.rs",
-          "function": {
-            "function_name": "step_behavior",
-            "return_type": "-> StepBehavior",
-            "span": {
-              "start": {
-                "line": 284,
-                "column": 1
-              },
-              "end": {
-                "line": 295,
-                "column": 2
-              }
-            }
-          },
-          "span": {
-            "start": {
-              "line": 292,
-              "column": 9
-            },
-            "end": {
-              "line": 292,
-              "column": 43
             }
           },
           "replacement": "",
@@ -1910,7 +1782,7 @@
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.401061236,
+          "duration": 0.350839369,
           "process_status": "Success",
           "argv": [
             "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
@@ -1922,7 +1794,7 @@
         },
         {
           "phase": "Test",
-          "duration": 0.601388416,
+          "duration": 0.551176919,
           "process_status": {
             "Failure": 101
           },
@@ -1938,7 +1810,137 @@
     {
       "scenario": {
         "Mutant": {
-          "name": "crates/vo-executor/src/lib.rs:332:5: replace validate_timeout -> Result<(), ExecuteNodeError> with Ok(())",
+          "name": "crates/vo-executor/src/lib.rs:293:9: delete match arm \"step-transient\" | \"step-flaky\" in step_behavior",
+          "package": "vo-executor",
+          "file": "crates/vo-executor/src/lib.rs",
+          "function": {
+            "function_name": "step_behavior",
+            "return_type": "-> StepBehavior",
+            "span": {
+              "start": {
+                "line": 286,
+                "column": 1
+              },
+              "end": {
+                "line": 297,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 293,
+              "column": 9
+            },
+            "end": {
+              "line": 293,
+              "column": 68
+            }
+          },
+          "replacement": "",
+          "genre": "MatchArm"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/crates__vo-executor__src__lib.rs_line_293_col_9.log",
+      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_293_col_9.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.351710482,
+          "process_status": "Success",
+          "argv": [
+            "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=vo-executor@0.1.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.55117633,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=vo-executor@0.1.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "crates/vo-executor/src/lib.rs:294:9: delete match arm \"step-slow\" in step_behavior",
+          "package": "vo-executor",
+          "file": "crates/vo-executor/src/lib.rs",
+          "function": {
+            "function_name": "step_behavior",
+            "return_type": "-> StepBehavior",
+            "span": {
+              "start": {
+                "line": 286,
+                "column": 1
+              },
+              "end": {
+                "line": 297,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 294,
+              "column": 9
+            },
+            "end": {
+              "line": 294,
+              "column": 43
+            }
+          },
+          "replacement": "",
+          "genre": "MatchArm"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/crates__vo-executor__src__lib.rs_line_294_col_9.log",
+      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_294_col_9.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.401134977,
+          "process_status": "Success",
+          "argv": [
+            "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=vo-executor@0.1.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.551249968,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=vo-executor@0.1.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "crates/vo-executor/src/lib.rs:334:5: replace validate_timeout -> Result<(), ExecuteNodeError> with Ok(())",
           "package": "vo-executor",
           "file": "crates/vo-executor/src/lib.rs",
           "function": {
@@ -1946,22 +1948,22 @@
             "return_type": "-> Result<(), ExecuteNodeError>",
             "span": {
               "start": {
-                "line": 331,
+                "line": 333,
                 "column": 1
               },
               "end": {
-                "line": 345,
+                "line": 347,
                 "column": 2
               }
             }
           },
           "span": {
             "start": {
-              "line": 332,
+              "line": 334,
               "column": 5
             },
             "end": {
-              "line": 344,
+              "line": 346,
               "column": 11
             }
           },
@@ -1970,12 +1972,12 @@
         }
       },
       "summary": "CaughtMutant",
-      "log_path": "log/crates__vo-executor__src__lib.rs_line_332_col_5.log",
-      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_332_col_5.diff",
+      "log_path": "log/crates__vo-executor__src__lib.rs_line_334_col_5.log",
+      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_334_col_5.diff",
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.400727299,
+          "duration": 0.45087119,
           "process_status": "Success",
           "argv": [
             "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
@@ -1987,7 +1989,7 @@
         },
         {
           "phase": "Test",
-          "duration": 0.551438645,
+          "duration": 0.60119981,
           "process_status": {
             "Failure": 101
           },
@@ -2003,7 +2005,7 @@
     {
       "scenario": {
         "Mutant": {
-          "name": "crates/vo-executor/src/lib.rs:332:19: replace == with != in validate_timeout",
+          "name": "crates/vo-executor/src/lib.rs:334:19: replace == with != in validate_timeout",
           "package": "vo-executor",
           "file": "crates/vo-executor/src/lib.rs",
           "function": {
@@ -2011,22 +2013,22 @@
             "return_type": "-> Result<(), ExecuteNodeError>",
             "span": {
               "start": {
-                "line": 331,
+                "line": 333,
                 "column": 1
               },
               "end": {
-                "line": 345,
+                "line": 347,
                 "column": 2
               }
             }
           },
           "span": {
             "start": {
-              "line": 332,
+              "line": 334,
               "column": 19
             },
             "end": {
-              "line": 332,
+              "line": 334,
               "column": 21
             }
           },
@@ -2035,12 +2037,12 @@
         }
       },
       "summary": "CaughtMutant",
-      "log_path": "log/crates__vo-executor__src__lib.rs_line_332_col_19.log",
-      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_332_col_19.diff",
+      "log_path": "log/crates__vo-executor__src__lib.rs_line_334_col_19.log",
+      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_334_col_19.diff",
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.300758937,
+          "duration": 0.301018487,
           "process_status": "Success",
           "argv": [
             "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
@@ -2052,7 +2054,7 @@
         },
         {
           "phase": "Test",
-          "duration": 0.551414515,
+          "duration": 0.60107472,
           "process_status": {
             "Failure": 101
           },
@@ -2068,7 +2070,7 @@
     {
       "scenario": {
         "Mutant": {
-          "name": "crates/vo-executor/src/lib.rs:358:5: replace check_step_exists -> Result<StepBehavior, ExecuteNodeError> with Ok(Default::default())",
+          "name": "crates/vo-executor/src/lib.rs:360:5: replace check_step_exists -> Result<StepBehavior, ExecuteNodeError> with Ok(Default::default())",
           "package": "vo-executor",
           "file": "crates/vo-executor/src/lib.rs",
           "function": {
@@ -2076,22 +2078,22 @@
             "return_type": "-> Result<StepBehavior, ExecuteNodeError>",
             "span": {
               "start": {
-                "line": 357,
+                "line": 359,
                 "column": 1
               },
               "end": {
-                "line": 365,
+                "line": 367,
                 "column": 2
               }
             }
           },
           "span": {
             "start": {
-              "line": 358,
+              "line": 360,
               "column": 5
             },
             "end": {
-              "line": 364,
+              "line": 366,
               "column": 17
             }
           },
@@ -2100,12 +2102,12 @@
         }
       },
       "summary": "Unviable",
-      "log_path": "log/crates__vo-executor__src__lib.rs_line_358_col_5.log",
-      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_358_col_5.diff",
+      "log_path": "log/crates__vo-executor__src__lib.rs_line_360_col_5.log",
+      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_360_col_5.diff",
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.202383062,
+          "duration": 0.150608838,
           "process_status": {
             "Failure": 101
           },
@@ -2122,7 +2124,7 @@
     {
       "scenario": {
         "Mutant": {
-          "name": "crates/vo-executor/src/lib.rs:338:19: replace == with != in validate_timeout",
+          "name": "crates/vo-executor/src/lib.rs:340:19: replace == with != in validate_timeout",
           "package": "vo-executor",
           "file": "crates/vo-executor/src/lib.rs",
           "function": {
@@ -2130,22 +2132,22 @@
             "return_type": "-> Result<(), ExecuteNodeError>",
             "span": {
               "start": {
-                "line": 331,
+                "line": 333,
                 "column": 1
               },
               "end": {
-                "line": 345,
+                "line": 347,
                 "column": 2
               }
             }
           },
           "span": {
             "start": {
-              "line": 338,
+              "line": 340,
               "column": 19
             },
             "end": {
-              "line": 338,
+              "line": 340,
               "column": 21
             }
           },
@@ -2154,12 +2156,12 @@
         }
       },
       "summary": "CaughtMutant",
-      "log_path": "log/crates__vo-executor__src__lib.rs_line_338_col_19.log",
-      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_338_col_19.diff",
+      "log_path": "log/crates__vo-executor__src__lib.rs_line_340_col_19.log",
+      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_340_col_19.diff",
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.300814877,
+          "duration": 0.350988877,
           "process_status": "Success",
           "argv": [
             "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
@@ -2171,7 +2173,7 @@
         },
         {
           "phase": "Test",
-          "duration": 0.552671014,
+          "duration": 0.551336528,
           "process_status": {
             "Failure": 101
           },
@@ -2187,7 +2189,7 @@
     {
       "scenario": {
         "Mutant": {
-          "name": "crates/vo-executor/src/lib.rs:348:5: replace check_not_executing -> Result<(), ExecuteNodeError> with Ok(())",
+          "name": "crates/vo-executor/src/lib.rs:350:5: replace check_not_executing -> Result<(), ExecuteNodeError> with Ok(())",
           "package": "vo-executor",
           "file": "crates/vo-executor/src/lib.rs",
           "function": {
@@ -2195,22 +2197,22 @@
             "return_type": "-> Result<(), ExecuteNodeError>",
             "span": {
               "start": {
-                "line": 347,
+                "line": 349,
                 "column": 1
               },
               "end": {
-                "line": 355,
+                "line": 357,
                 "column": 2
               }
             }
           },
           "span": {
             "start": {
-              "line": 348,
+              "line": 350,
               "column": 5
             },
             "end": {
-              "line": 354,
+              "line": 356,
               "column": 11
             }
           },
@@ -2218,13 +2220,13 @@
           "genre": "FnValue"
         }
       },
-      "summary": "CaughtMutant",
-      "log_path": "log/crates__vo-executor__src__lib.rs_line_348_col_5.log",
-      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_348_col_5.diff",
+      "summary": "MissedMutant",
+      "log_path": "log/crates__vo-executor__src__lib.rs_line_350_col_5.log",
+      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_350_col_5.diff",
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.452244256,
+          "duration": 0.400953139,
           "process_status": "Success",
           "argv": [
             "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
@@ -2236,10 +2238,8 @@
         },
         {
           "phase": "Test",
-          "duration": 0.653271991,
-          "process_status": {
-            "Failure": 101
-          },
+          "duration": 0.551290888,
+          "process_status": "Success",
           "argv": [
             "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
             "test",
@@ -2252,137 +2252,7 @@
     {
       "scenario": {
         "Mutant": {
-          "name": "crates/vo-executor/src/lib.rs:384:5: replace handle_slow_step_timeout -> Result<(), ExecuteNodeError> with Ok(())",
-          "package": "vo-executor",
-          "file": "crates/vo-executor/src/lib.rs",
-          "function": {
-            "function_name": "handle_slow_step_timeout",
-            "return_type": "-> Result<(), ExecuteNodeError>",
-            "span": {
-              "start": {
-                "line": 379,
-                "column": 1
-              },
-              "end": {
-                "line": 392,
-                "column": 2
-              }
-            }
-          },
-          "span": {
-            "start": {
-              "line": 384,
-              "column": 5
-            },
-            "end": {
-              "line": 391,
-              "column": 11
-            }
-          },
-          "replacement": "Ok(())",
-          "genre": "FnValue"
-        }
-      },
-      "summary": "CaughtMutant",
-      "log_path": "log/crates__vo-executor__src__lib.rs_line_384_col_5.log",
-      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_384_col_5.diff",
-      "phase_results": [
-        {
-          "phase": "Build",
-          "duration": 0.451415124,
-          "process_status": "Success",
-          "argv": [
-            "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
-            "test",
-            "--no-run",
-            "--verbose",
-            "--package=vo-executor@0.1.0"
-          ]
-        },
-        {
-          "phase": "Test",
-          "duration": 0.551101247,
-          "process_status": {
-            "Failure": 101
-          },
-          "argv": [
-            "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
-            "test",
-            "--verbose",
-            "--package=vo-executor@0.1.0"
-          ]
-        }
-      ]
-    },
-    {
-      "scenario": {
-        "Mutant": {
-          "name": "crates/vo-executor/src/lib.rs:384:47: replace && with || in handle_slow_step_timeout",
-          "package": "vo-executor",
-          "file": "crates/vo-executor/src/lib.rs",
-          "function": {
-            "function_name": "handle_slow_step_timeout",
-            "return_type": "-> Result<(), ExecuteNodeError>",
-            "span": {
-              "start": {
-                "line": 379,
-                "column": 1
-              },
-              "end": {
-                "line": 392,
-                "column": 2
-              }
-            }
-          },
-          "span": {
-            "start": {
-              "line": 384,
-              "column": 47
-            },
-            "end": {
-              "line": 384,
-              "column": 49
-            }
-          },
-          "replacement": "||",
-          "genre": "BinaryOperator"
-        }
-      },
-      "summary": "CaughtMutant",
-      "log_path": "log/crates__vo-executor__src__lib.rs_line_384_col_47.log",
-      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_384_col_47.diff",
-      "phase_results": [
-        {
-          "phase": "Build",
-          "duration": 0.350949656,
-          "process_status": "Success",
-          "argv": [
-            "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
-            "test",
-            "--no-run",
-            "--verbose",
-            "--package=vo-executor@0.1.0"
-          ]
-        },
-        {
-          "phase": "Test",
-          "duration": 0.601170398,
-          "process_status": {
-            "Failure": 101
-          },
-          "argv": [
-            "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
-            "test",
-            "--verbose",
-            "--package=vo-executor@0.1.0"
-          ]
-        }
-      ]
-    },
-    {
-      "scenario": {
-        "Mutant": {
-          "name": "crates/vo-executor/src/lib.rs:368:5: replace start_execution with ()",
+          "name": "crates/vo-executor/src/lib.rs:370:5: replace start_execution with ()",
           "package": "vo-executor",
           "file": "crates/vo-executor/src/lib.rs",
           "function": {
@@ -2390,22 +2260,22 @@
             "return_type": "",
             "span": {
               "start": {
-                "line": 367,
+                "line": 369,
                 "column": 1
               },
               "end": {
-                "line": 377,
+                "line": 379,
                 "column": 2
               }
             }
           },
           "span": {
             "start": {
-              "line": 368,
+              "line": 370,
               "column": 5
             },
             "end": {
-              "line": 376,
+              "line": 378,
               "column": 35
             }
           },
@@ -2414,12 +2284,12 @@
         }
       },
       "summary": "MissedMutant",
-      "log_path": "log/crates__vo-executor__src__lib.rs_line_368_col_5.log",
-      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_368_col_5.diff",
+      "log_path": "log/crates__vo-executor__src__lib.rs_line_370_col_5.log",
+      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_370_col_5.diff",
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.552437916,
+          "duration": 0.400902368,
           "process_status": "Success",
           "argv": [
             "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
@@ -2431,7 +2301,7 @@
         },
         {
           "phase": "Test",
-          "duration": 0.651904262,
+          "duration": 0.601332128,
           "process_status": "Success",
           "argv": [
             "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
@@ -2445,7 +2315,137 @@
     {
       "scenario": {
         "Mutant": {
-          "name": "crates/vo-executor/src/lib.rs:398:5: replace execute_and_transition -> Result<StepResult, ExecuteNodeError> with Ok(Default::default())",
+          "name": "crates/vo-executor/src/lib.rs:386:47: replace && with || in handle_slow_step_timeout",
+          "package": "vo-executor",
+          "file": "crates/vo-executor/src/lib.rs",
+          "function": {
+            "function_name": "handle_slow_step_timeout",
+            "return_type": "-> Result<(), ExecuteNodeError>",
+            "span": {
+              "start": {
+                "line": 381,
+                "column": 1
+              },
+              "end": {
+                "line": 394,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 386,
+              "column": 47
+            },
+            "end": {
+              "line": 386,
+              "column": 49
+            }
+          },
+          "replacement": "||",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/crates__vo-executor__src__lib.rs_line_386_col_47.log",
+      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_386_col_47.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.300937076,
+          "process_status": "Success",
+          "argv": [
+            "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=vo-executor@0.1.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.55107147,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=vo-executor@0.1.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "crates/vo-executor/src/lib.rs:386:5: replace handle_slow_step_timeout -> Result<(), ExecuteNodeError> with Ok(())",
+          "package": "vo-executor",
+          "file": "crates/vo-executor/src/lib.rs",
+          "function": {
+            "function_name": "handle_slow_step_timeout",
+            "return_type": "-> Result<(), ExecuteNodeError>",
+            "span": {
+              "start": {
+                "line": 381,
+                "column": 1
+              },
+              "end": {
+                "line": 394,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 386,
+              "column": 5
+            },
+            "end": {
+              "line": 393,
+              "column": 11
+            }
+          },
+          "replacement": "Ok(())",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/crates__vo-executor__src__lib.rs_line_386_col_5.log",
+      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_386_col_5.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.451060268,
+          "process_status": "Success",
+          "argv": [
+            "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=vo-executor@0.1.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.55100326,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=vo-executor@0.1.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "crates/vo-executor/src/lib.rs:400:5: replace execute_and_transition -> Result<StepResult, ExecuteNodeError> with Ok(Default::default())",
           "package": "vo-executor",
           "file": "crates/vo-executor/src/lib.rs",
           "function": {
@@ -2453,22 +2453,22 @@
             "return_type": "-> Result<StepResult, ExecuteNodeError>",
             "span": {
               "start": {
-                "line": 394,
+                "line": 396,
                 "column": 1
               },
               "end": {
-                "line": 401,
+                "line": 403,
                 "column": 2
               }
             }
           },
           "span": {
             "start": {
-              "line": 398,
+              "line": 400,
               "column": 5
             },
             "end": {
-              "line": 400,
+              "line": 402,
               "column": 15
             }
           },
@@ -2477,12 +2477,12 @@
         }
       },
       "summary": "Unviable",
-      "log_path": "log/crates__vo-executor__src__lib.rs_line_398_col_5.log",
-      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_398_col_5.diff",
+      "log_path": "log/crates__vo-executor__src__lib.rs_line_400_col_5.log",
+      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_400_col_5.diff",
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.201891136,
+          "duration": 0.150588077,
           "process_status": {
             "Failure": 101
           },
@@ -2499,7 +2499,7 @@
     {
       "scenario": {
         "Mutant": {
-          "name": "crates/vo-executor/src/lib.rs:384:61: replace < with == in handle_slow_step_timeout",
+          "name": "crates/vo-executor/src/lib.rs:386:61: replace < with == in handle_slow_step_timeout",
           "package": "vo-executor",
           "file": "crates/vo-executor/src/lib.rs",
           "function": {
@@ -2507,22 +2507,22 @@
             "return_type": "-> Result<(), ExecuteNodeError>",
             "span": {
               "start": {
-                "line": 379,
+                "line": 381,
                 "column": 1
               },
               "end": {
-                "line": 392,
+                "line": 394,
                 "column": 2
               }
             }
           },
           "span": {
             "start": {
-              "line": 384,
+              "line": 386,
               "column": 61
             },
             "end": {
-              "line": 384,
+              "line": 386,
               "column": 62
             }
           },
@@ -2531,12 +2531,12 @@
         }
       },
       "summary": "CaughtMutant",
-      "log_path": "log/crates__vo-executor__src__lib.rs_line_384_col_61.log",
-      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_384_col_61.diff",
+      "log_path": "log/crates__vo-executor__src__lib.rs_line_386_col_61.log",
+      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_386_col_61.diff",
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.350861347,
+          "duration": 0.401109677,
           "process_status": "Success",
           "argv": [
             "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
@@ -2548,7 +2548,7 @@
         },
         {
           "phase": "Test",
-          "duration": 0.552402717,
+          "duration": 0.551328497,
           "process_status": {
             "Failure": 101
           },
@@ -2564,7 +2564,7 @@
     {
       "scenario": {
         "Mutant": {
-          "name": "crates/vo-executor/src/lib.rs:407:5: replace execute_behavior -> Result<StepResult, ExecuteNodeError> with Ok(Default::default())",
+          "name": "crates/vo-executor/src/lib.rs:409:5: replace execute_behavior -> Result<StepResult, ExecuteNodeError> with Ok(Default::default())",
           "package": "vo-executor",
           "file": "crates/vo-executor/src/lib.rs",
           "function": {
@@ -2572,22 +2572,22 @@
             "return_type": "-> Result<StepResult, ExecuteNodeError>",
             "span": {
               "start": {
-                "line": 403,
+                "line": 405,
                 "column": 1
               },
               "end": {
-                "line": 419,
+                "line": 421,
                 "column": 2
               }
             }
           },
           "span": {
             "start": {
-              "line": 407,
+              "line": 409,
               "column": 5
             },
             "end": {
-              "line": 418,
+              "line": 420,
               "column": 6
             }
           },
@@ -2596,12 +2596,12 @@
         }
       },
       "summary": "Unviable",
-      "log_path": "log/crates__vo-executor__src__lib.rs_line_407_col_5.log",
-      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_407_col_5.diff",
+      "log_path": "log/crates__vo-executor__src__lib.rs_line_409_col_5.log",
+      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_409_col_5.diff",
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.150651417,
+          "duration": 0.150649767,
           "process_status": {
             "Failure": 101
           },
@@ -2618,61 +2618,7 @@
     {
       "scenario": {
         "Mutant": {
-          "name": "crates/vo-executor/src/lib.rs:446:5: replace execute_step_with_retry -> Result<StepResult, ExecuteNodeError> with Ok(Default::default())",
-          "package": "vo-executor",
-          "file": "crates/vo-executor/src/lib.rs",
-          "function": {
-            "function_name": "execute_step_with_retry",
-            "return_type": "-> Result<StepResult, ExecuteNodeError>",
-            "span": {
-              "start": {
-                "line": 431,
-                "column": 1
-              },
-              "end": {
-                "line": 448,
-                "column": 2
-              }
-            }
-          },
-          "span": {
-            "start": {
-              "line": 446,
-              "column": 5
-            },
-            "end": {
-              "line": 447,
-              "column": 69
-            }
-          },
-          "replacement": "Ok(Default::default())",
-          "genre": "FnValue"
-        }
-      },
-      "summary": "Unviable",
-      "log_path": "log/crates__vo-executor__src__lib.rs_line_446_col_5.log",
-      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_446_col_5.diff",
-      "phase_results": [
-        {
-          "phase": "Build",
-          "duration": 0.150730525,
-          "process_status": {
-            "Failure": 101
-          },
-          "argv": [
-            "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
-            "test",
-            "--no-run",
-            "--verbose",
-            "--package=vo-executor@0.1.0"
-          ]
-        }
-      ]
-    },
-    {
-      "scenario": {
-        "Mutant": {
-          "name": "crates/vo-executor/src/lib.rs:422:5: replace handle_transient_behavior -> Result<StepResult, ExecuteNodeError> with Ok(Default::default())",
+          "name": "crates/vo-executor/src/lib.rs:424:5: replace handle_transient_behavior -> Result<StepResult, ExecuteNodeError> with Ok(Default::default())",
           "package": "vo-executor",
           "file": "crates/vo-executor/src/lib.rs",
           "function": {
@@ -2680,22 +2626,22 @@
             "return_type": "-> Result<StepResult, ExecuteNodeError>",
             "span": {
               "start": {
-                "line": 421,
+                "line": 423,
                 "column": 1
               },
               "end": {
-                "line": 429,
+                "line": 431,
                 "column": 2
               }
             }
           },
           "span": {
             "start": {
-              "line": 422,
+              "line": 424,
               "column": 5
             },
             "end": {
-              "line": 428,
+              "line": 430,
               "column": 13
             }
           },
@@ -2704,12 +2650,12 @@
         }
       },
       "summary": "Unviable",
-      "log_path": "log/crates__vo-executor__src__lib.rs_line_422_col_5.log",
-      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_422_col_5.diff",
+      "log_path": "log/crates__vo-executor__src__lib.rs_line_424_col_5.log",
+      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_424_col_5.diff",
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.200701296,
+          "duration": 0.151078783,
           "process_status": {
             "Failure": 101
           },
@@ -2726,62 +2672,51 @@
     {
       "scenario": {
         "Mutant": {
-          "name": "crates/vo-executor/src/lib.rs:454:34: replace == with != in validate_retry_policy",
+          "name": "crates/vo-executor/src/lib.rs:448:5: replace execute_step_with_retry -> Result<StepResult, ExecuteNodeError> with Ok(Default::default())",
           "package": "vo-executor",
           "file": "crates/vo-executor/src/lib.rs",
           "function": {
-            "function_name": "validate_retry_policy",
-            "return_type": "-> Result<(), ExecuteNodeError>",
+            "function_name": "execute_step_with_retry",
+            "return_type": "-> Result<StepResult, ExecuteNodeError>",
             "span": {
               "start": {
-                "line": 450,
+                "line": 433,
                 "column": 1
               },
               "end": {
-                "line": 464,
+                "line": 450,
                 "column": 2
               }
             }
           },
           "span": {
             "start": {
-              "line": 454,
-              "column": 34
+              "line": 448,
+              "column": 5
             },
             "end": {
-              "line": 454,
-              "column": 36
+              "line": 449,
+              "column": 69
             }
           },
-          "replacement": "!=",
-          "genre": "BinaryOperator"
+          "replacement": "Ok(Default::default())",
+          "genre": "FnValue"
         }
       },
-      "summary": "CaughtMutant",
-      "log_path": "log/crates__vo-executor__src__lib.rs_line_454_col_34.log",
-      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_454_col_34.diff",
+      "summary": "Unviable",
+      "log_path": "log/crates__vo-executor__src__lib.rs_line_448_col_5.log",
+      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_448_col_5.diff",
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.300713078,
-          "process_status": "Success",
-          "argv": [
-            "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
-            "test",
-            "--no-run",
-            "--verbose",
-            "--package=vo-executor@0.1.0"
-          ]
-        },
-        {
-          "phase": "Test",
-          "duration": 0.100660485,
+          "duration": 0.150662846,
           "process_status": {
             "Failure": 101
           },
           "argv": [
             "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
             "test",
+            "--no-run",
             "--verbose",
             "--package=vo-executor@0.1.0"
           ]
@@ -2791,7 +2726,7 @@
     {
       "scenario": {
         "Mutant": {
-          "name": "crates/vo-executor/src/lib.rs:384:61: replace < with > in handle_slow_step_timeout",
+          "name": "crates/vo-executor/src/lib.rs:386:61: replace < with > in handle_slow_step_timeout",
           "package": "vo-executor",
           "file": "crates/vo-executor/src/lib.rs",
           "function": {
@@ -2799,22 +2734,22 @@
             "return_type": "-> Result<(), ExecuteNodeError>",
             "span": {
               "start": {
-                "line": 379,
+                "line": 381,
                 "column": 1
               },
               "end": {
-                "line": 392,
+                "line": 394,
                 "column": 2
               }
             }
           },
           "span": {
             "start": {
-              "line": 384,
+              "line": 386,
               "column": 61
             },
             "end": {
-              "line": 384,
+              "line": 386,
               "column": 62
             }
           },
@@ -2823,12 +2758,12 @@
         }
       },
       "summary": "CaughtMutant",
-      "log_path": "log/crates__vo-executor__src__lib.rs_line_384_col_61_001.log",
-      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_384_col_61_001.diff",
+      "log_path": "log/crates__vo-executor__src__lib.rs_line_386_col_61_001.log",
+      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_386_col_61_001.diff",
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.45178093,
+          "duration": 0.400888569,
           "process_status": "Success",
           "argv": [
             "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
@@ -2840,7 +2775,7 @@
         },
         {
           "phase": "Test",
-          "duration": 0.601155278,
+          "duration": 0.601346428,
           "process_status": {
             "Failure": 101
           },
@@ -2856,7 +2791,7 @@
     {
       "scenario": {
         "Mutant": {
-          "name": "crates/vo-executor/src/lib.rs:384:61: replace < with <= in handle_slow_step_timeout",
+          "name": "crates/vo-executor/src/lib.rs:386:61: replace < with <= in handle_slow_step_timeout",
           "package": "vo-executor",
           "file": "crates/vo-executor/src/lib.rs",
           "function": {
@@ -2864,22 +2799,22 @@
             "return_type": "-> Result<(), ExecuteNodeError>",
             "span": {
               "start": {
-                "line": 379,
+                "line": 381,
                 "column": 1
               },
               "end": {
-                "line": 392,
+                "line": 394,
                 "column": 2
               }
             }
           },
           "span": {
             "start": {
-              "line": 384,
+              "line": 386,
               "column": 61
             },
             "end": {
-              "line": 384,
+              "line": 386,
               "column": 62
             }
           },
@@ -2888,12 +2823,12 @@
         }
       },
       "summary": "CaughtMutant",
-      "log_path": "log/crates__vo-executor__src__lib.rs_line_384_col_61_002.log",
-      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_384_col_61_002.diff",
+      "log_path": "log/crates__vo-executor__src__lib.rs_line_386_col_61_002.log",
+      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_386_col_61_002.diff",
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.352180936,
+          "duration": 0.350813828,
           "process_status": "Success",
           "argv": [
             "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
@@ -2905,7 +2840,7 @@
         },
         {
           "phase": "Test",
-          "duration": 0.601062949,
+          "duration": 0.551134428,
           "process_status": {
             "Failure": 101
           },
@@ -2921,7 +2856,72 @@
     {
       "scenario": {
         "Mutant": {
-          "name": "crates/vo-executor/src/lib.rs:471:5: replace check_flaky_or_delegate -> Result<StepResult, ExecuteNodeError> with Ok(Default::default())",
+          "name": "crates/vo-executor/src/lib.rs:456:34: replace == with != in validate_retry_policy",
+          "package": "vo-executor",
+          "file": "crates/vo-executor/src/lib.rs",
+          "function": {
+            "function_name": "validate_retry_policy",
+            "return_type": "-> Result<(), ExecuteNodeError>",
+            "span": {
+              "start": {
+                "line": 452,
+                "column": 1
+              },
+              "end": {
+                "line": 466,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 456,
+              "column": 34
+            },
+            "end": {
+              "line": 456,
+              "column": 36
+            }
+          },
+          "replacement": "!=",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/crates__vo-executor__src__lib.rs_line_456_col_34.log",
+      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_456_col_34.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.401036328,
+          "process_status": "Success",
+          "argv": [
+            "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=vo-executor@0.1.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.100646477,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=vo-executor@0.1.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "crates/vo-executor/src/lib.rs:473:5: replace check_flaky_or_delegate -> Result<StepResult, ExecuteNodeError> with Ok(Default::default())",
           "package": "vo-executor",
           "file": "crates/vo-executor/src/lib.rs",
           "function": {
@@ -2929,22 +2929,22 @@
             "return_type": "-> Result<StepResult, ExecuteNodeError>",
             "span": {
               "start": {
-                "line": 466,
+                "line": 468,
                 "column": 1
               },
               "end": {
-                "line": 476,
+                "line": 478,
                 "column": 2
               }
             }
           },
           "span": {
             "start": {
-              "line": 471,
+              "line": 473,
               "column": 5
             },
             "end": {
-              "line": 475,
+              "line": 477,
               "column": 6
             }
           },
@@ -2953,12 +2953,12 @@
         }
       },
       "summary": "Unviable",
-      "log_path": "log/crates__vo-executor__src__lib.rs_line_471_col_5.log",
-      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_471_col_5.diff",
+      "log_path": "log/crates__vo-executor__src__lib.rs_line_473_col_5.log",
+      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_473_col_5.diff",
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.200682687,
+          "duration": 0.150592717,
           "process_status": {
             "Failure": 101
           },
@@ -2975,7 +2975,7 @@
     {
       "scenario": {
         "Mutant": {
-          "name": "crates/vo-executor/src/lib.rs:482:5: replace simulate_flaky_retry -> Result<StepResult, ExecuteNodeError> with Ok(Default::default())",
+          "name": "crates/vo-executor/src/lib.rs:484:5: replace simulate_flaky_retry -> Result<StepResult, ExecuteNodeError> with Ok(Default::default())",
           "package": "vo-executor",
           "file": "crates/vo-executor/src/lib.rs",
           "function": {
@@ -2983,22 +2983,22 @@
             "return_type": "-> Result<StepResult, ExecuteNodeError>",
             "span": {
               "start": {
-                "line": 478,
+                "line": 480,
                 "column": 1
               },
               "end": {
-                "line": 485,
+                "line": 487,
                 "column": 2
               }
             }
           },
           "span": {
             "start": {
-              "line": 482,
+              "line": 484,
               "column": 5
             },
             "end": {
-              "line": 484,
+              "line": 486,
               "column": 70
             }
           },
@@ -3007,12 +3007,12 @@
         }
       },
       "summary": "Unviable",
-      "log_path": "log/crates__vo-executor__src__lib.rs_line_482_col_5.log",
-      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_482_col_5.diff",
+      "log_path": "log/crates__vo-executor__src__lib.rs_line_484_col_5.log",
+      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_484_col_5.diff",
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.200596958,
+          "duration": 0.150729676,
           "process_status": {
             "Failure": 101
           },
@@ -3029,7 +3029,7 @@
     {
       "scenario": {
         "Mutant": {
-          "name": "crates/vo-executor/src/lib.rs:488:5: replace build_transient_error -> ExecuteNodeError with Default::default()",
+          "name": "crates/vo-executor/src/lib.rs:490:5: replace build_transient_error -> ExecuteNodeError with Default::default()",
           "package": "vo-executor",
           "file": "crates/vo-executor/src/lib.rs",
           "function": {
@@ -3037,22 +3037,22 @@
             "return_type": "-> ExecuteNodeError",
             "span": {
               "start": {
-                "line": 487,
+                "line": 489,
                 "column": 1
               },
               "end": {
-                "line": 492,
+                "line": 494,
                 "column": 2
               }
             }
           },
           "span": {
             "start": {
-              "line": 488,
+              "line": 490,
               "column": 5
             },
             "end": {
-              "line": 491,
+              "line": 493,
               "column": 6
             }
           },
@@ -3061,12 +3061,12 @@
         }
       },
       "summary": "Unviable",
-      "log_path": "log/crates__vo-executor__src__lib.rs_line_488_col_5.log",
-      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_488_col_5.diff",
+      "log_path": "log/crates__vo-executor__src__lib.rs_line_490_col_5.log",
+      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_490_col_5.diff",
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.150751455,
+          "duration": 0.150816316,
           "process_status": {
             "Failure": 101
           },
@@ -3083,7 +3083,7 @@
     {
       "scenario": {
         "Mutant": {
-          "name": "crates/vo-executor/src/lib.rs:499:5: replace execute_flaky_retries -> Result<StepResult, ExecuteNodeError> with Ok(Default::default())",
+          "name": "crates/vo-executor/src/lib.rs:501:5: replace execute_flaky_retries -> Result<StepResult, ExecuteNodeError> with Ok(Default::default())",
           "package": "vo-executor",
           "file": "crates/vo-executor/src/lib.rs",
           "function": {
@@ -3091,22 +3091,22 @@
             "return_type": "-> Result<StepResult, ExecuteNodeError>",
             "span": {
               "start": {
-                "line": 494,
+                "line": 496,
                 "column": 1
               },
               "end": {
-                "line": 513,
+                "line": 515,
                 "column": 2
               }
             }
           },
           "span": {
             "start": {
-              "line": 499,
+              "line": 501,
               "column": 5
             },
             "end": {
-              "line": 512,
+              "line": 514,
               "column": 7
             }
           },
@@ -3115,12 +3115,12 @@
         }
       },
       "summary": "Unviable",
-      "log_path": "log/crates__vo-executor__src__lib.rs_line_499_col_5.log",
-      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_499_col_5.diff",
+      "log_path": "log/crates__vo-executor__src__lib.rs_line_501_col_5.log",
+      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_501_col_5.diff",
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.150780385,
+          "duration": 0.151634119,
           "process_status": {
             "Failure": 101
           },
@@ -3137,7 +3137,7 @@
     {
       "scenario": {
         "Mutant": {
-          "name": "crates/vo-executor/src/lib.rs:454:5: replace validate_retry_policy -> Result<(), ExecuteNodeError> with Ok(())",
+          "name": "crates/vo-executor/src/lib.rs:456:5: replace validate_retry_policy -> Result<(), ExecuteNodeError> with Ok(())",
           "package": "vo-executor",
           "file": "crates/vo-executor/src/lib.rs",
           "function": {
@@ -3145,22 +3145,22 @@
             "return_type": "-> Result<(), ExecuteNodeError>",
             "span": {
               "start": {
-                "line": 450,
+                "line": 452,
                 "column": 1
               },
               "end": {
-                "line": 464,
+                "line": 466,
                 "column": 2
               }
             }
           },
           "span": {
             "start": {
-              "line": 454,
+              "line": 456,
               "column": 5
             },
             "end": {
-              "line": 463,
+              "line": 465,
               "column": 6
             }
           },
@@ -3169,12 +3169,12 @@
         }
       },
       "summary": "CaughtMutant",
-      "log_path": "log/crates__vo-executor__src__lib.rs_line_454_col_5.log",
-      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_454_col_5.diff",
+      "log_path": "log/crates__vo-executor__src__lib.rs_line_456_col_5.log",
+      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_456_col_5.diff",
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.401000887,
+          "duration": 0.401020648,
           "process_status": "Success",
           "argv": [
             "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
@@ -3186,7 +3186,7 @@
         },
         {
           "phase": "Test",
-          "duration": 0.601373746,
+          "duration": 0.551235397,
           "process_status": {
             "Failure": 101
           },
@@ -3202,7 +3202,7 @@
     {
       "scenario": {
         "Mutant": {
-          "name": "crates/vo-executor/src/lib.rs:499:34: replace >= with < in execute_flaky_retries",
+          "name": "crates/vo-executor/src/lib.rs:501:34: replace >= with < in execute_flaky_retries",
           "package": "vo-executor",
           "file": "crates/vo-executor/src/lib.rs",
           "function": {
@@ -3210,22 +3210,22 @@
             "return_type": "-> Result<StepResult, ExecuteNodeError>",
             "span": {
               "start": {
-                "line": 494,
+                "line": 496,
                 "column": 1
               },
               "end": {
-                "line": 513,
+                "line": 515,
                 "column": 2
               }
             }
           },
           "span": {
             "start": {
-              "line": 499,
+              "line": 501,
               "column": 34
             },
             "end": {
-              "line": 499,
+              "line": 501,
               "column": 36
             }
           },
@@ -3234,12 +3234,12 @@
         }
       },
       "summary": "CaughtMutant",
-      "log_path": "log/crates__vo-executor__src__lib.rs_line_499_col_34.log",
-      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_499_col_34.diff",
+      "log_path": "log/crates__vo-executor__src__lib.rs_line_501_col_34.log",
+      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_501_col_34.diff",
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.401148406,
+          "duration": 0.351080935,
           "process_status": "Success",
           "argv": [
             "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
@@ -3251,7 +3251,7 @@
         },
         {
           "phase": "Test",
-          "duration": 0.100690156,
+          "duration": 0.100720246,
           "process_status": {
             "Failure": 101
           },
@@ -3267,7 +3267,7 @@
     {
       "scenario": {
         "Mutant": {
-          "name": "crates/vo-executor/src/lib.rs:501:38: replace > with == in execute_flaky_retries",
+          "name": "crates/vo-executor/src/lib.rs:503:38: replace > with < in execute_flaky_retries",
           "package": "vo-executor",
           "file": "crates/vo-executor/src/lib.rs",
           "function": {
@@ -3275,87 +3275,22 @@
             "return_type": "-> Result<StepResult, ExecuteNodeError>",
             "span": {
               "start": {
-                "line": 494,
+                "line": 496,
                 "column": 1
               },
               "end": {
-                "line": 513,
+                "line": 515,
                 "column": 2
               }
             }
           },
           "span": {
             "start": {
-              "line": 501,
+              "line": 503,
               "column": 38
             },
             "end": {
-              "line": 501,
-              "column": 39
-            }
-          },
-          "replacement": "==",
-          "genre": "BinaryOperator"
-        }
-      },
-      "summary": "CaughtMutant",
-      "log_path": "log/crates__vo-executor__src__lib.rs_line_501_col_38.log",
-      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_501_col_38.diff",
-      "phase_results": [
-        {
-          "phase": "Build",
-          "duration": 0.351053516,
-          "process_status": "Success",
-          "argv": [
-            "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
-            "test",
-            "--no-run",
-            "--verbose",
-            "--package=vo-executor@0.1.0"
-          ]
-        },
-        {
-          "phase": "Test",
-          "duration": 0.400945297,
-          "process_status": {
-            "Failure": 101
-          },
-          "argv": [
-            "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
-            "test",
-            "--verbose",
-            "--package=vo-executor@0.1.0"
-          ]
-        }
-      ]
-    },
-    {
-      "scenario": {
-        "Mutant": {
-          "name": "crates/vo-executor/src/lib.rs:501:38: replace > with < in execute_flaky_retries",
-          "package": "vo-executor",
-          "file": "crates/vo-executor/src/lib.rs",
-          "function": {
-            "function_name": "execute_flaky_retries",
-            "return_type": "-> Result<StepResult, ExecuteNodeError>",
-            "span": {
-              "start": {
-                "line": 494,
-                "column": 1
-              },
-              "end": {
-                "line": 513,
-                "column": 2
-              }
-            }
-          },
-          "span": {
-            "start": {
-              "line": 501,
-              "column": 38
-            },
-            "end": {
-              "line": 501,
+              "line": 503,
               "column": 39
             }
           },
@@ -3364,12 +3299,12 @@
         }
       },
       "summary": "CaughtMutant",
-      "log_path": "log/crates__vo-executor__src__lib.rs_line_501_col_38_001.log",
-      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_501_col_38_001.diff",
+      "log_path": "log/crates__vo-executor__src__lib.rs_line_503_col_38_001.log",
+      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_503_col_38_001.diff",
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.401046276,
+          "duration": 0.451169366,
           "process_status": "Success",
           "argv": [
             "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
@@ -3381,7 +3316,7 @@
         },
         {
           "phase": "Test",
-          "duration": 0.250719677,
+          "duration": 0.250952096,
           "process_status": {
             "Failure": 101
           },
@@ -3397,7 +3332,7 @@
     {
       "scenario": {
         "Mutant": {
-          "name": "crates/vo-executor/src/lib.rs:501:38: replace > with >= in execute_flaky_retries",
+          "name": "crates/vo-executor/src/lib.rs:503:38: replace > with == in execute_flaky_retries",
           "package": "vo-executor",
           "file": "crates/vo-executor/src/lib.rs",
           "function": {
@@ -3405,22 +3340,87 @@
             "return_type": "-> Result<StepResult, ExecuteNodeError>",
             "span": {
               "start": {
-                "line": 494,
+                "line": 496,
                 "column": 1
               },
               "end": {
-                "line": 513,
+                "line": 515,
                 "column": 2
               }
             }
           },
           "span": {
             "start": {
-              "line": 501,
+              "line": 503,
               "column": 38
             },
             "end": {
-              "line": 501,
+              "line": 503,
+              "column": 39
+            }
+          },
+          "replacement": "==",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/crates__vo-executor__src__lib.rs_line_503_col_38.log",
+      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_503_col_38.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.401007587,
+          "process_status": "Success",
+          "argv": [
+            "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=vo-executor@0.1.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.401098396,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=vo-executor@0.1.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "crates/vo-executor/src/lib.rs:503:38: replace > with >= in execute_flaky_retries",
+          "package": "vo-executor",
+          "file": "crates/vo-executor/src/lib.rs",
+          "function": {
+            "function_name": "execute_flaky_retries",
+            "return_type": "-> Result<StepResult, ExecuteNodeError>",
+            "span": {
+              "start": {
+                "line": 496,
+                "column": 1
+              },
+              "end": {
+                "line": 515,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 503,
+              "column": 38
+            },
+            "end": {
+              "line": 503,
               "column": 39
             }
           },
@@ -3429,12 +3429,12 @@
         }
       },
       "summary": "CaughtMutant",
-      "log_path": "log/crates__vo-executor__src__lib.rs_line_501_col_38_002.log",
-      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_501_col_38_002.diff",
+      "log_path": "log/crates__vo-executor__src__lib.rs_line_503_col_38_002.log",
+      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_503_col_38_002.diff",
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.350969197,
+          "duration": 0.401094117,
           "process_status": "Success",
           "argv": [
             "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
@@ -3446,7 +3446,7 @@
         },
         {
           "phase": "Test",
-          "duration": 0.551291267,
+          "duration": 0.551060178,
           "process_status": {
             "Failure": 101
           },
@@ -3462,72 +3462,7 @@
     {
       "scenario": {
         "Mutant": {
-          "name": "crates/vo-executor/src/lib.rs:516:5: replace sleep_with_backoff with ()",
-          "package": "vo-executor",
-          "file": "crates/vo-executor/src/lib.rs",
-          "function": {
-            "function_name": "sleep_with_backoff",
-            "return_type": "",
-            "span": {
-              "start": {
-                "line": 515,
-                "column": 1
-              },
-              "end": {
-                "line": 523,
-                "column": 2
-              }
-            }
-          },
-          "span": {
-            "start": {
-              "line": 516,
-              "column": 5
-            },
-            "end": {
-              "line": 522,
-              "column": 12
-            }
-          },
-          "replacement": "()",
-          "genre": "FnValue"
-        }
-      },
-      "summary": "CaughtMutant",
-      "log_path": "log/crates__vo-executor__src__lib.rs_line_516_col_5.log",
-      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_516_col_5.diff",
-      "phase_results": [
-        {
-          "phase": "Build",
-          "duration": 0.651171718,
-          "process_status": "Success",
-          "argv": [
-            "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
-            "test",
-            "--no-run",
-            "--verbose",
-            "--package=vo-executor@0.1.0"
-          ]
-        },
-        {
-          "phase": "Test",
-          "duration": 0.100528557,
-          "process_status": {
-            "Failure": 101
-          },
-          "argv": [
-            "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
-            "test",
-            "--verbose",
-            "--package=vo-executor@0.1.0"
-          ]
-        }
-      ]
-    },
-    {
-      "scenario": {
-        "Mutant": {
-          "name": "crates/vo-executor/src/lib.rs:555:5: replace get_execution_status -> ExecutionStatus with Default::default()",
+          "name": "crates/vo-executor/src/lib.rs:557:5: replace get_execution_status -> ExecutionStatus with Default::default()",
           "package": "vo-executor",
           "file": "crates/vo-executor/src/lib.rs",
           "function": {
@@ -3535,22 +3470,22 @@
             "return_type": "-> ExecutionStatus",
             "span": {
               "start": {
-                "line": 552,
+                "line": 554,
                 "column": 1
               },
               "end": {
-                "line": 571,
+                "line": 573,
                 "column": 2
               }
             }
           },
           "span": {
             "start": {
-              "line": 555,
+              "line": 557,
               "column": 5
             },
             "end": {
-              "line": 570,
+              "line": 572,
               "column": 6
             }
           },
@@ -3559,12 +3494,12 @@
         }
       },
       "summary": "Unviable",
-      "log_path": "log/crates__vo-executor__src__lib.rs_line_555_col_5.log",
-      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_555_col_5.diff",
+      "log_path": "log/crates__vo-executor__src__lib.rs_line_557_col_5.log",
+      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_557_col_5.diff",
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.150956433,
+          "duration": 0.100590676,
           "process_status": {
             "Failure": 101
           },
@@ -3581,7 +3516,72 @@
     {
       "scenario": {
         "Mutant": {
-          "name": "crates/vo-executor/src/lib.rs:576:5: replace get_last_error -> Option<ExecuteNodeError> with Some(Default::default())",
+          "name": "crates/vo-executor/src/lib.rs:518:5: replace sleep_with_backoff with ()",
+          "package": "vo-executor",
+          "file": "crates/vo-executor/src/lib.rs",
+          "function": {
+            "function_name": "sleep_with_backoff",
+            "return_type": "",
+            "span": {
+              "start": {
+                "line": 517,
+                "column": 1
+              },
+              "end": {
+                "line": 525,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 518,
+              "column": 5
+            },
+            "end": {
+              "line": 524,
+              "column": 12
+            }
+          },
+          "replacement": "()",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/crates__vo-executor__src__lib.rs_line_518_col_5.log",
+      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_518_col_5.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.651356497,
+          "process_status": "Success",
+          "argv": [
+            "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=vo-executor@0.1.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.100733066,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=vo-executor@0.1.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "crates/vo-executor/src/lib.rs:578:5: replace get_last_error -> Option<ExecuteNodeError> with Some(Default::default())",
           "package": "vo-executor",
           "file": "crates/vo-executor/src/lib.rs",
           "function": {
@@ -3589,22 +3589,22 @@
             "return_type": "-> Option<ExecuteNodeError>",
             "span": {
               "start": {
-                "line": 573,
+                "line": 575,
                 "column": 1
               },
               "end": {
-                "line": 577,
+                "line": 579,
                 "column": 2
               }
             }
           },
           "span": {
             "start": {
-              "line": 576,
+              "line": 578,
               "column": 5
             },
             "end": {
-              "line": 576,
+              "line": 578,
               "column": 56
             }
           },
@@ -3613,12 +3613,12 @@
         }
       },
       "summary": "Unviable",
-      "log_path": "log/crates__vo-executor__src__lib.rs_line_576_col_5_001.log",
-      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_576_col_5_001.diff",
+      "log_path": "log/crates__vo-executor__src__lib.rs_line_578_col_5_001.log",
+      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_578_col_5_001.diff",
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.100632776,
+          "duration": 0.200792626,
           "process_status": {
             "Failure": 101
           },
@@ -3635,7 +3635,7 @@
     {
       "scenario": {
         "Mutant": {
-          "name": "crates/vo-executor/src/lib.rs:535:5: replace cancel_execution -> Result<(), ExecuteNodeError> with Ok(())",
+          "name": "crates/vo-executor/src/lib.rs:537:5: replace cancel_execution -> Result<(), ExecuteNodeError> with Ok(())",
           "package": "vo-executor",
           "file": "crates/vo-executor/src/lib.rs",
           "function": {
@@ -3643,22 +3643,22 @@
             "return_type": "-> Result<(), ExecuteNodeError>",
             "span": {
               "start": {
-                "line": 525,
+                "line": 527,
                 "column": 1
               },
               "end": {
-                "line": 550,
+                "line": 552,
                 "column": 2
               }
             }
           },
           "span": {
             "start": {
-              "line": 535,
+              "line": 537,
               "column": 5
             },
             "end": {
-              "line": 549,
+              "line": 551,
               "column": 6
             }
           },
@@ -3667,12 +3667,12 @@
         }
       },
       "summary": "CaughtMutant",
-      "log_path": "log/crates__vo-executor__src__lib.rs_line_535_col_5.log",
-      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_535_col_5.diff",
+      "log_path": "log/crates__vo-executor__src__lib.rs_line_537_col_5.log",
+      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_537_col_5.diff",
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.350776238,
+          "duration": 0.350914977,
           "process_status": "Success",
           "argv": [
             "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
@@ -3684,7 +3684,7 @@
         },
         {
           "phase": "Test",
-          "duration": 0.551160808,
+          "duration": 0.551222447,
           "process_status": {
             "Failure": 101
           },
@@ -3700,7 +3700,7 @@
     {
       "scenario": {
         "Mutant": {
-          "name": "crates/vo-executor/src/lib.rs:576:5: replace get_last_error -> Option<ExecuteNodeError> with None",
+          "name": "crates/vo-executor/src/lib.rs:578:5: replace get_last_error -> Option<ExecuteNodeError> with None",
           "package": "vo-executor",
           "file": "crates/vo-executor/src/lib.rs",
           "function": {
@@ -3708,22 +3708,22 @@
             "return_type": "-> Option<ExecuteNodeError>",
             "span": {
               "start": {
-                "line": 573,
+                "line": 575,
                 "column": 1
               },
               "end": {
-                "line": 577,
+                "line": 579,
                 "column": 2
               }
             }
           },
           "span": {
             "start": {
-              "line": 576,
+              "line": 578,
               "column": 5
             },
             "end": {
-              "line": 576,
+              "line": 578,
               "column": 56
             }
           },
@@ -3732,12 +3732,12 @@
         }
       },
       "summary": "CaughtMutant",
-      "log_path": "log/crates__vo-executor__src__lib.rs_line_576_col_5.log",
-      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_576_col_5.diff",
+      "log_path": "log/crates__vo-executor__src__lib.rs_line_578_col_5.log",
+      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_578_col_5.diff",
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.601020909,
+          "duration": 0.350823808,
           "process_status": "Success",
           "argv": [
             "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
@@ -3749,7 +3749,7 @@
         },
         {
           "phase": "Test",
-          "duration": 0.551102017,
+          "duration": 0.551059138,
           "process_status": {
             "Failure": 101
           },
@@ -3765,7 +3765,7 @@
     {
       "scenario": {
         "Mutant": {
-          "name": "crates/vo-executor/src/lib.rs:471:25: replace == with != in check_flaky_or_delegate",
+          "name": "crates/vo-executor/src/lib.rs:473:25: replace == with != in check_flaky_or_delegate",
           "package": "vo-executor",
           "file": "crates/vo-executor/src/lib.rs",
           "function": {
@@ -3773,22 +3773,22 @@
             "return_type": "-> Result<StepResult, ExecuteNodeError>",
             "span": {
               "start": {
-                "line": 466,
+                "line": 468,
                 "column": 1
               },
               "end": {
-                "line": 476,
+                "line": 478,
                 "column": 2
               }
             }
           },
           "span": {
             "start": {
-              "line": 471,
+              "line": 473,
               "column": 25
             },
             "end": {
-              "line": 471,
+              "line": 473,
               "column": 27
             }
           },
@@ -3797,12 +3797,12 @@
         }
       },
       "summary": "CaughtMutant",
-      "log_path": "log/crates__vo-executor__src__lib.rs_line_471_col_25.log",
-      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_471_col_25.diff",
+      "log_path": "log/crates__vo-executor__src__lib.rs_line_473_col_25.log",
+      "diff_path": "diff/crates__vo-executor__src__lib.rs_line_473_col_25.diff",
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.401204505,
+          "duration": 0.400980677,
           "process_status": "Success",
           "argv": [
             "/home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo",
@@ -3814,7 +3814,7 @@
         },
         {
           "phase": "Test",
-          "duration": 3.104022666,
+          "duration": 3.154970938,
           "process_status": {
             "Failure": 101
           },
@@ -3834,7 +3834,7 @@
   "timeout": 0,
   "unviable": 15,
   "success": 0,
-  "start_time": "2026-04-05T05:17:09.000795932Z",
-  "end_time": "2026-04-05T05:17:26.135002601Z",
+  "start_time": "2026-04-05T11:35:57.127603008Z",
+  "end_time": "2026-04-05T11:36:14.378026223Z",
   "cargo_mutants_version": "27.0.0"
 }

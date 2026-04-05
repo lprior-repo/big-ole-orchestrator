@@ -352,7 +352,7 @@ mod write_class_tests {
     fn write_class_returns_serialization_error_when_deserializing_malformed_json() {
         let json = "{ invalid }";
         let result: Result<WriteClass, _> = serde_json::from_str(json);
-        assert!(matches!(result, Err(_)));
+        assert!(result.is_err());
         let err = result.unwrap_err();
         // We expect this to fail with some kind of serde error
         assert!(
@@ -366,7 +366,7 @@ mod write_class_tests {
     fn write_class_returns_serialization_error_when_deserializing_truncated_json() {
         let json = "\"critical_cont";
         let result: Result<WriteClass, _> = serde_json::from_str(json);
-        assert!(matches!(result, Err(_)));
+        assert!(result.is_err());
     }
 
     // ── TaxonomyNotInitialized test ───────────────────────────────────────────
@@ -558,11 +558,12 @@ mod write_class_tests {
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
+#[allow(unused_doc_comments)]
 mod proptest_write_class_invariants {
     use super::*;
     use proptest::prelude::*;
 
-    /// PROP-01: INV-001 — tier() is always 1, 2, or 3
+    // PROP-01: INV-001 — tier() is always 1, 2, or 3
     proptest! {
         #[test]
         fn write_class_tier_always_returns_1_2_or_3(variant in proptest::sample::select(&[
@@ -571,11 +572,11 @@ mod proptest_write_class_invariants {
             WriteClass::BulkBlob,
         ])) {
             let tier = variant.tier();
-            prop_assert!(tier >= 1 && tier <= 3, "tier() must be 1, 2, or 3, got {}", tier);
+            prop_assert!((1..=3).contains(&tier), "tier() must be 1, 2, or 3, got {}", tier);
         }
     }
 
-    /// PROP-02: INV-002 — never_drops() is true only for CriticalControlPlane
+    // PROP-02: INV-002 — never_drops() is true only for CriticalControlPlane
     proptest! {
         #[test]
         fn write_class_never_drops_true_only_for_critical_control_plane(variant in proptest::sample::select(&[
@@ -591,7 +592,7 @@ mod proptest_write_class_invariants {
         }
     }
 
-    /// PROP-03: INV-003 — as_str() round-trips through from_str()
+    // PROP-03: INV-003 — as_str() round-trips through from_str()
     proptest! {
         #[test]
         fn write_class_as_str_roundtrips_through_from_str(variant in proptest::sample::select(&[
@@ -607,7 +608,7 @@ mod proptest_write_class_invariants {
         }
     }
 
-    /// PROP-04: INV-004 — JSON serialization round-trip
+    // PROP-04: INV-004 — JSON serialization round-trip
     proptest! {
         #[test]
         fn write_class_json_roundtrip_preserves_variant(variant in proptest::sample::select(&[
@@ -623,7 +624,7 @@ mod proptest_write_class_invariants {
         }
     }
 
-    /// PROP-05: INV-005 — WriteBudget reserve never produces negative remaining
+    // PROP-05: INV-005 — WriteBudget reserve never produces negative remaining
     proptest! {
         #[test]
         fn write_budget_reserve_never_produces_negative_remaining(
@@ -649,7 +650,7 @@ mod proptest_write_class_invariants {
         }
     }
 
-    /// PROP-06: INV-006 — can_write and reserve are consistent
+    // PROP-06: INV-006 — can_write and reserve are consistent
     proptest! {
         #[test]
         fn write_budget_can_write_and_reserve_are_consistent(

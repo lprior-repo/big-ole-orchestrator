@@ -14,6 +14,7 @@ use vo_types::{
 };
 
 /// Error types for DbWriterMessage operations.
+#[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum DbWriterMessageError {
     /// Fence token was zero (must be nonzero).
@@ -55,6 +56,7 @@ pub struct SnapshotData {
     state_bytes: Vec<u8>,
 }
 
+#[allow(dead_code)]
 impl SnapshotData {
     /// Create a new `SnapshotData`.
     ///

@@ -1,0 +1,21 @@
+--- crates/vo-executor/src/lib.rs
++++ replace <impl AsRef<str> for StepId>::as_ref -> &str with ""
+@@ -56,17 +56,17 @@
+     #[must_use]
+     pub fn as_str(&self) -> &str {
+         &self.0
+     }
+ }
+ 
+ impl AsRef<str> for StepId {
+     fn as_ref(&self) -> &str {
+-        &self.0
++        "" /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ impl From<StepId> for String {
+     fn from(id: StepId) -> Self {
+         id.0
+     }
+ }

@@ -1,0 +1,21 @@
+--- crates/vo-executor/src/lib.rs
++++ replace || with && in StepId::parse
+@@ -39,17 +39,17 @@
+     pub fn parse(s: &str) -> Result<Self, ExecuteNodeError> {
+         if s.is_empty() {
+             return Err(ExecuteNodeError::StepNotFound {
+                 step_id: StepId(s.to_string()),
+             });
+         }
+         if !s
+             .chars()
+-            .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
++            .all(|c| c.is_alphanumeric() && /* ~ changed by cargo-mutants ~ */ c == '-' || c == '_')
+         {
+             return Err(ExecuteNodeError::StepNotFound {
+                 step_id: StepId(s.to_string()),
+             });
+         }
+         Ok(Self(s.to_string()))
+     }
+ 

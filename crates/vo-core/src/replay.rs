@@ -417,7 +417,7 @@ mod tests {
 
     #[test]
     fn replay_engine_default_creates_instance() {
-        let _engine = ReplayEngine::default();
+        let _engine = ReplayEngine;
     }
 
     // =========================================================================
@@ -936,7 +936,7 @@ mod tests {
     // Proptest invariants
     // =========================================================================
 
-    #[cfg(feature = "proptest")]
+    #[cfg(test)]
     mod proptests {
         use super::*;
         use proptest::prelude::*;

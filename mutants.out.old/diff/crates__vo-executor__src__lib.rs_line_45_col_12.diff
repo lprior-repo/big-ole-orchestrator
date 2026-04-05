@@ -1,0 +1,21 @@
+--- crates/vo-executor/src/lib.rs
++++ delete ! in StepId::parse
+@@ -37,17 +37,17 @@
+     /// Returns [`ExecuteNodeError::StepNotFound`] if the string is empty
+     /// or contains invalid characters (only alphanumeric, hyphens, and underscores allowed).
+     pub fn parse(s: &str) -> Result<Self, ExecuteNodeError> {
+         if s.is_empty() {
+             return Err(ExecuteNodeError::StepNotFound {
+                 step_id: StepId(s.to_string()),
+             });
+         }
+-        if !s
++        if  /* ~ changed by cargo-mutants ~ */s
+             .chars()
+             .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+         {
+             return Err(ExecuteNodeError::StepNotFound {
+                 step_id: StepId(s.to_string()),
+             });
+         }
+         Ok(Self(s.to_string()))

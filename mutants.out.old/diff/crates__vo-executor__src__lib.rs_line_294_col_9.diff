@@ -1,0 +1,21 @@
+--- crates/vo-executor/src/lib.rs
++++ delete match arm "step-slow" in step_behavior
+@@ -286,17 +286,17 @@
+ /// **NOTE:** This is test infrastructure that simulates workflow step behavior.
+ fn step_behavior(step_id: &str) -> StepBehavior {
+     match step_id {
+         "step-1" | "step-good" | "step-valid" | "step-retry" | "workflow-step-1" => {
+             StepBehavior::Success
+         }
+         "step-fail" => StepBehavior::Failure,
+         "step-transient" | "step-flaky" => StepBehavior::Transient,
+-        "step-slow" => StepBehavior::Slow,
++         /* ~ changed by cargo-mutants ~ */
+         _ => StepBehavior::NotFound,
+     }
+ }
+ 
+ #[derive(Debug, Clone, Copy)]
+ enum StepBehavior {
+     Success,
+     Failure,

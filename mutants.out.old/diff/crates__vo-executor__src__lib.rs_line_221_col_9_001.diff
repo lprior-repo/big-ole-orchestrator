@@ -1,0 +1,21 @@
+--- crates/vo-executor/src/lib.rs
++++ replace StepResult::is_success -> bool with false
+@@ -213,17 +213,17 @@
+         clamped as u64
+     }
+ }
+ 
+ impl StepResult {
+     /// Check if the step result indicates success.
+     #[must_use]
+     pub fn is_success(&self) -> bool {
+-        matches!(self, StepResult::Success { .. })
++        false /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ impl ExecutionStatus {
+     /// Check if the status indicates ready state.
+     #[must_use]
+     pub fn is_ready(&self) -> bool {
+         matches!(self, ExecutionStatus::Ready)

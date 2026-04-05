@@ -1,2 +1,2 @@
-crates/vo-executor/src/lib.rs:276:5: replace clear_error with ()
-crates/vo-executor/src/lib.rs:368:5: replace start_execution with ()
+crates/vo-executor/src/lib.rs:350:5: replace check_not_executing -> Result<(), ExecuteNodeError> with Ok(())
+crates/vo-executor/src/lib.rs:370:5: replace start_execution with ()

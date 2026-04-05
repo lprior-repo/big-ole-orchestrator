@@ -1,0 +1,120 @@
+
+*** crates/vo-executor/src/lib.rs:288:5: replace step_behavior -> StepBehavior with Default::default()
+
+*** mutation diff:
+--- crates/vo-executor/src/lib.rs
++++ replace step_behavior -> StepBehavior with Default::default()
+@@ -280,25 +280,17 @@
+ /// Store an error for a step.
+ ///pub for testing
+ pub fn set_error(step_id: &str, err: ExecuteNodeError) {
+     LAST_ERROR.insert(step_id.to_string(), err);
+ }
+ 
+ /// **NOTE:** This is test infrastructure that simulates workflow step behavior.
+ fn step_behavior(step_id: &str) -> StepBehavior {
+-    match step_id {
+-        "step-1" | "step-good" | "step-valid" | "step-retry" | "workflow-step-1" => {
+-            StepBehavior::Success
+-        }
+-        "step-fail" => StepBehavior::Failure,
+-        "step-transient" | "step-flaky" => StepBehavior::Transient,
+-        "step-slow" => StepBehavior::Slow,
+-        _ => StepBehavior::NotFound,
+-    }
++    Default::default() /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ #[derive(Debug, Clone, Copy)]
+ enum StepBehavior {
+     Success,
+     Failure,
+     Transient,
+     Slow,
+
+
+*** /home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo test --no-run --verbose --package=vo-executor@0.1.0
+       Fresh cfg-if v1.0.4
+       Fresh unicode-ident v1.0.24
+       Fresh scopeguard v1.2.0
+       Fresh once_cell v1.21.4
+       Fresh smallvec v1.15.1
+       Fresh linux-raw-sys v0.12.1
+       Fresh bitflags v2.11.0
+       Fresh autocfg v1.5.0
+       Fresh fastrand v2.3.0
+       Fresh hashbrown v0.14.5
+       Fresh fnv v1.0.7
+       Fresh quick-error v1.2.3
+       Fresh pin-project-lite v0.2.17
+       Fresh bytes v1.11.1
+       Fresh bit-vec v0.8.0
+       Fresh regex-syntax v0.8.10
+       Fresh itoa v1.0.18
+       Fresh libc v0.2.183
+       Fresh lock_api v0.4.14
+       Fresh bit-set v0.8.0
+       Fresh unarray v0.1.4
+       Fresh memchr v2.8.0
+       Fresh proc-macro2 v1.0.106
+       Fresh getrandom v0.3.4
+       Fresh parking_lot_core v0.9.12
+       Fresh getrandom v0.4.2
+       Fresh errno v0.3.14
+       Fresh rustix v1.1.4
+       Fresh serde_core v1.0.228
+       Fresh zerocopy v0.8.47
+       Fresh crossbeam-utils v0.8.21
+       Fresh mio v1.2.0
+       Fresh socket2 v0.6.3
+       Fresh wait-timeout v0.2.1
+       Fresh zmij v1.0.21
+       Fresh quote v1.0.45
+       Fresh rand_core v0.9.5
+       Fresh parking_lot v0.12.5
+       Fresh ppv-lite86 v0.2.21
+       Fresh signal-hook-registry v1.4.8
+       Fresh tempfile v3.27.0
+       Fresh dashmap v6.1.0
+       Fresh num-traits v0.2.19
+       Fresh serde_json v1.0.149
+       Fresh syn v2.0.117
+       Fresh rusty-fork v0.3.1
+       Fresh rand v0.9.2
+       Fresh rand_chacha v0.9.0
+       Fresh rand_xorshift v0.4.0
+       Fresh tokio-macros v2.6.1
+       Fresh serde_derive v1.0.228
+       Fresh thiserror-impl v1.0.69
+       Fresh proptest v1.11.0
+       Fresh serde v1.0.228
+       Fresh thiserror v1.0.69
+       Fresh tokio v1.50.0
+       Dirty vo-executor v0.1.0 (/tmp/cargo-mutants-veloxide-B7sCCc.tmp/crates/vo-executor): the file `crates/vo-executor/src/lib.rs` has changed (1775388966.325762526s, 1s after last build at 1775388965.921754383s)
+   Compiling vo-executor v0.1.0 (/tmp/cargo-mutants-veloxide-B7sCCc.tmp/crates/vo-executor)
+     Running `sccache /home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/rustc --crate-name vo_executor --edition=2021 crates/vo-executor/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --emit=dep-info,link -C embed-bitcode=no -C debuginfo=2 --test --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=99d9d14597389dd3 -C extra-filename=-89a82915341cc837 --out-dir /tmp/cargo-mutants-veloxide-B7sCCc.tmp/target/debug/deps -C incremental=/tmp/cargo-mutants-veloxide-B7sCCc.tmp/target/debug/incremental -L dependency=/tmp/cargo-mutants-veloxide-B7sCCc.tmp/target/debug/deps --extern dashmap=/tmp/cargo-mutants-veloxide-B7sCCc.tmp/target/debug/deps/libdashmap-e36d576a90134ef4.rlib --extern proptest=/tmp/cargo-mutants-veloxide-B7sCCc.tmp/target/debug/deps/libproptest-aec12d5eb058f8fe.rlib --extern serde=/tmp/cargo-mutants-veloxide-B7sCCc.tmp/target/debug/deps/libserde-19948d952cd4942b.rlib --extern serde_json=/tmp/cargo-mutants-veloxide-B7sCCc.tmp/target/debug/deps/libserde_json-f90686df57d7c4a6.rlib --extern thiserror=/tmp/cargo-mutants-veloxide-B7sCCc.tmp/target/debug/deps/libthiserror-df4a5b796341e916.rlib --extern tokio=/tmp/cargo-mutants-veloxide-B7sCCc.tmp/target/debug/deps/libtokio-da6bb745549c0aa6.rlib`
+     Running `sccache /home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/rustc --crate-name vo_executor --edition=2021 crates/vo-executor/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no -C debuginfo=2 --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=3902da75fd01f014 -C extra-filename=-c12ed10a4bf0b4cb --out-dir /tmp/cargo-mutants-veloxide-B7sCCc.tmp/target/debug/deps -C incremental=/tmp/cargo-mutants-veloxide-B7sCCc.tmp/target/debug/incremental -L dependency=/tmp/cargo-mutants-veloxide-B7sCCc.tmp/target/debug/deps --extern dashmap=/tmp/cargo-mutants-veloxide-B7sCCc.tmp/target/debug/deps/libdashmap-e36d576a90134ef4.rmeta --extern serde=/tmp/cargo-mutants-veloxide-B7sCCc.tmp/target/debug/deps/libserde-19948d952cd4942b.rmeta --extern thiserror=/tmp/cargo-mutants-veloxide-B7sCCc.tmp/target/debug/deps/libthiserror-df4a5b796341e916.rmeta --extern tokio=/tmp/cargo-mutants-veloxide-B7sCCc.tmp/target/debug/deps/libtokio-da6bb745549c0aa6.rmeta`
+error[E0277]: the trait bound `StepBehavior: Default` is not satisfied
+   --> crates/vo-executor/src/lib.rs:288:5
+    |
+288 |     Default::default() /* ~ changed by cargo-mutants ~ */
+    |     ^^^^^^^^^^^^^^^^^^ the trait `Default` is not implemented for `StepBehavior`
+    |
+help: consider annotating `StepBehavior` with `#[derive(Default)]`
+    |
+292 + #[derive(Default)]
+293 | enum StepBehavior {
+    |
+
+For more information about this error, try `rustc --explain E0277`.
+error: could not compile `vo-executor` (lib) due to 1 previous error
+
+Caused by:
+  process didn't exit successfully: `sccache /home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/rustc --crate-name vo_executor --edition=2021 crates/vo-executor/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no -C debuginfo=2 --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=3902da75fd01f014 -C extra-filename=-c12ed10a4bf0b4cb --out-dir /tmp/cargo-mutants-veloxide-B7sCCc.tmp/target/debug/deps -C incremental=/tmp/cargo-mutants-veloxide-B7sCCc.tmp/target/debug/incremental -L dependency=/tmp/cargo-mutants-veloxide-B7sCCc.tmp/target/debug/deps --extern dashmap=/tmp/cargo-mutants-veloxide-B7sCCc.tmp/target/debug/deps/libdashmap-e36d576a90134ef4.rmeta --extern serde=/tmp/cargo-mutants-veloxide-B7sCCc.tmp/target/debug/deps/libserde-19948d952cd4942b.rmeta --extern thiserror=/tmp/cargo-mutants-veloxide-B7sCCc.tmp/target/debug/deps/libthiserror-df4a5b796341e916.rmeta --extern tokio=/tmp/cargo-mutants-veloxide-B7sCCc.tmp/target/debug/deps/libtokio-da6bb745549c0aa6.rmeta` (exit status: 1)
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `vo-executor` (lib test) due to 1 previous error
+
+Caused by:
+  process didn't exit successfully: `sccache /home/lewis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/rustc --crate-name vo_executor --edition=2021 crates/vo-executor/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --emit=dep-info,link -C embed-bitcode=no -C debuginfo=2 --test --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=99d9d14597389dd3 -C extra-filename=-89a82915341cc837 --out-dir /tmp/cargo-mutants-veloxide-B7sCCc.tmp/target/debug/deps -C incremental=/tmp/cargo-mutants-veloxide-B7sCCc.tmp/target/debug/incremental -L dependency=/tmp/cargo-mutants-veloxide-B7sCCc.tmp/target/debug/deps --extern dashmap=/tmp/cargo-mutants-veloxide-B7sCCc.tmp/target/debug/deps/libdashmap-e36d576a90134ef4.rlib --extern proptest=/tmp/cargo-mutants-veloxide-B7sCCc.tmp/target/debug/deps/libproptest-aec12d5eb058f8fe.rlib --extern serde=/tmp/cargo-mutants-veloxide-B7sCCc.tmp/target/debug/deps/libserde-19948d952cd4942b.rlib --extern serde_json=/tmp/cargo-mutants-veloxide-B7sCCc.tmp/target/debug/deps/libserde_json-f90686df57d7c4a6.rlib --extern thiserror=/tmp/cargo-mutants-veloxide-B7sCCc.tmp/target/debug/deps/libthiserror-df4a5b796341e916.rlib --extern tokio=/tmp/cargo-mutants-veloxide-B7sCCc.tmp/target/debug/deps/libtokio-da6bb745549c0aa6.rlib` (exit status: 1)
+
+*** result: Failure(101)

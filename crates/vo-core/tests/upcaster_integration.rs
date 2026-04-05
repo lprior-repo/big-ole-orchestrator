@@ -198,7 +198,10 @@ impl UpcasterRegistry for TestUpcasterRegistry {
             return Err(UpcasterError::InvalidTargetVersion(source_version));
         }
 
-        let mut upcasters = self.upcasters.lock().unwrap();
+        let mut upcasters = self
+            .upcasters
+            .lock()
+            .map_err(|_| UpcasterError::UpcastingFailed("lock poisoned".to_string()))?;
 
         if upcasters.contains_key(&source_version) {
             return Err(UpcasterError::NoUpcasterRegistered(source_version));
@@ -214,7 +217,10 @@ impl UpcasterRegistry for TestUpcasterRegistry {
             return Ok(envelope);
         }
 
-        let upcasters = self.upcasters.lock().unwrap();
+        let upcasters = self
+            .upcasters
+            .lock()
+            .map_err(|_| UpcasterError::UpcastingFailed("lock poisoned".to_string()))?;
         let mut visited = std::collections::HashSet::new();
         visited.insert(envelope.schema_version);
 
@@ -832,6 +838,7 @@ fn envelope_metadata_preserved_through_multi_hop_upcast() {
 /// An upcaster with source_version = MAX_SUPPORTED_VERSION for boundary testing.
 struct MaxVersionBoundaryUpcaster;
 
+#[allow(clippy::new_ret_no_self)]
 impl MaxVersionBoundaryUpcaster {
     fn new() -> Box<dyn Upcaster> {
         Box::new(Self)
@@ -854,6 +861,7 @@ impl Upcaster for MaxVersionBoundaryUpcaster {
 /// An upcaster with source_version = MAX_SUPPORTED_VERSION - 1 (valid boundary).
 struct OneBelowMaxUpcaster;
 
+#[allow(clippy::new_ret_no_self)]
 impl OneBelowMaxUpcaster {
     fn new() -> Box<dyn Upcaster> {
         Box::new(Self)

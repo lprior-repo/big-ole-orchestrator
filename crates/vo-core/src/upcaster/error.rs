@@ -12,6 +12,13 @@ pub use vo_types::events::Error as EventEnvelopeError;
 /// Errors that can occur during upcasting operations.
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum UpcasterError {
+    /// No upcaster registered for source version.
+    ///
+    /// This error serves dual purposes:
+    /// 1. "No upcaster found" - during upcast_envelope when no registered upcaster
+    ///    exists for the current schema version
+    /// 2. "Duplicate registration rejected" - during register() when an upcaster is
+    ///    already registered for the given source version
     #[error("No upcaster registered for source version: {0}")]
     NoUpcasterRegistered(u8),
 

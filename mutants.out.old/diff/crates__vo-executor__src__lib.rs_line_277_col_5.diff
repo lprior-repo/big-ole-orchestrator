@@ -1,0 +1,21 @@
+--- crates/vo-executor/src/lib.rs
++++ replace clear_error with ()
+@@ -269,17 +269,17 @@
+ /// Set state for a step.
+ fn set_state(step_id: &str, state: StepState) {
+     STATE.insert(step_id.to_string(), state);
+ }
+ 
+ /// Clear any stored error for a step.
+ ///pub for testing
+ pub fn clear_error(step_id: &str) {
+-    LAST_ERROR.remove(step_id);
++    () /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Store an error for a step.
+ ///pub for testing
+ pub fn set_error(step_id: &str, err: ExecuteNodeError) {
+     LAST_ERROR.insert(step_id.to_string(), err);
+ }
+ 

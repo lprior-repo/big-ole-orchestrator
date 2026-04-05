@@ -1,0 +1,14 @@
+--- crates/vo-executor/src/lib.rs
++++ replace get_last_error -> Option<ExecuteNodeError> with None
+@@ -570,10 +570,10 @@
+         StepState::Completed { output } => ExecutionStatus::Completed { output },
+         StepState::Cancelled { reason } => ExecutionStatus::Cancelled { reason },
+     }
+ }
+ 
+ /// Get the last error for a step (if any).
+ #[must_use]
+ pub fn get_last_error(step_id: &StepId) -> Option<ExecuteNodeError> {
+-    LAST_ERROR.get(step_id.as_str()).map(|v| v.clone())
++    None /* ~ changed by cargo-mutants ~ */
+ }

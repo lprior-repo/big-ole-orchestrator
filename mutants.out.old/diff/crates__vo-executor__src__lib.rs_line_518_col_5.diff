@@ -1,0 +1,27 @@
+--- crates/vo-executor/src/lib.rs
++++ replace sleep_with_backoff with ()
+@@ -510,23 +510,17 @@
+     }
+     Err(ExecuteNodeError::RetryExhausted {
+         attempts: 1,
+         last_error: Box::new(transient_err),
+     })
+ }
+ 
+ async fn sleep_with_backoff(retry_policy: &RetryPolicy, attempt: u32) {
+-    use std::time::Duration;
+-    use tokio::time::sleep;
+-
+-    sleep(Duration::from_millis(
+-        retry_policy.calculate_backoff_delay(attempt),
+-    ))
+-    .await;
++    () /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Cancel an in-progress execution.
+ ///
+ /// Returns Ok(()) from Ready, Cancelled, or Completed states (no-op).
+ /// Returns Err(ExecutionCancelled) if called during Executing state.
+ ///
+ /// # Errors

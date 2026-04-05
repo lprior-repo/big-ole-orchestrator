@@ -278,13 +278,13 @@ impl AdmissionCheck for MockAdmissionCheck {
         if let Some(expected_token) = self.leases.get(&key) {
             if expected_token == fence_token {
                 return AdmissionResult::Admitted {
-                    dedupe_token: DedupeToken::new(format!("fence-ok",)),
+                    dedupe_token: DedupeToken::new("fence-ok".to_string()),
                 };
             }
             return AdmissionResult::Rejected {
                 reason: RejectionReason::FenceTokenMismatch {
-                    expected: expected_token.clone(),
-                    actual: fence_token.clone(),
+                    expected: *expected_token,
+                    actual: *fence_token,
                 },
             };
         }

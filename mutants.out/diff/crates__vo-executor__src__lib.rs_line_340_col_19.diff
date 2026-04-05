@@ -1,0 +1,21 @@
+--- crates/vo-executor/src/lib.rs
++++ replace == with != in validate_timeout
+@@ -332,17 +332,17 @@
+ 
+ fn validate_timeout(timeout_ms: u64) -> Result<(), ExecuteNodeError> {
+     if timeout_ms == 0 {
+         return Err(ExecuteNodeError::InvalidTimeout {
+             value: 0,
+             reason: "must be > 0ms".to_string(),
+         });
+     }
+-    if timeout_ms == u64::MAX {
++    if timeout_ms != /* ~ changed by cargo-mutants ~ */ u64::MAX {
+         return Err(ExecuteNodeError::InvalidTimeout {
+             value: u64::MAX,
+             reason: "must be < u64::MAX".to_string(),
+         });
+     }
+     Ok(())
+ }
+ 
