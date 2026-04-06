@@ -3,7 +3,7 @@
 //! Replays event sequences through the pure `apply()` state machine
 //! to reconstruct `LifecycleState` from event history.
 
-use vo_types::events::{EventEnvelope, EventPayload};
+use vo_types::events::{EventEnvelope, EventMetadata, EventPayload};
 use vo_types::state::{self, LifecycleState, TransitionEvent};
 
 use crate::upcaster::UpcasterRegistry;
@@ -339,7 +339,7 @@ mod tests {
             sequence,
             timestamp_ms: 1000 * sequence,
             payload,
-            metadata: json!({}),
+            metadata: EventMetadata::default(),
         }
     }
 
@@ -948,7 +948,7 @@ mod tests {
                 sequence: seq,
                 timestamp_ms: 1000,
                 payload: json!({"type": "WorkflowStarted", "workflow_id": "wf-1", "binary_hash": "abc", "version": 1}),
-                metadata: json!({}),
+                metadata: EventMetadata::default(),
             };
             let _ = engine.replay(&[event]);
         }
@@ -964,7 +964,7 @@ mod tests {
             sequence: 1,
             timestamp_ms: 1000,
             payload: json!({"type": "WorkflowStarted", "workflow_id": "wf-1", "binary_hash": "abc", "version": 1}),
-            metadata: json!({}),
+            metadata: EventMetadata::default(),
         };
         let events = [event.clone(), event.clone()];
         // Clone is not available on EventEnvelope, so we construct two identical ones
@@ -974,7 +974,7 @@ mod tests {
             sequence: 1,
             timestamp_ms: 1000,
             payload: json!({"type": "WorkflowStarted", "workflow_id": "wf-1", "binary_hash": "abc", "version": 1}),
-            metadata: json!({}),
+            metadata: EventMetadata::default(),
         }]);
         let r2 = engine.replay(&[EventEnvelope {
             schema_version: 1,
@@ -982,7 +982,7 @@ mod tests {
             sequence: 1,
             timestamp_ms: 1000,
             payload: json!({"type": "WorkflowStarted", "workflow_id": "wf-1", "binary_hash": "abc", "version": 1}),
-            metadata: json!({}),
+            metadata: EventMetadata::default(),
         }]);
         assert_eq!(r1, r2);
     }
@@ -1071,7 +1071,7 @@ mod tests {
                 sequence,
                 timestamp_ms: 1000 * sequence,
                 payload,
-                metadata: json!({}),
+                metadata: EventMetadata::default(),
             }
         }
 

@@ -213,7 +213,7 @@ fn serialize_envelope_for_upcast(
         serde_json::json!(envelope.timestamp_ms),
     );
     envelope_json.insert("payload".to_string(), payload.clone());
-    envelope_json.insert("metadata".to_string(), envelope.metadata.clone());
+    envelope_json.insert("metadata".to_string(), envelope.metadata.to_json());
 
     serde_json::to_vec(&envelope_json)
         .map_err(|e| UpcasterError::UpcastingFailed(format!("serialization error: {}", e)))

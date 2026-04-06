@@ -6,6 +6,7 @@
 
 use super::*;
 use proptest::prelude::*;
+use vo_types::events::EventMetadata;
 
 // ---- encode_key tests ----
 
@@ -175,7 +176,7 @@ fn make_envelope(seq: u64) -> EventEnvelope {
         sequence: seq,
         timestamp_ms: 1000,
         payload: serde_json::json!({"type": "WorkflowStarted", "workflow_id": "wf-1"}),
-        metadata: serde_json::json!({}),
+        metadata: EventMetadata::default(),
     }
 }
 

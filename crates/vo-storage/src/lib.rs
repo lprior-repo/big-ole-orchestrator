@@ -15,6 +15,7 @@ pub mod instance_index;
 pub mod key_encoding;
 pub mod lease_partition;
 pub mod partitions;
+pub mod projection_compat;
 pub mod purge;
 pub mod query;
 pub mod snapshots;

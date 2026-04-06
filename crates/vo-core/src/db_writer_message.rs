@@ -8,6 +8,7 @@
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use vo_types::events::EventMetadata;
 use vo_types::{
     EffectRecord, EventEnvelope, FenceToken, FireAtMs, IdempotencyKey, InstanceId, InstanceStatus,
     SequenceNumber, StepId, TimerId,
@@ -91,7 +92,7 @@ impl SnapshotData {
 /// Per ADR-029: all completion paths carry fence tokens for lease validation.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-#[allow(dead_code)]
+#[allow(dead_code, clippy::large_enum_variant)]
 pub enum DbWriterMessage {
     /// Append an event to the event log with idempotency protection.
     AppendEvent {
@@ -190,7 +191,7 @@ mod tests {
             sequence: 1,
             timestamp_ms: 1712200000000,
             payload: serde_json::json!({}),
-            metadata: serde_json::json!({}),
+            metadata: EventMetadata::default(),
         }
     }
 

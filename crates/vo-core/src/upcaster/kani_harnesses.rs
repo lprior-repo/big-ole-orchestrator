@@ -6,7 +6,7 @@
 use vo_core::upcaster::{
     UpcasterError, UpcasterRegistry, UpcasterRegistryBuilder, MAX_SUPPORTED_VERSION,
 };
-use vo_types::events::EventEnvelope;
+use vo_types::events::{EventEnvelope, EventMetadata};
 
 // =============================================================================
 // Kani Proof: Upcaster chain version bound preservation
@@ -162,7 +162,7 @@ mod verification {
             sequence: 1,
             timestamp_ms: 1000,
             payload: serde_json::json!({}),
-            metadata: serde_json::json!({}),
+            metadata: EventMetadata::default(),
         };
 
         // Assume version is within valid range
@@ -190,7 +190,7 @@ mod verification {
             sequence: kani::any(),
             timestamp_ms: kani::any(),
             payload: serde_json::json!({}),
-            metadata: serde_json::json!({}),
+            metadata: EventMetadata::default(),
         };
 
         let result = registry.upcast_envelope(envelope.clone());

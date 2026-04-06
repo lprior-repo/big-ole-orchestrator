@@ -7,7 +7,8 @@ use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
-use vo_types::EventEnvelope;
+use vo_types::events::EventEnvelope;
+use vo_types::events::EventMetadata;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // WriteClass
@@ -732,7 +733,7 @@ mod tests {
             sequence: 1,
             timestamp_ms: 1000,
             payload: serde_json::json!({}),
-            metadata: serde_json::json!({}),
+            metadata: EventMetadata::default(),
         };
 
         let cp_write = AppendEntry::ControlPlane(ControlPlaneWrite::new(event.clone(), 100));
@@ -760,7 +761,7 @@ mod tests {
             sequence: 1,
             timestamp_ms: 1000,
             payload: serde_json::json!({}),
-            metadata: serde_json::json!({}),
+            metadata: EventMetadata::default(),
         };
         let write = ControlPlaneWrite::new(event, 100);
 
@@ -780,7 +781,7 @@ mod tests {
             sequence: 1,
             timestamp_ms: 1000,
             payload: serde_json::json!({"data": "this is larger than 50 bytes to force budget exceeded"}),
-            metadata: serde_json::json!({}),
+            metadata: EventMetadata::default(),
         };
         let write = ControlPlaneWrite::new(event, 100);
 
@@ -807,7 +808,7 @@ mod tests {
             sequence: 1,
             timestamp_ms: 1000,
             payload: serde_json::json!({}),
-            metadata: serde_json::json!({}),
+            metadata: EventMetadata::default(),
         };
 
         let write1 = ControlPlaneWrite::new(event.clone(), 100);
@@ -830,7 +831,7 @@ mod tests {
             sequence: 1,
             timestamp_ms: 1000,
             payload: serde_json::json!({}),
-            metadata: serde_json::json!({}),
+            metadata: EventMetadata::default(),
         };
         let write = ControlPlaneWrite::new(event, 100);
         assert!(appender.append_control_plane(write).is_ok());

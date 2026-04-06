@@ -1,9 +1,12 @@
 //! Domain events for the vo-engine.
 
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::payload_parser::{optional_u64, require_string, require_string_field, require_u64};
+use crate::CommandMetadata;
 
 pub const MAX_SUPPORTED_VERSION: u8 = 1;
 
@@ -59,6 +62,46 @@ pub enum Error {
 
     #[error("Serialization error: {0}")]
     SerializationError(String),
+
+    #[error("Invalid command metadata")]
+    InvalidCommandMetadata,
+
+    #[error("Invalid issuer: {0}")]
+    InvalidIssuer(String),
+}
+
+/// Typed metadata wrapper replacing the previous serde_json::Value metadata field.
+/// Carries optional command provenance and room for future annotation keys.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct EventMetadata {
+    #[serde(default)]
+    pub command_metadata: Option<CommandMetadata>,
+    #[serde(default)]
+    pub annotations: HashMap<String, serde_json::Value>,
+}
+
+impl EventMetadata {
+    /// Deserialize from a JSON value (object).
+    pub fn from_json(value: &serde_json::Value) -> Result<Self, Error> {
+        serde_json::from_value(value.clone()).map_err(|e| {
+            if e.to_string().contains("unknown variant") {
+                // Try to extract the unknown variant name
+                let err_str = e.to_string();
+                if let Some(start) = err_str.find("`") {
+                    if let Some(end) = err_str[start + 1..].find("`") {
+                        let unknown_variant = &err_str[start + 1..start + 1 + end];
+                        return Error::InvalidIssuer(unknown_variant.to_string());
+                    }
+                }
+            }
+            Error::InvalidCommandMetadata
+        })
+    }
+
+    /// Serialize to a JSON object value.
+    pub fn to_json(&self) -> serde_json::Value {
+        serde_json::to_value(self).expect("EventMetadata should always serialize")
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -68,7 +111,7 @@ pub struct EventEnvelope {
     pub sequence: u64,
     pub timestamp_ms: u64,
     pub payload: serde_json::Value,
-    pub metadata: serde_json::Value,
+    pub metadata: EventMetadata,
 }
 
 impl EventEnvelope {
@@ -108,11 +151,22 @@ impl EventEnvelope {
             .get("payload")
             .ok_or_else(|| Error::MissingEnvelopeField("payload".to_string()))?;
 
-        let metadata = obj
-            .get("metadata")
-            .ok_or_else(|| Error::MissingEnvelopeField("metadata".to_string()))?
+        // Validate payload is an object (not string, array, null, etc.)
+        let _payload_obj = payload
             .as_object()
-            .ok_or_else(|| Error::InvalidEnvelopeField("metadata must be an object".to_string()))?;
+            .ok_or_else(|| Error::InvalidEnvelopeField("payload".to_string()))?;
+
+        // metadata is optional - use default (command_metadata: None) when absent (POST-6)
+        let metadata = match obj.get("metadata") {
+            Some(v) => {
+                // Validate metadata is an object before parsing as EventMetadata
+                let v_obj = v.as_object().ok_or_else(|| {
+                    Error::InvalidEnvelopeField("metadata must be an object".to_string())
+                })?;
+                EventMetadata::from_json(&serde_json::Value::Object(v_obj.clone()))?
+            }
+            None => EventMetadata::default(),
+        };
 
         if instance_id.is_empty() {
             return Err(Error::InvalidEnvelopeField(
@@ -136,7 +190,7 @@ impl EventEnvelope {
             sequence,
             timestamp_ms,
             payload: payload.clone(),
-            metadata: serde_json::Value::Object(metadata.clone()),
+            metadata,
         })
     }
 
@@ -450,13 +504,19 @@ mod tests {
     }
 
     #[test]
-    fn envelope_from_bytes_returns_missing_envelope_field_when_metadata_is_absent() {
+    fn envelope_from_bytes_returns_ok_with_command_metadata_none_when_metadata_is_absent() {
         let json = r#"{"version": 1, "instance_id": "wf-123", "sequence": 1, "timestamp_ms": 123, "payload": {"x":0}}"#;
         let result = EventEnvelope::from_bytes(json.as_bytes());
-        assert_eq!(
-            result,
-            Err(Error::MissingEnvelopeField("metadata".to_string()))
+        let envelope = result.expect("absent metadata should succeed per POST-6");
+        assert_eq!(envelope.schema_version, 1);
+        assert_eq!(envelope.instance_id, "wf-123");
+        assert_eq!(envelope.sequence, 1);
+        assert_eq!(envelope.timestamp_ms, 123);
+        assert!(
+            envelope.metadata.command_metadata.is_none(),
+            "POST-6: absent metadata → command_metadata: None"
         );
+        assert!(envelope.metadata.annotations.is_empty());
     }
 
     #[test]
@@ -523,7 +583,7 @@ mod tests {
             sequence: 1,
             timestamp_ms: 1000,
             payload: serde_json::json!({}),
-            metadata: serde_json::json!({}),
+            metadata: EventMetadata::default(),
         };
         assert!(envelope.is_supported());
     }
@@ -536,7 +596,7 @@ mod tests {
             sequence: 1,
             timestamp_ms: 1000,
             payload: serde_json::json!({}),
-            metadata: serde_json::json!({}),
+            metadata: EventMetadata::default(),
         };
         assert!(envelope.is_supported());
     }
@@ -549,7 +609,7 @@ mod tests {
             sequence: 1,
             timestamp_ms: 1000,
             payload: serde_json::json!({}),
-            metadata: serde_json::json!({}),
+            metadata: EventMetadata::default(),
         };
         assert!(!envelope.is_supported());
     }
@@ -987,7 +1047,7 @@ mod tests {
             sequence: seq,
             timestamp_ms: ts,
             payload: serde_json::json!({"type": "WorkflowStarted", "workflow_id": "wf-123", "version": 1}),
-            metadata: serde_json::json!({}),
+            metadata: EventMetadata::default(),
         };
         assert_eq!(result, Ok(expected));
     }
@@ -1006,7 +1066,7 @@ mod tests {
             sequence: 1,
             timestamp_ms: 1000,
             payload: serde_json::json!({}),
-            metadata: serde_json::json!({}),
+            metadata: EventMetadata::default(),
         };
         let envelope_supported = envelope.is_supported();
         let payload_supported = EventPayload::is_version_supported(version);
@@ -1098,24 +1158,30 @@ mod tests {
     }
 
     #[rstest]
-    #[case(serde_json::json!({}))]
-    #[case(serde_json::json!({"key": "value"}))]
-    #[case(serde_json::json!({"key1": "value1", "key2": 123}))]
-    fn envelope_parsing_accepts_object_metadata(#[case] metadata: serde_json::Value) {
+    #[case(serde_json::json!({}),)]
+    #[case(serde_json::json!({"key": "value"}),)]
+    #[case(serde_json::json!({"key1": "value1", "key2": 123}),)]
+    fn envelope_parsing_accepts_object_metadata(#[case] annotations_json: serde_json::Value) {
         let json = serde_json::json!({
             "version": 1,
             "instance_id": "wf-123",
             "sequence": 1,
             "timestamp_ms": 1000,
             "payload": {"type": "WorkflowStarted", "workflow_id": "wf-123", "version": 1},
-            "metadata": metadata
+            "metadata": {
+                "command_metadata": null,
+                "annotations": annotations_json
+            }
         });
         let bytes = serde_json::to_vec(&json).unwrap();
         let result = EventEnvelope::from_bytes(&bytes);
         let Ok(envelope) = result else {
             panic!("Expected Ok, got {:?}", result);
         };
-        assert_eq!(envelope.metadata, metadata);
+        assert!(envelope.metadata.command_metadata.is_none());
+        let expected_annotations: std::collections::HashMap<String, serde_json::Value> =
+            serde_json::from_value(annotations_json).unwrap_or_default();
+        assert_eq!(envelope.metadata.annotations, expected_annotations);
     }
 
     #[rstest]

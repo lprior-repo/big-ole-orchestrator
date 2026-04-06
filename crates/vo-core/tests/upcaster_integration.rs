@@ -12,7 +12,7 @@ use vo_core::upcaster::{
     Upcaster, UpcasterError, UpcasterRegistry, UpcasterRegistryBuilder, UpcasterRegistryImpl,
     MAX_SUPPORTED_VERSION,
 };
-use vo_types::events::EventEnvelope;
+use vo_types::events::{EventEnvelope, EventMetadata};
 
 // =============================================================================
 // Test-only Upcaster Implementations (for interface testing only)
@@ -276,7 +276,10 @@ fn apply_upcast_chain(
         serde_json::json!(envelope.timestamp_ms),
     );
     envelope_json.insert("payload".to_string(), current_payload);
-    envelope_json.insert("metadata".to_string(), envelope.metadata.clone());
+    envelope_json.insert(
+        "metadata".to_string(),
+        serde_json::to_value(envelope.metadata.clone()).unwrap(),
+    );
 
     let input_bytes = serde_json::to_vec(&envelope_json)
         .map_err(|e| UpcasterError::UpcastingFailed(format!("serialize error: {}", e)))?;
@@ -503,7 +506,7 @@ fn registry_returns_error_when_no_upcaster_registered_for_version() {
         sequence: 1,
         timestamp_ms: 1000,
         payload: serde_json::json!({}),
-        metadata: serde_json::json!({}),
+        metadata: EventMetadata::default(),
     };
 
     let result = registry.upcast_envelope(envelope);
@@ -525,7 +528,7 @@ fn registry_applies_single_upcaster_when_version_gap_is_one() {
         sequence: 1,
         timestamp_ms: 1000,
         payload: serde_json::json!({"data": "test"}),
-        metadata: serde_json::json!({}),
+        metadata: EventMetadata::default(),
     };
 
     // RED PHASE: The upcaster stub returns Err, so upcast_envelope will fail
@@ -549,7 +552,7 @@ fn registry_returns_envelope_unchanged_when_already_at_max_version() {
         sequence: 1,
         timestamp_ms: 1000,
         payload: serde_json::json!({"data": "test"}),
-        metadata: serde_json::json!({}),
+        metadata: EventMetadata::default(),
     };
 
     let result = registry.upcast_envelope(envelope.clone());
@@ -572,7 +575,7 @@ fn registry_short_circuits_chain_when_envelope_at_max_despite_registered_upcaste
         sequence: 1,
         timestamp_ms: 1000,
         payload: serde_json::json!({"data": "original"}),
-        metadata: serde_json::json!({}),
+        metadata: EventMetadata::default(),
     };
 
     let result = registry.upcast_envelope(envelope.clone());
@@ -610,7 +613,7 @@ fn registry_returns_circular_chain_error_when_cycle_detected() {
         sequence: 1,
         timestamp_ms: 1000,
         payload: serde_json::json!({}),
-        metadata: serde_json::json!({}),
+        metadata: EventMetadata::default(),
     };
 
     let result = registry.upcast_envelope(envelope);
@@ -633,7 +636,7 @@ fn registry_propagates_event_envelope_error_when_upcaster_produces_invalid_envel
         sequence: 1,
         timestamp_ms: 1000,
         payload: serde_json::json!({}),
-        metadata: serde_json::json!({}),
+        metadata: EventMetadata::default(),
     };
 
     let result = registry.upcast_envelope(envelope);
@@ -658,7 +661,7 @@ fn registry_preserves_envelope_fields_when_upcasting() {
         sequence: 42,
         timestamp_ms: 1234567890,
         payload: serde_json::json!({"data": "test"}),
-        metadata: serde_json::json!({"key": "value"}),
+        metadata: EventMetadata::default(),
     };
 
     // RED PHASE: The upcaster stub returns Err, so this will fail
@@ -699,7 +702,7 @@ fn builder_creates_functional_registry_that_can_register_and_upcast() {
         sequence: 1,
         timestamp_ms: 1000,
         payload: serde_json::json!({}),
-        metadata: serde_json::json!({}),
+        metadata: EventMetadata::default(),
     };
 
     // RED PHASE: upcaster stub returns Err, so this will fail
@@ -721,7 +724,7 @@ fn registry_handles_empty_registry_gracefully() {
         sequence: 1,
         timestamp_ms: 1000,
         payload: serde_json::json!({}),
-        metadata: serde_json::json!({}),
+        metadata: EventMetadata::default(),
     };
 
     let result = registry.upcast_envelope(envelope);
@@ -751,7 +754,7 @@ fn upcast_envelope_through_full_workflow_when_envelope_enters_at_version_zero_an
             "workflow_id": "workflow-123",
             "binary_hash": "abc123"
         }),
-        metadata: serde_json::json!({}),
+        metadata: EventMetadata::default(),
     };
 
     // RED PHASE: upcaster stub returns Err
@@ -788,7 +791,7 @@ fn idempotent_registration_does_not_double_chain() {
         sequence: 1,
         timestamp_ms: 1000,
         payload: serde_json::json!({}),
-        metadata: serde_json::json!({}),
+        metadata: EventMetadata::default(),
     };
 
     // RED PHASE: upcaster stub returns Err
@@ -814,7 +817,7 @@ fn envelope_metadata_preserved_through_multi_hop_upcast() {
         sequence: 1,
         timestamp_ms: 1000,
         payload: serde_json::json!({}),
-        metadata: serde_json::json!({"key": "value"}),
+        metadata: EventMetadata::default(),
     };
 
     let result = registry.upcast_envelope(envelope.clone());

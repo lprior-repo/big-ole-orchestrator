@@ -62,9 +62,12 @@ pub(crate) fn read_input_inner<R: Read>(
     let len = reader
         .take((MAX_INPUT_SIZE + 1) as u64)
         .read_to_end(&mut buf)
-        .map_err(|_| SdkError::InvalidInput)?;
+        .map_err(|_| SdkError::FdNotOpen)?;
 
-    if len == 0 || len > MAX_INPUT_SIZE {
+    if len == 0 {
+        return Err(SdkError::InvalidInput);
+    }
+    if len > MAX_INPUT_SIZE {
         return Err(SdkError::InvalidInput);
     }
 
