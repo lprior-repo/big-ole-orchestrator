@@ -184,4 +184,60 @@ For more details, see README.md and docs/QUICKSTART.md.
 - NEVER say "ready to push when you are" - YOU must push
 - If push fails, resolve and retry until it succeeds
 
+## ⚠️ Dolt Database Safety (CRITICAL)
+
+The `bd` CLI uses Dolt for issue tracking. The remote at DoltHub (`priorlewis43/veloxide-database`) is the **SOURCE OF TRUTH**.
+
+### Database Location
+- **Remote**: `priorlewis43/veloxide-database` on DoltHub
+- **Local**: `.beads/dolt/` (working set only)
+
+### ⚠️ NEVER DO THESE
+
+1. **NEVER `rm -rf .beads/dolt`** without first verifying remote has data
+2. **NEVER `dolt init`** on an existing project - this creates fresh empty repo
+3. **NEVER `dolt clone`** over existing local without backing up first
+4. **NEVER `dolt push --force`** to remote
+
+### If Local Database Gets Corrupted
+
+```bash
+# ⚠️ STOP - The remote is the source of truth!
+# DO NOT delete remote
+
+# Backup current state (even if broken)
+cp -r .beads/dolt /tmp/dolt-backup
+
+# Remove corrupted local
+rm -rf .beads/dolt
+
+# Clone fresh from remote
+dolt clone priorlewis43/veloxide-database
+mv veloxide-database dolt
+
+# Start server
+bd dolt start
+
+# Verify data is there
+bd list --json
+```
+
+### If `dolt pull` Says "No Common Ancestor"
+
+This means local and remote have diverged. The remote is almost always correct:
+```bash
+# Check what's in remote
+dolt log remotes/origin/main | head -20
+
+# If remote looks correct, overwrite local:
+rm -rf .beads/dolt
+dolt clone priorlewis43/veloxide-database
+mv veloxide-database dolt
+```
+
+### Verify Remote After Every Push
+
+After `bd dolt push`, ALWAYS verify at:
+https://www.dolthub.com/repositories/priorlewis43/veloxide-database
+
 <!-- END BEADS INTEGRATION -->

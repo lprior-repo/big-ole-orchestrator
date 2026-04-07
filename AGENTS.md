@@ -18,7 +18,7 @@ This project uses **bd with Dolt remote sync** to prevent data loss.
 ### Database
 - **Remote**: `priorlewis43/veloxide-database` on DoltHub
 - **Local**: `.beads/dolt/` (working set only)
-- **Server mode**: `bd dolt start` runs a local Dolt server on port 3308
+- **Server mode**: `bd dolt start` runs a local Dolt server (port in `.beads/dolt-server.port`)
 
 ### CRITICAL: Never Lose Data Again
 
@@ -41,24 +41,51 @@ After `bd dolt push`, verify at: https://www.dolthub.com/repositories/priorlewis
 
 ### If Database Gets Corrupted or Fresh
 
+**⚠️ CRITICAL: The remote DoltHub database is the SOURCE OF TRUTH. NEVER delete or overwrite it.**
+
 ```bash
 # Stop current server
 bd dolt stop
 
-# Remove corrupted local state (remote is source of truth)
+# Remove ONLY the local corrupted state
 rm -rf .beads/dolt
 
-# Reinit
-bd init --server
+# Clone FRESH from remote (creates new local from remote)
+dolt clone priorlewis43/veloxide-database
 
-# Add remote
-cd .beads/dolt && dolt remote add origin priorlewis43/veloxide-database
+# Rename to dolt for bd to find
+mv veloxide-database dolt
 
-# Pull from remote (will overwrite empty local)
-dolt pull origin main
+# Start server
+bd dolt start
 
-# If needed, import JSONL backup
-bd import
+# Verify
+bd list --json
+```
+
+### ⚠️ Dolt Database Safety Rules
+
+1. **Remote is source of truth** - Never `rm -rf` the remote
+2. **Always verify before clone** - If local exists, BACK IT UP first
+3. **Never `dolt init` on existing project** - This creates fresh empty repo
+4. **If `bd dolt push` fails with "no common ancestor"** - Local and remote diverged. Fetch remote and investigate before force-pushing
+5. **After ANY `bd dolt push`** - Verify at https://www.dolthub.com/repositories/priorlewis43/veloxide-database
+
+### Recovering from Diverged Local/Remote
+
+If `dolt pull` fails with "no common ancestor", the local was force-pushed to diverged:
+```bash
+# Save any local work
+cp -r .beads/dolt /tmp/dolt-backup
+
+# Remove diverged local
+rm -rf .beads/dolt
+
+# Clone fresh from remote (remote is always correct)
+dolt clone priorlewis43/veloxide-database
+mv veloxide-database dolt
+
+# Manually check /tmp/dolt-backup for any commits not in remote
 ```
 
 ## Non-Interactive Shell Commands
