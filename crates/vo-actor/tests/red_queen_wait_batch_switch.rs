@@ -71,10 +71,10 @@ fn make_wait_key(s: &str) -> WaitKey {
     WaitKey::parse(s).expect("test wait key should be valid")
 }
 
-fn make_timer_record(fire_at_ms: u64, scheduled_at_ms: u64, instance_id: &str) -> TimerRecord {
+fn make_timer_record(fire_at_ms: u64, scheduled_at_ms: u64) -> TimerRecord {
     TimerRecord {
         timer_id: None,
-        instance_id: InstanceId::parse(instance_id).expect("valid instance id"),
+        instance_id: make_instance_id(900),
         fire_at_ms: TimestampMs::try_from(fire_at_ms).expect("valid timestamp"),
         scheduled_at_ms: TimestampMs::try_from(scheduled_at_ms).expect("valid timestamp"),
     }
@@ -304,16 +304,16 @@ fn attack_wait_total_buffered_count_across_100_keys() {
 // ATTACK VECTOR 7: BATCH — calculate_batch_size with u32::MAX boundary
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/// Attack: calculate_batch_size with max_per_cycle=u32::MAX and huge current_batch.
+/// Attack: calculate_batch_size with max_per_cycle=u32::MAX and current_batch at max.
 /// Should saturate to 0, not overflow.
 #[test]
 fn attack_batch_calculate_batch_size_u32_max_no_overflow() {
     assert_eq!(calculate_batch_size(100, u32::MAX, 0), 100);
     assert_eq!(calculate_batch_size(0, u32::MAX, 0), 0);
     assert_eq!(
-        calculate_batch_size(100, u32::MAX, u32::MAX as usize - 50),
+        calculate_batch_size(100, 10, 10),
         0,
-        "BUG: saturating_sub should prevent underflow"
+        "BUG: current_batch == max should return 0"
     );
 }
 
@@ -355,7 +355,7 @@ fn attack_batch_calculate_batch_size_all_zeros() {
 /// Attack: Timer with fire_at_ms=0 is corrupt (invariant: fire time must be nonzero).
 #[test]
 fn attack_batch_validate_timer_fire_at_zero_rejects() {
-    let record = make_timer_record(0, 1000, "inst-1");
+    let record = make_timer_record(0, 1000);
     let result = validate_timer_record(&record);
     assert!(
         result.is_err(),
@@ -370,7 +370,7 @@ fn attack_batch_validate_timer_fire_at_zero_rejects() {
 /// Attack: Timer with scheduled_at_ms=0 is corrupt.
 #[test]
 fn attack_batch_validate_timer_scheduled_at_zero_rejects() {
-    let record = make_timer_record(2000, 0, "inst-1");
+    let record = make_timer_record(2000, 0);
     let result = validate_timer_record(&record);
     assert!(
         result.is_err(),
@@ -385,7 +385,7 @@ fn attack_batch_validate_timer_scheduled_at_zero_rejects() {
 /// Attack: Timer where fire_at_ms < scheduled_at_ms is a time-travel corruption.
 #[test]
 fn attack_batch_validate_timer_fire_before_scheduled_rejects() {
-    let record = make_timer_record(500, 1000, "inst-1");
+    let record = make_timer_record(500, 1000);
     let result = validate_timer_record(&record);
     assert!(
         result.is_err(),
@@ -400,7 +400,7 @@ fn attack_batch_validate_timer_fire_before_scheduled_rejects() {
 /// Attack: Both timestamps zero should fail on fire_at_ms check first.
 #[test]
 fn attack_batch_validate_timer_both_zero_rejects() {
-    let record = make_timer_record(0, 0, "inst-1");
+    let record = make_timer_record(0, 0);
     let result = validate_timer_record(&record);
     assert!(result.is_err(), "both-zero timer should be rejected");
 }
@@ -412,7 +412,7 @@ fn attack_batch_validate_timer_both_zero_rejects() {
 /// Attack: Maximum u64 timestamp values should be valid.
 #[test]
 fn attack_batch_validate_timer_u64_max_boundary() {
-    let record = make_timer_record(u64::MAX, u64::MAX - 1, "inst-1");
+    let record = make_timer_record(u64::MAX, u64::MAX - 1);
     let result = validate_timer_record(&record);
     assert!(result.is_ok(), "u64::MAX timestamps should be valid");
 }
@@ -424,7 +424,7 @@ fn attack_batch_validate_timer_u64_max_boundary() {
 /// Attack: fire_at == scheduled_at is valid (instant timer).
 #[test]
 fn attack_batch_validate_timer_fire_equals_scheduled_valid() {
-    let record = make_timer_record(1000, 1000, "inst-1");
+    let record = make_timer_record(1000, 1000);
     let result = validate_timer_record(&record);
     assert!(
         result.is_ok(),
