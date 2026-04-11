@@ -4,7 +4,7 @@ use crate::events::error::Error;
 use crate::events::metadata::EventMetadata;
 use crate::events::MAX_SUPPORTED_VERSION;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct EventEnvelope {
     pub schema_version: u8,
     pub instance_id: String,

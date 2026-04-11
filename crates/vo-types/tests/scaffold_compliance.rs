@@ -19,8 +19,8 @@ const LIB_RS_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/src/lib.rs");
 /// Path to events module (refactored from events.rs to events/mod.rs).
 const EVENTS_RS_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/src/events/mod.rs");
 
-/// Path to state.rs stub.
-const STATE_RS_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/src/state.rs");
+/// Path to state module (refactored from state.rs to state/mod.rs).
+const STATE_RS_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/src/state/mod.rs");
 
 /// Path to the workspace root.
 const WORKSPACE_ROOT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/..");
@@ -250,15 +250,15 @@ fn lib_rs_declares_events_and_state_modules_when_inspected() {
 #[test]
 fn stub_files_exist_and_compile_when_workspace_checked() {
     // Given: crates/vo-types is a workspace member
-    // When: src/events.rs and src/state.rs are checked
+    // When: src/events/mod.rs and src/state/mod.rs are checked
     // Then: both files exist on disk
     assert!(
         std::path::Path::new(EVENTS_RS_PATH).exists(),
-        "src/events.rs must exist on disk"
+        "src/events/mod.rs must exist on disk"
     );
     assert!(
         std::path::Path::new(STATE_RS_PATH).exists(),
-        "src/state.rs must exist on disk"
+        "src/state/mod.rs must exist on disk"
     );
 
     // And: cargo check --workspace exits with code 0
@@ -293,13 +293,13 @@ fn events_rs_contains_doc_comment_when_inspected() {
 
 #[test]
 fn state_rs_contains_doc_comment_when_inspected() {
-    // Given: src/state.rs exists
-    let content = std::fs::read_to_string(STATE_RS_PATH).expect("Failed to read state.rs");
+    // Given: src/state/mod.rs exists
+    let content = std::fs::read_to_string(STATE_RS_PATH).expect("Failed to read state/mod.rs");
 
     // Then: doc comment is present
     assert!(
         content.contains("//! Domain state types for the vo-engine."),
-        "state.rs must contain doc comment '//! Domain state types for the vo-engine.'"
+        "state/mod.rs must contain doc comment '//! Domain state types for the vo-engine.'"
     );
 }
 
