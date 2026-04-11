@@ -7,6 +7,7 @@
 
 mod error;
 mod loop_core;
+#[cfg(test)]
 mod mock;
 #[cfg(test)]
 mod mock_tests;

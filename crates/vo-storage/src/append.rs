@@ -8,6 +8,7 @@ use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 use vo_types::events::EventEnvelope;
+#[cfg(test)]
 use vo_types::events::EventMetadata;
 
 // ─────────────────────────────────────────────────────────────────────────────

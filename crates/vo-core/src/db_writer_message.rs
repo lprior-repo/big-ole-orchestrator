@@ -8,6 +8,7 @@
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+#[cfg(test)]
 use vo_types::events::EventMetadata;
 use vo_types::{
     EffectRecord, EventEnvelope, FenceToken, FireAtMs, IdempotencyKey, InstanceId, InstanceStatus,

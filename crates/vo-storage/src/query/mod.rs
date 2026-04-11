@@ -4,7 +4,6 @@
 //! `prefix_generator`, `error_mapper`) → Actions (`EventReplayIterator`, `replay_events`).
 
 pub use crate::codec::StorageError;
-use vo_types::events::EventMetadata;
 use vo_types::{EventEnvelope, EventError, InstanceId};
 
 #[cfg(test)]
