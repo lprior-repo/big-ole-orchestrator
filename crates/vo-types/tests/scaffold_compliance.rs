@@ -16,8 +16,8 @@ const CARGO_TOML_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/Cargo.toml")
 /// Path to lib.rs.
 const LIB_RS_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/src/lib.rs");
 
-/// Path to events.rs stub.
-const EVENTS_RS_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/src/events.rs");
+/// Path to events module (refactored from events.rs to events/mod.rs).
+const EVENTS_RS_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/src/events/mod.rs");
 
 /// Path to state.rs stub.
 const STATE_RS_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/src/state.rs");

@@ -1,0 +1,19 @@
+//! Domain events for the vo-engine.
+
+pub mod decode;
+pub mod envelope;
+pub mod error;
+pub mod metadata;
+pub mod payload;
+
+#[cfg(test)]
+mod tests;
+
+pub const MAX_SUPPORTED_VERSION: u8 = 1;
+
+// Re-export all public types for backward compatibility
+pub use decode::decode_event;
+pub use envelope::EventEnvelope;
+pub use error::Error;
+pub use metadata::EventMetadata;
+pub use payload::EventPayload;
