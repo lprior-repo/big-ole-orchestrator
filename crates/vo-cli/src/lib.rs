@@ -13,5 +13,8 @@ pub use commands::gc::{
     delete_version_dir, fetch_pinned_hashes, find_unpinned_directories, run_gc, GcConfig, GcError,
     GcSummary,
 };
+pub use commands::init::{InitConfig, InitError, run_init, VO_DIR_NAME, WORKFLOWS_DIR_NAME, CONFIG_FILE_NAME};
+pub use commands::lock::{LockConfig, LockError, run_lock, LOCK_FILE_NAME};
+pub use commands::doctor::{DoctorConfig, DoctorError, DoctorReport, run_doctor};
 pub use dispatch_mod::dispatch;
 pub use parse::parse_strict_numeric;

@@ -45,5 +45,37 @@ pub async fn dispatch(cli: Cli) -> Result<(), CliError> {
             crate::commands::gc::run_gc(&config).await?;
             Ok(())
         }
+        Command::Init { project_dir, engine_url, storage_path } => {
+            let config = crate::commands::init::InitConfig {
+                project_dir,
+                engine_url,
+                storage_path,
+            };
+            let vo_dir = crate::commands::init::run_init(&config)?;
+            println!("Initialized veloxide project at {}", vo_dir.display());
+            Ok(())
+        }
+        Command::Lock { project_dir } => {
+            let config = crate::commands::lock::LockConfig { project_dir };
+            let lockmap = crate::commands::lock::run_lock(&config)?;
+            println!("Locked {} workflow(s):", lockmap.len());
+            for (name, hash) in &lockmap {
+                println!("  {name} {hash}");
+            }
+            Ok(())
+        }
+        Command::Doctor { project_dir } => {
+            let config = crate::commands::doctor::DoctorConfig { project_dir };
+            let report = crate::commands::doctor::run_doctor(&config)?;
+            if report.healthy {
+                println!("Project is healthy.");
+            } else {
+                eprintln!("Found {} issue(s):", report.issues.len());
+                for issue in &report.issues {
+                    eprintln!("  - {issue}");
+                }
+            }
+            Ok(())
+        }
     }
 }

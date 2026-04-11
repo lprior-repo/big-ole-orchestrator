@@ -12,6 +12,12 @@ pub enum CliError {
     Check(#[from] crate::commands::check::CheckError),
     #[error(transparent)]
     Gc(#[from] crate::commands::gc::GcError),
+    #[error(transparent)]
+    Init(#[from] crate::commands::init::InitError),
+    #[error(transparent)]
+    Lock(#[from] crate::commands::lock::LockError),
+    #[error(transparent)]
+    Doctor(#[from] crate::commands::doctor::DoctorError),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -19,6 +25,9 @@ pub enum Command {
     Purge { instance: String },
     Check { path: PathBuf },
     Gc { engine_url: String, dry_run: bool },
+    Init { project_dir: PathBuf, engine_url: String, storage_path: PathBuf },
+    Lock { project_dir: PathBuf },
+    Doctor { project_dir: PathBuf },
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -62,6 +71,45 @@ where
                         .long("dry-run")
                         .action(clap::ArgAction::SetTrue),
                 ),
+        )
+        .subcommand(
+            clap::Command::new("init")
+                .arg(
+                    clap::Arg::new("project-dir")
+                        .long("project-dir")
+                        .default_value(".")
+                        .help("Project directory to initialize"),
+                )
+                .arg(
+                    clap::Arg::new("engine-url")
+                        .long("engine-url")
+                        .default_value("http://localhost:3000")
+                        .help("Engine URL"),
+                )
+                .arg(
+                    clap::Arg::new("storage-path")
+                        .long("storage-path")
+                        .default_value(".vo/storage")
+                        .help("Storage path"),
+                ),
+        )
+        .subcommand(
+            clap::Command::new("lock")
+                .arg(
+                    clap::Arg::new("project-dir")
+                        .long("project-dir")
+                        .default_value(".")
+                        .help("Project directory"),
+                ),
+        )
+        .subcommand(
+            clap::Command::new("doctor")
+                .arg(
+                    clap::Arg::new("project-dir")
+                        .long("project-dir")
+                        .default_value(".")
+                        .help("Project directory to diagnose"),
+                ),
         );
 
     let matches = cmd.try_get_matches_from(args)?;
@@ -102,6 +150,22 @@ where
                 },
             })
         }
+        Some(("init", sub_matches)) => {
+            let project_dir = sub_matches.get_one::<String>("project-dir").map(PathBuf::from).unwrap_or_default();
+            let engine_url = sub_matches.get_one::<String>("engine-url").cloned().unwrap_or_default();
+            let storage_path = sub_matches.get_one::<String>("storage-path").map(PathBuf::from).unwrap_or_default();
+            Ok(Cli {
+                command: Command::Init { project_dir, engine_url, storage_path },
+            })
+        }
+        Some(("lock", sub_matches)) => {
+            let project_dir = sub_matches.get_one::<String>("project-dir").map(PathBuf::from).unwrap_or_default();
+            Ok(Cli { command: Command::Lock { project_dir } })
+        }
+        Some(("doctor", sub_matches)) => {
+            let project_dir = sub_matches.get_one::<String>("project-dir").map(PathBuf::from).unwrap_or_default();
+            Ok(Cli { command: Command::Doctor { project_dir } })
+        }
         _ => Err(clap::Error::new(clap::error::ErrorKind::InvalidSubcommand)),
     }
 }
@@ -115,7 +179,12 @@ pub fn map_error_to_exit_code(err: &CliError) -> i32 {
             | clap::error::ErrorKind::DisplayVersion => 0,
             _ => 2,
         },
-        CliError::Dispatch(_) | CliError::Check(_) | CliError::Gc(_) => 1,
+        CliError::Dispatch(_)
+        | CliError::Check(_)
+        | CliError::Gc(_)
+        | CliError::Init(_)
+        | CliError::Lock(_)
+        | CliError::Doctor(_) => 1,
         CliError::InvalidNumeric(_) => 2,
     }
 }
