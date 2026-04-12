@@ -1,0 +1,21 @@
+--- crates/vo-storage/src/append.rs
++++ replace InnerQueue<T>::capacity -> usize with 0
+@@ -321,17 +321,17 @@
+         self.items.len()
+     }
+ 
+     fn is_full(&self) -> bool {
+         self.items.len() >= self.capacity
+     }
+ 
+     const fn capacity(&self) -> usize {
+-        self.capacity
++        0 /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ /// Bounded write queues per `WriteClass` with integrated budget tracking.
+ pub struct BudgetQueues<T> {
+     config: QueueConfig,
+     stats: Arc<Mutex<QueueStats>>,
+     budget: WriteBudget,

@@ -1,0 +1,21 @@
+--- crates/vo-storage/src/blob_store.rs
++++ replace PackIndexEntry::pack_file_id -> &PackFileId with Box::leak(Box::new(Default::default()))
+@@ -194,17 +194,17 @@
+ 
+     #[must_use]
+     pub const fn content_addr(&self) -> &ContentAddress {
+         &self.content_addr
+     }
+ 
+     #[must_use]
+     pub const fn pack_file_id(&self) -> &PackFileId {
+-        &self.pack_file_id
++        Box::leak(Box::new(Default::default())) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     #[must_use]
+     pub const fn offset_bytes(&self) -> u64 {
+         self.offset_bytes
+     }
+ 
+     #[must_use]

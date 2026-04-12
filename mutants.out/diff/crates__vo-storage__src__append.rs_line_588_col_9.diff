@@ -1,0 +1,21 @@
+--- crates/vo-storage/src/append.rs
++++ replace <impl ClassifiedWrite for BlobWrite>::size_bytes -> u64 with 0
+@@ -580,17 +580,17 @@
+ }
+ 
+ impl ClassifiedWrite for BlobWrite {
+     fn write_class(&self) -> WriteClass {
+         self.class
+     }
+ 
+     fn size_bytes(&self) -> u64 {
+-        self.size_bytes
++        0 /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ // ─────────────────────────────────────────────────────────────────────────────
+ // Appender
+ // ─────────────────────────────────────────────────────────────────────────────
+ 
+ /// Appender that queues writes by class with budget enforcement.

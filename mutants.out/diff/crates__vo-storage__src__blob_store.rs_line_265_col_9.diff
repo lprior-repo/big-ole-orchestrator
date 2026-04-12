@@ -1,0 +1,21 @@
+--- crates/vo-storage/src/blob_store.rs
++++ replace BlobRecord::content_addr -> &ContentAddress with Box::leak(Box::new(Default::default()))
+@@ -257,17 +257,17 @@
+             reference_count,
+             created_at_ms,
+             expires_at_ms,
+         })
+     }
+ 
+     #[must_use]
+     pub const fn content_addr(&self) -> &ContentAddress {
+-        &self.content_addr
++        Box::leak(Box::new(Default::default())) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     #[must_use]
+     pub const fn size_bytes(&self) -> u64 {
+         self.size_bytes
+     }
+ 
+     #[must_use]

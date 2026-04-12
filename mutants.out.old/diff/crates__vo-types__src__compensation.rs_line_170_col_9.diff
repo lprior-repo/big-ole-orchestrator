@@ -1,0 +1,21 @@
+--- crates/vo-types/src/compensation.rs
++++ replace CompensationRecord::started_at -> Option<&crate::types::TimestampMs> with None
+@@ -162,17 +162,17 @@
+ 
+     #[must_use]
+     pub fn compensation_effect_id(&self) -> Option<&str> {
+         self.compensation_effect_id.as_deref()
+     }
+ 
+     #[must_use]
+     pub fn started_at(&self) -> Option<&crate::types::TimestampMs> {
+-        self.started_at.as_ref()
++        None /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     #[must_use]
+     pub fn completed_at(&self) -> Option<&crate::types::TimestampMs> {
+         self.completed_at.as_ref()
+     }
+ }
+ 

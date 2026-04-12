@@ -1,0 +1,21 @@
+--- crates/vo-storage/src/append.rs
++++ replace Appender::dequeue_critical -> Option<AppendEntry> with None
+@@ -637,17 +637,17 @@
+     /// # Errors
+     /// Returns `BudgetQueuesError` if budget is exceeded or queue is full.
+     pub fn append_blob(&self, write: BlobWrite) -> Result<(), BudgetQueuesError> {
+         self.queues.try_enqueue(&AppendEntry::Blob(write))
+     }
+ 
+     /// Dequeues from the critical control-plane queue.
+     pub fn dequeue_critical(&self) -> Option<AppendEntry> {
+-        self.queues.dequeue(WriteClass::CriticalControlPlane)
++        None /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// Dequeues from the projection queue.
+     pub fn dequeue_projection(&self) -> Option<AppendEntry> {
+         self.queues.dequeue(WriteClass::OperatorProjection)
+     }
+ 
+     /// Dequeues from the blob queue.

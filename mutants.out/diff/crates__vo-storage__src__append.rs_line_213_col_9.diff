@@ -1,0 +1,21 @@
+--- crates/vo-storage/src/append.rs
++++ replace QueueStats::capacity -> usize with 0
+@@ -205,17 +205,17 @@
+             WriteClass::CriticalControlPlane => self.critical_depth,
+             WriteClass::OperatorProjection => self.projection_depth,
+             WriteClass::BulkBlob => self.blob_depth,
+         }
+     }
+ 
+     #[must_use]
+     pub const fn capacity(&self, class: WriteClass) -> usize {
+-        self.config.capacity_for(class)
++        0 /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     #[must_use]
+     pub const fn remaining(&self, class: WriteClass) -> usize {
+         self.capacity(class).saturating_sub(self.depth(class))
+     }
+ 
+     #[must_use]

@@ -1,0 +1,21 @@
+--- crates/vo-storage/src/blob_store.rs
++++ replace BlobRecord::created_at_ms -> u64 with 0
+@@ -272,17 +272,17 @@
+ 
+     #[must_use]
+     pub const fn reference_count(&self) -> u64 {
+         self.reference_count
+     }
+ 
+     #[must_use]
+     pub const fn created_at_ms(&self) -> u64 {
+-        self.created_at_ms
++        0 /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     #[must_use]
+     pub const fn expires_at_ms(&self) -> Option<u64> {
+         self.expires_at_ms
+     }
+ 
+     /// Check if this record has expired given the current timestamp.

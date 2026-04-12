@@ -1,0 +1,25 @@
+--- crates/vo-storage/src/append.rs
++++ replace QueueConfig::capacity_for -> usize with 1
+@@ -172,21 +172,17 @@
+             blob_capacity: 256,
+         }
+     }
+ }
+ 
+ impl QueueConfig {
+     #[must_use]
+     pub const fn capacity_for(&self, class: WriteClass) -> usize {
+-        match class {
+-            WriteClass::CriticalControlPlane => self.critical_capacity,
+-            WriteClass::OperatorProjection => self.projection_capacity,
+-            WriteClass::BulkBlob => self.blob_capacity,
+-        }
++        1 /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ // ─────────────────────────────────────────────────────────────────────────────
+ // QueueStats
+ // ─────────────────────────────────────────────────────────────────────────────
+ 
+ /// Statistics about queue depth and capacity for monitoring.

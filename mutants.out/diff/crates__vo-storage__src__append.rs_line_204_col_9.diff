@@ -1,0 +1,25 @@
+--- crates/vo-storage/src/append.rs
++++ replace QueueStats::depth -> usize with 0
+@@ -196,21 +196,17 @@
+     projection_depth: usize,
+     blob_depth: usize,
+     config: QueueConfig,
+ }
+ 
+ impl QueueStats {
+     #[must_use]
+     pub const fn depth(&self, class: WriteClass) -> usize {
+-        match class {
+-            WriteClass::CriticalControlPlane => self.critical_depth,
+-            WriteClass::OperatorProjection => self.projection_depth,
+-            WriteClass::BulkBlob => self.blob_depth,
+-        }
++        0 /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     #[must_use]
+     pub const fn capacity(&self, class: WriteClass) -> usize {
+         self.config.capacity_for(class)
+     }
+ 
+     #[must_use]

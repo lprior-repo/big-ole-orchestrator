@@ -1,0 +1,35 @@
+--- crates/vo-storage/src/append.rs
++++ replace <impl std::fmt::Display for BudgetQueuesError>::fmt -> std::fmt::Result with Ok(Default::default())
+@@ -260,31 +260,17 @@
+         class: WriteClass,
+         item_size: u64,
+         remaining: u64,
+     },
+ }
+ 
+ impl std::fmt::Display for BudgetQueuesError {
+     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+-        match self {
+-            Self::QueueFull {
+-                class,
+-                depth,
+-                capacity,
+-            } => write!(f, "queue full for {class:?}: {depth}/{capacity}"),
+-            Self::BudgetExceeded {
+-                class,
+-                item_size,
+-                remaining,
+-            } => write!(
+-                f,
+-                "budget exceeded for {class:?}: item size {item_size}, remaining {remaining}"
+-            ),
+-        }
++        Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ impl std::error::Error for BudgetQueuesError {}
+ 
+ /// Trait for items that can be queued with `WriteClass` awareness.
+ pub trait ClassifiedWrite {
+     fn write_class(&self) -> WriteClass;

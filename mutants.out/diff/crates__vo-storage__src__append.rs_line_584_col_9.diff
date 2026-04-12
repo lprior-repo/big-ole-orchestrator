@@ -1,0 +1,21 @@
+--- crates/vo-storage/src/append.rs
++++ replace <impl ClassifiedWrite for BlobWrite>::write_class -> WriteClass with Default::default()
+@@ -576,17 +576,17 @@
+             size_bytes,
+             class: WriteClass::BulkBlob,
+         }
+     }
+ }
+ 
+ impl ClassifiedWrite for BlobWrite {
+     fn write_class(&self) -> WriteClass {
+-        self.class
++        Default::default() /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     fn size_bytes(&self) -> u64 {
+         self.size_bytes
+     }
+ }
+ 
+ // ─────────────────────────────────────────────────────────────────────────────

@@ -1,0 +1,21 @@
+--- crates/vo-types/src/compensation.rs
++++ replace < with > in verification::verify_compensation_transition_exhaustiveness
+@@ -325,17 +325,17 @@
+     use super::*;
+ 
+     /// K-01: Verify apply_compensation_transition exhaustiveness.
+     /// All 5×3 = 15 combinations must be covered without panic.
+     #[kani::proof]
+     fn verify_compensation_transition_exhaustiveness() {
+         let state: u8 = kani::any();
+         let event: u8 = kani::any();
+-        kani::assume(state < 5);
++        kani::assume(state > /* ~ changed by cargo-mutants ~ */ 5);
+         kani::assume(event < 3);
+ 
+         let current = match state {
+             0 => CompensationStatus::NotNeeded,
+             1 => CompensationStatus::Pending,
+             2 => CompensationStatus::InProgress,
+             3 => CompensationStatus::Succeeded,
+             _ => CompensationStatus::Failed,

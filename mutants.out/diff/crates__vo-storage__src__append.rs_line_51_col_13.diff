@@ -1,0 +1,21 @@
+--- crates/vo-storage/src/append.rs
++++ delete match arm "operator_projection" in <impl std::str::FromStr for WriteClass>::from_str
+@@ -43,17 +43,17 @@
+ }
+ 
+ impl std::str::FromStr for WriteClass {
+     type Err = String;
+ 
+     fn from_str(s: &str) -> Result<Self, Self::Err> {
+         match s {
+             "critical_control_plane" => Ok(Self::CriticalControlPlane),
+-            "operator_projection" => Ok(Self::OperatorProjection),
++             /* ~ changed by cargo-mutants ~ */
+             "bulk_blob" => Ok(Self::BulkBlob),
+             _ => Err(format!("unknown write class: {s}")),
+         }
+     }
+ }
+ 
+ // ─────────────────────────────────────────────────────────────────────────────
+ // WriteBudget

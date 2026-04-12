@@ -1,0 +1,21 @@
+--- crates/vo-storage/src/append.rs
++++ replace InnerQueue<T>::is_full -> bool with true
+@@ -317,17 +317,17 @@
+         self.items.pop_front()
+     }
+ 
+     fn len(&self) -> usize {
+         self.items.len()
+     }
+ 
+     fn is_full(&self) -> bool {
+-        self.items.len() >= self.capacity
++        true /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     const fn capacity(&self) -> usize {
+         self.capacity
+     }
+ }
+ 
+ /// Bounded write queues per `WriteClass` with integrated budget tracking.
