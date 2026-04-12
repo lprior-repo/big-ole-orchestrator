@@ -327,8 +327,54 @@ mod tests {
     }
 
     #[test]
+    fn chunked_hasher_offsets_are_monotonic() {
+        let data = b"0123456789ABCDEF";
+        let mut hasher = ChunkedHasher::new(5);
+        hasher.update(data);
+        let chunks = hasher.finalize();
+
+        for i in 1..chunks.len() {
+            assert!(
+                chunks[i].offset > chunks[i - 1].offset,
+                "chunk offset {} should be greater than previous {}",
+                chunks[i].offset,
+                chunks[i - 1].offset
+            );
+        }
+    }
+
+    #[test]
+    fn chunked_hasher_finalize_produces_chunk_when_data_processed() {
+        let data = b"test";
+        let mut hasher = ChunkedHasher::new(1024);
+        hasher.update(data);
+        let chunks = hasher.finalize();
+
+        assert!(
+            !chunks.is_empty(),
+            "finalize must produce at least one chunk when data was processed"
+        );
+        assert_eq!(chunks.len(), 1);
+        assert_eq!(chunks[0].size, 4);
+    }
+
+    #[test]
+    fn empty_data_produces_valid_checksum() {
+        let empty: &[u8] = &[];
+        let checksum = compute_checksum(empty);
+
+        assert_eq!(checksum.crc32, 0);
+
+        let expected_sha256: [u8; 32] = sha2::Sha256::digest(empty).into();
+        assert_eq!(checksum.sha256, expected_sha256);
+
+        let expected_blake3: [u8; 32] = *blake3::hash(empty).as_bytes();
+        assert_eq!(checksum.blake3, expected_blake3);
+    }
+
+    #[test]
     fn checksum_display_shows_all_algorithms() {
-        let checksum = compute_checksum(b"test");
+        let _checksum = compute_checksum(b"test");
         let display = format!(
             "{}",
             ChecksumError::Mismatch {
