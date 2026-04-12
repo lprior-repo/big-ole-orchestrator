@@ -261,7 +261,7 @@ impl JunctionTree {
     pub fn moralized_graph(&self) -> (Vec<HashSet<usize>>, Vec<(usize, usize)>) {
         let n = self.nodes.len();
         let mut edges: HashSet<(usize, usize)> = HashSet::new();
-        let mut clique_vertices: Vec<HashSet<usize>> = self
+        let clique_vertices: Vec<HashSet<usize>> = self
             .nodes
             .iter()
             .map(|c| c.vertices.iter().copied().collect())

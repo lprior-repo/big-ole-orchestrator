@@ -77,6 +77,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "any-rope"
+version = "1.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5b7e0ccb23f0a9bf09b821da1c9fdb93eb852001fcf34d0fa76df9874ab2cff2"
+dependencies = [
+ "smallvec",
+]
+
+[[package]]
 name = "anyhow"
 version = "1.0.102"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3653,6 +3662,7 @@ dependencies = [
 name = "vo-types"
 version = "0.1.0"
 dependencies = [
+ "any-rope",
  "proptest",
  "rstest 0.18.2",
  "serde",

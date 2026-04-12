@@ -30,6 +30,7 @@ mod pairing_heap;
 mod payload_parser;
 pub mod proptest_verifier;
 mod registration_status;
+mod rope;
 mod signal;
 pub mod skew_heap;
 mod spqr_tree;
@@ -67,7 +68,7 @@ pub use encryption::{CryptoAlgorithm, DekId, EncryptedBlob, KeyMetadata, Wrapped
 pub use errors::ParseError;
 pub use events::{Error as EventError, EventEnvelope};
 pub use instance_status::InstanceStatus;
-pub use junction_tree::{JunctionTree, JunctionTreeError};
+pub use junction_tree::{Clique as JunctionClique, JunctionTree, JunctionTreeError};
 pub use lifecycle_superstate::LifecycleSuperstate;
 pub use lineage::{Epoch, LineageError, WorkflowLineage};
 pub use link_cut_tree::{LctAggregate, LctError, LinkCutTree, Monoid};
@@ -76,6 +77,7 @@ pub use non_empty_vec::NonEmptyVec;
 pub use octree::{BoundingBox, Octree, OctreeConfig, OctreeEntry, OctreeError, OctreeNode, Point3};
 pub use pairing_heap::{PairingHeap, PairingHeapError};
 pub use registration_status::RegistrationStatus;
+pub use rope::{Measurable, Rope, RopeBuilder, RopeError, RopeSlice};
 pub use signal::{
     BufferPolicy, LineageScope, SignalAddress, SignalDedupeKey, SignalDelivery, WaitKey, WaitRecord,
 };
