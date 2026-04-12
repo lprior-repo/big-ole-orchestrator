@@ -3,6 +3,7 @@ mod blob;
 pub mod cartesian_tree;
 mod clique_tree;
 mod command_envelope;
+pub mod command_history;
 mod command_metadata;
 mod compensation;
 mod connection_pool;
@@ -50,6 +51,11 @@ pub use blob::{BlobRef, BlobStatus, OutputRef, INLINED_MAX_BYTES};
 pub use cartesian_tree::{CartesianNode, CartesianTree, CartesianTreeError};
 pub use clique_tree::{Clique, CliqueTree, CliqueTreeError};
 pub use command_envelope::{CommandEnvelope, CommandEnvelopeError, MAX_SUPPORTED_COMMAND_VERSION};
+pub use command_history::{
+    BatchId, CommandHistory, CommandHistoryError, CommandId, CommandKind, ExtensionApplyMode,
+    ExtensionBatchMetadata, HistoryEntry, HistoryEntryStatus, SnapshotId, WorkflowSnapshot,
+    MAX_HISTORY_DEPTH, MAX_REDO_STACK_DEPTH, MAX_UNDO_STACK_DEPTH,
+};
 pub use command_metadata::{CommandMetadata, Issuer};
 pub use compensation::{
     apply_compensation_transition, CompensationRecord, CompensationStatus,
