@@ -8,6 +8,7 @@
 #![allow(unsafe_code)]
 
 pub mod append;
+pub mod blob_store;
 pub mod budget_saga;
 pub mod checksum;
 pub mod codec;
