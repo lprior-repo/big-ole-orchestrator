@@ -14,6 +14,7 @@ pub mod master {
 
 pub mod instance_registry;
 pub mod message_router;
+pub mod port;
 pub mod probe;
 pub mod reanimator;
 pub mod signal_buffer;
