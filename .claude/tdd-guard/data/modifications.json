@@ -1,0 +1,12 @@
+{
+  "session_id": "3c5781fb-045e-4832-85af-a4d99e030fc2",
+  "transcript_path": "/home/lewis/.claude/projects/-home-lewis-gt-veloxide-polecats-shiny-veloxide/3c5781fb-045e-4832-85af-a4d99e030fc2.jsonl",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Edit",
+  "tool_input": {
+    "file_path": "/home/lewis/gt/veloxide/polecats/shiny/veloxide/crates/vo-types/src/octree.rs",
+    "old_string": "    fn empty_leaf() -> Self {\n        OctreeNode::Leaf { entries: Vec::new() }\n    }\n\n    fn count(&self) -> usize {\n        match self {\n            OctreeNode::Leaf { entries } => entries.len(),\n            OctreeNode::Interior { children } => {\n                children.iter().map(|c| c.as_ref().map_or(0, |n| n.count())).sum()\n            }\n        }\n    }\n}",
+    "new_string": "    fn empty_leaf() -> Self {\n        OctreeNode::Leaf { entries: Vec::new() }\n    }\n}",
+    "replace_all": false
+  }
+}
