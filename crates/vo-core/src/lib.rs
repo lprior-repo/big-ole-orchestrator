@@ -14,6 +14,7 @@ pub mod resource_quota;
 pub mod segment_tree;
 pub mod snapshot_compat;
 pub mod upcaster;
+pub mod vault;
 pub mod workflow_version;
 pub mod write_class;
 pub mod workspace_swap;

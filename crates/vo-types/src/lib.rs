@@ -8,6 +8,7 @@ mod command_metadata;
 mod compensation;
 mod connection_pool;
 mod connector;
+pub mod credentials;
 mod dedupe;
 #[cfg(test)]
 mod dedupe_tests;
@@ -66,6 +67,11 @@ pub use compensation::{
 pub use connector::{
     apply_connector_transition, ConnectorResult, ConnectorState, ConnectorTransition,
     ConnectorTransitionError, ReconcileAction,
+};
+pub use credentials::{
+    AccessPolicy, Credential, CredentialId, CredentialKind, CredentialStatus, CredentialVersion,
+    CredentialVersionId, Principal, RotationPolicy, RotationState, RotationStatus, SecretValue,
+    VaultEntry, VaultEntryId,
 };
 pub use dedupe::{DedupeKey, DedupePartitionKey};
 pub use dependency_graph_resolver::DependencyGraphResolver;
