@@ -1,3 +1,4 @@
+mod octree;
 mod blob;
 mod command_envelope;
 mod command_metadata;
@@ -32,6 +33,9 @@ mod types;
 mod types_tests;
 mod workflow;
 
+pub use octree::{
+    BoundingBox, Octree, OctreeConfig, OctreeEntry, OctreeError, OctreeNode, Point3,
+};
 pub use blob::{BlobRef, BlobStatus, OutputRef, INLINED_MAX_BYTES};
 pub use command_envelope::{CommandEnvelope, CommandEnvelopeError, MAX_SUPPORTED_COMMAND_VERSION};
 pub use command_metadata::{CommandMetadata, Issuer};
@@ -92,5 +96,7 @@ mod red_queen_tests;
 mod schema_version_tests;
 #[cfg(test)]
 mod serde_tests;
+#[cfg(test)]
+mod octree_tests;
 #[cfg(test)]
 mod workflow_tests;
