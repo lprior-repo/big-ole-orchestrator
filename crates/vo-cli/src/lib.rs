@@ -2,6 +2,7 @@ pub mod cli;
 pub mod commands;
 pub mod dispatch_mod;
 pub mod lint_targets;
+pub mod middleware;
 pub mod parse;
 
 pub use cli::{interpret_cli_from, map_error_to_exit_code, Cli, CliError, Command};
@@ -18,4 +19,5 @@ pub use commands::lock::{LockConfig, LockError, run_lock, LOCK_FILE_NAME};
 pub use commands::doctor::{DoctorConfig, DoctorError, run_doctor};
 pub use commands::doctor_checks::{CategoryReport, CheckCategory, CheckResult, DoctorReport, Severity, format_report, format_report_json};
 pub use dispatch_mod::dispatch;
+pub use middleware::{create_dispatcher, CommandContext, CommandDispatcher, Middleware};
 pub use parse::parse_strict_numeric;
