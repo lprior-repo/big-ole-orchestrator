@@ -403,4 +403,72 @@ mod tests {
             .unwrap();
         assert_eq!(cache.max_memory_limit(), 2048);
     }
+
+    #[test]
+    fn read_ahead_continues_on_individual_errors() {
+        let temp_dir = TempDir::new().unwrap();
+        let mut cache = MmapCache::new(temp_dir.path().to_path_buf(), 1024 * 1024).unwrap();
+        cache.insert("key1", b"value1").unwrap();
+        cache.insert("key2", b"value2").unwrap();
+        let result = cache.read_ahead(&["key1", "nonexistent", "key2"]);
+        assert!(
+            result.is_ok(),
+            "read_ahead should continue on individual errors (INV-014)"
+        );
+        assert!(cache.contains_key("key1"));
+        assert!(cache.contains_key("key2"));
+    }
+
+    #[test]
+    fn remove_nonexistent_key_returns_region_not_found() {
+        let temp_dir = TempDir::new().unwrap();
+        let mut cache = MmapCache::new(temp_dir.path().to_path_buf(), 1024 * 1024).unwrap();
+        let result = cache.remove("nonexistent");
+        assert!(
+            matches!(result, Err(MmapCacheError::RegionNotFound(_))),
+            "remove should return RegionNotFound for missing keys"
+        );
+    }
+
+    #[test]
+    fn evict_until_space_available_returns_cache_full() {
+        let temp_dir = TempDir::new().unwrap();
+        let mut cache = MmapCache::new(temp_dir.path().to_path_buf(), 5).unwrap();
+        cache.insert("key1", b"12345").unwrap();
+        let result = cache.insert("key2", b"67890");
+        assert!(
+            matches!(result, Err(MmapCacheError::CacheFull)),
+            "insert should return CacheFull when single entry exceeds max_memory_bytes (INV-007)"
+        );
+    }
+
+    #[test]
+    fn insert_existing_key_preserves_lru_sync() {
+        let temp_dir = TempDir::new().unwrap();
+        let mut cache = MmapCache::new(temp_dir.path().to_path_buf(), 1024).unwrap();
+        cache.insert("key1", b"value1").unwrap();
+        assert_eq!(cache.len(), 1);
+        assert_eq!(cache.lru_queue.len(), cache.entries.len());
+        cache.insert("key1", b"value2").unwrap();
+        assert_eq!(cache.len(), 1, "inserting same key should not increase len");
+        assert_eq!(
+            cache.lru_queue.len(),
+            cache.entries.len(),
+            "lru_queue and entries must stay synchronized (INV-004)"
+        );
+        let lru_keys: Vec<_> = cache.lru_queue.iter().cloned().collect();
+        assert_eq!(lru_keys.len(), 1);
+        assert!(cache.entries.contains_key("key1"));
+    }
+
+    #[test]
+    fn insert_with_zero_max_memory_bytes_returns_error() {
+        let temp_dir = TempDir::new().unwrap();
+        let mut cache = MmapCache::new(temp_dir.path().to_path_buf(), 0).unwrap();
+        let result = cache.insert("key1", b"value");
+        assert!(
+            matches!(result, Err(MmapCacheError::CacheFull)),
+            "insert with zero max_memory_bytes should return error (INV-002)"
+        );
+    }
 }
