@@ -1,5 +1,3 @@
-use super::*;
-use crate::events::error::Error;
 use crate::events::payload::EventPayload;
 
 #[test]

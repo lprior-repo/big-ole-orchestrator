@@ -1,7 +1,7 @@
-//! Durable dual-write saga for WriteBudget.
+//! Durable dual-write saga for `WriteBudget`.
 //!
 //! This module implements ADR-034 saga compensation and reversibility for the
-//! BudgetQueues write path. It provides:
+//! `BudgetQueues` write path. It provides:
 //!
 //! - **Atomic staging**: Writes are first placed in a durable staging area
 //! - **Manifest update**: Commit by updating the manifest atomically
@@ -42,22 +42,18 @@ pub struct SagaEntry {
     pub status: SagaStatus,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct BudgetManifest {
     entries: HashMap<String, SagaEntry>,
     version: u64,
 }
 
-impl Default for BudgetManifest {
-    fn default() -> Self {
-        Self {
-            entries: HashMap::new(),
-            version: 0,
-        }
-    }
-}
-
 impl BudgetManifest {
+    /// Stage a new write entry in the manifest.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SagaError::AlreadyExists`] if a write entry with the same key already exists.
     pub fn stage(
         &mut self,
         write_key: String,
@@ -79,11 +75,17 @@ impl BudgetManifest {
         Ok(())
     }
 
+    /// Commit a previously staged write entry.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SagaError::NotFound`] if no entry exists for the given key.
+    /// Returns [`SagaError::InvalidState`] if the entry is not in the `Staged` state.
     pub fn commit(&mut self, write_key: &str) -> Result<(), SagaError> {
         let entry = self
             .entries
             .get_mut(write_key)
-            .ok_or(SagaError::NotFound(write_key.to_string()))?;
+            .ok_or_else(|| SagaError::NotFound(write_key.to_string()))?;
         if entry.status != SagaStatus::Staged {
             return Err(SagaError::InvalidState {
                 key: write_key.to_string(),
@@ -96,11 +98,17 @@ impl BudgetManifest {
         Ok(())
     }
 
+    /// Roll back a write entry.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SagaError::NotFound`] if no entry exists for the given key.
+    /// Returns [`SagaError::AlreadyRolledBack`] if the entry is already rolled back.
     pub fn rollback(&mut self, write_key: &str) -> Result<(), SagaError> {
         let entry = self
             .entries
             .get_mut(write_key)
-            .ok_or(SagaError::NotFound(write_key.to_string()))?;
+            .ok_or_else(|| SagaError::NotFound(write_key.to_string()))?;
         if entry.status == SagaStatus::RolledBack {
             return Err(SagaError::AlreadyRolledBack(write_key.to_string()));
         }
@@ -109,6 +117,7 @@ impl BudgetManifest {
         Ok(())
     }
 
+    #[must_use]
     pub fn get(&self, write_key: &str) -> Option<&SagaEntry> {
         self.entries.get(write_key)
     }
@@ -125,7 +134,8 @@ impl BudgetManifest {
             .filter(|e| e.status == SagaStatus::Committed)
     }
 
-    pub fn version(&self) -> u64 {
+    #[must_use]
+    pub const fn version(&self) -> u64 {
         self.version
     }
 
@@ -165,8 +175,7 @@ impl std::fmt::Display for SagaError {
             } => {
                 write!(
                     f,
-                    "invalid state for {key}: expected {:?}, got {:?}",
-                    expected, actual
+                    "invalid state for {key}: expected {expected:?}, got {actual:?}"
                 )
             }
             Self::BudgetReserveFailed(msg) => write!(f, "budget reserve failed: {msg}"),
@@ -190,6 +199,7 @@ pub struct StagedWrite {
 }
 
 impl StagedWrite {
+    #[must_use]
     pub fn new(write_key: String, class: WriteClass, size_bytes: u64) -> Self {
         Self {
             write_key,
@@ -225,45 +235,86 @@ impl DurableBudgetSaga {
         }
     }
 
+    /// Stage a write in the saga: create a manifest entry and enqueue it in the budget queues.
+    /// If enqueue fails, the manifest entry is rolled back automatically.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal manifest mutex is poisoned.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SagaError::AlreadyExists`] if a write entry with the same key already exists.
+    /// Returns [`SagaError::BudgetReserveFailed`] if the budget queue enqueue fails.
     pub fn stage_write(
         &self,
-        write_key: String,
+        write_key: &str,
         class: WriteClass,
         size_bytes: u64,
     ) -> Result<StagedWrite, SagaError> {
-        let staged = StagedWrite::new(write_key.clone(), class, size_bytes);
+        let staged = StagedWrite::new(write_key.to_string(), class, size_bytes);
 
         {
+            #[expect(clippy::unwrap_used)]
             let mut manifest = self.manifest.lock().unwrap();
-            manifest.stage(write_key.clone(), class, size_bytes)?;
+            manifest.stage(write_key.to_string(), class, size_bytes)?;
         }
 
         self.queues.try_enqueue(&staged).map_err(|e| {
-            let mut manifest = self.manifest.lock().unwrap();
-            let _ = manifest.rollback(&write_key);
+            #[expect(clippy::unwrap_used)]
+            let _ = self.manifest.lock().unwrap().rollback(write_key);
             SagaError::BudgetReserveFailed(e.to_string())
         })?;
 
         Ok(staged)
     }
 
+    /// Commit a previously staged write entry.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal manifest mutex is poisoned.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SagaError::NotFound`] if no entry exists for the given key.
+    /// Returns [`SagaError::InvalidState`] if the entry is not in the `Staged` state.
     pub fn commit(&self, write_key: &str) -> Result<(), SagaError> {
+        #[expect(clippy::unwrap_used)]
         let mut manifest = self.manifest.lock().unwrap();
         manifest.commit(write_key)
     }
 
+    /// Roll back a write entry and dequeue it from the budget queues.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal manifest mutex is poisoned.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SagaError::NotFound`] if no entry exists for the given key.
+    /// Returns [`SagaError::AlreadyRolledBack`] if the entry is already rolled back.
     pub fn rollback(&self, write_key: &str) -> Result<(), SagaError> {
         self.queues.dequeue(self.get_class_for_key(write_key)?);
+        #[expect(clippy::unwrap_used)]
         let mut manifest = self.manifest.lock().unwrap();
         manifest.rollback(write_key)
     }
 
+    /// Recover from a crash by rolling back all staged entries.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal manifest mutex is poisoned.
     pub fn recover_from_crash(&self) {
+        #[expect(clippy::unwrap_used)]
         let mut manifest = self.manifest.lock().unwrap();
         manifest.recover_staged_as_rolled_back();
     }
 
     fn get_class_for_key(&self, write_key: &str) -> Result<WriteClass, SagaError> {
+        #[expect(clippy::unwrap_used)]
         let manifest = self.manifest.lock().unwrap();
         manifest
             .get(write_key)
@@ -275,7 +326,7 @@ impl DurableBudgetSaga {
         Arc::clone(&self.manifest)
     }
 
-    pub fn queues(&self) -> &BudgetQueues<StagedWrite> {
+    pub const fn queues(&self) -> &BudgetQueues<StagedWrite> {
         &self.queues
     }
 }

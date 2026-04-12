@@ -7,6 +7,7 @@
 
 use serde::{Deserialize, Serialize};
 use sha2::Digest;
+use std::fmt::Write;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -27,21 +28,11 @@ impl ChecksumAlgorithm {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 pub struct Checksum {
     pub crc32: u32,
     pub sha256: [u8; 32],
     pub blake3: [u8; 32],
-}
-
-impl Default for Checksum {
-    fn default() -> Self {
-        Self {
-            crc32: 0,
-            sha256: [0u8; 32],
-            blake3: [0u8; 32],
-        }
-    }
 }
 
 #[derive(Clone)]
@@ -83,12 +74,19 @@ impl Default for StreamingHasher {
     }
 }
 
+#[must_use]
 pub fn compute_checksum(data: &[u8]) -> Checksum {
     let mut hasher = StreamingHasher::new();
     hasher.update(data);
     hasher.finalize()
 }
 
+/// Verifies that `data` produces the same checksum as `expected`.
+///
+/// # Errors
+///
+/// Returns [`ChecksumError::Mismatch`] if any algorithm's computed digest
+/// differs from the expected value.
 pub fn verify_checksum(data: &[u8], expected: &Checksum) -> Result<(), ChecksumError> {
     let computed = compute_checksum(data);
     verify_checksum_internal(&computed, expected)
@@ -120,7 +118,12 @@ fn verify_checksum_internal(computed: &Checksum, expected: &Checksum) -> Result<
 }
 
 fn hex_encode(bytes: &[u8]) -> String {
-    bytes.iter().map(|b| format!("{:02x}", b)).collect()
+    bytes
+        .iter()
+        .fold(String::with_capacity(bytes.len() * 2), |mut acc, b| {
+            let _ = write!(acc, "{b:02x}");
+            acc
+        })
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -149,7 +152,7 @@ impl std::fmt::Display for ChecksumError {
                     actual
                 )
             }
-            Self::Io(msg) => write!(f, "checksum I/O error: {}", msg),
+            Self::Io(msg) => write!(f, "checksum I/O error: {msg}"),
         }
     }
 }
@@ -185,13 +188,14 @@ impl ChunkedHasher {
         let mut offset = 0;
         while offset < data.len() {
             let remaining_in_chunk = self.chunk_size - (self.current_offset % self.chunk_size);
-            let bytes_to_process = std::cmp::min(remaining_in_chunk as usize, data.len() - offset);
+            let remaining_usize = usize::try_from(remaining_in_chunk).unwrap_or(usize::MAX);
+            let bytes_to_process = std::cmp::min(remaining_usize, data.len() - offset);
 
             self.current_hasher
                 .update(&data[offset..offset + bytes_to_process]);
             self.current_offset += bytes_to_process as u64;
 
-            if self.current_offset % self.chunk_size == 0 {
+            if self.current_offset.is_multiple_of(self.chunk_size) {
                 let checksum = self.current_hasher.clone().finalize();
                 self.chunks.push(ChunkInfo {
                     offset: self.current_offset - self.chunk_size,
@@ -207,7 +211,7 @@ impl ChunkedHasher {
 
     #[must_use]
     pub fn finalize(mut self) -> Vec<ChunkInfo> {
-        if self.current_offset % self.chunk_size != 0 || self.current_offset == 0 {
+        if !self.current_offset.is_multiple_of(self.chunk_size) || self.current_offset == 0 {
             let checksum = self.current_hasher.finalize();
             let remaining = self.current_offset % self.chunk_size;
             let size = if remaining == 0 {

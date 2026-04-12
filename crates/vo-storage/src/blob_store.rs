@@ -45,6 +45,7 @@
 //! - `PackFileFull`: Pack file has reached maximum size (forces new pack)
 
 use std::fmt;
+use std::fmt::Write as _;
 
 use serde::{Deserialize, Serialize};
 
@@ -58,7 +59,9 @@ use serde::{Deserialize, Serialize};
 ///
 /// `content_addr` is always exactly 64 characters of lowercase hex (0-9, a-f),
 /// representing a full SHA-256 digest.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
+#[expect(clippy::unsafe_derive_deserialize)]
+#[derive(Deserialize)]
 pub struct ContentAddress(String);
 
 impl ContentAddress {
@@ -93,8 +96,12 @@ impl ContentAddress {
     }
 
     /// Construct a `ContentAddress` from raw SHA-256 bytes.
+    #[must_use]
     pub fn from_bytes(bytes: &[u8; 32]) -> Self {
-        Self(bytes.iter().map(|b| format!("{:02x}", b)).collect())
+        Self(bytes.iter().fold(String::with_capacity(64), |mut s, b| {
+            let _ = write!(s, "{b:02x}");
+            s
+        }))
     }
 
     #[must_use]
@@ -170,7 +177,8 @@ pub struct PackIndexEntry {
 
 impl PackIndexEntry {
     /// Construct a new `PackIndexEntry`.
-    pub fn new(
+    #[must_use]
+    pub const fn new(
         content_addr: ContentAddress,
         pack_file_id: PackFileId,
         offset_bytes: u64,
@@ -185,12 +193,12 @@ impl PackIndexEntry {
     }
 
     #[must_use]
-    pub fn content_addr(&self) -> &ContentAddress {
+    pub const fn content_addr(&self) -> &ContentAddress {
         &self.content_addr
     }
 
     #[must_use]
-    pub fn pack_file_id(&self) -> &PackFileId {
+    pub const fn pack_file_id(&self) -> &PackFileId {
         &self.pack_file_id
     }
 
@@ -253,7 +261,7 @@ impl BlobRecord {
     }
 
     #[must_use]
-    pub fn content_addr(&self) -> &ContentAddress {
+    pub const fn content_addr(&self) -> &ContentAddress {
         &self.content_addr
     }
 
@@ -279,7 +287,7 @@ impl BlobRecord {
 
     /// Check if this record has expired given the current timestamp.
     #[must_use]
-    pub fn is_expired(&self, now_ms: u64) -> bool {
+    pub const fn is_expired(&self, now_ms: u64) -> bool {
         match self.expires_at_ms {
             Some(expires) => now_ms >= expires,
             None => false,
@@ -288,13 +296,13 @@ impl BlobRecord {
 
     /// Increment reference count, saturating at `u64::MAX`.
     #[must_use]
-    pub fn increment_ref_count(&self) -> u64 {
+    pub const fn increment_ref_count(&self) -> u64 {
         self.reference_count.saturating_add(1)
     }
 
     /// Decrement reference count, saturating at zero.
     #[must_use]
-    pub fn decrement_ref_count(&self) -> u64 {
+    pub const fn decrement_ref_count(&self) -> u64 {
         self.reference_count.saturating_sub(1)
     }
 }
@@ -347,22 +355,22 @@ impl fmt::Display for BlobStoreError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::ContentNotFound { content_addr } => {
-                write!(f, "content not found: {}", content_addr)
+                write!(f, "content not found: {content_addr}")
             }
             Self::PackFileNotFound { pack_file_id } => {
-                write!(f, "pack file not found: {}", pack_file_id)
+                write!(f, "pack file not found: {pack_file_id}")
             }
             Self::DuplicateContent { content_addr } => {
-                write!(f, "duplicate content: {}", content_addr)
+                write!(f, "duplicate content: {content_addr}")
             }
             Self::CorruptPackIndex { reason } => {
-                write!(f, "corrupt pack index: {}", reason)
+                write!(f, "corrupt pack index: {reason}")
             }
             Self::CorruptPackFile {
                 pack_file_id,
                 reason,
             } => {
-                write!(f, "corrupt pack file {}: {}", pack_file_id, reason)
+                write!(f, "corrupt pack file {pack_file_id}: {reason}")
             }
             Self::ChecksumMismatch {
                 content_addr,
@@ -371,21 +379,20 @@ impl fmt::Display for BlobStoreError {
             } => {
                 write!(
                     f,
-                    "checksum mismatch for {}: expected {}, got {}",
-                    content_addr, expected, actual
+                    "checksum mismatch for {content_addr}: expected {expected}, got {actual}"
                 )
             }
             Self::SerializationFailed { reason } => {
-                write!(f, "serialization failed: {}", reason)
+                write!(f, "serialization failed: {reason}")
             }
             Self::DeserializationFailed { reason } => {
-                write!(f, "deserialization failed: {}", reason)
+                write!(f, "deserialization failed: {reason}")
             }
             Self::Storage { reason } => {
-                write!(f, "storage error: {}", reason)
+                write!(f, "storage error: {reason}")
             }
             Self::InvalidArgument { reason } => {
-                write!(f, "invalid argument: {}", reason)
+                write!(f, "invalid argument: {reason}")
             }
             Self::GcCycleInProgress => {
                 write!(f, "GC cycle already in progress")
@@ -396,8 +403,7 @@ impl fmt::Display for BlobStoreError {
             } => {
                 write!(
                     f,
-                    "pack file {} full (max {} bytes)",
-                    pack_file_id, max_size_bytes
+                    "pack file {pack_file_id} full (max {max_size_bytes} bytes)"
                 )
             }
         }
@@ -424,7 +430,7 @@ pub fn encode_content_address(addr: &ContentAddress) -> Vec<u8> {
 /// or if the resulting string is not a valid content address.
 pub fn decode_content_address(bytes: &[u8]) -> Result<ContentAddress, BlobStoreError> {
     let s = std::str::from_utf8(bytes).map_err(|e| BlobStoreError::CorruptPackIndex {
-        reason: format!("invalid UTF-8: {}", e),
+        reason: format!("invalid UTF-8: {e}"),
     })?;
     ContentAddress::new(s).map_err(|e| BlobStoreError::CorruptPackIndex {
         reason: e.to_string(),
@@ -437,7 +443,7 @@ pub fn decode_content_address(bytes: &[u8]) -> Result<ContentAddress, BlobStoreE
 ///
 /// Returns `BlobStoreError::InvalidArgument` if the string is not a valid content address.
 pub fn validate_content_address(addr: &str) -> Result<(), BlobStoreError> {
-    ContentAddress::new(addr).map(|_| ()).map_err(|e| e)
+    ContentAddress::new(addr).map(|_| ())
 }
 
 // ---------------------------------------------------------------------------
@@ -445,6 +451,10 @@ pub fn validate_content_address(addr: &str) -> Result<(), BlobStoreError> {
 // ---------------------------------------------------------------------------
 
 /// Encode a `PackIndexEntry` to JSON bytes for storage.
+///
+/// # Errors
+///
+/// Returns `BlobStoreError::SerializationFailed` if the entry cannot be serialized to JSON.
 pub fn encode_pack_index_entry(entry: &PackIndexEntry) -> Result<Vec<u8>, BlobStoreError> {
     serde_json::to_vec(entry).map_err(|e| BlobStoreError::SerializationFailed {
         reason: e.to_string(),
@@ -452,6 +462,11 @@ pub fn encode_pack_index_entry(entry: &PackIndexEntry) -> Result<Vec<u8>, BlobSt
 }
 
 /// Decode JSON bytes into a `PackIndexEntry`.
+///
+/// # Errors
+///
+/// Returns `BlobStoreError::DeserializationFailed` if the bytes are not valid JSON
+/// or do not represent a valid `PackIndexEntry`.
 pub fn decode_pack_index_entry(bytes: &[u8]) -> Result<PackIndexEntry, BlobStoreError> {
     serde_json::from_slice(bytes).map_err(|e| BlobStoreError::DeserializationFailed {
         reason: e.to_string(),
@@ -459,6 +474,10 @@ pub fn decode_pack_index_entry(bytes: &[u8]) -> Result<PackIndexEntry, BlobStore
 }
 
 /// Encode a `BlobRecord` to JSON bytes for storage.
+///
+/// # Errors
+///
+/// Returns `BlobStoreError::SerializationFailed` if the record cannot be serialized to JSON.
 pub fn encode_blob_record(record: &BlobRecord) -> Result<Vec<u8>, BlobStoreError> {
     serde_json::to_vec(record).map_err(|e| BlobStoreError::SerializationFailed {
         reason: e.to_string(),
@@ -466,6 +485,11 @@ pub fn encode_blob_record(record: &BlobRecord) -> Result<Vec<u8>, BlobStoreError
 }
 
 /// Decode JSON bytes into a `BlobRecord`.
+///
+/// # Errors
+///
+/// Returns `BlobStoreError::DeserializationFailed` if the bytes are not valid JSON
+/// or do not represent a valid `BlobRecord`.
 pub fn decode_blob_record(bytes: &[u8]) -> Result<BlobRecord, BlobStoreError> {
     serde_json::from_slice(bytes).map_err(|e| BlobStoreError::DeserializationFailed {
         reason: e.to_string(),
@@ -550,6 +574,10 @@ pub trait BlobStore {
         W: tokio::io::AsyncWrite + Send + Unpin + 'static;
 
     /// Check if a blob exists for the given content address.
+    ///
+    /// # Errors
+    ///
+    /// Returns `BlobStoreError::Storage` if the underlying storage lookup fails.
     fn contains(&self, addr: &ContentAddress) -> Result<bool, BlobStoreError>;
 
     /// Increment the reference count for a blob.
@@ -582,6 +610,10 @@ pub trait BlobStore {
     /// List all blobs eligible for GC (reference count = 0 and expired).
     ///
     /// Returns content addresses of blobs that are safe to collect.
+    ///
+    /// # Errors
+    ///
+    /// Returns `BlobStoreError::Storage` if the underlying storage lookup fails.
     fn list_gc_candidates(&self, now_ms: u64) -> Result<Vec<ContentAddress>, BlobStoreError>;
 
     /// Run lazy GC to collect unreferenced and expired blobs.

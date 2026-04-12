@@ -84,7 +84,7 @@ impl<T: Clone + Send + Sync + 'static> HotReloadConfig<T> {
     pub fn try_update(&self, new_config: T) -> Result<(), Error> {
         self.validator
             .validate(&new_config)
-            .map_err(|e| Error::ValidationFailed(e))?;
+            .map_err(Error::ValidationFailed)?;
 
         let mut pending = self.pending.write().unwrap();
         *pending = Some(new_config);
@@ -125,7 +125,7 @@ impl<T: Clone + Send + Sync + 'static> HotReloadConfig<T> {
 
         self.validator
             .validate(&new_config)
-            .map_err(|e| Error::ValidationFailed(e))?;
+            .map_err(Error::ValidationFailed)?;
 
         let mut current = self.current.write().unwrap();
         let old = (*current).clone();
@@ -215,7 +215,6 @@ pub struct FilteredFileWatcher {
 impl FilteredFileWatcher {
     pub fn new<P: AsRef<Path>>(path: P, config: WatcherConfig) -> Result<Self, Error> {
         let path = path.as_ref().to_path_buf();
-        let config = config;
 
         let watcher = RecommendedWatcher::new(
             move |_res: Result<notify::Event, notify::Error>| {},
@@ -320,7 +319,7 @@ impl DebouncedFileWatcher {
         let watcher = RecommendedWatcher::new(
             move |res: Result<notify::Event, notify::Error>| {
                 if let Ok(event) = res {
-                    let _file_event = match event.kind {
+                    match event.kind {
                         notify::EventKind::Modify(_) => {
                             for path in event.paths {
                                 let _ = event_tx.blocking_send(DebouncedFileEvent::Modify(path));
@@ -332,7 +331,7 @@ impl DebouncedFileWatcher {
                             }
                         }
                         _ => {}
-                    };
+                    }
                 }
             },
             NotifyConfig::default(),

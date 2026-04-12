@@ -462,6 +462,7 @@ impl SpawnSupervisor {
     ///
     /// # Errors
     /// Returns `InvalidConfig` if configuration is invalid.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         health_check_interval: Duration,
         max_health_checks: u32,
@@ -806,7 +807,7 @@ impl SpawnSupervisorHandle {
     /// Returns the current state of the supervisor.
     #[must_use]
     pub fn current_state(&self) -> SpawnSupervisorState {
-        self.state_sender.borrow().clone()
+        *self.state_sender.borrow()
     }
 
     /// Requests the supervisor to shut down.
@@ -818,7 +819,7 @@ impl SpawnSupervisorHandle {
         loop {
             match receiver.changed().await {
                 Ok(()) => {
-                    let state = (*receiver.borrow()).clone();
+                    let state = *receiver.borrow();
                     match state {
                         SpawnSupervisorState::ShutDown => break,
                         SpawnSupervisorState::ShuttingDown => continue,

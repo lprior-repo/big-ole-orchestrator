@@ -234,6 +234,7 @@ impl TimestampMs {
 /// An opaque handle to an actor destination.
 /// The actual type is hidden to allow different actor system implementations.
 #[derive(Clone)]
+#[allow(dead_code)]
 pub struct ActorDestination(Arc<dyn Send + Sync>);
 
 impl std::fmt::Debug for ActorDestination {
@@ -547,7 +548,7 @@ fn should_broadcast(channel: &ChannelEntry, config: &RouterConfig) -> bool {
 }
 
 /// Pure function: validates that a message can be routed.
-fn validate_route(channel: Option<&ChannelEntry>, config: &RouterConfig) -> Result<(), RouteError> {
+fn validate_route(channel: Option<&ChannelEntry>, _config: &RouterConfig) -> Result<(), RouteError> {
     match channel {
         None => Err(RouteError::ChannelNotFound(
             channel.map(|c| c.channel_id.clone()).unwrap_or_else(|| ChannelId::new("unknown")),

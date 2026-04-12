@@ -63,6 +63,11 @@ pub struct MmapCache {
 }
 
 impl MmapCache {
+    /// Creates a new memory-mapped cache at the given base path.
+    ///
+    /// # Errors
+    ///
+    /// Returns `MmapCacheError::IoError` if the directory cannot be created.
     pub fn new(base_path: PathBuf, max_memory_bytes: usize) -> Result<Self, MmapCacheError> {
         std::fs::create_dir_all(&base_path)?;
         Ok(Self {
@@ -76,6 +81,11 @@ impl MmapCache {
         })
     }
 
+    /// Inserts a key-value pair into the cache, evicting LRU entries if needed.
+    ///
+    /// # Errors
+    ///
+    /// Returns `MmapCacheError::IoError` on filesystem failures.
     pub fn insert(&mut self, key: &str, data: &[u8]) -> Result<(), MmapCacheError> {
         let needs_evict = {
             let _guard = self.lock.lock();
@@ -106,6 +116,14 @@ impl MmapCache {
         Ok(())
     }
 
+    /// Retrieves the value associated with the given key.
+    ///
+    /// # Errors
+    ///
+    /// Returns `MmapCacheError::RegionNotFound` if the key does not exist.
+    /// Returns `MmapCacheError::IoError` on filesystem failures.
+    /// Returns `MmapCacheError::MmapError` if the memory map fails.
+    #[allow(clippy::cast_possible_truncation)]
     pub fn get(&self, key: &str) -> Result<Vec<u8>, MmapCacheError> {
         let region = {
             let _guard = self.lock.lock();
@@ -123,6 +141,12 @@ impl MmapCache {
         self.entries.contains_key(key)
     }
 
+    /// Removes the entry associated with the given key.
+    ///
+    /// # Errors
+    ///
+    /// Returns `MmapCacheError::IoError` if the backing file cannot be removed.
+    #[allow(clippy::cast_possible_truncation)]
     pub fn remove(&mut self, key: &str) -> Result<(), MmapCacheError> {
         let _guard = self.lock.lock();
         if let Some(entry) = self.entries.remove(key) {
@@ -133,6 +157,11 @@ impl MmapCache {
         Ok(())
     }
 
+    /// Prefetches the memory-mapped region for the given key into the OS page cache.
+    ///
+    /// # Errors
+    ///
+    /// Returns `MmapCacheError::MmapError` if the memory map fails.
     pub fn prefetch(&self, key: &str) -> Result<(), MmapCacheError> {
         let file_path = {
             let _guard = self.lock.lock();
@@ -145,6 +174,11 @@ impl MmapCache {
         Ok(())
     }
 
+    /// Prefetches multiple keys into the OS page cache.
+    ///
+    /// # Errors
+    ///
+    /// Returns `MmapCacheError::MmapError` if any memory map fails.
     pub fn read_ahead(&self, keys: &[&str]) -> Result<(), MmapCacheError> {
         for key in keys {
             self.prefetch(key)?;
@@ -160,11 +194,11 @@ impl MmapCache {
         self.entries.is_empty()
     }
 
-    pub fn current_memory_usage(&self) -> usize {
+    pub const fn current_memory_usage(&self) -> usize {
         self.current_memory_bytes
     }
 
-    pub fn max_memory_limit(&self) -> usize {
+    pub const fn max_memory_limit(&self) -> usize {
         self.max_memory_bytes
     }
 
@@ -198,6 +232,7 @@ impl MmapCache {
         Ok(())
     }
 
+    #[allow(clippy::unnecessary_wraps, clippy::cast_possible_truncation)]
     fn evict_until_space_available(&mut self, needed: usize) -> Result<(), MmapCacheError> {
         let _guard = self.lock.lock();
         while self.current_memory_bytes + needed > self.max_memory_bytes
@@ -213,6 +248,11 @@ impl MmapCache {
         Ok(())
     }
 
+    /// Removes all entries from the cache and deletes their backing files.
+    ///
+    /// # Errors
+    ///
+    /// Returns `MmapCacheError::IoError` if any backing file cannot be removed.
     pub fn clear(&mut self) -> Result<(), MmapCacheError> {
         let _guard = self.lock.lock();
         for entry in self.entries.values() {
@@ -237,18 +277,25 @@ pub struct MmapCacheBuilder {
 }
 
 impl MmapCacheBuilder {
-    pub fn new(base_path: PathBuf) -> Self {
+    #[must_use]
+    pub const fn new(base_path: PathBuf) -> Self {
         Self {
             base_path,
             max_memory_bytes: 100 * 1024 * 1024,
         }
     }
 
-    pub fn max_memory_bytes(mut self, bytes: usize) -> Self {
+    #[must_use]
+    pub const fn max_memory_bytes(mut self, bytes: usize) -> Self {
         self.max_memory_bytes = bytes;
         self
     }
 
+    /// Builds the `MmapCache` with the configured settings.
+    ///
+    /// # Errors
+    ///
+    /// Returns `MmapCacheError::IoError` if the cache directory cannot be created.
     pub fn build(self) -> Result<MmapCache, MmapCacheError> {
         MmapCache::new(self.base_path, self.max_memory_bytes)
     }
