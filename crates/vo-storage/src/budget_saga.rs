@@ -160,6 +160,8 @@ pub enum SagaError {
         actual: SagaStatus,
     },
     BudgetReserveFailed(String),
+    Storage { reason: String },
+    CorruptEntry { key: String, reason: String },
 }
 
 impl std::fmt::Display for SagaError {
@@ -179,13 +181,159 @@ impl std::fmt::Display for SagaError {
                 )
             }
             Self::BudgetReserveFailed(msg) => write!(f, "budget reserve failed: {msg}"),
+            Self::Storage { reason } => write!(f, "storage error: {reason}"),
+            Self::CorruptEntry { key, reason } => write!(f, "corrupt saga entry for key {key}: {reason}"),
         }
     }
 }
 
 impl std::error::Error for SagaError {}
 
+/// Fjall-backed recovery outcome.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RecoveryOutcome {
+    NothingToRecover,
+    RolledBack { count: usize },
+}
+
+/// Fjall-backed persistent store for saga entries.
+pub struct SagaStore {
+    partition: fjall::PartitionHandle,
+}
+
+impl SagaStore {
+    pub fn open(keyspace: &fjall::Keyspace) -> Result<Self, SagaError> {
+        let partition = keyspace
+            .open_partition("saga_manifest", fjall::PartitionCreateOptions::default())
+            .map_err(|e| SagaError::Storage { reason: format!("failed to open saga_manifest partition: {e}") })?;
+        Ok(Self { partition })
+    }
+
+    pub fn stage_entry(
+        &self,
+        write_key: &str,
+        class: WriteClass,
+        size_bytes: u64,
+    ) -> Result<(), SagaError> {
+        if self.read_entry(write_key)?.is_some() {
+            return Err(SagaError::AlreadyExists(write_key.to_string()));
+        }
+        let entry = SagaEntry {
+            write_key: write_key.to_string(),
+            class,
+            size_bytes,
+            status: SagaStatus::Staged,
+        };
+        let key = format!("entry:{write_key}").into_bytes();
+        let value = serde_json::to_vec(&entry).map_err(|e| SagaError::Storage {
+            reason: format!("failed to serialize saga entry: {e}"),
+        })?;
+        self.partition
+            .insert(&key, &value)
+            .map_err(|e| SagaError::Storage {
+                reason: e.to_string(),
+            })
+    }
+
+    pub fn read_entry(&self, write_key: &str) -> Result<Option<SagaEntry>, SagaError> {
+        let key = format!("entry:{write_key}").into_bytes();
+        match self.partition.get(&key) {
+            Ok(Some(bytes)) => {
+                let entry: SagaEntry =
+                    serde_json::from_slice(&bytes).map_err(|e| SagaError::CorruptEntry {
+                        key: write_key.to_string(),
+                        reason: e.to_string(),
+                    })?;
+                Ok(Some(entry))
+            }
+            Ok(None) => Ok(None),
+            Err(e) => Err(SagaError::Storage {
+                reason: e.to_string(),
+            }),
+        }
+    }
+
+    pub fn commit_entry(&self, write_key: &str) -> Result<(), SagaError> {
+        let mut entry = self
+            .read_entry(write_key)?
+            .ok_or_else(|| SagaError::NotFound(write_key.to_string()))?;
+        if entry.status != SagaStatus::Staged {
+            return Err(SagaError::InvalidState {
+                key: write_key.to_string(),
+                expected: SagaStatus::Staged,
+                actual: entry.status,
+            });
+        }
+        entry.status = SagaStatus::Committed;
+        let key = format!("entry:{write_key}").into_bytes();
+        let value = serde_json::to_vec(&entry).map_err(|e| SagaError::Storage {
+            reason: format!("failed to serialize saga entry: {e}"),
+        })?;
+        self.partition
+            .insert(&key, &value)
+            .map_err(|e| SagaError::Storage {
+                reason: e.to_string(),
+            })
+    }
+
+    pub fn rollback_entry(&self, write_key: &str) -> Result<(), SagaError> {
+        let mut entry = self
+            .read_entry(write_key)?
+            .ok_or_else(|| SagaError::NotFound(write_key.to_string()))?;
+        if entry.status == SagaStatus::RolledBack {
+            return Err(SagaError::AlreadyRolledBack(write_key.to_string()));
+        }
+        entry.status = SagaStatus::RolledBack;
+        let key = format!("entry:{write_key}").into_bytes();
+        let value = serde_json::to_vec(&entry).map_err(|e| SagaError::Storage {
+            reason: format!("failed to serialize saga entry: {e}"),
+        })?;
+        self.partition
+            .insert(&key, &value)
+            .map_err(|e| SagaError::Storage {
+                reason: e.to_string(),
+            })
+    }
+
+    pub fn recover(&self) -> Result<RecoveryOutcome, SagaError> {
+        let mut count = 0usize;
+        let iter = self.partition.iter();
+        for item in iter {
+            let (key_bytes, value_bytes) = item.map_err(|e| SagaError::Storage {
+                reason: e.to_string(),
+            })?;
+            let key_str = std::str::from_utf8(&key_bytes).unwrap_or("");
+            let Some(write_key) = key_str.strip_prefix("entry:") else {
+                continue;
+            };
+            let mut entry: SagaEntry =
+                serde_json::from_slice(&value_bytes).map_err(|e| SagaError::CorruptEntry {
+                    key: write_key.to_string(),
+                    reason: e.to_string(),
+                })?;
+            if entry.status == SagaStatus::Staged {
+                entry.status = SagaStatus::RolledBack;
+                let value = serde_json::to_vec(&entry).map_err(|e| SagaError::Storage {
+                    reason: format!("failed to serialize saga entry: {e}"),
+                })?;
+                self.partition.insert(format!("entry:{write_key}").as_bytes(), &value).map_err(|e| {
+                    SagaError::Storage {
+                        reason: e.to_string(),
+                    }
+                })?;
+                count += 1;
+            }
+        }
+        if count > 0 {
+            Ok(RecoveryOutcome::RolledBack { count })
+        } else {
+            Ok(RecoveryOutcome::NothingToRecover)
+        }
+    }
+}
+
 pub struct DurableBudgetSaga {
+    store: Option<SagaStore>,
     manifest: Arc<Mutex<BudgetManifest>>,
     queues: BudgetQueues<StagedWrite>,
 }
@@ -223,13 +371,32 @@ impl ClassifiedWrite for StagedWrite {
 impl DurableBudgetSaga {
     pub fn new(queues: BudgetQueues<StagedWrite>) -> Self {
         Self {
+            store: None,
             manifest: Arc::new(Mutex::new(BudgetManifest::default())),
             queues,
         }
     }
 
+    pub fn open(
+        keyspace: &fjall::Keyspace,
+        queues: BudgetQueues<StagedWrite>,
+    ) -> Result<Self, SagaError> {
+        let store = SagaStore::open(keyspace)?;
+        Ok(Self {
+            store: Some(store),
+            manifest: Arc::new(Mutex::new(BudgetManifest::default())),
+            queues,
+        })
+    }
+
+    #[must_use]
+    pub fn store(&self) -> &Option<SagaStore> {
+        &self.store
+    }
+
     pub fn with_manifest(queues: BudgetQueues<StagedWrite>, manifest: BudgetManifest) -> Self {
         Self {
+            store: None,
             manifest: Arc::new(Mutex::new(manifest)),
             queues,
         }
@@ -254,15 +421,21 @@ impl DurableBudgetSaga {
     ) -> Result<StagedWrite, SagaError> {
         let staged = StagedWrite::new(write_key.to_string(), class, size_bytes);
 
-        {
+        if let Some(ref store) = self.store {
+            store.stage_entry(write_key, class, size_bytes)?;
+        } else {
             #[expect(clippy::unwrap_used)]
             let mut manifest = self.manifest.lock().unwrap();
             manifest.stage(write_key.to_string(), class, size_bytes)?;
         }
 
         self.queues.try_enqueue(&staged).map_err(|e| {
-            #[expect(clippy::unwrap_used)]
-            let _ = self.manifest.lock().unwrap().rollback(write_key);
+            if let Some(ref store) = self.store {
+                let _ = store.rollback_entry(write_key);
+            } else {
+                #[expect(clippy::unwrap_used)]
+                let _ = self.manifest.lock().unwrap().rollback(write_key);
+            }
             SagaError::BudgetReserveFailed(e.to_string())
         })?;
 
@@ -280,9 +453,13 @@ impl DurableBudgetSaga {
     /// Returns [`SagaError::NotFound`] if no entry exists for the given key.
     /// Returns [`SagaError::InvalidState`] if the entry is not in the `Staged` state.
     pub fn commit(&self, write_key: &str) -> Result<(), SagaError> {
-        #[expect(clippy::unwrap_used)]
-        let mut manifest = self.manifest.lock().unwrap();
-        manifest.commit(write_key)
+        if let Some(ref store) = self.store {
+            store.commit_entry(write_key)
+        } else {
+            #[expect(clippy::unwrap_used)]
+            let mut manifest = self.manifest.lock().unwrap();
+            manifest.commit(write_key)
+        }
     }
 
     /// Roll back a write entry and dequeue it from the budget queues.
@@ -297,9 +474,13 @@ impl DurableBudgetSaga {
     /// Returns [`SagaError::AlreadyRolledBack`] if the entry is already rolled back.
     pub fn rollback(&self, write_key: &str) -> Result<(), SagaError> {
         self.queues.dequeue(self.get_class_for_key(write_key)?);
-        #[expect(clippy::unwrap_used)]
-        let mut manifest = self.manifest.lock().unwrap();
-        manifest.rollback(write_key)
+        if let Some(ref store) = self.store {
+            store.rollback_entry(write_key)
+        } else {
+            #[expect(clippy::unwrap_used)]
+            let mut manifest = self.manifest.lock().unwrap();
+            manifest.rollback(write_key)
+        }
     }
 
     /// Recover from a crash by rolling back all staged entries.
@@ -408,7 +589,7 @@ mod tests {
         let queues = create_test_queues();
         let saga = DurableBudgetSaga::new(queues);
 
-        saga.stage_write("key1".to_string(), WriteClass::CriticalControlPlane, 100)
+        saga.stage_write("key1", WriteClass::CriticalControlPlane, 100)
             .unwrap();
         saga.commit("key1").unwrap();
 
@@ -422,12 +603,167 @@ mod tests {
         let queues = create_test_queues();
         let saga = DurableBudgetSaga::new(queues);
 
-        saga.stage_write("key1".to_string(), WriteClass::CriticalControlPlane, 100)
+        saga.stage_write("key1", WriteClass::CriticalControlPlane, 100)
             .unwrap();
         saga.rollback("key1").unwrap();
 
         let manifest_ref = saga.manifest();
         let manifest = manifest_ref.lock().unwrap();
         assert_eq!(manifest.get("key1").unwrap().status, SagaStatus::RolledBack);
+    }
+
+    // ── SagaStore: fjall-backed persistent saga ────────────────────────────────
+
+    #[test]
+    fn saga_store_stage_and_read_entry() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let keyspace = fjall::Config::new(dir.path()).open().expect("keyspace");
+        let store = SagaStore::open(&keyspace).expect("store");
+
+        store
+            .stage_entry("key1", WriteClass::CriticalControlPlane, 100)
+            .expect("stage");
+
+        let entry = store.read_entry("key1").expect("read").expect("exists");
+        assert_eq!(entry.write_key, "key1");
+        assert_eq!(entry.status, SagaStatus::Staged);
+        assert_eq!(entry.class, WriteClass::CriticalControlPlane);
+    }
+
+    #[test]
+    fn saga_store_commit_transitions_to_committed() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let keyspace = fjall::Config::new(dir.path()).open().expect("keyspace");
+        let store = SagaStore::open(&keyspace).expect("store");
+
+        store
+            .stage_entry("key1", WriteClass::CriticalControlPlane, 100)
+            .expect("stage");
+        store.commit_entry("key1").expect("commit");
+
+        let entry = store.read_entry("key1").expect("read").expect("exists");
+        assert_eq!(entry.status, SagaStatus::Committed);
+    }
+
+    #[test]
+    fn saga_store_rollback_transitions_to_rolled_back() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let keyspace = fjall::Config::new(dir.path()).open().expect("keyspace");
+        let store = SagaStore::open(&keyspace).expect("store");
+
+        store
+            .stage_entry("key1", WriteClass::CriticalControlPlane, 100)
+            .expect("stage");
+        store.rollback_entry("key1").expect("rollback");
+
+        let entry = store.read_entry("key1").expect("read").expect("exists");
+        assert_eq!(entry.status, SagaStatus::RolledBack);
+    }
+
+    #[test]
+    fn saga_store_recovery_rolls_back_staged_entries() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let keyspace = fjall::Config::new(dir.path()).open().expect("keyspace");
+        let store = SagaStore::open(&keyspace).expect("store");
+
+        store
+            .stage_entry("staged1", WriteClass::CriticalControlPlane, 100)
+            .expect("stage");
+        store
+            .stage_entry("committed1", WriteClass::OperatorProjection, 150)
+            .expect("stage");
+        store.commit_entry("committed1").expect("commit");
+
+        let outcome = store.recover().expect("recover");
+        assert_eq!(outcome, RecoveryOutcome::RolledBack { count: 1 });
+
+        let committed = store
+            .read_entry("committed1")
+            .expect("read")
+            .expect("exists");
+        assert_eq!(committed.status, SagaStatus::Committed);
+
+        let staged = store
+            .read_entry("staged1")
+            .expect("read")
+            .expect("exists");
+        assert_eq!(staged.status, SagaStatus::RolledBack);
+    }
+
+    #[test]
+    fn saga_store_recovery_survives_keyspace_reopen() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let dir_path = dir.path().to_path_buf();
+
+        // Phase 1: stage entries then "crash"
+        {
+            let keyspace = fjall::Config::new(&dir_path).open().expect("keyspace");
+            let store = SagaStore::open(&keyspace).expect("store");
+            store
+                .stage_entry("key1", WriteClass::CriticalControlPlane, 100)
+                .expect("stage");
+            store
+                .stage_entry("key2", WriteClass::BulkBlob, 200)
+                .expect("stage");
+            // Drop without recovery — simulates crash
+        }
+
+        // Phase 2: reopen and recover
+        let keyspace = fjall::Config::new(&dir_path).open().expect("keyspace");
+        let store = SagaStore::open(&keyspace).expect("store");
+        let outcome = store.recover().expect("recover");
+        assert_eq!(outcome, RecoveryOutcome::RolledBack { count: 2 });
+
+        let entry1 = store.read_entry("key1").expect("read").expect("exists");
+        assert_eq!(entry1.status, SagaStatus::RolledBack);
+    }
+
+    #[test]
+    fn saga_store_stage_duplicate_fails() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let keyspace = fjall::Config::new(dir.path()).open().expect("keyspace");
+        let store = SagaStore::open(&keyspace).expect("store");
+
+        store
+            .stage_entry("key1", WriteClass::CriticalControlPlane, 100)
+            .expect("stage");
+        let result = store.stage_entry("key1", WriteClass::BulkBlob, 200);
+        assert!(matches!(result, Err(SagaError::AlreadyExists(_))));
+    }
+
+    #[test]
+    fn saga_store_recovery_is_idempotent() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let keyspace = fjall::Config::new(dir.path()).open().expect("keyspace");
+        let store = SagaStore::open(&keyspace).expect("store");
+
+        store
+            .stage_entry("key1", WriteClass::CriticalControlPlane, 100)
+            .expect("stage");
+
+        let outcome1 = store.recover().expect("recover");
+        assert_eq!(outcome1, RecoveryOutcome::RolledBack { count: 1 });
+
+        let outcome2 = store.recover().expect("recover");
+        assert_eq!(outcome2, RecoveryOutcome::NothingToRecover);
+    }
+
+    #[test]
+    fn durable_saga_fjall_stage_and_commit() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let keyspace = fjall::Config::new(dir.path()).open().expect("keyspace");
+        let queues = create_test_queues();
+        let saga = DurableBudgetSaga::open(&keyspace, queues).expect("saga");
+
+        saga.stage_write("key1", WriteClass::CriticalControlPlane, 100)
+            .expect("stage");
+        saga.commit("key1").expect("commit");
+
+        let entry = saga
+            .store().as_ref().expect("store")
+            .read_entry("key1")
+            .expect("read")
+            .expect("exists");
+        assert_eq!(entry.status, SagaStatus::Committed);
     }
 }
