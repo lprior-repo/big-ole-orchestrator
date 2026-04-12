@@ -1,0 +1,21 @@
+--- crates/vo-storage/src/append.rs
++++ replace Appender::dequeue_projection -> Option<AppendEntry> with None
+@@ -642,17 +642,17 @@
+ 
+     /// Dequeues from the critical control-plane queue.
+     pub fn dequeue_critical(&self) -> Option<AppendEntry> {
+         self.queues.dequeue(WriteClass::CriticalControlPlane)
+     }
+ 
+     /// Dequeues from the projection queue.
+     pub fn dequeue_projection(&self) -> Option<AppendEntry> {
+-        self.queues.dequeue(WriteClass::OperatorProjection)
++        None /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// Dequeues from the blob queue.
+     pub fn dequeue_blob(&self) -> Option<AppendEntry> {
+         self.queues.dequeue(WriteClass::BulkBlob)
+     }
+ }
+ 

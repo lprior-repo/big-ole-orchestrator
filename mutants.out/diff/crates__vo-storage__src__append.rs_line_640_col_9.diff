@@ -1,0 +1,21 @@
+--- crates/vo-storage/src/append.rs
++++ replace Appender::append_blob -> Result<(), BudgetQueuesError> with Ok(())
+@@ -632,17 +632,17 @@
+         self.queues.try_enqueue(&AppendEntry::Projection(write))
+     }
+ 
+     /// Appends a blob write.
+     ///
+     /// # Errors
+     /// Returns `BudgetQueuesError` if budget is exceeded or queue is full.
+     pub fn append_blob(&self, write: BlobWrite) -> Result<(), BudgetQueuesError> {
+-        self.queues.try_enqueue(&AppendEntry::Blob(write))
++        Ok(()) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// Dequeues from the critical control-plane queue.
+     pub fn dequeue_critical(&self) -> Option<AppendEntry> {
+         self.queues.dequeue(WriteClass::CriticalControlPlane)
+     }
+ 
+     /// Dequeues from the projection queue.

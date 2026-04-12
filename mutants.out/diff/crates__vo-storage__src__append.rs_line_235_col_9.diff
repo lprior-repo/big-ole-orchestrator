@@ -1,0 +1,29 @@
+--- crates/vo-storage/src/append.rs
++++ replace QueueStats::decrement with ()
+@@ -227,25 +227,17 @@
+         match class {
+             WriteClass::CriticalControlPlane => self.critical_depth += 1,
+             WriteClass::OperatorProjection => self.projection_depth += 1,
+             WriteClass::BulkBlob => self.blob_depth += 1,
+         }
+     }
+ 
+     const fn decrement(&mut self, class: WriteClass) {
+-        match class {
+-            WriteClass::CriticalControlPlane => {
+-                self.critical_depth = self.critical_depth.saturating_sub(1);
+-            }
+-            WriteClass::OperatorProjection => {
+-                self.projection_depth = self.projection_depth.saturating_sub(1);
+-            }
+-            WriteClass::BulkBlob => self.blob_depth = self.blob_depth.saturating_sub(1),
+-        }
++        () /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ // ─────────────────────────────────────────────────────────────────────────────
+ // BudgetQueues
+ // ─────────────────────────────────────────────────────────────────────────────
+ 
+ /// Errors returned by `BudgetQueues` operations.

@@ -1,0 +1,27 @@
+--- crates/vo-types/src/compensation.rs
++++ replace CompensationStatus::all_variants -> &'static[CompensationStatus] with Vec::leak(vec![Default::default()])
+@@ -92,23 +92,17 @@
+                 | CompensationStatus::Succeeded
+                 | CompensationStatus::Failed
+         )
+     }
+ 
+     /// Returns all CompensationStatus variants in declaration order.
+     #[must_use]
+     pub const fn all_variants() -> &'static [CompensationStatus] {
+-        &[
+-            CompensationStatus::NotNeeded,
+-            CompensationStatus::Pending,
+-            CompensationStatus::InProgress,
+-            CompensationStatus::Succeeded,
+-            CompensationStatus::Failed,
+-        ]
++        Vec::leak(vec![Default::default()]) /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ impl CompensationTransitionEvent {
+     /// Returns all CompensationTransitionEvent variants in declaration order.
+     #[must_use]
+     pub const fn all_variants() -> &'static [CompensationTransitionEvent] {
+         &[

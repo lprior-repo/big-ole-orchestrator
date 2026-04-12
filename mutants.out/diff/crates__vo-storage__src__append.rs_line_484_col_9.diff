@@ -1,0 +1,21 @@
+--- crates/vo-storage/src/append.rs
++++ replace BudgetQueues<T>::config -> &QueueConfig with Box::leak(Box::new(Default::default()))
+@@ -476,17 +476,17 @@
+             }
+         }
+         item
+     }
+ 
+     /// Returns the queue configuration.
+     #[must_use]
+     pub const fn config(&self) -> &QueueConfig {
+-        &self.config
++        Box::leak(Box::new(Default::default())) /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ // ─────────────────────────────────────────────────────────────────────────────
+ // AppendEntry
+ // ─────────────────────────────────────────────────────────────────────────────
+ 
+ /// Entry in the append queue.

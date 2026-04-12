@@ -1,0 +1,25 @@
+--- crates/vo-storage/src/append.rs
++++ replace InnerQueue<T>::push -> Option<T> with None
+@@ -301,21 +301,17 @@
+     const fn new(capacity: usize) -> Self {
+         Self {
+             items: VecDeque::new(),
+             capacity,
+         }
+     }
+ 
+     fn push(&mut self, item: T) -> Option<T> {
+-        if self.items.len() >= self.capacity {
+-            return Some(item);
+-        }
+-        self.items.push_back(item);
+-        None
++        None /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     fn pop(&mut self) -> Option<T> {
+         self.items.pop_front()
+     }
+ 
+     fn len(&self) -> usize {
+         self.items.len()

@@ -1,0 +1,21 @@
+--- crates/vo-storage/src/append.rs
++++ replace InnerQueue<T>::pop -> Option<T> with Some(Default::default())
+@@ -309,17 +309,17 @@
+         if self.items.len() >= self.capacity {
+             return Some(item);
+         }
+         self.items.push_back(item);
+         None
+     }
+ 
+     fn pop(&mut self) -> Option<T> {
+-        self.items.pop_front()
++        Some(Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     fn len(&self) -> usize {
+         self.items.len()
+     }
+ 
+     fn is_full(&self) -> bool {
+         self.items.len() >= self.capacity

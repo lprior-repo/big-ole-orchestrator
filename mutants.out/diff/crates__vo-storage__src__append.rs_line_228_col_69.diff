@@ -1,0 +1,21 @@
+--- crates/vo-storage/src/append.rs
++++ replace += with -= in QueueStats::increment
+@@ -220,17 +220,17 @@
+ 
+     #[must_use]
+     pub const fn is_full(&self, class: WriteClass) -> bool {
+         self.depth(class) >= self.capacity(class)
+     }
+ 
+     const fn increment(&mut self, class: WriteClass) {
+         match class {
+-            WriteClass::CriticalControlPlane => self.critical_depth += 1,
++            WriteClass::CriticalControlPlane => self.critical_depth -= /* ~ changed by cargo-mutants ~ */ 1,
+             WriteClass::OperatorProjection => self.projection_depth += 1,
+             WriteClass::BulkBlob => self.blob_depth += 1,
+         }
+     }
+ 
+     const fn decrement(&mut self, class: WriteClass) {
+         match class {
+             WriteClass::CriticalControlPlane => {

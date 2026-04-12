@@ -1,0 +1,21 @@
+--- crates/vo-storage/src/append.rs
++++ replace <impl ClassifiedWrite for ControlPlaneWrite>::write_class -> WriteClass with Default::default()
+@@ -530,17 +530,17 @@
+     #[must_use]
+     pub const fn new(event: EventEnvelope, size_bytes: u64) -> Self {
+         Self { event, size_bytes }
+     }
+ }
+ 
+ impl ClassifiedWrite for ControlPlaneWrite {
+     fn write_class(&self) -> WriteClass {
+-        WriteClass::CriticalControlPlane
++        Default::default() /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     fn size_bytes(&self) -> u64 {
+         self.size_bytes
+     }
+ }
+ 
+ /// A projection write.

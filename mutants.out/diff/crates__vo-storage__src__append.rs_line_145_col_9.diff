@@ -1,0 +1,25 @@
+--- crates/vo-storage/src/append.rs
++++ replace <impl std::fmt::Display for BudgetError>::fmt -> std::fmt::Result with Ok(Default::default())
+@@ -137,21 +137,17 @@
+ pub struct BudgetError {
+     pub class: WriteClass,
+     pub requested: u64,
+     pub available: u64,
+ }
+ 
+ impl std::fmt::Display for BudgetError {
+     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+-        write!(
+-            f,
+-            "budget exceeded for {:?}: requested {}, available {}",
+-            self.class, self.requested, self.available
+-        )
++        Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ impl std::error::Error for BudgetError {}
+ 
+ // ─────────────────────────────────────────────────────────────────────────────
+ // QueueConfig
+ // ─────────────────────────────────────────────────────────────────────────────

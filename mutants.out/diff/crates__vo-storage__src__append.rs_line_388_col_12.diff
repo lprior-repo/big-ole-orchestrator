@@ -1,0 +1,21 @@
+--- crates/vo-storage/src/append.rs
++++ delete ! in BudgetQueues<T>::try_enqueue
+@@ -380,17 +380,17 @@
+     pub fn try_enqueue(&self, item: &T) -> Result<(), BudgetQueuesError>
+     where
+         T: ClassifiedWrite + Clone,
+     {
+         let class = item.write_class();
+         let size = item.size_bytes();
+ 
+         // Check budget first
+-        if !self.budget.can_write(class, size) {
++        if  /* ~ changed by cargo-mutants ~ */self.budget.can_write(class, size) {
+             return Err(BudgetQueuesError::BudgetExceeded {
+                 class,
+                 item_size: size,
+                 remaining: self.budget.remaining(class),
+             });
+         }
+ 
+         // Get the appropriate queue

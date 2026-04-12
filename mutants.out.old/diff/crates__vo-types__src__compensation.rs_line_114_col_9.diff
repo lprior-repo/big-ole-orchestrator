@@ -1,0 +1,25 @@
+--- crates/vo-types/src/compensation.rs
++++ replace CompensationTransitionEvent::all_variants -> &'static[CompensationTransitionEvent] with Vec::leak(Vec::new())
+@@ -106,21 +106,17 @@
+         ]
+     }
+ }
+ 
+ impl CompensationTransitionEvent {
+     /// Returns all CompensationTransitionEvent variants in declaration order.
+     #[must_use]
+     pub const fn all_variants() -> &'static [CompensationTransitionEvent] {
+-        &[
+-            CompensationTransitionEvent::Start,
+-            CompensationTransitionEvent::Succeed,
+-            CompensationTransitionEvent::Fail,
+-        ]
++        Vec::leak(Vec::new()) /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ impl CompensationRecord {
+     /// Construct a new CompensationRecord.
+     ///
+     /// Returns `None` if `effect_id` is empty (INV-COMP-003).
+     #[must_use]

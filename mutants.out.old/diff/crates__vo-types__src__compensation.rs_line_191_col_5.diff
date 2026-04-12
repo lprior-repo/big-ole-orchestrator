@@ -1,0 +1,51 @@
+--- crates/vo-types/src/compensation.rs
++++ replace apply_compensation_transition -> Result<CompensationStatus, CompensationTransitionError> with Ok(Default::default())
+@@ -183,47 +183,17 @@
+ /// Returns `CompensationTransitionError::TerminalStateTransition` if the current state
+ /// is NotNeeded, Succeeded, or Failed (INV-COMP-002).
+ /// Returns `CompensationTransitionError::InvalidTransition` if the event is not valid
+ /// for the current state.
+ pub fn apply_compensation_transition(
+     current: CompensationStatus,
+     event: CompensationTransitionEvent,
+ ) -> Result<CompensationStatus, CompensationTransitionError> {
+-    match (current, event) {
+-        // Valid transitions (INV-COMP-001)
+-        (CompensationStatus::Pending, CompensationTransitionEvent::Start) => {
+-            Ok(CompensationStatus::InProgress)
+-        }
+-        (CompensationStatus::Pending, CompensationTransitionEvent::Fail) => {
+-            Ok(CompensationStatus::Failed)
+-        }
+-        (CompensationStatus::InProgress, CompensationTransitionEvent::Succeed) => {
+-            Ok(CompensationStatus::Succeeded)
+-        }
+-        (CompensationStatus::InProgress, CompensationTransitionEvent::Fail) => {
+-            Ok(CompensationStatus::Failed)
+-        }
+-
+-        // Terminal states reject all transitions (INV-COMP-002)
+-        (
+-            CompensationStatus::NotNeeded
+-            | CompensationStatus::Succeeded
+-            | CompensationStatus::Failed,
+-            _,
+-        ) => Err(CompensationTransitionError::TerminalStateTransition),
+-
+-        // Invalid transitions for non-terminal states
+-        (CompensationStatus::Pending, CompensationTransitionEvent::Succeed) => {
+-            Err(CompensationTransitionError::InvalidTransition)
+-        }
+-        (CompensationStatus::InProgress, CompensationTransitionEvent::Start) => {
+-            Err(CompensationTransitionError::InvalidTransition)
+-        }
+-    }
++    Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ // ============================================================================
+ // Proptest Invariants
+ // ============================================================================
+ 
+ #[cfg(feature = "proptest")]
+ #[allow(clippy::unwrap_used)]

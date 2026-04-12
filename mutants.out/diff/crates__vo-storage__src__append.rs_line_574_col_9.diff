@@ -1,0 +1,25 @@
+--- crates/vo-storage/src/append.rs
++++ replace BlobWrite::bulk -> Self with Default::default()
+@@ -566,21 +566,17 @@
+     pub blob_id: String,
+     size_bytes: u64,
+     class: WriteClass,
+ }
+ 
+ impl BlobWrite {
+     #[must_use]
+     pub const fn bulk(blob_id: String, size_bytes: u64) -> Self {
+-        Self {
+-            blob_id,
+-            size_bytes,
+-            class: WriteClass::BulkBlob,
+-        }
++        Default::default() /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ impl ClassifiedWrite for BlobWrite {
+     fn write_class(&self) -> WriteClass {
+         self.class
+     }
+ 
