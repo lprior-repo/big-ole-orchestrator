@@ -18,6 +18,7 @@ mod instance_status;
 mod integer_types;
 #[cfg(test)]
 mod integer_types_tests;
+mod junction_tree;
 mod lifecycle_superstate;
 mod lineage;
 mod link_cut_tree;
@@ -62,6 +63,7 @@ pub use encryption::{CryptoAlgorithm, DekId, EncryptedBlob, KeyMetadata, Wrapped
 pub use errors::ParseError;
 pub use events::{Error as EventError, EventEnvelope};
 pub use instance_status::InstanceStatus;
+pub use junction_tree::{Clique, JunctionTree, JunctionTreeError};
 pub use lifecycle_superstate::LifecycleSuperstate;
 pub use lineage::{Epoch, LineageError, WorkflowLineage};
 pub use link_cut_tree::{LctAggregate, LctError, LinkCutTree, Monoid};
