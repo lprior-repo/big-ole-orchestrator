@@ -207,13 +207,15 @@ impl<T: Ord> BinomialHeap<T> {
         }
         children.reverse();
 
+        let child_count = children.len();
+        self.len -= 1;
+
         let mut child_heap = BinomialHeap {
             trees: children,
-            len: 0,
+            len: child_count,
         };
 
         self.merge(&mut child_heap);
-        self.len -= 1;
 
         Some(min_value)
     }
