@@ -3363,6 +3363,8 @@ dependencies = [
  "futures",
  "proptest",
  "ractor",
+ "serde",
+ "serde_json",
  "thiserror",
  "tokio",
  "tracing",
