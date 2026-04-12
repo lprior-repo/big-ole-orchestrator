@@ -9,6 +9,7 @@ pub mod config_hot_reload;
 mod db_writer_message;
 pub mod debounce;
 pub mod replay;
+pub mod resource_quota;
 pub mod snapshot_compat;
 pub mod upcaster;
 pub mod workflow_version;
