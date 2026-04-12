@@ -1,6 +1,5 @@
-mod cartesian_tree;
-mod octree;
 mod blob;
+mod cartesian_tree;
 mod command_envelope;
 mod command_metadata;
 mod compensation;
@@ -9,8 +8,8 @@ mod dedupe;
 #[cfg(test)]
 mod dedupe_tests;
 mod dependency_graph_resolver;
-mod link_cut_tree;
 mod effects;
+mod encryption;
 mod errors;
 pub mod events;
 mod instance_status;
@@ -19,8 +18,10 @@ mod integer_types;
 mod integer_types_tests;
 mod lifecycle_superstate;
 mod lineage;
+mod link_cut_tree;
 mod node_kind;
 mod non_empty_vec;
+mod octree;
 mod payload_parser;
 pub mod proptest_verifier;
 mod registration_status;
@@ -35,9 +36,6 @@ mod types;
 mod types_tests;
 mod workflow;
 
-pub use octree::{
-    BoundingBox, Octree, OctreeConfig, OctreeEntry, OctreeError, OctreeNode, Point3,
-};
 pub use blob::{BlobRef, BlobStatus, OutputRef, INLINED_MAX_BYTES};
 pub use command_envelope::{CommandEnvelope, CommandEnvelopeError, MAX_SUPPORTED_COMMAND_VERSION};
 pub use command_metadata::{CommandMetadata, Issuer};
@@ -51,18 +49,20 @@ pub use connector::{
 };
 pub use dedupe::{DedupeKey, DedupePartitionKey};
 pub use dependency_graph_resolver::DependencyGraphResolver;
-pub use link_cut_tree::{LctAggregate, LctError, LinkCutTree, Monoid};
 pub use effects::{
     apply_effect_transition, CompensationPolicy, EffectIntent, EffectKind, EffectRecord,
     EffectTransitionError, EffectTransitionEvent,
 };
+pub use encryption::{CryptoAlgorithm, DekId, EncryptedBlob, KeyMetadata, WrappedDek};
 pub use errors::ParseError;
 pub use events::{Error as EventError, EventEnvelope};
 pub use instance_status::InstanceStatus;
 pub use lifecycle_superstate::LifecycleSuperstate;
 pub use lineage::{Epoch, LineageError, WorkflowLineage};
+pub use link_cut_tree::{LctAggregate, LctError, LinkCutTree, Monoid};
 pub use node_kind::NodeKind;
 pub use non_empty_vec::NonEmptyVec;
+pub use octree::{BoundingBox, Octree, OctreeConfig, OctreeEntry, OctreeError, OctreeNode, Point3};
 pub use registration_status::RegistrationStatus;
 pub use signal::{
     BufferPolicy, LineageScope, SignalAddress, SignalDedupeKey, SignalDelivery, WaitKey, WaitRecord,
@@ -94,12 +94,12 @@ mod cross_cutting_tests;
 #[cfg(test)]
 mod dependency_graph_resolver_tests;
 #[cfg(test)]
+mod octree_tests;
+#[cfg(test)]
 mod red_queen_tests;
 #[cfg(test)]
 mod schema_version_tests;
 #[cfg(test)]
 mod serde_tests;
-#[cfg(test)]
-mod octree_tests;
 #[cfg(test)]
 mod workflow_tests;

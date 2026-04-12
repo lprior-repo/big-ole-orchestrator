@@ -20,6 +20,8 @@ pub enum StorageError {
     FjallError,
     InvalidKey,
     ChecksumMismatch,
+    KeyNotFound,
+    KeyDestroyed,
 }
 
 impl fmt::Display for StorageError {
@@ -41,6 +43,8 @@ impl fmt::Display for StorageError {
             Self::FjallError => write!(f, "fjall error"),
             Self::InvalidKey => write!(f, "invalid key"),
             Self::ChecksumMismatch => write!(f, "checksum mismatch"),
+            Self::KeyNotFound => write!(f, "key not found"),
+            Self::KeyDestroyed => write!(f, "key destroyed (crypto-shredded)"),
         }
     }
 }
