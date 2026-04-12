@@ -52,6 +52,10 @@ pub struct TimerId(pub(crate) String);
 #[serde(try_from = "String", into = "String")]
 pub struct IdempotencyKey(pub(crate) String);
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(try_from = "String", into = "String")]
+pub struct SpawnId(pub(crate) String);
+
 impl InstanceId {
     /// Parse an `InstanceId` from a ULID string.
     ///
@@ -335,6 +339,42 @@ impl IdempotencyKey {
     }
 }
 string_newtype!(IdempotencyKey);
+
+impl SpawnId {
+    /// Create a new `SpawnId` from a string.
+    #[must_use]
+    pub fn new(s: String) -> Self {
+        Self(s)
+    }
+
+    /// Parse a `SpawnId` from a string.
+    ///
+    /// # Errors
+    /// Returns `ParseError` if the string contains invalid characters, violates boundary checks, or is empty.
+    pub fn parse(input: &str) -> Result<Self, ParseError> {
+        const TYPE_NAME: &str = "SpawnId";
+        if input.is_empty() {
+            return Err(ParseError::InvalidCharacters {
+                type_name: TYPE_NAME,
+                invalid_chars: String::new(),
+            });
+        }
+        let invalid = extract_invalid_chars(input, is_identifier_char);
+        if !invalid.is_empty() {
+            return Err(ParseError::InvalidCharacters {
+                type_name: TYPE_NAME,
+                invalid_chars: invalid,
+            });
+        }
+        check_identifier_boundaries(input, TYPE_NAME)?;
+        Ok(Self(input.to_string()))
+    }
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+string_newtype!(SpawnId);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]

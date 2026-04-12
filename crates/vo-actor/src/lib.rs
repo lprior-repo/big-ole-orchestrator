@@ -15,6 +15,7 @@ pub mod master {
 pub mod instance_registry;
 pub mod reanimator;
 pub mod signal_buffer;
+pub mod spawn_supervisor;
 
 #[cfg(test)]
 pub mod signal_buffer_tests;
