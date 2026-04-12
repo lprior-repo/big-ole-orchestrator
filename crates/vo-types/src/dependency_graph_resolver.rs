@@ -55,16 +55,20 @@ impl DependencyGraphResolver {
         let mut result = Vec::new();
         let mut visited = HashSet::new();
         let mut queue = vec![node.clone()];
+        visited.insert(node.clone());
 
         while let Some(current) = queue.pop() {
-            if visited.insert(current.clone()) {
-                let direct_deps = Self::dependencies(workflow, &current);
-                for dep in direct_deps {
-                    if !result.contains(&dep) {
-                        result.push(dep.clone());
-                    }
-                    queue.push(dep);
+            let direct_deps = Self::dependencies(workflow, &current);
+            for dep in direct_deps {
+                if result.contains(&dep) {
+                    continue;
                 }
+                if visited.contains(&dep) {
+                    return vec![];
+                }
+                visited.insert(dep.clone());
+                result.push(dep.clone());
+                queue.push(dep);
             }
         }
 
@@ -78,16 +82,20 @@ impl DependencyGraphResolver {
         let mut result = Vec::new();
         let mut visited = HashSet::new();
         let mut queue = vec![node.clone()];
+        visited.insert(node.clone());
 
         while let Some(current) = queue.pop() {
-            if visited.insert(current.clone()) {
-                let direct_deps = Self::dependents(workflow, &current);
-                for dep in direct_deps {
-                    if !result.contains(&dep) {
-                        result.push(dep.clone());
-                    }
-                    queue.push(dep);
+            let direct_deps = Self::dependents(workflow, &current);
+            for dep in direct_deps {
+                if result.contains(&dep) {
+                    continue;
                 }
+                if visited.contains(&dep) {
+                    return vec![];
+                }
+                visited.insert(dep.clone());
+                result.push(dep.clone());
+                queue.push(dep);
             }
         }
 
@@ -145,8 +153,22 @@ impl DependencyGraphResolver {
                 if completed_set.contains(node_name) {
                     return None;
                 }
-                let deps = Self::dependencies_with_condition(workflow, node_name, last_outcome);
-                if deps.iter().all(|dep| completed_set.contains(dep)) {
+                let incoming: Vec<_> = workflow
+                    .edges
+                    .iter()
+                    .filter(|edge| &edge.target_node == node_name)
+                    .collect();
+
+                if incoming.is_empty() {
+                    return Some(node_name.clone());
+                }
+
+                let all_satisfied = incoming.iter().all(|edge| {
+                    completed_set.contains(&edge.source_node)
+                        && edge.condition.matches(last_outcome)
+                });
+
+                if all_satisfied {
                     Some(node_name.clone())
                 } else {
                     None
@@ -201,19 +223,6 @@ impl DependencyGraphResolver {
         }
 
         layers
-    }
-
-    fn dependencies_with_condition(
-        workflow: &WorkflowDefinition,
-        node: &NodeName,
-        outcome: StepOutcome,
-    ) -> Vec<NodeName> {
-        workflow
-            .edges
-            .iter()
-            .filter(|edge| &edge.target_node == node && edge.condition.matches(outcome))
-            .map(|edge| edge.source_node.clone())
-            .collect()
     }
 }
 

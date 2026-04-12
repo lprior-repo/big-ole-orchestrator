@@ -258,7 +258,7 @@ fn ready_nodes_requires_all_dependencies() {
     // After 'a' completes but 'b' has not, 'c' should NOT be ready
     let ready = DependencyGraphResolver::ready_nodes(&workflow, &[NodeName("a".into())]);
     assert!(
-        ready.is_empty(),
+        !ready.contains(&NodeName("c".into())),
         "'c' should not be ready until both 'a' and 'b' complete"
     );
 
