@@ -3422,6 +3422,7 @@ dependencies = [
  "futures",
  "proptest",
  "ractor",
+ "reqwest",
  "serde",
  "serde_json",
  "thiserror",

@@ -14,7 +14,8 @@ tokio = { workspace = true, features = ["rt", "sync", "time", "macros"] }
 futures = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-ulid = "1"
+ulid = { workspace = true }
+reqwest = { workspace = true }
 
 [dev-dependencies]
 proptest.workspace = true
