@@ -25,5 +25,14 @@ thiserror = { workspace = true }
 chrono = { workspace = true }
 tracing = { workspace = true }
 
+# Actor framework
+ractor = { workspace = true }
+
+# ID generation
+ulid = { workspace = true }
+
 [dev-dependencies]
 anyhow = { workspace = true }
+
+[lib]
+path = "src/lib.rs"

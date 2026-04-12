@@ -3549,11 +3549,13 @@ dependencies = [
  "bytes",
  "chrono",
  "futures",
+ "ractor",
  "rmp-serde",
  "serde",
  "thiserror",
  "tokio",
  "tracing",
+ "ulid",
  "vo-common",
  "vo-storage",
 ]
