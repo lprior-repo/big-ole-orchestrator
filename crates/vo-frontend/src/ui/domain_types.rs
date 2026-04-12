@@ -262,4 +262,61 @@ mod tests {
         assert_eq!(NodeTemplateId::HttpHandler.label(), "HTTP Handler");
         assert_eq!(NodeTemplateId::Condition.label(), "If / Else");
     }
+
+    // ── INV-002: Each NodeTemplateId variant maps to a unique as_str ──
+
+    #[test]
+    fn given_all_templates_when_collecting_as_str_then_all_are_unique() {
+        let strs: Vec<&'static str> = NodeTemplateId::all().map(|id| id.as_str()).collect();
+        let unique: std::collections::HashSet<&str> = strs.iter().copied().collect();
+        assert_eq!(strs.len(), unique.len(), "as_str values must be unique");
+    }
+
+    // ── INV-003: from_str is the inverse of as_str for all valid IDs ──
+
+    #[test]
+    fn given_all_templates_when_roundtripping_through_str_then_identity_holds() {
+        for id in NodeTemplateId::all() {
+            let s = id.as_str();
+            let recovered = NodeTemplateId::from_str(s)
+                .unwrap_or_else(|| panic!("from_str({s:?}) returned None for {id:?}"));
+            assert_eq!(recovered, id, "from_str(as_str({id:?})) != {id:?}");
+        }
+    }
+
+    #[test]
+    fn given_invalid_string_when_parsing_node_template_then_returns_none() {
+        assert_eq!(NodeTemplateId::from_str("nonexistent"), None);
+        assert_eq!(NodeTemplateId::from_str(""), None);
+        assert_eq!(NodeTemplateId::from_str("HTTP-HANDLER"), None);
+    }
+
+    // ── INV-004: label() and hint() are non-empty for all variants ──
+
+    #[test]
+    fn given_all_templates_when_checking_labels_then_none_are_empty() {
+        for id in NodeTemplateId::all() {
+            assert!(!id.label().is_empty(), "label() for {id:?} must not be empty");
+        }
+    }
+
+    #[test]
+    fn given_all_templates_when_checking_hints_then_none_are_empty() {
+        for id in NodeTemplateId::all() {
+            assert!(!id.hint().is_empty(), "hint() for {id:?} must not be empty");
+        }
+    }
+
+    // ── TemplateDescriptor: immutable metadata per template ──
+
+    #[test]
+    fn given_node_template_when_getting_descriptor_then_fields_match_template() {
+        for id in NodeTemplateId::all() {
+            let desc = id.descriptor();
+            assert_eq!(desc.id, id);
+            assert_eq!(desc.as_str, id.as_str());
+            assert_eq!(desc.label, id.label());
+            assert_eq!(desc.hint, id.hint());
+        }
+    }
 }

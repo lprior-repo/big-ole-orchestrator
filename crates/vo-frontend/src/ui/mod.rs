@@ -23,6 +23,8 @@ pub mod run_status_bar;
 pub mod selected_node_panel;
 pub mod sidebar;
 pub mod simulate_mode;
+#[cfg(test)]
+pub mod template_rendering_tests;
 pub mod toolbar;
 pub mod validation_panel;
 
