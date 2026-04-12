@@ -14,6 +14,7 @@ pub mod snapshot_compat;
 pub mod upcaster;
 pub mod workflow_version;
 pub mod write_class;
+pub mod workspace_swap;
 
 #[cfg(kani)]
 pub mod write_class_verification;
