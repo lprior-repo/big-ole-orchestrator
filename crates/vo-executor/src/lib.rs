@@ -6,9 +6,11 @@
 //! - `cancel_execution`: Cancel an in-progress execution
 //! - `get_execution_status`: Get current execution status
 //! - `get_last_error`: Get the last error for a step
+//! - `Scheduler`: Background job scheduler with cron-like scheduling
 
 pub mod errors;
 pub mod execution;
+pub mod scheduler;
 pub mod state;
 pub mod types;
 
@@ -20,3 +22,4 @@ pub use execution::{
 pub use state::{clear_error, set_error};
 pub use execution::get_last_error;
 pub use types::{ExecutionStatus, RetryPolicy, StepId, StepResult};
+pub use scheduler::{Job, JobId, JobPriority, JobResult, Schedule, SchedulerConfig};

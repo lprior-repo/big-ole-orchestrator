@@ -1,0 +1,262 @@
+//! Priority queue for job scheduling
+
+use crate::scheduler::types::{Job, JobId};
+use std::cmp::Ordering;
+use std::collections::BinaryHeap;
+
+#[derive(Debug, Clone)]
+struct QueuedJob {
+    job: Job,
+    fire_at_ms: u64,
+}
+
+impl PartialEq for QueuedJob {
+    fn eq(&self, other: &Self) -> bool {
+        self.job.id == other.job.id
+    }
+}
+
+impl Eq for QueuedJob {}
+
+impl Ord for QueuedJob {
+    fn cmp(&self, other: &Self) -> Ordering {
+        // Priority queue is a max-heap
+        // Higher priority (lower enum value) should come out first
+        match self.job.priority.cmp(&other.job.priority) {
+            Ordering::Equal => {
+                // If same priority, earlier fire time comes first
+                // For max-heap: smaller fire_at = earlier = should come out first = greater
+                other.fire_at_ms.cmp(&self.fire_at_ms)
+            }
+            // Reverse for max-heap: lower enum value = higher priority = should come out first
+            Ordering::Less => Ordering::Greater,
+            Ordering::Greater => Ordering::Less,
+        }
+    }
+}
+
+impl PartialOrd for QueuedJob {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct PriorityQueue {
+    heap: BinaryHeap<QueuedJob>,
+}
+
+impl PriorityQueue {
+    pub fn new() -> Self {
+        Self {
+            heap: BinaryHeap::new(),
+        }
+    }
+
+    pub fn push(&mut self, job: Job, fire_at_ms: u64) {
+        self.heap.push(QueuedJob { job, fire_at_ms });
+    }
+
+    pub fn pop(&mut self) -> Option<(Job, u64)> {
+        self.heap.pop().map(|qj| (qj.job, qj.fire_at_ms))
+    }
+
+    pub fn peek(&self) -> Option<&Job> {
+        self.heap.peek().map(|qj| &qj.job)
+    }
+
+    pub fn len(&self) -> usize {
+        self.heap.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.heap.is_empty()
+    }
+
+    pub fn remove(&mut self, job_id: &JobId) -> Option<Job> {
+        // BinaryHeap doesn't support remove, so we need to rebuild
+        // This is O(n) but acceptable for a scheduler
+        let mut found = None;
+        let jobs: Vec<_> = self
+            .heap
+            .drain()
+            .filter(|qj| {
+                if qj.job.id == *job_id {
+                    found = Some(qj.job.clone());
+                    false
+                } else {
+                    true
+                }
+            })
+            .collect();
+        self.heap.extend(jobs);
+        found
+    }
+
+    pub fn due_jobs(&self, now_ms: u64, max: u32) -> Vec<(Job, u64)> {
+        self.heap
+            .iter()
+            .filter(|qj| qj.fire_at_ms <= now_ms)
+            .take(max as usize)
+            .map(|qj| (qj.job.clone(), qj.fire_at_ms))
+            .collect()
+    }
+
+    #[cfg(test)]
+    pub fn into_vec(self) -> Vec<Job> {
+        self.heap.into_iter().map(|qj| qj.job).collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::JobPriority;
+
+    fn make_job(id: u64, priority: JobPriority, fire_at_ms: u64) -> (Job, u64) {
+        let job = Job::new(
+            JobId::new(id),
+            format!("payload-{}", id),
+            crate::scheduler::Schedule::OneShot { fire_at_ms },
+        )
+        .with_priority(priority);
+        (job, fire_at_ms)
+    }
+
+    #[test]
+    fn priority_queue_ordering() {
+        let mut pq = PriorityQueue::new();
+
+        // Add jobs with different priorities
+        pq.push(
+            Job::new(
+                JobId::new(1),
+                "low".to_string(),
+                crate::scheduler::Schedule::one_shot(std::time::Duration::from_secs(0)),
+            )
+            .with_priority(JobPriority::Low),
+            100,
+        );
+        pq.push(
+            Job::new(
+                JobId::new(2),
+                "high".to_string(),
+                crate::scheduler::Schedule::one_shot(std::time::Duration::from_secs(0)),
+            )
+            .with_priority(JobPriority::High),
+            100,
+        );
+        pq.push(
+            Job::new(
+                JobId::new(3),
+                "critical".to_string(),
+                crate::scheduler::Schedule::one_shot(std::time::Duration::from_secs(0)),
+            )
+            .with_priority(JobPriority::Critical),
+            100,
+        );
+
+        // Should pop in priority order
+        let (job1, _) = pq.pop().unwrap();
+        assert_eq!(job1.id, JobId::new(3)); // Critical first
+
+        let (job2, _) = pq.pop().unwrap();
+        assert_eq!(job2.id, JobId::new(2)); // High second
+
+        let (job3, _) = pq.pop().unwrap();
+        assert_eq!(job3.id, JobId::new(1)); // Low last
+    }
+
+    #[test]
+    fn priority_queue_same_priority_fire_time() {
+        let mut pq = PriorityQueue::new();
+        let now = 1000u64;
+
+        pq.push(
+            Job::new(
+                JobId::new(1),
+                "job1".to_string(),
+                crate::scheduler::Schedule::one_shot(std::time::Duration::from_secs(0)),
+            ),
+            now + 200,
+        );
+        pq.push(
+            Job::new(
+                JobId::new(2),
+                "job2".to_string(),
+                crate::scheduler::Schedule::one_shot(std::time::Duration::from_secs(0)),
+            ),
+            now + 100,
+        );
+
+        let (job, _) = pq.pop().unwrap();
+        assert_eq!(job.id, JobId::new(2)); // Earlier fire time first
+    }
+
+    #[test]
+    fn priority_queue_remove() {
+        let mut pq = PriorityQueue::new();
+
+        pq.push(
+            Job::new(
+                JobId::new(1),
+                "job1".to_string(),
+                crate::scheduler::Schedule::one_shot(std::time::Duration::from_secs(0)),
+            ),
+            100,
+        );
+        pq.push(
+            Job::new(
+                JobId::new(2),
+                "job2".to_string(),
+                crate::scheduler::Schedule::one_shot(std::time::Duration::from_secs(0)),
+            ),
+            100,
+        );
+
+        let removed = pq.remove(&JobId::new(1));
+        assert!(removed.is_some());
+        assert_eq!(removed.unwrap().id, JobId::new(1));
+        assert_eq!(pq.len(), 1);
+
+        let remaining = pq.pop().unwrap().0;
+        assert_eq!(remaining.id, JobId::new(2));
+    }
+
+    #[test]
+    fn priority_queue_due_jobs() {
+        let mut pq = PriorityQueue::new();
+        let now = 1000u64;
+
+        pq.push(
+            Job::new(
+                JobId::new(1),
+                "job1".to_string(),
+                crate::scheduler::Schedule::one_shot(std::time::Duration::from_secs(0)),
+            ),
+            now - 50, // Due
+        );
+        pq.push(
+            Job::new(
+                JobId::new(2),
+                "job2".to_string(),
+                crate::scheduler::Schedule::one_shot(std::time::Duration::from_secs(0)),
+            ),
+            now + 50, // Not due
+        );
+        pq.push(
+            Job::new(
+                JobId::new(3),
+                "job3".to_string(),
+                crate::scheduler::Schedule::one_shot(std::time::Duration::from_secs(0)),
+            ),
+            now - 100, // Due
+        );
+
+        let due: Vec<_> = pq.due_jobs(now, 10);
+        assert_eq!(due.len(), 2);
+        let ids: Vec<_> = due.iter().map(|(j, _)| j.id).collect();
+        assert!(ids.contains(&JobId::new(1)));
+        assert!(ids.contains(&JobId::new(3)));
+    }
+}
