@@ -22,30 +22,30 @@ use crate::state::lifecycle::{LifecycleState, TransitionEvent};
 use std::collections::HashMap;
 use std::fmt::{self, Debug};
 
-#[derive(Debug, Clone)]
-pub enum TransitionError {
+#[derive(Debug, Clone, PartialEq)]
+pub enum CompilerTransitionError {
     TerminalStateTransition,
     InvalidTransition,
     GuardRejected,
 }
 
-impl fmt::Display for TransitionError {
+impl fmt::Display for CompilerTransitionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            TransitionError::TerminalStateTransition => {
+            CompilerTransitionError::TerminalStateTransition => {
                 write!(f, "Cannot transition from terminal state")
             }
-            TransitionError::InvalidTransition => {
+            CompilerTransitionError::InvalidTransition => {
                 write!(f, "Invalid transition for current state")
             }
-            TransitionError::GuardRejected => {
+            CompilerTransitionError::GuardRejected => {
                 write!(f, "Guard condition rejected transition")
             }
         }
     }
 }
 
-impl std::error::Error for TransitionError {}
+impl std::error::Error for CompilerTransitionError {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum GuardResult {
@@ -55,12 +55,24 @@ pub enum GuardResult {
 
 pub type GuardFn = Box<dyn Fn(LifecycleState, TransitionEvent) -> GuardResult + Send + Sync>;
 
-#[derive(Debug, Clone)]
 pub enum Guard {
     Always,
     Never,
     If(fn(LifecycleState, TransitionEvent) -> bool),
     Fn { f: GuardFn },
+}
+
+impl Clone for Guard {
+    fn clone(&self) -> Self {
+        match self {
+            Guard::Always => Guard::Always,
+            Guard::Never => Guard::Never,
+            Guard::If(predicate) => Guard::If(*predicate),
+            Guard::Fn { f: _ } => Guard::Fn {
+                f: Box::new(|_, _| GuardResult::Rejected),
+            },
+        }
+    }
 }
 
 impl Guard {
@@ -95,11 +107,24 @@ pub enum SideEffectResult {
 pub type SideEffectFn =
     Box<dyn Fn(LifecycleState, TransitionEvent, LifecycleState) -> SideEffectResult + Send + Sync>;
 
-#[derive(Debug, Clone)]
 pub enum SideEffect {
     None,
     Log { message: String },
     Fn { f: SideEffectFn },
+}
+
+impl Clone for SideEffect {
+    fn clone(&self) -> Self {
+        match self {
+            SideEffect::None => SideEffect::None,
+            SideEffect::Log { message } => SideEffect::Log {
+                message: message.clone(),
+            },
+            SideEffect::Fn { f: _ } => SideEffect::Fn {
+                f: Box::new(|_, _, _| SideEffectResult::Skipped),
+            },
+        }
+    }
 }
 
 impl SideEffect {
@@ -112,7 +137,7 @@ impl SideEffect {
         match self {
             SideEffect::None => SideEffectResult::Skipped,
             SideEffect::Log { message } => {
-                tracing::debug!(
+                eprintln!(
                     "Transition side effect: {} -> {:?} via {:?}: {}",
                     format!("{:?}", from),
                     to,
@@ -132,7 +157,6 @@ impl Default for SideEffect {
     }
 }
 
-#[derive(Debug, Clone)]
 pub struct TransitionRule {
     pub from: LifecycleState,
     pub event: TransitionEvent,
@@ -140,6 +164,32 @@ pub struct TransitionRule {
     pub guard: Guard,
     pub side_effect: SideEffect,
     pub description: Option<String>,
+}
+
+impl Clone for TransitionRule {
+    fn clone(&self) -> Self {
+        Self {
+            from: self.from,
+            event: self.event,
+            to: self.to,
+            guard: self.guard.clone(),
+            side_effect: self.side_effect.clone(),
+            description: self.description.clone(),
+        }
+    }
+}
+
+impl std::fmt::Debug for TransitionRule {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TransitionRule")
+            .field("from", &self.from)
+            .field("event", &self.event)
+            .field("to", &self.to)
+            .field("guard", &"Guard")
+            .field("side_effect", &"SideEffect")
+            .field("description", &self.description)
+            .finish()
+    }
 }
 
 impl TransitionRule {
@@ -157,8 +207,8 @@ impl TransitionRule {
 
 #[derive(Debug, Clone)]
 pub struct TransitionTable {
-    rules: HashMap<(LifecycleState, TransitionEvent), TransitionRule>,
-    terminal_states: Vec<LifecycleState>,
+    pub(crate) rules: HashMap<(LifecycleState, TransitionEvent), TransitionRule>,
+    pub(crate) terminal_states: Vec<LifecycleState>,
 }
 
 impl TransitionTable {
@@ -170,11 +220,11 @@ impl TransitionTable {
         &self,
         current: LifecycleState,
         event: TransitionEvent,
-    ) -> Result<LifecycleState, TransitionError> {
+    ) -> Result<LifecycleState, CompilerTransitionError> {
         if self.is_terminal_state(&current)
             && !(current == LifecycleState::Failed && event == TransitionEvent::InstanceResumed)
         {
-            return Err(TransitionError::TerminalStateTransition);
+            return Err(CompilerTransitionError::TerminalStateTransition);
         }
 
         let key = (current, event);
@@ -184,9 +234,9 @@ impl TransitionTable {
                     rule.side_effect.execute(current, event, rule.to);
                     Ok(rule.to)
                 }
-                GuardResult::Rejected => Err(TransitionError::GuardRejected),
+                GuardResult::Rejected => Err(CompilerTransitionError::GuardRejected),
             },
-            None => Err(TransitionError::InvalidTransition),
+            None => Err(CompilerTransitionError::InvalidTransition),
         }
     }
 
@@ -214,7 +264,7 @@ impl TransitionTable {
         dot.push_str("    rankdir=LR;\n");
         dot.push_str("    node [shape=ellipse];\n\n");
 
-        for state in self.terminal_states {
+        for state in &self.terminal_states {
             dot.push_str(&format!(
                 "    {:?} [style=filled, fillcolor=gray];\n",
                 state
@@ -246,7 +296,7 @@ impl TransitionTable {
 }
 
 pub struct TransitionTableBuilder {
-    table: TransitionTable,
+    pub(crate) table: TransitionTable,
 }
 
 impl TransitionTableBuilder {
@@ -263,12 +313,8 @@ impl TransitionTableBuilder {
         }
     }
 
-    pub fn add_transition(
-        mut self,
-        from: LifecycleState,
-        event: TransitionEvent,
-    ) -> TransitionBuilder {
-        TransitionBuilder::new(&mut self.table, from, event)
+    pub fn add_transition(self, from: LifecycleState, event: TransitionEvent) -> TransitionBuilder {
+        TransitionBuilder::new(self.table, from, event)
     }
 
     pub fn terminal_state(mut self, state: LifecycleState) -> Self {
@@ -289,8 +335,8 @@ impl Default for TransitionTableBuilder {
     }
 }
 
-pub struct TransitionBuilder<'a> {
-    table: &'a mut TransitionTable,
+pub struct TransitionBuilder {
+    table: TransitionTable,
     from: LifecycleState,
     event: TransitionEvent,
     to: LifecycleState,
@@ -299,8 +345,8 @@ pub struct TransitionBuilder<'a> {
     description: Option<String>,
 }
 
-impl<'a> TransitionBuilder<'a> {
-    fn new(table: &'a mut TransitionTable, from: LifecycleState, event: TransitionEvent) -> Self {
+impl TransitionBuilder {
+    fn new(table: TransitionTable, from: LifecycleState, event: TransitionEvent) -> Self {
         Self {
             table,
             from,
@@ -332,7 +378,7 @@ impl<'a> TransitionBuilder<'a> {
         self
     }
 
-    pub fn build(self) -> TransitionTableBuilder {
+    pub fn build(mut self) -> TransitionTableBuilder {
         let rule = TransitionRule {
             from: self.from,
             event: self.event,
@@ -451,7 +497,7 @@ mod tests {
             .build();
 
         let result = table.apply(LifecycleState::Pending, TransitionEvent::StepScheduled);
-        assert_eq!(result, Err(TransitionError::InvalidTransition));
+        assert_eq!(result, Err(CompilerTransitionError::InvalidTransition));
     }
 
     #[test]
@@ -463,7 +509,10 @@ mod tests {
             .build();
 
         let result = table.apply(LifecycleState::Completed, TransitionEvent::AssignToNode);
-        assert_eq!(result, Err(TransitionError::TerminalStateTransition));
+        assert_eq!(
+            result,
+            Err(CompilerTransitionError::TerminalStateTransition)
+        );
     }
 
     #[test]
@@ -489,7 +538,7 @@ mod tests {
             .build();
 
         let result = table.apply(LifecycleState::Pending, TransitionEvent::AssignToNode);
-        assert_eq!(result, Err(TransitionError::GuardRejected));
+        assert_eq!(result, Err(CompilerTransitionError::GuardRejected));
     }
 
     #[test]
@@ -507,13 +556,14 @@ mod tests {
 
     #[test]
     fn test_side_effect_execution() {
-        let mut executed = false;
+        use std::sync::atomic::{AtomicBool, Ordering};
+        static EXECUTED: AtomicBool = AtomicBool::new(false);
         let table = TransitionTable::builder()
             .add_transition(LifecycleState::Pending, TransitionEvent::AssignToNode)
             .to(LifecycleState::RunningDecision)
             .with_side_effect(SideEffect::Fn {
                 f: Box::new(|_, _, _| {
-                    executed = true;
+                    EXECUTED.store(true, Ordering::SeqCst);
                     SideEffectResult::Executed
                 }),
             })
@@ -523,7 +573,7 @@ mod tests {
         table
             .apply(LifecycleState::Pending, TransitionEvent::AssignToNode)
             .unwrap();
-        assert!(executed);
+        assert!(EXECUTED.load(Ordering::SeqCst));
     }
 
     #[test]
