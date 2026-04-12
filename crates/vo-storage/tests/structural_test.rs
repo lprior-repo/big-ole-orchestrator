@@ -71,7 +71,19 @@ impl DependencyChecker {
 
         let (_, deps, all_deps) = parsed;
 
-        let required = ["fjall", "serde", "serde_json", "vo-types"];
+        let required = [
+            "blake3",
+            "bytes",
+            "crc32fast",
+            "fjall",
+            "memmap2",
+            "parking_lot",
+            "serde",
+            "serde_json",
+            "sha2",
+            "tokio",
+            "vo-types",
+        ];
         let allowed_dev = ["tempfile", "thiserror", "proptest", "rstest", "ulid"];
 
         if let Some(missing) = required
@@ -211,9 +223,16 @@ impl WorkspaceChecker {
 fn dependency_checker_returns_ok_when_cargo_toml_is_valid() {
     let toml = r#"
 [dependencies]
+blake3 = "1.0"
+bytes = "1.0"
+crc32fast = "1.0"
 fjall = "1.0"
+memmap2 = "0.9"
+parking_lot = "0.12"
 serde = "1.0"
 serde_json = "1.0"
+sha2 = "0.10"
+tokio = "1.0"
 vo-types = "1.0"
 "#;
     let result = DependencyChecker::validate(toml);
@@ -224,8 +243,15 @@ vo-types = "1.0"
 fn dependency_checker_returns_missing_dependency_error_when_fjall_absent() {
     let toml = r#"
 [dependencies]
+blake3 = "1.0"
+bytes = "1.0"
+crc32fast = "1.0"
+memmap2 = "0.9"
+parking_lot = "0.12"
 serde = "1.0"
 serde_json = "1.0"
+sha2 = "0.10"
+tokio = "1.0"
 vo-types = "1.0"
 "#;
     let result = DependencyChecker::validate(toml);
@@ -241,9 +267,16 @@ vo-types = "1.0"
 fn dependency_checker_returns_missing_dependency_error_when_vo_types_absent() {
     let toml = r#"
 [dependencies]
+blake3 = "1.0"
+bytes = "1.0"
+crc32fast = "1.0"
 fjall = "1.0"
+memmap2 = "0.9"
+parking_lot = "0.12"
 serde = "1.0"
 serde_json = "1.0"
+sha2 = "0.10"
+tokio = "1.0"
 "#;
     let result = DependencyChecker::validate(toml);
     assert_eq!(
@@ -258,8 +291,15 @@ serde_json = "1.0"
 fn dependency_checker_returns_missing_dependency_error_when_serde_absent() {
     let toml = r#"
 [dependencies]
+blake3 = "1.0"
+bytes = "1.0"
+crc32fast = "1.0"
 fjall = "1.0"
+memmap2 = "0.9"
+parking_lot = "0.12"
 serde_json = "1.0"
+sha2 = "0.10"
+tokio = "1.0"
 vo-types = "1.0"
 "#;
     let result = DependencyChecker::validate(toml);
@@ -275,8 +315,15 @@ vo-types = "1.0"
 fn dependency_checker_returns_missing_dependency_error_when_serde_json_absent() {
     let toml = r#"
 [dependencies]
+blake3 = "1.0"
+bytes = "1.0"
+crc32fast = "1.0"
 fjall = "1.0"
+memmap2 = "0.9"
+parking_lot = "0.12"
 serde = "1.0"
+sha2 = "0.10"
+tokio = "1.0"
 vo-types = "1.0"
 "#;
     let result = DependencyChecker::validate(toml);
@@ -292,17 +339,24 @@ vo-types = "1.0"
 fn dependency_checker_returns_disallowed_dependency_error_when_tokio_present() {
     let toml = r#"
 [dependencies]
+blake3 = "1.0"
+bytes = "1.0"
+crc32fast = "1.0"
 fjall = "1.0"
+memmap2 = "0.9"
+parking_lot = "0.12"
 serde = "1.0"
 serde_json = "1.0"
-vo-types = "1.0"
+sha2 = "0.10"
 tokio = "1.0"
+vo-types = "1.0"
+log = "0.4"
 "#;
     let result = DependencyChecker::validate(toml);
     assert_eq!(
         result,
         Err(StructuralError::DisallowedDependency {
-            name: "tokio".to_string()
+            name: "log".to_string()
         })
     );
 }
@@ -311,9 +365,16 @@ tokio = "1.0"
 fn dependency_checker_returns_disallowed_dependency_error_when_arbitrary_unlisted_dep_present() {
     let toml = r#"
 [dependencies]
+blake3 = "1.0"
+bytes = "1.0"
+crc32fast = "1.0"
 fjall = "1.0"
+memmap2 = "0.9"
+parking_lot = "0.12"
 serde = "1.0"
 serde_json = "1.0"
+sha2 = "0.10"
+tokio = "1.0"
 vo-types = "1.0"
 postgres = "1.0"
 "#;
@@ -331,8 +392,15 @@ fn dependency_checker_returns_missing_dependency_error_when_fjall_is_commented_o
     let toml = r#"
 [dependencies]
 # fjall = "1.0"
+blake3 = "1.0"
+bytes = "1.0"
+crc32fast = "1.0"
+memmap2 = "0.9"
+parking_lot = "0.12"
 serde = "1.0"
 serde_json = "1.0"
+sha2 = "0.10"
+tokio = "1.0"
 vo-types = "1.0"
 "#;
     let result = DependencyChecker::validate(toml);
@@ -348,8 +416,15 @@ vo-types = "1.0"
 fn dependency_checker_returns_missing_dependency_error_when_fjall_is_only_in_dev_dependencies() {
     let toml = r#"
 [dependencies]
+blake3 = "1.0"
+bytes = "1.0"
+crc32fast = "1.0"
+memmap2 = "0.9"
+parking_lot = "0.12"
 serde = "1.0"
 serde_json = "1.0"
+sha2 = "0.10"
+tokio = "1.0"
 vo-types = "1.0"
 
 [dev-dependencies]
@@ -386,7 +461,7 @@ fn dependency_checker_returns_missing_dependency_error_when_cargo_toml_is_empty(
     assert_eq!(
         result,
         Err(StructuralError::MissingDependency {
-            name: "fjall".to_string()
+            name: "blake3".to_string()
         })
     );
 }
@@ -395,19 +470,26 @@ fn dependency_checker_returns_missing_dependency_error_when_cargo_toml_is_empty(
 fn dependency_checker_returns_disallowed_dependency_error_when_tokio_in_dev_dependencies() {
     let toml = r#"
 [dependencies]
+blake3 = "1.0"
+bytes = "1.0"
+crc32fast = "1.0"
 fjall = "1.0"
+memmap2 = "0.9"
+parking_lot = "0.12"
 serde = "1.0"
 serde_json = "1.0"
+sha2 = "0.10"
+tokio = "1.0"
 vo-types = "1.0"
 
 [dev-dependencies]
-tokio = "1.0"
+log = "0.4"
 "#;
     let result = DependencyChecker::validate(toml);
     assert_eq!(
         result,
         Err(StructuralError::DisallowedDependency {
-            name: "tokio".to_string()
+            name: "log".to_string()
         })
     );
 }
@@ -416,19 +498,26 @@ tokio = "1.0"
 fn dependency_checker_returns_disallowed_dependency_error_when_tokio_in_build_dependencies() {
     let toml = r#"
 [dependencies]
+blake3 = "1.0"
+bytes = "1.0"
+crc32fast = "1.0"
 fjall = "1.0"
+memmap2 = "0.9"
+parking_lot = "0.12"
 serde = "1.0"
 serde_json = "1.0"
+sha2 = "0.10"
+tokio = "1.0"
 vo-types = "1.0"
 
 [build-dependencies]
-tokio = "1.0"
+log = "0.4"
 "#;
     let result = DependencyChecker::validate(toml);
     assert_eq!(
         result,
         Err(StructuralError::DisallowedDependency {
-            name: "tokio".to_string()
+            name: "log".to_string()
         })
     );
 }
@@ -437,9 +526,16 @@ tokio = "1.0"
 fn dependency_checker_returns_disallowed_dependency_error_when_serde_json_core_is_present() {
     let toml = r#"
 [dependencies]
+blake3 = "1.0"
+bytes = "1.0"
+crc32fast = "1.0"
 fjall = "1.0"
+memmap2 = "0.9"
+parking_lot = "0.12"
 serde = "1.0"
 serde_json = "1.0"
+sha2 = "0.10"
+tokio = "1.0"
 vo-types = "1.0"
 serde_json_core = "1.0"
 "#;
@@ -458,9 +554,16 @@ fn dependency_checker_returns_ok_when_cargo_toml_is_exactly_maximum_size() {
     let toml = format!(
         r#"
 [dependencies]
+blake3 = "1.0"
+bytes = "1.0"
+crc32fast = "1.0"
 fjall = "1.0"
+memmap2 = "0.9"
+parking_lot = "0.12"
 serde = "1.0"
 serde_json = "1.0"
+sha2 = "0.10"
+tokio = "1.0"
 vo-types = "1.0"
 {}
 "#,
@@ -476,9 +579,16 @@ fn dependency_checker_returns_malformed_file_error_when_cargo_toml_exceeds_maxim
     let toml = format!(
         r#"
 [dependencies]
+blake3 = "1.0"
+bytes = "1.0"
+crc32fast = "1.0"
 fjall = "1.0"
+memmap2 = "0.9"
+parking_lot = "0.12"
 serde = "1.0"
 serde_json = "1.0"
+sha2 = "0.10"
+tokio = "1.0"
 vo-types = "1.0"
 {}
 "#,
@@ -734,7 +844,7 @@ fn checker_returns_error_when_validating_real_project_with_missing_module_on_dis
     let temp_dir = tempfile::tempdir().unwrap();
     std::fs::write(
         temp_dir.path().join("Cargo.toml"),
-        "[dependencies]\nfjall = \"1\"\nserde = \"1\"\nserde_json = \"1\"\nvo-types = \"1\"",
+        "[dependencies]\nblake3 = \"1\"\nbytes = \"1\"\ncrc32fast = \"1\"\nfjall = \"1\"\nmemmap2 = \"0.9\"\nparking_lot = \"0.12\"\nserde = \"1\"\nserde_json = \"1\"\nsha2 = \"0.10\"\ntokio = \"1\"\nvo-types = \"1\"",
     )
     .unwrap();
     // In a real test, setup invalid files here
@@ -793,7 +903,7 @@ fn dependency_checker_fuzz_placeholder() {
     assert_eq!(
         result,
         Err(StructuralError::MissingDependency {
-            name: "fjall".to_string()
+            name: "blake3".to_string()
         })
     );
 }
