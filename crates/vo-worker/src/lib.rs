@@ -12,6 +12,7 @@
 
 mod port;
 mod retry;
+mod storage;
 mod supervisor;
 
 use chrono::{DateTime, Utc};
