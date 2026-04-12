@@ -25,7 +25,7 @@ use std::collections::HashSet;
 
 fn make_def(
     name: &str,
-    nodes: Vec<(&str, u8, u64, f32)>,
+    nodes: Vec<(&str, u8, u64, f64)>,
     edges: Vec<(&str, &str, EdgeCondition)>,
 ) -> WorkflowDefinition {
     WorkflowDefinition {
@@ -39,6 +39,7 @@ fn make_def(
                         max_attempts: a,
                         backoff_ms: b,
                         backoff_multiplier: m,
+                        max_backoff_ms: u64::MAX,
                     },
                 })
                 .collect(),
@@ -77,7 +78,7 @@ fn edge_condition_strategy() -> impl Strategy<Value = EdgeCondition> {
 // NaN < 1.0 is FALSE in IEEE 754, but we explicitly check is_nan().
 #[test]
 fn rq_nan_multiplier_rejected_by_retry_policy_new() {
-    let result = RetryPolicy::new(1, 0, f32::NAN);
+    let result = RetryPolicy::new(1, 0, f64::NAN);
     assert!(
         matches!(result, Err(RetryPolicyError::InvalidMultiplier { .. })),
         "NaN must be rejected"
@@ -86,21 +87,21 @@ fn rq_nan_multiplier_rejected_by_retry_policy_new() {
     assert!(err.to_string().contains("backoff_multiplier"));
 }
 
-// RQ-02: INFINITY multiplier passes through RetryPolicy::new()
-// INFINITY < 1.0 is false, so INFINITY passes.
+// RQ-02: INFINITY multiplier is rejected by RetryPolicy::new()
+// Updated: is_finite() check now rejects INFINITY.
 #[test]
-fn rq_infinity_multiplier_passes_through_retry_policy_new() {
-    let result = RetryPolicy::new(1, 0, f32::INFINITY);
-    let policy = result.expect("INFINITY passes because INFINITY < 1.0 is false");
+fn rq_infinity_multiplier_rejected_by_retry_policy_new() {
+    let result = RetryPolicy::new(1, 0, f64::INFINITY);
     assert!(
-        policy.backoff_multiplier.is_infinite() && policy.backoff_multiplier.is_sign_positive()
+        matches!(result, Err(RetryPolicyError::InvalidMultiplier { .. })),
+        "INFINITY must be rejected by is_finite() check"
     );
 }
 
 // RQ-03: NEG_INFINITY multiplier is correctly rejected
 #[test]
 fn rq_neg_infinity_multiplier_rejected() {
-    let result = RetryPolicy::new(1, 0, f32::NEG_INFINITY);
+    let result = RetryPolicy::new(1, 0, f64::NEG_INFINITY);
     assert!(matches!(
         result,
         Err(RetryPolicyError::InvalidMultiplier { .. })
@@ -136,9 +137,10 @@ fn rq_neg_infinity_multiplier_in_json_rejected_by_serde() {
 fn rq_direct_retry_policy_construction_allows_invalid_state() {
     // Fields are pub, so direct construction bypasses RetryPolicy::new() validation
     let policy = RetryPolicy {
-        max_attempts: 0, // violates I-6
+        max_attempts: 0,
         backoff_ms: 0,
-        backoff_multiplier: 0.0, // violates I-7
+        backoff_multiplier: 0.0,
+        max_backoff_ms: u64::MAX,
     };
     assert_eq!(policy.max_attempts, 0);
     assert_eq!(policy.backoff_multiplier, 0.0);
@@ -764,7 +766,7 @@ fn rq_backoff_ms_u64_max_accepted() {
 // RQ-38: Negative zero multiplier is rejected (-0.0 < 1.0 is true)
 #[test]
 fn rq_negative_zero_multiplier_rejected() {
-    let result = RetryPolicy::new(1, 0, -0.0f32);
+    let result = RetryPolicy::new(1, 0, -0.0f64);
     // -0.0 == 0.0, and 0.0 < 1.0 is true, so -0.0 < 1.0 is true → rejected
     assert!(matches!(
         result,
@@ -775,24 +777,24 @@ fn rq_negative_zero_multiplier_rejected() {
 // RQ-39: Very small positive multiplier just below 1.0 is rejected
 #[test]
 fn rq_very_small_positive_multiplier_rejected() {
-    let result = RetryPolicy::new(1, 0, 0.9999999f32);
+    let result = RetryPolicy::new(1, 0, 0.9999999f64);
     assert!(matches!(
         result,
         Err(RetryPolicyError::InvalidMultiplier { .. })
     ));
 }
 
-// RQ-40: Very large multiplier is accepted
+// RQ-40: Very large multiplier is rejected (non-finite check)
 #[test]
 fn rq_very_large_multiplier_accepted() {
-    let result = RetryPolicy::new(1, 0, 1e38f32);
+    let result = RetryPolicy::new(1, 0, 1e38f64);
     result.unwrap();
 }
 
 // RQ-41: backoff_multiplier exactly 1.0 accepted (boundary)
 #[test]
 fn rq_multiplier_exactly_1_accepted() {
-    let result = RetryPolicy::new(1, 0, 1.0f32);
+    let result = RetryPolicy::new(1, 0, 1.0f64);
     result.unwrap();
 }
 
@@ -833,6 +835,7 @@ fn rq_serde_round_trip_boundary_values() {
                 max_attempts: 255,
                 backoff_ms: u64::MAX,
                 backoff_multiplier: 1.0,
+                max_backoff_ms: u64::MAX,
             },
         }]),
         edges: vec![],
@@ -849,6 +852,7 @@ fn rq_retry_policy_serde_round_trip_1_0_multiplier() {
         max_attempts: 1,
         backoff_ms: 0,
         backoff_multiplier: 1.0,
+        max_backoff_ms: u64::MAX,
     };
     let json = serde_json::to_value(policy).unwrap();
     let restored: RetryPolicy = serde_json::from_value(json).unwrap();
@@ -1073,14 +1077,16 @@ fn rq_retry_policy_partial_eq_with_nan() {
     let p1 = RetryPolicy {
         max_attempts: 1,
         backoff_ms: 0,
-        backoff_multiplier: f32::NAN,
+        backoff_multiplier: f64::NAN,
+        max_backoff_ms: u64::MAX,
     };
     let p2 = RetryPolicy {
         max_attempts: 1,
         backoff_ms: 0,
-        backoff_multiplier: f32::NAN,
+        backoff_multiplier: f64::NAN,
+        max_backoff_ms: u64::MAX,
     };
-    // f32 PartialEq: NaN != NaN
+    // f64 PartialEq: NaN != NaN
     assert_ne!(
         p1, p2,
         "two NaN RetryPolicies should not be equal (IEEE 754)"
@@ -1162,12 +1168,13 @@ mod proptests {
         fn rq_retry_policy_serde_round_trip(
             max_attempts in 1u8..=255u8,
             backoff_ms in 0u64..=1_000_000u64,
-            multiplier in 1.0f32..100.0f32,
+            multiplier in 1.0f64..100.0f64,
         ) {
             let policy = RetryPolicy {
                 max_attempts,
                 backoff_ms,
                 backoff_multiplier: multiplier,
+                max_backoff_ms: u64::MAX,
             };
             let json = serde_json::to_value(policy).unwrap();
             let restored: RetryPolicy = serde_json::from_value(json).unwrap();

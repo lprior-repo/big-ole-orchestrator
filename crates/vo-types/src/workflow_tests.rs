@@ -8,7 +8,7 @@ use std::collections::HashSet;
 // -----------------------------------------------------------------------
 fn make_workflow(
     name: &str,
-    nodes: Vec<(&str, u8, u64, f32)>,
+    nodes: Vec<(&str, u8, u64, f64)>,
     edges: Vec<(&str, &str, EdgeCondition)>,
 ) -> WorkflowDefinition {
     WorkflowDefinition {
@@ -22,6 +22,7 @@ fn make_workflow(
                         max_attempts: a,
                         backoff_ms: b,
                         backoff_multiplier: m,
+                        max_backoff_ms: u64::MAX,
                     },
                 })
                 .collect(),
@@ -149,6 +150,7 @@ fn retry_policy_accepts_valid_params_when_all_constraints_satisfied() -> Result<
             max_attempts: 3,
             backoff_ms: 1000,
             backoff_multiplier: 2.0,
+            max_backoff_ms: u64::MAX,
         }
     );
     Ok(())
@@ -188,6 +190,7 @@ fn retry_policy_accepts_max_attempts_1_at_minimum_boundary() -> Result<(), Retry
             max_attempts: 1,
             backoff_ms: 100,
             backoff_multiplier: 1.0,
+            max_backoff_ms: u64::MAX,
         }
     );
     Ok(())
@@ -203,6 +206,7 @@ fn retry_policy_accepts_multiplier_1_at_minimum_boundary() -> Result<(), RetryPo
             max_attempts: 1,
             backoff_ms: 100,
             backoff_multiplier: 1.0,
+            max_backoff_ms: u64::MAX,
         }
     );
     Ok(())
@@ -218,6 +222,7 @@ fn retry_policy_accepts_max_attempts_255_at_maximum_boundary() -> Result<(), Ret
             max_attempts: 255,
             backoff_ms: 100,
             backoff_multiplier: 1.0,
+            max_backoff_ms: u64::MAX,
         }
     );
     Ok(())
@@ -233,6 +238,7 @@ fn retry_policy_accepts_backoff_ms_zero_when_no_delay_requested() -> Result<(), 
             max_attempts: 1,
             backoff_ms: 0,
             backoff_multiplier: 1.0,
+            max_backoff_ms: u64::MAX,
         }
     );
     Ok(())
@@ -245,6 +251,7 @@ fn retry_policy_serde_round_trips_for_valid_policy() -> Result<(), Box<dyn std::
         max_attempts: 5,
         backoff_ms: 2000,
         backoff_multiplier: 1.5,
+        max_backoff_ms: u64::MAX,
     };
     let json = serde_json::to_value(policy)?;
     let restored: RetryPolicy = serde_json::from_value(json)?;
@@ -285,6 +292,7 @@ fn dag_node_has_no_binary_path_field_when_serialized() -> Result<(), Box<dyn std
             max_attempts: 1,
             backoff_ms: 0,
             backoff_multiplier: 1.0,
+            max_backoff_ms: u64::MAX,
         },
     };
     let value = serde_json::to_value(&node)?;
@@ -358,6 +366,7 @@ fn parse_accepts_single_node_workflow_when_no_edges() -> Result<(), Box<dyn std:
             max_attempts: 1,
             backoff_ms: 0,
             backoff_multiplier: 1.0,
+            max_backoff_ms: u64::MAX,
         }
     );
     assert_eq!(def.edges.len(), 0);
@@ -1290,6 +1299,7 @@ fn next_nodes_returns_empty_when_edge_target_is_not_in_definition() {
                 max_attempts: 1,
                 backoff_ms: 0,
                 backoff_multiplier: 1.0,
+                max_backoff_ms: u64::MAX,
             },
         }]),
         edges: vec![Edge {

@@ -86,10 +86,11 @@ pub struct RetryPolicy {
     pub max_attempts: u32,
     pub backoff_ms: u64,
     pub backoff_multiplier: f64,
+    pub max_backoff_ms: u64,
 }
 
 impl RetryPolicy {
-    /// Create a new `RetryPolicy`.
+    /// Create a new `RetryPolicy` with `max_backoff_ms` defaulting to `u64::MAX`.
     ///
     /// # Errors
     ///
@@ -104,7 +105,6 @@ impl RetryPolicy {
         if max_attempts == 0 {
             return Err(RetryPolicyError::ZeroAttempts);
         }
-        // Reject NaN, Infinity, and values < 1.0
         if !backoff_multiplier.is_finite() || backoff_multiplier < 1.0 {
             return Err(RetryPolicyError::InvalidMultiplier {
                 got: backoff_multiplier,
@@ -114,25 +114,49 @@ impl RetryPolicy {
             max_attempts,
             backoff_ms,
             backoff_multiplier,
+            max_backoff_ms: u64::MAX,
         })
     }
 
-    /// Calculate the backoff delay for a given attempt.
+    /// Create a new `RetryPolicy` with an explicit `max_backoff_ms` cap.
+    pub fn with_max_backoff(
+        max_attempts: u32,
+        backoff_ms: u64,
+        backoff_multiplier: f64,
+        max_backoff_ms: u64,
+    ) -> Result<Self, RetryPolicyError> {
+        if max_attempts == 0 {
+            return Err(RetryPolicyError::ZeroAttempts);
+        }
+        if !backoff_multiplier.is_finite() || backoff_multiplier < 1.0 {
+            return Err(RetryPolicyError::InvalidMultiplier {
+                got: backoff_multiplier,
+            });
+        }
+        Ok(Self {
+            max_attempts,
+            backoff_ms,
+            backoff_multiplier,
+            max_backoff_ms,
+        })
+    }
+
+    /// Calculate the backoff delay for a given attempt (1-indexed).
     ///
-    /// Formula: `backoff_ms * multiplier^(attempt - 1)`
-    ///
-    /// Returns `u64::MAX` if the calculation would overflow.
+    /// Formula: `min(backoff_ms * multiplier^(attempt - 1), max_backoff_ms)`
     #[must_use]
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     pub fn calculate_backoff_delay(&self, attempt: u32) -> u64 {
-        let exponent = attempt.saturating_sub(1).cast_signed();
-        let multiplier_pow = self.backoff_multiplier.powi(exponent);
+        if attempt == 0 || self.backoff_ms == 0 {
+            return 0;
+        }
+        let exponent = attempt.saturating_sub(1);
+        let multiplier_pow = self.backoff_multiplier.powi(exponent as i32);
         #[allow(clippy::cast_precision_loss)]
         let product = self.backoff_ms as f64 * multiplier_pow;
-        // Clamp to u64::MAX to prevent overflow
         #[allow(clippy::cast_precision_loss)]
-        let clamped = product.min(u64::MAX as f64);
-        clamped as u64
+        let capped = product.min(self.max_backoff_ms as f64).min(u64::MAX as f64);
+        capped as u64
     }
 }
 

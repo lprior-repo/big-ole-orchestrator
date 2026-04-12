@@ -25,7 +25,8 @@ fn rq_break_retry_policy_via_public_fields() {
     let policy = RetryPolicy {
         max_attempts: 0,
         backoff_ms: 100,
-        backoff_multiplier: f32::NAN,
+        backoff_multiplier: f64::NAN,
+        max_backoff_ms: u64::MAX,
     };
 
     // Contract is broken!

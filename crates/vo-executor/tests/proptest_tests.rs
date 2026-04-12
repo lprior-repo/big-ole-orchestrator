@@ -112,6 +112,7 @@ proptest! {
                 max_attempts,
                 backoff_ms,
                 backoff_multiplier: 1.0,
+                max_backoff_ms: u64::MAX,
             })
         );
     }
@@ -132,6 +133,7 @@ proptest! {
                 max_attempts,
                 backoff_ms,
                 backoff_multiplier: large_multiplier,
+                max_backoff_ms: u64::MAX,
             }),
             "Should accept large multiplier {}",
             large_multiplier

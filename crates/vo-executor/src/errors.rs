@@ -52,4 +52,6 @@ pub enum RetryPolicyError {
     ZeroAttempts,
     #[error("Invalid multiplier: {got} (must be >= 1.0)")]
     InvalidMultiplier { got: f64 },
+    #[error("max_backoff_ms ({max}) must be >= backoff_ms ({ms})")]
+    MaxBackoffTooSmall { max: u64, ms: u64 },
 }

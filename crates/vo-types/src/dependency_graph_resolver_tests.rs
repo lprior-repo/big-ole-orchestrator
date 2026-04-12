@@ -19,7 +19,7 @@ use crate::{
 /// Helper to construct a WorkflowDefinition for testing.
 fn make_workflow(
     name: &str,
-    nodes: Vec<(&str, u8, u64, f32)>,
+    nodes: Vec<(&str, u8, u64, f64)>,
     edges: Vec<(&str, &str, EdgeCondition)>,
 ) -> WorkflowDefinition {
     WorkflowDefinition {
@@ -33,6 +33,7 @@ fn make_workflow(
                         max_attempts: a,
                         backoff_ms: b,
                         backoff_multiplier: m,
+                        max_backoff_ms: u64::MAX,
                     },
                 })
                 .collect(),

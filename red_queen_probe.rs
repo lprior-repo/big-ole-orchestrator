@@ -29,15 +29,19 @@ fn main() {
     println!("InstanceId '8...': vo={:?}, wtf={:?}", vo_ulid, wtf_ulid);
 
     // 4. RetryPolicy Infinity
-    let vo_retry = vo_types::RetryPolicy::new(1, 0, f32::INFINITY);
-    let wtf_retry = wtf_types::RetryPolicy::new(1, 0, f32::INFINITY);
-    println!("RetryPolicy INFINITY: vo={:?}, wtf={:?}", vo_retry, wtf_retry);
+    let vo_retry = vo_types::RetryPolicy::new(1, 0, f64::INFINITY);
+    let wtf_retry = wtf_types::RetryPolicy::new(1, 0, f64::INFINITY);
+    println!(
+        "RetryPolicy INFINITY: vo={:?}, wtf={:?}",
+        vo_retry, wtf_retry
+    );
 
     // 5. RetryPolicy direct construction
     let vo_policy = vo_types::RetryPolicy {
         max_attempts: 0,
         backoff_ms: 0,
         backoff_multiplier: 0.0,
+        max_backoff_ms: u64::MAX,
     };
     println!("vo RetryPolicy direct (max_attempts=0): {:?}", vo_policy);
 }
