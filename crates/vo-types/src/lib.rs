@@ -26,6 +26,7 @@ mod link_cut_tree;
 mod node_kind;
 mod non_empty_vec;
 mod octree;
+mod pairing_heap;
 mod payload_parser;
 pub mod proptest_verifier;
 mod registration_status;
@@ -73,6 +74,7 @@ pub use link_cut_tree::{LctAggregate, LctError, LinkCutTree, Monoid};
 pub use node_kind::NodeKind;
 pub use non_empty_vec::NonEmptyVec;
 pub use octree::{BoundingBox, Octree, OctreeConfig, OctreeEntry, OctreeError, OctreeNode, Point3};
+pub use pairing_heap::{PairingHeap, PairingHeapError};
 pub use registration_status::RegistrationStatus;
 pub use signal::{
     BufferPolicy, LineageScope, SignalAddress, SignalDedupeKey, SignalDelivery, WaitKey, WaitRecord,
