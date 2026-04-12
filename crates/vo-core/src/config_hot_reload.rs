@@ -1,7 +1,6 @@
 //! Configuration hot-reload system with file watching, atomic swap, validation, and rollback.
 
 use std::path::{Path, PathBuf};
-use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, RwLock};
 
 use notify::{Config as NotifyConfig, RecommendedWatcher, RecursiveMode, Watcher};
@@ -44,7 +43,6 @@ pub trait ConfigValidator<T: Clone + Send + Sync>: Send + Sync {
 pub struct HotReloadConfig<T: Clone + Send + Sync> {
     current: RwLock<T>,
     pending: RwLock<Option<T>>,
-    watcher_active: AtomicBool,
     path: PathBuf,
     validator: Arc<dyn ConfigValidator<T>>,
 }
@@ -62,7 +60,6 @@ impl<T: Clone + Send + Sync + 'static> HotReloadConfig<T> {
         Ok(Self {
             current: RwLock::new(initial),
             pending: RwLock::new(None),
-            watcher_active: AtomicBool::new(false),
             path,
             validator,
         })
