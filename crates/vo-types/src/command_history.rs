@@ -458,7 +458,7 @@ impl HistoryEntry {
         batch_metadata: Option<ExtensionBatchMetadata>,
         command_id: Option<CommandId>,
     ) -> Self {
-        let cmd_id = command_id.unwrap_or_else(CommandId::new);
+        let cmd_id = command_id.unwrap_or_default();
         let metadata = crate::command_metadata::CommandMetadata {
             command_id: crate::IdempotencyKey::parse(cmd_id.as_str()).unwrap(),
             correlation_id: crate::IdempotencyKey::parse(&ulid::Ulid::new().to_string()).unwrap(),

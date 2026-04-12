@@ -26,28 +26,13 @@ impl<T: PartialOrd> BinomialNode<T> {
         }
     }
 
-    fn link(mut child: Self, parent: &mut Self) {
-        if child.value < parent.value {
-            let old_parent_value = std::mem::replace(&mut parent.value, child.value);
-            let old_parent_child = parent.child.take();
-            let old_child_degree = child.degree;
-            let old_child_sibling = child.sibling.take();
-            let old_child_child = child.child.take();
-            parent.degree = old_child_degree + 1;
-            parent.child = Some(Box::new(BinomialNode {
-                value: old_parent_value,
-                degree: parent.degree - 1,
-                child: old_parent_child,
-                sibling: old_child_sibling,
-            }));
-            parent.sibling = old_child_child;
-        } else {
-            let mut c = child;
-            parent.degree += 1;
-            parent.sibling = c.child.take();
-            c.child = parent.child.take();
-            parent.child = Some(Box::new(c));
-        }
+    fn link(first: Self, second: &mut Self) {
+        // Standard binomial link: attach first as leftmost child of second.
+        // Caller ensures second.value <= first.value (second is root).
+        let mut child = first;
+        child.sibling = second.child.take();
+        second.degree += 1;
+        second.child = Some(Box::new(child));
     }
 
     fn min_value(&self) -> &T {
@@ -98,7 +83,7 @@ impl<T: Ord> BinomialHeap<T> {
 
     pub fn find_min(&self) -> Option<&T> {
         let mut min = None;
-        for ref tree in self.trees.iter().flatten() {
+        for tree in self.trees.iter().flatten() {
             match min {
                 None => min = Some(tree.min_value()),
                 Some(current_min) => {
@@ -115,12 +100,12 @@ impl<T: Ord> BinomialHeap<T> {
     fn merge_trees(&self, a: BinomialNode<T>, b: BinomialNode<T>) -> BinomialNode<T> {
         let mut a = a;
         let mut b = b;
-        if a.value < b.value {
-            BinomialNode::link(a, &mut b);
-            b
-        } else {
+        if a.value <= b.value {
             BinomialNode::link(b, &mut a);
             a
+        } else {
+            BinomialNode::link(a, &mut b);
+            b
         }
     }
 
@@ -194,9 +179,6 @@ impl<T: Ord> BinomialHeap<T> {
                     let merged2 = self.merge_trees(c, merged1);
                     self.carry(Some(merged2), degree);
                 }
-            }
-            if degree < self.trees.len() {
-                self.trees[degree] = None;
             }
         }
         self.len += other.len;
