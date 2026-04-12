@@ -14,6 +14,8 @@ mod dedupe_tests;
 mod dependency_graph_resolver;
 mod effects;
 mod encryption;
+#[cfg(test)]
+mod encryption_tests;
 mod errors;
 pub mod euler_tour_tree;
 pub mod events;
