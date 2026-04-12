@@ -11,6 +11,7 @@ mod db_writer_message;
 pub mod debounce;
 pub mod replay;
 pub mod resource_quota;
+pub mod segment_tree;
 pub mod snapshot_compat;
 pub mod upcaster;
 pub mod workflow_version;
