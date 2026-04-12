@@ -8,9 +8,36 @@ use crate::NonEmptyVec;
 
 const MAX_DEPTH: u32 = 16;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct WorkspacePath {
     segments: NonEmptyVec<WorkspaceName>,
+}
+
+impl Serialize for WorkspacePath {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let path_str = self.to_string();
+        serializer.serialize_str(&path_str)
+    }
+}
+
+impl<'de> Deserialize<'de> for WorkspacePath {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        let segments: Vec<WorkspaceName> = s
+            .split('/')
+            .map(WorkspaceName::parse)
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(serde::de::Error::custom)?;
+        let segments = NonEmptyVec::new(segments)
+            .map_err(|_| serde::de::Error::custom("path must have at least one segment"))?;
+        WorkspacePath::new(segments).map_err(serde::de::Error::custom)
+    }
 }
 
 impl WorkspacePath {
