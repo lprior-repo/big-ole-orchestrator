@@ -244,9 +244,14 @@ impl RotationPolicy {
         match self {
             Self::Manual => Ok(()),
             Self::TimeBased {
-                interval: _,
+                interval,
                 overlap_window,
             } => {
+                if interval.0 == 0 {
+                    return Err(ParseError::ZeroValue {
+                        type_name: "interval",
+                    });
+                }
                 if overlap_window.0 < MIN_OVERLAP_MS {
                     return Err(ParseError::OutOfRange {
                         type_name: "overlap_window",
@@ -716,6 +721,15 @@ mod tests {
         let policy = RotationPolicy::TimeBased {
             interval: DurationMs(86400000),
             overlap_window: DurationMs(59999),
+        };
+        assert!(policy.validate().is_err());
+    }
+
+    #[test]
+    fn rotation_policy_time_based_rejects_zero_interval() {
+        let policy = RotationPolicy::TimeBased {
+            interval: DurationMs(0),
+            overlap_window: DurationMs(60000),
         };
         assert!(policy.validate().is_err());
     }
