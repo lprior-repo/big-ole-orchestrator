@@ -102,6 +102,18 @@ pub struct EncryptedBlob {
 
 impl EncryptedBlob {
     pub fn new(iv: Vec<u8>, ciphertext: Vec<u8>, tag: Vec<u8>) -> Self {
+        if iv.len() != CryptoAlgorithm::IV_SIZE_BYTES {
+            panic!(
+                "IV must be exactly {} bytes",
+                CryptoAlgorithm::IV_SIZE_BYTES
+            );
+        }
+        if tag.len() != CryptoAlgorithm::TAG_SIZE_BYTES {
+            panic!(
+                "tag must be exactly {} bytes",
+                CryptoAlgorithm::TAG_SIZE_BYTES
+            );
+        }
         Self {
             iv,
             ciphertext,
@@ -155,11 +167,12 @@ pub struct KeyMetadata {
 
 impl KeyMetadata {
     pub fn new(instance_id: crate::InstanceId, algorithm: CryptoAlgorithm) -> Self {
+        let created_at_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0);
         Self {
-            created_at_ms: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_millis() as u64,
+            created_at_ms,
             algorithm,
             instance_id,
         }

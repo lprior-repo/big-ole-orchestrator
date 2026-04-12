@@ -300,8 +300,8 @@ mod encrypted_blob_tests {
 
     #[test]
     fn encrypted_blob_total_size_empty() {
-        let blob = EncryptedBlob::new(vec![], vec![], vec![]);
-        assert_eq!(blob.total_size(), 0);
+        let blob = EncryptedBlob::new(vec![0u8; 12], vec![], vec![2u8; 16]);
+        assert_eq!(blob.total_size(), 28);
     }
 
     #[test]
@@ -331,7 +331,7 @@ mod encrypted_blob_tests {
     #[test]
     fn encrypted_blob_eq_false_iv_mismatch() {
         let blob1 = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![2u8; 16]);
-        let blob2 = EncryptedBlob::new(vec![0u8; 13], vec![1u8; 32], vec![2u8; 16]);
+        let blob2 = EncryptedBlob::new(vec![1u8; 12], vec![1u8; 32], vec![2u8; 16]);
         assert_ne!(blob1, blob2);
     }
 
@@ -345,7 +345,7 @@ mod encrypted_blob_tests {
     #[test]
     fn encrypted_blob_eq_false_tag_mismatch() {
         let blob1 = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![2u8; 16]);
-        let blob2 = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![2u8; 17]);
+        let blob2 = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![3u8; 16]);
         assert_ne!(blob1, blob2);
     }
 }

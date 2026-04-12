@@ -165,6 +165,10 @@ pub fn decrypt_blob(
         return Err(CryptoError::InvalidKeyMaterial);
     }
 
+    if blob.tag.len() != TAG_SIZE_BYTES {
+        return Err(CryptoError::InvalidKeyMaterial);
+    }
+
     let iv_arr: [u8; IV_SIZE_BYTES] = blob.iv[..IV_SIZE_BYTES]
         .try_into()
         .map_err(|_| CryptoError::InvalidKeyMaterial)?;
