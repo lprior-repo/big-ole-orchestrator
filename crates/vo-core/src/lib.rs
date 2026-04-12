@@ -5,6 +5,7 @@
 
 pub mod admission;
 pub mod circuit_breaker;
+pub mod config_hot_reload;
 mod db_writer_message;
 pub mod debounce;
 pub mod replay;
