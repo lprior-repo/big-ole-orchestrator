@@ -1,0 +1,12 @@
+{
+  "session_id": "3f9eae5c-ffc6-4169-a190-74b74b4a2767",
+  "transcript_path": "/home/lewis/.claude/projects/-home-lewis-gt-veloxide-polecats-chrome-veloxide/3f9eae5c-ffc6-4169-a190-74b74b4a2767.jsonl",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Edit",
+  "tool_input": {
+    "file_path": "/home/lewis/gt/veloxide/polecats/chrome/veloxide/crates/vo-storage/src/snapshot_diff/mod.rs",
+    "old_string": "/// Returns `ApplyError::DiffTargetInvalid` if the diff operation is incompatible with the base state.\npub fn apply_diff(",
+    "new_string": "/// Returns `ApplyError::DiffTargetInvalid` if the diff operation is incompatible with the base state.\npub const fn apply_diff(",
+    "replace_all": false
+  }
+}
