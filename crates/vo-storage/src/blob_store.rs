@@ -763,4 +763,443 @@ mod tests {
         assert!(validate_content_address("").is_err());
         assert!(validate_content_address(VALID_SHA256_2).is_err());
     }
+
+    #[test]
+    fn content_address_rejects_empty_string() {
+        let result = ContentAddress::new("");
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, BlobStoreError::InvalidArgument { .. }));
+    }
+
+    #[test]
+    fn content_address_rejects_too_long() {
+        let result = ContentAddress::new(
+            "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08ab",
+        );
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, BlobStoreError::InvalidArgument { .. }));
+    }
+
+    #[test]
+    fn content_address_rejects_non_hex_characters() {
+        let result =
+            ContentAddress::new("9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15g0f00a08");
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, BlobStoreError::InvalidArgument { .. }));
+        assert!(err.to_string().contains("lowercase hex"));
+    }
+
+    #[test]
+    fn content_address_from_bytes_produces_correct_hex() {
+        let hex_str = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
+        let addr = ContentAddress::new(hex_str).unwrap();
+        let bytes = addr.as_bytes();
+        let roundtrip = ContentAddress::from_bytes(&bytes);
+        assert_eq!(roundtrip.as_str(), hex_str);
+    }
+
+    #[test]
+    fn content_address_as_str_returns_inner_string() {
+        let addr = ContentAddress::new(VALID_SHA256).unwrap();
+        assert_eq!(addr.as_str(), VALID_SHA256);
+    }
+
+    #[test]
+    fn content_address_full_roundtrip() {
+        let original = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
+        let addr = ContentAddress::new(original).unwrap();
+        let bytes = addr.as_bytes();
+        let roundtripped = ContentAddress::from_bytes(&bytes);
+        assert_eq!(roundtripped.as_str(), original);
+    }
+
+    #[test]
+    fn pack_file_id_new_accepts_non_empty() {
+        let result = PackFileId::new("pack-001");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().as_str(), "pack-001");
+    }
+
+    #[test]
+    fn pack_file_id_new_rejects_empty() {
+        let result = PackFileId::new("");
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, BlobStoreError::InvalidArgument { .. }));
+        assert!(err.to_string().contains("cannot be empty"));
+    }
+
+    #[test]
+    fn pack_file_id_as_str_returns_inner() {
+        let id = PackFileId::new("pack-002").unwrap();
+        assert_eq!(id.as_str(), "pack-002");
+    }
+
+    #[test]
+    fn blob_record_rejects_zero_created_at() {
+        let content_addr = ContentAddress::new(VALID_SHA256).unwrap();
+        let result = BlobRecord::new(content_addr, 1024, 1, 0, None);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, BlobStoreError::InvalidArgument { .. }));
+        assert!(err.to_string().contains("created_at_ms"));
+    }
+
+    #[test]
+    fn blob_record_increment_saturates_at_max() {
+        let content_addr = ContentAddress::new(VALID_SHA256).unwrap();
+        let record = BlobRecord::new(content_addr, 1024, u64::MAX, 1000, None).unwrap();
+        assert_eq!(record.increment_ref_count(), u64::MAX);
+    }
+
+    #[test]
+    fn blob_record_decrement_saturates_at_zero() {
+        let content_addr = ContentAddress::new(VALID_SHA256).unwrap();
+        let record = BlobRecord::new(content_addr, 1024, 0, 1000, None);
+        assert!(record.is_err());
+    }
+
+    #[test]
+    fn blob_record_decrement_from_one_saturates_at_zero() {
+        let content_addr = ContentAddress::new(VALID_SHA256).unwrap();
+        let record = BlobRecord::new(content_addr, 1024, 1, 1000, None).unwrap();
+        assert_eq!(record.decrement_ref_count(), 0);
+    }
+
+    #[test]
+    fn error_content_not_found_display() {
+        let err = BlobStoreError::ContentNotFound {
+            content_addr: "abc123".to_string(),
+        };
+        let s = err.to_string();
+        assert!(s.contains("content not found"));
+        assert!(s.contains("abc123"));
+    }
+
+    #[test]
+    fn error_pack_file_not_found_display() {
+        let err = BlobStoreError::PackFileNotFound {
+            pack_file_id: "pack-001".to_string(),
+        };
+        let s = err.to_string();
+        assert!(s.contains("pack file not found"));
+        assert!(s.contains("pack-001"));
+    }
+
+    #[test]
+    fn error_duplicate_content_display() {
+        let err = BlobStoreError::DuplicateContent {
+            content_addr: "def456".to_string(),
+        };
+        let s = err.to_string();
+        assert!(s.contains("duplicate content"));
+        assert!(s.contains("def456"));
+    }
+
+    #[test]
+    fn error_corrupt_pack_index_display() {
+        let err = BlobStoreError::CorruptPackIndex {
+            reason: "missing field".to_string(),
+        };
+        let s = err.to_string();
+        assert!(s.contains("corrupt pack index"));
+        assert!(s.contains("missing field"));
+    }
+
+    #[test]
+    fn error_corrupt_pack_file_display() {
+        let err = BlobStoreError::CorruptPackFile {
+            pack_file_id: "pack-002".to_string(),
+            reason: "truncated".to_string(),
+        };
+        let s = err.to_string();
+        assert!(s.contains("corrupt pack file pack-002"));
+        assert!(s.contains("truncated"));
+    }
+
+    #[test]
+    fn error_checksum_mismatch_display() {
+        let err = BlobStoreError::ChecksumMismatch {
+            content_addr: "abc".to_string(),
+            expected: "expected_hash".to_string(),
+            actual: "actual_hash".to_string(),
+        };
+        let s = err.to_string();
+        assert!(s.contains("checksum mismatch"));
+        assert!(s.contains("abc"));
+        assert!(s.contains("expected_hash"));
+        assert!(s.contains("actual_hash"));
+    }
+
+    #[test]
+    fn error_serialization_failed_display() {
+        let err = BlobStoreError::SerializationFailed {
+            reason: "JSON error".to_string(),
+        };
+        let s = err.to_string();
+        assert!(s.contains("serialization failed"));
+        assert!(s.contains("JSON error"));
+    }
+
+    #[test]
+    fn error_deserialization_failed_display() {
+        let err = BlobStoreError::DeserializationFailed {
+            reason: "invalid JSON".to_string(),
+        };
+        let s = err.to_string();
+        assert!(s.contains("deserialization failed"));
+        assert!(s.contains("invalid JSON"));
+    }
+
+    #[test]
+    fn error_storage_display() {
+        let err = BlobStoreError::Storage {
+            reason: "disk full".to_string(),
+        };
+        let s = err.to_string();
+        assert!(s.contains("storage error"));
+        assert!(s.contains("disk full"));
+    }
+
+    #[test]
+    fn error_invalid_argument_display() {
+        let err = BlobStoreError::InvalidArgument {
+            reason: "bad input".to_string(),
+        };
+        let s = err.to_string();
+        assert!(s.contains("invalid argument"));
+        assert!(s.contains("bad input"));
+    }
+
+    #[test]
+    fn error_gc_cycle_in_progress_display() {
+        let err = BlobStoreError::GcCycleInProgress;
+        let s = err.to_string();
+        assert!(s.contains("GC cycle already in progress"));
+    }
+
+    #[test]
+    fn error_pack_file_full_display() {
+        let err = BlobStoreError::PackFileFull {
+            pack_file_id: "pack-003".to_string(),
+            max_size_bytes: 1000,
+        };
+        let s = err.to_string();
+        assert!(s.contains("pack file pack-003 full"));
+        assert!(s.contains("1000"));
+    }
+
+    #[test]
+    fn all_blob_store_error_variants_implement_error_trait() {
+        fn assert_impl<T: std::error::Error>() {}
+        assert_impl::<BlobStoreError>();
+    }
+
+    #[test]
+    fn encode_content_address_produces_valid_utf8() {
+        let addr = ContentAddress::new(VALID_SHA256).unwrap();
+        let encoded = encode_content_address(&addr);
+        let as_str = String::from_utf8(encoded.clone()).unwrap();
+        assert_eq!(as_str, VALID_SHA256);
+    }
+
+    #[test]
+    fn decode_content_address_rejects_invalid_utf8() {
+        let invalid_utf8 = [0x80, 0x81, 0x82, 0x83];
+        let result = decode_content_address(&invalid_utf8);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, BlobStoreError::CorruptPackIndex { .. }));
+    }
+
+    #[test]
+    fn decode_content_address_rejects_invalid_format() {
+        let invalid_format = b"not-a-valid-content-address".to_vec();
+        let result = decode_content_address(&invalid_format);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn decode_content_address_rejects_wrong_length() {
+        let too_short = b"abc123".to_vec();
+        let result = decode_content_address(&too_short);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn encode_pack_index_entry_and_decode_roundtrip() {
+        let content_addr = ContentAddress::new(VALID_SHA256).unwrap();
+        let pack_id = PackFileId::new("pack-001").unwrap();
+        let entry = PackIndexEntry::new(content_addr, pack_id, 100, 512);
+        let encoded = encode_pack_index_entry(&entry).unwrap();
+        let decoded = decode_pack_index_entry(&encoded).unwrap();
+        assert_eq!(decoded.content_addr(), entry.content_addr());
+        assert_eq!(decoded.pack_file_id(), entry.pack_file_id());
+        assert_eq!(decoded.offset_bytes(), entry.offset_bytes());
+        assert_eq!(decoded.size_bytes(), entry.size_bytes());
+    }
+
+    #[test]
+    fn encode_blob_record_and_decode_roundtrip() {
+        let content_addr = ContentAddress::new(VALID_SHA256).unwrap();
+        let record = BlobRecord::new(content_addr, 1024, 1, 1000, Some(2000)).unwrap();
+        let encoded = encode_blob_record(&record).unwrap();
+        let decoded = decode_blob_record(&encoded).unwrap();
+        assert_eq!(decoded.content_addr(), record.content_addr());
+        assert_eq!(decoded.size_bytes(), record.size_bytes());
+        assert_eq!(decoded.reference_count(), record.reference_count());
+        assert_eq!(decoded.created_at_ms(), record.created_at_ms());
+        assert_eq!(decoded.expires_at_ms(), record.expires_at_ms());
+    }
+
+    #[test]
+    fn decode_pack_index_entry_rejects_invalid_json() {
+        let invalid_json = b"not json".to_vec();
+        let result = decode_pack_index_entry(&invalid_json);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, BlobStoreError::DeserializationFailed { .. }));
+    }
+
+    #[test]
+    fn decode_blob_record_rejects_invalid_json() {
+        let invalid_json = b"not json".to_vec();
+        let result = decode_blob_record(&invalid_json);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, BlobStoreError::DeserializationFailed { .. }));
+    }
+}
+
+#[cfg(feature = "proptest")]
+mod proptests {
+    use super::*;
+    use proptest::prelude::*;
+
+    proptest! {
+        #[test]
+        fn content_address_byte_roundtrip(bytes: [u8; 32]) {
+            let addr = ContentAddress::from_bytes(&bytes);
+            let recovered = addr.as_bytes();
+            prop_assert_eq!(recovered, bytes);
+        }
+
+        #[test]
+        fn content_address_str_validity(hex in "[a-f0-9]{64}") {
+            let addr = ContentAddress::new(&hex);
+            prop_assert!(addr.is_ok());
+            let addr = addr.unwrap();
+            prop_assert_eq!(addr.as_str().len(), 64);
+            prop_assert!(addr.as_str().chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()));
+        }
+
+        #[test]
+        fn content_address_from_bytes_to_str_roundtrip(bytes: [u8; 32]) {
+            let addr = ContentAddress::from_bytes(&bytes);
+            let hex_str = addr.as_str();
+            let roundtripped = ContentAddress::new(hex_str).unwrap();
+            prop_assert_eq!(addr, roundtripped);
+        }
+
+        #[test]
+        fn pack_file_id_rejects_empty(id in "[a-zA-Z0-9_-]*") {
+            if id.is_empty() {
+                prop_assert!(PackFileId::new(&id).is_err());
+            } else {
+                prop_assert!(PackFileId::new(&id).is_ok());
+            }
+        }
+
+        #[test]
+        fn blob_record_ref_count_increment_saturates(ref_count: u64) {
+            let content_addr = ContentAddress::new("9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08").unwrap();
+            let record = BlobRecord::new(content_addr, 1024, ref_count, 1000, None).ok();
+            if let Some(record) = record {
+                let incremented = record.increment_ref_count();
+                prop_assert!(incremented >= ref_count);
+                if ref_count < u64::MAX {
+                    prop_assert_eq!(incremented, ref_count + 1);
+                } else {
+                    prop_assert_eq!(incremented, u64::MAX);
+                }
+            }
+        }
+
+        #[test]
+        fn blob_record_expiry_is_monotonic(
+            ref_count in 1u64..100u64,
+            created_at in 1u64..u64::MAX.saturating_sub(1000),
+            expires_at in 1u64..u64::MAX,
+        ) {
+            let content_addr = ContentAddress::new("9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08").unwrap();
+            let record = BlobRecord::new(content_addr, 1024, ref_count, created_at, Some(expires_at)).unwrap();
+            let now = expires_at.saturating_sub(1);
+            let later = expires_at.saturating_add(1);
+            let is_expired_now = record.is_expired(now);
+            let is_expired_later = record.is_expired(later);
+            if is_expired_now {
+                prop_assert!(is_expired_later);
+            }
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn content_address_encoding_roundtrip(bytes: [u8; 32]) {
+            let addr = ContentAddress::from_bytes(&bytes);
+            let encoded = encode_content_address(&addr);
+            let decoded = decode_content_address(&encoded).unwrap();
+            prop_assert_eq!(addr, decoded);
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn pack_index_entry_roundtrip(
+            content in "[a-f0-9]{64}",
+            pack_id in "[a-zA-Z0-9_-]{1,100}",
+            offset in 0u64..u64::MAX,
+            size in 0u64..u64::MAX,
+        ) {
+            let content_addr = ContentAddress::new(&content).unwrap();
+            let pack_id = PackFileId::new(&pack_id).unwrap();
+            let entry = PackIndexEntry::new(content_addr, pack_id, offset, size);
+            let encoded = encode_pack_index_entry(&entry).unwrap();
+            let decoded = decode_pack_index_entry(&encoded).unwrap();
+            prop_assert_eq!(decoded.content_addr(), entry.content_addr());
+            prop_assert_eq!(decoded.pack_file_id(), entry.pack_file_id());
+            prop_assert_eq!(decoded.offset_bytes(), entry.offset_bytes());
+            prop_assert_eq!(decoded.size_bytes(), entry.size_bytes());
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn blob_record_roundtrip(
+            content in "[a-f0-9]{64}",
+            size in 0u64..u64::MAX,
+            ref_count in 1u64..u64::MAX,
+            created_at in 1u64..u64::MAX,
+            has_expiry in any::<bool>(),
+            expires_offset in 0u64..10000u64,
+        ) {
+            let content_addr = ContentAddress::new(&content).unwrap();
+            let expires_at_ms = if has_expiry {
+                Some(created_at.saturating_add(expires_offset))
+            } else {
+                None
+            };
+            let record = BlobRecord::new(content_addr, size, ref_count, created_at, expires_at_ms).unwrap();
+            let encoded = encode_blob_record(&record).unwrap();
+            let decoded = decode_blob_record(&encoded).unwrap();
+            prop_assert_eq!(decoded.content_addr(), record.content_addr());
+            prop_assert_eq!(decoded.size_bytes(), record.size_bytes());
+            prop_assert_eq!(decoded.reference_count(), record.reference_count());
+            prop_assert_eq!(decoded.created_at_ms(), record.created_at_ms());
+            prop_assert_eq!(decoded.expires_at_ms(), record.expires_at_ms());
+        }
+    }
 }
