@@ -7,8 +7,8 @@
 use std::collections::HashSet;
 
 use super::domain_types::{
-    NodeTemplateId, RenderContext, SerializationReason, TemplateCategory, TemplateDescriptor,
-    TemplateError, ValidationViolation,
+    NodeTemplateId, RenderContext, SerializationReason, TemplateCategory, TemplateError,
+    ValidationViolation,
 };
 use super::prototype_palette::{generate_skeleton, SketchNode};
 
