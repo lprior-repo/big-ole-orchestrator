@@ -375,6 +375,12 @@ mod tests {
     }
 
     #[test]
+    fn rotation_failure_reason_display_decryption_error() {
+        let reason = RotationFailureReason::DecryptionError("key corrupted".to_string());
+        assert_eq!(format!("{}", reason), "DecryptionError(key corrupted)");
+    }
+
+    #[test]
     fn permission_display_read() {
         assert_eq!(format!("{}", Permission::Read), "read");
     }
