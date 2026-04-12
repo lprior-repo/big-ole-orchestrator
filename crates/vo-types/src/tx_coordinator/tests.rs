@@ -394,3 +394,1001 @@ fn coordinator_transition_all_variants_returns_twelve_variants() {
     let variants = CoordinatorTransition::all_variants();
     assert_eq!(variants.len(), 12);
 }
+
+// ========================================================================
+// INV-TC-003: Terminal State Rejection Tests — Complete Coverage
+// Terminal states (Committed, RolledBack, Aborted) must reject ALL 12 events.
+// Currently only BeginEnroll is tested against terminal states.
+// ========================================================================
+
+#[test]
+fn terminal_committed_rejects_begin_prepare() {
+    let result = apply_coordinator_transition(
+        TransactionState::Committed,
+        CoordinatorTransition::BeginPrepare,
+    );
+    assert_eq!(
+        result,
+        Err(CoordinatorTransitionError::TerminalStateTransition)
+    );
+}
+
+#[test]
+fn terminal_committed_rejects_participant_prepared() {
+    let result = apply_coordinator_transition(
+        TransactionState::Committed,
+        CoordinatorTransition::ParticipantPrepared,
+    );
+    assert_eq!(
+        result,
+        Err(CoordinatorTransitionError::TerminalStateTransition)
+    );
+}
+
+#[test]
+fn terminal_committed_rejects_participant_rollback() {
+    let result = apply_coordinator_transition(
+        TransactionState::Committed,
+        CoordinatorTransition::ParticipantRollback,
+    );
+    assert_eq!(
+        result,
+        Err(CoordinatorTransitionError::TerminalStateTransition)
+    );
+}
+
+#[test]
+fn terminal_committed_rejects_all_responded() {
+    let result = apply_coordinator_transition(
+        TransactionState::Committed,
+        CoordinatorTransition::AllResponded,
+    );
+    assert_eq!(
+        result,
+        Err(CoordinatorTransitionError::TerminalStateTransition)
+    );
+}
+
+#[test]
+fn terminal_committed_rejects_decide_commit() {
+    let result = apply_coordinator_transition(
+        TransactionState::Committed,
+        CoordinatorTransition::DecideCommit,
+    );
+    assert_eq!(
+        result,
+        Err(CoordinatorTransitionError::TerminalStateTransition)
+    );
+}
+
+#[test]
+fn terminal_committed_rejects_decide_rollback() {
+    let result = apply_coordinator_transition(
+        TransactionState::Committed,
+        CoordinatorTransition::DecideRollback,
+    );
+    assert_eq!(
+        result,
+        Err(CoordinatorTransitionError::TerminalStateTransition)
+    );
+}
+
+#[test]
+fn terminal_committed_rejects_timeout() {
+    let result =
+        apply_coordinator_transition(TransactionState::Committed, CoordinatorTransition::Timeout);
+    assert_eq!(
+        result,
+        Err(CoordinatorTransitionError::TerminalStateTransition)
+    );
+}
+
+#[test]
+fn terminal_committed_rejects_recover() {
+    let result =
+        apply_coordinator_transition(TransactionState::Committed, CoordinatorTransition::Recover);
+    assert_eq!(
+        result,
+        Err(CoordinatorTransitionError::TerminalStateTransition)
+    );
+}
+
+#[test]
+fn terminal_committed_rejects_reconcile_committed() {
+    let result = apply_coordinator_transition(
+        TransactionState::Committed,
+        CoordinatorTransition::ReconcileCommitted,
+    );
+    assert_eq!(
+        result,
+        Err(CoordinatorTransitionError::TerminalStateTransition)
+    );
+}
+
+#[test]
+fn terminal_committed_rejects_reconcile_rolled_back() {
+    let result = apply_coordinator_transition(
+        TransactionState::Committed,
+        CoordinatorTransition::ReconcileRolledBack,
+    );
+    assert_eq!(
+        result,
+        Err(CoordinatorTransitionError::TerminalStateTransition)
+    );
+}
+
+#[test]
+fn terminal_committed_rejects_reconcile_retry() {
+    let result = apply_coordinator_transition(
+        TransactionState::Committed,
+        CoordinatorTransition::ReconcileRetry,
+    );
+    assert_eq!(
+        result,
+        Err(CoordinatorTransitionError::TerminalStateTransition)
+    );
+}
+
+#[test]
+fn terminal_rolled_back_rejects_begin_prepare() {
+    let result = apply_coordinator_transition(
+        TransactionState::RolledBack,
+        CoordinatorTransition::BeginPrepare,
+    );
+    assert_eq!(
+        result,
+        Err(CoordinatorTransitionError::TerminalStateTransition)
+    );
+}
+
+#[test]
+fn terminal_rolled_back_rejects_participant_prepared() {
+    let result = apply_coordinator_transition(
+        TransactionState::RolledBack,
+        CoordinatorTransition::ParticipantPrepared,
+    );
+    assert_eq!(
+        result,
+        Err(CoordinatorTransitionError::TerminalStateTransition)
+    );
+}
+
+#[test]
+fn terminal_rolled_back_rejects_participant_rollback() {
+    let result = apply_coordinator_transition(
+        TransactionState::RolledBack,
+        CoordinatorTransition::ParticipantRollback,
+    );
+    assert_eq!(
+        result,
+        Err(CoordinatorTransitionError::TerminalStateTransition)
+    );
+}
+
+#[test]
+fn terminal_rolled_back_rejects_all_responded() {
+    let result = apply_coordinator_transition(
+        TransactionState::RolledBack,
+        CoordinatorTransition::AllResponded,
+    );
+    assert_eq!(
+        result,
+        Err(CoordinatorTransitionError::TerminalStateTransition)
+    );
+}
+
+#[test]
+fn terminal_rolled_back_rejects_decide_commit() {
+    let result = apply_coordinator_transition(
+        TransactionState::RolledBack,
+        CoordinatorTransition::DecideCommit,
+    );
+    assert_eq!(
+        result,
+        Err(CoordinatorTransitionError::TerminalStateTransition)
+    );
+}
+
+#[test]
+fn terminal_rolled_back_rejects_decide_rollback() {
+    let result = apply_coordinator_transition(
+        TransactionState::RolledBack,
+        CoordinatorTransition::DecideRollback,
+    );
+    assert_eq!(
+        result,
+        Err(CoordinatorTransitionError::TerminalStateTransition)
+    );
+}
+
+#[test]
+fn terminal_rolled_back_rejects_timeout() {
+    let result =
+        apply_coordinator_transition(TransactionState::RolledBack, CoordinatorTransition::Timeout);
+    assert_eq!(
+        result,
+        Err(CoordinatorTransitionError::TerminalStateTransition)
+    );
+}
+
+#[test]
+fn terminal_rolled_back_rejects_recover() {
+    let result =
+        apply_coordinator_transition(TransactionState::RolledBack, CoordinatorTransition::Recover);
+    assert_eq!(
+        result,
+        Err(CoordinatorTransitionError::TerminalStateTransition)
+    );
+}
+
+#[test]
+fn terminal_rolled_back_rejects_reconcile_committed() {
+    let result = apply_coordinator_transition(
+        TransactionState::RolledBack,
+        CoordinatorTransition::ReconcileCommitted,
+    );
+    assert_eq!(
+        result,
+        Err(CoordinatorTransitionError::TerminalStateTransition)
+    );
+}
+
+#[test]
+fn terminal_rolled_back_rejects_reconcile_rolled_back() {
+    let result = apply_coordinator_transition(
+        TransactionState::RolledBack,
+        CoordinatorTransition::ReconcileRolledBack,
+    );
+    assert_eq!(
+        result,
+        Err(CoordinatorTransitionError::TerminalStateTransition)
+    );
+}
+
+#[test]
+fn terminal_rolled_back_rejects_reconcile_retry() {
+    let result = apply_coordinator_transition(
+        TransactionState::RolledBack,
+        CoordinatorTransition::ReconcileRetry,
+    );
+    assert_eq!(
+        result,
+        Err(CoordinatorTransitionError::TerminalStateTransition)
+    );
+}
+
+#[test]
+fn terminal_aborted_rejects_begin_prepare() {
+    let result = apply_coordinator_transition(
+        TransactionState::Aborted,
+        CoordinatorTransition::BeginPrepare,
+    );
+    assert_eq!(
+        result,
+        Err(CoordinatorTransitionError::TerminalStateTransition)
+    );
+}
+
+#[test]
+fn terminal_aborted_rejects_participant_prepared() {
+    let result = apply_coordinator_transition(
+        TransactionState::Aborted,
+        CoordinatorTransition::ParticipantPrepared,
+    );
+    assert_eq!(
+        result,
+        Err(CoordinatorTransitionError::TerminalStateTransition)
+    );
+}
+
+#[test]
+fn terminal_aborted_rejects_participant_rollback() {
+    let result = apply_coordinator_transition(
+        TransactionState::Aborted,
+        CoordinatorTransition::ParticipantRollback,
+    );
+    assert_eq!(
+        result,
+        Err(CoordinatorTransitionError::TerminalStateTransition)
+    );
+}
+
+#[test]
+fn terminal_aborted_rejects_all_responded() {
+    let result = apply_coordinator_transition(
+        TransactionState::Aborted,
+        CoordinatorTransition::AllResponded,
+    );
+    assert_eq!(
+        result,
+        Err(CoordinatorTransitionError::TerminalStateTransition)
+    );
+}
+
+#[test]
+fn terminal_aborted_rejects_decide_commit() {
+    let result = apply_coordinator_transition(
+        TransactionState::Aborted,
+        CoordinatorTransition::DecideCommit,
+    );
+    assert_eq!(
+        result,
+        Err(CoordinatorTransitionError::TerminalStateTransition)
+    );
+}
+
+#[test]
+fn terminal_aborted_rejects_decide_rollback() {
+    let result = apply_coordinator_transition(
+        TransactionState::Aborted,
+        CoordinatorTransition::DecideRollback,
+    );
+    assert_eq!(
+        result,
+        Err(CoordinatorTransitionError::TerminalStateTransition)
+    );
+}
+
+#[test]
+fn terminal_aborted_rejects_timeout() {
+    let result =
+        apply_coordinator_transition(TransactionState::Aborted, CoordinatorTransition::Timeout);
+    assert_eq!(
+        result,
+        Err(CoordinatorTransitionError::TerminalStateTransition)
+    );
+}
+
+#[test]
+fn terminal_aborted_rejects_recover() {
+    let result =
+        apply_coordinator_transition(TransactionState::Aborted, CoordinatorTransition::Recover);
+    assert_eq!(
+        result,
+        Err(CoordinatorTransitionError::TerminalStateTransition)
+    );
+}
+
+#[test]
+fn terminal_aborted_rejects_reconcile_committed() {
+    let result = apply_coordinator_transition(
+        TransactionState::Aborted,
+        CoordinatorTransition::ReconcileCommitted,
+    );
+    assert_eq!(
+        result,
+        Err(CoordinatorTransitionError::TerminalStateTransition)
+    );
+}
+
+#[test]
+fn terminal_aborted_rejects_reconcile_rolled_back() {
+    let result = apply_coordinator_transition(
+        TransactionState::Aborted,
+        CoordinatorTransition::ReconcileRolledBack,
+    );
+    assert_eq!(
+        result,
+        Err(CoordinatorTransitionError::TerminalStateTransition)
+    );
+}
+
+#[test]
+fn terminal_aborted_rejects_reconcile_retry() {
+    let result = apply_coordinator_transition(
+        TransactionState::Aborted,
+        CoordinatorTransition::ReconcileRetry,
+    );
+    assert_eq!(
+        result,
+        Err(CoordinatorTransitionError::TerminalStateTransition)
+    );
+}
+
+// ========================================================================
+// INV-TC-005: Recover Transition Tests from Non-Terminal States
+// All non-terminal states must transition to Ambiguous on Recover.
+// ========================================================================
+
+#[test]
+fn recover_from_init_transitions_to_ambiguous() {
+    let result =
+        apply_coordinator_transition(TransactionState::Init, CoordinatorTransition::Recover);
+    assert_eq!(result, Ok(TransactionState::Ambiguous));
+}
+
+#[test]
+fn recover_from_enrolling_transitions_to_ambiguous() {
+    let result =
+        apply_coordinator_transition(TransactionState::Enrolling, CoordinatorTransition::Recover);
+    assert_eq!(result, Ok(TransactionState::Ambiguous));
+}
+
+#[test]
+fn recover_from_preparing_transitions_to_ambiguous() {
+    let result =
+        apply_coordinator_transition(TransactionState::Preparing, CoordinatorTransition::Recover);
+    assert_eq!(result, Ok(TransactionState::Ambiguous));
+}
+
+#[test]
+fn recover_from_prepared_transitions_to_ambiguous() {
+    let result =
+        apply_coordinator_transition(TransactionState::Prepared, CoordinatorTransition::Recover);
+    assert_eq!(result, Ok(TransactionState::Ambiguous));
+}
+
+#[test]
+fn recover_from_committing_transitions_to_ambiguous() {
+    let result =
+        apply_coordinator_transition(TransactionState::Committing, CoordinatorTransition::Recover);
+    assert_eq!(result, Ok(TransactionState::Ambiguous));
+}
+
+#[test]
+fn recover_from_rolling_back_transitions_to_ambiguous() {
+    let result = apply_coordinator_transition(
+        TransactionState::RollingBack,
+        CoordinatorTransition::Recover,
+    );
+    assert_eq!(result, Ok(TransactionState::Ambiguous));
+}
+
+#[test]
+fn recover_from_ambiguous_transitions_to_ambiguous() {
+    let result =
+        apply_coordinator_transition(TransactionState::Ambiguous, CoordinatorTransition::Recover);
+    assert_eq!(result, Ok(TransactionState::Ambiguous));
+}
+
+// ========================================================================
+// INV-TC-010: Prepared State Validation Tests
+// Prepared state must reject all events except DecideCommit, DecideRollback, Timeout.
+// ========================================================================
+
+#[test]
+fn prepared_rejects_begin_enroll() {
+    let result = apply_coordinator_transition(
+        TransactionState::Prepared,
+        CoordinatorTransition::BeginEnroll,
+    );
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn prepared_rejects_begin_prepare() {
+    let result = apply_coordinator_transition(
+        TransactionState::Prepared,
+        CoordinatorTransition::BeginPrepare,
+    );
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn prepared_rejects_participant_prepared() {
+    let result = apply_coordinator_transition(
+        TransactionState::Prepared,
+        CoordinatorTransition::ParticipantPrepared,
+    );
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn prepared_rejects_participant_rollback() {
+    let result = apply_coordinator_transition(
+        TransactionState::Prepared,
+        CoordinatorTransition::ParticipantRollback,
+    );
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn prepared_rejects_all_responded() {
+    let result = apply_coordinator_transition(
+        TransactionState::Prepared,
+        CoordinatorTransition::AllResponded,
+    );
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn prepared_rejects_reconcile_committed() {
+    let result = apply_coordinator_transition(
+        TransactionState::Prepared,
+        CoordinatorTransition::ReconcileCommitted,
+    );
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn prepared_rejects_reconcile_rolled_back() {
+    let result = apply_coordinator_transition(
+        TransactionState::Prepared,
+        CoordinatorTransition::ReconcileRolledBack,
+    );
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn prepared_rejects_reconcile_retry() {
+    let result = apply_coordinator_transition(
+        TransactionState::Prepared,
+        CoordinatorTransition::ReconcileRetry,
+    );
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+// ========================================================================
+// INV-TC-014: is_terminal Completeness Tests
+// All 10 TransactionState variants must be tested for is_terminal().
+// Currently only Committed, RolledBack, Aborted, Ambiguous, Prepared tested.
+// ========================================================================
+
+#[test]
+fn is_terminal_returns_false_for_init() {
+    assert!(!TransactionState::Init.is_terminal());
+}
+
+#[test]
+fn is_terminal_returns_false_for_enrolling() {
+    assert!(!TransactionState::Enrolling.is_terminal());
+}
+
+#[test]
+fn is_terminal_returns_false_for_preparing() {
+    assert!(!TransactionState::Preparing.is_terminal());
+}
+
+#[test]
+fn is_terminal_returns_false_for_committing() {
+    assert!(!TransactionState::Committing.is_terminal());
+}
+
+#[test]
+fn is_terminal_returns_false_for_rolling_back() {
+    assert!(!TransactionState::RollingBack.is_terminal());
+}
+
+// ========================================================================
+// INV-TC-011: Invalid Transition Completeness Tests
+// All invalid (state, event) combinations must be tested.
+// Excludes already-tested valid transitions and terminal rejections.
+// ========================================================================
+
+#[test]
+fn init_rejects_begin_prepare() {
+    let result =
+        apply_coordinator_transition(TransactionState::Init, CoordinatorTransition::BeginPrepare);
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn init_rejects_all_responded() {
+    let result =
+        apply_coordinator_transition(TransactionState::Init, CoordinatorTransition::AllResponded);
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn init_rejects_decide_commit() {
+    let result =
+        apply_coordinator_transition(TransactionState::Init, CoordinatorTransition::DecideCommit);
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn init_rejects_decide_rollback() {
+    let result = apply_coordinator_transition(
+        TransactionState::Init,
+        CoordinatorTransition::DecideRollback,
+    );
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn init_rejects_timeout() {
+    let result =
+        apply_coordinator_transition(TransactionState::Init, CoordinatorTransition::Timeout);
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn init_rejects_reconcile_committed() {
+    let result = apply_coordinator_transition(
+        TransactionState::Init,
+        CoordinatorTransition::ReconcileCommitted,
+    );
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn init_rejects_reconcile_rolled_back() {
+    let result = apply_coordinator_transition(
+        TransactionState::Init,
+        CoordinatorTransition::ReconcileRolledBack,
+    );
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn enrolling_rejects_begin_enroll() {
+    let result = apply_coordinator_transition(
+        TransactionState::Enrolling,
+        CoordinatorTransition::BeginEnroll,
+    );
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn enrolling_rejects_participant_prepared() {
+    let result = apply_coordinator_transition(
+        TransactionState::Enrolling,
+        CoordinatorTransition::ParticipantPrepared,
+    );
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn enrolling_rejects_participant_rollback() {
+    let result = apply_coordinator_transition(
+        TransactionState::Enrolling,
+        CoordinatorTransition::ParticipantRollback,
+    );
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn enrolling_rejects_all_responded() {
+    let result = apply_coordinator_transition(
+        TransactionState::Enrolling,
+        CoordinatorTransition::AllResponded,
+    );
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn enrolling_rejects_decide_commit() {
+    let result = apply_coordinator_transition(
+        TransactionState::Enrolling,
+        CoordinatorTransition::DecideCommit,
+    );
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn enrolling_rejects_decide_rollback() {
+    let result = apply_coordinator_transition(
+        TransactionState::Enrolling,
+        CoordinatorTransition::DecideRollback,
+    );
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn enrolling_rejects_timeout() {
+    let result =
+        apply_coordinator_transition(TransactionState::Enrolling, CoordinatorTransition::Timeout);
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn enrolling_rejects_reconcile_committed() {
+    let result = apply_coordinator_transition(
+        TransactionState::Enrolling,
+        CoordinatorTransition::ReconcileCommitted,
+    );
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn enrolling_rejects_reconcile_rolled_back() {
+    let result = apply_coordinator_transition(
+        TransactionState::Enrolling,
+        CoordinatorTransition::ReconcileRolledBack,
+    );
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn enrolling_rejects_reconcile_retry() {
+    let result = apply_coordinator_transition(
+        TransactionState::Enrolling,
+        CoordinatorTransition::ReconcileRetry,
+    );
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn preparing_rejects_begin_enroll() {
+    let result = apply_coordinator_transition(
+        TransactionState::Preparing,
+        CoordinatorTransition::BeginEnroll,
+    );
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn preparing_rejects_begin_prepare() {
+    let result = apply_coordinator_transition(
+        TransactionState::Preparing,
+        CoordinatorTransition::BeginPrepare,
+    );
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn preparing_rejects_decide_commit() {
+    let result = apply_coordinator_transition(
+        TransactionState::Preparing,
+        CoordinatorTransition::DecideCommit,
+    );
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn preparing_rejects_decide_rollback() {
+    let result = apply_coordinator_transition(
+        TransactionState::Preparing,
+        CoordinatorTransition::DecideRollback,
+    );
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn preparing_rejects_reconcile_committed() {
+    let result = apply_coordinator_transition(
+        TransactionState::Preparing,
+        CoordinatorTransition::ReconcileCommitted,
+    );
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn preparing_rejects_reconcile_rolled_back() {
+    let result = apply_coordinator_transition(
+        TransactionState::Preparing,
+        CoordinatorTransition::ReconcileRolledBack,
+    );
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn preparing_rejects_reconcile_retry() {
+    let result = apply_coordinator_transition(
+        TransactionState::Preparing,
+        CoordinatorTransition::ReconcileRetry,
+    );
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn committing_rejects_begin_enroll() {
+    let result = apply_coordinator_transition(
+        TransactionState::Committing,
+        CoordinatorTransition::BeginEnroll,
+    );
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn committing_rejects_begin_prepare() {
+    let result = apply_coordinator_transition(
+        TransactionState::Committing,
+        CoordinatorTransition::BeginPrepare,
+    );
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn committing_rejects_participant_prepared() {
+    let result = apply_coordinator_transition(
+        TransactionState::Committing,
+        CoordinatorTransition::ParticipantPrepared,
+    );
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn committing_rejects_participant_rollback() {
+    let result = apply_coordinator_transition(
+        TransactionState::Committing,
+        CoordinatorTransition::ParticipantRollback,
+    );
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn committing_rejects_decide_commit() {
+    let result = apply_coordinator_transition(
+        TransactionState::Committing,
+        CoordinatorTransition::DecideCommit,
+    );
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn committing_rejects_decide_rollback() {
+    let result = apply_coordinator_transition(
+        TransactionState::Committing,
+        CoordinatorTransition::DecideRollback,
+    );
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn committing_rejects_reconcile_committed() {
+    let result = apply_coordinator_transition(
+        TransactionState::Committing,
+        CoordinatorTransition::ReconcileCommitted,
+    );
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn committing_rejects_reconcile_rolled_back() {
+    let result = apply_coordinator_transition(
+        TransactionState::Committing,
+        CoordinatorTransition::ReconcileRolledBack,
+    );
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn committing_rejects_reconcile_retry() {
+    let result = apply_coordinator_transition(
+        TransactionState::Committing,
+        CoordinatorTransition::ReconcileRetry,
+    );
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn rolling_back_rejects_begin_enroll() {
+    let result = apply_coordinator_transition(
+        TransactionState::RollingBack,
+        CoordinatorTransition::BeginEnroll,
+    );
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn rolling_back_rejects_begin_prepare() {
+    let result = apply_coordinator_transition(
+        TransactionState::RollingBack,
+        CoordinatorTransition::BeginPrepare,
+    );
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn rolling_back_rejects_participant_prepared() {
+    let result = apply_coordinator_transition(
+        TransactionState::RollingBack,
+        CoordinatorTransition::ParticipantPrepared,
+    );
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn rolling_back_rejects_participant_rollback() {
+    let result = apply_coordinator_transition(
+        TransactionState::RollingBack,
+        CoordinatorTransition::ParticipantRollback,
+    );
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn rolling_back_rejects_decide_commit() {
+    let result = apply_coordinator_transition(
+        TransactionState::RollingBack,
+        CoordinatorTransition::DecideCommit,
+    );
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn rolling_back_rejects_decide_rollback() {
+    let result = apply_coordinator_transition(
+        TransactionState::RollingBack,
+        CoordinatorTransition::DecideRollback,
+    );
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn rolling_back_rejects_reconcile_committed() {
+    let result = apply_coordinator_transition(
+        TransactionState::RollingBack,
+        CoordinatorTransition::ReconcileCommitted,
+    );
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn rolling_back_rejects_reconcile_rolled_back() {
+    let result = apply_coordinator_transition(
+        TransactionState::RollingBack,
+        CoordinatorTransition::ReconcileRolledBack,
+    );
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn rolling_back_rejects_reconcile_retry() {
+    let result = apply_coordinator_transition(
+        TransactionState::RollingBack,
+        CoordinatorTransition::ReconcileRetry,
+    );
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn ambiguous_rejects_begin_enroll() {
+    let result = apply_coordinator_transition(
+        TransactionState::Ambiguous,
+        CoordinatorTransition::BeginEnroll,
+    );
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn ambiguous_rejects_begin_prepare() {
+    let result = apply_coordinator_transition(
+        TransactionState::Ambiguous,
+        CoordinatorTransition::BeginPrepare,
+    );
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn ambiguous_rejects_participant_prepared() {
+    let result = apply_coordinator_transition(
+        TransactionState::Ambiguous,
+        CoordinatorTransition::ParticipantPrepared,
+    );
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn ambiguous_rejects_participant_rollback() {
+    let result = apply_coordinator_transition(
+        TransactionState::Ambiguous,
+        CoordinatorTransition::ParticipantRollback,
+    );
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn ambiguous_rejects_all_responded() {
+    let result = apply_coordinator_transition(
+        TransactionState::Ambiguous,
+        CoordinatorTransition::AllResponded,
+    );
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn ambiguous_rejects_decide_commit() {
+    let result = apply_coordinator_transition(
+        TransactionState::Ambiguous,
+        CoordinatorTransition::DecideCommit,
+    );
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn ambiguous_rejects_decide_rollback() {
+    let result = apply_coordinator_transition(
+        TransactionState::Ambiguous,
+        CoordinatorTransition::DecideRollback,
+    );
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
+
+#[test]
+fn ambiguous_rejects_timeout() {
+    let result =
+        apply_coordinator_transition(TransactionState::Ambiguous, CoordinatorTransition::Timeout);
+    assert_eq!(result, Err(CoordinatorTransitionError::InvalidTransition));
+}
