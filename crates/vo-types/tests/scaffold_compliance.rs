@@ -34,6 +34,8 @@ const ALLOWED_DEPS: &[&str] = &[
     "ulid",
     "serde_json",
     "proptest",
+    "spqr-tree",
+    "any-rope",
 ];
 
 // ---------------------------------------------------------------------------

@@ -33,6 +33,7 @@ impl fmt::Display for RopeError {
 
 impl std::error::Error for RopeError {}
 
+#[allow(dead_code)]
 pub type Result<T> = std::result::Result<T, RopeError>;
 
 #[cfg(test)]
