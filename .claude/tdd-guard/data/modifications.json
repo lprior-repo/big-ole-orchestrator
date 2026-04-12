@@ -1,0 +1,12 @@
+{
+  "session_id": "f76cb330-c28c-4daa-aa84-3f25a3a7c165",
+  "transcript_path": "/home/lewis/.claude/projects/-home-lewis-gt-veloxide-polecats-settler-veloxide/f76cb330-c28c-4daa-aa84-3f25a3a7c165.jsonl",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Edit",
+  "tool_input": {
+    "file_path": "/home/lewis/gt/veloxide/polecats/settler/veloxide/crates/vo-frontend/src/ui/template_rendering_tests.rs",
+    "old_string": "    assert!(results.iter().any(|t| t.node_type == NodeTemplateId::KafkaHandler));\n}",
+    "new_string": "    assert!(results.iter().any(|t| t.node_type == NodeTemplateId::KafkaHandler));\n}\n\n#[test]\nfn filter_query_trimmed_before_matching() {\n    let results = filtered_templates(\"  timer  \");\n    assert!(results.iter().any(|t| t.node_type == NodeTemplateId::Timer));\n}",
+    "replace_all": false
+  }
+}
