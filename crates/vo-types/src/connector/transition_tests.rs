@@ -2,6 +2,7 @@
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
+#[allow(clippy::module_inception)]
 mod transition_tests {
     use crate::connector::transition::apply_connector_transition;
     use crate::connector::types::{ConnectorState, ConnectorTransition, ConnectorTransitionError};

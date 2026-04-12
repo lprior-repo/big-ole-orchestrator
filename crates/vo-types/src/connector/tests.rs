@@ -2,6 +2,7 @@
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
+#[allow(clippy::module_inception)]
 mod tests {
     use super::super::types::*;
     use rstest::rstest;

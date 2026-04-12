@@ -1,5 +1,7 @@
 //! Cartesian tree: BST by key, min-heap by priority.
 
+#![allow(dead_code)]
+
 use serde::{Deserialize, Serialize};
 
 /// A single node in the Cartesian tree.

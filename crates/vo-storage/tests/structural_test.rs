@@ -81,6 +81,7 @@ impl DependencyChecker {
             "serde",
             "serde_json",
             "sha2",
+            "thiserror",
             "tokio",
             "vo-types",
         ];
@@ -232,6 +233,7 @@ parking_lot = "0.12"
 serde = "1.0"
 serde_json = "1.0"
 sha2 = "0.10"
+thiserror = "1.0"
 tokio = "1.0"
 vo-types = "1.0"
 "#;
@@ -251,6 +253,7 @@ parking_lot = "0.12"
 serde = "1.0"
 serde_json = "1.0"
 sha2 = "0.10"
+thiserror = "1.0"
 tokio = "1.0"
 vo-types = "1.0"
 "#;
@@ -276,6 +279,7 @@ parking_lot = "0.12"
 serde = "1.0"
 serde_json = "1.0"
 sha2 = "0.10"
+thiserror = "1.0"
 tokio = "1.0"
 "#;
     let result = DependencyChecker::validate(toml);
@@ -299,6 +303,7 @@ memmap2 = "0.9"
 parking_lot = "0.12"
 serde_json = "1.0"
 sha2 = "0.10"
+thiserror = "1.0"
 tokio = "1.0"
 vo-types = "1.0"
 "#;
@@ -323,6 +328,7 @@ memmap2 = "0.9"
 parking_lot = "0.12"
 serde = "1.0"
 sha2 = "0.10"
+thiserror = "1.0"
 tokio = "1.0"
 vo-types = "1.0"
 "#;
@@ -348,6 +354,7 @@ parking_lot = "0.12"
 serde = "1.0"
 serde_json = "1.0"
 sha2 = "0.10"
+thiserror = "1.0"
 tokio = "1.0"
 vo-types = "1.0"
 log = "0.4"
@@ -374,6 +381,7 @@ parking_lot = "0.12"
 serde = "1.0"
 serde_json = "1.0"
 sha2 = "0.10"
+thiserror = "1.0"
 tokio = "1.0"
 vo-types = "1.0"
 postgres = "1.0"
@@ -400,6 +408,7 @@ parking_lot = "0.12"
 serde = "1.0"
 serde_json = "1.0"
 sha2 = "0.10"
+thiserror = "1.0"
 tokio = "1.0"
 vo-types = "1.0"
 "#;
@@ -424,6 +433,7 @@ parking_lot = "0.12"
 serde = "1.0"
 serde_json = "1.0"
 sha2 = "0.10"
+thiserror = "1.0"
 tokio = "1.0"
 vo-types = "1.0"
 
@@ -479,6 +489,7 @@ parking_lot = "0.12"
 serde = "1.0"
 serde_json = "1.0"
 sha2 = "0.10"
+thiserror = "1.0"
 tokio = "1.0"
 vo-types = "1.0"
 
@@ -507,6 +518,7 @@ parking_lot = "0.12"
 serde = "1.0"
 serde_json = "1.0"
 sha2 = "0.10"
+thiserror = "1.0"
 tokio = "1.0"
 vo-types = "1.0"
 
@@ -535,6 +547,7 @@ parking_lot = "0.12"
 serde = "1.0"
 serde_json = "1.0"
 sha2 = "0.10"
+thiserror = "1.0"
 tokio = "1.0"
 vo-types = "1.0"
 serde_json_core = "1.0"
@@ -563,6 +576,7 @@ parking_lot = "0.12"
 serde = "1.0"
 serde_json = "1.0"
 sha2 = "0.10"
+thiserror = "1.0"
 tokio = "1.0"
 vo-types = "1.0"
 {}
@@ -588,6 +602,7 @@ parking_lot = "0.12"
 serde = "1.0"
 serde_json = "1.0"
 sha2 = "0.10"
+thiserror = "1.0"
 tokio = "1.0"
 vo-types = "1.0"
 {}
@@ -844,7 +859,7 @@ fn checker_returns_error_when_validating_real_project_with_missing_module_on_dis
     let temp_dir = tempfile::tempdir().unwrap();
     std::fs::write(
         temp_dir.path().join("Cargo.toml"),
-        "[dependencies]\nblake3 = \"1\"\nbytes = \"1\"\ncrc32fast = \"1\"\nfjall = \"1\"\nmemmap2 = \"0.9\"\nparking_lot = \"0.12\"\nserde = \"1\"\nserde_json = \"1\"\nsha2 = \"0.10\"\ntokio = \"1\"\nvo-types = \"1\"",
+        "[dependencies]\nblake3 = \"1\"\nbytes = \"1\"\ncrc32fast = \"1\"\nfjall = \"1\"\nmemmap2 = \"0.9\"\nparking_lot = \"0.12\"\nserde = \"1\"\nserde_json = \"1\"\nsha2 = \"0.10\"\nthiserror = \"1\"\ntokio = \"1\"\nvo-types = \"1\"",
     )
     .unwrap();
     // In a real test, setup invalid files here

@@ -639,7 +639,7 @@ fn rq_wait_key_serde_round_trip_edge_cases() {
 #[case(BufferPolicy::BufferOne)]
 #[case(BufferPolicy::BufferMany)]
 fn rq_buffer_policy_serde_round_trip(#[case] policy: BufferPolicy) {
-    let json = serde_json::to_value(&policy).unwrap();
+    let json = serde_json::to_value(policy).unwrap();
     let restored: BufferPolicy = serde_json::from_value(json).unwrap();
     assert_eq!(restored, policy);
 }
@@ -781,7 +781,7 @@ fn rq_all_states_have_valid_superstate() {
 #[case(crate::LifecycleSuperstate::Compensating)]
 #[case(crate::LifecycleSuperstate::Terminal)]
 fn rq_lifecycle_superstate_serde_round_trip(#[case] superstate: crate::LifecycleSuperstate) {
-    let json = serde_json::to_value(&superstate).unwrap();
+    let json = serde_json::to_value(superstate).unwrap();
     let restored: crate::LifecycleSuperstate = serde_json::from_value(json).unwrap();
     assert_eq!(restored, superstate);
 }

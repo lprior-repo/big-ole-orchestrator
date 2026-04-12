@@ -157,7 +157,7 @@ fn insert_node(
                 points.push(point);
                 Ok(())
             } else {
-                let existing: Vec<Point> = points.drain(..).collect();
+                let existing: Vec<Point> = std::mem::take(points);
                 let child_bounds = subdivide_bounds(bounds);
                 let mut children = Box::new([
                     Node::Leaf { points: Vec::new() },

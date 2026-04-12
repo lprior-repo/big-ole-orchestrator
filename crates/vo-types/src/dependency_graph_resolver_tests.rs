@@ -478,7 +478,7 @@ fn transitive_dependencies_detects_cycle() {
     // So this test documents that the resolver should handle this case
     let result = DependencyGraphResolver::transitive_dependencies(&workflow, &NodeName("c".into()));
     // The implementation should handle this gracefully (return error or empty)
-    assert!(result.is_empty() || result.len() == 0);
+    assert!(result.is_empty() || result.is_empty());
 }
 
 // ============================================================================

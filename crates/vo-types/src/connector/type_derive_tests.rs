@@ -3,6 +3,7 @@
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
+#[allow(clippy::module_inception)]
 mod type_derive_tests {
     use super::super::types::*;
     use rstest::rstest;

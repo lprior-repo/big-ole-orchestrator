@@ -113,7 +113,7 @@ mod tests {
     use super::*;
     use crate::JobPriority;
 
-    fn make_job(id: u64, priority: JobPriority, fire_at_ms: u64) -> (Job, u64) {
+    fn _make_job(id: u64, priority: JobPriority, fire_at_ms: u64) -> (Job, u64) {
         let job = Job::new(
             JobId::new(id),
             format!("payload-{}", id),

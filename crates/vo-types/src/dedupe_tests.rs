@@ -84,7 +84,7 @@ fn dedupe_key_serde_roundtrips() {
 fn dedupe_key_serde_rejects_empty_string() {
     let json = "\"\"";
     let result: Result<DedupeKey, _> = serde_json::from_str(json);
-    assert!(matches!(result, Err(_)));
+    assert!(result.is_err());
 }
 
 #[test]

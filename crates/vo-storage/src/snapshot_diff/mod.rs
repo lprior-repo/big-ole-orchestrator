@@ -10,12 +10,12 @@ pub enum DiffOperation<T> {
     Modified(T, T),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StateDiff {
     pub counter: DiffOperation<u64>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SnapshotDiff {
     pub from_sequence: u64,
     pub to_sequence: u64,
@@ -23,13 +23,13 @@ pub struct SnapshotDiff {
     pub state_diff: StateDiff,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DiffResult {
     Identical,
     HasDiff(SnapshotDiff),
 }
 
-#[derive(Debug, Clone, PartialEq, thiserror::Error)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum DiffError {
     #[error("Snapshot bytes fail deserialization")]
     CorruptSnapshot,
@@ -43,7 +43,7 @@ pub enum DiffError {
     DeserializationFailed,
 }
 
-#[derive(Debug, Clone, PartialEq, thiserror::Error)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum ApplyError {
     #[error("Base state doesn't match expected")]
     BaseStateMismatch,
@@ -53,6 +53,7 @@ pub enum ApplyError {
     SequenceRegress,
 }
 
+#[must_use]
 pub fn diff(
     instance_id: InstanceId,
     from: &(u64, InstanceState),
@@ -91,7 +92,13 @@ pub fn diff(
     })
 }
 
-pub fn apply_diff(
+/// Applies a snapshot diff to a base state.
+///
+/// # Errors
+///
+/// Returns `ApplyError::BaseStateMismatch` if the diff's `from_sequence` doesn't match the base sequence.
+/// Returns `ApplyError::DiffTargetInvalid` if the diff operation is incompatible with the base state.
+pub const fn apply_diff(
     base: &(u64, InstanceState),
     diff: &SnapshotDiff,
 ) -> Result<InstanceState, ApplyError> {
@@ -131,6 +138,7 @@ pub fn apply_diff(
     })
 }
 
+#[must_use]
 pub fn invert_diff(diff: &SnapshotDiff) -> SnapshotDiff {
     let inverted_counter = match diff.state_diff.counter {
         DiffOperation::Unchanged => DiffOperation::Unchanged,
@@ -150,7 +158,12 @@ pub fn invert_diff(diff: &SnapshotDiff) -> SnapshotDiff {
 }
 
 impl SnapshotDiff {
-    pub fn compose(&self, other: &SnapshotDiff) -> Result<SnapshotDiff, DiffError> {
+    /// Composes two consecutive diffs into a single diff.
+    ///
+    /// # Errors
+    ///
+    /// Returns `DiffError::SequenceGap` if the diffs are not consecutive or compatible.
+    pub fn compose(&self, other: &Self) -> Result<Self, DiffError> {
         if self.to_sequence != other.from_sequence {
             return Err(DiffError::SequenceGap);
         }
@@ -160,12 +173,9 @@ impl SnapshotDiff {
         }
 
         let composed_counter = match (&self.state_diff.counter, &other.state_diff.counter) {
-            (DiffOperation::Unchanged, op) => *op,
-            (op, DiffOperation::Unchanged) => *op,
-            (DiffOperation::Added(_), DiffOperation::Added(_)) => {
-                return Err(DiffError::SequenceGap);
-            }
-            (DiffOperation::Removed(_), DiffOperation::Removed(_)) => {
+            (DiffOperation::Unchanged, op) | (op, DiffOperation::Unchanged) => *op,
+            (DiffOperation::Added(_), DiffOperation::Added(_))
+            | (DiffOperation::Removed(_), DiffOperation::Removed(_)) => {
                 return Err(DiffError::SequenceGap);
             }
             (DiffOperation::Modified(init_a, new_a), DiffOperation::Modified(old_b, final_b))

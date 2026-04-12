@@ -22,7 +22,6 @@ pub enum LifecycleSuperstate {
 mod tests {
     use super::*;
     use crate::state::LifecycleState;
-    use serde_json;
 
     #[test]
     fn active_serializes_to_snake_case() {
@@ -82,7 +81,7 @@ mod tests {
     #[test]
     fn rejects_unknown_variant() {
         let result: Result<LifecycleSuperstate, _> = serde_json::from_str("\"bogus\"");
-        assert!(matches!(result, Err(_)));
+        assert!(result.is_err());
     }
 
     // --- LifecycleState::superstate() mapping tests ---

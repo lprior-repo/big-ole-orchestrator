@@ -3,6 +3,8 @@
 //! This module defines types for managing NATS client connections in the veloxide
 //! distributed worker system.
 
+#![allow(dead_code, clippy::inherent_to_string, clippy::inherent_to_string_shadow_display, clippy::wrong_self_convention)]
+
 use std::fmt;
 
 use ulid::Ulid;
@@ -39,7 +41,7 @@ impl ConnectionId {
     }
 
     #[must_use]
-    pub fn to_string(&self) -> String {
+    pub fn to_string(self) -> String {
         self.0.to_string()
     }
 }
@@ -123,7 +125,6 @@ impl PooledConnection {
         self
     }
 
-    #[must_use]
     pub fn increment_use_count(&mut self) {
         self.use_count += 1;
     }
@@ -307,7 +308,7 @@ impl fmt::Display for ConnectionPoolError {
 
 impl ErrorDetail {
     #[must_use]
-    pub fn to_string(&self) -> String {
+    pub fn to_string(self) -> String {
         match self {
             ErrorDetail::MaxConnectionsReached { max } => {
                 format!("Max connections reached: {max}")
@@ -322,7 +323,7 @@ impl ErrorDetail {
                 format!("Acquire timed out after {waited_ms}ms (timeout: {timeout_ms}ms)")
             }
             ErrorDetail::NatsConnectionError {
-                connection_id,
+                connection_id: _,
                 reason,
             } => format!("NATS connection error: {reason}"),
             ErrorDetail::HealthCheckTimeout { connection_id } => {
@@ -383,7 +384,7 @@ mod tests {
         #[test]
         fn test_connection_id_default() {
             let id1 = ConnectionId::default();
-            let id2 = ConnectionId::default();
+            let _id2 = ConnectionId::default();
             // Default may or may not be unique depending on implementation
             // This test just ensures it compiles and returns a valid ID
             assert!(id1.as_u128() > 0);
@@ -401,7 +402,7 @@ mod tests {
             let id = ConnectionId::new();
             let u128_val = id.as_u128();
             assert!(u128_val > 0);
-            assert!(u128_val <= u128::MAX);
+            assert!(u128_val < u128::MAX);
         }
     }
 
@@ -1233,8 +1234,8 @@ mod tests {
             // This test documents the invariant
             // Implementation should check idle time and close connections that exceed idle_timeout_ms
             let created_at = TimestampMs::new_unchecked(1000);
-            let now = TimestampMs::new_unchecked(40000); // 39 seconds later
-            let idle_timeout_ms = 30000;
+            let _now = TimestampMs::new_unchecked(40000); // 39 seconds later
+            let _idle_timeout_ms = 30000;
 
             let conn = PooledConnection::new(ConnectionId::new(), created_at);
             assert!(conn.is_idle());
@@ -1279,9 +1280,8 @@ mod tests {
         #[test]
         fn test_inv_008_health_check_eviction() {
             // Failed health check connections should never return to Idle
-            let mut conn =
+            let _conn =
                 PooledConnection::new(ConnectionId::new(), TimestampMs::new_unchecked(1000));
-            conn.status = ConnectionStatus::HealthCheck;
 
             // After failed health check, should be evicted, not returned to Idle
             let eviction = ReleaseResult::Evicted {
@@ -1353,7 +1353,7 @@ mod tests {
         fn test_cb_001_open_transition() {
             // At 50% failure rate, circuit should transition to Open
             let max_connections = 10;
-            let failures_at_threshold = max_connections as u32 / 2; // 5
+            let _failures_at_threshold = max_connections as u32 / 2; // 5
 
             // At exactly 50%, should trip
             let failures = 5;
