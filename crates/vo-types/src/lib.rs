@@ -83,6 +83,8 @@ mod context_stack_adversarial;
 #[cfg(test)]
 mod cross_cutting_tests;
 #[cfg(test)]
+mod dependency_graph_resolver_tests;
+#[cfg(test)]
 mod red_queen_tests;
 #[cfg(test)]
 mod schema_version_tests;
