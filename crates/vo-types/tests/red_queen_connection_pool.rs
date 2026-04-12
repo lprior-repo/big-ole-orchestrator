@@ -340,7 +340,7 @@ fn rq_connection_pool_error_display() {
         context: ErrorContext {
             pool_id: PoolId::new("test-pool"),
             timestamp: TimestampMs::new_unchecked(1000),
-            operation: "acquire",
+            operation: "acquire".to_string(),
             connection_id: Some(ConnectionId::new()),
         },
     };
@@ -377,7 +377,7 @@ fn rq_error_detail_all_variants_display() {
             connection_id: ConnectionId::new(),
         },
         ErrorDetail::InvalidRelease {
-            reason: "not from this pool",
+            reason: "not from this pool".to_string(),
         },
         ErrorDetail::PoolNotInitialized,
         ErrorDetail::AlreadyShutdown,
@@ -629,13 +629,13 @@ fn rq_pooled_connection_max_use_count() {
 /// RQ-32: PoolStats with counts that violate INV-002
 #[test]
 fn rq_pool_stats_invariant_violation() {
-    // idle=5, checked_out=10, pending=5, but max should be 10
-    // 5 + 10 + 5 = 20 > max_connections (unknown but should be bounded)
+    // idle=5, checked_out=25, pending=5, but total should be 20
+    // 5 + 25 + 5 = 35 > total_connections (impossible: more checked out than total)
     let stats = PoolStats {
         pool_id: PoolId::new("test-pool"),
         total_connections: 20,
         idle_connections: 5,
-        checked_out_connections: 10, // More checked out than total!
+        checked_out_connections: 25, // More checked out than total!
         pending_acquires: 5,
         total_acquires: 0,
         total_releases: 0,

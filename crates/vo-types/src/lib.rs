@@ -6,7 +6,7 @@ mod command_envelope;
 pub mod command_history;
 mod command_metadata;
 mod compensation;
-mod connection_pool;
+pub mod connection_pool;
 mod connector;
 pub mod credentials;
 mod dedupe;
@@ -21,7 +21,7 @@ mod errors;
 pub mod euler_tour_tree;
 pub mod events;
 mod instance_status;
-mod integer_types;
+pub mod integer_types;
 #[cfg(test)]
 mod integer_types_tests;
 mod junction_tree;
