@@ -131,9 +131,9 @@ impl ProbeConfig {
 
     pub fn timeout(&self) -> Duration {
         match self {
-            Self::Http { timeout_ms, .. } | Self::Tcp { timeout_ms, .. } | Self::Exec { timeout_ms, .. } => {
-                Duration::from_millis(*timeout_ms)
-            }
+            Self::Http { timeout_ms, .. }
+            | Self::Tcp { timeout_ms, .. }
+            | Self::Exec { timeout_ms, .. } => Duration::from_millis(*timeout_ms),
         }
     }
 
@@ -192,8 +192,7 @@ impl<'de> serde::Deserialize<'de> for ProbeId {
         D: serde::Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
-        ProbeId::from_string(&s)
-            .ok_or_else(|| serde::de::Error::custom("Invalid probe ID format"))
+        ProbeId::from_string(&s).ok_or_else(|| serde::de::Error::custom("Invalid probe ID format"))
     }
 }
 
@@ -230,8 +229,8 @@ impl Default for BackoffConfig {
 impl BackoffConfig {
     pub fn calculate_interval(&self, consecutive_failures: u32) -> Duration {
         let failures = consecutive_failures.min(self.max_failures);
-        let interval_ms = self.initial_interval.as_millis() as f64
-            * self.multiplier.powi(failures as i32);
+        let interval_ms =
+            self.initial_interval.as_millis() as f64 * self.multiplier.powi(failures as i32);
         let interval_ms = interval_ms.min(self.max_interval.as_millis() as f64);
         Duration::from_millis(interval_ms as u64)
     }
@@ -426,22 +425,26 @@ impl Probe for TcpProbe {
     async fn check(&self) -> Result<ProbeResult, ProbeError> {
         let start = tokio::time::Instant::now();
 
-        let connection = tokio::time::timeout(
-            self.timeout,
-            tokio::net::TcpStream::connect(self.address),
-        )
-        .await;
+        let connection =
+            tokio::time::timeout(self.timeout, tokio::net::TcpStream::connect(self.address)).await;
 
         let latency_ms = start.elapsed().as_millis() as u64;
 
         let (status, message) = match connection {
-            Ok(Ok(_)) => (ProbeStatus::Healthy, format!("TCP connect to {}", self.address)),
-            Ok(Err(e)) => {
-                (ProbeStatus::Unhealthy, format!("TCP failed to {}: {}", self.address, e))
-            }
+            Ok(Ok(_)) => (
+                ProbeStatus::Healthy,
+                format!("TCP connect to {}", self.address),
+            ),
+            Ok(Err(e)) => (
+                ProbeStatus::Unhealthy,
+                format!("TCP failed to {}: {}", self.address, e),
+            ),
             Err(_) => (
                 ProbeStatus::Unhealthy,
-                format!("TCP connect to {} timed out after {:?}", self.address, self.timeout),
+                format!(
+                    "TCP connect to {} timed out after {:?}",
+                    self.address, self.timeout
+                ),
             ),
         };
 
@@ -629,7 +632,10 @@ mod tests {
     fn test_probe_id_as_str_returns_correct_format() {
         let id = ProbeId::new();
         let s = id.as_str();
-        assert!(s.starts_with("probe-"), "as_str() should return probe-<ULID> format");
+        assert!(
+            s.starts_with("probe-"),
+            "as_str() should return probe-<ULID> format"
+        );
         assert_eq!(s, format!("probe-{}", id.0));
     }
 
@@ -719,7 +725,10 @@ mod tests {
                 .as_millis() as u64,
             message: None,
         };
-        assert!(result.latency_ms > 0, "Completed probe should have non-zero latency");
+        assert!(
+            result.latency_ms > 0,
+            "Completed probe should have non-zero latency"
+        );
     }
 
     // =========================================================================
@@ -730,7 +739,11 @@ mod tests {
     fn test_probe_config_http_creates_valid_config() {
         let config = ProbeConfig::http("http://localhost:8080/health");
         match config {
-            ProbeConfig::Http { url, expected_status, timeout_ms } => {
+            ProbeConfig::Http {
+                url,
+                expected_status,
+                timeout_ms,
+            } => {
                 assert_eq!(url, "http://localhost:8080/health");
                 assert_eq!(expected_status, Some(200));
                 assert_eq!(timeout_ms, 5000);
@@ -743,7 +756,11 @@ mod tests {
     fn test_probe_config_tcp_creates_valid_config() {
         let config = ProbeConfig::tcp("localhost", 8080);
         match config {
-            ProbeConfig::Tcp { address, port, timeout_ms } => {
+            ProbeConfig::Tcp {
+                address,
+                port,
+                timeout_ms,
+            } => {
                 assert_eq!(address, "localhost");
                 assert_eq!(port, 8080);
                 assert_eq!(timeout_ms, 5000);
@@ -756,7 +773,12 @@ mod tests {
     fn test_probe_config_exec_creates_valid_config() {
         let config = ProbeConfig::exec("echo", vec!["hello".to_string()]);
         match config {
-            ProbeConfig::Exec { command, args, expected_exit_code, timeout_ms } => {
+            ProbeConfig::Exec {
+                command,
+                args,
+                expected_exit_code,
+                timeout_ms,
+            } => {
                 assert_eq!(command, "echo");
                 assert_eq!(args, vec!["hello"]);
                 assert_eq!(expected_exit_code, Some(0));
@@ -768,8 +790,8 @@ mod tests {
 
     #[test]
     fn test_probe_config_with_timeout_modifies_timeout() {
-        let config = ProbeConfig::http("http://localhost:8080/health")
-            .with_timeout(Duration::from_secs(30));
+        let config =
+            ProbeConfig::http("http://localhost:8080/health").with_timeout(Duration::from_secs(30));
         assert_eq!(config.timeout(), Duration::from_secs(30));
     }
 
@@ -787,15 +809,24 @@ mod tests {
 
     #[test]
     fn test_probe_config_probe_type_returns_correct_variant() {
-        assert_eq!(ProbeConfig::http("http://localhost").probe_type(), ProbeType::Http);
-        assert_eq!(ProbeConfig::tcp("localhost", 8080).probe_type(), ProbeType::Tcp);
-        assert_eq!(ProbeConfig::exec("echo", vec![]).probe_type(), ProbeType::Exec);
+        assert_eq!(
+            ProbeConfig::http("http://localhost").probe_type(),
+            ProbeType::Http
+        );
+        assert_eq!(
+            ProbeConfig::tcp("localhost", 8080).probe_type(),
+            ProbeType::Tcp
+        );
+        assert_eq!(
+            ProbeConfig::exec("echo", vec![]).probe_type(),
+            ProbeType::Exec
+        );
     }
 
     #[test]
     fn test_probe_config_serialization_roundtrip() {
-        let config = ProbeConfig::http("http://localhost:8080/health")
-            .with_timeout(Duration::from_secs(10));
+        let config =
+            ProbeConfig::http("http://localhost:8080/health").with_timeout(Duration::from_secs(10));
         let json = serde_json::to_string(&config).unwrap();
         let parsed: ProbeConfig = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed.timeout(), config.timeout());
@@ -1532,9 +1563,16 @@ mod tests {
     async fn test_probe_trait_object_can_be_stored_and_called() {
         let probe: Box<dyn Probe> = Box::new(HttpProbe::new("http://localhost:9999"));
         let result = probe.check().await;
-        assert!(result.is_err(), "HTTP probe to nonexistent host should fail");
+        assert!(
+            result.is_err(),
+            "HTTP probe to nonexistent host should fail"
+        );
         let err = result.unwrap_err();
-        assert!(matches!(err, ProbeError::Http(_)), "Expected Http error variant, got {:?}", err);
+        assert!(
+            matches!(err, ProbeError::Http(_)),
+            "Expected Http error variant, got {:?}",
+            err
+        );
     }
 
     #[tokio::test]
@@ -1547,12 +1585,22 @@ mod tests {
         let exec_result = exec_probe.check().await;
         let http_result = http_probe.check().await;
 
-        assert!(tcp_result.is_ok(), "TCP probe check should succeed (returns result with Unhealthy status)");
+        assert!(
+            tcp_result.is_ok(),
+            "TCP probe check should succeed (returns result with Unhealthy status)"
+        );
         let tcp_r = tcp_result.unwrap();
-        assert_eq!(tcp_r.status, ProbeStatus::Unhealthy, "TCP to nonexistent host should be Unhealthy");
+        assert_eq!(
+            tcp_r.status,
+            ProbeStatus::Unhealthy,
+            "TCP to nonexistent host should be Unhealthy"
+        );
         assert!(matches!(tcp_r.probe_id, _));
 
-        assert!(exec_result.is_ok(), "Exec false should return Ok with Unhealthy status");
+        assert!(
+            exec_result.is_ok(),
+            "Exec false should return Ok with Unhealthy status"
+        );
         assert_eq!(exec_result.unwrap().status, ProbeStatus::Unhealthy);
 
         assert!(http_result.is_err(), "HTTP to nonexistent host should fail");
@@ -1738,7 +1786,11 @@ mod tests {
         ];
         for config in configs {
             let timeout = config.timeout();
-            assert!(timeout.as_millis() > 0, "INV-003: timeout must be positive, got {:?}", timeout);
+            assert!(
+                timeout.as_millis() > 0,
+                "INV-003: timeout must be positive, got {:?}",
+                timeout
+            );
         }
     }
 
@@ -1853,8 +1905,8 @@ mod tests {
 
     #[tokio::test]
     async fn qa_smoke_tcp_probe_refused_connection() {
-        let probe = TcpProbe::new("127.0.0.1:1".parse().unwrap())
-            .with_timeout(Duration::from_millis(500));
+        let probe =
+            TcpProbe::new("127.0.0.1:1".parse().unwrap()).with_timeout(Duration::from_millis(500));
         let result = probe.check().await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap().status, ProbeStatus::Unhealthy);
@@ -1864,7 +1916,10 @@ mod tests {
     async fn qa_smoke_probe_trait_dispatch() {
         let probes: Vec<Box<dyn Probe>> = vec![
             Box::new(ExecProbe::new("true", vec![])),
-            Box::new(TcpProbe::new("127.0.0.1:1".parse().unwrap()).with_timeout(Duration::from_millis(200))),
+            Box::new(
+                TcpProbe::new("127.0.0.1:1".parse().unwrap())
+                    .with_timeout(Duration::from_millis(200)),
+            ),
         ];
         let mut agg = AggregatedStatus::new();
         for probe in &probes {
@@ -1895,7 +1950,11 @@ mod tests {
         ];
         for config in configs {
             let json = serde_json::to_string(&config).unwrap();
-            assert!(json.contains("\"type\""), "Tagged serde must include type field: {}", json);
+            assert!(
+                json.contains("\"type\""),
+                "Tagged serde must include type field: {}",
+                json
+            );
             let parsed: ProbeConfig = serde_json::from_str(&json).unwrap();
             assert_eq!(parsed.probe_type(), config.probe_type());
         }
@@ -1942,12 +2001,15 @@ mod tests {
             assert!(
                 interval >= prev,
                 "Backoff must be monotonic: failure={} interval={:?} < prev={:?}",
-                failures, interval, prev
+                failures,
+                interval,
+                prev
             );
             assert!(
                 interval <= config.max_interval,
                 "Backoff must not exceed max: interval={:?} > max={:?}",
-                interval, config.max_interval
+                interval,
+                config.max_interval
             );
             prev = interval;
         }

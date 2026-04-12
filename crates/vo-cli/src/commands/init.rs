@@ -32,7 +32,12 @@ pub enum InitError {
     #[error("permission denied: {path}: {reason}")]
     PermissionDenied { path: PathBuf, reason: String },
     #[error("I/O error at {path}: {reason}")]
-    Io { path: PathBuf, reason: String, #[source] source: std::io::Error },
+    Io {
+        path: PathBuf,
+        reason: String,
+        #[source]
+        source: std::io::Error,
+    },
     #[error("symlink at {path} — refusing to init")]
     SymlinkTarget { path: PathBuf },
 }
@@ -43,19 +48,32 @@ pub fn run_init(config: &InitConfig) -> Result<PathBuf, InitError> {
     // Validate: must be an existing directory
     let meta = std::fs::symlink_metadata(project_dir).map_err(|e| {
         if e.kind() == std::io::ErrorKind::NotFound {
-            InitError::DirNotFound { path: project_dir.clone() }
+            InitError::DirNotFound {
+                path: project_dir.clone(),
+            }
         } else if e.kind() == std::io::ErrorKind::PermissionDenied {
-            InitError::PermissionDenied { path: project_dir.clone(), reason: e.to_string() }
+            InitError::PermissionDenied {
+                path: project_dir.clone(),
+                reason: e.to_string(),
+            }
         } else {
-            InitError::Io { path: project_dir.clone(), reason: "reading metadata".into(), source: e }
+            InitError::Io {
+                path: project_dir.clone(),
+                reason: "reading metadata".into(),
+                source: e,
+            }
         }
     })?;
 
     if meta.file_type().is_symlink() {
-        return Err(InitError::SymlinkTarget { path: project_dir.clone() });
+        return Err(InitError::SymlinkTarget {
+            path: project_dir.clone(),
+        });
     }
     if !meta.is_dir() {
-        return Err(InitError::NotDirectory { path: project_dir.clone() });
+        return Err(InitError::NotDirectory {
+            path: project_dir.clone(),
+        });
     }
 
     let vo_dir = project_dir.join(VO_DIR_NAME);
@@ -77,10 +95,14 @@ pub fn run_init(config: &InitConfig) -> Result<PathBuf, InitError> {
     }
 
     std::fs::create_dir_all(&vo_dir).map_err(|e| InitError::Io {
-        path: vo_dir.clone(), reason: "creating .vo dir".into(), source: e,
+        path: vo_dir.clone(),
+        reason: "creating .vo dir".into(),
+        source: e,
     })?;
     std::fs::create_dir_all(vo_dir.join(WORKFLOWS_DIR_NAME)).map_err(|e| InitError::Io {
-        path: vo_dir.join(WORKFLOWS_DIR_NAME), reason: "creating workflows dir".into(), source: e,
+        path: vo_dir.join(WORKFLOWS_DIR_NAME),
+        reason: "creating workflows dir".into(),
+        source: e,
     })?;
 
     let toml = format!(
@@ -88,8 +110,10 @@ pub fn run_init(config: &InitConfig) -> Result<PathBuf, InitError> {
         config.engine_url,
         config.storage_path.display()
     );
-    std::fs::write(project_dir.join(CONFIG_FILE_NAME), &toml).map_err(|e| {
-        InitError::Io { path: project_dir.join(CONFIG_FILE_NAME), reason: "writing config".into(), source: e }
+    std::fs::write(project_dir.join(CONFIG_FILE_NAME), &toml).map_err(|e| InitError::Io {
+        path: project_dir.join(CONFIG_FILE_NAME),
+        reason: "writing config".into(),
+        source: e,
     })?;
 
     Ok(vo_dir)

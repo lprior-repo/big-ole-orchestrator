@@ -20,6 +20,6 @@ pub use run::{run_subprocess, SubprocessOutput};
 pub use stderr::{MAX_STDERR_BYTES, TRUNCATION_MARKER};
 
 #[cfg(test)]
-mod unit_tests;
-#[cfg(test)]
 mod red_queen_tests;
+#[cfg(test)]
+mod unit_tests;

@@ -47,8 +47,6 @@ pub enum InstancePhaseView {
 #[derive(Debug)]
 pub struct OrchestratorMsg;
 
-
-
 #[cfg(test)]
 mod terminate_error_tests {
     use super::*;

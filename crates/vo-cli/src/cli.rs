@@ -22,12 +22,27 @@ pub enum CliError {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Command {
-    Purge { instance: String },
-    Check { path: PathBuf },
-    Gc { engine_url: String, dry_run: bool },
-    Init { project_dir: PathBuf, engine_url: String, storage_path: PathBuf },
-    Lock { project_dir: PathBuf },
-    Doctor { project_dir: PathBuf },
+    Purge {
+        instance: String,
+    },
+    Check {
+        path: PathBuf,
+    },
+    Gc {
+        engine_url: String,
+        dry_run: bool,
+    },
+    Init {
+        project_dir: PathBuf,
+        engine_url: String,
+        storage_path: PathBuf,
+    },
+    Lock {
+        project_dir: PathBuf,
+    },
+    Doctor {
+        project_dir: PathBuf,
+    },
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -94,22 +109,20 @@ where
                 ),
         )
         .subcommand(
-            clap::Command::new("lock")
-                .arg(
-                    clap::Arg::new("project-dir")
-                        .long("project-dir")
-                        .default_value(".")
-                        .help("Project directory"),
-                ),
+            clap::Command::new("lock").arg(
+                clap::Arg::new("project-dir")
+                    .long("project-dir")
+                    .default_value(".")
+                    .help("Project directory"),
+            ),
         )
         .subcommand(
-            clap::Command::new("doctor")
-                .arg(
-                    clap::Arg::new("project-dir")
-                        .long("project-dir")
-                        .default_value(".")
-                        .help("Project directory to diagnose"),
-                ),
+            clap::Command::new("doctor").arg(
+                clap::Arg::new("project-dir")
+                    .long("project-dir")
+                    .default_value(".")
+                    .help("Project directory to diagnose"),
+            ),
         );
 
     let matches = cmd.try_get_matches_from(args)?;
@@ -151,20 +164,43 @@ where
             })
         }
         Some(("init", sub_matches)) => {
-            let project_dir = sub_matches.get_one::<String>("project-dir").map(PathBuf::from).unwrap_or_default();
-            let engine_url = sub_matches.get_one::<String>("engine-url").cloned().unwrap_or_default();
-            let storage_path = sub_matches.get_one::<String>("storage-path").map(PathBuf::from).unwrap_or_default();
+            let project_dir = sub_matches
+                .get_one::<String>("project-dir")
+                .map(PathBuf::from)
+                .unwrap_or_default();
+            let engine_url = sub_matches
+                .get_one::<String>("engine-url")
+                .cloned()
+                .unwrap_or_default();
+            let storage_path = sub_matches
+                .get_one::<String>("storage-path")
+                .map(PathBuf::from)
+                .unwrap_or_default();
             Ok(Cli {
-                command: Command::Init { project_dir, engine_url, storage_path },
+                command: Command::Init {
+                    project_dir,
+                    engine_url,
+                    storage_path,
+                },
             })
         }
         Some(("lock", sub_matches)) => {
-            let project_dir = sub_matches.get_one::<String>("project-dir").map(PathBuf::from).unwrap_or_default();
-            Ok(Cli { command: Command::Lock { project_dir } })
+            let project_dir = sub_matches
+                .get_one::<String>("project-dir")
+                .map(PathBuf::from)
+                .unwrap_or_default();
+            Ok(Cli {
+                command: Command::Lock { project_dir },
+            })
         }
         Some(("doctor", sub_matches)) => {
-            let project_dir = sub_matches.get_one::<String>("project-dir").map(PathBuf::from).unwrap_or_default();
-            Ok(Cli { command: Command::Doctor { project_dir } })
+            let project_dir = sub_matches
+                .get_one::<String>("project-dir")
+                .map(PathBuf::from)
+                .unwrap_or_default();
+            Ok(Cli {
+                command: Command::Doctor { project_dir },
+            })
         }
         _ => Err(clap::Error::new(clap::error::ErrorKind::InvalidSubcommand)),
     }

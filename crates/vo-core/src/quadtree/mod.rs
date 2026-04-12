@@ -68,18 +68,10 @@ impl std::fmt::Display for AABB {
 #[derive(Debug, Clone, PartialEq, Error)]
 pub enum QuadtreeError {
     #[error("point ({x}, {y}) is outside quadtree bounds {bounds}")]
-    OutOfBounds {
-        x: f64,
-        y: f64,
-        bounds: AABB,
-    },
+    OutOfBounds { x: f64, y: f64, bounds: AABB },
 
     #[error("max depth {max_depth} exceeded at ({x}, {y})")]
-    MaxDepthExceeded {
-        x: f64,
-        y: f64,
-        max_depth: usize,
-    },
+    MaxDepthExceeded { x: f64, y: f64, max_depth: usize },
 
     #[error("cannot subdivide: child bounds would be degenerate at depth {depth}")]
     DegenerateSubdivision { depth: usize },
@@ -167,10 +159,24 @@ fn insert_node(
                 ]);
                 for p in existing {
                     let qi = quadrant_index(&child_bounds, p.x, p.y);
-                    insert_node(&mut children[qi], &child_bounds[qi], p, depth + 1, capacity, max_depth)?;
+                    insert_node(
+                        &mut children[qi],
+                        &child_bounds[qi],
+                        p,
+                        depth + 1,
+                        capacity,
+                        max_depth,
+                    )?;
                 }
                 let qi = quadrant_index(&child_bounds, point.x, point.y);
-                insert_node(&mut children[qi], &child_bounds[qi], point, depth + 1, capacity, max_depth)?;
+                insert_node(
+                    &mut children[qi],
+                    &child_bounds[qi],
+                    point,
+                    depth + 1,
+                    capacity,
+                    max_depth,
+                )?;
                 *node = Node::Branch { children };
                 Ok(())
             }
@@ -178,7 +184,14 @@ fn insert_node(
         Node::Branch { children } => {
             let child_bounds = subdivide_bounds(bounds);
             let qi = quadrant_index(&child_bounds, point.x, point.y);
-            insert_node(&mut children[qi], &child_bounds[qi], point, depth + 1, capacity, max_depth)
+            insert_node(
+                &mut children[qi],
+                &child_bounds[qi],
+                point,
+                depth + 1,
+                capacity,
+                max_depth,
+            )
         }
     }
 }
@@ -313,14 +326,19 @@ mod tests {
 
     #[test]
     fn error_is_recoverable_for_max_depth() {
-        let err = QuadtreeError::MaxDepthExceeded { x: 1.0, y: 2.0, max_depth: 8 };
+        let err = QuadtreeError::MaxDepthExceeded {
+            x: 1.0,
+            y: 2.0,
+            max_depth: 8,
+        };
         assert!(err.is_recoverable());
     }
 
     #[test]
     fn error_is_not_recoverable_for_out_of_bounds() {
         let err = QuadtreeError::OutOfBounds {
-            x: 1.0, y: 2.0,
+            x: 1.0,
+            y: 2.0,
             bounds: AABB::new(0.0, 0.0, 10.0, 10.0),
         };
         assert!(!err.is_recoverable());

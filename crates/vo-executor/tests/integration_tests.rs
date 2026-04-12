@@ -7,8 +7,8 @@ mod integration_tests {
     use std::sync::Mutex;
     use std::sync::MutexGuard;
     use vo_executor::{
-        cancel_execution, clear_error, execute_step, execute_step_with_retry,
-        get_execution_status, get_last_error, reset_all_state, set_error, RetryPolicy, StepId,
+        cancel_execution, clear_error, execute_step, execute_step_with_retry, get_execution_status,
+        get_last_error, reset_all_state, set_error, RetryPolicy, StepId,
     };
 
     /// Global mutex to prevent concurrent tests from racing on shared DashMap state
@@ -116,7 +116,10 @@ mod integration_tests {
         let result = execute_step(StepId::new("step-transient".to_string()), 5000).await;
         let err = result.unwrap_err();
         match err {
-            vo_executor::ExecuteNodeError::TransientError { reason, recoverable } => {
+            vo_executor::ExecuteNodeError::TransientError {
+                reason,
+                recoverable,
+            } => {
                 assert!(reason.contains("network timeout"));
                 assert!(recoverable);
             }
@@ -129,10 +132,14 @@ mod integration_tests {
         let _guard = state_guard();
         // step-flaky triggers execute_flaky_retries with max_attempts >= 2
         let policy = RetryPolicy::new(3, 10, 2.0).unwrap();
-        let result = execute_step_with_retry(StepId::new("step-flaky".to_string()), 5000, policy).await;
+        let result =
+            execute_step_with_retry(StepId::new("step-flaky".to_string()), 5000, policy).await;
         let err = result.unwrap_err();
         match err {
-            vo_executor::ExecuteNodeError::RetryExhausted { attempts, last_error } => {
+            vo_executor::ExecuteNodeError::RetryExhausted {
+                attempts,
+                last_error,
+            } => {
                 assert_eq!(attempts, 3);
                 assert!(matches!(
                     *last_error,
@@ -148,10 +155,14 @@ mod integration_tests {
         let _guard = state_guard();
         // step-flaky with max_attempts=2 triggers only one sleep_then_backoff
         let policy = RetryPolicy::new(2, 10, 2.0).unwrap();
-        let result = execute_step_with_retry(StepId::new("step-flaky".to_string()), 5000, policy).await;
+        let result =
+            execute_step_with_retry(StepId::new("step-flaky".to_string()), 5000, policy).await;
         let err = result.unwrap_err();
         match err {
-            vo_executor::ExecuteNodeError::RetryExhausted { attempts, last_error } => {
+            vo_executor::ExecuteNodeError::RetryExhausted {
+                attempts,
+                last_error,
+            } => {
                 assert_eq!(attempts, 2);
                 assert!(matches!(
                     *last_error,
@@ -167,10 +178,14 @@ mod integration_tests {
         let _guard = state_guard();
         // step-flaky with max_attempts=1 returns RetryExhausted without sleeping
         let policy = RetryPolicy::new(1, 10, 2.0).unwrap();
-        let result = execute_step_with_retry(StepId::new("step-flaky".to_string()), 5000, policy).await;
+        let result =
+            execute_step_with_retry(StepId::new("step-flaky".to_string()), 5000, policy).await;
         let err = result.unwrap_err();
         match err {
-            vo_executor::ExecuteNodeError::RetryExhausted { attempts, last_error } => {
+            vo_executor::ExecuteNodeError::RetryExhausted {
+                attempts,
+                last_error,
+            } => {
                 assert_eq!(attempts, 1);
                 assert!(matches!(
                     *last_error,
@@ -207,7 +222,9 @@ mod integration_tests {
         let _guard = state_guard();
         // After cancel_execution on Ready state, status is Cancelled
         let step_id = StepId::new("step-cancel-test".to_string());
-        cancel_execution(step_id.clone()).await.expect("cancel_execution should succeed");
+        cancel_execution(step_id.clone())
+            .await
+            .expect("cancel_execution should succeed");
         let status = get_execution_status(&step_id);
         match status {
             vo_executor::ExecutionStatus::Cancelled { reason } => {
@@ -238,11 +255,16 @@ mod integration_tests {
         // After a transient error, get_last_error should return the error
         let step_id = StepId::new("step-transient".to_string());
         // step-transient always fails with TransientError - we only care about get_last_error
-        execute_step(step_id.clone(), 5000).await.expect_err("step-transient should fail");
+        execute_step(step_id.clone(), 5000)
+            .await
+            .expect_err("step-transient should fail");
         let error = get_last_error(&step_id);
         assert!(error.is_some());
         match error.unwrap() {
-            vo_executor::ExecuteNodeError::TransientError { reason, recoverable } => {
+            vo_executor::ExecuteNodeError::TransientError {
+                reason,
+                recoverable,
+            } => {
                 assert!(reason.contains("network timeout"));
                 assert!(recoverable);
             }
@@ -268,7 +290,8 @@ mod integration_tests {
         let _guard = state_guard();
         // Non-flaky step goes through normal execute_step path
         let policy = RetryPolicy::new(3, 10, 2.0).unwrap();
-        let result = execute_step_with_retry(StepId::new("step-good".to_string()), 5000, policy).await;
+        let result =
+            execute_step_with_retry(StepId::new("step-good".to_string()), 5000, policy).await;
         assert_eq!(
             result,
             Ok(vo_executor::StepResult::Success {
@@ -296,7 +319,9 @@ mod integration_tests {
         let _guard = state_guard();
         // Calling cancel on an already cancelled step returns Ok (no-op)
         let step_id = StepId::new("step-already-cancelled".to_string());
-        cancel_execution(step_id.clone()).await.expect("first cancel should succeed");
+        cancel_execution(step_id.clone())
+            .await
+            .expect("first cancel should succeed");
         let result = cancel_execution(step_id).await;
         assert_eq!(result, Ok(()));
     }
@@ -405,8 +430,13 @@ mod integration_tests {
     async fn execute_step_with_retry_step_not_found() {
         let _guard = state_guard();
         let policy = RetryPolicy::new(3, 10, 2.0).unwrap();
-        let result = execute_step_with_retry(StepId::new("nonexistent-step".to_string()), 5000, policy).await;
-        assert!(matches!(result, Err(vo_executor::ExecuteNodeError::StepNotFound { .. })));
+        let result =
+            execute_step_with_retry(StepId::new("nonexistent-step".to_string()), 5000, policy)
+                .await;
+        assert!(matches!(
+            result,
+            Err(vo_executor::ExecuteNodeError::StepNotFound { .. })
+        ));
     }
 
     #[tokio::test]
@@ -419,12 +449,15 @@ mod integration_tests {
         // Status could be Ready (most likely) since step completes synchronously
         // This just verifies the function doesn't panic
         match status {
-            vo_executor::ExecutionStatus::Ready => {},
-            vo_executor::ExecutionStatus::Executing { step_id, elapsed_ms: _ } => {
+            vo_executor::ExecutionStatus::Ready => {}
+            vo_executor::ExecutionStatus::Executing {
+                step_id,
+                elapsed_ms: _,
+            } => {
                 assert_eq!(step_id.as_str(), "step-slow");
             }
-            vo_executor::ExecutionStatus::Completed { output: _ } => {},
-            vo_executor::ExecutionStatus::Cancelled { reason: _ } => {},
+            vo_executor::ExecutionStatus::Completed { output: _ } => {}
+            vo_executor::ExecutionStatus::Cancelled { reason: _ } => {}
         }
     }
 
@@ -497,7 +530,10 @@ mod integration_tests {
         // Use a very small timeout with a slow step
         let policy = RetryPolicy::new(3, 1000, 2.0).unwrap();
         let result = execute_step_with_retry(StepId::new("step-slow".to_string()), 1, policy).await;
-        assert!(matches!(result, Err(vo_executor::ExecuteNodeError::TimeoutExceeded { .. })));
+        assert!(matches!(
+            result,
+            Err(vo_executor::ExecuteNodeError::TimeoutExceeded { .. })
+        ));
     }
 
     // =========================================================================
@@ -519,7 +555,9 @@ mod integration_tests {
         let step_id = StepId::new("step-transient".to_string());
 
         // First call - sets LAST_ERROR for step_id
-        execute_step(step_id.clone(), 5000).await.expect_err("step-transient should fail");
+        execute_step(step_id.clone(), 5000)
+            .await
+            .expect_err("step-transient should fail");
         let error_after_first = get_last_error(&step_id);
         assert!(
             error_after_first.is_some(),
@@ -529,7 +567,9 @@ mod integration_tests {
         // Second call - start_execution calls clear_error which removes LAST_ERROR[step_id]
         // Then handle_transient_behavior sets a NEW error
         // The key: clear_error is called BEFORE the new error is set
-        execute_step(step_id.clone(), 5000).await.expect_err("step-transient should fail on second call too");
+        execute_step(step_id.clone(), 5000)
+            .await
+            .expect_err("step-transient should fail on second call too");
 
         // If clear_error was deleted: error persists from first call + new error set
         // If clear_error works: only the new error is present
@@ -587,10 +627,7 @@ mod integration_tests {
 
         // Execute step A - sets error via handle_transient_behavior
         let result_a = execute_step(step_a.clone(), 5000).await;
-        assert!(
-            result_a.is_err(),
-            "step-transient should return error"
-        );
+        assert!(result_a.is_err(), "step-transient should return error");
 
         // Verify error is stored for step A
         let error_a = get_last_error(&step_a);
@@ -601,10 +638,7 @@ mod integration_tests {
 
         // Execute step B (step-good - no error set)
         let result_b = execute_step(step_b.clone(), 5000).await;
-        assert!(
-            result_b.is_ok(),
-            "step-good should succeed"
-        );
+        assert!(result_b.is_ok(), "step-good should succeed");
 
         // step B should have no error
         let error_b = get_last_error(&step_b);
@@ -664,14 +698,11 @@ mod integration_tests {
         // Use step-good which returns Success - this allows us to verify
         // state transitions correctly between calls
         let step_id = StepId::new("step-good".to_string());
-        
+
         // First call - should succeed
         let result1 = execute_step(step_id.clone(), 5000).await;
-        assert!(
-            result1.is_ok(),
-            "step-good should succeed on first call"
-        );
-        
+        assert!(result1.is_ok(), "step-good should succeed on first call");
+
         // Second call immediately after
         // With correct implementation: state is Ready, check_not_executing passes
         let result2 = execute_step(step_id.clone(), 5000).await;
@@ -679,7 +710,7 @@ mod integration_tests {
             result2.is_ok(),
             "Second execute_step should succeed (state is Ready after first call)"
         );
-        
+
         // Verify the InvalidTransition error variant is constructible with correct fields.
         // This ensures the error type is properly defined for when the guard IS triggered.
         // If check_not_executing was deleted, this error could never be returned.
@@ -687,11 +718,17 @@ mod integration_tests {
             from_state: "Executing".to_string(),
             action: "execute_step".to_string(),
         };
-        
+
         // Verify the error displays correctly
         let err_str = format!("{}", invalid_transition_err);
-        assert!(err_str.contains("Executing"), "InvalidTransition should mention 'Executing' state");
-        assert!(err_str.contains("execute_step"), "InvalidTransition should mention the action");
+        assert!(
+            err_str.contains("Executing"),
+            "InvalidTransition should mention 'Executing' state"
+        );
+        assert!(
+            err_str.contains("execute_step"),
+            "InvalidTransition should mention the action"
+        );
     }
 
     /// Test 3: Kills `start_execution` deletion mutant (src/lib.rs:368)
@@ -714,11 +751,12 @@ mod integration_tests {
         let _guard = state_guard();
         let step_id = StepId::new("step-slow".to_string());
         let step_id_for_checker = step_id.clone();
-        
+
         // Channel to signal when execute_step is called and receive status
         let (call_tx, mut call_rx) = tokio::sync::mpsc::channel::<()>(1);
-        let (status_tx, mut status_rx) = tokio::sync::mpsc::channel::<vo_executor::ExecutionStatus>(1);
-        
+        let (status_tx, mut status_rx) =
+            tokio::sync::mpsc::channel::<vo_executor::ExecutionStatus>(1);
+
         // Spawn a task that will check status right as execute_step is called
         let checker_handle = tokio::spawn(async move {
             // Wait for signal that execute_step is being called
@@ -727,7 +765,7 @@ mod integration_tests {
             let status = get_execution_status(&step_id_for_checker);
             let _ = status_tx.send(status).await;
         });
-        
+
         // Spawn execute_step in background
         let exec_handle = tokio::spawn(async move {
             // Signal that we're entering execute_step
@@ -735,23 +773,26 @@ mod integration_tests {
             // Execute step-slow
             execute_step(step_id.clone(), 5000).await
         });
-        
+
         // Wait for exec to complete
         let exec_result = exec_handle.await.expect("execute_step should complete");
-        
+
         // Now receive the status from the checker
         let status_result = status_rx.recv().await;
-        
+
         // Verify execute_step still works correctly
         assert!(
             exec_result.is_ok(),
             "execute_step should succeed with sufficient timeout"
         );
-        
+
         // Check if we caught the Executing state
         if let Some(status) = status_result {
             match status {
-                vo_executor::ExecutionStatus::Executing { step_id: id, elapsed_ms } => {
+                vo_executor::ExecutionStatus::Executing {
+                    step_id: id,
+                    elapsed_ms,
+                } => {
                     assert_eq!(id.as_str(), "step-slow");
                     // elapsed_ms > 0 proves start_time was recorded by start_execution
                     assert!(
@@ -769,20 +810,21 @@ mod integration_tests {
                 ),
             }
         }
-        
+
         // Wait for checker to finish
         let _ = checker_handle.await;
-        
+
         // Additionally verify the slow step timeout boundary behavior works correctly
         // This proves the timeout logic in handle_slow_step_timeout runs properly
         let result = execute_step(StepId::new("step-slow".to_string()), 1).await;
         assert!(
-            matches!(result, Err(vo_executor::ExecuteNodeError::TimeoutExceeded { .. })),
+            matches!(
+                result,
+                Err(vo_executor::ExecuteNodeError::TimeoutExceeded { .. })
+            ),
             "Slow step with timeout < 3000ms should return TimeoutExceeded"
         );
     }
-
-
 
     /// Test 4: Kills `&&` → `||` in timeout check (src/lib.rs:384)
     /// Verifies `&&` logic: Slow step AND timeout too short = error.
@@ -798,7 +840,7 @@ mod integration_tests {
         let timeout_ms = 5000; // >= SLOW_STEP_DURATION_MS (3000)
 
         let result = execute_step(step_id.clone(), timeout_ms).await;
-        
+
         // With correct && logic: slow step + sufficient timeout = success
         // With `&&` → `||` mutant: would return TimeoutExceeded regardless
         assert!(
@@ -808,7 +850,7 @@ mod integration_tests {
              Got: {:?}",
             result
         );
-        
+
         assert_eq!(
             result.unwrap(),
             vo_executor::StepResult::Success {
@@ -835,7 +877,7 @@ mod integration_tests {
         let start = std::time::Instant::now();
         let result = execute_step_with_retry(step_id, timeout_ms, retry_policy).await;
         let elapsed_ms = start.elapsed().as_millis() as u64;
-        
+
         // With max_attempts=3, should sleep twice (attempt 1 and attempt 2)
         // attempt 3 returns RetryExhausted without sleeping
         // If `>` → `==` mutant: only attempt 1 sleeps (100ms)
@@ -846,7 +888,7 @@ mod integration_tests {
              got {}ms. If `>` was changed to `==`, only one sleep (100ms) would occur.",
             elapsed_ms
         );
-        
+
         // Verify RetryExhausted with correct attempt count
         let err = result.unwrap_err();
         match err {
@@ -875,7 +917,7 @@ mod integration_tests {
         let start = std::time::Instant::now();
         let result = execute_step_with_retry(step_id, timeout_ms, retry_policy).await;
         let elapsed_ms = start.elapsed().as_millis() as u64;
-        
+
         // With max_attempts=2, should sleep once (attempt 1 only)
         // attempt 2 returns RetryExhausted without sleeping (since `max_attempts > 2` is false)
         // If `>` → `<` mutant: `2 < 2` is false, so no sleeps at all (immediate error)
@@ -886,7 +928,7 @@ mod integration_tests {
              got {}ms. If `>` was changed to `<`, no sleeps would occur (immediate).",
             elapsed_ms
         );
-        
+
         // Verify RetryExhausted with correct attempt count
         let err = result.unwrap_err();
         match err {
@@ -916,7 +958,7 @@ mod integration_tests {
         let start = std::time::Instant::now();
         let result = execute_step_with_retry(step_id, timeout_ms, retry_policy).await;
         let elapsed_ms = start.elapsed().as_millis() as u64;
-        
+
         // If sleep_with_backoff was deleted (replaced with `()`),
         // elapsed time would be ~0ms (immediate return)
         // Correct implementation: ~450ms (two sleeps)
@@ -926,7 +968,7 @@ mod integration_tests {
              got {}ms. If sleep_with_backoff was deleted, elapsed would be ~0ms.",
             elapsed_ms
         );
-        
+
         // Verify RetryExhausted
         let err = result.unwrap_err();
         match err {

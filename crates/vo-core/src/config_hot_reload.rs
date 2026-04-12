@@ -770,16 +770,10 @@ mod tests {
         let path = temp_dir.path().join("config.json");
         fs::write(&path, "{}").unwrap();
 
-        let config = HotReloadConfig::new(
-            serde_json::json!({"v": 1}),
-            path,
-            Arc::new(AlwaysValid),
-        )
-        .unwrap();
+        let config =
+            HotReloadConfig::new(serde_json::json!({"v": 1}), path, Arc::new(AlwaysValid)).unwrap();
 
-        config
-            .try_update(serde_json::json!({"v": 2}))
-            .unwrap();
+        config.try_update(serde_json::json!({"v": 2})).unwrap();
         let _old = config.commit().unwrap();
 
         let result = config.commit();
@@ -792,12 +786,8 @@ mod tests {
         let path = temp_dir.path().join("config.json");
         fs::write(&path, "{}").unwrap();
 
-        let config = HotReloadConfig::new(
-            serde_json::json!({"v": 1}),
-            path,
-            Arc::new(AlwaysValid),
-        )
-        .unwrap();
+        let config =
+            HotReloadConfig::new(serde_json::json!({"v": 1}), path, Arc::new(AlwaysValid)).unwrap();
 
         config.rollback();
         assert_eq!(config.current(), serde_json::json!({"v": 1}));
@@ -809,12 +799,8 @@ mod tests {
         let path = temp_dir.path().join("config.json");
         fs::write(&path, "not valid json {{{").unwrap();
 
-        let config = HotReloadConfig::new(
-            serde_json::json!({"v": 1}),
-            path,
-            Arc::new(AlwaysValid),
-        )
-        .unwrap();
+        let config =
+            HotReloadConfig::new(serde_json::json!({"v": 1}), path, Arc::new(AlwaysValid)).unwrap();
 
         let result = config.reload_from_file();
         assert!(matches!(result, Err(Error::ParseError(_))));
@@ -834,9 +820,7 @@ mod tests {
         )
         .unwrap();
 
-        config
-            .try_update(serde_json::json!({"v": 999}))
-            .unwrap();
+        config.try_update(serde_json::json!({"v": 999})).unwrap();
 
         fs::write(&path, r#"{"v": 2}"#).unwrap();
         let old = config.reload_from_file().unwrap();
@@ -865,8 +849,14 @@ mod tests {
         let mut clone1 = config.current();
         let mut clone2 = config.current();
 
-        clone1.as_object_mut().unwrap().insert("modified".to_string(), serde_json::json!(true));
-        clone2.as_object_mut().unwrap().insert("other".to_string(), serde_json::json!(42));
+        clone1
+            .as_object_mut()
+            .unwrap()
+            .insert("modified".to_string(), serde_json::json!(true));
+        clone2
+            .as_object_mut()
+            .unwrap()
+            .insert("other".to_string(), serde_json::json!(42));
 
         assert_eq!(config.current(), serde_json::json!({"key": "value"}));
     }
@@ -877,16 +867,10 @@ mod tests {
         let path = temp_dir.path().join("config.json");
         fs::write(&path, "{}").unwrap();
 
-        let config = HotReloadConfig::new(
-            serde_json::json!({"v": 1}),
-            path,
-            Arc::new(AlwaysValid),
-        )
-        .unwrap();
+        let config =
+            HotReloadConfig::new(serde_json::json!({"v": 1}), path, Arc::new(AlwaysValid)).unwrap();
 
-        config
-            .try_update(serde_json::json!({"v": 2}))
-            .unwrap();
+        config.try_update(serde_json::json!({"v": 2})).unwrap();
         let old = config.commit().unwrap();
 
         assert_eq!(old, serde_json::json!({"v": 1}));
@@ -911,12 +895,9 @@ mod tests {
         let path = temp_dir.path().join("config.json");
         fs::write(&path, "{}").unwrap();
 
-        let config = HotReloadConfig::new(
-            serde_json::json!({"v": 1}),
-            path,
-            Arc::new(AlwaysInvalid),
-        )
-        .unwrap();
+        let config =
+            HotReloadConfig::new(serde_json::json!({"v": 1}), path, Arc::new(AlwaysInvalid))
+                .unwrap();
 
         let result = config.try_update(serde_json::json!({"v": 2}));
         assert!(matches!(result, Err(Error::ValidationFailed(_))));
@@ -1002,10 +983,7 @@ mod tests {
     #[test]
     fn watcher_config_default_debounce_is_300ms() {
         let config = WatcherConfig::default();
-        assert_eq!(
-            config.debounce_duration,
-            Some(Duration::from_millis(300))
-        );
+        assert_eq!(config.debounce_duration, Some(Duration::from_millis(300)));
     }
 
     #[tokio::test]

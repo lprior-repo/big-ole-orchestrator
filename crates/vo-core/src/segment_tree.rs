@@ -17,7 +17,10 @@ impl<T: Clone> SegmentTree<T> {
     /// Panics if `data` is empty.
     #[must_use]
     pub fn from_slice(data: &[T], merge: fn(&T, &T) -> T, identity: T) -> Self {
-        assert!(!data.is_empty(), "SegmentTree requires at least one element");
+        assert!(
+            !data.is_empty(),
+            "SegmentTree requires at least one element"
+        );
 
         let len = data.len();
         let n = len.next_power_of_two();
@@ -30,14 +33,27 @@ impl<T: Clone> SegmentTree<T> {
             tree[i] = merge(&tree[2 * i], &tree[2 * i + 1]);
         }
 
-        Self { tree, len, n, merge, identity }
+        Self {
+            tree,
+            len,
+            n,
+            merge,
+            identity,
+        }
     }
 
     /// Query the aggregate value over range `[left, right)`.
     #[must_use]
     pub fn query(&self, left: usize, right: usize) -> T {
-        assert!(left <= right, "query: left ({left}) must be <= right ({right})");
-        assert!(right <= self.len, "query: right ({right}) out of bounds (len={})", self.len);
+        assert!(
+            left <= right,
+            "query: left ({left}) must be <= right ({right})"
+        );
+        assert!(
+            right <= self.len,
+            "query: right ({right}) out of bounds (len={})",
+            self.len
+        );
 
         let mut left = left + self.n;
         let mut right = right + self.n;
@@ -72,15 +88,23 @@ impl<T: Clone> SegmentTree<T> {
 
     #[must_use]
     pub fn get(&self, index: usize) -> T {
-        assert!(index < self.len, "get: index ({index}) out of bounds (len={})", self.len);
+        assert!(
+            index < self.len,
+            "get: index ({index}) out of bounds (len={})",
+            self.len
+        );
         self.tree[self.n + index].clone()
     }
 
     #[must_use]
-    pub fn len(&self) -> usize { self.len }
+    pub fn len(&self) -> usize {
+        self.len
+    }
 
     #[must_use]
-    pub fn is_empty(&self) -> bool { self.len == 0 }
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -109,7 +133,10 @@ impl<T: Clone, U: Clone> LazySegmentTree<T, U> {
         apply: fn(&T, &U, usize) -> T,
         compose: fn(&U, &U) -> U,
     ) -> Self {
-        assert!(!data.is_empty(), "LazySegmentTree requires at least one element");
+        assert!(
+            !data.is_empty(),
+            "LazySegmentTree requires at least one element"
+        );
         let len = data.len();
         let n = len.next_power_of_two();
         let mut tree = vec![identity.clone(); 2 * n];
@@ -119,20 +146,40 @@ impl<T: Clone, U: Clone> LazySegmentTree<T, U> {
         for i in (1..n).rev() {
             tree[i] = merge(&tree[2 * i], &tree[2 * i + 1]);
         }
-        Self { tree, lazy: vec![None; 2 * n], len, n, merge, identity, apply, compose }
+        Self {
+            tree,
+            lazy: vec![None; 2 * n],
+            len,
+            n,
+            merge,
+            identity,
+            apply,
+            compose,
+        }
     }
 
     #[must_use]
     pub fn query(&mut self, left: usize, right: usize) -> T {
-        assert!(left <= right, "query: left ({left}) must be <= right ({right})");
-        assert!(right <= self.len, "query: right ({right}) out of bounds (len={})", self.len);
+        assert!(
+            left <= right,
+            "query: left ({left}) must be <= right ({right})"
+        );
+        assert!(
+            right <= self.len,
+            "query: right ({right}) out of bounds (len={})",
+            self.len
+        );
         self.query_inner(1, 0, self.n, left, right)
     }
 
     fn query_inner(&mut self, node: usize, nl: usize, nr: usize, ql: usize, qr: usize) -> T {
         self.push_down(node, nr - nl);
-        if ql <= nl && nr <= qr { return self.tree[node].clone(); }
-        if nr <= ql || qr <= nl { return self.identity.clone(); }
+        if ql <= nl && nr <= qr {
+            return self.tree[node].clone();
+        }
+        if nr <= ql || qr <= nl {
+            return self.identity.clone();
+        }
         let mid = (nl + nr) / 2;
         let l = self.query_inner(2 * node, nl, mid, ql, qr);
         let r = self.query_inner(2 * node + 1, mid, nr, ql, qr);
@@ -147,7 +194,15 @@ impl<T: Clone, U: Clone> LazySegmentTree<T, U> {
         }
     }
 
-    fn update_range_inner(&mut self, node: usize, nl: usize, nr: usize, ql: usize, qr: usize, update: &U) {
+    fn update_range_inner(
+        &mut self,
+        node: usize,
+        nl: usize,
+        nr: usize,
+        ql: usize,
+        qr: usize,
+        update: &U,
+    ) {
         self.push_down(node, nr - nl);
         if ql <= nl && nr <= qr {
             let seg_len = nr - nl;
@@ -158,7 +213,9 @@ impl<T: Clone, U: Clone> LazySegmentTree<T, U> {
             });
             return;
         }
-        if nr <= ql || qr <= nl { return; }
+        if nr <= ql || qr <= nl {
+            return;
+        }
         let mid = (nl + nr) / 2;
         self.update_range_inner(2 * node, nl, mid, ql, qr, update);
         self.update_range_inner(2 * node + 1, mid, nr, ql, qr, update);
@@ -206,10 +263,14 @@ impl<T: Clone, U: Clone> LazySegmentTree<T, U> {
     }
 
     #[must_use]
-    pub fn len(&self) -> usize { self.len }
+    pub fn len(&self) -> usize {
+        self.len
+    }
 
     #[must_use]
-    pub fn is_empty(&self) -> bool { self.len == 0 }
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
 }
 
 #[cfg(test)]
@@ -286,7 +347,9 @@ mod tests {
     fn lazy_segment_tree_overlapping_updates() {
         let data = vec![0i64; 6];
         let mut tree = LazySegmentTree::from_slice(
-            &data, |a, b| a + b, 0,
+            &data,
+            |a, b| a + b,
+            0,
             |val, upd, len| val + upd * len as i64,
             |old, new| old + new,
         );
@@ -300,7 +363,9 @@ mod tests {
     fn lazy_segment_tree_point_update() {
         let data = vec![1i64, 2, 3, 4, 5];
         let mut tree = LazySegmentTree::from_slice(
-            &data, |a, b| a + b, 0,
+            &data,
+            |a, b| a + b,
+            0,
             |val, upd, len| val + upd * len as i64,
             |old, new| old + new,
         );
@@ -313,7 +378,9 @@ mod tests {
     fn lazy_segment_tree_multiple_range_updates() {
         let data = vec![0i64; 8];
         let mut tree = LazySegmentTree::from_slice(
-            &data, |a, b| a + b, 0,
+            &data,
+            |a, b| a + b,
+            0,
             |val, upd, len| val + upd * len as i64,
             |old, new| old + new,
         );

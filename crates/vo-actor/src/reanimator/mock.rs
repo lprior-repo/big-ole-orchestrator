@@ -133,7 +133,8 @@ impl TimerStorage for MockTimerStorage {
             return Err(ReanimatorError::StorageError("Mock failure".to_string()));
         }
 
-        let pending: Vec<PendingTimer> = self.pending_timers
+        let pending: Vec<PendingTimer> = self
+            .pending_timers
             .lock()
             .await
             .values()
@@ -153,10 +154,7 @@ impl TimerStorage for MockTimerStorage {
             return Err(ReanimatorError::StorageError("Mock failure".to_string()));
         }
 
-        self.pending_timers
-            .lock()
-            .await
-            .remove(instance_id);
+        self.pending_timers.lock().await.remove(instance_id);
 
         Ok(())
     }

@@ -48,8 +48,8 @@ pub fn filtered_templates(query: &str) -> Vec<CommandTemplate> {
 
 #[cfg(test)]
 mod tests {
-    use super::{filtered_templates, is_escape_key};
     use super::super::domain_types::NodeTemplateId;
+    use super::{filtered_templates, is_escape_key};
 
     #[test]
     fn given_empty_query_when_filtering_templates_then_all_templates_are_returned() {
@@ -66,9 +66,7 @@ mod tests {
         assert!(by_label
             .iter()
             .any(|t| t.node_type == NodeTemplateId::HttpHandler));
-        assert!(by_hint
-            .iter()
-            .any(|t| t.node_type == NodeTemplateId::Timer));
+        assert!(by_hint.iter().any(|t| t.node_type == NodeTemplateId::Timer));
         assert!(by_type
             .iter()
             .any(|t| t.node_type == NodeTemplateId::KafkaHandler));

@@ -14,7 +14,11 @@ pub struct PendingTimer {
 }
 
 impl PendingTimer {
-    pub fn new(instance_id: InstanceId, fire_at_ms: TimestampMs, scheduled_at_ms: TimestampMs) -> Self {
+    pub fn new(
+        instance_id: InstanceId,
+        fire_at_ms: TimestampMs,
+        scheduled_at_ms: TimestampMs,
+    ) -> Self {
         Self {
             instance_id,
             fire_at_ms,

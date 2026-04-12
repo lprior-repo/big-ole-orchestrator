@@ -50,8 +50,17 @@ impl Middleware for LoggingMiddleware {
     fn after(&self, ctx: &CommandContext, result: &Result<(), CliError>) {
         let elapsed = ctx.start_time.elapsed();
         match result {
-            Ok(()) => eprintln!("[{}] Command completed successfully in {:?}", self.name(), elapsed),
-            Err(e) => eprintln!("[{}] Command failed after {:?}: {}", self.name(), elapsed, e),
+            Ok(()) => eprintln!(
+                "[{}] Command completed successfully in {:?}",
+                self.name(),
+                elapsed
+            ),
+            Err(e) => eprintln!(
+                "[{}] Command failed after {:?}: {}",
+                self.name(),
+                elapsed,
+                e
+            ),
         }
     }
 }
@@ -82,7 +91,12 @@ impl Middleware for MetricsMiddleware {
     fn after(&self, ctx: &CommandContext, result: &Result<(), CliError>) {
         let elapsed = ctx.start_time.elapsed();
         let status = if result.is_ok() { "success" } else { "failure" };
-        eprintln!("[metrics] command={:?} status={} duration_us={}", ctx.command, status, elapsed.as_micros());
+        eprintln!(
+            "[metrics] command={:?} status={} duration_us={}",
+            ctx.command,
+            status,
+            elapsed.as_micros()
+        );
     }
 }
 
@@ -92,7 +106,9 @@ pub struct CommandDispatcher {
 
 impl CommandDispatcher {
     pub fn new() -> Self {
-        Self { middlewares: Vec::new() }
+        Self {
+            middlewares: Vec::new(),
+        }
     }
 
     pub fn with_middleware<M: Middleware + 'static>(mut self, middleware: M) -> Self {
@@ -151,7 +167,10 @@ async fn dispatch_inner(cli: Cli) -> Result<(), CliError> {
             crate::commands::check::run_check(&path)?;
             Ok(())
         }
-        Command::Gc { engine_url, dry_run } => {
+        Command::Gc {
+            engine_url,
+            dry_run,
+        } => {
             let config = crate::commands::gc::GcConfig {
                 engine_url,
                 versions_dir: std::path::PathBuf::from("/var/wtf/versions"),
@@ -160,7 +179,11 @@ async fn dispatch_inner(cli: Cli) -> Result<(), CliError> {
             crate::commands::gc::run_gc(&config).await?;
             Ok(())
         }
-        Command::Init { project_dir, engine_url, storage_path } => {
+        Command::Init {
+            project_dir,
+            engine_url,
+            storage_path,
+        } => {
             let config = crate::commands::init::InitConfig {
                 project_dir,
                 engine_url,
@@ -202,7 +225,9 @@ mod tests {
 
     #[test]
     fn test_command_context_creation() {
-        let cmd = Command::Check { path: std::path::PathBuf::from("/tmp") };
+        let cmd = Command::Check {
+            path: std::path::PathBuf::from("/tmp"),
+        };
         let ctx = CommandContext::new(cmd.clone());
         assert_eq!(ctx.command, cmd);
     }
@@ -215,8 +240,7 @@ mod tests {
 
     #[test]
     fn test_dispatcher_with_middleware() {
-        let dispatcher = CommandDispatcher::new()
-            .with_middleware(LoggingMiddleware::new());
+        let dispatcher = CommandDispatcher::new().with_middleware(LoggingMiddleware::new());
         assert_eq!(dispatcher.middlewares.len(), 1);
     }
 

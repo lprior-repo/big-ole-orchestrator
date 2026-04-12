@@ -1,9 +1,9 @@
 use std::path::PathBuf;
 
 pub use super::doctor_checks::{
-    CategoryReport, CheckCategory, CheckResult, DoctorReport as ComprehensiveDoctorReport,
-    Severity, check_workspace, check_lock_state, check_subprocess_liveness,
-    check_storage_integrity, check_config_validation, format_report, format_report_json,
+    check_config_validation, check_lock_state, check_storage_integrity, check_subprocess_liveness,
+    check_workspace, format_report, format_report_json, CategoryReport, CheckCategory, CheckResult,
+    DoctorReport as ComprehensiveDoctorReport, Severity,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -16,7 +16,12 @@ pub enum DoctorError {
     #[error("project not initialized: {path}")]
     NotInitialized { path: PathBuf },
     #[error("I/O error at {path}: {reason}")]
-    Io { path: PathBuf, reason: String, #[source] source: std::io::Error },
+    Io {
+        path: PathBuf,
+        reason: String,
+        #[source]
+        source: std::io::Error,
+    },
 }
 
 /// Run comprehensive diagnostics on a veloxide project.

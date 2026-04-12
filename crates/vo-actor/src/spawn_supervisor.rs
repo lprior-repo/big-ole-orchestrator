@@ -225,9 +225,7 @@ impl SpawnSupervisorError {
     pub fn is_fatal(&self) -> bool {
         matches!(
             self,
-            Self::CorruptSpawn(_)
-                | Self::InvalidConfig(_)
-                | Self::ZombieDetected { .. }
+            Self::CorruptSpawn(_) | Self::InvalidConfig(_) | Self::ZombieDetected { .. }
         )
     }
 }
@@ -339,7 +337,10 @@ pub trait SpawnStorage: Send + Sync {
     async fn save_spawn_record(&self, record: &SpawnRecord) -> Result<(), SpawnSupervisorError>;
 
     /// Deletes a spawn record.
-    async fn delete_spawn_record(&self, instance_id: &InstanceId) -> Result<(), SpawnSupervisorError>;
+    async fn delete_spawn_record(
+        &self,
+        instance_id: &InstanceId,
+    ) -> Result<(), SpawnSupervisorError>;
 
     /// Scans for spawns in the given phase.
     async fn scan_spawns_by_phase(&self, phase: SpawnPhase, max: u32) -> Vec<SpawnRecord>;
@@ -514,9 +515,7 @@ impl SpawnSupervisor {
     ///
     /// # Errors
     /// Returns `AlreadyRunning` if the supervisor is already running.
-    pub fn spawn(
-        self,
-    ) -> Result<SpawnSupervisorHandle, SpawnSupervisorError> {
+    pub fn spawn(self) -> Result<SpawnSupervisorHandle, SpawnSupervisorError> {
         let (state_sender, _) = watch::channel(SpawnSupervisorState::Stopped);
         let (shutdown_trigger, _) = broadcast::channel(1);
 
@@ -589,7 +588,10 @@ impl SpawnSupervisor {
         let mut errors = 0u32;
         let mut respawns = 0u32;
 
-        let spawn_records = self.storage.scan_spawns_by_phase(SpawnPhase::Spawn, 100).await;
+        let spawn_records = self
+            .storage
+            .scan_spawns_by_phase(SpawnPhase::Spawn, 100)
+            .await;
 
         for record in spawn_records {
             spawns_processed += 1;
@@ -624,7 +626,10 @@ impl SpawnSupervisor {
                         continue;
                     }
 
-                    match self.perform_health_checks(&record.instance_id, &process_handle).await {
+                    match self
+                        .perform_health_checks(&record.instance_id, &process_handle)
+                        .await
+                    {
                         Ok(()) => {
                             let mut running_record = new_record.transition_to_running();
                             running_record.spawn_id =
@@ -695,13 +700,16 @@ impl SpawnSupervisor {
             spawns_processed += 1;
             health_checks += 1;
 
-            match self.perform_health_checks(
-                &record.instance_id,
-                &ProcessHandle {
-                    pid: 0,
-                    command: record.command.clone(),
-                },
-            ).await {
+            match self
+                .perform_health_checks(
+                    &record.instance_id,
+                    &ProcessHandle {
+                        pid: 0,
+                        command: record.command.clone(),
+                    },
+                )
+                .await
+            {
                 Ok(()) => {
                     let running_record = record.transition_to_running();
 
@@ -739,7 +747,10 @@ impl SpawnSupervisor {
     }
 
     /// Spawns a process for a spawn record.
-    async fn spawn_process(&self, record: &SpawnRecord) -> Result<ProcessHandle, SpawnSupervisorError> {
+    async fn spawn_process(
+        &self,
+        record: &SpawnRecord,
+    ) -> Result<ProcessHandle, SpawnSupervisorError> {
         self.process_manager.spawn_process(&record.command).await
     }
 
@@ -1023,11 +1034,7 @@ mod tests {
 
     #[test]
     fn spawn_record_transitions_correctly() {
-        let record = SpawnRecord::new(
-            test_instance_id(),
-            "test".to_string(),
-            None,
-        );
+        let record = SpawnRecord::new(test_instance_id(), "test".to_string(), None);
 
         assert_eq!(record.spawn_phase, SpawnPhase::Spawn);
 

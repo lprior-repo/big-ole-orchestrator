@@ -10,10 +10,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use vo_actor::spawn_supervisor::{
-    is_zombie_state, should_respawn, calculate_backoff_delay, Counter,
-    CycleResult, ProcessHandle, SpawnPhase, SpawnRecord,
-    SpawnSupervisor, SpawnSupervisorError, SpawnSupervisorMetrics,
-    SpawnSupervisorState, SpawnStorage, ProcessManager, WorkQueue,
+    calculate_backoff_delay, is_zombie_state, should_respawn, Counter, CycleResult, ProcessHandle,
+    ProcessManager, SpawnPhase, SpawnRecord, SpawnStorage, SpawnSupervisor, SpawnSupervisorError,
+    SpawnSupervisorMetrics, SpawnSupervisorState, WorkQueue,
 };
 use vo_types::InstanceId;
 
@@ -59,18 +58,28 @@ impl MockSpawnStorage {
 #[async_trait::async_trait]
 impl SpawnStorage for MockSpawnStorage {
     async fn get_spawn_record(&self, _instance_id: &InstanceId) -> Option<SpawnRecord> {
-        self.records.lock().unwrap().iter().find(|r| r.instance_id == *_instance_id).cloned()
+        self.records
+            .lock()
+            .unwrap()
+            .iter()
+            .find(|r| r.instance_id == *_instance_id)
+            .cloned()
     }
 
     async fn save_spawn_record(&self, record: &SpawnRecord) -> Result<(), SpawnSupervisorError> {
         if *self.should_fail.lock().unwrap() {
-            return Err(SpawnSupervisorError::StorageError("Mock storage failure".to_string()));
+            return Err(SpawnSupervisorError::StorageError(
+                "Mock storage failure".to_string(),
+            ));
         }
         if let Some(err) = self.save_error.lock().unwrap().take() {
             return Err(err);
         }
         let mut records = self.records.lock().unwrap();
-        if let Some(pos) = records.iter().position(|r| r.instance_id == record.instance_id) {
+        if let Some(pos) = records
+            .iter()
+            .position(|r| r.instance_id == record.instance_id)
+        {
             records[pos] = record.clone();
         } else {
             records.push(record.clone());
@@ -78,14 +87,23 @@ impl SpawnStorage for MockSpawnStorage {
         Ok(())
     }
 
-    async fn delete_spawn_record(&self, _instance_id: &InstanceId) -> Result<(), SpawnSupervisorError> {
+    async fn delete_spawn_record(
+        &self,
+        _instance_id: &InstanceId,
+    ) -> Result<(), SpawnSupervisorError> {
         let mut records = self.records.lock().unwrap();
         records.retain(|r| r.instance_id != *_instance_id);
         Ok(())
     }
 
     async fn scan_spawns_by_phase(&self, phase: SpawnPhase, _max: u32) -> Vec<SpawnRecord> {
-        self.records.lock().unwrap().iter().filter(|r| r.spawn_phase == phase).cloned().collect()
+        self.records
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|r| r.spawn_phase == phase)
+            .cloned()
+            .collect()
     }
 
     async fn transition_phase(
@@ -200,7 +218,9 @@ impl WorkQueue for MockWorkQueue {
         _command: String,
     ) -> Result<(), SpawnSupervisorError> {
         if *self.should_fail.lock().unwrap() {
-            return Err(SpawnSupervisorError::DispatchError("Queue full".to_string()));
+            return Err(SpawnSupervisorError::DispatchError(
+                "Queue full".to_string(),
+            ));
         }
         self.enqueued_spawns.lock().unwrap().push(instance_id);
         Ok(())
@@ -208,7 +228,9 @@ impl WorkQueue for MockWorkQueue {
 
     async fn enqueue_resume(&self, instance_id: InstanceId) -> Result<(), SpawnSupervisorError> {
         if *self.should_fail.lock().unwrap() {
-            return Err(SpawnSupervisorError::DispatchError("Queue full".to_string()));
+            return Err(SpawnSupervisorError::DispatchError(
+                "Queue full".to_string(),
+            ));
         }
         self.enqueued_resumes.lock().unwrap().push(instance_id);
         Ok(())
@@ -263,7 +285,7 @@ fn supervisor_shutdown_transitions_to_shutdown() {
     .expect("Valid config");
 
     let handle = supervisor.spawn().expect("Should spawn");
-    
+
     // Note: Testing shutdown requires async context
     // This is a placeholder for the lifecycle test
 }
@@ -294,17 +316,22 @@ async fn process_cycle_spawns_record_in_spawn_phase() {
     )
     .expect("Valid config");
 
-    let result = supervisor.process_cycle().await.expect("Process cycle should succeed");
+    let result = supervisor
+        .process_cycle()
+        .await
+        .expect("Process cycle should succeed");
 
     // Should have processed 1 spawn
     assert_eq!(result.spawns_processed, 1);
-    
+
     // IMPLEMENTATION GAP: The spawn_id should be set with actual PID
     // Currently health check uses pid: 0 instead of actual process handle pid
-    let saved_record = storage.get_records().into_iter()
+    let saved_record = storage
+        .get_records()
+        .into_iter()
         .find(|r| r.instance_id == instance_id)
         .expect("Record should exist");
-    
+
     // This assertion exposes Gap #6: Health check scan uses PID 0
     // The record should have a valid spawn_id with the actual PID (1234)
     // but currently it may not be set correctly
@@ -338,17 +365,22 @@ async fn process_cycle_health_check_uses_correct_pid() {
     )
     .expect("Valid config");
 
-    supervisor.process_cycle().await.expect("Process cycle should succeed");
+    supervisor
+        .process_cycle()
+        .await
+        .expect("Process cycle should succeed");
 
     // IMPLEMENTATION GAP #6: Health check for HealthCheck phase records
     // uses ProcessHandle { pid: 0, command: ... } instead of actual pid
     // The code at line 700-703 constructs a fake handle with pid: 0
     // This test documents the expected correct behavior
-    
-    let saved_record = storage.get_records().into_iter()
+
+    let saved_record = storage
+        .get_records()
+        .into_iter()
         .find(|r| r.instance_id == instance_id)
         .expect("Record should exist");
-    
+
     // After successful health check, record should be Running with valid spawn_id
     assert_eq!(saved_record.spawn_phase, SpawnPhase::Running);
     assert!(
@@ -384,7 +416,10 @@ async fn process_cycle_spawn_failure_records_error() {
     )
     .expect("Valid config");
 
-    let result = supervisor.process_cycle().await.expect("Process cycle should succeed");
+    let result = supervisor
+        .process_cycle()
+        .await
+        .expect("Process cycle should succeed");
 
     // Should have processed 1 spawn and recorded 1 error
     assert_eq!(result.spawns_processed, 1);
@@ -393,10 +428,12 @@ async fn process_cycle_spawn_failure_records_error() {
     assert_eq!(supervisor.metrics.spawns_failed.get(), 1);
 
     // Verify error was recorded
-    let saved_record = storage.get_records().into_iter()
+    let saved_record = storage
+        .get_records()
+        .into_iter()
         .find(|r| r.instance_id == instance_id)
         .expect("Record should exist");
-    
+
     assert!(
         saved_record.last_error.is_some(),
         "Last error should be recorded on spawn failure"
@@ -426,7 +463,10 @@ async fn process_cycle_max_attempts_exceeded_skips_record() {
     )
     .expect("Valid config");
 
-    let result = supervisor.process_cycle().await.expect("Process cycle should succeed");
+    let result = supervisor
+        .process_cycle()
+        .await
+        .expect("Process cycle should succeed");
 
     // Record should be skipped due to max attempts exceeded
     assert_eq!(result.spawns_processed, 1);
@@ -459,11 +499,14 @@ async fn process_cycle_health_check_failure_transitions_to_failed() {
     )
     .expect("Valid config");
 
-    let result = supervisor.process_cycle().await.expect("Process cycle should succeed");
+    let result = supervisor
+        .process_cycle()
+        .await
+        .expect("Process cycle should succeed");
 
     // Health checks should fail - check via metrics
     assert_eq!(supervisor.metrics.health_checks_failed.get(), 1);
-    
+
     // IMPLEMENTATION GAP #5: Backoff delay calculated but discarded
     // The line `let _ = backoff_delay;` discards the computed backoff
     // Respawn scheduling is NOT actually implemented
@@ -493,12 +536,15 @@ async fn process_cycle_respawn_uses_work_queue() {
     )
     .expect("Valid config");
 
-    supervisor.process_cycle().await.expect("Process cycle should succeed");
+    supervisor
+        .process_cycle()
+        .await
+        .expect("Process cycle should succeed");
 
     // IMPLEMENTATION GAP #3: WorkQueue is never used
     // enqueue_spawn and enqueue_resume are defined but never called
     // This test documents that they SHOULD be called for respawns
-    
+
     let enqueued = work_queue.get_enqueued_spawns();
     assert!(
         !enqueued.is_empty(),
@@ -534,7 +580,10 @@ async fn process_cycle_increments_spawns_successful_metric() {
     )
     .expect("Valid config");
 
-    supervisor.process_cycle().await.expect("Process cycle should succeed");
+    supervisor
+        .process_cycle()
+        .await
+        .expect("Process cycle should succeed");
 
     assert_eq!(supervisor.metrics.spawns_successful.get(), 1);
 }
@@ -566,7 +615,10 @@ async fn process_cycle_increments_spawns_failed_metric() {
     )
     .expect("Valid config");
 
-    supervisor.process_cycle().await.expect("Process cycle should succeed");
+    supervisor
+        .process_cycle()
+        .await
+        .expect("Process cycle should succeed");
 
     assert_eq!(supervisor.metrics.spawns_failed.get(), 1);
 }
@@ -595,7 +647,10 @@ async fn process_cycle_increments_health_checks_performed_metric() {
     )
     .expect("Valid config");
 
-    supervisor.process_cycle().await.expect("Process cycle should succeed");
+    supervisor
+        .process_cycle()
+        .await
+        .expect("Process cycle should succeed");
 
     assert_eq!(supervisor.metrics.health_checks_performed.get(), 1);
 }
@@ -639,7 +694,10 @@ async fn process_cycle_increments_zombies_detected_metric() {
     )
     .expect("Valid config");
 
-    supervisor.process_cycle().await.expect("Process cycle should succeed");
+    supervisor
+        .process_cycle()
+        .await
+        .expect("Process cycle should succeed");
 
     // IMPLEMENTATION GAP #1: zombies_detected metric exists but is never incremented
     // The is_zombie method on ProcessManager is never called in the implementation
@@ -706,18 +764,27 @@ fn spawn_supervisor_error_is_fatal_for_zombie_detected() {
 #[test]
 fn spawn_supervisor_error_is_not_transient_for_fatal_errors() {
     let instance_id = test_instance_id();
-    
+
     let corrupt = SpawnSupervisorError::CorruptSpawn("bad".to_string());
-    assert!(!corrupt.is_transient(), "CorruptSpawn should not be transient");
-    
+    assert!(
+        !corrupt.is_transient(),
+        "CorruptSpawn should not be transient"
+    );
+
     let invalid = SpawnSupervisorError::InvalidConfig("bad".to_string());
-    assert!(!invalid.is_transient(), "InvalidConfig should not be transient");
-    
+    assert!(
+        !invalid.is_transient(),
+        "InvalidConfig should not be transient"
+    );
+
     let zombie = SpawnSupervisorError::ZombieDetected {
         instance_id,
         pid: 1234,
     };
-    assert!(!zombie.is_transient(), "ZombieDetected should not be transient");
+    assert!(
+        !zombie.is_transient(),
+        "ZombieDetected should not be transient"
+    );
 }
 
 // =============================================================================
@@ -1070,7 +1137,7 @@ fn should_respawn_false_for_non_failed_phase() {
 fn spawn_record_new_sets_correct_defaults() {
     let instance_id = test_instance_id();
     let record = SpawnRecord::new(instance_id.clone(), "./worker".to_string(), None);
-    
+
     assert_eq!(record.instance_id, instance_id);
     assert_eq!(record.command, "./worker");
     assert_eq!(record.spawn_phase, SpawnPhase::Spawn);
@@ -1084,7 +1151,7 @@ fn spawn_record_transition_to_health_check() {
     let instance_id = test_instance_id();
     let record = SpawnRecord::new(instance_id, "./worker".to_string(), None);
     let transitioned = record.transition_to_health_check();
-    
+
     assert_eq!(transitioned.spawn_phase, SpawnPhase::HealthCheck);
     // Other fields should be preserved
     assert_eq!(transitioned.instance_id, record.instance_id);
@@ -1095,10 +1162,10 @@ fn spawn_record_transition_to_health_check() {
 #[test]
 fn spawn_record_transition_to_running() {
     let instance_id = test_instance_id();
-    let record = SpawnRecord::new(instance_id, "./worker".to_string(), None)
-        .transition_to_health_check();
+    let record =
+        SpawnRecord::new(instance_id, "./worker".to_string(), None).transition_to_health_check();
     let transitioned = record.transition_to_running();
-    
+
     assert_eq!(transitioned.spawn_phase, SpawnPhase::Running);
 }
 
@@ -1109,7 +1176,7 @@ fn spawn_record_transition_to_shutdown() {
         .transition_to_health_check()
         .transition_to_running();
     let transitioned = record.transition_to_shutdown();
-    
+
     assert_eq!(transitioned.spawn_phase, SpawnPhase::Shutdown);
 }
 
@@ -1129,14 +1196,17 @@ fn spawn_record_respawn_increments_attempts() {
             exit_code: 1,
         }),
     };
-    
+
     let respawned = record.respawn(Some(vo_types::SpawnId::new("new-spawn".to_string())));
-    
+
     assert_eq!(respawned.spawn_phase, SpawnPhase::Spawn);
     assert_eq!(respawned.spawn_attempts, 4);
     assert_eq!(respawned.health_checks, 0);
     assert!(respawned.last_error.is_none());
-    assert_eq!(respawned.spawn_id, Some(vo_types::SpawnId::new("new-spawn".to_string())));
+    assert_eq!(
+        respawned.spawn_id,
+        Some(vo_types::SpawnId::new("new-spawn".to_string()))
+    );
 }
 
 #[test]
@@ -1145,9 +1215,9 @@ fn spawn_record_respawn_saturating_at_u32_max() {
     let mut record = SpawnRecord::new(instance_id, "./worker".to_string(), None);
     record.spawn_phase = SpawnPhase::Failed;
     record.spawn_attempts = u32::MAX;
-    
+
     let respawned = record.respawn(None);
-    
+
     // Should saturate, not overflow
     assert_eq!(respawned.spawn_attempts, u32::MAX);
 }
@@ -1164,9 +1234,9 @@ fn spawn_record_respawn_with_none_spawn_id() {
         spawn_attempts: 3,
         last_error: None,
     };
-    
+
     let respawned = record.respawn(None);
-    
+
     assert_eq!(respawned.spawn_id, None);
     assert_eq!(respawned.spawn_phase, SpawnPhase::Spawn);
     assert_eq!(respawned.spawn_attempts, 4);

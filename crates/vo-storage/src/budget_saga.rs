@@ -160,8 +160,13 @@ pub enum SagaError {
         actual: SagaStatus,
     },
     BudgetReserveFailed(String),
-    Storage { reason: String },
-    CorruptEntry { key: String, reason: String },
+    Storage {
+        reason: String,
+    },
+    CorruptEntry {
+        key: String,
+        reason: String,
+    },
 }
 
 impl std::fmt::Display for SagaError {
@@ -182,7 +187,9 @@ impl std::fmt::Display for SagaError {
             }
             Self::BudgetReserveFailed(msg) => write!(f, "budget reserve failed: {msg}"),
             Self::Storage { reason } => write!(f, "storage error: {reason}"),
-            Self::CorruptEntry { key, reason } => write!(f, "corrupt saga entry for key {key}: {reason}"),
+            Self::CorruptEntry { key, reason } => {
+                write!(f, "corrupt saga entry for key {key}: {reason}")
+            }
         }
     }
 }
@@ -210,7 +217,9 @@ impl SagaStore {
     pub fn open(keyspace: &fjall::Keyspace) -> Result<Self, SagaError> {
         let partition = keyspace
             .open_partition("saga_manifest", fjall::PartitionCreateOptions::default())
-            .map_err(|e| SagaError::Storage { reason: format!("failed to open saga_manifest partition: {e}") })?;
+            .map_err(|e| SagaError::Storage {
+                reason: format!("failed to open saga_manifest partition: {e}"),
+            })?;
         Ok(Self { partition })
     }
 
@@ -353,11 +362,11 @@ impl SagaStore {
                 let value = serde_json::to_vec(&entry).map_err(|e| SagaError::Storage {
                     reason: format!("failed to serialize saga entry: {e}"),
                 })?;
-                self.partition.insert(format!("entry:{write_key}").as_bytes(), &value).map_err(|e| {
-                    SagaError::Storage {
+                self.partition
+                    .insert(format!("entry:{write_key}").as_bytes(), &value)
+                    .map_err(|e| SagaError::Storage {
                         reason: e.to_string(),
-                    }
-                })?;
+                    })?;
                 count += 1;
             }
         }
@@ -727,10 +736,7 @@ mod tests {
             .expect("exists");
         assert_eq!(committed.status, SagaStatus::Committed);
 
-        let staged = store
-            .read_entry("staged1")
-            .expect("read")
-            .expect("exists");
+        let staged = store.read_entry("staged1").expect("read").expect("exists");
         assert_eq!(staged.status, SagaStatus::RolledBack);
     }
 
@@ -804,7 +810,9 @@ mod tests {
         saga.commit("key1").expect("commit");
 
         let entry = saga
-            .store().as_ref().expect("store")
+            .store()
+            .as_ref()
+            .expect("store")
             .read_entry("key1")
             .expect("read")
             .expect("exists");

@@ -155,21 +155,22 @@ impl ReanimatorLoop {
 
         // First, clean up any stale pending timers from previous crashes
         let stale_threshold = TimestampMs::try_from(
-            TimestampMs::now().as_u64().saturating_sub(STALE_PENDING_THRESHOLD_MS)
-        ).unwrap_or(TimestampMs::try_from(0u64).expect("0 is valid"));
-        
+            TimestampMs::now()
+                .as_u64()
+                .saturating_sub(STALE_PENDING_THRESHOLD_MS),
+        )
+        .unwrap_or(TimestampMs::try_from(0u64).expect("0 is valid"));
+
         let cleaned = storage
             .cleanup_stale_pending_timers(stale_threshold)
             .await?;
-        
+
         if cleaned > 0 {
             tracing::info!("Cleaned up {} stale pending timers", cleaned);
         }
 
         // Scan for pending timers that need to be replayed
-        let pending_timers = storage
-            .scan_pending_timers(100)
-            .await?;
+        let pending_timers = storage.scan_pending_timers(100).await?;
 
         if pending_timers.is_empty() {
             tracing::info!("No pending timers found during crash recovery");
@@ -190,7 +191,10 @@ impl ReanimatorLoop {
             match work_queue.enqueue_resume(pending.instance_id.clone()).await {
                 Ok(()) => {
                     // Successfully replayed, mark as complete
-                    if let Err(e) = storage.complete_timer_processing(&pending.instance_id, pending.fire_at_ms).await {
+                    if let Err(e) = storage
+                        .complete_timer_processing(&pending.instance_id, pending.fire_at_ms)
+                        .await
+                    {
                         tracing::warn!(
                             instance_id = %pending.instance_id,
                             error = %e,

@@ -1,5 +1,5 @@
 use std::path::PathBuf;
-use vo_ipc::{run_subprocess, IpcError, SubprocessConfig, Fd4Envelope, TaskResult};
+use vo_ipc::{run_subprocess, Fd4Envelope, IpcError, SubprocessConfig, TaskResult};
 
 #[tokio::test]
 async fn fd4_huge_length_no_payload_should_be_error() {
@@ -73,14 +73,20 @@ async fn fd4_partial_input_response_is_handled_correctly() {
     match result {
         Ok(output) => {
             // Verify we got some response data
-            assert!(!output.fd4_bytes.is_empty(), "Should receive response from partial-input attack");
+            assert!(
+                !output.fd4_bytes.is_empty(),
+                "Should receive response from partial-input attack"
+            );
 
             // Try to parse the response as an Fd4Envelope
             let response_result = serde_json::from_slice::<Fd4Envelope>(&output.fd4_bytes);
 
             // The response IS valid JSON and IS a valid Fd4Envelope structure
             // But the instance_id will be "adversary-response" not the expected value
-            assert!(response_result.is_ok(), "Response should be parseable as Fd4Envelope");
+            assert!(
+                response_result.is_ok(),
+                "Response should be parseable as Fd4Envelope"
+            );
 
             let response = response_result.unwrap();
             // Verify this is our adversarial response (not a legitimate one)
@@ -105,7 +111,10 @@ async fn fd4_partial_input_response_is_handled_correctly() {
         Err(e) => {
             // If we get an error, it's still acceptable - the IPC layer handled it
             // But ideally we should receive the response to verify the attack worked
-            panic!("IPC layer should handle partial-input attack gracefully: {:?}", e);
+            panic!(
+                "IPC layer should handle partial-input attack gracefully: {:?}",
+                e
+            );
         }
     }
 }

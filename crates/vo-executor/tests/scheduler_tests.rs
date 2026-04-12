@@ -4,11 +4,9 @@
 
 #[cfg(test)]
 mod scheduler_unit_tests {
-    use vo_executor::{
-        Job, JobId, JobPriority, JobResult, Schedule, SchedulerConfig,
-    };
-    use vo_executor::scheduler::{SchedulerError, JobRunError};
     use std::time::Duration;
+    use vo_executor::scheduler::{JobRunError, SchedulerError};
+    use vo_executor::{Job, JobId, JobPriority, JobResult, Schedule, SchedulerConfig};
 
     // =========================================================================
     // Section 1: JobPriority Enum Tests (5 tests)
@@ -55,7 +53,10 @@ mod scheduler_unit_tests {
     fn schedule_cron_next_fire_returns_none() {
         let schedule = Schedule::cron("*/5 * * * *");
         let next = schedule.next_fire_time(0);
-        assert!(next.is_none(), "Cron next_fire_time should return None (not implemented)");
+        assert!(
+            next.is_none(),
+            "Cron next_fire_time should return None (not implemented)"
+        );
     }
 
     #[test]
@@ -77,7 +78,10 @@ mod scheduler_unit_tests {
     fn schedule_one_shot_next_fire_first_call() {
         let schedule = Schedule::one_shot(Duration::from_secs(60));
         let next = schedule.next_fire_time(0);
-        assert!(next.is_some(), "First call with last_fire_ms=0 should return Some");
+        assert!(
+            next.is_some(),
+            "First call with last_fire_ms=0 should return Some"
+        );
     }
 
     #[test]
@@ -85,7 +89,10 @@ mod scheduler_unit_tests {
         let schedule = Schedule::one_shot(Duration::from_secs(60));
         let first = schedule.next_fire_time(0).unwrap();
         let second = schedule.next_fire_time(first);
-        assert!(second.is_none(), "Second call with last_fire_ms!=0 should return None");
+        assert!(
+            second.is_none(),
+            "Second call with last_fire_ms!=0 should return None"
+        );
     }
 
     #[test]
@@ -122,7 +129,10 @@ mod scheduler_unit_tests {
         let schedule = Schedule::interval(Duration::from_secs(1));
         let max_u64 = u64::MAX;
         let next = schedule.next_fire_time(max_u64);
-        assert!(next.is_some(), "saturating_add should prevent overflow at u64::MAX");
+        assert!(
+            next.is_some(),
+            "saturating_add should prevent overflow at u64::MAX"
+        );
     }
 
     // =========================================================================
@@ -385,7 +395,9 @@ mod scheduler_unit_tests {
 
     #[test]
     fn job_run_error_cancelled() {
-        let err = JobRunError::Cancelled { job_id: JobId::new(1) };
+        let err = JobRunError::Cancelled {
+            job_id: JobId::new(1),
+        };
         let display = format!("{}", err);
         assert!(display.contains("1") || display.contains("ancelled"));
     }
@@ -470,9 +482,9 @@ mod scheduler_unit_tests {
 
 #[cfg(test)]
 mod scheduler_integration_tests {
-    use vo_executor::{Job, JobId, JobPriority, Schedule, SchedulerConfig};
-    use vo_executor::scheduler::Scheduler;
     use std::time::Duration;
+    use vo_executor::scheduler::Scheduler;
+    use vo_executor::{Job, JobId, JobPriority, Schedule, SchedulerConfig};
 
     #[tokio::test]
     async fn scheduler_schedule_one_shot() {
@@ -596,9 +608,9 @@ mod scheduler_integration_tests {
 
 #[cfg(test)]
 mod scheduler_concurrency_tests {
-    use vo_executor::SchedulerConfig;
-    use vo_executor::scheduler::Scheduler;
     use std::time::Duration;
+    use vo_executor::scheduler::Scheduler;
+    use vo_executor::SchedulerConfig;
 
     #[tokio::test]
     async fn scheduler_try_acquire_success() {
@@ -650,9 +662,9 @@ mod scheduler_concurrency_tests {
 
 #[cfg(test)]
 mod priority_queue_tests {
-    use vo_executor::{Job, JobId, JobPriority, Schedule, SchedulerConfig};
-    use vo_executor::scheduler::Scheduler;
     use std::time::Duration;
+    use vo_executor::scheduler::Scheduler;
+    use vo_executor::{Job, JobId, JobPriority, Schedule, SchedulerConfig};
 
     #[tokio::test]
     async fn priority_queue_critical_before_high() {
@@ -709,7 +721,11 @@ mod priority_queue_tests {
             .map_or(0, |d| d.as_millis() as u64);
 
         let due = scheduler.poll_due_jobs(now_ms + 200);
-        assert_eq!(due[0].id, JobId::new(2), "Earlier fire time should come first");
+        assert_eq!(
+            due[0].id,
+            JobId::new(2),
+            "Earlier fire time should come first"
+        );
     }
 
     #[tokio::test]

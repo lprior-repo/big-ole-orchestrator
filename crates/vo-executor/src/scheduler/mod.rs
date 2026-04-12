@@ -10,12 +10,12 @@ mod error;
 mod queue;
 mod types;
 
-pub use error::{SchedulerError, JobRunError};
+pub use error::{JobRunError, SchedulerError};
 pub use queue::PriorityQueue;
 pub use types::{Job, JobId, JobPriority, JobResult, Schedule, SchedulerConfig};
 
 use std::sync::Arc;
-use tokio::sync::{Semaphore, OwnedSemaphorePermit};
+use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
 #[derive(Debug)]
 pub struct Scheduler {
@@ -38,7 +38,11 @@ impl Scheduler {
     pub fn schedule(&mut self, job: Job) -> Result<(), SchedulerError> {
         let fire_at_ms = match job.schedule.next_fire_time(0) {
             Some(t) => t,
-            None => return Err(SchedulerError::InvalidSchedule("Cannot determine fire time".into())),
+            None => {
+                return Err(SchedulerError::InvalidSchedule(
+                    "Cannot determine fire time".into(),
+                ))
+            }
         };
         self.queue.push(job, fire_at_ms);
         Ok(())
@@ -71,11 +75,13 @@ impl Scheduler {
     }
 
     pub fn start(&mut self) {
-        self.running.store(true, std::sync::atomic::Ordering::SeqCst);
+        self.running
+            .store(true, std::sync::atomic::Ordering::SeqCst);
     }
 
     pub fn stop(&mut self) {
-        self.running.store(false, std::sync::atomic::Ordering::SeqCst);
+        self.running
+            .store(false, std::sync::atomic::Ordering::SeqCst);
     }
 
     #[cfg(test)]

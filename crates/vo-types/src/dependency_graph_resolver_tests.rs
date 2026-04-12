@@ -478,7 +478,10 @@ fn transitive_dependencies_handles_unvalidated_cyclic_input() {
 
     // The visited-set guard detects the back-edge and returns empty (cycle signal).
     let result = DependencyGraphResolver::transitive_dependencies(&workflow, &NodeName("c".into()));
-    assert!(result.is_empty(), "Cyclic input should return empty (back-edge detected)");
+    assert!(
+        result.is_empty(),
+        "Cyclic input should return empty (back-edge detected)"
+    );
 }
 
 // ============================================================================

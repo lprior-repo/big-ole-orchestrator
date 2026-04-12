@@ -113,7 +113,10 @@ fn b004_diff_returns_added_with_large_value() {
     );
     match result {
         DiffResult::HasDiff(d) => {
-            assert!(matches!(d.state_diff.counter, DiffOperation::Added(u64::MAX)));
+            assert!(matches!(
+                d.state_diff.counter,
+                DiffOperation::Added(u64::MAX)
+            ));
         }
         _ => panic!("Expected HasDiff with Added(u64::MAX)"),
     }
@@ -147,7 +150,10 @@ fn b005_diff_returns_removed_with_large_value() {
     );
     match result {
         DiffResult::HasDiff(d) => {
-            assert!(matches!(d.state_diff.counter, DiffOperation::Removed(u64::MAX)));
+            assert!(matches!(
+                d.state_diff.counter,
+                DiffOperation::Removed(u64::MAX)
+            ));
         }
         _ => panic!("Expected HasDiff with Removed(u64::MAX)"),
     }
@@ -166,7 +172,10 @@ fn b006_diff_returns_modified_when_both_nonzero_and_different() {
     );
     match result {
         DiffResult::HasDiff(d) => {
-            assert!(matches!(d.state_diff.counter, DiffOperation::Modified(10, 20)));
+            assert!(matches!(
+                d.state_diff.counter,
+                DiffOperation::Modified(10, 20)
+            ));
         }
         _ => panic!("Expected HasDiff with Modified(10, 20)"),
     }
@@ -181,7 +190,10 @@ fn b006_diff_returns_modified_with_decreasing_value() {
     );
     match result {
         DiffResult::HasDiff(d) => {
-            assert!(matches!(d.state_diff.counter, DiffOperation::Modified(200, 100)));
+            assert!(matches!(
+                d.state_diff.counter,
+                DiffOperation::Modified(200, 100)
+            ));
         }
         _ => panic!("Expected HasDiff with Modified(200, 100)"),
     }
@@ -383,44 +395,76 @@ fn b015_apply_diff_returns_base_mismatch_when_diff_from_zero_but_base_nonzero_se
 #[test]
 fn b016_invert_diff_swaps_added_to_removed() {
     let d = SnapshotDiff {
-        from_sequence: 0, to_sequence: 5, instance_id: test_id(1),
-        state_diff: StateDiff { counter: DiffOperation::Added(100) },
+        from_sequence: 0,
+        to_sequence: 5,
+        instance_id: test_id(1),
+        state_diff: StateDiff {
+            counter: DiffOperation::Added(100),
+        },
     };
-    assert!(matches!(invert_diff(&d).state_diff.counter, DiffOperation::Removed(100)));
+    assert!(matches!(
+        invert_diff(&d).state_diff.counter,
+        DiffOperation::Removed(100)
+    ));
 }
 
 #[test]
 fn b017_invert_diff_swaps_removed_to_added() {
     let d = SnapshotDiff {
-        from_sequence: 0, to_sequence: 5, instance_id: test_id(1),
-        state_diff: StateDiff { counter: DiffOperation::Removed(100) },
+        from_sequence: 0,
+        to_sequence: 5,
+        instance_id: test_id(1),
+        state_diff: StateDiff {
+            counter: DiffOperation::Removed(100),
+        },
     };
-    assert!(matches!(invert_diff(&d).state_diff.counter, DiffOperation::Added(100)));
+    assert!(matches!(
+        invert_diff(&d).state_diff.counter,
+        DiffOperation::Added(100)
+    ));
 }
 
 #[test]
 fn b018_invert_diff_swaps_modified_order() {
     let d = SnapshotDiff {
-        from_sequence: 0, to_sequence: 5, instance_id: test_id(1),
-        state_diff: StateDiff { counter: DiffOperation::Modified(10, 20) },
+        from_sequence: 0,
+        to_sequence: 5,
+        instance_id: test_id(1),
+        state_diff: StateDiff {
+            counter: DiffOperation::Modified(10, 20),
+        },
     };
-    assert!(matches!(invert_diff(&d).state_diff.counter, DiffOperation::Modified(20, 10)));
+    assert!(matches!(
+        invert_diff(&d).state_diff.counter,
+        DiffOperation::Modified(20, 10)
+    ));
 }
 
 #[test]
 fn b019_invert_diff_preserves_unchanged() {
     let d = SnapshotDiff {
-        from_sequence: 0, to_sequence: 5, instance_id: test_id(1),
-        state_diff: StateDiff { counter: DiffOperation::Unchanged },
+        from_sequence: 0,
+        to_sequence: 5,
+        instance_id: test_id(1),
+        state_diff: StateDiff {
+            counter: DiffOperation::Unchanged,
+        },
     };
-    assert!(matches!(invert_diff(&d).state_diff.counter, DiffOperation::Unchanged));
+    assert!(matches!(
+        invert_diff(&d).state_diff.counter,
+        DiffOperation::Unchanged
+    ));
 }
 
 #[test]
 fn b020_invert_diff_swaps_sequences() {
     let d = SnapshotDiff {
-        from_sequence: 0, to_sequence: 5, instance_id: test_id(1),
-        state_diff: StateDiff { counter: DiffOperation::Modified(10, 20) },
+        from_sequence: 0,
+        to_sequence: 5,
+        instance_id: test_id(1),
+        state_diff: StateDiff {
+            counter: DiffOperation::Modified(10, 20),
+        },
     };
     let inverted = invert_diff(&d);
     assert_eq!(inverted.from_sequence, 5);
@@ -431,8 +475,12 @@ fn b020_invert_diff_swaps_sequences() {
 fn b021_invert_diff_preserves_instance_id() {
     let id = test_id(42);
     let d = SnapshotDiff {
-        from_sequence: 0, to_sequence: 5, instance_id: id.clone(),
-        state_diff: StateDiff { counter: DiffOperation::Added(10) },
+        from_sequence: 0,
+        to_sequence: 5,
+        instance_id: id.clone(),
+        state_diff: StateDiff {
+            counter: DiffOperation::Added(10),
+        },
     };
     assert_eq!(invert_diff(&d).instance_id, id);
 }
@@ -444,155 +492,284 @@ fn b021_invert_diff_preserves_instance_id() {
 #[test]
 fn b022_compose_rejects_sequence_gap() {
     let diff_ab = SnapshotDiff {
-        from_sequence: 0, to_sequence: 5, instance_id: test_id(1),
-        state_diff: StateDiff { counter: DiffOperation::Modified(10, 20) },
+        from_sequence: 0,
+        to_sequence: 5,
+        instance_id: test_id(1),
+        state_diff: StateDiff {
+            counter: DiffOperation::Modified(10, 20),
+        },
     };
     let diff_bc = SnapshotDiff {
-        from_sequence: 6, to_sequence: 10, instance_id: test_id(1),
-        state_diff: StateDiff { counter: DiffOperation::Modified(20, 30) },
+        from_sequence: 6,
+        to_sequence: 10,
+        instance_id: test_id(1),
+        state_diff: StateDiff {
+            counter: DiffOperation::Modified(20, 30),
+        },
     };
-    assert!(matches!(diff_ab.compose(&diff_bc), Err(DiffError::SequenceGap)));
+    assert!(matches!(
+        diff_ab.compose(&diff_bc),
+        Err(DiffError::SequenceGap)
+    ));
 }
 
 #[test]
 fn b023_compose_rejects_mismatched_instance_ids() {
     let diff_ab = SnapshotDiff {
-        from_sequence: 0, to_sequence: 5, instance_id: test_id(1),
-        state_diff: StateDiff { counter: DiffOperation::Modified(10, 20) },
+        from_sequence: 0,
+        to_sequence: 5,
+        instance_id: test_id(1),
+        state_diff: StateDiff {
+            counter: DiffOperation::Modified(10, 20),
+        },
     };
     let diff_bc = SnapshotDiff {
-        from_sequence: 5, to_sequence: 10, instance_id: test_id(2),
-        state_diff: StateDiff { counter: DiffOperation::Modified(20, 30) },
+        from_sequence: 5,
+        to_sequence: 10,
+        instance_id: test_id(2),
+        state_diff: StateDiff {
+            counter: DiffOperation::Modified(20, 30),
+        },
     };
-    assert!(matches!(diff_ab.compose(&diff_bc), Err(DiffError::SequenceGap)));
+    assert!(matches!(
+        diff_ab.compose(&diff_bc),
+        Err(DiffError::SequenceGap)
+    ));
 }
 
 #[test]
 fn b024_compose_left_identity_unchanged() {
     let diff_ab = SnapshotDiff {
-        from_sequence: 0, to_sequence: 5, instance_id: test_id(1),
-        state_diff: StateDiff { counter: DiffOperation::Unchanged },
+        from_sequence: 0,
+        to_sequence: 5,
+        instance_id: test_id(1),
+        state_diff: StateDiff {
+            counter: DiffOperation::Unchanged,
+        },
     };
     let diff_bc = SnapshotDiff {
-        from_sequence: 5, to_sequence: 10, instance_id: test_id(1),
-        state_diff: StateDiff { counter: DiffOperation::Added(50) },
+        from_sequence: 5,
+        to_sequence: 10,
+        instance_id: test_id(1),
+        state_diff: StateDiff {
+            counter: DiffOperation::Added(50),
+        },
     };
-    assert!(matches!(diff_ab.compose(&diff_bc).unwrap().state_diff.counter, DiffOperation::Added(50)));
+    assert!(matches!(
+        diff_ab.compose(&diff_bc).unwrap().state_diff.counter,
+        DiffOperation::Added(50)
+    ));
 }
 
 #[test]
 fn b025_compose_right_identity_unchanged() {
     let diff_ab = SnapshotDiff {
-        from_sequence: 0, to_sequence: 5, instance_id: test_id(1),
-        state_diff: StateDiff { counter: DiffOperation::Removed(42) },
+        from_sequence: 0,
+        to_sequence: 5,
+        instance_id: test_id(1),
+        state_diff: StateDiff {
+            counter: DiffOperation::Removed(42),
+        },
     };
     let diff_bc = SnapshotDiff {
-        from_sequence: 5, to_sequence: 10, instance_id: test_id(1),
-        state_diff: StateDiff { counter: DiffOperation::Unchanged },
+        from_sequence: 5,
+        to_sequence: 10,
+        instance_id: test_id(1),
+        state_diff: StateDiff {
+            counter: DiffOperation::Unchanged,
+        },
     };
-    assert!(matches!(diff_ab.compose(&diff_bc).unwrap().state_diff.counter, DiffOperation::Removed(42)));
+    assert!(matches!(
+        diff_ab.compose(&diff_bc).unwrap().state_diff.counter,
+        DiffOperation::Removed(42)
+    ));
 }
 
 #[test]
 fn b026_compose_chains_modified_correctly() {
     let diff_ab = SnapshotDiff {
-        from_sequence: 0, to_sequence: 5, instance_id: test_id(1),
-        state_diff: StateDiff { counter: DiffOperation::Modified(10, 20) },
+        from_sequence: 0,
+        to_sequence: 5,
+        instance_id: test_id(1),
+        state_diff: StateDiff {
+            counter: DiffOperation::Modified(10, 20),
+        },
     };
     let diff_bc = SnapshotDiff {
-        from_sequence: 5, to_sequence: 10, instance_id: test_id(1),
-        state_diff: StateDiff { counter: DiffOperation::Modified(20, 30) },
+        from_sequence: 5,
+        to_sequence: 10,
+        instance_id: test_id(1),
+        state_diff: StateDiff {
+            counter: DiffOperation::Modified(20, 30),
+        },
     };
-    assert!(matches!(diff_ab.compose(&diff_bc).unwrap().state_diff.counter, DiffOperation::Modified(10, 30)));
+    assert!(matches!(
+        diff_ab.compose(&diff_bc).unwrap().state_diff.counter,
+        DiffOperation::Modified(10, 30)
+    ));
 }
 
 #[test]
 fn b027_compose_rejects_modified_with_mismatched_middle() {
     let diff_ab = SnapshotDiff {
-        from_sequence: 0, to_sequence: 5, instance_id: test_id(1),
-        state_diff: StateDiff { counter: DiffOperation::Modified(10, 20) },
+        from_sequence: 0,
+        to_sequence: 5,
+        instance_id: test_id(1),
+        state_diff: StateDiff {
+            counter: DiffOperation::Modified(10, 20),
+        },
     };
     let diff_bc = SnapshotDiff {
-        from_sequence: 5, to_sequence: 10, instance_id: test_id(1),
-        state_diff: StateDiff { counter: DiffOperation::Modified(99, 30) },
+        from_sequence: 5,
+        to_sequence: 10,
+        instance_id: test_id(1),
+        state_diff: StateDiff {
+            counter: DiffOperation::Modified(99, 30),
+        },
     };
-    assert!(matches!(diff_ab.compose(&diff_bc), Err(DiffError::SequenceGap)));
+    assert!(matches!(
+        diff_ab.compose(&diff_bc),
+        Err(DiffError::SequenceGap)
+    ));
 }
 
 #[test]
 fn b028_compose_rejects_added_plus_added() {
     let diff_ab = SnapshotDiff {
-        from_sequence: 0, to_sequence: 5, instance_id: test_id(1),
-        state_diff: StateDiff { counter: DiffOperation::Added(10) },
+        from_sequence: 0,
+        to_sequence: 5,
+        instance_id: test_id(1),
+        state_diff: StateDiff {
+            counter: DiffOperation::Added(10),
+        },
     };
     let diff_bc = SnapshotDiff {
-        from_sequence: 5, to_sequence: 10, instance_id: test_id(1),
-        state_diff: StateDiff { counter: DiffOperation::Added(20) },
+        from_sequence: 5,
+        to_sequence: 10,
+        instance_id: test_id(1),
+        state_diff: StateDiff {
+            counter: DiffOperation::Added(20),
+        },
     };
-    assert!(matches!(diff_ab.compose(&diff_bc), Err(DiffError::SequenceGap)));
+    assert!(matches!(
+        diff_ab.compose(&diff_bc),
+        Err(DiffError::SequenceGap)
+    ));
 }
 
 #[test]
 fn b029_compose_rejects_removed_plus_removed() {
     let diff_ab = SnapshotDiff {
-        from_sequence: 0, to_sequence: 5, instance_id: test_id(1),
-        state_diff: StateDiff { counter: DiffOperation::Removed(10) },
+        from_sequence: 0,
+        to_sequence: 5,
+        instance_id: test_id(1),
+        state_diff: StateDiff {
+            counter: DiffOperation::Removed(10),
+        },
     };
     let diff_bc = SnapshotDiff {
-        from_sequence: 5, to_sequence: 10, instance_id: test_id(1),
-        state_diff: StateDiff { counter: DiffOperation::Removed(20) },
+        from_sequence: 5,
+        to_sequence: 10,
+        instance_id: test_id(1),
+        state_diff: StateDiff {
+            counter: DiffOperation::Removed(20),
+        },
     };
-    assert!(matches!(diff_ab.compose(&diff_bc), Err(DiffError::SequenceGap)));
+    assert!(matches!(
+        diff_ab.compose(&diff_bc),
+        Err(DiffError::SequenceGap)
+    ));
 }
 
 #[test]
 fn b030_compose_rejects_added_plus_modified() {
     let diff_ab = SnapshotDiff {
-        from_sequence: 0, to_sequence: 5, instance_id: test_id(1),
-        state_diff: StateDiff { counter: DiffOperation::Added(10) },
+        from_sequence: 0,
+        to_sequence: 5,
+        instance_id: test_id(1),
+        state_diff: StateDiff {
+            counter: DiffOperation::Added(10),
+        },
     };
     let diff_bc = SnapshotDiff {
-        from_sequence: 5, to_sequence: 10, instance_id: test_id(1),
-        state_diff: StateDiff { counter: DiffOperation::Modified(10, 20) },
+        from_sequence: 5,
+        to_sequence: 10,
+        instance_id: test_id(1),
+        state_diff: StateDiff {
+            counter: DiffOperation::Modified(10, 20),
+        },
     };
-    assert!(matches!(diff_ab.compose(&diff_bc), Err(DiffError::SequenceGap)));
+    assert!(matches!(
+        diff_ab.compose(&diff_bc),
+        Err(DiffError::SequenceGap)
+    ));
 }
 
 #[test]
 fn b030_compose_rejects_modified_plus_added() {
     let diff_ab = SnapshotDiff {
-        from_sequence: 0, to_sequence: 5, instance_id: test_id(1),
-        state_diff: StateDiff { counter: DiffOperation::Modified(10, 20) },
+        from_sequence: 0,
+        to_sequence: 5,
+        instance_id: test_id(1),
+        state_diff: StateDiff {
+            counter: DiffOperation::Modified(10, 20),
+        },
     };
     let diff_bc = SnapshotDiff {
-        from_sequence: 5, to_sequence: 10, instance_id: test_id(1),
-        state_diff: StateDiff { counter: DiffOperation::Added(30) },
+        from_sequence: 5,
+        to_sequence: 10,
+        instance_id: test_id(1),
+        state_diff: StateDiff {
+            counter: DiffOperation::Added(30),
+        },
     };
-    assert!(matches!(diff_ab.compose(&diff_bc), Err(DiffError::SequenceGap)));
+    assert!(matches!(
+        diff_ab.compose(&diff_bc),
+        Err(DiffError::SequenceGap)
+    ));
 }
 
 #[test]
 fn b030_compose_rejects_removed_plus_modified() {
     let diff_ab = SnapshotDiff {
-        from_sequence: 0, to_sequence: 5, instance_id: test_id(1),
-        state_diff: StateDiff { counter: DiffOperation::Removed(10) },
+        from_sequence: 0,
+        to_sequence: 5,
+        instance_id: test_id(1),
+        state_diff: StateDiff {
+            counter: DiffOperation::Removed(10),
+        },
     };
     let diff_bc = SnapshotDiff {
-        from_sequence: 5, to_sequence: 10, instance_id: test_id(1),
-        state_diff: StateDiff { counter: DiffOperation::Modified(0, 20) },
+        from_sequence: 5,
+        to_sequence: 10,
+        instance_id: test_id(1),
+        state_diff: StateDiff {
+            counter: DiffOperation::Modified(0, 20),
+        },
     };
-    assert!(matches!(diff_ab.compose(&diff_bc), Err(DiffError::SequenceGap)));
+    assert!(matches!(
+        diff_ab.compose(&diff_bc),
+        Err(DiffError::SequenceGap)
+    ));
 }
 
 #[test]
 fn b031_compose_result_has_correct_sequences() {
     let diff_ab = SnapshotDiff {
-        from_sequence: 0, to_sequence: 5, instance_id: test_id(1),
-        state_diff: StateDiff { counter: DiffOperation::Modified(10, 20) },
+        from_sequence: 0,
+        to_sequence: 5,
+        instance_id: test_id(1),
+        state_diff: StateDiff {
+            counter: DiffOperation::Modified(10, 20),
+        },
     };
     let diff_bc = SnapshotDiff {
-        from_sequence: 5, to_sequence: 10, instance_id: test_id(1),
-        state_diff: StateDiff { counter: DiffOperation::Unchanged },
+        from_sequence: 5,
+        to_sequence: 10,
+        instance_id: test_id(1),
+        state_diff: StateDiff {
+            counter: DiffOperation::Unchanged,
+        },
     };
     let result = diff_ab.compose(&diff_bc).unwrap();
     assert_eq!(result.from_sequence, 0);
@@ -603,12 +780,20 @@ fn b031_compose_result_has_correct_sequences() {
 fn b032_compose_result_preserves_instance_id() {
     let id = test_id(42);
     let diff_ab = SnapshotDiff {
-        from_sequence: 0, to_sequence: 5, instance_id: id.clone(),
-        state_diff: StateDiff { counter: DiffOperation::Unchanged },
+        from_sequence: 0,
+        to_sequence: 5,
+        instance_id: id.clone(),
+        state_diff: StateDiff {
+            counter: DiffOperation::Unchanged,
+        },
     };
     let diff_bc = SnapshotDiff {
-        from_sequence: 5, to_sequence: 10, instance_id: id.clone(),
-        state_diff: StateDiff { counter: DiffOperation::Added(99) },
+        from_sequence: 5,
+        to_sequence: 10,
+        instance_id: id.clone(),
+        state_diff: StateDiff {
+            counter: DiffOperation::Added(99),
+        },
     };
     assert_eq!(diff_ab.compose(&diff_bc).unwrap().instance_id, id);
 }
@@ -634,7 +819,9 @@ fn b033_diff_operation_serde_roundtrip() {
 
 #[test]
 fn b034_state_diff_serde_roundtrip() {
-    let sd = StateDiff { counter: DiffOperation::Modified(5, 10) };
+    let sd = StateDiff {
+        counter: DiffOperation::Modified(5, 10),
+    };
     let json = serde_json::to_string(&sd).unwrap();
     let recovered: StateDiff = serde_json::from_str(&json).unwrap();
     assert_eq!(sd, recovered);
@@ -643,9 +830,12 @@ fn b034_state_diff_serde_roundtrip() {
 #[test]
 fn b035_snapshot_diff_serde_roundtrip() {
     let sd = SnapshotDiff {
-        from_sequence: 1, to_sequence: 5,
+        from_sequence: 1,
+        to_sequence: 5,
         instance_id: InstanceId::from_bytes([7; 16]),
-        state_diff: StateDiff { counter: DiffOperation::Added(100) },
+        state_diff: StateDiff {
+            counter: DiffOperation::Added(100),
+        },
     };
     let json = serde_json::to_string(&sd).unwrap();
     let recovered: SnapshotDiff = serde_json::from_str(&json).unwrap();
@@ -657,8 +847,12 @@ fn b036_diff_result_serde_roundtrip() {
     let cases = vec![
         DiffResult::Identical,
         DiffResult::HasDiff(SnapshotDiff {
-            from_sequence: 0, to_sequence: 5, instance_id: test_id(1),
-            state_diff: StateDiff { counter: DiffOperation::Modified(10, 20) },
+            from_sequence: 0,
+            to_sequence: 5,
+            instance_id: test_id(1),
+            state_diff: StateDiff {
+                counter: DiffOperation::Modified(10, 20),
+            },
         }),
     ];
     for dr in cases {
@@ -674,11 +868,26 @@ fn b036_diff_result_serde_roundtrip() {
 
 #[test]
 fn b037_diff_error_display() {
-    assert_eq!(format!("{}", DiffError::CorruptSnapshot), "Snapshot bytes fail deserialization");
-    assert_eq!(format!("{}", DiffError::VersionMismatch), "Schema version incompatibility");
-    assert_eq!(format!("{}", DiffError::SequenceGap), "Snapshots not consecutive");
-    assert_eq!(format!("{}", DiffError::SerializationFailed), "Cannot serialize diff");
-    assert_eq!(format!("{}", DiffError::DeserializationFailed), "Cannot deserialize diff");
+    assert_eq!(
+        format!("{}", DiffError::CorruptSnapshot),
+        "Snapshot bytes fail deserialization"
+    );
+    assert_eq!(
+        format!("{}", DiffError::VersionMismatch),
+        "Schema version incompatibility"
+    );
+    assert_eq!(
+        format!("{}", DiffError::SequenceGap),
+        "Snapshots not consecutive"
+    );
+    assert_eq!(
+        format!("{}", DiffError::SerializationFailed),
+        "Cannot serialize diff"
+    );
+    assert_eq!(
+        format!("{}", DiffError::DeserializationFailed),
+        "Cannot deserialize diff"
+    );
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -687,9 +896,18 @@ fn b037_diff_error_display() {
 
 #[test]
 fn b038_apply_error_display() {
-    assert_eq!(format!("{}", ApplyError::BaseStateMismatch), "Base state doesn't match expected");
-    assert_eq!(format!("{}", ApplyError::DiffTargetInvalid), "Diff cannot apply to base");
-    assert_eq!(format!("{}", ApplyError::SequenceRegress), "Target sequence < base sequence");
+    assert_eq!(
+        format!("{}", ApplyError::BaseStateMismatch),
+        "Base state doesn't match expected"
+    );
+    assert_eq!(
+        format!("{}", ApplyError::DiffTargetInvalid),
+        "Diff cannot apply to base"
+    );
+    assert_eq!(
+        format!("{}", ApplyError::SequenceRegress),
+        "Target sequence < base sequence"
+    );
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -700,8 +918,12 @@ fn b038_apply_error_display() {
 fn b039_diff_result_debug_distinguishes_variants() {
     assert!(format!("{:?}", DiffResult::Identical).contains("Identical"));
     let has_diff = DiffResult::HasDiff(SnapshotDiff {
-        from_sequence: 0, to_sequence: 5, instance_id: test_id(1),
-        state_diff: StateDiff { counter: DiffOperation::Added(42) },
+        from_sequence: 0,
+        to_sequence: 5,
+        instance_id: test_id(1),
+        state_diff: StateDiff {
+            counter: DiffOperation::Added(42),
+        },
     });
     assert!(format!("{has_diff:?}").contains("HasDiff"));
 }

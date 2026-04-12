@@ -500,10 +500,7 @@ pub enum RouteError {
 
     /// Maximum destinations exceeded for the channel.
     #[error("max destinations exceeded for channel {channel_id}: {max}")]
-    MaxDestinationsExceeded {
-        channel_id: ChannelId,
-        max: usize,
-    },
+    MaxDestinationsExceeded { channel_id: ChannelId, max: usize },
 
     /// Delivery timed out.
     #[error("delivery timeout for channel: {0}")]
@@ -531,9 +528,7 @@ pub enum RouteError {
 }
 
 /// Pure function: selects active destinations from a channel entry.
-fn select_active_destinations(
-    channel: &ChannelEntry,
-) -> Vec<(usize, &RoutingDestination)> {
+fn select_active_destinations(channel: &ChannelEntry) -> Vec<(usize, &RoutingDestination)> {
     channel
         .destinations
         .iter()
@@ -548,13 +543,22 @@ fn should_broadcast(channel: &ChannelEntry, config: &RouterConfig) -> bool {
 }
 
 /// Pure function: validates that a message can be routed.
-fn validate_route(channel: Option<&ChannelEntry>, _config: &RouterConfig) -> Result<(), RouteError> {
+fn validate_route(
+    channel: Option<&ChannelEntry>,
+    _config: &RouterConfig,
+) -> Result<(), RouteError> {
     match channel {
         None => Err(RouteError::ChannelNotFound(
-            channel.map(|c| c.channel_id.clone()).unwrap_or_else(|| ChannelId::new("unknown")),
+            channel
+                .map(|c| c.channel_id.clone())
+                .unwrap_or_else(|| ChannelId::new("unknown")),
         )),
-        Some(ch) if ch.destinations.is_empty() => Err(RouteError::NoActiveDestinations(ch.channel_id.clone())),
-        Some(ch) if !ch.has_active() => Err(RouteError::NoActiveDestinations(ch.channel_id.clone())),
+        Some(ch) if ch.destinations.is_empty() => {
+            Err(RouteError::NoActiveDestinations(ch.channel_id.clone()))
+        }
+        Some(ch) if !ch.has_active() => {
+            Err(RouteError::NoActiveDestinations(ch.channel_id.clone()))
+        }
         _ => Ok(()),
     }
 }
@@ -673,7 +677,11 @@ impl MessageRouter {
     /// # Errors
     /// Returns `RouteError::ChannelNotFound` if the channel doesn't exist.
     #[allow(dead_code)]
-    pub fn remove_destination(&mut self, channel_id: &ChannelId, index: usize) -> Result<(), RouteError> {
+    pub fn remove_destination(
+        &mut self,
+        channel_id: &ChannelId,
+        index: usize,
+    ) -> Result<(), RouteError> {
         let entry = self
             .routing_table
             .get_mut(channel_id)
@@ -714,7 +722,11 @@ impl MessageRouter {
     /// # Errors
     /// Returns `RouteError` if routing fails. The message may be sent to DLQ
     /// if delivery fails but routing succeeds.
-    pub async fn route_unicast<T: Send + 'static>(&mut self, channel_id: &ChannelId, message: T) -> Result<(), RouteError> {
+    pub async fn route_unicast<T: Send + 'static>(
+        &mut self,
+        channel_id: &ChannelId,
+        message: T,
+    ) -> Result<(), RouteError> {
         let channel = self.routing_table.get(channel_id).cloned();
 
         validate_route(channel.as_ref(), &self.config)?;
@@ -729,10 +741,17 @@ impl MessageRouter {
 
         // Send to first active destination
         let (_index, dest) = active_dests[0];
-        match self.deliver_to_destination_unicast(dest, &message, channel_id).await {
+        match self
+            .deliver_to_destination_unicast(dest, &message, channel_id)
+            .await
+        {
             Ok(()) => Ok(()),
             Err(e) => {
-                self.send_to_dlq(channel_id, message, DeadLetterReason::ActorError(e.to_string()));
+                self.send_to_dlq(
+                    channel_id,
+                    message,
+                    DeadLetterReason::ActorError(e.to_string()),
+                );
                 Err(e)
             }
         }
@@ -747,7 +766,11 @@ impl MessageRouter {
     /// # Errors
     /// Returns `RouteError` if no destinations are available. Messages that fail
     /// delivery individually are still sent to DLQ.
-    pub async fn route_broadcast<T: Send + Sync + 'static>(&mut self, channel_id: &ChannelId, message: T) -> Result<(), RouteError> {
+    pub async fn route_broadcast<T: Send + Sync + 'static>(
+        &mut self,
+        channel_id: &ChannelId,
+        message: T,
+    ) -> Result<(), RouteError> {
         let channel = self.routing_table.get(channel_id).cloned();
 
         validate_route(channel.as_ref(), &self.config)?;
@@ -769,14 +792,21 @@ impl MessageRouter {
         let mut errors = Vec::new();
         let num_destinations = active_dests.len();
         for (_index, dest) in active_dests {
-            if let Err(e) = self.deliver_to_destination_broadcast(dest, &message, channel_id).await {
+            if let Err(e) = self
+                .deliver_to_destination_broadcast(dest, &message, channel_id)
+                .await
+            {
                 errors.push(e);
             }
         }
 
         if !errors.is_empty() && errors.len() == num_destinations {
             // All deliveries failed
-            self.send_to_dlq(channel_id, message, DeadLetterReason::ActorError("all destinations failed".to_string()));
+            self.send_to_dlq(
+                channel_id,
+                message,
+                DeadLetterReason::ActorError("all destinations failed".to_string()),
+            );
             return Err(errors.into_iter().next().unwrap());
         }
 
@@ -785,7 +815,11 @@ impl MessageRouter {
 
     /// Routes a message to a channel, auto-selecting unicast or broadcast
     /// based on channel configuration and number of destinations.
-    pub async fn route<T: Send + Sync + 'static>(&mut self, channel_id: &ChannelId, message: T) -> Result<(), RouteError> {
+    pub async fn route<T: Send + Sync + 'static>(
+        &mut self,
+        channel_id: &ChannelId,
+        message: T,
+    ) -> Result<(), RouteError> {
         let channel = self.routing_table.get(channel_id).cloned();
 
         if channel.as_ref().map(|c| c.destinations.len()).unwrap_or(0) > 1 {
@@ -807,13 +841,11 @@ impl MessageRouter {
         // 1. Look up the actual actor ref from the destination handle
         // 2. Send the message through the actor's mailbox
         // 3. Handle timeouts and errors
-        
+
         // For now, we simulate a successful delivery
         // The actual ractor integration would happen here
-        tracing::debug!(
-            "delivering message to destination (simulated success)"
-        );
-        
+        tracing::debug!("delivering message to destination (simulated success)");
+
         let _ = destination;
         let _ = message;
         Ok(())
@@ -831,20 +863,23 @@ impl MessageRouter {
         // 1. Look up the actual actor ref from the destination handle
         // 2. Send the message through the actor's mailbox
         // 3. Handle timeouts and errors
-        
+
         // For now, we simulate a successful delivery
         // The actual ractor integration would happen here
-        tracing::debug!(
-            "delivering message to destination (simulated success)"
-        );
-        
+        tracing::debug!("delivering message to destination (simulated success)");
+
         let _ = destination;
         let _ = message;
         Ok(())
     }
 
     /// Sends an undeliverable message to the dead letter queue.
-    fn send_to_dlq<T: Send + 'static>(&mut self, channel_id: &ChannelId, _message: T, reason: DeadLetterReason) {
+    fn send_to_dlq<T: Send + 'static>(
+        &mut self,
+        channel_id: &ChannelId,
+        _message: T,
+        reason: DeadLetterReason,
+    ) {
         let entry = DeadLetterEntry {
             channel_id: channel_id.clone(),
             message: DeadLetterMessage {
@@ -867,16 +902,16 @@ impl MessageRouter {
     /// Returns the number of total destinations across all channels.
     #[must_use]
     pub fn total_destinations(&self) -> usize {
-        self.routing_table.values().map(|e| e.destinations.len()).sum()
+        self.routing_table
+            .values()
+            .map(|e| e.destinations.len())
+            .sum()
     }
 
     /// Returns the number of active destinations across all channels.
     #[must_use]
     pub fn total_active_destinations(&self) -> usize {
-        self.routing_table
-            .values()
-            .map(|e| e.active_count())
-            .sum()
+        self.routing_table.values().map(|e| e.active_count()).sum()
     }
 
     /// Returns the current dead letter queue depth.
@@ -967,7 +1002,9 @@ mod tests {
         let channel_id = test_channel_id();
         let destination = test_destination();
 
-        router.register_channel(channel_id.clone(), destination).unwrap();
+        router
+            .register_channel(channel_id.clone(), destination)
+            .unwrap();
 
         assert_eq!(router.num_channels(), 1);
         assert!(router.has_channel(&channel_id));
@@ -993,7 +1030,9 @@ mod tests {
         let channel_id = test_channel_id();
         let destination = test_destination();
 
-        router.register_channel(channel_id.clone(), destination).unwrap();
+        router
+            .register_channel(channel_id.clone(), destination)
+            .unwrap();
         let removed = router.unregister_channel(&channel_id);
 
         assert!(removed.is_some());
@@ -1031,7 +1070,9 @@ mod tests {
         let channel_id = test_channel_id();
         let destination = test_destination();
 
-        router.register_channel(channel_id.clone(), destination).unwrap();
+        router
+            .register_channel(channel_id.clone(), destination)
+            .unwrap();
         router.deactivate_channel(&channel_id).unwrap();
 
         assert!(!router.is_channel_active(&channel_id));
@@ -1127,7 +1168,7 @@ mod tests {
 
         let mut entry = ChannelEntry::new(test_channel_id(), dest1);
         entry.add_destination(dest2, 16).unwrap();
-        
+
         let config = RouterConfig::default();
         assert!(should_broadcast(&entry, &config));
     }
@@ -1143,7 +1184,7 @@ mod tests {
     fn message_metadata_increment_attempt() {
         let metadata = MessageMetadata::default();
         let incremented = metadata.with_incremented_attempt();
-        
+
         assert_eq!(incremented.attempt, 1);
         assert_eq!(incremented.message_id, metadata.message_id);
     }

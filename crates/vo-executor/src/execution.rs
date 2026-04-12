@@ -49,7 +49,10 @@ fn validate_timeout(timeout_ms: u64) -> Result<(), ExecuteNodeError> {
 }
 
 fn check_not_executing(step_id: &StepId) -> Result<(), ExecuteNodeError> {
-    if matches!(get_state(step_id.as_str()), super::state::StepState::Executing { .. }) {
+    if matches!(
+        get_state(step_id.as_str()),
+        super::state::StepState::Executing { .. }
+    ) {
         return Err(ExecuteNodeError::InvalidTransition {
             from_state: "Executing".to_string(),
             action: "execute_step".to_string(),
@@ -249,7 +252,9 @@ pub async fn cancel_execution(step_id: StepId) -> Result<(), ExecuteNodeError> {
             );
             Ok(())
         }
-        super::state::StepState::Cancelled { .. } | super::state::StepState::Completed { .. } => Ok(()),
+        super::state::StepState::Cancelled { .. } | super::state::StepState::Completed { .. } => {
+            Ok(())
+        }
     }
 }
 
