@@ -258,7 +258,7 @@ impl AggregatedStatus {
     }
 
     pub fn update(&mut self, result: ProbeResult) {
-        if let Some(old_result) = self.results.remove(&result.probe_id) {
+        if let Some(old_result) = self.results.get(&result.probe_id) {
             match old_result.status {
                 ProbeStatus::Healthy => self.healthy_count -= 1,
                 ProbeStatus::Unhealthy => self.unhealthy_count -= 1,
