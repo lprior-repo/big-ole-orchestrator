@@ -18,6 +18,77 @@ fn test_instance_id() -> InstanceId {
     InstanceId::from_bytes(ulid.to_bytes())
 }
 
+impl Arbitrary for InstanceId {
+    type Parameters = ();
+    type Strategy = BoxedStrategy<Self>;
+
+    fn arbitrary_with(_: Self::Parameters) -> Self::Strategy {
+        any::<[u8; 16]>()
+            .prop_map(|bytes| {
+                let ulid = ulid::Ulid(u128::from_be_bytes(bytes));
+                Self(ulid.to_string())
+            })
+            .boxed()
+    }
+}
+
+impl Arbitrary for SpawnPhase {
+    type Parameters = ();
+    type Strategy = BoxedStrategy<Self>;
+
+    fn arbitrary_with(_: Self::Parameters) -> Self::Strategy {
+        prop_oneof![
+            Just(Self::Spawn),
+            Just(Self::HealthCheck),
+            Just(Self::Running),
+            Just(Self::Shutdown),
+            Just(Self::Terminated),
+            Just(Self::Failed),
+        ]
+        .boxed()
+    }
+}
+
+impl Arbitrary for SpawnSupervisorError {
+    type Parameters = ();
+    type Strategy = BoxedStrategy<Self>;
+
+    fn arbitrary_with(_: Self::Parameters) -> Self::Strategy {
+        prop_oneof![
+            any::<String>().prop_map(Self::StorageError),
+            any::<String>().prop_map(Self::CorruptSpawn),
+            any::<String>().prop_map(Self::AtomicityViolation),
+            any::<InstanceId>().prop_map(Self::InstanceNotFound),
+            any::<InstanceId>().prop_map(Self::MailboxFull),
+            any::<String>().prop_map(Self::InvalidConfig),
+            Just(Self::AlreadyRunning),
+            any::<std::time::Duration>().prop_map(Self::ShutdownTimeout),
+            any::<String>().prop_map(Self::DispatchError),
+            (any::<String>(), any::<String>())
+                .prop_map(|(command, error)| Self::SpawnFailed { command, error }),
+            (any::<InstanceId>(), any::<u32>(), any::<String>()).prop_map(
+                |(instance_id, check_number, error)| Self::HealthCheckFailed {
+                    instance_id,
+                    check_number,
+                    error
+                }
+            ),
+            (any::<InstanceId>(), any::<u32>())
+                .prop_map(|(instance_id, pid)| Self::ZombieDetected { instance_id, pid }),
+            (any::<InstanceId>(), any::<u32>(), any::<i32>()).prop_map(
+                |(instance_id, pid, exit_code)| Self::ProcessExited {
+                    instance_id,
+                    pid,
+                    exit_code
+                }
+            ),
+            Just(Self::NotRunning),
+            Just(Self::AlreadyShutdown),
+        ]
+        .boxed()
+    }
+}
+
 // =============================================================================
 // Proptest Invariants - Backoff Calculation
 // =============================================================================
@@ -93,14 +164,14 @@ proptest! {
         instance_id: InstanceId,
         command: String,
         spawn_id: Option<String>,
-        phase in prop::sample::sample(vec![
+        phase in prop::sample::select(vec![
             SpawnPhase::Spawn,
             SpawnPhase::HealthCheck,
             SpawnPhase::Running,
             SpawnPhase::Shutdown,
             SpawnPhase::Terminated,
             SpawnPhase::Failed,
-        ].into_iter()),
+        ]),
         health_checks: u32,
         spawn_attempts: u32,
     ) {
@@ -136,14 +207,14 @@ proptest! {
         instance_id: InstanceId,
         command: String,
         spawn_attempts: u32,
-        phase in prop::sample::sample(vec![
+        phase in prop::sample::select(vec![
             SpawnPhase::Spawn,
             SpawnPhase::HealthCheck,
             SpawnPhase::Running,
             SpawnPhase::Shutdown,
             SpawnPhase::Terminated,
             SpawnPhase::Failed,
-        ].into_iter()),
+        ]),
     ) {
         let record = SpawnRecord {
             spawn_id: None,
@@ -274,14 +345,14 @@ proptest! {
 proptest! {
     #[test]
     fn is_zombie_state_condition_exact(
-        phase in prop::sample::sample(vec![
+        phase in prop::sample::select(vec![
             SpawnPhase::Spawn,
             SpawnPhase::HealthCheck,
             SpawnPhase::Running,
             SpawnPhase::Shutdown,
             SpawnPhase::Terminated,
             SpawnPhase::Failed,
-        ].into_iter()),
+        ]),
         spawn_attempts: u32,
     ) {
         let record = SpawnRecord {
@@ -314,14 +385,14 @@ proptest! {
 proptest! {
     #[test]
     fn should_respawn_condition_exact(
-        phase in prop::sample::sample(vec![
+        phase in prop::sample::select(vec![
             SpawnPhase::Spawn,
             SpawnPhase::HealthCheck,
             SpawnPhase::Running,
             SpawnPhase::Shutdown,
             SpawnPhase::Terminated,
             SpawnPhase::Failed,
-        ].into_iter()),
+        ]),
         spawn_attempts: u32,
         max_attempts: u32,
     ) {

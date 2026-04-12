@@ -241,8 +241,8 @@ impl WorkQueue for MockWorkQueue {
 // Integration Tests - Supervisor Lifecycle
 // =============================================================================
 
-#[test]
-fn supervisor_spawn_transitions_to_running() {
+#[tokio::test]
+async fn supervisor_spawn_transitions_to_running() {
     let storage = Arc::new(MockSpawnStorage::new());
     let process_manager = Arc::new(MockProcessManager::new());
     let work_queue = Arc::new(MockWorkQueue::new());
@@ -266,8 +266,8 @@ fn supervisor_spawn_transitions_to_running() {
     assert_eq!(handle.current_state(), SpawnSupervisorState::Running);
 }
 
-#[test]
-fn supervisor_shutdown_transitions_to_shutdown() {
+#[tokio::test]
+async fn supervisor_shutdown_transitions_to_shutdown() {
     let storage = Arc::new(MockSpawnStorage::new());
     let process_manager = Arc::new(MockProcessManager::new());
     let work_queue = Arc::new(MockWorkQueue::new());
