@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 /// A `Vec<T>` guaranteed to contain at least one element.
 /// Construction always validates non-emptiness.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Hash, PartialOrd, Ord)]
 pub struct NonEmptyVec<T>(Vec<T>);
 
 impl<'de, T: Deserialize<'de>> Deserialize<'de> for NonEmptyVec<T> {

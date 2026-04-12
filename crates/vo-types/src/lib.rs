@@ -48,6 +48,7 @@ mod types;
 #[cfg(test)]
 mod types_tests;
 mod workflow;
+pub mod workspace;
 
 pub use binomial_heap::BinomialHeap;
 pub use blob::{BlobRef, BlobStatus, OutputRef, INLINED_MAX_BYTES};
