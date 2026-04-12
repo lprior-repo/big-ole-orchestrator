@@ -13,7 +13,9 @@ pub mod types;
 
 pub use config::{CircuitBreakerConfig, ConfigValidationError};
 pub use failure_window::FailureWindow;
-pub use rate_limiter::{check_rate_limit, update_rate_limit};
+pub use rate_limiter::{
+    check_rate_limit, update_rate_limit, TokenBucketConfig, TokenBucketRateLimiter,
+};
 pub use registration_status::RegistrationStatus;
 pub use state::CircuitBreakerState;
 pub use types::{
