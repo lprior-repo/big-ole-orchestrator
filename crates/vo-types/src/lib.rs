@@ -67,7 +67,7 @@ pub use encryption::{CryptoAlgorithm, DekId, EncryptedBlob, KeyMetadata, Wrapped
 pub use errors::ParseError;
 pub use events::{Error as EventError, EventEnvelope};
 pub use instance_status::InstanceStatus;
-pub use junction_tree::{Clique, JunctionTree, JunctionTreeError};
+pub use junction_tree::{JunctionTree, JunctionTreeError};
 pub use lifecycle_superstate::LifecycleSuperstate;
 pub use lineage::{Epoch, LineageError, WorkflowLineage};
 pub use link_cut_tree::{LctAggregate, LctError, LinkCutTree, Monoid};
