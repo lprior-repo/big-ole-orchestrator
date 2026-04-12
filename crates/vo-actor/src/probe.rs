@@ -1047,7 +1047,7 @@ mod tests {
         let probe_id = ProbeId::new();
 
         let r1 = ProbeResult {
-            probe_id: probe_id,
+            probe_id,
             status: ProbeStatus::Healthy,
             latency_ms: 10,
             consecutive_failures: 0,
@@ -1058,7 +1058,7 @@ mod tests {
         assert_eq!(status.healthy_count, 1);
 
         let r2 = ProbeResult {
-            probe_id: probe_id,
+            probe_id,
             status: ProbeStatus::Unhealthy,
             latency_ms: 20,
             consecutive_failures: 1,
@@ -1098,24 +1098,28 @@ mod tests {
     #[test]
     fn test_probe_error_http_message_format() {
         let err = ProbeError::Http("connection refused".to_string());
+        assert!(matches!(err, ProbeError::Http(ref msg) if msg == "connection refused"));
         assert!(err.to_string().contains("HTTP probe failed"));
     }
 
     #[test]
     fn test_probe_error_tcp_message_format() {
         let err = ProbeError::Tcp("connection refused".to_string());
+        assert!(matches!(err, ProbeError::Tcp(ref msg) if msg == "connection refused"));
         assert!(err.to_string().contains("TCP probe failed"));
     }
 
     #[test]
     fn test_probe_error_exec_message_format() {
         let err = ProbeError::Exec("exit code 1".to_string());
+        assert!(matches!(err, ProbeError::Exec(ref msg) if msg == "exit code 1"));
         assert!(err.to_string().contains("Exec probe failed"));
     }
 
     #[test]
     fn test_probe_error_timeout_message_format() {
         let err = ProbeError::Timeout(Duration::from_secs(5));
+        assert!(matches!(err, ProbeError::Timeout(d) if d == Duration::from_secs(5)));
         assert!(err.to_string().contains("Timeout"));
     }
 
@@ -1123,6 +1127,7 @@ mod tests {
     fn test_probe_error_not_found_message_format() {
         let id = ProbeId::new();
         let err = ProbeError::NotFound(id);
+        assert!(matches!(err, ProbeError::NotFound(_)));
         let msg = err.to_string();
         assert!(msg.contains("not found") || msg.contains("Probe"));
     }
@@ -1527,7 +1532,9 @@ mod tests {
     async fn test_probe_trait_object_can_be_stored_and_called() {
         let probe: Box<dyn Probe> = Box::new(HttpProbe::new("http://localhost:9999"));
         let result = probe.check().await;
-        assert!(result.is_err() || result.is_ok());
+        assert!(result.is_err(), "HTTP probe to nonexistent host should fail");
+        let err = result.unwrap_err();
+        assert!(matches!(err, ProbeError::Http(_)), "Expected Http error variant, got {:?}", err);
     }
 
     #[tokio::test]
@@ -1540,9 +1547,16 @@ mod tests {
         let exec_result = exec_probe.check().await;
         let http_result = http_probe.check().await;
 
-        assert!(tcp_result.is_ok() || tcp_result.is_err());
-        assert!(exec_result.is_ok() || exec_result.is_err());
-        assert!(http_result.is_ok() || http_result.is_err());
+        assert!(tcp_result.is_ok(), "TCP probe check should succeed (returns result with Unhealthy status)");
+        let tcp_r = tcp_result.unwrap();
+        assert_eq!(tcp_r.status, ProbeStatus::Unhealthy, "TCP to nonexistent host should be Unhealthy");
+        assert!(matches!(tcp_r.probe_id, _));
+
+        assert!(exec_result.is_ok(), "Exec false should return Ok with Unhealthy status");
+        assert_eq!(exec_result.unwrap().status, ProbeStatus::Unhealthy);
+
+        assert!(http_result.is_err(), "HTTP to nonexistent host should fail");
+        assert!(matches!(http_result.unwrap_err(), ProbeError::Http(_)));
     }
 
     #[test]
@@ -1809,7 +1823,6 @@ mod tests {
         assert!(result.is_ok(), "Exec true should succeed");
         let r = result.unwrap();
         assert_eq!(r.status, ProbeStatus::Healthy);
-        assert!(r.latency_ms > 0 || r.latency_ms == 0);
         assert_eq!(r.probe_id, probe.probe_id());
     }
 
