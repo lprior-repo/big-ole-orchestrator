@@ -26,28 +26,11 @@ impl<T: PartialOrd> BinomialNode<T> {
         }
     }
 
-    fn link(mut child: Self, parent: &mut Self) {
-        if child.value < parent.value {
-            let old_parent_value = std::mem::replace(&mut parent.value, child.value);
-            let old_parent_child = parent.child.take();
-            let old_child_degree = child.degree;
-            let old_child_sibling = child.sibling.take();
-            let old_child_child = child.child.take();
-            parent.degree = old_child_degree + 1;
-            parent.child = Some(Box::new(BinomialNode {
-                value: old_parent_value,
-                degree: parent.degree - 1,
-                child: old_parent_child,
-                sibling: old_child_sibling,
-            }));
-            parent.sibling = old_child_child;
-        } else {
-            let mut c = child;
-            parent.degree += 1;
-            parent.sibling = c.child.take();
-            c.child = parent.child.take();
-            parent.child = Some(Box::new(c));
-        }
+    fn link(child: BinomialNode<T>, parent: &mut BinomialNode<T>) {
+        let mut c = child;
+        c.sibling = parent.child.take();
+        parent.child = Some(Box::new(c));
+        parent.degree += 1;
     }
 
     fn min_value(&self) -> &T {
@@ -116,11 +99,11 @@ impl<T: Ord> BinomialHeap<T> {
         let mut a = a;
         let mut b = b;
         if a.value < b.value {
-            BinomialNode::link(a, &mut b);
-            b
-        } else {
             BinomialNode::link(b, &mut a);
             a
+        } else {
+            BinomialNode::link(a, &mut b);
+            b
         }
     }
 
@@ -150,58 +133,49 @@ impl<T: Ord> BinomialHeap<T> {
     }
 
     pub fn merge(&mut self, other: &mut BinomialHeap<T>) {
-        if self.is_empty() {
-            *self = std::mem::take(other);
-            return;
-        }
-        if other.is_empty() {
-            return;
-        }
+        let other_len = other.len;
+        let mut other_trees = std::mem::take(&mut other.trees);
+        other.len = 0;
+
         let mut carry: Option<BinomialNode<T>> = None;
-        let max_degree = std::cmp::max(self.trees.len(), other.trees.len());
+        let max_degree = std::cmp::max(self.trees.len(), other_trees.len());
         while self.trees.len() < max_degree + 1 {
             self.trees.push(None);
         }
         for degree in 0..=max_degree {
             let self_tree = self.trees[degree].take();
-            let other_tree = if degree < other.trees.len() {
-                other.trees[degree].take()
+            let other_tree = if degree < other_trees.len() {
+                other_trees[degree].take()
             } else {
                 None
             };
             match (carry.take(), self_tree, other_tree) {
                 (None, None, None) => {}
                 (None, None, Some(t)) | (None, Some(t), None) => {
-                    self.carry(Some(t), degree);
+                    self.trees[degree] = Some(t);
                 }
                 (Some(c), None, None) => {
-                    self.carry(Some(c), degree);
+                    self.trees[degree] = Some(c);
                 }
                 (None, Some(a), Some(b)) => {
-                    let merged = self.merge_trees(a, b);
-                    self.carry(Some(merged), degree);
+                    carry = Some(self.merge_trees(a, b));
                 }
                 (Some(c), Some(a), None) => {
-                    let merged = self.merge_trees(c, a);
-                    self.carry(Some(merged), degree);
+                    carry = Some(self.merge_trees(c, a));
                 }
                 (Some(c), None, Some(a)) => {
-                    let merged = self.merge_trees(c, a);
-                    self.carry(Some(merged), degree);
+                    carry = Some(self.merge_trees(c, a));
                 }
                 (Some(c), Some(a), Some(b)) => {
                     let merged1 = self.merge_trees(a, b);
-                    let merged2 = self.merge_trees(c, merged1);
-                    self.carry(Some(merged2), degree);
+                    carry = Some(self.merge_trees(c, merged1));
                 }
             }
-            if degree < self.trees.len() {
-                self.trees[degree] = None;
-            }
         }
-        self.len += other.len;
-        other.trees.clear();
-        other.len = 0;
+        if let Some(c) = carry {
+            self.trees.push(Some(c));
+        }
+        self.len += other_len;
     }
 
     pub fn delete_min(&mut self) -> Option<T> {
@@ -233,15 +207,13 @@ impl<T: Ord> BinomialHeap<T> {
         }
         children.reverse();
 
-        self.len -= 1;
-
         let mut child_heap = BinomialHeap {
             trees: children,
-            len: self.len,
+            len: 0,
         };
 
-        self.len = 0;
         self.merge(&mut child_heap);
+        self.len -= 1;
 
         Some(min_value)
     }
