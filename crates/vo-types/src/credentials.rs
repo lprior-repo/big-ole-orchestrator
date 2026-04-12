@@ -313,12 +313,17 @@ pub struct SecretValue {
 
 impl SecretValue {
     #[must_use]
-    pub fn new(ciphertext: Vec<u8>, nonce: [u8; 12], key_version: u32) -> Self {
-        Self {
+    pub fn new(ciphertext: Vec<u8>, nonce: [u8; 12], key_version: u32) -> Result<Self, ParseError> {
+        if ciphertext.is_empty() {
+            return Err(ParseError::Empty {
+                type_name: "SecretValue",
+            });
+        }
+        Ok(Self {
             ciphertext,
             nonce,
             key_version,
-        }
+        })
     }
 
     #[must_use]
@@ -774,7 +779,7 @@ mod tests {
     fn secret_value_creation() {
         let ciphertext = vec![0u8; 32];
         let nonce = [0u8; 12];
-        let secret = SecretValue::new(ciphertext.clone(), nonce, 1);
+        let secret = SecretValue::new(ciphertext.clone(), nonce, 1).expect("valid ciphertext");
         assert_eq!(secret.ciphertext(), &ciphertext);
         assert_eq!(secret.nonce(), nonce);
         assert_eq!(secret.key_version(), 1);
@@ -842,14 +847,14 @@ mod tests {
     fn credential_active_version() {
         let version1 = CredentialVersion::new(
             CredentialVersionId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap(),
-            SecretValue::new(vec![0u8; 32], [0u8; 12], 1),
+            SecretValue::new(vec![0u8; 32], [0u8; 12], 1).expect("valid ciphertext"),
             CredentialStatus::Superseded,
             TimestampMs(1000),
             None,
         );
         let version2 = CredentialVersion::new(
             CredentialVersionId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMB").unwrap(),
-            SecretValue::new(vec![1u8; 32], [1u8; 12], 1),
+            SecretValue::new(vec![1u8; 32], [1u8; 12], 1).expect("valid ciphertext"),
             CredentialStatus::Active,
             TimestampMs(2000),
             None,
@@ -874,14 +879,14 @@ mod tests {
     fn credential_inv_exactly_one_active_version() {
         let version1 = CredentialVersion::new(
             CredentialVersionId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap(),
-            SecretValue::new(vec![0u8; 32], [0u8; 12], 1),
+            SecretValue::new(vec![0u8; 32], [0u8; 12], 1).expect("valid ciphertext"),
             CredentialStatus::Active,
             TimestampMs(1000),
             None,
         );
         let version2 = CredentialVersion::new(
             CredentialVersionId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMB").unwrap(),
-            SecretValue::new(vec![1u8; 32], [1u8; 12], 1),
+            SecretValue::new(vec![1u8; 32], [1u8; 12], 1).expect("valid ciphertext"),
             CredentialStatus::Active,
             TimestampMs(2000),
             None,
@@ -910,10 +915,17 @@ mod tests {
 
     #[test]
     fn secret_value_inv_never_empty_ciphertext() {
-        let secret = SecretValue::new(vec![], [0u8; 12], 1);
+        let result = SecretValue::new(vec![], [0u8; 12], 1);
         assert!(
-            secret.ciphertext().is_empty(),
-            "INV-003: Test demonstrates violation — empty ciphertext accepted (should require non-empty)"
+            result.is_err(),
+            "INV-003: Empty ciphertext must be rejected (SecretValue is never stored unencrypted)"
         );
+        let err = result.unwrap_err();
+        assert!(matches!(
+            err,
+            ParseError::Empty {
+                type_name: "SecretValue"
+            }
+        ));
     }
 }
