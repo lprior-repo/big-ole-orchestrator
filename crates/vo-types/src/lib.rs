@@ -73,6 +73,8 @@ mod adversarial_tests;
 #[cfg(test)]
 mod compensation_tests;
 #[cfg(test)]
+mod context_stack_adversarial;
+#[cfg(test)]
 mod cross_cutting_tests;
 #[cfg(test)]
 mod red_queen_tests;
