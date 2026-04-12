@@ -22,7 +22,7 @@ pub use error::ReanimatorError;
 pub use loop_core::{ReanimatorHandle, ReanimatorLoop};
 #[cfg(test)]
 pub use mock::{MockTimerStorage, MockWorkQueue};
-pub use traits::{TimerStorage, WorkQueue};
+pub use traits::{PendingTimer, TimerStorage, WorkQueue};
 pub use types::{
     calculate_batch_size, calculate_scan_result, check_resume_budget, filter_timers_by_fairness,
     validate_timer_record, FairnessBudget, ReanimatorConfig, ReanimatorState, TimerRecord,

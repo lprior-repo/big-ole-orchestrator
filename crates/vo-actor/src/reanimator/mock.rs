@@ -1,11 +1,11 @@
 //! Mock implementations for testing the Reanimator Loop.
 
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use tokio::sync::Mutex;
 use vo_types::{InstanceId, TimestampMs};
 
 use crate::reanimator::{
-    traits::{TimerStorage, WorkQueue},
+    traits::{PendingTimer, TimerStorage, WorkQueue},
     ReanimatorError, TimerRecord,
 };
 
@@ -13,6 +13,7 @@ use crate::reanimator::{
 #[derive(Debug)]
 pub struct MockTimerStorage {
     timers: Mutex<VecDeque<TimerRecord>>,
+    pending_timers: Mutex<HashMap<InstanceId, PendingTimer>>,
     fire_calls: Mutex<Vec<(InstanceId, TimestampMs)>>,
     delete_calls: Mutex<Vec<(InstanceId, TimestampMs)>>,
     should_fail: Mutex<bool>,
@@ -23,6 +24,7 @@ impl MockTimerStorage {
     pub fn new(timers: Vec<TimerRecord>) -> Self {
         Self {
             timers: Mutex::new(timers.into()),
+            pending_timers: Mutex::new(HashMap::new()),
             fire_calls: Mutex::new(Vec::new()),
             delete_calls: Mutex::new(Vec::new()),
             should_fail: Mutex::new(false),
@@ -103,6 +105,76 @@ impl TimerStorage for MockTimerStorage {
             .push((instance_id.clone(), fire_at_ms));
 
         Ok(())
+    }
+
+    async fn mark_timer_processing(
+        &self,
+        instance_id: &InstanceId,
+        fire_at_ms: TimestampMs,
+    ) -> Result<(), ReanimatorError> {
+        if *self.should_fail.lock().await {
+            return Err(ReanimatorError::StorageError("Mock failure".to_string()));
+        }
+
+        let pending = PendingTimer::new(instance_id.clone(), fire_at_ms, TimestampMs::now());
+        self.pending_timers
+            .lock()
+            .await
+            .insert(instance_id.clone(), pending);
+
+        Ok(())
+    }
+
+    async fn scan_pending_timers(
+        &self,
+        max_results: u32,
+    ) -> Result<Vec<PendingTimer>, ReanimatorError> {
+        if *self.should_fail.lock().await {
+            return Err(ReanimatorError::StorageError("Mock failure".to_string()));
+        }
+
+        let pending: Vec<PendingTimer> = self.pending_timers
+            .lock()
+            .await
+            .values()
+            .take(max_results as usize)
+            .cloned()
+            .collect();
+
+        Ok(pending)
+    }
+
+    async fn complete_timer_processing(
+        &self,
+        instance_id: &InstanceId,
+        fire_at_ms: TimestampMs,
+    ) -> Result<(), ReanimatorError> {
+        if *self.should_fail.lock().await {
+            return Err(ReanimatorError::StorageError("Mock failure".to_string()));
+        }
+
+        self.pending_timers
+            .lock()
+            .await
+            .remove(instance_id);
+
+        Ok(())
+    }
+
+    async fn cleanup_stale_pending_timers(
+        &self,
+        older_than: TimestampMs,
+    ) -> Result<u32, ReanimatorError> {
+        if *self.should_fail.lock().await {
+            return Err(ReanimatorError::StorageError("Mock failure".to_string()));
+        }
+
+        let mut pending = self.pending_timers.lock().await;
+        let before = pending.len();
+        pending.retain(|_, v| v.marked_at_ms > older_than);
+        let after = pending.len();
+
+        Ok((before - after) as u32)
     }
 }
 

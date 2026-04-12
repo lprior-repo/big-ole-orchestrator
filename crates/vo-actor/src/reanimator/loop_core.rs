@@ -6,12 +6,15 @@ use std::sync::Arc;
 use tokio::sync::{broadcast, watch};
 use tokio::task::JoinHandle;
 use tokio::time::{interval, MissedTickBehavior};
+use vo_types::TimestampMs;
 
 use crate::reanimator::{
     traits::{TimerStorage, WorkQueue},
     types::{validate_timer_record, FairnessBudget, ReanimatorConfig, ReanimatorState},
     ReanimatorError,
 };
+
+const STALE_PENDING_THRESHOLD_MS: u64 = 60_000;
 
 /// Handle for controlling the Reanimator Loop.
 #[derive(Debug)]
@@ -99,6 +102,17 @@ impl ReanimatorLoop {
         let state_sender_clone = state_sender.clone();
         let shutdown_receiver = shutdown_trigger.subscribe();
 
+        // Run crash recovery before starting the loop
+        // This ensures any pending timers from a previous crash are replayed
+        let storage_clone = storage.clone();
+        let work_queue_clone = work_queue.clone();
+        let runtime = tokio::runtime::Handle::current();
+        runtime.block_on(async {
+            if let Err(e) = Self::run_crash_recovery(&storage_clone, &work_queue_clone).await {
+                tracing::warn!("Crash recovery completed with error: {}", e);
+            }
+        });
+
         // Spawn the background task
         let task_handle = tokio::runtime::Handle::current().spawn(async move {
             let result = Self::run_loop_inner(
@@ -121,6 +135,81 @@ impl ReanimatorLoop {
         };
 
         Ok(handle)
+    }
+
+    /// Runs crash recovery to detect and replay pending timers from a previous crash.
+    ///
+    /// This method:
+    /// 1. Scans for pending timers (timers that were in-flight when crash occurred)
+    /// 2. Cleans up stale pending timers (older than STALE_PENDING_THRESHOLD_MS)
+    /// 3. Replays pending timers by enqueueing resume work
+    async fn run_crash_recovery<S, Q>(
+        storage: &Arc<S>,
+        work_queue: &Arc<Q>,
+    ) -> Result<(), ReanimatorError>
+    where
+        S: TimerStorage + 'static,
+        Q: WorkQueue + 'static,
+    {
+        tracing::info!("Running crash recovery...");
+
+        // First, clean up any stale pending timers from previous crashes
+        let stale_threshold = TimestampMs::try_from(
+            TimestampMs::now().as_u64().saturating_sub(STALE_PENDING_THRESHOLD_MS)
+        ).unwrap_or(TimestampMs::try_from(0u64).expect("0 is valid"));
+        
+        let cleaned = storage
+            .cleanup_stale_pending_timers(stale_threshold)
+            .await?;
+        
+        if cleaned > 0 {
+            tracing::info!("Cleaned up {} stale pending timers", cleaned);
+        }
+
+        // Scan for pending timers that need to be replayed
+        let pending_timers = storage
+            .scan_pending_timers(100)
+            .await?;
+
+        if pending_timers.is_empty() {
+            tracing::info!("No pending timers found during crash recovery");
+            return Ok(());
+        }
+
+        tracing::info!("Found {} pending timers to replay", pending_timers.len());
+
+        // Replay each pending timer
+        for pending in pending_timers {
+            tracing::info!(
+                instance_id = %pending.instance_id,
+                fire_at_ms = %pending.fire_at_ms,
+                "Replaying pending timer"
+            );
+
+            // Try to enqueue resume work
+            match work_queue.enqueue_resume(pending.instance_id.clone()).await {
+                Ok(()) => {
+                    // Successfully replayed, mark as complete
+                    if let Err(e) = storage.complete_timer_processing(&pending.instance_id, pending.fire_at_ms).await {
+                        tracing::warn!(
+                            instance_id = %pending.instance_id,
+                            error = %e,
+                            "Failed to complete timer processing after replay"
+                        );
+                    }
+                }
+                Err(e) => {
+                    tracing::error!(
+                        instance_id = %pending.instance_id,
+                        error = %e,
+                        "Failed to replay pending timer"
+                    );
+                }
+            }
+        }
+
+        tracing::info!("Crash recovery completed");
+        Ok(())
     }
 
     /// The main loop implementation.
