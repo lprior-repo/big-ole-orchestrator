@@ -29,6 +29,18 @@ pub enum EdgeCondition {
     OnFailure,
 }
 
+impl EdgeCondition {
+    /// Check whether this condition matches the given step outcome.
+    #[must_use]
+    pub fn matches(&self, outcome: StepOutcome) -> bool {
+        match self {
+            EdgeCondition::Always => true,
+            EdgeCondition::OnSuccess => outcome == StepOutcome::Success,
+            EdgeCondition::OnFailure => outcome == StepOutcome::Failure,
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // RetryPolicyError
 // ---------------------------------------------------------------------------

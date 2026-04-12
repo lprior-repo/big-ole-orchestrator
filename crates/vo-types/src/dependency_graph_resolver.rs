@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use crate::{EdgeCondition, NodeName, StepOutcome, WorkflowDefinition};
+use crate::{NodeName, StepOutcome, WorkflowDefinition};
 
 /// Dependency graph resolver for workflow execution planning.
 ///
@@ -17,9 +17,7 @@ impl DependencyGraphResolver {
     ///
     /// A node is a dependency of another if there is an edge from it to the other.
     ///
-    /// # Panics
-    ///
-    /// Panics if `node` is not found in the workflow (caller must validate).
+    /// Returns empty if `node` is not found in the workflow.
     pub fn dependencies(workflow: &WorkflowDefinition, node: &NodeName) -> Vec<NodeName> {
         workflow
             .edges
@@ -33,9 +31,7 @@ impl DependencyGraphResolver {
     ///
     /// A node is a dependent of another if there is an edge from the other to it.
     ///
-    /// # Panics
-    ///
-    /// Panics if `node` is not found in the workflow (caller must validate).
+    /// Returns empty if `node` is not found in the workflow.
     pub fn dependents(workflow: &WorkflowDefinition, node: &NodeName) -> Vec<NodeName> {
         workflow
             .edges
@@ -54,16 +50,14 @@ impl DependencyGraphResolver {
     ) -> Vec<NodeName> {
         let mut result = Vec::new();
         let mut visited = HashSet::new();
-        let mut queue = vec![node.clone()];
         visited.insert(node.clone());
 
+        let mut queue = vec![node.clone()];
         while let Some(current) = queue.pop() {
             let direct_deps = Self::dependencies(workflow, &current);
             for dep in direct_deps {
-                if result.contains(&dep) {
-                    continue;
-                }
                 if visited.contains(&dep) {
+                    // Back-edge detected (cycle) — return empty as signal.
                     return vec![];
                 }
                 visited.insert(dep.clone());
@@ -81,16 +75,14 @@ impl DependencyGraphResolver {
     pub fn transitive_dependents(workflow: &WorkflowDefinition, node: &NodeName) -> Vec<NodeName> {
         let mut result = Vec::new();
         let mut visited = HashSet::new();
-        let mut queue = vec![node.clone()];
         visited.insert(node.clone());
 
+        let mut queue = vec![node.clone()];
         while let Some(current) = queue.pop() {
             let direct_deps = Self::dependents(workflow, &current);
             for dep in direct_deps {
-                if result.contains(&dep) {
-                    continue;
-                }
                 if visited.contains(&dep) {
+                    // Back-edge detected (cycle) — return empty as signal.
                     return vec![];
                 }
                 visited.insert(dep.clone());
@@ -223,124 +215,5 @@ impl DependencyGraphResolver {
         }
 
         layers
-    }
-}
-
-impl EdgeCondition {
-    fn matches(&self, outcome: StepOutcome) -> bool {
-        match self {
-            EdgeCondition::Always => true,
-            EdgeCondition::OnSuccess => outcome == StepOutcome::Success,
-            EdgeCondition::OnFailure => outcome == StepOutcome::Failure,
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{DagNode, Edge, NonEmptyVec};
-
-    fn make_workflow(
-        name: &str,
-        nodes: Vec<(&str, u8, u64, f64)>,
-        edges: Vec<(&str, &str, EdgeCondition)>,
-    ) -> WorkflowDefinition {
-        WorkflowDefinition {
-            workflow_name: crate::WorkflowName(name.into()),
-            nodes: NonEmptyVec::new_unchecked(
-                nodes
-                    .into_iter()
-                    .map(|(n, a, b, m)| DagNode {
-                        node_name: NodeName(n.into()),
-                        retry_policy: crate::RetryPolicy {
-                            max_attempts: a,
-                            backoff_ms: b,
-                            backoff_multiplier: m,
-                            max_backoff_ms: u64::MAX,
-                        },
-                    })
-                    .collect(),
-            ),
-            edges: edges
-                .into_iter()
-                .map(|(s, t, c)| Edge {
-                    source_node: NodeName(s.into()),
-                    target_node: NodeName(t.into()),
-                    condition: c,
-                })
-                .collect(),
-        }
-    }
-
-    #[test]
-    fn dependencies_returns_empty_for_node_with_no_incoming_edges() {
-        let workflow = make_workflow(
-            "test",
-            vec![("a", 1, 0, 1.0), ("b", 1, 0, 1.0), ("c", 1, 0, 1.0)],
-            vec![("a", "b", EdgeCondition::Always)],
-        );
-
-        let deps = DependencyGraphResolver::dependencies(&workflow, &NodeName("c".into()));
-        assert!(deps.is_empty());
-    }
-
-    #[test]
-    fn dependencies_returns_single_predecessor() {
-        let workflow = make_workflow(
-            "test",
-            vec![("a", 1, 0, 1.0), ("b", 1, 0, 1.0)],
-            vec![("a", "b", EdgeCondition::Always)],
-        );
-
-        let deps = DependencyGraphResolver::dependencies(&workflow, &NodeName("b".into()));
-        assert_eq!(deps.len(), 1);
-        assert!(deps.contains(&NodeName("a".into())));
-    }
-
-    #[test]
-    fn dependents_returns_single_successor() {
-        let workflow = make_workflow(
-            "test",
-            vec![("a", 1, 0, 1.0), ("b", 1, 0, 1.0)],
-            vec![("a", "b", EdgeCondition::Always)],
-        );
-
-        let succs = DependencyGraphResolver::dependents(&workflow, &NodeName("a".into()));
-        assert_eq!(succs.len(), 1);
-        assert!(succs.contains(&NodeName("b".into())));
-    }
-
-    #[test]
-    fn ready_nodes_returns_source_nodes_when_nothing_completed() {
-        let workflow = make_workflow(
-            "test",
-            vec![("a", 1, 0, 1.0), ("b", 1, 0, 1.0), ("c", 1, 0, 1.0)],
-            vec![],
-        );
-
-        let ready = DependencyGraphResolver::ready_nodes(&workflow, &[]);
-        assert_eq!(ready.len(), 3);
-    }
-
-    #[test]
-    fn execution_layers_linear_chain() {
-        let workflow = make_workflow(
-            "test",
-            vec![("a", 1, 0, 1.0), ("b", 1, 0, 1.0), ("c", 1, 0, 1.0)],
-            vec![
-                ("a", "b", EdgeCondition::Always),
-                ("b", "c", EdgeCondition::Always),
-            ],
-        );
-
-        let layers = DependencyGraphResolver::execution_layers(&workflow);
-        assert_eq!(layers.len(), 3);
-        assert_eq!(layers[0].len(), 1);
-        assert!(layers[0].contains(&NodeName("a".into())));
-        assert_eq!(layers[1].len(), 1);
-        assert!(layers[1].contains(&NodeName("b".into())));
-        assert_eq!(layers[2].len(), 1);
-        assert!(layers[2].contains(&NodeName("c".into())));
     }
 }

@@ -182,17 +182,9 @@ pub fn next_nodes<'a>(
     last_outcome: StepOutcome,
     def: &'a WorkflowDefinition,
 ) -> Vec<&'a DagNode> {
-    let condition_matches = |condition: &EdgeCondition| -> bool {
-        match condition {
-            EdgeCondition::Always => true,
-            EdgeCondition::OnSuccess => last_outcome == StepOutcome::Success,
-            EdgeCondition::OnFailure => last_outcome == StepOutcome::Failure,
-        }
-    };
-
     def.edges
         .iter()
-        .filter(|edge| &edge.source_node == current && condition_matches(&edge.condition))
+        .filter(|edge| &edge.source_node == current && edge.condition.matches(last_outcome))
         .filter_map(|edge| def.get_node(&edge.target_node))
         .collect()
 }

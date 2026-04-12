@@ -459,26 +459,26 @@ fn transitive_dependents() {
 // DependencyGraphResolver: cycle handling
 // ============================================================================
 
-// DGR-19: Cycle detection in transitive dependencies
+// DGR-19: Resolver operates on validated acyclic graphs.
+// WorkflowDefinition::parse rejects cycles, so the resolver never encounters
+// them in production. If constructed without validation (as make_workflow does),
+// the visited-set guard prevents infinite loops and returns partial results.
 #[test]
-fn transitive_dependencies_detects_cycle() {
-    // Create a workflow that would have a cycle if edges were bidirectional
-    // But the workflow is validated as acyclic at construction
+fn transitive_dependencies_handles_unvalidated_cyclic_input() {
+    // a -> b -> c -> a (cycle)
     let workflow = make_workflow(
         "test",
         vec![("a", 1, 0, 1.0), ("b", 1, 0, 1.0), ("c", 1, 0, 1.0)],
         vec![
             ("a", "b", EdgeCondition::Always),
             ("b", "c", EdgeCondition::Always),
-            ("c", "a", EdgeCondition::Always), // This would create a cycle
+            ("c", "a", EdgeCondition::Always),
         ],
     );
 
-    // Note: WorkflowDefinition::parse would reject this due to cycle detection
-    // So this test documents that the resolver should handle this case
+    // The visited-set guard detects the back-edge and returns empty (cycle signal).
     let result = DependencyGraphResolver::transitive_dependencies(&workflow, &NodeName("c".into()));
-    // The implementation should handle this gracefully (return error or empty)
-    assert!(result.is_empty() || result.is_empty());
+    assert!(result.is_empty(), "Cyclic input should return empty (back-edge detected)");
 }
 
 // ============================================================================
