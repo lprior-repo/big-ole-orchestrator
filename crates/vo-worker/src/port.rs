@@ -41,7 +41,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_lock_manager_trait_bounds() {
-        fn assert_send_sync<T: Send + Sync>() {}
+        fn assert_send_sync<T: Send + Sync + ?Sized>() {}
         assert_send_sync::<dyn LockManager>();
     }
 }

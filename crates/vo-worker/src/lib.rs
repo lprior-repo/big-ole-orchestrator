@@ -5,16 +5,22 @@
 //! - Deadlock detection via wait-for graph
 //! - Lock promotion (shared -> exclusive) and demotion
 //! - Crash-safe lock recovery
+//! - Automatic retry with exponential backoff for lock acquisition
 
 #![allow(unused)]
 #![allow(missing_docs)]
 
+mod port;
+mod retry;
 mod supervisor;
 
 use chrono::{DateTime, Utc};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use thiserror::Error;
 use tokio::time::Duration;
+
+pub use port::LockManager;
+pub use retry::{LockManagerRetryWrapper, RetryConfig};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LockId(String);
