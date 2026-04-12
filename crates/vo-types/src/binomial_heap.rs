@@ -26,11 +26,13 @@ impl<T: PartialOrd> BinomialNode<T> {
         }
     }
 
-    fn link(child: BinomialNode<T>, parent: &mut BinomialNode<T>) {
-        let mut c = child;
-        c.sibling = parent.child.take();
-        parent.child = Some(Box::new(c));
-        parent.degree += 1;
+    fn link(first: Self, second: &mut Self) {
+        // Standard binomial link: attach first as leftmost child of second.
+        // Caller ensures second.value <= first.value (second is root).
+        let mut child = first;
+        child.sibling = second.child.take();
+        second.degree += 1;
+        second.child = Some(Box::new(child));
     }
 
     fn min_value(&self) -> &T {
@@ -98,7 +100,7 @@ impl<T: Ord> BinomialHeap<T> {
     fn merge_trees(&self, a: BinomialNode<T>, b: BinomialNode<T>) -> BinomialNode<T> {
         let mut a = a;
         let mut b = b;
-        if a.value < b.value {
+        if a.value <= b.value {
             BinomialNode::link(b, &mut a);
             a
         } else {
