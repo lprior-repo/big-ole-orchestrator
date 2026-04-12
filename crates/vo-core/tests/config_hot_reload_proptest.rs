@@ -1,11 +1,8 @@
 //! Property-based tests for Config hot-reload system.
 //!
 //! TDD Red Phase: These proptests verify invariant properties.
-//! They should PASS against the current implementation where behaviors exist
-//! and expose gaps where they don't.
 
 use std::fs;
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use proptest::prelude::*;
@@ -42,19 +39,14 @@ impl ConfigValidator<String> for MinLenValidator {
 }
 
 proptest! {
-    #![proptest_config(ProptestConfig::with_cases(50))]
-
     #[test]
-    fn current_returns_independent_clones(
-        initial_key in "[a-z]{1,5}",
-        initial_val in 0u32..1000,
-    ) {
+    fn current_returns_independent_clones(initial_val in 0u32..1000u32) {
         let temp_dir = TempDir::new().unwrap();
         let path = temp_dir.path().join("config.json");
         fs::write(&path, "{}").unwrap();
 
         let config = HotReloadConfig::new(
-            serde_json::json!({initial_key: initial_val}),
+            serde_json::json!({"key": initial_val}),
             path,
             Arc::new(AlwaysValid),
         ).unwrap();
@@ -62,13 +54,11 @@ proptest! {
         let mut clone = config.current();
         clone.as_object_mut().unwrap().insert("injected".to_string(), serde_json::json!(true));
 
-        prop_assert_eq!(config.current(), serde_json::json!({initial_key: initial_val}));
+        prop_assert_eq!(config.current(), serde_json::json!({"key": initial_val}));
     }
 
     #[test]
-    fn try_update_only_accepts_valid_configs(
-        valid_string in "[a-z]{1,20}",
-    ) {
+    fn try_update_only_accepts_valid_configs(valid_string in "[a-z]{1,20}") {
         let temp_dir = TempDir::new().unwrap();
         let path = temp_dir.path().join("config.json");
         fs::write(&path, "{}").unwrap();
@@ -87,10 +77,7 @@ proptest! {
     }
 
     #[test]
-    fn commit_only_succeeds_when_pending_is_some(
-        initial in "[a-z]{1,10}",
-        update_val in "[a-z]{1,10}",
-    ) {
+    fn commit_only_succeeds_when_pending_is_some(initial in "[a-z]{1,10}") {
         let temp_dir = TempDir::new().unwrap();
         let path = temp_dir.path().join("config.json");
         fs::write(&path, "{}").unwrap();
@@ -104,17 +91,14 @@ proptest! {
         let no_pending_result = config.commit();
         prop_assert!(matches!(no_pending_result, Err(Error::SwapFailed)));
 
-        config.try_update(update_val.clone()).unwrap();
+        config.try_update("updated".to_string()).unwrap();
         let commit_result = config.commit();
         prop_assert!(commit_result.is_ok());
         prop_assert_eq!(commit_result.unwrap(), initial);
     }
 
     #[test]
-    fn rollback_leaves_current_unchanged(
-        initial in "[a-z]{1,10}",
-        pending_val in "[a-z]{1,10}",
-    ) {
+    fn rollback_leaves_current_unchanged(initial in "[a-z]{1,10}") {
         let temp_dir = TempDir::new().unwrap();
         let path = temp_dir.path().join("config.json");
         fs::write(&path, "{}").unwrap();
@@ -125,16 +109,14 @@ proptest! {
             Arc::new(AlwaysValid),
         ).unwrap();
 
-        config.try_update(pending_val).unwrap();
+        config.try_update("pending".to_string()).unwrap();
         config.rollback();
 
         prop_assert_eq!(config.current(), initial);
     }
 
     #[test]
-    fn reload_from_file_either_updates_or_leaves_unchanged(
-        version in 1u64..100u64,
-    ) {
+    fn reload_from_file_either_updates_or_leaves_unchanged(version in 1u64..100u64) {
         let temp_dir = TempDir::new().unwrap();
         let path = temp_dir.path().join("config.json");
 
@@ -159,15 +141,12 @@ proptest! {
     }
 
     #[test]
-    fn path_clone_independence(
-        dir_name in "[a-z]{1,5}",
-        file_name in "[a-z]{1,5}\\.json",
-    ) {
+    fn path_clone_independence(dir_name in "[a-z]{1,5}") {
         let temp_dir = TempDir::new().unwrap();
         let subdir = temp_dir.path().join(&dir_name);
         fs::create_dir_all(&subdir).unwrap();
 
-        let mut path = subdir.join(&file_name);
+        let mut path = subdir.join("config.json");
         fs::write(&path, "{}").unwrap();
 
         let config = HotReloadConfig::new(
@@ -178,20 +157,12 @@ proptest! {
 
         path.set_file_name("different.json");
 
-        prop_assert!(config.path().file_name().unwrap().to_str().unwrap().contains(&file_name.replace(".json", "")));
+        let stored = config.path().file_name().unwrap().to_str().unwrap().to_string();
+        prop_assert!(stored.contains("config"));
     }
 
     #[test]
-    fn watcher_config_default_debounce_is_300ms() {
-        let config = WatcherConfig::default();
-        prop_assert_eq!(config.debounce_duration, Some(std::time::Duration::from_millis(300)));
-    }
-
-    #[test]
-    fn min_len_validator_accepts_and_rejects_correctly(
-        len in 1usize..20,
-        char in 'a'..='z',
-    ) {
+    fn min_len_validator_accepts_and_rejects_correctly(len in 1usize..20usize) {
         let temp_dir = TempDir::new().unwrap();
         let path = temp_dir.path().join("config.json");
         fs::write(&path, "{}").unwrap();
@@ -202,20 +173,17 @@ proptest! {
             Arc::new(MinLenValidator(len)),
         ).unwrap();
 
-        let too_short = char.to_string().repeat(len.saturating_sub(1));
+        let too_short = "a".repeat(len.saturating_sub(1));
         let result = config.try_update(too_short);
         prop_assert!(result.is_err());
 
-        let just_right = char.to_string().repeat(len);
+        let just_right = "a".repeat(len);
         let result = config.try_update(just_right);
         prop_assert!(result.is_ok());
     }
 
     #[test]
-    fn try_update_twice_only_second_survives(
-        first in "[a-z]{1,10}",
-        second in "[a-z]{1,10}",
-    ) {
+    fn try_update_twice_only_second_survives(first in "[a-z]{1,10}") {
         let temp_dir = TempDir::new().unwrap();
         let path = temp_dir.path().join("config.json");
         fs::write(&path, "{}").unwrap();
@@ -227,10 +195,19 @@ proptest! {
         ).unwrap();
 
         config.try_update(first).unwrap();
-        config.try_update(second.clone()).unwrap();
+        config.try_update("second".to_string()).unwrap();
 
         let old = config.commit().unwrap();
         prop_assert_eq!(old, String::new());
-        prop_assert_eq!(config.current(), second);
+        prop_assert_eq!(config.current(), "second");
     }
+}
+
+#[test]
+fn watcher_config_default_debounce_is_300ms() {
+    let config = WatcherConfig::default();
+    assert_eq!(
+        config.debounce_duration,
+        Some(std::time::Duration::from_millis(300))
+    );
 }

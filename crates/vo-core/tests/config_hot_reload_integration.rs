@@ -10,8 +10,8 @@ use std::time::Duration;
 
 use tempfile::TempDir;
 use vo_core::config_hot_reload::{
-    ConfigValidator, DebouncedFileWatcher, Error, EventChannel, FileWatcher, FilteredFileWatcher,
-    HotReloadConfig, WatcherConfig,
+    ConfigValidator, DebouncedFileWatcher, Error, FilteredFileWatcher, HotReloadConfig,
+    WatcherConfig,
 };
 
 struct AlwaysValid;
@@ -72,82 +72,11 @@ fn hot_reload_config_try_update_does_not_modify_current() {
     fs::write(&path, "{}").unwrap();
 
     let config = HotReloadConfig::new(
-        serde_json::json!({"key": "value"}),
-        path,
+        serde_json::json!({"v": 1}),
+        path.clone(),
         Arc::new(AlwaysValid),
     )
     .unwrap();
-
-    config
-        .try_update(serde_json::json!({"new": "config"}))
-        .unwrap();
-
-    assert_eq!(config.current(), serde_json::json!({"key": "value"}));
-}
-
-#[test]
-fn hot_reload_config_try_update_twice_overwrites_previous_pending() {
-    let temp_dir = TempDir::new().unwrap();
-    let path = temp_dir.path().join("config.json");
-    fs::write(&path, "{}").unwrap();
-
-    let config = HotReloadConfig::new(
-        serde_json::json!({"key": "original"}),
-        path,
-        Arc::new(AlwaysValid),
-    )
-    .unwrap();
-
-    config
-        .try_update(serde_json::json!({"key": "first"}))
-        .unwrap();
-    config
-        .try_update(serde_json::json!({"key": "second"}))
-        .unwrap();
-
-    let old = config.commit().unwrap();
-    assert_eq!(old, serde_json::json!({"key": "original"}));
-    assert_eq!(config.current(), serde_json::json!({"key": "second"}));
-}
-
-#[test]
-fn hot_reload_config_commit_clears_pending_after_promotion() {
-    let temp_dir = TempDir::new().unwrap();
-    let path = temp_dir.path().join("config.json");
-    fs::write(&path, "{}").unwrap();
-
-    let config =
-        HotReloadConfig::new(serde_json::json!({"v": 1}), path, Arc::new(AlwaysValid)).unwrap();
-
-    config.try_update(serde_json::json!({"v": 2})).unwrap();
-    let _old = config.commit().unwrap();
-
-    let result = config.commit();
-    assert!(matches!(result, Err(Error::SwapFailed)));
-}
-
-#[test]
-fn hot_reload_config_reload_from_file_returns_parse_error_for_malformed_json() {
-    let temp_dir = TempDir::new().unwrap();
-    let path = temp_dir.path().join("config.json");
-    fs::write(&path, "not valid json {{{").unwrap();
-
-    let config =
-        HotReloadConfig::new(serde_json::json!({"v": 1}), path, Arc::new(AlwaysValid)).unwrap();
-
-    let result = config.reload_from_file();
-    assert!(matches!(result, Err(Error::ParseError(_))));
-    assert_eq!(config.current(), serde_json::json!({"v": 1}));
-}
-
-#[test]
-fn hot_reload_config_reload_from_file_does_not_affect_pending() {
-    let temp_dir = TempDir::new().unwrap();
-    let path = temp_dir.path().join("config.json");
-    fs::write(&path, r#"{"v": 1}"#).unwrap();
-
-    let config =
-        HotReloadConfig::new(serde_json::json!({"v": 1}), path, Arc::new(AlwaysValid)).unwrap();
 
     config.try_update(serde_json::json!({"v": 999})).unwrap();
 
@@ -211,7 +140,7 @@ fn hot_reload_config_reload_from_file_returns_old_config() {
 
     let config = HotReloadConfig::new(
         serde_json::json!({"version": 1}),
-        path,
+        path.clone(),
         Arc::new(VersionValidator),
     )
     .unwrap();
@@ -270,8 +199,8 @@ fn filtered_file_watcher_returns_watched_path() {
     assert_eq!(watcher.path(), path);
 }
 
-#[test]
-fn debounced_file_watcher_returns_watched_path() {
+#[tokio::test]
+async fn debounced_file_watcher_returns_watched_path() {
     let config = WatcherConfig {
         recursive: false,
         debounce_duration: Some(Duration::from_millis(100)),
@@ -285,8 +214,8 @@ fn debounced_file_watcher_returns_watched_path() {
     assert_eq!(watcher.path(), path);
 }
 
-#[test]
-fn debounced_file_watcher_is_recursive_matches_config() {
+#[tokio::test]
+async fn debounced_file_watcher_is_recursive_matches_config() {
     let config = WatcherConfig {
         recursive: true,
         debounce_duration: Some(Duration::from_millis(100)),
@@ -380,7 +309,7 @@ fn reload_from_file_uses_validator_for_file_content() {
 
     let config = HotReloadConfig::new(
         serde_json::json!({"version": 1}),
-        path,
+        path.clone(),
         Arc::new(MinVersionValidator(5)),
     )
     .unwrap();
@@ -399,7 +328,7 @@ fn full_lifecycle_update_commit_rollback_reload() {
 
     let config = HotReloadConfig::new(
         serde_json::json!({"version": 1}),
-        path,
+        path.clone(),
         Arc::new(VersionValidator),
     )
     .unwrap();

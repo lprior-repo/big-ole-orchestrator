@@ -829,7 +829,7 @@ mod tests {
 
         let config = HotReloadConfig::new(
             serde_json::json!({"v": 1}),
-            path,
+            path.clone(),
             Arc::new(AlwaysValid),
         )
         .unwrap();
