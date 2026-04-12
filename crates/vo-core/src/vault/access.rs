@@ -1,5 +1,4 @@
 use vo_types::credentials::{AccessPolicy, Principal};
-use vo_types::{SpawnId, WorkflowName};
 
 pub struct AccessChecker<'a> {
     policy: &'a AccessPolicy,
@@ -56,7 +55,7 @@ pub fn is_authorized(policy: &AccessPolicy, principal: &Principal) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use vo_types::InstanceId;
+    use vo_types::{InstanceId, SpawnId, WorkflowName};
 
     fn make_user(id: &str) -> Principal {
         Principal::User(InstanceId::parse(id).expect("valid ULID"))

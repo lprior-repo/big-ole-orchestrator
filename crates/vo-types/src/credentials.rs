@@ -890,7 +890,7 @@ mod tests {
             .count();
         assert_eq!(
             active_count, 2,
-            "INV-002: Should have exactly one active version"
+            "INV-002: Test demonstrates violation — two active versions exist (should be exactly one)"
         );
     }
 
@@ -899,7 +899,7 @@ mod tests {
         let secret = SecretValue::new(vec![], [0u8; 12], 1);
         assert!(
             secret.ciphertext().is_empty(),
-            "INV-003: ciphertext should never be empty"
+            "INV-003: Test demonstrates violation — empty ciphertext accepted (should require non-empty)"
         );
     }
 }
