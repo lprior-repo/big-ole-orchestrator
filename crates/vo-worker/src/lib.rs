@@ -9,6 +9,8 @@
 #![allow(unused)]
 #![allow(missing_docs)]
 
+mod supervisor;
+
 use chrono::{DateTime, Utc};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use thiserror::Error;

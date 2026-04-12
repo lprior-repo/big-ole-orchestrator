@@ -7,10 +7,12 @@ license.workspace = true
 [dependencies]
 vo-common = { path = "../vo-common" }
 vo-storage = { path = "../vo-storage" }
+vo-types = { path = "../vo-types" }
 
 # Async
 tokio = { workspace = true }
 futures = { workspace = true }
+async-trait = { workspace = true }
 
 # NATS
 async-nats = { workspace = true }
