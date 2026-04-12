@@ -14,6 +14,7 @@ mod dependency_graph_resolver;
 mod effects;
 mod encryption;
 mod errors;
+pub mod euler_tour_tree;
 pub mod events;
 mod instance_status;
 mod integer_types;
@@ -66,6 +67,7 @@ pub use effects::{
 };
 pub use encryption::{CryptoAlgorithm, DekId, EncryptedBlob, KeyMetadata, WrappedDek};
 pub use errors::ParseError;
+pub use euler_tour_tree::{EttAggregate, EttError, EulerTourTree};
 pub use events::{Error as EventError, EventEnvelope};
 pub use instance_status::InstanceStatus;
 pub use junction_tree::{Clique as JunctionClique, JunctionTree, JunctionTreeError};
