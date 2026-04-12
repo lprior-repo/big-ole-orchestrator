@@ -8,6 +8,7 @@
 #![forbid(unsafe_code)]
 
 pub mod append;
+pub mod budget_saga;
 pub mod codec;
 pub mod dedupe_partition;
 pub mod effect_journal;
