@@ -11,6 +11,18 @@ pub fn is_escape_key(key: &str) -> bool {
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct CommandTemplate {
     pub node_type: NodeTemplateId,
+    pub label: &'static str,
+    pub hint: &'static str,
+}
+
+impl CommandTemplate {
+    pub fn from(id: NodeTemplateId) -> Self {
+        Self {
+            node_type: id,
+            label: id.label(),
+            hint: id.hint(),
+        }
+    }
 }
 
 pub fn filtered_templates(query: &str) -> Vec<CommandTemplate> {
@@ -19,7 +31,7 @@ pub fn filtered_templates(query: &str) -> Vec<CommandTemplate> {
     if normalized_query.is_empty() {
         return NodeTemplateId::all()
             .into_iter()
-            .map(|id| CommandTemplate { node_type: id })
+            .map(CommandTemplate::from)
             .collect();
     }
 
@@ -30,13 +42,14 @@ pub fn filtered_templates(query: &str) -> Vec<CommandTemplate> {
                 || id.label().to_lowercase().contains(&normalized_query)
                 || id.hint().to_lowercase().contains(&normalized_query)
         })
-        .map(|id| CommandTemplate { node_type: id })
+        .map(CommandTemplate::from)
         .collect()
 }
 
 #[cfg(test)]
 mod tests {
     use super::{filtered_templates, is_escape_key};
+    use super::super::domain_types::NodeTemplateId;
 
     #[test]
     fn given_empty_query_when_filtering_templates_then_all_templates_are_returned() {
@@ -53,7 +66,9 @@ mod tests {
         assert!(by_label
             .iter()
             .any(|t| t.node_type == NodeTemplateId::HttpHandler));
-        assert!(by_hint.iter().any(|t| t.node_type == NodeTemplateId::Sleep));
+        assert!(by_hint
+            .iter()
+            .any(|t| t.node_type == NodeTemplateId::Timer));
         assert!(by_type
             .iter()
             .any(|t| t.node_type == NodeTemplateId::KafkaHandler));
@@ -156,8 +171,8 @@ pub fn NodeCommandPalette(
                                 class: "mb-1 flex w-full items-center justify-between rounded-md px-3 py-2 text-left transition-colors hover:bg-slate-800",
                                 onclick: move |_| on_pick.call(template.node_type),
                                 div { class: "flex min-w-0 flex-col",
-                                    span { class: "truncate text-[13px] font-medium text-slate-100", "{template.node_type.label()}" }
-                                    span { class: "truncate text-[11px] text-slate-500", "{template.node_type.hint()}" }
+                                    span { class: "truncate text-[13px] font-medium text-slate-100", "{template.label}" }
+                                    span { class: "truncate text-[11px] text-slate-500", "{template.hint}" }
                                 }
                                 span { class: "rounded bg-slate-800 px-2 py-0.5 font-mono text-[10px] text-slate-400", "{template.node_type}" }
                             }

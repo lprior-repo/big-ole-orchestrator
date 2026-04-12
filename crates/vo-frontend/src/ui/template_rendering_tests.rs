@@ -29,7 +29,7 @@ fn inv_001_all_returns_exactly_14_variants() {
 
 #[test]
 fn inv_002_all_as_str_values_are_unique() {
-    let strs: Vec<&str> = NodeTemplateId::all().map(|id| id.as_str()).collect();
+    let strs: Vec<&str> = NodeTemplateId::all().iter().map(|id| id.as_str()).collect();
     let unique: HashSet<&str> = strs.iter().copied().collect();
     assert_eq!(strs.len(), unique.len(), "as_str values must be unique");
 }
@@ -93,7 +93,7 @@ fn inv_007_first_node_has_no_depends_on() {
 
 #[test]
 fn inv_006_skeleton_produces_sequential_step_ids() {
-    let nodes: Vec<SketchNode> = NodeTemplateId::all().map(node).collect();
+    let nodes: Vec<SketchNode> = NodeTemplateId::all().iter().map(|id| node(*id)).collect();
     let skeleton = generate_skeleton(&nodes);
     for i in 0..nodes.len() {
         let expected_id = format!("step-{}", i + 1);
@@ -410,7 +410,7 @@ fn skeleton_output_contains_correct_type_for_each_node() {
 
 #[test]
 fn skeleton_with_all_14_templates_produces_valid_output() {
-    let nodes: Vec<SketchNode> = NodeTemplateId::all().map(node).collect();
+    let nodes: Vec<SketchNode> = NodeTemplateId::all().iter().map(|id| node(*id)).collect();
     let skeleton = generate_skeleton(&nodes);
     assert!(skeleton.contains("name: \"prototype-workflow\""));
     assert!(skeleton.contains("steps:"));

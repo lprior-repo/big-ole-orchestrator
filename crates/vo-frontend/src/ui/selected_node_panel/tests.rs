@@ -34,7 +34,7 @@ fn failed_event_uses_error_style() {
     let (dot, label_class, label) = event_appearance(ExtensionTimelineEventKind::Failed);
 
     assert_eq!(dot, "bg-red-500");
-    label_class.contains("text-red-700"));
+    assert!(label_class.contains("text-red-700"));
     assert_eq!(label, "Failed");
 }
 
@@ -101,8 +101,8 @@ fn collect_previews_ignores_unknown_keys_but_keeps_valid_previews() {
     let previews = collect_previews(&workflow, &keys);
     let expected = preview_extension(&workflow, "add-timeout-guard");
 
-    assert!(expected.unwrap();
-    let expected = expected.ok().flatten();
+    let unwrapped = expected.unwrap();
+    let expected = unwrapped.ok().flatten();
     assert!(expected.is_some());
     assert_eq!(previews.len(), 1);
     assert_eq!(previews.first(), expected.as_ref());

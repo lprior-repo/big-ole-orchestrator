@@ -2,3 +2,5 @@
 //!
 //! Provides the Dioxus-based web interface for workflow visualization
 //! and management.
+
+pub mod ui;

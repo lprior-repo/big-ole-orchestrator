@@ -98,15 +98,13 @@ impl<T: Ord> BinomialHeap<T> {
 
     pub fn find_min(&self) -> Option<&T> {
         let mut min = None;
-        for tree_opt in &self.trees {
-            if let Some(ref tree) = tree_opt {
-                match min {
-                    None => min = Some(tree.min_value()),
-                    Some(current_min) => {
-                        let tree_min = tree.min_value();
-                        if *tree_min < *current_min {
-                            min = Some(tree_min);
-                        }
+        for ref tree in self.trees.iter().flatten() {
+            match min {
+                None => min = Some(tree.min_value()),
+                Some(current_min) => {
+                    let tree_min = tree.min_value();
+                    if *tree_min < *current_min {
+                        min = Some(tree_min);
                     }
                 }
             }

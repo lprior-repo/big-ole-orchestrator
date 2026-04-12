@@ -227,6 +227,173 @@ impl FromStr for NodeTemplateId {
     }
 }
 
+// ── TemplateDescriptor ──
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TemplateDescriptor {
+    pub id: NodeTemplateId,
+    pub as_str: &'static str,
+    pub label: &'static str,
+    pub hint: &'static str,
+}
+
+impl NodeTemplateId {
+    pub fn descriptor(self) -> TemplateDescriptor {
+        TemplateDescriptor {
+            id: self,
+            as_str: self.as_str(),
+            label: self.label(),
+            hint: self.hint(),
+        }
+    }
+}
+
+// ── TemplateCategory ──
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TemplateCategory {
+    Ingress,
+    Execution,
+    State,
+    Control,
+    Workflow,
+}
+
+impl TemplateCategory {
+    pub fn members(self) -> &'static [NodeTemplateId] {
+        match self {
+            Self::Ingress => &[
+                NodeTemplateId::HttpHandler,
+                NodeTemplateId::KafkaHandler,
+                NodeTemplateId::CronTrigger,
+            ],
+            Self::Execution => &[
+                NodeTemplateId::Run,
+                NodeTemplateId::ServiceCall,
+                NodeTemplateId::ObjectCall,
+                NodeTemplateId::SendMessage,
+            ],
+            Self::State => &[NodeTemplateId::GetState, NodeTemplateId::SetState],
+            Self::Control => &[
+                NodeTemplateId::Condition,
+                NodeTemplateId::Parallel,
+                NodeTemplateId::Timer,
+                NodeTemplateId::Timeout,
+            ],
+            Self::Workflow => &[NodeTemplateId::WorkflowSubmit],
+        }
+    }
+
+    pub const fn all() -> [Self; 5] {
+        [Self::Ingress, Self::Execution, Self::State, Self::Control, Self::Workflow]
+    }
+}
+
+impl NodeTemplateId {
+    pub fn category(self) -> TemplateCategory {
+        match self {
+            Self::HttpHandler | Self::KafkaHandler | Self::CronTrigger => TemplateCategory::Ingress,
+            Self::Run | Self::ServiceCall | Self::ObjectCall | Self::SendMessage => {
+                TemplateCategory::Execution
+            }
+            Self::GetState | Self::SetState => TemplateCategory::State,
+            Self::Condition | Self::Parallel | Self::Timer | Self::Timeout => TemplateCategory::Control,
+            Self::WorkflowSubmit => TemplateCategory::Workflow,
+        }
+    }
+}
+
+// ── Error Taxonomy ──
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TemplateError {
+    ParseError {
+        input: String,
+        expected: &'static str,
+    },
+    ValidationError {
+        template_id: NodeTemplateId,
+        violation: ValidationViolation,
+    },
+    RenderError {
+        template_id: NodeTemplateId,
+        context: RenderContext,
+    },
+    SerializationError {
+        reason: SerializationReason,
+    },
+}
+
+impl fmt::Display for TemplateError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::ParseError { input, expected } => {
+                write!(f, "parse error: {input}: expected {expected}")
+            }
+            Self::ValidationError {
+                template_id,
+                violation,
+            } => {
+                write!(f, "validation error for {template_id}: {violation}")
+            }
+            Self::RenderError {
+                template_id,
+                context,
+            } => {
+                write!(f, "render error for {template_id} in {context:?}")
+            }
+            Self::SerializationError { reason } => {
+                write!(f, "serialization error: {reason}")
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ValidationViolation {
+    MissingRequiredField(String),
+    InvalidTemplateCombination(Vec<NodeTemplateId>),
+    CircularDependency,
+}
+
+impl fmt::Display for ValidationViolation {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::MissingRequiredField(field) => write!(f, "missing required field: {field}"),
+            Self::InvalidTemplateCombination(ids) => {
+                let names: Vec<String> = ids.iter().map(|id| id.as_str().to_string()).collect();
+                write!(f, "invalid template combination: {}", names.join(", "))
+            }
+            Self::CircularDependency => write!(f, "circular dependency detected"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RenderContext {
+    Palette,
+    CommandPalette,
+    Canvas,
+    Inspector,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SerializationReason {
+    YamlEncodeError(String),
+    JsonEncodeError(String),
+    EmptySketch,
+}
+
+impl fmt::Display for SerializationReason {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::YamlEncodeError(msg) => write!(f, "yaml encode error: {msg}"),
+            Self::JsonEncodeError(msg) => write!(f, "json encode error: {msg}"),
+            Self::EmptySketch => write!(f, "cannot serialize empty sketch"),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -263,16 +430,12 @@ mod tests {
         assert_eq!(NodeTemplateId::Condition.label(), "If / Else");
     }
 
-    // ── INV-002: Each NodeTemplateId variant maps to a unique as_str ──
-
     #[test]
     fn given_all_templates_when_collecting_as_str_then_all_are_unique() {
-        let strs: Vec<&'static str> = NodeTemplateId::all().map(|id| id.as_str()).collect();
+        let strs: Vec<&'static str> = NodeTemplateId::all().iter().map(|id| id.as_str()).collect();
         let unique: std::collections::HashSet<&str> = strs.iter().copied().collect();
         assert_eq!(strs.len(), unique.len(), "as_str values must be unique");
     }
-
-    // ── INV-003: from_str is the inverse of as_str for all valid IDs ──
 
     #[test]
     fn given_all_templates_when_roundtripping_through_str_then_identity_holds() {
@@ -291,8 +454,6 @@ mod tests {
         assert_eq!(NodeTemplateId::from_str("HTTP-HANDLER"), None);
     }
 
-    // ── INV-004: label() and hint() are non-empty for all variants ──
-
     #[test]
     fn given_all_templates_when_checking_labels_then_none_are_empty() {
         for id in NodeTemplateId::all() {
@@ -306,8 +467,6 @@ mod tests {
             assert!(!id.hint().is_empty(), "hint() for {id:?} must not be empty");
         }
     }
-
-    // ── TemplateDescriptor: immutable metadata per template ──
 
     #[test]
     fn given_node_template_when_getting_descriptor_then_fields_match_template() {

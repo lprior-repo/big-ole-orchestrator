@@ -16,6 +16,15 @@ pub struct SketchNode {
     pub label: String,
 }
 
+impl SketchNode {
+    pub fn new(node_type: NodeTemplateId) -> Self {
+        Self {
+            label: node_type.label().to_string(),
+            node_type,
+        }
+    }
+}
+
 struct PaletteEntry {
     node_type: NodeTemplateId,
     icon: &'static str,
@@ -31,7 +40,7 @@ const PALETTE_ENTRIES: [PaletteEntry; 9] = [
         icon: "🛡️",
     },
     PaletteEntry {
-        node_type: NodeTemplateId::Sleep,
+        node_type: NodeTemplateId::Timer,
         icon: "⏱️",
     },
     PaletteEntry {
@@ -55,8 +64,8 @@ const PALETTE_ENTRIES: [PaletteEntry; 9] = [
         icon: "⫿",
     },
     PaletteEntry {
-        node_type: NodeTemplateId::Condition,
-        icon: "⑂",
+        node_type: NodeTemplateId::Timeout,
+        icon: "⏳",
     },
 ];
 
@@ -126,11 +135,7 @@ pub fn PrototypePalette(
                                 key: "{entry.node_type}",
                                 class: "flex flex-col items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-center transition-colors hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700 active:scale-95",
                                 onclick: move |_| {
-                                    let new_node = SketchNode {
-                                        node_type: entry.node_type,
-                                        label: entry.node_type.label().to_string(),
-                                    };
-                                    sketch_nodes.write().push(new_node);
+                                    sketch_nodes.write().push(SketchNode::new(entry.node_type));
                                     *generated_skeleton.write() = None;
                                     on_add_node.call(entry.node_type);
                                 },
@@ -253,7 +258,7 @@ mod tests {
         let nodes = vec![
             node(NodeTemplateId::HttpHandler),
             node(NodeTemplateId::Run),
-            node(NodeTemplateId::Sleep),
+            node(NodeTemplateId::Timer),
         ];
         let result = generate_skeleton(&nodes);
 
@@ -285,6 +290,6 @@ mod tests {
         assert!(step3_block
             .iter()
             .any(|l| l.contains("depends_on: [step-2]")));
-        assert!(step3_block.iter().any(|l| l.contains("type: sleep")));
+        assert!(step3_block.iter().any(|l| l.contains("type: timer")));
     }
 }
