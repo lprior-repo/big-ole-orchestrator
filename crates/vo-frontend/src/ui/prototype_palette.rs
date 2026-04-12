@@ -17,6 +17,7 @@ pub struct SketchNode {
 }
 
 impl SketchNode {
+    #[must_use]
     pub fn new(node_type: NodeTemplateId) -> Self {
         Self {
             label: node_type.label().to_string(),
@@ -69,6 +70,7 @@ const PALETTE_ENTRIES: [PaletteEntry; 9] = [
     },
 ];
 
+#[must_use]
 pub fn generate_skeleton(nodes: &[SketchNode]) -> String {
     let mut out = String::from("name: \"prototype-workflow\"\nsteps:\n");
 

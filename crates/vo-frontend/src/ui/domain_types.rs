@@ -1,9 +1,10 @@
 use std::fmt;
 use std::str::FromStr;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum HttpMethod {
     Get,
+    #[default]
     Post,
     Put,
     Delete,
@@ -54,12 +55,6 @@ impl FromStr for HttpMethod {
     }
 }
 
-impl Default for HttpMethod {
-    fn default() -> Self {
-        Self::Post
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum HandleKind {
     Source,
@@ -74,7 +69,7 @@ impl HandleKind {
         }
     }
 
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse(s: &str) -> Option<Self> {
         match s {
             "source" => Some(Self::Source),
             "target" => Some(Self::Target),
@@ -93,7 +88,7 @@ impl FromStr for HandleKind {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Self::from_str(s).ok_or_else(|| format!("Invalid handle kind: {s}"))
+        Self::parse(s).ok_or_else(|| format!("Invalid handle kind: {s}"))
     }
 }
 
@@ -173,7 +168,7 @@ impl NodeTemplateId {
         }
     }
 
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse(s: &str) -> Option<Self> {
         match s {
             "http-handler" => Some(Self::HttpHandler),
             "kafka-handler" => Some(Self::KafkaHandler),
@@ -223,7 +218,7 @@ impl FromStr for NodeTemplateId {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Self::from_str(s).ok_or_else(|| format!("Unknown node template: {s}"))
+        Self::parse(s).ok_or_else(|| format!("Unknown node template: {s}"))
     }
 }
 
@@ -285,7 +280,13 @@ impl TemplateCategory {
     }
 
     pub const fn all() -> [Self; 5] {
-        [Self::Ingress, Self::Execution, Self::State, Self::Control, Self::Workflow]
+        [
+            Self::Ingress,
+            Self::Execution,
+            Self::State,
+            Self::Control,
+            Self::Workflow,
+        ]
     }
 }
 
@@ -297,7 +298,9 @@ impl NodeTemplateId {
                 TemplateCategory::Execution
             }
             Self::GetState | Self::SetState => TemplateCategory::State,
-            Self::Condition | Self::Parallel | Self::Timer | Self::Timeout => TemplateCategory::Control,
+            Self::Condition | Self::Parallel | Self::Timer | Self::Timeout => {
+                TemplateCategory::Control
+            }
             Self::WorkflowSubmit => TemplateCategory::Workflow,
         }
     }
@@ -449,15 +452,18 @@ mod tests {
 
     #[test]
     fn given_invalid_string_when_parsing_node_template_then_returns_none() {
-        assert_eq!(NodeTemplateId::from_str("nonexistent"), None);
-        assert_eq!(NodeTemplateId::from_str(""), None);
-        assert_eq!(NodeTemplateId::from_str("HTTP-HANDLER"), None);
+        assert_eq!(NodeTemplateId::parse("nonexistent"), None);
+        assert_eq!(NodeTemplateId::parse(""), None);
+        assert_eq!(NodeTemplateId::parse("HTTP-HANDLER"), None);
     }
 
     #[test]
     fn given_all_templates_when_checking_labels_then_none_are_empty() {
         for id in NodeTemplateId::all() {
-            assert!(!id.label().is_empty(), "label() for {id:?} must not be empty");
+            assert!(
+                !id.label().is_empty(),
+                "label() for {id:?} must not be empty"
+            );
         }
     }
 
