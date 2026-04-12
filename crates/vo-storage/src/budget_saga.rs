@@ -202,6 +202,11 @@ pub struct SagaStore {
 }
 
 impl SagaStore {
+    /// Open a saga store backed by the given keyspace.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SagaError::Storage`] if the `saga_manifest` partition cannot be opened.
     pub fn open(keyspace: &fjall::Keyspace) -> Result<Self, SagaError> {
         let partition = keyspace
             .open_partition("saga_manifest", fjall::PartitionCreateOptions::default())
@@ -209,6 +214,12 @@ impl SagaStore {
         Ok(Self { partition })
     }
 
+    /// Stage a new entry in the persistent saga store.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SagaError::AlreadyExists`] if an entry with the same key already exists.
+    /// Returns [`SagaError::Storage`] if serialization or disk write fails.
     pub fn stage_entry(
         &self,
         write_key: &str,
@@ -235,6 +246,12 @@ impl SagaStore {
             })
     }
 
+    /// Read a saga entry by write key.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SagaError::CorruptEntry`] if the stored data cannot be deserialized.
+    /// Returns [`SagaError::Storage`] if the partition read fails.
     pub fn read_entry(&self, write_key: &str) -> Result<Option<SagaEntry>, SagaError> {
         let key = format!("entry:{write_key}").into_bytes();
         match self.partition.get(&key) {
@@ -253,6 +270,13 @@ impl SagaStore {
         }
     }
 
+    /// Commit a staged entry, transitioning it to `Committed`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SagaError::NotFound`] if no entry exists for the given key.
+    /// Returns [`SagaError::InvalidState`] if the entry is not in the `Staged` state.
+    /// Returns [`SagaError::Storage`] if serialization or disk write fails.
     pub fn commit_entry(&self, write_key: &str) -> Result<(), SagaError> {
         let mut entry = self
             .read_entry(write_key)?
@@ -276,6 +300,13 @@ impl SagaStore {
             })
     }
 
+    /// Roll back an entry, transitioning it to `RolledBack`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SagaError::NotFound`] if no entry exists for the given key.
+    /// Returns [`SagaError::AlreadyRolledBack`] if the entry is already rolled back.
+    /// Returns [`SagaError::Storage`] if serialization or disk write fails.
     pub fn rollback_entry(&self, write_key: &str) -> Result<(), SagaError> {
         let mut entry = self
             .read_entry(write_key)?
@@ -295,6 +326,12 @@ impl SagaStore {
             })
     }
 
+    /// Recover from a crash by rolling back all staged entries.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SagaError::Storage`] if iterating or writing entries fails.
+    /// Returns [`SagaError::CorruptEntry`] if a stored entry cannot be deserialized.
     pub fn recover(&self) -> Result<RecoveryOutcome, SagaError> {
         let mut count = 0usize;
         let iter = self.partition.iter();
@@ -377,6 +414,11 @@ impl DurableBudgetSaga {
         }
     }
 
+    /// Open a durable saga with a fjall-backed persistent store.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SagaError::Storage`] if the saga partition cannot be opened.
     pub fn open(
         keyspace: &fjall::Keyspace,
         queues: BudgetQueues<StagedWrite>,
@@ -390,7 +432,7 @@ impl DurableBudgetSaga {
     }
 
     #[must_use]
-    pub fn store(&self) -> &Option<SagaStore> {
+    pub const fn store(&self) -> &Option<SagaStore> {
         &self.store
     }
 
@@ -453,13 +495,14 @@ impl DurableBudgetSaga {
     /// Returns [`SagaError::NotFound`] if no entry exists for the given key.
     /// Returns [`SagaError::InvalidState`] if the entry is not in the `Staged` state.
     pub fn commit(&self, write_key: &str) -> Result<(), SagaError> {
-        if let Some(ref store) = self.store {
-            store.commit_entry(write_key)
-        } else {
-            #[expect(clippy::unwrap_used)]
-            let mut manifest = self.manifest.lock().unwrap();
-            manifest.commit(write_key)
-        }
+        self.store.as_ref().map_or_else(
+            || {
+                #[expect(clippy::unwrap_used)]
+                let mut manifest = self.manifest.lock().unwrap();
+                manifest.commit(write_key)
+            },
+            |store| store.commit_entry(write_key),
+        )
     }
 
     /// Roll back a write entry and dequeue it from the budget queues.
@@ -474,13 +517,14 @@ impl DurableBudgetSaga {
     /// Returns [`SagaError::AlreadyRolledBack`] if the entry is already rolled back.
     pub fn rollback(&self, write_key: &str) -> Result<(), SagaError> {
         self.queues.dequeue(self.get_class_for_key(write_key)?);
-        if let Some(ref store) = self.store {
-            store.rollback_entry(write_key)
-        } else {
-            #[expect(clippy::unwrap_used)]
-            let mut manifest = self.manifest.lock().unwrap();
-            manifest.rollback(write_key)
-        }
+        self.store.as_ref().map_or_else(
+            || {
+                #[expect(clippy::unwrap_used)]
+                let mut manifest = self.manifest.lock().unwrap();
+                manifest.rollback(write_key)
+            },
+            |store| store.rollback_entry(write_key),
+        )
     }
 
     /// Recover from a crash by rolling back all staged entries.
