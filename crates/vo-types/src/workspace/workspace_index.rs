@@ -65,11 +65,10 @@ impl WorkspaceIndex {
 
         let id = WorkspaceId::generate();
 
-        let node = if parent_id.is_none() {
-            WorkspaceNode::new_root(id, name.clone(), metadata, now)
-        } else {
-            let pid = parent_id.unwrap();
+        let node = if let Some(pid) = parent_id {
             WorkspaceNode::new_child(id, name.clone(), pid, metadata, now)
+        } else {
+            WorkspaceNode::new_root(id, name.clone(), metadata, now)
         };
 
         self.nodes.insert(id, node);
@@ -97,7 +96,7 @@ impl WorkspaceIndex {
         let node = self
             .nodes
             .get(&id)
-            .ok_or_else(|| WorkspaceIndexError::WorkspaceNotFound(id))?;
+            .ok_or(WorkspaceIndexError::WorkspaceNotFound(id))?;
 
         let descendants = self.collect_descendants(id)?;
 
@@ -141,7 +140,7 @@ impl WorkspaceIndex {
             let node = self
                 .nodes
                 .get(&id)
-                .ok_or_else(|| WorkspaceIndexError::WorkspaceNotFound(id))?;
+                .ok_or(WorkspaceIndexError::WorkspaceNotFound(id))?;
             (node.parent_id, node.name.clone())
         };
 
@@ -292,7 +291,7 @@ impl WorkspaceIndex {
         let node = self
             .nodes
             .get(id)
-            .ok_or_else(|| WorkspaceIndexError::WorkspaceNotFound(*id))?;
+            .ok_or(WorkspaceIndexError::WorkspaceNotFound(*id))?;
         let mut segments = vec![node.name.clone()];
 
         let mut current_id = node.parent_id;
@@ -300,7 +299,7 @@ impl WorkspaceIndex {
             let parent = self
                 .nodes
                 .get(&pid)
-                .ok_or_else(|| WorkspaceIndexError::WorkspaceNotFound(pid))?;
+                .ok_or(WorkspaceIndexError::WorkspaceNotFound(pid))?;
             segments.insert(0, parent.name.clone());
             current_id = parent.parent_id;
         }
@@ -323,7 +322,7 @@ impl WorkspaceIndex {
         let node = self
             .nodes
             .get_mut(&id)
-            .ok_or_else(|| WorkspaceIndexError::WorkspaceNotFound(id))?;
+            .ok_or(WorkspaceIndexError::WorkspaceNotFound(id))?;
         node.metadata = metadata;
         node.updated_at = now;
 
@@ -343,14 +342,14 @@ impl WorkspaceIndex {
         self.nodes
             .get(&id)
             .cloned()
-            .ok_or_else(|| WorkspaceIndexError::WorkspaceNotFound(id))
+            .ok_or(WorkspaceIndexError::WorkspaceNotFound(id))
     }
 
     pub fn list_children(&self, id: WorkspaceId) -> Result<Vec<WorkspaceId>, WorkspaceIndexError> {
         let node = self
             .nodes
             .get(&id)
-            .ok_or_else(|| WorkspaceIndexError::WorkspaceNotFound(id))?;
+            .ok_or(WorkspaceIndexError::WorkspaceNotFound(id))?;
         Ok(node.children.clone())
     }
 
@@ -358,7 +357,7 @@ impl WorkspaceIndex {
         let node = self
             .nodes
             .get(&id)
-            .ok_or_else(|| WorkspaceIndexError::WorkspaceNotFound(id))?;
+            .ok_or(WorkspaceIndexError::WorkspaceNotFound(id))?;
         let mut ancestors = Vec::new();
         let mut current = node.parent_id;
         while let Some(pid) = current {
@@ -366,7 +365,7 @@ impl WorkspaceIndex {
             let parent = self
                 .nodes
                 .get(&pid)
-                .ok_or_else(|| WorkspaceIndexError::WorkspaceNotFound(pid))?;
+                .ok_or(WorkspaceIndexError::WorkspaceNotFound(pid))?;
             current = parent.parent_id;
         }
         ancestors.reverse();
@@ -380,7 +379,7 @@ impl WorkspaceIndex {
         let node = self
             .nodes
             .get(&id)
-            .ok_or_else(|| WorkspaceIndexError::WorkspaceNotFound(id))?;
+            .ok_or(WorkspaceIndexError::WorkspaceNotFound(id))?;
 
         let mut result = Vec::new();
         let mut stack: Vec<WorkspaceId> = node.children.clone();
@@ -410,13 +409,17 @@ impl WorkspaceIndex {
                     )?));
                 }
             } else {
-                let parent_id = node.parent_id.unwrap();
-                if !self.nodes.contains_key(&parent_id) {
-                    return Err(WorkspaceIndexError::ParentNotFound(parent_id));
-                }
-                let parent = self.nodes.get(&parent_id).unwrap();
-                if !parent.children.contains(id) {
-                    return Err(WorkspaceIndexError::DuplicatePath(self.compute_path(id)?));
+                if let Some(parent_id) = node.parent_id {
+                    if !self.nodes.contains_key(&parent_id) {
+                        return Err(WorkspaceIndexError::ParentNotFound(parent_id));
+                    }
+                    let parent = self
+                        .nodes
+                        .get(&parent_id)
+                        .ok_or(WorkspaceIndexError::ParentNotFound(parent_id))?;
+                    if !parent.children.contains(id) {
+                        return Err(WorkspaceIndexError::DuplicatePath(self.compute_path(id)?));
+                    }
                 }
             }
 
@@ -431,7 +434,7 @@ impl WorkspaceIndex {
             let node = self
                 .nodes
                 .get(&root_id)
-                .ok_or_else(|| WorkspaceIndexError::WorkspaceNotFound(root_id))?;
+                .ok_or(WorkspaceIndexError::WorkspaceNotFound(root_id))?;
             if node.parent_id.is_some() {
                 return Err(WorkspaceIndexError::DuplicatePath(WorkspacePath::single(
                     node.name.clone(),

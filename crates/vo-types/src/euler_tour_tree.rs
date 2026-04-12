@@ -73,7 +73,9 @@ struct EttNode<V, A: Monoid> {
     children: Vec<usize>,
     value: V,
     agg: A,
+    #[allow(dead_code)]
     entry_pos: usize,
+    #[allow(dead_code)]
     exit_pos: usize,
 }
 
