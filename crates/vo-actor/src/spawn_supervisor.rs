@@ -1,6 +1,6 @@
-//! Spawn supervisor for subprocess lifecycle management
+//! Async spawn supervisor for subprocess lifecycle management
 //!
-//! Provides spawn supervisor that manages subprocess lifecycle:
+//! Provides async spawn supervisor that manages subprocess lifecycle:
 //! spawn → health-check → ready → running → shutdown
 //!
 //! Features:
@@ -8,10 +8,16 @@
 //! - Exponential backoff respawn
 //! - Health checks during startup
 //! - Follows Data→Calc→Actions pattern
+//! - Fully async using tokio and async_trait
 
 use std::sync::Arc;
 use std::time::Duration;
-use vo_types::{InstanceId, SpawnId};
+
+use tokio::sync::{broadcast, watch};
+use tokio::task::JoinHandle;
+use tokio::time::{interval, MissedTickBehavior};
+
+use vo_types::InstanceId;
 
 // =============================================================================
 // `SpawnRecord` - Spawn data including lifecycle state fields
@@ -165,10 +171,10 @@ pub enum SpawnSupervisorError {
     /// Configuration error - fatal
     InvalidConfig(String),
 
-    /// Reanimator already running
+    /// Supervisor already running
     AlreadyRunning,
 
-    /// Reanimator shutdown timeout
+    /// Supervisor shutdown timeout
     ShutdownTimeout(Duration),
 
     /// Dispatch error
@@ -193,6 +199,37 @@ pub enum SpawnSupervisorError {
         pid: u32,
         exit_code: i32,
     },
+
+    /// Supervisor is not running
+    NotRunning,
+
+    /// Already shutdown
+    AlreadyShutdown,
+}
+
+impl SpawnSupervisorError {
+    /// Returns true if this error is transient and retryable.
+    #[must_use]
+    pub fn is_transient(&self) -> bool {
+        matches!(
+            self,
+            Self::StorageError(_)
+                | Self::InstanceNotFound(_)
+                | Self::MailboxFull(_)
+                | Self::DispatchError(_)
+        )
+    }
+
+    /// Returns true if this error is fatal and requires manual intervention.
+    #[must_use]
+    pub fn is_fatal(&self) -> bool {
+        matches!(
+            self,
+            Self::CorruptSpawn(_)
+                | Self::InvalidConfig(_)
+                | Self::ZombieDetected { .. }
+        )
+    }
 }
 
 impl std::fmt::Display for SpawnSupervisorError {
@@ -233,6 +270,8 @@ impl std::fmt::Display for SpawnSupervisorError {
                     "Process exited for {instance_id}: pid={pid}, code={exit_code}"
                 )
             }
+            Self::NotRunning => write!(f, "Supervisor not running"),
+            Self::AlreadyShutdown => write!(f, "Supervisor already shutdown"),
         }
     }
 }
@@ -243,7 +282,7 @@ impl std::error::Error for SpawnSupervisorError {}
 // SpawnSupervisorMetrics - Metrics for SpawnSupervisor
 // =============================================================================
 
-/// Simple counter for metrics
+/// Simple counter for metrics using AtomicU64
 #[derive(Debug, Default)]
 pub struct Counter {
     value: std::sync::atomic::AtomicU64,
@@ -287,61 +326,49 @@ pub struct SpawnSupervisorMetrics {
 }
 
 // =============================================================================
-// Traits - Storage and Process abstractions
+// Async Traits - Storage and Process abstractions
 // =============================================================================
 
-/// Storage trait for spawn operations
+/// Async storage trait for spawn operations
+#[async_trait::async_trait]
 pub trait SpawnStorage: Send + Sync {
     /// Gets a spawn record by instance ID.
-    fn get_spawn_record(&self, instance_id: &InstanceId) -> Option<SpawnRecord>;
+    async fn get_spawn_record(&self, instance_id: &InstanceId) -> Option<SpawnRecord>;
 
     /// Saves a spawn record.
-    ///
-    /// # Errors
-    /// Returns an error if the save operation fails.
-    fn save_spawn_record(&self, record: &SpawnRecord) -> Result<(), SpawnSupervisorError>;
+    async fn save_spawn_record(&self, record: &SpawnRecord) -> Result<(), SpawnSupervisorError>;
 
     /// Deletes a spawn record.
-    ///
-    /// # Errors
-    /// Returns an error if the delete operation fails.
-    fn delete_spawn_record(&self, instance_id: &InstanceId) -> Result<(), SpawnSupervisorError>;
+    async fn delete_spawn_record(&self, instance_id: &InstanceId) -> Result<(), SpawnSupervisorError>;
 
     /// Scans for spawns in the given phase.
-    fn scan_spawns_by_phase(&self, phase: SpawnPhase, max: u32) -> Vec<SpawnRecord>;
+    async fn scan_spawns_by_phase(&self, phase: SpawnPhase, max: u32) -> Vec<SpawnRecord>;
+
+    /// Updates spawn phase for a record.
+    async fn transition_phase(
+        &self,
+        instance_id: &InstanceId,
+        new_phase: SpawnPhase,
+    ) -> Result<(), SpawnSupervisorError>;
 }
 
-/// Process trait for spawning and managing subprocesses
+/// Async process trait for spawning and managing subprocesses
+#[async_trait::async_trait]
 pub trait ProcessManager: Send + Sync {
     /// Spawns a new process.
-    ///
-    /// # Errors
-    /// Returns an error if the spawn operation fails.
-    fn spawn_process(&self, command: &str) -> Result<ProcessHandle, SpawnSupervisorError>;
+    async fn spawn_process(&self, command: &str) -> Result<ProcessHandle, SpawnSupervisorError>;
 
     /// Checks if a process is healthy.
-    ///
-    /// # Errors
-    /// Returns an error if the health check fails.
-    fn check_health(&self, pid: u32) -> Result<bool, SpawnSupervisorError>;
+    async fn check_health(&self, pid: u32) -> Result<bool, SpawnSupervisorError>;
 
     /// Checks if a process is a zombie.
-    ///
-    /// # Errors
-    /// Returns an error if the check fails.
-    fn is_zombie(&self, pid: u32) -> Result<bool, SpawnSupervisorError>;
+    async fn is_zombie(&self, pid: u32) -> Result<bool, SpawnSupervisorError>;
 
-    /// Terminates a process.
-    ///
-    /// # Errors
-    /// Returns an error if the termination fails.
-    fn terminate(&self, pid: u32) -> Result<(), SpawnSupervisorError>;
+    /// Terminates a process gracefully.
+    async fn terminate(&self, pid: u32) -> Result<(), SpawnSupervisorError>;
 
     /// Waits for a process to exit.
-    ///
-    /// # Errors
-    /// Returns an error if waiting fails.
-    fn wait(&self, pid: u32) -> Result<i32, SpawnSupervisorError>;
+    async fn wait(&self, pid: u32) -> Result<i32, SpawnSupervisorError>;
 }
 
 /// Process handle for managing a spawned process
@@ -361,30 +388,42 @@ impl ProcessHandle {
     }
 }
 
-/// Work queue trait for dispatching work
+/// Async work queue trait for dispatching work
+#[async_trait::async_trait]
 pub trait WorkQueue: Send + Sync {
     /// Enqueues a spawn work item for the given instance.
-    ///
-    /// # Errors
-    /// Returns an error if the enqueue operation fails.
-    fn enqueue_spawn(
+    async fn enqueue_spawn(
         &self,
         instance_id: InstanceId,
         command: String,
     ) -> Result<(), SpawnSupervisorError>;
 
     /// Enqueues a resume work item for the given instance.
-    ///
-    /// # Errors
-    /// Returns an error if the enqueue operation fails.
-    fn enqueue_resume(&self, instance_id: InstanceId) -> Result<(), SpawnSupervisorError>;
+    async fn enqueue_resume(&self, instance_id: InstanceId) -> Result<(), SpawnSupervisorError>;
 }
 
 // =============================================================================
-// `SpawnSupervisor` - Actor that manages spawn lifecycle
+// `SpawnSupervisorState` - Runtime state of the supervisor
 // =============================================================================
 
-/// `SpawnSupervisor` - Actor that manages spawn lifecycle
+/// Runtime state of the spawn supervisor
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SpawnSupervisorState {
+    /// Supervisor is stopped
+    Stopped,
+    /// Supervisor is running
+    Running,
+    /// Supervisor is shutting down
+    ShuttingDown,
+    /// Supervisor has shut down
+    ShutDown,
+}
+
+// =============================================================================
+// `SpawnSupervisor` - Async actor that manages spawn lifecycle
+// =============================================================================
+
+/// `SpawnSupervisor` - Async actor that manages spawn lifecycle
 pub struct SpawnSupervisor {
     /// Interval between health checks.
     pub health_check_interval: Duration,
@@ -404,8 +443,6 @@ pub struct SpawnSupervisor {
     pub work_queue: Arc<dyn WorkQueue>,
     /// Metrics.
     pub metrics: SpawnSupervisorMetrics,
-    /// Running state.
-    is_running: std::sync::atomic::AtomicBool,
 }
 
 impl std::fmt::Debug for SpawnSupervisor {
@@ -435,28 +472,24 @@ impl SpawnSupervisor {
         process_manager: Arc<dyn ProcessManager>,
         work_queue: Arc<dyn WorkQueue>,
     ) -> Result<Self, SpawnSupervisorError> {
-        // Precondition: health_check_interval > 0
         if health_check_interval.is_zero() {
             return Err(SpawnSupervisorError::InvalidConfig(
                 "health_check_interval must be > 0".to_string(),
             ));
         }
 
-        // Precondition: max_health_checks > 0
         if max_health_checks == 0 {
             return Err(SpawnSupervisorError::InvalidConfig(
                 "max_health_checks must be > 0".to_string(),
             ));
         }
 
-        // Precondition: initial_backoff > 0
         if initial_backoff.is_zero() {
             return Err(SpawnSupervisorError::InvalidConfig(
                 "initial_backoff must be > 0".to_string(),
             ));
         }
 
-        // Precondition: backoff_multiplier >= 1.0
         if backoff_multiplier < 1.0 {
             return Err(SpawnSupervisorError::InvalidConfig(
                 "backoff_multiplier must be >= 1.0".to_string(),
@@ -473,7 +506,6 @@ impl SpawnSupervisor {
             process_manager,
             work_queue,
             metrics: SpawnSupervisorMetrics::default(),
-            is_running: std::sync::atomic::AtomicBool::new(false),
         })
     }
 
@@ -481,18 +513,66 @@ impl SpawnSupervisor {
     ///
     /// # Errors
     /// Returns `AlreadyRunning` if the supervisor is already running.
-    pub fn spawn(self) -> Result<SpawnSupervisorHandle, SpawnSupervisorError> {
-        // Check if already running
-        if self
-            .is_running
-            .swap(true, std::sync::atomic::Ordering::SeqCst)
-        {
-            return Err(SpawnSupervisorError::AlreadyRunning);
-        }
+    pub fn spawn(
+        self,
+    ) -> Result<SpawnSupervisorHandle, SpawnSupervisorError> {
+        let (state_sender, _) = watch::channel(SpawnSupervisorState::Stopped);
+        let (shutdown_trigger, _) = broadcast::channel(1);
+
+        let state_sender_clone = state_sender.clone();
+        let shutdown_receiver = shutdown_trigger.subscribe();
+
+        let task_handle = tokio::runtime::Handle::current().spawn(async move {
+            let result = self.run_loop(state_sender_clone, shutdown_receiver).await;
+            if let Err(e) = result {
+                tracing::error!("Spawn supervisor loop exited with error: {}", e);
+            }
+        });
 
         Ok(SpawnSupervisorHandle {
-            is_running: Arc::new(std::sync::atomic::AtomicBool::new(true)),
+            state_sender,
+            shutdown_trigger,
+            task_handle: Some(task_handle),
         })
+    }
+
+    /// The main loop implementation.
+    #[tracing::instrument(skip_all)]
+    async fn run_loop(
+        self,
+        state_sender: watch::Sender<SpawnSupervisorState>,
+        mut shutdown_receiver: broadcast::Receiver<()>,
+    ) -> Result<(), SpawnSupervisorError> {
+        let mut scan_interval = interval(self.health_check_interval);
+        scan_interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
+
+        let _ = state_sender.send(SpawnSupervisorState::Running);
+
+        loop {
+            tokio::select! {
+                _ = shutdown_receiver.recv() => {
+                    let _ = state_sender.send(SpawnSupervisorState::ShuttingDown);
+                    break;
+                }
+                _ = scan_interval.tick() => {
+                    match self.process_cycle().await {
+                        Ok(_) => {}
+                        Err(e) if e.is_transient() => {
+                            tracing::warn!("Transient error in spawn supervisor cycle: {}", e);
+                        }
+                        Err(e) if e.is_fatal() => {
+                            tracing::error!("Fatal error in spawn supervisor cycle: {}", e);
+                        }
+                        Err(e) => {
+                            tracing::error!("Unknown error in spawn supervisor cycle: {}", e);
+                        }
+                    }
+                }
+            }
+        }
+
+        let _ = state_sender.send(SpawnSupervisorState::ShutDown);
+        Ok(())
     }
 
     /// Processes one spawn cycle.
@@ -502,19 +582,17 @@ impl SpawnSupervisor {
     ///
     /// # Errors
     /// Returns an error if storage or process operations fail.
-    pub fn process_cycle(&self) -> Result<CycleResult, SpawnSupervisorError> {
+    pub async fn process_cycle(&self) -> Result<CycleResult, SpawnSupervisorError> {
         let mut spawns_processed = 0u32;
         let mut health_checks = 0u32;
         let mut errors = 0u32;
         let mut respawns = 0u32;
 
-        // Scan for spawns in spawn phase
-        let spawn_records = self.storage.scan_spawns_by_phase(SpawnPhase::Spawn, 100);
+        let spawn_records = self.storage.scan_spawns_by_phase(SpawnPhase::Spawn, 100).await;
 
         for record in spawn_records {
             spawns_processed += 1;
 
-            // Check if max attempts exceeded
             if record.spawn_attempts > self.max_spawn_attempts {
                 self.metrics.spawns_failed.incr();
                 errors += 1;
@@ -527,18 +605,14 @@ impl SpawnSupervisor {
                 continue;
             }
 
-            // Calculate backoff delay
             let backoff_delay = self.calculate_backoff_delay(record.spawn_attempts);
 
-            // Spawn the process
-            match self.spawn_process(&record) {
+            match self.spawn_process(&record).await {
                 Ok(process_handle) => {
-                    // Transition to health-check phase
                     let mut new_record = record.transition_to_health_check();
                     new_record.last_error = None;
 
-                    // Save the record
-                    if let Err(e) = self.storage.save_spawn_record(&new_record) {
+                    if let Err(e) = self.storage.save_spawn_record(&new_record).await {
                         self.metrics.dispatch_errors.incr();
                         errors += 1;
                         tracing::error!(
@@ -549,15 +623,13 @@ impl SpawnSupervisor {
                         continue;
                     }
 
-                    // Perform health checks
-                    match self.perform_health_checks(&record.instance_id, &process_handle) {
+                    match self.perform_health_checks(&record.instance_id, &process_handle).await {
                         Ok(()) => {
-                            // Transition to running phase
                             let mut running_record = new_record.transition_to_running();
                             running_record.spawn_id =
                                 Some(vo_types::SpawnId::new(process_handle.pid.to_string()));
 
-                            if let Err(e) = self.storage.save_spawn_record(&running_record) {
+                            if let Err(e) = self.storage.save_spawn_record(&running_record).await {
                                 self.metrics.dispatch_errors.incr();
                                 errors += 1;
                                 tracing::error!(
@@ -579,17 +651,17 @@ impl SpawnSupervisor {
                                 "Health check failed"
                             );
 
-                            // Check if respawn is needed
                             if record.spawn_attempts < self.max_spawn_attempts {
                                 respawns += 1;
                                 self.metrics.respawns.incr();
 
-                                // Schedule respawn with backoff
                                 tracing::info!(
                                     instance_id = %record.instance_id,
                                     backoff_ms = backoff_delay.as_millis(),
                                     "Scheduling respawn with backoff"
                                 );
+
+                                let _ = backoff_delay;
                             }
                         }
                     }
@@ -598,11 +670,10 @@ impl SpawnSupervisor {
                     self.metrics.spawns_failed.incr();
                     errors += 1;
 
-                    // Update record with error
                     let mut updated_record = record.clone();
                     updated_record.last_error = Some(e.clone());
 
-                    if let Err(save_err) = self.storage.save_spawn_record(&updated_record) {
+                    if let Err(save_err) = self.storage.save_spawn_record(&updated_record).await {
                         self.metrics.dispatch_errors.incr();
                         tracing::error!(
                             instance_id = %record.instance_id,
@@ -614,10 +685,10 @@ impl SpawnSupervisor {
             }
         }
 
-        // Scan for spawns in health-check phase
         let health_check_records = self
             .storage
-            .scan_spawns_by_phase(SpawnPhase::HealthCheck, 100);
+            .scan_spawns_by_phase(SpawnPhase::HealthCheck, 100)
+            .await;
 
         for record in health_check_records {
             spawns_processed += 1;
@@ -626,15 +697,14 @@ impl SpawnSupervisor {
             match self.perform_health_checks(
                 &record.instance_id,
                 &ProcessHandle {
-                    pid: 0, // PID not available for health check only
+                    pid: 0,
                     command: record.command.clone(),
                 },
-            ) {
+            ).await {
                 Ok(()) => {
-                    // Transition to running phase
                     let running_record = record.transition_to_running();
 
-                    if let Err(e) = self.storage.save_spawn_record(&running_record) {
+                    if let Err(e) = self.storage.save_spawn_record(&running_record).await {
                         self.metrics.dispatch_errors.incr();
                         errors += 1;
                         tracing::error!(
@@ -668,39 +738,43 @@ impl SpawnSupervisor {
     }
 
     /// Spawns a process for a spawn record.
-    ///
-    /// # Errors
-    /// Returns an error if the spawn operation fails.
-    fn spawn_process(&self, record: &SpawnRecord) -> Result<ProcessHandle, SpawnSupervisorError> {
-        // In a real implementation, this would spawn the actual process
-        // For now, we simulate a successful spawn
-        let pid = 12345; // Simulated PID
-
-        Ok(ProcessHandle {
-            pid,
-            command: record.command.clone(),
-        })
+    async fn spawn_process(&self, record: &SpawnRecord) -> Result<ProcessHandle, SpawnSupervisorError> {
+        self.process_manager.spawn_process(&record.command).await
     }
 
     /// Performs health checks on a process.
-    ///
-    /// # Errors
-    /// Returns an error if health checks fail.
-    fn perform_health_checks(
+    async fn perform_health_checks(
         &self,
-        _instance_id: &InstanceId,
-        _process: &ProcessHandle,
+        instance_id: &InstanceId,
+        process: &ProcessHandle,
     ) -> Result<(), SpawnSupervisorError> {
-        // In a real implementation, this would perform actual health checks
-        // For now, we simulate successful health checks
-        for _i in 1..=self.max_health_checks {
+        for i in 1..=self.max_health_checks {
             self.metrics.health_checks_performed.incr();
 
-            // Simulate health check success
-            // In real implementation: check process status, health endpoint, etc.
+            tokio::time::sleep(Duration::from_millis(100)).await;
+
+            match self.process_manager.check_health(process.pid).await {
+                Ok(true) => return Ok(()),
+                Ok(false) => {
+                    if i < self.max_health_checks {
+                        continue;
+                    }
+                }
+                Err(e) => {
+                    return Err(SpawnSupervisorError::HealthCheckFailed {
+                        instance_id: instance_id.clone(),
+                        check_number: i,
+                        error: e.to_string(),
+                    });
+                }
+            }
         }
 
-        Ok(())
+        Err(SpawnSupervisorError::HealthCheckFailed {
+            instance_id: instance_id.clone(),
+            check_number: self.max_health_checks,
+            error: "Max health checks exceeded".to_string(),
+        })
     }
 
     /// Calculates backoff delay using exponential backoff.
@@ -714,20 +788,6 @@ impl SpawnSupervisor {
         let delay_ms = (self.initial_backoff.as_millis() as f64 * multiplier_pow) as u64;
         Duration::from_millis(delay_ms)
     }
-
-    /// Shuts down the `SpawnSupervisor`.
-    ///
-    /// # Errors
-    /// Returns `ShutdownTimeout` if shutdown does not complete within the given timeout.
-    pub fn shutdown(&self, timeout: Duration) -> Result<(), SpawnSupervisorError> {
-        self.is_running
-            .store(false, std::sync::atomic::Ordering::SeqCst);
-
-        // In a real implementation, we would wait for the background task to finish
-        // and terminate all managed processes.
-
-        Err(SpawnSupervisorError::ShutdownTimeout(timeout))
-    }
 }
 
 // =============================================================================
@@ -737,23 +797,58 @@ impl SpawnSupervisor {
 /// Handle for controlling `SpawnSupervisor`
 #[derive(Debug)]
 pub struct SpawnSupervisorHandle {
-    is_running: Arc<std::sync::atomic::AtomicBool>,
+    pub(crate) state_sender: watch::Sender<SpawnSupervisorState>,
+    pub(crate) shutdown_trigger: broadcast::Sender<()>,
+    pub(crate) task_handle: Option<JoinHandle<()>>,
 }
 
 impl SpawnSupervisorHandle {
-    /// Returns true if the supervisor is running.
+    /// Returns the current state of the supervisor.
     #[must_use]
-    pub fn is_running(&self) -> bool {
-        self.is_running.load(std::sync::atomic::Ordering::SeqCst)
+    pub fn current_state(&self) -> SpawnSupervisorState {
+        self.state_sender.borrow().clone()
     }
 
-    /// Stops the supervisor.
-    ///
-    /// # Errors
-    /// Returns an error if stopping fails.
-    pub fn stop(self) -> Result<(), SpawnSupervisorError> {
-        self.is_running
-            .store(false, std::sync::atomic::Ordering::SeqCst);
+    /// Requests the supervisor to shut down.
+    #[tracing::instrument(skip(self))]
+    pub async fn shutdown(mut self) -> Result<(), SpawnSupervisorError> {
+        let _ = self.shutdown_trigger.send(());
+
+        let mut receiver = self.state_sender.subscribe();
+        loop {
+            match receiver.changed().await {
+                Ok(()) => {
+                    let state = (*receiver.borrow()).clone();
+                    match state {
+                        SpawnSupervisorState::ShutDown => break,
+                        SpawnSupervisorState::ShuttingDown => continue,
+                        _ => {
+                            return Err(SpawnSupervisorError::AtomicityViolation(format!(
+                                "Unexpected state during shutdown: {:?}",
+                                state
+                            )));
+                        }
+                    }
+                }
+                Err(_) => {
+                    return Err(SpawnSupervisorError::AlreadyShutdown);
+                }
+            }
+        }
+
+        if let Some(task) = self.task_handle.take() {
+            match task.await {
+                Ok(()) => {}
+                Err(e) => {
+                    if !e.is_panic() {
+                        tracing::warn!("Spawn supervisor task cancelled during shutdown");
+                    } else {
+                        tracing::error!("Spawn supervisor task panicked during shutdown");
+                    }
+                }
+            }
+        }
+
         Ok(())
     }
 }
@@ -854,16 +949,12 @@ mod tests {
 
     #[test]
     fn calculate_backoff_delay_applies_multiplier() {
-        // attempt=2: 1000 * 2^(2-1) = 1000 * 2 = 2000
         assert_eq!(calculate_backoff_delay(1000, 2.0, 2), 2000);
-
-        // attempt=3: 1000 * 2^(3-1) = 1000 * 4 = 4000
         assert_eq!(calculate_backoff_delay(1000, 2.0, 3), 4000);
     }
 
     #[test]
     fn calculate_backoff_delay_with_multiplier_1_0() {
-        // With multiplier 1.0, delay should always be initial_backoff
         assert_eq!(calculate_backoff_delay(1000, 1.0, 1), 1000);
         assert_eq!(calculate_backoff_delay(1000, 1.0, 2), 1000);
         assert_eq!(calculate_backoff_delay(1000, 1.0, 10), 1000);
@@ -965,5 +1056,19 @@ mod tests {
         assert_eq!(respawned.spawn_phase, SpawnPhase::Spawn);
         assert_eq!(respawned.spawn_attempts, 4);
         assert_eq!(respawned.health_checks, 0);
+    }
+
+    #[test]
+    fn spawn_supervisor_error_is_transient() {
+        assert!(SpawnSupervisorError::StorageError("test".to_string()).is_transient());
+        assert!(SpawnSupervisorError::InstanceNotFound(test_instance_id()).is_transient());
+        assert!(!SpawnSupervisorError::InvalidConfig("test".to_string()).is_transient());
+    }
+
+    #[test]
+    fn spawn_supervisor_error_is_fatal() {
+        assert!(SpawnSupervisorError::CorruptSpawn("test".to_string()).is_fatal());
+        assert!(SpawnSupervisorError::InvalidConfig("test".to_string()).is_fatal());
+        assert!(!SpawnSupervisorError::StorageError("test".to_string()).is_fatal());
     }
 }
