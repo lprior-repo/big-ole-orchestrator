@@ -79,9 +79,21 @@ impl BoundingBox {
     pub fn octant(&self, index: u8) -> BoundingBox {
         debug_assert!(index < 8);
         let c = self.center();
-        let (min_x, max_x) = if index & 4 != 0 { (c.x, self.max.x) } else { (self.min.x, c.x) };
-        let (min_y, max_y) = if index & 2 != 0 { (c.y, self.max.y) } else { (self.min.y, c.y) };
-        let (min_z, max_z) = if index & 1 != 0 { (c.z, self.max.z) } else { (self.min.z, c.z) };
+        let (min_x, max_x) = if index & 4 != 0 {
+            (c.x, self.max.x)
+        } else {
+            (self.min.x, c.x)
+        };
+        let (min_y, max_y) = if index & 2 != 0 {
+            (c.y, self.max.y)
+        } else {
+            (self.min.y, c.y)
+        };
+        let (min_z, max_z) = if index & 1 != 0 {
+            (c.z, self.max.z)
+        } else {
+            (self.min.z, c.z)
+        };
         BoundingBox {
             min: Point3::new(min_x, min_y, min_z),
             max: Point3::new(max_x, max_y, max_z),
@@ -94,9 +106,15 @@ impl BoundingBox {
         }
         let c = self.center();
         let mut idx = 0u8;
-        if p.x >= c.x { idx |= 4; }
-        if p.y >= c.y { idx |= 2; }
-        if p.z >= c.z { idx |= 1; }
+        if p.x >= c.x {
+            idx |= 4;
+        }
+        if p.y >= c.y {
+            idx |= 2;
+        }
+        if p.z >= c.z {
+            idx |= 1;
+        }
         Some(idx)
     }
 }
@@ -110,13 +128,19 @@ pub struct OctreeConfig {
 
 impl Default for OctreeConfig {
     fn default() -> Self {
-        Self { max_depth: 8, bucket_size: 16 }
+        Self {
+            max_depth: 8,
+            bucket_size: 16,
+        }
     }
 }
 
 impl OctreeConfig {
     pub const fn new(max_depth: u32, bucket_size: usize) -> Self {
-        Self { max_depth, bucket_size }
+        Self {
+            max_depth,
+            bucket_size,
+        }
     }
 }
 
@@ -143,15 +167,20 @@ impl<T> OctreeEntry<T> {
 /// A node in the octree.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum OctreeNode<T> {
-    Leaf { entries: Vec<OctreeEntry<T>> },
-    Interior { children: Box<[Option<OctreeNode<T>>; 8]> },
+    Leaf {
+        entries: Vec<OctreeEntry<T>>,
+    },
+    Interior {
+        children: Box<[Option<OctreeNode<T>>; 8]>,
+    },
 }
 
 impl<T> OctreeNode<T> {
     fn empty_leaf() -> Self {
-        OctreeNode::Leaf { entries: Vec::new() }
+        OctreeNode::Leaf {
+            entries: Vec::new(),
+        }
     }
-
 }
 
 /// A point octree for spatial queries.
@@ -218,9 +247,8 @@ impl<T> Octree<T> {
                 entries.push(OctreeEntry::new(point, value));
                 if entries.len() > config.bucket_size && depth < config.max_depth {
                     let taken = std::mem::take(entries);
-                    let mut children: Box<[Option<OctreeNode<T>>; 8]> = Box::new([
-                        None, None, None, None, None, None, None, None,
-                    ]);
+                    let mut children: Box<[Option<OctreeNode<T>>; 8]> =
+                        Box::new([None, None, None, None, None, None, None, None]);
                     for entry in taken {
                         let idx = bounds.octant_index(&entry.point).expect("entry in bounds");
                         let child_bounds = bounds.octant(idx);
@@ -372,10 +400,7 @@ impl<T> Octree<T> {
         result
     }
 
-    fn collect_entries<'a>(
-        node: &'a OctreeNode<T>,
-        result: &mut Vec<&'a OctreeEntry<T>>,
-    ) {
+    fn collect_entries<'a>(node: &'a OctreeNode<T>, result: &mut Vec<&'a OctreeEntry<T>>) {
         match node {
             OctreeNode::Leaf { entries } => result.extend(entries.iter()),
             OctreeNode::Interior { children } => {

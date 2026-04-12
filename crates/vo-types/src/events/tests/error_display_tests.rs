@@ -1,4 +1,3 @@
-
 use crate::events::error::Error;
 
 #[test]

@@ -1,4 +1,3 @@
-
 use crate::events::error::Error;
 use crate::events::payload::EventPayload;
 use rstest::rstest;

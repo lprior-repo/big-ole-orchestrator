@@ -1,5 +1,5 @@
 mod blob;
-mod cartesian_tree;
+pub mod cartesian_tree;
 mod command_envelope;
 mod command_metadata;
 mod compensation;
@@ -39,6 +39,7 @@ mod types_tests;
 mod workflow;
 
 pub use blob::{BlobRef, BlobStatus, OutputRef, INLINED_MAX_BYTES};
+pub use cartesian_tree::{CartesianNode, CartesianTree, CartesianTreeError};
 pub use command_envelope::{CommandEnvelope, CommandEnvelopeError, MAX_SUPPORTED_COMMAND_VERSION};
 pub use command_metadata::{CommandMetadata, Issuer};
 pub use compensation::{

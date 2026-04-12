@@ -122,19 +122,12 @@ impl<K: Ord + Clone, P: Ord + Clone> CartesianTree<K, P> {
     }
 
     /// Find the key with minimum priority in the inclusive index range [start, end].
-    pub fn range_min(
-        &self,
-        start: usize,
-        end: usize,
-    ) -> Result<(&K, &P), CartesianTreeError> {
+    pub fn range_min(&self, start: usize, end: usize) -> Result<(&K, &P), CartesianTreeError> {
         if start > end {
             return Err(CartesianTreeError::InvalidRange { start, end });
         }
         if end >= self.len {
-            return Err(CartesianTreeError::RangeOverflow {
-                end,
-                len: self.len,
-            });
+            return Err(CartesianTreeError::RangeOverflow { end, len: self.len });
         }
         let root = self.root.as_ref().ok_or(CartesianTreeError::EmptyInput)?;
         let mut entries: Vec<(&K, &P)> = Vec::with_capacity(self.len);
@@ -173,10 +166,7 @@ impl<K, P> CartesianTree<K, P> {
 
 impl<K, P> Default for CartesianTree<K, P> {
     fn default() -> Self {
-        Self {
-            root: None,
-            len: 0,
-        }
+        Self { root: None, len: 0 }
     }
 }
 
@@ -229,10 +219,9 @@ mod tests {
 
     #[test]
     fn min_heap_invariant() {
-        let tree = CartesianTree::build(vec![
-            (1, 9), (2, 3), (3, 7), (4, 1), (5, 5), (6, 2), (7, 8),
-        ])
-        .unwrap();
+        let tree =
+            CartesianTree::build(vec![(1, 9), (2, 3), (3, 7), (4, 1), (5, 5), (6, 2), (7, 8)])
+                .unwrap();
 
         fn check<K, P: Ord>(node: &CartesianNode<K, P>) {
             if let Some(ref l) = node.left {
@@ -249,10 +238,9 @@ mod tests {
 
     #[test]
     fn bst_invariant() {
-        let tree = CartesianTree::build(vec![
-            (1, 9), (2, 3), (3, 7), (4, 1), (5, 5), (6, 2), (7, 8),
-        ])
-        .unwrap();
+        let tree =
+            CartesianTree::build(vec![(1, 9), (2, 3), (3, 7), (4, 1), (5, 5), (6, 2), (7, 8)])
+                .unwrap();
 
         fn check<K: Ord, P>(node: &CartesianNode<K, P>) {
             if let Some(ref l) = node.left {
@@ -269,10 +257,9 @@ mod tests {
 
     #[test]
     fn find_returns_correct_priority() {
-        let tree = CartesianTree::build(vec![
-            (1, 9), (2, 3), (3, 7), (4, 1), (5, 5), (6, 2), (7, 8),
-        ])
-        .unwrap();
+        let tree =
+            CartesianTree::build(vec![(1, 9), (2, 3), (3, 7), (4, 1), (5, 5), (6, 2), (7, 8)])
+                .unwrap();
         assert_eq!(*tree.find(&1).unwrap(), 9);
         assert_eq!(*tree.find(&4).unwrap(), 1);
         assert_eq!(*tree.find(&7).unwrap(), 8);
@@ -281,15 +268,17 @@ mod tests {
     #[test]
     fn find_missing_key_returns_error() {
         let tree = CartesianTree::build(vec![(1, 5), (2, 3), (3, 7)]).unwrap();
-        assert!(matches!(tree.find(&99), Err(CartesianTreeError::KeyNotFound)));
+        assert!(matches!(
+            tree.find(&99),
+            Err(CartesianTreeError::KeyNotFound)
+        ));
     }
 
     #[test]
     fn range_min_full_range() {
-        let tree = CartesianTree::build(vec![
-            (1, 9), (2, 3), (3, 7), (4, 1), (5, 5), (6, 2), (7, 8),
-        ])
-        .unwrap();
+        let tree =
+            CartesianTree::build(vec![(1, 9), (2, 3), (3, 7), (4, 1), (5, 5), (6, 2), (7, 8)])
+                .unwrap();
         let (k, p) = tree.range_min(0, 6).unwrap();
         assert_eq!(*k, 4);
         assert_eq!(*p, 1);

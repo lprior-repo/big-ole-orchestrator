@@ -19,8 +19,12 @@ impl Monoid for () {
 }
 
 impl Monoid for u64 {
-    fn identity() -> Self { 0 }
-    fn combine(&self, other: &Self) -> Self { self + other }
+    fn identity() -> Self {
+        0
+    }
+    fn combine(&self, other: &Self) -> Self {
+        self + other
+    }
 }
 
 pub trait LctAggregate<A: Monoid> {
@@ -32,7 +36,9 @@ impl LctAggregate<()> for () {
 }
 
 impl LctAggregate<u64> for u64 {
-    fn lct_aggregate(&self) -> u64 { *self }
+    fn lct_aggregate(&self) -> u64 {
+        *self
+    }
 }
 
 // ── Errors ─────────────────────────────────────────────────────────
@@ -73,7 +79,9 @@ pub struct LinkCutTree<V, A: Monoid> {
 }
 
 impl<V: LctAggregate<A>, A: Monoid> Default for LinkCutTree<V, A> {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl<V: LctAggregate<A>, A: Monoid> LinkCutTree<V, A> {
@@ -81,8 +89,12 @@ impl<V: LctAggregate<A>, A: Monoid> LinkCutTree<V, A> {
         Self { nodes: Vec::new() }
     }
 
-    pub fn len(&self) -> usize { self.nodes.len() }
-    pub fn is_empty(&self) -> bool { self.nodes.is_empty() }
+    pub fn len(&self) -> usize {
+        self.nodes.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.nodes.is_empty()
+    }
 
     pub fn make_tree(&mut self, value: V) -> usize {
         let idx = self.nodes.len();
@@ -124,14 +136,20 @@ impl<V: LctAggregate<A>, A: Monoid> LinkCutTree<V, A> {
     /// Is x a root of its preferred-path splay tree?
     /// (i.e., its parent does NOT point to x as a child)
     fn is_root(&self, x: usize) -> bool {
-        let Some(p) = self.nodes[x].parent else { return true };
+        let Some(p) = self.nodes[x].parent else {
+            return true;
+        };
         self.nodes[p].ch[0] != Some(x) && self.nodes[p].ch[1] != Some(x)
     }
 
     /// Which side is x on in its parent?
     fn dir(&self, x: usize) -> usize {
         let p = self.nodes[x].parent.unwrap();
-        if self.nodes[p].ch[1] == Some(x) { 1 } else { 0 }
+        if self.nodes[p].ch[1] == Some(x) {
+            1
+        } else {
+            0
+        }
     }
 
     fn rotate(&mut self, x: usize) {
@@ -287,9 +305,15 @@ impl<V: LctAggregate<A>, A: Monoid> LinkCutTree<V, A> {
     }
 
     pub fn lca(&mut self, a: usize, b: usize) -> Result<usize, LctError> {
-        if a >= self.nodes.len() { return Err(LctError::InvalidNode(a)); }
-        if b >= self.nodes.len() { return Err(LctError::InvalidNode(b)); }
-        if a == b { return Ok(a); }
+        if a >= self.nodes.len() {
+            return Err(LctError::InvalidNode(a));
+        }
+        if b >= self.nodes.len() {
+            return Err(LctError::InvalidNode(b));
+        }
+        if a == b {
+            return Ok(a);
+        }
         // Standard LCT LCA: expose(a), then expose(b).
         // After expose(b), if a has no parent, they're disconnected → return a.
         // Otherwise, the splay root of a's auxiliary tree has a path-parent
@@ -326,12 +350,16 @@ impl<V: LctAggregate<A>, A: Monoid> LinkCutTree<V, A> {
     }
 
     pub fn get(&self, node: usize) -> Result<&V, LctError> {
-        if node >= self.nodes.len() { return Err(LctError::InvalidNode(node)); }
+        if node >= self.nodes.len() {
+            return Err(LctError::InvalidNode(node));
+        }
         Ok(&self.nodes[node].value)
     }
 
     pub fn set(&mut self, node: usize, value: V) -> Result<(), LctError> {
-        if node >= self.nodes.len() { return Err(LctError::InvalidNode(node)); }
+        if node >= self.nodes.len() {
+            return Err(LctError::InvalidNode(node));
+        }
         self.splay(node);
         self.nodes[node].value = value;
         self.pull(node);

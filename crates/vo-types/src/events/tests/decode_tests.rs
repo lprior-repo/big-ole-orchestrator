@@ -1,4 +1,3 @@
-
 use crate::events::decode::decode_event;
 use crate::events::error::Error;
 use crate::events::payload::EventPayload;

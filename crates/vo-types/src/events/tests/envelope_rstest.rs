@@ -1,4 +1,3 @@
-
 use crate::events::envelope::EventEnvelope;
 use crate::events::error::Error;
 use crate::events::metadata::EventMetadata;

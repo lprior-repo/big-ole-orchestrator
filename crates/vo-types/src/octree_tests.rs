@@ -1,18 +1,12 @@
 use super::octree::*;
 
 fn make_tree() -> Octree<i32> {
-    Octree::new(
-        BoundingBox::centered(100.0),
-        OctreeConfig::new(4, 4),
-    )
+    Octree::new(BoundingBox::centered(100.0), OctreeConfig::new(4, 4))
 }
 
 #[test]
 fn create_empty_octree() {
-    let tree: Octree<i32> = Octree::new(
-        BoundingBox::centered(100.0),
-        OctreeConfig::default(),
-    );
+    let tree: Octree<i32> = Octree::new(BoundingBox::centered(100.0), OctreeConfig::default());
     assert!(tree.is_empty());
     assert_eq!(tree.len(), 0);
 }
@@ -151,7 +145,8 @@ fn query_after_many_inserts() {
                 tree.insert(
                     Point3::new(x as f64, y as f64, z as f64),
                     x * 100 + y * 10 + z,
-                ).unwrap();
+                )
+                .unwrap();
             }
         }
     }
