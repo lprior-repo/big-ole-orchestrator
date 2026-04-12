@@ -4,6 +4,7 @@
 //! persistence layer, and state machine implementation.
 
 pub mod admission;
+pub mod quadtree;
 pub mod circuit_breaker;
 pub mod config_hot_reload;
 mod db_writer_message;
