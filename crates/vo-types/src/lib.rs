@@ -33,6 +33,7 @@ mod non_empty_vec;
 mod octree;
 mod pairing_heap;
 mod payload_parser;
+mod plugin;
 pub mod proptest_verifier;
 mod registration_status;
 mod rope;
