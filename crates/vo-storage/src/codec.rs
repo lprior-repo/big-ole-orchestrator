@@ -19,6 +19,7 @@ pub enum StorageError {
     DeserializationFailed,
     FjallError,
     InvalidKey,
+    ChecksumMismatch,
 }
 
 impl fmt::Display for StorageError {
@@ -39,6 +40,7 @@ impl fmt::Display for StorageError {
             Self::DeserializationFailed => write!(f, "deserialization failed"),
             Self::FjallError => write!(f, "fjall error"),
             Self::InvalidKey => write!(f, "invalid key"),
+            Self::ChecksumMismatch => write!(f, "checksum mismatch"),
         }
     }
 }

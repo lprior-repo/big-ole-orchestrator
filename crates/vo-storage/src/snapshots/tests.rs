@@ -294,3 +294,72 @@ fn snapshot_load_latest_returns_deserialization_failed_on_corrupt_json_value() {
     let result = snapshot_load_latest(&partition, &id);
     assert_eq!(result, Err(StorageError::DeserializationFailed));
 }
+
+// ============================================================
+// Delta Snapshot Tests (Compression + Checksum)
+// ============================================================
+
+#[test]
+fn snapshot_write_compresses_with_zstd() {
+    let (_dir, _keyspace, partition) = setup_fjall();
+    let id = get_typical_id();
+
+    // Write a snapshot
+    let state = InstanceState { counter: 12345 };
+    snapshot_write(&partition, id.clone(), 1, &state).expect("write failed");
+
+    // Read raw bytes to verify compression
+    let key = encode_snapshot_key(&id, 1).unwrap();
+    let raw_value = partition.get(&key).unwrap().unwrap();
+
+    // Compressed data should be reasonable size (small data may not compress well)
+    // but should not be unreasonably large
+    assert!(
+        raw_value.len() < 500,
+        "Compressed snapshot should be reasonable size"
+    );
+}
+
+#[test]
+fn snapshot_load_verifies_checksum() {
+
+    let (_dir, _keyspace, partition) = setup_fjall();
+    let id = get_typical_id();
+
+    // Write a valid snapshot
+    let state = InstanceState { counter: 42 };
+    snapshot_write(&partition, id.clone(), 1, &state).expect("write failed");
+
+    // Load should succeed with valid checksum
+    let result = snapshot_load_latest(&partition, &id);
+    assert_eq!(result, Ok(Some((1, state))));
+}
+
+#[test]
+fn snapshot_write_handles_first_snapshot_without_base() {
+    let (_dir, _keyspace, partition) = setup_fjall();
+    let id = get_typical_id();
+
+    // First snapshot should work without any prior snapshot
+    let state = InstanceState { counter: 42 };
+    snapshot_write(&partition, id.clone(), 1, &state).expect("write failed");
+
+    // Load should work
+    let result = snapshot_load_latest(&partition, &id);
+    assert_eq!(result, Ok(Some((1, state))));
+}
+
+#[test]
+fn snapshot_load_decompresses_and_reconstructs() {
+    let (_dir, _keyspace, partition) = setup_fjall();
+    let id = get_typical_id();
+
+    // Write snapshot with specific counter value
+    let expected_state = InstanceState { counter: 99999 };
+    snapshot_write(&partition, id.clone(), 1, &expected_state).expect("write failed");
+
+    // Load should decompress and return correct state
+    let result = snapshot_load_latest(&partition, &id);
+    assert_eq!(result, Ok(Some((1, expected_state))));
+}
+

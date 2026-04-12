@@ -5,10 +5,12 @@ use vo_types::InstanceId;
 
 /// Writes a snapshot of `state` at the given `sequence` for `instance_id`.
 ///
+/// Stores raw state JSON.
+///
 /// # Errors
 ///
 /// Returns `StorageError::CorruptKey` if the instance ID cannot be serialized.
-/// Returns `StorageError::SerializationFailed` if the state cannot be serialized.
+/// Returns `StorageError::SerializationFailed` if serialization fails.
 /// Returns `StorageError::FjallError` if the storage engine fails.
 #[allow(clippy::needless_pass_by_value)]
 pub fn snapshot_write(
@@ -18,16 +20,18 @@ pub fn snapshot_write(
     state: &InstanceState,
 ) -> Result<(), StorageError> {
     let key = encode_snapshot_key(&instance_id, sequence)?;
-    serde_json::to_vec(state)
-        .map_err(|_| StorageError::SerializationFailed)
-        .and_then(|value| {
-            partition
-                .insert(key, value)
-                .map_err(|_| StorageError::FjallError)
-        })
+
+    // Serialize state to JSON
+    let state_json = serde_json::to_vec(state).map_err(|_| StorageError::SerializationFailed)?;
+
+    partition
+        .insert(key, state_json)
+        .map_err(|_| StorageError::FjallError)
 }
 
 /// Loads the latest (highest-sequence) snapshot for `instance_id`.
+///
+/// Supports legacy format (direct `InstanceState` JSON).
 ///
 /// # Errors
 ///
@@ -51,9 +55,10 @@ pub fn snapshot_load_latest(
                 .map_err(|_| StorageError::FjallError)
                 .and_then(|(key, value)| {
                     decode_snapshot_key(&key).and_then(|(_, sequence)| {
-                        serde_json::from_slice(&value)
-                            .map_err(|_| StorageError::DeserializationFailed)
-                            .map(|state| Some((sequence, state)))
+                        // Deserialize InstanceState directly
+                        let state = serde_json::from_slice(&value)
+                            .map_err(|_| StorageError::DeserializationFailed)?;
+                        Ok(Some((sequence, state)))
                     })
                 })
         })
