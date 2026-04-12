@@ -3,13 +3,29 @@
 
 #[cfg(test)]
 mod integration_tests {
+    use std::sync::LazyLock;
+    use std::sync::Mutex;
+    use std::sync::MutexGuard;
     use vo_executor::{
         cancel_execution, clear_error, execute_step, execute_step_with_retry,
-        get_execution_status, get_last_error, set_error, RetryPolicy, StepId,
+        get_execution_status, get_last_error, reset_all_state, set_error, RetryPolicy, StepId,
     };
+
+    /// Global mutex to prevent concurrent tests from racing on shared DashMap state
+    /// (STATE and LAST_ERROR are process-global statics).
+    static STATE_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+
+    /// Acquire the state lock, recover from poison if a previous test panicked,
+    /// and reset all global DashMap state to a clean slate.
+    fn state_guard() -> MutexGuard<'static, ()> {
+        let guard = STATE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        reset_all_state();
+        guard
+    }
 
     #[tokio::test]
     async fn execute_step_rejects_zero_timeout() {
+        let _guard = state_guard();
         let result = execute_step(StepId::new("step-1".to_string()), 0).await;
         assert_eq!(
             result,
@@ -22,6 +38,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn execute_step_success_for_step_1() {
+        let _guard = state_guard();
         let result = execute_step(StepId::new("step-1".to_string()), 5000).await;
         assert_eq!(
             result,
@@ -33,6 +50,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn execute_step_timeout_for_slow_step() {
+        let _guard = state_guard();
         let result = execute_step(StepId::new("step-slow".to_string()), 1).await;
         assert_eq!(
             result,
@@ -45,6 +63,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn execute_step_not_found_for_unknown_step() {
+        let _guard = state_guard();
         let result = execute_step(StepId::new("unknown-step".to_string()), 5000).await;
         assert_eq!(
             result,
@@ -56,6 +75,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn execute_step_with_retry_success() {
+        let _guard = state_guard();
         let policy = RetryPolicy::new(3, 100, 2.0).unwrap();
         let result = execute_step_with_retry(StepId::new("step-1".to_string()), 5000, policy).await;
         assert_eq!(
@@ -68,12 +88,14 @@ mod integration_tests {
 
     #[tokio::test]
     async fn get_execution_status_returns_ready() {
+        let _guard = state_guard();
         let status = get_execution_status(&StepId::new("step-1".to_string()));
         assert!(status.is_ready());
     }
 
     #[tokio::test]
     async fn get_last_error_returns_none() {
+        let _guard = state_guard();
         // Use a unique step ID that no other test touches to avoid state pollution
         let error = get_last_error(&StepId::new("step-error-none-unique".to_string()));
         assert!(error.is_none());
@@ -81,6 +103,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn cancel_execution_returns_ok_for_ready_state() {
+        let _guard = state_guard();
         // When nothing is executing, cancel returns Ok (no-op)
         let result = cancel_execution(StepId::new("step-1".to_string())).await;
         assert_eq!(result, Ok(()));
@@ -88,6 +111,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn execute_step_returns_transient_error_for_step_transient() {
+        let _guard = state_guard();
         // step-transient triggers handle_transient_behavior which sets error and returns Err
         let result = execute_step(StepId::new("step-transient".to_string()), 5000).await;
         let err = result.unwrap_err();
@@ -102,6 +126,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn execute_step_with_retry_handles_flaky_step_with_3_attempts() {
+        let _guard = state_guard();
         // step-flaky triggers execute_flaky_retries with max_attempts >= 2
         let policy = RetryPolicy::new(3, 10, 2.0).unwrap();
         let result = execute_step_with_retry(StepId::new("step-flaky".to_string()), 5000, policy).await;
@@ -120,6 +145,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn execute_step_with_retry_handles_flaky_step_with_2_attempts() {
+        let _guard = state_guard();
         // step-flaky with max_attempts=2 triggers only one sleep_then_backoff
         let policy = RetryPolicy::new(2, 10, 2.0).unwrap();
         let result = execute_step_with_retry(StepId::new("step-flaky".to_string()), 5000, policy).await;
@@ -138,6 +164,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn execute_step_with_retry_handles_flaky_step_with_1_attempt() {
+        let _guard = state_guard();
         // step-flaky with max_attempts=1 returns RetryExhausted without sleeping
         let policy = RetryPolicy::new(1, 10, 2.0).unwrap();
         let result = execute_step_with_retry(StepId::new("step-flaky".to_string()), 5000, policy).await;
@@ -156,6 +183,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn execute_step_with_retry_rejects_invalid_policy_zero_attempts() {
+        let _guard = state_guard();
         // validate_retry_policy returns InvalidRetryPolicy for max_attempts == 0
         // We construct the policy directly since RetryPolicy::new rejects max_attempts=0
         let policy = vo_executor::RetryPolicy {
@@ -176,6 +204,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn get_execution_status_returns_cancelled_after_cancel() {
+        let _guard = state_guard();
         // After cancel_execution on Ready state, status is Cancelled
         let step_id = StepId::new("step-cancel-test".to_string());
         cancel_execution(step_id.clone()).await.expect("cancel_execution should succeed");
@@ -205,6 +234,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn get_last_error_returns_error_after_transient_failure() {
+        let _guard = state_guard();
         // After a transient error, get_last_error should return the error
         let step_id = StepId::new("step-transient".to_string());
         // step-transient always fails with TransientError - we only care about get_last_error
@@ -222,6 +252,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn execute_step_failure_for_step_fail() {
+        let _guard = state_guard();
         // step-fail returns Failure result
         let result = execute_step(StepId::new("step-fail".to_string()), 5000).await;
         assert_eq!(
@@ -234,6 +265,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn execute_step_with_retry_success_for_non_flaky_step() {
+        let _guard = state_guard();
         // Non-flaky step goes through normal execute_step path
         let policy = RetryPolicy::new(3, 10, 2.0).unwrap();
         let result = execute_step_with_retry(StepId::new("step-good".to_string()), 5000, policy).await;
@@ -247,6 +279,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn execute_step_rejects_max_u64_timeout() {
+        let _guard = state_guard();
         // timeout_ms == u64::MAX is invalid
         let result = execute_step(StepId::new("step-1".to_string()), u64::MAX).await;
         assert_eq!(
@@ -260,6 +293,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn cancel_execution_returns_cancelled_error_for_already_cancelled() {
+        let _guard = state_guard();
         // Calling cancel on an already cancelled step returns Ok (no-op)
         let step_id = StepId::new("step-already-cancelled".to_string());
         cancel_execution(step_id.clone()).await.expect("first cancel should succeed");
@@ -355,6 +389,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn execute_step_twice_in_sequence_succeeds() {
+        let _guard = state_guard();
         // execute_step is synchronous and completes fully each time
         // so calling twice in sequence should both succeed
         let step_id = StepId::new("step-1".to_string());
@@ -368,6 +403,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn execute_step_with_retry_step_not_found() {
+        let _guard = state_guard();
         let policy = RetryPolicy::new(3, 10, 2.0).unwrap();
         let result = execute_step_with_retry(StepId::new("nonexistent-step".to_string()), 5000, policy).await;
         assert!(matches!(result, Err(vo_executor::ExecuteNodeError::StepNotFound { .. })));
@@ -375,6 +411,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn get_execution_status_returns_executing_during_step_execution() {
+        let _guard = state_guard();
         // Use a step that takes time by using a large multiplier to trigger slow path
         // Actually, since execute_step is sync, we can't really test Executing state
         // But we can verify the function works by calling it
@@ -456,6 +493,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn execute_step_with_retry_timeout_exceeded() {
+        let _guard = state_guard();
         // Use a very small timeout with a slow step
         let policy = RetryPolicy::new(3, 1000, 2.0).unwrap();
         let result = execute_step_with_retry(StepId::new("step-slow".to_string()), 1, policy).await;
@@ -471,6 +509,7 @@ mod integration_tests {
     /// If `LAST_ERROR.remove()` is deleted, error persists and this test fails.
     #[tokio::test]
     async fn get_last_error_returns_none_after_error_is_cleared() {
+        let _guard = state_guard();
         // Test that clear_error works by calling execute_step twice on the SAME step.
         // The second call's start_execution calls clear_error BEFORE handle_transient_behavior.
         // If clear_error (LAST_ERROR.remove()) was deleted, the error from the first call
@@ -510,6 +549,7 @@ mod integration_tests {
     /// so `get_last_error()` returns `Some(error)` instead of `None`.
     #[tokio::test]
     async fn transient_error_cleared_by_clear_error_is_not_persisted() {
+        let _guard = state_guard();
         let step_id = StepId::new("step-test-clear".to_string());
 
         // Set an error directly via set_error (pub(crate) for testing)
@@ -540,6 +580,7 @@ mod integration_tests {
     /// A transient error set on step A should NOT leak to step B.
     #[tokio::test]
     async fn transient_error_is_not_persisted_across_different_steps() {
+        let _guard = state_guard();
         // step-transient sets an error
         let step_a = StepId::new("step-transient".to_string());
         let step_b = StepId::new("step-good".to_string());
@@ -586,6 +627,7 @@ mod integration_tests {
     /// - timeout >= 3000: succeeds (slow step completes normally)
     #[tokio::test]
     async fn slow_step_timeout_boundary_exactly_at_threshold() {
+        let _guard = state_guard();
         let step_id = StepId::new("step-slow".to_string());
 
         // Exactly at threshold (3000ms) - slow step should succeed
@@ -618,6 +660,7 @@ mod integration_tests {
     /// proving the state machine transitions properly.
     #[tokio::test]
     async fn execute_step_on_already_executing_step_returns_invalid_transition() {
+        let _guard = state_guard();
         // Use step-good which returns Success - this allows us to verify
         // state transitions correctly between calls
         let step_id = StepId::new("step-good".to_string());
@@ -668,6 +711,7 @@ mod integration_tests {
     /// the state would always remain Ready.
     #[tokio::test]
     async fn execution_status_is_executing_during_step_execution() {
+        let _guard = state_guard();
         let step_id = StepId::new("step-slow".to_string());
         let step_id_for_checker = step_id.clone();
         
@@ -745,6 +789,7 @@ mod integration_tests {
     /// If `&&` → `||`, wrong logic: would timeout even if timeout_ms >= SLOW_STEP_DURATION_MS.
     #[tokio::test]
     async fn slow_step_with_sufficient_timeout_does_not_timeout() {
+        let _guard = state_guard();
         // SLOW_STEP_DURATION_MS = 3000
         // If timeout >= 3000, slow step should succeed (correct && logic)
         // If timeout < 3000, slow step returns TimeoutExceeded
@@ -777,6 +822,7 @@ mod integration_tests {
     /// If `>` → `==`, second sleep skipped when max_attempts=3.
     #[tokio::test]
     async fn execute_step_with_retry_verifies_two_sleeps_for_max_attempts_3() {
+        let _guard = state_guard();
         // Use step-flaky which triggers simulate_flaky_retry
         let step_id = StepId::new("step-flaky".to_string());
         let timeout_ms = 5000;
@@ -816,6 +862,7 @@ mod integration_tests {
     /// If `>` → `<`, first sleep skipped when max_attempts=2.
     #[tokio::test]
     async fn execute_step_with_retry_verifies_one_sleep_for_max_attempts_2() {
+        let _guard = state_guard();
         // Use step-flaky which triggers simulate_flaky_retry
         let step_id = StepId::new("step-flaky".to_string());
         let timeout_ms = 5000;
@@ -855,6 +902,7 @@ mod integration_tests {
     /// If deleted (replaced with `()`), no backoff sleep occurs.
     #[tokio::test]
     async fn execute_step_with_retry_verifies_backoff_timing() {
+        let _guard = state_guard();
         // Use step-flaky which triggers simulate_flaky_retry
         let step_id = StepId::new("step-flaky".to_string());
         let timeout_ms = 5000;

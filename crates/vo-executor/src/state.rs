@@ -82,3 +82,9 @@ pub enum StepBehavior {
 pub fn get_last_error(step_id: &str) -> Option<ExecuteNodeError> {
     LAST_ERROR.get(step_id).map(|v| v.clone())
 }
+
+/// Reset all global state (STATE and LAST_ERROR DashMaps).
+pub fn reset_all_state() {
+    STATE.clear();
+    LAST_ERROR.clear();
+}
