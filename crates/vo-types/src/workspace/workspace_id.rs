@@ -1,7 +1,10 @@
 use std::fmt;
+use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
 use ulid::Ulid;
+
+static LAST_ULID: Mutex<Option<Ulid>> = Mutex::new(None);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct WorkspaceId(Ulid);
@@ -22,7 +25,14 @@ impl<'de> Deserialize<'de> for WorkspaceId {
 
 impl WorkspaceId {
     pub fn generate() -> Self {
-        Self(Ulid::new())
+        let mut last = LAST_ULID.lock().unwrap();
+        let ulid = Ulid::new();
+        let ulid = match *last {
+            Some(prev) if ulid <= prev => Ulid::from(u128::from(prev) + 1),
+            _ => ulid,
+        };
+        *last = Some(ulid);
+        Self(ulid)
     }
 
     pub fn from_ulid(ulid: Ulid) -> Self {
@@ -71,6 +81,17 @@ mod tests {
         let json = serde_json::to_string(&id).unwrap();
         let restored: WorkspaceId = serde_json::from_str(&json).unwrap();
         assert_eq!(id, restored);
+    }
+
+    #[test]
+    fn ti_005_rapid_generation_must_be_monotonic() {
+        let mut ids = vec![];
+        for _ in 0..100 {
+            ids.push(WorkspaceId::generate());
+        }
+        for window in ids.windows(2) {
+            assert!(window[0] < window[1], "rapid generation must be monotonic");
+        }
     }
 
     #[test]

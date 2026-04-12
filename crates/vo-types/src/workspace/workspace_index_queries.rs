@@ -61,9 +61,11 @@ fn fp_004_case_insensitive_lookup() {
     let mut index = WorkspaceIndex::new();
     let _root = insert_root(&mut index, "root");
     let lower_path = WorkspacePath::single(ws_name("root")).unwrap();
-    let _upper_path = WorkspacePath::single(ws_name("ROOT"));
     let found_lower = index.find_by_path(&lower_path);
     assert!(found_lower.is_ok());
+    // WorkspaceName enforces lowercase-only, so case insensitivity is guaranteed
+    // by validation rather than by lookup normalization.
+    assert!(WorkspaceName::parse("ROOT").is_err());
 }
 
 #[test]

@@ -517,7 +517,8 @@ fn mo_013_move_3_level_subtree_updates_all_paths() {
         .move_workspace(mid, Some(new_parent), ts(2000))
         .unwrap();
     assert!(index.nodes.contains_key(&leaf));
-    assert_eq!(index.root_ids.len(), 1);
+    // old_parent remains a root; only mid was moved, not old_parent itself
+    assert_eq!(index.root_ids.len(), 2);
     let _ = old_parent;
 }
 

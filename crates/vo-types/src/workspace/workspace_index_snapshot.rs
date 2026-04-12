@@ -107,5 +107,6 @@ fn sr_008_snapshot_after_move_reflects_new_paths() {
     index.move_workspace(child, Some(r2), ts(2000)).unwrap();
     let json = serde_json::to_string(&index).unwrap();
     let loaded: WorkspaceIndex = serde_json::from_str(&json).unwrap();
-    assert_eq!(loaded.root_ids.len(), 1);
+    // old-parent remains a root; only child was moved, not old-parent itself
+    assert_eq!(loaded.root_ids.len(), 2);
 }
