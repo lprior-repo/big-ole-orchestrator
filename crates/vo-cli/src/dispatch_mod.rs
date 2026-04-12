@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use crate::cli::{Cli, CliError, Command};
+use crate::commands::doctor::{self, format_report};
 use vo_storage::codec::StorageError;
 use vo_storage::purge::purge_instance;
 
@@ -65,16 +66,11 @@ pub async fn dispatch(cli: Cli) -> Result<(), CliError> {
             Ok(())
         }
         Command::Doctor { project_dir } => {
-            let config = crate::commands::doctor::DoctorConfig { project_dir };
-            let report = crate::commands::doctor::run_doctor(&config)?;
-            if report.healthy {
-                println!("Project is healthy.");
-            } else {
-                eprintln!("Found {} issue(s):", report.issues.len());
-                for issue in &report.issues {
-                    eprintln!("  - {issue}");
-                }
-            }
+            let config = doctor::DoctorConfig { project_dir };
+            let report = doctor::run_doctor(&config)?;
+            let (stdout, stderr) = format_report(&report);
+            print!("{stdout}");
+            eprint!("{stderr}");
             Ok(())
         }
     }

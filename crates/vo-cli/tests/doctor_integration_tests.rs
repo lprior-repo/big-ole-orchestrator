@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use vo_cli::commands::init::{InitConfig, run_init};
 use vo_cli::commands::lock::{LockConfig, run_lock};
-use vo_cli::commands::doctor::{DoctorConfig, DoctorError, DoctorReport, run_doctor};
+use vo_cli::commands::doctor::{DoctorConfig, DoctorError, run_doctor};
 use vo_cli::{interpret_cli_from, Command, dispatch, map_error_to_exit_code, CliError};
 
 fn setup_init_project(dir: &std::path::Path) {
@@ -23,7 +23,7 @@ fn doctor_passes_healthy_project() {
     setup_init_project(dir.path());
     let report = run_doctor(&DoctorConfig { project_dir: dir.path().to_path_buf() });
     assert!(report.is_ok());
-    assert!(report.expect("ok").healthy);
+    assert!(report.expect("ok").is_healthy());
 }
 
 #[test]
@@ -38,10 +38,11 @@ fn doctor_detects_missing_config() {
     let dir = tempfile::tempdir().expect("tempdir");
     std::fs::create_dir_all(dir.path().join(".vo")).expect("mkdir");
     let report = run_doctor(&DoctorConfig { project_dir: dir.path().to_path_buf() }).expect("ok");
-    assert!(!report.healthy);
-    assert!(report.issues.iter().any(|i| i.contains("config")));
+    assert!(!report.is_healthy());
+    assert!(report.errors().any(|c| c.message.contains("config")));
 }
 
+#[test]
 #[test]
 fn doctor_detects_missing_workflows_dir() {
     let dir = tempfile::tempdir().expect("tempdir");
@@ -50,8 +51,7 @@ fn doctor_detects_missing_workflows_dir() {
         "[engine]\nurl = \"http://localhost:3000\"\n\n[storage]\npath = \".vo/storage\"\n"
     ).expect("write");
     let report = run_doctor(&DoctorConfig { project_dir: dir.path().to_path_buf() }).expect("ok");
-    assert!(!report.healthy);
-    assert!(report.issues.iter().any(|i| i.contains("workflows")));
+    assert!(report.warnings().any(|c| c.message.contains("workflows")));
 }
 
 #[test]
@@ -63,8 +63,8 @@ fn doctor_validates_lockfile_hashes() {
     run_lock(&LockConfig { project_dir: dir.path().to_path_buf() }).expect("lock");
     std::fs::write(&wf, b"tampered").expect("tamper");
     let report = run_doctor(&DoctorConfig { project_dir: dir.path().to_path_buf() }).expect("ok");
-    assert!(!report.healthy);
-    assert!(report.issues.iter().any(|i| i.contains("hash") || i.contains("mismatch")));
+    assert!(!report.is_healthy());
+    assert!(report.errors().any(|c| c.message.contains("hash") || c.message.contains("mismatch")));
 }
 
 #[test]
@@ -76,8 +76,8 @@ fn doctor_detects_binary_missing_from_lockfile() {
     run_lock(&LockConfig { project_dir: dir.path().to_path_buf() }).expect("lock");
     std::fs::remove_file(&wf).expect("remove");
     let report = run_doctor(&DoctorConfig { project_dir: dir.path().to_path_buf() }).expect("ok");
-    assert!(!report.healthy);
-    assert!(report.issues.iter().any(|i| i.contains("missing")));
+    assert!(!report.is_healthy());
+    assert!(report.errors().any(|c| c.message.contains("missing")));
 }
 
 #[test]
@@ -85,7 +85,7 @@ fn doctor_passes_with_no_lockfile() {
     let dir = tempfile::tempdir().expect("tempdir");
     setup_init_project(dir.path());
     let report = run_doctor(&DoctorConfig { project_dir: dir.path().to_path_buf() }).expect("ok");
-    assert!(report.healthy);
+    assert!(report.is_healthy());
 }
 
 #[test]
@@ -198,7 +198,7 @@ fn map_error_returns_1_for_lock_error() {
 #[test]
 fn map_error_returns_1_for_doctor_error() {
     assert_eq!(map_error_to_exit_code(&CliError::Doctor(
-        vo_cli::DoctorError::NotInitialized { path: PathBuf::from("/tmp/x") }
+        DoctorError::NotInitialized { path: PathBuf::from("/tmp/x") }
     )), 1);
 }
 
@@ -216,7 +216,11 @@ fn lock_multiple_binaries_sorted_output() {
 }
 
 #[test]
-fn doctor_report_empty_issues_is_healthy() {
-    let report = DoctorReport { healthy: true, issues: vec![] };
-    assert!(report.healthy);
+fn doctor_report_empty_categories_is_healthy() {
+    use vo_cli::DoctorReport;
+    let report = DoctorReport {
+        project_dir: PathBuf::from("/tmp"),
+        categories: vec![],
+    };
+    assert!(report.is_healthy());
 }

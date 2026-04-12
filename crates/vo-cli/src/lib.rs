@@ -15,6 +15,7 @@ pub use commands::gc::{
 };
 pub use commands::init::{InitConfig, InitError, run_init, VO_DIR_NAME, WORKFLOWS_DIR_NAME, CONFIG_FILE_NAME};
 pub use commands::lock::{LockConfig, LockError, run_lock, LOCK_FILE_NAME};
-pub use commands::doctor::{DoctorConfig, DoctorError, DoctorReport, run_doctor};
+pub use commands::doctor::{DoctorConfig, DoctorError, run_doctor};
+pub use commands::doctor_checks::{CategoryReport, CheckCategory, CheckResult, DoctorReport, Severity, format_report, format_report_json};
 pub use dispatch_mod::dispatch;
 pub use parse::parse_strict_numeric;
