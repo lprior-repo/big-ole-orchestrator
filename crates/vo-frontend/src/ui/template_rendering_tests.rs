@@ -38,23 +38,26 @@ fn inv_002_all_as_str_values_are_unique() {
 fn inv_003_from_str_roundtrips_for_all_variants() {
     for id in NodeTemplateId::all() {
         let s = id.as_str();
-        let recovered = NodeTemplateId::from_str(s)
-            .unwrap_or_else(|| panic!("from_str({s:?}) returned None for {id:?}"));
-        assert_eq!(recovered, id, "from_str(as_str({id:?})) != {id:?}");
+        let recovered = NodeTemplateId::parse(s)
+            .unwrap_or_else(|| panic!("parse({s:?}) returned None for {id:?}"));
+        assert_eq!(recovered, id, "parse(as_str({id:?})) != {id:?}");
     }
 }
 
 #[test]
 fn inv_003_from_str_rejects_invalid_strings() {
-    assert_eq!(NodeTemplateId::from_str("nonexistent"), None);
-    assert_eq!(NodeTemplateId::from_str(""), None);
-    assert_eq!(NodeTemplateId::from_str("HTTP-HANDLER"), None);
+    assert_eq!(NodeTemplateId::parse("nonexistent"), None);
+    assert_eq!(NodeTemplateId::parse(""), None);
+    assert_eq!(NodeTemplateId::parse("HTTP-HANDLER"), None);
 }
 
 #[test]
 fn inv_004_all_labels_are_non_empty() {
     for id in NodeTemplateId::all() {
-        assert!(!id.label().is_empty(), "label() for {id:?} must not be empty");
+        assert!(
+            !id.label().is_empty(),
+            "label() for {id:?} must not be empty"
+        );
     }
 }
 
@@ -69,7 +72,11 @@ fn inv_004_all_hints_are_non_empty() {
 fn inv_005_sketch_node_new_defaults_label_to_template_label() {
     for id in NodeTemplateId::all() {
         let sketch = SketchNode::new(id);
-        assert_eq!(sketch.label, id.label(), "SketchNode::new({id:?}) label should default");
+        assert_eq!(
+            sketch.label,
+            id.label(),
+            "SketchNode::new({id:?}) label should default"
+        );
         assert_eq!(sketch.node_type, id);
     }
 }
@@ -97,7 +104,10 @@ fn inv_006_skeleton_produces_sequential_step_ids() {
     let skeleton = generate_skeleton(&nodes);
     for i in 0..nodes.len() {
         let expected_id = format!("step-{}", i + 1);
-        assert!(skeleton.contains(&expected_id), "skeleton must contain {expected_id}");
+        assert!(
+            skeleton.contains(&expected_id),
+            "skeleton must contain {expected_id}"
+        );
     }
 }
 
@@ -117,7 +127,9 @@ fn inv_007_later_nodes_have_depends_on() {
         .copied()
         .collect();
     assert!(
-        step3_block.iter().any(|l| l.contains("depends_on: [step-2]")),
+        step3_block
+            .iter()
+            .any(|l| l.contains("depends_on: [step-2]")),
         "step-3 must depend on step-2"
     );
 }
@@ -126,7 +138,10 @@ fn inv_007_later_nodes_have_depends_on() {
 fn inv_007_single_node_has_no_depends_on() {
     let nodes = vec![node(NodeTemplateId::Timer)];
     let skeleton = generate_skeleton(&nodes);
-    assert!(!skeleton.contains("depends_on"), "single node must not have depends_on");
+    assert!(
+        !skeleton.contains("depends_on"),
+        "single node must not have depends_on"
+    );
 }
 
 #[test]
@@ -155,9 +170,13 @@ fn inv_008_all_template_types_can_create_sketch_nodes() {
 #[test]
 fn inv_009_filter_matches_label_case_insensitively() {
     let results = filtered_templates("HTTP");
-    assert!(results.iter().any(|t| t.node_type == NodeTemplateId::HttpHandler));
+    assert!(results
+        .iter()
+        .any(|t| t.node_type == NodeTemplateId::HttpHandler));
     let results_lower = filtered_templates("http");
-    assert!(results_lower.iter().any(|t| t.node_type == NodeTemplateId::HttpHandler));
+    assert!(results_lower
+        .iter()
+        .any(|t| t.node_type == NodeTemplateId::HttpHandler));
 }
 
 #[test]
@@ -169,9 +188,13 @@ fn inv_009_filter_matches_hint_case_insensitively() {
 #[test]
 fn inv_009_filter_matches_as_str_case_insensitively() {
     let results = filtered_templates("KAFKA-HANDLER");
-    assert!(results.iter().any(|t| t.node_type == NodeTemplateId::KafkaHandler));
+    assert!(results
+        .iter()
+        .any(|t| t.node_type == NodeTemplateId::KafkaHandler));
     let results_lower = filtered_templates("kafka-handler");
-    assert!(results_lower.iter().any(|t| t.node_type == NodeTemplateId::KafkaHandler));
+    assert!(results_lower
+        .iter()
+        .any(|t| t.node_type == NodeTemplateId::KafkaHandler));
 }
 
 #[test]
@@ -197,8 +220,16 @@ fn command_template_exposes_label_and_hint_from_node_type() {
     use super::command_palette::CommandTemplate;
     for id in NodeTemplateId::all() {
         let cmd = CommandTemplate::from(id);
-        assert_eq!(cmd.label, id.label(), "CommandTemplate label must match template");
-        assert_eq!(cmd.hint, id.hint(), "CommandTemplate hint must match template");
+        assert_eq!(
+            cmd.label,
+            id.label(),
+            "CommandTemplate label must match template"
+        );
+        assert_eq!(
+            cmd.hint,
+            id.hint(),
+            "CommandTemplate hint must match template"
+        );
     }
 }
 
@@ -218,7 +249,9 @@ fn descriptor_as_str_is_url_safe() {
     for id in NodeTemplateId::all() {
         let desc = id.descriptor();
         assert!(
-            desc.as_str.chars().all(|c| c.is_ascii_alphanumeric() || c == '-'),
+            desc.as_str
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '-'),
             "descriptor as_str must be URL-safe: {:?}",
             desc.as_str
         );
@@ -282,11 +315,20 @@ fn all_categories_union_covers_exactly_14_templates_no_overlap() {
 
 #[test]
 fn category_for_returns_correct_category_for_each_variant() {
-    assert_eq!(NodeTemplateId::HttpHandler.category(), TemplateCategory::Ingress);
+    assert_eq!(
+        NodeTemplateId::HttpHandler.category(),
+        TemplateCategory::Ingress
+    );
     assert_eq!(NodeTemplateId::Run.category(), TemplateCategory::Execution);
     assert_eq!(NodeTemplateId::GetState.category(), TemplateCategory::State);
-    assert_eq!(NodeTemplateId::Condition.category(), TemplateCategory::Control);
-    assert_eq!(NodeTemplateId::WorkflowSubmit.category(), TemplateCategory::Workflow);
+    assert_eq!(
+        NodeTemplateId::Condition.category(),
+        TemplateCategory::Control
+    );
+    assert_eq!(
+        NodeTemplateId::WorkflowSubmit.category(),
+        TemplateCategory::Workflow
+    );
 }
 
 #[test]
@@ -373,7 +415,10 @@ fn serialization_error_empty_sketch_is_displayed() {
     };
     let msg = format!("{err}");
     assert!(
-        msg.contains("sketch") || msg.contains("Sketch") || msg.contains("empty") || msg.contains("Empty")
+        msg.contains("sketch")
+            || msg.contains("Sketch")
+            || msg.contains("empty")
+            || msg.contains("Empty")
     );
 }
 
@@ -436,8 +481,12 @@ fn skeleton_with_all_14_templates_produces_valid_output() {
 #[test]
 fn filter_multi_word_query_matches_multiple_fields() {
     let results = filtered_templates("handler");
-    assert!(results.iter().any(|t| t.node_type == NodeTemplateId::HttpHandler));
-    assert!(results.iter().any(|t| t.node_type == NodeTemplateId::KafkaHandler));
+    assert!(results
+        .iter()
+        .any(|t| t.node_type == NodeTemplateId::HttpHandler));
+    assert!(results
+        .iter()
+        .any(|t| t.node_type == NodeTemplateId::KafkaHandler));
 }
 
 #[test]

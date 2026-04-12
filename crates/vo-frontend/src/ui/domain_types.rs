@@ -445,7 +445,7 @@ mod tests {
         for id in NodeTemplateId::all() {
             let s = id.as_str();
             let recovered = NodeTemplateId::from_str(s)
-                .unwrap_or_else(|| panic!("from_str({s:?}) returned None for {id:?}"));
+                .unwrap_or_else(|_| panic!("from_str({s:?}) returned None for {id:?}"));
             assert_eq!(recovered, id, "from_str(as_str({id:?})) != {id:?}");
         }
     }
