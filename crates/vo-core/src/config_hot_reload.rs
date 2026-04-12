@@ -2,15 +2,14 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
+use std::time::Duration;
 
 use notify::{Config as NotifyConfig, RecommendedWatcher, RecursiveMode, Watcher};
 use thiserror::Error;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum FileEvent {
-    Modify(PathBuf),
-    Delete(PathBuf),
-}
+use crate::debounce::{Debouncer, FileEvent as DebouncedFileEvent};
+
+pub use crate::debounce::FileEvent;
 
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum Error {
@@ -34,6 +33,15 @@ pub enum Error {
 
     #[error("Swap failed: no valid config to swap to")]
     SwapFailed,
+
+    #[error("Invalid glob pattern: {0}")]
+    InvalidGlobPattern(String),
+
+    #[error("Debounce error: {0}")]
+    DebounceError(String),
+
+    #[error("Event queue closed unexpectedly")]
+    EventQueueClosed,
 }
 
 pub trait ConfigValidator<T: Clone + Send + Sync>: Send + Sync {
@@ -130,10 +138,15 @@ impl<T: Clone + Send + Sync + 'static> HotReloadConfig<T> {
 pub struct FileWatcher {
     watcher: RecommendedWatcher,
     path: PathBuf,
+    recursive: bool,
 }
 
 impl FileWatcher {
     pub fn new<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
+        Self::with_recursive(path, false)
+    }
+
+    pub fn with_recursive<P: AsRef<Path>>(path: P, recursive: bool) -> Result<Self, Error> {
         let path = path.as_ref().to_path_buf();
 
         let watcher = RecommendedWatcher::new(
@@ -143,16 +156,251 @@ impl FileWatcher {
         .map_err(|e| Error::WatcherError(e.to_string()))?;
 
         let mut watcher = watcher;
+        let mode = if recursive {
+            RecursiveMode::Recursive
+        } else {
+            RecursiveMode::NonRecursive
+        };
         watcher
-            .watch(&path, RecursiveMode::NonRecursive)
+            .watch(&path, mode)
             .map_err(|e| Error::WatcherError(e.to_string()))?;
 
-        Ok(Self { watcher, path })
+        Ok(Self {
+            watcher,
+            path,
+            recursive,
+        })
     }
 
     #[must_use]
     pub fn path(&self) -> &Path {
         &self.path
+    }
+
+    #[must_use]
+    pub fn is_recursive(&self) -> bool {
+        self.recursive
+    }
+
+    pub fn unwatch(&mut self) -> Result<(), Error> {
+        self.watcher
+            .unwatch(&self.path)
+            .map_err(|e| Error::WatcherError(e.to_string()))
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct WatcherConfig {
+    pub recursive: bool,
+    pub debounce_duration: Option<Duration>,
+    pub patterns: Vec<String>,
+}
+
+impl Default for WatcherConfig {
+    fn default() -> Self {
+        Self {
+            recursive: true,
+            debounce_duration: Some(Duration::from_millis(300)),
+            patterns: vec!["*".to_string()],
+        }
+    }
+}
+
+pub struct FilteredFileWatcher {
+    watcher: RecommendedWatcher,
+    path: PathBuf,
+    config: WatcherConfig,
+}
+
+impl FilteredFileWatcher {
+    pub fn new<P: AsRef<Path>>(path: P, config: WatcherConfig) -> Result<Self, Error> {
+        let path = path.as_ref().to_path_buf();
+        let config = config;
+
+        let watcher = RecommendedWatcher::new(
+            move |_res: Result<notify::Event, notify::Error>| {},
+            NotifyConfig::default(),
+        )
+        .map_err(|e| Error::WatcherError(e.to_string()))?;
+
+        let mut watcher = watcher;
+        let mode = if config.recursive {
+            RecursiveMode::Recursive
+        } else {
+            RecursiveMode::NonRecursive
+        };
+        watcher
+            .watch(&path, mode)
+            .map_err(|e| Error::WatcherError(e.to_string()))?;
+
+        Ok(Self {
+            watcher,
+            path,
+            config,
+        })
+    }
+
+    #[must_use]
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    pub fn matches_pattern(&self, path: &Path) -> bool {
+        if self.config.patterns.is_empty() {
+            return true;
+        }
+
+        let path_str = path.to_string_lossy();
+        for pattern in &self.config.patterns {
+            if let Ok(glob) = glob::Pattern::new(pattern) {
+                if glob.matches(&path_str) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    pub fn unwatch(&mut self) -> Result<(), Error> {
+        self.watcher
+            .unwatch(&self.path)
+            .map_err(|e| Error::WatcherError(e.to_string()))
+    }
+}
+
+pub struct EventChannel {
+    tx: tokio::sync::mpsc::Sender<DebouncedFileEvent>,
+}
+
+impl EventChannel {
+    pub fn new(capacity: usize) -> Self {
+        let (tx, _rx) = tokio::sync::mpsc::channel(capacity);
+        Self { tx }
+    }
+
+    pub async fn send(&self, event: DebouncedFileEvent) -> Result<(), Error> {
+        self.tx
+            .send(event)
+            .await
+            .map_err(|_| Error::EventQueueClosed)
+    }
+
+    pub fn sender(&self) -> tokio::sync::mpsc::Sender<DebouncedFileEvent> {
+        self.tx.clone()
+    }
+}
+
+pub struct DebouncedFileWatcher {
+    watcher: RecommendedWatcher,
+    path: PathBuf,
+    config: WatcherConfig,
+    #[allow(dead_code)]
+    debouncer: Option<Debouncer>,
+}
+
+impl DebouncedFileWatcher {
+    pub fn new<P: AsRef<Path>>(
+        path: P,
+        config: WatcherConfig,
+    ) -> Result<(Self, EventChannel), Error> {
+        let path = path.as_ref().to_path_buf();
+        let config = config.clone();
+
+        let (event_tx, event_rx) = tokio::sync::mpsc::channel(1000);
+
+        let debouncer = if let Some(duration) = config.debounce_duration {
+            Some(
+                Debouncer::new(duration, event_rx)
+                    .map_err(|e| Error::DebounceError(e.to_string()))?,
+            )
+        } else {
+            None
+        };
+
+        let watcher = RecommendedWatcher::new(
+            move |res: Result<notify::Event, notify::Error>| {
+                if let Ok(event) = res {
+                    let _file_event = match event.kind {
+                        notify::EventKind::Modify(_) => {
+                            for path in event.paths {
+                                let _ = event_tx.blocking_send(DebouncedFileEvent::Modify(path));
+                            }
+                        }
+                        notify::EventKind::Remove(_) => {
+                            for path in event.paths {
+                                let _ = event_tx.blocking_send(DebouncedFileEvent::Delete(path));
+                            }
+                        }
+                        _ => {}
+                    };
+                }
+            },
+            NotifyConfig::default(),
+        )
+        .map_err(|e| Error::WatcherError(e.to_string()))?;
+
+        let mut watcher = watcher;
+        let mode = if config.recursive {
+            RecursiveMode::Recursive
+        } else {
+            RecursiveMode::NonRecursive
+        };
+        watcher
+            .watch(&path, mode)
+            .map_err(|e| Error::WatcherError(e.to_string()))?;
+
+        let channel = EventChannel::new(1000);
+
+        Ok((
+            Self {
+                watcher,
+                path,
+                config,
+                debouncer,
+            },
+            channel,
+        ))
+    }
+
+    pub fn with_debouncer<P: AsRef<Path>>(
+        path: P,
+        config: WatcherConfig,
+        debouncer: Debouncer,
+    ) -> Result<Self, Error> {
+        let path = path.as_ref().to_path_buf();
+
+        let watcher = RecommendedWatcher::new(
+            move |_res: Result<notify::Event, notify::Error>| {},
+            NotifyConfig::default(),
+        )
+        .map_err(|e| Error::WatcherError(e.to_string()))?;
+
+        let mut watcher = watcher;
+        let mode = if config.recursive {
+            RecursiveMode::Recursive
+        } else {
+            RecursiveMode::NonRecursive
+        };
+        watcher
+            .watch(&path, mode)
+            .map_err(|e| Error::WatcherError(e.to_string()))?;
+
+        Ok(Self {
+            watcher,
+            path,
+            config,
+            debouncer: Some(debouncer),
+        })
+    }
+
+    #[must_use]
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    #[must_use]
+    pub fn is_recursive(&self) -> bool {
+        self.config.recursive
     }
 
     pub fn unwatch(&mut self) -> Result<(), Error> {
@@ -367,5 +615,91 @@ mod tests {
         let path = PathBuf::from("/tmp/test.json");
         let event = FileEvent::Delete(path.clone());
         assert!(matches!(event, FileEvent::Delete(p) if p == path));
+    }
+
+    #[test]
+    fn watcher_config_default_is_recursive_with_debounce() {
+        let config = WatcherConfig::default();
+        assert!(config.recursive);
+        assert!(config.debounce_duration.is_some());
+        assert_eq!(config.patterns, vec!["*".to_string()]);
+    }
+
+    #[test]
+    fn file_watcher_with_recursive_creates_recursive_watcher() {
+        let temp_dir = TempDir::new().unwrap();
+        let path = temp_dir.path().join("config.json");
+        fs::write(&path, "{}").unwrap();
+
+        let watcher = FileWatcher::with_recursive(&path, true).unwrap();
+        assert!(watcher.is_recursive());
+        assert_eq!(watcher.path(), path);
+    }
+
+    #[test]
+    fn file_watcher_with_non_recursive_creates_non_recursive_watcher() {
+        let temp_dir = TempDir::new().unwrap();
+        let path = temp_dir.path().join("config.json");
+        fs::write(&path, "{}").unwrap();
+
+        let watcher = FileWatcher::with_recursive(&path, false).unwrap();
+        assert!(!watcher.is_recursive());
+        assert_eq!(watcher.path(), path);
+    }
+
+    #[test]
+    fn filtered_file_watcher_matches_wildcard_pattern() {
+        let config = WatcherConfig {
+            recursive: true,
+            debounce_duration: None,
+            patterns: vec!["*.json".to_string()],
+        };
+        let temp_dir = TempDir::new().unwrap();
+        let path = temp_dir.path().join("config.json");
+        fs::write(&path, "{}").unwrap();
+
+        let watcher = FilteredFileWatcher::new(&path, config).unwrap();
+        assert!(watcher.matches_pattern(Path::new("/some/path/file.json")));
+        assert!(!watcher.matches_pattern(Path::new("/some/path/file.txt")));
+    }
+
+    #[test]
+    fn filtered_file_watcher_matches_multiple_patterns() {
+        let config = WatcherConfig {
+            recursive: true,
+            debounce_duration: None,
+            patterns: vec!["*.json".to_string(), "*.toml".to_string()],
+        };
+        let temp_dir = TempDir::new().unwrap();
+        let path = temp_dir.path().join("config.json");
+        fs::write(&path, "{}").unwrap();
+
+        let watcher = FilteredFileWatcher::new(&path, config).unwrap();
+        assert!(watcher.matches_pattern(Path::new("/some/path/file.json")));
+        assert!(watcher.matches_pattern(Path::new("/some/path/file.toml")));
+        assert!(!watcher.matches_pattern(Path::new("/some/path/file.txt")));
+    }
+
+    #[test]
+    fn filtered_file_watcher_empty_patterns_matches_all() {
+        let config = WatcherConfig {
+            recursive: true,
+            debounce_duration: None,
+            patterns: vec![],
+        };
+        let temp_dir = TempDir::new().unwrap();
+        let path = temp_dir.path().join("config.json");
+        fs::write(&path, "{}").unwrap();
+
+        let watcher = FilteredFileWatcher::new(&path, config).unwrap();
+        assert!(watcher.matches_pattern(Path::new("/any/path/file.json")));
+        assert!(watcher.matches_pattern(Path::new("/any/path/file.txt")));
+    }
+
+    #[test]
+    fn event_channel_new_creates_channel() {
+        let channel = EventChannel::new(100);
+        let sender = channel.sender();
+        assert!(sender.capacity() > 0);
     }
 }

@@ -3435,6 +3435,7 @@ version = "0.1.0"
 dependencies = [
  "dashmap",
  "fjall",
+ "glob",
  "notify",
  "proptest",
  "rstest 0.18.2",
