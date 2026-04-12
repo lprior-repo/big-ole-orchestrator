@@ -26,3 +26,9 @@ mod tests_lease;
 
 #[cfg(feature = "proptest")]
 mod tests_proptest;
+
+#[cfg(test)]
+mod tests_integration_paths;
+
+#[cfg(feature = "proptest")]
+mod tests_properties;
