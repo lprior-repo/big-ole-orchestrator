@@ -8,6 +8,7 @@ mod dedupe;
 #[cfg(test)]
 mod dedupe_tests;
 mod dependency_graph_resolver;
+mod link_cut_tree;
 mod effects;
 mod errors;
 pub mod events;
@@ -49,6 +50,7 @@ pub use connector::{
 };
 pub use dedupe::{DedupeKey, DedupePartitionKey};
 pub use dependency_graph_resolver::DependencyGraphResolver;
+pub use link_cut_tree::{LctAggregate, LctError, LinkCutTree, Monoid};
 pub use effects::{
     apply_effect_transition, CompensationPolicy, EffectIntent, EffectKind, EffectRecord,
     EffectTransitionError, EffectTransitionEvent,
