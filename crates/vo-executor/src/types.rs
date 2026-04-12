@@ -119,6 +119,13 @@ impl RetryPolicy {
     }
 
     /// Create a new `RetryPolicy` with an explicit `max_backoff_ms` cap.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RetryPolicyError::ZeroAttempts`] if `max_attempts` is 0.
+    /// Returns [`RetryPolicyError::InvalidMultiplier`] if `multiplier` is NaN,
+    /// infinite, or less than 1.0.
+    /// Returns [`RetryPolicyError::MaxBackoffTooSmall`] if `max_backoff_ms` < `backoff_ms`.
     pub fn with_max_backoff(
         max_attempts: u32,
         backoff_ms: u64,
@@ -131,6 +138,12 @@ impl RetryPolicy {
         if !backoff_multiplier.is_finite() || backoff_multiplier < 1.0 {
             return Err(RetryPolicyError::InvalidMultiplier {
                 got: backoff_multiplier,
+            });
+        }
+        if max_backoff_ms < backoff_ms {
+            return Err(RetryPolicyError::MaxBackoffTooSmall {
+                max: max_backoff_ms,
+                ms: backoff_ms,
             });
         }
         Ok(Self {
