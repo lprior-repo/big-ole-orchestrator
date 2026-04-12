@@ -94,12 +94,18 @@ impl PriorityQueue {
     }
 
     pub fn due_jobs(&self, now_ms: u64, max: u32) -> Vec<(Job, u64)> {
-        self.heap
+        let mut due: Vec<(Job, u64)> = self
+            .heap
             .iter()
             .filter(|qj| qj.fire_at_ms <= now_ms)
-            .take(max as usize)
             .map(|qj| (qj.job.clone(), qj.fire_at_ms))
-            .collect()
+            .collect();
+        due.sort_by(|a, b| match a.0.priority.cmp(&b.0.priority) {
+            Ordering::Equal => a.1.cmp(&b.1),
+            ord => ord,
+        });
+        due.truncate(max as usize);
+        due
     }
 
     #[cfg(test)]
@@ -231,32 +237,71 @@ mod tests {
         pq.push(
             Job::new(
                 JobId::new(1),
-                "job1".to_string(),
+                "low".to_string(),
                 crate::scheduler::Schedule::one_shot(std::time::Duration::from_secs(0)),
-            ),
-            now - 50, // Due
+            )
+            .with_priority(JobPriority::Low),
+            now - 50,
         );
         pq.push(
             Job::new(
                 JobId::new(2),
-                "job2".to_string(),
+                "high".to_string(),
                 crate::scheduler::Schedule::one_shot(std::time::Duration::from_secs(0)),
-            ),
-            now + 50, // Not due
+            )
+            .with_priority(JobPriority::High),
+            now - 50,
         );
         pq.push(
             Job::new(
                 JobId::new(3),
-                "job3".to_string(),
+                "not-due".to_string(),
                 crate::scheduler::Schedule::one_shot(std::time::Duration::from_secs(0)),
             ),
-            now - 100, // Due
+            now + 50,
+        );
+        pq.push(
+            Job::new(
+                JobId::new(4),
+                "critical".to_string(),
+                crate::scheduler::Schedule::one_shot(std::time::Duration::from_secs(0)),
+            )
+            .with_priority(JobPriority::Critical),
+            now - 50,
+        );
+
+        let due: Vec<_> = pq.due_jobs(now, 10);
+        assert_eq!(due.len(), 3);
+        assert_eq!(due[0].0.id, JobId::new(4), "Critical should be first");
+        assert_eq!(due[1].0.id, JobId::new(2), "High should be second");
+        assert_eq!(due[2].0.id, JobId::new(1), "Low should be last");
+    }
+
+    #[test]
+    fn priority_queue_due_jobs_sorted_by_fire_time() {
+        let mut pq = PriorityQueue::new();
+        let now = 1000u64;
+
+        pq.push(
+            Job::new(
+                JobId::new(1),
+                "later".to_string(),
+                crate::scheduler::Schedule::one_shot(std::time::Duration::from_secs(0)),
+            ),
+            now - 10,
+        );
+        pq.push(
+            Job::new(
+                JobId::new(2),
+                "earlier".to_string(),
+                crate::scheduler::Schedule::one_shot(std::time::Duration::from_secs(0)),
+            ),
+            now - 100,
         );
 
         let due: Vec<_> = pq.due_jobs(now, 10);
         assert_eq!(due.len(), 2);
-        let ids: Vec<_> = due.iter().map(|(j, _)| j.id).collect();
-        assert!(ids.contains(&JobId::new(1)));
-        assert!(ids.contains(&JobId::new(3)));
+        assert_eq!(due[0].0.id, JobId::new(2), "Earlier fire time first");
+        assert_eq!(due[1].0.id, JobId::new(1), "Later fire time second");
     }
 }
