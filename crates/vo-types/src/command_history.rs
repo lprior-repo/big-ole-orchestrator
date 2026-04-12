@@ -450,15 +450,17 @@ impl HistoryEntry {
     /// * `snapshot_before` - State before the command
     /// * `snapshot_after` - State after the command
     /// * `batch_metadata` - Optional batch metadata for extension commands
+    /// * `command_id` - Optional pre-generated command ID (for undo tracking)
     pub fn new(
         kind: CommandKind,
         snapshot_before: Option<WorkflowSnapshot>,
         snapshot_after: Option<WorkflowSnapshot>,
         batch_metadata: Option<ExtensionBatchMetadata>,
+        command_id: Option<CommandId>,
     ) -> Self {
-        let command_id_str = CommandId::new().0;
+        let cmd_id = command_id.unwrap_or_else(CommandId::new);
         let metadata = crate::command_metadata::CommandMetadata {
-            command_id: crate::IdempotencyKey::parse(&command_id_str).unwrap(),
+            command_id: crate::IdempotencyKey::parse(cmd_id.as_str()).unwrap(),
             correlation_id: crate::IdempotencyKey::parse(&ulid::Ulid::new().to_string()).unwrap(),
             causation_id: crate::IdempotencyKey::parse(&ulid::Ulid::new().to_string()).unwrap(),
             issuer: Issuer::Operator,
@@ -597,13 +599,28 @@ impl CommandHistory {
         kind: CommandKind,
         snapshot_before: WorkflowSnapshot,
     ) -> Result<CommandId, CommandHistoryError> {
-        let entry = HistoryEntry::new(kind, Some(snapshot_before), None, None);
         let command_id = CommandId::new();
+        let entry = HistoryEntry::new(
+            kind,
+            Some(snapshot_before.clone()),
+            Some(snapshot_before),
+            None,
+            Some(command_id.clone()),
+        );
+
+        if self.entries.len() >= self.capacity {
+            if let Some(oldest_idx) = self
+                .entries
+                .iter()
+                .position(|e| e.status == HistoryEntryStatus::Committed)
+            {
+                self.entries.remove(oldest_idx);
+            }
+        }
 
         self.entries.push(entry);
         self.undo_stack.push(command_id.clone());
 
-        // Clear redo stack (INV-009)
         self.redo_stack.clear();
 
         Ok(command_id)
@@ -615,24 +632,41 @@ impl CommandHistory {
     ///
     /// - `Ok(true)` if undo was successful
     /// - `Ok(false)` if nothing to undo
-    /// - `Err(...)` if an error occurred (e.g., missing snapshot)
+    /// - `Err(...)` if an error occurred (e.g., missing snapshot, checksum mismatch)
     pub fn undo(&mut self) -> Result<bool, CommandHistoryError> {
         if self.undo_stack.is_empty() {
             return Ok(false);
         }
 
-        // Pop from undo stack
         let command_id = self.undo_stack.pop().unwrap();
 
-        // Find the entry and mark as Undone
-        for entry in &mut self.entries {
-            if entry.envelope.metadata.command_id.as_str() == command_id.as_str() {
-                entry.status = HistoryEntryStatus::Undone;
-                break;
+        let entry = self
+            .entries
+            .iter_mut()
+            .find(|e| e.envelope.metadata.command_id.as_str() == command_id.as_str())
+            .ok_or_else(|| CommandHistoryError::EntryNotFound {
+                command_id: command_id.as_str().to_string(),
+            })?;
+
+        if entry.snapshot_before.is_none() {
+            return Err(CommandHistoryError::SnapshotNotFound {
+                snapshot_id: format!("entry {}", command_id),
+            });
+        }
+
+        if let Some(ref snap_before) = entry.snapshot_before {
+            let current_checksum =
+                WorkflowSnapshot::compute_checksum(&snap_before.nodes, &snap_before.edges);
+            if current_checksum != snap_before.checksum {
+                return Err(CommandHistoryError::ChecksumMismatch {
+                    expected: snap_before.checksum,
+                    actual: current_checksum,
+                });
             }
         }
 
-        // Push to redo stack
+        entry.status = HistoryEntryStatus::Undone;
+
         self.redo_stack.push(command_id);
 
         Ok(true)
@@ -689,18 +723,28 @@ impl CommandHistory {
         after_snapshot: WorkflowSnapshot,
         batch_metadata: Option<ExtensionBatchMetadata>,
     ) -> Result<CommandId, CommandHistoryError> {
+        let command_id = CommandId::new();
         let entry = HistoryEntry::new(
             kind,
             Some(before_snapshot),
             Some(after_snapshot),
             batch_metadata,
+            Some(command_id.clone()),
         );
-        let command_id = CommandId::new();
+
+        if self.entries.len() >= self.capacity {
+            if let Some(oldest_idx) = self
+                .entries
+                .iter()
+                .position(|e| e.status == HistoryEntryStatus::Committed)
+            {
+                self.entries.remove(oldest_idx);
+            }
+        }
 
         self.entries.push(entry);
         self.undo_stack.push(command_id.clone());
 
-        // Clear redo stack (INV-009)
         self.redo_stack.clear();
 
         Ok(command_id)
