@@ -3,6 +3,7 @@ mod cartesian_tree;
 mod command_envelope;
 mod command_metadata;
 mod compensation;
+mod connection_pool;
 mod connector;
 mod dedupe;
 #[cfg(test)]

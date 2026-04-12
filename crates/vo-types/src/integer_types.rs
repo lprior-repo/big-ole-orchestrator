@@ -244,6 +244,16 @@ impl TimestampMs {
             u64::MAX
         })
     }
+    /// Create a `TimestampMs` without validation.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `value` would overflow u64.
+    #[must_use]
+    #[allow(clippy::expect_used)] // Intentional: new_unchecked is a test-convenience constructor
+    pub fn new_unchecked(value: u64) -> Self {
+        Self(value)
+    }
 }
 u64_newtype!(TimestampMs);
 
