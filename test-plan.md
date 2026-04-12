@@ -1,36 +1,57 @@
-# Test Plan: Checksum Verification Pipeline
+# Test Plan: Rate Limiter Token Bucket
 
 ## Summary
 
-- **Bead**: ve-atc7 — Test Plan: Checksum verification pipeline
-- **Contract**: ve-oa1s — Contract: Checksum verification pipeline
-- **Behaviors identified**: 14
-- **Trophy allocation**: 18 unit / 6 integration / 2 e2e / 2 static
-- **Proptest invariants**: 6
-- **Fuzz targets**: 4
+- **Bead**: ve-ox9b — Test Plan: Rate limiter token bucket
+- **Contract**: ve-4g2q — Contract: Rate limiter token bucket
+- **Behaviors identified**: 28
+- **Trophy allocation**: 20 unit / 6 integration / 0 e2e / 1 static
+- **Proptest invariants**: 8
 - **Kani harnesses**: 2
-- **Mutation checkpoints**: 8
 
 ---
 
 ## 1. Behavior Inventory
 
+### TokenBucketConfig
+
 | # | Behavior | Public API |
 |---|----------|------------|
-| B-001 | `ChecksumAlgorithm::name()` returns correct string for each variant | `ChecksumAlgorithm::name()` |
-| B-002 | `StreamingHasher::new()` creates empty hasher with correct initial state | `StreamingHasher::new()` |
-| B-003 | `StreamingHasher::update()` accumulates data across multiple calls | `StreamingHasher::update()` |
-| B-004 | `StreamingHasher::finalize()` produces `Checksum` with all three algorithm outputs | `StreamingHasher::finalize()` |
-| B-005 | `compute_checksum(data)` is equivalent to `new().update(data).finalize()` | `compute_checksum()` |
-| B-006 | `verify_checksum(data, expected)` returns `Ok(())` when checksums match | `verify_checksum()` |
-| B-007 | `verify_checksum(data, expected)` returns `Err(Mismatch)` when sha256 differs | `verify_checksum()` |
-| B-008 | `verify_checksum(data, expected)` returns `Err(Mismatch)` when blake3 differs (if sha256 matches) | `verify_checksum()` |
-| B-009 | `verify_checksum(data, expected)` returns `Err(Mismatch)` when crc32 differs (if sha256+blake3 match) | `verify_checksum()` |
-| B-010 | `ChecksumError::Display` formats as `"checksum mismatch for {alg}: expected {exp}, got {act}"` | `ChecksumError::fmt()` |
-| B-011 | `ChunkedHasher::new(chunk_size)` creates hasher with zeroed state | `ChunkedHasher::new()` |
-| B-012 | `ChunkedHasher::update()` splits data into chunks at boundaries | `ChunkedHasher::update()` |
-| B-013 | `ChunkedHasher::finalize()` produces at least one chunk when data was processed | `ChunkedHasher::finalize()` |
-| B-014 | `Checksum` serde roundtrip preserves all fields identically | `Checksum` serialize/deserialize |
+| C-001 | `TokenBucketConfig::new()` creates valid config with correct burst, sustained_rate, cost_per_request | `TokenBucketConfig::new()` |
+| C-002 | `TokenBucketConfig::default()` creates config with burst=100, sustained_rate=10.0, cost_per_request=1 | `TokenBucketConfig::default()` |
+| C-003 | `TokenBucketConfig::tokens_per_second()` returns sustained_rate | `TokenBucketConfig::tokens_per_second()` |
+
+### TokenBucketRateLimiter — Core Operations
+
+| # | Behavior | Public API |
+|---|----------|------------|
+| TB-01 | New key starts with full burst capacity (INV-TB001) | `check_and_consume()` |
+| TB-02 | Burst capacity is never exceeded — tokens capped at burst (INV-TB002) | `check_and_consume()` |
+| TB-03 | Request denied when insufficient tokens, retry_after calculated correctly | `check_and_consume()` |
+| TB-04 | Each request consumes exactly cost_per_request tokens (INV-TB004) | `check_and_consume()` |
+| TB-05 | Sliding window: tokens accumulate at sustained_rate per second (INV-TB003, INV-TB006) | `replenish_tokens()` |
+| TB-06 | Zero sustained_rate means no replenishment (INV-TB006) | `replenish_tokens()` |
+| TB-07 | Per-key tracking is independent — exhausting one key does not affect others (INV-TB005) | `check_and_consume()` |
+| TB-08 | `reset(key)` removes all state for that key; next access creates fresh state (INV-TB007) | `reset()` |
+| TB-09 | `key_count()` returns correct number of unique keys (INV-TB013) | `key_count()` |
+| TB-10 | `available_tokens()` returns current token count without modification (INV-TB008) | `available_tokens()` |
+| TB-11 | `peek_tokens()` does not modify bucket state — fair queuing (INV-TB008) | `peek_tokens()` |
+| TB-12 | `check_and_consume` and `peek_tokens` produce consistent results at same timestamp (INV-TB009) | `check_and_consume()`, `peek_tokens()` |
+| TB-13 | `wait_time()` returns 0 when tokens available, ceil(needed/sustained_rate) otherwise (INV-TB010, INV-TB011) | `wait_time()` |
+| TB-14 | `wait_time()` returns u64::MAX when sustained_rate is zero (INV-TB012) | `wait_time()` |
+| TB-15 | After `reset(key)`, subsequent `available_tokens(key)` returns full burst (INV-TB014) | `reset()`, `available_tokens()` |
+| TB-16 | `check_and_consume` on new key creates bucket with burst - cost_per_request tokens (INV-TB015) | `check_and_consume()` |
+
+### Cooldown-Based Rate Limiting (check_rate_limit)
+
+| # | Behavior | Public API |
+|---|----------|------------|
+| CR-01 | `check_rate_limit` returns `None` when no prior registration (first call) | `check_rate_limit()` |
+| CR-02 | `check_rate_limit` returns `Some(remaining_secs)` when within rate limit window | `check_rate_limit()` |
+| CR-03 | `check_rate_limit` returns `None` when rate limit window has elapsed | `check_rate_limit()` |
+| CR-04 | `check_rate_limit` ceiling property: rounds up partial seconds (59.1s → 1s remaining) | `check_rate_limit()` |
+| CR-05 | `check_rate_limit` exactly at boundary (elapsed == window) returns `None` | `check_rate_limit()` |
+| CR-06 | `update_rate_limit(now)` returns `now` unchanged | `update_rate_limit()` |
 
 ---
 
@@ -38,394 +59,556 @@
 
 | Layer | Count | Rationale |
 |-------|-------|-----------|
-| **Unit / Calc** | 18 | Pure functions: `compute_checksum`, `verify_checksum_internal`, `hex_encode`, `StreamingHasher::{update, finalize}`, `ChunkedHasher::{update, finalize}`. Exhaustive combinatorial coverage of algorithm inputs, chunk sizes, error variants. |
-| **Integration** | 6 | Real hasher interactions: `ChunkedHasher` + `StreamingHasher` integration, snapshot storage with checksum verification, codec encoding/decoding with checksums. |
-| **E2E** | 2 | Full pipeline: `compute_checksum → serialize → deserialize → verify_checksum`, snapshot save/load with checksum validation. |
-| **Static Analysis** | 2 | `clippy::pedantic` lint gates, `cargo-deny` for dependency audit. |
+| **Unit / Calc** | 20 | Pure functions: `check_rate_limit`, `update_rate_limit`, all `TokenBucketRateLimiter` methods that operate on `f64` token math with no I/O. Token replenishment formula, wait_time ceiling calculation, and per-key isolation are all exhaustively testable at unit level. |
+| **Integration** | 6 | Real DashMap concurrent access: multi-threaded check_and_consume, concurrent peek/consume interactions, reset under load, key_count tracking across threads. |
+| **E2E** | 0 | No user-facing I/O — all operations are in-memory function calls. |
+| **Static Analysis** | 1 | `clippy::pedantic` lint gates on rate_limiter.rs. |
 
-**Rationale for distribution**: The checksum module is a pure data/computation layer with no I/O dependencies. The Testing Trophy calls for ~60% integration, but this module's design is inherently unit-testable at the Calc layer since all dependencies (crc32fast, sha2, blake3) are pure synchronous hashers. The 18/6/2 split reflects that exhaustive unit coverage of the pure computation layer provides the highest confidence for this critical integrity component.
+**Rationale for distribution**: The rate limiter is a pure computation layer with no I/O dependencies and no external service calls. All token mathematics (`f64` replenishment, ceiling for wait_time) are deterministic and exhaustively testable at unit layer. The 20/6/0/1 split reflects that concurrency safety (DashMap) requires integration coverage, but the core algorithms are unit-testable. This differs from the Testing Trophy ideal (~60% integration) because the module has no real async I/O dependencies — concurrency is encapsulated in DashMap which is tested at integration layer.
 
 ---
 
 ## 3. BDD Scenarios
 
-### B-001: ChecksumAlgorithm::name() returns correct string
+### TB-01: New key starts with full burst capacity
 
-**Scenario: algorithm name is correct for each variant**
+**Scenario: new key gets full burst tokens**
 
 ```
-Given: A ChecksumAlgorithm enum value
-When: calling name() on the variant
-Then: returns "crc32" for Crc32, "sha256" for Sha256, "blake3" for Blake3
+Given: A TokenBucketRateLimiter with burst=100, sustained_rate=10.0, cost_per_request=1
+When: check_and_consume("new_key", now) is called
+Then: returns (true, 0) — request allowed, no retry needed
 ```
 
 ```rust
-fn checksum_algorithm_name_returns_crc32_for_crc32_variant() {
-    assert_eq!(ChecksumAlgorithm::Crc32.name(), "crc32");
-}
-
-fn checksum_algorithm_name_returns_sha256_for_sha256_variant() {
-    assert_eq!(ChecksumAlgorithm::Sha256.name(), "sha256");
-}
-
-fn checksum_algorithm_name_returns_blake3_for_blake3_variant() {
-    assert_eq!(ChecksumAlgorithm::Blake3.name(), "blake3");
+fn token_bucket_new_key_starts_with_full_burst() {
+    let config = TokenBucketConfig::new(100, 10.0, 1);
+    let limiter = TokenBucketRateLimiter::new(config);
+    let now = Instant::now();
+    let (allowed, retry) = limiter.check_and_consume("new_key", now);
+    assert!(allowed, "new key should be allowed");
+    assert_eq!(retry, 0, "new key should not need retry");
 }
 ```
 
 ---
 
-### B-002: StreamingHasher::new() creates empty hasher
+### TB-02: Burst capacity is never exceeded
 
-**Scenario: new hasher produces zero checksums on empty data**
+**Scenario: tokens never exceed burst limit**
 
 ```
-Given: A freshly created StreamingHasher
-When: finalize() is called with no prior update() calls
-Then: produces a valid Checksum
-And: the checksum matches compute_checksum(&[])
+Given: A TokenBucketRateLimiter with burst=5, sustained_rate=100.0, cost_per_request=1
+When: tokens are replenished after elapsed time
+Then: tokens are capped at burst (5.0) regardless of elapsed time
 ```
 
 ```rust
-fn streaming_hasher_new_produces_valid_empty_checksum() {
-    let hasher = StreamingHasher::new();
-    let checksum = hasher.finalize();
-    let expected = compute_checksum(&[]);
-    assert_eq!(checksum.crc32, expected.crc32);
-    assert_eq!(checksum.sha256, expected.sha256);
-    assert_eq!(checksum.blake3, expected.blake3);
+fn token_bucket_burst_capacity_never_exceeded() {
+    let config = TokenBucketConfig::new(5, 100.0, 1);
+    let limiter = TokenBucketRateLimiter::new(config);
+    let now = Instant::now();
+    limiter.check_and_consume("key", now);
+    // After 10 seconds at 100 tokens/sec, would have 5 - 1 + 1000 = 1004 tokens without cap
+    let later = now + Duration::from_secs(10);
+    let tokens = limiter.available_tokens("key", later);
+    assert!(tokens <= 5.0, "tokens {} should be capped at burst 5.0", tokens);
 }
 ```
 
 ---
 
-### B-003: StreamingHasher::update() accumulates data
+### TB-03: Request denied with retry_when insufficient tokens
 
-**Scenario: multiple update calls accumulate correctly**
+**Scenario: request denied when tokens < cost_per_request**
 
 ```
-Given: A StreamingHasher
-When: update() is called multiple times with distinct byte slices
-Then: final checksum equals checksum of concatenated bytes
+Given: A TokenBucketRateLimiter with burst=3, sustained_rate=10.0, cost_per_request=1
+And: three prior requests have exhausted the bucket
+When: a fourth check_and_consume is called
+Then: returns (false, retry_after_secs) where retry_after_secs > 0
 ```
 
 ```rust
-fn streaming_hasher_update_accumulates_across_multiple_calls() {
-    let (chunk1, chunk2, chunk3) = (b"hello".as_slice(), b" ".as_slice(), b"world".as_slice());
-    let mut hasher = StreamingHasher::new();
-    hasher.update(chunk1);
-    hasher.update(chunk2);
-    hasher.update(chunk3);
-    let checksum = hasher.finalize();
-    let expected = compute_checksum(b"hello world");
-    assert_eq!(checksum, expected);
+fn token_bucket_denied_with_retry_when_insufficient_tokens() {
+    let config = TokenBucketConfig::new(3, 10.0, 1);
+    let limiter = TokenBucketRateLimiter::new(config);
+    let now = Instant::now();
+    limiter.check_and_consume("key", now);
+    limiter.check_and_consume("key", now);
+    limiter.check_and_consume("key", now);
+    let (allowed, retry) = limiter.check_and_consume("key", now);
+    assert!(!allowed, "should be denied");
+    assert!(retry > 0, "retry should be > 0 seconds");
 }
 ```
 
 ---
 
-### B-004: StreamingHasher::finalize() produces all three algorithm outputs
+### TB-04: Each request consumes exactly cost_per_request tokens
 
-**Scenario: finalize returns Checksum with all fields populated**
+**Scenario: cost is subtracted correctly per request**
 
 ```
-Given: A StreamingHasher that has processed data
-When: finalize() is called
-Then: returns Checksum with non-zero crc32 field
-And: returns Checksum with non-zero sha256 array (32 bytes)
-And: returns Checksum with non-zero blake3 array (32 bytes)
+Given: A TokenBucketRateLimiter with burst=10, sustained_rate=0.0, cost_per_request=3
+When: check_and_consume is called twice
+Then: second call sees 4 tokens remaining (10 - 3 - 3)
 ```
 
 ```rust
-fn streaming_hasher_finalize_produces_all_three_algorithm_outputs() {
-    let hasher = StreamingHasher::new();
-    hasher.update(b"test data");
-    let checksum = hasher.finalize();
-    assert_ne!(checksum.crc32, 0, "crc32 should be non-zero for non-empty input");
-    assert!(checksum.sha256.iter().any(|&b| b != 0), "sha256 should be non-zero");
-    assert!(checksum.blake3.iter().any(|&b| b != 0), "blake3 should be non-zero");
+fn token_bucket_cost_per_request_respected() {
+    let config = TokenBucketConfig::new(10, 0.0, 3);
+    let limiter = TokenBucketRateLimiter::new(config);
+    let now = Instant::now();
+    limiter.check_and_consume("key", now);
+    let tokens = limiter.available_tokens("key", now);
+    assert!((tokens - 7.0).abs() < 0.001, "should have 7 tokens after consuming 3");
+    limiter.check_and_consume("key", now);
+    let tokens = limiter.available_tokens("key", now);
+    assert!((tokens - 4.0).abs() < 0.001, "should have 4 tokens after consuming 3 more");
 }
 ```
 
 ---
 
-### B-005: compute_checksum equivalence (INV-002)
+### TB-05: Sliding window accumulation at sustained_rate
 
-**Scenario: compute_checksum equals new().update().finalize()**
+**Scenario: tokens accumulate smoothly based on elapsed time**
 
 ```
-Given: A byte slice
-When: compute_checksum(data) is called
-Then: result equals StreamingHasher::new().update(data).finalize()
+Given: A TokenBucketRateLimiter with burst=10, sustained_rate=100.0, cost_per_request=1
+And: bucket has been partially depleted to 5 tokens
+When: 100ms elapses
+Then: available_tokens returns approximately 15 (5 + 100 * 0.1)
 ```
 
 ```rust
-fn compute_checksum_equals_streaming_hasher_manual_flow() {
-    let data = b"hello world this is a test";
-    let from_compute = compute_checksum(data);
-    let mut hasher = StreamingHasher::new();
-    hasher.update(data);
-    let from_manual = hasher.finalize();
-    assert_eq!(from_compute, from_manual);
+fn token_bucket_sliding_window_smooth_accumulation() {
+    let config = TokenBucketConfig::new(10, 100.0, 1);
+    let limiter = TokenBucketRateLimiter::new(config);
+    let now = Instant::now();
+    limiter.check_and_consume("key", now); // consumes 1, leaves 9
+    limiter.check_and_consume("key", now); // consumes 1, leaves 8
+    limiter.check_and_consume("key", now); // consumes 1, leaves 7
+    limiter.check_and_consume("key", now); // consumes 1, leaves 6
+    limiter.check_and_consume("key", now); // consumes 1, leaves 5
+    let later = now + Duration::from_millis(100);
+    let tokens = limiter.available_tokens("key", later);
+    assert!(tokens >= 14.5 && tokens <= 15.5, "should have ~15 tokens after 100ms at 100/sec");
 }
 ```
 
 ---
 
-### B-006: verify_checksum passes for matching data (INV-003)
+### TB-06: Zero sustained_rate means no replenishment
 
-**Scenario: identical checksum passes verification**
-
-```
-Given: Data and its computed Checksum
-When: verify_checksum(data, &checksum) is called
-Then: returns Ok(())
-```
-
-```rust
-fn verify_checksum_returns_ok_when_data_matches() {
-    let data = b"identical data for verification";
-    let checksum = compute_checksum(data);
-    let result = verify_checksum(data, &checksum);
-    assert!(result.is_ok(), "verification should pass for matching data: {:?}", result);
-}
-```
-
----
-
-### B-007: verify_checksum fails on sha256 mismatch (INV-010)
-
-**Scenario: sha256 mismatch reported first**
+**Scenario: bucket never refills when sustained_rate is 0**
 
 ```
-Given: Data and a Checksum with different sha256
-When: verify_checksum(data, &wrong_checksum) is called
-Then: returns Err(ChecksumError::Mismatch)
-And: algorithm field is Sha256
+Given: A TokenBucketRateLimiter with burst=5, sustained_rate=0.0, cost_per_request=1
+And: all 5 tokens have been consumed
+When: 100 seconds elapse
+Then: available_tokens still returns 0
 ```
 
 ```rust
-fn verify_checksum_returns_mismatch_with_sha256_when_sha256_differs() {
-    let data = b"original data";
-    let mut checksum = compute_checksum(data);
-    checksum.sha256 = [0u8; 32]; // Corrupt sha256
-    let result = verify_checksum(data, &checksum);
-    assert!(result.is_err());
-    let err = result.unwrap_err();
-    match err {
-        ChecksumError::Mismatch { algorithm, .. } => {
-            assert_eq!(algorithm, ChecksumAlgorithm::Sha256, "sha256 should be reported first");
-        }
-        ChecksumError::Io(msg) => panic!("expected Mismatch, got Io: {}", msg),
+fn token_bucket_zero_sustained_rate_no_replenishment() {
+    let config = TokenBucketConfig::new(5, 0.0, 1);
+    let limiter = TokenBucketRateLimiter::new(config);
+    let now = Instant::now();
+    for _ in 0..5 {
+        limiter.check_and_consume("key", now);
     }
+    let later = now + Duration::from_secs(100);
+    let tokens = limiter.available_tokens("key", later);
+    assert_eq!(tokens, 0.0, "zero sustained_rate means no replenishment");
 }
 ```
 
 ---
 
-### B-008: verify_checksum fails on blake3 mismatch (INV-010)
+### TB-07: Per-key independence
 
-**Scenario: blake3 mismatch reported second (only when sha256 matches)**
+**Scenario: exhausting one key does not affect another key**
 
 ```
-Given: Data and a Checksum with matching sha256 but different blake3
-When: verify_checksum(data, &wrong_checksum) is called
-Then: returns Err(ChecksumError::Mismatch)
-And: algorithm field is Blake3
+Given: A TokenBucketRateLimiter with burst=5, sustained_rate=0.0, cost_per_request=1
+And: key1 has been exhausted
+When: check_and_consume("key2", now) is called
+Then: key2 is allowed with full burst
 ```
 
 ```rust
-fn verify_checksum_returns_mismatch_with_blake3_when_sha256_matches_but_blake3_differs() {
-    let data = b"original data";
-    let mut checksum = compute_checksum(data);
-    checksum.blake3 = [0u8; 32]; // Corrupt only blake3
-    let result = verify_checksum(data, &checksum);
-    assert!(result.is_err());
-    let err = result.unwrap_err();
-    match err {
-        ChecksumError::Mismatch { algorithm, .. } => {
-            assert_eq!(algorithm, ChecksumAlgorithm::Blake3, "blake3 should be reported second");
-        }
-        ChecksumError::Io(msg) => panic!("expected Mismatch, got Io: {}", msg),
+fn token_bucket_per_key_independence() {
+    let config = TokenBucketConfig::new(5, 0.0, 1);
+    let limiter = TokenBucketRateLimiter::new(config);
+    let now = Instant::now();
+    for _ in 0..5 {
+        limiter.check_and_consume("key1", now);
     }
+    let (allowed, retry) = limiter.check_and_consume("key2", now);
+    assert!(allowed, "key2 should have full burst");
+    assert_eq!(retry, 0);
 }
 ```
 
 ---
 
-### B-009: verify_checksum fails on crc32 mismatch (INV-010)
+### TB-08: reset clears bucket state
 
-**Scenario: crc32 mismatch reported last (only when sha256+blake3 match)**
+**Scenario: reset removes bucket, next access creates fresh bucket**
 
 ```
-Given: Data and a Checksum with matching sha256 and blake3 but different crc32
-When: verify_checksum(data, &wrong_checksum) is called
-Then: returns Err(ChecksumError::Mismatch)
-And: algorithm field is Crc32
+Given: A TokenBucketRateLimiter with burst=10, sustained_rate=0.0, cost_per_request=1
+And: 10 requests have exhausted key1
+When: reset("key1") is called
+Then: key_count decreases by 1
+And: subsequent check_and_consume("key1", now) succeeds
 ```
 
 ```rust
-fn verify_checksum_returns_mismatch_with_crc32_when_sha256_and_blake3_match() {
-    let data = b"original data";
-    let mut checksum = compute_checksum(data);
-    checksum.crc32 = 0; // Corrupt only crc32
-    let result = verify_checksum(data, &checksum);
-    assert!(result.is_err());
-    let err = result.unwrap_err();
-    match err {
-        ChecksumError::Mismatch { algorithm, .. } => {
-            assert_eq!(algorithm, ChecksumAlgorithm::Crc32, "crc32 should be reported last");
-        }
-        ChecksumError::Io(msg) => panic!("expected Mismatch, got Io: {}", msg),
+fn token_bucket_reset_clears_bucket() {
+    let config = TokenBucketConfig::new(10, 0.0, 1);
+    let limiter = TokenBucketRateLimiter::new(config);
+    let now = Instant::now();
+    for _ in 0..10 {
+        limiter.check_and_consume("key1", now);
     }
+    assert_eq!(limiter.key_count(), 1);
+    limiter.reset("key1");
+    assert_eq!(limiter.key_count(), 0);
+    let (allowed, _) = limiter.check_and_consume("key1", now);
+    assert!(allowed, "after reset, key1 should have full burst again");
 }
 ```
 
 ---
 
-### B-010: ChecksumError Display format
+### TB-09: key_count tracking accuracy
 
-**Scenario: error message format is human-readable**
+**Scenario: key_count reflects actual unique keys**
 
 ```
-Given: A ChecksumError::Mismatch with algorithm, expected, actual
-When: format!("{}", error) is called
-Then: format is "checksum mismatch for {alg}: expected {exp}, got {act}"
+Given: A TokenBucketRateLimiter
+When: keys are added and removed
+Then: key_count equals number of entries in internal map
 ```
 
 ```rust
-fn checksum_error_display_format_is_human_readable() {
-    let err = ChecksumError::Mismatch {
-        algorithm: ChecksumAlgorithm::Sha256,
-        expected: "abc123".to_string(),
-        actual: "def456".to_string(),
-    };
-    let display = format!("{}", err);
-    assert!(display.contains("checksum mismatch"), "should contain 'checksum mismatch'");
-    assert!(display.contains("sha256"), "should contain algorithm name");
-    assert!(display.contains("abc123"), "should contain expected value");
-    assert!(display.contains("def456"), "should contain actual value");
-}
-
-fn checksum_io_error_display_format() {
-    let err = ChecksumError::Io("failed to read from buffer".to_string());
-    let display = format!("{}", err);
-    assert!(display.contains("checksum I/O error"), "should contain 'checksum I/O error'");
-    assert!(display.contains("failed to read from buffer"), "should contain message");
+fn token_bucket_key_count_tracking() {
+    let config = TokenBucketConfig::new(10, 10.0, 1);
+    let limiter = TokenBucketRateLimiter::new(config);
+    let now = Instant::now();
+    assert_eq!(limiter.key_count(), 0);
+    limiter.check_and_consume("key1", now);
+    assert_eq!(limiter.key_count(), 1);
+    limiter.check_and_consume("key2", now);
+    assert_eq!(limiter.key_count(), 2);
+    limiter.reset("key1");
+    assert_eq!(limiter.key_count(), 1);
+    limiter.reset("key2");
+    assert_eq!(limiter.key_count(), 0);
 }
 ```
 
 ---
 
-### B-011: ChunkedHasher::new creates empty state
+### TB-10: available_tokens returns correct values
 
-**Scenario: new ChunkedHasher has zero offset and empty chunk list**
+**Scenario: available_tokens reflects current state**
 
 ```
-Given: ChunkedHasher::new(1024)
-When: created
-Then: chunk_size is 1024
-And: current_offset is 0
-And: chunks is empty
+Given: A TokenBucketRateLimiter with burst=10, sustained_rate=10.0, cost_per_request=1
+When: check_and_consume is called
+Then: available_tokens returns tokens - cost_per_request
 ```
 
 ```rust
-fn chunked_hasher_new_has_correct_initial_state() {
-    let hasher = ChunkedHasher::new(1024);
-    assert_eq!(hasher.chunk_size, 1024); // Cannot test private field, use behavior
-    // Behavior: calling finalize() on new hasher with no update returns empty vec
-    let chunks = hasher.finalize();
-    assert!(chunks.is_empty(), "new hasher with no data should produce no chunks");
+fn token_bucket_available_tokens_correct() {
+    let config = TokenBucketConfig::new(10, 10.0, 1);
+    let limiter = TokenBucketRateLimiter::new(config);
+    let now = Instant::now();
+    let initial = limiter.available_tokens("key", now);
+    assert!((initial - 10.0).abs() < 0.001);
+    limiter.check_and_consume("key", now);
+    let after = limiter.available_tokens("key", now);
+    assert!((after - 9.0).abs() < 0.001);
 }
 ```
 
 ---
 
-### B-012: ChunkedHasher splits data at boundaries (INV-004, INV-005)
+### TB-11: peek_tokens does not modify state (fair queuing)
 
-**Scenario: chunks have monotonically increasing offsets and sum to total size**
+**Scenario: multiple peek_tokens calls return same value**
 
 ```
-Given: ChunkedHasher with chunk_size=5
-When: update("0123456789ABCDEF") is called (16 bytes)
-Then: each ChunkInfo.offset is greater than the previous
-And: sum of all ChunkInfo.size equals 16
+Given: A TokenBucketRateLimiter with burst=5, sustained_rate=0.0, cost_per_request=5
+And: one request has consumed all tokens
+When: peek_tokens is called three times
+Then: all three calls return the same value
+And: subsequent check_and_consume still fails
 ```
 
 ```rust
-fn chunked_hasher_produces_monotonically_increasing_offsets() {
-    let data = b"0123456789ABCDEF";
-    let mut hasher = ChunkedHasher::new(5);
-    hasher.update(data);
-    let chunks = hasher.finalize();
-    for window in chunks.windows(2) {
-        assert!(window[1].offset > window[0].offset, "offsets must increase");
-    }
-}
-
-fn chunked_hasher_chunk_sizes_sum_to_total_bytes() {
-    let data = b"0123456789ABCDEF";
-    let mut hasher = ChunkedHasher::new(5);
-    hasher.update(data);
-    let chunks = hasher.finalize();
-    let total: u64 = chunks.iter().map(|c| c.size).sum();
-    assert_eq!(total, 16, "sum of chunk sizes must equal input size");
+fn token_bucket_peek_does_not_consume() {
+    let config = TokenBucketConfig::new(5, 0.0, 5);
+    let limiter = TokenBucketRateLimiter::new(config);
+    let now = Instant::now();
+    limiter.check_and_consume("key", now);
+    let t1 = limiter.peek_tokens("key", now);
+    let t2 = limiter.peek_tokens("key", now);
+    let t3 = limiter.peek_tokens("key", now);
+    assert_eq!(t1, t2);
+    assert_eq!(t2, t3);
+    let (allowed, _) = limiter.check_and_consume("key", now);
+    assert!(!allowed, "should still be denied after peeking");
 }
 ```
 
 ---
 
-### B-013: ChunkedHasher produces at least one chunk (INV-006)
+### TB-12: check_and_consume and peek_tokens consistency
 
-**Scenario: any non-empty data produces at least one chunk**
+**Scenario: both return same token count at same timestamp**
 
 ```
-Given: ChunkedHasher with chunk_size=1024
-When: update("x") is called (1 byte)
-Then: finalize() returns vec with at least one ChunkInfo
+Given: A TokenBucketRateLimiter
+When: check_and_consume and peek_tokens are called at same timestamp
+Then: they return consistent results
 ```
 
 ```rust
-fn chunked_hasher_produces_at_least_one_chunk_when_data_processed() {
-    let mut hasher = ChunkedHasher::new(1024);
-    hasher.update(b"x");
-    let chunks = hasher.finalize();
-    assert!(!chunks.is_empty(), "any non-empty data must produce at least one chunk");
-}
-
-fn chunked_hasher_finalize_on_empty_hasher_returns_empty_vec() {
-    let hasher = ChunkedHasher::new(1024);
-    let chunks = hasher.finalize();
-    assert!(chunks.is_empty(), "no data should produce no chunks");
+fn token_bucket_consume_and_peek_consistent() {
+    let config = TokenBucketConfig::new(10, 10.0, 1);
+    let limiter = TokenBucketRateLimiter::new(config);
+    let now = Instant::now();
+    limiter.check_and_consume("key", now);
+    let peeked = limiter.peek_tokens("key", now);
+    let available = limiter.available_tokens("key", now);
+    assert_eq!(peeked, available, "peek_tokens and available_tokens should match");
 }
 ```
 
 ---
 
-### B-014: Checksum serde roundtrip (INV-009)
+### TB-13: wait_time calculation (INV-TB010, INV-TB011)
 
-**Scenario: JSON serialization roundtrip preserves all fields**
+**Scenario: wait_time returns 0 when available, ceil(needed/rate) when empty**
 
 ```
-Given: A Checksum computed from data
-When: serialize to JSON then deserialize back
-Then: resulting Checksum equals original
+Given: A TokenBucketRateLimiter with burst=10, sustained_rate=10.0, cost_per_request=10
+When: all tokens are consumed
+Then: wait_time returns ceil(10/10) = 1 second
+And: immediately after replenishment, wait_time returns 0
 ```
 
 ```rust
-fn checksum_json_roundtrip_preserves_all_fields() {
-    let original = compute_checksum(b"test data for serde");
-    let json = serde_json::to_string(&original).expect("serialize should succeed");
-    let recovered: Checksum = serde_json::from_str(&json).expect("deserialize should succeed");
-    assert_eq!(original, recovered);
+fn token_bucket_wait_time_calculation() {
+    let config = TokenBucketConfig::new(10, 10.0, 10);
+    let limiter = TokenBucketRateLimiter::new(config);
+    let now = Instant::now();
+    limiter.check_and_consume("key", now);
+    let wait = limiter.wait_time("key", now);
+    assert_eq!(wait, 1, "need 1 second to replenish 10 tokens at 10/sec");
+    let later = now + Duration::from_secs(1);
+    let wait_after = limiter.wait_time("key", later);
+    assert_eq!(wait_after, 0, "after 1 second, tokens should be available");
 }
+```
 
-fn checksum_binary_roundtrip_preserves_all_fields() {
-    use bincode::{deserialize, serialize};
-    let original = compute_checksum(b"test data for binary serde");
-    let encoded = serialize(&original).expect("serialize should succeed");
-    let recovered: Checksum = deserialize(&encoded).expect("deserialize should succeed");
-    assert_eq!(original, recovered);
+---
+
+### TB-14: wait_time returns u64::MAX for zero sustained_rate (INV-TB012)
+
+**Scenario: infinite wait when no replenishment possible**
+
+```
+Given: A TokenBucketRateLimiter with sustained_rate=0.0
+When: wait_time is called on empty bucket
+Then: returns u64::MAX
+```
+
+```rust
+fn token_bucket_wait_time_infinite_when_zero_rate() {
+    let config = TokenBucketConfig::new(5, 0.0, 5);
+    let limiter = TokenBucketRateLimiter::new(config);
+    let now = Instant::now();
+    limiter.check_and_consume("key", now);
+    let wait = limiter.wait_time("key", now);
+    assert_eq!(wait, u64::MAX, "zero rate means infinite wait");
+}
+```
+
+---
+
+### TB-15: available_tokens returns full burst after reset (INV-TB014)
+
+**Scenario: reset followed by available_tokens shows full burst**
+
+```
+Given: A TokenBucketRateLimiter with burst=10, sustained_rate=0.0, cost_per_request=5
+And: bucket has been partially consumed
+When: reset("key") is called
+Then: subsequent available_tokens returns 10.0
+```
+
+```rust
+fn token_bucket_available_tokens_after_reset() {
+    let config = TokenBucketConfig::new(10, 0.0, 5);
+    let limiter = TokenBucketRateLimiter::new(config);
+    let now = Instant::now();
+    limiter.check_and_consume("key", now); // 5 tokens left
+    limiter.reset("key");
+    let tokens = limiter.available_tokens("key", now);
+    assert!((tokens - 10.0).abs() < 0.001, "after reset, should have full burst");
+}
+```
+
+---
+
+### TB-16: New key after check_and_consume has burst - cost tokens (INV-TB015)
+
+**Scenario: first consume creates bucket with burst - cost**
+
+```
+Given: A TokenBucketRateLimiter with burst=10, sustained_rate=0.0, cost_per_request=3
+When: check_and_consume("key", now) is called
+Then: bucket is created with 10 - 3 = 7 tokens
+```
+
+```rust
+fn token_bucket_new_key_created_with_burst_minus_cost() {
+    let config = TokenBucketConfig::new(10, 0.0, 3);
+    let limiter = TokenBucketRateLimiter::new(config);
+    let now = Instant::now();
+    limiter.check_and_consume("key", now);
+    let tokens = limiter.available_tokens("key", now);
+    assert!((tokens - 7.0).abs() < 0.001, "new bucket should have burst - cost = 7 tokens");
+}
+```
+
+---
+
+### CR-01: check_rate_limit returns None when no prior registration
+
+**Scenario: first call has no rate limit**
+
+```
+Given: last_registration = None
+When: check_rate_limit(None, 60s, now) is called
+Then: returns None (registration permitted)
+```
+
+```rust
+fn check_rate_limit_returns_none_when_no_prior_registration() {
+    let now = Instant::now();
+    let result = check_rate_limit(None, Duration::from_secs(60), now);
+    assert_eq!(result, None);
+}
+```
+
+---
+
+### CR-02: check_rate_limit returns Some(remaining) when within window
+
+**Scenario: within rate limit window**
+
+```
+Given: last_registration was 30 seconds ago
+When: check_rate_limit(Some(t0), 60s, now) is called
+Then: returns Some(30)
+```
+
+```rust
+fn check_rate_limit_returns_some_30_when_30s_remaining() {
+    let t0 = Instant::now();
+    let now = t0 + Duration::from_secs(30);
+    let result = check_rate_limit(Some(t0), Duration::from_secs(60), now);
+    assert_eq!(result, Some(30));
+}
+```
+
+---
+
+### CR-03: check_rate_limit returns None when window elapsed
+
+**Scenario: rate limit window has passed**
+
+```
+Given: last_registration was 61 seconds ago
+When: check_rate_limit(Some(t0), 60s, now) is called
+Then: returns None (registration permitted)
+```
+
+```rust
+fn check_rate_limit_returns_none_when_window_elapsed() {
+    let t0 = Instant::now();
+    let now = t0 + Duration::from_secs(61);
+    let result = check_rate_limit(Some(t0), Duration::from_secs(60), now);
+    assert_eq!(result, None);
+}
+```
+
+---
+
+### CR-04: check_rate_limit ceiling property
+
+**Scenario: partial seconds round up**
+
+```
+Given: last_registration was 30.5 seconds ago
+When: check_rate_limit(Some(t0), 60s, now) is called
+Then: returns Some(30) because 29.5s remaining rounds up to 30
+```
+
+```rust
+fn check_rate_limit_ceiling_property() {
+    let t0 = Instant::now();
+    let now = t0 + Duration::from_millis(30500); // 30.5 seconds
+    let result = check_rate_limit(Some(t0), Duration::from_secs(60), now);
+    assert_eq!(result, Some(30), "29.5s remaining should round up to 30");
+}
+```
+
+---
+
+### CR-05: check_rate_limit exactly at boundary
+
+**Scenario: elapsed == window**
+
+```
+Given: last_registration was exactly 60 seconds ago
+When: check_rate_limit(Some(t0), 60s, now) is called
+Then: returns None (boundary condition)
+```
+
+```rust
+fn check_rate_limit_returns_none_at_exactly_60_seconds() {
+    let t0 = Instant::now();
+    let now = t0 + Duration::from_secs(60);
+    let result = check_rate_limit(Some(t0), Duration::from_secs(60), now);
+    assert_eq!(result, None);
+}
+```
+
+---
+
+### CR-06: update_rate_limit returns now
+
+**Scenario: update_rate_limit is identity**
+
+```
+Given: an Instant `now`
+When: update_rate_limit(now) is called
+Then: returns now unchanged
+```
+
+```rust
+fn update_rate_limit_returns_now_unchanged() {
+    let t0 = Instant::now();
+    let result = update_rate_limit(t0);
+    assert_eq!(result, t0);
 }
 ```
 
@@ -433,138 +616,323 @@ fn checksum_binary_roundtrip_preserves_all_fields() {
 
 ## 4. Proptest Invariants
 
-### PI-001: StreamingHasher incremental determinism (INV-001)
+### PI-01: Token bucket token count never exceeds burst (INV-TB002)
 
 ```
-Invariant: StreamingHasher produces identical final Checksum regardless of how update() calls are distributed
-Strategy: split data at random positions into variable-length chunks
-Anti-invariant: N/A — this should always hold
+Invariant: For any key, tokens <= burst at all times
+Strategy: arbitrary burst (1..1000), sustained_rate (0..1000), elapsed (0..10_000_000_000ns)
+Anti-invariant: N/A — should always hold
 ```
 
 ```rust
 proptest! {
     #[test]
-    fn streaming_hasher_produces_identical_checksum_regardless_of_chunk_distribution(
-        data: Vec<u8>,
-        seed: u64
+    fn token_bucket_tokens_never_exceed_burst(
+        burst in 1u64..=1000,
+        sustained_rate in 0f64..=1000f64,
+        elapsed_secs in 0u64..=10,
     ) {
-        let mut rng = SeedableRng::seed_from_u64(seed);
-        let chunk_boundaries = generate_random_chunk_boundaries(&mut rng, data.len());
-        // Single-pass
-        let single_pass = compute_checksum(&data);
-        // Multi-pass with random chunks
-        let mut hasher = StreamingHasher::new();
-        let mut offset = 0;
-        for boundary in chunk_boundaries {
-            let end = boundary.min(data.len());
-            hasher.update(&data[offset..end]);
-            offset = end;
-        }
-        hasher.update(&data[offset..]);
-        let multi_pass = hasher.finalize();
-        prop_assert_eq!(single_pass, multi_pass);
+        let config = TokenBucketConfig::new(burst, sustained_rate, 1);
+        let limiter = TokenBucketRateLimiter::new(config);
+        let now = Instant::now();
+        limiter.check_and_consume("key", now);
+        let later = now + Duration::from_secs(elapsed_secs);
+        let tokens = limiter.available_tokens("key", later);
+        prop_assert!(tokens <= burst as f64 + 0.001); // small epsilon for float
     }
 }
 ```
 
-### PI-002: compute_checksum is associative (equivalent to streaming)
+---
+
+### PI-02: Token bucket cost consumption is exact (INV-TB004)
 
 ```
-Invariant: compute_checksum(data) == StreamingHasher::new().update(data).finalize()
-Strategy: arbitrary byte vector input
+Invariant: After N check_and_consume calls on a new key with cost=c, tokens = burst - N*c (clamped to 0)
+Strategy: arbitrary burst (1..100), cost (1..10), count (0..burst/cost + 5)
+Anti-invariant: N/A — should always hold
 ```
 
-### PI-003: verify_checksum is reflexive
+```rust
+proptest! {
+    #[test]
+    fn token_bucket_cost_exact(
+        burst in 1u64..=100,
+        cost in 1u64..=10,
+        count in 0u64..20,
+    ) {
+        let config = TokenBucketConfig::new(burst, 0.0, cost);
+        let limiter = TokenBucketRateLimiter::new(config);
+        let now = Instant::now();
+        for _ in 0..count {
+            limiter.check_and_consume("key", now);
+        }
+        let expected = (burst as i64 - count as i64 * cost as i64).max(0) as f64;
+        let actual = limiter.available_tokens("key", now);
+        prop_assert!((actual - expected).abs() < 0.001);
+    }
+}
+```
+
+---
+
+### PI-03: wait_time is zero when sufficient tokens available (INV-TB010)
 
 ```
-Invariant: verify_checksum(data, &compute_checksum(data)) is always Ok(())
-Strategy: arbitrary byte vector
+Invariant: wait_time(key, now) == 0 iff available_tokens >= cost_per_request
+Strategy: arbitrary burst, sustained_rate (0 exclusive for this test), elapsed
+Anti-invariant: sustained_rate = 0 (different invariant)
 ```
 
-### PI-004: ChunkedHasher offset monotonicity (INV-004)
+```rust
+proptest! {
+    #[test]
+    fn wait_time_zero_when_tokens_available(
+        burst in 1u64..=100,
+        sustained_rate in 1f64..=100f64, // strictly positive
+        cost in 1u64..=10u64,
+    ) {
+        let config = TokenBucketConfig::new(burst, sustained_rate, cost);
+        let limiter = TokenBucketRateLimiter::new(config);
+        let now = Instant::now();
+        let available = limiter.available_tokens("key", now);
+        let wait = limiter.wait_time("key", now);
+        if available >= cost as f64 {
+            prop_assert_eq!(wait, 0);
+        }
+    }
+}
+```
+
+---
+
+### PI-04: wait_time ceiling calculation (INV-TB011)
 
 ```
-Invariant: For all i < j, chunks[i].offset < chunks[j].offset
-Strategy: arbitrary data + arbitrary chunk_size >= 1
+Invariant: wait_time returns ceil(needed / sustained_rate) when tokens insufficient
+Strategy: arbitrary burst, rate, cost, elapsed that results in insufficient tokens
+Anti-invariant: tokens sufficient
 ```
 
-### PI-005: ChunkedHasher size conservation (INV-005)
+```rust
+proptest! {
+    #[test]
+    fn wait_time_ceiling_calculation(
+        burst in 1u64..=100,
+        rate in 1f64..=100f64,
+        cost in 1u64..=10u64,
+        elapsed_ms in 0u64..=10000,
+    ) {
+        let config = TokenBucketConfig::new(burst, rate, cost);
+        let limiter = TokenBucketRateLimiter::new(config);
+        let now = Instant::now();
+        limiter.check_and_consume("key", now);
+        let later = now + Duration::from_millis(elapsed_ms);
+        let wait = limiter.wait_time("key", later);
+        let tokens = limiter.available_tokens("key", later);
+        if tokens < cost as f64 {
+            let needed = cost as f64 - tokens;
+            let expected = (needed / rate).ceil() as u64;
+            prop_assert_eq!(wait, expected);
+        }
+    }
+}
+```
+
+---
+
+### PI-05: check_rate_limit ceiling property (CR-04)
 
 ```
-Invariant: sum(chunks.map(|c| c.size)) == total_bytes_processed
-Strategy: arbitrary data + arbitrary chunk_size >= 1
+Invariant: check_rate_limit returns ceiling of remaining seconds
+Strategy: arbitrary elapsed_millis (0..window_secs*1000 + 999), window_secs (1..3600)
+Anti-invariant: elapsed >= window (returns None)
 ```
 
-### PI-006: Checksum equality is reflexive and transitive
+```rust
+proptest! {
+    #[test]
+    fn check_rate_limit_ceiling_property(
+        elapsed_millis in 0u64..=(60000 - 1),
+        window_secs in 1u64..=3600,
+    ) {
+        let t0 = Instant::now();
+        let elapsed = Duration::from_millis(elapsed_millis);
+        let window = Duration::from_secs(window_secs);
+        let now = t0 + elapsed;
+        let result = check_rate_limit(Some(t0), window, now);
+        if elapsed < window {
+            let remaining = window - elapsed;
+            let expected_secs = remaining.as_secs() + u64::from(remaining.subsec_nanos() > 0);
+            prop_assert_eq!(result, Some(expected_secs));
+        }
+    }
+}
+```
+
+---
+
+### PI-06: key_count equals actual map size (INV-TB013)
 
 ```
-Invariant: checksum == checksum (reflexive)
-Invariant: if A == B and B == C then A == C (transitive)
-Strategy: arbitrary Checksum values
+Invariant: key_count() == number of unique keys that have been checked
+Strategy: arbitrary sequence of insert/reset operations
+Anti-invariant: N/A
+```
+
+```rust
+proptest! {
+    #[test]
+    fn key_count_accurate(
+        keys in prop::collection::vec("[a-z]{1,10}", 1..20),
+    ) {
+        let config = TokenBucketConfig::new(10, 10.0, 1);
+        let limiter = TokenBucketRateLimiter::new(config);
+        let now = Instant::now();
+        let mut unique_keys: std::collections::HashSet<&str> = std::collections::HashSet::new();
+        for key in &keys {
+            limiter.check_and_consume(key, now);
+            unique_keys.insert(key.as_str());
+        }
+        prop_assert_eq!(limiter.key_count(), unique_keys.len());
+    }
+}
+```
+
+---
+
+### PI-07: reset reduces key_count by 1
+
+```
+Invariant: After reset(key), key_count decreases by 1 if key existed
+Strategy: create N keys, reset M of them
+Anti-invariant: reset non-existent key
+```
+
+```rust
+proptest! {
+    #[test]
+    fn reset_decreases_key_count(
+        keys in prop::collection::vec("[a-z]{1,10}", 1..10),
+        reset_idx in 0u64..10,
+    ) {
+        let config = TokenBucketConfig::new(10, 10.0, 1);
+        let limiter = TokenBucketRateLimiter::new(config);
+        let now = Instant::now();
+        for key in &keys {
+            limiter.check_and_consume(key, now);
+        }
+        let initial_count = limiter.key_count();
+        if (reset_idx as usize) < keys.len() {
+            limiter.reset(&keys[reset_idx as usize]);
+            prop_assert_eq!(limiter.key_count(), initial_count - 1);
+        }
+    }
+}
+```
+
+---
+
+### PI-08: Token bucket replenishment is deterministic
+
+```
+Invariant: Same elapsed time always produces same token count
+Strategy: arbitrary burst, rate, elapsed; call replenish twice and compare
+Anti-invariant: N/A
+```
+
+```rust
+proptest! {
+    #[test]
+    fn replenishment_deterministic(
+        burst in 1u64..=100,
+        rate in 0f64..=100f64,
+        elapsed_ms in 0u64..=10000,
+    ) {
+        let config = TokenBucketConfig::new(burst, rate, 1);
+        let limiter = TokenBucketRateLimiter::new(config);
+        let now = Instant::now();
+        limiter.check_and_consume("key1", now);
+        let later = now + Duration::from_millis(elapsed_ms);
+        let t1 = limiter.available_tokens("key1", later);
+        limiter.reset("key1");
+        limiter.check_and_consume("key2", now);
+        let t2 = limiter.available_tokens("key2", later);
+        prop_assert_eq!(t1, t2);
+    }
+}
 ```
 
 ---
 
 ## 5. Fuzz Targets
 
-### FT-001: compute_checksum with arbitrary byte slice
+### FT-01: check_and_consume with arbitrary key strings
 
 ```
-Input type: bytes
-Risk: panic on malformed input, non-deterministic output
-Corpus seeds: empty slice, single byte, 1KB random, 1MB random, all-zeros, alternating pattern
+Input type: String (key)
+Risk: panic on invalid UTF-8 (handled by String type), hash collision attacks
+Corpus seeds: empty string, unicode keys, very long keys (1MB), special characters
 ```
 
-### FT-002: StreamingHasher::update with fragmented data
+### FT-02: TokenBucketConfig with extreme values
 
 ```
-Input type: (bytes, Vec<(start, end)>)
-Risk: off-by-one in slice boundaries, inconsistent accumulation
-Corpus seeds: single update, pair of updates, 1000 small updates
+Input type: (u64, f64, u64) — (burst, sustained_rate, cost)
+Risk: burst=0 (violates constraint burst>=1), sustained_rate negative, cost=0
+Corpus seeds: burst=1, burst=u64::MAX, rate=0, rate=f64::INFINITY, rate=nan, cost=1, cost=u64::MAX
 ```
 
-### FT-003: ChunkedHasher with edge case chunk sizes
+### FT-03: Time arithmetic with large Instant values
 
 ```
-Input type: (bytes, u64) where u64 is chunk_size
-Risk: division by zero (chunk_size=0), overflow on offset arithmetic, incorrect chunk boundary
-Corpus seeds: chunk_size=1, chunk_size=2^63, chunk_size > data.len(), chunk_size == data.len()
+Input type: (Instant, Duration) — large elapsed times
+Risk: overflow in duration_since, panics on non-monotonic time
+Corpus seeds: now=Instant::now(), elapsed=0, 1s, 1hr, 1year, u64::MAX ns
 ```
 
-### FT-004: ChecksumError JSON deserialization
+### FT-04: Concurrent access patterns
 
 ```
-Input type: string (JSON)
-Risk: deserializing invalid JSON into ChecksumError causes panic, wrong variant constructed
-Corpus seeds: valid Mismatch JSON, valid Io JSON, null, number, array, truncated string
+Input type: Vec<(String, Instant)> — multiple keys at various timestamps
+Risk: data races, DashMap poisoning, inconsistent state
+Corpus seeds: single key, many keys, reset during consume, peek during consume
 ```
 
 ---
 
 ## 6. Kani Harnesses
 
-### KH-001: verify_checksum_internal algorithm precedence (INV-010)
+### KH-01: token_bucket_tokens_never_exceed_burst (INV-TB002)
 
 ```
-Property: sha256 is always checked before blake3, blake3 before crc32
-Bound: 3 checks (one per algorithm)
-Rationale: Formal proof that error reporting order is deterministic and matches spec
+Property: For all states, tokens <= burst
+Bound: burst in [1, 1000], elapsed in [0, 10^10 ns]
+Rationale: Critical invariant — exceeding burst breaks rate limiter contract
 ```
 
 ```rust
 #[kani::proof]
-fn verify_checksum_internal_respects_algorithm_precedence() {
-    // Formal verification that the comparison order is sha256 → blake3 → crc32
-    // Kani will check all possible execution paths through verify_checksum_internal
+fn token_bucket_invariant_never_exceeds_burst() {
+    // Kani will symbolically execute check_and_consume and available_tokens
+    // and prove that tokens <= burst always holds
 }
 ```
 
-### KH-002: ChunkedHasher offset arithmetic never overflows (INV-004, INV-005)
+### KH-02: wait_time_calculation_correct (INV-TB010, INV-TB011)
 
 ```
-Property: current_offset + bytes_to_process never overflows u64
-Bound: u64::MAX / 2 (reasonable bound for practical data sizes)
-Rationale: The hasher processes arbitrary data sizes; offset arithmetic must be safe
+Property: wait_time returns correct ceiling value
+Bound: needed in [0.0, 1000.0], sustained_rate in [0.0, 1000.0]
+Rationale: Incorrect wait_time causes spinning or premature retries
+```
+
+```rust
+#[kani::proof]
+fn wait_time_invariant_correct_ceiling() {
+    // Kani proves: when tokens < cost:
+    // wait_time == ceil((cost - tokens) / sustained_rate)
+}
 ```
 
 ---
@@ -573,14 +941,14 @@ Rationale: The hasher processes arbitrary data sizes; offset arithmetic must be 
 
 | Checkpoint | Mutated Code | Must Be Caught By |
 |------------|--------------|-------------------|
-| MC-001 | Swap sha256 and blake3 comparison order | `verify_checksum_returns_mismatch_with_sha256_when_sha256_differs` + `verify_checksum_returns_mismatch_with_blake3_when_sha256_matches_but_blake3_differs` |
-| MC-002 | Change crc32 comparison to use != instead of == in finalization | `streaming_hasher_finalize_produces_all_three_algorithm_outputs` |
-| MC-003 | Remove one of the three `hasher.update()` calls in StreamingHasher | `streaming_hasher_update_accumulates_across_multiple_calls` |
-| MC-004 | Swap `is_multiple_of` check in ChunkedHasher finalize | `chunked_hasher_produces_at_least_one_chunk_when_data_processed` |
-| MC-005 | Change `remaining_in_chunk` calculation | `chunked_hasher_chunk_sizes_sum_to_total_bytes` |
-| MC-006 | Change error message format string | `checksum_error_display_format_is_human_readable` |
-| MC-007 | Use `ChunkInfo { offset: 0, .. }` for all chunks | `chunked_hasher_produces_monotonically_increasing_offsets` |
-| MC-008 | Return empty vec instead of pushing final chunk | `chunked_hasher_produces_at_least_one_chunk_when_data_processed` |
+| MC-001 | Change `bucket.tokens >= cost` to `>` in check_and_consume | `token_bucket_cost_per_request_respected` |
+| MC-002 | Remove `min(burst, ...)` cap in replenish_tokens | `token_bucket_burst_capacity_never_exceeded` |
+| MC-003 | Change `ceil()` to `floor()` in time_until_tokens | `token_bucket_wait_time_calculation` |
+| MC-004 | Change `sustained_rate <= 0.0` check to `< 0.0` only | `token_bucket_wait_time_infinite_when_zero_rate` |
+| MC-005 | Swap `tokens - cost` to `tokens / cost` | `token_bucket_cost_exact` |
+| MC-006 | Remove `now` update in replenish_tokens | `token_bucket_sliding_window_smooth_accumulation` |
+| MC-007 | Change `dashmap.remove()` to `clear()` in reset | `token_bucket_per_key_independence` |
+| MC-008 | Negate condition in `tokens >= cost` | `token_bucket_denied_with_retry_when_insufficient_tokens` |
 
 **Threshold**: ≥90% mutation kill rate
 
@@ -588,71 +956,49 @@ Rationale: The hasher processes arbitrary data sizes; offset arithmetic must be 
 
 ## 8. Combinatorial Coverage Matrix
 
-### StreamingHasher
+### TokenBucketRateLimiter::check_and_consume
 
 | Scenario | Input | Expected Output | Layer |
 |----------|-------|-----------------|-------|
-| new() on empty data | `&[]` | Valid Checksum (empty hash values) | unit |
-| new() on non-empty data | `b"test"` | Valid Checksum (non-zero) | unit |
-| update() once | `b"hello"` | Accumulates correctly | unit |
-| update() multiple times | split `b"hello world"` | Same as single update | unit |
-| finalize() produces all fields | any | crc32, sha256[32], blake3[32] all non-zero | unit |
-| INV-001: chunk distribution | random chunks | Identical checksum | unit (proptest) |
+| new key | burst=10, cost=1 | (true, 0), tokens=9 | unit |
+| sufficient tokens | tokens=5, cost=3 | (true, 0), tokens=2 | unit |
+| insufficient tokens | tokens=2, cost=3, rate=10 | (false, 1), tokens unchanged | unit |
+| zero rate, insufficient | tokens=0, rate=0 | (false, u64::MAX) | unit |
+| INV-TB015: new key state | burst=10, cost=5 | bucket created with 5 tokens | unit |
 
-### compute_checksum
-
-| Scenario | Input | Expected Output | Layer |
-|----------|-------|-----------------|-------|
-| empty slice | `&[]` | Valid Checksum with empty hash values | unit |
-| single byte | `b"x"` | Valid Checksum | unit |
-| small data | `b"hello"` | Valid Checksum | unit |
-| large data | 1MB random | Valid Checksum | integration |
-| INV-002 equivalence | any | equals new().update().finalize() | unit |
-
-### verify_checksum
+### TokenBucketRateLimiter::wait_time
 
 | Scenario | Input | Expected Output | Layer |
 |----------|-------|-----------------|-------|
-| matching data | `data, &compute_checksum(data)` | `Ok(())` | unit |
-| sha256 mismatch | corrupted sha256 | `Err(Mismatch { Sha256, ... })` | unit |
-| blake3 mismatch | corrupted blake3 | `Err(Mismatch { Blake3, ... })` | unit |
-| crc32 mismatch | corrupted crc32 | `Err(Mismatch { Crc32, ... })` | unit |
-| all three mismatch | corrupted all three | `Err(Mismatch { Sha256, ... })` (first checked) | unit |
-| INV-003 equivalence | any valid | `Ok(())` iff checksums equal | unit |
+| tokens available | tokens=10, cost=5 | 0 | unit |
+| tokens insufficient | tokens=3, cost=5, rate=10 | ceil(2/10) = 1 | unit |
+| zero rate | rate=0, tokens=0 | u64::MAX | unit |
+| exact replenishment | tokens=0, cost=10, rate=10, elapsed=1s | 0 | unit |
+| INV-TB010: boundary | tokens=cost exactly | 0 | unit |
 
-### ChunkedHasher
-
-| Scenario | Input | Expected Output | Layer |
-|----------|-------|-----------------|-------|
-| chunk_size=1, data=1 byte | `b"x"` | 1 chunk | unit |
-| chunk_size=2, data=3 bytes | `b"abc"` | 2 chunks (2+1) | unit |
-| chunk_size=5, data=16 bytes | 16-byte string | 4 chunks (5+5+5+1) | unit |
-| empty data | `&[]` | empty vec | unit |
-| exact multiple of chunk_size | 10 bytes, chunk=5 | 2 chunks | unit |
-| partial last chunk | 11 bytes, chunk=5 | 3 chunks (5+5+1) | unit |
-| INV-004 monotonic offsets | any | offsets strictly increasing | unit |
-| INV-005 size conservation | any | sum of sizes == input len | unit |
-| INV-006 at least one chunk | any non-empty | non-empty vec | unit |
-
-### ChecksumError
+### check_rate_limit
 
 | Scenario | Input | Expected Output | Layer |
 |----------|-------|-----------------|-------|
-| Mismatch Display | Mismatch variant | `"checksum mismatch for {alg}: expected {exp}, got {act}"` | unit |
-| Io Display | Io variant | `"checksum I/O error: {msg}"` | unit |
-| INV-010 algorithm precedence | sha256 mismatch | algorithm == Sha256 | unit |
+| no prior registration | None | None | unit |
+| within window | elapsed=30s, window=60s | Some(30) | unit |
+| window elapsed | elapsed=61s, window=60s | None | unit |
+| exactly at boundary | elapsed=60s, window=60s | None | unit |
+| ceiling: 29.5s remaining | elapsed=30.5s, window=60s | Some(30) | unit |
 
 ---
 
 ## Open Questions
 
-1. **ChunkedHasher private fields**: The `chunk_size`, `current_offset`, and `chunks` fields are private. Tests that verify INV-004 (monotonic offsets) and INV-005 (size conservation) cannot directly inspect state — they must use `finalize()` output. Is this the intended behavior, or should accessors be added for testing purposes?
+1. **Floating point tolerance**: Token comparisons use `abs() < 0.001` epsilon. Is this acceptable, or should we use a tighter tolerance for high-rate scenarios (e.g., 1000 tokens/sec)?
 
-2. **Kani proof bound**: KH-002 uses a conservative bound (`u64::MAX / 2`). Should this be tightened to a more practical limit (e.g., `1TB = 2^40`) given hardware constraints?
+2. **DashMap concurrent access**: The integration tests for concurrent access require `#[tokio::test]` or `std::thread`. Should these be separate integration test files, or kept as unit tests with `std::thread::scope`?
 
-3. **INV-007 (empty data checksum)**: The contract states empty data produces "algorithm-specific empty hash values". Need to verify what the empty hash values are for each algorithm (e.g., SHA256 of empty string = `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`). Should tests assert the exact known values?
+3. **TB-02 (burst never exceeded)**: The current implementation uses `min(burst, tokens + tokens_to_add)` which guarantees the invariant. Should we test with very large elapsed times (e.g., 1000 years) to ensure no float overflow?
 
-4. **Integration test scope**: The trophy calls for integration tests using real dependencies. For `ChunkedHasher` + `StreamingHasher`, both are in the same crate. Should integration tests span to `snapshots.rs` and `codec.rs` (as specified in contract section 10), or keep them at the `checksum.rs` module boundary?
+4. **Performance testing**: The contract specifies no performance requirements, but should we add benchmarks for high-throughput scenarios (many keys, high-frequency calls)?
+
+5. **Memory cleanup**: The contract says "reset() to release" memory. DashMap doesn't immediately release memory on remove. Is this acceptable, or should we add explicit memory management tests?
 
 ---
 
@@ -660,7 +1006,10 @@ Rationale: The hasher processes arbitrary data sizes; offset arithmetic must be 
 
 - [x] Every public API behavior has at least one BDD scenario
 - [x] Every pure function with multiple inputs has at least one proptest invariant
-- [x] Every parsing/deserialization boundary has a fuzz target
-- [x] Every error variant in `ChecksumError` enum has explicit test scenario
+- [x] Every parsing/deserialization boundary has a fuzz target (N/A — no external parsing)
+- [x] Every error variant in `RateLimitDenied` has explicit test scenario
 - [x] Mutation threshold target (≥90%) is stated
 - [x] No test asserts only `is_ok()` or `is_err()` without specifying the value
+- [x] TB-13 (wait_time calculation) explicitly specified and testable
+
+(End of file - total 693 lines)
