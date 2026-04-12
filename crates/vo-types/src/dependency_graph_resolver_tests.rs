@@ -12,8 +12,8 @@
 //! - Execution layer computation: group nodes by dependency depth for parallel execution
 
 use crate::{
-    DagNode, Edge, EdgeCondition, NodeName, NonEmptyVec, RetryPolicy, StepOutcome,
-    WorkflowDefinition, WorkflowName,
+    DagNode, DependencyGraphResolver, Edge, EdgeCondition, NodeName, NonEmptyVec, RetryPolicy,
+    StepOutcome, WorkflowDefinition, WorkflowName,
 };
 
 /// Helper to construct a WorkflowDefinition for testing.
@@ -562,94 +562,4 @@ fn ready_nodes_always_edges_ready_after_any_outcome() {
         StepOutcome::Failure,
     );
     assert!(ready_failure.contains(&NodeName("b".into())));
-}
-
-/// Dependency graph resolver for workflow execution planning.
-///
-/// This resolver provides functions for:
-/// - Finding dependencies (predecessors) and dependents (successors) of nodes
-/// - Computing which nodes are ready to execute given completed nodes
-/// - Computing execution layers for parallel execution planning
-///
-/// All functions operate on a validated `WorkflowDefinition` (which is guaranteed acyclic).
-pub struct DependencyGraphResolver;
-
-impl DependencyGraphResolver {
-    /// Get all direct dependencies (predecessors) of a node.
-    ///
-    /// A node is a dependency of another if there is an edge from it to the other.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `node` is not found in the workflow (caller must validate).
-    pub fn dependencies(_workflow: &WorkflowDefinition, _node: &NodeName) -> Vec<NodeName> {
-        todo!("Implement dependency resolution (ve-eo0 TDD Red → ve-6ez TDD Green)")
-    }
-
-    /// Get all direct dependents (successors) of a node.
-    ///
-    /// A node is a dependent of another if there is an edge from the other to it.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `node` is not found in the workflow (caller must validate).
-    pub fn dependents(_workflow: &WorkflowDefinition, _node: &NodeName) -> Vec<NodeName> {
-        todo!("Implement dependent resolution (ve-eo0 TDD Red → ve-6ez TDD Green)")
-    }
-
-    /// Get all transitive dependencies of a node.
-    ///
-    /// Returns all nodes that the given node depends on, directly or indirectly.
-    pub fn transitive_dependencies(
-        _workflow: &WorkflowDefinition,
-        _node: &NodeName,
-    ) -> Vec<NodeName> {
-        todo!("Implement transitive dependency resolution (ve-eo0 TDD Red → ve-6ez TDD Green)")
-    }
-
-    /// Get all transitive dependents of a node.
-    ///
-    /// Returns all nodes that depend on the given node, directly or indirectly.
-    pub fn transitive_dependents(
-        _workflow: &WorkflowDefinition,
-        _node: &NodeName,
-    ) -> Vec<NodeName> {
-        todo!("Implement transitive dependent resolution (ve-eo0 TDD Red → ve-6ez TDD Green)")
-    }
-
-    /// Get nodes that are ready to execute, given the set of completed nodes.
-    ///
-    /// A node is ready when all of its dependencies have been completed.
-    /// Nodes that are already in `completed` are not returned.
-    ///
-    /// Note: This treats all edges as `Always` condition. For condition-aware
-    /// readiness, use `ready_nodes_for_outcome`.
-    pub fn ready_nodes(_workflow: &WorkflowDefinition, _completed: &[NodeName]) -> Vec<NodeName> {
-        todo!("Implement ready node computation (ve-eo0 TDD Red → ve-6ez TDD Green)")
-    }
-
-    /// Get nodes that are ready to execute, given the last step's outcome.
-    ///
-    /// Uses edge conditions to determine which edges are active:
-    /// - `Always`: always active
-    /// - `OnSuccess`: active only if `last_outcome == StepOutcome::Success`
-    /// - `OnFailure`: active only if `last_outcome == StepOutcome::Failure`
-    pub fn ready_nodes_for_outcome(
-        _workflow: &WorkflowDefinition,
-        _completed: &[NodeName],
-        _last_outcome: StepOutcome,
-    ) -> Vec<NodeName> {
-        todo!("Implement outcome-aware ready node computation (ve-eo0 TDD Red → ve-6ez TDD Green)")
-    }
-
-    /// Compute execution layers for the workflow.
-    ///
-    /// Returns nodes grouped by dependency depth. Nodes in the same layer
-    /// have no dependencies on each other and can be executed in parallel.
-    /// Layers are ordered from root nodes (layer 0) to leaf nodes.
-    ///
-    /// Returns empty vec for empty workflows.
-    pub fn execution_layers(_workflow: &WorkflowDefinition) -> Vec<Vec<NodeName>> {
-        todo!("Implement execution layer computation (ve-eo0 TDD Red → ve-6ez TDD Green)")
-    }
 }

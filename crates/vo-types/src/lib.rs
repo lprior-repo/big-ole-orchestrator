@@ -6,6 +6,7 @@ mod connector;
 mod dedupe;
 #[cfg(test)]
 mod dedupe_tests;
+mod dependency_graph_resolver;
 mod effects;
 mod errors;
 pub mod events;
@@ -43,6 +44,7 @@ pub use connector::{
     ConnectorTransitionError, ReconcileAction,
 };
 pub use dedupe::{DedupeKey, DedupePartitionKey};
+pub use dependency_graph_resolver::DependencyGraphResolver;
 pub use effects::{
     apply_effect_transition, CompensationPolicy, EffectIntent, EffectKind, EffectRecord,
     EffectTransitionError, EffectTransitionEvent,
