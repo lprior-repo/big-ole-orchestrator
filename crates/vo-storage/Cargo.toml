@@ -11,9 +11,11 @@ proptest = []
 
 [dependencies]
 fjall = { workspace = true }
+memmap2 = "0.9"
 serde = { workspace = true }
 serde_json = { workspace = true }
 vo-types = { workspace = true }
+parking_lot = "0.12"
 
 [dev-dependencies]
 proptest = { workspace = true }

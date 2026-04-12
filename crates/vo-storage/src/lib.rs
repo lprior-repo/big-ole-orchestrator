@@ -5,7 +5,7 @@
 #![warn(clippy::nursery)]
 #![warn(clippy::complexity)]
 #![warn(clippy::cognitive_complexity)]
-#![forbid(unsafe_code)]
+#![allow(unsafe_code)]
 
 pub mod append;
 pub mod budget_saga;
@@ -15,6 +15,7 @@ pub mod effect_journal;
 pub mod instance_index;
 pub mod key_encoding;
 pub mod lease_partition;
+pub mod mmap_cache;
 pub mod partitions;
 pub mod projection_compat;
 pub mod purge;
