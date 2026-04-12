@@ -7,8 +7,8 @@ mod integration_tests {
     use std::sync::Mutex;
     use std::sync::MutexGuard;
     use vo_executor::{
-        cancel_execution, clear_error, execute_step, execute_step_with_retry, get_execution_status,
-        get_last_error, reset_all_state, set_error, RetryPolicy, StepId,
+        cancel_execution, clear_error, execute_step, execute_step_with_retry,
+        get_execution_status, get_last_error, reset_all_state, set_error, RetryPolicy, StepId,
     };
 
     /// Global mutex to prevent concurrent tests from racing on shared DashMap state
