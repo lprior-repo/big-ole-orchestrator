@@ -30,3 +30,5 @@ cov.json
 
 # Beads / Dolt files (added by bd init)
 .beads-credential-key
+.runtime/
+CLAUDE.local.md
