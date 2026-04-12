@@ -34,6 +34,7 @@ ractor = "0.15"
 
 # Graph
 petgraph = "0.6"
+spqr-tree = "4.0.2"
 
 # Serialization
 serde = { version = "1", features = ["derive"] }

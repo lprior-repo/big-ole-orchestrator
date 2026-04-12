@@ -30,6 +30,7 @@ pub mod proptest_verifier;
 mod registration_status;
 mod signal;
 pub mod skew_heap;
+mod spqr_tree;
 pub mod state;
 mod string_types;
 #[cfg(test)]
@@ -75,6 +76,10 @@ pub use signal::{
     BufferPolicy, LineageScope, SignalAddress, SignalDedupeKey, SignalDelivery, WaitKey, WaitRecord,
 };
 pub use skew_heap::{SkewHeap, SkewHeapError, SkewNode};
+pub use spqr_tree::{
+    Block, Component, CutNode, SPQRDecomposition, SPQREdge, SPQRNode, SPQRNodeType, SpqrError,
+    StaticGraph,
+};
 pub use tx_coordinator::{
     apply_coordinator_transition, CoordinatorDecision, CoordinatorTransition,
     CoordinatorTransitionError, ParticipantRecord, ParticipantStatus, ParticipantVote,
