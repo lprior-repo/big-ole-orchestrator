@@ -1,0 +1,364 @@
+//! Fjall-backed persistent implementation of `EffectJournal` for production use.
+
+use std::sync::Arc;
+
+use vo_types::EffectIntent;
+use vo_types::{EffectRecord, InstanceId};
+
+use super::{EffectId, EffectJournal, EffectJournalError, EFFECTS_PARTITION};
+
+#[derive(Debug)]
+pub struct FjallEffectJournal {
+    partition: Arc<fjall::PartitionHandle>,
+}
+
+impl FjallEffectJournal {
+    #[must_use]
+    pub fn open(keyspace: &fjall::Keyspace) -> Result<Self, EffectJournalError> {
+        let partition = keyspace
+            .open_partition(EFFECTS_PARTITION, fjall::PartitionCreateOptions::default())
+            .map_err(|e| EffectJournalError::Storage {
+                reason: format!("failed to open effects partition: {e}"),
+            })?;
+        Ok(Self {
+            partition: Arc::new(partition),
+        })
+    }
+}
+
+impl EffectJournal for FjallEffectJournal {
+    fn prepare(
+        &self,
+        instance_id: &InstanceId,
+        record: EffectRecord,
+    ) -> Result<EffectId, EffectJournalError> {
+        let intent_id = record.intent_id().to_string();
+        let effect_id = EffectId::new(instance_id, intent_id.as_str())?;
+        let key = super::encode_effect_key(&effect_id);
+
+        if let Ok(Some(_)) self.partition.get(&key) {
+            return Ok(effect_id);
+        }
+
+        let value = super::encode_effect_record(&record)?;
+        self.partition
+            .insert(&key, &value)
+            .map_err(|e| EffectJournalError::Storage {
+                reason: e.to_string(),
+            })?;
+        Ok(effect_id)
+    }
+
+    fn commit(&self, effect_id: &EffectId) -> Result<(), EffectJournalError> {
+        let key = super::encode_effect_key(effect_id);
+        let mut record = self
+            .get_impl(&key)?
+            .ok_or_else(|| EffectJournalError::NotFound {
+                effect_id: effect_id.as_str().to_string(),
+            })?;
+
+        if record.status().is_terminal() {
+            return Err(EffectJournalError::AlreadyTerminal {
+                effect_id: effect_id.as_str().to_string(),
+                current_status: format!("{:?}", record.status()),
+            });
+        }
+
+        let ts = Some(vo_types::TimestampMs::parse("100").map_err(|e| {
+            EffectJournalError::Storage {
+                reason: format!("failed to parse timestamp: {e}"),
+            }
+        })?);
+
+        let next_record = EffectRecord::new(
+            record.intent_id().to_string(),
+            record.kind(),
+            record.params_json().clone(),
+            EffectIntent::Committed,
+            ts,
+        )
+        .ok_or_else(|| EffectJournalError::Storage {
+            reason: "failed to create record".to_string(),
+        })?;
+
+        let value = super::encode_effect_record(&next_record)?;
+        self.partition
+            .insert(&key, &value)
+            .map_err(|e| EffectJournalError::Storage {
+                reason: e.to_string(),
+            })
+    }
+
+    fn rollback(&self, effect_id: &EffectId) -> Result<(), EffectJournalError> {
+        let key = super::encode_effect_key(effect_id);
+        let mut record = self
+            .get_impl(&key)?
+            .ok_or_else(|| EffectJournalError::NotFound {
+                effect_id: effect_id.as_str().to_string(),
+            })?;
+
+        if record.status().is_terminal() {
+            return Err(EffectJournalError::AlreadyTerminal {
+                effect_id: effect_id.as_str().to_string(),
+                current_status: format!("{:?}", record.status()),
+            });
+        }
+
+        let next_record = EffectRecord::new(
+            record.intent_id().to_string(),
+            record.kind(),
+            record.params_json().clone(),
+            EffectIntent::RolledBack,
+            None,
+        )
+        .ok_or_else(|| EffectJournalError::Storage {
+            reason: "failed to create record".to_string(),
+        })?;
+
+        let value = super::encode_effect_record(&next_record)?;
+        self.partition
+            .insert(&key, &value)
+            .map_err(|e| EffectJournalError::Storage {
+                reason: e.to_string(),
+            })
+    }
+
+    fn list_pending(
+        &self,
+        instance_id: &InstanceId,
+    ) -> Result<Vec<EffectRecord>, EffectJournalError> {
+        let prefix = format!("{instance_id}::");
+        let prefix_bytes = prefix.as_bytes();
+        let mut results = Vec::new();
+
+        let iter = self.partition.iter();
+        for item in iter {
+            let (key_bytes, value_bytes) = item.map_err(|e| EffectJournalError::Storage {
+                reason: e.to_string(),
+            })?;
+
+            if !key_bytes.starts_with(prefix_bytes) {
+                continue;
+            }
+
+            let record = super::decode_effect_record(&value_bytes)?;
+            if record.status() == EffectIntent::Prepared {
+                results.push(record);
+            }
+        }
+
+        Ok(results)
+    }
+}
+
+impl FjallEffectJournal {
+    fn get_impl(&self, key: &[u8]) -> Result<Option<EffectRecord>, EffectJournalError> {
+        match self.partition.get(key) {
+            Ok(Some(bytes)) => {
+                let record = super::decode_effect_record(&bytes)?;
+                Ok(Some(record))
+            }
+            Ok(None) => Ok(None),
+            Err(e) => Err(EffectJournalError::Storage {
+                reason: e.to_string(),
+            }),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+    use vo_types::EffectKind;
+
+    fn sample_instance_id() -> InstanceId {
+        InstanceId::from_bytes([1u8; 16])
+    }
+
+    fn create_test_keyspace() -> fjall::Keyspace {
+        let dir = tempdir().unwrap();
+        fjall::Config::new(dir.path()).open().unwrap()
+    }
+
+    #[test]
+    fn fjall_journal_prepare_returns_effect_id_for_new_intent() {
+        let keyspace = create_test_keyspace();
+        let journal = FjallEffectJournal::open(&keyspace).unwrap();
+        let id = sample_instance_id();
+        let record = EffectRecord::new(
+            "fx-1".to_string(),
+            EffectKind::HttpCall,
+            serde_json::json!({"url": "https://api.stripe.com"}),
+            EffectIntent::Prepared,
+            None,
+        )
+        .unwrap();
+        let result = journal.prepare(&id, record);
+        let expected = EffectId::new(&id, "fx-1").unwrap();
+        assert_eq!(result.unwrap().as_str(), expected.as_str());
+    }
+
+    #[test]
+    fn fjall_journal_prepare_is_idempotent() {
+        let keyspace = create_test_keyspace();
+        let journal = FjallEffectJournal::open(&keyspace).unwrap();
+        let id = sample_instance_id();
+        let record = EffectRecord::new(
+            "fx-1".to_string(),
+            EffectKind::HttpCall,
+            serde_json::json!({}),
+            EffectIntent::Prepared,
+            None,
+        )
+        .unwrap();
+        let first = journal.prepare(&id, record.clone()).unwrap();
+        let second = journal.prepare(&id, record).unwrap();
+        assert_eq!(first, second);
+        let pending = journal.list_pending(&id).unwrap();
+        assert_eq!(pending.len(), 1);
+    }
+
+    #[test]
+    fn fjall_journal_commit_transitions_prepared_to_committed() {
+        let keyspace = create_test_keyspace();
+        let journal = FjallEffectJournal::open(&keyspace).unwrap();
+        let id = sample_instance_id();
+        let record = EffectRecord::new(
+            "fx-commit".to_string(),
+            EffectKind::HttpCall,
+            serde_json::json!({}),
+            EffectIntent::Prepared,
+            None,
+        )
+        .unwrap();
+        let eid = journal.prepare(&id, record).unwrap();
+        let result = journal.commit(&eid);
+        assert_eq!(result, Ok(()));
+        let pending = journal.list_pending(&id).unwrap();
+        assert!(pending.is_empty());
+    }
+
+    #[test]
+    fn fjall_journal_rollback_transitions_prepared_to_rolledback() {
+        let keyspace = create_test_keyspace();
+        let journal = FjallEffectJournal::open(&keyspace).unwrap();
+        let id = sample_instance_id();
+        let record = EffectRecord::new(
+            "fx-rollback".to_string(),
+            EffectKind::SqlQuery,
+            serde_json::json!({}),
+            EffectIntent::Prepared,
+            None,
+        )
+        .unwrap();
+        let eid = journal.prepare(&id, record).unwrap();
+        let result = journal.rollback(&eid);
+        assert_eq!(result, Ok(()));
+        let pending = journal.list_pending(&id).unwrap();
+        assert!(pending.is_empty());
+    }
+
+    #[test]
+    fn fjall_journal_list_pending_returns_only_prepared_effects() {
+        let keyspace = create_test_keyspace();
+        let journal = FjallEffectJournal::open(&keyspace).unwrap();
+        let id = sample_instance_id();
+
+        let r1 = EffectRecord::new(
+            "fx-pending".to_string(),
+            EffectKind::HttpCall,
+            serde_json::json!({}),
+            EffectIntent::Prepared,
+            None,
+        )
+        .unwrap();
+        let r2 = EffectRecord::new(
+            "fx-committed".to_string(),
+            EffectKind::SqlQuery,
+            serde_json::json!({}),
+            EffectIntent::Prepared,
+            None,
+        )
+        .unwrap();
+        let r3 = EffectRecord::new(
+            "fx-rolledback".to_string(),
+            EffectKind::BlobWrite,
+            serde_json::json!({}),
+            EffectIntent::Prepared,
+            None,
+        )
+        .unwrap();
+
+        let eid2 = journal.prepare(&id, r2).unwrap();
+        let eid1 = journal.prepare(&id, r1).unwrap();
+        let eid3 = journal.prepare(&id, r3).unwrap();
+
+        journal.commit(&eid2).unwrap();
+        journal.rollback(&eid3).unwrap();
+
+        let pending = journal.list_pending(&id).unwrap();
+        assert_eq!(pending.len(), 1);
+        assert_eq!(pending[0].intent_id(), "fx-pending");
+    }
+
+    #[test]
+    fn fjall_journal_commit_already_terminal_returns_error() {
+        let keyspace = create_test_keyspace();
+        let journal = FjallEffectJournal::open(&keyspace).unwrap();
+        let id = sample_instance_id();
+        let record = EffectRecord::new(
+            "fx-twice".to_string(),
+            EffectKind::HttpCall,
+            serde_json::json!({}),
+            EffectIntent::Prepared,
+            None,
+        )
+        .unwrap();
+        let eid = journal.prepare(&id, record).unwrap();
+        journal.commit(&eid).unwrap();
+        let result = journal.commit(&eid);
+        assert!(result.is_err());
+        assert!(matches!(result, Err(EffectJournalError::AlreadyTerminal { .. })));
+    }
+
+    #[test]
+    fn fjall_journal_rollback_already_terminal_returns_error() {
+        let keyspace = create_test_keyspace();
+        let journal = FjallEffectJournal::open(&keyspace).unwrap();
+        let id = sample_instance_id();
+        let record = EffectRecord::new(
+            "fx-twice-rb".to_string(),
+            EffectKind::HttpCall,
+            serde_json::json!({}),
+            EffectIntent::Prepared,
+            None,
+        )
+        .unwrap();
+        let eid = journal.prepare(&id, record).unwrap();
+        journal.rollback(&eid).unwrap();
+        let result = journal.rollback(&eid);
+        assert!(result.is_err());
+        assert!(matches!(result, Err(EffectJournalError::AlreadyTerminal { .. })));
+    }
+
+    #[test]
+    fn fjall_journal_commit_nonexistent_returns_not_found() {
+        let keyspace = create_test_keyspace();
+        let journal = FjallEffectJournal::open(&keyspace).unwrap();
+        let id = sample_instance_id();
+        let effect_id = EffectId::new(&id, "nonexistent").unwrap();
+        let result = journal.commit(&effect_id);
+        assert!(matches!(result, Err(EffectJournalError::NotFound { .. })));
+    }
+
+    #[test]
+    fn fjall_journal_rollback_nonexistent_returns_not_found() {
+        let keyspace = create_test_keyspace();
+        let journal = FjallEffectJournal::open(&keyspace).unwrap();
+        let id = sample_instance_id();
+        let effect_id = EffectId::new(&id, "nonexistent").unwrap();
+        let result = journal.rollback(&effect_id);
+        assert!(matches!(result, Err(EffectJournalError::NotFound { .. })));
+    }
+}
