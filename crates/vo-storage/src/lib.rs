@@ -9,6 +9,7 @@
 
 pub mod append;
 pub mod budget_saga;
+pub mod checksum;
 pub mod codec;
 pub mod dedupe_partition;
 pub mod effect_journal;

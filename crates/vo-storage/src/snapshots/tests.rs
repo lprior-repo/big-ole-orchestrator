@@ -322,7 +322,6 @@ fn snapshot_write_compresses_with_zstd() {
 
 #[test]
 fn snapshot_load_verifies_checksum() {
-
     let (_dir, _keyspace, partition) = setup_fjall();
     let id = get_typical_id();
 
@@ -362,4 +361,3 @@ fn snapshot_load_decompresses_and_reconstructs() {
     let result = snapshot_load_latest(&partition, &id);
     assert_eq!(result, Ok(Some((1, expected_state))));
 }
-

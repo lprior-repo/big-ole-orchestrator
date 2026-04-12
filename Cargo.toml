@@ -86,6 +86,7 @@ strum = { version = "0.24", features = ["derive"] }
 
 # Cryptography
 sha2 = "0.10"
+blake3 = "1.8"
 
 # Testing
 rstest = "0.18"
