@@ -1,3 +1,4 @@
+mod binomial_heap;
 mod blob;
 pub mod cartesian_tree;
 mod clique_tree;
@@ -41,6 +42,7 @@ mod types;
 mod types_tests;
 mod workflow;
 
+pub use binomial_heap::BinomialHeap;
 pub use blob::{BlobRef, BlobStatus, OutputRef, INLINED_MAX_BYTES};
 pub use cartesian_tree::{CartesianNode, CartesianTree, CartesianTreeError};
 pub use clique_tree::{Clique, CliqueTree, CliqueTreeError};
