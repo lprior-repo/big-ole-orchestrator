@@ -25,6 +25,7 @@ pub mod state;
 mod string_types;
 #[cfg(test)]
 mod string_types_tests;
+mod tx_coordinator;
 mod types;
 #[cfg(test)]
 mod types_tests;
@@ -56,6 +57,11 @@ pub use non_empty_vec::NonEmptyVec;
 pub use registration_status::RegistrationStatus;
 pub use signal::{
     BufferPolicy, LineageScope, SignalAddress, SignalDedupeKey, SignalDelivery, WaitKey, WaitRecord,
+};
+pub use tx_coordinator::{
+    apply_coordinator_transition, CoordinatorDecision, CoordinatorTransition,
+    CoordinatorTransitionError, ParticipantRecord, ParticipantStatus, ParticipantVote,
+    TransactionRecord, TransactionState,
 };
 pub use types::{
     extract_schema_version, AttemptNumber, BinaryHash, DurationMs, EventVersion, FenceToken,
