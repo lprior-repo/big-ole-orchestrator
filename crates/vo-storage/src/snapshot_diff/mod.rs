@@ -53,6 +53,12 @@ pub enum ApplyError {
     SequenceRegress,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum MergeError {
+    #[error("Conflicting modifications detected")]
+    Conflict { base: u64, ours: u64, theirs: u64 },
+}
+
 #[must_use]
 pub fn diff(
     instance_id: InstanceId,
@@ -135,6 +141,46 @@ pub const fn apply_diff(
 
     Ok(InstanceState {
         counter: new_counter,
+    })
+}
+
+pub fn three_way_merge(
+    base: &InstanceState,
+    ours: &InstanceState,
+    theirs: &InstanceState,
+) -> Result<InstanceState, MergeError> {
+    let base_counter = base.counter;
+    let ours_counter = ours.counter;
+    let theirs_counter = theirs.counter;
+
+    if base_counter == ours_counter && base_counter == theirs_counter {
+        return Ok(InstanceState {
+            counter: base_counter,
+        });
+    }
+
+    if base_counter == ours_counter {
+        return Ok(InstanceState {
+            counter: theirs_counter,
+        });
+    }
+
+    if base_counter == theirs_counter {
+        return Ok(InstanceState {
+            counter: ours_counter,
+        });
+    }
+
+    if ours_counter == theirs_counter {
+        return Ok(InstanceState {
+            counter: ours_counter,
+        });
+    }
+
+    Err(MergeError::Conflict {
+        base: base_counter,
+        ours: ours_counter,
+        theirs: theirs_counter,
     })
 }
 
@@ -363,5 +409,100 @@ mod tests {
             }
             _ => panic!("Expected HasDiff"),
         }
+    }
+
+    #[test]
+    fn test_three_way_merge_all_same() {
+        let base = InstanceState { counter: 42 };
+        let ours = InstanceState { counter: 42 };
+        let theirs = InstanceState { counter: 42 };
+        let result = three_way_merge(&base, &ours, &theirs);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().counter, 42);
+    }
+
+    #[test]
+    fn test_three_way_merge_ours_same_as_base() {
+        let base = InstanceState { counter: 10 };
+        let ours = InstanceState { counter: 10 };
+        let theirs = InstanceState { counter: 20 };
+        let result = three_way_merge(&base, &ours, &theirs);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().counter, 20);
+    }
+
+    #[test]
+    fn test_three_way_merge_theirs_same_as_base() {
+        let base = InstanceState { counter: 10 };
+        let ours = InstanceState { counter: 20 };
+        let theirs = InstanceState { counter: 10 };
+        let result = three_way_merge(&base, &ours, &theirs);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().counter, 20);
+    }
+
+    #[test]
+    fn test_three_way_merge_both_changed_same() {
+        let base = InstanceState { counter: 10 };
+        let ours = InstanceState { counter: 20 };
+        let theirs = InstanceState { counter: 20 };
+        let result = three_way_merge(&base, &ours, &theirs);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().counter, 20);
+    }
+
+    #[test]
+    fn test_three_way_merge_conflict_both_add() {
+        let base = InstanceState { counter: 0 };
+        let ours = InstanceState { counter: 10 };
+        let theirs = InstanceState { counter: 20 };
+        let result = three_way_merge(&base, &ours, &theirs);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(
+            err,
+            MergeError::Conflict {
+                base: 0,
+                ours: 10,
+                theirs: 20
+            }
+        ));
+    }
+
+    #[test]
+    fn test_three_way_merge_conflict_both_modify() {
+        let base = InstanceState { counter: 10 };
+        let ours = InstanceState { counter: 20 };
+        let theirs = InstanceState { counter: 30 };
+        let result = three_way_merge(&base, &ours, &theirs);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(
+            err,
+            MergeError::Conflict {
+                base: 10,
+                ours: 20,
+                theirs: 30
+            }
+        ));
+    }
+
+    #[test]
+    fn test_three_way_merge_both_remove() {
+        let base = InstanceState { counter: 10 };
+        let ours = InstanceState { counter: 0 };
+        let theirs = InstanceState { counter: 0 };
+        let result = three_way_merge(&base, &ours, &theirs);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().counter, 0);
+    }
+
+    #[test]
+    fn test_three_way_merge_conflict_remove_vs_modify() {
+        let base = InstanceState { counter: 10 };
+        let ours = InstanceState { counter: 0 };
+        let theirs = InstanceState { counter: 20 };
+        let result = three_way_merge(&base, &ours, &theirs);
+        assert!(result.is_err());
     }
 }
