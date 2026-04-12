@@ -3,7 +3,12 @@
 //! This module defines types for managing NATS client connections in the veloxide
 //! distributed worker system.
 
-#![allow(dead_code, clippy::inherent_to_string, clippy::inherent_to_string_shadow_display, clippy::wrong_self_convention)]
+#![allow(
+    dead_code,
+    clippy::inherent_to_string,
+    clippy::inherent_to_string_shadow_display,
+    clippy::wrong_self_convention
+)]
 
 use std::fmt;
 
