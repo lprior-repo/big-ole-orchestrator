@@ -5,7 +5,6 @@
 //! `insert` on the same dedupe key while allowing independent keys to proceed
 //! in parallel.
 
-use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
 use parking_lot::Mutex;
@@ -17,9 +16,7 @@ const NUM_STRIPES: usize = 64;
 const PURGE_BATCH_SIZE: usize = 1024;
 
 fn stripe_for_key(key_bytes: &[u8]) -> usize {
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    key_bytes.hash(&mut hasher);
-    hasher.finish() as usize % NUM_STRIPES
+    crc32fast::hash(key_bytes) as usize % NUM_STRIPES
 }
 
 pub struct FjallDedupeStore {
