@@ -180,6 +180,96 @@ fn make_envelope(seq: u64) -> EventEnvelope {
     }
 }
 
+// ---- lineage_prefix_generator tests ----
+
+#[test]
+fn lineage_prefix_generator_returns_prefix_with_null_delimiters() {
+    let lineage_id = "wf-lineage-123";
+    let result = lineage_prefix_generator(lineage_id).expect("should succeed");
+    assert_eq!(result.len(), 1 + lineage_id.len() + 1);
+    assert_eq!(result[0], LINEAGE_ID_NULL_BYTE);
+    assert_eq!(result[result.len() - 1], LINEAGE_ID_NULL_BYTE);
+}
+
+#[test]
+fn lineage_prefix_generator_rejects_empty_lineage_id() {
+    let result = lineage_prefix_generator("");
+    assert_eq!(result, Err(StorageError::InvalidArgument));
+}
+
+#[test]
+fn lineage_prefix_generator_rejects_lineage_id_with_null_byte() {
+    let lineage_id = "wf\0lineage";
+    let result = lineage_prefix_generator(lineage_id);
+    assert_eq!(result, Err(StorageError::InvalidArgument));
+}
+
+#[test]
+fn lineage_prefix_generator_rejects_lineage_id_exceeding_max_len() {
+    let lineage_id = "x".repeat(LINEAGE_ID_MAX_LEN + 1);
+    let result = lineage_prefix_generator(&lineage_id);
+    assert_eq!(result, Err(StorageError::InvalidArgument));
+}
+
+#[test]
+fn lineage_prefix_generator_accepts_lineage_id_at_max_len() {
+    let lineage_id = "x".repeat(LINEAGE_ID_MAX_LEN);
+    let result = lineage_prefix_generator(&lineage_id);
+    assert!(result.is_ok());
+}
+
+// ---- epoch_prefix_generator tests ----
+
+#[test]
+fn epoch_prefix_generator_returns_prefix_with_lineage_and_epoch() {
+    let lineage_id = "wf-123";
+    let epoch = Epoch::new(5);
+    let result = epoch_prefix_generator(lineage_id, epoch).expect("should succeed");
+    let lineage_prefix = lineage_prefix_generator(lineage_id).expect("should succeed");
+    let epoch_bytes = epoch.0.to_be_bytes();
+    assert_eq!(result.len(), lineage_prefix.len() + 8);
+    assert!(result.starts_with(&lineage_prefix));
+    assert_eq!(&result[lineage_prefix.len()..], &epoch_bytes);
+}
+
+#[test]
+fn epoch_prefix_generator_zero_epoch_produces_valid_prefix() {
+    let lineage_id = "wf-zero";
+    let epoch = Epoch::ZERO;
+    let result = epoch_prefix_generator(lineage_id, epoch).expect("should succeed");
+    assert!(!result.is_empty());
+}
+
+// ---- LineageQuery tests ----
+
+#[test]
+fn lineage_query_instance_id_to_prefix_uses_instance_id_prefix() {
+    let id = InstanceId::from_bytes([0x01; 16]);
+    let query = LineageQuery::InstanceId(&id);
+    let prefix = query.to_prefix().expect("should succeed");
+    assert_eq!(prefix, id.as_str().as_bytes().to_vec());
+}
+
+#[test]
+fn lineage_query_lineage_wide_to_prefix_uses_lineage_prefix() {
+    let query = LineageQuery::LineageWide {
+        lineage_id: "wf-abc",
+    };
+    let prefix = query.to_prefix().expect("should succeed");
+    let expected = lineage_prefix_generator("wf-abc").expect("should succeed");
+    assert_eq!(prefix, expected);
+}
+
+#[test]
+fn lineage_query_epoch_specific_to_prefix_uses_epoch_prefix() {
+    let lineage_id = "wf-xyz";
+    let epoch = Epoch::new(3);
+    let query = LineageQuery::EpochSpecific { lineage_id, epoch };
+    let prefix = query.to_prefix().expect("should succeed");
+    let expected = epoch_prefix_generator(lineage_id, epoch).expect("should succeed");
+    assert_eq!(prefix, expected);
+}
+
 // ---- proptests ----
 
 proptest! {
@@ -192,5 +282,20 @@ proptest! {
     #[test]
     fn proptest_encode_key_never_returns_none_for_nonzero(seq in 1u64..) {
         prop_assert_eq!(encode_key(seq), Ok(seq.to_be_bytes()));
+    }
+
+    #[test]
+    fn proptest_lineage_prefix_roundtrip(lineage_id in "[a-z]{1,50}") {
+        let prefix = lineage_prefix_generator(&lineage_id).expect("valid");
+        prop_assert!(prefix.len() <= LINEAGE_ID_MAX_LEN + 2);
+    }
+
+    #[test]
+    fn proptest_epoch_prefix_includes_epoch_bytes(epoch_val in 0u64..1000u64) {
+        let lineage_id = "wf-test";
+        let epoch = Epoch::new(epoch_val);
+        let result = epoch_prefix_generator(lineage_id, epoch).expect("valid");
+        let epoch_bytes = epoch_val.to_be_bytes();
+        prop_assert!(result.ends_with(&epoch_bytes));
     }
 }
