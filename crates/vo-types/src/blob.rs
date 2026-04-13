@@ -115,6 +115,90 @@ impl BlobRef {
 }
 
 // ---------------------------------------------------------------------------
+// OutputPolicy — whether an output is required for replay or optional for UX
+// ---------------------------------------------------------------------------
+
+/// Policy determining whether a step output blob is required for replay.
+///
+/// Per ADR-040 §3 "Failure Semantics":
+/// - Required outputs: replay depends on them, blob failure blocks step completion
+/// - Optional outputs: only needed for operator UX, blob failure allows completion
+///   with only routing_projection (inline data)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum OutputPolicy {
+    /// Output is required for exact-once replay.
+    /// Blob failure prevents step completion (retry or fail per policy).
+    Required,
+    /// Output is only needed for operator UX, not required for replay.
+    /// Blob failure allows step completion with only inline routing data.
+    Optional,
+}
+
+impl OutputPolicy {
+    /// Returns true if this policy allows step completion when blob fails.
+    ///
+    /// Per ADR-040: Optional outputs permit completion with routing_projection
+    /// only when blob persistence fails.
+    #[must_use]
+    pub fn permits_completion_on_blob_failure(self) -> bool {
+        matches!(self, Self::Optional)
+    }
+
+    /// Returns true if replay requires this output to be durable.
+    #[must_use]
+    pub fn is_required_for_replay(self) -> bool {
+        matches!(self, Self::Required)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// BlobFailureAction — result of applying failure rules
+// ---------------------------------------------------------------------------
+
+/// Result of applying optional-output failure rules.
+///
+/// Per ADR-040 §3, when blob persistence fails:
+/// - If output is Required: step stays incomplete (retry or fail)
+/// - If output is Optional: step may complete with routing_projection only
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum BlobFailureAction {
+    /// Step must stay incomplete. Blob failure is blocking.
+    /// The step may be retried or failed according to retry policy.
+    BlockStep,
+    /// Step may complete with only inline routing data (no output_ref).
+    /// The blob failure is non-blocking because output is optional.
+    CompleteWithInline,
+}
+
+impl OutputPolicy {
+    /// Determine the failure action when a blob fails to persist.
+    ///
+    /// # Arguments
+    ///
+    /// * `blob_status` - The final status of the blob (typically `Failed`)
+    ///
+    /// # Returns
+    ///
+    /// * `BlobFailureAction::BlockStep` if blob is Required and failed
+    /// * `BlobFailureAction::CompleteWithInline` if blob is Optional and failed
+    ///
+    /// # Logic (per ADR-040 §3)
+    ///
+    /// - If blob persistence fails before publication and output is Required,
+    ///   the step stays incomplete and may be retried or failed.
+    /// - If blob is Optional for operator UX but not replay, the Engine may
+    ///   complete the step with only `routing_projection` and no `output_ref`.
+    #[must_use]
+    pub fn blob_failure_action(self, blob_status: BlobStatus) -> BlobFailureAction {
+        if blob_status == BlobStatus::Failed && self.permits_completion_on_blob_failure() {
+            BlobFailureAction::CompleteWithInline
+        } else {
+            BlobFailureAction::BlockStep
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // BlobStatus — lifecycle state of a blob
 // ---------------------------------------------------------------------------
 
@@ -736,5 +820,106 @@ mod tests {
         let a = OutputRef::inline(vec![1, 2]).expect("should construct");
         let b = OutputRef::inline(vec![3, 4]).expect("should construct");
         assert_ne!(a, b);
+    }
+
+    // =========================================================================
+    // OutputPolicy — ADR-040 §3 optional-output blob failure rules
+    // =========================================================================
+
+    #[test]
+    fn output_policy_optional_permits_completion_on_blob_failure() {
+        assert!(OutputPolicy::Optional.permits_completion_on_blob_failure());
+    }
+
+    #[test]
+    fn output_policy_required_blocks_completion_on_blob_failure() {
+        assert!(!OutputPolicy::Required.permits_completion_on_blob_failure());
+    }
+
+    #[test]
+    fn output_policy_required_is_required_for_replay() {
+        assert!(OutputPolicy::Required.is_required_for_replay());
+    }
+
+    #[test]
+    fn output_policy_optional_is_not_required_for_replay() {
+        assert!(!OutputPolicy::Optional.is_required_for_replay());
+    }
+
+    #[test]
+    fn output_policy_serde_roundtrips() {
+        let policies = [OutputPolicy::Required, OutputPolicy::Optional];
+        for policy in policies {
+            let json_str = serde_json::to_string(&policy).expect("serialize");
+            let recovered: OutputPolicy = serde_json::from_str(&json_str).expect("deserialize");
+            assert_eq!(policy, recovered);
+        }
+    }
+
+    // =========================================================================
+    // BlobFailureAction — ADR-040 §3 failure semantics
+    // =========================================================================
+
+    #[test]
+    fn required_output_blocks_step_on_blob_failure() {
+        let action = OutputPolicy::Required.blob_failure_action(BlobStatus::Failed);
+        assert_eq!(action, BlobFailureAction::BlockStep);
+    }
+
+    #[test]
+    fn optional_output_allows_inline_completion_on_blob_failure() {
+        let action = OutputPolicy::Optional.blob_failure_action(BlobStatus::Failed);
+        assert_eq!(action, BlobFailureAction::CompleteWithInline);
+    }
+
+    #[test]
+    fn non_failed_blob_status_blocks_step_regardless_of_policy() {
+        let statuses = [
+            BlobStatus::Pending,
+            BlobStatus::DurablyStored,
+            BlobStatus::Published,
+        ];
+        let policies = [OutputPolicy::Required, OutputPolicy::Optional];
+        for status in statuses {
+            for policy in policies {
+                let action = policy.blob_failure_action(status);
+                assert_eq!(
+                    action,
+                    BlobFailureAction::BlockStep,
+                    "Non-failed status {:?} should block step regardless of policy {:?}",
+                    status,
+                    policy
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn blob_failure_action_serde_roundtrips() {
+        let actions = [
+            BlobFailureAction::BlockStep,
+            BlobFailureAction::CompleteWithInline,
+        ];
+        for action in actions {
+            let json_str = serde_json::to_string(&action).expect("serialize");
+            let recovered: BlobFailureAction =
+                serde_json::from_str(&json_str).expect("deserialize");
+            assert_eq!(action, recovered);
+        }
+    }
+
+    // =========================================================================
+    // ADR-040 §3 Invariant: Replay never requires optional blob
+    // =========================================================================
+
+    #[test]
+    fn replay_never_requires_optional_blob() {
+        let optional_policy = OutputPolicy::Optional;
+        let failure_action = optional_policy.blob_failure_action(BlobStatus::Failed);
+        assert_eq!(
+            failure_action,
+            BlobFailureAction::CompleteWithInline,
+            "Optional blob failure must allow completion with inline data only"
+        );
     }
 }

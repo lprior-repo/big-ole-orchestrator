@@ -53,7 +53,9 @@ mod workflow;
 pub mod workspace;
 
 pub use binomial_heap::BinomialHeap;
-pub use blob::{BlobRef, BlobStatus, OutputRef, INLINED_MAX_BYTES};
+pub use blob::{
+    BlobFailureAction, BlobRef, BlobStatus, OutputPolicy, OutputRef, INLINED_MAX_BYTES,
+};
 pub use cartesian_tree::{CartesianNode, CartesianTree, CartesianTreeError};
 pub use clique_tree::{Clique, CliqueTree, CliqueTreeError};
 pub use command_envelope::{CommandEnvelope, CommandEnvelopeError, MAX_SUPPORTED_COMMAND_VERSION};
