@@ -415,9 +415,79 @@ mod tests {
     }
 
     #[test]
+    fn compute_next_state_stopping_child_stopped() {
+        let next = compute_next_state(
+            ActorLifecycleState::Stopping,
+            LifecycleTransition::ChildStopped,
+        );
+        assert_eq!(next, Some(ActorLifecycleState::Stopping));
+    }
+
+    #[test]
     fn compute_next_state_invalid_transition() {
         let next = compute_next_state(ActorLifecycleState::Stopped, LifecycleTransition::Start);
         assert_eq!(next, None);
+    }
+
+    #[test]
+    fn compute_next_state_terminal_states_reject_all_transitions() {
+        let terminal_states = [
+            ActorLifecycleState::Stopped,
+            ActorLifecycleState::Failed,
+        ];
+        let transitions = [
+            LifecycleTransition::Start,
+            LifecycleTransition::Stop,
+            LifecycleTransition::ChildStopped,
+            LifecycleTransition::AllChildrenStopped,
+            LifecycleTransition::Fail,
+        ];
+
+        for state in terminal_states {
+            for transition in transitions {
+                let next = compute_next_state(state, transition);
+                assert_eq!(next, None, "terminal state {state:?} should reject {transition:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn compute_next_state_pending_rejects_stop_and_child_transitions() {
+        assert_eq!(compute_next_state(ActorLifecycleState::Pending, LifecycleTransition::Stop), None);
+        assert_eq!(compute_next_state(ActorLifecycleState::Pending, LifecycleTransition::ChildStopped), None);
+        assert_eq!(compute_next_state(ActorLifecycleState::Pending, LifecycleTransition::AllChildrenStopped), None);
+    }
+
+    #[test]
+    fn compute_next_state_running_rejects_start_and_child_transitions() {
+        assert_eq!(compute_next_state(ActorLifecycleState::Running, LifecycleTransition::Start), None);
+        assert_eq!(compute_next_state(ActorLifecycleState::Running, LifecycleTransition::ChildStopped), None);
+        assert_eq!(compute_next_state(ActorLifecycleState::Running, LifecycleTransition::AllChildrenStopped), None);
+    }
+
+    #[test]
+    fn compute_next_state_stopping_rejects_start_and_stop() {
+        assert_eq!(compute_next_state(ActorLifecycleState::Stopping, LifecycleTransition::Start), None);
+        assert_eq!(compute_next_state(ActorLifecycleState::Stopping, LifecycleTransition::Stop), None);
+        assert_eq!(compute_next_state(ActorLifecycleState::Stopping, LifecycleTransition::Fail), None);
+    }
+
+    #[test]
+    fn is_valid_transition_terminal_states_always_false() {
+        for state in [ActorLifecycleState::Stopped, ActorLifecycleState::Failed] {
+            for transition in [
+                LifecycleTransition::Start,
+                LifecycleTransition::Stop,
+                LifecycleTransition::ChildStopped,
+                LifecycleTransition::AllChildrenStopped,
+                LifecycleTransition::Fail,
+            ] {
+                assert!(
+                    !is_valid_transition(state, transition),
+                    "{state:?} should reject {transition:?}"
+                );
+            }
+        }
     }
 
     #[test]
