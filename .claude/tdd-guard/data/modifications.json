@@ -1,12 +1,12 @@
 {
-  "session_id": "aa4c75f4-1f47-4378-9cbf-5ac053714fb3",
-  "transcript_path": "/home/lewis/.claude/projects/-home-lewis-gt-veloxide-polecats-thunder-veloxide/aa4c75f4-1f47-4378-9cbf-5ac053714fb3.jsonl",
+  "session_id": "591cf829-9974-45d8-8c07-5dbf6e74a7a8",
+  "transcript_path": "/home/lewis/.claude/projects/-home-lewis-gt-veloxide-polecats-thunder-veloxide/591cf829-9974-45d8-8c07-5dbf6e74a7a8.jsonl",
   "hook_event_name": "PreToolUse",
   "tool_name": "Edit",
   "tool_input": {
-    "file_path": "/home/lewis/gt/veloxide/polecats/thunder/veloxide/crates/vo-sdk/src/tests/dag_tests.rs",
-    "old_string": "#[test]\nfn edges_returns_all_edges_after_multiple_connects() {",
-    "new_string": "#[test]\nfn build_detects_self_loop() {\n    let mut dag = Dag::new();\n    let a: NodeHandle<i32, i32> = dag.add_node(\"a\", |_i: i32| -> i32 { 0 }).expect(\"valid\");\n    dag.connect(&a, &a).expect(\"a->a\");\n\n    let result = dag.build(\"self_loop_workflow\");\n    assert!(\n        matches!(result, Err(DagError::CycleDetected)),\n        \"should detect self-loop: {result:?}\"\n    );\n}\n\n#[test]\nfn edges_returns_all_edges_after_multiple_connects() {",
+    "file_path": "/home/lewis/gt/veloxide/polecats/thunder/veloxide/crates/vo-storage/src/key_partition/fjall_dek_store.rs",
+    "old_string": "    fn rotate_dek(&self, instance_id: &InstanceId, kek: &[u8; 32]) -> Result<DekId, DekStoreError> {\n        let old_dek_id = self.get_active_dek_id_internal(instance_id)?;\n\n        let old_dek_id = match old_dek_id {\n            Some(id) => id,\n            None => {\n                return Err(DekStoreError::DekNotFound {\n                    instance_id: instance_id.to_string(),\n                });\n            }\n        };\n\n        self.retire_dek_entry(&old_dek_id)?;\n\n        self.generate_and_store_dek(instance_id, kek)\n    }",
+    "new_string": "    fn rotate_dek(&self, instance_id: &InstanceId, kek: &[u8; 32]) -> Result<DekId, DekStoreError> {\n        let old_dek_id = self.get_active_dek_id_internal(instance_id)?;\n\n        let old_dek_id = match old_dek_id {\n            Some(id) => id,\n            None => {\n                return Err(DekStoreError::DekNotFound {\n                    instance_id: instance_id.to_string(),\n                });\n            }\n        };\n\n        self.retire_dek_entry(&old_dek_id)?;\n\n        // Clear the active index so generate_and_store_dek doesn't reject with DekAlreadyExists\n        let index_key = Self::encode_index_key(instance_id);\n        self.index_partition\n            .remove(&index_key)\n            .map_err(|e| DekStoreError::Storage {\n                reason: format!(\"failed to clear DEK index during rotation: {e}\"),\n            })?;\n\n        self.generate_and_store_dek(instance_id, kek)\n    }",
     "replace_all": false
   }
 }
