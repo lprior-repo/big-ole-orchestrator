@@ -5,6 +5,7 @@ pub mod envelope;
 pub mod error;
 pub mod metadata;
 pub mod payload;
+pub mod upcaster;
 
 #[cfg(test)]
 mod tests;
@@ -17,3 +18,4 @@ pub use envelope::EventEnvelope;
 pub use error::Error;
 pub use metadata::EventMetadata;
 pub use payload::EventPayload;
+pub use upcaster::{Upcaster, UpcasterError, VersionRegistry};
