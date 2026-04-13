@@ -41,9 +41,8 @@ pub enum WorkloadClassError {
 /// Workload classification per ADR-033 for resume fairness.
 ///
 /// Determines scheduling priority, permit reservation, and load-shedding
-/// behavior. Classes are ordered by dispatch priority: lower discriminant
-/// = higher priority.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Serialize, Deserialize, PartialOrd, Ord)]
+/// behavior. Classes are ordered by dispatch priority: lower rank = higher priority.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum WorkloadClass {
     /// Highest priority. Never starved by lower classes.
@@ -54,6 +53,18 @@ pub enum WorkloadClass {
     UnsafeBulk,
     /// Reserved capacity for crash recovery.
     Recovery,
+}
+
+impl PartialOrd for WorkloadClass {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for WorkloadClass {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.rank().cmp(&other.rank())
+    }
 }
 
 impl Default for WorkloadClass {
@@ -69,8 +80,8 @@ impl WorkloadClass {
         match self {
             WorkloadClass::ExactCritical => 0,
             WorkloadClass::Standard => 1,
-            WorkloadClass::UnsafeBulk => 2,
-            WorkloadClass::Recovery => 3,
+            WorkloadClass::Recovery => 2,
+            WorkloadClass::UnsafeBulk => 3,
         }
     }
 
@@ -152,7 +163,7 @@ impl WorkloadBudget {
 
     /// Creates a budget with per-class reserved permit counts.
     #[must_use]
-    pub fn new(exact_critical: u32, standard: u32, unsafe_bulk: u32, recovery: u32) -> Self {
+    pub fn new(exact_critical: u32, standard: u32, recovery: u32, unsafe_bulk: u32) -> Self {
         Self {
             reserved: [exact_critical, standard, recovery, unsafe_bulk],
             used: RefCell::new([0, 0, 0, 0]),
@@ -424,7 +435,7 @@ mod tests {
 
     #[test]
     fn budget_remaining_matches_initial() {
-        let budget = WorkloadBudget::new(10, 20, 5, 8);
+        let budget = WorkloadBudget::new(10, 20, 8, 5);
         assert_eq!(budget.remaining(WorkloadClass::ExactCritical), 10);
         assert_eq!(budget.remaining(WorkloadClass::Standard), 20);
         assert_eq!(budget.remaining(WorkloadClass::UnsafeBulk), 5);
@@ -433,14 +444,14 @@ mod tests {
 
     #[test]
     fn budget_acquire_deducts_permit() {
-        let budget = WorkloadBudget::new(10, 20, 5, 8);
+        let budget = WorkloadBudget::new(10, 20, 8, 5);
         budget.acquire(WorkloadClass::ExactCritical).unwrap();
         assert_eq!(budget.remaining(WorkloadClass::ExactCritical), 9);
     }
 
     #[test]
     fn budget_release_restores_permit() {
-        let budget = WorkloadBudget::new(10, 20, 5, 8);
+        let budget = WorkloadBudget::new(10, 20, 8, 5);
         budget.acquire(WorkloadClass::Standard).unwrap();
         budget.release(WorkloadClass::Standard);
         assert_eq!(budget.remaining(WorkloadClass::Standard), 20);
@@ -470,7 +481,7 @@ mod tests {
 
     #[test]
     fn budget_total_reserved_and_used() {
-        let budget = WorkloadBudget::new(10, 20, 5, 8);
+        let budget = WorkloadBudget::new(10, 20, 8, 5);
         assert_eq!(budget.total_reserved(), 43);
         assert_eq!(budget.total_used(), 0);
         budget.acquire(WorkloadClass::ExactCritical).unwrap();
@@ -479,7 +490,7 @@ mod tests {
 
     #[test]
     fn budget_reserved_for() {
-        let budget = WorkloadBudget::new(10, 20, 5, 8);
+        let budget = WorkloadBudget::new(10, 20, 8, 5);
         assert_eq!(budget.reserved_for(WorkloadClass::ExactCritical), 10);
     }
 
