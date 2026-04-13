@@ -1631,7 +1631,7 @@ mod sql_injection_tests {
         }
 
         for (id, _) in &dangerous_queries {
-            let reconcile = c.reconcile(*id).await.unwrap();
+            let reconcile = c.reconcile(id).await.unwrap();
             assert!(matches!(reconcile, ReconcileOutcome::Committed { .. }));
         }
     }
