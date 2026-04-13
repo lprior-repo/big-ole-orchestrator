@@ -142,7 +142,7 @@ pub fn apply_redaction(
             return false;
         }
         let mut cpi = 0;
-        for (i, rp) in rule_path.iter().enumerate() {
+        for rp in rule_path.iter() {
             while cpi < current_path.len() && current_path[cpi].parse::<usize>().is_ok() {
                 cpi += 1;
             }
@@ -180,7 +180,9 @@ pub fn apply_redaction(
                         )
                     };
 
-                    if !was_redacted || new_val != serde_json::Value::Null {
+                    if was_redacted {
+                        result.insert(key.clone(), new_val);
+                    } else if new_val != serde_json::Value::Null {
                         result.insert(key.clone(), new_val);
                     }
 
@@ -403,11 +405,19 @@ mod tests {
             }
         });
         let rules = vec![RedactionRule::new(
-            vec!["level1".into(), "level2".into(), "level3".into(), "secret".into()],
+            vec![
+                "level1".into(),
+                "level2".into(),
+                "level3".into(),
+                "secret".into(),
+            ],
             RedactionKind::Remove,
         )];
         let (result, redacted) = apply_redaction(&value, &rules);
-        assert_eq!(result["level1"]["level2"]["level3"]["secret"], serde_json::Value::Null);
+        assert_eq!(
+            result["level1"]["level2"]["level3"]["secret"],
+            serde_json::Value::Null
+        );
         assert_eq!(redacted.len(), 1);
     }
 
@@ -420,7 +430,10 @@ mod tests {
         let rules = vec![
             RedactionRule::new(vec!["user".into(), "ssn".into()], RedactionKind::Remove),
             RedactionRule::new(vec!["user".into(), "email".into()], RedactionKind::Hash),
-            RedactionRule::new(vec!["payment".into(), "card".into()], RedactionKind::ReplaceWith("[REDACTED]".into())),
+            RedactionRule::new(
+                vec!["payment".into(), "card".into()],
+                RedactionKind::ReplaceWith("[REDACTED]".into()),
+            ),
             RedactionRule::new(vec!["payment".into(), "cvv".into()], RedactionKind::Remove),
         ];
         let (result, redacted) = apply_redaction(&value, &rules);
@@ -428,7 +441,10 @@ mod tests {
         assert_eq!(result["user"]["name"], "Alice");
         // Sensitive fields redacted
         assert_eq!(result["user"]["ssn"], serde_json::Value::Null);
-        assert!(result["user"]["email"].as_str().unwrap().starts_with("HASH"));
+        assert!(result["user"]["email"]
+            .as_str()
+            .unwrap()
+            .starts_with("HASH"));
         assert_eq!(result["payment"]["card"], "[REDACTED]");
         assert_eq!(result["payment"]["cvv"], serde_json::Value::Null);
         assert_eq!(redacted.len(), 4);
