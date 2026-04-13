@@ -528,11 +528,11 @@ pub fn encode_pack_index_entry(entry: &PackIndexEntry) -> Result<Vec<u8>, BlobSt
 ///
 /// # Errors
 ///
-/// Returns `BlobStoreError::DeserializationFailed` if the bytes are not valid JSON
+/// Returns `BlobStoreError::CorruptPackIndex` if the bytes are not valid JSON
 /// or do not represent a valid `PackIndexEntry`.
 pub fn decode_pack_index_entry(bytes: &[u8]) -> Result<PackIndexEntry, BlobStoreError> {
-    serde_json::from_slice(bytes).map_err(|e| BlobStoreError::DeserializationFailed {
-        reason: e.to_string(),
+    serde_json::from_slice(bytes).map_err(|e| BlobStoreError::CorruptPackIndex {
+        reason: format!("JSON parse error: {e}"),
     })
 }
 
@@ -1213,7 +1213,7 @@ mod tests {
         let result = decode_pack_index_entry(&invalid_json);
         assert!(result.is_err());
         let err = result.unwrap_err();
-        assert!(matches!(err, BlobStoreError::DeserializationFailed { .. }));
+        assert!(matches!(err, BlobStoreError::CorruptPackIndex { .. }));
     }
 
     #[test]
