@@ -170,7 +170,7 @@ pub fn record_failure(
 /// - `CircuitBreakerError::StorageError` if Fjall write fails
 pub fn unquarantine(
     workflow_name: &WorkflowName,
-    operator: &str,
+    _operator: &str,
     state: &CircuitBreakerState,
 ) -> Result<UnquarantineResult, CircuitBreakerError> {
     let _guard = state.lock_status();
