@@ -25,6 +25,8 @@ use vo_types::{DekId, InstanceId, KeyMetadata, WrappedDek};
 
 #[cfg(all(test, feature = "proptest"))]
 mod proptests;
+#[cfg(test)]
+mod tests;
 
 mod fjall_dek_store;
 
@@ -196,9 +198,7 @@ pub fn decode_instance_key(bytes: &[u8]) -> Result<InstanceId, DekStoreError> {
 /// Encode a `DekEntry` to JSON bytes for storage.
 #[must_use]
 pub fn encode_dek_entry(entry: &DekEntry) -> Vec<u8> {
-    #[allow(clippy::unwrap_used)]
-    let result = serde_json::to_vec(entry).unwrap();
-    result
+    serde_json::to_vec(entry).expect("DekEntry should always be serializable")
 }
 
 /// Decode JSON bytes into a `DekEntry`.
