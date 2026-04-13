@@ -31,6 +31,16 @@ impl MockTimerStorage {
         }
     }
 
+    /// Creates a new empty MockTimerStorage.
+    pub fn empty() -> Self {
+        Self::new(Vec::new())
+    }
+
+    /// Adds a timer to the storage.
+    pub async fn add_timer(&self, timer: TimerRecord) {
+        self.timers.lock().await.push_back(timer);
+    }
+
     /// Sets whether operations should fail.
     pub async fn set_should_fail(&self, should_fail: bool) {
         *self.should_fail.lock().await = should_fail;
