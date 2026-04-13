@@ -61,6 +61,9 @@ pub fn step_behavior(step_id: &str) -> StepBehavior {
     if step_id.starts_with("step-") && step_id[5..].chars().all(|c| c.is_ascii_digit()) {
         return StepBehavior::Success;
     }
+    if step_id.starts_with("workflow-step-") && step_id[14..].chars().all(|c| c.is_ascii_digit()) {
+        return StepBehavior::Success;
+    }
     if step_id.starts_with("leak-step-") && step_id[10..].chars().all(|c| c.is_ascii_digit()) {
         return StepBehavior::Success;
     }
@@ -72,6 +75,49 @@ pub fn step_behavior(step_id: &str) -> StepBehavior {
     }
     if step_id.starts_with("concurrent-leak-") && step_id[16..].chars().all(|c| c.is_ascii_digit())
     {
+        return StepBehavior::Success;
+    }
+    if step_id.starts_with("warm-") && step_id[5..].chars().all(|c| c.is_ascii_digit() || c == '-')
+    {
+        return StepBehavior::Success;
+    }
+    if step_id.starts_with("bench-state-read-") && step_id[17..].chars().all(|c| c.is_ascii_digit())
+    {
+        return StepBehavior::Success;
+    }
+    if step_id.starts_with("growth-")
+        && step_id[7..].chars().all(|c| c.is_ascii_digit() || c == '-')
+    {
+        return StepBehavior::Success;
+    }
+    if step_id.starts_with("cold-start-")
+        && step_id[11..]
+            .chars()
+            .all(|c| c.is_ascii_digit() || c == '-')
+    {
+        return StepBehavior::Success;
+    }
+    if step_id.starts_with("error-") && step_id[6..].chars().all(|c| c.is_ascii_digit() || c == '-')
+    {
+        return StepBehavior::Success;
+    }
+    if step_id.starts_with("batch-") && step_id[6..].chars().all(|c| c.is_ascii_digit() || c == '-')
+    {
+        return StepBehavior::Success;
+    }
+    if step_id.starts_with("mixed-") && step_id[6..].chars().all(|c| c.is_ascii_digit() || c == '-')
+    {
+        return StepBehavior::Success;
+    }
+    if step_id.starts_with("retry-") && step_id[6..].chars().all(|c| c.is_ascii_digit() || c == '-')
+    {
+        return StepBehavior::Success;
+    }
+    if step_id.starts_with("write-") && step_id[6..].chars().all(|c| c.is_ascii_digit() || c == '-')
+    {
+        return StepBehavior::Success;
+    }
+    if step_id.starts_with("read-") && step_id[5..].chars().all(|c| c.is_ascii_digit()) {
         return StepBehavior::Success;
     }
     if step_id.starts_with("transient-step-") && step_id[15..].chars().all(|c| c.is_ascii_digit()) {
