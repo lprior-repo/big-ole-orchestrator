@@ -332,7 +332,10 @@ impl BackpressureSignal {
                 depth,
                 capacity,
             };
-            *self.last_event.lock().unwrap() = Some(event);
+            #[expect(clippy::unwrap_used)]
+            {
+                *self.last_event.lock().unwrap() = Some(event);
+            }
         }
     }
 
@@ -349,7 +352,10 @@ impl BackpressureSignal {
                 class,
                 remaining_capacity,
             };
-            *self.last_event.lock().unwrap() = Some(event);
+            #[expect(clippy::unwrap_used)]
+            {
+                *self.last_event.lock().unwrap() = Some(event);
+            }
         }
     }
 

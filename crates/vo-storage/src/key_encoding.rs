@@ -181,7 +181,9 @@ pub fn decode_event_key(bytes: &[u8]) -> Result<(InstanceId, SequenceNumber), Ke
             actual: bytes.len(),
         });
     }
+    #[expect(clippy::unwrap_used)]
     let iid_bytes: [u8; 16] = bytes[..16].try_into().unwrap();
+    #[expect(clippy::unwrap_used)]
     let seq_bytes: [u8; 8] = bytes[16..24].try_into().unwrap();
     let instance_id = InstanceId::from_bytes(iid_bytes);
     let sequence = SequenceNumber::try_from(u64::from_be_bytes(seq_bytes))
@@ -205,7 +207,9 @@ pub fn decode_timer_key(bytes: &[u8]) -> Result<(u64, InstanceId), KeyEncodingEr
             actual: bytes.len(),
         });
     }
+    #[expect(clippy::unwrap_used)]
     let ts_bytes: [u8; 8] = bytes[..8].try_into().unwrap();
+    #[expect(clippy::unwrap_used)]
     let iid_bytes: [u8; 16] = bytes[8..24].try_into().unwrap();
     Ok((
         u64::from_be_bytes(ts_bytes),
@@ -287,7 +291,9 @@ pub fn decode_effect_key(bytes: &[u8]) -> Result<(InstanceId, SequenceNumber), K
             actual: bytes.len(),
         });
     }
+    #[expect(clippy::unwrap_used)]
     let iid_bytes: [u8; 16] = bytes[..16].try_into().unwrap();
+    #[expect(clippy::unwrap_used)]
     let seq_bytes: [u8; 8] = bytes[16..24].try_into().unwrap();
     let instance_id = InstanceId::from_bytes(iid_bytes);
     let sequence = SequenceNumber::try_from(u64::from_be_bytes(seq_bytes))
