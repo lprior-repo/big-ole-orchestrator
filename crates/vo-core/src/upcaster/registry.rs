@@ -52,7 +52,7 @@ impl UpcasterRegistry for UpcasterRegistryImpl {
     /// Returns `UpcasterError::InvalidTargetVersion` if the source version exceeds
     /// the maximum supported version.
     ///
-    /// Returns `UpcasterError::NoUpcasterRegistered` if an upcaster is already
+    /// Returns `UpcasterError::DuplicateRegistration` if an upcaster is already
     /// registered for the given source version.
     fn register(&self, upcaster: Box<dyn Upcaster>) -> Result<(), UpcasterError> {
         let source_version = upcaster.source_version();
@@ -69,7 +69,7 @@ impl UpcasterRegistry for UpcasterRegistryImpl {
             .map_err(|_| UpcasterError::UpcastingFailed("lock poisoned".to_string()))?;
 
         if upcasters.contains_key(&source_version) {
-            return Err(UpcasterError::NoUpcasterRegistered(source_version));
+            return Err(UpcasterError::DuplicateRegistration(source_version));
         }
 
         upcasters.insert(source_version, upcaster);

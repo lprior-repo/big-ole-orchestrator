@@ -204,7 +204,7 @@ impl UpcasterRegistry for TestUpcasterRegistry {
             .map_err(|_| UpcasterError::UpcastingFailed("lock poisoned".to_string()))?;
 
         if upcasters.contains_key(&source_version) {
-            return Err(UpcasterError::NoUpcasterRegistered(source_version));
+            return Err(UpcasterError::DuplicateRegistration(source_version));
         }
 
         upcasters.insert(source_version, upcaster);
@@ -490,7 +490,7 @@ fn registry_rejects_duplicate_upcaster_when_same_version_registered_twice() {
     let result2 = registry.register(upcaster2);
     assert_eq!(
         result2,
-        Err(UpcasterError::NoUpcasterRegistered(0)),
+        Err(UpcasterError::DuplicateRegistration(0)),
         "second registration of same version should be rejected"
     );
 }
@@ -780,7 +780,7 @@ fn idempotent_registration_does_not_double_chain() {
     let result2 = registry.register(Version0To1Upcaster::new());
     assert_eq!(
         result2,
-        Err(UpcasterError::NoUpcasterRegistered(0)),
+        Err(UpcasterError::DuplicateRegistration(0)),
         "second registration of same version should fail"
     );
 
