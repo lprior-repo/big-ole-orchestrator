@@ -137,6 +137,23 @@ pub fn apply_redaction(
 ) -> (serde_json::Value, Vec<Vec<String>>) {
     let mut redacted_fields = Vec::new();
 
+    fn matches_rule(current_path: &[String], rule_path: &[String]) -> bool {
+        if rule_path.len() > current_path.len() {
+            return false;
+        }
+        let mut cpi = 0;
+        for (i, rp) in rule_path.iter().enumerate() {
+            while cpi < current_path.len() && current_path[cpi].parse::<usize>().is_ok() {
+                cpi += 1;
+            }
+            if cpi >= current_path.len() || &current_path[cpi] != rp {
+                return false;
+            }
+            cpi += 1;
+        }
+        true
+    }
+
     fn apply_recursive(
         value: &serde_json::Value,
         rules: &[RedactionRule],
@@ -149,7 +166,9 @@ pub fn apply_redaction(
                 for (key, val) in obj {
                     current_path.push(key.clone());
 
-                    let rule = rules.iter().find(|r| r.field_path == *current_path);
+                    let rule = rules
+                        .iter()
+                        .find(|r| matches_rule(current_path, &r.field_path));
 
                     let (new_val, was_redacted) = if let Some(r) = rule {
                         redacted_fields.push(r.field_path.clone());
