@@ -228,12 +228,26 @@ pub trait EffectJournal {
         &self,
         instance_id: &InstanceId,
     ) -> Result<Vec<EffectRecord>, EffectJournalError>;
+
+    /// Compact the journal by removing terminal effects older than the given timestamp.
+    ///
+    /// Removes all effect records where:
+    /// - The effect is in a terminal state (`Committed` or `RolledBack`)
+    /// - The `committed_at` timestamp is less than `older_than`
+    ///
+    /// Returns the number of records removed.
+    ///
+    /// # Errors
+    ///
+    /// Returns `EffectJournalError::Storage` if the underlying storage fails.
+    fn compact(&self, older_than: vo_types::TimestampMs) -> Result<usize, EffectJournalError>;
 }
 
 // ---------------------------------------------------------------------------
 // Test infrastructure
 // ---------------------------------------------------------------------------
 
+mod fjall_journal;
 #[cfg(test)]
 mod in_memory_journal;
 #[cfg(test)]
