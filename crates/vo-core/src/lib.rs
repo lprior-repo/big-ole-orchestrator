@@ -18,6 +18,7 @@ pub mod upcaster;
 pub mod vault;
 pub mod workflow_version;
 pub mod workspace_swap;
+pub mod workload_class;
 pub mod write_class;
 
 #[cfg(kani)]
