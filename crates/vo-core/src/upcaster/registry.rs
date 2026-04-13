@@ -56,11 +56,10 @@ impl UpcasterRegistry for UpcasterRegistryImpl {
     /// registered for the given source version.
     fn register(&self, upcaster: Box<dyn Upcaster>) -> Result<(), UpcasterError> {
         let source_version = upcaster.source_version();
+        let target_version = upcaster.target_version();
 
-        // Reject upcasters whose source version is at or above max
-        // (since upcasters produce source_version + 1, this would exceed max)
-        if source_version >= self.max_version {
-            return Err(UpcasterError::InvalidTargetVersion(source_version));
+        if target_version > self.max_version {
+            return Err(UpcasterError::InvalidTargetVersion(target_version));
         }
 
         let mut upcasters = self
@@ -130,7 +129,7 @@ fn build_upcast_chain(
         let upcaster = get_upcaster_for_version(upcasters, current_version)?;
         chain.push((current_version, upcaster));
         visited.insert(current_version, true);
-        current_version = upcaster.source_version() + 1;
+        current_version = upcaster.target_version();
     }
 
     Ok(chain)

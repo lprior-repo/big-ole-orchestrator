@@ -53,6 +53,9 @@ impl Upcaster for PassthroughUpcaster {
     fn source_version(&self) -> u8 {
         self.from
     }
+    fn target_version(&self) -> u8 {
+        self.to
+    }
     fn upcast(&self, input: &[u8]) -> Result<Vec<u8>, UpcasterError> {
         let mut value: serde_json::Value = serde_json::from_slice(input)
             .map_err(|e| UpcasterError::UpcastingFailed(e.to_string()))?;
@@ -290,7 +293,7 @@ fn registry_rejects_upcaster_at_max_version() {
     let registry = UpcasterRegistryImpl::new(1);
     let result = registry.register(Box::new(PassthroughUpcaster::new(1, 2)));
     assert!(result.is_err(), "Should reject upcaster at max version");
-    assert_eq!(result.unwrap_err(), UpcasterError::InvalidTargetVersion(1));
+    assert_eq!(result.unwrap_err(), UpcasterError::InvalidTargetVersion(2));
 }
 
 #[test]
