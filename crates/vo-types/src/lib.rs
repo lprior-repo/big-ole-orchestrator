@@ -42,6 +42,7 @@ pub mod proptest_verifier;
 mod registration_status;
 mod rope;
 pub mod signal;
+pub mod security_validation_tests;
 pub mod skew_heap;
 mod spqr_tree;
 pub mod state;
