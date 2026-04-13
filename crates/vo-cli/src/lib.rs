@@ -23,6 +23,7 @@ pub mod lint_targets;
 pub mod middleware;
 pub mod parse;
 pub mod registry;
+pub mod utils;
 
 pub use cli::{interpret_cli_from, map_error_to_exit_code, Cli, CliError, Command};
 pub use commands::check::{

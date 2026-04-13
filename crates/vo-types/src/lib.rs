@@ -5,12 +5,13 @@ pub mod cartesian_tree;
 mod clique_tree;
 mod command_envelope;
 pub mod command_history;
-mod command_metadata;
+pub mod command_metadata;
 mod compensation;
 pub mod connection_pool;
 mod connector;
 pub mod credentials;
 mod dedupe;
+mod macros;
 #[cfg(test)]
 mod dedupe_tests;
 mod dependency_graph_resolver;

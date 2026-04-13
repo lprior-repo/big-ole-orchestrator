@@ -1,32 +1,10 @@
-use std::fmt;
-
 use serde::{Deserialize, Serialize};
 
+use crate::string_newtype;
 use crate::types::{
     check_identifier_boundaries, extract_invalid_chars, is_identifier_char, is_lowercase_hex,
 };
 use crate::ParseError;
-
-macro_rules! string_newtype {
-    ($name:ident) => {
-        impl fmt::Display for $name {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                f.write_str(&self.0)
-            }
-        }
-        impl TryFrom<String> for $name {
-            type Error = ParseError;
-            fn try_from(value: String) -> Result<Self, Self::Error> {
-                Self::parse(&value)
-            }
-        }
-        impl From<$name> for String {
-            fn from(value: $name) -> String {
-                value.0
-            }
-        }
-    };
-}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]

@@ -2,6 +2,8 @@ use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
+use crate::utils::file_hash;
+
 /// Category of health check.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CheckCategory {
@@ -102,21 +104,6 @@ impl DoctorReport {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-fn file_hash(path: &Path) -> Result<String, std::io::Error> {
-    use std::io::Read;
-    let mut file = std::fs::File::open(path)?;
-    let mut hasher = Sha256::new();
-    let mut buf = [0u8; 8192];
-    loop {
-        let n = file.read(&mut buf)?;
-        if n == 0 {
-            break;
-        }
-        hasher.update(&buf[..n]);
-    }
-    Ok(format!("{:x}", hasher.finalize()))
-}
 
 fn parse_lockfile(content: &str) -> BTreeMap<String, String> {
     content

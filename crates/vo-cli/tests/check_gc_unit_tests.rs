@@ -12,15 +12,12 @@ use vo_cli::commands::check::{
 use vo_cli::commands::gc::{
     delete_version_dir, find_unpinned_directories, run_gc, GcConfig, GcError,
 };
+use vo_cli::utils::sha256_hex;
 
 fn create_file_with_bytes(dir: &Path, name: &str, bytes: &[u8]) -> PathBuf {
     let path = dir.join(name);
     fs::write(&path, bytes).expect("write failed");
     path
-}
-
-fn sha256_hex(seed: &str) -> String {
-    format!("{:0<64}", seed)
 }
 
 fn create_versions_dir(entries: &[&str]) -> tempfile::TempDir {
