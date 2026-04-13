@@ -23,5 +23,5 @@ pub use execution::{
 };
 pub use runtime::{ContextError, Runtime, RuntimeError, StepContext};
 pub use scheduler::{Job, JobId, JobPriority, JobResult, Schedule, SchedulerConfig};
-pub use state::{clear_error, reset_all_state, set_error};
+pub use state::{clear_error, get_error_count, get_state_count, reset_all_state, set_error};
 pub use types::{ExecutionStatus, RetryPolicy, StepId, StepResult};

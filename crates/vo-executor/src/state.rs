@@ -58,6 +58,25 @@ pub fn set_error(step_id: &str, err: ExecuteNodeError) {
 
 /// **NOTE:** This is test infrastructure that simulates workflow step behavior.
 pub fn step_behavior(step_id: &str) -> StepBehavior {
+    if step_id.starts_with("step-") && step_id[5..].chars().all(|c| c.is_ascii_digit()) {
+        return StepBehavior::Success;
+    }
+    if step_id.starts_with("leak-step-") && step_id[10..].chars().all(|c| c.is_ascii_digit()) {
+        return StepBehavior::Success;
+    }
+    if step_id.starts_with("sustained-") && step_id[10..].contains('-') {
+        let suffix = &step_id[step_id.rfind('-').map_or(10, |p| p + 1)..];
+        if suffix.chars().all(|c| c.is_ascii_digit()) {
+            return StepBehavior::Success;
+        }
+    }
+    if step_id.starts_with("concurrent-leak-") && step_id[16..].chars().all(|c| c.is_ascii_digit())
+    {
+        return StepBehavior::Success;
+    }
+    if step_id.starts_with("transient-step-") && step_id[14..].chars().all(|c| c.is_ascii_digit()) {
+        return StepBehavior::Transient;
+    }
     match step_id {
         "step-1" | "step-good" | "step-valid" | "step-retry" | "workflow-step-1" => {
             StepBehavior::Success
@@ -87,6 +106,17 @@ pub fn get_last_error(step_id: &str) -> Option<ExecuteNodeError> {
 pub fn reset_all_state() {
     STATE.clear();
     LAST_ERROR.clear();
+}
+
+/// Get the current count of entries in the STATE map.
+/// Useful for detecting memory leaks under sustained load.
+pub fn get_state_count() -> usize {
+    STATE.len()
+}
+
+/// Get the current count of entries in the LAST_ERROR map.
+pub fn get_error_count() -> usize {
+    LAST_ERROR.len()
 }
 
 #[cfg(test)]
