@@ -88,7 +88,7 @@ fn make_event_with_version(
 
 fn make_envelope_json(schema_version: u8, payload_type: &str, workflow_id: &str) -> String {
     format!(
-        r#"{{"version": {schema_version}, "instance_id": "inst-1", "sequence": 1, "timestamp_ms": 1000, "payload": {{"type": "{payload_type}", "workflow_id": "{workflow_id}", "binary_hash": "sha256abc", "version": {schema_version}}}, "metadata": {{}}}}"#
+        r#"{{"version": {schema_version}, "instance_id": "inst-1", "sequence": 1, "timestamp_ms": 1000, "payload": {{"type": "{payload_type}", "workflow_id": "{workflow_id}", "binary_hash": "sha256abc", "workflow_version_hash": "vhash", "dedupe_key_hash": null, "version": {schema_version}}}, "metadata": {{}}}}"#
     )
 }
 
@@ -217,7 +217,7 @@ fn decode_event_rejects_future_version_above_max_supported() {
 
 #[test]
 fn v0_payload_decodes_with_default_version_when_missing_version() {
-    let json = r#"{"version": 0, "instance_id": "inst-1", "sequence": 1, "timestamp_ms": 1000, "payload": {"type": "WorkflowStarted", "workflow_id": "wf-1", "binary_hash": "abc"}, "metadata": {}}"#;
+    let json = r#"{"version": 0, "instance_id": "inst-1", "sequence": 1, "timestamp_ms": 1000, "payload": {"type": "WorkflowStarted", "workflow_id": "wf-1", "binary_hash": "abc", "workflow_version_hash": "vhash", "dedupe_key_hash": null}, "metadata": {}}"#;
     let result = decode_event(json.as_bytes());
     assert!(
         result.is_ok(),
@@ -227,21 +227,21 @@ fn v0_payload_decodes_with_default_version_when_missing_version() {
 
 #[test]
 fn payload_version_zero_is_accepted() {
-    let json = r#"{"version": 0, "instance_id": "inst-1", "sequence": 1, "timestamp_ms": 1000, "payload": {"type": "WorkflowStarted", "workflow_id": "wf-1", "binary_hash": "abc", "version": 0}, "metadata": {}}"#;
+    let json = r#"{"version": 0, "instance_id": "inst-1", "sequence": 1, "timestamp_ms": 1000, "payload": {"type": "WorkflowStarted", "workflow_id": "wf-1", "binary_hash": "abc", "workflow_version_hash": "vhash", "dedupe_key_hash": null, "version": 0}, "metadata": {}}"#;
     let result = decode_event(json.as_bytes());
     assert!(result.is_ok(), "Payload v0 should decode: {result:?}");
 }
 
 #[test]
 fn payload_version_one_is_accepted() {
-    let json = r#"{"version": 1, "instance_id": "inst-1", "sequence": 1, "timestamp_ms": 1000, "payload": {"type": "WorkflowStarted", "workflow_id": "wf-1", "binary_hash": "abc", "version": 1}, "metadata": {}}"#;
+    let json = r#"{"version": 1, "instance_id": "inst-1", "sequence": 1, "timestamp_ms": 1000, "payload": {"type": "WorkflowStarted", "workflow_id": "wf-1", "binary_hash": "abc", "workflow_version_hash": "vhash", "dedupe_key_hash": null, "version": 1}, "metadata": {}}"#;
     let result = decode_event(json.as_bytes());
     assert!(result.is_ok(), "Payload v1 should decode: {result:?}");
 }
 
 #[test]
 fn payload_missing_version_defaults_to_zero() {
-    let json = r#"{"version": 1, "instance_id": "inst-1", "sequence": 1, "timestamp_ms": 1000, "payload": {"type": "WorkflowStarted", "workflow_id": "wf-1", "binary_hash": "abc"}, "metadata": {}}"#;
+    let json = r#"{"version": 1, "instance_id": "inst-1", "sequence": 1, "timestamp_ms": 1000, "payload": {"type": "WorkflowStarted", "workflow_id": "wf-1", "binary_hash": "abc", "workflow_version_hash": "vhash", "dedupe_key_hash": null}, "metadata": {}}"#;
     let result = decode_event(json.as_bytes());
     assert!(
         result.is_ok(),
@@ -606,7 +606,7 @@ fn all_payload_types_decode_from_v0_envelope() {
     let payloads: Vec<(&str, serde_json::Value)> = vec![
         (
             "WorkflowStarted",
-            serde_json::json!({"type": "WorkflowStarted", "workflow_id": "wf-1", "binary_hash": "abc", "version": 0}),
+            serde_json::json!({"type": "WorkflowStarted", "workflow_id": "wf-1", "binary_hash": "abc", "workflow_version_hash": "vhash", "dedupe_key_hash": null, "version": 0}),
         ),
         (
             "WorkflowCompleted",
@@ -622,7 +622,7 @@ fn all_payload_types_decode_from_v0_envelope() {
         ),
         (
             "StepScheduled",
-            serde_json::json!({"type": "StepScheduled", "workflow_id": "wf-1", "step_id": "s1", "attempt": 1, "execution_id": "e1", "version": 0}),
+            serde_json::json!({"type": "StepScheduled", "workflow_id": "wf-1", "step_id": "s1", "attempt": 1, "fence": 1, "execution_id": "e1", "version": 0}),
         ),
         (
             "StepStarted",
@@ -630,11 +630,11 @@ fn all_payload_types_decode_from_v0_envelope() {
         ),
         (
             "StepCompleted",
-            serde_json::json!({"type": "StepCompleted", "workflow_id": "wf-1", "step_id": "s1", "completed_at_ms": 200, "version": 0}),
+            serde_json::json!({"type": "StepCompleted", "workflow_id": "wf-1", "step_id": "s1", "completed_at_ms": 200, "attempt": 1, "fence": 1, "routing_projection": null, "output_ref": null, "output_hash": null, "version": 0}),
         ),
         (
             "StepFailed",
-            serde_json::json!({"type": "StepFailed", "workflow_id": "wf-1", "step_id": "s1", "failure_reason": "err", "attempt": 1, "version": 0}),
+            serde_json::json!({"type": "StepFailed", "workflow_id": "wf-1", "step_id": "s1", "failure_reason": "err", "attempt": 1, "fence": 1, "version": 0}),
         ),
         (
             "TimerSet",
@@ -680,7 +680,7 @@ fn all_payload_types_decode_from_v1_envelope() {
     let payloads: Vec<(&str, serde_json::Value)> = vec![
         (
             "WorkflowStarted",
-            serde_json::json!({"type": "WorkflowStarted", "workflow_id": "wf-1", "binary_hash": "abc", "version": 1}),
+            serde_json::json!({"type": "WorkflowStarted", "workflow_id": "wf-1", "binary_hash": "abc", "workflow_version_hash": "vhash", "dedupe_key_hash": null, "version": 1}),
         ),
         (
             "WorkflowCompleted",
@@ -696,7 +696,7 @@ fn all_payload_types_decode_from_v1_envelope() {
         ),
         (
             "StepScheduled",
-            serde_json::json!({"type": "StepScheduled", "workflow_id": "wf-1", "step_id": "s1", "attempt": 1, "execution_id": "e1", "version": 1}),
+            serde_json::json!({"type": "StepScheduled", "workflow_id": "wf-1", "step_id": "s1", "attempt": 1, "fence": 1, "execution_id": "e1", "version": 1}),
         ),
         (
             "StepStarted",
@@ -704,11 +704,11 @@ fn all_payload_types_decode_from_v1_envelope() {
         ),
         (
             "StepCompleted",
-            serde_json::json!({"type": "StepCompleted", "workflow_id": "wf-1", "step_id": "s1", "completed_at_ms": 200, "version": 1}),
+            serde_json::json!({"type": "StepCompleted", "workflow_id": "wf-1", "step_id": "s1", "completed_at_ms": 200, "attempt": 1, "fence": 1, "routing_projection": null, "output_ref": null, "output_hash": null, "version": 1}),
         ),
         (
             "StepFailed",
-            serde_json::json!({"type": "StepFailed", "workflow_id": "wf-1", "step_id": "s1", "failure_reason": "err", "attempt": 1, "version": 1}),
+            serde_json::json!({"type": "StepFailed", "workflow_id": "wf-1", "step_id": "s1", "failure_reason": "err", "attempt": 1, "fence": 1, "version": 1}),
         ),
         (
             "TimerSet",
