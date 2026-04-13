@@ -20,12 +20,15 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use tokio::sync::{broadcast, watch};
 use vo_types::{InstanceId, TimestampMs};
 
 use vo_actor::reanimator::{
+    loop_core::ReanimatorLoop,
     mock::{MockTimerStorage, MockWorkQueue},
     traits::{TimerStorage, WorkQueue},
-    ReanimatorConfig, ReanimatorError, ReanimatorLoop, ReanimatorState, TimerRecord,
+    types::{ReanimatorConfig, TimerRecord},
+    ReanimatorError,
 };
 
 fn ts_ms(value: u64) -> TimestampMs {
@@ -59,14 +62,16 @@ async fn rq_reanimator_shutdown_rejects_new_work() {
     tokio::time::sleep(Duration::from_millis(50)).await;
 
     let state_before = handle.current_state();
-    assert!(
-        matches!(state_before, ReanimatorState::Running | ReanimatorState::Stopped),
-        "Expected Running or Stopped, got {:?}",
-        state_before
-    );
+    assert_eq!(state_before, vo_actor::reanimator::types::ReanimatorState::Running);
 
     let result = handle.shutdown().await;
     assert!(result.is_ok(), "Shutdown should succeed");
+
+    let state_after = handle.current_state();
+    assert_eq!(
+        state_after,
+        vo_actor::reanimator::types::ReanimatorState::ShutDown
+    );
 }
 
 // RQ-RS02: Timers due during shutdown are processed before shutdown completes
@@ -278,11 +283,7 @@ async fn rq_timer_at_u64_max_boundary() {
     tokio::time::sleep(Duration::from_millis(100)).await;
 
     let state = handle.current_state();
-    assert!(
-        matches!(state, vo_actor::reanimator::types::ReanimatorState::Running | vo_actor::reanimator::types::ReanimatorState::Stopped),
-        "Expected Running or Stopped, got {:?}",
-        state
-    );
+    assert_eq!(state, vo_actor::reanimator::types::ReanimatorState::Running);
 
     let fire_calls_before = storage.fire_calls().await;
     assert!(
@@ -527,11 +528,7 @@ async fn rq_crash_recovery_skips_terminal_instances() {
     tokio::time::sleep(Duration::from_millis(50)).await;
 
     let state = handle.current_state();
-    assert!(
-        matches!(state, vo_actor::reanimator::types::ReanimatorState::Running | vo_actor::reanimator::types::ReanimatorState::Stopped),
-        "Expected Running or Stopped, got {:?}",
-        state
-    );
+    assert_eq!(state, vo_actor::reanimator::types::ReanimatorState::Running);
 
     handle.shutdown().await.expect("shutdown should succeed");
 }
@@ -564,11 +561,7 @@ async fn rq_storage_failure_handled() {
     tokio::time::sleep(Duration::from_millis(500)).await;
 
     let state = handle.current_state();
-    assert!(
-        matches!(state, vo_actor::reanimator::types::ReanimatorState::Running | vo_actor::reanimator::types::ReanimatorState::Stopped),
-        "Expected Running or Stopped, got {:?}",
-        state
-    );
+    assert_eq!(state, vo_actor::reanimator::types::ReanimatorState::Running);
 
     handle.shutdown().await.expect("shutdown should succeed");
 }
