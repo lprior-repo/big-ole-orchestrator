@@ -10,7 +10,7 @@ use vo_types::TimestampMs;
 
 use crate::reanimator::{
     traits::{TimerStorage, WorkQueue},
-    types::{validate_timer_record, FairnessBudget, ReanimatorConfig, ReanimatorState, TimerRecord},
+    types::{validate_timer_record, FairnessBudget, ReanimatorConfig, ReanimatorState},
     ReanimatorError,
 };
 
@@ -102,17 +102,15 @@ impl ReanimatorLoop {
         let state_sender_clone = state_sender.clone();
         let shutdown_receiver = shutdown_trigger.subscribe();
 
-        // Run crash recovery synchronously before spawning the task
+        // Run crash recovery before starting the loop
         // This ensures any pending timers from a previous crash are replayed
         let storage_clone = storage.clone();
         let work_queue_clone = work_queue.clone();
-        tokio::task::spawn_blocking(move || {
-            let rt = tokio::runtime::Handle::current();
-            rt.block_on(async {
-                if let Err(e) = Self::run_crash_recovery(&storage_clone, &work_queue_clone).await {
-                    tracing::warn!("Crash recovery completed with error: {}", e);
-                }
-            });
+        let runtime = tokio::runtime::Handle::current();
+        runtime.block_on(async {
+            if let Err(e) = Self::run_crash_recovery(&storage_clone, &work_queue_clone).await {
+                tracing::warn!("Crash recovery completed with error: {}", e);
+            }
         });
 
         // Spawn the background task
@@ -214,31 +212,6 @@ impl ReanimatorLoop {
                     );
                     continue;
                 }
-            }
-
-            let timer_record = TimerRecord {
-                instance_id: pending.instance_id.clone(),
-                fire_at_ms: pending.fire_at_ms,
-                timer_id: None,
-                scheduled_at_ms: pending.scheduled_at_ms,
-            };
-            if let Err(e) = validate_timer_record(&timer_record) {
-                tracing::warn!(
-                    instance_id = %pending.instance_id,
-                    error = %e,
-                    "Skipping corrupt pending timer during crash recovery"
-                );
-                if let Err(e) = storage
-                    .complete_timer_processing(&pending.instance_id, pending.fire_at_ms)
-                    .await
-                {
-                    tracing::warn!(
-                        instance_id = %pending.instance_id,
-                        error = %e,
-                        "Failed to clean up corrupt pending timer"
-                    );
-                }
-                continue;
             }
 
             tracing::info!(
@@ -442,7 +415,7 @@ impl ReanimatorLoop {
         let new_max = if processed > 0 {
             0
         } else {
-            max_already_processed.saturating_sub(1)
+            max_already_processed + processed
         };
 
         tracing::debug!(processed, failed_count, "Reanimator cycle complete");
