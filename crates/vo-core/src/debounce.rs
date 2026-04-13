@@ -574,6 +574,76 @@ mod tests {
         let result = debouncer.next_debounced_event().await;
         assert_eq!(result, Err(Error::DebouncerInternal));
     }
+
+    #[tokio::test(start_paused = true)]
+    async fn component_timeout_handling_graceful_on_silent_deadline() {
+        let duration = Duration::from_millis(100);
+        let (tx, mut debouncer) = setup(duration);
+
+        let path = PathBuf::from("timeout_test.bin");
+        tx.send(FileEvent::Modify(path.clone())).await.unwrap();
+
+        assert_eq!(poll_next(&mut debouncer).await, Poll::Pending);
+
+        time::advance(Duration::from_millis(50)).await;
+
+        let result = debouncer.next_debounced_event().await;
+        assert_eq!(result, Ok(path));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn component_timeout_handling_error_reporting_on_timeout() {
+        let duration = Duration::from_millis(50);
+        let (tx, mut debouncer) = setup(duration);
+
+        let path = PathBuf::from("error_report.bin");
+        tx.send(FileEvent::Modify(path.clone())).await.unwrap();
+
+        time::advance(Duration::from_millis(51)).await;
+
+        let result = debouncer.next_debounced_event().await;
+        assert_eq!(result, Ok(path));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn component_timeout_multiple_deadlines_fire_correctly() {
+        let duration = Duration::from_millis(50);
+        let (tx, mut debouncer) = setup(duration);
+
+        let path1 = PathBuf::from("first.bin");
+        let path2 = PathBuf::from("second.bin");
+
+        tx.send(FileEvent::Modify(path1.clone())).await.unwrap();
+        time::advance(Duration::from_millis(51)).await;
+
+        let result1 = debouncer.next_debounced_event().await;
+        assert_eq!(result1, Ok(path1));
+
+        tx.send(FileEvent::Modify(path2.clone())).await.unwrap();
+        time::advance(Duration::from_millis(51)).await;
+
+        let result2 = debouncer.next_debounced_event().await;
+        assert_eq!(result2, Ok(path2));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn component_timeout_channel_close_during_wait_returns_graceful_error() {
+        let duration = Duration::from_millis(100);
+        let (tx, mut debouncer) = setup(duration);
+
+        let path = PathBuf::from("close_during_wait.bin");
+        tx.send(FileEvent::Modify(path.clone())).await.unwrap();
+
+        time::advance(Duration::from_millis(101)).await;
+
+        let result1 = debouncer.next_debounced_event().await;
+        assert_eq!(result1, Ok(path));
+
+        drop(tx);
+
+        let result2 = debouncer.next_debounced_event().await;
+        assert_eq!(result2, Err(Error::WatcherChannelClosed));
+    }
 }
 
 #[cfg(test)]
