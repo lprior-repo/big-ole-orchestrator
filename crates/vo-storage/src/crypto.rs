@@ -3,40 +3,31 @@ use aes_gcm::AesGcm;
 use aes_gcm::NewAead;
 use generic_array::{typenum::U12, GenericArray};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum CryptoError {
+    #[error("DEK not found in key store")]
     KeyNotFound,
+    #[error("DEK was purged (crypto-shredded)")]
     KeyDestroyed,
+    #[error("key store partition inaccessible")]
     KeyStoreUnavailable,
+    #[error("tag mismatch or corrupt ciphertext")]
     DecryptionFailed,
+    #[error("key bytes invalid")]
     InvalidKeyMaterial,
+    #[error("unknown cipher requested")]
     UnsupportedAlgorithm,
+    #[error("KEK wrap operation failed")]
     WrappingFailed,
+    #[error("KEK unwrap operation failed")]
     UnwrappingFailed,
+    #[error("secure random unavailable")]
     RngUnavailable,
+    #[error("encryption operation failed")]
     EncryptionFailed,
+    #[error("invalid argument: {0}")]
     InvalidArgument(String),
 }
-
-impl std::fmt::Display for CryptoError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::KeyNotFound => write!(f, "DEK not found in key store"),
-            Self::KeyDestroyed => write!(f, "DEK was purged (crypto-shredded)"),
-            Self::KeyStoreUnavailable => write!(f, "key store partition inaccessible"),
-            Self::DecryptionFailed => write!(f, "tag mismatch or corrupt ciphertext"),
-            Self::InvalidKeyMaterial => write!(f, "key bytes invalid"),
-            Self::UnsupportedAlgorithm => write!(f, "unknown cipher requested"),
-            Self::WrappingFailed => write!(f, "KEK wrap operation failed"),
-            Self::UnwrappingFailed => write!(f, "KEK unwrap operation failed"),
-            Self::RngUnavailable => write!(f, "secure random unavailable"),
-            Self::EncryptionFailed => write!(f, "encryption operation failed"),
-            Self::InvalidArgument(msg) => write!(f, "invalid argument: {msg}"),
-        }
-    }
-}
-
-impl std::error::Error for CryptoError {}
 
 impl From<CryptoError> for crate::codec::StorageError {
     fn from(err: CryptoError) -> Self {
@@ -499,7 +490,10 @@ mod tests {
         assert_ne!(encrypted_old.ciphertext, encrypted_new.ciphertext);
         // Both decrypt to the same plaintext
         assert_eq!(decrypt_blob(&encrypted_old, &dek).unwrap(), data.as_slice());
-        assert_eq!(decrypt_blob(&encrypted_new, &new_dek).unwrap(), data.as_slice());
+        assert_eq!(
+            decrypt_blob(&encrypted_new, &new_dek).unwrap(),
+            data.as_slice()
+        );
     }
 
     #[test]

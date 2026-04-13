@@ -20,32 +20,17 @@
 
 use crate::state::lifecycle::{LifecycleState, TransitionEvent};
 use std::collections::HashMap;
-use std::fmt::{self, Debug};
+use std::fmt::Debug;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, thiserror::Error)]
 pub enum CompilerTransitionError {
+    #[error("Cannot transition from terminal state")]
     TerminalStateTransition,
+    #[error("Invalid transition for current state")]
     InvalidTransition,
+    #[error("Guard condition rejected transition")]
     GuardRejected,
 }
-
-impl fmt::Display for CompilerTransitionError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            CompilerTransitionError::TerminalStateTransition => {
-                write!(f, "Cannot transition from terminal state")
-            }
-            CompilerTransitionError::InvalidTransition => {
-                write!(f, "Invalid transition for current state")
-            }
-            CompilerTransitionError::GuardRejected => {
-                write!(f, "Guard condition rejected transition")
-            }
-        }
-    }
-}
-
-impl std::error::Error for CompilerTransitionError {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum GuardResult {

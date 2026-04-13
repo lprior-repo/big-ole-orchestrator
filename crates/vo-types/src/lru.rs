@@ -1,24 +1,14 @@
 use std::collections::{HashMap, VecDeque};
-use std::fmt;
 use std::hash::Hash;
 use std::num::NonZeroUsize;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum LruCacheError {
+    #[error("LRU cache capacity cannot be zero")]
     CapacityZero,
+    #[error("key not found in cache")]
     KeyNotFound,
 }
-
-impl fmt::Display for LruCacheError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::CapacityZero => write!(f, "LRU cache capacity cannot be zero"),
-            Self::KeyNotFound => write!(f, "key not found in cache"),
-        }
-    }
-}
-
-impl std::error::Error for LruCacheError {}
 
 pub struct LruCache<K, V> {
     capacity: NonZeroUsize,

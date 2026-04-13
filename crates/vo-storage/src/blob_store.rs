@@ -352,128 +352,51 @@ impl BlobRecord {
 
 /// Errors from content-addressed blob store operations.
 #[non_exhaustive]
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum BlobStoreError {
-    /// No blob exists for the given content address.
+    #[error("content not found: {content_addr}")]
     ContentNotFound { content_addr: String },
-    /// Referenced pack file does not exist.
+    #[error("pack file not found: {pack_file_id}")]
     PackFileNotFound { pack_file_id: String },
-    /// Content already exists (dedup violation on strict insert).
+    #[error("duplicate content: {content_addr}")]
     DuplicateContent { content_addr: String },
-    /// Pack index entry is malformed.
+    #[error("corrupt pack index: {reason}")]
     CorruptPackIndex { reason: String },
-    /// Pack file data does not match content address.
+    #[error("corrupt pack file {pack_file_id}: {reason}")]
     CorruptPackFile {
         pack_file_id: String,
         reason: String,
     },
-    /// Computed SHA-256 does not match declared content address.
+    #[error("checksum mismatch for {content_addr}: expected {expected}, got {actual}")]
     ChecksumMismatch {
         content_addr: String,
         expected: String,
         actual: String,
     },
-    /// Blob metadata serialization failed.
+    #[error("serialization failed: {reason}")]
     SerializationFailed { reason: String },
-    /// Blob metadata deserialization failed.
+    #[error("deserialization failed: {reason}")]
     DeserializationFailed { reason: String },
-    /// Underlying storage operation failed.
+    #[error("storage error: {reason}")]
     Storage { reason: String },
-    /// Invalid input argument.
+    #[error("invalid argument: {reason}")]
     InvalidArgument { reason: String },
-    /// GC cycle already running (prevents concurrent GC).
+    #[error("GC cycle already in progress")]
     GcCycleInProgress,
-    /// Pack file has reached maximum size (forces new pack).
+    #[error("pack file {pack_file_id} full (max {max_size_bytes} bytes)")]
     PackFileFull {
         pack_file_id: String,
         max_size_bytes: u64,
     },
-    /// Blob is not in a valid status for the requested operation (ADR-040).
+    #[error("invalid publication status for {content_addr}: current={current_status}, attempted={attempted_operation}")]
     InvalidPublicationStatus {
         content_addr: String,
         current_status: String,
         attempted_operation: String,
     },
-    /// Attempted to publish a blob that is not durably stored (ADR-040).
+    #[error("blob {content_addr} is not durably stored, cannot publish")]
     NotDurablyStored { content_addr: String },
 }
-
-impl fmt::Display for BlobStoreError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::ContentNotFound { content_addr } => {
-                write!(f, "content not found: {content_addr}")
-            }
-            Self::PackFileNotFound { pack_file_id } => {
-                write!(f, "pack file not found: {pack_file_id}")
-            }
-            Self::DuplicateContent { content_addr } => {
-                write!(f, "duplicate content: {content_addr}")
-            }
-            Self::CorruptPackIndex { reason } => {
-                write!(f, "corrupt pack index: {reason}")
-            }
-            Self::CorruptPackFile {
-                pack_file_id,
-                reason,
-            } => {
-                write!(f, "corrupt pack file {pack_file_id}: {reason}")
-            }
-            Self::ChecksumMismatch {
-                content_addr,
-                expected,
-                actual,
-            } => {
-                write!(
-                    f,
-                    "checksum mismatch for {content_addr}: expected {expected}, got {actual}"
-                )
-            }
-            Self::SerializationFailed { reason } => {
-                write!(f, "serialization failed: {reason}")
-            }
-            Self::DeserializationFailed { reason } => {
-                write!(f, "deserialization failed: {reason}")
-            }
-            Self::Storage { reason } => {
-                write!(f, "storage error: {reason}")
-            }
-            Self::InvalidArgument { reason } => {
-                write!(f, "invalid argument: {reason}")
-            }
-            Self::GcCycleInProgress => {
-                write!(f, "GC cycle already in progress")
-            }
-            Self::PackFileFull {
-                pack_file_id,
-                max_size_bytes,
-            } => {
-                write!(
-                    f,
-                    "pack file {pack_file_id} full (max {max_size_bytes} bytes)"
-                )
-            }
-            Self::InvalidPublicationStatus {
-                content_addr,
-                current_status,
-                attempted_operation,
-            } => {
-                write!(
-                    f,
-                    "invalid publication status for {content_addr}: current={current_status}, attempted={attempted_operation}"
-                )
-            }
-            Self::NotDurablyStored { content_addr } => {
-                write!(
-                    f,
-                    "blob {content_addr} is not durably stored, cannot publish"
-                )
-            }
-        }
-    }
-}
-
-impl std::error::Error for BlobStoreError {}
 
 // ---------------------------------------------------------------------------
 // Calc Layer — Content Address Encoding

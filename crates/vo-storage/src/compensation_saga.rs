@@ -261,58 +261,33 @@ impl CompensationManifest {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum CompensationError {
+    #[error("compensation already registered for: {0}")]
     AlreadyRegistered(String),
+    #[error("compensation not found for: {0}")]
     NotFound(String),
+    #[error("effect {effect_id} is in terminal state: {status:?}")]
     TerminalState {
         effect_id: String,
         status: SagaCompensationStatus,
     },
+    #[error("invalid transition for {effect_id}: {from:?} -> {to:?}")]
     InvalidTransition {
         effect_id: String,
         from: SagaCompensationStatus,
         to: SagaCompensationStatus,
     },
+    #[error("policy violation for {effect_id}: {policy:?}")]
     PolicyViolation {
         effect_id: String,
         policy: CompensationPolicy,
     },
-    Timeout {
-        effect_id: String,
-    },
-    ReconciliationRequired {
-        effect_id: String,
-    },
+    #[error("compensation timeout for: {effect_id}")]
+    Timeout { effect_id: String },
+    #[error("reconciliation required for ambiguous: {effect_id}")]
+    ReconciliationRequired { effect_id: String },
 }
-
-impl std::fmt::Display for CompensationError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::AlreadyRegistered(id) => write!(f, "compensation already registered for: {id}"),
-            Self::NotFound(id) => write!(f, "compensation not found for: {id}"),
-            Self::TerminalState { effect_id, status } => {
-                write!(f, "effect {effect_id} is in terminal state: {status:?}")
-            }
-            Self::InvalidTransition {
-                effect_id,
-                from,
-                to,
-            } => {
-                write!(f, "invalid transition for {effect_id}: {from:?} -> {to:?}")
-            }
-            Self::PolicyViolation { effect_id, policy } => {
-                write!(f, "policy violation for {effect_id}: {policy:?}")
-            }
-            Self::Timeout { effect_id } => write!(f, "compensation timeout for: {effect_id}"),
-            Self::ReconciliationRequired { effect_id } => {
-                write!(f, "reconciliation required for ambiguous: {effect_id}")
-            }
-        }
-    }
-}
-
-impl std::error::Error for CompensationError {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ReconciliationAction {

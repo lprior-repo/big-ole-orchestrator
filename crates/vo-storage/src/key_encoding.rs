@@ -24,32 +24,24 @@ mod red_queen_tests;
 #[cfg(test)]
 mod red_queen_adversarial;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum KeyEncodingError {
-    InstanceId(ParseError),
+    #[error("instance ID encoding error: {0}")]
+    InstanceId(#[from] ParseError),
+    #[error("step ID encoding error: {0}")]
     StepId(ParseError),
+    #[error("invalid length: expected {expected}, got {actual}")]
     InvalidLength { expected: usize, actual: usize },
+    #[error("field cannot be empty")]
     EmptyField,
 }
 
-impl std::fmt::Display for KeyEncodingError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::InstanceId(e) => write!(f, "instance ID encoding error: {e}"),
-            Self::StepId(e) => write!(f, "step ID encoding error: {e}"),
-            Self::InvalidLength { expected, actual } => {
-                write!(f, "invalid length: expected {expected}, got {actual}")
-            }
-            Self::EmptyField => write!(f, "field cannot be empty"),
-        }
-    }
-}
-
-impl std::error::Error for KeyEncodingError {}
-
-impl From<ParseError> for KeyEncodingError {
-    fn from(e: ParseError) -> Self {
-        Self::InstanceId(e)
+impl From<std::str::Utf8Error> for KeyEncodingError {
+    fn from(e: std::str::Utf8Error) -> Self {
+        KeyEncodingError::StepId(ParseError::InvalidFormat {
+            type_name: "Utf8",
+            reason: e.to_string(),
+        })
     }
 }
 

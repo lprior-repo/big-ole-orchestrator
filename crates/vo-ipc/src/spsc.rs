@@ -3,6 +3,8 @@ use std::mem::MaybeUninit;
 use std::sync::atomic::{fence, AtomicUsize, Ordering};
 use std::sync::Arc;
 
+use thiserror::Error;
+
 const CACHE_LINE: usize = 64;
 
 pub struct SpscQueue<T> {
@@ -163,22 +165,13 @@ impl<T> fmt::Debug for Receiver<T> {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Error)]
 pub enum SpscError {
+    #[error("queue is full")]
     Full,
+    #[error("queue is empty")]
     Empty,
 }
-
-impl std::fmt::Display for SpscError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            SpscError::Full => write!(f, "queue is full"),
-            SpscError::Empty => write!(f, "queue is empty"),
-        }
-    }
-}
-
-impl std::error::Error for SpscError {}
 
 #[cfg(test)]
 mod tests {

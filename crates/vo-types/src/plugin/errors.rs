@@ -74,7 +74,7 @@ pub enum PluginErrorContext {
     DuringHealthCheck,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, thiserror::Error)]
 pub struct PluginHotLoadError {
     pub category: PluginErrorCategory,
     pub detail: PluginErrorDetail,
@@ -134,8 +134,6 @@ impl fmt::Display for PluginHotLoadError {
         write!(f, "{category_msg} during {context_msg}")
     }
 }
-
-impl std::error::Error for PluginHotLoadError {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum IsolationLevel {

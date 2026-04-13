@@ -46,27 +46,24 @@ mod write;
 mod tests;
 
 use serde_json::Value;
-use std::fmt::Display;
+use thiserror::Error;
 use vo_types::IdempotencyKey;
 
 // Re-export public API
 pub use read::read_input;
 pub use write::{write_failure, write_success};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Error)]
 pub enum SdkError {
+    #[error("InvalidInput")]
     InvalidInput,
+    #[error("FdNotOpen")]
     FdNotOpen,
+    #[error("AlreadyWritten")]
     AlreadyWritten,
+    #[error("WriteError")]
     WriteError,
 }
-
-impl Display for SdkError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{self:?}")
-    }
-}
-impl std::error::Error for SdkError {}
 
 // TODO(vel-edo): TaskFailureKind should live in vo-types per the contract.
 // Kept here temporarily because this bead is scoped to vo-sdk only.

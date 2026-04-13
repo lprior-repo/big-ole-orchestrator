@@ -149,52 +149,27 @@ impl BudgetManifest {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum SagaError {
+    #[error("saga entry already exists: {0}")]
     AlreadyExists(String),
+    #[error("saga entry not found: {0}")]
     NotFound(String),
+    #[error("saga entry already rolled back: {0}")]
     AlreadyRolledBack(String),
+    #[error("invalid state for {key}: expected {expected:?}, got {actual:?}")]
     InvalidState {
         key: String,
         expected: SagaStatus,
         actual: SagaStatus,
     },
+    #[error("budget reserve failed: {0}")]
     BudgetReserveFailed(String),
-    Storage {
-        reason: String,
-    },
-    CorruptEntry {
-        key: String,
-        reason: String,
-    },
+    #[error("storage error: {reason}")]
+    Storage { reason: String },
+    #[error("corrupt saga entry for key {key}: {reason}")]
+    CorruptEntry { key: String, reason: String },
 }
-
-impl std::fmt::Display for SagaError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::AlreadyExists(key) => write!(f, "saga entry already exists: {key}"),
-            Self::NotFound(key) => write!(f, "saga entry not found: {key}"),
-            Self::AlreadyRolledBack(key) => write!(f, "saga entry already rolled back: {key}"),
-            Self::InvalidState {
-                key,
-                expected,
-                actual,
-            } => {
-                write!(
-                    f,
-                    "invalid state for {key}: expected {expected:?}, got {actual:?}"
-                )
-            }
-            Self::BudgetReserveFailed(msg) => write!(f, "budget reserve failed: {msg}"),
-            Self::Storage { reason } => write!(f, "storage error: {reason}"),
-            Self::CorruptEntry { key, reason } => {
-                write!(f, "corrupt saga entry for key {key}: {reason}")
-            }
-        }
-    }
-}
-
-impl std::error::Error for SagaError {}
 
 /// Fjall-backed recovery outcome.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

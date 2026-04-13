@@ -109,61 +109,23 @@ pub enum DekStatus {
 
 /// Errors from the DEK store operations.
 #[non_exhaustive]
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum DekStoreError {
-    /// No DEK exists for this InstanceId.
-    DekNotFound {
-        instance_id: String,
-    },
-
-    /// The DEK has been retired (crypto-shredded).
-    DekRetired {
-        dek_id: String,
-    },
-
-    /// A DEK already exists for this InstanceId.
-    DekAlreadyExists {
-        instance_id: String,
-    },
-
-    /// Storage operation failed.
-    Storage {
-        reason: String,
-    },
-
-    /// Codec/serialization error.
-    Codec {
-        reason: String,
-    },
-
-    /// Invalid argument.
+    #[error("DEK not found for instance: {instance_id}")]
+    DekNotFound { instance_id: String },
+    #[error("DEK has been retired (crypto-shredded): {dek_id}")]
+    DekRetired { dek_id: String },
+    #[error("DEK already exists for instance: {instance_id}")]
+    DekAlreadyExists { instance_id: String },
+    #[error("DEK storage error: {reason}")]
+    Storage { reason: String },
+    #[error("DEK codec error: {reason}")]
+    Codec { reason: String },
+    #[error("invalid DEK argument")]
     InvalidArgument,
-
-    /// Key store unavailable.
+    #[error("key store partition inaccessible")]
     KeyStoreUnavailable,
 }
-
-impl fmt::Display for DekStoreError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::DekNotFound { instance_id } => {
-                write!(f, "DEK not found for instance: {instance_id}")
-            }
-            Self::DekRetired { dek_id } => {
-                write!(f, "DEK has been retired (crypto-shredded): {dek_id}")
-            }
-            Self::DekAlreadyExists { instance_id } => {
-                write!(f, "DEK already exists for instance: {instance_id}")
-            }
-            Self::Storage { reason } => write!(f, "DEK storage error: {reason}"),
-            Self::Codec { reason } => write!(f, "DEK codec error: {reason}"),
-            Self::InvalidArgument => write!(f, "invalid DEK argument"),
-            Self::KeyStoreUnavailable => write!(f, "key store partition inaccessible"),
-        }
-    }
-}
-
-impl std::error::Error for DekStoreError {}
 
 // ---------------------------------------------------------------------------
 // Calc layer — key encoding/decoding

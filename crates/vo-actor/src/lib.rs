@@ -31,9 +31,11 @@ pub mod timer_supervisor;
 pub mod timer_supervisor_tests;
 pub mod timer_lifecycle;
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum TerminateError {
+    #[error("not found: {0}")]
     NotFound(String),
+    #[error("failed: {0}")]
     Failed(String),
 }
 
@@ -1219,34 +1221,20 @@ pub struct AcceptResumeOutcome {
 }
 
 /// Exhaustive error taxonomy for accept-and-resume.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum AcceptResumeError {
-    InvalidLifecycleState {
-        instance_id: InstanceId,
-        actual: LifecycleState,
-        expected: LifecycleState,
-    },
-    WaitKeyMismatch {
-        instance_id: InstanceId,
-        expected_key: WaitKey,
-        provided_key: WaitKey,
-    },
-    InstanceActorNotFound {
-        instance_id: InstanceId,
-    },
-    PayloadTooLarge {
-        instance_id: InstanceId,
-        payload_size: usize,
-        max_size: usize,
-    },
-    LockAcquisitionFailed {
-        instance_id: InstanceId,
-        reason: String,
-    },
-    StorageError {
-        instance_id: InstanceId,
-        reason: String,
-    },
+    #[error("invalid lifecycle state for {instance_id}: got {actual:?}, expected {expected:?}")]
+    InvalidLifecycleState { instance_id: InstanceId, actual: LifecycleState, expected: LifecycleState },
+    #[error("wait key mismatch for {instance_id}: expected {expected_key:?}, got {provided_key:?}")]
+    WaitKeyMismatch { instance_id: InstanceId, expected_key: WaitKey, provided_key: WaitKey },
+    #[error("instance actor not found: {instance_id}")]
+    InstanceActorNotFound { instance_id: InstanceId },
+    #[error("payload too large for {instance_id}: {payload_size} > {max_size}")]
+    PayloadTooLarge { instance_id: InstanceId, payload_size: usize, max_size: usize },
+    #[error("lock acquisition failed for {instance_id}: {reason}")]
+    LockAcquisitionFailed { instance_id: InstanceId, reason: String },
+    #[error("storage error for {instance_id}: {reason}")]
+    StorageError { instance_id: InstanceId, reason: String },
 }
 
 impl AcceptResumeError {
@@ -1279,72 +1267,35 @@ impl NodeName {
 }
 
 /// Errors from Cancel operation.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum CancelError {
-    /// Instance is already in a terminal state.
-    AlreadyTerminal {
-        instance_id: InstanceId,
-        current_state: LifecycleState,
-    },
-
-    /// Instance actor not found.
+    #[error("already terminal for {instance_id}: {current_state:?}")]
+    AlreadyTerminal { instance_id: InstanceId, current_state: LifecycleState },
+    #[error("instance actor not found: {instance_id}")]
     InstanceActorNotFound { instance_id: InstanceId },
-
-    /// Failed to acquire instance write lock.
-    LockAcquisitionFailed {
-        instance_id: InstanceId,
-        reason: String,
-    },
-
-    /// Storage error during event append.
-    StorageError {
-        instance_id: InstanceId,
-        reason: String,
-    },
+    #[error("lock acquisition failed for {instance_id}: {reason}")]
+    LockAcquisitionFailed { instance_id: InstanceId, reason: String },
+    #[error("storage error for {instance_id}: {reason}")]
+    StorageError { instance_id: InstanceId, reason: String },
 }
 
 /// Errors from Resume operation.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum ResumeError {
-    /// Lifecycle is not Failed; cannot resume.
-    /// No events are emitted when this error occurs.
-    InvalidLifecycleState {
-        actual: LifecycleState,
-        expected: LifecycleState, // Always Failed
-    },
-
-    /// Required secrets for resumption are missing.
-    MissingSecrets {
-        instance_id: InstanceId,
-        missing_secret_ids: Vec<SecretId>,
-    },
-
-    /// Node required for resumption does not exist.
-    NodeNotFound {
-        instance_id: InstanceId,
-        node_name: NodeName,
-    },
-
-    /// No valid path from current node to terminal state.
-    NoPathToTerminal {
-        instance_id: InstanceId,
-        current_node: NodeName,
-    },
-
-    /// Instance actor not found (task-017 prerequisite not met).
+    #[error("invalid lifecycle state: got {actual:?}, expected {expected:?}")]
+    InvalidLifecycleState { actual: LifecycleState, expected: LifecycleState },
+    #[error("missing secrets for {instance_id}: {missing_secret_ids:?}")]
+    MissingSecrets { instance_id: InstanceId, missing_secret_ids: Vec<SecretId> },
+    #[error("node not found for {instance_id}: {node_name:?}")]
+    NodeNotFound { instance_id: InstanceId, node_name: NodeName },
+    #[error("no path to terminal from {current_node:?} for {instance_id}")]
+    NoPathToTerminal { instance_id: InstanceId, current_node: NodeName },
+    #[error("instance actor not found: {instance_id}")]
     InstanceActorNotFound { instance_id: InstanceId },
-
-    /// Failed to acquire instance write lock.
-    LockAcquisitionFailed {
-        instance_id: InstanceId,
-        reason: String,
-    },
-
-    /// Storage error during event append.
-    StorageError {
-        instance_id: InstanceId,
-        reason: String,
-    },
+    #[error("lock acquisition failed for {instance_id}: {reason}")]
+    LockAcquisitionFailed { instance_id: InstanceId, reason: String },
+    #[error("storage error for {instance_id}: {reason}")]
+    StorageError { instance_id: InstanceId, reason: String },
 }
 
 impl ResumeError {
@@ -1397,39 +1348,15 @@ pub struct InstanceResumed {
 // =============================================================================
 
 /// Errors from signal storage operations.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum SignalStorageError {
-    /// Instance not found in storage.
+    #[error("Instance not found: {0}")]
     InstanceNotFound(InstanceId),
-    /// Failed to write to storage.
-    WriteError {
-        instance_id: InstanceId,
-        reason: String,
-    },
-    /// Failed to delete compensation record.
-    DeleteError {
-        instance_id: InstanceId,
-        reason: String,
-    },
+    #[error("Write error for {instance_id}: {reason}")]
+    WriteError { instance_id: InstanceId, reason: String },
+    #[error("Delete error for {instance_id}: {reason}")]
+    DeleteError { instance_id: InstanceId, reason: String },
 }
-
-impl std::fmt::Display for SignalStorageError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::InstanceNotFound(id) => write!(f, "Instance not found: {id}"),
-            Self::WriteError {
-                instance_id,
-                reason,
-            } => write!(f, "Write error for {instance_id}: {reason}"),
-            Self::DeleteError {
-                instance_id,
-                reason,
-            } => write!(f, "Delete error for {instance_id}: {reason}"),
-        }
-    }
-}
-
-impl std::error::Error for SignalStorageError {}
 
 /// Trait for persisting signal acceptance events.
 /// Abstracts the underlying storage implementation.
@@ -1456,30 +1383,13 @@ pub trait SignalStorage: Send + Sync {
 // =============================================================================
 
 /// Errors from signal work queue operations.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum SignalWorkQueueError {
-    /// Instance not found.
+    #[error("Instance not found: {0}")]
     InstanceNotFound(InstanceId),
-    /// Failed to enqueue work.
-    EnqueueError {
-        instance_id: InstanceId,
-        reason: String,
-    },
+    #[error("Enqueue error for {instance_id}: {reason}")]
+    EnqueueError { instance_id: InstanceId, reason: String },
 }
-
-impl std::fmt::Display for SignalWorkQueueError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::InstanceNotFound(id) => write!(f, "Instance not found: {id}"),
-            Self::EnqueueError {
-                instance_id,
-                reason,
-            } => write!(f, "Enqueue error for {instance_id}: {reason}"),
-        }
-    }
-}
-
-impl std::error::Error for SignalWorkQueueError {}
 
 /// Trait for enqueueing workflow resume work.
 /// Abstracts the work queue implementation.
@@ -1627,39 +1537,13 @@ pub enum WorkloadClass {
 }
 
 /// Errors from actor start operations.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum StartError {
-    /// Workload class has exhausted its reserved permit budget.
-    BudgetExhaustion {
-        /// The workload class that was exhausted.
-        class: WorkloadClass,
-        /// Number of permits requested.
-        requested: u32,
-        /// Number of permits actually available.
-        available: u32,
-    },
-    /// Invalid configuration provided.
+    #[error("Budget exhausted for {class:?}: requested {requested}, available {available}")]
+    BudgetExhaustion { class: WorkloadClass, requested: u32, available: u32 },
+    #[error("Invalid config: {0}")]
     InvalidConfig(String),
 }
-
-impl std::fmt::Display for StartError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::BudgetExhaustion {
-                class,
-                requested,
-                available,
-            } => write!(
-                f,
-                "Budget exhausted for {:?}: requested {}, available {}",
-                class, requested, available
-            ),
-            Self::InvalidConfig(msg) => write!(f, "Invalid config: {}", msg),
-        }
-    }
-}
-
-impl std::error::Error for StartError {}
 
 /// Reserved permit budget tracking per workload class.
 /// Ensures each class maintains its reserved capacity per ADR-033.

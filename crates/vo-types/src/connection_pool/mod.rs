@@ -305,18 +305,18 @@ pub struct ErrorContext {
 }
 
 /// Connection pool error.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub struct ConnectionPoolError {
     pub category: ErrorCategory,
     pub detail: ErrorDetail,
     pub context: ErrorContext,
 }
 
-impl fmt::Display for ConnectionPoolError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Display for ConnectionPoolError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "[{}] {}: {:?}",
+            "[{}] {:?}: {:?}",
             self.context.pool_id, self.category, self.detail
         )
     }

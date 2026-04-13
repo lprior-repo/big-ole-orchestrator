@@ -1,55 +1,45 @@
 #![allow(unexpected_cfgs)]
-use std::fmt;
 use vo_types::{InstanceId, ParseError, SequenceNumber};
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, thiserror::Error)]
 pub enum StorageError {
+    #[error("corrupt key")]
     CorruptKey,
+    #[error("other error")]
     Other,
+    #[error("batch commit failed")]
     BatchCommitFailed,
+    #[error("scan failed")]
     ScanFailed,
+    #[error("instance is running")]
     InstanceRunning,
-    InvalidInstanceId(ParseError),
+    #[error("invalid instance ID: {0}")]
+    InvalidInstanceId(#[from] ParseError),
+    #[error("sequence gap")]
     SequenceGap,
+    #[error("corrupt event payload")]
     CorruptEventPayload,
+    #[error("unsupported version")]
     UnsupportedVersion,
+    #[error("storage error")]
     Storage,
+    #[error("invalid argument")]
     InvalidArgument,
+    #[error("serialization failed")]
     SerializationFailed,
+    #[error("deserialization failed")]
     DeserializationFailed,
+    #[error("fjall error")]
     FjallError,
+    #[error("invalid key")]
     InvalidKey,
+    #[error("checksum mismatch")]
     ChecksumMismatch,
+    #[error("key not found")]
     KeyNotFound,
+    #[error("key destroyed (crypto-shredded)")]
     KeyDestroyed,
 }
-
-impl fmt::Display for StorageError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::CorruptKey => write!(f, "corrupt key"),
-            Self::Other => write!(f, "other error"),
-            Self::BatchCommitFailed => write!(f, "batch commit failed"),
-            Self::ScanFailed => write!(f, "scan failed"),
-            Self::InstanceRunning => write!(f, "instance is running"),
-            Self::InvalidInstanceId(e) => write!(f, "invalid instance ID: {e}"),
-            Self::SequenceGap => write!(f, "sequence gap"),
-            Self::CorruptEventPayload => write!(f, "corrupt event payload"),
-            Self::UnsupportedVersion => write!(f, "unsupported version"),
-            Self::Storage => write!(f, "storage error"),
-            Self::InvalidArgument => write!(f, "invalid argument"),
-            Self::SerializationFailed => write!(f, "serialization failed"),
-            Self::DeserializationFailed => write!(f, "deserialization failed"),
-            Self::FjallError => write!(f, "fjall error"),
-            Self::InvalidKey => write!(f, "invalid key"),
-            Self::ChecksumMismatch => write!(f, "checksum mismatch"),
-            Self::KeyNotFound => write!(f, "key not found"),
-            Self::KeyDestroyed => write!(f, "key destroyed (crypto-shredded)"),
-        }
-    }
-}
-
-impl std::error::Error for StorageError {}
 
 impl From<fjall::Error> for StorageError {
     fn from(_: fjall::Error) -> Self {

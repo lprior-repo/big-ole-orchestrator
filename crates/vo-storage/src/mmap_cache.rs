@@ -3,40 +3,24 @@
 use memmap2::Mmap;
 use parking_lot::Mutex;
 use std::collections::{HashMap, VecDeque};
-use std::fmt;
 use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::path::PathBuf;
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum MmapCacheError {
-    IoError(std::io::Error),
+    #[error("IO error: {0}")]
+    IoError(#[from] std::io::Error),
+    #[error("Mmap error: {0}")]
     MmapError(std::io::Error),
+    #[error("region not found: {0}")]
     RegionNotFound(String),
+    #[error("invalid region")]
     InvalidRegion,
+    #[error("cache full")]
     CacheFull,
+    #[error("serialization error")]
     SerializationError,
-}
-
-impl fmt::Display for MmapCacheError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::IoError(e) => write!(f, "IO error: {e}"),
-            Self::MmapError(e) => write!(f, "Mmap error: {e}"),
-            Self::RegionNotFound(key) => write!(f, "region not found: {key}"),
-            Self::InvalidRegion => write!(f, "invalid region"),
-            Self::CacheFull => write!(f, "cache full"),
-            Self::SerializationError => write!(f, "serialization error"),
-        }
-    }
-}
-
-impl std::error::Error for MmapCacheError {}
-
-impl From<std::io::Error> for MmapCacheError {
-    fn from(err: std::io::Error) -> Self {
-        Self::IoError(err)
-    }
 }
 
 #[derive(Clone)]
@@ -437,17 +421,21 @@ mod tests {
         cache.insert("key1", b"short").unwrap();
         assert_eq!(cache.current_memory_usage(), 5);
         cache.insert("key1", b"much longer value").unwrap();
-        assert_eq!(cache.current_memory_usage(), 17, "memory should reflect new value size");
+        assert_eq!(
+            cache.current_memory_usage(),
+            17,
+            "memory should reflect new value size"
+        );
     }
 
     #[test]
     fn lru_eviction_with_multiple_entries() {
         let temp_dir = TempDir::new().unwrap();
         let mut cache = MmapCache::new(temp_dir.path().to_path_buf(), 15).unwrap();
-        cache.insert("key1", b"12345").unwrap();  // 5 bytes, total 5
-        cache.insert("key2", b"67890").unwrap();  // 5 bytes, total 10
-        cache.insert("key3", b"abcde").unwrap();  // 5 bytes, total 15
-        cache.insert("key4", b"fghij").unwrap();  // 5 bytes -> need 20, evict key1 (LRU)
+        cache.insert("key1", b"12345").unwrap(); // 5 bytes, total 5
+        cache.insert("key2", b"67890").unwrap(); // 5 bytes, total 10
+        cache.insert("key3", b"abcde").unwrap(); // 5 bytes, total 15
+        cache.insert("key4", b"fghij").unwrap(); // 5 bytes -> need 20, evict key1 (LRU)
         assert!(!cache.contains_key("key1"), "LRU key1 should be evicted");
         assert!(cache.contains_key("key2"));
         assert!(cache.contains_key("key3"));
@@ -493,7 +481,7 @@ mod tests {
         assert_eq!(cache.current_memory_usage(), 5);
     }
 
-        #[test]
+    #[test]
     fn builder_pattern() {
         let temp_dir = TempDir::new().unwrap();
         let cache = MmapCacheBuilder::new(temp_dir.path().to_path_buf())
