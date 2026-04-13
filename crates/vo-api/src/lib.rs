@@ -1,7 +1,30 @@
 //! HTTP API for vo-engine.
 //!
-//! Provides REST endpoints for workflow management, step execution,
-//! and system health monitoring.
+//! This crate provides the REST API for the Veloxide workflow engine,
+//! including endpoints for workflow management, step execution, and
+//! system health monitoring.
+//!
+//! # API Version
+//!
+//! The current API version is v3, providing:
+//! - [`types::v3`] - Request/response types for v3 endpoints
+//! - [`types::errors`] - Standard API error types
+//! - [`handlers::query`] - Query handlers for workflow status
+//!
+//! # Endpoint Overview
+//!
+//! - `POST /api/v1/workflows` - Start a new workflow instance
+//! - `GET /api/v1/workflows/:id` - Get workflow status
+//! - `GET /api/v1/workflows/:id/timeline` - Get timeline events
+//! - `GET /api/v1/workflows/:id/history` - Get step execution history
+//! - `GET /api/v1/workflows/:id/effect-journal` - Get effect journal
+//! - `GET /api/v1/workflows/:id/version` - Get schema version info
+//! - `POST /api/v1/workflows/:id/signals` - Send a signal to a workflow
+//!
+//! # Modules
+//!
+//! - [`types`] - Request/response types for the API
+//! - [`handlers`] - HTTP request handlers (query endpoints active; workflow, signal, events, sse pending V2 actor migration)
 
 pub mod types;
 pub mod handlers;

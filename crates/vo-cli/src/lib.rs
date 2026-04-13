@@ -1,3 +1,20 @@
+//! Command-line interface for the Veloxide workflow engine.
+//!
+//! This crate provides the CLI tool `vel` for interacting with the Veloxide engine.
+//!
+//! # Commands
+//!
+//! - `vel init` - Initialize a new workflow workspace
+//! - `vel check` - Validate workflow definitions and binary formats
+//! - `vel doctor` - Run system health checks
+//! - `vel gc` - Garbage collect unused workflow versions
+//! - `vel lock` - Manage distributed locks
+//!
+//! # Architecture
+//!
+//! The CLI uses a middleware-based dispatcher for command handling with
+//! support for middleware chaining and error mapping.
+
 pub mod cli;
 pub mod commands;
 pub mod dispatch_mod;
