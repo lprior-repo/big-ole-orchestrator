@@ -5,7 +5,8 @@ use super::test_helpers::*;
 use super::types::ReplayError;
 use vo_types::state::LifecycleState;
 
-use crate::upcaster::{Upcaster, UpcasterError, UpcasterRegistry};
+use crate::upcaster::{Upcaster, UpcasterRegistry};
+use vo_types::events::upcaster::UpcasterError;
 
 /// A simple upcaster that transforms version 0 JSON to version 1.
 struct Version0To1Upcaster;
@@ -15,11 +16,16 @@ impl Upcaster for Version0To1Upcaster {
         0
     }
 
-    fn upcast(&self, input: &[u8]) -> Result<Vec<u8>, UpcasterError> {
-        let mut value: serde_json::Value = serde_json::from_slice(input)
-            .map_err(|e| UpcasterError::UpcastingFailed(e.to_string()))?;
-        value["version"] = serde_json::json!(1);
-        serde_json::to_vec(&value).map_err(|e| UpcasterError::UpcastingFailed(e.to_string()))
+    fn target_version(&self) -> u8 {
+        1
+    }
+
+    fn upcast(&self, payload: &serde_json::Value) -> Result<serde_json::Value, UpcasterError> {
+        let mut result = payload.clone();
+        if let Some(obj) = result.as_object_mut() {
+            obj.insert("version".to_string(), serde_json::json!(1));
+        }
+        Ok(result)
     }
 }
 
@@ -31,8 +37,12 @@ impl Upcaster for FailingUpcaster {
         0
     }
 
-    fn upcast(&self, _input: &[u8]) -> Result<Vec<u8>, UpcasterError> {
-        Err(UpcasterError::UpcastingFailed(
+    fn target_version(&self) -> u8 {
+        1
+    }
+
+    fn upcast(&self, _payload: &serde_json::Value) -> Result<serde_json::Value, UpcasterError> {
+        Err(UpcasterError::UpcastFailed(
             "cannot parse input JSON".to_string(),
         ))
     }
