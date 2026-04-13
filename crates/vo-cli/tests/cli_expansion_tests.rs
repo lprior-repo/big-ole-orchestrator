@@ -1192,11 +1192,17 @@ async fn e2e_check_symlink_fails() {
 fn command_context_stores_command() {
     use vo_cli::CommandContext;
 
-    let cmd = Command::Check {
-        path: PathBuf::from("/tmp/test"),
-    };
-    let ctx = CommandContext::new(cmd.clone());
-    assert_eq!(ctx.command, cmd);
+    let ctx = CommandContext::new("check");
+    assert_eq!(ctx.command_name, "check");
+}
+
+#[test]
+fn command_context_metadata() {
+    use vo_cli::CommandContext;
+
+    let ctx = CommandContext::new("check");
+    ctx.set_metadata("key", "value");
+    assert_eq!(ctx.get_metadata("key"), Some("value".to_string()));
 }
 
 #[test]
@@ -1219,64 +1225,52 @@ fn metrics_middleware_has_name() {
     assert_eq!(m.name(), "metrics");
 }
 
-#[test]
-fn logging_middleware_before_ok() {
+#[tokio::test]
+async fn logging_middleware_before_ok() {
     use vo_cli::middleware::Middleware;
     let m = vo_cli::middleware::LoggingMiddleware::new();
-    let ctx = vo_cli::CommandContext::new(Command::Check {
-        path: PathBuf::from("/tmp"),
-    });
-    assert!(m.before(&ctx).is_ok());
+    let ctx = vo_cli::CommandContext::new("check");
+    assert!(m.before(&ctx).await.is_ok());
 }
 
-#[test]
-fn logging_middleware_after_ok_result() {
+#[tokio::test]
+async fn logging_middleware_after_ok_result() {
     use vo_cli::middleware::Middleware;
     let m = vo_cli::middleware::LoggingMiddleware::new();
-    let ctx = vo_cli::CommandContext::new(Command::Check {
-        path: PathBuf::from("/tmp"),
-    });
-    m.after(&ctx, &Ok(()));
+    let ctx = vo_cli::CommandContext::new("check");
+    m.after(&ctx, &Ok(())).await;
 }
 
-#[test]
-fn logging_middleware_after_err_result() {
+#[tokio::test]
+async fn logging_middleware_after_err_result() {
     use vo_cli::middleware::Middleware;
     let m = vo_cli::middleware::LoggingMiddleware::new();
-    let ctx = vo_cli::CommandContext::new(Command::Check {
-        path: PathBuf::from("/tmp"),
-    });
-    m.after(&ctx, &Err(CliError::Dispatch("fail".into())));
+    let ctx = vo_cli::CommandContext::new("check");
+    m.after(&ctx, &Err(CliError::Dispatch("fail".into()))).await;
 }
 
-#[test]
-fn metrics_middleware_before_ok() {
+#[tokio::test]
+async fn metrics_middleware_before_ok() {
     use vo_cli::middleware::Middleware;
     let m = vo_cli::middleware::MetricsMiddleware::new();
-    let ctx = vo_cli::CommandContext::new(Command::Check {
-        path: PathBuf::from("/tmp"),
-    });
-    assert!(m.before(&ctx).is_ok());
+    let ctx = vo_cli::CommandContext::new("check");
+    assert!(m.before(&ctx).await.is_ok());
 }
 
-#[test]
-fn metrics_middleware_after_ok() {
+#[tokio::test]
+async fn metrics_middleware_after_ok() {
     use vo_cli::middleware::Middleware;
     let m = vo_cli::middleware::MetricsMiddleware::new();
-    let ctx = vo_cli::CommandContext::new(Command::Check {
-        path: PathBuf::from("/tmp"),
-    });
-    m.after(&ctx, &Ok(()));
+    let ctx = vo_cli::CommandContext::new("check");
+    m.after(&ctx, &Ok(())).await;
 }
 
-#[test]
-fn metrics_middleware_after_err() {
+#[tokio::test]
+async fn metrics_middleware_after_err() {
     use vo_cli::middleware::Middleware;
     let m = vo_cli::middleware::MetricsMiddleware::new();
-    let ctx = vo_cli::CommandContext::new(Command::Check {
-        path: PathBuf::from("/tmp"),
-    });
-    m.after(&ctx, &Err(CliError::Dispatch("fail".into())));
+    let ctx = vo_cli::CommandContext::new("check");
+    m.after(&ctx, &Err(CliError::Dispatch("fail".into()))).await;
 }
 
 // ============================================================
