@@ -28,6 +28,7 @@ pub mod signal_buffer_tests;
 pub mod instance_registry_tests;
 pub mod timer_supervisor;
 pub mod timer_supervisor_tests;
+pub mod timer_lifecycle;
 
 #[derive(Debug)]
 pub enum TerminateError {
