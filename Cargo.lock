@@ -5058,6 +5058,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "470dbf6591da1b39d43c14523b2b469c86879a53e8b758c8e090a470fe7b1fbe"
 dependencies = [
  "rand 0.9.2",
+ "serde",
  "web-time",
 ]
 
@@ -5328,6 +5329,9 @@ dependencies = [
 [[package]]
 name = "vo-linter"
 version = "0.1.0"
+dependencies = [
+ "syn",
+]
 
 [[package]]
 name = "vo-sdk"
