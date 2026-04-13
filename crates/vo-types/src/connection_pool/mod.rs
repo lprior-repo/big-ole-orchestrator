@@ -21,7 +21,7 @@ use crate::integer_types::TimestampMs;
 // ============================================================================
 
 /// Configuration for the connection pool.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct PoolConfig {
     pub min_connections: u32,
     pub max_connections: u32,
@@ -32,7 +32,7 @@ pub struct PoolConfig {
 }
 
 /// Unique identifier for a pooled connection.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct ConnectionId(pub(crate) Ulid);
 
 impl ConnectionId {
@@ -64,7 +64,7 @@ impl fmt::Display for ConnectionId {
 }
 
 /// Identifies a specific connection pool instance.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct PoolId(pub(crate) String);
 
 impl PoolId {
@@ -86,7 +86,7 @@ impl fmt::Display for PoolId {
 }
 
 /// Status of a pooled connection.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 pub enum ConnectionStatus {
     #[default]
     Idle,
@@ -97,7 +97,7 @@ pub enum ConnectionStatus {
 }
 
 /// Represents a connection in the pool with metadata.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct PooledConnection {
     pub connection_id: ConnectionId,
     pub created_at: TimestampMs,
@@ -195,7 +195,7 @@ pub enum EvictionReason {
 }
 
 /// Current state statistics for the pool.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct PoolStats {
     pub pool_id: PoolId,
     pub total_connections: u32,

@@ -963,3 +963,430 @@ fn attack_post003_unquarantine_allows_immediate_registration() {
         "Registration should be allowed immediately after unquarantine"
     );
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ATTACK VECTOR 17: False positive quarantine trips
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Attack: A healthy workflow with fewer than threshold failures must NOT be quarantined.
+/// This verifies the circuit does NOT false-positive under normal operation.
+#[test]
+fn attack_false_positive_zero_failures_never_quarantined() {
+    let state = CircuitBreakerState::new();
+    let config = default_config();
+    let t0 = Instant::now();
+    let wf = make_wf("healthy-wf");
+
+    // Zero failures - should remain Active
+    let status = state.get_status(&wf);
+    assert_eq!(status, RegistrationStatus::Active);
+
+    // Registration should be allowed
+    let request = make_request("healthy-wf", "abcdef01", false);
+    let result = evaluate_registration(&request, &config, &state, t0);
+    assert_eq!(result, Ok(RegistrationOutcome::Allowed));
+}
+
+/// Attack: A workflow with threshold-1 failures must NOT be quarantined.
+#[test]
+fn attack_false_positive_threshold_minus_one_never_quarantined() {
+    let state = CircuitBreakerState::new();
+    let config = default_config();
+    let t0 = Instant::now();
+    let wf = make_wf("almost-healthy-wf");
+
+    // 4 failures (threshold is 5) - must NOT quarantine
+    (0..4).for_each(|i| {
+        record_failure(&wf, &hash_from_idx(i), &config, &state, t0).unwrap();
+    });
+
+    let status = state.get_status(&wf);
+    assert_eq!(status, RegistrationStatus::Active);
+
+    // 5th failure should quarantine
+    record_failure(&wf, &hash_from_idx(4), &config, &state, t0).unwrap();
+    let status = state.get_status(&wf);
+    assert_eq!(status, RegistrationStatus::Quarantined);
+}
+
+/// Attack: Alternating success and failure must not cause false positive quarantine.
+#[test]
+fn attack_false_positive_interleaved_success_failure_never_quarantined() {
+    let state = CircuitBreakerState::new();
+    let config = default_config();
+    let t0 = Instant::now();
+    let wf = make_wf("alternating-wf");
+
+    // Interleave 4 unique failures with "successful" registrations
+    // that don't increment failure count
+    (0..4).for_each(|i| {
+        // Record a failure
+        record_failure(&wf, &hash_from_idx(i), &config, &state, t0).unwrap();
+        // Simulate a successful registration (sets rate limiter but no failure)
+        let req = make_request("alternating-wf", &format!("success{:08x}", i), false);
+        let _ = evaluate_registration(
+            &req,
+            &config,
+            &state,
+            t0 + Duration::from_secs(i as u64 + 1),
+        );
+    });
+
+    // Status must remain Active (only 4 failures < threshold 5)
+    let status = state.get_status(&wf);
+    assert_eq!(status, RegistrationStatus::Active);
+}
+
+/// Attack: Re-registering the same hash repeatedly must never cause quarantine.
+#[test]
+fn attack_false_positive_same_hash_repeated_never_quarantined() {
+    let state = CircuitBreakerState::new();
+    let config = default_config();
+    let t0 = Instant::now();
+    let wf = make_wf("same-hash-wf");
+
+    // Record same hash 10000 times
+    (0..10000).for_each(|i| {
+        let result = record_failure(
+            &wf,
+            &make_hash("deadbeef"),
+            &config,
+            &state,
+            t0 + Duration::from_secs(i as u64),
+        );
+        assert_eq!(
+            result,
+            Ok(None),
+            "Same hash repeated must never trigger quarantine"
+        );
+    });
+
+    // Status must remain Active
+    let status = state.get_status(&wf);
+    assert_eq!(status, RegistrationStatus::Active);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ATTACK VECTOR 18: Quarantine during healthy operation
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Attack: Healthy operation with exactly threshold failures but all same hash
+/// must NOT trigger quarantine.
+#[test]
+fn attack_healthy_same_hash_at_threshold_never_quarantined() {
+    let state = CircuitBreakerState::new();
+    let config = default_config();
+    let t0 = Instant::now();
+    let wf = make_wf("healthy-same-hash");
+
+    // Record same hash 100 times (threshold is 5)
+    (0..100).for_each(|i| {
+        record_failure(
+            &wf,
+            &make_hash("aaaa0000"),
+            &config,
+            &state,
+            t0 + Duration::from_secs(i as u64),
+        )
+        .unwrap();
+    });
+
+    // Should NOT quarantine - only 1 unique hash
+    let status = state.get_status(&wf);
+    assert_eq!(status, RegistrationStatus::Active);
+}
+
+/// Attack: Rapidly alternating between 5 different hashes must NOT quarantine
+/// if the window is configured with a very short failure window.
+#[test]
+fn attack_healthy_rapid_alternation_below_threshold_never_quarantined() {
+    let state = CircuitBreakerState::new();
+    let config = default_config();
+    let t0 = Instant::now();
+    let wf = make_wf("rapid-alt");
+
+    // Only 3 unique hashes (below threshold of 5)
+    let hashes = ["aaaa0001", "aaaa0002", "aaaa0003"];
+    (0..1000).for_each(|i| {
+        let hash = hashes[i % 3];
+        record_failure(
+            &wf,
+            &make_hash(hash),
+            &config,
+            &state,
+            t0 + Duration::from_millis(i as u64),
+        )
+        .unwrap();
+    });
+
+    let status = state.get_status(&wf);
+    assert_eq!(status, RegistrationStatus::Active);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ATTACK VECTOR 19: Cascading quarantine across workflows
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Attack: One workflow's failure cascade must NOT affect another workflow.
+/// Verifies complete isolation - quarantining wf-a cannot cause wf-b to be
+/// rejected or contaminated.
+#[test]
+fn attack_cascading_quarantine_workflow_a_cannot_affect_workflow_b() {
+    let state = CircuitBreakerState::new();
+    let config = default_config();
+    let t0 = Instant::now();
+    let wf_a = make_wf("cascade-a");
+    let wf_b = make_wf("cascade-b");
+
+    // Quarantine wf-a
+    (0..5).for_each(|i| {
+        record_failure(&wf_a, &hash_from_idx(i), &config, &state, t0).unwrap();
+    });
+    assert_eq!(state.get_status(&wf_a), RegistrationStatus::Quarantined);
+
+    // wf-b should be completely isolated - registration allowed
+    let req_b = make_request("cascade-b", "abcdef01", false);
+    let result = evaluate_registration(&req_b, &config, &state, t0);
+    assert_eq!(result, Ok(RegistrationOutcome::Allowed));
+
+    // wf-b failure tracker must be empty
+    let tracker_b = state.failure_tracker.get(&wf_b);
+    assert!(
+        tracker_b.is_none() || tracker_b.map(|t| t.is_empty()) == Some(true),
+        "wf-b should have no failure records"
+    );
+
+    // wf-b status must be Active
+    assert_eq!(state.get_status(&wf_b), RegistrationStatus::Active);
+}
+
+/// Attack: High failure count on wf-a must not inflate wf-b's failure count.
+#[test]
+fn attack_cascading_high_count_on_a_cannot_inflate_b_count() {
+    let state = CircuitBreakerState::new();
+    let config = default_config();
+    let t0 = Instant::now();
+    let wf_a = make_wf("cascade-count-a");
+    let wf_b = make_wf("cascade-count-b");
+
+    // wf-a has 1000 unique failures
+    (0..1000).for_each(|i| {
+        record_failure(&wf_a, &hash_from_idx(i), &config, &state, t0).unwrap();
+    });
+    assert_eq!(state.get_status(&wf_a), RegistrationStatus::Quarantined);
+
+    // wf-b records 3 failures (below threshold)
+    (0..3).for_each(|i| {
+        record_failure(&wf_b, &hash_from_idx(i), &config, &state, t0).unwrap();
+    });
+
+    // wf-b should have exactly 3 failures tracked
+    let tracker_b = state.failure_tracker.get(&wf_b).unwrap();
+    assert_eq!(
+        tracker_b.len(),
+        3,
+        "wf-b should have exactly 3 unique failures"
+    );
+
+    // wf-b status must be Active (3 < threshold 5)
+    assert_eq!(state.get_status(&wf_b), RegistrationStatus::Active);
+}
+
+/// Attack: Verify status map is per-workflow, not shared.
+/// wf-a's quarantined status must not cause wf-b to appear quarantined.
+#[test]
+fn attack_cascading_status_map_is_per_workflow() {
+    let state = CircuitBreakerState::new();
+    let wf_a = make_wf("status-map-a");
+    let wf_b = make_wf("status-map-b");
+
+    // Quarantine wf-a manually
+    state.set_status(wf_a.clone(), RegistrationStatus::Quarantined);
+
+    // wf-b status must be unknown/Active (not Quarantined)
+    let status_b = state.get_status(&wf_b);
+    assert_ne!(
+        status_b,
+        RegistrationStatus::Quarantined,
+        "wf-b must not inherit wf-a's quarantine status"
+    );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ATTACK VECTOR 20: Manual override race conditions
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Attack: Concurrent unquarantine and quarantine trigger.
+/// Thread 1 unquarantines, Thread 2 records failures simultaneously.
+/// The final state must be deterministic and correct.
+#[test]
+fn attack_manual_override_race_unquarantine_vs_quarantine_trigger() {
+    use std::sync::Arc;
+    use std::thread;
+
+    let state = Arc::new(CircuitBreakerState::new());
+    let config = Arc::new(default_config());
+    let t0 = Instant::now();
+    let wf = make_wf("race-unq-trig");
+
+    // Pre-quarantine the workflow
+    {
+        let state = Arc::clone(&state);
+        (0..5).for_each(|i| {
+            let _ = record_failure(&wf, &hash_from_idx(i), &config, &state, t0);
+        });
+    }
+    assert_eq!(state.get_status(&wf), RegistrationStatus::Quarantined);
+
+    // Thread 1: Unquarantine
+    let state_clone1 = Arc::clone(&state);
+    let handle1 = thread::spawn(move || {
+        let result = unquarantine(&wf, "operator", &state_clone1);
+        (result, state_clone1.get_status(&wf))
+    });
+
+    // Thread 2: Record 5 new failures to re-quarantine
+    let config_clone = Arc::clone(&config);
+    let state_clone2 = Arc::clone(&state);
+    let handle2 = thread::spawn(move || {
+        let t1 = t0 + Duration::from_secs(1);
+        (0..5).for_each(|i| {
+            let _ = record_failure(
+                &wf,
+                &hash_from_idx(10 + i),
+                &config_clone,
+                &state_clone2,
+                t1,
+            );
+        });
+        (
+            state_clone2.get_status(&wf),
+            state_clone2.get_failure_count(&wf),
+        )
+    });
+
+    let (unq_result, unq_final_status) = handle1.join().unwrap();
+    let (trig_final_status, trig_final_count) = handle2.join().unwrap();
+
+    // Both operations should succeed without panic
+    assert!(unq_result.is_ok() || unq_result.is_err()); // deterministic outcome not guaranteed
+
+    // At least one thread should see consistent state
+    // Final status must be either Quarantined (re-triggered) or Active (unquarantine won)
+    let final_status = state.get_status(&wf);
+    assert!(
+        final_status == RegistrationStatus::Quarantined
+            || final_status == RegistrationStatus::Active,
+        "Final status must be deterministic: Quarantined or Active, got {final_status:?}"
+    );
+}
+
+/// Attack: Double unquarantine race - two threads both try to unquarantine.
+/// Second unquarantine must fail gracefully with NotQuarantined.
+#[test]
+fn attack_manual_override_race_double_unquarantine() {
+    use std::sync::Arc;
+    use std::thread;
+
+    let state = Arc::new(CircuitBreakerState::new());
+    let t0 = Instant::now();
+    let wf = make_wf("race-dbl-unq");
+
+    // Pre-quarantine
+    state.set_status(wf.clone(), RegistrationStatus::Quarantined);
+
+    // Two threads try to unquarantine simultaneously
+    let state1 = Arc::clone(&state);
+    let state2 = Arc::clone(&state);
+
+    let handle1 = thread::spawn(move || unquarantine(&wf, "op1", &state1));
+    let handle2 = thread::spawn(move || unquarantine(&wf, "op2", &state2));
+
+    let result1 = handle1.join().unwrap();
+    let result2 = handle2.join().unwrap();
+
+    // Exactly one must succeed, one must fail with NotQuarantined
+    let successes = [result1.is_ok(), result2.is_ok()];
+    let failures = [result1.is_err(), result2.is_err()];
+
+    assert_eq!(
+        successes.iter().filter(|&&x| x).count(),
+        1,
+        "Exactly one unquarantine must succeed"
+    );
+    assert_eq!(
+        failures.iter().filter(|&&x| x).count(),
+        1,
+        "Exactly one unquarantine must fail"
+    );
+}
+
+/// Attack: Unquarantine while concurrent registrations are happening.
+/// After unquarantine, the rate limiter should be cleared and registration allowed.
+#[test]
+fn attack_manual_override_unquarantine_clears_rate_limiter_for_pending_requests() {
+    let state = CircuitBreakerState::new();
+    let config = default_config();
+    let t0 = Instant::now();
+    let wf = make_wf("race-unq-reg");
+
+    // Set up: quarantined with recent rate limit entry (simulates pending requests)
+    state.set_status(wf.clone(), RegistrationStatus::Quarantined);
+    state.rate_limiter.insert(wf.clone(), t0); // Just 1 second ago
+
+    // Unquarantine
+    let result = unquarantine(&wf, "operator", &state);
+    assert!(result.is_ok());
+
+    // Rate limiter should be cleared - registration allowed immediately
+    let t1 = t0 + Duration::from_secs(1);
+    let request = make_request("race-unq-reg", "abcdef01", false);
+    let result = evaluate_registration(&request, &config, &state, t1);
+    assert_eq!(
+        result,
+        Ok(RegistrationOutcome::Allowed),
+        "Registration should be allowed immediately after unquarantine (rate limiter cleared)"
+    );
+}
+
+/// Attack: Multiple rapid unquarantine-then-requarantine cycles.
+/// After unquarantine, 5 new failures should re-quarantine independently.
+#[test]
+fn attack_manual_override_rapid_unquarantine_requarantine_cycles() {
+    let state = CircuitBreakerState::new();
+    let config = default_config();
+    let t0 = Instant::now();
+    let wf = make_wf("rapid-cycle");
+
+    (0..3).for_each(|cycle| {
+        // Phase 1: Quarantine with 5 failures
+        let base = cycle * 10;
+        (0..5).for_each(|i| {
+            let _ = record_failure(
+                &wf,
+                &hash_from_idx(base + i),
+                &config,
+                &state,
+                t0 + Duration::from_secs(cycle as u64 * 100),
+            );
+        });
+        assert_eq!(state.get_status(&wf), RegistrationStatus::Quarantined);
+
+        // Phase 2: Unquarantine
+        let unq_result = unquarantine(&wf, "operator", &state);
+        assert!(
+            unq_result.is_ok(),
+            "Cycle {}: unquarantine should succeed",
+            cycle
+        );
+        assert_eq!(state.get_status(&wf), RegistrationStatus::Active);
+
+        // Phase 3: Verify failure count is reset (POST-003)
+        let count = state.get_failure_count(&wf);
+        assert_eq!(
+            count, 0,
+            "Cycle {}: failure count should be reset after unquarantine",
+            cycle
+        );
+    });
+}

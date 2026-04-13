@@ -17,6 +17,7 @@ pub mod dedupe_partition;
 pub mod effect_journal;
 pub mod instance_index;
 pub mod key_encoding;
+pub mod key_partition;
 pub mod lease_partition;
 pub mod mmap_cache;
 pub mod partitions;
