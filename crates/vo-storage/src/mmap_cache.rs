@@ -3,24 +3,58 @@
 use memmap2::Mmap;
 use parking_lot::Mutex;
 use std::collections::{HashMap, VecDeque};
+use std::fmt;
 use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::path::PathBuf;
+use tokio::sync::broadcast;
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug)]
 pub enum MmapCacheError {
-    #[error("IO error: {0}")]
-    IoError(#[from] std::io::Error),
-    #[error("Mmap error: {0}")]
+    IoError(std::io::Error),
     MmapError(std::io::Error),
-    #[error("region not found: {0}")]
     RegionNotFound(String),
-    #[error("invalid region")]
     InvalidRegion,
-    #[error("cache full")]
     CacheFull,
-    #[error("serialization error")]
     SerializationError,
+}
+
+impl fmt::Display for MmapCacheError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::IoError(e) => write!(f, "IO error: {e}"),
+            Self::MmapError(e) => write!(f, "Mmap error: {e}"),
+            Self::RegionNotFound(key) => write!(f, "region not found: {key}"),
+            Self::InvalidRegion => write!(f, "invalid region"),
+            Self::CacheFull => write!(f, "cache full"),
+            Self::SerializationError => write!(f, "serialization error"),
+        }
+    }
+}
+
+impl std::error::Error for MmapCacheError {}
+
+impl From<std::io::Error> for MmapCacheError {
+    fn from(err: std::io::Error) -> Self {
+        Self::IoError(err)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum CacheInvalidationEvent {
+    KeyInvalidated(String),
+    PrefixInvalidated(String),
+    AllInvalidated,
+}
+
+impl fmt::Display for CacheInvalidationEvent {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::KeyInvalidated(key) => write!(f, "key_invalidated: {}", key),
+            Self::PrefixInvalidated(prefix) => write!(f, "prefix_invalidated: {}", prefix),
+            Self::AllInvalidated => write!(f, "all_invalidated"),
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -44,6 +78,7 @@ pub struct MmapCache {
     lru_queue: VecDeque<String>,
     entries: HashMap<String, LruEntry>,
     lock: parking_lot::Mutex<()>,
+    _invalidation_tx: Option<broadcast::Sender<CacheInvalidationEvent>>,
 }
 
 impl MmapCache {
@@ -53,7 +88,26 @@ impl MmapCache {
     ///
     /// Returns `MmapCacheError::IoError` if the directory cannot be created.
     pub fn new(base_path: PathBuf, max_memory_bytes: usize) -> Result<Self, MmapCacheError> {
+        Self::with_broadcast_channel(base_path, max_memory_bytes, 100)
+    }
+
+    /// Creates a new memory-mapped cache with broadcast channel support for invalidation events.
+    ///
+    /// # Arguments
+    ///
+    /// * `buffer_size` - Size of the broadcast channel buffer for invalidation events.
+    ///                  Set to 0 to drop events when receiver is slow.
+    ///
+    /// # Errors
+    ///
+    /// Returns `MmapCacheError::IoError` if the directory cannot be created.
+    pub fn with_broadcast_channel(
+        base_path: PathBuf,
+        max_memory_bytes: usize,
+        buffer_size: usize,
+    ) -> Result<Self, MmapCacheError> {
         std::fs::create_dir_all(&base_path)?;
+        let (tx, _rx) = broadcast::channel(buffer_size);
         Ok(Self {
             base_path,
             max_memory_bytes,
@@ -62,6 +116,7 @@ impl MmapCache {
             lru_queue: VecDeque::new(),
             entries: HashMap::new(),
             lock: parking_lot::Mutex::new(()),
+            _invalidation_tx: Some(tx),
         })
     }
 
@@ -206,6 +261,57 @@ impl MmapCache {
         self.max_memory_bytes
     }
 
+    pub fn subscribe(&self) -> broadcast::Receiver<CacheInvalidationEvent> {
+        if let Some(ref tx) = self._invalidation_tx {
+            tx.subscribe()
+        } else {
+            let (_, rx) = broadcast::channel(100);
+            rx
+        }
+    }
+
+    pub fn invalidate_key(&self, key: &str) -> Result<(), MmapCacheError> {
+        if let Some(ref tx) = self._invalidation_tx {
+            let event = CacheInvalidationEvent::KeyInvalidated(key.to_string());
+            let _ = tx.send(event);
+        }
+        Ok(())
+    }
+
+    pub fn invalidate_prefix(&self, prefix: &str) -> Result<Vec<String>, MmapCacheError> {
+        let keys_to_invalidate: Vec<String> = {
+            let _guard = self.lock.lock();
+            self.entries
+                .keys()
+                .filter(|k| k.starts_with(prefix))
+                .cloned()
+                .collect()
+        };
+
+        if let Some(ref tx) = self._invalidation_tx {
+            for key in &keys_to_invalidate {
+                let event = CacheInvalidationEvent::KeyInvalidated(key.clone());
+                let _ = tx.send(event);
+            }
+        }
+
+        Ok(keys_to_invalidate)
+    }
+
+    pub fn invalidate_all(&self) -> Result<usize, MmapCacheError> {
+        let count = {
+            let _guard = self.lock.lock();
+            self.entries.len()
+        };
+
+        if let Some(ref tx) = self._invalidation_tx {
+            let event = CacheInvalidationEvent::AllInvalidated;
+            let _ = tx.send(event);
+        }
+
+        Ok(count)
+    }
+
     fn region_file_path(&self, key: &str) -> PathBuf {
         let safe_name = key.replace(['/', '\\', ':'], "_");
         self.base_path.join(safe_name)
@@ -318,7 +424,8 @@ mod tests {
 
     #[test]
     fn insert_and_get() {
-        let (mut cache, _dir) = create_test_cache();
+        let temp_dir = TempDir::new().unwrap();
+        let mut cache = MmapCache::new(temp_dir.path().to_path_buf(), 1024 * 1024).unwrap();
         cache.insert("key1", b"hello world").unwrap();
         let value = cache.get("key1").unwrap();
         assert_eq!(value, b"hello world");
@@ -326,14 +433,16 @@ mod tests {
 
     #[test]
     fn get_missing_key_returns_error() {
-        let (mut cache, _dir) = create_test_cache();
+        let temp_dir = TempDir::new().unwrap();
+        let cache = MmapCache::new(temp_dir.path().to_path_buf(), 1024 * 1024).unwrap();
         let result = cache.get("nonexistent");
         assert!(result.is_err());
     }
 
     #[test]
     fn contains_key() {
-        let (mut cache, _dir) = create_test_cache();
+        let temp_dir = TempDir::new().unwrap();
+        let mut cache = MmapCache::new(temp_dir.path().to_path_buf(), 1024 * 1024).unwrap();
         assert!(!cache.contains_key("key1"));
         cache.insert("key1", b"value").unwrap();
         assert!(cache.contains_key("key1"));
@@ -341,7 +450,8 @@ mod tests {
 
     #[test]
     fn remove_entry() {
-        let (mut cache, _dir) = create_test_cache();
+        let temp_dir = TempDir::new().unwrap();
+        let mut cache = MmapCache::new(temp_dir.path().to_path_buf(), 1024 * 1024).unwrap();
         cache.insert("key1", b"value").unwrap();
         assert!(cache.contains_key("key1"));
         cache.remove("key1").unwrap();
@@ -362,7 +472,8 @@ mod tests {
 
     #[test]
     fn prefetch_does_not_error() {
-        let (mut cache, _dir) = create_test_cache();
+        let temp_dir = TempDir::new().unwrap();
+        let mut cache = MmapCache::new(temp_dir.path().to_path_buf(), 1024 * 1024).unwrap();
         cache.insert("key1", b"value").unwrap();
         let result = cache.prefetch("key1");
         assert!(result.is_ok());
@@ -370,7 +481,8 @@ mod tests {
 
     #[test]
     fn read_ahead_multiple_keys() {
-        let (mut cache, _dir) = create_test_cache();
+        let temp_dir = TempDir::new().unwrap();
+        let mut cache = MmapCache::new(temp_dir.path().to_path_buf(), 1024 * 1024).unwrap();
         cache.insert("key1", b"value1").unwrap();
         cache.insert("key2", b"value2").unwrap();
         let result = cache.read_ahead(&["key1", "key2"]);
@@ -379,7 +491,8 @@ mod tests {
 
     #[test]
     fn clear_cache() {
-        let (mut cache, _dir) = create_test_cache();
+        let temp_dir = TempDir::new().unwrap();
+        let mut cache = MmapCache::new(temp_dir.path().to_path_buf(), 1024 * 1024).unwrap();
         cache.insert("key1", b"value1").unwrap();
         cache.insert("key2", b"value2").unwrap();
         assert_eq!(cache.len(), 2);
@@ -390,7 +503,8 @@ mod tests {
 
     #[test]
     fn memory_usage_tracking() {
-        let (mut cache, _dir) = create_test_cache();
+        let temp_dir = TempDir::new().unwrap();
+        let mut cache = MmapCache::new(temp_dir.path().to_path_buf(), 1024 * 1024).unwrap();
         assert_eq!(cache.current_memory_usage(), 0);
         cache.insert("key1", b"hello").unwrap();
         assert_eq!(cache.current_memory_usage(), 5);
@@ -561,5 +675,158 @@ mod tests {
             matches!(result, Err(MmapCacheError::CacheFull)),
             "insert with zero max_memory_bytes should return error (INV-002)"
         );
+    }
+
+    #[test]
+    fn invalidate_key_sends_event() {
+        let temp_dir = TempDir::new().unwrap();
+        let mut cache =
+            MmapCache::with_broadcast_channel(temp_dir.path().to_path_buf(), 1024 * 1024, 100)
+                .unwrap();
+        let mut receiver = cache.subscribe();
+
+        cache.insert("key1", b"value").unwrap();
+        cache.invalidate_key("key1").unwrap();
+
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let event = runtime.block_on(receiver.recv()).unwrap();
+        match event {
+            CacheInvalidationEvent::KeyInvalidated(key) => assert_eq!(key, "key1"),
+            _ => panic!("Expected KeyInvalidated event"),
+        }
+    }
+
+    #[test]
+    fn invalidate_prefix_sends_events_for_matching_keys() {
+        let temp_dir = TempDir::new().unwrap();
+        let mut cache =
+            MmapCache::with_broadcast_channel(temp_dir.path().to_path_buf(), 1024 * 1024, 100)
+                .unwrap();
+        let mut receiver = cache.subscribe();
+
+        cache.insert("user:1", b"value1").unwrap();
+        cache.insert("user:2", b"value2").unwrap();
+        cache.insert("order:1", b"value3").unwrap();
+        cache.invalidate_prefix("user:").unwrap();
+
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let event1 = runtime.block_on(receiver.recv()).unwrap();
+        let event2 = runtime.block_on(receiver.recv()).unwrap();
+
+        match event1 {
+            CacheInvalidationEvent::KeyInvalidated(key) => assert!(key.starts_with("user:")),
+            _ => panic!("Expected KeyInvalidated event"),
+        }
+        match event2 {
+            CacheInvalidationEvent::KeyInvalidated(key) => assert!(key.starts_with("user:")),
+            _ => panic!("Expected KeyInvalidated event"),
+        }
+    }
+
+    #[test]
+    fn invalidate_all_sends_event() {
+        let temp_dir = TempDir::new().unwrap();
+        let mut cache =
+            MmapCache::with_broadcast_channel(temp_dir.path().to_path_buf(), 1024 * 1024, 100)
+                .unwrap();
+        let mut receiver = cache.subscribe();
+
+        cache.insert("key1", b"value1").unwrap();
+        cache.insert("key2", b"value2").unwrap();
+        cache.invalidate_all().unwrap();
+
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let event = runtime.block_on(receiver.recv()).unwrap();
+        match event {
+            CacheInvalidationEvent::AllInvalidated => (),
+            _ => panic!("Expected AllInvalidated event"),
+        }
+    }
+
+    #[test]
+    fn invalidate_prefix_returns_list_of_invalidated_keys() {
+        let temp_dir = TempDir::new().unwrap();
+        let mut cache =
+            MmapCache::with_broadcast_channel(temp_dir.path().to_path_buf(), 1024 * 1024, 100)
+                .unwrap();
+
+        cache.insert("user:1", b"value1").unwrap();
+        cache.insert("user:2", b"value2").unwrap();
+        cache.insert("order:1", b"value3").unwrap();
+
+        let invalidated = cache.invalidate_prefix("user:").unwrap();
+        assert_eq!(invalidated.len(), 2);
+        assert!(invalidated.contains(&"user:1".to_string()));
+        assert!(invalidated.contains(&"user:2".to_string()));
+    }
+
+    #[test]
+    fn invalidate_all_returns_count() {
+        let temp_dir = TempDir::new().unwrap();
+        let mut cache =
+            MmapCache::with_broadcast_channel(temp_dir.path().to_path_buf(), 1024 * 1024, 100)
+                .unwrap();
+
+        cache.insert("key1", b"value1").unwrap();
+        cache.insert("key2", b"value2").unwrap();
+        cache.insert("key3", b"value3").unwrap();
+
+        let count = cache.invalidate_all().unwrap();
+        assert_eq!(count, 3);
+    }
+
+    #[test]
+    fn invalidate_key_with_no_subscribers_does_not_error() {
+        let temp_dir = TempDir::new().unwrap();
+        let mut cache =
+            MmapCache::with_broadcast_channel(temp_dir.path().to_path_buf(), 1024 * 1024, 100)
+                .unwrap();
+        cache.insert("key1", b"value").unwrap();
+        let result = cache.invalidate_key("key1");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn invalidate_nonexistent_key_sends_event() {
+        let temp_dir = TempDir::new().unwrap();
+        let mut cache =
+            MmapCache::with_broadcast_channel(temp_dir.path().to_path_buf(), 1024 * 1024, 100)
+                .unwrap();
+        let mut receiver = cache.subscribe();
+
+        cache.invalidate_key("nonexistent").unwrap();
+
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let event = runtime.block_on(receiver.recv()).unwrap();
+        match event {
+            CacheInvalidationEvent::KeyInvalidated(key) => assert_eq!(key, "nonexistent"),
+            _ => panic!("Expected KeyInvalidated event"),
+        }
+    }
+
+    #[test]
+    fn broadcast_channel_buffer_overflow_drops_events() {
+        let temp_dir = TempDir::new().unwrap();
+        let mut cache =
+            MmapCache::with_broadcast_channel(temp_dir.path().to_path_buf(), 1024 * 1024, 2)
+                .unwrap();
+        let mut receiver = cache.subscribe();
+
+        cache.invalidate_key("key1").unwrap();
+        cache.invalidate_key("key2").unwrap();
+        cache.invalidate_key("key3").unwrap();
+
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let event1 = runtime.block_on(receiver.recv()).unwrap();
+        let event2 = runtime.block_on(receiver.recv()).unwrap();
+
+        match event1 {
+            CacheInvalidationEvent::KeyInvalidated(key) => assert_eq!(key, "key1"),
+            _ => panic!("Expected KeyInvalidated event"),
+        }
+        match event2 {
+            CacheInvalidationEvent::KeyInvalidated(key) => assert_eq!(key, "key2"),
+            _ => panic!("Expected KeyInvalidated event"),
+        }
     }
 }
