@@ -55,11 +55,15 @@ pub enum GuardResult {
 
 pub type GuardFn = Box<dyn Fn(LifecycleState, TransitionEvent) -> GuardResult + Send + Sync>;
 
+#[derive(Default)]
 pub enum Guard {
+    #[default]
     Always,
     Never,
     If(fn(LifecycleState, TransitionEvent) -> bool),
-    Fn { f: GuardFn },
+    Fn {
+        f: GuardFn,
+    },
 }
 
 impl Clone for Guard {
@@ -92,12 +96,6 @@ impl Guard {
     }
 }
 
-impl Default for Guard {
-    fn default() -> Self {
-        Guard::Always
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SideEffectResult {
     Executed,
@@ -107,10 +105,16 @@ pub enum SideEffectResult {
 pub type SideEffectFn =
     Box<dyn Fn(LifecycleState, TransitionEvent, LifecycleState) -> SideEffectResult + Send + Sync>;
 
+#[derive(Default)]
 pub enum SideEffect {
+    #[default]
     None,
-    Log { message: String },
-    Fn { f: SideEffectFn },
+    Log {
+        message: String,
+    },
+    Fn {
+        f: SideEffectFn,
+    },
 }
 
 impl Clone for SideEffect {
@@ -137,23 +141,11 @@ impl SideEffect {
         match self {
             SideEffect::None => SideEffectResult::Skipped,
             SideEffect::Log { message } => {
-                eprintln!(
-                    "Transition side effect: {} -> {:?} via {:?}: {}",
-                    format!("{:?}", from),
-                    to,
-                    event,
-                    message
-                );
+                eprintln!("Transition side effect: {from:?} -> {to:?} via {event:?}: {message}");
                 SideEffectResult::Executed
             }
             SideEffect::Fn { f } => f(from, event, to),
         }
-    }
-}
-
-impl Default for SideEffect {
-    fn default() -> Self {
-        SideEffect::None
     }
 }
 

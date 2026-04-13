@@ -296,7 +296,6 @@ impl OutputRef {
     /// # Errors
     ///
     /// Returns `ParseError::ExceedsMaxLength` if `data.len() > INLINED_MAX_BYTES`.
-    #[must_use]
     pub fn classify(data: Vec<u8>) -> Result<Self, crate::ParseError> {
         Self::inline(data)
     }
@@ -956,8 +955,13 @@ mod tests {
         // Per ADR-040 §3: Required output failure blocks step completion
         for status in BlobStatus::all_variants() {
             let action = OutputPolicy::Required.blob_failure_action(*status);
-            assert_eq!(action, BlobFailureAction::BlockStep,
-                "Required policy must always block, got {:?} for status {:?}", action, status);
+            assert_eq!(
+                action,
+                BlobFailureAction::BlockStep,
+                "Required policy must always block, got {:?} for status {:?}",
+                action,
+                status
+            );
         }
     }
 
@@ -1008,8 +1012,11 @@ mod tests {
         // Per ADR-040 §2: once published, the blob reference is durable
         let published = BlobStatus::Published;
         for target in BlobStatus::all_variants() {
-            assert!(!published.can_transition_to(*target),
-                "Published should be terminal, but allowed transition to {:?}", target);
+            assert!(
+                !published.can_transition_to(*target),
+                "Published should be terminal, but allowed transition to {:?}",
+                target
+            );
         }
     }
 
@@ -1017,8 +1024,11 @@ mod tests {
     fn adr040_blob_status_failed_is_irreversible() {
         let failed = BlobStatus::Failed;
         for target in BlobStatus::all_variants() {
-            assert!(!failed.can_transition_to(*target),
-                "Failed should be terminal, but allowed transition to {:?}", target);
+            assert!(
+                !failed.can_transition_to(*target),
+                "Failed should be terminal, but allowed transition to {:?}",
+                target
+            );
         }
     }
 

@@ -153,7 +153,7 @@ impl<'de> Deserialize<'de> for SignalAddress {
             epoch_id: raw.epoch_id,
         };
 
-        addr.validate().map_err(|msg| DeError::custom(msg))?;
+        addr.validate().map_err(DeError::custom)?;
         Ok(addr)
     }
 }
