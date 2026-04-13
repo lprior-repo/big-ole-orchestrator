@@ -36,6 +36,9 @@ pub async fn run_subprocess(config: SubprocessConfig) -> Result<SubprocessOutput
 
     unsafe {
         command.pre_exec(move || {
+            if libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGTERM, 0, 0, 0) != 0 {
+                return Err(std::io::Error::last_os_error());
+            }
             if libc::setpgid(0, 0) != 0 {
                 return Err(std::io::Error::last_os_error());
             }
@@ -43,6 +46,12 @@ pub async fn run_subprocess(config: SubprocessConfig) -> Result<SubprocessOutput
                 return Err(std::io::Error::last_os_error());
             }
             if libc::dup2(fd4_write, 4) == -1 {
+                return Err(std::io::Error::last_os_error());
+            }
+            if libc::fcntl(3, libc::F_SETFD, libc::FD_CLOEXEC) == -1 {
+                return Err(std::io::Error::last_os_error());
+            }
+            if libc::fcntl(4, libc::F_SETFD, libc::FD_CLOEXEC) == -1 {
                 return Err(std::io::Error::last_os_error());
             }
             Ok(())
