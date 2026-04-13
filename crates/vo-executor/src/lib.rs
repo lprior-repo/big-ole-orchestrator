@@ -10,16 +10,18 @@
 
 pub mod errors;
 pub mod execution;
+pub mod runtime;
 pub mod scheduler;
 pub mod state;
 pub mod types;
 
 // Re-export for convenience
 pub use errors::{ExecuteNodeError, RetryPolicyError};
-pub use execution::get_last_error;
 pub use execution::{
     cancel_execution, execute_step, execute_step_with_retry, get_execution_status,
+    get_last_error,
 };
+pub use runtime::{ContextError, Runtime, RuntimeError, StepContext};
 pub use scheduler::{Job, JobId, JobPriority, JobResult, Schedule, SchedulerConfig};
 pub use state::{clear_error, reset_all_state, set_error};
 pub use types::{ExecutionStatus, RetryPolicy, StepId, StepResult};
