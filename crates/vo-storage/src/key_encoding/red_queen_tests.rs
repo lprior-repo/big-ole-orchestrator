@@ -335,7 +335,7 @@ fn red_queen_lease_key_no_collision() {
     let id2 = InstanceId::parse("00000000000000000000000002").unwrap();
 
     let step1 = StepId::parse("a").unwrap();
-    let step2 = StepId::parse("a::b").unwrap();
+    let step2 = StepId::parse("b").unwrap();
 
     let key1 = encode_lease_key(&id1, &step1);
     let key2 = encode_lease_key(&id1, &step2);

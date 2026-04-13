@@ -872,4 +872,24 @@ mod tests {
         let entry = guard.get("fx-1").expect("entry exists");
         assert_eq!(entry.status, SagaCompensationStatus::Pending);
     }
+
+    #[test]
+    fn forward_recovery_retry_requeues_ambiguous_compensation() {
+        let saga = CompensationSaga::with_reconciler(RetryReconciler::new(3));
+        saga.register("fx-1".to_string(), CompensationPolicy::Automatic, vec![])
+            .unwrap();
+        saga.queue_pending("fx-1").unwrap();
+        saga.start_compensation("fx-1").unwrap();
+
+        // Simulate ambiguous outcome (e.g., network timeout)
+        let action = saga.mark_ambiguous("fx-1").unwrap();
+        assert_eq!(action, ReconciliationAction::RetryCompensation);
+
+        // Forward-recovery: retry requeues for re-execution
+        saga.handle_reconciliation("fx-1", action).unwrap();
+
+        let manifest = saga.manifest.lock().unwrap();
+        let entry = manifest.get("fx-1").expect("entry exists");
+        assert_eq!(entry.status, SagaCompensationStatus::Pending);
+    }
 }

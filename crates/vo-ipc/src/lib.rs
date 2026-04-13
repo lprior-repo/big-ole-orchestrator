@@ -8,6 +8,7 @@ pub mod config;
 pub mod envelope;
 pub mod error;
 pub mod run;
+pub mod spsc;
 pub mod stderr;
 
 pub use config::SubprocessConfig;
@@ -16,6 +17,7 @@ pub use envelope::{
     Fd4Envelope, TaskError, TaskResult,
 };
 pub use error::{ConfigError, IpcError};
+pub use envelope::MAX_PAYLOAD_SIZE;
 pub use run::{run_subprocess, SubprocessOutput};
 pub use stderr::{MAX_STDERR_BYTES, TRUNCATION_MARKER};
 

@@ -5392,6 +5392,7 @@ dependencies = [
  "thiserror 1.0.69",
  "tokio",
  "ulid",
+ "vo-core",
  "vo-types",
 ]
 
@@ -5418,6 +5419,7 @@ dependencies = [
  "anyhow",
  "async-nats",
  "async-trait",
+ "axum 0.7.9",
  "bytes",
  "chrono",
  "futures",
@@ -5428,6 +5430,7 @@ dependencies = [
  "serde_json",
  "thiserror 1.0.69",
  "tokio",
+ "tower 0.4.13",
  "tracing",
  "ulid",
  "vo-common",

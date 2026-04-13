@@ -6,6 +6,7 @@ use vo_types::NodeKind;
 
 use crate::dag::{Dag, DagError, Workflow};
 use crate::graph_args::WorkflowSpec;
+use crate::node_handle::NodeHandle;
 
 #[test]
 fn workflow_build_produces_workflow_spec() {
@@ -129,4 +130,160 @@ fn workflow_all_node_kinds_work() {
     assert!(kinds.contains(&NodeKind::Wait));
     assert!(kinds.contains(&NodeKind::Signal));
     assert!(kinds.contains(&NodeKind::Unsafe));
+}
+
+#[test]
+fn workflow_pure_rejects_invalid_name() {
+    let mut wf = Workflow::new("wf");
+    let result: Result<NodeHandle<(), ()>, _> = wf.pure("", |_i: ()| ());
+    assert!(
+        matches!(result, Err(DagError::InvalidNodeName { .. })),
+        "empty name should be rejected"
+    );
+}
+
+#[test]
+fn workflow_effect_rejects_invalid_name() {
+    let mut wf = Workflow::new("wf");
+    let result: Result<NodeHandle<(), ()>, _> = wf.effect("", |_i: ()| ());
+    assert!(
+        matches!(result, Err(DagError::InvalidNodeName { .. })),
+        "empty name should be rejected"
+    );
+}
+
+#[test]
+fn workflow_wait_rejects_invalid_name() {
+    let mut wf = Workflow::new("wf");
+    let result: Result<NodeHandle<(), ()>, _> = wf.wait("", |_i: ()| ());
+    assert!(
+        matches!(result, Err(DagError::InvalidNodeName { .. })),
+        "empty name should be rejected"
+    );
+}
+
+#[test]
+fn workflow_signal_rejects_invalid_name() {
+    let mut wf = Workflow::new("wf");
+    let result: Result<NodeHandle<(), ()>, _> = wf.signal("", |_i: ()| ());
+    assert!(
+        matches!(result, Err(DagError::InvalidNodeName { .. })),
+        "empty name should be rejected"
+    );
+}
+
+#[test]
+fn workflow_unsafe_node_rejects_invalid_name() {
+    let mut wf = Workflow::new("wf");
+    let result: Result<NodeHandle<(), ()>, _> = wf.unsafe_node("", |_i: ()| ());
+    assert!(
+        matches!(result, Err(DagError::InvalidNodeName { .. })),
+        "empty name should be rejected"
+    );
+}
+
+#[test]
+fn workflow_connect_rejects_unknown_node() {
+    let mut wf = Workflow::new("wf");
+    let known: NodeHandle<String, i32> =
+        wf.pure("known", |_s: String| -> i32 { 0 }).expect("valid");
+    let phantom: NodeHandle<i32, ()> =
+        NodeHandle::new(vo_types::NodeName::parse("ghost").expect("valid name"));
+    let result = wf.connect(&known, &phantom);
+    assert!(
+        matches!(result, Err(DagError::NodeNotFound { .. })),
+        "should reject unknown node"
+    );
+}
+
+#[test]
+fn workflow_build_with_invalid_name_returns_error() {
+    let mut wf = Workflow::new("HAS CAPS");
+    let _: NodeHandle<(), ()> = wf.pure("node", |_i: ()| ()).expect("valid");
+    let result = wf.build();
+    assert!(
+        matches!(result, Err(DagError::InvalidNodeName { .. })),
+        "invalid workflow name should be rejected"
+    );
+}
+
+#[test]
+fn workflow_build_produces_correct_edge_specs() {
+    let mut wf = Workflow::new("edge_test");
+    let a: NodeHandle<String, i32> = wf.pure("node-a", |_s: String| -> i32 { 0 }).expect("valid");
+    let b: NodeHandle<i32, bool> = wf
+        .effect("node-b", |_i: i32| -> bool { true })
+        .expect("valid");
+    wf.connect(&a, &b).expect("connect");
+
+    let spec = wf.build().expect("build");
+    assert_eq!(spec.edges.len(), 1);
+    assert_eq!(spec.edges[0].from.as_str(), "node-a");
+    assert_eq!(spec.edges[0].to.as_str(), "node-b");
+}
+
+#[test]
+fn workflow_spec_to_json_bytes_is_valid_json() {
+    let mut wf = Workflow::new("json_test");
+    let _: NodeHandle<(), ()> = wf.pure("p", |_i: ()| ()).expect("valid");
+    let spec = wf.build().expect("build");
+    let bytes = spec.to_json_bytes();
+    let _: serde_json::Value =
+        serde_json::from_slice(&bytes).expect("to_json_bytes should produce valid JSON");
+}
+
+#[test]
+fn workflow_build_linear_chain() {
+    let mut wf = Workflow::new("chain");
+    let a: NodeHandle<String, i32> = wf.pure("a", |_s: String| -> i32 { 0 }).expect("valid");
+    let b: NodeHandle<i32, bool> = wf.effect("b", |_i: i32| -> bool { true }).expect("valid");
+    let c: NodeHandle<bool, ()> = wf.wait("c", |_b: bool| ()).expect("valid");
+    wf.connect(&a, &b).expect("a->b");
+    wf.connect(&b, &c).expect("b->c");
+
+    let spec = wf.build().expect("build");
+    assert_eq!(spec.nodes.len(), 3);
+    assert_eq!(spec.edges.len(), 2);
+}
+
+#[test]
+fn workflow_with_only_wait_node() {
+    let mut wf = Workflow::new("wait-only");
+    let _: NodeHandle<(), ()> = wf.wait("w", |_i: ()| ()).expect("valid");
+    let spec = wf.build().expect("build");
+    assert_eq!(spec.nodes.len(), 1);
+    assert_eq!(spec.nodes[0].kind, NodeKind::Wait);
+}
+
+#[test]
+fn workflow_with_only_signal_node() {
+    let mut wf = Workflow::new("signal-only");
+    let _: NodeHandle<(), ()> = wf.signal("s", |_i: ()| ()).expect("valid");
+    let spec = wf.build().expect("build");
+    assert_eq!(spec.nodes.len(), 1);
+    assert_eq!(spec.nodes[0].kind, NodeKind::Signal);
+}
+
+#[test]
+fn workflow_with_only_unsafe_node() {
+    let mut wf = Workflow::new("unsafe-only");
+    let _: NodeHandle<(), ()> = wf.unsafe_node("u", |_i: ()| ()).expect("valid");
+    let spec = wf.build().expect("build");
+    assert_eq!(spec.nodes.len(), 1);
+    assert_eq!(spec.nodes[0].kind, NodeKind::Unsafe);
+}
+
+#[test]
+fn workflow_fan_out_pattern() {
+    let mut wf = Workflow::new("fan-out");
+    let source: NodeHandle<String, i32> =
+        wf.pure("source", |_s: String| -> i32 { 0 }).expect("valid");
+    let branch_a: NodeHandle<i32, ()> = wf.effect("branch-a", |_i: i32| ()).expect("valid");
+    let branch_b: NodeHandle<i32, ()> = wf.effect("branch-b", |_i: i32| ()).expect("valid");
+    wf.connect(&source, &branch_a).expect("source->a");
+    wf.connect(&source, &branch_b).expect("source->b");
+
+    let spec = wf.build().expect("build");
+    assert_eq!(spec.nodes.len(), 3);
+    assert_eq!(spec.edges.len(), 2);
 }

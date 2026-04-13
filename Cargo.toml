@@ -58,6 +58,7 @@ uuid = { version = "1", features = ["v4", "v5", "serde"] }
 ulid = { version = "1", features = ["serde"] }
 fjall = "2.0"
 vo-types = { path = "crates/vo-types" }
+vo-core = { path = "crates/vo-core" }
 chrono = { version = "0.4", features = ["serde"] }
 thiserror = "1"
 anyhow = "1"

@@ -5,6 +5,8 @@
 
 mod dag_tests;
 mod graph_args_tests;
+mod proptest_dag;
+mod proptest_read_write;
 mod read_tests;
 mod red_queen_workflow_spec;
 mod type_tests;

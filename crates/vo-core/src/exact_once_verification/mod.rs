@@ -41,5 +41,7 @@
 //! 4. Storage crash-injection integration tests
 //! 5. Black-box product-owner scenarios
 
+pub mod assertions;
 pub mod crash_points;
 pub mod harness;
+pub mod macros;

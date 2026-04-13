@@ -20,11 +20,40 @@ use vo_types::WorkflowLineage;
 // ========================================================================
 
 fn make_instance_id(suffix: u8) -> InstanceId {
-    InstanceId::parse(&format!("01JAR3K2N0XG8F5VZE9H7QW{}0", suffix as char)).expect("valid ULID")
+    static VALID_ULIDS: &[&str] = &[
+        "01JAR3K2N0XG8F5VZE9H7QW4Y6",
+        "01JAR3K2N0XG8F5VZE9H7QW4Y7",
+        "01JAR3K2N0XG8F5VZE9H7QW4Y8",
+        "01JAR3K2N0XG8F5VZE9H7QW4Y9",
+        "01JAR3K2N0XG8F5VZE9H7QW4ZA",
+        "01JAR3K2N0XG8F5VZE9H7QW4ZB",
+        "01JAR3K2N0XG8F5VZE9H7QW4ZC",
+        "01JAR3K2N0XG8F5VZE9H7QW4ZD",
+        "01JAR3K2N0XG8F5VZE9H7QW4ZE",
+        "01JAR3K2N0XG8F5VZE9H7QW4ZF",
+        "01JAR3K2N0XG8F5VZE9H7QW4ZG",
+        "01JAR3K2N0XG8F5VZE9H7QW4ZH",
+        "01JAR3K2N0XG8F5VZE9H7QW4ZJ",
+        "01JAR3K2N0XG8F5VZE9H7QW4ZK",
+        "01JAR3K2N0XG8F5VZE9H7QW4ZM",
+        "01JAR3K2N0XG8F5VZE9H7QW4ZN",
+        "01JAR3K2N0XG8F5VZE9H7QW4ZP",
+        "01JAR3K2N0XG8F5VZE9H7QW4ZQ",
+        "01JAR3K2N0XG8F5VZE9H7QW4ZR",
+        "01JAR3K2N0XG8F5VZE9H7QW4ZS",
+        "01JAR3K2N0XG8F5VZE9H7QW4ZT",
+        "01JAR3K2N0XG8F5VZE9H7QW4ZV",
+        "01JAR3K2N0XG8F5VZE9H7QW4ZW",
+        "01JAR3K2N0XG8F5VZE9H7QW4ZX",
+        "01JAR3K2N0XG8F5VZE9H7QW4ZZ",
+        "01JAR3K2N0XG8F5VZE9H7QW5A6",
+    ];
+    let idx = (suffix as usize) % VALID_ULIDS.len();
+    InstanceId::parse(VALID_ULIDS[idx]).expect("valid ULID")
 }
 
 fn make_lineage_root(id: &str) -> WorkflowLineage {
-    WorkflowLineage::new(id.to_string()).expect("valid lineage")
+    WorkflowLineage::new(id).expect("valid lineage")
 }
 
 // ========================================================================

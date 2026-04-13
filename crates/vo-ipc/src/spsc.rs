@@ -1,7 +1,7 @@
-use std::cell::UnsafeCell;
 use std::fmt;
 use std::mem::MaybeUninit;
 use std::sync::atomic::{fence, AtomicUsize, Ordering};
+use std::sync::Arc;
 
 const CACHE_LINE: usize = 64;
 
@@ -26,7 +26,11 @@ pub struct Receiver<T> {
 impl<T> SpscQueue<T> {
     pub fn new(capacity: usize) -> Self {
         let cap = capacity.next_power_of_two();
-        let buffer = Box::into_raw(vec![MaybeUninit::uninit(); cap].into_boxed_slice());
+        let buffer = Box::into_raw(
+            std::iter::repeat_with(MaybeUninit::<T>::uninit)
+                .take(cap)
+                .collect::<Box<[MaybeUninit<T>]>>(),
+        ) as *mut MaybeUninit<T>;
         Self {
             buffer,
             cap,
@@ -36,7 +40,14 @@ impl<T> SpscQueue<T> {
     }
 
     pub fn sender(self: &Arc<Self>) -> (Sender<T>, Receiver<T>) {
-        (Sender { queue: self }, Receiver { queue: self })
+        (
+            Sender {
+                queue: Arc::as_ptr(self),
+            },
+            Receiver {
+                queue: Arc::as_ptr(self),
+            },
+        )
     }
 
     fn mask(&self, idx: usize) -> usize {
@@ -122,7 +133,12 @@ impl<T> Drop for SpscQueue<T> {
             unsafe { slot.assume_init_drop() };
             idx = idx.wrapping_add(1);
         }
-        drop(unsafe { Box::from_raw(std::slice::from_raw_parts_mut(self.buffer, self.cap)) });
+        drop(unsafe {
+            Box::from_raw(std::slice::from_raw_parts_mut(
+                self.buffer as *mut MaybeUninit<T>,
+                self.cap,
+            ))
+        });
     }
 }
 
@@ -170,7 +186,7 @@ mod tests {
 
     #[test]
     fn spsc_queue_basic_send_recv() {
-        let queue = Arc::new(SpscQueue::new(8));
+        let queue = Arc::new(SpscQueue::<i32>::new(8));
         let (tx, rx) = queue.sender();
 
         tx.send(1).unwrap();
@@ -184,7 +200,7 @@ mod tests {
 
     #[test]
     fn spsc_queue_full_error() {
-        let queue = Arc::new(SpscQueue::new(2));
+        let queue = Arc::new(SpscQueue::<i32>::new(2));
         let (tx, rx) = queue.sender();
 
         tx.send(1).unwrap();
@@ -194,7 +210,7 @@ mod tests {
 
     #[test]
     fn spsc_queue_empty_error() {
-        let queue = Arc::new(SpscQueue::new(8));
+        let queue = Arc::new(SpscQueue::<i32>::new(8));
         let (_tx, rx) = queue.sender();
 
         assert_eq!(rx.recv(), Err(SpscError::Empty));
@@ -202,7 +218,7 @@ mod tests {
 
     #[test]
     fn spsc_queue_len() {
-        let queue = Arc::new(SpscQueue::new(8));
+        let queue = Arc::new(SpscQueue::<i32>::new(8));
         let (tx, rx) = queue.sender();
 
         assert_eq!(queue.len(), 0);
@@ -218,7 +234,7 @@ mod tests {
 
     #[test]
     fn spsc_queue_wraparound() {
-        let queue = Arc::new(SpscQueue::new(4));
+        let queue = Arc::new(SpscQueue::<i32>::new(4));
         let (tx, rx) = queue.sender();
 
         for i in 0..4 {
@@ -246,7 +262,7 @@ mod tests {
 
     #[test]
     fn spsc_queue_debug() {
-        let queue = SpscQueue::new(8);
+        let queue = SpscQueue::<i32>::new(8);
         assert!(format!("{:?}", queue).contains("SpscQueue"));
     }
 }

@@ -210,6 +210,18 @@ async fn dispatch_inner(cli: Cli) -> Result<(), CliError> {
             eprint!("{stderr}");
             Ok(())
         }
+        Command::Rebuild { project_dir, projection_id, list_projections, force } => {
+            let config = crate::commands::rebuild::RebuildConfig {
+                project_dir,
+                projection_id,
+                list_projections,
+                force,
+                schema_version: None,
+            };
+            let report = crate::commands::rebuild::run_rebuild(&config)?;
+            println!("{}", report.format_progress());
+            Ok(())
+        }
     }
 }
 

@@ -104,6 +104,15 @@ impl FjallDekStore {
             })
     }
 
+    fn clear_active_dek_index(&self, instance_id: &InstanceId) -> Result<(), DekStoreError> {
+        let key = Self::encode_index_key(instance_id);
+        self.index_partition
+            .remove(&key)
+            .map_err(|e| DekStoreError::Storage {
+                reason: format!("failed to clear DEK index: {e}"),
+            })
+    }
+
     fn retire_dek_entry(&self, dek_id: &DekId) -> Result<(), DekStoreError> {
         let key = Self::encode_dek_key(dek_id);
         match self.dek_partition.get(&key) {
@@ -148,7 +157,7 @@ impl DekStore for FjallDekStore {
         })?;
         let wrapped_dek = WrappedDek::new(wrapped_dek_bytes);
 
-        let dek_id = DekId::from_bytes(ulid::Ulid::new().into());
+        let dek_id = DekId::from_bytes(raw_dek[..16].try_into().expect("DEK is 32 bytes"));
         let metadata = KeyMetadata::new(instance_id.clone(), CryptoAlgorithm::Aes256Gcm);
         let entry = DekEntry::new(dek_id.clone(), instance_id.clone(), wrapped_dek, metadata)?;
 
@@ -224,14 +233,7 @@ impl DekStore for FjallDekStore {
         };
 
         self.retire_dek_entry(&old_dek_id)?;
-
-        // Clear the active index so generate_and_store_dek doesn't reject with DekAlreadyExists
-        let index_key = Self::encode_index_key(instance_id);
-        self.index_partition
-            .remove(&index_key)
-            .map_err(|e| DekStoreError::Storage {
-                reason: format!("failed to clear DEK index during rotation: {e}"),
-            })?;
+        self.clear_active_dek_index(instance_id)?;
 
         self.generate_and_store_dek(instance_id, kek)
     }
@@ -256,10 +258,11 @@ impl DekStore for FjallDekStore {
 
         let iter = self.dek_partition.iter();
         for item in iter {
-            let (_, value_bytes) = item.map_err(|e| DekStoreError::Storage {
-                reason: format!("failed to scan DEKs: {e}"),
-            })?;
-            if let Ok(entry) = super::decode_dek_entry(&value_bytes) {
+            let (_, value) = match item {
+                Ok(kv) => kv,
+                Err(_) => continue,
+            };
+            if let Ok(entry) = super::decode_dek_entry(&value) {
                 if entry.instance_id() == instance_id {
                     dek_ids.push(entry.dek_id().clone());
                 }
@@ -337,13 +340,13 @@ mod tests {
         let store = FjallDekStore::open(&keyspace).unwrap();
         let kek = create_test_kek();
 
-        store
+        let generated = store
             .generate_and_store_dek(&sample_instance_id(), &kek)
             .unwrap();
         let retrieved = store.retrieve_dek(&sample_instance_id(), &kek).unwrap();
 
-        // Retrieved DEK should be 32 bytes (AES-256 key size)
-        assert_eq!(retrieved.len(), 32);
+        let generated_bytes = generated.to_bytes().expect("valid bytes");
+        assert_eq!(generated_bytes, &retrieved[..16]);
     }
 
     #[test]
