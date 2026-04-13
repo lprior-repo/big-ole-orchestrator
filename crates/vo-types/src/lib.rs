@@ -1,3 +1,4 @@
+mod btree;
 mod binomial_heap;
 mod blob;
 pub mod cartesian_tree;
@@ -53,6 +54,7 @@ mod types_tests;
 mod workflow;
 pub mod workspace;
 
+pub use btree::{BTree, BTreeError, BTreeNode};
 pub use binomial_heap::BinomialHeap;
 pub use blob::{
     BlobFailureAction, BlobRef, BlobStatus, OutputPolicy, OutputRef, INLINED_MAX_BYTES,
