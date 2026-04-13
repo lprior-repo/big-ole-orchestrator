@@ -317,23 +317,10 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use vo_types::Epoch;
-
-    fn make_test_event(instance_id: &str, sequence: u64) -> EventEnvelope {
-        EventEnvelope {
-            schema_version: 1,
-            instance_id: instance_id.to_string(),
-            sequence,
-            timestamp_ms: 1000 * sequence,
-            payload: serde_json::json!({
-                "type": "WorkflowStarted",
-                "workflow_id": instance_id,
-                "binary_hash": "sha256abc",
-                "version": 1
-            }),
-            metadata: vo_types::events::EventMetadata::default(),
-        }
-    }
+    use crate::replay::test_helpers::{
+        make_event, step_completed_payload, step_scheduled_payload, step_started_payload,
+        workflow_started_payload,
+    };
 
     #[test]
     fn recovery_assertion_new() {
@@ -347,7 +334,10 @@ mod tests {
     #[test]
     fn recovery_assertion_with_pre_crash() {
         let scenario = CrashScenario::new(CrashPoint::DedupeWrite, CrashPosition::Before);
-        let events = vec![make_test_event("inst-1", 1), make_test_event("inst-1", 2)];
+        let events = vec![
+            make_event("inst-1", 1, workflow_started_payload("wf-1")),
+            make_event("inst-1", 2, step_scheduled_payload("wf-1", "step-1")),
+        ];
 
         let engine = ReplayEngine::new();
         let assertion = RecoveryAssertion::new(scenario)
@@ -361,7 +351,7 @@ mod tests {
     #[test]
     fn recovery_assertion_deterministic_passes() {
         let scenario = CrashScenario::new(CrashPoint::DedupeWrite, CrashPosition::Before);
-        let events = vec![make_test_event("inst-1", 1)];
+        let events = vec![make_event("inst-1", 1, workflow_started_payload("wf-1"))];
 
         let engine = ReplayEngine::new();
         let assertion = RecoveryAssertion::new(scenario)
@@ -378,8 +368,12 @@ mod tests {
     #[test]
     fn recovery_assertion_deterministic_fails() {
         let scenario = CrashScenario::new(CrashPoint::DedupeWrite, CrashPosition::Before);
-        let events_pre = vec![make_test_event("inst-1", 1)];
-        let events_post = vec![make_test_event("inst-1", 1), make_test_event("inst-1", 2)];
+        let events_pre = vec![make_event("inst-1", 1, workflow_started_payload("wf-1"))];
+        let events_post = vec![
+            make_event("inst-1", 1, workflow_started_payload("wf-1")),
+            make_event("inst-1", 2, step_scheduled_payload("wf-1", "step-1")),
+            make_event("inst-1", 3, step_started_payload("wf-1", "step-1")),
+        ];
 
         let engine = ReplayEngine::new();
         let assertion = RecoveryAssertion::new(scenario)
@@ -398,12 +392,28 @@ mod tests {
         assert!(ctx.harness().should_crash(CrashPoint::DedupeWrite) == false);
     }
 
+    fn make_test_event_for_dedup(instance_id: &str, sequence: u64) -> EventEnvelope {
+        EventEnvelope {
+            schema_version: 1,
+            instance_id: instance_id.to_string(),
+            sequence,
+            timestamp_ms: 1000 * sequence,
+            payload: serde_json::json!({
+                "type": "WorkflowStarted",
+                "workflow_id": instance_id,
+                "binary_hash": "sha256abc",
+                "version": 1
+            }),
+            metadata: vo_types::events::EventMetadata::default(),
+        }
+    }
+
     #[test]
     fn assert_no_duplicate_effects_passes() {
         let effects = vec![
-            make_test_event("inst-1", 1),
-            make_test_event("inst-1", 2),
-            make_test_event("inst-2", 1),
+            make_test_event_for_dedup("inst-1", 1),
+            make_test_event_for_dedup("inst-1", 2),
+            make_test_event_for_dedup("inst-2", 1),
         ];
 
         assert_no_duplicate_effects(&effects).expect("Should not have duplicates");
@@ -411,7 +421,10 @@ mod tests {
 
     #[test]
     fn assert_no_duplicate_effects_fails() {
-        let effects = vec![make_test_event("inst-1", 1), make_test_event("inst-1", 1)];
+        let effects = vec![
+            make_test_event_for_dedup("inst-1", 1),
+            make_test_event_for_dedup("inst-1", 1),
+        ];
 
         let result = assert_no_duplicate_effects(&effects);
         assert!(result.is_err());

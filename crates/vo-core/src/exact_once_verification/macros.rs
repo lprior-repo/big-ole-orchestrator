@@ -231,7 +231,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "CRASH_INJECTED: DedupeWrite / Before")]
+    #[should_panic(expected = "CRASH_INJECTED: CrashPoint::DedupeWrite/CrashPosition::Before")]
     fn crash_injection_panics_when_enabled() {
         let harness = VerificationHarness::with_crash_scenario(
             CrashPoint::DedupeWrite,

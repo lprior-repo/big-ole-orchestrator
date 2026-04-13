@@ -22,7 +22,7 @@ mod kani_proptests;
 #[cfg(test)]
 mod red_queen_adversarial_tests;
 #[cfg(test)]
-mod test_helpers;
+pub mod test_helpers;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
