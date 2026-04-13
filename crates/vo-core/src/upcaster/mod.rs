@@ -2,10 +2,12 @@
 //!
 //! This module provides traits for registering and applying upcast transforms
 //! that normalize older schema versions to newer ones.
+//!
+//! The [`Upcaster`] trait is re-exported from [`vo_types::events::upcaster::Upcaster`]
+//! to provide a unified interface for both envelope-level and payload-level upcasting.
 
 mod error;
 mod registry;
-mod upcaster_trait;
 
 #[cfg(test)]
 mod error_tests;
@@ -20,4 +22,4 @@ pub use error::{EventEnvelopeError, UpcasterError, MAX_SUPPORTED_VERSION};
 pub use registry::{
     DefaultUpcasterRegistryBuilder, UpcasterRegistry, UpcasterRegistryBuilder, UpcasterRegistryImpl,
 };
-pub use upcaster_trait::Upcaster;
+pub use vo_types::events::upcaster::Upcaster;
