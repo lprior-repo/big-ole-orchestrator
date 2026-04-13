@@ -21,6 +21,10 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use thiserror::Error;
 use tokio::time::Duration;
 
+pub use connector::{
+    CommitOutcome, Connector, ConnectorError, PreparedEffect, ReconcileOutcome, HttpConnector,
+    ConnectorRegistry,
+};
 pub use port::LockManager;
 pub use retry::{LockManagerRetryWrapper, RetryConfig};
 

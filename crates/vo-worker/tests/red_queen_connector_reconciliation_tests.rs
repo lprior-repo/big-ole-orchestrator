@@ -14,9 +14,7 @@ use std::sync::Mutex;
 use std::sync::MutexGuard;
 use async_trait::async_trait;
 use vo_worker::{
-    connector::{
-        CommitOutcome, Connector, ConnectorError, PreparedEffect, ReconcileOutcome,
-    },
+    CommitOutcome, Connector, ConnectorError, PreparedEffect, ReconcileOutcome,
     ConnectorRegistry,
 };
 
@@ -149,7 +147,7 @@ impl Connector for IdempotencyKeyCollisionConnector {
                 fence,
             })
         } else {
-            keys.insert(key);
+            keys.insert(key.clone());
             Ok(PreparedEffect {
                 effect_id,
                 payload: serde_json::json!({"collision": false, "key": key}),

@@ -86,13 +86,23 @@ impl MmapCache {
     /// # Errors
     ///
     /// Returns `MmapCacheError::IoError` on filesystem failures.
+    /// Returns `MmapCacheError::CacheFull` if the entry exceeds cache capacity even after eviction.
     pub fn insert(&mut self, key: &str, data: &[u8]) -> Result<(), MmapCacheError> {
+        if data.len() > self.max_memory_bytes {
+            return Err(MmapCacheError::CacheFull);
+        }
         let needs_evict = {
             let _guard = self.lock.lock();
             self.current_memory_bytes + data.len() > self.max_memory_bytes
         };
         if needs_evict {
             self.evict_until_space_available(data.len())?;
+        }
+        {
+            let _guard = self.lock.lock();
+            if self.current_memory_bytes + data.len() > self.max_memory_bytes {
+                return Err(MmapCacheError::CacheFull);
+            }
         }
         let offset = self.allocate_region(key, data.len())?;
         self.write_data_to_region(key, offset, data)?;

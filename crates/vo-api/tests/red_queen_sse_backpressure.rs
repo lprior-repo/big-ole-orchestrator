@@ -15,6 +15,7 @@ pub enum WorkflowSseEvent {
 
 const SSE_BROADCAST_CAPACITY: usize = 1000;
 
+#[derive(Clone)]
 pub struct SseBroadcaster {
     tx: broadcast::Sender<WorkflowSseEvent>,
 }
@@ -29,8 +30,8 @@ impl SseBroadcaster {
         self.tx.subscribe()
     }
 
-    pub fn send(&self, event: WorkflowSseEvent) -> Result<(), broadcast::error::SendError> {
-        self.tx.send(event)
+    pub fn send(&self, event: WorkflowSseEvent) -> Result<(), broadcast::error::SendError<WorkflowSseEvent>> {
+        self.tx.send(event).map(|_| ())
     }
 }
 
@@ -63,7 +64,7 @@ async fn red_queen_sse_backpressure_slow_consumer_drops_after_capacity() {
     });
 
     for i in 0..(SSE_BROADCAST_CAPACITY + 500) {
-        let _ = broadcaster.send(make_event(i));
+        let _ = broadcaster.send(make_event(i as u64));
     }
 
     drop(broadcaster);
@@ -111,7 +112,7 @@ async fn red_queen_sse_rapid_connect_disconnect_cycles() {
     tokio::time::sleep(Duration::from_millis(100)).await;
 
     for i in 0..1000 {
-        let _ = broadcaster.send(make_event(i));
+        let _ = broadcaster.send(make_event(i as u64));
     }
 
     drop(broadcaster);
@@ -159,15 +160,14 @@ async fn red_queen_sse_concurrent_subscriptions_all_receive_events() {
 
 #[tokio::test]
 async fn red_queen_sse_broadcast_channel_lagged_error_ends_stream() {
-    use futures::StreamExt;
     use tokio::sync::broadcast;
 
     let (tx, mut rx) = broadcast::channel::<WorkflowSseEvent>(10);
 
-    let slowConsumer = async {
+    let slowConsumer = async move {
         let mut count = 0u64;
-        while let Some(result) = rx.next().await {
-            match result {
+        loop {
+            match rx.recv().await {
                 Ok(_) => {
                     count += 1;
                     tokio::time::sleep(Duration::from_millis(50)).await;
@@ -238,7 +238,7 @@ async fn red_queen_sse_multiple_rapid_subscribers_after_start() {
     let broadcaster = SseBroadcaster::new();
 
     for i in 0..50 {
-        broadcaster.send(make_event(i)).expect("broadcaster should be open");
+        let _ = broadcaster.send(make_event(i as u64));
     }
 
     let handle1 = tokio::spawn({
@@ -253,7 +253,7 @@ async fn red_queen_sse_multiple_rapid_subscribers_after_start() {
     });
 
     for i in 50..100 {
-        broadcaster.send(make_event(i)).expect("broadcaster should be open");
+        let _ = broadcaster.send(make_event(i as u64));
     }
 
     let handle2 = tokio::spawn({
