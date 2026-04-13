@@ -71,8 +71,16 @@ mod tests {
     fn task_macro_generates_asynchronous_executable_main_wrapper() {
         let attr = quote! {};
         let item = quote! { async fn my_task() {} };
-        let expected =
-            quote! { async fn my_task() {} #[tokio::main] async fn main() { my_task().await; } };
+        let expected = quote! {
+            async fn my_task() {}
+            fn main() {
+                let rt = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .expect("Failed to build current-thread runtime");
+                rt.block_on(async { my_task().await; })
+            }
+        };
         let result = internal_task_macro(attr, item);
         assert_eq!(result.to_string(), expected.to_string());
     }

@@ -286,6 +286,21 @@ impl OutputRef {
         Self::BlobRef(blob)
     }
 
+    /// Classify output data as inline or blob-ref based on size.
+    ///
+    /// Small data (≤ `INLINED_MAX_BYTES`) is stored inline.
+    /// Large data exceeds the inline limit and cannot be classified without
+    /// a `BlobRef` — callers should construct `BlobRef` externally and use
+    /// [`OutputRef::blob_ref`] instead.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ParseError::ExceedsMaxLength` if `data.len() > INLINED_MAX_BYTES`.
+    #[must_use]
+    pub fn classify(data: Vec<u8>) -> Result<Self, crate::ParseError> {
+        Self::inline(data)
+    }
+
     #[must_use]
     pub fn is_inline(&self) -> bool {
         matches!(self, Self::Inline(_))
