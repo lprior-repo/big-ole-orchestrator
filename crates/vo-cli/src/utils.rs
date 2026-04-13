@@ -16,7 +16,6 @@ pub fn file_hash(path: &Path) -> Result<String, std::io::Error> {
     Ok(format!("{:x}", hasher.finalize()))
 }
 
-#[cfg(test)]
 pub fn sha256_hex(seed: &str) -> String {
     format!("{:0<64}", seed)
 }
