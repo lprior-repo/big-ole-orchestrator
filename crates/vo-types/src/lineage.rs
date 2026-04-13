@@ -105,7 +105,6 @@ impl WorkflowLineage {
     /// # Errors
     ///
     /// Returns [`LineageError::EpochOverflow`] if the current epoch is already `u64::MAX`.
-    #[must_use]
     pub fn continue_as_new(&self) -> Result<Self, LineageError> {
         let next_epoch_value = self
             .epoch

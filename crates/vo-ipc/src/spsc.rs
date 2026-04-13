@@ -4,7 +4,6 @@ use std::sync::atomic::{fence, AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use thiserror::Error;
-
 const CACHE_LINE: usize = 64;
 
 pub struct SpscQueue<T> {
@@ -32,7 +31,8 @@ impl<T> SpscQueue<T> {
             std::iter::repeat_with(MaybeUninit::<T>::uninit)
                 .take(cap)
                 .collect::<Box<[MaybeUninit<T>]>>(),
-        ) as *mut MaybeUninit<T>;
+        )
+        .cast::<MaybeUninit<T>>();
         Self {
             buffer,
             cap,
@@ -52,10 +52,12 @@ impl<T> SpscQueue<T> {
         )
     }
 
-    fn mask(&self, idx: usize) -> usize {
+    const fn mask(&self, idx: usize) -> usize {
         idx & (self.cap - 1)
     }
 
+    /// # Errors
+    /// Returns `SpscError::Full` if the queue is full.
     pub fn send(&self, msg: T) -> Result<(), SpscError> {
         let head = self.head.load(Ordering::Relaxed);
         let tail = self.tail.load(Ordering::Acquire);
@@ -64,13 +66,15 @@ impl<T> SpscQueue<T> {
             return Err(SpscError::Full);
         }
 
-        let slot = unsafe { &mut *((self.buffer as *mut MaybeUninit<T>).add(self.mask(head))) };
+        let slot = unsafe { &mut *self.buffer.add(self.mask(head)) };
         slot.write(msg);
         fence(Ordering::Release);
         self.head.store(head.wrapping_add(1), Ordering::Relaxed);
         Ok(())
     }
 
+    /// # Errors
+    /// Returns `SpscError::Empty` if the queue is empty.
     pub fn recv(&self) -> Result<T, SpscError> {
         let tail = self.tail.load(Ordering::Relaxed);
         let head = self.head.load(Ordering::Acquire);
@@ -79,7 +83,7 @@ impl<T> SpscQueue<T> {
             return Err(SpscError::Empty);
         }
 
-        let slot = unsafe { &mut *((self.buffer as *mut MaybeUninit<T>).add(self.mask(tail))) };
+        let slot = unsafe { &mut *self.buffer.add(self.mask(tail)) };
         let msg = unsafe { slot.assume_init_read() };
         fence(Ordering::Release);
         self.tail.store(tail.wrapping_add(1), Ordering::Relaxed);
@@ -89,23 +93,26 @@ impl<T> SpscQueue<T> {
     pub fn len(&self) -> usize {
         let head = self.head.load(Ordering::Relaxed);
         let tail = self.tail.load(Ordering::Relaxed);
-        head.wrapping_sub(tail) as usize
+        head.wrapping_sub(tail)
     }
 
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
-    pub fn capacity(&self) -> usize {
+    pub const fn capacity(&self) -> usize {
         self.cap
     }
 }
 
 impl<T> Sender<T> {
+    /// # Errors
+    /// Returns `SpscError::Full` if the queue is full.
     pub fn send(&self, msg: T) -> Result<(), SpscError> {
         unsafe { (*self.queue).send(msg) }
     }
 
+    #[must_use]
     pub fn is_full(&self) -> bool {
         let q = unsafe { &*self.queue };
         let head = q.head.load(Ordering::Relaxed);
@@ -115,10 +122,13 @@ impl<T> Sender<T> {
 }
 
 impl<T> Receiver<T> {
+    /// # Errors
+    /// Returns `SpscError::Empty` if the queue is empty.
     pub fn recv(&self) -> Result<T, SpscError> {
         unsafe { (*self.queue).recv() }
     }
 
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         let q = unsafe { &*self.queue };
         q.head.load(Ordering::Acquire) == q.tail.load(Ordering::Relaxed)
@@ -131,16 +141,11 @@ impl<T> Drop for SpscQueue<T> {
         let head = self.head.load(Ordering::Relaxed);
         let mut idx = tail;
         while idx != head {
-            let slot = unsafe { &mut *((self.buffer as *mut MaybeUninit<T>).add(self.mask(idx))) };
+            let slot = unsafe { &mut *self.buffer.add(self.mask(idx)) };
             unsafe { slot.assume_init_drop() };
             idx = idx.wrapping_add(1);
         }
-        drop(unsafe {
-            Box::from_raw(std::slice::from_raw_parts_mut(
-                self.buffer as *mut MaybeUninit<T>,
-                self.cap,
-            ))
-        });
+        drop(unsafe { Box::from_raw(std::ptr::slice_from_raw_parts_mut(self.buffer, self.cap)) });
     }
 }
 
@@ -149,7 +154,7 @@ impl<T: fmt::Debug> fmt::Debug for SpscQueue<T> {
         f.debug_struct("SpscQueue")
             .field("capacity", &self.cap)
             .field("len", &self.len())
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
