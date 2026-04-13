@@ -50,7 +50,6 @@ pub enum WorkloadClass {
     ExactCritical,
     /// Default priority for normal workflow execution.
     Standard,
-
     /// Reserved capacity for crash recovery.
     Recovery,
     /// Lower priority. Capped under contention.

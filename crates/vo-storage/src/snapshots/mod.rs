@@ -257,14 +257,17 @@ pub fn snapshot_write(
 
 /// Loads the latest (highest-sequence) snapshot for `instance_id`.
 ///
-/// Supports legacy format (direct `InstanceState` JSON).
+/// Supports both formats:
+/// - Header format: `header_json | state_json` (written by `AtomicSnapshotWriter`)
+/// - Legacy format: direct `InstanceState` JSON (written by `snapshot_write`)
 ///
 /// # Errors
 ///
 /// Returns `StorageError::CorruptKey` if the instance ID cannot be serialized.
 /// Returns `StorageError::FjallError` if the storage engine fails.
 /// Returns `StorageError::InvalidKey` if a stored key is not exactly 24 bytes.
-/// Returns `StorageError::DeserializationFailed` if the stored value is not valid JSON.
+/// Returns `StorageError::DeserializationFailed` if the stored value is not valid JSON
+/// or checksum verification fails.
 pub fn snapshot_load_latest(
     partition: &PartitionHandle,
     instance_id: &InstanceId,
@@ -281,13 +284,26 @@ pub fn snapshot_load_latest(
                 .map_err(|_| StorageError::FjallError)
                 .and_then(|(key, value)| {
                     decode_snapshot_key(&key).and_then(|(_, sequence)| {
-                        // Deserialize InstanceState directly
-                        let state = serde_json::from_slice(&value)
-                            .map_err(|_| StorageError::DeserializationFailed)?;
-                        Ok(Some((sequence, state)))
+                        deserialize_snapshot_value(&value).map(|state| Some((sequence, state)))
                     })
                 })
         })
+}
+
+fn deserialize_snapshot_value(value: &[u8]) -> Result<InstanceState, StorageError> {
+    if let Some(pos) = value.iter().position(|&b| b == b'|') {
+        let (header_bytes, state_json) = value.split_at(pos);
+        let state_json = &state_json[1..];
+        let header: SnapshotHeader = serde_json::from_slice(header_bytes)
+            .map_err(|_| StorageError::DeserializationFailed)?;
+        let computed_checksum = crc32fast::hash(state_json);
+        if computed_checksum != header.checksum {
+            return Err(StorageError::DeserializationFailed);
+        }
+        serde_json::from_slice(state_json).map_err(|_| StorageError::DeserializationFailed)
+    } else {
+        serde_json::from_slice(value).map_err(|_| StorageError::DeserializationFailed)
+    }
 }
 
 /// Encodes an `(InstanceId, u64)` pair into a 24-byte snapshot key.
