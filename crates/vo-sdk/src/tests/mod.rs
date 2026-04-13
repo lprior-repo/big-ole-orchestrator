@@ -7,6 +7,7 @@ mod dag_tests;
 mod graph_args_tests;
 mod read_tests;
 mod type_tests;
+mod workflow_builder_tests;
 mod write_failure_tests;
 mod write_success_tests;
 
