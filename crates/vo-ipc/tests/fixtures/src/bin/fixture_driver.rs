@@ -45,12 +45,12 @@ fn main() {
 }
 
 fn command_echo_fd3() {
-    let payload = read_fd3_all();
+    let payload = read_fd3_frame();
     write_fd4_envelope(&payload);
 }
 
 fn command_fd3_eof() {
-    let payload = read_fd3_all();
+    let payload = read_fd3_frame();
     let mut bytes = payload;
     bytes.extend_from_slice(b"|EOF");
     let prefix_len = "fd3-eof ".len();
@@ -259,6 +259,26 @@ fn command_hold_open(args: &[String]) {
 fn command_close_fd3() {
     drop(close_fd3());
     write_fd4_envelope(b"closed-fd3");
+}
+
+fn read_fd3_frame() -> Vec<u8> {
+    let mut file = fd3_file();
+    let mut len_buf = [0u8; 4];
+    file.read(&mut len_buf)
+        .and_then(|n| {
+            if n != 4 {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::UnexpectedEof,
+                    "short read",
+                ));
+            }
+            Ok(())
+        })
+        .ok();
+    let len = u32::from_be_bytes(len_buf) as usize;
+    let mut payload = vec![0u8; len];
+    file.read_exact(&mut payload).ok();
+    payload
 }
 
 fn read_fd3_all() -> Vec<u8> {
