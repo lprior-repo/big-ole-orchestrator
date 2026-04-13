@@ -322,6 +322,13 @@ impl BlobRecord {
         }
     }
 
+    /// Check if this record is eligible for garbage collection.
+    /// A record is GC-eligible when it has expired AND has no references.
+    #[must_use]
+    pub const fn is_gc_eligible(&self, now_ms: u64) -> bool {
+        self.reference_count == 0 && self.is_expired(now_ms)
+    }
+
     /// Increment reference count, saturating at `u64::MAX`.
     #[must_use]
     pub const fn increment_ref_count(&self) -> u64 {
