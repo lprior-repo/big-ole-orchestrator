@@ -104,6 +104,15 @@ impl FjallDekStore {
             })
     }
 
+    fn clear_active_dek_index(&self, instance_id: &InstanceId) -> Result<(), DekStoreError> {
+        let key = Self::encode_index_key(instance_id);
+        self.index_partition
+            .remove(&key)
+            .map_err(|e| DekStoreError::Storage {
+                reason: format!("failed to clear DEK index: {e}"),
+            })
+    }
+
     fn retire_dek_entry(&self, dek_id: &DekId) -> Result<(), DekStoreError> {
         let key = Self::encode_dek_key(dek_id);
         match self.dek_partition.get(&key) {
@@ -224,6 +233,7 @@ impl DekStore for FjallDekStore {
         };
 
         self.retire_dek_entry(&old_dek_id)?;
+        self.clear_active_dek_index(instance_id)?;
 
         self.generate_and_store_dek(instance_id, kek)
     }
@@ -244,17 +254,16 @@ impl DekStore for FjallDekStore {
     }
 
     fn list_deks(&self, instance_id: &InstanceId) -> Result<Vec<DekId>, DekStoreError> {
-        let prefix = format!("{instance_id}::");
         let mut dek_ids = Vec::new();
 
         let iter = self.dek_partition.iter();
         for item in iter {
-            let (key, value) = match item {
+            let (_, value) = match item {
                 Ok(kv) => kv,
                 Err(_) => continue,
             };
-            if key.starts_with(prefix.as_bytes()) {
-                if let Ok(entry) = super::decode_dek_entry(&value) {
+            if let Ok(entry) = super::decode_dek_entry(&value) {
+                if entry.instance_id() == instance_id {
                     dek_ids.push(entry.dek_id().clone());
                 }
             }
