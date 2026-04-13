@@ -296,7 +296,6 @@ impl OutputRef {
     /// # Errors
     ///
     /// Returns `ParseError::ExceedsMaxLength` if `data.len() > INLINED_MAX_BYTES`.
-    #[must_use]
     pub fn classify(data: Vec<u8>) -> Result<Self, crate::ParseError> {
         Self::inline(data)
     }

@@ -93,6 +93,16 @@ impl SpawnRecord {
         }
     }
 
+    /// Transition to failed phase.
+    #[must_use]
+    pub fn transition_to_failed(&self, error: SpawnSupervisorError) -> Self {
+        Self {
+            spawn_phase: SpawnPhase::Failed,
+            last_error: Some(error),
+            ..self.clone()
+        }
+    }
+
     /// Create a new spawn record after respawn.
     #[must_use]
     pub fn respawn(&self, new_spawn_id: Option<vo_types::SpawnId>) -> Self {
@@ -526,7 +536,7 @@ impl SpawnSupervisor {
     /// # Errors
     /// Returns `AlreadyRunning` if the supervisor is already running.
     pub fn spawn(self) -> Result<SpawnSupervisorHandle, SpawnSupervisorError> {
-        let (state_sender, _) = watch::channel(SpawnSupervisorState::Stopped);
+        let (state_sender, _) = watch::channel(SpawnSupervisorState::Running);
         let (shutdown_trigger, _) = broadcast::channel(1);
 
         let state_sender_clone = state_sender.clone();
@@ -555,8 +565,6 @@ impl SpawnSupervisor {
     ) -> Result<(), SpawnSupervisorError> {
         let mut scan_interval = interval(self.health_check_interval);
         scan_interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
-
-        let _ = state_sender.send(SpawnSupervisorState::Running);
 
         loop {
             tokio::select! {
@@ -667,6 +675,17 @@ impl SpawnSupervisor {
                                 "Health check failed"
                             );
 
+                            // Transition to Failed so HealthCheck scan skips it
+                            let failed_record = new_record.transition_to_failed(e.clone());
+                            if let Err(save_err) = self.storage.save_spawn_record(&failed_record).await {
+                                self.metrics.dispatch_errors.incr();
+                                tracing::error!(
+                                    instance_id = %record.instance_id,
+                                    error = %save_err,
+                                    "Failed to save failed spawn record"
+                                );
+                            }
+
                             if record.spawn_attempts < self.max_spawn_attempts {
                                 respawns += 1;
                                 self.metrics.respawns.incr();
@@ -677,7 +696,10 @@ impl SpawnSupervisor {
                                     "Scheduling respawn with backoff"
                                 );
 
-                                let _ = backoff_delay;
+                                let _ = self.work_queue.enqueue_spawn(
+                                    record.instance_id.clone(),
+                                    record.command.clone(),
+                                ).await;
                             }
                         }
                     }
@@ -743,6 +765,33 @@ impl SpawnSupervisor {
                         instance_id = %record.instance_id,
                         error = %e,
                         "Health check failed"
+                    );
+                }
+            }
+        }
+
+        // Phase 3: Respawn records in Failed phase (within attempt limit)
+        let failed_records = self
+            .storage
+            .scan_spawns_by_phase(SpawnPhase::Failed, 100)
+            .await;
+
+        for record in failed_records {
+            if should_respawn(&record, self.max_spawn_attempts) {
+                respawns += 1;
+                self.metrics.respawns.incr();
+
+                if let Err(e) = self
+                    .work_queue
+                    .enqueue_spawn(record.instance_id.clone(), record.command.clone())
+                    .await
+                {
+                    self.metrics.dispatch_errors.incr();
+                    errors += 1;
+                    tracing::error!(
+                        instance_id = %record.instance_id,
+                        error = %e,
+                        "Failed to enqueue respawn"
                     );
                 }
             }

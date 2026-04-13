@@ -92,6 +92,7 @@ impl Guard {
     }
 }
 
+#[allow(clippy::derivable_impls)]
 impl Default for Guard {
     fn default() -> Self {
         Guard::Always
@@ -138,8 +139,8 @@ impl SideEffect {
             SideEffect::None => SideEffectResult::Skipped,
             SideEffect::Log { message } => {
                 eprintln!(
-                    "Transition side effect: {} -> {:?} via {:?}: {}",
-                    format!("{:?}", from),
+                    "Transition side effect: {:?} -> {:?} via {:?}: {}",
+                    from,
                     to,
                     event,
                     message
@@ -151,6 +152,7 @@ impl SideEffect {
     }
 }
 
+#[allow(clippy::derivable_impls)]
 impl Default for SideEffect {
     fn default() -> Self {
         SideEffect::None

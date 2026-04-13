@@ -633,9 +633,9 @@ fn rq_pool_stats_invariant_violation() {
     // 5 + 10 + 5 = 20 > max_connections (unknown but should be bounded)
     let stats = PoolStats {
         pool_id: PoolId::new("test-pool"),
-        total_connections: 20,
+        total_connections: 8,
         idle_connections: 5,
-        checked_out_connections: 10, // More checked out than total!
+        checked_out_connections: 25, // More checked out than total!
         pending_acquires: 5,
         total_acquires: 0,
         total_releases: 0,
