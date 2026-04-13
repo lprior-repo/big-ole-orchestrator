@@ -52,3 +52,11 @@ harness = false
 [[bench]]
 name = "merkle_bench"
 harness = false
+
+[[bench]]
+name = "index_perf_bench"
+harness = false
+
+[[bench]]
+name = "timer_index_bench"
+harness = false
