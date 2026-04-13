@@ -34,3 +34,4 @@ tempfile = { workspace = true }
 thiserror = { workspace = true }
 rstest = { workspace = true }
 ulid = { workspace = true }
+vo-core = { workspace = true }
