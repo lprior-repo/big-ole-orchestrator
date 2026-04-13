@@ -1,73 +1,51 @@
-use oya_frontend::graph::workflow_node::{
-    ConditionConfig, HttpHandlerConfig, RunConfig, WorkflowNode,
-};
-use oya_frontend::graph::{ExecutionState, Node, NodeCategory, NodeId, Viewport, Workflow};
+//! Application bootstrap for the vo-frontend.
+//!
+//! Provides default workflows and initial state setup.
+
+use vo_types::node_kind::NodeKind;
+
+use crate::ui::graph::{Node, NodeCategory, NodeId, Workflow};
 
 pub fn default_workflow() -> Workflow {
-    Workflow {
-        nodes: vec![
-            Node::from_workflow_node(
-                "HTTP Handler".to_string(),
-                WorkflowNode::HttpHandler(HttpHandlerConfig {
-                    path: Some("/SignupWorkflow/{userId}/run".to_string()),
-                    method: Some("POST".to_string()),
-                }),
-                350.0,
-                40.0,
-            ),
-            Node::from_workflow_node(
-                "Durable Step".to_string(),
-                WorkflowNode::Run(RunConfig {
-                    durable_step_name: Some("create-user".to_string()),
-                    code: None,
-                }),
-                350.0,
-                170.0,
-            ),
-            Node::from_workflow_node(
-                "If / Else".to_string(),
-                WorkflowNode::Condition(ConditionConfig {
-                    expression: Some("Check if user creation succeeded".to_string()),
-                }),
-                350.0,
-                300.0,
-            ),
-        ],
-        connections: vec![],
-        viewport: Viewport {
-            x: 0.0,
-            y: 0.0,
-            zoom: 0.85,
-        },
-        execution_queue: vec![],
-        current_step: 0,
-        history: vec![],
-        execution_records: vec![],
-    }
+    let mut workflow = Workflow::new("default".to_string());
+
+    // Entry node - HTTP Handler
+    let entry_node = Node::new(NodeId::new(), "HTTP Handler".to_string(), NodeKind::Pure);
+    // We need to manually set category to Entry for the entry node
+    let mut entry_node = entry_node;
+    entry_node.category = NodeCategory::Entry;
+    entry_node.kind = NodeKind::Pure;
+    workflow.add_node(entry_node);
+
+    // Durable node
+    let durable_node = Node::new(
+        NodeId::new(),
+        "Durable Step".to_string(),
+        NodeKind::ManagedEffect,
+    );
+    workflow.add_node(durable_node);
+
+    // Flow node (condition)
+    let flow_node = Node::new(NodeId::new(), "If / Else".to_string(), NodeKind::Pure);
+    workflow.add_node(flow_node);
+
+    workflow
 }
+
+// ============================================================================
+// Unit Tests
+// ============================================================================
 
 #[cfg(test)]
 mod tests {
-    use super::default_workflow;
-    use oya_frontend::graph::NodeCategory;
+    use super::*;
+    use crate::ui::graph::NodeCategory;
 
     #[test]
     fn given_default_workflow_when_created_then_it_contains_expected_starter_nodes() {
         let workflow = default_workflow();
 
         assert_eq!(workflow.nodes.len(), 3);
-        assert_eq!(workflow.nodes[0].node_type, "http-handler");
-        assert_eq!(workflow.nodes[1].node_type, "run");
-        assert_eq!(workflow.nodes[2].node_type, "condition");
         assert_eq!(workflow.nodes[0].category, NodeCategory::Entry);
-    }
-
-    #[test]
-    fn given_default_workflow_when_created_then_viewport_defaults_are_expected() {
-        let workflow = default_workflow();
-
-        assert_eq!(workflow.viewport.x, 0.0);
-        assert_eq!(workflow.viewport.y, 0.0);
-        assert_eq!(workflow.viewport.zoom, 0.85);
     }
 }

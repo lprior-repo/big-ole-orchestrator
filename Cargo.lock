@@ -5366,6 +5366,10 @@ name = "vo-frontend"
 version = "0.1.0"
 dependencies = [
  "dioxus",
+ "serde",
+ "serde_json",
+ "ulid",
+ "vo-types",
 ]
 
 [[package]]
