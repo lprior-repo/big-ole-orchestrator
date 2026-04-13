@@ -18,6 +18,9 @@ fn path_contains(path: &Path, segment: &str) -> bool {
 }
 
 fn is_uuid_new_v4_call(call: &ExprCall) -> bool {
+    if !call.args.is_empty() {
+        return false;
+    }
     let path = match &*call.func {
         syn::Expr::Path(p) => Some(&p.path),
         _ => None,
