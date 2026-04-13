@@ -2,7 +2,10 @@ use itertools::Itertools;
 
 #[must_use]
 pub fn is_retryable_error(error: &str) -> bool {
-    matches!(error, "at_capacity")
+    matches!(
+        error,
+        "at_capacity" | "internal_error" | "timeout" | "service_unavailable" | "rate_limited"
+    )
 }
 
 #[must_use]
