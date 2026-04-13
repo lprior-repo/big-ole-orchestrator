@@ -1,5 +1,7 @@
 //! Tests for `write_failure_inner` (FD4 failure writing).
 
+use std::io::Write;
+
 use serde_json::Value;
 
 use crate::write::write_failure_inner;
@@ -106,8 +108,8 @@ fn write_failure_message_exactly_at_limit_succeeds() {
 
 #[test]
 fn write_failure_multibyte_message_exceeds_byte_limit() {
-    // 'e with acute' is 2 bytes in UTF-8: 342 * 3 = 1026 bytes > 1024.
-    let multibyte_msg = "\u{00e9}".repeat(513); // 513 * 2 = 1026 bytes
+    // 'e with acute' is 2 bytes in UTF-8: 513 * 2 = 1026 bytes > 1024.
+    let multibyte_msg = "\u{00e9}".repeat(513);
     assert!(multibyte_msg.len() > 1024);
 
     let mut buf: Vec<u8> = Vec::new();
@@ -125,4 +127,104 @@ fn write_failure_multibyte_message_exceeds_byte_limit() {
         Err(SdkError::InvalidInput),
         "multibyte message exceeding 1024 bytes must be rejected"
     );
+}
+
+#[test]
+fn write_failure_empty_message_is_valid() {
+    let mut buf: Vec<u8> = Vec::new();
+    let mut is_written = false;
+
+    let result = write_failure_inner(&mut buf, TaskFailureKind::User, "", &mut is_written);
+
+    assert_eq!(result, Ok(()));
+    let written: Value = serde_json::from_slice(&buf).expect("valid JSON");
+    assert_eq!(written["message"], "");
+}
+
+#[test]
+fn write_failure_envelope_has_exactly_three_fields() {
+    let mut buf: Vec<u8> = Vec::new();
+    let mut is_written = false;
+
+    write_failure_inner(&mut buf, TaskFailureKind::User, "msg", &mut is_written).unwrap();
+
+    let written: Value = serde_json::from_slice(&buf).expect("valid JSON");
+    let obj = written.as_object().expect("should be object");
+    assert_eq!(obj.len(), 3, "envelope should have status, kind, message");
+    assert!(obj.contains_key("status"));
+    assert!(obj.contains_key("kind"));
+    assert!(obj.contains_key("message"));
+}
+
+#[test]
+fn write_failure_unicode_message() {
+    let mut buf: Vec<u8> = Vec::new();
+    let mut is_written = false;
+
+    let result = write_failure_inner(
+        &mut buf,
+        TaskFailureKind::System,
+        "エラー発生",
+        &mut is_written,
+    );
+
+    assert_eq!(result, Ok(()));
+    let written: Value = serde_json::from_slice(&buf).expect("valid JSON");
+    assert_eq!(written["message"], "エラー発生");
+}
+
+#[test]
+fn write_failure_multibyte_message_exactly_at_byte_limit() {
+    let msg = "\u{00e9}".repeat(512);
+    assert_eq!(msg.len(), 1024);
+
+    let mut buf: Vec<u8> = Vec::new();
+    let mut is_written = false;
+
+    let result = write_failure_inner(&mut buf, TaskFailureKind::Timeout, &msg, &mut is_written);
+
+    assert_eq!(result, Ok(()), "exactly 1024 bytes should be accepted");
+}
+
+#[test]
+fn write_failure_guard_set_even_when_writer_fails() {
+    struct FailingWriter;
+    impl Write for FailingWriter {
+        fn write(&mut self, _buf: &[u8]) -> std::io::Result<usize> {
+            Err(std::io::Error::new(std::io::ErrorKind::BrokenPipe, "fail"))
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Err(std::io::Error::new(std::io::ErrorKind::BrokenPipe, "fail"))
+        }
+    }
+
+    let mut writer = FailingWriter;
+    let mut is_written = false;
+
+    let result = write_failure_inner(&mut writer, TaskFailureKind::User, "msg", &mut is_written);
+
+    assert_eq!(result, Err(SdkError::WriteError));
+    assert!(is_written, "guard must be set even when writer fails");
+}
+
+#[test]
+fn write_failure_one_byte_over_limit() {
+    let msg = "x".repeat(1025);
+    let mut buf: Vec<u8> = Vec::new();
+    let mut is_written = false;
+
+    let result = write_failure_inner(&mut buf, TaskFailureKind::User, &msg, &mut is_written);
+
+    assert_eq!(result, Err(SdkError::InvalidInput));
+}
+
+#[test]
+fn write_failure_one_byte_under_limit() {
+    let msg = "x".repeat(1023);
+    let mut buf: Vec<u8> = Vec::new();
+    let mut is_written = false;
+
+    let result = write_failure_inner(&mut buf, TaskFailureKind::User, &msg, &mut is_written);
+
+    assert_eq!(result, Ok(()));
 }
