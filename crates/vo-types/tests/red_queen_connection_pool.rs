@@ -206,7 +206,7 @@ fn rq_use_count_monotonicity_broken_by_builder() {
     assert_eq!(conn.use_count, 2);
 
     // Now "reset" to 0 using with_use_count
-    let reset_conn = conn.with_use_count(0);
+    let reset_conn = conn.clone().with_use_count(0);
     assert_eq!(
         reset_conn.use_count, 0,
         "Monotonicity violated - use_count reset to 0"
@@ -340,7 +340,7 @@ fn rq_connection_pool_error_display() {
         context: ErrorContext {
             pool_id: PoolId::new("test-pool"),
             timestamp: TimestampMs::new_unchecked(1000),
-            operation: "acquire",
+            operation: "acquire".to_string(),
             connection_id: Some(ConnectionId::new()),
         },
     };
@@ -377,7 +377,7 @@ fn rq_error_detail_all_variants_display() {
             connection_id: ConnectionId::new(),
         },
         ErrorDetail::InvalidRelease {
-            reason: "not from this pool",
+            reason: "not from this pool".to_string(),
         },
         ErrorDetail::PoolNotInitialized,
         ErrorDetail::AlreadyShutdown,
@@ -387,7 +387,7 @@ fn rq_error_detail_all_variants_display() {
     ];
 
     for variant in variants {
-        let display = variant.to_string();
+        let display = variant.clone().to_string();
         assert!(
             !display.is_empty(),
             "ErrorDetail variant {:?} should have Display",
@@ -410,7 +410,7 @@ fn rq_error_category_display_all_variants() {
     ];
 
     for variant in variants {
-        let display = format!("{}", variant);
+        let display = variant.to_string();
         assert!(
             !display.is_empty(),
             "ErrorCategory variant {:?} should Display",
@@ -561,12 +561,12 @@ fn rq_pooled_connection_status_checkers() {
     assert!(!idle.is_checked_out());
     assert!(!idle.is_closed());
 
-    let checked = idle.with_status(ConnectionStatus::CheckedOut);
+    let checked = idle.clone().with_status(ConnectionStatus::CheckedOut);
     assert!(!checked.is_idle());
     assert!(checked.is_checked_out());
     assert!(!checked.is_closed());
 
-    let closed = idle.with_status(ConnectionStatus::Closed);
+    let closed = idle.clone().with_status(ConnectionStatus::Closed);
     assert!(!closed.is_idle());
     assert!(!closed.is_checked_out());
     assert!(closed.is_closed());
