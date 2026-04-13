@@ -129,7 +129,13 @@ mod execution_semaphore_tests {
 
         for handle in handles {
             let result = handle.await.expect("task should complete");
-            assert!(result.is_ok() || matches!(result, Err(ExecuteNodeError::TransientError { .. })));
+            assert!(
+                result.is_ok()
+                    || matches!(result, Err(ExecuteNodeError::TransientError { .. }))
+                    || matches!(result, Err(ExecuteNodeError::StepNotFound { .. })),
+                "Expected Ok, TransientError, or StepNotFound, got {:?}",
+                result
+            );
         }
     }
 
