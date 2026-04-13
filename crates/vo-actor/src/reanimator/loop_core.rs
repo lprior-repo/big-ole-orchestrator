@@ -102,17 +102,6 @@ impl ReanimatorLoop {
         let state_sender_clone = state_sender.clone();
         let shutdown_receiver = shutdown_trigger.subscribe();
 
-        // Run crash recovery before starting the loop
-        // This ensures any pending timers from a previous crash are replayed
-        let storage_clone = storage.clone();
-        let work_queue_clone = work_queue.clone();
-        let runtime = tokio::runtime::Handle::current();
-        runtime.block_on(async {
-            if let Err(e) = Self::run_crash_recovery(&storage_clone, &work_queue_clone).await {
-                tracing::warn!("Crash recovery completed with error: {}", e);
-            }
-        });
-
         // Spawn the background task
         let task_handle = tokio::runtime::Handle::current().spawn(async move {
             let result = Self::run_loop_inner(
@@ -262,8 +251,14 @@ impl ReanimatorLoop {
         S: TimerStorage + 'static,
         Q: WorkQueue + 'static,
     {
-        // Transition to Running
+        // Transition to Running first so spawn() returns in Running state
         let _ = state_sender.send(ReanimatorState::Running);
+
+        // Run crash recovery before starting the loop
+        // This ensures any pending timers from a previous crash are replayed
+        if let Err(e) = Self::run_crash_recovery(&storage, &work_queue).await {
+            tracing::warn!("Crash recovery completed with error: {}", e);
+        }
 
         let mut scan_interval = interval(config.scan_interval);
         scan_interval.set_missed_tick_behavior(MissedTickBehavior::Skip);

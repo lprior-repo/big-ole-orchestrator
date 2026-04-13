@@ -24,11 +24,10 @@ use tokio::sync::{broadcast, watch};
 use vo_types::{InstanceId, TimestampMs};
 
 use vo_actor::reanimator::{
-    loop_core::ReanimatorLoop,
     mock::{MockTimerStorage, MockWorkQueue},
     traits::{TimerStorage, WorkQueue},
     types::{ReanimatorConfig, TimerRecord},
-    ReanimatorError,
+    ReanimatorError, ReanimatorLoop,
 };
 
 fn ts_ms(value: u64) -> TimestampMs {
@@ -64,10 +63,9 @@ async fn rq_reanimator_shutdown_rejects_new_work() {
     let state_before = handle.current_state();
     assert_eq!(state_before, vo_actor::reanimator::types::ReanimatorState::Running);
 
+    let state_after = handle.current_state();
     let result = handle.shutdown().await;
     assert!(result.is_ok(), "Shutdown should succeed");
-
-    let state_after = handle.current_state();
     assert_eq!(
         state_after,
         vo_actor::reanimator::types::ReanimatorState::ShutDown
