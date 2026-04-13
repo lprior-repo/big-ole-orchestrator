@@ -228,4 +228,11 @@ impl WorkQueue for MockWorkQueue {
         self.enqueued.lock().await.push(instance_id);
         Ok(())
     }
+
+    async fn is_instance_terminal(
+        &self,
+        _instance_id: &InstanceId,
+    ) -> Result<bool, ReanimatorError> {
+        Ok(false)
+    }
 }
