@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use axum::{
     extract::{Path, State, WebSocketUpgrade},
     http::StatusCode,
@@ -165,6 +163,16 @@ fn split_path_id(path: &str) -> Option<(String, String)> {
 
 pub struct WsConnectionCount {
     pub active_connections: std::sync::atomic::AtomicUsize,
+}
+
+impl Clone for WsConnectionCount {
+    fn clone(&self) -> Self {
+        Self {
+            active_connections: std::sync::atomic::AtomicUsize::new(
+                self.active_connections.load(std::sync::atomic::Ordering::SeqCst),
+            ),
+        }
+    }
 }
 
 impl WsConnectionCount {
