@@ -39,6 +39,8 @@ mod pairing_heap;
 mod payload_parser;
 mod plugin;
 pub mod proptest_verifier;
+#[cfg(feature = "proptest")]
+mod proptest_targets;
 mod registration_status;
 mod rope;
 pub mod signal;
