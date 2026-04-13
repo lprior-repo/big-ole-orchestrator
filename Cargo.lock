@@ -5264,6 +5264,7 @@ dependencies = [
  "vo-actor",
  "vo-api",
  "vo-storage",
+ "vo-types",
 ]
 
 [[package]]

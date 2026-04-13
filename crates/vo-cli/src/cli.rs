@@ -25,6 +25,10 @@ pub enum Command {
     Purge {
         instance: String,
     },
+    History {
+        instance: String,
+        canonical: bool,
+    },
     Check {
         path: PathBuf,
     },
@@ -123,6 +127,22 @@ where
                     .default_value(".")
                     .help("Project directory to diagnose"),
             ),
+        )
+        .subcommand(
+            clap::Command::new("history")
+                .arg(
+                    clap::Arg::new("instance")
+                        .long("instance")
+                        .required(true)
+                        .value_name("ID")
+                        .help("The instance ID to retrieve history for"),
+                )
+                .arg(
+                    clap::Arg::new("canonical")
+                        .long("canonical")
+                        .action(clap::ArgAction::SetTrue)
+                        .help("Retrieve canonical privileged history (default: redacted operator projection)"),
+                ),
         );
 
     let matches = cmd.try_get_matches_from(args)?;
@@ -200,6 +220,19 @@ where
                 .unwrap_or_default();
             Ok(Cli {
                 command: Command::Doctor { project_dir },
+            })
+        }
+        Some(("history", sub_matches)) => {
+            let instance = sub_matches
+                .get_one::<String>("instance")
+                .cloned()
+                .unwrap_or_default();
+            let canonical = sub_matches.get_flag("canonical");
+            Ok(Cli {
+                command: Command::History {
+                    instance,
+                    canonical,
+                },
             })
         }
         _ => Err(clap::Error::new(clap::error::ErrorKind::InvalidSubcommand)),

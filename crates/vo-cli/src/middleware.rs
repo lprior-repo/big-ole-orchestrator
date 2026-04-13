@@ -210,6 +210,20 @@ async fn dispatch_inner(cli: Cli) -> Result<(), CliError> {
             eprint!("{stderr}");
             Ok(())
         }
+        Command::History { instance, canonical } => {
+            let fjall_path = "/home/lewis/.gemini/tmp/veloxide/fjall";
+            let keyspace = fjall::Config::new(fjall_path)
+                .open()
+                .map_err(|e| CliError::Dispatch(format!("Failed to open keyspace: {e}")))?;
+
+            match crate::commands::history::get_instance_history(&keyspace, &instance, canonical) {
+                Ok(output) => {
+                    println!("{}", output);
+                    Ok(())
+                }
+                Err(e) => Err(CliError::Dispatch(format!("History retrieval failed: {e}"))),
+            }
+        }
     }
 }
 
