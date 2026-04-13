@@ -369,4 +369,95 @@ mod tests {
 
         assert_eq!(rule, recovered);
     }
+
+    // =========================================================================
+    // ADR-025 Invariant: Redaction completeness
+    // =========================================================================
+
+    #[test]
+    fn redaction_completeness_deeply_nested_sensitive_field() {
+        let value = serde_json::json!({
+            "level1": {
+                "level2": {
+                    "level3": {
+                        "secret": "classified"
+                    }
+                }
+            }
+        });
+        let rules = vec![RedactionRule::new(
+            vec!["level1".into(), "level2".into(), "level3".into(), "secret".into()],
+            RedactionKind::Remove,
+        )];
+        let (result, redacted) = apply_redaction(&value, &rules);
+        assert_eq!(result["level1"]["level2"]["level3"]["secret"], serde_json::Value::Null);
+        assert_eq!(redacted.len(), 1);
+    }
+
+    #[test]
+    fn redaction_completeness_multiple_rules_simultaneously() {
+        let value = serde_json::json!({
+            "user": { "name": "Alice", "ssn": "123-45-6789", "email": "alice@example.com" },
+            "payment": { "card": "4111-1111-1111-1111", "cvv": "123" }
+        });
+        let rules = vec![
+            RedactionRule::new(vec!["user".into(), "ssn".into()], RedactionKind::Remove),
+            RedactionRule::new(vec!["user".into(), "email".into()], RedactionKind::Hash),
+            RedactionRule::new(vec!["payment".into(), "card".into()], RedactionKind::ReplaceWith("[REDACTED]".into())),
+            RedactionRule::new(vec!["payment".into(), "cvv".into()], RedactionKind::Remove),
+        ];
+        let (result, redacted) = apply_redaction(&value, &rules);
+        // Non-sensitive fields preserved
+        assert_eq!(result["user"]["name"], "Alice");
+        // Sensitive fields redacted
+        assert_eq!(result["user"]["ssn"], serde_json::Value::Null);
+        assert!(result["user"]["email"].as_str().unwrap().starts_with("HASH"));
+        assert_eq!(result["payment"]["card"], "[REDACTED]");
+        assert_eq!(result["payment"]["cvv"], serde_json::Value::Null);
+        assert_eq!(redacted.len(), 4);
+    }
+
+    #[test]
+    fn redaction_completeness_preserves_non_matching_structure() {
+        let value = serde_json::json!({
+            "public_data": { "count": 42, "label": "safe" },
+            "private_data": { "token": "secret-token" }
+        });
+        let rules = vec![RedactionRule::new(
+            vec!["private_data".into(), "token".into()],
+            RedactionKind::Remove,
+        )];
+        let (result, redacted) = apply_redaction(&value, &rules);
+        // Public data completely untouched
+        assert_eq!(result["public_data"]["count"], 42);
+        assert_eq!(result["public_data"]["label"], "safe");
+        // Private data redacted
+        assert_eq!(result["private_data"]["token"], serde_json::Value::Null);
+        assert_eq!(redacted.len(), 1);
+    }
+
+    #[test]
+    fn redaction_completeness_empty_rules_produces_identity() {
+        let value = serde_json::json!({"key": "value", "nested": {"a": 1}});
+        let rules: Vec<RedactionRule> = vec![];
+        let (result, redacted) = apply_redaction(&value, &rules);
+        assert_eq!(result, value);
+        assert!(redacted.is_empty());
+    }
+
+    #[test]
+    fn operator_projection_tracks_all_redacted_fields() {
+        let value = serde_json::json!({
+            "a": { "x": "secret1", "y": "public" },
+            "b": { "z": "secret2" }
+        });
+        let rules = vec![
+            RedactionRule::new(vec!["a".into(), "x".into()], RedactionKind::Remove),
+            RedactionRule::new(vec!["b".into(), "z".into()], RedactionKind::Hash),
+        ];
+        let (_, redacted) = apply_redaction(&value, &rules);
+        assert_eq!(redacted.len(), 2);
+        assert!(redacted.contains(&vec!["a".into(), "x".into()]));
+        assert!(redacted.contains(&vec!["b".into(), "z".into()]));
+    }
 }
