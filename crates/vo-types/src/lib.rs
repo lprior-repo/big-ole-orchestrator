@@ -14,6 +14,7 @@ mod dedupe;
 mod dedupe_tests;
 mod dependency_graph_resolver;
 pub mod discovery;
+mod dual_representation;
 mod effects;
 mod encryption;
 #[cfg(test)]
@@ -38,7 +39,7 @@ mod plugin;
 pub mod proptest_verifier;
 mod registration_status;
 mod rope;
-mod signal;
+pub mod signal;
 pub mod skew_heap;
 mod spqr_tree;
 pub mod state;
@@ -83,6 +84,9 @@ pub use dependency_graph_resolver::DependencyGraphResolver;
 pub use discovery::{
     enforce_pin, validate_discovery_path, DiscoveryPath, DiscoveryPathError, PinEnforcementError,
     VersionConstraint, VersionPin, VERSION_BASE_PATH,
+};
+pub use dual_representation::{
+    apply_redaction, OperatorProjection, RedactionKind, RedactionPolicy, RedactionRule,
 };
 pub use effects::{
     apply_effect_transition, CompensationPolicy, EffectIntent, EffectKind, EffectRecord,
