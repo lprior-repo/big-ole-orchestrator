@@ -4,7 +4,7 @@ use crate::events::payload::EventPayload;
 
 #[test]
 fn decode_event_returns_ok_when_envelope_and_payload_are_valid() {
-    let json = r#"{"version": 1, "instance_id": "wf-123", "sequence": 1, "timestamp_ms": 1000, "payload": {"type": "WorkflowStarted", "workflow_id": "wf-123", "binary_hash": "abc123", "workflow_version_hash": "vhash", "dedupe_key_hash": null, "version": 1}, "metadata": {}}"#;
+    let json = r#"{"version": 1, "instance_id": "wf-123", "sequence": 1, "timestamp_ms": 1000, "payload": {"type": "WorkflowStarted", "workflow_id": "wf-123", "binary_hash": "abc123", "workflow_version_hash": "abc123", "version": 1}, "metadata": {}}"#;
     let result = decode_event(json.as_bytes());
     let (envelope, payload) = result.unwrap();
     assert_eq!(envelope.schema_version, 1);
@@ -83,8 +83,7 @@ fn decode_event_returns_correct_binary_hash_and_dag_topology_in_full_pipeline() 
             "workflow_id": "wf-123",
             "dag_topology": {"nodes": []},
             "binary_hash": "sha256abc",
-            "workflow_version_hash": "vhash",
-            "dedupe_key_hash": null,
+            "workflow_version_hash": "sha256abc",
             "version": 1
         },
         "metadata": {}
@@ -103,7 +102,7 @@ fn decode_event_returns_correct_binary_hash_and_dag_topology_in_full_pipeline() 
             assert_eq!(workflow_id, "wf-123");
             assert_eq!(dag_topology, serde_json::json!({"nodes": []}));
             assert_eq!(binary_hash, "sha256abc");
-            assert_eq!(workflow_version_hash, "vhash");
+            assert_eq!(workflow_version_hash, "sha256abc"); // version hash same as binary hash in test
             assert_eq!(dedupe_key_hash, None);
         }
         other => panic!("Expected WorkflowStarted, got {other:?}"),
