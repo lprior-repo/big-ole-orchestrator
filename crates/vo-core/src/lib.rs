@@ -8,6 +8,7 @@ pub mod circuit_breaker;
 pub mod config_hot_reload;
 mod db_writer_message;
 pub mod debounce;
+pub mod exact_once_verification;
 pub mod quadtree;
 pub mod replay;
 pub mod resource_quota;
