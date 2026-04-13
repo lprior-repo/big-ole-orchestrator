@@ -118,8 +118,9 @@ mod execution_semaphore_tests {
     #[tokio::test]
     async fn backpressure_concurrent_steps_execute_independently() {
         let _guard = state_guard();
+        let step_names = ["step-1", "step-good", "step-fail"];
         let step_ids: Vec<_> = (0..10)
-            .map(|i| StepId::new(format!("step-{}", i % 3)))
+            .map(|i| StepId::new(step_names[i % 3].to_string()))
             .collect();
 
         let handles: Vec<_> = step_ids
