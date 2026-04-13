@@ -82,6 +82,17 @@ pub trait TimerStorage: Send + Sync {
         &self,
         older_than: TimestampMs,
     ) -> Result<u32, ReanimatorError>;
+
+    /// Deletes ALL timers for a given instance (both due and future).
+    ///
+    /// This is used when an instance is cancelled to ensure no future timers
+    /// can fire for a cancelled/non-existent instance.
+    ///
+    /// Returns the number of timers deleted.
+    async fn delete_all_timers_for_instance(
+        &self,
+        instance_id: &InstanceId,
+    ) -> Result<u32, ReanimatorError>;
 }
 
 /// Trait for enqueuing resume work.
