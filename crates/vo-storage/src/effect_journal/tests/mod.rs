@@ -10,7 +10,9 @@
 #![allow(clippy::expect_used)]
 
 mod tests_codec;
+mod tests_crash_injection;
 mod tests_effect_id;
+mod tests_journal_durability;
 mod tests_journal_integration;
 mod tests_journal_lifecycle;
 mod tests_durability;
