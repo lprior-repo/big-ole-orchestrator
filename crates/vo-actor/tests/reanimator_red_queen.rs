@@ -24,11 +24,10 @@ use tokio::sync::{broadcast, watch};
 use vo_types::{InstanceId, TimestampMs};
 
 use vo_actor::reanimator::{
-    loop_core::ReanimatorLoop,
     mock::{MockTimerStorage, MockWorkQueue},
     traits::{TimerStorage, WorkQueue},
     types::{ReanimatorConfig, TimerRecord},
-    ReanimatorError,
+    ReanimatorError, ReanimatorLoop,
 };
 
 fn ts_ms(value: u64) -> TimestampMs {
