@@ -8,6 +8,7 @@ pub mod config;
 pub mod envelope;
 pub mod error;
 pub mod run;
+pub mod spsc;
 pub mod stderr;
 
 pub use config::SubprocessConfig;
