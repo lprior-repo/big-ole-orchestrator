@@ -432,17 +432,36 @@ fn optimized_replay_iterator_with_sequence_range() {
         insert_event(&partition, instance_id_str, seq, &value);
     }
 
+    use vo_storage::query::optimizer::Predicate;
     let spec = QuerySpec {
         lineage_query: LineageQuery::InstanceId(&instance_id),
-        predicates: vec![],
+        predicates: vec![Predicate::SequenceRange { min: 5, max: 15 }],
         projection: Projection::Full,
         limit: None,
         offset: 0,
     };
     let plan = QueryOptimizer::optimize(spec);
+    assert!(
+        plan.scan_range_start.is_some(),
+        "SequenceRange predicate should produce scan_range_start"
+    );
+    assert!(
+        plan.scan_range_end.is_some(),
+        "SequenceRange predicate should produce scan_range_end"
+    );
     let iter = OptimizedReplayIterator::from_plan(&plan, &keyspace).expect("valid plan");
     let results: Vec<_> = iter.collect();
-    assert_eq!(results.len(), 20);
+    assert_eq!(results.len(), 11, "Should return sequences 5-15 inclusive");
+    for (i, result) in results.iter().enumerate() {
+        let env = result.as_ref().unwrap();
+        assert_eq!(
+            env.sequence,
+            (5 + i) as u64,
+            "Sequence {} should be at index {}",
+            5 + i,
+            i
+        );
+    }
 }
 
 #[test]
