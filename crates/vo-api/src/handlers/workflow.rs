@@ -23,6 +23,21 @@ pub async fn start_workflow(
     Extension(master): Extension<ActorRef<OrchestratorMsg>>,
     Json(req): Json<V3StartRequest>,
 ) -> impl IntoResponse {
+    // Validate dedupe key is present for exact workflow ingress (ADR-028).
+    let dedupe_key = match req.dedupe_key {
+        Some(ref key) if !key.is_empty() => key.clone(),
+        _ => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ApiError::new(
+                    "missing_dedupe_key",
+                    "dedupe_key is required for exact workflow ingress (ADR-028)",
+                )),
+            )
+                .into_response();
+        }
+    };
+
     // Validate namespace.
     let namespace = match NamespaceId::try_new(&req.namespace) {
         Ok(ns) => ns,
