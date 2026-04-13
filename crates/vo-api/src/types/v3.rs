@@ -17,6 +17,10 @@ pub struct V3StartRequest {
     /// Optional stable ID. If omitted, a ULID is generated.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub instance_id: Option<String>,
+    /// Stable dedupe key for exactly-once ingress (ADR-028).
+    /// Required for exact workflow ingress.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dedupe_key: Option<String>,
 }
 
 /// Response to POST /api/v1/workflows on success (HTTP 201).
