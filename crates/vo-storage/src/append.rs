@@ -827,6 +827,16 @@ pub struct ProjectionWrite {
     size_bytes: u64,
 }
 
+impl ProjectionWrite {
+    #[must_use]
+    pub const fn new(projection_id: String, size_bytes: u64) -> Self {
+        Self {
+            projection_id,
+            size_bytes,
+        }
+    }
+}
+
 impl ClassifiedWrite for ProjectionWrite {
     fn write_class(&self) -> WriteClass {
         WriteClass::OperatorProjection
