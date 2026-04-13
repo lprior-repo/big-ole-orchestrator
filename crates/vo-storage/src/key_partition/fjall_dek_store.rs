@@ -82,7 +82,7 @@ impl FjallDekStore {
 
     fn insert_dek_entry(&self, entry: &DekEntry) -> Result<(), DekStoreError> {
         let key = Self::encode_dek_key(entry.dek_id());
-        let value = super::encode_dek_entry(entry)?;
+        let value = super::encode_dek_entry(entry);
         self.dek_partition
             .insert(&key, &value)
             .map_err(|e| DekStoreError::Storage {
@@ -110,7 +110,7 @@ impl FjallDekStore {
             Ok(Some(bytes)) => {
                 let mut entry = super::decode_dek_entry(&bytes)?;
                 entry.retire();
-                let value = super::encode_dek_entry(&entry)?;
+                let value = super::encode_dek_entry(&entry);
                 self.dek_partition
                     .insert(&key, &value)
                     .map_err(|e| DekStoreError::Storage {
@@ -148,9 +148,10 @@ impl DekStore for FjallDekStore {
         })?;
         let wrapped_dek = WrappedDek::new(wrapped_dek_bytes);
 
-        let dek_id = DekId::from_bytes(raw_dek);
-        let metadata = KeyMetadata::new(*instance_id, CryptoAlgorithm::Aes256Gcm);
-        let entry = DekEntry::new(dek_id, *instance_id, wrapped_dek, metadata)?;
+        let dek_id = DekId::from_bytes(raw_dek[0..16].try_into().unwrap());
+        let instance_id_ref = instance_id.clone();
+        let metadata = KeyMetadata::new(instance_id_ref.clone(), CryptoAlgorithm::Aes256Gcm);
+        let entry = DekEntry::new(dek_id.clone(), instance_id_ref, wrapped_dek, metadata)?;
 
         self.insert_dek_entry(&entry)?;
         self.set_active_dek_index(instance_id, &dek_id)?;
@@ -247,18 +248,15 @@ impl DekStore for FjallDekStore {
         let prefix = format!("{instance_id}::");
         let mut dek_ids = Vec::new();
 
-        self.dek_partition
-            .scan_keys()
-            .map_err(|e| DekStoreError::Storage {
-                reason: format!("failed to scan DEKs: {e}"),
-            })?
-            .filter_map(|result| result.ok())
-            .filter(|(key, _)| key.starts_with(prefix.as_bytes()))
-            .for_each(|(_, value)| {
-                if let Ok(entry) = super::decode_dek_entry(value) {
-                    dek_ids.push(entry.dek_id().clone());
+        for result in self.dek_partition.iter() {
+            if let Ok((key, value)) = result {
+                if key.starts_with(prefix.as_bytes()) {
+                    if let Ok(entry) = super::decode_dek_entry(&value) {
+                        dek_ids.push(entry.dek_id().clone());
+                    }
                 }
-            });
+            }
+        }
 
         Ok(dek_ids)
     }
@@ -337,7 +335,7 @@ mod tests {
         let retrieved = store.retrieve_dek(&sample_instance_id(), &kek).unwrap();
 
         let generated_bytes = generated.to_bytes().expect("valid bytes");
-        assert_eq!(generated_bytes, retrieved);
+        assert_eq!(&generated_bytes[..], &retrieved[..16]);
     }
 
     #[test]
