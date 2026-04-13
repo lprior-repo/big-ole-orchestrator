@@ -56,54 +56,27 @@ impl TimerRecord {
 // =============================================================================
 
 /// `TimerSupervisorError` - All error variants for `TimerSupervisor`
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum TimerSupervisorError {
-    /// Storage operation failed - transient, retryable
+    #[error("Storage error: {0}")]
     StorageError(String),
-
-    /// Timer key corrupt or malformed - fatal, requires manual intervention
+    #[error("Corrupt timer: {0}")]
     CorruptTimer(String),
-
-    /// Atomicity violation: delete succeeded but dispatch failed
-    /// Timer may be lost; requires reconciliation
+    #[error("Atomicity violation: {0}")]
     AtomicityViolation(String),
-
-    /// Instance actor not found - transient if actor is restarting
+    #[error("Instance not found: {0}")]
     InstanceNotFound(InstanceId),
-
-    /// Dispatch failed due to actor mailbox full
+    #[error("Mailbox full: {0}")]
     MailboxFull(InstanceId),
-
-    /// Configuration error - fatal
+    #[error("Invalid config: {0}")]
     InvalidConfig(String),
-
-    /// Reanimator already running
+    #[error("Already running")]
     AlreadyRunning,
-
-    /// Reanimator shutdown timeout
+    #[error("Shutdown timeout: {0:?}")]
     ShutdownTimeout(Duration),
-
-    /// Dispatch error
+    #[error("Dispatch error: {0}")]
     DispatchError(String),
 }
-
-impl std::fmt::Display for TimerSupervisorError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::StorageError(s) => write!(f, "Storage error: {s}"),
-            Self::CorruptTimer(s) => write!(f, "Corrupt timer: {s}"),
-            Self::AtomicityViolation(s) => write!(f, "Atomicity violation: {s}"),
-            Self::InstanceNotFound(id) => write!(f, "Instance not found: {id}"),
-            Self::MailboxFull(id) => write!(f, "Mailbox full: {id}"),
-            Self::InvalidConfig(s) => write!(f, "Invalid config: {s}"),
-            Self::AlreadyRunning => write!(f, "Already running"),
-            Self::ShutdownTimeout(d) => write!(f, "Shutdown timeout: {d:?}"),
-            Self::DispatchError(s) => write!(f, "Dispatch error: {s}"),
-        }
-    }
-}
-
-impl std::error::Error for TimerSupervisorError {}
 
 // =============================================================================
 // TimerSupervisorMetrics - Metrics for TimerSupervisor

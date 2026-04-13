@@ -44,7 +44,10 @@ fn fjall_write_survives_keyspace_reopen() {
     {
         let journal = open_journal(dir.path());
         let eid = journal
-            .prepare(&id, http_record("fx-durable", json!({"url": "https://api.example.com"})))
+            .prepare(
+                &id,
+                http_record("fx-durable", json!({"url": "https://api.example.com"})),
+            )
             .unwrap();
         assert_eq!(eid.as_str(), format!("{id}::fx-durable"));
     } // keyspace dropped — simulates process exit
@@ -67,7 +70,9 @@ fn fjall_committed_state_survives_keyspace_reopen() {
     // Phase 1: prepare + commit
     let eid = {
         let journal = open_journal(dir.path());
-        let eid = journal.prepare(&id, http_record("fx-committed-durable", json!({}))).unwrap();
+        let eid = journal
+            .prepare(&id, http_record("fx-committed-durable", json!({})))
+            .unwrap();
         journal.commit(&eid).unwrap();
         eid
     }; // keyspace dropped
@@ -76,11 +81,17 @@ fn fjall_committed_state_survives_keyspace_reopen() {
     {
         let journal = open_journal(dir.path());
         let pending = journal.list_pending(&id).unwrap();
-        assert!(pending.is_empty(), "committed effect must not appear as pending after reopen");
+        assert!(
+            pending.is_empty(),
+            "committed effect must not appear as pending after reopen"
+        );
 
         // Attempting to commit again must fail (AlreadyTerminal)
         let result = journal.commit(&eid);
-        assert!(matches!(result, Err(EffectJournalError::AlreadyTerminal { .. })));
+        assert!(matches!(
+            result,
+            Err(EffectJournalError::AlreadyTerminal { .. })
+        ));
     }
 }
 
@@ -113,7 +124,10 @@ fn fjall_rolledback_state_survives_keyspace_reopen() {
         let pending = journal.list_pending(&id).unwrap();
         assert!(pending.is_empty());
         let result = journal.rollback(&eid);
-        assert!(matches!(result, Err(EffectJournalError::AlreadyTerminal { .. })));
+        assert!(matches!(
+            result,
+            Err(EffectJournalError::AlreadyTerminal { .. })
+        ));
     }
 }
 
@@ -123,7 +137,9 @@ fn fjall_read_after_write_pending_visible_immediately() {
     let id = sample_instance_id();
     let journal = open_journal(dir.path());
 
-    let _eid = journal.prepare(&id, http_record("fx-raw", json!({}))).unwrap();
+    let _eid = journal
+        .prepare(&id, http_record("fx-raw", json!({})))
+        .unwrap();
 
     let pending = journal.list_pending(&id).unwrap();
     assert_eq!(pending.len(), 1);
@@ -142,7 +158,9 @@ fn fjall_read_after_write_preserves_params_json() {
         "method": "POST",
         "idempotency_key": "ch_12345"
     });
-    journal.prepare(&id, http_record("fx-params", params.clone())).unwrap();
+    journal
+        .prepare(&id, http_record("fx-params", params.clone()))
+        .unwrap();
 
     let pending = journal.list_pending(&id).unwrap();
     assert_eq!(pending[0].params_json(), &params);
@@ -191,9 +209,15 @@ fn fjall_replay_isolated_per_instance() {
 
     {
         let journal = open_journal(dir.path());
-        journal.prepare(&id1, http_record("fx-inst1-a", json!({}))).unwrap();
-        journal.prepare(&id1, http_record("fx-inst1-b", json!({}))).unwrap();
-        journal.prepare(&id2, http_record("fx-inst2-a", json!({}))).unwrap();
+        journal
+            .prepare(&id1, http_record("fx-inst1-a", json!({})))
+            .unwrap();
+        journal
+            .prepare(&id1, http_record("fx-inst1-b", json!({})))
+            .unwrap();
+        journal
+            .prepare(&id2, http_record("fx-inst2-a", json!({})))
+            .unwrap();
     }
 
     {
@@ -217,7 +241,9 @@ fn fjall_idempotent_prepare_after_reopen() {
 
     {
         let journal = open_journal(dir.path());
-        let first = journal.prepare(&id, http_record("fx-idem", json!({}))).unwrap();
+        let first = journal
+            .prepare(&id, http_record("fx-idem", json!({})))
+            .unwrap();
         let second = journal
             .prepare(&id, http_record("fx-idem", json!({"updated": true})))
             .unwrap();

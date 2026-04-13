@@ -187,27 +187,15 @@ impl DedupeRetentionRecord {
 
 /// Errors from the dedupe store operations.
 #[non_exhaustive]
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum DedupeStoreError {
-    /// Storage operation failed.
+    #[error("dedupe storage error: {reason}")]
     Storage { reason: String },
-    /// Codec/serialization error.
+    #[error("dedupe codec error: {reason}")]
     Codec { reason: String },
-    /// Invalid argument.
+    #[error("invalid dedupe argument")]
     InvalidArgument,
 }
-
-impl fmt::Display for DedupeStoreError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Storage { reason } => write!(f, "dedupe storage error: {reason}"),
-            Self::Codec { reason } => write!(f, "dedupe codec error: {reason}"),
-            Self::InvalidArgument => write!(f, "invalid dedupe argument"),
-        }
-    }
-}
-
-impl std::error::Error for DedupeStoreError {}
 
 // ---------------------------------------------------------------------------
 // Calc layer — key encoding/decoding

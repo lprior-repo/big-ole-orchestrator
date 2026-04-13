@@ -11,8 +11,6 @@
 //!
 //! Reference: Henzinger & King (1995), "Randomized dynamic graph algorithms"
 
-use std::fmt;
-
 pub trait Monoid: Clone {
     fn identity() -> Self;
     fn combine(&self, other: &Self) -> Self;
@@ -46,26 +44,15 @@ impl EttAggregate<u64> for u64 {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum EttError {
+    #[error("invalid node index: {0}")]
     InvalidNode(usize),
+    #[error("nodes {a} and {b} are already connected")]
     AlreadyConnected { a: usize, b: usize },
+    #[error("nodes {a} and {b} are not connected")]
     NotConnected { a: usize, b: usize },
 }
-
-impl fmt::Display for EttError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            EttError::InvalidNode(i) => write!(f, "invalid node index: {i}"),
-            EttError::AlreadyConnected { a, b } => {
-                write!(f, "nodes {a} and {b} are already connected")
-            }
-            EttError::NotConnected { a, b } => write!(f, "nodes {a} and {b} are not connected"),
-        }
-    }
-}
-
-impl std::error::Error for EttError {}
 
 #[derive(Clone)]
 struct EttNode<V, A: Monoid> {

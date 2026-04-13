@@ -7,31 +7,20 @@
 //!
 //! Based on the AnyRope crate.
 
-use std::fmt;
-
 pub use any_rope::Measurable;
 pub use any_rope::Rope;
 pub use any_rope::RopeBuilder;
 pub use any_rope::RopeSlice;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum RopeError {
+    #[error("invalid chunk")]
     InvalidChunk,
+    #[error("invalid index")]
     InvalidIndex,
+    #[error("rope build error: {0}")]
     BuildError(String),
 }
-
-impl fmt::Display for RopeError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            RopeError::InvalidChunk => write!(f, "invalid chunk"),
-            RopeError::InvalidIndex => write!(f, "invalid index"),
-            RopeError::BuildError(s) => write!(f, "rope build error: {s}"),
-        }
-    }
-}
-
-impl std::error::Error for RopeError {}
 
 #[allow(dead_code)]
 pub type Result<T> = std::result::Result<T, RopeError>;

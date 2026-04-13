@@ -124,35 +124,15 @@ pub enum CoordinatorTransition {
 }
 
 /// Error returned when a coordinator state transition is invalid.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum CoordinatorTransitionError {
-    /// Attempted transition from a terminal state.
+    #[error("Cannot transition from terminal transaction state")]
     TerminalStateTransition,
-
-    /// Event not valid for the current state.
+    #[error("Invalid transaction coordinator state transition")]
     InvalidTransition,
-
-    /// Required votes not yet received.
+    #[error("Insufficient participant votes to transition")]
     InsufficientVotes,
 }
-
-impl std::fmt::Display for CoordinatorTransitionError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            CoordinatorTransitionError::TerminalStateTransition => {
-                write!(f, "Cannot transition from terminal transaction state")
-            }
-            CoordinatorTransitionError::InvalidTransition => {
-                write!(f, "Invalid transaction coordinator state transition")
-            }
-            CoordinatorTransitionError::InsufficientVotes => {
-                write!(f, "Insufficient participant votes to transition")
-            }
-        }
-    }
-}
-
-impl std::error::Error for CoordinatorTransitionError {}
 
 /// Record of a distributed transaction coordinator.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]

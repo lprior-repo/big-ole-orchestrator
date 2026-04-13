@@ -1,9 +1,9 @@
 //! `--graph` CLI argument handling and workflow specification types (ADR-004, ADR-009).
 
-use std::fmt;
 use std::io::Write;
 
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 pub use vo_types::NodeKind;
 use vo_types::{NodeName, WorkflowName};
 
@@ -12,24 +12,13 @@ use vo_types::{NodeName, WorkflowName};
 pub struct GraphArgs;
 
 /// Errors from parsing `--graph` arguments.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Error)]
 pub enum GraphArgsError {
-    /// An unrecognized argument was found alongside `--graph`.
+    #[error("unrecognized argument: {arg}")]
     UnrecognizedArgument { arg: String },
-    /// No `--graph` flag was found.
+    #[error("no --graph flag found")]
     NoGraphFlag,
 }
-
-impl fmt::Display for GraphArgsError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::UnrecognizedArgument { arg } => write!(f, "unrecognized argument: {arg}"),
-            Self::NoGraphFlag => write!(f, "no --graph flag found"),
-        }
-    }
-}
-
-impl std::error::Error for GraphArgsError {}
 
 /// Parse CLI arguments for the `--graph` flag.
 ///

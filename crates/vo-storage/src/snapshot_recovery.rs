@@ -46,42 +46,21 @@ mod tests;
 // Data layer — error enum
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum RecoveryError {
+    #[error("no snapshot available for instance {instance_id}")]
     NoSnapshotAvailable { instance_id: InstanceId },
+    #[error("throttle exceeded, would wait {wait_ms}ms")]
     ThrottleExceeded { wait_ms: u64 },
+    #[error("recovery already in progress for instance {instance_id}")]
     RecoveryInProgress { instance_id: InstanceId },
+    #[error("invalid recovery point: {reason}")]
     InvalidRecoveryPoint { reason: String },
+    #[error("append error during recovery: {reason}")]
     AppendError { reason: String },
+    #[error("codec error during recovery: {reason}")]
     CodecError { reason: String },
 }
-
-impl std::fmt::Display for RecoveryError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::NoSnapshotAvailable { instance_id } => {
-                write!(f, "no snapshot available for instance {instance_id}")
-            }
-            Self::ThrottleExceeded { wait_ms } => {
-                write!(f, "throttle exceeded, would wait {wait_ms}ms")
-            }
-            Self::RecoveryInProgress { instance_id } => {
-                write!(f, "recovery already in progress for instance {instance_id}")
-            }
-            Self::InvalidRecoveryPoint { reason } => {
-                write!(f, "invalid recovery point: {reason}")
-            }
-            Self::AppendError { reason } => {
-                write!(f, "append error during recovery: {reason}")
-            }
-            Self::CodecError { reason } => {
-                write!(f, "codec error during recovery: {reason}")
-            }
-        }
-    }
-}
-
-impl std::error::Error for RecoveryError {}
 
 impl From<StorageError> for RecoveryError {
     fn from(e: StorageError) -> Self {

@@ -67,28 +67,13 @@ impl EffectTransitionEvent {
 }
 
 /// Error returned when an effect state transition is invalid.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum EffectTransitionError {
-    /// Attempted transition from a terminal state (Committed or RolledBack).
+    #[error("Cannot transition from terminal effect state")]
     TerminalStateTransition,
-    /// Transition event is not valid for the current state.
+    #[error("Invalid effect state transition")]
     InvalidTransition,
 }
-
-impl std::fmt::Display for EffectTransitionError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            EffectTransitionError::TerminalStateTransition => {
-                write!(f, "Cannot transition from terminal effect state")
-            }
-            EffectTransitionError::InvalidTransition => {
-                write!(f, "Invalid effect state transition")
-            }
-        }
-    }
-}
-
-impl std::error::Error for EffectTransitionError {}
 
 /// Persisted record of a managed effect.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]

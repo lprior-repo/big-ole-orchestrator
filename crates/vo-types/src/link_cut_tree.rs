@@ -4,8 +4,6 @@
 //! trees with dynamic `link`, `cut`, and path queries. Uses splay-tree-based
 //! preferred-path decomposition (Sleator–Tarjan, 1983).
 
-use std::fmt;
-
 // ── Monoid ─────────────────────────────────────────────────────────
 
 pub trait Monoid: Clone {
@@ -43,24 +41,15 @@ impl LctAggregate<u64> for u64 {
 
 // ── Errors ─────────────────────────────────────────────────────────
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum LctError {
+    #[error("invalid node index: {0}")]
     InvalidNode(usize),
+    #[error("node {node} is not a root")]
     NotRoot { node: usize },
+    #[error("node {node} is already a root")]
     AlreadyRoot { node: usize },
 }
-
-impl fmt::Display for LctError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            LctError::InvalidNode(i) => write!(f, "invalid node index: {i}"),
-            LctError::NotRoot { node } => write!(f, "node {node} is not a root"),
-            LctError::AlreadyRoot { node } => write!(f, "node {node} is already a root"),
-        }
-    }
-}
-
-impl std::error::Error for LctError {}
 
 // ── Internal Node ──────────────────────────────────────────────────
 

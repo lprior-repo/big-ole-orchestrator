@@ -5,38 +5,25 @@
 //! [`WorkflowSpec`](crate::graph_args::WorkflowSpec) is emitted.
 
 use std::any::Any;
-use std::fmt;
 
+use thiserror::Error;
 use vo_types::{NodeKind, NodeName, WorkflowName};
 
 use crate::graph_args::{EdgeSpec, NodeSpec, WorkflowSpec};
 use crate::node_handle::NodeHandle;
 
 /// Errors that can occur when building a DAG.
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Error)]
 pub enum DagError {
-    /// The provided node name could not be parsed as a valid `NodeName`.
+    #[error("invalid node name: {name}")]
     InvalidNodeName { name: String },
-    /// A node referenced in `connect` was not found in the DAG.
+    #[error("node not found: {name}")]
     NodeNotFound { name: String },
-    /// The workflow has no nodes.
+    #[error("workflow has no nodes")]
     EmptyWorkflow,
-    /// The workflow contains a cycle.
+    #[error("workflow contains a cycle")]
     CycleDetected,
 }
-
-impl fmt::Display for DagError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::InvalidNodeName { name } => write!(f, "invalid node name: {name}"),
-            Self::NodeNotFound { name } => write!(f, "node not found: {name}"),
-            Self::EmptyWorkflow => write!(f, "workflow has no nodes"),
-            Self::CycleDetected => write!(f, "workflow contains a cycle"),
-        }
-    }
-}
-
-impl std::error::Error for DagError {}
 
 /// Internal node record with name and kind.
 #[derive(Debug, Clone)]
