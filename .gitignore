@@ -32,3 +32,4 @@ cov.json
 .beads-credential-key
 .runtime/
 CLAUDE.local.md
+crates/vo-core/fuzz/target/
