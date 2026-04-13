@@ -97,7 +97,8 @@ pub use pairing_heap::{PairingHeap, PairingHeapError};
 pub use registration_status::RegistrationStatus;
 pub use rope::{Measurable, Rope, RopeBuilder, RopeError, RopeSlice};
 pub use signal::{
-    BufferPolicy, LineageScope, SignalAddress, SignalDedupeKey, SignalDelivery, WaitKey, WaitRecord,
+    signal_match, BufferPolicy, LineageScope, SignalAddress, SignalDedupeKey, SignalDelivery,
+    SignalMatchResult, WaitKey, WaitRecord,
 };
 pub use skew_heap::{SkewHeap, SkewHeapError, SkewNode};
 pub use spqr_tree::{
