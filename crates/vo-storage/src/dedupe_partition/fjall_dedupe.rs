@@ -38,9 +38,12 @@ impl DedupeStore for FjallDedupeStore {
         }
 
         let encoded_key = super::encode_dedupe_key(key);
+        #[expect(clippy::expect_used)]
         let now_ms = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .expect("system time before epoch")
+            .expect(
+                "system time is guaranteed to be after UNIX epoch on properly configured systems",
+            )
             .as_millis() as u64;
         let expires_at = now_ms.saturating_add(ttl_ms);
 
@@ -101,9 +104,12 @@ impl DedupeStore for FjallDedupeStore {
 
     fn contains(&self, key: &DedupeKey) -> Result<bool, DedupeStoreError> {
         let encoded_key = super::encode_dedupe_key(key);
+        #[expect(clippy::expect_used)]
         let now_ms = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .expect("system time before epoch")
+            .expect(
+                "system time is guaranteed to be after UNIX epoch on properly configured systems",
+            )
             .as_millis() as u64;
 
         match self.partition.get(&encoded_key) {
