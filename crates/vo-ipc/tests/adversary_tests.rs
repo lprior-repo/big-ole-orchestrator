@@ -156,3 +156,110 @@ fn fd4_response_identity_mismatch_is_detectable() {
     assert!(format!("{}", err).contains("adversary-response"));
     assert!(format!("{}", err).contains("expected-instance"));
 }
+
+#[tokio::test]
+async fn fd3_burst_write_handled_gracefully() {
+    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    path.push("tests/adversary_fd3_burst.py");
+
+    let config = SubprocessConfig::new(path, 2000, b"test".to_vec()).unwrap();
+    let result = run_subprocess(config).await;
+
+    match result {
+        Ok(output) => {
+            assert!(output.fd4_bytes.is_empty());
+        }
+        Err(IpcError::ProcessFailed { exit_code, .. }) => {
+            assert_eq!(exit_code, 42);
+        }
+        Err(e) => {
+            panic!("Unexpected error: {:?}", e);
+        }
+    }
+}
+
+#[tokio::test]
+async fn fd4_burst_write_handled_gracefully() {
+    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    path.push("tests/adversary_fd4_burst.py");
+
+    let config = SubprocessConfig::new(path, 2000, b"test".to_vec()).unwrap();
+    let result = run_subprocess(config).await;
+
+    match result {
+        Err(IpcError::Fd4ReadFailed { .. }) => {}
+        Ok(_) => panic!("Should have failed reading huge fd4 payload"),
+        Err(e) => panic!("Unexpected error: {:?}", e),
+    }
+}
+
+#[tokio::test]
+async fn immediate_exit_ignores_ipc() {
+    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    path.push("tests/adversary_immediate_exit.py");
+
+    let config = SubprocessConfig::new(path, 500, b"test".to_vec()).unwrap();
+    let result = run_subprocess(config).await;
+
+    match result {
+        Ok(output) => {
+            assert!(output.fd4_bytes.is_empty());
+        }
+        Err(IpcError::ProcessFailed { exit_code, .. }) => {
+            assert_eq!(exit_code, 0);
+        }
+        Err(e) => panic!("Unexpected error: {:?}", e),
+    }
+}
+
+#[tokio::test]
+async fn fd4_closed_before_read_returns_error() {
+    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    path.push("tests/adversary_fd4_closed.py");
+
+    let config = SubprocessConfig::new(path, 500, b"test".to_vec()).unwrap();
+    let result = run_subprocess(config).await;
+
+    match result {
+        Err(IpcError::Fd4ReadFailed { .. }) => {}
+        Ok(_) => panic!("Should have failed reading from closed fd4"),
+        Err(e) => panic!("Unexpected error: {:?}", e),
+    }
+}
+
+#[tokio::test]
+async fn fd3_closed_before_read_handled() {
+    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    path.push("tests/adversary_fd3_closed.py");
+
+    let config = SubprocessConfig::new(path, 500, b"test".to_vec()).unwrap();
+    let result = run_subprocess(config).await;
+
+    match result {
+        Ok(output) => {
+            assert!(!output.fd4_bytes.is_empty());
+        }
+        Err(e) => panic!("Unexpected error: {:?}", e),
+    }
+}
+
+#[tokio::test]
+async fn partial_write_recovery_works() {
+    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    path.push("tests/adversary_partial_write.py");
+
+    let payload = b"test_payload_for_partial_write_recovery";
+    let config = SubprocessConfig::new(path, 1000, payload.to_vec()).unwrap();
+    let result = run_subprocess(config).await;
+
+    match result {
+        Ok(output) => {
+            assert!(!output.fd4_bytes.is_empty());
+            let response_result = serde_json::from_slice::<Fd4Envelope>(&output.fd4_bytes);
+            assert!(response_result.is_ok(), "Response should be parseable");
+            let response = response_result.unwrap();
+            assert_eq!(response.instance_id, "partial-write-test");
+        }
+        Err(e) => panic!("Unexpected error: {:?}", e),
+    }
+}
