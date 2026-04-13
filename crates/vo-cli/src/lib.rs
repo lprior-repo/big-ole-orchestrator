@@ -1,9 +1,11 @@
 pub mod cli;
 pub mod commands;
 pub mod dispatch_mod;
+pub mod handler;
 pub mod lint_targets;
 pub mod middleware;
 pub mod parse;
+pub mod registry;
 
 pub use cli::{interpret_cli_from, map_error_to_exit_code, Cli, CliError, Command};
 pub use commands::check::{
@@ -24,5 +26,7 @@ pub use commands::init::{
 };
 pub use commands::lock::{run_lock, LockConfig, LockError, LOCK_FILE_NAME};
 pub use dispatch_mod::dispatch;
+pub use handler::CommandHandler;
 pub use middleware::{create_dispatcher, CommandContext, CommandDispatcher, Middleware};
 pub use parse::parse_strict_numeric;
+pub use registry::HandlerRegistry;
