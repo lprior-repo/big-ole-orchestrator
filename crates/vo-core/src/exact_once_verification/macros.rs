@@ -63,10 +63,7 @@ macro_rules! crash_injection_result {
         if !$harness.should_crash_at($point, $position) {
             $block
         } else {
-            Err(crate::exact_once_verification::CrashError::InjectedCrash {
-                point: $point,
-                position: $position,
-            })
+            Err($crate::exact_once_verification::macros::CrashError::injected($point, $position))
         }
     }};
 }
@@ -147,10 +144,13 @@ macro_rules! crash_injection_wait {
         let start = std::time::Instant::now();
         while !$condition {
             if start.elapsed() > $timeout {
-                return Err(crate::exact_once_verification::CrashError::TimeoutElapsed {
-                    point: $point,
-                    elapsed: start.elapsed(),
-                });
+                return Err(
+                    $crate::exact_once_verification::macros::CrashError::with_message(
+                        $point,
+                        CrashPosition::Before,
+                        format!("timeout elapsed: {:?}", start.elapsed()),
+                    ),
+                );
             }
             // Check for crash injection at TimerPersistence points
             crash_injection!($harness, $point, CrashPosition::Before, {});

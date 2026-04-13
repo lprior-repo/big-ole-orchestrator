@@ -8,6 +8,8 @@ pub mod projection;
 mod types;
 
 #[cfg(test)]
+mod crash_injection_tests;
+#[cfg(test)]
 mod deterministic_replay_tests;
 #[cfg(test)]
 mod error_tests;

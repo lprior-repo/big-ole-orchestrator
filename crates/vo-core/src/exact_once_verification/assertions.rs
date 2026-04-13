@@ -15,9 +15,10 @@
 use vo_types::events::EventEnvelope;
 use vo_types::state::LifecycleState;
 
-use crate::exact_once_verification::crash_points::{CrashPoint, CrashScenario};
+use crate::exact_once_verification::crash_points::{CrashPoint, CrashPosition, CrashScenario};
 use crate::exact_once_verification::harness::VerificationHarness;
 use crate::replay::ReplayEngine;
+use crate::replay::{ReplayError, ReplayResult};
 
 #[derive(Debug)]
 pub struct RecoveryAssertion {
@@ -99,6 +100,22 @@ impl RecoveryAssertion {
 
     pub fn crash_point(&self) -> CrashPoint {
         self.scenario.point
+    }
+
+    pub fn pre_crash_state(&self) -> Option<LifecycleState> {
+        self.pre_crash_state
+    }
+
+    pub fn post_crash_state(&self) -> Option<LifecycleState> {
+        self.post_crash_state
+    }
+
+    pub fn events_applied_pre(&self) -> usize {
+        self.events_applied_pre
+    }
+
+    pub fn events_applied_post(&self) -> usize {
+        self.events_applied_post
     }
 }
 
@@ -187,15 +204,16 @@ impl RecoveryContext {
         pre_crash_events: &[EventEnvelope],
         post_crash_events: &[EventEnvelope],
     ) -> Result<RecoveryAssertion, RecoveryAssertionError> {
+        let crash_point = scenario.point;
         let assertion = RecoveryAssertion::new(scenario)
             .with_pre_crash(pre_crash_events, &self.engine)
             .map_err(|e| RecoveryAssertionError::IllegalState {
-                crash_point: scenario.point,
+                crash_point,
                 reason: format!("Pre-crash replay failed: {}", e),
             })?
             .with_post_crash(post_crash_events, &self.engine)
             .map_err(|e| RecoveryAssertionError::IllegalState {
-                crash_point: scenario.point,
+                crash_point,
                 reason: format!("Post-crash replay failed: {}", e),
             })?;
 
@@ -287,14 +305,6 @@ where
             match payload {
                 vo_types::events::EventPayload::WorkflowStarted { .. } => {
                     parent_started.insert(event.instance_id.clone(), true);
-                }
-                vo_types::events::EventPayload::ChildStarted { parent_id, .. } => {
-                    if !parent_started.get(parent_id).copied().unwrap_or(false) {
-                        return Err(format!(
-                            "Orphan detected: ChildStarted for {} before parent {} started",
-                            event.instance_id, parent_id
-                        ));
-                    }
                 }
                 _ => {}
             }

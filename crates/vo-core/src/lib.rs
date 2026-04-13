@@ -17,10 +17,6 @@ pub use exact_once_verification::assertions::{
 pub use exact_once_verification::crash_points::{CrashPoint, CrashPosition, CrashScenario};
 pub use exact_once_verification::macros::CrashError;
 pub use exact_once_verification::harness::{LineageRolloverEvent, LineageRoutingState, VerificationHarness};
-pub use exact_once_verification::macros::{
-    crash_injection, crash_injection_result, crash_injection_stress, crash_injection_wait,
-    crash_invariant_assert, crash_point_matrix_tests,
-};
 pub mod quadtree;
 pub mod replay;
 pub mod resource_quota;
