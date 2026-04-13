@@ -490,7 +490,7 @@ mod tests {
         assert!(expired_entry.remaining_ttl().is_none());
     }
 
-    #[test]
+   #[test]
     fn test_wait_for_graph_cycle_detection() {
         let mut graph = WaitForGraph::default();
         let owner1 = OwnerId::new("owner1".into());
@@ -515,5 +515,386 @@ mod tests {
 
         let cycle = graph.detect_cycle();
         assert!(cycle.is_some());
+    }
+
+   #[test]
+    fn test_lock_entry_new_with_ttl() {
+        let owner = OwnerId::new("owner1".into());
+        let lock_id = LockId::new("test-lock");
+        let entry = LockEntry::new(lock_id, owner, LockMode::Exclusive, 5000);
+
+        assert_eq!(entry.lock_id.0, "test-lock");
+        assert_eq!(entry.owner.0, "owner1");
+        assert_eq!(entry.mode, LockMode::Exclusive);
+        assert_eq!(entry.status, LockStatus::Held);
+        assert!(entry.expires_at > entry.acquired_at);
+        assert!(!entry.hold_token.is_empty());
+    }
+
+    #[test]
+    fn test_lock_entry_remaining_ttl_expired() {
+        let owner = OwnerId::new("owner1".into());
+        let lock_id = LockId::new("expired-lock");
+        let expired_entry = LockEntry {
+            lock_id: lock_id.clone(),
+            owner: owner.clone(),
+            mode: LockMode::Exclusive,
+            status: LockStatus::Expired,
+            acquired_at: now() - chrono::Duration::seconds(10),
+            expires_at: now() - chrono::Duration::seconds(5),
+            hold_token: "token".to_string(),
+        };
+
+        assert!(expired_entry.is_expired());
+        assert!(expired_entry.remaining_ttl().is_none());
+    }
+
+    #[test]
+    fn test_lock_entry_remaining_ttl_valid() {
+        let owner = OwnerId::new("owner1".into());
+        let lock_id = LockId::new("valid-lock");
+        let entry = LockEntry {
+            lock_id: lock_id.clone(),
+            owner: owner.clone(),
+            mode: LockMode::Exclusive,
+            status: LockStatus::Held,
+            acquired_at: now() - chrono::Duration::seconds(1),
+            expires_at: now() + chrono::Duration::seconds(100),
+            hold_token: "token".to_string(),
+        };
+
+        assert!(!entry.is_expired());
+        assert!(entry.remaining_ttl().is_some());
+    }
+
+    #[test]
+    fn test_lock_request_fields() {
+        let request = LockRequest {
+            lock_id: LockId::new("my-lock"),
+            owner: OwnerId::new("owner-123".into()),
+            mode: LockMode::Shared,
+            ttl_ms: 30000,
+            request_id: "req-abc".to_string(),
+        };
+
+        assert_eq!(request.lock_id.0, "my-lock");
+        assert_eq!(request.owner.0, "owner-123");
+        assert_eq!(request.mode, LockMode::Shared);
+        assert_eq!(request.ttl_ms, 30000);
+        assert_eq!(request.request_id, "req-abc");
+    }
+
+    #[test]
+    fn test_lock_response_fields() {
+        let response = LockResponse {
+            request_id: "req-1".to_string(),
+            lock_id: LockId::new("lock-1"),
+            owner: OwnerId::new("owner-1".into()),
+            granted: true,
+            hold_token: Some("token-xyz".to_string()),
+            expires_at: Some(now() + chrono::Duration::seconds(60)),
+            error: None,
+        };
+
+        assert!(response.granted);
+        assert_eq!(response.lock_id.as_str(), "lock-1");
+        assert_eq!(response.hold_token, Some("token-xyz".to_string()));
+    }
+
+    #[test]
+    fn test_lock_response_denied() {
+        let response = LockResponse {
+            request_id: "req-2".to_string(),
+            lock_id: LockId::new("lock-2"),
+            owner: OwnerId::new("owner-2".into()),
+            granted: false,
+            hold_token: None,
+            expires_at: None,
+            error: Some("lock held by another".to_string()),
+        };
+
+        assert!(!response.granted);
+        assert!(response.error.is_some());
+        assert_eq!(response.error.unwrap(), "lock held by another");
+    }
+
+    #[test]
+    fn test_lock_release_fields() {
+        let release = LockRelease {
+            lock_id: LockId::new("release-lock"),
+            owner: OwnerId::new("release-owner".into()),
+            hold_token: "release-token".to_string(),
+        };
+
+        assert_eq!(release.lock_id.0, "release-lock");
+        assert_eq!(release.owner.0, "release-owner");
+        assert_eq!(release.hold_token, "release-token");
+    }
+
+    #[test]
+    fn test_lock_query_fields() {
+        let query = LockQuery {
+            lock_id: Some(LockId::new("query-lock")),
+            owner: Some(OwnerId::new("query-owner".into())),
+        };
+
+        assert!(query.lock_id.is_some());
+        assert!(query.owner.is_some());
+    }
+
+    #[test]
+    fn test_lock_query_empty() {
+        let query = LockQuery {
+            lock_id: None,
+            owner: None,
+        };
+
+        assert!(query.lock_id.is_none());
+        assert!(query.owner.is_none());
+    }
+
+    #[test]
+    fn test_lock_promote_fields() {
+        let promote = LockPromote {
+            lock_id: LockId::new("promote-lock"),
+            owner: OwnerId::new("promote-owner".into()),
+            hold_token: "promote-token".to_string(),
+            new_mode: LockMode::Exclusive,
+        };
+
+        assert_eq!(promote.lock_id.as_str(), "promote-lock");
+        assert_eq!(promote.new_mode, LockMode::Exclusive);
+    }
+
+    #[test]
+    fn test_lock_promote_response_granted() {
+        let response = LockPromoteResponse {
+            request_id: "promote-req".to_string(),
+            lock_id: LockId::new("promote-lock"),
+            granted: true,
+            new_mode: Some(LockMode::Exclusive),
+            error: None,
+        };
+
+        assert!(response.granted);
+        assert_eq!(response.new_mode, Some(LockMode::Exclusive));
+    }
+
+    #[test]
+    fn test_lock_promote_response_denied() {
+        let response = LockPromoteResponse {
+            request_id: "promote-req-2".to_string(),
+            lock_id: LockId::new("promote-lock-2"),
+            granted: false,
+            new_mode: None,
+            error: Some("cannot upgrade from exclusive".to_string()),
+        };
+
+        assert!(!response.granted);
+        assert!(response.error.is_some());
+    }
+
+    #[test]
+    fn test_lock_query_response_empty() {
+        let response = LockQueryResponse { locks: vec![] };
+        assert!(response.locks.is_empty());
+    }
+
+    #[test]
+    fn test_lock_query_response_with_locks() {
+        let owner = OwnerId::new("owner".into());
+        let lock_id = LockId::new("q-lock");
+        let entry = LockEntry::new(lock_id, owner, LockMode::Shared, 10000);
+
+        let response = LockQueryResponse { locks: vec![entry] };
+        assert_eq!(response.locks.len(), 1);
+        assert_eq!(response.locks[0].lock_id.as_str(), "q-lock");
+    }
+
+    #[test]
+    fn test_wait_edge_fields() {
+        let edge = WaitEdge {
+            waiter: OwnerId::new("waiter-1".into()),
+            lock_id: LockId::new("wait-lock"),
+            requested_mode: LockMode::Exclusive,
+        };
+
+        assert_eq!(edge.waiter.0, "waiter-1");
+        assert_eq!(edge.lock_id.0, "wait-lock");
+        assert_eq!(edge.requested_mode, LockMode::Exclusive);
+    }
+
+    #[test]
+    fn test_wait_for_graph_add_edge() {
+        let mut graph = WaitForGraph::default();
+        let waiter = OwnerId::new("new-waiter".into());
+        let lock = LockId::new("new-lock");
+
+        graph.add_edge(WaitEdge {
+            waiter: waiter.clone(),
+            lock_id: lock.clone(),
+            requested_mode: LockMode::Exclusive,
+        });
+
+        let waiters = graph.get_waiters(&lock);
+        assert_eq!(waiters.len(), 1);
+        assert_eq!(waiters[0].0, "new-waiter");
+    }
+
+    #[test]
+    fn test_wait_for_graph_remove_edges_for_owner() {
+        let mut graph = WaitForGraph::default();
+        let owner1 = OwnerId::new("owner1".into());
+        let owner2 = OwnerId::new("owner2".into());
+        let lock = LockId::new("multi-lock");
+
+        graph.add_edge(WaitEdge {
+            waiter: owner1.clone(),
+            lock_id: lock.clone(),
+            requested_mode: LockMode::Exclusive,
+        });
+        graph.add_edge(WaitEdge {
+            waiter: owner2.clone(),
+            lock_id: lock.clone(),
+            requested_mode: LockMode::Shared,
+        });
+
+        graph.remove_edges_for_owner(&owner1);
+
+        let waiters = graph.get_waiters(&lock);
+        assert_eq!(waiters.len(), 1);
+        assert_eq!(waiters[0].0, "owner2");
+    }
+
+    #[test]
+    fn test_wait_for_graph_remove_edges_for_lock() {
+        let mut graph = WaitForGraph::default();
+        let owner = OwnerId::new("owner".into());
+        let lock1 = LockId::new("graph-lock-1");
+        let lock2 = LockId::new("graph-lock-2");
+
+        graph.add_edge(WaitEdge {
+            waiter: owner.clone(),
+            lock_id: lock1.clone(),
+            requested_mode: LockMode::Exclusive,
+        });
+        graph.add_edge(WaitEdge {
+            waiter: owner.clone(),
+            lock_id: lock2.clone(),
+            requested_mode: LockMode::Exclusive,
+        });
+
+        graph.remove_edges_for_lock(&lock1);
+
+        let waiters = graph.get_waiters(&lock1);
+        assert!(waiters.is_empty());
+
+        let waiters = graph.get_waiters(&lock2);
+        assert_eq!(waiters.len(), 1);
+    }
+
+    #[test]
+    fn test_wait_for_graph_no_cycle() {
+        let mut graph = WaitForGraph::default();
+        let owner1 = OwnerId::new("owner1".into());
+        let owner2 = OwnerId::new("owner2".into());
+        let lock = LockId::new("no-cycle-lock");
+
+        graph.set_lock_holder(lock.clone(), owner1.clone());
+        graph.add_edge(WaitEdge {
+            waiter: owner2.clone(),
+            lock_id: lock.clone(),
+            requested_mode: LockMode::Exclusive,
+        });
+
+        let cycle = graph.detect_cycle();
+        assert!(cycle.is_none());
+    }
+
+    #[test]
+    fn test_wait_for_graph_self_wait() {
+        let mut graph = WaitForGraph::default();
+        let owner = OwnerId::new("self-owner".into());
+        let lock = LockId::new("self-lock");
+
+        graph.set_lock_holder(lock.clone(), owner.clone());
+        graph.add_edge(WaitEdge {
+            waiter: owner.clone(),
+            lock_id: lock.clone(),
+            requested_mode: LockMode::Exclusive,
+        });
+
+        // Self-wait should be ignored in cycle detection
+        let cycle = graph.detect_cycle();
+        assert!(cycle.is_none());
+    }
+
+    #[test]
+    fn test_lock_error_not_found() {
+        let lock_id = LockId::new("missing");
+        let err = LockError::NotFound(lock_id.clone());
+        assert!(err.to_string().contains("missing"));
+    }
+
+    #[test]
+    fn test_lock_error_not_owner() {
+        let expected = OwnerId::new("expected".into());
+        let got = OwnerId::new("got".into());
+        let err = LockError::NotOwner { expected, got };
+        assert!(err.to_string().contains("expected"));
+        assert!(err.to_string().contains("got"));
+    }
+
+    #[test]
+    fn test_lock_error_invalid_token() {
+        let err = LockError::InvalidToken;
+        assert!(err.to_string().contains("invalid"));
+        assert!(err.to_string().contains("token"));
+    }
+
+    #[test]
+    fn test_lock_error_deadlock() {
+        let err = LockError::DeadlockDetected;
+        assert!(err.to_string().contains("deadlock"));
+    }
+
+    #[test]
+    fn test_lock_error_incompatible_mode() {
+        let err = LockError::IncompatibleMode;
+        assert!(err.to_string().contains("incompatible"));
+        assert!(err.to_string().contains("mode"));
+    }
+
+    #[test]
+    fn test_lock_error_invalid_ttl() {
+        let err = LockError::InvalidTtl(0);
+        assert!(err.to_string().contains("0"));
+    }
+
+    #[test]
+    fn test_lock_error_nats() {
+        let err = LockError::Nats("connection failed".to_string());
+        assert!(err.to_string().contains("NATS"));
+        assert!(err.to_string().contains("connection"));
+    }
+
+    #[test]
+    fn test_lock_error_storage() {
+        let err = LockError::Storage("disk full".to_string());
+        assert!(err.to_string().contains("storage"));
+        assert!(err.to_string().contains("disk"));
+    }
+
+    #[test]
+    fn test_lock_error_timeout() {
+        let err = LockError::Timeout;
+        assert!(err.to_string().contains("timeout"));
+    }
+
+    #[test]
+    fn test_lock_error_upgrade_would_deadlock() {
+        let err = LockError::UpgradeWouldDeadlock;
+        assert!(err.to_string().contains("upgrade"));
+        assert!(err.to_string().contains("shared"));
     }
 }
