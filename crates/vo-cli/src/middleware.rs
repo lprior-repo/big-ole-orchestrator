@@ -172,6 +172,10 @@ impl CommandDispatcher {
         self.middlewares.push(Box::new(middleware));
     }
 
+    pub fn middleware_count(&self) -> usize {
+        self.middlewares.len()
+    }
+
     pub async fn dispatch(&self, cli: Cli) -> Result<(), CliError> {
         let handler = self
             .registry

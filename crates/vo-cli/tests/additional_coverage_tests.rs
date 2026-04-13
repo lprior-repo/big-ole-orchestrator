@@ -3,7 +3,7 @@ use vo_cli::commands::check::{
     CheckError, ELF_MAGIC, KNOWN_MAGICS, MACHO_MAGIC_32_BE, MACHO_MAGIC_32_LE, MACHO_MAGIC_64_BE,
     MACHO_MAGIC_64_LE,
 };
-use vo_cli::commands::doctor::DoctorError;
+use vo_cli::commands::doctor::{DoctorConfig, DoctorError};
 use vo_cli::commands::doctor_checks::{
     format_report, format_report_json, CategoryReport, CheckCategory, CheckResult, DoctorReport,
     Severity,
@@ -147,14 +147,16 @@ fn command_purge_equality() {
 
 #[test]
 fn dispatcher_add_middleware_method() {
-    let mut dispatcher = CommandDispatcher::new();
+    let registry = vo_cli::HandlerRegistry::default();
+    let mut dispatcher = CommandDispatcher::new(registry);
     dispatcher.add_middleware(LoggingMiddleware::new());
     dispatcher.add_middleware(MetricsMiddleware::new());
 }
 
 #[test]
-fn dispatcher_default() {
-    let _dispatcher = CommandDispatcher::default();
+fn dispatcher_new_with_registry() {
+    let registry = vo_cli::HandlerRegistry::default();
+    let _dispatcher = CommandDispatcher::new(registry);
 }
 
 #[test]
@@ -333,40 +335,18 @@ fn cli_struct_debug_format() {
 }
 
 #[test]
-fn command_context_stores_all_variants() {
-    let cmds = vec![
-        Command::Purge {
-            instance: "i".into(),
-        },
-        Command::Check {
-            path: PathBuf::from("/tmp"),
-        },
-        Command::Gc {
-            engine_url: "http://x".into(),
-            dry_run: false,
-        },
-        Command::Init {
-            project_dir: PathBuf::from("."),
-            engine_url: "http://x".into(),
-            storage_path: PathBuf::from(".vo/s"),
-        },
-        Command::Lock {
-            project_dir: PathBuf::from("."),
-        },
-        Command::Doctor {
-            project_dir: PathBuf::from("."),
-        },
-        Command::Rebuild {
-            project_dir: PathBuf::from("."),
-            projection_id: None,
-            list_projections: false,
-            force: false,
-        },
-    ];
-    for cmd in cmds {
-        let ctx = CommandContext::new(cmd.clone());
-        assert_eq!(ctx.command, cmd);
+fn command_context_stores_command_names() {
+    let names = vec!["purge", "check", "gc", "init", "lock", "doctor", "rebuild"];
+    for name in names {
+        let ctx = CommandContext::new(name);
+        assert_eq!(ctx.command_name, name);
     }
+}
+
+#[test]
+fn command_context_from_string() {
+    let ctx = CommandContext::new(String::from("check"));
+    assert_eq!(ctx.command_name, "check");
 }
 
 #[test]
@@ -482,6 +462,373 @@ fn lock_config_equality() {
     };
     let c2 = LockConfig {
         project_dir: PathBuf::from("/proj"),
+    };
+    assert_eq!(c1, c2);
+}
+
+#[test]
+fn registry_get_gc_handler() {
+    let registry = vo_cli::HandlerRegistry::default();
+    let cli = vo_cli::Cli {
+        command: Command::Gc {
+            engine_url: "http://test".into(),
+            dry_run: true,
+        },
+    };
+    let handler = registry.get(&cli).expect("handler found");
+    assert_eq!(handler.name(), "gc");
+}
+
+#[test]
+fn registry_get_init_handler() {
+    let registry = vo_cli::HandlerRegistry::default();
+    let cli = vo_cli::Cli {
+        command: Command::Init {
+            project_dir: PathBuf::from("."),
+            engine_url: "http://test".into(),
+            storage_path: PathBuf::from(".vo/s"),
+        },
+    };
+    let handler = registry.get(&cli).expect("handler found");
+    assert_eq!(handler.name(), "init");
+}
+
+#[test]
+fn registry_get_lock_handler() {
+    let registry = vo_cli::HandlerRegistry::default();
+    let cli = vo_cli::Cli {
+        command: Command::Lock {
+            project_dir: PathBuf::from("."),
+        },
+    };
+    let handler = registry.get(&cli).expect("handler found");
+    assert_eq!(handler.name(), "lock");
+}
+
+#[test]
+fn registry_get_doctor_handler() {
+    let registry = vo_cli::HandlerRegistry::default();
+    let cli = vo_cli::Cli {
+        command: Command::Doctor {
+            project_dir: PathBuf::from("."),
+        },
+    };
+    let handler = registry.get(&cli).expect("handler found");
+    assert_eq!(handler.name(), "doctor");
+}
+
+#[test]
+fn registry_names_contains_all_seven() {
+    let registry = vo_cli::HandlerRegistry::default();
+    let names = registry.names();
+    assert_eq!(names.len(), 7);
+    assert!(names.contains(&"purge"));
+    assert!(names.contains(&"check"));
+    assert!(names.contains(&"gc"));
+    assert!(names.contains(&"init"));
+    assert!(names.contains(&"lock"));
+    assert!(names.contains(&"doctor"));
+    assert!(names.contains(&"rebuild"));
+}
+
+#[test]
+fn registry_new_is_same_as_default() {
+    let r1 = vo_cli::HandlerRegistry::default();
+    let r2 = vo_cli::HandlerRegistry::new();
+    assert_eq!(r1.names().len(), r2.names().len());
+}
+
+#[test]
+fn registry_register_custom_handler() {
+    struct CustomHandler;
+    impl vo_cli::CommandHandler for CustomHandler {
+        fn name(&self) -> &'static str {
+            "custom"
+        }
+        fn execute(
+            &self,
+            _cli: &vo_cli::Cli,
+        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), CliError>> + Send + '_>>
+        {
+            Box::pin(async { Ok(()) })
+        }
+    }
+    let mut registry = vo_cli::HandlerRegistry::default();
+    registry.register(Box::new(CustomHandler));
+    assert!(registry.names().contains(&"custom"));
+    assert_eq!(registry.names().len(), 8);
+}
+
+#[test]
+fn command_context_metadata_overwrite() {
+    let ctx = CommandContext::new("cmd");
+    ctx.set_metadata("key", "v1");
+    assert_eq!(ctx.get_metadata("key"), Some("v1".to_string()));
+    ctx.set_metadata("key", "v2");
+    assert_eq!(ctx.get_metadata("key"), Some("v2".to_string()));
+}
+
+#[test]
+fn command_context_missing_metadata_returns_none() {
+    let ctx = CommandContext::new("cmd");
+    assert_eq!(ctx.get_metadata("nonexistent"), None);
+}
+
+#[test]
+fn command_context_multiple_metadata_keys() {
+    let ctx = CommandContext::new("cmd");
+    ctx.set_metadata("a", "1");
+    ctx.set_metadata("b", "2");
+    assert_eq!(ctx.get_metadata("a"), Some("1".to_string()));
+    assert_eq!(ctx.get_metadata("b"), Some("2".to_string()));
+}
+
+#[test]
+fn gc_config_clone_preserves_values() {
+    let config = GcConfig::default();
+    let cloned = config.clone();
+    assert_eq!(config.engine_url, cloned.engine_url);
+    assert_eq!(config.versions_dir, cloned.versions_dir);
+    assert_eq!(config.dry_run, cloned.dry_run);
+}
+
+#[test]
+fn gc_error_engine_unreachable_display_has_url_and_reason() {
+    let err = GcError::EngineUnreachable {
+        url: "http://host:9999".into(),
+        reason: "timeout after 30s".into(),
+    };
+    let msg = err.to_string();
+    assert!(msg.contains("http://host:9999"));
+    assert!(msg.contains("timeout after 30s"));
+    assert!(msg.contains("503"));
+}
+
+#[test]
+fn gc_error_delete_failed_preserves_path() {
+    let err = GcError::DeleteFailed {
+        path: PathBuf::from("/var/wtf/versions/deadbeef"),
+        source: std::io::Error::new(std::io::ErrorKind::PermissionDenied, "no access"),
+    };
+    let msg = err.to_string();
+    assert!(msg.contains("deadbeef"));
+    assert!(msg.contains("failed to delete"));
+}
+
+#[test]
+fn check_error_partial_eq_same_path_file_not_found() {
+    let e1 = CheckError::FileNotFound {
+        path: PathBuf::from("/a"),
+    };
+    let e2 = CheckError::FileNotFound {
+        path: PathBuf::from("/a"),
+    };
+    assert_eq!(e1, e2);
+}
+
+#[test]
+fn check_error_partial_eq_different_variants() {
+    let e1 = CheckError::FileNotFound {
+        path: PathBuf::from("/a"),
+    };
+    let e2 = CheckError::NotRegularFile {
+        path: PathBuf::from("/a"),
+    };
+    assert_ne!(e1, e2);
+}
+
+#[test]
+fn check_error_partial_eq_invalid_magic() {
+    let e1 = CheckError::InvalidMagic {
+        path: PathBuf::from("/a"),
+        magic: [0xCA, 0xFE, 0xBA, 0xBE],
+    };
+    let e2 = CheckError::InvalidMagic {
+        path: PathBuf::from("/a"),
+        magic: [0xCA, 0xFE, 0xBA, 0xBE],
+    };
+    assert_eq!(e1, e2);
+}
+
+#[test]
+fn check_error_partial_eq_io_never_equal() {
+    let e1 = CheckError::Io {
+        path: PathBuf::from("/a"),
+        source: std::io::Error::new(std::io::ErrorKind::BrokenPipe, "x"),
+    };
+    let e2 = CheckError::Io {
+        path: PathBuf::from("/a"),
+        source: std::io::Error::new(std::io::ErrorKind::BrokenPipe, "x"),
+    };
+    assert_ne!(e1, e2);
+}
+
+#[test]
+fn cli_error_from_check_error() {
+    let err = CliError::Check(CheckError::FileNotFound {
+        path: PathBuf::from("/missing"),
+    });
+    assert!(err.to_string().contains("/missing"));
+}
+
+#[test]
+fn cli_error_from_gc_error() {
+    let err = CliError::Gc(GcError::VersionsDirNotFound {
+        path: PathBuf::from("/v"),
+    });
+    assert!(err.to_string().contains("/v"));
+}
+
+#[test]
+fn cli_error_from_init_error() {
+    let err = CliError::Init(InitError::DirNotFound {
+        path: PathBuf::from("/d"),
+    });
+    assert!(err.to_string().contains("/d"));
+}
+
+#[test]
+fn cli_error_from_lock_error() {
+    let err = CliError::Lock(LockError::NotInitialized {
+        path: PathBuf::from("/p"),
+    });
+    assert!(err.to_string().contains("/p"));
+}
+
+#[test]
+fn cli_error_from_doctor_error() {
+    let err = CliError::Doctor(DoctorError::NotInitialized {
+        path: PathBuf::from("/p"),
+    });
+    assert!(err.to_string().contains("/p"));
+}
+
+#[test]
+fn cli_struct_clone_preserves_command() {
+    let cli = vo_cli::Cli {
+        command: Command::Check {
+            path: PathBuf::from("/tmp"),
+        },
+    };
+    let cloned = cli.clone();
+    assert_eq!(cli, cloned);
+}
+
+#[test]
+fn cli_struct_equality() {
+    let c1 = vo_cli::Cli {
+        command: Command::Purge {
+            instance: "i1".into(),
+        },
+    };
+    let c2 = vo_cli::Cli {
+        command: Command::Purge {
+            instance: "i1".into(),
+        },
+    };
+    assert_eq!(c1, c2);
+}
+
+#[test]
+fn dispatcher_with_middleware_chain() {
+    let registry = vo_cli::HandlerRegistry::default();
+    let dispatcher = CommandDispatcher::new(registry)
+        .with_middleware(LoggingMiddleware::new())
+        .with_middleware(MetricsMiddleware::new())
+        .with_middleware(LoggingMiddleware::new());
+    assert_eq!(dispatcher.middleware_count(), 3);
+}
+
+#[tokio::test]
+async fn dispatcher_dispatch_unknown_command_returns_error() {
+    let registry = vo_cli::HandlerRegistry::new();
+    let dispatcher = CommandDispatcher::new(registry);
+    let cli = vo_cli::Cli {
+        command: Command::Check {
+            path: PathBuf::from("/tmp"),
+        },
+    };
+    let result = dispatcher.dispatch(cli).await;
+    assert!(result.is_err());
+}
+
+#[test]
+fn rebuild_error_io_display() {
+    let err = vo_cli::commands::rebuild::RebuildError::Io {
+        path: PathBuf::from("/proj"),
+        reason: "reading events".into(),
+        source: std::io::Error::new(std::io::ErrorKind::BrokenPipe, "pipe broke"),
+    };
+    let msg = err.to_string();
+    assert!(msg.contains("/proj"));
+    assert!(msg.contains("reading events"));
+}
+
+#[test]
+fn rebuild_config_clone() {
+    use vo_cli::commands::rebuild::RebuildConfig;
+    let config = RebuildConfig {
+        project_dir: PathBuf::from("/proj"),
+        projection_id: Some("p1".into()),
+        list_projections: false,
+        force: true,
+        schema_version: Some(3),
+    };
+    let cloned = config.clone();
+    assert_eq!(config, cloned);
+}
+
+#[test]
+fn rebuild_report_debug_format() {
+    use vo_cli::commands::rebuild::{RebuildReport, RebuildStatus};
+    let report = RebuildReport {
+        projection_id: Some("p".into()),
+        rebuild_id: Some("r".into()),
+        status: RebuildStatus::Completed,
+        events_applied: 100,
+        duration_ms: 50,
+    };
+    let debug = format!("{report:?}");
+    assert!(debug.contains("Completed"));
+    assert!(debug.contains("100"));
+}
+
+#[test]
+fn doctor_config_equality() {
+    let c1 = DoctorConfig {
+        project_dir: PathBuf::from("/proj"),
+    };
+    let c2 = DoctorConfig {
+        project_dir: PathBuf::from("/proj"),
+    };
+    assert_eq!(c1, c2);
+}
+
+#[test]
+fn doctor_config_clone() {
+    let c = DoctorConfig {
+        project_dir: PathBuf::from("/proj"),
+    };
+    let c2 = c.clone();
+    assert_eq!(c, c2);
+}
+
+#[test]
+fn rebuild_config_equality() {
+    use vo_cli::commands::rebuild::RebuildConfig;
+    let c1 = RebuildConfig {
+        project_dir: PathBuf::from("/a"),
+        projection_id: Some("p".into()),
+        list_projections: false,
+        force: false,
+        schema_version: None,
+    };
+    let c2 = RebuildConfig {
+        project_dir: PathBuf::from("/a"),
+        projection_id: Some("p".into()),
+        list_projections: false,
+        force: false,
+        schema_version: None,
     };
     assert_eq!(c1, c2);
 }
