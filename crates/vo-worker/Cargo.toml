@@ -37,8 +37,12 @@ ulid = { workspace = true }
 # HTTP
 reqwest = { workspace = true }
 
+# CRC
+crc32fast = "1.4"
+
 [dev-dependencies]
 anyhow = { workspace = true }
+proptest = { version = "1", features = ["fork"] }
 
 [lib]
 path = "src/lib.rs"

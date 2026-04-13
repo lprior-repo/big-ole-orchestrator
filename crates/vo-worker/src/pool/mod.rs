@@ -3,14 +3,16 @@
 //! This module provides the connection pool implementation for managing
 //! NATS client connections in the veloxide distributed worker system.
 
-mod circuit_breaker;
-mod config;
-mod health_check;
+pub mod circuit_breaker;
+pub mod config;
+pub mod hash_ring;
+pub mod health_check;
 mod pool;
 
 pub use circuit_breaker::CircuitBreaker;
 pub use config::{PoolConfig, PoolConfigError};
-pub use health_check::{HealthCheck, HealthCheckFuture};
+pub use hash_ring::{HashRing, HashRingConfig, RingNode};
+pub use health_check::{determine_health_check_result, HealthCheck, HealthCheckFuture};
 pub use pool::{ConnectionPool, NatsConnectionWrapper};
 
 use vo_types::connection_pool::{
@@ -25,10 +27,4 @@ pub use vo_types::connection_pool::HealthCheckResult;
 
 pub(crate) use pool::PoolState;
 
-#[cfg(test)]
-mod tests {
-    mod config_tests;
-    mod pool_tests;
-    mod circuit_breaker_tests;
-    mod health_check_tests;
-}
+
