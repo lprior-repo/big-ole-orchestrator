@@ -8,6 +8,7 @@
 //! accessor methods that guarantee guards are dropped before returning.
 //! Reference accessors are provided for test setup and inspection.
 
+use std::sync::Mutex;
 use std::time::Instant;
 
 use dashmap::DashMap;
@@ -24,6 +25,9 @@ use crate::circuit_breaker::{FailureWindow, RegistrationStatus};
 /// which ensure guards are dropped before returning, preventing deadlocks.
 /// Reference accessors (`statuses()`, `rate_limiter()`, `failure_tracker()`)
 /// are provided for test setup and direct `DashMap` operations.
+///
+/// The `status_mutex` guards atomic status transitions (e.g., unquarantine) to
+/// prevent TOCTOU races where two concurrent operations could both succeed.
 #[derive(Debug)]
 pub struct CircuitBreakerState {
     /// Workflow status map. Unknown workflows default to `Active`.
@@ -41,6 +45,8 @@ pub struct CircuitBreakerState {
     /// Prefer using `get_failure_count()` for safe reads.
     /// Direct field access is available for test setup and advanced operations.
     pub failure_tracker: DashMap<WorkflowName, FailureWindow>,
+    /// Guards atomic status transitions (e.g., unquarantine).
+    status_mutex: Mutex<()>,
 }
 
 impl CircuitBreakerState {
@@ -51,7 +57,18 @@ impl CircuitBreakerState {
             statuses: DashMap::new(),
             rate_limiter: DashMap::new(),
             failure_tracker: DashMap::new(),
+            status_mutex: Mutex::new(()),
         }
+    }
+
+    /// Returns a guard that locks the status transition mutex.
+    ///
+    /// This must be held during atomic status transitions like unquarantine
+    /// to prevent TOCTOU races.
+    pub(crate) fn lock_status(&self) -> std::sync::MutexGuard<'_, ()> {
+        self.status_mutex
+            .lock()
+            .expect("status mutex should not be poisoned")
     }
 
     // ── Safe value accessors (guards dropped before return) ─────────────

@@ -170,10 +170,11 @@ pub fn record_failure(
 /// - `CircuitBreakerError::StorageError` if Fjall write fails
 pub fn unquarantine(
     workflow_name: &WorkflowName,
-    _operator: &str,
+    operator: &str,
     state: &CircuitBreakerState,
 ) -> Result<UnquarantineResult, CircuitBreakerError> {
-    // Check workflow exists in status map
+    let _guard = state.lock_status();
+
     let current_status = state
         .statuses
         .get(workflow_name)
@@ -182,7 +183,6 @@ pub fn unquarantine(
             workflow_name: workflow_name.to_string(),
         })?;
 
-    // Must be Quarantined to unquarantine
     if current_status != RegistrationStatus::Quarantined {
         return Err(CircuitBreakerError::NotQuarantined {
             workflow_name: workflow_name.to_string(),
@@ -190,16 +190,12 @@ pub fn unquarantine(
         });
     }
 
-    // Count failures being cleared before we remove them
     let failures_cleared = state.get_failure_count(workflow_name);
 
-    // POST-003: Transition to Active
     state.set_status(workflow_name.clone(), RegistrationStatus::Active);
 
-    // POST-003: Clear failure window
     state.failure_tracker.remove(workflow_name);
 
-    // POST-003: Remove rate limiter entry
     state.remove_rate_limit(workflow_name);
 
     Ok(UnquarantineResult {
