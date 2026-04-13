@@ -1,5 +1,6 @@
 [workspace]
 resolver = "2"
+exclude = ["crates/vo-types/fuzz"]
 members = [
     "crates/vo-types",
     "crates/vo-storage",
