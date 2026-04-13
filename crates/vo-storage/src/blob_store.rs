@@ -1258,6 +1258,243 @@ mod proptests {
         }
     }
 
+    #[test]
+    fn blob_record_is_gc_eligible_requires_both_conditions() {
+        let content_addr = ContentAddress::new(VALID_SHA256).unwrap();
+
+        let record = BlobRecord::new(content_addr.clone(), 1024, 0, 1000, Some(2000)).unwrap();
+        assert!(!record.is_gc_eligible(1500), "ref=0 but not expired yet");
+
+        let record = BlobRecord::new(content_addr.clone(), 1024, 1, 1000, Some(1500)).unwrap();
+        assert!(!record.is_gc_eligible(2000), "expired but ref=1");
+
+        let record = BlobRecord::new(content_addr.clone(), 1024, 0, 1000, Some(1500)).unwrap();
+        assert!(record.is_gc_eligible(1500), "both ref=0 and expired");
+
+        let record = BlobRecord::new(content_addr.clone(), 1024, 0, 1000, Some(1500)).unwrap();
+        assert!(!record.is_gc_eligible(1499), "expired at 1500, not at 1499");
+    }
+
+    #[test]
+    fn blob_record_gc_eligible_without_ttl() {
+        let content_addr = ContentAddress::new(VALID_SHA256).unwrap();
+        let record = BlobRecord::new(content_addr.clone(), 1024, 0, 1000, None).unwrap();
+        assert!(
+            !record.is_gc_eligible(u64::MAX),
+            "no TTL means never expires, even with ref=0"
+        );
+    }
+
+    #[test]
+    fn blob_record_status_transition_consistency() {
+        let content_addr = ContentAddress::new(VALID_SHA256).unwrap();
+
+        let pending = BlobRecord::new(content_addr.clone(), 1024, 1, 1000, None).unwrap();
+        assert!(pending.can_transition_to(BlobStatus::DurablyStored));
+        assert!(pending.can_transition_to(BlobStatus::Failed));
+        assert!(!pending.can_transition_to(BlobStatus::Published));
+
+        let stored = BlobRecord::with_status(
+            content_addr.clone(),
+            1024,
+            1,
+            1000,
+            None,
+            BlobStatus::DurablyStored,
+        );
+        assert!(stored.can_transition_to(BlobStatus::Published));
+        assert!(!stored.can_transition_to(BlobStatus::Pending));
+        assert!(!stored.can_transition_to(BlobStatus::Failed));
+    }
+
+    #[test]
+    fn blob_record_terminal_states_no_transitions() {
+        let content_addr = ContentAddress::new(VALID_SHA256).unwrap();
+
+        let published = BlobRecord::with_status(
+            content_addr.clone(),
+            1024,
+            1,
+            1000,
+            None,
+            BlobStatus::Published,
+        );
+        assert!(!published.can_transition_to(BlobStatus::Pending));
+        assert!(!published.can_transition_to(BlobStatus::DurablyStored));
+        assert!(!published.can_transition_to(BlobStatus::Failed));
+
+        let failed = BlobRecord::with_status(
+            content_addr.clone(),
+            1024,
+            1,
+            1000,
+            None,
+            BlobStatus::Failed,
+        );
+        assert!(!failed.can_transition_to(BlobStatus::Pending));
+        assert!(!failed.can_transition_to(BlobStatus::DurablyStored));
+        assert!(!failed.can_transition_to(BlobStatus::Published));
+    }
+
+    #[test]
+    fn blob_record_decrement_from_zero_returns_zero() {
+        let content_addr = ContentAddress::new(VALID_SHA256).unwrap();
+        let record = BlobRecord::new(content_addr, 1024, 0, 1000, None);
+        assert!(record.is_err(), "cannot create record with ref_count=0");
+    }
+
+    #[test]
+    fn blob_record_reference_count_saturation_bounds() {
+        let content_addr = ContentAddress::new(VALID_SHA256).unwrap();
+
+        let record = BlobRecord::new(content_addr.clone(), 1024, u64::MAX - 1, 1000, None).unwrap();
+        assert_eq!(record.increment_ref_count(), u64::MAX);
+
+        let record = BlobRecord::new(content_addr.clone(), 1024, u64::MAX, 1000, None).unwrap();
+        assert_eq!(record.increment_ref_count(), u64::MAX);
+    }
+
+    #[test]
+    fn content_address_validity_invariant() {
+        let content_addr = ContentAddress::new(VALID_SHA256).unwrap();
+        assert_eq!(content_addr.as_str().len(), 64);
+        assert!(content_addr
+            .as_str()
+            .chars()
+            .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()));
+    }
+
+    #[test]
+    fn content_address_bytes_roundtrip_preserves_invariant() {
+        let content_addr = ContentAddress::new(VALID_SHA256).unwrap();
+        let bytes = content_addr.as_bytes();
+        let recovered = ContentAddress::from_bytes(&bytes);
+        assert_eq!(recovered.as_str(), content_addr.as_str());
+    }
+
+    #[test]
+    fn pack_index_entry_immutable_after_construction() {
+        let content_addr = ContentAddress::new(VALID_SHA256).unwrap();
+        let pack_id = PackFileId::new("pack-001").unwrap();
+        let entry = PackIndexEntry::new(content_addr.clone(), pack_id.clone(), 100, 512);
+
+        assert_eq!(entry.content_addr(), &content_addr);
+        assert_eq!(entry.pack_file_id(), &pack_id);
+        assert_eq!(entry.offset_bytes(), 100);
+        assert_eq!(entry.size_bytes(), 512);
+    }
+
+    #[test]
+    fn blob_store_error_is_transient_classification() {
+        let transient_errors = vec![
+            BlobStoreError::Storage {
+                reason: "disk full".to_string(),
+            },
+            BlobStoreError::DuplicateContent {
+                content_addr: "abc".to_string(),
+            },
+            BlobStoreError::GcCycleInProgress,
+            BlobStoreError::PackFileFull {
+                pack_file_id: "pack-001".to_string(),
+                max_size_bytes: 1000,
+            },
+        ];
+
+        for err in transient_errors {
+            assert!(err.is_transient(), "Expected {:?} to be transient", err);
+        }
+
+        let fatal_errors = vec![
+            BlobStoreError::CorruptPackIndex {
+                reason: "bad index".to_string(),
+            },
+            BlobStoreError::CorruptPackFile {
+                pack_file_id: "pack-001".to_string(),
+                reason: "truncated".to_string(),
+            },
+            BlobStoreError::ChecksumMismatch {
+                content_addr: "abc".to_string(),
+                expected: "def".to_string(),
+                actual: "ghi".to_string(),
+            },
+            BlobStoreError::InvalidArgument {
+                reason: "bad input".to_string(),
+            },
+        ];
+
+        for err in fatal_errors {
+            assert!(err.is_fatal(), "Expected {:?} to be fatal", err);
+        }
+
+        let not_transient_or_fatal = BlobStoreError::ContentNotFound {
+            content_addr: "abc".to_string(),
+        };
+        assert!(!not_transient_or_fatal.is_transient());
+        assert!(!not_transient_or_fatal.is_fatal());
+    }
+
+    #[test]
+    fn blob_record_with_status_allows_direct_status_construction() {
+        let content_addr = ContentAddress::new(VALID_SHA256).unwrap();
+
+        let record = BlobRecord::with_status(
+            content_addr.clone(),
+            1024,
+            1,
+            1000,
+            Some(2000),
+            BlobStatus::Pending,
+        );
+        assert_eq!(record.status(), BlobStatus::Pending);
+
+        let record = BlobRecord::with_status(
+            content_addr.clone(),
+            1024,
+            1,
+            1000,
+            Some(2000),
+            BlobStatus::DurablyStored,
+        );
+        assert_eq!(record.status(), BlobStatus::DurablyStored);
+
+        let record = BlobRecord::with_status(
+            content_addr.clone(),
+            1024,
+            1,
+            1000,
+            Some(2000),
+            BlobStatus::Published,
+        );
+        assert_eq!(record.status(), BlobStatus::Published);
+
+        let record = BlobRecord::with_status(
+            content_addr.clone(),
+            1024,
+            1,
+            1000,
+            Some(2000),
+            BlobStatus::Failed,
+        );
+        assert_eq!(record.status(), BlobStatus::Failed);
+    }
+
+    #[test]
+    fn content_address_from_bytes_invalidates_uppercase() {
+        let bytes = [
+            0xAB_u8, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45,
+            0x67, 0x89, 0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF, 0x01,
+            0x23, 0x45, 0x67, 0x89,
+        ];
+        let addr = ContentAddress::from_bytes(&bytes);
+        let hex_str = addr.as_str();
+        assert!(
+            hex_str
+                .chars()
+                .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()),
+            "from_bytes must produce lowercase hex"
+        );
+    }
+
     proptest! {
         #[test]
         fn blob_record_roundtrip(

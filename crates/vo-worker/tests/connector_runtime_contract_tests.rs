@@ -1621,16 +1621,16 @@ mod sql_injection_tests {
             ("fx-d3", "' OR '1'='1' OR '"),
         ];
 
-        for (id, query) in dangerous_queries {
+        for (id, query) in &dangerous_queries {
             let pe = c
-                .prepare(serde_json::json!({"query": query}), id.into(), 1)
+                .prepare(serde_json::json!({"query": query}), (*id).into(), 1)
                 .await
                 .unwrap();
             let outcome = c.commit(pe).await.unwrap();
             assert!(matches!(outcome, CommitOutcome::Committed { .. }));
         }
 
-        for (id, _) in dangerous_queries {
+        for (id, _) in &dangerous_queries {
             let reconcile = c.reconcile(id).await.unwrap();
             assert!(matches!(reconcile, ReconcileOutcome::Committed { .. }));
         }
