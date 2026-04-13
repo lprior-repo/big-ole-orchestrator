@@ -19,6 +19,7 @@ async-nats = { workspace = true }
 
 # Serialization
 serde = { workspace = true }
+serde_json = { workspace = true }
 bytes = { workspace = true }
 rmp-serde = { workspace = true }
 
@@ -32,6 +33,9 @@ ractor = { workspace = true }
 
 # ID generation
 ulid = { workspace = true }
+
+# HTTP
+reqwest = { workspace = true }
 
 [dev-dependencies]
 anyhow = { workspace = true }
