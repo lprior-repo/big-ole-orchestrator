@@ -5269,10 +5269,6 @@ dependencies = [
 [[package]]
 name = "vo-common"
 version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
-]
 
 [[package]]
 name = "vo-core"
@@ -5334,7 +5330,6 @@ dependencies = [
 name = "vo-linter"
 version = "0.1.0"
 dependencies = [
- "quote",
  "syn",
 ]
 
@@ -5420,10 +5415,8 @@ dependencies = [
  "chrono",
  "futures",
  "ractor",
- "reqwest 0.11.27",
  "rmp-serde",
  "serde",
- "serde_json",
  "thiserror 1.0.69",
  "tokio",
  "tracing",
