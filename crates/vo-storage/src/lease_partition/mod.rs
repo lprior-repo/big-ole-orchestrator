@@ -27,6 +27,8 @@ mod tests_lease_entry;
 #[cfg(any(test, kani))]
 mod verification;
 
+mod fjall_lease_store;
+
 // ---------------------------------------------------------------------------
 // Data layer — error enum
 // ---------------------------------------------------------------------------
