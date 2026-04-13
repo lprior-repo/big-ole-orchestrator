@@ -5269,6 +5269,10 @@ dependencies = [
 [[package]]
 name = "vo-common"
 version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "vo-core"
