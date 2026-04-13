@@ -408,7 +408,6 @@ mod tests {
         let result = journal.rollback(&effect_id);
         assert!(matches!(result, Err(EffectJournalError::NotFound { .. })));
     }
-
     #[test]
     fn fjall_journal_compact_removes_old_terminal_effects() {
         let keyspace = create_test_keyspace();
