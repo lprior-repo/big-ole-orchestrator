@@ -6,10 +6,12 @@
 //! - `effect_id` — EffectId construction and shape tests
 //! - `codec` — key and record codec tests
 //! - `journal` — journal lifecycle and idempotency tests
+//! - `adversarial` — crash recovery, isolation, data corruption, concurrent access
 
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]
 
+mod adversarial;
 mod codec;
 mod effect_id;
 mod journal;
