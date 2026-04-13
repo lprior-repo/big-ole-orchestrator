@@ -35,6 +35,7 @@ pub mod instance_index;
 pub mod key_encoding;
 pub mod key_partition;
 pub mod lease_partition;
+pub mod lineage_store;
 pub mod mmap_cache;
 pub mod partitions;
 pub mod projection_compat;
