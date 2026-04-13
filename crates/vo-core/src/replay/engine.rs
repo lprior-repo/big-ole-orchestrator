@@ -213,5 +213,9 @@ pub(super) fn payload_to_transition(
                 sequence,
             })
         }
+        EventPayload::WorkflowQuarantined { .. } => Err(ReplayError::UnexpectedEventType {
+            payload_type: "WorkflowQuarantined".to_string(),
+            sequence,
+        }),
     }
 }
