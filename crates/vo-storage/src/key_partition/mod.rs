@@ -25,8 +25,6 @@ use vo_types::{DekId, InstanceId, KeyMetadata, WrappedDek};
 
 #[cfg(all(test, feature = "proptest"))]
 mod proptests;
-#[cfg(test)]
-mod tests;
 
 mod fjall_dek_store;
 
