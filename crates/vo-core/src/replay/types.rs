@@ -2,6 +2,15 @@
 
 use vo_types::state::LifecycleState;
 
+/// Tracks how far through the event stream the replay has progressed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReplayPosition {
+    /// Sequence number of the last successfully applied event.
+    pub last_applied_sequence: Option<u64>,
+    // Timestamp (ms) of the last successfully applied event.
+    pub last_applied_timestamp_ms: Option<u64>,
+}
+
 /// Result of replaying events through the state machine.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReplayResult {
@@ -9,6 +18,8 @@ pub struct ReplayResult {
     pub final_state: Option<LifecycleState>,
     /// Number of events successfully applied.
     pub events_applied: usize,
+    /// Position tracking for this replay run.
+    pub position: ReplayPosition,
 }
 
 /// Errors that can occur during event replay.

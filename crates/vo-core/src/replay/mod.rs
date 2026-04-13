@@ -19,6 +19,8 @@ mod test_helpers;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
+mod position_tests;
+#[cfg(test)]
 mod upcaster_tests;
 
 pub use engine::ReplayEngine;
