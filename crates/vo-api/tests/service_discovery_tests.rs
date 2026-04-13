@@ -2,7 +2,6 @@ use vo_types::discovery::{
     enforce_pin, validate_discovery_path, DiscoveryPath, DiscoveryPathError, PinEnforcementError,
     VersionConstraint, VersionPin, VERSION_BASE_PATH,
 };
-use vo_types::ParseError;
 
 mod discovery_path_parsing {
     use super::*;
