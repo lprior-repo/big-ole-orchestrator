@@ -387,7 +387,7 @@ fn rq_error_detail_all_variants_display() {
     ];
 
     for variant in variants {
-        let display = variant.to_string();
+        let display = variant.clone().to_string();
         assert!(
             !display.is_empty(),
             "ErrorDetail variant {:?} should have Display",
