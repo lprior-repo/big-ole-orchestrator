@@ -162,6 +162,8 @@ mod dependency_graph_resolver_tests;
 #[cfg(test)]
 mod octree_tests;
 #[cfg(test)]
+mod command_envelope_red_queen_tests;
+#[cfg(test)]
 mod red_queen_tests;
 #[cfg(test)]
 mod schema_version_tests;
