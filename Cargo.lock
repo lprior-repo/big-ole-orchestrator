@@ -5226,6 +5226,7 @@ dependencies = [
  "ractor",
  "regex",
  "reqwest 0.11.27",
+ "rstest 0.18.2",
  "serde",
  "serde_json",
  "thiserror 1.0.69",
