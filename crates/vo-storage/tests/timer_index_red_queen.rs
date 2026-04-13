@@ -17,7 +17,8 @@
 
 use vo_storage::codec::StorageError;
 use vo_storage::timer_index::{
-    scan_due_timers, timer_delete, timer_set, TimerKey, TimerRecord, TimerValue,
+    scan_all_timers_for_instance, scan_due_timers, timer_delete, timer_set, TimerKey, TimerRecord,
+    TimerValue,
 };
 use vo_types::{InstanceId, TimerId};
 
@@ -675,4 +676,602 @@ fn rq_trigger_time_saturating_sub() {
     assert_eq!(record.fire_at_ms, 1500);
     assert_eq!(record.trigger_time_ms, 500);
     assert_eq!(record.duration_ms, 1000);
+}
+
+// ===========================================================================
+// ATTACK VECTOR 8: scan_all_timers_for_instance — cancellation on completion
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// RQ-CA01: scan_all_timers_for_instance returns empty when no timers exist
+// ---------------------------------------------------------------------------
+
+#[test]
+fn rq_scan_all_timers_empty_when_no_timers() {
+    let storage = MockStorage::new();
+    let instance_id = make_test_instance_id(0x01);
+
+    let result = scan_all_timers_for_instance(&storage, &instance_id);
+    assert!(result.is_ok(), "Scan should succeed");
+    assert!(result.unwrap().is_empty(), "Should be empty when no timers");
+}
+
+// ---------------------------------------------------------------------------
+// RQ-CA02: scan_all_timers_for_instance returns all timers including future ones
+// ---------------------------------------------------------------------------
+
+#[test]
+fn rq_scan_all_timers_includes_future_timers() {
+    let mut storage = MockStorage::new();
+    let instance_id = make_test_instance_id(0x01);
+    let timer_id_1 = make_test_timer_id(0x02);
+    let timer_id_2 = make_test_timer_id(0x03);
+
+    // Add past timer (fire_at_ms = 1000, now_ms = 2000, already due)
+    timer_set(
+        &mut storage,
+        instance_id.clone(),
+        timer_id_1.clone(),
+        1000, // fire_at_ms
+        500,  // trigger_time_ms
+        500,  // duration_ms
+        500,  // now_ms
+    )
+    .unwrap();
+
+    // Add future timer (fire_at_ms = 5000, now_ms = 2000)
+    timer_set(
+        &mut storage,
+        instance_id.clone(),
+        timer_id_2.clone(),
+        5000, // fire_at_ms
+        4500, // trigger_time_ms
+        500,  // duration_ms
+        2000, // now_ms
+    )
+    .unwrap();
+
+    // Scan all should return both timers
+    let result = scan_all_timers_for_instance(&storage, &instance_id).unwrap();
+    assert_eq!(result.len(), 2, "Should return both past and future timers");
+
+    let fire_times: Vec<u64> = result.iter().map(|r| r.fire_at_ms).collect();
+    assert!(fire_times.contains(&1000u64), "Should include past timer");
+    assert!(fire_times.contains(&5000u64), "Should include future timer");
+}
+
+// ---------------------------------------------------------------------------
+// RQ-CA03: scan_all_timers_for_instance filters by instance_id correctly
+// ---------------------------------------------------------------------------
+
+#[test]
+fn rq_scan_all_timers_filters_by_instance() {
+    let mut storage = MockStorage::new();
+    let instance_id_1 = make_test_instance_id(0x01);
+    let instance_id_2 = make_test_instance_id(0x02);
+    let timer_id_1 = make_test_timer_id(0x03);
+    let timer_id_2 = make_test_timer_id(0x04);
+
+    timer_set(
+        &mut storage,
+        instance_id_1.clone(),
+        timer_id_1.clone(),
+        1000,
+        500,
+        500,
+        0,
+    )
+    .unwrap();
+
+    timer_set(
+        &mut storage,
+        instance_id_2.clone(),
+        timer_id_2.clone(),
+        2000,
+        1500,
+        500,
+        0,
+    )
+    .unwrap();
+
+    // Scanning for instance_id_1 should only return its timer
+    let result = scan_all_timers_for_instance(&storage, &instance_id_1).unwrap();
+    assert_eq!(result.len(), 1);
+    assert_eq!(result[0].timer_id, timer_id_1);
+
+    // Scanning for instance_id_2 should only return its timer
+    let result = scan_all_timers_for_instance(&storage, &instance_id_2).unwrap();
+    assert_eq!(result.len(), 1);
+    assert_eq!(result[0].timer_id, timer_id_2);
+}
+
+// ---------------------------------------------------------------------------
+// RQ-CA04: scan_all_timers_for_instance storage failure propagation
+// ---------------------------------------------------------------------------
+
+#[test]
+fn rq_scan_all_timers_propagates_storage_failure() {
+    let storage = MockStorage::with_fail("scan");
+    let instance_id = make_test_instance_id(0x01);
+
+    let result = scan_all_timers_for_instance(&storage, &instance_id);
+    assert_eq!(result, Err(StorageError::Storage));
+}
+
+// ---------------------------------------------------------------------------
+// RQ-CA05: scan_all_timers_for_instance returns timers with correct fields
+// ---------------------------------------------------------------------------
+
+#[test]
+fn rq_scan_all_timers_returns_correct_fields() {
+    let mut storage = MockStorage::new();
+    let instance_id = make_test_instance_id(0x01);
+    let timer_id = make_test_timer_id(0x02);
+
+    timer_set(
+        &mut storage,
+        instance_id.clone(),
+        timer_id.clone(),
+        3000, // fire_at_ms
+        2500, // trigger_time_ms
+        500,  // duration_ms
+        1000, // now_ms
+    )
+    .unwrap();
+
+    let result = scan_all_timers_for_instance(&storage, &instance_id).unwrap();
+    assert_eq!(result.len(), 1);
+    let record = &result[0];
+    assert_eq!(record.timer_id, timer_id);
+    assert_eq!(record.instance_id, instance_id);
+    assert_eq!(record.fire_at_ms, 3000);
+    assert_eq!(record.trigger_time_ms, 2500);
+    assert_eq!(record.duration_ms, 500);
+}
+
+// ===========================================================================
+// ATTACK VECTOR 9: Crash-recovery timer correctness
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// RQ-CR01: Timers that fired during server downtime are recovered correctly
+// ---------------------------------------------------------------------------
+
+#[test]
+fn rq_crash_recovery_finds_timers_that_fired_during_downtime() {
+    let mut storage = MockStorage::new();
+    let instance_id = make_test_instance_id(0x01);
+    let timer_id_1 = make_test_timer_id(0x02);
+    let timer_id_2 = make_test_timer_id(0x03);
+
+    // Server starts at now_ms = 1000
+    // Timer 1 fires at 1500
+    timer_set(
+        &mut storage,
+        instance_id.clone(),
+        timer_id_1.clone(),
+        1500, // fire_at_ms
+        1000, // trigger_time_ms
+        500,  // duration_ms
+        1000, // now_ms (server start time)
+    )
+    .unwrap();
+
+    // Timer 2 fires at 2000
+    timer_set(
+        &mut storage,
+        instance_id.clone(),
+        timer_id_2.clone(),
+        2000, // fire_at_ms
+        1500, // trigger_time_ms
+        500,  // duration_ms
+        1000, // now_ms
+    )
+    .unwrap();
+
+    // Server crashes and restarts at now_ms = 2500
+    // At restart, scan for due timers should find both that fired during downtime
+    let result = scan_due_timers(&storage, &instance_id, 2500).unwrap();
+    assert_eq!(
+        result.len(),
+        2,
+        "Should recover both timers that fired during downtime"
+    );
+
+    let fire_times: Vec<u64> = result.iter().map(|r| r.fire_at_ms).collect();
+    assert!(
+        fire_times.contains(&1500u64),
+        "Should find timer 1 that fired at 1500"
+    );
+    assert!(
+        fire_times.contains(&2000u64),
+        "Should find timer 2 that fired at 2000"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// RQ-CR02: Only timers for the correct instance are recovered
+// ---------------------------------------------------------------------------
+
+#[test]
+fn rq_crash_recovery_only_recovers_target_instance_timers() {
+    let mut storage = MockStorage::new();
+    let target_instance = make_test_instance_id(0x01);
+    let other_instance = make_test_instance_id(0x02);
+    let timer_id_target = make_test_timer_id(0x03);
+    let timer_id_other = make_test_timer_id(0x04);
+
+    // Set timer for target instance
+    timer_set(
+        &mut storage,
+        target_instance.clone(),
+        timer_id_target.clone(),
+        1500,
+        1000,
+        500,
+        1000,
+    )
+    .unwrap();
+
+    // Set timer for other instance
+    timer_set(
+        &mut storage,
+        other_instance.clone(),
+        timer_id_other.clone(),
+        1500,
+        1000,
+        500,
+        1000,
+    )
+    .unwrap();
+
+    // At recovery, only target instance's timers should be found
+    let result = scan_due_timers(&storage, &target_instance, 2000).unwrap();
+    assert_eq!(result.len(), 1);
+    assert_eq!(result[0].timer_id, timer_id_target);
+    assert_eq!(result[0].instance_id, target_instance);
+}
+
+// ---------------------------------------------------------------------------
+// RQ-CR03: Future timers are not incorrectly recovered as due
+// ---------------------------------------------------------------------------
+
+#[test]
+fn rq_crash_recovery_does_not_return_future_timers() {
+    let mut storage = MockStorage::new();
+    let instance_id = make_test_instance_id(0x01);
+    let timer_id_past = make_test_timer_id(0x02);
+    let timer_id_future = make_test_timer_id(0x03);
+
+    // Past timer (should be recovered)
+    timer_set(
+        &mut storage,
+        instance_id.clone(),
+        timer_id_past.clone(),
+        1500,
+        1000,
+        500,
+        1000,
+    )
+    .unwrap();
+
+    // Future timer (should NOT be recovered at this time)
+    timer_set(
+        &mut storage,
+        instance_id.clone(),
+        timer_id_future.clone(),
+        5000,
+        4500,
+        500,
+        1000,
+    )
+    .unwrap();
+
+    // Server restarts at now_ms = 2000, only past timer should be due
+    let result = scan_due_timers(&storage, &instance_id, 2000).unwrap();
+    assert_eq!(result.len(), 1);
+    assert_eq!(result[0].timer_id, timer_id_past);
+
+    // At now_ms = 6000, both should be due
+    let result = scan_due_timers(&storage, &instance_id, 6000).unwrap();
+    assert_eq!(result.len(), 2);
+}
+
+// ---------------------------------------------------------------------------
+// RQ-CR04: Timer fired exactly at boundary is recovered
+// ---------------------------------------------------------------------------
+
+#[test]
+fn rq_crash_recovery_timer_fired_at_boundary() {
+    let mut storage = MockStorage::new();
+    let instance_id = make_test_instance_id(0x01);
+    let timer_id = make_test_timer_id(0x02);
+
+    // Timer fires at exactly 1000
+    timer_set(
+        &mut storage,
+        instance_id.clone(),
+        timer_id.clone(),
+        1000,
+        500,
+        500,
+        500,
+    )
+    .unwrap();
+
+    // Server restarts at now_ms = 1000 - timer should be found
+    let result = scan_due_timers(&storage, &instance_id, 1000).unwrap();
+    assert_eq!(result.len(), 1);
+    assert_eq!(result[0].fire_at_ms, 1000);
+
+    // Server restarts at now_ms = 999 - timer should NOT be found yet
+    let result = scan_due_timers(&storage, &instance_id, 999).unwrap();
+    assert!(result.is_empty(), "Timer at 1000 should not be due at 999");
+}
+
+// ---------------------------------------------------------------------------
+// RQ-CR05: Multiple timers with same fire time all recovered
+// ---------------------------------------------------------------------------
+
+#[test]
+fn rq_crash_recovery_multiple_timers_same_fire_time() {
+    let mut storage = MockStorage::new();
+    let instance_id = make_test_instance_id(0x01);
+    let timer_id_1 = make_test_timer_id(0x02);
+    let timer_id_2 = make_test_timer_id(0x03);
+    let timer_id_3 = make_test_timer_id(0x04);
+
+    // All three timers fire at 2000
+    timer_set(
+        &mut storage,
+        instance_id.clone(),
+        timer_id_1.clone(),
+        2000,
+        1500,
+        500,
+        1000,
+    )
+    .unwrap();
+    timer_set(
+        &mut storage,
+        instance_id.clone(),
+        timer_id_2.clone(),
+        2000,
+        1500,
+        500,
+        1000,
+    )
+    .unwrap();
+    timer_set(
+        &mut storage,
+        instance_id.clone(),
+        timer_id_3.clone(),
+        2000,
+        1500,
+        500,
+        1000,
+    )
+    .unwrap();
+
+    // At recovery (now_ms = 2500), all three should be found
+    let result = scan_due_timers(&storage, &instance_id, 2500).unwrap();
+    assert_eq!(result.len(), 3);
+
+    let timer_ids: Vec<_> = result.iter().map(|r| r.timer_id.clone()).collect();
+    assert!(timer_ids.contains(&timer_id_1));
+    assert!(timer_ids.contains(&timer_id_2));
+    assert!(timer_ids.contains(&timer_id_3));
+}
+
+// ---------------------------------------------------------------------------
+// RQ-CR06: Timer with very old fire time is still recovered
+// ---------------------------------------------------------------------------
+
+#[test]
+fn rq_crash_recovery_very_old_timer() {
+    let mut storage = MockStorage::new();
+    let instance_id = make_test_instance_id(0x01);
+    let timer_id = make_test_timer_id(0x02);
+
+    // Timer fires at timestamp 100 (very old)
+    timer_set(
+        &mut storage,
+        instance_id.clone(),
+        timer_id.clone(),
+        100,
+        50,
+        50,
+        0,
+    )
+    .unwrap();
+
+    // Server restarts much later at now_ms = 1_000_000
+    let result = scan_due_timers(&storage, &instance_id, 1_000_000).unwrap();
+    assert_eq!(result.len(), 1);
+    assert_eq!(result[0].fire_at_ms, 100);
+    assert_eq!(result[0].trigger_time_ms, 50);
+    assert_eq!(result[0].duration_ms, 50);
+}
+
+// ===========================================================================
+// ATTACK VECTOR 10: Timer cancellation on instance completion
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// RQ-TC01: All timers for instance cancelled on completion
+// ---------------------------------------------------------------------------
+
+#[test]
+fn rq_timer_cancellation_all_timers_for_instance() {
+    let mut storage = MockStorage::new();
+    let instance_id = make_test_instance_id(0x01);
+    let timer_id_1 = make_test_timer_id(0x02);
+    let timer_id_2 = make_test_timer_id(0x03);
+    let timer_id_3 = make_test_timer_id(0x04);
+
+    // Add timers with different fire times
+    timer_set(
+        &mut storage,
+        instance_id.clone(),
+        timer_id_1.clone(),
+        1000,
+        500,
+        500,
+        0,
+    )
+    .unwrap();
+    timer_set(
+        &mut storage,
+        instance_id.clone(),
+        timer_id_2.clone(),
+        2000,
+        1500,
+        500,
+        0,
+    )
+    .unwrap();
+    timer_set(
+        &mut storage,
+        instance_id.clone(),
+        timer_id_3.clone(),
+        5000,
+        4500,
+        500,
+        0,
+    )
+    .unwrap();
+
+    // Verify all 3 timers exist
+    let all_timers = scan_all_timers_for_instance(&storage, &instance_id).unwrap();
+    assert_eq!(all_timers.len(), 3);
+
+    // On completion, cancel all timers (delete each one)
+    for timer in &all_timers {
+        timer_delete(
+            &mut storage,
+            &instance_id,
+            timer.timer_id.clone(),
+            timer.fire_at_ms,
+        )
+        .unwrap();
+    }
+
+    // Verify all timers are gone
+    let all_timers = scan_all_timers_for_instance(&storage, &instance_id).unwrap();
+    assert!(
+        all_timers.is_empty(),
+        "All timers should be cancelled on completion"
+    );
+
+    // Verify no timers are due
+    let due_timers = scan_due_timers(&storage, &instance_id, 10_000).unwrap();
+    assert!(due_timers.is_empty());
+}
+
+// ---------------------------------------------------------------------------
+// RQ-TC02: Cancellation of specific timer does not affect others
+// ---------------------------------------------------------------------------
+
+#[test]
+fn rq_timer_cancellation_specific_timer_only() {
+    let mut storage = MockStorage::new();
+    let instance_id = make_test_instance_id(0x01);
+    let timer_id_1 = make_test_timer_id(0x02);
+    let timer_id_2 = make_test_timer_id(0x03);
+
+    timer_set(
+        &mut storage,
+        instance_id.clone(),
+        timer_id_1.clone(),
+        1000,
+        500,
+        500,
+        0,
+    )
+    .unwrap();
+    timer_set(
+        &mut storage,
+        instance_id.clone(),
+        timer_id_2.clone(),
+        2000,
+        1500,
+        500,
+        0,
+    )
+    .unwrap();
+
+    // Cancel only timer 1
+    timer_delete(&mut storage, &instance_id, timer_id_1, 1000).unwrap();
+
+    // Timer 2 should still exist
+    let result = scan_all_timers_for_instance(&storage, &instance_id).unwrap();
+    assert_eq!(result.len(), 1);
+    assert_eq!(result[0].timer_id, timer_id_2);
+}
+
+// ---------------------------------------------------------------------------
+// RQ-TC03: Cancel non-existent timer is idempotent
+// ---------------------------------------------------------------------------
+
+#[test]
+fn rq_timer_cancellation_nonexistent_is_idempotent() {
+    let mut storage = MockStorage::new();
+    let instance_id = make_test_instance_id(0x01);
+    let timer_id = make_test_timer_id(0x02);
+
+    // Add a timer
+    timer_set(
+        &mut storage,
+        instance_id.clone(),
+        timer_id.clone(),
+        1000,
+        500,
+        500,
+        0,
+    )
+    .unwrap();
+
+    // Cancel a non-existent timer should succeed (idempotent)
+    let non_existent_timer_id = make_test_timer_id(0xFF);
+    let result = timer_delete(&mut storage, &instance_id, non_existent_timer_id, 1000);
+    assert!(result.is_ok());
+
+    // Original timer should still exist
+    let result = scan_all_timers_for_instance(&storage, &instance_id).unwrap();
+    assert_eq!(result.len(), 1);
+}
+
+// ---------------------------------------------------------------------------
+// RQ-TC04: Cancel already-fired timer is idempotent
+// ---------------------------------------------------------------------------
+
+#[test]
+fn rq_timer_cancellation_already_fired_is_idempotent() {
+    let mut storage = MockStorage::new();
+    let instance_id = make_test_instance_id(0x01);
+    let timer_id = make_test_timer_id(0x02);
+
+    // Add timer
+    timer_set(
+        &mut storage,
+        instance_id.clone(),
+        timer_id.clone(),
+        1000,
+        500,
+        500,
+        0,
+    )
+    .unwrap();
+
+    // Timer fires at 1000, but is still in storage (hasn't been deleted yet)
+    let due = scan_due_timers(&storage, &instance_id, 1000).unwrap();
+    assert_eq!(due.len(), 1);
+
+    // Cancel already-fired timer should still succeed
+    let result = timer_delete(&mut storage, &instance_id, timer_id.clone(), 1000);
+    assert!(result.is_ok());
+
+    // Now it should be gone
+    let due = scan_due_timers(&storage, &instance_id, 1000).unwrap();
+    assert!(due.is_empty());
 }
