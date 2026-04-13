@@ -4,6 +4,8 @@
 //! to reconstruct `LifecycleState` from event history.
 
 mod engine;
+pub mod event_sourcing_engine;
+pub mod event_sourcing_engine_tests;
 pub mod projection;
 mod types;
 
