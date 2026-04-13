@@ -1,6 +1,9 @@
 pub mod query;
 pub use query::*;
 
+pub mod ws;
+pub use ws::*;
+
 // NOTE: workflow, signal, events, sse, and helpers modules have pre-existing
 // compilation errors (they reference vo_actor::messages which doesn't exist,
 // and use API methods from a different axum version). They are preserved for

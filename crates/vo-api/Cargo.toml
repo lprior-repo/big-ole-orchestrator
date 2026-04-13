@@ -24,6 +24,7 @@ reqwest = { workspace = true }
 # Async
 tokio = { workspace = true }
 futures = { workspace = true }
+tokio-util = { workspace = true }
 
 # Serialization
 serde = { workspace = true }
