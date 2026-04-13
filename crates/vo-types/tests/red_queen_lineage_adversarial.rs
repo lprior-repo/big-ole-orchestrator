@@ -20,11 +20,14 @@ use vo_types::WorkflowLineage;
 // ========================================================================
 
 fn make_instance_id(suffix: u8) -> InstanceId {
-    InstanceId::parse(&format!("01JAR3K2N0XG8F5VZE9H7QW{}0", suffix as char)).expect("valid ULID")
+    let base = "01JAR3K2N0XG8F5VZE9H7QWT0";
+    let suffix_char = (suffix % 26) as u8 + b'A';
+    let s = format!("{}{}", base, suffix_char as char);
+    InstanceId::parse(&s).expect("valid ULID")
 }
 
 fn make_lineage_root(id: &str) -> WorkflowLineage {
-    WorkflowLineage::new(id.to_string()).expect("valid lineage")
+    WorkflowLineage::new(id).expect("valid lineage")
 }
 
 // ========================================================================

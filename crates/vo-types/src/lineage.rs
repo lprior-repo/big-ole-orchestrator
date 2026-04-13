@@ -52,7 +52,8 @@ impl WorkflowLineage {
     /// # Errors
     ///
     /// Returns [`LineageError::EmptyLineageId`] if `lineage_id` is empty or whitespace-only.
-    pub fn new(lineage_id: String) -> Result<Self, LineageError> {
+    pub fn new(lineage_id: impl Into<String>) -> Result<Self, LineageError> {
+        let lineage_id = lineage_id.into();
         if lineage_id.trim().is_empty() {
             return Err(LineageError::EmptyLineageId);
         }
@@ -70,10 +71,11 @@ impl WorkflowLineage {
     /// - Returns [`LineageError::EmptyLineageId`] if `lineage_id` is empty or whitespace-only.
     /// - Returns [`LineageError::InvalidEpochTransition`] if `parent_epoch >= epoch`.
     pub fn with_parent(
-        lineage_id: String,
+        lineage_id: impl Into<String>,
         epoch: Epoch,
         parent_epoch: Option<Epoch>,
     ) -> Result<Self, LineageError> {
+        let lineage_id = lineage_id.into();
         if lineage_id.trim().is_empty() {
             return Err(LineageError::EmptyLineageId);
         }
@@ -91,6 +93,31 @@ impl WorkflowLineage {
             parent_epoch,
         })
     }
+
+    /// Create a new epoch via continue-as-new rollover.
+    ///
+    /// Atomically:
+    /// 1. writes `ContinuedAsNew` marker for the old epoch
+    /// 2. creates a new lineage with epoch = current epoch + 1
+    /// 3. carries forward the lineage_id
+    /// 4. sets parent_epoch to the current epoch
+    ///
+    /// # Errors
+    ///
+    /// Returns [`LineageError::EpochOverflow`] if the current epoch is already `u64::MAX`.
+    #[must_use]
+    pub fn continue_as_new(&self) -> Result<Self, LineageError> {
+        let next_epoch_value = self
+            .epoch
+            .0
+            .checked_add(1)
+            .ok_or(LineageError::EpochOverflow)?;
+        Self::with_parent(
+            self.lineage_id.clone(),
+            Epoch::new(next_epoch_value),
+            Some(self.epoch),
+        )
+    }
 }
 
 /// Errors that can occur when constructing lineage values.
@@ -100,6 +127,8 @@ pub enum LineageError {
     EmptyLineageId,
     #[error("parent_epoch ({parent_epoch}) must be less than epoch ({epoch})")]
     InvalidEpochTransition { parent_epoch: u64, epoch: u64 },
+    #[error("epoch overflow: cannot advance beyond u64::MAX")]
+    EpochOverflow,
 }
 
 #[cfg(test)]

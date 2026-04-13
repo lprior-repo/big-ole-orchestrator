@@ -18,6 +18,8 @@ pub enum CliError {
     Lock(#[from] crate::commands::lock::LockError),
     #[error(transparent)]
     Doctor(#[from] crate::commands::doctor::DoctorError),
+    #[error(transparent)]
+    Rebuild(#[from] crate::commands::rebuild::RebuildError),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -42,6 +44,12 @@ pub enum Command {
     },
     Doctor {
         project_dir: PathBuf,
+    },
+    Rebuild {
+        project_dir: PathBuf,
+        projection_id: Option<String>,
+        list_projections: bool,
+        force: bool,
     },
 }
 
@@ -123,6 +131,33 @@ where
                     .default_value(".")
                     .help("Project directory to diagnose"),
             ),
+        )
+        .subcommand(
+            clap::Command::new("rebuild")
+                .about("Rebuild projection from canonical event log")
+                .arg(
+                    clap::Arg::new("project-dir")
+                        .long("project-dir")
+                        .default_value(".")
+                        .help("Project directory"),
+                )
+                .arg(
+                    clap::Arg::new("projection-id")
+                        .long("projection-id")
+                        .help("Projection ID to rebuild"),
+                )
+                .arg(
+                    clap::Arg::new("list")
+                        .long("list")
+                        .action(clap::ArgAction::SetTrue)
+                        .help("List all registered projections"),
+                )
+                .arg(
+                    clap::Arg::new("force")
+                        .long("force")
+                        .action(clap::ArgAction::SetTrue)
+                        .help("Force rebuild even if projection is not stale"),
+                ),
         );
 
     let matches = cmd.try_get_matches_from(args)?;
@@ -202,6 +237,23 @@ where
                 command: Command::Doctor { project_dir },
             })
         }
+        Some(("rebuild", sub_matches)) => {
+            let project_dir = sub_matches
+                .get_one::<String>("project-dir")
+                .map(PathBuf::from)
+                .unwrap_or_default();
+            let projection_id = sub_matches.get_one::<String>("projection-id").cloned();
+            let list_projections = sub_matches.get_flag("list");
+            let force = sub_matches.get_flag("force");
+            Ok(Cli {
+                command: Command::Rebuild {
+                    project_dir,
+                    projection_id,
+                    list_projections,
+                    force,
+                },
+            })
+        }
         _ => Err(clap::Error::new(clap::error::ErrorKind::InvalidSubcommand)),
     }
 }
@@ -220,7 +272,8 @@ pub fn map_error_to_exit_code(err: &CliError) -> i32 {
         | CliError::Gc(_)
         | CliError::Init(_)
         | CliError::Lock(_)
-        | CliError::Doctor(_) => 1,
+        | CliError::Doctor(_)
+        | CliError::Rebuild(_) => 1,
         CliError::InvalidNumeric(_) => 2,
     }
 }
