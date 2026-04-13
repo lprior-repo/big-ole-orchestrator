@@ -47,3 +47,7 @@ path = "tests/error_tests.rs"
 [[test]]
 name = "adversary_tests"
 path = "tests/adversary_tests.rs"
+
+[[test]]
+name = "ordering_adversary_tests"
+path = "tests/ordering_adversary_tests.rs"
