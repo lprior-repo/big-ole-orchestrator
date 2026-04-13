@@ -312,7 +312,6 @@ pub struct SecretValue {
 }
 
 impl SecretValue {
-    #[must_use]
     pub fn new(ciphertext: Vec<u8>, nonce: [u8; 12], key_version: u32) -> Result<Self, ParseError> {
         if ciphertext.is_empty() {
             return Err(ParseError::Empty {
