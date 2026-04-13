@@ -149,13 +149,14 @@ impl DekStore for FjallDekStore {
         let wrapped_dek = WrappedDek::new(wrapped_dek_bytes);
 
         let dek_id = DekId::from_bytes(raw_dek[0..16].try_into().unwrap());
-        let metadata = KeyMetadata::new(*instance_id, CryptoAlgorithm::Aes256Gcm);
-        let entry = DekEntry::new(dek_id, *instance_id, wrapped_dek, metadata)?;
+        let dek_id_for_index = dek_id.clone();
+        let metadata = KeyMetadata::new(instance_id.clone(), CryptoAlgorithm::Aes256Gcm);
+        let entry = DekEntry::new(dek_id, instance_id.clone(), wrapped_dek, metadata)?;
 
         self.insert_dek_entry(&entry)?;
-        self.set_active_dek_index(instance_id, &dek_id)?;
+        self.set_active_dek_index(instance_id, &dek_id_for_index)?;
 
-        Ok(dek_id)
+        Ok(dek_id_for_index)
     }
 
     fn retrieve_dek(
@@ -247,18 +248,17 @@ impl DekStore for FjallDekStore {
         let prefix = format!("{instance_id}::");
         let mut dek_ids = Vec::new();
 
-        self.dek_partition
-            .scan_keys()
-            .map_err(|e| DekStoreError::Storage {
+        let iter = self.dek_partition.iter();
+        for item in iter {
+            let (key_bytes, value_bytes) = item.map_err(|e| DekStoreError::Storage {
                 reason: format!("failed to scan DEKs: {e}"),
-            })?
-            .filter_map(|result| result.ok())
-            .filter(|(key, _)| key.starts_with(prefix.as_bytes()))
-            .for_each(|(_, value)| {
-                if let Ok(entry) = super::decode_dek_entry(value) {
+            })?;
+            if key_bytes.starts_with(prefix.as_bytes()) {
+                if let Ok(entry) = super::decode_dek_entry(&value_bytes) {
                     dek_ids.push(entry.dek_id().clone());
                 }
-            });
+            }
+        }
 
         Ok(dek_ids)
     }
