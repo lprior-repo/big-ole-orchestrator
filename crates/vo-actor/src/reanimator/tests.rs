@@ -300,6 +300,7 @@ mod crash_recovery_tests {
 
 mod timer_lifecycle_tests {
     use super::*;
+    use crate::reanimator::traits::TimerStorage;
     use crate::timer_lifecycle::{cancel_timers_for_instance, has_pending_timers, scan_instance_timers};
 
     fn create_timer_record(instance_id: InstanceId, fire_at_ms: u64) -> TimerRecord {
