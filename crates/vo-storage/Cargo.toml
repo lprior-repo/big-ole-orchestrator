@@ -44,3 +44,11 @@ harness = false
 [[bench]]
 name = "query_bench"
 harness = false
+
+[[bench]]
+name = "checksum_crypto_bench"
+harness = false
+
+[[bench]]
+name = "merkle_bench"
+harness = false

@@ -22,6 +22,11 @@ rstest.workspace = true
 serde_json.workspace = true
 proptest = { version = "1", features = ["fork"] }
 tokio = { workspace = true, features = ["full"] }
+criterion = { workspace = true }
+
+[[bench]]
+name = "types_bench"
+harness = false
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(kani)'] }
