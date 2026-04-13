@@ -52,3 +52,195 @@ impl<'ast> Visit<'ast> for RandomDetector {
         syn::visit::visit_expr_call(self, node);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use quote::quote;
+
+    fn parse_and_check(src: &str) -> Vec<Diagnostic> {
+        let file: File = syn::parse_str(src).expect("failed to parse");
+        check_random_in_workflow(&file)
+    }
+
+    #[test]
+    fn test_uuid_new_v4_detected() {
+        let src = quote! {
+            fn workflow() {
+                let id = Uuid::new_v4();
+            }
+        };
+        let diags = parse_and_check(&src.to_string());
+        assert_eq!(diags.len(), 1);
+        assert!(diags[0].message().contains("non-deterministic"));
+    }
+
+    #[test]
+    fn test_rand_random_detected() {
+        let src = quote! {
+            fn workflow() {
+                let value: u32 = rand::random();
+            }
+        };
+        let diags = parse_and_check(&src.to_string());
+        assert_eq!(diags.len(), 1);
+        assert!(diags[0].message().contains("non-deterministic"));
+    }
+
+    #[test]
+    fn test_multiple_randoms_detected() {
+        let src = quote! {
+            fn workflow() {
+                let id = Uuid::new_v4();
+                let value: u32 = rand::random();
+            }
+        };
+        let diags = parse_and_check(&src.to_string());
+        assert_eq!(diags.len(), 2);
+    }
+
+    #[test]
+    fn test_no_random_no_diagnostics() {
+        let src = quote! {
+            fn workflow() {
+                let id = ctx.random_u64();
+                let value = some_deterministic_fn();
+            }
+        };
+        let diags = parse_and_check(&src.to_string());
+        assert!(diags.is_empty());
+    }
+
+    #[test]
+    fn test_uuid_new_v1_not_detected() {
+        let src = quote! {
+            fn workflow() {
+                let id = Uuid::new_v1();
+            }
+        };
+        let diags = parse_and_check(&src.to_string());
+        assert!(diags.is_empty());
+    }
+
+    #[test]
+    fn test_other_uuid_v4_not_detected() {
+        let src = quote! {
+            fn workflow() {
+                let id = MyUuid::new_v4();
+            }
+        };
+        let diags = parse_and_check(&src.to_string());
+        assert!(diags.is_empty());
+    }
+
+    #[test]
+    fn test_other_rand_not_detected() {
+        let src = quote! {
+            fn workflow() {
+                let value: u32 = MyRand::random();
+            }
+        };
+        let diags = parse_and_check(&src.to_string());
+        assert!(diags.is_empty());
+    }
+
+    #[test]
+    fn test_nested_random_calls() {
+        let src = quote! {
+            fn workflow() {
+                let id = some_fn(Uuid::new_v4());
+                let val = another_fn(rand::random(), ctx.random_u64());
+            }
+        };
+        let diags = parse_and_check(&src.to_string());
+        assert_eq!(diags.len(), 2);
+    }
+
+    #[test]
+    fn test_random_in_if_expr() {
+        let src = quote! {
+            fn workflow() {
+                if Uuid::new_v4() == some_id {
+                    do_something();
+                }
+            }
+        };
+        let diags = parse_and_check(&src.to_string());
+        assert_eq!(diags.len(), 1);
+    }
+
+    #[test]
+    fn test_random_in_match_arm() {
+        let src = quote! {
+            fn workflow() {
+                match rand::random::<u32>() {
+                    0 => do_zero(),
+                    _ => do_other(),
+                }
+            }
+        };
+        let diags = parse_and_check(&src.to_string());
+        assert_eq!(diags.len(), 1);
+    }
+
+    #[test]
+    fn test_multiple_workflow_functions() {
+        let src = quote! {
+            fn workflow1() {
+                let id = Uuid::new_v4();
+            }
+
+            fn workflow2() {
+                let id = Uuid::new_v4();
+                let val = rand::random::<u64>();
+            }
+        };
+        let diags = parse_and_check(&src.to_string());
+        assert_eq!(diags.len(), 3);
+    }
+
+    #[test]
+    fn test_rand_random_with_type_annotation() {
+        let src = quote! {
+            fn workflow() {
+                let x: u64 = rand::random();
+            }
+        };
+        let diags = parse_and_check(&src.to_string());
+        assert_eq!(diags.len(), 1);
+    }
+
+    #[test]
+    fn test_rand_random_generic() {
+        let src = quote! {
+            fn workflow() {
+                let x = rand::random::<u64>();
+            }
+        };
+        let diags = parse_and_check(&src.to_string());
+        assert_eq!(diags.len(), 1);
+    }
+
+    #[test]
+    fn test_uuid_new_v4_with_args_not_detected() {
+        let src = quote! {
+            fn workflow() {
+                let ts = Uuid::new_v4(&mut bytes);
+            }
+        };
+        let diags = parse_and_check(&src.to_string());
+        assert!(diags.is_empty());
+    }
+
+    #[test]
+    fn test_qualifed_uuid_new_v4() {
+        let src = quote! {
+            fn workflow() {
+                use uuid::Uuid;
+                let id = Uuid::new_v4();
+            }
+        };
+        let diags = parse_and_check(&src.to_string());
+        assert_eq!(diags.len(), 1);
+    }
+}

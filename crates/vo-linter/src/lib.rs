@@ -2,3 +2,8 @@
 //!
 //! Provides linting functionality for workflow definitions and
 //! Rust source code analysis.
+
+mod diagnostic;
+pub mod rules;
+
+pub use diagnostic::{Diagnostic, LintCode};
