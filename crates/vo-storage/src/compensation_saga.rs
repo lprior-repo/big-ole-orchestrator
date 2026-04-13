@@ -28,9 +28,9 @@
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
-use vo_types::compensation::{CompensationRecord, CompensationStatus};
-use vo_types::effects::{CompensationPolicy, EffectIntent};
-use vo_types::types::TimestampMs;
+use vo_types::{
+    CompensationPolicy, CompensationRecord, CompensationStatus, EffectIntent, TimestampMs,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum SagaCompensationStatus {
@@ -104,8 +104,8 @@ impl CompensationEntry {
 
     pub fn is_timed_out(&self, now: TimestampMs) -> bool {
         if let (Some(started), Some(timeout)) = (self.started_at, self.timeout_ms) {
-            let elapsed = now.as_i64() - started.as_i64();
-            return elapsed > timeout as i64;
+            let elapsed = now.as_u64().saturating_sub(started.as_u64());
+            return elapsed > timeout;
         }
         false
     }
