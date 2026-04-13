@@ -53,8 +53,7 @@ impl Scheduler {
     }
 
     pub fn poll_due_jobs(&mut self, now_ms: u64) -> Vec<Job> {
-        let due = self.queue.due_jobs(now_ms, self.config.max_jobs_per_scan);
-        due.into_iter().map(|(job, _)| job).collect()
+        self.queue.pop_due_jobs(now_ms, self.config.max_jobs_per_scan)
     }
 
     pub fn reschedule(&mut self, job: Job, next_fire_ms: u64) {
@@ -84,12 +83,10 @@ impl Scheduler {
             .store(false, std::sync::atomic::Ordering::SeqCst);
     }
 
-    #[cfg(test)]
     pub fn len(&self) -> usize {
         self.queue.len()
     }
 
-    #[cfg(test)]
     pub fn is_empty(&self) -> bool {
         self.queue.is_empty()
     }

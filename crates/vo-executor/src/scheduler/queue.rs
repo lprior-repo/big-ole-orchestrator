@@ -108,6 +108,29 @@ impl PriorityQueue {
         due
     }
 
+    pub fn pop_due_jobs(&mut self, now_ms: u64, max: u32) -> Vec<Job> {
+        let mut results = Vec::new();
+        let mut not_due: Vec<QueuedJob> = Vec::new();
+        let max = max as usize;
+
+        while let Some(qj) = self.heap.pop() {
+            if qj.fire_at_ms <= now_ms && results.len() < max {
+                results.push(qj.job);
+            } else {
+                not_due.push(qj.clone());
+                if qj.fire_at_ms > now_ms {
+                    break;
+                }
+            }
+        }
+
+        for qj in not_due {
+            self.heap.push(qj);
+        }
+
+        results
+    }
+
     #[cfg(test)]
     pub fn into_vec(self) -> Vec<Job> {
         self.heap.into_iter().map(|qj| qj.job).collect()

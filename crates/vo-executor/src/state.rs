@@ -74,7 +74,7 @@ pub fn step_behavior(step_id: &str) -> StepBehavior {
     {
         return StepBehavior::Success;
     }
-    if step_id.starts_with("transient-step-") && step_id[14..].chars().all(|c| c.is_ascii_digit()) {
+    if step_id.starts_with("transient-step-") && step_id[15..].chars().all(|c| c.is_ascii_digit()) {
         return StepBehavior::Transient;
     }
     match step_id {
