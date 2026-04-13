@@ -152,6 +152,41 @@ impl Dag {
             })
     }
 
+    fn has_cycle(&self) -> bool {
+        let mut visited = vec![false; self.nodes.len()];
+        let mut in_stack = vec![false; self.nodes.len()];
+
+        fn dfs(
+            edges: &[(usize, usize)],
+            visited: &mut [bool],
+            in_stack: &mut [bool],
+            node: usize,
+        ) -> bool {
+            visited[node] = true;
+            in_stack[node] = true;
+            for &(from, to) in edges {
+                if from == node && !visited[to] {
+                    if dfs(edges, visited, in_stack, to) {
+                        return true;
+                    }
+                } else if from == node && in_stack[to] {
+                    return true;
+                }
+            }
+            in_stack[node] = false;
+            false
+        }
+
+        for i in 0..self.nodes.len() {
+            if !visited[i] {
+                if dfs(&self.edges, &mut visited, &mut in_stack, i) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
     /// Build a [`WorkflowSpec`] from this DAG.
     ///
     /// # Errors

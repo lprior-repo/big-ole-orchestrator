@@ -165,3 +165,100 @@ fn edges_returns_all_edges_after_multiple_connects() {
     let edges = dag.edges();
     assert_eq!(edges, vec![("step-a", "step-b"), ("step-b", "step-c")]);
 }
+
+#[test]
+fn dag_error_display_shows_cycle_detected() {
+    let err = DagError::CycleDetected;
+    assert!(err.to_string().contains("cycle"), "display: {err}");
+}
+
+#[test]
+fn dag_build_rejects_self_loop_cycle() {
+    let mut dag = Dag::new();
+    let node: NodeHandle<(), ()> = dag.add_node("self-loop", |_i: ()| ()).expect("valid");
+    dag.connect(&node, &node).expect("connect should succeed");
+    let result = dag.build("cyclic_workflow");
+    assert!(
+        matches!(result, Err(DagError::CycleDetected)),
+        "self-loop should be detected as cycle: {result:?}"
+    );
+}
+
+#[test]
+fn dag_build_rejects_two_node_cycle() {
+    let mut dag = Dag::new();
+    let a: NodeHandle<(), ()> = dag.add_node("a", |_i: ()| ()).expect("valid");
+    let b: NodeHandle<(), ()> = dag.add_node("b", |_i: ()| ()).expect("valid");
+    dag.connect(&a, &b).expect("connect a->b");
+    dag.connect(&b, &a).expect("connect b->a creates cycle");
+    let result = dag.build("cyclic_workflow");
+    assert!(
+        matches!(result, Err(DagError::CycleDetected)),
+        "two-node cycle should be detected: {result:?}"
+    );
+}
+
+#[test]
+fn dag_build_rejects_three_node_cycle() {
+    let mut dag = Dag::new();
+    let a: NodeHandle<(), ()> = dag.add_node("a", |_i: ()| ()).expect("valid");
+    let b: NodeHandle<(), ()> = dag.add_node("b", |_i: ()| ()).expect("valid");
+    let c: NodeHandle<(), ()> = dag.add_node("c", |_i: ()| ()).expect("valid");
+    dag.connect(&a, &b).expect("connect a->b");
+    dag.connect(&b, &c).expect("connect b->c");
+    dag.connect(&c, &a).expect("connect c->a creates cycle");
+    let result = dag.build("cyclic_workflow");
+    assert!(
+        matches!(result, Err(DagError::CycleDetected)),
+        "three-node cycle should be detected: {result:?}"
+    );
+}
+
+#[test]
+fn dag_build_accepts_linear_chain_without_cycle() {
+    let mut dag = Dag::new();
+    let a: NodeHandle<(), ()> = dag.add_node("a", |_i: ()| ()).expect("valid");
+    let b: NodeHandle<(), ()> = dag.add_node("b", |_i: ()| ()).expect("valid");
+    let c: NodeHandle<(), ()> = dag.add_node("c", |_i: ()| ()).expect("valid");
+    dag.connect(&a, &b).expect("connect a->b");
+    dag.connect(&b, &c).expect("connect b->c");
+    let result = dag.build("linear_workflow");
+    assert!(
+        result.is_ok(),
+        "linear chain should not be a cycle: {result:?}"
+    );
+}
+
+#[test]
+fn dag_build_accepts_diamond_graph_without_cycle() {
+    let mut dag = Dag::new();
+    let start: NodeHandle<(), ()> = dag.add_node("start", |_i: ()| ()).expect("valid");
+    let left: NodeHandle<(), ()> = dag.add_node("left", |_i: ()| ()).expect("valid");
+    let right: NodeHandle<(), ()> = dag.add_node("right", |_i: ()| ()).expect("valid");
+    let end: NodeHandle<(), ()> = dag.add_node("end", |_i: ()| ()).expect("valid");
+    dag.connect(&start, &left).expect("connect start->left");
+    dag.connect(&start, &right).expect("connect start->right");
+    dag.connect(&left, &end).expect("connect left->end");
+    dag.connect(&right, &end).expect("connect right->end");
+    let result = dag.build("diamond_workflow");
+    assert!(
+        result.is_ok(),
+        "diamond graph should not be a cycle: {result:?}"
+    );
+}
+
+#[test]
+fn dag_build_accepts_multiple_disconnected_components_without_cycle() {
+    let mut dag = Dag::new();
+    let a1: NodeHandle<(), ()> = dag.add_node("a1", |_i: ()| ()).expect("valid");
+    let a2: NodeHandle<(), ()> = dag.add_node("a2", |_i: ()| ()).expect("valid");
+    let b1: NodeHandle<(), ()> = dag.add_node("b1", |_i: ()| ()).expect("valid");
+    let b2: NodeHandle<(), ()> = dag.add_node("b2", |_i: ()| ()).expect("valid");
+    dag.connect(&a1, &a2).expect("connect a1->a2");
+    dag.connect(&b1, &b2).expect("connect b1->b2");
+    let result = dag.build("disconnected_workflow");
+    assert!(
+        result.is_ok(),
+        "disconnected components should not be a cycle: {result:?}"
+    );
+}
