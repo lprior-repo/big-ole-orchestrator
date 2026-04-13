@@ -18,9 +18,7 @@ use vo_core::circuit_breaker::{
     evaluate_registration, record_failure, CircuitBreakerConfig, CircuitBreakerState,
     RegistrationOutcome, RegistrationRequest, RegistrationStatus,
 };
-use vo_core::resource_quota::{
-    NamespaceQuota, NamespaceRegistry, OvercommitPolicy, QuotaEnforcer, QuotaUsage,
-};
+use vo_core::resource_quota::{NamespaceQuota, OvercommitPolicy, QuotaEnforcer, QuotaUsage};
 use vo_core::write_class::{WriteBudget, WriteClass};
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -447,13 +445,13 @@ fn namespace_quota_isolation_between_namespaces() {
         .with_cpu(vo_core::resource_quota::CpuQuota::new(
             std::num::NonZeroU64::new(2).expect("non-zero"),
         ))
-        .with_overcommit(OvercommitPolicy::AllowOvercommit);
+        .with_overcommit(OvercommitPolicy::NoOvercommit);
 
     let analytics_quota = NamespaceQuota::new("analytics")
         .with_cpu(vo_core::resource_quota::CpuQuota::new(
             std::num::NonZeroU64::new(8).expect("non-zero"),
         ))
-        .with_overcommit(OvercommitPolicy::AllowOvercommit);
+        .with_overcommit(OvercommitPolicy::NoOvercommit);
 
     enforcer
         .registry_mut()
@@ -478,8 +476,8 @@ fn namespace_quota_isolation_between_namespaces() {
 
     let unknown_result = enforcer.check_cpu("unknown-ns", 1);
     assert!(
-        unknown_result.is_ok(),
-        "unknown namespace should use default (pass for small values)"
+        unknown_result.is_err(),
+        "unknown namespace should return NamespaceNotFound error"
     );
 }
 
@@ -728,7 +726,17 @@ fn namespace_registry_duplicate_registration_fails() {
     assert!(result1.is_ok(), "first registration should succeed");
 
     let result2 = registry.register(quota);
-    assert!(result2.is_err(), "duplicate registration should fail");
+    assert!(
+        result2.is_ok(),
+        "duplicate registration replaces existing (idempotent)"
+    );
+
+    let retrieved = registry.get("dup-ns").expect("namespace should exist");
+    assert_eq!(
+        retrieved.cpu.unwrap().max_cores.get(),
+        4,
+        "retrieved quota should be the new one"
+    );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
