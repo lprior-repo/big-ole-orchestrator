@@ -5396,6 +5396,7 @@ dependencies = [
  "serde_json",
  "spqr-tree",
  "thiserror 1.0.69",
+ "tokio",
  "ulid",
  "uuid",
 ]
