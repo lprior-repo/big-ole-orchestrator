@@ -40,10 +40,17 @@ pub use commands::gc::{
     delete_version_dir, fetch_pinned_hashes, find_unpinned_directories, run_gc, GcConfig, GcError,
     GcSummary,
 };
+pub use commands::history::{
+    get_history, load_history, redo_command, save_history, undo_command, HistoryConfig,
+    HistoryError, HistoryOutput, RedoResult, UndoResult,
+};
 pub use commands::init::{
     run_init, InitConfig, InitError, CONFIG_FILE_NAME, VO_DIR_NAME, WORKFLOWS_DIR_NAME,
 };
 pub use commands::lock::{run_lock, LockConfig, LockError, LOCK_FILE_NAME};
+pub use commands::rebuild::{
+    run_rebuild, RebuildConfig, RebuildError, RebuildReport, RebuildStatus,
+};
 pub use dispatch_mod::dispatch;
 pub use dispatch_v2::{
     create_dispatcher_v2, dispatch_v2, CommandDispatcherV2, DefaultDispatchContext, DispatchContext,

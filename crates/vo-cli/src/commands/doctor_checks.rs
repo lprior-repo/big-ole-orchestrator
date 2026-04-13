@@ -65,7 +65,7 @@ impl CategoryReport {
         self.checks.iter().filter(|c| c.severity == Severity::Warn)
     }
 
-    fn push(&mut self, check: &'static str, severity: Severity, message: String) {
+    pub fn push(&mut self, check: &'static str, severity: Severity, message: String) {
         self.checks.push(CheckResult {
             check,
             severity,
