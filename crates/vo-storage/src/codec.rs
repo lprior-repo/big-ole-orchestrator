@@ -51,6 +51,12 @@ impl fmt::Display for StorageError {
 
 impl std::error::Error for StorageError {}
 
+impl From<fjall::Error> for StorageError {
+    fn from(_: fjall::Error) -> Self {
+        StorageError::FjallError
+    }
+}
+
 /// Encodes an `(InstanceId, SequenceNumber)` pair into a 24-byte event key.
 ///
 /// # Errors

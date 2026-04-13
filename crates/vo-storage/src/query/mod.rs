@@ -17,6 +17,8 @@
 pub use crate::codec::StorageError;
 use vo_types::{Epoch, EventEnvelope, EventError, InstanceId};
 
+pub mod optimizer;
+
 #[cfg(test)]
 mod tests;
 
