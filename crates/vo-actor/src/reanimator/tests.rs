@@ -1,11 +1,13 @@
 //! Unit tests for Reanimator calculation layer and handle.
 
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{broadcast, watch};
 use vo_types::{InstanceId, TimestampMs};
 
 use crate::reanimator::{
     loop_core::ReanimatorHandle,
+    mock::{MockTimerStorage, MockWorkQueue},
     types::{
         calculate_batch_size, check_resume_budget, filter_timers_by_fairness,
         validate_timer_record, FairnessBudget, ReanimatorState, TimerRecord,

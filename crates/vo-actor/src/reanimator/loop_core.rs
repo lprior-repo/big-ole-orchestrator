@@ -10,7 +10,7 @@ use vo_types::TimestampMs;
 
 use crate::reanimator::{
     traits::{TimerStorage, WorkQueue},
-    types::{validate_timer_record, FairnessBudget, ReanimatorConfig, ReanimatorState},
+    types::{validate_timer_record, FairnessBudget, ReanimatorConfig, ReanimatorState, TimerRecord},
     ReanimatorError,
 };
 
@@ -214,6 +214,31 @@ impl ReanimatorLoop {
                     );
                     continue;
                 }
+            }
+
+            let timer_record = TimerRecord {
+                instance_id: pending.instance_id.clone(),
+                fire_at_ms: pending.fire_at_ms,
+                timer_id: None,
+                scheduled_at_ms: pending.scheduled_at_ms,
+            };
+            if let Err(e) = validate_timer_record(&timer_record) {
+                tracing::warn!(
+                    instance_id = %pending.instance_id,
+                    error = %e,
+                    "Skipping corrupt pending timer during crash recovery"
+                );
+                if let Err(e) = storage
+                    .complete_timer_processing(&pending.instance_id, pending.fire_at_ms)
+                    .await
+                {
+                    tracing::warn!(
+                        instance_id = %pending.instance_id,
+                        error = %e,
+                        "Failed to clean up corrupt pending timer"
+                    );
+                }
+                continue;
             }
 
             tracing::info!(
