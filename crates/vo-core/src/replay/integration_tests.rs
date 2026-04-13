@@ -21,6 +21,8 @@ fn replay_works_with_real_event_envelope_serialization() {
             "type": "WorkflowStarted",
             "workflow_id": "wf-real",
             "binary_hash": "sha256abc",
+            "workflow_version_hash": "wvhash123",
+            "dedupe_key_hash": null,
             "version": 1
         },
         "metadata": {}

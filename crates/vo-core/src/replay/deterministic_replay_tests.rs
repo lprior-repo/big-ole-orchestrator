@@ -218,14 +218,17 @@ fn effect_prepared_without_effect_committed_recovery_path() {
         make_event("inst-1", 1, workflow_started_payload("wf-1")),
         make_event("inst-1", 2, step_scheduled_payload("wf-1", "step-1")),
         make_event("inst-1", 3, step_started_payload("wf-1", "step-1")),
-        make_event("inst-1", 4, timer_set_payload("wf-1", "timer-1")),
-        make_event("inst-1", 5, timer_fired_payload("wf-1", "timer-1")),
-        make_event("inst-1", 6, step_completed_payload("wf-1", "step-1")),
-        make_event("inst-1", 7, step_scheduled_payload("wf-1", "step-2")),
+        make_event(
+            "inst-1",
+            4,
+            effect_prepared_payload("wf-1", "step-1", "effect-1"),
+        ),
+        make_event("inst-1", 5, step_completed_payload("wf-1", "step-1")),
     ];
 
     let result = engine.replay(&events).expect("replay should succeed");
-    assert_eq!(result.final_state, Some(LifecycleState::StepScheduled));
+    assert_eq!(result.final_state, Some(LifecycleState::Completed));
+    assert_eq!(result.events_applied, 5);
 }
 
 // ========================================================================

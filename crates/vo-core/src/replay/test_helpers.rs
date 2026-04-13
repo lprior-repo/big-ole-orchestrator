@@ -36,6 +36,8 @@ pub fn workflow_started_payload(workflow_id: &str) -> serde_json::Value {
         "type": "WorkflowStarted",
         "workflow_id": workflow_id,
         "binary_hash": "sha256abc",
+        "workflow_version_hash": "wvhash123",
+        "dedupe_key_hash": null,
         "version": 1
     })
 }
@@ -46,6 +48,7 @@ pub fn step_scheduled_payload(workflow_id: &str, step_id: &str) -> serde_json::V
         "workflow_id": workflow_id,
         "step_id": step_id,
         "attempt": 1,
+        "fence": 1,
         "execution_id": "exec-1",
         "version": 1
     })
@@ -67,6 +70,12 @@ pub fn step_completed_payload(workflow_id: &str, step_id: &str) -> serde_json::V
         "workflow_id": workflow_id,
         "step_id": step_id,
         "completed_at_ms": 3000,
+        "attempt": 1,
+        "fence": 1,
+        "routing_projection": null,
+        "output_ref": null,
+        "output_hash": null,
+        "output": null,
         "version": 1
     })
 }
@@ -78,6 +87,40 @@ pub fn step_failed_payload(workflow_id: &str, step_id: &str) -> serde_json::Valu
         "step_id": step_id,
         "failure_reason": "error",
         "attempt": 1,
+        "fence": 1,
+        "version": 1
+    })
+}
+
+pub fn effect_prepared_payload(
+    workflow_id: &str,
+    step_id: &str,
+    effect_id: &str,
+) -> serde_json::Value {
+    json!({
+        "type": "EffectPrepared",
+        "workflow_id": workflow_id,
+        "step_id": step_id,
+        "effect_id": effect_id,
+        "sink_kind": "test-sink",
+        "payload_hash": "payhash123",
+        "fence": 1,
+        "version": 1
+    })
+}
+
+pub fn effect_committed_payload(
+    workflow_id: &str,
+    step_id: &str,
+    effect_id: &str,
+) -> serde_json::Value {
+    json!({
+        "type": "EffectCommitted",
+        "workflow_id": workflow_id,
+        "step_id": step_id,
+        "effect_id": effect_id,
+        "external_receipt": null,
+        "fence": 1,
         "version": 1
     })
 }

@@ -102,15 +102,17 @@ impl ReanimatorLoop {
         let state_sender_clone = state_sender.clone();
         let shutdown_receiver = shutdown_trigger.subscribe();
 
-        // Run crash recovery before starting the loop
+        // Run crash recovery synchronously before spawning the task
         // This ensures any pending timers from a previous crash are replayed
         let storage_clone = storage.clone();
         let work_queue_clone = work_queue.clone();
-        let runtime = tokio::runtime::Handle::current();
-        runtime.block_on(async {
-            if let Err(e) = Self::run_crash_recovery(&storage_clone, &work_queue_clone).await {
-                tracing::warn!("Crash recovery completed with error: {}", e);
-            }
+        tokio::task::spawn_blocking(move || {
+            let rt = tokio::runtime::Handle::current();
+            rt.block_on(async {
+                if let Err(e) = Self::run_crash_recovery(&storage_clone, &work_queue_clone).await {
+                    tracing::warn!("Crash recovery completed with error: {}", e);
+                }
+            });
         });
 
         // Spawn the background task

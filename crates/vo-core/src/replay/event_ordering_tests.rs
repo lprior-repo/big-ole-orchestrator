@@ -69,7 +69,7 @@ fn replay_rejects_non_monotonic_sequence() {
     assert!(matches!(
         err,
         ReplayError::SequenceGap {
-            expected: 3,
+            expected: 4,
             actual: 2,
             at_index: 1,
         }

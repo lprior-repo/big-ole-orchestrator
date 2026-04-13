@@ -7,20 +7,18 @@
 
 mod error;
 mod loop_core;
-#[cfg(test)]
-mod mock;
+pub mod mock;
 #[cfg(test)]
 mod mock_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
 mod tests_types;
-mod traits;
-mod types;
+pub mod traits;
+pub mod types;
 
 pub use error::ReanimatorError;
 pub use loop_core::{ReanimatorHandle, ReanimatorLoop};
-#[cfg(test)]
 pub use mock::{MockTimerStorage, MockWorkQueue};
 pub use traits::{PendingTimer, TimerStorage, WorkQueue};
 pub use types::{

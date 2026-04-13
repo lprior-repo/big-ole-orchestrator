@@ -63,6 +63,17 @@ pub(crate) fn optional_u64(
         .unwrap_or(default)
 }
 
+/// Extract an optional `String` field.
+///
+/// Returns `None` if the key is absent or not a string.
+pub(crate) fn optional_string(
+    obj: &serde_json::Map<String, serde_json::Value>,
+    field: &str,
+) -> Option<String> {
+    obj.get(field)
+        .and_then(|v| v.as_str().map(std::string::ToString::to_string))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
