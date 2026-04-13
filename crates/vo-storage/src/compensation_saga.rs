@@ -404,10 +404,9 @@ impl CompensationSaga {
         #[expect(clippy::unwrap_used)]
         let mut manifest = self.manifest.lock().unwrap();
         manifest.register(effect_id.clone(), policy, dependencies)?;
-        manifest
-            .get_mut(&effect_id)
-            .expect("entry just inserted")
-            .timeout_ms = Some(timeout_ms);
+        #[allow(clippy::expect_used)]
+        let entry = manifest.get_mut(&effect_id).expect("entry just inserted");
+        entry.timeout_ms = Some(timeout_ms);
         Ok(())
     }
 
@@ -467,6 +466,7 @@ impl CompensationSaga {
         let mut manifest = self.manifest.lock().unwrap();
         manifest.set_ambiguous(effect_id)?;
 
+        #[allow(clippy::expect_used)]
         let entry = manifest.get(effect_id).expect("just set ambiguous");
         let ctx = ReconciliationContext {
             effect_id: effect_id.to_string(),
