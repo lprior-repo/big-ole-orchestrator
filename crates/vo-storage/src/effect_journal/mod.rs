@@ -9,8 +9,6 @@
 
 use std::fmt;
 
-#[cfg(test)]
-use vo_types::EffectIntent;
 use vo_types::{EffectRecord, InstanceId};
 
 #[cfg(all(test, feature = "proptest"))]
@@ -244,10 +242,16 @@ pub trait EffectJournal {
 }
 
 // ---------------------------------------------------------------------------
+// Production implementation
+// ---------------------------------------------------------------------------
+
+pub mod fjall_journal;
+pub use fjall_journal::FjallEffectJournal;
+
+// ---------------------------------------------------------------------------
 // Test infrastructure
 // ---------------------------------------------------------------------------
 
-mod fjall_journal;
 #[cfg(test)]
 mod in_memory_journal;
 #[cfg(test)]
