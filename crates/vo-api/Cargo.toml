@@ -42,3 +42,6 @@ bytes = { workspace = true }
 
 # Regex for validation
 regex = { workspace = true }
+
+[dev-dependencies]
+rstest = { workspace = true }

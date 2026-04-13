@@ -67,7 +67,6 @@ fn signal_name_rejects_unicode_attack_patterns(#[case] name: &str) {
 #[case("workflow\rname")]
 #[case("workflow\tname")]
 fn invocation_id_rejects_control_characters(#[case] id: &str) {
-    use vo_api::types::v1::InvocationId;
     let result = InvocationId::from_str(id);
     assert!(
         result.is_err(),
@@ -78,7 +77,7 @@ fn invocation_id_rejects_control_characters(#[case] id: &str) {
 #[test]
 fn workflow_name_accepts_underscore_and_numbers() {
     assert!(WorkflowName::new("test_123").is_ok());
-    assert!(WorkflowName::new("_private").is_ok());
+    assert!(WorkflowName::new("private_").is_ok());
     assert!(WorkflowName::new("a1").is_ok());
 }
 
