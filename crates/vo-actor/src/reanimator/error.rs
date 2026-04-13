@@ -64,6 +64,9 @@ impl ReanimatorError {
                 | Self::InstanceNotFound(_)
                 | Self::AlreadyRunning
                 | Self::AlreadyShutdown
+                | Self::StorageInitFailed(_)
+                | Self::TaskSpawnFailed(_)
+                | Self::ShutdownTimeout(_)
         )
     }
 }
