@@ -1,16 +1,17 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use vo_storage::instance_index::{decode_instance_index_key, encode_instance_index_key};
 use vo_storage::key_encoding::{
-    decode_dedupe_key, decode_event_key, decode_instance_id, decode_lease_key, decode_step_id,
-    decode_timer_key, decode_u16_be, decode_u64_be, encode_dedupe_key, encode_effect_key,
-    encode_event_key, encode_instance_id, encode_instance_index_key_for_status, encode_lease_key,
+    decode_dedupe_key, decode_effect_key, decode_event_key, decode_instance_id, decode_lease_key,
+    decode_length_prefixed, decode_sequence_number, decode_step_id, decode_timer_key,
+    decode_u16_be, decode_u64_be, encode_dedupe_key, encode_effect_key, encode_event_key,
+    encode_instance_id, encode_instance_index_key_for_status, encode_lease_key,
     encode_length_prefixed, encode_sequence_number, encode_step_id, encode_timer_key,
     encode_u16_be, encode_u64_be, get_dedupe_key_prefix, get_event_key_prefix,
     get_lease_key_prefix_for_instance, get_timer_key_prefix_for_time,
 };
 use vo_storage::query::{
-    decode_key, encode_key, epoch_prefix_generator, lineage_prefix_generator, prefix_generator,
-    IteratorState, LineageQuery,
+    decode_key, encode_key, epoch_prefix_generator, error_mapper, lineage_prefix_generator,
+    prefix_generator, IteratorState, LineageQuery,
 };
 use vo_types::{Epoch, InstanceId, InstanceStatus, SequenceNumber, StepId, TimestampMs};
 
@@ -432,6 +433,78 @@ fn bench_length_prefixed(c: &mut Criterion) {
     });
 }
 
+fn bench_decode_length_prefixed(c: &mut Criterion) {
+    let short_encoded = encode_length_prefixed(b"short");
+    c.bench_function("decode_length_prefixed_short", |b| {
+        b.iter(|| black_box(decode_length_prefixed(black_box(&short_encoded))).unwrap())
+    });
+
+    let long_bytes: Vec<u8> = (0..1000u16).map(|i| i as u8).collect::<Vec<u8>>();
+    let long_encoded = encode_length_prefixed(&long_bytes);
+    c.bench_function("decode_length_prefixed_long", |b| {
+        b.iter(|| black_box(decode_length_prefixed(black_box(&long_encoded))).unwrap())
+    });
+}
+
+fn bench_decode_sequence_number(c: &mut Criterion) {
+    let encoded = encode_sequence_number(SequenceNumber::try_from(1000u64).unwrap());
+    c.bench_function("decode_sequence_number", |b| {
+        b.iter(|| black_box(decode_sequence_number(black_box(&encoded))).unwrap())
+    });
+}
+
+fn bench_decode_event_key(c: &mut Criterion) {
+    let id = InstanceId::from_bytes([0x42; 16]);
+    let seq = SequenceNumber::try_from(1000u64).unwrap();
+    let key = encode_event_key(&id, seq);
+    c.bench_function("decode_event_key", |b| {
+        b.iter(|| black_box(decode_event_key(black_box(&key))).unwrap())
+    });
+}
+
+fn bench_decode_timer_key(c: &mut Criterion) {
+    let id = InstanceId::from_bytes([0x42; 16]);
+    let key = encode_timer_key(1000u64, &id);
+    c.bench_function("decode_timer_key", |b| {
+        b.iter(|| black_box(decode_timer_key(black_box(&key))).unwrap())
+    });
+}
+
+fn bench_decode_lease_key(c: &mut Criterion) {
+    let id = InstanceId::from_bytes([0x42; 16]);
+    let step_id = StepId::parse("step-abc-123").unwrap();
+    let key = encode_lease_key(&id, &step_id);
+    c.bench_function("decode_lease_key", |b| {
+        b.iter(|| black_box(decode_lease_key(black_box(&key))).unwrap())
+    });
+}
+
+fn bench_decode_effect_key(c: &mut Criterion) {
+    let id = InstanceId::from_bytes([0x42; 16]);
+    let seq = SequenceNumber::try_from(1000u64).unwrap();
+    let key = encode_effect_key(&id, seq);
+    c.bench_function("decode_effect_key", |b| {
+        b.iter(|| black_box(decode_effect_key(black_box(&key))).unwrap())
+    });
+}
+
+fn bench_error_mapper(c: &mut Criterion) {
+    let unsupported_err = vo_types::events::Error::UnsupportedEnvelopeVersion(99);
+    c.bench_function("error_mapper_unsupported_version", |b| {
+        b.iter(|| black_box(error_mapper(black_box(&unsupported_err))))
+    });
+
+    let invalid_err = vo_types::events::Error::InvalidInput;
+    c.bench_function("error_mapper_invalid_input", |b| {
+        b.iter(|| black_box(error_mapper(black_box(&invalid_err))))
+    });
+
+    let corrupt_err = vo_types::events::Error::InvalidEnvelopeFormat;
+    c.bench_function("error_mapper_corrupt_payload", |b| {
+        b.iter(|| black_box(error_mapper(black_box(&corrupt_err))))
+    });
+}
+
 criterion_group!(
     benches,
     bench_encode_key,
@@ -457,5 +530,12 @@ criterion_group!(
     bench_instance_index_encoding,
     bench_key_encoding_prefixes,
     bench_length_prefixed,
+    bench_decode_length_prefixed,
+    bench_decode_sequence_number,
+    bench_decode_event_key,
+    bench_decode_timer_key,
+    bench_decode_lease_key,
+    bench_decode_effect_key,
+    bench_error_mapper,
 );
 criterion_main!(benches);
