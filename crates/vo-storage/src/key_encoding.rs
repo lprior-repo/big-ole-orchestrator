@@ -18,6 +18,9 @@ use vo_types::{InstanceId, ParseError, SequenceNumber, StepId};
 #[cfg(test)]
 mod tests;
 
+#[cfg(test)]
+mod red_queen_tests;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum KeyEncodingError {
     InstanceId(ParseError),

@@ -56,7 +56,7 @@ impl EffectJournal for FjallEffectJournal {
 
     fn commit(&self, effect_id: &EffectId) -> Result<(), EffectJournalError> {
         let key = super::encode_effect_key(effect_id);
-        let mut record = self
+        let record = self
             .get_impl(&key)?
             .ok_or_else(|| EffectJournalError::NotFound {
                 effect_id: effect_id.as_str().to_string(),
@@ -97,7 +97,7 @@ impl EffectJournal for FjallEffectJournal {
 
     fn rollback(&self, effect_id: &EffectId) -> Result<(), EffectJournalError> {
         let key = super::encode_effect_key(effect_id);
-        let mut record = self
+        let record = self
             .get_impl(&key)?
             .ok_or_else(|| EffectJournalError::NotFound {
                 effect_id: effect_id.as_str().to_string(),
