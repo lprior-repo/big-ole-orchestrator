@@ -82,7 +82,7 @@ impl FjallDekStore {
 
     fn insert_dek_entry(&self, entry: &DekEntry) -> Result<(), DekStoreError> {
         let key = Self::encode_dek_key(entry.dek_id());
-        let value = super::encode_dek_entry(entry);
+        let value = super::encode_dek_entry(entry)?;
         self.dek_partition
             .insert(&key, &value)
             .map_err(|e| DekStoreError::Storage {
@@ -104,22 +104,13 @@ impl FjallDekStore {
             })
     }
 
-    fn clear_active_dek_index(&self, instance_id: &InstanceId) -> Result<(), DekStoreError> {
-        let key = Self::encode_index_key(instance_id);
-        self.index_partition
-            .remove(&key)
-            .map_err(|e| DekStoreError::Storage {
-                reason: format!("failed to clear DEK index: {e}"),
-            })
-    }
-
     fn retire_dek_entry(&self, dek_id: &DekId) -> Result<(), DekStoreError> {
         let key = Self::encode_dek_key(dek_id);
         match self.dek_partition.get(&key) {
             Ok(Some(bytes)) => {
                 let mut entry = super::decode_dek_entry(&bytes)?;
                 entry.retire();
-                let value = super::encode_dek_entry(&entry);
+                let value = super::encode_dek_entry(&entry)?;
                 self.dek_partition
                     .insert(&key, &value)
                     .map_err(|e| DekStoreError::Storage {
@@ -157,10 +148,9 @@ impl DekStore for FjallDekStore {
         })?;
         let wrapped_dek = WrappedDek::new(wrapped_dek_bytes);
 
-        #[allow(clippy::expect_used)]
-        let dek_id = DekId::from_bytes(raw_dek[..16].try_into().expect("DEK is 32 bytes"));
-        let metadata = KeyMetadata::new(instance_id.clone(), CryptoAlgorithm::Aes256Gcm);
-        let entry = DekEntry::new(dek_id.clone(), instance_id.clone(), wrapped_dek, metadata)?;
+        let dek_id = DekId::from_bytes(raw_dek);
+        let metadata = KeyMetadata::new(*instance_id, CryptoAlgorithm::Aes256Gcm);
+        let entry = DekEntry::new(dek_id, *instance_id, wrapped_dek, metadata)?;
 
         self.insert_dek_entry(&entry)?;
         self.set_active_dek_index(instance_id, &dek_id)?;
@@ -234,7 +224,6 @@ impl DekStore for FjallDekStore {
         };
 
         self.retire_dek_entry(&old_dek_id)?;
-        self.clear_active_dek_index(instance_id)?;
 
         self.generate_and_store_dek(instance_id, kek)
     }
@@ -255,20 +244,21 @@ impl DekStore for FjallDekStore {
     }
 
     fn list_deks(&self, instance_id: &InstanceId) -> Result<Vec<DekId>, DekStoreError> {
+        let prefix = format!("{instance_id}::");
         let mut dek_ids = Vec::new();
 
-        let iter = self.dek_partition.iter();
-        for item in iter {
-            let (_, value) = match item {
-                Ok(kv) => kv,
-                Err(_) => continue,
-            };
-            if let Ok(entry) = super::decode_dek_entry(&value) {
-                if entry.instance_id() == instance_id {
+        self.dek_partition
+            .scan_keys()
+            .map_err(|e| DekStoreError::Storage {
+                reason: format!("failed to scan DEKs: {e}"),
+            })?
+            .filter_map(|result| result.ok())
+            .filter(|(key, _)| key.starts_with(prefix.as_bytes()))
+            .for_each(|(_, value)| {
+                if let Ok(entry) = super::decode_dek_entry(value) {
                     dek_ids.push(entry.dek_id().clone());
                 }
-            }
-        }
+            });
 
         Ok(dek_ids)
     }
@@ -347,7 +337,7 @@ mod tests {
         let retrieved = store.retrieve_dek(&sample_instance_id(), &kek).unwrap();
 
         let generated_bytes = generated.to_bytes().expect("valid bytes");
-        assert_eq!(generated_bytes, &retrieved[..16]);
+        assert_eq!(generated_bytes, retrieved);
     }
 
     #[test]
