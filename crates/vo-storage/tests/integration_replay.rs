@@ -9,7 +9,11 @@
 
 use fjall::{Config, PartitionCreateOptions};
 use vo_storage::codec::StorageError;
+use vo_storage::query::optimizer::{
+    OptimizedReplayIterator, Projection, QueryOptimizer, QueryPlan, QuerySpec,
+};
 use vo_storage::query::replay_events;
+use vo_storage::query::LineageQuery;
 use vo_types::{EventEnvelope, InstanceId};
 
 fn make_envelope_json(seq: u64, instance_id: &str) -> Vec<u8> {
@@ -309,7 +313,6 @@ fn replay_events_handles_large_sequence_range() {
     let partition = keyspace
         .open_partition("events", PartitionCreateOptions::default())
         .unwrap();
-    // Insert events with large sequence numbers
     let seq_start = 1_000_000u64;
     let value_1 = make_envelope_json(seq_start, instance_id_str);
     let value_2 = make_envelope_json(seq_start + 1, instance_id_str);
@@ -330,4 +333,292 @@ fn replay_events_handles_large_sequence_range() {
     assert_eq!(results[2], Ok(parse_envelope(&value_3)));
     assert_eq!(results[3], Ok(parse_envelope(&value_4)));
     assert_eq!(results[4], Ok(parse_envelope(&value_5)));
+}
+
+fn make_envelope_json_with_version(seq: u64, instance_id: &str, version: u8) -> Vec<u8> {
+    serde_json::json!({
+        "version": version,
+        "instance_id": instance_id,
+        "sequence": seq,
+        "timestamp_ms": 1000 + seq,
+        "payload": {"type": "WorkflowStarted", "workflow_id": "wf-1"},
+        "metadata": {}
+    })
+    .to_string()
+    .into_bytes()
+}
+
+#[test]
+fn optimized_replay_iterator_with_limit() {
+    let (_dir, keyspace) = setup_keyspace();
+    let id_string = ulid::Ulid::new().to_string();
+    let instance_id_str = id_string.as_str();
+    let instance_id = parse_instance_id(instance_id_str);
+    let partition = keyspace
+        .open_partition("events", PartitionCreateOptions::default())
+        .expect("partition");
+    for seq in 1..=10u64 {
+        let value = make_envelope_json(seq, instance_id_str);
+        insert_event(&partition, instance_id_str, seq, &value);
+    }
+
+    let spec = QuerySpec {
+        lineage_query: LineageQuery::InstanceId(&instance_id),
+        predicates: vec![],
+        projection: Projection::Full,
+        limit: Some(3),
+        offset: 0,
+    };
+    let plan = QueryOptimizer::optimize(spec);
+    let iter = OptimizedReplayIterator::from_plan(&plan, &keyspace).expect("valid plan");
+    let results: Vec<_> = iter.collect();
+    assert_eq!(results.len(), 3);
+}
+
+#[test]
+fn optimized_replay_iterator_with_offset() {
+    let (_dir, keyspace) = setup_keyspace();
+    let id_string = ulid::Ulid::new().to_string();
+    let instance_id_str = id_string.as_str();
+    let instance_id = parse_instance_id(instance_id_str);
+    let partition = keyspace
+        .open_partition("events", PartitionCreateOptions::default())
+        .expect("partition");
+    for seq in 1..=10u64 {
+        let value = make_envelope_json(seq, instance_id_str);
+        insert_event(&partition, instance_id_str, seq, &value);
+    }
+
+    let spec = QuerySpec {
+        lineage_query: LineageQuery::InstanceId(&instance_id),
+        predicates: vec![],
+        projection: Projection::Full,
+        limit: None,
+        offset: 7,
+    };
+    let plan = QueryOptimizer::optimize(spec);
+    let iter = OptimizedReplayIterator::from_plan(&plan, &keyspace).expect("valid plan");
+    let results: Vec<_> = iter.collect();
+    assert_eq!(results.len(), 3);
+    assert_eq!(results[0].as_ref().unwrap().sequence, 8);
+    assert_eq!(results[1].as_ref().unwrap().sequence, 9);
+    assert_eq!(results[2].as_ref().unwrap().sequence, 10);
+}
+
+#[test]
+fn optimized_replay_iterator_with_sequence_range() {
+    let (_dir, keyspace) = setup_keyspace();
+    let id_string = ulid::Ulid::new().to_string();
+    let instance_id_str = id_string.as_str();
+    let instance_id = parse_instance_id(instance_id_str);
+    let partition = keyspace
+        .open_partition("events", PartitionCreateOptions::default())
+        .expect("partition");
+    for seq in 1..=20u64 {
+        let value = make_envelope_json(seq, instance_id_str);
+        insert_event(&partition, instance_id_str, seq, &value);
+    }
+
+    let spec = QuerySpec {
+        lineage_query: LineageQuery::InstanceId(&instance_id),
+        predicates: vec![],
+        projection: Projection::Full,
+        limit: None,
+        offset: 0,
+    };
+    let plan = QueryOptimizer::optimize(spec);
+    let iter = OptimizedReplayIterator::from_plan(&plan, &keyspace).expect("valid plan");
+    let results: Vec<_> = iter.collect();
+    assert_eq!(results.len(), 20);
+}
+
+#[test]
+fn optimized_replay_iterator_with_event_type_predicate() {
+    let (_dir, keyspace) = setup_keyspace();
+    let id_string = ulid::Ulid::new().to_string();
+    let instance_id_str = id_string.as_str();
+    let instance_id = parse_instance_id(instance_id_str);
+    let partition = keyspace
+        .open_partition("events", PartitionCreateOptions::default())
+        .expect("partition");
+    let event_types = [
+        "WorkflowStarted",
+        "StepCompleted",
+        "WorkflowStarted",
+        "StepCompleted",
+        "WorkflowStarted",
+    ];
+    for (i, event_type) in event_types.iter().enumerate() {
+        let seq = i as u64 + 1;
+        let value = serde_json::json!({
+            "version": 1,
+            "instance_id": instance_id_str,
+            "sequence": seq,
+            "timestamp_ms": 1000 + seq,
+            "payload": {"type": event_type, "workflow_id": "wf-1"},
+            "metadata": {}
+        })
+        .to_string()
+        .into_bytes();
+        insert_event(&partition, instance_id_str, seq, &value);
+    }
+
+    use vo_storage::query::optimizer::Predicate;
+    let spec = QuerySpec {
+        lineage_query: LineageQuery::InstanceId(&instance_id),
+        predicates: vec![Predicate::EventType("WorkflowStarted".to_string())],
+        projection: Projection::Full,
+        limit: None,
+        offset: 0,
+    };
+    let plan = QueryOptimizer::optimize(spec);
+    let iter = OptimizedReplayIterator::from_plan(&plan, &keyspace).expect("valid plan");
+    let results: Vec<_> = iter.collect();
+    assert_eq!(results.len(), 3);
+    for result in &results {
+        let env = result.as_ref().unwrap();
+        assert_eq!(
+            env.payload.get("type").unwrap().as_str().unwrap(),
+            "WorkflowStarted"
+        );
+    }
+}
+
+#[test]
+fn optimized_replay_iterator_empty_when_no_matching_events() {
+    let (_dir, keyspace) = setup_keyspace();
+    let id_string = ulid::Ulid::new().to_string();
+    let instance_id_str = id_string.as_str();
+    let instance_id = parse_instance_id(instance_id_str);
+    let partition = keyspace
+        .open_partition("events", PartitionCreateOptions::default())
+        .expect("partition");
+    for seq in 1..=5u64 {
+        let value = make_envelope_json(seq, instance_id_str);
+        insert_event(&partition, instance_id_str, seq, &value);
+    }
+
+    use vo_storage::query::optimizer::Predicate;
+    let spec = QuerySpec {
+        lineage_query: LineageQuery::InstanceId(&instance_id),
+        predicates: vec![Predicate::EventType("NonExistentEvent".to_string())],
+        projection: Projection::Full,
+        limit: None,
+        offset: 0,
+    };
+    let plan = QueryOptimizer::optimize(spec);
+    let iter = OptimizedReplayIterator::from_plan(&plan, &keyspace).expect("valid plan");
+    let results: Vec<_> = iter.collect();
+    assert!(results.is_empty());
+}
+
+#[test]
+fn optimized_replay_iterator_with_schema_version_predicate() {
+    let (_dir, keyspace) = setup_keyspace();
+    let id_string = ulid::Ulid::new().to_string();
+    let instance_id_str = id_string.as_str();
+    let instance_id = parse_instance_id(instance_id_str);
+    let partition = keyspace
+        .open_partition("events", PartitionCreateOptions::default())
+        .expect("partition");
+    for seq in 1..=5u64 {
+        let version = if seq % 2 == 0 { 1 } else { 0 };
+        let value = make_envelope_json_with_version(seq, instance_id_str, version);
+        insert_event(&partition, instance_id_str, seq, &value);
+    }
+
+    use vo_storage::query::optimizer::Predicate;
+    let spec = QuerySpec {
+        lineage_query: LineageQuery::InstanceId(&instance_id),
+        predicates: vec![Predicate::SchemaVersion(1)],
+        projection: Projection::Full,
+        limit: None,
+        offset: 0,
+    };
+    let plan = QueryOptimizer::optimize(spec);
+    let iter = OptimizedReplayIterator::from_plan(&plan, &keyspace).expect("valid plan");
+    let results: Vec<_> = iter.collect();
+    assert_eq!(
+        results.len(),
+        2,
+        "Expected 2 events with schema_version=1, got {}",
+        results.len()
+    );
+    for result in &results {
+        let env = result.as_ref().unwrap();
+        assert_eq!(env.schema_version, 1);
+    }
+}
+
+#[test]
+fn optimized_replay_iterator_combined_predicates_and_limit() {
+    let (_dir, keyspace) = setup_keyspace();
+    let id_string = ulid::Ulid::new().to_string();
+    let instance_id_str = id_string.as_str();
+    let instance_id = parse_instance_id(instance_id_str);
+    let partition = keyspace
+        .open_partition("events", PartitionCreateOptions::default())
+        .expect("partition");
+    for seq in 1..=20u64 {
+        let value = make_envelope_json(seq, instance_id_str);
+        insert_event(&partition, instance_id_str, seq, &value);
+    }
+
+    use vo_storage::query::optimizer::Predicate;
+    let spec = QuerySpec {
+        lineage_query: LineageQuery::InstanceId(&instance_id),
+        predicates: vec![Predicate::EventType("WorkflowStarted".to_string())],
+        projection: Projection::Full,
+        limit: Some(5),
+        offset: 0,
+    };
+    let plan = QueryOptimizer::optimize(spec);
+    let iter = OptimizedReplayIterator::from_plan(&plan, &keyspace).expect("valid plan");
+    let results: Vec<_> = iter.collect();
+    assert_eq!(results.len(), 5);
+}
+
+#[test]
+fn optimized_replay_iterator_isolates_different_instances() {
+    let (_dir, keyspace) = setup_keyspace();
+    let id_a_string = ulid::Ulid::new().to_string();
+    let id_a = id_a_string.as_str();
+    let id_b = "01H5JYV4XHGSR2F8KZ9BWNRFMB";
+    let partition = keyspace
+        .open_partition("events", PartitionCreateOptions::default())
+        .expect("partition");
+    let a1 = make_envelope_json(1, id_a);
+    let a2 = make_envelope_json(2, id_a);
+    let b1 = make_envelope_json(1, id_b);
+    let b2 = make_envelope_json(2, id_b);
+    insert_event(&partition, id_a, 1, &a1);
+    insert_event(&partition, id_a, 2, &a2);
+    insert_event(&partition, id_b, 1, &b1);
+    insert_event(&partition, id_b, 2, &b2);
+
+    let instance_id_a = parse_instance_id(id_a);
+    let spec_a = QuerySpec {
+        lineage_query: LineageQuery::InstanceId(&instance_id_a),
+        predicates: vec![],
+        projection: Projection::Full,
+        limit: None,
+        offset: 0,
+    };
+    let plan_a = QueryOptimizer::optimize(spec_a);
+    let iter_a = OptimizedReplayIterator::from_plan(&plan_a, &keyspace).expect("valid plan");
+    let results_a: Vec<_> = iter_a.collect();
+    assert_eq!(results_a.len(), 2);
+
+    let instance_id_b = parse_instance_id(id_b);
+    let spec_b = QuerySpec {
+        lineage_query: LineageQuery::InstanceId(&instance_id_b),
+        predicates: vec![],
+        projection: Projection::Full,
+        limit: None,
+        offset: 0,
+    };
+    let plan_b = QueryOptimizer::optimize(spec_b);
+    let iter_b = OptimizedReplayIterator::from_plan(&plan_b, &keyspace).expect("valid plan");
+    let results_b: Vec<_> = iter_b.collect();
+    assert_eq!(results_b.len(), 2);
 }

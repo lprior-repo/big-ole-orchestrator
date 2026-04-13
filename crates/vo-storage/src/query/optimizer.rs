@@ -346,4 +346,148 @@ mod optimizer_tests {
         assert!(!Projection::WorkflowVersion.include_payload());
         assert!(Projection::WorkflowVersion.include_metadata());
     }
+
+    #[test]
+    fn predicate_schema_version_evaluate() {
+        let pred = Predicate::SchemaVersion(1);
+        let mut env = make_envelope(1, "WorkflowStarted", 1000);
+        env.schema_version = 1;
+        assert!(pred.evaluate(&env));
+        env.schema_version = 2;
+        assert!(!pred.evaluate(&env));
+        env.schema_version = 0;
+        assert!(!pred.evaluate(&env));
+    }
+
+    fn make_envelope_with_version(
+        seq: u64,
+        event_type: &str,
+        timestamp_ms: u64,
+        schema_version: u8,
+    ) -> EventEnvelope {
+        EventEnvelope {
+            schema_version,
+            instance_id: "test-instance".to_string(),
+            sequence: seq,
+            timestamp_ms,
+            payload: serde_json::json!({"type": event_type}),
+            metadata: EventMetadata::default(),
+        }
+    }
+
+    #[test]
+    fn query_optimizer_with_schema_version_predicate() {
+        let spec = QuerySpec {
+            lineage_query: super::super::LineageQuery::InstanceId(
+                &InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap(),
+            ),
+            predicates: vec![Predicate::SchemaVersion(1)],
+            projection: Projection::Full,
+            limit: None,
+            offset: 0,
+        };
+        let plan = QueryOptimizer::optimize(spec);
+        assert_eq!(plan.predicates.len(), 1);
+        let env_v1 = make_envelope_with_version(1, "WorkflowStarted", 1000, 1);
+        let env_v2 = make_envelope_with_version(1, "WorkflowStarted", 1000, 2);
+        assert!(plan.predicates[0].evaluate(&env_v1));
+        assert!(!plan.predicates[0].evaluate(&env_v2));
+    }
+
+    #[test]
+    fn query_optimizer_combined_predicates() {
+        let spec = QuerySpec {
+            lineage_query: super::super::LineageQuery::InstanceId(
+                &InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap(),
+            ),
+            predicates: vec![
+                Predicate::SequenceRange { min: 10, max: 50 },
+                Predicate::EventType("WorkflowStarted".to_string()),
+                Predicate::SchemaVersion(1),
+            ],
+            projection: Projection::Full,
+            limit: Some(10),
+            offset: 5,
+        };
+        let plan = QueryOptimizer::optimize(spec);
+        assert!(plan.scan_range_start.is_some());
+        assert!(plan.scan_range_end.is_some());
+        assert_eq!(plan.predicates.len(), 2);
+        assert_eq!(plan.limit, Some(10));
+        assert_eq!(plan.offset, 5);
+    }
+
+    #[test]
+    fn query_optimizer_empty_predicates_preserves_none() {
+        let spec = QuerySpec {
+            lineage_query: super::super::LineageQuery::InstanceId(
+                &InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap(),
+            ),
+            predicates: vec![],
+            projection: Projection::Timeline,
+            limit: None,
+            offset: 0,
+        };
+        let plan = QueryOptimizer::optimize(spec);
+        assert!(plan.predicates.is_empty());
+        assert!(plan.scan_range_start.is_none());
+        assert!(plan.scan_range_end.is_none());
+        assert_eq!(plan.projection, Projection::Timeline);
+    }
+
+    #[test]
+    fn query_plan_clone() {
+        let plan = QueryPlan {
+            prefix: vec![1, 2, 3],
+            predicates: vec![Predicate::SchemaVersion(1)],
+            projection: Projection::Full,
+            limit: Some(100),
+            offset: 10,
+            scan_range_start: Some(vec![1]),
+            scan_range_end: Some(vec![255]),
+        };
+        let cloned = plan.clone();
+        assert_eq!(cloned.prefix, plan.prefix);
+        assert_eq!(cloned.predicates.len(), plan.predicates.len());
+        assert_eq!(cloned.limit, plan.limit);
+        assert_eq!(cloned.offset, plan.offset);
+    }
+
+    #[test]
+    fn predicate_schema_version_edge_cases() {
+        let pred = Predicate::SchemaVersion(0);
+        let env = make_envelope_with_version(1, "WorkflowStarted", 1000, 0);
+        assert!(pred.evaluate(&env));
+
+        let pred255 = Predicate::SchemaVersion(255);
+        let mut env255 = make_envelope_with_version(1, "WorkflowStarted", 1000, 255);
+        assert!(pred255.evaluate(&env255));
+        env255.schema_version = 254;
+        assert!(!pred255.evaluate(&env255));
+    }
+
+    #[test]
+    fn predicate_timestamp_range_boundary_conditions() {
+        let pred = Predicate::TimestampRange {
+            min_ms: 1000,
+            max_ms: 1000,
+        };
+        let env_at_min = make_envelope_with_version(1, "WorkflowStarted", 1000, 1);
+        assert!(pred.evaluate(&env_at_min));
+        let env_above = make_envelope_with_version(1, "WorkflowStarted", 1001, 1);
+        assert!(!pred.evaluate(&env_above));
+        let env_below = make_envelope_with_version(1, "WorkflowStarted", 999, 1);
+        assert!(!pred.evaluate(&env_below));
+    }
+
+    #[test]
+    fn predicate_sequence_range_boundary_conditions() {
+        let pred = Predicate::SequenceRange { min: 5, max: 5 };
+        let env_at_min = make_envelope_with_version(5, "WorkflowStarted", 1000, 1);
+        assert!(pred.evaluate(&env_at_min));
+        let env_above = make_envelope_with_version(6, "WorkflowStarted", 1000, 1);
+        assert!(!pred.evaluate(&env_above));
+        let env_below = make_envelope_with_version(4, "WorkflowStarted", 1000, 1);
+        assert!(!pred.evaluate(&env_below));
+    }
 }
