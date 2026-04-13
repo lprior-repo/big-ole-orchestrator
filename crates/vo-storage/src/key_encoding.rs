@@ -20,8 +20,6 @@ mod tests;
 
 #[cfg(test)]
 mod red_queen_tests;
-
-#[cfg(test)]
 mod red_queen_adversarial;
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
