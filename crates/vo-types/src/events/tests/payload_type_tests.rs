@@ -2,7 +2,7 @@ use crate::events::payload::EventPayload;
 
 #[test]
 fn payload_try_from_json_returns_workflow_started_when_type_is_workflow_started() {
-    let json = serde_json::json!({"type": "WorkflowStarted", "workflow_id": "wf-123", "dag_topology": {}, "binary_hash": "abc123", "workflow_version_hash": "wvhash", "version": 1});
+    let json = serde_json::json!({"type": "WorkflowStarted", "workflow_id": "wf-123", "dag_topology": {}, "binary_hash": "abc123", "workflow_version_hash": "vhash123", "dedupe_key_hash": null, "version": 1});
     let result = EventPayload::try_from_json(&json);
     assert_eq!(
         result,
@@ -10,8 +10,8 @@ fn payload_try_from_json_returns_workflow_started_when_type_is_workflow_started(
             workflow_id: "wf-123".to_string(),
             dag_topology: serde_json::json!({}),
             binary_hash: "abc123".to_string(),
-            workflow_version_hash: "wvhash".to_string(),
-            dedupe_key_hash: None,
+            workflow_version_hash: "vhash123".to_string(),
+            dedupe_key_hash: None
         })
     );
 }
@@ -57,7 +57,7 @@ fn payload_try_from_json_returns_workflow_cancelled_when_type_is_workflow_cancel
 
 #[test]
 fn payload_try_from_json_returns_step_scheduled_when_type_is_step_scheduled() {
-    let json = serde_json::json!({"type": "StepScheduled", "workflow_id": "wf-123", "step_id": "step-1", "attempt": 1, "fence": 1, "execution_id": "inst::step::1", "version": 1});
+    let json = serde_json::json!({"type": "StepScheduled", "workflow_id": "wf-123", "step_id": "step-1", "attempt": 1, "fence": 42, "execution_id": "inst::step::1", "version": 1});
     let result = EventPayload::try_from_json(&json);
     assert_eq!(
         result,
@@ -65,7 +65,7 @@ fn payload_try_from_json_returns_step_scheduled_when_type_is_step_scheduled() {
             workflow_id: "wf-123".to_string(),
             step_id: "step-1".to_string(),
             attempt: 1,
-            fence: 1,
+            fence: 42,
             execution_id: "inst::step::1".to_string()
         })
     );
@@ -87,7 +87,7 @@ fn payload_try_from_json_returns_step_started_when_type_is_step_started() {
 
 #[test]
 fn payload_try_from_json_returns_step_completed_when_type_is_step_completed() {
-    let json = serde_json::json!({"type": "StepCompleted", "workflow_id": "wf-123", "step_id": "step-1", "completed_at_ms": 1000, "attempt": 1, "fence": 1, "output": null, "version": 1});
+    let json = serde_json::json!({"type": "StepCompleted", "workflow_id": "wf-123", "step_id": "step-1", "completed_at_ms": 1000, "attempt": 1, "fence": 42, "routing_projection": {}, "output_ref": null, "output_hash": null, "output": null, "version": 1});
     let result = EventPayload::try_from_json(&json);
     assert_eq!(
         result,
@@ -96,8 +96,8 @@ fn payload_try_from_json_returns_step_completed_when_type_is_step_completed() {
             step_id: "step-1".to_string(),
             completed_at_ms: 1000,
             attempt: 1,
-            fence: 1,
-            routing_projection: serde_json::Value::Null,
+            fence: 42,
+            routing_projection: serde_json::json!({}),
             output_ref: None,
             output_hash: None,
             output: serde_json::Value::Null
@@ -107,7 +107,7 @@ fn payload_try_from_json_returns_step_completed_when_type_is_step_completed() {
 
 #[test]
 fn payload_try_from_json_returns_step_failed_when_type_is_step_failed() {
-    let json = serde_json::json!({"type": "StepFailed", "workflow_id": "wf-123", "step_id": "step-1", "failure_reason": "error", "attempt": 1, "fence": 1, "version": 1});
+    let json = serde_json::json!({"type": "StepFailed", "workflow_id": "wf-123", "step_id": "step-1", "failure_reason": "error", "attempt": 1, "fence": 42, "version": 1});
     let result = EventPayload::try_from_json(&json);
     assert_eq!(
         result,
@@ -116,7 +116,7 @@ fn payload_try_from_json_returns_step_failed_when_type_is_step_failed() {
             step_id: "step-1".to_string(),
             failure_reason: "error".to_string(),
             attempt: 1,
-            fence: 1,
+            fence: 42
         })
     );
 }
@@ -197,7 +197,7 @@ fn payload_all_variants_round_trip_via_serde() {
             workflow_id: "wf-123".to_string(),
             dag_topology: serde_json::json!({"nodes": []}),
             binary_hash: "abc123".to_string(),
-            workflow_version_hash: "wvhash".to_string(),
+            workflow_version_hash: "vhash123".to_string(),
             dedupe_key_hash: None,
         },
         EventPayload::WorkflowCompleted {
@@ -216,7 +216,7 @@ fn payload_all_variants_round_trip_via_serde() {
             workflow_id: "wf-123".to_string(),
             step_id: "step-1".to_string(),
             attempt: 1,
-            fence: 1,
+            fence: 42,
             execution_id: "exec-1".to_string(),
         },
         EventPayload::StepStarted {
@@ -229,8 +229,8 @@ fn payload_all_variants_round_trip_via_serde() {
             step_id: "step-1".to_string(),
             completed_at_ms: 2000,
             attempt: 1,
-            fence: 1,
-            routing_projection: serde_json::json!({"result": "ok"}),
+            fence: 42,
+            routing_projection: serde_json::json!({}),
             output_ref: None,
             output_hash: None,
             output: serde_json::json!({"result": "ok"}),
@@ -240,7 +240,22 @@ fn payload_all_variants_round_trip_via_serde() {
             step_id: "step-1".to_string(),
             failure_reason: "error".to_string(),
             attempt: 1,
-            fence: 1,
+            fence: 42,
+        },
+        EventPayload::EffectPrepared {
+            workflow_id: "wf-123".to_string(),
+            step_id: "step-1".to_string(),
+            effect_id: "effect-1".to_string(),
+            sink_kind: "blob".to_string(),
+            payload_hash: "hash123".to_string(),
+            fence: 42,
+        },
+        EventPayload::EffectCommitted {
+            workflow_id: "wf-123".to_string(),
+            step_id: "step-1".to_string(),
+            effect_id: "effect-1".to_string(),
+            external_receipt: serde_json::json!({}),
+            fence: 42,
         },
         EventPayload::TimerSet {
             workflow_id: "wf-123".to_string(),
@@ -265,21 +280,6 @@ fn payload_all_variants_round_trip_via_serde() {
             lineage_id: "lin-456".to_string(),
             old_epoch: 1,
             new_epoch: 2,
-        },
-        EventPayload::EffectPrepared {
-            workflow_id: "wf-123".to_string(),
-            step_id: "step-1".to_string(),
-            effect_id: "effect-1".to_string(),
-            sink_kind: "blob".to_string(),
-            payload_hash: "hash123".to_string(),
-            fence: 1,
-        },
-        EventPayload::EffectCommitted {
-            workflow_id: "wf-123".to_string(),
-            step_id: "step-1".to_string(),
-            effect_id: "effect-1".to_string(),
-            external_receipt: serde_json::json!({"receipt": "data"}),
-            fence: 1,
         },
     ];
 
@@ -407,6 +407,42 @@ fn payload_all_variants_round_trip_via_serde() {
                     "version": 1
                 })
             }
+            EventPayload::EffectPrepared {
+                workflow_id,
+                step_id,
+                effect_id,
+                sink_kind,
+                payload_hash,
+                fence,
+            } => {
+                serde_json::json!({
+                    "type": "EffectPrepared",
+                    "workflow_id": workflow_id,
+                    "step_id": step_id,
+                    "effect_id": effect_id,
+                    "sink_kind": sink_kind,
+                    "payload_hash": payload_hash,
+                    "fence": fence,
+                    "version": 1
+                })
+            }
+            EventPayload::EffectCommitted {
+                workflow_id,
+                step_id,
+                effect_id,
+                external_receipt,
+                fence,
+            } => {
+                serde_json::json!({
+                    "type": "EffectCommitted",
+                    "workflow_id": workflow_id,
+                    "step_id": step_id,
+                    "effect_id": effect_id,
+                    "external_receipt": external_receipt,
+                    "fence": fence,
+                    "version": 1
+                })
+            }
             EventPayload::TimerSet {
                 workflow_id,
                 timer_id,
@@ -467,42 +503,6 @@ fn payload_all_variants_round_trip_via_serde() {
                     "lineage_id": lineage_id,
                     "old_epoch": old_epoch,
                     "new_epoch": new_epoch,
-                    "version": 1
-                })
-            }
-            EventPayload::EffectPrepared {
-                workflow_id,
-                step_id,
-                effect_id,
-                sink_kind,
-                payload_hash,
-                fence,
-            } => {
-                serde_json::json!({
-                    "type": "EffectPrepared",
-                    "workflow_id": workflow_id,
-                    "step_id": step_id,
-                    "effect_id": effect_id,
-                    "sink_kind": sink_kind,
-                    "payload_hash": payload_hash,
-                    "fence": fence,
-                    "version": 1
-                })
-            }
-            EventPayload::EffectCommitted {
-                workflow_id,
-                step_id,
-                effect_id,
-                external_receipt,
-                fence,
-            } => {
-                serde_json::json!({
-                    "type": "EffectCommitted",
-                    "workflow_id": workflow_id,
-                    "step_id": step_id,
-                    "effect_id": effect_id,
-                    "external_receipt": external_receipt,
-                    "fence": fence,
                     "version": 1
                 })
             }
