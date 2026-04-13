@@ -530,11 +530,7 @@ fn stale_check_on_never_acquired_pair_returns_false() {
     let store = DeterministicLeaseStore::new();
 
     assert_eq!(
-        store.check_stale_fence(
-            &sample_instance_id(),
-            &sample_step_id(),
-            &fence_token(1)
-        ),
+        store.check_stale_fence(&sample_instance_id(), &sample_step_id(), &fence_token(1)),
         Ok(false)
     );
     assert_eq!(
@@ -557,11 +553,7 @@ fn stale_check_storage_error_is_propagated_not_swallowed() {
     });
 
     assert_eq!(
-        store.check_stale_fence(
-            &sample_instance_id(),
-            &sample_step_id(),
-            &fence_token(1)
-        ),
+        store.check_stale_fence(&sample_instance_id(), &sample_step_id(), &fence_token(1)),
         Err(LeaseStoreError::Storage {
             reason: "partition unavailable".to_string(),
         })

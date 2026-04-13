@@ -6,27 +6,12 @@ thread_local! {
     static THREAD_CACHE: std::cell::RefCell<Option<MmapCache>> = const { std::cell::RefCell::new(None) };
 }
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum ThreadLocalCacheError {
+    #[error("thread-local cache not initialized")]
     CacheNotInitialized,
-    MmapCacheError(MmapCacheError),
-}
-
-impl std::fmt::Display for ThreadLocalCacheError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::CacheNotInitialized => write!(f, "thread-local cache not initialized"),
-            Self::MmapCacheError(e) => write!(f, "mmap cache error: {e}"),
-        }
-    }
-}
-
-impl std::error::Error for ThreadLocalCacheError {}
-
-impl From<MmapCacheError> for ThreadLocalCacheError {
-    fn from(err: MmapCacheError) -> Self {
-        Self::MmapCacheError(err)
-    }
+    #[error("mmap cache error: {0}")]
+    MmapCacheError(#[from] MmapCacheError),
 }
 
 pub struct ThreadLocalCache;

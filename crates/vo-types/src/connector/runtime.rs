@@ -12,41 +12,17 @@
 use crate::connector::types::{ConnectorResult, ConnectorState, ReconcileAction};
 
 /// Error type for connector operations.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum ConnectorError {
-    /// Connector is in a terminal state (Succeeded or Failed).
+    #[error("connector in terminal state: {0:?}")]
     TerminalState(ConnectorState),
-    /// Connector is not in a valid state for the requested operation.
-    InvalidState {
-        current: ConnectorState,
-        expected: &'static [ConnectorState],
-    },
-    /// Reconciliation failed to determine the outcome.
+    #[error("invalid state: {current:?}, expected one of {expected:?}")]
+    InvalidState { current: ConnectorState, expected: &'static [ConnectorState] },
+    #[error("reconciliation could not determine outcome")]
     ReconciliationUncertain,
-    /// Transport or communication error.
+    #[error("transport error: {0}")]
     Transport(String),
 }
-
-impl std::fmt::Display for ConnectorError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ConnectorError::TerminalState(state) => {
-                write!(f, "connector in terminal state: {state:?}")
-            }
-            ConnectorError::InvalidState { current, expected } => {
-                write!(f, "invalid state: {current:?}, expected one of {expected:?}")
-            }
-            ConnectorError::ReconciliationUncertain => {
-                write!(f, "reconciliation could not determine outcome")
-            }
-            ConnectorError::Transport(msg) => {
-                write!(f, "transport error: {msg}")
-            }
-        }
-    }
-}
-
-impl std::error::Error for ConnectorError {}
 
 /// Result of a reconciliation query to determine the true outcome
 /// of an ambiguous connector operation.

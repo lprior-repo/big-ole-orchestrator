@@ -272,41 +272,17 @@ impl ShutdownPropagator {
 // =============================================================================
 
 /// Errors that can occur during lifecycle transitions.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum LifecycleError {
-    /// Invalid transition attempted.
-    InvalidTransition {
-        from: ActorLifecycleState,
-        attempted: LifecycleTransition,
-    },
-    /// Child not found in registry.
+    #[error("invalid transition {attempted:?} from {from}")]
+    InvalidTransition { from: ActorLifecycleState, attempted: LifecycleTransition },
+    #[error("child not found: {0}")]
     ChildNotFound(InstanceId),
-    /// Actor cannot accept children in current state.
+    #[error("cannot spawn child in state {0}")]
     CannotSpawnChild(ActorLifecycleState),
-    /// Shutdown timeout exceeded.
-    ShutdownTimeout {
-        children_remaining: usize,
-    },
+    #[error("shutdown timeout with {children_remaining} children remaining")]
+    ShutdownTimeout { children_remaining: usize },
 }
-
-impl std::fmt::Display for LifecycleError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::InvalidTransition { from, attempted } => {
-                write!(f, "invalid transition {attempted:?} from {from}")
-            }
-            Self::ChildNotFound(id) => write!(f, "child not found: {id}"),
-            Self::CannotSpawnChild(state) => {
-                write!(f, "cannot spawn child in state {state}")
-            }
-            Self::ShutdownTimeout { children_remaining } => {
-                write!(f, "shutdown timeout with {children_remaining} children remaining")
-            }
-        }
-    }
-}
-
-impl std::error::Error for LifecycleError {}
 
 /// Pure calculation function to determine next state.
 #[must_use]

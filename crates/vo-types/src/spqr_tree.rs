@@ -6,32 +6,21 @@
 //!
 //! Based on Gutwenger & Mutzel (2001) linear-time algorithm.
 
-use std::fmt;
-
 pub use spqr_tree::decomposition::SPQRDecomposition;
 pub use spqr_tree::decomposition::{Block, Component, CutNode, SPQREdge, SPQRNode, SPQRNodeType};
 pub use spqr_tree::graph::StaticGraph;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum SpqrError {
+    #[error("graph is not biconnected")]
     GraphNotBiconnected,
+    #[error("invalid node index: {0}")]
     InvalidNode(usize),
+    #[error("invalid edge index: {0}")]
     InvalidEdge(usize),
+    #[error("SPQR build error: {0}")]
     BuildError(String),
 }
-
-impl fmt::Display for SpqrError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            SpqrError::GraphNotBiconnected => write!(f, "graph is not biconnected"),
-            SpqrError::InvalidNode(i) => write!(f, "invalid node index: {i}"),
-            SpqrError::InvalidEdge(i) => write!(f, "invalid edge index: {i}"),
-            SpqrError::BuildError(s) => write!(f, "SPQR build error: {s}"),
-        }
-    }
-}
-
-impl std::error::Error for SpqrError {}
 
 #[cfg(test)]
 mod tests {

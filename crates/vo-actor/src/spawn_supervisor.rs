@@ -150,65 +150,41 @@ impl std::fmt::Display for SpawnPhase {
 // =============================================================================
 
 /// `SpawnSupervisorError` - All error variants for `SpawnSupervisor`
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum SpawnSupervisorError {
-    /// Storage operation failed - transient, retryable
+    #[error("Storage error: {0}")]
     StorageError(String),
-
-    /// Spawn key corrupt or malformed - fatal, requires manual intervention
+    #[error("Corrupt spawn: {0}")]
     CorruptSpawn(String),
-
-    /// Atomicity violation: delete succeeded but dispatch failed
-    /// Spawn may be lost; requires reconciliation
+    #[error("Atomicity violation: {0}")]
     AtomicityViolation(String),
-
-    /// Instance actor not found - transient if actor is restarting
+    #[error("Instance not found: {0}")]
     InstanceNotFound(InstanceId),
-
-    /// Dispatch failed due to actor mailbox full
+    #[error("Mailbox full: {0}")]
     MailboxFull(InstanceId),
-
-    /// Configuration error - fatal
+    #[error("Invalid config: {0}")]
     InvalidConfig(String),
-
-    /// Supervisor already running
+    #[error("Already running")]
     AlreadyRunning,
-
-    /// Supervisor shutdown timeout
+    #[error("Shutdown timeout: {0:?}")]
     ShutdownTimeout(Duration),
-
-    /// Dispatch error
+    #[error("Dispatch error: {0}")]
     DispatchError(String),
-
-    /// Process spawn failed
+    #[error("Spawn failed for '{command}': {error}")]
     SpawnFailed { command: String, error: String },
-
-    /// Health check failed
-    HealthCheckFailed {
-        instance_id: InstanceId,
-        check_number: u32,
-        error: String,
-    },
-
-    /// Zombie process detected
+    #[error("Health check {check_number} failed for {instance_id}: {error}")]
+    HealthCheckFailed { instance_id: InstanceId, check_number: u32, error: String },
+    #[error("Zombie detected for {instance_id}: pid={pid}")]
     ZombieDetected { instance_id: InstanceId, pid: u32 },
-
-    /// Process exited unexpectedly
-    ProcessExited {
-        instance_id: InstanceId,
-        pid: u32,
-        exit_code: i32,
-    },
-
-    /// Supervisor is not running
+    #[error("Process exited for {instance_id}: pid={pid}, code={exit_code}")]
+    ProcessExited { instance_id: InstanceId, pid: u32, exit_code: i32 },
+    #[error("Supervisor not running")]
     NotRunning,
-
-    /// Already shutdown
+    #[error("Supervisor already shutdown")]
     AlreadyShutdown,
 }
 
 impl SpawnSupervisorError {
-    /// Returns true if this error is transient and retryable.
     #[must_use]
     pub fn is_transient(&self) -> bool {
         matches!(
@@ -224,7 +200,6 @@ impl SpawnSupervisorError {
         )
     }
 
-    /// Returns true if this error is fatal and requires manual intervention.
     #[must_use]
     pub fn is_fatal(&self) -> bool {
         matches!(
@@ -239,52 +214,6 @@ impl SpawnSupervisorError {
         )
     }
 }
-
-impl std::fmt::Display for SpawnSupervisorError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::StorageError(s) => write!(f, "Storage error: {s}"),
-            Self::CorruptSpawn(s) => write!(f, "Corrupt spawn: {s}"),
-            Self::AtomicityViolation(s) => write!(f, "Atomicity violation: {s}"),
-            Self::InstanceNotFound(id) => write!(f, "Instance not found: {id}"),
-            Self::MailboxFull(id) => write!(f, "Mailbox full: {id}"),
-            Self::InvalidConfig(s) => write!(f, "Invalid config: {s}"),
-            Self::AlreadyRunning => write!(f, "Already running"),
-            Self::ShutdownTimeout(d) => write!(f, "Shutdown timeout: {d:?}"),
-            Self::DispatchError(s) => write!(f, "Dispatch error: {s}"),
-            Self::SpawnFailed { command, error } => {
-                write!(f, "Spawn failed for '{command}': {error}")
-            }
-            Self::HealthCheckFailed {
-                instance_id,
-                check_number,
-                error,
-            } => {
-                write!(
-                    f,
-                    "Health check {check_number} failed for {instance_id}: {error}"
-                )
-            }
-            Self::ZombieDetected { instance_id, pid } => {
-                write!(f, "Zombie detected for {instance_id}: pid={pid}")
-            }
-            Self::ProcessExited {
-                instance_id,
-                pid,
-                exit_code,
-            } => {
-                write!(
-                    f,
-                    "Process exited for {instance_id}: pid={pid}, code={exit_code}"
-                )
-            }
-            Self::NotRunning => write!(f, "Supervisor not running"),
-            Self::AlreadyShutdown => write!(f, "Supervisor already shutdown"),
-        }
-    }
-}
-
-impl std::error::Error for SpawnSupervisorError {}
 
 // =============================================================================
 // SpawnSupervisorMetrics - Metrics for SpawnSupervisor

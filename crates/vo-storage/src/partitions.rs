@@ -164,24 +164,13 @@ impl FjallPartitionLayout {
 
 pub type StorageResult<T> = Result<T, StorageError>;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum StorageError {
+    #[error("failed to open partition '{name}': {reason}")]
     PartitionOpenFailed { name: String, reason: String },
+    #[error("invalid storage path: {reason}")]
     InvalidPath { reason: String },
 }
-
-impl fmt::Display for StorageError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::PartitionOpenFailed { name, reason } => {
-                write!(f, "failed to open partition '{name}': {reason}")
-            }
-            Self::InvalidPath { reason } => write!(f, "invalid storage path: {reason}"),
-        }
-    }
-}
-
-impl std::error::Error for StorageError {}
 
 pub struct StorageConfig {
     pub path: String,

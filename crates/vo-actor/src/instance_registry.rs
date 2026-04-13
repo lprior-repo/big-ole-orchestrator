@@ -65,24 +65,19 @@ impl Default for RegistryConfig {
 /// Errors from registry operations.
 ///
 /// Every variant carries full context for debugging and error classification.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum RegistryError {
-    /// The prior actor's stop function returned an error.
-    /// The new actor was NOT registered. The old actor remains active.
+    #[error("stop failed for {instance_id}: {reason}")]
     StopFailed {
         instance_id: InstanceId,
         reason: String,
     },
-
-    /// The stop_timeout elapsed before the prior actor terminated.
-    /// The new actor was NOT registered. The old actor may still be running.
+    #[error("stop timeout for {instance_id} after {timeout:?}")]
     StopTimeout {
         instance_id: InstanceId,
         timeout: Duration,
     },
-
-    /// Attempted to deregister an InstanceId that is not in the registry.
-    /// Indicates a logic error in the caller.
+    #[error("not registered: {instance_id}")]
     NotRegistered { instance_id: InstanceId },
 }
 

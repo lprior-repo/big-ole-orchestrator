@@ -44,28 +44,13 @@ pub enum CompensationTransitionEvent {
 }
 
 /// Error returned when a compensation status transition is invalid.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum CompensationTransitionError {
-    /// Attempted transition from a terminal state (NotNeeded, Succeeded, Failed).
+    #[error("Cannot transition from terminal compensation state")]
     TerminalStateTransition,
-    /// Transition event is not valid for the current state.
+    #[error("Invalid compensation state transition")]
     InvalidTransition,
 }
-
-impl std::fmt::Display for CompensationTransitionError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            CompensationTransitionError::TerminalStateTransition => {
-                write!(f, "Cannot transition from terminal compensation state")
-            }
-            CompensationTransitionError::InvalidTransition => {
-                write!(f, "Invalid compensation state transition")
-            }
-        }
-    }
-}
-
-impl std::error::Error for CompensationTransitionError {}
 
 /// Persisted record of a compensation action for a committed effect (ADR-034).
 #[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]

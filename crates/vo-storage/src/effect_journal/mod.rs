@@ -77,46 +77,22 @@ impl From<EffectId> for String {
 
 /// Errors from the effect journal operations.
 #[non_exhaustive]
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum EffectJournalError {
-    /// The effect is already in a terminal state (Committed or `RolledBack`).
+    #[error("effect {effect_id} is already terminal with status {current_status}")]
     AlreadyTerminal {
         effect_id: String,
         current_status: String,
     },
-
-    /// The specified `effect_id` was not found in the journal.
+    #[error("effect {effect_id} not found")]
     NotFound { effect_id: String },
-
-    /// The underlying storage operation failed.
+    #[error("storage error: {reason}")]
     Storage { reason: String },
-
-    /// Serialization/deserialization failed.
+    #[error("codec error: {reason}")]
     Codec { reason: String },
-
-    /// Invalid argument (e.g., empty `intent_id`).
+    #[error("invalid argument")]
     InvalidArgument,
 }
-
-impl fmt::Display for EffectJournalError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::AlreadyTerminal {
-                effect_id,
-                current_status,
-            } => write!(
-                f,
-                "effect {effect_id} is already terminal with status {current_status}"
-            ),
-            Self::NotFound { effect_id } => write!(f, "effect {effect_id} not found"),
-            Self::Storage { reason } => write!(f, "storage error: {reason}"),
-            Self::Codec { reason } => write!(f, "codec error: {reason}"),
-            Self::InvalidArgument => write!(f, "invalid argument"),
-        }
-    }
-}
-
-impl std::error::Error for EffectJournalError {}
 
 // ---------------------------------------------------------------------------
 // Calc layer — key encoding/decoding

@@ -13,20 +13,11 @@ pub struct Runtime {
     handle: Handle,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, thiserror::Error)]
 pub enum RuntimeError {
+    #[error("failed to build runtime: {0}")]
     BuildFailed(String),
 }
-
-impl std::fmt::Display for RuntimeError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            RuntimeError::BuildFailed(msg) => write!(f, "Failed to build runtime: {}", msg),
-        }
-    }
-}
-
-impl std::error::Error for RuntimeError {}
 
 impl Runtime {
     pub fn new() -> Result<Self, RuntimeError> {
@@ -96,7 +87,7 @@ pub struct StepContext {
 
 impl StepContext {
     pub fn new(step_id: StepId) -> Result<Self, ContextError> {
-        let runtime = Runtime::new().map_err(ContextError::RuntimeInitFailed)?;
+        let runtime = Runtime::new()?;
         Ok(Self { step_id, runtime })
     }
 
@@ -125,20 +116,11 @@ impl StepContext {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, thiserror::Error)]
 pub enum ContextError {
-    RuntimeInitFailed(RuntimeError),
+    #[error("failed to initialize context: {0}")]
+    RuntimeInitFailed(#[from] RuntimeError),
 }
-
-impl std::fmt::Display for ContextError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ContextError::RuntimeInitFailed(e) => write!(f, "Failed to initialize context: {}", e),
-        }
-    }
-}
-
-impl std::error::Error for ContextError {}
 
 #[cfg(test)]
 mod tests {

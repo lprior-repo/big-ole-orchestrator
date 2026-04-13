@@ -98,26 +98,10 @@ pub enum ConnectorTransition {
 }
 
 /// Error for invalid connector state transitions.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum ConnectorTransitionError {
-    /// Attempted transition from a terminal state (INV-C03).
+    #[error("Cannot transition from terminal connector state")]
     TerminalStateTransition,
-
-    /// Event not valid for the current state.
+    #[error("Invalid connector state transition")]
     InvalidTransition,
 }
-
-impl std::fmt::Display for ConnectorTransitionError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ConnectorTransitionError::TerminalStateTransition => {
-                write!(f, "Cannot transition from terminal connector state")
-            }
-            ConnectorTransitionError::InvalidTransition => {
-                write!(f, "Invalid connector state transition")
-            }
-        }
-    }
-}
-
-impl std::error::Error for ConnectorTransitionError {}

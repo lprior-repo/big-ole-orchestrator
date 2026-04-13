@@ -284,8 +284,14 @@ fn get_lease_key_prefix_for_instance_matches_key_format() {
     let step = StepId::parse("step-a").unwrap();
     let prefix = get_lease_key_prefix_for_instance(&id);
     let key = encode_lease_key(&id, &step);
-    assert!(key.starts_with(&prefix), "lease key should start with instance prefix");
-    assert!(prefix.ends_with(b"::"), "prefix should end with :: delimiter");
+    assert!(
+        key.starts_with(&prefix),
+        "lease key should start with instance prefix"
+    );
+    assert!(
+        prefix.ends_with(b"::"),
+        "prefix should end with :: delimiter"
+    );
 }
 
 #[test]
@@ -441,7 +447,10 @@ fn timer_key_prefix_scan_matches_keys_at_same_timestamp() {
     let ts = 5000u64;
     let key = encode_timer_key(ts, &id);
     let prefix = get_timer_key_prefix_for_time(ts);
-    assert!(key.starts_with(&prefix), "timer key should start with timestamp prefix");
+    assert!(
+        key.starts_with(&prefix),
+        "timer key should start with timestamp prefix"
+    );
 }
 
 #[test]
@@ -450,7 +459,10 @@ fn timer_keys_with_same_timestamp_differ_by_instance_id() {
     let id2 = InstanceId::parse("00000000000000000000000002").unwrap();
     let key1 = encode_timer_key(1000, &id1);
     let key2 = encode_timer_key(1000, &id2);
-    assert_ne!(key1, key2, "different instance IDs should produce different timer keys");
+    assert_ne!(
+        key1, key2,
+        "different instance IDs should produce different timer keys"
+    );
 }
 
 #[test]

@@ -13,31 +13,13 @@ use super::lifecycle::{LifecycleState, OperationalStatus, TransitionEvent};
 // ============================================================================
 
 /// Error returned when a state transition is invalid
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum TransitionError {
-    /// Attempted transition from a terminal state
-    /// INV-001 violation: terminal states reject all transitions
+    #[error("Cannot transition from terminal state")]
     TerminalStateTransition,
-
-    /// Transition event is not valid for the current state
-    /// INV-003 violation: state has no defined transition for this event
+    #[error("Invalid transition for current state")]
     InvalidTransition,
 }
-
-impl std::fmt::Display for TransitionError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            TransitionError::TerminalStateTransition => {
-                write!(f, "Cannot transition from terminal state")
-            }
-            TransitionError::InvalidTransition => {
-                write!(f, "Invalid transition for current state")
-            }
-        }
-    }
-}
-
-impl std::error::Error for TransitionError {}
 
 // ============================================================================
 // Core API

@@ -36,65 +36,32 @@ pub use fjall_lease_store::FjallLeaseStore;
 
 /// Errors from the lease store operations.
 #[non_exhaustive]
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum LeaseStoreError {
-    /// A lease already exists for this (`instance_id`, `step_id`) pair.
+    #[error("lease already held for {instance_id}::{step_id}")]
     LeaseAlreadyHeld {
         instance_id: String,
         step_id: String,
     },
-
-    /// The specified lease was not found.
+    #[error("lease not found for {instance_id}::{step_id}")]
     NotFound {
         instance_id: String,
         step_id: String,
     },
-
-    /// The fence token does not match (stale completion).
+    #[error("stale fence: expected {expected}, got {actual}")]
     StaleFence { expected: String, actual: String },
-
-    /// The fence-token space for this lease pair is exhausted.
+    #[error("fence token exhausted for {instance_id}::{step_id}")]
     FenceTokenExhausted {
         instance_id: String,
         step_id: String,
     },
-
-    /// Storage operation failed.
+    #[error("lease storage error: {reason}")]
     Storage { reason: String },
-
-    /// Codec/serialization error.
+    #[error("lease codec error: {reason}")]
     Codec { reason: String },
-
-    /// Invalid argument.
+    #[error("invalid lease argument")]
     InvalidArgument,
 }
-
-impl fmt::Display for LeaseStoreError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::LeaseAlreadyHeld {
-                instance_id,
-                step_id,
-            } => write!(f, "lease already held for {instance_id}::{step_id}"),
-            Self::NotFound {
-                instance_id,
-                step_id,
-            } => write!(f, "lease not found for {instance_id}::{step_id}"),
-            Self::StaleFence { expected, actual } => {
-                write!(f, "stale fence: expected {expected}, got {actual}")
-            }
-            Self::FenceTokenExhausted {
-                instance_id,
-                step_id,
-            } => write!(f, "fence token exhausted for {instance_id}::{step_id}"),
-            Self::Storage { reason } => write!(f, "lease storage error: {reason}"),
-            Self::Codec { reason } => write!(f, "lease codec error: {reason}"),
-            Self::InvalidArgument => write!(f, "invalid lease argument"),
-        }
-    }
-}
-
-impl std::error::Error for LeaseStoreError {}
 
 // ---------------------------------------------------------------------------
 // Data layer — LeaseEntry (persisted form with expiry)

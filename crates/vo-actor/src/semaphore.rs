@@ -422,29 +422,15 @@ impl WorkflowSemaphoreMap {
 // =============================================================================
 
 /// Errors from actor invariant operations.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum InvariantError {
-    /// Instance is already active (invariant violation).
+    #[error("Instance already active: {instance_id}")]
     InstanceAlreadyActive { instance_id: InstanceId },
-    /// Registry operation failed.
+    #[error("Registry error: {reason}")]
     RegistryError { reason: String },
-    /// Instance not found.
+    #[error("Instance not found: {instance_id}")]
     InstanceNotFound { instance_id: InstanceId },
 }
-
-impl std::fmt::Display for InvariantError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::InstanceAlreadyActive { instance_id } => {
-                write!(f, "Instance already active: {instance_id}")
-            }
-            Self::RegistryError { reason } => write!(f, "Registry error: {reason}"),
-            Self::InstanceNotFound { instance_id } => write!(f, "Instance not found: {instance_id}"),
-        }
-    }
-}
-
-impl std::error::Error for InvariantError {}
 
 /// Result of checking actor invariants.
 #[derive(Debug, Clone, PartialEq, Eq)]

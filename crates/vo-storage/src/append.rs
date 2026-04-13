@@ -134,24 +134,13 @@ impl WriteBudget {
 }
 
 /// Budget exceeded error.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[error("budget exceeded for {class:?}: requested {requested}, available {available}")]
 pub struct BudgetError {
     pub class: WriteClass,
     pub requested: u64,
     pub available: u64,
 }
-
-impl std::fmt::Display for BudgetError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "budget exceeded for {:?}: requested {}, available {}",
-            self.class, self.requested, self.available
-        )
-    }
-}
-
-impl std::error::Error for BudgetError {}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // QueueConfig
@@ -438,41 +427,21 @@ impl CommitLatencyTracker {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Errors returned by `BudgetQueues` operations.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum BudgetQueuesError {
+    #[error("queue full for {class:?}: {depth}/{capacity}")]
     QueueFull {
         class: WriteClass,
         depth: usize,
         capacity: usize,
     },
+    #[error("budget exceeded for {class:?}: item size {item_size}, remaining {remaining}")]
     BudgetExceeded {
         class: WriteClass,
         item_size: u64,
         remaining: u64,
     },
 }
-
-impl std::fmt::Display for BudgetQueuesError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::QueueFull {
-                class,
-                depth,
-                capacity,
-            } => write!(f, "queue full for {class:?}: {depth}/{capacity}"),
-            Self::BudgetExceeded {
-                class,
-                item_size,
-                remaining,
-            } => write!(
-                f,
-                "budget exceeded for {class:?}: item size {item_size}, remaining {remaining}"
-            ),
-        }
-    }
-}
-
-impl std::error::Error for BudgetQueuesError {}
 
 /// Trait for items that can be queued with `WriteClass` awareness.
 pub trait ClassifiedWrite {
