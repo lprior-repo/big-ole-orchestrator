@@ -231,6 +231,61 @@ pub fn timer_delete(
     storage.delete(key.as_bytes())
 }
 
+/// Scans for ALL timers (both due and future) for a specific instance.
+///
+/// This is used when cancelling an instance to ensure ALL timers (including future ones)
+/// are properly cleaned up.
+///
+/// # Errors
+///
+/// Returns `StorageError::CorruptKey` if timer key or value bytes cannot be decoded.
+pub fn scan_all_timers_for_instance(
+    storage: &impl Storage,
+    instance_id: &InstanceId,
+) -> Result<Vec<TimerRecord>, StorageError> {
+    let instance_bytes = instance_id
+        .to_bytes()
+        .map_err(|_| StorageError::InvalidArgument)?;
+
+    let start = {
+        let mut s = [0u8; 40];
+        s[8..24].copy_from_slice(&instance_bytes);
+        s
+    };
+
+    let end = {
+        let mut e = [0u8; 40];
+        e[0..8].copy_from_slice(&u64::MAX.to_be_bytes());
+        e[8..24].copy_from_slice(&instance_bytes);
+        e[24..40].copy_from_slice(&[0xFFu8; 16]);
+        e
+    };
+
+    let pairs = storage.scan(&start, &end)?;
+    let records: Vec<TimerRecord> = pairs
+        .into_iter()
+        .filter_map(|(k, v)| {
+            let key_bytes: [u8; 40] = k.try_into().ok()?;
+            let key = TimerKey(key_bytes);
+            if key.instance_id() != *instance_id {
+                return None;
+            }
+            let fire_at_ms = key.fire_at_ms();
+            let duration_bytes: [u8; 8] = v.try_into().ok()?;
+            let duration_ms = u64::from_be_bytes(duration_bytes);
+            let trigger_time_ms = fire_at_ms.saturating_sub(duration_ms);
+            Some(TimerRecord {
+                timer_id: key.timer_id(),
+                instance_id: key.instance_id(),
+                fire_at_ms,
+                trigger_time_ms,
+                duration_ms,
+            })
+        })
+        .collect();
+    Ok(records)
+}
+
 #[cfg(test)]
 mod tests {
     #![allow(clippy::unwrap_used, clippy::redundant_clone)]
@@ -634,6 +689,97 @@ mod tests {
         let mut storage = MockStorage::new();
         let result = timer_delete(&mut storage, &create_instance_id(), create_timer_id(), 1001);
         assert_eq!(result, Ok(()));
+    }
+
+    #[test]
+    fn fn_scan_all_timers_for_instance_returns_all_timers_including_future() {
+        let mut storage = MockStorage::new();
+        let instance_id = create_instance_id();
+        let timer_id_1 = create_timer_id();
+        let timer_id_2 = TimerId::from_bytes([3; 16]);
+
+        timer_set(
+            &mut storage,
+            instance_id.clone(),
+            timer_id_1.clone(),
+            500,
+            400,
+            100,
+            0,
+        )
+        .unwrap();
+
+        timer_set(
+            &mut storage,
+            instance_id.clone(),
+            timer_id_2.clone(),
+            2000,
+            1900,
+            100,
+            0,
+        )
+        .unwrap();
+
+        let result = scan_all_timers_for_instance(&storage, &instance_id).unwrap();
+        assert_eq!(result.len(), 2);
+    }
+
+    #[test]
+    fn fn_scan_all_timers_for_instance_filters_out_different_instance() {
+        let mut storage = MockStorage::new();
+        let wanted_instance = create_instance_id();
+        let other_instance = InstanceId::from_bytes([9; 16]);
+
+        timer_set(
+            &mut storage,
+            other_instance,
+            create_timer_id(),
+            500,
+            400,
+            100,
+            0,
+        )
+        .unwrap();
+
+        let result = scan_all_timers_for_instance(&storage, &wanted_instance).unwrap();
+        assert_eq!(result, Vec::<TimerRecord>::new());
+    }
+
+    #[test]
+    fn fn_scan_all_timers_for_instance_returns_both_due_and_future_timers() {
+        let mut storage = MockStorage::new();
+        let instance_id = create_instance_id();
+        let timer_id_due = create_timer_id();
+        let timer_id_future = TimerId::from_bytes([3; 16]);
+
+        timer_set(
+            &mut storage,
+            instance_id.clone(),
+            timer_id_due.clone(),
+            500,
+            400,
+            100,
+            0,
+        )
+        .unwrap();
+
+        timer_set(
+            &mut storage,
+            instance_id.clone(),
+            timer_id_future.clone(),
+            2000,
+            1900,
+            100,
+            0,
+        )
+        .unwrap();
+
+        let result = scan_all_timers_for_instance(&storage, &instance_id).unwrap();
+        assert_eq!(result.len(), 2);
+
+        let fire_times: Vec<u64> = result.iter().map(|r| r.fire_at_ms).collect();
+        assert!(fire_times.contains(&500));
+        assert!(fire_times.contains(&2000));
     }
 
     proptest! {
