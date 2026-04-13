@@ -96,6 +96,92 @@ impl DedupeEntry {
 }
 
 // ---------------------------------------------------------------------------
+// Data layer — DedupeRetentionRecord
+// ---------------------------------------------------------------------------
+
+/// Persisted dedupe retention record for exact-once admission tracking (ADR-028).
+///
+/// Tracks when an instance reached terminal state and when the dedupe retention
+/// window expires. This is distinct from `DedupeEntry` which uses raw TTL-based
+/// expiry. The retention record implements the two-phase retention policy:
+///
+/// 1. The instance must reach a terminal state (Completed, Failed, or Cancelled).
+/// 2. The configured dedupe retention window must expire after the terminal state.
+///
+/// This ensures exactly-once admission guarantees even for long-lived workflows
+/// where simple TTL expiry would be insufficient.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct DedupeRetentionRecord {
+    dedupe_key: String,
+    instance_id: String,
+    terminal_state_at: u64,
+    retention_expires_at: u64,
+}
+
+impl DedupeRetentionRecord {
+    /// Construct a new `DedupeRetentionRecord`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `DedupeStoreError::InvalidArgument` if `dedupe_key` or `instance_id` is empty,
+    /// or if `terminal_state_at` exceeds `retention_expires_at`.
+    pub fn new(
+        dedupe_key: String,
+        instance_id: String,
+        terminal_state_at: u64,
+        retention_expires_at: u64,
+    ) -> Result<Self, DedupeStoreError> {
+        if dedupe_key.is_empty() || instance_id.is_empty() {
+            return Err(DedupeStoreError::InvalidArgument);
+        }
+        if terminal_state_at > retention_expires_at {
+            return Err(DedupeStoreError::InvalidArgument);
+        }
+        Ok(Self {
+            dedupe_key,
+            instance_id,
+            terminal_state_at,
+            retention_expires_at,
+        })
+    }
+
+    #[must_use]
+    pub fn dedupe_key(&self) -> &str {
+        &self.dedupe_key
+    }
+
+    #[must_use]
+    pub fn instance_id(&self) -> &str {
+        &self.instance_id
+    }
+
+    #[must_use]
+    pub const fn terminal_state_at(&self) -> u64 {
+        self.terminal_state_at
+    }
+
+    #[must_use]
+    pub const fn retention_expires_at(&self) -> u64 {
+        self.retention_expires_at
+    }
+
+    /// Check if this retention record has expired given the current timestamp.
+    #[must_use]
+    pub const fn is_retention_expired(&self, now_ms: u64) -> bool {
+        now_ms >= self.retention_expires_at
+    }
+
+    /// Compute the retention expiry timestamp from terminal state and retention period.
+    ///
+    /// This is a convenience method to calculate `retention_expires_at` when creating
+    /// a new retention record.
+    #[must_use]
+    pub const fn compute_retention_expiry(terminal_state_at: u64, retention_period_ms: u64) -> u64 {
+        terminal_state_at.saturating_add(retention_period_ms)
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Data layer — error enum
 // ---------------------------------------------------------------------------
 
@@ -169,6 +255,39 @@ pub fn encode_dedupe_entry(entry: &DedupeEntry) -> Result<Vec<u8>, DedupeStoreEr
 ///
 /// Returns `DedupeStoreError::Codec` if deserialization fails.
 pub fn decode_dedupe_entry(bytes: &[u8]) -> Result<DedupeEntry, DedupeStoreError> {
+    serde_json::from_slice(bytes).map_err(|e| DedupeStoreError::Codec {
+        reason: e.to_string(),
+    })
+}
+
+// ---------------------------------------------------------------------------
+// Calc layer — retention record encoding/decoding
+// ---------------------------------------------------------------------------
+
+/// Partition name for the dedupe retention store.
+pub const DEDUPE_RETENTION_PARTITION: &str = "dedupe_retention";
+
+/// Encode a `DedupeRetentionRecord` to JSON bytes for storage.
+///
+/// # Errors
+///
+/// Returns `DedupeStoreError::Codec` if serialization fails.
+pub fn encode_dedupe_retention_record(
+    record: &DedupeRetentionRecord,
+) -> Result<Vec<u8>, DedupeStoreError> {
+    serde_json::to_vec(record).map_err(|e| DedupeStoreError::Codec {
+        reason: e.to_string(),
+    })
+}
+
+/// Decode JSON bytes into a `DedupeRetentionRecord`.
+///
+/// # Errors
+///
+/// Returns `DedupeStoreError::Codec` if deserialization fails.
+pub fn decode_dedupe_retention_record(
+    bytes: &[u8],
+) -> Result<DedupeRetentionRecord, DedupeStoreError> {
     serde_json::from_slice(bytes).map_err(|e| DedupeStoreError::Codec {
         reason: e.to_string(),
     })
