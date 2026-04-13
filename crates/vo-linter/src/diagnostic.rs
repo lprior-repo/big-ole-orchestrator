@@ -5,6 +5,7 @@ pub enum LintCode {
 
 #[derive(Debug, Clone)]
 pub struct Diagnostic {
+    #[allow(dead_code)]
     code: LintCode,
     message: String,
     suggestion: Option<String>,
