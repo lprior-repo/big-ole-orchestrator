@@ -61,4 +61,10 @@ pub enum Error {
 
     #[error("Invalid issuer: {0}")]
     InvalidIssuer(String),
+
+    #[error("No upcaster registered for version transition: {from} → {to}")]
+    UpcasterNotFound { from: u8, to: u8 },
+
+    #[error("Upcast failed: {0}")]
+    UpcastFailed(String),
 }
