@@ -209,6 +209,7 @@ mod v3_types {
 }
 
 mod v1_types {
+    use serde_json::json;
     use vo_api::types::v1::*;
 
     mod workflow_status_value {
