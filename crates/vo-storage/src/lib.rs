@@ -1,3 +1,18 @@
+//! Storage abstractions for the Veloxide workflow engine.
+//!
+//! This crate provides storage layer abstractions including:
+//! - [`append`] - Event append operations
+//! - [`blob_store`] - Blob storage for large data
+//! - [`effect_journal`] - Effect journal for event sourcing
+//! - [`snapshots`] - State snapshots for fast replay
+//! - [`instance_index`] - Instance lookup and indexing
+//! - [`purge`] - Data retention and purging
+//!
+//! # Architecture
+//!
+//! The storage layer is designed for crash safety and exact-once semantics.
+//! All operations are idempotent where possible to handle retries.
+
 #![cfg_attr(not(test), deny(clippy::unwrap_used))]
 #![cfg_attr(not(test), deny(clippy::expect_used))]
 #![cfg_attr(not(test), deny(clippy::panic))]

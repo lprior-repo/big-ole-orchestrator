@@ -1,3 +1,24 @@
+//! Procedural macros for the Veloxide SDK.
+//!
+//! This crate provides derive macros and attribute macros for the Veloxide SDK:
+//!
+//! # Macros
+//!
+//! - [`task_macro`] / `#[task]` - Generates executable entrypoints from functions
+//!
+//! # Example
+//!
+//! ```ignore
+//! #[task]
+//! fn my_task() {
+//!     // task implementation
+//! }
+//! ```
+//!
+//! When applied to a function, the `#[task]` macro generates a `main()` function
+//! that calls the annotated function, making it easy to compile workflow tasks
+//! as standalone executables.
+
 #![allow(dead_code, unused_variables)]
 
 use proc_macro::TokenStream;

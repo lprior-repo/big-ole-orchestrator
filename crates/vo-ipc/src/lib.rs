@@ -1,3 +1,19 @@
+//! Inter-process communication for the Veloxide workflow engine.
+//!
+//! This crate provides IPC mechanisms for subprocess management and
+//! envelope-based communication between the engine and worker processes.
+//!
+//! # Key Modules
+//!
+//! - [`envelope`] - Envelope serialization for task results and errors
+//! - [`config`] - Subprocess configuration
+//! - [`run`] - Subprocess spawning and management
+//! - [`spsc`] - Single-producer single-consumer channels
+//!
+//! # Protocol
+//!
+//! Uses file descriptor passing (fd3/fd4) for efficient zero-copy IPC.
+
 #![cfg_attr(not(test), deny(clippy::unwrap_used))]
 #![cfg_attr(not(test), deny(clippy::expect_used))]
 #![cfg_attr(not(test), deny(clippy::panic))]
