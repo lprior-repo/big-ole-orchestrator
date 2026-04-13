@@ -93,14 +93,9 @@ fn encode_decode_dedupe_entry_roundtrip() {
 }
 
 #[test]
-fn decode_dedupe_entry_returns_exact_codec_error_for_invalid_json_bytes() {
-    let result = decode_dedupe_entry(b"not-json");
-    assert_eq!(
-        result,
-        Err(DedupeStoreError::Codec {
-            reason: "expected ident at line 1 column 2".to_string()
-        })
-    );
+fn decode_dedupe_entry_returns_codec_error_for_truncated_binary_bytes() {
+    let result = decode_dedupe_entry(b"\x00\x01");
+    assert!(matches!(result, Err(DedupeStoreError::Codec { .. })));
 }
 
 #[test]
@@ -114,17 +109,22 @@ fn encode_dedupe_entry_never_returns_empty_for_valid_entry() {
     let bytes = encode_dedupe_entry(&entry).unwrap();
     assert!(!bytes.is_empty());
     assert!(bytes.len() > 1);
-    assert_eq!(bytes.first(), Some(&b'{'));
+    assert!(bytes.len() >= 12);
 }
 
 #[test]
-fn encode_dedupe_entry_produces_json_with_all_fields() {
+fn encode_dedupe_entry_produces_binary_with_correct_structure() {
     let entry = DedupeEntry::new("k1".to_string(), "i1".to_string(), 12345).unwrap();
     let bytes = encode_dedupe_entry(&entry).unwrap();
-    let json_str = String::from_utf8(bytes).unwrap();
-    assert!(json_str.contains("\"dedupe_key\":\"k1\""));
-    assert!(json_str.contains("\"instance_id\":\"i1\""));
-    assert!(json_str.contains("\"expires_at\":12345"));
+    assert_eq!(bytes.len(), 2 + 2 + 2 + 2 + 8);
+    let dk_len = u16::from_be_bytes([bytes[0], bytes[1]]) as usize;
+    assert_eq!(&bytes[2..2 + dk_len], b"k1");
+    let offset = 2 + dk_len;
+    let iid_len = u16::from_be_bytes([bytes[offset], bytes[offset + 1]]) as usize;
+    assert_eq!(&bytes[offset + 2..offset + 2 + iid_len], b"i1");
+    let ts_offset = offset + 2 + iid_len;
+    let expires_at = u64::from_be_bytes(bytes[ts_offset..ts_offset + 8].try_into().unwrap());
+    assert_eq!(expires_at, 12345);
 }
 
 // ========================================================================
