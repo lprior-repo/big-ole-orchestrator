@@ -1390,3 +1390,163 @@ fn attack_manual_override_rapid_unquarantine_requarantine_cycles() {
         );
     });
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ATTACK VECTOR 21: INV-002 — Rate limit independence per workflow
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Attack: Workflow A's rate limit must NOT affect workflow B's registration.
+/// Each workflow maintains independent rate limit state.
+#[test]
+fn attack_inv002_rate_limit_is_per_workflow_independent() {
+    let state = CircuitBreakerState::new();
+    let config = default_config();
+    let t0 = Instant::now();
+
+    let wf_a = make_wf("workflow-a");
+    let wf_b = make_wf("workflow-b");
+
+    // wf_a registers at t0 (sets rate limit for wf_a only)
+    let req_a1 = make_request("workflow-a", "aaaa0001", false);
+    let result_a1 = evaluate_registration(&req_a1, &config, &state, t0);
+    assert_eq!(result_a1, Ok(RegistrationOutcome::Allowed));
+
+    // wf_b registers immediately after (should also succeed - independent rate limit)
+    let req_b1 = make_request("workflow-b", "bbbb0001", false);
+    let result_b1 = evaluate_registration(&req_b1, &config, &state, t0);
+    assert_eq!(
+        result_b1,
+        Ok(RegistrationOutcome::Allowed),
+        "wf_b should be allowed: rate limit is per-workflow, not global"
+    );
+
+    // wf_a tries again within rate window - should be rate limited
+    let req_a2 = make_request("workflow-a", "aaaa0002", false);
+    let result_a2 = evaluate_registration(&req_a2, &config, &state, t0 + Duration::from_secs(30));
+    assert!(
+        matches!(result_a2, Ok(RegistrationOutcome::RateLimited { .. })),
+        "wf_a should be rate limited within window"
+    );
+
+    // wf_b tries again within rate window - should ALSO be rate limited for wf_b
+    // but NOT because of wf_a - because of wf_b's own registration at t0
+    let req_b2 = make_request("workflow-b", "bbbb0002", false);
+    let result_b2 = evaluate_registration(&req_b2, &config, &state, t0 + Duration::from_secs(30));
+    assert!(
+        matches!(result_b2, Ok(RegistrationOutcome::RateLimited { .. })),
+        "wf_b should be rate limited within its own window"
+    );
+
+    // After rate window expires for wf_a (t0 + 60s), wf_a can register again
+    let req_a3 = make_request("workflow-a", "aaaa0003", false);
+    let result_a3 = evaluate_registration(&req_a3, &config, &state, t0 + Duration::from_secs(61));
+    assert_eq!(
+        result_a3,
+        Ok(RegistrationOutcome::Allowed),
+        "wf_a should be allowed after its rate window expires"
+    );
+
+    // wf_b should STILL be rate limited at t0 + 61s because its window is also 60s
+    // and it registered at t0, so expires at t0 + 60s (61s is past window)
+    // Wait - actually at t0 + 61s, wf_b's rate limit also expired
+    let req_b3 = make_request("workflow-b", "bbbb0003", false);
+    let result_b3 = evaluate_registration(&req_b3, &config, &state, t0 + Duration::from_secs(61));
+    assert_eq!(
+        result_b3,
+        Ok(RegistrationOutcome::Allowed),
+        "wf_b should also be allowed after its rate window expires"
+    );
+}
+
+/// Attack: High-frequency registration attempts on one workflow must not
+/// cause rate limiting on a different workflow.
+#[test]
+fn attack_inv002_workflow_a_rate_limit_does_not_affect_workflow_b() {
+    let state = CircuitBreakerState::new();
+    let config = default_config();
+    let t0 = Instant::now();
+
+    let wf_active = make_wf("active-workflow");
+    let wf_victim = make_wf("victim-workflow");
+
+    // Victim workflow registers first (establishes its rate limit)
+    let req_victim = make_request("victim-workflow", "cccc0001", false);
+    let result = evaluate_registration(&req_victim, &config, &state, t0);
+    assert_eq!(result, Ok(RegistrationOutcome::Allowed));
+
+    // Active workflow rapidly registers many times
+    // Each one sets/updates ITS OWN rate limit, not victim's
+    for i in 0..50 {
+        let t = t0 + Duration::from_millis(i * 100);
+        let req = make_request("active-workflow", &format!("dddd{i:04x}"), false);
+        let _ = evaluate_registration(&req, &config, &state, t);
+    }
+
+    // Victim tries to register after active's rapid fire
+    // Victim's rate limit is still active from its registration at t0
+    // 5 seconds have passed, so victim should still be rate limited
+    let req_victim2 = make_request("victim-workflow", "cccc0002", false);
+    let result2 = evaluate_registration(&req_victim2, &config, &state, t0 + Duration::from_secs(5));
+    assert!(
+        matches!(result2, Ok(RegistrationOutcome::RateLimited { .. })),
+        "Victim should still be rate limited by its own registration, not active's"
+    );
+
+    // After victim's window expires, victim can register again
+    let req_victim3 = make_request("victim-workflow", "cccc0003", false);
+    let result3 =
+        evaluate_registration(&req_victim3, &config, &state, t0 + Duration::from_secs(65));
+    assert_eq!(
+        result3,
+        Ok(RegistrationOutcome::Allowed),
+        "Victim should be allowed after its own rate window expires"
+    );
+}
+
+/// Attack: Verify rate limit state is stored per-workflow in DashMap.
+#[test]
+fn attack_inv002_rate_limiter_map_is_per_workflow() {
+    let state = CircuitBreakerState::new();
+    let config = default_config();
+    let t0 = Instant::now();
+
+    let workflows: Vec<_> = (0..5).map(|i| make_wf(&format!("wf-{i}"))).collect();
+
+    // Each workflow registers at slightly different times
+    for (i, wf) in workflows.iter().enumerate() {
+        let t = t0 + Duration::from_secs(i as u64);
+        let req = make_request(&wf.to_string(), &format!("{i:04x}0000"), false);
+        let result = evaluate_registration(&req, &config, &state, t);
+        assert_eq!(result, Ok(RegistrationOutcome::Allowed));
+    }
+
+    // All workflows should now have rate limit entries
+    let rate_limit_len = state.rate_limiter.len();
+    assert_eq!(
+        rate_limit_len, 5,
+        "Rate limiter should have 5 independent entries (one per workflow)"
+    );
+
+    // At t0 + 30s (within all windows), all workflows should still be rate limited
+    for (i, wf) in workflows.iter().enumerate() {
+        let req = make_request(&wf.to_string(), &format!("{i:04x}0001"), false);
+        let result = evaluate_registration(&req, &config, &state, t0 + Duration::from_secs(30));
+        assert!(
+            matches!(result, Ok(RegistrationOutcome::RateLimited { .. })),
+            "wf-{} should be rate limited at t0+30s",
+            i
+        );
+    }
+
+    // At t0 + 65s, all rate limits have expired (wf-0 registered at t0, expires at t0+60s)
+    for (i, wf) in workflows.iter().enumerate() {
+        let req = make_request(&wf.to_string(), &format!("{i:04x}0002"), false);
+        let result = evaluate_registration(&req, &config, &state, t0 + Duration::from_secs(65));
+        assert_eq!(
+            result,
+            Ok(RegistrationOutcome::Allowed),
+            "wf-{} should be allowed after its rate window expires",
+            i
+        );
+    }
+}
