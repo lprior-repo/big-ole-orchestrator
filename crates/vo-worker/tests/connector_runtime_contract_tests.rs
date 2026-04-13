@@ -1385,3 +1385,254 @@ mod integration_reconciliation_tests {
         assert_eq!(reconcile, ReconcileOutcome::NotCommitted);
     }
 }
+
+// ============================================================================
+// 7. SQL Injection Tests
+// ============================================================================
+
+#[cfg(test)]
+mod sql_injection_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn sql_injection_drop_table() {
+        let c = SqlConnector::new();
+        let pe = c
+            .prepare(
+                serde_json::json!({"query": "'; DROP TABLE users; --"}),
+                "tx-sqli-drop".into(),
+                1,
+            )
+            .await
+            .unwrap();
+        let outcome = c.commit(pe).await.unwrap();
+        assert!(matches!(outcome, CommitOutcome::Committed { .. }));
+        let reconcile = c.reconcile("tx-sqli-drop").await.unwrap();
+        assert!(matches!(reconcile, ReconcileOutcome::Committed { .. }));
+    }
+
+    #[tokio::test]
+    async fn sql_injection_or_1_equals_1() {
+        let c = SqlConnector::new();
+        let pe = c
+            .prepare(
+                serde_json::json!({"query": "\" OR \"1\"=\"1"}),
+                "tx-sqli-or".into(),
+                1,
+            )
+            .await
+            .unwrap();
+        let outcome = c.commit(pe).await.unwrap();
+        assert!(matches!(outcome, CommitOutcome::Committed { .. }));
+        let reconcile = c.reconcile("tx-sqli-or").await.unwrap();
+        assert!(matches!(reconcile, ReconcileOutcome::Committed { .. }));
+    }
+
+    #[tokio::test]
+    async fn sql_injection_select_secrets() {
+        let c = SqlConnector::new();
+        let pe = c
+            .prepare(
+                serde_json::json!({"query": "1; SELECT * FROM secrets"}),
+                "tx-sqli-select".into(),
+                1,
+            )
+            .await
+            .unwrap();
+        let outcome = c.commit(pe).await.unwrap();
+        assert!(matches!(outcome, CommitOutcome::Committed { .. }));
+        let reconcile = c.reconcile("tx-sqli-select").await.unwrap();
+        assert!(matches!(reconcile, ReconcileOutcome::Committed { .. }));
+    }
+
+    #[tokio::test]
+    async fn sql_injection_admin_comment() {
+        let c = SqlConnector::new();
+        let pe = c
+            .prepare(
+                serde_json::json!({"query": "admin'--"}),
+                "tx-sqli-admin".into(),
+                1,
+            )
+            .await
+            .unwrap();
+        let outcome = c.commit(pe).await.unwrap();
+        assert!(matches!(outcome, CommitOutcome::Committed { .. }));
+        let reconcile = c.reconcile("tx-sqli-admin").await.unwrap();
+        assert!(matches!(reconcile, ReconcileOutcome::Committed { .. }));
+    }
+
+    #[tokio::test]
+    async fn sql_injection_update_balance() {
+        let c = SqlConnector::new();
+        let pe = c
+            .prepare(
+                serde_json::json!({"query": "'; UPDATE accounts SET balance=0; --"}),
+                "tx-sqli-update".into(),
+                1,
+            )
+            .await
+            .unwrap();
+        let outcome = c.commit(pe).await.unwrap();
+        assert!(matches!(outcome, CommitOutcome::Committed { .. }));
+        let reconcile = c.reconcile("tx-sqli-update").await.unwrap();
+        assert!(matches!(reconcile, ReconcileOutcome::Committed { .. }));
+    }
+
+    #[tokio::test]
+    async fn sql_injection_delete_transactions() {
+        let c = SqlConnector::new();
+        let pe = c
+            .prepare(
+                serde_json::json!({"query": "1; DELETE FROM transactions"}),
+                "tx-sqli-delete".into(),
+                1,
+            )
+            .await
+            .unwrap();
+        let outcome = c.commit(pe).await.unwrap();
+        assert!(matches!(outcome, CommitOutcome::Committed { .. }));
+        let reconcile = c.reconcile("tx-sqli-delete").await.unwrap();
+        assert!(matches!(reconcile, ReconcileOutcome::Committed { .. }));
+    }
+
+    #[tokio::test]
+    async fn sql_injection_union_select() {
+        let c = SqlConnector::new();
+        let pe = c
+            .prepare(
+                serde_json::json!({"query": "' UNION SELECT password FROM users--"}),
+                "tx-sqli-union".into(),
+                1,
+            )
+            .await
+            .unwrap();
+        let outcome = c.commit(pe).await.unwrap();
+        assert!(matches!(outcome, CommitOutcome::Committed { .. }));
+        let reconcile = c.reconcile("tx-sqli-union").await.unwrap();
+        assert!(matches!(reconcile, ReconcileOutcome::Committed { .. }));
+    }
+
+    #[tokio::test]
+    async fn sql_injection_insert_admin() {
+        let c = SqlConnector::new();
+        let pe = c
+            .prepare(
+                serde_json::json!({"query": "'; INSERT INTO admin VALUES ('hacker'); --"}),
+                "tx-sqli-insert".into(),
+                1,
+            )
+            .await
+            .unwrap();
+        let outcome = c.commit(pe).await.unwrap();
+        assert!(matches!(outcome, CommitOutcome::Committed { .. }));
+        let reconcile = c.reconcile("tx-sqli-insert").await.unwrap();
+        assert!(matches!(reconcile, ReconcileOutcome::Committed { .. }));
+    }
+
+    #[tokio::test]
+    async fn sql_injection_then_normal_transaction() {
+        let c = SqlConnector::new();
+
+        let pe_inject = c
+            .prepare(
+                serde_json::json!({"query": "'; DROP TABLE users; --"}),
+                "fx-inject".into(),
+                1,
+            )
+            .await
+            .unwrap();
+        let outcome = c.commit(pe_inject).await.unwrap();
+        assert!(matches!(outcome, CommitOutcome::Committed { .. }));
+
+        let pe_normal = c
+            .prepare(
+                serde_json::json!({"query": "SELECT * FROM users"}),
+                "fx-normal".into(),
+                2,
+            )
+            .await
+            .unwrap();
+        let outcome = c.commit(pe_normal).await.unwrap();
+        assert!(matches!(outcome, CommitOutcome::Committed { .. }));
+
+        let reconcile_inject = c.reconcile("fx-inject").await.unwrap();
+        let reconcile_normal = c.reconcile("fx-normal").await.unwrap();
+        assert!(matches!(reconcile_inject, ReconcileOutcome::Committed { .. }));
+        assert!(matches!(reconcile_normal, ReconcileOutcome::Committed { .. }));
+    }
+
+    #[tokio::test]
+    async fn sql_injection_with_compensation() {
+        let c = SqlConnector::new();
+
+        let pe = c
+            .prepare(
+                serde_json::json!({"query": "INSERT INTO secrets VALUES ('malicious')"}),
+                "fx-sqli-comp".into(),
+                1,
+            )
+            .await
+            .unwrap();
+        let outcome = c.commit(pe).await.unwrap();
+        assert!(matches!(outcome, CommitOutcome::Committed { .. }));
+
+        let comp_outcome = c
+            .compensate(
+                serde_json::json!({"rollback_query": "DELETE FROM secrets WHERE data='malicious'"}),
+                "fx-sqli-comp".into(),
+                1,
+            )
+            .await
+            .unwrap();
+        assert!(matches!(comp_outcome, CommitOutcome::Committed { .. }));
+    }
+
+    #[tokio::test]
+    async fn multiple_sql_injections_idempotent() {
+        let c = SqlConnector::new();
+
+        for i in 0..3 {
+            let pe = c
+                .prepare(
+                    serde_json::json!({"query": "'; SELECT evil; --"}),
+                    format!("fx-multi-{}", i).into(),
+                    i as u64 + 1,
+                )
+                .await
+                .unwrap();
+            let outcome = c.commit(pe).await.unwrap();
+            assert!(matches!(outcome, CommitOutcome::Committed { .. }));
+        }
+
+        for i in 0..3 {
+            let reconcile = c.reconcile(&format!("fx-multi-{}", i)).await.unwrap();
+            assert!(matches!(reconcile, ReconcileOutcome::Committed { .. }));
+        }
+    }
+
+    #[tokio::test]
+    async fn sql_injection_stored_query_not_executed() {
+        let c = SqlConnector::new();
+
+        let dangerous_queries = vec![
+            ("fx-d1", "'; DROP ALL TABLES; --"),
+            ("fx-d2", "1; EXECUTE sp_executesql"),
+            ("fx-d3", "' OR '1'='1' OR '"),
+        ];
+
+        for (id, query) in dangerous_queries {
+            let pe = c
+                .prepare(serde_json::json!({"query": query}), id.into(), 1)
+                .await
+                .unwrap();
+            let outcome = c.commit(pe).await.unwrap();
+            assert!(matches!(outcome, CommitOutcome::Committed { .. }));
+        }
+
+        for (id, _) in dangerous_queries {
+            let reconcile = c.reconcile(id).await.unwrap();
+            assert!(matches!(reconcile, ReconcileOutcome::Committed { .. }));
+        }
+    }
+}
