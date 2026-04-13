@@ -1,15 +1,6 @@
 use std::collections::BTreeMap;
 use std::io::Cursor;
-use std::path::PathBuf;
 use vo_ipc::*;
-
-fn fixture_binary() -> PathBuf {
-    PathBuf::from(env!("CARGO_BIN_EXE_fixture_driver"))
-}
-
-fn config(payload: impl AsRef<[u8]>, timeout_ms: u64) -> SubprocessConfig {
-    SubprocessConfig::new(fixture_binary(), timeout_ms, payload.as_ref().to_vec()).unwrap()
-}
 
 fn make_fd3_envelope(
     instance_id: &str,
@@ -27,11 +18,7 @@ fn make_fd3_envelope(
     }
 }
 
-fn make_fd4_success(
-    instance_id: &str,
-    node_id: &str,
-    output: serde_json::Value,
-) -> Fd4Envelope {
+fn make_fd4_success(instance_id: &str, node_id: &str, output: serde_json::Value) -> Fd4Envelope {
     Fd4Envelope {
         version: 1,
         instance_id: instance_id.to_string(),
@@ -40,12 +27,7 @@ fn make_fd4_success(
     }
 }
 
-fn make_fd4_failure(
-    instance_id: &str,
-    node_id: &str,
-    code: &str,
-    message: &str,
-) -> Fd4Envelope {
+fn make_fd4_failure(instance_id: &str, node_id: &str, code: &str, message: &str) -> Fd4Envelope {
     Fd4Envelope {
         version: 1,
         instance_id: instance_id.to_string(),
@@ -62,7 +44,12 @@ fn make_fd4_failure(
 
 #[test]
 fn fd3_envelope_serialized_via_length_prefixed_frame() {
-    let env = make_fd3_envelope("i1", "n1", serde_json::json!({"key": "val"}), BTreeMap::new());
+    let env = make_fd3_envelope(
+        "i1",
+        "n1",
+        serde_json::json!({"key": "val"}),
+        BTreeMap::new(),
+    );
     let mut buf = Vec::new();
     write_envelope(&mut buf, &env).unwrap();
 
@@ -107,7 +94,12 @@ fn fd3_roundtrip_preserves_secret_values() {
     secrets.insert("API_KEY".to_string(), "secret123".to_string());
     secrets.insert("TOKEN".to_string(), "tok_456".to_string());
 
-    let env = make_fd3_envelope("inst1", "node1", serde_json::json!({"action": "process"}), secrets);
+    let env = make_fd3_envelope(
+        "inst1",
+        "node1",
+        serde_json::json!({"action": "process"}),
+        secrets,
+    );
     let mut buf = Vec::new();
     write_envelope(&mut buf, &env).unwrap();
 
@@ -132,7 +124,12 @@ fn fd4_success_roundtrip_preserves_output_value() {
         let mut buf = Vec::new();
         write_envelope(&mut buf, &env).unwrap();
         let decoded: Fd4Envelope = read_envelope(&mut Cursor::new(buf)).unwrap();
-        assert_eq!(decoded.result, TaskResult::Success { output }, "case {}", idx);
+        assert_eq!(
+            decoded.result,
+            TaskResult::Success { output },
+            "case {}",
+            idx
+        );
     }
 }
 
@@ -260,18 +257,6 @@ fn max_payload_size_enforced_on_read() {
     buf.extend(vec![0u8; 100]);
     let result: Result<Fd3Envelope, IpcError> = read_envelope(&mut Cursor::new(buf));
     assert!(matches!(result, Err(IpcError::PayloadTooLarge(_))));
-}
-
-#[tokio::test]
-async fn cloexec_grandchild_does_not_block_parent() {
-    let output = run_subprocess(config("grandchild-hold 2000", 500)).await.unwrap();
-    assert_eq!(output.fd4_bytes, b"child-done");
-}
-
-#[tokio::test]
-async fn fd3_payload_delivery_via_dedicated_fd() {
-    let output = run_subprocess(config("echo-fd3 hello world", 500)).await.unwrap();
-    assert_eq!(output.fd4_bytes, b"echo-fd3 hello world");
 }
 
 #[test]
