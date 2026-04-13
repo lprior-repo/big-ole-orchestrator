@@ -206,7 +206,7 @@ fn rq_use_count_monotonicity_broken_by_builder() {
     assert_eq!(conn.use_count, 2);
 
     // Now "reset" to 0 using with_use_count
-    let reset_conn = conn.with_use_count(0);
+    let reset_conn = conn.clone().with_use_count(0);
     assert_eq!(
         reset_conn.use_count, 0,
         "Monotonicity violated - use_count reset to 0"
@@ -387,7 +387,7 @@ fn rq_error_detail_all_variants_display() {
     ];
 
     for variant in variants {
-        let display = variant.to_string();
+        let display = variant.clone().to_string();
         assert!(
             !display.is_empty(),
             "ErrorDetail variant {:?} should have Display",
@@ -566,7 +566,7 @@ fn rq_pooled_connection_status_checkers() {
     assert!(checked.is_checked_out());
     assert!(!checked.is_closed());
 
-    let closed = idle.with_status(ConnectionStatus::Closed);
+    let closed = checked.with_status(ConnectionStatus::Closed);
     assert!(!closed.is_idle());
     assert!(!closed.is_checked_out());
     assert!(closed.is_closed());
@@ -629,11 +629,11 @@ fn rq_pooled_connection_max_use_count() {
 /// RQ-32: PoolStats with counts that violate INV-002
 #[test]
 fn rq_pool_stats_invariant_violation() {
-    // idle=5, checked_out=10, pending=5, but max should be 10
-    // 5 + 10 + 5 = 20 > max_connections (unknown but should be bounded)
+    // idle=5, checked_out=10, pending=5, but total=5
+    // 5 + 10 + 5 = 20 > total_connections (5)
     let stats = PoolStats {
         pool_id: PoolId::new("test-pool"),
-        total_connections: 20,
+        total_connections: 5,
         idle_connections: 5,
         checked_out_connections: 10, // More checked out than total!
         pending_acquires: 5,
