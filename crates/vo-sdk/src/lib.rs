@@ -14,6 +14,7 @@
 pub mod dag;
 pub mod graph_args;
 pub mod node_handle;
+pub use dag::Workflow;
 mod read;
 mod write;
 
