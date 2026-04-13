@@ -128,6 +128,9 @@ impl FairnessBudget {
     /// Checks if an instance can be resumed under this budget.
     #[must_use]
     pub fn can_resume(&self, instance_id: &InstanceId) -> bool {
+        if self.max_per_instance == 0 {
+            return false;
+        }
         self.instance_counts
             .get(instance_id)
             .is_none_or(|count| *count < self.max_per_instance)
