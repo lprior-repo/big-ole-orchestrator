@@ -51,3 +51,6 @@ pub mod write_class;
 
 #[cfg(kani)]
 pub mod write_class_verification;
+
+#[cfg(test)]
+mod invalid_business_data_tests;
