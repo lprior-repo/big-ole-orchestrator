@@ -12,7 +12,11 @@ pub struct FjallDedupeStore {
 }
 
 impl FjallDedupeStore {
-    #[must_use]
+    /// Opens a new `FjallDedupeStore` backed by the given keyspace.
+    ///
+    /// # Errors
+    ///
+    /// Returns `DedupeStoreError::Storage` if the dedupe partition cannot be opened.
     pub fn open(keyspace: &fjall::Keyspace) -> Result<Self, DedupeStoreError> {
         let partition = keyspace
             .open_partition(DEDUPE_PARTITION, fjall::PartitionCreateOptions::default())
@@ -38,7 +42,7 @@ impl DedupeStore for FjallDedupeStore {
         }
 
         let encoded_key = super::encode_dedupe_key(key);
-        #[expect(clippy::expect_used)]
+        #[expect(clippy::expect_used, clippy::cast_possible_truncation)]
         let now_ms = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .expect(
@@ -104,7 +108,7 @@ impl DedupeStore for FjallDedupeStore {
 
     fn contains(&self, key: &DedupeKey) -> Result<bool, DedupeStoreError> {
         let encoded_key = super::encode_dedupe_key(key);
-        #[expect(clippy::expect_used)]
+        #[expect(clippy::expect_used, clippy::cast_possible_truncation)]
         let now_ms = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .expect(
