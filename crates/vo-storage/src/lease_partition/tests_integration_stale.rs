@@ -413,3 +413,180 @@ fn check_stale_fence_returns_storage_error_when_lookup_fails() {
         })
     );
 }
+
+/// AQ-01: Rapid re-acquisition cycle — stale completions from N previous
+/// holders are ALL rejected after the Nth re-acquisition.
+#[test]
+fn stale_fence_rejects_all_previous_holders_after_rapid_expiry_cycle() {
+    let store = DeterministicLeaseStore::new();
+    let num_cycles: u64 = 10;
+
+    let mut old_tokens: Vec<FenceToken> = Vec::new();
+    for i in 0..num_cycles {
+        // Each lease has TTL=1, so advancing time by 1 each cycle expires it
+        if i > 0 {
+            store.set_time(i);
+        }
+        let lease = acquire_lease(&store, &sample_instance_id(), &sample_step_id(), 1);
+        old_tokens.push(*lease.token());
+    }
+
+    // All previous tokens are stale (only the last is current)
+    for (idx, token) in old_tokens.iter().enumerate() {
+        let is_last = idx == old_tokens.len() - 1;
+        assert_eq!(
+            stale_result(&store, &sample_instance_id(), &sample_step_id(), *token),
+            !is_last,
+            "token {token:?} at index {idx} staleness mismatch"
+        );
+    }
+}
+
+/// AQ-02: Stale release at exact expiry boundary — holder A's release
+/// is rejected after holder B re-acquires at the exact expiry tick.
+#[test]
+fn stale_release_at_exact_expiry_boundary_is_rejected() {
+    let store = DeterministicLeaseStore::new();
+
+    // Holder A: TTL=1, expires_at=1
+    let holder_a = acquire_lease(&store, &sample_instance_id(), &sample_step_id(), 1);
+
+    // Time advances to exactly expiry
+    store.set_time(1);
+
+    // Holder B re-acquires (lease expired), gets token 2
+    let holder_b = acquire_lease(&store, &sample_instance_id(), &sample_step_id(), 5_000);
+
+    // Holder A tries to release — should be StaleFence
+    assert_eq!(
+        store.release(&holder_a),
+        Err(LeaseStoreError::StaleFence {
+            expected: "2".to_string(),
+            actual: "1".to_string(),
+        })
+    );
+
+    // Holder B is still valid and releasable
+    assert!(!stale_result(
+        &store,
+        &sample_instance_id(),
+        &sample_step_id(),
+        *holder_b.token()
+    ));
+    assert_eq!(store.release(&holder_b), Ok(()));
+}
+
+/// AQ-03: Far-future stale token (u64::MAX) is rejected against current lease.
+#[test]
+fn far_future_stale_token_is_rejected() {
+    let store = DeterministicLeaseStore::new();
+    let current = acquire_lease(&store, &sample_instance_id(), &sample_step_id(), 5_000);
+
+    let far_future_token = fence_token(u64::MAX);
+    assert!(stale_result(
+        &store,
+        &sample_instance_id(),
+        &sample_step_id(),
+        far_future_token
+    ));
+
+    assert!(!stale_result(
+        &store,
+        &sample_instance_id(),
+        &sample_step_id(),
+        *current.token()
+    ));
+    assert_eq!(store.release(&current), Ok(()));
+}
+
+/// AQ-04: Fence tokens are strictly monotonic across mixed release/expiry cycles.
+#[test]
+fn fence_tokens_are_strictly_monotonic_across_release_reacquire_cycles() {
+    let store = DeterministicLeaseStore::new();
+    let mut prev_token: u64 = 0;
+
+    for cycle in 0..20u64 {
+        let lease = acquire_lease(&store, &sample_instance_id(), &sample_step_id(), 1);
+
+        assert!(
+            lease.token().inner().get() > prev_token,
+            "token {} not strictly greater than {} in cycle {cycle}",
+            lease.token().inner().get(),
+            prev_token
+        );
+        prev_token = lease.token().inner().get();
+
+        if cycle % 2 == 0 {
+            store.set_time(cycle + 1);
+        } else {
+            store.release(&lease).unwrap();
+        }
+    }
+}
+
+/// AQ-05: check_stale_fence on a pair that never existed returns false.
+#[test]
+fn stale_check_on_never_acquired_pair_returns_false() {
+    let store = DeterministicLeaseStore::new();
+
+    assert_eq!(
+        store.check_stale_fence(
+            &sample_instance_id(),
+            &sample_step_id(),
+            &fence_token(1)
+        ),
+        Ok(false)
+    );
+    assert_eq!(
+        store.check_stale_fence(
+            &sample_instance_id(),
+            &sample_step_id(),
+            &fence_token(u64::MAX)
+        ),
+        Ok(false)
+    );
+}
+
+/// AQ-15: check_stale_fence storage error is propagated, not swallowed.
+#[test]
+fn stale_check_storage_error_is_propagated_not_swallowed() {
+    let store = DeterministicLeaseStore::new();
+    store.set_faults(FaultConfig {
+        stale_lookup: Some("partition unavailable".to_string()),
+        ..FaultConfig::default()
+    });
+
+    assert_eq!(
+        store.check_stale_fence(
+            &sample_instance_id(),
+            &sample_step_id(),
+            &fence_token(1)
+        ),
+        Err(LeaseStoreError::Storage {
+            reason: "partition unavailable".to_string(),
+        })
+    );
+}
+
+/// AQ-22: Stale check at exact expiry tick — old token stale after re-acquire.
+#[test]
+fn stale_check_during_exact_expiry_tick_is_correct() {
+    let store = DeterministicLeaseStore::new();
+    let old = acquire_lease(&store, &sample_instance_id(), &sample_step_id(), 100);
+    store.set_time(100);
+
+    let fresh = acquire_lease(&store, &sample_instance_id(), &sample_step_id(), 5_000);
+
+    assert!(stale_result(
+        &store,
+        &sample_instance_id(),
+        &sample_step_id(),
+        *old.token()
+    ));
+    assert!(!stale_result(
+        &store,
+        &sample_instance_id(),
+        &sample_step_id(),
+        *fresh.token()
+    ));
+}

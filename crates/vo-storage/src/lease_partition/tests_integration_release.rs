@@ -453,3 +453,154 @@ fn release_returns_storage_error_when_delete_fails() {
         })
     );
 }
+
+/// AQ-13: Release delete failure leaves lease persistent; retry succeeds.
+#[test]
+fn release_delete_failure_leaves_lease_persistent_retry_succeeds() {
+    let store = DeterministicLeaseStore::new();
+    let lease = acquire_lease(&store, &sample_instance_id(), &sample_step_id(), 5_000);
+
+    store.set_faults(FaultConfig {
+        release_delete: Some("disk full".to_string()),
+        ..FaultConfig::default()
+    });
+    assert_eq!(
+        store.release(&lease),
+        Err(LeaseStoreError::Storage {
+            reason: "disk full".to_string(),
+        })
+    );
+
+    assert!(!stale_result(
+        &store,
+        &sample_instance_id(),
+        &sample_step_id(),
+        *lease.token()
+    ));
+
+    store.set_faults(FaultConfig::default());
+    assert_eq!(store.release(&lease), Ok(()));
+}
+
+/// AQ-12: Release lookup failure leaves lease intact; retry succeeds.
+#[test]
+fn release_lookup_failure_does_not_corrupt_lease_state() {
+    let store = DeterministicLeaseStore::new();
+    let lease = acquire_lease(&store, &sample_instance_id(), &sample_step_id(), 5_000);
+
+    store.set_faults(FaultConfig {
+        release_lookup: Some("io error".to_string()),
+        ..FaultConfig::default()
+    });
+    assert!(store.release(&lease).is_err());
+
+    assert!(!stale_result(
+        &store,
+        &sample_instance_id(),
+        &sample_step_id(),
+        *lease.token()
+    ));
+
+    store.set_faults(FaultConfig::default());
+    assert_eq!(store.release(&lease), Ok(()));
+
+    assert_eq!(
+        store.release(&lease),
+        Err(LeaseStoreError::NotFound {
+            instance_id: sample_instance_id().to_string(),
+            step_id: sample_step_id().to_string(),
+        })
+    );
+}
+
+/// AQ-14: Late completion from crashed holder after recovery re-acquire is rejected.
+#[test]
+fn late_completion_from_crashed_holder_after_recovery_is_rejected() {
+    let store = DeterministicLeaseStore::new();
+
+    let crashed = acquire_lease(&store, &sample_instance_id(), &sample_step_id(), 100);
+    let crashed_fence = *crashed.token();
+
+    store.set_time(100);
+    let recovery = acquire_lease(&store, &sample_instance_id(), &sample_step_id(), 5_000);
+    assert_eq!(recovery.token().inner().get(), 2);
+
+    assert_eq!(
+        store.release(&LeaseRecord::new(
+            sample_instance_id(),
+            sample_step_id(),
+            crashed_fence
+        )),
+        Err(LeaseStoreError::StaleFence {
+            expected: "2".to_string(),
+            actual: "1".to_string(),
+        })
+    );
+
+    assert!(!stale_result(
+        &store,
+        &sample_instance_id(),
+        &sample_step_id(),
+        *recovery.token()
+    ));
+    assert_eq!(store.release(&recovery), Ok(()));
+}
+
+/// AQ-17: Full ADR-029 lifecycle — acquire, crash, recovery re-acquire,
+/// late completion rejected, recovery completion succeeds.
+#[test]
+fn full_adr029_lifecycle_crash_recovery_rejects_late_completion() {
+    let store = DeterministicLeaseStore::new();
+
+    let engine = acquire_lease(&store, &sample_instance_id(), &sample_step_id(), 100);
+    let subprocess_fence = *engine.token();
+
+    // Subprocess crashes, lease expires
+    store.set_time(100);
+
+    // Recovery acquires new lease
+    let recovery = acquire_lease(&store, &sample_instance_id(), &sample_step_id(), 5_000);
+    assert_eq!(recovery.token().inner().get(), 2);
+
+    // Late completion from crashed subprocess — STALE
+    assert_eq!(
+        store.release(&LeaseRecord::new(
+            sample_instance_id(),
+            sample_step_id(),
+            subprocess_fence
+        )),
+        Err(LeaseStoreError::StaleFence {
+            expected: "2".to_string(),
+            actual: "1".to_string(),
+        })
+    );
+
+    // Recovery completion succeeds
+    assert_eq!(store.release(&recovery), Ok(()));
+}
+
+/// AQ-19: Timeout recovery advances fence; just-in-time subprocess completion rejected.
+#[test]
+fn timeout_recovery_advances_fence_rejects_just_in_time_completion() {
+    let store = DeterministicLeaseStore::new();
+
+    let original = acquire_lease(&store, &sample_instance_id(), &sample_step_id(), 50);
+    store.set_time(50);
+
+    let recovery = acquire_lease(&store, &sample_instance_id(), &sample_step_id(), 5_000);
+
+    assert_eq!(
+        store.release(&original),
+        Err(LeaseStoreError::StaleFence {
+            expected: "2".to_string(),
+            actual: "1".to_string(),
+        })
+    );
+
+    assert!(!stale_result(
+        &store,
+        &sample_instance_id(),
+        &sample_step_id(),
+        *recovery.token()
+    ));
+}
