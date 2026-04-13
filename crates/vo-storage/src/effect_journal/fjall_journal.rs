@@ -7,9 +7,14 @@ use vo_types::{EffectRecord, InstanceId};
 
 use super::{EffectId, EffectJournal, EffectJournalError, EFFECTS_PARTITION};
 
-#[derive(Debug)]
 pub struct FjallEffectJournal {
     partition: Arc<fjall::PartitionHandle>,
+}
+
+impl std::fmt::Debug for FjallEffectJournal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FjallEffectJournal").finish()
+    }
 }
 
 impl FjallEffectJournal {
@@ -36,7 +41,7 @@ impl EffectJournal for FjallEffectJournal {
         let effect_id = EffectId::new(instance_id, intent_id.as_str())?;
         let key = super::encode_effect_key(&effect_id);
 
-        if let Ok(Some(_)) self.partition.get(&key) {
+        if let Ok(Some(_)) = self.partition.get(&key) {
             return Ok(effect_id);
         }
 
@@ -64,11 +69,12 @@ impl EffectJournal for FjallEffectJournal {
             });
         }
 
-        let ts = Some(vo_types::TimestampMs::parse("100").map_err(|e| {
-            EffectJournalError::Storage {
-                reason: format!("failed to parse timestamp: {e}"),
-            }
-        })?);
+        let ts =
+            Some(
+                vo_types::TimestampMs::parse("100").map_err(|e| EffectJournalError::Storage {
+                    reason: format!("failed to parse timestamp: {e}"),
+                })?,
+            );
 
         let next_record = EffectRecord::new(
             record.intent_id().to_string(),
@@ -148,6 +154,41 @@ impl EffectJournal for FjallEffectJournal {
         }
 
         Ok(results)
+    }
+
+    fn compact(&self, older_than: vo_types::TimestampMs) -> Result<usize, EffectJournalError> {
+        let mut removed = 0;
+        let keys_to_remove: Vec<Vec<u8>> = {
+            let iter = self.partition.iter();
+            let mut keys = Vec::new();
+            for item in iter {
+                let (key_bytes, value_bytes) = item.map_err(|e| EffectJournalError::Storage {
+                    reason: e.to_string(),
+                })?;
+
+                let record = super::decode_effect_record(&value_bytes)?;
+
+                if record.status().is_terminal() {
+                    if let Some(committed_at) = record.committed_at() {
+                        if *committed_at < older_than {
+                            keys.push(key_bytes.to_vec());
+                        }
+                    }
+                }
+            }
+            keys
+        };
+
+        for key in keys_to_remove {
+            self.partition
+                .remove(&key)
+                .map_err(|e| EffectJournalError::Storage {
+                    reason: format!("failed to remove key during compaction: {e}"),
+                })?;
+            removed += 1;
+        }
+
+        Ok(removed)
     }
 }
 
@@ -319,7 +360,10 @@ mod tests {
         journal.commit(&eid).unwrap();
         let result = journal.commit(&eid);
         assert!(result.is_err());
-        assert!(matches!(result, Err(EffectJournalError::AlreadyTerminal { .. })));
+        assert!(matches!(
+            result,
+            Err(EffectJournalError::AlreadyTerminal { .. })
+        ));
     }
 
     #[test]
@@ -339,7 +383,10 @@ mod tests {
         journal.rollback(&eid).unwrap();
         let result = journal.rollback(&eid);
         assert!(result.is_err());
-        assert!(matches!(result, Err(EffectJournalError::AlreadyTerminal { .. })));
+        assert!(matches!(
+            result,
+            Err(EffectJournalError::AlreadyTerminal { .. })
+        ));
     }
 
     #[test]
@@ -360,5 +407,103 @@ mod tests {
         let effect_id = EffectId::new(&id, "nonexistent").unwrap();
         let result = journal.rollback(&effect_id);
         assert!(matches!(result, Err(EffectJournalError::NotFound { .. })));
+    }
+
+    #[test]
+    fn fjall_journal_compact_removes_old_terminal_effects() {
+        let keyspace = create_test_keyspace();
+        let journal = FjallEffectJournal::open(&keyspace).unwrap();
+        let id = sample_instance_id();
+
+        let old_record = EffectRecord::new(
+            "fx-old".to_string(),
+            EffectKind::HttpCall,
+            serde_json::json!({}),
+            EffectIntent::Prepared,
+            None,
+        )
+        .unwrap();
+        let old_eid = journal.prepare(&id, old_record).unwrap();
+        journal.commit(&old_eid).unwrap();
+
+        let new_record = EffectRecord::new(
+            "fx-new".to_string(),
+            EffectKind::SqlQuery,
+            serde_json::json!({}),
+            EffectIntent::Prepared,
+            None,
+        )
+        .unwrap();
+        let new_eid = journal.prepare(&id, new_record).unwrap();
+        journal.commit(&new_eid).unwrap();
+
+        let old_ts = vo_types::TimestampMs::parse("50").unwrap();
+        let new_ts = vo_types::TimestampMs::parse("200").unwrap();
+
+        let removed = journal.compact(old_ts).unwrap();
+        assert_eq!(removed, 1);
+
+        let removed_new = journal.compact(new_ts).unwrap();
+        assert_eq!(removed_new, 0);
+    }
+
+    #[test]
+    fn fjall_journal_compact_does_not_remove_prepared_effects() {
+        let keyspace = create_test_keyspace();
+        let journal = FjallEffectJournal::open(&keyspace).unwrap();
+        let id = sample_instance_id();
+
+        let prepared_record = EffectRecord::new(
+            "fx-prepared".to_string(),
+            EffectKind::BlobWrite,
+            serde_json::json!({}),
+            EffectIntent::Prepared,
+            None,
+        )
+        .unwrap();
+        journal.prepare(&id, prepared_record).unwrap();
+
+        let committed_record = EffectRecord::new(
+            "fx-committed".to_string(),
+            EffectKind::HttpCall,
+            serde_json::json!({}),
+            EffectIntent::Prepared,
+            None,
+        )
+        .unwrap();
+        let committed_eid = journal.prepare(&id, committed_record).unwrap();
+        journal.commit(&committed_eid).unwrap();
+
+        let ts = vo_types::TimestampMs(1000);
+        let removed = journal.compact(ts).unwrap();
+
+        assert_eq!(removed, 1);
+
+        let pending = journal.list_pending(&id).unwrap();
+        assert_eq!(pending.len(), 1);
+        assert_eq!(pending[0].intent_id(), "fx-prepared");
+    }
+
+    #[test]
+    fn fjall_journal_compact_does_not_remove_rolledback_effects_without_timestamp() {
+        let keyspace = create_test_keyspace();
+        let journal = FjallEffectJournal::open(&keyspace).unwrap();
+        let id = sample_instance_id();
+
+        let rolled_back_record = EffectRecord::new(
+            "fx-rolledback".to_string(),
+            EffectKind::SqlQuery,
+            serde_json::json!({}),
+            EffectIntent::Prepared,
+            None,
+        )
+        .unwrap();
+        let rb_eid = journal.prepare(&id, rolled_back_record).unwrap();
+        journal.rollback(&rb_eid).unwrap();
+
+        let ts = vo_types::TimestampMs(1000);
+        let removed = journal.compact(ts).unwrap();
+
+        assert_eq!(removed, 0);
     }
 }

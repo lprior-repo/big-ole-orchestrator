@@ -158,4 +158,33 @@ impl EffectJournal for InMemoryEffectJournal {
             .map(|(_, v)| v.clone())
             .collect())
     }
+
+    fn compact(&self, older_than: vo_types::TimestampMs) -> Result<usize, EffectJournalError> {
+        let mut records = self
+            .records
+            .lock()
+            .map_err(|e| EffectJournalError::Storage {
+                reason: e.to_string(),
+            })?;
+
+        let keys_to_remove: Vec<String> = records
+            .iter()
+            .filter(|(_, v)| {
+                if v.status().is_terminal() {
+                    if let Some(committed_at) = v.committed_at() {
+                        return *committed_at < older_than;
+                    }
+                }
+                false
+            })
+            .map(|(k, _)| k.clone())
+            .collect();
+
+        let count = keys_to_remove.len();
+        for key in keys_to_remove {
+            records.remove(&key);
+        }
+
+        Ok(count)
+    }
 }
