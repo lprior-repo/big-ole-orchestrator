@@ -24,6 +24,11 @@ use tokio::time::Duration;
 pub use port::LockManager;
 pub use retry::{LockManagerRetryWrapper, RetryConfig};
 
+pub use connector::{
+    CommitOutcome, Connector, ConnectorError, ConnectorRegistry, HttpConnector, PreparedEffect,
+    ReconcileOutcome,
+};
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LockId(String);
 
