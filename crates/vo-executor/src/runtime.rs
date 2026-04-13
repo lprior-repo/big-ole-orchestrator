@@ -1,0 +1,277 @@
+//! Current-thread SDK runtime for vo-executor
+//!
+//! Provides an ultra-lightweight single-threaded async runtime for executing
+//! workflow steps without the cold-start latency of a full Tokio multi-threaded runtime.
+//! See ADR-011 for details.
+
+use crate::errors::ExecuteNodeError;
+use crate::types::{ExecutionStatus, RetryPolicy, StepId, StepResult};
+use tokio::runtime::{Builder, Handle};
+
+#[derive(Debug, Clone)]
+pub struct Runtime {
+    handle: Handle,
+}
+
+#[derive(Debug, Clone)]
+pub enum RuntimeError {
+    BuildFailed(String),
+}
+
+impl std::fmt::Display for RuntimeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RuntimeError::BuildFailed(msg) => write!(f, "Failed to build runtime: {}", msg),
+        }
+    }
+}
+
+impl std::error::Error for RuntimeError {}
+
+impl Runtime {
+    pub fn new() -> Result<Self, RuntimeError> {
+        let runtime = Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .map_err(|e| RuntimeError::BuildFailed(e.to_string()))?;
+        Ok(Self {
+            handle: runtime.handle().clone(),
+        })
+    }
+
+    pub fn block_on<F, T>(&self, future: F) -> T
+    where
+        F: std::future::Future<Output = T>,
+    {
+        self.handle.block_on(future)
+    }
+
+    pub fn execute_step_sync(
+        &self,
+        step_id: StepId,
+        timeout_ms: u64,
+    ) -> Result<StepResult, ExecuteNodeError> {
+        let step_id_clone = step_id.clone();
+        self.block_on(async move { crate::execution::execute_step(step_id_clone, timeout_ms).await })
+    }
+
+    pub fn execute_step_with_retry_sync(
+        &self,
+        step_id: StepId,
+        timeout_ms: u64,
+        retry_policy: RetryPolicy,
+    ) -> Result<StepResult, ExecuteNodeError> {
+        let step_id_clone = step_id.clone();
+        let retry_policy_clone = retry_policy.clone();
+        self.block_on(async move {
+            crate::execution::execute_step_with_retry(step_id_clone, timeout_ms, retry_policy_clone).await
+        })
+    }
+
+    pub fn get_status(&self, step_id: &StepId) -> ExecutionStatus {
+        crate::execution::get_execution_status(step_id)
+    }
+
+    pub fn get_last_error(&self, step_id: &StepId) -> Option<ExecuteNodeError> {
+        crate::execution::get_last_error(step_id)
+    }
+
+    pub fn cancel(&self, step_id: StepId) -> Result<(), ExecuteNodeError> {
+        let step_id_clone = step_id.clone();
+        self.block_on(async move { crate::execution::cancel_execution(step_id_clone).await })
+    }
+}
+
+impl Default for Runtime {
+    fn default() -> Self {
+        Self::new().expect("Failed to create default runtime")
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct StepContext {
+    step_id: StepId,
+    runtime: Runtime,
+}
+
+impl StepContext {
+    pub fn new(step_id: StepId) -> Result<Self, ContextError> {
+        let runtime = Runtime::new().map_err(ContextError::RuntimeInitFailed)?;
+        Ok(Self { step_id, runtime })
+    }
+
+    pub fn execute(&self, timeout_ms: u64) -> Result<StepResult, ExecuteNodeError> {
+        self.runtime.execute_step_sync(self.step_id.clone(), timeout_ms)
+    }
+
+    pub fn execute_with_retry(
+        &self,
+        timeout_ms: u64,
+        retry_policy: RetryPolicy,
+    ) -> Result<StepResult, ExecuteNodeError> {
+        self.runtime.execute_step_with_retry_sync(self.step_id.clone(), timeout_ms, retry_policy)
+    }
+
+    pub fn status(&self) -> ExecutionStatus {
+        self.runtime.get_status(&self.step_id)
+    }
+
+    pub fn last_error(&self) -> Option<ExecuteNodeError> {
+        self.runtime.get_last_error(&self.step_id)
+    }
+
+    pub fn cancel(&self) -> Result<(), ExecuteNodeError> {
+        self.runtime.cancel(self.step_id.clone())
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum ContextError {
+    RuntimeInitFailed(RuntimeError),
+}
+
+impl std::fmt::Display for ContextError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ContextError::RuntimeInitFailed(e) => write!(f, "Failed to initialize context: {}", e),
+        }
+    }
+}
+
+impl std::error::Error for ContextError {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::errors::RetryPolicyError;
+    use crate::reset_all_state;
+
+    fn reset_state() {
+        reset_all_state();
+    }
+
+    #[test]
+    fn runtime_creation() {
+        let runtime = Runtime::new();
+        assert!(runtime.is_ok());
+        reset_state();
+    }
+
+    #[test]
+    fn runtime_execute_step_success() {
+        reset_state();
+        let runtime = Runtime::new().unwrap();
+        let result = runtime.execute_step_sync(StepId::new("step-1".to_string()), 5000);
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_success());
+        reset_state();
+    }
+
+    #[test]
+    fn runtime_execute_step_failure() {
+        reset_state();
+        let runtime = Runtime::new().unwrap();
+        let result = runtime.execute_step_sync(StepId::new("step-fail".to_string()), 5000);
+        assert!(result.is_ok());
+        assert!(!result.unwrap().is_success());
+        reset_state();
+    }
+
+    #[test]
+    fn runtime_execute_step_not_found() {
+        reset_state();
+        let runtime = Runtime::new().unwrap();
+        let result = runtime.execute_step_sync(StepId::new("nonexistent-step".to_string()), 5000);
+        assert!(result.is_err());
+        reset_state();
+    }
+
+    #[test]
+    fn runtime_execute_with_retry_success() {
+        reset_state();
+        let runtime = Runtime::new().unwrap();
+        let retry_policy = RetryPolicy::new(3, 100, 2.0).unwrap();
+        let result = runtime.execute_step_with_retry_sync(
+            StepId::new("step-retry".to_string()),
+            5000,
+            retry_policy,
+        );
+        assert!(result.is_ok());
+        reset_state();
+    }
+
+    #[test]
+    fn runtime_get_status() {
+        reset_state();
+        let runtime = Runtime::new().unwrap();
+        let status = runtime.get_status(&StepId::new("step-1".to_string()));
+        assert_eq!(status, ExecutionStatus::Ready);
+        reset_state();
+    }
+
+    #[test]
+    fn runtime_cancel() {
+        reset_state();
+        let runtime = Runtime::new().unwrap();
+        let result = runtime.cancel(StepId::new("step-1".to_string()));
+        assert!(result.is_ok());
+        reset_state();
+    }
+
+    #[test]
+    fn step_context_creation() {
+        reset_state();
+        let context = StepContext::new(StepId::new("step-1".to_string()));
+        assert!(context.is_ok());
+        reset_state();
+    }
+
+    #[test]
+    fn step_context_execute() {
+        reset_state();
+        let context = StepContext::new(StepId::new("step-1".to_string())).unwrap();
+        let result = context.execute(5000);
+        assert!(result.is_ok());
+        reset_state();
+    }
+
+    #[test]
+    fn step_context_status() {
+        reset_state();
+        let context = StepContext::new(StepId::new("step-1".to_string())).unwrap();
+        let status = context.status();
+        assert_eq!(status, ExecutionStatus::Ready);
+        reset_state();
+    }
+
+    #[test]
+    fn invalid_timeout_rejected() {
+        reset_state();
+        let runtime = Runtime::new().unwrap();
+        let result = runtime.execute_step_sync(StepId::new("step-1".to_string()), 0);
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            ExecuteNodeError::InvalidTimeout { .. } => {}
+            _ => panic!("Expected InvalidTimeout error"),
+        }
+        reset_state();
+    }
+
+    #[test]
+    fn retry_policy_validation() {
+        let result = RetryPolicy::new(0, 100, 2.0);
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            RetryPolicyError::ZeroAttempts => {}
+            _ => panic!("Expected ZeroAttempts error"),
+        }
+    }
+
+    #[test]
+    fn retry_backoff_calculation() {
+        let policy = RetryPolicy::new(3, 100, 2.0).unwrap();
+        assert_eq!(policy.calculate_backoff_delay(1), 100);
+        assert_eq!(policy.calculate_backoff_delay(2), 200);
+        assert_eq!(policy.calculate_backoff_delay(3), 400);
+    }
+}
