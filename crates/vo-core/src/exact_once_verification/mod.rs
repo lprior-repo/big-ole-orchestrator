@@ -45,3 +45,6 @@ pub mod assertions;
 pub mod crash_points;
 pub mod harness;
 pub mod macros;
+
+#[cfg(test)]
+mod component_failure_simulation_tests;
