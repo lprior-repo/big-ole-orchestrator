@@ -106,6 +106,50 @@ fn connect_rejects_unknown_to_node() {
 }
 
 #[test]
+fn build_detects_simple_cycle() {
+    let mut dag = Dag::new();
+    let a: NodeHandle<i32, i32> = dag.add_node("a", |_i: i32| -> i32 { 0 }).expect("valid");
+    let b: NodeHandle<i32, i32> = dag.add_node("b", |_i: i32| -> i32 { 0 }).expect("valid");
+    dag.connect(&a, &b).expect("a->b");
+    dag.connect(&b, &a).expect("b->a");
+
+    let result = dag.build("cycle_workflow");
+    assert!(
+        matches!(result, Err(DagError::CycleDetected)),
+        "should detect cycle: {result:?}"
+    );
+}
+
+#[test]
+fn build_detects_self_loop() {
+    let mut dag = Dag::new();
+    let a: NodeHandle<i32, i32> = dag.add_node("a", |_i: i32| -> i32 { 0 }).expect("valid");
+    dag.connect(&a, &a).expect("a->a");
+
+    let result = dag.build("self_loop_workflow");
+    assert!(
+        matches!(result, Err(DagError::CycleDetected)),
+        "should detect self-loop: {result:?}"
+    );
+}
+
+#[test]
+fn build_allows_diamond_no_cycle() {
+    let mut dag = Dag::new();
+    let a: NodeHandle<(), i32> = dag.add_node("a", |_i: ()| -> i32 { 0 }).expect("valid");
+    let b: NodeHandle<i32, i32> = dag.add_node("b", |_i: i32| -> i32 { 0 }).expect("valid");
+    let c: NodeHandle<i32, i32> = dag.add_node("c", |_i: i32| -> i32 { 0 }).expect("valid");
+    let d: NodeHandle<i32, ()> = dag.add_node("d", |_i: i32| {}).expect("valid");
+    dag.connect(&a, &b).expect("a->b");
+    dag.connect(&a, &c).expect("a->c");
+    dag.connect(&b, &d).expect("b->d");
+    dag.connect(&c, &d).expect("c->d");
+
+    let result = dag.build("diamond_workflow");
+    assert!(result.is_ok(), "diamond pattern has no cycle: {result:?}");
+}
+
+#[test]
 fn edges_returns_all_edges_after_multiple_connects() {
     let mut dag = Dag::new();
     let step_a: NodeHandle<String, i32> = dag

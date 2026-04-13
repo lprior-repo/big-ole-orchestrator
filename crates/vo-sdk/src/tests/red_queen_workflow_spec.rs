@@ -224,7 +224,7 @@ fn rq_workflow_spec_accepts_all_valid_node_kinds_via_serde() {
 // ===========================================================================
 
 #[test]
-fn rq_dag_build_accepts_self_loop() {
+fn rq_dag_build_rejects_self_loop() {
     let mut dag = Dag::new();
     let a: crate::node_handle::NodeHandle<(), ()> = dag
         .add_node_with_kind("a", NodeKind::Pure, |_: ()| ())
@@ -232,14 +232,14 @@ fn rq_dag_build_accepts_self_loop() {
     dag.connect(&a, &a).expect("connect should succeed");
     let result = dag.build("self_loop");
     assert!(
-        result.is_ok(),
-        "Dag::build does NOT detect self-loop: {:?}",
+        matches!(result, Err(DagError::CycleDetected)),
+        "Dag::build should detect self-loop: {:?}",
         result
     );
 }
 
 #[test]
-fn rq_dag_build_accepts_two_node_cycle() {
+fn rq_dag_build_rejects_two_node_cycle() {
     let mut dag = Dag::new();
     let a: crate::node_handle::NodeHandle<(), ()> = dag
         .add_node_with_kind("a", NodeKind::Pure, |_: ()| ())
@@ -251,14 +251,14 @@ fn rq_dag_build_accepts_two_node_cycle() {
     dag.connect(&b, &a).expect("connect b->a");
     let result = dag.build("two_cycle");
     assert!(
-        result.is_ok(),
-        "Dag::build does NOT detect 2-cycle: {:?}",
+        matches!(result, Err(DagError::CycleDetected)),
+        "Dag::build should detect 2-cycle: {:?}",
         result
     );
 }
 
 #[test]
-fn rq_dag_build_accepts_large_five_node_cycle() {
+fn rq_dag_build_rejects_large_five_node_cycle() {
     let mut dag = Dag::new();
     let names = ["a", "b", "c", "d", "e"];
     let mut handles: Vec<_> = Vec::new();
@@ -274,14 +274,14 @@ fn rq_dag_build_accepts_large_five_node_cycle() {
     }
     let result = dag.build("large_cycle");
     assert!(
-        result.is_ok(),
-        "Dag::build does NOT detect 5-cycle: {:?}",
+        matches!(result, Err(DagError::CycleDetected)),
+        "Dag::build should detect 5-cycle: {:?}",
         result
     );
 }
 
 #[test]
-fn rq_dag_build_accepts_cycle_in_disconnected_component() {
+fn rq_dag_build_rejects_cycle_in_disconnected_component() {
     let mut dag = Dag::new();
     let a: crate::node_handle::NodeHandle<(), ()> = dag
         .add_node_with_kind("a", NodeKind::Pure, |_: ()| ())
@@ -295,8 +295,8 @@ fn rq_dag_build_accepts_cycle_in_disconnected_component() {
     dag.connect(&a, &a).expect("self-loop on a");
     let result = dag.build("disconnected_cycle");
     assert!(
-        result.is_ok(),
-        "Dag::build does NOT detect cycle in disconnected component: {:?}",
+        matches!(result, Err(DagError::CycleDetected)),
+        "Dag::build should detect cycle in disconnected component: {:?}",
         result
     );
 }
@@ -360,7 +360,7 @@ fn rq_dag_build_accepts_partial_cycle_in_diamond() {
 // ===========================================================================
 
 #[test]
-fn rq_dag_build_accepts_unreachable_nodes() {
+fn rq_dag_build_rejects_unreachable_nodes_with_cycle() {
     let mut dag = Dag::new();
     let a: crate::node_handle::NodeHandle<(), ()> = dag
         .add_node_with_kind("a", NodeKind::Pure, |_: ()| ())
@@ -374,8 +374,8 @@ fn rq_dag_build_accepts_unreachable_nodes() {
     dag.connect(&a, &a).expect("a->a self-loop");
     let result = dag.build("unreachable");
     assert!(
-        result.is_ok(),
-        "Dag does not validate reachability: {:?}",
+        matches!(result, Err(DagError::CycleDetected)),
+        "Dag should detect self-loop: {:?}",
         result
     );
 }
@@ -714,7 +714,7 @@ fn rq_workflow_spec_serde_bypasses_dag_empty_validation() {
 }
 
 #[test]
-fn rq_dag_build_accepts_self_loop_but_vo_types_validates() {
+fn rq_dag_build_rejects_self_loop_validated() {
     let mut dag = Dag::new();
     let a: crate::node_handle::NodeHandle<(), ()> = dag
         .add_node_with_kind("a", NodeKind::Pure, |_: ()| ())
@@ -722,8 +722,8 @@ fn rq_dag_build_accepts_self_loop_but_vo_types_validates() {
     dag.connect(&a, &a).expect("connect succeeds");
     let build_result = dag.build("self_loop");
     assert!(
-        build_result.is_ok(),
-        "Dag::build does NOT detect self-loop (BUG?): {:?}",
+        matches!(build_result, Err(DagError::CycleDetected)),
+        "Dag::build should detect self-loop: {:?}",
         build_result
     );
 }
