@@ -51,4 +51,29 @@ mod tests {
         assert!(d.suggestion.is_some());
         assert_eq!(d.suggestion.as_ref().unwrap(), "use this instead");
     }
+
+    #[test]
+    fn test_diagnostic_message() {
+        let d = Diagnostic::new(LintCode::L002, "random UUID call detected");
+        assert_eq!(d.message(), "random UUID call detected");
+    }
+
+    #[test]
+    fn test_diagnostic_message_empty() {
+        let d = Diagnostic::new(LintCode::L002, "");
+        assert_eq!(d.message(), "");
+    }
+
+    #[test]
+    fn test_diagnostic_message_unicode() {
+        let d = Diagnostic::new(LintCode::L002, "error: \u{274c} invalid");
+        assert!(d.message().contains('\u{274c}'));
+    }
+
+    #[test]
+    fn test_diagnostic_clone() {
+        let d = Diagnostic::new(LintCode::L002, "msg").with_suggestion("fix");
+        let d2 = d.clone();
+        assert_eq!(d.message(), d2.message());
+    }
 }

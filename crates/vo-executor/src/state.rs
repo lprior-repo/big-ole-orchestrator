@@ -88,3 +88,175 @@ pub fn reset_all_state() {
     STATE.clear();
     LAST_ERROR.clear();
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+mod tests {
+    use super::*;
+    use crate::errors::ExecuteNodeError;
+
+    fn setup() {
+        reset_all_state();
+    }
+
+    #[test]
+    fn reset_all_state_clears_everything() {
+        setup();
+        set_state(
+            "test-reset-a",
+            StepState::Completed {
+                output: "x".to_string(),
+            },
+        );
+        set_error(
+            "test-reset-a",
+            ExecuteNodeError::ExecutionCancelled {
+                reason: "r".to_string(),
+            },
+        );
+
+        reset_all_state();
+
+        assert!(matches!(get_state("test-reset-a"), StepState::Ready));
+        assert!(get_last_error("test-reset-a").is_none());
+    }
+
+    #[test]
+    fn set_and_get_state() {
+        setup();
+        set_state(
+            "step-a",
+            StepState::Completed {
+                output: "result".to_string(),
+            },
+        );
+        let state = get_state("step-a");
+        assert!(matches!(state, StepState::Completed { output } if output == "result"));
+    }
+
+    #[test]
+    fn set_state_overwrites() {
+        setup();
+        set_state("step-a", StepState::Ready);
+        set_state(
+            "step-a",
+            StepState::Cancelled {
+                reason: "test".to_string(),
+            },
+        );
+        let state = get_state("step-a");
+        assert!(matches!(state, StepState::Cancelled { .. }));
+    }
+
+    #[test]
+    fn executing_state() {
+        setup();
+        let key = "test-exec-state-unique";
+        let start = Instant::now();
+        set_state(
+            key,
+            StepState::Executing {
+                step_id: StepId::new(key.to_string()),
+                start_time: start,
+            },
+        );
+        let state = get_state(key);
+        assert!(matches!(state, StepState::Executing { .. }));
+    }
+
+    #[test]
+    fn clear_error_no_error() {
+        setup();
+        clear_error("step-a");
+        assert!(get_last_error("step-a").is_none());
+    }
+
+    #[test]
+    fn set_and_get_error() {
+        setup();
+        let key = "test-err-unique";
+        let err = ExecuteNodeError::TimeoutExceeded {
+            elapsed_ms: 5000,
+            limit_ms: 3000,
+        };
+        set_error(key, err.clone());
+        let retrieved = get_last_error(key);
+        assert!(retrieved.is_some());
+        assert_eq!(retrieved.unwrap(), err);
+    }
+
+    #[test]
+    fn clear_error_removes_existing() {
+        setup();
+        let key = "test-clear-err-unique";
+        let err = ExecuteNodeError::ExecutionCancelled {
+            reason: "test".to_string(),
+        };
+        set_error(key, err);
+        assert!(get_last_error(key).is_some());
+        clear_error(key);
+        assert!(get_last_error(key).is_none());
+    }
+
+    #[test]
+    fn step_behavior_success_variants() {
+        let success_steps = [
+            "step-1",
+            "step-good",
+            "step-valid",
+            "step-retry",
+            "workflow-step-1",
+        ];
+        for step in success_steps {
+            assert!(
+                matches!(step_behavior(step), StepBehavior::Success),
+                "failed for {}",
+                step
+            );
+        }
+    }
+
+    #[test]
+    fn step_behavior_failure() {
+        assert!(matches!(step_behavior("step-fail"), StepBehavior::Failure));
+    }
+
+    #[test]
+    fn step_behavior_transient() {
+        assert!(matches!(
+            step_behavior("step-transient"),
+            StepBehavior::Transient
+        ));
+        assert!(matches!(
+            step_behavior("step-flaky"),
+            StepBehavior::Transient
+        ));
+    }
+
+    #[test]
+    fn step_behavior_slow() {
+        assert!(matches!(step_behavior("step-slow"), StepBehavior::Slow));
+    }
+
+    #[test]
+    fn step_behavior_not_found() {
+        assert!(matches!(step_behavior("unknown"), StepBehavior::NotFound));
+        assert!(matches!(step_behavior(""), StepBehavior::NotFound));
+        assert!(matches!(step_behavior("STEP-1"), StepBehavior::NotFound));
+    }
+
+    #[test]
+    fn step_behavior_is_copy() {
+        let b = step_behavior("step-1");
+        let _b2 = b;
+    }
+
+    #[test]
+    fn step_state_clone() {
+        let state = StepState::Completed {
+            output: "data".to_string(),
+        };
+        let cloned = state.clone();
+        assert!(matches!(cloned, StepState::Completed { .. }));
+    }
+}

@@ -284,3 +284,226 @@ pub fn get_execution_status(step_id: &StepId) -> ExecutionStatus {
 pub fn get_last_error(step_id: &StepId) -> Option<ExecuteNodeError> {
     crate::state::get_last_error(step_id.as_str())
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+mod tests {
+    use super::*;
+    use crate::reset_all_state;
+
+    fn setup() {
+        reset_all_state();
+    }
+
+    #[tokio::test]
+    async fn execute_step_success() {
+        setup();
+        let result = execute_step(StepId::new("step-1".to_string()), 5000).await;
+        assert!(result.is_ok());
+        let step_result = result.unwrap();
+        assert!(step_result.is_success());
+    }
+
+    #[tokio::test]
+    async fn execute_step_failure() {
+        setup();
+        let result = execute_step(StepId::new("step-fail".to_string()), 5000).await;
+        assert!(result.is_ok());
+        assert!(!result.unwrap().is_success());
+    }
+
+    #[tokio::test]
+    async fn execute_step_not_found() {
+        setup();
+        let result = execute_step(StepId::new("nonexistent".to_string()), 5000).await;
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), ExecuteNodeError::StepNotFound { .. }));
+    }
+
+    #[tokio::test]
+    async fn execute_step_timeout_zero_rejects() {
+        setup();
+        let result = execute_step(StepId::new("step-1".to_string()), 0).await;
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), ExecuteNodeError::InvalidTimeout { .. }));
+    }
+
+    #[tokio::test]
+    async fn execute_step_timeout_max_rejects() {
+        setup();
+        let result = execute_step(StepId::new("step-1".to_string()), u64::MAX).await;
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), ExecuteNodeError::InvalidTimeout { .. }));
+    }
+
+    #[tokio::test]
+    async fn execute_step_slow_with_large_timeout() {
+        setup();
+        let result = execute_step(StepId::new("step-slow".to_string()), 5000).await;
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_success());
+    }
+
+    #[tokio::test]
+    async fn execute_step_slow_with_small_timeout_times_out() {
+        setup();
+        let result = execute_step(StepId::new("step-slow".to_string()), 100).await;
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), ExecuteNodeError::TimeoutExceeded { .. }));
+    }
+
+    #[tokio::test]
+    async fn execute_step_transient_returns_error() {
+        setup();
+        let result = execute_step(StepId::new("step-transient".to_string()), 5000).await;
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), ExecuteNodeError::TransientError { .. }));
+        assert!(get_last_error(&StepId::new("step-transient".to_string())).is_some());
+    }
+
+    #[tokio::test]
+    async fn execute_step_success_returns_to_ready() {
+        setup();
+        let _ = execute_step(StepId::new("step-1".to_string()), 5000).await;
+        let status = get_execution_status(&StepId::new("step-1".to_string()));
+        assert!(matches!(status, ExecutionStatus::Ready));
+    }
+
+    #[tokio::test]
+    async fn execute_step_with_retry_success_step() {
+        setup();
+        let policy = RetryPolicy::new(3, 100, 2.0).unwrap();
+        let result = execute_step_with_retry(StepId::new("step-1".to_string()), 5000, policy).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn execute_step_with_retry_flaky_always_exhausts() {
+        setup();
+        let policy = RetryPolicy::new(3, 10, 2.0).unwrap();
+        let result = execute_step_with_retry(StepId::new("step-flaky".to_string()), 5000, policy).await;
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), ExecuteNodeError::RetryExhausted { attempts: 3, .. }));
+    }
+
+    #[tokio::test]
+    async fn execute_step_with_retry_flaky_single_attempt() {
+        setup();
+        let policy = RetryPolicy::new(1, 10, 2.0).unwrap();
+        let result = execute_step_with_retry(StepId::new("step-flaky".to_string()), 5000, policy).await;
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), ExecuteNodeError::RetryExhausted { attempts: 1, .. }));
+    }
+
+    #[tokio::test]
+    async fn execute_step_with_retry_zero_attempts_rejects() {
+        setup();
+        let policy = RetryPolicy::new(0, 100, 2.0);
+        assert!(policy.is_err());
+    }
+
+    #[tokio::test]
+    async fn cancel_execution_from_ready() {
+        setup();
+        let step = StepId::new("test-cancel-ready".to_string());
+        set_state(step.as_str(), super::super::state::StepState::Ready);
+        let result = cancel_execution(step.clone()).await;
+        assert!(result.is_ok());
+        let status = get_execution_status(&step);
+        assert!(matches!(status, ExecutionStatus::Cancelled { .. }));
+    }
+
+    #[tokio::test]
+    async fn cancel_execution_from_cancelled_is_noop() {
+        setup();
+        set_state("step-1", super::super::state::StepState::Cancelled {
+            reason: "already".to_string(),
+        });
+        let result = cancel_execution(StepId::new("step-1".to_string())).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn cancel_execution_from_completed_is_noop() {
+        setup();
+        set_state("step-1", super::super::state::StepState::Completed {
+            output: "done".to_string(),
+        });
+        let result = cancel_execution(StepId::new("step-1".to_string())).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn get_execution_status_ready() {
+        setup();
+        let status = get_execution_status(&StepId::new("any".to_string()));
+        assert_eq!(status, ExecutionStatus::Ready);
+    }
+
+    #[tokio::test]
+    async fn get_execution_status_executing() {
+        setup();
+        let start = Instant::now();
+        set_state("step-1", super::super::state::StepState::Executing {
+            step_id: StepId::new("step-1".to_string()),
+            start_time: start,
+        });
+        let status = get_execution_status(&StepId::new("step-1".to_string()));
+        assert!(matches!(status, ExecutionStatus::Executing { .. }));
+    }
+
+    #[tokio::test]
+    async fn get_execution_status_completed() {
+        setup();
+        set_state("step-1", super::super::state::StepState::Completed {
+            output: "result".to_string(),
+        });
+        let status = get_execution_status(&StepId::new("step-1".to_string()));
+        assert_eq!(status, ExecutionStatus::Completed { output: "result".to_string() });
+    }
+
+    #[tokio::test]
+    async fn get_execution_status_cancelled() {
+        setup();
+        set_state("step-1", super::super::state::StepState::Cancelled {
+            reason: "user".to_string(),
+        });
+        let status = get_execution_status(&StepId::new("step-1".to_string()));
+        assert_eq!(status, ExecutionStatus::Cancelled { reason: "user".to_string() });
+    }
+
+    #[tokio::test]
+    async fn get_last_error_none_initially() {
+        setup();
+        assert!(get_last_error(&StepId::new("x".to_string())).is_none());
+    }
+
+    #[tokio::test]
+    async fn get_last_error_after_transient() {
+        setup();
+        let _ = execute_step(StepId::new("step-transient".to_string()), 5000).await;
+        let err = get_last_error(&StepId::new("step-transient".to_string()));
+        assert!(err.is_some());
+    }
+
+    #[tokio::test]
+    async fn workflow_step_1_success() {
+        setup();
+        let result = execute_step(StepId::new("workflow-step-1".to_string()), 5000).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn step_good_success() {
+        setup();
+        let result = execute_step(StepId::new("step-good".to_string()), 5000).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn step_valid_success() {
+        setup();
+        let result = execute_step(StepId::new("step-valid".to_string()), 5000).await;
+        assert!(result.is_ok());
+    }
+}
