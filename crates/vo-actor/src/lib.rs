@@ -18,6 +18,7 @@ pub mod message_router;
 pub mod port;
 pub mod probe;
 pub mod reanimator;
+pub mod semaphore;
 pub mod signal_buffer;
 pub mod spawn_supervisor;
 

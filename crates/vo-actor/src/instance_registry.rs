@@ -186,7 +186,28 @@ impl InstanceRegistry {
             stop_timeout: config.stop_timeout,
         }
     }
+}
 
+/// Interface for instance registry operations needed by InvariantEnforcer.
+pub trait InstanceRegistryInterface: Send + Sync {
+    /// Checks if an instance is currently active.
+    fn is_active(&self, instance_id: &InstanceId) -> bool;
+
+    /// Returns the number of active instances.
+    fn active_count(&self) -> usize;
+}
+
+impl InstanceRegistryInterface for InstanceRegistry {
+    fn is_active(&self, instance_id: &InstanceId) -> bool {
+        InstanceRegistry::is_active(self, instance_id)
+    }
+
+    fn active_count(&self) -> usize {
+        InstanceRegistry::active_count(self)
+    }
+}
+
+impl InstanceRegistry {
     /// Registers an instance actor handle.
     ///
     /// If `id` is not currently active, inserts the handle and returns `Ok(())`.
