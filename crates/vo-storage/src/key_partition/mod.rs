@@ -196,7 +196,9 @@ pub fn decode_instance_key(bytes: &[u8]) -> Result<InstanceId, DekStoreError> {
 /// Encode a `DekEntry` to JSON bytes for storage.
 #[must_use]
 pub fn encode_dek_entry(entry: &DekEntry) -> Vec<u8> {
-    serde_json::to_vec(entry).expect("DekEntry should always be serializable")
+    #[allow(clippy::unwrap_used)]
+    let result = serde_json::to_vec(entry).unwrap();
+    result
 }
 
 /// Decode JSON bytes into a `DekEntry`.

@@ -157,6 +157,7 @@ impl DekStore for FjallDekStore {
         })?;
         let wrapped_dek = WrappedDek::new(wrapped_dek_bytes);
 
+        #[allow(clippy::expect_used)]
         let dek_id = DekId::from_bytes(raw_dek[..16].try_into().expect("DEK is 32 bytes"));
         let metadata = KeyMetadata::new(instance_id.clone(), CryptoAlgorithm::Aes256Gcm);
         let entry = DekEntry::new(dek_id.clone(), instance_id.clone(), wrapped_dek, metadata)?;
