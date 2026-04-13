@@ -6,7 +6,8 @@
 use std::hash::Hash;
 
 /// Lifecycle state of a bead in the workflow
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum LifecycleState {
     /// Initial state: bead is queued, not yet assigned
     Pending,
