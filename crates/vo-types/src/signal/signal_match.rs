@@ -472,4 +472,168 @@ mod tests {
             "Lineage-wide signal should match regardless of epoch (epoch not checked)"
         );
     }
+
+    #[test]
+    fn signal_match_succeeds_with_buffer_policy_reject() {
+        let lineage_id = valid_instance_id();
+        let instance_id = valid_instance_id();
+        let wait_key = WaitKey::parse("approval").expect("valid key");
+
+        let signal =
+            SignalAddress::lineage_wide(lineage_id.clone(), instance_id.clone(), wait_key.clone());
+
+        let wait = WaitRecord::new(
+            instance_id,
+            wait_key,
+            crate::BufferPolicy::Reject,
+            crate::TimestampMs::now(),
+        )
+        .expect("valid wait record");
+
+        let result = signal_match(&signal, &wait, &lineage_id);
+        assert!(
+            result.is_matched(),
+            "Signal should match with BufferPolicy::Reject"
+        );
+    }
+
+    #[test]
+    fn signal_match_succeeds_with_buffer_policy_buffer_one() {
+        let lineage_id = valid_instance_id();
+        let instance_id = valid_instance_id();
+        let wait_key = WaitKey::parse("approval").expect("valid key");
+
+        let signal =
+            SignalAddress::lineage_wide(lineage_id.clone(), instance_id.clone(), wait_key.clone());
+
+        let wait = WaitRecord::new(
+            instance_id,
+            wait_key,
+            crate::BufferPolicy::BufferOne,
+            crate::TimestampMs::now(),
+        )
+        .expect("valid wait record");
+
+        let result = signal_match(&signal, &wait, &lineage_id);
+        assert!(
+            result.is_matched(),
+            "Signal should match with BufferPolicy::BufferOne"
+        );
+    }
+
+    #[test]
+    fn signal_match_succeeds_with_buffer_policy_buffer_many() {
+        let lineage_id = valid_instance_id();
+        let instance_id = valid_instance_id();
+        let wait_key = WaitKey::parse("approval").expect("valid key");
+
+        let signal =
+            SignalAddress::lineage_wide(lineage_id.clone(), instance_id.clone(), wait_key.clone());
+
+        let wait = WaitRecord::new(
+            instance_id,
+            wait_key,
+            crate::BufferPolicy::BufferMany,
+            crate::TimestampMs::now(),
+        )
+        .expect("valid wait record");
+
+        let result = signal_match(&signal, &wait, &lineage_id);
+        assert!(
+            result.is_matched(),
+            "Signal should match with BufferPolicy::BufferMany"
+        );
+    }
+
+    #[test]
+    fn signal_match_result_debug_format_includes_variant_name() {
+        let lineage_id = valid_instance_id();
+        let instance_id = valid_instance_id();
+        let wait_key = WaitKey::parse("approval").expect("valid key");
+
+        let signal =
+            SignalAddress::lineage_wide(lineage_id.clone(), instance_id.clone(), wait_key.clone());
+
+        let wait = WaitRecord::new(
+            instance_id.clone(),
+            wait_key.clone(),
+            crate::BufferPolicy::Reject,
+            crate::TimestampMs::now(),
+        )
+        .expect("valid wait record");
+
+        let matched = signal_match(&signal, &wait, &lineage_id);
+        let debug_str = format!("{:?}", matched);
+        assert!(
+            debug_str.contains("Matched"),
+            "Debug format should contain 'Matched' for matched result"
+        );
+
+        let mismatch_signal = SignalAddress::lineage_wide(
+            lineage_id.clone(),
+            instance_id,
+            WaitKey::parse("other-key").expect("valid key"),
+        );
+        let mismatch_result = signal_match(&mismatch_signal, &wait, &lineage_id);
+        let mismatch_debug = format!("{:?}", mismatch_result);
+        assert!(
+            mismatch_debug.contains("WaitKeyMismatch"),
+            "Debug format should contain 'WaitKeyMismatch' for mismatch result"
+        );
+    }
+
+    #[test]
+    fn signal_match_all_mismatch_variants_have_correct_field_names() {
+        use SignalMatchResult::*;
+        let lineage_id = valid_instance_id();
+        let instance_id = valid_instance_id();
+        let wait_key = WaitKey::parse("approval").expect("valid key");
+
+        let lineage_mismatch = LineageMismatch {
+            signal_lineage_id: lineage_id.clone(),
+            wait_lineage_id: instance_id.clone(),
+        };
+        let instance_mismatch = InstanceMismatch {
+            signal_instance_id: lineage_id.clone(),
+            wait_instance_id: instance_id.clone(),
+        };
+        let wait_key_mismatch = WaitKeyMismatch {
+            signal_wait_key: wait_key.clone(),
+            wait_wait_key: wait_key,
+        };
+        let epoch_mismatch = EpochMismatch {
+            signal_epoch: Epoch::ZERO,
+            wait_epoch: Epoch::new(1),
+        };
+
+        assert!(lineage_mismatch.is_mismatch());
+        assert!(instance_mismatch.is_mismatch());
+        assert!(wait_key_mismatch.is_mismatch());
+        assert!(epoch_mismatch.is_mismatch());
+    }
+
+    #[test]
+    fn signal_match_continues_after_lineage_match() {
+        let lineage_id = valid_instance_id();
+        let instance_id = valid_instance_id();
+        let wait_key = WaitKey::parse("approval").expect("valid key");
+        let other_wait_key = WaitKey::parse("other-key").expect("valid key");
+
+        let signal =
+            SignalAddress::lineage_wide(lineage_id.clone(), instance_id.clone(), other_wait_key);
+
+        let wait = WaitRecord::new(
+            instance_id,
+            wait_key,
+            crate::BufferPolicy::Reject,
+            crate::TimestampMs::now(),
+        )
+        .expect("valid wait record");
+
+        let result = signal_match(&signal, &wait, &lineage_id);
+        assert!(
+            matches!(result, SignalMatchResult::WaitKeyMismatch { .. }),
+            "Should fail at wait_key check after passing lineage check"
+        );
+    }
 }
