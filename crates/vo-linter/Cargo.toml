@@ -6,3 +6,6 @@ license.workspace = true
 
 [dependencies]
 syn = { version = "2", features = ["full", "visit", "extra-traits"] }
+
+[dev-dependencies]
+quote = "1"
