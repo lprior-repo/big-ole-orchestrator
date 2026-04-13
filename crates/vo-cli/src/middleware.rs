@@ -210,6 +210,11 @@ async fn dispatch_inner(cli: Cli) -> Result<(), CliError> {
             eprint!("{stderr}");
             Ok(())
         }
+        Command::Verify { manifest_path } => {
+            let config = crate::commands::verify::VerifyConfig { manifest_path };
+            crate::commands::verify::run_verify(&config)?;
+            Ok(())
+        }
     }
 }
 

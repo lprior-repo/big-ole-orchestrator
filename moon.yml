@@ -33,7 +33,12 @@ tasks:
     toolchains:
       - rust
 
+  verify-gate:
+    command: 'cargo test -p vo-core --lib exact_once_verification'
+    toolchains:
+      - rust
+
   ci:
-    command: 'moon run :check :test :lint-src :purge-gate'
+    command: 'moon run :check :test :lint-src :purge-gate :verify-gate'
     options:
       runInCI: true

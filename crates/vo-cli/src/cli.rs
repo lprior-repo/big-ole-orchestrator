@@ -18,6 +18,8 @@ pub enum CliError {
     Lock(#[from] crate::commands::lock::LockError),
     #[error(transparent)]
     Doctor(#[from] crate::commands::doctor::DoctorError),
+    #[error(transparent)]
+    Verify(#[from] crate::commands::verify::VerifyError),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -42,6 +44,9 @@ pub enum Command {
     },
     Doctor {
         project_dir: PathBuf,
+    },
+    Verify {
+        manifest_path: Option<PathBuf>,
     },
 }
 
@@ -123,6 +128,13 @@ where
                     .default_value(".")
                     .help("Project directory to diagnose"),
             ),
+        )
+        .subcommand(
+            clap::Command::new("verify").arg(
+                clap::Arg::new("manifest-path")
+                    .long("manifest-path")
+                    .help("Path to Cargo.toml"),
+            ),
         );
 
     let matches = cmd.try_get_matches_from(args)?;
@@ -202,6 +214,14 @@ where
                 command: Command::Doctor { project_dir },
             })
         }
+        Some(("verify", sub_matches)) => {
+            let manifest_path = sub_matches
+                .get_one::<String>("manifest-path")
+                .map(PathBuf::from);
+            Ok(Cli {
+                command: Command::Verify { manifest_path },
+            })
+        }
         _ => Err(clap::Error::new(clap::error::ErrorKind::InvalidSubcommand)),
     }
 }
@@ -220,7 +240,8 @@ pub fn map_error_to_exit_code(err: &CliError) -> i32 {
         | CliError::Gc(_)
         | CliError::Init(_)
         | CliError::Lock(_)
-        | CliError::Doctor(_) => 1,
+        | CliError::Doctor(_)
+        | CliError::Verify(_) => 1,
         CliError::InvalidNumeric(_) => 2,
     }
 }
