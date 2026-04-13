@@ -5218,6 +5218,7 @@ dependencies = [
  "axum 0.7.9",
  "bytes",
  "chrono",
+ "fjall",
  "futures",
  "itertools 0.14.0",
  "ractor",
@@ -5236,6 +5237,7 @@ dependencies = [
  "vo-common",
  "vo-core",
  "vo-storage",
+ "vo-types",
  "vo-worker",
 ]
 

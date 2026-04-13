@@ -5,7 +5,7 @@ pub mod v1;
 pub mod v3;
 
 #[cfg(test)]
-mod tests;
+mod v3_test;
 
 pub use errors::*;
 pub use names::*;
