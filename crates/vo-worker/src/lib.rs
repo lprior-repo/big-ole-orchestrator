@@ -520,4 +520,163 @@ mod tests {
         let cycle = graph.detect_cycle();
         assert!(cycle.is_some());
     }
+
+    #[test]
+    fn test_wait_for_graph_no_cycle() {
+        let mut graph = WaitForGraph::default();
+        let owner1 = OwnerId::new("owner1".into());
+        let owner2 = OwnerId::new("owner2".into());
+        let owner3 = OwnerId::new("owner3".into());
+        let lock1 = LockId::new("lock1");
+        let lock2 = LockId::new("lock2");
+
+        graph.set_lock_holder(lock1.clone(), owner1.clone());
+        graph.set_lock_holder(lock2.clone(), owner2.clone());
+
+        graph.add_edge(WaitEdge {
+            waiter: owner3.clone(),
+            lock_id: lock1.clone(),
+            requested_mode: LockMode::Shared,
+        });
+
+        let cycle = graph.detect_cycle();
+        assert!(cycle.is_none());
+    }
+
+    #[test]
+    fn test_wait_for_graph_empty() {
+        let graph = WaitForGraph::default();
+        assert!(graph.detect_cycle().is_none());
+    }
+
+    #[test]
+    fn test_wait_for_graph_self_loop() {
+        let mut graph = WaitForGraph::default();
+        let owner = OwnerId::new("owner1".into());
+        let lock = LockId::new("lock1");
+
+        graph.set_lock_holder(lock.clone(), owner.clone());
+
+        graph.add_edge(WaitEdge {
+            waiter: owner.clone(),
+            lock_id: lock.clone(),
+            requested_mode: LockMode::Exclusive,
+        });
+
+        let cycle = graph.detect_cycle();
+        assert!(cycle.is_none());
+    }
+
+    #[test]
+    fn test_wait_for_graph_three_way_cycle() {
+        let mut graph = WaitForGraph::default();
+        let o1 = OwnerId::new("o1".into());
+        let o2 = OwnerId::new("o2".into());
+        let o3 = OwnerId::new("o3".into());
+        let l1 = LockId::new("l1");
+        let l2 = LockId::new("l2");
+        let l3 = LockId::new("l3");
+
+        graph.set_lock_holder(l1.clone(), o1.clone());
+        graph.set_lock_holder(l2.clone(), o2.clone());
+        graph.set_lock_holder(l3.clone(), o3.clone());
+
+        graph.add_edge(WaitEdge { waiter: o1.clone(), lock_id: l2.clone(), requested_mode: LockMode::Exclusive });
+        graph.add_edge(WaitEdge { waiter: o2.clone(), lock_id: l3.clone(), requested_mode: LockMode::Exclusive });
+        graph.add_edge(WaitEdge { waiter: o3.clone(), lock_id: l1.clone(), requested_mode: LockMode::Exclusive });
+
+        let cycle = graph.detect_cycle();
+        assert!(cycle.is_some());
+        assert!(cycle.unwrap().len() == 3);
+    }
+
+    #[test]
+    fn test_wait_for_graph_get_waiters() {
+        let mut graph = WaitForGraph::default();
+        let o1 = OwnerId::new("o1".into());
+        let o2 = OwnerId::new("o2".into());
+        let lock = LockId::new("lock1");
+
+        graph.add_edge(WaitEdge { waiter: o1.clone(), lock_id: lock.clone(), requested_mode: LockMode::Shared });
+        graph.add_edge(WaitEdge { waiter: o2.clone(), lock_id: lock.clone(), requested_mode: LockMode::Exclusive });
+
+        let waiters = graph.get_waiters(&lock);
+        assert_eq!(waiters.len(), 2);
+    }
+
+    #[test]
+    fn test_wait_for_graph_remove_edges_for_owner() {
+        let mut graph = WaitForGraph::default();
+        let o1 = OwnerId::new("o1".into());
+        let o2 = OwnerId::new("o2".into());
+        let lock = LockId::new("lock1");
+
+        graph.add_edge(WaitEdge { waiter: o1.clone(), lock_id: lock.clone(), requested_mode: LockMode::Shared });
+        graph.add_edge(WaitEdge { waiter: o2.clone(), lock_id: lock.clone(), requested_mode: LockMode::Exclusive });
+
+        graph.remove_edges_for_owner(&o1);
+        let waiters = graph.get_waiters(&lock);
+        assert_eq!(waiters.len(), 1);
+        assert_eq!(waiters[0], o2);
+    }
+
+    #[test]
+    fn test_wait_for_graph_remove_edges_for_lock() {
+        let mut graph = WaitForGraph::default();
+        let o1 = OwnerId::new("o1".into());
+        let lock1 = LockId::new("lock1");
+        let lock2 = LockId::new("lock2");
+
+        graph.add_edge(WaitEdge { waiter: o1.clone(), lock_id: lock1.clone(), requested_mode: LockMode::Shared });
+        graph.add_edge(WaitEdge { waiter: o1.clone(), lock_id: lock2.clone(), requested_mode: LockMode::Exclusive });
+
+        graph.remove_edges_for_lock(&lock1);
+        assert!(graph.get_waiters(&lock1).is_empty());
+        assert_eq!(graph.get_waiters(&lock2).len(), 1);
+    }
+
+    #[test]
+    fn test_wait_for_graph_add_edge_deduplicates() {
+        let mut graph = WaitForGraph::default();
+        let o1 = OwnerId::new("o1".into());
+        let lock = LockId::new("lock1");
+
+        graph.add_edge(WaitEdge { waiter: o1.clone(), lock_id: lock.clone(), requested_mode: LockMode::Shared });
+        graph.add_edge(WaitEdge { waiter: o1.clone(), lock_id: lock.clone(), requested_mode: LockMode::Exclusive });
+
+        let waiters = graph.get_waiters(&lock);
+        assert_eq!(waiters.len(), 1);
+    }
+
+    #[test]
+    fn test_lock_id_display() {
+        let id = LockId::new("my-lock");
+        assert_eq!(format!("{}", id), "my-lock");
+    }
+
+    #[test]
+    fn test_owner_id_display() {
+        let id = OwnerId::new("owner-1".into());
+        assert_eq!(format!("{}", id), "owner-1");
+    }
+
+    #[test]
+    fn test_lock_error_variants() {
+        let _ = LockError::NotFound(LockId::new("x"));
+        let _ = LockError::NotOwner { expected: OwnerId::new("a".into()), got: OwnerId::new("b".into()) };
+        let _ = LockError::InvalidToken;
+        let _ = LockError::DeadlockDetected;
+        let _ = LockError::IncompatibleMode;
+        let _ = LockError::InvalidTtl(0);
+        let _ = LockError::Nats("conn err".into());
+        let _ = LockError::Storage("io err".into());
+        let _ = LockError::Timeout;
+        let _ = LockError::UpgradeWouldDeadlock;
+    }
+
+    #[test]
+    fn test_lock_mode_shared_shared_compatible() {
+        assert!(!LockMode::Shared.can_upgrade_to(LockMode::Shared));
+        assert!(!LockMode::Exclusive.can_upgrade_to(LockMode::Exclusive));
+    }
 }
