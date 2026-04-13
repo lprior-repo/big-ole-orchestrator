@@ -5331,6 +5331,9 @@ dependencies = [
 [[package]]
 name = "vo-linter"
 version = "0.1.0"
+dependencies = [
+ "syn",
+]
 
 [[package]]
 name = "vo-sdk"

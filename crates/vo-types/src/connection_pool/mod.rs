@@ -275,7 +275,7 @@ pub enum ErrorDetail {
         connection_id: ConnectionId,
     },
     InvalidRelease {
-        reason: &'static str,
+        reason: String,
     },
     PoolNotInitialized,
     AlreadyShutdown,
@@ -289,7 +289,7 @@ pub enum ErrorDetail {
 pub struct ErrorContext {
     pub pool_id: PoolId,
     pub timestamp: TimestampMs,
-    pub operation: &'static str,
+    pub operation: String,
     pub connection_id: Option<ConnectionId>,
 }
 
@@ -313,7 +313,7 @@ impl fmt::Display for ConnectionPoolError {
 
 impl ErrorDetail {
     #[must_use]
-    pub fn to_string(self) -> String {
+    pub fn to_string(&self) -> String {
         match self {
             ErrorDetail::MaxConnectionsReached { max } => {
                 format!("Max connections reached: {max}")
@@ -1056,7 +1056,7 @@ mod tests {
             let context = ErrorContext {
                 pool_id,
                 timestamp,
-                operation: "acquire",
+                operation: "acquire".to_string(),
                 connection_id: Some(conn_id),
             };
 
@@ -1074,7 +1074,7 @@ mod tests {
             let context = ErrorContext {
                 pool_id,
                 timestamp,
-                operation: "shutdown",
+                operation: "shutdown".to_string(),
                 connection_id: None,
             };
 
