@@ -254,3 +254,389 @@ fn contains_returns_exact_storage_error_when_store_backend_fails() {
         })
     );
 }
+
+// ========================================================================
+// Red Queen: adversarial expiry boundary — expired entry allows reinsert
+// ========================================================================
+
+#[test]
+fn rq_expired_entry_allows_reinsert_preserves_new_instance_id() {
+    let store = DeterministicDedupeStore::new();
+    let key = DedupeKey::parse("rq-reinsert-boundary-b2uv").unwrap();
+    let old_iid = InstanceId::from_bytes([0xDE; 16]);
+    let new_iid = InstanceId::from_bytes([0xAD; 16]);
+
+    // Insert entry that expires at time 0
+    let expired = DedupeEntry::new("rq-reinsert-boundary-b2uv".to_string(), format!("{old_iid}"), 0).unwrap();
+    store.entries.borrow_mut().insert("rq-reinsert-boundary-b2uv".to_string(), expired);
+
+    // At time 0, the entry is expired — reinsert must succeed
+    let result = store.check_and_insert(&key, &new_iid, 5000).unwrap();
+    assert_eq!(result, AdmissionResult::Admitted);
+
+    // Verify new instance_id replaced the old one
+    let entries = store.entries.borrow();
+    let stored = entries.get("rq-reinsert-boundary-b2uv").unwrap();
+    assert_eq!(stored.instance_id(), &new_iid.to_string());
+    assert_ne!(stored.instance_id(), &old_iid.to_string());
+}
+
+// ========================================================================
+// Red Queen: purge idempotency — repeated purge returns zero after first
+// ========================================================================
+
+#[test]
+fn rq_purge_repeated_is_idempotent() {
+    let store = DeterministicDedupeStore::new();
+
+    store
+        .check_and_insert(&DedupeKey::parse("rq-idem-a-b2uv").unwrap(), &sample_instance_id(), 100)
+        .unwrap();
+    store
+        .check_and_insert(&DedupeKey::parse("rq-idem-b-b2uv").unwrap(), &sample_instance_id(), 200)
+        .unwrap();
+
+    let p1 = store.purge_expired(500).unwrap();
+    let p2 = store.purge_expired(500).unwrap();
+    let p3 = store.purge_expired(500).unwrap();
+
+    assert_eq!(p1, 2, "First purge must remove both expired entries");
+    assert_eq!(p2, 0, "Second purge must find nothing");
+    assert_eq!(p3, 0, "Third purge must find nothing");
+}
+
+// ========================================================================
+// Red Queen: purge at exact expiry boundary
+// ========================================================================
+
+#[test]
+fn rq_purge_at_exact_expiry_boundary() {
+    let store = DeterministicDedupeStore::new();
+    store
+        .check_and_insert(&DedupeKey::parse("rq-boundary-b2uv").unwrap(), &sample_instance_id(), 1000)
+        .unwrap();
+
+    assert_eq!(store.purge_expired(999).unwrap(), 0, "Not yet expired at 999");
+    assert_eq!(store.purge_expired(1000).unwrap(), 1, "Expired at exact boundary 1000");
+}
+
+// ========================================================================
+// Red Queen: partial expiry — mixed expired/unexpired entries
+// ========================================================================
+
+#[test]
+fn rq_partial_expiry_preserves_unexpired_entries() {
+    let store = DeterministicDedupeStore::new();
+    store.check_and_insert(&DedupeKey::parse("rq-partial-a-b2uv").unwrap(), &sample_instance_id(), 100).unwrap();
+    store.check_and_insert(&DedupeKey::parse("rq-partial-b-b2uv").unwrap(), &sample_instance_id(), 200).unwrap();
+    store.check_and_insert(&DedupeKey::parse("rq-partial-c-b2uv").unwrap(), &sample_instance_id(), 300).unwrap();
+    store.check_and_insert(&DedupeKey::parse("rq-partial-d-b2uv").unwrap(), &sample_instance_id(), 400).unwrap();
+
+    let purged = store.purge_expired(250).unwrap();
+    assert_eq!(purged, 2, "Only keys a and b should be purged");
+
+    assert_eq!(store.contains(&DedupeKey::parse("rq-partial-a-b2uv").unwrap()).unwrap(), false);
+    assert_eq!(store.contains(&DedupeKey::parse("rq-partial-b-b2uv").unwrap()).unwrap(), false);
+    assert_eq!(store.contains(&DedupeKey::parse("rq-partial-c-b2uv").unwrap()).unwrap(), true);
+    assert_eq!(store.contains(&DedupeKey::parse("rq-partial-d-b2uv").unwrap()).unwrap(), true);
+}
+
+// ========================================================================
+// Red Queen: purge then reinsert — full eviction cycle
+// ========================================================================
+
+#[test]
+fn rq_purge_then_reinsert_same_key() {
+    let store = DeterministicDedupeStore::new();
+    let key = DedupeKey::parse("rq-evict-b2uv").unwrap();
+    let new_iid = InstanceId::from_bytes([0xBB; 16]);
+
+    store.check_and_insert(&key, &sample_instance_id(), 100).unwrap();
+    store.set_time(200);
+    assert_eq!(store.purge_expired(200).unwrap(), 1);
+    assert_eq!(store.contains(&key).unwrap(), false);
+
+    let result = store.check_and_insert(&key, &new_iid, 5000).unwrap();
+    assert_eq!(result, AdmissionResult::Admitted);
+    assert_eq!(store.contains(&key).unwrap(), true);
+}
+
+// ========================================================================
+// Red Queen: purge leaves unexpired entries rejecting duplicates
+// ========================================================================
+
+#[test]
+fn rq_purge_preserves_duplicate_rejection_for_survivors() {
+    let store = DeterministicDedupeStore::new();
+    let survivor = DedupeKey::parse("rq-survivor-b2uv").unwrap();
+    let doomed = DedupeKey::parse("rq-doomed-b2uv").unwrap();
+
+    store.check_and_insert(&survivor, &sample_instance_id(), 9999).unwrap();
+    store.check_and_insert(&doomed, &sample_instance_id(), 100).unwrap();
+
+    let purged = store.purge_expired(500).unwrap();
+    assert_eq!(purged, 1);
+    assert_eq!(store.contains(&survivor).unwrap(), true);
+
+    let result = store.check_and_insert(&survivor, &sample_instance_id(), 5000).unwrap();
+    assert!(matches!(result, AdmissionResult::Duplicate { .. }));
+}
+
+// ========================================================================
+// Red Queen: u64::MAX expiry — immortal entry survives purge
+// ========================================================================
+
+#[test]
+fn rq_immortal_entry_survives_purge_at_max_minus_one() {
+    let store = DeterministicDedupeStore::new();
+    let key = DedupeKey::parse("rq-immortal-b2uv").unwrap();
+    store.check_and_insert(&key, &sample_instance_id(), u64::MAX).unwrap();
+
+    let purged = store.purge_expired(u64::MAX - 1).unwrap();
+    assert_eq!(purged, 0);
+    assert_eq!(store.contains(&key).unwrap(), true);
+}
+
+// ========================================================================
+// Red Queen: interleaved insert-purge-insert cycle
+// ========================================================================
+
+#[test]
+fn rq_interleaved_insert_purge_insert() {
+    let store = DeterministicDedupeStore::new();
+    let key1 = DedupeKey::parse("rq-iter-1-b2uv").unwrap();
+    let key2 = DedupeKey::parse("rq-iter-2-b2uv").unwrap();
+
+    store.check_and_insert(&key1, &sample_instance_id(), 100).unwrap();
+    store.check_and_insert(&key2, &sample_instance_id(), 9999).unwrap();
+
+    store.set_time(100);
+    assert_eq!(store.purge_expired(100).unwrap(), 1);
+
+    let new_iid = InstanceId::from_bytes([0xCC; 16]);
+    assert_eq!(store.check_and_insert(&key1, &new_iid, 5000).unwrap(), AdmissionResult::Admitted);
+    assert!(matches!(store.check_and_insert(&key2, &sample_instance_id(), 5000).unwrap(), AdmissionResult::Duplicate { .. }));
+}
+
+// ========================================================================
+// Red Queen: zero TTL rejected — nothing stored
+// ========================================================================
+
+#[test]
+fn rq_zero_ttl_rejected_and_nothing_stored() {
+    let store = DeterministicDedupeStore::new();
+    let key = DedupeKey::parse("rq-zero-ttl-b2uv").unwrap();
+
+    assert_eq!(store.check_and_insert(&key, &sample_instance_id(), 0), Err(DedupeStoreError::InvalidArgument));
+    assert_eq!(store.contains(&key).unwrap(), false);
+}
+
+// ========================================================================
+// Red Queen: key with null bytes — duplicate detection still works
+// ========================================================================
+
+#[test]
+fn rq_key_with_null_bytes_duplicate_detected() {
+    let store = DeterministicDedupeStore::new();
+    let key = DedupeKey::parse("key\x00with\x00nulls").unwrap();
+
+    assert_eq!(store.check_and_insert(&key, &sample_instance_id(), 5000).unwrap(), AdmissionResult::Admitted);
+    assert!(matches!(store.check_and_insert(&key, &sample_instance_id(), 5000).unwrap(), AdmissionResult::Duplicate { .. }));
+}
+
+// ========================================================================
+// Red Queen: 256-char boundary key admitted
+// ========================================================================
+
+#[test]
+fn rq_key_256_chars_admitted() {
+    let store = DeterministicDedupeStore::new();
+    let key256 = "a".repeat(256);
+    let key = DedupeKey::parse(&key256).unwrap();
+    assert_eq!(store.check_and_insert(&key, &sample_instance_id(), 5000).unwrap(), AdmissionResult::Admitted);
+}
+
+// ========================================================================
+// Red Queen: single-char key admitted
+// ========================================================================
+
+#[test]
+fn rq_single_char_key_admitted() {
+    let store = DeterministicDedupeStore::new();
+    let key = DedupeKey::parse("x").unwrap();
+    assert_eq!(store.check_and_insert(&key, &sample_instance_id(), 5000).unwrap(), AdmissionResult::Admitted);
+}
+
+// ========================================================================
+// Red Queen: expiry monotonicity — all timestamps
+// ========================================================================
+
+#[test]
+fn rq_expiry_monotonic_across_boundary() {
+    let entry = DedupeEntry::new("k".to_string(), "i".to_string(), 1000).unwrap();
+
+    for now in [0u64, 1, 500, 999] {
+        assert!(!entry.is_expired(now), "Must not be expired at {now}");
+    }
+    for now in [1000u64, 1001, 5000, u64::MAX] {
+        assert!(entry.is_expired(now), "Must be expired at {now}");
+    }
+}
+
+// ========================================================================
+// Red Queen: zero expiry — expired at all timestamps
+// ========================================================================
+
+#[test]
+fn rq_zero_expiry_expired_at_all_timestamps() {
+    let entry = DedupeEntry::new("k".to_string(), "i".to_string(), 0).unwrap();
+    assert!(entry.is_expired(0));
+    assert!(entry.is_expired(1));
+    assert!(entry.is_expired(u64::MAX));
+}
+
+// ========================================================================
+// Red Queen: AdmissionResult cross-variant inequality
+// ========================================================================
+
+#[test]
+fn rq_admission_result_cross_variant_inequality() {
+    let admitted = AdmissionResult::Admitted;
+    let dup = AdmissionResult::Duplicate { instance_id: "x".to_string() };
+    assert_ne!(admitted, dup);
+}
+
+#[test]
+fn rq_admission_result_duplicate_different_iids_not_equal() {
+    let d1 = AdmissionResult::Duplicate { instance_id: "i1".to_string() };
+    let d2 = AdmissionResult::Duplicate { instance_id: "i2".to_string() };
+    assert_ne!(d1, d2);
+}
+
+// ========================================================================
+// Red Queen: DedupeEntry equality — all fields matter
+// ========================================================================
+
+#[test]
+fn rq_entry_equality_all_fields_matter() {
+    let e1 = DedupeEntry::new("k".to_string(), "i".to_string(), 100).unwrap();
+    let e2 = DedupeEntry::new("k".to_string(), "i".to_string(), 100).unwrap();
+    let e3 = DedupeEntry::new("k-diff".to_string(), "i".to_string(), 100).unwrap();
+    let e4 = DedupeEntry::new("k".to_string(), "i-diff".to_string(), 100).unwrap();
+    let e5 = DedupeEntry::new("k".to_string(), "i".to_string(), 200).unwrap();
+
+    assert_eq!(e1, e2);
+    assert_ne!(e1, e3);
+    assert_ne!(e1, e4);
+    assert_ne!(e1, e5);
+}
+
+// ========================================================================
+// Red Queen: error cross-variant inequality
+// ========================================================================
+
+#[test]
+fn rq_error_cross_variant_inequality() {
+    let storage = DedupeStoreError::Storage { reason: "x".to_string() };
+    let codec = DedupeStoreError::Codec { reason: "x".to_string() };
+    let invalid = DedupeStoreError::InvalidArgument;
+    assert_ne!(storage, codec);
+    assert_ne!(storage, invalid);
+    assert_ne!(codec, invalid);
+}
+
+// ========================================================================
+// Red Queen: error implements std::error::Error
+// ========================================================================
+
+#[test]
+fn rq_error_implements_std_error_trait() {
+    let err: Box<dyn std::error::Error> = Box::new(DedupeStoreError::Storage { reason: "e".into() });
+    assert!(!err.to_string().is_empty());
+}
+
+// ========================================================================
+// Red Queen: encode_dedupe_entry produces valid JSON structure
+// ========================================================================
+
+#[test]
+fn rq_encode_entry_produces_valid_json() {
+    let entry = DedupeEntry::new("key-b2uv".to_string(), "iid-b2uv".to_string(), 42).unwrap();
+    let bytes = encode_dedupe_entry(&entry).unwrap();
+    let json_str = String::from_utf8(bytes.clone()).unwrap();
+
+    assert!(json_str.starts_with('{'));
+    assert!(json_str.ends_with('}'));
+    assert!(json_str.contains("\"dedupe_key\":\"key-b2uv\""));
+    assert!(json_str.contains("\"instance_id\":\"iid-b2uv\""));
+    assert!(json_str.contains("\"expires_at\":42"));
+
+    let recovered = decode_dedupe_entry(&bytes).unwrap();
+    assert_eq!(recovered, entry);
+}
+
+// ========================================================================
+// Red Queen: decode_entry rejects binary garbage
+// ========================================================================
+
+#[test]
+fn rq_decode_entry_binary_garbage_rejected() {
+    let garbage = vec![0xFF, 0xFE, 0xFD, 0xFC, 0xFB, 0xFA];
+    assert!(decode_dedupe_entry(&garbage).is_err());
+}
+
+// ========================================================================
+// Red Queen: decode_entry rejects wrong type for expires_at
+// ========================================================================
+
+#[test]
+fn rq_decode_entry_wrong_type_rejected() {
+    let json = r#"{"dedupe_key":"k","instance_id":"i","expires_at":"not-a-number"}"#;
+    assert!(decode_dedupe_entry(json.as_bytes()).is_err());
+}
+
+// ========================================================================
+// Red Queen: decode_key with BOM prefix
+// ========================================================================
+
+#[test]
+fn rq_decode_key_bom_prefix_accepted() {
+    let mut with_bom = Vec::new();
+    with_bom.extend_from_slice(&[0xEF, 0xBB, 0xBF]); // UTF-8 BOM
+    with_bom.extend_from_slice(b"test-key");
+    assert!(decode_dedupe_key(&with_bom).is_ok());
+}
+
+// ========================================================================
+// Red Queen: max Unicode codepoint roundtrip
+// ========================================================================
+
+#[test]
+fn rq_decode_key_max_unicode_codepoint() {
+    let max_char = "\u{10FFFF}";
+    let key = DedupeKey::parse(max_char).unwrap();
+    let bytes = encode_dedupe_key(&key);
+    let recovered = decode_dedupe_key(&bytes).unwrap();
+    assert_eq!(recovered.as_str(), max_char);
+}
+
+// ========================================================================
+// Red Queen: constructor rejects both empty fields
+// ========================================================================
+
+#[test]
+fn rq_entry_both_empty_rejected() {
+    assert_eq!(DedupeEntry::new(String::new(), String::new(), 1000), Err(DedupeStoreError::InvalidArgument));
+}
+
+// ========================================================================
+// Red Queen: entry with zero expiry allowed (immediately expired)
+// ========================================================================
+
+#[test]
+fn rq_entry_zero_expiry_allowed_but_immediately_expired() {
+    let entry = DedupeEntry::new("k".to_string(), "i".to_string(), 0).unwrap();
+    assert_eq!(entry.expires_at(), 0);
+    assert!(entry.is_expired(0));
+    assert!(entry.is_expired(u64::MAX));
+}
