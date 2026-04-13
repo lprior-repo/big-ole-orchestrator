@@ -10,7 +10,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use vo_types::events::EventEnvelope;
-#[cfg(test)]
 use vo_types::events::EventMetadata;
 
 // ─────────────────────────────────────────────────────────────────────────────
