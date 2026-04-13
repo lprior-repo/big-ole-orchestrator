@@ -5378,6 +5378,7 @@ dependencies = [
  "blake3",
  "bytes",
  "crc32fast",
+ "criterion",
  "fjall",
  "generic-array",
  "memmap2",

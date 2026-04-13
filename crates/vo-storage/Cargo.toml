@@ -35,3 +35,8 @@ thiserror = { workspace = true }
 rstest = { workspace = true }
 ulid = { workspace = true }
 vo-core = { workspace = true }
+criterion = { workspace = true }
+
+[[bench]]
+name = "dedupe_bench"
+harness = false

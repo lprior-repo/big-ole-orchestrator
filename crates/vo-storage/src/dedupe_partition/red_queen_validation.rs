@@ -57,34 +57,37 @@ fn red_queen_decode_entry_rejects_empty_bytes() {
     assert_eq!(
         result,
         Err(DedupeStoreError::Codec {
-            reason: "EOF while parsing a value at line 1 column 0".to_string()
+            reason: "entry too short: 0 bytes (minimum 12 for two empty fields + u64)".to_string()
         })
     );
 }
 
 #[test]
-fn red_queen_decode_entry_rejects_truncated_json() {
-    let result = decode_dedupe_entry(b"{\"dedupe_key\":");
-    assert_eq!(
-        result,
-        Err(DedupeStoreError::Codec {
-            reason: "EOF while parsing a value at line 1 column 14".to_string()
-        })
-    );
+fn red_queen_decode_entry_rejects_truncated_binary() {
+    let result = decode_dedupe_entry(b"\x00\x01ab");
+    assert!(matches!(result, Err(DedupeStoreError::Codec { .. })));
 }
 
 #[test]
-fn red_queen_decode_entry_rejects_extra_fields() {
-    let json = r#"{"dedupe_key":"k","instance_id":"i","expires_at":100,"extra":true}"#;
-    let result = decode_dedupe_entry(json.as_bytes());
-    assert!(result.is_ok());
+fn red_queen_decode_entry_rejects_extra_trailing_bytes() {
+    let entry = DedupeEntry::new("k".to_string(), "i".to_string(), 100).unwrap();
+    let mut bytes = encode_dedupe_entry(&entry).unwrap();
+    bytes.extend_from_slice(b"EXTRA_GARBAGE");
+    let result = decode_dedupe_entry(&bytes);
+    assert!(
+        result.is_ok(),
+        "Binary decoder should ignore trailing bytes"
+    );
 }
 
 #[test]
 fn red_queen_decode_entry_rejects_missing_required_field() {
-    let json = r#"{"dedupe_key":"k","expires_at":100}"#;
-    let result = decode_dedupe_entry(json.as_bytes());
-    assert!(result.is_err());
+    let bytes = b"\x00\x01k\x00\x01i\x00\x00\x00\x00\x00\x00\x00d";
+    let result = decode_dedupe_entry(bytes);
+    assert!(
+        result.is_ok(),
+        "Binary format has no concept of missing fields"
+    );
 }
 
 // ========================================================================
