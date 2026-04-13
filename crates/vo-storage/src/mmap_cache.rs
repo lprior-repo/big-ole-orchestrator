@@ -98,21 +98,26 @@ impl MmapCache {
         if needs_evict {
             self.evict_until_space_available(data.len())?;
         }
-        {
+        let old_file_path = {
             let _guard = self.lock.lock();
             if self.current_memory_bytes + data.len() > self.max_memory_bytes {
                 return Err(MmapCacheError::CacheFull);
             }
+            if let Some(old_entry) = self.entries.remove(key) {
+                self.current_memory_bytes -= old_entry.region.size as usize;
+                self.lru_queue.retain(|k| k != key);
+                Some(old_entry.region.file_path)
+            } else {
+                None
+            }
+        };
+        if let Some(file_path) = old_file_path {
+            let _ = std::fs::remove_file(file_path);
         }
         let offset = self.allocate_region(key, data.len())?;
         self.write_data_to_region(key, offset, data)?;
         {
             let _guard = self.lock.lock();
-            // If key already exists, remove old entry to keep LRU in sync
-            if let Some(old_entry) = self.entries.remove(key) {
-                self.current_memory_bytes -= old_entry.region.size as usize;
-                self.lru_queue.retain(|k| k != key);
-            }
             self.access_counter += 1;
             let region = CacheRegion {
                 _offset: offset,
@@ -437,17 +442,21 @@ mod tests {
         cache.insert("key1", b"short").unwrap();
         assert_eq!(cache.current_memory_usage(), 5);
         cache.insert("key1", b"much longer value").unwrap();
-        assert_eq!(cache.current_memory_usage(), 17, "memory should reflect new value size");
+        assert_eq!(
+            cache.current_memory_usage(),
+            17,
+            "memory should reflect new value size"
+        );
     }
 
     #[test]
     fn lru_eviction_with_multiple_entries() {
         let temp_dir = TempDir::new().unwrap();
         let mut cache = MmapCache::new(temp_dir.path().to_path_buf(), 15).unwrap();
-        cache.insert("key1", b"12345").unwrap();  // 5 bytes, total 5
-        cache.insert("key2", b"67890").unwrap();  // 5 bytes, total 10
-        cache.insert("key3", b"abcde").unwrap();  // 5 bytes, total 15
-        cache.insert("key4", b"fghij").unwrap();  // 5 bytes -> need 20, evict key1 (LRU)
+        cache.insert("key1", b"12345").unwrap(); // 5 bytes, total 5
+        cache.insert("key2", b"67890").unwrap(); // 5 bytes, total 10
+        cache.insert("key3", b"abcde").unwrap(); // 5 bytes, total 15
+        cache.insert("key4", b"fghij").unwrap(); // 5 bytes -> need 20, evict key1 (LRU)
         assert!(!cache.contains_key("key1"), "LRU key1 should be evicted");
         assert!(cache.contains_key("key2"));
         assert!(cache.contains_key("key3"));
@@ -493,7 +502,7 @@ mod tests {
         assert_eq!(cache.current_memory_usage(), 5);
     }
 
-        #[test]
+    #[test]
     fn builder_pattern() {
         let temp_dir = TempDir::new().unwrap();
         let cache = MmapCacheBuilder::new(temp_dir.path().to_path_buf())
