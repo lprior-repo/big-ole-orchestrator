@@ -674,25 +674,12 @@ impl<T> BudgetQueues<T> {
         }
 
         // Update stats
-        let new_full = {
+        {
             let mut guard = match self.stats.lock() {
                 Ok(guard) => guard,
                 Err(poisoned) => poisoned.into_inner(),
             };
             guard.increment(class);
-            guard.is_full(class)
-        };
-
-        if new_full {
-            let depth = match self.stats.lock() {
-                Ok(guard) => guard.depth(class),
-                Err(poisoned) => poisoned.into_inner().depth(class),
-            };
-            let capacity = match self.stats.lock() {
-                Ok(guard) => guard.capacity(class),
-                Err(poisoned) => poisoned.into_inner().capacity(class),
-            };
-            self.backpressure.set_full(class, depth, capacity);
         }
 
         Ok(())
@@ -1187,12 +1174,16 @@ mod tests {
     #[test]
     fn backpressure_signal_critical_never_rejects() {
         let signal = BackpressureSignal::new();
+        // Set critical and projection (but not blob) to full
         signal.set_full(WriteClass::CriticalControlPlane, 1024, 1024);
+        signal.set_full(WriteClass::OperatorProjection, 100, 100);
 
-        // Critical writes should never be rejected
+        // Critical writes should never be rejected even when full
         assert!(!signal.should_reject(WriteClass::CriticalControlPlane));
         // But projection should be rejected when full
         assert!(signal.should_reject(WriteClass::OperatorProjection));
+        // Blob is NOT full, so should not be rejected
+        assert!(!signal.should_reject(WriteClass::BulkBlob));
     }
 
     #[test]
