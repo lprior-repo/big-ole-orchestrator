@@ -8,12 +8,15 @@
 //! accessor methods that guarantee guards are dropped before returning.
 //! Reference accessors are provided for test setup and inspection.
 
+use std::sync::Arc;
 use std::time::Instant;
 
 use dashmap::DashMap;
 use vo_types::WorkflowName;
 
-use crate::circuit_breaker::{FailureWindow, RegistrationStatus};
+use crate::circuit_breaker::{
+    FailureWindow, QuarantineCallback, QuarantineEvent, RegistrationStatus,
+};
 
 /// Shared state for the circuit breaker, holding concurrent maps for
 /// rate limiting, failure tracking, and workflow status.
@@ -24,7 +27,6 @@ use crate::circuit_breaker::{FailureWindow, RegistrationStatus};
 /// which ensure guards are dropped before returning, preventing deadlocks.
 /// Reference accessors (`statuses()`, `rate_limiter()`, `failure_tracker()`)
 /// are provided for test setup and direct `DashMap` operations.
-#[derive(Debug)]
 pub struct CircuitBreakerState {
     /// Workflow status map. Unknown workflows default to `Active`.
     ///
@@ -41,6 +43,9 @@ pub struct CircuitBreakerState {
     /// Prefer using `get_failure_count()` for safe reads.
     /// Direct field access is available for test setup and advanced operations.
     pub failure_tracker: DashMap<WorkflowName, FailureWindow>,
+    /// Optional callback for quarantine notifications (ADR-026).
+    /// When set, this callback is invoked when a workflow is quarantined.
+    pub quarantine_callback: Option<Arc<QuarantineCallback>>,
 }
 
 impl CircuitBreakerState {
@@ -51,6 +56,19 @@ impl CircuitBreakerState {
             statuses: DashMap::new(),
             rate_limiter: DashMap::new(),
             failure_tracker: DashMap::new(),
+            quarantine_callback: None,
+        }
+    }
+
+    /// Set the quarantine callback for notifications (ADR-026).
+    pub fn set_quarantine_callback(&mut self, callback: QuarantineCallback) {
+        self.quarantine_callback = Some(Arc::new(callback));
+    }
+
+    /// Invoke the quarantine callback if set.
+    pub fn notify_quarantine(&self, event: &QuarantineEvent) {
+        if let Some(callback) = &self.quarantine_callback {
+            callback(event);
         }
     }
 
@@ -98,6 +116,17 @@ impl CircuitBreakerState {
 impl Default for CircuitBreakerState {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl std::fmt::Debug for CircuitBreakerState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CircuitBreakerState")
+            .field("statuses", &self.statuses.len())
+            .field("rate_limiter", &self.rate_limiter.len())
+            .field("failure_tracker", &self.failure_tracker.len())
+            .field("quarantine_callback", &self.quarantine_callback.is_some())
+            .finish()
     }
 }
 

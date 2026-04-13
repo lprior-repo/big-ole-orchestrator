@@ -210,6 +210,20 @@ async fn dispatch_inner(cli: Cli) -> Result<(), CliError> {
             eprint!("{stderr}");
             Ok(())
         }
+        Command::Unquarantine {
+            workflow_name,
+            operator,
+            engine_url,
+        } => {
+            let result = crate::commands::unquarantine::unquarantine_workflow(
+                &engine_url,
+                &workflow_name,
+                &operator,
+            )
+            .await?;
+            crate::commands::unquarantine::display_result(&result);
+            Ok(())
+        }
     }
 }
 

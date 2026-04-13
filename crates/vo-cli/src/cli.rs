@@ -18,6 +18,8 @@ pub enum CliError {
     Lock(#[from] crate::commands::lock::LockError),
     #[error(transparent)]
     Doctor(#[from] crate::commands::doctor::DoctorError),
+    #[error(transparent)]
+    Unquarantine(#[from] crate::commands::unquarantine::UnquarantineError),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -42,6 +44,11 @@ pub enum Command {
     },
     Doctor {
         project_dir: PathBuf,
+    },
+    Unquarantine {
+        workflow_name: String,
+        operator: String,
+        engine_url: String,
     },
 }
 
@@ -123,6 +130,29 @@ where
                     .default_value(".")
                     .help("Project directory to diagnose"),
             ),
+        )
+        .subcommand(
+            clap::Command::new("unquarantine")
+                .about("Manually unquarantine a workflow (ADR-026)")
+                .arg(
+                    clap::Arg::new("workflow-name")
+                        .required(true)
+                        .value_name("WORKFLOW_NAME")
+                        .help("The workflow name to unquarantine"),
+                )
+                .arg(
+                    clap::Arg::new("operator")
+                        .long("operator")
+                        .required(true)
+                        .value_name("OPERATOR")
+                        .help("The operator performing the unquarantine"),
+                )
+                .arg(
+                    clap::Arg::new("engine-url")
+                        .long("engine-url")
+                        .env("VO_ENGINE_URL")
+                        .default_value("http://localhost:3000"),
+                ),
         );
 
     let matches = cmd.try_get_matches_from(args)?;
@@ -202,6 +232,35 @@ where
                 command: Command::Doctor { project_dir },
             })
         }
+        Some(("unquarantine", sub_matches)) => {
+            let workflow_name = match sub_matches.get_one::<String>("workflow-name") {
+                Some(w) => w.clone(),
+                None => {
+                    return Err(clap::Error::new(
+                        clap::error::ErrorKind::MissingRequiredArgument,
+                    ))
+                }
+            };
+            let operator = match sub_matches.get_one::<String>("operator") {
+                Some(o) => o.clone(),
+                None => {
+                    return Err(clap::Error::new(
+                        clap::error::ErrorKind::MissingRequiredArgument,
+                    ))
+                }
+            };
+            let engine_url = match sub_matches.get_one::<String>("engine-url") {
+                Some(u) => u.clone(),
+                None => "http://localhost:3000".to_string(),
+            };
+            Ok(Cli {
+                command: Command::Unquarantine {
+                    workflow_name,
+                    operator,
+                    engine_url,
+                },
+            })
+        }
         _ => Err(clap::Error::new(clap::error::ErrorKind::InvalidSubcommand)),
     }
 }
@@ -220,7 +279,8 @@ pub fn map_error_to_exit_code(err: &CliError) -> i32 {
         | CliError::Gc(_)
         | CliError::Init(_)
         | CliError::Lock(_)
-        | CliError::Doctor(_) => 1,
+        | CliError::Doctor(_)
+        | CliError::Unquarantine(_) => 1,
         CliError::InvalidNumeric(_) => 2,
     }
 }
