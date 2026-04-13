@@ -166,8 +166,8 @@ impl DekStore for FjallDekStore {
             raw_dek[14],
             raw_dek[15],
         ]);
-        let metadata = KeyMetadata::new(*instance_id, CryptoAlgorithm::Aes256Gcm);
-        let entry = DekEntry::new(dek_id, *instance_id, wrapped_dek, metadata)?;
+        let metadata = KeyMetadata::new(instance_id.clone(), CryptoAlgorithm::Aes256Gcm);
+        let entry = DekEntry::new(dek_id.clone(), instance_id.clone(), wrapped_dek, metadata)?;
 
         self.insert_dek_entry(&entry)?;
         self.set_active_dek_index(instance_id, &dek_id)?;

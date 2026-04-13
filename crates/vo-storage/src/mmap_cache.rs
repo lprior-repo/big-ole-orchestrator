@@ -404,7 +404,8 @@ mod tests {
 
     #[test]
     fn insert_and_get() {
-        let (mut cache, _dir) = create_test_cache();
+        let temp_dir = TempDir::new().unwrap();
+        let mut cache = MmapCache::new(temp_dir.path().to_path_buf(), 1024 * 1024).unwrap();
         cache.insert("key1", b"hello world").unwrap();
         let value = cache.get("key1").unwrap();
         assert_eq!(value, b"hello world");
@@ -412,14 +413,16 @@ mod tests {
 
     #[test]
     fn get_missing_key_returns_error() {
-        let (mut cache, _dir) = create_test_cache();
+        let temp_dir = TempDir::new().unwrap();
+        let cache = MmapCache::new(temp_dir.path().to_path_buf(), 1024 * 1024).unwrap();
         let result = cache.get("nonexistent");
         assert!(result.is_err());
     }
 
     #[test]
     fn contains_key() {
-        let (mut cache, _dir) = create_test_cache();
+        let temp_dir = TempDir::new().unwrap();
+        let mut cache = MmapCache::new(temp_dir.path().to_path_buf(), 1024 * 1024).unwrap();
         assert!(!cache.contains_key("key1"));
         cache.insert("key1", b"value").unwrap();
         assert!(cache.contains_key("key1"));
@@ -427,7 +430,8 @@ mod tests {
 
     #[test]
     fn remove_entry() {
-        let (mut cache, _dir) = create_test_cache();
+        let temp_dir = TempDir::new().unwrap();
+        let mut cache = MmapCache::new(temp_dir.path().to_path_buf(), 1024 * 1024).unwrap();
         cache.insert("key1", b"value").unwrap();
         assert!(cache.contains_key("key1"));
         cache.remove("key1").unwrap();
@@ -448,7 +452,8 @@ mod tests {
 
     #[test]
     fn prefetch_does_not_error() {
-        let (mut cache, _dir) = create_test_cache();
+        let temp_dir = TempDir::new().unwrap();
+        let mut cache = MmapCache::new(temp_dir.path().to_path_buf(), 1024 * 1024).unwrap();
         cache.insert("key1", b"value").unwrap();
         let result = cache.prefetch("key1");
         assert!(result.is_ok());
@@ -456,7 +461,8 @@ mod tests {
 
     #[test]
     fn read_ahead_multiple_keys() {
-        let (mut cache, _dir) = create_test_cache();
+        let temp_dir = TempDir::new().unwrap();
+        let mut cache = MmapCache::new(temp_dir.path().to_path_buf(), 1024 * 1024).unwrap();
         cache.insert("key1", b"value1").unwrap();
         cache.insert("key2", b"value2").unwrap();
         let result = cache.read_ahead(&["key1", "key2"]);
@@ -465,7 +471,8 @@ mod tests {
 
     #[test]
     fn clear_cache() {
-        let (mut cache, _dir) = create_test_cache();
+        let temp_dir = TempDir::new().unwrap();
+        let mut cache = MmapCache::new(temp_dir.path().to_path_buf(), 1024 * 1024).unwrap();
         cache.insert("key1", b"value1").unwrap();
         cache.insert("key2", b"value2").unwrap();
         assert_eq!(cache.len(), 2);
@@ -476,7 +483,8 @@ mod tests {
 
     #[test]
     fn memory_usage_tracking() {
-        let (mut cache, _dir) = create_test_cache();
+        let temp_dir = TempDir::new().unwrap();
+        let mut cache = MmapCache::new(temp_dir.path().to_path_buf(), 1024 * 1024).unwrap();
         assert_eq!(cache.current_memory_usage(), 0);
         cache.insert("key1", b"hello").unwrap();
         assert_eq!(cache.current_memory_usage(), 5);
@@ -565,7 +573,7 @@ mod tests {
     #[test]
     fn invalidate_key_sends_event() {
         let temp_dir = TempDir::new().unwrap();
-        let cache =
+        let mut cache =
             MmapCache::with_broadcast_channel(temp_dir.path().to_path_buf(), 1024 * 1024, 100)
                 .unwrap();
         let mut receiver = cache.subscribe();
@@ -611,7 +619,7 @@ mod tests {
     #[test]
     fn invalidate_all_sends_event() {
         let temp_dir = TempDir::new().unwrap();
-        let cache =
+        let mut cache =
             MmapCache::with_broadcast_channel(temp_dir.path().to_path_buf(), 1024 * 1024, 100)
                 .unwrap();
         let mut receiver = cache.subscribe();
@@ -674,7 +682,7 @@ mod tests {
     #[test]
     fn invalidate_nonexistent_key_sends_event() {
         let temp_dir = TempDir::new().unwrap();
-        let cache =
+        let mut cache =
             MmapCache::with_broadcast_channel(temp_dir.path().to_path_buf(), 1024 * 1024, 100)
                 .unwrap();
         let mut receiver = cache.subscribe();
@@ -692,7 +700,7 @@ mod tests {
     #[test]
     fn broadcast_channel_buffer_overflow_drops_events() {
         let temp_dir = TempDir::new().unwrap();
-        let cache =
+        let mut cache =
             MmapCache::with_broadcast_channel(temp_dir.path().to_path_buf(), 1024 * 1024, 2)
                 .unwrap();
         let mut receiver = cache.subscribe();
