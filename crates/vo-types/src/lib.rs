@@ -52,6 +52,7 @@ mod types;
 #[cfg(test)]
 mod types_tests;
 mod workflow;
+pub mod search;
 pub mod workspace;
 
 pub use btree::{BTree, BTreeError, BTreeNode};
@@ -129,6 +130,10 @@ pub use types::{
     FireAtMs, IdempotencyKey, InstanceId, LeaseRecord, MaxAttempts, NodeName, SequenceNumber,
     Snapshot, SpawnId, State, StepId, TimeoutMs, TimerId, TimestampMs, WorkflowName, WorkflowSpec,
     MAX_SUPPORTED_SCHEMA_VERSION,
+};
+pub use search::{
+   Bm25Scorer, InvertedIndex, Posting, PostingList, Query, QueryParser, Scorer, SearchEngine,
+    SearchError, SearchResult, TfIdfScorer,
 };
 pub use workflow::{
     next_nodes, DagNode, Edge, EdgeCondition, RetryPolicy, RetryPolicyError, StepOutcome,
