@@ -258,7 +258,7 @@ impl WorkQueue for MockWorkQueue {
 // =============================================================================
 
 /// verify_dual_clock - Dual-clock verification per ADR-013
-/// Returns true if fire_at_ms <= now_ms OR (trigger_time_ms + duration_ms) <= now_ms
+/// Returns true if fire_at_ms <= now_ms AND (trigger_time_ms + duration_ms) <= now_ms
 pub fn verify_dual_clock(
     fire_at_ms: u64,
     trigger_time_ms: u64,
@@ -443,17 +443,16 @@ mod verify_dual_clock_tests {
         );
     }
 
-    /// Behavior: verify_dual_clock returns true when elapsed_equals_now
+    /// Behavior: verify_dual_clock returns false when only elapsed condition met
     #[test]
-    fn verify_dual_clock_returns_true_when_elapsed_equals_now() {
+    fn verify_dual_clock_returns_false_when_only_elapsed_condition_met() {
         // Given: fire_at_ms = 1001, trigger_time_ms = 800, duration_ms = 200,
-        //        now_ms = 1000 (trigger + duration == now)
-        // When
+        //        now_ms = 1000 (trigger + duration == now, but fire_at > now)
+        // With AND logic: both conditions must be met, so returns false
         let result = verify_dual_clock(1001, 800, 200, 1000);
-        // Then: Returns true (trigger + duration == now satisfies <=)
         assert!(
-            result,
-            "verify_dual_clock should return true at boundary elapsed = now"
+            !result,
+            "verify_dual_clock should return false when only elapsed condition is met"
         );
     }
 
@@ -467,14 +466,17 @@ mod verify_dual_clock_tests {
         assert!(result);
     }
 
-    /// Behavior: verify_dual_clock returns true when elapsed_ge_duration
+    /// Behavior: verify_dual_clock returns false when only monotonic condition met
     #[test]
-    fn verify_dual_clock_returns_true_when_elapsed_ge_duration() {
+    fn verify_dual_clock_returns_false_when_only_monotonic_condition_met() {
         // Given: fire_at_ms = 1500, trigger_time_ms = 800, duration_ms = 200, now_ms = 1000
-        // When
+        // Monotonic condition met (800+200=1000 <= 1000), but wall clock not met (1500 > 1000)
+        // With AND logic: both must be met, so returns false
         let result = verify_dual_clock(1500, 800, 200, 1000);
-        // Then: Should return true
-        assert!(result);
+        assert!(
+            !result,
+            "verify_dual_clock should return false when only monotonic condition is met"
+        );
     }
 
     /// Behavior: verify_dual_clock returns false when not due
@@ -710,7 +712,7 @@ mod proptest_verify_dual_clock {
             now in 0u64..1_000_000_000_000u64,
         ) {
             let result = verify_dual_clock(fire_at, trigger, duration, now);
-            let expected = fire_at <= now || trigger.saturating_add(duration) <= now;
+            let expected = fire_at <= now && trigger.saturating_add(duration) <= now;
             prop_assert_eq!(result, expected);
         }
     }

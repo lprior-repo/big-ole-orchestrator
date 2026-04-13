@@ -388,7 +388,10 @@ pub struct CycleResult {
 
 /// `verify_dual_clock` - Dual-clock verification per ADR-013
 ///
-/// Returns true if `fire_at_ms` <= `now_ms` OR (`trigger_time_ms` + `duration_ms`) <= `now_ms`
+/// Returns true if BOTH `fire_at_ms` <= `now_ms` AND (`trigger_time_ms` + `duration_ms`) <= `now_ms`
+///
+/// Using AND logic requires both clocks to agree before firing, preventing timer drift
+/// from wall clock adjustments (hibernation, manual time changes) or monotonic skew.
 ///
 /// This function is a pure calculation with no side effects.
 ///
@@ -399,7 +402,7 @@ pub struct CycleResult {
 /// * `now_ms` - Current time (Unix timestamp ms)
 ///
 /// # Returns
-/// `true` if timer should fire under either clock condition
+/// `true` if timer should fire under BOTH clock conditions
 #[inline]
 #[must_use]
 pub fn verify_dual_clock(
@@ -408,9 +411,9 @@ pub fn verify_dual_clock(
     duration_ms: u64,
     now_ms: u64,
 ) -> bool {
-    // Condition 1: Wall clock - fire_at <= now
-    // Condition 2: Monotonic clock - trigger + duration <= now (for clock skew tolerance)
-    fire_at_ms <= now_ms || trigger_time_ms.saturating_add(duration_ms) <= now_ms
+    let wall_clock_ok = fire_at_ms <= now_ms;
+    let monotonic_ok = trigger_time_ms.saturating_add(duration_ms) <= now_ms;
+    wall_clock_ok && monotonic_ok
 }
 
 /// `is_overdue` - Check if timer is overdue beyond tick interval
@@ -505,19 +508,37 @@ mod tests {
     #[test]
     fn verify_dual_clock_returns_true_when_fire_at_le_now() {
         // fire_at_ms = 1000 <= now_ms = 1000
+        // trigger_time_ms + duration_ms = 800 + 200 = 1000 <= now_ms = 1000
+        // Both conditions met with AND logic
         assert!(verify_dual_clock(1000, 800, 200, 1000));
     }
 
     #[test]
-    fn verify_dual_clock_returns_true_when_elapsed_ge_duration() {
-        // trigger_time_ms + duration_ms = 800 + 200 = 1000 <= now_ms = 1000
-        assert!(verify_dual_clock(1500, 800, 200, 1000));
+    fn verify_dual_clock_returns_false_when_only_monotonic_condition_met() {
+        // trigger_time_ms + duration_ms = 800 + 200 = 1000 <= now_ms = 1000 (monotonic met)
+        // fire_at_ms = 1500 > now_ms = 1000 (wall clock NOT met)
+        // With AND logic, both must be met, so this returns false
+        assert!(!verify_dual_clock(1500, 800, 200, 1000));
+    }
+
+    #[test]
+    fn verify_dual_clock_returns_true_when_both_conditions_met() {
+        // fire_at_ms = 1000 <= now_ms = 1000 (wall clock met)
+        // trigger_time_ms + duration_ms = 800 + 200 = 1000 <= now_ms = 1000 (monotonic met)
+        assert!(verify_dual_clock(1000, 800, 200, 1000));
+    }
+
+    #[test]
+    fn verify_dual_clock_returns_false_when_only_wall_clock_met() {
+        // fire_at_ms = 1100 <= now_ms = 1100 (wall clock met)
+        // trigger_time_ms + duration_ms = 800 + 400 = 1200 > now_ms = 1100 (monotonic NOT met)
+        assert!(!verify_dual_clock(1100, 800, 400, 1100));
     }
 
     #[test]
     fn verify_dual_clock_returns_false_when_not_due() {
-        // fire_at_ms = 1500 > now_ms = 900
-        // trigger_time_ms + duration_ms = 1000 > now_ms = 900
+        // fire_at_ms = 1500 > now_ms = 900 (wall clock NOT met)
+        // trigger_time_ms + duration_ms = 800 + 200 = 1000 > now_ms = 900 (monotonic NOT met)
         assert!(!verify_dual_clock(1500, 800, 200, 900));
     }
 
