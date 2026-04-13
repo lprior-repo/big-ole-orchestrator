@@ -4,6 +4,7 @@
 //! to reconstruct `LifecycleState` from event history.
 
 mod engine;
+pub mod projection;
 mod types;
 
 #[cfg(test)]
