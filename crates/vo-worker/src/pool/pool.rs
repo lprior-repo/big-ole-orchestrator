@@ -16,7 +16,7 @@ use vo_types::connection_pool::{
 use vo_types::integer_types::TimestampMs;
 
 use super::circuit_breaker::CircuitBreaker;
-use super::config::PoolConfig;
+use super::config::{PoolConfig, PoolConfigError};
 use super::health_check::{determine_health_check_result, HealthCheck};
 
 #[derive(Debug, Clone)]
@@ -398,15 +398,6 @@ fn validate_config(config: &VoPoolConfig) -> Result<(), PoolConfigError> {
         return Err(PoolConfigError::HealthCheckIntervalZero);
     }
     Ok(())
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PoolConfigError {
-    MinGreaterThanMax,
-    MaxZero,
-    ConnectionTimeoutZero,
-    IdleTimeoutZero,
-    HealthCheckIntervalZero,
 }
 
 #[cfg(test)]
