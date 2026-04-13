@@ -42,6 +42,46 @@ impl<T: Clone> SegmentTree<T> {
         }
     }
 
+    /// Fallible constructor: builds a segment tree from a slice, returning an error
+    /// instead of panicking on empty data.
+    pub fn try_from_slice(
+        data: &[T],
+        merge: fn(&T, &T) -> T,
+        identity: T,
+    ) -> Result<Self, SegmentTreeError> {
+        if data.is_empty() {
+            return Err(SegmentTreeError::EmptyData);
+        }
+        Ok(Self::from_slice(data, merge, identity))
+    }
+
+    /// Fallible query: validates bounds and range, returning an error instead of
+    /// panicking.
+    pub fn try_query(&self, left: usize, right: usize) -> Result<T, SegmentTreeError> {
+        if left > right {
+            return Err(SegmentTreeError::InvalidRange { left, right });
+        }
+        if right > self.len {
+            return Err(SegmentTreeError::RangeOutOfBounds {
+                right,
+                len: self.len,
+            });
+        }
+        Ok(self.query(left, right))
+    }
+
+    /// Fallible get: validates index bounds, returning an error instead of
+    /// panicking.
+    pub fn try_get(&self, index: usize) -> Result<T, SegmentTreeError> {
+        if index >= self.len {
+            return Err(SegmentTreeError::IndexOutOfBounds {
+                index,
+                len: self.len,
+            });
+        }
+        Ok(self.get(index))
+    }
+
     /// Query the aggregate value over range `[left, right)`.
     #[must_use]
     pub fn query(&self, left: usize, right: usize) -> T {
@@ -273,9 +313,48 @@ impl<T: Clone, U: Clone> LazySegmentTree<T, U> {
     }
 }
 
+/// Errors for segment tree operations.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum SegmentTreeError {
+    #[error("empty data: SegmentTree requires at least one element")]
+    EmptyData,
+    #[error("invalid range: left ({left}) > right ({right})")]
+    InvalidRange { left: usize, right: usize },
+    #[error("index out of bounds: {index} >= len {len}")]
+    IndexOutOfBounds { index: usize, len: usize },
+    #[error("range out of bounds: right ({right}) > len {len}")]
+    RangeOutOfBounds { right: usize, len: usize },
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ST-00a: try_from_slice rejects empty data
+    #[test]
+    fn segment_tree_try_from_slice_rejects_empty() {
+        let result = SegmentTree::try_from_slice(&[], |a: &i64, b: &i64| a + b, 0);
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), SegmentTreeError::EmptyData);
+    }
+
+    // ST-00b: try_query rejects out-of-bounds range
+    #[test]
+    fn segment_tree_try_query_out_of_bounds() {
+        let data = vec![1i64, 2, 3];
+        let tree = SegmentTree::try_from_slice(&data, |a, b| a + b, 0).unwrap();
+        let result = tree.try_query(0, 4);
+        assert!(result.is_err());
+    }
+
+    // ST-00c: try_get rejects out-of-bounds index
+    #[test]
+    fn segment_tree_try_get_out_of_bounds() {
+        let data = vec![1i64, 2, 3];
+        let tree = SegmentTree::try_from_slice(&data, |a, b| a + b, 0).unwrap();
+        let result = tree.try_get(3);
+        assert!(result.is_err());
+    }
 
     // ST-01: Build from slice and query full range (sum)
     #[test]

@@ -199,7 +199,7 @@ impl CredentialVault {
         _id: &CredentialId,
         _policy: Option<RotationPolicy>,
     ) -> Result<CredentialVersionId, CredentialError> {
-        Ok(CredentialVersionId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap())
+        Ok(CredentialVersionId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").expect("SAFETY: hardcoded valid ULID literal — parse cannot fail for this constant"))
     }
 
     pub fn revoke_version(
