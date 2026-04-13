@@ -51,6 +51,7 @@ impl TimerKey {
     }
 }
 
+#[derive(Debug)]
 pub struct TimerValue(u64);
 
 impl TimerValue {
