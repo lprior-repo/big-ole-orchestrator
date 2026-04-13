@@ -42,7 +42,7 @@ fn payload_try_from_json_returns_invalid_payload_field_when_attempt_is_not_integ
 
 #[test]
 fn payload_try_from_json_returns_missing_payload_field_when_execution_id_is_absent() {
-    let json = serde_json::json!({"type": "StepScheduled", "workflow_id": "w1", "step_id": "s1", "attempt": 1, "version": 1});
+    let json = serde_json::json!({"type": "StepScheduled", "workflow_id": "w1", "step_id": "s1", "attempt": 1, "fence": 0, "version": 1});
     let result = EventPayload::try_from_json(&json);
     assert_eq!(
         result,
@@ -62,7 +62,7 @@ fn payload_try_from_json_returns_missing_payload_field_when_attempt_is_absent_fo
 
 #[test]
 fn payload_try_from_json_defaults_dag_topology_to_null_when_absent() {
-    let json = serde_json::json!({"type": "WorkflowStarted", "workflow_id": "w1", "binary_hash": "abc123", "version": 1});
+    let json = serde_json::json!({"type": "WorkflowStarted", "workflow_id": "w1", "binary_hash": "abc123", "workflow_version_hash": "vhash", "dedupe_key_hash": null, "version": 1});
     let result = EventPayload::try_from_json(&json);
     assert_eq!(
         result,
@@ -70,13 +70,15 @@ fn payload_try_from_json_defaults_dag_topology_to_null_when_absent() {
             workflow_id: "w1".into(),
             dag_topology: serde_json::Value::Null,
             binary_hash: "abc123".into(),
+            workflow_version_hash: "vhash".into(),
+            dedupe_key_hash: None,
         })
     );
 }
 
 #[test]
 fn payload_try_from_json_defaults_output_to_null_when_absent() {
-    let json = serde_json::json!({"type": "StepCompleted", "workflow_id": "w1", "step_id": "s1", "completed_at_ms": 1000, "version": 1});
+    let json = serde_json::json!({"type": "StepCompleted", "workflow_id": "w1", "step_id": "s1", "completed_at_ms": 1000, "attempt": 1, "fence": 0, "routing_projection": null, "output_ref": null, "output_hash": null, "version": 1});
     let result = EventPayload::try_from_json(&json);
     assert_eq!(
         result,
@@ -84,6 +86,11 @@ fn payload_try_from_json_defaults_output_to_null_when_absent() {
             workflow_id: "w1".into(),
             step_id: "s1".into(),
             completed_at_ms: 1000,
+            attempt: 1,
+            fence: 0,
+            routing_projection: serde_json::Value::Null,
+            output_ref: None,
+            output_hash: None,
             output: serde_json::Value::Null,
         })
     );
@@ -91,7 +98,7 @@ fn payload_try_from_json_defaults_output_to_null_when_absent() {
 
 #[test]
 fn payload_try_from_json_handles_attempt_at_u32_max() {
-    let json = serde_json::json!({"type": "StepScheduled", "workflow_id": "w1", "step_id": "s1", "attempt": 4294967295_u64, "execution_id": "e1", "version": 1});
+    let json = serde_json::json!({"type": "StepScheduled", "workflow_id": "w1", "step_id": "s1", "attempt": 4294967295_u64, "fence": 0, "execution_id": "e1", "version": 1});
     let result = EventPayload::try_from_json(&json);
     assert_eq!(
         result,
@@ -99,6 +106,7 @@ fn payload_try_from_json_handles_attempt_at_u32_max() {
             workflow_id: "w1".into(),
             step_id: "s1".into(),
             attempt: u32::MAX,
+            fence: 0,
             execution_id: "e1".into(),
         })
     );
@@ -177,7 +185,7 @@ fn payload_try_from_json_returns_invalid_payload_field_when_attempt_is_not_integ
 // ADR-027: new required-field missing cases for binary_hash, attempt, execution_id
 #[case(serde_json::json!({"type": "WorkflowStarted", "workflow_id": "w1", "version": 1}), Error::MissingPayloadField("binary_hash".to_string()))]
 #[case(serde_json::json!({"type": "StepScheduled", "workflow_id": "w1", "step_id": "s1", "execution_id": "e1", "version": 1}), Error::MissingPayloadField("attempt".to_string()))]
-#[case(serde_json::json!({"type": "StepScheduled", "workflow_id": "w1", "step_id": "s1", "attempt": 1, "version": 1}), Error::MissingPayloadField("execution_id".to_string()))]
+#[case(serde_json::json!({"type": "StepScheduled", "workflow_id": "w1", "step_id": "s1", "attempt": 1, "version": 1}), Error::MissingPayloadField("fence".to_string()))]
 #[case(serde_json::json!({"type": "StepFailed", "workflow_id": "w1", "step_id": "s1", "failure_reason": "err", "version": 1}), Error::MissingPayloadField("attempt".to_string()))]
 
 fn payload_invalid_fields(#[case] json: serde_json::Value, #[case] expected: Error) {
