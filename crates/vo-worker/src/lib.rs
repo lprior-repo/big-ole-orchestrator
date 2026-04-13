@@ -10,11 +10,11 @@
 #![allow(unused)]
 #![allow(missing_docs)]
 
-mod connector;
-mod port;
-mod retry;
-mod storage;
-mod supervisor;
+pub mod connector;
+pub mod port;
+pub mod retry;
+pub mod storage;
+pub mod supervisor;
 
 use chrono::{DateTime, Utc};
 use std::collections::{BTreeMap, HashMap, HashSet};
