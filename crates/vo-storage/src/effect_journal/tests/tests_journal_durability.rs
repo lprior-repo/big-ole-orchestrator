@@ -38,7 +38,6 @@ fn fjall_prepare_survives_keyspace_flush() {
 
     let eid = journal.prepare(&id, record).unwrap();
 
-
     let pending = journal.list_pending(&id).unwrap();
     assert_eq!(pending.len(), 1);
     assert_eq!(pending[0].intent_id(), "fx-durability-1");
@@ -123,7 +122,6 @@ fn fjall_multiple_effects_durability_across_flush() {
         .unwrap();
         journal.prepare(&id, record).unwrap();
     }
-
 
     let pending = journal.list_pending(&id).unwrap();
     assert_eq!(pending.len(), 10);
@@ -430,7 +428,7 @@ fn fjall_replay_mixed_effects_survive_keyspace_reopen() {
         let keyspace = fjall::Config::new(&dir_path).open().expect("keyspace");
         let journal = FjallEffectJournal::open(&keyspace).expect("journal");
 
-        for i in 0..5 {
+        for i in 0..6 {
             let record = EffectRecord::new(
                 format!("fx-mixed-{i}"),
                 if i % 2 == 0 {
@@ -451,7 +449,6 @@ fn fjall_replay_mixed_effects_survive_keyspace_reopen() {
                 _ => {}
             }
         }
-
     }
 
     let keyspace = fjall::Config::new(&dir_path)
@@ -467,7 +464,7 @@ fn fjall_replay_mixed_effects_survive_keyspace_reopen() {
     );
     let intent_ids: Vec<&str> = pending.iter().map(|r| r.intent_id()).collect();
     assert!(intent_ids.contains(&"fx-mixed-2"));
-    assert!(intent_ids.contains(&"fx-mixed-4"));
+    assert!(intent_ids.contains(&"fx-mixed-5"));
 }
 
 #[test]
@@ -537,7 +534,6 @@ fn fjall_replay_compact_removes_terminal_after_reopen() {
             let eid = journal.prepare(&id, record).unwrap();
             journal.commit(&eid).unwrap();
         }
-
     }
 
     let keyspace = fjall::Config::new(&dir_path)
