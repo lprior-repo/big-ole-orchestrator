@@ -14,7 +14,12 @@ tokio = { workspace = true, features = ["rt", "macros", "time", "sync"] }
 proptest = { workspace = true }
 serde_json = { workspace = true }
 criterion = { workspace = true }
+uuid = { workspace = true }
 
 [[bench]]
 name = "e2e_bench"
+harness = false
+
+[[bench]]
+name = "e2e_system_bench"
 harness = false
