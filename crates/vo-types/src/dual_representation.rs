@@ -171,11 +171,9 @@ pub fn apply_redaction(
             }
             serde_json::Value::Array(arr) => {
                 let mut result = Vec::new();
-                for (i, item) in arr.iter().enumerate() {
-                    current_path.push(i.to_string());
+                for item in arr.iter() {
                     let new_item = apply_recursive(item, rules, current_path, redacted_fields);
                     result.push(new_item);
-                    current_path.pop();
                 }
                 serde_json::Value::Array(result)
             }
