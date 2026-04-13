@@ -6,7 +6,7 @@ use axum::{
     response::IntoResponse,
     Json,
 };
-use futures::{Sink, Stream};
+use futures::{SinkExt, Stream, StreamExt};
 use tokio::sync::broadcast;
 
 use crate::types::ApiError;
@@ -91,7 +91,7 @@ impl WsBroadcaster {
         self.tx.subscribe()
     }
 
-    pub fn send(&self, event: WorkflowWsEvent) -> Result<usize, broadcast::error::SendError> {
+    pub fn send(&self, event: WorkflowWsEvent) -> Result<usize, broadcast::error::SendError<WorkflowWsEvent>> {
         self.tx.send(event)
     }
 }
@@ -122,27 +122,35 @@ impl Default for WsState {
 }
 
 struct WsStream {
-    receiver: broadcast::Receiver<WorkflowWsEvent>,
+    inner: tokio_stream::wrappers::BroadcastStream<WorkflowWsEvent>,
+}
+
+impl WsStream {
+    fn new(receiver: broadcast::Receiver<WorkflowWsEvent>) -> Self {
+        Self {
+            inner: tokio_stream::wrappers::BroadcastStream::new(receiver),
+        }
+    }
 }
 
 impl Stream for WsStream {
-    type Item = Result<axum::extract::ws::Message, broadcast::error::RecvError>;
+    type Item = Result<axum::extract::ws::Message, tokio_stream::wrappers::errors::BroadcastStreamRecvError>;
 
     fn poll_next(
         mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
-        match std::pin::Pin::new(&mut self.receiver).poll_recv(cx) {
-            std::task::Poll::Ready(Ok(event)) => {
+        match std::pin::Pin::new(&mut self.inner).poll_next(cx) {
+            std::task::Poll::Ready(Some(Ok(event))) => {
                 let msg = axum::extract::ws::Message::Text(event.to_json_string().into());
                 std::task::Poll::Ready(Some(Ok(msg)))
             }
-            std::task::Poll::Ready(Err(broadcast::error::RecvError::Closed)) => {
-                std::task::Poll::Ready(None)
+            std::task::Poll::Ready(Some(Err(e))) => {
+                cx.waker().wake_by_ref();
+                let _ = e;
+                std::task::Poll::Pending
             }
-            std::task::Poll::Ready(Err(broadcast::error::RecvError::Lagged(_))) => {
-                std::task::Poll::Ready(None)
-            }
+            std::task::Poll::Ready(None) => std::task::Poll::Ready(None),
             std::task::Poll::Pending => std::task::Poll::Pending,
         }
     }
@@ -155,7 +163,6 @@ fn split_path_id(path: &str) -> Option<(String, String)> {
     Some((namespace, instance_id))
 }
 
-#[derive(Clone)]
 pub struct WsConnectionCount {
     pub active_connections: std::sync::atomic::AtomicUsize,
 }
@@ -210,14 +217,14 @@ pub async fn ws_workflow(
 
     ws.on_upgrade(move |socket| {
         async move {
-            let (sink, mut stream) = socket.split();
+            let (sink, socket_stream) = socket.split();
             let receiver = broadcaster.subscribe();
-            let stream = WsStream { receiver };
+            let event_stream = WsStream::new(receiver);
 
             let send_task = tokio::spawn(async move {
-                let mut stream = stream;
+                let mut event_stream = event_stream;
                 let mut sink = sink;
-                while let Some(item) = futures::StreamExt::next(&mut stream).await {
+                while let Some(item) = event_stream.next().await {
                     match item {
                         Ok(axum::extract::ws::Message::Close(_)) => break,
                         Ok(axum::extract::ws::Message::Ping(data)) => {
@@ -228,15 +235,14 @@ pub async fn ws_workflow(
                         Ok(axum::extract::ws::Message::Pong(_)) => {}
                         Ok(axum::extract::ws::Message::Text(_)) => {}
                         Ok(axum::extract::ws::Message::Binary(_)) => {}
-                        Ok(axum::extract::ws::Message::Frame(_)) => {}
                         Err(_) => break,
                     }
                 }
             });
 
             let recv_task = tokio::spawn(async move {
-                tokio::pin!(stream);
-                while let Some(item) = futures::StreamExt::next(&mut stream).await {
+                let mut socket_stream = socket_stream;
+                while let Some(item) = socket_stream.next().await {
                     match item {
                         Ok(msg) => {
                             if let Ok(text) = msg.to_text() {
