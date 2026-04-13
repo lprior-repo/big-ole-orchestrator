@@ -24,6 +24,12 @@ pub enum MmapCacheError {
     SerializationError,
 }
 
+#[derive(Clone, Debug)]
+pub enum CacheInvalidationEvent {
+    KeyInvalidated(String),
+    AllInvalidated,
+}
+
 #[derive(Clone)]
 struct CacheRegion {
     _offset: u64,
