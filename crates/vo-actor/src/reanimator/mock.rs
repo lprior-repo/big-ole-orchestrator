@@ -1,6 +1,6 @@
 //! Mock implementations for testing the Reanimator Loop.
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use tokio::sync::Mutex;
 use vo_types::{InstanceId, TimestampMs};
 
@@ -77,12 +77,17 @@ impl TimerStorage for MockTimerStorage {
         }
 
         let timers = self.timers.lock().await;
-        let due: Vec<TimerRecord> = timers
-            .iter()
-            .filter(|t| t.fire_at_ms <= to_timestamp)
-            .take(max_results as usize)
-            .cloned()
-            .collect();
+        let mut seen = HashSet::new();
+        let mut due: Vec<TimerRecord> = Vec::new();
+        
+        for t in timers.iter() {
+            if t.fire_at_ms <= to_timestamp {
+                let key = (t.instance_id.clone(), t.fire_at_ms);
+                if seen.insert(key) && due.len() < max_results as usize {
+                    due.push(t.clone());
+                }
+            }
+        }
 
         Ok(due)
     }
@@ -102,7 +107,9 @@ impl TimerStorage for MockTimerStorage {
             .push((instance_id.clone(), fire_at_ms));
 
         let mut timers = self.timers.lock().await;
-        timers.retain(|t| !(t.instance_id == *instance_id && t.fire_at_ms == fire_at_ms));
+        if let Some(pos) = timers.iter().position(|t| t.instance_id == *instance_id && t.fire_at_ms == fire_at_ms) {
+            timers.remove(pos);
+        }
 
         Ok(())
     }
