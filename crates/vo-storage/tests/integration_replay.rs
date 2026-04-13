@@ -10,7 +10,7 @@
 use fjall::{Config, PartitionCreateOptions};
 use vo_storage::codec::StorageError;
 use vo_storage::query::optimizer::{
-    OptimizedReplayIterator, Projection, QueryOptimizer, QueryPlan, QuerySpec,
+    OptimizedReplayIterator, Projection, QueryOptimizer, QuerySpec,
 };
 use vo_storage::query::replay_events;
 use vo_storage::query::LineageQuery;
@@ -348,6 +348,19 @@ fn make_envelope_json_with_version(seq: u64, instance_id: &str, version: u8) -> 
     .into_bytes()
 }
 
+fn make_envelope_json_with_timestamp(seq: u64, instance_id: &str, timestamp_ms: u64) -> Vec<u8> {
+    serde_json::json!({
+        "version": 1,
+        "instance_id": instance_id,
+        "sequence": seq,
+        "timestamp_ms": timestamp_ms,
+        "payload": {"type": "WorkflowStarted", "workflow_id": "wf-1"},
+        "metadata": {}
+    })
+    .to_string()
+    .into_bytes()
+}
+
 #[test]
 fn optimized_replay_iterator_with_limit() {
     let (_dir, keyspace) = setup_keyspace();
@@ -547,6 +560,48 @@ fn optimized_replay_iterator_with_schema_version_predicate() {
     for result in &results {
         let env = result.as_ref().unwrap();
         assert_eq!(env.schema_version, 1);
+    }
+}
+
+#[test]
+fn optimized_replay_iterator_with_timestamp_range_predicate() {
+    let (_dir, keyspace) = setup_keyspace();
+    let id_string = ulid::Ulid::new().to_string();
+    let instance_id_str = id_string.as_str();
+    let instance_id = parse_instance_id(&id_string);
+    let partition = keyspace
+        .open_partition("events", PartitionCreateOptions::default())
+        .expect("partition");
+    for seq in 1..=10u64 {
+        let timestamp_ms = 1000 + (seq * 100);
+        let value = make_envelope_json_with_timestamp(seq, instance_id_str, timestamp_ms);
+        insert_event(&partition, instance_id_str, seq, &value);
+    }
+
+    use vo_storage::query::optimizer::Predicate;
+    let spec = QuerySpec {
+        lineage_query: LineageQuery::InstanceId(&instance_id),
+        predicates: vec![Predicate::TimestampRange {
+            min_ms: 1100,
+            max_ms: 1300,
+        }],
+        projection: Projection::Full,
+        limit: None,
+        offset: 0,
+    };
+    let plan = QueryOptimizer::optimize(spec);
+    let iter = OptimizedReplayIterator::from_plan(&plan, &keyspace).expect("valid plan");
+    let results: Vec<_> = iter.collect();
+    assert_eq!(
+        results.len(),
+        3,
+        "Expected 3 events with timestamp 1100-1300, got {}",
+        results.len()
+    );
+    for result in &results {
+        let env = result.as_ref().unwrap();
+        assert!(env.timestamp_ms >= 1100);
+        assert!(env.timestamp_ms <= 1300);
     }
 }
 
