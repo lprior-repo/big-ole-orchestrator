@@ -417,7 +417,9 @@ fn timer_key_new_and_accessors() {
     let instance = make_instance();
     let timer_id = make_timer_id();
     let fire_at_ms = 1_000_000u64;
-    let key = TimerKey::new(fire_at_ms, instance, timer_id).unwrap();
+    let key_instance = instance.clone();
+    let key_timer_id = timer_id.clone();
+    let key = TimerKey::new(fire_at_ms, key_instance, key_timer_id).unwrap();
     assert_eq!(key.fire_at_ms(), fire_at_ms);
     assert_eq!(key.instance_id(), instance);
     assert_eq!(key.timer_id(), timer_id);
