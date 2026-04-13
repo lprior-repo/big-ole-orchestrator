@@ -224,6 +224,29 @@ async fn dispatch_inner(cli: Cli) -> Result<(), CliError> {
             crate::commands::unquarantine::display_result(&result);
             Ok(())
         }
+        Command::Rebuild {
+            projection_id,
+            storage_path,
+            from_sequence,
+            to_sequence,
+            cancel_file,
+            dry_run,
+        } => {
+            let config = crate::commands::rebuild::RebuildConfig {
+                storage_path,
+                projection_id,
+                from_sequence,
+                to_sequence,
+                cancel_file,
+                dry_run,
+            };
+            let progress = crate::commands::rebuild::run_rebuild(&config)?;
+            println!(
+                "Rebuild complete: {}% ({}/{} events) in {}ms",
+                progress.progress_percent, progress.events_processed, progress.events_total, progress.elapsed_ms()
+            );
+            Ok(())
+        }
     }
 }
 

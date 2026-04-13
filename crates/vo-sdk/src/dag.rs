@@ -168,6 +168,11 @@ impl Dag {
                 name: workflow_name.to_string(),
             })?;
 
+        // Check for cycles before building spec
+        if self.has_cycle() {
+            return Err(DagError::CycleDetected);
+        }
+
         let node_specs: Vec<NodeSpec> = self
             .nodes
             .iter()
@@ -190,7 +195,56 @@ impl Dag {
             workflow_name: wf_name,
             nodes: node_specs,
             edges: edge_specs,
+            version: WorkflowSpec::default_version(),
         })
+    }
+
+    /// Check if the DAG contains a cycle.
+    ///
+    /// Uses DFS-based cycle detection with coloring:
+    /// - WHITE: not visited
+    /// - GRAY: currently visiting
+    /// - BLACK: finished visiting
+    ///
+    /// A back edge to a GRAY node indicates a cycle.
+    fn has_cycle(&self) -> bool {
+        if self.edges.is_empty() {
+            return false;
+        }
+
+        const WHITE: u8 = 0;
+        const GRAY: u8 = 1;
+        const BLACK: u8 = 2;
+
+        let mut colors = vec![WHITE; self.nodes.len()];
+
+        // Build adjacency list
+        let mut adj: Vec<Vec<usize>> = vec![Vec::new(); self.nodes.len()];
+        for (from, to) in &self.edges {
+            adj[*from].push(*to);
+        }
+
+        fn dfs(node: usize, adj: &[Vec<usize>], colors: &mut [u8]) -> bool {
+            colors[node] = GRAY;
+            for &neighbor in &adj[node] {
+                if colors[neighbor] == GRAY {
+                    return true; // Back edge found, cycle exists
+                }
+                if colors[neighbor] == WHITE && dfs(neighbor, adj, colors) {
+                    return true;
+                }
+            }
+            colors[node] = BLACK;
+            false
+        }
+
+        for i in 0..self.nodes.len() {
+            if colors[i] == WHITE && dfs(i, &adj, &mut colors) {
+                return true;
+            }
+        }
+
+        false
     }
 }
 

@@ -19,6 +19,8 @@ pub enum CliError {
     #[error(transparent)]
     Doctor(#[from] crate::commands::doctor::DoctorError),
     #[error(transparent)]
+    Rebuild(#[from] crate::commands::rebuild::RebuildError),
+    #[error(transparent)]
     Unquarantine(#[from] crate::commands::unquarantine::UnquarantineError),
 }
 
@@ -49,6 +51,14 @@ pub enum Command {
         workflow_name: String,
         operator: String,
         engine_url: String,
+    },
+    Rebuild {
+        projection_id: String,
+        storage_path: PathBuf,
+        from_sequence: Option<u64>,
+        to_sequence: Option<u64>,
+        cancel_file: Option<PathBuf>,
+        dry_run: bool,
     },
 }
 
@@ -152,6 +162,45 @@ where
                         .long("engine-url")
                         .env("VO_ENGINE_URL")
                         .default_value("http://localhost:3000"),
+                ),
+        )
+        .subcommand(
+            clap::Command::new("rebuild")
+                .about("Rebuild a projection from event log")
+                .arg(
+                    clap::Arg::new("projection-id")
+                        .required(true)
+                        .value_name("PROJECTION_ID")
+                        .help("The projection ID to rebuild"),
+                )
+                .arg(
+                    clap::Arg::new("storage-path")
+                        .long("storage-path")
+                        .default_value(".vo/storage")
+                        .help("Storage path"),
+                )
+                .arg(
+                    clap::Arg::new("from-sequence")
+                        .long("from-sequence")
+                        .value_name("SEQ")
+                        .help("Start sequence number (inclusive)"),
+                )
+                .arg(
+                    clap::Arg::new("to-sequence")
+                        .long("to-sequence")
+                        .value_name("SEQ")
+                        .help("End sequence number (inclusive)"),
+                )
+                .arg(
+                    clap::Arg::new("cancel-file")
+                        .long("cancel-file")
+                        .value_name("PATH")
+                        .help("File path to signal cancellation"),
+                )
+                .arg(
+                    clap::Arg::new("dry-run")
+                        .long("dry-run")
+                        .action(clap::ArgAction::SetTrue),
                 ),
         );
 
@@ -261,6 +310,40 @@ where
                 },
             })
         }
+        Some(("rebuild", sub_matches)) => {
+            let projection_id = match sub_matches.get_one::<String>("projection-id") {
+                Some(p) => p.clone(),
+                None => {
+                    return Err(clap::Error::new(
+                        clap::error::ErrorKind::MissingRequiredArgument,
+                    ))
+                }
+            };
+            let storage_path = sub_matches
+                .get_one::<String>("storage-path")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from(".vo/storage"));
+            let from_sequence = sub_matches
+                .get_one::<String>("from-sequence")
+                .and_then(|s| s.parse::<u64>().ok());
+            let to_sequence = sub_matches
+                .get_one::<String>("to-sequence")
+                .and_then(|s| s.parse::<u64>().ok());
+            let cancel_file = sub_matches
+                .get_one::<String>("cancel-file")
+                .map(PathBuf::from);
+            let dry_run = sub_matches.get_flag("dry-run");
+            Ok(Cli {
+                command: Command::Rebuild {
+                    projection_id,
+                    storage_path,
+                    from_sequence,
+                    to_sequence,
+                    cancel_file,
+                    dry_run,
+                },
+            })
+        }
         _ => Err(clap::Error::new(clap::error::ErrorKind::InvalidSubcommand)),
     }
 }
@@ -280,6 +363,7 @@ pub fn map_error_to_exit_code(err: &CliError) -> i32 {
         | CliError::Init(_)
         | CliError::Lock(_)
         | CliError::Doctor(_)
+        | CliError::Rebuild(_)
         | CliError::Unquarantine(_) => 1,
         CliError::InvalidNumeric(_) => 2,
     }
