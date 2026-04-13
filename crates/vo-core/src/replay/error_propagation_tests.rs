@@ -12,6 +12,7 @@ use crate::replay::projection::error::{
     ReplayError as ProjectionReplayError, StorageError,
 };
 use crate::replay::test_helpers::*;
+use crate::replay::types::ReplayError;
 use vo_types::state::LifecycleState;
 
 // =========================================================================
@@ -169,7 +170,7 @@ fn ep_05_transition_failed_error_shows_invalid_transition() {
     let err = engine.replay(&events).expect_err("should fail");
     let display = format!("{}", err);
     assert!(display.contains("sequence 2"));
-    assert!(display.contains("Pending")); // Invalid from Pending
+    assert!(display.contains("RunningDecision")); // Invalid from RunningDecision - CompleteStep not allowed
 }
 
 // =========================================================================
@@ -177,31 +178,30 @@ fn ep_05_transition_failed_error_shows_invalid_transition() {
 // =========================================================================
 
 #[test]
-fn ep_06_unexpected_event_type_error_for_continued_as_new_in_replay() {
+fn ep_06_continued_as_new_is_noop_in_replay() {
     let engine = ReplayEngine::new();
-    // ContinuedAsNew should not reach payload_to_transition in normal replay
-    // This tests the error path if it does
     use vo_types::events::EventEnvelope;
     let continued_as_new_event = EventEnvelope {
+        schema_version: 1,
         instance_id: "inst-1".to_string(),
         sequence: 1,
+        timestamp_ms: 1000,
         payload: serde_json::json!({
             "type": "ContinuedAsNew",
             "workflow_id": "wf-1",
-            "new_run_id": "new-run"
+            "lineage_id": "lin-1",
+            "old_epoch": 1,
+            "new_epoch": 2,
+            "version": 1
         }),
-        event_id: None,
-        timestamp: 1000,
+        metadata: Default::default(),
     };
     let events = [continued_as_new_event];
-    let err = engine.replay(&events).expect_err("should fail");
-    assert!(matches!(
-        err,
-        ReplayError::UnexpectedEventType {
-            payload_type: _,
-            sequence: 1
-        }
-    ));
+    let result = engine
+        .replay(&events)
+        .expect("ContinuedAsNew should be no-op");
+    assert_eq!(result.events_applied, 1);
+    assert_eq!(result.final_state, None);
 }
 
 // =========================================================================
@@ -502,7 +502,7 @@ fn ep_12_replay_error_instance_mismatch_display() {
         actual: "inst-b".to_string(),
     };
     let display = format!("{}", err);
-    assert!(display.contains("instance ID mismatch"));
+    assert!(display.contains("Instance ID mismatch"));
     assert!(display.contains("inst-a"));
     assert!(display.contains("inst-b"));
 }
@@ -515,7 +515,7 @@ fn ep_12_replay_error_sequence_gap_display() {
         at_index: 2,
     };
     let display = format!("{}", err);
-    assert!(display.contains("sequence gap"));
+    assert!(display.contains("Sequence gap"));
     assert!(display.contains("5"));
     assert!(display.contains("10"));
     assert!(display.contains("2"));
@@ -525,11 +525,11 @@ fn ep_12_replay_error_sequence_gap_display() {
 fn ep_12_replay_error_sequence_duplicate_display() {
     let err = ReplayError::SequenceDuplicate {
         sequence: 7,
-        first: 1,
-        second: 3,
+        first_at_index: 1,
+        second_at_index: 3,
     };
     let display = format!("{}", err);
-    assert!(display.contains("duplicate sequence 7"));
+    assert!(display.contains("Duplicate sequence 7"));
     assert!(display.contains("1"));
     assert!(display.contains("3"));
 }
@@ -541,7 +541,7 @@ fn ep_12_replay_error_payload_decode_failed_display() {
         source: "invalid json".to_string(),
     };
     let display = format!("{}", err);
-    assert!(display.contains("payload decode failed"));
+    assert!(display.contains("Payload decode failed"));
     assert!(display.contains("42"));
     assert!(display.contains("invalid json"));
 }
@@ -550,11 +550,11 @@ fn ep_12_replay_error_payload_decode_failed_display() {
 fn ep_12_replay_error_transition_failed_display() {
     let err = ReplayError::TransitionFailed {
         sequence: 5,
-        state: "Pending".to_string(),
+        state: LifecycleState::Pending,
         reason: "invalid transition".to_string(),
     };
     let display = format!("{}", err);
-    assert!(display.contains("transition failed"));
+    assert!(display.contains("Transition failed"));
     assert!(display.contains("5"));
     assert!(display.contains("Pending"));
     assert!(display.contains("invalid transition"));
@@ -572,13 +572,13 @@ fn ep_12_replay_error_unexpected_event_type_display() {
 }
 
 #[test]
-fn ep_12_replay_error_upcast_failed_display() {
-    let err = ReplayError::UpcastFailed {
+fn ep_12_replay_error_upcasting_failed_display() {
+    let err = ReplayError::UpcastingFailed {
         sequence: 10,
         reason: "missing upcaster".to_string(),
     };
     let display = format!("{}", err);
-    assert!(display.contains("upcasting failed"));
+    assert!(display.contains("Upcasting failed"));
     assert!(display.contains("10"));
     assert!(display.contains("missing upcaster"));
 }
