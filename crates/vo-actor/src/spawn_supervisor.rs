@@ -217,6 +217,10 @@ impl SpawnSupervisorError {
                 | Self::InstanceNotFound(_)
                 | Self::MailboxFull(_)
                 | Self::DispatchError(_)
+                | Self::AtomicityViolation(_)
+                | Self::SpawnFailed { .. }
+                | Self::HealthCheckFailed { .. }
+                | Self::ProcessExited { .. }
         )
     }
 
@@ -225,7 +229,13 @@ impl SpawnSupervisorError {
     pub fn is_fatal(&self) -> bool {
         matches!(
             self,
-            Self::CorruptSpawn(_) | Self::InvalidConfig(_) | Self::ZombieDetected { .. }
+            Self::CorruptSpawn(_)
+                | Self::InvalidConfig(_)
+                | Self::ZombieDetected { .. }
+                | Self::AlreadyRunning
+                | Self::ShutdownTimeout(_)
+                | Self::NotRunning
+                | Self::AlreadyShutdown
         )
     }
 }
