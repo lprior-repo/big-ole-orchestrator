@@ -121,6 +121,13 @@ pub use spqr_tree::{
     Block, Component, CutNode, SPQRDecomposition, SPQREdge, SPQRNode, SPQRNodeType, SpqrError,
     StaticGraph,
 };
+pub use plugin::{
+    apply_plugin_transition, ArtifactRef, CapabilityId, HotLoadEvent, InstanceKey,
+    IsolationBreachType, IsolationLevel, PluginArtifact, PluginDescriptor, PluginErrorCategory,
+    PluginErrorContext, PluginErrorDetail, PluginFailureContext, PluginHotLoadError, PluginId,
+    PluginInstance, PluginName, PluginState, PluginTransition, PluginVersion,
+    PluginVersionConstraint, ResourceBudget, SchemaVersion, VersionRange,
+};
 pub use tx_coordinator::{
     apply_coordinator_transition, CoordinatorDecision, CoordinatorTransition,
     CoordinatorTransitionError, ParticipantRecord, ParticipantStatus, ParticipantVote,
