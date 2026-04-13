@@ -2,10 +2,12 @@ pub mod helpers;
 pub mod workflow;
 pub mod signal;
 pub mod events;
+pub mod sse;
 
 pub use workflow::*;
 pub use signal::*;
 pub use events::*;
+pub use sse::*;
 
 #[cfg(test)]
 mod tests {
