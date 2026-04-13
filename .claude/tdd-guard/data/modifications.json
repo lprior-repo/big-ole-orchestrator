@@ -1,12 +1,12 @@
 {
-  "session_id": "83461959-97bf-464c-8738-75da1eef2667",
-  "transcript_path": "/home/lewis/.claude/projects/-home-lewis-gt-veloxide-polecats-thunder-veloxide/83461959-97bf-464c-8738-75da1eef2667.jsonl",
+  "session_id": "30b83417-d47f-451f-9609-4b50e168df02",
+  "transcript_path": "/home/lewis/.claude/projects/-home-lewis-gt-veloxide-refinery-rig/30b83417-d47f-451f-9609-4b50e168df02.jsonl",
   "hook_event_name": "PreToolUse",
   "tool_name": "Edit",
   "tool_input": {
-    "file_path": "/home/lewis/gt/veloxide/polecats/thunder/veloxide/crates/vo-storage/src/effect_journal/red_queen_tests/adversarial.rs",
-    "old_string": "    let mut handles = Vec::new();\n\n    // Thread 1: compact\n    {\n        let j = Arc::clone(&journal);\n        handles.push(thread::spawn(move || j.compact(ts(200))));\n    }\n\n    // Threads 2-5: prepare new effects\n    for i in 0..4u32 {\n        let j = Arc::clone(&journal);\n        let id = id.clone();\n        handles.push(thread::spawn(move || {\n            let record = vo_types::EffectRecord::new(\n                format!(\"fx-conc-new-{i}\"),\n                EffectKind::SqlQuery,\n                json!({}),\n                EffectIntent::Prepared,\n                None,\n            )\n            .unwrap();\n            j.prepare(&id, record).unwrap()\n        }));\n    }\n\n    // Wait for all\n    for h in handles {\n        h.join().unwrap();\n    }",
-    "new_string": "    let mut handles: Vec<thread::JoinHandle<()>> = Vec::new();\n\n    // Thread 1: compact\n    {\n        let j = Arc::clone(&journal);\n        handles.push(thread::spawn(move || {\n            j.compact(ts(200)).unwrap();\n        }));\n    }\n\n    // Threads 2-5: prepare new effects\n    for i in 0..4u32 {\n        let j = Arc::clone(&journal);\n        let id = id.clone();\n        handles.push(thread::spawn(move || {\n            let record = vo_types::EffectRecord::new(\n                format!(\"fx-conc-new-{i}\"),\n                EffectKind::SqlQuery,\n                json!({}),\n                EffectIntent::Prepared,\n                None,\n            )\n            .unwrap();\n            j.prepare(&id, record).unwrap();\n        }));\n    }\n\n    // Wait for all\n    for h in handles {\n        h.join().unwrap();\n    }",
+    "file_path": "/home/lewis/gt/veloxide/refinery/rig/crates/vo-core/src/workload_class.rs",
+    "old_string": "    /// Lower priority. Capped under contention.\n    UnsafeBulk,\n=======\n>>>>>>> 5c1840ae (fix(vo-core): resolve duplicate Recovery variant in WorkloadClass enum)\n    /// Reserved capacity for crash recovery.\n    Recovery,\n    /// Lower priority. Capped under contention.\n    UnsafeBulk,\n}",
+    "new_string": "    /// Lower priority. Capped under contention.\n    UnsafeBulk,\n    /// Reserved capacity for crash recovery.\n    Recovery,\n}",
     "replace_all": false
   }
 }
