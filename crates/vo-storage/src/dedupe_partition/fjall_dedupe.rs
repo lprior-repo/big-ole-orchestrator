@@ -31,6 +31,7 @@ impl FjallDedupeStore {
 }
 
 impl DedupeStore for FjallDedupeStore {
+    #[expect(clippy::expect_used)]
     fn check_and_insert(
         &self,
         key: &DedupeKey,
@@ -106,6 +107,7 @@ impl DedupeStore for FjallDedupeStore {
         Ok(purged_count)
     }
 
+    #[expect(clippy::expect_used)]
     fn contains(&self, key: &DedupeKey) -> Result<bool, DedupeStoreError> {
         let encoded_key = super::encode_dedupe_key(key);
         #[expect(clippy::expect_used, clippy::cast_possible_truncation)]
