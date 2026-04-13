@@ -123,6 +123,45 @@ fn upcaster_error_invalid_upcasted_envelope_from_error() {
 }
 
 #[test]
+fn upcaster_error_duplicate_registration_message_contains_version() {
+    let err = UpcasterError::DuplicateRegistration(3);
+    let msg = err.to_string();
+    assert!(
+        msg.contains("3"),
+        "Error message should contain version 3: {msg}"
+    );
+    assert!(
+        msg.to_lowercase().contains("duplicate"),
+        "Error message should contain 'duplicate': {msg}"
+    );
+}
+
+#[test]
+fn upcaster_error_duplicate_registration_equality() {
+    assert_eq!(
+        UpcasterError::DuplicateRegistration(0),
+        UpcasterError::DuplicateRegistration(0)
+    );
+    assert_eq!(
+        UpcasterError::DuplicateRegistration(5),
+        UpcasterError::DuplicateRegistration(5)
+    );
+    assert_ne!(
+        UpcasterError::DuplicateRegistration(0),
+        UpcasterError::DuplicateRegistration(1)
+    );
+}
+
+#[test]
+fn upcaster_error_duplicate_registration_differs_from_no_upcaster_registered() {
+    assert_ne!(
+        UpcasterError::DuplicateRegistration(0),
+        UpcasterError::NoUpcasterRegistered(0),
+        "DuplicateRegistration and NoUpcasterRegistered must be distinct variants"
+    );
+}
+
+#[test]
 fn upcaster_error_debug_format() {
     let err = UpcasterError::NoUpcasterRegistered(5);
     let debug = format!("{:?}", err);
