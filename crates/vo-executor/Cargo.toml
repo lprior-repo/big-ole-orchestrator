@@ -16,5 +16,5 @@ serde_json = { workspace = true }
 criterion = { workspace = true }
 
 [[bench]]
-name = "executor_bench"
+name = "e2e_bench"
 harness = false
