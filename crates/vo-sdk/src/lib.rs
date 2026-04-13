@@ -10,11 +10,35 @@
 //! ## Message limit
 //! The failure message limit (1024) is enforced in **bytes**, not characters.
 //! A multibyte UTF-8 message may be rejected below 1024 chars if it exceeds 1024 bytes.
+//!
+//! ## Workflow Builder API
+//!
+//! The [`Workflow`] struct provides a fluent builder for constructing workflow graphs.
+//! Use [`Workflow::build`] to produce a [`WorkflowSpec`] which can be emitted via
+//! [`emit_graph_if_requested`] or serialized to JSON.
+//!
+//! # Example
+//!
+//! ```ignore
+//! use vo_sdk::{Workflow, emit_graph_if_requested};
+//!
+//! let mut wf = Workflow::new("checkout");
+//! let validate = wf.pure("validate", |input: String| -> i32 { 0 }).unwrap();
+//! let charge = wf.effect("charge", |input: i32| -> bool { true }).unwrap();
+//! wf.connect(&validate, &charge).unwrap();
+//!
+//! let spec = wf.build().unwrap();
+//! emit_graph_if_requested(&std::env::args().collect::<Vec<_>>(), &spec);
+//! ```
 
 pub mod dag;
 pub mod graph_args;
 pub mod node_handle;
 pub use dag::Workflow;
+pub use graph_args::{
+    emit_graph_if_requested, parse_graph_args, EdgeSpec, GraphArgs, GraphArgsError, NodeSpec,
+    WorkflowSpec,
+};
 mod read;
 mod write;
 
