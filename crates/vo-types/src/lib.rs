@@ -100,7 +100,7 @@ pub use events::{Error as EventError, EventEnvelope};
 pub use instance_status::InstanceStatus;
 pub use junction_tree::{Clique as JunctionClique, JunctionTree, JunctionTreeError};
 pub use lifecycle_superstate::LifecycleSuperstate;
-pub use lineage::{Epoch, LineageError, WorkflowLineage};
+pub use lineage::{Epoch, LineageError, RolloverPolicy, RolloverTrigger, WorkflowLineage};
 pub use link_cut_tree::{LctAggregate, LctError, LinkCutTree, Monoid};
 pub use node_kind::NodeKind;
 pub use non_empty_vec::NonEmptyVec;
