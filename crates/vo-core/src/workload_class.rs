@@ -51,7 +51,6 @@ pub enum WorkloadClass {
     /// Default priority for normal workflow execution.
     Standard,
     /// Lower priority. Capped under contention.
-    Recovery,
     UnsafeBulk,
     /// Reserved capacity for crash recovery.
     Recovery,
@@ -70,8 +69,8 @@ impl WorkloadClass {
         match self {
             WorkloadClass::ExactCritical => 0,
             WorkloadClass::Standard => 1,
-            WorkloadClass::Recovery => 2,
-            WorkloadClass::UnsafeBulk => 3,
+            WorkloadClass::UnsafeBulk => 2,
+            WorkloadClass::Recovery => 3,
         }
     }
 
@@ -292,22 +291,34 @@ mod tests {
 
     #[test]
     fn parse_exact_critical() {
-        assert_eq!(WorkloadClass::parse("exact_critical"), Ok(WorkloadClass::ExactCritical));
+        assert_eq!(
+            WorkloadClass::parse("exact_critical"),
+            Ok(WorkloadClass::ExactCritical)
+        );
     }
 
     #[test]
     fn parse_standard() {
-        assert_eq!(WorkloadClass::parse("standard"), Ok(WorkloadClass::Standard));
+        assert_eq!(
+            WorkloadClass::parse("standard"),
+            Ok(WorkloadClass::Standard)
+        );
     }
 
     #[test]
     fn parse_unsafe_bulk() {
-        assert_eq!(WorkloadClass::parse("unsafe_bulk"), Ok(WorkloadClass::UnsafeBulk));
+        assert_eq!(
+            WorkloadClass::parse("unsafe_bulk"),
+            Ok(WorkloadClass::UnsafeBulk)
+        );
     }
 
     #[test]
     fn parse_recovery() {
-        assert_eq!(WorkloadClass::parse("recovery"), Ok(WorkloadClass::Recovery));
+        assert_eq!(
+            WorkloadClass::parse("recovery"),
+            Ok(WorkloadClass::Recovery)
+        );
     }
 
     #[test]
@@ -394,7 +405,10 @@ mod tests {
 
     #[test]
     fn from_str_delegates_to_parse() {
-        assert_eq!("exact_critical".parse::<WorkloadClass>(), Ok(WorkloadClass::ExactCritical));
+        assert_eq!(
+            "exact_critical".parse::<WorkloadClass>(),
+            Ok(WorkloadClass::ExactCritical)
+        );
     }
 
     #[test]

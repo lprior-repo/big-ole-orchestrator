@@ -71,6 +71,12 @@ pub enum EventPayload {
         old_epoch: u64,
         new_epoch: u64,
     },
+    /// Emitted when a workflow is quarantined due to circuit breaker (ADR-026).
+    WorkflowQuarantined {
+        workflow_id: String,
+        failure_count: u8,
+        failure_window_seconds: u64,
+    },
 }
 
 impl EventPayload {
@@ -166,6 +172,11 @@ impl EventPayload {
                 lineage_id: require_string(obj, "lineage_id")?,
                 old_epoch: require_u64(obj, "old_epoch")?,
                 new_epoch: require_u64(obj, "new_epoch")?,
+            }),
+            "WorkflowQuarantined" => Ok(EventPayload::WorkflowQuarantined {
+                workflow_id: require_string_field(obj, "workflow_id")?,
+                failure_count: require_u64(obj, "failure_count")? as u8,
+                failure_window_seconds: require_u64(obj, "failure_window_seconds")?,
             }),
             other => Err(Error::UnknownPayloadType(other.to_string())),
         }
