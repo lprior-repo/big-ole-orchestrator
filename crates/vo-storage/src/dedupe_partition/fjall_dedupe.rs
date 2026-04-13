@@ -42,7 +42,7 @@ impl DedupeStore for FjallDedupeStore {
         }
 
         let encoded_key = super::encode_dedupe_key(key);
-        #[expect(clippy::expect_used)]
+        #[expect(clippy::expect_used, clippy::cast_possible_truncation)]
         let now_ms = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .expect(
@@ -108,7 +108,7 @@ impl DedupeStore for FjallDedupeStore {
 
     fn contains(&self, key: &DedupeKey) -> Result<bool, DedupeStoreError> {
         let encoded_key = super::encode_dedupe_key(key);
-        #[expect(clippy::expect_used)]
+        #[expect(clippy::expect_used, clippy::cast_possible_truncation)]
         let now_ms = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .expect(
