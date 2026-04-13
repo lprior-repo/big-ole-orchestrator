@@ -71,8 +71,9 @@ pub use compensation::{
     CompensationTransitionError, CompensationTransitionEvent,
 };
 pub use connector::{
-    apply_connector_transition, ConnectorResult, ConnectorState, ConnectorTransition,
-    ConnectorTransitionError, ReconcileAction,
+    apply_connector_transition, execute_with_reconciliation, reconcile_ambiguous, Connector,
+    ConnectorError, ConnectorResult, ConnectorState, ConnectorTransition,
+    ConnectorTransitionError, ReconciliationResult, ReconcileAction,
 };
 pub use credentials::{
     AccessPolicy, Credential, CredentialId, CredentialKind, CredentialStatus, CredentialVersion,
