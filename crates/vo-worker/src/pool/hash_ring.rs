@@ -99,7 +99,11 @@ impl HashRing {
         }
 
         let hash = self.hash_key(key);
-        let entry = self.ring.range(hash..).next().or_else(|| self.ring.first());
+        let entry = self
+            .ring
+            .range(hash..)
+            .next()
+            .or_else(|| self.ring.iter().next());
 
         entry.map(|(_, node)| node.pool_id.clone())
     }
@@ -111,25 +115,28 @@ impl HashRing {
 
         let hash = self.hash_key(key);
         let mut result = Vec::with_capacity(count);
-        let mut current: u64 = hash;
+        let mut seen_pools: std::collections::HashSet<&PoolId> = std::collections::HashSet::new();
 
-        let unique_pools: Vec<PoolId> = self
-            .ring
-            .range(current..)
-            .chain(self.ring.range(..).map(|(k, v)| (*k, v)))
-            .filter_map(|(_, node)| {
-                if result.len() >= count {
-                    return None;
-                }
-                let pool_id = node.pool_id.clone();
-                if !result.contains(&pool_id) {
-                    result.push(pool_id.clone());
-                }
-                Some(pool_id)
-            })
-            .collect();
+        // Iterate through ring starting from hash position, wrapping around
+        let ring_entries: Vec<_> = self.ring.iter().collect();
+        let start_index = ring_entries
+            .iter()
+            .position(|(k, _)| **k >= hash)
+            .unwrap_or(ring_entries.len());
 
-        unique_pools
+        for i in 0..ring_entries.len() {
+            if result.len() >= count {
+                break;
+            }
+            let idx = (start_index + i) % ring_entries.len();
+            let (_, node) = &ring_entries[idx];
+            if !seen_pools.contains(&node.pool_id) {
+                seen_pools.insert(&node.pool_id);
+                result.push(node.pool_id.clone());
+            }
+        }
+
+        result
     }
 
     pub fn node_count(&self) -> usize {
