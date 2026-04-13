@@ -33,3 +33,34 @@ cov.json
 .runtime/
 CLAUDE.local.md
 crates/vo-core/fuzz/target/
+
+# Dev tooling scripts (one-off fixers, probes, generators)
+*.py
+get_err_strings.rs
+red_queen_probe.rs
+run_test_print.rs
+
+# Mutation testing output
+mutants.out/
+mutants.out.old/
+
+# Test artifacts
+lcov.info
+test_out.txt
+nextest.out
+QA-REPORT-*.md
+test-suite-review*.md
+test-plan.md
+
+# Legacy Go code (superseded by Rust)
+go.mod
+go.sum
+/internal/
+
+# Analysis scratch directories
+restate_analysis/
+vel-u0e/
+
+# Decomposition/forge pipeline artifacts
+.decomposition/
+.forge/
