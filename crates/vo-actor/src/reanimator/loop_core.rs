@@ -181,6 +181,39 @@ impl ReanimatorLoop {
 
         // Replay each pending timer
         for pending in pending_timers {
+            // Check if instance is in a terminal state before replaying
+            match work_queue.is_instance_terminal(&pending.instance_id).await {
+                Ok(true) => {
+                    tracing::info!(
+                        instance_id = %pending.instance_id,
+                        "Skipping timer replay: instance is in terminal state"
+                    );
+                    // Clean up the pending timer since instance is dead
+                    if let Err(e) = storage
+                        .complete_timer_processing(&pending.instance_id, pending.fire_at_ms)
+                        .await
+                    {
+                        tracing::warn!(
+                            instance_id = %pending.instance_id,
+                            error = %e,
+                            "Failed to clean up pending timer for terminal instance"
+                        );
+                    }
+                    continue;
+                }
+                Ok(false) => {
+                    // Instance is active, proceed with replay
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        instance_id = %pending.instance_id,
+                        error = %e,
+                        "Failed to check instance state, skipping timer replay"
+                    );
+                    continue;
+                }
+            }
+
             tracing::info!(
                 instance_id = %pending.instance_id,
                 fire_at_ms = %pending.fire_at_ms,
