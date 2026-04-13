@@ -193,9 +193,10 @@ impl TestUpcasterRegistry {
 impl UpcasterRegistry for TestUpcasterRegistry {
     fn register(&self, upcaster: Box<dyn Upcaster>) -> Result<(), UpcasterError> {
         let source_version = upcaster.source_version();
+        let target_version = upcaster.target_version();
 
-        if source_version >= self.max_version {
-            return Err(UpcasterError::InvalidTargetVersion(source_version));
+        if target_version > self.max_version {
+            return Err(UpcasterError::InvalidTargetVersion(target_version));
         }
 
         let mut upcasters = self
@@ -590,14 +591,15 @@ fn registry_short_circuits_chain_when_envelope_at_max_despite_registered_upcaste
 fn registry_rejects_upcaster_when_source_version_exceeds_max() {
     let registry = create_test_registry();
 
-    // Try to register an upcaster with source_version > MAX
+    // ExceedingMaxUpcaster has source_version=1, target_version=2 (default).
+    // target_version(2) > max(1) should be rejected.
     let upcaster = ExceedingMaxUpcaster::new();
 
     let result = registry.register(upcaster);
     assert_eq!(
         result,
-        Err(UpcasterError::InvalidTargetVersion(1)),
-        "registering upcaster exceeding max version should be rejected"
+        Err(UpcasterError::InvalidTargetVersion(2)),
+        "registering upcaster whose target version exceeds max should be rejected"
     );
 }
 
@@ -902,15 +904,18 @@ fn upcaster_registry_impl_rejects_upcaster_when_source_version_equals_max() {
     // Given: UpcasterRegistryImpl with max_version = MAX_SUPPORTED_VERSION
     let registry = UpcasterRegistryImpl::new(MAX_SUPPORTED_VERSION);
 
-    // When: Try to register an upcaster with source_version == max_version
+    // MaxVersionBoundaryUpcaster has source_version=MAX, target_version=MAX+1 (default).
+    // target_version(MAX+1) > max(MAX) should be rejected.
     let upcaster = MaxVersionBoundaryUpcaster::new();
 
     // Then: Should be rejected with InvalidTargetVersion error
     let result = registry.register(upcaster);
     assert_eq!(
         result,
-        Err(UpcasterError::InvalidTargetVersion(MAX_SUPPORTED_VERSION)),
-        "upcaster with source_version == max_version should be rejected"
+        Err(UpcasterError::InvalidTargetVersion(
+            MAX_SUPPORTED_VERSION + 1
+        )),
+        "upcaster whose target version exceeds max should be rejected"
     );
 }
 
@@ -936,14 +941,15 @@ fn upcaster_registry_impl_direct_instantiation_max_version_zero() {
     // Given: UpcasterRegistryImpl with max_version = 0
     let registry = UpcasterRegistryImpl::new(0);
 
-    // When: Try to register any upcaster (even source_version = 0)
-    let upcaster = OneBelowMaxUpcaster::new(); // source_version = MAX - 1, which is 0
+    // OneBelowMaxUpcaster has source_version=0, target_version=1 (default).
+    // target_version(1) > max(0) should be rejected.
+    let upcaster = OneBelowMaxUpcaster::new();
 
-    // Then: Should be rejected because 0 >= 0
+    // Then: Should be rejected
     let result = registry.register(upcaster);
     assert_eq!(
         result,
-        Err(UpcasterError::InvalidTargetVersion(0)),
-        "upcaster with source_version >= max_version (0) should be rejected"
+        Err(UpcasterError::InvalidTargetVersion(1)),
+        "upcaster whose target version exceeds max_version (0) should be rejected"
     );
 }
