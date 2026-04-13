@@ -94,14 +94,21 @@ pub fn reset_all_state() {
 mod tests {
     use super::*;
     use crate::errors::ExecuteNodeError;
+    use std::sync::LazyLock;
+    use std::sync::Mutex;
+    use std::sync::MutexGuard;
 
-    fn setup() {
+    static STATE_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+
+    fn setup() -> MutexGuard<'static, ()> {
+        let guard = STATE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         reset_all_state();
+        guard
     }
 
     #[test]
     fn reset_all_state_clears_everything() {
-        setup();
+        let _guard = setup();
         set_state(
             "test-reset-a",
             StepState::Completed {
@@ -123,7 +130,7 @@ mod tests {
 
     #[test]
     fn set_and_get_state() {
-        setup();
+        let _guard = setup();
         set_state(
             "step-a",
             StepState::Completed {
@@ -136,7 +143,7 @@ mod tests {
 
     #[test]
     fn set_state_overwrites() {
-        setup();
+        let _guard = setup();
         set_state("step-a", StepState::Ready);
         set_state(
             "step-a",
@@ -150,7 +157,7 @@ mod tests {
 
     #[test]
     fn executing_state() {
-        setup();
+        let _guard = setup();
         let key = "test-exec-state-unique";
         let start = Instant::now();
         set_state(
@@ -166,14 +173,14 @@ mod tests {
 
     #[test]
     fn clear_error_no_error() {
-        setup();
+        let _guard = setup();
         clear_error("step-a");
         assert!(get_last_error("step-a").is_none());
     }
 
     #[test]
     fn set_and_get_error() {
-        setup();
+        let _guard = setup();
         let key = "test-err-unique";
         let err = ExecuteNodeError::TimeoutExceeded {
             elapsed_ms: 5000,
@@ -187,7 +194,7 @@ mod tests {
 
     #[test]
     fn clear_error_removes_existing() {
-        setup();
+        let _guard = setup();
         let key = "test-clear-err-unique";
         let err = ExecuteNodeError::ExecutionCancelled {
             reason: "test".to_string(),
