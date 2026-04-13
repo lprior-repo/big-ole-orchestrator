@@ -26,11 +26,9 @@
 //! ```
 
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use vo_types::{
-    CompensationPolicy, CompensationRecord, CompensationStatus, EffectIntent, TimestampMs,
-};
+use vo_types::{CompensationPolicy, CompensationStatus, TimestampMs};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum SagaCompensationStatus {

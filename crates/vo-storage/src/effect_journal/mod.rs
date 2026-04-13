@@ -7,8 +7,6 @@
 //! This module defines the trait and pure encoding/decoding functions. Concrete Fjall
 //! implementations are provided separately.
 
-use std::fmt;
-
 use vo_types::{EffectRecord, InstanceId};
 
 #[cfg(all(test, feature = "proptest"))]

@@ -19,8 +19,6 @@
 //! - Each `DekId` maps to exactly one `InstanceId` at runtime
 //! - Purge ordering: DEK destruction → index cleanup → blob reference removal
 
-use std::fmt;
-
 use vo_types::{DekId, InstanceId, KeyMetadata, WrappedDek};
 
 #[cfg(all(test, feature = "proptest"))]
