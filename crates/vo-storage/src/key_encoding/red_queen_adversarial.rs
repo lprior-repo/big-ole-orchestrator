@@ -47,7 +47,7 @@ fn red_queen_event_key_lexicographic_increments_monotone() {
     let id = min_instance_id();
     let mut prev_key: Vec<u8> = Vec::new();
 
-    for seq in 0..1000u64 {
+    for seq in 1..=1000u64 {
         let sn = SequenceNumber::try_from(seq).unwrap();
         let key = encode_event_key(&id, sn);
         assert!(

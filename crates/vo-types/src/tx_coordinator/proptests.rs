@@ -4,6 +4,12 @@
 #[allow(clippy::unwrap_used)]
 mod proptests {
     use super::*;
+    use crate::tx_coordinator::{
+        apply_coordinator_transition, CoordinatorDecision, CoordinatorTransition,
+        ParticipantRecord, ParticipantStatus, TransactionRecord, TransactionState,
+    };
+    use proptest::prop_assert;
+    use proptest::prop_assert_eq;
 
     proptest::proptest! {
         /// INV: Serde round-trip preserves TransactionState equality for all variants.

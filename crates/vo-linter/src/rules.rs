@@ -61,8 +61,9 @@ mod tests {
     use super::*;
     use quote::quote;
 
+    #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
     fn parse_and_check(src: &str) -> Vec<Diagnostic> {
-        let file: File = syn::parse_str(src).expect("failed to parse");
+        let file: File = syn::parse_str(src).unwrap();
         check_random_in_workflow(&file)
     }
 

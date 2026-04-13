@@ -559,12 +559,11 @@ mod proptests {
         #[test]
         fn dek_id_from_bytes_roundtrip(bytes in "[0-9a-f]{32}") {
             let bytes_vec: Vec<u8> = bytes
-                .chars()
+                .as_bytes()
                 .chunks(2)
-                .into_iter()
                 .filter_map(|c| {
-                    let s: String = c.collect();
-                    u8::from_str_radix(&s, 16).ok()
+                    let s = std::str::from_utf8(c).unwrap();
+                    u8::from_str_radix(s, 16).ok()
                 })
                 .collect();
             if bytes_vec.len() == 16 {
@@ -577,8 +576,8 @@ mod proptests {
 
         #[test]
         fn wrapped_dek_roundtrip(bytes in ".*") {
-            let original = WrappedDek::new(bytes.clone());
-            prop_assert_eq!(original.as_bytes(), &bytes);
+            let original = WrappedDek::new(bytes.as_bytes().to_vec());
+            prop_assert_eq!(original.as_bytes(), bytes.as_bytes());
         }
 
         #[test]

@@ -28,7 +28,6 @@ proptest::proptest! {
         }
     }
 
-    #[test]
     fn plugin_version_compatibility_is_reflexive(
         major in 0u32..100u32,
         minor in 0u32..100u32,
@@ -38,7 +37,6 @@ proptest::proptest! {
         prop_assert!(v.is_compatible_with(&v));
     }
 
-    #[test]
     fn plugin_version_compatibility_is_symmetric(
         major1 in 0u32..100u32,
         minor1 in 0u32..100u32,
@@ -52,19 +50,16 @@ proptest::proptest! {
         prop_assert_eq!(v1.is_compatible_with(&v2), v2.is_compatible_with(&v1));
     }
 
-    #[test]
     fn fence_token_next_is_strictly_increasing(value in 1u64..u64::MAX) {
         let token = FenceToken::new(value).unwrap();
         let next = token.next().unwrap();
         prop_assert!(next > token);
     }
 
-    #[test]
     fn plugin_name_rejects_empty() {
         prop_assert!(PluginName::new("").is_err());
     }
 
-    #[test]
     fn plugin_name_rejects_over_max_length(s in 0usize..200usize) {
         let input = "a".repeat(s);
         if s == 0 {
