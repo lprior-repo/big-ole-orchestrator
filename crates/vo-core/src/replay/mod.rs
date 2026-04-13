@@ -14,6 +14,8 @@ mod crash_injection_tests;
 #[cfg(test)]
 mod deterministic_replay_tests;
 #[cfg(test)]
+mod error_propagation_tests;
+#[cfg(test)]
 mod error_tests;
 #[cfg(test)]
 mod event_ordering_tests;
