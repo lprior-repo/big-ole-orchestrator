@@ -55,7 +55,7 @@ clap = { version = "4", features = ["derive"] }
 # Utilities
 async-nats = "0.33.0"
 uuid = { version = "1", features = ["v4", "v5", "serde"] }
-ulid = { version = "1", features = ["serde"] }
+ulid = "1"
 fjall = "2.0"
 vo-types = { path = "crates/vo-types" }
 chrono = { version = "0.4", features = ["serde"] }
