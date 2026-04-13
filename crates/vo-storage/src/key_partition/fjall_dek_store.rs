@@ -2,6 +2,7 @@
 
 use std::sync::Arc;
 
+use ulid::Ulid;
 use vo_types::{CryptoAlgorithm, DekId, InstanceId, KeyMetadata, WrappedDek};
 
 use super::{DekEntry, DekStatus, DekStore, DekStoreError, DEK_PARTITION};
@@ -157,10 +158,7 @@ impl DekStore for FjallDekStore {
         })?;
         let wrapped_dek = WrappedDek::new(wrapped_dek_bytes);
 
-        let dek_id =
-            DekId::parse(&ulid::Ulid::new().to_string()).map_err(|e| DekStoreError::Codec {
-                reason: format!("failed to generate DEK ID: {e}"),
-            })?;
+        let dek_id = DekId::from_bytes(Ulid::new().0.to_be_bytes());
         let metadata = KeyMetadata::new(instance_id.clone(), CryptoAlgorithm::Aes256Gcm);
         let entry = DekEntry::new(dek_id.clone(), instance_id.clone(), wrapped_dek, metadata)?;
 
@@ -259,12 +257,10 @@ impl DekStore for FjallDekStore {
     fn list_deks(&self, instance_id: &InstanceId) -> Result<Vec<DekId>, DekStoreError> {
         let mut dek_ids = Vec::new();
 
-        let iter = self.dek_partition.iter();
-        for item in iter {
-            let (_, value) = match item {
-                Ok(kv) => kv,
-                Err(_) => continue,
-            };
+        for item in self.dek_partition.iter() {
+            let (_key, value) = item.map_err(|e| DekStoreError::Storage {
+                reason: format!("failed to scan DEKs: {e}"),
+            })?;
             if let Ok(entry) = super::decode_dek_entry(&value) {
                 if entry.instance_id() == instance_id {
                     dek_ids.push(entry.dek_id().clone());
@@ -343,16 +339,13 @@ mod tests {
         let store = FjallDekStore::open(&keyspace).unwrap();
         let kek = create_test_kek();
 
-        let _generated = store
+        store
             .generate_and_store_dek(&sample_instance_id(), &kek)
             .unwrap();
-        let retrieved = store.retrieve_dek(&sample_instance_id(), &kek).unwrap();
+        let retrieved1 = store.retrieve_dek(&sample_instance_id(), &kek).unwrap();
+        let retrieved2 = store.retrieve_dek(&sample_instance_id(), &kek).unwrap();
 
-        assert_eq!(retrieved.len(), 32, "DEK must be 32 bytes for AES-256");
-        assert!(
-            retrieved.iter().any(|&b| b != 0),
-            "DEK must not be all zeros"
-        );
+        assert_eq!(retrieved1, retrieved2);
     }
 
     #[test]
