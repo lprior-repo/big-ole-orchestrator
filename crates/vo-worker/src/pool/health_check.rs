@@ -3,6 +3,7 @@
 use vo_types::connection_pool::HealthCheckResult;
 use vo_types::integer_types::TimestampMs;
 
+#[derive(Debug, Clone)]
 pub struct HealthCheck {
     timeout_ms: u64,
 }

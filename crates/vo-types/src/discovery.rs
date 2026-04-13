@@ -54,6 +54,12 @@ impl DiscoveryPath {
         let hash_str = parts[0];
         let binary_name = parts[1].to_string();
 
+        if binary_name.is_empty() {
+            return Err(DiscoveryPathError::InvalidFormat {
+                reason: "binary_name cannot be empty".to_string(),
+            });
+        }
+
         let binary_hash = BinaryHash::parse(hash_str).map_err(DiscoveryPathError::InvalidHash)?;
 
         Ok(Self {

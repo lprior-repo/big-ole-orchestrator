@@ -15,6 +15,7 @@ pub use connector::{
     CommitOutcome, Connector, ConnectorError, ConnectorRegistry, HttpConnector,
     PreparedEffect, ReconcileOutcome,
 };
+pub mod pool;
 mod port;
 mod retry;
 mod storage;

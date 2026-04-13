@@ -4,7 +4,6 @@ use axum::{
     response::IntoResponse,
     Json,
 };
-use futures::{SinkExt, Stream, StreamExt};
 use tokio::sync::broadcast;
 
 use crate::types::ApiError;
@@ -119,41 +118,6 @@ impl Default for WsState {
     }
 }
 
-struct WsStream {
-    inner: tokio_stream::wrappers::BroadcastStream<WorkflowWsEvent>,
-}
-
-impl WsStream {
-    fn new(receiver: broadcast::Receiver<WorkflowWsEvent>) -> Self {
-        Self {
-            inner: tokio_stream::wrappers::BroadcastStream::new(receiver),
-        }
-    }
-}
-
-impl Stream for WsStream {
-    type Item = Result<axum::extract::ws::Message, tokio_stream::wrappers::errors::BroadcastStreamRecvError>;
-
-    fn poll_next(
-        mut self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Option<Self::Item>> {
-        match std::pin::Pin::new(&mut self.inner).poll_next(cx) {
-            std::task::Poll::Ready(Some(Ok(event))) => {
-                let msg = axum::extract::ws::Message::Text(event.to_json_string().into());
-                std::task::Poll::Ready(Some(Ok(msg)))
-            }
-            std::task::Poll::Ready(Some(Err(e))) => {
-                cx.waker().wake_by_ref();
-                let _ = e;
-                std::task::Poll::Pending
-            }
-            std::task::Poll::Ready(None) => std::task::Poll::Ready(None),
-            std::task::Poll::Pending => std::task::Poll::Pending,
-        }
-    }
-}
-
 fn split_path_id(path: &str) -> Option<(String, String)> {
     let slash = path.find('/')?;
     let namespace = path[..slash].to_owned();
@@ -163,16 +127,6 @@ fn split_path_id(path: &str) -> Option<(String, String)> {
 
 pub struct WsConnectionCount {
     pub active_connections: std::sync::atomic::AtomicUsize,
-}
-
-impl Clone for WsConnectionCount {
-    fn clone(&self) -> Self {
-        Self {
-            active_connections: std::sync::atomic::AtomicUsize::new(
-                self.active_connections.load(std::sync::atomic::Ordering::SeqCst),
-            ),
-        }
-    }
 }
 
 impl WsConnectionCount {
@@ -225,47 +179,43 @@ pub async fn ws_workflow(
 
     ws.on_upgrade(move |socket| {
         async move {
-            let (sink, socket_stream) = socket.split();
-            let receiver = broadcaster.subscribe();
-            let event_stream = WsStream::new(receiver);
+            let mut ws = socket;
+            let mut receiver = broadcaster.subscribe();
 
-            let send_task = tokio::spawn(async move {
-                let mut event_stream = event_stream;
-                let mut sink = sink;
-                while let Some(item) = event_stream.next().await {
-                    match item {
-                        Ok(axum::extract::ws::Message::Close(_)) => break,
-                        Ok(axum::extract::ws::Message::Ping(data)) => {
-                            if sink.send(axum::extract::ws::Message::Pong(data)).await.is_err() {
-                                break;
+            loop {
+                tokio::select! {
+                    recv_result = receiver.recv() => {
+                        match recv_result {
+                            Ok(event) => {
+                                let msg = axum::extract::ws::Message::Text(event.to_json_string());
+                                if ws.send(msg).await.is_err() {
+                                    break;
+                                }
                             }
+                            Err(broadcast::error::RecvError::Closed) => break,
+                            Err(broadcast::error::RecvError::Lagged(_)) => continue,
                         }
-                        Ok(axum::extract::ws::Message::Pong(_)) => {}
-                        Ok(axum::extract::ws::Message::Text(_)) => {}
-                        Ok(axum::extract::ws::Message::Binary(_)) => {}
-                        Err(_) => break,
                     }
-                }
-            });
-
-            let recv_task = tokio::spawn(async move {
-                let mut socket_stream = socket_stream;
-                while let Some(item) = socket_stream.next().await {
-                    match item {
-                        Ok(msg) => {
-                            if let Ok(text) = msg.to_text() {
+                    msg = ws.recv() => {
+                        match msg {
+                            Some(Ok(axum::extract::ws::Message::Close(_))) => break,
+                            Some(Ok(axum::extract::ws::Message::Ping(data))) => {
+                                let _ = ws.send(axum::extract::ws::Message::Pong(data)).await;
+                            }
+                            Some(Ok(axum::extract::ws::Message::Text(text))) => {
                                 tracing::debug!(msg = %text, "Received WebSocket message");
                             }
-                        }
-                        Err(e) => {
-                            tracing::warn!(error = %e, "WebSocket receive error");
-                            break;
+                            Some(Ok(axum::extract::ws::Message::Binary(_))) => {}
+                            Some(Ok(axum::extract::ws::Message::Pong(_))) => {}
+                            Some(Err(e)) => {
+                                tracing::warn!(error = %e, "WebSocket receive error");
+                                break;
+                            }
+                            None => break,
                         }
                     }
                 }
-            });
-
-            let _ = tokio::join!(send_task, recv_task);
+            }
         }
     })
     .into_response()

@@ -10,8 +10,8 @@ use tracing::{debug, error, info, warn};
 
 use vo_types::connection_pool::{
     AcquireResult, CircuitBreakerState, ConnectionId, ConnectionPoolError, ConnectionStatus,
-    ErrorCategory, ErrorContext, ErrorDetail, EvictionReason, PoolConfig as VoPoolConfig,
-    PoolId, PoolStats, PooledConnection, ReleaseResult, WaitHandle,
+    ErrorCategory, ErrorContext, ErrorDetail, EvictionReason, HealthCheckResult,
+    PoolConfig as VoPoolConfig, PoolId, PoolStats, PooledConnection, ReleaseResult, WaitHandle,
 };
 use vo_types::integer_types::TimestampMs;
 
@@ -231,7 +231,7 @@ impl ConnectionPool {
             return AcquireResult::Available { connection: pooled };
         }
 
-        if self.state.pending_acquires.len() >= self.state.config.max_pending_acquires {
+        if self.state.pending_acquires.len() >= self.state.config.max_pending_acquires as usize {
             let error = ConnectionPoolError {
                 category: ErrorCategory::PoolExhaustion,
                 detail: ErrorDetail::PendingAcquiresExceeded {
