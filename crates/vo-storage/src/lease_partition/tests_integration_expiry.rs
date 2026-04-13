@@ -451,6 +451,74 @@ fn release_stale_fence_does_not_extend_current_lease_expiry() {
     verify_release_stale_fence_does_not_extend(&store, current, stale_release, reacquired);
 }
 
+/// AQ-06: Release after lease expired and pair re-acquired returns StaleFence.
+#[test]
+fn release_fails_when_lease_expired_and_pair_reacquired() {
+    let store = DeterministicLeaseStore::new();
+
+    let lease = acquire_lease(&store, &sample_instance_id(), &sample_step_id(), 1);
+    store.set_time(1);
+    let _new_owner = acquire_lease(&store, &sample_instance_id(), &sample_step_id(), 5_000);
+
+    assert_eq!(
+        store.release(&lease),
+        Err(LeaseStoreError::StaleFence {
+            expected: "2".to_string(),
+            actual: "1".to_string(),
+        })
+    );
+}
+
+/// AQ-07: Crash recovery retry cycles advance fence without explicit releases.
+#[test]
+fn crash_recovery_retry_cycles_advance_fence_without_release() {
+    let store = DeterministicLeaseStore::new();
+    let mut tokens: Vec<u64> = Vec::new();
+
+    for i in 0..15u64 {
+        let lease = acquire_lease(&store, &sample_instance_id(), &sample_step_id(), 1);
+        tokens.push(lease.token().inner().get());
+        store.set_time((i + 1) * 2);
+    }
+
+    for window in tokens.windows(2) {
+        assert!(window[1] > window[0], "token {} not > {}", window[1], window[0]);
+    }
+
+    assert!(stale_result(
+        &store,
+        &sample_instance_id(),
+        &sample_step_id(),
+        fence_token(tokens[0])
+    ));
+    assert!(!stale_result(
+        &store,
+        &sample_instance_id(),
+        &sample_step_id(),
+        fence_token(*tokens.last().unwrap())
+    ));
+}
+
+/// AQ-08: u64::MAX TTL blocks reacquire until time reaches u64::MAX.
+#[test]
+fn near_infinite_lease_blocks_reacquire_until_far_future() {
+    let store = DeterministicLeaseStore::new();
+    let _immortal = acquire_lease(&store, &sample_instance_id(), &sample_step_id(), u64::MAX);
+
+    store.set_time(u64::MAX - 1);
+    assert_eq!(
+        store.acquire(&sample_instance_id(), &sample_step_id(), 5_000),
+        Err(LeaseStoreError::LeaseAlreadyHeld {
+            instance_id: sample_instance_id().to_string(),
+            step_id: sample_step_id().to_string(),
+        })
+    );
+
+    store.set_time(u64::MAX);
+    let renewed = acquire_lease(&store, &sample_instance_id(), &sample_step_id(), 5_000);
+    assert_eq!(renewed.token().inner().get(), 2);
+}
+
 // ---------------------------------------------------------------------------
 // Tests: Fence token exhaustion
 // ---------------------------------------------------------------------------
@@ -497,4 +565,88 @@ fn acquire_returns_fence_token_exhausted_after_u64_max_expiry() {
             step_id: sample_step_id().to_string(),
         })
     );
+}
+
+/// AQ-16: Fence exhaustion persists after lease expiry.
+#[test]
+fn fence_exhaustion_persists_after_lease_expiry() {
+    let store = DeterministicLeaseStore::new();
+    let key = DeterministicLeaseStore::key(&sample_instance_id(), &sample_step_id());
+    store
+        .next_fence_by_key
+        .borrow_mut()
+        .insert(key, FenceAllocatorState::Next(u64::MAX));
+
+    let max_lease = acquire_lease(&store, &sample_instance_id(), &sample_step_id(), 1);
+    assert_eq!(max_lease.token().inner().get(), u64::MAX);
+    store.release(&max_lease).unwrap();
+
+    assert_eq!(
+        store.acquire(&sample_instance_id(), &sample_step_id(), 5_000),
+        Err(LeaseStoreError::FenceTokenExhausted {
+            instance_id: sample_instance_id().to_string(),
+            step_id: sample_step_id().to_string(),
+        })
+    );
+
+    store.set_time(1);
+    assert_eq!(
+        store.acquire(&sample_instance_id(), &sample_step_id(), 5_000),
+        Err(LeaseStoreError::FenceTokenExhausted {
+            instance_id: sample_instance_id().to_string(),
+            step_id: sample_step_id().to_string(),
+        })
+    );
+}
+
+/// AQ-20: Saturating TTL arithmetic at u64::MAX boundaries does not panic.
+#[test]
+fn saturating_ttl_arithmetic_does_not_panic_at_u64_boundaries() {
+    let store = DeterministicLeaseStore::new();
+    store.set_time(u64::MAX - 1);
+
+    let lease = acquire_lease(&store, &sample_instance_id(), &sample_step_id(), 2);
+
+    // expires_at = u64::MAX - 1 + 2 = u64::MAX (saturating)
+    assert_eq!(
+        store.acquire(&sample_instance_id(), &sample_step_id(), 5_000),
+        Err(LeaseStoreError::LeaseAlreadyHeld {
+            instance_id: sample_instance_id().to_string(),
+            step_id: sample_step_id().to_string(),
+        })
+    );
+
+    store.set_time(u64::MAX);
+    let _renewed = acquire_lease(&store, &sample_instance_id(), &sample_step_id(), 5_000);
+
+    assert!(stale_result(
+        &store,
+        &sample_instance_id(),
+        &sample_step_id(),
+        *lease.token()
+    ));
+}
+
+/// AQ-21: Fence exhaustion on one pair does not affect other pairs.
+#[test]
+fn fence_exhaustion_is_per_pair_not_global() {
+    let store = DeterministicLeaseStore::new();
+    let iid_b = alternate_instance_id();
+    let sid_b = alternate_step_id();
+
+    let key_a = DeterministicLeaseStore::key(&sample_instance_id(), &sample_step_id());
+    store
+        .next_fence_by_key
+        .borrow_mut()
+        .insert(key_a, FenceAllocatorState::Next(u64::MAX));
+
+    let max_lease = acquire_lease(&store, &sample_instance_id(), &sample_step_id(), 1);
+    store.release(&max_lease).unwrap();
+
+    // Pair A is exhausted
+    assert!(store.acquire(&sample_instance_id(), &sample_step_id(), 5_000).is_err());
+
+    // Pair B is unaffected — gets token 1
+    let lease_b = acquire_lease(&store, &iid_b, &sid_b, 5_000);
+    assert_eq!(lease_b.token().inner().get(), 1);
 }

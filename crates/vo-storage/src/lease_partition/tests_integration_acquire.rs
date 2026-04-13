@@ -430,3 +430,117 @@ fn acquire_returns_new_authoritative_lease_when_now_greater_than_expiry() {
         (2, true)
     );
 }
+
+/// AQ-09: Simulated concurrent acquisition on same pair — first acquirer wins,
+/// second gets LeaseAlreadyHeld.
+#[test]
+fn concurrent_acquire_on_same_pair_first_writer_wins() {
+    let store = DeterministicLeaseStore::new();
+
+    let first = store.acquire(&sample_instance_id(), &sample_step_id(), 5_000).unwrap();
+
+    let second = store.acquire(&sample_instance_id(), &sample_step_id(), 5_000);
+    assert_eq!(
+        second,
+        Err(LeaseStoreError::LeaseAlreadyHeld {
+            instance_id: sample_instance_id().to_string(),
+            step_id: sample_step_id().to_string(),
+        })
+    );
+
+    assert!(!stale_result(
+        &store,
+        &sample_instance_id(),
+        &sample_step_id(),
+        *first.token()
+    ));
+}
+
+/// AQ-10: Interleaved acquisition on different pairs — fence tokens don't cross-contaminate.
+#[test]
+fn interleaved_acquisition_on_different_pairs_is_independent() {
+    let store = DeterministicLeaseStore::new();
+
+    let lease_a1 = acquire_lease(&store, &sample_instance_id(), &sample_step_id(), 5_000);
+    let lease_b1 = acquire_lease(
+        &store,
+        &alternate_instance_id(),
+        &alternate_step_id(),
+        5_000,
+    );
+    let lease_a2_result = store.acquire(&sample_instance_id(), &sample_step_id(), 5_000);
+    let lease_b2_result =
+        store.acquire(&alternate_instance_id(), &alternate_step_id(), 5_000);
+
+    assert!(lease_a2_result.is_err());
+    assert!(lease_b2_result.is_err());
+
+    assert_eq!(store.release(&lease_a1), Ok(()));
+    assert!(lease_b2_result.is_err());
+
+    let lease_a3 = acquire_lease(&store, &sample_instance_id(), &sample_step_id(), 5_000);
+    assert_eq!(lease_a3.token().inner().get(), 2);
+    assert_eq!(lease_b1.token().inner().get(), 1);
+
+    assert!(!stale_result(
+        &store,
+        &alternate_instance_id(),
+        &alternate_step_id(),
+        *lease_b1.token()
+    ));
+    assert!(stale_result(
+        &store,
+        &sample_instance_id(),
+        &sample_step_id(),
+        *lease_a1.token()
+    ));
+}
+
+/// AQ-11: Failed acquire due to transient fault has no side effects; retry succeeds.
+#[test]
+fn failed_acquire_has_no_side_effects_retry_succeeds() {
+    let store = DeterministicLeaseStore::new();
+
+    store.set_faults(FaultConfig {
+        acquire_lookup: Some("transient error".to_string()),
+        ..FaultConfig::default()
+    });
+    let result = store.acquire(&sample_instance_id(), &sample_step_id(), 5_000);
+    assert_eq!(
+        result,
+        Err(LeaseStoreError::Storage {
+            reason: "transient error".to_string(),
+        })
+    );
+
+    store.set_faults(FaultConfig::default());
+    let lease = acquire_lease(&store, &sample_instance_id(), &sample_step_id(), 5_000);
+    assert_eq!(lease.token().inner().get(), 1);
+}
+
+/// AQ-18: Double-recovery race — first writer wins, second gets LeaseAlreadyHeld.
+#[test]
+fn double_recovery_race_first_writer_wins() {
+    let store = DeterministicLeaseStore::new();
+
+    let _original = acquire_lease(&store, &sample_instance_id(), &sample_step_id(), 1);
+    store.set_time(1);
+
+    let recovery_1 = acquire_lease(&store, &sample_instance_id(), &sample_step_id(), 5_000);
+    let recovery_2 = store.acquire(&sample_instance_id(), &sample_step_id(), 5_000);
+
+    assert_eq!(
+        recovery_2,
+        Err(LeaseStoreError::LeaseAlreadyHeld {
+            instance_id: sample_instance_id().to_string(),
+            step_id: sample_step_id().to_string(),
+        })
+    );
+    assert_eq!(recovery_1.token().inner().get(), 2);
+    assert!(!stale_result(
+        &store,
+        &sample_instance_id(),
+        &sample_step_id(),
+        *recovery_1.token()
+    ));
+}
