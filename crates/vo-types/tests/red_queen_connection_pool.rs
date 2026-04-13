@@ -340,7 +340,7 @@ fn rq_connection_pool_error_display() {
         context: ErrorContext {
             pool_id: PoolId::new("test-pool"),
             timestamp: TimestampMs::new_unchecked(1000),
-            operation: "acquire",
+            operation: "acquire".to_string(),
             connection_id: Some(ConnectionId::new()),
         },
     };
@@ -377,7 +377,7 @@ fn rq_error_detail_all_variants_display() {
             connection_id: ConnectionId::new(),
         },
         ErrorDetail::InvalidRelease {
-            reason: "not from this pool",
+            reason: "not from this pool".to_string(),
         },
         ErrorDetail::PoolNotInitialized,
         ErrorDetail::AlreadyShutdown,
