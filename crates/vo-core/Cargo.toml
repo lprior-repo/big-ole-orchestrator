@@ -23,6 +23,15 @@ serde_json.workspace = true
 vo-storage = { path = "../vo-storage" }
 fjall = { workspace = true }
 tempfile = { workspace = true }
+criterion = { workspace = true }
+
+[[bench]]
+name = "data_structures_bench"
+harness = false
+
+[[bench]]
+name = "admission_budget_bench"
+harness = false
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(kani)'] }

@@ -5248,6 +5248,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
+ "criterion",
  "fjall",
  "libc",
  "proptest",
@@ -5280,6 +5281,7 @@ dependencies = [
 name = "vo-core"
 version = "0.1.0"
 dependencies = [
+ "criterion",
  "dashmap",
  "fjall",
  "glob",
@@ -5299,6 +5301,7 @@ dependencies = [
 name = "vo-executor"
 version = "0.1.0"
 dependencies = [
+ "criterion",
  "dashmap",
  "proptest",
  "serde",
@@ -5336,6 +5339,7 @@ dependencies = [
 name = "vo-linter"
 version = "0.1.0"
 dependencies = [
+ "criterion",
  "quote",
  "syn",
 ]
@@ -5402,6 +5406,7 @@ name = "vo-types"
 version = "0.1.0"
 dependencies = [
  "any-rope",
+ "criterion",
  "proptest",
  "rstest 0.18.2",
  "serde",
