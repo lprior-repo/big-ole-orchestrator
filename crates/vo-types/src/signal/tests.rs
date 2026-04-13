@@ -537,10 +537,56 @@ fn waitrecord_round_trips_through_serde_json_serialization() {
 fn signaldedupekey_round_trips_through_serde_json_serialization() {
     let id = valid_instance_id();
     let key = WaitKey::parse("serde-dedupe").expect("valid key");
-    let cmd = IdempotencyKey::parse("cmd-serde").expect("valid key");
+    let cmd = IdempotencyKey::parse("cmd-dedupe").expect("valid key");
     let original = SignalDedupeKey::new(id, key, cmd);
 
     let json = serde_json::to_string(&original).expect("serialize");
     let restored: SignalDedupeKey = serde_json::from_str(&json).expect("deserialize");
     assert_eq!(original, restored);
+}
+
+#[test]
+fn signaladdress_deserialize_rejects_epoch_local_with_null_epoch_id() {
+    let json = r#"{
+        "instance_id": "01JAR3K2N0XG8F5VZE9H7QW4Y6",
+        "wait_key": "approval",
+        "lineage_scope": "EpochLocal",
+        "lineage_id": "01JAR3K2N0XG8F5VZE9H7QW4Y6",
+        "epoch_id": null
+    }"#;
+    let result: Result<SignalAddress, _> = serde_json::from_str(json);
+    assert!(
+        result.is_err(),
+        "EpochLocal with null epoch_id should be rejected"
+    );
+    let err = result.unwrap_err();
+    assert!(
+        err.to_string()
+            .contains("EpochLocal scope requires epoch_id"),
+        "error message should mention the invariant: {}",
+        err
+    );
+}
+
+#[test]
+fn signaladdress_deserialize_rejects_lineage_wide_with_epoch_id() {
+    let json = r#"{
+        "instance_id": "01JAR3K2N0XG8F5VZE9H7QW4Y6",
+        "wait_key": "approval",
+        "lineage_scope": "LineageWide",
+        "lineage_id": "01JAR3K2N0XG8F5VZE9H7QW4Y6",
+        "epoch_id": 42
+    }"#;
+    let result: Result<SignalAddress, _> = serde_json::from_str(json);
+    assert!(
+        result.is_err(),
+        "LineageWide with non-null epoch_id should be rejected"
+    );
+    let err = result.unwrap_err();
+    assert!(
+        err.to_string()
+            .contains("LineageWide scope requires epoch_id"),
+        "error message should mention the invariant: {}",
+        err
+    );
 }
