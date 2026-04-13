@@ -19,7 +19,7 @@ const STALE_PENDING_THRESHOLD_MS: u64 = 60_000;
 /// Handle for controlling the Reanimator Loop.
 #[derive(Debug)]
 pub struct ReanimatorHandle {
-    pub(crate) state_sender: watch::Sender<ReanimatorState>,
+    pub state_sender: watch::Sender<ReanimatorState>,
     pub(crate) shutdown_trigger: broadcast::Sender<()>,
     pub(crate) task_handle: Option<JoinHandle<()>>,
 }
