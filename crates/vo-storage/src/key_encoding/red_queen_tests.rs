@@ -30,11 +30,10 @@ fn max_instance_id() -> InstanceId {
 }
 
 fn arb_step_id() -> impl Strategy<Value = StepId> {
-    prop::sample::subsequence(
-        "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_".chars(),
-        1..50,
-    )
-    .prop_map(|chars| {
+    let chars: Vec<char> = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_"
+        .chars()
+        .collect();
+    prop::sample::subsequence(chars, 1..50).prop_map(|chars| {
         let s: String = chars.into_iter().collect();
         StepId::parse(&s).unwrap()
     })
