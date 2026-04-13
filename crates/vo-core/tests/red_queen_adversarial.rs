@@ -1023,7 +1023,7 @@ fn attack_false_positive_interleaved_success_failure_never_quarantined() {
         // Record a failure
         record_failure(&wf, &hash_from_idx(i), &config, &state, t0).unwrap();
         // Simulate a successful registration (sets rate limiter but no failure)
-        let req = make_request("alternating-wf", &format!("success{:08x}", i), false);
+        let req = make_request("alternating-wf", &format!("aabb{:08x}", i), false);
         let _ = evaluate_registration(
             &req,
             &config,
@@ -1240,19 +1240,21 @@ fn attack_manual_override_race_unquarantine_vs_quarantine_trigger() {
 
     // Thread 1: Unquarantine
     let state_clone1 = Arc::clone(&state);
+    let wf_clone1 = wf.clone();
     let handle1 = thread::spawn(move || {
-        let result = unquarantine(&wf, "operator", &state_clone1);
-        (result, state_clone1.get_status(&wf))
+        let result = unquarantine(&wf_clone1, "operator", &state_clone1);
+        (result, state_clone1.get_status(&wf_clone1))
     });
 
     // Thread 2: Record 5 new failures to re-quarantine
     let config_clone = Arc::clone(&config);
     let state_clone2 = Arc::clone(&state);
+    let wf_clone2 = wf.clone();
     let handle2 = thread::spawn(move || {
         let t1 = t0 + Duration::from_secs(1);
         (0..5).for_each(|i| {
             let _ = record_failure(
-                &wf,
+                &wf_clone2,
                 &hash_from_idx(10 + i),
                 &config_clone,
                 &state_clone2,
@@ -1260,8 +1262,8 @@ fn attack_manual_override_race_unquarantine_vs_quarantine_trigger() {
             );
         });
         (
-            state_clone2.get_status(&wf),
-            state_clone2.get_failure_count(&wf),
+            state_clone2.get_status(&wf_clone2),
+            state_clone2.get_failure_count(&wf_clone2),
         )
     });
 
@@ -1273,7 +1275,7 @@ fn attack_manual_override_race_unquarantine_vs_quarantine_trigger() {
 
     // At least one thread should see consistent state
     // Final status must be either Quarantined (re-triggered) or Active (unquarantine won)
-    let final_status = state.get_status(&wf);
+    let final_status = state.get_status(&wf.clone());
     assert!(
         final_status == RegistrationStatus::Quarantined
             || final_status == RegistrationStatus::Active,
@@ -1298,9 +1300,10 @@ fn attack_manual_override_race_double_unquarantine() {
     // Two threads try to unquarantine simultaneously
     let state1 = Arc::clone(&state);
     let state2 = Arc::clone(&state);
+    let wf2 = wf.clone();
 
     let handle1 = thread::spawn(move || unquarantine(&wf, "op1", &state1));
-    let handle2 = thread::spawn(move || unquarantine(&wf, "op2", &state2));
+    let handle2 = thread::spawn(move || unquarantine(&wf2, "op2", &state2));
 
     let result1 = handle1.join().unwrap();
     let result2 = handle2.join().unwrap();
