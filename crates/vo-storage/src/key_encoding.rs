@@ -316,8 +316,7 @@ pub fn get_timer_key_prefix_for_time(fire_at_ms: u64) -> Vec<u8> {
 }
 
 pub fn get_lease_key_prefix_for_instance(instance_id: &InstanceId) -> Vec<u8> {
-    let iid_bytes = instance_id.to_bytes().unwrap_or([0u8; 16]);
-    iid_bytes.to_vec()
+    format!("{instance_id}::").into_bytes()
 }
 
 pub fn get_dedupe_key_prefix(idempotency_key: &str) -> Vec<u8> {

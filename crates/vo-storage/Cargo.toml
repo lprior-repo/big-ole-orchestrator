@@ -25,6 +25,7 @@ thiserror = { workspace = true }
 aes = "0.7"
 aes-gcm = "0.9"
 rand = "0.8"
+ulid = { workspace = true }
 generic-array = "0.14"
 
 [dev-dependencies]
@@ -32,4 +33,3 @@ proptest = { workspace = true }
 tempfile = { workspace = true }
 thiserror = { workspace = true }
 rstest = { workspace = true }
-ulid = { workspace = true }
