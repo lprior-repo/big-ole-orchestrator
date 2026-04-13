@@ -352,7 +352,7 @@ mod lineage_rollover_failure_tests {
             make_event("inst-1", 3, step_scheduled_payload("wf-1", "step-1")),
         ];
 
-        let result = harness.verify_lineage_rollover_deterministic(
+        let result = VerificationHarness::verify_lineage_rollover_deterministic(
             &events_pre,
             &rollover_event,
             &events_post[1..],
