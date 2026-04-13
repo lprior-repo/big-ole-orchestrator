@@ -24,6 +24,9 @@ mod tests;
 #[cfg(kani)]
 mod verification;
 
+mod fjall_dedupe;
+pub use fjall_dedupe::FjallDedupeStore;
+
 // ---------------------------------------------------------------------------
 // Data layer — AdmissionResult
 // ---------------------------------------------------------------------------
