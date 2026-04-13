@@ -163,6 +163,29 @@ impl Dag {
             return Err(DagError::EmptyWorkflow);
         }
 
+        // Cycle detection via Kahn's algorithm (topological sort).
+        // Failing test: dag_tests::build_detects_simple_cycle
+        let n = self.nodes.len();
+        let mut in_degree = vec![0u32; n];
+        for &(_, to) in &self.edges {
+            in_degree[to] += 1;
+        }
+        let mut queue: std::collections::VecDeque<usize> =
+            (0..n).filter(|&i| in_degree[i] == 0).collect();
+        let mut visited = 0usize;
+        while let Some(node) = queue.pop_front() {
+            visited += 1;
+            for &(_, to) in self.edges.iter().filter(|&&(_from, _)| _from == node) {
+                in_degree[to] -= 1;
+                if in_degree[to] == 0 {
+                    queue.push_back(to);
+                }
+            }
+        }
+        if visited != n {
+            return Err(DagError::CycleDetected);
+        }
+
         let wf_name =
             WorkflowName::parse(workflow_name).map_err(|_| DagError::InvalidNodeName {
                 name: workflow_name.to_string(),

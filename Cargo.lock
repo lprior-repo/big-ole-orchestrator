@@ -5219,6 +5219,7 @@ dependencies = [
  "axum 0.7.9",
  "bytes",
  "chrono",
+ "fjall",
  "futures",
  "itertools 0.14.0",
  "ractor",
@@ -5237,6 +5238,7 @@ dependencies = [
  "vo-common",
  "vo-core",
  "vo-storage",
+ "vo-types",
  "vo-worker",
 ]
 
@@ -5269,6 +5271,10 @@ dependencies = [
 [[package]]
 name = "vo-common"
 version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "vo-core"
@@ -5329,6 +5335,10 @@ dependencies = [
 [[package]]
 name = "vo-linter"
 version = "0.1.0"
+dependencies = [
+ "quote",
+ "syn",
+]
 
 [[package]]
 name = "vo-sdk"
@@ -5368,6 +5378,7 @@ dependencies = [
  "blake3",
  "bytes",
  "crc32fast",
+ "criterion",
  "fjall",
  "generic-array",
  "memmap2",
@@ -5382,6 +5393,7 @@ dependencies = [
  "thiserror 1.0.69",
  "tokio",
  "ulid",
+ "vo-core",
  "vo-types",
 ]
 
@@ -5396,6 +5408,7 @@ dependencies = [
  "serde_json",
  "spqr-tree",
  "thiserror 1.0.69",
+ "tokio",
  "ulid",
  "uuid",
 ]
@@ -5407,6 +5420,7 @@ dependencies = [
  "anyhow",
  "async-nats",
  "async-trait",
+ "axum 0.7.9",
  "bytes",
  "chrono",
  "futures",
@@ -5417,6 +5431,7 @@ dependencies = [
  "serde_json",
  "thiserror 1.0.69",
  "tokio",
+ "tower 0.4.13",
  "tracing",
  "ulid",
  "vo-common",

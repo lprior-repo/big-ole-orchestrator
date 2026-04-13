@@ -174,3 +174,15 @@ impl LeaseRecord {
         &self.token == other
     }
 }
+
+#[cfg(kani)]
+mod verification {
+    use super::*;
+
+    #[kani::proof]
+    fn verify_lifecycle_transition_exhaustiveness() {
+        let state = kani::any::<LifecycleState>();
+        let event = kani::any::<TransitionEvent>();
+        let _ = apply(state, event);
+    }
+}

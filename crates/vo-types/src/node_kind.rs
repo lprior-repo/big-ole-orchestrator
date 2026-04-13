@@ -114,4 +114,76 @@ mod tests {
         assert_eq!(variants[3], NodeKind::Signal);
         assert_eq!(variants[4], NodeKind::Unsafe);
     }
+
+    #[test]
+    fn node_kind_unsafe_serializes_to_unsafe_json() {
+        let json = serde_json::to_string(&NodeKind::Unsafe).unwrap();
+        assert_eq!(json, "\"unsafe\"");
+    }
+
+    #[test]
+    fn node_kind_managed_effect_json_format() {
+        let json = serde_json::to_string(&NodeKind::ManagedEffect).unwrap();
+        assert_eq!(json, "\"managed_effect\"");
+    }
+
+    #[test]
+    fn node_kind_signal_json_format() {
+        let json = serde_json::to_string(&NodeKind::Signal).unwrap();
+        assert_eq!(json, "\"signal\"");
+    }
+}
+
+#[cfg(feature = "proptest")]
+mod proptests {
+    use super::*;
+    use proptest::prelude::*;
+
+    proptest! {
+        #[test]
+        fn node_kind_all_variants_proptest_exhaustive(idx in 0..5usize) {
+            let variants = NodeKind::all_variants();
+            prop_assert!(idx < variants.len(), "idx {} should be in range", idx);
+            let variant = variants[idx];
+            let json = serde_json::to_string(variant).expect("serialize");
+            let restored: NodeKind = serde_json::from_str(&json).expect("deserialize");
+            prop_assert_eq!(restored, *variant, "roundtrip failed for {:?}", variant);
+        }
+
+        #[test]
+        fn node_kind_hash_is_deterministic(variant in 0..5u8) {
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+
+            let kind = match variant {
+                0 => NodeKind::Pure,
+                1 => NodeKind::ManagedEffect,
+                2 => NodeKind::Wait,
+                3 => NodeKind::Signal,
+                4 => NodeKind::Unsafe,
+                _ => return prop_assert!(false, "invalid variant index"),
+            };
+
+            let mut hasher1 = DefaultHasher::new();
+            let mut hasher2 = DefaultHasher::new();
+
+            kind.hash(&mut hasher1);
+            kind.hash(&mut hasher2);
+
+            prop_assert_eq!(hasher1.finish(), hasher2.finish(), "hash should be deterministic");
+        }
+
+        #[test]
+        fn node_kind_equality_is_reflexive(variant in 0..5u8) {
+            let kind = match variant {
+                0 => NodeKind::Pure,
+                1 => NodeKind::ManagedEffect,
+                2 => NodeKind::Wait,
+                3 => NodeKind::Signal,
+                4 => NodeKind::Unsafe,
+                _ => return prop_assert!(false, "invalid variant index"),
+            };
+            prop_assert_eq!(kind, kind, "equality should be reflexive");
+        }
+    }
 }

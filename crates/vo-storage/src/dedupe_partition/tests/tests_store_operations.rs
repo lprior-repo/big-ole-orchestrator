@@ -267,8 +267,16 @@ fn rq_expired_entry_allows_reinsert_preserves_new_instance_id() {
     let new_iid = InstanceId::from_bytes([0xAD; 16]);
 
     // Insert entry that expires at time 0
-    let expired = DedupeEntry::new("rq-reinsert-boundary-b2uv".to_string(), format!("{old_iid}"), 0).unwrap();
-    store.entries.borrow_mut().insert("rq-reinsert-boundary-b2uv".to_string(), expired);
+    let expired = DedupeEntry::new(
+        "rq-reinsert-boundary-b2uv".to_string(),
+        format!("{old_iid}"),
+        0,
+    )
+    .unwrap();
+    store
+        .entries
+        .borrow_mut()
+        .insert("rq-reinsert-boundary-b2uv".to_string(), expired);
 
     // At time 0, the entry is expired — reinsert must succeed
     let result = store.check_and_insert(&key, &new_iid, 5000).unwrap();
@@ -290,10 +298,18 @@ fn rq_purge_repeated_is_idempotent() {
     let store = DeterministicDedupeStore::new();
 
     store
-        .check_and_insert(&DedupeKey::parse("rq-idem-a-b2uv").unwrap(), &sample_instance_id(), 100)
+        .check_and_insert(
+            &DedupeKey::parse("rq-idem-a-b2uv").unwrap(),
+            &sample_instance_id(),
+            100,
+        )
         .unwrap();
     store
-        .check_and_insert(&DedupeKey::parse("rq-idem-b-b2uv").unwrap(), &sample_instance_id(), 200)
+        .check_and_insert(
+            &DedupeKey::parse("rq-idem-b-b2uv").unwrap(),
+            &sample_instance_id(),
+            200,
+        )
         .unwrap();
 
     let p1 = store.purge_expired(500).unwrap();
@@ -313,11 +329,23 @@ fn rq_purge_repeated_is_idempotent() {
 fn rq_purge_at_exact_expiry_boundary() {
     let store = DeterministicDedupeStore::new();
     store
-        .check_and_insert(&DedupeKey::parse("rq-boundary-b2uv").unwrap(), &sample_instance_id(), 1000)
+        .check_and_insert(
+            &DedupeKey::parse("rq-boundary-b2uv").unwrap(),
+            &sample_instance_id(),
+            1000,
+        )
         .unwrap();
 
-    assert_eq!(store.purge_expired(999).unwrap(), 0, "Not yet expired at 999");
-    assert_eq!(store.purge_expired(1000).unwrap(), 1, "Expired at exact boundary 1000");
+    assert_eq!(
+        store.purge_expired(999).unwrap(),
+        0,
+        "Not yet expired at 999"
+    );
+    assert_eq!(
+        store.purge_expired(1000).unwrap(),
+        1,
+        "Expired at exact boundary 1000"
+    );
 }
 
 // ========================================================================
@@ -327,18 +355,62 @@ fn rq_purge_at_exact_expiry_boundary() {
 #[test]
 fn rq_partial_expiry_preserves_unexpired_entries() {
     let store = DeterministicDedupeStore::new();
-    store.check_and_insert(&DedupeKey::parse("rq-partial-a-b2uv").unwrap(), &sample_instance_id(), 100).unwrap();
-    store.check_and_insert(&DedupeKey::parse("rq-partial-b-b2uv").unwrap(), &sample_instance_id(), 200).unwrap();
-    store.check_and_insert(&DedupeKey::parse("rq-partial-c-b2uv").unwrap(), &sample_instance_id(), 300).unwrap();
-    store.check_and_insert(&DedupeKey::parse("rq-partial-d-b2uv").unwrap(), &sample_instance_id(), 400).unwrap();
+    store
+        .check_and_insert(
+            &DedupeKey::parse("rq-partial-a-b2uv").unwrap(),
+            &sample_instance_id(),
+            100,
+        )
+        .unwrap();
+    store
+        .check_and_insert(
+            &DedupeKey::parse("rq-partial-b-b2uv").unwrap(),
+            &sample_instance_id(),
+            200,
+        )
+        .unwrap();
+    store
+        .check_and_insert(
+            &DedupeKey::parse("rq-partial-c-b2uv").unwrap(),
+            &sample_instance_id(),
+            300,
+        )
+        .unwrap();
+    store
+        .check_and_insert(
+            &DedupeKey::parse("rq-partial-d-b2uv").unwrap(),
+            &sample_instance_id(),
+            400,
+        )
+        .unwrap();
 
     let purged = store.purge_expired(250).unwrap();
     assert_eq!(purged, 2, "Only keys a and b should be purged");
 
-    assert_eq!(store.contains(&DedupeKey::parse("rq-partial-a-b2uv").unwrap()).unwrap(), false);
-    assert_eq!(store.contains(&DedupeKey::parse("rq-partial-b-b2uv").unwrap()).unwrap(), false);
-    assert_eq!(store.contains(&DedupeKey::parse("rq-partial-c-b2uv").unwrap()).unwrap(), true);
-    assert_eq!(store.contains(&DedupeKey::parse("rq-partial-d-b2uv").unwrap()).unwrap(), true);
+    assert_eq!(
+        store
+            .contains(&DedupeKey::parse("rq-partial-a-b2uv").unwrap())
+            .unwrap(),
+        false
+    );
+    assert_eq!(
+        store
+            .contains(&DedupeKey::parse("rq-partial-b-b2uv").unwrap())
+            .unwrap(),
+        false
+    );
+    assert_eq!(
+        store
+            .contains(&DedupeKey::parse("rq-partial-c-b2uv").unwrap())
+            .unwrap(),
+        true
+    );
+    assert_eq!(
+        store
+            .contains(&DedupeKey::parse("rq-partial-d-b2uv").unwrap())
+            .unwrap(),
+        true
+    );
 }
 
 // ========================================================================
@@ -351,7 +423,9 @@ fn rq_purge_then_reinsert_same_key() {
     let key = DedupeKey::parse("rq-evict-b2uv").unwrap();
     let new_iid = InstanceId::from_bytes([0xBB; 16]);
 
-    store.check_and_insert(&key, &sample_instance_id(), 100).unwrap();
+    store
+        .check_and_insert(&key, &sample_instance_id(), 100)
+        .unwrap();
     store.set_time(200);
     assert_eq!(store.purge_expired(200).unwrap(), 1);
     assert_eq!(store.contains(&key).unwrap(), false);
@@ -371,14 +445,20 @@ fn rq_purge_preserves_duplicate_rejection_for_survivors() {
     let survivor = DedupeKey::parse("rq-survivor-b2uv").unwrap();
     let doomed = DedupeKey::parse("rq-doomed-b2uv").unwrap();
 
-    store.check_and_insert(&survivor, &sample_instance_id(), 9999).unwrap();
-    store.check_and_insert(&doomed, &sample_instance_id(), 100).unwrap();
+    store
+        .check_and_insert(&survivor, &sample_instance_id(), 9999)
+        .unwrap();
+    store
+        .check_and_insert(&doomed, &sample_instance_id(), 100)
+        .unwrap();
 
     let purged = store.purge_expired(500).unwrap();
     assert_eq!(purged, 1);
     assert_eq!(store.contains(&survivor).unwrap(), true);
 
-    let result = store.check_and_insert(&survivor, &sample_instance_id(), 5000).unwrap();
+    let result = store
+        .check_and_insert(&survivor, &sample_instance_id(), 5000)
+        .unwrap();
     assert!(matches!(result, AdmissionResult::Duplicate { .. }));
 }
 
@@ -390,7 +470,9 @@ fn rq_purge_preserves_duplicate_rejection_for_survivors() {
 fn rq_immortal_entry_survives_purge_at_max_minus_one() {
     let store = DeterministicDedupeStore::new();
     let key = DedupeKey::parse("rq-immortal-b2uv").unwrap();
-    store.check_and_insert(&key, &sample_instance_id(), u64::MAX).unwrap();
+    store
+        .check_and_insert(&key, &sample_instance_id(), u64::MAX)
+        .unwrap();
 
     let purged = store.purge_expired(u64::MAX - 1).unwrap();
     assert_eq!(purged, 0);
@@ -407,15 +489,27 @@ fn rq_interleaved_insert_purge_insert() {
     let key1 = DedupeKey::parse("rq-iter-1-b2uv").unwrap();
     let key2 = DedupeKey::parse("rq-iter-2-b2uv").unwrap();
 
-    store.check_and_insert(&key1, &sample_instance_id(), 100).unwrap();
-    store.check_and_insert(&key2, &sample_instance_id(), 9999).unwrap();
+    store
+        .check_and_insert(&key1, &sample_instance_id(), 100)
+        .unwrap();
+    store
+        .check_and_insert(&key2, &sample_instance_id(), 9999)
+        .unwrap();
 
     store.set_time(100);
     assert_eq!(store.purge_expired(100).unwrap(), 1);
 
     let new_iid = InstanceId::from_bytes([0xCC; 16]);
-    assert_eq!(store.check_and_insert(&key1, &new_iid, 5000).unwrap(), AdmissionResult::Admitted);
-    assert!(matches!(store.check_and_insert(&key2, &sample_instance_id(), 5000).unwrap(), AdmissionResult::Duplicate { .. }));
+    assert_eq!(
+        store.check_and_insert(&key1, &new_iid, 5000).unwrap(),
+        AdmissionResult::Admitted
+    );
+    assert!(matches!(
+        store
+            .check_and_insert(&key2, &sample_instance_id(), 5000)
+            .unwrap(),
+        AdmissionResult::Duplicate { .. }
+    ));
 }
 
 // ========================================================================
@@ -427,7 +521,10 @@ fn rq_zero_ttl_rejected_and_nothing_stored() {
     let store = DeterministicDedupeStore::new();
     let key = DedupeKey::parse("rq-zero-ttl-b2uv").unwrap();
 
-    assert_eq!(store.check_and_insert(&key, &sample_instance_id(), 0), Err(DedupeStoreError::InvalidArgument));
+    assert_eq!(
+        store.check_and_insert(&key, &sample_instance_id(), 0),
+        Err(DedupeStoreError::InvalidArgument)
+    );
     assert_eq!(store.contains(&key).unwrap(), false);
 }
 
@@ -440,8 +537,18 @@ fn rq_key_with_null_bytes_duplicate_detected() {
     let store = DeterministicDedupeStore::new();
     let key = DedupeKey::parse("key\x00with\x00nulls").unwrap();
 
-    assert_eq!(store.check_and_insert(&key, &sample_instance_id(), 5000).unwrap(), AdmissionResult::Admitted);
-    assert!(matches!(store.check_and_insert(&key, &sample_instance_id(), 5000).unwrap(), AdmissionResult::Duplicate { .. }));
+    assert_eq!(
+        store
+            .check_and_insert(&key, &sample_instance_id(), 5000)
+            .unwrap(),
+        AdmissionResult::Admitted
+    );
+    assert!(matches!(
+        store
+            .check_and_insert(&key, &sample_instance_id(), 5000)
+            .unwrap(),
+        AdmissionResult::Duplicate { .. }
+    ));
 }
 
 // ========================================================================
@@ -453,7 +560,12 @@ fn rq_key_256_chars_admitted() {
     let store = DeterministicDedupeStore::new();
     let key256 = "a".repeat(256);
     let key = DedupeKey::parse(&key256).unwrap();
-    assert_eq!(store.check_and_insert(&key, &sample_instance_id(), 5000).unwrap(), AdmissionResult::Admitted);
+    assert_eq!(
+        store
+            .check_and_insert(&key, &sample_instance_id(), 5000)
+            .unwrap(),
+        AdmissionResult::Admitted
+    );
 }
 
 // ========================================================================
@@ -464,7 +576,12 @@ fn rq_key_256_chars_admitted() {
 fn rq_single_char_key_admitted() {
     let store = DeterministicDedupeStore::new();
     let key = DedupeKey::parse("x").unwrap();
-    assert_eq!(store.check_and_insert(&key, &sample_instance_id(), 5000).unwrap(), AdmissionResult::Admitted);
+    assert_eq!(
+        store
+            .check_and_insert(&key, &sample_instance_id(), 5000)
+            .unwrap(),
+        AdmissionResult::Admitted
+    );
 }
 
 // ========================================================================
@@ -502,14 +619,20 @@ fn rq_zero_expiry_expired_at_all_timestamps() {
 #[test]
 fn rq_admission_result_cross_variant_inequality() {
     let admitted = AdmissionResult::Admitted;
-    let dup = AdmissionResult::Duplicate { instance_id: "x".to_string() };
+    let dup = AdmissionResult::Duplicate {
+        instance_id: "x".to_string(),
+    };
     assert_ne!(admitted, dup);
 }
 
 #[test]
 fn rq_admission_result_duplicate_different_iids_not_equal() {
-    let d1 = AdmissionResult::Duplicate { instance_id: "i1".to_string() };
-    let d2 = AdmissionResult::Duplicate { instance_id: "i2".to_string() };
+    let d1 = AdmissionResult::Duplicate {
+        instance_id: "i1".to_string(),
+    };
+    let d2 = AdmissionResult::Duplicate {
+        instance_id: "i2".to_string(),
+    };
     assert_ne!(d1, d2);
 }
 
@@ -537,8 +660,12 @@ fn rq_entry_equality_all_fields_matter() {
 
 #[test]
 fn rq_error_cross_variant_inequality() {
-    let storage = DedupeStoreError::Storage { reason: "x".to_string() };
-    let codec = DedupeStoreError::Codec { reason: "x".to_string() };
+    let storage = DedupeStoreError::Storage {
+        reason: "x".to_string(),
+    };
+    let codec = DedupeStoreError::Codec {
+        reason: "x".to_string(),
+    };
     let invalid = DedupeStoreError::InvalidArgument;
     assert_ne!(storage, codec);
     assert_ne!(storage, invalid);
@@ -551,25 +678,28 @@ fn rq_error_cross_variant_inequality() {
 
 #[test]
 fn rq_error_implements_std_error_trait() {
-    let err: Box<dyn std::error::Error> = Box::new(DedupeStoreError::Storage { reason: "e".into() });
+    let err: Box<dyn std::error::Error> =
+        Box::new(DedupeStoreError::Storage { reason: "e".into() });
     assert!(!err.to_string().is_empty());
 }
 
 // ========================================================================
-// Red Queen: encode_dedupe_entry produces valid JSON structure
+// Red Queen: encode_dedupe_entry produces valid binary structure
 // ========================================================================
 
 #[test]
-fn rq_encode_entry_produces_valid_json() {
+fn rq_encode_entry_produces_valid_binary() {
     let entry = DedupeEntry::new("key-b2uv".to_string(), "iid-b2uv".to_string(), 42).unwrap();
     let bytes = encode_dedupe_entry(&entry).unwrap();
-    let json_str = String::from_utf8(bytes.clone()).unwrap();
 
-    assert!(json_str.starts_with('{'));
-    assert!(json_str.ends_with('}'));
-    assert!(json_str.contains("\"dedupe_key\":\"key-b2uv\""));
-    assert!(json_str.contains("\"instance_id\":\"iid-b2uv\""));
-    assert!(json_str.contains("\"expires_at\":42"));
+    let dk_len = u16::from_be_bytes([bytes[0], bytes[1]]) as usize;
+    assert_eq!(&bytes[2..2 + dk_len], b"key-b2uv");
+    let offset = 2 + dk_len;
+    let iid_len = u16::from_be_bytes([bytes[offset], bytes[offset + 1]]) as usize;
+    assert_eq!(&bytes[offset + 2..offset + 2 + iid_len], b"iid-b2uv");
+    let ts_offset = offset + 2 + iid_len;
+    let expires_at = u64::from_be_bytes(bytes[ts_offset..ts_offset + 8].try_into().unwrap());
+    assert_eq!(expires_at, 42);
 
     let recovered = decode_dedupe_entry(&bytes).unwrap();
     assert_eq!(recovered, entry);
@@ -626,7 +756,10 @@ fn rq_decode_key_max_unicode_codepoint() {
 
 #[test]
 fn rq_entry_both_empty_rejected() {
-    assert_eq!(DedupeEntry::new(String::new(), String::new(), 1000), Err(DedupeStoreError::InvalidArgument));
+    assert_eq!(
+        DedupeEntry::new(String::new(), String::new(), 1000),
+        Err(DedupeStoreError::InvalidArgument)
+    );
 }
 
 // ========================================================================

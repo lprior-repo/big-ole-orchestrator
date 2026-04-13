@@ -26,6 +26,7 @@ aes = "0.7"
 aes-gcm = "0.9"
 rand = "0.8"
 generic-array = "0.14"
+ulid = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
@@ -33,3 +34,13 @@ tempfile = { workspace = true }
 thiserror = { workspace = true }
 rstest = { workspace = true }
 ulid = { workspace = true }
+vo-core = { workspace = true }
+criterion = { workspace = true }
+
+[[bench]]
+name = "dedupe_bench"
+harness = false
+
+[[bench]]
+name = "query_bench"
+harness = false

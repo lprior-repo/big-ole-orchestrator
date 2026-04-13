@@ -1023,7 +1023,7 @@ mod proptests {
         fn retry_policy_new_proptest_accepted_values_satisfy_invariants(
             max_attempts in 1u8..=255u8,
             backoff_ms in 0u64..1_000_000u64,
-            backoff_multiplier in 1.0f32..1e10f32,
+            backoff_multiplier in 1.0f64..1e10f64,
         ) {
             let policy = RetryPolicy::new(max_attempts, backoff_ms, backoff_multiplier)?;
             prop_assert_eq!(policy.max_attempts, max_attempts);
@@ -1035,7 +1035,7 @@ mod proptests {
         #[test]
         fn retry_policy_new_proptest_zero_attempts_always_fails(
             backoff_ms in 0u64..1_000_000u64,
-            backoff_multiplier in 1.0f32..100.0f32,
+            backoff_multiplier in 1.0f64..100.0f64,
         ) {
             let result = RetryPolicy::new(0, backoff_ms, backoff_multiplier);
             prop_assert_eq!(result, Err(RetryPolicyError::ZeroAttempts));
@@ -1045,7 +1045,7 @@ mod proptests {
         #[test]
         fn retry_policy_new_proptest_low_multiplier_always_fails(
             max_attempts in 1u8..=255u8,
-            backoff_multiplier in -1e10f32..0.9999f32,
+            backoff_multiplier in -1e10f64..0.9999f64,
         ) {
             let result = RetryPolicy::new(max_attempts, 0, backoff_multiplier);
             let is_invalid = matches!(result, Err(RetryPolicyError::InvalidMultiplier { .. }));
@@ -1076,12 +1076,13 @@ mod proptests {
         fn retry_policy_serde_round_trip_proptest(
             max_attempts in 1u8..=255u8,
             backoff_ms in 0u64..1_000_000u64,
-            backoff_multiplier in 1.0f32..100.0f32,
+            backoff_multiplier in 1.0f64..100.0f64,
         ) {
             let policy = RetryPolicy {
                 max_attempts,
                 backoff_ms,
                 backoff_multiplier,
+                max_backoff_ms: u64::MAX,
             };
             let json = serde_json::to_value(policy).expect("serialize");
             let restored: RetryPolicy = serde_json::from_value(json).expect("deserialize");

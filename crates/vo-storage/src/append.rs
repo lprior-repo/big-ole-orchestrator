@@ -10,7 +10,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use vo_types::events::EventEnvelope;
-#[cfg(test)]
 use vo_types::events::EventMetadata;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -332,7 +331,10 @@ impl BackpressureSignal {
                 depth,
                 capacity,
             };
-            *self.last_event.lock().unwrap() = Some(event);
+            #[expect(clippy::unwrap_used)]
+            {
+                *self.last_event.lock().unwrap() = Some(event);
+            }
         }
     }
 
@@ -349,7 +351,10 @@ impl BackpressureSignal {
                 class,
                 remaining_capacity,
             };
-            *self.last_event.lock().unwrap() = Some(event);
+            #[expect(clippy::unwrap_used)]
+            {
+                *self.last_event.lock().unwrap() = Some(event);
+            }
         }
     }
 
@@ -819,6 +824,16 @@ impl ClassifiedWrite for ControlPlaneWrite {
 pub struct ProjectionWrite {
     pub projection_id: String,
     size_bytes: u64,
+}
+
+impl ProjectionWrite {
+    #[must_use]
+    pub const fn new(projection_id: String, size_bytes: u64) -> Self {
+        Self {
+            projection_id,
+            size_bytes,
+        }
+    }
 }
 
 impl ClassifiedWrite for ProjectionWrite {

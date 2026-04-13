@@ -361,3 +361,47 @@ fn snapshot_load_decompresses_and_reconstructs() {
     let result = snapshot_load_latest(&partition, &id);
     assert_eq!(result, Ok(Some((1, expected_state))));
 }
+
+#[test]
+fn snapshot_load_latest_handles_atomic_snapshot_writer_format() {
+    let (_dir, _keyspace, partition) = setup_fjall();
+    let id = get_typical_id();
+
+    let state = InstanceState { counter: 42 };
+    let state_json = serde_json::to_vec(&state).unwrap();
+    let checksum = crc32fast::hash(&state_json);
+    let header = SnapshotHeader::new(id.clone(), 1, checksum);
+    let header_json = serde_json::to_vec(&header).unwrap();
+
+    let mut value = header_json;
+    value.push(b'|');
+    value.extend_from_slice(&state_json);
+
+    let key = encode_snapshot_key(&id, 1).unwrap();
+    partition.insert(key, &value).unwrap();
+
+    let result = snapshot_load_latest(&partition, &id);
+    assert_eq!(result, Ok(Some((1, state))));
+}
+
+#[test]
+fn snapshot_load_latest_rejects_corrupt_checksum_in_header_format() {
+    let (_dir, _keyspace, partition) = setup_fjall();
+    let id = get_typical_id();
+
+    let state = InstanceState { counter: 42 };
+    let state_json = serde_json::to_vec(&state).unwrap();
+    let wrong_checksum = 0u32;
+    let header = SnapshotHeader::new(id.clone(), 1, wrong_checksum);
+    let header_json = serde_json::to_vec(&header).unwrap();
+
+    let mut value = header_json;
+    value.push(b'|');
+    value.extend_from_slice(&state_json);
+
+    let key = encode_snapshot_key(&id, 1).unwrap();
+    partition.insert(key, &value).unwrap();
+
+    let result = snapshot_load_latest(&partition, &id);
+    assert_eq!(result, Err(StorageError::DeserializationFailed));
+}

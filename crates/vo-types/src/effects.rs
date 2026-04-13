@@ -567,6 +567,8 @@ mod tests {
 #[allow(clippy::unwrap_used)]
 mod proptests {
     use super::*;
+    use proptest::prop_assert;
+    use proptest::prop_assert_eq;
 
     proptest::proptest! {
         /// INV: Serde round-trip preserves EffectIntent equality for all variants.

@@ -12,9 +12,9 @@
 // Re-export parent module items so child modules can access via `use super::*`
 pub(super) use super::*;
 
+mod tests_concurrent;
 mod tests_encoding;
 mod tests_entry_construction;
 mod tests_mutation_killers;
 mod tests_purge;
 mod tests_store_operations;
-mod tests_concurrent;

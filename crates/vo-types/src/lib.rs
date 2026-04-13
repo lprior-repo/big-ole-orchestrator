@@ -1,3 +1,4 @@
+mod btree;
 mod binomial_heap;
 mod blob;
 pub mod cartesian_tree;
@@ -14,6 +15,7 @@ mod dedupe;
 mod dedupe_tests;
 mod dependency_graph_resolver;
 pub mod discovery;
+mod dual_representation;
 mod effects;
 mod encryption;
 #[cfg(test)]
@@ -38,7 +40,7 @@ mod plugin;
 pub mod proptest_verifier;
 mod registration_status;
 mod rope;
-mod signal;
+pub mod signal;
 pub mod skew_heap;
 mod spqr_tree;
 pub mod state;
@@ -50,8 +52,10 @@ mod types;
 #[cfg(test)]
 mod types_tests;
 mod workflow;
+pub mod search;
 pub mod workspace;
 
+pub use btree::{BTree, BTreeError, BTreeNode};
 pub use binomial_heap::BinomialHeap;
 pub use blob::{
     BlobFailureAction, BlobRef, BlobStatus, OutputPolicy, OutputRef, INLINED_MAX_BYTES,
@@ -70,8 +74,9 @@ pub use compensation::{
     CompensationTransitionError, CompensationTransitionEvent,
 };
 pub use connector::{
-    apply_connector_transition, ConnectorResult, ConnectorState, ConnectorTransition,
-    ConnectorTransitionError, ReconcileAction,
+    apply_connector_transition, execute_with_reconciliation, reconcile_ambiguous, Connector,
+    ConnectorError, ConnectorResult, ConnectorState, ConnectorTransition,
+    ConnectorTransitionError, ReconciliationResult, ReconcileAction,
 };
 pub use credentials::{
     AccessPolicy, Credential, CredentialId, CredentialKind, CredentialStatus, CredentialVersion,
@@ -83,6 +88,9 @@ pub use dependency_graph_resolver::DependencyGraphResolver;
 pub use discovery::{
     enforce_pin, validate_discovery_path, DiscoveryPath, DiscoveryPathError, PinEnforcementError,
     VersionConstraint, VersionPin, VERSION_BASE_PATH,
+};
+pub use dual_representation::{
+    apply_redaction, OperatorProjection, RedactionKind, RedactionPolicy, RedactionRule,
 };
 pub use effects::{
     apply_effect_transition, CompensationPolicy, EffectIntent, EffectKind, EffectRecord,
@@ -122,6 +130,10 @@ pub use types::{
     FireAtMs, IdempotencyKey, InstanceId, LeaseRecord, MaxAttempts, NodeName, SequenceNumber,
     Snapshot, SpawnId, State, StepId, TimeoutMs, TimerId, TimestampMs, WorkflowName, WorkflowSpec,
     MAX_SUPPORTED_SCHEMA_VERSION,
+};
+pub use search::{
+   Bm25Scorer, InvertedIndex, Posting, PostingList, Query, QueryParser, Scorer, SearchEngine,
+    SearchError, SearchResult, TfIdfScorer,
 };
 pub use workflow::{
     next_nodes, DagNode, Edge, EdgeCondition, RetryPolicy, RetryPolicyError, StepOutcome,

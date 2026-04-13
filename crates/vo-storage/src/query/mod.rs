@@ -17,6 +17,8 @@
 pub use crate::codec::StorageError;
 use vo_types::{Epoch, EventEnvelope, EventError, InstanceId};
 
+pub mod optimizer;
+
 #[cfg(test)]
 mod tests;
 
@@ -320,13 +322,10 @@ impl Iterator for LineageReplayIterator {
     type Item = Result<EventEnvelope, StorageError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            if let Some(ref mut iter) = self.instance_iter {
-                if let Some(item) = iter.next() {
-                    return Some(item);
-                }
-            }
-            return None;
+        if let Some(ref mut iter) = self.instance_iter {
+            iter.next()
+        } else {
+            None
         }
     }
 }

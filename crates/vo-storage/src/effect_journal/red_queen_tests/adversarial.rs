@@ -51,7 +51,8 @@ fn red_queen_crash_after_prepare_recovers_all_pending_effects() {
     );
 
     // Verify each effect can still be committed (not corrupted)
-    let mut recovered_ids: Vec<String> = pending.iter().map(|r| r.intent_id().to_string()).collect();
+    let mut recovered_ids: Vec<String> =
+        pending.iter().map(|r| r.intent_id().to_string()).collect();
     recovered_ids.sort();
     for (i, name) in recovered_ids.iter().enumerate() {
         assert_eq!(
@@ -89,7 +90,10 @@ fn red_queen_crash_recovery_can_commit_each_recovered_effect() {
 
     // After committing all, pending should be empty
     let after = journal.list_pending(&id).unwrap();
-    assert!(after.is_empty(), "BUG: pending not empty after recovering all effects");
+    assert!(
+        after.is_empty(),
+        "BUG: pending not empty after recovering all effects"
+    );
 }
 
 #[test]
@@ -118,7 +122,10 @@ fn red_queen_crash_recovery_can_rollback_each_recovered_effect() {
     }
 
     let after = journal.list_pending(&id).unwrap();
-    assert!(after.is_empty(), "BUG: pending not empty after rolling back all");
+    assert!(
+        after.is_empty(),
+        "BUG: pending not empty after rolling back all"
+    );
 }
 
 #[test]
@@ -140,8 +147,12 @@ fn red_queen_partial_commit_then_crash_recovers_remaining() {
     }
 
     // Commit 2, then "crash" (simulate partial completion)
-    journal.commit(&super::super::EffectId::new(&id, "fx-partial-0").unwrap()).unwrap();
-    journal.commit(&super::super::EffectId::new(&id, "fx-partial-1").unwrap()).unwrap();
+    journal
+        .commit(&super::super::EffectId::new(&id, "fx-partial-0").unwrap())
+        .unwrap();
+    journal
+        .commit(&super::super::EffectId::new(&id, "fx-partial-1").unwrap())
+        .unwrap();
 
     // Recovery: should find exactly 3 remaining
     let pending = journal.list_pending(&id).unwrap();
@@ -248,10 +259,17 @@ fn red_queen_cross_instance_commit_does_not_affect_other_instance() {
     journal.commit(&eid_a).unwrap();
 
     let pending_b = journal.list_pending(&id_b).unwrap();
-    assert_eq!(pending_b.len(), 1, "BUG: committing A's effect affected B's pending list");
+    assert_eq!(
+        pending_b.len(),
+        1,
+        "BUG: committing A's effect affected B's pending list"
+    );
 
     let commit_b = journal.commit(&eid_b);
-    assert!(commit_b.is_ok(), "BUG: B's effect became uncommittable after A committed");
+    assert!(
+        commit_b.is_ok(),
+        "BUG: B's effect became uncommittable after A committed"
+    );
 }
 
 #[test]
@@ -271,7 +289,10 @@ fn red_queen_list_pending_for_empty_instance_returns_empty() {
     journal.prepare(&id_a, record).unwrap();
 
     let pending_b = journal.list_pending(&id_b).unwrap();
-    assert!(pending_b.is_empty(), "BUG: empty instance returned non-empty pending list");
+    assert!(
+        pending_b.is_empty(),
+        "BUG: empty instance returned non-empty pending list"
+    );
 }
 
 // ========================================================================
@@ -304,7 +325,10 @@ fn red_queen_prepare_idempotent_different_kind_preserves_original() {
     .unwrap();
     let eid2 = journal.prepare(&id, record_sql).unwrap();
 
-    assert_eq!(eid, eid2, "BUG: idempotent prepare returned different EffectId");
+    assert_eq!(
+        eid, eid2,
+        "BUG: idempotent prepare returned different EffectId"
+    );
 
     let pending = journal.list_pending(&id).unwrap();
     assert_eq!(pending.len(), 1);
@@ -394,7 +418,10 @@ fn red_queen_decode_key_rejects_truncated_utf8() {
     let result = super::super::decode_effect_key(&truncated);
     assert!(result.is_err(), "BUG: accepted truncated UTF-8");
     assert!(
-        matches!(result.unwrap_err(), super::super::EffectJournalError::Codec { .. }),
+        matches!(
+            result.unwrap_err(),
+            super::super::EffectJournalError::Codec { .. }
+        ),
         "BUG: wrong error variant for truncated UTF-8"
     );
 }
@@ -405,7 +432,10 @@ fn red_queen_decode_record_rejects_truncated_json() {
     let result = super::super::decode_effect_record(truncated);
     assert!(result.is_err(), "BUG: accepted truncated JSON");
     assert!(
-        matches!(result.unwrap_err(), super::super::EffectJournalError::Codec { .. }),
+        matches!(
+            result.unwrap_err(),
+            super::super::EffectJournalError::Codec { .. }
+        ),
         "BUG: wrong error variant for truncated JSON"
     );
 }
@@ -414,7 +444,10 @@ fn red_queen_decode_record_rejects_truncated_json() {
 fn red_queen_decode_record_rejects_valid_json_wrong_type() {
     let wrong_type = b"42";
     let result = super::super::decode_effect_record(wrong_type);
-    assert!(result.is_err(), "BUG: accepted JSON integer as EffectRecord");
+    assert!(
+        result.is_err(),
+        "BUG: accepted JSON integer as EffectRecord"
+    );
 }
 
 #[test]
@@ -428,7 +461,10 @@ fn red_queen_decode_record_rejects_json_array() {
 fn red_queen_decode_record_rejects_empty_json_object() {
     let empty = b"{}";
     let result = super::super::decode_effect_record(empty);
-    assert!(result.is_err(), "BUG: accepted empty JSON object as EffectRecord");
+    assert!(
+        result.is_err(),
+        "BUG: accepted empty JSON object as EffectRecord"
+    );
 }
 
 #[test]
@@ -470,7 +506,8 @@ fn red_queen_concurrent_prepare_same_intent_id_is_idempotent() {
         })
         .collect();
 
-    let mut effect_ids: Vec<super::super::EffectId> = handles.into_iter().map(|h| h.join().unwrap()).collect();
+    let mut effect_ids: Vec<super::super::EffectId> =
+        handles.into_iter().map(|h| h.join().unwrap()).collect();
 
     let first = effect_ids.pop().unwrap();
     for eid in &effect_ids {
@@ -513,10 +550,8 @@ fn red_queen_concurrent_prepare_different_intent_ids_all_succeed() {
         })
         .collect();
 
-    let effect_ids: std::collections::HashSet<_> = handles
-        .into_iter()
-        .map(|h| h.join().unwrap())
-        .collect();
+    let effect_ids: std::collections::HashSet<_> =
+        handles.into_iter().map(|h| h.join().unwrap()).collect();
 
     assert_eq!(
         effect_ids.len(),
@@ -573,7 +608,8 @@ fn red_queen_concurrent_commit_rollback_on_same_effect_one_wins() {
         if let Err(e) = result {
             assert!(
                 matches!(e, super::super::EffectJournalError::AlreadyTerminal { .. }),
-                "BUG: concurrent race produced unexpected error: {:?}", e
+                "BUG: concurrent race produced unexpected error: {:?}",
+                e
             );
         }
     }
@@ -595,7 +631,10 @@ fn red_queen_effectid_with_unicode_intent_id() {
 
         let bytes = super::super::encode_effect_key(&eid);
         let recovered = super::super::decode_effect_key(&bytes).unwrap();
-        assert_eq!(recovered, eid, "BUG: unicode roundtrip failed for: {intent}");
+        assert_eq!(
+            recovered, eid,
+            "BUG: unicode roundtrip failed for: {intent}"
+        );
     }
 }
 
@@ -615,7 +654,11 @@ fn red_queen_effectid_with_very_long_intent_id() {
 fn red_queen_prepare_with_all_effect_kinds() {
     let journal = InMemoryEffectJournal::new();
     let id = sample_instance_id();
-    let kinds = [EffectKind::HttpCall, EffectKind::SqlQuery, EffectKind::BlobWrite];
+    let kinds = [
+        EffectKind::HttpCall,
+        EffectKind::SqlQuery,
+        EffectKind::BlobWrite,
+    ];
 
     for kind in &kinds {
         let record = vo_types::EffectRecord::new(
@@ -629,9 +672,19 @@ fn red_queen_prepare_with_all_effect_kinds() {
         let _eid = journal.prepare(&id, record).unwrap();
 
         let pending = journal.list_pending(&id).unwrap();
-        let found = pending.iter().find(|r| r.intent_id() == format!("fx-kind-{:?}", kind));
-        assert!(found.is_some(), "BUG: effect with kind {:?} not found in pending", kind);
-        assert_eq!(found.unwrap().kind(), *kind, "BUG: EffectKind not preserved");
+        let found = pending
+            .iter()
+            .find(|r| r.intent_id() == format!("fx-kind-{:?}", kind));
+        assert!(
+            found.is_some(),
+            "BUG: effect with kind {:?} not found in pending",
+            kind
+        );
+        assert_eq!(
+            found.unwrap().kind(),
+            *kind,
+            "BUG: EffectKind not preserved"
+        );
     }
 }
 
@@ -703,7 +756,10 @@ fn red_queen_list_pending_preserves_effect_metadata() {
     assert_eq!(r.intent_id(), "fx-metadata-check");
     assert_eq!(r.kind(), EffectKind::SqlQuery);
     assert_eq!(r.status(), EffectIntent::Prepared);
-    assert_eq!(r.params_json()["query"], "SELECT * FROM users WHERE id = $1");
+    assert_eq!(
+        r.params_json()["query"],
+        "SELECT * FROM users WHERE id = $1"
+    );
     assert_eq!(r.params_json()["params"][0], 42);
     assert!(r.committed_at().is_none());
 }
@@ -839,7 +895,9 @@ fn red_queen_effects_partition_is_nonempty_utf8() {
         "BUG: EFFECTS_PARTITION is empty"
     );
     assert!(
-        super::super::EFFECTS_PARTITION.chars().all(|c| !c.is_control()),
+        super::super::EFFECTS_PARTITION
+            .chars()
+            .all(|c| !c.is_control()),
         "BUG: EFFECTS_PARTITION contains control characters"
     );
 }
@@ -850,5 +908,415 @@ fn red_queen_effects_partition_no_leading_trailing_whitespace() {
         super::super::EFFECTS_PARTITION,
         super::super::EFFECTS_PARTITION.trim(),
         "BUG: EFFECTS_PARTITION has leading/trailing whitespace"
+    );
+}
+
+// ========================================================================
+// DIMENSION: compact
+// Contract: compact removes ONLY terminal Committed effects with committed_at < threshold.
+// RolledBack effects (committed_at = None) are NEVER compacted.
+// Prepared effects are NEVER compacted.
+// ========================================================================
+
+fn ts(n: u64) -> vo_types::TimestampMs {
+    vo_types::TimestampMs::parse(&n.to_string()).unwrap()
+}
+
+#[test]
+fn red_queen_compact_removes_committed_effects_older_than_threshold() {
+    let journal = InMemoryEffectJournal::new();
+    let id = sample_instance_id();
+
+    // Prepare and commit 5 effects (all get committed_at = 100 from InMemory impl)
+    for i in 0..5u32 {
+        let record = vo_types::EffectRecord::new(
+            format!("fx-compact-{i}"),
+            EffectKind::HttpCall,
+            json!({}),
+            EffectIntent::Prepared,
+            None,
+        )
+        .unwrap();
+        let eid = journal.prepare(&id, record).unwrap();
+        journal.commit(&eid).unwrap();
+    }
+
+    // Compact with threshold > 100 should remove all 5
+    let removed = journal.compact(ts(200)).unwrap();
+    assert_eq!(
+        removed, 5,
+        "BUG: compact should remove all 5 committed effects"
+    );
+
+    // Verify pending is empty (no effects remain)
+    let pending = journal.list_pending(&id).unwrap();
+    assert!(pending.is_empty(), "BUG: compact left pending effects");
+}
+
+#[test]
+fn red_queen_compact_preserves_prepared_effects() {
+    let journal = InMemoryEffectJournal::new();
+    let id = sample_instance_id();
+
+    // Prepare 3 effects, commit none
+    for i in 0..3u32 {
+        let record = vo_types::EffectRecord::new(
+            format!("fx-prepared-{i}"),
+            EffectKind::HttpCall,
+            json!({}),
+            EffectIntent::Prepared,
+            None,
+        )
+        .unwrap();
+        journal.prepare(&id, record).unwrap();
+    }
+
+    // Compact with very high threshold — should remove nothing
+    let removed = journal.compact(ts(99999)).unwrap();
+    assert_eq!(removed, 0, "BUG: compact removed prepared effects");
+
+    // All 3 should still be pending
+    let pending = journal.list_pending(&id).unwrap();
+    assert_eq!(pending.len(), 3, "BUG: compact destroyed prepared effects");
+}
+
+#[test]
+fn red_queen_compact_preserves_committed_effects_newer_than_threshold() {
+    let journal = InMemoryEffectJournal::new();
+    let id = sample_instance_id();
+
+    // Prepare and commit effects (committed_at = 100)
+    for i in 0..3u32 {
+        let record = vo_types::EffectRecord::new(
+            format!("fx-newer-{i}"),
+            EffectKind::HttpCall,
+            json!({}),
+            EffectIntent::Prepared,
+            None,
+        )
+        .unwrap();
+        let eid = journal.prepare(&id, record).unwrap();
+        journal.commit(&eid).unwrap();
+    }
+
+    // Compact with threshold < 100 — nothing should be removed
+    let removed = journal.compact(ts(50)).unwrap();
+    assert_eq!(
+        removed, 0,
+        "BUG: compact removed effects newer than threshold"
+    );
+}
+
+#[test]
+fn red_queen_compact_never_removes_rolledback_effects() {
+    let journal = InMemoryEffectJournal::new();
+    let id = sample_instance_id();
+
+    // Prepare and rollback 3 effects
+    for i in 0..3u32 {
+        let record = vo_types::EffectRecord::new(
+            format!("fx-rollback-{i}"),
+            EffectKind::HttpCall,
+            json!({}),
+            EffectIntent::Prepared,
+            None,
+        )
+        .unwrap();
+        let eid = journal.prepare(&id, record).unwrap();
+        journal.rollback(&eid).unwrap();
+    }
+
+    // Compact with very high threshold — RolledBack has committed_at = None, so never compacted
+    let removed = journal.compact(ts(99999)).unwrap();
+    assert_eq!(
+        removed, 0,
+        "BUG: compact removed rolledback effects (committed_at is None)"
+    );
+
+    // Verify rolledback effects reject commit (still exist and are terminal)
+    let eid = super::super::EffectId::new(&id, "fx-rollback-0").unwrap();
+    let result = journal.commit(&eid);
+    assert!(
+        result.is_err(),
+        "BUG: rolledback effect was destroyed by compact"
+    );
+    assert!(
+        matches!(
+            result.unwrap_err(),
+            super::super::EffectJournalError::AlreadyTerminal { .. }
+        ),
+        "BUG: wrong error after compact touched rolledback effect"
+    );
+}
+
+#[test]
+fn red_queen_compact_mixed_states_removes_only_committed() {
+    let journal = InMemoryEffectJournal::new();
+    let id = sample_instance_id();
+
+    // 2 Prepared, 2 Committed, 2 RolledBack
+    for i in 0..2u32 {
+        let record = vo_types::EffectRecord::new(
+            format!("fx-mixed-prepared-{i}"),
+            EffectKind::HttpCall,
+            json!({}),
+            EffectIntent::Prepared,
+            None,
+        )
+        .unwrap();
+        journal.prepare(&id, record).unwrap();
+    }
+    for i in 0..2u32 {
+        let record = vo_types::EffectRecord::new(
+            format!("fx-mixed-committed-{i}"),
+            EffectKind::SqlQuery,
+            json!({}),
+            EffectIntent::Prepared,
+            None,
+        )
+        .unwrap();
+        let eid = journal.prepare(&id, record).unwrap();
+        journal.commit(&eid).unwrap();
+    }
+    for i in 0..2u32 {
+        let record = vo_types::EffectRecord::new(
+            format!("fx-mixed-rolledback-{i}"),
+            EffectKind::BlobWrite,
+            json!({}),
+            EffectIntent::Prepared,
+            None,
+        )
+        .unwrap();
+        let eid = journal.prepare(&id, record).unwrap();
+        journal.rollback(&eid).unwrap();
+    }
+
+    let removed = journal.compact(ts(200)).unwrap();
+    assert_eq!(
+        removed, 2,
+        "BUG: compact should remove exactly the 2 committed effects"
+    );
+
+    // Verify: 2 prepared still pending
+    let pending = journal.list_pending(&id).unwrap();
+    assert_eq!(pending.len(), 2, "BUG: compact destroyed prepared effects");
+
+    // Verify: 2 rolledback still exist and are terminal
+    let rb0 = journal.rollback(&super::super::EffectId::new(&id, "fx-mixed-rolledback-0").unwrap());
+    assert!(
+        rb0.is_err(),
+        "BUG: rolledback effect was removed by compact"
+    );
+}
+
+#[test]
+fn red_queen_compact_idempotent_double_compact_removes_zero_second_time() {
+    let journal = InMemoryEffectJournal::new();
+    let id = sample_instance_id();
+
+    let record = vo_types::EffectRecord::new(
+        "fx-dbl-compact".to_string(),
+        EffectKind::HttpCall,
+        json!({}),
+        EffectIntent::Prepared,
+        None,
+    )
+    .unwrap();
+    let eid = journal.prepare(&id, record).unwrap();
+    journal.commit(&eid).unwrap();
+
+    let first = journal.compact(ts(200)).unwrap();
+    assert_eq!(first, 1);
+
+    let second = journal.compact(ts(200)).unwrap();
+    assert_eq!(
+        second, 0,
+        "BUG: second compact removed records that were already removed"
+    );
+}
+
+#[test]
+fn red_queen_compact_does_not_affect_other_instance() {
+    let journal = InMemoryEffectJournal::new();
+    let id_a = sample_instance_id();
+    let id_b = InstanceId::from_bytes([2u8; 16]);
+
+    // Instance A: prepare + commit
+    let record_a = vo_types::EffectRecord::new(
+        "fx-a-compact".to_string(),
+        EffectKind::HttpCall,
+        json!({}),
+        EffectIntent::Prepared,
+        None,
+    )
+    .unwrap();
+    let eid_a = journal.prepare(&id_a, record_a).unwrap();
+    journal.commit(&eid_a).unwrap();
+
+    // Instance B: prepare (no commit)
+    let record_b = vo_types::EffectRecord::new(
+        "fx-b-no-compact".to_string(),
+        EffectKind::SqlQuery,
+        json!({}),
+        EffectIntent::Prepared,
+        None,
+    )
+    .unwrap();
+    journal.prepare(&id_b, record_b).unwrap();
+
+    // Compact — should only remove A's committed effect
+    journal.compact(ts(200)).unwrap();
+
+    // B's effect should still be pending
+    let pending_b = journal.list_pending(&id_b).unwrap();
+    assert_eq!(
+        pending_b.len(),
+        1,
+        "BUG: compact removed effects from wrong instance"
+    );
+}
+
+#[test]
+fn red_queen_compact_empty_journal_returns_zero() {
+    let journal = InMemoryEffectJournal::new();
+    let removed = journal.compact(ts(1000)).unwrap();
+    assert_eq!(
+        removed, 0,
+        "BUG: compact on empty journal returned non-zero"
+    );
+}
+
+#[test]
+fn red_queen_compact_boundary_exact_timestamp() {
+    let journal = InMemoryEffectJournal::new();
+    let id = sample_instance_id();
+
+    // committed_at is set to 100 by InMemory impl
+    let record = vo_types::EffectRecord::new(
+        "fx-boundary".to_string(),
+        EffectKind::HttpCall,
+        json!({}),
+        EffectIntent::Prepared,
+        None,
+    )
+    .unwrap();
+    let eid = journal.prepare(&id, record).unwrap();
+    journal.commit(&eid).unwrap();
+
+    // Compact with threshold exactly equal to committed_at — contract is strict less-than
+    let removed = journal.compact(ts(100)).unwrap();
+    assert_eq!(
+        removed, 0,
+        "BUG: compact with threshold == committed_at removed effect (should be strict <)"
+    );
+
+    // Compact with threshold one above — should remove
+    let removed = journal.compact(ts(101)).unwrap();
+    assert_eq!(
+        removed, 1,
+        "BUG: compact with threshold > committed_at did not remove effect"
+    );
+}
+
+#[test]
+fn red_queen_compact_then_crash_recovery_preserves_pending() {
+    let journal = InMemoryEffectJournal::new();
+    let id = sample_instance_id();
+
+    // Prepare 3 effects
+    for i in 0..3u32 {
+        let record = vo_types::EffectRecord::new(
+            format!("fx-compact-crash-{i}"),
+            EffectKind::HttpCall,
+            json!({}),
+            EffectIntent::Prepared,
+            None,
+        )
+        .unwrap();
+        journal.prepare(&id, record).unwrap();
+    }
+
+    // Compact (should remove nothing — all prepared)
+    journal.compact(ts(99999)).unwrap();
+
+    // "Crash" recovery: all 3 should still be recoverable
+    let pending = journal.list_pending(&id).unwrap();
+    assert_eq!(
+        pending.len(),
+        3,
+        "BUG: compact destroyed pending effects before crash recovery"
+    );
+
+    // Each should still be committable
+    for record in &pending {
+        let eid = super::super::EffectId::new(&id, record.intent_id()).unwrap();
+        journal.commit(&eid).unwrap();
+    }
+}
+
+#[test]
+fn red_queen_concurrent_compact_and_prepare() {
+    use std::sync::Arc;
+    use std::thread;
+
+    let journal = Arc::new(InMemoryEffectJournal::new());
+    let id = sample_instance_id();
+
+    // Pre-populate some committed effects
+    for i in 0..10u32 {
+        let record = vo_types::EffectRecord::new(
+            format!("fx-conc-compact-{i}"),
+            EffectKind::HttpCall,
+            json!({}),
+            EffectIntent::Prepared,
+            None,
+        )
+        .unwrap();
+        let eid = journal.prepare(&id, record).unwrap();
+        journal.commit(&eid).unwrap();
+    }
+
+    let mut handles: Vec<thread::JoinHandle<()>> = Vec::new();
+
+    // Thread 1: compact
+    {
+        let j = Arc::clone(&journal);
+        handles.push(thread::spawn(move || {
+            j.compact(ts(200)).unwrap();
+        }));
+    }
+
+    // Threads 2-5: prepare new effects
+    for i in 0..4u32 {
+        let j = Arc::clone(&journal);
+        let id = id.clone();
+        handles.push(thread::spawn(move || {
+            let record = vo_types::EffectRecord::new(
+                format!("fx-conc-new-{i}"),
+                EffectKind::SqlQuery,
+                json!({}),
+                EffectIntent::Prepared,
+                None,
+            )
+            .unwrap();
+            j.prepare(&id, record).unwrap();
+        }));
+    }
+
+    // Wait for all
+    for h in handles {
+        h.join().unwrap();
+    }
+
+    // New effects should still be pending
+    let pending = journal.list_pending(&id).unwrap();
+    let new_pending: Vec<_> = pending
+        .iter()
+        .filter(|r| r.intent_id().starts_with("fx-conc-new-"))
+        .collect();
+    assert_eq!(
+        new_pending.len(),
+        4,
+        "BUG: concurrent compact removed newly prepared effects"
     );
 }

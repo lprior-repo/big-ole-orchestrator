@@ -229,6 +229,8 @@ pub fn apply_compensation_transition(
 #[allow(clippy::unwrap_used)]
 mod proptests {
     use super::*;
+    use proptest::prop_assert;
+    use proptest::prop_assert_eq;
 
     proptest::proptest! {
         /// INV: Serde round-trip preserves CompensationStatus equality for all variants.

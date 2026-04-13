@@ -188,3 +188,115 @@ fn error_invalid_argument_display_is_exact_string() {
     assert_eq!(display, "invalid dedupe argument");
     assert!(!display.is_empty());
 }
+
+// ========================================================================
+// DedupeRetentionRecord Construction
+// ========================================================================
+
+#[test]
+fn dedupe_retention_record_constructs_with_valid_fields() {
+    let r = DedupeRetentionRecord::new("key-1".to_string(), "instance-1".to_string(), 1000, 2000)
+        .unwrap();
+    assert_eq!(r.dedupe_key(), "key-1");
+    assert_eq!(r.instance_id(), "instance-1");
+    assert_eq!(r.terminal_state_at(), 1000);
+    assert_eq!(r.retention_expires_at(), 2000);
+}
+
+#[test]
+fn dedupe_retention_record_rejects_empty_dedupe_key() {
+    let result = DedupeRetentionRecord::new(String::new(), "instance-1".to_string(), 1000, 2000);
+    assert_eq!(result, Err(DedupeStoreError::InvalidArgument));
+}
+
+#[test]
+fn dedupe_retention_record_rejects_empty_instance_id() {
+    let result = DedupeRetentionRecord::new("key-1".to_string(), String::new(), 1000, 2000);
+    assert_eq!(result, Err(DedupeStoreError::InvalidArgument));
+}
+
+#[test]
+fn dedupe_retention_record_rejects_terminal_state_after_expiry() {
+    let result =
+        DedupeRetentionRecord::new("key-1".to_string(), "instance-1".to_string(), 2000, 1000);
+    assert_eq!(result, Err(DedupeStoreError::InvalidArgument));
+}
+
+#[test]
+fn dedupe_retention_record_accepts_terminal_state_equals_expiry() {
+    let result =
+        DedupeRetentionRecord::new("key-1".to_string(), "instance-1".to_string(), 1000, 1000);
+    assert!(result.is_ok());
+}
+
+// ========================================================================
+// DedupeRetentionRecord Expiry Behavior
+// ========================================================================
+
+#[test]
+fn dedupe_retention_record_is_retention_expired_returns_true_when_past_expiry() {
+    let r = DedupeRetentionRecord::new("key-1".to_string(), "instance-1".to_string(), 1000, 2000)
+        .unwrap();
+    assert!(r.is_retention_expired(2000));
+    assert!(r.is_retention_expired(3000));
+}
+
+#[test]
+fn dedupe_retention_record_is_retention_expired_returns_false_before_expiry() {
+    let r = DedupeRetentionRecord::new("key-1".to_string(), "instance-1".to_string(), 1000, 2000)
+        .unwrap();
+    assert!(!r.is_retention_expired(1999));
+}
+
+#[test]
+fn dedupe_retention_record_is_not_expired_before_u64_max_boundary() {
+    let r = DedupeRetentionRecord::new(
+        "key-max".to_string(),
+        "instance-max".to_string(),
+        u64::MAX - 1,
+        u64::MAX,
+    )
+    .unwrap();
+    assert!(!r.is_retention_expired(u64::MAX - 1));
+}
+
+#[test]
+fn dedupe_retention_record_is_expired_at_u64_max_boundary() {
+    let r = DedupeRetentionRecord::new(
+        "key-max".to_string(),
+        "instance-max".to_string(),
+        u64::MAX - 1,
+        u64::MAX,
+    )
+    .unwrap();
+    assert!(r.is_retention_expired(u64::MAX));
+}
+
+// ========================================================================
+// DedupeRetentionRecord Serde
+// ========================================================================
+
+#[test]
+fn dedupe_retention_record_serde_roundtrip() {
+    let r = DedupeRetentionRecord::new("key-1".to_string(), "instance-1".to_string(), 1000, 2000)
+        .unwrap();
+    let json = serde_json::to_string(&r).unwrap();
+    let recovered: DedupeRetentionRecord = serde_json::from_str(&json).unwrap();
+    assert_eq!(recovered, r);
+}
+
+// ========================================================================
+// DedupeRetentionRecord compute_retention_expiry
+// ========================================================================
+
+#[test]
+fn dedupe_retention_record_compute_retention_expiry_adds_period_to_terminal_state() {
+    let expiry = DedupeRetentionRecord::compute_retention_expiry(1000, 500);
+    assert_eq!(expiry, 1500);
+}
+
+#[test]
+fn dedupe_retention_record_compute_retention_expiry_saturates_at_u64_max() {
+    let expiry = DedupeRetentionRecord::compute_retention_expiry(u64::MAX, 1000);
+    assert_eq!(expiry, u64::MAX);
+}

@@ -2,7 +2,9 @@
 
 use crate::events::error::Error;
 use crate::events::MAX_SUPPORTED_VERSION;
-use crate::payload_parser::{optional_u64, require_string, require_string_field, require_u64};
+use crate::payload_parser::{
+    optional_string, optional_u64, require_string, require_string_field, require_u64,
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum EventPayload {
@@ -10,6 +12,8 @@ pub enum EventPayload {
         workflow_id: String,
         dag_topology: serde_json::Value,
         binary_hash: String,
+        workflow_version_hash: String,
+        dedupe_key_hash: Option<String>,
     },
     WorkflowCompleted {
         workflow_id: String,
@@ -27,6 +31,7 @@ pub enum EventPayload {
         workflow_id: String,
         step_id: String,
         attempt: u32,
+        fence: u64,
         execution_id: String,
     },
     StepStarted {
@@ -38,6 +43,11 @@ pub enum EventPayload {
         workflow_id: String,
         step_id: String,
         completed_at_ms: u64,
+        attempt: u32,
+        fence: u64,
+        routing_projection: serde_json::Value,
+        output_ref: Option<String>,
+        output_hash: Option<String>,
         output: serde_json::Value,
     },
     StepFailed {
@@ -45,6 +55,22 @@ pub enum EventPayload {
         step_id: String,
         failure_reason: String,
         attempt: u32,
+        fence: u64,
+    },
+    EffectPrepared {
+        workflow_id: String,
+        step_id: String,
+        effect_id: String,
+        sink_kind: String,
+        payload_hash: String,
+        fence: u64,
+    },
+    EffectCommitted {
+        workflow_id: String,
+        step_id: String,
+        effect_id: String,
+        external_receipt: serde_json::Value,
+        fence: u64,
     },
     TimerSet {
         workflow_id: String,
@@ -102,6 +128,8 @@ impl EventPayload {
                     .cloned()
                     .unwrap_or(serde_json::Value::Null),
                 binary_hash: require_string(obj, "binary_hash")?,
+                workflow_version_hash: require_string(obj, "workflow_version_hash")?,
+                dedupe_key_hash: optional_string(obj, "dedupe_key_hash"),
             }),
             "WorkflowCompleted" => Ok(EventPayload::WorkflowCompleted {
                 workflow_id: require_string_field(obj, "workflow_id")?,
@@ -120,6 +148,7 @@ impl EventPayload {
                 step_id: require_string(obj, "step_id")?,
                 #[allow(clippy::cast_possible_truncation)]
                 attempt: require_u64(obj, "attempt")? as u32,
+                fence: require_u64(obj, "fence")?,
                 execution_id: require_string(obj, "execution_id")?,
             }),
             "StepStarted" => Ok(EventPayload::StepStarted {
@@ -131,6 +160,15 @@ impl EventPayload {
                 workflow_id: require_string_field(obj, "workflow_id")?,
                 step_id: require_string(obj, "step_id")?,
                 completed_at_ms: require_u64(obj, "completed_at_ms")?,
+                #[allow(clippy::cast_possible_truncation)]
+                attempt: require_u64(obj, "attempt")? as u32,
+                fence: require_u64(obj, "fence")?,
+                routing_projection: obj
+                    .get("routing_projection")
+                    .cloned()
+                    .unwrap_or(serde_json::Value::Null),
+                output_ref: optional_string(obj, "output_ref"),
+                output_hash: optional_string(obj, "output_hash"),
                 output: obj
                     .get("output")
                     .cloned()
@@ -142,6 +180,25 @@ impl EventPayload {
                 failure_reason: require_string(obj, "failure_reason")?,
                 #[allow(clippy::cast_possible_truncation)]
                 attempt: require_u64(obj, "attempt")? as u32,
+                fence: require_u64(obj, "fence")?,
+            }),
+            "EffectPrepared" => Ok(EventPayload::EffectPrepared {
+                workflow_id: require_string_field(obj, "workflow_id")?,
+                step_id: require_string(obj, "step_id")?,
+                effect_id: require_string(obj, "effect_id")?,
+                sink_kind: require_string(obj, "sink_kind")?,
+                payload_hash: require_string(obj, "payload_hash")?,
+                fence: require_u64(obj, "fence")?,
+            }),
+            "EffectCommitted" => Ok(EventPayload::EffectCommitted {
+                workflow_id: require_string_field(obj, "workflow_id")?,
+                step_id: require_string(obj, "step_id")?,
+                effect_id: require_string(obj, "effect_id")?,
+                external_receipt: obj
+                    .get("external_receipt")
+                    .cloned()
+                    .unwrap_or(serde_json::Value::Null),
+                fence: require_u64(obj, "fence")?,
             }),
             "TimerSet" => Ok(EventPayload::TimerSet {
                 workflow_id: require_string_field(obj, "workflow_id")?,

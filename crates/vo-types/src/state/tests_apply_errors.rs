@@ -232,3 +232,61 @@ fn apply_returns_invalid_transition_when_waiting_for_timer_receives_instance_res
     );
     assert_eq!(result, Err(TransitionError::InvalidTransition));
 }
+
+// ========================================================================
+// Failed State Rejections (9 tests) - INV-004: Only InstanceResumed is valid
+// ========================================================================
+
+#[test]
+fn apply_returns_terminal_state_transition_when_failed_receives_assign_to_node() {
+    let result = apply(LifecycleState::Failed, TransitionEvent::AssignToNode);
+    assert_eq!(result, Err(TransitionError::TerminalStateTransition));
+}
+
+#[test]
+fn apply_returns_terminal_state_transition_when_failed_receives_cancel() {
+    let result = apply(LifecycleState::Failed, TransitionEvent::Cancel);
+    assert_eq!(result, Err(TransitionError::TerminalStateTransition));
+}
+
+#[test]
+fn apply_returns_terminal_state_transition_when_failed_receives_step_scheduled() {
+    let result = apply(LifecycleState::Failed, TransitionEvent::StepScheduled);
+    assert_eq!(result, Err(TransitionError::TerminalStateTransition));
+}
+
+#[test]
+fn apply_returns_terminal_state_transition_when_failed_receives_execute_step() {
+    let result = apply(LifecycleState::Failed, TransitionEvent::ExecuteStep);
+    assert_eq!(result, Err(TransitionError::TerminalStateTransition));
+}
+
+#[test]
+fn apply_returns_terminal_state_transition_when_failed_receives_wait_for_timer() {
+    let result = apply(LifecycleState::Failed, TransitionEvent::WaitForTimer);
+    assert_eq!(result, Err(TransitionError::TerminalStateTransition));
+}
+
+#[test]
+fn apply_returns_terminal_state_transition_when_failed_receives_complete_step() {
+    let result = apply(LifecycleState::Failed, TransitionEvent::CompleteStep);
+    assert_eq!(result, Err(TransitionError::TerminalStateTransition));
+}
+
+#[test]
+fn apply_returns_terminal_state_transition_when_failed_receives_timer_fired() {
+    let result = apply(LifecycleState::Failed, TransitionEvent::TimerFired);
+    assert_eq!(result, Err(TransitionError::TerminalStateTransition));
+}
+
+#[test]
+fn apply_returns_terminal_state_transition_when_failed_receives_timer_expired() {
+    let result = apply(LifecycleState::Failed, TransitionEvent::TimerExpired);
+    assert_eq!(result, Err(TransitionError::TerminalStateTransition));
+}
+
+#[test]
+fn apply_returns_terminal_state_transition_when_failed_receives_fail() {
+    let result = apply(LifecycleState::Failed, TransitionEvent::Fail);
+    assert_eq!(result, Err(TransitionError::TerminalStateTransition));
+}

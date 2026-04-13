@@ -5,8 +5,11 @@
 
 use std::hash::Hash;
 
+use serde::{Deserialize, Serialize};
+
 /// Lifecycle state of a bead in the workflow
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum LifecycleState {
     /// Initial state: bead is queued, not yet assigned
     Pending,
@@ -118,7 +121,8 @@ impl LifecycleState {
 }
 
 /// Operational status of a bead instance
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum OperationalStatus {
     /// Normal operation
     Healthy,
@@ -131,7 +135,8 @@ pub enum OperationalStatus {
 }
 
 /// Reason why a bead is blocked
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum BlockedReason {
     /// Waiting for dependencies
     DependenciesPending,
@@ -142,7 +147,8 @@ pub enum BlockedReason {
 }
 
 /// Transition event that triggers state changes
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum TransitionEvent {
     // From Pending
     AssignToNode,

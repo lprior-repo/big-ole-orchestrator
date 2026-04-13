@@ -1,5 +1,6 @@
 [workspace]
 resolver = "2"
+exclude = ["crates/vo-types/fuzz"]
 members = [
     "crates/vo-types",
     "crates/vo-storage",
@@ -55,9 +56,10 @@ clap = { version = "4", features = ["derive"] }
 # Utilities
 async-nats = "0.33.0"
 uuid = { version = "1", features = ["v4", "v5", "serde"] }
-ulid = "1"
+ulid = { version = "1", features = ["serde"] }
 fjall = "2.0"
 vo-types = { path = "crates/vo-types" }
+vo-core = { path = "crates/vo-core" }
 chrono = { version = "0.4", features = ["serde"] }
 thiserror = "1"
 anyhow = "1"

@@ -97,6 +97,18 @@ impl ReplayEngine {
                 continue;
             }
 
+            // EffectPrepared and EffectCommitted are managed effect lifecycle events.
+            // They are checkpoint markers in the ADR-027 managed effect sequence:
+            // StepScheduled -> StepStarted -> EffectPrepared -> EffectCommitted -> StepCompleted
+            // Count them as applied but do not change state.
+            if matches!(
+                payload,
+                EventPayload::EffectPrepared { .. } | EventPayload::EffectCommitted { .. }
+            ) {
+                events_applied += 1;
+                continue;
+            }
+
             let transition = payload_to_transition(&payload, event.sequence)?;
 
             // First event starts from Pending; subsequent events use accumulated state
@@ -210,6 +222,22 @@ pub(super) fn payload_to_transition(
             // This branch should never be reached.
             Err(ReplayError::UnexpectedEventType {
                 payload_type: "ContinuedAsNew".to_string(),
+                sequence,
+            })
+        }
+        EventPayload::EffectPrepared { .. } => {
+            // Handled as a no-op in the replay loop before calling this function.
+            // This branch should never be reached.
+            Err(ReplayError::UnexpectedEventType {
+                payload_type: "EffectPrepared".to_string(),
+                sequence,
+            })
+        }
+        EventPayload::EffectCommitted { .. } => {
+            // Handled as a no-op in the replay loop before calling this function.
+            // This branch should never be reached.
+            Err(ReplayError::UnexpectedEventType {
+                payload_type: "EffectCommitted".to_string(),
                 sequence,
             })
         }

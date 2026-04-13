@@ -128,6 +128,9 @@ impl FairnessBudget {
     /// Checks if an instance can be resumed under this budget.
     #[must_use]
     pub fn can_resume(&self, instance_id: &InstanceId) -> bool {
+        if self.max_per_instance == 0 {
+            return false;
+        }
         self.instance_counts
             .get(instance_id)
             .is_none_or(|count| *count < self.max_per_instance)
@@ -231,6 +234,13 @@ pub fn validate_timer_record(record: &TimerRecord) -> Result<(), ReanimatorError
         return Err(ReanimatorError::CorruptKey(
             "Timer fire_at_ms is before scheduled_at_ms".to_string(),
         ));
+    }
+    if let Ok(bytes) = record.instance_id.to_bytes() {
+        if bytes.iter().all(|&b| b == 0) {
+            return Err(ReanimatorError::CorruptKey(
+                "Timer instance_id is all zeros (corrupted)".to_string(),
+            ));
+        }
     }
     Ok(())
 }

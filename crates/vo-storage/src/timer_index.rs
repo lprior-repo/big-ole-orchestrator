@@ -51,6 +51,7 @@ impl TimerKey {
     }
 }
 
+#[derive(Debug)]
 pub struct TimerValue(u64);
 
 impl TimerValue {
@@ -229,6 +230,61 @@ pub fn timer_delete(
 ) -> Result<(), StorageError> {
     let key = TimerKey::new(fire_at_ms, instance_id.clone(), timer_id)?;
     storage.delete(key.as_bytes())
+}
+
+/// Scans for ALL timers (both due and future) for a specific instance.
+///
+/// This is used when cancelling an instance to ensure ALL timers (including future ones)
+/// are properly cleaned up.
+///
+/// # Errors
+///
+/// Returns `StorageError::CorruptKey` if timer key or value bytes cannot be decoded.
+pub fn scan_all_timers_for_instance(
+    storage: &impl Storage,
+    instance_id: &InstanceId,
+) -> Result<Vec<TimerRecord>, StorageError> {
+    let instance_bytes = instance_id
+        .to_bytes()
+        .map_err(|_| StorageError::InvalidArgument)?;
+
+    let start = {
+        let mut s = [0u8; 40];
+        s[8..24].copy_from_slice(&instance_bytes);
+        s
+    };
+
+    let end = {
+        let mut e = [0u8; 40];
+        e[0..8].copy_from_slice(&u64::MAX.to_be_bytes());
+        e[8..24].copy_from_slice(&instance_bytes);
+        e[24..40].copy_from_slice(&[0xFFu8; 16]);
+        e
+    };
+
+    let pairs = storage.scan(&start, &end)?;
+    let records: Vec<TimerRecord> = pairs
+        .into_iter()
+        .filter_map(|(k, v)| {
+            let key_bytes: [u8; 40] = k.try_into().ok()?;
+            let key = TimerKey(key_bytes);
+            if key.instance_id() != *instance_id {
+                return None;
+            }
+            let fire_at_ms = key.fire_at_ms();
+            let duration_bytes: [u8; 8] = v.try_into().ok()?;
+            let duration_ms = u64::from_be_bytes(duration_bytes);
+            let trigger_time_ms = fire_at_ms.saturating_sub(duration_ms);
+            Some(TimerRecord {
+                timer_id: key.timer_id(),
+                instance_id: key.instance_id(),
+                fire_at_ms,
+                trigger_time_ms,
+                duration_ms,
+            })
+        })
+        .collect();
+    Ok(records)
 }
 
 #[cfg(test)]

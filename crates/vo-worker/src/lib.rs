@@ -11,6 +11,10 @@
 #![allow(missing_docs)]
 
 mod connector;
+pub use connector::{
+    CommitOutcome, Connector, ConnectorError, ConnectorRegistry, HttpConnector,
+    PreparedEffect, ReconcileOutcome,
+};
 mod port;
 mod retry;
 mod storage;

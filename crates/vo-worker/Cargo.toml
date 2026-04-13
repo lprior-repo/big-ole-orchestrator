@@ -39,6 +39,8 @@ reqwest = { workspace = true }
 
 [dev-dependencies]
 anyhow = { workspace = true }
+axum = { workspace = true }
+tower = { workspace = true }
 
 [lib]
 path = "src/lib.rs"

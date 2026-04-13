@@ -82,7 +82,7 @@ impl FjallDekStore {
 
     fn insert_dek_entry(&self, entry: &DekEntry) -> Result<(), DekStoreError> {
         let key = Self::encode_dek_key(entry.dek_id());
-        let value = super::encode_dek_entry(entry);
+        let value = super::encode_dek_entry(entry)?;
         self.dek_partition
             .insert(&key, &value)
             .map_err(|e| DekStoreError::Storage {
@@ -110,7 +110,7 @@ impl FjallDekStore {
             Ok(Some(bytes)) => {
                 let mut entry = super::decode_dek_entry(&bytes)?;
                 entry.retire();
-                let value = super::encode_dek_entry(&entry);
+                let value = super::encode_dek_entry(&entry)?;
                 self.dek_partition
                     .insert(&key, &value)
                     .map_err(|e| DekStoreError::Storage {
@@ -148,26 +148,9 @@ impl DekStore for FjallDekStore {
         })?;
         let wrapped_dek = WrappedDek::new(wrapped_dek_bytes);
 
-        let dek_id = DekId::from_bytes([
-            raw_dek[0],
-            raw_dek[1],
-            raw_dek[2],
-            raw_dek[3],
-            raw_dek[4],
-            raw_dek[5],
-            raw_dek[6],
-            raw_dek[7],
-            raw_dek[8],
-            raw_dek[9],
-            raw_dek[10],
-            raw_dek[11],
-            raw_dek[12],
-            raw_dek[13],
-            raw_dek[14],
-            raw_dek[15],
-        ]);
-        let metadata = KeyMetadata::new(instance_id.clone(), CryptoAlgorithm::Aes256Gcm);
-        let entry = DekEntry::new(dek_id.clone(), instance_id.clone(), wrapped_dek, metadata)?;
+        let dek_id = DekId::from_bytes(raw_dek);
+        let metadata = KeyMetadata::new(*instance_id, CryptoAlgorithm::Aes256Gcm);
+        let entry = DekEntry::new(dek_id, *instance_id, wrapped_dek, metadata)?;
 
         self.insert_dek_entry(&entry)?;
         self.set_active_dek_index(instance_id, &dek_id)?;

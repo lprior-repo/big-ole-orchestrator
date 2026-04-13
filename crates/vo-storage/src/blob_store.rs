@@ -48,6 +48,7 @@ use std::fmt;
 use std::fmt::Write as _;
 
 use serde::{Deserialize, Serialize};
+use vo_types::BlobStatus;
 
 // ---------------------------------------------------------------------------
 // Data Layer — ContentAddress
@@ -225,10 +226,11 @@ pub struct BlobRecord {
     reference_count: u64,
     created_at_ms: u64,
     expires_at_ms: Option<u64>,
+    status: BlobStatus,
 }
 
 impl BlobRecord {
-    /// Construct a new `BlobRecord`.
+    /// Construct a new `BlobRecord` with `Pending` status.
     ///
     /// # Errors
     ///
@@ -257,7 +259,28 @@ impl BlobRecord {
             reference_count,
             created_at_ms,
             expires_at_ms,
+            status: BlobStatus::Pending,
         })
+    }
+
+    /// Construct a new `BlobRecord` with explicit status.
+    #[must_use]
+    pub fn with_status(
+        content_addr: ContentAddress,
+        size_bytes: u64,
+        reference_count: u64,
+        created_at_ms: u64,
+        expires_at_ms: Option<u64>,
+        status: BlobStatus,
+    ) -> Self {
+        Self {
+            content_addr,
+            size_bytes,
+            reference_count,
+            created_at_ms,
+            expires_at_ms,
+            status,
+        }
     }
 
     #[must_use]
@@ -285,6 +308,11 @@ impl BlobRecord {
         self.expires_at_ms
     }
 
+    #[must_use]
+    pub const fn status(&self) -> BlobStatus {
+        self.status
+    }
+
     /// Check if this record has expired given the current timestamp.
     #[must_use]
     pub const fn is_expired(&self, now_ms: u64) -> bool {
@@ -292,6 +320,13 @@ impl BlobRecord {
             Some(expires) => now_ms >= expires,
             None => false,
         }
+    }
+
+    /// Check if this record is eligible for garbage collection.
+    /// A record is GC-eligible when it has expired AND has no references.
+    #[must_use]
+    pub const fn is_gc_eligible(&self, now_ms: u64) -> bool {
+        self.reference_count == 0 && self.is_expired(now_ms)
     }
 
     /// Increment reference count, saturating at `u64::MAX`.
@@ -304,6 +339,17 @@ impl BlobRecord {
     #[must_use]
     pub const fn decrement_ref_count(&self) -> u64 {
         self.reference_count.saturating_sub(1)
+    }
+
+    /// Check if transitioning to the target status is valid per ADR-040.
+    ///
+    /// Valid transitions:
+    /// - Pending → DurablyStored
+    /// - Pending → Failed
+    /// - DurablyStored → Published
+    #[must_use]
+    pub fn can_transition_to(&self, target: BlobStatus) -> bool {
+        self.status.can_transition_to(target)
     }
 }
 
@@ -349,6 +395,14 @@ pub enum BlobStoreError {
         pack_file_id: String,
         max_size_bytes: u64,
     },
+    /// Blob is not in a valid status for the requested operation (ADR-040).
+    InvalidPublicationStatus {
+        content_addr: String,
+        current_status: String,
+        attempted_operation: String,
+    },
+    /// Attempted to publish a blob that is not durably stored (ADR-040).
+    NotDurablyStored { content_addr: String },
 }
 
 impl fmt::Display for BlobStoreError {
@@ -404,6 +458,22 @@ impl fmt::Display for BlobStoreError {
                 write!(
                     f,
                     "pack file {pack_file_id} full (max {max_size_bytes} bytes)"
+                )
+            }
+            Self::InvalidPublicationStatus {
+                content_addr,
+                current_status,
+                attempted_operation,
+            } => {
+                write!(
+                    f,
+                    "invalid publication status for {content_addr}: current={current_status}, attempted={attempted_operation}"
+                )
+            }
+            Self::NotDurablyStored { content_addr } => {
+                write!(
+                    f,
+                    "blob {content_addr} is not durably stored, cannot publish"
                 )
             }
         }
@@ -465,11 +535,11 @@ pub fn encode_pack_index_entry(entry: &PackIndexEntry) -> Result<Vec<u8>, BlobSt
 ///
 /// # Errors
 ///
-/// Returns `BlobStoreError::DeserializationFailed` if the bytes are not valid JSON
+/// Returns `BlobStoreError::CorruptPackIndex` if the bytes are not valid JSON
 /// or do not represent a valid `PackIndexEntry`.
 pub fn decode_pack_index_entry(bytes: &[u8]) -> Result<PackIndexEntry, BlobStoreError> {
-    serde_json::from_slice(bytes).map_err(|e| BlobStoreError::DeserializationFailed {
-        reason: e.to_string(),
+    serde_json::from_slice(bytes).map_err(|e| BlobStoreError::CorruptPackIndex {
+        reason: format!("JSON parse error: {e}"),
     })
 }
 
@@ -682,6 +752,71 @@ mod tests {
         assert_eq!(record.size_bytes(), 1024);
         assert_eq!(record.reference_count(), 1);
         assert!(record.expires_at_ms.is_some());
+        assert_eq!(record.status(), BlobStatus::Pending);
+    }
+
+    #[test]
+    fn blob_record_with_status_constructs_with_explicit_status() {
+        let content_addr = ContentAddress::new(VALID_SHA256).unwrap();
+        let record = BlobRecord::with_status(
+            content_addr.clone(),
+            1024,
+            1,
+            1000,
+            Some(2000),
+            BlobStatus::DurablyStored,
+        );
+        assert_eq!(record.status(), BlobStatus::DurablyStored);
+        assert_eq!(record.content_addr(), &content_addr);
+        assert_eq!(record.size_bytes(), 1024);
+    }
+
+    #[test]
+    fn blob_record_can_transition_from_pending_to_durably_stored() {
+        let content_addr = ContentAddress::new(VALID_SHA256).unwrap();
+        let record = BlobRecord::new(content_addr, 1024, 1, 1000, None).unwrap();
+        assert!(record.can_transition_to(BlobStatus::DurablyStored));
+    }
+
+    #[test]
+    fn blob_record_can_transition_from_pending_to_failed() {
+        let content_addr = ContentAddress::new(VALID_SHA256).unwrap();
+        let record = BlobRecord::new(content_addr, 1024, 1, 1000, None).unwrap();
+        assert!(record.can_transition_to(BlobStatus::Failed));
+    }
+
+    #[test]
+    fn blob_record_can_transition_from_durably_stored_to_published() {
+        let content_addr = ContentAddress::new(VALID_SHA256).unwrap();
+        let record =
+            BlobRecord::with_status(content_addr, 1024, 1, 1000, None, BlobStatus::DurablyStored);
+        assert!(record.can_transition_to(BlobStatus::Published));
+    }
+
+    #[test]
+    fn blob_record_cannot_skip_to_published_from_pending() {
+        let content_addr = ContentAddress::new(VALID_SHA256).unwrap();
+        let record = BlobRecord::new(content_addr, 1024, 1, 1000, None).unwrap();
+        assert!(!record.can_transition_to(BlobStatus::Published));
+    }
+
+    #[test]
+    fn blob_record_published_is_terminal() {
+        let content_addr = ContentAddress::new(VALID_SHA256).unwrap();
+        let record =
+            BlobRecord::with_status(content_addr, 1024, 1, 1000, None, BlobStatus::Published);
+        assert!(!record.can_transition_to(BlobStatus::Pending));
+        assert!(!record.can_transition_to(BlobStatus::DurablyStored));
+        assert!(!record.can_transition_to(BlobStatus::Failed));
+    }
+
+    #[test]
+    fn blob_record_failed_is_terminal() {
+        let content_addr = ContentAddress::new(VALID_SHA256).unwrap();
+        let record = BlobRecord::with_status(content_addr, 1024, 1, 1000, None, BlobStatus::Failed);
+        assert!(!record.can_transition_to(BlobStatus::Pending));
+        assert!(!record.can_transition_to(BlobStatus::DurablyStored));
+        assert!(!record.can_transition_to(BlobStatus::Published));
     }
 
     #[test]
@@ -993,6 +1128,30 @@ mod tests {
     }
 
     #[test]
+    fn error_invalid_publication_status_display() {
+        let err = BlobStoreError::InvalidPublicationStatus {
+            content_addr: "abc123".to_string(),
+            current_status: "Pending".to_string(),
+            attempted_operation: "publish".to_string(),
+        };
+        let s = err.to_string();
+        assert!(s.contains("invalid publication status"));
+        assert!(s.contains("abc123"));
+        assert!(s.contains("Pending"));
+        assert!(s.contains("publish"));
+    }
+
+    #[test]
+    fn error_not_durably_stored_display() {
+        let err = BlobStoreError::NotDurablyStored {
+            content_addr: "def456".to_string(),
+        };
+        let s = err.to_string();
+        assert!(s.contains("not durably stored"));
+        assert!(s.contains("def456"));
+    }
+
+    #[test]
     fn all_blob_store_error_variants_implement_error_trait() {
         fn assert_impl<T: std::error::Error>() {}
         assert_impl::<BlobStoreError>();
@@ -1061,7 +1220,7 @@ mod tests {
         let result = decode_pack_index_entry(&invalid_json);
         assert!(result.is_err());
         let err = result.unwrap_err();
-        assert!(matches!(err, BlobStoreError::DeserializationFailed { .. }));
+        assert!(matches!(err, BlobStoreError::CorruptPackIndex { .. }));
     }
 
     #[test]

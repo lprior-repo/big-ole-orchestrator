@@ -445,4 +445,119 @@ mod tests {
         assert_eq!(encrypted.iv.len(), IV_SIZE_BYTES);
         assert_eq!(encrypted.tag.len(), TAG_SIZE_BYTES);
     }
+
+    // =========================================================================
+    // ADR-025 Encryption lifecycle: key rotation
+    // =========================================================================
+
+    #[test]
+    fn key_rotation_old_kek_cannot_decrypt_new_wrapping() {
+        let dek = generate_dek().expect("should generate DEK");
+        let old_kek = generate_dek().expect("should generate old KEK");
+        let new_kek = generate_dek().expect("should generate new KEK");
+
+        // Wrap with old KEK
+        let wrapped_old = wrap_dek(&dek, &old_kek).expect("wrap with old KEK");
+        // Re-wrap with new KEK (simulating rotation)
+        let unwrapped = unwrap_dek(&wrapped_old, &old_kek).expect("unwrap with old KEK");
+        let wrapped_new = wrap_dek(&unwrapped, &new_kek).expect("wrap with new KEK");
+
+        // New KEK can decrypt
+        assert!(unwrap_dek(&wrapped_new, &new_kek).is_ok());
+        // Old KEK cannot decrypt new wrapping
+        assert!(unwrap_dek(&wrapped_new, &old_kek).is_err());
+    }
+
+    #[test]
+    fn key_rotation_preserves_dek_through_rewrap() {
+        let dek = generate_dek().expect("should generate DEK");
+        let old_kek = generate_dek().expect("should generate old KEK");
+        let new_kek = generate_dek().expect("should generate new KEK");
+
+        // Original wrap
+        let wrapped_old = wrap_dek(&dek, &old_kek).expect("wrap");
+        // Rotate: unwrap with old, rewrap with new
+        let unwrapped = unwrap_dek(&wrapped_old, &old_kek).expect("unwrap");
+        let wrapped_new = wrap_dek(&unwrapped, &new_kek).expect("rewrap");
+
+        // Verify DEK is preserved through rotation
+        let final_dek = unwrap_dek(&wrapped_new, &new_kek).expect("unwrap new");
+        assert_eq!(dek, final_dek);
+    }
+
+    #[test]
+    fn re_encryption_with_rotated_key_produces_different_ciphertext() {
+        let data = b"Sensitive payload that must remain confidential";
+        let dek = generate_dek().expect("should generate DEK");
+        let new_dek = generate_dek().expect("should generate new DEK");
+
+        let encrypted_old = encrypt_blob(data, &dek).expect("encrypt with old DEK");
+        let encrypted_new = encrypt_blob(data, &new_dek).expect("encrypt with new DEK");
+
+        // Different DEKs produce different ciphertexts
+        assert_ne!(encrypted_old.iv, encrypted_new.iv);
+        assert_ne!(encrypted_old.ciphertext, encrypted_new.ciphertext);
+        // Both decrypt to the same plaintext
+        assert_eq!(decrypt_blob(&encrypted_old, &dek).unwrap(), data.as_slice());
+        assert_eq!(decrypt_blob(&encrypted_new, &new_dek).unwrap(), data.as_slice());
+    }
+
+    #[test]
+    fn expired_key_simulated_by_destroying_kek() {
+        // Per ADR-025: after DEK destruction (crypto-shredding), data is irrecoverable
+        let dek = generate_dek().expect("should generate DEK");
+        let kek = generate_dek().expect("should generate KEK");
+
+        let wrapped = wrap_dek(&dek, &kek).expect("wrap");
+        let blob = encrypt_blob(b"secret data", &dek).expect("encrypt");
+
+        // Simulate key destruction: zero out the KEK
+        let mut destroyed_kek = kek;
+        destroyed_kek.fill(0);
+
+        // Cannot unwrap with destroyed KEK
+        assert!(unwrap_dek(&wrapped, &destroyed_kek).is_err());
+        // Cannot decrypt blob (DEK is still in memory but KEK is gone)
+        // In practice, both would be zeroed
+    }
+
+    #[test]
+    fn encryption_roundtrip_large_payload() {
+        // Test with a realistic payload size
+        let data = vec![b'X'; 100_000];
+        let dek = generate_dek().expect("should generate DEK");
+
+        let encrypted = encrypt_blob(&data, &dek).expect("encrypt");
+        let decrypted = decrypt_blob(&encrypted, &dek).expect("decrypt");
+
+        assert_eq!(data, decrypted);
+    }
+
+    #[test]
+    fn encryption_empty_payload_succeeds() {
+        let data = b"";
+        let dek = generate_dek().expect("should generate DEK");
+
+        let encrypted = encrypt_blob(data, &dek).expect("encrypt");
+        let decrypted = decrypt_blob(&encrypted, &dek).expect("decrypt");
+
+        assert_eq!(data.as_slice(), decrypted.as_slice());
+    }
+
+    #[test]
+    fn wrap_unwrap_different_deks_produce_different_wrappings() {
+        let dek1 = generate_dek().expect("should generate DEK 1");
+        let dek2 = generate_dek().expect("should generate DEK 2");
+        let kek = generate_dek().expect("should generate KEK");
+
+        let wrapped1 = wrap_dek(&dek1, &kek).expect("wrap 1");
+        let wrapped2 = wrap_dek(&dek2, &kek).expect("wrap 2");
+
+        // Different DEKs wrapped with same KEK should produce different output (random IVs)
+        assert_ne!(wrapped1, wrapped2);
+
+        // Both should unwrap correctly
+        assert_eq!(unwrap_dek(&wrapped1, &kek).unwrap(), dek1);
+        assert_eq!(unwrap_dek(&wrapped2, &kek).unwrap(), dek2);
+    }
 }

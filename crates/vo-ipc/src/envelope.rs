@@ -7,7 +7,7 @@ use std::io::{Read, Write};
 pub const MAX_PAYLOAD_SIZE: u32 = 10_485_760;
 
 /// The envelope sent from Engine to Child over FD3.
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub struct Fd3Envelope {
     pub version: u8,
     pub instance_id: String,

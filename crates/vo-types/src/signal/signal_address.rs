@@ -2,6 +2,7 @@
 
 use std::fmt;
 
+use serde::de::{Deserializer, Error as DeError};
 use serde::{Deserialize, Serialize};
 
 use crate::Epoch;
@@ -21,7 +22,12 @@ use super::wait_key::WaitKey;
 ///
 /// - If `lineage_scope == LineageScope::EpochLocal`, then `epoch_id` is `Some`
 /// - If `lineage_scope == LineageScope::LineageWide`, then `epoch_id` is `None`
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+///
+/// # Validation
+///
+/// The [`Deserialize`] impl validates these invariants. Use [`SignalAddress::validate()`]
+/// to check an instance manually.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
 pub struct SignalAddress {
     /// Instance ID of the target workflow instance.
     instance_id: InstanceId,
@@ -109,6 +115,46 @@ impl SignalAddress {
     #[must_use]
     pub fn wait_key(&self) -> &WaitKey {
         &self.wait_key
+    }
+
+    fn validate(&self) -> Result<(), &'static str> {
+        match self.lineage_scope {
+            LineageScope::EpochLocal if self.epoch_id.is_none() => Err(
+                "SignalAddress invariant violated: EpochLocal scope requires epoch_id to be Some",
+            ),
+            LineageScope::LineageWide if self.epoch_id.is_some() => Err(
+                "SignalAddress invariant violated: LineageWide scope requires epoch_id to be None",
+            ),
+            _ => Ok(()),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for SignalAddress {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct SignalAddressRaw {
+            instance_id: InstanceId,
+            wait_key: WaitKey,
+            lineage_scope: LineageScope,
+            lineage_id: InstanceId,
+            epoch_id: Option<Epoch>,
+        }
+
+        let raw = SignalAddressRaw::deserialize(deserializer)?;
+        let addr = SignalAddress {
+            instance_id: raw.instance_id,
+            wait_key: raw.wait_key,
+            lineage_scope: raw.lineage_scope,
+            lineage_id: raw.lineage_id,
+            epoch_id: raw.epoch_id,
+        };
+
+        addr.validate().map_err(DeError::custom)?;
+        Ok(addr)
     }
 }
 
