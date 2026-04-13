@@ -174,6 +174,7 @@ pub fn encode_event_key(instance_id: &InstanceId, sequence: SequenceNumber) -> V
     key
 }
 
+#[expect(clippy::unwrap_used)]
 pub fn decode_event_key(bytes: &[u8]) -> Result<(InstanceId, SequenceNumber), KeyEncodingError> {
     if bytes.len() != 24 {
         return Err(KeyEncodingError::InvalidLength {
@@ -198,6 +199,7 @@ pub fn encode_timer_key(fire_at_ms: u64, instance_id: &InstanceId) -> Vec<u8> {
     key
 }
 
+#[expect(clippy::unwrap_used)]
 pub fn decode_timer_key(bytes: &[u8]) -> Result<(u64, InstanceId), KeyEncodingError> {
     if bytes.len() != 24 {
         return Err(KeyEncodingError::InvalidLength {
@@ -274,6 +276,7 @@ pub fn encode_effect_key(instance_id: &InstanceId, sequence: SequenceNumber) -> 
     key
 }
 
+#[expect(clippy::unwrap_used)]
 pub fn decode_effect_key(bytes: &[u8]) -> Result<(InstanceId, SequenceNumber), KeyEncodingError> {
     if bytes.len() != 25 {
         return Err(KeyEncodingError::InvalidLength {
