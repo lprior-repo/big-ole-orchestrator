@@ -129,6 +129,18 @@ mod calculation_tests {
     }
 
     #[test]
+    fn validate_timer_record_rejects_zero_instance_id() {
+        let record = TimerRecord::new(
+            InstanceId::from_bytes([0u8; 16]),
+            ts_ms(1000),
+            None,
+            ts_ms(500),
+        );
+        let err = validate_timer_record(&record).unwrap_err();
+        assert!(matches!(err, ReanimatorError::CorruptKey(msg) if msg.contains("all zeros")));
+    }
+
+    #[test]
     fn check_resume_budget_success() {
         let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
         let budget = FairnessBudget::default();

@@ -235,6 +235,13 @@ pub fn validate_timer_record(record: &TimerRecord) -> Result<(), ReanimatorError
             "Timer fire_at_ms is before scheduled_at_ms".to_string(),
         ));
     }
+    if let Ok(bytes) = record.instance_id.to_bytes() {
+        if bytes.iter().all(|&b| b == 0) {
+            return Err(ReanimatorError::CorruptKey(
+                "Timer instance_id is all zeros (corrupted)".to_string(),
+            ));
+        }
+    }
     Ok(())
 }
 
