@@ -164,7 +164,7 @@ async fn red_queen_sse_broadcast_channel_lagged_error_ends_stream() {
 
     let (tx, mut rx) = broadcast::channel::<WorkflowSseEvent>(10);
 
-    let slowConsumer = async move {
+    let slow_consumer = async move {
         let mut count = 0u64;
         loop {
             match rx.recv().await {
@@ -183,7 +183,7 @@ async fn red_queen_sse_broadcast_channel_lagged_error_ends_stream() {
         count
     };
 
-    let handle = tokio::spawn(slowConsumer);
+    let handle = tokio::spawn(slow_consumer);
 
     for i in 0..100 {
         let _ = tx.send(make_event(i));

@@ -209,6 +209,8 @@ mod v3_types {
 }
 
 mod v1_types {
+    use super::json;
+    use super::*;
     use vo_api::types::v1::*;
 
     mod workflow_status_value {
@@ -383,7 +385,7 @@ mod error_types {
         #[test]
         fn entries_not_sorted_error_message() {
             let err = InvariantViolation::EntriesNotSorted;
-            assert!(err.to_string().contains("sorted"));
+            assert!(err.to_string().contains("ascending"));
         }
 
         #[test]
