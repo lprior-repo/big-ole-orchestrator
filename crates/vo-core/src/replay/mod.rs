@@ -14,6 +14,8 @@ mod error_tests;
 #[cfg(test)]
 mod event_ordering_tests;
 #[cfg(test)]
+mod ingress_dedup_fencing_tests;
+#[cfg(test)]
 mod integration_tests;
 #[cfg(test)]
 mod kani_proptests;

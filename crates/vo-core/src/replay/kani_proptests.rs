@@ -64,6 +64,7 @@ mod proptests {
     use super::super::engine::ReplayEngine;
     use super::super::test_helpers::*;
     use proptest::prelude::*;
+    use vo_types::state::LifecycleState;
 
     proptest! {
         #[test]

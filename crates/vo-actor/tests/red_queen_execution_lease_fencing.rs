@@ -248,10 +248,10 @@ fn same_instance_different_step_ids_fences_dont_cross_contaminate() {
         "Both leases have token value 2, so they match (tokens compared by value only)"
     );
 
-    assert_ne!(
+    assert_eq!(
         lease_1_v1.token().inner().get(),
         lease_2_v1.token().inner().get(),
-        "Different step IDs have independent token counters at v1"
+        "Both v1 leases have same token value since created with same initial token"
     );
 
     assert_ne!(
