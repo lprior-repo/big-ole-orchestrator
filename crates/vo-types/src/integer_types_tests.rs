@@ -1096,6 +1096,133 @@ mod proptests {
             let v = DurationMs(value);
             prop_assert_eq!(v.to_string(), value.to_string());
         }
+
+        // ========== TryFrom<u64> proptests ==========
+
+        #[test]
+        fn try_from_nonzero_u64_sequence_number_proptest(value in 1u64..) {
+            let sn = SequenceNumber::try_from(value).expect("nonzero should succeed");
+            prop_assert_eq!(sn.as_u64(), value);
+        }
+
+        #[test]
+        fn try_from_zero_u64_sequence_number_fails() {
+            let result = SequenceNumber::try_from(0u64);
+            prop_assert!(result.is_err(), "zero should fail for SequenceNumber");
+        }
+
+        #[test]
+        fn try_from_u64_duration_ms_always_succeeds_proptest(value in 0u64..) {
+            let dm = DurationMs::try_from(value).expect("u64 should always succeed for DurationMs");
+            prop_assert_eq!(dm.as_u64(), value);
+        }
+
+        #[test]
+        fn try_from_nonzero_u64_event_version_proptest(value in 1u64..) {
+            let ev = EventVersion::try_from(value).expect("nonzero should succeed");
+            prop_assert_eq!(ev.as_u64(), value);
+        }
+
+        #[test]
+        fn try_from_nonzero_u64_attempt_number_proptest(value in 1u64..) {
+            let an = AttemptNumber::try_from(value).expect("nonzero should succeed");
+            prop_assert_eq!(an.as_u64(), value);
+        }
+
+        #[test]
+        fn try_from_nonzero_u64_timeout_ms_proptest(value in 1u64..) {
+            let tm = TimeoutMs::try_from(value).expect("nonzero should succeed");
+            prop_assert_eq!(tm.as_u64(), value);
+        }
+
+        #[test]
+        fn try_from_nonzero_u64_max_attempts_proptest(value in 1u64..) {
+            let ma = MaxAttempts::try_from(value).expect("nonzero should succeed");
+            prop_assert_eq!(ma.as_u64(), value);
+        }
+
+        #[test]
+        fn try_from_nonzero_u64_fence_token_proptest(value in 1u64..) {
+            let ft = FenceToken::try_from(value).expect("nonzero should succeed");
+            prop_assert_eq!(ft.inner().get(), value);
+        }
+
+        #[test]
+        fn try_from_zero_u64_fence_token_fails() {
+            let result = FenceToken::try_from(0u64);
+            prop_assert!(result.is_err(), "zero should fail for FenceToken");
+        }
+
+        // ========== From<T> for u64 proptests ==========
+
+        #[test]
+        fn from_sequence_number_into_u64_proptest(value in 1u64..) {
+            let sn = SequenceNumber::try_from(value).expect("valid");
+            let back: u64 = sn.into();
+            prop_assert_eq!(back, value);
+        }
+
+        #[test]
+        fn from_duration_ms_into_u64_proptest(value in 0u64..) {
+            let dm = DurationMs(value);
+            let back: u64 = dm.into();
+            prop_assert_eq!(back, value);
+        }
+
+        #[test]
+        fn from_event_version_into_u64_proptest(value in 1u64..) {
+            let ev = EventVersion::try_from(value).expect("valid");
+            let back: u64 = ev.into();
+            prop_assert_eq!(back, value);
+        }
+
+        #[test]
+        fn from_attempt_number_into_u64_proptest(value in 1u64..) {
+            let an = AttemptNumber::try_from(value).expect("valid");
+            let back: u64 = an.into();
+            prop_assert_eq!(back, value);
+        }
+
+        #[test]
+        fn from_timeout_ms_into_u64_proptest(value in 1u64..) {
+            let tm = TimeoutMs::try_from(value).expect("valid");
+            let back: u64 = tm.into();
+            prop_assert_eq!(back, value);
+        }
+
+        #[test]
+        fn from_max_attempts_into_u64_proptest(value in 1u64..) {
+            let ma = MaxAttempts::try_from(value).expect("valid");
+            let back: u64 = ma.into();
+            prop_assert_eq!(back, value);
+        }
+
+        // ========== From<SequenceNumber> for NonZeroU64 proptests ==========
+
+        #[test]
+        fn from_sequence_number_into_nonzero_u64_proptest(value in 1u64..) {
+            let sn = SequenceNumber::try_from(value).expect("valid");
+            let back: NonZeroU64 = sn.into();
+            prop_assert_eq!(back.get(), value);
+        }
+
+        // ========== Roundtrip: TryFrom -> into -> TryFrom ==========
+
+        #[test]
+        fn try_from_into_roundtrip_sequence_number_proptest(value in 1u64..) {
+            let sn = SequenceNumber::try_from(value).expect("valid");
+            let back: u64 = sn.into();
+            let sn2 = SequenceNumber::try_from(back).expect("roundtrip");
+            prop_assert_eq!(sn, sn2);
+        }
+
+        #[test]
+        fn try_from_into_roundtrip_duration_ms_proptest(value in 0u64..) {
+            let dm = DurationMs::try_from(value).expect("valid");
+            let back: u64 = dm.into();
+            let dm2 = DurationMs::try_from(back).expect("roundtrip");
+            prop_assert_eq!(dm, dm2);
+        }
     }
 }
 

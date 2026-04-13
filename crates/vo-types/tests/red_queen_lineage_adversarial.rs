@@ -357,7 +357,7 @@ fn rq_signal_address_lineage_id_immutable_across_rollover() {
 
     // After any number of rollovers, lineage_id is unchanged
     // (lineage_id comes from the signal, not from current epoch state)
-    let _rollover = WorkflowLineage::new(lineage_id.as_str()).unwrap();
+    let _rollover = WorkflowLineage::new(lineage_id.to_string()).unwrap();
     // Signal's lineage_id is still the same
     assert_eq!(signal.lineage_id(), &lineage_id);
 }

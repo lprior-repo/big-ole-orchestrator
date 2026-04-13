@@ -91,6 +91,20 @@ impl WorkflowLineage {
             parent_epoch,
         })
     }
+
+    /// Create the next epoch via continue-as-new.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`LineageError::EpochOverflow`] if the current epoch is u64::MAX.
+    pub fn continue_as_new(&self) -> Result<Self, LineageError> {
+        let next_epoch = self
+            .epoch
+            .0
+            .checked_add(1)
+            .ok_or(LineageError::EpochOverflow)?;
+        Self::with_parent(self.lineage_id.clone(), Epoch(next_epoch), Some(self.epoch))
+    }
 }
 
 /// Errors that can occur when constructing lineage values.
@@ -100,6 +114,8 @@ pub enum LineageError {
     EmptyLineageId,
     #[error("parent_epoch ({parent_epoch}) must be less than epoch ({epoch})")]
     InvalidEpochTransition { parent_epoch: u64, epoch: u64 },
+    #[error("epoch overflow: cannot advance beyond u64::MAX")]
+    EpochOverflow,
 }
 
 #[cfg(test)]
