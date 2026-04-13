@@ -127,9 +127,9 @@ mod execution_semaphore_tests {
             .map(|sid| tokio::spawn(execute_step(sid, 5000)))
             .collect();
 
-        for handle in handles {
+        for (i, handle) in handles.into_iter().enumerate() {
             let result = handle.await.expect("task should complete");
-            assert!(result.is_ok() || matches!(result, Err(ExecuteNodeError::TransientError { .. })));
+            assert!(result.is_ok() || matches!(result, Err(ExecuteNodeError::TransientError { .. })), "Step {}: result={:?}", i, result);
         }
     }
 
