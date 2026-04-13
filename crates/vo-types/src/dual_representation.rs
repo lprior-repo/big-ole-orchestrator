@@ -47,7 +47,7 @@ impl RedactionRule {
 }
 
 /// Kind of redaction to apply to a field.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RedactionKind {
     /// Field is removed entirely from the operator projection.
     Remove,
@@ -67,7 +67,7 @@ impl RedactionKind {
                 serde_json::Value::String(replacement.clone())
             }
             RedactionKind::ReplaceWithType => {
-                serde_json::Value::String(serde_json::value::Type::String.name().to_string())
+                serde_json::Value::String(std::any::type_name_of_val(value).to_string())
             }
             RedactionKind::Hash => {
                 use std::collections::hash_map::DefaultHasher;
