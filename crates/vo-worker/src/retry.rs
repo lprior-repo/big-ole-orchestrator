@@ -44,7 +44,7 @@ impl RetryConfig {
         self
     }
 
-    fn calculate_backoff(&self, attempt: u32) -> Duration {
+    pub fn calculate_backoff(&self, attempt: u32) -> Duration {
         let exponent = attempt.saturating_sub(1) as f64;
         let multiplier_pow = self.backoff_multiplier.powf(exponent);
         let backoff_ms = (self.initial_backoff_ms as f64 * multiplier_pow) as u64;
@@ -52,25 +52,28 @@ impl RetryConfig {
         Duration::from_millis(capped_ms)
     }
 
-    fn calculate_jitter(&self, base_duration: Duration) -> Duration {
+    pub fn calculate_jitter(&self, base_duration: Duration) -> Duration {
         if self.jitter_factor <= 0.0 {
             return base_duration;
         }
         let base_ms = base_duration.as_millis() as f64;
         let jitter_range = base_ms * self.jitter_factor;
         let jitter_ms = rand_jitter(jitter_range);
-        let total_ms = (base_ms + jitter_ms) as u64;
+        let total_ms = (base_ms + jitter_ms).abs() as u64;
         Duration::from_millis(total_ms)
     }
 }
 
-fn rand_jitter(range: f64) -> f64 {
+pub fn rand_jitter(range: f64) -> f64 {
     use std::time::Instant;
     let now = Instant::now();
     let seed = now.elapsed().as_nanos() as u64;
     let x = ((seed.wrapping_mul(1103515245)).wrapping_add(12345) % (1 << 31)) as f64;
     let normalized = x / (1 << 31) as f64;
-    (normalized - 0.5) * 2.0 * range
+    // Return value in range [-range, +range]
+    let jitter = (normalized * 2.0 - 1.0) * range;
+    // Clamp to ensure we're within bounds
+    jitter.clamp(-range, range)
 }
 
 pub struct LockManagerRetryWrapper<'a, T: LockManager> {
