@@ -274,9 +274,11 @@ impl ConnectionPool {
             .find(|&(_, cid)| *cid == connection_id)
             .map(|(id, _)| *id);
 
-        if let Some(cid) = checkout_id {
-            self.state.checked_out_connections.remove(&cid);
-        }
+        let Some(checkout_id) = checkout_id else {
+            return ReleaseResult::AlreadyClosed;
+        };
+
+        self.state.checked_out_connections.remove(&checkout_id);
 
         if let Some(conn) = self.state.connections.get_mut(&connection_id) {
             conn.status = ConnectionStatus::Idle;
@@ -507,5 +509,29 @@ mod pool_tests {
             AcquireResult::PoolExhausted { .. } => {}
             _ => panic!("Expected PoolExhausted when circuit breaker is open"),
         }
+    }
+
+    #[test]
+    fn test_release_twice_returns_already_closed() {
+        let mut pool = create_test_pool();
+        let acquire_result = futures::executor::block_on(pool.acquire());
+        let conn_id = match acquire_result {
+            AcquireResult::Available { connection } => connection.connection_id,
+            _ => panic!("Expected Available result"),
+        };
+
+        let first_release = pool.release(conn_id);
+        assert_eq!(first_release, ReleaseResult::Returned);
+
+        let second_release = pool.release(conn_id);
+        assert_eq!(second_release, ReleaseResult::AlreadyClosed);
+    }
+
+    #[test]
+    fn test_release_without_acquire_returns_already_closed() {
+        let mut pool = create_test_pool();
+        let never_acquired = ConnectionId::new();
+        let result = pool.release(never_acquired);
+        assert_eq!(result, ReleaseResult::AlreadyClosed);
     }
 }
