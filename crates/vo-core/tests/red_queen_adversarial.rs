@@ -1023,7 +1023,7 @@ fn attack_false_positive_interleaved_success_failure_never_quarantined() {
         // Record a failure
         record_failure(&wf, &hash_from_idx(i), &config, &state, t0).unwrap();
         // Simulate a successful registration (sets rate limiter but no failure)
-        let req = make_request("alternating-wf", &format!("success{:08x}", i), false);
+        let req = make_request("alternating-wf", &format!("eeee{:04x}", i), false);
         let _ = evaluate_registration(
             &req,
             &config,
