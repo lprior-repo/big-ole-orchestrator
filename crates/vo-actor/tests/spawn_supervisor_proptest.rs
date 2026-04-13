@@ -18,7 +18,10 @@ fn test_instance_id() -> InstanceId {
     InstanceId::from_bytes(ulid.to_bytes())
 }
 
-impl Arbitrary for InstanceId {
+#[derive(Debug, Clone)]
+struct ArbitraryInstanceId(InstanceId);
+
+impl Arbitrary for ArbitraryInstanceId {
     type Parameters = ();
     type Strategy = BoxedStrategy<Self>;
 
@@ -26,64 +29,99 @@ impl Arbitrary for InstanceId {
         any::<[u8; 16]>()
             .prop_map(|bytes| {
                 let ulid = ulid::Ulid(u128::from_be_bytes(bytes));
-                Self(ulid.to_string())
+                ArbitraryInstanceId(InstanceId::from_bytes(ulid.to_bytes()))
             })
             .boxed()
     }
 }
 
-impl Arbitrary for SpawnPhase {
+#[derive(Debug, Clone)]
+struct ArbitrarySpawnPhase(SpawnPhase);
+
+impl Arbitrary for ArbitrarySpawnPhase {
     type Parameters = ();
     type Strategy = BoxedStrategy<Self>;
 
     fn arbitrary_with(_: Self::Parameters) -> Self::Strategy {
         prop_oneof![
-            Just(Self::Spawn),
-            Just(Self::HealthCheck),
-            Just(Self::Running),
-            Just(Self::Shutdown),
-            Just(Self::Terminated),
-            Just(Self::Failed),
+            Just(ArbitrarySpawnPhase(SpawnPhase::Spawn)),
+            Just(ArbitrarySpawnPhase(SpawnPhase::HealthCheck)),
+            Just(ArbitrarySpawnPhase(SpawnPhase::Running)),
+            Just(ArbitrarySpawnPhase(SpawnPhase::Shutdown)),
+            Just(ArbitrarySpawnPhase(SpawnPhase::Terminated)),
+            Just(ArbitrarySpawnPhase(SpawnPhase::Failed)),
         ]
         .boxed()
     }
 }
 
-impl Arbitrary for SpawnSupervisorError {
+#[derive(Debug, Clone)]
+struct ArbitrarySpawnSupervisorError(SpawnSupervisorError);
+
+impl Arbitrary for ArbitrarySpawnSupervisorError {
     type Parameters = ();
     type Strategy = BoxedStrategy<Self>;
 
     fn arbitrary_with(_: Self::Parameters) -> Self::Strategy {
         prop_oneof![
-            any::<String>().prop_map(Self::StorageError),
-            any::<String>().prop_map(Self::CorruptSpawn),
-            any::<String>().prop_map(Self::AtomicityViolation),
-            any::<InstanceId>().prop_map(Self::InstanceNotFound),
-            any::<InstanceId>().prop_map(Self::MailboxFull),
-            any::<String>().prop_map(Self::InvalidConfig),
-            Just(Self::AlreadyRunning),
-            any::<std::time::Duration>().prop_map(Self::ShutdownTimeout),
-            any::<String>().prop_map(Self::DispatchError),
-            (any::<String>(), any::<String>())
-                .prop_map(|(command, error)| Self::SpawnFailed { command, error }),
-            (any::<InstanceId>(), any::<u32>(), any::<String>()).prop_map(
-                |(instance_id, check_number, error)| Self::HealthCheckFailed {
-                    instance_id,
-                    check_number,
-                    error
-                }
+            any::<String>()
+                .prop_map(|s| ArbitrarySpawnSupervisorError(SpawnSupervisorError::StorageError(s))),
+            any::<String>()
+                .prop_map(|s| ArbitrarySpawnSupervisorError(SpawnSupervisorError::CorruptSpawn(s))),
+            any::<String>().prop_map(|s| ArbitrarySpawnSupervisorError(
+                SpawnSupervisorError::AtomicityViolation(s)
+            )),
+            any::<ArbitraryInstanceId>().prop_map(|aid| ArbitrarySpawnSupervisorError(
+                SpawnSupervisorError::InstanceNotFound(aid.0)
+            )),
+            any::<ArbitraryInstanceId>().prop_map(|aid| ArbitrarySpawnSupervisorError(
+                SpawnSupervisorError::MailboxFull(aid.0)
+            )),
+            any::<String>().prop_map(|s| ArbitrarySpawnSupervisorError(
+                SpawnSupervisorError::InvalidConfig(s)
+            )),
+            Just(ArbitrarySpawnSupervisorError(
+                SpawnSupervisorError::AlreadyRunning
+            )),
+            any::<std::time::Duration>().prop_map(|d| ArbitrarySpawnSupervisorError(
+                SpawnSupervisorError::ShutdownTimeout(d)
+            )),
+            any::<String>().prop_map(|s| ArbitrarySpawnSupervisorError(
+                SpawnSupervisorError::DispatchError(s)
+            )),
+            (any::<String>(), any::<String>()).prop_map(|(command, error)| {
+                ArbitrarySpawnSupervisorError(SpawnSupervisorError::SpawnFailed { command, error })
+            }),
+            (any::<ArbitraryInstanceId>(), any::<u32>(), any::<String>()).prop_map(
+                |(aid, check_number, error)| ArbitrarySpawnSupervisorError(
+                    SpawnSupervisorError::HealthCheckFailed {
+                        instance_id: aid.0,
+                        check_number,
+                        error
+                    }
+                )
             ),
-            (any::<InstanceId>(), any::<u32>())
-                .prop_map(|(instance_id, pid)| Self::ZombieDetected { instance_id, pid }),
-            (any::<InstanceId>(), any::<u32>(), any::<i32>()).prop_map(
-                |(instance_id, pid, exit_code)| Self::ProcessExited {
-                    instance_id,
+            (any::<ArbitraryInstanceId>(), any::<u32>()).prop_map(|(aid, pid)| {
+                ArbitrarySpawnSupervisorError(SpawnSupervisorError::ZombieDetected {
+                    instance_id: aid.0,
                     pid,
-                    exit_code
-                }
+                })
+            }),
+            (any::<ArbitraryInstanceId>(), any::<u32>(), any::<i32>()).prop_map(
+                |(aid, pid, exit_code)| ArbitrarySpawnSupervisorError(
+                    SpawnSupervisorError::ProcessExited {
+                        instance_id: aid.0,
+                        pid,
+                        exit_code
+                    }
+                )
             ),
-            Just(Self::NotRunning),
-            Just(Self::AlreadyShutdown),
+            Just(ArbitrarySpawnSupervisorError(
+                SpawnSupervisorError::NotRunning
+            )),
+            Just(ArbitrarySpawnSupervisorError(
+                SpawnSupervisorError::AlreadyShutdown
+            )),
         ]
         .boxed()
     }
@@ -161,7 +199,7 @@ proptest! {
 proptest! {
     #[test]
     fn spawn_record_transition_preserves_fields(
-        instance_id: InstanceId,
+        instance_id: ArbitraryInstanceId,
         command: String,
         spawn_id: Option<String>,
         phase in prop::sample::select(vec![
@@ -175,6 +213,7 @@ proptest! {
         health_checks: u32,
         spawn_attempts: u32,
     ) {
+        let instance_id = instance_id.0;
         let spawn_id = spawn_id.map(vo_types::SpawnId::new);
         let record = SpawnRecord {
             spawn_id: spawn_id.clone(),
@@ -204,7 +243,7 @@ proptest! {
 
     #[test]
     fn spawn_record_respawn_phase_always_spawn(
-        instance_id: InstanceId,
+        instance_id: ArbitraryInstanceId,
         command: String,
         spawn_attempts: u32,
         phase in prop::sample::select(vec![
@@ -216,6 +255,7 @@ proptest! {
             SpawnPhase::Failed,
         ]),
     ) {
+        let instance_id = instance_id.0;
         let record = SpawnRecord {
             spawn_id: None,
             instance_id: instance_id.clone(),
@@ -237,10 +277,11 @@ proptest! {
 
     #[test]
     fn spawn_record_respawn_attempts_non_decreasing(
-        instance_id: InstanceId,
+        instance_id: ArbitraryInstanceId,
         command: String,
         spawn_attempts: u32,
     ) {
+        let instance_id = instance_id.0;
         let record = SpawnRecord {
             spawn_id: None,
             instance_id,
@@ -262,10 +303,11 @@ proptest! {
 
     #[test]
     fn spawn_record_respawn_resets_health_checks(
-        instance_id: InstanceId,
+        instance_id: ArbitraryInstanceId,
         command: String,
         health_checks: u32,
     ) {
+        let instance_id = instance_id.0;
         let record = SpawnRecord {
             spawn_id: None,
             instance_id,
@@ -286,9 +328,10 @@ proptest! {
 
     #[test]
     fn spawn_record_respawn_clears_error(
-        instance_id: InstanceId,
+        instance_id: ArbitraryInstanceId,
         command: String,
     ) {
+        let instance_id = instance_id.0;
         let record = SpawnRecord {
             spawn_id: None,
             instance_id,
@@ -318,7 +361,8 @@ proptest! {
 
 proptest! {
     #[test]
-    fn error_not_both_transient_and_fatal(error in any::<SpawnSupervisorError>()) {
+    fn error_not_both_transient_and_fatal(error in any::<ArbitrarySpawnSupervisorError>()) {
+        let error = error.0;
         // An error cannot be both transient and fatal
         prop_assert!(
             !(error.is_transient() && error.is_fatal()),
@@ -328,7 +372,8 @@ proptest! {
     }
 
     #[test]
-    fn error_display_never_empty(error in any::<SpawnSupervisorError>()) {
+    fn error_display_never_empty(error in any::<ArbitrarySpawnSupervisorError>()) {
+        let error = error.0;
         let display = format!("{}", error);
         prop_assert!(
             !display.is_empty(),
@@ -426,7 +471,8 @@ proptest! {
 
 proptest! {
     #[test]
-    fn spawn_record_new_defaults(instance_id: InstanceId, command: String, spawn_id: Option<String>) {
+    fn spawn_record_new_defaults(instance_id: ArbitraryInstanceId, command: String, spawn_id: Option<String>) {
+        let instance_id = instance_id.0;
         let spawn_id = spawn_id.map(vo_types::SpawnId::new);
         let record = SpawnRecord::new(instance_id.clone(), command.clone(), spawn_id.clone());
 
