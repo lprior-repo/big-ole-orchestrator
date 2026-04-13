@@ -12,6 +12,7 @@
 
 use std::fmt;
 
+use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
 use crate::integer_types::TimestampMs;
@@ -21,7 +22,7 @@ use crate::integer_types::TimestampMs;
 // ============================================================================
 
 /// Configuration for the connection pool.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PoolConfig {
     pub min_connections: u32,
     pub max_connections: u32,
@@ -32,7 +33,7 @@ pub struct PoolConfig {
 }
 
 /// Unique identifier for a pooled connection.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ConnectionId(pub(crate) Ulid);
 
 impl ConnectionId {
@@ -64,7 +65,7 @@ impl fmt::Display for ConnectionId {
 }
 
 /// Identifies a specific connection pool instance.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct PoolId(pub(crate) String);
 
 impl PoolId {
@@ -86,7 +87,7 @@ impl fmt::Display for PoolId {
 }
 
 /// Status of a pooled connection.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum ConnectionStatus {
     #[default]
     Idle,
@@ -97,7 +98,7 @@ pub enum ConnectionStatus {
 }
 
 /// Represents a connection in the pool with metadata.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PooledConnection {
     pub connection_id: ConnectionId,
     pub created_at: TimestampMs,
@@ -119,15 +120,25 @@ impl PooledConnection {
     }
 
     #[must_use]
-    pub fn with_status(mut self, status: ConnectionStatus) -> Self {
-        self.status = status;
-        self
+    pub fn with_status(&self, status: ConnectionStatus) -> Self {
+        Self {
+            connection_id: self.connection_id,
+            created_at: self.created_at,
+            last_used_at: self.last_used_at,
+            use_count: self.use_count,
+            status,
+        }
     }
 
     #[must_use]
-    pub fn with_use_count(mut self, use_count: u64) -> Self {
-        self.use_count = use_count;
-        self
+    pub fn with_use_count(&self, use_count: u64) -> Self {
+        Self {
+            connection_id: self.connection_id,
+            created_at: self.created_at,
+            last_used_at: self.last_used_at,
+            use_count,
+            status: self.status,
+        }
     }
 
     pub fn increment_use_count(&mut self) {
@@ -151,7 +162,7 @@ impl PooledConnection {
 }
 
 /// Result of a connection health check.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum HealthCheckResult {
     Healthy,
     Stale,
@@ -160,7 +171,7 @@ pub enum HealthCheckResult {
 }
 
 /// Handle for a pending acquire request.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WaitHandle {
     pub request_id: u64,
     pub enqueued_at: TimestampMs,
@@ -168,7 +179,7 @@ pub struct WaitHandle {
 }
 
 /// Result of attempting to acquire a connection from the pool.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AcquireResult {
     Available { connection: PooledConnection },
     Pending { wait_handle: WaitHandle },
@@ -178,7 +189,7 @@ pub enum AcquireResult {
 }
 
 /// Result of releasing a connection back to the pool.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ReleaseResult {
     Returned,
     AlreadyClosed,
@@ -186,7 +197,7 @@ pub enum ReleaseResult {
 }
 
 /// Reason for connection eviction.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EvictionReason {
     HealthCheckFailed(HealthCheckResult),
     ExplicitEviction,
@@ -195,7 +206,7 @@ pub enum EvictionReason {
 }
 
 /// Current state statistics for the pool.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PoolStats {
     pub pool_id: PoolId,
     pub total_connections: u32,
