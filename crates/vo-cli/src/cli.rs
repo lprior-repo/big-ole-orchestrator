@@ -22,6 +22,8 @@ pub enum CliError {
     Doctor(#[from] crate::commands::doctor::DoctorError),
     #[error(transparent)]
     Rebuild(#[from] crate::commands::rebuild::RebuildError),
+    #[error(transparent)]
+    Status(#[from] crate::commands::status::StatusError),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -57,6 +59,10 @@ pub enum Command {
         projection_id: Option<String>,
         list_projections: bool,
         force: bool,
+    },
+    Status {
+        engine_url: String,
+        instance: String,
     },
 }
 
@@ -187,6 +193,23 @@ where
                         .action(clap::ArgAction::SetTrue)
                         .help("Force rebuild even if projection is not stale"),
                 ),
+        )
+        .subcommand(
+            clap::Command::new("status")
+                .about("Query workflow lineage status")
+                .arg(
+                    clap::Arg::new("instance")
+                        .required(true)
+                        .index(1)
+                        .help("Workflow instance ID (e.g., namespace/01ARZ3NDEKTSV4RRFFQ69G5FAV)"),
+                )
+                .arg(
+                    clap::Arg::new("engine-url")
+                        .long("engine-url")
+                        .env("VO_ENGINE_URL")
+                        .default_value("http://localhost:3000")
+                        .help("Engine URL"),
+                ),
         );
 
     let matches = cmd.try_get_matches_from(args)?;
@@ -305,6 +328,22 @@ where
                 },
             })
         }
+        Some(("status", sub_matches)) => {
+            let instance = sub_matches
+                .get_one::<String>("instance")
+                .cloned()
+                .unwrap_or_default();
+            let engine_url = sub_matches
+                .get_one::<String>("engine-url")
+                .cloned()
+                .unwrap_or_else(|| "http://localhost:3000".to_string());
+            Ok(Cli {
+                command: Command::Status {
+                    engine_url,
+                    instance,
+                },
+            })
+        }
         _ => Err(clap::Error::new(clap::error::ErrorKind::InvalidSubcommand)),
     }
 }
@@ -325,7 +364,8 @@ pub fn map_error_to_exit_code(err: &CliError) -> i32 {
         | CliError::Init(_)
         | CliError::Lock(_)
         | CliError::Doctor(_)
-        | CliError::Rebuild(_) => 1,
+        | CliError::Rebuild(_)
+        | CliError::Status(_) => 1,
         CliError::InvalidNumeric(_) => 2,
     }
 }
