@@ -170,6 +170,11 @@ pub enum StorageError {
     PartitionOpenFailed { name: String, reason: String },
     #[error("invalid storage path: {reason}")]
     InvalidPath { reason: String },
+    #[error("optimistic concurrency conflict: expected version {expected_version}, found {actual_version}")]
+    OptimisticConcurrency {
+        expected_version: u64,
+        actual_version: u64,
+    },
 }
 
 pub struct StorageConfig {
@@ -330,6 +335,32 @@ mod tests {
         assert_eq!(PartitionClass::Hot.to_string(), "hot");
         assert_eq!(PartitionClass::Cold.to_string(), "cold");
         assert_eq!(PartitionClass::Blob.to_string(), "blob");
+    }
+
+    #[test]
+    fn occ_error_can_be_constructed_with_version_fields() {
+        let err = StorageError::OptimisticConcurrency {
+            expected_version: 5,
+            actual_version: 3,
+        };
+        assert!(matches!(
+            err,
+            StorageError::OptimisticConcurrency {
+                expected_version: 5,
+                actual_version: 3,
+            }
+        ));
+    }
+
+    #[test]
+    fn occ_error_display_renders_expected_vs_actual() {
+        let err = StorageError::OptimisticConcurrency {
+            expected_version: 10,
+            actual_version: 7,
+        };
+        let msg = err.to_string();
+        assert!(msg.contains("10"), "should contain expected version: {msg}");
+        assert!(msg.contains("7"), "should contain actual version: {msg}");
     }
 
     #[test]
