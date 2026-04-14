@@ -1387,15 +1387,24 @@ mod integration_reconciliation_tests {
 }
 
 // ============================================================================
-// 7. SQL Injection Tests
+// 7. SQL Connector Transaction Protocol Tests
+//
+// NOTE: SqlConnector is a MOCK connector that does NOT execute SQL queries.
+// It only verifies the connector protocol handles various query content safely.
+//
+// Actual SQL injection prevention happens at the API layer:
+// - vo-api/tests/security_input_validation_tests.rs tests WorkflowName/SignalName rejection
+//
+// These tests verify the connector protocol correctly stores and retrieves
+// transactions regardless of query content semantics.
 // ============================================================================
 
 #[cfg(test)]
-mod sql_injection_tests {
+mod sql_connector_transaction_tests {
     use super::*;
 
     #[tokio::test]
-    async fn sql_injection_drop_table() {
+    async fn sql_connector_handles_dangerous_looking_query_drop_table() {
         let c = SqlConnector::new();
         let pe = c
             .prepare(
@@ -1404,15 +1413,15 @@ mod sql_injection_tests {
                 1,
             )
             .await
-            .unwrap();
-        let outcome = c.commit(pe).await.unwrap();
+            .expect("prepare should succeed");
+        let outcome = c.commit(pe).await.expect("commit should succeed");
         assert!(matches!(outcome, CommitOutcome::Committed { .. }));
-        let reconcile = c.reconcile("tx-sqli-drop").await.unwrap();
+        let reconcile = c.reconcile("tx-sqli-drop").await.expect("reconcile should succeed");
         assert!(matches!(reconcile, ReconcileOutcome::Committed { .. }));
     }
 
     #[tokio::test]
-    async fn sql_injection_or_1_equals_1() {
+    async fn sql_connector_handles_dangerous_looking_query_or_1_equals_1() {
         let c = SqlConnector::new();
         let pe = c
             .prepare(
@@ -1421,15 +1430,15 @@ mod sql_injection_tests {
                 1,
             )
             .await
-            .unwrap();
-        let outcome = c.commit(pe).await.unwrap();
+            .expect("prepare should succeed");
+        let outcome = c.commit(pe).await.expect("commit should succeed");
         assert!(matches!(outcome, CommitOutcome::Committed { .. }));
-        let reconcile = c.reconcile("tx-sqli-or").await.unwrap();
+        let reconcile = c.reconcile("tx-sqli-or").await.expect("reconcile should succeed");
         assert!(matches!(reconcile, ReconcileOutcome::Committed { .. }));
     }
 
     #[tokio::test]
-    async fn sql_injection_select_secrets() {
+    async fn sql_connector_handles_dangerous_looking_query_select_secrets() {
         let c = SqlConnector::new();
         let pe = c
             .prepare(
@@ -1438,15 +1447,15 @@ mod sql_injection_tests {
                 1,
             )
             .await
-            .unwrap();
-        let outcome = c.commit(pe).await.unwrap();
+            .expect("prepare should succeed");
+        let outcome = c.commit(pe).await.expect("commit should succeed");
         assert!(matches!(outcome, CommitOutcome::Committed { .. }));
-        let reconcile = c.reconcile("tx-sqli-select").await.unwrap();
+        let reconcile = c.reconcile("tx-sqli-select").await.expect("reconcile should succeed");
         assert!(matches!(reconcile, ReconcileOutcome::Committed { .. }));
     }
 
     #[tokio::test]
-    async fn sql_injection_admin_comment() {
+    async fn sql_connector_handles_dangerous_looking_query_admin_comment() {
         let c = SqlConnector::new();
         let pe = c
             .prepare(
@@ -1455,15 +1464,15 @@ mod sql_injection_tests {
                 1,
             )
             .await
-            .unwrap();
-        let outcome = c.commit(pe).await.unwrap();
+            .expect("prepare should succeed");
+        let outcome = c.commit(pe).await.expect("commit should succeed");
         assert!(matches!(outcome, CommitOutcome::Committed { .. }));
-        let reconcile = c.reconcile("tx-sqli-admin").await.unwrap();
+        let reconcile = c.reconcile("tx-sqli-admin").await.expect("reconcile should succeed");
         assert!(matches!(reconcile, ReconcileOutcome::Committed { .. }));
     }
 
     #[tokio::test]
-    async fn sql_injection_update_balance() {
+    async fn sql_connector_handles_dangerous_looking_query_update_balance() {
         let c = SqlConnector::new();
         let pe = c
             .prepare(
@@ -1472,15 +1481,15 @@ mod sql_injection_tests {
                 1,
             )
             .await
-            .unwrap();
-        let outcome = c.commit(pe).await.unwrap();
+            .expect("prepare should succeed");
+        let outcome = c.commit(pe).await.expect("commit should succeed");
         assert!(matches!(outcome, CommitOutcome::Committed { .. }));
-        let reconcile = c.reconcile("tx-sqli-update").await.unwrap();
+        let reconcile = c.reconcile("tx-sqli-update").await.expect("reconcile should succeed");
         assert!(matches!(reconcile, ReconcileOutcome::Committed { .. }));
     }
 
     #[tokio::test]
-    async fn sql_injection_delete_transactions() {
+    async fn sql_connector_handles_dangerous_looking_query_delete_transactions() {
         let c = SqlConnector::new();
         let pe = c
             .prepare(
@@ -1489,15 +1498,15 @@ mod sql_injection_tests {
                 1,
             )
             .await
-            .unwrap();
-        let outcome = c.commit(pe).await.unwrap();
+            .expect("prepare should succeed");
+        let outcome = c.commit(pe).await.expect("commit should succeed");
         assert!(matches!(outcome, CommitOutcome::Committed { .. }));
-        let reconcile = c.reconcile("tx-sqli-delete").await.unwrap();
+        let reconcile = c.reconcile("tx-sqli-delete").await.expect("reconcile should succeed");
         assert!(matches!(reconcile, ReconcileOutcome::Committed { .. }));
     }
 
     #[tokio::test]
-    async fn sql_injection_union_select() {
+    async fn sql_connector_handles_dangerous_looking_query_union_select() {
         let c = SqlConnector::new();
         let pe = c
             .prepare(
@@ -1506,15 +1515,15 @@ mod sql_injection_tests {
                 1,
             )
             .await
-            .unwrap();
-        let outcome = c.commit(pe).await.unwrap();
+            .expect("prepare should succeed");
+        let outcome = c.commit(pe).await.expect("commit should succeed");
         assert!(matches!(outcome, CommitOutcome::Committed { .. }));
-        let reconcile = c.reconcile("tx-sqli-union").await.unwrap();
+        let reconcile = c.reconcile("tx-sqli-union").await.expect("reconcile should succeed");
         assert!(matches!(reconcile, ReconcileOutcome::Committed { .. }));
     }
 
     #[tokio::test]
-    async fn sql_injection_insert_admin() {
+    async fn sql_connector_handles_dangerous_looking_query_insert_admin() {
         let c = SqlConnector::new();
         let pe = c
             .prepare(
@@ -1523,15 +1532,15 @@ mod sql_injection_tests {
                 1,
             )
             .await
-            .unwrap();
-        let outcome = c.commit(pe).await.unwrap();
+            .expect("prepare should succeed");
+        let outcome = c.commit(pe).await.expect("commit should succeed");
         assert!(matches!(outcome, CommitOutcome::Committed { .. }));
-        let reconcile = c.reconcile("tx-sqli-insert").await.unwrap();
+        let reconcile = c.reconcile("tx-sqli-insert").await.expect("reconcile should succeed");
         assert!(matches!(reconcile, ReconcileOutcome::Committed { .. }));
     }
 
     #[tokio::test]
-    async fn sql_injection_then_normal_transaction() {
+    async fn sql_connector_handles_dangerous_query_then_normal_transaction() {
         let c = SqlConnector::new();
 
         let pe_inject = c
@@ -1541,8 +1550,8 @@ mod sql_injection_tests {
                 1,
             )
             .await
-            .unwrap();
-        let outcome = c.commit(pe_inject).await.unwrap();
+            .expect("prepare should succeed");
+        let outcome = c.commit(pe_inject).await.expect("commit should succeed");
         assert!(matches!(outcome, CommitOutcome::Committed { .. }));
 
         let pe_normal = c
@@ -1552,18 +1561,18 @@ mod sql_injection_tests {
                 2,
             )
             .await
-            .unwrap();
-        let outcome = c.commit(pe_normal).await.unwrap();
+            .expect("prepare should succeed");
+        let outcome = c.commit(pe_normal).await.expect("commit should succeed");
         assert!(matches!(outcome, CommitOutcome::Committed { .. }));
 
-        let reconcile_inject = c.reconcile("fx-inject").await.unwrap();
-        let reconcile_normal = c.reconcile("fx-normal").await.unwrap();
+        let reconcile_inject = c.reconcile("fx-inject").await.expect("reconcile should succeed");
+        let reconcile_normal = c.reconcile("fx-normal").await.expect("reconcile should succeed");
         assert!(matches!(reconcile_inject, ReconcileOutcome::Committed { .. }));
         assert!(matches!(reconcile_normal, ReconcileOutcome::Committed { .. }));
     }
 
     #[tokio::test]
-    async fn sql_injection_with_compensation() {
+    async fn sql_connector_handles_dangerous_query_with_compensation() {
         let c = SqlConnector::new();
 
         let pe = c
@@ -1573,8 +1582,8 @@ mod sql_injection_tests {
                 1,
             )
             .await
-            .unwrap();
-        let outcome = c.commit(pe).await.unwrap();
+            .expect("prepare should succeed");
+        let outcome = c.commit(pe).await.expect("commit should succeed");
         assert!(matches!(outcome, CommitOutcome::Committed { .. }));
 
         let comp_outcome = c
@@ -1584,12 +1593,12 @@ mod sql_injection_tests {
                 1,
             )
             .await
-            .unwrap();
+            .expect("compensate should succeed");
         assert!(matches!(comp_outcome, CommitOutcome::Committed { .. }));
     }
 
     #[tokio::test]
-    async fn multiple_sql_injections_idempotent() {
+    async fn sql_connector_multiple_dangerous_queries_idempotent() {
         let c = SqlConnector::new();
 
         for i in 0..3 {
@@ -1600,19 +1609,21 @@ mod sql_injection_tests {
                     i as u64 + 1,
                 )
                 .await
-                .unwrap();
-            let outcome = c.commit(pe).await.unwrap();
+                .expect("prepare should succeed");
+            let outcome = c.commit(pe).await.expect("commit should succeed");
             assert!(matches!(outcome, CommitOutcome::Committed { .. }));
         }
 
         for i in 0..3 {
-            let reconcile = c.reconcile(&format!("fx-multi-{}", i)).await.unwrap();
+            let reconcile = c.reconcile(&format!("fx-multi-{}", i))
+                .await
+                .expect("reconcile should succeed");
             assert!(matches!(reconcile, ReconcileOutcome::Committed { .. }));
         }
     }
 
     #[tokio::test]
-    async fn sql_injection_stored_query_not_executed() {
+    async fn sql_connector_stores_query_content_without_execution() {
         let c = SqlConnector::new();
 
         let dangerous_queries = vec![
@@ -1625,13 +1636,13 @@ mod sql_injection_tests {
             let pe = c
                 .prepare(serde_json::json!({"query": query}), (*id).into(), 1)
                 .await
-                .unwrap();
-            let outcome = c.commit(pe).await.unwrap();
+                .expect("prepare should succeed");
+            let outcome = c.commit(pe).await.expect("commit should succeed");
             assert!(matches!(outcome, CommitOutcome::Committed { .. }));
         }
 
         for (id, _) in &dangerous_queries {
-            let reconcile = c.reconcile(id).await.unwrap();
+            let reconcile = c.reconcile(id).await.expect("reconcile should succeed");
             assert!(matches!(reconcile, ReconcileOutcome::Committed { .. }));
         }
     }
