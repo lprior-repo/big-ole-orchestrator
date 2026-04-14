@@ -1,0 +1,12 @@
+{
+  "session_id": "546d32d2-7582-41f9-9505-6439f21e8334",
+  "transcript_path": "/home/lewis/.claude/projects/-home-lewis-gt-veloxide-polecats-rust-veloxide/546d32d2-7582-41f9-9505-6439f21e8334.jsonl",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Edit",
+  "tool_input": {
+    "file_path": "/home/lewis/gt/veloxide/polecats/rust/veloxide/crates/vo-core/tests/business_operations_stress.rs",
+    "old_string": "    let budget = WorkloadBudget::new(10, 20, 5, 8);",
+    "new_string": "    let budget = WorkloadBudget::new(10, 20, 8, 5);",
+    "replace_all": false
+  }
+}
