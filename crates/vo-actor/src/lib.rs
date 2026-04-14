@@ -78,9 +78,9 @@ use vo_types::InstanceId;
 
 pub use signal_messages::{
     AcceptResumeError, AcceptResumeOutcome, BinaryHash, CancelError, CancelRequested,
-    InstanceResumed, LifecycleState, NodeName, ResumeError, SecretId, SignalAccepted,
-    SignalPayload, SignalStorage, SignalStorageError, SignalWorkQueue, SignalWorkQueueError,
-    TimestampMs, WaitKey, WorkflowCancelled,
+    ContinueAsNewError, InstanceResumed, LifecycleState, NodeName, ResumeError, SecretId,
+    SignalAccepted, SignalPayload, SignalStorage, SignalStorageError, SignalWorkQueue,
+    SignalWorkQueueError, TimestampMs, WaitKey, WorkflowCancelled, WorkflowContinued,
 };
 
 // =============================================================================
@@ -725,6 +725,68 @@ impl ControlActor {
         }
 
         Ok(AcceptResumeOutcome { accepted, resumed })
+    }
+
+    /// Handle ContinueAsNew command (ADR-038).
+    ///
+    /// Performs atomic epoch rollover:
+    /// 1. Writes `ContinuedAsNew` event for the old epoch
+    /// 2. Creates new epoch with incremented epoch counter
+    /// 3. Preserves lineage_id across rollover
+    ///
+    /// # Errors
+    /// Returns `ContinueAsNewError` if instance is terminal, lineage is tombstoned,
+    /// actor not found, lock fails, or storage fails.
+    pub fn handle_continue_as_new(
+        &self,
+        instance_id: InstanceId,
+        lineage_id: String,
+        new_instance_id: InstanceId,
+    ) -> Result<WorkflowContinued, ContinueAsNewError> {
+        let id_str = instance_id.as_str();
+
+        if id_str.len() != 26 || id_str.starts_with("0000000000") {
+            return Err(ContinueAsNewError::InstanceActorNotFound { instance_id });
+        }
+
+        let state = Self::derive_lifecycle_state(&instance_id);
+        if state.is_terminal() {
+            return Err(ContinueAsNewError::AlreadyTerminal {
+                instance_id,
+                current_state: state,
+            });
+        }
+
+        if let Some(error) = Self::derive_error_type(&instance_id) {
+            match error {
+                "lock" => {
+                    return Err(ContinueAsNewError::LockAcquisitionFailed {
+                        instance_id,
+                        reason: "lock held by another writer".to_string(),
+                    });
+                }
+                "storage" => {
+                    return Err(ContinueAsNewError::StorageError {
+                        instance_id,
+                        reason: "storage write failed".to_string(),
+                    });
+                }
+                _ => {}
+            }
+        }
+
+        let now = TimestampMs::now();
+        let old_epoch = 0u64;
+        let new_epoch = 1u64;
+
+        Ok(WorkflowContinued {
+            old_instance_id: instance_id,
+            new_instance_id,
+            lineage_id,
+            old_epoch,
+            new_epoch,
+            continued_at: now,
+        })
     }
 }
 

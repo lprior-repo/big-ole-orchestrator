@@ -281,6 +281,39 @@ pub struct InstanceResumed {
     pub resumed_at: TimestampMs,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkflowContinued {
+    pub old_instance_id: InstanceId,
+    pub new_instance_id: InstanceId,
+    pub lineage_id: String,
+    pub old_epoch: u64,
+    pub new_epoch: u64,
+    pub continued_at: TimestampMs,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum ContinueAsNewError {
+    #[error("instance actor not found: {instance_id}")]
+    InstanceActorNotFound { instance_id: InstanceId },
+    #[error("instance is terminal: {instance_id} is in state {current_state:?}")]
+    AlreadyTerminal {
+        instance_id: InstanceId,
+        current_state: LifecycleState,
+    },
+    #[error("lineage is tombstoned: {lineage_id}")]
+    LineageTombstoned { lineage_id: String },
+    #[error("lock acquisition failed for {instance_id}: {reason}")]
+    LockAcquisitionFailed {
+        instance_id: InstanceId,
+        reason: String,
+    },
+    #[error("storage error for {instance_id}: {reason}")]
+    StorageError {
+        instance_id: InstanceId,
+        reason: String,
+    },
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum SignalStorageError {
     #[error("Instance not found: {0}")]
