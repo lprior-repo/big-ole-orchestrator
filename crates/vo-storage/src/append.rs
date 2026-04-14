@@ -402,52 +402,50 @@ impl Default for BackpressureSignal {
 /// Tracks commit latency for monitoring and backpressure decisions.
 #[derive(Debug, Default)]
 pub struct CommitLatencyTracker {
-    last_commit_at: Mutex<Option<Instant>>,
-    sample_count: Mutex<u64>,
-    total_latency_ms: Mutex<u128>,
+    state: Mutex<CommitLatencyState>,
+}
+
+#[derive(Debug, Default)]
+struct CommitLatencyState {
+    last_commit_at: Option<Instant>,
+    sample_count: u64,
+    total_latency_ms: u128,
 }
 
 impl CommitLatencyTracker {
     /// Records a commit completion with the given latency in milliseconds.
     pub fn record_commit(&self, latency_ms: u64) {
         #[expect(clippy::unwrap_used)]
-        let mut last_commit = self.last_commit_at.lock().unwrap();
-        *last_commit = Some(Instant::now());
-
-        #[expect(clippy::unwrap_used)]
-        let mut count = self.sample_count.lock().unwrap();
-        *count += 1;
-
-        #[expect(clippy::unwrap_used)]
-        let mut total = self.total_latency_ms.lock().unwrap();
-        *total += latency_ms as u128;
+        let mut state = self.state.lock().unwrap();
+        state.last_commit_at = Some(Instant::now());
+        state.sample_count += 1;
+        state.total_latency_ms += latency_ms as u128;
     }
 
     /// Returns the time since the last commit, if any.
     #[must_use]
     pub fn time_since_last_commit(&self) -> Option<std::time::Duration> {
         #[expect(clippy::unwrap_used)]
-        let last_commit = self.last_commit_at.lock().unwrap();
-        last_commit.map(|instant| instant.elapsed())
+        let state = self.state.lock().unwrap();
+        state.last_commit_at.map(|instant| instant.elapsed())
     }
 
     /// Returns the average commit latency in milliseconds, if samples exist.
     #[must_use]
     pub fn average_latency_ms(&self) -> Option<u64> {
         #[expect(clippy::unwrap_used)]
-        let count = *self.sample_count.lock().unwrap();
-        if count == 0 {
+        let state = self.state.lock().unwrap();
+        if state.sample_count == 0 {
             return None;
         }
-        #[expect(clippy::unwrap_used)]
-        let total = *self.total_latency_ms.lock().unwrap();
-        Some((total / count as u128) as u64)
+        Some((state.total_latency_ms / state.sample_count as u128) as u64)
     }
 
     #[must_use]
     pub fn sample_count(&self) -> u64 {
         #[expect(clippy::unwrap_used)]
-        *self.sample_count.lock().unwrap()
+        let state = self.state.lock().unwrap();
+        state.sample_count
     }
 }
 

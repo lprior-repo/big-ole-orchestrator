@@ -1,5 +1,3 @@
-#![allow(unused_imports)]
-
 use memmap2::Mmap;
 use parking_lot::Mutex;
 use std::collections::{HashMap, VecDeque};
@@ -43,14 +41,17 @@ struct LruEntry {
     _last_access: u64,
 }
 
-pub struct MmapCache {
-    base_path: PathBuf,
-    max_memory_bytes: usize,
+struct CacheInner {
     current_memory_bytes: usize,
     access_counter: u64,
     lru_queue: VecDeque<String>,
     entries: HashMap<String, LruEntry>,
-    lock: parking_lot::Mutex<()>,
+}
+
+pub struct MmapCache {
+    base_path: PathBuf,
+    max_memory_bytes: usize,
+    inner: Mutex<CacheInner>,
     _invalidation_tx: Option<broadcast::Sender<CacheInvalidationEvent>>,
 }
 
@@ -158,11 +159,17 @@ impl MmapCache {
     #[allow(clippy::cast_possible_truncation)]
     pub fn get(&self, key: &str) -> Result<Vec<u8>, MmapCacheError> {
         let region = {
-            let _guard = self.lock.lock();
-            self.entries
-                .get(key)
-                .map(|e| e.region.clone())
-                .ok_or_else(|| MmapCacheError::RegionNotFound(key.to_string()))?
+            let mut _guard = self.lock.lock();
+            self.access_counter += 1;
+            self.lru_queue.retain(|k| k != key);
+            if let Some((_last_access, region)) = self.entries.get_mut(key).map(|e| {
+                e._last_access = self.access_counter;
+                (e._last_access, e.region.clone())
+            }) {
+                region
+            } else {
+                return Err(MmapCacheError::RegionNotFound(key.to_string()));
+            }
         };
         let file = File::open(&region.file_path)?;
         let mmap = unsafe { Mmap::map(&file) }.map_err(MmapCacheError::MmapError)?;

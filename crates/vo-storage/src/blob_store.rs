@@ -114,8 +114,9 @@ impl ContentAddress {
     pub fn as_bytes(&self) -> [u8; 32] {
         let mut bytes = [0u8; 32];
         for (i, chunk) in self.0.as_bytes().chunks(2).enumerate() {
-            let hex_str = unsafe { std::str::from_utf8_unchecked(chunk) };
-            bytes[i] = unsafe { u8::from_str_radix(hex_str, 16).unwrap_unchecked() };
+            let high = hex_nibble(chunk[0]);
+            let low = hex_nibble(chunk[1]);
+            bytes[i] = (high << 4) | low;
         }
         bytes
     }
@@ -408,6 +409,16 @@ pub enum BlobStoreError {
 // ---------------------------------------------------------------------------
 // Calc Layer — Content Address Encoding
 // ---------------------------------------------------------------------------
+
+#[must_use]
+const fn hex_nibble(byte: u8) -> u8 {
+    match byte {
+        b'0'..=b'9' => byte - b'0',
+        b'a'..=b'f' => byte - b'a' + 10,
+        b'A'..=b'F' => byte - b'A' + 10,
+        _ => 0,
+    }
+}
 
 /// Encode a `ContentAddress` as UTF-8 bytes for use as a storage key.
 #[must_use]

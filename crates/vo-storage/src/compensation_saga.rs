@@ -402,7 +402,7 @@ impl CompensationSaga {
 
     pub fn start_compensation(&self, effect_id: &str) -> Result<(), CompensationError> {
         #[expect(clippy::unwrap_used)]
-        let manifest = self.manifest.lock().unwrap();
+        let mut manifest = self.manifest.lock().unwrap();
         if !manifest.can_execute(effect_id) {
             return Err(CompensationError::PolicyViolation {
                 effect_id: effect_id.to_string(),
@@ -412,10 +412,6 @@ impl CompensationSaga {
                     .unwrap_or(CompensationPolicy::None),
             });
         }
-        drop(manifest);
-
-        #[expect(clippy::unwrap_used)]
-        let mut manifest = self.manifest.lock().unwrap();
         manifest.transition_to(effect_id, SagaCompensationStatus::InProgress)
     }
 

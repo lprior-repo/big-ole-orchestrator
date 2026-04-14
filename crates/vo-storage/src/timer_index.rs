@@ -39,11 +39,21 @@ impl TimerKey {
     }
     #[must_use]
     pub fn instance_id(&self) -> InstanceId {
-        InstanceId::from_bytes(self.0[8..24].try_into().unwrap_or_default())
+        let bytes: [u8; 16] = [
+            self.0[8], self.0[9], self.0[10], self.0[11], self.0[12], self.0[13], self.0[14],
+            self.0[15], self.0[16], self.0[17], self.0[18], self.0[19], self.0[20], self.0[21],
+            self.0[22], self.0[23],
+        ];
+        InstanceId::from_bytes(bytes)
     }
     #[must_use]
     pub fn timer_id(&self) -> TimerId {
-        TimerId::from_bytes(self.0[24..40].try_into().unwrap_or_default())
+        let bytes: [u8; 16] = [
+            self.0[24], self.0[25], self.0[26], self.0[27], self.0[28], self.0[29], self.0[30],
+            self.0[31], self.0[32], self.0[33], self.0[34], self.0[35], self.0[36], self.0[37],
+            self.0[38], self.0[39],
+        ];
+        TimerId::from_bytes(bytes)
     }
     #[must_use]
     pub const fn as_bytes(&self) -> &[u8; 40] {
