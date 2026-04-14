@@ -40,6 +40,7 @@ pub mod mmap_cache;
 pub mod partitions;
 pub mod projection_compat;
 pub mod purge;
+pub mod qos_router;
 pub mod query;
 pub mod snapshot_diff;
 pub mod snapshots;
