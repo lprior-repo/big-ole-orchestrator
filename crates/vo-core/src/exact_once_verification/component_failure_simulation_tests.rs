@@ -138,8 +138,9 @@ mod timer_component_failure_tests {
         let events = vec![
             make_event("inst-1", 1, workflow_started_payload("wf-1")),
             make_event("inst-1", 2, step_scheduled_payload("wf-1", "step-1")),
-            make_event("inst-1", 3, timer_set_payload("wf-1", "timer-1")),
-            make_event("inst-1", 4, timer_fired_payload("wf-1", "timer-1")),
+            make_event("inst-1", 3, step_started_payload("wf-1", "step-1")),
+            make_event("inst-1", 4, timer_set_payload("wf-1", "timer-1")),
+            make_event("inst-1", 5, timer_fired_payload("wf-1", "timer-1")),
         ];
 
         let engine = ReplayEngine::new();
