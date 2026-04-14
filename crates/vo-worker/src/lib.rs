@@ -15,6 +15,8 @@ pub use connector::{
     CommitOutcome, Connector, ConnectorError, ConnectorRegistry, HttpConnector,
     PreparedEffect, ReconcileOutcome,
 };
+pub mod executor;
+pub use executor::{ExecutionOutcome, ManagedEffectError, ManagedEffectExecutor, ManagedEffectTask};
 pub mod pool;
 mod port;
 mod retry;
