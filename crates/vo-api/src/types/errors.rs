@@ -47,6 +47,50 @@ pub enum InvariantViolation {
     InvalidStatusForResponse,
 }
 
+/// Workload class rejection errors for fairness/budget violations (ADR-033).
+///
+/// These errors are returned when a workflow start or resume request is rejected
+/// due to workload budget exhaustion or fairness constraints. They map to
+/// HTTP 429 (Too Many Requests) to indicate the client should retry.
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+pub enum WorkloadRejectionError {
+    /// Class budget exhausted - too many concurrent instances of this class.
+    #[error("budget exhausted for {class}: requested {requested}, available {available}. Consider reducing submission rate or waiting for active instances to complete.")]
+    BudgetExhausted {
+        class: String,
+        requested: u32,
+        available: u32,
+    },
+    /// Per-workflow concurrency cap exceeded.
+    #[error("per-workflow cap exceeded for {class}: {workflow_id} has too many active instances.")]
+    WorkflowCapExceeded { class: String, workflow_id: String },
+    /// Global concurrency limit reached across all classes.
+    #[error("global concurrency limit reached: {current}/{max} total instances. System is under heavy load.")]
+    GlobalConcurrencyLimit { current: u32, max: u32 },
+}
+
+impl WorkloadRejectionError {
+    /// Returns the appropriate HTTP status code for this rejection error.
+    #[must_use]
+    pub fn status_code(&self) -> u16 {
+        match self {
+            WorkloadRejectionError::BudgetExhausted { .. } => 429,
+            WorkloadRejectionError::WorkflowCapExceeded { .. } => 429,
+            WorkloadRejectionError::GlobalConcurrencyLimit { .. } => 503,
+        }
+    }
+
+    /// Returns the error code string for API responses.
+    #[must_use]
+    pub fn error_code(&self) -> &'static str {
+        match self {
+            WorkloadRejectionError::BudgetExhausted { .. } => "budget_exhausted",
+            WorkloadRejectionError::WorkflowCapExceeded { .. } => "workflow_cap_exceeded",
+            WorkloadRejectionError::GlobalConcurrencyLimit { .. } => "global_concurrency_limit",
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -125,5 +169,41 @@ mod tests {
             InvariantViolation::InvalidStatusForResponse,
             InvariantViolation::InvalidStatusForResponse
         ));
+    }
+
+    #[test]
+    fn workload_rejection_error_budget_exhausted() {
+        let err = WorkloadRejectionError::BudgetExhausted {
+            class: "Standard".to_string(),
+            requested: 1,
+            available: 0,
+        };
+        assert!(err.to_string().contains("budget exhausted"));
+        assert!(err.to_string().contains("Standard"));
+        assert_eq!(err.status_code(), 429);
+        assert_eq!(err.error_code(), "budget_exhausted");
+    }
+
+    #[test]
+    fn workload_rejection_error_workflow_cap_exceeded() {
+        let err = WorkloadRejectionError::WorkflowCapExceeded {
+            class: "UnsafeBulk".to_string(),
+            workflow_id: "test-workflow".to_string(),
+        };
+        assert!(err.to_string().contains("per-workflow cap exceeded"));
+        assert!(err.to_string().contains("UnsafeBulk"));
+        assert_eq!(err.status_code(), 429);
+        assert_eq!(err.error_code(), "workflow_cap_exceeded");
+    }
+
+    #[test]
+    fn workload_rejection_error_global_concurrency_limit() {
+        let err = WorkloadRejectionError::GlobalConcurrencyLimit {
+            current: 100,
+            max: 100,
+        };
+        assert!(err.to_string().contains("global concurrency limit reached"));
+        assert_eq!(err.status_code(), 503);
+        assert_eq!(err.error_code(), "global_concurrency_limit");
     }
 }

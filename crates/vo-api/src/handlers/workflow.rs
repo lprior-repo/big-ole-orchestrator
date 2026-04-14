@@ -14,7 +14,7 @@ use vo_common::{InstanceId, NamespaceId};
 use vo_core::circuit_breaker::{unquarantine, CircuitBreakerConfig, CircuitBreakerState};
 use vo_types::{BinaryHash, WorkflowName};
 
-use crate::types::{ApiError, V3StartRequest, V3StartResponse, V3StatusResponse};
+use crate::types::{ApiError, V3StartRequest, V3StartResponse, V3StatusResponse, WorkloadRejectionError};
 use crate::handlers::helpers::{parse_paradigm, split_path_id, paradigm_to_str, phase_to_str};
 
 /// Request body for unquarantine API.
@@ -196,6 +196,18 @@ pub async fn start_workflow(
             Json(ApiError::new("spawn_failed", msg)),
         )
             .into_response(),
+        Ok(CallResult::Success(Err(StartError::BudgetExhaustion { class, requested, available }))) => {
+            let rejection = WorkloadRejectionError::BudgetExhausted {
+                class: class.to_string(),
+                requested,
+                available,
+            };
+            (
+                StatusCode::from_u16(rejection.status_code()).unwrap_or(StatusCode::TOO_MANY_REQUESTS),
+                Json(ApiError::new(rejection.error_code(), rejection.to_string())),
+            )
+                .into_response()
+        }
         Ok(CallResult::Success(Ok(_))) => (
             StatusCode::CREATED,
             Json(V3StartResponse {
