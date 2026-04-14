@@ -45,11 +45,16 @@ pub mod resource_quota;
 pub mod segment_tree;
 pub mod snapshot_compat;
 pub mod upcaster;
+pub mod validation;
 pub mod vault;
 pub mod workflow_version;
 pub mod workspace_swap;
 pub mod workload_class;
 pub mod write_class;
+
+pub use validation::{
+    UnsupportedSinkError, WorkflowSinkValidator, validate_workflow_sinks,
+};
 
 #[cfg(kani)]
 pub mod write_class_verification;
