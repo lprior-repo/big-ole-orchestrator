@@ -113,4 +113,60 @@ mod tests {
         };
         assert_eq!(response.lineage_id(), "01ARZ3NDEKTSV4RRFFQ69G5FAV");
     }
+
+    #[test]
+    fn status_error_not_found_displays_correctly() {
+        let err = StatusError::NotFound {
+            instance_id: "01ARZ3NDEKTSV4RRFFQ69G5FAV".to_string(),
+        };
+        assert_eq!(
+            err.to_string(),
+            "not found: workflow 01ARZ3NDEKTSV4RRFFQ69G5FAV"
+        );
+    }
+
+    #[test]
+    fn status_error_unreachable_displays_correctly() {
+        let err = StatusError::Unreachable {
+            url: "http://localhost:3000".to_string(),
+            reason: "connection refused".to_string(),
+        };
+        assert_eq!(
+            err.to_string(),
+            "API unreachable at http://localhost:3000: connection refused"
+        );
+    }
+
+    #[test]
+    fn status_error_http_error_displays_correctly() {
+        let err = StatusError::HttpError {
+            url: "http://localhost:3000/api/v1/workflows/123/status".to_string(),
+            status: 500,
+        };
+        assert_eq!(
+            err.to_string(),
+            "API returned HTTP 500 for http://localhost:3000/api/v1/workflows/123/status"
+        );
+    }
+
+    #[test]
+    fn status_error_invalid_response_displays_correctly() {
+        let err = StatusError::InvalidResponse {
+            reason: "unexpected end of JSON".to_string(),
+        };
+        assert_eq!(
+            err.to_string(),
+            "invalid response from API: unexpected end of JSON"
+        );
+    }
+
+    #[test]
+    fn status_config_with_custom_values() {
+        let config = StatusConfig {
+            engine_url: "http://localhost:9000".to_string(),
+            instance_id: "test-instance-123".to_string(),
+        };
+        assert_eq!(config.engine_url, "http://localhost:9000");
+        assert_eq!(config.instance_id, "test-instance-123");
+    }
 }
