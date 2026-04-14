@@ -73,6 +73,11 @@ pub fn evaluate_registration(
                 workflow_name: request.workflow_name.clone(),
             });
         }
+        RegistrationStatus::Deleted => {
+            return Ok(RegistrationOutcome::WorkflowDeactivated {
+                workflow_name: request.workflow_name.clone(),
+            });
+        }
         RegistrationStatus::Active => {}
     }
 
