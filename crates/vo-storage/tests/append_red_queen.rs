@@ -16,7 +16,7 @@ use std::sync::{Arc, Mutex};
 
 use vo_storage::append::{
     AppendEntry, Appender, BackpressureSignal, BlobWrite, BudgetQueues, BudgetQueuesError,
-    ControlPlaneWrite, ProjectionWrite, QueueConfig, WriteBudget, WriteClass,
+    ClassifiedWrite, ControlPlaneWrite, ProjectionWrite, QueueConfig, WriteBudget, WriteClass,
 };
 use vo_types::events::EventEnvelope;
 #[cfg(test)]
@@ -42,10 +42,7 @@ fn make_control_plane_write(size_bytes: u64) -> ControlPlaneWrite {
 }
 
 fn make_projection_write(id: &str, size_bytes: u64) -> ProjectionWrite {
-    ProjectionWrite {
-        projection_id: id.to_string(),
-        size_bytes,
-    }
+    ProjectionWrite::new(id.to_string(), size_bytes)
 }
 
 fn make_blob_write(id: &str, size_bytes: u64) -> BlobWrite {
@@ -158,24 +155,24 @@ fn red_queen_concurrent_mixed_class_append() {
     let appender = Arc::new(Mutex::new(Appender::new(config, budget)));
 
     std::thread::scope(|s| {
-        let appender_clone = Arc::clone(&appender);
-        s.spawn(|| {
+        let appender_clone = appender.clone();
+        s.spawn(move || {
             for i in 0..100 {
                 let write = make_control_plane_write(100);
                 let _ = appender_clone.lock().unwrap().append_control_plane(write);
             }
         });
 
-        let appender_clone2 = Arc::clone(&appender);
-        s.spawn(|| {
+        let appender_clone2 = appender.clone();
+        s.spawn(move || {
             for i in 0..100 {
                 let write = make_projection_write(&format!("proj-{}", i), 100);
                 let _ = appender_clone2.lock().unwrap().append_projection(write);
             }
         });
 
-        let appender_clone3 = Arc::clone(&appender);
-        s.spawn(|| {
+        let appender_clone3 = appender.clone();
+        s.spawn(move || {
             for i in 0..100 {
                 let write = make_blob_write(&format!("blob-{}", i), 100);
                 let _ = appender_clone3.lock().unwrap().append_blob(write);
@@ -183,7 +180,8 @@ fn red_queen_concurrent_mixed_class_append() {
         });
     });
 
-    let stats = appender.lock().unwrap().stats().lock().unwrap();
+    let binding = appender.lock().unwrap().stats();
+    let stats = binding.lock().unwrap();
     assert_eq!(stats.depth(WriteClass::CriticalControlPlane), 100);
     assert_eq!(stats.depth(WriteClass::OperatorProjection), 100);
     assert_eq!(stats.depth(WriteClass::BulkBlob), 100);
@@ -354,16 +352,14 @@ fn red_queen_queue_capacity_independent_per_class() {
         .append_control_plane(ControlPlaneWrite::new(event.clone(), 100))
         .is_ok());
     assert!(appender
-        .append_projection(ProjectionWrite {
-            projection_id: "proj-1".to_string(),
-            size_bytes: 100
-        })
+        .append_projection(ProjectionWrite::new("proj-1".to_string(), 100))
         .is_ok());
     assert!(appender
         .append_blob(BlobWrite::bulk("blob-1".to_string(), 100))
         .is_ok());
 
-    let stats = appender.stats().lock().unwrap();
+    let binding = appender.stats();
+    let stats = binding.lock().unwrap();
     assert_eq!(stats.depth(WriteClass::CriticalControlPlane), 1);
     assert_eq!(stats.depth(WriteClass::OperatorProjection), 1);
     assert_eq!(stats.depth(WriteClass::BulkBlob), 1);
@@ -475,16 +471,16 @@ fn red_queen_backpressure_any_returns_true_when_any_backpressured() {
 
     // Fill projection queue
     queues
-        .try_enqueue(&AppendEntry::Projection(ProjectionWrite {
-            projection_id: "proj-1".to_string(),
-            size_bytes: 100,
-        }))
+        .try_enqueue(&AppendEntry::Projection(ProjectionWrite::new(
+            "proj-1".to_string(),
+            100,
+        )))
         .unwrap();
     queues
-        .try_enqueue(&AppendEntry::Projection(ProjectionWrite {
-            projection_id: "proj-2".to_string(),
-            size_bytes: 100,
-        }))
+        .try_enqueue(&AppendEntry::Projection(ProjectionWrite::new(
+            "proj-2".to_string(),
+            100,
+        )))
         .unwrap();
 
     assert!(queues.backpressure().any_backpressured());
@@ -502,16 +498,16 @@ fn red_queen_backpressure_should_reject_respects_class() {
 
     // Fill projection queue to capacity
     queues
-        .try_enqueue(&AppendEntry::Projection(ProjectionWrite {
-            projection_id: "proj-1".to_string(),
-            size_bytes: 100,
-        }))
+        .try_enqueue(&AppendEntry::Projection(ProjectionWrite::new(
+            "proj-1".to_string(),
+            100,
+        )))
         .unwrap();
     queues
-        .try_enqueue(&AppendEntry::Projection(ProjectionWrite {
-            projection_id: "proj-2".to_string(),
-            size_bytes: 100,
-        }))
+        .try_enqueue(&AppendEntry::Projection(ProjectionWrite::new(
+            "proj-2".to_string(),
+            100,
+        )))
         .unwrap();
 
     assert!(
@@ -547,10 +543,10 @@ fn red_queen_dequeue_priority_critical_first() {
         .try_enqueue(&AppendEntry::Blob(BlobWrite::bulk("b1".to_string(), 100)))
         .unwrap();
     queues
-        .try_enqueue(&AppendEntry::Projection(ProjectionWrite {
-            projection_id: "p1".to_string(),
-            size_bytes: 100,
-        }))
+        .try_enqueue(&AppendEntry::Projection(ProjectionWrite::new(
+            "p1".to_string(),
+            100,
+        )))
         .unwrap();
     queues
         .try_enqueue(&AppendEntry::ControlPlane(ControlPlaneWrite::new(
@@ -577,10 +573,10 @@ fn red_queen_dequeue_priority_all_classes_eventually_dequeued() {
         .try_enqueue(&AppendEntry::Blob(BlobWrite::bulk("b1".to_string(), 100)))
         .unwrap();
     queues
-        .try_enqueue(&AppendEntry::Projection(ProjectionWrite {
-            projection_id: "p1".to_string(),
-            size_bytes: 100,
-        }))
+        .try_enqueue(&AppendEntry::Projection(ProjectionWrite::new(
+            "p1".to_string(),
+            100,
+        )))
         .unwrap();
     queues
         .try_enqueue(&AppendEntry::ControlPlane(ControlPlaneWrite::new(
@@ -772,10 +768,7 @@ fn red_queen_write_class_classification() {
     );
 
     // ProjectionWrite always classifies as OperatorProjection
-    let proj_write = ProjectionWrite {
-        projection_id: "test".to_string(),
-        size_bytes: 100,
-    };
+    let proj_write = ProjectionWrite::new("test".to_string(), 100);
     assert_eq!(
         proj_write.write_class(),
         WriteClass::OperatorProjection,
@@ -798,10 +791,7 @@ fn red_queen_append_entry_classification() {
     let cp_entry = AppendEntry::ControlPlane(ControlPlaneWrite::new(event.clone(), 100));
     assert_eq!(cp_entry.write_class(), WriteClass::CriticalControlPlane);
 
-    let proj_entry = AppendEntry::Projection(ProjectionWrite {
-        projection_id: "test".to_string(),
-        size_bytes: 100,
-    });
+    let proj_entry = AppendEntry::Projection(ProjectionWrite::new("test".to_string(), 100));
     assert_eq!(proj_entry.write_class(), WriteClass::OperatorProjection);
 
     let blob_entry = AppendEntry::Blob(BlobWrite::bulk("test".to_string(), 100));
@@ -845,16 +835,16 @@ fn red_queen_shared_backpressure_signal() {
         .unwrap();
 
     queues2
-        .try_enqueue(&AppendEntry::Projection(ProjectionWrite {
-            projection_id: "proj-1".to_string(),
-            size_bytes: 100,
-        }))
+        .try_enqueue(&AppendEntry::Projection(ProjectionWrite::new(
+            "proj-1".to_string(),
+            100,
+        )))
         .unwrap();
     queues2
-        .try_enqueue(&AppendEntry::Projection(ProjectionWrite {
-            projection_id: "proj-2".to_string(),
-            size_bytes: 100,
-        }))
+        .try_enqueue(&AppendEntry::Projection(ProjectionWrite::new(
+            "proj-2".to_string(),
+            100,
+        )))
         .unwrap();
 
     assert!(
@@ -895,7 +885,8 @@ fn red_queen_stress_alternating_enqueue_dequeue() {
         }
     }
 
-    let stats = appender.stats().lock().unwrap();
+    let binding = appender.stats();
+    let stats = binding.lock().unwrap();
     assert_eq!(
         stats.depth(WriteClass::CriticalControlPlane),
         50,
@@ -924,10 +915,8 @@ fn red_queen_stress_fill_all_queues_completely() {
                 WriteClass::CriticalControlPlane => {
                     appender.append_control_plane(ControlPlaneWrite::new(event, 100))
                 }
-                WriteClass::OperatorProjection => appender.append_projection(ProjectionWrite {
-                    projection_id: format!("{:?}-{}", class, i),
-                    size_bytes: 100,
-                }),
+                WriteClass::OperatorProjection => appender
+                    .append_projection(ProjectionWrite::new(format!("{:?}-{}", class, i), 100)),
                 WriteClass::BulkBlob => {
                     appender.append_blob(BlobWrite::bulk(format!("{:?}-{}", class, i), 100))
                 }
@@ -938,10 +927,9 @@ fn red_queen_stress_fill_all_queues_completely() {
         let result = match class {
             WriteClass::CriticalControlPlane => appender
                 .append_control_plane(ControlPlaneWrite::new(make_event("overflow", 0), 100)),
-            WriteClass::OperatorProjection => appender.append_projection(ProjectionWrite {
-                projection_id: "overflow".to_string(),
-                size_bytes: 100,
-            }),
+            WriteClass::OperatorProjection => {
+                appender.append_projection(ProjectionWrite::new("overflow".to_string(), 100))
+            }
             WriteClass::BulkBlob => {
                 appender.append_blob(BlobWrite::bulk("overflow".to_string(), 100))
             }
@@ -1010,7 +998,8 @@ fn red_queen_recovery_new_instance_has_empty_state() {
 
     let appender2 = Appender::new(config, budget);
 
-    let stats = appender2.stats().lock().unwrap();
+    let binding = appender2.stats();
+    let stats = binding.lock().unwrap();
     assert_eq!(
         stats.depth(WriteClass::CriticalControlPlane),
         0,
