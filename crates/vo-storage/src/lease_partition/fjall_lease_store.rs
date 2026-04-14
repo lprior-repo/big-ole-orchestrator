@@ -143,22 +143,22 @@ impl LeaseStore for FjallLeaseStore {
             return Err(LeaseStoreError::InvalidArgument);
         }
 
-        let current = self.get_current_lease(instance_id, step_id)?;
-        if let Some(entry) = current {
-            if !entry.is_expired(ttl_ms.saturating_add(0)) {
-                return Err(LeaseStoreError::LeaseAlreadyHeld {
-                    instance_id: instance_id.to_string(),
-                    step_id: step_id.to_string(),
-                });
-            }
-        }
-
         let now_ms = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map_err(|e| LeaseStoreError::Storage {
                 reason: format!("failed to get current time: {e}"),
             })?
             .as_millis() as u64;
+
+        let current = self.get_current_lease(instance_id, step_id)?;
+        if let Some(entry) = current {
+            if !entry.is_expired(now_ms) {
+                return Err(LeaseStoreError::LeaseAlreadyHeld {
+                    instance_id: instance_id.to_string(),
+                    step_id: step_id.to_string(),
+                });
+            }
+        }
 
         let fence_token = self.allocate_fence_token(instance_id, step_id)?;
 

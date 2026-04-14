@@ -116,15 +116,15 @@ impl DedupeStore for FjallDedupeStore {
             }
 
             if keys_to_delete.len() >= PURGE_BATCH_SIZE {
+                let count = keys_to_delete.len();
                 let mut batch = self.keyspace.batch();
                 for key in keys_to_delete.drain(..) {
                     batch.remove(&self.partition, key);
                 }
                 batch.commit().map_err(|e| DedupeStoreError::Storage {
-                    reason: e.to_string(),
+                    reason: format!("failed to commit purge batch: {e}"),
                 })?;
-                purged_count += keys_to_delete.capacity() as u64;
-                keys_to_delete.clear();
+                purged_count += count as u64;
             }
         }
 
