@@ -87,7 +87,7 @@ pub use errors::ParseError;
 pub use events::{Error as EventError, EventEnvelope};
 pub use instance_status::InstanceStatus;
 pub use lifecycle_superstate::LifecycleSuperstate;
-pub use lineage::{Epoch, LineageError, WorkflowLineage};
+pub use lineage::{Epoch, LineageError, LineageStatus, WorkflowLineage};
 pub use node_kind::NodeKind;
 pub use non_empty_vec::NonEmptyVec;
 pub use registration_status::RegistrationStatus;

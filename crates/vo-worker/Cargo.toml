@@ -20,13 +20,12 @@ serde_json = { workspace = true }
 bytes = { workspace = true }
 rmp-serde = { workspace = true }
 
-crc32fast = "1.3"
+crc32fast = { workspace = true }
 
 # Utilities
 thiserror = { workspace = true }
 chrono = { workspace = true }
 tracing = { workspace = true }
-crc32fast = { workspace = true }
 
 # Actor framework
 ractor = { workspace = true }
