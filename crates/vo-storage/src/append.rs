@@ -13,6 +13,33 @@ use vo_types::events::EventEnvelope;
 use vo_types::events::EventMetadata;
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Metrics Helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+use metrics::{counter, gauge};
+
+fn write_class_label(class: WriteClass) -> &'static str {
+    match class {
+        WriteClass::CriticalControlPlane => "critical_control_plane",
+        WriteClass::OperatorProjection => "operator_projection",
+        WriteClass::BulkBlob => "bulk_blob",
+    }
+}
+
+fn emit_queue_depth(class: WriteClass, depth: usize) {
+    gauge!("vo_storage.queue_depth", "write_class" => write_class_label(class)).set(depth as f64);
+}
+
+fn emit_rejection(class: WriteClass, reason: &str) {
+    let key = match reason {
+        "queue_full" => "queue_full",
+        "budget_exceeded" => "budget_exceeded",
+        _ => "unknown",
+    };
+    counter!("vo_storage.write_rejected_total", "write_class" => write_class_label(class), "reason" => key).increment(1);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // WriteClass
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -584,6 +611,7 @@ impl<T> BudgetQueues<T> {
 
         // Check budget first
         if !self.budget.can_write(class, size) {
+            emit_rejection(class, "budget_exceeded");
             return Err(BudgetQueuesError::BudgetExceeded {
                 class,
                 item_size: size,
@@ -607,6 +635,7 @@ impl<T> BudgetQueues<T> {
             if q.is_full() {
                 let depth = q.len();
                 let capacity = q.capacity();
+                emit_rejection(class, "queue_full");
                 self.backpressure.set_full(class, depth, capacity);
                 return Err(BudgetQueuesError::QueueFull {
                     class,
@@ -619,6 +648,7 @@ impl<T> BudgetQueues<T> {
 
         // If overflow, return error
         if overflow.is_some() {
+            emit_rejection(class, "queue_full");
             let depth = match self.stats.lock() {
                 Ok(guard) => guard.depth(class),
                 Err(poisoned) => poisoned.into_inner().depth(class),
@@ -642,6 +672,7 @@ impl<T> BudgetQueues<T> {
                 Ok(mut guard) => guard.pop(),
                 Err(poisoned) => poisoned.into_inner().pop(),
             };
+            emit_rejection(class, "budget_exceeded");
             return Err(BudgetQueuesError::BudgetExceeded {
                 class,
                 item_size: size,
@@ -650,13 +681,16 @@ impl<T> BudgetQueues<T> {
         }
 
         // Update stats
-        {
+        let new_depth = {
             let mut guard = match self.stats.lock() {
                 Ok(guard) => guard,
                 Err(poisoned) => poisoned.into_inner(),
             };
             guard.increment(class);
-        }
+            guard.depth(class)
+        };
+
+        emit_queue_depth(class, new_depth);
 
         Ok(())
     }
@@ -684,10 +718,16 @@ impl<T> BudgetQueues<T> {
                 Err(poisoned) => poisoned.into_inner().is_full(class),
             };
 
-            match self.stats.lock() {
-                Ok(mut guard) => guard.decrement(class),
-                Err(poisoned) => poisoned.into_inner().decrement(class),
-            }
+            let new_depth = {
+                let mut guard = match self.stats.lock() {
+                    Ok(guard) => guard,
+                    Err(poisoned) => poisoned.into_inner(),
+                };
+                guard.decrement(class);
+                guard.depth(class)
+            };
+
+            emit_queue_depth(class, new_depth);
 
             if was_full {
                 let remaining = match self.stats.lock() {
@@ -1416,5 +1456,133 @@ mod tests {
 
         // Backpressure should be set on projection
         assert!(signal.is_backpressured(WriteClass::OperatorProjection));
+    }
+
+    use serial_test::serial;
+
+    // ── Metrics Emission Tests ────────────────────────────────────────────────
+
+    fn test_event() -> EventEnvelope {
+        EventEnvelope {
+            schema_version: 1,
+            instance_id: "inst-1".to_string(),
+            sequence: 1,
+            timestamp_ms: 1000,
+            payload: serde_json::json!({}),
+            metadata: EventMetadata::default(),
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn metrics_queue_depth_and_rejection_emitted() {
+        let recorder = metrics_util::debugging::DebuggingRecorder::new();
+        let snapshot = recorder.snapshotter();
+        metrics::set_global_recorder(recorder).expect("install recorder");
+
+        let config = QueueConfig {
+            critical_capacity: 1,
+            projection_capacity: 1,
+            blob_capacity: 1,
+        };
+        let budget = WriteBudget::new(10000, 10000, 10000);
+        let queues = BudgetQueues::<AppendEntry>::new(config, budget);
+
+        queues
+            .try_enqueue(&AppendEntry::ControlPlane(ControlPlaneWrite::new(
+                test_event(),
+                100,
+            )))
+            .ok();
+
+        let entries = snapshot.snapshot().into_vec();
+        let depth_gauges: Vec<_> = entries
+            .iter()
+            .filter(|(key, _, _, val)| {
+                key.key().name() == "vo_storage.queue_depth"
+                    && matches!(val, metrics_util::debugging::DebugValue::Gauge(_))
+            })
+            .collect();
+
+        assert!(
+            !depth_gauges.is_empty(),
+            "expected queue_depth gauge after enqueue"
+        );
+        let (key, _, _, val) = &depth_gauges[0];
+        let labels: Vec<_> = key.key().labels().collect();
+        assert!(labels.iter().any(|l| l.value() == "critical_control_plane"));
+        if let metrics_util::debugging::DebugValue::Gauge(v) = val {
+            assert_eq!(v.0, 1.0);
+        }
+
+        queues.dequeue(WriteClass::CriticalControlPlane);
+
+        let entries = snapshot.snapshot().into_vec();
+        let depth_after: Vec<_> = entries
+            .iter()
+            .filter(|(key, _, _, val)| {
+                key.key().name() == "vo_storage.queue_depth"
+                    && matches!(val, metrics_util::debugging::DebugValue::Gauge(_))
+                    && key
+                        .key()
+                        .labels()
+                        .any(|l| l.value() == "critical_control_plane")
+            })
+            .collect();
+
+        if let metrics_util::debugging::DebugValue::Gauge(v) = &depth_after.last().unwrap().3 {
+            assert_eq!(v.0, 0.0, "gauge should be 0 after dequeue");
+        }
+
+        let _ = queues.try_enqueue(&AppendEntry::Projection(ProjectionWrite {
+            projection_id: "p1".to_string(),
+            size_bytes: 100,
+        }));
+        let _ = queues.try_enqueue(&AppendEntry::Projection(ProjectionWrite {
+            projection_id: "p2".to_string(),
+            size_bytes: 100,
+        }));
+
+        let entries = snapshot.snapshot().into_vec();
+        let reject_counters: Vec<_> = entries
+            .iter()
+            .filter(|(key, _, _, val)| {
+                key.key().name() == "vo_storage.write_rejected_total"
+                    && matches!(val, metrics_util::debugging::DebugValue::Counter(_))
+            })
+            .collect();
+
+        assert!(
+            !reject_counters.is_empty(),
+            "expected rejection counter after queue full"
+        );
+        let (key, _, _, val) = &reject_counters[0];
+        let labels: Vec<_> = key.key().labels().collect();
+        assert!(labels.iter().any(|l| l.value() == "operator_projection"));
+        assert!(labels.iter().any(|l| l.value() == "queue_full"));
+        if let metrics_util::debugging::DebugValue::Counter(v) = val {
+            assert_eq!(*v, 1);
+        }
+
+        let budget_config = QueueConfig::default();
+        let budget_queues = WriteBudget::new(10, 10, 10);
+        let q2 = BudgetQueues::<AppendEntry>::new(budget_config, budget_queues);
+        let _ = q2.try_enqueue(&AppendEntry::Blob(BlobWrite::bulk("b1".to_string(), 100)));
+
+        let entries = snapshot.snapshot().into_vec();
+        let budget_rejects: Vec<_> = entries
+            .iter()
+            .filter(|(key, _, _, val)| {
+                key.key().name() == "vo_storage.write_rejected_total"
+                    && matches!(val, metrics_util::debugging::DebugValue::Counter(_))
+                    && key.key().labels().any(|l| l.value() == "bulk_blob")
+                    && key.key().labels().any(|l| l.value() == "budget_exceeded")
+            })
+            .collect();
+
+        assert!(
+            !budget_rejects.is_empty(),
+            "expected budget_exceeded rejection counter"
+        );
     }
 }
