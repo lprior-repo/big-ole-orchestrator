@@ -1,17 +1,17 @@
 [package]
 name = "vo-sdk"
-version = "0.1.0"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
 
 [dependencies]
-vo-types = { path = "../vo-types" }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-thiserror = "1.0"
+vo-types = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
 
 [dev-dependencies]
-rstest = "0.23"
-proptest = "1.4"
-tempfile = "3.10"
-criterion = "0.5"
-insta = "1.41"
+rstest = { workspace = true }
+proptest = { workspace = true }
+tempfile = { workspace = true }
+criterion = { workspace = true }
+insta = { workspace = true }
