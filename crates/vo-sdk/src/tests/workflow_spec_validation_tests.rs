@@ -751,7 +751,7 @@ fn dag_build_rejects_three_node_cycle() {
     dag.connect(&c, &a).expect("c->a");
     let result = dag.build("triangle-cycle");
     assert!(
-        matches!(result, Err(DagError::CycleDetected)),
+        matches!(result, Err(DagError::CycleDetected { .. })),
         "3-node cycle should be detected"
     );
 }
@@ -769,7 +769,7 @@ fn dag_build_rejects_cycle_with_mixed_node_kinds() {
     dag.connect(&b, &a).expect("b->a");
     let result = dag.build("mixed-cycle");
     assert!(
-        matches!(result, Err(DagError::CycleDetected)),
+        matches!(result, Err(DagError::CycleDetected { .. })),
         "cycle with mixed kinds should be detected"
     );
 }

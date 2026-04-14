@@ -71,7 +71,6 @@ fn graph_workflow_spec_round_trips_via_serde() {
             from: NodeName::parse("validate").expect("valid"),
             to: NodeName::parse("charge").expect("valid"),
         }],
-        version: 1,
     };
     let json = serde_json::to_string_pretty(&spec).expect("serialize");
     let restored: crate::graph_args::GraphWorkflowSpec =

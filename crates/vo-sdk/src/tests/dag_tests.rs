@@ -34,7 +34,9 @@ fn dag_error_display_empty_workflow() {
 
 #[test]
 fn dag_error_display_cycle_detected() {
-    let err = DagError::CycleDetected;
+    let err = DagError::CycleDetected {
+        cycle: "a -> b".to_string(),
+    };
     assert!(
         err.to_string().contains("cycle"),
         "CycleDetected display should mention cycle: {err}"
@@ -69,7 +71,9 @@ fn dag_all_error_variants_display_non_empty() {
             name: "y".to_string(),
         },
         DagError::EmptyWorkflow,
-        DagError::CycleDetected,
+        DagError::CycleDetected {
+            cycle: "x -> y".to_string(),
+        },
     ];
     for v in &variants {
         assert!(

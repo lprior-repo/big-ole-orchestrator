@@ -21,8 +21,8 @@ pub enum DagError {
     NodeNotFound { name: String },
     #[error("workflow has no nodes")]
     EmptyWorkflow,
-    #[error("workflow contains a cycle")]
-    CycleDetected,
+    #[error("cycle detected: {cycle}")]
+    CycleDetected { cycle: String },
 }
 
 /// Internal node record with name and kind.
@@ -139,6 +139,56 @@ impl Dag {
             })
     }
 
+    fn find_cycle_nodes(nodes: &[DagNodeRecord], edges: &[(usize, usize)]) -> String {
+        let n = nodes.len();
+        let mut visited = vec![0u8; n];
+        let mut stack: Vec<usize> = Vec::new();
+        let mut cycle_path: Vec<usize> = Vec::new();
+
+        fn dfs(
+            node: usize,
+            edges: &[(usize, usize)],
+            visited: &mut [u8],
+            stack: &mut Vec<usize>,
+            cycle_path: &mut Vec<usize>,
+        ) -> bool {
+            visited[node] = 1;
+            stack.push(node);
+            for &(_, to) in edges.iter().filter(|&&(_from, _)| _from == node) {
+                if visited[to] == 0 {
+                    if dfs(to, edges, visited, stack, cycle_path) {
+                        return true;
+                    }
+                } else if visited[to] == 1 {
+                    if let Some(pos) = stack.iter().position(|&x| x == to) {
+                        let cycle: Vec<usize> = stack[pos..].to_vec();
+                        cycle_path.extend(cycle);
+                        return true;
+                    }
+                }
+            }
+            stack.pop();
+            visited[node] = 2;
+            false
+        }
+
+        for i in 0..n {
+            if visited[i] == 0 && dfs(i, edges, &mut visited, &mut stack, &mut cycle_path) {
+                break;
+            }
+        }
+
+        if cycle_path.is_empty() {
+            return "unknown cycle".to_string();
+        }
+
+        let cycle_names: Vec<String> = cycle_path
+            .iter()
+            .map(|&idx| nodes[idx].name.as_str().to_string())
+            .collect();
+        cycle_names.join(" -> ")
+    }
+
     /// Build a [`WorkflowSpec`] from this DAG.
     ///
     /// # Errors
@@ -170,18 +220,14 @@ impl Dag {
             }
         }
         if visited != n {
-            return Err(DagError::CycleDetected);
+            let cycle_nodes = Self::find_cycle_nodes(&self.nodes, &self.edges);
+            return Err(DagError::CycleDetected { cycle: cycle_nodes });
         }
 
         let wf_name =
             WorkflowName::parse(workflow_name).map_err(|_| DagError::InvalidNodeName {
                 name: workflow_name.to_string(),
             })?;
-
-        // Check for cycles before building spec
-        if self.has_cycle() {
-            return Err(DagError::CycleDetected);
-        }
 
         let node_specs: Vec<NodeSpec> = self
             .nodes
@@ -205,7 +251,6 @@ impl Dag {
             workflow_name: wf_name,
             nodes: node_specs,
             edges: edge_specs,
-            version: WorkflowSpec::default_version(),
         })
     }
 

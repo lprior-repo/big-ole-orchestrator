@@ -74,6 +74,74 @@ impl WorkflowSpec {
     pub fn to_json_bytes(&self) -> Vec<u8> {
         serde_json::to_vec(self).expect("WorkflowSpec is always serializable")
     }
+
+    pub(crate) fn detect_cycle(&self) -> Option<String> {
+        let n = self.nodes.len();
+        if n == 0 {
+            return None;
+        }
+        let name_to_idx: std::collections::HashMap<&str, usize> = self
+            .nodes
+            .iter()
+            .enumerate()
+            .map(|(i, n)| (n.name.as_str(), i))
+            .collect();
+        let edges: Vec<(usize, usize)> = self
+            .edges
+            .iter()
+            .filter_map(|e| {
+                let from_idx = name_to_idx.get(e.from.as_str()).copied();
+                let to_idx = name_to_idx.get(e.to.as_str()).copied();
+                from_idx.and_then(|f| to_idx.map(|t| (f, t)))
+            })
+            .collect();
+        let mut visited = vec![0u8; n];
+        let mut stack: Vec<usize> = Vec::new();
+        let mut cycle_path: Vec<usize> = Vec::new();
+
+        fn dfs(
+            node: usize,
+            edges: &[(usize, usize)],
+            visited: &mut [u8],
+            stack: &mut Vec<usize>,
+            cycle_path: &mut Vec<usize>,
+        ) -> bool {
+            visited[node] = 1;
+            stack.push(node);
+            for &(_, to) in edges.iter().filter(|&&(_from, _)| _from == node) {
+                if visited[to] == 0 {
+                    if dfs(to, edges, visited, stack, cycle_path) {
+                        return true;
+                    }
+                } else if visited[to] == 1 {
+                    if let Some(pos) = stack.iter().position(|&x| x == to) {
+                        let cycle: Vec<usize> = stack[pos..].to_vec();
+                        cycle_path.extend(cycle);
+                        return true;
+                    }
+                }
+            }
+            stack.pop();
+            visited[node] = 2;
+            false
+        }
+
+        for i in 0..n {
+            if visited[i] == 0 && dfs(i, &edges, &mut visited, &mut stack, &mut cycle_path) {
+                break;
+            }
+        }
+
+        if cycle_path.is_empty() {
+            return None;
+        }
+
+        let cycle_names: Vec<String> = cycle_path
+            .iter()
+            .map(|&idx| self.nodes[idx].name.as_str().to_string())
+            .collect();
+        Some(cycle_names.join(" -> "))
+    }
 }
 
 /// Full workflow graph specification produced by `--graph`.
@@ -108,6 +176,10 @@ pub type GraphWorkflowSpec = WorkflowSpec;
 pub fn emit_graph_if_requested(args: &[String], spec: &WorkflowSpec) -> Result<(), ()> {
     match parse_graph_args(args) {
         Ok(_graph_args) => {
+            if let Some(cycle) = spec.detect_cycle() {
+                eprintln!("error: cycle detected: {}", cycle);
+                std::process::exit(1);
+            }
             let json = spec.to_json_bytes();
             std::io::stdout()
                 .write_all(&json)
