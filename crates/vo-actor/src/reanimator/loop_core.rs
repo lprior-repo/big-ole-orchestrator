@@ -102,39 +102,92 @@ impl ReanimatorLoop {
         let state_sender_clone = state_sender.clone();
         let shutdown_receiver = shutdown_trigger.subscribe();
 
-        // Run crash recovery before starting the loop
-        // This ensures any pending timers from a previous crash are replayed
+        // Clone Arcs for use in the spawned task
         let storage_clone = storage.clone();
         let work_queue_clone = work_queue.clone();
-        let runtime = tokio::runtime::Handle::current();
-        runtime.block_on(async {
-            if let Err(e) = Self::run_crash_recovery(&storage_clone, &work_queue_clone).await {
-                tracing::warn!("Crash recovery completed with error: {}", e);
+
+        // Check if we're already inside a Tokio runtime context FIRST
+        // (e.g., when called from within a #[tokio::test])
+        // try_current returns Ok if we're inside a runtime, Err otherwise
+        match tokio::runtime::Handle::try_current() {
+            Ok(runtime) => {
+                // Inside a runtime: run crash recovery on a blocking thread first,
+                // THEN spawn the main loop (which will set state to Running)
+                let storage_clone2 = storage_clone.clone();
+                let work_queue_clone2 = work_queue_clone.clone();
+
+                runtime.spawn_blocking(move || {
+                    let rt = tokio::runtime::Handle::current();
+                    rt.block_on(async {
+                        if let Err(e) =
+                            Self::run_crash_recovery(&storage_clone2, &work_queue_clone2).await
+                        {
+                            tracing::warn!("Crash recovery completed with error: {}", e);
+                        }
+                    });
+                });
+
+                let task_handle = runtime.spawn(async move {
+                    let result = Self::run_loop_inner(
+                        config,
+                        storage_clone,
+                        work_queue_clone,
+                        state_sender_clone,
+                        shutdown_receiver,
+                    )
+                    .await;
+                    if let Err(e) = result {
+                        tracing::error!("Reanimator loop exited with error: {}", e);
+                    }
+                });
+
+                Ok(ReanimatorHandle {
+                    state_sender,
+                    shutdown_trigger: shutdown_trigger.clone(),
+                    task_handle: Some(task_handle),
+                })
             }
-        });
+            Err(_) => {
+                // Outside a runtime: create a new runtime and run everything
+                let runtime = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .map_err(|e| ReanimatorError::TaskSpawnFailed(format!("Failed to build runtime: {}", e)))?;
 
-        // Spawn the background task
-        let task_handle = tokio::runtime::Handle::current().spawn(async move {
-            let result = Self::run_loop_inner(
-                config,
-                storage,
-                work_queue,
-                state_sender_clone,
-                shutdown_receiver,
-            )
-            .await;
-            if let Err(e) = result {
-                tracing::error!("Reanimator loop exited with error: {}", e);
+                let handle = runtime.block_on(async {
+                    if let Err(e) =
+                        Self::run_crash_recovery(&storage_clone, &work_queue_clone).await
+                    {
+                        tracing::warn!("Crash recovery completed with error: {}", e);
+                    }
+
+                    let task_handle = runtime.handle().spawn(async move {
+                        let result = Self::run_loop_inner(
+                            config,
+                            storage_clone,
+                            work_queue_clone,
+                            state_sender_clone,
+                            shutdown_receiver,
+                        )
+                        .await;
+                        if let Err(e) = result {
+                            tracing::error!("Reanimator loop exited with error: {}", e);
+                        }
+                    });
+
+                    // Wait for the spawned task to actually start running
+                    // by giving it a chance to be scheduled
+                    tokio::time::sleep(std::time::Duration::from_micros(1)).await;
+
+                    ReanimatorHandle {
+                        state_sender,
+                        shutdown_trigger: shutdown_trigger.clone(),
+                        task_handle: Some(task_handle),
+                    }
+                });
+                Ok(handle)
             }
-        });
-
-        let handle = ReanimatorHandle {
-            state_sender,
-            shutdown_trigger: shutdown_trigger.clone(),
-            task_handle: Some(task_handle),
-        };
-
-        Ok(handle)
+        }
     }
 
     /// Runs crash recovery to detect and replay pending timers from a previous crash.
