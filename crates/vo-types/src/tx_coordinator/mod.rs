@@ -13,6 +13,9 @@ mod tests;
 #[cfg(test)]
 mod red_queen_tests;
 
+#[cfg(test)]
+mod integration_tests;
+
 #[cfg(feature = "proptest")]
 mod proptests;
 
