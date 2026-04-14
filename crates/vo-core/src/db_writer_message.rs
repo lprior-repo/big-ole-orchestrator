@@ -12,8 +12,12 @@ use thiserror::Error;
 use vo_types::events::EventMetadata;
 use vo_types::{
     EffectRecord, EventEnvelope, FenceToken, FireAtMs, IdempotencyKey, InstanceId, InstanceStatus,
-    SequenceNumber, StepId, TimerId,
+    SequenceNumber, StepId, TimerId, MAX_SUPPORTED_SCHEMA_VERSION,
 };
+
+fn default_schema_version() -> u16 {
+    MAX_SUPPORTED_SCHEMA_VERSION
+}
 
 /// Error types for DbWriterMessage operations.
 #[allow(dead_code)]
@@ -55,6 +59,8 @@ pub enum TimerOp {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SnapshotData {
     sequence_number: SequenceNumber,
+    #[serde(default = "default_schema_version")]
+    schema_version: u16,
     state_bytes: Vec<u8>,
 }
 
@@ -64,12 +70,17 @@ impl SnapshotData {
     ///
     /// Returns `Err` if `state_bytes` is empty (invariant: state must be non-empty).
     #[must_use]
-    pub fn new(sequence_number: SequenceNumber, state_bytes: Vec<u8>) -> Option<Self> {
+    pub fn new(
+        sequence_number: SequenceNumber,
+        schema_version: u16,
+        state_bytes: Vec<u8>,
+    ) -> Option<Self> {
         if state_bytes.is_empty() {
             return None;
         }
         Some(Self {
             sequence_number,
+            schema_version,
             state_bytes,
         })
     }
@@ -77,6 +88,11 @@ impl SnapshotData {
     #[must_use]
     pub fn sequence_number(&self) -> SequenceNumber {
         self.sequence_number
+    }
+
+    #[must_use]
+    pub fn schema_version(&self) -> u16 {
+        self.schema_version
     }
 
     #[must_use]
@@ -208,7 +224,12 @@ mod tests {
     }
 
     fn valid_snapshot_data() -> SnapshotData {
-        SnapshotData::new(valid_sequence(), vec![0x01, 0x02, 0x03]).expect("valid snapshot data")
+        SnapshotData::new(
+            valid_sequence(),
+            MAX_SUPPORTED_SCHEMA_VERSION,
+            vec![0x01, 0x02, 0x03],
+        )
+        .expect("valid snapshot data")
     }
 
     // ========================================================================
@@ -670,8 +691,10 @@ mod tests {
 
     #[test]
     fn snapshot_data_different_state_bytes_compare_unequal() {
-        let sd1 = SnapshotData::new(valid_sequence(), vec![0x01]).expect("valid snapshot data");
-        let sd2 = SnapshotData::new(valid_sequence(), vec![0x02]).expect("valid snapshot data");
+        let sd1 = SnapshotData::new(valid_sequence(), MAX_SUPPORTED_SCHEMA_VERSION, vec![0x01])
+            .expect("valid snapshot data");
+        let sd2 = SnapshotData::new(valid_sequence(), MAX_SUPPORTED_SCHEMA_VERSION, vec![0x02])
+            .expect("valid snapshot data");
         assert_ne!(sd1, sd2);
     }
 
@@ -681,13 +704,17 @@ mod tests {
 
     #[test]
     fn snapshot_data_new_returns_some_when_state_bytes_non_empty() {
-        let snap = SnapshotData::new(valid_sequence(), vec![0x01, 0x02, 0x03]);
+        let snap = SnapshotData::new(
+            valid_sequence(),
+            MAX_SUPPORTED_SCHEMA_VERSION,
+            vec![0x01, 0x02, 0x03],
+        );
         assert!(snap.is_some());
     }
 
     #[test]
     fn snapshot_data_new_returns_none_when_state_bytes_empty() {
-        let snap = SnapshotData::new(valid_sequence(), vec![]);
+        let snap = SnapshotData::new(valid_sequence(), MAX_SUPPORTED_SCHEMA_VERSION, vec![]);
         assert_eq!(snap, None);
     }
 }
