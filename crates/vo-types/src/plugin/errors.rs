@@ -118,7 +118,7 @@ impl fmt::Display for PluginHotLoadError {
         let mut category_msg = String::new();
         for c in category.chars() {
             if c.is_uppercase() && !category_msg.is_empty() {
-                let prev = category_msg.chars().last().unwrap();
+                let prev = category_msg.chars().last().map_or('_', |ch| ch);
                 if prev != '_' && prev != ' ' {
                     category_msg.push(' ');
                 }

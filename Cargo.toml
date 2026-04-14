@@ -109,6 +109,9 @@ opt-level = 0
 debug = true
 
 [workspace.lints.clippy]
+unwrap_used = "warn"
+expect_used = "warn"
+panic = "warn"
 unused_async = "deny"
 await_holding_lock = "deny"
 await_holding_refcell_ref = "deny"

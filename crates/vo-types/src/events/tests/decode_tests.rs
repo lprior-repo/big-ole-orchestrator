@@ -18,14 +18,14 @@ fn decode_event_returns_ok_when_envelope_and_payload_are_valid() {
 fn decode_event_returns_envelope_decode_failed_when_envelope_is_malformed() {
     let json = r#"{"version": 1, "instance_id": "wf-123""#;
     let result = decode_event(json.as_bytes());
-    assert!(matches!(result, Err(Error::EnvelopeDecodeFailed(_))));
+    assert!(matches!(result, Err(Error::EnvelopeDecodeFailed { .. })));
 }
 
 #[test]
 fn decode_event_returns_payload_decode_failed_when_payload_is_invalid() {
     let json = r#"{"version": 1, "instance_id": "wf-123", "sequence": 1, "timestamp_ms": 1000, "payload": {"type": "UnknownType", "version": 1}, "metadata": {}}"#;
     let result = decode_event(json.as_bytes());
-    assert!(matches!(result, Err(Error::PayloadDecodeFailed(_))));
+    assert!(matches!(result, Err(Error::PayloadDecodeFailed { .. })));
 }
 
 #[test]

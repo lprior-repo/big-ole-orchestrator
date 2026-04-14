@@ -10,7 +10,7 @@ proptest = ["dep:proptest"]
 [dependencies]
 vo-types = { workspace = true }
 ractor.workspace = true
-thiserror = "1"
+thiserror.workspace = true
 async-trait = "0.1"
 tracing = "0.1"
 tokio = { workspace = true, features = ["rt", "sync", "time", "macros"] }

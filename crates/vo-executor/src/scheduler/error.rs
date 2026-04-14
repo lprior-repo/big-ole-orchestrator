@@ -2,7 +2,7 @@
 
 use thiserror::Error;
 
-#[derive(Debug, Error)]
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum SchedulerError {
     #[error("Job not found: {0}")]
     JobNotFound(super::JobId),
@@ -23,7 +23,7 @@ pub enum SchedulerError {
     StorageError(String),
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum JobRunError {
     #[error("Job {job_id} failed: {reason}")]
     Failed {

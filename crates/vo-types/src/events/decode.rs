@@ -17,14 +17,18 @@ pub fn decode_event(input: &[u8]) -> Result<(EventEnvelope, EventPayload), Error
             return Err(Error::PayloadDecodeSkipped);
         }
         Err(e) => {
-            return Err(Error::EnvelopeDecodeFailed(Box::new(e)));
+            return Err(Error::EnvelopeDecodeFailed {
+                source: Box::new(e),
+            });
         }
         Ok(envelope) => envelope,
     };
     if !envelope.is_supported() {
         return Err(Error::PayloadDecodeSkipped);
     }
-    let payload = EventPayload::try_from_json(&envelope.payload)
-        .map_err(|e| Error::PayloadDecodeFailed(Box::new(e)))?;
+    let payload =
+        EventPayload::try_from_json(&envelope.payload).map_err(|e| Error::PayloadDecodeFailed {
+            source: Box::new(e),
+        })?;
     Ok((envelope, payload))
 }
