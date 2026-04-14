@@ -34,7 +34,8 @@ async fn execution_semaphore_concurrent_limit_enforced() {
         max_waiters_for_shed: 1000,
         max_per_workflow: 10,
         acquire_timeout: Duration::from_secs(30),
-        reserved_permits: 50,
+        reserved_permits: 0,
+        ..Default::default()
     };
     let sem = Arc::new(ExecutionSemaphore::new(config));
 

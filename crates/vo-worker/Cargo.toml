@@ -43,6 +43,7 @@ reqwest = { workspace = true }
 anyhow = { workspace = true }
 axum = { workspace = true }
 tower = { workspace = true }
+proptest = { workspace = true }
 
 [lib]
 path = "src/lib.rs"
