@@ -2,7 +2,7 @@
 
 use super::engine::ReplayEngine;
 use super::test_helpers::*;
-use super::types::ReplayError;
+use super::types::{ReplayError, ReplayErrorKind};
 use serde_json::json;
 use vo_types::state::LifecycleState;
 
@@ -140,4 +140,60 @@ fn replay_stops_processing_after_reaching_cancelled_state() {
     let result = engine.replay(&events).expect("replay should succeed");
     assert_eq!(result.final_state, Some(LifecycleState::Cancelled));
     assert_eq!(result.events_applied, 2);
+}
+
+// =========================================================================
+// Error Kind Mapping Tests (Behaviors 21–22)
+// =========================================================================
+
+#[test]
+fn instance_mismatch_error_is_deterministic() {
+    let engine = ReplayEngine::new();
+    let events = [
+        make_event("inst-1", 1, workflow_started_payload("wf-1")),
+        make_event("inst-2", 2, step_scheduled_payload("wf-1", "step-1")),
+    ];
+    let err = engine.replay(&events).expect_err("should fail");
+    assert_eq!(err.kind(), ReplayErrorKind::Deterministic);
+}
+
+#[test]
+fn sequence_gap_error_is_deterministic() {
+    let engine = ReplayEngine::new();
+    let events = [
+        make_event("inst-1", 1, workflow_started_payload("wf-1")),
+        make_event("inst-1", 3, step_scheduled_payload("wf-1", "step-1")),
+    ];
+    let err = engine.replay(&events).expect_err("should fail");
+    assert_eq!(err.kind(), ReplayErrorKind::Deterministic);
+}
+
+#[test]
+fn sequence_duplicate_error_is_deterministic() {
+    let engine = ReplayEngine::new();
+    let events = [
+        make_event("inst-1", 1, workflow_started_payload("wf-1")),
+        make_event("inst-1", 1, step_scheduled_payload("wf-1", "step-1")),
+    ];
+    let err = engine.replay(&events).expect_err("should fail");
+    assert_eq!(err.kind(), ReplayErrorKind::Deterministic);
+}
+
+#[test]
+fn payload_decode_failed_error_is_deterministic() {
+    let engine = ReplayEngine::new();
+    let events = [make_event("inst-1", 1, json!({"type": "UnknownType"}))];
+    let err = engine.replay(&events).expect_err("should fail");
+    assert_eq!(err.kind(), ReplayErrorKind::Deterministic);
+}
+
+#[test]
+fn transition_failed_error_is_deterministic() {
+    let engine = ReplayEngine::new();
+    let events = [
+        make_event("inst-1", 1, workflow_started_payload("wf-1")),
+        make_event("inst-1", 2, step_completed_payload("wf-1", "step-1")),
+    ];
+    let err = engine.replay(&events).expect_err("should fail");
+    assert_eq!(err.kind(), ReplayErrorKind::Deterministic);
 }
