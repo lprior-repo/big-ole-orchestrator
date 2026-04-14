@@ -27,6 +27,7 @@ rmp-serde = { workspace = true }
 thiserror = { workspace = true }
 chrono = { workspace = true }
 tracing = { workspace = true }
+crc32fast = "1.3"
 
 # Actor framework
 ractor = { workspace = true }

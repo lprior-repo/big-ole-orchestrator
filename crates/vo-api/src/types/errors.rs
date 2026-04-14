@@ -206,4 +206,88 @@ mod tests {
         assert_eq!(err.status_code(), 503);
         assert_eq!(err.error_code(), "global_concurrency_limit");
     }
+
+    #[test]
+    fn budget_tracker_rejection_maps_to_correct_status_code_and_json_payload() {
+        let err = WorkloadRejectionError::BudgetExhausted {
+            class: "recovery".to_string(),
+            requested: 1,
+            available: 0,
+        };
+        assert_eq!(err.status_code(), 429);
+        assert_eq!(err.error_code(), "budget_exhausted");
+        let msg = err.to_string();
+        assert!(msg.contains("budget exhausted"));
+        assert!(msg.contains("recovery"));
+        assert!(msg.contains("requested"));
+        assert!(msg.contains("available"));
+    }
+
+    #[test]
+    fn unknown_rejection_type_falls_back_to_standard_503() {
+        let err = WorkloadRejectionError::GlobalConcurrencyLimit {
+            current: 50,
+            max: 100,
+        };
+        assert_eq!(err.status_code(), 503);
+        assert_eq!(err.error_code(), "global_concurrency_limit");
+    }
+
+    #[test]
+    fn workload_rejection_error_all_variants_have_stable_status_codes() {
+        assert_eq!(
+            WorkloadRejectionError::BudgetExhausted {
+                class: "test".to_string(),
+                requested: 1,
+                available: 0,
+            }
+            .status_code(),
+            429
+        );
+        assert_eq!(
+            WorkloadRejectionError::WorkflowCapExceeded {
+                class: "test".to_string(),
+                workflow_id: "wf".to_string(),
+            }
+            .status_code(),
+            429
+        );
+        assert_eq!(
+            WorkloadRejectionError::GlobalConcurrencyLimit {
+                current: 1,
+                max: 10,
+            }
+            .status_code(),
+            503
+        );
+    }
+
+    #[test]
+    fn workload_rejection_error_all_variants_have_stable_error_codes() {
+        assert_eq!(
+            WorkloadRejectionError::BudgetExhausted {
+                class: "test".to_string(),
+                requested: 1,
+                available: 0,
+            }
+            .error_code(),
+            "budget_exhausted"
+        );
+        assert_eq!(
+            WorkloadRejectionError::WorkflowCapExceeded {
+                class: "test".to_string(),
+                workflow_id: "wf".to_string(),
+            }
+            .error_code(),
+            "workflow_cap_exceeded"
+        );
+        assert_eq!(
+            WorkloadRejectionError::GlobalConcurrencyLimit {
+                current: 1,
+                max: 10,
+            }
+            .error_code(),
+            "global_concurrency_limit"
+        );
+    }
 }

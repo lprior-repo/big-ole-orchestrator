@@ -5639,6 +5639,7 @@ dependencies = [
  "axum 0.7.9",
  "bytes",
  "chrono",
+ "crc32fast",
  "futures",
  "ractor",
  "reqwest 0.11.27",
