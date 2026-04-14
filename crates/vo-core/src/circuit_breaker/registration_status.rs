@@ -8,22 +8,21 @@ pub use vo_types::RegistrationStatus;
 mod tests {
     use super::*;
 
-    // B-39: RegistrationStatus has exactly 3 variants
+    // B-39: RegistrationStatus has exactly 4 variants (ADR-021 added Deleted)
     #[test]
-    fn registration_status_has_exactly_three_variants() {
-        // Compile-time exhaustiveness check via match.
-        // If a 4th variant is added, this match will fail to compile.
+    fn registration_status_has_exactly_four_variants() {
         let statuses = [
             RegistrationStatus::Active,
             RegistrationStatus::Deactivated,
             RegistrationStatus::Quarantined,
+            RegistrationStatus::Deleted,
         ];
-        assert_eq!(statuses.len(), 3);
-        // Verify each variant matches exhaustively
+        assert_eq!(statuses.len(), 4);
         statuses.iter().for_each(|s| match s {
             RegistrationStatus::Active => {}
             RegistrationStatus::Deactivated => {}
             RegistrationStatus::Quarantined => {}
+            RegistrationStatus::Deleted => {}
         });
     }
 
@@ -34,6 +33,7 @@ mod tests {
             RegistrationStatus::Active,
             RegistrationStatus::Deactivated,
             RegistrationStatus::Quarantined,
+            RegistrationStatus::Deleted,
         ];
         variants.iter().for_each(|original| {
             let json = serde_json::to_string(original).expect("serialize");
