@@ -21,6 +21,7 @@
 
 use std::fmt;
 use std::path::Path;
+use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
@@ -245,6 +246,63 @@ pub fn open_all_partitions(
     Ok(partitions)
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum StorageEngineError {
+    #[error("failed to open dedupe store: {0}")]
+    DedupeStore(#[from] crate::dedupe_partition::DedupeStoreError),
+    #[error("failed to open effect journal: {0}")]
+    EffectJournal(#[from] crate::effect_journal::EffectJournalError),
+    #[error("failed to open lease store: {0}")]
+    LeaseStore(#[from] crate::lease_partition::LeaseStoreError),
+    #[error("failed to open event store: {0}")]
+    EventStore(#[from] crate::event_store::EventStoreError),
+    #[error("failed to open DEK store: {0}")]
+    DekStore(#[from] crate::key_partition::DekStoreError),
+    #[error("storage error: {0}")]
+    Storage(#[from] StorageError),
+}
+
+pub struct StorageEngine {
+    keyspace: fjall::Keyspace,
+    pub dedupe_store: Arc<crate::dedupe_partition::FjallDedupeStore>,
+    pub effect_journal: Arc<crate::effect_journal::FjallEffectJournal>,
+    pub lease_store: Arc<crate::lease_partition::FjallLeaseStore>,
+    pub event_store: Arc<crate::event_store::FjallEventStore>,
+}
+
+impl StorageEngine {
+    pub fn open(path: impl AsRef<Path>) -> Result<Self, StorageEngineError> {
+        let path = path.as_ref();
+        if !path.exists() {
+            std::fs::create_dir_all(path).map_err(|e| StorageError::InvalidPath {
+                reason: e.to_string(),
+            })?;
+        }
+
+        let config = fjall::Config::new(path);
+        let keyspace = config.open().map_err(|e| StorageError::InvalidPath {
+            reason: e.to_string(),
+        })?;
+
+        let dedupe_store = Arc::new(crate::dedupe_partition::FjallDedupeStore::open(&keyspace)?);
+        let effect_journal = Arc::new(crate::effect_journal::FjallEffectJournal::open(&keyspace)?);
+        let lease_store = Arc::new(crate::lease_partition::FjallLeaseStore::open(&keyspace)?);
+        let event_store = Arc::new(crate::event_store::FjallEventStore::open(&keyspace)?);
+
+        Ok(Self {
+            keyspace,
+            dedupe_store,
+            effect_journal,
+            lease_store,
+            event_store,
+        })
+    }
+
+    pub fn keyspace(&self) -> &fjall::Keyspace {
+        &self.keyspace
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -372,5 +430,41 @@ mod tests {
         let layout = create_partition_layout(&path);
         assert!(layout.is_ok());
         assert!(path.exists());
+    }
+
+    #[test]
+    fn storage_engine_open_creates_all_stores() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let path = temp_dir.path().join("test-storage");
+
+        let engine = StorageEngine::open(&path);
+        assert!(engine.is_ok(), "StorageEngine::open failed: {:?}", engine.err());
+        let _engine = engine.unwrap();
+    }
+
+    #[tokio::test]
+    async fn storage_engine_event_store_works() {
+        use crate::event_store::EventStore;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let path = temp_dir.path().join("test-storage");
+
+        let engine = StorageEngine::open(&path).unwrap();
+        let instance_id = vo_types::InstanceId::from_bytes([1u8; 16]);
+        let event = vo_types::events::EventEnvelope {
+            schema_version: 1,
+            instance_id: instance_id.to_string(),
+            sequence: 1,
+            timestamp_ms: 1000,
+            payload: serde_json::json!({"type": "TestEvent"}),
+            metadata: vo_types::events::EventMetadata::default(),
+        };
+
+        let result = engine.event_store.append(&instance_id, vec![event]).await;
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 1);
+
+        let seq = engine.event_store.get_sequence(&instance_id).await.unwrap();
+        assert_eq!(seq, 1);
     }
 }
