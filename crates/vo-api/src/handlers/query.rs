@@ -246,6 +246,99 @@ pub async fn get_workflow_version(
         .into_response()
 }
 
+// ---------------------------------------------------------------------------
+// GET /api/v1/workflows/:id/lineage
+// ---------------------------------------------------------------------------
+
+#[tracing::instrument(skip_all)]
+pub async fn get_lineage(
+    Path(id): Path<String>,
+    State(state): State<QueryState>,
+) -> impl IntoResponse {
+    let (_namespace, instance_id) = match split_path_id(&id) {
+        Some(pair) => pair,
+        None => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ApiError::new("invalid_id", "id must be <namespace>/<instance_id>")),
+            )
+                .into_response();
+        }
+    };
+
+    let iter = replay_events(&state.keyspace, &instance_id);
+    let mut lineage_id = None;
+    let mut current_epoch = 0u64;
+    let mut entries = Vec::new();
+    let mut found_any_event = false;
+
+    for result in iter {
+        match result {
+            Ok(envelope) => {
+                found_any_event = true;
+                let timestamp_ms = envelope.timestamp_ms;
+                if let Some(payload) = envelope.payload.get("type").and_then(|v| v.as_str()) {
+                    if payload == "ContinuedAsNew" {
+                        if let (Some(lineage), Some(new_epoch)) = (
+                            envelope.payload.get("lineage_id").and_then(|v| v.as_str()),
+                            envelope.payload.get("new_epoch").and_then(|v| v.as_u64()),
+                        ) {
+                            lineage_id = Some(lineage.to_string());
+                            let old_epoch = envelope
+                                .payload
+                                .get("old_epoch")
+                                .and_then(|v| v.as_u64());
+                            current_epoch = new_epoch;
+                            entries.push(LineageEntry {
+                                epoch: new_epoch,
+                                parent_epoch: old_epoch,
+                                timestamp_ms,
+                            });
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, "lineage replay stopped");
+                break;
+            }
+        }
+    }
+
+    if !found_any_event {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(ApiError::new("not_found", format!("instance {id} not found"))),
+        )
+            .into_response();
+    }
+
+    let lineage_id = match lineage_id {
+        Some(lid) => lid,
+        None => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(ApiError::new(
+                    "not_found",
+                    format!("lineage not found for instance {id}"),
+                )),
+            )
+                .into_response();
+        }
+    };
+
+    (
+        StatusCode::OK,
+        Json(LineageResponse {
+            instance_id: id,
+            lineage_id,
+            current_epoch,
+            entries,
+        }),
+    )
+        .into_response()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
