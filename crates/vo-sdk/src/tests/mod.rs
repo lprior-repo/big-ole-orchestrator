@@ -3,6 +3,7 @@
 //! These exercise the `_inner` variants of `read_input` / `write_success` / `write_failure`
 //! using in-memory readers/writers, since actual FD3/FD4 are unavailable in test.
 
+mod adversarial_tests;
 mod dag_tests;
 mod graph_args_tests;
 mod proptest_dag;
@@ -14,6 +15,14 @@ mod workflow_builder_tests;
 mod workflow_spec_validation_tests;
 mod write_failure_tests;
 mod write_success_tests;
+
+// Re-export internal functions for tests
+pub use crate::io::{
+    read_input_inner_with_state,
+    write_failure_inner_with_state,
+    write_success_inner_with_state,
+};
+pub use crate::graph::{parse_graph_args, WorkflowSpec};
 
 use serde_json::{json, Value};
 

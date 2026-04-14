@@ -11,7 +11,7 @@
 //!   - unbounded-recursion: large DAG causing stack overflow in traversal
 //!   - type-confusion: unknown NodeKind variants
 
-use vo_sdk::graph_args::{EdgeSpec, NodeSpec, WorkflowSpec};
+use vo_sdk::graph::{EdgeSpec, NodeSpec, WorkflowSpec};
 use vo_types::{NodeKind, NodeName, WorkflowName};
 
 #[test]

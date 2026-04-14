@@ -4,7 +4,7 @@ use std::io::Write;
 
 use serde_json::{json, Value};
 
-use crate::write::write_success_inner;
+use super::write_success_inner_with_state as write_success_inner;
 use crate::SdkError;
 
 #[test]

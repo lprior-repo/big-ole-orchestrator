@@ -4,7 +4,7 @@ use std::io::Cursor;
 
 use serde_json::json;
 
-use crate::read::read_input_inner;
+use super::read_input_inner_with_state as read_input_inner;
 use crate::SdkError;
 
 use super::valid_envelope;

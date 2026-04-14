@@ -1,6 +1,6 @@
 //! Tests for graph_args module (--graph CLI argument handling per ADR-004, ADR-009).
 
-use crate::graph_args::{
+use crate::graph::{
     parse_graph_args, EdgeSpec, GraphArgs, GraphArgsError, NodeKind, NodeSpec, WorkflowSpec,
 };
 use vo_types::{NodeName, WorkflowName};
@@ -55,7 +55,7 @@ fn node_spec_serializes_to_snake_case_json() {
 
 #[test]
 fn graph_workflow_spec_round_trips_via_serde() {
-    let spec = crate::graph_args::GraphWorkflowSpec {
+    let spec = crate::graph::WorkflowSpec {
         workflow_name: WorkflowName::parse("checkout_flow").expect("valid name"),
         nodes: vec![
             NodeSpec {
@@ -73,7 +73,7 @@ fn graph_workflow_spec_round_trips_via_serde() {
         }],
     };
     let json = serde_json::to_string_pretty(&spec).expect("serialize");
-    let restored: crate::graph_args::GraphWorkflowSpec =
+    let restored: crate::graph::WorkflowSpec =
         serde_json::from_str(&json).expect("deserialize");
     assert_eq!(restored, spec, "round-trip should preserve all fields");
 }

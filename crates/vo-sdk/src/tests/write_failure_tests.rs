@@ -4,7 +4,7 @@ use std::io::Write;
 
 use serde_json::Value;
 
-use crate::write::write_failure_inner;
+use super::write_failure_inner_with_state as write_failure_inner;
 use crate::{SdkError, TaskFailureKind};
 
 #[test]

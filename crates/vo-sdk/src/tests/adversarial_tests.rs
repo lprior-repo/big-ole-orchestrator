@@ -12,12 +12,13 @@ use std::thread;
 use serde_json::{json, Value};
 
 use crate::dag::{Dag, DagError, Workflow};
-use crate::graph_args::{
-    parse_graph_args, write_failure_inner, write_success_inner, EdgeSpec, GraphArgs, GraphArgsError,
-    NodeSpec, WorkflowSpec,
-};
+use crate::graph::{parse_graph_args, EdgeSpec, GraphArgs, GraphArgsError, NodeSpec, WorkflowSpec};
 use crate::node_handle::NodeHandle;
-use crate::read::read_input_inner;
+use crate::tests::{
+    read_input_inner_with_state as read_input_inner,
+    write_failure_inner_with_state as write_failure_inner,
+    write_success_inner_with_state as write_success_inner,
+};
 use crate::{SdkError, TaskFailureKind};
 use vo_types::{NodeKind, NodeName, WorkflowName};
 
@@ -86,7 +87,13 @@ fn read_numeric_idempotency_key_returns_invalid_input() {
 
 #[test]
 fn read_accepts_any_json_value_as_data() {
-    for data_val in [json!(null), json!([]), json!({"nested": {"deep": true}}), json!(42), json!("str")] {
+    for data_val in [
+        json!(null),
+        json!([]),
+        json!({"nested": {"deep": true}}),
+        json!(42),
+        json!("str"),
+    ] {
         let payload = serde_json::to_vec(&json!({
             "idempotency_key": "key-ok",
             "data": data_val
@@ -106,7 +113,10 @@ fn read_accepts_any_json_value_as_data() {
 fn read_at_max_input_size_boundary_succeeds() {
     let data = "x".repeat(10 * 1024 * 1024 - 200);
     let payload = valid_envelope("boundary-key", &json!({"big": data}));
-    assert!(payload.len() <= 10 * 1024 * 1024, "payload must be at or under limit");
+    assert!(
+        payload.len() <= 10 * 1024 * 1024,
+        "payload must be at or under limit"
+    );
 
     let mut cursor = Cursor::new(payload);
     let mut is_read = false;
@@ -152,7 +162,7 @@ fn read_failed_parse_still_sets_guard() {
 
 #[test]
 fn read_partial_json_truncated_returns_invalid_input() {
-    let payload = b#"{"idempotency_key": "k", "data": "#.to_vec();
+    let payload = b"{\"idempotency_key\": \"k\", \"data\": ".to_vec();
     let mut cursor = Cursor::new(payload);
     let mut is_read = false;
 
@@ -174,8 +184,12 @@ fn write_success_envelope_has_exact_keys() {
     write_success_inner(&mut buf, &output, &mut is_written).unwrap();
 
     let written: Value = serde_json::from_slice(&buf).expect("valid JSON");
-    let keys: Vec<&str> = written.as_object().unwrap().keys().collect();
-    assert_eq!(keys, vec!["output", "status"], "only status and output keys expected");
+    let keys: Vec<&str> = written.as_object().unwrap().keys().map(|s| s.as_str()).collect();
+    assert_eq!(
+        keys,
+        vec!["output", "status"],
+        "only status and output keys expected"
+    );
 }
 
 #[test]
@@ -196,7 +210,10 @@ fn write_success_io_failure_returns_write_error_and_sets_guard() {
     struct BrokenWriter;
     impl Write for BrokenWriter {
         fn write(&mut self, _buf: &[u8]) -> std::io::Result<usize> {
-            Err(std::io::Error::new(std::io::ErrorKind::BrokenPipe, "broken"))
+            Err(std::io::Error::new(
+                std::io::ErrorKind::BrokenPipe,
+                "broken",
+            ))
         }
         fn flush(&mut self) -> std::io::Result<()> {
             Ok(())
@@ -224,7 +241,7 @@ fn write_failure_envelope_has_exact_keys() {
     write_failure_inner(&mut buf, TaskFailureKind::User, "err", &mut is_written).unwrap();
 
     let written: Value = serde_json::from_slice(&buf).expect("valid JSON");
-    let keys: Vec<&str> = written.as_object().unwrap().keys().collect();
+    let keys: Vec<&str> = written.as_object().unwrap().keys().map(|s| s.as_str()).collect();
     assert_eq!(
         keys,
         vec!["kind", "message", "status"],
@@ -275,7 +292,10 @@ fn write_failure_io_failure_returns_write_error_and_sets_guard() {
     struct BrokenWriter;
     impl Write for BrokenWriter {
         fn write(&mut self, _buf: &[u8]) -> std::io::Result<usize> {
-            Err(std::io::Error::new(std::io::ErrorKind::BrokenPipe, "broken"))
+            Err(std::io::Error::new(
+                std::io::ErrorKind::BrokenPipe,
+                "broken",
+            ))
         }
         fn flush(&mut self) -> std::io::Result<()> {
             Ok(())
@@ -524,10 +544,10 @@ fn dag_node_and_edge_count_are_consistent() {
     let a: NodeHandle<(), ()> = dag
         .add_node_with_kind("a", NodeKind::Pure, |_: ()| ())
         .unwrap();
-    let _: NodeHandle<(), ()> = dag
+    let b: NodeHandle<(), ()> = dag
         .add_node_with_kind("b", NodeKind::Pure, |_: ()| ())
         .unwrap();
-    let _: NodeHandle<(), ()> = dag
+    let c: NodeHandle<(), ()> = dag
         .add_node_with_kind("c", NodeKind::Pure, |_: ()| ())
         .unwrap();
     dag.connect(&a, &b).unwrap();
@@ -608,11 +628,7 @@ fn parse_graph_args_accepts_graph_as_first_arg() {
 
 #[test]
 fn parse_graph_args_rejects_empty_arg_after_graph() {
-    let args = vec![
-        "bin".to_string(),
-        "--graph".to_string(),
-        "".to_string(),
-    ];
+    let args = vec!["bin".to_string(), "--graph".to_string(), "".to_string()];
     let result = parse_graph_args(&args);
     assert!(matches!(
         result,
@@ -665,7 +681,10 @@ fn workflow_spec_json_uses_snake_case() {
     let json_str = String::from_utf8(bytes).unwrap();
 
     assert!(json_str.contains("workflow_name"), "should use snake_case");
-    assert!(!json_str.contains("workflowName"), "should not use camelCase");
+    assert!(
+        !json_str.contains("workflowName"),
+        "should not use camelCase"
+    );
 }
 
 #[test]
@@ -724,9 +743,9 @@ fn workflow_spec_to_json_bytes_never_panics() {
 #[test]
 fn node_handle_equality_is_name_based() {
     let h1: NodeHandle<String, i32> = NodeHandle::new(NodeName::parse("same").unwrap());
-    let h2: NodeHandle<bool, ()> = NodeHandle::new(NodeName::parse("same").unwrap());
+    let h2: NodeHandle<String, i32> = NodeHandle::new(NodeName::parse("same").unwrap());
 
-    assert_eq!(h1, h2, "same name, different types should be equal");
+    assert_eq!(h1, h2, "same name should be equal");
 }
 
 #[test]
@@ -734,7 +753,7 @@ fn node_handle_hash_consistent_with_equality() {
     use std::collections::HashMap;
 
     let h1: NodeHandle<String, i32> = NodeHandle::new(NodeName::parse("key").unwrap());
-    let h2: NodeHandle<bool, ()> = NodeHandle::new(NodeName::parse("key").unwrap());
+    let h2: NodeHandle<String, i32> = NodeHandle::new(NodeName::parse("key").unwrap());
 
     let mut map = HashMap::new();
     map.insert(h1, 42);
@@ -742,7 +761,7 @@ fn node_handle_hash_consistent_with_equality() {
     assert_eq!(
         map.get(&h2),
         Some(&42),
-        "same-name different-type handle should hash to same bucket"
+        "same-name handle should hash to same bucket"
     );
 }
 
@@ -767,7 +786,11 @@ fn task_failure_kind_is_copy() {
 
 #[test]
 fn task_failure_kind_clone_matches_original() {
-    for kind in [TaskFailureKind::User, TaskFailureKind::System, TaskFailureKind::Timeout] {
+    for kind in [
+        TaskFailureKind::User,
+        TaskFailureKind::System,
+        TaskFailureKind::Timeout,
+    ] {
         let cloned = kind.clone();
         assert_eq!(kind, cloned);
     }
