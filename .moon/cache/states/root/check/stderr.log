@@ -1,5 +1,7 @@
-    Blocking waiting for file lock on package cache
-    Blocking waiting for file lock on package cache
-    Blocking waiting for file lock on package cache
-    Blocking waiting for file lock on package cache
-    Blocking waiting for file lock on build directory
+error: duplicate key
+  --> crates/vo-storage/Cargo.toml:32:1
+   |
+32 | async-trait = { workspace = true }
+   | ^^^^^^^^^^^
+error: failed to load manifest for workspace member `/home/lewis/gt/veloxide/polecats/fury/veloxide/crates/vo-storage`
+referenced by workspace at `/home/lewis/gt/veloxide/polecats/fury/veloxide/Cargo.toml`
