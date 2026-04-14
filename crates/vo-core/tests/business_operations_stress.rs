@@ -450,7 +450,7 @@ fn bos03_circuit_breaker_rate_limit_enforcement_under_load() {
 
 #[test]
 fn bos04_workload_budget_exhaustion_and_recovery() {
-    let budget = WorkloadBudget::new(10, 20, 5, 8);
+    let budget = WorkloadBudget::new(10, 20, 8, 5);
 
     assert_eq!(budget.remaining(WorkloadClass::ExactCritical), 10);
     assert_eq!(budget.remaining(WorkloadClass::Standard), 20);
