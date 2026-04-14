@@ -222,29 +222,33 @@ mod signal_buffer_one_tests {
         assert!(buffer.has_buffered_signals(&instance_id_a(), &wait_key_approval()));
     }
     #[test]
-    fn buffer_one_replaces_existing_signal() {
+    fn buffer_one_rejects_subsequent_signals_until_first_is_consumed() {
         let mut buffer = SignalBuffer::with_default_config();
         let first = buffer.buffer_signal(
             instance_id_a(),
             wait_key_approval(),
-            make_signal("sig-old"),
+            make_signal("sig-first"),
             BufferPolicy::BufferOne,
         );
         assert_eq!(first, BufferResult::Buffered);
+        assert_eq!(
+            buffer.buffered_count(&instance_id_a(), &wait_key_approval()),
+            1
+        );
         let second = buffer.buffer_signal(
             instance_id_a(),
             wait_key_approval(),
-            make_signal("sig-new"),
+            make_signal("sig-second"),
             BufferPolicy::BufferOne,
         );
-        assert_eq!(second, BufferResult::Buffered);
+        assert_eq!(second, BufferResult::Rejected);
         assert_eq!(
             buffer.buffered_count(&instance_id_a(), &wait_key_approval()),
             1
         );
         assert_eq!(
             buffer.peek_all(&instance_id_a(), &wait_key_approval())[0].signal_id,
-            "sig-new"
+            "sig-first"
         );
     }
     #[test]
@@ -304,6 +308,46 @@ mod signal_buffer_one_tests {
             buffer.buffered_count(&instance_id_a(), &wait_key_approval()),
             0
         );
+    }
+    #[test]
+    fn buffer_one_accepts_new_signal_after_pop() {
+        let mut buffer = SignalBuffer::with_default_config();
+        let _ = buffer.buffer_signal(
+            instance_id_a(),
+            wait_key_approval(),
+            make_signal("sig-original"),
+            BufferPolicy::BufferOne,
+        );
+        let _ = buffer.pop_buffered(&instance_id_a(), &wait_key_approval());
+        let result = buffer.buffer_signal(
+            instance_id_a(),
+            wait_key_approval(),
+            make_signal("sig-after-pop"),
+            BufferPolicy::BufferOne,
+        );
+        assert_eq!(result, BufferResult::Buffered);
+        assert_eq!(
+            buffer.buffered_count(&instance_id_a(), &wait_key_approval()),
+            1
+        );
+    }
+    #[test]
+    fn buffer_one_rejects_subsequent_signals_until_first_is_consumed_duplicate_for_schema() {
+        let mut buffer = SignalBuffer::with_default_config();
+        let first = buffer.buffer_signal(
+            instance_id_a(),
+            wait_key_approval(),
+            make_signal("sig-first-dup"),
+            BufferPolicy::BufferOne,
+        );
+        assert_eq!(first, BufferResult::Buffered);
+        let second = buffer.buffer_signal(
+            instance_id_a(),
+            wait_key_approval(),
+            make_signal("sig-second-dup"),
+            BufferPolicy::BufferOne,
+        );
+        assert_eq!(second, BufferResult::Rejected);
     }
 }
 

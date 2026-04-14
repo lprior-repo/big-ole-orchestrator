@@ -77,14 +77,20 @@ pub enum BufferResult {
 pub fn apply_policy(
     policy: BufferPolicy,
     has_matching_wait: bool,
-    _has_existing_buffer: bool,
+    has_existing_buffer: bool,
 ) -> (SignalDelivery, Option<BufferResult>) {
     if has_matching_wait {
         return (SignalDelivery::Accepted, None);
     }
     match policy {
         BufferPolicy::Reject => (SignalDelivery::Rejected, Some(BufferResult::Rejected)),
-        BufferPolicy::BufferOne => (SignalDelivery::Buffered, Some(BufferResult::Buffered)),
+        BufferPolicy::BufferOne => {
+            if has_existing_buffer {
+                (SignalDelivery::Rejected, Some(BufferResult::Rejected))
+            } else {
+                (SignalDelivery::Buffered, Some(BufferResult::Buffered))
+            }
+        }
         BufferPolicy::BufferMany => (SignalDelivery::Buffered, Some(BufferResult::Buffered)),
     }
 }
@@ -145,6 +151,9 @@ impl SignalBuffer {
         match policy {
             BufferPolicy::Reject => BufferResult::Rejected,
             BufferPolicy::BufferOne => {
+                if self.entries.contains_key(&key) {
+                    return BufferResult::Rejected;
+                }
                 self.entries.insert(key, SignalBufferEntry::Single(signal));
                 BufferResult::Buffered
             }
