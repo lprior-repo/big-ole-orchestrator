@@ -1,0 +1,12 @@
+{
+  "session_id": "6d8883a3-bc59-48fe-84ac-69b5a72c6b0b",
+  "transcript_path": "/home/lewis/.claude/projects/-home-lewis-gt-veloxide-polecats-mutant-veloxide/6d8883a3-bc59-48fe-84ac-69b5a72c6b0b.jsonl",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Edit",
+  "tool_input": {
+    "file_path": "/home/lewis/gt/veloxide/polecats/mutant/veloxide/crates/vo-actor/tests/semaphore_tests.rs",
+    "old_string": "    let config = SemaphoreConfig {\n        max_concurrent_binaries: 2,\n        max_waiters_for_shed: 1000,\n        max_per_workflow: 10,\n        acquire_timeout: Duration::from_secs(30),\n    };",
+    "new_string": "    let config = SemaphoreConfig {\n        max_concurrent_binaries: 2,\n        max_waiters_for_shed: 1000,\n        max_per_workflow: 10,\n        acquire_timeout: Duration::from_secs(30),\n        ..Default::default()\n    };",
+    "replace_all": false
+  }
+}
