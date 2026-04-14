@@ -12,6 +12,7 @@ pub mod master {
     pub struct OrchestratorConfig;
 }
 
+pub mod fairness;
 pub mod instance_registry;
 pub mod lifecycle;
 // pub mod instance; // TEMPORARILY COMMENTED - module file does not exist
@@ -1532,17 +1533,7 @@ pub mod mock_signal_storage {
 // Workload Classes and Reserved Permit Budget (ADR-033)
 // =============================================================================
 
-/// Workload classification per ADR-033 v2.
-/// Each class receives reserved permit budget for fairness control.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum WorkloadClass {
-    /// Recovery work requiring guaranteed forward progress
-    Recovery,
-    /// New workflow instance instantiation
-    NewInstance,
-    /// Internal control plane / housekeeping
-    Internal,
-}
+pub use fairness::WorkloadClass;
 
 /// Errors from actor start operations.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
