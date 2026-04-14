@@ -3,6 +3,10 @@
 //! Provides the actor model implementation using the Ractor library.
 //! Actors are the fundamental units of computation in the engine.
 
+pub use vo_common::NamespaceId;
+use bytes::Bytes;
+use vo_common::InstanceId;
+
 pub mod heartbeat {
     pub fn run_heartbeat_watcher() {}
 }
@@ -42,19 +46,72 @@ pub enum TerminateError {
     Failed(String),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WorkflowParadigm {
-    Default,
+    Fsm,
+    Dag,
+    Procedural,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InstancePhaseView {
     Replay,
     Live,
 }
 
+/// Messages sent to the orchestrator actor.
 #[derive(Debug)]
-pub struct OrchestratorMsg;
+pub enum OrchestratorMsg {
+    /// Start a new workflow instance
+    StartWorkflow {
+        namespace: NamespaceId,
+        instance_id: InstanceId,
+        workflow_type: String,
+        paradigm: WorkflowParadigm,
+        input: Bytes,
+        reply: ractor::port::RpcReplyPort<Result<(), crate::StartError>>,
+    },
+    /// Get status of a workflow instance
+    GetStatus {
+        instance_id: InstanceId,
+        reply: ractor::port::RpcReplyPort<Option<crate::InstanceSnapshot>>,
+    },
+    /// Terminate a workflow instance
+    Terminate {
+        instance_id: InstanceId,
+        reason: String,
+        reply: ractor::port::RpcReplyPort<Result<(), TerminateError>>,
+    },
+    /// List all active workflow instances
+    ListActive {
+        reply: ractor::port::RpcReplyPort<Vec<crate::InstanceSnapshot>>,
+    },
+    /// Trigger compensation for a workflow instance
+    Compensate {
+        instance_id: InstanceId,
+        reply: ractor::port::RpcReplyPort<Result<(), CompensateError>>,
+    },
+}
+
+/// Error type for compensation operations.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum CompensateError {
+    #[error("instance not found: {0}")]
+    NotFound(String),
+    #[error("compensation failed: {0}")]
+    Failed(String),
+}
+
+/// Instance snapshot for status queries.
+#[derive(Debug, Clone)]
+pub struct InstanceSnapshot {
+    pub instance_id: InstanceId,
+    pub namespace: NamespaceId,
+    pub workflow_type: String,
+    pub paradigm: WorkflowParadigm,
+    pub phase: InstancePhaseView,
+    pub events_applied: u64,
+}
 
 #[cfg(test)]
 mod terminate_error_tests {
@@ -1092,7 +1149,6 @@ pub mod actor_messages {
 // Error Types - Cancel and Resume
 // =============================================================================
 
-use vo_types::InstanceId;
 
 /// Lifecycle state for control actor operations.
 /// These are simplified states for the control actor's perspective.
@@ -1542,6 +1598,12 @@ pub enum StartError {
     BudgetExhaustion { class: WorkloadClass, requested: u32, available: u32 },
     #[error("Invalid config: {0}")]
     InvalidConfig(String),
+    #[error("At capacity: {running}/{max} instances running")]
+    AtCapacity { running: u32, max: u32 },
+    #[error("Instance {0} already exists")]
+    AlreadyExists(String),
+    #[error("Spawn failed: {0}")]
+    SpawnFailed(String),
 }
 
 /// Reserved permit budget tracking per workload class.
@@ -2187,7 +2249,7 @@ impl Default for ControlActor {
 #[cfg(test)]
 mod control_actor_tests {
     use super::*;
-    use vo_types::InstanceId;
+    use vo_common::InstanceId;
 
     // ========================================================================
     // Behavior: cancel_on_running_instance_emits_cancelrequested_then_workflowcancelled_in_order
