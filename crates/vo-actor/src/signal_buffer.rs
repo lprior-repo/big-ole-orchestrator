@@ -162,7 +162,10 @@ impl SignalBuffer {
                         BufferResult::Buffered
                     }
                     SignalBufferEntry::Single(_) => {
-                        let old_signal = entry.get_single_cloned().expect("Single must exist");
+                        let old_signal = match entry.get_single_cloned() {
+                            Some(s) => s,
+                            None => return BufferResult::Dropped,
+                        };
                         let mut queue = VecDeque::new();
                         queue.push_back(old_signal);
                         queue.push_back(signal);
