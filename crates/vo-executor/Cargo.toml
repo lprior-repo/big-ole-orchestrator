@@ -27,3 +27,6 @@ harness = false
 [[bench]]
 name = "e2e_system_bench"
 harness = false
+
+[lints]
+workspace = true

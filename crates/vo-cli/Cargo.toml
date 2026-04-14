@@ -35,3 +35,6 @@ vo-types = { version = "0.1.0", path = "../vo-types" }
 [[bench]]
 name = "cli_bench"
 harness = false
+
+[lints]
+workspace = true

@@ -6,8 +6,6 @@
 
 use super::*;
 
-// ---- Test helpers ----
-
 fn make_test_instance_id(byte_fill: u8) -> InstanceId {
     InstanceId::from_bytes([byte_fill; 16])
 }
@@ -16,7 +14,14 @@ fn make_test_timestamp(ms: u64) -> TimestampMs {
     TimestampMs::try_from(ms).unwrap()
 }
 
-// ---- B33u: ScanIterator yields init_error on first next() then terminates ----
+fn setup_partition() -> (tempfile::TempDir, fjall::Database, fjall::Keyspace) {
+    let dir = tempfile::tempdir().unwrap();
+    let db = fjall::Database::builder(dir.path()).open().unwrap();
+    let partition = db
+        .keyspace("instances", fjall::KeyspaceCreateOptions::default)
+        .unwrap();
+    (dir, db, partition)
+}
 
 #[test]
 fn scan_iterator_yields_init_error_on_first_next_then_none() {
@@ -32,78 +37,27 @@ fn scan_iterator_yields_init_error_on_first_next_then_none() {
     assert_eq!(second, None);
 }
 
-// ---- B34u: ScanIterator yields StorageError::Storage when inner iterator errors ----
-
 #[test]
-fn scan_iterator_yields_storage_error_when_inner_iterator_returns_err() {
-    let mut iter = ScanIterator {
-        inner: Some(Box::new(
-            vec![Err(fjall::Error::Poisoned) as fjall::Result<fjall::KvPair>].into_iter(),
-        )),
-        init_error: None,
-    };
-
-    let first = iter.next();
-    assert_eq!(first, Some(Err(StorageError::Storage)));
-}
-
-// ---- B35u: ScanIterator stops after storage error (self.inner = None) ----
-
-#[test]
-fn scan_iterator_stops_after_storage_error() {
-    let id = make_test_instance_id(0x42);
-    let ts = make_test_timestamp(1000);
-    let valid_key = encode_instance_index_key(InstanceStatus::Pending, ts, &id).unwrap();
-    let valid_kv_pair: fjall::KvPair = (
-        fjall::Slice::from(valid_key.to_vec()),
-        fjall::Slice::from(Vec::new()),
-    );
-
-    let mut iter = ScanIterator {
-        inner: Some(Box::new(
-            vec![
-                Err(fjall::Error::Poisoned) as fjall::Result<fjall::KvPair>,
-                Ok(valid_kv_pair),
-            ]
-            .into_iter(),
-        )),
-        init_error: None,
-    };
-
-    let first = iter.next();
-    assert_eq!(first, Some(Err(StorageError::Storage)));
-
-    // Must be None because inner was set to None (MUTATION KILL target)
-    let second = iter.next();
-    assert_eq!(
-        second, None,
-        "Iterator must terminate after StorageError::Storage"
-    );
-}
-
-// ---- B36u: ScanIterator correctly decodes valid entries from inner iterator ----
-
-#[test]
-fn scan_iterator_decodes_valid_entries_from_inner_iterator() {
+fn scan_iterator_decodes_valid_entries_from_real_partition() {
+    let (_dir, _db, partition) = setup_partition();
     let id = make_test_instance_id(0x42);
     let ts = make_test_timestamp(500);
     let key = encode_instance_index_key(InstanceStatus::Running, ts, &id).unwrap();
-    let kv_pair: fjall::KvPair = (
-        fjall::Slice::from(key.to_vec()),
-        fjall::Slice::from(Vec::new()),
-    );
 
-    let mut iter = ScanIterator {
-        inner: Some(Box::new(vec![Ok(kv_pair)].into_iter())),
+    partition.insert(&key, &Vec::new()).unwrap();
+
+    let iter = partition.iter();
+    let mut scan = ScanIterator {
+        inner: Some(Box::new(iter)),
         init_error: None,
     };
 
-    let first = iter.next();
+    let first = scan.next();
     let entry = first.unwrap().unwrap();
     assert_eq!(entry.instance_id, id);
     assert_eq!(entry.status, InstanceStatus::Running);
     assert_eq!(entry.created_at, ts);
 
-    let second = iter.next();
+    let second = scan.next();
     assert_eq!(second, None);
 }

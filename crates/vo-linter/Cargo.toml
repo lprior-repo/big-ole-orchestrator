@@ -14,3 +14,5 @@ criterion = { workspace = true }
 [[bench]]
 name = "linter_bench"
 harness = false
+[lints]
+workspace = true

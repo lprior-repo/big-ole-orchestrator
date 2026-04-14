@@ -180,7 +180,7 @@ impl CommandDispatcher {
         let handler = self
             .registry
             .get(&cli)
-            .ok_or_else(|| CliError::Dispatch(format!("unknown command")))?;
+            .ok_or_else(|| CliError::Dispatch("unknown command".to_string()))?;
 
         let ctx = CommandContext::new(handler.name());
 

@@ -831,6 +831,7 @@ impl MessageRouter {
 
     /// Delivers a message to a specific destination (unicast version).
     /// Takes a reference since unicast consumes the message after delivery.
+    #[allow(clippy::unused_async)]
     async fn deliver_to_destination_unicast<T: Send + 'static>(
         &self,
         destination: &RoutingDestination,
@@ -853,6 +854,7 @@ impl MessageRouter {
 
     /// Delivers a message to a specific destination (broadcast version).
     /// Takes a reference since broadcast shares the message across destinations.
+    #[allow(clippy::unused_async)]
     async fn deliver_to_destination_broadcast<T: Send + Sync + 'static>(
         &self,
         destination: &RoutingDestination,

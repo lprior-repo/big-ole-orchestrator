@@ -44,10 +44,12 @@ pub enum WorkloadClassError {
 /// behavior. Classes are ordered by dispatch priority: lower rank = higher priority.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum WorkloadClass {
     /// Highest priority. Never starved by lower classes.
     ExactCritical,
     /// Default priority for normal workflow execution.
+    #[default]
     Standard,
     /// Reserved capacity for crash recovery.
     Recovery,
@@ -67,11 +69,6 @@ impl Ord for WorkloadClass {
     }
 }
 
-impl Default for WorkloadClass {
-    fn default() -> Self {
-        WorkloadClass::Standard
-    }
-}
 
 impl WorkloadClass {
     /// Dispatch priority rank (lower = higher priority).

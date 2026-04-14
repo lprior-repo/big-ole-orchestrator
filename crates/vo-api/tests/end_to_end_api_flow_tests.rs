@@ -599,11 +599,11 @@ mod helper_functions_flow {
     #[test]
     fn is_retryable_error_cases() {
         assert!(is_retryable_error("at_capacity"));
+        assert!(is_retryable_error("rate_limited"));
         assert!(!is_retryable_error("not_found"));
         assert!(!is_retryable_error("invalid_id"));
         assert!(!is_retryable_error(""));
         assert!(!is_retryable_error("unknown_error"));
-        assert!(!is_retryable_error("rate_limited"));
     }
 
     #[test]

@@ -25,11 +25,11 @@ impl InMemoryLeaseStore {
     }
 
     fn lease_key(instance_id: &InstanceId, step_id: &StepId) -> String {
-        format!("{}::{}", instance_id, step_id)
+        format!("{instance_id}::{step_id}")
     }
 
     fn fence_key(instance_id: &InstanceId, step_id: &StepId) -> String {
-        format!("{}::{}::fence", instance_id, step_id)
+        format!("{instance_id}::{step_id}::fence")
     }
 
     fn now_ms() -> u64 {

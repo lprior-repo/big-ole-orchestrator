@@ -46,6 +46,16 @@ pub struct WorkflowLineage {
     pub parent_epoch: Option<Epoch>,
 }
 
+fn validate_lineage_id(lineage_id: &str) -> Result<(), LineageError> {
+    if lineage_id.trim().is_empty() {
+        return Err(LineageError::EmptyLineageId);
+    }
+    if lineage_id.chars().any(|c| c.is_control()) {
+        return Err(LineageError::ControlCharacters);
+    }
+    Ok(())
+}
+
 impl WorkflowLineage {
     /// Create a root lineage (epoch 0, no parent).
     ///
@@ -54,9 +64,7 @@ impl WorkflowLineage {
     /// Returns [`LineageError::EmptyLineageId`] if `lineage_id` is empty or whitespace-only.
     pub fn new(lineage_id: impl Into<String>) -> Result<Self, LineageError> {
         let lineage_id = lineage_id.into();
-        if lineage_id.trim().is_empty() {
-            return Err(LineageError::EmptyLineageId);
-        }
+        validate_lineage_id(&lineage_id)?;
         Ok(Self {
             lineage_id,
             epoch: Epoch::ZERO,
@@ -76,9 +84,7 @@ impl WorkflowLineage {
         parent_epoch: Option<Epoch>,
     ) -> Result<Self, LineageError> {
         let lineage_id = lineage_id.into();
-        if lineage_id.trim().is_empty() {
-            return Err(LineageError::EmptyLineageId);
-        }
+        validate_lineage_id(&lineage_id)?;
         if let Some(parent) = parent_epoch {
             if parent >= epoch {
                 return Err(LineageError::InvalidEpochTransition {
@@ -207,6 +213,8 @@ pub enum LineageError {
     InvalidEpochTransition { parent_epoch: u64, epoch: u64 },
     #[error("epoch overflow: cannot advance beyond u64::MAX")]
     EpochOverflow,
+    #[error("lineage_id must not contain control characters")]
+    ControlCharacters,
 }
 
 #[cfg(test)]

@@ -71,3 +71,6 @@ path = "tests/channel_edge_tests.rs"
 [[test]]
 name = "backpressure_tests"
 path = "tests/backpressure_tests.rs"
+
+[lints]
+workspace = true

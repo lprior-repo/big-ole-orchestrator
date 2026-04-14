@@ -2,7 +2,7 @@ use vo_types::InstanceId;
 
 fn main() {
     let fjall_path = "/home/lewis/.gemini/tmp/veloxide/fjall";
-    let keyspace = fjall::Config::new(fjall_path)
+    let keyspace = fjall::Database::builder(fjall_path)
         .open()
         .expect("failed to open keyspace");
 
@@ -10,12 +10,12 @@ fn main() {
     let id_bytes = instance_id.to_bytes().unwrap();
 
     let events_p = keyspace
-        .open_partition("events", Default::default())
+        .keyspace("events", fjall::KeyspaceCreateOptions::default)
         .unwrap();
     let event_count = events_p.prefix(&id_bytes).count();
 
     let instances_p = keyspace
-        .open_partition("instances", Default::default())
+        .keyspace("instances", fjall::KeyspaceCreateOptions::default)
         .unwrap();
     let instance_count = instances_p.prefix([]).count();
 

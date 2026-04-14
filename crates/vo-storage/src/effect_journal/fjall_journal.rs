@@ -8,7 +8,7 @@ use vo_types::{EffectRecord, InstanceId};
 use super::{EffectId, EffectJournal, EffectJournalError, EFFECTS_PARTITION};
 
 pub struct FjallEffectJournal {
-    partition: Arc<fjall::PartitionHandle>,
+    partition: Arc<fjall::Keyspace>,
 }
 
 impl std::fmt::Debug for FjallEffectJournal {
@@ -19,9 +19,9 @@ impl std::fmt::Debug for FjallEffectJournal {
 
 impl FjallEffectJournal {
     #[must_use]
-    pub fn open(keyspace: &fjall::Keyspace) -> Result<Self, EffectJournalError> {
-        let partition = keyspace
-            .open_partition(EFFECTS_PARTITION, fjall::PartitionCreateOptions::default())
+    pub fn open(db: &fjall::Database) -> Result<Self, EffectJournalError> {
+        let partition = db
+            .keyspace(EFFECTS_PARTITION, fjall::KeyspaceCreateOptions::default)
             .map_err(|e| EffectJournalError::Storage {
                 reason: format!("failed to open effects partition: {e}"),
             })?;
@@ -139,9 +139,10 @@ impl EffectJournal for FjallEffectJournal {
 
         let iter = self.partition.iter();
         for item in iter {
-            let (key_bytes, value_bytes) = item.map_err(|e| EffectJournalError::Storage {
-                reason: e.to_string(),
-            })?;
+            let (key_bytes, value_bytes) =
+                item.into_inner().map_err(|e| EffectJournalError::Storage {
+                    reason: e.to_string(),
+                })?;
 
             if !key_bytes.starts_with(prefix_bytes) {
                 continue;
@@ -162,9 +163,10 @@ impl EffectJournal for FjallEffectJournal {
             let iter = self.partition.iter();
             let mut keys = Vec::new();
             for item in iter {
-                let (key_bytes, value_bytes) = item.map_err(|e| EffectJournalError::Storage {
-                    reason: e.to_string(),
-                })?;
+                let (key_bytes, value_bytes) =
+                    item.into_inner().map_err(|e| EffectJournalError::Storage {
+                        reason: e.to_string(),
+                    })?;
 
                 let record = super::decode_effect_record(&value_bytes)?;
 
@@ -210,21 +212,22 @@ impl FjallEffectJournal {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::tempdir;
+    use tempfile::{tempdir, TempDir};
     use vo_types::EffectKind;
 
     fn sample_instance_id() -> InstanceId {
         InstanceId::from_bytes([1u8; 16])
     }
 
-    fn create_test_keyspace() -> fjall::Keyspace {
+    fn create_test_keyspace() -> (fjall::Database, TempDir) {
         let dir = tempdir().unwrap();
-        fjall::Config::new(dir.path()).open().unwrap()
+        let db = fjall::Database::builder(dir.path()).open().unwrap();
+        (db, dir)
     }
 
     #[test]
     fn fjall_journal_prepare_returns_effect_id_for_new_intent() {
-        let keyspace = create_test_keyspace();
+        let (keyspace, _dir) = create_test_keyspace();
         let journal = FjallEffectJournal::open(&keyspace).unwrap();
         let id = sample_instance_id();
         let record = EffectRecord::new(
@@ -242,7 +245,7 @@ mod tests {
 
     #[test]
     fn fjall_journal_prepare_is_idempotent() {
-        let keyspace = create_test_keyspace();
+        let (keyspace, _dir) = create_test_keyspace();
         let journal = FjallEffectJournal::open(&keyspace).unwrap();
         let id = sample_instance_id();
         let record = EffectRecord::new(
@@ -262,7 +265,7 @@ mod tests {
 
     #[test]
     fn fjall_journal_commit_transitions_prepared_to_committed() {
-        let keyspace = create_test_keyspace();
+        let (keyspace, _dir) = create_test_keyspace();
         let journal = FjallEffectJournal::open(&keyspace).unwrap();
         let id = sample_instance_id();
         let record = EffectRecord::new(
@@ -282,7 +285,7 @@ mod tests {
 
     #[test]
     fn fjall_journal_rollback_transitions_prepared_to_rolledback() {
-        let keyspace = create_test_keyspace();
+        let (keyspace, _dir) = create_test_keyspace();
         let journal = FjallEffectJournal::open(&keyspace).unwrap();
         let id = sample_instance_id();
         let record = EffectRecord::new(
@@ -302,7 +305,7 @@ mod tests {
 
     #[test]
     fn fjall_journal_list_pending_returns_only_prepared_effects() {
-        let keyspace = create_test_keyspace();
+        let (keyspace, _dir) = create_test_keyspace();
         let journal = FjallEffectJournal::open(&keyspace).unwrap();
         let id = sample_instance_id();
 
@@ -345,7 +348,7 @@ mod tests {
 
     #[test]
     fn fjall_journal_commit_already_terminal_returns_error() {
-        let keyspace = create_test_keyspace();
+        let (keyspace, _dir) = create_test_keyspace();
         let journal = FjallEffectJournal::open(&keyspace).unwrap();
         let id = sample_instance_id();
         let record = EffectRecord::new(
@@ -368,7 +371,7 @@ mod tests {
 
     #[test]
     fn fjall_journal_rollback_already_terminal_returns_error() {
-        let keyspace = create_test_keyspace();
+        let (keyspace, _dir) = create_test_keyspace();
         let journal = FjallEffectJournal::open(&keyspace).unwrap();
         let id = sample_instance_id();
         let record = EffectRecord::new(
@@ -391,7 +394,7 @@ mod tests {
 
     #[test]
     fn fjall_journal_commit_nonexistent_returns_not_found() {
-        let keyspace = create_test_keyspace();
+        let (keyspace, _dir) = create_test_keyspace();
         let journal = FjallEffectJournal::open(&keyspace).unwrap();
         let id = sample_instance_id();
         let effect_id = EffectId::new(&id, "nonexistent").unwrap();
@@ -401,7 +404,7 @@ mod tests {
 
     #[test]
     fn fjall_journal_rollback_nonexistent_returns_not_found() {
-        let keyspace = create_test_keyspace();
+        let (keyspace, _dir) = create_test_keyspace();
         let journal = FjallEffectJournal::open(&keyspace).unwrap();
         let id = sample_instance_id();
         let effect_id = EffectId::new(&id, "nonexistent").unwrap();
@@ -410,7 +413,7 @@ mod tests {
     }
     #[test]
     fn fjall_journal_compact_removes_old_terminal_effects() {
-        let keyspace = create_test_keyspace();
+        let (keyspace, _dir) = create_test_keyspace();
         let journal = FjallEffectJournal::open(&keyspace).unwrap();
         let id = sample_instance_id();
 
@@ -448,7 +451,7 @@ mod tests {
 
     #[test]
     fn fjall_journal_compact_does_not_remove_prepared_effects() {
-        let keyspace = create_test_keyspace();
+        let (keyspace, _dir) = create_test_keyspace();
         let journal = FjallEffectJournal::open(&keyspace).unwrap();
         let id = sample_instance_id();
 
@@ -485,7 +488,7 @@ mod tests {
 
     #[test]
     fn fjall_journal_compact_does_not_remove_rolledback_effects_without_timestamp() {
-        let keyspace = create_test_keyspace();
+        let (keyspace, _dir) = create_test_keyspace();
         let journal = FjallEffectJournal::open(&keyspace).unwrap();
         let id = sample_instance_id();
 

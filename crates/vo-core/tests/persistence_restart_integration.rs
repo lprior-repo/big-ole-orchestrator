@@ -22,18 +22,15 @@ fn make_wf(s: &str) -> WorkflowName {
     WorkflowName::parse(s).expect("test workflow name should be valid")
 }
 
-fn setup_partition() -> (tempfile::TempDir, fjall::Keyspace, fjall::PartitionHandle) {
+fn setup_partition() -> (tempfile::TempDir, fjall::Database, fjall::Keyspace) {
     let dir = tempfile::tempdir().expect("tempdir should be created");
-    let keyspace = fjall::Config::new(dir.path())
+    let db = fjall::Database::builder(dir.path())
         .open()
         .expect("keyspace should open");
-    let partition = keyspace
-        .open_partition(
-            WORKFLOWS_PARTITION,
-            fjall::PartitionCreateOptions::default(),
-        )
+    let partition = db
+        .keyspace(WORKFLOWS_PARTITION, fjall::KeyspaceCreateOptions::default)
         .expect("partition should open");
-    (dir, keyspace, partition)
+    (dir, db, partition)
 }
 
 #[test]

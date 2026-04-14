@@ -151,7 +151,7 @@ impl RecoveryPoint {
 }
 
 fn select_best_recovery_point_impl(
-    partition: &fjall::PartitionHandle,
+    partition: &fjall::Keyspace,
     instance_id: &InstanceId,
 ) -> Result<Option<RecoveryPoint>, StorageError> {
     let result = snapshot_load_latest(partition, instance_id)?;
@@ -242,7 +242,7 @@ impl SnapshotRecovery {
 
     pub fn select_best_recovery_point(
         &self,
-        partition: &fjall::PartitionHandle,
+        partition: &fjall::Keyspace,
         instance_id: &InstanceId,
     ) -> Result<RecoveryPoint, RecoveryError> {
         select_best_recovery_point_impl(partition, instance_id)?.ok_or_else(|| {

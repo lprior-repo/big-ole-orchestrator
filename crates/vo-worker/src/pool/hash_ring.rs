@@ -151,13 +151,13 @@ impl HashRing {
         let mut hasher = CrcHasher::new();
         pool_id.as_str().hash(&mut hasher);
         virtual_index.hash(&mut hasher);
-        hasher.finish() as u64
+        hasher.finish()
     }
 
     fn hash_key<K: Hash>(&self, key: &K) -> u64 {
         let mut hasher = CrcHasher::new();
         key.hash(&mut hasher);
-        hasher.finish() as u64
+        hasher.finish()
     }
 }
 

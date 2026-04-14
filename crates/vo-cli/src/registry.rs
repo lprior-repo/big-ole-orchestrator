@@ -79,12 +79,12 @@ mod handlers {
             };
             let instance = instance.clone();
             Box::pin(async move {
-                let fjall_path = "/home/lewis/.gemini/tmp/veloxide/fjall";
-                let keyspace = fjall::Config::new(fjall_path)
+                let fjall_path = std::path::Path::new("/home/lewis/.gemini/tmp/veloxide/fjall");
+                let db = fjall::Database::builder(fjall_path)
                     .open()
-                    .map_err(|e| CliError::Dispatch(format!("Failed to open keyspace: {e}")))?;
+                    .map_err(|e| CliError::Dispatch(format!("Failed to open database: {e}")))?;
 
-                match vo_storage::purge::purge_instance(&keyspace, &instance) {
+                match vo_storage::purge::purge_instance(&db, &instance) {
                     Ok(count) => {
                         println!("Purged {count} events for instance {instance}.");
                         Ok(())

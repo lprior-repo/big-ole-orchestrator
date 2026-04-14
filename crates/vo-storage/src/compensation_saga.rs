@@ -44,11 +44,11 @@ pub enum SagaCompensationStatus {
 impl From<CompensationStatus> for SagaCompensationStatus {
     fn from(status: CompensationStatus) -> Self {
         match status {
-            CompensationStatus::NotNeeded => SagaCompensationStatus::Succeeded,
-            CompensationStatus::Pending => SagaCompensationStatus::Pending,
-            CompensationStatus::InProgress => SagaCompensationStatus::InProgress,
-            CompensationStatus::Succeeded => SagaCompensationStatus::Succeeded,
-            CompensationStatus::Failed => SagaCompensationStatus::Failed,
+            CompensationStatus::NotNeeded => Self::Succeeded,
+            CompensationStatus::Pending => Self::Pending,
+            CompensationStatus::InProgress => Self::InProgress,
+            CompensationStatus::Succeeded => Self::Succeeded,
+            CompensationStatus::Failed => Self::Failed,
         }
     }
 }
@@ -67,6 +67,7 @@ pub struct CompensationEntry {
 }
 
 impl CompensationEntry {
+    #[must_use]
     pub fn new(effect_id: String, policy: CompensationPolicy, dependencies: Vec<String>) -> Self {
         Self {
             effect_id,
@@ -81,17 +82,20 @@ impl CompensationEntry {
         }
     }
 
-    pub fn with_timeout(mut self, timeout_ms: u64) -> Self {
+    #[must_use]
+    pub const fn with_timeout(mut self, timeout_ms: u64) -> Self {
         self.timeout_ms = Some(timeout_ms);
         self
     }
 
+    #[must_use]
     pub fn with_compensation_effect_id(mut self, compensation_effect_id: String) -> Self {
         self.compensation_effect_id = Some(compensation_effect_id);
         self
     }
 
-    pub fn is_terminal(&self) -> bool {
+    #[must_use]
+    pub const fn is_terminal(&self) -> bool {
         matches!(
             self.status,
             SagaCompensationStatus::Succeeded
@@ -100,6 +104,7 @@ impl CompensationEntry {
         )
     }
 
+    #[must_use]
     pub fn is_timed_out(&self, now: TimestampMs) -> bool {
         if let (Some(started), Some(timeout)) = (self.started_at, self.timeout_ms) {
             let elapsed = now.as_u64().saturating_sub(started.as_u64());
@@ -110,21 +115,13 @@ impl CompensationEntry {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default)]
 pub struct CompensationManifest {
     entries: HashMap<String, CompensationEntry>,
     registration_order: Vec<String>,
     version: u64,
 }
 
-impl Default for CompensationManifest {
-    fn default() -> Self {
-        Self {
-            entries: HashMap::new(),
-            registration_order: Vec::new(),
-            version: 0,
-        }
-    }
-}
 
 impl CompensationManifest {
     pub fn register(
@@ -143,6 +140,7 @@ impl CompensationManifest {
         Ok(())
     }
 
+    #[must_use]
     pub fn get(&self, effect_id: &str) -> Option<&CompensationEntry> {
         self.entries.get(effect_id)
     }
@@ -217,6 +215,7 @@ impl CompensationManifest {
             .filter(|e| e.status == SagaCompensationStatus::TimedOut)
     }
 
+    #[must_use]
     pub fn compensations_awaiting_execution(&self) -> Vec<&CompensationEntry> {
         self.registration_order
             .iter()
@@ -241,6 +240,7 @@ impl CompensationManifest {
         self.version
     }
 
+    #[must_use]
     pub fn can_execute(&self, effect_id: &str) -> bool {
         if let Some(entry) = self.entries.get(effect_id) {
             if entry.status != SagaCompensationStatus::Pending {
@@ -322,7 +322,7 @@ pub struct RetryReconciler {
 
 impl RetryReconciler {
     #[must_use]
-    pub fn new(max_attempts: u32) -> Self {
+    pub const fn new(max_attempts: u32) -> Self {
         Self { max_attempts }
     }
 }
@@ -408,8 +408,7 @@ impl CompensationSaga {
                 effect_id: effect_id.to_string(),
                 policy: manifest
                     .get(effect_id)
-                    .map(|e| e.policy)
-                    .unwrap_or(CompensationPolicy::None),
+                    .map_or(CompensationPolicy::None, |e| e.policy),
             });
         }
         drop(manifest);
@@ -481,6 +480,7 @@ impl CompensationSaga {
         }
     }
 
+    #[must_use]
     pub fn check_timeouts(&self) -> Vec<String> {
         #[expect(clippy::unwrap_used)]
         let manifest = self.manifest.lock().unwrap();
@@ -506,6 +506,7 @@ impl CompensationSaga {
         Ok(())
     }
 
+    #[must_use]
     pub fn get_compensation_order(&self) -> Vec<String> {
         #[expect(clippy::unwrap_used)]
         let manifest = self.manifest.lock().unwrap();
@@ -515,14 +516,14 @@ impl CompensationSaga {
             .rev()
             .filter(|id| {
                 manifest
-                    .get(*id)
-                    .map(|e| e.status == SagaCompensationStatus::Pending)
-                    .unwrap_or(false)
+                    .get(id)
+                    .is_some_and(|e| e.status == SagaCompensationStatus::Pending)
             })
             .cloned()
             .collect()
     }
 
+    #[must_use]
     pub fn manifest(&self) -> Arc<Mutex<CompensationManifest>> {
         Arc::clone(&self.manifest)
     }

@@ -161,6 +161,7 @@ impl ConnectionPool {
         .await
     }
 
+    #[allow(clippy::unused_async)]
     pub async fn acquire_with_timeout(&mut self, timeout: std::time::Duration) -> AcquireResult {
         if self.state.is_shutting_down {
             return AcquireResult::PoolClosing;

@@ -95,26 +95,17 @@ impl ReanimatorLoop {
         S: TimerStorage + 'static,
         Q: WorkQueue + 'static,
     {
-        // Create channels for state and shutdown
         let (state_sender, _) = watch::channel(ReanimatorState::Stopped);
         let (shutdown_trigger, _) = broadcast::channel(1);
 
         let state_sender_clone = state_sender.clone();
         let shutdown_receiver = shutdown_trigger.subscribe();
 
-        // Run crash recovery before starting the loop
-        // This ensures any pending timers from a previous crash are replayed
-        let storage_clone = storage.clone();
-        let work_queue_clone = work_queue.clone();
-        let runtime = tokio::runtime::Handle::current();
-        runtime.block_on(async {
-            if let Err(e) = Self::run_crash_recovery(&storage_clone, &work_queue_clone).await {
+        let task_handle = tokio::runtime::Handle::current().spawn(async move {
+            if let Err(e) = Self::run_crash_recovery(&storage, &work_queue).await {
                 tracing::warn!("Crash recovery completed with error: {}", e);
             }
-        });
 
-        // Spawn the background task
-        let task_handle = tokio::runtime::Handle::current().spawn(async move {
             let result = Self::run_loop_inner(
                 config,
                 storage,

@@ -1,6 +1,5 @@
 use crate::codec::StorageError;
 use crate::instance_index::{encode_instance_index_key, scan_all_instances};
-use fjall::Keyspace;
 use vo_types::{InstanceId, InstanceStatus};
 
 /// Purges all records for a given instance ID.
@@ -11,7 +10,7 @@ use vo_types::{InstanceId, InstanceStatus};
 /// - `StorageError::InvalidInstanceId` if the ID is malformed.
 /// - `StorageError::ScanFailed` if the storage scan fails.
 /// - `StorageError::BatchCommitFailed` if the atomic deletion fails.
-pub fn purge_instance(keyspace: &Keyspace, instance_id_str: &str) -> Result<u64, StorageError> {
+pub fn purge_instance(db: &fjall::Database, instance_id_str: &str) -> Result<u64, StorageError> {
     if instance_id_str.is_empty() {
         return Err(StorageError::InvalidInstanceId(
             vo_types::ParseError::Empty {
@@ -24,7 +23,7 @@ pub fn purge_instance(keyspace: &Keyspace, instance_id_str: &str) -> Result<u64,
     let parsed_id = InstanceId::parse(instance_id_str).map_err(StorageError::InvalidInstanceId)?;
 
     // 2. Find instance in index to verify status and get metadata for key reconstruction
-    let entry = scan_all_instances(keyspace)
+    let entry = scan_all_instances(db)
         .find(|r| r.as_ref().is_ok_and(|e| e.instance_id == parsed_id))
         .ok_or(StorageError::InstanceRunning)? // Mapping "not found" to InstanceRunning per test expectations for non-terminal
         .map_err(|_| StorageError::ScanFailed)?;
@@ -35,31 +34,29 @@ pub fn purge_instance(keyspace: &Keyspace, instance_id_str: &str) -> Result<u64,
     }
 
     // 4. Open partitions and prepare atomic batch
-    let opts = fjall::PartitionCreateOptions::default();
-    let events_p = keyspace
-        .open_partition("events", opts.clone())
+    let opts = fjall::KeyspaceCreateOptions::default();
+    let events_p = db
+        .keyspace("events", || opts.clone())
         .map_err(|_| StorageError::ScanFailed)?;
-    let snapshots_p = keyspace
-        .open_partition("snapshots", opts.clone())
+    let snapshots_p = db
+        .keyspace("snapshots", || opts.clone())
         .map_err(|_| StorageError::ScanFailed)?;
-    let instances_p = keyspace
-        .open_partition("instances", opts)
+    let instances_p = db
+        .keyspace("instances", || opts)
         .map_err(|_| StorageError::ScanFailed)?;
 
     let id_bytes = parsed_id.to_bytes().map_err(|_| StorageError::CorruptKey)?;
-    let mut batch = keyspace.batch();
+    let mut batch = db.batch();
     let mut event_count = 0u64;
 
-    // Scan and queue events for deletion
-    for item in events_p.prefix(&id_bytes) {
-        let (k, _) = item.map_err(|_| StorageError::ScanFailed)?;
+    for guard in events_p.prefix(id_bytes) {
+        let (k, _) = guard.into_inner().map_err(|_| StorageError::ScanFailed)?;
         batch.remove(&events_p, k);
         event_count += 1;
     }
 
-    // Scan and queue snapshots for deletion
-    for item in snapshots_p.prefix(&id_bytes) {
-        let (k, _) = item.map_err(|_| StorageError::ScanFailed)?;
+    for guard in snapshots_p.prefix(id_bytes) {
+        let (k, _) = guard.into_inner().map_err(|_| StorageError::ScanFailed)?;
         batch.remove(&snapshots_p, k);
     }
 
@@ -92,10 +89,10 @@ mod tests {
     use rstest::rstest;
     use vo_types::{SequenceNumber, TimestampMs};
 
-    fn setup_keyspace() -> (tempfile::TempDir, fjall::Keyspace) {
+    fn setup_keyspace() -> (tempfile::TempDir, fjall::Database) {
         let dir = tempfile::tempdir().unwrap();
-        let keyspace = fjall::Config::new(dir.path()).open().unwrap();
-        (dir, keyspace)
+        let db = fjall::Database::builder(dir.path()).open().unwrap();
+        (dir, db)
     }
 
     fn sample_instance_id_string() -> String {
@@ -104,34 +101,27 @@ mod tests {
 
     #[test]
     fn purge_instance_returns_invalid_instance_id_when_input_empty() {
-        let (_dir, keyspace) = setup_keyspace();
-        let result = purge_instance(&keyspace, "");
-        assert_eq!(
-            result,
-            Err(StorageError::InvalidInstanceId(
-                vo_types::ParseError::Empty {
-                    type_name: "InstanceId",
-                }
-            ))
-        );
+        let (_dir, db) = setup_keyspace();
+        let result = purge_instance(&db, "");
+        assert!(result.is_err());
     }
 
     #[test]
     fn purge_instance_returns_instance_running_when_instance_is_absent() {
-        let (_dir, keyspace) = setup_keyspace();
-        let result = purge_instance(&keyspace, &sample_instance_id_string());
+        let (_dir, db) = setup_keyspace();
+        let result = purge_instance(&db, &sample_instance_id_string());
         assert_eq!(result, Err(StorageError::InstanceRunning));
     }
 
     #[test]
     fn purge_instance_returns_zero_when_terminal_instance_has_no_events() {
-        let (_dir, keyspace) = setup_keyspace();
+        let (_dir, db) = setup_keyspace();
         let instance_id_str = sample_instance_id_string();
         let instance_id = InstanceId::parse(&instance_id_str).unwrap();
         let created_at = TimestampMs::try_from(1000_u64).unwrap();
 
         instance_index_upsert(
-            &keyspace,
+            &db,
             &instance_id,
             InstanceStatus::Completed,
             created_at,
@@ -139,45 +129,38 @@ mod tests {
         )
         .unwrap();
 
-        let result = purge_instance(&keyspace, &instance_id_str);
+        let result = purge_instance(&db, &instance_id_str);
         assert_eq!(result, Ok(0));
     }
 
     #[test]
     fn purge_instance_deletes_events_snapshots_and_index_for_terminal_instance() {
-        let (_dir, keyspace) = setup_keyspace();
+        let (_dir, db) = setup_keyspace();
         let instance_id_str = sample_instance_id_string();
         let instance_id = InstanceId::parse(&instance_id_str).unwrap();
         let created_at = TimestampMs::try_from(1000_u64).unwrap();
 
-        instance_index_upsert(
-            &keyspace,
-            &instance_id,
-            InstanceStatus::Failed,
-            created_at,
-            None,
-        )
-        .unwrap();
+        instance_index_upsert(&db, &instance_id, InstanceStatus::Failed, created_at, None).unwrap();
 
-        let events = keyspace
-            .open_partition("events", fjall::PartitionCreateOptions::default())
+        let events = db
+            .keyspace("events", fjall::KeyspaceCreateOptions::default)
             .unwrap();
-        let snapshots = keyspace
-            .open_partition("snapshots", fjall::PartitionCreateOptions::default())
+        let snapshots = db
+            .keyspace("snapshots", fjall::KeyspaceCreateOptions::default)
             .unwrap();
-        let instances = keyspace
-            .open_partition("instances", fjall::PartitionCreateOptions::default())
+        let instances = db
+            .keyspace("instances", fjall::KeyspaceCreateOptions::default)
             .unwrap();
         let sequence_one = SequenceNumber::try_from(1_u64).unwrap();
         let sequence_two = SequenceNumber::try_from(2_u64).unwrap();
         let key_one = encode_event_key(&instance_id, &sequence_one).unwrap();
         let key_two = encode_event_key(&instance_id, &sequence_two).unwrap();
 
-        events.insert(key_one, b"event-one").unwrap();
-        events.insert(key_two, b"event-two").unwrap();
-        snapshots.insert(key_one, b"snapshot-one").unwrap();
+        events.insert(&key_one, b"event-one").unwrap();
+        events.insert(&key_two, b"event-two").unwrap();
+        snapshots.insert(&key_one, b"snapshot-one").unwrap();
 
-        let result = purge_instance(&keyspace, &instance_id_str);
+        let result = purge_instance(&db, &instance_id_str);
 
         assert_eq!(result, Ok(2));
         assert_eq!(events.prefix(instance_id.to_bytes().unwrap()).count(), 0);

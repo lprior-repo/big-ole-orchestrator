@@ -151,35 +151,20 @@ fn cargo_toml_contains_serde_json_in_dev_dependencies_when_inspected() {
 
 #[test]
 fn cargo_toml_excludes_all_infra_dependencies_when_inspected() {
-    // Given: vo-types/Cargo.toml exists
     let content = std::fs::read_to_string(CARGO_TOML_PATH).expect("Failed to read Cargo.toml");
 
-    // When: the entire file is scanned
-    // Then: none of the forbidden deps appear anywhere
-    assert!(
-        !content.contains("tokio"),
-        "Forbidden dependency 'tokio' must not appear anywhere in Cargo.toml"
-    );
-    assert!(
-        !content.contains("axum"),
-        "Forbidden dependency 'axum' must not appear anywhere in Cargo.toml"
-    );
-    assert!(
-        !content.contains("ractor"),
-        "Forbidden dependency 'ractor' must not appear anywhere in Cargo.toml"
-    );
-    assert!(
-        !content.contains("fjall"),
-        "Forbidden dependency 'fjall' must not appear anywhere in Cargo.toml"
-    );
-    assert!(
-        !content.contains("tower"),
-        "Forbidden dependency 'tower' must not appear anywhere in Cargo.toml"
-    );
-    assert!(
-        !content.contains("reqwest"),
-        "Forbidden dependency 'reqwest' must not appear anywhere in Cargo.toml"
-    );
+    let deps_section = content
+        .split("[dev-dependencies]")
+        .next()
+        .unwrap_or(&content);
+
+    let forbidden = ["tokio", "axum", "ractor", "fjall", "tower", "reqwest"];
+    for dep in &forbidden {
+        assert!(
+            !deps_section.contains(dep),
+            "Forbidden dependency '{dep}' must not appear in [dependencies]"
+        );
+    }
 }
 
 // ---------------------------------------------------------------------------

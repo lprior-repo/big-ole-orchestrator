@@ -87,7 +87,7 @@ impl TimerStorage for MockTimerStorage {
         
         for t in timers.iter() {
             if t.fire_at_ms <= to_timestamp {
-                let key = (t.instance_id.clone(), t.fire_at_ms);
+                let key = (t.instance_id.clone(), t.fire_at_ms, t.timer_id.clone());
                 if seen.insert(key) && due.len() < max_results as usize {
                     due.push(t.clone());
                 }
@@ -112,9 +112,7 @@ impl TimerStorage for MockTimerStorage {
             .push((instance_id.clone(), fire_at_ms));
 
         let mut timers = self.timers.lock().await;
-        if let Some(pos) = timers.iter().position(|t| t.instance_id == *instance_id && t.fire_at_ms == fire_at_ms) {
-            timers.remove(pos);
-        }
+        timers.retain(|t| !(t.instance_id == *instance_id && t.fire_at_ms == fire_at_ms));
 
         Ok(())
     }
@@ -177,7 +175,7 @@ impl TimerStorage for MockTimerStorage {
     async fn complete_timer_processing(
         &self,
         instance_id: &InstanceId,
-        fire_at_ms: TimestampMs,
+        _fire_at_ms: TimestampMs,
     ) -> Result<(), ReanimatorError> {
         if *self.should_fail.lock().await {
             return Err(ReanimatorError::StorageError("Mock failure".to_string()));

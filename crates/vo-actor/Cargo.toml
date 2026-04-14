@@ -30,3 +30,6 @@ criterion = { workspace = true }
 [[bench]]
 name = "reanimator_bench"
 harness = false
+
+[lints]
+workspace = true

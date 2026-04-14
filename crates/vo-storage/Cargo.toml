@@ -3,8 +3,8 @@ name = "vo-storage"
 version.workspace = true
 edition.workspace = true
 
-[lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(kani)', 'cfg(feature, values("proptest"))'] }
+[lints]
+workspace = true
 
 [features]
 proptest = []

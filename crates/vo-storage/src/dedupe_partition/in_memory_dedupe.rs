@@ -92,7 +92,6 @@ impl DedupeStore for InMemoryDedupeStore {
         let key_str = key.as_str().to_string();
         Ok(entries
             .get(&key_str)
-            .map(|e| !e.is_expired(now_ms))
-            .unwrap_or(false))
+            .is_some_and(|e| !e.is_expired(now_ms)))
     }
 }

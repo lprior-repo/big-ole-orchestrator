@@ -187,7 +187,7 @@ pub async fn ws_workflow(
                     recv_result = receiver.recv() => {
                         match recv_result {
                             Ok(event) => {
-                                let msg = axum::extract::ws::Message::Text(event.to_json_string());
+                                let msg = axum::extract::ws::Message::Text(event.to_json_string().into());
                                 if ws.send(msg).await.is_err() {
                                     break;
                                 }

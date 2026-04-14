@@ -302,11 +302,8 @@ where
 
     for event in &events {
         if let Ok(payload) = vo_types::events::EventPayload::try_from_json(&event.payload) {
-            match payload {
-                vo_types::events::EventPayload::WorkflowStarted { .. } => {
-                    parent_started.insert(event.instance_id.clone(), true);
-                }
-                _ => {}
+            if let vo_types::events::EventPayload::WorkflowStarted { .. } = payload {
+                parent_started.insert(event.instance_id.clone(), true);
             }
         }
     }

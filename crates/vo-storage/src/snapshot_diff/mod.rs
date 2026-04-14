@@ -144,7 +144,7 @@ pub const fn apply_diff(
     })
 }
 
-pub fn three_way_merge(
+pub const fn three_way_merge(
     base: &InstanceState,
     ours: &InstanceState,
     theirs: &InstanceState,

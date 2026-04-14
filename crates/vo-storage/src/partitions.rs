@@ -11,13 +11,13 @@
 //! | `dedupe` | Exactly-once ingress deduplication | `<dedupe_key>` |
 //! | `effects` | EffectPrepared/EffectCommitted journal | `<instance_id><intent_id>` |
 //! | `leases` | Monotonic fence tokens | `<instance_id><step_id>` |
-//! | `workflow_versions` | Canonical WorkflowSpec by hash | `<hash>` |
+//! | `workflow_versions` | Canonical `WorkflowSpec` by hash | `<hash>` |
 //! | `payload_blobs` | Encrypted canonical payload blobs | `<content_addr>` |
 //!
 //! ## Hot/Cold Split
 //!
 //! - **Hot control-plane partitions**: events, instances, timers, dedupe, effects, leases
-//! - **Cold blob storage**: snapshots (compaction-heavy), payload_blobs (large values)
+//! - **Cold blob storage**: snapshots (compaction-heavy), `payload_blobs` (large values)
 
 use std::fmt;
 use std::path::Path;
@@ -146,19 +146,19 @@ impl PartitionConfig {
     }
 
     #[must_use]
-    pub fn to_fjall_options(&self) -> fjall::PartitionCreateOptions {
-        fjall::PartitionCreateOptions::default()
+    pub fn to_fjall_options(&self) -> fjall::KeyspaceCreateOptions {
+        fjall::KeyspaceCreateOptions::default()
     }
 }
 
 pub struct FjallPartitionLayout {
-    keyspace: fjall::Keyspace,
+    db: fjall::Database,
 }
 
 impl FjallPartitionLayout {
     #[must_use]
-    pub fn keyspace(&self) -> &fjall::Keyspace {
-        &self.keyspace
+    pub const fn db(&self) -> &fjall::Database {
+        &self.db
     }
 }
 
@@ -205,14 +205,16 @@ pub fn create_partition_layout(path: impl AsRef<Path>) -> StorageResult<FjallPar
         })?;
     }
 
-    let config = fjall::Config::new(path);
-    let keyspace = config.open().map_err(|e| StorageError::InvalidPath {
-        reason: e.to_string(),
-    })?;
+    let db = fjall::Database::builder(path)
+        .open()
+        .map_err(|e| StorageError::InvalidPath {
+            reason: e.to_string(),
+        })?;
 
-    Ok(FjallPartitionLayout { keyspace })
+    Ok(FjallPartitionLayout { db })
 }
 
+#[must_use]
 pub fn get_partition_config(name: &str) -> PartitionConfig {
     if HOT_PARTITIONS.contains(&name) {
         PartitionConfig::hot()
@@ -227,14 +229,14 @@ pub fn get_partition_config(name: &str) -> PartitionConfig {
 
 pub fn open_all_partitions(
     layout: &FjallPartitionLayout,
-) -> StorageResult<Vec<(&'static str, fjall::PartitionHandle)>> {
+) -> StorageResult<Vec<(&'static str, fjall::Keyspace)>> {
     let mut partitions = Vec::with_capacity(ALL_PARTITIONS.len());
 
     for name in ALL_PARTITIONS {
         let config = get_partition_config(name);
         let partition = layout
-            .keyspace
-            .open_partition(name, config.to_fjall_options())
+            .db
+            .keyspace(name, || config.to_fjall_options())
             .map_err(|e| StorageError::PartitionOpenFailed {
                 name: name.to_string(),
                 reason: e.to_string(),

@@ -218,7 +218,7 @@ impl CommandDispatcherV2 {
         let registry = crate::registry::HandlerRegistry::default();
         let handler_ref = registry
             .get(&cli)
-            .ok_or_else(|| CliError::Dispatch(format!("unknown command")))?;
+            .ok_or_else(|| CliError::Dispatch("unknown command".to_string()))?;
 
         let command_name = handler_ref.name().to_string();
         let ctx = DefaultDispatchContext::new(&command_name);

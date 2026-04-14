@@ -17,7 +17,7 @@ pub use connector::{
 };
 pub mod pool;
 mod port;
-mod retry;
+pub mod retry;
 mod storage;
 mod supervisor;
 

@@ -9,9 +9,9 @@ use vo_storage::instance_index::{
     InstanceIndexEntry,
 };
 
-fn create_test_keyspace() -> fjall::Keyspace {
+fn create_test_keyspace() -> fjall::Database {
     let dir = tempdir().unwrap();
-    fjall::Config::new(dir.path()).open().unwrap()
+    fjall::Database::builder(dir.path()).open().unwrap()
 }
 
 fn make_instance_id(index: u8) -> InstanceId {
@@ -124,7 +124,7 @@ fn bench_instance_index_scan_by_status(c: &mut Criterion) {
                 },
                 |keyspace| {
                     let partition = keyspace
-                        .open_partition("instances", fjall::PartitionCreateOptions::default())
+                        .keyspace("instances", fjall::KeyspaceCreateOptions::default)
                         .unwrap();
                     let prefix = [InstanceStatus::Running.to_byte()];
                     let count = partition.prefix(prefix).count();

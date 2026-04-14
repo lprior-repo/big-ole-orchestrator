@@ -16,7 +16,7 @@ use crate::types::ApiError;
 /// Shared state for query handlers.
 #[derive(Clone)]
 pub struct QueryState {
-    pub keyspace: Arc<fjall::Keyspace>,
+    pub keyspace: Arc<fjall::Database>,
 }
 
 /// Split `<namespace>/<instance_id>` path into parts.

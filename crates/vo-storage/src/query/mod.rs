@@ -6,13 +6,13 @@
 //! ## Lineage-Aware Query Routing (ADR-038, ADR-042)
 //!
 //! Workflows may perform continue-as-new, creating new execution epochs while maintaining
-//! a stable lineage_id. Lineage-aware query routing enables:
+//! a stable `lineage_id`. Lineage-aware query routing enables:
 //!
 //! - **Lineage-wide queries**: Retrieve all events across all epochs of a lineage
 //! - **Epoch-specific queries**: Retrieve events for a specific epoch within a lineage
 //!
 //! The routing is determined by [`LineageQuery`] which specifies whether to query
-//! by instance_id directly, or by lineage_id (+ optional epoch).
+//! by `instance_id` directly, or by `lineage_id` (+ optional epoch).
 
 pub use crate::codec::StorageError;
 use vo_types::{Epoch, EventEnvelope, EventError, InstanceId};
@@ -109,7 +109,7 @@ pub fn epoch_prefix_generator(lineage_id: &str, epoch: Epoch) -> Result<Vec<u8>,
     Ok(prefix)
 }
 
-impl<'a> LineageQuery<'a> {
+impl LineageQuery<'_> {
     pub fn to_prefix(&self) -> Result<Vec<u8>, StorageError> {
         match self {
             LineageQuery::InstanceId(instance_id) => prefix_generator(instance_id),
@@ -199,7 +199,7 @@ impl IteratorState {
 
 pub struct EventReplayIterator {
     state: IteratorState,
-    inner: Option<Box<dyn DoubleEndedIterator<Item = fjall::Result<fjall::KvPair>>>>,
+    inner: Option<Box<dyn DoubleEndedIterator<Item = fjall::Guard>>>,
     init_error: Option<StorageError>,
 }
 
@@ -214,11 +214,10 @@ impl Iterator for EventReplayIterator {
             return None;
         };
         match inner.next() {
-            Some(Ok((k_bytes, v_bytes))) => self.process_kv(&k_bytes, &v_bytes),
-            Some(Err(_)) => {
+            Some(guard) => if let Ok((k_bytes, v_bytes)) = guard.into_inner() { self.process_kv(&k_bytes, &v_bytes) } else {
                 self.inner = None;
                 Some(Err(StorageError::Storage))
-            }
+            },
             None => None,
         }
     }
@@ -266,7 +265,7 @@ impl EventReplayIterator {
 }
 
 #[must_use]
-pub fn replay_events(keyspace: &fjall::Keyspace, instance_id: &InstanceId) -> EventReplayIterator {
+pub fn replay_events(db: &fjall::Database, instance_id: &InstanceId) -> EventReplayIterator {
     let prefix = match prefix_generator(instance_id) {
         Ok(p) => p,
         Err(e) => {
@@ -277,8 +276,7 @@ pub fn replay_events(keyspace: &fjall::Keyspace, instance_id: &InstanceId) -> Ev
             };
         }
     };
-    let Ok(partition) = keyspace.open_partition("events", fjall::PartitionCreateOptions::default())
-    else {
+    let Ok(partition) = db.keyspace("events", fjall::KeyspaceCreateOptions::default) else {
         return EventReplayIterator {
             state: IteratorState::new(),
             inner: None,
@@ -332,12 +330,12 @@ impl Iterator for LineageReplayIterator {
 
 #[must_use]
 pub fn replay_events_for_lineage(
-    keyspace: &fjall::Keyspace,
+    db: &fjall::Database,
     query: &LineageQuery,
 ) -> LineageReplayIterator {
     match query {
         LineageQuery::InstanceId(instance_id) => {
-            let iter = replay_events(keyspace, instance_id);
+            let iter = replay_events(db, instance_id);
             LineageReplayIterator {
                 instance_iter: Some(iter),
                 lineage_id: None,

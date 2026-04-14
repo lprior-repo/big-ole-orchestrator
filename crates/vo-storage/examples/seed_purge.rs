@@ -6,7 +6,7 @@ fn main() {
     let fjall_path = "/home/lewis/.gemini/tmp/veloxide/fjall";
     let _val = std::fs::remove_dir_all(fjall_path);
     let _val = std::fs::create_dir_all(fjall_path);
-    let keyspace = fjall::Config::new(fjall_path)
+    let keyspace = fjall::Database::builder(fjall_path)
         .open()
         .expect("failed to open keyspace");
 
@@ -14,15 +14,15 @@ fn main() {
     let ts = TimestampMs::try_from(1000u64).unwrap();
 
     // Seed terminal
-    let _val = keyspace.open_partition("instances", Default::default());
+    let _val = keyspace.keyspace("instances", fjall::KeyspaceCreateOptions::default);
     instance_index_upsert(&keyspace, &terminal_id, InstanceStatus::Completed, ts, None).unwrap();
     let events_p = keyspace
-        .open_partition("events", Default::default())
+        .keyspace("events", fjall::KeyspaceCreateOptions::default)
         .unwrap();
     for i in 1..=5 {
         let seq = SequenceNumber::try_from(i as u64).unwrap();
         let key = encode_event_key(&terminal_id, &seq).unwrap();
-        events_p.insert(key, b"event-data").unwrap();
+        events_p.insert(&key, b"event-data").unwrap();
     }
 
     keyspace.persist(fjall::PersistMode::SyncAll).unwrap();

@@ -474,7 +474,7 @@ impl EventSourcingEngine {
     }
 
     pub fn should_create_snapshot(&self, events_processed: u64) -> bool {
-        events_processed > 0 && events_processed % self.config.snapshot_interval_events == 0
+        events_processed > 0 && events_processed.is_multiple_of(self.config.snapshot_interval_events)
     }
 
     pub fn create_snapshot<S: serde::Serialize>(

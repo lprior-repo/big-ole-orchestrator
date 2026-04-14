@@ -1,6 +1,6 @@
 //! DbWriterMessage enum for atomic control-plane transitions.
 //!
-//! Per ADR-016: DbWriterActor uses fjall::Batch for every control-plane
+//! Per ADR-016: DbWriterActor uses fjall::OwnedWriteBatch for every control-plane
 //! transition. All events are sent to DbWriterActor for batch commit.
 //!
 //! Per ADR-029: Execution leases with monotonic fence tokens for

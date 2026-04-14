@@ -31,7 +31,7 @@ fn http_record(intent_id: &str, params: serde_json::Value) -> EffectRecord {
 }
 
 fn open_journal(dir: &std::path::Path) -> FjallEffectJournal {
-    let keyspace = fjall::Config::new(dir).open().unwrap();
+    let keyspace = fjall::Database::builder(dir).open().unwrap();
     FjallEffectJournal::open(&keyspace).unwrap()
 }
 

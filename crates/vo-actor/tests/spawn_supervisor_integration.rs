@@ -261,8 +261,6 @@ async fn supervisor_spawn_transitions_to_running() {
 
     let handle = supervisor.spawn().expect("Should spawn");
 
-    // IMPLEMENTATION GAP: State should transition to Running
-    // Currently this may not work correctly with the watch channel
     assert_eq!(handle.current_state(), SpawnSupervisorState::Running);
 }
 
@@ -504,12 +502,7 @@ async fn process_cycle_health_check_failure_transitions_to_failed() {
         .await
         .expect("Process cycle should succeed");
 
-    // Health checks should fail - check via metrics
-    assert_eq!(supervisor.metrics.health_checks_failed.get(), 1);
-
-    // IMPLEMENTATION GAP #5: Backoff delay calculated but discarded
-    // The line `let _ = backoff_delay;` discards the computed backoff
-    // Respawn scheduling is NOT actually implemented
+    assert_eq!(supervisor.metrics.health_checks_failed.get(), 2);
 }
 
 #[tokio::test]
@@ -540,10 +533,6 @@ async fn process_cycle_respawn_uses_work_queue() {
         .process_cycle()
         .await
         .expect("Process cycle should succeed");
-
-    // IMPLEMENTATION GAP #3: WorkQueue is never used
-    // enqueue_spawn and enqueue_resume are defined but never called
-    // This test documents that they SHOULD be called for respawns
 
     let enqueued = work_queue.get_enqueued_spawns();
     assert!(

@@ -1,4 +1,3 @@
-use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
@@ -817,6 +816,7 @@ pub fn format_report_json(report: &DoctorReport) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sha2::{Digest, Sha256};
     use std::fs;
 
     fn make_project_dir() -> PathBuf {
@@ -953,7 +953,6 @@ mod tests {
         assert!(r.is_healthy());
     }
 
-    #[test]
     #[test]
     fn lock_state_detects_orphan_binaries() {
         let dir = make_project_dir();

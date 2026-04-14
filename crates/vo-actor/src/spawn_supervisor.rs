@@ -507,7 +507,7 @@ impl SpawnSupervisor {
     /// # Errors
     /// Returns `AlreadyRunning` if the supervisor is already running.
     pub fn spawn(self) -> Result<SpawnSupervisorHandle, SpawnSupervisorError> {
-        let (state_sender, _) = watch::channel(SpawnSupervisorState::Stopped);
+        let (state_sender, _) = watch::channel(SpawnSupervisorState::Running);
         let (shutdown_trigger, _) = broadcast::channel(1);
 
         let state_sender_clone = state_sender.clone();
@@ -536,8 +536,6 @@ impl SpawnSupervisor {
     ) -> Result<(), SpawnSupervisorError> {
         let mut scan_interval = interval(self.health_check_interval);
         scan_interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
-
-        let _ = state_sender.send(SpawnSupervisorState::Running);
 
         loop {
             tokio::select! {
@@ -732,6 +730,48 @@ impl SpawnSupervisor {
                         "Health check failed"
                     );
                 }
+            }
+        }
+
+        let failed_records = self
+            .storage
+            .scan_spawns_by_phase(SpawnPhase::Failed, 100)
+            .await;
+
+        for record in failed_records {
+            spawns_processed += 1;
+
+            if should_respawn(&record, self.max_spawn_attempts) {
+                let new_record = record.respawn(None);
+
+                if let Err(e) = self.storage.save_spawn_record(&new_record).await {
+                    self.metrics.dispatch_errors.incr();
+                    errors += 1;
+                    tracing::error!(
+                        instance_id = %record.instance_id,
+                        error = %e,
+                        "Failed to save respawn record"
+                    );
+                    continue;
+                }
+
+                if let Err(e) = self
+                    .work_queue
+                    .enqueue_spawn(record.instance_id.clone(), record.command.clone())
+                    .await
+                {
+                    self.metrics.dispatch_errors.incr();
+                    errors += 1;
+                    tracing::error!(
+                        instance_id = %record.instance_id,
+                        error = %e,
+                        "Failed to enqueue respawn"
+                    );
+                    continue;
+                }
+
+                respawns += 1;
+                self.metrics.respawns.incr();
             }
         }
 

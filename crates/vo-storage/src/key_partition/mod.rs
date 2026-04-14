@@ -46,7 +46,7 @@ impl DekEntry {
     /// # Errors
     ///
     /// Returns `DekStoreError::InvalidArgument` if inputs are invalid.
-    pub fn new(
+    pub const fn new(
         dek_id: DekId,
         instance_id: InstanceId,
         wrapped_dek: WrappedDek,
@@ -62,17 +62,17 @@ impl DekEntry {
     }
 
     #[must_use]
-    pub fn dek_id(&self) -> &DekId {
+    pub const fn dek_id(&self) -> &DekId {
         &self.dek_id
     }
 
     #[must_use]
-    pub fn instance_id(&self) -> &InstanceId {
+    pub const fn instance_id(&self) -> &InstanceId {
         &self.instance_id
     }
 
     #[must_use]
-    pub fn wrapped_dek(&self) -> &WrappedDek {
+    pub const fn wrapped_dek(&self) -> &WrappedDek {
         &self.wrapped_dek
     }
 
@@ -87,7 +87,7 @@ impl DekEntry {
     }
 
     /// Mark this DEK as retired (crypto-shredded).
-    pub fn retire(&mut self) {
+    pub const fn retire(&mut self) {
         self.status = DekStatus::Retired;
     }
 }
@@ -143,7 +143,7 @@ pub fn encode_instance_key(instance_id: &InstanceId) -> Vec<u8> {
 /// # Errors
 ///
 /// Returns `DekStoreError::Codec` if bytes are not valid UTF-8 or if the
-/// resulting string is not a valid InstanceId.
+/// resulting string is not a valid `InstanceId`.
 pub fn decode_instance_key(bytes: &[u8]) -> Result<InstanceId, DekStoreError> {
     let s = std::str::from_utf8(bytes).map_err(|e| DekStoreError::Codec {
         reason: e.to_string(),

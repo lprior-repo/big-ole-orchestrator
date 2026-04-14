@@ -16,7 +16,7 @@ impl FjallStorage {
 
     fn partition(&self) -> fjall::Partition {
         self.keyspace
-            .open_partition("timers", fjall::PartitionCreateOptions::default())
+            .keyspace("timers", fjall::KeyspaceCreateOptions::default)
             .unwrap()
     }
 }
@@ -73,7 +73,7 @@ fn bench_timer_set(c: &mut Criterion) {
             b.iter_batched(
                 || {
                     let dir = tempfile::tempdir().unwrap();
-                    let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+                    let keyspace = fjall::Database::builder(dir.path()).open().unwrap();
                     FjallStorage::new(keyspace)
                 },
                 |mut storage| {
@@ -114,7 +114,7 @@ fn bench_scan_due_timers(c: &mut Criterion) {
             b.iter_batched(
                 || {
                     let dir = tempfile::tempdir().unwrap();
-                    let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+                    let keyspace = fjall::Database::builder(dir.path()).open().unwrap();
                     let mut storage = FjallStorage::new(keyspace);
                     let now_ms = 500_000u64;
                     for i in 0..count {
@@ -159,7 +159,7 @@ fn bench_timer_delete(c: &mut Criterion) {
         b.iter_batched(
             || {
                 let dir = tempfile::tempdir().unwrap();
-                let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+                let keyspace = fjall::Database::builder(dir.path()).open().unwrap();
                 let mut storage = FjallStorage::new(keyspace);
                 let now_ms = 1_000_000u64;
                 let instance_id = make_instance_id(0);
@@ -204,7 +204,7 @@ fn bench_timer_mixed_workload(c: &mut Criterion) {
         b.iter_batched(
             || {
                 let dir = tempfile::tempdir().unwrap();
-                let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+                let keyspace = fjall::Database::builder(dir.path()).open().unwrap();
                 let mut storage = FjallStorage::new(keyspace);
                 let now_ms = 1_000_000u64;
                 for i in 0..1000u64 {
@@ -267,7 +267,7 @@ fn bench_timer_concurrent(c: &mut Criterion) {
         b.iter_batched(
             || {
                 let dir = tempfile::tempdir().unwrap();
-                let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+                let keyspace = fjall::Database::builder(dir.path()).open().unwrap();
                 (dir, FjallStorage::new(keyspace))
             },
             |(_dir, mut storage)| {
@@ -329,7 +329,7 @@ fn bench_timer_range_scan(c: &mut Criterion) {
         b.iter_batched(
             || {
                 let dir = tempfile::tempdir().unwrap();
-                let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+                let keyspace = fjall::Database::builder(dir.path()).open().unwrap();
                 let mut storage = FjallStorage::new(keyspace);
                 let base_now_ms = 500_000u64;
                 for i in 0..10000u64 {

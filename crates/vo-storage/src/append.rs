@@ -10,7 +10,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use vo_types::events::EventEnvelope;
-use vo_types::events::EventMetadata;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Metrics Helpers
@@ -158,6 +157,23 @@ impl WriteBudget {
         }
         Ok(())
     }
+
+    pub fn release(&self, class: WriteClass, size_bytes: u64) {
+        match class {
+            WriteClass::CriticalControlPlane => {
+                let current = self.critical_used.borrow().saturating_sub(size_bytes);
+                *self.critical_used.borrow_mut() = current;
+            }
+            WriteClass::OperatorProjection => {
+                let current = self.projection_used.borrow().saturating_sub(size_bytes);
+                *self.projection_used.borrow_mut() = current;
+            }
+            WriteClass::BulkBlob => {
+                let current = self.blob_used.borrow().saturating_sub(size_bytes);
+                *self.blob_used.borrow_mut() = current;
+            }
+        }
+    }
 }
 
 /// Budget exceeded error.
@@ -299,7 +315,7 @@ pub struct BackpressureSignal {
 impl BackpressureSignal {
     /// Creates a new backpressure signal with all queues initially not full.
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             critical_full: AtomicBool::new(false),
             projection_full: AtomicBool::new(false),
@@ -420,7 +436,7 @@ impl CommitLatencyTracker {
 
         #[expect(clippy::unwrap_used)]
         let mut total = self.total_latency_ms.lock().unwrap();
-        *total += latency_ms as u128;
+        *total += u128::from(latency_ms);
     }
 
     /// Returns the time since the last commit, if any.
@@ -441,7 +457,7 @@ impl CommitLatencyTracker {
         }
         #[expect(clippy::unwrap_used)]
         let total = *self.total_latency_ms.lock().unwrap();
-        Some((total / count as u128) as u64)
+        Some((total / u128::from(count)) as u64)
     }
 
     #[must_use]
@@ -540,7 +556,7 @@ impl<T> BudgetQueues<T> {
                 critical_depth: 0,
                 projection_depth: 0,
                 blob_depth: 0,
-                config: config.clone(),
+                config: config,
             })),
             budget,
             backpressure: Arc::new(BackpressureSignal::new()),
@@ -568,7 +584,7 @@ impl<T> BudgetQueues<T> {
                 critical_depth: 0,
                 projection_depth: 0,
                 blob_depth: 0,
-                config: config.clone(),
+                config: config,
             })),
             budget,
             backpressure,
@@ -592,7 +608,7 @@ impl<T> BudgetQueues<T> {
 
     /// Returns a reference to the backpressure signal.
     #[must_use]
-    pub fn backpressure(&self) -> &Arc<BackpressureSignal> {
+    pub const fn backpressure(&self) -> &Arc<BackpressureSignal> {
         &self.backpressure
     }
 
@@ -698,7 +714,10 @@ impl<T> BudgetQueues<T> {
     /// Dequeues an item from the front of the specified queue.
     ///
     /// Emits backpressure signals when queues transition from full to having capacity.
-    pub fn dequeue(&self, class: WriteClass) -> Option<T> {
+    pub fn dequeue(&self, class: WriteClass) -> Option<T>
+    where
+        T: ClassifiedWrite,
+    {
         let queue: &Mutex<InnerQueue<T>> = match class {
             WriteClass::CriticalControlPlane => &self.critical_queue,
             WriteClass::OperatorProjection => &self.projection_queue,
@@ -729,6 +748,10 @@ impl<T> BudgetQueues<T> {
 
             emit_queue_depth(class, new_depth);
 
+            if let Some(ref it) = item {
+                self.budget.release(class, it.size_bytes());
+            }
+
             if was_full {
                 let remaining = match self.stats.lock() {
                     Ok(guard) => guard.remaining(class),
@@ -740,13 +763,16 @@ impl<T> BudgetQueues<T> {
         item
     }
 
-    /// Dequeues items in priority order: CriticalControlPlane → OperatorProjection → BulkBlob.
+    /// Dequeues items in priority order: `CriticalControlPlane` → `OperatorProjection` → `BulkBlob`.
     ///
     /// Returns the next item available in priority order, or `None` if all queues are empty.
     ///
     /// This method implements ADR-032 priority-based write ordering, ensuring that
     /// critical control-plane writes are always serviced before lower-priority writes.
-    pub fn dequeue_prioritized(&self) -> Option<(WriteClass, T)> {
+    pub fn dequeue_prioritized(&self) -> Option<(WriteClass, T)>
+    where
+        T: ClassifiedWrite,
+    {
         // Try critical first (highest priority)
         if let Some(item) = self.dequeue(WriteClass::CriticalControlPlane) {
             return Some((WriteClass::CriticalControlPlane, item));
@@ -965,6 +991,7 @@ impl Appender {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use vo_types::events::EventMetadata;
 
     #[test]
     fn write_class_tier() {

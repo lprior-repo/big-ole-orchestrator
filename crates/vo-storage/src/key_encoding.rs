@@ -19,8 +19,9 @@ use vo_types::{InstanceId, ParseError, SequenceNumber, StepId};
 mod tests;
 
 #[cfg(test)]
-mod red_queen_tests;
 mod red_queen_adversarial;
+#[cfg(test)]
+mod red_queen_tests;
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum KeyEncodingError {
@@ -36,7 +37,7 @@ pub enum KeyEncodingError {
 
 impl From<std::str::Utf8Error> for KeyEncodingError {
     fn from(e: std::str::Utf8Error) -> Self {
-        KeyEncodingError::StepId(ParseError::InvalidFormat {
+        Self::StepId(ParseError::InvalidFormat {
             type_name: "Utf8",
             reason: e.to_string(),
         })
@@ -51,12 +52,12 @@ pub const PARTITION_DEDUPE: &[u8] = b"dedupe";
 pub const PARTITION_EFFECTS: &[u8] = b"effects";
 
 #[must_use]
-pub fn encode_u64_be(value: u64) -> [u8; 8] {
+pub const fn encode_u64_be(value: u64) -> [u8; 8] {
     value.to_be_bytes()
 }
 
 #[must_use]
-pub fn encode_u16_be(value: u16) -> [u8; 2] {
+pub const fn encode_u16_be(value: u16) -> [u8; 2] {
     value.to_be_bytes()
 }
 
@@ -101,9 +102,9 @@ pub fn encode_length_prefixed(value: &[u8]) -> Vec<u8> {
     result
 }
 
-pub fn decode_length_prefixed<'a>(
-    bytes: &'a [u8],
-) -> Result<(&'a [u8], &'a [u8]), KeyEncodingError> {
+pub fn decode_length_prefixed(
+    bytes: &[u8],
+) -> Result<(&[u8], &[u8]), KeyEncodingError> {
     if bytes.len() < 2 {
         return Err(KeyEncodingError::InvalidLength {
             expected: 2,
@@ -158,9 +159,10 @@ pub fn encode_sequence_number(seq: SequenceNumber) -> [u8; 8] {
 
 pub fn decode_sequence_number(bytes: &[u8]) -> Result<SequenceNumber, KeyEncodingError> {
     let val = decode_u64_be(bytes)?;
-    SequenceNumber::try_from(val).map_err(|e| KeyEncodingError::InstanceId(e))
+    SequenceNumber::try_from(val).map_err(KeyEncodingError::InstanceId)
 }
 
+#[must_use]
 pub fn encode_event_key(instance_id: &InstanceId, sequence: SequenceNumber) -> Vec<u8> {
     let iid_bytes = instance_id.to_bytes().unwrap_or([0u8; 16]);
     let seq_bytes = encode_sequence_number(sequence);
@@ -184,7 +186,7 @@ pub fn decode_event_key(bytes: &[u8]) -> Result<(InstanceId, SequenceNumber), Ke
     let seq_bytes: [u8; 8] = bytes[16..24].try_into().unwrap();
     let instance_id = InstanceId::from_bytes(iid_bytes);
     let sequence = SequenceNumber::try_from(u64::from_be_bytes(seq_bytes))
-        .map_err(|e| KeyEncodingError::InstanceId(e))?;
+        .map_err(KeyEncodingError::InstanceId)?;
     Ok((instance_id, sequence))
 }
 
@@ -253,6 +255,7 @@ pub fn decode_dedupe_key(bytes: &[u8]) -> Result<String, KeyEncodingError> {
     })
 }
 
+#[must_use]
 pub fn encode_instance_index_key_for_status(
     status_byte: u8,
     created_at: u64,
@@ -266,6 +269,7 @@ pub fn encode_instance_index_key_for_status(
     key
 }
 
+#[must_use]
 pub fn encode_effect_key(instance_id: &InstanceId, sequence: SequenceNumber) -> Vec<u8> {
     let iid_bytes = instance_id.to_bytes().unwrap_or([0u8; 16]);
     let seq_bytes = encode_sequence_number(sequence);
@@ -296,10 +300,11 @@ pub fn decode_effect_key(bytes: &[u8]) -> Result<(InstanceId, SequenceNumber), K
     let seq_bytes: [u8; 8] = bytes[16..24].try_into().unwrap();
     let instance_id = InstanceId::from_bytes(iid_bytes);
     let sequence = SequenceNumber::try_from(u64::from_be_bytes(seq_bytes))
-        .map_err(|e| KeyEncodingError::InstanceId(e))?;
+        .map_err(KeyEncodingError::InstanceId)?;
     Ok((instance_id, sequence))
 }
 
+#[must_use]
 pub fn get_event_key_prefix(instance_id: &InstanceId) -> Vec<u8> {
     let iid_bytes = instance_id.to_bytes().unwrap_or([0u8; 16]);
     let mut prefix = Vec::with_capacity(16);
@@ -307,14 +312,17 @@ pub fn get_event_key_prefix(instance_id: &InstanceId) -> Vec<u8> {
     prefix
 }
 
+#[must_use]
 pub fn get_timer_key_prefix_for_time(fire_at_ms: u64) -> Vec<u8> {
     fire_at_ms.to_be_bytes().to_vec()
 }
 
+#[must_use]
 pub fn get_lease_key_prefix_for_instance(instance_id: &InstanceId) -> Vec<u8> {
     format!("{instance_id}::").into_bytes()
 }
 
+#[must_use]
 pub fn get_dedupe_key_prefix(idempotency_key: &str) -> Vec<u8> {
     encode_length_prefixed(idempotency_key.as_bytes())
 }

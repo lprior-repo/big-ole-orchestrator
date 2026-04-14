@@ -401,7 +401,7 @@ mod tests {
     #[test]
     fn error_response_new_non_retryable_with_retry_fails() {
         let resp = ErrorResponse::new(
-            "internal_error",
+            "not_found",
             "oops",
             Some(RetryAfterSeconds::new(30).unwrap()),
         );

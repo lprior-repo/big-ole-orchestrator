@@ -20,26 +20,21 @@ fn stripe_for_key(key_bytes: &[u8]) -> usize {
 }
 
 pub struct FjallDedupeStore {
-    keyspace: Arc<fjall::Keyspace>,
-    partition: Arc<fjall::PartitionHandle>,
+    db: Arc<fjall::Database>,
+    partition: Arc<fjall::Keyspace>,
     stripes: Vec<Mutex<()>>,
 }
 
 impl FjallDedupeStore {
-    /// Opens a new `FjallDedupeStore` backed by the given keyspace.
-    ///
-    /// # Errors
-    ///
-    /// Returns `DedupeStoreError::Storage` if the dedupe partition cannot be opened.
-    pub fn open(keyspace: &fjall::Keyspace) -> Result<Self, DedupeStoreError> {
-        let partition = keyspace
-            .open_partition(DEDUPE_PARTITION, fjall::PartitionCreateOptions::default())
+    pub fn open(db: &fjall::Database) -> Result<Self, DedupeStoreError> {
+        let partition = db
+            .keyspace(DEDUPE_PARTITION, fjall::KeyspaceCreateOptions::default)
             .map_err(|e| DedupeStoreError::Storage {
                 reason: format!("failed to open dedupe partition: {e}"),
             })?;
         let stripes = (0..NUM_STRIPES).map(|_| Mutex::new(())).collect();
         Ok(Self {
-            keyspace: Arc::new(keyspace.clone()),
+            db: Arc::new(db.clone()),
             partition: Arc::new(partition),
             stripes,
         })
@@ -105,9 +100,10 @@ impl DedupeStore for FjallDedupeStore {
 
         let iter = self.partition.iter();
         for item in iter {
-            let (key_bytes, value_bytes) = item.map_err(|e| DedupeStoreError::Storage {
-                reason: e.to_string(),
-            })?;
+            let (key_bytes, value_bytes) =
+                item.into_inner().map_err(|e| DedupeStoreError::Storage {
+                    reason: e.to_string(),
+                })?;
 
             if let Ok(entry) = super::decode_dedupe_entry(&value_bytes) {
                 if entry.is_expired(now_ms) {
@@ -117,7 +113,7 @@ impl DedupeStore for FjallDedupeStore {
 
             if keys_to_delete.len() >= PURGE_BATCH_SIZE {
                 let count = keys_to_delete.len();
-                let mut batch = self.keyspace.batch();
+                let mut batch = self.db.batch();
                 for key in keys_to_delete.drain(..) {
                     batch.remove(&self.partition, key);
                 }
@@ -129,7 +125,7 @@ impl DedupeStore for FjallDedupeStore {
         }
 
         if !keys_to_delete.is_empty() {
-            let mut batch = self.keyspace.batch();
+            let mut batch = self.db.batch();
             for key in &keys_to_delete {
                 batch.remove(&self.partition, key.clone());
             }
@@ -163,11 +159,12 @@ impl DedupeStore for FjallDedupeStore {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::tempdir;
+    use tempfile::{tempdir, TempDir};
 
-    fn create_test_keyspace() -> fjall::Keyspace {
+    fn create_test_keyspace() -> (fjall::Database, TempDir) {
         let dir = tempdir().unwrap();
-        fjall::Config::new(dir.path()).open().unwrap()
+        let db = fjall::Database::builder(dir.path()).open().unwrap();
+        (db, dir)
     }
 
     fn sample_instance_id() -> InstanceId {
@@ -176,7 +173,7 @@ mod tests {
 
     #[test]
     fn fjall_dedupe_store_check_and_insert_returns_admitted_for_new_key() {
-        let keyspace = create_test_keyspace();
+        let (keyspace, _dir) = create_test_keyspace();
         let store = FjallDedupeStore::open(&keyspace).unwrap();
         let key = DedupeKey::parse("new-key").unwrap();
 
@@ -187,7 +184,7 @@ mod tests {
 
     #[test]
     fn fjall_dedupe_store_check_and_insert_returns_duplicate_for_existing_key() {
-        let keyspace = create_test_keyspace();
+        let (keyspace, _dir) = create_test_keyspace();
         let store = FjallDedupeStore::open(&keyspace).unwrap();
         let key = DedupeKey::parse("dup-key").unwrap();
 
@@ -201,7 +198,7 @@ mod tests {
 
     #[test]
     fn fjall_dedupe_store_check_and_insert_returns_error_for_zero_ttl() {
-        let keyspace = create_test_keyspace();
+        let (keyspace, _dir) = create_test_keyspace();
         let store = FjallDedupeStore::open(&keyspace).unwrap();
         let key = DedupeKey::parse("ttl-key").unwrap();
 
@@ -212,7 +209,7 @@ mod tests {
 
     #[test]
     fn fjall_dedupe_store_contains_returns_true_for_existing_unexpired_key() {
-        let keyspace = create_test_keyspace();
+        let (keyspace, _dir) = create_test_keyspace();
         let store = FjallDedupeStore::open(&keyspace).unwrap();
         let key = DedupeKey::parse("contains-key").unwrap();
 
@@ -225,7 +222,7 @@ mod tests {
 
     #[test]
     fn fjall_dedupe_store_contains_returns_false_for_missing_key() {
-        let keyspace = create_test_keyspace();
+        let (keyspace, _dir) = create_test_keyspace();
         let store = FjallDedupeStore::open(&keyspace).unwrap();
         let key = DedupeKey::parse("missing-key").unwrap();
 
@@ -234,7 +231,7 @@ mod tests {
 
     #[test]
     fn fjall_dedupe_store_striped_lock_prevents_double_admit() {
-        let keyspace = create_test_keyspace();
+        let (keyspace, _dir) = create_test_keyspace();
         let store = Arc::new(FjallDedupeStore::open(&keyspace).unwrap());
         let key = DedupeKey::parse("striped-atomic-key").unwrap();
         let num_threads = 8usize;

@@ -61,11 +61,96 @@ pub struct EdgeSpec {
 /// This is the canonical workflow representation emitted by the SDK when
 /// `./binary --graph` is invoked. The Engine validates, hashes, and stores
 /// this spec as a workflow version.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct WorkflowSpec {
     pub workflow_name: WorkflowName,
     pub nodes: Vec<NodeSpec>,
     pub edges: Vec<EdgeSpec>,
+}
+
+impl<'de> serde::Deserialize<'de> for WorkflowSpec {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        struct RawWorkflowSpec {
+            workflow_name: WorkflowName,
+            nodes: Vec<NodeSpec>,
+            edges: Vec<EdgeSpec>,
+        }
+
+        let raw: RawWorkflowSpec = RawWorkflowSpec::deserialize(deserializer)?;
+
+        let node_names: std::collections::HashSet<&str> =
+            raw.nodes.iter().map(|n| n.name.as_str()).collect();
+
+        for edge in &raw.edges {
+            if edge.from == edge.to {
+                return Err(serde::de::Error::custom(format!(
+                    "workflow contains a cycle: self-loop edge on {}",
+                    edge.from.as_str()
+                )));
+            }
+            if !node_names.contains(edge.from.as_str()) {
+                return Err(serde::de::Error::custom(format!(
+                    "edge references non-existent node: {}",
+                    edge.from.as_str()
+                )));
+            }
+            if !node_names.contains(edge.to.as_str()) {
+                return Err(serde::de::Error::custom(format!(
+                    "edge references non-existent node: {}",
+                    edge.to.as_str()
+                )));
+            }
+        }
+
+        let name_to_idx: std::collections::HashMap<&str, usize> = raw
+            .nodes
+            .iter()
+            .enumerate()
+            .map(|(i, n)| (n.name.as_str(), i))
+            .collect();
+
+        let n = raw.nodes.len();
+        let mut adj: Vec<Vec<usize>> = vec![Vec::new(); n];
+        for edge in &raw.edges {
+            if let (Some(&from), Some(&to)) = (
+                name_to_idx.get(edge.from.as_str()),
+                name_to_idx.get(edge.to.as_str()),
+            ) {
+                adj[from].push(to);
+            }
+        }
+
+        const WHITE: u8 = 0;
+        const GRAY: u8 = 1;
+        let mut colors = vec![WHITE; n];
+
+        fn has_cycle_from(node: usize, adj: &[Vec<usize>], colors: &mut [u8]) -> bool {
+            colors[node] = GRAY;
+            for &neighbor in &adj[node] {
+                if colors[neighbor] == GRAY {
+                    return true;
+                }
+                if colors[neighbor] == WHITE && has_cycle_from(neighbor, adj, colors) {
+                    return true;
+                }
+            }
+            colors[node] = 2;
+            false
+        }
+
+        for i in 0..n {
+            if colors[i] == WHITE && has_cycle_from(i, &adj, &mut colors) {
+                return Err(serde::de::Error::custom("workflow contains a cycle"));
+            }
+        }
+
+        Ok(WorkflowSpec {
+            workflow_name: raw.workflow_name,
+            nodes: raw.nodes,
+            edges: raw.edges,
+        })
+    }
 }
 
 impl WorkflowSpec {

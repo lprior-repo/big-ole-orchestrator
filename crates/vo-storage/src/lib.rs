@@ -20,7 +20,22 @@
 #![warn(clippy::nursery)]
 #![warn(clippy::complexity)]
 #![warn(clippy::cognitive_complexity)]
-#![allow(unsafe_code)]
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::missing_errors_doc,
+    clippy::missing_panics_doc,
+    clippy::iter_with_drain,
+    clippy::significant_drop_tightening,
+    clippy::match_same_arms,
+    clippy::needless_pass_by_value,
+    clippy::missing_const_for_fn,
+    clippy::manual_let_else,
+    clippy::used_underscore_binding,
+    clippy::option_if_let_else,
+    clippy::match_wildcard_for_single_variants,
+    clippy::expect_used,
+    unsafe_code
+)]
 
 pub mod append;
 pub mod blob_store;

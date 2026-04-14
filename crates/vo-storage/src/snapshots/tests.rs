@@ -101,12 +101,11 @@ fn decode_snapshot_key_handles_maximum_values_correctly() {
 
 // --- snapshot_write ---
 
-fn setup_fjall() -> (tempfile::TempDir, fjall::Keyspace, PartitionHandle) {
+fn setup_fjall() -> (tempfile::TempDir, fjall::Database, Keyspace) {
     let temp_dir = tempfile::tempdir().unwrap();
-    let config = fjall::Config::new(temp_dir.path());
-    let keyspace = config.open().unwrap();
+    let keyspace = fjall::Database::builder(temp_dir.path()).open().unwrap();
     let partition = keyspace
-        .open_partition("snapshots", fjall::PartitionCreateOptions::default())
+        .keyspace("snapshots", fjall::KeyspaceCreateOptions::default)
         .unwrap();
     (temp_dir, keyspace, partition)
 }

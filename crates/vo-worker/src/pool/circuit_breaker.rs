@@ -31,6 +31,7 @@ impl CircuitBreaker {
     }
 
     pub fn record_success(&mut self) {
+        self.consecutive_failures = 0;
         match self.state {
             CircuitBreakerState::Closed => {
                 self.consecutive_failures = 0;

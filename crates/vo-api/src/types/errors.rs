@@ -37,7 +37,7 @@ pub enum ValidationError {
 pub enum InvariantViolation {
     #[error("updated_at timestamp precedes started_at")]
     UpdatedBeforeStarted,
-    #[error("journal entries not in ascending seq order")]
+    #[error("journal entries not in ascending sort order")]
     EntriesNotSorted,
     #[error("retry_after_seconds set for non-retryable error")]
     InvalidRetryForErrorType,

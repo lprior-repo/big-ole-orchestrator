@@ -1,5 +1,6 @@
 use vo_types::command_history::{BatchId, CommandId, SnapshotId, WorkflowSnapshot};
 use vo_types::command_metadata::{CommandMetadata, Issuer};
+use vo_types::signal::LineageScope;
 use vo_types::signal::{BufferPolicy, SignalAddress};
 use vo_types::workspace::WorkspaceMetadata;
 use vo_types::LineageScope;

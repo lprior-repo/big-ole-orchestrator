@@ -252,6 +252,12 @@ impl<'de> Deserialize<'de> for SnapshotId {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct BatchId(String);
 
+impl std::fmt::Display for BatchId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 impl BatchId {
     /// Generate a new unique BatchId.
     #[must_use]

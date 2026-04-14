@@ -76,7 +76,7 @@ pub const WORKFLOWS_PARTITION: &str = "workflows";
 /// Returns `StatusStoreError::Storage` on Fjall failure.
 /// Returns `StatusStoreError::CorruptValue` if the stored value is malformed.
 pub fn read_registration_status(
-    partition: &fjall::PartitionHandle,
+    partition: &fjall::Keyspace,
     workflow_name: &WorkflowName,
 ) -> Result<Option<RegistrationStatus>, StatusStoreError> {
     let key = workflow_name.as_str().as_bytes();
@@ -98,7 +98,7 @@ pub fn read_registration_status(
 /// Returns `StatusStoreError::Storage` on Fjall failure.
 /// Returns `StatusStoreError::CorruptValue` if serialization fails.
 pub fn write_registration_status(
-    partition: &fjall::PartitionHandle,
+    partition: &fjall::Keyspace,
     workflow_name: &WorkflowName,
     status: RegistrationStatus,
 ) -> Result<(), StatusStoreError> {
@@ -119,14 +119,15 @@ pub fn write_registration_status(
 /// Returns `StatusStoreError::Storage` on Fjall scan failure.
 /// Returns `StatusStoreError::CorruptValue` if any stored key or value is malformed.
 pub fn load_all_statuses(
-    partition: &fjall::PartitionHandle,
+    partition: &fjall::Keyspace,
 ) -> Result<Vec<(WorkflowName, RegistrationStatus)>, StatusStoreError> {
     partition
         .iter()
         .map(|item| {
-            let (key_bytes, value_bytes) = item.map_err(|e| StatusStoreError::Storage {
-                reason: e.to_string(),
-            })?;
+            let (key_bytes, value_bytes) =
+                item.into_inner().map_err(|e| StatusStoreError::Storage {
+                    reason: e.to_string(),
+                })?;
 
             let key_str =
                 std::str::from_utf8(&key_bytes).map_err(|e| StatusStoreError::CorruptValue {
@@ -164,16 +165,13 @@ pub fn load_all_statuses(
 mod tests {
     use super::*;
 
-    fn setup_partition() -> (tempfile::TempDir, fjall::Keyspace, fjall::PartitionHandle) {
+    fn setup_partition() -> (tempfile::TempDir, fjall::Database, fjall::Keyspace) {
         let dir = tempfile::tempdir().unwrap();
-        let keyspace = fjall::Config::new(dir.path()).open().unwrap();
-        let partition = keyspace
-            .open_partition(
-                WORKFLOWS_PARTITION,
-                fjall::PartitionCreateOptions::default(),
-            )
+        let db = fjall::Database::builder(dir.path()).open().unwrap();
+        let partition = db
+            .keyspace(WORKFLOWS_PARTITION, fjall::KeyspaceCreateOptions::default)
             .unwrap();
-        (dir, keyspace, partition)
+        (dir, db, partition)
     }
 
     fn workflow_name(value: &str) -> WorkflowName {
