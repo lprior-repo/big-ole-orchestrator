@@ -107,7 +107,7 @@ pub use events::{Error as EventError, EventEnvelope};
 pub use instance_status::InstanceStatus;
 pub use junction_tree::{Clique as JunctionClique, JunctionTree, JunctionTreeError};
 pub use lifecycle_superstate::LifecycleSuperstate;
-pub use lineage::{Epoch, LineageError, WorkflowLineage};
+pub use lineage::{Epoch, LineageError, LineageState, LineageStatus, WorkflowLineage};
 pub use link_cut_tree::{LctAggregate, LctError, LinkCutTree, Monoid};
 pub use node_kind::NodeKind;
 pub use non_empty_vec::NonEmptyVec;
@@ -116,8 +116,8 @@ pub use pairing_heap::{PairingHeap, PairingHeapError};
 pub use registration_status::RegistrationStatus;
 pub use rope::{Measurable, Rope, RopeBuilder, RopeError, RopeSlice};
 pub use signal::{
-    signal_match, BufferPolicy, LineageScope, SignalAddress, SignalDedupeKey, SignalDelivery,
-    SignalMatchResult, WaitKey, WaitRecord,
+    signal_match, BufferPolicy, FailureScope, LineageScope, SignalAddress, SignalDedupeKey,
+    SignalDelivery, SignalMatchResult, WaitKey, WaitRecord,
 };
 pub use skew_heap::{SkewHeap, SkewHeapError, SkewNode};
 pub use spqr_tree::{
