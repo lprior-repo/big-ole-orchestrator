@@ -127,7 +127,7 @@ impl Default for SseState {
 
 struct SseStream {
     receiver: broadcast::Receiver<WorkflowSseEvent>,
-    #[allow(dead_code)]
+    lag_notified: bool,
     _phantom: std::marker::PhantomData<()>,
 }
 
@@ -138,6 +138,10 @@ impl Stream for SseStream {
         mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
+        if self.lag_notified {
+            return std::task::Poll::Ready(None);
+        }
+
         match std::pin::Pin::new(&mut self.receiver).poll_recv(cx) {
             std::task::Poll::Ready(Ok(event)) => {
                 std::task::Poll::Ready(Some(Ok(event.to_sse_event())))
@@ -146,7 +150,9 @@ impl Stream for SseStream {
                 std::task::Poll::Ready(None)
             }
             std::task::Poll::Ready(Err(broadcast::error::RecvError::Lagged(_))) => {
-                std::task::Poll::Ready(None)
+                self.lag_notified = true;
+                let lag_event = Event::default().comment("lagged");
+                std::task::Poll::Ready(Some(Ok(lag_event)))
             }
             std::task::Poll::Pending => std::task::Poll::Pending,
         }
@@ -182,6 +188,7 @@ pub async fn watch_workflow(
 
     let stream = SseStream {
         receiver,
+        lag_notified: false,
         _phantom: std::marker::PhantomData,
     };
 
@@ -248,5 +255,90 @@ mod tests {
     fn split_path_id_returns_none_when_missing_slash() {
         let result = split_path_id("no-slash-here");
         assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn sse_lagged_event_emitted_before_stream_closes() {
+        use tokio::sync::broadcast;
+
+        let (tx, rx) = broadcast::channel::<WorkflowSseEvent>(10);
+
+        let stream = SseStream {
+            receiver: rx,
+            lag_notified: false,
+            _phantom: std::marker::PhantomData,
+        };
+
+        let event = futures::stream::StreamExt::into_async_iter(stream);
+        let mut event = Box::pin(event);
+
+        for i in 0..15 {
+            let _ = tx.send(WorkflowSseEvent::StepCompleted {
+                node_name: format!("step-{}", i),
+                sequence: i,
+            });
+        }
+
+        let first = event.next().await;
+        assert!(first.is_some(), "Should receive at least one event before lag");
+
+        let mut lag_received = false;
+        let mut empty_received = false;
+        while let Some(result) = event.next().await {
+            match result {
+                Ok(event) => {
+                    let data_str = event.data().to_string();
+                    if data_str.contains(":lagged") {
+                        lag_received = true;
+                    }
+                }
+                Err(_) => {}
+            }
+        }
+
+        assert!(lag_received, "Should emit :lagged comment before closing");
+    }
+
+    #[tokio::test]
+    async fn sse_stream_closes_after_lag_event() {
+        use tokio::sync::broadcast;
+
+        let (tx, rx) = broadcast::channel::<WorkflowSseEvent>(5);
+
+        let stream = SseStream {
+            receiver: rx,
+            lag_notified: false,
+            _phantom: std::marker::PhantomData,
+        };
+
+        let event = futures::stream::StreamExt::into_async_iter(stream);
+        let mut event = Box::pin(event);
+
+        for i in 0..20 {
+            let _ = tx.send(WorkflowSseEvent::StepCompleted {
+                node_name: format!("step-{}", i),
+                sequence: i,
+            });
+        }
+
+        let mut count = 0u64;
+        while let Some(_result) = event.next().await {
+            count += 1;
+        }
+
+        assert!(
+            count <= 6,
+            "Should receive lag notification and then close, not all 20 events"
+        );
+    }
+
+    #[test]
+    fn keepalive_interval_is_15_seconds() {
+        assert_eq!(SSE_KEEPALIVE_INTERVAL, Duration::from_secs(15));
+    }
+
+    #[test]
+    fn broadcast_capacity_is_1000() {
+        assert_eq!(SSE_BROADCAST_CAPACITY, 1000);
     }
 }
