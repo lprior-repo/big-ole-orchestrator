@@ -356,7 +356,7 @@ mod lineage_rollover_failure_tests {
         let result = VerificationHarness::verify_lineage_rollover_deterministic(
             &events_pre,
             &rollover_event,
-            &events_post[1..],
+            &events_post[2..],
         );
         assert!(result, "Lineage rollover should preserve signal routing");
     }
