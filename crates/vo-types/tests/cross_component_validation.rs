@@ -1,9 +1,9 @@
 use vo_types::command_history::{BatchId, CommandId, SnapshotId, WorkflowSnapshot};
 use vo_types::command_metadata::{CommandMetadata, Issuer};
-use vo_types::lineage::LineageScope;
 use vo_types::signal::{BufferPolicy, SignalAddress};
 use vo_types::workspace::WorkspaceMetadata;
-use vo_types::{Epoch, IdempotencyKey, InstanceId, ParseError, TimestampMs, WaitKey};
+use vo_types::LineageScope;
+use vo_types::{Epoch, IdempotencyKey, InstanceId, TimestampMs, WaitKey};
 use vo_types::{FenceToken, SequenceNumber, TimeoutMs};
 use vo_types::{InstanceKey, PluginState, SchemaVersion};
 
@@ -109,7 +109,7 @@ fn test_instance_key_new() {
 fn test_schema_version_is_copy() {
     let v1 = SchemaVersion::new(1);
     let v2 = v1;
-    assert_eq!(u16::from(v1), u16::from(v2));
+    assert_eq!(v1, v2);
 }
 
 #[test]
