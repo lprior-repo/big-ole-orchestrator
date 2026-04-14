@@ -3,3 +3,14 @@
     Blocking waiting for file lock on package cache
     Blocking waiting for file lock on package cache
     Blocking waiting for file lock on build directory
+    Checking tokio v1.50.0
+    Checking ulid v1.2.1
+   Compiling serde_core v1.0.228
+    Checking nkeys v0.3.2
+    Checking tungstenite v0.24.0
+    Checking tungstenite v0.28.0
+    Checking vo-types v0.1.0 (/home/lewis/gt/veloxide/polecats/chrome/veloxide/crates/vo-types)
+    Checking dioxus-devtools v0.7.4
+   Compiling serde v1.0.228
+    Checking dioxus-web v0.7.5
+   Compiling const-serialize v0.8.0-alpha.0
