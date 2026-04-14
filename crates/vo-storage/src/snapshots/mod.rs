@@ -5,6 +5,7 @@ use vo_types::state::InstanceState;
 use vo_types::InstanceId;
 
 pub const CURRENT_SNAPSHOT_VERSION: u16 = 1;
+pub const MIN_SNAPSHOT_VERSION: u16 = 1;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SnapshotHeader {
@@ -284,13 +285,107 @@ pub fn snapshot_load_latest(
                 .map_err(|_| StorageError::FjallError)
                 .and_then(|(key, value)| {
                     decode_snapshot_key(&key).and_then(|(_, sequence)| {
-                        deserialize_snapshot_value(&value).map(|state| Some((sequence, state)))
+                        deserialize_snapshot_value(&value).map(|ds| Some((sequence, ds.state)))
                     })
                 })
         })
 }
 
-fn deserialize_snapshot_value(value: &[u8]) -> Result<InstanceState, StorageError> {
+/// Reason a snapshot was discarded during compatibility checking.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SnapshotDiscardReason {
+    VersionTooOld {
+        snapshot_version: u16,
+        min_version: u16,
+    },
+    VersionTooNew {
+        snapshot_version: u16,
+        engine_version: u16,
+    },
+    VersionZero,
+}
+
+/// Result of loading a snapshot with compatibility checking.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CompatSnapshotLoad {
+    /// Snapshot loaded successfully and is compatible.
+    Loaded { sequence: u64, state: InstanceState },
+    /// Snapshot was found but discarded due to version incompatibility.
+    Discarded {
+        sequence: u64,
+        reason: SnapshotDiscardReason,
+    },
+}
+
+/// Loads the latest snapshot for `instance_id` with schema version compatibility checking.
+///
+/// If the snapshot's version is below `min_version` or above `engine_version`, the snapshot
+/// is discarded (returns `Ok(CompatSnapshotLoad::Discarded)`), signaling the caller to
+/// fall back to replaying from event history.
+///
+/// Legacy format snapshots (no header, version 0) are always discarded.
+///
+/// # Errors
+///
+/// Returns the same errors as [`snapshot_load_latest`].
+pub fn snapshot_load_latest_with_compat(
+    partition: &PartitionHandle,
+    instance_id: &InstanceId,
+    min_version: u16,
+    engine_version: u16,
+) -> Result<Option<CompatSnapshotLoad>, StorageError> {
+    let prefix = instance_id
+        .to_bytes()
+        .map_err(|_| StorageError::CorruptKey)?;
+
+    partition
+        .prefix(&prefix)
+        .next_back()
+        .map_or(Ok(None), |result| {
+            result
+                .map_err(|_| StorageError::FjallError)
+                .and_then(|(key, value)| {
+                    decode_snapshot_key(&key).and_then(|(_, sequence)| {
+                        let ds = deserialize_snapshot_value(&value)?;
+                        if ds.schema_version == 0 {
+                            return Ok(Some(CompatSnapshotLoad::Discarded {
+                                sequence,
+                                reason: SnapshotDiscardReason::VersionZero,
+                            }));
+                        }
+                        if ds.schema_version < min_version {
+                            return Ok(Some(CompatSnapshotLoad::Discarded {
+                                sequence,
+                                reason: SnapshotDiscardReason::VersionTooOld {
+                                    snapshot_version: ds.schema_version,
+                                    min_version,
+                                },
+                            }));
+                        }
+                        if ds.schema_version > engine_version {
+                            return Ok(Some(CompatSnapshotLoad::Discarded {
+                                sequence,
+                                reason: SnapshotDiscardReason::VersionTooNew {
+                                    snapshot_version: ds.schema_version,
+                                    engine_version,
+                                },
+                            }));
+                        }
+                        Ok(Some(CompatSnapshotLoad::Loaded {
+                            sequence,
+                            state: ds.state,
+                        }))
+                    })
+                })
+        })
+}
+
+struct DeserializedSnapshot {
+    state: InstanceState,
+    schema_version: u16,
+}
+
+fn deserialize_snapshot_value(value: &[u8]) -> Result<DeserializedSnapshot, StorageError> {
     if let Some(pos) = value.iter().position(|&b| b == b'|') {
         let (header_bytes, state_json) = value.split_at(pos);
         let state_json = &state_json[1..];
@@ -300,9 +395,19 @@ fn deserialize_snapshot_value(value: &[u8]) -> Result<InstanceState, StorageErro
         if computed_checksum != header.checksum {
             return Err(StorageError::DeserializationFailed);
         }
-        serde_json::from_slice(state_json).map_err(|_| StorageError::DeserializationFailed)
+        let state =
+            serde_json::from_slice(state_json).map_err(|_| StorageError::DeserializationFailed)?;
+        Ok(DeserializedSnapshot {
+            state,
+            schema_version: header.version,
+        })
     } else {
-        serde_json::from_slice(value).map_err(|_| StorageError::DeserializationFailed)
+        let state =
+            serde_json::from_slice(value).map_err(|_| StorageError::DeserializationFailed)?;
+        Ok(DeserializedSnapshot {
+            state,
+            schema_version: 0,
+        })
     }
 }
 
