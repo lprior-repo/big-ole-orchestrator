@@ -180,18 +180,6 @@ pub fn get_error_count() -> usize {
 }
 
 #[cfg(test)]
-pub fn set_executing_state_for_test(step_id: &str) {
-    use std::time::Instant;
-    set_state(
-        step_id,
-        StepState::Executing {
-            step_id: StepId::new(step_id.to_string()),
-            start_time: Instant::now(),
-        },
-    );
-}
-
-#[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
