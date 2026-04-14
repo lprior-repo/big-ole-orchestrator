@@ -48,6 +48,7 @@ pub mod state;
 mod string_types;
 #[cfg(test)]
 mod string_types_tests;
+mod topology;
 mod tx_coordinator;
 mod types;
 #[cfg(test)]
@@ -128,6 +129,7 @@ pub use plugin::{
     PluginInstance, PluginName, PluginState, PluginTransition, PluginVersion,
     PluginVersionConstraint, ResourceBudget, SchemaVersion, VersionRange,
 };
+pub use topology::{LeaseKey, NodeId};
 pub use tx_coordinator::{
     apply_coordinator_transition, CoordinatorDecision, CoordinatorTransition,
     CoordinatorTransitionError, ParticipantRecord, ParticipantStatus, ParticipantVote,
