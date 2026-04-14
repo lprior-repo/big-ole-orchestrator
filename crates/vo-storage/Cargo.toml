@@ -10,6 +10,7 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(kani)', 'cfg(feature, valu
 proptest = []
 
 [dependencies]
+async-trait = { workspace = true }
 fjall = { workspace = true }
 memmap2 = "0.9"
 serde = { workspace = true }
