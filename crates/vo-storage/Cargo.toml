@@ -27,6 +27,7 @@ aes-gcm = "0.9"
 rand = "0.8"
 generic-array = "0.14"
 ulid = { workspace = true }
+metrics = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
@@ -36,6 +37,9 @@ rstest = { workspace = true }
 ulid = { workspace = true }
 vo-core = { workspace = true }
 criterion = { workspace = true }
+metrics = { workspace = true }
+metrics-util = "0.18"
+serial_test = "3"
 
 [[bench]]
 name = "dedupe_bench"
