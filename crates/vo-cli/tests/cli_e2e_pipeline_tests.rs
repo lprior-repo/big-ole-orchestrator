@@ -1187,7 +1187,7 @@ fn registry_names_sorted() {
     names.sort();
     assert_eq!(
         names,
-        vec!["check", "doctor", "gc", "init", "lock", "purge", "rebuild"]
+        vec!["check", "doctor", "gc", "init", "lock", "purge", "rebuild", "status"]
     );
 }
 
