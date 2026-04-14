@@ -101,24 +101,24 @@ pub struct EncryptedBlob {
 }
 
 impl EncryptedBlob {
-    pub fn new(iv: Vec<u8>, ciphertext: Vec<u8>, tag: Vec<u8>) -> Self {
+    pub fn new(iv: Vec<u8>, ciphertext: Vec<u8>, tag: Vec<u8>) -> Result<Self, EncryptionError> {
         if iv.len() != CryptoAlgorithm::IV_SIZE_BYTES {
-            panic!(
-                "IV must be exactly {} bytes",
-                CryptoAlgorithm::IV_SIZE_BYTES
-            );
+            return Err(EncryptionError::InvalidIvLength {
+                expected: CryptoAlgorithm::IV_SIZE_BYTES,
+                actual: iv.len(),
+            });
         }
         if tag.len() != CryptoAlgorithm::TAG_SIZE_BYTES {
-            panic!(
-                "tag must be exactly {} bytes",
-                CryptoAlgorithm::TAG_SIZE_BYTES
-            );
+            return Err(EncryptionError::InvalidTagLength {
+                expected: CryptoAlgorithm::TAG_SIZE_BYTES,
+                actual: tag.len(),
+            });
         }
-        Self {
+        Ok(Self {
             iv,
             ciphertext,
             tag,
-        }
+        })
     }
 
     #[must_use]
