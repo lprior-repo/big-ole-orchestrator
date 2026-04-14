@@ -12,6 +12,7 @@ mod macros;
 mod dedupe_tests;
 mod dependency_graph_resolver;
 pub mod discovery;
+pub mod identity;
 mod dual_representation;
 mod effects;
 mod encryption;
@@ -75,6 +76,7 @@ pub use discovery::{
     enforce_pin, validate_discovery_path, DiscoveryPath, DiscoveryPathError, PinEnforcementError,
     VersionConstraint, VersionPin, VERSION_BASE_PATH,
 };
+pub use identity::{CausationId, CorrelationId};
 pub use dual_representation::{
     apply_redaction, OperatorProjection, RedactionKind, RedactionPolicy, RedactionRule,
 };
@@ -126,6 +128,8 @@ mod compensation_tests;
 mod context_stack_adversarial;
 #[cfg(test)]
 mod cross_cutting_tests;
+#[cfg(test)]
+mod identity_tests;
 #[cfg(test)]
 mod dependency_graph_resolver_tests;
 #[cfg(test)]
