@@ -1,20 +1,24 @@
 [package]
 name = "vo-executor"
-version = "0.1.0"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
 
 [dependencies]
-thiserror = "1"
-serde = { version = "1", features = ["derive"] }
-tokio = { workspace = true, features = ["time", "sync"] }
-dashmap = { workspace = true }
+thiserror.workspace = true
+serde.workspace = true
+tokio.workspace = true
+dashmap.workspace = true
+tracing.workspace = true
+libc = "0.2"
+futures.workspace = true
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["rt", "macros", "time", "sync"] }
-proptest = { workspace = true }
-serde_json = { workspace = true }
-criterion = { workspace = true }
-uuid = { workspace = true }
+tokio.workspace = true
+proptest.workspace = true
+serde_json.workspace = true
+criterion.workspace = true
+uuid.workspace = true
 
 [[bench]]
 name = "e2e_bench"
