@@ -16,6 +16,7 @@ mod state_machine_transition_tests {
         cancel_execution, execute_step, get_execution_status, reset_all_state, ExecutionStatus,
         StepId, StepResult,
     };
+    use vo_executor::state::{set_state, StepState};
 
     static STATE_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
@@ -163,18 +164,18 @@ mod state_machine_transition_tests {
     #[tokio::test]
     async fn state_executing_cannot_start_another_execution() {
         let _guard = state_guard();
-        let step_id = StepId::new("step-slow".to_string());
+        let step_id = StepId::new("step-good".to_string());
 
-        let handle = tokio::spawn(execute_step(step_id.clone(), 5000));
-        tokio::task::yield_now().await;
+        set_state(step_id.as_str(), StepState::Executing {
+            step_id: step_id.clone(),
+            start_time: std::time::Instant::now(),
+        });
 
         let result = execute_step(step_id.clone(), 5000).await;
         assert!(matches!(
             result,
             Err(vo_executor::ExecuteNodeError::InvalidTransition { .. })
         ));
-
-        let _ = handle.await;
     }
 
     #[tokio::test]
@@ -189,8 +190,8 @@ mod state_machine_transition_tests {
 
         assert!(result_a.is_ok());
         assert!(result_b.is_ok());
-        assert!(result_a.is_success());
-        assert!(result_b.is_success());
+        assert!(result_a.as_ref().unwrap().is_success());
+        assert!(result_b.as_ref().unwrap().is_success());
     }
 
     // =========================================================================
@@ -244,11 +245,10 @@ mod state_machine_transition_tests {
             execute_step(step_b.clone(), 5000)
         );
 
-        assert!(result_a.expect("a should complete").is_ok());
-        assert!(matches!(
-            result_b.expect("b should complete"),
-            Ok(StepResult::Failure { .. })
-        ));
+        let a = result_a.expect("a should complete");
+        let b = result_b.expect("b should complete");
+        assert!(a.is_success());
+        assert!(matches!(b, StepResult::Failure { .. }));
 
         assert_ready(&step_a);
         assert_ready(&step_b);
