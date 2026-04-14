@@ -1,54 +1,42 @@
 package validation
 
-implementation: {
-  bead_id: "veloxide-20260413201313-5rse4kvt"
-  title: "actor: Implement epoch-scoped vs lineage-scoped failure rules"
-
+implementation: #BeadImplementation & {
   contracts_verified: {
     preconditions_checked: true
     postconditions_verified: true
     invariants_maintained: true
-
     precondition_checks: [
-      "Signal processing error occurs",
+      "Connector orchestrator is implemented.",
     ]
-
     postcondition_checks: [
-      "Error is classified correctly",
-      "State machine applies appropriate termination level",
+      "Orchestrator traps timeouts and shifts to Ambiguous state, then triggers reconcile.",
     ]
-
     invariant_checks: [
-      "Lineage-scoped failures permanently tombstone the lineage",
+      "An effect cannot exit Ambiguous state until reconcile returns a definitive success or failure.",
     ]
   }
-
   tests_passing: {
     all_tests_pass: true
-
     happy_path_tests: [
-      "compute_failure_outcome_epoch_scope_allows_lineage_continue",
-      "failure_outcome_epoch_failure_has_active_lineage",
+      "execute_returns_success_when_commit_succeeds",
+      "execute_reconciles_when_commit_returns_ambiguous",
     ]
-
     error_path_tests: [
-      "compute_failure_outcome_lineage_scope_tombstones_lineage",
-      "failure_outcome_lineage_failure_blocks_scheduling",
+      "execute_returns_failure_when_commit_fails",
+      "execute_returns_failure_when_reconcile_determines_not_committed",
     ]
   }
-
   code_complete: {
-    implementation_exists: "crates/vo-actor/src/lifecycle.rs"
-    tests_exist: "crates/vo-actor/src/lifecycle.rs"
+    implementation_exists: "crates/vo-core/src/connector/orchestrator.rs"
+    tests_exist: "crates/vo-core/src/connector/orchestrator.rs (mod tests)"
     ci_passing: true
     no_unwrap_calls: true
     no_panics: true
   }
-
   completion: {
     all_sections_complete: true
     documentation_updated: true
-    beads_closed: true
-    timestamp: "2026-04-14T12:00:00Z"
+    beads_closed: false
+    timestamp: "2026-04-14T09:44:24Z"
   }
 }
