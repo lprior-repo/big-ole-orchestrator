@@ -193,12 +193,16 @@ mod signal_component_failure_tests {
         let events = vec![
             make_event("inst-1", 1, workflow_started_payload("wf-1")),
             make_event("inst-1", 2, continued_as_new_payload("wf-1")),
-            make_event("inst-1", 3, workflow_started_payload("wf-1")),
+            make_event("inst-1", 3, step_scheduled_payload("wf-1", "step-1")),
         ];
 
         let engine = ReplayEngine::new();
         let result = engine.replay(&events);
-        assert!(result.is_ok());
+        assert!(
+            result.is_ok(),
+            "Signal routing after lineage rollover should replay: {:?}",
+            result.err()
+        );
     }
 }
 
@@ -329,8 +333,9 @@ mod lineage_rollover_failure_tests {
         let events = vec![
             make_event("inst-1", 1, workflow_started_payload("wf-1")),
             make_event("inst-1", 2, continued_as_new_payload("wf-1")),
-            make_event("inst-1", 3, workflow_started_payload("wf-1")),
-            make_event("inst-1", 4, step_scheduled_payload("wf-1", "step-1")),
+            make_event("inst-1", 3, step_scheduled_payload("wf-1", "step-1")),
+            make_event("inst-1", 4, step_started_payload("wf-1", "step-1")),
+            make_event("inst-1", 5, step_completed_payload("wf-1", "step-1")),
         ];
 
         let scenario = CrashScenario::new(CrashPoint::LineageRollover, CrashPosition::After);
@@ -338,7 +343,8 @@ mod lineage_rollover_failure_tests {
         let result = ctx.verify_at_point(scenario, &events, &events);
         assert!(
             result.is_ok(),
-            "Lineage rollover failure should be recoverable"
+            "Lineage rollover failure should be recoverable: {:?}",
+            result.err()
         );
     }
 

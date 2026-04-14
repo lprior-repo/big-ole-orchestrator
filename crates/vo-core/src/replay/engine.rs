@@ -101,9 +101,13 @@ impl ReplayEngine {
             // They are checkpoint markers in the ADR-027 managed effect sequence:
             // StepScheduled -> StepStarted -> EffectPrepared -> EffectCommitted -> StepCompleted
             // Count them as applied but do not change state.
+            // WorkflowQuarantined is an operational circuit breaker event (ADR-026),
+            // not a state machine transition.
             if matches!(
                 payload,
-                EventPayload::EffectPrepared { .. } | EventPayload::EffectCommitted { .. }
+                EventPayload::EffectPrepared { .. }
+                    | EventPayload::EffectCommitted { .. }
+                    | EventPayload::WorkflowQuarantined { .. }
             ) {
                 events_applied += 1;
                 continue;
@@ -241,5 +245,9 @@ pub(super) fn payload_to_transition(
                 sequence,
             })
         }
+        EventPayload::WorkflowQuarantined { .. } => Err(ReplayError::UnexpectedEventType {
+            payload_type: "WorkflowQuarantined".to_string(),
+            sequence,
+        }),
     }
 }
