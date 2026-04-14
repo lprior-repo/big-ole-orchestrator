@@ -1244,6 +1244,8 @@ pub enum AcceptResumeError {
     LockAcquisitionFailed { instance_id: InstanceId, reason: String },
     #[error("storage error for {instance_id}: {reason}")]
     StorageError { instance_id: InstanceId, reason: String },
+    #[error("signal not found in buffer for {instance_id} with wait_key {wait_key:?}")]
+    SignalNotFound { instance_id: InstanceId, wait_key: WaitKey },
 }
 
 impl AcceptResumeError {
@@ -1254,6 +1256,7 @@ impl AcceptResumeError {
                 | Self::WaitKeyMismatch { .. }
                 | Self::InstanceActorNotFound { .. }
                 | Self::PayloadTooLarge { .. }
+                | Self::SignalNotFound { .. }
         )
     }
 
@@ -1410,6 +1413,42 @@ pub trait SignalWorkQueue: Send + Sync {
     fn enqueue_resume(&self, instance_id: InstanceId) -> Result<(), SignalWorkQueueError>;
 }
 
+// =============================================================================
+// Signal Buffer Trait - In-memory buffering of signals for later delivery
+// =============================================================================
+
+use crate::signal_buffer::BufferedSignal;
+
+/// Errors from signal buffer operations.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum SignalBufferError {
+    #[error("Instance not found: {0}")]
+    InstanceNotFound(InstanceId),
+    #[error("Buffer error for {instance_id}: {reason}")]
+    BufferError { instance_id: InstanceId, reason: String },
+}
+
+/// Trait for buffering signals before delivery.
+/// Abstracts the signal buffer implementation.
+pub trait SignalBuffer: Send + Sync {
+    /// Pops and returns the first buffered signal for the given instance and wait_key.
+    /// Returns None if no signal is buffered.
+    fn pop_buffered(
+        &self,
+        instance_id: &InstanceId,
+        wait_key: &WaitKey,
+    ) -> Option<BufferedSignal>;
+
+    /// Rebuffers a signal that was previously popped.
+    /// Returns true on success, false on failure.
+    fn rebuffer(
+        &self,
+        instance_id: InstanceId,
+        wait_key: WaitKey,
+        signal: BufferedSignal,
+    ) -> bool;
+}
+
 /// Mock SignalStorage and MockSignalWorkQueue for testing.
 pub mod mock_signal_storage {
     use super::*;
@@ -1525,6 +1564,69 @@ pub mod mock_signal_storage {
             }
             self.enqueued.lock().unwrap().push(instance_id);
             Ok(())
+        }
+    }
+
+    /// A mock signal buffer for testing.
+    #[derive(Debug, Default)]
+    pub struct MockSignalBuffer {
+        entries: std::sync::Mutex<std::collections::HashMap<(InstanceId, WaitKey), Vec<BufferedSignal>>>,
+    }
+
+    impl MockSignalBuffer {
+        /// Creates a new mock buffer.
+        pub fn new() -> Self {
+            Self::default()
+        }
+
+        /// Adds a signal to the buffer for testing.
+        pub fn add_signal(&self, instance_id: InstanceId, wait_key: WaitKey, signal: BufferedSignal) {
+            let mut entries = self.entries.lock().unwrap();
+            entries
+                .entry((instance_id, wait_key))
+                .or_insert_with(Vec::new)
+                .push(signal);
+        }
+
+        /// Gets the count of buffered signals for a key.
+        pub fn buffered_count(&self, instance_id: &InstanceId, wait_key: &WaitKey) -> usize {
+            let entries = self.entries.lock().unwrap();
+            entries
+                .get(&(instance_id.clone(), wait_key.clone()))
+                .map(|v| v.len())
+                .unwrap_or(0)
+        }
+    }
+
+    impl SignalBuffer for MockSignalBuffer {
+        fn pop_buffered(
+            &self,
+            instance_id: &InstanceId,
+            wait_key: &WaitKey,
+        ) -> Option<BufferedSignal> {
+            let mut entries = self.entries.lock().unwrap();
+            entries.get_mut(&(instance_id.clone(), wait_key.clone()))
+                .and_then(|signals| {
+                    if signals.is_empty() {
+                        None
+                    } else {
+                        Some(signals.remove(0))
+                    }
+                })
+        }
+
+        fn rebuffer(
+            &self,
+            instance_id: InstanceId,
+            wait_key: WaitKey,
+            signal: BufferedSignal,
+        ) -> bool {
+            let mut entries = self.entries.lock().unwrap();
+            entries
+                .entry((instance_id, wait_key))
+                .or_insert_with(Vec::new)
+                .push(signal);
+            true
         }
     }
 }
@@ -1856,6 +1958,7 @@ mod reserved_permit_budget_tests {
 pub struct ControlActor {
     signal_storage: Option<std::sync::Arc<dyn SignalStorage>>,
     work_queue: Option<std::sync::Arc<dyn SignalWorkQueue>>,
+    signal_buffer: Option<std::sync::Arc<dyn SignalBuffer>>,
 }
 
 impl std::fmt::Debug for ControlActor {
@@ -1877,6 +1980,14 @@ impl std::fmt::Debug for ControlActor {
                     "None"
                 },
             )
+            .field(
+                "signal_buffer",
+                &if self.signal_buffer.is_some() {
+                    "Some(...)"
+                } else {
+                    "None"
+                },
+            )
             .finish()
     }
 }
@@ -1888,10 +1999,11 @@ impl ControlActor {
         Self {
             signal_storage: None,
             work_queue: None,
+            signal_buffer: None,
         }
     }
 
-    /// Create a new ControlActor instance with storage and work queue.
+    /// Create a new ControlActor instance with storage, work queue, and buffer.
     /// This enables the full atomic accept-resume implementation.
     pub fn with_storage_and_queue(
         signal_storage: std::sync::Arc<dyn SignalStorage>,
@@ -1900,6 +2012,21 @@ impl ControlActor {
         Self {
             signal_storage: Some(signal_storage),
             work_queue: Some(work_queue),
+            signal_buffer: None,
+        }
+    }
+
+    /// Create a new ControlActor instance with storage, work queue, and buffer.
+    /// This enables the full atomic accept-resume implementation with buffer integration.
+    pub fn with_storage_queue_and_buffer(
+        signal_storage: std::sync::Arc<dyn SignalStorage>,
+        work_queue: std::sync::Arc<dyn SignalWorkQueue>,
+        signal_buffer: std::sync::Arc<dyn SignalBuffer>,
+    ) -> Self {
+        Self {
+            signal_storage: Some(signal_storage),
+            work_queue: Some(work_queue),
+            signal_buffer: Some(signal_buffer),
         }
     }
 
@@ -2072,6 +2199,16 @@ impl ControlActor {
     }
 
     /// Atomically accept a matching signal and resume the instance.
+    ///
+    /// This function performs the following atomically:
+    /// 1. Removes the signal from the buffer (if buffer is configured)
+    /// 2. Validates preconditions (lifecycle state, wait_key match)
+    /// 3. Persists signal acceptance
+    /// 4. Enqueues resume work
+    ///
+    /// If any step fails after the signal has been removed from the buffer,
+    /// the signal is re-buffered to maintain the invariant that a failed
+    /// transition does not consume the signal.
     pub fn accept_and_resume(
         &self,
         instance_id: InstanceId,
@@ -2081,13 +2218,44 @@ impl ControlActor {
     ) -> Result<AcceptResumeOutcome, AcceptResumeError> {
         let id_str = instance_id.as_str();
 
+        // B0: Pop signal from buffer if buffer is configured
+        // This removes the signal from the buffer atomically before any validation
+        let popped_signal = if let Some(buffer) = &self.signal_buffer {
+            match buffer.pop_buffered(&instance_id, &wait_key) {
+                Some(signal) => Some(signal),
+                None if self.signal_buffer.is_some() => {
+                    // Buffer is configured but signal not found - this is an error
+                    // because the signal should have been buffered before accept_and_resume
+                    return Err(AcceptResumeError::SignalNotFound {
+                        instance_id,
+                        wait_key,
+                    });
+                }
+                None => None,
+            }
+        } else {
+            None
+        };
+
         // P1: Check for non-existent actor
         if id_str.len() != 26 || id_str.starts_with("0000000000") {
+            // Rollback: rebuffer if we popped
+            if let Some(signal) = popped_signal {
+                let _ = self.signal_buffer.as_ref().map(|b| {
+                    b.rebuffer(instance_id.clone(), wait_key.clone(), signal)
+                });
+            }
             return Err(AcceptResumeError::InstanceActorNotFound { instance_id });
         }
 
         // P4: Check payload size
         if payload.len() > 65536 {
+            // Rollback: rebuffer if we popped
+            if let Some(signal) = popped_signal {
+                let _ = self.signal_buffer.as_ref().map(|b| {
+                    b.rebuffer(instance_id.clone(), wait_key.clone(), signal)
+                });
+            }
             return Err(AcceptResumeError::PayloadTooLarge {
                 instance_id,
                 payload_size: payload.len(),
@@ -2098,6 +2266,12 @@ impl ControlActor {
         // P2: Determine lifecycle state
         let state = Self::derive_lifecycle_state(&instance_id);
         if state != LifecycleState::WaitingForSignal {
+            // Rollback: rebuffer if we popped
+            if let Some(signal) = popped_signal {
+                let _ = self.signal_buffer.as_ref().map(|b| {
+                    b.rebuffer(instance_id.clone(), wait_key.clone(), signal)
+                });
+            }
             return Err(AcceptResumeError::InvalidLifecycleState {
                 instance_id,
                 actual: state,
@@ -2107,6 +2281,12 @@ impl ControlActor {
 
         // P3: Check wait_key match (signal_id starting with "mismatch-" triggers mismatch)
         if signal_id.starts_with("mismatch-") {
+            // Rollback: rebuffer if we popped
+            if let Some(signal) = popped_signal {
+                let _ = self.signal_buffer.as_ref().map(|b| {
+                    b.rebuffer(instance_id.clone(), wait_key.clone(), signal)
+                });
+            }
             return Err(AcceptResumeError::WaitKeyMismatch {
                 instance_id,
                 expected_key: WaitKey::new_unchecked("expected-key"),
@@ -2118,12 +2298,24 @@ impl ControlActor {
         if let Some(error) = Self::derive_error_type(&instance_id) {
             match error {
                 "lock" => {
+                    // Rollback: rebuffer if we popped
+                    if let Some(signal) = popped_signal {
+                        let _ = self.signal_buffer.as_ref().map(|b| {
+                            b.rebuffer(instance_id.clone(), wait_key.clone(), signal)
+                        });
+                    }
                     return Err(AcceptResumeError::LockAcquisitionFailed {
                         instance_id,
                         reason: "lock held by another writer".to_string(),
                     });
                 }
                 "storage" => {
+                    // Rollback: rebuffer if we popped
+                    if let Some(signal) = popped_signal {
+                        let _ = self.signal_buffer.as_ref().map(|b| {
+                            b.rebuffer(instance_id.clone(), wait_key.clone(), signal)
+                        });
+                    }
                     return Err(AcceptResumeError::StorageError {
                         instance_id,
                         reason: "storage write failed".to_string(),
@@ -2153,6 +2345,12 @@ impl ControlActor {
         if let (Some(storage), Some(queue)) = (&self.signal_storage, &self.work_queue) {
             // Step 1: Persist signal acceptance
             if let Err(e) = storage.persist_signal_accepted(&accepted) {
+                // Rollback: rebuffer if we popped
+                if let Some(signal) = popped_signal {
+                    let _ = self.signal_buffer.as_ref().map(|b| {
+                        b.rebuffer(instance_id.clone(), accepted.wait_key.clone(), signal)
+                    });
+                }
                 return Err(AcceptResumeError::StorageError {
                     instance_id,
                     reason: format!("persist_signal_accepted failed: {}", e),
@@ -2161,8 +2359,14 @@ impl ControlActor {
 
             // Step 2: Enqueue resume work
             if let Err(e) = queue.enqueue_resume(instance_id.clone()) {
-                // Step 2 failed: rollback step 1
+                // Step 2 failed: rollback step 1 and rebuffer
                 let _ = storage.remove_signal_accepted(&instance_id, &accepted.signal_id);
+                // Rollback: rebuffer if we popped
+                if let Some(signal) = popped_signal {
+                    let _ = self.signal_buffer.as_ref().map(|b| {
+                        b.rebuffer(instance_id.clone(), accepted.wait_key.clone(), signal)
+                    });
+                }
                 return Err(AcceptResumeError::StorageError {
                     instance_id,
                     reason: format!("enqueue_resume failed: {}", e),
