@@ -101,17 +101,25 @@ pub struct EncryptedBlob {
 }
 
 impl EncryptedBlob {
-    pub fn new(iv: Vec<u8>, ciphertext: Vec<u8>, tag: Vec<u8>) -> Result<Self, EncryptionError> {
+    pub fn new(iv: Vec<u8>, ciphertext: Vec<u8>, tag: Vec<u8>) -> Result<Self, ParseError> {
         if iv.len() != CryptoAlgorithm::IV_SIZE_BYTES {
-            return Err(EncryptionError::InvalidIvLength {
-                expected: CryptoAlgorithm::IV_SIZE_BYTES,
-                actual: iv.len(),
+            return Err(ParseError::InvalidFormat {
+                type_name: "EncryptedBlob",
+                reason: format!(
+                    "invalid IV length: expected {}, got {}",
+                    CryptoAlgorithm::IV_SIZE_BYTES,
+                    iv.len()
+                ),
             });
         }
         if tag.len() != CryptoAlgorithm::TAG_SIZE_BYTES {
-            return Err(EncryptionError::InvalidTagLength {
-                expected: CryptoAlgorithm::TAG_SIZE_BYTES,
-                actual: tag.len(),
+            return Err(ParseError::InvalidFormat {
+                type_name: "EncryptedBlob",
+                reason: format!(
+                    "invalid tag length: expected {}, got {}",
+                    CryptoAlgorithm::TAG_SIZE_BYTES,
+                    tag.len()
+                ),
             });
         }
         Ok(Self {
