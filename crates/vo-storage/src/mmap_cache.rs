@@ -1,4 +1,5 @@
 #![allow(unused_imports)]
+#![allow(clippy::used_underscore_binding)]
 
 use memmap2::Mmap;
 use parking_lot::Mutex;
@@ -69,7 +70,7 @@ impl MmapCache {
     /// # Arguments
     ///
     /// * `buffer_size` - Size of the broadcast channel buffer for invalidation events.
-    ///                  Set to 0 to drop events when receiver is slow.
+    ///   Set to 0 to drop events when receiver is slow.
     ///
     /// # Errors
     ///
@@ -116,7 +117,10 @@ impl MmapCache {
                 return Err(MmapCacheError::CacheFull);
             }
             if let Some(old_entry) = self.entries.remove(key) {
-                self.current_memory_bytes -= old_entry.region.size as usize;
+                #[allow(clippy::cast_possible_truncation)]
+                {
+                    self.current_memory_bytes -= old_entry.region.size as usize;
+                }
                 self.lru_queue.retain(|k| k != key);
                 Some(old_entry.region.file_path)
             } else {
@@ -235,14 +239,17 @@ impl MmapCache {
     }
 
     pub fn subscribe(&self) -> broadcast::Receiver<CacheInvalidationEvent> {
-        if let Some(ref tx) = self._invalidation_tx {
-            tx.subscribe()
-        } else {
-            let (_, rx) = broadcast::channel(100);
-            rx
-        }
+        self._invalidation_tx.as_ref().map_or_else(
+            || broadcast::channel(100).1,
+            broadcast::Sender::subscribe,
+        )
     }
 
+    /// Invalidates a specific key from the cache.
+    ///
+    /// # Errors
+    ///
+    /// Returns `MmapCacheError` if the underlying storage operation fails.
     pub fn invalidate_key(&self, key: &str) -> Result<(), MmapCacheError> {
         if let Some(ref tx) = self._invalidation_tx {
             let event = CacheInvalidationEvent::KeyInvalidated(key.to_string());
@@ -251,6 +258,11 @@ impl MmapCache {
         Ok(())
     }
 
+    /// Invalidates all keys matching the given prefix.
+    ///
+    /// # Errors
+    ///
+    /// Returns `MmapCacheError` if the underlying storage operation fails.
     pub fn invalidate_prefix(&self, prefix: &str) -> Result<Vec<String>, MmapCacheError> {
         let keys_to_invalidate: Vec<String> = {
             let _guard = self.lock.lock();
@@ -271,6 +283,11 @@ impl MmapCache {
         Ok(keys_to_invalidate)
     }
 
+    /// Invalidates all entries in the cache.
+    ///
+    /// # Errors
+    ///
+    /// Returns `MmapCacheError` if the underlying storage operation fails.
     pub fn invalidate_all(&self) -> Result<usize, MmapCacheError> {
         let count = {
             let _guard = self.lock.lock();

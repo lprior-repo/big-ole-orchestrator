@@ -60,7 +60,7 @@ impl InvertedIndex {
         let posting_list = self
             .index
             .entry(term.to_string())
-            .or_insert_with(|| PostingList::new());
+            .or_default();
 
         if let Some(existing) = posting_list
             .postings

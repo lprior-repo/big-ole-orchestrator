@@ -7,6 +7,7 @@ pub mod circuit_breaker;
 pub mod config;
 pub mod hash_ring;
 pub mod health_check;
+#[allow(clippy::module_inception)]
 mod pool;
 
 pub use circuit_breaker::CircuitBreaker;

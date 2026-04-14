@@ -265,7 +265,7 @@ impl BlobRecord {
 
     /// Construct a new `BlobRecord` with explicit status.
     #[must_use]
-    pub fn with_status(
+    pub const fn with_status(
         content_addr: ContentAddress,
         size_bytes: u64,
         reference_count: u64,
@@ -344,9 +344,9 @@ impl BlobRecord {
     /// Check if transitioning to the target status is valid per ADR-040.
     ///
     /// Valid transitions:
-    /// - Pending → DurablyStored
-    /// - Pending → Failed
-    /// - DurablyStored → Published
+    /// - `Pending` -> `DurablyStored`
+    /// - `Pending` -> `Failed`
+    /// - `DurablyStored` -> `Published`
     #[must_use]
     pub fn can_transition_to(&self, target: BlobStatus) -> bool {
         self.status.can_transition_to(target)

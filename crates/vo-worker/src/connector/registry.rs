@@ -9,6 +9,12 @@ pub struct ConnectorRegistry {
     connectors: HashMap<String, Arc<dyn Connector>>,
 }
 
+impl Default for ConnectorRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ConnectorRegistry {
     pub fn new() -> Self {
         Self {
@@ -26,6 +32,11 @@ impl ConnectorRegistry {
 
     pub fn len(&self) -> usize {
         self.connectors.len()
+    }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.connectors.is_empty()
     }
 
     pub fn list(&self) -> Vec<&str> {

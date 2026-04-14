@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use crate::upcaster::{EventEnvelopeError, UpcasterError, MAX_SUPPORTED_VERSION};
+use crate::upcaster::{UpcasterError, MAX_SUPPORTED_VERSION};
 use vo_types::events::upcaster::Upcaster;
 use vo_types::events::EventEnvelope;
 

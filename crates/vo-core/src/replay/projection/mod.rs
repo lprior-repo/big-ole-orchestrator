@@ -228,6 +228,7 @@ struct RebuildThrottleState {
     last_refill: Instant,
     refill_interval: Duration,
     tokens_per_refill: usize,
+    #[allow(dead_code)]
     active_rebuilds: AtomicUsize,
 }
 
@@ -334,7 +335,9 @@ pub struct ProjectionEngine {
     max_supported_version: u8,
     throttle: RebuildThrottleState,
     throttle_config: RebuildThrottleConfig,
+    #[allow(dead_code)]
     active_rebuilds: Arc<HashMap<String, Arc<RebuildContext>>>,
+    #[allow(dead_code)]
     rebuild_in_progress: AtomicBool,
 }
 
@@ -391,8 +394,8 @@ impl ProjectionEngine {
         self.rebuild_in_progress.load(Ordering::Relaxed)
     }
 
-    pub fn upcaster_registry(&self) -> Option<&Box<dyn UpcasterRegistry>> {
-        self.upcaster_registry.as_ref()
+    pub fn upcaster_registry(&self) -> Option<&dyn UpcasterRegistry> {
+        self.upcaster_registry.as_deref()
     }
 
     pub fn detect_staleness(
@@ -485,6 +488,7 @@ where
     E: Clone,
     P: Projector<S, E>,
 {
+    #[allow(dead_code)]
     engine: &'a ProjectionEngine,
     projector: &'a P,
     context: Arc<RebuildContext>,
@@ -609,20 +613,20 @@ impl ProjectionStateManager {
 
         let current = states.get(projection_id);
 
-        let valid = match (&current, &new_state) {
-            (None, _) => true,
-            (Some(ProjectionState::Building), ProjectionState::Ready) => true,
-            (Some(ProjectionState::Building), ProjectionState::Failed { .. }) => true,
-            (Some(ProjectionState::Ready), ProjectionState::Stale { .. }) => true,
-            (Some(ProjectionState::Ready), ProjectionState::Rebuilding { .. }) => true,
-            (Some(ProjectionState::Ready), ProjectionState::Failed { .. }) => true,
-            (Some(ProjectionState::Stale { .. }), ProjectionState::Rebuilding { .. }) => true,
-            (Some(ProjectionState::Stale { .. }), ProjectionState::Failed { .. }) => true,
-            (Some(ProjectionState::Rebuilding { .. }), ProjectionState::Ready) => true,
-            (Some(ProjectionState::Rebuilding { .. }), ProjectionState::Failed { .. }) => true,
-            (Some(ProjectionState::Failed { .. }), ProjectionState::Rebuilding { .. }) => true,
-            _ => false,
-        };
+        let valid = matches!(
+            (&current, &new_state),
+            (None, _)
+            | (Some(ProjectionState::Building), ProjectionState::Ready)
+            | (Some(ProjectionState::Building), ProjectionState::Failed { .. })
+            | (Some(ProjectionState::Ready), ProjectionState::Stale { .. })
+            | (Some(ProjectionState::Ready), ProjectionState::Rebuilding { .. })
+            | (Some(ProjectionState::Ready), ProjectionState::Failed { .. })
+            | (Some(ProjectionState::Stale { .. }), ProjectionState::Rebuilding { .. })
+            | (Some(ProjectionState::Stale { .. }), ProjectionState::Failed { .. })
+            | (Some(ProjectionState::Rebuilding { .. }), ProjectionState::Ready)
+            | (Some(ProjectionState::Rebuilding { .. }), ProjectionState::Failed { .. })
+            | (Some(ProjectionState::Failed { .. }), ProjectionState::Rebuilding { .. })
+        );
 
         if !valid {
             return Err(ProjectionStateError::InvalidTransition {

@@ -1,3 +1,4 @@
+#[cfg(test)]
 pub mod badge_accuracy_tests;
 pub mod command_palette;
 pub mod domain_types;

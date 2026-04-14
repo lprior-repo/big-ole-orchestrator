@@ -358,11 +358,7 @@ impl EventSourcingEngine {
             self.replay_engine.replay(events)?
         };
 
-        let recovery_type = if events.is_empty() {
-            RecoveryType::FullReplay
-        } else {
-            RecoveryType::FullReplay
-        };
+        let recovery_type = RecoveryType::FullReplay;
 
         Ok(RecoveryResult::new(
             result.final_state,
@@ -474,7 +470,7 @@ impl EventSourcingEngine {
     }
 
     pub fn should_create_snapshot(&self, events_processed: u64) -> bool {
-        events_processed > 0 && events_processed % self.config.snapshot_interval_events == 0
+        events_processed > 0 && events_processed.is_multiple_of(self.config.snapshot_interval_events)
     }
 
     pub fn create_snapshot<S: serde::Serialize>(

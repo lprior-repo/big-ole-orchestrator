@@ -262,6 +262,7 @@ impl Dag {
     /// - BLACK: finished visiting
     ///
     /// A back edge to a GRAY node indicates a cycle.
+    #[allow(dead_code)]
     fn has_cycle(&self) -> bool {
         if self.edges.is_empty() {
             return false;

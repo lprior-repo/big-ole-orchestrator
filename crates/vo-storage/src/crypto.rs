@@ -54,6 +54,11 @@ pub const TAG_SIZE_BYTES: usize = 16;
 
 type Aes256Gcm = AesGcm<Aes256, U12>;
 
+/// Generates a new random data encryption key.
+///
+/// # Errors
+///
+/// Returns `CryptoError` if the system RNG fails to fill the key buffer.
 pub fn generate_dek() -> Result<[u8; DEK_SIZE_BYTES], CryptoError> {
     use rand::RngCore;
     let mut key = [0u8; DEK_SIZE_BYTES];
@@ -61,6 +66,11 @@ pub fn generate_dek() -> Result<[u8; DEK_SIZE_BYTES], CryptoError> {
     Ok(key)
 }
 
+/// Wraps a DEK with a KEK using AES-256-GCM.
+///
+/// # Errors
+///
+/// Returns `CryptoError` if encryption fails.
 pub fn wrap_dek(
     dek: &[u8; DEK_SIZE_BYTES],
     kek: &[u8; KEK_SIZE_BYTES],
@@ -85,6 +95,11 @@ pub fn wrap_dek(
     Ok(result)
 }
 
+/// Unwraps a DEK using a KEK with AES-256-GCM.
+///
+/// # Errors
+///
+/// Returns `CryptoError` if decryption fails or the ciphertext is invalid.
 pub fn unwrap_dek(
     wrapped: &[u8],
     kek: &[u8; KEK_SIZE_BYTES],
@@ -117,6 +132,11 @@ pub fn unwrap_dek(
     Ok(dek)
 }
 
+/// Encrypts a blob using the given DEK.
+///
+/// # Errors
+///
+/// Returns `CryptoError` if encryption fails.
 pub fn encrypt_blob(
     data: &[u8],
     dek: &[u8; DEK_SIZE_BYTES],
@@ -146,6 +166,11 @@ pub fn encrypt_blob(
     ))
 }
 
+/// Decrypts a blob using the given DEK.
+///
+/// # Errors
+///
+/// Returns `CryptoError` if decryption fails or the ciphertext is invalid.
 pub fn decrypt_blob(
     blob: &vo_types::EncryptedBlob,
     dek: &[u8; DEK_SIZE_BYTES],

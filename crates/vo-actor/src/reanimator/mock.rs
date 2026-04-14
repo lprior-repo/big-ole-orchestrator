@@ -177,7 +177,7 @@ impl TimerStorage for MockTimerStorage {
     async fn complete_timer_processing(
         &self,
         instance_id: &InstanceId,
-        fire_at_ms: TimestampMs,
+        _fire_at_ms: TimestampMs,
     ) -> Result<(), ReanimatorError> {
         if *self.should_fail.lock().await {
             return Err(ReanimatorError::StorageError("Mock failure".to_string()));

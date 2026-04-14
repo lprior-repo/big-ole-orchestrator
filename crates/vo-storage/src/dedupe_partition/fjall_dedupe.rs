@@ -57,7 +57,7 @@ impl FjallDedupeStore {
 }
 
 impl DedupeStore for FjallDedupeStore {
-    #[expect(clippy::expect_used)]
+    #[allow(clippy::expect_used)]
     fn check_and_insert(
         &self,
         key: &DedupeKey,
@@ -118,6 +118,7 @@ impl DedupeStore for FjallDedupeStore {
             if keys_to_delete.len() >= PURGE_BATCH_SIZE {
                 let count = keys_to_delete.len();
                 let mut batch = self.keyspace.batch();
+                #[allow(clippy::iter_with_drain)]
                 for key in keys_to_delete.drain(..) {
                     batch.remove(&self.partition, key);
                 }
@@ -142,16 +143,15 @@ impl DedupeStore for FjallDedupeStore {
         Ok(purged_count)
     }
 
-    #[expect(clippy::expect_used)]
+    #[allow(clippy::expect_used)]
     fn contains(&self, key: &DedupeKey) -> Result<bool, DedupeStoreError> {
         let encoded_key = super::encode_dedupe_key(key);
         let now_ms = Self::now_ms();
 
         match self.partition.get(&encoded_key) {
-            Ok(Some(value_bytes)) => match super::decode_dedupe_entry(&value_bytes) {
-                Ok(entry) => Ok(!entry.is_expired(now_ms)),
-                Err(_) => Ok(false),
-            },
+            Ok(Some(value_bytes)) => {
+                Ok(super::decode_dedupe_entry(&value_bytes).is_ok_and(|entry| !entry.is_expired(now_ms)))
+            }
             Ok(None) => Ok(false),
             Err(e) => Err(DedupeStoreError::Storage {
                 reason: e.to_string(),

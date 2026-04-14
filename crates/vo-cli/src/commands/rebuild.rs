@@ -71,7 +71,7 @@ pub fn run_rebuild(config: &RebuildConfig) -> Result<RebuildReport, RebuildError
     perform_rebuild(config, projection_id)
 }
 
-fn list_registered_projections(config: &RebuildConfig) -> Result<RebuildReport, RebuildError> {
+fn list_registered_projections(_config: &RebuildConfig) -> Result<RebuildReport, RebuildError> {
     Ok(RebuildReport {
         projection_id: None,
         rebuild_id: None,
@@ -82,7 +82,7 @@ fn list_registered_projections(config: &RebuildConfig) -> Result<RebuildReport, 
 }
 
 fn perform_rebuild(
-    config: &RebuildConfig,
+    _config: &RebuildConfig,
     projection_id: &str,
 ) -> Result<RebuildReport, RebuildError> {
     let rebuild_id = format!("{}-{:?}", projection_id, std::time::SystemTime::now());

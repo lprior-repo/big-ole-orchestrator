@@ -5,6 +5,7 @@
 
 mod engine;
 pub mod event_sourcing_engine;
+#[cfg(test)]
 pub mod event_sourcing_engine_tests;
 pub mod projection;
 mod types;

@@ -237,12 +237,6 @@ impl ExecutionSemaphore {
         }
     }
 
-    /// Creates a new execution semaphore with default config.
-    #[must_use]
-    pub fn default() -> Self {
-        Self::new(SemaphoreConfig::default())
-    }
-
     /// Attempts to acquire a permit without waiting.
     ///
     /// Returns `Some(permit)` if available, `None` otherwise.
@@ -374,6 +368,12 @@ impl ExecutionSemaphore {
     }
 }
 
+impl Default for ExecutionSemaphore {
+    fn default() -> Self {
+        Self::new(SemaphoreConfig::default())
+    }
+}
+
 /// Per-workflow semaphore map for fine-grained concurrency control.
 ///
 /// Provides per-workflow limiting in addition to global limiting.
@@ -403,7 +403,8 @@ impl WorkflowSemaphoreMap {
 
     /// Creates a new workflow semaphore map with default settings.
     #[must_use]
-    pub fn default() -> Self {
+    #[allow(clippy::should_implement_trait)]
+    pub fn with_default_settings() -> Self {
         Self::new(DEFAULT_MAX_PER_WORKFLOW)
     }
 
@@ -753,14 +754,14 @@ mod tests {
 
     #[tokio::test]
     async fn workflow_semaphore_map_creation() {
-        let map = WorkflowSemaphoreMap::default();
+        let map = WorkflowSemaphoreMap::with_default_settings();
         assert!(map.is_empty());
         assert_eq!(map.len(), 0);
     }
 
     #[tokio::test]
     async fn workflow_semaphore_map_semaphore_access() {
-        let map = WorkflowSemaphoreMap::default();
+        let map = WorkflowSemaphoreMap::with_default_settings();
         let wf_name = WorkflowName::parse("test-workflow").unwrap();
 
         let sem = map.semaphore_for(&wf_name);

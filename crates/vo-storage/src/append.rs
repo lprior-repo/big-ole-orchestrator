@@ -10,7 +10,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use vo_types::events::EventEnvelope;
-use vo_types::events::EventMetadata;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Metrics Helpers
@@ -18,7 +17,7 @@ use vo_types::events::EventMetadata;
 
 use metrics::{counter, gauge};
 
-fn write_class_label(class: WriteClass) -> &'static str {
+const fn write_class_label(class: WriteClass) -> &'static str {
     match class {
         WriteClass::CriticalControlPlane => "critical_control_plane",
         WriteClass::OperatorProjection => "operator_projection",
@@ -27,6 +26,7 @@ fn write_class_label(class: WriteClass) -> &'static str {
 }
 
 fn emit_queue_depth(class: WriteClass, depth: usize) {
+    #[allow(clippy::cast_precision_loss)]
     gauge!("vo_storage.queue_depth", "write_class" => write_class_label(class)).set(depth as f64);
 }
 
@@ -299,7 +299,7 @@ pub struct BackpressureSignal {
 impl BackpressureSignal {
     /// Creates a new backpressure signal with all queues initially not full.
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             critical_full: AtomicBool::new(false),
             projection_full: AtomicBool::new(false),
@@ -327,6 +327,10 @@ impl BackpressureSignal {
     }
 
     /// Returns the most recent backpressure event, if any.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal mutex is poisoned.
     #[must_use]
     pub fn last_event(&self) -> Option<BackpressureEvent> {
         #[expect(clippy::unwrap_used)]
@@ -334,7 +338,7 @@ impl BackpressureSignal {
     }
 
     /// Called when a queue becomes full.
-    #[expect(clippy::unwrap_used)]
+    #[allow(clippy::unwrap_used)]
     pub(crate) fn set_full(&self, class: WriteClass, depth: usize, capacity: usize) {
         let was_full = match class {
             WriteClass::CriticalControlPlane => self.critical_full.swap(true, Ordering::SeqCst),
@@ -356,7 +360,7 @@ impl BackpressureSignal {
     }
 
     /// Called when a queue becomes writable (was full, now has capacity).
-    #[expect(clippy::unwrap_used)]
+    #[allow(clippy::unwrap_used)]
     pub(crate) fn set_writable(&self, class: WriteClass, remaining_capacity: usize) {
         let was_full = match class {
             WriteClass::CriticalControlPlane => self.critical_full.swap(false, Ordering::SeqCst),
@@ -409,21 +413,31 @@ pub struct CommitLatencyTracker {
 
 impl CommitLatencyTracker {
     /// Records a commit completion with the given latency in milliseconds.
+    ///
+    /// # Panics
+    ///
+    /// Panics if any internal mutex is poisoned.
     pub fn record_commit(&self, latency_ms: u64) {
         #[expect(clippy::unwrap_used)]
         let mut last_commit = self.last_commit_at.lock().unwrap();
         *last_commit = Some(Instant::now());
+        drop(last_commit);
 
         #[expect(clippy::unwrap_used)]
         let mut count = self.sample_count.lock().unwrap();
         *count += 1;
+        drop(count);
 
         #[expect(clippy::unwrap_used)]
         let mut total = self.total_latency_ms.lock().unwrap();
-        *total += latency_ms as u128;
+        *total += u128::from(latency_ms);
     }
 
     /// Returns the time since the last commit, if any.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal mutex is poisoned.
     #[must_use]
     pub fn time_since_last_commit(&self) -> Option<std::time::Duration> {
         #[expect(clippy::unwrap_used)]
@@ -432,7 +446,12 @@ impl CommitLatencyTracker {
     }
 
     /// Returns the average commit latency in milliseconds, if samples exist.
+    ///
+    /// # Panics
+    ///
+    /// Panics if any internal mutex is poisoned.
     #[must_use]
+    #[allow(clippy::cast_possible_truncation)]
     pub fn average_latency_ms(&self) -> Option<u64> {
         #[expect(clippy::unwrap_used)]
         let count = *self.sample_count.lock().unwrap();
@@ -441,9 +460,14 @@ impl CommitLatencyTracker {
         }
         #[expect(clippy::unwrap_used)]
         let total = *self.total_latency_ms.lock().unwrap();
-        Some((total / count as u128) as u64)
+        Some((total / u128::from(count)) as u64)
     }
 
+    /// Returns the number of latency samples collected.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal mutex is poisoned.
     #[must_use]
     pub fn sample_count(&self) -> u64 {
         #[expect(clippy::unwrap_used)]
@@ -540,7 +564,7 @@ impl<T> BudgetQueues<T> {
                 critical_depth: 0,
                 projection_depth: 0,
                 blob_depth: 0,
-                config: config.clone(),
+                config,
             })),
             budget,
             backpressure: Arc::new(BackpressureSignal::new()),
@@ -568,7 +592,7 @@ impl<T> BudgetQueues<T> {
                 critical_depth: 0,
                 projection_depth: 0,
                 blob_depth: 0,
-                config: config.clone(),
+                config,
             })),
             budget,
             backpressure,
@@ -592,7 +616,7 @@ impl<T> BudgetQueues<T> {
 
     /// Returns a reference to the backpressure signal.
     #[must_use]
-    pub fn backpressure(&self) -> &Arc<BackpressureSignal> {
+    pub const fn backpressure(&self) -> &Arc<BackpressureSignal> {
         &self.backpressure
     }
 
@@ -740,7 +764,7 @@ impl<T> BudgetQueues<T> {
         item
     }
 
-    /// Dequeues items in priority order: CriticalControlPlane → OperatorProjection → BulkBlob.
+    /// Dequeues items in priority order: `CriticalControlPlane` -> `OperatorProjection` -> `BulkBlob`.
     ///
     /// Returns the next item available in priority order, or `None` if all queues are empty.
     ///
@@ -914,7 +938,7 @@ impl Appender {
     }
 
     #[must_use]
-    pub fn backpressure(&self) -> &Arc<BackpressureSignal> {
+    pub const fn backpressure(&self) -> &Arc<BackpressureSignal> {
         self.queues.backpressure()
     }
 
@@ -965,6 +989,7 @@ impl Appender {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use vo_types::events::EventMetadata;
 
     #[test]
     fn write_class_tier() {

@@ -25,13 +25,14 @@ impl InMemoryLeaseStore {
     }
 
     fn lease_key(instance_id: &InstanceId, step_id: &StepId) -> String {
-        format!("{}::{}", instance_id, step_id)
+        format!("{instance_id}::{step_id}")
     }
 
     fn fence_key(instance_id: &InstanceId, step_id: &StepId) -> String {
-        format!("{}::{}::fence", instance_id, step_id)
+        format!("{instance_id}::{step_id}::fence")
     }
 
+    #[allow(clippy::cast_possible_truncation, clippy::expect_used)]
     fn now_ms() -> u64 {
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -64,6 +65,8 @@ impl LeaseStore for InMemoryLeaseStore {
 
         if let Some(entry) = leases.get(&key) {
             if !entry.is_expired(now_ms) {
+                drop(leases);
+                drop(fences);
                 return Err(LeaseStoreError::LeaseAlreadyHeld {
                     instance_id: instance_id.to_string(),
                     step_id: step_id.to_string(),
@@ -90,6 +93,8 @@ impl LeaseStore for InMemoryLeaseStore {
             expires_at,
         )?;
         leases.insert(key, entry.clone());
+        drop(leases);
+        drop(fences);
 
         entry.to_lease_record()
     }
@@ -105,14 +110,17 @@ impl LeaseStore for InMemoryLeaseStore {
             step_id: lease.step_id().to_string(),
         })?;
 
+        let expected = entry.fence_token().to_string();
         if entry.fence_token() != lease.token().inner().get() {
+            drop(leases);
             return Err(LeaseStoreError::StaleFence {
-                expected: entry.fence_token().to_string(),
+                expected,
                 actual: lease.token().inner().get().to_string(),
             });
         }
 
         leases.remove(&key);
+        drop(leases);
         Ok(())
     }
 
@@ -129,13 +137,10 @@ impl LeaseStore for InMemoryLeaseStore {
             reason: e.to_string(),
         })?;
 
-        if let Some(entry) = leases.get(&key) {
-            if entry.is_expired(now_ms) {
-                return Ok(false);
-            }
-            return Ok(entry.fence_token() != token.inner().get());
-        }
-
-        Ok(false)
+        let result = leases.get(&key).is_some_and(|entry| {
+            !entry.is_expired(now_ms) && entry.fence_token() != token.inner().get()
+        });
+        drop(leases);
+        Ok(result)
     }
 }

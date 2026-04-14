@@ -23,7 +23,7 @@ impl InMemoryEffectJournal {
         }
     }
 
-    /// Ensure the record is not already Committed or RolledBack.
+    /// Ensure the record is not already Committed or `RolledBack`.
     fn ensure_not_terminal(record: &EffectRecord, key: &str) -> Result<(), EffectJournalError> {
         match record.status() {
             EffectIntent::Committed | EffectIntent::RolledBack => {
@@ -32,11 +32,11 @@ impl InMemoryEffectJournal {
                     current_status: format!("{:?}", record.status()),
                 })
             }
-            _ => Ok(()),
+            EffectIntent::Prepared => Ok(()),
         }
     }
 
-    /// Constructs the next EffectRecord for the target intent.
+    /// Constructs the next `EffectRecord` for the target intent.
     fn construct_next_record(
         record: &EffectRecord,
         target: EffectIntent,
@@ -48,7 +48,7 @@ impl InMemoryEffectJournal {
                 }
             })?),
             EffectIntent::RolledBack => None,
-            _ => unreachable!(),
+            EffectIntent::Prepared => unreachable!(),
         };
         EffectRecord::new(
             record.intent_id().to_string(),

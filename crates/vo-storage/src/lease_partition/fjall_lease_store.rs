@@ -14,7 +14,11 @@ pub struct FjallLeaseStore {
 }
 
 impl FjallLeaseStore {
-    #[must_use]
+    /// Opens the lease store partitions from the given keyspace.
+    ///
+    /// # Errors
+    ///
+    /// Returns `LeaseStoreError::Storage` if a partition cannot be opened.
     pub fn open(keyspace: &fjall::Keyspace) -> Result<Self, LeaseStoreError> {
         let lease_partition = keyspace
             .open_partition(LEASE_PARTITION, fjall::PartitionCreateOptions::default())
@@ -143,6 +147,7 @@ impl LeaseStore for FjallLeaseStore {
             return Err(LeaseStoreError::InvalidArgument);
         }
 
+        #[allow(clippy::cast_possible_truncation)]
         let now_ms = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map_err(|e| LeaseStoreError::Storage {
@@ -199,10 +204,7 @@ impl LeaseStore for FjallLeaseStore {
     ) -> Result<bool, LeaseStoreError> {
         let current = self.get_current_lease(instance_id, step_id)?;
 
-        match current {
-            Some(entry) => Ok(entry.fence_token() != token.inner().get()),
-            None => Ok(false),
-        }
+        Ok(current.is_some_and(|entry| entry.fence_token() != token.inner().get()))
     }
 }
 
