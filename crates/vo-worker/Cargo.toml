@@ -23,6 +23,8 @@ serde_json = { workspace = true }
 bytes = { workspace = true }
 rmp-serde = { workspace = true }
 
+crc32fast = "1"
+
 # Utilities
 thiserror = { workspace = true }
 chrono = { workspace = true }
