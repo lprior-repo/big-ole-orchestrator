@@ -17,8 +17,13 @@ fn make_timer(id_str: &str, fire_at: u64, scheduled_at: u64) -> TimerRecord {
 fn make_timers(count: usize) -> Vec<TimerRecord> {
     (0..count)
         .map(|i| {
-            let id = format!("01H5JYV4XHGSR2F8KZ9BWNRFM{:02X}", i % 256);
-            make_timer(&id, 1000 + i as u64, 500)
+            let mut bytes = [0u8; 16];
+            bytes[0] = 0x01;
+            bytes[1] = (i % 256) as u8;
+            let val = (i as u64) + 1;
+            bytes[8..16].copy_from_slice(&val.to_be_bytes());
+            let id = InstanceId::from_bytes(bytes);
+            make_timer(&id.to_string(), 1000 + i as u64, 500)
         })
         .collect()
 }

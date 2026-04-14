@@ -1,5 +1,5 @@
 use criterion::{black_box, criterion_group, criterion_main, BatchSize, Criterion, Throughput};
-use vo_storage::checksum::{compute_checksum, verify_checksum, Checksum, StreamingHasher};
+use vo_storage::checksum::{compute_checksum, verify_checksum, StreamingHasher};
 use vo_storage::codec::{decode_event_key, encode_event_key};
 use vo_types::{InstanceId, SequenceNumber};
 
@@ -104,14 +104,14 @@ fn bench_codec_event_key(c: &mut Criterion) {
         b.iter(|| black_box(encode_event_key(black_box(&id), black_box(&seq))))
     });
 
-    let encoded = encode_event_key(&id, seq).unwrap();
+    let encoded = encode_event_key(&id, &seq).unwrap();
     group.bench_function("decode", |b| {
         b.iter(|| black_box(decode_event_key(black_box(&encoded))))
     });
 
     group.bench_function("roundtrip", |b| {
         b.iter(|| {
-            let enc = encode_event_key(&id, seq).unwrap();
+            let enc = encode_event_key(&id, &seq).unwrap();
             black_box(decode_event_key(&enc))
         })
     });

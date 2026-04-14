@@ -1,4 +1,4 @@
-use criterion::{black_box, criterion_group, criterion_main, BatchSize, Criterion, Throughput};
+use criterion::{black_box, criterion_group, criterion_main, Criterion, Throughput};
 use vo_storage::crypto::{
     decrypt_blob, encrypt_blob, generate_dek, unwrap_dek, wrap_dek, KEK_SIZE_BYTES,
 };

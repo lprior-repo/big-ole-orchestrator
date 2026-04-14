@@ -66,10 +66,16 @@ fn bench_lazy_segment_tree(c: &mut Criterion) {
     group.throughput(Throughput::Elements(1));
 
     let data: Vec<u64> = vec![0u64; 10_000];
-    let merge = |a: &u64, b: &u64| *a + *b;
+    fn merge(a: &u64, b: &u64) -> u64 {
+        *a + *b
+    }
+    fn apply(val: &u64, update: &u64, _len: usize) -> u64 {
+        *val + *update
+    }
+    fn compose(pending: &u64, new: &u64) -> u64 {
+        *pending + *new
+    }
     let identity = 0u64;
-    let apply = |val: &mut u64, update: &u64| *val += *update;
-    let compose = |pending: &mut u64, new: &u64| *pending += *new;
 
     group.bench_function("range_update_10k_wide", |b| {
         b.iter_batched(
