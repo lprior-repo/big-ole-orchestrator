@@ -5366,6 +5366,10 @@ name = "vo-frontend"
 version = "0.1.0"
 dependencies = [
  "dioxus",
+ "serde",
+ "serde_json",
+ "ulid",
+ "vo-types",
 ]
 
 [[package]]
@@ -5479,7 +5483,9 @@ dependencies = [
  "axum 0.7.9",
  "bytes",
  "chrono",
+ "crc32fast",
  "futures",
+ "proptest",
  "ractor",
  "reqwest 0.11.27",
  "rmp-serde",

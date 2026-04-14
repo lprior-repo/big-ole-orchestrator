@@ -18,6 +18,7 @@ use vo_types::integer_types::TimestampMs;
 use super::circuit_breaker::CircuitBreaker;
 use super::config::{PoolConfig, PoolConfigError};
 use super::health_check::{determine_health_check_result, HealthCheck};
+use super::HealthCheckResult;
 
 #[derive(Debug, Clone)]
 pub struct NatsConnectionWrapper {
@@ -175,7 +176,7 @@ impl ConnectionPool {
                 context: ErrorContext {
                     pool_id: self.pool_id.clone(),
                     timestamp: TimestampMs::now(),
-                    operation: "acquire",
+                    operation: "acquire".to_string(),
                     connection_id: None,
                 },
             };
@@ -240,7 +241,7 @@ impl ConnectionPool {
                 context: ErrorContext {
                     pool_id: self.pool_id.clone(),
                     timestamp: TimestampMs::now(),
-                    operation: "acquire",
+                    operation: "acquire".to_string(),
                     connection_id: None,
                 },
             };

@@ -39,6 +39,8 @@ mod pairing_heap;
 mod payload_parser;
 mod plugin;
 pub mod proptest_verifier;
+#[cfg(feature = "proptest")]
+mod proptest_targets;
 mod registration_status;
 mod rope;
 pub mod signal;
@@ -105,7 +107,7 @@ pub use events::{Error as EventError, EventEnvelope};
 pub use instance_status::InstanceStatus;
 pub use junction_tree::{Clique as JunctionClique, JunctionTree, JunctionTreeError};
 pub use lifecycle_superstate::LifecycleSuperstate;
-pub use lineage::{Epoch, LineageError, WorkflowLineage};
+pub use lineage::{Epoch, LineageError, RolloverPolicy, RolloverTrigger, WorkflowLineage};
 pub use link_cut_tree::{LctAggregate, LctError, LinkCutTree, Monoid};
 pub use node_kind::NodeKind;
 pub use non_empty_vec::NonEmptyVec;
@@ -161,6 +163,8 @@ mod cross_cutting_tests;
 mod dependency_graph_resolver_tests;
 #[cfg(test)]
 mod octree_tests;
+#[cfg(test)]
+mod command_envelope_red_queen_tests;
 #[cfg(test)]
 mod red_queen_tests;
 #[cfg(test)]

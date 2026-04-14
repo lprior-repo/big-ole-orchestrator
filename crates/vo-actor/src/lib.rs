@@ -125,6 +125,12 @@ pub mod actor_messages {
             signal_id: String,
             payload: crate::SignalPayload,
         },
+        /// Request continue-as-new rollover to a new epoch (ADR-038).
+        ContinueAsNew {
+            instance_id: InstanceId,
+            lineage_id: String,
+            new_instance_id: InstanceId,
+        },
     }
 
     // =============================================================================

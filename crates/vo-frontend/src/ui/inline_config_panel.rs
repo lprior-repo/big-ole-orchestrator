@@ -1,6 +1,7 @@
 use dioxus::prelude::*;
-use oya_frontend::graph::{Node, NodeCategory};
 use serde_json::Value;
+
+use crate::ui::graph::{Node, NodeCategory};
 
 use super::config_panel::{get_str_val, get_u64_val};
 use super::domain_types::HttpMethod;

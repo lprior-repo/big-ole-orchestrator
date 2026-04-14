@@ -96,7 +96,7 @@ impl CircuitBreaker {
         false
     }
 
-    pub(crate) fn transition_to(&mut self, new_state: CircuitBreakerState) {
+    pub fn transition_to(&mut self, new_state: CircuitBreakerState) {
         self.state = new_state;
         self.last_transition_at = Some(TimestampMs::now());
 
