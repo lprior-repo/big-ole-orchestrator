@@ -141,6 +141,28 @@ pub struct WorkflowVersionResponse {
     pub last_timestamp_ms: Option<u64>,
 }
 
+/// Search request body for full-text search across workspaces.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SearchRequest {
+    pub query: String,
+    pub limit: Option<usize>,
+}
+
+/// Single search result entry.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SearchResultEntry {
+    pub workspace_id: String,
+    pub score: f64,
+    pub matched_terms: Vec<String>,
+}
+
+/// Response to GET /api/v1/search.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SearchResponse {
+    pub query: String,
+    pub results: Vec<SearchResultEntry>,
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
