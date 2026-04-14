@@ -41,6 +41,8 @@ pub struct SemaphoreConfig {
     pub max_per_workflow: usize,
     /// Timeout for acquiring a permit (default: 30s).
     pub acquire_timeout: Duration,
+    /// Reserved permits for recovery tasks (default: 50).
+    pub reserved_permits: usize,
 }
 
 impl Default for SemaphoreConfig {
@@ -50,6 +52,7 @@ impl Default for SemaphoreConfig {
             max_waiters_for_shed: DEFAULT_MAX_WAITERS_FOR_SHED,
             max_per_workflow: DEFAULT_MAX_PER_WORKFLOW,
             acquire_timeout: Duration::from_secs(30),
+            reserved_permits: 50,
         }
     }
 }
@@ -200,8 +203,10 @@ pub fn is_workflow_saturated(pending_count: usize, max_per_workflow: usize) -> b
 /// to limit concurrent binary spawns.
 pub struct ExecutionSemaphore {
     semaphore: Semaphore,
+    reserved_semaphore: Semaphore,
     config: SemaphoreConfig,
     available_permits: AtomicUsize,
+    reserved_available: AtomicUsize,
     waiting_count: AtomicUsize,
 }
 
@@ -210,6 +215,7 @@ impl std::fmt::Debug for ExecutionSemaphore {
         f.debug_struct("ExecutionSemaphore")
             .field("config", &self.config)
             .field("available_permits", &self.available_permits)
+            .field("reserved_available", &self.reserved_available)
             .field("waiting_count", &self.waiting_count)
             .finish()
     }
@@ -220,10 +226,13 @@ impl ExecutionSemaphore {
     #[must_use]
     pub fn new(config: SemaphoreConfig) -> Self {
         let available_permits = config.max_concurrent_binaries;
+        let reserved_permits = config.reserved_permits;
         Self {
             semaphore: Semaphore::new(available_permits),
+            reserved_semaphore: Semaphore::new(reserved_permits),
             config,
             available_permits: AtomicUsize::new(available_permits),
+            reserved_available: AtomicUsize::new(reserved_permits),
             waiting_count: AtomicUsize::new(0),
         }
     }
@@ -242,6 +251,24 @@ impl ExecutionSemaphore {
         match self.semaphore.try_acquire() {
             Ok(permit) => {
                 self.available_permits.fetch_sub(1, Ordering::Relaxed);
+                Some(permit)
+            }
+            Err(TryAcquireError::NoPermits) => None,
+            Err(TryAcquireError::Closed) => None,
+        }
+    }
+
+    /// Attempts to acquire a permit from the reserved pool for recovery tasks.
+    ///
+    /// Returns `Some(permit)` if available, `None` otherwise.
+    /// The permit is automatically released when dropped.
+    ///
+    /// This method is exclusively for recovery and control-plane tasks.
+    /// It does not consume permits from the general pool.
+    pub fn try_acquire_recovery(&self) -> Option<tokio::sync::SemaphorePermit<'_>> {
+        match self.reserved_semaphore.try_acquire() {
+            Ok(permit) => {
+                self.reserved_available.fetch_sub(1, Ordering::Relaxed);
                 Some(permit)
             }
             Err(TryAcquireError::NoPermits) => None,
@@ -320,6 +347,18 @@ impl ExecutionSemaphore {
     #[must_use]
     pub fn total_permits(&self) -> usize {
         self.config.max_concurrent_binaries
+    }
+
+    /// Returns the number of available reserved permits.
+    #[must_use]
+    pub fn reserved_available(&self) -> usize {
+        self.reserved_available.load(Ordering::Relaxed)
+    }
+
+    /// Returns the total reserved permit capacity.
+    #[must_use]
+    pub fn total_reserved_permits(&self) -> usize {
+        self.config.reserved_permits
     }
 
     /// Returns true if load shedding is active.
@@ -543,6 +582,7 @@ mod tests {
         assert_eq!(config.max_concurrent_binaries, 500);
         assert_eq!(config.max_waiters_for_shed, 5000);
         assert_eq!(config.max_per_workflow, 10);
+        assert_eq!(config.reserved_permits, 50);
     }
 
     #[test]
@@ -625,6 +665,61 @@ mod tests {
 
         let _permit = sem.try_acquire();
         assert!(sem.try_acquire().is_none());
+    }
+
+    #[tokio::test]
+    async fn execution_semaphore_try_acquire_recovery_success() {
+        let sem = ExecutionSemaphore::default();
+        let initial_reserved = sem.reserved_available();
+
+        let permit = sem.try_acquire_recovery();
+        assert!(permit.is_some());
+
+        assert_eq!(sem.reserved_available(), initial_reserved - 1);
+    }
+
+    #[tokio::test]
+    async fn execution_semaphore_try_acquire_recovery_exhausted() {
+        let config = SemaphoreConfig {
+            max_concurrent_binaries: 100,
+            reserved_permits: 1,
+            ..Default::default()
+        };
+        let sem = ExecutionSemaphore::new(config);
+
+        let _permit = sem.try_acquire_recovery();
+        assert!(sem.try_acquire_recovery().is_none());
+    }
+
+    #[tokio::test]
+    async fn execution_semaphore_recovery_pool_independent_of_general_pool() {
+        let config = SemaphoreConfig {
+            max_concurrent_binaries: 1,
+            reserved_permits: 1,
+            ..Default::default()
+        };
+        let sem = ExecutionSemaphore::new(config);
+
+        let _general_permit = sem.try_acquire();
+        assert!(_general_permit.is_some());
+
+        let recovery_permit = sem.try_acquire_recovery();
+        assert!(recovery_permit.is_some());
+    }
+
+    #[tokio::test]
+    async fn execution_semaphore_general_pool_exhausted_recovery_still_works() {
+        let config = SemaphoreConfig {
+            max_concurrent_binaries: 0,
+            reserved_permits: 1,
+            ..Default::default()
+        };
+        let sem = ExecutionSemaphore::new(config);
+
+        assert!(sem.try_acquire().is_none());
+
+        let recovery_permit = sem.try_acquire_recovery();
+        assert!(recovery_permit.is_some());
     }
 
     #[tokio::test]
