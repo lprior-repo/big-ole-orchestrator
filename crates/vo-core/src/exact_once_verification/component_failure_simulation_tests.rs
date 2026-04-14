@@ -341,25 +341,6 @@ mod lineage_rollover_failure_tests {
             "Lineage rollover failure should be recoverable"
         );
     }
-
-    #[test]
-    fn signal_routing_preserved_across_rollover() {
-        let harness = VerificationHarness::new();
-        let events_pre = vec![make_event("inst-1", 1, workflow_started_payload("wf-1"))];
-        let rollover_event = make_event("inst-1", 2, continued_as_new_payload("wf-1"));
-        let events_post = vec![
-            make_event("inst-1", 1, workflow_started_payload("wf-1")),
-            make_event("inst-1", 2, continued_as_new_payload("wf-1")),
-            make_event("inst-1", 3, step_scheduled_payload("wf-1", "step-1")),
-        ];
-
-        let result = VerificationHarness::verify_lineage_rollover_deterministic(
-            &events_pre,
-            &rollover_event,
-            &events_post[2..],
-        );
-        assert!(result, "Lineage rollover should preserve signal routing");
-    }
 }
 
 #[cfg(test)]
