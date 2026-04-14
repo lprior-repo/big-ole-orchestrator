@@ -3,6 +3,48 @@
 //! Provides async spawn supervisor that manages subprocess lifecycle:
 //! spawn → health-check → ready → running → shutdown
 //!
+//! # ADR-046 Contract
+//!
+//! This implementation follows the async process supervisor contract defined in ADR-046.
+//!
+//! ## State Machine (ADR-046 Section 1)
+//!
+//! ```text
+//! ┌─────────┐   spawn    ┌──────────────┐ health-check ┌─────────┐   healthy   ┌─────────┐
+//! │  None   │ ─────────► │    Spawn     │ ───────────► │HealthChk│ ─────────► │ Running │
+//! └─────────┘            └──────────────┘              └─────────┘            └─────────┘
+//!                               │                            │                       │
+//!                               │ failure                    │ failure               │ terminate
+//!                               ▼                            ▼                       ▼
+//!                         ┌─────────┐                  ┌─────────┐           ┌─────────┐
+//!                         │  Failed │                  │  Failed │           │ Shutdown│
+//!                         └─────────┘                  └─────────┘           └─────────┘
+//!                               │                            │                       │
+//!                               │ respawn                    │ respawn               │ exit
+//!                               └────────────────────────────┴───────────────────────┘
+//!                                                                                    │
+//!                                                                                    ▼
+//!                                                                            ┌─────────────┐
+//!                                                                            │ Terminated  │
+//!                                                                            └─────────────┘
+//! ```
+//!
+//! ## Error Taxonomy (ADR-046 Section 2)
+//!
+//! - **Transient**: StorageError, InstanceNotFound, MailboxFull, DispatchError
+//! - **Resumable**: HealthCheckFailed, ProcessExited, SpawnFailed
+//! - **Fatal**: CorruptSpawn, InvalidConfig, ZombieDetected
+//! - **Operational**: AlreadyRunning, AlreadyShutdown, NotRunning, ShutdownTimeout, AtomicityViolation
+//!
+//! ## Observability (ADR-046 Section 7)
+//!
+//! Emits: spawns_successful, spawns_failed, health_checks_performed, health_checks_failed,
+//!        zombies_detected, respawns, dispatch_errors
+//!
+//! ## Cancellation Safety (ADR-046 Section 8)
+//!
+//! shutdown() waits for loop to reach ShutDown state before returning.
+//!
 //! Features:
 //! - Zombie detection and reaping
 //! - Exponential backoff respawn
@@ -193,10 +235,14 @@ impl SpawnSupervisorError {
                 | Self::InstanceNotFound(_)
                 | Self::MailboxFull(_)
                 | Self::DispatchError(_)
-                | Self::AtomicityViolation(_)
-                | Self::SpawnFailed { .. }
-                | Self::HealthCheckFailed { .. }
-                | Self::ProcessExited { .. }
+        )
+    }
+
+    #[must_use]
+    pub fn is_resumable(&self) -> bool {
+        matches!(
+            self,
+            Self::HealthCheckFailed { .. } | Self::ProcessExited { .. } | Self::SpawnFailed { .. }
         )
     }
 
@@ -204,13 +250,19 @@ impl SpawnSupervisorError {
     pub fn is_fatal(&self) -> bool {
         matches!(
             self,
-            Self::CorruptSpawn(_)
-                | Self::InvalidConfig(_)
-                | Self::ZombieDetected { .. }
-                | Self::AlreadyRunning
-                | Self::ShutdownTimeout(_)
-                | Self::NotRunning
+            Self::CorruptSpawn(_) | Self::InvalidConfig(_) | Self::ZombieDetected { .. }
+        )
+    }
+
+    #[must_use]
+    pub fn is_operational(&self) -> bool {
+        matches!(
+            self,
+            Self::AlreadyRunning
                 | Self::AlreadyShutdown
+                | Self::NotRunning
+                | Self::ShutdownTimeout(_)
+                | Self::AtomicityViolation(_)
         )
     }
 }
@@ -499,8 +551,14 @@ impl SpawnSupervisor {
                         Err(e) if e.is_transient() => {
                             tracing::warn!("Transient error in spawn supervisor cycle: {}", e);
                         }
+                        Err(e) if e.is_resumable() => {
+                            tracing::info!("Resumable error in spawn supervisor cycle: {}", e);
+                        }
                         Err(e) if e.is_fatal() => {
                             tracing::error!("Fatal error in spawn supervisor cycle: {}", e);
+                        }
+                        Err(e) if e.is_operational() => {
+                            tracing::debug!("Operational error in spawn supervisor cycle: {}", e);
                         }
                         Err(e) => {
                             tracing::error!("Unknown error in spawn supervisor cycle: {}", e);
@@ -1009,13 +1067,52 @@ mod tests {
     fn spawn_supervisor_error_is_transient() {
         assert!(SpawnSupervisorError::StorageError("test".to_string()).is_transient());
         assert!(SpawnSupervisorError::InstanceNotFound(test_instance_id()).is_transient());
+        assert!(SpawnSupervisorError::MailboxFull(test_instance_id()).is_transient());
+        assert!(SpawnSupervisorError::DispatchError("test".to_string()).is_transient());
         assert!(!SpawnSupervisorError::InvalidConfig("test".to_string()).is_transient());
+    }
+
+    #[test]
+    fn spawn_supervisor_error_is_resumable() {
+        assert!(SpawnSupervisorError::HealthCheckFailed {
+            instance_id: test_instance_id(),
+            check_number: 1,
+            error: "test".to_string()
+        }
+        .is_resumable());
+        assert!(SpawnSupervisorError::ProcessExited {
+            instance_id: test_instance_id(),
+            pid: 123,
+            exit_code: 1
+        }
+        .is_resumable());
+        assert!(SpawnSupervisorError::SpawnFailed {
+            command: "test".to_string(),
+            error: "test".to_string()
+        }
+        .is_resumable());
+        assert!(!SpawnSupervisorError::StorageError("test".to_string()).is_resumable());
     }
 
     #[test]
     fn spawn_supervisor_error_is_fatal() {
         assert!(SpawnSupervisorError::CorruptSpawn("test".to_string()).is_fatal());
         assert!(SpawnSupervisorError::InvalidConfig("test".to_string()).is_fatal());
+        assert!(SpawnSupervisorError::ZombieDetected {
+            instance_id: test_instance_id(),
+            pid: 123
+        }
+        .is_fatal());
         assert!(!SpawnSupervisorError::StorageError("test".to_string()).is_fatal());
+    }
+
+    #[test]
+    fn spawn_supervisor_error_is_operational() {
+        assert!(SpawnSupervisorError::AlreadyRunning.is_operational());
+        assert!(SpawnSupervisorError::AlreadyShutdown.is_operational());
+        assert!(SpawnSupervisorError::NotRunning.is_operational());
+        assert!(SpawnSupervisorError::ShutdownTimeout(Duration::from_secs(30)).is_operational());
+        assert!(SpawnSupervisorError::AtomicityViolation("test".to_string()).is_operational());
+        assert!(!SpawnSupervisorError::StorageError("test".to_string()).is_operational());
     }
 }
