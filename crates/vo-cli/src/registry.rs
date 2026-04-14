@@ -14,6 +14,7 @@ impl Default for HandlerRegistry {
         };
         registry.register(Box::new(handlers::PurgeHandler));
         registry.register(Box::new(handlers::CheckHandler));
+        registry.register(Box::new(handlers::CompensateHandler));
         registry.register(Box::new(handlers::GcHandler));
         registry.register(Box::new(handlers::InitHandler));
         registry.register(Box::new(handlers::LockHandler));
@@ -46,6 +47,7 @@ fn command_key(command: &Command) -> Option<&'static str> {
     match command {
         Command::Purge { .. } => Some("purge"),
         Command::Check { .. } => Some("check"),
+        Command::Compensate { .. } => Some("compensate"),
         Command::Gc { .. } => Some("gc"),
         Command::Init { .. } => Some("init"),
         Command::Lock { .. } => Some("lock"),
@@ -109,6 +111,43 @@ mod handlers {
             let path = path.clone();
             Box::pin(async move {
                 crate::commands::check::run_check(&path)?;
+                Ok(())
+            })
+        }
+    }
+
+    pub struct CompensateHandler;
+
+    impl CommandHandler for CompensateHandler {
+        fn name(&self) -> &'static str {
+            "compensate"
+        }
+
+        fn execute(&self, cli: &Cli) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + '_>> {
+            let Command::Compensate {
+                ref engine_url,
+                ref workflow_id,
+                force,
+            } = cli.command
+            else {
+                return Box::pin(async { Err(CliError::Dispatch("not a compensate command".to_string())) });
+            };
+            let engine_url = engine_url.clone();
+            let workflow_id = workflow_id.clone();
+            Box::pin(async move {
+                if !force {
+                    if !crate::commands::compensate::prompt_confirmation(&workflow_id) {
+                        return Err(CliError::Compensate(
+                            crate::commands::compensate::CompensateError::Aborted,
+                        ));
+                    }
+                }
+                let config = crate::commands::compensate::CompensateConfig {
+                    engine_url,
+                    workflow_id,
+                    force,
+                };
+                crate::commands::compensate::run_compensate(&config).await?;
                 Ok(())
             })
         }
@@ -268,6 +307,7 @@ mod tests {
         let names = registry.names();
         assert!(names.contains(&"purge"));
         assert!(names.contains(&"check"));
+        assert!(names.contains(&"compensate"));
         assert!(names.contains(&"gc"));
         assert!(names.contains(&"init"));
         assert!(names.contains(&"lock"));
@@ -312,5 +352,19 @@ mod tests {
         };
         let handler = registry.get(&cli).expect("handler found");
         assert_eq!(handler.name(), "rebuild");
+    }
+
+    #[test]
+    fn registry_lookup_compensate() {
+        let registry = HandlerRegistry::default();
+        let cli = Cli {
+            command: Command::Compensate {
+                engine_url: "http://localhost:3000".to_string(),
+                workflow_id: "wf-test".to_string(),
+                force: false,
+            },
+        };
+        let handler = registry.get(&cli).expect("handler found");
+        assert_eq!(handler.name(), "compensate");
     }
 }
