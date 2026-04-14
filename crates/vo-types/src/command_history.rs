@@ -466,9 +466,12 @@ impl HistoryEntry {
     ) -> Self {
         let cmd_id = command_id.unwrap_or_default();
         let metadata = crate::command_metadata::CommandMetadata {
-            command_id: crate::IdempotencyKey::parse(cmd_id.as_str()).unwrap(),
-            correlation_id: crate::IdempotencyKey::parse(&ulid::Ulid::new().to_string()).unwrap(),
-            causation_id: crate::IdempotencyKey::parse(&ulid::Ulid::new().to_string()).unwrap(),
+            command_id: crate::IdempotencyKey::parse(cmd_id.as_str())
+                .expect("IdempotencyKey parsing from String should succeed"),
+            correlation_id: crate::IdempotencyKey::parse(&ulid::Ulid::new().to_string())
+                .expect("IdempotencyKey parsing from ULID string should succeed"),
+            causation_id: crate::IdempotencyKey::parse(&ulid::Ulid::new().to_string())
+                .expect("IdempotencyKey parsing from ULID string should succeed"),
             issuer: Issuer::Operator,
             issued_at: TimestampMs::now(),
         };
@@ -644,7 +647,10 @@ impl CommandHistory {
             return Ok(false);
         }
 
-        let command_id = self.undo_stack.pop().unwrap();
+        let command_id = self
+            .undo_stack
+            .pop()
+            .expect("undo_stack pop after empty check");
 
         let entry = self
             .entries
@@ -690,8 +696,10 @@ impl CommandHistory {
             return Ok(false);
         }
 
-        // Pop from redo stack
-        let command_id = self.redo_stack.pop().unwrap();
+        let command_id = self
+            .redo_stack
+            .pop()
+            .expect("redo_stack pop after empty check");
 
         // Find the entry and mark as Redone
         for entry in &mut self.entries {

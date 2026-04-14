@@ -53,12 +53,16 @@ impl QuotaEnforcer {
     pub fn with_default_namespace() -> Self {
         let mut registry = NamespaceRegistry::new();
         let default_ns = NamespaceQuota::new("default")
-            .with_cpu(CpuQuota::new(std::num::NonZeroU64::new(4).unwrap()))
+            .with_cpu(CpuQuota::new(
+                std::num::NonZeroU64::new(4).expect("default cpu quota is non-zero"),
+            ))
             .with_memory(MemoryQuota::new(
-                std::num::NonZeroU64::new(8 * 1024 * 1024 * 1024).unwrap(),
+                std::num::NonZeroU64::new(8 * 1024 * 1024 * 1024)
+                    .expect("default memory quota is non-zero"),
             ))
             .with_disk(DiskQuota::new(
-                std::num::NonZeroU64::new(100 * 1024 * 1024 * 1024).unwrap(),
+                std::num::NonZeroU64::new(100 * 1024 * 1024 * 1024)
+                    .expect("default disk quota is non-zero"),
             ));
         let _ = registry.register(default_ns);
         Self { registry }

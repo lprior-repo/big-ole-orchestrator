@@ -25,7 +25,7 @@ impl<'de> Deserialize<'de> for WorkspaceId {
 
 impl WorkspaceId {
     pub fn generate() -> Self {
-        let mut last = LAST_ULID.lock().unwrap();
+        let mut last = LAST_ULID.lock().expect("LAST_ULID mutex poisoned");
         let ulid = Ulid::new();
         let ulid = match *last {
             Some(prev) if ulid <= prev => Ulid::from(u128::from(prev) + 1),

@@ -66,7 +66,11 @@ impl Scheduler {
 
     #[allow(dead_code)]
     pub async fn acquire(&self) -> tokio::sync::OwnedSemaphorePermit {
-        self.semaphore.clone().acquire_owned().await.unwrap()
+        self.semaphore
+            .clone()
+            .acquire_owned()
+            .await
+            .expect("scheduler semaphore closed")
     }
 
     pub fn is_running(&self) -> bool {

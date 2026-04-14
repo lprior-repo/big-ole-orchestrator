@@ -125,7 +125,10 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
             return;
         }
 
-        let root = self.root.take().unwrap();
+        let root = self
+            .root
+            .take()
+            .expect("btree root missing after is_none check");
         let split = self.insert_recursive(root, key, value);
 
         match split {
@@ -202,12 +205,21 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
             return Err(BTreeError::KeyNotFound);
         }
 
-        let root = self.root.take().unwrap();
+        let root = self
+            .root
+            .take()
+            .expect("btree root missing after is_none check");
         let (updated_root, removed) = self.delete_recursive(root, key)?;
         self.len -= 1;
 
         if updated_root.keys.is_empty() && !updated_root.is_leaf() {
-            self.root = Some(updated_root.children.into_iter().next().unwrap());
+            self.root = Some(
+                updated_root
+                    .children
+                    .into_iter()
+                    .next()
+                    .expect("btree children missing despite internal node"),
+            );
         } else {
             self.root = Some(updated_root);
         }
@@ -342,10 +354,21 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
         let left_idx = idx - 1;
         let parent_key = node.keys.remove(left_idx);
         let parent_val = node.values.remove(left_idx);
-        let donor_key = node.children[left_idx].keys.pop().unwrap();
-        let donor_val = node.children[left_idx].values.pop().unwrap();
+        let donor_key = node.children[left_idx]
+            .keys
+            .pop()
+            .expect("btree donor node keys empty despite invariant");
+        let donor_val = node.children[left_idx]
+            .values
+            .pop()
+            .expect("btree donor node values empty despite invariant");
         let donor_child = if !node.children[left_idx].children.is_empty() {
-            Some(node.children[left_idx].children.pop().unwrap())
+            Some(
+                node.children[left_idx]
+                    .children
+                    .pop()
+                    .expect("btree donor children empty despite check"),
+            )
         } else {
             None
         };

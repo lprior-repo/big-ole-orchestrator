@@ -258,7 +258,9 @@ impl PluginState {
                     error: PluginHotLoadError::new(
                         super::PluginErrorCategory::LoadFailure,
                         super::PluginErrorDetail::PluginNotFound(PluginId::new(
-                            PluginName::new("").unwrap_or_else(|_| PluginName::new("x").unwrap()),
+                            PluginName::new("").unwrap_or_else(|_| {
+                                PluginName::new("x").expect("'x' is always a valid PluginName")
+                            }),
                             PluginVersion::new(0, 0, 0),
                             InstanceKey::new(),
                         )),
@@ -271,7 +273,9 @@ impl PluginState {
                 PluginTransition::Reload {
                     new_descriptor: PluginDescriptor {
                         id: PluginId::new(
-                            PluginName::new("").unwrap_or_else(|_| PluginName::new("x").unwrap()),
+                            PluginName::new("").unwrap_or_else(|_| {
+                                PluginName::new("x").expect("'x' is always a valid PluginName")
+                            }),
                             PluginVersion::new(0, 0, 0),
                             InstanceKey::new(),
                         ),
@@ -290,7 +294,9 @@ impl PluginState {
                     error: PluginHotLoadError::new(
                         super::PluginErrorCategory::ActivationFailure,
                         super::PluginErrorDetail::PluginNotFound(PluginId::new(
-                            PluginName::new("").unwrap_or_else(|_| PluginName::new("x").unwrap()),
+                            PluginName::new("").unwrap_or_else(|_| {
+                                PluginName::new("x").expect("'x' is always a valid PluginName")
+                            }),
                             PluginVersion::new(0, 0, 0),
                             InstanceKey::new(),
                         )),
@@ -304,7 +310,9 @@ impl PluginState {
                     error: PluginHotLoadError::new(
                         super::PluginErrorCategory::QuiesceTimeout,
                         super::PluginErrorDetail::PluginNotFound(PluginId::new(
-                            PluginName::new("").unwrap_or_else(|_| PluginName::new("x").unwrap()),
+                            PluginName::new("").unwrap_or_else(|_| {
+                                PluginName::new("x").expect("'x' is always a valid PluginName")
+                            }),
                             PluginVersion::new(0, 0, 0),
                             InstanceKey::new(),
                         )),
@@ -314,7 +322,9 @@ impl PluginState {
             ],
             PluginState::Unloaded => vec![PluginTransition::Register(PluginDescriptor {
                 id: PluginId::new(
-                    PluginName::new("").unwrap_or_else(|_| PluginName::new("x").unwrap()),
+                    PluginName::new("").unwrap_or_else(|_| {
+                        PluginName::new("x").expect("'x' is always a valid PluginName")
+                    }),
                     PluginVersion::new(0, 0, 0),
                     InstanceKey::new(),
                 ),
@@ -330,7 +340,9 @@ impl PluginState {
             })],
             PluginState::Failed(_) => vec![PluginTransition::Register(PluginDescriptor {
                 id: PluginId::new(
-                    PluginName::new("").unwrap_or_else(|_| PluginName::new("x").unwrap()),
+                    PluginName::new("").unwrap_or_else(|_| {
+                        PluginName::new("x").expect("'x' is always a valid PluginName")
+                    }),
                     PluginVersion::new(0, 0, 0),
                     InstanceKey::new(),
                 ),

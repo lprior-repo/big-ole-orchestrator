@@ -133,7 +133,9 @@ impl<V: LctAggregate<A>, A: Monoid> LinkCutTree<V, A> {
 
     /// Which side is x on in its parent?
     fn dir(&self, x: usize) -> usize {
-        let p = self.nodes[x].parent.unwrap();
+        let p = self.nodes[x]
+            .parent
+            .expect("LCT node has no parent despite not being root");
         if self.nodes[p].ch[1] == Some(x) {
             1
         } else {
@@ -142,7 +144,9 @@ impl<V: LctAggregate<A>, A: Monoid> LinkCutTree<V, A> {
     }
 
     fn rotate(&mut self, x: usize) {
-        let p = self.nodes[x].parent.unwrap();
+        let p = self.nodes[x]
+            .parent
+            .expect("LCT node has no parent despite not being root");
         let g = self.nodes[p].parent;
         let d = self.dir(x);
 
@@ -176,9 +180,13 @@ impl<V: LctAggregate<A>, A: Monoid> LinkCutTree<V, A> {
     fn splay(&mut self, x: usize) {
         self.push(x);
         while !self.is_root(x) {
-            let p = self.nodes[x].parent.unwrap();
+            let p = self.nodes[x]
+                .parent
+                .expect("LCT node has no parent in splay loop");
             if !self.is_root(p) {
-                let _g = self.nodes[p].parent.unwrap();
+                let _g = self.nodes[p]
+                    .parent
+                    .expect("LCT grandparent missing despite non-root parent");
                 if self.dir(x) == self.dir(p) {
                     self.rotate(p); // zig-zig
                 } else {

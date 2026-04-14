@@ -198,9 +198,6 @@ async fn perform_ipc(
     if let Err(e) = write_res {
         return Err(SubprocessError::Fd3WriteFailed(e.to_string()));
     }
-    if let Err(e) = write_res.unwrap() {
-        return Err(SubprocessError::Fd3WriteFailed(e.to_string()));
-    }
 
     let fd4_bytes = read_res.map_err(|e| SubprocessError::Fd4ReadFailed(e.to_string()))??;
 

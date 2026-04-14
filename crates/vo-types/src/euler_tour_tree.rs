@@ -150,7 +150,10 @@ impl<V: EttAggregate<A> + Clone, A: Monoid> EulerTourTree<V, A> {
         if self.nodes[node].parent.is_none() {
             return Err(EttError::NotConnected { a: node, b: node });
         }
-        let parent = self.nodes[node].parent.take().unwrap();
+        let parent = self.nodes[node]
+            .parent
+            .take()
+            .expect("parent is Some after is_none check");
         self.nodes[parent].children.retain(|&c| c != node);
         self.recalc_aggregate(parent);
         Ok(())

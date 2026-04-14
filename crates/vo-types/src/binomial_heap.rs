@@ -191,7 +191,7 @@ impl<T: Ord> BinomialHeap<T> {
             .enumerate()
             .filter_map(|(i, t)| t.as_ref().map(|tree| (i, tree.min_value())))
             .min_by_key(|(_, v)| *v)
-            .unwrap();
+            .expect("binomial heap trees empty despite is_empty check");
 
         let min_tree = self.trees[min_degree].take()?;
         let min_value = min_tree.value;
