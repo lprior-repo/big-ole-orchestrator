@@ -146,8 +146,15 @@ pub struct ResourceBudget {
     pub max_instances: u32,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct SchemaVersion(pub(crate) u16);
+
+impl SchemaVersion {
+    #[must_use]
+    pub fn new(version: u16) -> Self {
+        Self(version)
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ArtifactRef(pub(crate) String);
