@@ -547,7 +547,7 @@ mod tests {
     fn create_test_queues() -> BudgetQueues<StagedWrite> {
         let config = crate::append::QueueConfig::default();
         let budget = crate::append::WriteBudget::new(1000, 1000, 1000);
-        BudgetQueues::new(config, budget)
+        BudgetQueues::new(&config, budget)
     }
 
     #[test]

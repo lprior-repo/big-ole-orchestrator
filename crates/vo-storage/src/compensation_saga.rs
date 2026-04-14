@@ -810,13 +810,8 @@ mod tests {
     #[test]
     fn timeout_detection() {
         let saga = CompensationSaga::with_reconciler(RetryReconciler::new(3));
-        saga.register_with_timeout(
-            "fx-1".to_string(),
-            CompensationPolicy::Automatic,
-            vec![],
-            100,
-        )
-        .unwrap();
+        saga.register_with_timeout("fx-1", CompensationPolicy::Automatic, vec![], 100)
+            .unwrap();
         saga.queue_pending("fx-1").unwrap();
         saga.start_compensation("fx-1").unwrap();
 
@@ -877,13 +872,8 @@ mod tests {
     #[test]
     fn expire_timed_out_marks_entries() {
         let saga = CompensationSaga::with_reconciler(RetryReconciler::new(1));
-        saga.register_with_timeout(
-            "fx-1".to_string(),
-            CompensationPolicy::Automatic,
-            vec![],
-            50,
-        )
-        .unwrap();
+        saga.register_with_timeout("fx-1", CompensationPolicy::Automatic, vec![], 50)
+            .unwrap();
         saga.queue_pending("fx-1").unwrap();
         saga.start_compensation("fx-1").unwrap();
 

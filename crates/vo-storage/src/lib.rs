@@ -26,6 +26,7 @@
 pub mod append;
 pub mod blob_store;
 pub mod budget_saga;
+pub mod fs_store;
 pub mod checksum;
 pub mod codec;
 pub mod compensation_saga;
