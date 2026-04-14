@@ -11,6 +11,8 @@ pub enum CliError {
     #[error(transparent)]
     Check(#[from] crate::commands::check::CheckError),
     #[error(transparent)]
+    Compensate(#[from] crate::commands::compensate::CompensateError),
+    #[error(transparent)]
     Gc(#[from] crate::commands::gc::GcError),
     #[error(transparent)]
     Init(#[from] crate::commands::init::InitError),
@@ -29,6 +31,11 @@ pub enum Command {
     },
     Check {
         path: PathBuf,
+    },
+    Compensate {
+        engine_url: String,
+        workflow_id: String,
+        force: bool,
     },
     Gc {
         engine_url: String,
@@ -81,6 +88,28 @@ where
             ),
         )
         .subcommand(clap::Command::new("check").arg(clap::Arg::new("path").required(true).index(1)))
+        .subcommand(
+            clap::Command::new("compensate")
+                .about("Compensate a workflow instance")
+                .arg(
+                    clap::Arg::new("workflow-id")
+                        .required(true)
+                        .index(1)
+                        .help("The workflow instance ID to compensate"),
+                )
+                .arg(
+                    clap::Arg::new("engine-url")
+                        .long("engine-url")
+                        .env("VO_ENGINE_URL")
+                        .default_value("http://localhost:3000"),
+                )
+                .arg(
+                    clap::Arg::new("force")
+                        .long("force")
+                        .action(clap::ArgAction::SetTrue)
+                        .help("Skip confirmation prompt"),
+                ),
+        )
         .subcommand(
             clap::Command::new("gc")
                 .arg(
@@ -185,6 +214,28 @@ where
                 command: Command::Check { path },
             })
         }
+        Some(("compensate", sub_matches)) => {
+            let workflow_id = match sub_matches.get_one::<String>("workflow-id") {
+                Some(id) => id.clone(),
+                None => {
+                    return Err(clap::Error::new(
+                        clap::error::ErrorKind::MissingRequiredArgument,
+                    ))
+                }
+            };
+            let engine_url = match sub_matches.get_one::<String>("engine-url") {
+                Some(u) => u.clone(),
+                None => "http://localhost:3000".to_string(),
+            };
+            let force = sub_matches.get_flag("force");
+            Ok(Cli {
+                command: Command::Compensate {
+                    engine_url,
+                    workflow_id,
+                    force,
+                },
+            })
+        }
         Some(("gc", sub_matches)) => {
             let engine_url = match sub_matches.get_one::<String>("engine-url") {
                 Some(u) => u.clone(),
@@ -269,6 +320,7 @@ pub fn map_error_to_exit_code(err: &CliError) -> i32 {
         },
         CliError::Dispatch(_)
         | CliError::Check(_)
+        | CliError::Compensate(_)
         | CliError::Gc(_)
         | CliError::Init(_)
         | CliError::Lock(_)
@@ -296,6 +348,59 @@ mod tests {
             cli.command,
             Command::Purge {
                 instance: "123".to_string()
+            }
+        );
+    }
+
+    #[test]
+    fn cli_compensate_matches_with_workflow_id() {
+        let args: Vec<OsString> = vec!["vo".into(), "compensate".into(), "wf-abc123".into()];
+        let cli = interpret_cli_from(args).unwrap();
+        assert_eq!(
+            cli.command,
+            Command::Compensate {
+                engine_url: "http://localhost:3000".to_string(),
+                workflow_id: "wf-abc123".to_string(),
+                force: false,
+            }
+        );
+    }
+
+    #[test]
+    fn cli_compensate_with_force_flag() {
+        let args: Vec<OsString> = vec![
+            "vo".into(),
+            "compensate".into(),
+            "wf-xyz789".into(),
+            "--force".into(),
+        ];
+        let cli = interpret_cli_from(args).unwrap();
+        assert_eq!(
+            cli.command,
+            Command::Compensate {
+                engine_url: "http://localhost:3000".to_string(),
+                workflow_id: "wf-xyz789".to_string(),
+                force: true,
+            }
+        );
+    }
+
+    #[test]
+    fn cli_compensate_with_custom_engine_url() {
+        let args: Vec<OsString> = vec![
+            "vo".into(),
+            "compensate".into(),
+            "wf-custom".into(),
+            "--engine-url".into(),
+            "http://localhost:9000".into(),
+        ];
+        let cli = interpret_cli_from(args).unwrap();
+        assert_eq!(
+            cli.command,
+            Command::Compensate {
+                engine_url: "http://localhost:9000".to_string(),
+                workflow_id: "wf-custom".to_string(),
+                force: false,
             }
         );
     }
