@@ -297,7 +297,7 @@ fn registry_rejects_upcaster_at_max_version() {
     let registry = UpcasterRegistryImpl::new(1);
     let result = registry.register(Box::new(PassthroughUpcaster::new(1, 2)));
     assert!(result.is_err(), "Should reject upcaster at max version");
-    assert_eq!(result.unwrap_err(), UpcasterError::InvalidTargetVersion(1));
+    assert_eq!(result.unwrap_err(), UpcasterError::InvalidTargetVersion(2));
 }
 
 #[test]
@@ -306,7 +306,7 @@ fn registry_rejects_duplicate_upcaster_for_same_source() {
     let _ = registry.register(Box::new(PassthroughUpcaster::new(0, 1)));
     let result = registry.register(Box::new(PassthroughUpcaster::new(0, 1)));
     assert!(result.is_err(), "Should reject duplicate source version");
-    assert_eq!(result.unwrap_err(), UpcasterError::NoUpcasterRegistered(0));
+    assert_eq!(result.unwrap_err(), UpcasterError::DuplicateRegistration(0));
 }
 
 #[test]
