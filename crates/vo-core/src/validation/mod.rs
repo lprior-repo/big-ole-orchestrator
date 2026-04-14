@@ -3,6 +3,6 @@
 pub mod workflow;
 
 pub use workflow::{
-    validate_effect_kinds, validate_workflow_node_kinds, validate_workflow_sinks,
+    validate_effect_kinds, validate_workflow_effects, validate_workflow_sinks,
     UnsupportedSinkError, WorkflowSinkValidator,
 };

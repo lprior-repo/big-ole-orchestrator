@@ -19,7 +19,7 @@
 use std::collections::HashSet;
 use std::fmt;
 use thiserror::Error;
-use vo_types::{EffectKind, NodeKind};
+use vo_types::EffectKind;
 
 /// The set of known sink identifiers that are allowed in workflows.
 ///
@@ -223,25 +223,19 @@ pub fn validate_workflow_sinks<'a>(
     validator.validate_sinks(sinks)
 }
 
-/// Validate that a workflow's node kinds do not require unsupported sinks.
+/// Validate that a workflow's managed effects target known sinks.
 ///
-/// Since `NodeKind::ManagedEffect` nodes produce effects that target sinks,
-/// this function checks that the managed effect nodes are properly typed
-/// with known sink categories.
-///
-/// Note: This function is a stub that validates the concept. Actual sink
-/// validation requires sink information to be present in the workflow spec.
-/// The `EffectKind` enum defines the known effect categories:
-/// - `HttpCall` - HTTP API calls
-/// - `SqlQuery` - SQL database operations
-/// - `BlobWrite` - Blob storage writes
+/// This function checks that all managed effects in a workflow target
+/// sinks that are in the known sinks set (blob, http, sql).
 ///
 /// # Errors
 ///
-/// Returns error if validation fails.
+/// Returns `UnsupportedSinkError` if any managed effect targets an unknown sink.
 #[allow(dead_code)]
-pub fn validate_workflow_node_kinds(_node_kinds: &[NodeKind]) -> Result<(), UnsupportedSinkError> {
-    Ok(())
+pub fn validate_workflow_effects(
+    effect_kinds: impl IntoIterator<Item = EffectKind>,
+) -> Result<(), UnsupportedSinkError> {
+    validate_effect_kinds(effect_kinds)
 }
 
 /// Validate that a workflow's effect kinds target known sinks.
@@ -425,16 +419,22 @@ mod tests {
     }
 
     #[test]
-    fn validate_workflow_node_kinds_stub_accepts_all() {
-        use vo_types::NodeKind;
-        let node_kinds = [
-            NodeKind::Pure,
-            NodeKind::ManagedEffect,
-            NodeKind::Wait,
-            NodeKind::Signal,
-            NodeKind::Unsafe,
+    fn validate_workflow_effects_with_all_known_effects_succeeds() {
+        use vo_types::EffectKind;
+        let effect_kinds = [
+            EffectKind::HttpCall,
+            EffectKind::SqlQuery,
+            EffectKind::BlobWrite,
         ];
-        let result = validate_workflow_node_kinds(&node_kinds);
+        let result = validate_workflow_effects(effect_kinds);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn validate_workflow_effects_rejects_empty_sink() {
+        let result = validate_workflow_sinks([""]);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert_eq!(err.error_code(), "empty_sink");
     }
 }
