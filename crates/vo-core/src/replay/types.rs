@@ -2,6 +2,17 @@
 
 use vo_types::state::LifecycleState;
 
+/// Categorizes replay errors to determine system behavior.
+/// Deterministic errors mark state as permanently blocked/corrupt.
+/// Transient errors should be retried by the infrastructure.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReplayErrorKind {
+    /// Permanent corruption - state cannot be recovered, no retry should occur.
+    Deterministic,
+    /// Temporary failure - infrastructure should retry the operation.
+    Transient,
+}
+
 /// Result of replaying events through the state machine.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReplayResult {
@@ -101,3 +112,23 @@ impl std::fmt::Display for ReplayError {
 }
 
 impl std::error::Error for ReplayError {}
+
+impl ReplayError {
+    /// Returns the categorization of this error.
+    ///
+    /// Deterministic errors indicate permanent state corruption that cannot
+    /// be recovered via retry. Transient errors are temporary failures
+    /// that the infrastructure should retry.
+    #[must_use]
+    pub const fn kind(&self) -> ReplayErrorKind {
+        match self {
+            ReplayError::InstanceMismatch { .. }
+            | ReplayError::SequenceGap { .. }
+            | ReplayError::SequenceDuplicate { .. }
+            | ReplayError::PayloadDecodeFailed { .. }
+            | ReplayError::TransitionFailed { .. }
+            | ReplayError::UnexpectedEventType { .. }
+            | ReplayError::UpcastingFailed { .. } => ReplayErrorKind::Deterministic,
+        }
+    }
+}
