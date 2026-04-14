@@ -9,6 +9,8 @@ mod error_display_tests;
 #[cfg(test)]
 mod field_validation_tests;
 #[cfg(test)]
+mod metadata_tests;
+#[cfg(test)]
 mod payload_edge_tests;
 #[cfg(test)]
 mod payload_type_tests;
