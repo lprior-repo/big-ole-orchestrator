@@ -19,6 +19,7 @@ impl Default for HandlerRegistry {
         registry.register(Box::new(handlers::LockHandler));
         registry.register(Box::new(handlers::DoctorHandler));
         registry.register(Box::new(handlers::RebuildHandler));
+        registry.register(Box::new(handlers::WorkspaceHandler));
         registry
     }
 }
@@ -51,6 +52,7 @@ fn command_key(command: &Command) -> Option<&'static str> {
         Command::Lock { .. } => Some("lock"),
         Command::Doctor { .. } => Some("doctor"),
         Command::Rebuild { .. } => Some("rebuild"),
+        Command::Workspace { .. } => Some("workspace"),
     }
 }
 
@@ -254,6 +256,34 @@ mod handlers {
             })
         }
     }
+
+    pub struct WorkspaceHandler;
+
+    impl CommandHandler for WorkspaceHandler {
+        fn name(&self) -> &'static str {
+            "workspace"
+        }
+
+        fn execute(&self, cli: &Cli) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + '_>> {
+            let Command::Workspace {
+                ref project_dir,
+                ref subcommand,
+            } = cli.command
+            else {
+                return Box::pin(async { Err(CliError::Dispatch("not a workspace command".to_string())) });
+            };
+            let project_dir = project_dir.clone();
+            let subcommand = subcommand.clone();
+            Box::pin(async move {
+                let config = crate::commands::workspace::WorkspaceConfig {
+                    project_dir,
+                };
+                let output = crate::commands::workspace::run_workspace(&config, subcommand)?;
+                println!("{}", output);
+                Ok(())
+            })
+        }
+    }
 }
 
 #[cfg(test)]
@@ -273,6 +303,7 @@ mod tests {
         assert!(names.contains(&"lock"));
         assert!(names.contains(&"doctor"));
         assert!(names.contains(&"rebuild"));
+        assert!(names.contains(&"workspace"));
     }
 
     #[test]

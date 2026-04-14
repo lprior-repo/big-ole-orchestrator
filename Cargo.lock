@@ -5313,10 +5313,12 @@ dependencies = [
  "tokio",
  "toml 1.1.2+spec-1.1.0",
  "tracing",
+ "ulid",
  "uuid",
  "vo-actor",
  "vo-api",
  "vo-storage",
+ "vo-types",
 ]
 
 [[package]]
