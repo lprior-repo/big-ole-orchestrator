@@ -5254,6 +5254,7 @@ dependencies = [
  "tokio",
  "tracing",
  "ulid",
+ "vo-core",
  "vo-types",
 ]
 
