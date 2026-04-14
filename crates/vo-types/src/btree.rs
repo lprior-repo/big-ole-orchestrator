@@ -128,8 +128,9 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
         let root = self.root.take().unwrap();
         let split = self.insert_recursive(root, key, value);
 
+        let is_new_key = matches!(split, InsertResult::Done(_));
         match split {
-            InsertResult::Done(node) => {
+            InsertResult::Done(node) | InsertResult::Updated(node) => {
                 self.root = Some(node);
             }
             InsertResult::Split(left, median_key, median_val, right) => {
@@ -141,7 +142,9 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
                 self.root = Some(new_root);
             }
         }
-        self.len += 1;
+        if is_new_key {
+            self.len += 1;
+        }
     }
 
     fn insert_recursive(&self, mut node: BTreeNode<K, V>, key: K, value: V) -> InsertResult<K, V> {
@@ -149,7 +152,7 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
             let idx = node.search_index(&key);
             if idx < node.keys.len() && node.keys[idx] == key {
                 node.values[idx] = value;
-                return InsertResult::Done(node);
+                return InsertResult::Updated(node);
             }
             node.keys.insert(idx, key);
             node.values.insert(idx, value);
@@ -170,6 +173,10 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
 
             match result {
                 InsertResult::Done(updated_child) => {
+                    node.children.insert(idx, updated_child);
+                    InsertResult::Done(node)
+                }
+                InsertResult::Updated(updated_child) => {
                     node.children.insert(idx, updated_child);
                     InsertResult::Done(node)
                 }
@@ -519,6 +526,7 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
 
 enum InsertResult<K, V> {
     Done(BTreeNode<K, V>),
+    Updated(BTreeNode<K, V>),
     Split(BTreeNode<K, V>, K, V, BTreeNode<K, V>),
 }
 
