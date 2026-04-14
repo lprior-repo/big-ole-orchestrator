@@ -3,6 +3,7 @@
 //! Defines the core data structures for degraded-mode admission coupling.
 
 use serde::{Deserialize, Serialize};
+use vo_types::InstanceId;
 
 /// Represents current write pressure state.
 ///
@@ -77,6 +78,13 @@ pub enum AdmissionError {
     MetricsUnavailable,
     /// Precondition violated: context not bounded to single actor.
     InvalidAdmissionContext,
+    /// Command is a duplicate of an already-admitted command.
+    Duplicate {
+        /// The instance ID of the original command.
+        original_instance_id: InstanceId,
+    },
+    /// A generic admission policy violation with a human-readable message.
+    PolicyViolation(String),
 }
 
 /// Configurable thresholds for admission decisions.
@@ -279,6 +287,21 @@ mod tests {
     #[test]
     fn admission_error_invalid_admission_context() {
         let err = AdmissionError::InvalidAdmissionContext;
+        assert_eq!(err.clone(), err);
+    }
+
+    #[test]
+    fn admission_error_duplicate() {
+        let original_id = InstanceId::from_bytes([1u8; 16]);
+        let err = AdmissionError::Duplicate {
+            original_instance_id: original_id.clone(),
+        };
+        assert_eq!(err.clone(), err);
+    }
+
+    #[test]
+    fn admission_error_policy_violation() {
+        let err = AdmissionError::PolicyViolation("rate limit exceeded".to_string());
         assert_eq!(err.clone(), err);
     }
 }
