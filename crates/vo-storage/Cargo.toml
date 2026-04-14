@@ -52,3 +52,11 @@ harness = false
 [[bench]]
 name = "merkle_bench"
 harness = false
+
+[[bench]]
+name = "load_bench"
+harness = false
+
+[[bench]]
+name = "replay_load_bench"
+harness = false
