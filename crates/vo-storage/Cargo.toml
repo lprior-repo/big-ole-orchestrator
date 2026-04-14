@@ -28,6 +28,7 @@ rand = "0.8"
 generic-array = "0.14"
 ulid = { workspace = true }
 metrics = { workspace = true }
+async-trait = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
