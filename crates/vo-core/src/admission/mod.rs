@@ -18,6 +18,7 @@
 
 pub mod check;
 pub mod control;
+pub mod controller;
 pub mod metrics; // intentionally pub to expose Gauge, BoolGauge, WritePressureMetrics
 pub mod types;
 
@@ -27,8 +28,11 @@ pub mod check_tests;
 pub mod check_verification;
 #[cfg(test)]
 pub mod control_tests;
+#[cfg(test)]
+pub mod controller_tests;
 
 pub use check::{check_admission, check_admission_with_thresholds};
 pub use control::{AdmissionCheck, AdmissionResult, DedupeToken, RejectionReason};
+pub use controller::AdmissionController;
 pub use metrics::{BoolGauge, Gauge, WritePressureMetrics};
 pub use types::{AdmissionError, AdmissionThresholds, PressureIndicator, WritePressureState};
