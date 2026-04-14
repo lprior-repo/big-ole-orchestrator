@@ -8,15 +8,17 @@ use vo_types::{CryptoAlgorithm, DekId, InstanceId, KeyMetadata, WrappedDek};
 use super::{DekEntry, DekStatus, DekStore, DekStoreError, DEK_PARTITION};
 use crate::crypto::{self, unwrap_dek, wrap_dek};
 
+#[allow(dead_code)]
 const DEK_INDEX_PARTITION: &str = "dek_index";
 
+#[allow(dead_code)]
 pub struct FjallDekStore {
     dek_partition: Arc<fjall::PartitionHandle>,
     index_partition: Arc<fjall::PartitionHandle>,
 }
 
+#[allow(dead_code)]
 impl FjallDekStore {
-    #[must_use]
     pub fn open(keyspace: &fjall::Keyspace) -> Result<Self, DekStoreError> {
         let dek_partition = keyspace
             .open_partition(DEK_PARTITION, fjall::PartitionCreateOptions::default())
@@ -175,24 +177,18 @@ impl DekStore for FjallDekStore {
     ) -> Result<[u8; 32], DekStoreError> {
         let dek_id = self.get_active_dek_id_internal(instance_id)?;
 
-        let dek_id = match dek_id {
-            Some(id) => id,
-            None => {
-                return Err(DekStoreError::DekNotFound {
-                    instance_id: instance_id.to_string(),
-                });
-            }
+        let Some(dek_id) = dek_id else {
+            return Err(DekStoreError::DekNotFound {
+                instance_id: instance_id.to_string(),
+            });
         };
 
         let entry = self.get_dek_entry(&dek_id)?;
 
-        let entry = match entry {
-            Some(e) => e,
-            None => {
-                return Err(DekStoreError::DekNotFound {
-                    instance_id: instance_id.to_string(),
-                });
-            }
+        let Some(entry) = entry else {
+            return Err(DekStoreError::DekNotFound {
+                instance_id: instance_id.to_string(),
+            });
         };
 
         if entry.status() == DekStatus::Retired {
@@ -224,13 +220,10 @@ impl DekStore for FjallDekStore {
     fn rotate_dek(&self, instance_id: &InstanceId, kek: &[u8; 32]) -> Result<DekId, DekStoreError> {
         let old_dek_id = self.get_active_dek_id_internal(instance_id)?;
 
-        let old_dek_id = match old_dek_id {
-            Some(id) => id,
-            None => {
-                return Err(DekStoreError::DekNotFound {
-                    instance_id: instance_id.to_string(),
-                });
-            }
+        let Some(old_dek_id) = old_dek_id else {
+            return Err(DekStoreError::DekNotFound {
+                instance_id: instance_id.to_string(),
+            });
         };
 
         self.retire_dek_entry(&old_dek_id)?;
@@ -242,13 +235,10 @@ impl DekStore for FjallDekStore {
     fn retire_dek(&self, instance_id: &InstanceId) -> Result<(), DekStoreError> {
         let dek_id = self.get_active_dek_id_internal(instance_id)?;
 
-        let dek_id = match dek_id {
-            Some(id) => id,
-            None => {
-                return Err(DekStoreError::DekNotFound {
-                    instance_id: instance_id.to_string(),
-                });
-            }
+        let Some(dek_id) = dek_id else {
+            return Err(DekStoreError::DekNotFound {
+                instance_id: instance_id.to_string(),
+            });
         };
 
         self.retire_dek_entry(&dek_id)

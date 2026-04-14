@@ -57,10 +57,7 @@ impl InvertedIndex {
         let doc_len = document_length as u32;
         self.document_lengths.insert(document_id, doc_len);
 
-        let posting_list = self
-            .index
-            .entry(term.to_string())
-            .or_insert_with(|| PostingList::new());
+        let posting_list = self.index.entry(term.to_string()).or_default();
 
         if let Some(existing) = posting_list
             .postings

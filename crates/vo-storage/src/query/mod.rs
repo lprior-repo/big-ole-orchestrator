@@ -6,13 +6,13 @@
 //! ## Lineage-Aware Query Routing (ADR-038, ADR-042)
 //!
 //! Workflows may perform continue-as-new, creating new execution epochs while maintaining
-//! a stable lineage_id. Lineage-aware query routing enables:
+//! a stable `lineage_id`. Lineage-aware query routing enables:
 //!
 //! - **Lineage-wide queries**: Retrieve all events across all epochs of a lineage
 //! - **Epoch-specific queries**: Retrieve events for a specific epoch within a lineage
 //!
 //! The routing is determined by [`LineageQuery`] which specifies whether to query
-//! by instance_id directly, or by lineage_id (+ optional epoch).
+//! by `instance_id` directly, or by `lineage_id` (+ optional epoch).
 
 pub use crate::codec::StorageError;
 use vo_types::{Epoch, EventEnvelope, EventError, InstanceId};
@@ -84,6 +84,11 @@ pub fn prefix_generator(instance_id: &InstanceId) -> Result<Vec<u8>, StorageErro
 pub const LINEAGE_ID_NULL_BYTE: u8 = 0xFF;
 pub const LINEAGE_ID_MAX_LEN: usize = 255;
 
+/// Produce the lineage prefix bytes for range-scanning.
+///
+/// # Errors
+///
+/// Returns `StorageError::InvalidArgument` if the lineage ID is empty, too long, or contains null bytes.
 pub fn lineage_prefix_generator(lineage_id: &str) -> Result<Vec<u8>, StorageError> {
     if lineage_id.is_empty() {
         return Err(StorageError::InvalidArgument);
@@ -101,6 +106,11 @@ pub fn lineage_prefix_generator(lineage_id: &str) -> Result<Vec<u8>, StorageErro
     Ok(prefix)
 }
 
+/// Produce the epoch-specific prefix bytes for range-scanning.
+///
+/// # Errors
+///
+/// Returns `StorageError::InvalidArgument` if the lineage ID is invalid.
 pub fn epoch_prefix_generator(lineage_id: &str, epoch: Epoch) -> Result<Vec<u8>, StorageError> {
     let lineage_prefix = lineage_prefix_generator(lineage_id)?;
     let epoch_bytes = epoch.0.to_be_bytes();
@@ -109,7 +119,12 @@ pub fn epoch_prefix_generator(lineage_id: &str, epoch: Epoch) -> Result<Vec<u8>,
     Ok(prefix)
 }
 
-impl<'a> LineageQuery<'a> {
+impl LineageQuery<'_> {
+    /// Converts this query into a prefix byte vector for range scanning.
+    ///
+    /// # Errors
+    ///
+    /// Returns `StorageError::InvalidArgument` if any component is invalid.
     pub fn to_prefix(&self) -> Result<Vec<u8>, StorageError> {
         match self {
             LineageQuery::InstanceId(instance_id) => prefix_generator(instance_id),
@@ -322,11 +337,7 @@ impl Iterator for LineageReplayIterator {
     type Item = Result<EventEnvelope, StorageError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(ref mut iter) = self.instance_iter {
-            iter.next()
-        } else {
-            None
-        }
+        self.instance_iter.as_mut().and_then(|iter| iter.next())
     }
 }
 

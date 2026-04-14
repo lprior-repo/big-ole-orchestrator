@@ -9,7 +9,7 @@ use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
-use vo_types::events::{EventEnvelope, EventMetadata};
+use vo_types::events::EventEnvelope;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // WriteClass
@@ -271,7 +271,7 @@ pub struct BackpressureSignal {
 impl BackpressureSignal {
     /// Creates a new backpressure signal with all queues initially not full.
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             critical_full: AtomicBool::new(false),
             projection_full: AtomicBool::new(false),
@@ -299,6 +299,10 @@ impl BackpressureSignal {
     }
 
     /// Returns the most recent backpressure event, if any.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal mutex is poisoned.
     #[must_use]
     pub fn last_event(&self) -> Option<BackpressureEvent> {
         #[expect(clippy::unwrap_used)]
@@ -379,21 +383,31 @@ pub struct CommitLatencyTracker {
 
 impl CommitLatencyTracker {
     /// Records a commit completion with the given latency in milliseconds.
+    ///
+    /// # Panics
+    ///
+    /// Panics if any internal mutex is poisoned.
     pub fn record_commit(&self, latency_ms: u64) {
         #[expect(clippy::unwrap_used)]
         let mut last_commit = self.last_commit_at.lock().unwrap();
         *last_commit = Some(Instant::now());
+        drop(last_commit);
 
         #[expect(clippy::unwrap_used)]
         let mut count = self.sample_count.lock().unwrap();
         *count += 1;
+        drop(count);
 
         #[expect(clippy::unwrap_used)]
         let mut total = self.total_latency_ms.lock().unwrap();
-        *total += latency_ms as u128;
+        *total += u128::from(latency_ms);
     }
 
     /// Returns the time since the last commit, if any.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal mutex is poisoned.
     #[must_use]
     pub fn time_since_last_commit(&self) -> Option<std::time::Duration> {
         #[expect(clippy::unwrap_used)]
@@ -402,6 +416,10 @@ impl CommitLatencyTracker {
     }
 
     /// Returns the average commit latency in milliseconds, if samples exist.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal mutex is poisoned.
     #[must_use]
     pub fn average_latency_ms(&self) -> Option<u64> {
         #[expect(clippy::unwrap_used)]
@@ -411,9 +429,14 @@ impl CommitLatencyTracker {
         }
         #[expect(clippy::unwrap_used)]
         let total = *self.total_latency_ms.lock().unwrap();
-        Some((total / count as u128) as u64)
+        Some(u64::try_from(total / u128::from(count)).unwrap_or(u64::MAX))
     }
 
+    /// Returns the number of commit samples recorded.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal mutex is poisoned.
     #[must_use]
     pub fn sample_count(&self) -> u64 {
         #[expect(clippy::unwrap_used)]
@@ -500,7 +523,7 @@ pub struct BudgetQueues<T> {
 
 impl<T> BudgetQueues<T> {
     /// Creates new budget queues with the given configuration and budget.
-    pub fn new(config: QueueConfig, budget: WriteBudget) -> Self {
+    pub fn new(config: &QueueConfig, budget: WriteBudget) -> Self {
         let critical_cap = config.critical_capacity;
         let projection_cap = config.projection_capacity;
         let blob_cap = config.blob_capacity;
@@ -525,7 +548,7 @@ impl<T> BudgetQueues<T> {
     /// This constructor allows multiple `BudgetQueues` instances to share the same
     /// backpressure signal, useful when coordinating multiple queue subsystems.
     pub fn new_with_backpressure(
-        config: QueueConfig,
+        config: &QueueConfig,
         budget: WriteBudget,
         backpressure: Arc<BackpressureSignal>,
     ) -> Self {
@@ -562,7 +585,7 @@ impl<T> BudgetQueues<T> {
 
     /// Returns a reference to the backpressure signal.
     #[must_use]
-    pub fn backpressure(&self) -> &Arc<BackpressureSignal> {
+    pub const fn backpressure(&self) -> &Arc<BackpressureSignal> {
         &self.backpressure
     }
 
@@ -697,7 +720,7 @@ impl<T> BudgetQueues<T> {
         item
     }
 
-    /// Dequeues items in priority order: CriticalControlPlane → OperatorProjection → BulkBlob.
+    /// Dequeues items in priority order: `CriticalControlPlane` → `OperatorProjection` → `BulkBlob`.
     ///
     /// Returns the next item available in priority order, or `None` if all queues are empty.
     ///
@@ -854,9 +877,9 @@ pub struct Appender {
 
 impl Appender {
     /// Creates a new `Appender` with the given queue configuration and budget.
-    pub fn new(config: QueueConfig, budget: WriteBudget) -> Self {
+    pub fn new(config: &QueueConfig, budget: WriteBudget) -> Self {
         Self {
-            queues: BudgetQueues::new(config, budget),
+            queues: BudgetQueues::new(&config, budget),
         }
     }
 
@@ -871,7 +894,7 @@ impl Appender {
     }
 
     #[must_use]
-    pub fn backpressure(&self) -> &Arc<BackpressureSignal> {
+    pub const fn backpressure(&self) -> &Arc<BackpressureSignal> {
         self.queues.backpressure()
     }
 
@@ -922,6 +945,7 @@ impl Appender {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use vo_types::events::EventMetadata;
 
     #[test]
     fn write_class_tier() {
@@ -1013,7 +1037,7 @@ mod tests {
     fn appender_queues_control_plane_write() {
         let config = QueueConfig::default();
         let budget = WriteBudget::new(10000, 10000, 10000);
-        let appender = Appender::new(config, budget);
+        let appender = Appender::new(&config, budget);
 
         let event = EventEnvelope {
             schema_version: 1,
@@ -1033,7 +1057,7 @@ mod tests {
     fn appender_rejects_when_budget_exhausted() {
         let config = QueueConfig::default();
         let budget = WriteBudget::new(50, 50, 50);
-        let appender = Appender::new(config, budget);
+        let appender = Appender::new(&config, budget);
 
         let event = EventEnvelope {
             schema_version: 1,
@@ -1060,7 +1084,7 @@ mod tests {
             blob_capacity: 1,
         };
         let budget = WriteBudget::new(10000, 10000, 10000);
-        let appender = Appender::new(config, budget);
+        let appender = Appender::new(&config, budget);
 
         let event = EventEnvelope {
             schema_version: 1,
@@ -1083,7 +1107,7 @@ mod tests {
     fn appender_dequeue_returns_queued_items() {
         let config = QueueConfig::default();
         let budget = WriteBudget::new(10000, 10000, 10000);
-        let appender = Appender::new(config, budget);
+        let appender = Appender::new(&config, budget);
 
         let event = EventEnvelope {
             schema_version: 1,
@@ -1212,7 +1236,7 @@ mod tests {
             blob_capacity: 1,
         };
         let budget = WriteBudget::new(10000, 10000, 10000);
-        let queues = BudgetQueues::new(config, budget);
+        let queues = BudgetQueues::new(&config, budget);
 
         let event = EventEnvelope {
             schema_version: 1,
@@ -1247,7 +1271,7 @@ mod tests {
             blob_capacity: 1,
         };
         let budget = WriteBudget::new(10000, 10000, 10000);
-        let queues = BudgetQueues::new(config, budget);
+        let queues = BudgetQueues::new(&config, budget);
 
         let event = EventEnvelope {
             schema_version: 1,
@@ -1287,7 +1311,7 @@ mod tests {
     fn dequeue_prioritized_returns_critical_first() {
         let config = QueueConfig::default();
         let budget = WriteBudget::new(10000, 10000, 10000);
-        let queues = BudgetQueues::new(config, budget);
+        let queues = BudgetQueues::new(&config, budget);
 
         let event = EventEnvelope {
             schema_version: 1,
@@ -1338,7 +1362,7 @@ mod tests {
     fn dequeue_prioritized_skips_empty_queues() {
         let config = QueueConfig::default();
         let budget = WriteBudget::new(10000, 10000, 10000);
-        let queues = BudgetQueues::new(config, budget);
+        let queues = BudgetQueues::new(&config, budget);
 
         let event = EventEnvelope {
             schema_version: 1,
@@ -1382,7 +1406,7 @@ mod tests {
             blob_capacity: 1,
         };
         let budget = WriteBudget::new(10000, 10000, 10000);
-        let appender = Appender::new(config, budget);
+        let appender = Appender::new(&config, budget);
 
         let signal = appender.backpressure().clone();
 

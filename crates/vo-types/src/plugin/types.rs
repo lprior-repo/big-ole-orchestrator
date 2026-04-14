@@ -117,6 +117,12 @@ impl fmt::Display for CapabilityId {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct InstanceKey(pub(crate) String);
 
+impl Default for InstanceKey {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl InstanceKey {
     #[must_use]
     pub fn new() -> Self {

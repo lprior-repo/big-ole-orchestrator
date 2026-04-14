@@ -409,7 +409,7 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
         self.root.as_ref().map(|node| Self::find_min(node))
     }
 
-    fn find_min<'a>(node: &'a BTreeNode<K, V>) -> (&'a K, &'a V) {
+    fn find_min(node: &BTreeNode<K, V>) -> (&K, &V) {
         if node.is_leaf() {
             (&node.keys[0], &node.values[0])
         } else {
@@ -422,7 +422,7 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
         self.root.as_ref().map(|node| Self::find_max(node))
     }
 
-    fn find_max<'a>(node: &'a BTreeNode<K, V>) -> (&'a K, &'a V) {
+    fn find_max(node: &BTreeNode<K, V>) -> (&K, &V) {
         if node.is_leaf() {
             let last = node.keys.len() - 1;
             (&node.keys[last], &node.values[last])

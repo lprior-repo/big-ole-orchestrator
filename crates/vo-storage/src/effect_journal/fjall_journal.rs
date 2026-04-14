@@ -18,7 +18,11 @@ impl std::fmt::Debug for FjallEffectJournal {
 }
 
 impl FjallEffectJournal {
-    #[must_use]
+    /// Opens a new effect journal backed by the given keyspace.
+    ///
+    /// # Errors
+    ///
+    /// Returns `EffectJournalError::Storage` if the effects partition cannot be opened.
     pub fn open(keyspace: &fjall::Keyspace) -> Result<Self, EffectJournalError> {
         let partition = keyspace
             .open_partition(EFFECTS_PARTITION, fjall::PartitionCreateOptions::default())

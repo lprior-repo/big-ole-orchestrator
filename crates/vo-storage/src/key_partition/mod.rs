@@ -46,7 +46,7 @@ impl DekEntry {
     /// # Errors
     ///
     /// Returns `DekStoreError::InvalidArgument` if inputs are invalid.
-    pub fn new(
+    pub const fn new(
         dek_id: DekId,
         instance_id: InstanceId,
         wrapped_dek: WrappedDek,
@@ -62,17 +62,17 @@ impl DekEntry {
     }
 
     #[must_use]
-    pub fn dek_id(&self) -> &DekId {
+    pub const fn dek_id(&self) -> &DekId {
         &self.dek_id
     }
 
     #[must_use]
-    pub fn instance_id(&self) -> &InstanceId {
+    pub const fn instance_id(&self) -> &InstanceId {
         &self.instance_id
     }
 
     #[must_use]
-    pub fn wrapped_dek(&self) -> &WrappedDek {
+    pub const fn wrapped_dek(&self) -> &WrappedDek {
         &self.wrapped_dek
     }
 
@@ -87,7 +87,7 @@ impl DekEntry {
     }
 
     /// Mark this DEK as retired (crypto-shredded).
-    pub fn retire(&mut self) {
+    pub const fn retire(&mut self) {
         self.status = DekStatus::Retired;
     }
 }
@@ -143,7 +143,7 @@ pub fn encode_instance_key(instance_id: &InstanceId) -> Vec<u8> {
 /// # Errors
 ///
 /// Returns `DekStoreError::Codec` if bytes are not valid UTF-8 or if the
-/// resulting string is not a valid InstanceId.
+/// resulting string is not a valid `InstanceId`.
 pub fn decode_instance_key(bytes: &[u8]) -> Result<InstanceId, DekStoreError> {
     let s = std::str::from_utf8(bytes).map_err(|e| DekStoreError::Codec {
         reason: e.to_string(),
@@ -154,8 +154,12 @@ pub fn decode_instance_key(bytes: &[u8]) -> Result<InstanceId, DekStoreError> {
 }
 
 /// Encode a `DekEntry` to JSON bytes for storage.
-#[must_use]
-pub fn encode_dek_entry(entry: &DekEntry) -> Vec<u8> {
+///
+/// # Panics
+///
+/// Panics if `DekEntry` cannot be serialized (should never happen).
+    #[expect(clippy::expect_used)]
+    pub fn encode_dek_entry(entry: &DekEntry) -> Vec<u8> {
     serde_json::to_vec(entry).expect("DekEntry should always be serializable")
 }
 
@@ -224,6 +228,10 @@ pub trait DekStore: Send + Sync {
     fn get_active_dek_id(&self, instance_id: &InstanceId) -> Result<DekId, DekStoreError>;
 
     /// Check if a DEK exists and is active for an instance.
+    ///
+    /// # Errors
+    ///
+    /// Returns `DekStoreError::Storage` if the underlying storage fails.
     fn has_active_dek(&self, instance_id: &InstanceId) -> Result<bool, DekStoreError>;
 
     /// Rotate the DEK for an instance: retire old DEK, generate new DEK.
@@ -252,6 +260,10 @@ pub trait DekStore: Send + Sync {
     fn retire_dek(&self, instance_id: &InstanceId) -> Result<(), DekStoreError>;
 
     /// List all DEK IDs for a given instance.
+    ///
+    /// # Errors
+    ///
+    /// Returns `DekStoreError::Storage` if the underlying storage fails.
     fn list_deks(&self, instance_id: &InstanceId) -> Result<Vec<DekId>, DekStoreError>;
 
     /// Get DEK metadata.

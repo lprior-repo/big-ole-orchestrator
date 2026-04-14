@@ -25,21 +25,22 @@ pub enum Predicate {
 }
 
 impl Predicate {
+    /// Evaluate this predicate against an event envelope.
+    #[must_use]
     pub fn evaluate(&self, envelope: &EventEnvelope) -> bool {
         match self {
-            Predicate::SequenceRange { min, max } => {
+            Self::SequenceRange { min, max } => {
                 envelope.sequence >= *min && envelope.sequence <= *max
             }
-            Predicate::TimestampRange { min_ms, max_ms } => {
+            Self::TimestampRange { min_ms, max_ms } => {
                 envelope.timestamp_ms >= *min_ms && envelope.timestamp_ms <= *max_ms
             }
-            Predicate::EventType(event_type) => envelope
+            Self::EventType(event_type) => envelope
                 .payload
                 .get("type")
                 .and_then(|v| v.as_str())
-                .map(|t| t == event_type)
-                .unwrap_or(false),
-            Predicate::SchemaVersion(version) => envelope.schema_version == *version,
+                .is_some_and(|t| t == event_type),
+            Self::SchemaVersion(version) => envelope.schema_version == *version,
         }
     }
 }
@@ -54,11 +55,15 @@ pub enum Projection {
 }
 
 impl Projection {
-    pub fn include_payload(&self) -> bool {
+    /// Returns `true` if the projection includes the payload.
+    #[must_use]
+    pub const fn include_payload(&self) -> bool {
         !matches!(self, Projection::WorkflowVersion)
     }
 
-    pub fn include_metadata(&self) -> bool {
+    /// Returns `true` if the projection includes metadata fields.
+    #[must_use]
+    pub const fn include_metadata(&self) -> bool {
         matches!(
             self,
             Projection::Full | Projection::EffectJournal | Projection::WorkflowVersion
@@ -89,8 +94,9 @@ pub struct QueryPlan {
 pub struct QueryOptimizer;
 
 impl QueryOptimizer {
+    /// Optimize a query specification into a query plan.
     #[must_use]
-    pub fn optimize<'a>(spec: QuerySpec<'a>) -> QueryPlan {
+    pub fn optimize(spec: QuerySpec<'_>) -> QueryPlan {
         let prefix = spec.lineage_query.to_prefix().unwrap_or_default();
         let (scan_range_start, scan_range_end) =
             Self::compute_scan_range(&spec.predicates, &prefix);
@@ -147,7 +153,7 @@ impl QueryOptimizer {
             .collect()
     }
 
-    fn optimize_projection(projection: Projection) -> Projection {
+    const fn optimize_projection(projection: Projection) -> Projection {
         projection
     }
 }
@@ -161,6 +167,11 @@ pub struct OptimizedReplayIterator {
 }
 
 impl OptimizedReplayIterator {
+    /// Create an optimized replay iterator from a query plan.
+    ///
+    /// # Errors
+    ///
+    /// Returns `StorageError::Storage` if the events partition cannot be opened.
     pub fn from_plan(plan: &QueryPlan, keyspace: &fjall::Keyspace) -> Result<Self, StorageError> {
         let partition =
             keyspace.open_partition("events", fjall::PartitionCreateOptions::default())?;

@@ -11,13 +11,13 @@
 //! | `dedupe` | Exactly-once ingress deduplication | `<dedupe_key>` |
 //! | `effects` | EffectPrepared/EffectCommitted journal | `<instance_id><intent_id>` |
 //! | `leases` | Monotonic fence tokens | `<instance_id><step_id>` |
-//! | `workflow_versions` | Canonical WorkflowSpec by hash | `<hash>` |
+//! | `workflow_versions` | Canonical `WorkflowSpec` by hash | `<hash>` |
 //! | `payload_blobs` | Encrypted canonical payload blobs | `<content_addr>` |
 //!
 //! ## Hot/Cold Split
 //!
 //! - **Hot control-plane partitions**: events, instances, timers, dedupe, effects, leases
-//! - **Cold blob storage**: snapshots (compaction-heavy), payload_blobs (large values)
+//! - **Cold blob storage**: `snapshots` (compaction-heavy), `payload_blobs` (large values)
 
 use std::fmt;
 use std::path::Path;
@@ -157,7 +157,7 @@ pub struct FjallPartitionLayout {
 
 impl FjallPartitionLayout {
     #[must_use]
-    pub fn keyspace(&self) -> &fjall::Keyspace {
+    pub const fn keyspace(&self) -> &fjall::Keyspace {
         &self.keyspace
     }
 }
@@ -192,6 +192,11 @@ impl Default for StorageConfig {
     }
 }
 
+/// Creates the partition layout at the given path.
+///
+/// # Errors
+///
+/// Returns `StorageError::InvalidPath` if the directory cannot be created or opened.
 pub fn create_partition_layout(path: impl AsRef<Path>) -> StorageResult<FjallPartitionLayout> {
     let path = path.as_ref();
     if !path.exists() {
@@ -208,6 +213,8 @@ pub fn create_partition_layout(path: impl AsRef<Path>) -> StorageResult<FjallPar
     Ok(FjallPartitionLayout { keyspace })
 }
 
+/// Returns the partition config for the given partition name.
+#[must_use]
 pub fn get_partition_config(name: &str) -> PartitionConfig {
     if HOT_PARTITIONS.contains(&name) {
         PartitionConfig::hot()
@@ -220,6 +227,11 @@ pub fn get_partition_config(name: &str) -> PartitionConfig {
     }
 }
 
+/// Opens all partitions defined in the layout.
+///
+/// # Errors
+///
+/// Returns `StorageError::PartitionOpenFailed` if any partition cannot be opened.
 pub fn open_all_partitions(
     layout: &FjallPartitionLayout,
 ) -> StorageResult<Vec<(&'static str, fjall::PartitionHandle)>> {

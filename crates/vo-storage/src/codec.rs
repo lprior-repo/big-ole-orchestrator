@@ -43,7 +43,7 @@ pub enum StorageError {
 
 impl From<fjall::Error> for StorageError {
     fn from(_: fjall::Error) -> Self {
-        StorageError::FjallError
+        Self::FjallError
     }
 }
 

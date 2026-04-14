@@ -44,11 +44,10 @@ pub enum SagaCompensationStatus {
 impl From<CompensationStatus> for SagaCompensationStatus {
     fn from(status: CompensationStatus) -> Self {
         match status {
-            CompensationStatus::NotNeeded => SagaCompensationStatus::Succeeded,
-            CompensationStatus::Pending => SagaCompensationStatus::Pending,
-            CompensationStatus::InProgress => SagaCompensationStatus::InProgress,
-            CompensationStatus::Succeeded => SagaCompensationStatus::Succeeded,
-            CompensationStatus::Failed => SagaCompensationStatus::Failed,
+            CompensationStatus::Pending => Self::Pending,
+            CompensationStatus::InProgress => Self::InProgress,
+            CompensationStatus::NotNeeded | CompensationStatus::Succeeded => Self::Succeeded,
+            CompensationStatus::Failed => Self::Failed,
         }
     }
 }
@@ -67,6 +66,10 @@ pub struct CompensationEntry {
 }
 
 impl CompensationEntry {
+    /// # Errors
+    ///
+    /// Returns `CompensationError::AlreadyRegistered` if a compensation for this effect already exists.
+    #[must_use]
     pub fn new(effect_id: String, policy: CompensationPolicy, dependencies: Vec<String>) -> Self {
         Self {
             effect_id,
@@ -81,17 +84,20 @@ impl CompensationEntry {
         }
     }
 
-    pub fn with_timeout(mut self, timeout_ms: u64) -> Self {
+    #[must_use]
+    pub const fn with_timeout(mut self, timeout_ms: u64) -> Self {
         self.timeout_ms = Some(timeout_ms);
         self
     }
 
+    #[must_use]
     pub fn with_compensation_effect_id(mut self, compensation_effect_id: String) -> Self {
         self.compensation_effect_id = Some(compensation_effect_id);
         self
     }
 
-    pub fn is_terminal(&self) -> bool {
+    #[must_use]
+    pub const fn is_terminal(&self) -> bool {
         matches!(
             self.status,
             SagaCompensationStatus::Succeeded
@@ -100,6 +106,7 @@ impl CompensationEntry {
         )
     }
 
+    #[must_use]
     pub fn is_timed_out(&self, now: TimestampMs) -> bool {
         if let (Some(started), Some(timeout)) = (self.started_at, self.timeout_ms) {
             let elapsed = now.as_u64().saturating_sub(started.as_u64());
@@ -109,24 +116,17 @@ impl CompensationEntry {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CompensationManifest {
     entries: HashMap<String, CompensationEntry>,
     registration_order: Vec<String>,
     version: u64,
 }
 
-impl Default for CompensationManifest {
-    fn default() -> Self {
-        Self {
-            entries: HashMap::new(),
-            registration_order: Vec::new(),
-            version: 0,
-        }
-    }
-}
-
 impl CompensationManifest {
+    /// # Errors
+    ///
+    /// Returns `CompensationError::AlreadyRegistered` if a compensation for this effect already exists.
     pub fn register(
         &mut self,
         effect_id: String,
@@ -143,6 +143,7 @@ impl CompensationManifest {
         Ok(())
     }
 
+    #[must_use]
     pub fn get(&self, effect_id: &str) -> Option<&CompensationEntry> {
         self.entries.get(effect_id)
     }
@@ -151,6 +152,10 @@ impl CompensationManifest {
         self.entries.get_mut(effect_id)
     }
 
+    /// # Errors
+    ///
+    /// Returns `CompensationError::NotFound` if the effect is not registered.
+    /// Returns `CompensationError::TerminalState` if the effect is in a terminal state.
     pub fn transition_to(
         &mut self,
         effect_id: &str,
@@ -185,10 +190,16 @@ impl CompensationManifest {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Returns `CompensationError` if the transition is invalid.
     pub fn set_ambiguous(&mut self, effect_id: &str) -> Result<(), CompensationError> {
         self.transition_to(effect_id, SagaCompensationStatus::Ambiguous)
     }
 
+    /// # Errors
+    ///
+    /// Returns `CompensationError` if the transition is invalid.
     pub fn set_timed_out(&mut self, effect_id: &str) -> Result<(), CompensationError> {
         self.transition_to(effect_id, SagaCompensationStatus::TimedOut)
     }
@@ -217,6 +228,7 @@ impl CompensationManifest {
             .filter(|e| e.status == SagaCompensationStatus::TimedOut)
     }
 
+    #[must_use]
     pub fn compensations_awaiting_execution(&self) -> Vec<&CompensationEntry> {
         self.registration_order
             .iter()
@@ -241,6 +253,7 @@ impl CompensationManifest {
         self.version
     }
 
+    #[must_use]
     pub fn can_execute(&self, effect_id: &str) -> bool {
         if let Some(entry) = self.entries.get(effect_id) {
             if entry.status != SagaCompensationStatus::Pending {
@@ -322,7 +335,7 @@ pub struct RetryReconciler {
 
 impl RetryReconciler {
     #[must_use]
-    pub fn new(max_attempts: u32) -> Self {
+    pub const fn new(max_attempts: u32) -> Self {
         Self { max_attempts }
     }
 }
@@ -356,6 +369,13 @@ impl CompensationSaga {
         }
     }
 
+    /// # Errors
+    ///
+    /// Returns `CompensationError::AlreadyRegistered` if already registered.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the manifest mutex is poisoned.
     pub fn register(
         &self,
         effect_id: String,
@@ -367,22 +387,38 @@ impl CompensationSaga {
         manifest.register(effect_id, policy, dependencies)
     }
 
+    /// # Errors
+    ///
+    /// Returns `CompensationError::AlreadyRegistered` if already registered.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the manifest mutex is poisoned.
     pub fn register_with_timeout(
         &self,
-        effect_id: String,
+        effect_id: &str,
         policy: CompensationPolicy,
         dependencies: Vec<String>,
         timeout_ms: u64,
     ) -> Result<(), CompensationError> {
         #[expect(clippy::unwrap_used)]
         let mut manifest = self.manifest.lock().unwrap();
-        manifest.register(effect_id.clone(), policy, dependencies)?;
+        manifest.register(effect_id.to_string(), policy, dependencies)?;
         #[allow(clippy::expect_used)]
-        let entry = manifest.get_mut(&effect_id).expect("entry just inserted");
+        let entry = manifest.get_mut(effect_id).expect("entry just inserted");
         entry.timeout_ms = Some(timeout_ms);
+        drop(manifest);
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Returns `CompensationError::NotFound` if the effect is not registered.
+    /// Returns `CompensationError::PolicyViolation` if the policy is `None`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the manifest mutex is poisoned.
     pub fn queue_pending(&self, effect_id: &str) -> Result<(), CompensationError> {
         #[expect(clippy::unwrap_used)]
         let mut manifest = self.manifest.lock().unwrap();
@@ -400,6 +436,14 @@ impl CompensationSaga {
         manifest.transition_to(effect_id, SagaCompensationStatus::Pending)
     }
 
+    /// # Errors
+    ///
+    /// Returns `CompensationError::NotFound` if the effect is not registered.
+    /// Returns `CompensationError::PolicyViolation` if the policy is `None`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the manifest mutex is poisoned.
     pub fn start_compensation(&self, effect_id: &str) -> Result<(), CompensationError> {
         #[expect(clippy::unwrap_used)]
         let manifest = self.manifest.lock().unwrap();
@@ -408,8 +452,7 @@ impl CompensationSaga {
                 effect_id: effect_id.to_string(),
                 policy: manifest
                     .get(effect_id)
-                    .map(|e| e.policy)
-                    .unwrap_or(CompensationPolicy::None),
+                    .map_or(CompensationPolicy::None, |e| e.policy),
             });
         }
         drop(manifest);
@@ -419,18 +462,39 @@ impl CompensationSaga {
         manifest.transition_to(effect_id, SagaCompensationStatus::InProgress)
     }
 
+    /// # Errors
+    ///
+    /// Returns `CompensationError` if the transition fails.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the manifest mutex is poisoned.
     pub fn succeed(&self, effect_id: &str) -> Result<(), CompensationError> {
         #[expect(clippy::unwrap_used)]
         let mut manifest = self.manifest.lock().unwrap();
         manifest.transition_to(effect_id, SagaCompensationStatus::Succeeded)
     }
 
+    /// # Errors
+    ///
+    /// Returns `CompensationError` if the transition fails.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the manifest mutex is poisoned.
     pub fn fail(&self, effect_id: &str) -> Result<(), CompensationError> {
         #[expect(clippy::unwrap_used)]
         let mut manifest = self.manifest.lock().unwrap();
         manifest.transition_to(effect_id, SagaCompensationStatus::Failed)
     }
 
+    /// # Errors
+    ///
+    /// Returns `CompensationError` if setting ambiguous fails or reconciliation fails.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the manifest mutex is poisoned.
     pub fn mark_ambiguous(
         &self,
         effect_id: &str,
@@ -448,10 +512,18 @@ impl CompensationSaga {
             attempts: 0,
             last_attempt_at: entry.started_at,
         };
+        drop(manifest);
 
         Ok(self.reconciler.reconcile(&ctx))
     }
 
+    /// # Errors
+    ///
+    /// Returns `CompensationError` if the reconciliation action fails.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the manifest mutex is poisoned.
     pub fn handle_reconciliation(
         &self,
         effect_id: &str,
@@ -468,12 +540,8 @@ impl CompensationSaga {
                 let mut manifest = self.manifest.lock().unwrap();
                 manifest.transition_to(effect_id, SagaCompensationStatus::Pending)
             }
-            ReconciliationAction::EscalateToOperator => {
-                #[expect(clippy::unwrap_used)]
-                let mut manifest = self.manifest.lock().unwrap();
-                manifest.transition_to(effect_id, SagaCompensationStatus::Failed)
-            }
-            ReconciliationAction::AbandonCompensation => {
+            ReconciliationAction::EscalateToOperator
+            | ReconciliationAction::AbandonCompensation => {
                 #[expect(clippy::unwrap_used)]
                 let mut manifest = self.manifest.lock().unwrap();
                 manifest.transition_to(effect_id, SagaCompensationStatus::Failed)
@@ -481,6 +549,10 @@ impl CompensationSaga {
         }
     }
 
+    /// # Panics
+    ///
+    /// Panics if the manifest mutex is poisoned.
+    #[must_use]
     pub fn check_timeouts(&self) -> Vec<String> {
         #[expect(clippy::unwrap_used)]
         let manifest = self.manifest.lock().unwrap();
@@ -492,20 +564,33 @@ impl CompensationSaga {
                 timed_out.push(entry.effect_id.clone());
             }
         }
+        drop(manifest);
 
         timed_out
     }
 
+    /// # Errors
+    ///
+    /// Returns `CompensationError` if setting timed out fails.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the manifest mutex is poisoned.
     pub fn expire_timed_out(&self) -> Result<(), CompensationError> {
         let timed_out = self.check_timeouts();
         #[expect(clippy::unwrap_used)]
         let mut manifest = self.manifest.lock().unwrap();
-        for effect_id in timed_out {
-            manifest.set_timed_out(&effect_id)?;
+        for effect_id in &timed_out {
+            manifest.set_timed_out(effect_id)?;
         }
+        drop(manifest);
         Ok(())
     }
 
+    /// # Panics
+    ///
+    /// Panics if the manifest mutex is poisoned.
+    #[must_use]
     pub fn get_compensation_order(&self) -> Vec<String> {
         #[expect(clippy::unwrap_used)]
         let manifest = self.manifest.lock().unwrap();
@@ -515,14 +600,14 @@ impl CompensationSaga {
             .rev()
             .filter(|id| {
                 manifest
-                    .get(*id)
-                    .map(|e| e.status == SagaCompensationStatus::Pending)
-                    .unwrap_or(false)
+                    .get(id)
+                    .is_some_and(|e| e.status == SagaCompensationStatus::Pending)
             })
             .cloned()
             .collect()
     }
 
+    #[must_use]
     pub fn manifest(&self) -> Arc<Mutex<CompensationManifest>> {
         Arc::clone(&self.manifest)
     }

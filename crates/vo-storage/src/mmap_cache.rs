@@ -88,7 +88,8 @@ impl MmapCache {
                 return Err(MmapCacheError::CacheFull);
             }
             if let Some(old_entry) = self.entries.remove(key) {
-                self.current_memory_bytes -= old_entry.region.size as usize;
+                self.current_memory_bytes -=
+                    usize::try_from(old_entry.region.size).unwrap_or(usize::MAX);
                 self.lru_queue.retain(|k| k != key);
                 Some(old_entry.region.file_path)
             } else {
