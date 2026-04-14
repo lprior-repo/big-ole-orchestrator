@@ -14,7 +14,7 @@ pub mod master {
 
 pub mod instance_registry;
 pub mod lifecycle;
-pub mod instance;
+// pub mod instance; // TEMPORARILY COMMENTED - module file does not exist
 pub mod message_router;
 pub mod port;
 pub mod probe;

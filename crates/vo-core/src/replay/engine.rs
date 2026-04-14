@@ -218,6 +218,7 @@ pub(super) fn payload_to_transition(
         EventPayload::TimerFired { .. } => Ok(TransitionEvent::TimerFired),
         EventPayload::WorkflowCompleted { .. } => Ok(TransitionEvent::CompleteStep),
         EventPayload::WorkflowFailed { .. } => Ok(TransitionEvent::Fail),
+        EventPayload::WorkflowQuarantined { .. } => Ok(TransitionEvent::Fail),
         EventPayload::WorkflowCancelled { .. } => Ok(TransitionEvent::Cancel),
         EventPayload::CancelRequested { .. } => Ok(TransitionEvent::Cancel),
         EventPayload::InstanceResumed { .. } => Ok(TransitionEvent::InstanceResumed),
