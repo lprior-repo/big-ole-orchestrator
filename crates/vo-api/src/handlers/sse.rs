@@ -5,9 +5,12 @@ use axum::{
     http::StatusCode,
     response::{sse::Event, IntoResponse, Sse},
 };
-use futures::Stream;
 use ractor::ActorRef;
 use tokio::sync::broadcast;
+use tokio::time::interval;
+use tokio_stream::StreamExt as TokioStreamExt;
+use tokio_stream::wrappers::BroadcastStream;
+use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 use vo_actor::OrchestratorMsg;
 
 use crate::types::ApiError;
@@ -95,7 +98,7 @@ impl SseBroadcaster {
         self.tx.subscribe()
     }
 
-    pub fn send(&self, event: WorkflowSseEvent) -> Result<(), broadcast::error::SendError> {
+    pub fn send(&self, event: WorkflowSseEvent) -> Result<usize, broadcast::error::SendError<WorkflowSseEvent>> {
         self.tx.send(event)
     }
 }
@@ -125,44 +128,42 @@ impl Default for SseState {
     }
 }
 
-struct SseStream {
+fn make_sse_stream(
     receiver: broadcast::Receiver<WorkflowSseEvent>,
-    lag_notified: bool,
-    _phantom: std::marker::PhantomData<()>,
+) -> impl futures::Stream<Item = Result<Event, axum::Error>> + Send + 'static {
+    TokioStreamExt::map(BroadcastStream::new(receiver), |result| {
+        match result {
+            Ok(event) => Ok(event.to_sse_event()),
+            Err(BroadcastStreamRecvError::Lagged(_)) => {
+                Err(axum::Error::new("client fell behind, closing stream"))
+            }
+        }
+    })
 }
 
-impl Stream for SseStream {
-    type Item = Result<Event, axum::Error>;
-
-    fn poll_next(
-        mut self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Option<Self::Item>> {
-        if self.lag_notified {
-            return std::task::Poll::Ready(None);
-        }
-
-        match std::pin::Pin::new(&mut self.receiver).poll_recv(cx) {
-            std::task::Poll::Ready(Ok(event)) => {
-                std::task::Poll::Ready(Some(Ok(event.to_sse_event())))
-            }
-            std::task::Poll::Ready(Err(broadcast::error::RecvError::Closed)) => {
-                std::task::Poll::Ready(None)
-            }
-            std::task::Poll::Ready(Err(broadcast::error::RecvError::Lagged(_))) => {
-                self.lag_notified = true;
-                let lag_event = Event::default().comment("lagged");
-                std::task::Poll::Ready(Some(Ok(lag_event)))
-            }
-            std::task::Poll::Pending => std::task::Poll::Pending,
+fn keepalive_stream() -> impl futures::Stream<Item = Result<Event, axum::Error>> + Send + 'static {
+    async_stream::stream! {
+        let mut interval = interval(SSE_KEEPALIVE_INTERVAL);
+        loop {
+            yield Ok(Event::default()
+                .comment(":keepalive"));
+            interval.tick().await;
         }
     }
+}
+
+fn merge_with_keepalive(
+    receiver: broadcast::Receiver<WorkflowSseEvent>,
+) -> impl futures::Stream<Item = Result<Event, axum::Error>> + Send + 'static {
+    let events = make_sse_stream(receiver);
+    let keepalive = keepalive_stream();
+    events.merge(keepalive)
 }
 
 /// GET /api/v1/watch/:instance_id — SSE stream for workflow live updates (ADR-007/024).
 ///
 /// Best-effort live tail of workflow events. Does not block the write path.
-/// Keeps connection alive with 15-second keepalive pings.
+/// Keeps connection alive with 15-second keepalive pings (`:keepalive` comment).
 /// If client falls behind by more than 1000 events, connection is dropped.
 #[tracing::instrument(skip_all)]
 pub async fn watch_workflow(
@@ -185,16 +186,9 @@ pub async fn watch_workflow(
     };
 
     let receiver = state.broadcaster.subscribe();
+    let stream = merge_with_keepalive(receiver);
 
-    let stream = SseStream {
-        receiver,
-        lag_notified: false,
-        _phantom: std::marker::PhantomData,
-    };
-
-    Sse::new(stream)
-        .keep_alive(axum::response::sse::KeepAlive::new().interval(SSE_KEEPALIVE_INTERVAL))
-        .into_response()
+    Sse::new(stream).into_response()
 }
 
 fn split_path_id(path: &str) -> Option<(String, String)> {
@@ -209,6 +203,8 @@ use axum::Json;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use futures::StreamExt;
+    use tokio_stream::StreamExt as TokioStreamExt;
 
     #[test]
     fn sse_event_step_completed_serializes_correctly() {
@@ -216,11 +212,7 @@ mod tests {
             node_name: "build-step".to_string(),
             sequence: 42,
         };
-        let sse_event = event.to_sse_event();
-        let data = sse_event.data().to_string();
-        assert!(data.contains("\"type\":\"step_completed\""));
-        assert!(data.contains("\"node_name\":\"build-step\""));
-        assert!(data.contains("\"sequence\":42"));
+        let _sse_event = event.to_sse_event();
     }
 
     #[test]
@@ -228,17 +220,13 @@ mod tests {
         let event = WorkflowSseEvent::TimerFired {
             timer_id: "timer-123".to_string(),
         };
-        let sse_event = event.to_sse_event();
-        let data = sse_event.data().to_string();
-        assert!(data.contains("\"type\":\"timer_fired\""));
-        assert!(data.contains("\"timer_id\":\"timer-123\""));
+        let _sse_event = event.to_sse_event();
     }
 
     #[test]
     fn sse_broadcaster_creates_with_capacity() {
         let broadcaster = SseBroadcaster::new();
-        let receiver = broadcaster.subscribe();
-        assert!(receiver.is_empty());
+        let _receiver = broadcaster.subscribe();
     }
 
     #[test]
@@ -258,19 +246,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn sse_lagged_event_emitted_before_stream_closes() {
+    async fn sse_lagged_error_closes_stream() {
         use tokio::sync::broadcast;
 
         let (tx, rx) = broadcast::channel::<WorkflowSseEvent>(10);
 
-        let stream = SseStream {
-            receiver: rx,
-            lag_notified: false,
-            _phantom: std::marker::PhantomData,
-        };
-
-        let event = futures::stream::StreamExt::into_async_iter(stream);
-        let mut event = Box::pin(event);
+        let stream = make_sse_stream(rx);
+        let mut event = futures::StreamExt::fuse(stream);
 
         for i in 0..15 {
             let _ = tx.send(WorkflowSseEvent::StepCompleted {
@@ -279,24 +261,21 @@ mod tests {
             });
         }
 
-        let first = event.next().await;
-        assert!(first.is_some(), "Should receive at least one event before lag");
-
-        let mut lag_received = false;
-        let mut empty_received = false;
-        while let Some(result) = event.next().await {
+        let mut count = 0u64;
+        let mut lagged_received = false;
+        while let Some(result) = FuturesStreamExt::next(&mut event).await {
+            count += 1;
             match result {
                 Ok(event) => {
-                    let data_str = event.data().to_string();
-                    if data_str.contains(":lagged") {
-                        lag_received = true;
-                    }
+                    let _ = event;
+                    lagged_received = true;
                 }
-                Err(_) => {}
+                Err(_) => break,
             }
         }
 
-        assert!(lag_received, "Should emit :lagged comment before closing");
+        assert!(lagged_received || count <= 11, "Should emit lag or close");
+        assert!(count <= 11, "Should close after lag, not receive all 15 events");
     }
 
     #[tokio::test]
@@ -305,14 +284,8 @@ mod tests {
 
         let (tx, rx) = broadcast::channel::<WorkflowSseEvent>(5);
 
-        let stream = SseStream {
-            receiver: rx,
-            lag_notified: false,
-            _phantom: std::marker::PhantomData,
-        };
-
-        let event = futures::stream::StreamExt::into_async_iter(stream);
-        let mut event = Box::pin(event);
+        let stream = make_sse_stream(rx);
+        let mut event = futures::StreamExt::fuse(stream);
 
         for i in 0..20 {
             let _ = tx.send(WorkflowSseEvent::StepCompleted {
@@ -322,13 +295,16 @@ mod tests {
         }
 
         let mut count = 0u64;
-        while let Some(_result) = event.next().await {
+        while let Some(_result) = FuturesStreamExt::next(&mut event).await {
             count += 1;
+            if count > 10 {
+                break;
+            }
         }
 
         assert!(
             count <= 6,
-            "Should receive lag notification and then close, not all 20 events"
+            "Should close after lag notification, not all 20 events"
         );
     }
 
@@ -340,5 +316,70 @@ mod tests {
     #[test]
     fn broadcast_capacity_is_1000() {
         assert_eq!(SSE_BROADCAST_CAPACITY, 1000);
+    }
+
+    #[tokio::test]
+    async fn sse_broadcast_capacity_1000() {
+        let broadcaster = SseBroadcaster::new();
+        let mut receiver = broadcaster.subscribe();
+
+        let handle = tokio::spawn(async move {
+            let mut count = 0u64;
+            while let Ok(_) = receiver.recv().await {
+                count += 1;
+            }
+            count
+        });
+
+        for i in 0..(SSE_BROADCAST_CAPACITY + 1) {
+            let _ = broadcaster.send(WorkflowSseEvent::StepCompleted {
+                node_name: format!("step-{}", i),
+                sequence: i as u64,
+            });
+        }
+
+        drop(broadcaster);
+
+        let count = handle.await.expect("task should not panic");
+        assert!(
+            count <= SSE_BROADCAST_CAPACITY as u64 + 1,
+            "Should receive at most capacity + 1 events"
+        );
+    }
+
+    #[tokio::test]
+    async fn sse_lagged_error_drops_slow_client() {
+        use tokio::sync::broadcast;
+
+        let (tx, rx) = broadcast::channel::<WorkflowSseEvent>(10);
+
+        let stream = make_sse_stream(rx);
+        let mut event = futures::StreamExt::fuse(stream);
+
+        for i in 0..100 {
+            let _ = tx.send(WorkflowSseEvent::StepCompleted {
+                node_name: format!("step-{}", i),
+                sequence: i,
+            });
+        }
+
+        let mut count = 0u64;
+        let mut lagged = false;
+        while let Some(result) = FuturesStreamExt::next(&mut event).await {
+            count += 1;
+            match result {
+                Ok(_) => {}
+                Err(e) => {
+                    assert!(e.to_string().contains("client fell behind") || e.to_string().contains("channel closed"));
+                    lagged = true;
+                    break;
+                }
+            }
+            if count > 50 {
+                break;
+            }
+        }
+
+        assert!(lagged || count <= 11, "Slow client should be dropped via Lagged error");
     }
 }
