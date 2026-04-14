@@ -35,6 +35,7 @@ fn make_workflow(
                         backoff_multiplier: m,
                         max_backoff_ms: u64::MAX,
                     },
+                    compensation_policy: None,
                 })
                 .collect(),
         ),

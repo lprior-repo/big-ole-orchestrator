@@ -17,7 +17,7 @@ mod dedupe_tests;
 mod dependency_graph_resolver;
 pub mod discovery;
 mod dual_representation;
-mod effects;
+pub mod effects;
 mod encryption;
 #[cfg(test)]
 mod encryption_tests;
@@ -147,8 +147,8 @@ pub use search::{
     SearchError, SearchResult, TfIdfScorer,
 };
 pub use workflow::{
-    next_nodes, DagNode, Edge, EdgeCondition, RetryPolicy, RetryPolicyError, StepOutcome,
-    WorkflowDefinition, WorkflowDefinitionError,
+    next_nodes, DagNode, Edge, EdgeCondition, RetryPolicy, RetryPolicyError,
+    StepOutcome, WorkflowDefinition, WorkflowDefinitionError,
 };
 
 #[cfg(test)]

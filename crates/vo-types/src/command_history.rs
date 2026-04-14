@@ -767,6 +767,7 @@ mod tests {
             vec![DagNode {
                 node_name: crate::NodeName::parse("test-node").unwrap(),
                 retry_policy: crate::workflow::RetryPolicy::new(3, 1000, 2.0).unwrap(),
+                compensation_policy: None,
             }],
             vec![],
         )
@@ -867,6 +868,7 @@ mod tests {
         let nodes = vec![DagNode {
             node_name: crate::NodeName::parse("a").unwrap(),
             retry_policy: crate::workflow::RetryPolicy::new(3, 1000, 2.0).unwrap(),
+            compensation_policy: None,
         }];
         let edges = vec![];
 
@@ -884,10 +886,12 @@ mod tests {
         let nodes1 = vec![DagNode {
             node_name: crate::NodeName::parse("a").unwrap(),
             retry_policy: crate::workflow::RetryPolicy::new(3, 1000, 2.0).unwrap(),
+            compensation_policy: None,
         }];
         let nodes2 = vec![DagNode {
             node_name: crate::NodeName::parse("b").unwrap(),
             retry_policy: crate::workflow::RetryPolicy::new(3, 1000, 2.0).unwrap(),
+            compensation_policy: None,
         }];
 
         let snapshot1 = WorkflowSnapshot::new("workflow".into(), nodes1, vec![]);
