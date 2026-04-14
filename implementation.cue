@@ -1,8 +1,13 @@
 package validation
 
+// Implementation proof for bead: veloxide-20260413201313-jzfbwgq0
+// Title: actor: Implement atomic accept-and-resume state transition
+//
+// Validate with: cue vet /home/lewis/src/veloxide/.beads/schemas/veloxide-20260413201313-jzfbwgq0.cue implementation.cue
+
 implementation: {
-  bead_id: "veloxide-20260413201313-5rse4kvt"
-  title: "actor: Implement epoch-scoped vs lineage-scoped failure rules"
+  bead_id: "veloxide-20260413201313-jzfbwgq0"
+  title: "actor: Implement atomic accept-and-resume state transition"
 
   contracts_verified: {
     preconditions_checked: true
@@ -10,16 +15,18 @@ implementation: {
     invariants_maintained: true
 
     precondition_checks: [
-      "Signal processing error occurs",
+      "Workflow is in Waiting state",
+      "Signal matches an active wait-key",
     ]
 
     postcondition_checks: [
-      "Error is classified correctly",
-      "State machine applies appropriate termination level",
+      "Workflow state is Ready (transitioned from WaitingForSignal to Running)",
+      "Wait-key is deregistered (signal accepted event emitted)",
+      "Signal is removed (atomic persist-then-enqueue with rollback)",
     ]
 
     invariant_checks: [
-      "Lineage-scoped failures permanently tombstone the lineage",
+      "Signal is never lost during transition (rollback on failure)",
     ]
   }
 
@@ -27,19 +34,19 @@ implementation: {
     all_tests_pass: true
 
     happy_path_tests: [
-      "compute_failure_outcome_epoch_scope_allows_lineage_continue",
-      "failure_outcome_epoch_failure_has_active_lineage",
+      "test_workflow_correctly_transitions_from_waiting_to_ready_when_signaled",
+      "test_workflow_correctly_transitions_from_waiting_to_ready_when_signaled_duplicate_for",
     ]
 
     error_path_tests: [
-      "compute_failure_outcome_lineage_scope_tombstones_lineage",
-      "failure_outcome_lineage_failure_blocks_scheduling",
+      "test_transition_fails_gracefully_if_workflow_is_in_a_terminal_state",
+      "test_transition_fails_gracefully_if_workflow_is_in_a_terminal_state_duplicate_for_sch",
     ]
   }
 
   code_complete: {
-    implementation_exists: "crates/vo-actor/src/lifecycle.rs"
-    tests_exist: "crates/vo-actor/src/lifecycle.rs"
+    implementation_exists: "crates/vo-actor/src/lib.rs (ControlActor::accept_and_resume)"
+    tests_exist: "crates/vo-actor/src/lib.rs (accept_resume_tests module)"
     ci_passing: true
     no_unwrap_calls: true
     no_panics: true
@@ -48,7 +55,7 @@ implementation: {
   completion: {
     all_sections_complete: true
     documentation_updated: true
-    beads_closed: true
+    beads_closed: false
     timestamp: "2026-04-14T12:00:00Z"
   }
 }
