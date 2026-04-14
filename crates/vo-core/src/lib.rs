@@ -29,6 +29,7 @@ pub mod config_hot_reload;
 mod db_writer_message;
 pub mod debounce;
 pub mod exact_once_verification;
+pub mod identity;
 pub mod lease_calc;
 
 pub use exact_once_verification::assertions::{
@@ -38,6 +39,7 @@ pub use exact_once_verification::assertions::{
 pub use exact_once_verification::crash_points::{CrashPoint, CrashPosition, CrashScenario};
 pub use exact_once_verification::macros::CrashError;
 pub use exact_once_verification::harness::{LineageRolloverEvent, LineageRoutingState, VerificationHarness};
+pub use identity::{WorkflowId, WorkflowIdError};
 pub mod quadtree;
 pub mod replay;
 pub mod resource_quota;
