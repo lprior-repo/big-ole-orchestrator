@@ -42,6 +42,7 @@ pub mod projection_compat;
 pub mod purge;
 pub mod qos_router;
 pub mod query;
+pub mod replay;
 pub mod snapshot_diff;
 pub mod snapshots;
 pub mod status_store;
