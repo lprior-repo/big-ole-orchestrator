@@ -10,12 +10,14 @@
 use super::engine::ReplayEngine;
 use super::test_helpers::*;
 use super::types::ReplayError;
+use vo_types::events::UpcasterError as VoUpcasterError;
 use vo_types::events::{
     decode_event, EventEnvelope, EventMetadata, EventPayload, MAX_SUPPORTED_VERSION,
 };
 use vo_types::state::LifecycleState;
 
-use crate::upcaster::{Upcaster, UpcasterError, UpcasterRegistry, UpcasterRegistryImpl};
+use crate::upcaster::UpcasterError;
+use crate::upcaster::{Upcaster, UpcasterRegistry, UpcasterRegistryImpl};
 
 // =============================================================================
 // Helper upcasters for multi-step chain testing
@@ -27,14 +29,16 @@ impl Upcaster for Version0To1Upcaster {
     fn source_version(&self) -> u8 {
         0
     }
-    fn upcast(&self, input: &[u8]) -> Result<Vec<u8>, UpcasterError> {
-        let mut value: serde_json::Value = serde_json::from_slice(input)
-            .map_err(|e| UpcasterError::UpcastingFailed(e.to_string()))?;
+    fn target_version(&self) -> u8 {
+        1
+    }
+    fn upcast(&self, payload: &serde_json::Value) -> Result<serde_json::Value, VoUpcasterError> {
+        let mut value = payload.clone();
         value["version"] = serde_json::json!(1);
         if let Some(obj) = value["payload"].as_object_mut() {
             obj.insert("version".to_string(), serde_json::json!(1));
         }
-        serde_json::to_vec(&value).map_err(|e| UpcasterError::UpcastingFailed(e.to_string()))
+        Ok(value)
     }
 }
 
@@ -53,14 +57,16 @@ impl Upcaster for PassthroughUpcaster {
     fn source_version(&self) -> u8 {
         self.from
     }
-    fn upcast(&self, input: &[u8]) -> Result<Vec<u8>, UpcasterError> {
-        let mut value: serde_json::Value = serde_json::from_slice(input)
-            .map_err(|e| UpcasterError::UpcastingFailed(e.to_string()))?;
+    fn target_version(&self) -> u8 {
+        self.to
+    }
+    fn upcast(&self, payload: &serde_json::Value) -> Result<serde_json::Value, VoUpcasterError> {
+        let mut value = payload.clone();
         value["version"] = serde_json::json!(self.to);
         if let Some(obj) = value["payload"].as_object_mut() {
             obj.insert("version".to_string(), serde_json::json!(self.to));
         }
-        serde_json::to_vec(&value).map_err(|e| UpcasterError::UpcastingFailed(e.to_string()))
+        Ok(value)
     }
 }
 
@@ -537,13 +543,16 @@ fn upcast_envelope_detects_circular_chain() {
         fn source_version(&self) -> u8 {
             0
         }
-        fn upcast(&self, input: &[u8]) -> Result<Vec<u8>, UpcasterError> {
-            let mut value: serde_json::Value = serde_json::from_slice(input)
-                .map_err(|e| UpcasterError::UpcastingFailed(e.to_string()))?;
-            // Return version 0 again, creating a loop when the chain builder
-            // looks up the upcaster for version 0 again
+        fn target_version(&self) -> u8 {
+            0
+        }
+        fn upcast(
+            &self,
+            payload: &serde_json::Value,
+        ) -> Result<serde_json::Value, VoUpcasterError> {
+            let mut value = payload.clone();
             value["version"] = serde_json::json!(0);
-            serde_json::to_vec(&value).map_err(|e| UpcasterError::UpcastingFailed(e.to_string()))
+            Ok(value)
         }
     }
 
