@@ -78,7 +78,10 @@ impl<T: Clone + Send + Sync + 'static> HotReloadConfig<T> {
     where
         T: Clone,
     {
-        self.current.read().expect("SAFETY: RwLock not poisoned — no code path panics while holding this lock").clone()
+        self.current
+            .read()
+            .expect("SAFETY: RwLock not poisoned — no code path panics while holding this lock")
+            .clone()
     }
 
     pub fn try_update(&self, new_config: T) -> Result<(), Error> {
@@ -86,16 +89,24 @@ impl<T: Clone + Send + Sync + 'static> HotReloadConfig<T> {
             .validate(&new_config)
             .map_err(Error::ValidationFailed)?;
 
-        let mut pending = self.pending.write().expect("SAFETY: RwLock not poisoned — no code path panics while holding this lock");
+        let mut pending = self
+            .pending
+            .write()
+            .expect("SAFETY: RwLock not poisoned — no code path panics while holding this lock");
         *pending = Some(new_config);
 
         Ok(())
     }
 
     pub fn commit(&self) -> Result<T, Error> {
-        let mut pending = self.pending.write().expect("SAFETY: RwLock not poisoned — no code path panics while holding this lock");
+        let mut pending = self
+            .pending
+            .write()
+            .expect("SAFETY: RwLock not poisoned — no code path panics while holding this lock");
         if let Some(new_config) = pending.take() {
-            let mut current = self.current.write().expect("SAFETY: RwLock not poisoned — no code path panics while holding this lock");
+            let mut current = self.current.write().expect(
+                "SAFETY: RwLock not poisoned — no code path panics while holding this lock",
+            );
             let old = (*current).clone();
             *current = new_config.clone();
             return Ok(old);
@@ -104,7 +115,10 @@ impl<T: Clone + Send + Sync + 'static> HotReloadConfig<T> {
     }
 
     pub fn rollback(&self) {
-        let mut pending = self.pending.write().expect("SAFETY: RwLock not poisoned — no code path panics while holding this lock");
+        let mut pending = self
+            .pending
+            .write()
+            .expect("SAFETY: RwLock not poisoned — no code path panics while holding this lock");
         *pending = None;
     }
 
@@ -127,7 +141,10 @@ impl<T: Clone + Send + Sync + 'static> HotReloadConfig<T> {
             .validate(&new_config)
             .map_err(Error::ValidationFailed)?;
 
-        let mut current = self.current.write().expect("SAFETY: RwLock not poisoned — no code path panics while holding this lock");
+        let mut current = self
+            .current
+            .write()
+            .expect("SAFETY: RwLock not poisoned — no code path panics while holding this lock");
         let old = (*current).clone();
         *current = new_config;
 

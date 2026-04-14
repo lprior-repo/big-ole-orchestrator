@@ -1,17 +1,15 @@
 #![allow(clippy::redundant_pattern_matching)]
 use std::path::PathBuf;
-use vo_cli::{
-    dispatch, interpret_cli_from, map_error_to_exit_code, parse_strict_numeric, CliError, Command,
-};
-use vo_cli::commands::init::{InitConfig, InitError};
-use vo_cli::commands::lock::{LockConfig, LockError, LOCK_FILE_NAME};
-use vo_cli::commands::rebuild::{
-    RebuildConfig, RebuildError, RebuildReport, RebuildStatus,
-};
 use vo_cli::commands::doctor::{DoctorConfig, DoctorError};
 use vo_cli::commands::doctor_checks::{
     format_report, format_report_json, CategoryReport, CheckCategory, CheckResult, DoctorReport,
     Severity,
+};
+use vo_cli::commands::init::{InitConfig, InitError};
+use vo_cli::commands::lock::{LockConfig, LockError, LOCK_FILE_NAME};
+use vo_cli::commands::rebuild::{RebuildConfig, RebuildError, RebuildReport, RebuildStatus};
+use vo_cli::{
+    dispatch, interpret_cli_from, map_error_to_exit_code, parse_strict_numeric, CliError, Command,
 };
 
 // ============================================================
@@ -39,13 +37,8 @@ fn parse_rebuild_defaults() {
 
 #[test]
 fn parse_rebuild_with_projection_id() {
-    let cli = interpret_cli_from(vec![
-        "vo",
-        "rebuild",
-        "--projection-id",
-        "order-summary",
-    ])
-    .expect("parse");
+    let cli = interpret_cli_from(vec!["vo", "rebuild", "--projection-id", "order-summary"])
+        .expect("parse");
     match cli.command {
         Command::Rebuild { projection_id, .. } => {
             assert_eq!(projection_id.as_deref(), Some("order-summary"));
@@ -58,7 +51,9 @@ fn parse_rebuild_with_projection_id() {
 fn parse_rebuild_with_list_flag() {
     let cli = interpret_cli_from(vec!["vo", "rebuild", "--list"]).expect("parse");
     match cli.command {
-        Command::Rebuild { list_projections, .. } => {
+        Command::Rebuild {
+            list_projections, ..
+        } => {
             assert!(list_projections);
         }
         _ => panic!("expected Rebuild"),
@@ -107,13 +102,8 @@ fn parse_rebuild_all_flags() {
 
 #[test]
 fn parse_rebuild_custom_project_dir() {
-    let cli = interpret_cli_from(vec![
-        "vo",
-        "rebuild",
-        "--project-dir",
-        "/data/app",
-    ])
-    .expect("parse");
+    let cli =
+        interpret_cli_from(vec!["vo", "rebuild", "--project-dir", "/data/app"]).expect("parse");
     match cli.command {
         Command::Rebuild { project_dir, .. } => {
             assert_eq!(project_dir, PathBuf::from("/data/app"));
@@ -508,14 +498,8 @@ async fn e2e_rebuild_list_dispatch() {
     std::fs::create_dir_all(dir.path().join(".vo")).expect("mkdir");
     let path = dir.path().to_str().expect("path");
 
-    let cli = interpret_cli_from(vec![
-        "vo",
-        "rebuild",
-        "--project-dir",
-        path,
-        "--list",
-    ])
-    .expect("parse");
+    let cli =
+        interpret_cli_from(vec!["vo", "rebuild", "--project-dir", path, "--list"]).expect("parse");
     let result = dispatch(cli).await;
     assert!(result.is_ok());
 }
@@ -599,7 +583,10 @@ fn parse_strict_numeric_rejects_newline() {
 
 #[test]
 fn parse_strict_numeric_u64_boundary_minus_one() {
-    assert_eq!(parse_strict_numeric("18446744073709551614").unwrap(), u64::MAX - 1);
+    assert_eq!(
+        parse_strict_numeric("18446744073709551614").unwrap(),
+        u64::MAX - 1
+    );
 }
 
 // ============================================================
@@ -626,13 +613,8 @@ fn parse_check_with_extra_positional_rejected() {
 
 #[test]
 fn parse_doctor_custom_project_dir() {
-    let cli = interpret_cli_from(vec![
-        "vo",
-        "doctor",
-        "--project-dir",
-        "/custom/proj",
-    ])
-    .expect("parse");
+    let cli =
+        interpret_cli_from(vec!["vo", "doctor", "--project-dir", "/custom/proj"]).expect("parse");
     match cli.command {
         Command::Doctor { project_dir } => {
             assert_eq!(project_dir, PathBuf::from("/custom/proj"));
@@ -643,13 +625,8 @@ fn parse_doctor_custom_project_dir() {
 
 #[test]
 fn parse_lock_custom_project_dir() {
-    let cli = interpret_cli_from(vec![
-        "vo",
-        "lock",
-        "--project-dir",
-        "/my/workspace",
-    ])
-    .expect("parse");
+    let cli =
+        interpret_cli_from(vec!["vo", "lock", "--project-dir", "/my/workspace"]).expect("parse");
     match cli.command {
         Command::Lock { project_dir } => {
             assert_eq!(project_dir, PathBuf::from("/my/workspace"));
@@ -768,8 +745,7 @@ async fn e2e_init_then_doctor_with_workflow_binary() {
     let dir = tempfile::tempdir().expect("tempdir");
     let path = dir.path().to_str().expect("path");
 
-    let init_cli =
-        interpret_cli_from(vec!["vo", "init", "--project-dir", path]).expect("parse");
+    let init_cli = interpret_cli_from(vec!["vo", "init", "--project-dir", path]).expect("parse");
     dispatch(init_cli).await.expect("init");
 
     std::fs::write(
@@ -778,8 +754,7 @@ async fn e2e_init_then_doctor_with_workflow_binary() {
     )
     .expect("write workflow");
 
-    let lock_cli =
-        interpret_cli_from(vec!["vo", "lock", "--project-dir", path]).expect("parse");
+    let lock_cli = interpret_cli_from(vec!["vo", "lock", "--project-dir", path]).expect("parse");
     dispatch(lock_cli).await.expect("lock");
 
     let doctor_cli =
@@ -793,8 +768,7 @@ async fn e2e_doctor_report_after_corrupt_lock() {
     let dir = tempfile::tempdir().expect("tempdir");
     let path = dir.path().to_str().expect("path");
 
-    let init_cli =
-        interpret_cli_from(vec!["vo", "init", "--project-dir", path]).expect("parse");
+    let init_cli = interpret_cli_from(vec!["vo", "init", "--project-dir", path]).expect("parse");
     dispatch(init_cli).await.expect("init");
 
     std::fs::write(dir.path().join("vo.lock"), "corrupted-lock-content\n").expect("write");
@@ -812,22 +786,54 @@ async fn e2e_doctor_report_after_corrupt_lock() {
 #[test]
 fn command_debug_all_variants() {
     let commands = vec![
-        format!("{:?}", Command::Purge { instance: "i".into() }),
-        format!("{:?}", Command::Check { path: PathBuf::from("/tmp") }),
-        format!("{:?}", Command::Gc { engine_url: "u".into(), dry_run: false }),
-        format!("{:?}", Command::Init {
-            project_dir: PathBuf::from("."),
-            engine_url: "u".into(),
-            storage_path: PathBuf::from("s"),
-        }),
-        format!("{:?}", Command::Lock { project_dir: PathBuf::from(".") }),
-        format!("{:?}", Command::Doctor { project_dir: PathBuf::from(".") }),
-        format!("{:?}", Command::Rebuild {
-            project_dir: PathBuf::from("."),
-            projection_id: None,
-            list_projections: false,
-            force: false,
-        }),
+        format!(
+            "{:?}",
+            Command::Purge {
+                instance: "i".into()
+            }
+        ),
+        format!(
+            "{:?}",
+            Command::Check {
+                path: PathBuf::from("/tmp")
+            }
+        ),
+        format!(
+            "{:?}",
+            Command::Gc {
+                engine_url: "u".into(),
+                dry_run: false
+            }
+        ),
+        format!(
+            "{:?}",
+            Command::Init {
+                project_dir: PathBuf::from("."),
+                engine_url: "u".into(),
+                storage_path: PathBuf::from("s"),
+            }
+        ),
+        format!(
+            "{:?}",
+            Command::Lock {
+                project_dir: PathBuf::from(".")
+            }
+        ),
+        format!(
+            "{:?}",
+            Command::Doctor {
+                project_dir: PathBuf::from(".")
+            }
+        ),
+        format!(
+            "{:?}",
+            Command::Rebuild {
+                project_dir: PathBuf::from("."),
+                projection_id: None,
+                list_projections: false,
+                force: false,
+            }
+        ),
     ];
     assert_eq!(commands.len(), 7);
     for debug_str in &commands {

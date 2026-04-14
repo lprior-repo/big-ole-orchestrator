@@ -20,9 +20,9 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use vo_types::{Epoch, InstanceId, TimestampMs};
 use vo_types::signal::{LineageScope, SignalAddress, SignalMatchResult, WaitKey, WaitRecord};
 use vo_types::state::LifecycleState;
+use vo_types::{Epoch, InstanceId, TimestampMs};
 
 use vo_actor::reanimator::{
     mock::{MockTimerStorage, MockWorkQueue},
@@ -67,11 +67,8 @@ mod signal_lineage_resolution {
         let instance_id = valid_instance_id();
         let wait_key = make_wait_key("approval");
 
-        let signal = SignalAddress::lineage_wide(
-            lineage_id.clone(),
-            instance_id.clone(),
-            wait_key.clone(),
-        );
+        let signal =
+            SignalAddress::lineage_wide(lineage_id.clone(), instance_id.clone(), wait_key.clone());
         let wait = WaitRecord::new(
             instance_id,
             wait_key,
@@ -145,7 +142,10 @@ mod signal_lineage_resolution {
             "Epoch-local signal should mismatch when epochs differ"
         );
         match result {
-            SignalMatchResult::EpochMismatch { signal_epoch: sig_ep, wait_epoch: w_ep } => {
+            SignalMatchResult::EpochMismatch {
+                signal_epoch: sig_ep,
+                wait_epoch: w_ep,
+            } => {
                 assert_eq!(sig_ep, signal_epoch);
                 assert_eq!(w_ep, wait_epoch);
             }
@@ -161,11 +161,8 @@ mod signal_lineage_resolution {
         let instance_id = valid_instance_id();
         let wait_key = make_wait_key("approval");
 
-        let signal = SignalAddress::lineage_wide(
-            lineage_id.clone(),
-            instance_id.clone(),
-            wait_key.clone(),
-        );
+        let signal =
+            SignalAddress::lineage_wide(lineage_id.clone(), instance_id.clone(), wait_key.clone());
         let wait = WaitRecord::new(
             instance_id,
             wait_key,
@@ -187,7 +184,8 @@ mod signal_lineage_resolution {
     fn rq_signal_match_returns_instance_mismatch_when_instance_differs() {
         let lineage_id = valid_instance_id();
         let instance_id = valid_instance_id();
-        let other_instance_id = InstanceId::parse("01JAR3K2N0XG8F5VZE9H7QW4Y7").expect("valid ULID");
+        let other_instance_id =
+            InstanceId::parse("01JAR3K2N0XG8F5VZE9H7QW4Y7").expect("valid ULID");
         let wait_key = make_wait_key("approval");
 
         let signal = SignalAddress::lineage_wide(
@@ -219,11 +217,8 @@ mod signal_lineage_resolution {
         let wait_key = make_wait_key("approval");
         let other_wait_key = make_wait_key("rejection");
 
-        let signal = SignalAddress::lineage_wide(
-            lineage_id.clone(),
-            instance_id.clone(),
-            other_wait_key,
-        );
+        let signal =
+            SignalAddress::lineage_wide(lineage_id.clone(), instance_id.clone(), other_wait_key);
         let wait = WaitRecord::new(
             instance_id,
             wait_key,
@@ -253,12 +248,7 @@ mod signal_delivery_hibernated {
     #[tokio::test]
     async fn rq_timer_fires_wakes_hibernated_instance() {
         let instance_id = make_instance_id(0x01);
-        let timer = TimerRecord::new(
-            instance_id.clone(),
-            ts_ms(100),
-            None,
-            ts_ms(50),
-        );
+        let timer = TimerRecord::new(instance_id.clone(), ts_ms(100), None, ts_ms(50));
 
         let storage = Arc::new(MockTimerStorage::new(vec![timer]));
         let work_queue = Arc::new(MockWorkQueue::new());
@@ -283,10 +273,7 @@ mod signal_delivery_hibernated {
             1,
             "Hibernated instance should be woken when timer fires"
         );
-        assert_eq!(
-            enqueued[0], instance_id,
-            "Correct instance should be woken"
-        );
+        assert_eq!(enqueued[0], instance_id, "Correct instance should be woken");
     }
 
     // RQ-SH02: Multiple timers for same hibernated instance wake once
@@ -328,12 +315,7 @@ mod signal_delivery_hibernated {
     #[tokio::test]
     async fn rq_timer_for_terminal_instance_not_dispatched() {
         let instance_id = make_instance_id(0x01);
-        let timer = TimerRecord::new(
-            instance_id.clone(),
-            ts_ms(100),
-            None,
-            ts_ms(50),
-        );
+        let timer = TimerRecord::new(instance_id.clone(), ts_ms(100), None, ts_ms(50));
 
         let storage = Arc::new(MockTimerStorage::new(vec![timer]));
         let work_queue = Arc::new(MockWorkQueue::new());
@@ -481,12 +463,7 @@ mod crash_recovery_timer {
     #[tokio::test]
     async fn rq_crash_recovery_replays_pending_timer() {
         let instance_id = make_instance_id(0x01);
-        let timer = TimerRecord::new(
-            instance_id.clone(),
-            ts_ms(100),
-            None,
-            ts_ms(50),
-        );
+        let timer = TimerRecord::new(instance_id.clone(), ts_ms(100), None, ts_ms(50));
 
         let storage = Arc::new(MockTimerStorage::new(vec![timer]));
         let work_queue = Arc::new(MockWorkQueue::new());
@@ -518,12 +495,7 @@ mod crash_recovery_timer {
     #[tokio::test]
     async fn rq_delete_before_dispatch_no_double_fire_on_retry() {
         let instance_id = make_instance_id(0x01);
-        let timer = TimerRecord::new(
-            instance_id.clone(),
-            ts_ms(100),
-            None,
-            ts_ms(50),
-        );
+        let timer = TimerRecord::new(instance_id.clone(), ts_ms(100), None, ts_ms(50));
 
         let storage = Arc::new(MockTimerStorage::new(vec![timer]));
         let work_queue = Arc::new(MockWorkQueue::new());
@@ -561,12 +533,7 @@ mod crash_recovery_timer {
     #[tokio::test]
     async fn rq_crash_recovery_skips_terminal_instance_timers() {
         let instance_id = make_instance_id(0x01);
-        let timer = TimerRecord::new(
-            instance_id.clone(),
-            ts_ms(100),
-            None,
-            ts_ms(50),
-        );
+        let timer = TimerRecord::new(instance_id.clone(), ts_ms(100), None, ts_ms(50));
 
         let storage = Arc::new(MockTimerStorage::new(vec![timer]));
         let work_queue = Arc::new(MockWorkQueue::new());
@@ -654,19 +621,15 @@ mod signal_buffer_hibernation {
             TimestampMs::now(),
         );
 
-        buffer
-            .buffer_signal(
-                instance_id.clone(),
-                wait_key.clone(),
-                signal1,
-                vo_types::BufferPolicy::BufferMany,
-            );
+        buffer.buffer_signal(
+            instance_id.clone(),
+            wait_key.clone(),
+            signal1,
+            vo_types::BufferPolicy::BufferMany,
+        );
 
         let popped = buffer.pop_buffered(&instance_id, &wait_key);
-        assert!(
-            popped.is_some(),
-            "Should pop the buffered signal"
-        );
+        assert!(popped.is_some(), "Should pop the buffered signal");
         assert_eq!(
             popped.unwrap().signal_id,
             "sig-1",
@@ -679,13 +642,12 @@ mod signal_buffer_hibernation {
             TimestampMs::now(),
         );
 
-        buffer
-            .buffer_signal(
-                instance_id.clone(),
-                wait_key.clone(),
-                signal2,
-                vo_types::BufferPolicy::BufferMany,
-            );
+        buffer.buffer_signal(
+            instance_id.clone(),
+            wait_key.clone(),
+            signal2,
+            vo_types::BufferPolicy::BufferMany,
+        );
 
         assert_eq!(
             buffer.buffered_count(&instance_id, &wait_key),
@@ -708,13 +670,12 @@ mod signal_buffer_hibernation {
             TimestampMs::now(),
         );
 
-        buffer
-            .buffer_signal(
-                instance_id.clone(),
-                wait_key.clone(),
-                signal1,
-                vo_types::BufferPolicy::BufferOne,
-            );
+        buffer.buffer_signal(
+            instance_id.clone(),
+            wait_key.clone(),
+            signal1,
+            vo_types::BufferPolicy::BufferOne,
+        );
 
         let signal2 = vo_actor::signal_buffer::BufferedSignal::new(
             "sig-new".to_string(),
@@ -722,13 +683,12 @@ mod signal_buffer_hibernation {
             TimestampMs::now(),
         );
 
-        buffer
-            .buffer_signal(
-                instance_id.clone(),
-                wait_key.clone(),
-                signal2,
-                vo_types::BufferPolicy::BufferOne,
-            );
+        buffer.buffer_signal(
+            instance_id.clone(),
+            wait_key.clone(),
+            signal2,
+            vo_types::BufferPolicy::BufferOne,
+        );
 
         assert_eq!(
             buffer.buffered_count(&instance_id, &wait_key),
@@ -777,7 +737,10 @@ mod signal_correct_wait_state {
             wait_key.clone(),
         );
         let result_a = vo_types::signal::signal_match(&signal_a, &wait, &lineage_id_a);
-        assert!(result_a.is_matched(), "Signal A should match wait from lineage A");
+        assert!(
+            result_a.is_matched(),
+            "Signal A should match wait from lineage A"
+        );
 
         // Signal B has lineage_id_b and instance_id_b - should NOT match wait
         let signal_b = SignalAddress::lineage_wide(
@@ -786,7 +749,10 @@ mod signal_correct_wait_state {
             wait_key.clone(),
         );
         let result_b = vo_types::signal::signal_match(&signal_b, &wait, &lineage_id_a);
-        assert!(result_b.is_mismatch(), "Signal B should NOT match wait from lineage A");
+        assert!(
+            result_b.is_mismatch(),
+            "Signal B should NOT match wait from lineage A"
+        );
     }
 
     // RQ-SCWS02: Epoch-local signal only delivered to correct epoch
@@ -832,18 +798,8 @@ mod signal_correct_wait_state {
         let instance_id_a = make_instance_id(0x01);
         let instance_id_b = make_instance_id(0x02);
 
-        let timer_a = TimerRecord::new(
-            instance_id_a.clone(),
-            ts_ms(100),
-            None,
-            ts_ms(50),
-        );
-        let timer_b = TimerRecord::new(
-            instance_id_b.clone(),
-            ts_ms(100),
-            None,
-            ts_ms(50),
-        );
+        let timer_a = TimerRecord::new(instance_id_a.clone(), ts_ms(100), None, ts_ms(50));
+        let timer_b = TimerRecord::new(instance_id_b.clone(), ts_ms(100), None, ts_ms(50));
 
         let storage = Arc::new(MockTimerStorage::new(vec![timer_a, timer_b]));
         let work_queue = Arc::new(MockWorkQueue::new());
@@ -869,11 +825,7 @@ mod signal_correct_wait_state {
 
         // Each timer should fire exactly once
         let fire_calls = storage.fire_calls().await;
-        assert_eq!(
-            fire_calls.len(),
-            2,
-            "Each timer should fire exactly once"
-        );
+        assert_eq!(fire_calls.len(), 2, "Each timer should fire exactly once");
     }
 
     // RQ-SCWS04: Wait key mismatch prevents wrong signal delivery
@@ -911,8 +863,7 @@ mod signal_correct_wait_state {
         );
 
         // Rejection signal should NOT match
-        let result_reject =
-            vo_types::signal::signal_match(&signal_key_reject, &wait, &lineage_id);
+        let result_reject = vo_types::signal::signal_match(&signal_key_reject, &wait, &lineage_id);
         assert!(
             result_reject.is_mismatch(),
             "Rejection signal should NOT match approval wait"
@@ -926,7 +877,7 @@ mod signal_correct_wait_state {
 // =============================================================================
 
 mod dual_clock_verification {
-    use vo_actor::timer_supervisor::{verify_dual_clock, is_overdue};
+    use vo_actor::timer_supervisor::{is_overdue, verify_dual_clock};
 
     // RQ-DCV01: Timer fires only when both clocks agree
     #[test]

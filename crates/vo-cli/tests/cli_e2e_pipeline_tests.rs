@@ -121,11 +121,7 @@ fn e2e_init_lock_tamper_doctor_catches_mismatch() {
     })
     .unwrap();
 
-    fs::write(
-        project_dir.join(".vo/workflows/my-wf"),
-        b"tampered content",
-    )
-    .unwrap();
+    fs::write(project_dir.join(".vo/workflows/my-wf"), b"tampered content").unwrap();
 
     let report = run_doctor(&DoctorConfig {
         project_dir: project_dir.to_path_buf(),
@@ -327,9 +323,7 @@ fn parse_rebuild_defaults() {
 fn parse_rebuild_with_projection_id() {
     let cli = interpret_cli_from(vec!["vo", "rebuild", "--projection-id", "my-proj"]).unwrap();
     match cli.command {
-        Command::Rebuild {
-            projection_id, ..
-        } => {
+        Command::Rebuild { projection_id, .. } => {
             assert_eq!(projection_id, Some("my-proj".to_string()));
         }
         _ => panic!("expected Rebuild"),
@@ -851,7 +845,11 @@ fn rebuild_format_progress_all_statuses() {
 fn config_missing_engine_section() {
     let dir = tempfile::tempdir().unwrap();
     setup_project(dir.path());
-    fs::write(dir.path().join(CONFIG_FILE_NAME), "[storage]\npath = \".vo/storage\"\n").unwrap();
+    fs::write(
+        dir.path().join(CONFIG_FILE_NAME),
+        "[storage]\npath = \".vo/storage\"\n",
+    )
+    .unwrap();
 
     let report = check_config_validation(dir.path());
     assert!(report.warnings().any(|w| w.check == "config-engine"));
@@ -1007,7 +1005,10 @@ fn history_redo_empty() {
 #[test]
 fn history_config_default() {
     let config = HistoryConfig::default();
-    assert_eq!(config.history_path, PathBuf::from(".vo/command_history.json"));
+    assert_eq!(
+        config.history_path,
+        PathBuf::from(".vo/command_history.json")
+    );
     assert_eq!(config.workflow_name, "default");
 }
 
@@ -1073,8 +1074,7 @@ impl MiddlewareV2 for AbortMiddleware {
     fn before(
         &self,
         _ctx: &dyn DispatchContext,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = MiddlewareResult> + Send + '_>>
-    {
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = MiddlewareResult> + Send + '_>> {
         Box::pin(async {
             MiddlewareResult::Abort(CliError::Dispatch("aborted by middleware".into()))
         })
@@ -1187,7 +1187,17 @@ fn registry_names_sorted() {
     names.sort();
     assert_eq!(
         names,
-        vec!["check", "compensate", "doctor", "gc", "init", "lock", "purge", "rebuild", "status"]
+        vec![
+            "check",
+            "compensate",
+            "doctor",
+            "gc",
+            "init",
+            "lock",
+            "purge",
+            "rebuild",
+            "status"
+        ]
     );
 }
 
@@ -1344,7 +1354,12 @@ fn doctor_storage_wal_patterns() {
     setup_project(dir.path());
     let storage = dir.path().join(".vo/storage");
 
-    for pattern in &["events.wal", "data.journal", "main-wal", "secondary-journal"] {
+    for pattern in &[
+        "events.wal",
+        "data.journal",
+        "main-wal",
+        "secondary-journal",
+    ] {
         fs::write(storage.join(pattern), b"wal").unwrap();
     }
 
@@ -1479,7 +1494,10 @@ fn parse_strict_numeric_valid_numbers() {
     assert_eq!(parse_strict_numeric("0").unwrap(), 0);
     assert_eq!(parse_strict_numeric("1").unwrap(), 1);
     assert_eq!(parse_strict_numeric("999999").unwrap(), 999999);
-    assert_eq!(parse_strict_numeric("18446744073709551615").unwrap(), u64::MAX);
+    assert_eq!(
+        parse_strict_numeric("18446744073709551615").unwrap(),
+        u64::MAX
+    );
 }
 
 #[test]

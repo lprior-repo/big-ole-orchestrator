@@ -1,15 +1,15 @@
+use std::ffi::OsString;
 use std::path::PathBuf;
 use vo_cli::cli::{interpret_cli_from, Cli, CliError, Command};
+use vo_cli::dispatch_v2::{
+    create_dispatcher_v2, dispatch_v2, CommandDispatcherV2, DefaultDispatchContext,
+    DispatchContext, LoggingMiddlewareV2, MetricsMiddlewareV2, MiddlewareResult, MiddlewareV2,
+};
+use vo_cli::middleware::Middleware as V1Middleware;
 use vo_cli::middleware::{
     create_dispatcher, CommandContext, CommandDispatcher, LoggingMiddleware, MetricsMiddleware,
 };
-use vo_cli::dispatch_v2::{
-    create_dispatcher_v2, dispatch_v2, CommandDispatcherV2, DefaultDispatchContext, DispatchContext,
-    LoggingMiddlewareV2, MetricsMiddlewareV2, MiddlewareResult, MiddlewareV2,
-};
 use vo_cli::registry::HandlerRegistry;
-use vo_cli::middleware::Middleware as V1Middleware;
-use std::ffi::OsString;
 
 #[tokio::test]
 async fn v1_dispatch_unknown_command_returns_error() {

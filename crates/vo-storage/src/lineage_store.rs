@@ -257,7 +257,10 @@ mod tests {
     #[test]
     fn decode_lineage_record_returns_corrupt_value_for_invalid_json() {
         let result = decode_lineage_record(b"not-json");
-        assert!(matches!(result, Err(LineageStoreError::CorruptValue { .. })));
+        assert!(matches!(
+            result,
+            Err(LineageStoreError::CorruptValue { .. })
+        ));
     }
 
     // -----------------------------------------------------------------------

@@ -5,8 +5,8 @@ use vo_cli::commands::check::{BinaryFormat, CheckError};
 use vo_cli::commands::doctor::DoctorError;
 use vo_cli::commands::doctor_checks::{
     check_config_validation, check_lock_state, check_storage_integrity, check_subprocess_liveness,
-    check_workspace, format_report, format_report_json, CategoryReport, CheckCategory,
-    CheckResult, DoctorReport, Severity,
+    check_workspace, format_report, format_report_json, CategoryReport, CheckCategory, CheckResult,
+    DoctorReport, Severity,
 };
 use vo_cli::commands::gc::{GcConfig, GcError, GcSummary};
 use vo_cli::commands::history::{
@@ -82,10 +82,7 @@ fn subprocess_liveness_with_empty_pid_file() {
         .checks
         .iter()
         .all(|c| c.check != "process-alive" && c.check != "process-dead");
-    assert!(
-        no_checks,
-        "empty PID file should be skipped gracefully"
-    );
+    assert!(no_checks, "empty PID file should be skipped gracefully");
 }
 
 #[test]
@@ -95,8 +92,10 @@ fn subprocess_liveness_with_non_pid_files() {
     std::fs::create_dir_all(vo_dir.join("runtime")).unwrap();
     std::fs::write(vo_dir.join("runtime/readme.txt"), "hello").unwrap();
     let report = check_subprocess_liveness(&vo_dir);
-    assert!(report.checks.iter().any(|c| c.check == "subprocess-liveness"
-        && c.message.contains("no PID files")));
+    assert!(report
+        .checks
+        .iter()
+        .any(|c| c.check == "subprocess-liveness" && c.message.contains("no PID files")));
 }
 
 #[test]
@@ -107,8 +106,10 @@ fn subprocess_liveness_with_current_pid() {
     let my_pid = std::process::id();
     std::fs::write(vo_dir.join("runtime/self.pid"), format!("{my_pid}\n")).unwrap();
     let report = check_subprocess_liveness(&vo_dir);
-    assert!(report.checks.iter().any(|c| c.check == "process-alive"),
-        "current process PID should be detected as alive");
+    assert!(
+        report.checks.iter().any(|c| c.check == "process-alive"),
+        "current process PID should be detected as alive"
+    );
 }
 
 #[test]
@@ -131,7 +132,10 @@ fn subprocess_liveness_cannot_read_runtime_dir() {
     let vo_dir = dir.join(".vo");
     std::fs::create_dir_all(vo_dir.join("runtime")).unwrap();
     let report = check_subprocess_liveness(&vo_dir);
-    assert!(report.checks.iter().any(|c| c.check == "runtime-dir" || c.check == "subprocess-liveness"));
+    assert!(report
+        .checks
+        .iter()
+        .any(|c| c.check == "runtime-dir" || c.check == "subprocess-liveness"));
 }
 
 // ============================================================
@@ -145,10 +149,13 @@ fn storage_integrity_config_references_nonexistent_path() {
     std::fs::write(
         dir.join("config.toml"),
         "[engine]\nurl = \"http://localhost:3000\"\n\n[storage]\npath = \".vo/nonexistent\"\n",
-    ).unwrap();
+    )
+    .unwrap();
     let report = check_storage_integrity(&dir.join(".vo"), &dir);
-    assert!(report.warnings().any(|c| c.check == "storage-path-ref"),
-        "should warn about non-existent storage path in config");
+    assert!(
+        report.warnings().any(|c| c.check == "storage-path-ref"),
+        "should warn about non-existent storage path in config"
+    );
 }
 
 #[test]
@@ -156,8 +163,13 @@ fn storage_integrity_config_references_valid_path() {
     let dir = make_temp_dir();
     setup_project(&dir);
     let report = check_storage_integrity(&dir.join(".vo"), &dir);
-    assert!(report.checks.iter().any(|c| c.check == "storage-path-ref" && c.severity == Severity::Info),
-        "should report valid storage path reference");
+    assert!(
+        report
+            .checks
+            .iter()
+            .any(|c| c.check == "storage-path-ref" && c.severity == Severity::Info),
+        "should report valid storage path reference"
+    );
 }
 
 #[test]
@@ -165,7 +177,10 @@ fn storage_integrity_empty_storage_dir() {
     let dir = make_temp_dir();
     std::fs::create_dir_all(dir.join(".vo/storage")).unwrap();
     let report = check_storage_integrity(&dir.join(".vo"), &dir);
-    assert!(report.checks.iter().any(|c| c.check == "storage-contents" && c.message.contains("empty")));
+    assert!(report
+        .checks
+        .iter()
+        .any(|c| c.check == "storage-contents" && c.message.contains("empty")));
 }
 
 #[test]
@@ -174,8 +189,13 @@ fn storage_integrity_with_partitions() {
     std::fs::create_dir_all(dir.join(".vo/storage/events")).unwrap();
     std::fs::create_dir_all(dir.join(".vo/storage/instances")).unwrap();
     let report = check_storage_integrity(&dir.join(".vo"), &dir);
-    assert!(report.checks.iter().any(|c| c.check == "storage-partitions"),
-        "should detect known partitions");
+    assert!(
+        report
+            .checks
+            .iter()
+            .any(|c| c.check == "storage-partitions"),
+        "should detect known partitions"
+    );
 }
 
 #[test]
@@ -184,8 +204,10 @@ fn storage_integrity_with_journal_file() {
     std::fs::create_dir_all(dir.join(".vo/storage")).unwrap();
     std::fs::write(dir.join(".vo/storage/events.journal"), b"j").unwrap();
     let report = check_storage_integrity(&dir.join(".vo"), &dir);
-    assert!(report.warnings().any(|c| c.check == "storage-wal"),
-        "should detect journal files");
+    assert!(
+        report.warnings().any(|c| c.check == "storage-wal"),
+        "should detect journal files"
+    );
 }
 
 #[test]
@@ -194,8 +216,10 @@ fn storage_integrity_with_wal_suffix_file() {
     std::fs::create_dir_all(dir.join(".vo/storage")).unwrap();
     std::fs::write(dir.join(".vo/storage/data-wal"), b"w").unwrap();
     let report = check_storage_integrity(&dir.join(".vo"), &dir);
-    assert!(report.warnings().any(|c| c.check == "storage-wal"),
-        "should detect -wal suffixed files");
+    assert!(
+        report.warnings().any(|c| c.check == "storage-wal"),
+        "should detect -wal suffixed files"
+    );
 }
 
 // ============================================================
@@ -209,8 +233,10 @@ fn workspace_detects_stale_pid_files() {
     std::fs::create_dir_all(dir.join(".vo/runtime")).unwrap();
     std::fs::write(dir.join(".vo/runtime/old.pid"), "999999999\n").unwrap();
     let report = check_workspace(&dir, &dir.join(".vo"));
-    assert!(report.checks.iter().any(|c| c.check == "stale-pid-files"),
-        "workspace check should detect stale PID files");
+    assert!(
+        report.checks.iter().any(|c| c.check == "stale-pid-files"),
+        "workspace check should detect stale PID files"
+    );
 }
 
 #[test]
@@ -221,8 +247,13 @@ fn workspace_detects_alive_pid_files() {
     let my_pid = std::process::id();
     std::fs::write(dir.join(".vo/runtime/self.pid"), format!("{my_pid}\n")).unwrap();
     let report = check_workspace(&dir, &dir.join(".vo"));
-    assert!(report.checks.iter().any(|c| c.check == "stale-pid-files" && c.severity == Severity::Info),
-        "workspace check should report all alive PIDs");
+    assert!(
+        report
+            .checks
+            .iter()
+            .any(|c| c.check == "stale-pid-files" && c.severity == Severity::Info),
+        "workspace check should report all alive PIDs"
+    );
 }
 
 #[test]
@@ -234,8 +265,13 @@ fn workspace_readonly_vo_dir() {
     perms.set_readonly(true);
     std::fs::set_permissions(&vo_dir, perms.clone()).unwrap();
     let report = check_workspace(&dir, &vo_dir);
-    assert!(report.checks.iter().any(|c| c.check == "vo-dir-perms" && c.severity == Severity::Error),
-        "readonly .vo dir should be an error");
+    assert!(
+        report
+            .checks
+            .iter()
+            .any(|c| c.check == "vo-dir-perms" && c.severity == Severity::Error),
+        "readonly .vo dir should be an error"
+    );
     perms.set_readonly(false);
     std::fs::set_permissions(&vo_dir, perms).ok();
 }
@@ -245,8 +281,13 @@ fn workspace_missing_storage_dir_warns() {
     let dir = make_temp_dir();
     std::fs::create_dir_all(dir.join(".vo/workflows")).unwrap();
     let report = check_workspace(&dir, &dir.join(".vo"));
-    assert!(report.checks.iter().any(|c| c.check == "storage-dir" && c.severity == Severity::Warn),
-        "missing storage dir should warn");
+    assert!(
+        report
+            .checks
+            .iter()
+            .any(|c| c.check == "storage-dir" && c.severity == Severity::Warn),
+        "missing storage dir should warn"
+    );
 }
 
 // ============================================================
@@ -257,74 +298,116 @@ fn workspace_missing_storage_dir_warns() {
 fn config_validation_missing_engine_section() {
     let dir = make_temp_dir();
     std::fs::create_dir_all(dir.join(".vo/workflows")).unwrap();
-    std::fs::write(dir.join("config.toml"), "[storage]\npath = \".vo/storage\"\n").unwrap();
+    std::fs::write(
+        dir.join("config.toml"),
+        "[storage]\npath = \".vo/storage\"\n",
+    )
+    .unwrap();
     let report = check_config_validation(&dir);
-    assert!(report.warnings().any(|c| c.check == "config-engine"),
-        "should warn about missing [engine] section");
+    assert!(
+        report.warnings().any(|c| c.check == "config-engine"),
+        "should warn about missing [engine] section"
+    );
 }
 
 #[test]
 fn config_validation_engine_url_missing() {
     let dir = make_temp_dir();
     std::fs::create_dir_all(dir.join(".vo/workflows")).unwrap();
-    std::fs::write(dir.join("config.toml"), "[engine]\nport = 3000\n\n[storage]\npath = \".vo/storage\"\n").unwrap();
+    std::fs::write(
+        dir.join("config.toml"),
+        "[engine]\nport = 3000\n\n[storage]\npath = \".vo/storage\"\n",
+    )
+    .unwrap();
     let report = check_config_validation(&dir);
-    assert!(report.warnings().any(|c| c.check == "config-engine-url"),
-        "should warn about missing engine URL");
+    assert!(
+        report.warnings().any(|c| c.check == "config-engine-url"),
+        "should warn about missing engine URL"
+    );
 }
 
 #[test]
 fn config_validation_engine_url_empty() {
     let dir = make_temp_dir();
     std::fs::create_dir_all(dir.join(".vo/workflows")).unwrap();
-    std::fs::write(dir.join("config.toml"), "[engine]\nurl = \"\"\n\n[storage]\npath = \".vo/storage\"\n").unwrap();
+    std::fs::write(
+        dir.join("config.toml"),
+        "[engine]\nurl = \"\"\n\n[storage]\npath = \".vo/storage\"\n",
+    )
+    .unwrap();
     let report = check_config_validation(&dir);
-    assert!(report.warnings().any(|c| c.check == "config-engine-url"),
-        "should warn about empty engine URL");
+    assert!(
+        report.warnings().any(|c| c.check == "config-engine-url"),
+        "should warn about empty engine URL"
+    );
 }
 
 #[test]
 fn config_validation_storage_missing_section() {
     let dir = make_temp_dir();
     std::fs::create_dir_all(dir.join(".vo/workflows")).unwrap();
-    std::fs::write(dir.join("config.toml"), "[engine]\nurl = \"http://localhost:3000\"\n").unwrap();
+    std::fs::write(
+        dir.join("config.toml"),
+        "[engine]\nurl = \"http://localhost:3000\"\n",
+    )
+    .unwrap();
     let report = check_config_validation(&dir);
-    assert!(report.warnings().any(|c| c.check == "config-storage"),
-        "should warn about missing [storage] section");
+    assert!(
+        report.warnings().any(|c| c.check == "config-storage"),
+        "should warn about missing [storage] section"
+    );
 }
 
 #[test]
 fn config_validation_storage_path_missing() {
     let dir = make_temp_dir();
     std::fs::create_dir_all(dir.join(".vo/workflows")).unwrap();
-    std::fs::write(dir.join("config.toml"), "[engine]\nurl = \"http://localhost:3000\"\n\n[storage]\nother = \"x\"\n").unwrap();
+    std::fs::write(
+        dir.join("config.toml"),
+        "[engine]\nurl = \"http://localhost:3000\"\n\n[storage]\nother = \"x\"\n",
+    )
+    .unwrap();
     let report = check_config_validation(&dir);
-    assert!(report.warnings().any(|c| c.check == "config-storage-path"),
-        "should warn about missing storage path");
+    assert!(
+        report.warnings().any(|c| c.check == "config-storage-path"),
+        "should warn about missing storage path"
+    );
 }
 
 #[test]
 fn config_validation_storage_path_empty() {
     let dir = make_temp_dir();
     std::fs::create_dir_all(dir.join(".vo/workflows")).unwrap();
-    std::fs::write(dir.join("config.toml"), "[engine]\nurl = \"http://localhost:3000\"\n\n[storage]\npath = \"\"\n").unwrap();
+    std::fs::write(
+        dir.join("config.toml"),
+        "[engine]\nurl = \"http://localhost:3000\"\n\n[storage]\npath = \"\"\n",
+    )
+    .unwrap();
     let report = check_config_validation(&dir);
-    assert!(report.warnings().any(|c| c.check == "config-storage-path"),
-        "should warn about empty storage path");
+    assert!(
+        report.warnings().any(|c| c.check == "config-storage-path"),
+        "should warn about empty storage path"
+    );
 }
 
 #[test]
 fn config_validation_readonly_config() {
     let dir = make_temp_dir();
     std::fs::create_dir_all(dir.join(".vo/workflows")).unwrap();
-    std::fs::write(dir.join("config.toml"), "[engine]\nurl = \"http://localhost:3000\"\n\n[storage]\npath = \".vo/storage\"\n").unwrap();
+    std::fs::write(
+        dir.join("config.toml"),
+        "[engine]\nurl = \"http://localhost:3000\"\n\n[storage]\npath = \".vo/storage\"\n",
+    )
+    .unwrap();
     let config_path = dir.join("config.toml");
     let mut perms = std::fs::metadata(&config_path).unwrap().permissions();
     perms.set_readonly(true);
     std::fs::set_permissions(&config_path, perms.clone()).unwrap();
     let report = check_config_validation(&dir);
-    assert!(report.warnings().any(|c| c.check == "config-perms"),
-        "readonly config should produce warning");
+    assert!(
+        report.warnings().any(|c| c.check == "config-perms"),
+        "readonly config should produce warning"
+    );
     perms.set_readonly(false);
     std::fs::set_permissions(&config_path, perms).ok();
 }
@@ -339,7 +422,9 @@ fn lock_state_empty_lockfile_warns() {
     setup_project(&dir);
     std::fs::write(dir.join("vo.lock"), "").unwrap();
     let report = check_lock_state(&dir, &dir.join(".vo"));
-    assert!(report.warnings().any(|c| c.check == "lockfile" && c.message.contains("empty")));
+    assert!(report
+        .warnings()
+        .any(|c| c.check == "lockfile" && c.message.contains("empty")));
 }
 
 #[test]
@@ -386,7 +471,9 @@ fn history_undo_success_path() {
     }
 
     let mut history = CommandHistory::new();
-    history.save_undo_point(CommandKind::NodeCreate, test_snapshot()).unwrap();
+    history
+        .save_undo_point(CommandKind::NodeCreate, test_snapshot())
+        .unwrap();
     let result = undo_command(&mut history);
     assert!(result.success, "undo with history should succeed");
     assert_eq!(result.message, "Undo successful");
@@ -408,7 +495,9 @@ fn history_redo_success_path() {
     }
 
     let mut history = CommandHistory::new();
-    history.save_undo_point(CommandKind::NodeCreate, test_snapshot()).unwrap();
+    history
+        .save_undo_point(CommandKind::NodeCreate, test_snapshot())
+        .unwrap();
     let _ = undo_command(&mut history);
     let result = redo_command(&mut history);
     assert!(result.success, "redo after undo should succeed");
@@ -431,7 +520,9 @@ fn history_undo_then_undo_empty() {
     }
 
     let mut history = CommandHistory::new();
-    history.save_undo_point(CommandKind::NodeCreate, test_snapshot()).unwrap();
+    history
+        .save_undo_point(CommandKind::NodeCreate, test_snapshot())
+        .unwrap();
     let _ = undo_command(&mut history);
     let result = undo_command(&mut history);
     assert!(!result.success, "second undo should be empty");
@@ -453,7 +544,9 @@ fn history_redo_empty_after_push() {
     }
 
     let mut history = CommandHistory::new();
-    history.save_undo_point(CommandKind::NodeCreate, test_snapshot()).unwrap();
+    history
+        .save_undo_point(CommandKind::NodeCreate, test_snapshot())
+        .unwrap();
     let result = redo_command(&mut history);
     assert!(!result.success, "redo without undo should be empty");
 }
@@ -474,7 +567,9 @@ fn history_get_history_with_entries() {
     }
 
     let mut history = CommandHistory::new();
-    history.save_undo_point(CommandKind::NodeCreate, test_snapshot()).unwrap();
+    history
+        .save_undo_point(CommandKind::NodeCreate, test_snapshot())
+        .unwrap();
     let output = get_history(&history);
     assert_eq!(output.entries.len(), 1);
     assert!(output.can_undo);
@@ -499,7 +594,9 @@ fn history_save_and_reload_roundtrip() {
     let dir = make_temp_dir();
     let path = dir.join("history.json");
     let mut history = CommandHistory::new();
-    history.save_undo_point(CommandKind::NodeCreate, test_snapshot()).unwrap();
+    history
+        .save_undo_point(CommandKind::NodeCreate, test_snapshot())
+        .unwrap();
     save_history(&path, &history).unwrap();
     let loaded = load_history(&path).unwrap();
     assert_eq!(loaded.entries().len(), 1);
@@ -524,16 +621,24 @@ fn history_load_invalid_json() {
 
 #[test]
 fn history_error_display_all_variants() {
-    let e1 = HistoryError::HistoryFileNotFound { path: PathBuf::from("/a") };
+    let e1 = HistoryError::HistoryFileNotFound {
+        path: PathBuf::from("/a"),
+    };
     assert!(e1.to_string().contains("/a"));
 
-    let e2 = HistoryError::ReadFailed { reason: "disk".into() };
+    let e2 = HistoryError::ReadFailed {
+        reason: "disk".into(),
+    };
     assert!(e2.to_string().contains("disk"));
 
-    let e3 = HistoryError::WriteFailed { reason: "full".into() };
+    let e3 = HistoryError::WriteFailed {
+        reason: "full".into(),
+    };
     assert!(e3.to_string().contains("full"));
 
-    let e4 = HistoryError::InvalidFormat { reason: "bad json".into() };
+    let e4 = HistoryError::InvalidFormat {
+        reason: "bad json".into(),
+    };
     assert!(e4.to_string().contains("bad json"));
 }
 
@@ -687,7 +792,10 @@ async fn gc_find_unpinned_ignores_files() {
     std::fs::write(versions_dir.join("somefile.txt"), "data").unwrap();
     let pinned: HashSet<String> = HashSet::new();
     let result = vo_cli::commands::gc::find_unpinned_directories(&versions_dir, &pinned).await;
-    assert!(result.unwrap().is_empty(), "regular files should be ignored");
+    assert!(
+        result.unwrap().is_empty(),
+        "regular files should be ignored"
+    );
 }
 
 #[tokio::test]
@@ -703,7 +811,10 @@ async fn gc_delete_version_dir_success() {
 
 #[tokio::test]
 async fn gc_delete_version_dir_nonexistent() {
-    let result = vo_cli::commands::gc::delete_version_dir(PathBuf::from("/tmp/nonexistent_dir_xyz").as_path()).await;
+    let result = vo_cli::commands::gc::delete_version_dir(
+        PathBuf::from("/tmp/nonexistent_dir_xyz").as_path(),
+    )
+    .await;
     assert!(result.is_err());
 }
 
@@ -720,9 +831,18 @@ async fn gc_run_gc_dry_run() {
     };
     let result = vo_cli::commands::gc::run_gc(&config).await;
     if let Ok(summary) = result {
-        assert!(versions_dir.join(&hash).exists(), "dry run should not delete");
-        assert!(summary.deleted_count > 0, "dry run should report would-be-deleted count");
-        assert!(summary.failures.is_empty(), "dry run should have no failures");
+        assert!(
+            versions_dir.join(&hash).exists(),
+            "dry run should not delete"
+        );
+        assert!(
+            summary.deleted_count > 0,
+            "dry run should report would-be-deleted count"
+        );
+        assert!(
+            summary.failures.is_empty(),
+            "dry run should have no failures"
+        );
     }
 }
 
@@ -732,7 +852,9 @@ async fn gc_run_gc_dry_run() {
 
 #[test]
 fn rebuild_error_all_variants_display() {
-    let e1 = RebuildError::NotInitialized { path: PathBuf::from("/p") };
+    let e1 = RebuildError::NotInitialized {
+        path: PathBuf::from("/p"),
+    };
     assert!(e1.to_string().contains("/p"));
 
     let e2 = RebuildError::ProjectionNotFound("proj1".into());
@@ -802,7 +924,9 @@ fn rebuild_status_all_format_progress() {
     let failed = RebuildReport {
         projection_id: Some("y".into()),
         rebuild_id: Some("y-1".into()),
-        status: RebuildStatus::Failed { reason: "OOM".into() },
+        status: RebuildStatus::Failed {
+            reason: "OOM".into(),
+        },
         events_applied: 0,
         duration_ms: 0,
     };
@@ -811,7 +935,9 @@ fn rebuild_status_all_format_progress() {
     let noop = RebuildReport {
         projection_id: Some("z".into()),
         rebuild_id: Some("z-1".into()),
-        status: RebuildStatus::NoOp { reason: "already up to date".into() },
+        status: RebuildStatus::NoOp {
+            reason: "already up to date".into(),
+        },
         events_applied: 0,
         duration_ms: 0,
     };
@@ -888,7 +1014,9 @@ fn rebuild_with_projection_id_success() {
 
 #[test]
 fn doctor_error_not_initialized_display() {
-    let e = DoctorError::NotInitialized { path: PathBuf::from("/myproject") };
+    let e = DoctorError::NotInitialized {
+        path: PathBuf::from("/myproject"),
+    };
     assert!(e.to_string().contains("/myproject"));
 }
 
@@ -910,10 +1038,14 @@ fn doctor_error_io_display() {
 
 #[test]
 fn lock_error_all_display_variants() {
-    let e1 = LockError::NotInitialized { path: PathBuf::from("/a") };
+    let e1 = LockError::NotInitialized {
+        path: PathBuf::from("/a"),
+    };
     assert!(e1.to_string().contains("/a"));
 
-    let e2 = LockError::NoWorkflowsDir { path: PathBuf::from("/b") };
+    let e2 = LockError::NoWorkflowsDir {
+        path: PathBuf::from("/b"),
+    };
     assert!(e2.to_string().contains("/b"));
 
     let e3 = LockError::Io {
@@ -923,10 +1055,14 @@ fn lock_error_all_display_variants() {
     };
     assert!(e3.to_string().contains("/c"));
 
-    let e4 = LockError::LockWrite { reason: "perm".into() };
+    let e4 = LockError::LockWrite {
+        reason: "perm".into(),
+    };
     assert!(e4.to_string().contains("perm"));
 
-    let e5 = LockError::Empty { path: PathBuf::from("/d") };
+    let e5 = LockError::Empty {
+        path: PathBuf::from("/d"),
+    };
     assert!(e5.to_string().contains("/d"));
 }
 
@@ -936,19 +1072,25 @@ fn lock_error_all_display_variants() {
 
 #[test]
 fn init_error_dir_not_found_display() {
-    let e = InitError::DirNotFound { path: PathBuf::from("/nope") };
+    let e = InitError::DirNotFound {
+        path: PathBuf::from("/nope"),
+    };
     assert!(e.to_string().contains("/nope"));
 }
 
 #[test]
 fn init_error_not_directory_display() {
-    let e = InitError::NotDirectory { path: PathBuf::from("/file") };
+    let e = InitError::NotDirectory {
+        path: PathBuf::from("/file"),
+    };
     assert!(e.to_string().contains("/file"));
 }
 
 #[test]
 fn init_error_already_initialized_display() {
-    let e = InitError::AlreadyInitialized { path: PathBuf::from("/has") };
+    let e = InitError::AlreadyInitialized {
+        path: PathBuf::from("/has"),
+    };
     assert!(e.to_string().contains("/has"));
 }
 
@@ -965,7 +1107,9 @@ fn init_error_permission_denied_display() {
 
 #[test]
 fn init_error_symlink_target_display() {
-    let e = InitError::SymlinkTarget { path: PathBuf::from("/link") };
+    let e = InitError::SymlinkTarget {
+        path: PathBuf::from("/link"),
+    };
     assert!(e.to_string().contains("/link"));
 }
 
@@ -975,19 +1119,25 @@ fn init_error_symlink_target_display() {
 
 #[test]
 fn check_error_file_not_found_display() {
-    let e = CheckError::FileNotFound { path: PathBuf::from("/gone") };
+    let e = CheckError::FileNotFound {
+        path: PathBuf::from("/gone"),
+    };
     assert!(e.to_string().contains("/gone"));
 }
 
 #[test]
 fn check_error_not_regular_file_display() {
-    let e = CheckError::NotRegularFile { path: PathBuf::from("/dir") };
+    let e = CheckError::NotRegularFile {
+        path: PathBuf::from("/dir"),
+    };
     assert!(e.to_string().contains("/dir"));
 }
 
 #[test]
 fn check_error_file_too_small_display() {
-    let e = CheckError::FileTooSmall { path: PathBuf::from("/tiny") };
+    let e = CheckError::FileTooSmall {
+        path: PathBuf::from("/tiny"),
+    };
     assert!(e.to_string().contains("/tiny"));
     assert!(e.to_string().contains("4 bytes"));
 }
@@ -1005,8 +1155,12 @@ fn check_error_invalid_magic_display() {
 
 #[test]
 fn check_error_partial_eq_cross_variant() {
-    let e1 = CheckError::FileNotFound { path: PathBuf::from("/a") };
-    let e2 = CheckError::NotRegularFile { path: PathBuf::from("/a") };
+    let e1 = CheckError::FileNotFound {
+        path: PathBuf::from("/a"),
+    };
+    let e2 = CheckError::NotRegularFile {
+        path: PathBuf::from("/a"),
+    };
     assert_ne!(e1, e2, "cross-variant should not be equal");
 }
 
@@ -1056,8 +1210,11 @@ fn command_context_clone_shares_metadata() {
     let ctx = CommandContext::new("test");
     let ctx2 = ctx.clone();
     ctx.set_metadata("k", "v");
-    assert_eq!(ctx2.get_metadata("k"), Some("v".into()),
-        "cloned context should share metadata Arc");
+    assert_eq!(
+        ctx2.get_metadata("k"),
+        Some("v".into()),
+        "cloned context should share metadata Arc"
+    );
 }
 
 // ============================================================
@@ -1120,7 +1277,17 @@ fn registry_names_contains_all() {
     let registry = HandlerRegistry::default();
     let names = registry.names();
     assert_eq!(names.len(), 9);
-    for name in &["purge", "check", "compensate", "gc", "init", "lock", "doctor", "rebuild", "status"] {
+    for name in &[
+        "purge",
+        "check",
+        "compensate",
+        "gc",
+        "init",
+        "lock",
+        "doctor",
+        "rebuild",
+        "status",
+    ] {
         assert!(names.contains(name), "missing handler: {name}");
     }
 }
@@ -1133,7 +1300,10 @@ fn registry_names_contains_all() {
 fn parse_gc_defaults() {
     let cli = interpret_cli_from(vec!["vo", "gc"]).expect("parse gc");
     match &cli.command {
-        Command::Gc { engine_url, dry_run } => {
+        Command::Gc {
+            engine_url,
+            dry_run,
+        } => {
             assert_eq!(engine_url, "http://localhost:3000");
             assert!(!dry_run);
         }
@@ -1146,7 +1316,10 @@ fn parse_gc_custom_engine_url() {
     let cli = interpret_cli_from(vec!["vo", "gc", "--engine-url", "http://engine:4000"])
         .expect("parse gc custom");
     match &cli.command {
-        Command::Gc { engine_url, dry_run } => {
+        Command::Gc {
+            engine_url,
+            dry_run,
+        } => {
             assert_eq!(engine_url, "http://engine:4000");
             assert!(!dry_run);
         }
@@ -1158,7 +1331,11 @@ fn parse_gc_custom_engine_url() {
 fn parse_init_all_defaults() {
     let cli = interpret_cli_from(vec!["vo", "init"]).expect("parse init");
     match &cli.command {
-        Command::Init { project_dir, engine_url, storage_path } => {
+        Command::Init {
+            project_dir,
+            engine_url,
+            storage_path,
+        } => {
             assert_eq!(*project_dir, PathBuf::from("."));
             assert_eq!(engine_url, "http://localhost:3000");
             assert_eq!(*storage_path, PathBuf::from(".vo/storage"));
@@ -1170,13 +1347,22 @@ fn parse_init_all_defaults() {
 #[test]
 fn parse_init_custom_values() {
     let cli = interpret_cli_from(vec![
-        "vo", "init",
-        "--project-dir", "/myproject",
-        "--engine-url", "http://custom:5000",
-        "--storage-path", "/data/storage",
-    ]).expect("parse init custom");
+        "vo",
+        "init",
+        "--project-dir",
+        "/myproject",
+        "--engine-url",
+        "http://custom:5000",
+        "--storage-path",
+        "/data/storage",
+    ])
+    .expect("parse init custom");
     match &cli.command {
-        Command::Init { project_dir, engine_url, storage_path } => {
+        Command::Init {
+            project_dir,
+            engine_url,
+            storage_path,
+        } => {
             assert_eq!(*project_dir, PathBuf::from("/myproject"));
             assert_eq!(engine_url, "http://custom:5000");
             assert_eq!(*storage_path, PathBuf::from("/data/storage"));
@@ -1200,7 +1386,12 @@ fn parse_doctor_default_project_dir() {
 fn parse_rebuild_defaults() {
     let cli = interpret_cli_from(vec!["vo", "rebuild"]).expect("parse rebuild");
     match &cli.command {
-        Command::Rebuild { project_dir, projection_id, list_projections, force } => {
+        Command::Rebuild {
+            project_dir,
+            projection_id,
+            list_projections,
+            force,
+        } => {
             assert_eq!(*project_dir, PathBuf::from("."));
             assert!(projection_id.is_none());
             assert!(!list_projections);
@@ -1213,13 +1404,21 @@ fn parse_rebuild_defaults() {
 #[test]
 fn parse_rebuild_with_projection_and_force() {
     let cli = interpret_cli_from(vec![
-        "vo", "rebuild",
-        "--projection-id", "my-proj",
+        "vo",
+        "rebuild",
+        "--projection-id",
+        "my-proj",
         "--force",
         "--list",
-    ]).expect("parse rebuild all flags");
+    ])
+    .expect("parse rebuild all flags");
     match &cli.command {
-        Command::Rebuild { projection_id, list_projections, force, .. } => {
+        Command::Rebuild {
+            projection_id,
+            list_projections,
+            force,
+            ..
+        } => {
             assert_eq!(projection_id.as_deref(), Some("my-proj"));
             assert!(list_projections);
             assert!(force);
@@ -1395,9 +1594,18 @@ fn category_report_warnings_iterator() {
 fn check_category_display_all() {
     assert_eq!(CheckCategory::Workspace.to_string(), "workspace");
     assert_eq!(CheckCategory::LockState.to_string(), "lock-state");
-    assert_eq!(CheckCategory::SubprocessLiveness.to_string(), "subprocess-liveness");
-    assert_eq!(CheckCategory::StorageIntegrity.to_string(), "storage-integrity");
-    assert_eq!(CheckCategory::ConfigValidation.to_string(), "config-validation");
+    assert_eq!(
+        CheckCategory::SubprocessLiveness.to_string(),
+        "subprocess-liveness"
+    );
+    assert_eq!(
+        CheckCategory::StorageIntegrity.to_string(),
+        "storage-integrity"
+    );
+    assert_eq!(
+        CheckCategory::ConfigValidation.to_string(),
+        "config-validation"
+    );
 }
 
 #[test]
@@ -1461,10 +1669,22 @@ fn format_report_json_with_errors() {
 #[test]
 fn binary_format_display_name_all_variants() {
     assert_eq!(BinaryFormat::Elf.display_name(), "valid ELF binary");
-    assert_eq!(BinaryFormat::MachO32BigEndian.display_name(), "valid Mach-O 32-bit binary");
-    assert_eq!(BinaryFormat::MachO32LittleEndian.display_name(), "valid Mach-O 32-bit binary");
-    assert_eq!(BinaryFormat::MachO64BigEndian.display_name(), "valid Mach-O 64-bit binary");
-    assert_eq!(BinaryFormat::MachO64LittleEndian.display_name(), "valid Mach-O 64-bit binary");
+    assert_eq!(
+        BinaryFormat::MachO32BigEndian.display_name(),
+        "valid Mach-O 32-bit binary"
+    );
+    assert_eq!(
+        BinaryFormat::MachO32LittleEndian.display_name(),
+        "valid Mach-O 32-bit binary"
+    );
+    assert_eq!(
+        BinaryFormat::MachO64BigEndian.display_name(),
+        "valid Mach-O 64-bit binary"
+    );
+    assert_eq!(
+        BinaryFormat::MachO64LittleEndian.display_name(),
+        "valid Mach-O 64-bit binary"
+    );
 }
 
 // ============================================================
@@ -1496,7 +1716,10 @@ fn init_idempotent_with_same_config() {
     let result1 = vo_cli::commands::init::run_init(&config);
     assert!(result1.is_ok());
     let result2 = vo_cli::commands::init::run_init(&config);
-    assert!(result2.is_ok(), "re-init with same config should be idempotent");
+    assert!(
+        result2.is_ok(),
+        "re-init with same config should be idempotent"
+    );
 }
 
 #[test]
@@ -1631,7 +1854,10 @@ fn validate_directory_rejected() {
 #[test]
 fn history_config_default() {
     let config = HistoryConfig::default();
-    assert_eq!(config.history_path, PathBuf::from(".vo/command_history.json"));
+    assert_eq!(
+        config.history_path,
+        PathBuf::from(".vo/command_history.json")
+    );
     assert_eq!(config.workflow_name, "default");
 }
 
@@ -1652,11 +1878,26 @@ fn doctor_full_pipeline_with_all_categories() {
     assert!(result.is_ok());
     let report = result.unwrap();
     assert_eq!(report.categories.len(), 5);
-    assert!(report.categories.iter().any(|c| c.category == CheckCategory::Workspace));
-    assert!(report.categories.iter().any(|c| c.category == CheckCategory::LockState));
-    assert!(report.categories.iter().any(|c| c.category == CheckCategory::SubprocessLiveness));
-    assert!(report.categories.iter().any(|c| c.category == CheckCategory::StorageIntegrity));
-    assert!(report.categories.iter().any(|c| c.category == CheckCategory::ConfigValidation));
+    assert!(report
+        .categories
+        .iter()
+        .any(|c| c.category == CheckCategory::Workspace));
+    assert!(report
+        .categories
+        .iter()
+        .any(|c| c.category == CheckCategory::LockState));
+    assert!(report
+        .categories
+        .iter()
+        .any(|c| c.category == CheckCategory::SubprocessLiveness));
+    assert!(report
+        .categories
+        .iter()
+        .any(|c| c.category == CheckCategory::StorageIntegrity));
+    assert!(report
+        .categories
+        .iter()
+        .any(|c| c.category == CheckCategory::ConfigValidation));
 }
 
 #[test]

@@ -235,11 +235,7 @@ pub trait DekStore: Send + Sync {
     ///
     /// Returns `DekStoreError::DekNotFound` if no DEK exists to rotate.
     /// Returns `DekStoreError::Storage` if the underlying storage fails.
-    fn rotate_dek(
-        &self,
-        instance_id: &InstanceId,
-        kek: &[u8; 32],
-    ) -> Result<DekId, DekStoreError>;
+    fn rotate_dek(&self, instance_id: &InstanceId, kek: &[u8; 32]) -> Result<DekId, DekStoreError>;
 
     /// Retire a DEK (crypto-shred it).
     ///

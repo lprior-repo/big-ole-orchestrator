@@ -34,7 +34,6 @@ fn sample_instance_id() -> InstanceId {
     InstanceId::from_bytes([1u8; 16])
 }
 
-
 fn sample_dedupe_key(id: &str) -> DedupeKey {
     DedupeKey::parse(id).expect("valid dedupe key")
 }

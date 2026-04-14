@@ -1,4 +1,5 @@
 #![allow(clippy::redundant_pattern_matching)]
+use sha2::Digest;
 use std::path::PathBuf;
 use vo_cli::commands::check::{validate_binary_header, BinaryFormat, CheckError};
 use vo_cli::commands::doctor::{run_doctor, DoctorConfig, DoctorError};
@@ -13,9 +14,8 @@ use vo_cli::commands::lock::{run_lock, LockConfig, LockError, LOCK_FILE_NAME};
 use vo_cli::commands::rebuild::{
     run_rebuild, RebuildConfig, RebuildError, RebuildReport, RebuildStatus,
 };
-use vo_cli::utils::{file_hash, sha256_hex};
-use sha2::Digest;
 use vo_cli::middleware::{LoggingMiddleware, MetricsMiddleware};
+use vo_cli::utils::{file_hash, sha256_hex};
 use vo_cli::{
     interpret_cli_from, map_error_to_exit_code, parse_strict_numeric, CliError, Command,
     CommandContext, CommandDispatcher, HandlerRegistry, Middleware,
@@ -130,7 +130,10 @@ fn check_workspace_detects_readonly_vo_dir() {
     std::fs::set_permissions(&vo_dir, perms).unwrap();
 
     let report = check_workspace(dir.path(), &vo_dir);
-    assert!(report.checks.iter().any(|c| c.check == "vo-dir-perms" && c.severity == Severity::Error));
+    assert!(report
+        .checks
+        .iter()
+        .any(|c| c.check == "vo-dir-perms" && c.severity == Severity::Error));
 
     let mut perms = std::fs::metadata(&vo_dir).unwrap().permissions();
     perms.set_readonly(false);
@@ -146,7 +149,11 @@ fn check_workspace_reports_binary_count() {
     std::fs::write(wf_dir.join("wf-b"), b"\x7fELF\x00").unwrap();
 
     let report = check_workspace(dir.path(), &dir.path().join(".vo"));
-    let wf_check = report.checks.iter().find(|c| c.check == "workflows-dir").unwrap();
+    let wf_check = report
+        .checks
+        .iter()
+        .find(|c| c.check == "workflows-dir")
+        .unwrap();
     assert!(wf_check.message.contains("2 binaries"));
 }
 
@@ -159,7 +166,10 @@ fn check_storage_integrity_detects_partitions() {
     std::fs::create_dir_all(storage.join("instances")).unwrap();
 
     let report = check_storage_integrity(&dir.path().join(".vo"), dir.path());
-    assert!(report.checks.iter().any(|c| c.check == "storage-partitions"));
+    assert!(report
+        .checks
+        .iter()
+        .any(|c| c.check == "storage-partitions"));
 }
 
 #[test]
@@ -190,7 +200,10 @@ fn check_subprocess_no_runtime_dir_is_info() {
     setup_project(dir.path());
     let vo_dir = dir.path().join(".vo");
     let report = check_subprocess_liveness(&vo_dir);
-    assert!(report.checks.iter().any(|c| c.check == "subprocess-liveness" && c.severity == Severity::Info));
+    assert!(report
+        .checks
+        .iter()
+        .any(|c| c.check == "subprocess-liveness" && c.severity == Severity::Info));
 }
 
 #[test]
@@ -237,7 +250,10 @@ fn check_config_validation_valid_storage_path_info() {
     let dir = tempfile::tempdir().unwrap();
     setup_project(dir.path());
     let report = check_config_validation(dir.path());
-    assert!(report.checks.iter().any(|c| c.check == "config-storage-path" && c.severity == Severity::Info));
+    assert!(report
+        .checks
+        .iter()
+        .any(|c| c.check == "config-storage-path" && c.severity == Severity::Info));
 }
 
 #[test]
@@ -247,7 +263,10 @@ fn check_lock_state_empty_lockfile_warns() {
     std::fs::write(dir.path().join(LOCK_FILE_NAME), "\n").unwrap();
 
     let report = check_lock_state(dir.path(), &dir.path().join(".vo"));
-    assert!(report.checks.iter().any(|c| c.check == "lockfile" && c.severity == Severity::Warn));
+    assert!(report
+        .checks
+        .iter()
+        .any(|c| c.check == "lockfile" && c.severity == Severity::Warn));
 }
 
 #[test]
@@ -260,7 +279,10 @@ fn check_lock_state_valid_lock_with_matching_hash() {
     std::fs::write(dir.path().join(LOCK_FILE_NAME), format!("wf1 {hash}\n")).unwrap();
 
     let report = check_lock_state(dir.path(), &dir.path().join(".vo"));
-    assert!(report.checks.iter().any(|c| c.check == "lock-integrity" && c.severity == Severity::Info));
+    assert!(report
+        .checks
+        .iter()
+        .any(|c| c.check == "lock-integrity" && c.severity == Severity::Info));
 }
 
 // ============================================================
@@ -353,10 +375,7 @@ fn gc_summary_zero_values() {
 
 #[test]
 fn parse_purge_with_special_chars_in_instance() {
-    let cli = interpret_cli_from(vec![
-        "vo", "purge", "--instance", "inst-123_456",
-    ])
-    .unwrap();
+    let cli = interpret_cli_from(vec!["vo", "purge", "--instance", "inst-123_456"]).unwrap();
     match cli.command {
         Command::Purge { instance } => assert_eq!(instance, "inst-123_456"),
         _ => panic!("expected Purge"),
@@ -384,14 +403,22 @@ fn parse_check_with_relative_path() {
 #[test]
 fn parse_init_all_custom_paths() {
     let cli = interpret_cli_from(vec![
-        "vo", "init",
-        "--project-dir", "/data/app",
-        "--engine-url", "http://prod:8080",
-        "--storage-path", "/mnt/storage/vo",
+        "vo",
+        "init",
+        "--project-dir",
+        "/data/app",
+        "--engine-url",
+        "http://prod:8080",
+        "--storage-path",
+        "/mnt/storage/vo",
     ])
     .unwrap();
     match cli.command {
-        Command::Init { project_dir, engine_url, storage_path } => {
+        Command::Init {
+            project_dir,
+            engine_url,
+            storage_path,
+        } => {
             assert_eq!(project_dir, PathBuf::from("/data/app"));
             assert_eq!(engine_url, "http://prod:8080");
             assert_eq!(storage_path, PathBuf::from("/mnt/storage/vo"));
@@ -402,10 +429,8 @@ fn parse_init_all_custom_paths() {
 
 #[test]
 fn parse_rebuild_projection_id_with_special_chars() {
-    let cli = interpret_cli_from(vec![
-        "vo", "rebuild", "--projection-id", "order-summary-v2",
-    ])
-    .unwrap();
+    let cli =
+        interpret_cli_from(vec!["vo", "rebuild", "--projection-id", "order-summary-v2"]).unwrap();
     match cli.command {
         Command::Rebuild { projection_id, .. } => {
             assert_eq!(projection_id.as_deref(), Some("order-summary-v2"));
@@ -554,7 +579,10 @@ async fn e2e_init_lock_with_three_workflows() {
     let lines: Vec<&str> = lock_content.trim().lines().collect();
     assert_eq!(lines.len(), 3);
 
-    let names: Vec<&str> = lines.iter().map(|l| l.split_whitespace().next().unwrap()).collect();
+    let names: Vec<&str> = lines
+        .iter()
+        .map(|l| l.split_whitespace().next().unwrap())
+        .collect();
     assert_eq!(names, vec!["alpha", "beta", "gamma"]);
 }
 
@@ -587,10 +615,8 @@ async fn e2e_rebuild_list_after_init() {
     let init_cli = interpret_cli_from(vec!["vo", "init", "--project-dir", path]).unwrap();
     vo_cli::dispatch(init_cli).await.unwrap();
 
-    let rebuild_cli = interpret_cli_from(vec![
-        "vo", "rebuild", "--project-dir", path, "--list",
-    ])
-    .unwrap();
+    let rebuild_cli =
+        interpret_cli_from(vec!["vo", "rebuild", "--project-dir", path, "--list"]).unwrap();
     let result = vo_cli::dispatch(rebuild_cli).await;
     assert!(result.is_ok());
 }
@@ -601,10 +627,7 @@ async fn e2e_check_macho_64le_binary() {
     let bin_path = dir.path().join("macho.bin");
     std::fs::write(&bin_path, [0xCF, 0xFA, 0xED, 0xFE, 0x00]).unwrap();
 
-    let cli = interpret_cli_from(vec![
-        "vo", "check", bin_path.to_str().unwrap(),
-    ])
-    .unwrap();
+    let cli = interpret_cli_from(vec!["vo", "check", bin_path.to_str().unwrap()]).unwrap();
     let result = vo_cli::dispatch(cli).await;
     assert!(result.is_ok());
 }
@@ -615,10 +638,7 @@ async fn e2e_check_macho_64be_binary() {
     let bin_path = dir.path().join("macho_be.bin");
     std::fs::write(&bin_path, [0xFE, 0xED, 0xFA, 0xCF, 0x00]).unwrap();
 
-    let cli = interpret_cli_from(vec![
-        "vo", "check", bin_path.to_str().unwrap(),
-    ])
-    .unwrap();
+    let cli = interpret_cli_from(vec!["vo", "check", bin_path.to_str().unwrap()]).unwrap();
     let result = vo_cli::dispatch(cli).await;
     assert!(result.is_ok());
 }
@@ -640,7 +660,10 @@ fn validate_macho_32le_magic_direct() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("m32le");
     std::fs::write(&path, [0xCE, 0xFA, 0xED, 0xFE]).unwrap();
-    assert_eq!(validate_binary_header(&path), Ok(BinaryFormat::MachO32LittleEndian));
+    assert_eq!(
+        validate_binary_header(&path),
+        Ok(BinaryFormat::MachO32LittleEndian)
+    );
 }
 
 #[test]
@@ -648,7 +671,10 @@ fn validate_macho_32be_magic_direct() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("m32be");
     std::fs::write(&path, [0xFE, 0xED, 0xFA, 0xCE]).unwrap();
-    assert_eq!(validate_binary_header(&path), Ok(BinaryFormat::MachO32BigEndian));
+    assert_eq!(
+        validate_binary_header(&path),
+        Ok(BinaryFormat::MachO32BigEndian)
+    );
 }
 
 // ============================================================
@@ -662,7 +688,10 @@ fn command_context_metadata_many_keys() {
         ctx.set_metadata(format!("key{i}"), format!("val{i}"));
     }
     for i in 0..10 {
-        assert_eq!(ctx.get_metadata(&format!("key{i}")), Some(format!("val{i}")));
+        assert_eq!(
+            ctx.get_metadata(&format!("key{i}")),
+            Some(format!("val{i}"))
+        );
     }
 }
 
@@ -672,7 +701,10 @@ fn command_context_metadata_many_keys() {
 
 #[test]
 fn parse_strict_numeric_accepts_large_u64() {
-    assert_eq!(parse_strict_numeric("18446744073709551615").unwrap(), u64::MAX);
+    assert_eq!(
+        parse_strict_numeric("18446744073709551615").unwrap(),
+        u64::MAX
+    );
 }
 
 #[test]
@@ -729,15 +761,23 @@ fn check_error_partial_eq_different_invalid_magic() {
 
 #[test]
 fn check_error_partial_eq_file_too_small_same_path() {
-    let e1 = CheckError::FileTooSmall { path: PathBuf::from("/a") };
-    let e2 = CheckError::FileTooSmall { path: PathBuf::from("/a") };
+    let e1 = CheckError::FileTooSmall {
+        path: PathBuf::from("/a"),
+    };
+    let e2 = CheckError::FileTooSmall {
+        path: PathBuf::from("/a"),
+    };
     assert_eq!(e1, e2);
 }
 
 #[test]
 fn check_error_partial_eq_permission_denied_same_path() {
-    let e1 = CheckError::PermissionDenied { path: PathBuf::from("/a") };
-    let e2 = CheckError::PermissionDenied { path: PathBuf::from("/a") };
+    let e1 = CheckError::PermissionDenied {
+        path: PathBuf::from("/a"),
+    };
+    let e2 = CheckError::PermissionDenied {
+        path: PathBuf::from("/a"),
+    };
     assert_eq!(e1, e2);
 }
 
@@ -771,7 +811,10 @@ fn init_config_toml_has_correct_sections() {
     let table: toml::Table = content.parse().unwrap();
     assert!(table.contains_key("engine"));
     assert!(table.contains_key("storage"));
-    assert_eq!(table["engine"]["url"].as_str().unwrap(), "http://custom:9999");
+    assert_eq!(
+        table["engine"]["url"].as_str().unwrap(),
+        "http://custom:9999"
+    );
     assert_eq!(table["storage"]["path"].as_str().unwrap(), "/data/vo");
 }
 
@@ -847,22 +890,54 @@ fn doctor_with_valid_project_is_healthy() {
 #[test]
 fn command_all_variants_debug_format() {
     let variants = vec![
-        format!("{:?}", Command::Purge { instance: "test".into() }),
-        format!("{:?}", Command::Check { path: PathBuf::from("/tmp") }),
-        format!("{:?}", Command::Gc { engine_url: "u".into(), dry_run: false }),
-        format!("{:?}", Command::Init {
-            project_dir: PathBuf::from("."),
-            engine_url: "u".into(),
-            storage_path: PathBuf::from("s"),
-        }),
-        format!("{:?}", Command::Lock { project_dir: PathBuf::from(".") }),
-        format!("{:?}", Command::Doctor { project_dir: PathBuf::from(".") }),
-        format!("{:?}", Command::Rebuild {
-            project_dir: PathBuf::from("."),
-            projection_id: None,
-            list_projections: false,
-            force: false,
-        }),
+        format!(
+            "{:?}",
+            Command::Purge {
+                instance: "test".into()
+            }
+        ),
+        format!(
+            "{:?}",
+            Command::Check {
+                path: PathBuf::from("/tmp")
+            }
+        ),
+        format!(
+            "{:?}",
+            Command::Gc {
+                engine_url: "u".into(),
+                dry_run: false
+            }
+        ),
+        format!(
+            "{:?}",
+            Command::Init {
+                project_dir: PathBuf::from("."),
+                engine_url: "u".into(),
+                storage_path: PathBuf::from("s"),
+            }
+        ),
+        format!(
+            "{:?}",
+            Command::Lock {
+                project_dir: PathBuf::from(".")
+            }
+        ),
+        format!(
+            "{:?}",
+            Command::Doctor {
+                project_dir: PathBuf::from(".")
+            }
+        ),
+        format!(
+            "{:?}",
+            Command::Rebuild {
+                project_dir: PathBuf::from("."),
+                projection_id: None,
+                list_projections: false,
+                force: false,
+            }
+        ),
     ];
     assert_eq!(variants.len(), 7);
     for v in &variants {

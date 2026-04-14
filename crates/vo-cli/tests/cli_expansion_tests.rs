@@ -1,17 +1,15 @@
 #![allow(clippy::redundant_pattern_matching)]
 use std::path::PathBuf;
-use vo_cli::{
-    interpret_cli_from, map_error_to_exit_code, parse_strict_numeric, CliError, Command,
-};
 use vo_cli::commands::check::{BinaryFormat, CheckError};
-use vo_cli::commands::gc::GcError;
-use vo_cli::commands::init::{InitConfig, InitError};
-use vo_cli::commands::lock::LockError;
 use vo_cli::commands::doctor::DoctorError;
 use vo_cli::commands::doctor_checks::{
     format_report, format_report_json, CategoryReport, CheckCategory, CheckResult, DoctorReport,
     Severity,
 };
+use vo_cli::commands::gc::GcError;
+use vo_cli::commands::init::{InitConfig, InitError};
+use vo_cli::commands::lock::LockError;
+use vo_cli::{interpret_cli_from, map_error_to_exit_code, parse_strict_numeric, CliError, Command};
 
 fn setup_project(dir: &std::path::Path) {
     let vo_dir = dir.join(".vo");
@@ -85,8 +83,7 @@ fn parse_doctor_defaults_project_dir_is_dot() {
 
 #[test]
 fn parse_check_with_special_chars_in_path() {
-    let cli = interpret_cli_from(vec!["vo", "check", "/tmp/test@#$/bin"])
-        .expect("parse");
+    let cli = interpret_cli_from(vec!["vo", "check", "/tmp/test@#$/bin"]).expect("parse");
     match cli.command {
         Command::Check { path } => {
             assert_eq!(path, PathBuf::from("/tmp/test@#$/bin"));
@@ -268,8 +265,8 @@ fn gc_flags_only_dry_run() {
 
 #[test]
 fn gc_flags_only_engine_url() {
-    let cli = interpret_cli_from(vec!["vo", "gc", "--engine-url", "http://custom:9090"])
-        .expect("parse");
+    let cli =
+        interpret_cli_from(vec!["vo", "gc", "--engine-url", "http://custom:9090"]).expect("parse");
     match cli.command {
         Command::Gc {
             engine_url,
@@ -326,8 +323,7 @@ fn init_flags_all_custom() {
 
 #[test]
 fn init_flags_partial_project_dir_only() {
-    let cli = interpret_cli_from(vec!["vo", "init", "--project-dir", "/my/proj"])
-        .expect("parse");
+    let cli = interpret_cli_from(vec!["vo", "init", "--project-dir", "/my/proj"]).expect("parse");
     match cli.command {
         Command::Init {
             project_dir,
@@ -362,8 +358,7 @@ fn init_flags_partial_engine_url_only() {
 
 #[test]
 fn init_flags_partial_storage_path_only() {
-    let cli = interpret_cli_from(vec!["vo", "init", "--storage-path", "/data/vo"])
-        .expect("parse");
+    let cli = interpret_cli_from(vec!["vo", "init", "--storage-path", "/data/vo"]).expect("parse");
     match cli.command {
         Command::Init {
             project_dir,
@@ -642,21 +637,29 @@ fn doctor_report_format_contains_category_names() {
     assert!(stdout.contains("[config-validation]"));
 }
 
-fn make_cat(category: CheckCategory, checks: Vec<(&'static str, Severity, String)>) -> CategoryReport {
+fn make_cat(
+    category: CheckCategory,
+    checks: Vec<(&'static str, Severity, String)>,
+) -> CategoryReport {
     CategoryReport {
         category,
         checks: checks
             .into_iter()
-            .map(|(check, severity, message)| CheckResult { check, severity, message })
+            .map(|(check, severity, message)| CheckResult {
+                check,
+                severity,
+                message,
+            })
             .collect(),
     }
 }
 
 #[test]
 fn doctor_report_format_info_uses_checkmark() {
-    let cat = make_cat(CheckCategory::Workspace, vec![
-        ("test-check", Severity::Info, "all good".into()),
-    ]);
+    let cat = make_cat(
+        CheckCategory::Workspace,
+        vec![("test-check", Severity::Info, "all good".into())],
+    );
     let report = DoctorReport {
         project_dir: PathBuf::from("/tmp"),
         categories: vec![cat],
@@ -669,9 +672,10 @@ fn doctor_report_format_info_uses_checkmark() {
 
 #[test]
 fn doctor_report_format_error_uses_cross() {
-    let cat = make_cat(CheckCategory::Workspace, vec![
-        ("bad-check", Severity::Error, "something broke".into()),
-    ]);
+    let cat = make_cat(
+        CheckCategory::Workspace,
+        vec![("bad-check", Severity::Error, "something broke".into())],
+    );
     let report = DoctorReport {
         project_dir: PathBuf::from("/tmp"),
         categories: vec![cat],
@@ -684,9 +688,10 @@ fn doctor_report_format_error_uses_cross() {
 
 #[test]
 fn doctor_report_format_warn_uses_warning_icon() {
-    let cat = make_cat(CheckCategory::Workspace, vec![
-        ("warn-check", Severity::Warn, "be careful".into()),
-    ]);
+    let cat = make_cat(
+        CheckCategory::Workspace,
+        vec![("warn-check", Severity::Warn, "be careful".into())],
+    );
     let report = DoctorReport {
         project_dir: PathBuf::from("/tmp"),
         categories: vec![cat],
@@ -708,10 +713,13 @@ fn doctor_report_format_healthy_summary() {
 
 #[test]
 fn doctor_report_format_unhealthy_shows_error_count() {
-    let cat = make_cat(CheckCategory::Workspace, vec![
-        ("e1", Severity::Error, "err1".into()),
-        ("e2", Severity::Error, "err2".into()),
-    ]);
+    let cat = make_cat(
+        CheckCategory::Workspace,
+        vec![
+            ("e1", Severity::Error, "err1".into()),
+            ("e2", Severity::Error, "err2".into()),
+        ],
+    );
     let report = DoctorReport {
         project_dir: PathBuf::from("/tmp"),
         categories: vec![cat],
@@ -722,9 +730,10 @@ fn doctor_report_format_unhealthy_shows_error_count() {
 
 #[test]
 fn doctor_report_json_structure() {
-    let cat = make_cat(CheckCategory::Workspace, vec![
-        ("check1", Severity::Info, "ok".into()),
-    ]);
+    let cat = make_cat(
+        CheckCategory::Workspace,
+        vec![("check1", Severity::Info, "ok".into())],
+    );
     let report = DoctorReport {
         project_dir: PathBuf::from("/tmp/json-test"),
         categories: vec![cat],
@@ -751,11 +760,14 @@ fn doctor_report_json_structure() {
 
 #[test]
 fn doctor_report_json_severity_mapping() {
-    let cat = make_cat(CheckCategory::Workspace, vec![
-        ("i", Severity::Info, "info msg".into()),
-        ("w", Severity::Warn, "warn msg".into()),
-        ("e", Severity::Error, "error msg".into()),
-    ]);
+    let cat = make_cat(
+        CheckCategory::Workspace,
+        vec![
+            ("i", Severity::Info, "info msg".into()),
+            ("w", Severity::Warn, "warn msg".into()),
+            ("e", Severity::Error, "error msg".into()),
+        ],
+    );
     let report = DoctorReport {
         project_dir: PathBuf::from("/tmp"),
         categories: vec![cat],
@@ -796,28 +808,35 @@ fn severity_ordering_invariant() {
 
 #[test]
 fn category_report_is_healthy_only_info_and_warn() {
-    let cat = make_cat(CheckCategory::Workspace, vec![
-        ("i", Severity::Info, "ok".into()),
-        ("w", Severity::Warn, "careful".into()),
-    ]);
+    let cat = make_cat(
+        CheckCategory::Workspace,
+        vec![
+            ("i", Severity::Info, "ok".into()),
+            ("w", Severity::Warn, "careful".into()),
+        ],
+    );
     assert!(cat.is_healthy());
 }
 
 #[test]
 fn category_report_not_healthy_with_error() {
-    let cat = make_cat(CheckCategory::Workspace, vec![
-        ("e", Severity::Error, "bad".into()),
-    ]);
+    let cat = make_cat(
+        CheckCategory::Workspace,
+        vec![("e", Severity::Error, "bad".into())],
+    );
     assert!(!cat.is_healthy());
 }
 
 #[test]
 fn category_report_warnings_iterator() {
-    let cat = make_cat(CheckCategory::Workspace, vec![
-        ("i", Severity::Info, "ok".into()),
-        ("w1", Severity::Warn, "warn1".into()),
-        ("w2", Severity::Warn, "warn2".into()),
-    ]);
+    let cat = make_cat(
+        CheckCategory::Workspace,
+        vec![
+            ("i", Severity::Info, "ok".into()),
+            ("w1", Severity::Warn, "warn1".into()),
+            ("w2", Severity::Warn, "warn2".into()),
+        ],
+    );
     let warns: Vec<_> = cat.warnings().collect();
     assert_eq!(warns.len(), 2);
 }
@@ -844,10 +863,7 @@ fn init_creates_valid_toml_config() {
         table["engine"]["url"].as_str().unwrap(),
         "http://engine:4000"
     );
-    assert_eq!(
-        table["storage"]["path"].as_str().unwrap(),
-        "/data/vo"
-    );
+    assert_eq!(table["storage"]["path"].as_str().unwrap(), "/data/vo");
 }
 
 #[test]
@@ -953,8 +969,11 @@ fn doctor_detects_invalid_toml() {
 fn doctor_detects_missing_engine_section() {
     let dir = tempfile::tempdir().expect("tempdir");
     std::fs::create_dir_all(dir.path().join(".vo")).expect("mkdir");
-    std::fs::write(dir.path().join("config.toml"), "[storage]\npath = \".vo/storage\"\n")
-        .expect("write");
+    std::fs::write(
+        dir.path().join("config.toml"),
+        "[storage]\npath = \".vo/storage\"\n",
+    )
+    .expect("write");
 
     let report = vo_cli::commands::doctor::run_doctor(&vo_cli::commands::doctor::DoctorConfig {
         project_dir: dir.path().to_path_buf(),
@@ -1027,8 +1046,7 @@ async fn e2e_init_creates_vo_dir_and_config() {
     let dir = tempfile::tempdir().expect("tempdir");
     let path = dir.path().to_str().expect("path");
 
-    let cli =
-        interpret_cli_from(vec!["vo", "init", "--project-dir", path]).expect("parse");
+    let cli = interpret_cli_from(vec!["vo", "init", "--project-dir", path]).expect("parse");
     let result = vo_cli::dispatch(cli).await;
     assert!(result.is_ok());
 
@@ -1046,12 +1064,10 @@ async fn e2e_init_then_lock_empty_workflows_fails() {
     let dir = tempfile::tempdir().expect("tempdir");
     let path = dir.path().to_str().expect("path");
 
-    let init_cli =
-        interpret_cli_from(vec!["vo", "init", "--project-dir", path]).expect("parse");
+    let init_cli = interpret_cli_from(vec!["vo", "init", "--project-dir", path]).expect("parse");
     vo_cli::dispatch(init_cli).await.expect("init");
 
-    let lock_cli =
-        interpret_cli_from(vec!["vo", "lock", "--project-dir", path]).expect("parse");
+    let lock_cli = interpret_cli_from(vec!["vo", "lock", "--project-dir", path]).expect("parse");
     let result = vo_cli::dispatch(lock_cli).await;
     assert!(result.is_err());
 }
@@ -1061,8 +1077,7 @@ async fn e2e_init_lock_doctor_full_pipeline() {
     let dir = tempfile::tempdir().expect("tempdir");
     let path = dir.path().to_str().expect("path");
 
-    let init_cli =
-        interpret_cli_from(vec!["vo", "init", "--project-dir", path]).expect("parse");
+    let init_cli = interpret_cli_from(vec!["vo", "init", "--project-dir", path]).expect("parse");
     vo_cli::dispatch(init_cli).await.expect("init");
 
     std::fs::write(
@@ -1071,8 +1086,7 @@ async fn e2e_init_lock_doctor_full_pipeline() {
     )
     .expect("write workflow binary");
 
-    let lock_cli =
-        interpret_cli_from(vec!["vo", "lock", "--project-dir", path]).expect("parse");
+    let lock_cli = interpret_cli_from(vec!["vo", "lock", "--project-dir", path]).expect("parse");
     vo_cli::dispatch(lock_cli).await.expect("lock");
 
     assert!(dir.path().join("vo.lock").exists());
@@ -1089,20 +1103,16 @@ async fn e2e_check_valid_elf_binary() {
     let bin_path = dir.path().join("test.bin");
     std::fs::write(&bin_path, [0x7F, 0x45, 0x4C, 0x46, 0x00]).expect("write");
 
-    let cli = interpret_cli_from(vec![
-        "vo",
-        "check",
-        bin_path.to_str().expect("path"),
-    ])
-    .expect("parse");
+    let cli =
+        interpret_cli_from(vec!["vo", "check", bin_path.to_str().expect("path")]).expect("parse");
     let result = vo_cli::dispatch(cli).await;
     assert!(result.is_ok());
 }
 
 #[tokio::test]
 async fn e2e_check_nonexistent_file_returns_error() {
-    let cli = interpret_cli_from(vec!["vo", "check", "/tmp/no-such-file-vo-test-xyz"])
-        .expect("parse");
+    let cli =
+        interpret_cli_from(vec!["vo", "check", "/tmp/no-such-file-vo-test-xyz"]).expect("parse");
     let result = vo_cli::dispatch(cli).await;
     assert!(result.is_err());
     let code = map_error_to_exit_code(result.as_ref().expect_err("err"));
@@ -1160,12 +1170,8 @@ async fn e2e_doctor_without_init_fails() {
 #[tokio::test]
 async fn e2e_check_directory_fails() {
     let dir = tempfile::tempdir().expect("tempdir");
-    let cli = interpret_cli_from(vec![
-        "vo",
-        "check",
-        dir.path().to_str().expect("path"),
-    ])
-    .expect("parse");
+    let cli =
+        interpret_cli_from(vec!["vo", "check", dir.path().to_str().expect("path")]).expect("parse");
     let result = vo_cli::dispatch(cli).await;
     assert!(result.is_err());
 }
@@ -1178,8 +1184,7 @@ async fn e2e_check_symlink_fails() {
     let link = dir.path().join("link.bin");
     std::os::unix::fs::symlink(&real, &link).expect("symlink");
 
-    let cli =
-        interpret_cli_from(vec!["vo", "check", link.to_str().expect("path")]).expect("parse");
+    let cli = interpret_cli_from(vec!["vo", "check", link.to_str().expect("path")]).expect("parse");
     let result = vo_cli::dispatch(cli).await;
     assert!(result.is_err());
 }
@@ -1399,8 +1404,5 @@ fn exit_code_doctor_error_is_1() {
 
 #[test]
 fn exit_code_dispatch_error_is_1() {
-    assert_eq!(
-        map_error_to_exit_code(&CliError::Dispatch("err".into())),
-        1
-    );
+    assert_eq!(map_error_to_exit_code(&CliError::Dispatch("err".into())), 1);
 }

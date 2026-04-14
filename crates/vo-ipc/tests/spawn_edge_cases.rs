@@ -160,10 +160,7 @@ async fn spawn_child_reaped_after_timeout_kill() {
     let script = dir.path().join("pid_sleep.sh");
     std::fs::write(
         &script,
-        format!(
-            "#!/bin/sh\necho $$ > {}\nsleep 60\n",
-            pid_path.display()
-        ),
+        format!("#!/bin/sh\necho $$ > {}\nsleep 60\n", pid_path.display()),
     )
     .unwrap();
     make_executable(&script);
@@ -207,7 +204,10 @@ async fn spawn_two_concurrent_spawns_both_complete() {
     );
 
     assert!(r1.unwrap().is_ok(), "first concurrent spawn should succeed");
-    assert!(r2.unwrap().is_ok(), "second concurrent spawn should succeed");
+    assert!(
+        r2.unwrap().is_ok(),
+        "second concurrent spawn should succeed"
+    );
 }
 
 // ========================================================================
@@ -283,7 +283,11 @@ async fn spawn_many_sequential_spawns_dont_leak_fds() {
     for _ in 0..50 {
         let config = SubprocessConfig::new(&script, 2000, vec![]).unwrap();
         let result = run_subprocess(config).await;
-        assert!(result.is_ok(), "sequential spawn should succeed: {:?}", result);
+        assert!(
+            result.is_ok(),
+            "sequential spawn should succeed: {:?}",
+            result
+        );
     }
 }
 
@@ -299,10 +303,7 @@ async fn spawn_process_group_kill_reaps_child() {
     let script = dir.path().join("pgid_sleeper.sh");
     std::fs::write(
         &script,
-        format!(
-            "#!/bin/sh\necho $$ > {}\nsleep 60\n",
-            pid_path.display()
-        ),
+        format!("#!/bin/sh\necho $$ > {}\nsleep 60\n", pid_path.display()),
     )
     .unwrap();
     let mut perms = std::fs::metadata(&script).unwrap().permissions();
@@ -414,7 +415,11 @@ async fn spawn_child_stderr_flood_doesnt_hang() {
     let dir = tempdir().unwrap();
     let script = dir.path().join("stderr_flood.sh");
     // Generate 100KB of stderr output then exit
-    std::fs::write(&script, "#!/bin/sh\ndd if=/dev/zero bs=1000 count=100 2>/dev/null | tr '\\0' 'x' >&2\nexit 0\n").unwrap();
+    std::fs::write(
+        &script,
+        "#!/bin/sh\ndd if=/dev/zero bs=1000 count=100 2>/dev/null | tr '\\0' 'x' >&2\nexit 0\n",
+    )
+    .unwrap();
     let mut perms = std::fs::metadata(&script).unwrap().permissions();
     perms.set_mode(0o755);
     std::fs::set_permissions(&script, perms).unwrap();

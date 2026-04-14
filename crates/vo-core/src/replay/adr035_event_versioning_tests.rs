@@ -33,10 +33,7 @@ impl Upcaster for Version0To1Upcaster {
     fn target_version(&self) -> u8 {
         1
     }
-    fn upcast(
-        &self,
-        input: &serde_json::Value,
-    ) -> Result<serde_json::Value, VoUpcasterError> {
+    fn upcast(&self, input: &serde_json::Value) -> Result<serde_json::Value, VoUpcasterError> {
         let mut value = input.clone();
         value["version"] = serde_json::json!(1);
         if let Some(obj) = value["payload"].as_object_mut() {
@@ -64,10 +61,7 @@ impl Upcaster for PassthroughUpcaster {
     fn target_version(&self) -> u8 {
         self.to
     }
-    fn upcast(
-        &self,
-        input: &serde_json::Value,
-    ) -> Result<serde_json::Value, VoUpcasterError> {
+    fn upcast(&self, input: &serde_json::Value) -> Result<serde_json::Value, VoUpcasterError> {
         let mut value = input.clone();
         value["version"] = serde_json::json!(self.to);
         if let Some(obj) = value["payload"].as_object_mut() {
@@ -553,10 +547,7 @@ fn upcast_envelope_detects_circular_chain() {
         fn target_version(&self) -> u8 {
             1
         }
-        fn upcast(
-            &self,
-            input: &serde_json::Value,
-        ) -> Result<serde_json::Value, VoUpcasterError> {
+        fn upcast(&self, input: &serde_json::Value) -> Result<serde_json::Value, VoUpcasterError> {
             let mut value = input.clone();
             value["version"] = serde_json::json!(0);
             Ok(value)

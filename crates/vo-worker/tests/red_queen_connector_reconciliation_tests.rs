@@ -9,13 +9,12 @@
 //! These tests attack the contracts from the other side — they verify that
 //! the system fails (or succeeds) correctly under adversarial conditions.
 
+use async_trait::async_trait;
 use std::sync::LazyLock;
 use std::sync::Mutex;
 use std::sync::MutexGuard;
-use async_trait::async_trait;
 use vo_worker::{
-    CommitOutcome, Connector, ConnectorError, PreparedEffect, ReconcileOutcome,
-    ConnectorRegistry,
+    CommitOutcome, Connector, ConnectorError, ConnectorRegistry, PreparedEffect, ReconcileOutcome,
 };
 
 static STATE_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
@@ -41,12 +40,21 @@ impl AmbiguousAfterTimeoutConnector {
 
 #[async_trait]
 impl Connector for AmbiguousAfterTimeoutConnector {
-    fn connector_type(&self) -> &str { "ambiguous-timeout" }
-    fn connector_version(&self) -> &str { "0.1.0" }
-    fn supports_compensation(&self) -> bool { false }
+    fn connector_type(&self) -> &str {
+        "ambiguous-timeout"
+    }
+    fn connector_version(&self) -> &str {
+        "0.1.0"
+    }
+    fn supports_compensation(&self) -> bool {
+        false
+    }
 
     async fn prepare(
-        &self, _intent: serde_json::Value, effect_id: String, fence: u64,
+        &self,
+        _intent: serde_json::Value,
+        effect_id: String,
+        fence: u64,
     ) -> Result<PreparedEffect, ConnectorError> {
         Ok(PreparedEffect {
             effect_id,
@@ -55,20 +63,20 @@ impl Connector for AmbiguousAfterTimeoutConnector {
         })
     }
 
-    async fn commit(
-        &self, _prepared: PreparedEffect,
-    ) -> Result<CommitOutcome, ConnectorError> {
-        let count = self.call_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    async fn commit(&self, _prepared: PreparedEffect) -> Result<CommitOutcome, ConnectorError> {
+        let count = self
+            .call_count
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         if count >= self.timeout_threshold {
             Ok(CommitOutcome::Ambiguous)
         } else {
-            Ok(CommitOutcome::Committed { receipt: format!("receipt-{}", count) })
+            Ok(CommitOutcome::Committed {
+                receipt: format!("receipt-{}", count),
+            })
         }
     }
 
-    async fn reconcile(
-        &self, effect_id: &str,
-    ) -> Result<ReconcileOutcome, ConnectorError> {
+    async fn reconcile(&self, effect_id: &str) -> Result<ReconcileOutcome, ConnectorError> {
         let count = self.call_count.load(std::sync::atomic::Ordering::SeqCst);
         if count >= self.timeout_threshold {
             Ok(ReconcileOutcome::StillAmbiguous)
@@ -86,12 +94,21 @@ struct ReconciliationFailingConnector {
 
 #[async_trait]
 impl Connector for ReconciliationFailingConnector {
-    fn connector_type(&self) -> &str { "fail-reconcile" }
-    fn connector_version(&self) -> &str { "0.1.0" }
-    fn supports_compensation(&self) -> bool { false }
+    fn connector_type(&self) -> &str {
+        "fail-reconcile"
+    }
+    fn connector_version(&self) -> &str {
+        "0.1.0"
+    }
+    fn supports_compensation(&self) -> bool {
+        false
+    }
 
     async fn prepare(
-        &self, _intent: serde_json::Value, effect_id: String, fence: u64,
+        &self,
+        _intent: serde_json::Value,
+        effect_id: String,
+        fence: u64,
     ) -> Result<PreparedEffect, ConnectorError> {
         Ok(PreparedEffect {
             effect_id,
@@ -100,15 +117,13 @@ impl Connector for ReconciliationFailingConnector {
         })
     }
 
-    async fn commit(
-        &self, _prepared: PreparedEffect,
-    ) -> Result<CommitOutcome, ConnectorError> {
-        Ok(CommitOutcome::Committed { receipt: "ok".into() })
+    async fn commit(&self, _prepared: PreparedEffect) -> Result<CommitOutcome, ConnectorError> {
+        Ok(CommitOutcome::Committed {
+            receipt: "ok".into(),
+        })
     }
 
-    async fn reconcile(
-        &self, _effect_id: &str,
-    ) -> Result<ReconcileOutcome, ConnectorError> {
+    async fn reconcile(&self, _effect_id: &str) -> Result<ReconcileOutcome, ConnectorError> {
         if self.fail_reconcile {
             Err(ConnectorError::retryable("reconciliation query failed"))
         } else {
@@ -131,12 +146,21 @@ impl IdempotencyKeyCollisionConnector {
 
 #[async_trait]
 impl Connector for IdempotencyKeyCollisionConnector {
-    fn connector_type(&self) -> &str { "idempotency-collision" }
-    fn connector_version(&self) -> &str { "0.1.0" }
-    fn supports_compensation(&self) -> bool { false }
+    fn connector_type(&self) -> &str {
+        "idempotency-collision"
+    }
+    fn connector_version(&self) -> &str {
+        "0.1.0"
+    }
+    fn supports_compensation(&self) -> bool {
+        false
+    }
 
     async fn prepare(
-        &self, _intent: serde_json::Value, effect_id: String, fence: u64,
+        &self,
+        _intent: serde_json::Value,
+        effect_id: String,
+        fence: u64,
     ) -> Result<PreparedEffect, ConnectorError> {
         let key = format!("{}:{}", effect_id, fence);
         let mut keys = self.seen_keys.lock().unwrap();
@@ -156,10 +180,13 @@ impl Connector for IdempotencyKeyCollisionConnector {
         }
     }
 
-    async fn commit(
-        &self, prepared: PreparedEffect,
-    ) -> Result<CommitOutcome, ConnectorError> {
-        if prepared.payload.get("collision").and_then(|v| v.as_bool()).unwrap_or(false) {
+    async fn commit(&self, prepared: PreparedEffect) -> Result<CommitOutcome, ConnectorError> {
+        if prepared
+            .payload
+            .get("collision")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false)
+        {
             Ok(CommitOutcome::Ambiguous)
         } else {
             Ok(CommitOutcome::Committed {
@@ -168,9 +195,7 @@ impl Connector for IdempotencyKeyCollisionConnector {
         }
     }
 
-    async fn reconcile(
-        &self, effect_id: &str,
-    ) -> Result<ReconcileOutcome, ConnectorError> {
+    async fn reconcile(&self, effect_id: &str) -> Result<ReconcileOutcome, ConnectorError> {
         Ok(ReconcileOutcome::StillAmbiguous)
     }
 }
@@ -191,12 +216,21 @@ impl ConcurrentReconciliationConnector {
 
 #[async_trait]
 impl Connector for ConcurrentReconciliationConnector {
-    fn connector_type(&self) -> &str { "concurrent-reconcile" }
-    fn connector_version(&self) -> &str { "0.1.0" }
-    fn supports_compensation(&self) -> bool { false }
+    fn connector_type(&self) -> &str {
+        "concurrent-reconcile"
+    }
+    fn connector_version(&self) -> &str {
+        "0.1.0"
+    }
+    fn supports_compensation(&self) -> bool {
+        false
+    }
 
     async fn prepare(
-        &self, _intent: serde_json::Value, effect_id: String, fence: u64,
+        &self,
+        _intent: serde_json::Value,
+        effect_id: String,
+        fence: u64,
     ) -> Result<PreparedEffect, ConnectorError> {
         Ok(PreparedEffect {
             effect_id,
@@ -205,18 +239,19 @@ impl Connector for ConcurrentReconciliationConnector {
         })
     }
 
-    async fn commit(
-        &self, _prepared: PreparedEffect,
-    ) -> Result<CommitOutcome, ConnectorError> {
-        Ok(CommitOutcome::Committed { receipt: "ok".into() })
+    async fn commit(&self, _prepared: PreparedEffect) -> Result<CommitOutcome, ConnectorError> {
+        Ok(CommitOutcome::Committed {
+            receipt: "ok".into(),
+        })
     }
 
-    async fn reconcile(
-        &self, effect_id: &str,
-    ) -> Result<ReconcileOutcome, ConnectorError> {
-        let current = self.active_reconciles.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    async fn reconcile(&self, effect_id: &str) -> Result<ReconcileOutcome, ConnectorError> {
+        let current = self
+            .active_reconciles
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         tokio::task::yield_now().await;
-        self.active_reconciles.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+        self.active_reconciles
+            .fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
 
         if current >= self.max_concurrent {
             Ok(ReconcileOutcome::StillAmbiguous)
@@ -271,7 +306,10 @@ mod red_queen_ambiguous_timeout_tests {
         let _ = connector.commit(pe).await.unwrap();
 
         let reconcile_outcome = connector.reconcile("fx-1").await.unwrap();
-        assert!(matches!(reconcile_outcome, ReconcileOutcome::StillAmbiguous));
+        assert!(matches!(
+            reconcile_outcome,
+            ReconcileOutcome::StillAmbiguous
+        ));
     }
 
     #[tokio::test]
@@ -317,7 +355,9 @@ mod red_queen_reconciliation_failure_tests {
     #[tokio::test]
     async fn reconcile_failure_returns_retryable_error() {
         let _guard = state_guard();
-        let connector = ReconciliationFailingConnector { fail_reconcile: true };
+        let connector = ReconciliationFailingConnector {
+            fail_reconcile: true,
+        };
 
         let result = connector.reconcile("fx-1").await;
         assert!(result.is_err());
@@ -329,7 +369,9 @@ mod red_queen_reconciliation_failure_tests {
     #[tokio::test]
     async fn reconcile_success_returns_not_committed() {
         let _guard = state_guard();
-        let connector = ReconciliationFailingConnector { fail_reconcile: false };
+        let connector = ReconciliationFailingConnector {
+            fail_reconcile: false,
+        };
 
         let outcome = connector.reconcile("fx-1").await.unwrap();
         assert!(matches!(outcome, ReconcileOutcome::NotCommitted));
@@ -338,7 +380,9 @@ mod red_queen_reconciliation_failure_tests {
     #[tokio::test]
     async fn commit_still_works_after_reconcile_failure() {
         let _guard = state_guard();
-        let connector = ReconciliationFailingConnector { fail_reconcile: true };
+        let connector = ReconciliationFailingConnector {
+            fail_reconcile: true,
+        };
 
         let pe = connector
             .prepare(serde_json::json!({}), "fx-1".into(), 1)
@@ -354,7 +398,9 @@ mod red_queen_reconciliation_failure_tests {
     #[tokio::test]
     async fn multiple_reconcile_failures_are_retryable() {
         let _guard = state_guard();
-        let connector = ReconciliationFailingConnector { fail_reconcile: true };
+        let connector = ReconciliationFailingConnector {
+            fail_reconcile: true,
+        };
 
         for _ in 0..5 {
             let result = connector.reconcile("fx-1").await;
@@ -370,24 +416,41 @@ mod red_queen_reconciliation_failure_tests {
         struct TerminalReconcileConnector;
         #[async_trait]
         impl Connector for TerminalReconcileConnector {
-            fn connector_type(&self) -> &str { "terminal" }
-            fn connector_version(&self) -> &str { "0.1.0" }
-            fn supports_compensation(&self) -> bool { false }
+            fn connector_type(&self) -> &str {
+                "terminal"
+            }
+            fn connector_version(&self) -> &str {
+                "0.1.0"
+            }
+            fn supports_compensation(&self) -> bool {
+                false
+            }
 
             async fn prepare(
-                &self, _intent: serde_json::Value, effect_id: String, fence: u64,
+                &self,
+                _intent: serde_json::Value,
+                effect_id: String,
+                fence: u64,
             ) -> Result<PreparedEffect, ConnectorError> {
-                Ok(PreparedEffect { effect_id, payload: serde_json::json!({}), fence })
+                Ok(PreparedEffect {
+                    effect_id,
+                    payload: serde_json::json!({}),
+                    fence,
+                })
             }
 
             async fn commit(
-                &self, _prepared: PreparedEffect,
+                &self,
+                _prepared: PreparedEffect,
             ) -> Result<CommitOutcome, ConnectorError> {
-                Ok(CommitOutcome::Committed { receipt: "ok".into() })
+                Ok(CommitOutcome::Committed {
+                    receipt: "ok".into(),
+                })
             }
 
             async fn reconcile(
-                &self, _effect_id: &str,
+                &self,
+                _effect_id: &str,
             ) -> Result<ReconcileOutcome, ConnectorError> {
                 Err(ConnectorError::terminal("database corrupted"))
             }
@@ -413,7 +476,11 @@ mod red_queen_idempotency_collision_tests {
             .prepare(serde_json::json!({}), "fx-1".into(), 1)
             .await
             .unwrap();
-        assert!(!pe.payload.get("collision").and_then(|v| v.as_bool()).unwrap_or(false));
+        assert!(!pe
+            .payload
+            .get("collision")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false));
 
         let outcome = connector.commit(pe).await.unwrap();
         assert!(matches!(outcome, CommitOutcome::Committed { .. }));
@@ -434,7 +501,11 @@ mod red_queen_idempotency_collision_tests {
             .prepare(serde_json::json!({}), "fx-1".into(), 1)
             .await
             .unwrap();
-        assert!(pe2.payload.get("collision").and_then(|v| v.as_bool()).unwrap_or(false));
+        assert!(pe2
+            .payload
+            .get("collision")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false));
     }
 
     #[tokio::test]
@@ -471,7 +542,11 @@ mod red_queen_idempotency_collision_tests {
             .prepare(serde_json::json!({}), "fx-2".into(), 1)
             .await
             .unwrap();
-        assert!(!pe2.payload.get("collision").and_then(|v| v.as_bool()).unwrap_or(false));
+        assert!(!pe2
+            .payload
+            .get("collision")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false));
 
         let outcome2 = connector.commit(pe2).await.unwrap();
         assert!(matches!(outcome2, CommitOutcome::Committed { .. }));
@@ -492,7 +567,11 @@ mod red_queen_idempotency_collision_tests {
             .prepare(serde_json::json!({}), "fx-1".into(), 2)
             .await
             .unwrap();
-        assert!(!pe2.payload.get("collision").and_then(|v| v.as_bool()).unwrap_or(false));
+        assert!(!pe2
+            .payload
+            .get("collision")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false));
     }
 
     #[tokio::test]
@@ -512,7 +591,10 @@ mod red_queen_idempotency_collision_tests {
             .unwrap();
 
         let reconcile_outcome = connector.reconcile("fx-1").await.unwrap();
-        assert!(matches!(reconcile_outcome, ReconcileOutcome::StillAmbiguous));
+        assert!(matches!(
+            reconcile_outcome,
+            ReconcileOutcome::StillAmbiguous
+        ));
     }
 }
 
@@ -540,9 +622,7 @@ mod red_queen_concurrent_reconciliation_tests {
             .map(|i| {
                 let connector = connector.clone();
                 let effect_id = format!("fx-{}", i);
-                tokio::spawn(async move {
-                    connector.reconcile(&effect_id).await
-                })
+                tokio::spawn(async move { connector.reconcile(&effect_id).await })
             })
             .collect();
 
@@ -557,7 +637,10 @@ mod red_queen_concurrent_reconciliation_tests {
             }
         }
 
-        assert!(ambiguous_count > 0, "Expected some ambiguous results under contention");
+        assert!(
+            ambiguous_count > 0,
+            "Expected some ambiguous results under contention"
+        );
     }
 
     #[tokio::test]
@@ -569,9 +652,7 @@ mod red_queen_concurrent_reconciliation_tests {
             .map(|i| {
                 let connector = connector.clone();
                 let effect_id = format!("fx-{}", i);
-                tokio::spawn(async move {
-                    connector.reconcile(&effect_id).await
-                })
+                tokio::spawn(async move { connector.reconcile(&effect_id).await })
             })
             .collect();
 
@@ -601,7 +682,10 @@ mod red_queen_concurrent_reconciliation_tests {
         assert!(matches!(commit_outcome, CommitOutcome::Committed { .. }));
 
         let reconcile_outcome = connector.reconcile("fx-1").await.unwrap();
-        assert!(matches!(reconcile_outcome, ReconcileOutcome::Committed { .. }));
+        assert!(matches!(
+            reconcile_outcome,
+            ReconcileOutcome::Committed { .. }
+        ));
     }
 }
 
@@ -620,7 +704,9 @@ mod red_queen_registry_reconciliation_tests {
         );
         registry.register(
             "fail-reconcile".to_string(),
-            Box::new(ReconciliationFailingConnector { fail_reconcile: false }),
+            Box::new(ReconciliationFailingConnector {
+                fail_reconcile: false,
+            }),
         );
 
         assert_eq!(registry.len(), 2);
@@ -652,8 +738,16 @@ mod red_queen_registry_reconciliation_tests {
         let _guard = state_guard();
         let mut registry = ConnectorRegistry::new();
 
-        registry.register("a".to_string(), Box::new(AmbiguousAfterTimeoutConnector::new(0)));
-        registry.register("b".to_string(), Box::new(ReconciliationFailingConnector { fail_reconcile: false }));
+        registry.register(
+            "a".to_string(),
+            Box::new(AmbiguousAfterTimeoutConnector::new(0)),
+        );
+        registry.register(
+            "b".to_string(),
+            Box::new(ReconciliationFailingConnector {
+                fail_reconcile: false,
+            }),
+        );
 
         let names = registry.list();
         assert!(names.contains(&"a"));
@@ -674,7 +768,7 @@ impl Clone for AmbiguousAfterTimeoutConnector {
     fn clone(&self) -> Self {
         Self {
             call_count: std::sync::atomic::AtomicUsize::new(
-                self.call_count.load(std::sync::atomic::Ordering::SeqCst)
+                self.call_count.load(std::sync::atomic::Ordering::SeqCst),
             ),
             timeout_threshold: self.timeout_threshold,
         }
@@ -692,9 +786,7 @@ impl Clone for ReconciliationFailingConnector {
 impl Clone for IdempotencyKeyCollisionConnector {
     fn clone(&self) -> Self {
         Self {
-            seen_keys: std::sync::Mutex::new(
-                self.seen_keys.lock().unwrap().clone()
-            ),
+            seen_keys: std::sync::Mutex::new(self.seen_keys.lock().unwrap().clone()),
         }
     }
 }
@@ -703,7 +795,8 @@ impl Clone for ConcurrentReconciliationConnector {
     fn clone(&self) -> Self {
         Self {
             active_reconciles: std::sync::atomic::AtomicUsize::new(
-                self.active_reconciles.load(std::sync::atomic::Ordering::SeqCst)
+                self.active_reconciles
+                    .load(std::sync::atomic::Ordering::SeqCst),
             ),
             max_concurrent: self.max_concurrent,
         }
@@ -727,7 +820,10 @@ mod red_queen_integration_tests {
         assert!(matches!(commit_outcome, CommitOutcome::Committed { .. }));
 
         let reconcile_outcome_1 = connector.reconcile("fx-critical").await.unwrap();
-        assert!(matches!(reconcile_outcome_1, ReconcileOutcome::StillAmbiguous));
+        assert!(matches!(
+            reconcile_outcome_1,
+            ReconcileOutcome::StillAmbiguous
+        ));
 
         let pe2 = connector
             .prepare(serde_json::json!({}), "fx-critical-2".into(), 2)
@@ -744,25 +840,39 @@ mod red_queen_integration_tests {
         struct MixedErrorConnector;
         #[async_trait]
         impl Connector for MixedErrorConnector {
-            fn connector_type(&self) -> &str { "mixed-error" }
-            fn connector_version(&self) -> &str { "0.1.0" }
-            fn supports_compensation(&self) -> bool { false }
+            fn connector_type(&self) -> &str {
+                "mixed-error"
+            }
+            fn connector_version(&self) -> &str {
+                "0.1.0"
+            }
+            fn supports_compensation(&self) -> bool {
+                false
+            }
 
             async fn prepare(
-                &self, _intent: serde_json::Value, effect_id: String, fence: u64,
+                &self,
+                _intent: serde_json::Value,
+                effect_id: String,
+                fence: u64,
             ) -> Result<PreparedEffect, ConnectorError> {
-                Ok(PreparedEffect { effect_id, payload: serde_json::json!({}), fence })
+                Ok(PreparedEffect {
+                    effect_id,
+                    payload: serde_json::json!({}),
+                    fence,
+                })
             }
 
             async fn commit(
-                &self, _prepared: PreparedEffect,
+                &self,
+                _prepared: PreparedEffect,
             ) -> Result<CommitOutcome, ConnectorError> {
-                Ok(CommitOutcome::Committed { receipt: "ok".into() })
+                Ok(CommitOutcome::Committed {
+                    receipt: "ok".into(),
+                })
             }
 
-            async fn reconcile(
-                &self, effect_id: &str,
-            ) -> Result<ReconcileOutcome, ConnectorError> {
+            async fn reconcile(&self, effect_id: &str) -> Result<ReconcileOutcome, ConnectorError> {
                 if effect_id.contains("retryable") {
                     Err(ConnectorError::retryable("transient failure"))
                 } else if effect_id.contains("terminal") {
@@ -795,27 +905,43 @@ mod red_queen_integration_tests {
         struct AllOutcomesConnector;
         #[async_trait]
         impl Connector for AllOutcomesConnector {
-            fn connector_type(&self) -> &str { "all-outcomes" }
-            fn connector_version(&self) -> &str { "0.1.0" }
-            fn supports_compensation(&self) -> bool { false }
+            fn connector_type(&self) -> &str {
+                "all-outcomes"
+            }
+            fn connector_version(&self) -> &str {
+                "0.1.0"
+            }
+            fn supports_compensation(&self) -> bool {
+                false
+            }
 
             async fn prepare(
-                &self, _intent: serde_json::Value, effect_id: String, fence: u64,
+                &self,
+                _intent: serde_json::Value,
+                effect_id: String,
+                fence: u64,
             ) -> Result<PreparedEffect, ConnectorError> {
-                Ok(PreparedEffect { effect_id, payload: serde_json::json!({}), fence })
+                Ok(PreparedEffect {
+                    effect_id,
+                    payload: serde_json::json!({}),
+                    fence,
+                })
             }
 
             async fn commit(
-                &self, _prepared: PreparedEffect,
+                &self,
+                _prepared: PreparedEffect,
             ) -> Result<CommitOutcome, ConnectorError> {
-                Ok(CommitOutcome::Committed { receipt: "ok".into() })
+                Ok(CommitOutcome::Committed {
+                    receipt: "ok".into(),
+                })
             }
 
-            async fn reconcile(
-                &self, effect_id: &str,
-            ) -> Result<ReconcileOutcome, ConnectorError> {
+            async fn reconcile(&self, effect_id: &str) -> Result<ReconcileOutcome, ConnectorError> {
                 match effect_id {
-                    "committed" => Ok(ReconcileOutcome::Committed { receipt: "found".into() }),
+                    "committed" => Ok(ReconcileOutcome::Committed {
+                        receipt: "found".into(),
+                    }),
                     "not-committed" => Ok(ReconcileOutcome::NotCommitted),
                     "still-ambiguous" => Ok(ReconcileOutcome::StillAmbiguous),
                     _ => Err(ConnectorError::retryable("unknown")),

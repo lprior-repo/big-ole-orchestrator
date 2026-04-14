@@ -17,8 +17,8 @@ pub use pool::{ConnectionPool, NatsConnectionWrapper};
 
 use vo_types::connection_pool::{
     AcquireResult, CircuitBreakerState, ConnectionId, ConnectionPoolError, ConnectionStatus,
-    ErrorCategory, ErrorContext, ErrorDetail, EvictionReason, PoolConfig as VoPoolConfig,
-    PoolId, PoolStats, PooledConnection, ReleaseResult, WaitHandle,
+    ErrorCategory, ErrorContext, ErrorDetail, EvictionReason, PoolConfig as VoPoolConfig, PoolId,
+    PoolStats, PooledConnection, ReleaseResult, WaitHandle,
 };
 
 use vo_types::integer_types::TimestampMs;
@@ -26,5 +26,3 @@ use vo_types::integer_types::TimestampMs;
 pub use vo_types::connection_pool::HealthCheckResult;
 
 pub(crate) use pool::PoolState;
-
-

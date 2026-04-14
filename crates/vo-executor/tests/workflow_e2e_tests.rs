@@ -47,7 +47,10 @@ mod workflow_lifecycle_tests {
         );
 
         let final_status = get_execution_status(&step_id);
-        assert!(final_status.is_ready(), "Final status should be Ready after completion");
+        assert!(
+            final_status.is_ready(),
+            "Final status should be Ready after completion"
+        );
     }
 
     #[tokio::test]
@@ -62,7 +65,10 @@ mod workflow_lifecycle_tests {
         );
 
         let status = get_execution_status(&step_id);
-        assert!(status.is_ready(), "Status should be Ready after Failure step");
+        assert!(
+            status.is_ready(),
+            "Status should be Ready after Failure step"
+        );
     }
 
     #[tokio::test]
@@ -80,7 +86,10 @@ mod workflow_lifecycle_tests {
         );
 
         let final_status = get_execution_status(&step_id);
-        assert!(final_status.is_ready(), "Status should be Ready after transient error");
+        assert!(
+            final_status.is_ready(),
+            "Status should be Ready after transient error"
+        );
     }
 
     #[tokio::test]
@@ -90,12 +99,18 @@ mod workflow_lifecycle_tests {
 
         let result = execute_step(step_id.clone(), 5000).await;
         assert!(
-            matches!(result, Err(vo_executor::ExecuteNodeError::StepNotFound { .. })),
+            matches!(
+                result,
+                Err(vo_executor::ExecuteNodeError::StepNotFound { .. })
+            ),
             "Unknown step should return StepNotFound error"
         );
 
         let status = get_execution_status(&step_id);
-        assert!(status.is_ready(), "Status should be Ready for unknown step (not in STATE map)");
+        assert!(
+            status.is_ready(),
+            "Status should be Ready for unknown step (not in STATE map)"
+        );
     }
 
     #[tokio::test]
@@ -181,7 +196,9 @@ mod workflow_lifecycle_tests {
             "Step A should have error"
         );
 
-        execute_step(step_b.clone(), 5000).await.expect("Step B should succeed");
+        execute_step(step_b.clone(), 5000)
+            .await
+            .expect("Step B should succeed");
         assert!(
             get_last_error(&step_b).is_none(),
             "Step B should not have error"
@@ -279,11 +296,7 @@ mod multi_step_workflow_tests {
             let result = execute_step(step_id.clone(), 5000).await;
 
             if expect_success {
-                assert!(
-                    result.is_ok(),
-                    "Step {} should succeed",
-                    step_name
-                );
+                assert!(result.is_ok(), "Step {} should succeed", step_name);
             } else {
                 assert!(
                     result.is_err() || matches!(result, Ok(StepResult::Failure { .. })),
@@ -302,7 +315,10 @@ mod multi_step_workflow_tests {
 
         let result = execute_step_with_retry(step_id.clone(), 5000, policy).await;
         assert!(
-            matches!(result, Err(vo_executor::ExecuteNodeError::RetryExhausted { .. })),
+            matches!(
+                result,
+                Err(vo_executor::ExecuteNodeError::RetryExhausted { .. })
+            ),
             "Flaky step with retry should return RetryExhausted"
         );
     }
@@ -365,7 +381,10 @@ mod workflow_timeout_e2e_tests {
 
         let result = execute_step(step_id.clone(), 1).await;
         assert!(
-            matches!(result, Err(vo_executor::ExecuteNodeError::TimeoutExceeded { .. })),
+            matches!(
+                result,
+                Err(vo_executor::ExecuteNodeError::TimeoutExceeded { .. })
+            ),
             "Slow step with 1ms timeout should return TimeoutExceeded"
         );
 
@@ -392,7 +411,10 @@ mod workflow_timeout_e2e_tests {
 
         let result = execute_step(step_id.clone(), 2999).await;
         assert!(
-            matches!(result, Err(vo_executor::ExecuteNodeError::TimeoutExceeded { .. })),
+            matches!(
+                result,
+                Err(vo_executor::ExecuteNodeError::TimeoutExceeded { .. })
+            ),
             "Slow step with 2999ms timeout should timeout (just under boundary)"
         );
     }
@@ -405,7 +427,10 @@ mod workflow_timeout_e2e_tests {
 
         let result = execute_step_with_retry(step_id.clone(), 1, policy).await;
         assert!(
-            matches!(result, Err(vo_executor::ExecuteNodeError::TimeoutExceeded { .. })),
+            matches!(
+                result,
+                Err(vo_executor::ExecuteNodeError::TimeoutExceeded { .. })
+            ),
             "Retry with insufficient timeout should return TimeoutExceeded"
         );
     }
@@ -417,7 +442,10 @@ mod workflow_timeout_e2e_tests {
 
         let result = execute_step(step_id.clone(), 0).await;
         assert!(
-            matches!(result, Err(vo_executor::ExecuteNodeError::InvalidTimeout { value: 0, .. })),
+            matches!(
+                result,
+                Err(vo_executor::ExecuteNodeError::InvalidTimeout { value: 0, .. })
+            ),
             "Zero timeout should be immediately rejected"
         );
     }
@@ -429,7 +457,13 @@ mod workflow_timeout_e2e_tests {
 
         let result = execute_step(step_id.clone(), u64::MAX).await;
         assert!(
-            matches!(result, Err(vo_executor::ExecuteNodeError::InvalidTimeout { value: u64::MAX, .. })),
+            matches!(
+                result,
+                Err(vo_executor::ExecuteNodeError::InvalidTimeout {
+                    value: u64::MAX,
+                    ..
+                })
+            ),
             "u64::MAX timeout should be immediately rejected"
         );
     }
@@ -498,12 +532,18 @@ mod workflow_error_propagation_tests {
 
         let result = execute_step_with_retry(step_id.clone(), 5000, policy).await;
         assert!(
-            matches!(result, Err(vo_executor::ExecuteNodeError::RetryExhausted { .. })),
+            matches!(
+                result,
+                Err(vo_executor::ExecuteNodeError::RetryExhausted { .. })
+            ),
             "Flaky step should exhaust retries"
         );
 
         match result.unwrap_err() {
-            vo_executor::ExecuteNodeError::RetryExhausted { attempts, last_error } => {
+            vo_executor::ExecuteNodeError::RetryExhausted {
+                attempts,
+                last_error,
+            } => {
                 assert_eq!(attempts, 3, "Should report 3 attempts");
                 assert!(
                     matches!(
@@ -525,7 +565,10 @@ mod workflow_error_propagation_tests {
 
         let result = execute_step_with_retry(step_id.clone(), 5000, policy).await;
         assert!(
-            matches!(result, Err(vo_executor::ExecuteNodeError::StepNotFound { .. })),
+            matches!(
+                result,
+                Err(vo_executor::ExecuteNodeError::StepNotFound { .. })
+            ),
             "StepNotFound should be terminal (no retry)"
         );
 
@@ -544,7 +587,10 @@ mod workflow_error_propagation_tests {
 
         let result = execute_step_with_retry(step_id.clone(), 0, policy).await;
         assert!(
-            matches!(result, Err(vo_executor::ExecuteNodeError::InvalidTimeout { .. })),
+            matches!(
+                result,
+                Err(vo_executor::ExecuteNodeError::InvalidTimeout { .. })
+            ),
             "InvalidTimeout should be terminal (no retry)"
         );
     }
@@ -567,20 +613,21 @@ mod workflow_error_propagation_tests {
         );
 
         let status = get_execution_status(&step_id);
-        assert!(status.is_ready(), "Status should be Ready after Failure result");
+        assert!(
+            status.is_ready(),
+            "Status should be Ready after Failure result"
+        );
     }
 }
 
 #[cfg(test)]
 mod workflow_scheduler_e2e_tests {
-    use std::time::Duration;
     use std::sync::LazyLock;
     use std::sync::Mutex;
     use std::sync::MutexGuard;
-    use vo_executor::{
-        reset_all_state, Job, JobId, JobPriority, Schedule, SchedulerConfig,
-    };
+    use std::time::Duration;
     use vo_executor::scheduler::Scheduler;
+    use vo_executor::{reset_all_state, Job, JobId, JobPriority, Schedule, SchedulerConfig};
 
     static STATE_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
@@ -712,10 +759,7 @@ mod workflow_scheduler_e2e_tests {
         scheduler.schedule(job).unwrap();
 
         let removed = scheduler.cancel(JobId::new(42));
-        assert!(
-            removed.is_some(),
-            "Cancel should return the removed job"
-        );
+        assert!(removed.is_some(), "Cancel should return the removed job");
 
         let now_ms = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -802,7 +846,10 @@ mod workflow_concurrent_e2e_tests {
 
         assert!(result1.is_ok(), "Step 1 should succeed");
         assert!(result2.is_ok(), "Step good should succeed");
-        assert!(result3.is_ok(), "Step fail should return Failure result (not error)");
+        assert!(
+            result3.is_ok(),
+            "Step fail should return Failure result (not error)"
+        );
     }
 
     #[tokio::test]
@@ -828,11 +875,7 @@ mod workflow_concurrent_e2e_tests {
         let policy = RetryPolicy::new(3, 10, 2.0).unwrap();
 
         let (retry_result, direct_result) = tokio::join!(
-            execute_step_with_retry(
-                StepId::new("step-flaky".to_string()),
-                5000,
-                policy.clone()
-            ),
+            execute_step_with_retry(StepId::new("step-flaky".to_string()), 5000, policy.clone()),
             execute_step(StepId::new("step-1".to_string()), 5000)
         );
 
@@ -856,9 +899,9 @@ mod workflow_concurrent_e2e_tests {
         for _ in 0..10 {
             for name in step_names {
                 let step_id = StepId::new(name.to_string());
-                handles.push(tokio::spawn(async move {
-                    execute_step(step_id, 5000).await
-                }));
+                handles.push(tokio::spawn(
+                    async move { execute_step(step_id, 5000).await },
+                ));
             }
         }
 
@@ -879,10 +922,7 @@ mod workflow_concurrent_e2e_tests {
             success_count, 40,
             "10 iterations × 2 success steps = 20... wait let me recount: 10 × 2 = 20"
         );
-        assert_eq!(
-            failure_count, 10,
-            "10 iterations × 1 failure step = 10"
-        );
+        assert_eq!(failure_count, 10, "10 iterations × 1 failure step = 10");
         assert_eq!(
             error_count, 10,
             "10 iterations × 1 transient error step = 10"
@@ -945,7 +985,10 @@ mod workflow_state_transition_tests {
         assert!(result.is_ok());
 
         let final_status = get_execution_status(&step_id);
-        assert!(final_status.is_ready(), "Should return to Ready after execution");
+        assert!(
+            final_status.is_ready(),
+            "Should return to Ready after execution"
+        );
     }
 
     #[tokio::test]
@@ -975,7 +1018,10 @@ mod workflow_state_transition_tests {
             .expect("Cancel should succeed");
         let cancelled_status = get_execution_status(&step_id);
         assert!(
-            matches!(cancelled_status, vo_executor::ExecutionStatus::Cancelled { .. }),
+            matches!(
+                cancelled_status,
+                vo_executor::ExecutionStatus::Cancelled { .. }
+            ),
             "Should be Cancelled"
         );
 
@@ -983,7 +1029,10 @@ mod workflow_state_transition_tests {
         assert!(result.is_ok());
 
         let ready_status = get_execution_status(&step_id);
-        assert!(ready_status.is_ready(), "Should return to Ready after execution");
+        assert!(
+            ready_status.is_ready(),
+            "Should return to Ready after execution"
+        );
     }
 
     #[tokio::test]
@@ -1004,9 +1053,7 @@ mod workflow_runtime_e2e_tests {
     use std::sync::LazyLock;
     use std::sync::Mutex;
     use std::sync::MutexGuard;
-    use vo_executor::{
-        reset_all_state, RetryPolicy, Runtime, StepContext, StepId,
-    };
+    use vo_executor::{reset_all_state, RetryPolicy, Runtime, StepContext, StepId};
 
     static STATE_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
@@ -1027,7 +1074,10 @@ mod workflow_runtime_e2e_tests {
 
         let result = runtime.execute_step_sync(StepId::new("step-1".to_string()), 5000);
         assert!(result.is_ok(), "Runtime should execute step successfully");
-        assert!(result.unwrap().is_success(), "Result should indicate success");
+        assert!(
+            result.unwrap().is_success(),
+            "Result should indicate success"
+        );
     }
 
     #[tokio::test]
@@ -1042,7 +1092,10 @@ mod workflow_runtime_e2e_tests {
             policy,
         );
         assert!(
-            matches!(result, Err(vo_executor::ExecuteNodeError::RetryExhausted { .. })),
+            matches!(
+                result,
+                Err(vo_executor::ExecuteNodeError::RetryExhausted { .. })
+            ),
             "Runtime should handle retry exhaustion"
         );
     }
@@ -1073,7 +1126,10 @@ mod workflow_runtime_e2e_tests {
 
         let result = context.execute(5000);
         assert!(result.is_ok(), "StepContext execute should succeed");
-        assert!(result.unwrap().is_success(), "Result should indicate success");
+        assert!(
+            result.unwrap().is_success(),
+            "Result should indicate success"
+        );
     }
 
     #[tokio::test]

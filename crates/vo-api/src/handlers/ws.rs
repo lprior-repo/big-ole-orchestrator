@@ -12,26 +12,48 @@ const WS_BROADCAST_CAPACITY: usize = 1000;
 
 #[derive(Debug, Clone)]
 pub enum WorkflowWsEvent {
-    StepCompleted { node_name: String, sequence: u64 },
-    StepFailed { node_name: String, sequence: u64, error: String },
-    TimerFired { timer_id: String },
-    SignalReceived { signal_name: String },
-    PhaseChanged { phase: String },
+    StepCompleted {
+        node_name: String,
+        sequence: u64,
+    },
+    StepFailed {
+        node_name: String,
+        sequence: u64,
+        error: String,
+    },
+    TimerFired {
+        timer_id: String,
+    },
+    SignalReceived {
+        signal_name: String,
+    },
+    PhaseChanged {
+        phase: String,
+    },
     InstanceCompleted,
-    InstanceFailed { error: String },
+    InstanceFailed {
+        error: String,
+    },
 }
 
 impl WorkflowWsEvent {
     fn to_json_string(&self) -> String {
         let data = match self {
-            WorkflowWsEvent::StepCompleted { node_name, sequence } => {
+            WorkflowWsEvent::StepCompleted {
+                node_name,
+                sequence,
+            } => {
                 serde_json::json!({
                     "type": "step_completed",
                     "node_name": node_name,
                     "sequence": sequence,
                 })
             }
-            WorkflowWsEvent::StepFailed { node_name, sequence, error } => {
+            WorkflowWsEvent::StepFailed {
+                node_name,
+                sequence,
+                error,
+            } => {
                 serde_json::json!({
                     "type": "step_failed",
                     "node_name": node_name,
@@ -88,7 +110,10 @@ impl WsBroadcaster {
         self.tx.subscribe()
     }
 
-    pub fn send(&self, event: WorkflowWsEvent) -> Result<usize, broadcast::error::SendError<WorkflowWsEvent>> {
+    pub fn send(
+        &self,
+        event: WorkflowWsEvent,
+    ) -> Result<usize, broadcast::error::SendError<WorkflowWsEvent>> {
         self.tx.send(event)
     }
 }
@@ -145,11 +170,13 @@ impl Default for WsConnectionCount {
 
 impl WsConnectionCount {
     pub fn increment(&self) -> usize {
-        self.active_connections.fetch_add(1, std::sync::atomic::Ordering::SeqCst)
+        self.active_connections
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst)
     }
 
     pub fn decrement(&self) -> usize {
-        self.active_connections.fetch_sub(1, std::sync::atomic::Ordering::SeqCst)
+        self.active_connections
+            .fetch_sub(1, std::sync::atomic::Ordering::SeqCst)
     }
 }
 
@@ -168,51 +195,53 @@ pub async fn ws_workflow(
     let (_, _instance_id) = match split_path_id(&id) {
         Some(pair) => pair,
         None => {
-            return (StatusCode::BAD_REQUEST, Json(ApiError::new(
-                "invalid_id",
-                "id must be <namespace>/<instance_id>",
-            ))).into_response();
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ApiError::new(
+                    "invalid_id",
+                    "id must be <namespace>/<instance_id>",
+                )),
+            )
+                .into_response();
         }
     };
 
     let broadcaster = state.broadcaster.clone();
 
-    ws.on_upgrade(move |socket| {
-        async move {
-            let mut ws = socket;
-            let mut receiver = broadcaster.subscribe();
+    ws.on_upgrade(move |socket| async move {
+        let mut ws = socket;
+        let mut receiver = broadcaster.subscribe();
 
-            loop {
-                tokio::select! {
-                    recv_result = receiver.recv() => {
-                        match recv_result {
-                            Ok(event) => {
-                                let msg = axum::extract::ws::Message::Text(event.to_json_string());
-                                if ws.send(msg).await.is_err() {
-                                    break;
-                                }
-                            }
-                            Err(broadcast::error::RecvError::Closed) => break,
-                            Err(broadcast::error::RecvError::Lagged(_)) => continue,
-                        }
-                    }
-                    msg = ws.recv() => {
-                        match msg {
-                            Some(Ok(axum::extract::ws::Message::Close(_))) => break,
-                            Some(Ok(axum::extract::ws::Message::Ping(data))) => {
-                                let _ = ws.send(axum::extract::ws::Message::Pong(data)).await;
-                            }
-                            Some(Ok(axum::extract::ws::Message::Text(text))) => {
-                                tracing::debug!(msg = %text, "Received WebSocket message");
-                            }
-                            Some(Ok(axum::extract::ws::Message::Binary(_))) => {}
-                            Some(Ok(axum::extract::ws::Message::Pong(_))) => {}
-                            Some(Err(e)) => {
-                                tracing::warn!(error = %e, "WebSocket receive error");
+        loop {
+            tokio::select! {
+                recv_result = receiver.recv() => {
+                    match recv_result {
+                        Ok(event) => {
+                            let msg = axum::extract::ws::Message::Text(event.to_json_string());
+                            if ws.send(msg).await.is_err() {
                                 break;
                             }
-                            None => break,
                         }
+                        Err(broadcast::error::RecvError::Closed) => break,
+                        Err(broadcast::error::RecvError::Lagged(_)) => continue,
+                    }
+                }
+                msg = ws.recv() => {
+                    match msg {
+                        Some(Ok(axum::extract::ws::Message::Close(_))) => break,
+                        Some(Ok(axum::extract::ws::Message::Ping(data))) => {
+                            let _ = ws.send(axum::extract::ws::Message::Pong(data)).await;
+                        }
+                        Some(Ok(axum::extract::ws::Message::Text(text))) => {
+                            tracing::debug!(msg = %text, "Received WebSocket message");
+                        }
+                        Some(Ok(axum::extract::ws::Message::Binary(_))) => {}
+                        Some(Ok(axum::extract::ws::Message::Pong(_))) => {}
+                        Some(Err(e)) => {
+                            tracing::warn!(error = %e, "WebSocket receive error");
+                            break;
+                        }
+                        None => break,
                     }
                 }
             }

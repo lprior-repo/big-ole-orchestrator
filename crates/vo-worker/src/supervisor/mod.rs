@@ -6,7 +6,7 @@
 mod port;
 
 pub use port::{
-    calculate_backoff_delay, is_zombie_state, should_respawn, Counter, ProcessHandle, ProcessManager,
-    ProcessSupervisorError, ProcessSupervisorMetrics, SpawnPhase, SpawnRecord, SpawnStorage,
-    WorkQueue,
+    calculate_backoff_delay, is_zombie_state, should_respawn, Counter, ProcessHandle,
+    ProcessManager, ProcessSupervisorError, ProcessSupervisorMetrics, SpawnPhase, SpawnRecord,
+    SpawnStorage, WorkQueue,
 };

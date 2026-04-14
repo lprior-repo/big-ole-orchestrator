@@ -43,7 +43,9 @@ impl Runtime {
         timeout_ms: u64,
     ) -> Result<StepResult, ExecuteNodeError> {
         let step_id_clone = step_id.clone();
-        self.block_on(async move { crate::execution::execute_step(step_id_clone, timeout_ms).await })
+        self.block_on(
+            async move { crate::execution::execute_step(step_id_clone, timeout_ms).await },
+        )
     }
 
     pub fn execute_step_with_retry_sync(
@@ -55,7 +57,8 @@ impl Runtime {
         let step_id_clone = step_id.clone();
         let retry_policy_clone = retry_policy.clone();
         self.block_on(async move {
-            crate::execution::execute_step_with_retry(step_id_clone, timeout_ms, retry_policy_clone).await
+            crate::execution::execute_step_with_retry(step_id_clone, timeout_ms, retry_policy_clone)
+                .await
         })
     }
 
@@ -92,7 +95,8 @@ impl StepContext {
     }
 
     pub fn execute(&self, timeout_ms: u64) -> Result<StepResult, ExecuteNodeError> {
-        self.runtime.execute_step_sync(self.step_id.clone(), timeout_ms)
+        self.runtime
+            .execute_step_sync(self.step_id.clone(), timeout_ms)
     }
 
     pub fn execute_with_retry(
@@ -100,7 +104,8 @@ impl StepContext {
         timeout_ms: u64,
         retry_policy: RetryPolicy,
     ) -> Result<StepResult, ExecuteNodeError> {
-        self.runtime.execute_step_with_retry_sync(self.step_id.clone(), timeout_ms, retry_policy)
+        self.runtime
+            .execute_step_with_retry_sync(self.step_id.clone(), timeout_ms, retry_policy)
     }
 
     pub fn status(&self) -> ExecutionStatus {
