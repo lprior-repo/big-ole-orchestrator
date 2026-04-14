@@ -319,19 +319,22 @@ mod handlers {
                     instance_id: instance,
                 };
                 let status = crate::commands::status::run_status(&config).await?;
-                println!("Workflow Status:");
-                println!("  Instance ID: {}", status.instance_id);
-                println!("  Namespace: {}", status.namespace);
-                println!("  Workflow Type: {}", status.workflow_type);
-                println!("  Paradigm: {}", status.paradigm);
-                println!("  Phase: {}", status.phase);
-                println!("  Events Applied: {}", status.events_applied);
+                println!("+---------------------------+-------------------------------+");
+                println!("| Field                     | Value                         |");
+                println!("+---------------------------+-------------------------------+");
+                println!("| Instance ID               | {} |", status.instance_id);
+                println!("| Namespace                 | {} |", status.namespace);
+                println!("| Workflow Type             | {} |", status.workflow_type);
+                println!("| Paradigm                  | {} |", status.paradigm);
+                println!("| Phase                     | {} |", status.phase);
+                println!("| Events Applied           | {} |", status.events_applied);
                 if let Some(reg_status) = status.registration_status {
-                    println!("  Registration: {}", reg_status);
+                    println!("| Registration              | {} |", reg_status);
                 }
                 if status.is_quarantined {
-                    println!("  Quarantined: yes");
+                    println!("| Quarantined               | yes                          |");
                 }
+                println!("+---------------------------+-------------------------------+");
                 Ok(())
             })
         }
