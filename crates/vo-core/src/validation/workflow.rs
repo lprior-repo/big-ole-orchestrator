@@ -19,7 +19,7 @@
 use std::collections::HashSet;
 use std::fmt;
 use thiserror::Error;
-use vo_types::NodeKind;
+use vo_types::{EffectKind, NodeKind};
 
 /// The set of known sink identifiers that are allowed in workflows.
 ///
@@ -239,8 +239,39 @@ pub fn validate_workflow_sinks<'a>(
 /// # Errors
 ///
 /// Returns error if validation fails.
+#[allow(dead_code)]
 pub fn validate_workflow_node_kinds(_node_kinds: &[NodeKind]) -> Result<(), UnsupportedSinkError> {
     Ok(())
+}
+
+/// Validate that a workflow's effect kinds target known sinks.
+///
+/// Each `EffectKind` maps to a specific sink identifier:
+/// - `EffectKind::HttpCall` → "http"
+/// - `EffectKind::SqlQuery` → "sql"
+/// - `EffectKind::BlobWrite` → "blob"
+///
+/// # Errors
+///
+/// Returns `UnsupportedSinkError` if any effect kind targets an unknown sink.
+#[allow(dead_code)]
+pub fn validate_effect_kinds(
+    effect_kinds: impl IntoIterator<Item = EffectKind>,
+) -> Result<(), UnsupportedSinkError> {
+    let validator = WorkflowSinkValidator::new();
+    for kind in effect_kinds {
+        let sink = effect_kind_to_sink(kind);
+        validator.validate_sink(sink)?;
+    }
+    Ok(())
+}
+
+fn effect_kind_to_sink(kind: EffectKind) -> &'static str {
+    match kind {
+        EffectKind::HttpCall => "http",
+        EffectKind::SqlQuery => "sql",
+        EffectKind::BlobWrite => "blob",
+    }
 }
 
 #[cfg(test)]
@@ -358,6 +389,52 @@ mod tests {
     fn validate_multiple_known_sinks_succeeds() {
         let validator = WorkflowSinkValidator::new();
         let result = validator.validate_sinks(["blob", "http", "sql"]);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn validate_effect_kinds_with_all_known_effects_succeeds() {
+        use vo_types::EffectKind;
+        let result = validate_effect_kinds([
+            EffectKind::HttpCall,
+            EffectKind::SqlQuery,
+            EffectKind::BlobWrite,
+        ]);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn validate_effect_kinds_http_call_maps_to_http_sink() {
+        use vo_types::EffectKind;
+        let result = validate_effect_kinds([EffectKind::HttpCall]);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn validate_effect_kinds_sql_query_maps_to_sql_sink() {
+        use vo_types::EffectKind;
+        let result = validate_effect_kinds([EffectKind::SqlQuery]);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn validate_effect_kinds_blob_write_maps_to_blob_sink() {
+        use vo_types::EffectKind;
+        let result = validate_effect_kinds([EffectKind::BlobWrite]);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn validate_workflow_node_kinds_stub_accepts_all() {
+        use vo_types::NodeKind;
+        let node_kinds = [
+            NodeKind::Pure,
+            NodeKind::ManagedEffect,
+            NodeKind::Wait,
+            NodeKind::Signal,
+            NodeKind::Unsafe,
+        ];
+        let result = validate_workflow_node_kinds(&node_kinds);
         assert!(result.is_ok());
     }
 }

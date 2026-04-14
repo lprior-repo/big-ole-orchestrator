@@ -53,7 +53,8 @@ pub mod workload_class;
 pub mod write_class;
 
 pub use validation::{
-    UnsupportedSinkError, WorkflowSinkValidator, validate_workflow_sinks,
+    UnsupportedSinkError, WorkflowSinkValidator, validate_effect_kinds,
+    validate_workflow_node_kinds, validate_workflow_sinks,
 };
 
 #[cfg(kani)]

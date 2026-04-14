@@ -2,4 +2,7 @@
 
 pub mod workflow;
 
-pub use workflow::{UnsupportedSinkError, WorkflowSinkValidator, validate_workflow_sinks};
+pub use workflow::{
+    validate_effect_kinds, validate_workflow_node_kinds, validate_workflow_sinks,
+    UnsupportedSinkError, WorkflowSinkValidator,
+};
