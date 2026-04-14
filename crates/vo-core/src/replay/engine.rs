@@ -230,21 +230,5 @@ pub(super) fn payload_to_transition(
                 sequence,
             })
         }
-        EventPayload::EffectPrepared { .. } => {
-            // Handled as a no-op in the replay loop before calling this function.
-            // This branch should never be reached.
-            Err(ReplayError::UnexpectedEventType {
-                payload_type: "EffectPrepared".to_string(),
-                sequence,
-            })
-        }
-        EventPayload::EffectCommitted { .. } => Err(ReplayError::UnexpectedEventType {
-            payload_type: "EffectCommitted".to_string(),
-            sequence,
-        }),
-        EventPayload::WorkflowQuarantined { .. } => Err(ReplayError::UnexpectedEventType {
-            payload_type: "WorkflowQuarantined".to_string(),
-            sequence,
-        }),
     }
 }
