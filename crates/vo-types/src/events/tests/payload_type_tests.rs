@@ -281,6 +281,11 @@ fn payload_all_variants_round_trip_via_serde() {
             old_epoch: 1,
             new_epoch: 2,
         },
+        EventPayload::WorkflowQuarantined {
+            workflow_id: "wf-123".to_string(),
+            failure_count: 3,
+            failure_window_seconds: 60,
+        },
     ];
 
     for payload in variants {
@@ -503,6 +508,19 @@ fn payload_all_variants_round_trip_via_serde() {
                     "lineage_id": lineage_id,
                     "old_epoch": old_epoch,
                     "new_epoch": new_epoch,
+                    "version": 1
+                })
+            }
+            EventPayload::WorkflowQuarantined {
+                workflow_id,
+                failure_count,
+                failure_window_seconds,
+            } => {
+                serde_json::json!({
+                    "type": "WorkflowQuarantined",
+                    "workflow_id": workflow_id,
+                    "failure_count": failure_count,
+                    "failure_window_seconds": failure_window_seconds,
                     "version": 1
                 })
             }
