@@ -525,9 +525,7 @@ mod integration_failure_scenario_tests {
 
     #[test]
     fn crash_at_step_scheduled_maintains_integrity() {
-        let events_before_crash = vec![make_event("inst-1", 1, workflow_started_payload("wf-1"))];
-
-        let events_after_crash = vec![
+        let events = vec![
             make_event("inst-1", 1, workflow_started_payload("wf-1")),
             make_event("inst-1", 2, step_scheduled_payload("wf-1", "step-1")),
             make_event("inst-1", 3, step_started_payload("wf-1", "step-1")),
@@ -536,7 +534,7 @@ mod integration_failure_scenario_tests {
         let scenario = CrashScenario::new(CrashPoint::StepScheduled, CrashPosition::Before);
         let ctx = RecoveryContext::new();
 
-        let result = ctx.verify_at_point(scenario, &events_before_crash, &events_after_crash);
+        let result = ctx.verify_at_point(scenario, &events, &events);
         assert!(result.is_ok(), "StepScheduled crash should be recoverable");
     }
 }
