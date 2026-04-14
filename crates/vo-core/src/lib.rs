@@ -56,3 +56,7 @@ pub mod write_class_verification;
 
 #[cfg(test)]
 mod invalid_business_data_tests;
+
+mod execution;
+#[cfg(test)]
+mod execution::publication_barrier_tests;
