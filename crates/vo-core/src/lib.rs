@@ -29,6 +29,7 @@ pub mod config_hot_reload;
 mod db_writer_message;
 pub mod debounce;
 pub mod exact_once_verification;
+pub mod lease_calc;
 
 pub use exact_once_verification::assertions::{
     assert_fence_token_ordering, assert_invariant_no_orphans, assert_no_duplicate_effects,
