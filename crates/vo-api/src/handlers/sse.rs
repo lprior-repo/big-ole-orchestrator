@@ -263,7 +263,7 @@ mod tests {
 
         let mut count = 0u64;
         let mut lagged_received = false;
-        while let Some(result) = FuturesStreamExt::next(&mut event).await {
+        while let Some(result) = futures::StreamExt::next(&mut event).await {
             count += 1;
             match result {
                 Ok(event) => {
@@ -295,7 +295,7 @@ mod tests {
         }
 
         let mut count = 0u64;
-        while let Some(_result) = FuturesStreamExt::next(&mut event).await {
+        while let Some(_result) = futures::StreamExt::next(&mut event).await {
             count += 1;
             if count > 10 {
                 break;
@@ -365,7 +365,7 @@ mod tests {
 
         let mut count = 0u64;
         let mut lagged = false;
-        while let Some(result) = FuturesStreamExt::next(&mut event).await {
+        while let Some(result) = futures::StreamExt::next(&mut event).await {
             count += 1;
             match result {
                 Ok(_) => {}
