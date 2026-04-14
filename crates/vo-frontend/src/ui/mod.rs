@@ -2,6 +2,7 @@ pub mod badge_accuracy_tests;
 pub mod command_palette;
 pub mod domain_types;
 pub mod graph;
+pub mod operator_action_panel;
 pub mod prototype_palette;
 #[cfg(test)]
 pub mod template_rendering_tests;
