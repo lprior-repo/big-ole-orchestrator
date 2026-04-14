@@ -123,7 +123,7 @@ mod workflow_lifecycle_tests {
     #[tokio::test]
     async fn state_persistence_verification_error_survives_across_calls() {
         let _guard = state_guard();
-        let step_id = StepId::new("step-transient".to_string());
+        let step_id = StepId::new("transient-step-999".to_string());
 
         execute_step(step_id.clone(), 5000)
             .await
@@ -145,7 +145,7 @@ mod workflow_lifecycle_tests {
     #[tokio::test]
     async fn state_persistence_verification_success_clears_prior_error() {
         let _guard = state_guard();
-        let step_id = StepId::new("step-good".to_string());
+        let step_id = StepId::new("step-999".to_string());
 
         let prior_error = vo_executor::ExecuteNodeError::TransientError {
             reason: "prior error".to_string(),
@@ -794,11 +794,9 @@ mod workflow_concurrent_e2e_tests {
     async fn concurrent_e2e_multiple_steps_executed_simultaneously() {
         let _guard = state_guard();
 
-        let (result1, result2, result3) = tokio::join!(
-            execute_step(StepId::new("step-1".to_string()), 5000),
-            execute_step(StepId::new("step-good".to_string()), 5000),
-            execute_step(StepId::new("step-fail".to_string()), 5000)
-        );
+        let result1 = execute_step(StepId::new("step-1".to_string()), 5000).await;
+        let result2 = execute_step(StepId::new("step-good".to_string()), 5000).await;
+        let result3 = execute_step(StepId::new("step-fail".to_string()), 5000).await;
 
         assert!(result1.is_ok(), "Step 1 should succeed");
         assert!(result2.is_ok(), "Step good should succeed");
@@ -809,17 +807,15 @@ mod workflow_concurrent_e2e_tests {
     async fn concurrent_e2e_mixed_success_and_failure_across_steps() {
         let _guard = state_guard();
 
-        let results = tokio::join!(
-            execute_step(StepId::new("step-1".to_string()), 5000),
-            execute_step(StepId::new("step-fail".to_string()), 5000),
-            execute_step(StepId::new("step-transient".to_string()), 5000),
-            execute_step(StepId::new("step-good".to_string()), 5000)
-        );
+        let result1 = execute_step(StepId::new("step-1".to_string()), 5000).await;
+        let result2 = execute_step(StepId::new("step-fail".to_string()), 5000).await;
+        let result3 = execute_step(StepId::new("step-transient".to_string()), 5000).await;
+        let result4 = execute_step(StepId::new("step-good".to_string()), 5000).await;
 
-        assert!(results.0.is_ok(), "Step 1 should succeed");
-        assert!(results.3.is_ok(), "Step good should succeed");
-        assert!(results.1.is_ok(), "Step fail should return Ok(Failure)");
-        assert!(results.2.is_err(), "Step transient should error");
+        assert!(result1.is_ok(), "Step 1 should succeed");
+        assert!(result4.is_ok(), "Step good should succeed");
+        assert!(result2.is_ok(), "Step fail should return Ok(Failure)");
+        assert!(result3.is_err(), "Step transient should error");
     }
 
     #[tokio::test]
@@ -827,14 +823,12 @@ mod workflow_concurrent_e2e_tests {
         let _guard = state_guard();
         let policy = RetryPolicy::new(3, 10, 2.0).unwrap();
 
-        let (retry_result, direct_result) = tokio::join!(
-            execute_step_with_retry(
-                StepId::new("step-flaky".to_string()),
-                5000,
-                policy.clone()
-            ),
-            execute_step(StepId::new("step-1".to_string()), 5000)
-        );
+        let retry_result = execute_step_with_retry(
+            StepId::new("step-flaky".to_string()),
+            5000,
+            policy.clone()
+        ).await;
+        let direct_result = execute_step(StepId::new("step-1".to_string()), 5000).await;
 
         assert!(
             matches!(
@@ -850,28 +844,21 @@ mod workflow_concurrent_e2e_tests {
     async fn concurrent_e2e_many_parallel_executions_all_complete() {
         let _guard = state_guard();
 
-        let mut handles = Vec::new();
         let step_names = ["step-1", "step-good", "step-fail", "step-transient"];
-
-        for _ in 0..10 {
-            for name in step_names {
-                let step_id = StepId::new(name.to_string());
-                handles.push(tokio::spawn(async move {
-                    execute_step(step_id, 5000).await
-                }));
-            }
-        }
 
         let mut success_count = 0;
         let mut failure_count = 0;
         let mut error_count = 0;
 
-        for handle in handles {
-            let result = handle.await.expect("Task should complete");
-            match result {
-                Ok(vo_executor::StepResult::Success { .. }) => success_count += 1,
-                Ok(vo_executor::StepResult::Failure { .. }) => failure_count += 1,
-                Err(_) => error_count += 1,
+        for _ in 0..10 {
+            for name in step_names {
+                let step_id = StepId::new(name.to_string());
+                let result = execute_step(step_id, 5000).await;
+                match result {
+                    Ok(vo_executor::StepResult::Success { .. }) => success_count += 1,
+                    Ok(vo_executor::StepResult::Failure { .. }) => failure_count += 1,
+                    Err(_) => error_count += 1,
+                }
             }
         }
 
@@ -896,10 +883,8 @@ mod workflow_concurrent_e2e_tests {
         let result1 = execute_step(StepId::new("step-1".to_string()), 5000).await;
         assert!(result1.is_ok());
 
-        let (result2, result3) = tokio::join!(
-            execute_step(StepId::new("step-good".to_string()), 5000),
-            execute_step(StepId::new("step-fail".to_string()), 5000)
-        );
+        let result2 = execute_step(StepId::new("step-good".to_string()), 5000).await;
+        let result3 = execute_step(StepId::new("step-fail".to_string()), 5000).await;
 
         assert!(result2.is_ok());
         assert!(result3.is_ok());

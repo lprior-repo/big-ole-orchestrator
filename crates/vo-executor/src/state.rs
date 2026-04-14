@@ -143,20 +143,6 @@ pub enum StepBehavior {
     NotFound,
 }
 
-/// Set executing state directly for testing purposes.
-/// This allows deterministic testing of InvalidTransition behavior
-/// without relying on timing.
-pub fn set_executing_state_for_test(step_id: &str) {
-    use std::time::Instant;
-    set_state(
-        step_id,
-        StepState::Executing {
-            step_id: StepId::new(step_id.to_string()),
-            start_time: Instant::now(),
-        },
-    );
-}
-
 /// Get the last error for a step (if any).
 pub fn get_last_error(step_id: &str) -> Option<ExecuteNodeError> {
     LAST_ERROR.get(step_id).map(|v| v.clone())
