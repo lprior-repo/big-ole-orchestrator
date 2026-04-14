@@ -51,7 +51,7 @@ pub use blob::{
 };
 pub use command_envelope::{CommandEnvelope, CommandEnvelopeError, MAX_SUPPORTED_COMMAND_VERSION};
 pub use command_history::{
-    BatchId, CommandHistory, CommandHistoryError, CommandId, CommandKind, ExtensionApplyMode,
+    BatchId, CommandHistory, CommandHistoryError, CommandKind, ExtensionApplyMode,
     ExtensionBatchMetadata, HistoryEntry, HistoryEntryStatus, SnapshotId, WorkflowSnapshot,
     MAX_HISTORY_DEPTH, MAX_REDO_STACK_DEPTH, MAX_UNDO_STACK_DEPTH,
 };
@@ -76,7 +76,7 @@ pub use discovery::{
     enforce_pin, validate_discovery_path, DiscoveryPath, DiscoveryPathError, PinEnforcementError,
     VersionConstraint, VersionPin, VERSION_BASE_PATH,
 };
-pub use identity::{CausationId, CorrelationId};
+pub use identity::{CausationId, CommandId, CorrelationId};
 pub use dual_representation::{
     apply_redaction, OperatorProjection, RedactionKind, RedactionPolicy, RedactionRule,
 };
