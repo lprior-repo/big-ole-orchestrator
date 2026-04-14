@@ -1,8 +1,8 @@
 //! Connector lifecycle management (ADR-041 §5).
 
+use crate::connector::Connector;
 use std::collections::HashMap;
 use std::sync::Arc;
-use crate::connector::Connector;
 
 /// Registry for managing connector instances by type name.
 pub struct ConnectorRegistry {

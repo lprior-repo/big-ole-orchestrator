@@ -4,8 +4,8 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::runtime::Runtime;
 use vo_executor::{
-    cancel_execution, execute_step, execute_step_with_retry, get_error_count,
-    get_execution_status, get_state_count, reset_all_state, RetryPolicy, StepId,
+    cancel_execution, execute_step, execute_step_with_retry, get_error_count, get_execution_status,
+    get_state_count, reset_all_state, RetryPolicy, StepId,
 };
 
 fn rt() -> Runtime {
@@ -41,9 +41,7 @@ fn bench_execute_step_concurrent_throughput(c: &mut Criterion) {
                     let step_id = StepId::new(format!("workflow-step-{}", t % 10));
                     handles.push(tokio::spawn({
                         let step_id = step_id.clone();
-                        async move {
-                            execute_step(step_id, 5000).await.unwrap()
-                        }
+                        async move { execute_step(step_id, 5000).await.unwrap() }
                     }));
                 }
                 for handle in handles {
@@ -65,10 +63,8 @@ fn bench_execute_step_with_retry_throughput(c: &mut Criterion) {
         b.to_async(&runtime).iter(|| async {
             let start = std::time::Instant::now();
             for _ in 0..10 {
-                black_box(
-                    execute_step_with_retry(step_id.clone(), 5000, policy.clone()).await,
-                )
-                .unwrap();
+                black_box(execute_step_with_retry(step_id.clone(), 5000, policy.clone()).await)
+                    .unwrap();
             }
             start.elapsed()
         })
@@ -104,9 +100,7 @@ fn bench_get_execution_status_concurrent(c: &mut Criterion) {
                 let mut handles = Vec::with_capacity(num_readers);
                 for _ in 0..num_readers {
                     let sid = step_id.clone();
-                    handles.push(tokio::spawn(async move {
-                        get_execution_status(&sid)
-                    }));
+                    handles.push(tokio::spawn(async move { get_execution_status(&sid) }));
                 }
                 for handle in handles {
                     black_box(handle.await.expect("reader join"));
@@ -137,9 +131,7 @@ fn bench_execute_step_mixed_workload(c: &mut Criterion) {
                 let step_id = StepId::new(format!("{}-{}", step_name, i));
                 handles.push(tokio::spawn({
                     let step_id = step_id.clone();
-                    async move {
-                        execute_step(step_id, 5000).await
-                    }
+                    async move { execute_step(step_id, 5000).await }
                 }));
             }
             for handle in handles {
@@ -165,9 +157,7 @@ fn bench_execute_step_scaling(c: &mut Criterion) {
                     let step_id = StepId::new(format!("step-{}-{}", batch_size, t));
                     handles.push(tokio::spawn({
                         let step_id = step_id.clone();
-                        async move {
-                            execute_step(step_id, 5000).await.unwrap()
-                        }
+                        async move { execute_step(step_id, 5000).await.unwrap() }
                     }));
                 }
                 for handle in handles {
@@ -330,12 +320,11 @@ fn bench_sustained_load_throughput(c: &mut Criterion) {
                     if total_completed + t as u64 >= total_ops as u64 {
                         break;
                     }
-                    let step_id = StepId::new(format!("sustained-step-{}", total_completed + t as u64));
+                    let step_id =
+                        StepId::new(format!("sustained-step-{}", total_completed + t as u64));
                     handles.push(tokio::spawn({
                         let step_id = step_id.clone();
-                        async move {
-                            execute_step(step_id, 5000).await.unwrap()
-                        }
+                        async move { execute_step(step_id, 5000).await.unwrap() }
                     }));
                 }
                 for handle in handles {
@@ -364,9 +353,7 @@ fn bench_high_concurrency_stress(c: &mut Criterion) {
                     let step_id = StepId::new(format!("stress-step-{}", t));
                     handles.push(tokio::spawn({
                         let step_id = step_id.clone();
-                        async move {
-                            execute_step(step_id, 5000).await.unwrap()
-                        }
+                        async move { execute_step(step_id, 5000).await.unwrap() }
                     }));
                 }
                 for handle in handles {
@@ -426,20 +413,23 @@ fn bench_memory_leak_state_growth(c: &mut Criterion) {
     let mut group = c.benchmark_group("memory_leak_state");
 
     for num_distinct_steps in [100, 500, 1000, 5000] {
-        group.bench_function(format!("{}_distinct_steps_growth", num_distinct_steps), |b| {
-            b.to_async(&runtime).iter(|| async move {
-                let initial_count = get_state_count();
-                for i in 0..num_distinct_steps {
-                    let step_id = StepId::new(format!("leak-step-{}", i));
-                    execute_step(step_id, 5000).await.unwrap();
-                }
-                let final_count = get_state_count();
-                let growth = final_count.saturating_sub(initial_count);
-                reset_all_state();
-                let after_reset = get_state_count();
-                (growth, after_reset)
-            })
-        });
+        group.bench_function(
+            format!("{}_distinct_steps_growth", num_distinct_steps),
+            |b| {
+                b.to_async(&runtime).iter(|| async move {
+                    let initial_count = get_state_count();
+                    for i in 0..num_distinct_steps {
+                        let step_id = StepId::new(format!("leak-step-{}", i));
+                        execute_step(step_id, 5000).await.unwrap();
+                    }
+                    let final_count = get_state_count();
+                    let growth = final_count.saturating_sub(initial_count);
+                    reset_all_state();
+                    let after_reset = get_state_count();
+                    (growth, after_reset)
+                })
+            },
+        );
     }
     group.finish();
 }
@@ -506,9 +496,7 @@ fn bench_memory_leak_concurrent_distinct(c: &mut Criterion) {
                     let step_id = StepId::new(format!("concurrent-leak-{}", t));
                     handles.push(tokio::spawn({
                         let step_id = step_id.clone();
-                        async move {
-                            execute_step(step_id, 5000).await.unwrap()
-                        }
+                        async move { execute_step(step_id, 5000).await.unwrap() }
                     }));
                 }
                 for handle in handles {

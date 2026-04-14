@@ -158,8 +158,8 @@ pub fn decode_instance_key(bytes: &[u8]) -> Result<InstanceId, DekStoreError> {
 /// # Panics
 ///
 /// Panics if `DekEntry` cannot be serialized (should never happen).
-    #[expect(clippy::expect_used)]
-    pub fn encode_dek_entry(entry: &DekEntry) -> Vec<u8> {
+#[expect(clippy::expect_used)]
+pub fn encode_dek_entry(entry: &DekEntry) -> Vec<u8> {
     serde_json::to_vec(entry).expect("DekEntry should always be serializable")
 }
 
@@ -243,11 +243,7 @@ pub trait DekStore: Send + Sync {
     ///
     /// Returns `DekStoreError::DekNotFound` if no DEK exists to rotate.
     /// Returns `DekStoreError::Storage` if the underlying storage fails.
-    fn rotate_dek(
-        &self,
-        instance_id: &InstanceId,
-        kek: &[u8; 32],
-    ) -> Result<DekId, DekStoreError>;
+    fn rotate_dek(&self, instance_id: &InstanceId, kek: &[u8; 32]) -> Result<DekId, DekStoreError>;
 
     /// Retire a DEK (crypto-shred it).
     ///

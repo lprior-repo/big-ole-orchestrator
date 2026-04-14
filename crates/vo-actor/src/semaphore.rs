@@ -140,8 +140,6 @@ pub enum RejectionReason {
     Timeout,
 }
 
-
-
 // =============================================================================
 // Calculation Layer — Pure Decision Functions
 // =============================================================================
@@ -175,7 +173,11 @@ pub fn calculate_backpressure_status(
 /// Estimates wait time in milliseconds based on position and available permits.
 #[inline]
 #[must_use]
-pub fn estimate_wait_ms(position: usize, available_permits: usize, avg_task_duration_ms: u64) -> u64 {
+pub fn estimate_wait_ms(
+    position: usize,
+    available_permits: usize,
+    avg_task_duration_ms: u64,
+) -> u64 {
     if available_permits == 0 {
         return (position as u64 + 1) * avg_task_duration_ms;
     }
@@ -339,8 +341,7 @@ impl ExecutionSemaphore {
 ///
 /// Provides per-workflow limiting in addition to global limiting.
 pub struct WorkflowSemaphoreMap {
-    semaphores:
-        std::sync::RwLock<std::collections::HashMap<WorkflowName, Arc<Semaphore>>>,
+    semaphores: std::sync::RwLock<std::collections::HashMap<WorkflowName, Arc<Semaphore>>>,
     max_per_workflow: usize,
 }
 

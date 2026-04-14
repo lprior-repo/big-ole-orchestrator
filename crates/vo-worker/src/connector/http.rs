@@ -1,9 +1,9 @@
 //! Idempotency-key HTTP connector (ADR-041).
 
-use async_trait::async_trait;
 use crate::connector::{
     CommitOutcome, Connector, ConnectorError, PreparedEffect, ReconcileOutcome,
 };
+use async_trait::async_trait;
 
 /// HTTP connector with idempotency-key support for REST APIs.
 pub struct HttpConnector {
@@ -52,16 +52,11 @@ impl Connector for HttpConnector {
         })
     }
 
-    async fn commit(
-        &self,
-        prepared: PreparedEffect,
-    ) -> Result<CommitOutcome, ConnectorError> {
+    async fn commit(&self, prepared: PreparedEffect) -> Result<CommitOutcome, ConnectorError> {
         let url = prepared.payload["base_url"]
             .as_str()
             .unwrap_or(&self.base_url);
-        let idempotency_key = prepared.payload["idempotency_key"]
-            .as_str()
-            .unwrap_or("");
+        let idempotency_key = prepared.payload["idempotency_key"].as_str().unwrap_or("");
 
         let request_data = &prepared.payload["request"];
 
@@ -76,12 +71,22 @@ impl Connector for HttpConnector {
             "PUT" => self.client.put(&full_url),
             "DELETE" => self.client.delete(&full_url),
             "PATCH" => self.client.patch(&full_url),
-            _ => return Err(ConnectorError::terminal(format!("unsupported HTTP method: {}", method))),
+            _ => {
+                return Err(ConnectorError::terminal(format!(
+                    "unsupported HTTP method: {}",
+                    method
+                )))
+            }
         };
 
         let response = req_builder
             .header("Idempotency-Key", idempotency_key)
-            .json(&request_data.get("body").cloned().unwrap_or(serde_json::Value::Null))
+            .json(
+                &request_data
+                    .get("body")
+                    .cloned()
+                    .unwrap_or(serde_json::Value::Null),
+            )
             .send()
             .await
             .map_err(|e| classify_http_error(&e))?;
@@ -93,18 +98,17 @@ impl Connector for HttpConnector {
             409 => Ok(CommitOutcome::Ambiguous),
             429 => Err(ConnectorError::retryable("rate limited")),
             400..=499 => Err(ConnectorError::terminal(format!(
-                "client error: {}", response.status()
+                "client error: {}",
+                response.status()
             ))),
             _ => Err(ConnectorError::retryable(format!(
-                "server error: {}", response.status()
+                "server error: {}",
+                response.status()
             ))),
         }
     }
 
-    async fn reconcile(
-        &self,
-        effect_id: &str,
-    ) -> Result<ReconcileOutcome, ConnectorError> {
+    async fn reconcile(&self, effect_id: &str) -> Result<ReconcileOutcome, ConnectorError> {
         // For HTTP connectors with idempotency keys, we can't reliably
         // determine if a request was processed. Return StillAmbiguous
         // to trigger retry with the same idempotency key.

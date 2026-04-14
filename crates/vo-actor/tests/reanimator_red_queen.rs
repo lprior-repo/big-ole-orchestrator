@@ -61,7 +61,10 @@ async fn rq_reanimator_shutdown_rejects_new_work() {
     tokio::time::sleep(Duration::from_millis(50)).await;
 
     let state_before = handle.current_state();
-    assert_eq!(state_before, vo_actor::reanimator::types::ReanimatorState::Running);
+    assert_eq!(
+        state_before,
+        vo_actor::reanimator::types::ReanimatorState::Running
+    );
 
     let result = handle.shutdown().await;
     assert!(result.is_ok(), "Shutdown should succeed");
@@ -165,11 +168,7 @@ async fn rq_concurrent_delete_no_leak() {
     tokio::time::sleep(Duration::from_millis(1500)).await;
 
     let enqueued = work_queue.enqueued().await;
-    assert_eq!(
-        enqueued.len(),
-        1,
-        "Resume should be enqueued exactly once"
-    );
+    assert_eq!(enqueued.len(), 1, "Resume should be enqueued exactly once");
 
     handle.shutdown().await.expect("shutdown should succeed");
 }
@@ -182,8 +181,18 @@ async fn rq_concurrent_delete_no_leak() {
 #[tokio::test]
 async fn rq_duplicate_timer_ids_same_instance() {
     let instance_id = make_instance_id(0x01);
-    let timer1 = TimerRecord::new(instance_id.clone(), ts_ms(100), Some(vo_types::TimerId::from_bytes([0x01; 16])), ts_ms(50));
-    let timer2 = TimerRecord::new(instance_id.clone(), ts_ms(100), Some(vo_types::TimerId::from_bytes([0x02; 16])), ts_ms(50));
+    let timer1 = TimerRecord::new(
+        instance_id.clone(),
+        ts_ms(100),
+        Some(vo_types::TimerId::from_bytes([0x01; 16])),
+        ts_ms(50),
+    );
+    let timer2 = TimerRecord::new(
+        instance_id.clone(),
+        ts_ms(100),
+        Some(vo_types::TimerId::from_bytes([0x02; 16])),
+        ts_ms(50),
+    );
 
     let storage = Arc::new(MockTimerStorage::new(vec![timer1, timer2]));
     let work_queue = Arc::new(MockWorkQueue::new());
@@ -203,11 +212,7 @@ async fn rq_duplicate_timer_ids_same_instance() {
     handle.shutdown().await.expect("shutdown should succeed");
 
     let fire_calls = storage.fire_calls().await;
-    assert_eq!(
-        fire_calls.len(),
-        2,
-        "Both timers should fire"
-    );
+    assert_eq!(fire_calls.len(), 2, "Both timers should fire");
 }
 
 // =============================================================================
@@ -219,7 +224,12 @@ async fn rq_duplicate_timer_ids_same_instance() {
 async fn rq_past_fire_at_processed_immediately() {
     let instance_id = make_instance_id(0x01);
     let past_time = TimestampMs::now().as_u64().saturating_sub(1000);
-    let timer = TimerRecord::new(instance_id.clone(), ts_ms(past_time), None, ts_ms(past_time - 50));
+    let timer = TimerRecord::new(
+        instance_id.clone(),
+        ts_ms(past_time),
+        None,
+        ts_ms(past_time - 50),
+    );
 
     let storage = Arc::new(MockTimerStorage::new(vec![timer]));
     let work_queue = Arc::new(MockWorkQueue::new());
@@ -349,11 +359,7 @@ async fn rq_no_timer_leaks_all_processed() {
     handle.shutdown().await.expect("shutdown should succeed");
 
     let fire_calls = storage.fire_calls().await;
-    assert_eq!(
-        fire_calls.len(),
-        3,
-        "All 3 timers should fire (no leaks)"
-    );
+    assert_eq!(fire_calls.len(), 3, "All 3 timers should fire (no leaks)");
 }
 
 // RQ-LF02: Deleted timers do not fire
@@ -385,10 +391,7 @@ async fn rq_deleted_timers_do_not_fire() {
     handle.shutdown().await.expect("shutdown should succeed");
 
     let fire_calls = storage.fire_calls().await;
-    assert!(
-        fire_calls.is_empty(),
-        "Deleted timer should not fire"
-    );
+    assert!(fire_calls.is_empty(), "Deleted timer should not fire");
 }
 
 // RQ-LF03: No double-fire when same timer appears multiple times in scan

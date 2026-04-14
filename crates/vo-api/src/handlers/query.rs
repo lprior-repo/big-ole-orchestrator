@@ -41,7 +41,10 @@ pub async fn get_timeline(
         None => {
             return (
                 StatusCode::BAD_REQUEST,
-                Json(ApiError::new("invalid_id", "id must be <namespace>/<instance_id>")),
+                Json(ApiError::new(
+                    "invalid_id",
+                    "id must be <namespace>/<instance_id>",
+                )),
             )
                 .into_response();
         }
@@ -75,7 +78,15 @@ pub async fn get_timeline(
         }
     }
 
-    (StatusCode::OK, Json(TimelineResponse { instance_id: id, entries, total_replayed })).into_response()
+    (
+        StatusCode::OK,
+        Json(TimelineResponse {
+            instance_id: id,
+            entries,
+            total_replayed,
+        }),
+    )
+        .into_response()
 }
 
 // ---------------------------------------------------------------------------
@@ -92,7 +103,10 @@ pub async fn get_history(
         None => {
             return (
                 StatusCode::BAD_REQUEST,
-                Json(ApiError::new("invalid_id", "id must be <namespace>/<instance_id>")),
+                Json(ApiError::new(
+                    "invalid_id",
+                    "id must be <namespace>/<instance_id>",
+                )),
             )
                 .into_response();
         }
@@ -110,8 +124,16 @@ pub async fn get_history(
                     .and_then(|v| v.as_str())
                     .unwrap_or("unknown")
                     .to_string();
-                let step_id = envelope.payload.get("step_id").and_then(|v| v.as_str()).map(String::from);
-                let error = envelope.payload.get("error").and_then(|v| v.as_str()).map(String::from);
+                let step_id = envelope
+                    .payload
+                    .get("step_id")
+                    .and_then(|v| v.as_str())
+                    .map(String::from);
+                let error = envelope
+                    .payload
+                    .get("error")
+                    .and_then(|v| v.as_str())
+                    .map(String::from);
                 let output = envelope.payload.get("output").cloned();
 
                 entries.push(HistoryEntry {
@@ -130,7 +152,14 @@ pub async fn get_history(
         }
     }
 
-    (StatusCode::OK, Json(HistoryResponse { instance_id: id, entries })).into_response()
+    (
+        StatusCode::OK,
+        Json(HistoryResponse {
+            instance_id: id,
+            entries,
+        }),
+    )
+        .into_response()
 }
 
 // ---------------------------------------------------------------------------
@@ -147,7 +176,10 @@ pub async fn get_effect_journal(
         None => {
             return (
                 StatusCode::BAD_REQUEST,
-                Json(ApiError::new("invalid_id", "id must be <namespace>/<instance_id>")),
+                Json(ApiError::new(
+                    "invalid_id",
+                    "id must be <namespace>/<instance_id>",
+                )),
             )
                 .into_response();
         }
@@ -171,7 +203,13 @@ pub async fn get_effect_journal(
                     .annotations
                     .get("semantics")
                     .and_then(|v| v.as_str())
-                    .map(|s| if s == "exact" { EffectSemantics::Exact } else { EffectSemantics::Unsafe })
+                    .map(|s| {
+                        if s == "exact" {
+                            EffectSemantics::Exact
+                        } else {
+                            EffectSemantics::Unsafe
+                        }
+                    })
                     .unwrap_or(EffectSemantics::Unsafe);
 
                 entries.push(EffectJournalEntry {
@@ -189,7 +227,14 @@ pub async fn get_effect_journal(
         }
     }
 
-    (StatusCode::OK, Json(EffectJournalResponse { instance_id: id, entries })).into_response()
+    (
+        StatusCode::OK,
+        Json(EffectJournalResponse {
+            instance_id: id,
+            entries,
+        }),
+    )
+        .into_response()
 }
 
 // ---------------------------------------------------------------------------
@@ -206,7 +251,10 @@ pub async fn get_workflow_version(
         None => {
             return (
                 StatusCode::BAD_REQUEST,
-                Json(ApiError::new("invalid_id", "id must be <namespace>/<instance_id>")),
+                Json(ApiError::new(
+                    "invalid_id",
+                    "id must be <namespace>/<instance_id>",
+                )),
             )
                 .into_response();
         }

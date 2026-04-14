@@ -1,11 +1,9 @@
-use criterion::{
-    black_box, criterion_group, criterion_main, Criterion, Throughput,
-};
+use criterion::{black_box, criterion_group, criterion_main, Criterion, Throughput};
 use std::time::Instant;
 use tokio::runtime::Runtime;
 use vo_executor::{
-    execute_step, execute_step_with_retry, get_execution_status, get_state_count,
-    reset_all_state, RetryPolicy, StepId,
+    execute_step, execute_step_with_retry, get_execution_status, get_state_count, reset_all_state,
+    RetryPolicy, StepId,
 };
 
 fn rt() -> Runtime {
@@ -28,9 +26,9 @@ fn bench_e2e_throughput_single_step(c: &mut Criterion) {
                 let mut handles = Vec::with_capacity(num_concurrent);
                 for _ in 0..num_concurrent {
                     let step_id = fresh_step_id();
-                    handles.push(tokio::spawn(async move {
-                        execute_step(step_id, 5000).await
-                    }));
+                    handles.push(tokio::spawn(
+                        async move { execute_step(step_id, 5000).await },
+                    ));
                 }
                 let mut successes = 0u64;
                 let mut failures = 0u64;
@@ -69,9 +67,9 @@ fn bench_e2e_throughput_mixed_workload(c: &mut Criterion) {
                         _ => ("step-normal", 5000),
                     };
                     let step_id = StepId::new(format!("{}-{}", step_name, uuid::Uuid::new_v4()));
-                    handles.push(tokio::spawn(async move {
-                        execute_step(step_id, delay).await
-                    }));
+                    handles.push(tokio::spawn(
+                        async move { execute_step(step_id, delay).await },
+                    ));
                 }
                 let mut successes = 0u64;
                 let mut failures = 0u64;
@@ -96,43 +94,43 @@ fn bench_e2e_throughput_sustained_load(c: &mut Criterion) {
     let mut group = c.benchmark_group("e2e_throughput_sustained");
     group.throughput(Throughput::Elements(1));
 
-    let test_config = [
-        (1000, 10),
-        (5000, 50),
-        (10000, 100),
-    ];
+    let test_config = [(1000, 10), (5000, 50), (10000, 100)];
 
     for (total_ops, concurrent) in test_config {
-        group.bench_function(format!("{}_ops_{}_concurrent", total_ops, concurrent), |b| {
-            b.to_async(&runtime).iter(move || async move {
-                let start = Instant::now();
-                let mut total_completed = 0u64;
-                let mut total_successes = 0u64;
-                let mut total_failures = 0u64;
+        group.bench_function(
+            format!("{}_ops_{}_concurrent", total_ops, concurrent),
+            |b| {
+                b.to_async(&runtime).iter(move || async move {
+                    let start = Instant::now();
+                    let mut total_completed = 0u64;
+                    let mut total_successes = 0u64;
+                    let mut total_failures = 0u64;
 
-                while total_completed < total_ops as u64 {
-                    let batch_size = concurrent.min(total_ops as usize - total_completed as usize);
-                    let mut handles = Vec::with_capacity(batch_size);
-                    for _ in 0..batch_size {
-                        let step_id = fresh_step_id();
-                        handles.push(tokio::spawn(async move {
-                            execute_step(step_id, 5000).await
-                        }));
-                    }
-                    for handle in handles {
-                        total_completed += 1;
-                        match handle.await {
-                            Ok(Ok(_)) => total_successes += 1,
-                            Ok(Err(_)) => total_failures += 1,
-                            Err(_) => total_failures += 1,
+                    while total_completed < total_ops as u64 {
+                        let batch_size =
+                            concurrent.min(total_ops as usize - total_completed as usize);
+                        let mut handles = Vec::with_capacity(batch_size);
+                        for _ in 0..batch_size {
+                            let step_id = fresh_step_id();
+                            handles.push(tokio::spawn(
+                                async move { execute_step(step_id, 5000).await },
+                            ));
+                        }
+                        for handle in handles {
+                            total_completed += 1;
+                            match handle.await {
+                                Ok(Ok(_)) => total_successes += 1,
+                                Ok(Err(_)) => total_failures += 1,
+                                Err(_) => total_failures += 1,
+                            }
                         }
                     }
-                }
-                let elapsed = start.elapsed();
-                let throughput = (total_completed as f64) / elapsed.as_secs_f64();
-                (throughput, total_successes, total_failures, elapsed)
-            })
-        });
+                    let elapsed = start.elapsed();
+                    let throughput = (total_completed as f64) / elapsed.as_secs_f64();
+                    (throughput, total_successes, total_failures, elapsed)
+                })
+            },
+        );
     }
     group.finish();
 }
@@ -177,7 +175,12 @@ fn bench_e2e_latency_percentiles_concurrent(c: &mut Criterion) {
                 for batch in 0..10 {
                     let mut handles = Vec::with_capacity(num_tasks);
                     for t in 0..num_tasks {
-                        let step_id = StepId::new(format!("batch-{}-task-{}-{}", batch, t, uuid::Uuid::new_v4()));
+                        let step_id = StepId::new(format!(
+                            "batch-{}-task-{}-{}",
+                            batch,
+                            t,
+                            uuid::Uuid::new_v4()
+                        ));
                         handles.push(tokio::spawn({
                             let step_id = step_id.clone();
                             async move {
@@ -196,12 +199,18 @@ fn bench_e2e_latency_percentiles_concurrent(c: &mut Criterion) {
                 all_latencies.sort();
                 let len = all_latencies.len();
                 if len == 0 {
-                    return (std::time::Duration::ZERO, std::time::Duration::ZERO, std::time::Duration::ZERO, std::time::Duration::ZERO);
+                    return (
+                        std::time::Duration::ZERO,
+                        std::time::Duration::ZERO,
+                        std::time::Duration::ZERO,
+                        std::time::Duration::ZERO,
+                    );
                 }
                 let p50 = all_latencies[len / 2];
                 let p95 = all_latencies[((len as f64) * 0.95) as usize].min(all_latencies[len - 1]);
                 let p99 = all_latencies[((len as f64) * 0.99) as usize].min(all_latencies[len - 1]);
-                let p999 = all_latencies[((len as f64) * 0.999) as usize].min(all_latencies[len - 1]);
+                let p999 =
+                    all_latencies[((len as f64) * 0.999) as usize].min(all_latencies[len - 1]);
                 (p50, p95, p99, p999)
             })
         });
@@ -262,13 +271,12 @@ fn bench_e2e_retry_throughput(c: &mut Criterion) {
                         let start = Instant::now();
                         let mut handles = Vec::with_capacity(batch_size);
                         for i in 0..batch_size {
-                            let step_id = StepId::new(format!("retry-{}-{}", i, uuid::Uuid::new_v4()));
+                            let step_id =
+                                StepId::new(format!("retry-{}-{}", i, uuid::Uuid::new_v4()));
                             let policy = policy.clone();
                             handles.push(tokio::spawn({
                                 let step_id = step_id.clone();
-                                async move {
-                                    execute_step_with_retry(step_id, 5000, policy).await
-                                }
+                                async move { execute_step_with_retry(step_id, 5000, policy).await }
                             }));
                         }
                         let mut successes = 0u64;
@@ -308,9 +316,7 @@ fn bench_e2e_state_read_throughput(c: &mut Criterion) {
                 let mut handles = Vec::with_capacity(num_readers);
                 for i in 0..num_readers {
                     let step_id = StepId::new(format!("bench-state-read-{}", i % 100));
-                    handles.push(tokio::spawn(async move {
-                        get_execution_status(&step_id)
-                    }));
+                    handles.push(tokio::spawn(async move { get_execution_status(&step_id) }));
                 }
                 for handle in handles {
                     let _ = black_box(handle.await);
@@ -328,58 +334,60 @@ fn bench_e2e_concurrent_read_write(c: &mut Criterion) {
     let mut group = c.benchmark_group("e2e_concurrent_read_write");
     group.throughput(Throughput::Elements(1));
 
-    let test_mix = [
-        (10, 10),
-        (50, 50),
-        (100, 100),
-    ];
+    let test_mix = [(10, 10), (50, 50), (100, 100)];
 
     for (num_writers, num_readers) in test_mix {
-        group.bench_function(format!("{}_writes_{}_reads", num_writers, num_readers), |b| {
-            b.to_async(&runtime).iter(move || async move {
-                let start = Instant::now();
+        group.bench_function(
+            format!("{}_writes_{}_reads", num_writers, num_readers),
+            |b| {
+                b.to_async(&runtime).iter(move || async move {
+                    let start = Instant::now();
 
-                let mut write_handles = Vec::with_capacity(num_writers);
-                for i in 0..num_writers {
-                    let step_id = StepId::new(format!("write-{}-{}", i, uuid::Uuid::new_v4()));
-                    write_handles.push(tokio::spawn({
-                        let step_id = step_id.clone();
-                        async move {
-                            execute_step(step_id, 5000).await
-                        }
-                    }));
-                }
-
-                let mut read_handles = Vec::with_capacity(num_readers);
-                for i in 0..num_readers {
-                    let step_id = StepId::new(format!("read-{}", i));
-                    read_handles.push(tokio::spawn(async move {
-                        get_execution_status(&step_id)
-                    }));
-                }
-
-                let mut write_successes = 0u64;
-                let mut write_failures = 0u64;
-                for handle in write_handles {
-                    match handle.await {
-                        Ok(Ok(_)) => write_successes += 1,
-                        Ok(Err(_)) => write_failures += 1,
-                        Err(_) => write_failures += 1,
+                    let mut write_handles = Vec::with_capacity(num_writers);
+                    for i in 0..num_writers {
+                        let step_id = StepId::new(format!("write-{}-{}", i, uuid::Uuid::new_v4()));
+                        write_handles.push(tokio::spawn({
+                            let step_id = step_id.clone();
+                            async move { execute_step(step_id, 5000).await }
+                        }));
                     }
-                }
 
-                let mut read_count = 0u64;
-                for handle in read_handles {
-                    let _ = black_box(handle.await);
-                    read_count += 1;
-                }
+                    let mut read_handles = Vec::with_capacity(num_readers);
+                    for i in 0..num_readers {
+                        let step_id = StepId::new(format!("read-{}", i));
+                        read_handles
+                            .push(tokio::spawn(async move { get_execution_status(&step_id) }));
+                    }
 
-                let elapsed = start.elapsed();
-                let total_ops = (write_successes + write_failures + read_count) as f64;
-                let throughput = total_ops / elapsed.as_secs_f64();
-                (throughput, write_successes, write_failures, read_count, elapsed)
-            })
-        });
+                    let mut write_successes = 0u64;
+                    let mut write_failures = 0u64;
+                    for handle in write_handles {
+                        match handle.await {
+                            Ok(Ok(_)) => write_successes += 1,
+                            Ok(Err(_)) => write_failures += 1,
+                            Err(_) => write_failures += 1,
+                        }
+                    }
+
+                    let mut read_count = 0u64;
+                    for handle in read_handles {
+                        let _ = black_box(handle.await);
+                        read_count += 1;
+                    }
+
+                    let elapsed = start.elapsed();
+                    let total_ops = (write_successes + write_failures + read_count) as f64;
+                    let throughput = total_ops / elapsed.as_secs_f64();
+                    (
+                        throughput,
+                        write_successes,
+                        write_failures,
+                        read_count,
+                        elapsed,
+                    )
+                })
+            },
+        );
     }
     group.finish();
 }
@@ -415,7 +423,7 @@ fn bench_e2e_memory_sustained_operations(c: &mut Criterion) {
         b.to_async(&runtime).iter(|| async move {
             let initial_count = get_state_count();
             let mut peaks = Vec::with_capacity(10);
-            
+
             for batch in 0..10 {
                 for i in 0..1000 {
                     let step_id = StepId::new(format!("sustained-{}-{}", batch, i));
@@ -424,12 +432,17 @@ fn bench_e2e_memory_sustained_operations(c: &mut Criterion) {
                 let current_count = get_state_count();
                 peaks.push(current_count);
             }
-            
+
             let final_count = get_state_count();
             let max_peak = peaks.into_iter().max().unwrap_or(0);
             reset_all_state();
-            
-            (initial_count, final_count, max_peak, final_count.saturating_sub(initial_count))
+
+            (
+                initial_count,
+                final_count,
+                max_peak,
+                final_count.saturating_sub(initial_count),
+            )
         })
     });
     group.finish();
@@ -444,21 +457,26 @@ fn bench_e2e_error_accumulation(c: &mut Criterion) {
             b.to_async(&runtime).iter(|| async move {
                 let initial_error_count = vo_executor::get_error_count();
                 let initial_state_count = get_state_count();
-                
+
                 for i in 0..num_errors {
                     let step_id = StepId::new(format!("error-{}-{}", i, uuid::Uuid::new_v4()));
                     let _ = execute_step(step_id, 5000).await;
                 }
-                
+
                 let final_error_count = vo_executor::get_error_count();
                 let final_state_count = get_state_count();
-                
+
                 let error_growth = final_error_count.saturating_sub(initial_error_count);
                 let state_growth = final_state_count.saturating_sub(initial_state_count);
-                
+
                 reset_all_state();
-                
-                (error_growth, state_growth, final_error_count, final_state_count)
+
+                (
+                    error_growth,
+                    state_growth,
+                    final_error_count,
+                    final_state_count,
+                )
             })
         });
     }
@@ -475,14 +493,14 @@ fn bench_e2e_high_contention(c: &mut Criterion) {
                 let shared_step_id = StepId::new("contested-step".to_string());
                 let start = Instant::now();
                 let mut handles = Vec::with_capacity(num_tasks);
-                
+
                 for _ in 0..num_tasks {
                     let step_id = shared_step_id.clone();
-                    handles.push(tokio::spawn(async move {
-                        execute_step(step_id, 5000).await
-                    }));
+                    handles.push(tokio::spawn(
+                        async move { execute_step(step_id, 5000).await },
+                    ));
                 }
-                
+
                 let mut successes = 0u64;
                 let mut failures = 0u64;
                 for handle in handles {
@@ -492,7 +510,7 @@ fn bench_e2e_high_contention(c: &mut Criterion) {
                         Err(_) => failures += 1,
                     }
                 }
-                
+
                 let elapsed = start.elapsed();
                 let throughput = (successes + failures) as f64 / elapsed.as_secs_f64();
                 (throughput, successes, failures, elapsed)
@@ -520,9 +538,9 @@ fn bench_e2e_burst_load(c: &mut Criterion) {
                     let mut handles = Vec::with_capacity(burst_size);
                     for _ in 0..burst_size {
                         let step_id = fresh_step_id();
-                        handles.push(tokio::spawn(async move {
-                            execute_step(step_id, 5000).await
-                        }));
+                        handles.push(tokio::spawn(
+                            async move { execute_step(step_id, 5000).await },
+                        ));
                     }
 
                     for handle in handles {

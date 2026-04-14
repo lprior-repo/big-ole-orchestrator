@@ -173,11 +173,19 @@ pub enum SpawnSupervisorError {
     #[error("Spawn failed for '{command}': {error}")]
     SpawnFailed { command: String, error: String },
     #[error("Health check {check_number} failed for {instance_id}: {error}")]
-    HealthCheckFailed { instance_id: InstanceId, check_number: u32, error: String },
+    HealthCheckFailed {
+        instance_id: InstanceId,
+        check_number: u32,
+        error: String,
+    },
     #[error("Zombie detected for {instance_id}: pid={pid}")]
     ZombieDetected { instance_id: InstanceId, pid: u32 },
     #[error("Process exited for {instance_id}: pid={pid}, code={exit_code}")]
-    ProcessExited { instance_id: InstanceId, pid: u32, exit_code: i32 },
+    ProcessExited {
+        instance_id: InstanceId,
+        pid: u32,
+        exit_code: i32,
+    },
     #[error("Supervisor not running")]
     NotRunning,
     #[error("Supervisor already shutdown")]

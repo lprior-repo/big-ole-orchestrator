@@ -10,9 +10,7 @@ mod timeout_limit_tests {
     use std::sync::LazyLock;
     use std::sync::Mutex;
     use std::sync::MutexGuard;
-    use vo_executor::{
-        execute_step, reset_all_state, StepId,
-    };
+    use vo_executor::{execute_step, reset_all_state, StepId};
 
     static STATE_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
@@ -33,7 +31,10 @@ mod timeout_limit_tests {
         let _guard = state_guard();
         let result = execute_step(StepId::new("step-1".to_string()), 0).await;
         let err = result.unwrap_err();
-        assert!(matches!(err, vo_executor::ExecuteNodeError::InvalidTimeout { value: 0, .. }));
+        assert!(matches!(
+            err,
+            vo_executor::ExecuteNodeError::InvalidTimeout { value: 0, .. }
+        ));
     }
 
     #[tokio::test]
@@ -41,7 +42,13 @@ mod timeout_limit_tests {
         let _guard = state_guard();
         let result = execute_step(StepId::new("step-1".to_string()), u64::MAX).await;
         let err = result.unwrap_err();
-        assert!(matches!(err, vo_executor::ExecuteNodeError::InvalidTimeout { value: u64::MAX, .. }));
+        assert!(matches!(
+            err,
+            vo_executor::ExecuteNodeError::InvalidTimeout {
+                value: u64::MAX,
+                ..
+            }
+        ));
     }
 
     #[tokio::test]
@@ -68,7 +75,10 @@ mod timeout_limit_tests {
         let result = execute_step(StepId::new("step-slow".to_string()), 100).await;
         assert!(matches!(
             result,
-            Err(vo_executor::ExecuteNodeError::TimeoutExceeded { elapsed_ms: 3000, limit_ms: 100 })
+            Err(vo_executor::ExecuteNodeError::TimeoutExceeded {
+                elapsed_ms: 3000,
+                limit_ms: 100
+            })
         ));
     }
 
@@ -103,7 +113,10 @@ mod timeout_limit_tests {
         let result = execute_step(StepId::new("step-slow".to_string()), 2999).await;
         assert!(matches!(
             result,
-            Err(vo_executor::ExecuteNodeError::TimeoutExceeded { elapsed_ms: 3000, limit_ms: 2999 })
+            Err(vo_executor::ExecuteNodeError::TimeoutExceeded {
+                elapsed_ms: 3000,
+                limit_ms: 2999
+            })
         ));
     }
 
@@ -130,9 +143,7 @@ mod retry_policy_limit_tests {
     use std::sync::LazyLock;
     use std::sync::Mutex;
     use std::sync::MutexGuard;
-    use vo_executor::{
-        execute_step_with_retry, reset_all_state, RetryPolicy, StepId,
-    };
+    use vo_executor::{execute_step_with_retry, reset_all_state, RetryPolicy, StepId};
 
     static STATE_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
@@ -162,9 +173,14 @@ mod retry_policy_limit_tests {
         let _guard = state_guard();
         let policy = RetryPolicy::new(1, 1000, 2.0).unwrap();
         let start = std::time::Instant::now();
-        let result = execute_step_with_retry(StepId::new("step-flaky".to_string()), 5000, policy).await;
+        let result =
+            execute_step_with_retry(StepId::new("step-flaky".to_string()), 5000, policy).await;
         let elapsed_ms = start.elapsed().as_millis() as u64;
-        assert!(elapsed_ms < 100, "max_attempts=1 should fail without sleeping, got {}ms", elapsed_ms);
+        assert!(
+            elapsed_ms < 100,
+            "max_attempts=1 should fail without sleeping, got {}ms",
+            elapsed_ms
+        );
         assert!(matches!(
             result,
             Err(vo_executor::ExecuteNodeError::RetryExhausted { attempts: 1, .. })
@@ -176,9 +192,14 @@ mod retry_policy_limit_tests {
         let _guard = state_guard();
         let policy = RetryPolicy::new(2, 100, 2.0).unwrap();
         let start = std::time::Instant::now();
-        let result = execute_step_with_retry(StepId::new("step-flaky".to_string()), 5000, policy).await;
+        let result =
+            execute_step_with_retry(StepId::new("step-flaky".to_string()), 5000, policy).await;
         let elapsed_ms = start.elapsed().as_millis() as u64;
-        assert!((80..300).contains(&elapsed_ms), "Expected ~100ms sleep, got {}ms", elapsed_ms);
+        assert!(
+            (80..300).contains(&elapsed_ms),
+            "Expected ~100ms sleep, got {}ms",
+            elapsed_ms
+        );
         assert!(matches!(
             result,
             Err(vo_executor::ExecuteNodeError::RetryExhausted { attempts: 2, .. })
@@ -189,7 +210,8 @@ mod retry_policy_limit_tests {
     async fn retry_exhausted_error_contains_attempt_count() {
         let _guard = state_guard();
         let policy = RetryPolicy::new(3, 10, 2.0).unwrap();
-        let result = execute_step_with_retry(StepId::new("step-flaky".to_string()), 5000, policy).await;
+        let result =
+            execute_step_with_retry(StepId::new("step-flaky".to_string()), 5000, policy).await;
         match result {
             Err(vo_executor::ExecuteNodeError::RetryExhausted { attempts, .. }) => {
                 assert_eq!(attempts, 3);
@@ -216,9 +238,14 @@ mod retry_policy_limit_tests {
         let _guard = state_guard();
         let policy = RetryPolicy::new(3, 0, 2.0).unwrap();
         let start = std::time::Instant::now();
-        let _result = execute_step_with_retry(StepId::new("step-flaky".to_string()), 5000, policy).await;
+        let _result =
+            execute_step_with_retry(StepId::new("step-flaky".to_string()), 5000, policy).await;
         let elapsed_ms = start.elapsed().as_millis() as u64;
-        assert!(elapsed_ms < 50, "Zero backoff should have minimal delay, got {}ms", elapsed_ms);
+        assert!(
+            elapsed_ms < 50,
+            "Zero backoff should have minimal delay, got {}ms",
+            elapsed_ms
+        );
     }
 
     #[tokio::test]
@@ -299,8 +326,7 @@ mod execution_boundary_tests {
     use std::sync::Mutex;
     use std::sync::MutexGuard;
     use vo_executor::{
-        cancel_execution, execute_step, get_execution_status, reset_all_state,
-        StepId,
+        cancel_execution, execute_step, get_execution_status, reset_all_state, StepId,
     };
 
     static STATE_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
@@ -339,26 +365,40 @@ mod execution_boundary_tests {
     async fn cancelled_state_is_terminal() {
         let _guard = state_guard();
         let step_id = StepId::new("step-1".to_string());
-        cancel_execution(step_id.clone()).await.expect("cancel should succeed");
+        cancel_execution(step_id.clone())
+            .await
+            .expect("cancel should succeed");
         let status = get_execution_status(&step_id);
-        assert!(matches!(status, vo_executor::ExecutionStatus::Cancelled { .. }));
+        assert!(matches!(
+            status,
+            vo_executor::ExecutionStatus::Cancelled { .. }
+        ));
     }
 
     #[tokio::test]
     async fn cancelled_execution_is_idempotent() {
         let _guard = state_guard();
         let step_id = StepId::new("step-1".to_string());
-        cancel_execution(step_id.clone()).await.expect("first cancel should succeed");
-        cancel_execution(step_id.clone()).await.expect("second cancel should succeed");
+        cancel_execution(step_id.clone())
+            .await
+            .expect("first cancel should succeed");
+        cancel_execution(step_id.clone())
+            .await
+            .expect("second cancel should succeed");
         let status = get_execution_status(&step_id);
-        assert!(matches!(status, vo_executor::ExecutionStatus::Cancelled { .. }));
+        assert!(matches!(
+            status,
+            vo_executor::ExecutionStatus::Cancelled { .. }
+        ));
     }
 
     #[tokio::test]
     async fn completed_execution_is_idempotent() {
         let _guard = state_guard();
         let step_id = StepId::new("step-1".to_string());
-        execute_step(step_id.clone(), 5000).await.expect("first exec should succeed");
+        execute_step(step_id.clone(), 5000)
+            .await
+            .expect("first exec should succeed");
         let result = execute_step(step_id.clone(), 5000).await;
         assert!(result.is_ok());
     }
@@ -370,8 +410,7 @@ mod error_limit_enforcement_tests {
     use std::sync::Mutex;
     use std::sync::MutexGuard;
     use vo_executor::{
-        execute_step, execute_step_with_retry, get_last_error, reset_all_state,
-        RetryPolicy, StepId,
+        execute_step, execute_step_with_retry, get_last_error, reset_all_state, RetryPolicy, StepId,
     };
 
     static STATE_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
@@ -402,10 +441,14 @@ mod error_limit_enforcement_tests {
     async fn retry_exhausted_contains_last_error() {
         let _guard = state_guard();
         let policy = RetryPolicy::new(3, 10, 2.0).unwrap();
-        let result = execute_step_with_retry(StepId::new("step-flaky".to_string()), 5000, policy).await;
+        let result =
+            execute_step_with_retry(StepId::new("step-flaky".to_string()), 5000, policy).await;
         match result {
             Err(vo_executor::ExecuteNodeError::RetryExhausted { last_error, .. }) => {
-                assert!(matches!(*last_error, vo_executor::ExecuteNodeError::TransientError { .. }));
+                assert!(matches!(
+                    *last_error,
+                    vo_executor::ExecuteNodeError::TransientError { .. }
+                ));
             }
             _ => panic!("Expected RetryExhausted"),
         }
@@ -415,9 +458,13 @@ mod error_limit_enforcement_tests {
     async fn last_error_cleared_after_successful_execution() {
         let _guard = state_guard();
         let step_id = StepId::new("step-transient".to_string());
-        execute_step(step_id.clone(), 5000).await.expect_err("transient should fail");
+        execute_step(step_id.clone(), 5000)
+            .await
+            .expect_err("transient should fail");
         assert!(get_last_error(&step_id).is_some());
-        execute_step(StepId::new("step-1".to_string()), 5000).await.expect("success should clear");
+        execute_step(StepId::new("step-1".to_string()), 5000)
+            .await
+            .expect("success should clear");
     }
 
     #[tokio::test]
@@ -435,7 +482,9 @@ mod error_limit_enforcement_tests {
     async fn step_not_found_is_terminal_not_retried() {
         let _guard = state_guard();
         let policy = RetryPolicy::new(3, 10, 2.0).unwrap();
-        let result = execute_step_with_retry(StepId::new("nonexistent-step".to_string()), 5000, policy).await;
+        let result =
+            execute_step_with_retry(StepId::new("nonexistent-step".to_string()), 5000, policy)
+                .await;
         assert!(matches!(
             result,
             Err(vo_executor::ExecuteNodeError::StepNotFound { .. })

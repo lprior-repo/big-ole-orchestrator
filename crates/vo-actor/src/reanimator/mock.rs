@@ -79,7 +79,7 @@ impl TimerStorage for MockTimerStorage {
         let timers = self.timers.lock().await;
         let mut seen = HashSet::new();
         let mut due: Vec<TimerRecord> = Vec::new();
-        
+
         for t in timers.iter() {
             if t.fire_at_ms <= to_timestamp {
                 let key = (t.instance_id.clone(), t.fire_at_ms);
@@ -107,7 +107,10 @@ impl TimerStorage for MockTimerStorage {
             .push((instance_id.clone(), fire_at_ms));
 
         let mut timers = self.timers.lock().await;
-        if let Some(pos) = timers.iter().position(|t| t.instance_id == *instance_id && t.fire_at_ms == fire_at_ms) {
+        if let Some(pos) = timers
+            .iter()
+            .position(|t| t.instance_id == *instance_id && t.fire_at_ms == fire_at_ms)
+        {
             timers.remove(pos);
         }
 
@@ -207,10 +210,7 @@ impl TimerStorage for MockTimerStorage {
             return Err(ReanimatorError::StorageError("Mock failure".to_string()));
         }
 
-        self.delete_all_calls
-            .lock()
-            .await
-            .push(instance_id.clone());
+        self.delete_all_calls.lock().await.push(instance_id.clone());
 
         let mut timers = self.timers.lock().await;
         let before = timers.len();

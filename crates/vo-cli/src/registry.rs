@@ -69,9 +69,14 @@ mod handlers {
             "purge"
         }
 
-        fn execute(&self, cli: &Cli) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + '_>> {
+        fn execute(
+            &self,
+            cli: &Cli,
+        ) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + '_>> {
             let Command::Purge { ref instance } = cli.command else {
-                return Box::pin(async { Err(CliError::Dispatch("not a purge command".to_string())) });
+                return Box::pin(async {
+                    Err(CliError::Dispatch("not a purge command".to_string()))
+                });
             };
             let instance = instance.clone();
             Box::pin(async move {
@@ -102,9 +107,14 @@ mod handlers {
             "check"
         }
 
-        fn execute(&self, cli: &Cli) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + '_>> {
+        fn execute(
+            &self,
+            cli: &Cli,
+        ) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + '_>> {
             let Command::Check { ref path } = cli.command else {
-                return Box::pin(async { Err(CliError::Dispatch("not a check command".to_string())) });
+                return Box::pin(async {
+                    Err(CliError::Dispatch("not a check command".to_string()))
+                });
             };
             let path = path.clone();
             Box::pin(async move {
@@ -121,7 +131,10 @@ mod handlers {
             "gc"
         }
 
-        fn execute(&self, cli: &Cli) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + '_>> {
+        fn execute(
+            &self,
+            cli: &Cli,
+        ) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + '_>> {
             let Command::Gc {
                 ref engine_url,
                 dry_run,
@@ -149,14 +162,19 @@ mod handlers {
             "init"
         }
 
-        fn execute(&self, cli: &Cli) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + '_>> {
+        fn execute(
+            &self,
+            cli: &Cli,
+        ) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + '_>> {
             let Command::Init {
                 ref project_dir,
                 ref engine_url,
                 ref storage_path,
             } = cli.command
             else {
-                return Box::pin(async { Err(CliError::Dispatch("not an init command".to_string())) });
+                return Box::pin(async {
+                    Err(CliError::Dispatch("not an init command".to_string()))
+                });
             };
             let project_dir = project_dir.clone();
             let engine_url = engine_url.clone();
@@ -181,9 +199,14 @@ mod handlers {
             "lock"
         }
 
-        fn execute(&self, cli: &Cli) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + '_>> {
+        fn execute(
+            &self,
+            cli: &Cli,
+        ) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + '_>> {
             let Command::Lock { ref project_dir } = cli.command else {
-                return Box::pin(async { Err(CliError::Dispatch("not a lock command".to_string())) });
+                return Box::pin(async {
+                    Err(CliError::Dispatch("not a lock command".to_string()))
+                });
             };
             let project_dir = project_dir.clone();
             Box::pin(async move {
@@ -205,9 +228,14 @@ mod handlers {
             "doctor"
         }
 
-        fn execute(&self, cli: &Cli) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + '_>> {
+        fn execute(
+            &self,
+            cli: &Cli,
+        ) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + '_>> {
             let Command::Doctor { ref project_dir } = cli.command else {
-                return Box::pin(async { Err(CliError::Dispatch("not a doctor command".to_string())) });
+                return Box::pin(async {
+                    Err(CliError::Dispatch("not a doctor command".to_string()))
+                });
             };
             let project_dir = project_dir.clone();
             Box::pin(async move {
@@ -228,7 +256,10 @@ mod handlers {
             "rebuild"
         }
 
-        fn execute(&self, cli: &Cli) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + '_>> {
+        fn execute(
+            &self,
+            cli: &Cli,
+        ) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + '_>> {
             let Command::Rebuild {
                 ref project_dir,
                 ref projection_id,
@@ -236,7 +267,9 @@ mod handlers {
                 force,
             } = cli.command
             else {
-                return Box::pin(async { Err(CliError::Dispatch("not a rebuild command".to_string())) });
+                return Box::pin(async {
+                    Err(CliError::Dispatch("not a rebuild command".to_string()))
+                });
             };
             let project_dir = project_dir.clone();
             let projection_id = projection_id.clone();

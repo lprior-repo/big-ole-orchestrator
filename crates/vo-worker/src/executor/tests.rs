@@ -2,8 +2,7 @@ use super::error::ManagedEffectError;
 use super::port::{DefaultManagedEffectExecutor, ManagedEffectExecutor};
 use super::task::{ExecutionOutcome, ManagedEffectTask};
 use crate::connector::{
-    CommitOutcome, Connector, ConnectorError, ConnectorRegistry, PreparedEffect,
-    ReconcileOutcome,
+    CommitOutcome, Connector, ConnectorError, ConnectorRegistry, PreparedEffect, ReconcileOutcome,
 };
 use serde_json::json;
 
@@ -44,16 +43,10 @@ impl Connector for StubConnector {
             fence,
         })
     }
-    async fn commit(
-        &self,
-        _prepared: PreparedEffect,
-    ) -> Result<CommitOutcome, ConnectorError> {
+    async fn commit(&self, _prepared: PreparedEffect) -> Result<CommitOutcome, ConnectorError> {
         Ok(self.commit_result.clone())
     }
-    async fn reconcile(
-        &self,
-        _effect_id: &str,
-    ) -> Result<ReconcileOutcome, ConnectorError> {
+    async fn reconcile(&self, _effect_id: &str) -> Result<ReconcileOutcome, ConnectorError> {
         Ok(self.reconcile_result.clone())
     }
 }
@@ -83,16 +76,10 @@ impl Connector for AlwaysRetryableCommitConnector {
             fence,
         })
     }
-    async fn commit(
-        &self,
-        _prepared: PreparedEffect,
-    ) -> Result<CommitOutcome, ConnectorError> {
+    async fn commit(&self, _prepared: PreparedEffect) -> Result<CommitOutcome, ConnectorError> {
         Err(ConnectorError::retryable("timeout"))
     }
-    async fn reconcile(
-        &self,
-        _effect_id: &str,
-    ) -> Result<ReconcileOutcome, ConnectorError> {
+    async fn reconcile(&self, _effect_id: &str) -> Result<ReconcileOutcome, ConnectorError> {
         Ok(ReconcileOutcome::StillAmbiguous)
     }
 }
@@ -122,16 +109,10 @@ impl Connector for AlwaysTerminalCommitConnector {
             fence,
         })
     }
-    async fn commit(
-        &self,
-        _prepared: PreparedEffect,
-    ) -> Result<CommitOutcome, ConnectorError> {
+    async fn commit(&self, _prepared: PreparedEffect) -> Result<CommitOutcome, ConnectorError> {
         Err(ConnectorError::terminal("bad request"))
     }
-    async fn reconcile(
-        &self,
-        _effect_id: &str,
-    ) -> Result<ReconcileOutcome, ConnectorError> {
+    async fn reconcile(&self, _effect_id: &str) -> Result<ReconcileOutcome, ConnectorError> {
         Ok(ReconcileOutcome::NotCommitted)
     }
 }
@@ -157,16 +138,10 @@ impl Connector for AlwaysPrepareFailConnector {
     ) -> Result<PreparedEffect, ConnectorError> {
         Err(ConnectorError::retryable("conn refused"))
     }
-    async fn commit(
-        &self,
-        _prepared: PreparedEffect,
-    ) -> Result<CommitOutcome, ConnectorError> {
+    async fn commit(&self, _prepared: PreparedEffect) -> Result<CommitOutcome, ConnectorError> {
         Err(ConnectorError::terminal("unreachable"))
     }
-    async fn reconcile(
-        &self,
-        _effect_id: &str,
-    ) -> Result<ReconcileOutcome, ConnectorError> {
+    async fn reconcile(&self, _effect_id: &str) -> Result<ReconcileOutcome, ConnectorError> {
         Ok(ReconcileOutcome::NotCommitted)
     }
 }
@@ -190,14 +165,21 @@ async fn managed_effect_routes_to_dedicated_path_and_committed() {
     registry.register(
         "stub".to_string(),
         Box::new(StubConnector::new(
-            CommitOutcome::Committed { receipt: "r-1".to_string() },
+            CommitOutcome::Committed {
+                receipt: "r-1".to_string(),
+            },
             ReconcileOutcome::NotCommitted,
         )),
     );
     let executor = DefaultManagedEffectExecutor::new(registry);
     let task = make_task("fx-1", 1, "stub");
     let result = executor.execute(task).await;
-    assert_eq!(result, Ok(ExecutionOutcome::Committed { receipt: "r-1".to_string() }));
+    assert_eq!(
+        result,
+        Ok(ExecutionOutcome::Committed {
+            receipt: "r-1".to_string()
+        })
+    );
 }
 
 #[tokio::test]
@@ -205,7 +187,10 @@ async fn managed_effect_rolled_back_on_connector_failure() {
     let mut registry = make_registry();
     registry.register(
         "stub".to_string(),
-        Box::new(StubConnector::new(CommitOutcome::Failed, ReconcileOutcome::NotCommitted)),
+        Box::new(StubConnector::new(
+            CommitOutcome::Failed,
+            ReconcileOutcome::NotCommitted,
+        )),
     );
     let executor = DefaultManagedEffectExecutor::new(registry);
     let task = make_task("fx-2", 1, "stub");
@@ -225,13 +210,20 @@ async fn managed_effect_reconciles_on_ambiguous_commit() {
         "stub".to_string(),
         Box::new(StubConnector::new(
             CommitOutcome::Ambiguous,
-            ReconcileOutcome::Committed { receipt: "r-rec".to_string() },
+            ReconcileOutcome::Committed {
+                receipt: "r-rec".to_string(),
+            },
         )),
     );
     let executor = DefaultManagedEffectExecutor::new(registry);
     let task = make_task("fx-3", 1, "stub");
     let result = executor.execute(task).await;
-    assert_eq!(result, Ok(ExecutionOutcome::Committed { receipt: "r-rec".to_string() }));
+    assert_eq!(
+        result,
+        Ok(ExecutionOutcome::Committed {
+            receipt: "r-rec".to_string()
+        })
+    );
 }
 
 #[tokio::test]
@@ -282,7 +274,10 @@ async fn managed_effect_error_when_connector_not_found() {
     let executor = DefaultManagedEffectExecutor::new(registry);
     let task = make_task("fx-6", 1, "nonexistent");
     let result = executor.execute(task).await;
-    assert!(matches!(result, Err(ManagedEffectError::ConnectorNotFound(_))));
+    assert!(matches!(
+        result,
+        Err(ManagedEffectError::ConnectorNotFound(_))
+    ));
 }
 
 #[tokio::test]
@@ -359,13 +354,19 @@ fn managed_effect_error_is_retryable_for_commit_and_reconciliation() {
 
 #[test]
 fn execution_outcome_is_terminal_for_committed_and_rolled_back() {
-    let committed = ExecutionOutcome::Committed { receipt: "r".to_string() };
+    let committed = ExecutionOutcome::Committed {
+        receipt: "r".to_string(),
+    };
     assert!(committed.is_terminal());
 
-    let rolled_back = ExecutionOutcome::RolledBack { reason: "err".to_string() };
+    let rolled_back = ExecutionOutcome::RolledBack {
+        reason: "err".to_string(),
+    };
     assert!(rolled_back.is_terminal());
 
-    let ambiguous = ExecutionOutcome::Ambiguous { connector_type: "http".to_string() };
+    let ambiguous = ExecutionOutcome::Ambiguous {
+        connector_type: "http".to_string(),
+    };
     assert!(!ambiguous.is_terminal());
 }
 

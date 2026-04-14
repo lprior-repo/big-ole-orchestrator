@@ -27,9 +27,9 @@ pub mod signal_buffer_tests;
 
 #[cfg(test)]
 pub mod instance_registry_tests;
+pub mod timer_lifecycle;
 pub mod timer_supervisor;
 pub mod timer_supervisor_tests;
-pub mod timer_lifecycle;
 
 #[derive(Debug, thiserror::Error)]
 pub enum TerminateError {
@@ -1224,17 +1224,37 @@ pub struct AcceptResumeOutcome {
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum AcceptResumeError {
     #[error("invalid lifecycle state for {instance_id}: got {actual:?}, expected {expected:?}")]
-    InvalidLifecycleState { instance_id: InstanceId, actual: LifecycleState, expected: LifecycleState },
-    #[error("wait key mismatch for {instance_id}: expected {expected_key:?}, got {provided_key:?}")]
-    WaitKeyMismatch { instance_id: InstanceId, expected_key: WaitKey, provided_key: WaitKey },
+    InvalidLifecycleState {
+        instance_id: InstanceId,
+        actual: LifecycleState,
+        expected: LifecycleState,
+    },
+    #[error(
+        "wait key mismatch for {instance_id}: expected {expected_key:?}, got {provided_key:?}"
+    )]
+    WaitKeyMismatch {
+        instance_id: InstanceId,
+        expected_key: WaitKey,
+        provided_key: WaitKey,
+    },
     #[error("instance actor not found: {instance_id}")]
     InstanceActorNotFound { instance_id: InstanceId },
     #[error("payload too large for {instance_id}: {payload_size} > {max_size}")]
-    PayloadTooLarge { instance_id: InstanceId, payload_size: usize, max_size: usize },
+    PayloadTooLarge {
+        instance_id: InstanceId,
+        payload_size: usize,
+        max_size: usize,
+    },
     #[error("lock acquisition failed for {instance_id}: {reason}")]
-    LockAcquisitionFailed { instance_id: InstanceId, reason: String },
+    LockAcquisitionFailed {
+        instance_id: InstanceId,
+        reason: String,
+    },
     #[error("storage error for {instance_id}: {reason}")]
-    StorageError { instance_id: InstanceId, reason: String },
+    StorageError {
+        instance_id: InstanceId,
+        reason: String,
+    },
 }
 
 impl AcceptResumeError {
@@ -1270,32 +1290,59 @@ impl NodeName {
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum CancelError {
     #[error("already terminal for {instance_id}: {current_state:?}")]
-    AlreadyTerminal { instance_id: InstanceId, current_state: LifecycleState },
+    AlreadyTerminal {
+        instance_id: InstanceId,
+        current_state: LifecycleState,
+    },
     #[error("instance actor not found: {instance_id}")]
     InstanceActorNotFound { instance_id: InstanceId },
     #[error("lock acquisition failed for {instance_id}: {reason}")]
-    LockAcquisitionFailed { instance_id: InstanceId, reason: String },
+    LockAcquisitionFailed {
+        instance_id: InstanceId,
+        reason: String,
+    },
     #[error("storage error for {instance_id}: {reason}")]
-    StorageError { instance_id: InstanceId, reason: String },
+    StorageError {
+        instance_id: InstanceId,
+        reason: String,
+    },
 }
 
 /// Errors from Resume operation.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum ResumeError {
     #[error("invalid lifecycle state: got {actual:?}, expected {expected:?}")]
-    InvalidLifecycleState { actual: LifecycleState, expected: LifecycleState },
+    InvalidLifecycleState {
+        actual: LifecycleState,
+        expected: LifecycleState,
+    },
     #[error("missing secrets for {instance_id}: {missing_secret_ids:?}")]
-    MissingSecrets { instance_id: InstanceId, missing_secret_ids: Vec<SecretId> },
+    MissingSecrets {
+        instance_id: InstanceId,
+        missing_secret_ids: Vec<SecretId>,
+    },
     #[error("node not found for {instance_id}: {node_name:?}")]
-    NodeNotFound { instance_id: InstanceId, node_name: NodeName },
+    NodeNotFound {
+        instance_id: InstanceId,
+        node_name: NodeName,
+    },
     #[error("no path to terminal from {current_node:?} for {instance_id}")]
-    NoPathToTerminal { instance_id: InstanceId, current_node: NodeName },
+    NoPathToTerminal {
+        instance_id: InstanceId,
+        current_node: NodeName,
+    },
     #[error("instance actor not found: {instance_id}")]
     InstanceActorNotFound { instance_id: InstanceId },
     #[error("lock acquisition failed for {instance_id}: {reason}")]
-    LockAcquisitionFailed { instance_id: InstanceId, reason: String },
+    LockAcquisitionFailed {
+        instance_id: InstanceId,
+        reason: String,
+    },
     #[error("storage error for {instance_id}: {reason}")]
-    StorageError { instance_id: InstanceId, reason: String },
+    StorageError {
+        instance_id: InstanceId,
+        reason: String,
+    },
 }
 
 impl ResumeError {
@@ -1353,9 +1400,15 @@ pub enum SignalStorageError {
     #[error("Instance not found: {0}")]
     InstanceNotFound(InstanceId),
     #[error("Write error for {instance_id}: {reason}")]
-    WriteError { instance_id: InstanceId, reason: String },
+    WriteError {
+        instance_id: InstanceId,
+        reason: String,
+    },
     #[error("Delete error for {instance_id}: {reason}")]
-    DeleteError { instance_id: InstanceId, reason: String },
+    DeleteError {
+        instance_id: InstanceId,
+        reason: String,
+    },
 }
 
 /// Trait for persisting signal acceptance events.
@@ -1388,7 +1441,10 @@ pub enum SignalWorkQueueError {
     #[error("Instance not found: {0}")]
     InstanceNotFound(InstanceId),
     #[error("Enqueue error for {instance_id}: {reason}")]
-    EnqueueError { instance_id: InstanceId, reason: String },
+    EnqueueError {
+        instance_id: InstanceId,
+        reason: String,
+    },
 }
 
 /// Trait for enqueueing workflow resume work.
@@ -1540,7 +1596,11 @@ pub enum WorkloadClass {
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum StartError {
     #[error("Budget exhausted for {class:?}: requested {requested}, available {available}")]
-    BudgetExhaustion { class: WorkloadClass, requested: u32, available: u32 },
+    BudgetExhaustion {
+        class: WorkloadClass,
+        requested: u32,
+        available: u32,
+    },
     #[error("Invalid config: {0}")]
     InvalidConfig(String),
 }

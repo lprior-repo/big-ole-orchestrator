@@ -27,7 +27,10 @@ fn fd3_envelope_carries_command_identity_in_metadata() {
     let decoded: Fd3Envelope = read_envelope(&mut reader).unwrap();
 
     assert_eq!(decoded.metadata.get("command_id").unwrap(), "cmd-ipc-001");
-    assert_eq!(decoded.metadata.get("correlation_id").unwrap(), "corr-ipc-001");
+    assert_eq!(
+        decoded.metadata.get("correlation_id").unwrap(),
+        "corr-ipc-001"
+    );
     assert_eq!(decoded.metadata.get("issuer").unwrap(), "operator");
 }
 
@@ -52,7 +55,10 @@ fn fd3_metadata_preserves_command_identity_across_roundtrip() {
     let mut reader = Cursor::new(buffer);
     let decoded: Fd3Envelope = read_envelope(&mut reader).unwrap();
 
-    assert_eq!(decoded.metadata, env.metadata, "metadata map must be preserved exactly");
+    assert_eq!(
+        decoded.metadata, env.metadata,
+        "metadata map must be preserved exactly"
+    );
 }
 
 #[test]

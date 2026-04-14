@@ -4,13 +4,28 @@ use tokio::time::timeout;
 
 #[derive(Debug, Clone)]
 pub enum WorkflowSseEvent {
-    StepCompleted { node_name: String, sequence: u64 },
-    StepFailed { node_name: String, sequence: u64, error: String },
-    TimerFired { timer_id: String },
-    SignalReceived { signal_name: String },
-    PhaseChanged { phase: String },
+    StepCompleted {
+        node_name: String,
+        sequence: u64,
+    },
+    StepFailed {
+        node_name: String,
+        sequence: u64,
+        error: String,
+    },
+    TimerFired {
+        timer_id: String,
+    },
+    SignalReceived {
+        signal_name: String,
+    },
+    PhaseChanged {
+        phase: String,
+    },
     InstanceCompleted,
-    InstanceFailed { error: String },
+    InstanceFailed {
+        error: String,
+    },
 }
 
 const SSE_BROADCAST_CAPACITY: usize = 1000;
@@ -30,7 +45,10 @@ impl SseBroadcaster {
         self.tx.subscribe()
     }
 
-    pub fn send(&self, event: WorkflowSseEvent) -> Result<(), broadcast::error::SendError<WorkflowSseEvent>> {
+    pub fn send(
+        &self,
+        event: WorkflowSseEvent,
+    ) -> Result<(), broadcast::error::SendError<WorkflowSseEvent>> {
         self.tx.send(event).map(|_| ())
     }
 }
@@ -117,7 +135,9 @@ async fn red_queen_sse_rapid_connect_disconnect_cycles() {
 
     drop(broadcaster);
 
-    handle.await.expect("rapid connect/disconnect should not panic");
+    handle
+        .await
+        .expect("rapid connect/disconnect should not panic");
 }
 
 #[tokio::test]
@@ -209,7 +229,9 @@ async fn red_queen_sse_no_data_loss_when_receiver_keeps_up() {
         let broadcaster_clone = broadcaster.clone();
         async move {
             for i in 0..send_count {
-                broadcaster_clone.send(make_event(i)).expect("broadcaster should be open");
+                broadcaster_clone
+                    .send(make_event(i))
+                    .expect("broadcaster should be open");
             }
         }
     });
@@ -272,8 +294,14 @@ async fn red_queen_sse_multiple_rapid_subscribers_after_start() {
     let count1 = handle1.await.expect("task should not panic");
     let count2 = handle2.await.expect("task should not panic");
 
-    assert!(count1 >= 50, "First subscriber should receive at least 50 events");
-    assert!(count2 <= 50, "Second subscriber joined late, should receive <= 50 events");
+    assert!(
+        count1 >= 50,
+        "First subscriber should receive at least 50 events"
+    );
+    assert!(
+        count2 <= 50,
+        "Second subscriber joined late, should receive <= 50 events"
+    );
 }
 
 #[tokio::test]
@@ -338,8 +366,5 @@ async fn red_queen_sse_backpressure_channel_full_send_error_handled() {
     drop(tx);
 
     let count = handle.await.expect("task should not panic");
-    assert!(
-        count <= 5,
-        "Should only receive up to channel capacity"
-    );
+    assert!(count <= 5, "Should only receive up to channel capacity");
 }

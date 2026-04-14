@@ -17,7 +17,10 @@ pub enum ConnectorError {
     #[error("connector in terminal state: {0:?}")]
     TerminalState(ConnectorState),
     #[error("invalid state: {current:?}, expected one of {expected:?}")]
-    InvalidState { current: ConnectorState, expected: &'static [ConnectorState] },
+    InvalidState {
+        current: ConnectorState,
+        expected: &'static [ConnectorState],
+    },
     #[error("reconciliation could not determine outcome")]
     ReconciliationUncertain,
     #[error("transport error: {0}")]
@@ -78,7 +81,9 @@ pub trait Connector: Send + Sync {
     /// Returns `Ok(ConnectorResult::Failure)` if preparation failed.
     /// Returns `Ok(ConnectorResult::Ambiguous)` if the outcome is unclear
     /// (should not happen during prepare, but some connectors may).
-    fn prepare(&mut self) -> impl std::future::Future<Output = Result<ConnectorResult, ConnectorError>> + Send;
+    fn prepare(
+        &mut self,
+    ) -> impl std::future::Future<Output = Result<ConnectorResult, ConnectorError>> + Send;
 
     /// Commit the prepared effect.
     ///
@@ -88,7 +93,9 @@ pub trait Connector: Send + Sync {
     /// due to timeout with unknown server state. In this case, the caller
     /// MUST call [`Connector::reconcile`] to determine the true outcome
     /// rather than blindly retrying.
-    fn commit(&mut self) -> impl std::future::Future<Output = Result<ConnectorResult, ConnectorError>> + Send;
+    fn commit(
+        &mut self,
+    ) -> impl std::future::Future<Output = Result<ConnectorResult, ConnectorError>> + Send;
 
     /// Reconcile to determine the true outcome of a commit that returned `Ambiguous`.
     ///
@@ -97,14 +104,18 @@ pub trait Connector: Send + Sync {
     /// Returns `Ok(ReconciliationResult::Committed)` if the effect was committed.
     /// Returns `Ok(ReconciliationResult::NotCommitted)` if the effect was not committed.
     /// Returns `Ok(ReconciliationResult::Unknown)` if the outcome cannot be determined.
-    fn reconcile(&mut self) -> impl std::future::Future<Output = Result<ReconciliationResult, ConnectorError>> + Send;
+    fn reconcile(
+        &mut self,
+    ) -> impl std::future::Future<Output = Result<ReconciliationResult, ConnectorError>> + Send;
 
     /// Roll back a prepared effect.
     ///
     /// Returns `Ok(ConnectorResult::Success)` if rollback succeeded.
     /// Returns `Ok(ConnectorResult::Failure)` if rollback failed.
     /// Returns `Ok(ConnectorResult::Ambiguous)` if the outcome is ambiguous.
-    fn rollback(&mut self) -> impl std::future::Future<Output = Result<ConnectorResult, ConnectorError>> + Send;
+    fn rollback(
+        &mut self,
+    ) -> impl std::future::Future<Output = Result<ConnectorResult, ConnectorError>> + Send;
 }
 
 /// Handle an ambiguous connector result by routing through reconciliation.
@@ -283,14 +294,18 @@ mod tests {
         }
 
         let mut connector = SuccessConnector;
-        let result = execute_with_reconciliation(&mut connector, true).await.unwrap();
+        let result = execute_with_reconciliation(&mut connector, true)
+            .await
+            .unwrap();
         assert_eq!(result, ConnectorResult::Success);
     }
 
     #[tokio::test]
     async fn execute_with_reconciliation_resolves_ambiguous() {
         let mut connector = MockConnector::new(ReconciliationResult::Committed);
-        let result = execute_with_reconciliation(&mut connector, false).await.unwrap();
+        let result = execute_with_reconciliation(&mut connector, false)
+            .await
+            .unwrap();
         assert_eq!(result, ConnectorResult::Success);
     }
 

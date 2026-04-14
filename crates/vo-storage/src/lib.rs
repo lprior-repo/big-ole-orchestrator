@@ -26,13 +26,13 @@
 pub mod append;
 pub mod blob_store;
 pub mod budget_saga;
-pub mod fs_store;
 pub mod checksum;
 pub mod codec;
 pub mod compensation_saga;
 pub mod crypto;
 pub mod dedupe_partition;
 pub mod effect_journal;
+pub mod fs_store;
 pub mod instance_index;
 pub mod key_encoding;
 pub mod key_partition;

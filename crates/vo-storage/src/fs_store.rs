@@ -17,7 +17,7 @@ use tokio::fs;
 use tokio::io::AsyncWriteExt;
 
 use crate::blob_store::{
-    encode_blob_record, decode_blob_record, BlobRecord, BlobStore, BlobStoreError, ContentAddress,
+    decode_blob_record, encode_blob_record, BlobRecord, BlobStore, BlobStoreError, ContentAddress,
 };
 
 #[derive(Debug)]
@@ -68,11 +68,7 @@ impl FsBlobStore {
         Ok(())
     }
 
-    async fn write_blob_file(
-        &self,
-        path: &Path,
-        data: &[u8],
-    ) -> Result<(), BlobStoreError> {
+    async fn write_blob_file(&self, path: &Path, data: &[u8]) -> Result<(), BlobStoreError> {
         let mut file = fs::File::create(path)
             .await
             .map_err(|e| BlobStoreError::Storage {
@@ -96,10 +92,9 @@ impl FsBlobStore {
         addr: &ContentAddress,
         record: &BlobRecord,
     ) -> Result<(), BlobStoreError> {
-        let encoded =
-            encode_blob_record(record).map_err(|e| BlobStoreError::Storage {
-                reason: format!("failed to encode metadata: {e}"),
-            })?;
+        let encoded = encode_blob_record(record).map_err(|e| BlobStoreError::Storage {
+            reason: format!("failed to encode metadata: {e}"),
+        })?;
         let path = self.meta_path(addr);
         let mut file = fs::File::create(&path)
             .await
@@ -121,11 +116,9 @@ impl FsBlobStore {
 
     async fn read_meta(&self, addr: &ContentAddress) -> Result<BlobRecord, BlobStoreError> {
         let path = self.meta_path(addr);
-        let data = fs::read(&path)
-            .await
-            .map_err(|e| BlobStoreError::Storage {
-                reason: format!("failed to read metadata: {e}"),
-            })?;
+        let data = fs::read(&path).await.map_err(|e| BlobStoreError::Storage {
+            reason: format!("failed to read metadata: {e}"),
+        })?;
         decode_blob_record(&data).map_err(|e| BlobStoreError::Storage {
             reason: format!("failed to decode metadata: {e}"),
         })
@@ -238,9 +231,12 @@ impl FsBlobStore {
         let mut buf = Vec::new();
         let mut chunk = [0u8; 8192];
         loop {
-            let n = reader.read(&mut chunk).await.map_err(|e| BlobStoreError::Storage {
-                reason: format!("streaming read failed: {e}"),
-            })?;
+            let n = reader
+                .read(&mut chunk)
+                .await
+                .map_err(|e| BlobStoreError::Storage {
+                    reason: format!("streaming read failed: {e}"),
+                })?;
             if n == 0 {
                 break;
             }
@@ -375,11 +371,9 @@ impl FsBlobStore {
                 continue;
             }
 
-            let data = fs::read(&path)
-                .await
-                .map_err(|e| BlobStoreError::Storage {
-                    reason: format!("failed to read meta file: {e}"),
-                })?;
+            let data = fs::read(&path).await.map_err(|e| BlobStoreError::Storage {
+                reason: format!("failed to read meta file: {e}"),
+            })?;
 
             let Ok(record) = decode_blob_record(&data) else {
                 continue;
@@ -423,9 +417,7 @@ mod tests {
 
     fn make_temp_store() -> FsBlobStore {
         #[allow(deprecated)]
-        let dir = tempfile::tempdir()
-            .expect("tempdir")
-            .into_path();
+        let dir = tempfile::tempdir().expect("tempdir").into_path();
         FsBlobStore::new(dir)
     }
 
@@ -460,7 +452,10 @@ mod tests {
 
         let result = store.retrieve_async(&addr).await;
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), BlobStoreError::ContentNotFound { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            BlobStoreError::ContentNotFound { .. }
+        ));
     }
 
     #[tokio::test]

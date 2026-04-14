@@ -15,8 +15,8 @@ pub use pool::{ConnectionPool, NatsConnectionWrapper};
 
 use vo_types::connection_pool::{
     AcquireResult, CircuitBreakerState, ConnectionId, ConnectionPoolError, ConnectionStatus,
-    ErrorCategory, ErrorContext, ErrorDetail, EvictionReason, PoolConfig as VoPoolConfig,
-    PoolId, PoolStats, PooledConnection, ReleaseResult, WaitHandle,
+    ErrorCategory, ErrorContext, ErrorDetail, EvictionReason, PoolConfig as VoPoolConfig, PoolId,
+    PoolStats, PooledConnection, ReleaseResult, WaitHandle,
 };
 
 use vo_types::integer_types::TimestampMs;
@@ -27,8 +27,8 @@ pub(crate) use pool::PoolState;
 
 #[cfg(test)]
 mod tests {
-    mod config_tests;
-    mod pool_tests;
     mod circuit_breaker_tests;
+    mod config_tests;
     mod health_check_tests;
+    mod pool_tests;
 }

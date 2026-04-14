@@ -20,7 +20,10 @@ pub enum TimerLifecycleError {
     #[error("Instance not found: {0}")]
     InstanceNotFound(InstanceId),
     #[error("Timer not found: {instance_id} at {fire_at_ms}")]
-    TimerNotFound { instance_id: InstanceId, fire_at_ms: TimestampMs },
+    TimerNotFound {
+        instance_id: InstanceId,
+        fire_at_ms: TimestampMs,
+    },
 }
 
 impl From<ReanimatorError> for TimerLifecycleError {

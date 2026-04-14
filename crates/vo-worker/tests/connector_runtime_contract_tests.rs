@@ -8,8 +8,8 @@
 //! - SQL connector under crash injection
 //! - Ambiguity detection for timeout + unknown states
 
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use async_trait::async_trait;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use vo_worker::{
     CommitOutcome, Connector, ConnectorError, ConnectorRegistry, HttpConnector, PreparedEffect,
     ReconcileOutcome,
@@ -389,7 +389,9 @@ impl Connector for SqlConnector {
     async fn commit(&self, prepared: PreparedEffect) -> Result<CommitOutcome, ConnectorError> {
         if self.crash_on_commit.load(Ordering::SeqCst) {
             self.crash_on_commit.store(false, Ordering::SeqCst);
-            return Err(ConnectorError::retryable("SQL connection lost: crash injected"));
+            return Err(ConnectorError::retryable(
+                "SQL connection lost: crash injected",
+            ));
         }
         self.committed_txns
             .lock()
@@ -417,9 +419,7 @@ impl Connector for SqlConnector {
         compensation_effect_id: String,
         _fence: u64,
     ) -> Result<CommitOutcome, ConnectorError> {
-        let rollback_query = intent["rollback_query"]
-            .as_str()
-            .unwrap_or("ROLLBACK");
+        let rollback_query = intent["rollback_query"].as_str().unwrap_or("ROLLBACK");
         self.committed_txns
             .lock()
             .unwrap()
@@ -572,7 +572,10 @@ mod capability_discovery_tests {
     #[tokio::test]
     async fn registry_discovery_multiple_types() {
         let mut reg = ConnectorRegistry::new();
-        reg.register("http".to_string(), Box::new(HttpConnector::new("https://api.example.com")));
+        reg.register(
+            "http".to_string(),
+            Box::new(HttpConnector::new("https://api.example.com")),
+        );
         reg.register("sql".to_string(), Box::new(SqlConnector::new()));
         reg.register("noop".to_string(), Box::new(AlwaysCommittedConnector));
 
@@ -610,7 +613,9 @@ mod lifecycle_tests {
         assert_eq!(pe.fence, 1);
 
         let outcome = c.commit(pe).await.unwrap();
-        assert!(matches!(outcome, CommitOutcome::Committed { receipt } if receipt == "receipt:fx-1"));
+        assert!(
+            matches!(outcome, CommitOutcome::Committed { receipt } if receipt == "receipt:fx-1")
+        );
 
         let reconcile = c.reconcile("fx-1").await.unwrap();
         assert!(matches!(reconcile, ReconcileOutcome::Committed { .. }));
@@ -681,10 +686,14 @@ mod lifecycle_tests {
         assert_eq!(pe.payload["transaction"], "tx-sql-1");
 
         let outcome = c.commit(pe).await.unwrap();
-        assert!(matches!(outcome, CommitOutcome::Committed { receipt } if receipt == "txn:tx-sql-1"));
+        assert!(
+            matches!(outcome, CommitOutcome::Committed { receipt } if receipt == "txn:tx-sql-1")
+        );
 
         let reconcile = c.reconcile("tx-sql-1").await.unwrap();
-        assert!(matches!(reconcile, ReconcileOutcome::Committed { receipt } if receipt.contains("tx-sql-1")));
+        assert!(
+            matches!(reconcile, ReconcileOutcome::Committed { receipt } if receipt.contains("tx-sql-1"))
+        );
     }
 
     #[tokio::test]
@@ -713,9 +722,7 @@ mod lifecycle_tests {
     #[tokio::test]
     async fn compensate_on_non_supporting_connector_returns_error() {
         let c = HttpConnector::new("https://api.example.com");
-        let result = c
-            .compensate(serde_json::json!({}), "cx-1".into(), 1)
-            .await;
+        let result = c.compensate(serde_json::json!({}), "cx-1".into(), 1).await;
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(err.to_string().contains("http"));
@@ -728,7 +735,9 @@ mod lifecycle_tests {
             .compensate(serde_json::json!({}), "cx-2".into(), 1)
             .await
             .unwrap();
-        assert!(matches!(outcome, CommitOutcome::Committed { receipt } if receipt == "compensated"));
+        assert!(
+            matches!(outcome, CommitOutcome::Committed { receipt } if receipt == "compensated")
+        );
         assert!(c.compensated.load(Ordering::SeqCst));
     }
 
@@ -788,7 +797,9 @@ mod ambiguity_routing_tests {
         assert!(matches!(outcome, CommitOutcome::Committed { .. }));
 
         let reconcile = c.reconcile("fx-resolve").await.unwrap();
-        assert!(matches!(reconcile, ReconcileOutcome::Committed { receipt } if receipt.contains("fx-resolve")));
+        assert!(
+            matches!(reconcile, ReconcileOutcome::Committed { receipt } if receipt.contains("fx-resolve"))
+        );
     }
 
     #[tokio::test]
@@ -963,9 +974,7 @@ mod http_connector_tests {
     #[tokio::test]
     async fn http_compensate_returns_not_supported() {
         let c = HttpConnector::new("https://api.example.com");
-        let result = c
-            .compensate(serde_json::json!({}), "cx-1".into(), 1)
-            .await;
+        let result = c.compensate(serde_json::json!({}), "cx-1".into(), 1).await;
         assert!(result.is_err());
     }
 
@@ -1058,7 +1067,11 @@ mod crash_injection_tests {
         c.crash_on_commit.store(true, Ordering::SeqCst);
 
         let pe = c
-            .prepare(serde_json::json!({"query": "INSERT"}), "tx-inject".into(), 1)
+            .prepare(
+                serde_json::json!({"query": "INSERT"}),
+                "tx-inject".into(),
+                1,
+            )
             .await
             .unwrap();
         let result = c.commit(pe).await;
@@ -1067,7 +1080,11 @@ mod crash_injection_tests {
         c.crash_on_commit.store(false, Ordering::SeqCst);
 
         let pe2 = c
-            .prepare(serde_json::json!({"query": "INSERT"}), "tx-recover".into(), 2)
+            .prepare(
+                serde_json::json!({"query": "INSERT"}),
+                "tx-recover".into(),
+                2,
+            )
             .await
             .unwrap();
         let outcome = c.commit(pe2).await.unwrap();
@@ -1081,7 +1098,11 @@ mod crash_injection_tests {
     async fn sql_compensate_after_crash_reverses() {
         let c = SqlConnector::new();
         let pe = c
-            .prepare(serde_json::json!({"query": "INSERT"}), "tx-comp-crash".into(), 1)
+            .prepare(
+                serde_json::json!({"query": "INSERT"}),
+                "tx-comp-crash".into(),
+                1,
+            )
             .await
             .unwrap();
         let _ = c.commit(pe).await.unwrap();
@@ -1106,24 +1127,39 @@ mod crash_injection_tests {
 
         #[async_trait]
         impl Connector for AlwaysCrashConnector {
-            fn connector_type(&self) -> &str { "always-crash" }
-            fn connector_version(&self) -> &str { "1.0.0" }
-            fn supports_compensation(&self) -> bool { false }
+            fn connector_type(&self) -> &str {
+                "always-crash"
+            }
+            fn connector_version(&self) -> &str {
+                "1.0.0"
+            }
+            fn supports_compensation(&self) -> bool {
+                false
+            }
 
             async fn prepare(
-                &self, _intent: serde_json::Value, effect_id: String, fence: u64,
+                &self,
+                _intent: serde_json::Value,
+                effect_id: String,
+                fence: u64,
             ) -> Result<PreparedEffect, ConnectorError> {
-                Ok(PreparedEffect { effect_id, payload: serde_json::json!({}), fence })
+                Ok(PreparedEffect {
+                    effect_id,
+                    payload: serde_json::json!({}),
+                    fence,
+                })
             }
 
             async fn commit(
-                &self, _prepared: PreparedEffect,
+                &self,
+                _prepared: PreparedEffect,
             ) -> Result<CommitOutcome, ConnectorError> {
                 Err(ConnectorError::retryable("connection lost"))
             }
 
             async fn reconcile(
-                &self, _effect_id: &str,
+                &self,
+                _effect_id: &str,
             ) -> Result<ReconcileOutcome, ConnectorError> {
                 Ok(ReconcileOutcome::NotCommitted)
             }
@@ -1132,7 +1168,11 @@ mod crash_injection_tests {
         let c = AlwaysCrashConnector;
         for i in 0..5 {
             let pe = c
-                .prepare(serde_json::json!({}), format!("fx-crash-{}", i), i as u64 + 1)
+                .prepare(
+                    serde_json::json!({}),
+                    format!("fx-crash-{}", i),
+                    i as u64 + 1,
+                )
                 .await
                 .unwrap();
             let result = c.commit(pe).await;
@@ -1254,7 +1294,10 @@ mod ambiguity_detection_tests {
                 receipt: "r".into()
             }
         );
-        assert_eq!(ReconcileOutcome::NotCommitted, ReconcileOutcome::NotCommitted);
+        assert_eq!(
+            ReconcileOutcome::NotCommitted,
+            ReconcileOutcome::NotCommitted
+        );
         assert_eq!(
             ReconcileOutcome::StillAmbiguous,
             ReconcileOutcome::StillAmbiguous
@@ -1297,7 +1340,11 @@ mod integration_reconciliation_tests {
         let c = SqlConnector::new();
 
         let pe = c
-            .prepare(serde_json::json!({"query": "INSERT INTO t VALUES (1)"}), "tx-full".into(), 1)
+            .prepare(
+                serde_json::json!({"query": "INSERT INTO t VALUES (1)"}),
+                "tx-full".into(),
+                1,
+            )
             .await
             .unwrap();
         let outcome = c.commit(pe).await.unwrap();
@@ -1305,7 +1352,11 @@ mod integration_reconciliation_tests {
 
         c.crash_on_commit.store(true, Ordering::SeqCst);
         let pe2 = c
-            .prepare(serde_json::json!({"query": "INSERT INTO t VALUES (2)"}), "tx-crash".into(), 2)
+            .prepare(
+                serde_json::json!({"query": "INSERT INTO t VALUES (2)"}),
+                "tx-crash".into(),
+                2,
+            )
             .await
             .unwrap();
         let result = c.commit(pe2).await;
@@ -1321,7 +1372,10 @@ mod integration_reconciliation_tests {
     #[tokio::test]
     async fn registry_based_connector_dispatch() {
         let mut reg = ConnectorRegistry::new();
-        reg.register("http".to_string(), Box::new(HttpConnector::new("https://api.example.com")));
+        reg.register(
+            "http".to_string(),
+            Box::new(HttpConnector::new("https://api.example.com")),
+        );
         reg.register("sql".to_string(), Box::new(SqlConnector::new()));
 
         let http = reg.get("http").unwrap();
@@ -1337,7 +1391,11 @@ mod integration_reconciliation_tests {
 
         let sql = reg.get("sql").unwrap();
         let pe = sql
-            .prepare(serde_json::json!({"query": "SELECT 1"}), "fx-dispatch-sql".into(), 1)
+            .prepare(
+                serde_json::json!({"query": "SELECT 1"}),
+                "fx-dispatch-sql".into(),
+                1,
+            )
             .await
             .unwrap();
         let outcome = sql.commit(pe).await.unwrap();
@@ -1352,7 +1410,11 @@ mod integration_reconciliation_tests {
         let c = CompensatingConnector::new();
 
         let pe = c
-            .prepare(serde_json::json!({"action": "reserve"}), "fx-comp-full".into(), 1)
+            .prepare(
+                serde_json::json!({"action": "reserve"}),
+                "fx-comp-full".into(),
+                1,
+            )
             .await
             .unwrap();
         let outcome = c.commit(pe).await.unwrap();
@@ -1558,8 +1620,14 @@ mod sql_injection_tests {
 
         let reconcile_inject = c.reconcile("fx-inject").await.unwrap();
         let reconcile_normal = c.reconcile("fx-normal").await.unwrap();
-        assert!(matches!(reconcile_inject, ReconcileOutcome::Committed { .. }));
-        assert!(matches!(reconcile_normal, ReconcileOutcome::Committed { .. }));
+        assert!(matches!(
+            reconcile_inject,
+            ReconcileOutcome::Committed { .. }
+        ));
+        assert!(matches!(
+            reconcile_normal,
+            ReconcileOutcome::Committed { .. }
+        ));
     }
 
     #[tokio::test]

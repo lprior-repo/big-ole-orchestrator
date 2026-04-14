@@ -196,12 +196,11 @@ impl ConnectionPool {
                     .checked_out_connections
                     .insert(checkout_id, conn_id);
 
-                debug!(
-                    "Acquired connection {} from pool {}",
-                    conn_id, self.pool_id
-                );
+                debug!("Acquired connection {} from pool {}", conn_id, self.pool_id);
 
-                return AcquireResult::Available { connection: conn.clone() };
+                return AcquireResult::Available {
+                    connection: conn.clone(),
+                };
             }
         }
 
@@ -209,12 +208,10 @@ impl ConnectionPool {
             let connection_id = ConnectionId::new();
             let now = TimestampMs::now();
 
-            let pooled = PooledConnection::new(connection_id, now)
-                .with_status(ConnectionStatus::CheckedOut);
+            let pooled =
+                PooledConnection::new(connection_id, now).with_status(ConnectionStatus::CheckedOut);
 
-            self.state
-                .connections
-                .insert(connection_id, pooled.clone());
+            self.state.connections.insert(connection_id, pooled.clone());
 
             let checkout_id = ConnectionId::new();
             self.state
@@ -257,9 +254,7 @@ impl ConnectionPool {
         };
         self.state.pending_acquires.push_back(wait_handle.clone());
 
-        AcquireResult::Pending {
-            wait_handle,
-        }
+        AcquireResult::Pending { wait_handle }
     }
 
     pub fn release(&mut self, connection_id: ConnectionId) -> ReleaseResult {
@@ -286,21 +281,32 @@ impl ConnectionPool {
             self.state.idle_connections.push_back(connection_id);
             self.state.total_releases += 1;
 
-            debug!("Released connection {} back to pool {}", connection_id, self.pool_id);
+            debug!(
+                "Released connection {} back to pool {}",
+                connection_id, self.pool_id
+            );
             return ReleaseResult::Returned;
         }
 
         ReleaseResult::AlreadyClosed
     }
 
-    pub fn evict_connection(&mut self, connection_id: ConnectionId, reason: EvictionReason) -> ReleaseResult {
-        self.state.checked_out_connections.retain(|_, cid| *cid != connection_id);
+    pub fn evict_connection(
+        &mut self,
+        connection_id: ConnectionId,
+        reason: EvictionReason,
+    ) -> ReleaseResult {
+        self.state
+            .checked_out_connections
+            .retain(|_, cid| *cid != connection_id);
 
         if let Some(conn) = self.state.connections.get_mut(&connection_id) {
             conn.status = ConnectionStatus::Closed;
             self.state.total_evictions += 1;
 
-            self.state.idle_connections.retain(|id| *id != connection_id);
+            self.state
+                .idle_connections
+                .retain(|id| *id != connection_id);
             self.state.connections.remove(&connection_id);
 
             debug!(
@@ -493,7 +499,9 @@ mod pool_tests {
         let config = PoolConfig::new(1, 1, 5000, 30000, 10000, 10).unwrap();
         let mut pool = ConnectionPool::new(pool_id, nats_urls, config);
 
-        pool.state.circuit_breaker.transition_to(CircuitBreakerState::Open);
+        pool.state
+            .circuit_breaker
+            .transition_to(CircuitBreakerState::Open);
 
         let result = pool.acquire().await;
         match result {

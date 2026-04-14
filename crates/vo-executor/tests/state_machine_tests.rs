@@ -114,7 +114,9 @@ mod state_machine_transition_tests {
         let _guard = state_guard();
         let step_id = StepId::new("step-1".to_string());
 
-        cancel_execution(step_id.clone()).await.expect("cancel should succeed");
+        cancel_execution(step_id.clone())
+            .await
+            .expect("cancel should succeed");
         assert_cancelled(&step_id);
 
         let result = cancel_execution(step_id.clone()).await;
@@ -127,7 +129,9 @@ mod state_machine_transition_tests {
         let _guard = state_guard();
         let step_id = StepId::new("step-good".to_string());
 
-        cancel_execution(step_id.clone()).await.expect("cancel should succeed");
+        cancel_execution(step_id.clone())
+            .await
+            .expect("cancel should succeed");
         assert_cancelled(&step_id);
 
         let result = execute_step(step_id.clone(), 5000).await;
@@ -147,9 +151,15 @@ mod state_machine_transition_tests {
         let step_b = StepId::new("step-good".to_string());
         let step_c = StepId::new("step-retry".to_string());
 
-        cancel_execution(step_a.clone()).await.expect("cancel should succeed");
-        cancel_execution(step_b.clone()).await.expect("cancel should succeed");
-        cancel_execution(step_c.clone()).await.expect("cancel should succeed");
+        cancel_execution(step_a.clone())
+            .await
+            .expect("cancel should succeed");
+        cancel_execution(step_b.clone())
+            .await
+            .expect("cancel should succeed");
+        cancel_execution(step_c.clone())
+            .await
+            .expect("cancel should succeed");
 
         assert_cancelled(&step_a);
         assert_cancelled(&step_b);
@@ -224,7 +234,9 @@ mod state_machine_transition_tests {
         assert!(result1.is_ok());
         assert_ready(&step_id);
 
-        cancel_execution(step_id.clone()).await.expect("cancel should succeed");
+        cancel_execution(step_id.clone())
+            .await
+            .expect("cancel should succeed");
         assert_cancelled(&step_id);
 
         let result2 = execute_step(step_id.clone(), 5000).await;
@@ -261,7 +273,9 @@ mod state_machine_transition_tests {
         let step_a = StepId::new("step-good".to_string());
         let step_b = StepId::new("step-1".to_string());
 
-        cancel_execution(step_a.clone()).await.expect("cancel should succeed");
+        cancel_execution(step_a.clone())
+            .await
+            .expect("cancel should succeed");
         assert_cancelled(&step_a);
         assert_ready(&step_b);
 
@@ -325,7 +339,10 @@ mod state_machine_transition_tests {
         assert_ready(&step_id);
 
         let result = execute_step(step_id.clone(), 5000).await;
-        assert!(matches!(result, Err(vo_executor::ExecuteNodeError::StepNotFound { .. })));
+        assert!(matches!(
+            result,
+            Err(vo_executor::ExecuteNodeError::StepNotFound { .. })
+        ));
 
         assert_ready(&step_id);
     }
