@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 use vo_types::state::InstanceState;
 use vo_types::InstanceId;
 
+type PartitionHandle = Keyspace;
+
 pub const CURRENT_SNAPSHOT_VERSION: u16 = 1;
 pub const MIN_SNAPSHOT_VERSION: u16 = 1;
 
@@ -342,8 +344,9 @@ pub fn snapshot_load_latest_with_compat(
     partition
         .prefix(&prefix)
         .next_back()
-        .map_or(Ok(None), |result| {
-            result
+        .map_or(Ok(None), |guard| {
+            guard
+                .into_inner()
                 .map_err(|_| StorageError::FjallError)
                 .and_then(|(key, value)| {
                     decode_snapshot_key(&key).and_then(|(_, sequence)| {
