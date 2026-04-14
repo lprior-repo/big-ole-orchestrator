@@ -790,14 +790,15 @@ mod tests {
         cache.invalidate_key("key3").unwrap();
 
         let runtime = tokio::runtime::Runtime::new().unwrap();
-        let event1 = runtime.block_on(receiver.recv()).unwrap();
-        let event2 = runtime.block_on(receiver.recv()).unwrap();
-
-        match event1 {
-            CacheInvalidationEvent::KeyInvalidated(key) => assert_eq!(key, "key1"),
-            _ => panic!("Expected KeyInvalidated event"),
-        }
-        match event2 {
+        // With capacity 2, sending 3 events without receiving causes the receiver
+        // to lag by 1. tokio::broadcast returns Err(Lagged(n)) which, once resumed,
+        // delivers the latest value.
+        let result = runtime.block_on(receiver.recv());
+        assert!(result.is_err(), "expected Lagged error when buffer overflows");
+        // After lag recovery, the receiver gets the current value (key2, which was
+        // in the buffer). key3 was sent after the lag recovery point.
+        let event = runtime.block_on(receiver.recv()).unwrap();
+        match event {
             CacheInvalidationEvent::KeyInvalidated(key) => assert_eq!(key, "key2"),
             _ => panic!("Expected KeyInvalidated event"),
         }
