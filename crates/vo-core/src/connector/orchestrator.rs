@@ -25,9 +25,9 @@
 
 use std::time::Duration;
 use tokio::time::timeout;
-use vo_types::connector::{
+use vo_types::{
     reconcile_ambiguous, Connector, ConnectorError, ConnectorResult, ConnectorState,
-    ReconciliationResult, ReconcileAction,
+    ReconcileAction,
 };
 
 /// Default timeout for connector operations.
@@ -153,7 +153,7 @@ impl<C: Connector> ConnectorOrchestrator<C> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use vo_types::connector::{Connector, ConnectorError, ReconciliationResult};
+    use vo_types::{Connector, ConnectorError, ReconciliationResult};
 
     struct TestConnector {
         commit_result: ConnectorResult,
