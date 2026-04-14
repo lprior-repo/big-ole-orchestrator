@@ -86,6 +86,23 @@ pub trait SnapshotReader {
     ) -> Result<Option<(u64, InstanceState)>, StorageError>;
 }
 
+#[::async_trait::async_trait]
+pub trait AsyncSnapshotReader: Send + Sync {
+    /// Asynchronously loads the latest snapshot for the given instance.
+    ///
+    /// # Errors
+    ///
+    /// Returns `StorageError` if the load operation fails.
+    /// Returns `Ok(None)` if no snapshot exists for the instance
+    /// (missing snapshots are a normal operational state).
+    async fn read(
+        &self,
+        instance_id: &InstanceId,
+    ) -> Result<Option<(u64, InstanceState)>, StorageError>;
+}
+
+
+
 pub trait EventStore {
     type EventIterator: Iterator<Item = Result<vo_types::EventEnvelope, StorageError>>;
     fn replay_events(&self, instance_id: &InstanceId, start_sequence: u64) -> Self::EventIterator;
@@ -269,6 +286,37 @@ mod tests {
             .unwrap()
             .is_none());
     }
+
+    #[tokio::test]
+    async fn test_async_snapshot_reader_trait_compiles_and_can_be_mocked_to_return_a_dummy_snapshot(
+    ) {
+        let mock = MockSnapshotReader::new().with_snapshot(5, make_state(100));
+        let result = mock.read(&make_instance_id()).await;
+        assert_eq!(result, Ok(Some((5, make_state(100)))));
+    }
+
+    #[tokio::test]
+    async fn test_async_snapshot_reader_returns_none_when_no_snapshot() {
+        let mock = MockSnapshotReader::new();
+        let result = mock.read(&make_instance_id()).await;
+        assert_eq!(result, Ok(None));
+    }
+
+    #[tokio::test]
+    async fn test_async_snapshot_reader_mock_returns_none_correctly_when_asked_for_missing_data()
+    {
+        let mock = MockSnapshotReader::new();
+        let instance_id = InstanceId::from_bytes([99u8; 16]);
+        let result = mock.read(&instance_id).await;
+        assert_eq!(result, Ok(None));
+    }
+
+    #[tokio::test]
+    async fn test_async_snapshot_reader_forwards_errors() {
+        let mock = MockSnapshotReader::new().with_error(StorageError::FjallError);
+        let result = mock.read(&make_instance_id()).await;
+        assert_eq!(result, Err(StorageError::FjallError));
+    }
 }
 
 #[cfg(test)]
@@ -315,6 +363,16 @@ mod mock {
                 return Err(e.clone());
             }
             Ok(self.snapshot.clone())
+        }
+    }
+
+    #[::async_trait::async_trait]
+    impl AsyncSnapshotReader for MockSnapshotReader {
+        async fn read(
+            &self,
+            instance_id: &InstanceId,
+        ) -> Result<Option<(u64, InstanceState)>, StorageError> {
+            self.load_latest(instance_id)
         }
     }
 
