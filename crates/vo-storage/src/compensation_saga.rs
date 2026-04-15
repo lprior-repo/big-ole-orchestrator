@@ -257,6 +257,71 @@ impl CompensationManifest {
         }
         false
     }
+
+    pub fn get_reverse_dependency_order(&self) -> Result<Vec<String>, CompensationError> {
+        let pending_effects: Vec<String> = self
+            .registration_order
+            .iter()
+            .filter_map(|id| {
+                self.entries
+                    .get(id)
+                    .map(|e| e.status == SagaCompensationStatus::Pending)
+                    .unwrap_or(false)
+                    .then_some(id.clone())
+            })
+            .collect();
+
+        if pending_effects.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let pending_set: std::collections::HashSet<&String> = pending_effects.iter().collect();
+
+        let mut dependents: HashMap<&String, Vec<&String>> = HashMap::new();
+        for effect_id in &pending_effects {
+            dependents.insert(effect_id, Vec::new());
+        }
+
+        for effect_id in &pending_effects {
+            if let Some(entry) = self.entries.get(effect_id) {
+                for dep in &entry.dependencies {
+                    if pending_set.contains(dep) {
+                        if let Some(dependents_list) = dependents.get_mut(dep) {
+                            dependents_list.push(effect_id);
+                        }
+                    }
+                }
+            }
+        }
+
+        let mut emitted: std::collections::HashSet<&String> = std::collections::HashSet::new();
+        let mut result: Vec<String> = Vec::with_capacity(pending_effects.len());
+
+        for effect_id in pending_effects.iter().rev() {
+            let all_deps_emitted = dependents
+                .get(effect_id)
+                .map(|deps| deps.iter().all(|d| emitted.contains(d)))
+                .unwrap_or(true);
+
+            if all_deps_emitted {
+                result.push((*effect_id).clone());
+                emitted.insert(effect_id);
+            }
+        }
+
+        if result.len() != pending_effects.len() {
+            let cycle_nodes: Vec<String> = pending_effects
+                .iter()
+                .filter(|id| !emitted.contains(id))
+                .cloned()
+                .collect();
+            return Err(CompensationError::CycleDetected {
+                effect_ids: cycle_nodes,
+            });
+        }
+
+        Ok(result)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -285,6 +350,8 @@ pub enum CompensationError {
     Timeout { effect_id: String },
     #[error("reconciliation required for ambiguous: {effect_id}")]
     ReconciliationRequired { effect_id: String },
+    #[error("dependency cycle detected involving: {effect_ids:?}")]
+    CycleDetected { effect_ids: Vec<String> },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -506,21 +573,10 @@ impl CompensationSaga {
         Ok(())
     }
 
-    pub fn get_compensation_order(&self) -> Vec<String> {
+    pub fn get_compensation_order(&self) -> Result<Vec<String>, CompensationError> {
         #[expect(clippy::unwrap_used)]
         let manifest = self.manifest.lock().unwrap();
-        manifest
-            .registration_order
-            .iter()
-            .rev()
-            .filter(|id| {
-                manifest
-                    .get(*id)
-                    .map(|e| e.status == SagaCompensationStatus::Pending)
-                    .unwrap_or(false)
-            })
-            .cloned()
-            .collect()
+        manifest.get_reverse_dependency_order()
     }
 
     pub fn manifest(&self) -> Arc<Mutex<CompensationManifest>> {
@@ -608,7 +664,7 @@ mod tests {
         saga.queue_pending("fx-2").unwrap();
         saga.queue_pending("fx-3").unwrap();
 
-        let order = saga.get_compensation_order();
+        let order = saga.get_compensation_order().unwrap();
         assert_eq!(order, vec!["fx-3", "fx-2", "fx-1"]);
     }
 
@@ -785,7 +841,7 @@ mod tests {
         saga.queue_pending("fx-2").unwrap();
         saga.queue_pending("fx-3").unwrap();
 
-        let order = saga.get_compensation_order();
+        let order = saga.get_compensation_order().unwrap();
         assert_eq!(order, vec!["fx-3", "fx-2", "fx-1"]);
     }
 
@@ -864,5 +920,59 @@ mod tests {
         let manifest = saga.manifest.lock().unwrap();
         let entry = manifest.get("fx-1").expect("entry exists");
         assert_eq!(entry.status, SagaCompensationStatus::Pending);
+    }
+
+    #[test]
+    fn cycle_detection_in_dependency_graph() {
+        let saga = create_test_saga();
+        saga.register(
+            "fx-1".to_string(),
+            CompensationPolicy::Automatic,
+            vec!["fx-2".to_string()],
+        )
+        .unwrap();
+        saga.register(
+            "fx-2".to_string(),
+            CompensationPolicy::Automatic,
+            vec!["fx-3".to_string()],
+        )
+        .unwrap();
+        saga.register(
+            "fx-3".to_string(),
+            CompensationPolicy::Automatic,
+            vec!["fx-1".to_string()],
+        )
+        .unwrap();
+
+        saga.queue_pending("fx-1").unwrap();
+        saga.queue_pending("fx-2").unwrap();
+        saga.queue_pending("fx-3").unwrap();
+
+        let result = saga.get_compensation_order();
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            CompensationError::CycleDetected { .. }
+        ));
+    }
+
+    #[test]
+    fn cycle_detection_self_loop() {
+        let saga = create_test_saga();
+        saga.register(
+            "fx-1".to_string(),
+            CompensationPolicy::Automatic,
+            vec!["fx-1".to_string()],
+        )
+        .unwrap();
+
+        saga.queue_pending("fx-1").unwrap();
+
+        let result = saga.get_compensation_order();
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            CompensationError::CycleDetected { .. }
+        ));
     }
 }
