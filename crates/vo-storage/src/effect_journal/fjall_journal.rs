@@ -18,10 +18,14 @@ impl std::fmt::Debug for FjallEffectJournal {
 }
 
 impl FjallEffectJournal {
-    #[must_use]
-    pub fn open(db: &fjall::Database) -> Result<Self, EffectJournalError> {
-        let partition = db
-            .keyspace(EFFECTS_PARTITION, fjall::KeyspaceCreateOptions::default)
+    /// Opens the effect journal partition from the given keyspace.
+    ///
+    /// # Errors
+    ///
+    /// Returns `EffectJournalError::Storage` if the partition cannot be opened.
+    pub fn open(keyspace: &fjall::Keyspace) -> Result<Self, EffectJournalError> {
+        let partition = keyspace
+            .open_partition(EFFECTS_PARTITION, fjall::PartitionCreateOptions::default())
             .map_err(|e| EffectJournalError::Storage {
                 reason: format!("failed to open effects partition: {e}"),
             })?;

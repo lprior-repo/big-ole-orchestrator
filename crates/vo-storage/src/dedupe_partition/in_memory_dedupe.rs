@@ -34,6 +34,7 @@ impl DedupeStore for InMemoryDedupeStore {
             return Err(DedupeStoreError::InvalidArgument);
         }
 
+        #[allow(clippy::cast_possible_truncation, clippy::expect_used)]
         let now_ms = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .expect("system time is after UNIX epoch")
@@ -56,6 +57,7 @@ impl DedupeStore for InMemoryDedupeStore {
 
         let entry = DedupeEntry::new(key_str.clone(), instance_id.to_string(), expires_at)?;
         entries.insert(key_str, entry);
+        drop(entries);
 
         Ok(AdmissionResult::Admitted)
     }
@@ -75,11 +77,13 @@ impl DedupeStore for InMemoryDedupeStore {
         for key in keys_to_remove {
             entries.remove(&key);
         }
+        drop(entries);
 
         Ok(count)
     }
 
     fn contains(&self, key: &DedupeKey) -> Result<bool, DedupeStoreError> {
+        #[allow(clippy::cast_possible_truncation, clippy::expect_used)]
         let now_ms = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .expect("system time is after UNIX epoch")
@@ -90,8 +94,10 @@ impl DedupeStore for InMemoryDedupeStore {
         })?;
 
         let key_str = key.as_str().to_string();
-        Ok(entries
+        let result = entries
             .get(&key_str)
-            .is_some_and(|e| !e.is_expired(now_ms)))
+            .is_some_and(|e| !e.is_expired(now_ms));
+        drop(entries);
+        Ok(result)
     }
 }

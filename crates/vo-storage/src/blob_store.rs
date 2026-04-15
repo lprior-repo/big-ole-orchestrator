@@ -344,9 +344,9 @@ impl BlobRecord {
     /// Check if transitioning to the target status is valid per ADR-040.
     ///
     /// Valid transitions:
-    /// - Pending → `DurablyStored`
-    /// - Pending → Failed
-    /// - `DurablyStored` → Published
+    /// - `Pending` -> `DurablyStored`
+    /// - `Pending` -> `Failed`
+    /// - `DurablyStored` -> `Published`
     #[must_use]
     pub fn can_transition_to(&self, target: BlobStatus) -> bool {
         self.status.can_transition_to(target)

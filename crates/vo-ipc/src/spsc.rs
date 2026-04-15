@@ -4,8 +4,6 @@ use std::sync::atomic::{fence, AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use thiserror::Error;
-#[allow(dead_code)]
-const CACHE_LINE: usize = 64;
 
 pub struct SpscQueue<T> {
     buffer: *mut MaybeUninit<T>,

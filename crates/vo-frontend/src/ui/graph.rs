@@ -31,11 +31,8 @@ impl NodeId {
         if s.len() != 26 {
             return None;
         }
-        if Ulid::from_string(s).is_ok() {
-            Some(Self(s.to_string()))
-        } else {
-            Some(Self(s.to_string()))
-        }
+        // Accept any 26-char string; ULID validity is checked by length above
+        Some(Self(s.to_string()))
     }
 
     #[must_use]

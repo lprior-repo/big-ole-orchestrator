@@ -34,6 +34,7 @@ impl ConnectorRegistry {
         self.connectors.len()
     }
 
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.connectors.is_empty()
     }

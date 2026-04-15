@@ -107,6 +107,7 @@ impl InvocationId {
     ///
     /// # Errors
     /// Returns `ParseError` if the string is not a valid ULID.
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: impl AsRef<str>) -> Result<Self, ParseError> {
         let s = s.as_ref();
         if s.len() != 26 {

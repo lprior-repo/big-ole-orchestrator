@@ -84,6 +84,11 @@ pub fn prefix_generator(instance_id: &InstanceId) -> Result<Vec<u8>, StorageErro
 pub const LINEAGE_ID_NULL_BYTE: u8 = 0xFF;
 pub const LINEAGE_ID_MAX_LEN: usize = 255;
 
+/// Generates a lineage prefix for scanning.
+///
+/// # Errors
+///
+/// Returns `StorageError::InvalidArgument` if the lineage ID is empty, too long, or contains null bytes.
 pub fn lineage_prefix_generator(lineage_id: &str) -> Result<Vec<u8>, StorageError> {
     if lineage_id.is_empty() {
         return Err(StorageError::InvalidArgument);
@@ -101,6 +106,11 @@ pub fn lineage_prefix_generator(lineage_id: &str) -> Result<Vec<u8>, StorageErro
     Ok(prefix)
 }
 
+/// Generates an epoch prefix for scanning.
+///
+/// # Errors
+///
+/// Returns `StorageError::InvalidArgument` if the lineage ID is invalid.
 pub fn epoch_prefix_generator(lineage_id: &str, epoch: Epoch) -> Result<Vec<u8>, StorageError> {
     let lineage_prefix = lineage_prefix_generator(lineage_id)?;
     let epoch_bytes = epoch.0.to_be_bytes();
@@ -110,6 +120,11 @@ pub fn epoch_prefix_generator(lineage_id: &str, epoch: Epoch) -> Result<Vec<u8>,
 }
 
 impl LineageQuery<'_> {
+    /// Converts the query to a prefix byte vector.
+    ///
+    /// # Errors
+    ///
+    /// Returns `StorageError::InvalidArgument` if any query parameter is invalid.
     pub fn to_prefix(&self) -> Result<Vec<u8>, StorageError> {
         match self {
             LineageQuery::InstanceId(instance_id) => prefix_generator(instance_id),
@@ -320,11 +335,7 @@ impl Iterator for LineageReplayIterator {
     type Item = Result<EventEnvelope, StorageError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(ref mut iter) = self.instance_iter {
-            iter.next()
-        } else {
-            None
-        }
+        self.instance_iter.as_mut().and_then(Iterator::next)
     }
 }
 

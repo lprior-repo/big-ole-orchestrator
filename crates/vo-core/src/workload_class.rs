@@ -42,7 +42,7 @@ pub enum WorkloadClassError {
 ///
 /// Determines scheduling priority, permit reservation, and load-shedding
 /// behavior. Classes are ordered by dispatch priority: lower rank = higher priority.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[derive(Default)]
 pub enum WorkloadClass {
@@ -68,7 +68,6 @@ impl Ord for WorkloadClass {
         self.rank().cmp(&other.rank())
     }
 }
-
 
 impl WorkloadClass {
     /// Dispatch priority rank (lower = higher priority).

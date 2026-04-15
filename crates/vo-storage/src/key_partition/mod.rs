@@ -154,7 +154,12 @@ pub fn decode_instance_key(bytes: &[u8]) -> Result<InstanceId, DekStoreError> {
 }
 
 /// Encode a `DekEntry` to JSON bytes for storage.
+///
+/// # Panics
+///
+/// Panics if serialization fails, which should not happen for valid `DekEntry` instances.
 #[must_use]
+#[allow(clippy::expect_used)]
 pub fn encode_dek_entry(entry: &DekEntry) -> Vec<u8> {
     serde_json::to_vec(entry).expect("DekEntry should always be serializable")
 }
@@ -224,6 +229,10 @@ pub trait DekStore: Send + Sync {
     fn get_active_dek_id(&self, instance_id: &InstanceId) -> Result<DekId, DekStoreError>;
 
     /// Check if a DEK exists and is active for an instance.
+    ///
+    /// # Errors
+    ///
+    /// Returns `DekStoreError::Storage` if the underlying storage fails.
     fn has_active_dek(&self, instance_id: &InstanceId) -> Result<bool, DekStoreError>;
 
     /// Rotate the DEK for an instance: retire old DEK, generate new DEK.
@@ -248,6 +257,10 @@ pub trait DekStore: Send + Sync {
     fn retire_dek(&self, instance_id: &InstanceId) -> Result<(), DekStoreError>;
 
     /// List all DEK IDs for a given instance.
+    ///
+    /// # Errors
+    ///
+    /// Returns `DekStoreError::Storage` if the underlying storage fails.
     fn list_deks(&self, instance_id: &InstanceId) -> Result<Vec<DekId>, DekStoreError>;
 
     /// Get DEK metadata.

@@ -157,8 +157,8 @@ pub struct FjallPartitionLayout {
 
 impl FjallPartitionLayout {
     #[must_use]
-    pub const fn db(&self) -> &fjall::Database {
-        &self.db
+    pub const fn keyspace(&self) -> &fjall::Keyspace {
+        &self.keyspace
     }
 }
 
@@ -197,6 +197,11 @@ impl Default for StorageConfig {
     }
 }
 
+/// Creates a partition layout at the given path.
+///
+/// # Errors
+///
+/// Returns `StorageError` if the directory cannot be created or the keyspace cannot be opened.
 pub fn create_partition_layout(path: impl AsRef<Path>) -> StorageResult<FjallPartitionLayout> {
     let path = path.as_ref();
     if !path.exists() {
@@ -227,6 +232,11 @@ pub fn get_partition_config(name: &str) -> PartitionConfig {
     }
 }
 
+/// Opens all partitions from the given layout.
+///
+/// # Errors
+///
+/// Returns `StorageError` if any partition cannot be opened.
 pub fn open_all_partitions(
     layout: &FjallPartitionLayout,
 ) -> StorageResult<Vec<(&'static str, fjall::Keyspace)>> {

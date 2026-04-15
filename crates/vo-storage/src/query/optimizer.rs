@@ -163,8 +163,14 @@ pub struct OptimizedReplayIterator {
 }
 
 impl OptimizedReplayIterator {
-    pub fn from_plan(plan: &QueryPlan, db: &fjall::Database) -> Result<Self, StorageError> {
-        let partition = db.keyspace("events", fjall::KeyspaceCreateOptions::default)?;
+    /// Creates an optimized replay iterator from a query plan.
+    ///
+    /// # Errors
+    ///
+    /// Returns `StorageError` if the partition cannot be opened.
+    pub fn from_plan(plan: &QueryPlan, keyspace: &fjall::Keyspace) -> Result<Self, StorageError> {
+        let partition =
+            keyspace.open_partition("events", fjall::PartitionCreateOptions::default())?;
         let scan_start = plan.scan_range_start.clone().unwrap_or_else(|| {
             let mut s = plan.prefix.clone();
             s.extend_from_slice(&1u64.to_be_bytes());

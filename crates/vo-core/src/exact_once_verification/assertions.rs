@@ -301,10 +301,10 @@ where
         std::collections::HashMap::new();
 
     for event in &events {
-        if let Ok(payload) = vo_types::events::EventPayload::try_from_json(&event.payload) {
-            if let vo_types::events::EventPayload::WorkflowStarted { .. } = payload {
-                parent_started.insert(event.instance_id.clone(), true);
-            }
+        if let Ok(vo_types::events::EventPayload::WorkflowStarted { .. }) =
+            vo_types::events::EventPayload::try_from_json(&event.payload)
+        {
+            parent_started.insert(event.instance_id.clone(), true);
         }
     }
 

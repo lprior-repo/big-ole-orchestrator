@@ -3,7 +3,7 @@
 //! Architecture: Data (`LineageRecord`, `LineageStoreError`) → Calc (`encode_lineage_key`,
 //! `decode_lineage_key`) → Actions (`get_active_epoch`, `upsert_lineage`, `record_rollover`).
 //!
-//! The `lineage` partition stores `lineage_id` → JSON-encoded `LineageRecord` so the engine
+//! The `lineage` partition stores `lineage_id` -> JSON-encoded `LineageRecord` so the engine
 //! can route signals and queries to the currently active epoch.
 
 use crate::codec::StorageError;

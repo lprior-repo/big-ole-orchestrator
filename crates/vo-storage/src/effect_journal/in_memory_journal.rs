@@ -32,7 +32,7 @@ impl InMemoryEffectJournal {
                     current_status: format!("{:?}", record.status()),
                 })
             }
-            _ => Ok(()),
+            EffectIntent::Prepared => Ok(()),
         }
     }
 
@@ -48,7 +48,7 @@ impl InMemoryEffectJournal {
                 }
             })?),
             EffectIntent::RolledBack => None,
-            _ => unreachable!(),
+            EffectIntent::Prepared => unreachable!(),
         };
         EffectRecord::new(
             record.intent_id().to_string(),

@@ -7,7 +7,6 @@ pub mod circuit_breaker;
 pub mod config;
 pub mod hash_ring;
 pub mod health_check;
-pub mod managed_pool;
 #[allow(clippy::module_inception)]
 mod pool;
 

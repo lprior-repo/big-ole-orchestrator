@@ -358,11 +358,7 @@ impl EventSourcingEngine {
             self.replay_engine.replay(events)?
         };
 
-        let recovery_type = if events.is_empty() {
-            RecoveryType::FullReplay
-        } else {
-            RecoveryType::FullReplay
-        };
+        let recovery_type = RecoveryType::FullReplay;
 
         Ok(RecoveryResult::new(
             result.final_state,

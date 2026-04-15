@@ -144,6 +144,11 @@ pub const fn apply_diff(
     })
 }
 
+/// Performs a three-way merge of instance states.
+///
+/// # Errors
+///
+/// Returns `MergeError` if the merge cannot be resolved.
 pub const fn three_way_merge(
     base: &InstanceState,
     ours: &InstanceState,

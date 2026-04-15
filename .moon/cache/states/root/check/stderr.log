@@ -1,5 +1,16 @@
     Blocking waiting for file lock on package cache
     Blocking waiting for file lock on package cache
     Blocking waiting for file lock on package cache
-    Blocking waiting for file lock on package cache
     Blocking waiting for file lock on build directory
+    Checking vo-types v0.1.0 (/home/lewis/gt/veloxide/polecats/rust/veloxide/crates/vo-types)
+    Checking vo-ipc v0.1.0 (/home/lewis/gt/veloxide/polecats/rust/veloxide/crates/vo-ipc)
+    Checking vo-executor v0.1.0 (/home/lewis/gt/veloxide/polecats/rust/veloxide/crates/vo-executor)
+    Checking vo-storage v0.1.0 (/home/lewis/gt/veloxide/polecats/rust/veloxide/crates/vo-storage)
+    Checking vo-actor v0.1.0 (/home/lewis/gt/veloxide/polecats/rust/veloxide/crates/vo-actor)
+    Checking vo-core v0.1.0 (/home/lewis/gt/veloxide/polecats/rust/veloxide/crates/vo-core)
+    Checking vo-frontend v0.1.0 (/home/lewis/gt/veloxide/polecats/rust/veloxide/crates/vo-frontend)
+    Checking vo-sdk v0.1.0 (/home/lewis/gt/veloxide/polecats/rust/veloxide/crates/vo-sdk)
+    Checking vo-worker v0.1.0 (/home/lewis/gt/veloxide/polecats/rust/veloxide/crates/vo-worker)
+    Checking vo-api v0.1.0 (/home/lewis/gt/veloxide/polecats/rust/veloxide/crates/vo-api)
+    Checking vo-cli v0.1.0 (/home/lewis/gt/veloxide/polecats/rust/veloxide/crates/vo-cli)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 35.21s
