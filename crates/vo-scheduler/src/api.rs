@@ -2,31 +2,64 @@
 
 use crate::error::SchedulerError;
 use crate::types::{JobId, JobState, SchedulePolicy, ScheduledJob, SchedulerQueue};
+use crate::registry_get_state;
 
 pub async fn schedule_job(
-    _queue: &SchedulerQueue,
-    _job: ScheduledJob,
+    queue: &SchedulerQueue,
+    mut job: ScheduledJob,
 ) -> Result<JobId, SchedulerError> {
-    unimplemented!("TDD-RED: Implementation pending")
+    let job_id = job.id;
+    let state = if matches!(job.schedule_policy, SchedulePolicy::Immediate) {
+        job.state = JobState::Pending;
+        JobState::Pending
+    } else {
+        job.state
+    };
+    queue.insert(job);
+    crate::registry_set_state(job_id, state);
+    Ok(job_id)
 }
 
 pub async fn cancel_job(
-    _queue: &SchedulerQueue,
-    _job_id: JobId,
+    queue: &SchedulerQueue,
+    job_id: JobId,
 ) -> Result<(), SchedulerError> {
-    unimplemented!("TDD-RED: Implementation pending")
+    let state = queue.get_state(&job_id)
+        .ok_or_else(|| SchedulerError::JobNotFound(job_id.0.to_string()))?;
+    
+    match state {
+        JobState::Scheduled | JobState::Pending => {
+            queue.update_job_state(&job_id, JobState::Cancelled);
+            crate::registry_set_state(job_id, JobState::Cancelled);
+            Ok(())
+        }
+        _ => Err(SchedulerError::InvalidTransition(job_id.0.to_string())),
+    }
 }
 
-pub async fn get_job_status(_job_id: JobId) -> Result<JobState, SchedulerError> {
-    unimplemented!("TDD-RED: Implementation pending")
+pub async fn get_job_status(job_id: JobId) -> Result<JobState, SchedulerError> {
+    registry_get_state(&job_id)
+        .ok_or_else(|| SchedulerError::JobNotFound(job_id.0.to_string()))
 }
 
 pub async fn update_job_schedule(
-    _queue: &SchedulerQueue,
-    _job_id: JobId,
-    _new_schedule: SchedulePolicy,
+    queue: &SchedulerQueue,
+    job_id: JobId,
+    new_schedule: SchedulePolicy,
 ) -> Result<(), SchedulerError> {
-    unimplemented!("TDD-RED: Implementation pending")
+    let state = queue.get_state(&job_id)
+        .ok_or_else(|| SchedulerError::JobNotFound(job_id.0.to_string()))?;
+    
+    match state {
+        JobState::Scheduled => {
+            if matches!(new_schedule, SchedulePolicy::Immediate) {
+                return Err(SchedulerError::InvalidTransition(job_id.0.to_string()));
+            }
+            queue.update_job_schedule(&job_id, new_schedule);
+            Ok(())
+        }
+        _ => Err(SchedulerError::InvalidTransition(job_id.0.to_string())),
+    }
 }
 
 #[cfg(test)]
@@ -41,7 +74,7 @@ mod tests {
         ScheduledJob::new(
             JobKind::OneShot,
             JobPriority::Normal,
-            SchedulePolicy::Immediate,
+            SchedulePolicy::At(chrono::Utc::now() + Duration::hours(1)),
             RetryPolicy {
                 max_attempts: 3,
                 backoff_multiplier: 2.0,

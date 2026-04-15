@@ -139,32 +139,68 @@ impl SerializedPayload {
     }
 }
 
-use std::cmp::Ordering;
+use std::cell::RefCell;
 use std::collections::{HashMap, VecDeque};
 
 #[derive(Debug, Clone)]
 pub struct SchedulerQueue {
-    jobs: VecDeque<JobId>,
-    by_id: HashMap<JobId, JobState>,
+    jobs: RefCell<VecDeque<JobId>>,
+    by_id: RefCell<HashMap<JobId, JobState>>,
+    job_store: RefCell<HashMap<JobId, ScheduledJob>>,
 }
 
 impl SchedulerQueue {
     pub fn new() -> Self {
         Self {
-            jobs: VecDeque::new(),
-            by_id: HashMap::new(),
+            jobs: RefCell::new(VecDeque::new()),
+            by_id: RefCell::new(HashMap::new()),
+            job_store: RefCell::new(HashMap::new()),
         }
     }
 
     pub fn get_state(&self, job_id: &JobId) -> Option<JobState> {
-        self.by_id.get(job_id).copied()
+        self.by_id.borrow().get(job_id).copied()
     }
 
-    pub fn insert(&mut self, job_id: JobId, state: JobState) {
-        self.by_id.insert(job_id, state);
+    pub fn get_job(&self, job_id: &JobId) -> Option<ScheduledJob> {
+        self.job_store.borrow().get(job_id).cloned()
+    }
+
+    pub fn insert(&self, job: ScheduledJob) {
+        let job_id = job.id;
+        let state = job.state;
+        self.by_id.borrow_mut().insert(job_id, state);
+        self.job_store.borrow_mut().insert(job_id, job);
         if !state.is_terminal() {
-            self.jobs.push_back(job_id);
+            self.jobs.borrow_mut().push_back(job_id);
         }
+    }
+
+    pub fn update_job_state(&self, job_id: &JobId, new_state: JobState) -> Option<()> {
+        let mut store = self.job_store.borrow_mut();
+        let job = store.get_mut(job_id)?;
+        job.state = new_state;
+        job.updated_at = chrono::Utc::now();
+        self.by_id.borrow_mut().insert(*job_id, new_state);
+        if new_state.is_terminal() {
+            self.jobs.borrow_mut().retain(|id| id != job_id);
+        }
+        Some(())
+    }
+
+    pub fn update_job_schedule(&self, job_id: &JobId, new_policy: SchedulePolicy) -> Option<()> {
+        let mut store = self.job_store.borrow_mut();
+        let job = store.get_mut(job_id)?;
+        let now = chrono::Utc::now();
+        job.schedule_policy = new_policy;
+        job.due_at = match &job.schedule_policy {
+            SchedulePolicy::At(dt) => *dt,
+            SchedulePolicy::After(dur) => now + *dur,
+            SchedulePolicy::Cron(_) => now,
+            SchedulePolicy::Immediate => now,
+        };
+        job.updated_at = now;
+        Some(())
     }
 }
 
