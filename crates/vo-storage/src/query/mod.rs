@@ -329,13 +329,23 @@ pub struct LineageReplayIterator {
     instance_iter: Option<EventReplayIterator>,
     lineage_id: Option<String>,
     epoch: Option<Epoch>,
+    unimplemented_error: bool,
 }
 
 impl Iterator for LineageReplayIterator {
     type Item = Result<EventEnvelope, StorageError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.instance_iter.as_mut().and_then(Iterator::next)
+        if self.unimplemented_error {
+            let err = Some(Err(StorageError::Storage));
+            self.unimplemented_error = false;
+            return err;
+        }
+        if let Some(ref mut iter) = self.instance_iter {
+            iter.next()
+        } else {
+            None
+        }
     }
 }
 
@@ -351,6 +361,7 @@ pub fn replay_events_for_lineage(
                 instance_iter: Some(iter),
                 lineage_id: None,
                 epoch: None,
+                unimplemented_error: false,
             }
         }
         LineageQuery::LineageWide { lineage_id: _ } => LineageReplayIterator {
@@ -362,6 +373,7 @@ pub fn replay_events_for_lineage(
                     .unwrap_or_default(),
             ),
             epoch: None,
+            unimplemented_error: true,
         },
         LineageQuery::EpochSpecific {
             lineage_id: _,
@@ -378,6 +390,7 @@ pub fn replay_events_for_lineage(
                 LineageQuery::EpochSpecific { epoch, .. } => *epoch,
                 _ => Epoch::ZERO,
             }),
+            unimplemented_error: true,
         },
     }
 }

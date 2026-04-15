@@ -1,48 +1,53 @@
-//! Scheduler error types per ADR-047 §4.
-
 use thiserror::Error;
 
-#[derive(Debug, Clone, Error)]
+#[derive(Debug, Error)]
 pub enum SchedulerError {
-    #[error("scheduler queue is at capacity")]
+    #[error("scheduler queue full")]
     QueueFull,
-
-    #[error("invalid schedule policy: {0}")]
-    InvalidSchedule(String),
-
-    #[error("job not found: {0:?}")]
-    JobNotFound(String),
-
-    #[error("invalid state transition for job {0:?}")]
-    InvalidTransition(String),
-
+    #[error("invalid schedule policy")]
+    InvalidSchedule,
+    #[error("job not found")]
+    JobNotFound,
+    #[error("invalid state transition")]
+    InvalidTransition,
     #[error("serialization error: {0}")]
     SerializationError(String),
 }
 
-#[derive(Debug, Clone, Error)]
+#[derive(Debug, Error)]
 pub enum ExecutionError {
-    #[error("job task panicked")]
+    #[error("job panicked during execution")]
     Panicked,
-
-    #[error("job exceeded time limit")]
+    #[error("job timed out")]
     TimedOut,
-
-    #[error("job was cancelled")]
+    #[error("job cancelled during execution")]
     Cancelled,
-
     #[error("job exhausted available resources")]
     ResourceExhausted,
 }
 
-#[derive(Debug, Clone, Error)]
+#[derive(Debug, Error)]
 pub enum RetryExhaustedError {
-    #[error("maximum retry attempts reached")]
+    #[error("max retry attempts reached")]
     MaxAttemptsReached,
-
     #[error("backoff calculation overflowed")]
     BackoffOverflow,
-
-    #[error("job kind does not support retries")]
+    #[error("retry not allowed for this job kind")]
     RetryNotAllowed,
+}
+
+impl SchedulerError {
+    pub fn is_transient(&self) -> bool {
+        matches!(self, Self::SerializationError(_))
+    }
+
+    pub fn is_permanent(&self) -> bool {
+        matches!(self, Self::InvalidSchedule | Self::InvalidTransition)
+    }
+}
+
+impl ExecutionError {
+    pub fn is_retryable(&self) -> bool {
+        matches!(self, Self::ResourceExhausted)
+    }
 }

@@ -5,17 +5,18 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+vo-types = { path = "../vo-types" }
 thiserror.workspace = true
-serde.workspace = true
+serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
-ulid.workspace = true
-chrono.workspace = true
-tokio.workspace = true
-dashmap.workspace = true
+ulid = { workspace = true, features = ["serde"] }
+chrono = { workspace = true, features = ["serde"] }
+bytes = { workspace = true, features = ["serde"] }
 
 [dev-dependencies]
 rstest.workspace = true
+proptest = { version = "1", features = ["fork"] }
 tokio = { workspace = true, features = ["full"] }
 
-[lints]
-workspace = true
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(kani)'] }

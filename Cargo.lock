@@ -5060,14 +5060,16 @@ dependencies = [
 name = "vo-scheduler"
 version = "0.1.0"
 dependencies = [
+ "bytes",
  "chrono",
- "dashmap",
- "rstest 0.26.1",
+ "proptest",
+ "rstest 0.23.0",
  "serde",
  "serde_json",
- "thiserror 2.0.18",
+ "thiserror 1.0.69",
  "tokio",
  "ulid",
+ "vo-types",
 ]
 
 [[package]]

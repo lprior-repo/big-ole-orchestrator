@@ -61,6 +61,7 @@ fjall = "3"
 vo-types = { path = "crates/vo-types" }
 vo-common = { path = "crates/vo-common" }
 vo-core = { path = "crates/vo-core" }
+vo-scheduler = { path = "crates/vo-scheduler" }
 chrono = { version = "0.4", features = ["serde"] }
 thiserror = "2"
 anyhow = "1"

@@ -539,7 +539,7 @@ impl CompensationSaga {
     /// Returns `CompensationError::TerminalState` if the entry is already terminal.
     pub fn start_compensation(&self, effect_id: &str) -> Result<(), CompensationError> {
         #[expect(clippy::unwrap_used)]
-        let manifest = self.manifest.lock().unwrap();
+        let mut manifest = self.manifest.lock().unwrap();
         if !manifest.can_execute(effect_id) {
             return Err(CompensationError::PolicyViolation {
                 effect_id: effect_id.to_string(),
@@ -548,10 +548,6 @@ impl CompensationSaga {
                     .map_or(CompensationPolicy::None, |e| e.policy),
             });
         }
-        drop(manifest);
-
-        #[expect(clippy::unwrap_used)]
-        let mut manifest = self.manifest.lock().unwrap();
         manifest.transition_to(effect_id, SagaCompensationStatus::InProgress)
     }
 

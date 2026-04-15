@@ -17,14 +17,14 @@ fn prefetch_existing_key_returns_ok() {
 
 #[test]
 fn prefetch_nonexistent_key_returns_ok_silently() {
-    let (cache, _dir) = create_test_cache();
+    let (mut cache, _dir) = create_test_cache();
     let result = cache.prefetch("nonexistent");
     assert!(result.is_ok());
 }
 
 #[test]
 fn prefetch_missing_key_does_not_error() {
-    let (cache, _dir) = create_test_cache();
+    let (mut cache, _dir) = create_test_cache();
     let result = cache.prefetch("missing");
     assert!(result.is_ok());
 }
@@ -48,7 +48,7 @@ fn read_ahead_with_mix_of_existing_and_missing_continues_on_error() {
 
 #[test]
 fn read_ahead_empty_key_list_returns_ok() {
-    let (cache, _dir) = create_test_cache();
+    let (mut cache, _dir) = create_test_cache();
     let result = cache.read_ahead(&[]);
     assert!(result.is_ok());
 }
@@ -63,7 +63,7 @@ fn read_ahead_single_key_returns_ok() {
 
 #[test]
 fn read_ahead_all_missing_keys_returns_ok() {
-    let (cache, _dir) = create_test_cache();
+    let (mut cache, _dir) = create_test_cache();
     let result = cache.read_ahead(&["missing1", "missing2"]);
     assert!(result.is_ok());
 }
@@ -78,7 +78,7 @@ fn read_ahead_continues_after_first_error_when_second_key_missing() {
 
 #[test]
 fn read_ahead_continues_after_error_even_when_no_valid_keys() {
-    let (cache, _dir) = create_test_cache();
+    let (mut cache, _dir) = create_test_cache();
     let result = cache.read_ahead(&["missing1", "missing2", "missing3"]);
     assert!(result.is_ok());
 }
