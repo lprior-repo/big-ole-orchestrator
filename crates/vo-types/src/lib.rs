@@ -39,6 +39,8 @@ mod link_cut_tree;
 mod macros;
 mod node_kind;
 mod non_empty_vec;
+mod octree;
+mod pairing_heap;
 mod payload_parser;
 mod next_step_selection;
 mod plugin;
