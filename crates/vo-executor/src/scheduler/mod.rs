@@ -65,8 +65,12 @@ impl Scheduler {
     }
 
     #[allow(dead_code)]
-    pub async fn acquire(&self) -> tokio::sync::OwnedSemaphorePermit {
-        self.semaphore.clone().acquire_owned().await.unwrap()
+    pub async fn acquire(&self) -> Result<tokio::sync::OwnedSemaphorePermit, SchedulerError> {
+        self.semaphore
+            .clone()
+            .acquire_owned()
+            .await
+            .map_err(|_| SchedulerError::ConcurrencyLimitReached)
     }
 
     pub fn is_running(&self) -> bool {
