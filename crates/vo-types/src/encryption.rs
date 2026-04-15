@@ -76,9 +76,17 @@ impl From<DekId> for String {
 pub struct WrappedDek(pub Vec<u8>);
 
 impl WrappedDek {
-    #[must_use]
-    pub fn new(wrapped_bytes: Vec<u8>) -> Self {
-        Self(wrapped_bytes)
+    pub fn new(wrapped_bytes: Vec<u8>) -> Result<Self, ParseError> {
+        if wrapped_bytes.len() < 60 {
+            return Err(ParseError::InvalidFormat {
+                type_name: "WrappedDek",
+                reason: format!(
+                    "wrapped DEK must be at least 60 bytes (IV+DEK+tag), got {}",
+                    wrapped_bytes.len()
+                ),
+            });
+        }
+        Ok(Self(wrapped_bytes))
     }
 
     #[must_use]

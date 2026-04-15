@@ -185,7 +185,8 @@ pub fn apply_redaction(
                         )
                     };
 
-                    if was_redacted || new_val != serde_json::Value::Null {
+                    if is_remove {
+                    } else if !was_redacted || new_val != serde_json::Value::Null {
                         result.insert(key.clone(), new_val);
                     }
 
