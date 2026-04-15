@@ -39,7 +39,8 @@ pub fn apply_plugin_transition(
 fn make_unknown_plugin_id() -> super::types::PluginId {
     use super::types::{InstanceKey, PluginId, PluginName, PluginVersion};
     PluginId::new(
-        PluginName::new("unknown").unwrap_or_else(|_| PluginName::new("x").unwrap()),
+        PluginName::new("unknown")
+            .unwrap_or_else(|_| PluginName::new("x").expect("'x' is always a valid PluginName")),
         PluginVersion::new(0, 0, 0),
         InstanceKey::new(),
     )

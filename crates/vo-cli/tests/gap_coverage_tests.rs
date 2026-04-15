@@ -1277,17 +1277,7 @@ fn registry_names_contains_all() {
     let registry = HandlerRegistry::default();
     let names = registry.names();
     assert_eq!(names.len(), 9);
-    for name in &[
-        "purge",
-        "check",
-        "compensate",
-        "gc",
-        "init",
-        "lock",
-        "doctor",
-        "rebuild",
-        "status",
-    ] {
+    for name in &["purge", "check", "compensate", "gc", "init", "lock", "doctor", "rebuild", "status"] {
         assert!(names.contains(name), "missing handler: {name}");
     }
 }

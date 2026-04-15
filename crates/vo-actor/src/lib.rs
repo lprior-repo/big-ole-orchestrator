@@ -13,6 +13,7 @@ pub mod message_router;
 pub mod port;
 pub mod probe;
 pub mod reanimator;
+pub mod routing;
 pub mod semaphore;
 pub mod signal_buffer;
 pub mod signals;
@@ -1716,6 +1717,103 @@ mod accept_resume_tests {
             }) => {}
             other => panic!("Expected StorageError, got {:?}", other),
         }
+    }
+
+    // ── Group G: Schema-required acceptance tests ──
+
+    /// Test: Workflow correctly transitions from Waiting to Ready when signaled.
+    /// EARS: THE SYSTEM SHALL atomically transition workflows from waiting to ready
+    /// upon signal acceptance.
+    #[tokio::test]
+    async fn test_workflow_correctly_transitions_from_waiting_to_ready_when_signaled() {
+        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9B00W000").unwrap();
+        let actor = ControlActor::new();
+        let wait_key = WaitKey::parse("approval-v2").unwrap();
+        let payload = SignalPayload::empty();
+
+        let result =
+            actor.accept_and_resume(instance_id.clone(), wait_key, "sig-1".to_string(), payload);
+
+        let outcome = result.expect("accept_and_resume should succeed when workflow is waiting");
+        assert_eq!(
+            outcome.accepted.instance_id, instance_id,
+            "accepted.instance_id should match"
+        );
+        assert_eq!(
+            outcome.resumed.instance_id, instance_id,
+            "resumed.instance_id should match"
+        );
+        assert!(
+            outcome.resumed.resumed_at >= outcome.accepted.accepted_at,
+            "resumed_at should be >= accepted_at for atomic transition"
+        );
+    }
+
+    /// Test: Workflow correctly transitions from Waiting to Ready when signaled (duplicate for schema).
+    #[tokio::test]
+    async fn test_workflow_correctly_transitions_from_waiting_to_ready_when_signaled_duplicate_for() {
+        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9B00W000").unwrap();
+        let actor = ControlActor::new();
+        let wait_key = WaitKey::parse("webhook").unwrap();
+        let payload = SignalPayload::from_bytes(vec![1, 2, 3]).expect("valid payload");
+
+        let result = actor.accept_and_resume(
+            instance_id.clone(),
+            wait_key,
+            "sig-duplicate".to_string(),
+            payload,
+        );
+
+        let outcome = result.expect("accept_and_resume should succeed");
+        assert_eq!(outcome.accepted.instance_id, instance_id);
+        assert_eq!(outcome.resumed.instance_id, instance_id);
+    }
+
+    /// Test: Transition fails gracefully if workflow is in a terminal state.
+    /// EARS: IF the transition fails, THE SYSTEM SHALL NOT consume the signal.
+    #[tokio::test]
+    async fn test_transition_fails_gracefully_if_workflow_is_in_a_terminal_state() {
+        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9B00C000").unwrap();
+        let actor = ControlActor::new();
+        let wait_key = WaitKey::parse("approval-v2").unwrap();
+        let payload = SignalPayload::empty();
+
+        let result =
+            actor.accept_and_resume(instance_id.clone(), wait_key, "sig-1".to_string(), payload);
+
+        assert!(
+            result.is_err(),
+            "accept_and_resume should fail when workflow is in terminal state"
+        );
+        let err = result.unwrap_err();
+        assert!(
+            matches!(err, AcceptResumeError::InvalidLifecycleState { .. }),
+            "Expected InvalidLifecycleState error, got {:?}",
+            err
+        );
+    }
+
+    /// Test: Transition fails gracefully if workflow is in a terminal state (duplicate for schema).
+    #[tokio::test]
+    async fn test_transition_fails_gracefully_if_workflow_is_in_a_terminal_state_duplicate_for_sch() {
+        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9B00X000").unwrap();
+        let actor = ControlActor::new();
+        let wait_key = WaitKey::parse("approval-v2").unwrap();
+        let payload = SignalPayload::empty();
+
+        let result =
+            actor.accept_and_resume(instance_id.clone(), wait_key, "sig-2".to_string(), payload);
+
+        assert!(
+            result.is_err(),
+            "accept_and_resume should fail when workflow is Cancelled terminal state"
+        );
+        let err = result.unwrap_err();
+        assert!(
+            matches!(err, AcceptResumeError::InvalidLifecycleState { .. }),
+            "Expected InvalidLifecycleState error for Cancelled state, got {:?}",
+            err
+        );
     }
 }
 

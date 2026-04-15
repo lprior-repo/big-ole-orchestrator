@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+use crate::effects::CompensationPolicy;
 use crate::NodeName;
 
 // ---------------------------------------------------------------------------
@@ -179,6 +180,8 @@ impl RetryPolicy {
 pub struct DagNode {
     pub node_name: NodeName,
     pub retry_policy: RetryPolicy,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub compensation_policy: Option<CompensationPolicy>,
 }
 
 // ---------------------------------------------------------------------------

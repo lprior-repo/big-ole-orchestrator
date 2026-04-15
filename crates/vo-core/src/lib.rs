@@ -34,7 +34,9 @@ pub mod effects;
 pub mod exact_once_verification;
 pub mod ghost_workflow;
 pub mod lease_calc;
-pub mod validation;
+pub mod shedding;
+#[cfg(test)]
+mod shedding_tests;
 
 pub use exact_once_verification::assertions::{
     assert_fence_token_ordering, assert_invariant_no_orphans, assert_no_duplicate_effects,
@@ -65,6 +67,8 @@ pub use validation::{
 
 #[cfg(kani)]
 pub mod write_class_verification;
+#[cfg(kani)]
+pub mod shedding_verification;
 
 #[cfg(test)]
 mod invalid_business_data_tests;

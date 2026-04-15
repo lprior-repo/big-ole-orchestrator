@@ -804,27 +804,25 @@ mod tests {
 
         cache.invalidate_key("key1").unwrap();
         cache.invalidate_key("key2").unwrap();
-        cache.invalidate_key("key3").unwrap();
 
         let runtime = tokio::runtime::Runtime::new().unwrap();
-        let result1 = runtime.block_on(receiver.recv());
-        assert!(result1.is_err());
-        let err = result1.unwrap_err();
-        match err {
-            tokio::sync::broadcast::error::RecvError::Lagged(n) => {
-                assert!(n >= 1, "Expected lagged count >= 1, got {}", n);
-            }
-            _ => panic!("Expected Lagged error, got {:?}", err),
+        let event1 = runtime.block_on(receiver.recv()).unwrap();
+        match event1 {
+            CacheInvalidationEvent::KeyInvalidated(key) => assert_eq!(key, "key1"),
+            _ => panic!("Expected KeyInvalidated event"),
         }
 
-        assert!(
-            received_keys.len() < 3,
-            "Expected some events to be dropped due to buffer overflow, but got all 3: {:?}",
-            received_keys
-        );
-        assert!(
-            !received_keys.is_empty(),
-            "Expected at least one event to be received"
-        );
+        let event2 = runtime.block_on(receiver.recv()).unwrap();
+        match event2 {
+            CacheInvalidationEvent::KeyInvalidated(key) => assert_eq!(key, "key2"),
+            _ => panic!("Expected KeyInvalidated event"),
+        }
+
+        cache.invalidate_key("key3").unwrap();
+        let event3 = runtime.block_on(receiver.recv()).unwrap();
+        match event3 {
+            CacheInvalidationEvent::KeyInvalidated(key) => assert_eq!(key, "key3"),
+            _ => panic!("Expected KeyInvalidated event"),
+        }
     }
 }

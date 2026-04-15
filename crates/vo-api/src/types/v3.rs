@@ -141,21 +141,26 @@ pub struct WorkflowVersionResponse {
     pub last_timestamp_ms: Option<u64>,
 }
 
-/// Single epoch entry in the lineage for a workflow instance (ADR-038).
+/// Search request body for full-text search across workspaces.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LineageEntry {
-    pub epoch: u64,
-    pub parent_epoch: Option<u64>,
-    pub timestamp_ms: u64,
+pub struct SearchRequest {
+    pub query: String,
+    pub limit: Option<usize>,
 }
 
-/// Response to GET /api/v1/workflows/:id/lineage.
+/// Single search result entry.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LineageResponse {
-    pub instance_id: String,
-    pub lineage_id: String,
-    pub current_epoch: u64,
-    pub entries: Vec<LineageEntry>,
+pub struct SearchResultEntry {
+    pub workspace_id: String,
+    pub score: f64,
+    pub matched_terms: Vec<String>,
+}
+
+/// Response to GET /api/v1/search.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SearchResponse {
+    pub query: String,
+    pub results: Vec<SearchResultEntry>,
 }
 
 #[cfg(test)]

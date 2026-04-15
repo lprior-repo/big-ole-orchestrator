@@ -51,6 +51,7 @@ fn history_entry_carries_envelope_identity() {
         vec![DagNode {
             node_name: NodeName::parse("n1").unwrap(),
             retry_policy: RetryPolicy::new(3, 1000, 2.0).unwrap(),
+            compensation_policy: None,
         }],
         vec![],
     );
@@ -136,6 +137,7 @@ fn command_metadata_propagates_through_command_history_entries() {
         vec![DagNode {
             node_name: NodeName::parse("n1").unwrap(),
             retry_policy: RetryPolicy::new(3, 1000, 2.0).unwrap(),
+            compensation_policy: None,
         }],
         vec![],
     );
@@ -189,6 +191,7 @@ fn apply_command_preserves_metadata_through_undo_redo_cycle() {
         vec![DagNode {
             node_name: NodeName::parse("n1").unwrap(),
             retry_policy: RetryPolicy::new(3, 1000, 2.0).unwrap(),
+            compensation_policy: None,
         }],
         vec![],
     );
@@ -221,6 +224,7 @@ fn multiple_history_entries_have_distinct_command_ids() {
         vec![DagNode {
             node_name: NodeName::parse("n1").unwrap(),
             retry_policy: RetryPolicy::new(3, 1000, 2.0).unwrap(),
+            compensation_policy: None,
         }],
         vec![],
     );

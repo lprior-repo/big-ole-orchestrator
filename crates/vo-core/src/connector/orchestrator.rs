@@ -148,6 +148,12 @@ impl<C: Connector> ConnectorOrchestrator<C> {
     pub fn connector_mut(&mut self) -> &mut C {
         &mut self.connector
     }
+
+    /// Consume the orchestrator and return the inner connector.
+    #[must_use]
+    pub fn into_inner(self) -> C {
+        self.connector
+    }
 }
 
 #[cfg(test)]
@@ -263,13 +269,5 @@ mod tests {
         let connector = orchestrator.into_inner();
         assert!(connector.prepare_called);
         assert!(connector.commit_called);
-    }
-}
-
-impl<C: Connector> ConnectorOrchestrator<C> {
-    /// Consume the orchestrator and return the inner connector.
-    #[must_use]
-    pub fn into_inner(self) -> C {
-        self.connector
     }
 }

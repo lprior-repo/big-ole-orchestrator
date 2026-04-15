@@ -24,6 +24,7 @@ fn make_workflow(
                         backoff_multiplier: m,
                         max_backoff_ms: u64::MAX,
                     },
+                    compensation_policy: None,
                 })
                 .collect(),
         ),
@@ -294,6 +295,7 @@ fn dag_node_has_no_binary_path_field_when_serialized() -> Result<(), Box<dyn std
             backoff_multiplier: 1.0,
             max_backoff_ms: u64::MAX,
         },
+        compensation_policy: None,
     };
     let value = serde_json::to_value(&node)?;
     let obj = value.as_object().ok_or("expected JSON object")?;
@@ -309,6 +311,231 @@ fn dag_node_has_no_binary_path_field_when_serialized() -> Result<(), Box<dyn std
     assert!(rp.get("backoff_ms").is_some());
     assert!(rp.get("backoff_multiplier").is_some());
     assert_eq!(obj.keys().len(), 2);
+    Ok(())
+}
+
+// ===================================================================
+// CompensationPolicy in DagNode
+// ===================================================================
+
+#[test]
+fn dag_node_compensation_policy_serializes_to_none_when_not_set(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let node = DagNode {
+        node_name: NodeName("a".into()),
+        retry_policy: RetryPolicy {
+            max_attempts: 1,
+            backoff_ms: 0,
+            backoff_multiplier: 1.0,
+            max_backoff_ms: u64::MAX,
+        },
+        compensation_policy: None,
+    };
+    let value = serde_json::to_value(&node)?;
+    let obj = value.as_object().ok_or("expected JSON object")?;
+    assert!(!obj.contains_key("compensation_policy"));
+    Ok(())
+}
+
+#[test]
+fn dag_node_compensation_policy_serializes_when_set_to_automatic(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let node = DagNode {
+        node_name: NodeName("a".into()),
+        retry_policy: RetryPolicy {
+            max_attempts: 1,
+            backoff_ms: 0,
+            backoff_multiplier: 1.0,
+            max_backoff_ms: u64::MAX,
+        },
+        compensation_policy: Some(CompensationPolicy::Automatic),
+    };
+    let value = serde_json::to_value(&node)?;
+    let obj = value.as_object().ok_or("expected JSON object")?;
+    assert!(obj.contains_key("compensation_policy"));
+    assert_eq!(obj["compensation_policy"], "Automatic");
+    Ok(())
+}
+
+#[test]
+fn dag_node_compensation_policy_serializes_when_set_to_manual(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let node = DagNode {
+        node_name: NodeName("a".into()),
+        retry_policy: RetryPolicy {
+            max_attempts: 1,
+            backoff_ms: 0,
+            backoff_multiplier: 1.0,
+            max_backoff_ms: u64::MAX,
+        },
+        compensation_policy: Some(CompensationPolicy::Manual),
+    };
+    let value = serde_json::to_value(&node)?;
+    let obj = value.as_object().ok_or("expected JSON object")?;
+    assert_eq!(obj["compensation_policy"], "Manual");
+    Ok(())
+}
+
+#[test]
+fn dag_node_compensation_policy_round_trips_via_serde() -> Result<(), Box<dyn std::error::Error>> {
+    let node = DagNode {
+        node_name: NodeName("test-node".into()),
+        retry_policy: RetryPolicy {
+            max_attempts: 3,
+            backoff_ms: 1000,
+            backoff_multiplier: 2.0,
+            max_backoff_ms: u64::MAX,
+        },
+        compensation_policy: Some(CompensationPolicy::Automatic),
+    };
+    let json = serde_json::to_value(&node)?;
+    let restored: DagNode = serde_json::from_value(json)?;
+    assert_eq!(restored.node_name, node.node_name);
+    assert_eq!(restored.retry_policy, node.retry_policy);
+    assert_eq!(restored.compensation_policy, node.compensation_policy);
+    Ok(())
+}
+
+#[test]
+fn parse_accepts_workflow_with_compensation_policy_automatic(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let json = serde_json::json!({
+        "workflow_name": "with-compensation",
+        "nodes": [{
+            "node_name": "step1",
+            "retry_policy": {"max_attempts": 1, "backoff_ms": 0, "backoff_multiplier": 1.0},
+            "compensation_policy": "Automatic"
+        }],
+        "edges": []
+    });
+    let bytes = serde_json::to_vec(&json)?;
+    let def = WorkflowDefinition::parse(&bytes)?;
+    assert_eq!(def.workflow_name, WorkflowName("with-compensation".into()));
+    assert_eq!(def.nodes.len(), 1);
+    assert_eq!(def.nodes.first().node_name, NodeName("step1".into()));
+    assert_eq!(
+        def.nodes.first().compensation_policy,
+        Some(CompensationPolicy::Automatic)
+    );
+    Ok(())
+}
+
+#[test]
+fn parse_accepts_workflow_with_compensation_policy_manual() -> Result<(), Box<dyn std::error::Error>>
+{
+    let json = serde_json::json!({
+        "workflow_name": "with-compensation",
+        "nodes": [{
+            "node_name": "step1",
+            "retry_policy": {"max_attempts": 1, "backoff_ms": 0, "backoff_multiplier": 1.0},
+            "compensation_policy": "Manual"
+        }],
+        "edges": []
+    });
+    let bytes = serde_json::to_vec(&json)?;
+    let def = WorkflowDefinition::parse(&bytes)?;
+    assert_eq!(
+        def.nodes.first().compensation_policy,
+        Some(CompensationPolicy::Manual)
+    );
+    Ok(())
+}
+
+#[test]
+fn parse_accepts_workflow_with_compensation_policy_none() -> Result<(), Box<dyn std::error::Error>>
+{
+    let json = serde_json::json!({
+        "workflow_name": "with-compensation",
+        "nodes": [{
+            "node_name": "step1",
+            "retry_policy": {"max_attempts": 1, "backoff_ms": 0, "backoff_multiplier": 1.0},
+            "compensation_policy": "None"
+        }],
+        "edges": []
+    });
+    let bytes = serde_json::to_vec(&json)?;
+    let def = WorkflowDefinition::parse(&bytes)?;
+    assert_eq!(
+        def.nodes.first().compensation_policy,
+        Some(CompensationPolicy::None)
+    );
+    Ok(())
+}
+
+#[test]
+fn parse_accepts_workflow_with_multiple_nodes_having_different_compensation_policies(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let json = serde_json::json!({
+        "workflow_name": "mixed-compensation",
+        "nodes": [
+            {
+                "node_name": "irreversible",
+                "retry_policy": {"max_attempts": 1, "backoff_ms": 0, "backoff_multiplier": 1.0},
+                "compensation_policy": "None"
+            },
+            {
+                "node_name": "auto_compensate",
+                "retry_policy": {"max_attempts": 1, "backoff_ms": 0, "backoff_multiplier": 1.0},
+                "compensation_policy": "Automatic"
+            },
+            {
+                "node_name": "manual_compensate",
+                "retry_policy": {"max_attempts": 1, "backoff_ms": 0, "backoff_multiplier": 1.0},
+                "compensation_policy": "Manual"
+            },
+            {
+                "node_name": "no_policy",
+                "retry_policy": {"max_attempts": 1, "backoff_ms": 0, "backoff_multiplier": 1.0}
+            }
+        ],
+        "edges": []
+    });
+    let bytes = serde_json::to_vec(&json)?;
+    let def = WorkflowDefinition::parse(&bytes)?;
+    assert_eq!(def.nodes.len(), 4);
+    let nodes_slice = def.nodes.as_slice();
+    assert_eq!(
+        nodes_slice[0].compensation_policy,
+        Some(CompensationPolicy::None)
+    );
+    assert_eq!(
+        nodes_slice[1].compensation_policy,
+        Some(CompensationPolicy::Automatic)
+    );
+    assert_eq!(
+        nodes_slice[2].compensation_policy,
+        Some(CompensationPolicy::Manual)
+    );
+    assert_eq!(nodes_slice[3].compensation_policy, None);
+    Ok(())
+}
+
+#[test]
+fn workflow_definition_with_compensation_policy_round_trips(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let json = serde_json::json!({
+        "workflow_name": "roundtrip-test",
+        "nodes": [
+            {
+                "node_name": "step1",
+                "retry_policy": {"max_attempts": 1, "backoff_ms": 0, "backoff_multiplier": 1.0},
+                "compensation_policy": "Automatic"
+            },
+            {
+                "node_name": "step2",
+                "retry_policy": {"max_attempts": 1, "backoff_ms": 0, "backoff_multiplier": 1.0},
+                "compensation_policy": "Manual"
+            }
+        ],
+        "edges": [
+            {"source_node": "step1", "target_node": "step2", "condition": "Always"}
+        ]
+    });
+    let bytes = serde_json::to_vec(&json)?;
+    let def = WorkflowDefinition::parse(&bytes)?;
+    let reserialized = serde_json::to_value(&def)?;
+    let reparsed = WorkflowDefinition::parse(&serde_json::to_vec(&reserialized)?)?;
+    assert_eq!(reparsed, def);
     Ok(())
 }
 
@@ -1302,6 +1529,7 @@ fn next_nodes_returns_empty_when_edge_target_is_not_in_definition() {
                 backoff_multiplier: 1.0,
                 max_backoff_ms: u64::MAX,
             },
+            compensation_policy: None,
         }]),
         edges: vec![Edge {
             source_node: NodeName("a".into()),

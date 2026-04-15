@@ -17,7 +17,7 @@ mod dependency_graph_resolver;
 pub mod discovery;
 pub mod identity;
 mod dual_representation;
-mod effects;
+pub mod effects;
 mod encryption;
 #[cfg(test)]
 mod effects_receipt_tests;
@@ -148,8 +148,8 @@ pub use types::{
     MAX_SUPPORTED_SCHEMA_VERSION,
 };
 pub use workflow::{
-    next_nodes, DagNode, Edge, EdgeCondition, RetryPolicy, RetryPolicyError, StepOutcome,
-    WorkflowDefinition, WorkflowDefinitionError,
+    next_nodes, DagNode, Edge, EdgeCondition, RetryPolicy, RetryPolicyError,
+    StepOutcome, WorkflowDefinition, WorkflowDefinitionError,
 };
 
 #[cfg(test)]

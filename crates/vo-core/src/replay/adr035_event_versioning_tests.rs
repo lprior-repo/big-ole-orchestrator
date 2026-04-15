@@ -32,8 +32,8 @@ impl Upcaster for Version0To1Upcaster {
     fn target_version(&self) -> u8 {
         1
     }
-    fn upcast(&self, payload: &serde_json::Value) -> Result<serde_json::Value, UpcasterError> {
-        let mut value = payload.clone();
+    fn upcast(&self, input: &serde_json::Value) -> Result<serde_json::Value, VoUpcasterError> {
+        let mut value = input.clone();
         value["version"] = serde_json::json!(1);
         if let Some(obj) = value["payload"].as_object_mut() {
             obj.insert("version".to_string(), serde_json::json!(1));
@@ -60,8 +60,8 @@ impl Upcaster for PassthroughUpcaster {
     fn target_version(&self) -> u8 {
         self.to
     }
-    fn upcast(&self, payload: &serde_json::Value) -> Result<serde_json::Value, UpcasterError> {
-        let mut value = payload.clone();
+    fn upcast(&self, input: &serde_json::Value) -> Result<serde_json::Value, VoUpcasterError> {
+        let mut value = input.clone();
         value["version"] = serde_json::json!(self.to);
         if let Some(obj) = value["payload"].as_object_mut() {
             obj.insert("version".to_string(), serde_json::json!(self.to));
@@ -296,7 +296,7 @@ fn registry_rejects_upcaster_at_max_version() {
     let registry = UpcasterRegistryImpl::new(1);
     let result = registry.register(Box::new(PassthroughUpcaster::new(1, 2)));
     assert!(result.is_err(), "Should reject upcaster at max version");
-    assert_eq!(result.unwrap_err(), RegistryError::InvalidTargetVersion(2));
+    assert_eq!(result.unwrap_err(), UpcasterError::InvalidTargetVersion(2));
 }
 
 #[test]
@@ -305,7 +305,7 @@ fn registry_rejects_duplicate_upcaster_for_same_source() {
     let _ = registry.register(Box::new(PassthroughUpcaster::new(0, 1)));
     let result = registry.register(Box::new(PassthroughUpcaster::new(0, 1)));
     assert!(result.is_err(), "Should reject duplicate source version");
-    assert_eq!(result.unwrap_err(), RegistryError::DuplicateRegistration(0));
+    assert_eq!(result.unwrap_err(), UpcasterError::DuplicateRegistration(0));
 }
 
 #[test]
@@ -546,8 +546,8 @@ fn upcast_envelope_detects_circular_chain() {
         fn target_version(&self) -> u8 {
             1
         }
-        fn upcast(&self, payload: &serde_json::Value) -> Result<serde_json::Value, UpcasterError> {
-            let mut value = payload.clone();
+        fn upcast(&self, input: &serde_json::Value) -> Result<serde_json::Value, VoUpcasterError> {
+            let mut value = input.clone();
             value["version"] = serde_json::json!(0);
             Ok(value)
         }

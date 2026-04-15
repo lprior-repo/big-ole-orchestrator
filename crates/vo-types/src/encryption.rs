@@ -101,24 +101,32 @@ pub struct EncryptedBlob {
 }
 
 impl EncryptedBlob {
-    pub fn new(iv: Vec<u8>, ciphertext: Vec<u8>, tag: Vec<u8>) -> Self {
+    pub fn new(iv: Vec<u8>, ciphertext: Vec<u8>, tag: Vec<u8>) -> Result<Self, ParseError> {
         if iv.len() != CryptoAlgorithm::IV_SIZE_BYTES {
-            panic!(
-                "IV must be exactly {} bytes",
-                CryptoAlgorithm::IV_SIZE_BYTES
-            );
+            return Err(ParseError::InvalidFormat {
+                type_name: "EncryptedBlob",
+                reason: format!(
+                    "invalid IV length: expected {}, got {}",
+                    CryptoAlgorithm::IV_SIZE_BYTES,
+                    iv.len()
+                ),
+            });
         }
         if tag.len() != CryptoAlgorithm::TAG_SIZE_BYTES {
-            panic!(
-                "tag must be exactly {} bytes",
-                CryptoAlgorithm::TAG_SIZE_BYTES
-            );
+            return Err(ParseError::InvalidFormat {
+                type_name: "EncryptedBlob",
+                reason: format!(
+                    "invalid tag length: expected {}, got {}",
+                    CryptoAlgorithm::TAG_SIZE_BYTES,
+                    tag.len()
+                ),
+            });
         }
-        Self {
+        Ok(Self {
             iv,
             ciphertext,
             tag,
-        }
+        })
     }
 
     #[must_use]
@@ -223,7 +231,7 @@ mod tests {
 
     #[test]
     fn encrypted_blob_creation() {
-        let blob = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![2u8; 16]);
+        let blob = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![2u8; 16]).unwrap();
         assert_eq!(blob.total_size(), 60);
     }
 

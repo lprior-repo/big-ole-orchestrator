@@ -297,96 +297,70 @@ pub async fn get_workflow_version(
 }
 
 // ---------------------------------------------------------------------------
-// GET /api/v1/workflows/:id/lineage
+// GET /api/v1/search?q=<query>&limit=<limit>
 // ---------------------------------------------------------------------------
 
 #[tracing::instrument(skip_all)]
-pub async fn get_lineage(
-    Path(id): Path<String>,
+pub async fn search(
+    AxumQuery(params): AxumQuery<SearchRequest>,
     State(state): State<QueryState>,
 ) -> impl IntoResponse {
-    let (_namespace, instance_id) = match split_path_id(&id) {
-        Some(pair) => pair,
-        None => {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(ApiError::new("invalid_id", "id must be <namespace>/<instance_id>")),
-            )
-                .into_response();
-        }
-    };
-
-    let iter = replay_events(&state.keyspace, &instance_id);
-    let mut lineage_id = None;
-    let mut current_epoch = 0u64;
-    let mut entries = Vec::new();
-    let mut found_any_event = false;
-
-    for result in iter {
-        match result {
-            Ok(envelope) => {
-                found_any_event = true;
-                let timestamp_ms = envelope.timestamp_ms;
-                if let Some(payload) = envelope.payload.get("type").and_then(|v| v.as_str()) {
-                    if payload == "ContinuedAsNew" {
-                        if let (Some(lineage), Some(new_epoch)) = (
-                            envelope.payload.get("lineage_id").and_then(|v| v.as_str()),
-                            envelope.payload.get("new_epoch").and_then(|v| v.as_u64()),
-                        ) {
-                            lineage_id = Some(lineage.to_string());
-                            let old_epoch = envelope
-                                .payload
-                                .get("old_epoch")
-                                .and_then(|v| v.as_u64());
-                            current_epoch = new_epoch;
-                            entries.push(LineageEntry {
-                                epoch: new_epoch,
-                                parent_epoch: old_epoch,
-                                timestamp_ms,
-                            });
-                        }
-                    }
-                }
-            }
-            Err(e) => {
-                tracing::warn!(error = %e, "lineage replay stopped");
-                break;
-            }
-        }
-    }
-
-    if !found_any_event {
+    let query_text = params.query.trim();
+    if query_text.is_empty() {
         return (
-            StatusCode::NOT_FOUND,
-            Json(ApiError::new("not_found", format!("instance {id} not found"))),
+            StatusCode::BAD_REQUEST,
+            Json(ApiError::new("empty_query", "query string cannot be empty")),
         )
             .into_response();
     }
 
-    let lineage_id = match lineage_id {
-        Some(lid) => lid,
-        None => {
+    let parsed_query = match QueryParser::new().parse(query_text) {
+        Ok(q) => q,
+        Err(e) => {
             return (
-                StatusCode::NOT_FOUND,
-                Json(ApiError::new(
-                    "not_found",
-                    format!("lineage not found for instance {id}"),
-                )),
+                StatusCode::BAD_REQUEST,
+                Json(ApiError::new("invalid_query", &e.to_string())),
             )
                 .into_response();
         }
     };
 
-    (
-        StatusCode::OK,
-        Json(LineageResponse {
-            instance_id: id,
-            lineage_id,
-            current_epoch,
-            entries,
+    let engine = state.search_engine.lock().map_err(|e| {
+        tracing::error!(error = %e, "search engine lock poisoned");
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiError::new("search_error", "search engine unavailable")),
+        )
+    });
+
+    let results: Result<Vec<vo_types::search::SearchResult>, (StatusCode, Json<ApiError>)> = match engine {
+        Ok(engine) => engine.search(&parsed_query).map_err(|e| {
+            tracing::error!(error = %e, "search failed");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiError::new("search_error", &e.to_string())),
+            )
         }),
-    )
-        .into_response()
+        Err(e) => Err(e),
+    };
+
+    let results = match results {
+        Ok(r) => r,
+        Err(e) => return e.into_response(),
+    };
+
+    let limit = params.limit.unwrap_or(10).min(100);
+    let results: Vec<SearchResultEntry> = results
+        .into_iter()
+        .take(limit)
+        .map(|r| SearchResultEntry {
+            workspace_id: r.workspace_id.to_string(),
+            score: r.score,
+            matched_terms: r.matched_terms,
+        })
+        .collect();
+
+    (StatusCode::OK, Json(SearchResponse { query: params.query, results })).into_response()
 }
 
 #[cfg(test)]
