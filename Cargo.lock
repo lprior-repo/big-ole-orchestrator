@@ -4909,7 +4909,8 @@ name = "vo-api"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "axum",
+ "async-stream",
+ "axum 0.7.9",
  "bytes",
  "chrono",
  "fjall",
@@ -4961,6 +4962,7 @@ dependencies = [
  "tokio",
  "toml 1.1.2+spec-1.1.0",
  "tracing",
+ "ulid",
  "uuid",
  "vo-actor",
  "vo-api",

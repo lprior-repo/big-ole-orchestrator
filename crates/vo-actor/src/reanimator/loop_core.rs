@@ -101,10 +101,20 @@ impl ReanimatorLoop {
         let state_sender_clone = state_sender.clone();
         let shutdown_receiver = shutdown_trigger.subscribe();
 
+        // Create a receiver to ensure send() succeeds - must be kept alive
+        let _state_receiver = state_sender.subscribe();
+
+        // Spawn the background task
+        // Crash recovery runs inside the task before entering the main loop
         let task_handle = tokio::runtime::Handle::current().spawn(async move {
+            // Run crash recovery before starting the loop
+            // This ensures any pending timers from a previous crash are replayed
             if let Err(e) = Self::run_crash_recovery(&storage, &work_queue).await {
                 tracing::warn!("Crash recovery completed with error: {}", e);
             }
+
+            // Transition to Running now that there's an active receiver
+            let _ = state_sender_clone.send(ReanimatorState::Running);
 
             let result = Self::run_loop_inner(
                 config,

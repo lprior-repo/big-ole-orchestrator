@@ -19,7 +19,7 @@
 //! - `GET /api/v1/workflows/:id/history` - Get step execution history
 //! - `GET /api/v1/workflows/:id/effect-journal` - Get effect journal
 //! - `GET /api/v1/workflows/:id/version` - Get schema version info
-//! - `GET /api/v1/search` - Full-text search across workspaces
+//! - `GET /api/v1/workflows/:id/lineage` - Get workflow lineage (ADR-038)
 //! - `POST /api/v1/workflows/:id/signals` - Send a signal to a workflow
 //!
 //! # Modules

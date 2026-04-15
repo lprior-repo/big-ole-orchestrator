@@ -20,7 +20,7 @@ impl Default for HandlerRegistry {
         registry.register(Box::new(handlers::LockHandler));
         registry.register(Box::new(handlers::DoctorHandler));
         registry.register(Box::new(handlers::RebuildHandler));
-        registry.register(Box::new(handlers::StatusHandler));
+        registry.register(Box::new(handlers::WorkspaceHandler));
         registry
     }
 }
@@ -54,7 +54,7 @@ fn command_key(command: &Command) -> Option<&'static str> {
         Command::Lock { .. } => Some("lock"),
         Command::Doctor { .. } => Some("doctor"),
         Command::Rebuild { .. } => Some("rebuild"),
-        Command::Status { .. } => Some("status"),
+        Command::Workspace { .. } => Some("workspace"),
     }
 }
 
@@ -332,50 +332,29 @@ mod handlers {
         }
     }
 
-    pub struct StatusHandler;
+    pub struct WorkspaceHandler;
 
-    impl CommandHandler for StatusHandler {
+    impl CommandHandler for WorkspaceHandler {
         fn name(&self) -> &'static str {
-            "status"
+            "workspace"
         }
 
-        fn execute(
-            &self,
-            cli: &Cli,
-        ) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + '_>> {
-            let Command::Status {
-                ref engine_url,
-                ref instance,
+        fn execute(&self, cli: &Cli) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + '_>> {
+            let Command::Workspace {
+                ref project_dir,
+                ref subcommand,
             } = cli.command
             else {
-                return Box::pin(async {
-                    Err(CliError::Dispatch("not a status command".to_string()))
-                });
+                return Box::pin(async { Err(CliError::Dispatch("not a workspace command".to_string())) });
             };
-            let engine_url = engine_url.clone();
-            let instance = instance.clone();
+            let project_dir = project_dir.clone();
+            let subcommand = subcommand.clone();
             Box::pin(async move {
-                let config = crate::commands::status::StatusConfig {
-                    engine_url,
-                    instance_id: instance,
+                let config = crate::commands::workspace::WorkspaceConfig {
+                    project_dir,
                 };
-                let status = crate::commands::status::run_status(&config).await?;
-                println!("+---------------------------+-------------------------------+");
-                println!("| Field                     | Value                         |");
-                println!("+---------------------------+-------------------------------+");
-                println!("| Instance ID               | {} |", status.instance_id);
-                println!("| Namespace                 | {} |", status.namespace);
-                println!("| Workflow Type             | {} |", status.workflow_type);
-                println!("| Paradigm                  | {} |", status.paradigm);
-                println!("| Phase                     | {} |", status.phase);
-                println!("| Events Applied           | {} |", status.events_applied);
-                if let Some(reg_status) = status.registration_status {
-                    println!("| Registration              | {} |", reg_status);
-                }
-                if status.is_quarantined {
-                    println!("| Quarantined               | yes                          |");
-                }
-                println!("+---------------------------+-------------------------------+");
+                let output = crate::commands::workspace::run_workspace(&config, subcommand)?;
+                println!("{}", output);
                 Ok(())
             })
         }
@@ -400,7 +379,7 @@ mod tests {
         assert!(names.contains(&"lock"));
         assert!(names.contains(&"doctor"));
         assert!(names.contains(&"rebuild"));
-        assert!(names.contains(&"status"));
+        assert!(names.contains(&"workspace"));
     }
 
     #[test]

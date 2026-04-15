@@ -1,4 +1,7 @@
+use std::collections::BTreeMap;
 use std::path::PathBuf;
+
+use vo_types::workspace::{WorkspaceId, WorkspaceName, WorkspacePath};
 
 #[derive(Debug, thiserror::Error)]
 pub enum CliError {
@@ -23,7 +26,7 @@ pub enum CliError {
     #[error(transparent)]
     Rebuild(#[from] crate::commands::rebuild::RebuildError),
     #[error(transparent)]
-    Status(#[from] crate::commands::status::StatusError),
+    Workspace(#[from] crate::commands::workspace::WorkspaceError),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -60,9 +63,35 @@ pub enum Command {
         list_projections: bool,
         force: bool,
     },
-    Status {
-        engine_url: String,
-        instance: String,
+    Workspace {
+        project_dir: PathBuf,
+        subcommand: WorkspaceSubcommand,
+    },
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum WorkspaceSubcommand {
+    Create {
+        name: WorkspaceName,
+        parent_id: Option<WorkspaceId>,
+        metadata: BTreeMap<String, String>,
+    },
+    List {
+        workspace_id: Option<WorkspaceId>,
+    },
+    Delete {
+        id: WorkspaceId,
+        force: bool,
+    },
+    Move {
+        id: WorkspaceId,
+        new_parent_id: Option<WorkspaceId>,
+    },
+    Show {
+        id: WorkspaceId,
+    },
+    Find {
+        path: WorkspacePath,
     },
 }
 
@@ -195,20 +224,81 @@ where
                 ),
         )
         .subcommand(
-            clap::Command::new("status")
-                .about("Query workflow lineage status")
+            clap::Command::new("workspace")
+                .about("Manage workspaces")
                 .arg(
-                    clap::Arg::new("instance")
-                        .required(true)
-                        .index(1)
-                        .help("Workflow instance ID (e.g., namespace/01ARZ3NDEKTSV4RRFFQ69G5FAV)"),
+                    clap::Arg::new("project-dir")
+                        .long("project-dir")
+                        .default_value(".")
+                        .help("Project directory"),
                 )
-                .arg(
-                    clap::Arg::new("engine-url")
-                        .long("engine-url")
-                        .env("VO_ENGINE_URL")
-                        .default_value("http://localhost:3000")
-                        .help("Engine URL"),
+                .subcommand(
+                    clap::Command::new("create")
+                        .about("Create a workspace")
+                        .arg(clap::Arg::new("name").required(true).help("Workspace name"))
+                        .arg(
+                            clap::Arg::new("parent")
+                                .long("parent")
+                                .help("Parent workspace ID"),
+                        )
+                        .arg(
+                            clap::Arg::new("metadata")
+                                .long("metadata")
+                                .value_name("key=value")
+                                .num_args(0..)
+                                .help("Metadata key-value pairs"),
+                        ),
+                )
+                .subcommand(
+                    clap::Command::new("list").about("List workspaces").arg(
+                        clap::Arg::new("workspace")
+                            .long("workspace")
+                            .help("List children of this workspace"),
+                    ),
+                )
+                .subcommand(
+                    clap::Command::new("delete")
+                        .about("Delete a workspace")
+                        .arg(
+                            clap::Arg::new("id")
+                                .required(true)
+                                .help("Workspace ID to delete"),
+                        )
+                        .arg(
+                            clap::Arg::new("force")
+                                .long("force")
+                                .action(clap::ArgAction::SetTrue)
+                                .help("Force delete even with children"),
+                        ),
+                )
+                .subcommand(
+                    clap::Command::new("move")
+                        .about("Move a workspace")
+                        .arg(
+                            clap::Arg::new("id")
+                                .required(true)
+                                .help("Workspace ID to move"),
+                        )
+                        .arg(
+                            clap::Arg::new("parent")
+                                .long("parent")
+                                .required(true)
+                                .help("New parent workspace ID (or empty for root)"),
+                        ),
+                )
+                .subcommand(
+                    clap::Command::new("show")
+                        .about("Show workspace details")
+                        .arg(clap::Arg::new("id").required(true).help("Workspace ID")),
+                )
+                .subcommand(
+                    clap::Command::new("find")
+                        .about("Find workspace by path")
+                        .arg(
+                            clap::Arg::new("path")
+                                .required(true)
+                                .help("Workspace path (e.g., parent/child)"),
+                        ),
                 ),
         );
 
@@ -328,21 +418,132 @@ where
                 },
             })
         }
-        Some(("status", sub_matches)) => {
-            let instance = sub_matches
-                .get_one::<String>("instance")
-                .cloned()
+        Some(("workspace", ws_matches)) => {
+            let project_dir = ws_matches
+                .get_one::<String>("project-dir")
+                .map(PathBuf::from)
                 .unwrap_or_default();
-            let engine_url = sub_matches
-                .get_one::<String>("engine-url")
-                .cloned()
-                .unwrap_or_else(|| "http://localhost:3000".to_string());
-            Ok(Cli {
-                command: Command::Status {
-                    engine_url,
-                    instance,
-                },
-            })
+
+            let (subcommand_name, sub_matches) = ws_matches
+                .subcommand()
+                .ok_or_else(|| clap::Error::new(clap::error::ErrorKind::InvalidSubcommand))?;
+
+            match subcommand_name {
+                "create" => {
+                    let name_str = sub_matches.get_one::<String>("name").ok_or_else(|| {
+                        clap::Error::new(clap::error::ErrorKind::MissingRequiredArgument)
+                    })?;
+                    let name = WorkspaceName::parse(name_str)
+                        .map_err(|e| clap::Error::new(clap::error::ErrorKind::InvalidValue))?;
+                    let parent_id = sub_matches.get_one::<String>("parent").map(|s| {
+                        WorkspaceId::from_ulid(s.parse().unwrap_or_else(|_| {
+                            ulid::Ulid::from_string(s).unwrap_or_else(|_| ulid::Ulid::new())
+                        }))
+                    });
+                    let metadata_pairs: Vec<&String> = sub_matches
+                        .get_many::<String>("metadata")
+                        .map(|v| v.collect())
+                        .unwrap_or_default();
+                    let mut metadata = BTreeMap::new();
+                    for pair in metadata_pairs {
+                        if let Some((k, v)) = pair.split_once('=') {
+                            metadata.insert(k.to_string(), v.to_string());
+                        }
+                    }
+                    Ok(Cli {
+                        command: Command::Workspace {
+                            project_dir,
+                            subcommand: WorkspaceSubcommand::Create {
+                                name,
+                                parent_id,
+                                metadata,
+                            },
+                        },
+                    })
+                }
+                "list" => {
+                    let workspace_id = sub_matches.get_one::<String>("workspace").map(|s| {
+                        WorkspaceId::from_ulid(s.parse().unwrap_or_else(|_| {
+                            ulid::Ulid::from_string(s).unwrap_or_else(|_| ulid::Ulid::new())
+                        }))
+                    });
+                    Ok(Cli {
+                        command: Command::Workspace {
+                            project_dir,
+                            subcommand: WorkspaceSubcommand::List { workspace_id },
+                        },
+                    })
+                }
+                "delete" => {
+                    let id_str = sub_matches.get_one::<String>("id").ok_or_else(|| {
+                        clap::Error::new(clap::error::ErrorKind::MissingRequiredArgument)
+                    })?;
+                    let id = WorkspaceId::from_ulid(id_str.parse().unwrap_or_else(|_| {
+                        ulid::Ulid::from_string(id_str).unwrap_or_else(|_| ulid::Ulid::new())
+                    }));
+                    let force = sub_matches.get_flag("force");
+                    Ok(Cli {
+                        command: Command::Workspace {
+                            project_dir,
+                            subcommand: WorkspaceSubcommand::Delete { id, force },
+                        },
+                    })
+                }
+                "move" => {
+                    let id_str = sub_matches.get_one::<String>("id").ok_or_else(|| {
+                        clap::Error::new(clap::error::ErrorKind::MissingRequiredArgument)
+                    })?;
+                    let id = WorkspaceId::from_ulid(id_str.parse().unwrap_or_else(|_| {
+                        ulid::Ulid::from_string(id_str).unwrap_or_else(|_| ulid::Ulid::new())
+                    }));
+                    let new_parent_id = sub_matches.get_one::<String>("parent").map(|s| {
+                        WorkspaceId::from_ulid(s.parse().unwrap_or_else(|_| {
+                            ulid::Ulid::from_string(s).unwrap_or_else(|_| ulid::Ulid::new())
+                        }))
+                    });
+                    Ok(Cli {
+                        command: Command::Workspace {
+                            project_dir,
+                            subcommand: WorkspaceSubcommand::Move { id, new_parent_id },
+                        },
+                    })
+                }
+                "show" => {
+                    let id_str = sub_matches.get_one::<String>("id").ok_or_else(|| {
+                        clap::Error::new(clap::error::ErrorKind::MissingRequiredArgument)
+                    })?;
+                    let id = WorkspaceId::from_ulid(id_str.parse().unwrap_or_else(|_| {
+                        ulid::Ulid::from_string(id_str).unwrap_or_else(|_| ulid::Ulid::new())
+                    }));
+                    Ok(Cli {
+                        command: Command::Workspace {
+                            project_dir,
+                            subcommand: WorkspaceSubcommand::Show { id },
+                        },
+                    })
+                }
+                "find" => {
+                    let path_str = sub_matches.get_one::<String>("path").ok_or_else(|| {
+                        clap::Error::new(clap::error::ErrorKind::MissingRequiredArgument)
+                    })?;
+                    let segments: Vec<WorkspaceName> = path_str
+                        .split('/')
+                        .map(WorkspaceName::parse)
+                        .collect::<Result<Vec<_>, _>>()
+                        .map_err(|_| clap::Error::new(clap::error::ErrorKind::InvalidValue))?;
+                    let segments = vo_types::NonEmptyVec::new(segments)
+                        .map_err(|_| clap::Error::new(clap::error::ErrorKind::InvalidValue))?;
+                    let path = WorkspacePath::new(segments)
+                        .map_err(|_| clap::Error::new(clap::error::ErrorKind::InvalidValue))?;
+                    Ok(Cli {
+                        command: Command::Workspace {
+                            project_dir,
+                            subcommand: WorkspaceSubcommand::Find { path },
+                        },
+                    })
+                }
+                _ => Err(clap::Error::new(clap::error::ErrorKind::InvalidSubcommand)),
+            }
         }
         _ => Err(clap::Error::new(clap::error::ErrorKind::InvalidSubcommand)),
     }
@@ -365,7 +566,7 @@ pub fn map_error_to_exit_code(err: &CliError) -> i32 {
         | CliError::Lock(_)
         | CliError::Doctor(_)
         | CliError::Rebuild(_)
-        | CliError::Status(_) => 1,
+        | CliError::Workspace(_) => 1,
         CliError::InvalidNumeric(_) => 2,
     }
 }

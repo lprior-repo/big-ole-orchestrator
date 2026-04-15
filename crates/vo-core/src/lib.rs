@@ -30,6 +30,7 @@ pub mod config_hot_reload;
 pub mod connector;
 mod db_writer_message;
 pub mod debounce;
+pub mod effects;
 pub mod exact_once_verification;
 pub mod ghost_workflow;
 pub mod lease_calc;

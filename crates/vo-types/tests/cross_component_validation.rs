@@ -61,9 +61,9 @@ fn test_command_id_new_and_display() {
 }
 
 #[test]
-fn test_batch_id_new_and_display() {
+fn test_batch_id_new_and_as_str() {
     let batch_id = BatchId::new();
-    assert!(!batch_id.to_string().is_empty());
+    assert!(!batch_id.as_str().is_empty());
 }
 
 #[test]
@@ -107,10 +107,21 @@ fn test_instance_key_new() {
 }
 
 #[test]
-fn test_schema_version_is_copy() {
-    let v1 = SchemaVersion::new(1);
-    let v2 = v1;
-    assert_eq!(v1, v2);
+fn test_schema_version_derives_required_traits() {
+    // SchemaVersion can only be constructed within vo-types, but we can verify
+    // it derives the expected traits by using it in a type position
+    fn _assert_clone<T: Clone>() {}
+    fn _assert_debug<T: std::fmt::Debug>() {}
+    fn _assert_eq<T: Eq>() {}
+    fn _assert_hash<T: std::hash::Hash>() {}
+    fn _assert_serde<T: serde::Serialize + serde::de::DeserializeOwned>() {}
+
+    // These no-op assertions verify SchemaVersion implements the required traits
+    _assert_clone::<SchemaVersion>();
+    _assert_debug::<SchemaVersion>();
+    _assert_eq::<SchemaVersion>();
+    _assert_hash::<SchemaVersion>();
+    _assert_serde::<SchemaVersion>();
 }
 
 #[test]

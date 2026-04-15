@@ -18,6 +18,8 @@ mod tests;
 mod tests_types;
 pub mod traits;
 pub mod types;
+#[cfg(kani)]
+mod verification;
 
 pub use error::ReanimatorError;
 pub use loop_core::{ReanimatorHandle, ReanimatorLoop};

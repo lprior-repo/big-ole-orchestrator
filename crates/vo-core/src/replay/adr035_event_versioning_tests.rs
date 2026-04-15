@@ -16,8 +16,8 @@ use vo_types::events::{
 };
 use vo_types::state::LifecycleState;
 
-use crate::upcaster::{Upcaster, UpcasterError, UpcasterRegistry, UpcasterRegistryImpl};
-use vo_types::events::upcaster::UpcasterError as TraitUpcasterError;
+use crate::upcaster::{UpcasterError as RegistryError, UpcasterRegistry, UpcasterRegistryImpl};
+use vo_types::events::upcaster::{Upcaster, UpcasterError};
 
 // =============================================================================
 // Helper upcasters for multi-step chain testing
@@ -32,13 +32,13 @@ impl Upcaster for Version0To1Upcaster {
     fn target_version(&self) -> u8 {
         1
     }
-    fn upcast(&self, input: &serde_json::Value) -> Result<serde_json::Value, VoUpcasterError> {
-        let mut value = input.clone();
+    fn upcast(&self, payload: &serde_json::Value) -> Result<serde_json::Value, UpcasterError> {
+        let mut value = payload.clone();
         value["version"] = serde_json::json!(1);
         if let Some(obj) = value["payload"].as_object_mut() {
             obj.insert("version".to_string(), serde_json::json!(1));
         }
-        Ok(result)
+        Ok(value)
     }
 }
 
@@ -60,13 +60,13 @@ impl Upcaster for PassthroughUpcaster {
     fn target_version(&self) -> u8 {
         self.to
     }
-    fn upcast(&self, input: &serde_json::Value) -> Result<serde_json::Value, VoUpcasterError> {
-        let mut value = input.clone();
+    fn upcast(&self, payload: &serde_json::Value) -> Result<serde_json::Value, UpcasterError> {
+        let mut value = payload.clone();
         value["version"] = serde_json::json!(self.to);
         if let Some(obj) = value["payload"].as_object_mut() {
             obj.insert("version".to_string(), serde_json::json!(self.to));
         }
-        Ok(result)
+        Ok(value)
     }
 }
 
@@ -296,7 +296,7 @@ fn registry_rejects_upcaster_at_max_version() {
     let registry = UpcasterRegistryImpl::new(1);
     let result = registry.register(Box::new(PassthroughUpcaster::new(1, 2)));
     assert!(result.is_err(), "Should reject upcaster at max version");
-    assert_eq!(result.unwrap_err(), UpcasterError::InvalidTargetVersion(2));
+    assert_eq!(result.unwrap_err(), RegistryError::InvalidTargetVersion(2));
 }
 
 #[test]
@@ -305,7 +305,7 @@ fn registry_rejects_duplicate_upcaster_for_same_source() {
     let _ = registry.register(Box::new(PassthroughUpcaster::new(0, 1)));
     let result = registry.register(Box::new(PassthroughUpcaster::new(0, 1)));
     assert!(result.is_err(), "Should reject duplicate source version");
-    assert_eq!(result.unwrap_err(), UpcasterError::DuplicateRegistration(0));
+    assert_eq!(result.unwrap_err(), RegistryError::DuplicateRegistration(0));
 }
 
 #[test]
@@ -359,7 +359,7 @@ fn upcast_envelope_returns_error_when_no_upcaster_for_intermediate_version() {
     let result = registry.upcast_envelope(envelope);
     assert!(result.is_err(), "Should fail without registered upcaster");
     assert!(
-        matches!(result.unwrap_err(), UpcasterError::NoUpcasterRegistered(0)),
+        matches!(result.unwrap_err(), RegistryError::NoUpcasterRegistered(0)),
         "Expected NoUpcasterRegistered(0)"
     );
 }
@@ -533,7 +533,7 @@ fn upcast_envelope_with_no_upcaster_returns_error_with_correct_version() {
     let envelope = make_v0_event("inst-1", 1, workflow_started_payload("wf-1"));
     let result = registry.upcast_envelope(envelope);
     let err = result.expect_err("should fail without upcaster");
-    assert_eq!(err, UpcasterError::NoUpcasterRegistered(0));
+    assert_eq!(err, RegistryError::NoUpcasterRegistered(0));
 }
 
 #[test]
@@ -544,10 +544,10 @@ fn upcast_envelope_detects_circular_chain() {
             0
         }
         fn target_version(&self) -> u8 {
-            0
+            1
         }
-        fn upcast(&self, input: &serde_json::Value) -> Result<serde_json::Value, VoUpcasterError> {
-            let mut value = input.clone();
+        fn upcast(&self, payload: &serde_json::Value) -> Result<serde_json::Value, UpcasterError> {
+            let mut value = payload.clone();
             value["version"] = serde_json::json!(0);
             Ok(value)
         }

@@ -3,14 +3,8 @@
 //! Provides the actor model implementation using the Ractor library.
 //! Actors are the fundamental units of computation in the engine.
 
-pub mod heartbeat {
-    pub fn run_heartbeat_watcher() {}
-}
-
-pub mod master {
-    pub struct MasterOrchestrator;
-    pub struct OrchestratorConfig;
-}
+pub mod heartbeat;
+pub mod master;
 
 pub mod fairness;
 pub mod instance_registry;

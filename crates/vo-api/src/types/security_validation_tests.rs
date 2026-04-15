@@ -1,6 +1,6 @@
 use crate::types::errors::*;
 use crate::types::helpers::*;
-use crate::types::v3::ApiError;
+use crate::types::ApiError;
 
 #[cfg(test)]
 mod security_validation_tests {
