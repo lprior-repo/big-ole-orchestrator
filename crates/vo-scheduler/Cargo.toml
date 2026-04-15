@@ -5,13 +5,17 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-thiserror = { workspace = true }
-serde = { workspace = true }
-chrono = { workspace = true }
-ulid = { workspace = true }
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+ulid.workspace = true
+chrono.workspace = true
+tokio.workspace = true
+dashmap.workspace = true
 
 [dev-dependencies]
-serde_json = { workspace = true }
+rstest.workspace = true
+tokio = { workspace = true, features = ["full"] }
 
 [lints]
 workspace = true

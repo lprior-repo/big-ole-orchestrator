@@ -1,13 +1,15 @@
-use chrono::Duration;
-use serde::{Deserialize, Serialize};
-use thiserror::Error;
+//! Scheduler types per ADR-047.
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct JobId(pub ulid::Ulid);
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use ulid::Ulid;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct JobId(pub Ulid);
 
 impl JobId {
     pub fn new() -> Self {
-        Self(ulid::Ulid::new())
+        Self(Ulid::new())
     }
 }
 
@@ -17,8 +19,51 @@ impl Default for JobId {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum JobState {
+    Scheduled,
+    Pending,
+    Running,
+    Completed,
+    Failed,
+    Cancelled,
+    Retrying,
+}
+
+impl JobState {
+    pub fn is_terminal(&self) -> bool {
+        matches!(
+            self,
+            JobState::Completed | JobState::Failed | JobState::Cancelled
+        )
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum JobKind {
+    OneShot,
+    Recurring,
+    Delayed,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum SchedulePolicy {
+    At(DateTime<Utc>),
+    After(chrono::Duration),
+    Cron(String),
+    Immediate,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct RetryPolicy {
+    pub max_attempts: u32,
+    pub backoff_multiplier: f64,
+    pub initial_delay: chrono::Duration,
+    pub max_delay: chrono::Duration,
+}
+
 #[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum JobPriority {
     Critical = 0,
     High = 1,
@@ -28,333 +73,139 @@ pub enum JobPriority {
 }
 
 impl JobPriority {
-    pub fn as_u8(self) -> u8 {
-        self as u8
-    }
-
-    pub fn from_u8(val: u8) -> Option<Self> {
-        match val {
-            0 => Some(Self::Critical),
-            1 => Some(Self::High),
-            2 => Some(Self::Normal),
-            3 => Some(Self::Low),
-            4 => Some(Self::Background),
-            _ => None,
-        }
+    pub fn as_u8(&self) -> u8 {
+        *self as u8
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum JobKind {
-    OneShot,
-    Recurring,
-    Delayed,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScheduledJob {
+    pub id: JobId,
+    pub kind: JobKind,
+    pub state: JobState,
+    pub priority: JobPriority,
+    pub schedule_policy: SchedulePolicy,
+    pub retry_policy: RetryPolicy,
+    pub attempt_count: u32,
+    pub due_at: DateTime<Utc>,
+    pub payload: SerializedPayload,
+    pub last_error: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[repr(u8)]
-pub enum JobState {
-    Scheduled = 0,
-    Pending = 1,
-    Running = 2,
-    Completed = 3,
-    Failed = 4,
-    Cancelled = 5,
-    Retrying = 6,
-}
-
-impl JobState {
-    pub fn from_u8(val: u8) -> Option<Self> {
-        match val {
-            0 => Some(Self::Scheduled),
-            1 => Some(Self::Pending),
-            2 => Some(Self::Running),
-            3 => Some(Self::Completed),
-            4 => Some(Self::Failed),
-            5 => Some(Self::Cancelled),
-            6 => Some(Self::Retrying),
-            _ => None,
-        }
-    }
-
-    pub fn is_terminal(self) -> bool {
-        matches!(self, Self::Completed | Self::Failed | Self::Cancelled)
-    }
-
-    pub fn is_retryable(self) -> bool {
-        matches!(self, Self::Failed | Self::Retrying)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum SchedulePolicy {
-    At(chrono::DateTime<chrono::Utc>),
-    After(Duration),
-    Cron(String),
-    Immediate,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct RetryPolicy {
-    pub max_attempts: u32,
-    pub backoff_multiplier: f64,
-    pub initial_delay: Duration,
-    pub max_delay: Duration,
-}
-
-#[derive(Debug, Clone, Error, PartialEq)]
-pub enum RetryPolicyError {
-    #[error("max_attempts must be >= 1, got 0")]
-    ZeroAttempts,
-
-    #[error("backoff_multiplier must be >= 1.0, got {got}")]
-    InvalidMultiplier { got: f64 },
-
-    #[error("max_delay must be >= initial_delay, got max_delay={max}, initial_delay={initial}")]
-    MaxDelayTooSmall { max: i64, initial: i64 },
-
-    #[error("all retry attempts exhausted")]
-    MaxAttemptsReached,
-
-    #[error("backoff calculation overflowed")]
-    BackoffOverflow,
-
-    #[error("job kind does not support retries")]
-    RetryNotAllowed,
-}
-
-impl RetryPolicy {
+impl ScheduledJob {
     pub fn new(
-        max_attempts: u32,
-        initial_delay: Duration,
-        backoff_multiplier: f64,
-        max_delay: Duration,
-    ) -> Result<Self, RetryPolicyError> {
-        if max_attempts == 0 {
-            return Err(RetryPolicyError::ZeroAttempts);
+        kind: JobKind,
+        priority: JobPriority,
+        schedule_policy: SchedulePolicy,
+        retry_policy: RetryPolicy,
+        payload: SerializedPayload,
+    ) -> Self {
+        let now = Utc::now();
+        let due_at = match &schedule_policy {
+            SchedulePolicy::At(dt) => *dt,
+            SchedulePolicy::After(dur) => now + *dur,
+            SchedulePolicy::Cron(_) => now,
+            SchedulePolicy::Immediate => now,
+        };
+        Self {
+            id: JobId::new(),
+            kind,
+            state: JobState::Scheduled,
+            priority,
+            schedule_policy,
+            retry_policy,
+            attempt_count: 0,
+            due_at,
+            payload,
+            last_error: None,
+            created_at: now,
+            updated_at: now,
         }
-        if !backoff_multiplier.is_finite() || backoff_multiplier < 1.0 {
-            return Err(RetryPolicyError::InvalidMultiplier {
-                got: backoff_multiplier,
-            });
-        }
-        if max_delay < initial_delay {
-            return Err(RetryPolicyError::MaxDelayTooSmall {
-                max: max_delay.num_milliseconds(),
-                initial: initial_delay.num_milliseconds(),
-            });
-        }
-        Ok(Self {
-            max_attempts,
-            backoff_multiplier,
-            initial_delay,
-            max_delay,
-        })
-    }
-
-    pub fn calculate_backoff_delay(&self, attempt: u32) -> Result<Duration, RetryPolicyError> {
-        if attempt == 0 {
-            return Ok(Duration::zero());
-        }
-        if attempt > self.max_attempts {
-            return Err(RetryPolicyError::MaxAttemptsReached);
-        }
-
-        let exponent = (attempt - 1) as f64;
-        let multiplier_pow = self.backoff_multiplier.powf(exponent);
-
-        let initial_ms = self.initial_delay.num_milliseconds() as f64;
-        let max_ms = self.max_delay.num_milliseconds() as f64;
-
-        let product = initial_ms * multiplier_pow;
-
-        if product.is_infinite() {
-            return Err(RetryPolicyError::BackoffOverflow);
-        }
-
-        let capped = product.min(max_ms);
-        Ok(Duration::milliseconds(capped as i64))
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SerializedPayload(pub Vec<u8>);
 
-    #[test]
-    fn retry_policy_new_returns_zero_attempts_error_when_max_attempts_is_zero() {
-        let err = RetryPolicy::new(0, Duration::milliseconds(100), 2.0, Duration::seconds(10))
-            .unwrap_err();
-        assert!(matches!(err, RetryPolicyError::ZeroAttempts));
+impl SerializedPayload {
+    pub fn new(data: Vec<u8>) -> Self {
+        Self(data)
     }
 
-    #[test]
-    fn retry_policy_new_returns_invalid_multiplier_error_when_multiplier_is_less_than_one() {
-        let err = RetryPolicy::new(3, Duration::milliseconds(100), 0.5, Duration::seconds(10))
-            .unwrap_err();
-        assert!(matches!(
-            err,
-            RetryPolicyError::InvalidMultiplier { got } if got == 0.5
-        ));
+    pub fn into_inner(self) -> Vec<u8> {
+        self.0
+    }
+}
+
+use std::cell::RefCell;
+use std::collections::{HashMap, VecDeque};
+
+#[derive(Debug, Clone)]
+pub struct SchedulerQueue {
+    jobs: RefCell<VecDeque<JobId>>,
+    by_id: RefCell<HashMap<JobId, JobState>>,
+    job_store: RefCell<HashMap<JobId, ScheduledJob>>,
+}
+
+impl SchedulerQueue {
+    pub fn new() -> Self {
+        Self {
+            jobs: RefCell::new(VecDeque::new()),
+            by_id: RefCell::new(HashMap::new()),
+            job_store: RefCell::new(HashMap::new()),
+        }
     }
 
-    #[test]
-    fn retry_policy_new_returns_invalid_multiplier_error_when_multiplier_is_nan() {
-        let err = RetryPolicy::new(
-            3,
-            Duration::milliseconds(100),
-            f64::NAN,
-            Duration::seconds(10),
-        )
-        .unwrap_err();
-        assert!(matches!(err, RetryPolicyError::InvalidMultiplier { .. }));
+    pub fn get_state(&self, job_id: &JobId) -> Option<JobState> {
+        self.by_id.borrow().get(job_id).copied()
     }
 
-    #[test]
-    fn retry_policy_new_returns_invalid_multiplier_error_when_multiplier_is_infinite() {
-        let err = RetryPolicy::new(
-            3,
-            Duration::milliseconds(100),
-            f64::INFINITY,
-            Duration::seconds(10),
-        )
-        .unwrap_err();
-        assert!(matches!(err, RetryPolicyError::InvalidMultiplier { .. }));
+    pub fn get_job(&self, job_id: &JobId) -> Option<ScheduledJob> {
+        self.job_store.borrow().get(job_id).cloned()
     }
 
-    #[test]
-    fn retry_policy_new_returns_max_delay_too_small_error_when_max_delay_less_than_initial() {
-        let err = RetryPolicy::new(
-            3,
-            Duration::milliseconds(500),
-            2.0,
-            Duration::milliseconds(100),
-        )
-        .unwrap_err();
-        assert!(matches!(
-            err,
-            RetryPolicyError::MaxDelayTooSmall {
-                max: 100,
-                initial: 500
-            }
-        ));
+    pub fn insert(&self, job: ScheduledJob) {
+        let job_id = job.id;
+        let state = job.state;
+        self.by_id.borrow_mut().insert(job_id, state);
+        self.job_store.borrow_mut().insert(job_id, job);
+        if !state.is_terminal() {
+            self.jobs.borrow_mut().push_back(job_id);
+        }
     }
 
-    #[test]
-    fn retry_policy_calculate_backoff_delay_returns_zero_for_attempt_zero() {
-        let policy =
-            RetryPolicy::new(3, Duration::milliseconds(100), 2.0, Duration::seconds(10)).unwrap();
-        let delay = policy.calculate_backoff_delay(0).unwrap();
-        assert_eq!(delay, Duration::zero());
+    pub fn update_job_state(&self, job_id: &JobId, new_state: JobState) -> Option<()> {
+        let mut store = self.job_store.borrow_mut();
+        let job = store.get_mut(job_id)?;
+        job.state = new_state;
+        job.updated_at = chrono::Utc::now();
+        self.by_id.borrow_mut().insert(*job_id, new_state);
+        if new_state.is_terminal() {
+            self.jobs.borrow_mut().retain(|id| id != job_id);
+        }
+        Some(())
     }
 
-    #[test]
-    fn retry_policy_calculate_backoff_delay_returns_initial_delay_for_attempt_one() {
-        let policy =
-            RetryPolicy::new(3, Duration::milliseconds(100), 2.0, Duration::seconds(10)).unwrap();
-        let delay = policy.calculate_backoff_delay(1).unwrap();
-        assert_eq!(delay, Duration::milliseconds(100));
+    pub fn update_job_schedule(&self, job_id: &JobId, new_policy: SchedulePolicy) -> Option<()> {
+        let mut store = self.job_store.borrow_mut();
+        let job = store.get_mut(job_id)?;
+        let now = chrono::Utc::now();
+        job.schedule_policy = new_policy;
+        job.due_at = match &job.schedule_policy {
+            SchedulePolicy::At(dt) => *dt,
+            SchedulePolicy::After(dur) => now + *dur,
+            SchedulePolicy::Cron(_) => now,
+            SchedulePolicy::Immediate => now,
+        };
+        job.updated_at = now;
+        Some(())
     }
+}
 
-    #[test]
-    fn retry_policy_calculate_backoff_delay_returns_exponential_backoff() {
-        let policy =
-            RetryPolicy::new(5, Duration::milliseconds(100), 2.0, Duration::seconds(1000)).unwrap();
-        assert_eq!(
-            policy.calculate_backoff_delay(1).unwrap(),
-            Duration::milliseconds(100)
-        );
-        assert_eq!(
-            policy.calculate_backoff_delay(2).unwrap(),
-            Duration::milliseconds(200)
-        );
-        assert_eq!(
-            policy.calculate_backoff_delay(3).unwrap(),
-            Duration::milliseconds(400)
-        );
-    }
-
-    #[test]
-    fn retry_policy_calculate_backoff_delay_caps_at_max_delay() {
-        let policy = RetryPolicy::new(
-            10,
-            Duration::milliseconds(100),
-            2.0,
-            Duration::milliseconds(500),
-        )
-        .unwrap();
-        assert_eq!(
-            policy.calculate_backoff_delay(3).unwrap(),
-            Duration::milliseconds(400)
-        );
-        assert_eq!(
-            policy.calculate_backoff_delay(4).unwrap(),
-            Duration::milliseconds(500)
-        );
-        assert_eq!(
-            policy.calculate_backoff_delay(5).unwrap(),
-            Duration::milliseconds(500)
-        );
-    }
-
-    #[test]
-    fn retry_policy_calculate_backoff_delay_returns_error_when_attempts_exhausted() {
-        let policy =
-            RetryPolicy::new(3, Duration::milliseconds(100), 2.0, Duration::seconds(10)).unwrap();
-        let result = policy.calculate_backoff_delay(4);
-        assert!(matches!(result, Err(RetryPolicyError::MaxAttemptsReached)));
-    }
-
-    #[test]
-    fn job_priority_as_u8_returns_correct_values() {
-        assert_eq!(JobPriority::Critical as u8, 0);
-        assert_eq!(JobPriority::High as u8, 1);
-        assert_eq!(JobPriority::Normal as u8, 2);
-        assert_eq!(JobPriority::Low as u8, 3);
-        assert_eq!(JobPriority::Background as u8, 4);
-    }
-
-    #[test]
-    fn job_priority_from_u8_returns_correct_variants() {
-        assert_eq!(JobPriority::from_u8(0), Some(JobPriority::Critical));
-        assert_eq!(JobPriority::from_u8(1), Some(JobPriority::High));
-        assert_eq!(JobPriority::from_u8(2), Some(JobPriority::Normal));
-        assert_eq!(JobPriority::from_u8(3), Some(JobPriority::Low));
-        assert_eq!(JobPriority::from_u8(4), Some(JobPriority::Background));
-        assert_eq!(JobPriority::from_u8(5), None);
-    }
-
-    #[test]
-    fn job_state_from_u8_returns_correct_variants() {
-        assert_eq!(JobState::from_u8(0), Some(JobState::Scheduled));
-        assert_eq!(JobState::from_u8(1), Some(JobState::Pending));
-        assert_eq!(JobState::from_u8(2), Some(JobState::Running));
-        assert_eq!(JobState::from_u8(3), Some(JobState::Completed));
-        assert_eq!(JobState::from_u8(4), Some(JobState::Failed));
-        assert_eq!(JobState::from_u8(5), Some(JobState::Cancelled));
-        assert_eq!(JobState::from_u8(6), Some(JobState::Retrying));
-        assert_eq!(JobState::from_u8(7), None);
-    }
-
-    #[test]
-    fn job_state_is_terminal() {
-        assert!(!JobState::Scheduled.is_terminal());
-        assert!(!JobState::Pending.is_terminal());
-        assert!(!JobState::Running.is_terminal());
-        assert!(JobState::Completed.is_terminal());
-        assert!(JobState::Failed.is_terminal());
-        assert!(JobState::Cancelled.is_terminal());
-        assert!(!JobState::Retrying.is_terminal());
-    }
-
-    #[test]
-    fn job_state_is_retryable() {
-        assert!(!JobState::Scheduled.is_retryable());
-        assert!(!JobState::Pending.is_retryable());
-        assert!(!JobState::Running.is_retryable());
-        assert!(!JobState::Completed.is_retryable());
-        assert!(JobState::Failed.is_retryable());
-        assert!(!JobState::Cancelled.is_retryable());
-        assert!(JobState::Retrying.is_retryable());
+impl Default for SchedulerQueue {
+    fn default() -> Self {
+        Self::new()
     }
 }

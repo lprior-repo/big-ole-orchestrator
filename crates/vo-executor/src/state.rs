@@ -165,9 +165,10 @@ pub fn get_error_count() -> usize {
     LAST_ERROR.len()
 }
 
+/// Set state to Executing for a step (test infrastructure only).
 pub fn set_executing_state_for_test(step_id: &str) {
-    set_state(
-        step_id,
+    STATE.insert(
+        step_id.to_string(),
         StepState::Executing {
             step_id: StepId::new(step_id.to_string()),
             start_time: Instant::now(),

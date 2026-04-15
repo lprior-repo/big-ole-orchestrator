@@ -332,7 +332,7 @@ pub enum CompatSnapshotLoad {
 ///
 /// Returns the same errors as [`snapshot_load_latest`].
 pub fn snapshot_load_latest_with_compat(
-    partition: &PartitionHandle,
+    partition: &Keyspace,
     instance_id: &InstanceId,
     min_version: u16,
     engine_version: u16,
@@ -341,47 +341,56 @@ pub fn snapshot_load_latest_with_compat(
         .to_bytes()
         .map_err(|_| StorageError::CorruptKey)?;
 
-    partition
-        .prefix(&prefix)
-        .next_back()
-        .map_or(Ok(None), |guard| {
-            guard
-                .into_inner()
-                .map_err(|_| StorageError::FjallError)
-                .and_then(|(key, value)| {
-                    decode_snapshot_key(&key).and_then(|(_, sequence)| {
-                        let ds = deserialize_snapshot_value(&value)?;
-                        if ds.schema_version == 0 {
-                            return Ok(Some(CompatSnapshotLoad::Discarded {
-                                sequence,
-                                reason: SnapshotDiscardReason::VersionZero,
-                            }));
-                        }
-                        if ds.schema_version < min_version {
-                            return Ok(Some(CompatSnapshotLoad::Discarded {
-                                sequence,
-                                reason: SnapshotDiscardReason::VersionTooOld {
-                                    snapshot_version: ds.schema_version,
-                                    min_version,
-                                },
-                            }));
-                        }
-                        if ds.schema_version > engine_version {
-                            return Ok(Some(CompatSnapshotLoad::Discarded {
-                                sequence,
-                                reason: SnapshotDiscardReason::VersionTooNew {
-                                    snapshot_version: ds.schema_version,
-                                    engine_version,
-                                },
-                            }));
-                        }
-                        Ok(Some(CompatSnapshotLoad::Loaded {
-                            sequence,
-                            state: ds.state,
-                        }))
-                    })
-                })
-        })
+    let mut best: Option<CompatSnapshotLoad> = None;
+    for item in partition.prefix(&prefix) {
+        let (key, value) = item.into_inner().map_err(|_| StorageError::FjallError)?;
+        let (_, sequence) = decode_snapshot_key(&key).map_err(|_| StorageError::InvalidKey)?;
+        let ds = deserialize_snapshot_value(&value)?;
+        let load_result = if ds.schema_version == 0 {
+            CompatSnapshotLoad::Discarded {
+                sequence,
+                reason: SnapshotDiscardReason::VersionZero,
+            }
+        } else if ds.schema_version < min_version {
+            CompatSnapshotLoad::Discarded {
+                sequence,
+                reason: SnapshotDiscardReason::VersionTooOld {
+                    snapshot_version: ds.schema_version,
+                    min_version,
+                },
+            }
+        } else if ds.schema_version > engine_version {
+            CompatSnapshotLoad::Discarded {
+                sequence,
+                reason: SnapshotDiscardReason::VersionTooNew {
+                    snapshot_version: ds.schema_version,
+                    engine_version,
+                },
+            }
+        } else {
+            CompatSnapshotLoad::Loaded {
+                sequence,
+                state: ds.state,
+            }
+        };
+        match &best {
+            None => best = Some(load_result),
+            Some(CompatSnapshotLoad::Loaded {
+                sequence: best_seq, ..
+            }) => {
+                if let CompatSnapshotLoad::Loaded {
+                    sequence: new_seq, ..
+                } = &load_result
+                {
+                    if new_seq > best_seq {
+                        best = Some(load_result);
+                    }
+                }
+            }
+            Some(_) => {}
+        }
+    }
+    Ok(best)
 }
 
 struct DeserializedSnapshot {
