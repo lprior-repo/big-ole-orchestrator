@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-#[derive(Debug, Error)]
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum SearchError {
     #[error("empty query")]
     EmptyQuery,

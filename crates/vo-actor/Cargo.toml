@@ -11,9 +11,9 @@ proptest = ["dep:proptest"]
 vo-types = { workspace = true }
 vo-common = { workspace = true }
 ractor.workspace = true
-thiserror = { workspace = true }
-async-trait = { workspace = true }
-tracing = { workspace = true }
+thiserror.workspace = true
+async-trait = "0.1"
+tracing = "0.1"
 tokio = { workspace = true, features = ["rt", "sync", "time", "macros"] }
 futures = { workspace = true }
 serde = { workspace = true }

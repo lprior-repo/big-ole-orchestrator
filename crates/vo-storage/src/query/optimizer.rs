@@ -25,6 +25,7 @@ pub enum Predicate {
 }
 
 impl Predicate {
+    /// Evaluate this predicate against an event envelope.
     #[must_use]
     pub fn evaluate(&self, envelope: &EventEnvelope) -> bool {
         match self {
@@ -54,11 +55,13 @@ pub enum Projection {
 }
 
 impl Projection {
+    /// Returns `true` if the projection includes the payload.
     #[must_use]
     pub const fn include_payload(&self) -> bool {
-        !matches!(self, Self::WorkflowVersion)
+        !matches!(self, Projection::WorkflowVersion)
     }
 
+    /// Returns `true` if the projection includes metadata fields.
     #[must_use]
     pub const fn include_metadata(&self) -> bool {
         matches!(
@@ -91,6 +94,7 @@ pub struct QueryPlan {
 pub struct QueryOptimizer;
 
 impl QueryOptimizer {
+    /// Optimize a query specification into a query plan.
     #[must_use]
     pub fn optimize(spec: QuerySpec<'_>) -> QueryPlan {
         let prefix = spec.lineage_query.to_prefix().unwrap_or_default();
@@ -163,11 +167,11 @@ pub struct OptimizedReplayIterator {
 }
 
 impl OptimizedReplayIterator {
-    /// Creates an optimized replay iterator from a query plan.
+    /// Create an optimized replay iterator from a query plan.
     ///
     /// # Errors
     ///
-    /// Returns `StorageError` if the partition cannot be opened.
+    /// Returns `StorageError::Storage` if the events partition cannot be opened.
     pub fn from_plan(plan: &QueryPlan, keyspace: &fjall::Keyspace) -> Result<Self, StorageError> {
         let partition =
             keyspace.open_partition("events", fjall::PartitionCreateOptions::default())?;

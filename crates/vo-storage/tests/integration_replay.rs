@@ -9,11 +9,15 @@
 
 use fjall::{Config, PartitionCreateOptions};
 use vo_storage::codec::StorageError;
+use vo_storage::query::epoch_prefix_generator;
+use vo_storage::query::lineage_prefix_generator;
 use vo_storage::query::optimizer::{
     OptimizedReplayIterator, Projection, QueryOptimizer, QuerySpec,
 };
 use vo_storage::query::replay_events;
+use vo_storage::query::replay_events_for_lineage;
 use vo_storage::query::LineageQuery;
+use vo_storage::query::LINEAGE_ID_NULL_BYTE;
 use vo_types::{EventEnvelope, InstanceId};
 
 fn make_envelope_json(seq: u64, instance_id: &str) -> Vec<u8> {
@@ -695,4 +699,161 @@ fn optimized_replay_iterator_isolates_different_instances() {
     let iter_b = OptimizedReplayIterator::from_plan(&plan_b, &keyspace).expect("valid plan");
     let results_b: Vec<_> = iter_b.collect();
     assert_eq!(results_b.len(), 2);
+}
+
+fn insert_lineage_event(
+    partition: &fjall::PartitionHandle,
+    lineage_id: &str,
+    epoch: u64,
+    seq: u64,
+    value: &[u8],
+) {
+    let lineage_prefix = lineage_prefix_generator(lineage_id).unwrap();
+    let epoch_bytes = epoch.to_be_bytes();
+    let mut key = lineage_prefix;
+    key.extend_from_slice(&epoch_bytes);
+    key.extend_from_slice(&seq.to_be_bytes());
+    partition.insert(&key, value).unwrap();
+}
+
+#[test]
+fn lineage_wide_query_returns_events_across_all_epochs() {
+    let (_dir, keyspace) = setup_keyspace();
+    let partition = keyspace
+        .open_partition("events", PartitionCreateOptions::default())
+        .unwrap();
+
+    let lineage_id = "wf-lineage-42";
+    let instance_id_str = ulid::Ulid::new().to_string();
+
+    insert_lineage_event(
+        &partition,
+        lineage_id,
+        1,
+        1,
+        &make_envelope_json(1, &instance_id_str),
+    );
+    insert_lineage_event(
+        &partition,
+        lineage_id,
+        1,
+        2,
+        &make_envelope_json(2, &instance_id_str),
+    );
+    insert_lineage_event(
+        &partition,
+        lineage_id,
+        2,
+        1,
+        &make_envelope_json(1, &instance_id_str),
+    );
+
+    let query = LineageQuery::LineageWide { lineage_id };
+    let iter = replay_events_for_lineage(&keyspace, &query);
+    let results: Vec<_> = iter.collect::<Result<Vec<_>, _>>().unwrap();
+    assert_eq!(results.len(), 3);
+}
+
+#[test]
+fn epoch_specific_query_returns_events_only_for_target_epoch() {
+    let (_dir, keyspace) = setup_keyspace();
+    let partition = keyspace
+        .open_partition("events", PartitionCreateOptions::default())
+        .unwrap();
+
+    let lineage_id = "wf-lineage-99";
+    let instance_id_str = ulid::Ulid::new().to_string();
+
+    insert_lineage_event(
+        &partition,
+        lineage_id,
+        1,
+        1,
+        &make_envelope_json(1, &instance_id_str),
+    );
+    insert_lineage_event(
+        &partition,
+        lineage_id,
+        1,
+        2,
+        &make_envelope_json(2, &instance_id_str),
+    );
+    insert_lineage_event(
+        &partition,
+        lineage_id,
+        2,
+        1,
+        &make_envelope_json(1, &instance_id_str),
+    );
+
+    let query = LineageQuery::EpochSpecific {
+        lineage_id,
+        epoch: vo_types::Epoch::new(1),
+    };
+    let iter = replay_events_for_lineage(&keyspace, &query);
+    let results: Vec<_> = iter.collect::<Result<Vec<_>, _>>().unwrap();
+    assert_eq!(results.len(), 2);
+    assert_eq!(results[0].sequence, 1);
+    assert_eq!(results[1].sequence, 2);
+}
+
+#[test]
+fn lineage_wide_query_returns_empty_for_nonexistent_lineage() {
+    let (_dir, keyspace) = setup_keyspace();
+
+    let query = LineageQuery::LineageWide {
+        lineage_id: "no-such-lineage",
+    };
+    let iter = replay_events_for_lineage(&keyspace, &query);
+    let results: Vec<_> = iter.collect();
+    assert!(results.is_empty());
+}
+
+#[test]
+fn epoch_specific_query_returns_empty_for_nonexistent_epoch() {
+    let (_dir, keyspace) = setup_keyspace();
+    let partition = keyspace
+        .open_partition("events", PartitionCreateOptions::default())
+        .unwrap();
+
+    let lineage_id = "wf-lineage-empty";
+    let instance_id_str = ulid::Ulid::new().to_string();
+    insert_lineage_event(
+        &partition,
+        lineage_id,
+        1,
+        1,
+        &make_envelope_json(1, &instance_id_str),
+    );
+
+    let query = LineageQuery::EpochSpecific {
+        lineage_id,
+        epoch: vo_types::Epoch::new(99),
+    };
+    let iter = replay_events_for_lineage(&keyspace, &query);
+    let results: Vec<_> = iter.collect();
+    assert!(results.is_empty());
+}
+
+#[test]
+fn lineage_wide_query_does_not_return_instance_id_events() {
+    let (_dir, keyspace) = setup_keyspace();
+    let partition = keyspace
+        .open_partition("events", PartitionCreateOptions::default())
+        .unwrap();
+
+    let instance_id_str = ulid::Ulid::new().to_string();
+    insert_event(
+        &partition,
+        &instance_id_str,
+        1,
+        &make_envelope_json(1, &instance_id_str),
+    );
+
+    let query = LineageQuery::LineageWide {
+        lineage_id: "different-lineage",
+    };
+    let iter = replay_events_for_lineage(&keyspace, &query);
+    let results: Vec<_> = iter.collect();
+    assert!(results.is_empty());
 }

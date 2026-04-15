@@ -141,10 +141,7 @@ mod execution_semaphore_tests {
         for (i, handle) in handles.into_iter().enumerate() {
             let result = handle.await.expect("task should complete");
             assert!(
-                result.is_ok() || matches!(result, Err(ExecuteNodeError::TransientError { .. })),
-                "Step {}: result={:?}",
-                i,
-                result
+                result.is_ok() || matches!(result, Err(ExecuteNodeError::TransientError { .. }))
             );
         }
     }

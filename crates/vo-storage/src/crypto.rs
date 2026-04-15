@@ -67,10 +67,11 @@ pub const TAG_SIZE_BYTES: usize = 16;
 
 type Aes256Gcm = AesGcm<Aes256, U12>;
 
-// ---------------------------------------------------------------------------
-// Calc layer - key generation and wrapping
-// ---------------------------------------------------------------------------
-
+/// Generates a new random DEK (Data Encryption Key).
+///
+/// # Errors
+///
+/// Returns `CryptoError::RngUnavailable` if the OS random number generator fails.
 pub fn generate_dek() -> Result<[u8; DEK_SIZE_BYTES], CryptoError> {
     use rand::RngCore;
     let mut key = [0u8; DEK_SIZE_BYTES];
@@ -78,11 +79,12 @@ pub fn generate_dek() -> Result<[u8; DEK_SIZE_BYTES], CryptoError> {
     Ok(key)
 }
 
-/// Wraps a DEK with a KEK using AES-256-GCM.
+/// Wraps a DEK with a KEK (Key Encryption Key) using AES-256-GCM.
 ///
 /// # Errors
 ///
-/// Returns `CryptoError` if encryption fails.
+/// Returns `CryptoError::WrappingFailed` if encryption fails.
+/// Returns `CryptoError::RngUnavailable` if random IV generation fails.
 pub fn wrap_dek(
     dek: &[u8; DEK_SIZE_BYTES],
     kek: &[u8; KEK_SIZE_BYTES],
@@ -107,11 +109,12 @@ pub fn wrap_dek(
     Ok(result)
 }
 
-/// Unwraps a DEK using a KEK with AES-256-GCM.
+/// Unwraps a DEK using a KEK via AES-256-GCM decryption.
 ///
 /// # Errors
 ///
-/// Returns `CryptoError` if decryption fails or the ciphertext is invalid.
+/// Returns `CryptoError::InvalidKeyMaterial` if the wrapped data is malformed.
+/// Returns `CryptoError::UnwrappingFailed` if decryption fails.
 pub fn unwrap_dek(
     wrapped: &[u8],
     kek: &[u8; KEK_SIZE_BYTES],
@@ -144,10 +147,12 @@ pub fn unwrap_dek(
     Ok(dek)
 }
 
-// ---------------------------------------------------------------------------
-// Calc layer - blob encryption
-// ---------------------------------------------------------------------------
-
+/// Encrypts data using AES-256-GCM with the given DEK.
+///
+/// # Errors
+///
+/// Returns `CryptoError::EncryptionFailed` if encryption fails.
+/// Returns `CryptoError::RngUnavailable` if random IV generation fails.
 pub fn encrypt_blob(
     data: &[u8],
     dek: &[u8; DEK_SIZE_BYTES],
@@ -176,11 +181,12 @@ pub fn encrypt_blob(
     )
 }
 
-/// Decrypts a blob using the given DEK.
+/// Decrypts an encrypted blob using AES-256-GCM with the given DEK.
 ///
 /// # Errors
 ///
-/// Returns `CryptoError` if decryption fails or the ciphertext is invalid.
+/// Returns `CryptoError::InvalidKeyMaterial` if the blob is malformed.
+/// Returns `CryptoError::DecryptionFailed` if decryption fails.
 pub fn decrypt_blob(
     blob: &vo_types::EncryptedBlob,
     dek: &[u8; DEK_SIZE_BYTES],

@@ -1,6 +1,6 @@
 //! Connector error classification (retryable vs terminal).
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum ConnectorError {
     #[error("retryable connector error: {0}")]
     Retryable(String),

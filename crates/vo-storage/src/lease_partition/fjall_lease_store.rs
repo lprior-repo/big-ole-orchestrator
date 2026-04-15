@@ -14,11 +14,11 @@ pub struct FjallLeaseStore {
 }
 
 impl FjallLeaseStore {
-    /// Opens the lease store partitions from the given keyspace.
+    /// Opens a new lease store backed by the given keyspace.
     ///
     /// # Errors
     ///
-    /// Returns `LeaseStoreError::Storage` if a partition cannot be opened.
+    /// Returns `LeaseStoreError::Storage` if any partition cannot be opened.
     pub fn open(keyspace: &fjall::Keyspace) -> Result<Self, LeaseStoreError> {
         let lease_partition = keyspace
             .open_partition(LEASE_PARTITION, fjall::PartitionCreateOptions::default())
@@ -153,7 +153,8 @@ impl LeaseStore for FjallLeaseStore {
             .map_err(|e| LeaseStoreError::Storage {
                 reason: format!("failed to get current time: {e}"),
             })?
-            .as_millis() as u64;
+            .as_millis();
+        let now_ms = u64::try_from(now_ms).unwrap_or(u64::MAX);
 
         let current = self.get_current_lease(instance_id, step_id)?;
         if let Some(entry) = current {
@@ -203,7 +204,6 @@ impl LeaseStore for FjallLeaseStore {
         token: &FenceToken,
     ) -> Result<bool, LeaseStoreError> {
         let current = self.get_current_lease(instance_id, step_id)?;
-
         Ok(current.is_some_and(|entry| entry.fence_token() != token.inner().get()))
     }
 }

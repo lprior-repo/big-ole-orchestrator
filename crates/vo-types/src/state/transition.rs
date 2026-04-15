@@ -165,8 +165,8 @@ mod verification {
     fn verify_lifecycle_transition_exhaustiveness() {
         let state_idx: u8 = kani::any();
         let event_idx: u8 = kani::any();
-        kani::assume(state_idx < 9);
-        kani::assume(event_idx < 13);
+        kani::assume(state_idx < 8);
+        kani::assume(event_idx < 10);
 
         let state = match state_idx {
             0 => LifecycleState::Pending,
@@ -174,11 +174,9 @@ mod verification {
             2 => LifecycleState::StepScheduled,
             3 => LifecycleState::StepExecuting,
             4 => LifecycleState::WaitingForTimer,
-            5 => LifecycleState::PendingPublication,
-            6 => LifecycleState::Completed,
-            7 => LifecycleState::Failed,
-            8 => LifecycleState::Cancelled,
-            _ => return,
+            5 => LifecycleState::Completed,
+            6 => LifecycleState::Failed,
+            _ => LifecycleState::Cancelled,
         };
 
         let event = match event_idx {
@@ -189,13 +187,9 @@ mod verification {
             4 => TransitionEvent::ExecuteStep,
             5 => TransitionEvent::WaitForTimer,
             6 => TransitionEvent::CompleteStep,
-            7 => TransitionEvent::YieldWithBlob,
-            8 => TransitionEvent::TimerFired,
-            9 => TransitionEvent::TimerExpired,
-            10 => TransitionEvent::ConfirmPublication,
-            11 => TransitionEvent::PublicationFailed,
-            12 => TransitionEvent::InstanceResumed,
-            _ => TransitionEvent::Cancel,
+            7 => TransitionEvent::TimerFired,
+            8 => TransitionEvent::TimerExpired,
+            _ => TransitionEvent::InstanceResumed,
         };
 
         let _ = apply(state, event);

@@ -9,7 +9,9 @@ fn error_serialization_error_displays_correctly() {
 #[test]
 fn error_envelope_decode_failed_displays_correctly() {
     let inner = Error::InvalidInput;
-    let err = Error::EnvelopeDecodeFailed(Box::new(inner));
+    let err = Error::EnvelopeDecodeFailed {
+        source: Box::new(inner),
+    };
     assert_eq!(
         err.to_string(),
         "Envelope decode failed: Input bytes are not valid UTF-8"
@@ -19,7 +21,9 @@ fn error_envelope_decode_failed_displays_correctly() {
 #[test]
 fn error_payload_decode_failed_displays_correctly() {
     let inner = Error::InvalidPayloadFormat;
-    let err = Error::PayloadDecodeFailed(Box::new(inner));
+    let err = Error::PayloadDecodeFailed {
+        source: Box::new(inner),
+    };
     assert_eq!(
         err.to_string(),
         "Payload decode failed: Payload JSON is malformed"

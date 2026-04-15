@@ -1,4 +1,6 @@
 mod binomial_heap;
+#[cfg(test)]
+mod blob_tests;
 mod blob;
 mod btree;
 pub mod cartesian_tree;
@@ -9,13 +11,16 @@ pub mod command_metadata;
 mod compensation;
 pub mod connection_pool;
 mod connector;
+#[cfg(test)]
+mod credentials_tests;
 pub mod credentials;
 mod dedupe;
 #[cfg(test)]
 mod dedupe_tests;
 mod dependency_graph_resolver;
 pub mod discovery;
-pub mod identity;
+#[cfg(test)]
+mod dual_representation_tests;
 mod dual_representation;
 pub mod effects;
 mod encryption;
@@ -31,7 +36,8 @@ pub mod integer_types;
 mod integer_types_tests;
 mod lifecycle_superstate;
 mod lineage;
-mod memory_leak;
+mod link_cut_tree;
+mod macros;
 mod node_kind;
 mod non_empty_vec;
 mod payload_parser;
@@ -43,7 +49,6 @@ pub mod proptest_verifier;
 mod registration_status;
 mod rope;
 pub mod search;
-pub mod security_validation_tests;
 pub mod signal;
 pub mod skew_heap;
 mod spqr_tree;
@@ -51,6 +56,7 @@ pub mod state;
 mod string_types;
 #[cfg(test)]
 mod string_types_tests;
+mod topology;
 mod tx_coordinator;
 mod types;
 #[cfg(test)]
@@ -134,16 +140,7 @@ pub use spqr_tree::{
     Block, Component, CutNode, SPQRDecomposition, SPQREdge, SPQRNode, SPQRNodeType, SpqrError,
     StaticGraph,
 };
-pub use plugin::{
-    apply_plugin_transition, ArtifactRef, CapabilityId, HotLoadEvent, InstanceKey,
-    IsolationBreachType, IsolationLevel, PluginArtifact, PluginDescriptor, PluginErrorCategory,
-    PluginErrorContext, PluginErrorDetail, PluginFailureContext, PluginHotLoadError, PluginId,
-    PluginInstance, PluginName, PluginState, PluginTransition, PluginVersion,
-    PluginVersionConstraint, ResourceBudget, SchemaVersion, VersionRange,
-};
-pub use next_step_selection::{
-    emit_scheduling_intention, select_next_step, NextStep, SchedulingIntention, SelectionError,
-};
+pub use topology::{LeaseKey, NodeId};
 pub use tx_coordinator::{
     apply_coordinator_transition, CoordinatorDecision, CoordinatorTransition,
     CoordinatorTransitionError, ParticipantRecord, ParticipantStatus, ParticipantVote,
@@ -159,6 +156,9 @@ pub use workflow::{
     next_nodes, DagNode, Edge, EdgeCondition, RetryPolicy, RetryPolicyError,
     StepOutcome, WorkflowDefinition, WorkflowDefinitionError,
 };
+
+#[cfg(kani)]
+mod kani_proofs;
 
 #[cfg(test)]
 mod adversarial_tests;

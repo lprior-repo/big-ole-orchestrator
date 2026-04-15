@@ -19,11 +19,6 @@ pub struct FjallDekStore {
 
 #[allow(dead_code)]
 impl FjallDekStore {
-    /// Opens the DEK store partitions from the given keyspace.
-    ///
-    /// # Errors
-    ///
-    /// Returns `DekStoreError::Storage` if the partition cannot be opened.
     pub fn open(keyspace: &fjall::Keyspace) -> Result<Self, DekStoreError> {
         let dek_partition = keyspace
             .open_partition(DEK_PARTITION, fjall::PartitionCreateOptions::default())
@@ -138,5 +133,386 @@ impl FjallDekStore {
                 reason: e.to_string(),
             }),
         }
+    }
+}
+
+impl DekStore for FjallDekStore {
+    fn generate_and_store_dek(
+        &self,
+        instance_id: &InstanceId,
+        kek: &[u8; 32],
+    ) -> Result<DekId, DekStoreError> {
+        if self.get_active_dek_id_internal(instance_id)?.is_some() {
+            return Err(DekStoreError::DekAlreadyExists {
+                instance_id: instance_id.to_string(),
+            });
+        }
+
+        let raw_dek = crypto::generate_dek().map_err(|e| DekStoreError::Storage {
+            reason: format!("failed to generate DEK: {e}"),
+        })?;
+
+        let wrapped_dek_bytes = wrap_dek(&raw_dek, kek).map_err(|e| DekStoreError::Storage {
+            reason: format!("failed to wrap DEK: {e}"),
+        })?;
+        let wrapped_dek = WrappedDek::new(wrapped_dek_bytes);
+
+        let dek_id = DekId::from_bytes(Ulid::new().0.to_be_bytes());
+        let metadata = KeyMetadata::new(instance_id.clone(), CryptoAlgorithm::Aes256Gcm);
+        let entry = DekEntry::new(dek_id.clone(), instance_id.clone(), wrapped_dek, metadata)?;
+
+        self.insert_dek_entry(&entry)?;
+        self.set_active_dek_index(instance_id, &dek_id)?;
+
+        Ok(dek_id)
+    }
+
+    fn retrieve_dek(
+        &self,
+        instance_id: &InstanceId,
+        kek: &[u8; 32],
+    ) -> Result<[u8; 32], DekStoreError> {
+        let dek_id = self.get_active_dek_id_internal(instance_id)?;
+
+        let Some(dek_id) = dek_id else {
+            return Err(DekStoreError::DekNotFound {
+                instance_id: instance_id.to_string(),
+            });
+        };
+
+        let entry = self.get_dek_entry(&dek_id)?;
+
+        let Some(entry) = entry else {
+            return Err(DekStoreError::DekNotFound {
+                instance_id: instance_id.to_string(),
+            });
+        };
+
+        if entry.status() == DekStatus::Retired {
+            return Err(DekStoreError::DekRetired {
+                dek_id: dek_id.as_str().to_string(),
+            });
+        }
+
+        let wrapped_bytes = entry.wrapped_dek().as_bytes();
+        let raw_dek = unwrap_dek(wrapped_bytes, kek).map_err(|e| DekStoreError::Storage {
+            reason: format!("failed to unwrap DEK: {e}"),
+        })?;
+
+        Ok(raw_dek)
+    }
+
+    fn get_active_dek_id(&self, instance_id: &InstanceId) -> Result<DekId, DekStoreError> {
+        self.get_active_dek_id_internal(instance_id)?
+            .ok_or_else(|| DekStoreError::DekNotFound {
+                instance_id: instance_id.to_string(),
+            })
+    }
+
+    fn has_active_dek(&self, instance_id: &InstanceId) -> Result<bool, DekStoreError> {
+        self.get_active_dek_id_internal(instance_id)
+            .map(|opt| opt.is_some())
+    }
+
+    fn rotate_dek(&self, instance_id: &InstanceId, kek: &[u8; 32]) -> Result<DekId, DekStoreError> {
+        let old_dek_id = self.get_active_dek_id_internal(instance_id)?;
+
+        let Some(old_dek_id) = old_dek_id else {
+            return Err(DekStoreError::DekNotFound {
+                instance_id: instance_id.to_string(),
+            });
+        };
+
+        self.retire_dek_entry(&old_dek_id)?;
+        self.clear_active_dek_index(instance_id)?;
+
+        self.generate_and_store_dek(instance_id, kek)
+    }
+
+    fn retire_dek(&self, instance_id: &InstanceId) -> Result<(), DekStoreError> {
+        let dek_id = self.get_active_dek_id_internal(instance_id)?;
+
+        let Some(dek_id) = dek_id else {
+            return Err(DekStoreError::DekNotFound {
+                instance_id: instance_id.to_string(),
+            });
+        };
+
+        self.retire_dek_entry(&dek_id)
+    }
+
+    fn list_deks(&self, instance_id: &InstanceId) -> Result<Vec<DekId>, DekStoreError> {
+        let mut dek_ids = Vec::new();
+
+        for item in self.dek_partition.iter() {
+            let (_key, value) = item.map_err(|e| DekStoreError::Storage {
+                reason: format!("failed to scan DEKs: {e}"),
+            })?;
+            if let Ok(entry) = super::decode_dek_entry(&value) {
+                if entry.instance_id() == instance_id {
+                    dek_ids.push(entry.dek_id().clone());
+                }
+            }
+        }
+
+        Ok(dek_ids)
+    }
+
+    fn get_dek_metadata(&self, dek_id: &DekId) -> Result<KeyMetadata, DekStoreError> {
+        self.get_dek_entry(dek_id)?
+            .map(|e| e.metadata().clone())
+            .ok_or_else(|| DekStoreError::DekNotFound {
+                instance_id: dek_id.as_str().to_string(),
+            })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+    use vo_types::InstanceId;
+
+    fn sample_instance_id() -> InstanceId {
+        InstanceId::parse("01ARZ3NDEKTSV4RRFFQ69G5FAV").unwrap()
+    }
+
+    fn alternate_instance_id() -> InstanceId {
+        InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap()
+    }
+
+    fn create_test_keyspace() -> fjall::Keyspace {
+        let dir = tempdir().unwrap();
+        fjall::Config::new(dir.path()).open().unwrap()
+    }
+
+    fn create_test_kek() -> [u8; 32] {
+        [0x42u8; 32]
+    }
+
+    #[test]
+    fn generate_and_store_dek_creates_new_dek() {
+        let keyspace = create_test_keyspace();
+        let store = FjallDekStore::open(&keyspace).unwrap();
+        let kek = create_test_kek();
+
+        let result = store.generate_and_store_dek(&sample_instance_id(), &kek);
+        assert!(result.is_ok());
+
+        let dek_id = result.unwrap();
+        assert!(!dek_id.as_str().is_empty());
+    }
+
+    #[test]
+    fn generate_and_store_dek_fails_if_dek_already_exists() {
+        let keyspace = create_test_keyspace();
+        let store = FjallDekStore::open(&keyspace).unwrap();
+        let kek = create_test_kek();
+
+        store
+            .generate_and_store_dek(&sample_instance_id(), &kek)
+            .unwrap();
+
+        let second_result = store.generate_and_store_dek(&sample_instance_id(), &kek);
+        assert!(matches!(
+            second_result,
+            Err(DekStoreError::DekAlreadyExists { .. })
+        ));
+    }
+
+    #[test]
+    fn retrieve_dek_returns_stored_dek() {
+        let keyspace = create_test_keyspace();
+        let store = FjallDekStore::open(&keyspace).unwrap();
+        let kek = create_test_kek();
+
+        store
+            .generate_and_store_dek(&sample_instance_id(), &kek)
+            .unwrap();
+        let retrieved1 = store.retrieve_dek(&sample_instance_id(), &kek).unwrap();
+        let retrieved2 = store.retrieve_dek(&sample_instance_id(), &kek).unwrap();
+
+        assert_eq!(retrieved1, retrieved2);
+    }
+
+    #[test]
+    fn retrieve_dek_fails_with_wrong_kek() {
+        let keyspace = create_test_keyspace();
+        let store = FjallDekStore::open(&keyspace).unwrap();
+        let kek1 = [0x42u8; 32];
+        let kek2 = [0x99u8; 32];
+
+        store
+            .generate_and_store_dek(&sample_instance_id(), &kek1)
+            .unwrap();
+
+        let result = store.retrieve_dek(&sample_instance_id(), &kek2);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn retrieve_dek_fails_when_not_found() {
+        let keyspace = create_test_keyspace();
+        let store = FjallDekStore::open(&keyspace).unwrap();
+        let kek = create_test_kek();
+
+        let result = store.retrieve_dek(&sample_instance_id(), &kek);
+        assert!(matches!(result, Err(DekStoreError::DekNotFound { .. })));
+    }
+
+    #[test]
+    fn get_active_dek_id_returns_dek_id() {
+        let keyspace = create_test_keyspace();
+        let store = FjallDekStore::open(&keyspace).unwrap();
+        let kek = create_test_kek();
+
+        let generated = store
+            .generate_and_store_dek(&sample_instance_id(), &kek)
+            .unwrap();
+        let retrieved = store.get_active_dek_id(&sample_instance_id()).unwrap();
+
+        assert_eq!(generated, retrieved);
+    }
+
+    #[test]
+    fn get_active_dek_id_fails_when_not_found() {
+        let keyspace = create_test_keyspace();
+        let store = FjallDekStore::open(&keyspace).unwrap();
+
+        let result = store.get_active_dek_id(&sample_instance_id());
+        assert!(matches!(result, Err(DekStoreError::DekNotFound { .. })));
+    }
+
+    #[test]
+    fn has_active_dek_returns_true_when_exists() {
+        let keyspace = create_test_keyspace();
+        let store = FjallDekStore::open(&keyspace).unwrap();
+        let kek = create_test_kek();
+
+        store
+            .generate_and_store_dek(&sample_instance_id(), &kek)
+            .unwrap();
+        assert!(store.has_active_dek(&sample_instance_id()).unwrap());
+    }
+
+    #[test]
+    fn has_active_dek_returns_false_when_not_exists() {
+        let keyspace = create_test_keyspace();
+        let store = FjallDekStore::open(&keyspace).unwrap();
+
+        assert!(!store.has_active_dek(&sample_instance_id()).unwrap());
+    }
+
+    #[test]
+    fn rotate_dek_retires_old_dek() {
+        let keyspace = create_test_keyspace();
+        let store = FjallDekStore::open(&keyspace).unwrap();
+        let kek = create_test_kek();
+
+        let old_dek_id = store
+            .generate_and_store_dek(&sample_instance_id(), &kek)
+            .unwrap();
+
+        let new_dek_id = store.rotate_dek(&sample_instance_id(), &kek).unwrap();
+
+        assert_ne!(old_dek_id, new_dek_id);
+
+        let metadata = store.get_dek_metadata(&old_dek_id).unwrap();
+        assert_eq!(metadata.created_at_ms, metadata.created_at_ms);
+    }
+
+    #[test]
+    fn rotate_dek_fails_when_no_dek_exists() {
+        let keyspace = create_test_keyspace();
+        let store = FjallDekStore::open(&keyspace).unwrap();
+        let kek = create_test_kek();
+
+        let result = store.rotate_dek(&sample_instance_id(), &kek);
+        assert!(matches!(result, Err(DekStoreError::DekNotFound { .. })));
+    }
+
+    #[test]
+    fn retire_dek_marks_dek_as_retired() {
+        let keyspace = create_test_keyspace();
+        let store = FjallDekStore::open(&keyspace).unwrap();
+        let kek = create_test_kek();
+
+        store
+            .generate_and_store_dek(&sample_instance_id(), &kek)
+            .unwrap();
+        store.retire_dek(&sample_instance_id()).unwrap();
+
+        let result = store.retrieve_dek(&sample_instance_id(), &kek);
+        assert!(matches!(result, Err(DekStoreError::DekRetired { .. })));
+    }
+
+    #[test]
+    fn retire_dek_fails_when_not_found() {
+        let keyspace = create_test_keyspace();
+        let store = FjallDekStore::open(&keyspace).unwrap();
+
+        let result = store.retire_dek(&sample_instance_id());
+        assert!(matches!(result, Err(DekStoreError::DekNotFound { .. })));
+    }
+
+    #[test]
+    fn list_deks_returns_all_deks_for_instance() {
+        let keyspace = create_test_keyspace();
+        let store = FjallDekStore::open(&keyspace).unwrap();
+        let kek = create_test_kek();
+
+        store
+            .generate_and_store_dek(&sample_instance_id(), &kek)
+            .unwrap();
+        store.rotate_dek(&sample_instance_id(), &kek).unwrap();
+
+        let dek_ids = store.list_deks(&sample_instance_id()).unwrap();
+        assert_eq!(dek_ids.len(), 2);
+    }
+
+    #[test]
+    fn list_deks_returns_empty_for_instance_with_no_deks() {
+        let keyspace = create_test_keyspace();
+        let store = FjallDekStore::open(&keyspace).unwrap();
+
+        let dek_ids = store.list_deks(&sample_instance_id()).unwrap();
+        assert!(dek_ids.is_empty());
+    }
+
+    #[test]
+    fn different_instances_have_independent_deks() {
+        let keyspace = create_test_keyspace();
+        let store = FjallDekStore::open(&keyspace).unwrap();
+        let kek = create_test_kek();
+
+        store
+            .generate_and_store_dek(&sample_instance_id(), &kek)
+            .unwrap();
+        store
+            .generate_and_store_dek(&alternate_instance_id(), &kek)
+            .unwrap();
+
+        assert!(store.has_active_dek(&sample_instance_id()).unwrap());
+        assert!(store.has_active_dek(&alternate_instance_id()).unwrap());
+
+        let dek1 = store.get_active_dek_id(&sample_instance_id()).unwrap();
+        let dek2 = store.get_active_dek_id(&alternate_instance_id()).unwrap();
+
+        assert_ne!(dek1, dek2);
+    }
+
+    #[test]
+    fn retrieve_dek_fails_after_retire() {
+        let keyspace = create_test_keyspace();
+        let store = FjallDekStore::open(&keyspace).unwrap();
+        let kek = create_test_kek();
+
+        store
+            .generate_and_store_dek(&sample_instance_id(), &kek)
+            .unwrap();
+        store.retire_dek(&sample_instance_id()).unwrap();
+
+        let result = store.retrieve_dek(&sample_instance_id(), &kek);
+        assert!(matches!(result, Err(DekStoreError::DekRetired { .. })));
     }
 }

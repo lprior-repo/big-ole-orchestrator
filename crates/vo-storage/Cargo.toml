@@ -60,9 +60,9 @@ name = "merkle_bench"
 harness = false
 
 [[bench]]
-name = "index_perf_bench"
+name = "load_bench"
 harness = false
 
 [[bench]]
-name = "timer_index_bench"
+name = "replay_load_bench"
 harness = false

@@ -44,11 +44,9 @@ pub enum SagaCompensationStatus {
 impl From<CompensationStatus> for SagaCompensationStatus {
     fn from(status: CompensationStatus) -> Self {
         match status {
-            CompensationStatus::NotNeeded | CompensationStatus::Succeeded => {
-                Self::Succeeded
-            }
             CompensationStatus::Pending => Self::Pending,
             CompensationStatus::InProgress => Self::InProgress,
+            CompensationStatus::NotNeeded | CompensationStatus::Succeeded => Self::Succeeded,
             CompensationStatus::Failed => Self::Failed,
         }
     }
@@ -68,7 +66,9 @@ pub struct CompensationEntry {
 }
 
 impl CompensationEntry {
-    /// Creates a new `CompensationEntry`.
+    /// # Errors
+    ///
+    /// Returns `CompensationError::AlreadyRegistered` if a compensation for this effect already exists.
     #[must_use]
     pub fn new(effect_id: String, policy: CompensationPolicy, dependencies: Vec<String>) -> Self {
         Self {
@@ -124,11 +124,9 @@ pub struct CompensationManifest {
 }
 
 impl CompensationManifest {
-    /// Registers a new compensation entry.
-    ///
     /// # Errors
     ///
-    /// Returns `CompensationError::AlreadyRegistered` if an entry with the same `effect_id` already exists.
+    /// Returns `CompensationError::AlreadyRegistered` if a compensation for this effect already exists.
     pub fn register(
         &mut self,
         effect_id: String,
@@ -155,12 +153,10 @@ impl CompensationManifest {
         self.entries.get_mut(effect_id)
     }
 
-    /// Transitions a compensation entry to a new status.
-    ///
     /// # Errors
     ///
-    /// Returns `CompensationError::NotFound` if the entry does not exist.
-    /// Returns `CompensationError::TerminalState` if the entry is already in a terminal state.
+    /// Returns `CompensationError::NotFound` if the effect is not registered.
+    /// Returns `CompensationError::TerminalState` if the effect is in a terminal state.
     pub fn transition_to(
         &mut self,
         effect_id: &str,
@@ -195,22 +191,16 @@ impl CompensationManifest {
         Ok(())
     }
 
-    /// Marks a compensation as ambiguous.
-    ///
     /// # Errors
     ///
-    /// Returns `CompensationError::NotFound` if the entry does not exist.
-    /// Returns `CompensationError::TerminalState` if the entry is already in a terminal state.
+    /// Returns `CompensationError` if the transition is invalid.
     pub fn set_ambiguous(&mut self, effect_id: &str) -> Result<(), CompensationError> {
         self.transition_to(effect_id, SagaCompensationStatus::Ambiguous)
     }
 
-    /// Marks a compensation as timed out.
-    ///
     /// # Errors
     ///
-    /// Returns `CompensationError::NotFound` if the entry does not exist.
-    /// Returns `CompensationError::TerminalState` if the entry is already in a terminal state.
+    /// Returns `CompensationError` if the transition is invalid.
     pub fn set_timed_out(&mut self, effect_id: &str) -> Result<(), CompensationError> {
         self.transition_to(effect_id, SagaCompensationStatus::TimedOut)
     }
@@ -452,15 +442,13 @@ impl CompensationSaga {
         }
     }
 
-    /// Registers a new compensation entry in the saga.
+    /// # Errors
+    ///
+    /// Returns `CompensationError::AlreadyRegistered` if already registered.
     ///
     /// # Panics
     ///
-    /// Panics if the internal mutex is poisoned.
-    ///
-    /// # Errors
-    ///
-    /// Returns `CompensationError::AlreadyRegistered` if the effect is already registered.
+    /// Panics if the manifest mutex is poisoned.
     pub fn register(
         &self,
         effect_id: String,
@@ -472,15 +460,13 @@ impl CompensationSaga {
         manifest.register(effect_id, policy, dependencies)
     }
 
-    /// Registers a new compensation entry with a timeout.
+    /// # Errors
+    ///
+    /// Returns `CompensationError::AlreadyRegistered` if already registered.
     ///
     /// # Panics
     ///
-    /// Panics if the internal mutex is poisoned.
-    ///
-    /// # Errors
-    ///
-    /// Returns `CompensationError::AlreadyRegistered` if the effect is already registered.
+    /// Panics if the manifest mutex is poisoned.
     pub fn register_with_timeout(
         &self,
         effect_id: &str,
@@ -498,17 +484,14 @@ impl CompensationSaga {
         Ok(())
     }
 
-    /// Queues a compensation as pending for execution.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the internal mutex is poisoned.
-    ///
     /// # Errors
     ///
     /// Returns `CompensationError::NotFound` if the effect is not registered.
     /// Returns `CompensationError::PolicyViolation` if the policy is `None`.
-    /// Returns `CompensationError::TerminalState` if the entry is already terminal.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the manifest mutex is poisoned.
     pub fn queue_pending(&self, effect_id: &str) -> Result<(), CompensationError> {
         #[expect(clippy::unwrap_used)]
         let mut manifest = self.manifest.lock().unwrap();
@@ -526,17 +509,14 @@ impl CompensationSaga {
         manifest.transition_to(effect_id, SagaCompensationStatus::Pending)
     }
 
-    /// Starts compensation execution for an effect.
+    /// # Errors
+    ///
+    /// Returns `CompensationError::NotFound` if the effect is not registered.
+    /// Returns `CompensationError::PolicyViolation` if the policy is `None`.
     ///
     /// # Panics
     ///
-    /// Panics if the internal mutex is poisoned.
-    ///
-    /// # Errors
-    ///
-    /// Returns `CompensationError::PolicyViolation` if dependencies are not met.
-    /// Returns `CompensationError::NotFound` if the effect is not registered.
-    /// Returns `CompensationError::TerminalState` if the entry is already terminal.
+    /// Panics if the manifest mutex is poisoned.
     pub fn start_compensation(&self, effect_id: &str) -> Result<(), CompensationError> {
         #[expect(clippy::unwrap_used)]
         let mut manifest = self.manifest.lock().unwrap();
@@ -551,48 +531,39 @@ impl CompensationSaga {
         manifest.transition_to(effect_id, SagaCompensationStatus::InProgress)
     }
 
-    /// Marks a compensation as succeeded.
+    /// # Errors
+    ///
+    /// Returns `CompensationError` if the transition fails.
     ///
     /// # Panics
     ///
-    /// Panics if the internal mutex is poisoned.
-    ///
-    /// # Errors
-    ///
-    /// Returns `CompensationError::NotFound` if the effect is not registered.
-    /// Returns `CompensationError::TerminalState` if the entry is already terminal.
+    /// Panics if the manifest mutex is poisoned.
     pub fn succeed(&self, effect_id: &str) -> Result<(), CompensationError> {
         #[expect(clippy::unwrap_used)]
         let mut manifest = self.manifest.lock().unwrap();
         manifest.transition_to(effect_id, SagaCompensationStatus::Succeeded)
     }
 
-    /// Marks a compensation as failed.
+    /// # Errors
+    ///
+    /// Returns `CompensationError` if the transition fails.
     ///
     /// # Panics
     ///
-    /// Panics if the internal mutex is poisoned.
-    ///
-    /// # Errors
-    ///
-    /// Returns `CompensationError::NotFound` if the effect is not registered.
-    /// Returns `CompensationError::TerminalState` if the entry is already terminal.
+    /// Panics if the manifest mutex is poisoned.
     pub fn fail(&self, effect_id: &str) -> Result<(), CompensationError> {
         #[expect(clippy::unwrap_used)]
         let mut manifest = self.manifest.lock().unwrap();
         manifest.transition_to(effect_id, SagaCompensationStatus::Failed)
     }
 
-    /// Marks a compensation as ambiguous and returns the reconciliation action.
+    /// # Errors
+    ///
+    /// Returns `CompensationError` if setting ambiguous fails or reconciliation fails.
     ///
     /// # Panics
     ///
-    /// Panics if the internal mutex is poisoned.
-    ///
-    /// # Errors
-    ///
-    /// Returns `CompensationError::NotFound` if the effect is not registered.
-    /// Returns `CompensationError::TerminalState` if the entry is already terminal.
+    /// Panics if the manifest mutex is poisoned.
     pub fn mark_ambiguous(
         &self,
         effect_id: &str,
@@ -615,16 +586,13 @@ impl CompensationSaga {
         Ok(self.reconciler.reconcile(&ctx))
     }
 
-    /// Handles a reconciliation action for an ambiguous compensation.
+    /// # Errors
+    ///
+    /// Returns `CompensationError` if the reconciliation action fails.
     ///
     /// # Panics
     ///
-    /// Panics if the internal mutex is poisoned.
-    ///
-    /// # Errors
-    ///
-    /// Returns `CompensationError::NotFound` if the effect is not registered.
-    /// Returns `CompensationError::TerminalState` if the entry is already terminal.
+    /// Panics if the manifest mutex is poisoned.
     pub fn handle_reconciliation(
         &self,
         effect_id: &str,
@@ -650,11 +618,9 @@ impl CompensationSaga {
         }
     }
 
-    /// Checks for timed-out compensations.
-    ///
     /// # Panics
     ///
-    /// Panics if the internal mutex is poisoned.
+    /// Panics if the manifest mutex is poisoned.
     #[must_use]
     pub fn check_timeouts(&self) -> Vec<String> {
         #[expect(clippy::unwrap_used)]
@@ -667,37 +633,48 @@ impl CompensationSaga {
                 timed_out.push(entry.effect_id.clone());
             }
         }
+        drop(manifest);
 
         drop(manifest);
         timed_out
     }
 
-    /// Expires all timed-out compensations.
+    /// # Errors
+    ///
+    /// Returns `CompensationError` if setting timed out fails.
     ///
     /// # Panics
     ///
-    /// Panics if the internal mutex is poisoned.
-    ///
-    /// # Errors
-    ///
-    /// Returns `CompensationError::NotFound` or `CompensationError::TerminalState` if
-    /// the entry cannot be transitioned.
+    /// Panics if the manifest mutex is poisoned.
     pub fn expire_timed_out(&self) -> Result<(), CompensationError> {
         let timed_out = self.check_timeouts();
-        {
-            #[expect(clippy::unwrap_used)]
-            let mut manifest = self.manifest.lock().unwrap();
-            for effect_id in timed_out {
-                manifest.set_timed_out(&effect_id)?;
-            }
+        #[expect(clippy::unwrap_used)]
+        let mut manifest = self.manifest.lock().unwrap();
+        for effect_id in &timed_out {
+            manifest.set_timed_out(effect_id)?;
         }
+        drop(manifest);
         Ok(())
     }
 
-    pub fn get_compensation_order(&self) -> Result<Vec<String>, CompensationError> {
+    /// # Panics
+    ///
+    /// Panics if the manifest mutex is poisoned.
+    #[must_use]
+    pub fn get_compensation_order(&self) -> Vec<String> {
         #[expect(clippy::unwrap_used)]
         let manifest = self.manifest.lock().unwrap();
-        manifest.get_reverse_dependency_order()
+        manifest
+            .registration_order
+            .iter()
+            .rev()
+            .filter(|id| {
+                manifest
+                    .get(id)
+                    .is_some_and(|e| e.status == SagaCompensationStatus::Pending)
+            })
+            .cloned()
+            .collect()
     }
 
     #[must_use]
@@ -903,13 +880,8 @@ mod tests {
     #[test]
     fn timeout_detection() {
         let saga = CompensationSaga::with_reconciler(RetryReconciler::new(3));
-        saga.register_with_timeout(
-            "fx-1",
-            CompensationPolicy::Automatic,
-            vec![],
-            100,
-        )
-        .unwrap();
+        saga.register_with_timeout("fx-1", CompensationPolicy::Automatic, vec![], 100)
+            .unwrap();
         saga.queue_pending("fx-1").unwrap();
         saga.start_compensation("fx-1").unwrap();
 
@@ -970,13 +942,8 @@ mod tests {
     #[test]
     fn expire_timed_out_marks_entries() {
         let saga = CompensationSaga::with_reconciler(RetryReconciler::new(1));
-        saga.register_with_timeout(
-            "fx-1",
-            CompensationPolicy::Automatic,
-            vec![],
-            50,
-        )
-        .unwrap();
+        saga.register_with_timeout("fx-1", CompensationPolicy::Automatic, vec![], 50)
+            .unwrap();
         saga.queue_pending("fx-1").unwrap();
         saga.start_compensation("fx-1").unwrap();
 

@@ -1627,10 +1627,16 @@ mod sql_connector_transaction_tests {
         let outcome = c.commit(pe_normal).await.expect("commit should succeed");
         assert!(matches!(outcome, CommitOutcome::Committed { .. }));
 
-        let reconcile_inject = c.reconcile("fx-inject").await.expect("reconcile should succeed");
-        let reconcile_normal = c.reconcile("fx-normal").await.expect("reconcile should succeed");
-        assert!(matches!(reconcile_inject, ReconcileOutcome::Committed { .. }));
-        assert!(matches!(reconcile_normal, ReconcileOutcome::Committed { .. }));
+        let reconcile_inject = c.reconcile("fx-inject").await.unwrap();
+        let reconcile_normal = c.reconcile("fx-normal").await.unwrap();
+        assert!(matches!(
+            reconcile_inject,
+            ReconcileOutcome::Committed { .. }
+        ));
+        assert!(matches!(
+            reconcile_normal,
+            ReconcileOutcome::Committed { .. }
+        ));
     }
 
     #[tokio::test]

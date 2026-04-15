@@ -44,14 +44,20 @@ pub enum Error {
     #[error("Unknown payload type: {0}")]
     UnknownPayloadType(String),
 
-    #[error("Envelope decode failed: {0}")]
-    EnvelopeDecodeFailed(Box<Error>),
+    #[error("Envelope decode failed: {source}")]
+    EnvelopeDecodeFailed {
+        #[source]
+        source: Box<Error>,
+    },
 
     #[error("Payload decode skipped due to unsupported envelope version")]
     PayloadDecodeSkipped,
 
-    #[error("Payload decode failed: {0}")]
-    PayloadDecodeFailed(Box<Error>),
+    #[error("Payload decode failed: {source}")]
+    PayloadDecodeFailed {
+        #[source]
+        source: Box<Error>,
+    },
 
     #[error("Serialization error: {0}")]
     SerializationError(String),

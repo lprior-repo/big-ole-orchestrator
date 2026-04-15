@@ -62,7 +62,7 @@ pub const fn encode_u16_be(value: u16) -> [u8; 2] {
     value.to_be_bytes()
 }
 
-/// Decodes a big-endian `u64` from a byte slice.
+/// Decode a big-endian 8-byte slice into a u64.
 ///
 /// # Errors
 ///
@@ -83,7 +83,7 @@ pub fn decode_u64_be(bytes: &[u8]) -> Result<u64, KeyEncodingError> {
     Ok(u64::from_be_bytes(arr))
 }
 
-/// Decodes a big-endian `u16` from a byte slice.
+/// Decode a big-endian 2-byte slice into a u16.
 ///
 /// # Errors
 ///
@@ -106,22 +106,19 @@ pub fn decode_u16_be(bytes: &[u8]) -> Result<u16, KeyEncodingError> {
 
 #[must_use]
 pub fn encode_length_prefixed(value: &[u8]) -> Vec<u8> {
-    #[allow(clippy::cast_possible_truncation)]
-    let len = value.len() as u16;
+    let len = u16::try_from(value.len()).unwrap_or(u16::MAX);
     let mut result = Vec::with_capacity(2 + value.len());
     result.extend_from_slice(&len.to_be_bytes());
     result.extend_from_slice(value);
     result
 }
 
-/// Decodes a length-prefixed value from a byte slice.
+/// Decode a length-prefixed byte slice.
 ///
 /// # Errors
 ///
-/// Returns `KeyEncodingError::InvalidLength` if the slice is too short for the declared length.
-pub fn decode_length_prefixed(
-    bytes: &[u8],
-) -> Result<(&[u8], &[u8]), KeyEncodingError> {
+/// Returns `KeyEncodingError::InvalidLength` if the slice is too short.
+pub fn decode_length_prefixed(bytes: &[u8]) -> Result<(&[u8], &[u8]), KeyEncodingError> {
     if bytes.len() < 2 {
         return Err(KeyEncodingError::InvalidLength {
             expected: 2,
@@ -138,16 +135,16 @@ pub fn decode_length_prefixed(
     Ok((&bytes[2..2 + len], &bytes[2 + len..]))
 }
 
-/// Encodes an `InstanceId` to a 16-byte big-endian array.
+/// Encode an `InstanceId` as its 16-byte ULID representation.
 ///
 /// # Errors
 ///
-/// Returns `KeyEncodingError::InstanceId` if the ID cannot be converted to bytes.
+/// Returns `KeyEncodingError::InstanceId` if the instance ID cannot be serialized.
 pub fn encode_instance_id(instance_id: &InstanceId) -> Result<[u8; 16], KeyEncodingError> {
     instance_id.to_bytes().map_err(KeyEncodingError::from)
 }
 
-/// Decodes an `InstanceId` from a 16-byte big-endian array.
+/// Decode a 16-byte slice into an `InstanceId`.
 ///
 /// # Errors
 ///
@@ -162,16 +159,21 @@ pub fn decode_instance_id(bytes: &[u8]) -> Result<InstanceId, KeyEncodingError> 
     Ok(InstanceId::from_bytes(arr))
 }
 
+/// Encode a `StepId` as a length-prefixed byte string.
+///
+/// # Panics
+///
+/// Panics if the step ID exceeds 65535 bytes.
 #[must_use]
 pub fn encode_step_id(step_id: &StepId) -> Vec<u8> {
     encode_length_prefixed(step_id.as_str().as_bytes())
 }
 
-/// Decodes a `StepId` from a length-prefixed byte slice.
+/// Decode a length-prefixed byte string into a `StepId`.
 ///
 /// # Errors
 ///
-/// Returns `KeyEncodingError::InvalidLength` if the slice is too short.
+/// Returns `KeyEncodingError::InvalidLength` if the data is too short.
 /// Returns `KeyEncodingError::StepId` if the decoded string is not a valid `StepId`.
 pub fn decode_step_id(bytes: &[u8]) -> Result<StepId, KeyEncodingError> {
     let (id_bytes, _) = decode_length_prefixed(bytes)?;
@@ -184,17 +186,22 @@ pub fn decode_step_id(bytes: &[u8]) -> Result<StepId, KeyEncodingError> {
     StepId::parse(s).map_err(KeyEncodingError::from)
 }
 
+/// Encode a `SequenceNumber` as big-endian bytes.
 #[must_use]
 pub fn encode_sequence_number(seq: SequenceNumber) -> [u8; 8] {
     encode_u64_be(seq.as_u64())
 }
 
-/// Decodes a `SequenceNumber` from an 8-byte big-endian slice.
+/// Decode big-endian bytes into a `SequenceNumber`.
 ///
 /// # Errors
 ///
 /// Returns `KeyEncodingError::InvalidLength` if the slice is not exactly 8 bytes.
-/// Returns `KeyEncodingError::InstanceId` if the decoded value is 0 (invalid sequence).
+/// Returns `KeyEncodingError::InstanceId` if the decoded value is not a valid sequence.
+///
+/// # Panics
+///
+/// Panics if the slice is not exactly 8 bytes.
 pub fn decode_sequence_number(bytes: &[u8]) -> Result<SequenceNumber, KeyEncodingError> {
     let val = decode_u64_be(bytes)?;
     SequenceNumber::try_from(val).map_err(KeyEncodingError::InstanceId)
@@ -210,18 +217,15 @@ pub fn encode_event_key(instance_id: &InstanceId, sequence: SequenceNumber) -> V
     key
 }
 
-/// Decodes a 24-byte event key into its components.
-///
-/// # Panics
-///
-/// This function panics internally on slice-to-array conversion, which is guarded
-/// by a length check that ensures the slice is exactly 24 bytes.
+/// Decode an event key into instance ID and sequence number.
 ///
 /// # Errors
 ///
-/// Returns `KeyEncodingError::InvalidLength` if the slice is not exactly 24 bytes.
-/// Returns `KeyEncodingError::InstanceId` if the sequence number is 0.
-#[allow(clippy::unwrap_used)]
+/// Returns `KeyEncodingError::InvalidLength` if the key is not exactly 24 bytes.
+///
+/// # Panics
+///
+/// Panics if the key is not exactly 24 bytes.
 pub fn decode_event_key(bytes: &[u8]) -> Result<(InstanceId, SequenceNumber), KeyEncodingError> {
     if bytes.len() != 24 {
         return Err(KeyEncodingError::InvalidLength {
@@ -248,16 +252,15 @@ pub fn encode_timer_key(fire_at_ms: u64, instance_id: &InstanceId) -> Vec<u8> {
     key
 }
 
-/// Decodes a 24-byte timer key into its components.
-///
-/// # Panics
-///
-/// This function panics internally on slice-to-array conversion, guarded by a length check.
+/// Decode a timer key into fire-at timestamp and instance ID.
 ///
 /// # Errors
 ///
-/// Returns `KeyEncodingError::InvalidLength` if the slice is not exactly 24 bytes.
-#[allow(clippy::unwrap_used)]
+/// Returns `KeyEncodingError::InvalidLength` if the key is not exactly 24 bytes.
+///
+/// # Panics
+///
+/// Panics if the key is not exactly 24 bytes.
 pub fn decode_timer_key(bytes: &[u8]) -> Result<(u64, InstanceId), KeyEncodingError> {
     if bytes.len() != 24 {
         return Err(KeyEncodingError::InvalidLength {
@@ -275,17 +278,17 @@ pub fn decode_timer_key(bytes: &[u8]) -> Result<(u64, InstanceId), KeyEncodingEr
     ))
 }
 
+/// Encode a lease key from instance ID and step ID.
 #[must_use]
 pub fn encode_lease_key(instance_id: &InstanceId, step_id: &StepId) -> Vec<u8> {
     format!("{instance_id}::{step_id}").into_bytes()
 }
 
-/// Decodes a lease key (format: `{instance_id}::{step_id}`) from bytes.
+/// Decode a lease key into instance ID and step ID.
 ///
 /// # Errors
 ///
-/// Returns `KeyEncodingError::StepId` if the bytes are not valid UTF-8 or lack the `::` delimiter.
-/// Returns `KeyEncodingError::InstanceId` if the instance ID portion is invalid.
+/// Returns `KeyEncodingError::StepId` if the key is not valid UTF-8 or missing the `::` delimiter.
 pub fn decode_lease_key(bytes: &[u8]) -> Result<(InstanceId, StepId), KeyEncodingError> {
     let s = std::str::from_utf8(bytes).map_err(|e| {
         KeyEncodingError::StepId(ParseError::InvalidFormat {
@@ -304,16 +307,17 @@ pub fn decode_lease_key(bytes: &[u8]) -> Result<(InstanceId, StepId), KeyEncodin
     Ok((instance_id, step_id))
 }
 
+/// Encode a dedupe key as length-prefixed bytes.
 #[must_use]
 pub fn encode_dedupe_key(idempotency_key: &str) -> Vec<u8> {
     encode_length_prefixed(idempotency_key.as_bytes())
 }
 
-/// Decodes a dedupe key from a length-prefixed byte slice.
+/// Decode a length-prefixed dedupe key.
 ///
 /// # Errors
 ///
-/// Returns `KeyEncodingError::InvalidLength` if the slice is too short.
+/// Returns `KeyEncodingError::InvalidLength` if the data is too short.
 /// Returns `KeyEncodingError::StepId` if the decoded bytes are not valid UTF-8.
 pub fn decode_dedupe_key(bytes: &[u8]) -> Result<String, KeyEncodingError> {
     let (key_bytes, _) = decode_length_prefixed(bytes)?;
@@ -325,6 +329,7 @@ pub fn decode_dedupe_key(bytes: &[u8]) -> Result<String, KeyEncodingError> {
     })
 }
 
+/// Encode an instance index key with status byte and creation time.
 #[must_use]
 pub fn encode_instance_index_key_for_status(
     status_byte: u8,
@@ -339,6 +344,7 @@ pub fn encode_instance_index_key_for_status(
     key
 }
 
+/// Encode an effect key from instance ID and sequence number with effect marker.
 #[must_use]
 pub fn encode_effect_key(instance_id: &InstanceId, sequence: SequenceNumber) -> Vec<u8> {
     let iid_bytes = instance_id.to_bytes().unwrap_or([0u8; 16]);
@@ -350,17 +356,15 @@ pub fn encode_effect_key(instance_id: &InstanceId, sequence: SequenceNumber) -> 
     key
 }
 
-/// Decodes a 25-byte effect key into its components.
-///
-/// # Panics
-///
-/// This function panics internally on slice-to-array conversion, guarded by a length check.
+/// Decode an effect key into instance ID and sequence number.
 ///
 /// # Errors
 ///
-/// Returns `KeyEncodingError::InvalidLength` if the slice is not exactly 25 bytes
-/// or if the marker byte is not `0xFF`.
-/// Returns `KeyEncodingError::InstanceId` if the sequence number is 0.
+/// Returns `KeyEncodingError::InvalidLength` if the key is not exactly 25 bytes.
+///
+/// # Panics
+///
+/// Panics if the key is not exactly 25 bytes.
 pub fn decode_effect_key(bytes: &[u8]) -> Result<(InstanceId, SequenceNumber), KeyEncodingError> {
     if bytes.len() != 25 {
         return Err(KeyEncodingError::InvalidLength {
@@ -384,6 +388,7 @@ pub fn decode_effect_key(bytes: &[u8]) -> Result<(InstanceId, SequenceNumber), K
     Ok((instance_id, sequence))
 }
 
+/// Get the key prefix for all events of a given instance.
 #[must_use]
 pub fn get_event_key_prefix(instance_id: &InstanceId) -> Vec<u8> {
     let iid_bytes = instance_id.to_bytes().unwrap_or([0u8; 16]);
@@ -392,16 +397,19 @@ pub fn get_event_key_prefix(instance_id: &InstanceId) -> Vec<u8> {
     prefix
 }
 
+/// Get the key prefix for timers at or after a given timestamp.
 #[must_use]
 pub fn get_timer_key_prefix_for_time(fire_at_ms: u64) -> Vec<u8> {
     fire_at_ms.to_be_bytes().to_vec()
 }
 
+/// Get the key prefix for all lease entries of a given instance.
 #[must_use]
 pub fn get_lease_key_prefix_for_instance(instance_id: &InstanceId) -> Vec<u8> {
     format!("{instance_id}::").into_bytes()
 }
 
+/// Get the key prefix for a dedupe key.
 #[must_use]
 pub fn get_dedupe_key_prefix(idempotency_key: &str) -> Vec<u8> {
     encode_length_prefixed(idempotency_key.as_bytes())

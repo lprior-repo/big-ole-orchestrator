@@ -114,8 +114,7 @@ impl DedupeStore for FjallDedupeStore {
             if keys_to_delete.len() >= PURGE_BATCH_SIZE {
                 let count = keys_to_delete.len();
                 let mut batch = self.keyspace.batch();
-                #[allow(clippy::iter_with_drain)]
-                for key in keys_to_delete.drain(..) {
+                for key in std::mem::take(&mut keys_to_delete) {
                     batch.remove(&self.partition, key);
                 }
                 batch.commit().map_err(|e| DedupeStoreError::Storage {
@@ -145,9 +144,9 @@ impl DedupeStore for FjallDedupeStore {
         let now_ms = Self::now_ms();
 
         match self.partition.get(&encoded_key) {
-            Ok(Some(value_bytes)) => {
-                Ok(super::decode_dedupe_entry(&value_bytes).is_ok_and(|entry| !entry.is_expired(now_ms)))
-            }
+            Ok(Some(value_bytes)) => super::decode_dedupe_entry(&value_bytes)
+                .map(|entry| Ok(!entry.is_expired(now_ms)))
+                .unwrap_or(Ok(false)),
             Ok(None) => Ok(false),
             Err(e) => Err(DedupeStoreError::Storage {
                 reason: e.to_string(),

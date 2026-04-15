@@ -118,7 +118,9 @@ fn event_envelope_error_unknown_payload_type_message() {
 #[test]
 fn event_envelope_error_envelope_decode_failed_message() {
     let inner = EventEnvelopeError::InvalidEnvelopeFormat;
-    let err = EventEnvelopeError::EnvelopeDecodeFailed(Box::new(inner));
+    let err = EventEnvelopeError::EnvelopeDecodeFailed {
+        source: Box::new(inner),
+    };
     let msg = err.to_string();
     // Should contain info about the inner error
     assert!(
@@ -140,7 +142,9 @@ fn event_envelope_error_payload_decode_skipped_message() {
 #[test]
 fn event_envelope_error_payload_decode_failed_message() {
     let inner = EventEnvelopeError::InvalidPayloadFormat;
-    let err = EventEnvelopeError::PayloadDecodeFailed(Box::new(inner));
+    let err = EventEnvelopeError::PayloadDecodeFailed {
+        source: Box::new(inner),
+    };
     let msg = err.to_string();
     assert!(
         msg.contains("decode") || msg.contains("failed") || msg.contains("payload"),

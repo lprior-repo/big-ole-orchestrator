@@ -16,6 +16,7 @@
 #![cfg_attr(not(test), deny(clippy::unwrap_used))]
 #![cfg_attr(not(test), deny(clippy::expect_used))]
 #![cfg_attr(not(test), deny(clippy::panic))]
+#![allow(clippy::module_name_repetitions)]
 #![warn(clippy::pedantic)]
 #![warn(clippy::nursery)]
 #![warn(clippy::complexity)]
@@ -40,14 +41,18 @@
 pub mod append;
 pub mod blob;
 pub mod blob_store;
+#[cfg(test)]
+mod blob_store_tests;
 pub mod budget_saga;
 pub mod checksum;
 pub mod codec;
 pub mod compensation_saga;
 pub mod crypto;
+#[cfg(test)]
+mod crypto_tests;
 pub mod dedupe_partition;
 pub mod effect_journal;
-pub mod event_store;
+pub mod fs_store;
 pub mod instance_index;
 pub mod key_encoding;
 pub mod key_partition;
@@ -60,7 +65,7 @@ pub mod projection_compat;
 pub mod purge;
 pub mod qos_router;
 pub mod query;
-pub mod replay;
+pub mod receipts;
 pub mod snapshot_diff;
 pub mod snapshots;
 pub mod status_store;
