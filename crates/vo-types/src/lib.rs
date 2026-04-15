@@ -20,6 +20,8 @@ mod dual_representation;
 mod effects;
 mod encryption;
 #[cfg(test)]
+mod effects_receipt_tests;
+#[cfg(test)]
 mod encryption_tests;
 mod errors;
 pub mod euler_tour_tree;
