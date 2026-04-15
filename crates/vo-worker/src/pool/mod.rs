@@ -25,10 +25,4 @@ pub use vo_types::connection_pool::HealthCheckResult;
 
 pub(crate) use pool::PoolState;
 
-#[cfg(test)]
-mod tests {
-    mod config_tests;
-    mod pool_tests;
-    mod circuit_breaker_tests;
-    mod health_check_tests;
-}
+

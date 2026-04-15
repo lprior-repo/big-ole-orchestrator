@@ -102,7 +102,8 @@ impl ReanimatorLoop {
         let state_sender_clone = state_sender.clone();
         let shutdown_receiver = shutdown_trigger.subscribe();
 
-        let _ = state_sender.send(ReanimatorState::Running);
+        // Create a receiver to ensure send() succeeds - must be kept alive
+        let _state_receiver = state_sender.subscribe();
 
         // Spawn the background task
         // Crash recovery runs inside the task before entering the main loop
@@ -112,6 +113,9 @@ impl ReanimatorLoop {
             if let Err(e) = Self::run_crash_recovery(&storage, &work_queue).await {
                 tracing::warn!("Crash recovery completed with error: {}", e);
             }
+
+            // Transition to Running now that there's an active receiver
+            let _ = state_sender_clone.send(ReanimatorState::Running);
 
             let result = Self::run_loop_inner(
                 config,
@@ -260,6 +264,9 @@ impl ReanimatorLoop {
         S: TimerStorage + 'static,
         Q: WorkQueue + 'static,
     {
+        // Transition to Running
+        let _ = state_sender.send(ReanimatorState::Running);
+
         let mut scan_interval = interval(config.scan_interval);
         scan_interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
 

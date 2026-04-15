@@ -226,7 +226,5 @@ pub use fjall_journal::FjallEffectJournal;
 // Test infrastructure
 // ---------------------------------------------------------------------------
 
-#[cfg(test)]
-mod in_memory_journal;
-#[cfg(test)]
+pub mod in_memory_journal;
 pub use in_memory_journal::InMemoryEffectJournal;
