@@ -170,20 +170,27 @@ pub fn apply_redaction(
                         .iter()
                         .find(|r| matches_rule(current_path, &r.field_path));
 
-                    let (new_val, was_redacted) = if let Some(r) = rule {
-                        redacted_fields.push(r.field_path.clone());
-                        (r.redaction_kind.redact_value(key, val), true)
-                    } else {
-                        (
-                            apply_recursive(val, rules, current_path, redacted_fields),
-                            false,
-                        )
-                    };
-
-                    if was_redacted {
-                        result.insert(key.clone(), new_val);
-                    } else if new_val != serde_json::Value::Null {
-                        result.insert(key.clone(), new_val);
+                    match rule {
+                        Some(r) => {
+                            redacted_fields.push(r.field_path.clone());
+                            match r.redaction_kind {
+                                RedactionKind::Remove => {
+                                    // Remove field entirely from object (per AR-09 test plan)
+                                    // Do nothing - key is not inserted
+                                }
+                                _ => {
+                                    let new_val = r.redaction_kind.redact_value(key, val);
+                                    result.insert(key.clone(), new_val);
+                                }
+                            }
+                        }
+                        None => {
+                            let new_val =
+                                apply_recursive(val, rules, current_path, redacted_fields);
+                            if new_val != serde_json::Value::Null {
+                                result.insert(key.clone(), new_val);
+                            }
+                        }
                     }
 
                     current_path.pop();
@@ -268,7 +275,8 @@ mod tests {
         let (result, redacted) = apply_redaction(&value, &rules);
 
         assert_eq!(result["user"]["name"], "Alice");
-        assert_eq!(result["user"]["ssn"], serde_json::Value::Null);
+        // Remove removes key entirely (per AR-09 test plan)
+        assert!(!result["user"].as_object().unwrap().contains_key("ssn"));
         assert_eq!(redacted.len(), 1);
         assert_eq!(redacted[0], vec!["user".to_string(), "ssn".to_string()]);
     }
@@ -323,9 +331,10 @@ mod tests {
         let (result, redacted) = apply_redaction(&value, &rules);
 
         assert_eq!(result["users"][0]["name"], "Alice");
-        assert_eq!(result["users"][0]["ssn"], serde_json::Value::Null);
+        // Remove removes key entirely (per AR-09 test plan)
+        assert!(!result["users"][0].as_object().unwrap().contains_key("ssn"));
         assert_eq!(result["users"][1]["name"], "Bob");
-        assert_eq!(result["users"][1]["ssn"], serde_json::Value::Null);
+        assert!(!result["users"][1].as_object().unwrap().contains_key("ssn"));
         assert_eq!(redacted.len(), 2);
     }
 
@@ -414,10 +423,11 @@ mod tests {
             RedactionKind::Remove,
         )];
         let (result, redacted) = apply_redaction(&value, &rules);
-        assert_eq!(
-            result["level1"]["level2"]["level3"]["secret"],
-            serde_json::Value::Null
-        );
+        // Remove removes key entirely (per AR-09 test plan)
+        assert!(!result["level1"]["level2"]["level3"]
+            .as_object()
+            .unwrap()
+            .contains_key("secret"));
         assert_eq!(redacted.len(), 1);
     }
 
@@ -440,13 +450,15 @@ mod tests {
         // Non-sensitive fields preserved
         assert_eq!(result["user"]["name"], "Alice");
         // Sensitive fields redacted
-        assert_eq!(result["user"]["ssn"], serde_json::Value::Null);
+        // Remove removes key entirely (per AR-09 test plan)
+        assert!(!result["user"].as_object().unwrap().contains_key("ssn"));
         assert!(result["user"]["email"]
             .as_str()
             .unwrap()
             .starts_with("HASH"));
         assert_eq!(result["payment"]["card"], "[REDACTED]");
-        assert_eq!(result["payment"]["cvv"], serde_json::Value::Null);
+        // Remove removes key entirely (per AR-09 test plan)
+        assert!(!result["payment"].as_object().unwrap().contains_key("cvv"));
         assert_eq!(redacted.len(), 4);
     }
 
@@ -464,8 +476,11 @@ mod tests {
         // Public data completely untouched
         assert_eq!(result["public_data"]["count"], 42);
         assert_eq!(result["public_data"]["label"], "safe");
-        // Private data redacted
-        assert_eq!(result["private_data"]["token"], serde_json::Value::Null);
+        // Private data redacted - Remove removes key entirely (per AR-09 test plan)
+        assert!(!result["private_data"]
+            .as_object()
+            .unwrap()
+            .contains_key("token"));
         assert_eq!(redacted.len(), 1);
     }
 

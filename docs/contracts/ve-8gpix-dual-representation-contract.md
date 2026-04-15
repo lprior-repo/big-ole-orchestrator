@@ -61,7 +61,7 @@ RedactionRule {
 
 ```
 enum RedactionKind {
-  Remove,              // Replace with null
+  Remove,              // Remove field entirely from object
   ReplaceWith(String), // Replace with fixed value
   ReplaceWithType,     // Replace with type name string
   Hash                 // Replace with deterministic hash
@@ -342,17 +342,17 @@ Post: result == (current_path starts with rule_path)
 
 **Specification**:
 ```
-redact_value(kind: RedactionKind, field_name: String, value: Value) -> Value
+apply_redaction(value: Value, rules: [RedactionRule]) -> (Value, [path])
 
 Post:
-  kind = Remove        → result = null
+  kind = Remove        → field is removed from object (key does not exist)
   kind = ReplaceWith(r) → result = r
   kind = ReplaceWithType → result = type_name(value)
   kind = Hash          → result = hash(value)
 ```
 
 **Postconditions**:
-- `RedactionKind::Remove` always produces `Value::Null`
+- `RedactionKind::Remove` removes field entirely from JSON object (per AR-09 test plan)
 - `RedactionKind::ReplaceWith` always produces `Value::String(replacement)`
 - `RedactionKind::ReplaceWithType` always produces `Value::String(type_name)`
 - `RedactionKind::Hash` always produces `Value::String("HASH{hex}")`
@@ -424,10 +424,10 @@ Post:
 ### Unit Tests
 
 1. **RedactionKind variants**:
-   - `Remove` → `Value::Null`
-   - `ReplaceWith` → replacement string
-   - `ReplaceWithType` → type name string
-   - `Hash` → deterministic hash string
+    - `Remove` → field removed from object (per AR-09 test plan)
+    - `ReplaceWith` → replacement string
+    - `ReplaceWithType` → type name string
+    - `Hash` → deterministic hash string
 
 2. **apply_redaction**:
    - Single field redaction
@@ -500,13 +500,13 @@ while cpi < current_path.len() && current_path[cpi].parse::<usize>().is_ok() {
 
 ### 8.2 Null Preservation
 
-**Observation**: Current implementation replaces removed fields with `null`, not removing them from JSON.
+**Status**: RESOLVED
 
-**ADR-025 spec**: "Field is removed entirely from the operator projection."
+**Decision**: `RedactionKind::Remove` removes field entirely from JSON object (per AR-09 test plan).
 
-**Correction needed**: Decide between:
-- Option A: Replace with `null` (current)
-- Option B: Remove key entirely from object
+**Implementation**: Updated to not insert key when `RedactionKind::Remove` is applied.
+
+**ADR-025 spec alignment**: Matches "Field is removed entirely from the operator projection."
 
 ---
 
@@ -565,13 +565,13 @@ Should this match `users[0].ssn`?
 
 ### Issue 2: Remove vs Null
 
-**Status**: Needs clarification
+**Status**: RESOLVED
 
-**Description**: ADR-025 says "Field is removed entirely", but implementation uses `null`.
+**Description**: ADR-025 says "Field is removed entirely", implementation was using `null`.
 
-**Question**: Should `RedactionKind::Remove` remove the key entirely or set to `null`?
+**Decision**: `RedactionKind::Remove` removes the key entirely from the JSON object (per AR-09 test plan).
 
-**Action**: Clarify with ADR author or decide based on GDPR requirements.
+**Action**: Implementation updated to remove key instead of setting to null.
 
 ---
 
