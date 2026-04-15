@@ -55,6 +55,7 @@ pub mod workflow_version;
 pub mod workload_class;
 pub mod workspace_swap;
 pub mod write_class;
+pub mod shedding;
 
 #[cfg(kani)]
 pub mod write_class_verification;
