@@ -186,7 +186,7 @@ fn multi_step_saga_full_lifecycle_five_effects() {
         saga.queue_pending(&format!("fx-{i}")).unwrap();
     }
 
-    let order = saga.get_compensation_order();
+    let order = saga.get_compensation_order().unwrap();
     assert_eq!(order, vec!["fx-5", "fx-4", "fx-3", "fx-2", "fx-1"]);
 
     for eid in &order {
@@ -218,7 +218,7 @@ fn multi_step_saga_partial_failure_mid_saga() {
         saga.queue_pending(&format!("fx-{i}")).unwrap();
     }
 
-    let order = saga.get_compensation_order();
+    let order = saga.get_compensation_order().unwrap();
     assert_eq!(order, vec!["fx-4", "fx-3", "fx-2", "fx-1"]);
 
     saga.start_compensation("fx-4").unwrap();
@@ -383,7 +383,7 @@ fn diamond_dependency_compensation_order() {
     saga.queue_pending("fx-2").unwrap();
     saga.queue_pending("fx-3").unwrap();
 
-    let order = saga.get_compensation_order();
+    let order = saga.get_compensation_order().unwrap();
     assert_eq!(order, vec!["fx-3", "fx-2", "fx-1"]);
 
     let manifest = saga.manifest();

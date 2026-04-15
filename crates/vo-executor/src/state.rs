@@ -165,17 +165,6 @@ pub fn get_error_count() -> usize {
     LAST_ERROR.len()
 }
 
-/// Set state to Executing for a step (test infrastructure only).
-pub fn set_executing_state_for_test(step_id: &str) {
-    STATE.insert(
-        step_id.to_string(),
-        StepState::Executing {
-            step_id: StepId::new(step_id.to_string()),
-            start_time: Instant::now(),
-        },
-    );
-}
-
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {

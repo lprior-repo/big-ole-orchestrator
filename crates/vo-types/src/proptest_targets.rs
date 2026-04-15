@@ -273,81 +273,101 @@ proptest! {
 
     #[test]
     fn discovery_path_validation_accepts_valid(
-        component in any::<String>(),
-        version in any::<String>(),
+        binary_name in "[a-z][a-z0-9_]*",
+        hash in "[a-f0-9]{16,64}",
     ) {
-        // Invariant: Valid component/version strings pass validation
-        // Strategy: Generate typical component names and versions
+        // Invariant: Valid binary_name and hash pass validation
+        // Strategy: Generate valid binary names and hex hashes
         // Anti-invariant: rejecting valid paths breaks discovery
-        let path = DiscoveryPath::new(&component, &version);
+        let binary_hash = BinaryHash::parse(&hash).unwrap();
+        let path = DiscoveryPath::new(
+            "/var/wtf/versions".to_string(),
+            binary_hash,
+            binary_name,
+        );
         let result = validate_discovery_path(&path);
         prop_assert!(result.is_ok());
     }
 
     #[test]
-    fn discovery_path_validation_rejects_empty_component() {
-        // Invariant: Empty component strings are rejected
-        // Strategy: Test empty component edge case
-        // Anti-invariant: accepting empty components breaks routing
-        let path = DiscoveryPath::new("", "1.0.0");
+    fn discovery_path_validation_rejects_empty_binary_name() {
+        // Invariant: Empty binary_name strings are rejected
+        // Strategy: Test empty binary_name edge case
+        // Anti-invariant: accepting empty binary_name breaks routing
+        let path = DiscoveryPath::new(
+            "/var/wtf/versions".to_string(),
+            BinaryHash::parse("abcdef0123456789").unwrap(),
+            String::new(),
+        );
         let result = validate_discovery_path(&path);
         prop_assert!(result.is_err());
     }
 
     #[test]
-    fn discovery_path_version_format(version: String) {
-        // Invariant: Version strings are preserved through validation
-        // Strategy: Generate various version strings
-        // Anti-invariant: mangled versions break compatibility checks
-        let path = DiscoveryPath::new("component", &version);
+    fn discovery_path_validation_rejects_path_separators(
+        binary_name in ".*/.*",
+    ) {
+        // Invariant: binary_name with path separators is rejected
+        // Strategy: Generate names containing /
+        // Anti-invariant: accepting path separators allows path traversal
+        let path = DiscoveryPath::new(
+            "/var/wtf/versions".to_string(),
+            BinaryHash::parse("abcdef0123456789").unwrap(),
+            binary_name,
+        );
         let result = validate_discovery_path(&path);
-        if result.is_ok() {
-            prop_assert_eq!(path.version(), &version);
-        }
+        prop_assert!(result.is_err());
     }
 
     // ============ Pin Enforcement Proptests ============
 
     #[test]
     fn pin_enforce_accepts_matching_hash(
-        hash in any::<String>(),
+        hash in "[a-f0-9]{16,64}",
     ) {
         // Invariant: Pin accepts binary hash matching pinned value
-        // Strategy: Generate matching hash strings
+        // Strategy: Generate valid hash strings
         // Anti-invariant: rejecting matching hashes breaks pinning
-        let pin = VersionPin::parse(&hash).expect("valid");
-        let candidate = hash.clone();
-        let result = enforce_pin(&pin, &candidate);
+        let binary_hash = BinaryHash::parse(&hash).unwrap();
+        let pin = VersionPin::new(binary_hash.clone(), 1000);
+        let result = enforce_pin(&pin, &binary_hash);
         prop_assert!(result.is_ok());
     }
 
     #[test]
     fn pin_enforce_rejects_mismatched_hash(
-        pinned in any::<String>(),
-        candidate in any::<String>(),
+        pinned in "[a-f0-9]{16,64}",
+        candidate in "[a-f0-9]{16,64}",
     ) {
         // Invariant: Pin rejects binary hash not matching pinned value
         // Strategy: Generate mismatched hash pairs
         // Anti-invariant: accepting mismatched hashes breaks pinning
         prop_assume!(pinned != candidate);
-        let pin = VersionPin::parse(&pinned).expect("valid");
-        let result = enforce_pin(&pin, &candidate);
+        let pinned_hash = BinaryHash::parse(&pinned).unwrap();
+        let candidate_hash = BinaryHash::parse(&candidate).unwrap();
+        let pin = VersionPin::new(pinned_hash, 1000);
+        let result = enforce_pin(&pin, &candidate_hash);
         prop_assert!(result.is_err());
     }
 
     #[test]
-    fn pin_enforce_exact_match(pinned in any::<String>()) {
+    fn pin_enforce_exact_match(
+        hash in "[a-f0-9]{16,64}",
+    ) {
         // Invariant: Pin requires exact byte-level match
         // Strategy: Generate hash strings
         // Anti-invariant: case-insensitive or fuzzy matching breaks pins
-        let pin = VersionPin::parse(&pinned).expect("valid");
-        let result = enforce_pin(&pin, &pinned);
+        let binary_hash = BinaryHash::parse(&hash).unwrap();
+        let pin = VersionPin::new(binary_hash.clone(), 1000);
+        let result = enforce_pin(&pin, &binary_hash);
         prop_assert!(result.is_ok());
 
         // Slight modification should fail
-        let modified = pinned + "x";
-        let result_modified = enforce_pin(&pin, &modified);
-        prop_assert!(result_modified.is_err());
+        let modified = format!("{}x", &hash[..hash.len().saturating_sub(1)]);
+        if let Ok(modified_hash) = BinaryHash::parse(&modified) {
+            let result_modified = enforce_pin(&pin, &modified_hash);
+            prop_assert!(result_modified.is_err());
+        }
     }
 
     // ============ Lifecycle State Proptests ============
