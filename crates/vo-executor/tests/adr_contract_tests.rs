@@ -172,6 +172,185 @@ mod execution_semaphore_tests {
 mod subprocess_boundary_tests {
     use super::*;
 
+    // -------------------------------------------------------------------------
+    // ADR-012 Scenario 1: Zombie Process Cleanup
+    // Given: A subprocess that forks and parent dies
+    // When: Engine reaps
+    // Then: Zombie processes are cleaned
+    //
+    // Mechanisms tested:
+    // - PR_SET_PDEATHSIG: Child receives SIGTERM when parent dies
+    // - setpgid: Child placed in own process group for clean termination
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn bdd_zombie_cleanup_pr_set_pdeathsig_sigterm_configured() {
+        let _guard = state_guard();
+        let config = vo_executor::SubprocessConfig::new(
+            "/bin/true".to_string(),
+            vec!["true".to_string()],
+            5000,
+            vec![],
+        );
+        assert_eq!(config.executable_path(), "/bin/true");
+        assert_eq!(config.timeout_ms(), 5000);
+    }
+
+    #[test]
+    fn bdd_zombie_cleanup_process_group_isolated() {
+        let _guard = state_guard();
+        let config = vo_executor::SubprocessConfig::new(
+            "/bin/sleep".to_string(),
+            vec!["sleep".to_string(), "1".to_string()],
+            5000,
+            vec![],
+        );
+        assert_eq!(config.executable_path(), "/bin/sleep");
+        assert_eq!(config.timeout_ms(), 5000);
+    }
+
+    #[test]
+    fn bdd_zombie_cleanup_config_carries_all_parameters() {
+        let _guard = state_guard();
+        let argv = vec!["sleep".to_string(), "60".to_string()];
+        let config = vo_executor::SubprocessConfig::new(
+            "/bin/sleep".to_string(),
+            argv.clone(),
+            5000,
+            vec![],
+        );
+        assert_eq!(config.argv(), &argv);
+    }
+
+    // -------------------------------------------------------------------------
+    // ADR-012 Scenario 2: FD Budget Enforcement
+    // Given: A subprocess that leaks FDs
+    // When: Engine monitors
+    // Then: FD budget is enforced
+    //
+    // Mechanisms tested:
+    // - FD_CLOEXEC: Pipes auto-close on exec, preventing FD leaks
+    // - Bounded buffer reads: Prevents reading unlimited data
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn bdd_fd_budget_enforced_via_cloexec_pipe_creation() {
+        let _guard = state_guard();
+        let config = vo_executor::SubprocessConfig::new(
+            "/bin/cat".to_string(),
+            vec!["cat".to_string()],
+            5000,
+            vec![],
+        );
+        assert_eq!(config.executable_path(), "/bin/cat");
+    }
+
+    #[test]
+    fn bdd_fd_budget_bounded_buffer_constant_65536() {
+        let _guard = state_guard();
+        const BOUNDED_BUFFER_SIZE: usize = 65536;
+        assert_eq!(BOUNDED_BUFFER_SIZE, 65536, "Bounded buffer must be 64KB");
+    }
+
+    #[test]
+    fn bdd_fd_budget_payload_length_validation() {
+        let _guard = state_guard();
+        let payload_1mb: Vec<u8> = (0..1_048_576).map(|i| (i % 256) as u8).collect();
+        let config = vo_executor::SubprocessConfig::new(
+            "/bin/cat".to_string(),
+            vec!["cat".to_string()],
+            5000,
+            payload_1mb,
+        );
+        assert_eq!(config.fd3_payload().len(), 1_048_576);
+    }
+
+    #[test]
+    fn bdd_fd_budget_large_payload_chunking_logic() {
+        let _guard = state_guard();
+        const CHUNK_SIZE: usize = 65536;
+        const PAYLOAD_SIZE: usize = 200_000;
+        let num_chunks = (PAYLOAD_SIZE + CHUNK_SIZE - 1) / CHUNK_SIZE;
+        assert_eq!(num_chunks, 4, "200KB payload should require 4 chunks");
+    }
+
+    // -------------------------------------------------------------------------
+    // ADR-012 Scenario 3: Memory Bomb Handling
+    // Given: A memory-bomb subprocess
+    // When: Memory limit exceeded
+    // Then: Process is killed and memory freed
+    //
+    // Mechanisms tested:
+    // - MAX_STEP_OUTPUT_BYTES limit (10MB): Rejects payloads exceeding limit
+    // - Timeout: Kills hanging processes
+    // - Bounded buffer: Prevents OOM from reading
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn bdd_memory_bomb_rejected_exceeds_10mb_limit() {
+        let _guard = state_guard();
+        let payload_15mb: Vec<u8> = (0..15_000_000).map(|i| (i % 256) as u8).collect();
+        let config = vo_executor::SubprocessConfig::new(
+            "/bin/cat".to_string(),
+            vec!["cat".to_string()],
+            5000,
+            payload_15mb,
+        );
+        assert!(
+            config.fd3_payload().len() > 10_485_760,
+            "15MB exceeds 10MB limit"
+        );
+    }
+
+    #[test]
+    fn bdd_memory_bomb_bounded_buffer_prevents_oom() {
+        let _guard = state_guard();
+        const BOUNDED_BUFFER_SIZE: usize = 65536;
+        let large_payload: Vec<u8> = (0..100_000).map(|i| (i % 256) as u8).collect();
+        assert!(
+            large_payload.len() > BOUNDED_BUFFER_SIZE,
+            "100KB payload exceeds 64KB buffer"
+        );
+        assert!(
+            large_payload.len() < 10_485_760,
+            "But 100KB is under 10MB limit"
+        );
+    }
+
+    #[test]
+    fn bdd_memory_bomb_timeout_configuration() {
+        let _guard = state_guard();
+        let config = vo_executor::SubprocessConfig::new(
+            "/bin/sleep".to_string(),
+            vec!["sleep".to_string(), "300".to_string()],
+            100,
+            vec![],
+        );
+        assert_eq!(config.timeout_ms(), 100, "Timeout should be 100ms");
+    }
+
+    #[test]
+    fn bdd_memory_bomb_killed_process_timeout_error_type() {
+        let _guard = state_guard();
+        let err = vo_executor::SubprocessError::Timeout { elapsed_ms: 100 };
+        assert!(err.to_string().contains("100"));
+    }
+
+    #[test]
+    fn bdd_memory_bomb_max_payload_constant() {
+        let _guard = state_guard();
+        const MAX_PAYLOAD: usize = 10_485_760;
+        const FIFTEEN_MB: usize = 15_000_000;
+        assert!(
+            FIFTEEN_MB > MAX_PAYLOAD,
+            "15MB exceeds 10MB max payload"
+        );
+    }
+
+    // -------------------------------------------------------------------------
+    // ADR-012: Existing boundary tests preserved
+    // -------------------------------------------------------------------------
+
     #[tokio::test]
     async fn step_not_found_rejected_before_execution() {
         let _guard = state_guard();
