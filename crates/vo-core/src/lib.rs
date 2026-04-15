@@ -44,7 +44,7 @@ pub use exact_once_verification::harness::{
 };
 pub use exact_once_verification::macros::CrashError;
 pub mod quadtree;
-pub mod recovery;
+pub mod shedding;
 pub mod replay;
 pub mod resource_quota;
 pub mod segment_tree;
@@ -64,3 +64,5 @@ pub mod shedding_verification;
 
 #[cfg(test)]
 mod invalid_business_data_tests;
+#[cfg(test)]
+mod shedding_tests;

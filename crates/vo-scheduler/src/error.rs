@@ -38,7 +38,7 @@ pub enum RetryExhaustedError {
 
 impl SchedulerError {
     pub fn is_transient(&self) -> bool {
-        matches!(self, Self::SerializationError(_))
+        matches!(self, Self::SerializationError(_) | Self::QueueFull)
     }
 
     pub fn is_permanent(&self) -> bool {
@@ -48,6 +48,10 @@ impl SchedulerError {
 
 impl ExecutionError {
     pub fn is_retryable(&self) -> bool {
+        matches!(self, Self::ResourceExhausted)
+    }
+
+    pub fn is_transient(&self) -> bool {
         matches!(self, Self::ResourceExhausted)
     }
 }
