@@ -568,3 +568,207 @@ fn ready_nodes_always_edges_ready_after_any_outcome() {
     );
     assert!(ready_failure.contains(&NodeName("b".into())));
 }
+
+// ============================================================================
+// DependencyGraphResolver: edge cases
+// ============================================================================
+
+// DGR-25: Self-dependency is treated as cycle (returns empty)
+#[test]
+fn transitive_dependencies_self_reference_returns_empty() {
+    // a -> a (self-dependency)
+    let workflow = make_workflow(
+        "self-dep",
+        vec![("a", 1, 0, 1.0)],
+        vec![("a", "a", EdgeCondition::Always)],
+    );
+
+    let result = DependencyGraphResolver::transitive_dependencies(&workflow, &NodeName("a".into()));
+    assert!(
+        result.is_empty(),
+        "Self-dependency should return empty (cycle signal)"
+    );
+}
+
+// DGR-26: Node with no edges is its own layer
+#[test]
+fn execution_layers_no_dependencies() {
+    // a, b, c with no edges between them
+    let workflow = make_workflow(
+        "no-deps",
+        vec![("a", 1, 0, 1.0), ("b", 1, 0, 1.0), ("c", 1, 0, 1.0)],
+        vec![],
+    );
+
+    let layers = DependencyGraphResolver::execution_layers(&workflow);
+    assert_eq!(layers.len(), 1, "All nodes should be in single layer");
+    assert_eq!(layers[0].len(), 3, "All 3 nodes in layer 0");
+}
+
+// DGR-27: Ready nodes with no dependencies and no completed nodes
+#[test]
+fn ready_nodes_all_ready_when_no_dependencies() {
+    let workflow = make_workflow("no-deps", vec![("a", 1, 0, 1.0), ("b", 1, 0, 1.0)], vec![]);
+
+    let ready = DependencyGraphResolver::ready_nodes(&workflow, &[]);
+    assert_eq!(ready.len(), 2, "Both nodes should be ready");
+}
+
+// DGR-28: transitive_dependents returns empty for leaf node
+#[test]
+fn transitive_dependents_leaf_node() {
+    // a -> b -> c (c is leaf)
+    let workflow = make_workflow(
+        "leaf-test",
+        vec![("a", 1, 0, 1.0), ("b", 1, 0, 1.0), ("c", 1, 0, 1.0)],
+        vec![
+            ("a", "b", EdgeCondition::Always),
+            ("b", "c", EdgeCondition::Always),
+        ],
+    );
+
+    let dependents =
+        DependencyGraphResolver::transitive_dependents(&workflow, &NodeName("c".into()));
+    assert!(dependents.is_empty(), "Leaf node 'c' has no dependents");
+}
+
+// ============================================================================
+// DependencyGraphResolver: proptest for random DAGs
+// ============================================================================
+
+#[cfg(feature = "proptest")]
+mod proptest_tests {
+    use super::*;
+    use proptest::prelude::*;
+
+    fn is_valid_topological_order(workflow: &WorkflowDefinition, order: &[NodeName]) -> bool {
+        let order_pos: std::collections::HashMap<&NodeName, usize> =
+            order.iter().enumerate().map(|(i, n)| (n, i)).collect();
+
+        for edge in &workflow.edges {
+            let src_pos = *order_pos.get(&edge.source_node).unwrap();
+            let dst_pos = *order_pos.get(&edge.target_node).unwrap();
+            if src_pos >= dst_pos {
+                return false;
+            }
+        }
+        true
+    }
+
+    fn dag_strat() -> impl Strategy<Value = (Vec<(&str, u8, u64, f64)>, Vec<(&str, &str)>)> {
+        // Generate 1-6 nodes
+        let node_count = 1..=6u8;
+        node_count.prop_flat_map(|n| {
+            let nodes: Vec<(&str, u8, u64, f64)> = (0..n)
+                .map(|i| {
+                    let name = match i {
+                        0 => "a",
+                        1 => "b",
+                        2 => "c",
+                        3 => "d",
+                        4 => "e",
+                        5 => "f",
+                        _ => "x",
+                    };
+                    (name, 1, 0, 1.0)
+                })
+                .collect();
+
+            // Generate 0 to n*(n-1)/4 edges (sparse graph)
+            let max_edges = (n as usize * (n as usize - 1)) / 4;
+            let edge_count = 0..=max_edges.max(1);
+
+            edge_count.prop_flat_map(move |ec| {
+                let available: Vec<(&str, &str)> = nodes
+                    .iter()
+                    .enumerate()
+                    .flat_map(|(i, (src, _, _, _))| {
+                        nodes
+                            .iter()
+                            .skip(i + 1)
+                            .map(move |(dst, _, _, _)| (*src, *dst))
+                            .collect::<Vec<_>>()
+                    })
+                    .collect();
+
+                prop::sample::subsequence(available, ec.min(available.len()))
+                    .prop_map(move |edges| (nodes.clone(), edges))
+            })
+        })
+    }
+
+    proptest! {
+        #[test]
+        fn prop_topological_sort_produces_valid_order((nodes, edges) in dag_strat()) {
+            // Build workflow - skip if edges create obvious cycles
+            let workflow = make_workflow(
+                "prop-test",
+                nodes.clone(),
+                edges.into_iter().map(|(s, t)| (s, t, EdgeCondition::Always)).collect(),
+            );
+
+            // Get execution layers and flatten to total order
+            let layers = DependencyGraphResolver::execution_layers(&workflow);
+            if layers.is_empty() {
+                return Ok(());
+            }
+
+            let order: Vec<NodeName> = layers.iter().flatten().cloned().collect();
+
+            // Every node should appear exactly once
+            prop_assert_eq!(order.len(), nodes.len(), "Each node appears once");
+
+            // Check all nodes are present
+            for (name, _, _, _) in &nodes {
+                prop_assert!(
+                    order.contains(&NodeName((*name).into())),
+                    "Node {} should be in order",
+                    name
+                );
+            }
+
+            // Verify topological order is valid
+            prop_assert!(
+                is_valid_topological_order(&workflow, &order),
+                "Order {:?} should be topologically valid",
+                order
+            );
+        }
+
+        #[test]
+        fn prop_execution_layers_cover_all_nodes((nodes, edges) in dag_strat()) {
+            let workflow = make_workflow(
+                "prop-test",
+                nodes.clone(),
+                edges.into_iter().map(|(s, t)| (s, t, EdgeCondition::Always)).collect(),
+            );
+
+            let layers = DependencyGraphResolver::execution_layers(&workflow);
+            let all_nodes: Vec<NodeName> = layers.iter().flatten().cloned().collect();
+
+            prop_assert_eq!(
+                all_nodes.len(),
+                nodes.len(),
+                "All {} nodes should appear in layers",
+                nodes.len()
+            );
+        }
+
+        #[test]
+        fn prop_ready_nodes_all_dependencies_must_be_completed((nodes, edges) in dag_strat()) {
+            let workflow = make_workflow(
+                "prop-test",
+                nodes.clone(),
+                edges.into_iter().map(|(s, t)| (s, t, EdgeCondition::Always)).collect(),
+            );
+
+            // If we complete all nodes, ready should be empty
+            let all_node_names: Vec<NodeName> = nodes.iter().map(|(n, _, _, _)| NodeName((*n).into())).collect();
+            let ready = DependencyGraphResolver::ready_nodes(&workflow, &all_node_names);
+            prop_assert!(
+                ready.is_empty(),
+                "When all nodes completed, ready should be empty"
+            );
+        }
+    }
+}

@@ -5004,7 +5004,6 @@ version = "0.1.0"
 dependencies = [
  "criterion",
  "dashmap",
- "fjall",
  "glob",
  "notify",
  "proptest",
@@ -5014,7 +5013,6 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.18",
  "tokio",
- "vo-storage",
  "vo-types",
 ]
 
