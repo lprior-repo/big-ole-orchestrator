@@ -51,6 +51,41 @@ pub enum JobKind {
     Delayed,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[repr(u8)]
+pub enum JobState {
+    Scheduled = 0,
+    Pending = 1,
+    Running = 2,
+    Completed = 3,
+    Failed = 4,
+    Cancelled = 5,
+    Retrying = 6,
+}
+
+impl JobState {
+    pub fn from_u8(val: u8) -> Option<Self> {
+        match val {
+            0 => Some(Self::Scheduled),
+            1 => Some(Self::Pending),
+            2 => Some(Self::Running),
+            3 => Some(Self::Completed),
+            4 => Some(Self::Failed),
+            5 => Some(Self::Cancelled),
+            6 => Some(Self::Retrying),
+            _ => None,
+        }
+    }
+
+    pub fn is_terminal(self) -> bool {
+        matches!(self, Self::Completed | Self::Failed | Self::Cancelled)
+    }
+
+    pub fn is_retryable(self) -> bool {
+        matches!(self, Self::Failed | Self::Retrying)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SchedulePolicy {
     At(chrono::DateTime<chrono::Utc>),
@@ -287,5 +322,39 @@ mod tests {
         assert_eq!(JobPriority::from_u8(3), Some(JobPriority::Low));
         assert_eq!(JobPriority::from_u8(4), Some(JobPriority::Background));
         assert_eq!(JobPriority::from_u8(5), None);
+    }
+
+    #[test]
+    fn job_state_from_u8_returns_correct_variants() {
+        assert_eq!(JobState::from_u8(0), Some(JobState::Scheduled));
+        assert_eq!(JobState::from_u8(1), Some(JobState::Pending));
+        assert_eq!(JobState::from_u8(2), Some(JobState::Running));
+        assert_eq!(JobState::from_u8(3), Some(JobState::Completed));
+        assert_eq!(JobState::from_u8(4), Some(JobState::Failed));
+        assert_eq!(JobState::from_u8(5), Some(JobState::Cancelled));
+        assert_eq!(JobState::from_u8(6), Some(JobState::Retrying));
+        assert_eq!(JobState::from_u8(7), None);
+    }
+
+    #[test]
+    fn job_state_is_terminal() {
+        assert!(!JobState::Scheduled.is_terminal());
+        assert!(!JobState::Pending.is_terminal());
+        assert!(!JobState::Running.is_terminal());
+        assert!(JobState::Completed.is_terminal());
+        assert!(JobState::Failed.is_terminal());
+        assert!(JobState::Cancelled.is_terminal());
+        assert!(!JobState::Retrying.is_terminal());
+    }
+
+    #[test]
+    fn job_state_is_retryable() {
+        assert!(!JobState::Scheduled.is_retryable());
+        assert!(!JobState::Pending.is_retryable());
+        assert!(!JobState::Running.is_retryable());
+        assert!(!JobState::Completed.is_retryable());
+        assert!(JobState::Failed.is_retryable());
+        assert!(!JobState::Cancelled.is_retryable());
+        assert!(JobState::Retrying.is_retryable());
     }
 }
