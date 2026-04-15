@@ -106,8 +106,6 @@ pub fn apply(state: &LeaseState, transition: LeaseTransition) -> Result<LeaseSta
             },
         ) => {
             if is_expired(*expires_at_ms, now_ms) {
-                let expires_at = calc_expires(now_ms, /* ttl from acquire */ 0)?;
-                let _ = expires_at;
                 Err(LeaseError::InvalidTransition)
             } else if *holder == requester {
                 Err(LeaseError::AlreadyHeld {
