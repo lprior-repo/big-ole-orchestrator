@@ -26,7 +26,6 @@ proptest = { workspace = true, optional = true }
 [dev-dependencies]
 vo-core = { path = "../vo-core" }
 proptest.workspace = true
-ulid = { workspace = true }
 criterion = { workspace = true }
 
 [[bench]]

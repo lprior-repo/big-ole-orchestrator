@@ -33,12 +33,10 @@ metrics = { workspace = true }
 [dev-dependencies]
 proptest = { workspace = true }
 tempfile = { workspace = true }
-thiserror = { workspace = true }
 rstest = { workspace = true }
 ulid = { workspace = true }
 vo-core = { workspace = true }
 criterion = { workspace = true }
-metrics = { workspace = true }
 metrics-util = "0.18"
 serial_test = "3"
 

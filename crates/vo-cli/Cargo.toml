@@ -29,7 +29,6 @@ libc = "0.2.184"
 proptest = "1.4"
 rstest = "0.18"
 tempfile = { workspace = true }
-sha2 = "0.10"
 criterion = { workspace = true }
 
 [[bench]]
