@@ -33,3 +33,6 @@ mod tests_lease;
 
 #[cfg(feature = "proptest")]
 mod tests_proptest;
+
+#[cfg(test)]
+mod tests_bdd_lifecycle;
