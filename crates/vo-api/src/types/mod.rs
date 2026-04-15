@@ -17,6 +17,8 @@ pub mod v3;
 #[cfg(test)]
 mod security_validation_tests;
 #[cfg(test)]
+mod v1_test;
+#[cfg(test)]
 mod v3_test;
 
 pub use errors::*;

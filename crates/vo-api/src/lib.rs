@@ -70,9 +70,6 @@ mod lib_tests {
         assert!(json.contains(r#""instance_id":"inst-1""#));
         assert!(json.contains(r#""total_replayed":0"#));
     }
-}
-
-    // --- HistoryEntry tests ---
 
     #[test]
     fn history_entry_serializes_step_fields() {
@@ -106,8 +103,6 @@ mod lib_tests {
         assert!(!json.contains("output"));
     }
 
-    // --- EffectSemantics tests ---
-
     #[test]
     fn effect_semantics_exact_serializes_lowercase() {
         assert_eq!(serde_json::to_string(&crate::types::v3::EffectSemantics::Exact).unwrap(), r#""exact""#);
@@ -127,8 +122,6 @@ mod lib_tests {
         }
     }
 
-    // --- EffectJournalEntry tests ---
-
     #[test]
     fn effect_journal_entry_serializes_with_semantics() {
         let entry = crate::types::v3::EffectJournalEntry {
@@ -141,8 +134,6 @@ mod lib_tests {
         let json = serde_json::to_string(&entry).unwrap();
         assert!(json.contains(r#""semantics":"exact""#));
     }
-
-    // --- WorkflowVersionResponse tests ---
 
     #[test]
     fn workflow_version_response_serializes() {
@@ -172,3 +163,4 @@ mod lib_tests {
         assert!(json.contains(r#""last_sequence":null"#));
         assert!(json.contains(r#""last_timestamp_ms":null"#));
     }
+}
