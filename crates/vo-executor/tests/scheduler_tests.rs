@@ -3,6 +3,270 @@
 // Tests marked FAILING are not yet passing - implementation incomplete
 
 #[cfg(test)]
+mod scheduler_retry_policy_tests {
+    use std::time::Duration;
+    use vo_executor::scheduler::RetryPolicy;
+
+    // =========================================================================
+    // Section 1: RetryPolicy Construction Tests
+    // =========================================================================
+
+    #[test]
+    fn retry_policy_new_valid() {
+        let policy = RetryPolicy::new(3, Duration::from_millis(100), 2.0).unwrap();
+        assert_eq!(policy.max_attempts(), 3);
+        assert_eq!(policy.initial_delay(), Duration::from_millis(100));
+        assert!((policy.backoff_multiplier() - 2.0).abs() < f64::EPSILON);
+        assert_eq!(policy.max_delay(), Duration::MAX);
+    }
+
+    #[test]
+    fn retry_policy_new_zero_attempts_rejects() {
+        let result = RetryPolicy::new(0, Duration::from_millis(100), 2.0);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn retry_policy_new_nan_multiplier_rejects() {
+        let result = RetryPolicy::new(3, Duration::from_millis(100), f64::NAN);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn retry_policy_new_infinity_multiplier_rejects() {
+        let result = RetryPolicy::new(3, Duration::from_millis(100), f64::INFINITY);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn retry_policy_new_multiplier_below_one_rejects() {
+        let result = RetryPolicy::new(3, Duration::from_millis(100), 0.99);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn retry_policy_new_multiplier_exactly_one_ok() {
+        let result = RetryPolicy::new(3, Duration::from_millis(100), 1.0);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn retry_policy_with_max_delay_valid() {
+        let policy =
+            RetryPolicy::with_max_delay(5, Duration::from_millis(100), 2.0, Duration::from_secs(5))
+                .unwrap();
+        assert_eq!(policy.max_attempts(), 5);
+        assert_eq!(policy.max_delay(), Duration::from_secs(5));
+    }
+
+    #[test]
+    fn retry_policy_with_max_delay_equal_to_initial_ok() {
+        let policy =
+            RetryPolicy::with_max_delay(3, Duration::from_millis(100), 2.0, Duration::from_millis(100))
+                .unwrap();
+        assert_eq!(policy.max_delay(), Duration::from_millis(100));
+    }
+
+    #[test]
+    fn retry_policy_with_max_delay_less_than_initial_rejects() {
+        let result = RetryPolicy::with_max_delay(
+            3,
+            Duration::from_millis(100),
+            2.0,
+            Duration::from_millis(50),
+        );
+        assert!(result.is_err());
+    }
+
+    // =========================================================================
+    // Section 2: Backoff Calculation Tests
+    // =========================================================================
+
+    #[test]
+    fn calculate_backoff_delay_attempt_zero_returns_zero() {
+        let policy = RetryPolicy::new(3, Duration::from_millis(100), 2.0).unwrap();
+        assert_eq!(policy.calculate_backoff_delay(0), Duration::ZERO);
+    }
+
+    #[test]
+    fn calculate_backoff_delay_zero_initial_returns_zero() {
+        let policy = RetryPolicy::new(3, Duration::ZERO, 2.0).unwrap();
+        assert_eq!(policy.calculate_backoff_delay(1), Duration::ZERO);
+        assert_eq!(policy.calculate_backoff_delay(5), Duration::ZERO);
+    }
+
+    #[test]
+    fn calculate_backoff_delay_linear_multiplier_one() {
+        let policy = RetryPolicy::new(10, Duration::from_millis(100), 1.0).unwrap();
+        assert_eq!(policy.calculate_backoff_delay(1), Duration::from_millis(100));
+        assert_eq!(policy.calculate_backoff_delay(5), Duration::from_millis(100));
+        assert_eq!(policy.calculate_backoff_delay(10), Duration::from_millis(100));
+    }
+
+    #[test]
+    fn calculate_backoff_delay_exponential() {
+        let policy = RetryPolicy::new(10, Duration::from_millis(100), 2.0).unwrap();
+        assert_eq!(policy.calculate_backoff_delay(1), Duration::from_millis(100));
+        assert_eq!(policy.calculate_backoff_delay(2), Duration::from_millis(200));
+        assert_eq!(policy.calculate_backoff_delay(3), Duration::from_millis(400));
+        assert_eq!(policy.calculate_backoff_delay(4), Duration::from_millis(800));
+        assert_eq!(policy.calculate_backoff_delay(5), Duration::from_millis(1600));
+    }
+
+    #[test]
+    fn calculate_backoff_delay_capped_at_max_delay() {
+        let policy = RetryPolicy::with_max_delay(
+            10,
+            Duration::from_millis(100),
+            10.0,
+            Duration::from_millis(500),
+        )
+        .unwrap();
+        assert_eq!(policy.calculate_backoff_delay(1), Duration::from_millis(100));
+        assert_eq!(policy.calculate_backoff_delay(2), Duration::from_millis(500));
+        assert_eq!(policy.calculate_backoff_delay(3), Duration::from_millis(500));
+    }
+
+    #[test]
+    fn calculate_backoff_delay_exponential_with_small_multiplier() {
+        let policy =
+            RetryPolicy::with_max_delay(5, Duration::from_secs(1), 1.5, Duration::from_secs(10))
+                .unwrap();
+        assert_eq!(policy.calculate_backoff_delay(1), Duration::from_secs(1));
+        assert_eq!(policy.calculate_backoff_delay(2), Duration::from_secs(1)); // 1 * 1.5 = 1.5 -> truncates
+        assert_eq!(policy.calculate_backoff_delay(3), Duration::from_secs(2));
+    }
+
+    // =========================================================================
+    // Section 3: Max Delay Clamp Tests
+    // =========================================================================
+
+    #[test]
+    fn max_delay_clamp_prevents_exponential_overflow() {
+        let policy =
+            RetryPolicy::with_max_delay(10, Duration::from_secs(1), 2.0, Duration::from_secs(30))
+                .unwrap();
+        assert_eq!(policy.calculate_backoff_delay(1), Duration::from_secs(1));
+        assert_eq!(policy.calculate_backoff_delay(2), Duration::from_secs(2));
+        assert_eq!(policy.calculate_backoff_delay(3), Duration::from_secs(4));
+        assert_eq!(policy.calculate_backoff_delay(4), Duration::from_secs(8));
+        assert_eq!(policy.calculate_backoff_delay(5), Duration::from_secs(16));
+        assert_eq!(policy.calculate_backoff_delay(6), Duration::from_secs(30)); // clamped
+        assert_eq!(policy.calculate_backoff_delay(7), Duration::from_secs(30)); // clamped
+    }
+
+    #[test]
+    fn max_delay_very_large_value_allows_full_exponential() {
+        let policy = RetryPolicy::new(5, Duration::from_millis(100), 2.0).unwrap();
+        assert_eq!(policy.calculate_backoff_delay(1), Duration::from_millis(100));
+        assert_eq!(policy.calculate_backoff_delay(2), Duration::from_millis(200));
+        assert_eq!(policy.calculate_backoff_delay(3), Duration::from_millis(400));
+        assert_eq!(policy.calculate_backoff_delay(4), Duration::from_millis(800));
+    }
+
+    #[test]
+    fn max_delay_exactly_at_exponential_result() {
+        let policy =
+            RetryPolicy::with_max_delay(3, Duration::from_millis(100), 2.0, Duration::from_millis(200))
+                .unwrap();
+        assert_eq!(policy.calculate_backoff_delay(1), Duration::from_millis(100));
+        assert_eq!(policy.calculate_backoff_delay(2), Duration::from_millis(200)); // exactly at max
+        assert_eq!(policy.calculate_backoff_delay(3), Duration::from_millis(200)); // clamped
+    }
+
+    // =========================================================================
+    // Section 4: Retry Exhaustion Tests
+    // =========================================================================
+
+    #[test]
+    fn retry_exhaustion_single_attempt() {
+        let policy = RetryPolicy::new(1, Duration::from_millis(100), 2.0).unwrap();
+        assert_eq!(policy.max_attempts(), 1);
+        assert!(!policy.has_attempts_remaining(1));
+        assert!(policy.has_attempts_remaining(0));
+    }
+
+    #[test]
+    fn retry_exhaustion_three_attempts() {
+        let policy = RetryPolicy::new(3, Duration::from_millis(100), 2.0).unwrap();
+        assert!(policy.has_attempts_remaining(0));
+        assert!(policy.has_attempts_remaining(1));
+        assert!(policy.has_attempts_remaining(2));
+        assert!(!policy.has_attempts_remaining(3));
+    }
+
+    #[test]
+    fn retry_exhaustion_after_max_attempts() {
+        let policy = RetryPolicy::new(3, Duration::from_millis(100), 2.0).unwrap();
+        assert!(!policy.has_attempts_remaining(3));
+        assert!(!policy.has_attempts_remaining(4));
+        assert!(!policy.has_attempts_remaining(100));
+    }
+
+    #[test]
+    fn retry_exhaustion_with_different_delays() {
+        let policy = RetryPolicy::new(5, Duration::from_secs(1), 2.0).unwrap();
+        for attempt in 1..=5 {
+            let delay = policy.calculate_backoff_delay(attempt);
+            assert!(delay > Duration::ZERO);
+        }
+        assert!(!policy.has_attempts_remaining(5));
+    }
+
+    // =========================================================================
+    // Section 5: Edge Cases & Boundary Tests
+    // =========================================================================
+
+    #[test]
+    fn retry_policy_zero_initial_delay_with_multiplier() {
+        let policy = RetryPolicy::new(3, Duration::ZERO, 2.0).unwrap();
+        assert_eq!(policy.calculate_backoff_delay(1), Duration::ZERO);
+        assert_eq!(policy.calculate_backoff_delay(2), Duration::ZERO);
+        assert_eq!(policy.calculate_backoff_delay(3), Duration::ZERO);
+    }
+
+    #[test]
+    fn retry_policy_large_multiplier() {
+        let policy =
+            RetryPolicy::with_max_delay(5, Duration::from_millis(1), 100.0, Duration::from_secs(10))
+                .unwrap();
+        assert_eq!(policy.calculate_backoff_delay(1), Duration::from_millis(1));
+        assert_eq!(policy.calculate_backoff_delay(2), Duration::from_millis(100));
+        assert_eq!(policy.calculate_backoff_delay(3), Duration::from_secs(10)); // clamped
+    }
+
+    #[test]
+    fn retry_policy_max_attempts_u32_max() {
+        let policy = RetryPolicy::new(u32::MAX, Duration::from_millis(100), 1.0).unwrap();
+        assert_eq!(policy.max_attempts(), u32::MAX);
+    }
+
+    #[test]
+    fn retry_policy_zero_max_delay_effectively_disables_backoff() {
+        let policy =
+            RetryPolicy::with_max_delay(3, Duration::from_millis(100), 2.0, Duration::ZERO)
+                .unwrap();
+        assert_eq!(policy.calculate_backoff_delay(1), Duration::ZERO);
+        assert_eq!(policy.calculate_backoff_delay(2), Duration::ZERO);
+        assert_eq!(policy.calculate_backoff_delay(3), Duration::ZERO);
+    }
+
+    #[test]
+    fn retry_policy_very_small_max_delay() {
+        let policy = RetryPolicy::with_max_delay(
+            3,
+            Duration::from_millis(1000),
+            2.0,
+            Duration::from_millis(1),
+        )
+        .unwrap();
+        assert_eq!(policy.calculate_backoff_delay(1), Duration::from_millis(1));
+        assert_eq!(policy.calculate_backoff_delay(2), Duration::from_millis(1));
+        assert_eq!(policy.calculate_backoff_delay(3), Duration::from_millis(1));
+    }
+}
+
+#[cfg(test)]
 mod scheduler_unit_tests {
     use std::time::Duration;
     use vo_executor::scheduler::{JobRunError, SchedulerError};
