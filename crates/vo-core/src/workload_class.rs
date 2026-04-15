@@ -525,6 +525,394 @@ mod tests {
         assert!(msg.contains("UnsafeBulk"));
         assert!(msg.contains("budget exhausted"));
     }
+
+    // ── is_non_critical / is_protected ─────────────────────────────────────
+
+    #[test]
+    fn exact_critical_is_protected() {
+        assert!(WorkloadClass::ExactCritical.is_protected());
+        assert!(!WorkloadClass::ExactCritical.is_non_critical());
+    }
+
+    #[test]
+    fn recovery_is_protected() {
+        assert!(WorkloadClass::Recovery.is_protected());
+        assert!(!WorkloadClass::Recovery.is_non_critical());
+    }
+
+    #[test]
+    fn standard_is_non_critical() {
+        assert!(WorkloadClass::Standard.is_non_critical());
+        assert!(!WorkloadClass::Standard.is_protected());
+    }
+
+    #[test]
+    fn unsafe_bulk_is_non_critical() {
+        assert!(WorkloadClass::UnsafeBulk.is_non_critical());
+        assert!(!WorkloadClass::UnsafeBulk.is_protected());
+    }
+
+    // ── DegradedBudget ─────────────────────────────────────────────────────
+
+    #[test]
+    fn degraded_budget_starts_non_degraded() {
+        let budget = DegradedBudget::default_budget();
+        assert!(!budget.is_degraded());
+    }
+
+    #[test]
+    fn degraded_budget_enter_exits_degraded() {
+        let mut budget = DegradedBudget::default_budget();
+        assert!(!budget.is_degraded());
+        budget.enter_degraded();
+        assert!(budget.is_degraded());
+        budget.exit_degraded();
+        assert!(!budget.is_degraded());
+    }
+
+    #[test]
+    fn protected_class_admitted_during_degraded_mode() {
+        let budget = DegradedBudget::new(10, 0, 10, 0);
+        assert!(budget.can_acquire(WorkloadClass::ExactCritical));
+        assert!(budget.can_acquire(WorkloadClass::Recovery));
+    }
+
+    #[test]
+    fn non_critical_class_rejected_during_degraded_mode() {
+        let mut budget = DegradedBudget::new(10, 20, 10, 20);
+        budget.enter_degraded();
+        assert!(!budget.can_acquire(WorkloadClass::Standard));
+        assert!(!budget.can_acquire(WorkloadClass::UnsafeBulk));
+    }
+
+    #[test]
+    fn high_priority_class_admitted_during_degraded_mode() {
+        let mut budget = DegradedBudget::new(50, 200, 30, 20);
+        budget.enter_degraded();
+        assert!(budget.can_acquire(WorkloadClass::ExactCritical));
+        assert!(budget.can_acquire(WorkloadClass::Recovery));
+    }
+
+    #[test]
+    fn low_priority_class_rejected_during_degraded_mode() {
+        let mut budget = DegradedBudget::new(50, 200, 30, 20);
+        budget.enter_degraded();
+        assert!(!budget.can_acquire(WorkloadClass::Standard));
+        assert!(!budget.can_acquire(WorkloadClass::UnsafeBulk));
+    }
+
+    #[test]
+    fn acquire_protected_class_during_degraded_mode() {
+        let mut budget = DegradedBudget::new(10, 0, 10, 0);
+        budget.enter_degraded();
+        assert!(budget.acquire(WorkloadClass::ExactCritical).is_ok());
+        assert!(budget.acquire(WorkloadClass::Recovery).is_ok());
+    }
+
+    #[test]
+    fn acquire_non_critical_class_fails_during_degraded_mode() {
+        let mut budget = DegradedBudget::new(10, 20, 10, 20);
+        budget.enter_degraded();
+        let err = budget.acquire(WorkloadClass::Standard).unwrap_err();
+        assert!(matches!(
+            err,
+            WorkloadClassError::BudgetExceeded {
+                class: WorkloadClass::Standard,
+                ..
+            }
+        ));
+        let err = budget.acquire(WorkloadClass::UnsafeBulk).unwrap_err();
+        assert!(matches!(
+            err,
+            WorkloadClassError::BudgetExceeded {
+                class: WorkloadClass::UnsafeBulk,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn remaining_returns_zero_for_non_critical_when_degraded() {
+        let mut budget = DegradedBudget::new(10, 20, 10, 20);
+        budget.enter_degraded();
+        assert_eq!(budget.remaining(WorkloadClass::Standard), 0);
+        assert_eq!(budget.remaining(WorkloadClass::UnsafeBulk), 0);
+    }
+
+    #[test]
+    fn remaining_preserved_for_protected_when_degraded() {
+        let mut budget = DegradedBudget::new(10, 20, 10, 20);
+        budget.enter_degraded();
+        assert_eq!(budget.remaining(WorkloadClass::ExactCritical), 10);
+        assert_eq!(budget.remaining(WorkloadClass::Recovery), 10);
+    }
+
+    #[test]
+    fn degraded_budget_respects_inner_workload_budget_exhaustion() {
+        let mut budget = DegradedBudget::new(1, 0, 0, 0);
+        budget.acquire(WorkloadClass::ExactCritical).unwrap();
+        assert!(!budget.can_acquire(WorkloadClass::ExactCritical));
+        assert!(!budget.can_acquire(WorkloadClass::Standard));
+        budget.enter_degraded();
+        assert!(!budget.can_acquire(WorkloadClass::ExactCritical));
+        assert!(!budget.can_acquire(WorkloadClass::Standard));
+    }
+
+    #[test]
+    fn degraded_budget_default_has_sensible_values() {
+        let budget = DegradedBudget::default_budget();
+        assert!(budget.total_reserved() > 0);
+        assert!(!budget.is_degraded());
+        for class in WorkloadClass::all_by_priority() {
+            assert!(budget.inner().can_acquire(*class));
+        }
+    }
+
+    #[test]
+    fn release_works_normally_during_degraded_mode() {
+        let mut budget = DegradedBudget::new(10, 20, 10, 20);
+        budget.acquire(WorkloadClass::ExactCritical).unwrap();
+        budget.acquire(WorkloadClass::Recovery).unwrap();
+        budget.enter_degraded();
+        budget.release(WorkloadClass::ExactCritical);
+        budget.release(WorkloadClass::Recovery);
+        assert_eq!(budget.remaining(WorkloadClass::ExactCritical), 10);
+        assert_eq!(budget.remaining(WorkloadClass::Recovery), 10);
+    }
+
+    #[test]
+    fn high_priority_class_admitted_during_degraded_mode() {
+        let mut budget = DegradedBudget::new(50, 200, 30, 20);
+        budget.enter_degraded();
+        assert!(budget.can_acquire(WorkloadClass::ExactCritical));
+        assert!(budget.can_acquire(WorkloadClass::Recovery));
+    }
+
+    #[test]
+    fn low_priority_class_rejected_during_degraded_mode() {
+        let mut budget = DegradedBudget::new(50, 200, 30, 20);
+        budget.enter_degraded();
+        assert!(!budget.can_acquire(WorkloadClass::Standard));
+        assert!(!budget.can_acquire(WorkloadClass::UnsafeBulk));
+    }
+
+    #[test]
+    fn acquire_protected_class_during_degraded_mode() {
+        let mut budget = DegradedBudget::new(10, 0, 10, 0);
+        budget.enter_degraded();
+        assert!(budget.acquire(WorkloadClass::ExactCritical).is_ok());
+        assert!(budget.acquire(WorkloadClass::Recovery).is_ok());
+    }
+
+    #[test]
+    fn acquire_non_critical_class_fails_during_degraded_mode() {
+        let mut budget = DegradedBudget::new(10, 20, 10, 20);
+        budget.enter_degraded();
+        let err = budget.acquire(WorkloadClass::Standard).unwrap_err();
+        assert!(matches!(
+            err,
+            WorkloadClassError::BudgetExceeded {
+                class: WorkloadClass::Standard,
+                ..
+            }
+        ));
+        let err = budget.acquire(WorkloadClass::UnsafeBulk).unwrap_err();
+        assert!(matches!(
+            err,
+            WorkloadClassError::BudgetExceeded {
+                class: WorkloadClass::UnsafeBulk,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn remaining_returns_zero_for_non_critical_when_degraded() {
+        let mut budget = DegradedBudget::new(10, 20, 10, 20);
+        budget.enter_degraded();
+        assert_eq!(budget.remaining(WorkloadClass::Standard), 0);
+        assert_eq!(budget.remaining(WorkloadClass::UnsafeBulk), 0);
+    }
+
+    #[test]
+    fn remaining_preserved_for_protected_when_degraded() {
+        let mut budget = DegradedBudget::new(10, 20, 10, 20);
+        budget.enter_degraded();
+        assert_eq!(budget.remaining(WorkloadClass::ExactCritical), 10);
+        assert_eq!(budget.remaining(WorkloadClass::Recovery), 10);
+    }
+
+    #[test]
+    fn degraded_budget_respects_inner_workload_budget_exhaustion() {
+        let mut budget = DegradedBudget::new(1, 0, 0, 0);
+        budget.acquire(WorkloadClass::ExactCritical).unwrap();
+        assert!(!budget.can_acquire(WorkloadClass::ExactCritical));
+        assert!(!budget.can_acquire(WorkloadClass::Standard));
+        budget.enter_degraded();
+        assert!(!budget.can_acquire(WorkloadClass::ExactCritical));
+        assert!(!budget.can_acquire(WorkloadClass::Standard));
+    }
+
+    #[test]
+    fn degraded_budget_default_has_sensible_values() {
+        let budget = DegradedBudget::default_budget();
+        assert!(budget.total_reserved() > 0);
+        assert!(!budget.is_degraded());
+        for class in WorkloadClass::all_by_priority() {
+            assert!(budget.inner().can_acquire(*class));
+        }
+    }
+
+    #[test]
+    fn release_works_normally_during_degraded_mode() {
+        let mut budget = DegradedBudget::new(10, 20, 10, 20);
+        budget.acquire(WorkloadClass::ExactCritical).unwrap();
+        budget.acquire(WorkloadClass::Recovery).unwrap();
+        budget.enter_degraded();
+        budget.release(WorkloadClass::ExactCritical);
+        budget.release(WorkloadClass::Recovery);
+        assert_eq!(budget.remaining(WorkloadClass::ExactCritical), 10);
+        assert_eq!(budget.remaining(WorkloadClass::Recovery), 10);
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DegradedBudget — Degraded Mode Budget Restrictions (ADR-013)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Budget wrapper that enforces degraded-mode admission per ADR-013.
+///
+/// When degraded mode is active, non-critical workload classes are restricted:
+/// - `ExactCritical` and `Recovery` remain fully available (protected classes)
+/// - `Standard` and `UnsafeBulk` are blocked (non-critical classes)
+///
+/// # Invariants
+/// - `inner` is always valid (WorkloadBudget invariant preserved)
+/// - When `degraded` is `true`, only protected classes can acquire permits
+#[derive(Clone, Debug)]
+pub struct DegradedBudget {
+    inner: WorkloadBudget,
+    degraded: bool,
+}
+
+impl DegradedBudget {
+    /// Creates a new `DegradedBudget` with the given reserved permit counts.
+    #[must_use]
+    pub fn new(exact_critical: u32, standard: u32, recovery: u32, unsafe_bulk: u32) -> Self {
+        Self {
+            inner: WorkloadBudget::new(exact_critical, standard, recovery, unsafe_bulk),
+            degraded: false,
+        }
+    }
+
+    /// Creates a `DegradedBudget` with sensible defaults for a medium-scale deployment.
+    #[must_use]
+    pub fn default_budget() -> Self {
+        Self::new(50, 200, 30, 20)
+    }
+
+    /// Returns the current degraded mode status.
+    #[must_use]
+    pub fn is_degraded(&self) -> bool {
+        self.degraded
+    }
+
+    /// Enters degraded mode, restricting non-critical workload classes.
+    pub fn enter_degraded(&mut self) {
+        self.degraded = true;
+    }
+
+    /// Exits degraded mode, restoring normal admission for all classes.
+    pub fn exit_degraded(&mut self) {
+        self.degraded = false;
+    }
+
+    /// Returns whether a permit can be acquired for the given class.
+    ///
+    /// Returns `false` for non-critical classes (`Standard`, `UnsafeBulk`)
+    /// when degraded mode is active, regardless of remaining budget.
+    #[must_use]
+    pub fn can_acquire(&self, class: WorkloadClass) -> bool {
+        if self.degraded && class.is_non_critical() {
+            return false;
+        }
+        self.inner.can_acquire(class)
+    }
+
+    /// Acquires a permit for the given class.
+    ///
+    /// Returns an error if:
+    /// - The class is non-critical and degraded mode is active
+    /// - The class budget is exhausted
+    pub fn acquire(&self, class: WorkloadClass) -> Result<(), WorkloadClassError> {
+        if self.degraded && class.is_non_critical() {
+            return Err(WorkloadClassError::BudgetExceeded {
+                class,
+                requested: 1,
+                available: 0,
+            });
+        }
+        self.inner.acquire(class)
+    }
+
+    /// Releases a previously acquired permit.
+    pub fn release(&self, class: WorkloadClass) {
+        self.inner.release(class)
+    }
+
+    /// Returns remaining permits for a given class.
+    ///
+    /// Returns 0 for non-critical classes when degraded mode is active.
+    #[must_use]
+    pub fn remaining(&self, class: WorkloadClass) -> u32 {
+        if self.degraded && class.is_non_critical() {
+            return 0;
+        }
+        self.inner.remaining(class)
+    }
+
+    /// Returns the total reserved permits across all classes.
+    #[must_use]
+    pub fn total_reserved(&self) -> u32 {
+        self.inner.total_reserved()
+    }
+
+    /// Returns the total used permits across all classes.
+    #[must_use]
+    pub fn total_used(&self) -> u32 {
+        self.inner.total_used()
+    }
+
+    /// Returns the reserved permit count for a given class.
+    #[must_use]
+    pub fn reserved_for(&self, class: WorkloadClass) -> u32 {
+        self.inner.reserved_for(class)
+    }
+
+    /// Returns the inner budget for cases that need direct access.
+    #[must_use]
+    pub fn inner(&self) -> &WorkloadBudget {
+        &self.inner
+    }
+}
+
+impl WorkloadClass {
+    /// Returns `true` if this class is non-critical and subject to degraded-mode restrictions.
+    ///
+    /// Non-critical classes are `Standard` and `UnsafeBulk`.
+    /// Protected classes (`ExactCritical`, `Recovery`) are never restricted by degraded mode.
+    #[must_use]
+    pub fn is_non_critical(self) -> bool {
+        matches!(self, WorkloadClass::Standard | WorkloadClass::UnsafeBulk)
+    }
+
+    /// Returns `true` if this class is protected and always admitted during degraded mode.
+    ///
+    /// Protected classes are `ExactCritical` and `Recovery`.
+    #[must_use]
+    pub fn is_protected(self) -> bool {
+        !self.is_non_critical()
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
