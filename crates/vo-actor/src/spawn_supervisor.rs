@@ -255,14 +255,6 @@ impl SpawnSupervisorError {
     }
 
     #[must_use]
-    pub fn is_resumable(&self) -> bool {
-        matches!(
-            self,
-            Self::HealthCheckFailed { .. } | Self::ProcessExited { .. } | Self::SpawnFailed { .. }
-        )
-    }
-
-    #[must_use]
     pub fn is_fatal(&self) -> bool {
         matches!(
             self,

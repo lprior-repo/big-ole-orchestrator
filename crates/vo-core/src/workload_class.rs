@@ -44,7 +44,6 @@ pub enum WorkloadClassError {
 /// behavior. Classes are ordered by dispatch priority: lower rank = higher priority.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-#[derive(Default)]
 pub enum WorkloadClass {
     /// Highest priority. Never starved by lower classes.
     ExactCritical,

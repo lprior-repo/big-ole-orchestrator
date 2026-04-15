@@ -56,11 +56,6 @@ pub mod workload_class;
 pub mod workspace_swap;
 pub mod write_class;
 
-pub use validation::{
-    UnsupportedSinkError, WorkflowSinkValidator, validate_effect_kinds,
-    validate_workflow_effects, validate_workflow_sinks,
-};
-
 #[cfg(kani)]
 pub mod write_class_verification;
 #[cfg(kani)]
@@ -68,7 +63,3 @@ pub mod shedding_verification;
 
 #[cfg(test)]
 mod invalid_business_data_tests;
-
-mod execution;
-#[cfg(test)]
-mod execution::publication_barrier_tests;
