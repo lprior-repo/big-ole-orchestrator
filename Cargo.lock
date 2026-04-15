@@ -5556,6 +5556,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "vo-scheduler"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "chrono",
+ "proptest",
+ "rstest 0.23.0",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+ "tokio",
+ "ulid",
+ "vo-types",
+]
+
+[[package]]
 name = "vo-sdk"
 version = "0.1.0"
 dependencies = [
