@@ -372,7 +372,7 @@ mod tests {
         let instance_id = valid_instance_id();
         let wait_key = WaitKey::parse("approval").expect("valid key");
 
-        let mut signal = SignalAddress::epoch_local(
+        let _signal = SignalAddress::epoch_local(
             lineage_id.clone(),
             Epoch::ZERO,
             instance_id.clone(),
