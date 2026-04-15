@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 
 use crate::error::SchedulerError;
 use crate::job::ScheduledJob;
-use crate::types::{JobId, JobPriority, JobState, SchedulePolicy};
+use crate::types::{JobId, JobKind, JobPriority, JobState, SchedulePolicy};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct QueueEntry {
@@ -44,23 +44,35 @@ impl SchedulerQueue {
     }
 
     pub fn insert(&mut self, job: ScheduledJob) -> Result<JobId, SchedulerError> {
-        let _ = (&mut self.heap, &mut self.jobs, &mut self.capacity, &job);
-        todo!("TDD-RED: insert not yet implemented")
+        if self.jobs.len() >= self.capacity {
+            return Err(SchedulerError::QueueFull);
+        }
+        let job_id = job.id;
+        let entry = QueueEntry {
+            priority: job.priority,
+            due_at: job.due_at,
+            job_id,
+        };
+        self.heap.push(entry);
+        self.jobs.insert(job_id, job);
+        Ok(job_id)
     }
 
     pub fn remove(&mut self, job_id: &JobId) -> Result<ScheduledJob, SchedulerError> {
-        let _ = (&mut self.heap, &mut self.jobs, job_id);
-        todo!("TDD-RED: remove not yet implemented")
+        let job = self
+            .jobs
+            .remove(job_id)
+            .ok_or(SchedulerError::JobNotFound)?;
+        self.heap.retain(|entry| &entry.job_id != job_id);
+        Ok(job)
     }
 
     pub fn lookup(&self, job_id: &JobId) -> Result<&ScheduledJob, SchedulerError> {
-        let _ = (&self.jobs, job_id);
-        todo!("TDD-RED: lookup not yet implemented")
+        self.jobs.get(job_id).ok_or(SchedulerError::JobNotFound)
     }
 
     pub fn lookup_mut(&mut self, job_id: &JobId) -> Result<&mut ScheduledJob, SchedulerError> {
-        let _ = (&mut self.jobs, &mut self.heap, job_id);
-        todo!("TDD-RED: lookup_mut not yet implemented")
+        self.jobs.get_mut(job_id).ok_or(SchedulerError::JobNotFound)
     }
 
     pub fn update_state(
@@ -68,8 +80,12 @@ impl SchedulerQueue {
         job_id: &JobId,
         new_state: JobState,
     ) -> Result<(), SchedulerError> {
-        let _ = (&mut self.jobs, &mut self.heap, job_id, new_state);
-        todo!("TDD-RED: update_state not yet implemented")
+        let job = self
+            .jobs
+            .get_mut(job_id)
+            .ok_or(SchedulerError::JobNotFound)?;
+        job.transition(new_state)?;
+        Ok(())
     }
 
     pub fn update_schedule(
@@ -77,8 +93,24 @@ impl SchedulerQueue {
         job_id: &JobId,
         new_schedule: SchedulePolicy,
     ) -> Result<(), SchedulerError> {
-        let _ = (&mut self.jobs, &mut self.heap, job_id, &new_schedule);
-        todo!("TDD-RED: update_schedule not yet implemented")
+        let job = self
+            .jobs
+            .get_mut(job_id)
+            .ok_or(SchedulerError::JobNotFound)?;
+        if matches!(job.state, JobState::Running | JobState::Completed) {
+            return Err(SchedulerError::InvalidTransition);
+        }
+        job.schedule_policy = new_schedule;
+        match new_schedule {
+            SchedulePolicy::At(t) => job.due_at = t,
+            SchedulePolicy::After(d) => {
+                job.due_at = Utc::now() + chrono::Duration::from_std(*d).unwrap_or_default()
+            }
+            SchedulePolicy::Immediate => job.due_at = Utc::now(),
+            SchedulePolicy::Cron(_) => job.due_at = Utc::now(),
+        }
+        self.rebuild_heap_entry(job_id);
+        Ok(())
     }
 
     pub fn len(&self) -> usize {
@@ -90,12 +122,39 @@ impl SchedulerQueue {
     }
 
     pub fn pop_due(&mut self, now: DateTime<Utc>) -> Option<ScheduledJob> {
-        let _ = (&mut self.heap, &mut self.jobs, now);
-        todo!("TDD-RED: pop_due not yet implemented")
+        loop {
+            let entry = self.heap.peek()?.clone();
+            if entry.due_at > now {
+                return None;
+            }
+            self.heap.pop();
+            if let Some(job) = self.jobs.get(&entry.job_id) {
+                if job.due_at <= now {
+                    self.jobs.remove(&entry.job_id);
+                    return Some(job.clone());
+                }
+            }
+        }
     }
 
     pub fn cancel(&mut self, job_id: &JobId) -> Result<(), SchedulerError> {
-        let _ = (&mut self.jobs, &mut self.heap, job_id);
-        todo!("TDD-RED: cancel not yet implemented")
+        let job = self.jobs.get(job_id).ok_or(SchedulerError::JobNotFound)?;
+        if matches!(job.state, JobState::Completed | JobState::Failed) {
+            return Err(SchedulerError::InvalidTransition);
+        }
+        let mut job_mut = self.jobs.get_mut(job_id).unwrap();
+        job_mut.transition(JobState::Cancelled)
+    }
+
+    fn rebuild_heap_entry(&mut self, job_id: &JobId) {
+        self.heap.retain(|entry| &entry.job_id != job_id);
+        if let Some(job) = self.jobs.get(job_id) {
+            let entry = QueueEntry {
+                priority: job.priority,
+                due_at: job.due_at,
+                job_id: *job_id,
+            };
+            self.heap.push(entry);
+        }
     }
 }
