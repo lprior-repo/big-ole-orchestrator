@@ -1,0 +1,12 @@
+{
+  "session_id": "63d66790-afa4-4428-8fe7-fb499215b54d",
+  "transcript_path": "/home/lewis/.claude/projects/-home-lewis-gt-veloxide-polecats-shiny-veloxide/63d66790-afa4-4428-8fe7-fb499215b54d.jsonl",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Edit",
+  "tool_input": {
+    "file_path": "/home/lewis/gt/veloxide/polecats/shiny/veloxide/crates/vo-types/src/workflow/guarantee_class.rs",
+    "old_string": "    #[test]\n    fn guarantee_class_exact_once_serializes_to_snake_case() {\n        let json = serde_json::to_string(&GuaranteeClass::ExactOnce).unwrap();\n        assert_eq!(json, \"\\\"exact_once\\\"\");\n    }\n}",
+    "new_string": "    #[test]\n    fn guarantee_class_exact_once_serializes_to_snake_case() {\n        let json = serde_json::to_string(&GuaranteeClass::ExactOnce).unwrap();\n        assert_eq!(json, \"\\\"exact_once\\\"\");\n    }\n\n    #[test]\n    fn guarantee_class_at_least_once_serializes_to_snake_case() {\n        let json = serde_json::to_string(&GuaranteeClass::AtLeastOnce).unwrap();\n        assert_eq!(json, \"\\\"at_least_once\\\"\");\n    }\n}",
+    "replace_all": false
+  }
+}
