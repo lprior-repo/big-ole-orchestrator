@@ -1,4 +1,6 @@
 mod binomial_heap;
+#[cfg(test)]
+mod blob_tests;
 mod blob;
 mod btree;
 pub mod cartesian_tree;
@@ -9,12 +11,16 @@ pub mod command_metadata;
 mod compensation;
 pub mod connection_pool;
 mod connector;
+#[cfg(test)]
+mod credentials_tests;
 pub mod credentials;
 mod dedupe;
 #[cfg(test)]
 mod dedupe_tests;
 mod dependency_graph_resolver;
 pub mod discovery;
+#[cfg(test)]
+mod dual_representation_tests;
 mod dual_representation;
 mod effects;
 mod encryption;
@@ -149,6 +155,9 @@ pub use workflow::{
     next_nodes, DagNode, Edge, EdgeCondition, RetryPolicy, RetryPolicyError, StepOutcome,
     WorkflowDefinition, WorkflowDefinitionError,
 };
+
+#[cfg(kani)]
+mod kani_proofs;
 
 #[cfg(test)]
 mod adversarial_tests;

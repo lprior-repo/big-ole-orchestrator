@@ -25,11 +25,15 @@
 
 pub mod append;
 pub mod blob_store;
+#[cfg(test)]
+mod blob_store_tests;
 pub mod budget_saga;
 pub mod checksum;
 pub mod codec;
 pub mod compensation_saga;
 pub mod crypto;
+#[cfg(test)]
+mod crypto_tests;
 pub mod dedupe_partition;
 pub mod effect_journal;
 pub mod fs_store;
