@@ -1,8 +1,10 @@
 //! Priority queue for job scheduling
+//!
+//! SchedulerQueue aligns to ADR-047 with HashMap<JobId, JobState> tracking.
 
-use crate::scheduler::types::{Job, JobId};
+use crate::scheduler::types::{Job, JobId, JobState};
 use std::cmp::Ordering;
-use std::collections::BinaryHeap;
+use std::collections::{BinaryHeap, HashMap};
 
 #[derive(Debug, Clone)]
 struct QueuedJob {
@@ -136,6 +138,75 @@ impl PriorityQueue {
         self.heap.into_iter().map(|qj| qj.job).collect()
     }
 }
+
+#[derive(Debug)]
+pub struct SchedulerQueue {
+    jobs: PriorityQueue,
+    by_id: HashMap<JobId, JobState>,
+}
+
+impl SchedulerQueue {
+    pub fn new() -> Self {
+        Self {
+            jobs: PriorityQueue::new(),
+            by_id: HashMap::new(),
+        }
+    }
+
+    pub fn push(&mut self, job: Job, fire_at_ms: u64) {
+        self.by_id.insert(job.id, JobState::Scheduled);
+        self.jobs.push(job, fire_at_ms);
+    }
+
+    pub fn pop(&mut self) -> Option<(Job, u64)> {
+        self.jobs.pop().map(|(job, fire_at)| {
+            self.by_id.insert(job.id, JobState::Pending);
+            (job, fire_at)
+        })
+    }
+
+    pub fn get_state(&self, job_id: &JobId) -> Option<JobState> {
+        self.by_id.get(job_id).copied()
+    }
+
+    pub fn set_state(&mut self, job_id: JobId, state: JobState) {
+        self.by_id.insert(job_id, state);
+    }
+
+    pub fn remove(&mut self, job_id: &JobId) -> Option<Job> {
+        self.by_id.remove(job_id);
+        self.jobs.remove(job_id)
+    }
+
+    pub fn len(&self) -> usize {
+        self.jobs.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.jobs.is_empty()
+    }
+
+    pub fn due_jobs(&self, now_ms: u64, max: u32) -> Vec<(Job, u64)> {
+        self.jobs.due_jobs(now_ms, max)
+    }
+
+    pub fn pop_due_jobs(&mut self, now_ms: u64, max: u32) -> Vec<Job> {
+        self.jobs.pop_due_jobs(now_ms, max)
+    }
+
+    pub fn reschedule(&mut self, job: Job, next_fire_ms: u64) {
+        self.push(job, next_fire_ms);
+    }
+}
+
+impl Default for SchedulerQueue {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+unsafe impl Send for SchedulerQueue {}
+unsafe impl Sync for SchedulerQueue {}
 
 #[cfg(test)]
 mod tests {

@@ -2,10 +2,9 @@
 
 use crate::error::SchedulerError;
 use crate::types::{JobId, JobState, SchedulePolicy, ScheduledJob, SchedulerQueue};
-use crate::registry_get_state;
 
 pub async fn schedule_job(
-    queue: &SchedulerQueue,
+    queue: &mut SchedulerQueue,
     mut job: ScheduledJob,
 ) -> Result<JobId, SchedulerError> {
     let job_id = job.id;
@@ -15,50 +14,57 @@ pub async fn schedule_job(
     } else {
         job.state
     };
-    queue.insert(job);
-    crate::registry_set_state(job_id, state);
+    queue.insert(job)?;
+    if let Some(current) = queue.get_state(&job_id) {
+        if current != state {
+            queue.update_state(&job_id, state)?;
+        }
+    }
     Ok(job_id)
 }
 
 pub async fn cancel_job(
-    queue: &SchedulerQueue,
+    queue: &mut SchedulerQueue,
     job_id: JobId,
 ) -> Result<(), SchedulerError> {
-    let state = queue.get_state(&job_id)
-        .ok_or_else(|| SchedulerError::JobNotFound(job_id.0.to_string()))?;
+    let state = queue.get_state(&job_id).ok_or(SchedulerError::JobNotFound)?;
     
     match state {
-        JobState::Scheduled | JobState::Pending => {
-            queue.update_job_state(&job_id, JobState::Cancelled);
-            crate::registry_set_state(job_id, JobState::Cancelled);
+        JobState::Scheduled | JobState::Pending | JobState::Running | JobState::Retrying => {
+            queue.update_state(&job_id, JobState::Cancelled)?;
             Ok(())
         }
-        _ => Err(SchedulerError::InvalidTransition(job_id.0.to_string())),
+        JobState::Completed | JobState::Failed | JobState::Cancelled => {
+            Err(SchedulerError::InvalidTransition)
+        }
     }
 }
 
-pub async fn get_job_status(job_id: JobId) -> Result<JobState, SchedulerError> {
-    registry_get_state(&job_id)
-        .ok_or_else(|| SchedulerError::JobNotFound(job_id.0.to_string()))
+pub async fn get_job_status(
+    queue: &SchedulerQueue,
+    job_id: JobId,
+) -> Result<JobState, SchedulerError> {
+    queue.get_state(&job_id).ok_or(SchedulerError::JobNotFound)
 }
 
 pub async fn update_job_schedule(
-    queue: &SchedulerQueue,
+    queue: &mut SchedulerQueue,
     job_id: JobId,
     new_schedule: SchedulePolicy,
 ) -> Result<(), SchedulerError> {
-    let state = queue.get_state(&job_id)
-        .ok_or_else(|| SchedulerError::JobNotFound(job_id.0.to_string()))?;
+    let state = queue.get_state(&job_id).ok_or(SchedulerError::JobNotFound)?;
     
     match state {
-        JobState::Scheduled => {
-            if matches!(new_schedule, SchedulePolicy::Immediate) {
-                return Err(SchedulerError::InvalidTransition(job_id.0.to_string()));
+        JobState::Scheduled | JobState::Pending => {
+            if matches!(new_schedule, SchedulePolicy::Immediate) && state == JobState::Scheduled {
+                return Err(SchedulerError::InvalidTransition);
             }
-            queue.update_job_schedule(&job_id, new_schedule);
+            queue.update_schedule(&job_id, new_schedule)?;
             Ok(())
         }
-        _ => Err(SchedulerError::InvalidTransition(job_id.0.to_string())),
+        JobState::Running | JobState::Completed | JobState::Failed | JobState::Cancelled | JobState::Retrying => {
+            Err(SchedulerError::InvalidTransition)
+        }
     }
 }
 
@@ -66,34 +72,29 @@ pub async fn update_job_schedule(
 mod tests {
     use super::*;
     use crate::types::{
-        JobKind, JobPriority, RetryPolicy, SchedulePolicy, ScheduledJob, SerializedPayload,
+        JobKind, JobPriority, RetryPolicy, SchedulePolicy, SerializedPayload,
     };
-    use chrono::Duration;
+    use chrono::{Duration, Utc};
 
     fn make_test_job() -> ScheduledJob {
         ScheduledJob::new(
             JobKind::OneShot,
             JobPriority::Normal,
-            SchedulePolicy::At(chrono::Utc::now() + Duration::hours(1)),
-            RetryPolicy {
-                max_attempts: 3,
-                backoff_multiplier: 2.0,
-                initial_delay: Duration::seconds(1),
-                max_delay: Duration::minutes(5),
-            },
-            SerializedPayload::new(b"test payload".to_vec()),
+            SchedulePolicy::At(Utc::now() + Duration::hours(1)),
+            RetryPolicy::default_policy(),
+            bytes::Bytes::from_static(b"test payload"),
         )
     }
 
     fn make_queue() -> SchedulerQueue {
-        SchedulerQueue::new()
+        SchedulerQueue::new(100)
     }
 
     #[tokio::test]
     async fn schedule_job_returns_job_id() {
-        let queue = make_queue();
+        let mut queue = make_queue();
         let job = make_test_job();
-        let job_id = schedule_job(&queue, job).await.unwrap();
+        let job_id = schedule_job(&mut queue, job).await.unwrap();
         assert!(!job_id.0.is_nil());
     }
 
@@ -101,122 +102,114 @@ mod tests {
     async fn schedule_job_persists_job() {
         let mut queue = make_queue();
         let job = make_test_job();
-        let job_id = schedule_job(&queue, job).await.unwrap();
-        let state = get_job_status(job_id).await.unwrap();
+        let job_id = schedule_job(&mut queue, job).await.unwrap();
+        let state = get_job_status(&queue, job_id).await.unwrap();
         assert_eq!(state, crate::types::JobState::Scheduled);
     }
 
     #[tokio::test]
     async fn schedule_immediate_job_transitions_to_pending() {
-        let queue = make_queue();
+        let mut queue = make_queue();
         let job = ScheduledJob::new(
             JobKind::OneShot,
             JobPriority::Normal,
             SchedulePolicy::Immediate,
-            RetryPolicy {
-                max_attempts: 1,
-                backoff_multiplier: 1.0,
-                initial_delay: Duration::zero(),
-                max_delay: Duration::minutes(1),
-            },
-            SerializedPayload::new(vec![]),
+            RetryPolicy::default_policy(),
+            bytes::Bytes::from_static(b""),
         );
-        let job_id = schedule_job(&queue, job).await.unwrap();
-        let state = get_job_status(job_id).await.unwrap();
+        let job_id = schedule_job(&mut queue, job).await.unwrap();
+        let state = get_job_status(&queue, job_id).await.unwrap();
         assert_eq!(state, crate::types::JobState::Pending);
     }
 
     #[tokio::test]
     async fn cancel_job_returns_ok_for_existing_job() {
-        let queue = make_queue();
+        let mut queue = make_queue();
         let job = make_test_job();
-        let job_id = schedule_job(&queue, job).await.unwrap();
-        let result = cancel_job(&queue, job_id).await;
+        let job_id = schedule_job(&mut queue, job).await.unwrap();
+        let result = cancel_job(&mut queue, job_id).await;
         assert!(result.is_ok());
     }
 
     #[tokio::test]
     async fn cancel_job_returns_not_found_for_nonexistent() {
-        let queue = make_queue();
-        let fake_id = JobId::new();
-        let result = cancel_job(&queue, fake_id).await;
-        assert!(matches!(result, Err(SchedulerError::JobNotFound(_))));
+        let mut queue = make_queue();
+        let fake_id = JobId::generate();
+        let result = cancel_job(&mut queue, fake_id).await;
+        assert!(matches!(result, Err(SchedulerError::JobNotFound)));
     }
 
     #[tokio::test]
     async fn cancel_job_returns_invalid_transition_for_completed() {
-        let queue = make_queue();
+        let mut queue = make_queue();
         let job = make_test_job();
-        let job_id = schedule_job(&queue, job).await.unwrap();
-        cancel_job(&queue, job_id).await.unwrap();
-        let result = cancel_job(&queue, job_id).await;
-        assert!(matches!(result, Err(SchedulerError::InvalidTransition(_))));
+        let job_id = schedule_job(&mut queue, job).await.unwrap();
+        cancel_job(&mut queue, job_id).await.unwrap();
+        let result = cancel_job(&mut queue, job_id).await;
+        assert!(matches!(result, Err(SchedulerError::InvalidTransition)));
     }
 
     #[tokio::test]
     async fn get_job_status_returns_state() {
-        let queue = make_queue();
+        let mut queue = make_queue();
         let job = make_test_job();
-        let job_id = schedule_job(&queue, job).await.unwrap();
-        let state = get_job_status(job_id).await.unwrap();
+        let job_id = schedule_job(&mut queue, job).await.unwrap();
+        let state = get_job_status(&queue, job_id).await.unwrap();
         assert_eq!(state, crate::types::JobState::Scheduled);
     }
 
     #[tokio::test]
     async fn get_job_status_returns_not_found_for_nonexistent() {
-        let fake_id = JobId::new();
-        let result = get_job_status(fake_id).await;
-        assert!(matches!(result, Err(SchedulerError::JobNotFound(_))));
+        let queue = make_queue();
+        let fake_id = JobId::generate();
+        let result = get_job_status(&queue, fake_id).await;
+        assert!(matches!(result, Err(SchedulerError::JobNotFound)));
     }
 
     #[tokio::test]
     async fn update_job_schedule_returns_ok() {
-        let queue = make_queue();
+        let mut queue = make_queue();
         let job = make_test_job();
-        let job_id = schedule_job(&queue, job).await.unwrap();
+        let job_id = schedule_job(&mut queue, job).await.unwrap();
         let new_schedule = SchedulePolicy::After(Duration::hours(1));
-        let result = update_job_schedule(&queue, job_id, new_schedule).await;
+        let result = update_job_schedule(&mut queue, job_id, new_schedule).await;
         assert!(result.is_ok());
     }
 
     #[tokio::test]
     async fn update_job_schedule_allows_in_scheduled_state() {
-        let queue = make_queue();
+        let mut queue = make_queue();
         let job = ScheduledJob::new(
             JobKind::OneShot,
             JobPriority::Normal,
-            SchedulePolicy::At(chrono::Utc::now() + Duration::hours(1)),
-            RetryPolicy {
-                max_attempts: 1,
-                backoff_multiplier: 1.0,
-                initial_delay: Duration::zero(),
-                max_delay: Duration::minutes(1),
-            },
-            SerializedPayload::new(vec![]),
+            SchedulePolicy::At(Utc::now() + Duration::hours(1)),
+            RetryPolicy::default_policy(),
+            bytes::Bytes::from_static(b""),
         );
-        let job_id = schedule_job(&queue, job).await.unwrap();
+        let job_id = schedule_job(&mut queue, job).await.unwrap();
         let new_schedule = SchedulePolicy::After(Duration::hours(2));
-        let result = update_job_schedule(&queue, job_id, new_schedule).await;
+        let result = update_job_schedule(&mut queue, job_id, new_schedule).await;
         assert!(result.is_ok());
     }
 
     #[tokio::test]
-    async fn update_job_schedule_rejects_in_completed_state() {
-        let queue = make_queue();
+    async fn update_job_schedule_rejects_in_cancelled_state() {
+        let mut queue = make_queue();
         let job = make_test_job();
-        let job_id = schedule_job(&queue, job).await.unwrap();
-        cancel_job(&queue, job_id).await.unwrap();
+        let job_id = schedule_job(&mut queue, job).await.unwrap();
+        cancel_job(&mut queue, job_id).await.unwrap();
         let new_schedule = SchedulePolicy::Immediate;
-        let result = update_job_schedule(&queue, job_id, new_schedule).await;
-        assert!(matches!(result, Err(SchedulerError::InvalidTransition(_))));
+        let result = update_job_schedule(&mut queue, job_id, new_schedule).await;
+        assert!(matches!(result, Err(SchedulerError::InvalidTransition)));
     }
 
     #[tokio::test]
     async fn update_job_schedule_rejects_in_running_state() {
-        let queue = make_queue();
+        let mut queue = make_queue();
         let job = make_test_job();
-        let job_id = schedule_job(&queue, job).await.unwrap();
-        let result = update_job_schedule(&queue, job_id, SchedulePolicy::Immediate).await;
-        assert!(matches!(result, Err(SchedulerError::InvalidTransition(_))));
+        let job_id = schedule_job(&mut queue, job).await.unwrap();
+        queue.update_state(&job_id, JobState::Running).unwrap();
+        let result = update_job_schedule(&mut queue, job_id, SchedulePolicy::At(Utc::now() + Duration::hours(1))).await;
+        assert!(matches!(result, Err(SchedulerError::InvalidTransition)));
     }
 }
