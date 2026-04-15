@@ -3,8 +3,6 @@ mod binomial_heap;
 mod blob_tests;
 mod blob;
 mod btree;
-pub mod cartesian_tree;
-mod clique_tree;
 mod command_envelope;
 pub mod command_history;
 pub mod command_metadata;
@@ -32,12 +30,12 @@ mod errors;
 pub mod events;
 mod identity;
 mod instance_status;
+mod identity;
 pub mod integer_types;
 #[cfg(test)]
 mod integer_types_tests;
 mod lifecycle_superstate;
 mod lineage;
-mod link_cut_tree;
 mod macros;
 mod node_kind;
 mod non_empty_vec;
@@ -50,11 +48,7 @@ mod plugin;
 mod proptest_targets;
 pub mod proptest_verifier;
 mod registration_status;
-mod rope;
-pub mod search;
 pub mod signal;
-pub mod skew_heap;
-mod spqr_tree;
 pub mod state;
 mod string_types;
 #[cfg(test)]
@@ -73,8 +67,6 @@ pub use blob::{
     INLINED_MAX_BYTES,
 };
 pub use btree::{BTree, BTreeError, BTreeNode};
-pub use cartesian_tree::{CartesianNode, CartesianTree, CartesianTreeError};
-pub use clique_tree::{Clique, CliqueTree, CliqueTreeError};
 pub use command_envelope::{CommandEnvelope, CommandEnvelopeError, MAX_SUPPORTED_COMMAND_VERSION};
 pub use command_history::{
     BatchId, CommandHistory, CommandHistoryError, CommandKind, ExtensionApplyMode,
@@ -116,11 +108,8 @@ pub use events::{Error as EventError, EventEnvelope};
 pub use instance_status::InstanceStatus;
 pub use lifecycle_superstate::LifecycleSuperstate;
 pub use lineage::{Epoch, LineageError, LineageState, LineageStatus, WorkflowLineage};
-pub use link_cut_tree::{LctAggregate, LctError, LinkCutTree, Monoid};
 pub use node_kind::NodeKind;
 pub use non_empty_vec::NonEmptyVec;
-pub use octree::{BoundingBox, Octree, OctreeConfig, OctreeEntry, OctreeError, OctreeNode, Point3};
-pub use pairing_heap::{PairingHeap, PairingHeapError};
 pub use plugin::{
     apply_plugin_transition, ArtifactRef, CapabilityId, HotLoadEvent, InstanceKey,
     IsolationBreachType, IsolationLevel, PluginArtifact, PluginDescriptor, PluginErrorCategory,
@@ -129,19 +118,9 @@ pub use plugin::{
     PluginVersionConstraint, ResourceBudget, SchemaVersion, VersionRange,
 };
 pub use registration_status::RegistrationStatus;
-pub use rope::{Measurable, Rope, RopeBuilder, RopeError, RopeSlice};
-pub use search::{
-    Bm25Scorer, InvertedIndex, Posting, PostingList, Query, QueryParser, Scorer, SearchEngine,
-    SearchError, SearchResult, TfIdfScorer,
-};
 pub use signal::{
     signal_match, BufferPolicy, FailureScope, LineageScope, SignalAddress, SignalDedupeKey,
     SignalDelivery, SignalMatchResult, WaitKey, WaitRecord,
-};
-pub use skew_heap::{SkewHeap, SkewHeapError, SkewNode};
-pub use spqr_tree::{
-    Block, Component, CutNode, SPQRDecomposition, SPQREdge, SPQRNode, SPQRNodeType, SpqrError,
-    StaticGraph,
 };
 pub use topology::{LeaseKey, NodeId};
 pub use tx_coordinator::{
