@@ -128,9 +128,13 @@ mod timer_component_failure_tests {
 
         let ctx = RecoveryContext::new();
         let result = ctx.verify_at_point(scenario, &events, &events);
+        if let Err(ref e) = result {
+            eprintln!("DEBUG: timer_persistence_failure_recovery failed: {:?}", e);
+        }
         assert!(
             result.is_ok(),
-            "Timer persistence failure should be recoverable"
+            "Timer persistence failure should be recoverable: {:?}",
+            result.err()
         );
     }
 
@@ -161,7 +165,11 @@ mod timer_component_failure_tests {
         let scenario = CrashScenario::new(CrashPoint::TimerPersistence, CrashPosition::Before);
         let ctx = RecoveryContext::new();
         let result = ctx.verify_at_point(scenario, &events_before_crash, &events_before_crash);
-        assert!(result.is_ok());
+        assert!(
+            result.is_ok(),
+            "Timer crash before persistence should be recoverable: {:?}",
+            result.err()
+        );
     }
 }
 
@@ -397,7 +405,8 @@ mod child_workflow_failure_tests {
         let result = ctx.verify_at_point(scenario, &events, &events);
         assert!(
             result.is_ok(),
-            "Child start after crash should be recoverable"
+            "Child start after crash should be recoverable: {:?}",
+            result.err()
         );
     }
 }
@@ -417,6 +426,10 @@ mod data_integrity_verification_tests {
 
         let engine = ReplayEngine::new();
         let result = engine.replay(&events);
+        eprintln!(
+            "DEBUG: no_data_loss_after_step_failure result: {:?}",
+            result
+        );
 
         assert!(
             result.is_ok(),
@@ -443,7 +456,8 @@ mod data_integrity_verification_tests {
 
         assert!(
             result.is_ok(),
-            "Replay should succeed even with timer failure"
+            "Replay should succeed even with timer failure: {:?}",
+            result.err()
         );
     }
 

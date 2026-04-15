@@ -197,3 +197,52 @@ fn transition_failed_error_is_deterministic() {
     let err = engine.replay(&events).expect_err("should fail");
     assert_eq!(err.kind(), ReplayErrorKind::Deterministic);
 }
+
+// =========================================================================
+// BlobPublicationFailed Error Tests (ADR-040 §3)
+// =========================================================================
+
+#[test]
+fn blob_publication_failed_error_display() {
+    let err = ReplayError::BlobPublicationFailed {
+        sequence: 5,
+        step_id: "step-1".to_string(),
+        blob_id: "01H5JQX7K3R4T6V8W0X2Y4Z6A8".to_string(),
+    };
+    let msg = err.to_string();
+    assert!(msg.contains("sequence 5"));
+    assert!(msg.contains("step-1"));
+    assert!(msg.contains("01H5JQX7K3R4T6V8W0X2Y4Z6A8"));
+    assert!(msg.contains("Blob publication failed"));
+}
+
+#[test]
+fn blob_publication_failed_error_equality() {
+    let err1 = ReplayError::BlobPublicationFailed {
+        sequence: 5,
+        step_id: "step-1".to_string(),
+        blob_id: "01H5JQX7K3R4T6V8W0X2Y4Z6A8".to_string(),
+    };
+    let err2 = ReplayError::BlobPublicationFailed {
+        sequence: 5,
+        step_id: "step-1".to_string(),
+        blob_id: "01H5JQX7K3R4T6V8W0X2Y4Z6A8".to_string(),
+    };
+    let err3 = ReplayError::BlobPublicationFailed {
+        sequence: 6,
+        step_id: "step-1".to_string(),
+        blob_id: "01H5JQX7K3R4T6V8W0X2Y4Z6A8".to_string(),
+    };
+    assert_eq!(err1, err2);
+    assert_ne!(err1, err3);
+}
+
+#[test]
+fn blob_publication_failed_error_is_deterministic() {
+    let err = ReplayError::BlobPublicationFailed {
+        sequence: 5,
+        step_id: "step-1".to_string(),
+        blob_id: "01H5JQX7K3R4T6V8W0X2Y4Z6A8".to_string(),
+    };
+    assert_eq!(err.kind(), ReplayErrorKind::Deterministic);
+}

@@ -51,6 +51,13 @@ pub enum ReplayError {
     UnexpectedEventType { payload_type: String, sequence: u64 },
     /// Upcasting failed during replay_with_upcaster.
     UpcastingFailed { sequence: u64, reason: String },
+    /// Blob publication failed for a required output (ADR-040 §3).
+    /// The step stays incomplete and may be retried or failed.
+    BlobPublicationFailed {
+        sequence: u64,
+        step_id: String,
+        blob_id: String,
+    },
 }
 
 impl std::fmt::Display for ReplayError {
@@ -107,6 +114,16 @@ impl std::fmt::Display for ReplayError {
             ReplayError::UpcastingFailed { sequence, reason } => {
                 write!(f, "Upcasting failed at sequence {sequence}: {reason}")
             }
+            ReplayError::BlobPublicationFailed {
+                sequence,
+                step_id,
+                blob_id,
+            } => {
+                write!(
+                    f,
+                    "Blob publication failed for required output at sequence {sequence}: step_id={step_id}, blob_id={blob_id}"
+                )
+            }
         }
     }
 }
@@ -128,7 +145,8 @@ impl ReplayError {
             | ReplayError::PayloadDecodeFailed { .. }
             | ReplayError::TransitionFailed { .. }
             | ReplayError::UnexpectedEventType { .. }
-            | ReplayError::UpcastingFailed { .. } => ReplayErrorKind::Deterministic,
+            | ReplayError::UpcastingFailed { .. }
+            | ReplayError::BlobPublicationFailed { .. } => ReplayErrorKind::Deterministic,
         }
     }
 }

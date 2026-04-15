@@ -46,6 +46,7 @@ pub mod compensation_saga;
 pub mod crypto;
 pub mod dedupe_partition;
 pub mod effect_journal;
+pub mod event_store;
 pub mod instance_index;
 pub mod key_encoding;
 pub mod key_partition;

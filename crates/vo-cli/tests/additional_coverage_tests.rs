@@ -524,6 +524,7 @@ fn registry_names_contains_all_nine() {
     assert_eq!(names.len(), 9);
     assert!(names.contains(&"purge"));
     assert!(names.contains(&"check"));
+    assert!(names.contains(&"compensate"));
     assert!(names.contains(&"gc"));
     assert!(names.contains(&"init"));
     assert!(names.contains(&"lock"));

@@ -5,9 +5,20 @@
 //! - Calc: `determine_register_outcome` (pure decision logic)
 //! - Actions: `execute_stop_fn_with_timeout` (thread spawn + channel I/O)
 //!
-//! The registry is the sole authority for which instance actors are alive.
-//! Any attempt to register a second actor for the same `InstanceId` stops
-//! the prior actor first (stop-before-replace semantics).
+//! # Scope: Local Only
+//!
+//! This registry provides **strictly local** single-active guarantees per node.
+//! It is NOT a distributed/global fencing mechanism.
+//!
+//! - **Local**: At most one `InstanceActorHandle` per `InstanceId` in this process/node.
+//! - **No Global Fencing**: Does not prevent duplicate instances across nodes or processes.
+//!   For global fencing, see ADR-029 (execution leases with monotonic fence tokens).
+//!
+//! # Authority
+//!
+//! The registry is the sole authority for which instance actors are alive **on this node**.
+//! Any attempt to register a second actor for the same `InstanceId` on this node
+//! stops the prior actor first (stop-before-replace semantics).
 
 use std::collections::HashMap;
 use std::sync::mpsc;
@@ -149,13 +160,23 @@ fn execute_stop_fn_with_timeout(
 
 /// The single-active instance registry.
 ///
-/// Enforces at most one active [`InstanceActorHandle`] per [`InstanceId`].
+/// Enforces at most one active [`InstanceActorHandle`] per [`InstanceId`] **on this node**.
 /// All mutations go through [`register`](InstanceRegistry::register) or
 /// [`deregister`](InstanceRegistry::deregister).
 ///
+/// # Scope
+///
+/// This is a **local** registry. It does NOT provide:
+/// - Cross-node synchronization
+/// - Global fencing
+/// - Distributed consensus
+///
+/// For global fencing guarantees, refer to ADR-029 (execution leases with monotonic
+/// fence tokens at the `(instance_id, step_id)` level).
+///
 /// # Invariants
 ///
-/// - **INV-1 (Single-Active)**: At most one handle per `InstanceId`.
+/// - **INV-1 (Local Single-Active)**: At most one handle per `InstanceId` in this registry.
 /// - **INV-2 (Bijection)**: No two `InstanceId`s map to the same handle (ownership).
 /// - **INV-3 (Count Consistency)**: `active_count()` always equals the map length.
 /// - **INV-4 (Stop-Before-Replace)**: Prior actor stopped before new one replaces it.
@@ -184,6 +205,9 @@ impl InstanceRegistry {
 }
 
 /// Interface for instance registry operations needed by InvariantEnforcer.
+///
+/// Note: All operations are **local** only. This interface does not provide
+/// global fencing guarantees. See ADR-029 for execution leases.
 pub trait InstanceRegistryInterface: Send + Sync {
     /// Checks if an instance is currently active.
     fn is_active(&self, instance_id: &InstanceId) -> bool;
