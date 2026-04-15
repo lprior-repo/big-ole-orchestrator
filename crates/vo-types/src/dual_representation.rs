@@ -154,6 +154,7 @@ pub fn apply_redaction(
         true
     }
 
+    #[allow(clippy::if_same_then_else)]
     fn apply_recursive(
         value: &serde_json::Value,
         rules: &[RedactionRule],
