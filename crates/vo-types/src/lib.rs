@@ -36,6 +36,7 @@ mod integer_types_tests;
 mod lifecycle_superstate;
 mod lineage;
 mod link_cut_tree;
+mod clique_tree;
 mod macros;
 mod node_kind;
 mod non_empty_vec;
