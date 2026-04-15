@@ -88,7 +88,7 @@ pub enum AdmissionError {
 }
 
 /// Configurable thresholds for admission decisions.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AdmissionThresholds {
     /// Threshold for writer queue depth.
     pub writer_queue_depth_threshold: u64,
@@ -96,6 +96,16 @@ pub struct AdmissionThresholds {
     pub batch_commit_latency_ms_threshold: u64,
     /// Threshold for blob queue depth.
     pub blob_queue_depth_threshold: u64,
+}
+
+impl Default for AdmissionThresholds {
+    fn default() -> Self {
+        Self {
+            writer_queue_depth_threshold: 100,
+            batch_commit_latency_ms_threshold: 1000,
+            blob_queue_depth_threshold: 50,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -147,11 +157,11 @@ mod tests {
     // ── AdmissionThresholds Tests ───────────────────────────────────────────────
 
     #[test]
-    fn admission_thresholds_default_produces_zero_thresholds() {
+    fn admission_thresholds_default_produces_sensible_values() {
         let thresholds = AdmissionThresholds::default();
-        assert_eq!(thresholds.writer_queue_depth_threshold, 0);
-        assert_eq!(thresholds.batch_commit_latency_ms_threshold, 0);
-        assert_eq!(thresholds.blob_queue_depth_threshold, 0);
+        assert_eq!(thresholds.writer_queue_depth_threshold, 100);
+        assert_eq!(thresholds.batch_commit_latency_ms_threshold, 1000);
+        assert_eq!(thresholds.blob_queue_depth_threshold, 50);
     }
 
     #[test]
