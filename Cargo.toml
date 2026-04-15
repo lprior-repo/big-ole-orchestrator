@@ -94,6 +94,9 @@ strum = { version = "0.28", features = ["derive"] }
 # Metrics
 metrics = "0.24"
 
+# Metrics
+metrics = "0.24"
+
 # Cryptography
 sha2 = "0.10"
 blake3 = "1.8"

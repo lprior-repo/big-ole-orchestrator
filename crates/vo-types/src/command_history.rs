@@ -277,6 +277,12 @@ impl Default for BatchId {
     }
 }
 
+impl std::fmt::Display for BatchId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Command Kind
 // ---------------------------------------------------------------------------

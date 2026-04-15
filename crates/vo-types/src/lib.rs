@@ -106,11 +106,8 @@ pub use errors::ParseError;
 pub use events::{Error as EventError, EventEnvelope};
 pub use instance_status::InstanceStatus;
 pub use lifecycle_superstate::LifecycleSuperstate;
-pub use lineage::{Epoch, LineageError, WorkflowLineage};
-pub use memory_leak::{
-    CleanupExpectation, ErrorBoundedInvariant, LeakIndicator, LeakThreshold, MemoryLeakDetector,
-    MemorySnapshot, StateCleanupInvariant,
-};
+pub use lineage::{Epoch, LineageError, LineageState, LineageStatus, WorkflowLineage};
+pub use link_cut_tree::{LctAggregate, LctError, LinkCutTree, Monoid};
 pub use node_kind::NodeKind;
 pub use non_empty_vec::NonEmptyVec;
 pub use octree::{BoundingBox, Octree, OctreeConfig, OctreeEntry, OctreeError, OctreeNode, Point3};

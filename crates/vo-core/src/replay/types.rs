@@ -145,8 +145,7 @@ impl ReplayError {
             | ReplayError::PayloadDecodeFailed { .. }
             | ReplayError::TransitionFailed { .. }
             | ReplayError::UnexpectedEventType { .. }
-            | ReplayError::UpcastingFailed { .. }
-            | ReplayError::BlobPublicationFailed { .. } => ReplayErrorKind::Deterministic,
+            | ReplayError::UpcastingFailed { .. } => ReplayErrorKind::Deterministic,
         }
     }
 }

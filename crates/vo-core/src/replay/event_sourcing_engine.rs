@@ -386,11 +386,11 @@ impl EventSourcingEngine {
                 });
             }
 
-            let events_to_replay = if recent_events.is_empty() {
-                vec![]
-            } else {
-                recent_events.to_vec()
-            };
+            let events_to_replay: Vec<vo_types::events::EventEnvelope> = recent_events
+                .iter()
+                .filter(|e| e.sequence > snap.sequence)
+                .cloned()
+                .collect();
 
             let starting_sequence = snap.sequence + 1;
             let ending_sequence = recent_events
@@ -415,10 +415,15 @@ impl EventSourcingEngine {
                 ));
             }
 
-            let replay_result = self
-                .replay_engine
-                .replay(&events_to_replay)
-                .map_err(|e| ProjectionError::BuildFailed(e.to_string()))?;
+            let replay_result = if let Some(registry) = &self.upcaster_registry {
+                self.replay_engine
+                    .replay_with_upcaster(registry.as_ref(), &events_to_replay)
+                    .map_err(|e| ProjectionError::BuildFailed(e.to_string()))?
+            } else {
+                self.replay_engine
+                    .replay(&events_to_replay)
+                    .map_err(|e| ProjectionError::BuildFailed(e.to_string()))?
+            };
 
             return Ok(RecoveryResult::new(
                 replay_result.final_state,
@@ -431,10 +436,15 @@ impl EventSourcingEngine {
             ));
         }
 
-        let replay_result = self
-            .replay_engine
-            .replay(recent_events)
-            .map_err(|e| ProjectionError::BuildFailed(e.to_string()))?;
+        let replay_result = if let Some(registry) = &self.upcaster_registry {
+            self.replay_engine
+                .replay_with_upcaster(registry.as_ref(), recent_events)
+                .map_err(|e| ProjectionError::BuildFailed(e.to_string()))?
+        } else {
+            self.replay_engine
+                .replay(recent_events)
+                .map_err(|e| ProjectionError::BuildFailed(e.to_string()))?
+        };
 
         Ok(RecoveryResult::new(
             replay_result.final_state,

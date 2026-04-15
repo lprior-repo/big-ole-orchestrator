@@ -231,14 +231,14 @@ mod event_sourcing_engine_tests {
             .build();
 
         let snapshot = engine
-            .create_snapshot("test-proj", &"fake_state".to_string(), 50)
+            .create_snapshot("test-proj", &LifecycleState::Pending, 50)
             .expect("snapshot creation should succeed");
 
         let recent_events = vec![
-            make_event("test-proj", 1, workflow_started_payload("wf-1")),
-            make_event("test-proj", 2, step_scheduled_payload("wf-1", "step-1")),
-            make_event("test-proj", 3, step_started_payload("wf-1", "step-1")),
-            make_event("test-proj", 4, step_completed_payload("wf-1", "step-1")),
+            make_event("test-proj", 51, workflow_started_payload("wf-1")),
+            make_event("test-proj", 52, step_scheduled_payload("wf-1", "step-1")),
+            make_event("test-proj", 53, step_started_payload("wf-1", "step-1")),
+            make_event("test-proj", 54, step_completed_payload("wf-1", "step-1")),
         ];
 
         let result = engine

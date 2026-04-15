@@ -101,6 +101,8 @@ pub trait AsyncSnapshotReader: Send + Sync {
     ) -> Result<Option<(u64, InstanceState)>, StorageError>;
 }
 
+
+
 pub trait EventStore {
     type EventIterator: Iterator<Item = Result<vo_types::EventEnvelope, StorageError>>;
     fn replay_events(&self, instance_id: &InstanceId, start_sequence: u64) -> Self::EventIterator;
@@ -301,7 +303,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_async_snapshot_reader_mock_returns_none_correctly_when_asked_for_missing_data() {
+    async fn test_async_snapshot_reader_mock_returns_none_correctly_when_asked_for_missing_data()
+    {
         let mock = MockSnapshotReader::new();
         let instance_id = InstanceId::from_bytes([99u8; 16]);
         let result = mock.read(&instance_id).await;

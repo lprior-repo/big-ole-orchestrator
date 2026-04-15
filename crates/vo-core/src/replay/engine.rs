@@ -246,6 +246,5 @@ pub(super) fn payload_to_transition(
                 sequence,
             })
         }
-        EventPayload::WorkflowQuarantined { .. } => Ok(TransitionEvent::Fail),
     }
 }

@@ -29,6 +29,7 @@ rand = { workspace = true }
 generic-array = { workspace = true }
 ulid = { workspace = true }
 metrics = { workspace = true }
+async-trait = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
@@ -39,8 +40,8 @@ ulid = { workspace = true }
 vo-core = { workspace = true }
 criterion = { workspace = true }
 metrics = { workspace = true }
-metrics-util = { workspace = true }
-serial_test = { workspace = true }
+metrics-util = "0.18"
+serial_test = "3"
 
 [[bench]]
 name = "dedupe_bench"

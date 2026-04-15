@@ -31,7 +31,7 @@ impl std::fmt::Display for CapacityError {
 
 impl std::error::Error for CapacityError {}
 
-pub trait Classifiable {
+trait Classifiable {
     fn write_class(&self) -> WriteClass;
 }
 
@@ -83,7 +83,7 @@ pub struct QosRouter<T> {
     blob: InnerChannel<T>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct QosRouterConfig {
     pub control_plane_capacity: usize,
     pub projection_capacity: usize,
@@ -101,13 +101,7 @@ impl Default for QosRouterConfig {
 }
 
 impl<T> QosRouter<T> {
-    /// Creates a new `QosRouter` from a config.
-    ///
-    /// # Panics
-    ///
-    /// This function does not panic.
-    #[must_use]
-    pub const fn new(config: QosRouterConfig) -> Self {
+    pub fn new(config: QosRouterConfig) -> Self {
         Self {
             control_plane: InnerChannel::new(config.control_plane_capacity),
             projection: InnerChannel::new(config.projection_capacity),
@@ -115,13 +109,7 @@ impl<T> QosRouter<T> {
         }
     }
 
-    /// Creates a new `QosRouter` with explicit capacities.
-    ///
-    /// # Panics
-    ///
-    /// This function does not panic.
-    #[must_use]
-    pub const fn with_capacity(
+    pub fn with_capacity(
         control_plane_capacity: usize,
         projection_capacity: usize,
         blob_capacity: usize,
@@ -133,7 +121,7 @@ impl<T> QosRouter<T> {
         }
     }
 
-    const fn channel_for_class(&mut self, class: WriteClass) -> &mut InnerChannel<T> {
+    fn channel_for_class(&mut self, class: WriteClass) -> &mut InnerChannel<T> {
         match class {
             WriteClass::CriticalControlPlane => &mut self.control_plane,
             WriteClass::OperatorProjection => &mut self.projection,
@@ -141,11 +129,6 @@ impl<T> QosRouter<T> {
         }
     }
 
-    /// Enqueues an item based on its write class.
-    ///
-    /// # Errors
-    ///
-    /// Returns `CapacityError::QueueFull` if the target queue is at capacity.
     pub fn enqueue(&mut self, item: T) -> Result<(), CapacityError>
     where
         T: Classifiable,
@@ -159,11 +142,6 @@ impl<T> QosRouter<T> {
         })
     }
 
-    /// Enqueues an item to the control-plane queue.
-    ///
-    /// # Errors
-    ///
-    /// Returns `CapacityError::QueueFull` if the control-plane queue is at capacity.
     pub fn enqueue_control_plane(&mut self, item: T) -> Result<(), CapacityError>
     where
         T: Clone,
@@ -177,11 +155,6 @@ impl<T> QosRouter<T> {
             })
     }
 
-    /// Enqueues an item to the projection queue.
-    ///
-    /// # Errors
-    ///
-    /// Returns `CapacityError::QueueFull` if the projection queue is at capacity.
     pub fn enqueue_projection(&mut self, item: T) -> Result<(), CapacityError>
     where
         T: Clone,
@@ -195,16 +168,6 @@ impl<T> QosRouter<T> {
             })
     }
 
-    /// Enqueues an item to the blob queue.
-    ///
-    /// # Errors
-    ///
-    /// Returns `CapacityError::QueueFull` if the blob queue is at capacity.
-    /// Enqueues an item to the blob queue.
-    ///
-    /// # Errors
-    ///
-    /// Returns `CapacityError::QueueFull` if the blob queue is at capacity.
     pub fn enqueue_blob(&mut self, item: T) -> Result<(), CapacityError>
     where
         T: Clone,
@@ -232,7 +195,6 @@ impl<T> QosRouter<T> {
         self.blob.pop()
     }
 
-    #[must_use]
     pub fn depth(&self, class: WriteClass) -> usize {
         match class {
             WriteClass::CriticalControlPlane => self.control_plane.len(),
@@ -241,8 +203,7 @@ impl<T> QosRouter<T> {
         }
     }
 
-    #[must_use]
-    pub const fn capacity(&self, class: WriteClass) -> usize {
+    pub fn capacity(&self, class: WriteClass) -> usize {
         match class {
             WriteClass::CriticalControlPlane => self.control_plane.capacity(),
             WriteClass::OperatorProjection => self.projection.capacity(),
@@ -250,7 +211,6 @@ impl<T> QosRouter<T> {
         }
     }
 
-    #[must_use]
     pub fn is_full(&self, class: WriteClass) -> bool {
         match class {
             WriteClass::CriticalControlPlane => self.control_plane.is_full(),
@@ -259,17 +219,14 @@ impl<T> QosRouter<T> {
         }
     }
 
-    #[must_use]
     pub fn remaining_capacity(&self, class: WriteClass) -> usize {
         self.capacity(class).saturating_sub(self.depth(class))
     }
 
-    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.control_plane.is_empty() && self.projection.is_empty() && self.blob.is_empty()
     }
 
-    #[must_use]
     pub fn len(&self) -> usize {
         self.control_plane.len() + self.projection.len() + self.blob.len()
     }

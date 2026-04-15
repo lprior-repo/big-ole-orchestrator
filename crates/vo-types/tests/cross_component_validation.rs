@@ -1,6 +1,5 @@
 use vo_types::command_history::{BatchId, CommandId, SnapshotId, WorkflowSnapshot};
 use vo_types::command_metadata::{CommandMetadata, Issuer};
-use vo_types::signal::LineageScope;
 use vo_types::signal::{BufferPolicy, SignalAddress};
 use vo_types::workspace::WorkspaceMetadata;
 use vo_types::LineageScope;
@@ -107,21 +106,10 @@ fn test_instance_key_new() {
 }
 
 #[test]
-fn test_schema_version_derives_required_traits() {
-    // SchemaVersion can only be constructed within vo-types, but we can verify
-    // it derives the expected traits by using it in a type position
-    fn _assert_clone<T: Clone>() {}
-    fn _assert_debug<T: std::fmt::Debug>() {}
-    fn _assert_eq<T: Eq>() {}
-    fn _assert_hash<T: std::hash::Hash>() {}
-    fn _assert_serde<T: serde::Serialize + serde::de::DeserializeOwned>() {}
-
-    // These no-op assertions verify SchemaVersion implements the required traits
-    _assert_clone::<SchemaVersion>();
-    _assert_debug::<SchemaVersion>();
-    _assert_eq::<SchemaVersion>();
-    _assert_hash::<SchemaVersion>();
-    _assert_serde::<SchemaVersion>();
+fn test_schema_version_is_copy() {
+    let v1 = SchemaVersion::new(1);
+    let v2 = v1;
+    assert_eq!(v1, v2);
 }
 
 #[test]

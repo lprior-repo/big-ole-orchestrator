@@ -284,7 +284,7 @@ fn payload_all_variants_round_trip_via_serde() {
         EventPayload::WorkflowQuarantined {
             workflow_id: "wf-123".to_string(),
             failure_count: 3,
-            failure_window_seconds: 300,
+            failure_window_seconds: 60,
         },
     ];
 

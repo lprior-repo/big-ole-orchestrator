@@ -157,14 +157,8 @@ pub struct SchemaVersion(pub(crate) u16);
 
 impl SchemaVersion {
     #[must_use]
-    pub const fn new(value: u16) -> Self {
-        Self(value)
-    }
-}
-
-impl From<SchemaVersion> for u16 {
-    fn from(v: SchemaVersion) -> Self {
-        v.0
+    pub fn new(version: u16) -> Self {
+        Self(version)
     }
 }
 

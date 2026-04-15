@@ -22,8 +22,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use vo_types::signal::FailureScope;
 use vo_types::{InstanceId, LineageStatus};
+use vo_types::signal::FailureScope;
 
 // =============================================================================
 // Actor Lifecycle State
@@ -352,8 +352,9 @@ impl FailureOutcome {
     #[must_use]
     pub const fn lineage_status(&self) -> LineageStatus {
         match self {
-            Self::EpochFailure { lineage_status, .. }
-            | Self::LineageFailure { lineage_status, .. } => *lineage_status,
+            Self::EpochFailure { lineage_status, .. } | Self::LineageFailure { lineage_status, .. } => {
+                *lineage_status
+            }
         }
     }
 

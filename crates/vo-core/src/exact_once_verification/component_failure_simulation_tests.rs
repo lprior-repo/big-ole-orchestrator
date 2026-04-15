@@ -418,7 +418,8 @@ mod data_integrity_verification_tests {
 
         assert!(
             result.is_ok(),
-            "Replay should succeed even with step failure"
+            "Replay should succeed even with step failure: {:?}",
+            result.err()
         );
         assert_eq!(
             result.unwrap().events_applied,

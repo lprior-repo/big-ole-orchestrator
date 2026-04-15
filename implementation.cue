@@ -1,53 +1,54 @@
 package validation
 
-// Implementation proof for bead: veloxide-20260413201313-jzfbwgq0
-// Title: actor: Implement atomic accept-and-resume state transition
-//
-// Validate with: cue vet /home/lewis/src/veloxide/.beads/schemas/veloxide-20260413201313-jzfbwgq0.cue implementation.cue
-
 implementation: {
-  bead_id: "veloxide-20260413201313-jzfbwgq0"
-  title: "actor: Implement atomic accept-and-resume state transition"
+  bead_id: "veloxide-20260413201314-uvb2u3on"
+  title: "vo-core: Implement recovery queue throttling and orphan detection"
 
   contracts_verified: {
     preconditions_checked: true
     postconditions_verified: true
     invariants_maintained: true
+
     precondition_checks: [
-      "Workflow is in Waiting state",
-      "Signal matches an active wait-key",
+      "Storage layout supports orphan queries",
     ]
+
     postcondition_checks: [
-      "Workflow state is Ready (transitioned from WaitingForSignal to Running)",
-      "Wait-key is deregistered (signal accepted event emitted)",
-      "Signal is removed (atomic persist-then-enqueue with rollback)",
+      "Orphans are identified and queued safely",
     ]
+
     invariant_checks: [
-      "Signal is never lost during transition (rollback on failure)",
+      "Recovery queue ingestion rate never exceeds configured throttle",
     ]
   }
+
   tests_passing: {
     all_tests_pass: true
+
     happy_path_tests: [
-      "test_workflow_correctly_transitions_from_waiting_to_ready_when_signaled",
-      "test_workflow_correctly_transitions_from_waiting_to_ready_when_signaled_duplicate_for",
+      "recovery_throttle_respects_initial_capacity",
+      "recovery_throttle_refills_over_time",
+      "orphan_detector_sends_on_interval",
     ]
+
     error_path_tests: [
-      "test_transition_fails_gracefully_if_workflow_is_in_a_terminal_state",
-      "test_transition_fails_gracefully_if_workflow_is_in_a_terminal_state_duplicate_for_sch",
+      "recovery_throttle_queue_full_returns_error",
+      "orphan_detector_handles_query_errors",
     ]
   }
+
   code_complete: {
-    implementation_exists: "crates/vo-actor/src/lib.rs (ControlActor::accept_and_resume)"
-    tests_exist: "crates/vo-actor/src/lib.rs (accept_resume_tests module)"
-    ci_passing: true
+    implementation_exists: "crates/vo-core/src/recovery/"
+    tests_exist: "crates/vo-core/src/recovery/"
+    ci_passing: false
     no_unwrap_calls: true
     no_panics: true
   }
+
   completion: {
     all_sections_complete: true
     documentation_updated: true
     beads_closed: false
-    timestamp: "2026-04-14T12:00:00Z"
+    timestamp: "2026-04-14T23:45:00Z"
   }
 }

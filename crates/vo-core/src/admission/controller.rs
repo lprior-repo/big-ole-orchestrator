@@ -12,7 +12,6 @@ use super::check::check_admission_with_thresholds;
 use super::control::{AdmissionCheck, AdmissionResult, DedupeToken};
 use super::types::{AdmissionError, AdmissionThresholds, WritePressureState};
 use super::AdmissionThresholds as ConfiguredThresholds;
-use crate::workload_class::{WorkloadBudget, WorkloadClass};
 
 #[derive(Debug, Clone)]
 pub struct AdmissionController<C: AdmissionCheck> {
@@ -20,7 +19,6 @@ pub struct AdmissionController<C: AdmissionCheck> {
     pressure_state: WritePressureState,
     thresholds: AdmissionThresholds,
     in_flight: HashSet<InstanceId>,
-    workload_budget: Option<WorkloadBudget>,
 }
 
 impl<C: AdmissionCheck> AdmissionController<C> {
@@ -34,7 +32,6 @@ impl<C: AdmissionCheck> AdmissionController<C> {
                 blob_queue_depth_threshold: 50,
             },
             in_flight: HashSet::new(),
-            workload_budget: None,
         }
     }
 
@@ -52,13 +49,7 @@ impl<C: AdmissionCheck> AdmissionController<C> {
                 blob_queue_depth_threshold: thresholds.blob_queue_depth_threshold,
             },
             in_flight: HashSet::new(),
-            workload_budget: None,
         }
-    }
-
-    pub fn with_workload_budget(mut self, budget: WorkloadBudget) -> Self {
-        self.workload_budget = Some(budget);
-        self
     }
 
     pub fn admit_new_workflow(
@@ -83,66 +74,6 @@ impl<C: AdmissionCheck> AdmissionController<C> {
         check_admission_with_thresholds(&self.pressure_state, &self.thresholds)?;
 
         Ok(dedupe_token)
-    }
-
-    pub fn admit_new_workflow_with_class(
-        &self,
-        dedupe_key: &DedupeKey,
-        class: WorkloadClass,
-    ) -> Result<DedupeToken, AdmissionError> {
-        let dedupe_result = self.check.check_deduplicate(dedupe_key);
-        let dedupe_token = match dedupe_result {
-            AdmissionResult::Admitted { dedupe_token } => dedupe_token,
-            AdmissionResult::Duplicate {
-                original_instance_id,
-            } => {
-                return Err(AdmissionError::Duplicate {
-                    original_instance_id,
-                });
-            }
-            AdmissionResult::Rejected { reason } => {
-                return Err(AdmissionError::PolicyViolation(reason.to_string()));
-            }
-        };
-
-        if self.is_degraded() && class.is_capped_under_contention() {
-            return Err(AdmissionError::WorkloadClassNotPermitted {
-                class,
-                reason: "lowest priority class not permitted during degraded mode",
-            });
-        }
-
-        if !class.never_starved() {
-            check_admission_with_thresholds(&self.pressure_state, &self.thresholds)?;
-        }
-
-        if let Some(ref budget) = self.workload_budget {
-            if !budget.can_acquire(class) {
-                return Err(AdmissionError::WorkloadBudgetExceeded {
-                    class,
-                    available: budget.remaining(class),
-                    requested: 1,
-                });
-            }
-            if budget.acquire(class).is_err() {
-                return Err(AdmissionError::WorkloadBudgetExceeded {
-                    class,
-                    available: budget.remaining(class),
-                    requested: 1,
-                });
-            }
-        }
-
-        Ok(dedupe_token)
-    }
-
-    pub fn is_degraded(&self) -> bool {
-        self.pressure_state.writer_queue_depth > self.thresholds.writer_queue_depth_threshold
-            || self.pressure_state.batch_commit_latency_ms
-                > self.thresholds.batch_commit_latency_ms_threshold
-            || self.pressure_state.blob_queue_depth > self.thresholds.blob_queue_depth_threshold
-            || self.pressure_state.compaction_stall_active
-            || self.pressure_state.storage_stall_active
     }
 
     pub fn mark_in_flight(&mut self, instance_id: &InstanceId) {
@@ -196,8 +127,6 @@ impl AdmissionError {
                 | AdmissionError::CompactionStallActive
                 | AdmissionError::StorageStallActive
                 | AdmissionError::MultiplePressureIndicators { .. }
-                | AdmissionError::WorkloadBudgetExceeded { .. }
-                | AdmissionError::WorkloadClassNotPermitted { .. }
         )
     }
 }

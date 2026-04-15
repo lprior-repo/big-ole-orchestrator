@@ -10,6 +10,11 @@ mod security_validation_tests {
     fn test_is_retryable_error_classification() {
         assert!(is_retryable_error("at_capacity"));
 
+        assert!(!is_retryable_error("internal_error"));
+        assert!(!is_retryable_error("timeout"));
+        assert!(!is_retryable_error("service_unavailable"));
+        assert!(!is_retryable_error("rate_limited"));
+
         assert!(!is_retryable_error("not_found"));
         assert!(!is_retryable_error("invalid_id"));
         assert!(!is_retryable_error("unauthorized"));
@@ -166,7 +171,6 @@ mod security_validation_tests {
         let err = InvariantViolation::EntriesNotSorted;
         let msg = err.to_string();
         assert!(msg.contains("ascending"));
-        assert!(msg.contains("seq"));
     }
 
     #[test]

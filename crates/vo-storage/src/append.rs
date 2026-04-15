@@ -40,6 +40,33 @@ fn emit_rejection(class: WriteClass, reason: &str) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Metrics Helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+use metrics::{counter, gauge};
+
+fn write_class_label(class: WriteClass) -> &'static str {
+    match class {
+        WriteClass::CriticalControlPlane => "critical_control_plane",
+        WriteClass::OperatorProjection => "operator_projection",
+        WriteClass::BulkBlob => "bulk_blob",
+    }
+}
+
+fn emit_queue_depth(class: WriteClass, depth: usize) {
+    gauge!("vo_storage.queue_depth", "write_class" => write_class_label(class)).set(depth as f64);
+}
+
+fn emit_rejection(class: WriteClass, reason: &str) {
+    let key = match reason {
+        "queue_full" => "queue_full",
+        "budget_exceeded" => "budget_exceeded",
+        _ => "unknown",
+    };
+    counter!("vo_storage.write_rejected_total", "write_class" => write_class_label(class), "reason" => key).increment(1);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // WriteClass
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -768,10 +795,6 @@ impl<T> BudgetQueues<T> {
             };
 
             emit_queue_depth(class, new_depth);
-
-            if let Some(ref it) = item {
-                self.budget.release(class, it.size_bytes());
-            }
 
             if was_full {
                 let remaining = match self.stats.lock() {

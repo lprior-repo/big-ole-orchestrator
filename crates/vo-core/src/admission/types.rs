@@ -85,22 +85,6 @@ pub enum AdmissionError {
     },
     /// A generic admission policy violation with a human-readable message.
     PolicyViolation(String),
-    /// Workload class budget exceeded.
-    WorkloadBudgetExceeded {
-        /// The workload class that exceeded its budget.
-        class: crate::workload_class::WorkloadClass,
-        /// Current available permits.
-        available: u32,
-        /// Permits requested.
-        requested: u32,
-    },
-    /// Workload class not permitted in current mode.
-    WorkloadClassNotPermitted {
-        /// The workload class that was rejected.
-        class: crate::workload_class::WorkloadClass,
-        /// Reason the class was rejected.
-        reason: &'static str,
-    },
 }
 
 /// Configurable thresholds for admission decisions.
