@@ -10,6 +10,7 @@
 
 pub mod errors;
 pub mod helpers;
+pub mod mutation;
 pub mod names;
 pub mod v1;
 pub mod v3;
