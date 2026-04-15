@@ -778,9 +778,9 @@ mod tests {
     }
 
     #[test]
-    fn broadcast_channel_buffer_overflow_drops_events() {
+    fn broadcast_channel_lagged_error_when_receiver_cannot_keep_up() {
         let temp_dir = TempDir::new().unwrap();
-        let mut cache =
+        let cache =
             MmapCache::with_broadcast_channel(temp_dir.path().to_path_buf(), 1024 * 1024, 2)
                 .unwrap();
         let mut receiver = cache.subscribe();
@@ -790,16 +790,14 @@ mod tests {
         cache.invalidate_key("key3").unwrap();
 
         let runtime = tokio::runtime::Runtime::new().unwrap();
-        let event1 = runtime.block_on(receiver.recv()).unwrap();
-        let event2 = runtime.block_on(receiver.recv()).unwrap();
-
-        match event1 {
-            CacheInvalidationEvent::KeyInvalidated(key) => assert_eq!(key, "key1"),
-            _ => panic!("Expected KeyInvalidated event"),
-        }
-        match event2 {
-            CacheInvalidationEvent::KeyInvalidated(key) => assert_eq!(key, "key2"),
-            _ => panic!("Expected KeyInvalidated event"),
+        let result1 = runtime.block_on(receiver.recv());
+        assert!(result1.is_err());
+        let err = result1.unwrap_err();
+        match err {
+            tokio::sync::broadcast::error::RecvError::Lagged(n) => {
+                assert!(n >= 1, "Expected lagged count >= 1, got {}", n);
+            }
+            _ => panic!("Expected Lagged error, got {:?}", err),
         }
     }
 }
