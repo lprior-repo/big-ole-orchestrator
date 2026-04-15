@@ -35,6 +35,7 @@ pub mod integer_types;
 mod integer_types_tests;
 mod lifecycle_superstate;
 mod lineage;
+mod euler_tour_tree;
 mod link_cut_tree;
 mod clique_tree;
 mod macros;
