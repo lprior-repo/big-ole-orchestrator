@@ -54,6 +54,7 @@ pub enum ReplayError {
     UpcastingFailed { sequence: u64, reason: String },
     /// Blob publication failed for a required output (ADR-040 §3).
     /// The step stays incomplete and may be retried or failed.
+    #[error("Blob publication failed at sequence {sequence} for step '{step_id}': blob {blob_id}")]
     BlobPublicationFailed {
         sequence: u64,
         step_id: String,

@@ -70,5 +70,3 @@ pub mod shedding_verification;
 mod invalid_business_data_tests;
 
 mod execution;
-#[cfg(test)]
-mod execution::publication_barrier_tests;
