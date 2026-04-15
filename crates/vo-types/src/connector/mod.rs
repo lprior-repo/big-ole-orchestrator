@@ -18,6 +18,8 @@ mod transition;
 mod types;
 
 #[cfg(test)]
+mod runtime_tests;
+#[cfg(test)]
 mod tests;
 #[cfg(test)]
 mod transition_tests;
