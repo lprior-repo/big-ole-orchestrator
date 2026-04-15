@@ -42,6 +42,7 @@ pub mod partitions;
 pub mod projection_compat;
 pub mod purge;
 pub mod query;
+pub mod receipts;
 pub mod snapshot_diff;
 pub mod snapshots;
 pub mod status_store;

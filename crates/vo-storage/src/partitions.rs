@@ -11,6 +11,7 @@
 //! | `dedupe` | Exactly-once ingress deduplication | `<dedupe_key>` |
 //! | `effects` | EffectPrepared/EffectCommitted journal | `<instance_id><intent_id>` |
 //! | `leases` | Monotonic fence tokens | `<instance_id><step_id>` |
+//! | `receipts` | Execution receipts for managed connectors | `<effect_id>` |
 //! | `workflow_versions` | Canonical `WorkflowSpec` by hash | `<hash>` |
 //! | `payload_blobs` | Encrypted canonical payload blobs | `<content_addr>` |
 //!
@@ -28,6 +29,7 @@ pub use crate::dedupe_partition::DEDUPE_PARTITION;
 pub use crate::dedupe_partition::DEDUPE_RETENTION_PARTITION;
 pub use crate::effect_journal::EFFECTS_PARTITION;
 pub use crate::lease_partition::LEASE_PARTITION;
+pub use crate::receipts::RECEIPTS_PARTITION;
 
 pub const EVENTS_PARTITION: &str = "events";
 pub const INSTANCES_PARTITION: &str = "instances";
@@ -77,6 +79,7 @@ pub const ALL_PARTITIONS: &[&str] = &[
     DEDUPE_RETENTION_PARTITION,
     EFFECTS_PARTITION,
     LEASE_PARTITION,
+    RECEIPTS_PARTITION,
     WORKFLOW_VERSIONS_PARTITION,
     PAYLOAD_BLOBS_PARTITION,
     BLOB_RECORDS_PARTITION,
@@ -90,6 +93,7 @@ pub const HOT_PARTITIONS: &[&str] = &[
     DEDUPE_PARTITION,
     EFFECTS_PARTITION,
     LEASE_PARTITION,
+    RECEIPTS_PARTITION,
 ];
 
 pub const COLD_PARTITIONS: &[&str] = &[SNAPSHOTS_PARTITION, WORKFLOW_VERSIONS_PARTITION];
@@ -300,7 +304,7 @@ mod tests {
 
     #[test]
     fn all_partitions_contains_expected_count() {
-        assert_eq!(ALL_PARTITIONS.len(), 12);
+        assert_eq!(ALL_PARTITIONS.len(), 13);
     }
 
     #[test]
