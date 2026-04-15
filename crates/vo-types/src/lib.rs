@@ -46,6 +46,7 @@ mod plugin;
 #[cfg(feature = "proptest")]
 mod proptest_targets;
 pub mod proptest_verifier;
+mod recovery_contract;
 mod registration_status;
 mod rope;
 pub mod search;
@@ -118,6 +119,11 @@ pub use node_kind::NodeKind;
 pub use non_empty_vec::NonEmptyVec;
 pub use octree::{BoundingBox, Octree, OctreeConfig, OctreeEntry, OctreeError, OctreeNode, Point3};
 pub use pairing_heap::{PairingHeap, PairingHeapError};
+pub use recovery_contract::{
+    classify_expected_outcome, generate_scenario_matrix, violation_to_invariant, AssertionResult,
+    CrashTiming, ExpectedRecoveryOutcome, FailoverScenario, FailoverSeverity, RecoveryAssertion,
+    RecoveryInvariant, RecoveryPhase, RecoveryViolation,
+};
 pub use plugin::{
     apply_plugin_transition, ArtifactRef, CapabilityId, HotLoadEvent, InstanceKey,
     IsolationBreachType, IsolationLevel, PluginArtifact, PluginDescriptor, PluginErrorCategory,
