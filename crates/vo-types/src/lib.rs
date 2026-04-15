@@ -1,4 +1,5 @@
 mod binomial_heap;
+mod rope;
 #[cfg(test)]
 mod blob_tests;
 mod blob;
