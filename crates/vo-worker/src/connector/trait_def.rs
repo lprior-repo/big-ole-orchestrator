@@ -1,7 +1,7 @@
 //! Core Connector trait (ADR-041 §1).
 
-use async_trait::async_trait;
 use crate::connector::{CommitOutcome, ConnectorError, PreparedEffect, ReconcileOutcome};
+use async_trait::async_trait;
 
 /// The uniform runtime contract for all managed connectors (ADR-041 §1).
 #[async_trait]
@@ -17,15 +17,9 @@ pub trait Connector: Send + Sync + 'static {
         fence: u64,
     ) -> Result<PreparedEffect, ConnectorError>;
 
-    async fn commit(
-        &self,
-        prepared: PreparedEffect,
-    ) -> Result<CommitOutcome, ConnectorError>;
+    async fn commit(&self, prepared: PreparedEffect) -> Result<CommitOutcome, ConnectorError>;
 
-    async fn reconcile(
-        &self,
-        effect_id: &str,
-    ) -> Result<ReconcileOutcome, ConnectorError>;
+    async fn reconcile(&self, effect_id: &str) -> Result<ReconcileOutcome, ConnectorError>;
 
     async fn compensate(
         &self,
@@ -33,7 +27,9 @@ pub trait Connector: Send + Sync + 'static {
         _compensation_effect_id: String,
         _fence: u64,
     ) -> Result<CommitOutcome, ConnectorError> {
-        Err(ConnectorError::compensation_not_supported(self.connector_type()))
+        Err(ConnectorError::compensation_not_supported(
+            self.connector_type(),
+        ))
     }
 }
 
@@ -75,19 +71,13 @@ mod tests {
             })
         }
 
-        async fn commit(
-            &self,
-            _prepared: PreparedEffect,
-        ) -> Result<CommitOutcome, ConnectorError> {
+        async fn commit(&self, _prepared: PreparedEffect) -> Result<CommitOutcome, ConnectorError> {
             Ok(CommitOutcome::Committed {
                 receipt: format!("{}:committed", self.connector_type),
             })
         }
 
-        async fn reconcile(
-            &self,
-            _effect_id: &str,
-        ) -> Result<ReconcileOutcome, ConnectorError> {
+        async fn reconcile(&self, _effect_id: &str) -> Result<ReconcileOutcome, ConnectorError> {
             Ok(ReconcileOutcome::NotCommitted)
         }
     }
@@ -119,7 +109,10 @@ mod tests {
             supports_compensation: false,
         };
 
-        let result = connector.prepare(json!({}), "fx-123".to_string(), 42).await.unwrap();
+        let result = connector
+            .prepare(json!({}), "fx-123".to_string(), 42)
+            .await
+            .unwrap();
         assert_eq!(result.effect_id, "fx-123");
         assert_eq!(result.fence, 42);
     }
@@ -162,7 +155,9 @@ mod tests {
             supports_compensation: false,
         };
 
-        let result = connector.compensate(json!({}), "cx-123".to_string(), 1).await;
+        let result = connector
+            .compensate(json!({}), "cx-123".to_string(), 1)
+            .await;
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(err.is_retryable());
@@ -176,9 +171,15 @@ mod tests {
 
         #[async_trait]
         impl Connector for CompensatingConnector {
-            fn connector_type(&self) -> &str { "comp" }
-            fn connector_version(&self) -> &str { "1.0.0" }
-            fn supports_compensation(&self) -> bool { true }
+            fn connector_type(&self) -> &str {
+                "comp"
+            }
+            fn connector_version(&self) -> &str {
+                "1.0.0"
+            }
+            fn supports_compensation(&self) -> bool {
+                true
+            }
 
             async fn prepare(
                 &self,
@@ -186,14 +187,20 @@ mod tests {
                 effect_id: String,
                 fence: u64,
             ) -> Result<PreparedEffect, ConnectorError> {
-                Ok(PreparedEffect { effect_id, payload: json!({}), fence })
+                Ok(PreparedEffect {
+                    effect_id,
+                    payload: json!({}),
+                    fence,
+                })
             }
 
             async fn commit(
                 &self,
                 _prepared: PreparedEffect,
             ) -> Result<CommitOutcome, ConnectorError> {
-                Ok(CommitOutcome::Committed { receipt: "c".into() })
+                Ok(CommitOutcome::Committed {
+                    receipt: "c".into(),
+                })
             }
 
             async fn reconcile(
@@ -209,12 +216,17 @@ mod tests {
                 _compensation_effect_id: String,
                 _fence: u64,
             ) -> Result<CommitOutcome, ConnectorError> {
-                Ok(CommitOutcome::Committed { receipt: "compensated".into() })
+                Ok(CommitOutcome::Committed {
+                    receipt: "compensated".into(),
+                })
             }
         }
 
         let connector = CompensatingConnector;
-        let result = connector.compensate(json!({}), "cx-123".to_string(), 1).await.unwrap();
+        let result = connector
+            .compensate(json!({}), "cx-123".to_string(), 1)
+            .await
+            .unwrap();
         assert!(matches!(result, CommitOutcome::Committed { .. }));
     }
 

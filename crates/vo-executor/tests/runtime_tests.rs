@@ -8,10 +8,10 @@
 
 #[cfg(test)]
 mod runtime_timeout_tests {
-    use std::time::Duration;
     use std::sync::LazyLock;
     use std::sync::Mutex;
     use std::sync::MutexGuard;
+    use std::time::Duration;
     use vo_executor::{
         cancel_execution, execute_step, execute_step_with_retry, get_execution_status,
         get_last_error, reset_all_state, RetryPolicy, StepId,
@@ -45,7 +45,10 @@ mod runtime_timeout_tests {
         let result = execute_step(StepId::new("step-1".to_string()), u64::MAX).await;
         assert!(matches!(
             result,
-            Err(vo_executor::ExecuteNodeError::InvalidTimeout { value: u64::MAX, .. })
+            Err(vo_executor::ExecuteNodeError::InvalidTimeout {
+                value: u64::MAX,
+                ..
+            })
         ));
     }
 
@@ -63,7 +66,10 @@ mod runtime_timeout_tests {
     async fn timeout_at_threshold_succeeds_for_slow_step() {
         let _guard = state_guard();
         let result = execute_step(StepId::new("step-slow".to_string()), 3000).await;
-        assert!(result.is_ok(), "Slow step with 3000ms timeout should succeed");
+        assert!(
+            result.is_ok(),
+            "Slow step with 3000ms timeout should succeed"
+        );
         assert_eq!(
             result.unwrap(),
             vo_executor::StepResult::Success {
@@ -96,7 +102,10 @@ mod runtime_timeout_tests {
         let result = execute_step(StepId::new("step-slow".to_string()), 2999).await;
         assert!(matches!(
             result,
-            Err(vo_executor::ExecuteNodeError::TimeoutExceeded { elapsed_ms: 3000, limit_ms: 2999 })
+            Err(vo_executor::ExecuteNodeError::TimeoutExceeded {
+                elapsed_ms: 3000,
+                limit_ms: 2999
+            })
         ));
     }
 
@@ -159,17 +168,26 @@ mod runtime_context_propagation_tests {
         let _guard = state_guard();
         let step_id = StepId::new("step-slow".to_string());
         let status = get_execution_status(&step_id);
-        assert!(status.is_ready() || matches!(status, vo_executor::ExecutionStatus::Executing { step_id: id, .. } if id.as_str() == "step-slow"));
+        assert!(
+            status.is_ready()
+                || matches!(status, vo_executor::ExecutionStatus::Executing { step_id: id, .. } if id.as_str() == "step-slow")
+        );
     }
 
     #[tokio::test]
     async fn error_context_preserved_for_transient_step() {
         let _guard = state_guard();
         let step_id = StepId::new("step-transient".to_string());
-        execute_step(step_id.clone(), 5000).await.expect_err("transient should fail");
+        execute_step(step_id.clone(), 5000)
+            .await
+            .expect_err("transient should fail");
         let error = get_last_error(&step_id);
         assert!(error.is_some());
-        if let Some(vo_executor::ExecuteNodeError::TransientError { reason, recoverable }) = error {
+        if let Some(vo_executor::ExecuteNodeError::TransientError {
+            reason,
+            recoverable,
+        }) = error
+        {
             assert!(reason.contains("network timeout"));
             assert!(recoverable);
         } else {
@@ -181,7 +199,8 @@ mod runtime_context_propagation_tests {
     async fn retry_count_propagates_to_error() {
         let _guard = state_guard();
         let policy = RetryPolicy::new(3, 10, 2.0).unwrap();
-        let result = execute_step_with_retry(StepId::new("step-flaky".to_string()), 5000, policy).await;
+        let result =
+            execute_step_with_retry(StepId::new("step-flaky".to_string()), 5000, policy).await;
         match result {
             Err(vo_executor::ExecuteNodeError::RetryExhausted { attempts, .. }) => {
                 assert_eq!(attempts, 3);
@@ -194,11 +213,16 @@ mod runtime_context_propagation_tests {
     async fn transient_error_recoverable_flag_propagates() {
         let _guard = state_guard();
         let step_id = StepId::new("step-transient".to_string());
-        execute_step(step_id.clone(), 5000).await.expect_err("should fail");
+        execute_step(step_id.clone(), 5000)
+            .await
+            .expect_err("should fail");
         let error = get_last_error(&step_id);
         assert!(matches!(
             error,
-            Some(vo_executor::ExecuteNodeError::TransientError { recoverable: true, .. })
+            Some(vo_executor::ExecuteNodeError::TransientError {
+                recoverable: true,
+                ..
+            })
         ));
     }
 
@@ -208,7 +232,9 @@ mod runtime_context_propagation_tests {
         let step_a = StepId::new("step-transient".to_string());
         let step_b = StepId::new("step-1".to_string());
 
-        execute_step(step_a.clone(), 5000).await.expect_err("transient fails");
+        execute_step(step_a.clone(), 5000)
+            .await
+            .expect_err("transient fails");
         let result_b = execute_step(step_b.clone(), 5000).await;
         assert!(result_b.is_ok());
 
@@ -223,10 +249,14 @@ mod runtime_context_propagation_tests {
         let _guard = state_guard();
         let step_id = StepId::new("step-transient".to_string());
 
-        execute_step(step_id.clone(), 5000).await.expect_err("first fails");
+        execute_step(step_id.clone(), 5000)
+            .await
+            .expect_err("first fails");
         assert!(get_last_error(&step_id).is_some());
 
-        execute_step(step_id.clone(), 5000).await.expect_err("second fails");
+        execute_step(step_id.clone(), 5000)
+            .await
+            .expect_err("second fails");
         assert!(get_last_error(&step_id).is_some());
     }
 
@@ -235,10 +265,18 @@ mod runtime_context_propagation_tests {
         let _guard = state_guard();
         let policy = RetryPolicy::new(3, 200, 3.0).unwrap();
         let start = std::time::Instant::now();
-        let result = execute_step_with_retry(StepId::new("step-flaky".to_string()), 5000, policy).await;
+        let result =
+            execute_step_with_retry(StepId::new("step-flaky".to_string()), 5000, policy).await;
         let elapsed_ms = start.elapsed().as_millis() as u64;
-        assert!(elapsed_ms >= 600, "Expected ~200 + 600 = 800ms backoff, got {}ms", elapsed_ms);
-        assert!(matches!(result, Err(vo_executor::ExecuteNodeError::RetryExhausted { .. })));
+        assert!(
+            elapsed_ms >= 600,
+            "Expected ~200 + 600 = 800ms backoff, got {}ms",
+            elapsed_ms
+        );
+        assert!(matches!(
+            result,
+            Err(vo_executor::ExecuteNodeError::RetryExhausted { .. })
+        ));
     }
 }
 
@@ -280,10 +318,14 @@ mod runtime_error_recovery_tests {
     async fn retry_exhausted_contains_last_error() {
         let _guard = state_guard();
         let policy = RetryPolicy::new(3, 10, 2.0).unwrap();
-        let result = execute_step_with_retry(StepId::new("step-flaky".to_string()), 5000, policy).await;
+        let result =
+            execute_step_with_retry(StepId::new("step-flaky".to_string()), 5000, policy).await;
         match result {
             Err(vo_executor::ExecuteNodeError::RetryExhausted { last_error, .. }) => {
-                assert!(matches!(*last_error, vo_executor::ExecuteNodeError::TransientError { .. }));
+                assert!(matches!(
+                    *last_error,
+                    vo_executor::ExecuteNodeError::TransientError { .. }
+                ));
             }
             _ => panic!("Expected RetryExhausted"),
         }
@@ -293,7 +335,8 @@ mod runtime_error_recovery_tests {
     async fn successful_retry_after_transient() {
         let _guard = state_guard();
         let policy = RetryPolicy::new(5, 10, 2.0).unwrap();
-        let result = execute_step_with_retry(StepId::new("step-good".to_string()), 5000, policy).await;
+        let result =
+            execute_step_with_retry(StepId::new("step-good".to_string()), 5000, policy).await;
         assert!(result.is_ok());
     }
 
@@ -301,7 +344,9 @@ mod runtime_error_recovery_tests {
     async fn step_not_found_error_is_terminal() {
         let _guard = state_guard();
         let policy = RetryPolicy::new(3, 10, 2.0).unwrap();
-        let result = execute_step_with_retry(StepId::new("nonexistent-step".to_string()), 5000, policy).await;
+        let result =
+            execute_step_with_retry(StepId::new("nonexistent-step".to_string()), 5000, policy)
+                .await;
         assert!(matches!(
             result,
             Err(vo_executor::ExecuteNodeError::StepNotFound { .. })
@@ -345,9 +390,14 @@ mod runtime_error_recovery_tests {
         let _guard = state_guard();
         let policy = RetryPolicy::new(1, 1000, 2.0).unwrap();
         let start = std::time::Instant::now();
-        let result = execute_step_with_retry(StepId::new("step-flaky".to_string()), 5000, policy).await;
+        let result =
+            execute_step_with_retry(StepId::new("step-flaky".to_string()), 5000, policy).await;
         let elapsed_ms = start.elapsed().as_millis() as u64;
-        assert!(elapsed_ms < 100, "max_attempts=1 should fail without sleeping, got {}ms", elapsed_ms);
+        assert!(
+            elapsed_ms < 100,
+            "max_attempts=1 should fail without sleeping, got {}ms",
+            elapsed_ms
+        );
         assert!(matches!(
             result,
             Err(vo_executor::ExecuteNodeError::RetryExhausted { attempts: 1, .. })
@@ -359,9 +409,14 @@ mod runtime_error_recovery_tests {
         let _guard = state_guard();
         let policy = RetryPolicy::new(2, 100, 2.0).unwrap();
         let start = std::time::Instant::now();
-        let result = execute_step_with_retry(StepId::new("step-flaky".to_string()), 5000, policy).await;
+        let result =
+            execute_step_with_retry(StepId::new("step-flaky".to_string()), 5000, policy).await;
         let elapsed_ms = start.elapsed().as_millis() as u64;
-        assert!((80..200).contains(&elapsed_ms), "Expected ~100ms sleep, got {}ms", elapsed_ms);
+        assert!(
+            (80..200).contains(&elapsed_ms),
+            "Expected ~100ms sleep, got {}ms",
+            elapsed_ms
+        );
     }
 
     #[tokio::test]
@@ -369,9 +424,14 @@ mod runtime_error_recovery_tests {
         let _guard = state_guard();
         let policy = RetryPolicy::new(3, 0, 2.0).unwrap();
         let start = std::time::Instant::now();
-        let result = execute_step_with_retry(StepId::new("step-flaky".to_string()), 5000, policy).await;
+        let result =
+            execute_step_with_retry(StepId::new("step-flaky".to_string()), 5000, policy).await;
         let elapsed_ms = start.elapsed().as_millis() as u64;
-        assert!(elapsed_ms < 50, "Zero backoff should have minimal delay, got {}ms", elapsed_ms);
+        assert!(
+            elapsed_ms < 50,
+            "Zero backoff should have minimal delay, got {}ms",
+            elapsed_ms
+        );
     }
 
     #[tokio::test]
@@ -386,7 +446,10 @@ mod runtime_error_recovery_tests {
         let result = execute_step_with_retry(StepId::new("step-1".to_string()), 5000, policy).await;
         assert!(matches!(
             result,
-            Err(vo_executor::ExecuteNodeError::InvalidRetryPolicy { reason: vo_executor::RetryPolicyError::ZeroAttempts, .. })
+            Err(vo_executor::ExecuteNodeError::InvalidRetryPolicy {
+                reason: vo_executor::RetryPolicyError::ZeroAttempts,
+                ..
+            })
         ));
     }
 }
@@ -397,8 +460,8 @@ mod runtime_concurrent_execution_tests {
     use std::sync::Mutex;
     use std::sync::MutexGuard;
     use vo_executor::{
-        execute_step, execute_step_with_retry, get_execution_status, reset_all_state,
-        RetryPolicy, StepId,
+        execute_step, execute_step_with_retry, get_execution_status, reset_all_state, RetryPolicy,
+        StepId,
     };
 
     static STATE_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
@@ -498,7 +561,10 @@ mod runtime_concurrent_execution_tests {
 
         for _ in 0..20 {
             let result = execute_step(step_id.clone(), 5000).await;
-            assert!(result.is_ok(), "Sequential execution should always succeed for success step");
+            assert!(
+                result.is_ok(),
+                "Sequential execution should always succeed for success step"
+            );
         }
     }
 
@@ -510,9 +576,7 @@ mod runtime_concurrent_execution_tests {
         let mut handles = Vec::new();
         for _ in 0..10 {
             let sid = step_id.clone();
-            handles.push(tokio::spawn(async move {
-                execute_step(sid, 5000).await
-            }));
+            handles.push(tokio::spawn(async move { execute_step(sid, 5000).await }));
         }
 
         for handle in handles {

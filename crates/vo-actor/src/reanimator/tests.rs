@@ -198,7 +198,11 @@ mod crash_recovery_tests {
     use super::*;
     use crate::reanimator::traits::{PendingTimer, TimerStorage, WorkQueue};
 
-    fn make_pending_timer(instance_id: InstanceId, fire_at_ms: TimestampMs, scheduled_at_ms: TimestampMs) -> PendingTimer {
+    fn make_pending_timer(
+        instance_id: InstanceId,
+        fire_at_ms: TimestampMs,
+        scheduled_at_ms: TimestampMs,
+    ) -> PendingTimer {
         PendingTimer {
             instance_id,
             fire_at_ms,
@@ -213,15 +217,20 @@ mod crash_recovery_tests {
         let storage = Arc::new(MockTimerStorage::new(Vec::new()));
         let work_queue = Arc::new(MockWorkQueue::new());
 
-        storage.add_timer(TimerRecord::new(
-            instance_id.clone(),
-            ts_ms(1000),
-            None,
-            ts_ms(500),
-        )).await;
+        storage
+            .add_timer(TimerRecord::new(
+                instance_id.clone(),
+                ts_ms(1000),
+                None,
+                ts_ms(500),
+            ))
+            .await;
 
         let pending = make_pending_timer(instance_id.clone(), ts_ms(1000), ts_ms(500));
-        storage.mark_timer_processing(&instance_id, ts_ms(1000)).await.unwrap();
+        storage
+            .mark_timer_processing(&instance_id, ts_ms(1000))
+            .await
+            .unwrap();
 
         let result = storage.scan_pending_timers(100).await.unwrap();
         assert_eq!(result.len(), 1);
@@ -229,7 +238,10 @@ mod crash_recovery_tests {
         let enqueued = work_queue.enqueued().await;
         assert_eq!(enqueued.len(), 0);
 
-        work_queue.enqueue_resume(instance_id.clone()).await.unwrap();
+        work_queue
+            .enqueue_resume(instance_id.clone())
+            .await
+            .unwrap();
 
         assert_eq!(work_queue.enqueued().await.len(), 1);
         assert_eq!(work_queue.enqueued().await[0], instance_id);
@@ -242,7 +254,10 @@ mod crash_recovery_tests {
         let work_queue = Arc::new(MockWorkQueue::new());
 
         let pending = make_pending_timer(instance_id.clone(), ts_ms(1000), ts_ms(500));
-        storage.mark_timer_processing(&instance_id, ts_ms(1000)).await.unwrap();
+        storage
+            .mark_timer_processing(&instance_id, ts_ms(1000))
+            .await
+            .unwrap();
 
         let pending_timers = storage.scan_pending_timers(100).await.unwrap();
         assert_eq!(pending_timers.len(), 1);
@@ -257,13 +272,19 @@ mod crash_recovery_tests {
         let storage = Arc::new(MockTimerStorage::empty());
 
         let pending = make_pending_timer(instance_id.clone(), ts_ms(1000), ts_ms(500));
-        storage.mark_timer_processing(&instance_id, ts_ms(1000)).await.unwrap();
+        storage
+            .mark_timer_processing(&instance_id, ts_ms(1000))
+            .await
+            .unwrap();
 
         let before = storage.scan_pending_timers(100).await.unwrap();
         assert_eq!(before.len(), 1);
 
         let old_threshold = TimestampMs::now();
-        let cleaned = storage.cleanup_stale_pending_timers(old_threshold).await.unwrap();
+        let cleaned = storage
+            .cleanup_stale_pending_timers(old_threshold)
+            .await
+            .unwrap();
         assert_eq!(cleaned, 1);
 
         let after = storage.scan_pending_timers(100).await.unwrap();
@@ -277,18 +298,27 @@ mod crash_recovery_tests {
         let work_queue = Arc::new(MockWorkQueue::new());
 
         let pending = make_pending_timer(instance_id.clone(), ts_ms(1000), ts_ms(500));
-        storage.mark_timer_processing(&instance_id, ts_ms(1000)).await.unwrap();
+        storage
+            .mark_timer_processing(&instance_id, ts_ms(1000))
+            .await
+            .unwrap();
 
         let pending_timers = storage.scan_pending_timers(100).await.unwrap();
         assert!(!pending_timers.is_empty());
 
-        work_queue.enqueue_resume(instance_id.clone()).await.unwrap();
+        work_queue
+            .enqueue_resume(instance_id.clone())
+            .await
+            .unwrap();
 
         let enqueued = work_queue.enqueued().await;
         assert_eq!(enqueued.len(), 1);
         assert_eq!(enqueued[0], instance_id);
 
-        storage.complete_timer_processing(&instance_id, ts_ms(1000)).await.unwrap();
+        storage
+            .complete_timer_processing(&instance_id, ts_ms(1000))
+            .await
+            .unwrap();
         let remaining = storage.scan_pending_timers(100).await.unwrap();
         assert!(remaining.is_empty());
     }
@@ -301,7 +331,9 @@ mod crash_recovery_tests {
 mod timer_lifecycle_tests {
     use super::*;
     use crate::reanimator::traits::TimerStorage;
-    use crate::timer_lifecycle::{cancel_timers_for_instance, has_pending_timers, scan_instance_timers};
+    use crate::timer_lifecycle::{
+        cancel_timers_for_instance, has_pending_timers, scan_instance_timers,
+    };
 
     fn create_timer_record(instance_id: InstanceId, fire_at_ms: u64) -> TimerRecord {
         TimerRecord::new(
@@ -317,16 +349,24 @@ mod timer_lifecycle_tests {
         let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
         let storage = Arc::new(MockTimerStorage::empty());
 
-        storage.add_timer(create_timer_record(instance_id.clone(), 5000)).await;
-        storage.add_timer(create_timer_record(instance_id.clone(), 6000)).await;
+        storage
+            .add_timer(create_timer_record(instance_id.clone(), 5000))
+            .await;
+        storage
+            .add_timer(create_timer_record(instance_id.clone(), 6000))
+            .await;
 
         let other_instance = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMB").unwrap();
-        storage.add_timer(create_timer_record(other_instance.clone(), 5500)).await;
+        storage
+            .add_timer(create_timer_record(other_instance.clone(), 5500))
+            .await;
 
         let has_before = has_pending_timers(&storage, &instance_id).await.unwrap();
         assert!(has_before);
 
-        let count = cancel_timers_for_instance(&storage, &instance_id).await.unwrap();
+        let count = cancel_timers_for_instance(&storage, &instance_id)
+            .await
+            .unwrap();
         assert_eq!(count, 2);
 
         let has_after = has_pending_timers(&storage, &instance_id).await.unwrap();
@@ -344,21 +384,32 @@ mod timer_lifecycle_tests {
         let scheduled_at = ts_ms(1000);
         let fire_at = ts_ms(2000);
 
-        storage.add_timer(TimerRecord::new(
-            instance_id.clone(),
-            fire_at,
-            Some(vo_types::TimerId::from_bytes([3; 16])),
-            scheduled_at,
-        )).await;
+        storage
+            .add_timer(TimerRecord::new(
+                instance_id.clone(),
+                fire_at,
+                Some(vo_types::TimerId::from_bytes([3; 16])),
+                scheduled_at,
+            ))
+            .await;
 
-        let due_timers = storage.scan_due_timers(ts_ms(0), ts_ms(2500), 100).await.unwrap();
+        let due_timers = storage
+            .scan_due_timers(ts_ms(0), ts_ms(2500), 100)
+            .await
+            .unwrap();
         assert_eq!(due_timers.len(), 1);
         assert_eq!(due_timers[0].fire_at_ms, fire_at);
 
         storage.delete_timer(&instance_id, fire_at).await.unwrap();
-        storage.record_timer_fired(&instance_id, fire_at).await.unwrap();
+        storage
+            .record_timer_fired(&instance_id, fire_at)
+            .await
+            .unwrap();
 
-        let after_delete = storage.scan_due_timers(ts_ms(0), ts_ms(2500), 100).await.unwrap();
+        let after_delete = storage
+            .scan_due_timers(ts_ms(0), ts_ms(2500), 100)
+            .await
+            .unwrap();
         assert!(after_delete.is_empty());
 
         let fire_calls = storage.fire_calls().await;
@@ -372,31 +423,42 @@ mod timer_lifecycle_tests {
         let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
         let storage = Arc::new(MockTimerStorage::empty());
 
-        storage.add_timer(TimerRecord::new(
-            instance_id.clone(),
-            ts_ms(1000),
-            Some(vo_types::TimerId::from_bytes([1; 16])),
-            ts_ms(500),
-        )).await;
+        storage
+            .add_timer(TimerRecord::new(
+                instance_id.clone(),
+                ts_ms(1000),
+                Some(vo_types::TimerId::from_bytes([1; 16])),
+                ts_ms(500),
+            ))
+            .await;
 
-        storage.add_timer(TimerRecord::new(
-            instance_id.clone(),
-            ts_ms(2000),
-            Some(vo_types::TimerId::from_bytes([2; 16])),
-            ts_ms(1500),
-        )).await;
+        storage
+            .add_timer(TimerRecord::new(
+                instance_id.clone(),
+                ts_ms(2000),
+                Some(vo_types::TimerId::from_bytes([2; 16])),
+                ts_ms(1500),
+            ))
+            .await;
 
-        storage.add_timer(TimerRecord::new(
-            instance_id.clone(),
-            ts_ms(3000),
-            Some(vo_types::TimerId::from_bytes([3; 16])),
-            ts_ms(2500),
-        )).await;
+        storage
+            .add_timer(TimerRecord::new(
+                instance_id.clone(),
+                ts_ms(3000),
+                Some(vo_types::TimerId::from_bytes([3; 16])),
+                ts_ms(2500),
+            ))
+            .await;
 
-        let all_timers = scan_instance_timers(&storage, &instance_id, 100).await.unwrap();
+        let all_timers = scan_instance_timers(&storage, &instance_id, 100)
+            .await
+            .unwrap();
         assert_eq!(all_timers.len(), 3);
 
-        let due_timers = storage.scan_due_timers(ts_ms(0), ts_ms(2500), 100).await.unwrap();
+        let due_timers = storage
+            .scan_due_timers(ts_ms(0), ts_ms(2500), 100)
+            .await
+            .unwrap();
         assert_eq!(due_timers.len(), 2);
     }
 }

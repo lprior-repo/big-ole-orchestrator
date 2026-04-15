@@ -5,6 +5,4 @@
 
 mod port;
 
-pub use port::{
-    ContentAddressedStorage, ContentAddressedStorageError,
-};
+pub use port::{ContentAddressedStorage, ContentAddressedStorageError};

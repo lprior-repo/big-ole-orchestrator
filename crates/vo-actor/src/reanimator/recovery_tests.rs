@@ -87,7 +87,10 @@ async fn crash_recovery_replays_pending_timers() {
         .await
         .expect("scan pending should succeed");
 
-    assert!(remaining.is_empty(), "pending timers should be cleared after recovery");
+    assert!(
+        remaining.is_empty(),
+        "pending timers should be cleared after recovery"
+    );
 }
 
 /// Test that crash recovery skips instances that have already terminated.
@@ -247,7 +250,10 @@ async fn network_partition_storage_failure_recovery() {
         )
         .await;
 
-    assert!(result.is_ok(), "storage operation should succeed after healing");
+    assert!(
+        result.is_ok(),
+        "storage operation should succeed after healing"
+    );
 }
 
 /// Test that work queue operations survive network partition and retry correctly.
@@ -260,20 +266,19 @@ async fn network_partition_work_queue_recovery() {
     // Simulate work queue failure
     work_queue.set_should_fail(true).await;
 
-    let result = work_queue
-        .enqueue_resume(instance_id.clone())
-        .await;
+    let result = work_queue.enqueue_resume(instance_id.clone()).await;
 
     assert!(result.is_err(), "work queue operation should fail");
 
     // After partition heals, operation should succeed
     work_queue.set_should_fail(false).await;
 
-    let result = work_queue
-        .enqueue_resume(instance_id.clone())
-        .await;
+    let result = work_queue.enqueue_resume(instance_id.clone()).await;
 
-    assert!(result.is_ok(), "work queue operation should succeed after healing");
+    assert!(
+        result.is_ok(),
+        "work queue operation should succeed after healing"
+    );
 
     let enqueued = work_queue.enqueued().await;
     assert_eq!(enqueued.len(), 1);
@@ -288,9 +293,7 @@ async fn partial_recovery_mixed_failures() {
     let work_queue = Arc::new(MockWorkQueue::new());
 
     // Add timer for instance1
-    storage
-        .add_timer(make_timer(instance1.clone(), 5000))
-        .await;
+    storage.add_timer(make_timer(instance1.clone(), 5000)).await;
 
     // Mark instance2 as in-flight
     storage
@@ -354,7 +357,10 @@ async fn validate_corrupted_timer_reversed_timestamps() {
     );
 
     let result = crate::reanimator::validate_timer_record(&timer);
-    assert!(result.is_err(), "should reject fire_at_ms < scheduled_at_ms");
+    assert!(
+        result.is_err(),
+        "should reject fire_at_ms < scheduled_at_ms"
+    );
 
     let err = result.unwrap_err();
     assert!(matches!(err, ReanimatorError::CorruptKey(_)));
@@ -375,7 +381,10 @@ async fn validate_corrupted_timer_zero_instance_id() {
 
     let err = result.unwrap_err();
     let err_msg = err.to_string();
-    assert!(err_msg.contains("all zeros"), "error should mention all zeros");
+    assert!(
+        err_msg.contains("all zeros"),
+        "error should mention all zeros"
+    );
 }
 
 /// Test handling of timer records with invalid timer IDs.
@@ -446,10 +455,7 @@ async fn crash_recovery_integration_full_scenario() {
 
     // Phase 5: Complete timer processing
     storage
-        .complete_timer_processing(
-            &pending_timers[0].instance_id,
-            pending_timers[0].fire_at_ms,
-        )
+        .complete_timer_processing(&pending_timers[0].instance_id, pending_timers[0].fire_at_ms)
         .await
         .expect("complete should succeed");
 
@@ -498,7 +504,10 @@ async fn crash_recovery_with_fairness_budget() {
     let first_instance = &pending_timers[0].instance_id;
     assert!(budget.record_resume(first_instance.clone()));
     assert!(budget.record_resume(first_instance.clone()));
-    assert!(!budget.record_resume(first_instance.clone()), "should be over budget after 2");
+    assert!(
+        !budget.record_resume(first_instance.clone()),
+        "should be over budget after 2"
+    );
 
     // Verify budget tracking
     assert!(!budget.can_resume(first_instance));
@@ -514,9 +523,7 @@ async fn crash_recovery_handles_storage_errors() {
     // Simulate storage error
     storage.set_should_fail(true).await;
 
-    let result = storage
-        .scan_pending_timers(100)
-        .await;
+    let result = storage.scan_pending_timers(100).await;
 
     assert!(result.is_err(), "scan should fail with storage error");
 
@@ -562,9 +569,7 @@ async fn partition_storage_accessible_work_queue_unavailable() {
         .expect("mark processing should succeed");
 
     // Try to enqueue resume - should fail
-    let result = work_queue
-        .enqueue_resume(instance_id.clone())
-        .await;
+    let result = work_queue.enqueue_resume(instance_id.clone()).await;
 
     assert!(result.is_err(), "enqueue should fail");
 
@@ -599,7 +604,10 @@ async fn partition_both_storage_and_work_queue() {
         )
         .await;
 
-    assert!(result.is_err(), "scan_due_timers should fail with storage error");
+    assert!(
+        result.is_err(),
+        "scan_due_timers should fail with storage error"
+    );
 
     // Recover both
     storage.set_should_fail(false).await;
@@ -651,44 +659,26 @@ async fn corruption_detection_in_scan() {
 #[tokio::test]
 async fn batch_size_respects_budget() {
     // No budget used, can process all
-    assert_eq!(
-        crate::reanimator::calculate_batch_size(50, 100, 0),
-        50
-    );
+    assert_eq!(crate::reanimator::calculate_batch_size(50, 100, 0), 50);
 
     // Budget partially used
-    assert_eq!(
-        crate::reanimator::calculate_batch_size(50, 100, 70),
-        30
-    );
+    assert_eq!(crate::reanimator::calculate_batch_size(50, 100, 70), 30);
 
     // Budget exhausted
-    assert_eq!(
-        crate::reanimator::calculate_batch_size(50, 100, 100),
-        0
-    );
+    assert_eq!(crate::reanimator::calculate_batch_size(50, 100, 100), 0);
 
     // Over budget
-    assert_eq!(
-        crate::reanimator::calculate_batch_size(50, 100, 101),
-        0
-    );
+    assert_eq!(crate::reanimator::calculate_batch_size(50, 100, 101), 0);
 }
 
 /// Test that batch size respects remaining timers.
 #[tokio::test]
 async fn batch_size_respects_remaining_timers() {
     // More budget than timers, should return timer count
-    assert_eq!(
-        crate::reanimator::calculate_batch_size(10, 100, 0),
-        10
-    );
+    assert_eq!(crate::reanimator::calculate_batch_size(10, 100, 0), 10);
 
     // Less budget than timers, should return budget remaining
-    assert_eq!(
-        crate::reanimator::calculate_batch_size(10, 100, 95),
-        5
-    );
+    assert_eq!(crate::reanimator::calculate_batch_size(10, 100, 95), 5);
 }
 
 // =============================================================================
@@ -733,9 +723,7 @@ async fn concurrent_recovery_operations() {
     let work_queue = Arc::new(MockWorkQueue::new());
 
     // Add multiple timers with unique instance IDs
-    let instance_ids: Vec<InstanceId> = (0..10u8)
-        .map(|i| make_instance_id(i))
-        .collect();
+    let instance_ids: Vec<InstanceId> = (0..10u8).map(|i| make_instance_id(i)).collect();
 
     for (i, instance_id) in instance_ids.iter().enumerate() {
         storage
@@ -746,10 +734,7 @@ async fn concurrent_recovery_operations() {
     // Mark all as pending
     for instance_id in &instance_ids {
         storage
-            .mark_timer_processing(
-                instance_id,
-                TimestampMs::try_from(5000u64).expect("valid"),
-            )
+            .mark_timer_processing(instance_id, TimestampMs::try_from(5000u64).expect("valid"))
             .await
             .expect("mark processing should succeed");
     }
@@ -767,9 +752,9 @@ async fn concurrent_recovery_operations() {
     for timer in &pending {
         let wq = work_queue.clone();
         let instance = timer.instance_id.clone();
-        handles.push(tokio::spawn(async move {
-            wq.enqueue_resume(instance).await
-        }));
+        handles.push(tokio::spawn(
+            async move { wq.enqueue_resume(instance).await },
+        ));
     }
 
     let results = futures::future::join_all(handles).await;

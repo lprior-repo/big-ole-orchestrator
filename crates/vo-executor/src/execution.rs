@@ -324,7 +324,10 @@ mod tests {
         let _guard = setup();
         let result = execute_step(StepId::new("nonexistent".to_string()), 5000).await;
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), ExecuteNodeError::StepNotFound { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            ExecuteNodeError::StepNotFound { .. }
+        ));
     }
 
     #[tokio::test]
@@ -332,7 +335,10 @@ mod tests {
         let _guard = setup();
         let result = execute_step(StepId::new("step-1".to_string()), 0).await;
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), ExecuteNodeError::InvalidTimeout { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            ExecuteNodeError::InvalidTimeout { .. }
+        ));
     }
 
     #[tokio::test]
@@ -340,7 +346,10 @@ mod tests {
         let _guard = setup();
         let result = execute_step(StepId::new("step-1".to_string()), u64::MAX).await;
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), ExecuteNodeError::InvalidTimeout { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            ExecuteNodeError::InvalidTimeout { .. }
+        ));
     }
 
     #[tokio::test]
@@ -356,7 +365,10 @@ mod tests {
         let _guard = setup();
         let result = execute_step(StepId::new("step-slow".to_string()), 100).await;
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), ExecuteNodeError::TimeoutExceeded { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            ExecuteNodeError::TimeoutExceeded { .. }
+        ));
     }
 
     #[tokio::test]
@@ -364,7 +376,10 @@ mod tests {
         let _guard = setup();
         let result = execute_step(StepId::new("step-transient".to_string()), 5000).await;
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), ExecuteNodeError::TransientError { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            ExecuteNodeError::TransientError { .. }
+        ));
         assert!(get_last_error(&StepId::new("step-transient".to_string())).is_some());
     }
 
@@ -388,18 +403,26 @@ mod tests {
     async fn execute_step_with_retry_flaky_always_exhausts() {
         let _guard = setup();
         let policy = RetryPolicy::new(3, 10, 2.0).unwrap();
-        let result = execute_step_with_retry(StepId::new("step-flaky".to_string()), 5000, policy).await;
+        let result =
+            execute_step_with_retry(StepId::new("step-flaky".to_string()), 5000, policy).await;
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), ExecuteNodeError::RetryExhausted { attempts: 3, .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            ExecuteNodeError::RetryExhausted { attempts: 3, .. }
+        ));
     }
 
     #[tokio::test]
     async fn execute_step_with_retry_flaky_single_attempt() {
         let _guard = setup();
         let policy = RetryPolicy::new(1, 10, 2.0).unwrap();
-        let result = execute_step_with_retry(StepId::new("step-flaky".to_string()), 5000, policy).await;
+        let result =
+            execute_step_with_retry(StepId::new("step-flaky".to_string()), 5000, policy).await;
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), ExecuteNodeError::RetryExhausted { attempts: 1, .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            ExecuteNodeError::RetryExhausted { attempts: 1, .. }
+        ));
     }
 
     #[tokio::test]
@@ -423,9 +446,12 @@ mod tests {
     #[tokio::test]
     async fn cancel_execution_from_cancelled_is_noop() {
         let _guard = setup();
-        set_state("step-1", super::super::state::StepState::Cancelled {
-            reason: "already".to_string(),
-        });
+        set_state(
+            "step-1",
+            super::super::state::StepState::Cancelled {
+                reason: "already".to_string(),
+            },
+        );
         let result = cancel_execution(StepId::new("step-1".to_string())).await;
         assert!(result.is_ok());
     }
@@ -433,9 +459,12 @@ mod tests {
     #[tokio::test]
     async fn cancel_execution_from_completed_is_noop() {
         let _guard = setup();
-        set_state("step-1", super::super::state::StepState::Completed {
-            output: "done".to_string(),
-        });
+        set_state(
+            "step-1",
+            super::super::state::StepState::Completed {
+                output: "done".to_string(),
+            },
+        );
         let result = cancel_execution(StepId::new("step-1".to_string())).await;
         assert!(result.is_ok());
     }
@@ -451,10 +480,13 @@ mod tests {
     async fn get_execution_status_executing() {
         let _guard = setup();
         let start = Instant::now();
-        set_state("step-1", super::super::state::StepState::Executing {
-            step_id: StepId::new("step-1".to_string()),
-            start_time: start,
-        });
+        set_state(
+            "step-1",
+            super::super::state::StepState::Executing {
+                step_id: StepId::new("step-1".to_string()),
+                start_time: start,
+            },
+        );
         let status = get_execution_status(&StepId::new("step-1".to_string()));
         assert!(matches!(status, ExecutionStatus::Executing { .. }));
     }
@@ -462,21 +494,37 @@ mod tests {
     #[tokio::test]
     async fn get_execution_status_completed() {
         let _guard = setup();
-        set_state("step-1", super::super::state::StepState::Completed {
-            output: "result".to_string(),
-        });
+        set_state(
+            "step-1",
+            super::super::state::StepState::Completed {
+                output: "result".to_string(),
+            },
+        );
         let status = get_execution_status(&StepId::new("step-1".to_string()));
-        assert_eq!(status, ExecutionStatus::Completed { output: "result".to_string() });
+        assert_eq!(
+            status,
+            ExecutionStatus::Completed {
+                output: "result".to_string()
+            }
+        );
     }
 
     #[tokio::test]
     async fn get_execution_status_cancelled() {
         let _guard = setup();
-        set_state("step-1", super::super::state::StepState::Cancelled {
-            reason: "user".to_string(),
-        });
+        set_state(
+            "step-1",
+            super::super::state::StepState::Cancelled {
+                reason: "user".to_string(),
+            },
+        );
         let status = get_execution_status(&StepId::new("step-1".to_string()));
-        assert_eq!(status, ExecutionStatus::Cancelled { reason: "user".to_string() });
+        assert_eq!(
+            status,
+            ExecutionStatus::Cancelled {
+                reason: "user".to_string()
+            }
+        );
     }
 
     #[tokio::test]

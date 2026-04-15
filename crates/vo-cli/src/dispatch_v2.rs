@@ -64,10 +64,7 @@ pub trait MiddlewareV2: Send + Sync {
         ctx: &dyn DispatchContext,
     ) -> Pin<Box<dyn Future<Output = MiddlewareResult> + Send + '_>>;
 
-    fn after(
-        &self,
-        ctx: &dyn DispatchContext,
-    ) -> Pin<Box<dyn Future<Output = ()> + Send + '_>>;
+    fn after(&self, ctx: &dyn DispatchContext) -> Pin<Box<dyn Future<Output = ()> + Send + '_>>;
 
     fn on_error(
         &self,
@@ -106,10 +103,7 @@ impl MiddlewareV2 for LoggingMiddlewareV2 {
         })
     }
 
-    fn after(
-        &self,
-        ctx: &dyn DispatchContext,
-    ) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
+    fn after(&self, ctx: &dyn DispatchContext) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
         let elapsed = ctx.elapsed();
         Box::pin(async move {
             eprintln!("[logging] Command completed in {elapsed:?}");
@@ -125,9 +119,7 @@ impl MiddlewareV2 for LoggingMiddlewareV2 {
         let name = ctx.command_name().to_string();
         let msg = error.to_string();
         Box::pin(async move {
-            eprintln!(
-                "[logging] Command '{name}' failed after {elapsed:?}: {msg}"
-            );
+            eprintln!("[logging] Command '{name}' failed after {elapsed:?}: {msg}");
         })
     }
 }
@@ -158,10 +150,7 @@ impl MiddlewareV2 for MetricsMiddlewareV2 {
         Box::pin(async { MiddlewareResult::Continue })
     }
 
-    fn after(
-        &self,
-        ctx: &dyn DispatchContext,
-    ) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
+    fn after(&self, ctx: &dyn DispatchContext) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
         let elapsed = ctx.elapsed();
         let name = ctx.command_name().to_string();
         Box::pin(async move {

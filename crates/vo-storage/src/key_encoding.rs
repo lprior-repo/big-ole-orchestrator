@@ -18,7 +18,6 @@ use vo_types::{InstanceId, ParseError, SequenceNumber, StepId};
 #[cfg(test)]
 mod tests;
 
-#[cfg(test)]
 mod red_queen_adversarial;
 #[cfg(test)]
 mod red_queen_tests;

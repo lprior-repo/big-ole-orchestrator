@@ -127,9 +127,11 @@ mod concurrency_resource_tests {
 
         let final_count = get_state_count();
         assert_eq!(
-            final_count, initial_count + 100,
+            final_count,
+            initial_count + 100,
             "State count should grow by number of executions: initial={}, final={}",
-            initial_count, final_count
+            initial_count,
+            final_count
         );
     }
 
@@ -143,9 +145,9 @@ mod concurrency_resource_tests {
         let mut handles = Vec::new();
         for i in 0..50 {
             let step_id = StepId::new(format!("concurrent-leak-{}", i));
-            handles.push(tokio::spawn(async move {
-                execute_step(step_id, 5000).await
-            }));
+            handles.push(tokio::spawn(
+                async move { execute_step(step_id, 5000).await },
+            ));
         }
 
         for handle in handles {
@@ -154,9 +156,11 @@ mod concurrency_resource_tests {
 
         let final_count = get_state_count();
         assert_eq!(
-            final_count, initial_count + 50,
+            final_count,
+            initial_count + 50,
             "State count should grow by number of concurrent executions: initial={}, final={}",
-            initial_count, final_count
+            initial_count,
+            final_count
         );
     }
 
@@ -171,9 +175,9 @@ mod concurrency_resource_tests {
             let mut handles = Vec::new();
             for i in 0..20 {
                 let step_id = StepId::new(format!("sustained-{}-{}", round, i));
-                handles.push(tokio::spawn(async move {
-                    execute_step(step_id, 5000).await
-                }));
+                handles.push(tokio::spawn(
+                    async move { execute_step(step_id, 5000).await },
+                ));
             }
 
             for handle in handles {
@@ -183,9 +187,11 @@ mod concurrency_resource_tests {
 
         let final_count = get_state_count();
         assert_eq!(
-            final_count, initial_count + 100,
+            final_count,
+            initial_count + 100,
             "State count should grow by total executions across rounds: initial={}, final={}",
-            initial_count, final_count
+            initial_count,
+            final_count
         );
     }
 
@@ -244,11 +250,7 @@ mod concurrency_resource_tests {
             .map_or(0, |d| d.as_millis() as u64);
 
         let due = scheduler.poll_due_jobs(now_ms + 100);
-        assert_eq!(
-            due.len(),
-            50,
-            "Should return max_jobs_per_scan=50 due jobs"
-        );
+        assert_eq!(due.len(), 50, "Should return max_jobs_per_scan=50 due jobs");
     }
 
     #[tokio::test]
@@ -322,9 +324,9 @@ mod concurrency_resource_tests {
         let mut handles = Vec::new();
         for i in 0..20 {
             let step_id = StepId::new(format!("step-{}", i % 5 + 1));
-            handles.push(tokio::spawn(async move {
-                execute_step(step_id, 5000).await
-            }));
+            handles.push(tokio::spawn(
+                async move { execute_step(step_id, 5000).await },
+            ));
         }
 
         let mut success_count = 0;
@@ -501,9 +503,9 @@ mod concurrency_resource_tests {
         let mut handles = Vec::new();
         for i in 0..10 {
             let step_id = StepId::new(format!("unknown-concurrent-{}", i));
-            handles.push(tokio::spawn(async move {
-                execute_step(step_id, 5000).await
-            }));
+            handles.push(tokio::spawn(
+                async move { execute_step(step_id, 5000).await },
+            ));
         }
 
         let mut error_count = 0;

@@ -38,8 +38,10 @@ pub use exact_once_verification::assertions::{
     RecoveryAssertion, RecoveryAssertionError, RecoveryContext,
 };
 pub use exact_once_verification::crash_points::{CrashPoint, CrashPosition, CrashScenario};
+pub use exact_once_verification::harness::{
+    LineageRolloverEvent, LineageRoutingState, VerificationHarness,
+};
 pub use exact_once_verification::macros::CrashError;
-pub use exact_once_verification::harness::{LineageRolloverEvent, LineageRoutingState, VerificationHarness};
 pub mod quadtree;
 pub mod replay;
 pub mod resource_quota;
@@ -49,8 +51,8 @@ pub mod upcaster;
 pub mod validation;
 pub mod vault;
 pub mod workflow_version;
-pub mod workspace_swap;
 pub mod workload_class;
+pub mod workspace_swap;
 pub mod write_class;
 
 pub use validation::{

@@ -26,7 +26,12 @@ pub struct SubprocessConfig {
 
 impl SubprocessConfig {
     #[must_use]
-    pub fn new(executable_path: String, argv: Vec<String>, timeout_ms: u64, fd3_payload: Vec<u8>) -> Self {
+    pub fn new(
+        executable_path: String,
+        argv: Vec<String>,
+        timeout_ms: u64,
+        fd3_payload: Vec<u8>,
+    ) -> Self {
         Self {
             executable_path,
             argv,
@@ -138,7 +143,9 @@ pub async fn run_subprocess(config: SubprocessConfig) -> Result<SubprocessOutput
         });
     }
 
-    let mut child = command.spawn().map_err(|e| SubprocessError::SpawnFailed(e.to_string()))?;
+    let mut child = command
+        .spawn()
+        .map_err(|e| SubprocessError::SpawnFailed(e.to_string()))?;
 
     unsafe {
         libc::close(fd3_read);
@@ -168,7 +175,9 @@ pub async fn run_subprocess(config: SubprocessConfig) -> Result<SubprocessOutput
         Ok(Err(e)) => Err(e),
         Err(_) => {
             let _ = child.kill().await;
-            Err(SubprocessError::Timeout { elapsed_ms: timeout_ms })
+            Err(SubprocessError::Timeout {
+                elapsed_ms: timeout_ms,
+            })
         }
     }
 }
@@ -181,7 +190,10 @@ async fn perform_ipc(
 ) -> Result<Vec<u8>, SubprocessError> {
     let write_handle = tokio::spawn(async move {
         let len = u32::try_from(fd3_payload.len()).map_err(|_| {
-            std::io::Error::new(std::io::ErrorKind::InvalidData, "fd3 payload exceeds u32::MAX")
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "fd3 payload exceeds u32::MAX",
+            )
         })?;
         fd3_writer.write_all(&len.to_be_bytes()).await?;
         fd3_writer.write_all(&fd3_payload).await?;
@@ -189,9 +201,7 @@ async fn perform_ipc(
         Ok::<(), std::io::Error>(())
     });
 
-    let read_handle = tokio::spawn(async move {
-        read_bounded_fd4(&mut fd4_reader).await
-    });
+    let read_handle = tokio::spawn(async move { read_bounded_fd4(&mut fd4_reader).await });
 
     let (write_res, read_res) = tokio::join!(write_handle, read_handle);
 
@@ -212,14 +222,17 @@ async fn read_bounded_fd4(reader: &mut tokio::fs::File) -> Result<Vec<u8>, Subpr
     let mut total_read = 0;
 
     while total_read < 4 {
-        let n = reader.read(&mut header[total_read..]).await.map_err(|e| {
-            SubprocessError::Fd4ReadFailed(format!("failed to read header: {}", e))
-        })?;
+        let n = reader
+            .read(&mut header[total_read..])
+            .await
+            .map_err(|e| SubprocessError::Fd4ReadFailed(format!("failed to read header: {}", e)))?;
         if n == 0 {
             if total_read == 0 {
                 return Ok(vec![]);
             }
-            return Err(SubprocessError::Fd4ReadFailed("early eof during header".to_string()));
+            return Err(SubprocessError::Fd4ReadFailed(
+                "early eof during header".to_string(),
+            ));
         }
         total_read += n;
     }
@@ -243,7 +256,9 @@ async fn read_bounded_fd4(reader: &mut tokio::fs::File) -> Result<Vec<u8>, Subpr
             SubprocessError::Fd4ReadFailed(format!("failed to read payload: {}", e))
         })?;
         if n == 0 {
-            return Err(SubprocessError::Fd4ReadFailed("early eof during payload".to_string()));
+            return Err(SubprocessError::Fd4ReadFailed(
+                "early eof during payload".to_string(),
+            ));
         }
         bytes.extend_from_slice(&chunk[..n]);
         remaining -= n;
@@ -266,9 +281,15 @@ mod tests {
         let (r, w) = create_pipe().unwrap();
         unsafe {
             let flags = libc::fcntl(r, libc::F_GETFD);
-            assert!(flags & libc::FD_CLOEXEC != 0, "read end should have FD_CLOEXEC");
+            assert!(
+                flags & libc::FD_CLOEXEC != 0,
+                "read end should have FD_CLOEXEC"
+            );
             let flags = libc::fcntl(w, libc::F_GETFD);
-            assert!(flags & libc::FD_CLOEXEC != 0, "write end should have FD_CLOEXEC");
+            assert!(
+                flags & libc::FD_CLOEXEC != 0,
+                "write end should have FD_CLOEXEC"
+            );
             libc::close(r);
             libc::close(w);
         }
@@ -293,7 +314,10 @@ mod tests {
         let err = SubprocessError::Timeout { elapsed_ms: 5000 };
         assert!(err.to_string().contains("5000"));
 
-        let err = SubprocessError::BoundedBufferExceeded { max: 100, tried: 200 };
+        let err = SubprocessError::BoundedBufferExceeded {
+            max: 100,
+            tried: 200,
+        };
         assert!(err.to_string().contains("100"));
         assert!(err.to_string().contains("200"));
     }

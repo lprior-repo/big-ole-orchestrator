@@ -12,8 +12,8 @@
 
 mod connector;
 pub use connector::{
-    CommitOutcome, Connector, ConnectorError, ConnectorRegistry, HttpConnector,
-    PreparedEffect, ReconcileOutcome,
+    CommitOutcome, Connector, ConnectorError, ConnectorRegistry, HttpConnector, PreparedEffect,
+    ReconcileOutcome,
 };
 pub mod pool;
 mod port;
@@ -312,22 +312,33 @@ mod connector_tests {
 
     #[async_trait::async_trait]
     impl Connector for NoopConnector {
-        fn connector_type(&self) -> &str { "noop" }
-        fn connector_version(&self) -> &str { "0.1.0" }
-        fn supports_compensation(&self) -> bool { false }
+        fn connector_type(&self) -> &str {
+            "noop"
+        }
+        fn connector_version(&self) -> &str {
+            "0.1.0"
+        }
+        fn supports_compensation(&self) -> bool {
+            false
+        }
         async fn prepare(
-            &self, _intent: serde_json::Value, effect_id: String, fence: u64,
+            &self,
+            _intent: serde_json::Value,
+            effect_id: String,
+            fence: u64,
         ) -> Result<PreparedEffect, ConnectorError> {
-            Ok(PreparedEffect { effect_id, payload: serde_json::json!({}), fence })
+            Ok(PreparedEffect {
+                effect_id,
+                payload: serde_json::json!({}),
+                fence,
+            })
         }
-        async fn commit(
-            &self, _prepared: PreparedEffect,
-        ) -> Result<CommitOutcome, ConnectorError> {
-            Ok(CommitOutcome::Committed { receipt: "noop".into() })
+        async fn commit(&self, _prepared: PreparedEffect) -> Result<CommitOutcome, ConnectorError> {
+            Ok(CommitOutcome::Committed {
+                receipt: "noop".into(),
+            })
         }
-        async fn reconcile(
-            &self, _effect_id: &str,
-        ) -> Result<ReconcileOutcome, ConnectorError> {
+        async fn reconcile(&self, _effect_id: &str) -> Result<ReconcileOutcome, ConnectorError> {
             Ok(ReconcileOutcome::NotCommitted)
         }
     }
@@ -377,7 +388,9 @@ mod connector_tests {
 
     #[test]
     fn commit_outcome_variants() {
-        let _ = CommitOutcome::Committed { receipt: "r".into() };
+        let _ = CommitOutcome::Committed {
+            receipt: "r".into(),
+        };
         let _ = CommitOutcome::Failed;
         let _ = CommitOutcome::Ambiguous;
     }
@@ -386,7 +399,9 @@ mod connector_tests {
     fn reconcile_outcome_maps_to_reconcile_action() {
         use vo_types::ReconcileAction;
         assert_eq!(
-            ReconcileAction::from(ReconcileOutcome::Committed { receipt: "r".into() }),
+            ReconcileAction::from(ReconcileOutcome::Committed {
+                receipt: "r".into()
+            }),
             ReconcileAction::Commit,
         );
         assert_eq!(
@@ -410,10 +425,22 @@ mod connector_tests {
     #[tokio::test]
     async fn noop_connector_prepare_commit_cycle() {
         let c = NoopConnector;
-        let pe = c.prepare(serde_json::json!({"url": "https://example.com"}), "fx-1".into(), 1).await.unwrap();
+        let pe = c
+            .prepare(
+                serde_json::json!({"url": "https://example.com"}),
+                "fx-1".into(),
+                1,
+            )
+            .await
+            .unwrap();
         assert_eq!(pe.effect_id, "fx-1");
         let outcome = c.commit(pe).await.unwrap();
-        assert_eq!(outcome, CommitOutcome::Committed { receipt: "noop".into() });
+        assert_eq!(
+            outcome,
+            CommitOutcome::Committed {
+                receipt: "noop".into()
+            }
+        );
     }
 
     #[tokio::test]
@@ -443,10 +470,14 @@ mod connector_tests {
     #[tokio::test]
     async fn http_connector_prepare_includes_idempotency_key() {
         let c = crate::connector::HttpConnector::new("https://api.example.com");
-        let pe = c.prepare(
-            serde_json::json!({"method": "POST", "path": "/charges"}),
-            "fx-42".into(), 7,
-        ).await.unwrap();
+        let pe = c
+            .prepare(
+                serde_json::json!({"method": "POST", "path": "/charges"}),
+                "fx-42".into(),
+                7,
+            )
+            .await
+            .unwrap();
         assert_eq!(pe.effect_id, "fx-42");
         assert_eq!(pe.fence, 7);
         assert_eq!(pe.payload["idempotency_key"], "fx-42:7");
@@ -582,9 +613,21 @@ mod tests {
         graph.set_lock_holder(l2.clone(), o2.clone());
         graph.set_lock_holder(l3.clone(), o3.clone());
 
-        graph.add_edge(WaitEdge { waiter: o1.clone(), lock_id: l2.clone(), requested_mode: LockMode::Exclusive });
-        graph.add_edge(WaitEdge { waiter: o2.clone(), lock_id: l3.clone(), requested_mode: LockMode::Exclusive });
-        graph.add_edge(WaitEdge { waiter: o3.clone(), lock_id: l1.clone(), requested_mode: LockMode::Exclusive });
+        graph.add_edge(WaitEdge {
+            waiter: o1.clone(),
+            lock_id: l2.clone(),
+            requested_mode: LockMode::Exclusive,
+        });
+        graph.add_edge(WaitEdge {
+            waiter: o2.clone(),
+            lock_id: l3.clone(),
+            requested_mode: LockMode::Exclusive,
+        });
+        graph.add_edge(WaitEdge {
+            waiter: o3.clone(),
+            lock_id: l1.clone(),
+            requested_mode: LockMode::Exclusive,
+        });
 
         let cycle = graph.detect_cycle();
         assert!(cycle.is_some());
@@ -598,8 +641,16 @@ mod tests {
         let o2 = OwnerId::new("o2".into());
         let lock = LockId::new("lock1");
 
-        graph.add_edge(WaitEdge { waiter: o1.clone(), lock_id: lock.clone(), requested_mode: LockMode::Shared });
-        graph.add_edge(WaitEdge { waiter: o2.clone(), lock_id: lock.clone(), requested_mode: LockMode::Exclusive });
+        graph.add_edge(WaitEdge {
+            waiter: o1.clone(),
+            lock_id: lock.clone(),
+            requested_mode: LockMode::Shared,
+        });
+        graph.add_edge(WaitEdge {
+            waiter: o2.clone(),
+            lock_id: lock.clone(),
+            requested_mode: LockMode::Exclusive,
+        });
 
         let waiters = graph.get_waiters(&lock);
         assert_eq!(waiters.len(), 2);
@@ -612,8 +663,16 @@ mod tests {
         let o2 = OwnerId::new("o2".into());
         let lock = LockId::new("lock1");
 
-        graph.add_edge(WaitEdge { waiter: o1.clone(), lock_id: lock.clone(), requested_mode: LockMode::Shared });
-        graph.add_edge(WaitEdge { waiter: o2.clone(), lock_id: lock.clone(), requested_mode: LockMode::Exclusive });
+        graph.add_edge(WaitEdge {
+            waiter: o1.clone(),
+            lock_id: lock.clone(),
+            requested_mode: LockMode::Shared,
+        });
+        graph.add_edge(WaitEdge {
+            waiter: o2.clone(),
+            lock_id: lock.clone(),
+            requested_mode: LockMode::Exclusive,
+        });
 
         graph.remove_edges_for_owner(&o1);
         let waiters = graph.get_waiters(&lock);
@@ -628,8 +687,16 @@ mod tests {
         let lock1 = LockId::new("lock1");
         let lock2 = LockId::new("lock2");
 
-        graph.add_edge(WaitEdge { waiter: o1.clone(), lock_id: lock1.clone(), requested_mode: LockMode::Shared });
-        graph.add_edge(WaitEdge { waiter: o1.clone(), lock_id: lock2.clone(), requested_mode: LockMode::Exclusive });
+        graph.add_edge(WaitEdge {
+            waiter: o1.clone(),
+            lock_id: lock1.clone(),
+            requested_mode: LockMode::Shared,
+        });
+        graph.add_edge(WaitEdge {
+            waiter: o1.clone(),
+            lock_id: lock2.clone(),
+            requested_mode: LockMode::Exclusive,
+        });
 
         graph.remove_edges_for_lock(&lock1);
         assert!(graph.get_waiters(&lock1).is_empty());
@@ -642,8 +709,16 @@ mod tests {
         let o1 = OwnerId::new("o1".into());
         let lock = LockId::new("lock1");
 
-        graph.add_edge(WaitEdge { waiter: o1.clone(), lock_id: lock.clone(), requested_mode: LockMode::Shared });
-        graph.add_edge(WaitEdge { waiter: o1.clone(), lock_id: lock.clone(), requested_mode: LockMode::Exclusive });
+        graph.add_edge(WaitEdge {
+            waiter: o1.clone(),
+            lock_id: lock.clone(),
+            requested_mode: LockMode::Shared,
+        });
+        graph.add_edge(WaitEdge {
+            waiter: o1.clone(),
+            lock_id: lock.clone(),
+            requested_mode: LockMode::Exclusive,
+        });
 
         let waiters = graph.get_waiters(&lock);
         assert_eq!(waiters.len(), 1);
@@ -664,7 +739,10 @@ mod tests {
     #[test]
     fn test_lock_error_variants() {
         let _ = LockError::NotFound(LockId::new("x"));
-        let _ = LockError::NotOwner { expected: OwnerId::new("a".into()), got: OwnerId::new("b".into()) };
+        let _ = LockError::NotOwner {
+            expected: OwnerId::new("a".into()),
+            got: OwnerId::new("b".into()),
+        };
         let _ = LockError::InvalidToken;
         let _ = LockError::DeadlockDetected;
         let _ = LockError::IncompatibleMode;

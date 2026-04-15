@@ -41,7 +41,9 @@ fn command_envelope_exposes_metadata_on_mutating_surface() {
 
 #[test]
 fn history_entry_carries_envelope_identity() {
-    use vo_types::command_history::{CommandHistory, CommandKind, HistoryEntryStatus, WorkflowSnapshot};
+    use vo_types::command_history::{
+        CommandHistory, CommandKind, HistoryEntryStatus, WorkflowSnapshot,
+    };
     use vo_types::{DagNode, NodeName, RetryPolicy};
 
     let snapshot = WorkflowSnapshot::new(
@@ -95,7 +97,10 @@ fn all_issuer_variants_are_valid_on_command_envelope() {
             }}"#
         );
         let envelope = CommandEnvelope::from_str(&json).unwrap();
-        assert_eq!(envelope.metadata.issuer, expected, "issuer '{issuer_str}' should map to {expected:?}");
+        assert_eq!(
+            envelope.metadata.issuer, expected,
+            "issuer '{issuer_str}' should map to {expected:?}"
+        );
     }
 }
 
@@ -149,7 +154,11 @@ fn command_metadata_propagates_through_command_history_entries() {
         cmd_id.as_str(),
         "command_id must propagate from CommandId to envelope metadata"
     );
-    assert_eq!(entry.envelope.metadata.issuer, Issuer::Operator, "issuer must propagate to history entry");
+    assert_eq!(
+        entry.envelope.metadata.issuer,
+        Issuer::Operator,
+        "issuer must propagate to history entry"
+    );
 }
 
 #[test]
@@ -185,7 +194,12 @@ fn apply_command_preserves_metadata_through_undo_redo_cycle() {
     );
     let mut history = CommandHistory::new();
     let cmd_id = history
-        .apply_command(CommandKind::EdgeCreate, snapshot.clone(), snapshot.clone(), None)
+        .apply_command(
+            CommandKind::EdgeCreate,
+            snapshot.clone(),
+            snapshot.clone(),
+            None,
+        )
         .unwrap();
     history.undo().unwrap();
     history.redo().unwrap();
@@ -220,7 +234,10 @@ fn multiple_history_entries_have_distinct_command_ids() {
         CommandKind::ConfigUpdate,
     ] {
         let cmd_id = history.save_undo_point(kind, snapshot.clone()).unwrap();
-        assert!(cmd_ids.insert(cmd_id.as_str().to_string()), "each history entry must have a unique command_id");
+        assert!(
+            cmd_ids.insert(cmd_id.as_str().to_string()),
+            "each history entry must have a unique command_id"
+        );
     }
     assert_eq!(cmd_ids.len(), 5);
 }
@@ -239,7 +256,10 @@ fn dedupe_key_detects_duplicate_command_ids() {
     let key2 = DedupeKey::parse("cmd-same-001").unwrap();
     let key3 = DedupeKey::parse("cmd-different-002").unwrap();
     assert_eq!(key1, key2, "identical command_ids produce equal DedupeKeys");
-    assert_ne!(key1, key3, "different command_ids produce different DedupeKeys");
+    assert_ne!(
+        key1, key3,
+        "different command_ids produce different DedupeKeys"
+    );
 }
 
 #[test]
@@ -275,7 +295,10 @@ fn unknown_issuer_is_rejected_during_parsing() {
     }"#;
     let result = CommandEnvelope::from_str(json);
     assert!(result.is_err(), "unknown issuer must be rejected");
-    assert!(matches!(result, Err(CommandEnvelopeError::InvalidEnvelopeField(_))));
+    assert!(matches!(
+        result,
+        Err(CommandEnvelopeError::InvalidEnvelopeField(_))
+    ));
 }
 
 #[test]
@@ -358,7 +381,10 @@ fn command_envelope_causation_chain_traces_execution_order() {
         issuer: Issuer::System,
         issued_at: TimestampMs::try_from(1_700_000_100u64).unwrap(),
     };
-    assert_eq!(child_cmd.causation_id.as_str(), parent_cmd.command_id.as_str());
+    assert_eq!(
+        child_cmd.causation_id.as_str(),
+        parent_cmd.command_id.as_str()
+    );
     assert_eq!(parent_cmd.correlation_id, child_cmd.correlation_id);
     assert!(child_cmd.issued_at.as_u64() > parent_cmd.issued_at.as_u64());
 }
@@ -447,7 +473,10 @@ fn command_envelope_version_gate_prevents_future_version_routing() {
         "issued_at": 1700000000
     }"#;
     let result = CommandEnvelope::from_str(json_v2);
-    assert!(matches!(result, Err(CommandEnvelopeError::UnsupportedEnvelopeVersion(2))));
+    assert!(matches!(
+        result,
+        Err(CommandEnvelopeError::UnsupportedEnvelopeVersion(2))
+    ));
 }
 
 #[test]

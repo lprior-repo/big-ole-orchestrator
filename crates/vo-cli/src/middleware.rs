@@ -230,8 +230,8 @@ mod tests {
 
     #[test]
     fn test_dispatcher_with_middleware() {
-        let dispatcher =
-            CommandDispatcher::new(HandlerRegistry::default()).with_middleware(LoggingMiddleware::new());
+        let dispatcher = CommandDispatcher::new(HandlerRegistry::default())
+            .with_middleware(LoggingMiddleware::new());
         assert_eq!(dispatcher.middlewares.len(), 1);
     }
 

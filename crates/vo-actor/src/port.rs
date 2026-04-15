@@ -75,5 +75,3 @@ pub trait MessageRouterPort: Send + Sync {
 
     async fn clear_dlq(&self);
 }
-
-

@@ -107,8 +107,6 @@ pub trait WorkQueue: Send + Sync {
     /// Used during crash recovery to skip timer replay for terminated instances.
     /// Returns `Ok(true)` if terminal, `Ok(false)` if still active, or an error if
     /// the check itself failed.
-    async fn is_instance_terminal(
-        &self,
-        instance_id: &InstanceId,
-    ) -> Result<bool, ReanimatorError>;
+    async fn is_instance_terminal(&self, instance_id: &InstanceId)
+        -> Result<bool, ReanimatorError>;
 }

@@ -137,7 +137,10 @@ async fn perform_ipc(
 ) -> Result<SubprocessOutput, IpcError> {
     let write_task = async {
         let len = u32::try_from(fd3_payload.len()).map_err(|_| {
-            std::io::Error::new(std::io::ErrorKind::InvalidData, "fd3 payload exceeds u32::MAX")
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "fd3 payload exceeds u32::MAX",
+            )
         })?;
         if len > envelope::MAX_PAYLOAD_SIZE {
             return Err(std::io::Error::new(

@@ -32,10 +32,10 @@ impl Upcaster for Version0To1Upcaster {
     fn target_version(&self) -> u8 {
         1
     }
-    fn upcast(&self, value: &serde_json::Value) -> Result<serde_json::Value, TraitUpcasterError> {
-        let mut result = value.clone();
-        result["version"] = serde_json::json!(1);
-        if let Some(obj) = result["payload"].as_object_mut() {
+    fn upcast(&self, input: &serde_json::Value) -> Result<serde_json::Value, VoUpcasterError> {
+        let mut value = input.clone();
+        value["version"] = serde_json::json!(1);
+        if let Some(obj) = value["payload"].as_object_mut() {
             obj.insert("version".to_string(), serde_json::json!(1));
         }
         Ok(result)
@@ -60,10 +60,10 @@ impl Upcaster for PassthroughUpcaster {
     fn target_version(&self) -> u8 {
         self.to
     }
-    fn upcast(&self, value: &serde_json::Value) -> Result<serde_json::Value, TraitUpcasterError> {
-        let mut result = value.clone();
-        result["version"] = serde_json::json!(self.to);
-        if let Some(obj) = result["payload"].as_object_mut() {
+    fn upcast(&self, input: &serde_json::Value) -> Result<serde_json::Value, VoUpcasterError> {
+        let mut value = input.clone();
+        value["version"] = serde_json::json!(self.to);
+        if let Some(obj) = value["payload"].as_object_mut() {
             obj.insert("version".to_string(), serde_json::json!(self.to));
         }
         Ok(result)
@@ -546,13 +546,10 @@ fn upcast_envelope_detects_circular_chain() {
         fn target_version(&self) -> u8 {
             0
         }
-        fn upcast(
-            &self,
-            value: &serde_json::Value,
-        ) -> Result<serde_json::Value, TraitUpcasterError> {
-            let mut result = value.clone();
-            result["version"] = serde_json::json!(0);
-            Ok(result)
+        fn upcast(&self, input: &serde_json::Value) -> Result<serde_json::Value, VoUpcasterError> {
+            let mut value = input.clone();
+            value["version"] = serde_json::json!(0);
+            Ok(value)
         }
     }
 
