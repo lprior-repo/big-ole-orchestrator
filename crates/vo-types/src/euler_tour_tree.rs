@@ -880,7 +880,7 @@ mod proptests {
                                 if let Some(parent) = ett.nodes.get(n).and_then(|n| n.parent) {
                                     stack.push(parent);
                                 }
-                                for &child in &ett.nodes.get(n).map(|n| &n.children).unwrap_or(&vec![]) {
+                                for &child in ett.nodes.get(n).map(|n| &n.children).unwrap_or(&vec![]) {
                                     stack.push(*child);
                                 }
                             }
