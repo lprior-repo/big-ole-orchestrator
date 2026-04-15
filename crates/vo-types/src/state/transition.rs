@@ -163,8 +163,41 @@ mod verification {
 
     #[kani::proof]
     fn verify_lifecycle_transition_exhaustiveness() {
-        let state = kani::any::<LifecycleState>();
-        let event = kani::any::<TransitionEvent>();
+        let state_idx: u8 = kani::any();
+        let event_idx: u8 = kani::any();
+        kani::assume(state_idx < 9);
+        kani::assume(event_idx < 13);
+
+        let state = match state_idx {
+            0 => LifecycleState::Pending,
+            1 => LifecycleState::RunningDecision,
+            2 => LifecycleState::StepScheduled,
+            3 => LifecycleState::StepExecuting,
+            4 => LifecycleState::WaitingForTimer,
+            5 => LifecycleState::PendingPublication,
+            6 => LifecycleState::Completed,
+            7 => LifecycleState::Failed,
+            8 => LifecycleState::Cancelled,
+            _ => return,
+        };
+
+        let event = match event_idx {
+            0 => TransitionEvent::AssignToNode,
+            1 => TransitionEvent::Cancel,
+            2 => TransitionEvent::StepScheduled,
+            3 => TransitionEvent::Fail,
+            4 => TransitionEvent::ExecuteStep,
+            5 => TransitionEvent::WaitForTimer,
+            6 => TransitionEvent::CompleteStep,
+            7 => TransitionEvent::YieldWithBlob,
+            8 => TransitionEvent::TimerFired,
+            9 => TransitionEvent::TimerExpired,
+            10 => TransitionEvent::ConfirmPublication,
+            11 => TransitionEvent::PublicationFailed,
+            12 => TransitionEvent::InstanceResumed,
+            _ => TransitionEvent::Cancel,
+        };
+
         let _ = apply(state, event);
     }
 }
