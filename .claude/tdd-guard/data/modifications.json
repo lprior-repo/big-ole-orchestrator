@@ -1,0 +1,12 @@
+{
+  "session_id": "bd82c4d6-c8ba-411c-8eb9-4950ea220e0c",
+  "transcript_path": "/home/lewis/.claude/projects/-home-lewis-gt-veloxide-polecats-radrat-veloxide/bd82c4d6-c8ba-411c-8eb9-4950ea220e0c.jsonl",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Edit",
+  "tool_input": {
+    "file_path": "/home/lewis/gt/veloxide/polecats/radrat/veloxide/crates/vo-core/Cargo.toml",
+    "old_string": "vo-storage = { path = \"../vo-storage\" }",
+    "new_string": "# vo-storage = { path = \"../vo-storage\" }  # TEMP: pre-existing compile errors block test compilation",
+    "replace_all": false
+  }
+}

@@ -1,4 +1,5 @@
 mod binomial_heap;
+mod skew_heap;
 #[cfg(test)]
 mod blob_tests;
 mod blob;
@@ -60,6 +61,7 @@ mod workflow;
 pub mod workspace;
 
 pub use binomial_heap::BinomialHeap;
+pub use skew_heap::{SkewHeap, SkewNode};
 pub use blob::{
     BlobFailureAction, BlobGCPolicy, BlobRef, BlobStatus, OutputPolicy, OutputRef,
     INLINED_MAX_BYTES,
