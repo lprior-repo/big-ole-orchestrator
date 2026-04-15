@@ -11,6 +11,7 @@
 //! - `MAX_CONCURRENT_BINARIES`: Maximum number of concurrent binary spawns (500)
 //! - `MAX_YIELDED_ACTORS`: Threshold for ingress load shedding (5,000)
 
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use thiserror::Error;
 use tokio::sync::{Semaphore, TryAcquireError};
@@ -39,19 +40,40 @@ impl SemaphoreLimitError {
 }
 
 pub struct SemaphorePermit {
-    semaphore: Arc<Semaphore>,
+    _permit: tokio::sync::OwnedSemaphorePermit,
     permits: usize,
+    acquired: Arc<AtomicUsize>,
 }
 
 impl SemaphorePermit {
-    fn new(semaphore: Arc<Semaphore>, permits: usize) -> Self {
-        Self { semaphore, permits }
+    fn new(
+        permit: tokio::sync::OwnedSemaphorePermit,
+        permits: usize,
+        acquired: Arc<AtomicUsize>,
+    ) -> Self {
+        Self {
+            _permit: permit,
+            permits,
+            acquired,
+        }
+    }
+
+    pub fn permits(&self) -> usize {
+        self.permits
     }
 }
 
 impl Drop for SemaphorePermit {
     fn drop(&mut self) {
-        self.semaphore.add_permits(self.permits);
+        self.acquired.fetch_sub(self.permits, Ordering::Relaxed);
+    }
+}
+
+impl std::fmt::Debug for SemaphorePermit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SemaphorePermit")
+            .field("permits", &self.permits)
+            .finish()
     }
 }
 
@@ -59,6 +81,7 @@ impl Drop for SemaphorePermit {
 pub struct LoadSheddingSemaphore {
     semaphore: Arc<Semaphore>,
     max_permits: usize,
+    acquired: Arc<AtomicUsize>,
 }
 
 impl LoadSheddingSemaphore {
@@ -66,6 +89,7 @@ impl LoadSheddingSemaphore {
         Self {
             semaphore: Arc::new(Semaphore::new(max_permits)),
             max_permits,
+            acquired: Arc::new(AtomicUsize::new(0)),
         }
     }
 
@@ -82,8 +106,16 @@ impl LoadSheddingSemaphore {
     }
 
     pub fn try_acquire_many(&self, permits: usize) -> Result<SemaphorePermit, SemaphoreLimitError> {
-        match self.semaphore.try_acquire_many(permits as u32) {
-            Ok(_permit) => Ok(SemaphorePermit::new(self.semaphore.clone(), permits)),
+        match self
+            .semaphore
+            .clone()
+            .try_acquire_many_owned(permits as u32)
+        {
+            Ok(permit) => {
+                let acquired = self.acquired.clone();
+                acquired.fetch_add(permits, Ordering::Relaxed);
+                Ok(SemaphorePermit::new(permit, permits, acquired))
+            }
             Err(TryAcquireError::NoPermits) => {
                 let current_permits = self.available_permits();
                 Err(SemaphoreLimitError::LimitReached {
@@ -102,12 +134,11 @@ impl LoadSheddingSemaphore {
     }
 
     pub fn acquired_count(&self) -> usize {
-        self.max_permits.saturating_sub(self.available_permits())
+        self.acquired.load(Ordering::Relaxed)
     }
 
     pub fn is_load_shedding_active(&self, threshold: usize) -> bool {
-        let waiting = self.max_permits.saturating_sub(self.available_permits());
-        waiting >= threshold
+        self.acquired_count() >= threshold
     }
 
     pub fn check_load_shedding(&self) -> Result<(), SemaphoreLimitError> {
@@ -119,9 +150,8 @@ impl LoadSheddingSemaphore {
         threshold: usize,
     ) -> Result<(), SemaphoreLimitError> {
         if self.is_load_shedding_active(threshold) {
-            let waiting = self.max_permits.saturating_sub(self.available_permits());
             Err(SemaphoreLimitError::LoadSheddingActive {
-                yielded_actors: waiting,
+                yielded_actors: self.acquired_count(),
                 threshold,
             })
         } else {

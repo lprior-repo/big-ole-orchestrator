@@ -104,9 +104,9 @@ async fn test_load_shedding_threshold_not_exceeded() {
 async fn test_load_shedding_threshold_exceeded() {
     let semaphore = LoadSheddingSemaphore::new(10);
 
-    for _ in 0..10 {
-        let _permit = semaphore.try_acquire().expect("should acquire");
-    }
+    let _permits: Vec<_> = (0..10)
+        .map(|_| semaphore.try_acquire().expect("should acquire"))
+        .collect();
 
     let result = semaphore.check_load_shedding_threshold(5);
     assert!(result.is_err());
@@ -171,9 +171,9 @@ async fn test_is_load_shedding_active() {
 
     assert!(!semaphore.is_load_shedding_active(3));
 
-    for _ in 0..3 {
-        let _p = semaphore.try_acquire().expect("should acquire");
-    }
+    let _permits: Vec<_> = (0..3)
+        .map(|_| semaphore.try_acquire().expect("should acquire"))
+        .collect();
     assert!(semaphore.is_load_shedding_active(3));
     assert!(!semaphore.is_load_shedding_active(4));
 }
