@@ -44,17 +44,6 @@ pub fn set_state(step_id: &str, state: StepState) {
     STATE.insert(step_id.to_string(), state);
 }
 
-#[allow(clippy::unwrap_used)]
-pub fn set_executing_state_for_test(step_id: &str) {
-    set_state(
-        step_id,
-        StepState::Executing {
-            step_id: StepId::new(step_id.to_string()),
-            start_time: Instant::now(),
-        },
-    );
-}
-
 /// Clear any stored error for a step.
 ///pub for testing
 pub fn clear_error(step_id: &str) {

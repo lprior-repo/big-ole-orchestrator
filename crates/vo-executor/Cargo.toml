@@ -10,6 +10,8 @@ serde = { version = "1", features = ["derive"] }
 tokio = { workspace = true, features = ["time", "sync"] }
 dashmap = { workspace = true }
 chrono = { workspace = true }
+tracing.workspace = true
+libc.workspace = true
 
 [dev-dependencies]
 tokio.workspace = true

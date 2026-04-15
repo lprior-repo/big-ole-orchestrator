@@ -5,6 +5,7 @@
 //! - Memory leak detection under sustained concurrent load
 //! - Scheduler behavior under concurrent job scheduling
 //! - Permit acquisition/release under concurrent load
+//! - DashMap-based global state concurrent access stress testing
 
 #[cfg(test)]
 mod concurrency_resource_tests {
@@ -516,5 +517,437 @@ mod concurrency_resource_tests {
         }
 
         assert_eq!(error_count, 10, "All unknown steps should return errors");
+    }
+
+    // =========================================================================
+    // Section 8: DashMap Global State Concurrent Access Stress Tests
+    // =========================================================================
+
+    #[tokio::test]
+    async fn stress_concurrent_set_get_state_no_data_loss() {
+        let _guard = state_guard();
+        use vo_executor::state::{get_state, set_state, StepState};
+
+        const THREADS: usize = 10;
+        const ITERATIONS: usize = 1000;
+
+        let mut handles = Vec::new();
+
+        for t in 0..THREADS {
+            let handle = tokio::spawn(async move {
+                let base = t * ITERATIONS;
+                for i in 0..ITERATIONS {
+                    let step_id = format!("stress-set-get-{}", base + i);
+                    let value = (base + i) as u64;
+
+                    set_state(
+                        &step_id,
+                        StepState::Completed {
+                            output: value.to_string(),
+                        },
+                    );
+
+                    let retrieved = get_state(&step_id);
+                    assert!(
+                        matches!(&retrieved, StepState::Completed { output } if output == &value.to_string()),
+                        "Data loss detected for key {}: expected value {}, got {:?}",
+                        step_id,
+                        value,
+                        retrieved
+                    );
+                }
+            });
+            handles.push(handle);
+        }
+
+        for handle in handles {
+            handle.await.expect("Task should complete");
+        }
+    }
+
+    #[tokio::test]
+    async fn stress_concurrent_shared_key_set_get_no_data_loss() {
+        let _guard = state_guard();
+        use vo_executor::state::{get_state, set_state, StepState};
+
+        const THREADS: usize = 10;
+        const ITERATIONS: usize = 500;
+        const SHARED_KEY: &str = "shared-stress-key";
+
+        let mut handles = Vec::new();
+
+        for t in 0..THREADS {
+            let handle = tokio::spawn(async move {
+                let expected_value = (t + 1) as u64;
+                for _i in 0..ITERATIONS {
+                    set_state(
+                        SHARED_KEY,
+                        StepState::Completed {
+                            output: expected_value.to_string(),
+                        },
+                    );
+
+                    let retrieved = get_state(SHARED_KEY);
+                    if let StepState::Completed { output, .. } = &retrieved {
+                        assert_eq!(
+                            output, &expected_value.to_string(),
+                            "Got unexpected value for shared key: expected {}, got {}",
+                            expected_value, output
+                        );
+                    }
+                }
+            });
+            handles.push(handle);
+        }
+
+        for handle in handles {
+            handle.await.expect("Task should complete");
+        }
+    }
+
+    #[tokio::test]
+    async fn stress_concurrent_set_error_clear_error_last_write_wins() {
+        let _guard = state_guard();
+        use vo_executor::state::{get_last_error, set_error};
+        use vo_executor::errors::ExecuteNodeError;
+        use std::sync::atomic::{AtomicU64, Ordering};
+
+        static LAST_WRITER_ID: AtomicU64 = AtomicU64::new(0);
+
+        const THREADS: usize = 10;
+        const ITERATIONS: usize = 200;
+        const SHARED_KEY: &str = "error-stress-key";
+
+        let mut handles = Vec::new();
+
+        for t in 0..THREADS {
+            let handle = tokio::spawn(async move {
+                let writer_id = (t + 1) as u64;
+                for _i in 0..ITERATIONS {
+                    let err = ExecuteNodeError::ExecutionCancelled {
+                        reason: format!("writer-{}", writer_id),
+                    };
+                    set_error(SHARED_KEY, err);
+                    LAST_WRITER_ID.store(writer_id, Ordering::SeqCst);
+                }
+            });
+            handles.push(handle);
+        }
+
+        for handle in handles {
+            handle.await.expect("Task should complete");
+        }
+
+        let final_writer = LAST_WRITER_ID.load(Ordering::SeqCst);
+        let retrieved = get_last_error(SHARED_KEY);
+        assert!(
+            retrieved.is_some(),
+            "Error should exist for shared key"
+        );
+        if let Some(err) = retrieved {
+            match err {
+                ExecuteNodeError::ExecutionCancelled { reason } => {
+                    assert!(
+                        reason.ends_with(&format!("writer-{}", final_writer)),
+                        "Expected last-write-wins error from writer-{}, got reason: {}",
+                        final_writer,
+                        reason
+                    );
+                }
+                _ => panic!("Expected ExecutionCancelled error, got {:?}", err),
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn stress_concurrent_different_keys_error_count_monotonic() {
+        let _guard = state_guard();
+        use vo_executor::{get_error_count, set_error};
+        use vo_executor::errors::ExecuteNodeError;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        static MAX_COUNT_SEEN: AtomicUsize = AtomicUsize::new(0);
+
+        const THREADS: usize = 8;
+        const KEYS_PER_THREAD: usize = 50;
+
+        let mut handles = Vec::new();
+
+        for t in 0..THREADS {
+            let handle = tokio::spawn(async move {
+                let base = t * KEYS_PER_THREAD;
+                for i in 0..KEYS_PER_THREAD {
+                    let step_id = format!("err-count-stress-{}-{}", t, i);
+                    let err = ExecuteNodeError::TimeoutExceeded {
+                        elapsed_ms: base as u64 + i as u64,
+                        limit_ms: 1000,
+                    };
+                    set_error(&step_id, err);
+
+                    let current_count = get_error_count();
+                    let max_seen = MAX_COUNT_SEEN.load(Ordering::SeqCst);
+                    if current_count > max_seen {
+                        MAX_COUNT_SEEN.store(current_count, Ordering::SeqCst);
+                    }
+                }
+            });
+            handles.push(handle);
+        }
+
+        for handle in handles {
+            handle.await.expect("Task should complete");
+        }
+
+        let max_seen = MAX_COUNT_SEEN.load(Ordering::SeqCst);
+        let final_count = get_error_count();
+        assert_eq!(
+            max_seen, final_count,
+            "Max count seen ({}) should equal final count ({}) - monotonicity violation",
+            max_seen, final_count
+        );
+        assert_eq!(
+            final_count,
+            THREADS * KEYS_PER_THREAD,
+            "Final error count should equal threads * keys_per_thread"
+        );
+    }
+
+    #[tokio::test]
+    async fn stress_concurrent_set_clear_state_count_monotonic() {
+        let _guard = state_guard();
+        use vo_executor::state::{set_state, StepState};
+        use vo_executor::get_state_count;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        static MAX_COUNT_SEEN: AtomicUsize = AtomicUsize::new(0);
+
+        const THREADS: usize = 8;
+        const KEYS_PER_THREAD: usize = 50;
+
+        let mut handles = Vec::new();
+
+        for t in 0..THREADS {
+            let handle = tokio::spawn(async move {
+                let base = t * KEYS_PER_THREAD;
+                for i in 0..KEYS_PER_THREAD {
+                    let step_id = format!("state-count-stress-{}-{}", t, i);
+                    set_state(
+                        &step_id,
+                        StepState::Completed {
+                            output: format!("{}-{}", base, i),
+                        },
+                    );
+
+                    let current_count = get_state_count();
+                    let max_seen = MAX_COUNT_SEEN.load(Ordering::SeqCst);
+                    if current_count > max_seen {
+                        MAX_COUNT_SEEN.store(current_count, Ordering::SeqCst);
+                    }
+                }
+            });
+            handles.push(handle);
+        }
+
+        for handle in handles {
+            handle.await.expect("Task should complete");
+        }
+
+        let max_seen = MAX_COUNT_SEEN.load(Ordering::SeqCst);
+        let final_count = get_state_count();
+        assert_eq!(
+            max_seen, final_count,
+            "Max count seen ({}) should equal final count ({}) - monotonicity violation",
+            max_seen, final_count
+        );
+        assert_eq!(
+            final_count,
+            THREADS * KEYS_PER_THREAD,
+            "Final state count should equal threads * keys_per_thread"
+        );
+    }
+
+    #[tokio::test]
+    async fn stress_reset_all_state_during_active_operations_no_panic() {
+        let _guard = state_guard();
+        use vo_executor::state::{get_state, set_state, StepState};
+        use vo_executor::reset_all_state;
+
+        const OUTER_ITERS: usize = 20;
+        const INNER_OPS: usize = 100;
+
+        for outer in 0..OUTER_ITERS {
+            let mut handles = Vec::new();
+
+            let writer_handle = tokio::spawn(async move {
+                for i in 0..INNER_OPS {
+                    let step_id = format!("reset-stress-writer-{}-{}", outer, i);
+                    set_state(
+                        &step_id,
+                        StepState::Completed {
+                            output: format!("data-{}", i),
+                        },
+                    );
+                }
+            });
+            handles.push(writer_handle);
+
+            let reader_handle = tokio::spawn(async move {
+                for _i in 0..INNER_OPS {
+                    let _state = get_state("reset-stress-reader-check");
+                }
+            });
+            handles.push(reader_handle);
+
+            let clearer_handle = tokio::spawn(async move {
+                for i in 0..INNER_OPS {
+                    let step_id = format!("reset-stress-clear-{}-{}", outer, i);
+                    set_state(
+                        &step_id,
+                        StepState::Cancelled {
+                            reason: format!("cleared-{}", i),
+                        },
+                    );
+                }
+            });
+            handles.push(clearer_handle);
+
+            for handle in handles {
+                handle.await.expect("Task should complete");
+            }
+
+            reset_all_state();
+
+            let count = vo_executor::get_state_count();
+            let err_count = vo_executor::get_error_count();
+            assert_eq!(
+                count, 0,
+                "After reset_all_state, count should be 0, got {} at outer iter {}",
+                count, outer
+            );
+            assert_eq!(
+                err_count, 0,
+                "After reset_all_state, error_count should be 0, got {} at outer iter {}",
+                err_count, outer
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn stress_concurrent_mixed_state_and_error_operations() {
+        let _guard = state_guard();
+        use vo_executor::state::{get_state, set_state, StepState, clear_error, set_error};
+        use vo_executor::errors::ExecuteNodeError;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        static TOTAL_OPS: AtomicUsize = AtomicUsize::new(0);
+
+        const THREADS: usize = 6;
+        const OPS_PER_THREAD: usize = 300;
+
+        let mut handles = Vec::new();
+
+        for t in 0..THREADS {
+            let handle = tokio::spawn(async move {
+                for i in 0..OPS_PER_THREAD {
+                    let op_type = (i % 4) as u8;
+                    let step_id = format!("mixed-stress-{}-{}", t, i);
+
+                    match op_type {
+                        0 => {
+                            set_state(
+                                &step_id,
+                                StepState::Completed {
+                                    output: format!("out-{}", i),
+                                },
+                            );
+                        }
+                        1 => {
+                            let _ = get_state(&step_id);
+                        }
+                        2 => {
+                            let err = ExecuteNodeError::ExecutionCancelled {
+                                reason: format!("err-{}-{}", t, i),
+                            };
+                            set_error(&step_id, err);
+                        }
+                        3 => {
+                            clear_error(&step_id);
+                        }
+                        _ => unreachable!(),
+                    }
+
+                    TOTAL_OPS.fetch_add(1, Ordering::SeqCst);
+                }
+            });
+            handles.push(handle);
+        }
+
+        for handle in handles {
+            handle.await.expect("Task should complete");
+        }
+
+        let total = TOTAL_OPS.load(Ordering::SeqCst);
+        assert_eq!(
+            total,
+            THREADS * OPS_PER_THREAD,
+            "All operations should be counted"
+        );
+    }
+
+    #[tokio::test]
+    async fn stress_high_contention_same_key_many_writers() {
+        let _guard = state_guard();
+        use vo_executor::state::{get_state, set_state, StepState};
+
+        const WRITERS: usize = 20;
+        const ITERATIONS: usize = 500;
+        const SHARED_KEY: &str = "high-contention-key";
+
+        let barrier = std::sync::Arc::new(tokio::sync::Barrier::new(WRITERS + 1));
+        let counter = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+
+        let mut handles = Vec::new();
+
+        for w in 0..WRITERS {
+            let barrier = barrier.clone();
+            let counter = counter.clone();
+            let handle = tokio::spawn(async move {
+                barrier.wait().await;
+                let writer_id = w as u64;
+                for _i in 0..ITERATIONS {
+                    set_state(
+                        SHARED_KEY,
+                        StepState::Completed {
+                            output: writer_id.to_string(),
+                        },
+                    );
+                    counter.fetch_add(1, Ordering::SeqCst);
+                }
+            });
+            handles.push(handle);
+        }
+
+        barrier.wait().await;
+
+        for handle in handles {
+            handle.await.expect("Task should complete");
+        }
+
+        let total_writes = counter.load(Ordering::SeqCst);
+        assert_eq!(
+            total_writes,
+            WRITERS * ITERATIONS,
+            "All {} writers * {} iterations = {} writes should complete",
+            WRITERS,
+            ITERATIONS,
+            WRITERS * ITERATIONS
+        );
+
+        let final_state = get_state(SHARED_KEY);
+        assert!(
+            matches!(&final_state, StepState::Completed { .. }),
+            "Shared key should have a valid state after all writes, got {:?}",
+            final_state
+        );
     }
 }
