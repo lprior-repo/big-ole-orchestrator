@@ -410,7 +410,7 @@ fn snapshot_load_latest_rejects_corrupt_checksum_in_header_format() {
 // ============================================================
 
 fn write_header_snapshot(
-    partition: &PartitionHandle,
+    partition: &Keyspace,
     id: &InstanceId,
     sequence: u64,
     state: &InstanceState,
@@ -433,7 +433,7 @@ fn write_header_snapshot(
 }
 
 fn write_legacy_snapshot(
-    partition: &PartitionHandle,
+    partition: &Keyspace,
     id: &InstanceId,
     sequence: u64,
     state: &InstanceState,
