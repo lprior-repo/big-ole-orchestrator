@@ -11,6 +11,18 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use vo_types::events::EventEnvelope;
 
+/// Emit a rejection metric for monitoring. Stub - TODO: wire to metrics crate.
+#[allow(dead_code)]
+fn emit_rejection(_class: WriteClass, _reason: &str) {
+    // TODO: Integrate with metrics crate for rejection counters
+}
+
+/// Emit a queue depth metric for monitoring. Stub - TODO: wire to metrics crate.
+#[allow(dead_code)]
+fn emit_queue_depth(_class: WriteClass, _depth: usize) {
+    // TODO: Integrate with metrics crate for queue depth gauges
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // WriteClass
 // ─────────────────────────────────────────────────────────────────────────────
@@ -413,18 +425,10 @@ impl CommitLatencyTracker {
     /// Panics if any internal mutex is poisoned.
     pub fn record_commit(&self, latency_ms: u64) {
         #[expect(clippy::unwrap_used)]
-        let mut last_commit = self.last_commit_at.lock().unwrap();
-        *last_commit = Some(Instant::now());
-        drop(last_commit);
-
-        #[expect(clippy::unwrap_used)]
-        let mut count = self.sample_count.lock().unwrap();
-        *count += 1;
-        drop(count);
-
-        #[expect(clippy::unwrap_used)]
-        let mut total = self.total_latency_ms.lock().unwrap();
-        *total += u128::from(latency_ms);
+        let mut state = self.state.lock().unwrap();
+        state.last_commit_at = Some(Instant::now());
+        state.sample_count += 1;
+        state.total_latency_ms += u128::from(latency_ms);
     }
 
     /// Returns the time since the last commit, if any.
@@ -452,9 +456,7 @@ impl CommitLatencyTracker {
         if state.sample_count == 0 {
             return None;
         }
-        #[expect(clippy::unwrap_used)]
-        let total = *self.total_latency_ms.lock().unwrap();
-        Some(u64::try_from(total / u128::from(count)).unwrap_or(u64::MAX))
+        Some(u64::try_from(state.total_latency_ms / u128::from(state.sample_count)).unwrap_or(u64::MAX))
     }
 
     /// Returns the number of commit samples recorded.
@@ -559,7 +561,7 @@ impl<T> BudgetQueues<T> {
                 critical_depth: 0,
                 projection_depth: 0,
                 blob_depth: 0,
-                config,
+                config: config.clone(),
             })),
             budget,
             backpressure: Arc::new(BackpressureSignal::new()),
@@ -587,7 +589,7 @@ impl<T> BudgetQueues<T> {
                 critical_depth: 0,
                 projection_depth: 0,
                 blob_depth: 0,
-                config,
+                config: config.clone(),
             })),
             budget,
             backpressure,

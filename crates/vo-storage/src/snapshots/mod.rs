@@ -4,7 +4,6 @@ use serde::{Deserialize, Serialize};
 use vo_types::state::InstanceState;
 use vo_types::InstanceId;
 
-type PartitionHandle = Keyspace;
 
 pub const CURRENT_SNAPSHOT_VERSION: u16 = 1;
 pub const MIN_SNAPSHOT_VERSION: u16 = 1;

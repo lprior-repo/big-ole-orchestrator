@@ -4,6 +4,7 @@ pub mod command_palette;
 pub mod domain_types;
 pub mod graph;
 pub mod prototype_palette;
+pub mod operator_action_panel;
 #[cfg(test)]
 pub mod template_rendering_tests;
 

@@ -17,7 +17,7 @@ use crate::types::ApiError;
 /// Shared state for query handlers.
 #[derive(Clone)]
 pub struct QueryState {
-    pub keyspace: Arc<fjall::Keyspace>,
+    pub db: Arc<fjall::Database>,
     pub search_engine: Arc<std::sync::Mutex<SearchEngine>>,
 }
 
@@ -52,7 +52,7 @@ pub async fn get_timeline(
         }
     };
 
-    let iter = replay_events(&state.keyspace, &instance_id);
+    let iter = replay_events(&*state.db, &instance_id);
     let mut entries = Vec::new();
     let mut total_replayed = 0usize;
 
@@ -114,7 +114,7 @@ pub async fn get_history(
         }
     };
 
-    let iter = replay_events(&state.keyspace, &instance_id);
+    let iter = replay_events(&*state.db, &instance_id);
     let mut entries = Vec::new();
 
     for result in iter {
@@ -187,7 +187,7 @@ pub async fn get_effect_journal(
         }
     };
 
-    let iter = replay_events(&state.keyspace, &instance_id);
+    let iter = replay_events(&*state.db, &instance_id);
     let mut entries = Vec::new();
 
     for result in iter {
@@ -262,7 +262,7 @@ pub async fn get_workflow_version(
         }
     };
 
-    let iter = replay_events(&state.keyspace, &instance_id);
+    let iter = replay_events(&*state.db, &instance_id);
     let mut event_count = 0u64;
     let mut last_sequence = None;
     let mut last_timestamp_ms = None;

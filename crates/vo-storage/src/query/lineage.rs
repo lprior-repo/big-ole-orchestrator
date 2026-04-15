@@ -6,7 +6,7 @@ use crate::codec::StorageError;
 use vo_types::{EventEnvelope, EventError};
 
 pub struct LineageReplayIterator {
-    inner: Option<Box<dyn DoubleEndedIterator<Item = fjall::Result<fjall::KvPair>>>>,
+    inner: Option<Box<dyn DoubleEndedIterator<Item = fjall::Guard>>>,
     state: IteratorState,
     prefix_len: usize,
     epoch_len: usize,
@@ -39,7 +39,11 @@ impl Iterator for LineageReplayIterator {
         };
         loop {
             match inner.next() {
-                Some(Ok((k_bytes, v_bytes))) => {
+                Some(guard) => {
+                    let Ok((k_bytes, v_bytes)) = guard.into_inner() else {
+                        self.inner = None;
+                        return Some(Err(StorageError::Storage));
+                    };
                     let seq_len: usize = 8;
                     let min_key_len = self.prefix_len + self.epoch_len + seq_len;
                     if k_bytes.len() < min_key_len {
@@ -83,10 +87,6 @@ impl Iterator for LineageReplayIterator {
                         None => continue,
                     }
                 }
-                Some(Err(_)) => {
-                    self.inner = None;
-                    return Some(Err(StorageError::Storage));
-                }
                 None => return None,
             }
         }
@@ -95,7 +95,7 @@ impl Iterator for LineageReplayIterator {
 
 #[must_use]
 pub fn replay_events_for_lineage(
-    keyspace: &fjall::Keyspace,
+    keyspace: &fjall::Database,
     query: &LineageQuery,
 ) -> LineageReplayIterator {
     let (prefix, epoch_len) = match query {
@@ -115,7 +115,7 @@ pub fn replay_events_for_lineage(
         }
     };
     let prefix_len = prefix.len();
-    let Ok(partition) = keyspace.open_partition("events", fjall::PartitionCreateOptions::default())
+    let Ok(partition) = keyspace.keyspace("events", || fjall::KeyspaceCreateOptions::default())
     else {
         return LineageReplayIterator::error(StorageError::Storage);
     };

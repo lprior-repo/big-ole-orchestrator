@@ -165,16 +165,6 @@ pub fn reset_all_state() {
     LAST_ERROR.clear();
 }
 
-/// Set executing state for a step (test infrastructure).
-pub fn set_executing_state_for_test(step_id: &str) {
-    STATE.insert(
-        step_id.to_string(),
-        StepState::Executing {
-            step_id: StepId::new(step_id.to_string()),
-            start_time: Instant::now(),
-        },
-    );
-}
 
 /// Get the current count of entries in the STATE map.
 /// Useful for detecting memory leaks under sustained load.

@@ -23,9 +23,9 @@ impl FjallEffectJournal {
     /// # Errors
     ///
     /// Returns `EffectJournalError::Storage` if the effects partition cannot be opened.
-    pub fn open(keyspace: &fjall::Keyspace) -> Result<Self, EffectJournalError> {
-        let partition = keyspace
-            .open_partition(EFFECTS_PARTITION, fjall::PartitionCreateOptions::default())
+    pub fn open(db: &fjall::Database) -> Result<Self, EffectJournalError> {
+        let partition = db
+            .keyspace(EFFECTS_PARTITION, || fjall::KeyspaceCreateOptions::default())
             .map_err(|e| EffectJournalError::Storage {
                 reason: format!("failed to open effects partition: {e}"),
             })?;

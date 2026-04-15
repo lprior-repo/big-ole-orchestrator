@@ -635,7 +635,6 @@ impl CompensationSaga {
         }
         drop(manifest);
 
-        drop(manifest);
         timed_out
     }
 

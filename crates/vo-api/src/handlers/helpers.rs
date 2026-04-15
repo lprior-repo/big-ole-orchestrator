@@ -1,14 +1,14 @@
 use vo_actor::{InstancePhaseView, WorkflowParadigm};
-use vo_common::InstanceId;
+use vo_common::InstanceId as InstanceIdString;
 
 /// Split a path `<namespace>/<instance_id>` into the two parts.
 ///
 /// Returns `None` if the path has no `/` separator.
 #[must_use]
-pub fn split_path_id(path: &str) -> Option<(String, InstanceId)> {
-    let slash = path.find('/')?;
+pub fn split_path_id(path: &str) -> Option<(String, vo_types::InstanceId)> {
+    let slash = path.find("/")?;
     let namespace = path[..slash].to_owned();
-    let instance_id = path[slash + 1..].to_owned();
+    let instance_id = vo_types::InstanceId::parse(&path[slash + 1..]).ok()?;
     Some((namespace, instance_id))
 }
 

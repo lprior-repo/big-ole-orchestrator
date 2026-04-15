@@ -19,14 +19,14 @@ pub struct FjallDekStore {
 
 #[allow(dead_code)]
 impl FjallDekStore {
-    pub fn open(keyspace: &fjall::Keyspace) -> Result<Self, DekStoreError> {
-        let dek_partition = keyspace
-            .open_partition(DEK_PARTITION, fjall::PartitionCreateOptions::default())
+    pub fn open(db: &fjall::Database) -> Result<Self, DekStoreError> {
+        let dek_partition = db
+            .keyspace(DEK_PARTITION, || fjall::KeyspaceCreateOptions::default())
             .map_err(|e| DekStoreError::Storage {
                 reason: format!("failed to open dek_store partition: {e}"),
             })?;
         let index_partition = db
-            .keyspace(DEK_INDEX_PARTITION, fjall::KeyspaceCreateOptions::default)
+            .keyspace(DEK_INDEX_PARTITION, || fjall::KeyspaceCreateOptions::default())
             .map_err(|e| DekStoreError::Storage {
                 reason: format!("failed to open dek_index partition: {e}"),
             })?;
@@ -245,7 +245,7 @@ impl DekStore for FjallDekStore {
         let mut dek_ids = Vec::new();
 
         for item in self.dek_partition.iter() {
-            let (_key, value) = item.map_err(|e| DekStoreError::Storage {
+            let (_key, value) = item.into_inner().map_err(|e| DekStoreError::Storage {
                 reason: format!("failed to scan DEKs: {e}"),
             })?;
             if let Ok(entry) = super::decode_dek_entry(&value) {
@@ -281,9 +281,9 @@ mod tests {
         InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap()
     }
 
-    fn create_test_keyspace() -> fjall::Keyspace {
+    fn create_test_keyspace() -> fjall::Database {
         let dir = tempdir().unwrap();
-        fjall::Config::new(dir.path()).open().unwrap()
+        fjall::Database::builder(dir.path()).open().unwrap()
     }
 
     fn create_test_kek() -> [u8; 32] {
