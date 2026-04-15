@@ -220,6 +220,107 @@ impl ThrottleState {
     fn is_idle(&self) -> bool {
         self.active_recoveries.load(Ordering::Relaxed) == 0
     }
+
+    #[cfg(kani)]
+    fn available_tokens_for_kani(&self) -> usize {
+        self.available_tokens
+    }
+
+    #[cfg(kani)]
+    fn max_tokens_for_kani(&self) -> usize {
+        self.max_tokens
+    }
+
+    #[cfg(kani)]
+    fn active_recoveries_for_kani(&self) -> usize {
+        self.active_recoveries.load(Ordering::Relaxed)
+    }
+}
+
+#[cfg(kani)]
+mod verification {
+    use super::*;
+
+    fn throttle_invariant(state: &ThrottleState) -> bool {
+        let tokens = state.available_tokens_for_kani();
+        let max = state.max_tokens_for_kani();
+        let active = state.active_recoveries_for_kani();
+        tokens <= max && active <= max
+    }
+
+    #[kani::proof]
+    fn verify_throttle_initial_state_is_bounded() {
+        let config = ThrottleConfig {
+            max_concurrent_recoveries: kani::any(),
+            refill_interval_ms: kani::any(),
+            tokens_per_refill: kani::any(),
+        };
+        kani::assume(config.max_concurrent_recoveries > 0);
+        kani::assume(config.refill_interval_ms > 0);
+        kani::assume(config.tokens_per_refill > 0);
+
+        let state = ThrottleState::new(config);
+        assert!(throttle_invariant(&state));
+    }
+
+    #[kani::proof]
+    fn verify_throttle_acquire_preserves_bounded_invariant() {
+        let mut config = ThrottleConfig {
+            max_concurrent_recoveries: kani::any(),
+            refill_interval_ms: kani::any(),
+            tokens_per_refill: kani::any(),
+        };
+        kani::assume(config.max_concurrent_recoveries > 0);
+        kani::assume(config.max_concurrent_recoveries <= 100);
+        kani::assume(config.refill_interval_ms > 0);
+        kani::assume(config.tokens_per_refill > 0);
+        kani::assume(config.tokens_per_refill <= config.max_concurrent_recoveries);
+
+        let mut state = ThrottleState::new(config);
+        assert!(throttle_invariant(&state));
+
+        let result = state.try_acquire_slot();
+        assert!(throttle_invariant(&state));
+        let _ = result;
+    }
+
+    #[kani::proof]
+    fn verify_throttle_release_preserves_bounded_invariant() {
+        let config = ThrottleConfig {
+            max_concurrent_recoveries: kani::any(),
+            refill_interval_ms: kani::any(),
+            tokens_per_refill: kani::any(),
+        };
+        kani::assume(config.max_concurrent_recoveries > 0);
+        kani::assume(config.max_concurrent_recoveries <= 100);
+        kani::assume(config.refill_interval_ms > 0);
+        kani::assume(config.tokens_per_refill > 0);
+
+        let mut state = ThrottleState::new(config);
+        state.try_acquire_slot();
+        assert!(throttle_invariant(&state));
+
+        state.release_slot();
+        assert!(throttle_invariant(&state));
+    }
+
+    #[kani::proof]
+    fn verify_throttle_double_acquire_bounded() {
+        let mut config = ThrottleConfig {
+            max_concurrent_recoveries: 2,
+            refill_interval_ms: 1000,
+            tokens_per_refill: 1,
+        };
+
+        let mut state = ThrottleState::new(config);
+        assert!(throttle_invariant(&state));
+
+        state.try_acquire_slot();
+        assert!(throttle_invariant(&state));
+
+        state.try_acquire_slot();
+        assert!(throttle_invariant(&state));
+    }
 }
 
 // ---------------------------------------------------------------------------
