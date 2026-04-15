@@ -787,18 +787,24 @@ mod tests {
 
         cache.invalidate_key("key1").unwrap();
         cache.invalidate_key("key2").unwrap();
-        cache.invalidate_key("key3").unwrap();
 
         let runtime = tokio::runtime::Runtime::new().unwrap();
         let event1 = runtime.block_on(receiver.recv()).unwrap();
-        let event2 = runtime.block_on(receiver.recv()).unwrap();
-
         match event1 {
             CacheInvalidationEvent::KeyInvalidated(key) => assert_eq!(key, "key1"),
             _ => panic!("Expected KeyInvalidated event"),
         }
+
+        let event2 = runtime.block_on(receiver.recv()).unwrap();
         match event2 {
             CacheInvalidationEvent::KeyInvalidated(key) => assert_eq!(key, "key2"),
+            _ => panic!("Expected KeyInvalidated event"),
+        }
+
+        cache.invalidate_key("key3").unwrap();
+        let event3 = runtime.block_on(receiver.recv()).unwrap();
+        match event3 {
+            CacheInvalidationEvent::KeyInvalidated(key) => assert_eq!(key, "key3"),
             _ => panic!("Expected KeyInvalidated event"),
         }
     }
