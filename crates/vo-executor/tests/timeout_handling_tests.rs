@@ -13,7 +13,8 @@ use vo_executor::{
     ExecutionStatus, RetryPolicy, StepId,
 };
 use vo_executor::errors::ExecuteNodeError;
-use vo_executor::state::{get_state, reset_all_state, set_state, set_executing_state_for_test, StepState};
+use vo_executor::state::{get_state, reset_all_state, set_state, StepState};
+use vo_executor::set_executing_state_for_test;
 
 const SLOW_STEP_DURATION_MS: u64 = 3000;
 
