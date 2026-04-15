@@ -182,6 +182,8 @@ mod cross_cutting_tests;
 #[cfg(test)]
 mod identity_tests;
 #[cfg(test)]
+mod identity_bdd_tests;
+#[cfg(test)]
 mod dependency_graph_resolver_tests;
 #[cfg(test)]
 mod red_queen_tests;
