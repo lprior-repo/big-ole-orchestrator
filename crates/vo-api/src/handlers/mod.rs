@@ -1,3 +1,6 @@
+pub mod ingress;
+pub use ingress::*;
+
 pub mod query;
 pub use query::*;
 
