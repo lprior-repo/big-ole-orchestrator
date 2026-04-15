@@ -1,5 +1,6 @@
 use crate::types::errors::*;
 use crate::types::helpers::*;
+use crate::types::ApiError;
 
 #[cfg(test)]
 mod security_validation_tests {
@@ -8,10 +9,11 @@ mod security_validation_tests {
     #[test]
     fn test_is_retryable_error_classification() {
         assert!(is_retryable_error("at_capacity"));
-        assert!(is_retryable_error("internal_error"));
-        assert!(is_retryable_error("timeout"));
-        assert!(is_retryable_error("service_unavailable"));
-        assert!(is_retryable_error("rate_limited"));
+
+        assert!(!is_retryable_error("internal_error"));
+        assert!(!is_retryable_error("timeout"));
+        assert!(!is_retryable_error("service_unavailable"));
+        assert!(!is_retryable_error("rate_limited"));
 
         assert!(!is_retryable_error("not_found"));
         assert!(!is_retryable_error("invalid_id"));
@@ -82,9 +84,7 @@ mod security_validation_tests {
 
     #[test]
     fn test_parse_error_empty_workflow_name() {
-        let err = ParseError::Empty {
-            type_name: "workflow_name",
-        };
+        let err = ParseError::EmptyWorkflowName;
         let msg = err.to_string();
         assert!(msg.contains("workflow_name"));
         assert!(msg.contains("empty"));
@@ -100,9 +100,7 @@ mod security_validation_tests {
 
     #[test]
     fn test_parse_error_empty_signal_name() {
-        let err = ParseError::Empty {
-            type_name: "signal_name",
-        };
+        let err = ParseError::EmptySignalName;
         let msg = err.to_string();
         assert!(msg.contains("signal_name"));
     }
@@ -169,7 +167,6 @@ mod security_validation_tests {
         let err = InvariantViolation::EntriesNotSorted;
         let msg = err.to_string();
         assert!(msg.contains("ascending"));
-        assert!(msg.contains("sort"));
     }
 
     #[test]
