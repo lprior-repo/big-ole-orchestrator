@@ -1,0 +1,19 @@
+[package]
+name = "vo-scheduler"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+ulid.workspace = true
+chrono.workspace = true
+
+[dev-dependencies]
+rstest.workspace = true
+tokio = { workspace = true, features = ["full"] }
+
+[lints]
+workspace = true
