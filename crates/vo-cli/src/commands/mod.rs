@@ -7,4 +7,4 @@ pub mod history;
 pub mod init;
 pub mod lock;
 pub mod rebuild;
-pub mod workspace;
+pub mod status;

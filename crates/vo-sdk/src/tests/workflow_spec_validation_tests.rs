@@ -10,7 +10,7 @@
 //!   5. Node kind constraints — each kind's specific behavioral contracts
 
 use crate::dag::{Dag, DagError, Workflow};
-use crate::graph_args::{EdgeSpec, NodeSpec, WorkflowSpec};
+use crate::{EdgeSpec, NodeSpec, WorkflowSpec};
 use vo_types::{NodeKind, NodeName, WorkflowName};
 
 // ===========================================================================

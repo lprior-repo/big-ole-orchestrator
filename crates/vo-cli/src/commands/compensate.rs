@@ -1,4 +1,6 @@
+use std::time::Duration;
 use reqwest::Client;
+use thiserror::Error;
 
 #[derive(Debug, Clone)]
 pub struct CompensateConfig {
@@ -41,10 +43,7 @@ pub async fn run_compensate(config: &CompensateConfig) -> Result<(), CompensateE
         .build()
         .map_err(|e| CompensateError::EngineNotReachable(e.to_string()))?;
 
-    let url = format!(
-        "{}/api/v1/workflows/{}/compensate",
-        config.engine_url, config.workflow_id
-    );
+    let url = format!("{}/api/v1/workflows/{}/compensate", config.engine_url, config.workflow_id);
 
     let response = client
         .post(&url)
@@ -55,10 +54,7 @@ pub async fn run_compensate(config: &CompensateConfig) -> Result<(), CompensateE
     let status = response.status().as_u16();
 
     if status == 202 {
-        println!(
-            "Compensation initiated for workflow {}.",
-            config.workflow_id
-        );
+        println!("Compensation initiated for workflow {}.", config.workflow_id);
         Ok(())
     } else if status == 0 {
         Err(CompensateError::CompensateFailed(
@@ -77,10 +73,7 @@ pub async fn run_compensate(config: &CompensateConfig) -> Result<(), CompensateE
 }
 
 pub fn prompt_confirmation(workflow_id: &str) -> bool {
-    print!(
-        "Compensate workflow {}? This will attempt to undo its effects. [y/N] ",
-        workflow_id
-    );
+    print!("Compensate workflow {}? This will attempt to undo its effects. [y/N] ", workflow_id);
     std::io::Write::flush(&mut std::io::stdout()).ok();
     let mut input = String::new();
     std::io::stdin().read_line(&mut input).ok();

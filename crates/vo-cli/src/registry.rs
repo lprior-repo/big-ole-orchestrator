@@ -20,7 +20,7 @@ impl Default for HandlerRegistry {
         registry.register(Box::new(handlers::LockHandler));
         registry.register(Box::new(handlers::DoctorHandler));
         registry.register(Box::new(handlers::RebuildHandler));
-        registry.register(Box::new(handlers::WorkspaceHandler));
+        registry.register(Box::new(handlers::StatusHandler));
         registry
     }
 }
@@ -54,7 +54,7 @@ fn command_key(command: &Command) -> Option<&'static str> {
         Command::Lock { .. } => Some("lock"),
         Command::Doctor { .. } => Some("doctor"),
         Command::Rebuild { .. } => Some("rebuild"),
-        Command::Workspace { .. } => Some("workspace"),
+        Command::Status { .. } => Some("status"),
     }
 }
 
@@ -135,27 +135,24 @@ mod handlers {
             "compensate"
         }
 
-        fn execute(
-            &self,
-            cli: &Cli,
-        ) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + '_>> {
+        fn execute(&self, cli: &Cli) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + '_>> {
             let Command::Compensate {
                 ref engine_url,
                 ref workflow_id,
                 force,
             } = cli.command
             else {
-                return Box::pin(async {
-                    Err(CliError::Dispatch("not a compensate command".to_string()))
-                });
+                return Box::pin(async { Err(CliError::Dispatch("not a compensate command".to_string())) });
             };
             let engine_url = engine_url.clone();
             let workflow_id = workflow_id.clone();
             Box::pin(async move {
-                if !force && !crate::commands::compensate::prompt_confirmation(&workflow_id) {
-                    return Err(CliError::Compensate(
-                        crate::commands::compensate::CompensateError::Aborted,
-                    ));
+                if !force {
+                    if !crate::commands::compensate::prompt_confirmation(&workflow_id) {
+                        return Err(CliError::Compensate(
+                            crate::commands::compensate::CompensateError::Aborted,
+                        ));
+                    }
                 }
                 let config = crate::commands::compensate::CompensateConfig {
                     engine_url,
@@ -332,29 +329,42 @@ mod handlers {
         }
     }
 
-    pub struct WorkspaceHandler;
+    pub struct StatusHandler;
 
-    impl CommandHandler for WorkspaceHandler {
+    impl CommandHandler for StatusHandler {
         fn name(&self) -> &'static str {
-            "workspace"
+            "status"
         }
 
         fn execute(&self, cli: &Cli) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + '_>> {
-            let Command::Workspace {
-                ref project_dir,
-                ref subcommand,
+            let Command::Status {
+                ref engine_url,
+                ref instance,
             } = cli.command
             else {
-                return Box::pin(async { Err(CliError::Dispatch("not a workspace command".to_string())) });
+                return Box::pin(async { Err(CliError::Dispatch("not a status command".to_string())) });
             };
-            let project_dir = project_dir.clone();
-            let subcommand = subcommand.clone();
+            let engine_url = engine_url.clone();
+            let instance = instance.clone();
             Box::pin(async move {
-                let config = crate::commands::workspace::WorkspaceConfig {
-                    project_dir,
+                let config = crate::commands::status::StatusConfig {
+                    engine_url,
+                    instance_id: instance,
                 };
-                let output = crate::commands::workspace::run_workspace(&config, subcommand)?;
-                println!("{}", output);
+                let status = crate::commands::status::run_status(&config).await?;
+                println!("Workflow Status:");
+                println!("  Instance ID: {}", status.instance_id);
+                println!("  Namespace: {}", status.namespace);
+                println!("  Workflow Type: {}", status.workflow_type);
+                println!("  Paradigm: {}", status.paradigm);
+                println!("  Phase: {}", status.phase);
+                println!("  Events Applied: {}", status.events_applied);
+                if let Some(reg_status) = status.registration_status {
+                    println!("  Registration: {}", reg_status);
+                }
+                if status.is_quarantined {
+                    println!("  Quarantined: yes");
+                }
                 Ok(())
             })
         }
@@ -379,7 +389,7 @@ mod tests {
         assert!(names.contains(&"lock"));
         assert!(names.contains(&"doctor"));
         assert!(names.contains(&"rebuild"));
-        assert!(names.contains(&"workspace"));
+        assert!(names.contains(&"status"));
     }
 
     #[test]

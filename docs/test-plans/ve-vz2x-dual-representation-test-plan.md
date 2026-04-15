@@ -32,7 +32,7 @@
 
 | # | Behavior | Public API |
 |---|----------|------------|
-| RK-01 | `RedactionKind::Remove` produces `serde_json::Value::Null` | `redact_value()` |
+| RK-01 | `RedactionKind::Remove` removes field from object entirely (per AR-09) | `apply_redaction()` |
 | RK-02 | `RedactionKind::ReplaceWith(s)` replaces value with string `s` | `redact_value()` |
 | RK-03 | `RedactionKind::ReplaceWithType` replaces value with its type name | `redact_value()` |
 | RK-04 | `RedactionKind::Hash` replaces value with `HASH<sha256>` prefixed string | `redact_value()` |
@@ -95,22 +95,36 @@
 
 ## 3. BDD Scenarios
 
-### RK-01: RedactionKind::Remove produces Null
+### RK-01: RedactionKind::Remove removes field entirely
 
-**Scenario: Remove redaction kind returns null value**
+**Scenario: Remove redaction kind removes field from object**
 
 ```
-Given: a RedactionKind::Remove and a JSON string value "sensitive data"
-When: redact_value("field", value) is called
-Then: returns serde_json::Value::Null
+Given: a RedactionKind::Remove rule for path ["user", "ssn"]
+When: apply_redaction() is called on {"user": {"ssn": "123-45-6789"}}
+Then: "ssn" key is removed from user object (key does not exist in result)
 ```
 
 ```rust
-fn redaction_kind_remove_produces_null() {
-    let kind = RedactionKind::Remove;
-    let value = serde_json::json!("sensitive data");
-    let result = kind.redact_value("field", &value);
-    assert_eq!(result, serde_json::Value::Null);
+fn apply_redaction_removes_fields_at_path() {
+    let value = serde_json::json!({
+        "user": {
+            "name": "Alice",
+            "ssn": "123-45-6789"
+        }
+    });
+
+    let rules = vec![RedactionRule::new(
+        vec!["user".to_string(), "ssn".to_string()],
+        RedactionKind::Remove,
+    )];
+
+    let (result, redacted) = apply_redaction(&value, &rules);
+
+    assert_eq!(result["user"]["name"], "Alice");
+    // Remove removes key entirely (per AR-09 test plan)
+    assert!(!result["user"].as_object().unwrap().contains_key("ssn"));
+    assert_eq!(redacted.len(), 1);
 }
 ```
 

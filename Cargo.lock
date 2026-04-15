@@ -4889,6 +4889,7 @@ name = "vo-actor"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "bytes",
  "criterion",
  "futures",
  "proptest",
@@ -4900,6 +4901,7 @@ dependencies = [
  "tokio",
  "tracing",
  "ulid",
+ "vo-common",
  "vo-core",
  "vo-types",
 ]

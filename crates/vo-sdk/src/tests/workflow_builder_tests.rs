@@ -5,7 +5,7 @@
 use vo_types::NodeKind;
 
 use crate::dag::{Dag, DagError, Workflow};
-use crate::graph_args::WorkflowSpec;
+use crate::graph::WorkflowSpec;
 use crate::node_handle::NodeHandle;
 
 #[test]
@@ -98,7 +98,7 @@ fn dag_build_validates_workflow_name() {
 
 #[test]
 fn emit_graph_if_requested_does_nothing_without_graph_flag() {
-    use crate::graph_args::emit_graph_if_requested;
+    use crate::graph::emit_graph_if_requested;
 
     let spec = WorkflowSpec {
         workflow_name: vo_types::WorkflowName::parse("test").unwrap(),

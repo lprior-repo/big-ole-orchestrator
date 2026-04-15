@@ -32,11 +32,8 @@ mod db_writer_message;
 pub mod debounce;
 pub mod effects;
 pub mod exact_once_verification;
-pub mod ghost_workflow;
 pub mod lease_calc;
-pub mod shedding;
-#[cfg(test)]
-mod shedding_tests;
+pub mod saga;
 
 pub use exact_once_verification::assertions::{
     assert_fence_token_ordering, assert_invariant_no_orphans, assert_no_duplicate_effects,

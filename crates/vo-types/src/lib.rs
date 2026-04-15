@@ -35,6 +35,7 @@ mod memory_leak;
 mod node_kind;
 mod non_empty_vec;
 mod payload_parser;
+mod next_step_selection;
 mod plugin;
 #[cfg(feature = "proptest")]
 mod proptest_targets;
@@ -135,6 +136,16 @@ pub use skew_heap::{SkewHeap, SkewHeapError, SkewNode};
 pub use spqr_tree::{
     Block, Component, CutNode, SPQRDecomposition, SPQREdge, SPQRNode, SPQRNodeType, SpqrError,
     StaticGraph,
+};
+pub use plugin::{
+    apply_plugin_transition, ArtifactRef, CapabilityId, HotLoadEvent, InstanceKey,
+    IsolationBreachType, IsolationLevel, PluginArtifact, PluginDescriptor, PluginErrorCategory,
+    PluginErrorContext, PluginErrorDetail, PluginFailureContext, PluginHotLoadError, PluginId,
+    PluginInstance, PluginName, PluginState, PluginTransition, PluginVersion,
+    PluginVersionConstraint, ResourceBudget, SchemaVersion, VersionRange,
+};
+pub use next_step_selection::{
+    emit_scheduling_intention, select_next_step, NextStep, SchedulingIntention, SelectionError,
 };
 pub use tx_coordinator::{
     apply_coordinator_transition, CoordinatorDecision, CoordinatorTransition,

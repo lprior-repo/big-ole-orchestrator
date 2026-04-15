@@ -12,7 +12,7 @@
 //!   - version-pin-bypass: WorkflowSpec serialization bypassing Dag validation
 
 use crate::dag::{Dag, DagError, Workflow};
-use crate::graph_args::{EdgeSpec, NodeSpec, WorkflowSpec};
+use crate::{EdgeSpec, NodeSpec, WorkflowSpec};
 use vo_types::{NodeKind, NodeName, WorkflowName};
 
 #[cfg(feature = "proptest")]

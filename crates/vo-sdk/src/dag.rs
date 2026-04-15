@@ -9,7 +9,7 @@ use std::any::Any;
 use thiserror::Error;
 use vo_types::{NodeKind, NodeName, WorkflowName};
 
-use crate::graph_args::{EdgeSpec, NodeSpec, WorkflowSpec};
+use crate::graph::{EdgeSpec, NodeSpec, WorkflowSpec};
 use crate::node_handle::NodeHandle;
 
 /// Errors that can occur when building a DAG.
