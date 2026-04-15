@@ -1,0 +1,12 @@
+{
+  "session_id": "db1f1ed1-4041-468e-8b91-440446d5089d",
+  "transcript_path": "/home/lewis/.claude/projects/-home-lewis-gt-veloxide-polecats-scavenger-veloxide/db1f1ed1-4041-468e-8b91-440446d5089d.jsonl",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Edit",
+  "tool_input": {
+    "file_path": "/home/lewis/gt/veloxide/polecats/scavenger/veloxide/crates/vo-types/src/binomial_heap.rs",
+    "old_string": "        let child_len = 2usize.pow(min_tree.degree as u32) - 1;\n        self.len -= 1;\n\n        let mut child_heap = BinomialHeap {\n            trees: children,\n            len: child_len,\n        };\n\n        self.merge(&mut child_heap);",
+    "new_string": "        let child_count = 2usize.pow(min_tree.degree as u32) - 1;\n        self.len -= 1;\n\n        let mut child_heap = BinomialHeap {\n            trees: children,\n            len: child_count,\n        };\n\n        // Merge children back — self.len is already correct (root removed).\n        // The child_heap.len is only for the merge's bookkeeping, so we\n        // subtract it after merge to avoid double-counting.\n        self.merge(&mut child_heap);\n        self.len -= child_count;",
+    "replace_all": false
+  }
+}
