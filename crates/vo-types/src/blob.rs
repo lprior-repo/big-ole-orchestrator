@@ -249,6 +249,60 @@ impl BlobStatus {
 }
 
 // ---------------------------------------------------------------------------
+// BlobGCPolicy — garbage collection policy for blobs (ADR-025)
+// ---------------------------------------------------------------------------
+
+/// Policy for when a blob becomes eligible for garbage collection.
+///
+/// Per ADR-025: GDPR purge and retention management for canonical blobs.
+/// Blobs must satisfy both status-based and reference-based conditions
+/// before being eligible for garbage collection.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum BlobGCPolicy {
+    /// Blobs eligible for GC when reference count reaches zero,
+    /// regardless of status. Use with caution - Pending blobs may
+    /// still be referenced by in-flight operations.
+    ImmediateOnZeroRefs,
+    /// Blobs eligible for GC only after reaching terminal status
+    /// (Published or Failed) AND having zero references.
+    OnlyAfterTerminal,
+    /// Blobs are never eligible for garbage collection.
+    /// Used for compliance-required retention.
+    Never,
+}
+
+impl BlobGCPolicy {
+    /// Returns true if a blob with the given status and ref_count
+    /// is eligible for garbage collection under this policy.
+    ///
+    /// Per ADR-025 §3: Physical blob removal is queued for compaction-time
+    /// reclamation only after DEK destruction and index cleanup.
+    #[must_use]
+    pub fn is_eligible_for_gc(self, status: BlobStatus, ref_count: u32) -> bool {
+        match self {
+            Self::ImmediateOnZeroRefs => ref_count == 0,
+            Self::OnlyAfterTerminal => {
+                ref_count == 0 && (status == BlobStatus::Published || status == BlobStatus::Failed)
+            }
+            Self::Never => false,
+        }
+    }
+
+    /// Returns true if a blob with the given status can transition to
+    /// a GC-eligible state under this policy.
+    #[must_use]
+    pub fn can_become_gc_eligible(self, status: BlobStatus) -> bool {
+        match self {
+            Self::ImmediateOnZeroRefs => true,
+            Self::OnlyAfterTerminal => {
+                status == BlobStatus::Pending || status == BlobStatus::DurablyStored
+            }
+            Self::Never => false,
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // OutputRef — discriminated union for step output data
 // ---------------------------------------------------------------------------
 
@@ -1042,5 +1096,67 @@ mod tests {
         let large = vec![0u8; INLINED_MAX_BYTES + 1];
         let result = OutputRef::classify(large);
         assert!(result.is_err());
+    }
+
+    // =========================================================================
+    // ADR-025: BlobGCPolicy — GC eligibility based on status and ref_count
+    // =========================================================================
+
+    #[test]
+    fn adr025_immediate_on_zero_refs_ignores_status() {
+        let policy = BlobGCPolicy::ImmediateOnZeroRefs;
+        assert!(policy.is_eligible_for_gc(BlobStatus::Pending, 0));
+        assert!(policy.is_eligible_for_gc(BlobStatus::DurablyStored, 0));
+        assert!(policy.is_eligible_for_gc(BlobStatus::Published, 0));
+        assert!(policy.is_eligible_for_gc(BlobStatus::Failed, 0));
+        assert!(!policy.is_eligible_for_gc(BlobStatus::Pending, 1));
+        assert!(!policy.is_eligible_for_gc(BlobStatus::Published, 1));
+    }
+
+    #[test]
+    fn adr025_only_after_terminal_requires_zero_refs_and_terminal_status() {
+        let policy = BlobGCPolicy::OnlyAfterTerminal;
+        assert!(!policy.is_eligible_for_gc(BlobStatus::Pending, 0));
+        assert!(!policy.is_eligible_for_gc(BlobStatus::DurablyStored, 0));
+        assert!(policy.is_eligible_for_gc(BlobStatus::Published, 0));
+        assert!(policy.is_eligible_for_gc(BlobStatus::Failed, 0));
+        assert!(!policy.is_eligible_for_gc(BlobStatus::Published, 1));
+        assert!(!policy.is_eligible_for_gc(BlobStatus::Failed, 1));
+    }
+
+    #[test]
+    fn adr025_never_always_returns_ineligible() {
+        let policy = BlobGCPolicy::Never;
+        assert!(!policy.is_eligible_for_gc(BlobStatus::Pending, 0));
+        assert!(!policy.is_eligible_for_gc(BlobStatus::DurablyStored, 0));
+        assert!(!policy.is_eligible_for_gc(BlobStatus::Published, 0));
+        assert!(!policy.is_eligible_for_gc(BlobStatus::Failed, 0));
+    }
+
+    #[test]
+    fn adr025_can_become_gc_eligible_for_immediate() {
+        let policy = BlobGCPolicy::ImmediateOnZeroRefs;
+        assert!(policy.can_become_gc_eligible(BlobStatus::Pending));
+        assert!(policy.can_become_gc_eligible(BlobStatus::DurablyStored));
+        assert!(policy.can_become_gc_eligible(BlobStatus::Published));
+        assert!(policy.can_become_gc_eligible(BlobStatus::Failed));
+    }
+
+    #[test]
+    fn adr025_can_become_gc_eligible_for_only_after_terminal() {
+        let policy = BlobGCPolicy::OnlyAfterTerminal;
+        assert!(policy.can_become_gc_eligible(BlobStatus::Pending));
+        assert!(policy.can_become_gc_eligible(BlobStatus::DurablyStored));
+        assert!(!policy.can_become_gc_eligible(BlobStatus::Published));
+        assert!(!policy.can_become_gc_eligible(BlobStatus::Failed));
+    }
+
+    #[test]
+    fn adr025_never_cannot_become_gc_eligible() {
+        let policy = BlobGCPolicy::Never;
+        assert!(!policy.can_become_gc_eligible(BlobStatus::Pending));
+        assert!(!policy.can_become_gc_eligible(BlobStatus::DurablyStored));
+        assert!(!policy.can_become_gc_eligible(BlobStatus::Published));
+        assert!(!policy.can_become_gc_eligible(BlobStatus::Failed));
     }
 }
