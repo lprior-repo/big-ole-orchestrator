@@ -1,35 +1,7 @@
     Blocking waiting for file lock on package cache
     Blocking waiting for file lock on package cache
     Blocking waiting for file lock on package cache
-    Checking vo-types v0.1.0 (/home/lewis/gt/veloxide/polecats/dust/veloxide/crates/vo-types)
-    Checking vo-ipc v0.1.0 (/home/lewis/gt/veloxide/polecats/dust/veloxide/crates/vo-ipc)
-    Checking vo-executor v0.1.0 (/home/lewis/gt/veloxide/polecats/dust/veloxide/crates/vo-executor)
-warning: constant `CACHE_LINE` is never used
- --> crates/vo-ipc/src/spsc.rs:7:7
-  |
-7 | const CACHE_LINE: usize = 64;
-  |       ^^^^^^^^^^
-  |
-  = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
-
-warning: `vo-ipc` (lib) generated 1 warning
-    Checking vo-storage v0.1.0 (/home/lewis/gt/veloxide/polecats/dust/veloxide/crates/vo-storage)
-    Checking vo-core v0.1.0 (/home/lewis/gt/veloxide/polecats/dust/veloxide/crates/vo-core)
-    Checking vo-actor v0.1.0 (/home/lewis/gt/veloxide/polecats/dust/veloxide/crates/vo-actor)
-    Checking vo-sdk v0.1.0 (/home/lewis/gt/veloxide/polecats/dust/veloxide/crates/vo-sdk)
-    Checking vo-frontend v0.1.0 (/home/lewis/gt/veloxide/polecats/dust/veloxide/crates/vo-frontend)
-warning: method `has_cycle` is never used
-   --> crates/vo-sdk/src/dag.rs:265:8
-    |
- 46 | impl Dag {
-    | -------- method in this implementation
-...
-265 |     fn has_cycle(&self) -> bool {
-    |        ^^^^^^^^^
-    |
-    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
-
-warning: `vo-sdk` (lib) generated 1 warning
+    Blocking waiting for file lock on package cache
 warning: unused import: `vo_types::events::EventMetadata`
   --> crates/vo-storage/src/append.rs:13:5
    |
@@ -62,167 +34,6 @@ warning: unused imports: `decode_dedupe_key`, `decode_effect_key`, `decode_event
 21 |     get_lease_key_prefix_for_instance, get_timer_key_prefix_for_time,
    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-warning: unused import: `tokio::time::Instant`
- --> crates/vo-core/src/recovery/throttle.rs:8:5
-  |
-8 | use tokio::time::Instant;
-  |     ^^^^^^^^^^^^^^^^^^^^
-  |
-  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
-
-warning: unused import: `std::sync::Arc`
- --> crates/vo-core/src/replay/event_sourcing_engine_tests.rs:6:5
-  |
-6 | use std::sync::Arc;
-  |     ^^^^^^^^^^^^^^
-  |
-help: if this is a test module, consider adding a `#[cfg(test)]` to the containing module
- --> crates/vo-core/src/replay/mod.rs:8:1
-  |
-8 | pub mod event_sourcing_engine_tests;
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-warning: unused imports: `EventSourcingConfig`, `EventSourcingEngine`, `InMemorySnapshotStore`, `RecoveryResult`, `RecoveryType`, `SnapshotStore`, and `Snapshot`
-  --> crates/vo-core/src/replay/event_sourcing_engine_tests.rs:11:5
-   |
-11 |     EventSourcingConfig, EventSourcingEngine, InMemorySnapshotStore, RecoveryResult, RecoveryType,
-   |     ^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^  ^^^^^^^^^^^^
-12 |     Snapshot, SnapshotStore,
-   |     ^^^^^^^^  ^^^^^^^^^^^^^
-   |
-help: if this is a test module, consider adding a `#[cfg(test)]` to the containing module
-  --> crates/vo-core/src/replay/mod.rs:8:1
-   |
- 8 | pub mod event_sourcing_engine_tests;
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-warning: unused import: `RebuildThrottleConfig`
-  --> crates/vo-core/src/replay/event_sourcing_engine_tests.rs:14:44
-   |
-14 | use crate::replay::projection::{Projector, RebuildThrottleConfig};
-   |                                            ^^^^^^^^^^^^^^^^^^^^^
-   |
-help: if this is a test module, consider adding a `#[cfg(test)]` to the containing module
-  --> crates/vo-core/src/replay/mod.rs:8:1
-   |
- 8 | pub mod event_sourcing_engine_tests;
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-warning: unused import: `vo_types::events::metadata::EventMetadata`
-  --> crates/vo-core/src/replay/event_sourcing_engine_tests.rs:15:5
-   |
-15 | use vo_types::events::metadata::EventMetadata;
-   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   |
-help: if this is a test module, consider adding a `#[cfg(test)]` to the containing module
-  --> crates/vo-core/src/replay/mod.rs:8:1
-   |
- 8 | pub mod event_sourcing_engine_tests;
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-warning: unused import: `vo_types::state::LifecycleState`
-  --> crates/vo-core/src/replay/event_sourcing_engine_tests.rs:17:5
-   |
-17 | use vo_types::state::LifecycleState;
-   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   |
-help: if this is a test module, consider adding a `#[cfg(test)]` to the containing module
-  --> crates/vo-core/src/replay/mod.rs:8:1
-   |
- 8 | pub mod event_sourcing_engine_tests;
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-warning: unused import: `EventEnvelopeError`
- --> crates/vo-core/src/upcaster/registry.rs:6:23
-  |
-6 | use crate::upcaster::{EventEnvelopeError, UpcasterError, MAX_SUPPORTED_VERSION};
-  |                       ^^^^^^^^^^^^^^^^^^
-
-warning: unused imports: `NodeCategory`, `NodeId`, `Node`, `Workflow`, and `node_kind_to_category`
- --> crates/vo-frontend/src/ui/badge_accuracy_tests.rs:7:24
-  |
-7 | use crate::ui::graph::{node_kind_to_category, Node, NodeCategory, NodeId, Workflow};
-  |                        ^^^^^^^^^^^^^^^^^^^^^  ^^^^  ^^^^^^^^^^^^  ^^^^^^  ^^^^^^^^
-  |
-help: if this is a test module, consider adding a `#[cfg(test)]` to the containing module
- --> crates/vo-frontend/src/ui/mod.rs:1:1
-  |
-1 | pub mod badge_accuracy_tests;
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
-
-warning: unused import: `vo_types::NodeKind`
- --> crates/vo-frontend/src/ui/badge_accuracy_tests.rs:8:5
-  |
-8 | use vo_types::NodeKind;
-  |     ^^^^^^^^^^^^^^^^^^
-  |
-help: if this is a test module, consider adding a `#[cfg(test)]` to the containing module
- --> crates/vo-frontend/src/ui/mod.rs:1:1
-  |
-1 | pub mod badge_accuracy_tests;
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-warning: `vo-frontend` (lib) generated 2 warnings (run `cargo fix --lib -p vo-frontend` to apply 2 suggestions)
-warning: unused variable: `fire_at_ms`
-   --> crates/vo-actor/src/reanimator/mock.rs:180:9
-    |
-180 |         fire_at_ms: TimestampMs,
-    |         ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_fire_at_ms`
-    |
-    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
-
-warning: `vo-actor` (lib) generated 1 warning (run `cargo fix --lib -p vo-actor` to apply 1 suggestion)
-warning: method `advance_time` is never used
-  --> crates/vo-core/src/recovery/throttle.rs:73:8
-   |
-39 | impl TokenBucket {
-   | ---------------- method in this implementation
-...
-73 |     fn advance_time(&mut self, duration: Duration) {
-   |        ^^^^^^^^^^^^
-   |
-   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
-
-warning: struct `TestProjectionState` is never constructed
-  --> crates/vo-core/src/replay/event_sourcing_engine_tests.rs:20:8
-   |
-20 | struct TestProjectionState {
-   |        ^^^^^^^^^^^^^^^^^^^
-
-warning: associated function `new` is never used
-  --> crates/vo-core/src/replay/event_sourcing_engine_tests.rs:26:8
-   |
-25 | impl TestProjectionState {
-   | ------------------------ associated function in this implementation
-26 |     fn new(value: String) -> Self {
-   |        ^^^
-
-warning: struct `TestProjector` is never constructed
-  --> crates/vo-core/src/replay/event_sourcing_engine_tests.rs:34:8
-   |
-34 | struct TestProjector;
-   |        ^^^^^^^^^^^^^
-
-warning: field `active_rebuilds` is never read
-   --> crates/vo-core/src/replay/projection/mod.rs:337:5
-    |
-332 | pub struct ProjectionEngine {
-    |            ---------------- field in this struct
-...
-337 |     active_rebuilds: Arc<HashMap<String, Arc<RebuildContext>>>,
-    |     ^^^^^^^^^^^^^^^
-
-warning: field `engine` is never read
-   --> crates/vo-core/src/replay/projection/mod.rs:488:5
-    |
-482 | pub struct ProjectionRebuilder<'a, S, E, P>
-    |            ------------------- field in this struct
-...
-488 |     engine: &'a ProjectionEngine,
-    |     ^^^^^^
-
-warning: `vo-core` (lib) generated 13 warnings (run `cargo fix --lib -p vo-core` to apply 7 suggestions)
 warning: trait `Classifiable` is more private than the item `QosRouter::<T>::enqueue`
    --> crates/vo-storage/src/qos_router.rs:132:5
     |
@@ -304,7 +115,189 @@ warning: multiple associated items are never used
     |        ^^^^^^^^^^^^^^^^
 
 warning: `vo-storage` (lib) generated 10 warnings (run `cargo fix --lib -p vo-storage` to apply 3 suggestions)
+warning: unused import: `tokio::time::Instant`
+ --> crates/vo-core/src/recovery/throttle.rs:8:5
+  |
+8 | use tokio::time::Instant;
+  |     ^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `std::sync::Arc`
+ --> crates/vo-core/src/replay/event_sourcing_engine_tests.rs:6:5
+  |
+6 | use std::sync::Arc;
+  |     ^^^^^^^^^^^^^^
+  |
+help: if this is a test module, consider adding a `#[cfg(test)]` to the containing module
+ --> crates/vo-core/src/replay/mod.rs:8:1
+  |
+8 | pub mod event_sourcing_engine_tests;
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `EventSourcingConfig`, `EventSourcingEngine`, `InMemorySnapshotStore`, `RecoveryResult`, `RecoveryType`, `SnapshotStore`, and `Snapshot`
+  --> crates/vo-core/src/replay/event_sourcing_engine_tests.rs:11:5
+   |
+11 |     EventSourcingConfig, EventSourcingEngine, InMemorySnapshotStore, RecoveryResult, RecoveryType,
+   |     ^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^  ^^^^^^^^^^^^
+12 |     Snapshot, SnapshotStore,
+   |     ^^^^^^^^  ^^^^^^^^^^^^^
+   |
+help: if this is a test module, consider adding a `#[cfg(test)]` to the containing module
+  --> crates/vo-core/src/replay/mod.rs:8:1
+   |
+ 8 | pub mod event_sourcing_engine_tests;
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `RebuildThrottleConfig`
+  --> crates/vo-core/src/replay/event_sourcing_engine_tests.rs:14:44
+   |
+14 | use crate::replay::projection::{Projector, RebuildThrottleConfig};
+   |                                            ^^^^^^^^^^^^^^^^^^^^^
+   |
+help: if this is a test module, consider adding a `#[cfg(test)]` to the containing module
+  --> crates/vo-core/src/replay/mod.rs:8:1
+   |
+ 8 | pub mod event_sourcing_engine_tests;
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `vo_types::events::metadata::EventMetadata`
+  --> crates/vo-core/src/replay/event_sourcing_engine_tests.rs:15:5
+   |
+15 | use vo_types::events::metadata::EventMetadata;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+help: if this is a test module, consider adding a `#[cfg(test)]` to the containing module
+  --> crates/vo-core/src/replay/mod.rs:8:1
+   |
+ 8 | pub mod event_sourcing_engine_tests;
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `vo_types::state::LifecycleState`
+  --> crates/vo-core/src/replay/event_sourcing_engine_tests.rs:17:5
+   |
+17 | use vo_types::state::LifecycleState;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+help: if this is a test module, consider adding a `#[cfg(test)]` to the containing module
+  --> crates/vo-core/src/replay/mod.rs:8:1
+   |
+ 8 | pub mod event_sourcing_engine_tests;
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `EventEnvelopeError`
+ --> crates/vo-core/src/upcaster/registry.rs:6:23
+  |
+6 | use crate::upcaster::{EventEnvelopeError, UpcasterError, MAX_SUPPORTED_VERSION};
+  |                       ^^^^^^^^^^^^^^^^^^
+
+warning: method `advance_time` is never used
+  --> crates/vo-core/src/recovery/throttle.rs:73:8
+   |
+39 | impl TokenBucket {
+   | ---------------- method in this implementation
+...
+73 |     fn advance_time(&mut self, duration: Duration) {
+   |        ^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: struct `TestProjectionState` is never constructed
+  --> crates/vo-core/src/replay/event_sourcing_engine_tests.rs:20:8
+   |
+20 | struct TestProjectionState {
+   |        ^^^^^^^^^^^^^^^^^^^
+
+warning: associated function `new` is never used
+  --> crates/vo-core/src/replay/event_sourcing_engine_tests.rs:26:8
+   |
+25 | impl TestProjectionState {
+   | ------------------------ associated function in this implementation
+26 |     fn new(value: String) -> Self {
+   |        ^^^
+
+warning: struct `TestProjector` is never constructed
+  --> crates/vo-core/src/replay/event_sourcing_engine_tests.rs:34:8
+   |
+34 | struct TestProjector;
+   |        ^^^^^^^^^^^^^
+
+warning: field `active_rebuilds` is never read
+   --> crates/vo-core/src/replay/projection/mod.rs:337:5
+    |
+332 | pub struct ProjectionEngine {
+    |            ---------------- field in this struct
+...
+337 |     active_rebuilds: Arc<HashMap<String, Arc<RebuildContext>>>,
+    |     ^^^^^^^^^^^^^^^
+
+warning: field `engine` is never read
+   --> crates/vo-core/src/replay/projection/mod.rs:488:5
+    |
+482 | pub struct ProjectionRebuilder<'a, S, E, P>
+    |            ------------------- field in this struct
+...
+488 |     engine: &'a ProjectionEngine,
+    |     ^^^^^^
+
+warning: constant `CACHE_LINE` is never used
+ --> crates/vo-ipc/src/spsc.rs:7:7
+  |
+7 | const CACHE_LINE: usize = 64;
+  |       ^^^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `has_cycle` is never used
+   --> crates/vo-sdk/src/dag.rs:265:8
+    |
+ 46 | impl Dag {
+    | -------- method in this implementation
+...
+265 |     fn has_cycle(&self) -> bool {
+    |        ^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `vo-core` (lib) generated 13 warnings (run `cargo fix --lib -p vo-core` to apply 7 suggestions)
+warning: `vo-ipc` (lib) generated 1 warning
+warning: `vo-sdk` (lib) generated 1 warning
+warning: unused variable: `fire_at_ms`
+   --> crates/vo-actor/src/reanimator/mock.rs:180:9
+    |
+180 |         fire_at_ms: TimestampMs,
+    |         ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_fire_at_ms`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
     Checking vo-worker v0.1.0 (/home/lewis/gt/veloxide/polecats/dust/veloxide/crates/vo-worker)
+warning: `vo-actor` (lib) generated 1 warning (run `cargo fix --lib -p vo-actor` to apply 1 suggestion)
+warning: unused imports: `NodeCategory`, `NodeId`, `Node`, `Workflow`, and `node_kind_to_category`
+ --> crates/vo-frontend/src/ui/badge_accuracy_tests.rs:7:24
+  |
+7 | use crate::ui::graph::{node_kind_to_category, Node, NodeCategory, NodeId, Workflow};
+  |                        ^^^^^^^^^^^^^^^^^^^^^  ^^^^  ^^^^^^^^^^^^  ^^^^^^  ^^^^^^^^
+  |
+help: if this is a test module, consider adding a `#[cfg(test)]` to the containing module
+ --> crates/vo-frontend/src/ui/mod.rs:1:1
+  |
+1 | pub mod badge_accuracy_tests;
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `vo_types::NodeKind`
+ --> crates/vo-frontend/src/ui/badge_accuracy_tests.rs:8:5
+  |
+8 | use vo_types::NodeKind;
+  |     ^^^^^^^^^^^^^^^^^^
+  |
+help: if this is a test module, consider adding a `#[cfg(test)]` to the containing module
+ --> crates/vo-frontend/src/ui/mod.rs:1:1
+  |
+1 | pub mod badge_accuracy_tests;
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `vo-frontend` (lib) generated 2 warnings (run `cargo fix --lib -p vo-frontend` to apply 2 suggestions)
 error[E0252]: the name `HealthCheckResult` is defined multiple times
   --> crates/vo-worker/src/pool/pool.rs:21:5
    |
