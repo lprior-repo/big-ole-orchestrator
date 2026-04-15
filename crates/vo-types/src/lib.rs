@@ -25,6 +25,7 @@ pub mod integer_types;
 mod integer_types_tests;
 mod lifecycle_superstate;
 mod lineage;
+mod memory_leak;
 mod node_kind;
 mod non_empty_vec;
 mod payload_parser;
@@ -88,6 +89,10 @@ pub use events::{Error as EventError, EventEnvelope};
 pub use instance_status::InstanceStatus;
 pub use lifecycle_superstate::LifecycleSuperstate;
 pub use lineage::{Epoch, LineageError, WorkflowLineage};
+pub use memory_leak::{
+    CleanupExpectation, ErrorBoundedInvariant, LeakIndicator, LeakThreshold, MemoryLeakDetector,
+    MemorySnapshot, StateCleanupInvariant,
+};
 pub use node_kind::NodeKind;
 pub use non_empty_vec::NonEmptyVec;
 pub use registration_status::RegistrationStatus;
