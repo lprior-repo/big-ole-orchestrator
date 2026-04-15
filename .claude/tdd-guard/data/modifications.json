@@ -1,12 +1,12 @@
 {
-  "session_id": "63d66790-afa4-4428-8fe7-fb499215b54d",
-  "transcript_path": "/home/lewis/.claude/projects/-home-lewis-gt-veloxide-polecats-shiny-veloxide/63d66790-afa4-4428-8fe7-fb499215b54d.jsonl",
+  "session_id": "b0c45dd0-5b70-4dbe-b0bc-adfb9ada1597",
+  "transcript_path": "/home/lewis/.claude/projects/-home-lewis-gt-veloxide-polecats-shiny-veloxide/b0c45dd0-5b70-4dbe-b0bc-adfb9ada1597.jsonl",
   "hook_event_name": "PreToolUse",
   "tool_name": "Edit",
   "tool_input": {
-    "file_path": "/home/lewis/gt/veloxide/polecats/shiny/veloxide/crates/vo-types/src/workflow/guarantee_class.rs",
-    "old_string": "    #[test]\n    fn guarantee_class_exact_once_serializes_to_snake_case() {\n        let json = serde_json::to_string(&GuaranteeClass::ExactOnce).unwrap();\n        assert_eq!(json, \"\\\"exact_once\\\"\");\n    }\n}",
-    "new_string": "    #[test]\n    fn guarantee_class_exact_once_serializes_to_snake_case() {\n        let json = serde_json::to_string(&GuaranteeClass::ExactOnce).unwrap();\n        assert_eq!(json, \"\\\"exact_once\\\"\");\n    }\n\n    #[test]\n    fn guarantee_class_at_least_once_serializes_to_snake_case() {\n        let json = serde_json::to_string(&GuaranteeClass::AtLeastOnce).unwrap();\n        assert_eq!(json, \"\\\"at_least_once\\\"\");\n    }\n}",
+    "file_path": "/home/lewis/gt/veloxide/polecats/shiny/veloxide/crates/vo-types/tests/privacy_encryption_blob_tdd_red.rs",
+    "old_string": "        \"I-DEK-1: Empty WrappedDek is structurally invalid (no IV, ciphertext, or tag)\"\n    );\n}",
+    "new_string": "        \"I-DEK-1: Empty WrappedDek is structurally invalid (no IV, ciphertext, or tag)\"\n    );\n}\n\n#[test]\nfn tdd_red_017_wrapped_dek_size_consistent_with_aes256gcm_algorithm() {\n    let iv_tag_overhead = CryptoAlgorithm::IV_SIZE_BYTES + CryptoAlgorithm::TAG_SIZE_BYTES; // 28\n    let key_size = CryptoAlgorithm::KEY_SIZE_BYTES; // 32\n    let min_for_key = iv_tag_overhead + key_size; // 60\n\n    // Only IV+tag overhead, no room for encrypted key material\n    let short_dek = WrappedDek::new(vec![0u8; iv_tag_overhead]);\n    assert!(\n        short_dek.as_bytes().len() >= min_for_key,\n        \"I-DEK-2: {} bytes is only IV+tag overhead, no room for encrypted key material\",\n        short_dek.as_bytes().len()\n    );\n}",
     "replace_all": false
   }
 }
