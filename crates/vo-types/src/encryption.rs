@@ -231,7 +231,7 @@ mod tests {
 
     #[test]
     fn encrypted_blob_creation() {
-        let blob = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![2u8; 16]);
+        let blob = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![2u8; 16]).unwrap();
         assert_eq!(blob.total_size(), 60);
     }
 

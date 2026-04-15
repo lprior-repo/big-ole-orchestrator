@@ -344,7 +344,7 @@ fn moon_gate_pii_deeply_nested_redacted_completely() {
 
 #[test]
 fn moon_gate_canonical_encrypted_blob_structure_valid() {
-    let blob = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![2u8; 16]);
+    let blob = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![2u8; 16]).unwrap();
 
     assert_eq!(blob.total_size(), 60);
     assert_eq!(blob.iv.len(), 12);
@@ -354,7 +354,7 @@ fn moon_gate_canonical_encrypted_blob_structure_valid() {
 
 #[test]
 fn moon_gate_canonical_encrypted_blob_serde_roundtrip() {
-    let original = EncryptedBlob::new(vec![0xAB; 12], vec![0xCD; 32], vec![0xEF; 16]);
+    let original = EncryptedBlob::new(vec![0xAB; 12], vec![0xCD; 32], vec![0xEF; 16]).unwrap();
 
     let json = serde_json::to_string(&original).unwrap();
     let recovered: EncryptedBlob = serde_json::from_str(&json).unwrap();

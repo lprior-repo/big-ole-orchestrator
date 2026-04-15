@@ -8,7 +8,7 @@ fn valid_dek_id() -> DekId {
 }
 
 fn sample_encrypted_blob() -> EncryptedBlob {
-    EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![2u8; 16])
+    EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![2u8; 16]).unwrap()
 }
 
 fn sample_wrapped_dek() -> WrappedDek {
@@ -248,7 +248,7 @@ mod encrypted_blob_tests {
 
     #[test]
     fn encrypted_blob_new_accepts_components() {
-        let blob = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![2u8; 16]);
+        let blob = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![2u8; 16]).unwrap();
         assert_eq!(blob.iv.len(), 12);
         assert_eq!(blob.ciphertext.len(), 32);
         assert_eq!(blob.tag.len(), 16);
@@ -271,22 +271,22 @@ mod encrypted_blob_tests {
 
     #[test]
     fn encrypted_blob_iv_size_fixed_12() {
-        let blob = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![2u8; 16]);
+        let blob = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![2u8; 16]).unwrap();
         assert_eq!(blob.iv.len(), 12);
     }
 
     #[test]
     fn encrypted_blob_tag_size_fixed_16() {
-        let blob = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![2u8; 16]);
+        let blob = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![2u8; 16]).unwrap();
         assert_eq!(blob.tag.len(), 16);
     }
 
     #[test]
     fn encrypted_blob_ciphertext_size_variable() {
-        let blob_empty = EncryptedBlob::new(vec![0u8; 12], vec![], vec![2u8; 16]);
+        let blob_empty = EncryptedBlob::new(vec![0u8; 12], vec![], vec![2u8; 16]).unwrap();
         assert_eq!(blob_empty.ciphertext.len(), 0);
 
-        let blob_large = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 1000], vec![2u8; 16]);
+        let blob_large = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 1000], vec![2u8; 16]).unwrap();
         assert_eq!(blob_large.ciphertext.len(), 1000);
     }
 
@@ -300,7 +300,7 @@ mod encrypted_blob_tests {
 
     #[test]
     fn encrypted_blob_total_size_empty() {
-        let blob = EncryptedBlob::new(vec![0u8; 12], vec![], vec![2u8; 16]);
+        let blob = EncryptedBlob::new(vec![0u8; 12], vec![], vec![2u8; 16]).unwrap();
         assert_eq!(blob.total_size(), 28);
     }
 
@@ -323,29 +323,29 @@ mod encrypted_blob_tests {
 
     #[test]
     fn encrypted_blob_eq_true_all_components_match() {
-        let blob1 = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![2u8; 16]);
-        let blob2 = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![2u8; 16]);
+        let blob1 = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![2u8; 16]).unwrap();
+        let blob2 = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![2u8; 16]).unwrap();
         assert_eq!(blob1, blob2);
     }
 
     #[test]
     fn encrypted_blob_eq_false_iv_mismatch() {
-        let blob1 = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![2u8; 16]);
-        let blob2 = EncryptedBlob::new(vec![1u8; 12], vec![1u8; 32], vec![2u8; 16]);
+        let blob1 = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![2u8; 16]).unwrap();
+        let blob2 = EncryptedBlob::new(vec![1u8; 12], vec![1u8; 32], vec![2u8; 16]).unwrap();
         assert_ne!(blob1, blob2);
     }
 
     #[test]
     fn encrypted_blob_eq_false_ciphertext_mismatch() {
-        let blob1 = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![2u8; 16]);
-        let blob2 = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 33], vec![2u8; 16]);
+        let blob1 = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![2u8; 16]).unwrap();
+        let blob2 = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 33], vec![2u8; 16]).unwrap();
         assert_ne!(blob1, blob2);
     }
 
     #[test]
     fn encrypted_blob_eq_false_tag_mismatch() {
-        let blob1 = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![2u8; 16]);
-        let blob2 = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![3u8; 16]);
+        let blob1 = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![2u8; 16]).unwrap();
+        let blob2 = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![3u8; 16]).unwrap();
         assert_ne!(blob1, blob2);
     }
 }
@@ -587,7 +587,7 @@ mod proptests {
             let iv_vec: Vec<u8> = iv.chars().map(|c| c as u8).collect();
             let ciphertext_vec: Vec<u8> = ciphertext.chars().map(|c| c as u8).collect();
             let tag_vec: Vec<u8> = tag.chars().map(|c| c as u8).collect();
-            let blob = EncryptedBlob::new(iv_vec.clone(), ciphertext_vec.clone(), tag_vec.clone());
+            let blob = EncryptedBlob::new(iv_vec.clone(), ciphertext_vec.clone(), tag_vec.clone()).unwrap();
             prop_assert_eq!(
                 blob.total_size(),
                 iv_vec.len() + ciphertext_vec.len() + tag_vec.len()
