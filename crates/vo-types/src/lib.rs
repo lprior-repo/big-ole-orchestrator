@@ -28,6 +28,8 @@ mod encryption;
 mod effects_receipt_tests;
 #[cfg(test)]
 mod encryption_tests;
+#[cfg(test)]
+mod blackhat_encryption_credentials_tests;
 mod errors;
 pub mod events;
 mod identity;
