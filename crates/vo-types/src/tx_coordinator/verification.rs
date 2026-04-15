@@ -2,7 +2,10 @@
 
 #[cfg(kani)]
 mod verification {
-    use super::*;
+    use crate::tx_coordinator::{
+        apply_coordinator_transition, CoordinatorTransition, ParticipantRecord, ParticipantStatus,
+        TransactionRecord, TransactionState,
+    };
 
     /// K-01: Verify apply_coordinator_transition exhaustiveness.
     /// All 10×12 = 120 combinations must be covered without panic.
