@@ -31,6 +31,8 @@ pub enum SemaphoreLimitError {
         yielded_actors: usize,
         threshold: usize,
     },
+    #[error("semaphore closed")]
+    Closed,
 }
 
 impl SemaphoreLimitError {
@@ -123,9 +125,30 @@ impl LoadSheddingSemaphore {
                     requested: permits,
                 })
             }
-            Err(TryAcquireError::Closed) => {
-                panic!("semaphore closed unexpectedly")
+            Err(TryAcquireError::Closed) => Err(SemaphoreLimitError::Closed),
+        }
+    }
+
+    pub async fn acquire(&self) -> Result<SemaphorePermit, SemaphoreLimitError> {
+        self.acquire_many(1).await
+    }
+
+    pub async fn acquire_many(
+        &self,
+        permits: usize,
+    ) -> Result<SemaphorePermit, SemaphoreLimitError> {
+        match self
+            .semaphore
+            .clone()
+            .acquire_many_owned(permits as u32)
+            .await
+        {
+            Ok(permit) => {
+                let acquired = self.acquired.clone();
+                acquired.fetch_add(permits, Ordering::Relaxed);
+                Ok(SemaphorePermit::new(permit, permits, acquired))
             }
+            Err(_) => Err(SemaphoreLimitError::Closed),
         }
     }
 
