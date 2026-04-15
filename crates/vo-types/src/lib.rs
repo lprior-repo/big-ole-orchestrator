@@ -37,6 +37,7 @@ mod non_empty_vec;
 mod octree;
 mod pairing_heap;
 mod payload_parser;
+mod next_step_selection;
 mod plugin;
 pub mod proptest_verifier;
 #[cfg(feature = "proptest")]
@@ -130,6 +131,9 @@ pub use plugin::{
     PluginErrorContext, PluginErrorDetail, PluginFailureContext, PluginHotLoadError, PluginId,
     PluginInstance, PluginName, PluginState, PluginTransition, PluginVersion,
     PluginVersionConstraint, ResourceBudget, SchemaVersion, VersionRange,
+};
+pub use next_step_selection::{
+    emit_scheduling_intention, select_next_step, NextStep, SchedulingIntention, SelectionError,
 };
 pub use tx_coordinator::{
     apply_coordinator_transition, CoordinatorDecision, CoordinatorTransition,
