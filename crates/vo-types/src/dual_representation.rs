@@ -155,6 +155,7 @@ pub fn apply_redaction(
         true
     }
 
+    #[allow(clippy::if_same_then_else)]
     fn apply_recursive(
         value: &serde_json::Value,
         rules: &[RedactionRule],
@@ -171,27 +172,25 @@ pub fn apply_redaction(
                         .iter()
                         .find(|r| matches_rule(current_path, &r.field_path));
 
-                    match rule {
-                        Some(r) => {
-                            redacted_fields.push(r.field_path.clone());
-                            match r.redaction_kind {
-                                RedactionKind::Remove => {
-                                    // Remove field entirely from object (per AR-09 test plan)
-                                    // Do nothing - key is not inserted
-                                }
-                                _ => {
-                                    let new_val = r.redaction_kind.redact_value(key, val);
-                                    result.insert(key.clone(), new_val);
-                                }
-                            }
-                        }
-                        None => {
-                            let new_val =
-                                apply_recursive(val, rules, current_path, redacted_fields);
-                            if new_val != serde_json::Value::Null {
-                                result.insert(key.clone(), new_val);
-                            }
-                        }
+                    let (new_val, was_redacted, is_remove) = if let Some(r) = rule {
+                        redacted_fields.push(r.field_path.clone());
+                        let new_val = r.redaction_kind.redact_value(key, val);
+                        let is_remove = matches!(r.redaction_kind, RedactionKind::Remove);
+                        (new_val, true, is_remove)
+                    } else {
+                        (
+                            apply_recursive(val, rules, current_path, redacted_fields),
+                            false,
+                            false,
+                        )
+                    };
+
+                    if was_redacted && is_remove && new_val == serde_json::Value::Null {
+                        // Remove in object context: omit the key entirely
+                    } else if was_redacted {
+                        result.insert(key.clone(), new_val);
+                    } else if new_val != serde_json::Value::Null {
+                        result.insert(key.clone(), new_val);
                     }
 
                     current_path.pop();
@@ -508,5 +507,82 @@ mod tests {
         assert_eq!(redacted.len(), 2);
         assert!(redacted.contains(&vec!["a".into(), "x".into()]));
         assert!(redacted.contains(&vec!["b".into(), "z".into()]));
+    }
+
+    #[test]
+    fn redaction_kind_replace_with_type_produces_type_name() {
+        let kind = RedactionKind::ReplaceWithType;
+        let int_value = serde_json::json!(123);
+        let str_value = serde_json::json!("hello");
+        let bool_value = serde_json::json!(true);
+
+        let int_result = kind.redact_value("field", &int_value);
+        let str_result = kind.redact_value("field", &str_value);
+        let bool_result = kind.redact_value("field", &bool_value);
+
+        assert!(
+            int_result.as_str().unwrap().contains("serde_json"),
+            "serde_json type name expected, got: {}",
+            int_result
+        );
+        assert!(
+            str_result.as_str().unwrap().contains("serde_json"),
+            "serde_json type name expected, got: {}",
+            str_result
+        );
+        assert!(
+            bool_result.as_str().unwrap().contains("serde_json"),
+            "serde_json type name expected, got: {}",
+            bool_result
+        );
+    }
+
+    #[test]
+    fn operator_projection_no_raw_sensitive_data() {
+        let value = serde_json::json!({
+            "ssn": "123-45-6789",
+            "amount": 100.00,
+            "recipient": "Alice"
+        });
+
+        let rules = vec![RedactionRule::new(
+            vec!["ssn".to_string()],
+            RedactionKind::Remove,
+        )];
+
+        let (result, _) = apply_redaction(&value, &rules);
+        let json_str = serde_json::to_string(&result).unwrap();
+
+        assert!(
+            !json_str.contains("123-45-6789"),
+            "Raw SSN should not appear in output: {}",
+            json_str
+        );
+        assert_eq!(result["amount"], 100.00);
+        assert_eq!(result["recipient"], "Alice");
+    }
+
+    #[test]
+    fn apply_redaction_remove_omits_key_from_object() {
+        let value = serde_json::json!({
+            "secret": "value",
+            "public": "data"
+        });
+
+        let rules = vec![RedactionRule::new(
+            vec!["secret".to_string()],
+            RedactionKind::Remove,
+        )];
+
+        let (result, _) = apply_redaction(&value, &rules);
+
+        let obj = result.as_object().unwrap();
+        assert!(
+            !obj.contains_key("secret"),
+            "Key 'secret' should be omitted entirely, but found in: {:?}",
+            result
+        );
+        assert_eq!(obj.len(), 1);
+        assert_eq!(obj["public"], "data");
     }
 }

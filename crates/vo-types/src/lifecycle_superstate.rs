@@ -126,6 +126,14 @@ mod tests {
     }
 
     #[test]
+    fn pending_publication_maps_to_suspended() {
+        assert_eq!(
+            LifecycleState::PendingPublication.superstate(),
+            LifecycleSuperstate::Suspended
+        );
+    }
+
+    #[test]
     fn completed_maps_to_terminal() {
         assert_eq!(
             LifecycleState::Completed.superstate(),
@@ -238,6 +246,7 @@ mod tests {
             LifecycleState::StepScheduled,
             LifecycleState::StepExecuting,
             LifecycleState::WaitingForTimer,
+            LifecycleState::PendingPublication,
             LifecycleState::Completed,
             LifecycleState::Failed,
             LifecycleState::Cancelled,

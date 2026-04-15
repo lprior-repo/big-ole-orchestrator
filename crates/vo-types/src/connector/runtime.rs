@@ -25,6 +25,8 @@ pub enum ConnectorError {
     ReconciliationUncertain,
     #[error("transport error: {0}")]
     Transport(String),
+    #[error("max retries {max_retries} exceeded for ambiguous operation")]
+    MaxRetriesExceeded { max_retries: u32 },
 }
 
 /// Result of a reconciliation query to determine the true outcome
@@ -174,16 +176,20 @@ pub async fn reconcile_ambiguous<C: Connector>(
 ///
 /// * `connector` - The connector to use
 /// * `prepare_first` - Whether to call prepare before commit
+/// * `max_retries` - Maximum number of retry attempts when reconciliation returns Unknown
 ///
 /// # Returns
 ///
 /// * `Ok(ConnectorResult::Success)` - Operation succeeded
 /// * `Ok(ConnectorResult::Failure)` - Operation failed
-/// * `Err(ConnectorError)` - Operation error (including reconciliation failure)
+/// * `Err(ConnectorError)` - Operation error (including reconciliation failure or max retries exceeded)
 pub async fn execute_with_reconciliation<C: Connector>(
     connector: &mut C,
     prepare_first: bool,
+    max_retries: u32,
 ) -> Result<ConnectorResult, ConnectorError> {
+    let mut retry_count = 0;
+
     if prepare_first {
         let prep_result = connector.prepare().await?;
         match prep_result {
@@ -191,20 +197,38 @@ pub async fn execute_with_reconciliation<C: Connector>(
             ConnectorResult::Failure => return Ok(ConnectorResult::Failure),
             ConnectorResult::Ambiguous => {
                 let action = reconcile_ambiguous(connector, ConnectorState::Ambiguous).await?;
-                return apply_reconcile_action(action);
+                match action {
+                    ReconcileAction::Retry => {
+                        if retry_count >= max_retries {
+                            return Err(ConnectorError::MaxRetriesExceeded { max_retries });
+                        }
+                        retry_count += 1;
+                    }
+                    _ => return apply_reconcile_action(action),
+                }
             }
         }
     }
 
-    let commit_result = connector.commit().await?;
+    loop {
+        let commit_result = connector.commit().await?;
 
-    match commit_result {
-        ConnectorResult::Success => Ok(ConnectorResult::Success),
-        ConnectorResult::Failure => Ok(ConnectorResult::Failure),
-        ConnectorResult::Ambiguous => {
-            let state = ConnectorState::Ambiguous;
-            let action = reconcile_ambiguous(connector, state).await?;
-            apply_reconcile_action(action)
+        match commit_result {
+            ConnectorResult::Success => return Ok(ConnectorResult::Success),
+            ConnectorResult::Failure => return Ok(ConnectorResult::Failure),
+            ConnectorResult::Ambiguous => {
+                let state = ConnectorState::Ambiguous;
+                let action = reconcile_ambiguous(connector, state).await?;
+                match action {
+                    ReconcileAction::Retry => {
+                        if retry_count >= max_retries {
+                            return Err(ConnectorError::MaxRetriesExceeded { max_retries });
+                        }
+                        retry_count += 1;
+                    }
+                    _ => return apply_reconcile_action(action),
+                }
+            }
         }
     }
 }
@@ -214,5 +238,120 @@ fn apply_reconcile_action(action: ReconcileAction) -> Result<ConnectorResult, Co
         ReconcileAction::Commit => Ok(ConnectorResult::Success),
         ReconcileAction::Rollback => Ok(ConnectorResult::Failure),
         ReconcileAction::Retry => Ok(ConnectorResult::Ambiguous),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct MockConnector {
+        reconcile_result: ReconciliationResult,
+    }
+
+    impl MockConnector {
+        fn new(reconcile_result: ReconciliationResult) -> Self {
+            Self { reconcile_result }
+        }
+    }
+
+    impl Connector for MockConnector {
+        async fn prepare(&mut self) -> Result<ConnectorResult, ConnectorError> {
+            Ok(ConnectorResult::Success)
+        }
+
+        async fn commit(&mut self) -> Result<ConnectorResult, ConnectorError> {
+            Ok(ConnectorResult::Ambiguous)
+        }
+
+        async fn reconcile(&mut self) -> Result<ReconciliationResult, ConnectorError> {
+            Ok(self.reconcile_result)
+        }
+
+        async fn rollback(&mut self) -> Result<ConnectorResult, ConnectorError> {
+            Ok(ConnectorResult::Success)
+        }
+    }
+
+    #[tokio::test]
+    async fn reconcile_ambiguous_returns_commit_when_server_committed() {
+        let mut connector = MockConnector::new(ReconciliationResult::Committed);
+        let action = reconcile_ambiguous(&mut connector, ConnectorState::Ambiguous)
+            .await
+            .unwrap();
+        assert_eq!(action, ReconcileAction::Commit);
+    }
+
+    #[tokio::test]
+    async fn reconcile_ambiguous_returns_rollback_when_server_not_committed() {
+        let mut connector = MockConnector::new(ReconciliationResult::NotCommitted);
+        let action = reconcile_ambiguous(&mut connector, ConnectorState::Ambiguous)
+            .await
+            .unwrap();
+        assert_eq!(action, ReconcileAction::Rollback);
+    }
+
+    #[tokio::test]
+    async fn reconcile_ambiguous_returns_retry_when_outcome_unknown() {
+        let mut connector = MockConnector::new(ReconciliationResult::Unknown);
+        let action = reconcile_ambiguous(&mut connector, ConnectorState::Ambiguous)
+            .await
+            .unwrap();
+        assert_eq!(action, ReconcileAction::Retry);
+    }
+
+    #[tokio::test]
+    async fn execute_with_reconciliation_commits_on_success() {
+        struct SuccessConnector;
+        impl Connector for SuccessConnector {
+            async fn prepare(&mut self) -> Result<ConnectorResult, ConnectorError> {
+                Ok(ConnectorResult::Success)
+            }
+            async fn commit(&mut self) -> Result<ConnectorResult, ConnectorError> {
+                Ok(ConnectorResult::Success)
+            }
+            async fn reconcile(&mut self) -> Result<ReconciliationResult, ConnectorError> {
+                Ok(ReconciliationResult::Unknown)
+            }
+            async fn rollback(&mut self) -> Result<ConnectorResult, ConnectorError> {
+                Ok(ConnectorResult::Success)
+            }
+        }
+
+        let mut connector = SuccessConnector;
+        let result = execute_with_reconciliation(&mut connector, true, 3).await.unwrap();
+        assert_eq!(result, ConnectorResult::Success);
+    }
+
+    #[tokio::test]
+    async fn execute_with_reconciliation_resolves_ambiguous() {
+        let mut connector = MockConnector::new(ReconciliationResult::Committed);
+        let result = execute_with_reconciliation(&mut connector, false, 3).await.unwrap();
+        assert_eq!(result, ConnectorResult::Success);
+    }
+
+    #[tokio::test]
+    async fn reconcile_ambiguous_returns_error_on_non_ambiguous_state() {
+        struct DummyConnector;
+        impl Connector for DummyConnector {
+            async fn prepare(&mut self) -> Result<ConnectorResult, ConnectorError> {
+                Ok(ConnectorResult::Success)
+            }
+            async fn commit(&mut self) -> Result<ConnectorResult, ConnectorError> {
+                Ok(ConnectorResult::Success)
+            }
+            async fn reconcile(&mut self) -> Result<ReconciliationResult, ConnectorError> {
+                Ok(ReconciliationResult::Unknown)
+            }
+            async fn rollback(&mut self) -> Result<ConnectorResult, ConnectorError> {
+                Ok(ConnectorResult::Success)
+            }
+        }
+
+        let mut connector = DummyConnector;
+        let result = reconcile_ambiguous(&mut connector, ConnectorState::Executing).await;
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, ConnectorError::InvalidState { .. }));
     }
 }

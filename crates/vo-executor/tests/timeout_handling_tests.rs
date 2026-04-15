@@ -7,17 +7,13 @@
 //! - Recovery and re-execution after timeout
 //! - Timeout with retry policy interaction
 
-use vo_executor::errors::ExecuteNodeError;
-use vo_executor::state::{
-    get_state, reset_all_state, set_executing_state_for_test, set_state, StepState,
-};
 use vo_executor::{
-    cancel_execution, execute_step, execute_step_with_retry, get_execution_status, get_last_error,
+    cancel_execution, execute_step, execute_step_with_retry,
+    get_execution_status, get_last_error,
     ExecutionStatus, RetryPolicy, StepId,
 };
 use vo_executor::errors::ExecuteNodeError;
-use vo_executor::state::{get_state, reset_all_state, set_state, StepState};
-use vo_executor::set_executing_state_for_test;
+use vo_executor::state::{get_state, reset_all_state, set_state, set_executing_state_for_test, StepState};
 
 const SLOW_STEP_DURATION_MS: u64 = 3000;
 
@@ -42,10 +38,7 @@ mod timeout_validation {
         let result = execute_step(StepId::new("step-1".to_string()), 0).await;
         assert!(result.is_err());
         let err = result.unwrap_err();
-        assert!(matches!(
-            err,
-            ExecuteNodeError::InvalidTimeout { value: 0, .. }
-        ));
+        assert!(matches!(err, ExecuteNodeError::InvalidTimeout { value: 0, .. }));
     }
 
     #[tokio::test]
@@ -54,13 +47,7 @@ mod timeout_validation {
         let result = execute_step(StepId::new("step-1".to_string()), u64::MAX).await;
         assert!(result.is_err());
         let err = result.unwrap_err();
-        assert!(matches!(
-            err,
-            ExecuteNodeError::InvalidTimeout {
-                value: u64::MAX,
-                ..
-            }
-        ));
+        assert!(matches!(err, ExecuteNodeError::InvalidTimeout { value: u64::MAX, .. }));
     }
 
     #[tokio::test]
@@ -106,9 +93,7 @@ mod slow_step_timeout {
         let result = execute_step(StepId::new("step-slow".to_string()), timeout).await;
         assert!(result.is_err());
         let err = result.unwrap_err();
-        assert!(
-            matches!(err, ExecuteNodeError::TimeoutExceeded { elapsed_ms: 3000, limit_ms } if limit_ms < 3000)
-        );
+        assert!(matches!(err, ExecuteNodeError::TimeoutExceeded { elapsed_ms: 3000, limit_ms } if limit_ms < 3000));
     }
 
     #[tokio::test]
@@ -169,10 +154,7 @@ mod recovery_after_timeout {
         let timeout = 100;
         let result1 = execute_step(StepId::new("step-slow".to_string()), timeout).await;
         assert!(result1.is_err());
-        assert!(matches!(
-            result1.unwrap_err(),
-            ExecuteNodeError::TimeoutExceeded { .. }
-        ));
+        assert!(matches!(result1.unwrap_err(), ExecuteNodeError::TimeoutExceeded { .. }));
 
         let result2 = execute_step(StepId::new("step-slow".to_string()), 5000).await;
         assert!(result2.is_ok());
@@ -201,8 +183,11 @@ mod timeout_with_retry {
     async fn retry_with_insufficient_timeout_times_out() {
         let _guard = setup();
         let policy = RetryPolicy::new(3, 10, 2.0).unwrap();
-        let result =
-            execute_step_with_retry(StepId::new("step-slow".to_string()), 100, policy).await;
+        let result = execute_step_with_retry(
+            StepId::new("step-slow".to_string()),
+            100,
+            policy,
+        ).await;
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(matches!(err, ExecuteNodeError::TimeoutExceeded { .. }));
@@ -212,7 +197,11 @@ mod timeout_with_retry {
     async fn retry_with_sufficient_timeout_succeeds() {
         let _guard = setup();
         let policy = RetryPolicy::new(3, 10, 2.0).unwrap();
-        let result = execute_step_with_retry(StepId::new("step-1".to_string()), 5000, policy).await;
+        let result = execute_step_with_retry(
+            StepId::new("step-1".to_string()),
+            5000,
+            policy,
+        ).await;
         assert!(result.is_ok());
     }
 
@@ -220,28 +209,28 @@ mod timeout_with_retry {
     async fn flaky_step_exhausts_retries_regardless_of_timeout() {
         let _guard = setup();
         let policy = RetryPolicy::new(3, 10, 2.0).unwrap();
-        let result =
-            execute_step_with_retry(StepId::new("step-flaky".to_string()), 5000, policy).await;
+        let result = execute_step_with_retry(
+            StepId::new("step-flaky".to_string()),
+            5000,
+            policy,
+        ).await;
         assert!(result.is_err());
         let err = result.unwrap_err();
-        assert!(matches!(
-            err,
-            ExecuteNodeError::RetryExhausted { attempts: 3, .. }
-        ));
+        assert!(matches!(err, ExecuteNodeError::RetryExhausted { attempts: 3, .. }));
     }
 
     #[tokio::test]
     async fn retry_exhausted_error_contains_last_error() {
         let _guard = setup();
         let policy = RetryPolicy::new(2, 10, 2.0).unwrap();
-        let result =
-            execute_step_with_retry(StepId::new("step-flaky".to_string()), 5000, policy).await;
+        let result = execute_step_with_retry(
+            StepId::new("step-flaky".to_string()),
+            5000,
+            policy,
+        ).await;
         assert!(result.is_err());
         if let ExecuteNodeError::RetryExhausted { last_error, .. } = result.unwrap_err() {
-            assert!(matches!(
-                *last_error,
-                ExecuteNodeError::TransientError { .. }
-            ));
+            assert!(matches!(*last_error, ExecuteNodeError::TransientError { .. }));
         } else {
             panic!("Expected RetryExhausted error");
         }
@@ -257,10 +246,7 @@ mod cancel_during_execution {
         set_executing_state_for_test("step-1");
         let result = cancel_execution(StepId::new("step-1".to_string())).await;
         assert!(result.is_err());
-        assert!(matches!(
-            result.unwrap_err(),
-            ExecuteNodeError::ExecutionCancelled { .. }
-        ));
+        assert!(matches!(result.unwrap_err(), ExecuteNodeError::ExecutionCancelled { .. }));
     }
 
     #[tokio::test]
@@ -284,12 +270,7 @@ mod cancel_during_execution {
     #[tokio::test]
     async fn cancel_from_cancelled_is_noop() {
         let _guard = setup();
-        set_state(
-            "step-1",
-            StepState::Cancelled {
-                reason: "first".to_string(),
-            },
-        );
+        set_state("step-1", StepState::Cancelled { reason: "first".to_string() });
         let result = cancel_execution(StepId::new("step-1".to_string())).await;
         assert!(result.is_ok());
     }
@@ -304,10 +285,7 @@ mod concurrent_execution_prevention {
         set_executing_state_for_test("step-1");
         let result = execute_step(StepId::new("step-1".to_string()), 5000).await;
         assert!(result.is_err());
-        assert!(matches!(
-            result.unwrap_err(),
-            ExecuteNodeError::InvalidTransition { .. }
-        ));
+        assert!(matches!(result.unwrap_err(), ExecuteNodeError::InvalidTransition { .. }));
     }
 
     #[tokio::test]

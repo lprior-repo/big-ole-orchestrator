@@ -38,6 +38,7 @@
 )]
 
 pub mod append;
+pub mod blob;
 pub mod blob_store;
 pub mod budget_saga;
 pub mod checksum;

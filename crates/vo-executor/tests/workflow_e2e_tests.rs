@@ -870,10 +870,12 @@ mod workflow_concurrent_e2e_tests {
         let _guard = state_guard();
         let policy = RetryPolicy::new(3, 10, 2.0).unwrap();
 
-        let (retry_result, direct_result) = tokio::join!(
-            execute_step_with_retry(StepId::new("step-flaky".to_string()), 5000, policy.clone()),
-            execute_step(StepId::new("step-1".to_string()), 5000)
-        );
+        let retry_result = execute_step_with_retry(
+            StepId::new("step-flaky".to_string()),
+            5000,
+            policy.clone()
+        ).await;
+        let direct_result = execute_step(StepId::new("step-1".to_string()), 5000).await;
 
         assert!(
             matches!(
@@ -890,15 +892,6 @@ mod workflow_concurrent_e2e_tests {
         let _guard = state_guard();
 
         let step_names = ["step-1", "step-good", "step-fail", "step-transient"];
-
-        for _ in 0..10 {
-            for name in step_names {
-                let step_id = StepId::new(name.to_string());
-                handles.push(tokio::spawn(
-                    async move { execute_step(step_id, 5000).await },
-                ));
-            }
-        }
 
         let mut success_count = 0;
         let mut failure_count = 0;

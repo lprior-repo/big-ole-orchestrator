@@ -32,12 +32,13 @@ impl InMemoryLeaseStore {
         format!("{instance_id}::{step_id}::fence")
     }
 
-    #[allow(clippy::cast_possible_truncation, clippy::expect_used)]
-    fn now_ms() -> u64 {
+    fn now_ms() -> Result<u64, LeaseStoreError> {
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .expect("system time is after UNIX epoch")
-            .as_millis() as u64
+            .map_err(|e| LeaseStoreError::Storage {
+                reason: format!("system time before UNIX epoch: {e}"),
+            })
+            .map(|d| d.as_millis() as u64)
     }
 }
 
@@ -52,7 +53,7 @@ impl LeaseStore for InMemoryLeaseStore {
             return Err(LeaseStoreError::InvalidArgument);
         }
 
-        let now_ms = Self::now_ms();
+        let now_ms = Self::now_ms()?;
         let expires_at = now_ms.saturating_add(ttl_ms);
         let key = Self::lease_key(instance_id, step_id);
 
@@ -130,17 +131,20 @@ impl LeaseStore for InMemoryLeaseStore {
         step_id: &StepId,
         token: &FenceToken,
     ) -> Result<bool, LeaseStoreError> {
-        let now_ms = Self::now_ms();
+        let now_ms = Self::now_ms()?;
         let key = Self::lease_key(instance_id, step_id);
 
         let leases = self.leases.lock().map_err(|e| LeaseStoreError::Storage {
             reason: e.to_string(),
         })?;
 
-        let result = leases.get(&key).is_some_and(|entry| {
-            !entry.is_expired(now_ms) && entry.fence_token() != token.inner().get()
-        });
-        drop(leases);
-        Ok(result)
+        if let Some(entry) = leases.get(&key) {
+            if entry.is_expired(now_ms) {
+                return Ok(true);
+            }
+            return Ok(entry.fence_token() != token.inner().get());
+        }
+
+        Ok(false)
     }
 }

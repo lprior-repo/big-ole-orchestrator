@@ -447,4 +447,47 @@ mod tests {
             }
         );
     }
+
+    #[test]
+    fn cli_status_matches_with_instance_id() {
+        let args: Vec<OsString> = vec![
+            "vo".into(),
+            "status".into(),
+            "01ARZ3NDEKTSV4RRFFQ69G5FAV".into(),
+        ];
+        let cli = interpret_cli_from(args).unwrap();
+        assert_eq!(
+            cli.command,
+            Command::Status {
+                engine_url: "http://localhost:3000".to_string(),
+                instance: "01ARZ3NDEKTSV4RRFFQ69G5FAV".to_string(),
+            }
+        );
+    }
+
+    #[test]
+    fn cli_status_with_custom_engine_url() {
+        let args: Vec<OsString> = vec![
+            "vo".into(),
+            "status".into(),
+            "instance-123".into(),
+            "--engine-url".into(),
+            "http://localhost:9000".into(),
+        ];
+        let cli = interpret_cli_from(args).unwrap();
+        assert_eq!(
+            cli.command,
+            Command::Status {
+                engine_url: "http://localhost:9000".to_string(),
+                instance: "instance-123".to_string(),
+            }
+        );
+    }
+
+    #[test]
+    fn cli_status_without_instance_returns_error() {
+        let args: Vec<OsString> = vec!["vo".into(), "status".into()];
+        let result = interpret_cli_from(args);
+        assert!(result.is_err());
+    }
 }

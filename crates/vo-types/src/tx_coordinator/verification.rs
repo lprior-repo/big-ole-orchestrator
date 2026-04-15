@@ -2,10 +2,9 @@
 
 #[cfg(kani)]
 mod verification {
-    use crate::tx_coordinator::apply_coordinator_transition;
     use crate::tx_coordinator::{
-        CoordinatorTransition, ParticipantRecord, ParticipantStatus, TransactionRecord,
-        TransactionState,
+        apply_coordinator_transition, CoordinatorTransition, ParticipantRecord, ParticipantStatus,
+        TransactionRecord, TransactionState,
     };
 
     /// K-01: Verify apply_coordinator_transition exhaustiveness.
@@ -45,7 +44,6 @@ mod verification {
             _ => CoordinatorTransition::ReconcileRetry,
         };
 
-        // Must not panic — all combinations handled
         let _ = apply_coordinator_transition(current, evt);
     }
 
