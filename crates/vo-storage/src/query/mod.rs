@@ -236,8 +236,8 @@ impl EventReplayIterator {
 }
 
 #[must_use]
-pub fn replay_events_by_prefix(keyspace: &fjall::Keyspace, prefix: Vec<u8>) -> EventReplayIterator {
-    let Ok(partition) = keyspace.open_partition("events", fjall::PartitionCreateOptions::default())
+pub fn replay_events_by_prefix(keyspace: &fjall::Database, prefix: Vec<u8>) -> EventReplayIterator {
+    let Ok(partition) = keyspace.keyspace("events", || fjall::KeyspaceCreateOptions::default())
     else {
         return EventReplayIterator::error(StorageError::Storage);
     };
@@ -259,7 +259,7 @@ pub fn replay_events_by_prefix(keyspace: &fjall::Keyspace, prefix: Vec<u8>) -> E
 }
 
 #[must_use]
-pub fn replay_events(keyspace: &fjall::Keyspace, instance_id: &InstanceId) -> EventReplayIterator {
+pub fn replay_events(keyspace: &fjall::Database, instance_id: &InstanceId) -> EventReplayIterator {
     match prefix_generator(instance_id) {
         Ok(prefix) => replay_events_by_prefix(keyspace, prefix),
         Err(e) => EventReplayIterator::error(e),

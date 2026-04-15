@@ -163,3 +163,4 @@ mod schema_version_tests;
 mod serde_tests;
 #[cfg(test)]
 mod workflow_tests;
+pub mod search;

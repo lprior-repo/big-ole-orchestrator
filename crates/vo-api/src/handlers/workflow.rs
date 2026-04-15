@@ -91,10 +91,11 @@ pub async fn start_workflow(
     };
 
     // Generate or validate instance_id.
-    let instance_id = match req.instance_id {
+    let instance_id_str = match req.instance_id {
         Some(ref id) => id.clone(),
         None => Ulid::new().to_string(),
     };
+    let instance_id = vo_types::InstanceId::parse(&instance_id_str).expect("generated ULID should be valid");
 
     // Serialize input to msgpack bytes.
     let input = match serde_json::to_vec(&req.input) {

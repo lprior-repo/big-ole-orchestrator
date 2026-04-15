@@ -113,7 +113,7 @@ impl DedupeStore for FjallDedupeStore {
 
             if keys_to_delete.len() >= PURGE_BATCH_SIZE {
                 let count = keys_to_delete.len();
-                let mut batch = self.keyspace.batch();
+                let mut batch = self.db.batch();
                 for key in std::mem::take(&mut keys_to_delete) {
                     batch.remove(&self.partition, key);
                 }

@@ -205,15 +205,19 @@ impl<T: Ord> BinomialHeap<T> {
         }
         children.reverse();
 
-        let child_len = 2usize.pow(min_tree.degree as u32) - 1;
+        let child_count = 2usize.pow(min_tree.degree as u32) - 1;
         self.len -= 1;
 
         let mut child_heap = BinomialHeap {
             trees: children,
-            len: child_len,
+            len: child_count,
         };
 
+        // Merge children back — self.len is already correct (root removed).
+        // The child_heap.len is only for the merge's bookkeeping, so we
+        // subtract it after merge to avoid double-counting.
         self.merge(&mut child_heap);
+        self.len -= child_count;
 
         Some(min_value)
     }

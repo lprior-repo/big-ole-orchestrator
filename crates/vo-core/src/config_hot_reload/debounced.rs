@@ -1,10 +1,10 @@
 use std::path::{Path, PathBuf};
 
 use notify::{Config as NotifyConfig, RecommendedWatcher, RecursiveMode, Watcher};
+use tokio::sync::mpsc;
 
 use crate::debounce::{Debouncer, FileEvent as DebouncedFileEvent};
 
-use super::channel::EventChannel;
 use super::error::Error;
 use super::watcher::WatcherConfig;
 
@@ -14,39 +14,58 @@ pub struct DebouncedFileWatcher {
     config: WatcherConfig,
     #[allow(dead_code)]
     debouncer: Option<Debouncer>,
+    #[allow(dead_code)]
+    event_tx: mpsc::Sender<DebouncedFileEvent>,
 }
 
 impl DebouncedFileWatcher {
     pub fn new<P: AsRef<Path>>(
         path: P,
         config: WatcherConfig,
-    ) -> Result<(Self, EventChannel), Error> {
+    ) -> Result<(Self, mpsc::Receiver<Result<PathBuf, Error>>), Error> {
         let path = path.as_ref().to_path_buf();
         let config = config.clone();
 
-        let (event_tx, event_rx) = tokio::sync::mpsc::channel(1000);
+        let (event_tx, event_rx) = mpsc::channel(1000);
+        let (result_tx, result_rx) = mpsc::channel(1000);
 
-        let debouncer = if let Some(duration) = config.debounce_duration {
-            Some(
-                Debouncer::new(duration, event_rx)
-                    .map_err(|e| Error::DebounceError(e.to_string()))?,
-            )
-        } else {
-            None
+        if let Some(duration) = config.debounce_duration {
+            let debouncer = Debouncer::new(duration, event_rx)
+                .map_err(|e| Error::DebounceError(e.to_string()))?;
+            let tx = result_tx;
+            tokio::spawn(async move {
+                let mut debouncer = debouncer;
+                loop {
+                    match debouncer.next_debounced_event().await {
+                        Ok(path) => {
+                            if tx.send(Ok(path)).await.is_err() {
+                                break;
+                            }
+                        }
+                        Err(crate::debounce::Error::WatcherChannelClosed) => {
+                            break;
+                        }
+                        Err(e) => {
+                            let _ = tx.send(Err(Error::DebounceError(e.to_string()))).await;
+                        }
+                    }
+                }
+            });
         };
 
+        let watcher_event_tx = event_tx.clone();
         let watcher = RecommendedWatcher::new(
             move |res: Result<notify::Event, notify::Error>| {
                 if let Ok(event) = res {
                     match event.kind {
                         notify::EventKind::Modify(_) => {
                             for path in event.paths {
-                                let _ = event_tx.blocking_send(DebouncedFileEvent::Modify(path));
+                                let _ = watcher_event_tx.blocking_send(DebouncedFileEvent::Modify(path));
                             }
                         }
                         notify::EventKind::Remove(_) => {
                             for path in event.paths {
-                                let _ = event_tx.blocking_send(DebouncedFileEvent::Delete(path));
+                                let _ = watcher_event_tx.blocking_send(DebouncedFileEvent::Delete(path));
                             }
                         }
                         _ => {}
@@ -67,16 +86,15 @@ impl DebouncedFileWatcher {
             .watch(&path, mode)
             .map_err(|e| Error::WatcherError(e.to_string()))?;
 
-        let channel = EventChannel::new(1000);
-
         Ok((
             Self {
                 watcher,
                 path,
                 config,
-                debouncer,
+                debouncer: None,
+                event_tx,
             },
-            channel,
+            result_rx,
         ))
     }
 
@@ -87,8 +105,48 @@ impl DebouncedFileWatcher {
     ) -> Result<Self, Error> {
         let path = path.as_ref().to_path_buf();
 
+        let (event_tx, _event_rx) = mpsc::channel(1000);
+        let (result_tx, _result_rx) = mpsc::channel(1000);
+
+        let mut debouncer = debouncer;
+        let tx = result_tx;
+        tokio::spawn(async move {
+            loop {
+                match debouncer.next_debounced_event().await {
+                    Ok(path) => {
+                        if tx.send(Ok(path)).await.is_err() {
+                            break;
+                        }
+                    }
+                    Err(crate::debounce::Error::WatcherChannelClosed) => {
+                        break;
+                    }
+                    Err(e) => {
+                        let _ = tx.send(Err(Error::DebounceError(e.to_string()))).await;
+                    }
+                }
+            }
+        });
+
+        let watcher_event_tx = event_tx.clone();
         let watcher = RecommendedWatcher::new(
-            move |_res: Result<notify::Event, notify::Error>| {},
+            move |res: Result<notify::Event, notify::Error>| {
+                if let Ok(event) = res {
+                    match event.kind {
+                        notify::EventKind::Modify(_) => {
+                            for path in event.paths {
+                                let _ = watcher_event_tx.blocking_send(DebouncedFileEvent::Modify(path));
+                            }
+                        }
+                        notify::EventKind::Remove(_) => {
+                            for path in event.paths {
+                                let _ = watcher_event_tx.blocking_send(DebouncedFileEvent::Delete(path));
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            },
             NotifyConfig::default(),
         )
         .map_err(|e| Error::WatcherError(e.to_string()))?;
@@ -107,7 +165,8 @@ impl DebouncedFileWatcher {
             watcher,
             path,
             config,
-            debouncer: Some(debouncer),
+            debouncer: None,
+            event_tx,
         })
     }
 

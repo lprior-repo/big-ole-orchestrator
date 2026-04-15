@@ -10,7 +10,7 @@ use super::{
 };
 
 pub struct FjallReceiptStore {
-    partition: Arc<fjall::PartitionHandle>,
+    partition: Arc<fjall::Keyspace>,
 }
 
 impl std::fmt::Debug for FjallReceiptStore {
@@ -25,9 +25,9 @@ impl FjallReceiptStore {
     /// # Errors
     ///
     /// Returns `ReceiptStoreError::Storage` if the receipts partition cannot be opened.
-    pub fn open(keyspace: &fjall::Keyspace) -> Result<Self, ReceiptStoreError> {
-        let partition = keyspace
-            .open_partition(RECEIPTS_PARTITION, fjall::PartitionCreateOptions::default())
+    pub fn open(db: &fjall::Database) -> Result<Self, ReceiptStoreError> {
+        let partition = db
+            .keyspace(RECEIPTS_PARTITION, || fjall::KeyspaceCreateOptions::default())
             .map_err(|e| ReceiptStoreError::Storage {
                 reason: format!("failed to open receipts partition: {e}"),
             })?;
@@ -101,7 +101,7 @@ impl ReceiptStore for FjallReceiptStore {
 
         let iter = self.partition.iter();
         for item in iter {
-            let (key_bytes, value_bytes) = item.map_err(|e| ReceiptStoreError::Storage {
+            let (key_bytes, value_bytes) = item.into_inner().map_err(|e| ReceiptStoreError::Storage {
                 reason: e.to_string(),
             })?;
 
@@ -125,7 +125,7 @@ mod tests {
 
     fn create_test_keyspace() -> fjall::Keyspace {
         let dir = tempdir().unwrap();
-        fjall::Config::new(dir.path()).open().unwrap()
+        fjall::Database::builder(dir.path()).open().unwrap()
     }
 
     fn sample_instance_id() -> InstanceId {

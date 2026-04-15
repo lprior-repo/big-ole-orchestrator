@@ -197,3 +197,5 @@ fn workflow_version_response_handles_empty_stream() {
     assert!(json.contains(r#""last_sequence":null"#));
     assert!(json.contains(r#""last_timestamp_ms":null"#));
 }
+
+}

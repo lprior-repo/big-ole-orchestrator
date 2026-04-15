@@ -131,7 +131,7 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
             .expect("btree root missing after is_none check");
         let split = self.insert_recursive(root, key, value);
 
-        let is_new_key = matches!(split, InsertResult::Done(_));
+        let is_new_key = !matches!(split, InsertResult::Updated(_));
         match split {
             InsertResult::Done(node) | InsertResult::Updated(node) => {
                 self.root = Some(node);
@@ -219,14 +219,18 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
         let (updated_root, removed) = self.delete_recursive(root, key)?;
         self.len -= 1;
 
-        if updated_root.keys.is_empty() && !updated_root.is_leaf() {
-            self.root = Some(
-                updated_root
-                    .children
-                    .into_iter()
-                    .next()
-                    .expect("btree children missing despite internal node"),
-            );
+        if updated_root.keys.is_empty() {
+            if updated_root.is_leaf() {
+                self.root = None;
+            } else {
+                self.root = Some(
+                    updated_root
+                        .children
+                        .into_iter()
+                        .next()
+                        .expect("btree children missing despite internal node"),
+                );
+            }
         } else {
             self.root = Some(updated_root);
         }
@@ -239,7 +243,7 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
         mut node: BTreeNode<K, V>,
         key: &K,
     ) -> Result<(BTreeNode<K, V>, V), BTreeError> {
-        let idx = node.search_index(key);
+        let mut idx = node.search_index(key);
         let found_key = idx < node.keys.len() && &node.keys[idx] == key;
 
         if node.is_leaf() {
@@ -259,7 +263,7 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
                     self.remove_predecessor(node.children.remove(idx))?;
                 node.keys[idx] = pred_key;
                 node.values[idx] = pred_val;
-                node.children[idx] = updated_child;
+                node.children.insert(idx, updated_child);
                 return Ok((node, removed_val));
             }
 
@@ -268,7 +272,7 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
                     self.remove_successor(node.children.remove(idx + 1))?;
                 node.keys[idx] = succ_key;
                 node.values[idx] = succ_val;
-                node.children[idx + 1] = updated_child;
+                node.children.insert(idx + 1, updated_child);
                 return Ok((node, removed_val));
             }
 
@@ -284,7 +288,8 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
 
         if node.children[idx].keys.len() <= self.min_keys() {
             self.ensure_child_has_minimum(&mut node, idx);
-            let _idx = node.search_index(key);
+            // After merge/borrow, the child index may have changed — re-search.
+            idx = node.search_index(key);
         }
 
         let child = node.children.remove(idx);
@@ -510,7 +515,23 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
             None => true,
             Some(root) => {
                 let h = Self::node_height(root);
-                Self::verify_node(root, self.min_keys(), self.max_keys(), h)
+                // Root may have fewer than min_keys entries
+                if root.keys.len() > self.max_keys() {
+                    return false;
+                }
+                if !root.is_leaf() && root.children.len() != root.keys.len() + 1 {
+                    return false;
+                }
+                if !root.is_leaf() {
+                    for child in &root.children {
+                        if !Self::verify_node(child, self.min_keys(), self.max_keys(), h - 1) {
+                            return false;
+                        }
+                    }
+                } else if h != 1 {
+                    return false;
+                }
+                true
             }
         }
     }
@@ -524,7 +545,7 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
         if node.keys.len() > max_keys {
             return false;
         }
-        if !node.is_leaf() && node.keys.len() < min_keys {
+        if node.keys.len() < min_keys {
             return false;
         }
         if !node.children.is_empty() && node.children.len() != node.keys.len() + 1 {
