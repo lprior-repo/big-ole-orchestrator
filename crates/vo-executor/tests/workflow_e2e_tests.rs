@@ -15,8 +15,8 @@ mod workflow_lifecycle_tests {
     use std::sync::Mutex;
     use std::sync::MutexGuard;
     use vo_executor::{
-        cancel_execution, execute_step, execute_step_with_retry, get_execution_status,
-        get_last_error, reset_all_state, RetryPolicy, StepId, StepResult,
+        cancel_execution, execute_step, get_execution_status,
+        get_last_error, reset_all_state, StepId, StepResult,
     };
 
     static STATE_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
@@ -876,8 +876,8 @@ mod workflow_concurrent_e2e_tests {
         }
 
         assert_eq!(
-            success_count, 40,
-            "10 iterations × 2 success steps = 20... wait let me recount: 10 × 2 = 20"
+            success_count, 20,
+            "10 iterations × 2 success steps = 20"
         );
         assert_eq!(
             failure_count, 10,
@@ -1020,8 +1020,8 @@ mod workflow_runtime_e2e_tests {
     // Section 9: Runtime Integration (Single-Threaded Runtime)
     // =========================================================================
 
-    #[tokio::test]
-    async fn runtime_e2e_execute_step_sync_through_runtime() {
+    #[test]
+    fn runtime_e2e_execute_step_sync_through_runtime() {
         let _guard = state_guard();
         let runtime = Runtime::new().expect("Runtime creation should succeed");
 
@@ -1030,8 +1030,8 @@ mod workflow_runtime_e2e_tests {
         assert!(result.unwrap().is_success(), "Result should indicate success");
     }
 
-    #[tokio::test]
-    async fn runtime_e2e_execute_step_with_retry_sync() {
+    #[test]
+    fn runtime_e2e_execute_step_with_retry_sync() {
         let _guard = state_guard();
         let runtime = Runtime::new().expect("Runtime creation should succeed");
         let policy = RetryPolicy::new(3, 10, 2.0).unwrap();
@@ -1047,8 +1047,8 @@ mod workflow_runtime_e2e_tests {
         );
     }
 
-    #[tokio::test]
-    async fn runtime_e2e_get_status_through_runtime() {
+    #[test]
+    fn runtime_e2e_get_status_through_runtime() {
         let _guard = state_guard();
         let runtime = Runtime::new().expect("Runtime creation should succeed");
 
@@ -1056,8 +1056,8 @@ mod workflow_runtime_e2e_tests {
         assert_eq!(status, vo_executor::ExecutionStatus::Ready);
     }
 
-    #[tokio::test]
-    async fn runtime_e2e_cancel_through_runtime() {
+    #[test]
+    fn runtime_e2e_cancel_through_runtime() {
         let _guard = state_guard();
         let runtime = Runtime::new().expect("Runtime creation should succeed");
 
@@ -1065,8 +1065,8 @@ mod workflow_runtime_e2e_tests {
         assert!(result.is_ok(), "Runtime cancel should succeed");
     }
 
-    #[tokio::test]
-    async fn runtime_e2e_step_context_execute() {
+    #[test]
+    fn runtime_e2e_step_context_execute() {
         let _guard = state_guard();
         let context = StepContext::new(StepId::new("step-1".to_string()))
             .expect("StepContext creation should succeed");
@@ -1076,8 +1076,8 @@ mod workflow_runtime_e2e_tests {
         assert!(result.unwrap().is_success(), "Result should indicate success");
     }
 
-    #[tokio::test]
-    async fn runtime_e2e_step_context_execute_with_retry() {
+    #[test]
+    fn runtime_e2e_step_context_execute_with_retry() {
         let _guard = state_guard();
         let context = StepContext::new(StepId::new("step-1".to_string()))
             .expect("StepContext creation should succeed");
@@ -1087,8 +1087,8 @@ mod workflow_runtime_e2e_tests {
         assert!(result.is_ok(), "StepContext retry execute should succeed");
     }
 
-    #[tokio::test]
-    async fn runtime_e2e_step_context_status() {
+    #[test]
+    fn runtime_e2e_step_context_status() {
         let _guard = state_guard();
         let context = StepContext::new(StepId::new("step-1".to_string()))
             .expect("StepContext creation should succeed");
@@ -1097,8 +1097,8 @@ mod workflow_runtime_e2e_tests {
         assert_eq!(status, vo_executor::ExecutionStatus::Ready);
     }
 
-    #[tokio::test]
-    async fn runtime_e2e_step_context_cancel() {
+    #[test]
+    fn runtime_e2e_step_context_cancel() {
         let _guard = state_guard();
         let context = StepContext::new(StepId::new("step-1".to_string()))
             .expect("StepContext creation should succeed");
