@@ -19,14 +19,14 @@ impl FjallLeaseStore {
     /// # Errors
     ///
     /// Returns `LeaseStoreError::Storage` if any partition cannot be opened.
-    pub fn open(keyspace: &fjall::Keyspace) -> Result<Self, LeaseStoreError> {
-        let lease_partition = keyspace
-            .open_partition(LEASE_PARTITION, fjall::PartitionCreateOptions::default())
+    pub fn open(db: &fjall::Database) -> Result<Self, LeaseStoreError> {
+        let lease_partition = db
+            .keyspace(LEASE_PARTITION, fjall::KeyspaceCreateOptions::default())
             .map_err(|e| LeaseStoreError::Storage {
                 reason: format!("failed to open leases partition: {e}"),
             })?;
         let fence_partition = db
-            .keyspace(FENCE_PARTITION, fjall::KeyspaceCreateOptions::default)
+            .keyspace(FENCE_PARTITION, fjall::KeyspaceCreateOptions::default())
             .map_err(|e| LeaseStoreError::Storage {
                 reason: format!("failed to open lease_fences partition: {e}"),
             })?;
