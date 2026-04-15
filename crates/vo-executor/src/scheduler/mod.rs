@@ -5,14 +5,19 @@
 //! - Priority queue
 //! - Concurrency limits
 //! - Failure handling with retries
+//!
+//! Types aligned to ADR-047 Background Job Scheduler Contract.
 
 mod error;
 mod queue;
 mod types;
 
-pub use error::{JobRunError, SchedulerError};
-pub use queue::PriorityQueue;
-pub use types::{Job, JobId, JobPriority, JobResult, Schedule, SchedulerConfig};
+pub use error::{ExecutionError, JobRunError, RetryExhaustedError, SchedulerError};
+pub use queue::{PriorityQueue, SchedulerQueue};
+pub use types::{
+    Job, JobId, JobKind, JobPriority, JobResult, JobState, Schedule, SchedulePolicy,
+    SchedulerConfig, SchedulerRetryPolicy, ScheduledJob, SerializedPayload,
+};
 
 use std::sync::Arc;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};

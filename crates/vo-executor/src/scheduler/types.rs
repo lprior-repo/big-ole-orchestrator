@@ -1,5 +1,8 @@
 //! Scheduler domain types
+//!
+//! Types aligned to ADR-047 Background Job Scheduler Contract.
 
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
@@ -10,6 +13,135 @@ pub enum JobPriority {
     #[default]
     Normal = 2,
     Low = 3,
+    Background = 4,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum JobState {
+    Scheduled,
+    Pending,
+    Running,
+    Completed,
+    Failed,
+    Cancelled,
+    Retrying,
+}
+
+impl JobState {
+    pub fn is_terminal(&self) -> bool {
+        matches!(
+            self,
+            JobState::Completed | JobState::Failed | JobState::Cancelled
+        )
+    }
+
+    pub fn is_non_terminal(&self) -> bool {
+        !self.is_terminal()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum JobKind {
+    OneShot,
+    Recurring,
+    Delayed,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SchedulePolicy {
+    At(DateTime<Utc>),
+    After(Duration),
+    Cron(String),
+    Immediate,
+}
+
+impl SchedulePolicy {
+    pub fn at(dt: DateTime<Utc>) -> Self {
+        Self::At(dt)
+    }
+
+    pub fn after(duration: Duration) -> Self {
+        Self::After(duration)
+    }
+
+    pub fn cron(expr: &str) -> Self {
+        Self::Cron(expr.to_string())
+    }
+
+    pub fn immediate() -> Self {
+        Self::Immediate
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct SchedulerRetryPolicy {
+    pub max_attempts: u32,
+    pub backoff_multiplier: f64,
+    pub initial_delay: Duration,
+    pub max_delay: Duration,
+}
+
+impl SchedulerRetryPolicy {
+    pub fn new(
+        max_attempts: u32,
+        backoff_multiplier: f64,
+        initial_delay: Duration,
+        max_delay: Duration,
+    ) -> Self {
+        Self {
+            max_attempts,
+            backoff_multiplier,
+            initial_delay,
+            max_delay,
+        }
+    }
+
+    pub fn default_retry() -> Self {
+        Self {
+            max_attempts: 3,
+            backoff_multiplier: 2.0,
+            initial_delay: Duration::from_millis(1000),
+            max_delay: Duration::from_secs(60),
+        }
+    }
+
+    pub fn calculate_delay(&self, attempt: u32) -> Duration {
+        let delay_ms = (self.initial_delay.as_millis() as f64
+            * self.backoff_multiplier.powi(attempt as i32)) as u64;
+        Duration::from_millis(delay_ms.min(self.max_delay.as_millis() as u64))
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScheduledJob {
+    pub id: JobId,
+    pub kind: JobKind,
+    pub state: JobState,
+    pub priority: JobPriority,
+    pub schedule_policy: SchedulePolicy,
+    pub retry_policy: SchedulerRetryPolicy,
+    pub attempt_count: u32,
+    pub due_at: DateTime<Utc>,
+    pub payload: SerializedPayload,
+    pub last_error: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SerializedPayload(pub String);
+
+impl SerializedPayload {
+    pub fn new(data: String) -> Self {
+        Self(data)
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
