@@ -30,6 +30,7 @@ mod effects_receipt_tests;
 mod encryption_tests;
 mod errors;
 pub mod events;
+mod identity;
 mod instance_status;
 pub mod integer_types;
 #[cfg(test)]
@@ -40,8 +41,10 @@ mod link_cut_tree;
 mod macros;
 mod node_kind;
 mod non_empty_vec;
+mod octree;
 mod payload_parser;
 mod next_step_selection;
+mod pairing_heap;
 mod plugin;
 #[cfg(feature = "proptest")]
 mod proptest_targets;
