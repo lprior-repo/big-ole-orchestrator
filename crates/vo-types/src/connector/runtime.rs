@@ -137,11 +137,12 @@ pub async fn reconcile_ambiguous<C: Connector>(
     connector: &mut C,
     current_state: ConnectorState,
 ) -> Result<ReconcileAction, ConnectorError> {
-    assert_eq!(
-        current_state,
-        ConnectorState::Ambiguous,
-        "reconcile_ambiguous called with non-Ambiguous state: {current_state:?}"
-    );
+    if current_state != ConnectorState::Ambiguous {
+        return Err(ConnectorError::InvalidState {
+            current: current_state,
+            expected: &[ConnectorState::Ambiguous],
+        });
+    }
 
     let result = connector.reconcile().await?;
 
@@ -295,8 +296,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[should_panic(expected = "reconcile_ambiguous called with non-Ambiguous state")]
-    async fn reconcile_ambiguous_panics_on_non_ambiguous_state() {
+    async fn reconcile_ambiguous_returns_error_on_non_ambiguous_state() {
         struct DummyConnector;
         impl Connector for DummyConnector {
             async fn prepare(&mut self) -> Result<ConnectorResult, ConnectorError> {
@@ -314,6 +314,9 @@ mod tests {
         }
 
         let mut connector = DummyConnector;
-        let _ = reconcile_ambiguous(&mut connector, ConnectorState::Executing).await;
+        let result = reconcile_ambiguous(&mut connector, ConnectorState::Executing).await;
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, ConnectorError::InvalidState { .. }));
     }
 }

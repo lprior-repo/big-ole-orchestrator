@@ -47,7 +47,8 @@ mod workflow;
 pub mod workspace;
 
 pub use blob::{
-    BlobFailureAction, BlobRef, BlobStatus, OutputPolicy, OutputRef, INLINED_MAX_BYTES,
+    BlobFailureAction, BlobGCPolicy, BlobRef, BlobStatus, OutputPolicy, OutputRef,
+    INLINED_MAX_BYTES,
 };
 pub use command_envelope::{CommandEnvelope, CommandEnvelopeError, MAX_SUPPORTED_COMMAND_VERSION};
 pub use command_history::{
@@ -89,7 +90,7 @@ pub use errors::ParseError;
 pub use events::{Error as EventError, EventEnvelope};
 pub use instance_status::InstanceStatus;
 pub use lifecycle_superstate::LifecycleSuperstate;
-pub use lineage::{Epoch, LineageError, WorkflowLineage};
+pub use lineage::{Epoch, LineageError, LineageStatus, WorkflowLineage};
 pub use node_kind::NodeKind;
 pub use non_empty_vec::NonEmptyVec;
 pub use registration_status::RegistrationStatus;

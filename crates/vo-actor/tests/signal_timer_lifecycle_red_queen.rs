@@ -29,7 +29,7 @@ use vo_actor::reanimator::{
     traits::{TimerStorage, WorkQueue},
     ReanimatorConfig, ReanimatorLoop, ReanimatorState, TimerRecord,
 };
-use vo_actor::signal_buffer::{SignalBuffer, SignalBufferConfig};
+use vo_actor::signal_buffer::{SignalBuffer, SignalBufferConfig, BufferResult};
 use vo_actor::timer_lifecycle::{cancel_timers_for_instance, has_pending_timers};
 
 // =============================================================================
@@ -694,52 +694,52 @@ mod signal_buffer_hibernation {
         );
     }
 
-    // RQ-SBH03: BufferOne replaces existing signal (FIFO not preserved)
+    // RQ-SBH03: BufferOne rejects subsequent signals until first is consumed
     #[tokio::test]
-    async fn rq_buffer_one_replaces_existing_signal() {
+    async fn rq_buffer_one_rejects_subsequent_signals_until_first_is_consumed() {
         let instance_id = make_instance_id(0x01);
         let wait_key = make_actor_wait_key("approval");
 
         let mut buffer = SignalBuffer::with_default_config();
 
         let signal1 = vo_actor::signal_buffer::BufferedSignal::new(
-            "sig-old".to_string(),
+            "sig-first".to_string(),
             vo_actor::SignalPayload::empty(),
             TimestampMs::now(),
         );
 
-        buffer
-            .buffer_signal(
-                instance_id.clone(),
-                wait_key.clone(),
-                signal1,
-                vo_types::BufferPolicy::BufferOne,
-            );
+        let result1 = buffer.buffer_signal(
+            instance_id.clone(),
+            wait_key.clone(),
+            signal1,
+            vo_types::BufferPolicy::BufferOne,
+        );
+        assert_eq!(result1, BufferResult::Buffered, "First signal should be buffered");
 
         let signal2 = vo_actor::signal_buffer::BufferedSignal::new(
-            "sig-new".to_string(),
+            "sig-second".to_string(),
             vo_actor::SignalPayload::empty(),
             TimestampMs::now(),
         );
 
-        buffer
-            .buffer_signal(
-                instance_id.clone(),
-                wait_key.clone(),
-                signal2,
-                vo_types::BufferPolicy::BufferOne,
-            );
+        let result2 = buffer.buffer_signal(
+            instance_id.clone(),
+            wait_key.clone(),
+            signal2,
+            vo_types::BufferPolicy::BufferOne,
+        );
+        assert_eq!(result2, BufferResult::Rejected, "Second signal should be rejected");
 
         assert_eq!(
             buffer.buffered_count(&instance_id, &wait_key),
             1,
-            "BufferOne should replace, not add"
+            "BufferOne should keep only first signal"
         );
 
         let peeked = buffer.peek_all(&instance_id, &wait_key);
         assert_eq!(
-            peeked[0].signal_id, "sig-new",
-            "New signal should replace old"
+            peeked[0].signal_id, "sig-first",
+            "First signal should remain until consumed"
         );
     }
 }
