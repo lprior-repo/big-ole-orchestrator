@@ -299,3 +299,161 @@ mod tests {
         assert_eq!(h1.finish(), h2.finish());
     }
 }
+
+#[cfg(test)]
+mod proptests {
+    use super::*;
+    use proptest::prelude::*;
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+
+    proptest! {
+        #[test]
+        fn node_id_generate_is_unique(a in proptest::arbitrary::any::<u64>(), b in proptest::arbitrary::any::<u64>()) {
+            if a != b {
+                let id_a = NodeId::generate();
+                let id_b = NodeId::generate();
+                prop_assert_ne!(id_a, id_b, "two generated NodeIds must differ");
+            }
+        }
+
+        #[test]
+        fn node_id_parse_roundtrip(_ in 0..100u8) {
+            let ulid = ulid::Ulid::new();
+            let s = ulid.to_string();
+            let node = NodeId::parse(&s)?;
+            prop_assert_eq!(node.as_str(), s);
+            let serialized: String = serde_json::to_string(&node)?;
+            let deserialized: NodeId = serde_json::from_str(&serialized)?;
+            prop_assert_eq!(deserialized, node);
+        }
+
+        #[test]
+        fn node_id_parse_rejects_invalid_length(s in "[^\n]{1,30}") {
+            let result = NodeId::parse(&s);
+            if s.len() != 26 {
+                prop_assert!(result.is_err(), "expected error for length {}", s.len());
+            }
+        }
+
+        #[test]
+        fn node_id_parse_rejects_empty(s in "") {
+            let result = NodeId::parse(&s);
+            prop_assert!(result.is_err(), "empty string should be rejected");
+            if let Err(ParseError::Empty { type_name }) = result {
+                prop_assert_eq!(type_name, "NodeId");
+            } else {
+                prop_assert!(false, "expected Empty error, got {:?}", result);
+            }
+        }
+
+        #[test]
+        fn node_id_generate_and_parse_roundtrip(_ in 0..100u8) {
+            let node = NodeId::generate();
+            let s = node.as_str();
+            let restored = NodeId::parse(s)?;
+            prop_assert_eq!(restored, node);
+        }
+
+        #[test]
+        fn node_id_hash_is_deterministic(_ in 0..50u8) {
+            let node = NodeId::generate();
+            let mut h1 = DefaultHasher::new();
+            let mut h2 = DefaultHasher::new();
+            node.hash(&mut h1);
+            node.hash(&mut h2);
+            prop_assert_eq!(h1.finish(), h2.finish());
+        }
+
+        #[test]
+        fn node_id_serde_roundtrip(_ in 0..50u8) {
+            let node = NodeId::generate();
+            let json = serde_json::to_string(&node)?;
+            let restored: NodeId = serde_json::from_str(&json)?;
+            prop_assert_eq!(restored, node);
+        }
+
+        #[test]
+        fn node_id_into_string_roundtrip(_ in 0..50u8) {
+            let node = NodeId::generate();
+            let s: String = node.clone().into();
+            let back = NodeId::parse(&s)?;
+            prop_assert_eq!(back, node);
+        }
+
+        #[test]
+        fn lease_key_parse_roundtrip(s in "[a-zA-Z0-9_/-]{1,256}") {
+            let key = LeaseKey::parse(&s)?;
+            prop_assert_eq!(key.as_str(), s);
+            let json = serde_json::to_string(&key)?;
+            let restored: LeaseKey = serde_json::from_str(&json)?;
+            prop_assert_eq!(restored, key);
+        }
+
+        #[test]
+        fn lease_key_parse_rejects_empty(s in "") {
+            let result = LeaseKey::parse(&s);
+            prop_assert!(result.is_err(), "empty string should be rejected");
+            if let Err(ParseError::Empty { type_name }) = result {
+                prop_assert_eq!(type_name, "LeaseKey");
+            } else {
+                prop_assert!(false, "expected Empty error, got {:?}", result);
+            }
+        }
+
+        #[test]
+        fn lease_key_parse_rejects_exceeds_max_length(s in "[a]{257,300}") {
+            let result = LeaseKey::parse(&s);
+            prop_assert!(result.is_err(), "string longer than 256 should be rejected");
+            if let Err(ParseError::ExceedsMaxLength { type_name, max, .. }) = result {
+                prop_assert_eq!(type_name, "LeaseKey");
+                prop_assert_eq!(max, 256);
+            } else {
+                prop_assert!(false, "expected ExceedsMaxLength error, got {:?}", result);
+            }
+        }
+
+        #[test]
+        fn lease_key_parse_accepts_at_max_length(s in "[a]{256}") {
+            let key = LeaseKey::parse(&s)?;
+            prop_assert_eq!(key.as_str(), s);
+        }
+
+        #[test]
+        fn lease_key_hash_is_deterministic(s in "[a-zA-Z0-9_-]{1,50}") {
+            let key = LeaseKey::parse(&s)?;
+            let mut h1 = DefaultHasher::new();
+            let mut h2 = DefaultHasher::new();
+            key.hash(&mut h1);
+            key.hash(&mut h2);
+            prop_assert_eq!(h1.finish(), h2.finish());
+        }
+
+        #[test]
+        fn lease_key_into_string_roundtrip(s in "[a-zA-Z0-9_/-]{1,256}") {
+            let key = LeaseKey::parse(&s)?;
+            let back: String = key.into();
+            prop_assert_eq!(back, s);
+        }
+
+        #[test]
+        fn lease_key_equality_is_reflexive(s in "[a-zA-Z0-9_-]{1,50}") {
+            let key_a = LeaseKey::parse(&s)?;
+            let key_b = LeaseKey::parse(&s)?;
+            prop_assert_eq!(key_a, key_b);
+        }
+
+        #[test]
+        fn node_id_equality_is_reflexive(_ in 0..50u8) {
+            let node = NodeId::generate();
+            prop_assert_eq!(node.clone(), node.clone());
+        }
+
+        #[test]
+        fn node_id_different_values_not_equal(_ in 0..50u8) {
+            let a = NodeId::generate();
+            let b = NodeId::generate();
+            prop_assert_ne!(a, b);
+        }
+    }
+}
