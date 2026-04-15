@@ -42,9 +42,9 @@ impl ThreadLocalCache {
 
     pub fn get(key: &str) -> Result<Vec<u8>, ThreadLocalCacheError> {
         THREAD_CACHE.with(|cache| {
-            let cache = cache.borrow();
+            let mut cache = cache.borrow_mut();
             let mmap_cache = cache
-                .as_ref()
+                .as_mut()
                 .ok_or(ThreadLocalCacheError::CacheNotInitialized)?;
             mmap_cache.get(key).map_err(ThreadLocalCacheError::from)
         })
@@ -52,8 +52,8 @@ impl ThreadLocalCache {
 
     pub fn contains_key(key: &str) -> bool {
         THREAD_CACHE.with(|cache| {
-            let cache = cache.borrow();
-            match cache.as_ref() {
+            let mut cache = cache.borrow_mut();
+            match cache.as_mut() {
                 Some(mmap_cache) => mmap_cache.contains_key(key),
                 None => false,
             }
@@ -73,9 +73,9 @@ impl ThreadLocalCache {
 
     pub fn prefetch(key: &str) -> Result<(), ThreadLocalCacheError> {
         THREAD_CACHE.with(|cache| {
-            let cache = cache.borrow();
+            let mut cache = cache.borrow_mut();
             let mmap_cache = cache
-                .as_ref()
+                .as_mut()
                 .ok_or(ThreadLocalCacheError::CacheNotInitialized)?;
             mmap_cache.prefetch(key)?;
             Ok(())
@@ -84,9 +84,9 @@ impl ThreadLocalCache {
 
     pub fn read_ahead(keys: &[&str]) -> Result<(), ThreadLocalCacheError> {
         THREAD_CACHE.with(|cache| {
-            let cache = cache.borrow();
+            let mut cache = cache.borrow_mut();
             let mmap_cache = cache
-                .as_ref()
+                .as_mut()
                 .ok_or(ThreadLocalCacheError::CacheNotInitialized)?;
             mmap_cache.read_ahead(keys)?;
             Ok(())
@@ -105,8 +105,8 @@ impl ThreadLocalCache {
 
     pub fn len() -> usize {
         THREAD_CACHE.with(|cache| {
-            let cache = cache.borrow();
-            match cache.as_ref() {
+            let mut cache = cache.borrow_mut();
+            match cache.as_mut() {
                 Some(mmap_cache) => mmap_cache.len(),
                 None => 0,
             }
@@ -115,8 +115,8 @@ impl ThreadLocalCache {
 
     pub fn is_empty() -> bool {
         THREAD_CACHE.with(|cache| {
-            let cache = cache.borrow();
-            match cache.as_ref() {
+            let mut cache = cache.borrow_mut();
+            match cache.as_mut() {
                 Some(mmap_cache) => mmap_cache.is_empty(),
                 None => true,
             }
