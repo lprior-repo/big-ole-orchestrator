@@ -26,7 +26,6 @@ crc32fast = { workspace = true }
 thiserror = { workspace = true }
 chrono = { workspace = true }
 tracing = { workspace = true }
-crc32fast = { workspace = true }
 
 # Actor framework
 ractor = { workspace = true }
@@ -42,7 +41,6 @@ anyhow = { workspace = true }
 axum = { workspace = true }
 proptest = { workspace = true }
 tower = { workspace = true }
-proptest = { workspace = true }
 
 [lib]
 path = "src/lib.rs"

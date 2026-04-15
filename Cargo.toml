@@ -94,9 +94,6 @@ strum = { version = "0.28", features = ["derive"] }
 # Metrics
 metrics = "0.24"
 
-# Metrics
-metrics = "0.24"
-
 # Cryptography
 sha2 = "0.10"
 blake3 = "1.8"
@@ -105,28 +102,6 @@ blake3 = "1.8"
 rstest = "0.23"
 proptest = "1"
 criterion = { version = "0.8", features = ["async_tokio"] }
-
-# Storage internals
-memmap2 = "0.9"
-parking_lot = "0.12"
-
-# Cryptography (additional)
-aes = "0.7"
-aes-gcm = "0.9"
-rand = "0.8"
-generic-array = "0.14"
-
-# Filesystem / OS
-notify = "6"
-glob = "0.3.3"
-libc = "0.2"
-toml = "0.8"
-
-# Dev / test utilities
-trybuild = "1.0"
-insta = "1"
-metrics-util = "0.18"
-serial_test = "3"
 
 # Storage internals
 memmap2 = "0.9"
@@ -173,7 +148,6 @@ cast_possible_truncation = "allow"
 collapsible_match = "allow"
 doc_overindented_list_items = "allow"
 double_must_use = "allow"
-expect_used = "allow"
 if_same_then_else = "allow"
 iter_with_drain = "allow"
 manual_let_else = "allow"
