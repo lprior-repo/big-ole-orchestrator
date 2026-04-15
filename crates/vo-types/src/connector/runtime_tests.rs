@@ -71,14 +71,14 @@ async fn execute_with_reconciliation_commits_on_success() {
     }
 
     let mut connector = SuccessConnector;
-    let result = execute_with_reconciliation(&mut connector, true).await.unwrap();
+    let result = execute_with_reconciliation(&mut connector, true, 3).await.unwrap();
     assert_eq!(result, ConnectorResult::Success);
 }
 
 #[tokio::test]
 async fn execute_with_reconciliation_resolves_ambiguous() {
     let mut connector = MockConnector::new(ReconciliationResult::Committed);
-    let result = execute_with_reconciliation(&mut connector, false).await.unwrap();
+    let result = execute_with_reconciliation(&mut connector, false, 3).await.unwrap();
     assert_eq!(result, ConnectorResult::Success);
 }
 

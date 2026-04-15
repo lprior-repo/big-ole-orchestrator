@@ -30,7 +30,6 @@ mod errors;
 pub mod events;
 mod identity;
 mod instance_status;
-mod identity;
 pub mod integer_types;
 #[cfg(test)]
 mod integer_types_tests;
@@ -135,6 +134,7 @@ pub use types::{
     MAX_SUPPORTED_SCHEMA_VERSION,
 };
 pub use workflow::{
+    GuaranteeClass,
     next_nodes, DagNode, Edge, EdgeCondition, RetryPolicy, RetryPolicyError,
     StepOutcome, WorkflowDefinition, WorkflowDefinitionError,
 };

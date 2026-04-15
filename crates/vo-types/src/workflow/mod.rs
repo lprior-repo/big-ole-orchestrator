@@ -1,5 +1,7 @@
+mod guarantee_class;
 mod types;
 
+pub use guarantee_class::GuaranteeClass;
 pub use types::{DagNode, Edge, EdgeCondition, RetryPolicy, RetryPolicyError, StepOutcome};
 
 use std::collections::{HashMap, HashSet};
