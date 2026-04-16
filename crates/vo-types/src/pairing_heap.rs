@@ -1,4 +1,12 @@
-#![allow(dead_code)]
+use serde::{Deserialize, Serialize};
 
-pub struct PairingHeap;
-pub struct PairingHeapError;
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PairingHeap<T: Ord + Clone> {
+    _root: Option<T>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum PairingHeapError {
+    #[error("empty heap")]
+    EmptyHeap,
+}

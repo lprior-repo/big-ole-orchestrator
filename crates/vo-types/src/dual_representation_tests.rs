@@ -282,3 +282,255 @@ fn operator_projection_tracks_all_redacted_fields() {
     assert!(redacted.contains(&vec!["a".into(), "x".into()]));
     assert!(redacted.contains(&vec!["b".into(), "z".into()]));
 }
+
+// =========================================================================
+// ADR-025: ReplaceWithType through apply_redaction
+// =========================================================================
+
+#[test]
+fn apply_redaction_replace_with_type_produces_type_name() {
+    let value = serde_json::json!({
+        "data": 42
+    });
+    let rules = vec![RedactionRule::new(
+        vec!["data".into()],
+        RedactionKind::ReplaceWithType,
+    )];
+    let (result, redacted) = apply_redaction(&value, &rules);
+    let redacted_val = &result["data"];
+    assert!(
+        redacted_val.is_string(),
+        "ReplaceWithType should produce a string"
+    );
+    let s = redacted_val.as_str().unwrap();
+    assert!(
+        s.contains("Number") || s.contains("u64") || s.contains("i64") || s.contains("Value"),
+        "ReplaceWithType should contain type info, got: {s}"
+    );
+    assert_eq!(redacted.len(), 1);
+}
+
+// =========================================================================
+// ADR-025: Overlapping rules — first match wins
+// =========================================================================
+
+#[test]
+fn apply_redaction_overlapping_rules_first_match_wins() {
+    let value = serde_json::json!({
+        "field": "secret"
+    });
+    let rules = vec![
+        RedactionRule::new(vec!["field".into()], RedactionKind::Remove),
+        RedactionRule::new(vec!["field".into()], RedactionKind::Hash),
+    ];
+    let (result, redacted) = apply_redaction(&value, &rules);
+    assert_eq!(
+        result["field"],
+        serde_json::Value::Null,
+        "First matching rule (Remove) should produce Null, not hash"
+    );
+    assert_eq!(redacted.len(), 1, "Only first rule should match");
+    assert_eq!(redacted[0], vec!["field".to_string()]);
+}
+
+// =========================================================================
+// ADR-025: Null value behavior — non-redacted nulls are dropped
+// =========================================================================
+
+#[test]
+fn apply_redaction_drops_non_redacted_null_values() {
+    let value = serde_json::json!({
+        "explicit_null": null,
+        "secret": "classified"
+    });
+    let rules = vec![RedactionRule::new(
+        vec!["secret".into()],
+        RedactionKind::Remove,
+    )];
+    let (result, redacted) = apply_redaction(&value, &rules);
+    assert!(
+        result.get("explicit_null").is_none(),
+        "Non-redacted null fields are dropped by apply_redaction (known behavior per line 188)"
+    );
+    assert_eq!(result["secret"], serde_json::Value::Null);
+    assert_eq!(redacted.len(), 1);
+}
+
+// =========================================================================
+// ADR-025: Redaction of sensitive data in array of primitives
+// =========================================================================
+
+#[test]
+fn apply_redaction_handles_sensitive_data_in_array_of_primitives() {
+    let value = serde_json::json!({
+        "items": ["public", "secret_item", "another_public"]
+    });
+    let rules = vec![RedactionRule::new(
+        vec!["items".into()],
+        RedactionKind::ReplaceWith("[REDACTED]".into()),
+    )];
+    let (result, redacted) = apply_redaction(&value, &rules);
+    assert_eq!(result["items"], "[REDACTED]");
+    assert_eq!(redacted.len(), 1);
+}
+
+// =========================================================================
+// ADR-025: Empty object with redaction rules
+// =========================================================================
+
+#[test]
+fn apply_redaction_empty_object_with_rules_produces_empty() {
+    let value = serde_json::json!({});
+    let rules = vec![RedactionRule::new(
+        vec!["nonexistent".into()],
+        RedactionKind::Remove,
+    )];
+    let (result, redacted) = apply_redaction(&value, &rules);
+    assert!(result.as_object().unwrap().is_empty());
+    assert!(redacted.is_empty());
+}
+
+// =========================================================================
+// ADR-025: RedactionKind::Remove sets value to Null (key retained)
+// =========================================================================
+
+#[test]
+fn apply_redaction_remove_sets_to_null_retains_key() {
+    let value = serde_json::json!({
+        "keep": "visible",
+        "remove_me": "gone"
+    });
+    let rules = vec![RedactionRule::new(
+        vec!["remove_me".into()],
+        RedactionKind::Remove,
+    )];
+    let (result, redacted) = apply_redaction(&value, &rules);
+    assert_eq!(
+        result["remove_me"],
+        serde_json::Value::Null,
+        "Remove sets value to Null and retains the key (was_redacted bypasses null filter)"
+    );
+    assert_eq!(result["keep"], "visible");
+    assert_eq!(redacted.len(), 1);
+}
+
+// =========================================================================
+// ADR-025: Operator projection never contains raw sensitive data
+// =========================================================================
+
+#[test]
+fn operator_projection_never_contains_raw_sensitive_data() {
+    let sensitive_ssn = "123-45-6789";
+    let sensitive_email = "user@secret.com";
+    let value = serde_json::json!({
+        "user": {
+            "name": "Alice",
+            "ssn": sensitive_ssn,
+            "email": sensitive_email
+        }
+    });
+    let rules = vec![
+        RedactionRule::new(vec!["user".into(), "ssn".into()], RedactionKind::Remove),
+        RedactionRule::new(vec!["user".into(), "email".into()], RedactionKind::Hash),
+    ];
+    let (result, redacted) = apply_redaction(&value, &rules);
+
+    let result_str = serde_json::to_string(&result).unwrap();
+    assert!(
+        !result_str.contains(sensitive_ssn),
+        "Operator projection must not contain raw SSN"
+    );
+    assert!(
+        !result_str.contains(sensitive_email),
+        "Operator projection must not contain raw email"
+    );
+    assert_eq!(result["user"]["name"], "Alice");
+    assert_eq!(redacted.len(), 2);
+}
+
+// =========================================================================
+// ADR-025: Redaction idempotency — Hash on different inputs produces different hashes
+// =========================================================================
+
+#[test]
+fn apply_redaction_hash_deterministic_on_same_input() {
+    let value = serde_json::json!({
+        "secret": "my-secret-value"
+    });
+    let rules = vec![RedactionRule::new(
+        vec!["secret".into()],
+        RedactionKind::Hash,
+    )];
+    let (result1, _) = apply_redaction(&value, &rules);
+    let (result2, _) = apply_redaction(&value, &rules);
+    assert_eq!(
+        result1, result2,
+        "Hash redaction must be deterministic for same input"
+    );
+}
+
+#[test]
+fn apply_redaction_replace_with_is_idempotent() {
+    let value = serde_json::json!({
+        "secret": "classified"
+    });
+    let rules = vec![RedactionRule::new(
+        vec!["secret".into()],
+        RedactionKind::ReplaceWith("***".into()),
+    )];
+    let (result1, _) = apply_redaction(&value, &rules);
+    let (result2, _) = apply_redaction(&result1, &rules);
+    assert_eq!(
+        result1, result2,
+        "ReplaceWith redaction should be idempotent"
+    );
+}
+
+// =========================================================================
+// ADR-025: Mixed redaction kinds on deeply nested structure
+// =========================================================================
+
+#[test]
+fn apply_redaction_mixed_kinds_deeply_nested() {
+    let value = serde_json::json!({
+        "level1": {
+            "level2": {
+                "remove_field": "gone",
+                "replace_field": "replaced",
+                "hash_field": "hashed",
+                "type_field": 42,
+                "keep_field": "visible"
+            }
+        }
+    });
+    let rules = vec![
+        RedactionRule::new(
+            vec!["level1".into(), "level2".into(), "remove_field".into()],
+            RedactionKind::Remove,
+        ),
+        RedactionRule::new(
+            vec!["level1".into(), "level2".into(), "replace_field".into()],
+            RedactionKind::ReplaceWith("***".into()),
+        ),
+        RedactionRule::new(
+            vec!["level1".into(), "level2".into(), "hash_field".into()],
+            RedactionKind::Hash,
+        ),
+        RedactionRule::new(
+            vec!["level1".into(), "level2".into(), "type_field".into()],
+            RedactionKind::ReplaceWithType,
+        ),
+    ];
+    let (result, redacted) = apply_redaction(&value, &rules);
+    let level2 = &result["level1"]["level2"];
+    assert!(
+        level2.get("remove_field").is_some(),
+        "Remove retains key with Null value"
+    );
+    assert_eq!(level2["remove_field"], serde_json::Value::Null);
+    assert_eq!(level2["replace_field"], "***");
+    assert!(level2["hash_field"].as_str().unwrap().starts_with("HASH"));
+    assert!(level2["type_field"].is_string());
+    assert_eq!(level2["keep_field"], "visible");
+    assert_eq!(redacted.len(), 4);
+}
