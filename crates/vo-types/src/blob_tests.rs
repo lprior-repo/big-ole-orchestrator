@@ -701,3 +701,181 @@ fn adr040_output_ref_classify_respects_size_boundary() {
     let result = OutputRef::classify(large);
     assert!(result.is_err());
 }
+
+// =========================================================================
+// ADR-040 BDD Scenarios — Canonical Blob Durability and Publication
+// =========================================================================
+
+// Scenario 1: Given blob output, When publication fails,
+//             Then BlobPublicationFailed error raised and step stays incomplete.
+
+#[test]
+fn bdd_given_required_blob_output_when_publication_fails_then_step_blocked() {
+    let policy = OutputPolicy::Required;
+    let failure_action = policy.blob_failure_action(BlobStatus::Failed);
+    assert_eq!(
+        failure_action,
+        BlobFailureAction::BlockStep,
+        "Required output must block step when blob publication fails"
+    );
+}
+
+#[test]
+fn bdd_given_optional_blob_output_when_publication_fails_then_step_may_complete_inline() {
+    let policy = OutputPolicy::Optional;
+    let failure_action = policy.blob_failure_action(BlobStatus::Failed);
+    assert_eq!(
+        failure_action,
+        BlobFailureAction::CompleteWithInline,
+        "Optional output allows step completion with inline data when blob fails"
+    );
+}
+
+#[test]
+fn bdd_given_blob_output_when_blob_status_is_not_failed_then_step_blocked() {
+    for status in [
+        BlobStatus::Pending,
+        BlobStatus::DurablyStored,
+        BlobStatus::Published,
+    ] {
+        for policy in [OutputPolicy::Required, OutputPolicy::Optional] {
+            let action = policy.blob_failure_action(status);
+            assert_eq!(
+                action,
+                BlobFailureAction::BlockStep,
+                "Step must stay incomplete when blob status is {:?} (not Failed)",
+                status
+            );
+        }
+    }
+}
+
+// Scenario 2: Given inline blob under INLINED_MAX_BYTES,
+//             When stored, Then blob embedded in event (not external).
+
+#[test]
+fn bdd_given_inline_blob_under_limit_when_stored_then_embedded_inline() {
+    let small_data = vec![0u8; INLINED_MAX_BYTES - 1];
+    let result = OutputRef::inline(small_data.clone());
+    assert!(
+        result.is_ok(),
+        "Blob under INLINED_MAX_BYTES must be stored inline"
+    );
+    let output_ref = result.unwrap();
+    assert!(
+        output_ref.is_inline(),
+        "OutputRef must be Inline variant for small data"
+    );
+    assert_eq!(
+        output_ref.as_inline(),
+        Some(small_data.as_slice()),
+        "Inline data must match original"
+    );
+}
+
+#[test]
+fn bdd_given_exactly_max_bytes_when_stored_then_embedded_inline() {
+    let max_data = vec![0u8; INLINED_MAX_BYTES];
+    let result = OutputRef::inline(max_data.clone());
+    assert!(
+        result.is_ok(),
+        "Blob exactly at INLINED_MAX_BYTES must be stored inline"
+    );
+    let output_ref = result.unwrap();
+    assert!(
+        output_ref.is_inline(),
+        "OutputRef must be Inline variant at exactly max bytes"
+    );
+    assert_eq!(
+        output_ref.as_inline(),
+        Some(max_data.as_slice()),
+        "Inline data must match original at exactly max"
+    );
+}
+
+#[test]
+fn bdd_given_inline_blob_when_classified_then_returns_inline_variant() {
+    let small_blob = vec![1u8; 100];
+    let classified = OutputRef::classify(small_blob.clone());
+    assert!(
+        classified.is_ok(),
+        "Small blob must be classified successfully"
+    );
+    let output = classified.unwrap();
+    assert!(
+        output.is_inline(),
+        "Small blob must produce Inline OutputRef"
+    );
+    assert_eq!(
+        output.as_inline(),
+        Some(small_blob.as_slice()),
+        "Embedded blob data must match original"
+    );
+}
+
+// Scenario 3: Given blob exceeding inline threshold,
+//             When stored, Then external blob reference created.
+
+#[test]
+fn bdd_given_blob_exceeding_limit_when_stored_then_returns_error_for_inline() {
+    let large_data = vec![0u8; INLINED_MAX_BYTES + 1];
+    let result = OutputRef::inline(large_data);
+    assert!(
+        result.is_err(),
+        "Blob exceeding INLINED_MAX_BYTES must be rejected for inline storage"
+    );
+    let err = result.unwrap_err();
+    assert!(
+        matches!(err, ParseError::ExceedsMaxLength { .. }),
+        "Error must be ExceedsMaxLength for oversized inline attempt"
+    );
+}
+
+#[test]
+fn bdd_given_blob_exceeding_limit_when_classified_then_returns_error() {
+    let large_blob = vec![0u8; INLINED_MAX_BYTES + 1];
+    let result = OutputRef::classify(large_blob);
+    assert!(
+        result.is_err(),
+        "Blob exceeding INLINED_MAX_BYTES cannot be classified as inline"
+    );
+}
+
+#[test]
+fn bdd_given_large_blob_when_blob_ref_created_then_reference_produced() {
+    let blob = BlobRef::new(
+        "01H5JQX7K3R4T6V8W0X2Y4Z6A8",
+        (INLINED_MAX_BYTES + 1) as u64,
+        "abcdef0123456789abcdef0123456789",
+    )
+    .expect("BlobRef must be constructible for large blob");
+    let output_ref = OutputRef::blob_ref(blob);
+    assert!(
+        output_ref.is_blob_ref(),
+        "Large blob must produce BlobRef OutputRef variant"
+    );
+    assert!(
+        output_ref.as_blob_ref().is_some(),
+        "BlobRef accessor must return Some for large blob output"
+    );
+}
+
+#[test]
+fn bdd_given_blob_over_limit_and_blob_ref_when_stored_then_external_reference() {
+    let large_size = INLINED_MAX_BYTES + 1;
+    let blob = BlobRef::new(
+        "01H5JQX7K3R4T6V8W0X2Y4Z6A8",
+        large_size as u64,
+        "abcdef0123456789abcdef0123456789",
+    )
+    .expect("must construct BlobRef");
+    let output = OutputRef::blob_ref(blob);
+    assert!(
+        !output.is_inline(),
+        "OutputRef for large blob must not be inline"
+    );
+    assert!(
+        output.is_blob_ref(),
+        "OutputRef for large blob must be BlobRef variant"
+    );
+}
