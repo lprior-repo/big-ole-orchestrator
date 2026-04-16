@@ -11,6 +11,7 @@
 //!
 //! See ADR-018 for full specification.
 
+use libc;
 use std::os::fd::{FromRawFd, RawFd};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::process::Command;

@@ -233,7 +233,7 @@ mod tests {
 
     #[test]
     fn wrapped_dek_creation() {
-        let wrapped = WrappedDek::new(vec![0xDE, 0xAD, 0xBE, 0xEF]);
+        let wrapped = WrappedDek::new(vec![0xDE, 0xAD, 0xBE, 0xEF]).expect("valid wrapped DEK");
         assert_eq!(wrapped.as_bytes(), &[0xDE, 0xAD, 0xBE, 0xEF]);
     }
 

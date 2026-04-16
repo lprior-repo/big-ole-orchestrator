@@ -12,7 +12,7 @@ fn sample_encrypted_blob() -> EncryptedBlob {
 }
 
 fn sample_wrapped_dek() -> WrappedDek {
-    WrappedDek::new(vec![0xDE, 0xAD, 0xBE, 0xEF])
+    WrappedDek::new(vec![0xDE, 0xAD, 0xBE, 0xEF].repeat(15)).expect("valid wrapped DEK")
 }
 
 fn sample_key_metadata() -> KeyMetadata {
@@ -176,7 +176,7 @@ mod wrapped_dek_tests {
 
     #[test]
     fn wrapped_dek_new_accepts_vec() {
-        let wrapped = WrappedDek::new(vec![0xDE, 0xAD, 0xBE, 0xEF]);
+        let wrapped = WrappedDek::new(vec![0xDE, 0xAD, 0xBE, 0xEF]).expect("valid wrapped DEK");
         assert_eq!(wrapped.as_bytes(), &[0xDE, 0xAD, 0xBE, 0xEF]);
     }
 
@@ -207,8 +207,8 @@ mod wrapped_dek_tests {
 
     #[test]
     fn wrapped_dek_is_empty_true_for_empty_vec() {
-        let wrapped = WrappedDek::new(vec![]);
-        assert!(wrapped.as_bytes().is_empty());
+        let result = WrappedDek::new(vec![]);
+        assert!(result.is_err());
     }
 
     #[test]
