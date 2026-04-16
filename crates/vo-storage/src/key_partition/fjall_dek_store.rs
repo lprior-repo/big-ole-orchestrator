@@ -155,7 +155,10 @@ impl DekStore for FjallDekStore {
         let wrapped_dek_bytes = wrap_dek(&raw_dek, kek).map_err(|e| DekStoreError::Storage {
             reason: format!("failed to wrap DEK: {e}"),
         })?;
-        let wrapped_dek = WrappedDek::new(wrapped_dek_bytes);
+        let wrapped_dek =
+            WrappedDek::new(wrapped_dek_bytes).map_err(|e| DekStoreError::Storage {
+                reason: format!("invalid wrapped DEK from wrap_dek: {e}"),
+            })?;
 
         let dek_id = DekId::from_bytes(Ulid::new().0.to_be_bytes());
         let metadata = KeyMetadata::new(instance_id.clone(), CryptoAlgorithm::Aes256Gcm);
