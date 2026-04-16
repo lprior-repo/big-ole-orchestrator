@@ -244,7 +244,7 @@ mod blackhat_credential_rotation_forward_secrecy {
         let state = RotationState::new();
         assert_eq!(state.state(), RotationStatus::Idle);
 
-        let mut state_with_rotation = RotationState::new();
+        let state_with_rotation = RotationState::new();
         assert!(state_with_rotation.last_rotation().is_none());
 
         let now = TimestampMs(2000);
@@ -267,7 +267,7 @@ mod blackhat_credential_rotation_forward_secrecy {
         let v2_id = CredentialVersionId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMB").unwrap();
         let v3_id = CredentialVersionId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMC").unwrap();
 
-        let v1 = CredentialVersion::new(
+        let _v1 = CredentialVersion::new(
             v1_id.clone(),
             make_secret_value(vec![0u8; 32], 1),
             CredentialStatus::Superseded,
@@ -287,8 +287,8 @@ mod blackhat_credential_rotation_forward_secrecy {
         v2_with_chain.rotated_from = Some(v1_id.clone());
         v2_with_chain.rotated_to = Some(v3_id.clone());
 
-        assert_eq!(v2_with_chain.rotated_from(), Some(v1_id.clone()));
-        assert_eq!(v2_with_chain.rotated_to(), Some(v3_id.clone()));
+        assert_eq!(v2_with_chain.rotated_from(), Some(v1_id));
+        assert_eq!(v2_with_chain.rotated_to(), Some(v3_id));
     }
 
     #[test]
@@ -558,10 +558,11 @@ mod blackhat_dek_wrapping_boundary_keys {
     }
 
     #[test]
-    fn wrapped_dek_max_usize_boundary() {
-        let data = vec![0u8; 0];
+    fn wrapped_dek_megabyte_boundary() {
+        let data = vec![0u8; 1024 * 1024];
         let result = WrappedDek::new(data);
-        assert!(result.is_err());
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().as_bytes().len(), 1024 * 1024);
     }
 
     #[test]
@@ -819,5 +820,287 @@ mod blackhat_access_policy {
         let principal = Principal::Workflow(workflow_name);
         let display = format!("{}", principal);
         assert!(display.contains("Workflow"));
+    }
+}
+
+#[cfg(test)]
+mod blackhat_adversarial_boundary_attacks {
+
+    use super::*;
+
+    #[test]
+    fn dek_id_boundary_length_25_rejected() {
+        let result = DekId::parse("01H5JYV4XHGSR2F8KZ9BWNRFM");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn dek_id_boundary_length_27_rejected() {
+        let result = DekId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMAA");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn credential_id_boundary_length_25_rejected() {
+        let result = CredentialId::parse("01H5JYV4XHGSR2F8KZ9BWNRFM");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn credential_id_boundary_length_27_rejected() {
+        let result = CredentialId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMAA");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn vault_entry_id_boundary_length_25_rejected() {
+        let result = VaultEntryId::parse("01H5JYV4XHGSR2F8KZ9BWNRFM");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn vault_entry_id_boundary_length_27_rejected() {
+        let result = VaultEntryId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMAA");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn credential_version_id_boundary_length_25_rejected() {
+        let result = CredentialVersionId::parse("01H5JYV4XHGSR2F8KZ9BWNRFM");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn credential_version_id_boundary_length_27_rejected() {
+        let result = CredentialVersionId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMAA");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn dek_id_invalid_char_i_rejected() {
+        let result = DekId::parse("01H5JYV4XHGSR2F8KZ9BWNRFI");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn dek_id_invalid_char_l_rejected() {
+        let result = DekId::parse("01H5JYV4XHGSR2F8KZ9BWNRFL");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn dek_id_invalid_char_o_rejected() {
+        let result = DekId::parse("01H5JYV4XHGSR2F8KZ9BWNRFO");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn dek_id_invalid_char_u_rejected() {
+        let result = DekId::parse("01H5JYV4XHGSR2F8KZ9BWNRFU");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn secret_value_all_zeros_nonce_accepted() {
+        let sv = make_secret_value(vec![1u8; 32], 1);
+        assert_eq!(sv.nonce(), [0u8; 12]);
+    }
+
+    #[test]
+    fn secret_value_all_ffs_nonce_accepted() {
+        let sv = SecretValue::new(vec![1u8; 32], [0xFFu8; 12], 1);
+        assert!(sv.is_ok());
+    }
+
+    #[test]
+    fn secret_value_nonce_copy_is_independent() {
+        let sv = make_secret_value(vec![1u8; 32], 1);
+        let nonce = sv.nonce();
+        let _nonce_copy = nonce;
+        assert_eq!(sv.nonce(), [0u8; 12]);
+    }
+
+    #[test]
+    fn credential_multiple_rotation_chain_integrity() {
+        let v1_id = CredentialVersionId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+        let v2_id = CredentialVersionId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMB").unwrap();
+        let v3_id = CredentialVersionId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMC").unwrap();
+        let v4_id = CredentialVersionId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMD").unwrap();
+
+        let v1 = CredentialVersion::new(
+            v1_id.clone(),
+            make_secret_value(vec![0x11u8; 32], 1),
+            CredentialStatus::Superseded,
+            TimestampMs(1000),
+            None,
+        );
+
+        let mut v2 = CredentialVersion::new(
+            v2_id.clone(),
+            make_secret_value(vec![0x22u8; 32], 2),
+            CredentialStatus::Superseded,
+            TimestampMs(2000),
+            None,
+        );
+        v2.rotated_from = Some(v1_id.clone());
+
+        let mut v3 = CredentialVersion::new(
+            v3_id.clone(),
+            make_secret_value(vec![0x33u8; 32], 3),
+            CredentialStatus::Superseded,
+            TimestampMs(3000),
+            None,
+        );
+        v3.rotated_from = Some(v2_id.clone());
+        v2.rotated_to = Some(v3_id.clone());
+        v3.rotated_to = Some(v4_id.clone());
+
+        let mut v4 = CredentialVersion::new(
+            v4_id.clone(),
+            make_secret_value(vec![0x44u8; 32], 4),
+            CredentialStatus::Active,
+            TimestampMs(4000),
+            None,
+        );
+        v4.rotated_from = Some(v3_id.clone());
+
+        assert!(v1.rotated_from.is_none());
+        assert_eq!(v2.rotated_from(), Some(v1_id));
+        assert_eq!(v3.rotated_from(), Some(v2_id));
+        assert_eq!(v4.rotated_from(), Some(v3_id.clone()));
+
+        assert_eq!(v2.rotated_to(), Some(v3_id.clone()));
+        assert_eq!(v3.rotated_to(), Some(v4_id));
+        assert!(v4.rotated_to().is_none());
+    }
+
+    #[test]
+    fn credential_rotation_chain_key_versions_strictly_incrementing() {
+        let versions: Vec<CredentialVersion> = (0..5)
+            .map(|i| {
+                let vid = CredentialVersionId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+                CredentialVersion::new(
+                    vid,
+                    make_secret_value(vec![i as u8; 32], i as u32 + 1),
+                    if i == 4 {
+                        CredentialStatus::Active
+                    } else {
+                        CredentialStatus::Superseded
+                    },
+                    TimestampMs(1000 * (i as u64 + 1)),
+                    None,
+                )
+            })
+            .collect();
+
+        for i in 0..versions.len() - 1 {
+            assert!(
+                versions[i].secret_value.key_version() < versions[i + 1].secret_value.key_version(),
+                "key version {} should be < {}",
+                versions[i].secret_value.key_version(),
+                versions[i + 1].secret_value.key_version()
+            );
+        }
+    }
+
+    #[test]
+    fn vault_entry_all_credential_kinds_accepted() {
+        let kinds = vec![
+            CredentialKind::ApiKey,
+            CredentialKind::Password,
+            CredentialKind::Token,
+            CredentialKind::Certificate,
+            CredentialKind::SigningKey,
+            CredentialKind::EncryptionKey,
+            CredentialKind::Custom("custom-kind".to_string()),
+        ];
+
+        for kind in kinds {
+            let credential_version = CredentialVersion::new(
+                valid_credential_version_id(),
+                make_secret_value(vec![0u8; 32], 1),
+                CredentialStatus::Active,
+                TimestampMs(1000),
+                None,
+            );
+
+            let credential = Credential {
+                id: valid_credential_id(),
+                kind: kind.clone(),
+                name: "test".to_string(),
+                current_version: valid_credential_version_id(),
+                versions: vec![credential_version],
+                rotation_policy: RotationPolicy::Manual,
+                metadata: std::collections::HashMap::new(),
+                created_at: TimestampMs(1000),
+                updated_at: TimestampMs(1000),
+            };
+
+            let entry = VaultEntry {
+                entry_id: valid_vault_entry_id(),
+                credential,
+                access_policy: AccessPolicy::new(vec![Principal::System]),
+                rotation_state: RotationState::new(),
+            };
+
+            assert_eq!(entry.credential.kind(), kind);
+            assert!(entry.credential.active_version().is_some());
+        }
+    }
+
+    #[test]
+    fn rotation_policy_time_based_all_valid_intervals() {
+        let intervals = vec![
+            DurationMs(60_000),
+            DurationMs(3_600_000),
+            DurationMs(86_400_000),
+            DurationMs(604_800_000),
+            DurationMs(31536000000_u64),
+        ];
+
+        for interval in intervals {
+            let policy = RotationPolicy::TimeBased {
+                interval,
+                overlap_window: DurationMs(60_000),
+            };
+            assert!(
+                policy.validate().is_ok(),
+                "interval {} should be valid",
+                interval.0
+            );
+        }
+    }
+
+    #[test]
+    fn rotation_policy_usage_based_all_valid_max_uses() {
+        let max_uses_values = vec![1u64, 10, 100, 1000, 10000, u64::MAX];
+
+        for max_uses in max_uses_values {
+            let policy = RotationPolicy::UsageBased {
+                max_uses,
+                overlap_window: DurationMs(60_000),
+            };
+            assert!(
+                policy.validate().is_ok(),
+                "max_uses {} should be valid",
+                max_uses
+            );
+        }
+    }
+
+    #[test]
+    fn encrypted_blob_max_size_10mb_no_truncation() {
+        let ct = vec![0xAB; 10 * 1024 * 1024];
+        let blob = EncryptedBlob::new(vec![0u8; 12], ct.clone(), vec![0xCD; 16]);
+        assert!(blob.is_ok());
+        assert_eq!(blob.unwrap().ciphertext.len(), 10 * 1024 * 1024);
+    }
+
+    #[test]
+    fn encrypted_blob_16mb_ciphertext_boundary() {
+        let ct = vec![0xAB; 16 * 1024 * 1024];
+        let blob = EncryptedBlob::new(vec![0u8; 12], ct.clone(), vec![0xCD; 16]);
+        assert!(blob.is_ok());
+        assert_eq!(blob.unwrap().ciphertext.len(), 16 * 1024 * 1024);
     }
 }
