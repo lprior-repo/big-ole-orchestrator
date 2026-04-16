@@ -1,12 +1,12 @@
 {
-  "session_id": "8b2262a9-fa3c-4598-8ae0-2d29a65f37f5",
-  "transcript_path": "/home/lewis/.claude/projects/-home-lewis-gt-veloxide-polecats-deathclaw-veloxide/8b2262a9-fa3c-4598-8ae0-2d29a65f37f5.jsonl",
+  "session_id": "43e93ab8-7b60-4eac-a8b8-974f90cc87e8",
+  "transcript_path": "/home/lewis/.claude/projects/-home-lewis-gt-veloxide-polecats-rust-veloxide/43e93ab8-7b60-4eac-a8b8-974f90cc87e8.jsonl",
   "hook_event_name": "PreToolUse",
   "tool_name": "Edit",
   "tool_input": {
-    "file_path": "/home/lewis/gt/veloxide/polecats/deathclaw/veloxide/crates/vo-types/src/identity_bdd_tests.rs",
-    "old_string": "    assert_eq!(envelope.metadata.causation_id, restored.metadata.causation_id);\n}",
-    "new_string": "    assert_eq!(envelope.metadata.causation_id, restored.metadata.causation_id);\n}\n\n/// Given two envelopes in the same correlation group,\n/// When checking their correlation_ids,\n/// Then they match but command_ids differ.\n#[test]\nfn envelopes_same_correlation_different_commands() {\n    let json_a = r#\"{\n        \"version\": 1,\n        \"command_id\": \"cmd-alpha\",\n        \"correlation_id\": \"corr-shared\",\n        \"causation_id\": \"cause-root\",\n        \"issuer\": \"api_client\",\n        \"issued_at\": 1700000000\n    }\"#;\n    let json_b = r#\"{\n        \"version\": 1,\n        \"command_id\": \"cmd-beta\",\n        \"correlation_id\": \"corr-shared\",\n        \"causation_id\": \"cmd-alpha\",\n        \"issuer\": \"recovery_loop\",\n        \"issued_at\": 1700000100\n    }\"#;\n\n    let env_a = CommandEnvelope::from_str(json_a).unwrap();\n    let env_b = CommandEnvelope::from_str(json_b).unwrap();\n\n    assert_eq!(env_a.metadata.correlation_id, env_b.metadata.correlation_id);\n    assert_ne!(env_a.metadata.command_id, env_b.metadata.command_id);\n    assert_eq!(env_b.metadata.causation_id.as_str(), \"cmd-alpha\");\n}",
+    "file_path": "/home/lewis/gt/veloxide/polecats/rust/veloxide/crates/vo-types/src/blob_tests.rs",
+    "old_string": "    assert!(output.as_blob_ref().is_some(), \"Must have external BlobRef\");\n}",
+    "new_string": "    assert!(output.as_blob_ref().is_some(), \"Must have external BlobRef\");\n}\n\n#[test]\nfn bdd_given_blob_exceeding_threshold_when_blobref_created_then_size_preserved() {\n    // Given: A large payload\n    let large_size: u64 = (INLINED_MAX_BYTES as u64) * 10;\n\n    // When: Creating external BlobRef\n    let blob = BlobRef::new(\n        \"01H5JQX7K3R4T6V8W0X2Y4Z6A8\",\n        large_size,\n        \"abcdef0123456789abcdef0123456789\",\n    )\n    .expect(\"should construct\");\n\n    // Then: Size is preserved in the blob reference\n    assert_eq!(blob.size_bytes(), large_size);\n\n    let output = OutputRef::blob_ref(blob);\n    let retrieved = output.as_blob_ref().expect(\"should have blob ref\");\n    assert_eq!(retrieved.size_bytes(), large_size);\n}",
     "replace_all": false
   }
 }
