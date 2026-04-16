@@ -153,9 +153,7 @@ mod serialization_roundtrip {
     fn rq_timer_fired_extra_json_fields_ignored() {
         let json = r#"{"TimerFired":{"timer_id":"t1","timestamp_ms":99,"extra":"garbage"}}"#;
         let event: WorkflowEvent = serde_json::from_str(json).expect("extra fields must be ignored");
-        assert!(result.is_err(), "duplicate fields must be rejected by serde_json");
-        // verify the error message mentions duplicate
-        let err_msg = result.unwrap_err().to_string();
+        match event {
             WorkflowEvent::TimerFired { timer_id, timestamp_ms } => {
                 assert_eq!(timer_id, "t1");
                 assert_eq!(timestamp_ms, 99);
@@ -529,8 +527,8 @@ mod serialization_adversarial {
         let json = r#"{"TimerFired":{"timer_id":"first","timer_id":"second","timestamp_ms":1}}"#;
         let result: Result<WorkflowEvent, _> = serde_json::from_str(json);
         assert!(result.is_err(), "duplicate fields must be rejected by serde_json");
-        // verify the error message mentions duplicate
         let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("duplicate"), "error must mention 'duplicate': {}", err_msg);
     }
 
     /// Kills: unicode in timer_id roundtrip broken.
@@ -584,6 +582,10 @@ mod serialization_adversarial {
         let back: WorkflowEvent =
             serde_json::from_str(&json).expect("deserialize long id");
         match back {
+            WorkflowEvent::TimerFired { timer_id, .. } => {
+                assert_eq!(timer_id.len(), 10_000, "long id must not be truncated");
+            }
+        }
     }
 }
 
@@ -603,7 +605,6 @@ mod clone_partial_eq_semantics {
             timestamp_ms: 100,
         };
         let cloned = event.clone();
-        // Both equal but independent (String is Clone so both own their data)
         assert_eq!(event, cloned);
     }
 
@@ -655,7 +656,6 @@ mod clone_partial_eq_semantics {
         let e1 = VoError::internal("deep copy test".to_string());
         let e2 = e1.clone();
         assert_eq!(e1, e2);
-        // Verify they are independent values (both own their strings)
         match (&e1, &e2) {
             (VoError::Internal(a), VoError::Internal(b)) => {
                 assert_eq!(a, b);
