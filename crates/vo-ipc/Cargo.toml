@@ -72,5 +72,9 @@ path = "tests/channel_edge_tests.rs"
 name = "backpressure_tests"
 path = "tests/backpressure_tests.rs"
 
+[[test]]
+name = "qa_ipc_tests"
+path = "tests/qa_ipc_tests.rs"
+
 [lints]
 workspace = true
