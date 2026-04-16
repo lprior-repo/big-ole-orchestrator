@@ -188,6 +188,8 @@ mod dependency_graph_resolver_tests;
 #[cfg(test)]
 mod red_queen_tests;
 #[cfg(test)]
+mod schema_evolution_bdd_tests;
+#[cfg(test)]
 mod schema_version_tests;
 #[cfg(test)]
 mod serde_tests;
