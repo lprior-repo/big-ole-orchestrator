@@ -19,8 +19,8 @@ use crate::{
 /// Helper to construct a WorkflowDefinition for testing.
 fn make_workflow(
     name: &str,
-    nodes: Vec<(&str, u8, u64, f64)>,
-    edges: Vec<(&str, &str, EdgeCondition)>,
+    nodes: Vec<(String, u8, u64, f64)>,
+    edges: Vec<(String, String, EdgeCondition)>,
 ) -> WorkflowDefinition {
     WorkflowDefinition {
         workflow_name: WorkflowName(name.into()),
@@ -59,8 +59,12 @@ fn make_workflow(
 fn dependencies_returns_empty_for_node_with_no_incoming_edges() {
     let workflow = make_workflow(
         "test",
-        vec![("a", 1, 0, 1.0), ("b", 1, 0, 1.0), ("c", 1, 0, 1.0)],
-        vec![("a", "b", EdgeCondition::Always)],
+        vec![
+            ("a".to_string(), 1, 0, 1.0),
+            ("b".to_string(), 1, 0, 1.0),
+            ("c".to_string(), 1, 0, 1.0),
+        ],
+        vec![("a".to_string(), "b".to_string(), EdgeCondition::Always)],
     );
 
     let deps = DependencyGraphResolver::dependencies(&workflow, &NodeName("c".into()));
@@ -75,8 +79,8 @@ fn dependencies_returns_empty_for_node_with_no_incoming_edges() {
 fn dependencies_returns_single_predecessor() {
     let workflow = make_workflow(
         "test",
-        vec![("a", 1, 0, 1.0), ("b", 1, 0, 1.0)],
-        vec![("a", "b", EdgeCondition::Always)],
+        vec![("a".to_string(), 1, 0, 1.0), ("b".to_string(), 1, 0, 1.0)],
+        vec![("a".to_string(), "b".to_string(), EdgeCondition::Always)],
     );
 
     let deps = DependencyGraphResolver::dependencies(&workflow, &NodeName("b".into()));
@@ -89,10 +93,14 @@ fn dependencies_returns_single_predecessor() {
 fn dependencies_returns_all_predecessors() {
     let workflow = make_workflow(
         "test",
-        vec![("a", 1, 0, 1.0), ("b", 1, 0, 1.0), ("c", 1, 0, 1.0)],
         vec![
-            ("a", "c", EdgeCondition::Always),
-            ("b", "c", EdgeCondition::Always),
+            ("a".to_string(), 1, 0, 1.0),
+            ("b".to_string(), 1, 0, 1.0),
+            ("c".to_string(), 1, 0, 1.0),
+        ],
+        vec![
+            ("a".to_string(), "c".to_string(), EdgeCondition::Always),
+            ("b".to_string(), "c".to_string(), EdgeCondition::Always),
         ],
     );
 
@@ -112,10 +120,14 @@ fn dependencies_returns_only_direct_predecessors() {
     // a -> b -> c
     let workflow = make_workflow(
         "test",
-        vec![("a", 1, 0, 1.0), ("b", 1, 0, 1.0), ("c", 1, 0, 1.0)],
         vec![
-            ("a", "b", EdgeCondition::Always),
-            ("b", "c", EdgeCondition::Always),
+            ("a".to_string(), 1, 0, 1.0),
+            ("b".to_string(), 1, 0, 1.0),
+            ("c".to_string(), 1, 0, 1.0),
+        ],
+        vec![
+            ("a".to_string(), "b".to_string(), EdgeCondition::Always),
+            ("b".to_string(), "c".to_string(), EdgeCondition::Always),
         ],
     );
 
@@ -128,7 +140,7 @@ fn dependencies_returns_only_direct_predecessors() {
 // DGR-05: Returns empty for non-existent node
 #[test]
 fn dependencies_returns_empty_for_nonexistent_node() {
-    let workflow = make_workflow("test", vec![("a", 1, 0, 1.0)], vec![]);
+    let workflow = make_workflow("test", vec![("a".to_string(), 1, 0, 1.0)], vec![]);
 
     let deps = DependencyGraphResolver::dependencies(&workflow, &NodeName("nonexistent".into()));
     assert!(deps.is_empty(), "Non-existent node has no dependencies");
@@ -143,8 +155,8 @@ fn dependencies_returns_empty_for_nonexistent_node() {
 fn dependents_returns_empty_for_node_with_no_outgoing_edges() {
     let workflow = make_workflow(
         "test",
-        vec![("a", 1, 0, 1.0), ("b", 1, 0, 1.0)],
-        vec![("a", "b", EdgeCondition::Always)],
+        vec![("a".to_string(), 1, 0, 1.0), ("b".to_string(), 1, 0, 1.0)],
+        vec![("a".to_string(), "b".to_string(), EdgeCondition::Always)],
     );
 
     let succs = DependencyGraphResolver::dependents(&workflow, &NodeName("b".into()));
@@ -159,8 +171,8 @@ fn dependents_returns_empty_for_node_with_no_outgoing_edges() {
 fn dependents_returns_single_successor() {
     let workflow = make_workflow(
         "test",
-        vec![("a", 1, 0, 1.0), ("b", 1, 0, 1.0)],
-        vec![("a", "b", EdgeCondition::Always)],
+        vec![("a".to_string(), 1, 0, 1.0), ("b".to_string(), 1, 0, 1.0)],
+        vec![("a".to_string(), "b".to_string(), EdgeCondition::Always)],
     );
 
     let succs = DependencyGraphResolver::dependents(&workflow, &NodeName("a".into()));
@@ -179,16 +191,16 @@ fn dependents_returns_all_direct_successors() {
     let workflow = make_workflow(
         "test",
         vec![
-            ("a", 1, 0, 1.0),
-            ("b", 1, 0, 1.0),
-            ("c", 1, 0, 1.0),
-            ("d", 1, 0, 1.0),
+            ("a".to_string(), 1, 0, 1.0),
+            ("b".to_string(), 1, 0, 1.0),
+            ("c".to_string(), 1, 0, 1.0),
+            ("d".to_string(), 1, 0, 1.0),
         ],
         vec![
-            ("a", "b", EdgeCondition::Always),
-            ("a", "c", EdgeCondition::Always),
-            ("b", "d", EdgeCondition::Always),
-            ("c", "d", EdgeCondition::Always),
+            ("a".to_string(), "b".to_string(), EdgeCondition::Always),
+            ("a".to_string(), "c".to_string(), EdgeCondition::Always),
+            ("b".to_string(), "d".to_string(), EdgeCondition::Always),
+            ("c".to_string(), "d".to_string(), EdgeCondition::Always),
         ],
     );
 
@@ -207,7 +219,11 @@ fn dependents_returns_all_direct_successors() {
 fn ready_nodes_returns_source_nodes_when_nothing_completed() {
     let workflow = make_workflow(
         "test",
-        vec![("a", 1, 0, 1.0), ("b", 1, 0, 1.0), ("c", 1, 0, 1.0)],
+        vec![
+            ("a".to_string(), 1, 0, 1.0),
+            ("b".to_string(), 1, 0, 1.0),
+            ("c".to_string(), 1, 0, 1.0),
+        ],
         vec![],
     );
 
@@ -225,10 +241,14 @@ fn ready_nodes_returns_node_when_all_dependencies_completed() {
     // a -> b -> c
     let workflow = make_workflow(
         "test",
-        vec![("a", 1, 0, 1.0), ("b", 1, 0, 1.0), ("c", 1, 0, 1.0)],
         vec![
-            ("a", "b", EdgeCondition::Always),
-            ("b", "c", EdgeCondition::Always),
+            ("a".to_string(), 1, 0, 1.0),
+            ("b".to_string(), 1, 0, 1.0),
+            ("c".to_string(), 1, 0, 1.0),
+        ],
+        vec![
+            ("a".to_string(), "b".to_string(), EdgeCondition::Always),
+            ("b".to_string(), "c".to_string(), EdgeCondition::Always),
         ],
     );
 
@@ -249,10 +269,14 @@ fn ready_nodes_requires_all_dependencies() {
     // b -> c
     let workflow = make_workflow(
         "test",
-        vec![("a", 1, 0, 1.0), ("b", 1, 0, 1.0), ("c", 1, 0, 1.0)],
         vec![
-            ("a", "c", EdgeCondition::Always),
-            ("b", "c", EdgeCondition::Always),
+            ("a".to_string(), 1, 0, 1.0),
+            ("b".to_string(), 1, 0, 1.0),
+            ("c".to_string(), 1, 0, 1.0),
+        ],
+        vec![
+            ("a".to_string(), "c".to_string(), EdgeCondition::Always),
+            ("b".to_string(), "c".to_string(), EdgeCondition::Always),
         ],
     );
 
@@ -278,10 +302,14 @@ fn ready_nodes_excludes_already_completed_nodes() {
     // a -> b -> c
     let workflow = make_workflow(
         "test",
-        vec![("a", 1, 0, 1.0), ("b", 1, 0, 1.0), ("c", 1, 0, 1.0)],
         vec![
-            ("a", "b", EdgeCondition::Always),
-            ("b", "c", EdgeCondition::Always),
+            ("a".to_string(), 1, 0, 1.0),
+            ("b".to_string(), 1, 0, 1.0),
+            ("c".to_string(), 1, 0, 1.0),
+        ],
+        vec![
+            ("a".to_string(), "b".to_string(), EdgeCondition::Always),
+            ("b".to_string(), "c".to_string(), EdgeCondition::Always),
         ],
     );
 
@@ -304,10 +332,14 @@ fn execution_layers_linear_chain() {
     // a -> b -> c
     let workflow = make_workflow(
         "test",
-        vec![("a", 1, 0, 1.0), ("b", 1, 0, 1.0), ("c", 1, 0, 1.0)],
         vec![
-            ("a", "b", EdgeCondition::Always),
-            ("b", "c", EdgeCondition::Always),
+            ("a".to_string(), 1, 0, 1.0),
+            ("b".to_string(), 1, 0, 1.0),
+            ("c".to_string(), 1, 0, 1.0),
+        ],
+        vec![
+            ("a".to_string(), "b".to_string(), EdgeCondition::Always),
+            ("b".to_string(), "c".to_string(), EdgeCondition::Always),
         ],
     );
 
@@ -332,16 +364,16 @@ fn execution_layers_parallel_branches_same_layer() {
     let workflow = make_workflow(
         "test",
         vec![
-            ("a", 1, 0, 1.0),
-            ("b", 1, 0, 1.0),
-            ("c", 1, 0, 1.0),
-            ("d", 1, 0, 1.0),
+            ("a".to_string(), 1, 0, 1.0),
+            ("b".to_string(), 1, 0, 1.0),
+            ("c".to_string(), 1, 0, 1.0),
+            ("d".to_string(), 1, 0, 1.0),
         ],
         vec![
-            ("a", "b", EdgeCondition::Always),
-            ("a", "c", EdgeCondition::Always),
-            ("b", "d", EdgeCondition::Always),
-            ("c", "d", EdgeCondition::Always),
+            ("a".to_string(), "b".to_string(), EdgeCondition::Always),
+            ("a".to_string(), "c".to_string(), EdgeCondition::Always),
+            ("b".to_string(), "d".to_string(), EdgeCondition::Always),
+            ("c".to_string(), "d".to_string(), EdgeCondition::Always),
         ],
     );
 
@@ -370,14 +402,14 @@ fn execution_layers_disconnected_components() {
     let workflow = make_workflow(
         "test",
         vec![
-            ("a", 1, 0, 1.0),
-            ("b", 1, 0, 1.0),
-            ("c", 1, 0, 1.0),
-            ("d", 1, 0, 1.0),
+            ("a".to_string(), 1, 0, 1.0),
+            ("b".to_string(), 1, 0, 1.0),
+            ("c".to_string(), 1, 0, 1.0),
+            ("d".to_string(), 1, 0, 1.0),
         ],
         vec![
-            ("a", "b", EdgeCondition::Always),
-            ("c", "d", EdgeCondition::Always),
+            ("a".to_string(), "b".to_string(), EdgeCondition::Always),
+            ("c".to_string(), "d".to_string(), EdgeCondition::Always),
         ],
     );
 
@@ -393,7 +425,7 @@ fn execution_layers_disconnected_components() {
 // DGR-16: Single node workflow produces single layer
 #[test]
 fn execution_layers_single_node() {
-    let workflow = make_workflow("test", vec![("a", 1, 0, 1.0)], vec![]);
+    let workflow = make_workflow("test", vec![("a".to_string(), 1, 0, 1.0)], vec![]);
     let layers = DependencyGraphResolver::execution_layers(&workflow);
     assert_eq!(layers.len(), 1, "Single node has 1 layer");
     assert_eq!(layers[0].len(), 1);
@@ -412,10 +444,14 @@ fn resolver_operates_on_acyclic_graph() {
     // a -> b -> c (linear chain, clearly acyclic)
     let workflow = make_workflow(
         "test",
-        vec![("a", 1, 0, 1.0), ("b", 1, 0, 1.0), ("c", 1, 0, 1.0)],
         vec![
-            ("a", "b", EdgeCondition::Always),
-            ("b", "c", EdgeCondition::Always),
+            ("a".to_string(), 1, 0, 1.0),
+            ("b".to_string(), 1, 0, 1.0),
+            ("c".to_string(), 1, 0, 1.0),
+        ],
+        vec![
+            ("a".to_string(), "b".to_string(), EdgeCondition::Always),
+            ("b".to_string(), "c".to_string(), EdgeCondition::Always),
         ],
     );
 
@@ -432,15 +468,15 @@ fn transitive_dependents() {
     let workflow = make_workflow(
         "test",
         vec![
-            ("a", 1, 0, 1.0),
-            ("b", 1, 0, 1.0),
-            ("c", 1, 0, 1.0),
-            ("d", 1, 0, 1.0),
+            ("a".to_string(), 1, 0, 1.0),
+            ("b".to_string(), 1, 0, 1.0),
+            ("c".to_string(), 1, 0, 1.0),
+            ("d".to_string(), 1, 0, 1.0),
         ],
         vec![
-            ("a", "b", EdgeCondition::Always),
-            ("b", "c", EdgeCondition::Always),
-            ("c", "d", EdgeCondition::Always),
+            ("a".to_string(), "b".to_string(), EdgeCondition::Always),
+            ("b".to_string(), "c".to_string(), EdgeCondition::Always),
+            ("c".to_string(), "d".to_string(), EdgeCondition::Always),
         ],
     );
 
@@ -469,11 +505,15 @@ fn transitive_dependencies_handles_unvalidated_cyclic_input() {
     // a -> b -> c -> a (cycle)
     let workflow = make_workflow(
         "test",
-        vec![("a", 1, 0, 1.0), ("b", 1, 0, 1.0), ("c", 1, 0, 1.0)],
         vec![
-            ("a", "b", EdgeCondition::Always),
-            ("b", "c", EdgeCondition::Always),
-            ("c", "a", EdgeCondition::Always),
+            ("a".to_string(), 1, 0, 1.0),
+            ("b".to_string(), 1, 0, 1.0),
+            ("c".to_string(), 1, 0, 1.0),
+        ],
+        vec![
+            ("a".to_string(), "b".to_string(), EdgeCondition::Always),
+            ("b".to_string(), "c".to_string(), EdgeCondition::Always),
+            ("c".to_string(), "a".to_string(), EdgeCondition::Always),
         ],
     );
 
@@ -494,10 +534,14 @@ fn transitive_dependencies_handles_unvalidated_cyclic_input() {
 fn dependencies_filters_by_relevant_conditions() {
     let workflow = make_workflow(
         "test",
-        vec![("a", 1, 0, 1.0), ("b", 1, 0, 1.0), ("c", 1, 0, 1.0)],
         vec![
-            ("a", "b", EdgeCondition::Always),
-            ("a", "c", EdgeCondition::OnSuccess), // Only taken on success
+            ("a".to_string(), 1, 0, 1.0),
+            ("b".to_string(), 1, 0, 1.0),
+            ("c".to_string(), 1, 0, 1.0),
+        ],
+        vec![
+            ("a".to_string(), "b".to_string(), EdgeCondition::Always),
+            ("a".to_string(), "c".to_string(), EdgeCondition::OnSuccess), // Only taken on success
         ],
     );
 
@@ -518,10 +562,14 @@ fn dependencies_filters_by_relevant_conditions() {
 fn ready_nodes_considers_success_failure_conditions() {
     let workflow = make_workflow(
         "test",
-        vec![("a", 1, 0, 1.0), ("b", 1, 0, 1.0), ("c", 1, 0, 1.0)],
         vec![
-            ("a", "b", EdgeCondition::OnSuccess), // Only if 'a' succeeds
-            ("a", "c", EdgeCondition::OnFailure), // Only if 'a' fails
+            ("a".to_string(), 1, 0, 1.0),
+            ("b".to_string(), 1, 0, 1.0),
+            ("c".to_string(), 1, 0, 1.0),
+        ],
+        vec![
+            ("a".to_string(), "b".to_string(), EdgeCondition::OnSuccess), // Only if 'a' succeeds
+            ("a".to_string(), "c".to_string(), EdgeCondition::OnFailure), // Only if 'a' fails
         ],
     );
 
@@ -549,8 +597,8 @@ fn ready_nodes_considers_success_failure_conditions() {
 fn ready_nodes_always_edges_ready_after_any_outcome() {
     let workflow = make_workflow(
         "test",
-        vec![("a", 1, 0, 1.0), ("b", 1, 0, 1.0)],
-        vec![("a", "b", EdgeCondition::Always)],
+        vec![("a".to_string(), 1, 0, 1.0), ("b".to_string(), 1, 0, 1.0)],
+        vec![("a".to_string(), "b".to_string(), EdgeCondition::Always)],
     );
 
     // After 'a' completes (success or failure), 'b' should be ready
@@ -579,8 +627,8 @@ fn transitive_dependencies_self_reference_returns_empty() {
     // a -> a (self-dependency)
     let workflow = make_workflow(
         "self-dep",
-        vec![("a", 1, 0, 1.0)],
-        vec![("a", "a", EdgeCondition::Always)],
+        vec![("a".to_string(), 1, 0, 1.0)],
+        vec![("a".to_string(), "a".to_string(), EdgeCondition::Always)],
     );
 
     let result = DependencyGraphResolver::transitive_dependencies(&workflow, &NodeName("a".into()));
@@ -596,7 +644,11 @@ fn execution_layers_no_dependencies() {
     // a, b, c with no edges between them
     let workflow = make_workflow(
         "no-deps",
-        vec![("a", 1, 0, 1.0), ("b", 1, 0, 1.0), ("c", 1, 0, 1.0)],
+        vec![
+            ("a".to_string(), 1, 0, 1.0),
+            ("b".to_string(), 1, 0, 1.0),
+            ("c".to_string(), 1, 0, 1.0),
+        ],
         vec![],
     );
 
@@ -608,7 +660,11 @@ fn execution_layers_no_dependencies() {
 // DGR-27: Ready nodes with no dependencies and no completed nodes
 #[test]
 fn ready_nodes_all_ready_when_no_dependencies() {
-    let workflow = make_workflow("no-deps", vec![("a", 1, 0, 1.0), ("b", 1, 0, 1.0)], vec![]);
+    let workflow = make_workflow(
+        "no-deps",
+        vec![("a".to_string(), 1, 0, 1.0), ("b".to_string(), 1, 0, 1.0)],
+        vec![],
+    );
 
     let ready = DependencyGraphResolver::ready_nodes(&workflow, &[]);
     assert_eq!(ready.len(), 2, "Both nodes should be ready");
@@ -620,10 +676,14 @@ fn transitive_dependents_leaf_node() {
     // a -> b -> c (c is leaf)
     let workflow = make_workflow(
         "leaf-test",
-        vec![("a", 1, 0, 1.0), ("b", 1, 0, 1.0), ("c", 1, 0, 1.0)],
         vec![
-            ("a", "b", EdgeCondition::Always),
-            ("b", "c", EdgeCondition::Always),
+            ("a".to_string(), 1, 0, 1.0),
+            ("b".to_string(), 1, 0, 1.0),
+            ("c".to_string(), 1, 0, 1.0),
+        ],
+        vec![
+            ("a".to_string(), "b".to_string(), EdgeCondition::Always),
+            ("b".to_string(), "c".to_string(), EdgeCondition::Always),
         ],
     );
 
@@ -655,38 +715,36 @@ mod proptest_tests {
         true
     }
 
-    fn dag_strat() -> impl Strategy<Value = (Vec<(&str, u8, u64, f64)>, Vec<(&str, &str)>)> {
-        // Generate 1-6 nodes
+    fn dag_strat() -> impl Strategy<Value = (Vec<(String, u8, u64, f64)>, Vec<(String, String)>)> {
         let node_count = 1..=6u8;
         node_count.prop_flat_map(|n| {
-            let nodes: Vec<(&str, u8, u64, f64)> = (0..n)
+            let nodes: Vec<(String, u8, u64, f64)> = (0..n)
                 .map(|i| {
                     let name = match i {
-                        0 => "a",
-                        1 => "b",
-                        2 => "c",
-                        3 => "d",
-                        4 => "e",
-                        5 => "f",
-                        _ => "x",
+                        0 => "a".to_string(),
+                        1 => "b".to_string(),
+                        2 => "c".to_string(),
+                        3 => "d".to_string(),
+                        4 => "e".to_string(),
+                        5 => "f".to_string(),
+                        _ => "x".to_string(),
                     };
                     (name, 1, 0, 1.0)
                 })
                 .collect();
 
-            // Generate 0 to n*(n-1)/4 edges (sparse graph)
             let max_edges = (n as usize * (n as usize - 1)) / 4;
             let edge_count = 0..=max_edges.max(1);
 
             edge_count.prop_flat_map(move |ec| {
-                let available: Vec<(&str, &str)> = nodes
+                let available: Vec<(String, String)> = nodes
                     .iter()
                     .enumerate()
                     .flat_map(|(i, (src, _, _, _))| {
                         nodes
                             .iter()
                             .skip(i + 1)
-                            .map(move |(dst, _, _, _)| (*src, *dst))
+                            .map(move |(dst, _, _, _)| (src.clone(), dst.clone()))
                             .collect::<Vec<_>>()
                     })
                     .collect();
