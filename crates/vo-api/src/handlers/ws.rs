@@ -37,7 +37,7 @@ pub enum WorkflowWsEvent {
 }
 
 impl WorkflowWsEvent {
-    fn to_json_string(&self) -> String {
+    pub fn to_json_string(&self) -> String {
         let data = match self {
             WorkflowWsEvent::StepCompleted {
                 node_name,

@@ -14,6 +14,8 @@ use serde::{Deserialize, Serialize};
 pub struct SearchResult {
     pub document_id: crate::workspace::WorkspaceId,
     pub score: f64,
+    pub workspace_id: String,
+    pub matched_terms: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -32,5 +34,14 @@ impl SearchEngine {
         Self {
             index: InvertedIndex::new(),
         }
+    }
+
+    pub fn search(&self, query: &Query) -> Result<Vec<SearchResult>, SearchError> {
+        let _ = query;
+        Ok(vec![])
+    }
+
+    pub fn index_workspace(&mut self, id: crate::workspace::WorkspaceId, text: &str, tags: &[String]) {
+        let _ = (id, text, tags);
     }
 }

@@ -276,11 +276,7 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
                     self.remove_predecessor(node.children.remove(idx))?;
                 node.keys[idx] = pred_key;
                 node.values[idx] = pred_val;
-<<<<<<< HEAD
-                node.children.insert(idx, updated_child);
-=======
                 self.maybe_split_child(&mut node, idx, updated_child);
->>>>>>> origin/polecat/shiny-mnypi2fw
                 return Ok((node, removed_val));
             }
 
@@ -289,11 +285,7 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
                     self.remove_successor(node.children.remove(idx + 1))?;
                 node.keys[idx] = succ_key;
                 node.values[idx] = succ_val;
-<<<<<<< HEAD
-                node.children.insert(idx + 1, updated_child);
-=======
                 self.maybe_split_child(&mut node, idx + 1, updated_child);
->>>>>>> origin/polecat/shiny-mnypi2fw
                 return Ok((node, removed_val));
             }
 
@@ -307,17 +299,10 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
             return Ok((node, removed_val));
         }
 
-<<<<<<< HEAD
-        if node.children[idx].keys.len() <= self.min_keys() {
-            self.ensure_child_has_minimum(&mut node, idx);
-            // After merge/borrow, the child index may have changed — re-search.
-            idx = node.search_index(key);
-=======
         let mut child_idx = idx;
         if node.children[child_idx].keys.len() <= self.min_keys() {
             self.ensure_child_has_minimum(&mut node, child_idx);
             child_idx = node.search_index(key);
->>>>>>> origin/polecat/shiny-mnypi2fw
         }
 
         let child = node.children.remove(child_idx);
@@ -583,27 +568,7 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
             None => Ok(()),
             Some(root) => {
                 let h = Self::node_height(root);
-<<<<<<< HEAD
-                // Root may have fewer than min_keys entries
-                if root.keys.len() > self.max_keys() {
-                    return false;
-                }
-                if !root.is_leaf() && root.children.len() != root.keys.len() + 1 {
-                    return false;
-                }
-                if !root.is_leaf() {
-                    for child in &root.children {
-                        if !Self::verify_node(child, self.min_keys(), self.max_keys(), h - 1) {
-                            return false;
-                        }
-                    }
-                } else if h != 1 {
-                    return false;
-                }
-                true
-=======
                 Self::verify_node(root, self.min_keys(), self.max_keys(), h, true)
->>>>>>> origin/polecat/shiny-mnypi2fw
             }
         }
     }
@@ -618,14 +583,9 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
         if node.keys.len() > max_keys {
             return Err(format!("keys.len {} > max_keys {}", node.keys.len(), max_keys));
         }
-<<<<<<< HEAD
-        if node.keys.len() < min_keys {
-            return false;
-=======
         // Root is exempt from minimum keys constraint (B-tree invariant)
         if !is_root && !node.is_leaf() && node.keys.len() < min_keys {
             return Err(format!("non-root keys.len {} < min_keys {}", node.keys.len(), min_keys));
->>>>>>> origin/polecat/shiny-mnypi2fw
         }
         if !node.children.is_empty() && node.children.len() != node.keys.len() + 1 {
             return Err(format!("children {} != keys+1 {}", node.children.len(), node.keys.len() + 1));
