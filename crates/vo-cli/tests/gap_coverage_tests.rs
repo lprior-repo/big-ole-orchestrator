@@ -1990,9 +1990,7 @@ fn check_constants_values() {
 
 #[test]
 fn command_clone_equality() {
-    let cmd = Command::Check {
-        path: PathBuf::from("/test"),
-    };
+    let cmd = Command::Check { workflow: false, path: PathBuf::from("/test"), };
     let cmd2 = cmd.clone();
     assert_eq!(cmd, cmd2);
 }

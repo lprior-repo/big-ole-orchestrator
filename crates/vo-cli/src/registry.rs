@@ -115,14 +115,25 @@ mod handlers {
             &self,
             cli: &Cli,
         ) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + '_>> {
-            let Command::Check { ref path } = cli.command else {
+            let Command::Check { ref path, workflow } = cli.command else {
                 return Box::pin(async {
                     Err(CliError::Dispatch("not a check command".to_string()))
                 });
             };
             let path = path.clone();
+            let workflow = workflow;
             Box::pin(async move {
-                crate::commands::check::run_check(&path)?;
+                if workflow {
+                    let def = crate::commands::check::validate_workflow_spec(&path)?;
+                    println!(
+                        "{}: valid workflow spec '{}' ({} nodes)",
+                        path.display(),
+                        def.workflow_name.as_str(),
+                        def.nodes.as_slice().len()
+                    );
+                } else {
+                    crate::commands::check::run_check(&path)?;
+                }
                 Ok(())
             })
         }
@@ -399,7 +410,7 @@ mod tests {
     fn registry_lookup_returns_handler() {
         let registry = HandlerRegistry::default();
         let cli = Cli {
-            command: Command::Check {
+            command: Command::Check { workflow: false,
                 path: PathBuf::from("/tmp"),
             },
         };

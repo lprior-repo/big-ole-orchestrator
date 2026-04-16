@@ -9,7 +9,7 @@ fn parse_purge_with_instance_flag() {
 #[test]
 fn parse_check_with_path() {
     let cli = interpret_cli_from(["vo", "check", "/tmp/binary"]).unwrap();
-    assert_eq!(cli.command, Command::Check { path: PathBuf::from("/tmp/binary") });
+    assert_eq!(cli.command, Command::Check { workflow: false, path: PathBuf::from("/tmp/binary") });
 }
 #[test]
 fn parse_gc_defaults() {

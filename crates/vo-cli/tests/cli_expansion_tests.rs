@@ -85,7 +85,7 @@ fn parse_doctor_defaults_project_dir_is_dot() {
 fn parse_check_with_special_chars_in_path() {
     let cli = interpret_cli_from(vec!["vo", "check", "/tmp/test@#$/bin"]).expect("parse");
     match cli.command {
-        Command::Check { path } => {
+        Command::Check { workflow: false, path } => {
             assert_eq!(path, PathBuf::from("/tmp/test@#$/bin"));
         }
         _ => panic!("expected Check"),
@@ -96,7 +96,7 @@ fn parse_check_with_special_chars_in_path() {
 fn parse_check_with_unicode_path() {
     let cli = interpret_cli_from(vec!["vo", "check", "/tmp/日本語/binary"]).expect("parse");
     match cli.command {
-        Command::Check { path } => {
+        Command::Check { workflow: false, path } => {
             assert_eq!(path, PathBuf::from("/tmp/日本語/binary"));
         }
         _ => panic!("expected Check"),

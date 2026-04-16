@@ -1,5 +1,7 @@
 use std::path::{Path, PathBuf};
 
+use vo_types::WorkflowDefinition;
+
 pub const ELF_MAGIC: [u8; 4] = [0x7F, 0x45, 0x4C, 0x46];
 pub const MACHO_MAGIC_32_BE: [u8; 4] = [0xFE, 0xED, 0xFA, 0xCE];
 pub const MACHO_MAGIC_32_LE: [u8; 4] = [0xCE, 0xFA, 0xED, 0xFE];
@@ -57,6 +59,9 @@ pub enum CheckError {
         #[source]
         source: std::io::Error,
     },
+
+    #[error("workflow spec validation failed: {message}")]
+    WorkflowSpec { path: PathBuf, message: String },
 }
 
 impl PartialEq for CheckError {
@@ -156,6 +161,27 @@ pub fn validate_binary_header(path: &Path) -> Result<BinaryFormat, CheckError> {
     identify_magic(buf).ok_or_else(|| CheckError::InvalidMagic {
         path: path.to_path_buf(),
         magic: buf,
+    })
+}
+
+pub fn validate_workflow_spec(path: &Path) -> Result<WorkflowDefinition, CheckError> {
+    let contents = std::fs::read(path).map_err(|e| {
+        if e.kind() == std::io::ErrorKind::NotFound {
+            CheckError::FileNotFound {
+                path: path.to_path_buf(),
+            }
+        } else {
+            CheckError::Io {
+                path: path.to_path_buf(),
+                source: e,
+            }
+        }
+    })?;
+
+    let mut de = serde_json::Deserializer::from_slice(&contents);
+    WorkflowDefinition::from_deserializer(&mut de).map_err(|e| CheckError::WorkflowSpec {
+        path: path.to_path_buf(),
+        message: e.to_string(),
     })
 }
 

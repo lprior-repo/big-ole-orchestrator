@@ -261,7 +261,7 @@ fn parse_gc_with_both_flags() {
 fn parse_check_with_relative_path() {
     let cli = interpret_cli_from(vec!["vo", "check", "../bin/workflow"]).expect("parse");
     match &cli.command {
-        Command::Check { path } => {
+        Command::Check { workflow: false, path } => {
             assert_eq!(path, &PathBuf::from("../bin/workflow"));
         }
         _ => panic!("expected Check"),

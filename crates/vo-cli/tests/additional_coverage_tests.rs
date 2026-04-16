@@ -110,17 +110,11 @@ fn gc_summary_construction() {
 
 #[test]
 fn command_equality() {
-    let c1 = Command::Check {
-        path: PathBuf::from("/tmp"),
-    };
-    let c2 = Command::Check {
-        path: PathBuf::from("/tmp"),
-    };
+    let c1 = Command::Check { workflow: false, path: PathBuf::from("/tmp"), };
+    let c2 = Command::Check { workflow: false, path: PathBuf::from("/tmp"), };
     assert_eq!(c1, c2);
 
-    let c3 = Command::Check {
-        path: PathBuf::from("/other"),
-    };
+    let c3 = Command::Check { workflow: false, path: PathBuf::from("/other"), };
     assert_ne!(c1, c3);
 }
 
@@ -326,9 +320,7 @@ fn parse_strict_numeric_rejects_overflow() {
 #[test]
 fn cli_struct_debug_format() {
     let cli = vo_cli::Cli {
-        command: Command::Check {
-            path: PathBuf::from("/tmp"),
-        },
+        command: Command::Check { workflow: false, path: PathBuf::from("/tmp"), },
     };
     let debug = format!("{cli:?}");
     assert!(debug.contains("Check"));
@@ -708,9 +700,7 @@ fn cli_error_from_doctor_error() {
 #[test]
 fn cli_struct_clone_preserves_command() {
     let cli = vo_cli::Cli {
-        command: Command::Check {
-            path: PathBuf::from("/tmp"),
-        },
+        command: Command::Check { workflow: false, path: PathBuf::from("/tmp"), },
     };
     let cloned = cli.clone();
     assert_eq!(cli, cloned);
@@ -746,9 +736,7 @@ async fn dispatcher_dispatch_unknown_command_returns_error() {
     let registry = vo_cli::HandlerRegistry::new();
     let dispatcher = CommandDispatcher::new(registry);
     let cli = vo_cli::Cli {
-        command: Command::Check {
-            path: PathBuf::from("/tmp"),
-        },
+        command: Command::Check { workflow: false, path: PathBuf::from("/tmp"), },
     };
     let result = dispatcher.dispatch(cli).await;
     assert!(result.is_err());

@@ -15,14 +15,14 @@ fn rq_purge_shell_metachars_pass_through_untampered() {
 fn rq_check_backtick_command_substitution_is_literal() {
     let payload = "`cat /etc/shadow`";
     let cli = interpret_cli_from(["vo", "check", payload]).unwrap();
-    assert_eq!(cli.command, Command::Check { path: PathBuf::from(payload) });
+    assert_eq!(cli.command, Command::Check { workflow: false, path: PathBuf::from(payload) });
 }
 
 #[test]
 fn rq_check_null_byte_does_not_truncate() {
     let payload = "safe.txt\0;malware";
     let cli = interpret_cli_from(["vo", "check", payload]).unwrap();
-    assert_eq!(cli.command, Command::Check { path: PathBuf::from(payload) });
+    assert_eq!(cli.command, Command::Check { workflow: false, path: PathBuf::from(payload) });
 }
 
 #[test]
@@ -44,7 +44,7 @@ fn rq_storage_path_traversal_stored_raw() {
 #[test]
 fn rq_double_dash_escape_between_flags() {
     let cli = interpret_cli_from(["vo", "check", "--", "--not-a-flag"]).unwrap();
-    assert_eq!(cli.command, Command::Check { path: PathBuf::from("--not-a-flag") });
+    assert_eq!(cli.command, Command::Check { workflow: false, path: PathBuf::from("--not-a-flag") });
 }
 
 #[test]
@@ -87,7 +87,7 @@ fn rq_compensate_unicode_spoof_id_stored_raw() {
 fn rq_check_right_to_left_override_in_path() {
     let payload = "normal\u{202E}txt.gpj"; // RLO spoof
     let cli = interpret_cli_from(["vo", "check", payload]).unwrap();
-    assert_eq!(cli.command, Command::Check { path: PathBuf::from(payload) });
+    assert_eq!(cli.command, Command::Check { workflow: false, path: PathBuf::from(payload) });
 }
 
 #[test]
@@ -114,7 +114,7 @@ fn rq_unknown_flag_maps_to_exit_2() {
 fn rq_check_path_4kb_accepted() {
     let payload: String = "a".repeat(4096);
     let cli = interpret_cli_from(["vo", "check", &payload]).unwrap();
-    assert_eq!(cli.command, Command::Check { path: PathBuf::from(&payload) });
+    assert_eq!(cli.command, Command::Check { workflow: false, path: PathBuf::from(&payload) });
 }
 
 #[test]

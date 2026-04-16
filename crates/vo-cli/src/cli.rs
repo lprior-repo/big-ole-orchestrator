@@ -35,6 +35,7 @@ pub enum Command {
         instance: String,
     },
     Check {
+        workflow: bool,
         path: PathBuf,
     },
     Compensate {
@@ -96,7 +97,16 @@ where
                     .help("The instance ID to purge"),
             ),
         )
-        .subcommand(clap::Command::new("check").arg(clap::Arg::new("path").required(true).index(1)))
+        .subcommand(
+            clap::Command::new("check")
+                .arg(clap::Arg::new("path").required(true).index(1))
+                .arg(
+                    clap::Arg::new("workflow")
+                        .long("workflow")
+                        .action(clap::ArgAction::SetTrue)
+                        .help("Validate workflow spec JSON instead of binary header"),
+                ),
+        )
         .subcommand(
             clap::Command::new("compensate")
                 .about("Compensate a workflow instance")
@@ -236,8 +246,9 @@ where
                     ))
                 }
             };
+            let workflow = sub_matches.get_flag("workflow");
             Ok(Cli {
-                command: Command::Check { path },
+                command: Command::Check { workflow, path },
             })
         }
         Some(("compensate", sub_matches)) => {
