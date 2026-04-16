@@ -186,7 +186,9 @@ pub enum TransitionEvent {
     ConfirmPublication,
     PublicationFailed,
 
-    // From Completed (terminal - no transitions)
+    // From Completed (terminal but allows EmitOutputRef for post-publication emission)
+    EmitOutputRef,
+
     // From Failed (only InstanceResumed valid)
     InstanceResumed,
     // From Cancelled (terminal - no transitions)
@@ -209,6 +211,7 @@ impl TransitionEvent {
             TransitionEvent::TimerExpired,
             TransitionEvent::ConfirmPublication,
             TransitionEvent::PublicationFailed,
+            TransitionEvent::EmitOutputRef,
             TransitionEvent::InstanceResumed,
         ]
     }
