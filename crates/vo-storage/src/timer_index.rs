@@ -203,7 +203,7 @@ pub fn scan_due_timers(
     let records: Vec<TimerRecord> = pairs
         .into_iter()
         .filter_map(|(k, v)| {
-            let key_bytes: [u8; 40] = k.try_into().ok()?;
+            let key_bytes: [u8; 40] = k.as_slice().try_into().ok()?;
             let key = TimerKey(key_bytes);
             if key.instance_id() != *instance_id {
                 return None;
@@ -274,7 +274,7 @@ pub fn poll_expired_timers(
             break;
         }
 
-        let key_bytes: [u8; 40] = match k.try_into() {
+        let key_bytes: [u8; 40] = match k.as_slice().try_into() {
             Ok(b) => b,
             Err(_) => continue,
         };
@@ -347,7 +347,7 @@ pub fn scan_all_timers_for_instance(
     let records: Vec<TimerRecord> = pairs
         .into_iter()
         .filter_map(|(k, v)| {
-            let key_bytes: [u8; 40] = k.try_into().ok()?;
+            let key_bytes: [u8; 40] = k.as_slice().try_into().ok()?;
             let key = TimerKey(key_bytes);
             if key.instance_id() != *instance_id {
                 return None;
