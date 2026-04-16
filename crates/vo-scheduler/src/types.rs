@@ -123,7 +123,7 @@ pub struct RetryPolicy {
     pub max_delay: Duration,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum RetryPolicyError {
     MaxAttemptsZero,
     BackoffMultiplierBelowOne { value: f64 },
