@@ -35,9 +35,12 @@ pub mod integer_types;
 mod integer_types_tests;
 mod lifecycle_superstate;
 mod lineage;
+<<<<<<< HEAD
 mod euler_tour_tree;
 mod link_cut_tree;
 mod clique_tree;
+=======
+>>>>>>> origin/polecat/shiny-mnypi2fw
 mod macros;
 mod node_kind;
 mod non_empty_vec;
@@ -110,7 +113,6 @@ pub use events::{Error as EventError, EventEnvelope};
 pub use instance_status::InstanceStatus;
 pub use lifecycle_superstate::LifecycleSuperstate;
 pub use lineage::{Epoch, LineageError, LineageState, LineageStatus, WorkflowLineage};
-pub use link_cut_tree::{LctAggregate, LctError, LinkCutTree, Monoid};
 pub use node_kind::NodeKind;
 pub use non_empty_vec::NonEmptyVec;
 pub use plugin::{
@@ -138,6 +140,7 @@ pub use types::{
     MAX_SUPPORTED_SCHEMA_VERSION,
 };
 pub use workflow::{
+    GuaranteeClass,
     next_nodes, DagNode, Edge, EdgeCondition, RetryPolicy, RetryPolicyError,
     StepOutcome, WorkflowDefinition, WorkflowDefinitionError,
 };

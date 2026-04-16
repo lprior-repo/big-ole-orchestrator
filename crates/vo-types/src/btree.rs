@@ -171,6 +171,10 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
             InsertResult::Split(node, median_key, median_val, right)
         } else {
             let idx = node.search_index(&key);
+            if idx < node.keys.len() && node.keys[idx] == key {
+                node.values[idx] = value;
+                return InsertResult::Updated(node);
+            }
             let child = node.children.remove(idx);
             let result = self.insert_recursive(child, key, value);
 
@@ -181,7 +185,7 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
                 }
                 InsertResult::Updated(updated_child) => {
                     node.children.insert(idx, updated_child);
-                    InsertResult::Done(node)
+                    InsertResult::Updated(node)
                 }
                 InsertResult::Split(left, median_key, median_val, right) => {
                     node.keys.insert(idx, median_key);
@@ -212,12 +216,21 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
             return Err(BTreeError::KeyNotFound);
         }
 
+        // Search first to avoid losing root on KeyNotFound error.
+        // delete_recursive takes ownership of the node, so a failed
+        // call would leave self.root as None (taken but never restored).
+        if self.search(key).is_none() {
+            return Err(BTreeError::KeyNotFound);
+        }
+
         let root = self
             .root
             .take()
-            .expect("btree root missing after is_none check");
-        let (updated_root, removed) = self.delete_recursive(root, key)?;
-        self.len -= 1;
+            .expect("btree root missing after search check");
+        let (updated_root, removed) = self
+            .delete_recursive(root, key)
+            .expect("search confirmed key exists");
+        self.len = self.len.saturating_sub(1);
 
         if updated_root.keys.is_empty() {
             if updated_root.is_leaf() {
@@ -263,7 +276,11 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
                     self.remove_predecessor(node.children.remove(idx))?;
                 node.keys[idx] = pred_key;
                 node.values[idx] = pred_val;
+<<<<<<< HEAD
                 node.children.insert(idx, updated_child);
+=======
+                self.maybe_split_child(&mut node, idx, updated_child);
+>>>>>>> origin/polecat/shiny-mnypi2fw
                 return Ok((node, removed_val));
             }
 
@@ -272,7 +289,11 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
                     self.remove_successor(node.children.remove(idx + 1))?;
                 node.keys[idx] = succ_key;
                 node.values[idx] = succ_val;
+<<<<<<< HEAD
                 node.children.insert(idx + 1, updated_child);
+=======
+                self.maybe_split_child(&mut node, idx + 1, updated_child);
+>>>>>>> origin/polecat/shiny-mnypi2fw
                 return Ok((node, removed_val));
             }
 
@@ -282,19 +303,26 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
             let right = node.children.remove(idx);
             let merged = Self::merge_nodes(left, parent_key, parent_val, right);
             let (updated, _) = self.delete_recursive(merged, key)?;
-            node.children.insert(idx, updated);
+            self.maybe_split_child(&mut node, idx, updated);
             return Ok((node, removed_val));
         }
 
+<<<<<<< HEAD
         if node.children[idx].keys.len() <= self.min_keys() {
             self.ensure_child_has_minimum(&mut node, idx);
             // After merge/borrow, the child index may have changed — re-search.
             idx = node.search_index(key);
+=======
+        let mut child_idx = idx;
+        if node.children[child_idx].keys.len() <= self.min_keys() {
+            self.ensure_child_has_minimum(&mut node, child_idx);
+            child_idx = node.search_index(key);
+>>>>>>> origin/polecat/shiny-mnypi2fw
         }
 
-        let child = node.children.remove(idx);
+        let child = node.children.remove(child_idx);
         let (updated_child, removed) = self.delete_recursive(child, key)?;
-        node.children.insert(idx, updated_child);
+        self.maybe_split_child(&mut node, child_idx, updated_child);
         Ok((node, removed))
     }
 
@@ -413,6 +441,42 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
         }
     }
 
+    /// Insert a child back into a parent, splitting it if it exceeds max_keys.
+    /// This handles the case where ensure_child_has_minimum merges two min_keys
+    /// children with a separator, producing 2*min_keys+1 keys which can exceed
+    /// max_keys for odd-order B-trees (e.g., order 3: 1+1+1=3 > max_keys=2).
+    fn maybe_split_child(
+        &self,
+        parent: &mut BTreeNode<K, V>,
+        idx: usize,
+        child: BTreeNode<K, V>,
+    ) {
+        if child.keys.len() <= self.max_keys() {
+            parent.children.insert(idx, child);
+            return;
+        }
+        let mid = child.keys.len() / 2;
+        let mut left = child;
+        let median_key = left.keys.remove(mid);
+        let median_val = left.values.remove(mid);
+        let right = if left.is_leaf() {
+            BTreeNode::leaf(left.keys.split_off(mid), left.values.split_off(mid))
+        } else {
+            BTreeNode {
+                keys: left.keys.split_off(mid),
+                values: left.values.split_off(mid),
+                children: left.children.split_off(mid + 1),
+            }
+        };
+        // Parent cannot overflow here: if ensure_child_has_minimum merged (removing
+        // 1 parent key), the split puts 1 key back, netting zero change. If it
+        // borrowed, no overflow occurs in the child.
+        parent.keys.insert(idx, median_key);
+        parent.values.insert(idx, median_val);
+        parent.children.insert(idx, left);
+        parent.children.insert(idx + 1, right);
+    }
+
     fn merge_nodes(
         left: BTreeNode<K, V>,
         parent_key: K,
@@ -511,10 +575,15 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
 
     #[must_use]
     pub fn verify(&self) -> bool {
+        self.verify_reason().is_ok()
+    }
+
+    fn verify_reason(&self) -> Result<(), String> {
         match self.root.as_ref() {
-            None => true,
+            None => Ok(()),
             Some(root) => {
                 let h = Self::node_height(root);
+<<<<<<< HEAD
                 // Root may have fewer than min_keys entries
                 if root.keys.len() > self.max_keys() {
                     return false;
@@ -532,6 +601,9 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
                     return false;
                 }
                 true
+=======
+                Self::verify_node(root, self.min_keys(), self.max_keys(), h, true)
+>>>>>>> origin/polecat/shiny-mnypi2fw
             }
         }
     }
@@ -541,30 +613,35 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
         min_keys: usize,
         max_keys: usize,
         expected_height: usize,
-    ) -> bool {
+        is_root: bool,
+    ) -> Result<(), String> {
         if node.keys.len() > max_keys {
-            return false;
+            return Err(format!("keys.len {} > max_keys {}", node.keys.len(), max_keys));
         }
+<<<<<<< HEAD
         if node.keys.len() < min_keys {
             return false;
+=======
+        // Root is exempt from minimum keys constraint (B-tree invariant)
+        if !is_root && !node.is_leaf() && node.keys.len() < min_keys {
+            return Err(format!("non-root keys.len {} < min_keys {}", node.keys.len(), min_keys));
+>>>>>>> origin/polecat/shiny-mnypi2fw
         }
         if !node.children.is_empty() && node.children.len() != node.keys.len() + 1 {
-            return false;
+            return Err(format!("children {} != keys+1 {}", node.children.len(), node.keys.len() + 1));
         }
         if node.is_leaf() && expected_height != 1 {
-            return false;
+            return Err(format!("leaf height {} != 1", expected_height));
         }
         if !node.is_leaf() && expected_height <= 1 {
-            return false;
+            return Err(format!("internal height {} <= 1", expected_height));
         }
         if !node.is_leaf() {
             for child in &node.children {
-                if !Self::verify_node(child, min_keys, max_keys, expected_height - 1) {
-                    return false;
-                }
+                Self::verify_node(child, min_keys, max_keys, expected_height - 1, false)?;
             }
         }
-        true
+        Ok(())
     }
 }
 
@@ -1070,5 +1147,30 @@ mod tests {
         for &v in &values {
             assert_eq!(tree.search(&v), Some(&v));
         }
+    }
+
+    // ── Adversarial: worst-case patterns ──
+
+    #[test]
+    fn adversarial_sorted_insertion_500() {
+        let mut tree = BTree::with_order(4);
+        for i in 0..500 {
+            tree.insert(i, i);
+            assert!(tree.verify(), "failed after sorted insert {i}");
+        }
+        assert_eq!(tree.len(), 500);
+        for i in 0..500 {
+            assert_eq!(tree.search(&i), Some(&i));
+        }
+    }
+
+    #[test]
+    fn adversarial_reverse_sorted_insertion() {
+        let mut tree = BTree::with_order(4);
+        for i in (0..500).rev() {
+            tree.insert(i, i);
+            assert!(tree.verify(), "failed after reverse sorted insert {i}");
+        }
+        assert_eq!(tree.len(), 500);
     }
 }
