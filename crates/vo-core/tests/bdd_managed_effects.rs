@@ -1,111 +1,114 @@
 //! BDD tests for managed effect sink contracts (ADR-030).
 
-use vo_core::effects::{commit_effect, is_terminal, rollback_effect};
-use vo_types::effects::{EffectIntent, EffectKind, EffectRecord, Receipt};
-use vo_types::TimestampMs;
+use vo_core::{validate_effect_kinds, validate_workflow_sinks, KnownSinks, WorkflowSinkValidator};
+use vo_types::effects::EffectKind;
 
-fn make_effect(id: &str, status: EffectIntent) -> EffectRecord {
-    EffectRecord::new(
-        id.into(),
+// --- KnownSinks registry ---
+
+#[test]
+fn given_default_sinks_when_queried_then_contains_blob_http_sql() {
+    let validator = WorkflowSinkValidator::new();
+    assert!(validator.known_sinks().contains("blob"));
+    assert!(validator.known_sinks().contains("http"));
+    assert!(validator.known_sinks().contains("sql"));
+    assert_eq!(validator.known_sinks().len(), 3);
+}
+
+#[test]
+fn given_unknown_sink_identifier_when_checked_then_not_found() {
+    let validator = WorkflowSinkValidator::new();
+    assert!(!validator.known_sinks().contains("kafka"));
+    assert!(!validator.known_sinks().contains(""));
+}
+
+// --- Single sink validation ---
+
+#[test]
+fn given_known_sink_when_validated_then_succeeds() {
+    let validator = WorkflowSinkValidator::new();
+    assert!(validator.validate_sink("blob").is_ok());
+    assert!(validator.validate_sink("http").is_ok());
+    assert!(validator.validate_sink("sql").is_ok());
+}
+
+#[test]
+fn given_unknown_sink_when_validated_then_rejects_with_error() {
+    let validator = WorkflowSinkValidator::new();
+    let err = validator.validate_sink("kafka").unwrap_err();
+    assert_eq!(err.error_code(), "unsupported_sink");
+    assert_eq!(err.sink_identifier(), Some("kafka"));
+    let msg = err.to_string();
+    assert!(msg.contains("kafka") && msg.contains("blob"));
+}
+
+#[test]
+fn given_empty_sink_when_validated_then_rejects_as_empty() {
+    let validator = WorkflowSinkValidator::new();
+    let err = validator.validate_sink("").unwrap_err();
+    assert_eq!(err.error_code(), "empty_sink");
+    assert_eq!(err.sink_identifier(), None);
+}
+
+// --- Batch sink validation ---
+
+#[test]
+fn given_all_known_sinks_when_batch_validated_then_succeeds() {
+    assert!(validate_workflow_sinks(["blob", "http", "sql"]).is_ok());
+}
+
+#[test]
+fn given_batch_with_unknown_sink_when_validated_then_returns_first_error() {
+    assert!(validate_workflow_sinks(["blob", "kafka", "sql"]).is_err());
+}
+
+#[test]
+fn given_batch_with_empty_sink_when_validated_then_rejects_immediately() {
+    let err = validate_workflow_sinks(["blob", ""]).unwrap_err();
+    assert_eq!(err.error_code(), "empty_sink");
+}
+
+// --- EffectKind-to-sink mapping ---
+
+#[test]
+fn given_http_call_effect_kind_when_validated_then_maps_to_http_sink() {
+    assert!(validate_effect_kinds([EffectKind::HttpCall]).is_ok());
+}
+
+#[test]
+fn given_sql_query_effect_kind_when_validated_then_maps_to_sql_sink() {
+    assert!(validate_effect_kinds([EffectKind::SqlQuery]).is_ok());
+}
+
+#[test]
+fn given_blob_write_effect_kind_when_validated_then_maps_to_blob_sink() {
+    assert!(validate_effect_kinds([EffectKind::BlobWrite]).is_ok());
+}
+
+#[test]
+fn given_all_effect_kinds_when_validated_then_all_succeed() {
+    assert!(validate_effect_kinds([
         EffectKind::HttpCall,
-        serde_json::json!({}),
-        status,
-        None,
-    )
-    .expect("valid")
+        EffectKind::SqlQuery,
+        EffectKind::BlobWrite,
+    ])
+    .is_ok());
+}
+
+// --- Custom sink registry ---
+
+#[test]
+fn given_custom_sinks_when_validator_created_then_accepts_only_custom() {
+    let custom = KnownSinks::new(["kafka", "redis"]);
+    let validator = WorkflowSinkValidator::with_sinks(custom);
+    assert!(validator.validate_sink("kafka").is_ok());
+    assert!(validator.validate_sink("redis").is_ok());
+    assert!(validator.validate_sink("blob").is_err());
 }
 
 #[test]
-fn given_prepared_effect_when_commit_then_commits_successfully() {
-    let effect = make_effect("fx-001", EffectIntent::Prepared);
-    let committed = commit_effect(&effect, TimestampMs::new_unchecked(1000));
-    assert!(committed.is_ok());
-    assert_eq!(
-        committed.expect("committed").status(),
-        EffectIntent::Committed
-    );
-}
-
-#[test]
-fn given_prepared_effect_when_rollback_then_rolls_back_successfully() {
-    let effect = make_effect("fx-002", EffectIntent::Prepared);
-    let result = rollback_effect(&effect);
-    assert!(result.is_ok());
-    assert_eq!(
-        result.expect("rolled back").status(),
-        EffectIntent::RolledBack
-    );
-}
-
-#[test]
-fn given_committed_effect_when_commit_then_returns_error() {
-    let effect = make_effect("fx-003", EffectIntent::Committed);
-    assert!(commit_effect(&effect, TimestampMs::new_unchecked(2000)).is_err());
-}
-
-#[test]
-fn given_committed_effect_when_rollback_then_returns_error() {
-    let effect = make_effect("fx-004", EffectIntent::Committed);
-    assert!(rollback_effect(&effect).is_err());
-}
-
-#[test]
-fn given_rolled_back_effect_when_commit_then_returns_error() {
-    let effect = make_effect("fx-005", EffectIntent::RolledBack);
-    assert!(commit_effect(&effect, TimestampMs::new_unchecked(3000)).is_err());
-}
-
-#[test]
-fn given_rolled_back_effect_when_rollback_then_returns_error() {
-    let effect = make_effect("fx-006", EffectIntent::RolledBack);
-    assert!(rollback_effect(&effect).is_err());
-}
-
-#[test]
-fn given_effect_when_checking_terminal_then_only_prepared_is_not_terminal() {
-    let prepared = make_effect("fx-007", EffectIntent::Prepared);
-    let committed = make_effect("fx-008", EffectIntent::Committed);
-    let rolled_back = make_effect("fx-009", EffectIntent::RolledBack);
-    assert!(!is_terminal(&prepared));
-    assert!(is_terminal(&committed));
-    assert!(is_terminal(&rolled_back));
-}
-
-#[test]
-fn given_valid_data_when_receipt_created_then_succeeds() {
-    let receipt = Receipt::new(
-        "fx-010".into(),
-        "stripe".into(),
-        "v1".into(),
-        serde_json::json!({}),
-        TimestampMs::new_unchecked(4000),
-    );
-    assert!(receipt.is_some());
-    let r = receipt.expect("valid");
-    assert_eq!(r.effect_id(), "fx-010");
-    assert_eq!(r.connector_type(), "stripe");
-}
-
-#[test]
-fn given_empty_effect_id_when_receipt_created_then_returns_none() {
-    assert!(Receipt::new(
-        "".into(),
-        "stripe".into(),
-        "v1".into(),
-        serde_json::json!({}),
-        TimestampMs::new_unchecked(5000)
-    )
-    .is_none());
-}
-
-#[test]
-fn given_empty_connector_type_when_receipt_created_then_returns_none() {
-    assert!(Receipt::new(
-        "fx-011".into(),
-        "".into(),
-        "v1".into(),
-        serde_json::json!({}),
-        TimestampMs::new_unchecked(6000)
-    )
-    .is_none());
+fn given_empty_custom_registry_when_validated_then_rejects_all_sinks() {
+    let empty = KnownSinks::new([] as [&str; 0]);
+    let validator = WorkflowSinkValidator::with_sinks(empty);
+    assert!(validator.validate_sink("blob").is_err());
+    assert!(validator.validate_sink("http").is_err());
 }
