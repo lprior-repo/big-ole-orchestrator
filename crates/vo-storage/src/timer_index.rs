@@ -274,7 +274,7 @@ pub fn poll_expired_timers(
             break;
         }
 
-        let key_bytes: [u8; 40] = match k.clone().try_into() {
+        let key_bytes: [u8; 40] = match k.try_into() {
             Ok(b) => b,
             Err(_) => continue,
         };
