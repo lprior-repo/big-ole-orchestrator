@@ -384,6 +384,8 @@ pub mod mock_signal_storage {
     pub struct MockSignalStorage {
         persisted: std::sync::Mutex<Vec<SignalAccepted>>,
         should_fail: std::sync::Mutex<bool>,
+        should_fail_remove: std::sync::Mutex<bool>,
+        remove_call_count: std::sync::Mutex<usize>,
     }
 
     impl MockSignalStorage {
@@ -395,13 +397,22 @@ pub mod mock_signal_storage {
             *self.should_fail.lock().unwrap() = should_fail;
         }
 
+        pub fn set_should_fail_remove(&self, should_fail: bool) {
+            *self.should_fail_remove.lock().unwrap() = should_fail;
+        }
+
         pub fn persisted_signals(&self) -> Vec<SignalAccepted> {
             self.persisted.lock().unwrap().clone()
+        }
+
+        pub fn remove_call_count(&self) -> usize {
+            *self.remove_call_count.lock().unwrap()
         }
 
         #[allow(dead_code)]
         pub fn clear(&self) {
             self.persisted.lock().unwrap().clear();
+            *self.remove_call_count.lock().unwrap() = 0;
         }
     }
 
@@ -425,6 +436,13 @@ pub mod mock_signal_storage {
             instance_id: &InstanceId,
             signal_id: &str,
         ) -> Result<(), SignalStorageError> {
+            *self.remove_call_count.lock().unwrap() += 1;
+            if *self.should_fail_remove.lock().unwrap() {
+                return Err(SignalStorageError::DeleteError {
+                    instance_id: instance_id.clone(),
+                    reason: "Mock remove failure".to_string(),
+                });
+            }
             if *self.should_fail.lock().unwrap() {
                 return Err(SignalStorageError::DeleteError {
                     instance_id: instance_id.clone(),
