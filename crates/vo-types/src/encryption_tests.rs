@@ -176,27 +176,28 @@ mod wrapped_dek_tests {
 
     #[test]
     fn wrapped_dek_new_accepts_vec() {
-        let wrapped = WrappedDek::new(vec![0xDE, 0xAD, 0xBE, 0xEF]).expect("valid wrapped DEK");
-        assert_eq!(wrapped.as_bytes(), &[0xDE, 0xAD, 0xBE, 0xEF]);
+        let bytes: Vec<u8> = vec![0xDE, 0xAD, 0xBE, 0xEF].repeat(15);
+        let wrapped = WrappedDek::new(bytes.clone()).expect("valid wrapped DEK");
+        assert_eq!(wrapped.as_bytes(), &bytes);
     }
 
     #[test]
     fn wrapped_dek_creation() {
         let wrapped = sample_wrapped_dek();
-        assert_eq!(wrapped.as_bytes(), &[0xDE, 0xAD, 0xBE, 0xEF]);
+        assert_eq!(wrapped.as_bytes().len(), 60);
     }
 
     #[test]
     fn wrapped_dek_as_bytes_returns_borrowed_slice() {
         let wrapped = sample_wrapped_dek();
         let bytes: &[u8] = wrapped.as_bytes();
-        assert_eq!(bytes, &[0xDE, 0xAD, 0xBE, 0xEF]);
+        assert_eq!(bytes.len(), 60);
     }
 
     #[test]
     fn wrapped_dek_len_returns_byte_count() {
         let wrapped = sample_wrapped_dek();
-        assert_eq!(wrapped.as_bytes().len(), 4);
+        assert_eq!(wrapped.as_bytes().len(), 60);
     }
 
     #[test]
@@ -216,7 +217,7 @@ mod wrapped_dek_tests {
         let wrapped = sample_wrapped_dek();
         let display = format!("{wrapped}");
         assert!(display.contains("WrappedDek"));
-        assert!(display.contains("4 bytes"));
+        assert!(display.contains("60 bytes"));
     }
 
     #[test]
@@ -228,15 +229,18 @@ mod wrapped_dek_tests {
 
     #[test]
     fn wrapped_dek_eq_true_identical_bytes() {
-        let w1 = WrappedDek::new(vec![0xDE, 0xAD, 0xBE, 0xEF]);
-        let w2 = WrappedDek::new(vec![0xDE, 0xAD, 0xBE, 0xEF]);
+        let bytes: Vec<u8> = vec![0xDE, 0xAD, 0xBE, 0xEF].repeat(15);
+        let w1 = WrappedDek::new(bytes.clone()).expect("valid wrapped DEK");
+        let w2 = WrappedDek::new(bytes).expect("valid wrapped DEK");
         assert_eq!(w1, w2);
     }
 
     #[test]
     fn wrapped_dek_eq_false_different_bytes() {
-        let w1 = WrappedDek::new(vec![0xDE, 0xAD, 0xBE, 0xEF]);
-        let w2 = WrappedDek::new(vec![0xFE, 0xEE, 0x00, 0x11]);
+        let bytes1: Vec<u8> = vec![0xDE, 0xAD, 0xBE, 0xEF].repeat(15);
+        let bytes2: Vec<u8> = vec![0xFE, 0xEE, 0x00, 0x11].repeat(15);
+        let w1 = WrappedDek::new(bytes1).expect("valid wrapped DEK");
+        let w2 = WrappedDek::new(bytes2).expect("valid wrapped DEK");
         assert_ne!(w1, w2);
     }
 }

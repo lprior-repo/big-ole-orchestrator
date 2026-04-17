@@ -91,11 +91,6 @@ pub fn apply(
             TransitionEvent::Fail,
         ) => Ok(LifecycleState::Failed),
 
-        // EmitOutputRef is allowed from Completed (post-publication emission)
-        (LifecycleState::Completed, TransitionEvent::EmitOutputRef) => {
-            Ok(LifecycleState::Completed)
-        }
-
         // Terminal states reject all other transitions
         (LifecycleState::Completed | LifecycleState::Failed | LifecycleState::Cancelled, _) => {
             Err(TransitionError::TerminalStateTransition)
