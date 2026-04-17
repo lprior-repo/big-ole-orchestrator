@@ -32,9 +32,9 @@ fn qa_fail_struct_rejected() {
 }
 
 #[test]
-fn qa_fail_arguments_rejected() {
+fn qa_pass_arguments_compiles() {
     let t = TestCases::new();
-    t.compile_fail("tests/qa_ui/fail_arguments.rs");
+    t.pass("tests/qa_ui/fail_arguments.rs");
 }
 
 #[test]

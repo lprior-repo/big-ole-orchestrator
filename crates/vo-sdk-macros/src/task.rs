@@ -10,6 +10,7 @@ pub struct TaskDef {
     pub is_unsafe: bool,
     pub return_type: Option<Type>,
     pub generics: syn::Generics,
+    pub args: Vec<(String, Type)>,
 }
 
 use crate::error::Error;
@@ -28,10 +29,6 @@ pub fn parse_task(item: &TokenStream) -> Result<TaskDef, Error> {
         return Err(Error::ParseFailure);
     };
 
-    if !parsed.sig.inputs.is_empty() {
-        return Err(Error::UnsupportedSignature);
-    }
-
     let has_generics = !parsed.sig.generics.params.is_empty()
         || parsed.sig.generics.lt_token.is_some()
         || parsed.sig.generics.where_clause.is_some();
@@ -39,6 +36,24 @@ pub fn parse_task(item: &TokenStream) -> Result<TaskDef, Error> {
     if has_generics && parsed.sig.asyncness.is_none() {
         return Err(Error::GenericFunction);
     }
+
+    let args: Vec<(String, Type)> = parsed
+        .sig
+        .inputs
+        .iter()
+        .filter_map(|arg| {
+            if let syn::FnArg::Typed(pat_type) = arg {
+                let ident = if let syn::Pat::Ident(ident) = &*pat_type.pat {
+                    ident.ident.to_string()
+                } else {
+                    return None;
+                };
+                Some((ident, (*pat_type.ty).clone()))
+            } else {
+                None
+            }
+        })
+        .collect();
 
     let return_type = match parsed.sig.output {
         syn::ReturnType::Default => None,
@@ -51,6 +66,7 @@ pub fn parse_task(item: &TokenStream) -> Result<TaskDef, Error> {
         is_unsafe: parsed.sig.unsafety.is_some(),
         return_type,
         generics: parsed.sig.generics,
+        args,
     })
 }
 
@@ -63,10 +79,36 @@ pub fn generate_task_entrypoint(task: &TaskDef) -> Result<TokenStream, Error> {
         None => quote::quote! {},
     };
 
+    let arg_idents: Vec<syn::Ident> = task
+        .args
+        .iter()
+        .filter_map(|(name, _)| syn::parse_str::<syn::Ident>(name).ok())
+        .collect();
+
+    let env_bindings: Vec<TokenStream> = task
+        .args
+        .iter()
+        .filter_map(|(name, _)| {
+            let ident = syn::parse_str::<syn::Ident>(name).ok()?;
+            let env_name = name.to_uppercase();
+            Some(quote::quote! {
+                let #ident = std::env::var(#env_name).unwrap_or_default();
+            })
+        })
+        .collect();
+
     let call = if task.is_async {
-        quote::quote! { #ident().await }
+        if arg_idents.is_empty() {
+            quote::quote! { #ident().await }
+        } else {
+            quote::quote! { #ident(#(#arg_idents),*).await }
+        }
     } else {
-        quote::quote! { #ident() }
+        if arg_idents.is_empty() {
+            quote::quote! { #ident() }
+        } else {
+            quote::quote! { #ident(#(#arg_idents),*) }
+        }
     };
 
     let call_or_unsafe = if task.is_unsafe {
@@ -84,19 +126,41 @@ pub fn generate_task_entrypoint(task: &TaskDef) -> Result<TokenStream, Error> {
     let (impl_generics, ty_generics, where_clause) = task.generics.split_for_impl();
 
     let wrapper = if task.is_async {
-        quote::quote! {
-            fn main () #ret_type {
-                let rt = tokio::runtime::Builder::new_current_thread()
-                    .enable_all()
-                    .build()
-                    .expect("Failed to build current-thread runtime");
-                rt.block_on(async { #body })
+        if env_bindings.is_empty() {
+            quote::quote! {
+                fn main (#impl_generics) #ret_type {
+                    let rt = tokio::runtime::Builder::new_current_thread()
+                        .enable_all()
+                        .build()
+                        .expect("Failed to build current-thread runtime");
+                    rt.block_on(async { #body })
+                }
+            }
+        } else {
+            quote::quote! {
+                fn main (#impl_generics) #ret_type {
+                    #(#env_bindings)*
+                    let rt = tokio::runtime::Builder::new_current_thread()
+                        .enable_all()
+                        .build()
+                        .expect("Failed to build current-thread runtime");
+                    rt.block_on(async { #body })
+                }
             }
         }
     } else {
-        quote::quote! {
-            fn main () #ret_type {
-                #body
+        if env_bindings.is_empty() {
+            quote::quote! {
+                fn main (#impl_generics) #ret_type {
+                    #body
+                }
+            }
+        } else {
+            quote::quote! {
+                fn main (#impl_generics) #ret_type {
+                    #(#env_bindings)*
+                    #body
+                }
             }
         }
     };
@@ -141,6 +205,7 @@ mod tests {
             is_unsafe: false,
             return_type: None,
             generics: syn::Generics::default(),
+            args: vec![],
         };
         let result = parse_task(&input);
         assert_eq!(result.unwrap(), expected);
@@ -156,6 +221,7 @@ mod tests {
             is_unsafe: false,
             return_type: Some(expected_ty),
             generics: syn::Generics::default(),
+            args: vec![],
         };
         let result = parse_task(&input);
         assert_eq!(result.unwrap(), expected);
@@ -170,28 +236,48 @@ mod tests {
             is_unsafe: false,
             return_type: None,
             generics: syn::Generics::default(),
+            args: vec![],
         };
         let result = parse_task(&input);
         assert_eq!(result.unwrap(), expected);
     }
 
     #[test]
-    fn parse_task_rejects_exactly_1_argument() {
+    fn parse_task_accepts_single_argument() {
         let input = quote! { fn task(a: i32) {} };
+        let expected_ty: Type = parse_quote!(i32);
+        let expected = TaskDef {
+            ident: "task".to_string(),
+            is_async: false,
+            is_unsafe: false,
+            return_type: None,
+            generics: syn::Generics::default(),
+            args: vec![("a".to_string(), expected_ty)],
+        };
         let result = parse_task(&input);
-        assert_eq!(result, Err(Error::UnsupportedSignature));
+        assert_eq!(result.unwrap(), expected);
     }
 
     #[test]
-    fn parse_task_rejects_maximum_arguments() {
-        let mut args = Vec::new();
-        for i in 0usize..256 {
-            let ident = quote::format_ident!("arg_{}", i);
-            args.push(quote! { #ident: i32 });
-        }
-        let input = quote! { fn task(#(#args),*) {} };
+    fn parse_task_accepts_multiple_arguments() {
+        let input = quote! { fn task(a: i32, b: String, c: Vec<u8>) {} };
+        let expected_a: Type = parse_quote!(i32);
+        let expected_b: Type = parse_quote!(String);
+        let expected_c: Type = parse_quote!(Vec<u8>);
+        let expected = TaskDef {
+            ident: "task".to_string(),
+            is_async: false,
+            is_unsafe: false,
+            return_type: None,
+            generics: syn::Generics::default(),
+            args: vec![
+                ("a".to_string(), expected_a),
+                ("b".to_string(), expected_b),
+                ("c".to_string(), expected_c),
+            ],
+        };
         let result = parse_task(&input);
-        assert_eq!(result, Err(Error::UnsupportedSignature));
+        assert_eq!(result.unwrap(), expected);
     }
 
     #[test]
@@ -202,6 +288,7 @@ mod tests {
             is_unsafe: false,
             return_type: None,
             generics: syn::Generics::default(),
+            args: vec![],
         };
         let expected = quote! { fn main() { a(); } };
         let result = generate_task_entrypoint(&task).unwrap();
@@ -217,6 +304,7 @@ mod tests {
             is_unsafe: false,
             return_type: Some(expected_ty),
             generics: syn::Generics::default(),
+            args: vec![],
         };
         let expected = quote! { fn main() -> Result<(), std::io::Error> { run() } };
         let result = generate_task_entrypoint(&task).unwrap();
@@ -231,6 +319,7 @@ mod tests {
             is_unsafe: false,
             return_type: None,
             generics: syn::Generics::default(),
+            args: vec![],
         };
         let result = generate_task_entrypoint(&task);
         assert!(matches!(result, Err(Error::IdentParsingFailed)));
@@ -244,6 +333,7 @@ mod tests {
             is_unsafe: false,
             return_type: None,
             generics: syn::Generics::default(),
+            args: vec![],
         };
         let result = generate_task_entrypoint(&task);
         assert!(matches!(result, Err(Error::IdentParsingFailed)));
@@ -257,6 +347,7 @@ mod tests {
             is_unsafe: false,
             return_type: None,
             generics: syn::Generics::default(),
+            args: vec![],
         };
         let result = generate_task_entrypoint(&task);
         assert!(matches!(result, Err(Error::IdentParsingFailed)));
@@ -280,6 +371,7 @@ mod tests {
                 is_unsafe: false,
                 return_type: None,
                 generics: syn::Generics::default(),
+                args: vec![],
             };
             let _ = generate_task_entrypoint(&task);
         }
@@ -303,6 +395,7 @@ mod verification {
                 is_unsafe: false,
                 return_type: None,
                 generics: syn::Generics::default(),
+                args: vec![],
             };
             let _ = generate_task_entrypoint(&task);
         }

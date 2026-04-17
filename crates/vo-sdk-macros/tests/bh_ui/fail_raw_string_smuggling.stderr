@@ -1,7 +1,7 @@
-error: task functions cannot have arguments
- --> tests/bh_ui/fail_raw_string_smuggling.rs:3:1
+error[E0277]: the trait bound `Vec<u8>: Termination` is not satisfied
+ --> tests/bh_ui/fail_raw_string_smuggling.rs:4:11
   |
-3 | #[task]
-  | ^^^^^^^
+4 | fn x() -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+  |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `Termination` is not implemented for `Vec<u8>`
   |
-  = note: this error originates in the attribute macro `task` (in Nightly builds, run with -Z macro-backtrace for more info)
+  = note: required for `Result<Vec<u8>, Box<(dyn std::error::Error + 'static)>>` to implement `Termination`
