@@ -126,6 +126,20 @@ impl SchedulerQueue {
         self.jobs.is_empty()
     }
 
+    pub fn list_by_state(&self, state: JobState) -> Vec<&ScheduledJob> {
+        self.jobs
+            .values()
+            .filter(|job| job.state == state)
+            .collect()
+    }
+
+    pub fn list_by_states(&self, states: &[JobState]) -> Vec<&ScheduledJob> {
+        self.jobs
+            .values()
+            .filter(|job| states.contains(&job.state))
+            .collect()
+    }
+
     pub fn pop_due(&mut self, now: DateTime<Utc>) -> Option<ScheduledJob> {
         while let Some(entry) = self.heap.pop() {
             let job_id = entry.job_id;
