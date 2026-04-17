@@ -32,10 +32,11 @@ pub fn parse_task(item: &TokenStream) -> Result<TaskDef, Error> {
         return Err(Error::UnsupportedSignature);
     }
 
-    if !parsed.sig.generics.params.is_empty()
+    let has_generics = !parsed.sig.generics.params.is_empty()
         || parsed.sig.generics.lt_token.is_some()
-        || parsed.sig.generics.where_clause.is_some()
-    {
+        || parsed.sig.generics.where_clause.is_some();
+
+    if has_generics && parsed.sig.asyncness.is_none() {
         return Err(Error::GenericFunction);
     }
 
@@ -84,7 +85,7 @@ pub fn generate_task_entrypoint(task: &TaskDef) -> Result<TokenStream, Error> {
 
     let wrapper = if task.is_async {
         quote::quote! {
-            fn main (#impl_generics) #ret_type #where_clause {
+            fn main () #ret_type {
                 let rt = tokio::runtime::Builder::new_current_thread()
                     .enable_all()
                     .build()
@@ -94,7 +95,7 @@ pub fn generate_task_entrypoint(task: &TaskDef) -> Result<TokenStream, Error> {
         }
     } else {
         quote::quote! {
-            fn main (#impl_generics) #ret_type #where_clause {
+            fn main () #ret_type {
                 #body
             }
         }
