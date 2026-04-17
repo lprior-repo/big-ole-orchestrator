@@ -15,7 +15,7 @@ pub enum WorkflowEvent {
     TimerFired { timer_id: String, timestamp_ms: u64 },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Error)]
+#[derive(Debug, Clone, PartialEq, Eq, Error, Serialize, Deserialize)]
 pub enum VoError {
     #[error("configuration error: {0}")]
     Config(String),
@@ -177,5 +177,45 @@ mod tests {
         };
         let cloned = event.clone();
         assert_eq!(event, cloned);
+    }
+
+    #[test]
+    fn vo_error_json_roundtrip_config() {
+        let err = VoError::config("test config error");
+        let json = serde_json::to_string(&err).expect("should serialize");
+        let deserialized: VoError = serde_json::from_str(&json).expect("should deserialize");
+        assert_eq!(err, deserialized);
+    }
+
+    #[test]
+    fn vo_error_json_roundtrip_internal() {
+        let err = VoError::internal("test internal error");
+        let json = serde_json::to_string(&err).expect("should serialize");
+        let deserialized: VoError = serde_json::from_str(&json).expect("should deserialize");
+        assert_eq!(err, deserialized);
+    }
+
+    #[test]
+    fn vo_error_json_roundtrip_not_found() {
+        let err = VoError::not_found("test resource missing");
+        let json = serde_json::to_string(&err).expect("should serialize");
+        let deserialized: VoError = serde_json::from_str(&json).expect("should deserialize");
+        assert_eq!(err, deserialized);
+    }
+
+    #[test]
+    fn vo_error_json_roundtrip_validation() {
+        let err = VoError::validation("test validation failed");
+        let json = serde_json::to_string(&err).expect("should serialize");
+        let deserialized: VoError = serde_json::from_str(&json).expect("should deserialize");
+        assert_eq!(err, deserialized);
+    }
+
+    #[test]
+    fn vo_error_json_roundtrip_timeout() {
+        let err = VoError::timeout("test timeout 30s");
+        let json = serde_json::to_string(&err).expect("should serialize");
+        let deserialized: VoError = serde_json::from_str(&json).expect("should deserialize");
+        assert_eq!(err, deserialized);
     }
 }
