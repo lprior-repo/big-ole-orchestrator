@@ -6,9 +6,129 @@
 use std::collections::HashMap;
 use std::fmt::Display;
 
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use ulid::Ulid;
+use uuid::Uuid;
 use vo_types::NodeKind;
+
+/// Execution state of a workflow node (ADR-031).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum ExecutionState {
+    Idle,
+    Queued,
+    Running,
+    Completed,
+    Failed,
+    Skipped,
+}
+
+impl ExecutionState {
+    pub const fn status_badge_class(self) -> &'static str {
+        match self {
+            ExecutionState::Idle | ExecutionState::Queued => {
+                "bg-slate-100 text-slate-700 border-slate-200"
+            }
+            ExecutionState::Running => "bg-blue-100 text-blue-700 border-blue-200",
+            ExecutionState::Completed => "bg-green-100 text-green-700 border-green-200",
+            ExecutionState::Failed => "bg-red-100 text-red-700 border-red-200",
+            ExecutionState::Skipped => "bg-slate-100 text-slate-500 border-slate-200",
+        }
+    }
+
+    pub const fn label(self) -> &'static str {
+        match self {
+            ExecutionState::Idle | ExecutionState::Queued => "pending",
+            ExecutionState::Running => "running",
+            ExecutionState::Completed => "completed",
+            ExecutionState::Failed => "failed",
+            ExecutionState::Skipped => "skipped",
+        }
+    }
+}
+
+/// Port name for connections between nodes.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct PortName(pub String);
+
+impl From<&str> for PortName {
+    fn from(s: &str) -> Self {
+        Self(s.to_string())
+    }
+}
+
+impl From<String> for PortName {
+    fn from(s: String) -> Self {
+        Self(s)
+    }
+}
+
+impl From<PortName> for String {
+    fn from(port: PortName) -> Self {
+        port.0
+    }
+}
+
+impl Display for PortName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+/// Connection between two nodes (ADR-031).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Connection {
+    pub id: Uuid,
+    pub source: NodeId,
+    pub target: NodeId,
+    pub source_port: PortName,
+    pub target_port: PortName,
+}
+
+/// Run record for a workflow execution (ADR-031).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RunRecord {
+    pub id: Uuid,
+    pub timestamp: DateTime<Utc>,
+    pub results: HashMap<NodeId, serde_json::Value>,
+    pub success: bool,
+}
+
+/// Workflow node configuration variants (ADR-031).
+pub mod workflow_node {
+    use serde::{Deserialize, Serialize};
+
+    #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+    pub struct RunConfig {}
+
+    #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+    pub struct ParallelConfig {}
+
+    #[derive(Debug, Clone, Serialize, Deserialize)]
+    #[serde(tag = "type", rename_all = "kebab-case")]
+    pub enum WorkflowNode {
+        Run(RunConfig),
+        Parallel(ParallelConfig),
+    }
+
+    impl Default for WorkflowNode {
+        fn default() -> Self {
+            Self::Run(RunConfig::default())
+        }
+    }
+
+    impl WorkflowNode {
+        pub fn from_str(s: &str) -> Result<Self, ()> {
+            match s {
+                "run" => Ok(Self::Run(RunConfig::default())),
+                "parallel" => Ok(Self::Parallel(ParallelConfig::default())),
+                _ => Err(()),
+            }
+        }
+    }
+}
+
+use workflow_node::WorkflowNode;
 
 /// Unique identifier for a graph node.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -125,6 +245,7 @@ pub struct Node {
     pub x: f64,
     pub y: f64,
     pub config: serde_json::Value,
+    pub execution_state: ExecutionState,
 }
 
 impl Node {
@@ -143,6 +264,38 @@ impl Node {
             x: 0.0,
             y: 0.0,
             config: serde_json::Value::Object(Default::default()),
+            execution_state: ExecutionState::Idle,
+        }
+    }
+
+    /// Create a node from a workflow node variant.
+    #[must_use]
+    pub fn from_workflow_node(name: String, workflow_node: WorkflowNode, x: f64, y: f64) -> Self {
+        let (kind, category, icon) = match workflow_node {
+            WorkflowNode::Run(_) => {
+                let kind = NodeKind::ManagedEffect;
+                let category = node_kind_to_category(kind);
+                let icon = category_to_icon(category);
+                (kind, category, icon)
+            }
+            WorkflowNode::Parallel(_) => {
+                let kind = NodeKind::Pure;
+                let category = node_kind_to_category(kind);
+                let icon = category_to_icon(category);
+                (kind, category, icon)
+            }
+        };
+        Self {
+            id: NodeId::new(),
+            name,
+            description: String::new(),
+            kind,
+            category,
+            icon,
+            x,
+            y,
+            config: serde_json::Value::Object(Default::default()),
+            execution_state: ExecutionState::Idle,
         }
     }
 
@@ -183,6 +336,7 @@ fn category_to_icon(category: NodeCategory) -> String {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Workflow {
     pub nodes: Vec<Node>,
+    pub connections: Vec<Connection>,
     pub name: String,
 }
 
@@ -192,6 +346,7 @@ impl Workflow {
     pub fn new(name: String) -> Self {
         Self {
             nodes: Vec::new(),
+            connections: Vec::new(),
             name,
         }
     }
