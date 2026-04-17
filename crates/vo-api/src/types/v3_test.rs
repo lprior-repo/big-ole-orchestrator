@@ -1,4 +1,5 @@
 #[allow(clippy::unwrap_used, clippy::expect_used)]
+use super::errors::ApiError;
 use super::v3::*;
 
 #[test]

@@ -51,23 +51,6 @@ pub struct V3SignalRequest {
     pub payload: serde_json::Value,
 }
 
-/// Generic API error response.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ApiError {
-    pub error: String,
-    pub message: String,
-}
-
-impl ApiError {
-    #[must_use]
-    pub fn new(error: impl Into<String>, message: impl Into<String>) -> Self {
-        Self {
-            error: error.into(),
-            message: message.into(),
-        }
-    }
-}
-
 /// Single entry in the timeline for a workflow instance (ADR-007).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TimelineEntry {
@@ -251,13 +234,6 @@ mod tests {
         let json = serde_json::to_string(&req).unwrap();
         let back: V3SignalRequest = serde_json::from_str(&json).unwrap();
         assert_eq!(back.signal_name, "approve");
-    }
-
-    #[test]
-    fn api_error_new() {
-        let err = ApiError::new("not_found", "workflow missing");
-        assert_eq!(err.error, "not_found");
-        assert_eq!(err.message, "workflow missing");
     }
 
     #[test]
