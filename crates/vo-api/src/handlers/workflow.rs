@@ -9,10 +9,9 @@ use ractor::rpc::CallResult;
 use ractor::ActorRef;
 use serde::{Deserialize, Serialize};
 use ulid::Ulid;
-use vo_actor::{CompensateError, InstancePhaseView, OrchestratorMsg, StartError, TerminateError};
-use vo_common::{InstanceId, NamespaceId};
-use vo_core::circuit_breaker::{unquarantine, CircuitBreakerConfig, CircuitBreakerState};
-use vo_types::{BinaryHash, WorkflowName};
+use vo_actor::{OrchestratorMsg, StartError, TerminateError};
+use vo_common::NamespaceId;
+use vo_types::WorkflowName;
 
 use crate::types::{ApiError, V3StartRequest, V3StartResponse, V3StatusResponse, WorkloadRejectionError};
 use crate::handlers::helpers::{parse_paradigm, split_path_id, paradigm_to_str, phase_to_str};
@@ -55,7 +54,7 @@ pub async fn start_workflow(
     Json(req): Json<V3StartRequest>,
 ) -> impl IntoResponse {
     // Validate dedupe key is present for exact workflow ingress (ADR-028).
-    let dedupe_key = match req.dedupe_key {
+    let _dedupe_key = match req.dedupe_key {
         Some(ref key) if !key.is_empty() => key.clone(),
         _ => {
             return (
@@ -406,7 +405,7 @@ pub async fn list_workflows(
 pub async fn unquarantine_workflow(
     Extension(_master): Extension<ActorRef<OrchestratorMsg>>,
     Path(id): Path<String>,
-    Json(req): Json<UnquarantineRequest>,
+    Json(_req): Json<UnquarantineRequest>,
 ) -> impl IntoResponse {
     // Parse workflow name from path
     let (_, instance_id) = match split_path_id(&id) {
@@ -424,7 +423,7 @@ pub async fn unquarantine_workflow(
     };
 
     // Parse workflow name
-    let workflow_name = match WorkflowName::parse(&instance_id.to_string()) {
+    let _workflow_name = match WorkflowName::parse(&instance_id.to_string()) {
         Ok(name) => name,
         Err(_) => {
             return (
@@ -519,7 +518,6 @@ pub async fn compensate_workflow(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::handlers::helpers::split_path_id;
 
     #[test]
