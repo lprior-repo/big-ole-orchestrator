@@ -37,5 +37,33 @@ harness = false
 name = "circuit_breaker_load_bench"
 harness = false
 
+[[bench]]
+name = "effects_bench"
+harness = false
+
+[[bench]]
+name = "compensation_order_bench"
+harness = false
+
+[[bench]]
+name = "validation_bench"
+harness = false
+
+[[bench]]
+name = "vault_bench"
+harness = false
+
+[[bench]]
+name = "lease_calc_bench"
+harness = false
+
+[[bench]]
+name = "ghost_workflow_bench"
+harness = false
+
+[[bench]]
+name = "saga_state_bench"
+harness = false
+
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(kani)'] }

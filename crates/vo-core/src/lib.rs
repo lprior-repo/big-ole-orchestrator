@@ -33,6 +33,8 @@ pub mod debounce;
 pub mod effects;
 pub mod exact_once_verification;
 pub mod execution;
+pub mod ghost_workflow;
+pub mod lease_calc;
 pub mod quadtree;
 pub mod recovery;
 pub mod replay;
@@ -45,6 +47,7 @@ pub mod validation;
 pub mod vault;
 pub mod workflow_version;
 pub mod workload_class;
+pub mod saga;
 pub mod workspace_swap;
 pub mod write_class;
 
