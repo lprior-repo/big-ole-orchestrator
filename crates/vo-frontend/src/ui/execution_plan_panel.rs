@@ -4,11 +4,11 @@
 #![warn(clippy::pedantic)]
 #![forbid(unsafe_code)]
 
+use crate::ui::graph::{Connection, ExecutionState, Node, NodeId, PortName, Workflow};
 use crate::ui::panel_types::{
     chevron_rotation_class, panel_height_class, CollapseState, InvocationStatus,
 };
 use dioxus::prelude::*;
-use oya_frontend::graph::{ExecutionState, Node, NodeId, Workflow};
 use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -52,12 +52,16 @@ fn compare_node_ids(a: &NodeId, b: &NodeId, nodes: &HashMap<NodeId, Node>) -> st
 }
 
 fn build_plan_snapshot(workflow: &Workflow) -> PlanSnapshot {
-    let nodes: HashMap<NodeId, Node> = workflow.nodes.iter().map(|n| (n.id, n.clone())).collect();
-    let node_ids: HashSet<NodeId> = nodes.keys().copied().collect();
-    let mut indegree: HashMap<NodeId, usize> = node_ids.iter().map(|id| (*id, 0)).collect();
+    let nodes: HashMap<NodeId, Node> = workflow
+        .nodes
+        .iter()
+        .map(|n| (n.id.clone(), n.clone()))
+        .collect();
+    let node_ids: HashSet<NodeId> = nodes.keys().cloned().collect();
+    let mut indegree: HashMap<NodeId, usize> = node_ids.iter().map(|id| (id.clone(), 0)).collect();
     let mut outgoing: HashMap<NodeId, Vec<NodeId>> = node_ids
         .iter()
-        .map(|id| (*id, Vec::<NodeId>::new()))
+        .map(|id| (id.clone(), Vec::<NodeId>::new()))
         .collect();
 
     workflow.connections.iter().for_each(|edge| {
@@ -66,14 +70,14 @@ fn build_plan_snapshot(workflow: &Workflow) -> PlanSnapshot {
                 *count += 1;
             }
             if let Some(targets) = outgoing.get_mut(&edge.source) {
-                targets.push(edge.target);
+                targets.push(edge.target.clone());
             }
         }
     });
 
     let mut available: Vec<NodeId> = indegree
         .iter()
-        .filter_map(|(id, count)| if *count == 0 { Some(*id) } else { None })
+        .filter_map(|(id, count)| if *count == 0 { Some(id.clone()) } else { None })
         .collect();
     available.sort_by(|a, b| compare_node_ids(a, b, &nodes));
 
@@ -86,7 +90,7 @@ fn build_plan_snapshot(workflow: &Workflow) -> PlanSnapshot {
         available.clear();
 
         for id in &current {
-            visited.insert(*id).unwrap();
+            visited.insert(id.clone());
             if let Some(targets) = outgoing.get(id) {
                 for target in targets {
                     if let Some(count) = indegree.get_mut(target) {
@@ -100,7 +104,7 @@ fn build_plan_snapshot(workflow: &Workflow) -> PlanSnapshot {
             .iter()
             .filter_map(|(id, count)| {
                 if *count == 0 && !visited.contains(id) {
-                    Some(*id)
+                    Some(id.clone())
                 } else {
                     None
                 }
@@ -114,7 +118,7 @@ fn build_plan_snapshot(workflow: &Workflow) -> PlanSnapshot {
         .iter()
         .filter_map(|(id, count)| {
             if *count > 0 && !visited.contains(id) {
-                Some(*id)
+                Some(id.clone())
             } else {
                 None
             }
@@ -176,7 +180,7 @@ pub fn ExecutionPlanPanel(
                         div { class: "rounded border border-slate-200 bg-slate-50 p-2 space-y-1",
                             for (idx, node_id) in queue.iter().enumerate() {
                                 QueueItem {
-                                    node_id: *node_id,
+                                    node_id: node_id.clone(),
                                     index: idx,
                                     is_current: idx == current_step,
                                     nodes_by_id,
@@ -235,7 +239,7 @@ fn QueueItem(
         button {
             class: "flex w-full items-center gap-2 rounded px-2 py-1 text-left hover:bg-white {active_class}",
             key: "q-{index}",
-            onclick: move |_| on_select_node.call(node_id),
+            onclick: move |_| on_select_node.call(node_id.clone()),
             span { class: "font-mono text-[10px] text-slate-500 w-8", "#{index}" }
             span { class: "text-[11px] text-slate-700 flex-1 truncate", "{label}" }
             span { class: "text-[10px] px-1.5 py-0.5 rounded border {badge}", "{status.display_label()}" }
@@ -256,7 +260,7 @@ fn LayerSection(
             div { class: "p-1 space-y-1",
                 for node_id in &layer {
                     LayerNodeItem {
-                        node_id: *node_id,
+                        node_id: node_id.clone(),
                         nodes_by_id,
                         on_select_node
                     }
@@ -285,7 +289,7 @@ fn LayerNodeItem(
         button {
             class: "flex w-full items-center gap-2 rounded px-2 py-1 text-left hover:bg-slate-50",
             key: "node-{node_id}",
-            onclick: move |_| on_select_node.call(node_id),
+            onclick: move |_| on_select_node.call(node_id.clone()),
             span { class: "text-[11px] text-slate-700 flex-1 truncate", "{label}" }
             span { class: "text-[10px] px-1.5 py-0.5 rounded border {badge}", "{status.display_label()}" }
         }
@@ -303,23 +307,21 @@ fn UnscheduledSection(
             p { class: "text-[10px] font-semibold text-amber-800 uppercase tracking-wide", "Unscheduled" }
             p { class: "text-[10px] text-amber-700 mt-0.5", "Cycle or blocked dependency detected." }
             div { class: "mt-1 space-y-1",
-                for node_id in &unscheduled {
-                    {
-                        let label = nodes_by_id
-                            .read()
-                            .get(node_id)
-                            .map_or_else(|| "Unknown".to_string(), |n| n.name.clone());
-
-                        rsx! {
-                            button {
-                                class: "w-full rounded bg-white/70 px-2 py-1 text-left text-[10px] text-amber-900 hover:bg-white",
-                                key: "unsched-{node_id}",
-                                onclick: move |_| on_select_node.call(*node_id),
-                                "{label}"
-                            }
+                {unscheduled.iter().map(|node_id| {
+                    let label = nodes_by_id
+                        .read()
+                        .get(node_id)
+                        .map_or_else(|| "Unknown".to_string(), |n| n.name.clone());
+                    let node_id_clone = node_id.clone();
+                    rsx! {
+                        button {
+                            class: "w-full rounded bg-white/70 px-2 py-1 text-left text-[10px] text-amber-900 hover:bg-white",
+                            key: "unsched-{node_id_clone}",
+                            onclick: move |_| on_select_node.call(node_id_clone.clone()),
+                            "{label}"
                         }
                     }
-                }
+                })}
             }
         }
     }
@@ -327,18 +329,25 @@ fn UnscheduledSection(
 
 #[cfg(test)]
 mod tests {
-    use super::{build_plan_snapshot, node_invocation_status, InvocationStatus};
-    use oya_frontend::graph::{ExecutionState, Workflow};
+    use super::{
+        build_plan_snapshot, node_invocation_status, Connection, ExecutionState, InvocationStatus,
+        PortName, Workflow,
+    };
+    use uuid::Uuid;
 
     #[test]
     fn given_simple_chain_when_building_plan_then_layers_follow_dependency_order() {
-        let mut workflow = Workflow::new();
-        let a = workflow.add_node("http-handler", 0.0, 0.0);
-        let b = workflow.add_node("run", 300.0, 0.0);
-        let c = workflow.add_node("run", 600.0, 0.0);
-        let main = oya_frontend::graph::PortName::from("main");
-        workflow.add_connection(a, b, &main, &main).unwrap();
-        workflow.add_connection(b, c, &main, &main).unwrap();
+        let mut workflow = Workflow::new_test();
+        let a = workflow.add_node_simple("http-handler", 0.0, 0.0);
+        let b = workflow.add_node_simple("run", 300.0, 0.0);
+        let c = workflow.add_node_simple("run", 600.0, 0.0);
+        let main = PortName::from("main");
+        workflow
+            .add_connection(a.clone(), b.clone(), &main, &main)
+            .unwrap();
+        workflow
+            .add_connection(b.clone(), c.clone(), &main, &main)
+            .unwrap();
 
         let snapshot = build_plan_snapshot(&workflow);
 
@@ -351,9 +360,9 @@ mod tests {
 
     #[test]
     fn given_parallel_starts_when_building_plan_then_both_nodes_in_same_layer() {
-        let mut workflow = Workflow::new();
-        let left = workflow.add_node("run", 100.0, 0.0);
-        let right = workflow.add_node("run", 400.0, 0.0);
+        let mut workflow = Workflow::new_test();
+        let left = workflow.add_node_simple("run", 100.0, 0.0);
+        let right = workflow.add_node_simple("run", 400.0, 0.0);
 
         let snapshot = build_plan_snapshot(&workflow);
 
@@ -365,22 +374,23 @@ mod tests {
 
     #[test]
     fn given_cycle_when_building_plan_then_unscheduled_nodes_are_reported() {
-        let mut workflow = Workflow::new();
-        let a = workflow.add_node("run", 0.0, 0.0);
-        let b = workflow.add_node("run", 100.0, 0.0);
-        workflow.connections.push(oya_frontend::graph::Connection {
-            id: uuid::Uuid::new_v4(),
-            source: a,
-            target: b,
-            source_port: oya_frontend::graph::PortName::from("main"),
-            target_port: oya_frontend::graph::PortName::from("main"),
+        let mut workflow = Workflow::new_test();
+        let a = workflow.add_node_simple("run", 0.0, 0.0);
+        let b = workflow.add_node_simple("run", 100.0, 0.0);
+        let main = PortName::from("main");
+        workflow.connections.push(Connection {
+            id: Uuid::new_v4(),
+            source: a.clone(),
+            target: b.clone(),
+            source_port: main.clone(),
+            target_port: main.clone(),
         });
-        workflow.connections.push(oya_frontend::graph::Connection {
-            id: uuid::Uuid::new_v4(),
+        workflow.connections.push(Connection {
+            id: Uuid::new_v4(),
             source: b,
             target: a,
-            source_port: oya_frontend::graph::PortName::from("main"),
-            target_port: oya_frontend::graph::PortName::from("main"),
+            source_port: main.clone(),
+            target_port: main,
         });
 
         let snapshot = build_plan_snapshot(&workflow);
@@ -391,8 +401,8 @@ mod tests {
 
     #[test]
     fn given_failed_node_when_getting_invocation_status_then_failed_is_returned() {
-        let mut workflow = Workflow::new();
-        let id = workflow.add_node("run", 0.0, 0.0);
+        let mut workflow = Workflow::new_test();
+        let id = workflow.add_node_simple("run", 0.0, 0.0);
 
         let maybe_node = workflow.nodes.iter_mut().find(|n| n.id == id);
         if let Some(node) = maybe_node {
@@ -403,8 +413,8 @@ mod tests {
 
     #[test]
     fn given_queued_node_when_getting_invocation_status_then_queued_is_returned() {
-        let mut workflow = Workflow::new();
-        let id = workflow.add_node("run", 0.0, 0.0);
+        let mut workflow = Workflow::new_test();
+        let id = workflow.add_node_simple("run", 0.0, 0.0);
 
         let maybe_node = workflow.nodes.iter_mut().find(|n| n.id == id);
         if let Some(node) = maybe_node {
