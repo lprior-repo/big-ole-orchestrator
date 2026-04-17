@@ -4,9 +4,10 @@
 //! through the actual FD-based code paths.
 //!
 //! Note: Full FD mocking is complex due to Rust File ownership and atomic guards.
-//! Tests that require setting up FD3/FD4 with dup2 are limited - the existing unit tests
-//! (329 tests in --lib) provide comprehensive coverage of the inner parsing/logic via
-//! the `*_inner_with_state` variants.
+//! Tests that require setting up FD3/FD4 with dup2 spawn a subprocess helper binary
+//! because the SDK uses process-level static guards (IS_READ/IS_WRITTEN) that can only
+//! be triggered once per process. The existing unit tests (329 tests in --lib) provide
+//! comprehensive coverage of the inner parsing/logic via the `*_inner_with_state` variants.
 
 mod fd_mock;
 
@@ -322,4 +323,64 @@ fn write_failure_cannot_be_followed_by_write_success() {
         matches!(second, Err(SdkError::AlreadyWritten)),
         "write_success after write_failure should fail with AlreadyWritten"
     );
+}
+
+fn run_fd_helper(test_name: &str) -> Result<String, String> {
+    let manifest_path = std::env::var("CARGO_MANIFEST_PATH")
+        .ok()
+        .unwrap_or_else(|| "Cargo.toml".to_string());
+
+    let crate_dir = std::path::Path::new(&manifest_path).parent().unwrap();
+    let output = std::process::Command::new("cargo")
+        .args(["run", "--example", "fd_test_helper", "--", test_name])
+        .current_dir(crate_dir)
+        .output()
+        .map_err(|e| format!("failed to spawn cargo: {}", e))?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+
+    if !output.status.success() {
+        return Err(format!(
+            "Helper exited with {}: stdout={} stderr={}",
+            output.status, stdout, stderr
+        ));
+    }
+
+    Ok(stdout)
+}
+
+#[test]
+fn read_input_with_fd3_mock_succeeds() {
+    let result = run_fd_helper("read_input_with_fd3");
+    assert!(result.is_ok(), "Expected Ok, got {:?}", result);
+    assert!(result.unwrap().contains("PASS"));
+}
+
+#[test]
+fn write_success_with_fd4_mock_succeeds() {
+    let result = run_fd_helper("write_success_with_fd4");
+    assert!(result.is_ok(), "Expected Ok, got {:?}", result);
+    assert!(result.unwrap().contains("PASS"));
+}
+
+#[test]
+fn write_failure_with_fd4_mock_succeeds() {
+    let result = run_fd_helper("write_failure_with_fd4");
+    assert!(result.is_ok(), "Expected Ok, got {:?}", result);
+    assert!(result.unwrap().contains("PASS"));
+}
+
+#[test]
+fn double_read_blocked_via_fd_mock() {
+    let result = run_fd_helper("double_read_blocked_via_fd");
+    assert!(result.is_ok(), "Expected Ok, got {:?}", result);
+    assert!(result.unwrap().contains("PASS"));
+}
+
+#[test]
+fn double_write_blocked_via_fd_mock() {
+    let result = run_fd_helper("double_write_blocked_via_fd");
+    assert!(result.is_ok(), "Expected Ok, got {:?}", result);
+    assert!(result.unwrap().contains("PASS"));
 }
