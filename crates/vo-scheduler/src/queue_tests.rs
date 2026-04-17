@@ -515,3 +515,75 @@ fn peek_skips_failed_and_completed_jobs() {
     let peeked = queue.peek(Utc::now());
     assert_eq!(peeked.unwrap().id, job2_id);
 }
+
+#[test]
+fn list_by_state_returns_matching_jobs() {
+    let mut queue = SchedulerQueue::new(100);
+    let job1 = make_job(JobPriority::Normal, SchedulePolicy::Immediate);
+    let job2 = make_job(JobPriority::Normal, SchedulePolicy::Immediate);
+    let id1 = job1.id;
+    let id2 = job2.id;
+    queue.insert(job1).unwrap();
+    queue.insert(job2).unwrap();
+
+    queue.update_state(&id1, JobState::Running).unwrap();
+
+    let running = queue.list_by_state(JobState::Running);
+    assert_eq!(running.len(), 1);
+    assert_eq!(running[0].id, id1);
+
+    let pending = queue.list_by_state(JobState::Pending);
+    assert_eq!(pending.len(), 1);
+    assert_eq!(pending[0].id, id2);
+}
+
+#[test]
+fn list_by_state_returns_empty_for_nonexistent_state() {
+    let queue = SchedulerQueue::new(10);
+    let result = queue.list_by_state(JobState::Completed);
+    assert!(result.is_empty());
+}
+
+#[test]
+fn list_by_states_returns_jobs_in_multiple_states() {
+    let mut queue = SchedulerQueue::new(100);
+    let job1 = make_job(JobPriority::Normal, SchedulePolicy::Immediate);
+    let job2 = make_job(JobPriority::Normal, SchedulePolicy::Immediate);
+    let job3 = make_job(JobPriority::Normal, SchedulePolicy::Immediate);
+    let id1 = job1.id;
+    let id2 = job2.id;
+    queue.insert(job1).unwrap();
+    queue.insert(job2).unwrap();
+    queue.insert(job3).unwrap();
+
+    queue.update_state(&id1, JobState::Running).unwrap();
+    queue.update_state(&id2, JobState::Running).unwrap();
+    queue.update_state(&id2, JobState::Failed).unwrap();
+
+    let results = queue.list_by_states(&[JobState::Running, JobState::Failed]);
+    assert_eq!(results.len(), 2);
+
+    let ids: Vec<_> = results.iter().map(|j| j.id).collect();
+    assert!(ids.contains(&id1));
+    assert!(ids.contains(&id2));
+}
+
+#[test]
+fn list_by_states_returns_empty_when_no_matches() {
+    let mut queue = SchedulerQueue::new(100);
+    let job = make_job(JobPriority::Normal, SchedulePolicy::Immediate);
+    queue.insert(job).unwrap();
+
+    let results = queue.list_by_states(&[JobState::Completed, JobState::Cancelled]);
+    assert!(results.is_empty());
+}
+
+#[test]
+fn list_by_states_with_empty_slice_returns_nothing() {
+    let mut queue = SchedulerQueue::new(100);
+    let job = make_job(JobPriority::Normal, SchedulePolicy::Immediate);
+    queue.insert(job).unwrap();
+
+    let results = queue.list_by_states(&[]);
+    assert!(results.is_empty());
+}
