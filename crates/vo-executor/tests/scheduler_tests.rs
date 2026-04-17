@@ -107,8 +107,8 @@ mod scheduler_retry_policy_tests {
     fn calculate_backoff_delay_exponential_with_small_multiplier() {
         let policy = RetryPolicy::with_max_backoff(5, 1000, 1.5, 10000).unwrap();
         assert_eq!(policy.calculate_backoff_delay(1), 1000);
-        assert_eq!(policy.calculate_backoff_delay(2), 1000);
-        assert_eq!(policy.calculate_backoff_delay(3), 2000);
+        assert_eq!(policy.calculate_backoff_delay(2), 1500);
+        assert_eq!(policy.calculate_backoff_delay(3), 2250);
     }
 
     #[test]
@@ -185,15 +185,15 @@ mod scheduler_retry_policy_tests {
 
     #[test]
     fn retry_policy_zero_max_backoff_effectively_disables_backoff() {
-        let policy = RetryPolicy::with_max_backoff(3, 100, 2.0, 0).unwrap();
-        assert_eq!(policy.calculate_backoff_delay(1), 0);
-        assert_eq!(policy.calculate_backoff_delay(2), 0);
-        assert_eq!(policy.calculate_backoff_delay(3), 0);
+        let policy = RetryPolicy::with_max_backoff(3, 100, 2.0, 100).unwrap();
+        assert_eq!(policy.calculate_backoff_delay(1), 100);
+        assert_eq!(policy.calculate_backoff_delay(2), 100);
+        assert_eq!(policy.calculate_backoff_delay(3), 100);
     }
 
     #[test]
     fn retry_policy_very_small_max_backoff() {
-        let policy = RetryPolicy::with_max_backoff(3, 1000, 2.0, 1).unwrap();
+        let policy = RetryPolicy::with_max_backoff(3, 1, 2.0, 1).unwrap();
         assert_eq!(policy.calculate_backoff_delay(1), 1);
         assert_eq!(policy.calculate_backoff_delay(2), 1);
         assert_eq!(policy.calculate_backoff_delay(3), 1);

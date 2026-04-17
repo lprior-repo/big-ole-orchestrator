@@ -891,6 +891,7 @@ mod workflow_concurrent_e2e_tests {
 
         let step_names = ["step-1", "step-good", "step-fail", "step-transient"];
 
+        let mut handles = vec![];
         for _ in 0..10 {
             for name in step_names {
                 let step_id = StepId::new(name.to_string());
@@ -904,15 +905,12 @@ mod workflow_concurrent_e2e_tests {
         let mut failure_count = 0;
         let mut error_count = 0;
 
-        for _ in 0..10 {
-            for name in step_names {
-                let step_id = StepId::new(name.to_string());
-                let result = execute_step(step_id, 5000).await;
-                match result {
-                    Ok(vo_executor::StepResult::Success { .. }) => success_count += 1,
-                    Ok(vo_executor::StepResult::Failure { .. }) => failure_count += 1,
-                    Err(_) => error_count += 1,
-                }
+        for handle in handles {
+            let result = handle.await;
+            match result {
+                Ok(Ok(vo_executor::StepResult::Success { .. })) => success_count += 1,
+                Ok(Ok(vo_executor::StepResult::Failure { .. })) => failure_count += 1,
+                Ok(Err(_)) | Err(_) => error_count += 1,
             }
         }
 
