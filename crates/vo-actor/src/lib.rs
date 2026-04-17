@@ -11,10 +11,7 @@ pub mod heartbeat {
     pub fn run_heartbeat_watcher() {}
 }
 
-pub mod master {
-    pub struct MasterOrchestrator;
-    pub struct OrchestratorConfig;
-}
+pub mod master;
 
 pub mod fairness;
 pub mod instance_registry;
