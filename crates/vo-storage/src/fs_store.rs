@@ -145,6 +145,10 @@ impl BlobStore for FsBlobStore {
         block_on_sync(self.store_async(data))
     }
 
+    fn stage_blob(&self, data: &[u8]) -> Result<ContentAddress, BlobStoreError> {
+        block_on_sync(self.stage_blob_async(data))
+    }
+
     fn store_streaming<R>(&self, reader: R) -> Result<ContentAddress, BlobStoreError>
     where
         R: tokio::io::AsyncRead + Send + Unpin + 'static,
@@ -185,6 +189,18 @@ impl BlobStore for FsBlobStore {
 
     fn run_gc(&self, now_ms: u64) -> Result<u64, BlobStoreError> {
         block_on_sync(self.run_gc_async(now_ms))
+    }
+
+    fn mark_durable(&self, addr: &ContentAddress) -> Result<(), BlobStoreError> {
+        block_on_sync(self.mark_durable_async(addr))
+    }
+
+    fn publish(&self, addr: &ContentAddress) -> Result<(), BlobStoreError> {
+        block_on_sync(self.publish_async(addr))
+    }
+
+    fn mark_failed(&self, addr: &ContentAddress) -> Result<(), BlobStoreError> {
+        block_on_sync(self.mark_failed_async(addr))
     }
 }
 
@@ -244,6 +260,103 @@ impl FsBlobStore {
         }
 
         self.store_async(&buf).await
+    }
+
+    async fn stage_blob_async(&self, data: &[u8]) -> Result<ContentAddress, BlobStoreError> {
+        self.ensure_dirs().await?;
+
+        let addr = Self::compute_content_address(data);
+        let blob_path = self.blob_path(&addr);
+
+        if blob_path.exists() {
+            return Err(BlobStoreError::DuplicateContent {
+                content_addr: addr.to_string(),
+            });
+        }
+
+        self.write_blob_file(&blob_path, data).await?;
+
+        let ts = now_ms();
+        let record = BlobRecord::with_status(
+            addr.clone(),
+            data.len() as u64,
+            1,
+            ts,
+            None,
+            vo_types::BlobStatus::Pending,
+        );
+        self.write_meta_file(&addr, &record).await?;
+
+        Ok(addr)
+    }
+
+    async fn mark_durable_async(&self, addr: &ContentAddress) -> Result<(), BlobStoreError> {
+        let record = self.read_meta(addr).await?;
+
+        if !record.can_transition_to(vo_types::BlobStatus::DurablyStored) {
+            return Err(BlobStoreError::InvalidPublicationStatus {
+                content_addr: addr.to_string(),
+                current_status: format!("{:?}", record.status()),
+                attempted_operation: "mark_durable".to_string(),
+            });
+        }
+
+        let updated = BlobRecord::with_status(
+            record.content_addr().clone(),
+            record.size_bytes(),
+            record.reference_count(),
+            record.created_at_ms(),
+            record.expires_at_ms(),
+            vo_types::BlobStatus::DurablyStored,
+        );
+        self.write_meta_file(addr, &updated).await?;
+        Ok(())
+    }
+
+    async fn publish_async(&self, addr: &ContentAddress) -> Result<(), BlobStoreError> {
+        let record = self.read_meta(addr).await?;
+
+        if !record.can_transition_to(vo_types::BlobStatus::Published) {
+            return Err(BlobStoreError::InvalidPublicationStatus {
+                content_addr: addr.to_string(),
+                current_status: format!("{:?}", record.status()),
+                attempted_operation: "publish".to_string(),
+            });
+        }
+
+        let updated = BlobRecord::with_status(
+            record.content_addr().clone(),
+            record.size_bytes(),
+            record.reference_count(),
+            record.created_at_ms(),
+            record.expires_at_ms(),
+            vo_types::BlobStatus::Published,
+        );
+        self.write_meta_file(addr, &updated).await?;
+        Ok(())
+    }
+
+    async fn mark_failed_async(&self, addr: &ContentAddress) -> Result<(), BlobStoreError> {
+        let record = self.read_meta(addr).await?;
+
+        if !record.can_transition_to(vo_types::BlobStatus::Failed) {
+            return Err(BlobStoreError::InvalidPublicationStatus {
+                content_addr: addr.to_string(),
+                current_status: format!("{:?}", record.status()),
+                attempted_operation: "mark_failed".to_string(),
+            });
+        }
+
+        let updated = BlobRecord::with_status(
+            record.content_addr().clone(),
+            record.size_bytes(),
+            record.reference_count(),
+            record.created_at_ms(),
+            record.expires_at_ms(),
+            vo_types::BlobStatus::Failed,
+        );
+        self.write_meta_file(addr, &updated).await?;
+        Ok(())
     }
 
     async fn retrieve_async(&self, addr: &ContentAddress) -> Result<Vec<u8>, BlobStoreError> {
