@@ -3,10 +3,11 @@
 //! This crate provides storage layer abstractions including:
 //! - [`append`] - Event append operations
 //! - [`blob_store`] - Blob storage for large data
+//! - [`dedupe_partition`] - Exactly-once ingress deduplication (ADR-028)
 //! - [`effect_journal`] - Effect journal for event sourcing
-//! - [`snapshots`] - State snapshots for fast replay
 //! - [`instance_index`] - Instance lookup and indexing
 //! - [`purge`] - Data retention and purging
+//! - [`snapshots`] - State snapshots for fast replay
 //!
 //! # Architecture
 //!
