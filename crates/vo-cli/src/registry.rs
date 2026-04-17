@@ -49,6 +49,7 @@ fn command_key(command: &Command) -> Option<&'static str> {
         Command::Purge { .. } => Some("purge"),
         Command::Check { .. } => Some("check"),
         Command::Compensate { .. } => Some("compensate"),
+        Command::Unquarantine { .. } => Some("unquarantine"),
         Command::Gc { .. } => Some("gc"),
         Command::Init { .. } => Some("init"),
         Command::Lock { .. } => Some("lock"),
@@ -368,6 +369,39 @@ mod handlers {
                     println!("| Quarantined               | yes                          |");
                 }
                 println!("+---------------------------+-------------------------------+");
+                Ok(())
+            })
+        }
+    }
+
+    struct UnquarantineHandler;
+
+    impl CommandHandler for UnquarantineHandler {
+        fn name(&self) -> &'static str {
+            "unquarantine"
+        }
+
+        fn execute(
+            &self,
+            cli: &Cli,
+        ) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + '_>> {
+            let Command::Unquarantine {
+                ref engine_url,
+                ref workflow_name,
+                ref operator,
+            } = cli.command
+            else {
+                return Box::pin(async {
+                    Err(CliError::Dispatch("not an unquarantine command".to_string()))
+                });
+            };
+            let engine_url = engine_url.clone();
+            let workflow_name = workflow_name.clone();
+            let operator = operator.clone();
+            Box::pin(async move {
+                let result =
+                    crate::commands::unquarantine::unquarantine_workflow(&engine_url, &workflow_name, &operator).await?;
+                crate::commands::unquarantine::display_result(&result);
                 Ok(())
             })
         }
