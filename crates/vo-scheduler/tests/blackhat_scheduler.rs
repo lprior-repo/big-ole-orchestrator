@@ -20,6 +20,7 @@ fn make_job(priority: JobPriority, policy: SchedulePolicy) -> ScheduledJob {
         RetryPolicy::default_policy(),
         bytes::Bytes::from_static(b"payload"),
     )
+    .expect("valid schedule should succeed")
 }
 
 fn past_due() -> SchedulePolicy {

@@ -6,7 +6,7 @@ license.workspace = true
 
 [dependencies]
 vo-types = { path = "../vo-types" }
-thiserror.workspace = true
+thiserror = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 ulid = { workspace = true, features = ["serde"] }

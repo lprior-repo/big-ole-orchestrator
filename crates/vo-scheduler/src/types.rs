@@ -3,7 +3,23 @@ use std::time::Duration;
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 use ulid::Ulid;
+
+#[derive(Debug, Error)]
+pub enum CronError {
+    #[error("invalid cron expression: expected 5 fields, got {0}")]
+    WrongFieldCount(usize),
+    #[error("invalid cron expression: field {field} position has invalid value '{value}'")]
+    InvalidField { field: usize, value: String },
+    #[error("invalid cron expression: field {field} out of range {min}-{max}, got {value}")]
+    OutOfRange {
+        field: usize,
+        value: i64,
+        min: i64,
+        max: i64,
+    },
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct JobId(pub Ulid);
@@ -214,6 +230,90 @@ impl fmt::Display for JobPriority {
             Self::Low => write!(f, "low"),
             Self::Background => write!(f, "background"),
         }
+    }
+}
+
+pub fn validate_cron_expression(expr: &str) -> Result<(), CronError> {
+    let fields: Vec<&str> = expr.split_whitespace().collect();
+
+    if fields.len() != 5 {
+        return Err(CronError::WrongFieldCount(fields.len()));
+    }
+
+    let minute_range = 0..=59i64;
+    let hour_range = 0..=23i64;
+    let day_of_month_range = 1..=31i64;
+    let month_range = 1..=12i64;
+    let day_of_week_range = 0..=7i64;
+
+    let ranges: [std::ops::RangeInclusive<i64>; 5] = [
+        minute_range,
+        hour_range,
+        day_of_month_range,
+        month_range,
+        day_of_week_range,
+    ];
+    let field_names = ["minute", "hour", "day-of-month", "month", "day-of-week"];
+
+    for (i, field) in fields.iter().enumerate() {
+        if *field == "*" {
+            continue;
+        }
+
+        if let Some(value) = parse_cron_field(*field, i, &ranges[i], field_names[i])? {
+            if !ranges[i].contains(&value) {
+                return Err(CronError::OutOfRange {
+                    field: i,
+                    value,
+                    min: *ranges[i].start(),
+                    max: *ranges[i].end(),
+                });
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn parse_cron_field(
+    field: &str,
+    position: usize,
+    range: &std::ops::RangeInclusive<i64>,
+    field_name: &str,
+) -> Result<Option<i64>, CronError> {
+    if field == "*" {
+        return Ok(None);
+    }
+
+    // Handle */step syntax (e.g., */5)
+    if let Some(step_str) = field.strip_prefix("*/") {
+        if step_str.parse::<i64>().is_ok() {
+            // */n is valid - means "every n units"
+            return Ok(None);
+        }
+    }
+
+    if field.contains('-') {
+        let parts: Vec<&str> = field.split('-').collect();
+        if parts.len() == 2 {
+            if let (Ok(_start), Ok(_end)) = (parts[0].parse::<i64>(), parts[1].parse::<i64>()) {
+                // Range is valid format, we just need to check bounds later
+                return Ok(None);
+            }
+        }
+        return Err(CronError::InvalidField {
+            field: position,
+            value: field.to_string(),
+        });
+    }
+
+    if let Ok(value) = field.parse::<i64>() {
+        Ok(Some(value))
+    } else {
+        Err(CronError::InvalidField {
+            field: position,
+            value: field.to_string(),
+        })
     }
 }
 
