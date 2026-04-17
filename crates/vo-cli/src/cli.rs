@@ -27,6 +27,8 @@ pub enum CliError {
     Rebuild(#[from] crate::commands::rebuild::RebuildError),
     #[error(transparent)]
     Status(#[from] crate::commands::status::StatusError),
+    #[error(transparent)]
+    Workspace(#[from] crate::commands::workspace::WorkspaceError),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -68,6 +70,17 @@ pub enum Command {
         engine_url: String,
         instance: String,
     },
+    Workspace {
+        action: WorkspaceAction,
+    },
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum WorkspaceAction {
+    List,
+    Create { name: String },
+    Delete { id: String },
+    Show { id: String },
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -223,6 +236,41 @@ where
                         .default_value("http://localhost:3000")
                         .help("Engine URL"),
                 ),
+        )
+        .subcommand(
+            clap::Command::new("workspace")
+                .about("Manage workspaces")
+                .subcommand(clap::Command::new("list").about("List all workspaces"))
+                .subcommand(
+                    clap::Command::new("create")
+                        .about("Create a new workspace")
+                        .arg(
+                            clap::Arg::new("name")
+                                .required(true)
+                                .index(1)
+                                .help("Workspace name"),
+                        ),
+                )
+                .subcommand(
+                    clap::Command::new("delete")
+                        .about("Delete a workspace")
+                        .arg(
+                            clap::Arg::new("id")
+                                .required(true)
+                                .index(1)
+                                .help("Workspace ID"),
+                        ),
+                )
+                .subcommand(
+                    clap::Command::new("show")
+                        .about("Show workspace details")
+                        .arg(
+                            clap::Arg::new("id")
+                                .required(true)
+                                .index(1)
+                                .help("Workspace ID"),
+                        ),
+                ),
         );
 
     let matches = cmd.try_get_matches_from(args)?;
@@ -358,6 +406,47 @@ where
                 },
             })
         }
+        Some(("workspace", sub_matches)) => match sub_matches.subcommand() {
+            Some(("list", _)) => Ok(Cli {
+                command: Command::Workspace {
+                    action: WorkspaceAction::List,
+                },
+            }),
+            Some(("create", create_matches)) => {
+                let name = create_matches
+                    .get_one::<String>("name")
+                    .cloned()
+                    .unwrap_or_default();
+                Ok(Cli {
+                    command: Command::Workspace {
+                        action: WorkspaceAction::Create { name },
+                    },
+                })
+            }
+            Some(("delete", delete_matches)) => {
+                let id = delete_matches
+                    .get_one::<String>("id")
+                    .cloned()
+                    .unwrap_or_default();
+                Ok(Cli {
+                    command: Command::Workspace {
+                        action: WorkspaceAction::Delete { id },
+                    },
+                })
+            }
+            Some(("show", show_matches)) => {
+                let id = show_matches
+                    .get_one::<String>("id")
+                    .cloned()
+                    .unwrap_or_default();
+                Ok(Cli {
+                    command: Command::Workspace {
+                        action: WorkspaceAction::Show { id },
+                    },
+                })
+            }
+            _ => Err(clap::Error::new(clap::error::ErrorKind::InvalidSubcommand)),
+        },
         _ => Err(clap::Error::new(clap::error::ErrorKind::InvalidSubcommand)),
     }
 }
@@ -379,7 +468,8 @@ pub fn map_error_to_exit_code(err: &CliError) -> i32 {
         | CliError::Lock(_)
         | CliError::Doctor(_)
         | CliError::Rebuild(_)
-        | CliError::Status(_) => 1,
+        | CliError::Status(_)
+        | CliError::Workspace(_) => 1,
         CliError::InvalidNumeric(_) => 2,
     }
 }
