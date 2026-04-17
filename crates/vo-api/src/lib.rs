@@ -66,6 +66,8 @@ mod lib_tests {
             instance_id: "inst-1".to_string(),
             entries: vec![],
             total_replayed: 0,
+            replay_error_count: 0,
+            truncated: false,
         };
         let json = serde_json::to_string(&resp).unwrap();
         assert!(json.contains(r#""instance_id":"inst-1""#));
@@ -161,6 +163,8 @@ fn workflow_version_response_serializes() {
         event_count: 42,
         last_sequence: Some(42),
         last_timestamp_ms: Some(1714000000000),
+        replay_error_count: 0,
+        truncated: false,
     };
     let json = serde_json::to_string(&resp).unwrap();
     assert!(json.contains(r#""schema_version":1"#));
@@ -176,6 +180,8 @@ fn workflow_version_response_handles_empty_stream() {
         event_count: 0,
         last_sequence: None,
         last_timestamp_ms: None,
+        replay_error_count: 0,
+        truncated: false,
     };
     let json = serde_json::to_string(&resp).unwrap();
     assert!(json.contains(r#""last_sequence":null"#));

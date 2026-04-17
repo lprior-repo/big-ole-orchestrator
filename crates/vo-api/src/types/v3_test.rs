@@ -186,6 +186,8 @@ fn workflow_version_response_null_fields() {
         event_count: 10,
         last_sequence: None,
         last_timestamp_ms: None,
+        replay_error_count: 0,
+        truncated: false,
     };
     let json = serde_json::to_string(&resp).unwrap();
     assert!(json.contains("null"));

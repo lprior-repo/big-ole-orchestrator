@@ -49,6 +49,8 @@ pub async fn get_timeline(
     let iter = replay_events(&*state.db, &instance_id);
     let mut entries = Vec::new();
     let mut total_replayed = 0usize;
+    let mut replay_error_count = 0usize;
+    let mut truncated = false;
 
     for result in iter {
         total_replayed += 1;
@@ -69,20 +71,30 @@ pub async fn get_timeline(
             }
             Err(e) => {
                 tracing::warn!(error = %e, seq = total_replayed, "timeline replay stopped");
-                break;
+                replay_error_count += 1;
+                truncated = true;
             }
         }
     }
 
-    (
-        StatusCode::OK,
-        Json(TimelineResponse {
-            instance_id: id,
-            entries,
-            total_replayed,
-        }),
-    )
-        .into_response()
+    let response = TimelineResponse {
+        instance_id: id,
+        entries,
+        total_replayed,
+        replay_error_count,
+        truncated,
+    };
+
+    if truncated {
+        (
+            StatusCode::OK,
+            [("X-Partial-Result", "true")],
+            Json(response),
+        )
+            .into_response()
+    } else {
+        (StatusCode::OK, Json(response)).into_response()
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -110,6 +122,8 @@ pub async fn get_history(
 
     let iter = replay_events(&*state.db, &instance_id);
     let mut entries = Vec::new();
+    let mut replay_error_count = 0usize;
+    let mut truncated = false;
 
     for result in iter {
         match result {
@@ -143,19 +157,29 @@ pub async fn get_history(
             }
             Err(e) => {
                 tracing::warn!(error = %e, "history replay stopped");
-                break;
+                replay_error_count += 1;
+                truncated = true;
             }
         }
     }
 
-    (
-        StatusCode::OK,
-        Json(HistoryResponse {
-            instance_id: id,
-            entries,
-        }),
-    )
-        .into_response()
+    let response = HistoryResponse {
+        instance_id: id,
+        entries,
+        replay_error_count,
+        truncated,
+    };
+
+    if truncated {
+        (
+            StatusCode::OK,
+            [("X-Partial-Result", "true")],
+            Json(response),
+        )
+            .into_response()
+    } else {
+        (StatusCode::OK, Json(response)).into_response()
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -183,6 +207,8 @@ pub async fn get_effect_journal(
 
     let iter = replay_events(&*state.db, &instance_id);
     let mut entries = Vec::new();
+    let mut replay_error_count = 0usize;
+    let mut truncated = false;
 
     for result in iter {
         match result {
@@ -218,19 +244,29 @@ pub async fn get_effect_journal(
             }
             Err(e) => {
                 tracing::warn!(error = %e, "effect journal replay stopped");
-                break;
+                replay_error_count += 1;
+                truncated = true;
             }
         }
     }
 
-    (
-        StatusCode::OK,
-        Json(EffectJournalResponse {
-            instance_id: id,
-            entries,
-        }),
-    )
-        .into_response()
+    let response = EffectJournalResponse {
+        instance_id: id,
+        entries,
+        replay_error_count,
+        truncated,
+    };
+
+    if truncated {
+        (
+            StatusCode::OK,
+            [("X-Partial-Result", "true")],
+            Json(response),
+        )
+            .into_response()
+    } else {
+        (StatusCode::OK, Json(response)).into_response()
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -261,6 +297,8 @@ pub async fn get_workflow_version(
     let mut last_sequence = None;
     let mut last_timestamp_ms = None;
     let mut schema_version = 1u8;
+    let mut replay_error_count = 0usize;
+    let mut truncated = false;
 
     for result in iter {
         match result {
@@ -272,22 +310,32 @@ pub async fn get_workflow_version(
             }
             Err(e) => {
                 tracing::warn!(error = %e, "version replay stopped");
-                break;
+                replay_error_count += 1;
+                truncated = true;
             }
         }
     }
 
-    (
-        StatusCode::OK,
-        Json(WorkflowVersionResponse {
-            instance_id: id,
-            schema_version,
-            event_count,
-            last_sequence,
-            last_timestamp_ms,
-        }),
-    )
-        .into_response()
+    let response = WorkflowVersionResponse {
+        instance_id: id,
+        schema_version,
+        event_count,
+        last_sequence,
+        last_timestamp_ms,
+        replay_error_count,
+        truncated,
+    };
+
+    if truncated {
+        (
+            StatusCode::OK,
+            [("X-Partial-Result", "true")],
+            Json(response),
+        )
+            .into_response()
+    } else {
+        (StatusCode::OK, Json(response)).into_response()
+    }
 }
 
 // ---------------------------------------------------------------------------

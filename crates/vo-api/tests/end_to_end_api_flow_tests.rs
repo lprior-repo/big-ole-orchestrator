@@ -233,6 +233,8 @@ mod timeline_entry_flow {
                 },
             ],
             total_replayed: 2,
+            replay_error_count: 0,
+            truncated: false,
         };
         let json_str = serde_json::to_string(&resp).unwrap();
         assert!(json_str.contains(r#""total_replayed":2"#));
@@ -245,6 +247,8 @@ mod timeline_entry_flow {
             instance_id: "payments/01ARZ3NDEKTSV4RRFFQ69G5FAV".to_string(),
             entries: vec![],
             total_replayed: 0,
+            replay_error_count: 0,
+            truncated: false,
         };
         let serialized = serde_json::to_string(&resp).unwrap();
         let deserialized: TimelineResponse = serde_json::from_str(&serialized).unwrap();
@@ -315,6 +319,8 @@ mod history_entry_flow {
                 error: None,
                 output: None,
             }],
+            replay_error_count: 0,
+            truncated: false,
         };
         let serialized = serde_json::to_string(&resp).unwrap();
         let deserialized: HistoryResponse = serde_json::from_str(&serialized).unwrap();
@@ -375,6 +381,8 @@ mod effect_journal_flow {
                 semantics: EffectSemantics::Exact,
                 payload: json!({}),
             }],
+            replay_error_count: 0,
+            truncated: false,
         };
         let serialized = serde_json::to_string(&resp).unwrap();
         let deserialized: EffectJournalResponse = serde_json::from_str(&serialized).unwrap();
@@ -394,6 +402,8 @@ mod workflow_version_response_flow {
             event_count: 42,
             last_sequence: Some(42),
             last_timestamp_ms: Some(1714000000000),
+            replay_error_count: 0,
+            truncated: false,
         };
         let json_str = serde_json::to_string(&resp).unwrap();
         assert!(json_str.contains(r#""schema_version":1"#));
@@ -409,6 +419,8 @@ mod workflow_version_response_flow {
             event_count: 0,
             last_sequence: None,
             last_timestamp_ms: None,
+            replay_error_count: 0,
+            truncated: false,
         };
         let json_str = serde_json::to_string(&resp).unwrap();
         assert!(json_str.contains(r#""last_sequence":null"#));
@@ -424,6 +436,8 @@ mod workflow_version_response_flow {
             event_count: 100,
             last_sequence: Some(100),
             last_timestamp_ms: Some(1714000000000),
+            replay_error_count: 0,
+            truncated: false,
         };
         let serialized = serde_json::to_string(&resp).unwrap();
         let deserialized: WorkflowVersionResponse = serde_json::from_str(&serialized).unwrap();
@@ -724,6 +738,8 @@ mod edge_cases {
                 payload: json!(null),
             }],
             total_replayed: 0,
+            replay_error_count: 0,
+            truncated: false,
         };
         let serialized = serde_json::to_string(&resp).unwrap();
         let deserialized: TimelineResponse = serde_json::from_str(&serialized).unwrap();
