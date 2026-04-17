@@ -127,26 +127,25 @@ impl SchedulerQueue {
     }
 
     pub fn pop_due(&mut self, now: DateTime<Utc>) -> Option<ScheduledJob> {
-        while let Some(entry) = self.heap.pop() {
+        loop {
+            let entry = self.heap.peek()?.clone();
+            if entry.due_at > now {
+                return None;
+            }
+            self.heap.pop();
             let job_id = entry.job_id;
             if let Some(job) = self.jobs.get(&job_id) {
-                if job.state == JobState::Cancelled {
+                if job.due_at > now {
                     continue;
                 }
-                if job.due_at <= now {
-                    let job = self.jobs.remove(&job_id)?;
-                    return Some(job);
+                if job.state == JobState::Cancelled {
+                    self.jobs.remove(&job_id);
+                    continue;
                 }
-                let entry = QueueEntry {
-                    priority: job.priority,
-                    due_at: job.due_at,
-                    job_id,
-                };
-                self.heap.push(entry);
-                break;
+                let job = self.jobs.remove(&job_id)?;
+                return Some(job);
             }
         }
-        None
     }
 
     pub fn cancel(&mut self, job_id: &JobId) -> Result<(), SchedulerError> {
