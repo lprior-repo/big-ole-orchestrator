@@ -14,19 +14,13 @@ use vo_types::search::{QueryParser, SearchEngine};
 use crate::types::v3::*;
 use crate::types::ApiError;
 
+use super::split_path_id;
+
 /// Shared state for query handlers.
 #[derive(Clone)]
 pub struct QueryState {
     pub db: Arc<fjall::Database>,
     pub search_engine: Arc<std::sync::Mutex<SearchEngine>>,
-}
-
-/// Split `<namespace>/<instance_id>` path into parts.
-fn split_path_id(path: &str) -> Option<(String, vo_types::InstanceId)> {
-    let slash = path.find('/')?;
-    let namespace = path[..slash].to_owned();
-    let instance_id = vo_types::InstanceId::parse(&path[slash + 1..]).ok()?;
-    Some((namespace, instance_id))
 }
 
 // ---------------------------------------------------------------------------
