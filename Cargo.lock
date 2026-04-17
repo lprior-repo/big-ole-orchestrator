@@ -5040,6 +5040,7 @@ dependencies = [
 name = "vo-frontend"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "dioxus",
  "serde",
  "serde_json",
