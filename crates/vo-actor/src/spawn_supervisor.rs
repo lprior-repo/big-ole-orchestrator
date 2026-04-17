@@ -135,16 +135,6 @@ impl SpawnRecord {
         }
     }
 
-    /// Transition to failed phase.
-    #[must_use]
-    pub fn transition_to_failed(&self, error: SpawnSupervisorError) -> Self {
-        Self {
-            spawn_phase: SpawnPhase::Failed,
-            last_error: Some(error),
-            ..self.clone()
-        }
-    }
-
     /// Create a new spawn record after respawn.
     #[must_use]
     pub fn respawn(&self, new_spawn_id: Option<vo_types::SpawnId>) -> Self {
@@ -253,10 +243,6 @@ impl SpawnSupervisorError {
                 | Self::InstanceNotFound(_)
                 | Self::MailboxFull(_)
                 | Self::DispatchError(_)
-                | Self::AtomicityViolation(_)
-                | Self::SpawnFailed { .. }
-                | Self::HealthCheckFailed { .. }
-                | Self::ProcessExited { .. }
         )
     }
 
@@ -272,13 +258,7 @@ impl SpawnSupervisorError {
     pub fn is_fatal(&self) -> bool {
         matches!(
             self,
-            Self::CorruptSpawn(_)
-                | Self::InvalidConfig(_)
-                | Self::ZombieDetected { .. }
-                | Self::AlreadyRunning
-                | Self::ShutdownTimeout(_)
-                | Self::NotRunning
-                | Self::AlreadyShutdown
+            Self::CorruptSpawn(_) | Self::InvalidConfig(_) | Self::ZombieDetected { .. }
         )
     }
 
@@ -680,17 +660,6 @@ impl SpawnSupervisor {
                                 "Health check failed"
                             );
 
-                            // Transition to Failed so HealthCheck scan skips it
-                            let failed_record = new_record.transition_to_failed(e.clone());
-                            if let Err(save_err) = self.storage.save_spawn_record(&failed_record).await {
-                                self.metrics.dispatch_errors.incr();
-                                tracing::error!(
-                                    instance_id = %record.instance_id,
-                                    error = %save_err,
-                                    "Failed to save failed spawn record"
-                                );
-                            }
-
                             if record.spawn_attempts < self.max_spawn_attempts {
                                 respawns += 1;
                                 self.metrics.respawns.incr();
@@ -701,14 +670,7 @@ impl SpawnSupervisor {
                                     "Scheduling respawn with backoff"
                                 );
 
-<<<<<<< HEAD
                                 tokio::time::sleep(backoff_delay).await;
-=======
-                                let _ = self.work_queue.enqueue_spawn(
-                                    record.instance_id.clone(),
-                                    record.command.clone(),
-                                ).await;
->>>>>>> origin/polecat/synth-mnw6kj8v
                             }
                         }
                     }
@@ -779,17 +741,12 @@ impl SpawnSupervisor {
             }
         }
 
-<<<<<<< HEAD
-=======
-        // Phase 3: Respawn records in Failed phase (within attempt limit)
->>>>>>> origin/polecat/synth-mnw6kj8v
         let failed_records = self
             .storage
             .scan_spawns_by_phase(SpawnPhase::Failed, 100)
             .await;
 
         for record in failed_records {
-<<<<<<< HEAD
             spawns_processed += 1;
 
             if should_respawn(&record, self.max_spawn_attempts) {
@@ -814,11 +771,6 @@ impl SpawnSupervisor {
                     );
                     continue;
                 }
-=======
-            if should_respawn(&record, self.max_spawn_attempts) {
-                respawns += 1;
-                self.metrics.respawns.incr();
->>>>>>> origin/polecat/synth-mnw6kj8v
 
                 if let Err(e) = self
                     .work_queue
@@ -832,15 +784,11 @@ impl SpawnSupervisor {
                         error = %e,
                         "Failed to enqueue respawn"
                     );
-<<<<<<< HEAD
                     continue;
                 }
 
                 respawns += 1;
                 self.metrics.respawns.incr();
-=======
-                }
->>>>>>> origin/polecat/synth-mnw6kj8v
             }
         }
 

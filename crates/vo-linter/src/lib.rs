@@ -2,7 +2,6 @@
 //!
 //! Provides linting functionality for workflow definitions and
 //! Rust source code analysis.
-<<<<<<< HEAD
 //!
 //! # Crate Overview
 //!
@@ -22,8 +21,6 @@
 //! - Signal and handler compatibility
 //! - Resource quota compliance
 //! - Encryption and security checks
-=======
->>>>>>> origin/vo-worker-tests
 
 mod diagnostic;
 pub mod rules;

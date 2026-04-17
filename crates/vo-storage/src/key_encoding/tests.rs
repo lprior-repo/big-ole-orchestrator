@@ -279,7 +279,6 @@ fn lease_key_format_uses_delimiter() {
 }
 
 #[test]
-<<<<<<< HEAD
 fn get_lease_key_prefix_for_instance_matches_key_format() {
     let id = min_instance_id();
     let step = StepId::parse("step-a").unwrap();
@@ -293,12 +292,6 @@ fn get_lease_key_prefix_for_instance_matches_key_format() {
         prefix.ends_with(b"::"),
         "prefix should end with :: delimiter"
     );
-=======
-fn get_lease_key_prefix_for_instance_returns_16_bytes() {
-    let id = min_instance_id();
-    let prefix = get_lease_key_prefix_for_instance(&id);
-    assert_eq!(prefix.len(), 16);
->>>>>>> origin/polecat/synth-mnw6kj8v
 }
 
 #[test]
@@ -383,7 +376,6 @@ fn different_statuses_produce_different_prefixes() {
 }
 
 #[allow(dead_code)]
-<<<<<<< HEAD
 #[test]
 fn decode_effect_key_rejects_missing_ff_marker() {
     let id = min_instance_id();
@@ -518,8 +510,6 @@ fn lease_key_with_max_instance_id_roundtrips() {
 }
 
 #[allow(dead_code)]
-=======
->>>>>>> origin/polecat/synth-mnw6kj8v
 fn get_effect_key_prefix(instance_id: &InstanceId) -> Vec<u8> {
     let iid_bytes = instance_id.to_bytes().unwrap_or([0u8; 16]);
     let mut prefix = Vec::with_capacity(16);

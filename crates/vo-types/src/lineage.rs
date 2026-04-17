@@ -4,8 +4,6 @@
 //! - [`Epoch`] identifies one execution epoch within a lineage
 //! - [`WorkflowLineage`] binds a stable lineage_id to an epoch with optional parent
 //! - [`LineageError`] enumerates construction failures
-//! - [`RolloverTrigger`] identifies why a continue-as-new was triggered
-//! - [`RolloverPolicy`] configures thresholds for automatic rollover detection
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -102,7 +100,6 @@ impl WorkflowLineage {
         })
     }
 
-<<<<<<< HEAD
     /// Create a new epoch via continue-as-new rollover.
     ///
     /// Atomically:
@@ -116,23 +113,10 @@ impl WorkflowLineage {
     /// Returns [`LineageError::EpochOverflow`] if the current epoch is already `u64::MAX`.
     pub fn continue_as_new(&self) -> Result<Self, LineageError> {
         let next_epoch_value = self
-=======
-    /// Create the successor epoch via continue-as-new (ADR-038).
-    ///
-    /// Preserves `lineage_id`, increments `epoch` by 1, and sets `parent_epoch`
-    /// to the current epoch.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`LineageError::EpochOverflow`] if the current epoch is `u64::MAX`.
-    pub fn continue_as_new(&self) -> Result<Self, LineageError> {
-        let new_epoch = self
->>>>>>> origin/vo-worker-tests
             .epoch
             .0
             .checked_add(1)
             .ok_or(LineageError::EpochOverflow)?;
-<<<<<<< HEAD
         Self::with_parent(
             self.lineage_id.clone(),
             Epoch::new(next_epoch_value),
@@ -217,13 +201,6 @@ impl LineageState {
             lineage: self.lineage.clone(),
             status: LineageStatus::Tombstoned,
         }
-=======
-        Ok(Self {
-            lineage_id: self.lineage_id.clone(),
-            epoch: Epoch(new_epoch),
-            parent_epoch: Some(self.epoch),
-        })
->>>>>>> origin/vo-worker-tests
     }
 }
 
@@ -234,80 +211,10 @@ pub enum LineageError {
     EmptyLineageId,
     #[error("parent_epoch ({parent_epoch}) must be less than epoch ({epoch})")]
     InvalidEpochTransition { parent_epoch: u64, epoch: u64 },
-<<<<<<< HEAD
     #[error("epoch overflow: cannot advance beyond u64::MAX")]
     EpochOverflow,
     #[error("lineage_id must not contain control characters")]
     ControlCharacters,
-=======
-    #[error("epoch overflow: cannot continue-as-new beyond u64::MAX")]
-    EpochOverflow,
-}
-
-/// Identifies the reason a continue-as-new rollover was triggered (ADR-038).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum RolloverTrigger {
-    /// Event count exceeded the configured threshold.
-    EventCountThreshold,
-    /// Signal count exceeded the configured threshold.
-    SignalCountThreshold,
-    /// Payload-blob references exceeded the configured threshold.
-    PayloadRefsThreshold,
-    /// Workflow explicitly requested rollover via SDK directive.
-    Explicit,
-}
-
-/// Configures automatic rollover thresholds for continue-as-new (ADR-038).
-///
-/// A threshold of `0` disables that particular check.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RolloverPolicy {
-    /// Maximum events per epoch before automatic rollover (0 = disabled).
-    pub max_events: u64,
-    /// Maximum signals per epoch before automatic rollover (0 = disabled).
-    pub max_signals: u64,
-    /// Maximum payload-blob references per epoch before automatic rollover (0 = disabled).
-    pub max_payload_refs: u64,
-}
-
-impl Default for RolloverPolicy {
-    fn default() -> Self {
-        Self {
-            max_events: 10_000,
-            max_signals: 5_000,
-            max_payload_refs: 1_000,
-        }
-    }
-}
-
-impl RolloverPolicy {
-    /// Create a new policy with explicit thresholds.
-    #[must_use]
-    pub const fn new(max_events: u64, max_signals: u64, max_payload_refs: u64) -> Self {
-        Self {
-            max_events,
-            max_signals,
-            max_payload_refs,
-        }
-    }
-
-    /// Evaluate whether a rollover should be triggered based on current counters.
-    ///
-    /// A threshold of `0` means that check is disabled.
-    #[must_use]
-    pub fn should_rollover(&self, event_count: u64, signal_count: u64, payload_ref_count: u64) -> bool {
-        if self.max_events > 0 && event_count > self.max_events {
-            return true;
-        }
-        if self.max_signals > 0 && signal_count > self.max_signals {
-            return true;
-        }
-        if self.max_payload_refs > 0 && payload_ref_count > self.max_payload_refs {
-            return true;
-        }
-        false
-    }
->>>>>>> origin/vo-worker-tests
 }
 
 #[cfg(test)]
@@ -596,7 +503,6 @@ mod tests {
     }
 
     // -----------------------------------------------------------------------
-<<<<<<< HEAD
     // LineageStatus tests (ADR-042 Section 5)
     // -----------------------------------------------------------------------
 
@@ -683,137 +589,5 @@ mod tests {
 
         assert_eq!(restored.lineage_id(), "tombstoned-test");
         assert_eq!(restored.status, LineageStatus::Tombstoned);
-=======
-    // continue_as_new transition tests
-    // -----------------------------------------------------------------------
-
-    #[test]
-    fn continue_as_new_from_epoch_zero_creates_epoch_one() {
-        let root = WorkflowLineage::new("lin-1".to_string()).expect("root");
-        let successor = root.continue_as_new().expect("rollover");
-        assert_eq!(successor.lineage_id, "lin-1");
-        assert_eq!(successor.epoch, Epoch::new(1));
-        assert_eq!(successor.parent_epoch, Some(Epoch::ZERO));
-    }
-
-    #[test]
-    fn continue_as_new_preserves_lineage_id_across_epochs() {
-        let root = WorkflowLineage::new("stable-id".to_string()).expect("root");
-        let e1 = root.continue_as_new().expect("e1");
-        let e2 = e1.continue_as_new().expect("e2");
-        assert_eq!(root.lineage_id, e1.lineage_id);
-        assert_eq!(e1.lineage_id, e2.lineage_id);
-    }
-
-    #[test]
-    fn continue_as_new_increments_epoch_monotonically() {
-        let root = WorkflowLineage::new("lin".to_string()).expect("root");
-        let e1 = root.continue_as_new().expect("e1");
-        let e2 = e1.continue_as_new().expect("e2");
-        let e3 = e2.continue_as_new().expect("e3");
-        assert_eq!(root.epoch, Epoch::ZERO);
-        assert_eq!(e1.epoch, Epoch::new(1));
-        assert_eq!(e2.epoch, Epoch::new(2));
-        assert_eq!(e3.epoch, Epoch::new(3));
-    }
-
-    #[test]
-    fn continue_as_new_parent_epoch_matches_previous_epoch() {
-        let root = WorkflowLineage::new("lin".to_string()).expect("root");
-        let e1 = root.continue_as_new().expect("e1");
-        assert_eq!(e1.parent_epoch, Some(root.epoch));
-        let e2 = e1.continue_as_new().expect("e2");
-        assert_eq!(e2.parent_epoch, Some(e1.epoch));
-    }
-
-    #[test]
-    fn continue_as_new_at_u64_max_returns_overflow_error() {
-        let max_epoch = WorkflowLineage::with_parent(
-            "lin".to_string(),
-            Epoch::new(u64::MAX),
-            Some(Epoch::new(u64::MAX - 1)),
-        )
-        .expect("max epoch lineage");
-        let result = max_epoch.continue_as_new();
-        assert_eq!(result, Err(LineageError::EpochOverflow));
-    }
-
-    // -----------------------------------------------------------------------
-    // RolloverTrigger tests
-    // -----------------------------------------------------------------------
-
-    #[test]
-    fn rollover_trigger_all_variants_are_constructible() {
-        let triggers = [
-            RolloverTrigger::EventCountThreshold,
-            RolloverTrigger::SignalCountThreshold,
-            RolloverTrigger::PayloadRefsThreshold,
-            RolloverTrigger::Explicit,
-        ];
-        assert_eq!(triggers.len(), 4);
-    }
-
-    #[test]
-    fn rollover_trigger_serializes_and_deserializes() {
-        let triggers = [
-            RolloverTrigger::EventCountThreshold,
-            RolloverTrigger::SignalCountThreshold,
-            RolloverTrigger::PayloadRefsThreshold,
-            RolloverTrigger::Explicit,
-        ];
-        for trigger in &triggers {
-            let json = serde_json::to_value(trigger).expect("serialize");
-            let restored: RolloverTrigger = serde_json::from_value(json).expect("deserialize");
-            assert_eq!(*trigger, restored);
-        }
-    }
-
-    // -----------------------------------------------------------------------
-    // RolloverPolicy tests
-    // -----------------------------------------------------------------------
-
-    #[test]
-    fn rollover_policy_default_returns_sensible_thresholds() {
-        let policy = RolloverPolicy::default();
-        assert!(policy.max_events > 0);
-        assert!(policy.max_signals > 0);
-        assert!(policy.max_payload_refs > 0);
-    }
-
-    #[test]
-    fn rollover_policy_should_rollover_event_count_exceeded() {
-        let policy = RolloverPolicy::new(100, 200, 300);
-        assert!(policy.should_rollover(101, 0, 0));
-    }
-
-    #[test]
-    fn rollover_policy_should_not_rollover_event_count_under_threshold() {
-        let policy = RolloverPolicy::new(100, 200, 300);
-        assert!(!policy.should_rollover(99, 0, 0));
-    }
-
-    #[test]
-    fn rollover_policy_should_not_rollover_event_count_at_threshold() {
-        let policy = RolloverPolicy::new(100, 200, 300);
-        assert!(!policy.should_rollover(100, 0, 0));
-    }
-
-    #[test]
-    fn rollover_policy_should_rollover_signal_count_exceeded() {
-        let policy = RolloverPolicy::new(100, 200, 300);
-        assert!(policy.should_rollover(0, 201, 0));
-    }
-
-    #[test]
-    fn rollover_policy_should_rollover_payload_refs_exceeded() {
-        let policy = RolloverPolicy::new(100, 200, 300);
-        assert!(policy.should_rollover(0, 0, 301));
-    }
-
-    #[test]
-    fn rollover_policy_zero_threshold_disables_check() {
-        let policy = RolloverPolicy::new(0, 200, 300);
-        assert!(!policy.should_rollover(u64::MAX, 0, 0));
->>>>>>> origin/vo-worker-tests
     }
 }

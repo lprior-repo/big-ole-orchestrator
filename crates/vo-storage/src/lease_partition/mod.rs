@@ -26,16 +26,10 @@ mod tests_lease_entry;
 mod verification;
 
 mod fjall_lease_store;
-<<<<<<< HEAD
 pub use fjall_lease_store::FjallLeaseStore;
-<<<<<<< HEAD
 
 pub mod in_memory_lease;
 pub use in_memory_lease::InMemoryLeaseStore;
-=======
->>>>>>> origin/vo-worker-tests
-=======
->>>>>>> origin/polecat/synth-mnw6kj8v
 
 // ---------------------------------------------------------------------------
 // Data layer — error enum

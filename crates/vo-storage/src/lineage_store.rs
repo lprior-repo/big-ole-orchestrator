@@ -3,11 +3,7 @@
 //! Architecture: Data (`LineageRecord`, `LineageStoreError`) → Calc (`encode_lineage_key`,
 //! `decode_lineage_key`) → Actions (`get_active_epoch`, `upsert_lineage`, `record_rollover`).
 //!
-<<<<<<< HEAD
 //! The `lineage` partition stores `lineage_id` -> JSON-encoded `LineageRecord` so the engine
-=======
-//! The `lineage` partition stores lineage_id → JSON-encoded `LineageRecord` so the engine
->>>>>>> origin/vo-worker-tests
 //! can route signals and queries to the currently active epoch.
 
 use crate::codec::StorageError;
@@ -114,11 +110,7 @@ pub fn encode_lineage_record(record: &LineageRecord) -> Result<Vec<u8>, LineageS
 /// Returns `LineageStoreError::Storage` on Fjall failure.
 /// Returns `LineageStoreError::CorruptValue` if the stored value is malformed.
 pub fn get_lineage_record(
-<<<<<<< HEAD
     partition: &fjall::Keyspace,
-=======
-    partition: &fjall::PartitionHandle,
->>>>>>> origin/vo-worker-tests
     lineage_id: &str,
 ) -> Result<Option<LineageRecord>, LineageStoreError> {
     let key = lineage_id.as_bytes();
@@ -141,11 +133,7 @@ pub fn get_lineage_record(
 /// Returns `LineageStoreError::Storage` on Fjall failure.
 /// Returns `LineageStoreError::CorruptValue` if serialization fails.
 pub fn upsert_lineage_record(
-<<<<<<< HEAD
     partition: &fjall::Keyspace,
-=======
-    partition: &fjall::PartitionHandle,
->>>>>>> origin/vo-worker-tests
     lineage_id: &str,
     record: &LineageRecord,
 ) -> Result<(), LineageStoreError> {
@@ -166,22 +154,13 @@ pub fn upsert_lineage_record(
 /// Returns `LineageStoreError::Storage` on Fjall failure.
 /// Returns `LineageStoreError::CorruptValue` if serialization fails.
 pub fn record_rollover(
-<<<<<<< HEAD
     db: &fjall::Database,
-=======
-    keyspace: &fjall::Keyspace,
->>>>>>> origin/vo-worker-tests
     lineage_id: &str,
     new_epoch: Epoch,
     new_instance_id: InstanceId,
 ) -> Result<(), LineageStoreError> {
-<<<<<<< HEAD
     let partition = db
         .keyspace(LINEAGE_PARTITION, fjall::KeyspaceCreateOptions::default)
-=======
-    let partition = keyspace
-        .open_partition(LINEAGE_PARTITION, fjall::PartitionCreateOptions::default())
->>>>>>> origin/vo-worker-tests
         .map_err(|_| LineageStoreError::Storage {
             reason: "failed to open lineage partition".to_string(),
         })?;
@@ -226,7 +205,6 @@ pub fn record_rollover(
 mod tests {
     use super::*;
 
-<<<<<<< HEAD
     fn setup_partition() -> (tempfile::TempDir, fjall::Database, fjall::Keyspace) {
         let dir = tempfile::tempdir().unwrap();
         let db = fjall::Database::builder(dir.path()).open().unwrap();
@@ -234,15 +212,6 @@ mod tests {
             .keyspace(LINEAGE_PARTITION, fjall::KeyspaceCreateOptions::default)
             .unwrap();
         (dir, db, partition)
-=======
-    fn setup_partition() -> (tempfile::TempDir, fjall::Keyspace, fjall::PartitionHandle) {
-        let dir = tempfile::tempdir().unwrap();
-        let keyspace = fjall::Config::new(dir.path()).open().unwrap();
-        let partition = keyspace
-            .open_partition(LINEAGE_PARTITION, fjall::PartitionCreateOptions::default())
-            .unwrap();
-        (dir, keyspace, partition)
->>>>>>> origin/vo-worker-tests
     }
 
     fn test_instance_id() -> InstanceId {
@@ -288,14 +257,10 @@ mod tests {
     #[test]
     fn decode_lineage_record_returns_corrupt_value_for_invalid_json() {
         let result = decode_lineage_record(b"not-json");
-<<<<<<< HEAD
         assert!(matches!(
             result,
             Err(LineageStoreError::CorruptValue { .. })
         ));
-=======
-        assert!(matches!(result, Err(LineageStoreError::CorruptValue { .. })));
->>>>>>> origin/vo-worker-tests
     }
 
     // -----------------------------------------------------------------------
@@ -349,11 +314,7 @@ mod tests {
 
     #[test]
     fn record_rollover_updates_epoch_and_shifts_instance() {
-<<<<<<< HEAD
         let (dir, db, partition) = setup_partition();
-=======
-        let (dir, keyspace, partition) = setup_partition();
->>>>>>> origin/vo-worker-tests
 
         // Seed initial record
         let initial = LineageRecord {
@@ -365,11 +326,7 @@ mod tests {
         upsert_lineage_record(&partition, "lin-1", &initial).unwrap();
 
         // Perform rollover
-<<<<<<< HEAD
         record_rollover(&db, "lin-1", Epoch::new(1), test_instance_id_2()).unwrap();
-=======
-        record_rollover(&keyspace, "lin-1", Epoch::new(1), test_instance_id_2()).unwrap();
->>>>>>> origin/vo-worker-tests
 
         // Verify updated record
         let loaded = get_lineage_record(&partition, "lin-1").unwrap().unwrap();

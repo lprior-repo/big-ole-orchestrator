@@ -4,11 +4,7 @@
 //! variants to NodeCategory categories, and that badges update correctly
 //! when node types change during workflow modification.
 
-<<<<<<< HEAD
 use super::graph::{node_kind_to_category, Node, NodeCategory, NodeId, Workflow};
-=======
-use crate::ui::graph::{node_kind_to_category, Node, NodeCategory, NodeId, Workflow};
->>>>>>> origin/vo-worker-tests
 use vo_types::NodeKind;
 
 // ============================================================================

@@ -242,7 +242,6 @@ pub fn timer_delete(
     storage.delete(key.as_bytes())
 }
 
-<<<<<<< HEAD
 /// Polls for expired timers and atomically claims them by deleting from storage.
 ///
 /// This implements the "fencing" pattern where a timer can only be processed by one node.
@@ -314,8 +313,6 @@ pub fn poll_expired_timers(
     Ok(claimed)
 }
 
-=======
->>>>>>> origin/vo-worker-tests
 /// Scans for ALL timers (both due and future) for a specific instance.
 ///
 /// This is used when cancelling an instance to ensure ALL timers (including future ones)
@@ -350,11 +347,7 @@ pub fn scan_all_timers_for_instance(
     let records: Vec<TimerRecord> = pairs
         .into_iter()
         .filter_map(|(k, v)| {
-<<<<<<< HEAD
             let key_bytes: [u8; 40] = k.as_slice().try_into().ok()?;
-=======
-            let key_bytes: [u8; 40] = k.try_into().ok()?;
->>>>>>> origin/vo-worker-tests
             let key = TimerKey(key_bytes);
             if key.instance_id() != *instance_id {
                 return None;

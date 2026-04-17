@@ -530,15 +530,7 @@ fn stale_check_on_never_acquired_pair_returns_false() {
     let store = DeterministicLeaseStore::new();
 
     assert_eq!(
-<<<<<<< HEAD
         store.check_stale_fence(&sample_instance_id(), &sample_step_id(), &fence_token(1)),
-=======
-        store.check_stale_fence(
-            &sample_instance_id(),
-            &sample_step_id(),
-            &fence_token(1)
-        ),
->>>>>>> origin/polecat/synth-mnw6kj8v
         Ok(false)
     );
     assert_eq!(
@@ -561,15 +553,7 @@ fn stale_check_storage_error_is_propagated_not_swallowed() {
     });
 
     assert_eq!(
-<<<<<<< HEAD
         store.check_stale_fence(&sample_instance_id(), &sample_step_id(), &fence_token(1)),
-=======
-        store.check_stale_fence(
-            &sample_instance_id(),
-            &sample_step_id(),
-            &fence_token(1)
-        ),
->>>>>>> origin/polecat/synth-mnw6kj8v
         Err(LeaseStoreError::Storage {
             reason: "partition unavailable".to_string(),
         })
@@ -598,7 +582,6 @@ fn stale_check_during_exact_expiry_tick_is_correct() {
         *fresh.token()
     ));
 }
-<<<<<<< HEAD
 
 // ---------------------------------------------------------------------------
 // Acceptance Tests: Fencing Stale-Winner (ADR-029)
@@ -686,5 +669,3 @@ fn test_stale_token_returns_fencederror_duplicate_for_schema() {
 
     assert!(is_stale, "Stale token must return fenced error");
 }
-=======
->>>>>>> origin/polecat/synth-mnw6kj8v

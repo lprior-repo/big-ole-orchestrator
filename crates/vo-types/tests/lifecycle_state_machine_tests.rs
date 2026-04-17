@@ -21,10 +21,7 @@ fn arb_lifecycle_state() -> impl Strategy<Value = LifecycleState> {
         Just(LifecycleState::StepScheduled),
         Just(LifecycleState::StepExecuting),
         Just(LifecycleState::WaitingForTimer),
-<<<<<<< HEAD
         Just(LifecycleState::PendingPublication),
-=======
->>>>>>> origin/vo-worker-tests
         Just(LifecycleState::Completed),
         Just(LifecycleState::Failed),
         Just(LifecycleState::Cancelled),
@@ -40,17 +37,11 @@ fn arb_transition_event() -> impl Strategy<Value = TransitionEvent> {
         Just(TransitionEvent::Fail),
         Just(TransitionEvent::ExecuteStep),
         Just(TransitionEvent::WaitForTimer),
-<<<<<<< HEAD
         Just(TransitionEvent::YieldWithBlob),
         Just(TransitionEvent::TimerFired),
         Just(TransitionEvent::TimerExpired),
         Just(TransitionEvent::ConfirmPublication),
         Just(TransitionEvent::PublicationFailed),
-=======
-        Just(TransitionEvent::CompleteStep),
-        Just(TransitionEvent::TimerFired),
-        Just(TransitionEvent::TimerExpired),
->>>>>>> origin/vo-worker-tests
         Just(TransitionEvent::InstanceResumed),
     ]
 }

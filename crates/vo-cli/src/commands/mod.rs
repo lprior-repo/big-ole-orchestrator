@@ -7,8 +7,4 @@ pub mod history;
 pub mod init;
 pub mod lock;
 pub mod rebuild;
-<<<<<<< HEAD
 pub mod status;
-=======
-pub mod unquarantine;
->>>>>>> origin/vo-worker-tests

@@ -219,7 +219,6 @@ pub trait EffectJournal {
 // Production implementation
 // ---------------------------------------------------------------------------
 
-<<<<<<< HEAD
 pub mod fjall_journal;
 pub use fjall_journal::FjallEffectJournal;
 
@@ -228,10 +227,4 @@ pub use fjall_journal::FjallEffectJournal;
 // ---------------------------------------------------------------------------
 
 pub mod in_memory_journal;
-=======
-mod fjall_journal;
-#[cfg(test)]
-mod in_memory_journal;
-#[cfg(test)]
->>>>>>> origin/polecat/synth-mnw6kj8v
 pub use in_memory_journal::InMemoryEffectJournal;

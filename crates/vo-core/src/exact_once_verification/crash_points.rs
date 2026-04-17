@@ -194,7 +194,6 @@ impl CrashPosition {
     }
 }
 
-<<<<<<< HEAD
 impl std::fmt::Display for CrashPosition {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -204,8 +203,6 @@ impl std::fmt::Display for CrashPosition {
     }
 }
 
-=======
->>>>>>> origin/polecat/synth-mnw6kj8v
 /// A crash scenario combining point and position.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CrashScenario {

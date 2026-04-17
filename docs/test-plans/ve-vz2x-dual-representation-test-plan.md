@@ -6,14 +6,9 @@
 - **Contract**: N/A (architecture decision, not feature contract)
 - **Behaviors identified**: 24
 - **Trophy allocation**: 16 unit / 5 integration / 0 e2e / 1 static
-<<<<<<< HEAD
 - **Proptest invariants**: 6 (TODO - not yet implemented)
 - **Fuzz targets**: 4 (TODO - not yet implemented)
 - **Unit tests implemented**: 20 (dual_representation.rs)
-=======
-- **Proptest invariants**: 6
-- **Fuzz targets**: 4
->>>>>>> origin/vo-worker-tests
 
 ---
 
@@ -38,11 +33,7 @@
 
 | # | Behavior | Public API |
 |---|----------|------------|
-<<<<<<< HEAD
 | RK-01 | `RedactionKind::Remove` removes field from object entirely (per AR-09) | `apply_redaction()` |
-=======
-| RK-01 | `RedactionKind::Remove` produces `serde_json::Value::Null` | `redact_value()` |
->>>>>>> origin/vo-worker-tests
 | RK-02 | `RedactionKind::ReplaceWith(s)` replaces value with string `s` | `redact_value()` |
 | RK-03 | `RedactionKind::ReplaceWithType` replaces value with its type name | `redact_value()` |
 | RK-04 | `RedactionKind::Hash` replaces value with `HASH<sha256>` prefixed string | `redact_value()` |
@@ -105,7 +96,6 @@
 
 ## 3. BDD Scenarios
 
-<<<<<<< HEAD
 ### RK-01: RedactionKind::Remove removes field entirely
 
 **Scenario: Remove redaction kind removes field from object**
@@ -136,24 +126,6 @@ fn apply_redaction_removes_fields_at_path() {
     // Remove removes key entirely (per AR-09 test plan)
     assert!(!result["user"].as_object().unwrap().contains_key("ssn"));
     assert_eq!(redacted.len(), 1);
-=======
-### RK-01: RedactionKind::Remove produces Null
-
-**Scenario: Remove redaction kind returns null value**
-
-```
-Given: a RedactionKind::Remove and a JSON string value "sensitive data"
-When: redact_value("field", value) is called
-Then: returns serde_json::Value::Null
-```
-
-```rust
-fn redaction_kind_remove_produces_null() {
-    let kind = RedactionKind::Remove;
-    let value = serde_json::json!("sensitive data");
-    let result = kind.redact_value("field", &value);
-    assert_eq!(result, serde_json::Value::Null);
->>>>>>> origin/vo-worker-tests
 }
 ```
 
@@ -502,7 +474,6 @@ fn operator_projection_no_raw_sensitive_data() {
 
 ## 4. Proptest Invariants
 
-<<<<<<< HEAD
 > **NOTE (2026-04-15)**: The following proptest invariants (PI-01 through PI-06) were REMOVED from the plan as they do not exist in the codebase. They remain as TODO items for future implementation if property-based testing coverage is expanded.
 
 ### TODO: PI-01: apply_redaction never panics on valid JSON
@@ -511,233 +482,17 @@ fn operator_projection_no_raw_sensitive_data() {
 ### TODO: PI-04: Non-matching rules leave value unchanged
 ### TODO: PI-05: Remove redaction produces Null in output
 ### TODO: PI-06: ReplaceWith preserves string type in output
-=======
-### PI-01: apply_redaction never panics on valid JSON
-
-```
-Invariant: apply_redaction never panics for any valid serde_json::Value and any redaction rule set
-Strategy: arbitrary JSON value (object, array, string, number, bool, null), arbitrary rule set
-Anti-invariant: N/A — should always succeed
-```
-
-```rust
-proptest! {
-    #[test]
-    fn apply_redaction_never_panics(
-        value in any::<serde_json::Value>(),
-        rules in prop::collection::vec(
-            (
-                prop::collection::vec("[a-z]{1,5}", 1..5),
-                prop_oneof![
-                    Just(RedactionKind::Remove),
-                    Just(RedactionKind::ReplaceWithType),
-                    any::<String>().prop_map(RedactionKind::ReplaceWith),
-                    Just(RedactionKind::Hash),
-                ]
-            ),
-            0..10,
-        ),
-    ) {
-        let redaction_rules: Vec<RedactionRule> = rules.into_iter().map(|(path, kind)| {
-            RedactionRule::new(path, kind)
-        }).collect();
-        let _ = apply_redaction(&value, &redaction_rules);
-    }
-}
-```
-
----
-
-### PI-02: redacted_fields length equals number of matched rules
-
-```
-Invariant: redacted_fields.len() <= total number of leaves in input JSON
-Strategy: arbitrary nested JSON, arbitrary rule set
-Anti-invariant: N/A
-```
-
-```rust
-proptest! {
-    #[test]
-    fn redacted_fields_length_bounded_by_json_leaves(
-        value in any::<serde_json::Value>(),
-    ) {
-        let rules = vec![RedactionRule::new(
-            vec!["nonexistent".to_string()],
-            RedactionKind::Remove,
-        )];
-        let (_, redacted) = apply_redaction(&value, &rules);
-        let leaf_count = count_leaves(&value);
-        prop_assert!(redacted.len() <= leaf_count);
-    }
-}
-
-fn count_leaves(value: &serde_json::Value) -> usize {
-    match value {
-        serde_json::Value::Object(m) => m.values().map(count_leaves).sum(),
-        serde_json::Value::Array(a) => a.iter().map(count_leaves).sum(),
-        _ => 1,
-    }
-}
-```
-
----
-
-### PI-03: RedactionKind::Hash deterministic for same input
-
-```
-Invariant: For any value and field_name, redact_value produces identical output when called multiple times
-Strategy: arbitrary JSON value
-Anti-invariant: N/A — should always hold
-```
-
-```rust
-proptest! {
-    #[test]
-    fn hash_redaction_is_deterministic(
-        value in any::<serde_json::Value>(),
-        field_name in "[a-z]{1,20}",
-    ) {
-        let kind = RedactionKind::Hash;
-        let results: Vec<_> = (0..10)
-            .map(|_| kind.redact_value(&field_name, &value))
-            .collect();
-        prop_assert!(results.windows(2).all(|w| w[0] == w[1]));
-    }
-}
-```
-
----
-
-### PI-04: Non-matching rules leave value unchanged
-
-```
-Invariant: Fields not matching any rule path are identical in input and output
-Strategy: arbitrary nested JSON, rule with non-matching path
-Anti-invariant: N/A — should always hold
-```
-
-```rust
-proptest! {
-    #[test]
-    fn non_matching_rules_preserve_value(
-        value in any::<serde_json::Value>(),
-    ) {
-        let rules = vec![RedactionRule::new(
-            vec!["nonexistent".to_string(), "path".to_string()],
-            RedactionKind::Remove,
-        )];
-        let (result, _) = apply_redaction(&value, &rules);
-        prop_assert_eq!(extract_at_path(&result, &["nonexistent", "path"]), extract_at_path(&value, &["nonexistent", "path"]));
-    }
-}
-
-fn extract_at_path<'a>(value: &'a serde_json::Value, path: &[String]) -> Option<&'a serde_json::Value> {
-    let mut current = Some(value);
-    for key in path {
-        current = current.and_then(|v| v.get(key));
-    }
-    current
-}
-```
-
----
-
-### PI-05: Remove redaction produces Null in output
-
-```
-Invariant: Any field matched by Remove rule becomes Null in output
-Strategy: arbitrary JSON, arbitrary Remove rule
-Anti-invariant: N/A
-```
-
-```rust
-proptest! {
-    #[test]
-    fn remove_redaction_produces_null(
-        value in any::<serde_json::Value>(),
-    ) {
-        let rules = vec![RedactionRule::new(
-            vec!["target".to_string()],
-            RedactionKind::Remove,
-        )];
-        let input = serde_json::json!({"target": value});
-        let (result, _) = apply_redaction(&input, &rules);
-        prop_assert_eq!(result["target"], serde_json::Value::Null);
-    }
-}
-```
-
----
-
-### PI-06: ReplaceWith preserves string type in output
-
-```
-Invariant: ReplaceWith always produces a String value regardless of input type
-Strategy: arbitrary JSON value
-Anti-invariant: N/A
-```
-
-```rust
-proptest! {
-    #[test]
-    fn replace_with_produces_string(
-        value in any::<serde_json::Value>(),
-    ) {
-        let replacement = "[REDACTED]".to_string();
-        let kind = RedactionKind::ReplaceWith(replacement.clone());
-        let result = kind.redact_value("field", &value);
-        prop_assert!(result.is_string());
-        prop_assert_eq!(result.as_str().unwrap(), "[REDACTED]");
-    }
-}
-```
->>>>>>> origin/vo-worker-tests
 
 ---
 
 ## 5. Fuzz Targets
 
-<<<<<<< HEAD
 > **NOTE (2026-04-15)**: The following fuzz targets (FT-01 through FT-04) were REMOVED from the plan as they do not exist in the fuzz directory. They remain as TODO items for future implementation if fuzzing coverage is expanded.
 
 ### TODO: FT-01: apply_redaction with deeply nested JSON
 ### TODO: FT-02: apply_redaction with malformed field paths
 ### TODO: FT-03: apply_redaction with all RedactionKind variants
 ### TODO: FT-04: apply_redaction with overlapping/redundant rules
-=======
-### FT-01: apply_redaction with deeply nested JSON
-
-```
-Input type: (serde_json::Value, Vec<RedactionRule>)
-Risk: stack overflow on deeply nested objects (>1000 levels), incorrect redaction at boundary depths
-Corpus seeds: flat {"a": 1}, moderate nesting 3-5 levels, pathological 1000 levels, mixed arrays/objects
-```
-
-### FT-02: apply_redaction with malformed field paths
-
-```
-Input type: Vec<(Vec<String>, RedactionKind)>
-Risk: empty field path, field path with empty string components, duplicate path components
-Corpus seeds: valid paths, empty vec [], path with "" components ["", "field"], duplicate ["a", "a"]
-```
-
-### FT-03: apply_redaction with all RedactionKind variants
-
-```
-Input type: (serde_json::Value, RedactionKind, String)
-Risk: RedactionKind handling code paths for Remove, ReplaceWith, ReplaceWithType, Hash all exercised
-Corpus seeds: each RedactionKind with string, number, bool, null, array, object values
-```
-
-### FT-04: apply_redaction with overlapping/redundant rules
-
-```
-Input type: (serde_json::Value, Vec<RedactionRule>)
-Risk: multiple rules matching same path, rules that are prefixes of each other
-Corpus seeds: rules for ["a", "b"] and ["a", "b", "c"], multiple identical rules, rules where one is prefix of another
-```
->>>>>>> origin/vo-worker-tests
 
 ---
 
@@ -749,11 +504,7 @@ Corpus seeds: rules for ["a", "b"] and ["a", "b", "c"], multiple identical rules
 | MC-002 | Remove `current_path.pop()` after recursive call | `apply_redaction_nested_field_paths_correct` |
 | MC-003 | Change `ReplaceWith` to return Null instead of String | `replace_with_produces_string` |
 | MC-004 | Change `Hash` to return empty string instead of `HASH{:x}` format | `redaction_kind_hash_produces_deterministic_hash` |
-<<<<<<< HEAD
 | MC-005 | Remove `is_remove` check, always insert after redaction | `apply_redaction_remove_omits_key_from_object` |
-=======
-| MC-005 | Remove `if !was_redacted \|\| ...` condition, always insert | `apply_redaction_remove_omits_key_from_object` |
->>>>>>> origin/vo-worker-tests
 | MC-006 | Change array index push from `i.to_string()` to just push index | `apply_redaction_handles_arrays_recursively` (would fail on non-string indices) |
 | MC-007 | Remove `current_path.push(key.clone())` before recursive call | `apply_redaction_tracks_all_redacted_paths` (would give wrong paths) |
 
@@ -813,13 +564,8 @@ Corpus seeds: rules for ["a", "b"] and ["a", "b", "c"], multiple identical rules
 ## 9. Exit Criteria Compliance
 
 - [x] Every public API behavior has at least one BDD scenario
-<<<<<<< HEAD
 - [ ] Every pure function with multiple inputs has at least one proptest invariant (PI-01 through PI-06 - TODO)
 - [ ] Every parsing/deserialization boundary has a fuzz target (FT-01 through FT-04 - TODO)
-=======
-- [x] Every pure function with multiple inputs has at least one proptest invariant
-- [x] Every parsing/deserialization boundary has a fuzz target
->>>>>>> origin/vo-worker-tests
 - [x] Every RedactionKind variant has explicit test scenarios (Remove, ReplaceWith, ReplaceWithType, Hash)
 - [x] Mutation threshold target (≥90%) is stated
 - [x] CS-04 (operator projection safety) explicitly tested — no raw sensitive data in output
@@ -827,7 +573,6 @@ Corpus seeds: rules for ["a", "b"] and ["a", "b", "c"], multiple identical rules
 
 ---
 
-<<<<<<< HEAD
 ## 10. Implementation Status (2026-04-15)
 
 ### Completed
@@ -844,8 +589,6 @@ Corpus seeds: rules for ["a", "b"] and ["a", "b", "c"], multiple identical rules
 
 ---
 
-=======
->>>>>>> origin/vo-worker-tests
 ## References
 
 - [ADR-025-v2-state-privacy-gdpr-purging.md](../../docs/adr/v2/ADR-025-v2-state-privacy-gdpr-purging.md)

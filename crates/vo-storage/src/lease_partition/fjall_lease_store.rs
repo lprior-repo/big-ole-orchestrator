@@ -9,7 +9,6 @@ use super::{LeaseEntry, LeaseStore, LeaseStoreError, LEASE_PARTITION};
 const FENCE_PARTITION: &str = "lease_fences";
 
 pub struct FjallLeaseStore {
-<<<<<<< HEAD
     lease_partition: Arc<fjall::Keyspace>,
     fence_partition: Arc<fjall::Keyspace>,
 }
@@ -28,22 +27,6 @@ impl FjallLeaseStore {
             })?;
         let fence_partition = db
             .keyspace(FENCE_PARTITION, || fjall::KeyspaceCreateOptions::default())
-=======
-    lease_partition: Arc<fjall::PartitionHandle>,
-    fence_partition: Arc<fjall::PartitionHandle>,
-}
-
-impl FjallLeaseStore {
-    #[must_use]
-    pub fn open(keyspace: &fjall::Keyspace) -> Result<Self, LeaseStoreError> {
-        let lease_partition = keyspace
-            .open_partition(LEASE_PARTITION, fjall::PartitionCreateOptions::default())
-            .map_err(|e| LeaseStoreError::Storage {
-                reason: format!("failed to open leases partition: {e}"),
-            })?;
-        let fence_partition = keyspace
-            .open_partition(FENCE_PARTITION, fjall::PartitionCreateOptions::default())
->>>>>>> origin/polecat/synth-mnw6kj8v
             .map_err(|e| LeaseStoreError::Storage {
                 reason: format!("failed to open lease_fences partition: {e}"),
             })?;
@@ -164,7 +147,6 @@ impl LeaseStore for FjallLeaseStore {
             return Err(LeaseStoreError::InvalidArgument);
         }
 
-<<<<<<< HEAD
         #[allow(clippy::cast_possible_truncation)]
         let now_ms = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -177,11 +159,6 @@ impl LeaseStore for FjallLeaseStore {
         let current = self.get_current_lease(instance_id, step_id)?;
         if let Some(entry) = current {
             if !entry.is_expired(now_ms) {
-=======
-        let current = self.get_current_lease(instance_id, step_id)?;
-        if let Some(entry) = current {
-            if !entry.is_expired(ttl_ms.saturating_add(0)) {
->>>>>>> origin/polecat/synth-mnw6kj8v
                 return Err(LeaseStoreError::LeaseAlreadyHeld {
                     instance_id: instance_id.to_string(),
                     step_id: step_id.to_string(),
@@ -189,16 +166,6 @@ impl LeaseStore for FjallLeaseStore {
             }
         }
 
-<<<<<<< HEAD
-=======
-        let now_ms = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_err(|e| LeaseStoreError::Storage {
-                reason: format!("failed to get current time: {e}"),
-            })?
-            .as_millis() as u64;
-
->>>>>>> origin/polecat/synth-mnw6kj8v
         let fence_token = self.allocate_fence_token(instance_id, step_id)?;
 
         let entry = LeaseEntry::new(
@@ -237,26 +204,14 @@ impl LeaseStore for FjallLeaseStore {
         token: &FenceToken,
     ) -> Result<bool, LeaseStoreError> {
         let current = self.get_current_lease(instance_id, step_id)?;
-<<<<<<< HEAD
         Ok(current.is_some_and(|entry| entry.fence_token() != token.inner().get()))
-=======
-
-        match current {
-            Some(entry) => Ok(entry.fence_token() != token.inner().get()),
-            None => Ok(false),
-        }
->>>>>>> origin/polecat/synth-mnw6kj8v
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-<<<<<<< HEAD
     use tempfile::{tempdir, TempDir};
-=======
-    use tempfile::tempdir;
->>>>>>> origin/polecat/synth-mnw6kj8v
     use vo_types::StepId;
 
     fn sample_instance_id() -> InstanceId {
@@ -275,25 +230,15 @@ mod tests {
         StepId::parse("step-b").unwrap()
     }
 
-<<<<<<< HEAD
     fn create_test_keyspace() -> (fjall::Database, TempDir) {
         let dir = tempdir().unwrap();
         let db = fjall::Database::builder(dir.path()).open().unwrap();
         (db, dir)
-=======
-    fn create_test_keyspace() -> fjall::Keyspace {
-        let dir = tempdir().unwrap();
-        fjall::Config::new(dir.path()).open().unwrap()
->>>>>>> origin/polecat/synth-mnw6kj8v
     }
 
     #[test]
     fn fjall_lease_acquire_returns_lease_record_when_pair_absent() {
-<<<<<<< HEAD
         let (keyspace, _dir) = create_test_keyspace();
-=======
-        let keyspace = create_test_keyspace();
->>>>>>> origin/polecat/synth-mnw6kj8v
         let store = FjallLeaseStore::open(&keyspace).unwrap();
 
         let result = store.acquire(&sample_instance_id(), &sample_step_id(), 5_000);
@@ -307,11 +252,7 @@ mod tests {
 
     #[test]
     fn fjall_lease_acquire_returns_lease_already_held_when_unexpired_exists() {
-<<<<<<< HEAD
         let (keyspace, _dir) = create_test_keyspace();
-=======
-        let keyspace = create_test_keyspace();
->>>>>>> origin/polecat/synth-mnw6kj8v
         let store = FjallLeaseStore::open(&keyspace).unwrap();
 
         let first = store
@@ -328,11 +269,7 @@ mod tests {
 
     #[test]
     fn fjall_lease_acquire_returns_invalid_argument_when_ttl_zero() {
-<<<<<<< HEAD
         let (keyspace, _dir) = create_test_keyspace();
-=======
-        let keyspace = create_test_keyspace();
->>>>>>> origin/polecat/synth-mnw6kj8v
         let store = FjallLeaseStore::open(&keyspace).unwrap();
 
         let result = store.acquire(&sample_instance_id(), &sample_step_id(), 0);
@@ -341,11 +278,7 @@ mod tests {
 
     #[test]
     fn fjall_lease_release_succeeds_with_matching_token() {
-<<<<<<< HEAD
         let (keyspace, _dir) = create_test_keyspace();
-=======
-        let keyspace = create_test_keyspace();
->>>>>>> origin/polecat/synth-mnw6kj8v
         let store = FjallLeaseStore::open(&keyspace).unwrap();
 
         let lease = store
@@ -357,11 +290,7 @@ mod tests {
 
     #[test]
     fn fjall_lease_release_returns_not_found_when_no_lease() {
-<<<<<<< HEAD
         let (keyspace, _dir) = create_test_keyspace();
-=======
-        let keyspace = create_test_keyspace();
->>>>>>> origin/polecat/synth-mnw6kj8v
         let store = FjallLeaseStore::open(&keyspace).unwrap();
 
         let lease = LeaseRecord::new(
@@ -375,11 +304,7 @@ mod tests {
 
     #[test]
     fn fjall_lease_release_returns_stale_fence_when_token_mismatches() {
-<<<<<<< HEAD
         let (keyspace, _dir) = create_test_keyspace();
-=======
-        let keyspace = create_test_keyspace();
->>>>>>> origin/polecat/synth-mnw6kj8v
         let store = FjallLeaseStore::open(&keyspace).unwrap();
 
         let _lease = store
@@ -396,11 +321,7 @@ mod tests {
 
     #[test]
     fn fjall_lease_check_stale_fence_returns_false_when_token_matches() {
-<<<<<<< HEAD
         let (keyspace, _dir) = create_test_keyspace();
-=======
-        let keyspace = create_test_keyspace();
->>>>>>> origin/polecat/synth-mnw6kj8v
         let store = FjallLeaseStore::open(&keyspace).unwrap();
 
         let lease = store
@@ -413,11 +334,7 @@ mod tests {
 
     #[test]
     fn fjall_lease_check_stale_fence_returns_true_when_token_differs() {
-<<<<<<< HEAD
         let (keyspace, _dir) = create_test_keyspace();
-=======
-        let keyspace = create_test_keyspace();
->>>>>>> origin/polecat/synth-mnw6kj8v
         let store = FjallLeaseStore::open(&keyspace).unwrap();
 
         let _lease = store
@@ -431,11 +348,7 @@ mod tests {
 
     #[test]
     fn fjall_lease_check_stale_fence_returns_false_when_no_lease() {
-<<<<<<< HEAD
         let (keyspace, _dir) = create_test_keyspace();
-=======
-        let keyspace = create_test_keyspace();
->>>>>>> origin/polecat/synth-mnw6kj8v
         let store = FjallLeaseStore::open(&keyspace).unwrap();
 
         let token = FenceToken::new(1).unwrap();
@@ -445,11 +358,7 @@ mod tests {
 
     #[test]
     fn fjall_lease_independent_pairs_work_independently() {
-<<<<<<< HEAD
         let (keyspace, _dir) = create_test_keyspace();
-=======
-        let keyspace = create_test_keyspace();
->>>>>>> origin/polecat/synth-mnw6kj8v
         let store = FjallLeaseStore::open(&keyspace).unwrap();
 
         let lease_a = store
@@ -468,11 +377,7 @@ mod tests {
 
     #[test]
     fn fjall_lease_acquire_increments_fence_token() {
-<<<<<<< HEAD
         let (keyspace, _dir) = create_test_keyspace();
-=======
-        let keyspace = create_test_keyspace();
->>>>>>> origin/polecat/synth-mnw6kj8v
         let store = FjallLeaseStore::open(&keyspace).unwrap();
 
         let first = store

@@ -1,18 +1,11 @@
 use crate::codec::StorageError;
-<<<<<<< HEAD
 use fjall::Keyspace;
-=======
-use fjall::PartitionHandle;
->>>>>>> origin/polecat/synth-mnw6kj8v
 use serde::{Deserialize, Serialize};
 use vo_types::state::InstanceState;
 use vo_types::InstanceId;
 
 pub const CURRENT_SNAPSHOT_VERSION: u16 = 1;
-<<<<<<< HEAD
 pub const MIN_SNAPSHOT_VERSION: u16 = 1;
-=======
->>>>>>> origin/polecat/synth-mnw6kj8v
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SnapshotHeader {
@@ -57,13 +50,8 @@ impl SnapshotPolicy {
 }
 
 pub struct AtomicSnapshotWriter<'a> {
-<<<<<<< HEAD
     db: &'a fjall::Database,
     snapshot_partition: Keyspace,
-=======
-    keyspace: &'a fjall::Keyspace,
-    snapshot_partition: PartitionHandle,
->>>>>>> origin/polecat/synth-mnw6kj8v
 }
 
 impl<'a> AtomicSnapshotWriter<'a> {
@@ -72,21 +60,12 @@ impl<'a> AtomicSnapshotWriter<'a> {
     /// # Errors
     ///
     /// Returns `StorageError::Storage` if the snapshots partition cannot be opened.
-<<<<<<< HEAD
     pub fn new(db: &'a fjall::Database) -> Result<Self, StorageError> {
         let snapshot_partition = db
             .keyspace("snapshots", fjall::KeyspaceCreateOptions::default)
             .map_err(|_| StorageError::Storage)?;
         Ok(Self {
             db,
-=======
-    pub fn new(keyspace: &'a fjall::Keyspace) -> Result<Self, StorageError> {
-        let snapshot_partition = keyspace
-            .open_partition("snapshots", fjall::PartitionCreateOptions::default())
-            .map_err(|_| StorageError::Storage)?;
-        Ok(Self {
-            keyspace,
->>>>>>> origin/polecat/synth-mnw6kj8v
             snapshot_partition,
         })
     }
@@ -99,11 +78,7 @@ impl<'a> AtomicSnapshotWriter<'a> {
     /// Returns `StorageError::SerializationFailed` if serialization fails.
     pub fn write_snapshot(
         &self,
-<<<<<<< HEAD
         batch: &mut fjall::OwnedWriteBatch,
-=======
-        batch: &mut fjall::Batch,
->>>>>>> origin/polecat/synth-mnw6kj8v
         instance_id: InstanceId,
         sequence: u64,
         state: &InstanceState,
@@ -135,11 +110,7 @@ impl<'a> AtomicSnapshotWriter<'a> {
         sequence: u64,
         state: &InstanceState,
     ) -> Result<(), StorageError> {
-<<<<<<< HEAD
         let mut batch = self.db.batch();
-=======
-        let mut batch = self.keyspace.batch();
->>>>>>> origin/polecat/synth-mnw6kj8v
         self.write_snapshot(&mut batch, instance_id, sequence, state)?;
         batch.commit().map_err(|_| StorageError::BatchCommitFailed)
     }
@@ -207,11 +178,7 @@ impl RecoveryThrottle {
 /// Returns `StorageError::FjallError` if the storage engine fails.
 /// Returns `StorageError::InvalidKey` if a stored key is not exactly 24 bytes.
 pub fn compact_snapshots(
-<<<<<<< HEAD
     partition: &Keyspace,
-=======
-    partition: &PartitionHandle,
->>>>>>> origin/polecat/synth-mnw6kj8v
     instance_id: &InstanceId,
     keep_last_n: u64,
 ) -> Result<u64, StorageError> {
@@ -219,13 +186,8 @@ pub fn compact_snapshots(
         .to_bytes()
         .map_err(|_| StorageError::CorruptKey)?;
     let mut snapshots: Vec<(u64, Vec<u8>)> = Vec::new();
-<<<<<<< HEAD
     for item in partition.prefix(prefix) {
         let (key, value) = item.into_inner().map_err(|_| StorageError::FjallError)?;
-=======
-    for item in partition.prefix(&prefix) {
-        let (key, value) = item.map_err(|_| StorageError::FjallError)?;
->>>>>>> origin/polecat/synth-mnw6kj8v
         let (_, seq) = decode_snapshot_key(&key).map_err(|_| StorageError::InvalidKey)?;
         snapshots.push((seq, value.to_vec()));
     }
@@ -252,24 +214,15 @@ pub fn compact_snapshots(
 /// Returns `StorageError::FjallError` if the storage engine fails.
 /// Returns `StorageError::InvalidKey` if a stored key is not exactly 24 bytes.
 pub fn get_all_snapshot_sequences(
-<<<<<<< HEAD
     partition: &Keyspace,
-=======
-    partition: &PartitionHandle,
->>>>>>> origin/polecat/synth-mnw6kj8v
     instance_id: &InstanceId,
 ) -> Result<Vec<u64>, StorageError> {
     let prefix = instance_id
         .to_bytes()
         .map_err(|_| StorageError::CorruptKey)?;
     let mut sequences = Vec::new();
-<<<<<<< HEAD
     for item in partition.prefix(prefix) {
         let (key, _) = item.into_inner().map_err(|_| StorageError::FjallError)?;
-=======
-    for item in partition.prefix(&prefix) {
-        let (key, _) = item.map_err(|_| StorageError::FjallError)?;
->>>>>>> origin/polecat/synth-mnw6kj8v
         let (_, seq) = decode_snapshot_key(&key).map_err(|_| StorageError::InvalidKey)?;
         sequences.push(seq);
     }

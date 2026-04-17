@@ -1,5 +1,4 @@
 //! Fjall-backed persistent implementation of `DedupeStore` for production use.
-<<<<<<< HEAD
 //!
 //! Concurrency model: striped `parking_lot::Mutex` guards the check-and-insert
 //! critical section per-key-shard, preventing TOCTOU races between `get` and
@@ -9,16 +8,10 @@
 use std::sync::Arc;
 
 use parking_lot::Mutex;
-=======
-
-use std::sync::Arc;
-
->>>>>>> origin/polecat/synth-mnw6kj8v
 use vo_types::{DedupeKey, InstanceId};
 
 use super::{AdmissionResult, DedupeStore, DedupeStoreError, DEDUPE_PARTITION};
 
-<<<<<<< HEAD
 const NUM_STRIPES: usize = 64;
 const PURGE_BATCH_SIZE: usize = 1024;
 
@@ -33,20 +26,9 @@ pub struct FjallDedupeStore {
 }
 
 impl FjallDedupeStore {
-<<<<<<< HEAD
     pub fn open(db: &fjall::Database) -> Result<Self, DedupeStoreError> {
         let partition = db
             .keyspace(DEDUPE_PARTITION, fjall::KeyspaceCreateOptions::default)
-=======
-    /// Opens a new `FjallDedupeStore` backed by the given keyspace.
-    ///
-    /// # Errors
-    ///
-    /// Returns `DedupeStoreError::Storage` if the dedupe partition cannot be opened.
-    pub fn open(keyspace: &fjall::Keyspace) -> Result<Self, DedupeStoreError> {
-        let partition = keyspace
-            .open_partition(DEDUPE_PARTITION, fjall::PartitionCreateOptions::default())
->>>>>>> origin/vo-worker-tests
             .map_err(|e| DedupeStoreError::Storage {
                 reason: format!("failed to open dedupe partition: {e}"),
             })?;
@@ -70,34 +52,7 @@ impl FjallDedupeStore {
 }
 
 impl DedupeStore for FjallDedupeStore {
-<<<<<<< HEAD
     #[allow(clippy::expect_used)]
-=======
-    #[expect(clippy::expect_used)]
->>>>>>> origin/vo-worker-tests
-=======
-pub struct FjallDedupeStore {
-    keyspace: Arc<fjall::Keyspace>,
-    partition: Arc<fjall::PartitionHandle>,
-}
-
-impl FjallDedupeStore {
-    #[must_use]
-    pub fn open(keyspace: &fjall::Keyspace) -> Result<Self, DedupeStoreError> {
-        let partition = keyspace
-            .open_partition(DEDUPE_PARTITION, fjall::PartitionCreateOptions::default())
-            .map_err(|e| DedupeStoreError::Storage {
-                reason: format!("failed to open dedupe partition: {e}"),
-            })?;
-        Ok(Self {
-            keyspace: Arc::new(keyspace.clone()),
-            partition: Arc::new(partition),
-        })
-    }
-}
-
-impl DedupeStore for FjallDedupeStore {
->>>>>>> origin/polecat/synth-mnw6kj8v
     fn check_and_insert(
         &self,
         key: &DedupeKey,
@@ -109,27 +64,10 @@ impl DedupeStore for FjallDedupeStore {
         }
 
         let encoded_key = super::encode_dedupe_key(key);
-<<<<<<< HEAD
-<<<<<<< HEAD
         let stripe_idx = stripe_for_key(&encoded_key);
         let _guard = self.stripes[stripe_idx].lock();
 
         let now_ms = Self::now_ms();
-=======
-        #[expect(clippy::expect_used, clippy::cast_possible_truncation)]
-        let now_ms = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .expect(
-                "system time is guaranteed to be after UNIX epoch on properly configured systems",
-            )
-            .as_millis() as u64;
->>>>>>> origin/vo-worker-tests
-=======
-        let now_ms = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .expect("system time before epoch")
-            .as_millis() as u64;
->>>>>>> origin/polecat/synth-mnw6kj8v
         let expires_at = now_ms.saturating_add(ttl_ms);
 
         if let Ok(Some(value_bytes)) = self.partition.get(&encoded_key) {
@@ -158,7 +96,6 @@ impl DedupeStore for FjallDedupeStore {
 
     fn purge_expired(&self, now_ms: u64) -> Result<u64, DedupeStoreError> {
         let mut purged_count = 0u64;
-<<<<<<< HEAD
         let mut keys_to_delete = Vec::with_capacity(PURGE_BATCH_SIZE);
 
         let iter = self.partition.iter();
@@ -167,22 +104,12 @@ impl DedupeStore for FjallDedupeStore {
                 item.into_inner().map_err(|e| DedupeStoreError::Storage {
                     reason: e.to_string(),
                 })?;
-=======
-        let mut keys_to_delete = Vec::new();
-
-        let iter = self.partition.iter();
-        for item in iter {
-            let (key_bytes, value_bytes) = item.map_err(|e| DedupeStoreError::Storage {
-                reason: e.to_string(),
-            })?;
->>>>>>> origin/polecat/synth-mnw6kj8v
 
             if let Ok(entry) = super::decode_dedupe_entry(&value_bytes) {
                 if entry.is_expired(now_ms) {
                     keys_to_delete.push(key_bytes.to_vec());
                 }
             }
-<<<<<<< HEAD
 
             if keys_to_delete.len() >= PURGE_BATCH_SIZE {
                 let count = keys_to_delete.len();
@@ -199,30 +126,18 @@ impl DedupeStore for FjallDedupeStore {
 
         if !keys_to_delete.is_empty() {
             let mut batch = self.db.batch();
-=======
-        }
-
-        if !keys_to_delete.is_empty() {
-            let mut batch = self.keyspace.batch();
->>>>>>> origin/polecat/synth-mnw6kj8v
             for key in &keys_to_delete {
                 batch.remove(&self.partition, key.clone());
             }
             batch.commit().map_err(|e| DedupeStoreError::Storage {
                 reason: e.to_string(),
             })?;
-<<<<<<< HEAD
             purged_count += keys_to_delete.len() as u64;
-=======
-            purged_count = keys_to_delete.len() as u64;
->>>>>>> origin/polecat/synth-mnw6kj8v
         }
 
         Ok(purged_count)
     }
 
-<<<<<<< HEAD
-<<<<<<< HEAD
     #[allow(clippy::expect_used)]
     fn contains(&self, key: &DedupeKey) -> Result<bool, DedupeStoreError> {
         let encoded_key = super::encode_dedupe_key(key);
@@ -232,38 +147,6 @@ impl DedupeStore for FjallDedupeStore {
             Ok(Some(value_bytes)) => super::decode_dedupe_entry(&value_bytes)
                 .map(|entry| Ok(!entry.is_expired(now_ms)))
                 .unwrap_or(Ok(false)),
-=======
-    #[expect(clippy::expect_used)]
-    fn contains(&self, key: &DedupeKey) -> Result<bool, DedupeStoreError> {
-        let encoded_key = super::encode_dedupe_key(key);
-        #[expect(clippy::expect_used, clippy::cast_possible_truncation)]
-        let now_ms = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .expect(
-                "system time is guaranteed to be after UNIX epoch on properly configured systems",
-            )
-            .as_millis() as u64;
-
-        match self.partition.get(&encoded_key) {
-            Ok(Some(value_bytes)) => match super::decode_dedupe_entry(&value_bytes) {
-                Ok(entry) => Ok(!entry.is_expired(now_ms)),
-                Err(_) => Ok(false),
-            },
->>>>>>> origin/vo-worker-tests
-=======
-    fn contains(&self, key: &DedupeKey) -> Result<bool, DedupeStoreError> {
-        let encoded_key = super::encode_dedupe_key(key);
-        let now_ms = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .expect("system time before epoch")
-            .as_millis() as u64;
-
-        match self.partition.get(&encoded_key) {
-            Ok(Some(value_bytes)) => {
-                let entry = super::decode_dedupe_entry(&value_bytes)?;
-                Ok(!entry.is_expired(now_ms))
-            }
->>>>>>> origin/polecat/synth-mnw6kj8v
             Ok(None) => Ok(false),
             Err(e) => Err(DedupeStoreError::Storage {
                 reason: e.to_string(),
@@ -275,20 +158,12 @@ impl DedupeStore for FjallDedupeStore {
 #[cfg(test)]
 mod tests {
     use super::*;
-<<<<<<< HEAD
     use tempfile::{tempdir, TempDir};
 
     fn create_test_keyspace() -> (fjall::Database, TempDir) {
         let dir = tempdir().unwrap();
         let db = fjall::Database::builder(dir.path()).open().unwrap();
         (db, dir)
-=======
-    use tempfile::tempdir;
-
-    fn create_test_keyspace() -> fjall::Keyspace {
-        let dir = tempdir().unwrap();
-        fjall::Config::new(dir.path()).open().unwrap()
->>>>>>> origin/polecat/synth-mnw6kj8v
     }
 
     fn sample_instance_id() -> InstanceId {
@@ -297,11 +172,7 @@ mod tests {
 
     #[test]
     fn fjall_dedupe_store_check_and_insert_returns_admitted_for_new_key() {
-<<<<<<< HEAD
         let (keyspace, _dir) = create_test_keyspace();
-=======
-        let keyspace = create_test_keyspace();
->>>>>>> origin/polecat/synth-mnw6kj8v
         let store = FjallDedupeStore::open(&keyspace).unwrap();
         let key = DedupeKey::parse("new-key").unwrap();
 
@@ -312,11 +183,7 @@ mod tests {
 
     #[test]
     fn fjall_dedupe_store_check_and_insert_returns_duplicate_for_existing_key() {
-<<<<<<< HEAD
         let (keyspace, _dir) = create_test_keyspace();
-=======
-        let keyspace = create_test_keyspace();
->>>>>>> origin/polecat/synth-mnw6kj8v
         let store = FjallDedupeStore::open(&keyspace).unwrap();
         let key = DedupeKey::parse("dup-key").unwrap();
 
@@ -330,11 +197,7 @@ mod tests {
 
     #[test]
     fn fjall_dedupe_store_check_and_insert_returns_error_for_zero_ttl() {
-<<<<<<< HEAD
         let (keyspace, _dir) = create_test_keyspace();
-=======
-        let keyspace = create_test_keyspace();
->>>>>>> origin/polecat/synth-mnw6kj8v
         let store = FjallDedupeStore::open(&keyspace).unwrap();
         let key = DedupeKey::parse("ttl-key").unwrap();
 
@@ -345,11 +208,7 @@ mod tests {
 
     #[test]
     fn fjall_dedupe_store_contains_returns_true_for_existing_unexpired_key() {
-<<<<<<< HEAD
         let (keyspace, _dir) = create_test_keyspace();
-=======
-        let keyspace = create_test_keyspace();
->>>>>>> origin/polecat/synth-mnw6kj8v
         let store = FjallDedupeStore::open(&keyspace).unwrap();
         let key = DedupeKey::parse("contains-key").unwrap();
 
@@ -362,17 +221,12 @@ mod tests {
 
     #[test]
     fn fjall_dedupe_store_contains_returns_false_for_missing_key() {
-<<<<<<< HEAD
         let (keyspace, _dir) = create_test_keyspace();
-=======
-        let keyspace = create_test_keyspace();
->>>>>>> origin/polecat/synth-mnw6kj8v
         let store = FjallDedupeStore::open(&keyspace).unwrap();
         let key = DedupeKey::parse("missing-key").unwrap();
 
         assert_eq!(store.contains(&key), Ok(false));
     }
-<<<<<<< HEAD
 
     #[test]
     fn fjall_dedupe_store_striped_lock_prevents_double_admit() {
@@ -411,6 +265,4 @@ mod tests {
         );
         assert_eq!(dup_count, num_threads - 1);
     }
-=======
->>>>>>> origin/polecat/synth-mnw6kj8v
 }

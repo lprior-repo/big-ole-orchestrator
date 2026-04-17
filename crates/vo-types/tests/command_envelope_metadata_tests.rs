@@ -41,13 +41,9 @@ fn command_envelope_exposes_metadata_on_mutating_surface() {
 
 #[test]
 fn history_entry_carries_envelope_identity() {
-<<<<<<< HEAD
     use vo_types::command_history::{
         CommandHistory, CommandKind, HistoryEntryStatus, WorkflowSnapshot,
     };
-=======
-    use vo_types::command_history::{CommandHistory, CommandKind, HistoryEntryStatus, WorkflowSnapshot};
->>>>>>> origin/polecat/synth-mnw6kj8v
     use vo_types::{DagNode, NodeName, RetryPolicy};
 
     let snapshot = WorkflowSnapshot::new(
@@ -55,10 +51,7 @@ fn history_entry_carries_envelope_identity() {
         vec![DagNode {
             node_name: NodeName::parse("n1").unwrap(),
             retry_policy: RetryPolicy::new(3, 1000, 2.0).unwrap(),
-<<<<<<< HEAD
             compensation_policy: None,
-=======
->>>>>>> origin/polecat/synth-mnw6kj8v
         }],
         vec![],
     );
@@ -105,14 +98,10 @@ fn all_issuer_variants_are_valid_on_command_envelope() {
             }}"#
         );
         let envelope = CommandEnvelope::from_str(&json).unwrap();
-<<<<<<< HEAD
         assert_eq!(
             envelope.metadata.issuer, expected,
             "issuer '{issuer_str}' should map to {expected:?}"
         );
-=======
-        assert_eq!(envelope.metadata.issuer, expected, "issuer '{issuer_str}' should map to {expected:?}");
->>>>>>> origin/polecat/synth-mnw6kj8v
     }
 }
 
@@ -148,10 +137,7 @@ fn command_metadata_propagates_through_command_history_entries() {
         vec![DagNode {
             node_name: NodeName::parse("n1").unwrap(),
             retry_policy: RetryPolicy::new(3, 1000, 2.0).unwrap(),
-<<<<<<< HEAD
             compensation_policy: None,
-=======
->>>>>>> origin/polecat/synth-mnw6kj8v
         }],
         vec![],
     );
@@ -170,15 +156,11 @@ fn command_metadata_propagates_through_command_history_entries() {
         cmd_id.as_str(),
         "command_id must propagate from CommandId to envelope metadata"
     );
-<<<<<<< HEAD
     assert_eq!(
         entry.envelope.metadata.issuer,
         Issuer::Operator,
         "issuer must propagate to history entry"
     );
-=======
-    assert_eq!(entry.envelope.metadata.issuer, Issuer::Operator, "issuer must propagate to history entry");
->>>>>>> origin/polecat/synth-mnw6kj8v
 }
 
 #[test]
@@ -209,25 +191,18 @@ fn apply_command_preserves_metadata_through_undo_redo_cycle() {
         vec![DagNode {
             node_name: NodeName::parse("n1").unwrap(),
             retry_policy: RetryPolicy::new(3, 1000, 2.0).unwrap(),
-<<<<<<< HEAD
             compensation_policy: None,
-=======
->>>>>>> origin/polecat/synth-mnw6kj8v
         }],
         vec![],
     );
     let mut history = CommandHistory::new();
     let cmd_id = history
-<<<<<<< HEAD
         .apply_command(
             CommandKind::EdgeCreate,
             snapshot.clone(),
             snapshot.clone(),
             None,
         )
-=======
-        .apply_command(CommandKind::EdgeCreate, snapshot.clone(), snapshot.clone(), None)
->>>>>>> origin/polecat/synth-mnw6kj8v
         .unwrap();
     history.undo().unwrap();
     history.redo().unwrap();
@@ -249,10 +224,7 @@ fn multiple_history_entries_have_distinct_command_ids() {
         vec![DagNode {
             node_name: NodeName::parse("n1").unwrap(),
             retry_policy: RetryPolicy::new(3, 1000, 2.0).unwrap(),
-<<<<<<< HEAD
             compensation_policy: None,
-=======
->>>>>>> origin/polecat/synth-mnw6kj8v
         }],
         vec![],
     );
@@ -266,14 +238,10 @@ fn multiple_history_entries_have_distinct_command_ids() {
         CommandKind::ConfigUpdate,
     ] {
         let cmd_id = history.save_undo_point(kind, snapshot.clone()).unwrap();
-<<<<<<< HEAD
         assert!(
             cmd_ids.insert(cmd_id.as_str().to_string()),
             "each history entry must have a unique command_id"
         );
-=======
-        assert!(cmd_ids.insert(cmd_id.as_str().to_string()), "each history entry must have a unique command_id");
->>>>>>> origin/polecat/synth-mnw6kj8v
     }
     assert_eq!(cmd_ids.len(), 5);
 }
@@ -292,14 +260,10 @@ fn dedupe_key_detects_duplicate_command_ids() {
     let key2 = DedupeKey::parse("cmd-same-001").unwrap();
     let key3 = DedupeKey::parse("cmd-different-002").unwrap();
     assert_eq!(key1, key2, "identical command_ids produce equal DedupeKeys");
-<<<<<<< HEAD
     assert_ne!(
         key1, key3,
         "different command_ids produce different DedupeKeys"
     );
-=======
-    assert_ne!(key1, key3, "different command_ids produce different DedupeKeys");
->>>>>>> origin/polecat/synth-mnw6kj8v
 }
 
 #[test]
@@ -335,14 +299,10 @@ fn unknown_issuer_is_rejected_during_parsing() {
     }"#;
     let result = CommandEnvelope::from_str(json);
     assert!(result.is_err(), "unknown issuer must be rejected");
-<<<<<<< HEAD
     assert!(matches!(
         result,
         Err(CommandEnvelopeError::InvalidEnvelopeField(_))
     ));
-=======
-    assert!(matches!(result, Err(CommandEnvelopeError::InvalidEnvelopeField(_))));
->>>>>>> origin/polecat/synth-mnw6kj8v
 }
 
 #[test]
@@ -425,14 +385,10 @@ fn command_envelope_causation_chain_traces_execution_order() {
         issuer: Issuer::System,
         issued_at: TimestampMs::try_from(1_700_000_100u64).unwrap(),
     };
-<<<<<<< HEAD
     assert_eq!(
         child_cmd.causation_id.as_str(),
         parent_cmd.command_id.as_str()
     );
-=======
-    assert_eq!(child_cmd.causation_id.as_str(), parent_cmd.command_id.as_str());
->>>>>>> origin/polecat/synth-mnw6kj8v
     assert_eq!(parent_cmd.correlation_id, child_cmd.correlation_id);
     assert!(child_cmd.issued_at.as_u64() > parent_cmd.issued_at.as_u64());
 }
@@ -521,14 +477,10 @@ fn command_envelope_version_gate_prevents_future_version_routing() {
         "issued_at": 1700000000
     }"#;
     let result = CommandEnvelope::from_str(json_v2);
-<<<<<<< HEAD
     assert!(matches!(
         result,
         Err(CommandEnvelopeError::UnsupportedEnvelopeVersion(2))
     ));
-=======
-    assert!(matches!(result, Err(CommandEnvelopeError::UnsupportedEnvelopeVersion(2))));
->>>>>>> origin/polecat/synth-mnw6kj8v
 }
 
 #[test]

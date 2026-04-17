@@ -5,12 +5,8 @@
 use vo_types::NodeKind;
 
 use crate::dag::{Dag, DagError, Workflow};
-<<<<<<< HEAD
 use crate::graph::WorkflowSpec;
 use crate::node_handle::NodeHandle;
-=======
-use crate::graph_args::WorkflowSpec;
->>>>>>> origin/polecat/synth-mnw6kj8v
 
 #[test]
 fn workflow_build_produces_workflow_spec() {
@@ -102,20 +98,12 @@ fn dag_build_validates_workflow_name() {
 
 #[test]
 fn emit_graph_if_requested_does_nothing_without_graph_flag() {
-<<<<<<< HEAD
     use crate::graph::emit_graph_if_requested;
-=======
-    use crate::graph_args::emit_graph_if_requested;
->>>>>>> origin/polecat/synth-mnw6kj8v
 
     let spec = WorkflowSpec {
         workflow_name: vo_types::WorkflowName::parse("test").unwrap(),
         nodes: vec![],
         edges: vec![],
-<<<<<<< HEAD
-        version: 1,
-=======
->>>>>>> origin/polecat/synth-mnw6kj8v
     };
 
     let args = vec!["binary".to_string()];
@@ -143,7 +131,6 @@ fn workflow_all_node_kinds_work() {
     assert!(kinds.contains(&NodeKind::Signal));
     assert!(kinds.contains(&NodeKind::Unsafe));
 }
-<<<<<<< HEAD
 
 #[test]
 fn workflow_pure_rejects_invalid_name() {
@@ -300,5 +287,3 @@ fn workflow_fan_out_pattern() {
     assert_eq!(spec.nodes.len(), 3);
     assert_eq!(spec.edges.len(), 2);
 }
-=======
->>>>>>> origin/polecat/synth-mnw6kj8v

@@ -51,7 +51,6 @@ mod tests {
         assert!(d.suggestion.is_some());
         assert_eq!(d.suggestion.as_ref().unwrap(), "use this instead");
     }
-<<<<<<< HEAD
 
     #[test]
     fn test_diagnostic_message() {
@@ -77,6 +76,4 @@ mod tests {
         let d2 = d.clone();
         assert_eq!(d.message(), d2.message());
     }
-=======
->>>>>>> origin/vo-worker-tests
 }

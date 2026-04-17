@@ -30,13 +30,9 @@ pub mod config_hot_reload;
 pub mod connector;
 mod db_writer_message;
 pub mod debounce;
-<<<<<<< HEAD
 pub mod effects;
 pub mod exact_once_verification;
 pub mod execution;
-=======
-pub mod exact_once_verification;
->>>>>>> origin/polecat/synth-mnw6kj8v
 pub mod quadtree;
 pub mod recovery;
 pub mod replay;

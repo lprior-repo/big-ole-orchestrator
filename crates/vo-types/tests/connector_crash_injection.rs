@@ -6,11 +6,7 @@
 
 use vo_types::{
     execute_with_reconciliation, reconcile_ambiguous, Connector, ConnectorError, ConnectorResult,
-<<<<<<< HEAD
     ConnectorState, ReconcileAction, ReconciliationResult,
-=======
-    ConnectorState, ReconciliationResult, ReconcileAction,
->>>>>>> origin/vo-worker-tests
 };
 
 /// Mock connector that simulates various crash scenarios.
@@ -120,11 +116,7 @@ impl Connector for CrashTestConnector {
 
     async fn reconcile(&mut self) -> Result<ReconciliationResult, ConnectorError> {
         self.reconcile_count += 1;
-<<<<<<< HEAD
 
-=======
-        
->>>>>>> origin/vo-worker-tests
         // Update state based on reconciliation result
         match self.reconcile_result {
             ReconciliationResult::Committed => {
@@ -137,11 +129,7 @@ impl Connector for CrashTestConnector {
                 self.state = ConnectorState::Prepared;
             }
         }
-<<<<<<< HEAD
 
-=======
-        
->>>>>>> origin/vo-worker-tests
         Ok(self.reconcile_result)
     }
 
@@ -242,13 +230,9 @@ async fn test_reconciliation_routes_to_retry_on_unknown_outcome() {
 async fn test_execute_with_reconciliation_success_without_crash() {
     let mut connector = CrashTestConnector::new();
 
-<<<<<<< HEAD
     let result = execute_with_reconciliation(&mut connector, true, 3)
         .await
         .unwrap();
-=======
-    let result = execute_with_reconciliation(&mut connector, true).await.unwrap();
->>>>>>> origin/vo-worker-tests
 
     assert_eq!(result, ConnectorResult::Success);
     assert_eq!(connector.get_prepare_count(), 1);
@@ -263,13 +247,9 @@ async fn test_execute_with_reconciliation_resolves_ambiguity() {
         .with_commit_crash(CommitCrashPosition::Before)
         .with_reconcile_result(ReconciliationResult::Committed);
 
-<<<<<<< HEAD
     let result = execute_with_reconciliation(&mut connector, false, 3)
         .await
         .unwrap();
-=======
-    let result = execute_with_reconciliation(&mut connector, false).await.unwrap();
->>>>>>> origin/vo-worker-tests
 
     assert_eq!(result, ConnectorResult::Success);
     assert_eq!(connector.get_prepare_count(), 0);
@@ -367,37 +347,25 @@ async fn test_reconciliation_path_checked_under_crash_injection() {
 async fn test_exactly_once_across_replay_scenarios() {
     // Scenario 1: Normal execution
     let mut connector1 = CrashTestConnector::new();
-<<<<<<< HEAD
     let _ = execute_with_reconciliation(&mut connector1, true, 3)
         .await
         .unwrap();
-=======
-    let _ = execute_with_reconciliation(&mut connector1, true).await.unwrap();
->>>>>>> origin/vo-worker-tests
 
     // Scenario 2: Crash before commit, reconciled to committed
     let mut connector2 = CrashTestConnector::new()
         .with_commit_crash(CommitCrashPosition::Before)
         .with_reconcile_result(ReconciliationResult::Committed);
-<<<<<<< HEAD
     let _ = execute_with_reconciliation(&mut connector2, true, 3)
         .await
         .unwrap();
-=======
-    let _ = execute_with_reconciliation(&mut connector2, true).await.unwrap();
->>>>>>> origin/vo-worker-tests
 
     // Scenario 3: Crash after commit, reconciled to committed
     let mut connector3 = CrashTestConnector::new()
         .with_commit_crash(CommitCrashPosition::After)
         .with_reconcile_result(ReconciliationResult::Committed);
-<<<<<<< HEAD
     let _ = execute_with_reconciliation(&mut connector3, true, 3)
         .await
         .unwrap();
-=======
-    let _ = execute_with_reconciliation(&mut connector3, true).await.unwrap();
->>>>>>> origin/vo-worker-tests
 
     // All scenarios should result in the same final state
     assert_eq!(connector1.get_state(), ConnectorState::Succeeded);
@@ -422,13 +390,9 @@ async fn test_reconciliation_prevents_duplicate_commits() {
         .with_reconcile_result(ReconciliationResult::Committed);
 
     // First execution
-<<<<<<< HEAD
     let _ = execute_with_reconciliation(&mut connector, true, 3)
         .await
         .unwrap();
-=======
-    let _ = execute_with_reconciliation(&mut connector, true).await.unwrap();
->>>>>>> origin/vo-worker-tests
 
     let first_commit_count = connector.get_commit_count();
     let first_reconcile_count = connector.get_reconcile_count();

@@ -8,11 +8,7 @@ use std::hash::Hash;
 use serde::{Deserialize, Serialize};
 
 /// Lifecycle state of a bead in the workflow
-<<<<<<< HEAD
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-=======
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
->>>>>>> origin/vo-worker-tests
 #[serde(rename_all = "snake_case")]
 pub enum LifecycleState {
     /// Initial state: bead is queued, not yet assigned

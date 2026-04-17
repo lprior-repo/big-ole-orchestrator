@@ -304,11 +304,7 @@ mod encrypted_blob_tests {
 
     #[test]
     fn encrypted_blob_total_size_empty() {
-<<<<<<< HEAD
         let blob = EncryptedBlob::new(vec![0u8; 12], vec![], vec![2u8; 16]).unwrap();
-=======
-        let blob = EncryptedBlob::new(vec![0u8; 12], vec![], vec![2u8; 16]);
->>>>>>> origin/polecat/synth-mnw6kj8v
         assert_eq!(blob.total_size(), 28);
     }
 
@@ -338,13 +334,8 @@ mod encrypted_blob_tests {
 
     #[test]
     fn encrypted_blob_eq_false_iv_mismatch() {
-<<<<<<< HEAD
         let blob1 = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![2u8; 16]).unwrap();
         let blob2 = EncryptedBlob::new(vec![1u8; 12], vec![1u8; 32], vec![2u8; 16]).unwrap();
-=======
-        let blob1 = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![2u8; 16]);
-        let blob2 = EncryptedBlob::new(vec![1u8; 12], vec![1u8; 32], vec![2u8; 16]);
->>>>>>> origin/polecat/synth-mnw6kj8v
         assert_ne!(blob1, blob2);
     }
 
@@ -357,13 +348,8 @@ mod encrypted_blob_tests {
 
     #[test]
     fn encrypted_blob_eq_false_tag_mismatch() {
-<<<<<<< HEAD
         let blob1 = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![2u8; 16]).unwrap();
         let blob2 = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![3u8; 16]).unwrap();
-=======
-        let blob1 = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![2u8; 16]);
-        let blob2 = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![3u8; 16]);
->>>>>>> origin/polecat/synth-mnw6kj8v
         assert_ne!(blob1, blob2);
     }
 }

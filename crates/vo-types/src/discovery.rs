@@ -15,15 +15,12 @@ pub struct DiscoveryPath {
 
 impl DiscoveryPath {
     pub fn new(version_root: String, binary_hash: BinaryHash, binary_name: String) -> Self {
-<<<<<<< HEAD
         if binary_name.is_empty() {
             panic!("binary_name cannot be empty");
         }
         if binary_name.contains('/') || binary_name.contains("..") {
             panic!("binary_name cannot contain path separators or '..'");
         }
-=======
->>>>>>> origin/polecat/synth-mnw6kj8v
         Self {
             version_root,
             binary_hash,
@@ -63,31 +60,12 @@ impl DiscoveryPath {
         let hash_str = parts[0];
         let binary_name = parts[1].to_string();
 
-<<<<<<< HEAD
-<<<<<<< HEAD
         if binary_name.is_empty() {
             return Err(DiscoveryPathError::InvalidFormat {
                 reason: "binary_name cannot be empty".to_string(),
-=======
-        if binary_name.contains("..") {
-            return Err(DiscoveryPathError::InvalidFormat {
-                reason: "binary_name cannot contain path traversal sequences".to_string(),
-            });
-        }
-        if binary_name.contains('/') {
-            return Err(DiscoveryPathError::InvalidFormat {
-                reason: "binary_name cannot contain path separators".to_string(),
-            });
-        }
-        if binary_name.contains('%') {
-            return Err(DiscoveryPathError::InvalidFormat {
-                reason: "binary_name cannot contain URL-encoded characters".to_string(),
->>>>>>> origin/vo-worker-tests
             });
         }
 
-=======
->>>>>>> origin/polecat/synth-mnw6kj8v
         let binary_hash = BinaryHash::parse(hash_str).map_err(DiscoveryPathError::InvalidHash)?;
 
         Ok(Self {
@@ -186,25 +164,9 @@ pub fn validate_discovery_path(path: &DiscoveryPath) -> Result<(), DiscoveryPath
             reason: "binary_name cannot be empty".to_string(),
         });
     }
-<<<<<<< HEAD
     if path.binary_name.contains('/') || path.binary_name.contains("..") {
         return Err(DiscoveryPathError::InvalidFormat {
             reason: "binary_name cannot contain path separators or '..'".to_string(),
-        });
-    }
-    if path.binary_name.contains("..") {
-        return Err(DiscoveryPathError::InvalidFormat {
-            reason: "binary_name cannot contain path traversal sequences".to_string(),
-        });
-    }
-    if path.binary_name.contains('%') {
-        return Err(DiscoveryPathError::InvalidFormat {
-            reason: "binary_name cannot contain URL-encoded characters".to_string(),
-=======
-    if path.binary_name.contains('/') {
-        return Err(DiscoveryPathError::InvalidFormat {
-            reason: "binary_name cannot contain path separators".to_string(),
->>>>>>> origin/polecat/synth-mnw6kj8v
         });
     }
     Ok(())
@@ -320,7 +282,6 @@ mod tests {
 
     #[test]
     fn validate_discovery_path_empty_name() {
-<<<<<<< HEAD
         let result = std::panic::catch_unwind(|| {
             DiscoveryPath::new(
                 VERSION_BASE_PATH.to_string(),
@@ -329,23 +290,10 @@ mod tests {
             )
         });
         assert!(result.is_err());
-=======
-        let path = DiscoveryPath::new(
-            VERSION_BASE_PATH.to_string(),
-            BinaryHash::parse("abcdef0123456789").unwrap(),
-            String::new(),
-        );
-        let result = validate_discovery_path(&path);
-        assert!(matches!(
-            result,
-            Err(DiscoveryPathError::InvalidFormat { .. })
-        ));
->>>>>>> origin/polecat/synth-mnw6kj8v
     }
 
     #[test]
     fn validate_discovery_path_name_with_separator() {
-<<<<<<< HEAD
         let result = std::panic::catch_unwind(|| {
             DiscoveryPath::new(
                 VERSION_BASE_PATH.to_string(),
@@ -366,18 +314,6 @@ mod tests {
             )
         });
         assert!(result.is_err());
-=======
-        let path = DiscoveryPath::new(
-            VERSION_BASE_PATH.to_string(),
-            BinaryHash::parse("abcdef0123456789").unwrap(),
-            "foo/bar".to_string(),
-        );
-        let result = validate_discovery_path(&path);
-        assert!(matches!(
-            result,
-            Err(DiscoveryPathError::InvalidFormat { .. })
-        ));
->>>>>>> origin/polecat/synth-mnw6kj8v
     }
 
     #[test]
@@ -398,91 +334,4 @@ mod tests {
             Err(PinEnforcementError::HashMismatch { .. })
         ));
     }
-<<<<<<< HEAD
-
-    #[test]
-    fn version_constraint_compatible_rejects_downgrade() {
-        let pinned_hash = BinaryHash::parse("abcdef0123456789").unwrap();
-        let downgrade_hash = BinaryHash::parse("abcd000000000000").unwrap();
-        let constraint = VersionConstraint::Compatible;
-        assert!(!constraint.matches(&downgrade_hash, &pinned_hash));
-    }
-
-    #[test]
-    fn version_constraint_compatible_allows_upgrade() {
-        let pinned_hash = BinaryHash::parse("abcdef0123456789").unwrap();
-        let upgrade_hash = BinaryHash::parse("abcdef01deadbeef").unwrap();
-        let constraint = VersionConstraint::Compatible;
-        assert!(constraint.matches(&upgrade_hash, &pinned_hash));
-    }
-
-    #[test]
-    fn path_traversal_prevention_dotdot() {
-        let result = DiscoveryPath::parse("/var/wtf/versions/abcdef0123456789/../../etc/passwd");
-        assert!(matches!(
-            result,
-            Err(DiscoveryPathError::InvalidFormat { .. })
-        ));
-    }
-
-    #[test]
-    fn path_traversal_prevention_nested_path() {
-        let result = DiscoveryPath::parse("/var/wtf/versions/abcdef0123456789/foo/bar/baz");
-        assert!(matches!(
-            result,
-            Err(DiscoveryPathError::InvalidFormat { .. })
-        ));
-    }
-
-    #[test]
-    fn path_traversal_prevention_encoded_dotdot() {
-        let result = DiscoveryPath::parse("/var/wtf/versions/abcdef0123456789/%2e%2e/etc/passwd");
-        assert!(matches!(
-            result,
-            Err(DiscoveryPathError::InvalidFormat { .. })
-        ));
-    }
-
-    #[test]
-    fn path_traversal_prevention_multiple_slashes() {
-        let result = DiscoveryPath::parse("/var/wtf/versions/abcdef0123456789/foo/bar/baz");
-        assert!(matches!(
-            result,
-            Err(DiscoveryPathError::InvalidFormat { .. })
-        ));
-    }
-
-    #[test]
-    fn concurrent_discovery_safety_same_hash() {
-        let hash = BinaryHash::parse("abcdef0123456789").unwrap();
-        let path1 = DiscoveryPath::new(
-            VERSION_BASE_PATH.to_string(),
-            hash.clone(),
-            "binary-v1".to_string(),
-        );
-        let path2 = DiscoveryPath::new(
-            VERSION_BASE_PATH.to_string(),
-            hash.clone(),
-            "binary-v1".to_string(),
-        );
-        assert_eq!(path1, path2);
-    }
-
-    #[test]
-    fn concurrent_discovery_safety_different_names_same_hash() {
-        let hash = BinaryHash::parse("abcdef0123456789").unwrap();
-        let path1 = DiscoveryPath::new(
-            VERSION_BASE_PATH.to_string(),
-            hash.clone(),
-            "binary-v1".to_string(),
-        );
-        let path2 = DiscoveryPath::new(
-            VERSION_BASE_PATH.to_string(),
-            hash.clone(),
-            "binary-v2".to_string(),
-        );
-        assert_ne!(path1, path2);
-    }
-=======
->>>>>>> origin/polecat/synth-mnw6kj8v
 }

@@ -21,10 +21,7 @@ any-rope = { workspace = true }
 rstest.workspace = true
 proptest = { version = "1", features = ["fork"] }
 tokio = { workspace = true, features = ["full"] }
-<<<<<<< HEAD
 criterion = { workspace = true }
-=======
->>>>>>> origin/vo-worker-tests
 
 [[bench]]
 name = "types_bench"

@@ -36,21 +36,11 @@ ulid = { workspace = true }
 # HTTP
 reqwest = { workspace = true }
 
-<<<<<<< HEAD
-# CRC
-crc32fast = "1.4"
-
-=======
->>>>>>> origin/polecat/synth-mnw6kj8v
 [dev-dependencies]
 anyhow = { workspace = true }
-<<<<<<< HEAD
 axum = { workspace = true }
 proptest = { workspace = true }
 tower = { workspace = true }
-=======
-proptest = { version = "1", features = ["fork"] }
->>>>>>> origin/vo-worker-tests
 
 [lib]
 path = "src/lib.rs"

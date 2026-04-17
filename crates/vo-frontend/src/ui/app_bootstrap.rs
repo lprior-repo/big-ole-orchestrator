@@ -2,11 +2,7 @@
 //!
 //! Provides default workflows and initial state setup.
 
-<<<<<<< HEAD
 use vo_types::NodeKind;
-=======
-use vo_types::node_kind::NodeKind;
->>>>>>> origin/vo-worker-tests
 
 use crate::ui::graph::{Node, NodeCategory, NodeId, Workflow};
 
@@ -52,7 +48,6 @@ mod tests {
         assert_eq!(workflow.nodes.len(), 3);
         assert_eq!(workflow.nodes[0].category, NodeCategory::Entry);
     }
-<<<<<<< HEAD
 
     #[test]
     fn given_default_workflow_when_created_then_first_node_category_is_entry() {
@@ -85,6 +80,4 @@ mod tests {
             assert_eq!(id_str.len(), 26, "Node ID should be 26-char ULID");
         }
     }
-=======
->>>>>>> origin/vo-worker-tests
 }

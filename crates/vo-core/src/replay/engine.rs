@@ -230,7 +230,6 @@ pub(super) fn payload_to_transition(
                 sequence,
             })
         }
-<<<<<<< HEAD
         EventPayload::EffectPrepared { .. } => {
             // Handled as a no-op in the replay loop before calling this function.
             // This branch should never be reached.
@@ -247,11 +246,5 @@ pub(super) fn payload_to_transition(
                 sequence,
             })
         }
-=======
-        EventPayload::WorkflowQuarantined { .. } => Err(ReplayError::UnexpectedEventType {
-            payload_type: "WorkflowQuarantined".to_string(),
-            sequence,
-        }),
->>>>>>> origin/vo-worker-tests
     }
 }

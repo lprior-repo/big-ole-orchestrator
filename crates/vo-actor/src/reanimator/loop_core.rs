@@ -419,7 +419,7 @@ impl ReanimatorLoop {
         let new_max = if processed > 0 {
             0
         } else {
-            max_already_processed.saturating_sub(1)
+            max_already_processed + processed
         };
 
         tracing::debug!(processed, failed_count, "Reanimator cycle complete");

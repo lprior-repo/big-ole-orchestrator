@@ -109,7 +109,6 @@ pub struct EncryptedBlob {
 }
 
 impl EncryptedBlob {
-<<<<<<< HEAD
     pub fn new(iv: Vec<u8>, ciphertext: Vec<u8>, tag: Vec<u8>) -> Result<Self, ParseError> {
         if iv.len() != CryptoAlgorithm::IV_SIZE_BYTES {
             return Err(ParseError::InvalidFormat {
@@ -132,22 +131,6 @@ impl EncryptedBlob {
             });
         }
         Ok(Self {
-=======
-    pub fn new(iv: Vec<u8>, ciphertext: Vec<u8>, tag: Vec<u8>) -> Self {
-        if iv.len() != CryptoAlgorithm::IV_SIZE_BYTES {
-            panic!(
-                "IV must be exactly {} bytes",
-                CryptoAlgorithm::IV_SIZE_BYTES
-            );
-        }
-        if tag.len() != CryptoAlgorithm::TAG_SIZE_BYTES {
-            panic!(
-                "tag must be exactly {} bytes",
-                CryptoAlgorithm::TAG_SIZE_BYTES
-            );
-        }
-        Self {
->>>>>>> origin/polecat/synth-mnw6kj8v
             iv,
             ciphertext,
             tag,

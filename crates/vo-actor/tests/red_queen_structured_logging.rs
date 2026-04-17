@@ -5,13 +5,8 @@
 
 use std::time::Duration;
 
-<<<<<<< HEAD
 use vo_actor::reanimator::ReanimatorError;
 use vo_actor::spawn_supervisor::SpawnSupervisorError;
-=======
-use vo_actor::spawn_supervisor::SpawnSupervisorError;
-use vo_actor::reanimator::ReanimatorError;
->>>>>>> origin/polecat/synth-mnw6kj8v
 use vo_types::InstanceId;
 
 fn test_instance_id() -> InstanceId {
@@ -32,7 +27,6 @@ fn spawn_supervisor_error_no_unclassified_variants() {
     let instance_id = test_instance_id();
 
     let unclassified: Vec<&str> = vec![
-<<<<<<< HEAD
         (
             "AtomicityViolation",
             SpawnSupervisorError::AtomicityViolation("test".into()),
@@ -65,22 +59,6 @@ fn spawn_supervisor_error_no_unclassified_variants() {
                 exit_code: 1,
             },
         ),
-=======
-        ("AtomicityViolation", SpawnSupervisorError::AtomicityViolation("test".into())),
-        ("AlreadyRunning", SpawnSupervisorError::AlreadyRunning),
-        ("ShutdownTimeout", SpawnSupervisorError::ShutdownTimeout(Duration::from_secs(5))),
-        ("SpawnFailed", SpawnSupervisorError::SpawnFailed { command: "cmd".into(), error: "err".into() }),
-        ("HealthCheckFailed", SpawnSupervisorError::HealthCheckFailed {
-            instance_id: instance_id.clone(),
-            check_number: 1,
-            error: "timeout".into(),
-        }),
-        ("ProcessExited", SpawnSupervisorError::ProcessExited {
-            instance_id: instance_id.clone(),
-            pid: 1234,
-            exit_code: 1,
-        }),
->>>>>>> origin/polecat/synth-mnw6kj8v
         ("NotRunning", SpawnSupervisorError::NotRunning),
         ("AlreadyShutdown", SpawnSupervisorError::AlreadyShutdown),
     ]
@@ -278,15 +256,11 @@ fn metrics_counters_are_independent() {
     metrics.spawns_failed.incr();
 
     assert_eq!(metrics.spawns_failed.get(), 3);
-<<<<<<< HEAD
     assert_eq!(
         metrics.spawns_successful.get(),
         0,
         "spawns_successful affected by spawns_failed incr"
     );
-=======
-    assert_eq!(metrics.spawns_successful.get(), 0, "spawns_successful affected by spawns_failed incr");
->>>>>>> origin/polecat/synth-mnw6kj8v
     assert_eq!(metrics.health_checks_performed.get(), 0);
     assert_eq!(metrics.health_checks_failed.get(), 0);
     assert_eq!(metrics.zombies_detected.get(), 0);
@@ -295,15 +269,11 @@ fn metrics_counters_are_independent() {
 
     metrics.zombies_detected.incr();
     assert_eq!(metrics.zombies_detected.get(), 1);
-<<<<<<< HEAD
     assert_eq!(
         metrics.spawns_failed.get(),
         3,
         "spawns_failed changed after zombies_detected incr"
     );
-=======
-    assert_eq!(metrics.spawns_failed.get(), 3, "spawns_failed changed after zombies_detected incr");
->>>>>>> origin/polecat/synth-mnw6kj8v
 }
 
 #[test]
@@ -314,14 +284,10 @@ fn spawn_supervisor_error_display_with_empty_strings() {
         SpawnSupervisorError::CorruptSpawn(String::new()),
         SpawnSupervisorError::AtomicityViolation(String::new()),
         SpawnSupervisorError::DispatchError(String::new()),
-<<<<<<< HEAD
         SpawnSupervisorError::SpawnFailed {
             command: String::new(),
             error: String::new(),
         },
-=======
-        SpawnSupervisorError::SpawnFailed { command: String::new(), error: String::new() },
->>>>>>> origin/polecat/synth-mnw6kj8v
         SpawnSupervisorError::HealthCheckFailed {
             instance_id,
             check_number: 0,
@@ -339,12 +305,8 @@ fn spawn_supervisor_error_display_with_empty_strings() {
         assert!(
             display.trim().len() >= 3,
             "Error display too short with empty payload: {:?} → {:?}",
-<<<<<<< HEAD
             error,
             display
-=======
-            error, display
->>>>>>> origin/polecat/synth-mnw6kj8v
         );
     }
 }
@@ -358,19 +320,14 @@ fn spawn_supervisor_error_clone_eq_symmetry() {
         SpawnSupervisorError::InstanceNotFound(instance_id.clone()),
         SpawnSupervisorError::AlreadyRunning,
         SpawnSupervisorError::NotRunning,
-<<<<<<< HEAD
         SpawnSupervisorError::ZombieDetected {
             instance_id,
             pid: 42,
         },
-=======
-        SpawnSupervisorError::ZombieDetected { instance_id, pid: 42 },
->>>>>>> origin/polecat/synth-mnw6kj8v
     ];
 
     for error in &errors {
         let cloned = error.clone();
-<<<<<<< HEAD
         assert_eq!(
             error, &cloned,
             "Cloned error not equal to original: {:?}",
@@ -382,10 +339,6 @@ fn spawn_supervisor_error_clone_eq_symmetry() {
             "Cloned error displays differently: {:?}",
             error
         );
-=======
-        assert_eq!(error, &cloned, "Cloned error not equal to original: {:?}", error);
-        assert_eq!(format!("{}", error), format!("{}", cloned), "Cloned error displays differently: {:?}", error);
->>>>>>> origin/polecat/synth-mnw6kj8v
         assert_eq!(error.is_transient(), cloned.is_transient());
         assert_eq!(error.is_fatal(), cloned.is_fatal());
     }
@@ -443,14 +396,10 @@ fn spawn_record_last_error_preserved_through_transition() {
     };
 
     let transitioned = record.transition_to_health_check();
-<<<<<<< HEAD
     assert!(
         transitioned.last_error.is_some(),
         "last_error lost during transition"
     );
-=======
-    assert!(transitioned.last_error.is_some(), "last_error lost during transition");
->>>>>>> origin/polecat/synth-mnw6kj8v
     assert_eq!(transitioned.last_error, Some(original_error));
 }
 
@@ -473,7 +422,6 @@ fn spawn_record_respawn_clears_error() {
     };
 
     let respawned = record.respawn(None);
-<<<<<<< HEAD
     assert!(
         respawned.last_error.is_none(),
         "Respawn must clear last_error"
@@ -482,8 +430,4 @@ fn spawn_record_respawn_clears_error() {
         respawned.health_checks, 0,
         "Respawn must reset health_checks"
     );
-=======
-    assert!(respawned.last_error.is_none(), "Respawn must clear last_error");
-    assert_eq!(respawned.health_checks, 0, "Respawn must reset health_checks");
->>>>>>> origin/polecat/synth-mnw6kj8v
 }

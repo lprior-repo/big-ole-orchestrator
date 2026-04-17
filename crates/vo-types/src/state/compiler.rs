@@ -81,16 +81,6 @@ impl Guard {
     }
 }
 
-<<<<<<< HEAD
-=======
-#[allow(clippy::derivable_impls)]
-impl Default for Guard {
-    fn default() -> Self {
-        Guard::Always
-    }
-}
-
->>>>>>> origin/polecat/synth-mnw6kj8v
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SideEffectResult {
     Executed,
@@ -136,17 +126,7 @@ impl SideEffect {
         match self {
             SideEffect::None => SideEffectResult::Skipped,
             SideEffect::Log { message } => {
-<<<<<<< HEAD
                 eprintln!("Transition side effect: {from:?} -> {to:?} via {event:?}: {message}");
-=======
-                eprintln!(
-                    "Transition side effect: {:?} -> {:?} via {:?}: {}",
-                    from,
-                    to,
-                    event,
-                    message
-                );
->>>>>>> origin/polecat/synth-mnw6kj8v
                 SideEffectResult::Executed
             }
             SideEffect::Fn { f } => f(from, event, to),
@@ -154,16 +134,6 @@ impl SideEffect {
     }
 }
 
-<<<<<<< HEAD
-=======
-#[allow(clippy::derivable_impls)]
-impl Default for SideEffect {
-    fn default() -> Self {
-        SideEffect::None
-    }
-}
-
->>>>>>> origin/polecat/synth-mnw6kj8v
 pub struct TransitionRule {
     pub from: LifecycleState,
     pub event: TransitionEvent,

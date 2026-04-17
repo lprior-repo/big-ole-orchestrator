@@ -12,10 +12,7 @@ mod read_tests;
 mod red_queen_workflow_spec;
 mod type_tests;
 mod workflow_builder_tests;
-<<<<<<< HEAD
 mod workflow_spec_validation_tests;
-=======
->>>>>>> origin/polecat/synth-mnw6kj8v
 mod write_failure_tests;
 mod write_success_tests;
 

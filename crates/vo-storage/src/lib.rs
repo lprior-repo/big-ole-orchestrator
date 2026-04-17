@@ -59,10 +59,7 @@ pub mod key_encoding;
 pub mod key_partition;
 pub mod lease_partition;
 pub mod lineage_store;
-<<<<<<< HEAD
 pub mod merkle_tree;
-=======
->>>>>>> origin/vo-worker-tests
 pub mod mmap_cache;
 pub mod partitions;
 pub mod projection_compat;
