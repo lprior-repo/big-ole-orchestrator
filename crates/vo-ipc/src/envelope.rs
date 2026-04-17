@@ -6,6 +6,39 @@ use std::io::{Read, Write};
 
 pub const MAX_PAYLOAD_SIZE: u32 = 10_485_760;
 
+pub const CURRENT_VERSION: u8 = 1;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VersionNegotiation {
+    pub supported_versions: Vec<u8>,
+}
+
+impl VersionNegotiation {
+    pub fn new() -> Self {
+        Self {
+            supported_versions: vec![CURRENT_VERSION],
+        }
+    }
+
+    pub fn negotiate(&self, peer_version: u8) -> Result<u8, IpcError> {
+        if self.supported_versions.contains(&peer_version) {
+            Ok(peer_version)
+        } else {
+            Err(IpcError::VersionMismatch(peer_version))
+        }
+    }
+}
+
+impl Default for VersionNegotiation {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+pub fn negotiate_version(peer_version: u8) -> Result<u8, IpcError> {
+    VersionNegotiation::new().negotiate(peer_version)
+}
+
 /// The envelope sent from Engine to Child over FD3.
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub struct Fd3Envelope {
