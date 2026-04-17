@@ -87,7 +87,6 @@ where
     let cmd = clap::Command::new("vo")
         .version("0.1.0")
         .subcommand_required(true)
-        .arg_required_else_help(true)
         .subcommand(
             clap::Command::new("purge").arg(
                 clap::Arg::new("instance")
@@ -114,7 +113,13 @@ where
                     clap::Arg::new("workflow-id")
                         .required(true)
                         .index(1)
-                        .help("The workflow instance ID to compensate"),
+                        .help("The workflow instance ID to compensate")
+                        .value_parser(|s: &str| {
+                            if s.is_empty() {
+                                return Err(clap::Error::new(clap::error::ErrorKind::InvalidValue));
+                            }
+                            Ok(s.to_string())
+                        }),
                 )
                 .arg(
                     clap::Arg::new("engine-url")

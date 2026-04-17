@@ -483,12 +483,12 @@ fn parse_version_flag() {
 }
 
 #[test]
-fn parse_no_args_shows_help() {
+fn parse_no_args_returns_missing_subcommand() {
     let result = interpret_cli_from(vec!["vo"]);
     assert!(result.is_err());
     assert_eq!(
         result.unwrap_err().kind(),
-        clap::error::ErrorKind::DisplayHelpOnMissingArgumentOrSubcommand
+        clap::error::ErrorKind::MissingSubcommand
     );
 }
 
