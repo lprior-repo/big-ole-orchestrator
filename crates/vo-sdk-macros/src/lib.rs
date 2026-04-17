@@ -44,6 +44,13 @@ pub(crate) fn internal_task_macro(
 
     if !attr.is_empty() {
         let attr_str = attr.to_string();
+        if attr_str.is_empty() {
+            return quote::quote! { compile_error!("macro attribute is empty"); };
+        }
+        let attr_count = attr_str.split_whitespace().count();
+        if attr_count > 255 {
+            return quote::quote! { compile_error!("too many macro attributes (max 255)"); };
+        }
         if attr_str.starts_with("retries") {
             return quote::quote! { compile_error!("unsupported attribute: retries"); };
         }
@@ -72,6 +79,18 @@ pub(crate) fn internal_task_macro(
         }
         Err(error::Error::ParseFailure) => {
             quote::quote! { compile_error!("parse error"); }
+        }
+        Err(error::Error::EmptyAttribute) => {
+            quote::quote! { compile_error!("macro attribute is empty"); }
+        }
+        Err(error::Error::TooManyAttributes) => {
+            quote::quote! { compile_error!("too many macro attributes (max 255)"); }
+        }
+        Err(error::Error::IdentParsingFailed) => {
+            quote::quote! { compile_error!("failed to parse function identifier"); }
+        }
+        Err(error::Error::AsyncReturnTypeMismatch) => {
+            quote::quote! { compile_error!("async functions cannot have a return type"); }
         }
     }
 }
@@ -209,14 +228,14 @@ mod tests {
     }
 
     #[test]
-    fn task_macro_rejects_maximum_attributes() {
+    fn task_macro_rejects_too_many_attributes() {
         let mut attrs = Vec::new();
         for _ in 0..256 {
             attrs.push(quote! { foo });
         }
         let attr = quote! { #(#attrs)* };
         let item = quote! { fn a() {} };
-        let expected = quote! { compile_error!("unsupported attribute"); };
+        let expected = quote! { compile_error!("too many macro attributes (max 255)"); };
         let result = internal_task_macro(attr, item);
         assert_eq!(result.to_string(), expected.to_string());
     }
