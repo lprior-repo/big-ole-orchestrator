@@ -55,7 +55,7 @@ pub fn parse_task(item: &TokenStream) -> Result<TaskDef, Error> {
 
 #[allow(clippy::unnecessary_wraps)]
 pub fn generate_task_entrypoint(task: &TaskDef) -> Result<TokenStream, Error> {
-    let ident = syn::parse_str::<syn::Ident>(&task.ident).map_err(|_| Error::ParseFailure)?;
+    let ident = syn::parse_str::<syn::Ident>(&task.ident).map_err(|_| Error::IdentParsingFailed)?;
 
     let ret_type = match &task.return_type {
         Some(ty) => quote::quote! { -> #ty },
@@ -220,6 +220,45 @@ mod tests {
         let expected = quote! { fn main() -> Result<(), std::io::Error> { run() } };
         let result = generate_task_entrypoint(&task).unwrap();
         assert_eq!(result.to_string(), expected.to_string());
+    }
+
+    #[test]
+    fn generate_task_entrypoint_rejects_invalid_ident() {
+        let task = TaskDef {
+            ident: "123invalid".to_string(),
+            is_async: false,
+            is_unsafe: false,
+            return_type: None,
+            generics: syn::Generics::default(),
+        };
+        let result = generate_task_entrypoint(&task);
+        assert!(matches!(result, Err(Error::IdentParsingFailed)));
+    }
+
+    #[test]
+    fn generate_task_entrypoint_rejects_empty_ident() {
+        let task = TaskDef {
+            ident: String::new(),
+            is_async: false,
+            is_unsafe: false,
+            return_type: None,
+            generics: syn::Generics::default(),
+        };
+        let result = generate_task_entrypoint(&task);
+        assert!(matches!(result, Err(Error::IdentParsingFailed)));
+    }
+
+    #[test]
+    fn generate_task_entrypoint_rejects_whitespace_ident() {
+        let task = TaskDef {
+            ident: " ".to_string(),
+            is_async: false,
+            is_unsafe: false,
+            return_type: None,
+            generics: syn::Generics::default(),
+        };
+        let result = generate_task_entrypoint(&task);
+        assert!(matches!(result, Err(Error::IdentParsingFailed)));
     }
 
     proptest! {
