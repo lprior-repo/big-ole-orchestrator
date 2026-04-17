@@ -162,6 +162,8 @@ pub struct TimerSupervisorMetrics {
     pub overdue_timers: Counter,
     /// Number of dispatch errors.
     pub dispatch_errors: Counter,
+    /// Number of times a timer was deleted but dispatch failed (recovered via retry).
+    pub timer_deleted_but_dispatch_failed: Counter,
 }
 
 // =============================================================================
@@ -181,6 +183,18 @@ pub trait TimerStorage: Send + Sync {
         &self,
         instance_id: &InstanceId,
         fire_at_ms: u64,
+    ) -> Result<(), TimerSupervisorError>;
+
+    /// Retries a timer by rescheduling it with a new fire_at time.
+    ///
+    /// Used when dispatch fails after successful delete to recover the timer.
+    ///
+    /// # Errors
+    /// Returns an error if the retry operation fails.
+    fn retry_timer(
+        &self,
+        timer: &TimerRecord,
+        new_fire_at_ms: u64,
     ) -> Result<(), TimerSupervisorError>;
 }
 
@@ -330,12 +344,31 @@ impl TimerSupervisor {
                         }
                         Err(e) => {
                             self.metrics.dispatch_errors.incr();
+                            self.metrics.timer_deleted_but_dispatch_failed.incr();
                             error_count += 1;
                             tracing::error!(
                                 instance_id = %timer.instance_id,
+                                fire_at_ms = timer.fire_at_ms,
                                 error = %e,
-                                "Failed to enqueue resume work"
+                                "Timer deleted but dispatch failed - attempting retry"
                             );
+                            let retry_fire_at_ms = now_ms.saturating_add(1000);
+                            if let Err(retry_err) = self.storage.retry_timer(&timer, retry_fire_at_ms) {
+                                tracing::error!(
+                                    instance_id = %timer.instance_id,
+                                    fire_at_ms = timer.fire_at_ms,
+                                    retry_fire_at_ms = retry_fire_at_ms,
+                                    error = %retry_err,
+                                    "CRITICAL: Timer deleted but dispatch failed AND retry failed - timer permanently lost"
+                                );
+                            } else {
+                                tracing::warn!(
+                                    instance_id = %timer.instance_id,
+                                    fire_at_ms = timer.fire_at_ms,
+                                    retry_fire_at_ms = retry_fire_at_ms,
+                                    "Timer recovered via retry queue after dispatch failure"
+                                );
+                            }
                         }
                     }
                 }
@@ -665,6 +698,13 @@ mod tests {
             &self,
             _instance_id: &InstanceId,
             _fire_at_ms: u64,
+        ) -> Result<(), TimerSupervisorError> {
+            Ok(())
+        }
+        fn retry_timer(
+            &self,
+            _timer: &TimerRecord,
+            _new_fire_at_ms: u64,
         ) -> Result<(), TimerSupervisorError> {
             Ok(())
         }
