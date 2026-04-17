@@ -133,7 +133,8 @@ pub use signal_messages::{
     AcceptResumeError, AcceptResumeOutcome, BinaryHash, CancelError, CancelRequested,
     ContinueAsNewError, InstanceResumed, LifecycleState, NodeName, ResumeError, RolloverState,
     SecretId, SignalAccepted, SignalPayload, SignalStorage, SignalStorageError, SignalWorkQueue,
-    SignalWorkQueueError, TimestampMs, WaitKey, WorkflowCancelled, WorkflowContinued,
+    SignalWorkQueueError, StateLookup, TestStateLookup, TimestampMs, WaitKey, WorkflowCancelled,
+    WorkflowContinued,
 };
 pub use signal_messages::mock_signal_storage::{MockSignalStorage, MockSignalWorkQueue};
 pub use signal_messages::mock_signal_storage;
@@ -475,6 +476,7 @@ mod reserved_permit_budget_tests {
 pub struct ControlActor {
     signal_storage: Option<std::sync::Arc<dyn SignalStorage>>,
     work_queue: Option<std::sync::Arc<dyn SignalWorkQueue>>,
+    state_lookup: std::sync::Arc<dyn StateLookup>,
 }
 
 impl std::fmt::Debug for ControlActor {
@@ -507,6 +509,7 @@ impl ControlActor {
         Self {
             signal_storage: None,
             work_queue: None,
+            state_lookup: std::sync::Arc::new(TestStateLookup),
         }
     }
 
@@ -519,45 +522,22 @@ impl ControlActor {
         Self {
             signal_storage: Some(signal_storage),
             work_queue: Some(work_queue),
+            state_lookup: std::sync::Arc::new(TestStateLookup),
         }
     }
 
-    /// Determines lifecycle state from instance_id for test simulation.
-    /// Uses character at specific position to derive state.
-    fn derive_lifecycle_state(instance_id: &InstanceId) -> LifecycleState {
-        let id_str = instance_id.as_str();
-        // For 26-char ULIDs, use character at position 22 (0-indexed) to determine state
-        // Position 22 values determine state:
-        // 'C' = Completed
-        // 'X' = Cancelled
-        // 'A'-'M' = Running (normal range)
-        // 'N'-'Z' = Failed (upper range indicates failure state)
-        id_str
-            .chars()
-            .nth(22)
-            .map_or(LifecycleState::Running, |c| match c {
-                'C' => LifecycleState::Completed,
-                'X' => LifecycleState::Cancelled,
-                'F' => LifecycleState::Failed,
-                'W' => LifecycleState::WaitingForSignal,
-                _ => LifecycleState::Running,
-            })
-    }
-
-    /// Determines expected error type from instance_id for testing.
-    /// Returns Some(error_type) if instance should trigger specific error, None for success.
-    fn derive_error_type(instance_id: &InstanceId) -> Option<&'static str> {
-        let id_str = instance_id.as_str();
-        // Use position 20 to encode expected error type for tests that share instance_id
-        // but expect different behaviors
-        id_str.chars().nth(20).and_then(|c| match c {
-            'A' => Some("lock"),
-            'S' => Some("storage"),
-            'M' => Some("missing"),
-            'N' => Some("nodenotfound"),
-            'P' => Some("nopathtoterminal"),
-            _ => None,
-        })
+    /// Create a new ControlActor instance with custom state lookup.
+    /// Used for production with real state lookup implementation.
+    pub fn with_state_lookup(
+        signal_storage: Option<std::sync::Arc<dyn SignalStorage>>,
+        work_queue: Option<std::sync::Arc<dyn SignalWorkQueue>>,
+        state_lookup: std::sync::Arc<dyn StateLookup>,
+    ) -> Self {
+        Self {
+            signal_storage,
+            work_queue,
+            state_lookup,
+        }
     }
 
     /// Handle Cancel command.
@@ -576,7 +556,7 @@ impl ControlActor {
         }
 
         // Determine lifecycle state from instance_id
-        let state = Self::derive_lifecycle_state(&instance_id);
+        let state = self.state_lookup.derive_lifecycle_state(&instance_id);
 
         // Check if already terminal
         if state.is_terminal() {
@@ -587,7 +567,7 @@ impl ControlActor {
         }
 
         // Check for specific error scenarios encoded in instance_id
-        if let Some(error) = Self::derive_error_type(&instance_id) {
+        if let Some(error) = self.state_lookup.derive_error_type(&instance_id) {
             match error {
                 "lock" => {
                     return Err(CancelError::LockAcquisitionFailed {
@@ -633,7 +613,7 @@ impl ControlActor {
         }
 
         // Determine lifecycle state from instance_id
-        let state = Self::derive_lifecycle_state(&instance_id);
+        let state = self.state_lookup.derive_lifecycle_state(&instance_id);
 
         // Resume only works from Failed state
         if state != LifecycleState::Failed {
@@ -644,7 +624,7 @@ impl ControlActor {
         }
 
         // Check for specific error scenarios encoded in instance_id
-        if let Some(error) = Self::derive_error_type(&instance_id) {
+        if let Some(error) = self.state_lookup.derive_error_type(&instance_id) {
             match error {
                 "lock" => {
                     return Err(ResumeError::LockAcquisitionFailed {
@@ -715,7 +695,7 @@ impl ControlActor {
         }
 
         // P2: Determine lifecycle state
-        let state = Self::derive_lifecycle_state(&instance_id);
+        let state = self.state_lookup.derive_lifecycle_state(&instance_id);
         if state != LifecycleState::WaitingForSignal {
             return Err(AcceptResumeError::InvalidLifecycleState {
                 instance_id,
@@ -734,7 +714,7 @@ impl ControlActor {
         }
 
         // P5/P6: Check for transient errors
-        if let Some(error) = Self::derive_error_type(&instance_id) {
+        if let Some(error) = self.state_lookup.derive_error_type(&instance_id) {
             match error {
                 "lock" => {
                     return Err(AcceptResumeError::LockAcquisitionFailed {
@@ -814,7 +794,7 @@ impl ControlActor {
             return Err(ContinueAsNewError::InstanceActorNotFound { instance_id });
         }
 
-        let state = Self::derive_lifecycle_state(&instance_id);
+        let state = self.state_lookup.derive_lifecycle_state(&instance_id);
         if state.is_terminal() {
             return Err(ContinueAsNewError::AlreadyTerminal {
                 instance_id,
@@ -822,7 +802,7 @@ impl ControlActor {
             });
         }
 
-        if let Some(error) = Self::derive_error_type(&instance_id) {
+        if let Some(error) = self.state_lookup.derive_error_type(&instance_id) {
             match error {
                 "lock" => {
                     return Err(ContinueAsNewError::LockAcquisitionFailed {
