@@ -36,9 +36,15 @@ fn rq_pass_pub_crate() {
 }
 
 #[test]
-fn rq_pass_async_where() {
+fn rq_pass_async() {
     let t = TestCases::new();
-    t.pass("tests/rq_ui/pass_async_where.rs");
+    t.pass("tests/rq_ui/pass_async.rs");
+}
+
+#[test]
+fn rq_fail_async_generic() {
+    let t = TestCases::new();
+    t.compile_fail("tests/rq_ui/fail_async_generic.rs");
 }
 
 #[test]
