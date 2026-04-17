@@ -96,7 +96,7 @@ where
     S: TimerStorage + 'static,
 {
     let now = TimestampMs::now();
-    let zero = TimestampMs::try_from(0u64).expect("0 is valid");
+    let zero = TimestampMs::new_unchecked(0);
 
     let all_timers = storage
         .scan_due_timers(zero, now, max_results)
