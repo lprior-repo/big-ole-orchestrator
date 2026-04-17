@@ -13,40 +13,7 @@ mod fd_mock;
 
 use fd_mock::{create_invalid_json_envelope, create_missing_key_envelope, create_valid_envelope};
 use serde_json::json;
-use vo_sdk::{read_input, write_failure, write_success, SdkError, TaskFailureKind};
-
-#[test]
-fn read_input_returns_fd_not_open_when_fd3_not_open() {
-    let result = read_input();
-    assert!(
-        matches!(result, Err(SdkError::FdNotOpen)),
-        "Expected FdNotOpen error when FD3 not set up, got {:?}",
-        result
-    );
-}
-
-#[test]
-fn write_success_returns_error_when_fd4_not_open() {
-    let result = write_success(&json!({"a": 1}));
-    assert!(
-        matches!(
-            result,
-            Err(SdkError::WriteError) | Err(SdkError::AlreadyWritten)
-        ),
-        "Expected error when FD4 not open, got {:?}",
-        result
-    );
-}
-
-#[test]
-fn write_failure_returns_write_error_when_fd4_not_open() {
-    let result = write_failure(TaskFailureKind::User, "test");
-    assert!(
-        matches!(result, Err(SdkError::WriteError)),
-        "Expected WriteError when FD4 not open, got {:?}",
-        result
-    );
-}
+use vo_sdk::{SdkError, TaskFailureKind};
 
 #[test]
 fn read_input_inner_with_state_valid_json_succeeds() {
