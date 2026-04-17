@@ -3,23 +3,9 @@ use std::time::Duration;
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
 use ulid::Ulid;
 
-#[derive(Debug, Error)]
-pub enum CronError {
-    #[error("invalid cron expression: expected 5 fields, got {0}")]
-    WrongFieldCount(usize),
-    #[error("invalid cron expression: field {field} position has invalid value '{value}'")]
-    InvalidField { field: usize, value: String },
-    #[error("invalid cron expression: field {field} out of range {min}-{max}, got {value}")]
-    OutOfRange {
-        field: usize,
-        value: i64,
-        min: i64,
-        max: i64,
-    },
-}
+use crate::error::SchedulerError;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct JobId(pub Ulid);
@@ -97,6 +83,60 @@ pub enum SchedulePolicy {
     After(#[serde(with = "humantime_serde")] Duration),
     Cron(String),
     Immediate,
+}
+
+impl SchedulePolicy {
+    pub fn validate_cron(expr: &str) -> Result<(), SchedulerError> {
+        let fields: Vec<&str> = expr.split_whitespace().collect();
+        if fields.len() != 5 {
+            return Err(SchedulerError::InvalidSchedule);
+        }
+
+        let minute_valid = validate_cron_field(fields[0], 0, 59)?;
+        let hour_valid = validate_cron_field(fields[1], 0, 23)?;
+        let day_of_month_valid = validate_cron_field(fields[2], 1, 31)?;
+        let month_valid = validate_cron_field(fields[3], 1, 12)?;
+        let day_of_week_valid = validate_cron_field(fields[4], 0, 6)?;
+
+        if minute_valid && hour_valid && day_of_month_valid && month_valid && day_of_week_valid {
+            Ok(())
+        } else {
+            Err(SchedulerError::InvalidSchedule)
+        }
+    }
+}
+
+fn validate_cron_field(field: &str, min: u32, max: u32) -> Result<bool, SchedulerError> {
+    if field == "*" {
+        return Ok(true);
+    }
+
+    if let Some(step_val) = field.strip_prefix("*/") {
+        let step: u32 = step_val
+            .parse()
+            .map_err(|_| SchedulerError::InvalidSchedule)?;
+        if step == 0 || step > max {
+            return Err(SchedulerError::InvalidSchedule);
+        }
+        return Ok(true);
+    }
+
+    if let Some((start, end)) = field.split_once('-') {
+        let start: u32 = start.parse().map_err(|_| SchedulerError::InvalidSchedule)?;
+        let end: u32 = end.parse().map_err(|_| SchedulerError::InvalidSchedule)?;
+        if start < min || end > max || start > end {
+            return Err(SchedulerError::InvalidSchedule);
+        }
+        return Ok(true);
+    }
+
+    if let Ok(val) = field.parse::<u32>() {
+        if val >= min && val <= max {
+            return Ok(true);
+        }
+    }
+
+    Err(SchedulerError::InvalidSchedule)
 }
 
 impl fmt::Display for SchedulePolicy {
@@ -232,99 +272,3 @@ impl fmt::Display for JobPriority {
         }
     }
 }
-
-pub fn validate_cron_expression(expr: &str) -> Result<(), CronError> {
-    let fields: Vec<&str> = expr.split_whitespace().collect();
-
-    if fields.len() != 5 {
-        return Err(CronError::WrongFieldCount(fields.len()));
-    }
-
-    let minute_range = 0..=59i64;
-    let hour_range = 0..=23i64;
-    let day_of_month_range = 1..=31i64;
-    let month_range = 1..=12i64;
-    let day_of_week_range = 0..=7i64;
-
-    let ranges: [std::ops::RangeInclusive<i64>; 5] = [
-        minute_range,
-        hour_range,
-        day_of_month_range,
-        month_range,
-        day_of_week_range,
-    ];
-    let field_names = ["minute", "hour", "day-of-month", "month", "day-of-week"];
-
-    for (i, field) in fields.iter().enumerate() {
-        if *field == "*" {
-            continue;
-        }
-
-        if let Some(value) = parse_cron_field(*field, i, &ranges[i], field_names[i])? {
-            if !ranges[i].contains(&value) {
-                return Err(CronError::OutOfRange {
-                    field: i,
-                    value,
-                    min: *ranges[i].start(),
-                    max: *ranges[i].end(),
-                });
-            }
-        }
-    }
-
-    Ok(())
-}
-
-fn parse_cron_field(
-    field: &str,
-    position: usize,
-    range: &std::ops::RangeInclusive<i64>,
-    field_name: &str,
-) -> Result<Option<i64>, CronError> {
-    if field == "*" {
-        return Ok(None);
-    }
-
-    // Handle */step syntax (e.g., */5)
-    if let Some(step_str) = field.strip_prefix("*/") {
-        if step_str.parse::<i64>().is_ok() {
-            // */n is valid - means "every n units"
-            return Ok(None);
-        }
-    }
-
-    if field.contains('-') {
-        let parts: Vec<&str> = field.split('-').collect();
-        if parts.len() == 2 {
-            if let (Ok(_start), Ok(_end)) = (parts[0].parse::<i64>(), parts[1].parse::<i64>()) {
-                // Range is valid format, we just need to check bounds later
-                return Ok(None);
-            }
-        }
-        return Err(CronError::InvalidField {
-            field: position,
-            value: field.to_string(),
-        });
-    }
-
-    if let Ok(value) = field.parse::<i64>() {
-        Ok(Some(value))
-    } else {
-        Err(CronError::InvalidField {
-            field: position,
-            value: field.to_string(),
-        })
-    }
-}
-
-const _: () = {
-    fn assert_send_sync<T: Send + Sync>() {}
-    fn check() {
-        assert_send_sync::<JobId>();
-        assert_send_sync::<JobState>();
-        assert_send_sync::<JobKind>();
-        assert_send_sync::<SchedulePolicy>();
-        assert_send_sync::<RetryPolicy>();
-        assert_send_sync::<JobPriority>();
-    }
-};
