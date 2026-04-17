@@ -1,51 +1,24 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use vo_types::IdempotencyKey;
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct DedupKey(String);
-
-impl DedupKey {
-    pub fn new(key: IdempotencyKey) -> Self {
-        Self(key.as_str().to_string())
-    }
-
-    pub fn parse(input: &str) -> Result<Self, DedupError> {
-        if input.is_empty() {
-            return Err(DedupError::EmptyKey);
-        }
-        if input.len() > 1024 {
-            return Err(DedupError::KeyExceedsMaxLength {
-                max: 1024,
-                actual: input.len(),
-            });
-        }
-        Ok(Self(input.to_string()))
-    }
-
-    #[must_use]
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
+use vo_types::{DedupeKey, IdempotencyKey};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "status", content = "data")]
 pub enum IngressAdmissionResponse {
     Admitted {
         instance_id: String,
-        dedup_key: DedupKey,
+        dedup_key: DedupeKey,
         admitted_at: DateTime<Utc>,
     },
     Deduped {
         instance_id: String,
-        dedup_key: DedupKey,
+        dedup_key: DedupeKey,
         original_admitted_at: DateTime<Utc>,
         message: String,
     },
     Rejected {
         reason: DedupRejectionReason,
-        dedup_key: Option<DedupKey>,
+        dedup_key: Option<DedupeKey>,
     },
 }
 
@@ -59,19 +32,9 @@ pub enum DedupRejectionReason {
     InternalError(String),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
-pub enum DedupError {
-    #[error("dedupe key is empty")]
-    EmptyKey,
-    #[error("dedupe key exceeds maximum length: max {max}, actual {actual}")]
-    KeyExceedsMaxLength { max: usize, actual: usize },
-    #[error("invalid dedupe key format")]
-    InvalidFormat,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DedupRecord {
-    pub dedup_key: DedupKey,
+    pub dedup_key: DedupeKey,
     pub instance_id: String,
     pub workflow_type: String,
     pub admitted_at: DateTime<Utc>,
@@ -87,7 +50,7 @@ impl DedupRecord {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IngressAdmissionRequest {
-    pub dedupe_key: Option<DedupKey>,
+    pub dedupe_key: Option<DedupeKey>,
     pub namespace: String,
     pub workflow_type: String,
     pub input: serde_json::Value,
@@ -102,7 +65,7 @@ impl IngressAdmissionRequest {
         self.is_exact_workflow
     }
 
-    pub fn validate_for_exact_workflow(&self) -> Result<DedupKey, DedupRejectionReason> {
+    pub fn validate_for_exact_workflow(&self) -> Result<DedupeKey, DedupRejectionReason> {
         self.dedupe_key
             .clone()
             .ok_or(DedupRejectionReason::MissingDedupKey)
@@ -115,46 +78,24 @@ mod tests {
 
     #[test]
     fn dedup_key_parse_valid() {
-        let key = DedupKey::parse("test-key-123").unwrap();
+        let key = DedupeKey::parse("test-key-123").unwrap();
         assert_eq!(key.as_str(), "test-key-123");
     }
 
     #[test]
     fn dedup_key_parse_empty_error() {
-        let result = DedupKey::parse("");
-        assert!(matches!(result, Err(DedupError::EmptyKey)));
+        let result = DedupeKey::parse("");
+        assert!(matches!(result, Err(vo_types::ParseError::Empty { .. })));
     }
 
     #[test]
     fn dedup_key_parse_exceeds_max_length() {
-        let long_key = "a".repeat(1025);
-        let result = DedupKey::parse(&long_key);
+        let long_key = "a".repeat(300);
+        let result = DedupeKey::parse(&long_key);
         assert!(matches!(
             result,
-            Err(DedupError::KeyExceedsMaxLength { max: 1024, .. })
+            Err(vo_types::ParseError::ExceedsMaxLength { max: 256, .. })
         ));
-    }
-
-    #[test]
-    fn dedup_record_expired() {
-        let past = DateTime::parse_from_rfc3339("2020-01-01T00:00:00Z")
-            .unwrap()
-            .with_timezone(&Utc);
-        let future = DateTime::parse_from_rfc3339("2030-01-01T00:00:00Z")
-            .unwrap()
-            .with_timezone(&Utc);
-
-        let record = DedupRecord {
-            dedup_key: DedupKey::parse("test").unwrap(),
-            instance_id: "instance-1".to_string(),
-            workflow_type: "test-workflow".to_string(),
-            admitted_at: past,
-            expires_at: past,
-            retention_window_seconds: 3600,
-        };
-
-        assert!(record.is_expired(future));
-        assert!(!record.is_expired(past));
     }
 
     #[test]

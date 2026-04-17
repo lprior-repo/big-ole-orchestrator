@@ -88,24 +88,6 @@ fn history_entry_serializes_step_fields() {
     assert!(!json.contains("error"));
 }
 
-// --- HistoryEntry tests ---
-
-#[test]
-fn history_entry_serializes_step_fields() {
-    let entry = crate::types::v3::HistoryEntry {
-        sequence: 3,
-        timestamp_ms: 5000,
-        event_type: "step_completed".to_string(),
-        step_id: Some("build".to_string()),
-        error: None,
-        output: Some(serde_json::json!({"result": "ok"})),
-    };
-    let json = serde_json::to_string(&entry).unwrap();
-    assert!(json.contains(r#""step_id":"build""#));
-    assert!(json.contains("output"));
-    assert!(!json.contains("error"));
-}
-
 #[test]
 fn history_entry_omits_none_fields() {
     let entry = crate::types::v3::HistoryEntry {

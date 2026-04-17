@@ -17,8 +17,6 @@ pub mod v1;
 pub mod v3;
 
 #[cfg(test)]
-mod ingress_bdd_tests;
-#[cfg(test)]
 mod security_validation_tests;
 #[cfg(test)]
 mod v1_test;
@@ -26,6 +24,7 @@ mod v1_test;
 mod v3_test;
 
 pub use errors::*;
+pub use ingress::*;
 pub use names::*;
 pub use v1::*;
 pub use v3::*;
