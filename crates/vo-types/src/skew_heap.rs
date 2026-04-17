@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -15,3 +16,10 @@ pub enum SkewHeapError {
     #[error("empty heap")]
     EmptyHeap,
 }
+=======
+#![allow(dead_code)]
+
+pub struct SkewHeap;
+pub struct SkewHeapError;
+pub struct SkewNode;
+>>>>>>> origin/polecat/guzzle-veloxide-4wc

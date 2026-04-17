@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -50,3 +51,16 @@ pub enum SpqrError {
     #[error("decomposition failed")]
     DecompositionFailed,
 }
+=======
+#![allow(dead_code)]
+
+pub struct Block;
+pub struct Component;
+pub struct CutNode;
+pub struct SPQRDecomposition;
+pub struct SPQREdge;
+pub struct SPQRNode;
+pub struct SPQRNodeType;
+pub struct SpqrError;
+pub struct StaticGraph;
+>>>>>>> origin/polecat/guzzle-veloxide-4wc

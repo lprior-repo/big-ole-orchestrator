@@ -130,8 +130,12 @@ impl SchedulerQueue {
         loop {
             let entry = self.heap.peek()?.clone();
             if entry.due_at > now {
+<<<<<<< HEAD
                 self.heap.pop();
                 continue;
+=======
+                return None;
+>>>>>>> origin/polecat/guzzle-veloxide-4wc
             }
             self.heap.pop();
             let job_id = entry.job_id;

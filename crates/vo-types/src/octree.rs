@@ -1,12 +1,22 @@
+<<<<<<< HEAD
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+=======
+#![allow(dead_code)]
+
+#[derive(Debug, Clone)]
+pub struct OctreeError(pub String);
+
+#[derive(Debug, Clone, Copy)]
+>>>>>>> origin/polecat/guzzle-veloxide-4wc
 pub struct Point3 {
     pub x: f64,
     pub y: f64,
     pub z: f64,
 }
 
+<<<<<<< HEAD
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BoundingBox {
     pub center: Point3,
@@ -53,4 +63,29 @@ pub enum OctreeError {
     MaxDepthExceeded,
     #[error("empty tree")]
     EmptyTree,
+=======
+#[derive(Debug, Clone)]
+pub struct BoundingBox {
+    pub _p: (),
+}
+
+#[derive(Debug, Clone)]
+pub struct OctreeNode {
+    pub _p: (),
+}
+
+#[derive(Debug, Clone)]
+pub struct OctreeEntry {
+    pub _p: (),
+}
+
+#[derive(Debug, Clone)]
+pub struct OctreeConfig {
+    pub _p: (),
+}
+
+#[derive(Debug, Clone)]
+pub struct Octree {
+    pub _p: (),
+>>>>>>> origin/polecat/guzzle-veloxide-4wc
 }

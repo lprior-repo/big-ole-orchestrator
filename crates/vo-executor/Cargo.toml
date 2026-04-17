@@ -7,11 +7,9 @@ license.workspace = true
 [dependencies]
 thiserror.workspace = true
 serde = { version = "1", features = ["derive"] }
-tokio = { workspace = true, features = ["time", "sync", "io-util", "process"] }
+tokio = { workspace = true, features = ["time", "sync"] }
 dashmap = { workspace = true }
 chrono = { workspace = true }
-libc.workspace = true
-tracing.workspace = true
 
 [dev-dependencies]
 tokio.workspace = true
@@ -19,7 +17,6 @@ proptest.workspace = true
 serde_json.workspace = true
 criterion.workspace = true
 uuid.workspace = true
-tempfile.workspace = true
 
 [[bench]]
 name = "e2e_bench"
@@ -28,10 +25,6 @@ harness = false
 [[bench]]
 name = "e2e_system_bench"
 harness = false
-
-[[bin]]
-name = "test_subprocess_helper"
-path = "tests/fixtures/src/bin/test_subprocess_helper.rs"
 
 [lints]
 workspace = true

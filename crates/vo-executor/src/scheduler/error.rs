@@ -32,9 +32,6 @@ pub enum SchedulerError {
 
     #[error("Serialization error: {0}")]
     SerializationError(String),
-
-    #[error("Invalid JobId: {0}")]
-    InvalidJobId(String),
 }
 
 #[derive(Debug, Error)]

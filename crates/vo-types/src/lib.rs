@@ -21,6 +21,7 @@ mod encryption_tests;
 mod errors;
 pub mod euler_tour_tree;
 pub mod events;
+mod identity;
 mod instance_status;
 pub mod integer_types;
 #[cfg(test)]

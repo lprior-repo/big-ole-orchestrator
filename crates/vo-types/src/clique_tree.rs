@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -17,3 +18,10 @@ pub enum CliqueTreeError {
     #[error("invalid graph")]
     InvalidGraph,
 }
+=======
+#![allow(dead_code)]
+
+pub struct Clique;
+pub struct CliqueTree;
+pub struct CliqueTreeError;
+>>>>>>> origin/polecat/guzzle-veloxide-4wc

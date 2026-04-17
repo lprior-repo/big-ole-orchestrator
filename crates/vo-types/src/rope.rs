@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 use serde::{Deserialize, Serialize};
 
 pub trait Measurable {
@@ -26,3 +27,13 @@ pub enum RopeError {
     #[error("empty rope")]
     EmptyRope,
 }
+=======
+#![allow(dead_code)]
+
+pub struct Rope;
+pub struct RopeSlice;
+pub struct RopeBuilder;
+pub struct RopeError;
+
+pub trait Measurable {}
+>>>>>>> origin/polecat/guzzle-veloxide-4wc
