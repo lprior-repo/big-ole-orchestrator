@@ -8,7 +8,10 @@ use proptest::prelude::*;
 use serde_json::json;
 
 use crate::tests::read_input_inner_with_state as read_input_inner;
-use crate::tests::{write_failure_inner_with_state as write_failure_inner, write_success_inner_with_state as write_success_inner};
+use crate::tests::{
+    write_failure_inner_with_state as write_failure_inner,
+    write_success_inner_with_state as write_success_inner,
+};
 use crate::{SdkError, TaskFailureKind};
 
 use super::valid_envelope;

@@ -15,6 +15,7 @@ use crate::dag::{Dag, DagError, Workflow};
 use crate::graph::{parse_graph_args, EdgeSpec, GraphArgs, GraphArgsError, NodeSpec, WorkflowSpec};
 use crate::node_handle::NodeHandle;
 use crate::tests::{
+    read_input_inner_with_atomic_guard as read_input_inner_atomic,
     read_input_inner_with_state as read_input_inner,
     write_failure_inner_with_state as write_failure_inner,
     write_success_inner_with_state as write_success_inner,
@@ -394,14 +395,7 @@ fn concurrent_read_input_only_one_succeeds() {
         handles.push(thread::spawn(move || {
             let payload = valid_envelope("key-abc", &json!(null));
             let mut cursor = Cursor::new(payload);
-            let mut local_guard = false;
-            let exchanged = guard
-                .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
-                .is_ok();
-            if exchanged {
-                local_guard = true;
-            }
-            let result = read_input_inner(&mut cursor, &mut local_guard);
+            let result = read_input_inner_atomic(&mut cursor, &guard);
             if result.is_ok() {
                 success_count.fetch_add(1, Ordering::SeqCst);
             }

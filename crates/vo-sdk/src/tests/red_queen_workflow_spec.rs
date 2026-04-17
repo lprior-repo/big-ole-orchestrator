@@ -425,8 +425,8 @@ fn rq_workflow_spec_accepts_edges_to_nonexistent_nodes_via_serde() {
     }"#;
     let result: Result<WorkflowSpec, _> = serde_json::from_str(json);
     assert!(
-        result.is_ok(),
-        "serde accepts invalid edge refs (validation happens elsewhere): {:?}",
+        result.is_err(),
+        "serde rejects edges to nonexistent nodes: {:?}",
         result
     );
 }
@@ -707,13 +707,7 @@ fn rq_workflow_spec_accepts_cycle_via_serde() {
         ]
     }"#;
     let result: Result<WorkflowSpec, _> = serde_json::from_str(json);
-    assert!(
-        result.is_ok(),
-        "serde accepts cycle (validation happens elsewhere): {:?}",
-        result
-    );
-    let spec = result.unwrap();
-    assert_eq!(spec.edges.len(), 2);
+    assert!(result.is_err(), "serde rejects cycle: {:?}", result);
 }
 
 #[test]
@@ -761,11 +755,7 @@ fn rq_workflow_spec_accepts_self_loop_edge_via_serde() {
         ]
     }"#;
     let result: Result<WorkflowSpec, _> = serde_json::from_str(json);
-    assert!(
-        result.is_ok(),
-        "serde accepts self-loop (validation happens elsewhere): {:?}",
-        result
-    );
+    assert!(result.is_err(), "serde rejects self-loop: {:?}", result);
 }
 
 #[test]
