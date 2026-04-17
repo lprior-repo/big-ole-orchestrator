@@ -20,6 +20,7 @@ pub struct SearchResult {
 
 #[derive(Debug, Clone)]
 pub struct SearchEngine {
+    #[allow(dead_code)]
     index: InvertedIndex,
 }
 
