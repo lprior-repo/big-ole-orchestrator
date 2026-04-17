@@ -9,6 +9,7 @@ vo-types = { path = "../vo-types" }
 thiserror.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+ulid.workspace = true
 dashmap.workspace = true
 tokio.workspace = true
 notify = "6"
