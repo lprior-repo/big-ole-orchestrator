@@ -144,11 +144,28 @@ impl SerializedPayload {
     }
 }
 
+/// Defines when a scheduled job should execute.
+///
+/// # Limitations
+///
+/// The [`Cron`](Schedule::Cron) variant stores a cron expression string but does **not**
+/// compute next fire times. [`next_fire_time`](Schedule::next_fire_time) returns `None` for
+/// Cron schedules. A cron parser (e.g. `cron` or `saffron` crate) must be integrated before
+/// Cron schedules can drive recurring execution.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Schedule {
+    /// Cron expression (e.g. `"*/5 * * * *"`).
+    ///
+    /// **Not yet implemented.** [`next_fire_time`](Schedule::next_fire_time) always returns
+    /// `None` for this variant. Using a Cron schedule without an external cron parser will
+    /// result in the job never firing.
     Cron(String),
-    OneShot { fire_at_ms: u64 },
-    Interval { interval_ms: u64 },
+    OneShot {
+        fire_at_ms: u64,
+    },
+    Interval {
+        interval_ms: u64,
+    },
 }
 
 impl Schedule {
@@ -170,6 +187,11 @@ impl Schedule {
         }
     }
 
+    /// Returns the next fire time in milliseconds since Unix epoch, or `None`
+    /// if no further execution is possible.
+    ///
+    /// Returns `None` for [`Cron`](Schedule::Cron) — cron expression parsing
+    /// is not yet implemented.
     pub fn next_fire_time(&self, last_fire_ms: u64) -> Option<u64> {
         match self {
             Self::Cron(_) => {
@@ -355,6 +377,41 @@ mod tests {
         let next2 = schedule.next_fire_time(next.unwrap());
         assert!(next2.is_some());
         assert!(next2 > next);
+    }
+
+    #[test]
+    fn scheduler_retry_policy_rejects_initial_delay_exceeding_max() {
+        let result =
+            SchedulerRetryPolicy::new(3, 2.0, Duration::from_secs(120), Duration::from_secs(60));
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "initial_delay (120000ms) must be <= max_delay (60000ms)"
+        );
+    }
+
+    #[test]
+    fn scheduler_retry_policy_valid_config_succeeds() {
+        let policy =
+            SchedulerRetryPolicy::new(3, 2.0, Duration::from_secs(1), Duration::from_secs(60));
+        assert!(policy.is_ok());
+        let p = policy.unwrap();
+        assert_eq!(p.max_attempts, 3);
+        assert_eq!(p.initial_delay, Duration::from_secs(1));
+        assert_eq!(p.max_delay, Duration::from_secs(60));
+    }
+
+    #[test]
+    fn scheduler_retry_policy_equal_delays_succeeds() {
+        let policy =
+            SchedulerRetryPolicy::new(1, 1.0, Duration::from_secs(30), Duration::from_secs(30));
+        assert!(policy.is_ok());
+    }
+
+    #[test]
+    fn scheduler_retry_policy_default_retry_is_valid() {
+        let _ = SchedulerRetryPolicy::default_retry();
     }
 
     #[test]
