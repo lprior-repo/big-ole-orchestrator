@@ -115,12 +115,8 @@ impl TimerStorage for MockTimerStorage {
             .push((instance_id.clone(), fire_at_ms));
 
         let mut timers = self.timers.lock().await;
-        if let Some(pos) = timers
-            .iter()
-            .position(|t| t.instance_id == *instance_id && t.fire_at_ms == fire_at_ms)
-        {
-            timers.remove(pos);
-        }
+        // Remove ALL matching timers, not just the first one
+        timers.retain(|t| !(t.instance_id == *instance_id && t.fire_at_ms == fire_at_ms));
 
         Ok(())
     }
