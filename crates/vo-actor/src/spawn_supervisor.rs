@@ -670,7 +670,7 @@ impl SpawnSupervisor {
                                     "Scheduling respawn with backoff"
                                 );
 
-                                let _ = backoff_delay;
+                                tokio::time::sleep(backoff_delay).await;
                             }
                         }
                     }
@@ -750,6 +750,15 @@ impl SpawnSupervisor {
             spawns_processed += 1;
 
             if should_respawn(&record, self.max_spawn_attempts) {
+                let backoff_delay = self.calculate_backoff_delay(record.spawn_attempts);
+                tracing::info!(
+                    instance_id = %record.instance_id,
+                    backoff_ms = backoff_delay.as_millis(),
+                    "Respawning failed spawn with backoff"
+                );
+
+                tokio::time::sleep(backoff_delay).await;
+
                 let new_record = record.respawn(None);
 
                 if let Err(e) = self.storage.save_spawn_record(&new_record).await {
