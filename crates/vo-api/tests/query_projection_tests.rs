@@ -14,7 +14,7 @@ use axum::{
     routing::get,
     Router,
 };
-use fjall::{Config, Keyspace};
+use fjall::Database;
 use http_body_util::BodyExt;
 use tower::ServiceExt;
 use vo_api::handlers::query::QueryState;
@@ -51,12 +51,10 @@ fn envelope_to_bytes(envelope: &EventEnvelope) -> Vec<u8> {
     })).unwrap()
 }
 
-async fn setup_keyspace_with_events(instance_id: &InstanceId, count: u64) -> Arc<Keyspace> {
+async fn setup_database_with_events(instance_id: &InstanceId, count: u64) -> Arc<Database> {
     let dir = tempfile::tempdir().unwrap();
-    let keyspace = Config::new(dir.path()).open().unwrap();
-    let partition = keyspace
-        .open_partition("events", fjall::PartitionCreateOptions::default())
-        .unwrap();
+    let db = Database::builder(dir.path()).open().unwrap();
+    let partition = db.keyspace("events", fjall::KeyspaceCreateOptions::default).unwrap();
 
     let event_types = ["WorkflowStarted", "StepCompleted", "StepFailed", "EffectCommitted"];
     for seq in 1..=count {
@@ -68,7 +66,7 @@ async fn setup_keyspace_with_events(instance_id: &InstanceId, count: u64) -> Arc
         partition.insert(&key, &value).unwrap();
     }
 
-    Arc::new(keyspace)
+    Arc::new(db)
 }
 
 fn build_router(state: QueryState) -> Router {
@@ -102,10 +100,11 @@ fn build_router(state: QueryState) -> Router {
     }
 
     Router::new()
-        .route("/api/v1/workflows/:ns/:inst/timeline", get(timeline_handler))
-        .route("/api/v1/workflows/:ns/:inst/history", get(history_handler))
-        .route("/api/v1/workflows/:ns/:inst/effect-journal", get(effect_journal_handler))
-        .route("/api/v1/workflows/:ns/:inst/version", get(version_handler))
+        .route("/api/v1/workflows/{ns}/{inst}/timeline", get(timeline_handler))
+        .route("/api/v1/workflows/{ns}/{inst}/history", get(history_handler))
+        .route("/api/v1/workflows/{ns}/{inst}/effect-journal", get(effect_journal_handler))
+        .route("/api/v1/workflows/{ns}/{inst}/version", get(version_handler))
+        .fallback(get(|| async { (StatusCode::NOT_FOUND, "Not Found") }))
         .with_state(state)
 }
 
@@ -116,12 +115,13 @@ fn build_router(state: QueryState) -> Router {
 #[tokio::test]
 async fn timeline_route_returns_200_for_valid_instance() {
     let instance_id = InstanceId::parse("01ARZ3NDEKTSV4RRFFQ69G5FAV").unwrap();
-    let keyspace = setup_keyspace_with_events(&instance_id, 3).await;
-    let state = QueryState { keyspace };
+    let db = setup_database_with_events(&instance_id, 3).await;
+    let search_engine = Arc::new(std::sync::Mutex::new(vo_types::search::SearchEngine::new()));
+    let state = QueryState { db, search_engine };
     let app = build_router(state);
 
     let req = Request::builder()
-        .uri("/api/v1/workflows/payments/01ARZ3NDEKTSV4RRFFQ69G5FAV/timeline")
+        .uri("/api/v1/workflows/testns/01ARZ3NDEKTSV4RRFFQ69G5FAV/timeline")
         .body(Body::empty())
         .unwrap();
 
@@ -132,12 +132,13 @@ async fn timeline_route_returns_200_for_valid_instance() {
 #[tokio::test]
 async fn history_route_returns_200_for_valid_instance() {
     let instance_id = InstanceId::parse("01ARZ3NDEKTSV4RRFFQ69G5FAV").unwrap();
-    let keyspace = setup_keyspace_with_events(&instance_id, 3).await;
-    let state = QueryState { keyspace };
+    let db = setup_database_with_events(&instance_id, 3).await;
+    let search_engine = Arc::new(std::sync::Mutex::new(vo_types::search::SearchEngine::new()));
+    let state = QueryState { db, search_engine };
     let app = build_router(state);
 
     let req = Request::builder()
-        .uri("/api/v1/workflows/payments/01ARZ3NDEKTSV4RRFFQ69G5FAV/history")
+        .uri("/api/v1/workflows/testns/01ARZ3NDEKTSV4RRFFQ69G5FAV/history")
         .body(Body::empty())
         .unwrap();
 
@@ -148,12 +149,13 @@ async fn history_route_returns_200_for_valid_instance() {
 #[tokio::test]
 async fn effect_journal_route_returns_200_for_valid_instance() {
     let instance_id = InstanceId::parse("01ARZ3NDEKTSV4RRFFQ69G5FAV").unwrap();
-    let keyspace = setup_keyspace_with_events(&instance_id, 3).await;
-    let state = QueryState { keyspace };
+    let db = setup_database_with_events(&instance_id, 3).await;
+    let search_engine = Arc::new(std::sync::Mutex::new(vo_types::search::SearchEngine::new()));
+    let state = QueryState { db, search_engine };
     let app = build_router(state);
 
     let req = Request::builder()
-        .uri("/api/v1/workflows/payments/01ARZ3NDEKTSV4RRFFQ69G5FAV/effect-journal")
+        .uri("/api/v1/workflows/testns/01ARZ3NDEKTSV4RRFFQ69G5FAV/effect-journal")
         .body(Body::empty())
         .unwrap();
 
@@ -164,12 +166,13 @@ async fn effect_journal_route_returns_200_for_valid_instance() {
 #[tokio::test]
 async fn version_route_returns_200_for_valid_instance() {
     let instance_id = InstanceId::parse("01ARZ3NDEKTSV4RRFFQ69G5FAV").unwrap();
-    let keyspace = setup_keyspace_with_events(&instance_id, 3).await;
-    let state = QueryState { keyspace };
+    let db = setup_database_with_events(&instance_id, 3).await;
+    let search_engine = Arc::new(std::sync::Mutex::new(vo_types::search::SearchEngine::new()));
+    let state = QueryState { db, search_engine };
     let app = build_router(state);
 
     let req = Request::builder()
-        .uri("/api/v1/workflows/payments/01ARZ3NDEKTSV4RRFFQ69G5FAV/version")
+        .uri("/api/v1/workflows/testns/01ARZ3NDEKTSV4RRFFQ69G5FAV/version")
         .body(Body::empty())
         .unwrap();
 
@@ -184,22 +187,26 @@ async fn version_route_returns_200_for_valid_instance() {
 #[tokio::test]
 async fn timeline_returns_400_for_malformed_id_no_slash() {
     let instance_id = InstanceId::parse("01ARZ3NDEKTSV4RRFFQ69G5FAV").unwrap();
-    let keyspace = setup_keyspace_with_events(&instance_id, 1).await;
-    let state = QueryState { keyspace };
+    let db = setup_database_with_events(&instance_id, 1).await;
+    let search_engine = Arc::new(std::sync::Mutex::new(vo_types::search::SearchEngine::new()));
+    let state = QueryState { db, search_engine };
 
-    async fn single_path_timeline(
-        axum::extract::Path(id): axum::extract::Path<String>,
+   async fn single_path_timeline(
+        axum::extract::Path((ns, inst)): axum::extract::Path<(String, String)>,
         axum::extract::State(st): axum::extract::State<QueryState>,
     ) -> impl axum::response::IntoResponse {
+        let id = format!("{}/{}", ns, inst);
         vo_api::handlers::query::get_timeline(axum::extract::Path(id), axum::extract::State(st)).await
     }
 
     let app = Router::new()
-        .route("/api/v1/workflows/:id/timeline", get(single_path_timeline))
+        .route("/api/v1/workflows/{ns}/{inst}/timeline", get(single_path_timeline))
         .with_state(state);
 
+    // Test: Instance ID that doesn't parse as valid ULID returns 400
+    // We use a valid route structure but an invalid ULID format
     let req = Request::builder()
-        .uri("/api/v1/workflows/no-slash-id/timeline")
+        .uri("/api/v1/workflows/payments/notavalidulid/timeline")
         .body(Body::empty())
         .unwrap();
 
@@ -214,12 +221,13 @@ async fn timeline_returns_400_for_malformed_id_no_slash() {
 #[tokio::test]
 async fn timeline_projection_returns_entries_in_order() {
     let instance_id = InstanceId::parse("01ARZ3NDEKTSV4RRFFQ69G5FAV").unwrap();
-    let keyspace = setup_keyspace_with_events(&instance_id, 5).await;
-    let state = QueryState { keyspace };
+    let db = setup_database_with_events(&instance_id, 5).await;
+    let search_engine = Arc::new(std::sync::Mutex::new(vo_types::search::SearchEngine::new()));
+    let state = QueryState { db, search_engine };
     let app = build_router(state);
 
     let req = Request::builder()
-        .uri("/api/v1/workflows/payments/01ARZ3NDEKTSV4RRFFQ69G5FAV/timeline")
+        .uri("/api/v1/workflows/testns/01ARZ3NDEKTSV4RRFFQ69G5FAV/timeline")
         .body(Body::empty())
         .unwrap();
 
@@ -241,12 +249,13 @@ async fn timeline_projection_returns_entries_in_order() {
 #[tokio::test]
 async fn history_projection_includes_event_type() {
     let instance_id = InstanceId::parse("01ARZ3NDEKTSV4RRFFQ69G5FAV").unwrap();
-    let keyspace = setup_keyspace_with_events(&instance_id, 4).await;
-    let state = QueryState { keyspace };
+    let db = setup_database_with_events(&instance_id, 4).await;
+    let search_engine = Arc::new(std::sync::Mutex::new(vo_types::search::SearchEngine::new()));
+    let state = QueryState { db, search_engine };
     let app = build_router(state);
 
     let req = Request::builder()
-        .uri("/api/v1/workflows/payments/01ARZ3NDEKTSV4RRFFQ69G5FAV/history")
+        .uri("/api/v1/workflows/testns/01ARZ3NDEKTSV4RRFFQ69G5FAV/history")
         .body(Body::empty())
         .unwrap();
 
@@ -265,12 +274,13 @@ async fn history_projection_includes_event_type() {
 #[tokio::test]
 async fn effect_journal_projection_includes_semantics() {
     let instance_id = InstanceId::parse("01ARZ3NDEKTSV4RRFFQ69G5FAV").unwrap();
-    let keyspace = setup_keyspace_with_events(&instance_id, 4).await;
-    let state = QueryState { keyspace };
+    let db = setup_database_with_events(&instance_id, 4).await;
+    let search_engine = Arc::new(std::sync::Mutex::new(vo_types::search::SearchEngine::new()));
+    let state = QueryState { db, search_engine };
     let app = build_router(state);
 
     let req = Request::builder()
-        .uri("/api/v1/workflows/payments/01ARZ3NDEKTSV4RRFFQ69G5FAV/effect-journal")
+        .uri("/api/v1/workflows/testns/01ARZ3NDEKTSV4RRFFQ69G5FAV/effect-journal")
         .body(Body::empty())
         .unwrap();
 
@@ -289,12 +299,13 @@ async fn effect_journal_projection_includes_semantics() {
 #[tokio::test]
 async fn version_projection_returns_correct_count() {
     let instance_id = InstanceId::parse("01ARZ3NDEKTSV4RRFFQ69G5FAV").unwrap();
-    let keyspace = setup_keyspace_with_events(&instance_id, 7).await;
-    let state = QueryState { keyspace };
+    let db = setup_database_with_events(&instance_id, 7).await;
+    let search_engine = Arc::new(std::sync::Mutex::new(vo_types::search::SearchEngine::new()));
+    let state = QueryState { db, search_engine };
     let app = build_router(state);
 
     let req = Request::builder()
-        .uri("/api/v1/workflows/payments/01ARZ3NDEKTSV4RRFFQ69G5FAV/version")
+        .uri("/api/v1/workflows/testns/01ARZ3NDEKTSV4RRFFQ69G5FAV/version")
         .body(Body::empty())
         .unwrap();
 
@@ -311,12 +322,13 @@ async fn version_projection_returns_correct_count() {
 #[tokio::test]
 async fn timeline_projection_empty_for_unknown_instance() {
     let instance_id = InstanceId::parse("01ARZ3NDEKTSV4RRFFQ69G5FAV").unwrap();
-    let keyspace = setup_keyspace_with_events(&instance_id, 3).await;
-    let state = QueryState { keyspace };
+    let db = setup_database_with_events(&instance_id, 3).await;
+    let search_engine = Arc::new(std::sync::Mutex::new(vo_types::search::SearchEngine::new()));
+    let state = QueryState { db, search_engine };
     let app = build_router(state);
 
     let req = Request::builder()
-        .uri("/api/v1/workflows/payments/01ZZZZZZZZZZZZZZZZZZZZZZZZ/timeline")
+        .uri("/api/v1/workflows/testns/01ZZZZZZZZZZZZZZZZZZZZZZZZ/timeline")
         .body(Body::empty())
         .unwrap();
 
