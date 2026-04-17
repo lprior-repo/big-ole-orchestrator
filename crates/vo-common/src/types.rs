@@ -2,7 +2,9 @@
 
 use std::ops::Deref;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct InstanceId(String);
 
 impl InstanceId {
@@ -57,7 +59,7 @@ impl PartialEq<InstanceId> for &str {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct NamespaceId(String);
 
 impl NamespaceId {
@@ -112,7 +114,7 @@ impl PartialEq<NamespaceId> for &str {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct TimerId(String);
 
 impl TimerId {
