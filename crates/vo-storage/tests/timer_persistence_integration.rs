@@ -15,41 +15,10 @@
 
 use vo_storage::codec::StorageError;
 use vo_storage::timer_index::{
-    scan_all_timers_for_instance, scan_due_timers, timer_delete, timer_set, Storage, TimerRecord,
+    poll_expired_timers, scan_all_timers_for_instance, scan_due_timers, timer_delete, timer_set,
+    Storage,
 };
 use vo_types::{InstanceId, TimerId};
-
-// ── Stub types for poll_expired_timers (TDD-RED) ──────────────────────────────
-// These stubs define the contract for the atomic timer claiming API.
-// Replace with `use vo_storage::timer_index::{poll_expired_timers, ClaimedTimer};`
-// when the implementation lands.
-
-/// A timer atomically claimed with a fence token to prevent duplicate dispatch.
-#[derive(Debug, Clone)]
-struct ClaimedTimer {
-    record: TimerRecord,
-    fence_token: u64,
-}
-
-/// Error type for poll_expired_timers.
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
-enum PollError {
-    #[error("not implemented: poll_expired_timers has not been implemented yet")]
-    NotImplemented,
-    #[error("storage error: {0}")]
-    Storage(#[from] StorageError),
-}
-
-/// Atomically scans for expired timers and claims them with fence tokens.
-/// STUB: Always returns `PollError::NotImplemented`.
-fn poll_expired_timers(
-    _storage: &mut FjallTimerStorage,
-    _now_ms: u64,
-    _max_count: usize,
-    _fence_token: u64,
-) -> Result<Vec<ClaimedTimer>, PollError> {
-    Err(PollError::NotImplemented)
-}
 
 // ── FjallStorage adapter ──────────────────────────────────────────────────────
 
@@ -99,14 +68,18 @@ impl Storage for FjallTimerStorage {
 fn setup_fjall() -> (tempfile::TempDir, fjall::Database, FjallTimerStorage) {
     let dir = tempfile::tempdir().unwrap();
     let db = fjall::Database::builder(dir.path()).open().unwrap();
-    let ks = db.keyspace("timers", fjall::KeyspaceCreateOptions::default).unwrap();
+    let ks = db
+        .keyspace("timers", fjall::KeyspaceCreateOptions::default)
+        .unwrap();
     let storage = FjallTimerStorage::new(ks);
     (dir, db, storage)
 }
 
 fn reopen_fjall(dir: &tempfile::TempDir) -> (fjall::Database, FjallTimerStorage) {
     let db = fjall::Database::builder(dir.path()).open().unwrap();
-    let ks = db.keyspace("timers", fjall::KeyspaceCreateOptions::default).unwrap();
+    let ks = db
+        .keyspace("timers", fjall::KeyspaceCreateOptions::default)
+        .unwrap();
     let storage = FjallTimerStorage::new(ks);
     (db, storage)
 }
@@ -130,7 +103,16 @@ fn timer_persists_across_fjall_restart() {
     let tid = make_timer_id(1);
 
     // Store timer: fires at t=5000, triggered at t=4000, duration 1000ms
-    timer_set(&mut storage, iid.clone(), tid.clone(), 5000, 4000, 1000, 1000).unwrap();
+    timer_set(
+        &mut storage,
+        iid.clone(),
+        tid.clone(),
+        5000,
+        4000,
+        1000,
+        1000,
+    )
+    .unwrap();
 
     // Verify stored before crash
     let timers = scan_due_timers(&storage, &iid, 5000).unwrap();
@@ -158,7 +140,16 @@ fn timer_value_persists_correctly_across_restart() {
     let iid = make_instance_id(5);
     let tid = make_timer_id(5);
 
-    timer_set(&mut storage, iid.clone(), tid.clone(), 10000, 7000, 3000, 5000).unwrap();
+    timer_set(
+        &mut storage,
+        iid.clone(),
+        tid.clone(),
+        10000,
+        7000,
+        3000,
+        5000,
+    )
+    .unwrap();
 
     drop(storage);
     drop(_db);
@@ -168,7 +159,10 @@ fn timer_value_persists_correctly_across_restart() {
 
     assert_eq!(timers.len(), 1);
     assert_eq!(timers[0].duration_ms, 3000, "duration must persist exactly");
-    assert_eq!(timers[0].trigger_time_ms, 7000, "trigger_time must reconstruct");
+    assert_eq!(
+        timers[0].trigger_time_ms, 7000,
+        "trigger_time must reconstruct"
+    );
 }
 
 #[test]
@@ -177,7 +171,16 @@ fn deleted_timer_stays_deleted_across_restart() {
     let iid = make_instance_id(11);
     let tid = make_timer_id(11);
 
-    timer_set(&mut storage, iid.clone(), tid.clone(), 5000, 4000, 1000, 1000).unwrap();
+    timer_set(
+        &mut storage,
+        iid.clone(),
+        tid.clone(),
+        5000,
+        4000,
+        1000,
+        1000,
+    )
+    .unwrap();
     timer_delete(&mut storage, &iid, tid, 5000).unwrap();
 
     drop(storage);
@@ -185,7 +188,10 @@ fn deleted_timer_stays_deleted_across_restart() {
 
     let (_db2, storage2) = reopen_fjall(&dir);
     let timers = scan_due_timers(&storage2, &iid, 5000).unwrap();
-    assert!(timers.is_empty(), "deleted timer must not resurface after restart");
+    assert!(
+        timers.is_empty(),
+        "deleted timer must not resurface after restart"
+    );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -197,9 +203,36 @@ fn multiple_timers_resume_from_checkpoint_after_crash() {
     let (dir, _db, mut storage) = setup_fjall();
     let iid = make_instance_id(2);
 
-    timer_set(&mut storage, iid.clone(), make_timer_id(1), 1000, 500, 500, 0).unwrap();
-    timer_set(&mut storage, iid.clone(), make_timer_id(2), 2000, 1500, 500, 0).unwrap();
-    timer_set(&mut storage, iid.clone(), make_timer_id(3), 3000, 2500, 500, 0).unwrap();
+    timer_set(
+        &mut storage,
+        iid.clone(),
+        make_timer_id(1),
+        1000,
+        500,
+        500,
+        0,
+    )
+    .unwrap();
+    timer_set(
+        &mut storage,
+        iid.clone(),
+        make_timer_id(2),
+        2000,
+        1500,
+        500,
+        0,
+    )
+    .unwrap();
+    timer_set(
+        &mut storage,
+        iid.clone(),
+        make_timer_id(3),
+        3000,
+        2500,
+        500,
+        0,
+    )
+    .unwrap();
 
     drop(storage);
     drop(_db);
@@ -220,8 +253,26 @@ fn timers_from_multiple_instances_resume_independently() {
     let iid_a = make_instance_id(10);
     let iid_b = make_instance_id(20);
 
-    timer_set(&mut storage, iid_a.clone(), make_timer_id(1), 1000, 500, 500, 0).unwrap();
-    timer_set(&mut storage, iid_b.clone(), make_timer_id(2), 2000, 1500, 500, 0).unwrap();
+    timer_set(
+        &mut storage,
+        iid_a.clone(),
+        make_timer_id(1),
+        1000,
+        500,
+        500,
+        0,
+    )
+    .unwrap();
+    timer_set(
+        &mut storage,
+        iid_b.clone(),
+        make_timer_id(2),
+        2000,
+        1500,
+        500,
+        0,
+    )
+    .unwrap();
 
     drop(storage);
     drop(_db);
@@ -242,8 +293,26 @@ fn scan_all_includes_future_timers_after_crash() {
     let (dir, _db, mut storage) = setup_fjall();
     let iid = make_instance_id(30);
 
-    timer_set(&mut storage, iid.clone(), make_timer_id(1), 1000, 500, 500, 0).unwrap();
-    timer_set(&mut storage, iid.clone(), make_timer_id(2), 99999, 98999, 1000, 0).unwrap();
+    timer_set(
+        &mut storage,
+        iid.clone(),
+        make_timer_id(1),
+        1000,
+        500,
+        500,
+        0,
+    )
+    .unwrap();
+    timer_set(
+        &mut storage,
+        iid.clone(),
+        make_timer_id(2),
+        99999,
+        98999,
+        1000,
+        0,
+    )
+    .unwrap();
 
     drop(storage);
     drop(_db);
@@ -268,10 +337,23 @@ fn poll_expired_timers_prevents_duplicate_dispatch_via_fencing() {
     let iid = make_instance_id(3);
     let tid = make_timer_id(3);
 
-    timer_set(&mut storage, iid.clone(), tid.clone(), 5000, 4000, 1000, 1000).unwrap();
+    timer_set(
+        &mut storage,
+        iid.clone(),
+        tid.clone(),
+        5000,
+        4000,
+        1000,
+        1000,
+    )
+    .unwrap();
 
     let claimed_1 = poll_expired_timers(&mut storage, 6000, 10, 1);
-    assert!(claimed_1.is_ok(), "first poll should succeed: {:?}", claimed_1.err());
+    assert!(
+        claimed_1.is_ok(),
+        "first poll should succeed: {:?}",
+        claimed_1.err()
+    );
     assert_eq!(claimed_1.as_ref().unwrap().len(), 1);
     assert_eq!(claimed_1.as_ref().unwrap()[0].fence_token, 1);
     assert_eq!(claimed_1.as_ref().unwrap()[0].record.fire_at_ms, 5000);
@@ -288,16 +370,42 @@ fn poll_expired_timers_claims_atomically_with_max_count() {
     let (_dir, _db, mut storage) = setup_fjall();
     let iid = make_instance_id(4);
 
-    timer_set(&mut storage, iid.clone(), make_timer_id(1), 1000, 500, 500, 0).unwrap();
-    timer_set(&mut storage, iid.clone(), make_timer_id(2), 2000, 1500, 500, 0).unwrap();
+    timer_set(
+        &mut storage,
+        iid.clone(),
+        make_timer_id(1),
+        1000,
+        500,
+        500,
+        0,
+    )
+    .unwrap();
+    timer_set(
+        &mut storage,
+        iid.clone(),
+        make_timer_id(2),
+        2000,
+        1500,
+        500,
+        0,
+    )
+    .unwrap();
 
     let claimed = poll_expired_timers(&mut storage, 2000, 1, 1);
     assert!(claimed.is_ok(), "poll should succeed: {:?}", claimed.err());
-    assert_eq!(claimed.as_ref().unwrap().len(), 1, "max_count limits claims");
+    assert_eq!(
+        claimed.as_ref().unwrap().len(),
+        1,
+        "max_count limits claims"
+    );
 
     let claimed_2 = poll_expired_timers(&mut storage, 2000, 10, 2);
     assert!(claimed_2.is_ok(), "second poll should succeed");
-    assert_eq!(claimed_2.as_ref().unwrap().len(), 1, "remaining timer claimed");
+    assert_eq!(
+        claimed_2.as_ref().unwrap().len(),
+        1,
+        "remaining timer claimed"
+    );
 }
 
 #[test]
@@ -325,7 +433,16 @@ fn expired_timer_found_after_crash_with_advanced_clock() {
     let iid = make_instance_id(6);
     let tid = make_timer_id(6);
 
-    timer_set(&mut storage, iid.clone(), tid.clone(), 5000, 4000, 1000, 1000).unwrap();
+    timer_set(
+        &mut storage,
+        iid.clone(),
+        tid.clone(),
+        5000,
+        4000,
+        1000,
+        1000,
+    )
+    .unwrap();
 
     drop(storage);
     drop(_db);
@@ -333,7 +450,11 @@ fn expired_timer_found_after_crash_with_advanced_clock() {
     let (_db2, mut storage2) = reopen_fjall(&dir);
     let claimed = poll_expired_timers(&mut storage2, 10000, 10, 1);
 
-    assert!(claimed.is_ok(), "poll should find expired timer: {:?}", claimed.err());
+    assert!(
+        claimed.is_ok(),
+        "poll should find expired timer: {:?}",
+        claimed.err()
+    );
     assert_eq!(claimed.as_ref().unwrap().len(), 1);
     assert_eq!(claimed.as_ref().unwrap()[0].record.fire_at_ms, 5000);
     assert_eq!(claimed.as_ref().unwrap()[0].fence_token, 1);
@@ -353,7 +474,11 @@ fn overdue_timer_found_after_crash() {
     let (_db2, mut storage2) = reopen_fjall(&dir);
     let claimed = poll_expired_timers(&mut storage2, 999999, 10, 1);
 
-    assert!(claimed.is_ok(), "overdue timer should be found: {:?}", claimed.err());
+    assert!(
+        claimed.is_ok(),
+        "overdue timer should be found: {:?}",
+        claimed.err()
+    );
     assert_eq!(claimed.as_ref().unwrap().len(), 1);
     assert_eq!(claimed.as_ref().unwrap()[0].record.fire_at_ms, 1000);
 }
@@ -363,7 +488,16 @@ fn future_timer_not_claimed_after_restart() {
     let (dir, _db, mut storage) = setup_fjall();
     let iid = make_instance_id(8);
 
-    timer_set(&mut storage, iid, make_timer_id(8), 100000, 99000, 1000, 50000).unwrap();
+    timer_set(
+        &mut storage,
+        iid,
+        make_timer_id(8),
+        100000,
+        99000,
+        1000,
+        50000,
+    )
+    .unwrap();
 
     drop(storage);
     drop(_db);
@@ -383,9 +517,36 @@ fn multiple_expired_timers_found_in_key_order_after_crash() {
     let (dir, _db, mut storage) = setup_fjall();
     let iid = make_instance_id(12);
 
-    timer_set(&mut storage, iid.clone(), make_timer_id(1), 1000, 500, 500, 0).unwrap();
-    timer_set(&mut storage, iid.clone(), make_timer_id(2), 2000, 1500, 500, 0).unwrap();
-    timer_set(&mut storage, iid.clone(), make_timer_id(3), 3000, 2500, 500, 0).unwrap();
+    timer_set(
+        &mut storage,
+        iid.clone(),
+        make_timer_id(1),
+        1000,
+        500,
+        500,
+        0,
+    )
+    .unwrap();
+    timer_set(
+        &mut storage,
+        iid.clone(),
+        make_timer_id(2),
+        2000,
+        1500,
+        500,
+        0,
+    )
+    .unwrap();
+    timer_set(
+        &mut storage,
+        iid.clone(),
+        make_timer_id(3),
+        3000,
+        2500,
+        500,
+        0,
+    )
+    .unwrap();
 
     drop(storage);
     drop(_db);
@@ -393,10 +554,19 @@ fn multiple_expired_timers_found_in_key_order_after_crash() {
     let (_db2, mut storage2) = reopen_fjall(&dir);
     let claimed = poll_expired_timers(&mut storage2, 5000, 10, 42);
 
-    assert!(claimed.is_ok(), "all expired timers should be found: {:?}", claimed.err());
+    assert!(
+        claimed.is_ok(),
+        "all expired timers should be found: {:?}",
+        claimed.err()
+    );
     assert_eq!(claimed.as_ref().unwrap().len(), 3);
 
-    let fire_times: Vec<u64> = claimed.as_ref().unwrap().iter().map(|c| c.record.fire_at_ms).collect();
+    let fire_times: Vec<u64> = claimed
+        .as_ref()
+        .unwrap()
+        .iter()
+        .map(|c| c.record.fire_at_ms)
+        .collect();
     assert_eq!(fire_times, vec![1000, 2000, 3000], "timers in key order");
 
     for ct in claimed.as_ref().unwrap() {
@@ -414,7 +584,16 @@ fn claimed_timer_stays_claimed_across_restart() {
     let iid = make_instance_id(13);
     let tid = make_timer_id(13);
 
-    timer_set(&mut storage, iid.clone(), tid.clone(), 5000, 4000, 1000, 1000).unwrap();
+    timer_set(
+        &mut storage,
+        iid.clone(),
+        tid.clone(),
+        5000,
+        4000,
+        1000,
+        1000,
+    )
+    .unwrap();
 
     let claimed = poll_expired_timers(&mut storage, 6000, 10, 1);
     assert!(claimed.is_ok(), "claim should succeed");
@@ -435,9 +614,36 @@ fn partially_claimed_timers_resume_after_crash() {
     let (dir, _db, mut storage) = setup_fjall();
     let iid = make_instance_id(14);
 
-    timer_set(&mut storage, iid.clone(), make_timer_id(1), 1000, 500, 500, 0).unwrap();
-    timer_set(&mut storage, iid.clone(), make_timer_id(2), 2000, 1500, 500, 0).unwrap();
-    timer_set(&mut storage, iid.clone(), make_timer_id(3), 3000, 2500, 500, 0).unwrap();
+    timer_set(
+        &mut storage,
+        iid.clone(),
+        make_timer_id(1),
+        1000,
+        500,
+        500,
+        0,
+    )
+    .unwrap();
+    timer_set(
+        &mut storage,
+        iid.clone(),
+        make_timer_id(2),
+        2000,
+        1500,
+        500,
+        0,
+    )
+    .unwrap();
+    timer_set(
+        &mut storage,
+        iid.clone(),
+        make_timer_id(3),
+        3000,
+        2500,
+        500,
+        0,
+    )
+    .unwrap();
 
     let claimed_1 = poll_expired_timers(&mut storage, 3000, 1, 1);
     assert!(claimed_1.is_ok(), "first claim should succeed");
