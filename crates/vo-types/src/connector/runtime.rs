@@ -204,7 +204,9 @@ pub async fn execute_with_reconciliation<C: Connector>(
                         }
                         retry_count += 1;
                     }
-                    _ => return apply_reconcile_action(action),
+                    ReconcileAction::Commit | ReconcileAction::Rollback => {
+                        return apply_reconcile_action(action);
+                    }
                 }
             }
         }
@@ -226,7 +228,9 @@ pub async fn execute_with_reconciliation<C: Connector>(
                         }
                         retry_count += 1;
                     }
-                    _ => return apply_reconcile_action(action),
+                    ReconcileAction::Commit | ReconcileAction::Rollback => {
+                        return apply_reconcile_action(action);
+                    }
                 }
             }
         }
