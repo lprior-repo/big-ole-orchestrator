@@ -16,11 +16,7 @@ use std::sync::{Arc, Mutex};
 
 use vo_storage::append::{
     AppendEntry, Appender, BackpressureSignal, BlobWrite, BudgetQueues, BudgetQueuesError,
-<<<<<<< HEAD
-    ClassifiedWrite, ControlPlaneWrite, ProjectionWrite, QueueConfig, WriteBudget, WriteClass,
-=======
     ControlPlaneWrite, ProjectionWrite, QueueConfig, WriteBudget, WriteClass,
->>>>>>> origin/vo-worker-tests
 };
 use vo_types::events::EventEnvelope;
 #[cfg(test)]
@@ -46,14 +42,10 @@ fn make_control_plane_write(size_bytes: u64) -> ControlPlaneWrite {
 }
 
 fn make_projection_write(id: &str, size_bytes: u64) -> ProjectionWrite {
-<<<<<<< HEAD
-    ProjectionWrite::new(id.to_string(), size_bytes)
-=======
     ProjectionWrite {
         projection_id: id.to_string(),
         size_bytes,
     }
->>>>>>> origin/vo-worker-tests
 }
 
 fn make_blob_write(id: &str, size_bytes: u64) -> BlobWrite {
@@ -74,11 +66,7 @@ fn red_queen_concurrent_sequential_operations() {
         blob_capacity: 256,
     };
     let budget = WriteBudget::new(1_000_000, 1_000_000, 1_000_000);
-<<<<<<< HEAD
-    let queues = Arc::new(Mutex::new(BudgetQueues::new(&config, budget)));
-=======
     let queues = Arc::new(Mutex::new(BudgetQueues::new(config, budget)));
->>>>>>> origin/vo-worker-tests
 
     let success_count = Arc::new(AtomicUsize::new(0));
     let error_count = Arc::new(AtomicUsize::new(0));
@@ -115,11 +103,7 @@ fn red_queen_concurrent_enqueue_dequeue_via_arc_mutex() {
         blob_capacity: 100,
     };
     let budget = WriteBudget::new(1_000_000, 1_000_000, 1_000_000);
-<<<<<<< HEAD
-    let queues = Arc::new(Mutex::new(BudgetQueues::new(&config, budget)));
-=======
     let queues = Arc::new(Mutex::new(BudgetQueues::new(config, budget)));
->>>>>>> origin/vo-worker-tests
 
     let produced = Arc::new(AtomicUsize::new(0));
     let consumed = Arc::new(AtomicUsize::new(0));
@@ -171,45 +155,27 @@ fn red_queen_concurrent_enqueue_dequeue_via_arc_mutex() {
 fn red_queen_concurrent_mixed_class_append() {
     let config = QueueConfig::default();
     let budget = WriteBudget::new(1_000_000, 1_000_000, 1_000_000);
-<<<<<<< HEAD
-    let appender = Arc::new(Mutex::new(Appender::new(&config, budget)));
-
-    std::thread::scope(|s| {
-        let appender_clone = appender.clone();
-        s.spawn(move || {
-=======
     let appender = Arc::new(Mutex::new(Appender::new(config, budget)));
 
     std::thread::scope(|s| {
         let appender_clone = Arc::clone(&appender);
         s.spawn(|| {
->>>>>>> origin/vo-worker-tests
             for i in 0..100 {
                 let write = make_control_plane_write(100);
                 let _ = appender_clone.lock().unwrap().append_control_plane(write);
             }
         });
 
-<<<<<<< HEAD
-        let appender_clone2 = appender.clone();
-        s.spawn(move || {
-=======
         let appender_clone2 = Arc::clone(&appender);
         s.spawn(|| {
->>>>>>> origin/vo-worker-tests
             for i in 0..100 {
                 let write = make_projection_write(&format!("proj-{}", i), 100);
                 let _ = appender_clone2.lock().unwrap().append_projection(write);
             }
         });
 
-<<<<<<< HEAD
-        let appender_clone3 = appender.clone();
-        s.spawn(move || {
-=======
         let appender_clone3 = Arc::clone(&appender);
         s.spawn(|| {
->>>>>>> origin/vo-worker-tests
             for i in 0..100 {
                 let write = make_blob_write(&format!("blob-{}", i), 100);
                 let _ = appender_clone3.lock().unwrap().append_blob(write);
@@ -217,12 +183,7 @@ fn red_queen_concurrent_mixed_class_append() {
         });
     });
 
-<<<<<<< HEAD
-    let binding = appender.lock().unwrap().stats();
-    let stats = binding.lock().unwrap();
-=======
     let stats = appender.lock().unwrap().stats().lock().unwrap();
->>>>>>> origin/vo-worker-tests
     assert_eq!(stats.depth(WriteClass::CriticalControlPlane), 100);
     assert_eq!(stats.depth(WriteClass::OperatorProjection), 100);
     assert_eq!(stats.depth(WriteClass::BulkBlob), 100);
@@ -237,11 +198,7 @@ fn red_queen_concurrent_mixed_class_append() {
 fn red_queen_budget_exhaustion_boundary() {
     let config = QueueConfig::default();
     let budget = WriteBudget::new(500, 1_000_000, 1_000_000);
-<<<<<<< HEAD
-    let appender = Appender::new(&config, budget);
-=======
     let appender = Appender::new(config, budget);
->>>>>>> origin/vo-worker-tests
 
     let event = make_event("test", 1);
     let write = ControlPlaneWrite::new(event, 500);
@@ -265,11 +222,7 @@ fn red_queen_budget_exhaustion_boundary() {
 fn red_queen_budget_oversized_write_rejected() {
     let config = QueueConfig::default();
     let budget = WriteBudget::new(100, 1_000_000, 1_000_000);
-<<<<<<< HEAD
-    let appender = Appender::new(&config, budget);
-=======
     let appender = Appender::new(config, budget);
->>>>>>> origin/vo-worker-tests
 
     let event = make_event("test", 1);
     let write = ControlPlaneWrite::new(event, 200);
@@ -289,11 +242,7 @@ fn red_queen_budget_rollback_on_queue_full() {
         blob_capacity: 1,
     };
     let budget = WriteBudget::new(1_000_000, 1_000_000, 1_000_000);
-<<<<<<< HEAD
-    let queues = BudgetQueues::new(&config, budget);
-=======
     let queues = BudgetQueues::new(config, budget);
->>>>>>> origin/vo-worker-tests
 
     let write1 = AppendEntry::ControlPlane(make_control_plane_write(100));
     assert!(queues.try_enqueue(&write1).is_ok());
@@ -315,11 +264,7 @@ fn red_queen_budget_rollback_on_queue_full() {
 fn red_queen_budget_reserved_on_successful_enqueue() {
     let config = QueueConfig::default();
     let budget = WriteBudget::new(1000, 1_000_000, 1_000_000);
-<<<<<<< HEAD
-    let queues = BudgetQueues::new(&config, budget);
-=======
     let queues = BudgetQueues::new(config, budget);
->>>>>>> origin/vo-worker-tests
 
     let write = AppendEntry::ControlPlane(make_control_plane_write(300));
     assert!(queues.try_enqueue(&write).is_ok());
@@ -339,11 +284,7 @@ fn red_queen_budget_not_reserved_on_failed_enqueue() {
         blob_capacity: 1,
     };
     let budget = WriteBudget::new(1_000_000, 1_000_000, 1_000_000);
-<<<<<<< HEAD
-    let queues = BudgetQueues::new(&config, budget);
-=======
     let queues = BudgetQueues::new(config, budget);
->>>>>>> origin/vo-worker-tests
 
     let write1 = AppendEntry::ControlPlane(make_control_plane_write(100));
     assert!(queues.try_enqueue(&write1).is_ok());
@@ -374,11 +315,7 @@ fn red_queen_queue_capacity_exact_fill() {
         blob_capacity: 3,
     };
     let budget = WriteBudget::new(1_000_000, 1_000_000, 1_000_000);
-<<<<<<< HEAD
-    let appender = Appender::new(&config, budget);
-=======
     let appender = Appender::new(config, budget);
->>>>>>> origin/vo-worker-tests
 
     for i in 0..3 {
         let event = make_event("test", i);
@@ -409,11 +346,7 @@ fn red_queen_queue_capacity_independent_per_class() {
         blob_capacity: 2,
     };
     let budget = WriteBudget::new(1_000_000, 1_000_000, 1_000_000);
-<<<<<<< HEAD
-    let appender = Appender::new(&config, budget);
-=======
     let appender = Appender::new(config, budget);
->>>>>>> origin/vo-worker-tests
 
     let event = make_event("test", 1);
 
@@ -421,25 +354,16 @@ fn red_queen_queue_capacity_independent_per_class() {
         .append_control_plane(ControlPlaneWrite::new(event.clone(), 100))
         .is_ok());
     assert!(appender
-<<<<<<< HEAD
-        .append_projection(ProjectionWrite::new("proj-1".to_string(), 100))
-=======
         .append_projection(ProjectionWrite {
             projection_id: "proj-1".to_string(),
             size_bytes: 100
         })
->>>>>>> origin/vo-worker-tests
         .is_ok());
     assert!(appender
         .append_blob(BlobWrite::bulk("blob-1".to_string(), 100))
         .is_ok());
 
-<<<<<<< HEAD
-    let binding = appender.stats();
-    let stats = binding.lock().unwrap();
-=======
     let stats = appender.stats().lock().unwrap();
->>>>>>> origin/vo-worker-tests
     assert_eq!(stats.depth(WriteClass::CriticalControlPlane), 1);
     assert_eq!(stats.depth(WriteClass::OperatorProjection), 1);
     assert_eq!(stats.depth(WriteClass::BulkBlob), 1);
@@ -460,11 +384,7 @@ fn red_queen_queue_full_error_contains_class_info() {
         blob_capacity: 1,
     };
     let budget = WriteBudget::new(1_000_000, 1_000_000, 1_000_000);
-<<<<<<< HEAD
-    let appender = Appender::new(&config, budget);
-=======
     let appender = Appender::new(config, budget);
->>>>>>> origin/vo-worker-tests
 
     let event = make_event("test", 1);
     assert!(appender
@@ -511,11 +431,7 @@ fn red_queen_backpressure_cleared_on_dequeue() {
         blob_capacity: 2,
     };
     let budget = WriteBudget::new(1_000_000, 1_000_000, 1_000_000);
-<<<<<<< HEAD
-    let queues = BudgetQueues::new(&config, budget);
-=======
     let queues = BudgetQueues::new(config, budget);
->>>>>>> origin/vo-worker-tests
 
     let event = make_event("test", 1);
 
@@ -553,28 +469,12 @@ fn red_queen_backpressure_any_returns_true_when_any_backpressured() {
         blob_capacity: 1,
     };
     let budget = WriteBudget::new(1_000_000, 1_000_000, 1_000_000);
-<<<<<<< HEAD
-    let queues = BudgetQueues::new(&config, budget);
-=======
     let queues = BudgetQueues::new(config, budget);
->>>>>>> origin/vo-worker-tests
 
     assert!(!queues.backpressure().any_backpressured());
 
     // Fill projection queue
     queues
-<<<<<<< HEAD
-        .try_enqueue(&AppendEntry::Projection(ProjectionWrite::new(
-            "proj-1".to_string(),
-            100,
-        )))
-        .unwrap();
-    queues
-        .try_enqueue(&AppendEntry::Projection(ProjectionWrite::new(
-            "proj-2".to_string(),
-            100,
-        )))
-=======
         .try_enqueue(&AppendEntry::Projection(ProjectionWrite {
             projection_id: "proj-1".to_string(),
             size_bytes: 100,
@@ -585,7 +485,6 @@ fn red_queen_backpressure_any_returns_true_when_any_backpressured() {
             projection_id: "proj-2".to_string(),
             size_bytes: 100,
         }))
->>>>>>> origin/vo-worker-tests
         .unwrap();
 
     assert!(queues.backpressure().any_backpressured());
@@ -599,22 +498,6 @@ fn red_queen_backpressure_should_reject_respects_class() {
         blob_capacity: 1,
     };
     let budget = WriteBudget::new(1_000_000, 1_000_000, 1_000_000);
-<<<<<<< HEAD
-    let queues = BudgetQueues::new(&config, budget);
-
-    // Fill projection queue to capacity
-    queues
-        .try_enqueue(&AppendEntry::Projection(ProjectionWrite::new(
-            "proj-1".to_string(),
-            100,
-        )))
-        .unwrap();
-    queues
-        .try_enqueue(&AppendEntry::Projection(ProjectionWrite::new(
-            "proj-2".to_string(),
-            100,
-        )))
-=======
     let queues = BudgetQueues::new(config, budget);
 
     // Fill projection queue to capacity
@@ -629,7 +512,6 @@ fn red_queen_backpressure_should_reject_respects_class() {
             projection_id: "proj-2".to_string(),
             size_bytes: 100,
         }))
->>>>>>> origin/vo-worker-tests
         .unwrap();
 
     assert!(
@@ -659,27 +541,16 @@ fn red_queen_backpressure_should_reject_respects_class() {
 fn red_queen_dequeue_priority_critical_first() {
     let config = QueueConfig::default();
     let budget = WriteBudget::new(1_000_000, 1_000_000, 1_000_000);
-<<<<<<< HEAD
-    let queues = BudgetQueues::new(&config, budget);
-=======
     let queues = BudgetQueues::new(config, budget);
->>>>>>> origin/vo-worker-tests
 
     queues
         .try_enqueue(&AppendEntry::Blob(BlobWrite::bulk("b1".to_string(), 100)))
         .unwrap();
     queues
-<<<<<<< HEAD
-        .try_enqueue(&AppendEntry::Projection(ProjectionWrite::new(
-            "p1".to_string(),
-            100,
-        )))
-=======
         .try_enqueue(&AppendEntry::Projection(ProjectionWrite {
             projection_id: "p1".to_string(),
             size_bytes: 100,
         }))
->>>>>>> origin/vo-worker-tests
         .unwrap();
     queues
         .try_enqueue(&AppendEntry::ControlPlane(ControlPlaneWrite::new(
@@ -700,27 +571,16 @@ fn red_queen_dequeue_priority_critical_first() {
 fn red_queen_dequeue_priority_all_classes_eventually_dequeued() {
     let config = QueueConfig::default();
     let budget = WriteBudget::new(1_000_000, 1_000_000, 1_000_000);
-<<<<<<< HEAD
-    let queues = BudgetQueues::new(&config, budget);
-=======
     let queues = BudgetQueues::new(config, budget);
->>>>>>> origin/vo-worker-tests
 
     queues
         .try_enqueue(&AppendEntry::Blob(BlobWrite::bulk("b1".to_string(), 100)))
         .unwrap();
     queues
-<<<<<<< HEAD
-        .try_enqueue(&AppendEntry::Projection(ProjectionWrite::new(
-            "p1".to_string(),
-            100,
-        )))
-=======
         .try_enqueue(&AppendEntry::Projection(ProjectionWrite {
             projection_id: "p1".to_string(),
             size_bytes: 100,
         }))
->>>>>>> origin/vo-worker-tests
         .unwrap();
     queues
         .try_enqueue(&AppendEntry::ControlPlane(ControlPlaneWrite::new(
@@ -748,11 +608,7 @@ fn red_queen_dequeue_priority_all_classes_eventually_dequeued() {
 fn red_queen_dequeue_prioritized_skips_empty_critical() {
     let config = QueueConfig::default();
     let budget = WriteBudget::new(1_000_000, 1_000_000, 1_000_000);
-<<<<<<< HEAD
-    let queues = BudgetQueues::new(&config, budget);
-=======
     let queues = BudgetQueues::new(config, budget);
->>>>>>> origin/vo-worker-tests
 
     queues
         .try_enqueue(&AppendEntry::Blob(BlobWrite::bulk("b1".to_string(), 100)))
@@ -770,11 +626,7 @@ fn red_queen_dequeue_prioritized_skips_empty_critical() {
 fn red_queen_dequeue_prioritized_returns_none_when_all_empty() {
     let config = QueueConfig::default();
     let budget = WriteBudget::new(1_000_000, 1_000_000, 1_000_000);
-<<<<<<< HEAD
-    let queues: BudgetQueues<AppendEntry> = BudgetQueues::new(&config, budget);
-=======
     let queues: BudgetQueues<AppendEntry> = BudgetQueues::new(config, budget);
->>>>>>> origin/vo-worker-tests
 
     assert!(queues.dequeue_prioritized().is_none());
 }
@@ -788,11 +640,7 @@ fn red_queen_dequeue_prioritized_returns_none_when_all_empty() {
 fn red_queen_atomic_budget_and_enqueue() {
     let config = QueueConfig::default();
     let budget = WriteBudget::new(500, 1_000_000, 1_000_000);
-<<<<<<< HEAD
-    let queues = BudgetQueues::new(&config, budget);
-=======
     let queues = BudgetQueues::new(config, budget);
->>>>>>> origin/vo-worker-tests
 
     let write = AppendEntry::ControlPlane(make_control_plane_write(300));
     assert!(queues.try_enqueue(&write).is_ok());
@@ -824,11 +672,7 @@ fn red_queen_atomic_enqueue_rollback_on_budget_failure() {
         blob_capacity: 10,
     };
     let budget = WriteBudget::new(500, 1_000_000, 1_000_000);
-<<<<<<< HEAD
-    let queues = BudgetQueues::new(&config, budget);
-=======
     let queues = BudgetQueues::new(config, budget);
->>>>>>> origin/vo-worker-tests
 
     let write = AppendEntry::ControlPlane(make_control_plane_write(300));
     assert!(queues.try_enqueue(&write).is_ok());
@@ -862,11 +706,7 @@ fn red_queen_atomic_enqueue_rollback_on_budget_failure() {
 fn red_queen_atomic_dequeue_releases_budget() {
     let config = QueueConfig::default();
     let budget = WriteBudget::new(1000, 1_000_000, 1_000_000);
-<<<<<<< HEAD
-    let queues = BudgetQueues::new(&config, budget);
-=======
     let queues = BudgetQueues::new(config, budget);
->>>>>>> origin/vo-worker-tests
 
     let write = AppendEntry::ControlPlane(make_control_plane_write(500));
     assert!(queues.try_enqueue(&write).is_ok());
@@ -932,14 +772,10 @@ fn red_queen_write_class_classification() {
     );
 
     // ProjectionWrite always classifies as OperatorProjection
-<<<<<<< HEAD
-    let proj_write = ProjectionWrite::new("test".to_string(), 100);
-=======
     let proj_write = ProjectionWrite {
         projection_id: "test".to_string(),
         size_bytes: 100,
     };
->>>>>>> origin/vo-worker-tests
     assert_eq!(
         proj_write.write_class(),
         WriteClass::OperatorProjection,
@@ -962,14 +798,10 @@ fn red_queen_append_entry_classification() {
     let cp_entry = AppendEntry::ControlPlane(ControlPlaneWrite::new(event.clone(), 100));
     assert_eq!(cp_entry.write_class(), WriteClass::CriticalControlPlane);
 
-<<<<<<< HEAD
-    let proj_entry = AppendEntry::Projection(ProjectionWrite::new("test".to_string(), 100));
-=======
     let proj_entry = AppendEntry::Projection(ProjectionWrite {
         projection_id: "test".to_string(),
         size_bytes: 100,
     });
->>>>>>> origin/vo-worker-tests
     assert_eq!(proj_entry.write_class(), WriteClass::OperatorProjection);
 
     let blob_entry = AppendEntry::Blob(BlobWrite::bulk("test".to_string(), 100));
@@ -993,15 +825,10 @@ fn red_queen_shared_backpressure_signal() {
     let budget1 = WriteBudget::new(1_000_000, 1_000_000, 1_000_000);
     let budget2 = WriteBudget::new(1_000_000, 1_000_000, 1_000_000);
 
-<<<<<<< HEAD
-    let queues1 = BudgetQueues::new_with_backpressure(&config, budget1, Arc::clone(&shared_signal));
-    let queues2 = BudgetQueues::new_with_backpressure(&config, budget2, Arc::clone(&shared_signal));
-=======
     let queues1 =
         BudgetQueues::new_with_backpressure(config.clone(), budget1, Arc::clone(&shared_signal));
     let queues2 =
         BudgetQueues::new_with_backpressure(config.clone(), budget2, Arc::clone(&shared_signal));
->>>>>>> origin/vo-worker-tests
 
     let event = make_event("test", 1);
     queues1
@@ -1018,18 +845,6 @@ fn red_queen_shared_backpressure_signal() {
         .unwrap();
 
     queues2
-<<<<<<< HEAD
-        .try_enqueue(&AppendEntry::Projection(ProjectionWrite::new(
-            "proj-1".to_string(),
-            100,
-        )))
-        .unwrap();
-    queues2
-        .try_enqueue(&AppendEntry::Projection(ProjectionWrite::new(
-            "proj-2".to_string(),
-            100,
-        )))
-=======
         .try_enqueue(&AppendEntry::Projection(ProjectionWrite {
             projection_id: "proj-1".to_string(),
             size_bytes: 100,
@@ -1040,7 +855,6 @@ fn red_queen_shared_backpressure_signal() {
             projection_id: "proj-2".to_string(),
             size_bytes: 100,
         }))
->>>>>>> origin/vo-worker-tests
         .unwrap();
 
     assert!(
@@ -1066,11 +880,7 @@ fn red_queen_stress_alternating_enqueue_dequeue() {
         blob_capacity: 50,
     };
     let budget = WriteBudget::new(1_000_000, 1_000_000, 1_000_000);
-<<<<<<< HEAD
-    let appender = Appender::new(&config, budget);
-=======
     let appender = Appender::new(config, budget);
->>>>>>> origin/vo-worker-tests
 
     for i in 0..100 {
         let event = make_event("stress", i);
@@ -1085,12 +895,7 @@ fn red_queen_stress_alternating_enqueue_dequeue() {
         }
     }
 
-<<<<<<< HEAD
-    let binding = appender.stats();
-    let stats = binding.lock().unwrap();
-=======
     let stats = appender.stats().lock().unwrap();
->>>>>>> origin/vo-worker-tests
     assert_eq!(
         stats.depth(WriteClass::CriticalControlPlane),
         50,
@@ -1106,11 +911,7 @@ fn red_queen_stress_fill_all_queues_completely() {
         blob_capacity: 5,
     };
     let budget = WriteBudget::new(1_000_000, 1_000_000, 1_000_000);
-<<<<<<< HEAD
-    let appender = Appender::new(&config, budget);
-=======
     let appender = Appender::new(config, budget);
->>>>>>> origin/vo-worker-tests
 
     for class in [
         WriteClass::CriticalControlPlane,
@@ -1123,15 +924,10 @@ fn red_queen_stress_fill_all_queues_completely() {
                 WriteClass::CriticalControlPlane => {
                     appender.append_control_plane(ControlPlaneWrite::new(event, 100))
                 }
-<<<<<<< HEAD
-                WriteClass::OperatorProjection => appender
-                    .append_projection(ProjectionWrite::new(format!("{:?}-{}", class, i), 100)),
-=======
                 WriteClass::OperatorProjection => appender.append_projection(ProjectionWrite {
                     projection_id: format!("{:?}-{}", class, i),
                     size_bytes: 100,
                 }),
->>>>>>> origin/vo-worker-tests
                 WriteClass::BulkBlob => {
                     appender.append_blob(BlobWrite::bulk(format!("{:?}-{}", class, i), 100))
                 }
@@ -1142,16 +938,10 @@ fn red_queen_stress_fill_all_queues_completely() {
         let result = match class {
             WriteClass::CriticalControlPlane => appender
                 .append_control_plane(ControlPlaneWrite::new(make_event("overflow", 0), 100)),
-<<<<<<< HEAD
-            WriteClass::OperatorProjection => {
-                appender.append_projection(ProjectionWrite::new("overflow".to_string(), 100))
-            }
-=======
             WriteClass::OperatorProjection => appender.append_projection(ProjectionWrite {
                 projection_id: "overflow".to_string(),
                 size_bytes: 100,
             }),
->>>>>>> origin/vo-worker-tests
             WriteClass::BulkBlob => {
                 appender.append_blob(BlobWrite::bulk("overflow".to_string(), 100))
             }
@@ -1168,11 +958,7 @@ fn red_queen_stress_fill_all_queues_completely() {
 fn red_queen_stress_zero_sized_write() {
     let config = QueueConfig::default();
     let budget = WriteBudget::new(1_000_000, 1_000_000, 1_000_000);
-<<<<<<< HEAD
-    let appender = Appender::new(&config, budget);
-=======
     let appender = Appender::new(config, budget);
->>>>>>> origin/vo-worker-tests
 
     let event = make_event("test", 1);
     let write = ControlPlaneWrite::new(event, 0);
@@ -1192,11 +978,7 @@ fn red_queen_stress_max_capacity_values() {
         blob_capacity: usize::MAX,
     };
     let budget = WriteBudget::new(u64::MAX, u64::MAX, u64::MAX);
-<<<<<<< HEAD
-    let appender = Appender::new(&config, budget);
-=======
     let appender = Appender::new(config, budget);
->>>>>>> origin/vo-worker-tests
 
     let event = make_event("test", 1);
     let write = ControlPlaneWrite::new(event, u64::MAX);
@@ -1217,11 +999,7 @@ fn red_queen_stress_max_capacity_values() {
 fn red_queen_recovery_new_instance_has_empty_state() {
     let config = QueueConfig::default();
     let budget = WriteBudget::new(1000, 1000, 1000);
-<<<<<<< HEAD
-    let appender1 = Appender::new(&config, budget.clone());
-=======
     let appender1 = Appender::new(config.clone(), budget.clone());
->>>>>>> origin/vo-worker-tests
 
     let event = make_event("test", 1);
     appender1
@@ -1230,16 +1008,9 @@ fn red_queen_recovery_new_instance_has_empty_state() {
 
     drop(appender1);
 
-<<<<<<< HEAD
-    let appender2 = Appender::new(&config, budget);
-
-    let binding = appender2.stats();
-    let stats = binding.lock().unwrap();
-=======
     let appender2 = Appender::new(config, budget);
 
     let stats = appender2.stats().lock().unwrap();
->>>>>>> origin/vo-worker-tests
     assert_eq!(
         stats.depth(WriteClass::CriticalControlPlane),
         0,
@@ -1261,11 +1032,7 @@ fn red_queen_recovery_new_instance_has_empty_state() {
 fn red_queen_recovery_budget_reset_on_new_instance() {
     let config = QueueConfig::default();
     let budget1 = WriteBudget::new(500, 1000, 1000);
-<<<<<<< HEAD
-    let appender1 = Appender::new(&config, budget1);
-=======
     let appender1 = Appender::new(config.clone(), budget1);
->>>>>>> origin/vo-worker-tests
 
     appender1
         .append_control_plane(ControlPlaneWrite::new(make_event("test", 1), 300))
