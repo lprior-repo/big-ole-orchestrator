@@ -10,7 +10,8 @@ use ractor::ActorRef;
 use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 use vo_actor::{CompensateError, InstancePhaseView, OrchestratorMsg, StartError, TerminateError};
-use vo_common::{InstanceId, NamespaceId};
+use vo_common::NamespaceId;
+use vo_types::InstanceId;
 use vo_core::circuit_breaker::{unquarantine, CircuitBreakerConfig, CircuitBreakerState};
 use vo_types::{BinaryHash, WorkflowName};
 

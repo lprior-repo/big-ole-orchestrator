@@ -15,7 +15,8 @@
 //! - M7: Clone and PartialEq semantic correctness
 //! - M8: Edge-case string content (empty, unicode, control chars, max length)
 
-use vo_common::{InstanceId, NamespaceId, TimerId, VoError, WorkflowEvent};
+use vo_common::{NamespaceId, VoError, WorkflowEvent};
+use vo_types::{InstanceId, TimerId};
 
 // ============================================================================
 // M1: String type-alias boundary invariants

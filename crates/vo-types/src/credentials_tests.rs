@@ -192,7 +192,7 @@ fn rotation_status_display_failed() {
 
 #[test]
 fn principal_display_user() {
-    let instance_id = crate::string_types::InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+    let instance_id = crate::InstanceId::new("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
     let principal = Principal::User(instance_id);
     assert_eq!(format!("{}", principal), "User(01H5JYV4XHGSR2F8KZ9BWNRFMA)");
 }
@@ -205,7 +205,7 @@ fn principal_display_system() {
 
 #[test]
 fn access_policy_new_with_principals() {
-    let instance_id = crate::string_types::InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+    let instance_id = crate::InstanceId::new("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
     let policy = AccessPolicy::new(vec![Principal::User(instance_id)]);
     assert_eq!(policy.allowed_principals().len(), 1);
     assert!(!policy.require_approval());

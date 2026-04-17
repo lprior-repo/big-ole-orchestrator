@@ -5165,6 +5165,7 @@ dependencies = [
  "tokio",
  "ulid",
  "uuid",
+ "vo-common",
 ]
 
 [[package]]

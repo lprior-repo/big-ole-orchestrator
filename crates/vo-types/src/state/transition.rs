@@ -4,7 +4,7 @@
 //! and the fence-token lease record type.
 
 use crate::integer_types::FenceToken;
-use crate::string_types::{InstanceId, StepId};
+use crate::{InstanceId, StepId};
 
 use super::lifecycle::{LifecycleState, OperationalStatus, TransitionEvent};
 

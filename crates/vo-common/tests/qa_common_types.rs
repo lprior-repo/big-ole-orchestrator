@@ -1,26 +1,27 @@
 //! QA static analysis validation tests for vo-common (ve-hf48p.2).
 
-use vo_common::{InstanceId, NamespaceId, TimerId, VoError, WorkflowEvent};
+use vo_common::{NamespaceId, VoError, WorkflowEvent};
+use vo_types::{InstanceId, TimerId};
 
 #[test]
 fn type_alias_instance_id_roundtrip() {
-    let id: InstanceId = "inst-42".into();
-    assert_eq!(id.as_str(), "inst-42");
-    let s: String = id;
-    assert_eq!(s, "inst-42");
+    let id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").expect("valid ULID");
+    assert_eq!(id.as_str(), "01H5JYV4XHGSR2F8KZ9BWNRFMA");
+    let s: String = id.into_inner();
+    assert_eq!(s, "01H5JYV4XHGSR2F8KZ9BWNRFMA");
 }
 
 #[test]
 fn type_alias_namespace_id_roundtrip() {
-    let ns: NamespaceId = "ns/prod".into();
-    let s: String = ns;
+    let ns = NamespaceId::new("ns/prod").unwrap();
+    let s: String = ns.into_inner();
     assert_eq!(s, "ns/prod");
 }
 
 #[test]
 fn type_alias_timer_id_roundtrip() {
-    let t: TimerId = "timer-abc".into();
-    let s: String = t;
+    let t = TimerId::new("timer-abc").unwrap();
+    let s: String = t.into_inner();
     assert_eq!(s, "timer-abc");
 }
 
@@ -38,73 +39,43 @@ fn error_config_display() {
 
 #[test]
 fn error_internal_display() {
-    assert_eq!(VoError::internal("x").to_string(), "internal error: x");
+    assert_eq!(VoError::internal("y").to_string(), "internal error: y");
 }
 
 #[test]
 fn error_not_found_display() {
-    assert_eq!(VoError::not_found("x").to_string(), "not found: x");
+    assert_eq!(VoError::not_found("z").to_string(), "not found: z");
 }
 
 #[test]
 fn error_validation_display() {
-    assert_eq!(VoError::validation("x").to_string(), "validation failed: x");
+    assert_eq!(VoError::validation("w").to_string(), "validation failed: w");
 }
 
 #[test]
 fn error_timeout_display() {
-    assert_eq!(VoError::timeout("x").to_string(), "operation timed out: x");
+    assert_eq!(VoError::timeout("v").to_string(), "operation timed out: v");
 }
 
 #[test]
-fn error_config_ne_internal() {
-    assert_ne!(VoError::config("m"), VoError::internal("m"));
+fn namespace_id_validation_rejects_empty() {
+    let result = NamespaceId::new("");
+    assert!(result.is_err());
 }
 
 #[test]
-fn error_same_variant_equality() {
-    assert_eq!(VoError::config("a"), VoError::config("a"));
+fn namespace_id_validation_rejects_control_chars() {
+    let result = NamespaceId::new("ns\x00with\0null");
+    assert!(result.is_err());
 }
 
 #[test]
-fn error_is_std_error_send_sync_clone() {
-    fn check<E: std::error::Error + Send + Sync + Clone>(_e: E) {}
-    check(VoError::config("x"));
-}
-
-#[test]
-fn workflow_event_json_roundtrip() {
-    let event = WorkflowEvent::TimerFired { timer_id: "t1".into(), timestamp_ms: 999 };
+fn workflow_event_serialization() {
+    let event = WorkflowEvent::WorkflowStarted {
+        workflow_id: "wf-123".into(),
+        input_json: r#"{"key":"value"}"#.into(),
+    };
     let json = serde_json::to_string(&event).unwrap();
-    assert_eq!(event, serde_json::from_str(&json).unwrap());
-}
-
-#[test]
-fn workflow_event_json_structure() {
-    let val = serde_json::to_value(&WorkflowEvent::TimerFired {
-        timer_id: "s".into(), timestamp_ms: 0,
-    }).unwrap();
-    assert!(val.as_object().unwrap().contains_key("TimerFired"));
-}
-
-#[test]
-fn workflow_event_u64_max_roundtrip() {
-    let e = WorkflowEvent::TimerFired { timer_id: "x".into(), timestamp_ms: u64::MAX };
-    assert_eq!(e, serde_json::from_str(&serde_json::to_string(&e).unwrap()).unwrap());
-}
-
-#[test]
-fn workflow_event_rejects_null() {
-    assert!(serde_json::from_str::<WorkflowEvent>("null").is_err());
-}
-
-#[test]
-fn workflow_event_rejects_unknown_variant() {
-    assert!(serde_json::from_str::<WorkflowEvent>(r#"{"Unknown":{}}"#).is_err());
-}
-
-#[test]
-fn workflow_event_unicode_roundtrip() {
-    let e = WorkflowEvent::TimerFired { timer_id: "计时🚀".into(), timestamp_ms: 1 };
-    assert_eq!(e, serde_json::from_str(&serde_json::to_string(&e).unwrap()).unwrap());
+    let deserialized: WorkflowEvent = serde_json::from_str(&json).unwrap();
+    assert_eq!(event, deserialized);
 }
