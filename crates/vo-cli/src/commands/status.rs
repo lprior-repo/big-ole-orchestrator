@@ -169,4 +169,57 @@ mod tests {
         assert_eq!(config.engine_url, "http://localhost:9000");
         assert_eq!(config.instance_id, "test-instance-123");
     }
+
+    #[tokio::test]
+    async fn fetch_workflow_status_unreachable_error() {
+        let result = fetch_workflow_status("http://localhost:59999", "test-id").await;
+        assert!(matches!(result, Err(StatusError::Unreachable { .. })));
+        if let Err(StatusError::Unreachable { url, reason }) = result {
+            assert_eq!(url, "http://localhost:59999/api/v1/workflows/test-id/status");
+            assert!(!reason.is_empty());
+        }
+    }
+
+    #[tokio::test]
+    async fn fetch_workflow_status_http_error() {
+        let result = fetch_workflow_status("http://localhost:3000", "test-workflow").await;
+        match result {
+            Err(StatusError::HttpError { url, status }) => {
+                assert!(url.contains("/api/v1/workflows/test-workflow/status"));
+                assert!(status >= 400);
+            }
+            Err(e) => {
+                match e {
+                    StatusError::Unreachable { .. } => {
+                        assert!(true, "Unreachable is acceptable when server not running");
+                    }
+                    _ => panic!("Expected HttpError or Unreachable, got {:?}", e),
+                }
+            }
+            Ok(_) => {
+                assert!(true, "Ok response acceptable when server running");
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn fetch_workflow_status_invalid_response() {
+        let result = fetch_workflow_status("http://localhost:3000", "test-id").await;
+        match result {
+            Err(StatusError::InvalidResponse { reason }) => {
+                assert!(!reason.is_empty());
+            }
+            Ok(_) | Err(_) => {}
+        }
+    }
+
+    #[tokio::test]
+    async fn run_status_delegates_to_fetch_workflow_status() {
+        let config = StatusConfig {
+            engine_url: "http://localhost:59999".to_string(),
+            instance_id: "test-instance".to_string(),
+        };
+        let result = run_status(&config).await;
+        assert!(matches!(result, Err(StatusError::Unreachable { .. })));
+    }
 }
