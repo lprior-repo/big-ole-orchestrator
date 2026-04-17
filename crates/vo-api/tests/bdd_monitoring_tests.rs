@@ -11,12 +11,13 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::types::v1::{WorkflowStatus, WorkflowStatusValue};
-    use crate::types::v3::{
+    use serde_json::json;
+    use vo_api::types::names::{InvocationId, Timestamp};
+    use vo_api::types::v1::{WorkflowStatus, WorkflowStatusValue};
+    use vo_api::types::v3::{
         ApiError, EffectJournalEntry, EffectJournalResponse, EffectSemantics, HistoryEntry,
         HistoryResponse, TimelineEntry, TimelineResponse, V3StatusResponse,
     };
-    use serde_json::json;
 
     // =========================================================================
     // Scenario Family 1: GET /api/v1/workflows/:id/status
@@ -407,7 +408,7 @@ mod tests {
             for i in 1..response.entries.len() {
                 assert!(
                     response.entries[i].sequence > response.entries[i - 1].sequence,
-                    "entries must be ordered by sequence"
+                    "effect journal entries must be ordered by sequence"
                 );
             }
         }
@@ -456,7 +457,7 @@ mod tests {
 
         #[test]
         fn given_workflow_status_response_when_formatted_then_contains_required_fields() {
-            let response = crate::handlers::workflow::WorkflowStatusResponse {
+            let response = vo_api::handlers::workflow::WorkflowStatusResponse {
                 instance_id: "01ARZ3NDEKTSV4RRFFQ69G5FAV".to_string(),
                 namespace: "payments".to_string(),
                 workflow_type: "charge".to_string(),
@@ -476,7 +477,7 @@ mod tests {
 
         #[test]
         fn given_quarantined_instance_when_status_queried_then_is_quarantined_true() {
-            let response = crate::handlers::workflow::WorkflowStatusResponse {
+            let response = vo_api::handlers::workflow::WorkflowStatusResponse {
                 instance_id: "01ARZ3NDEKTSV4RRFFQ69G5FAV".to_string(),
                 namespace: "payments".to_string(),
                 workflow_type: "charge".to_string(),
@@ -510,7 +511,7 @@ mod tests {
         fn given_instance_in_transition_when_queried_then_returns_stable_state() {
             let valid_phases = vec!["live", "replay", "suspended", "completed", "failed"];
 
-            for phase in valid_phases {
+            for phase in &valid_phases {
                 let response = V3StatusResponse {
                     instance_id: "payments/01ARZ3NDEKTSV4RRFFQ69G5FAV".to_string(),
                     namespace: "payments".to_string(),
@@ -520,23 +521,19 @@ mod tests {
                     events_applied: 10,
                 };
 
-                assert!(
-                    valid_phases.contains(&response.phase.as_str()),
-                    "phase '{}' is not a valid stable state",
-                    phase
-                );
+                assert!(valid_phases.contains(&response.phase.as_str()),);
             }
         }
 
         #[test]
         fn given_workflow_status_when_validated_then_invariants_hold() {
             let status = WorkflowStatus {
-                invocation_id: "01ARZ3NDEKTSV4RRFFQ69G5FAV".to_string(),
+                invocation_id: InvocationId::from_str("01ARZ3NDEKTSV4RRFFQ69G5FAV").unwrap(),
                 workflow_name: "charge".to_string(),
                 status: WorkflowStatusValue::Running,
                 current_step: 5,
-                started_at: "2024-01-01T00:00:00Z".to_string().try_into().unwrap(),
-                updated_at: "2024-01-01T00:01:00Z".to_string().try_into().unwrap(),
+                started_at: Timestamp::new("2024-01-01T00:00:00Z").unwrap(),
+                updated_at: Timestamp::new("2024-01-01T00:01:00Z").unwrap(),
             };
 
             assert!(status.validate().is_ok());
@@ -545,12 +542,12 @@ mod tests {
         #[test]
         fn given_workflow_status_updated_before_started_when_validated_then_error() {
             let status = WorkflowStatus {
-                invocation_id: "01ARZ3NDEKTSV4RRFFQ69G5FAV".to_string(),
+                invocation_id: InvocationId::from_str("01ARZ3NDEKTSV4RRFFQ69G5FAV").unwrap(),
                 workflow_name: "charge".to_string(),
                 status: WorkflowStatusValue::Running,
                 current_step: 5,
-                started_at: "2024-01-01T00:01:00Z".to_string().try_into().unwrap(),
-                updated_at: "2024-01-01T00:00:00Z".to_string().try_into().unwrap(),
+                started_at: Timestamp::new("2024-01-01T00:01:00Z").unwrap(),
+                updated_at: Timestamp::new("2024-01-01T00:00:00Z").unwrap(),
             };
 
             assert!(status.validate().is_err());

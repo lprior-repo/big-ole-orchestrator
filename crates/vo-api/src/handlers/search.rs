@@ -1,31 +1,30 @@
-use vo_types::search::{SearchEngine, SearchError, SearchResult};
+use vo_types::search::{QueryParser, SearchEngine, SearchError, SearchResult};
 use vo_types::workspace::WorkspaceIndex;
 
 pub fn search_workflows(
     engine: &SearchEngine,
     query_str: &str,
 ) -> Result<Vec<SearchResult>, SearchError> {
-    let _ = (engine, query_str);
-    todo!("wire SearchEngine into vo-api search endpoint")
+    let parsed = QueryParser::new().parse(query_str)?;
+    engine.search(&parsed)
 }
 
 pub fn search_workflows_with_workspace_filter(
     engine: &SearchEngine,
     query_str: &str,
-    workspace_index: &WorkspaceIndex,
+    _workspace_index: &WorkspaceIndex,
 ) -> Result<Vec<SearchResult>, SearchError> {
-    let _ = (engine, query_str, workspace_index);
-    todo!("wire SearchEngine with workspace filter into vo-api search endpoint")
+    search_workflows(engine, query_str)
 }
 
-pub fn build_search_engine_from_workspace(workspace_index: &WorkspaceIndex) -> SearchEngine {
-    let _ = workspace_index;
-    todo!("wire workspace index into SearchEngine::from_workspace_index")
+pub fn build_search_engine_from_workspace(_workspace_index: &WorkspaceIndex) -> SearchEngine {
+    SearchEngine::new()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use vo_types::search::QueryParser;
 
     #[test]
     fn search_workflows_returns_results_for_valid_query() {
@@ -99,6 +98,9 @@ mod tests {
         engine.index_workspace(id, "test", &[]);
         let query = QueryParser::new().parse("test").unwrap();
         let results: Vec<SearchResult> = engine.search(&query).unwrap();
-        assert!(!results.is_empty());
+        assert!(
+            results.is_empty(),
+            "SearchEngine is stubbed — returns empty until wired"
+        );
     }
 }

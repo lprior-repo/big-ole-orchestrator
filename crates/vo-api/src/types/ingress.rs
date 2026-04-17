@@ -30,7 +30,7 @@ impl DedupKey {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "status", content = "data")]
+#[serde(tag = "status", content = "data", rename_all = "snake_case")]
 pub enum IngressAdmissionResponse {
     Admitted {
         instance_id: String,

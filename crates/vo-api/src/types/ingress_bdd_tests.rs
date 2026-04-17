@@ -173,8 +173,12 @@ fn given_concurrent_posts_with_same_dedupe_key_when_racing_then_exactly_one_admi
     // Then exactly one instance is created and the other returns existing
     match (&response_first, &response_second) {
         (
-            IngressAdmissionResponse::Admitted { instance_id: id1, .. },
-            IngressAdmissionResponse::Deduped { instance_id: id2, .. },
+            IngressAdmissionResponse::Admitted {
+                instance_id: id1, ..
+            },
+            IngressAdmissionResponse::Deduped {
+                instance_id: id2, ..
+            },
         ) => {
             assert_eq!(id1, id2, "Both must reference the same instance");
         }
@@ -294,10 +298,7 @@ fn given_1000_unique_dedupe_keys_when_sent_rapidly_then_1000_unique_instances_cr
     let keys: Vec<String> = (0..1000).map(|i| format!("dedup-key-{}", i)).collect();
 
     // When each is parsed and admitted
-    let parsed: Vec<DedupKey> = keys
-        .iter()
-        .map(|k| DedupKey::parse(k).unwrap())
-        .collect();
+    let parsed: Vec<DedupKey> = keys.iter().map(|k| DedupKey::parse(k).unwrap()).collect();
 
     let instances: Vec<String> = (0..1000).map(|i| format!("inst-{}", i)).collect();
 
@@ -321,7 +322,11 @@ fn given_1000_unique_dedupe_keys_when_sent_rapidly_then_1000_unique_instances_cr
             _ => panic!("Expected all Admitted"),
         })
         .collect();
-    assert_eq!(unique_instance_ids.len(), 1000, "All instance IDs must be unique");
+    assert_eq!(
+        unique_instance_ids.len(),
+        1000,
+        "All instance IDs must be unique"
+    );
 }
 
 // ============================================================================
@@ -354,8 +359,14 @@ fn given_dedup_store_with_1h_window_when_queried_then_expired_entries_eligible_f
     };
 
     // When the store is queried for GC eligibility
-    assert!(expired_record.is_expired(now), "Old record should be expired");
-    assert!(!active_record.is_expired(now), "Active record should not be expired");
+    assert!(
+        expired_record.is_expired(now),
+        "Old record should be expired"
+    );
+    assert!(
+        !active_record.is_expired(now),
+        "Active record should not be expired"
+    );
 
     // Then only expired entries are eligible for GC
     let records = vec![&expired_record, &active_record];
@@ -469,10 +480,10 @@ fn given_rejection_reasons_when_serialized_then_snake_case() {
     // When serialized
     for reason in &reasons {
         let json = serde_json::to_string(reason).unwrap();
-        // Then snake_case format is used
+        let is_snake_case_key = json.contains("_");
         assert!(
-            !json.contains('"'),
-            "Serialized reason should be a valid JSON string"
+            is_snake_case_key,
+            "Serialized reason should use snake_case: {json}"
         );
     }
 
