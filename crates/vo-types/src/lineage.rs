@@ -127,6 +127,7 @@ impl WorkflowLineage {
 
 /// Status of a lineage - tracks whether it can accept new epochs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub enum LineageStatus {
     /// Lineage is active and can spawn new epochs.
     Active,

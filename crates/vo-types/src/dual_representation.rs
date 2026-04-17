@@ -185,9 +185,7 @@ pub fn apply_redaction(
                         )
                     };
 
-                    if is_remove {
-                        // Remove: key is omitted entirely per ADR-025 §1
-                    } else if !was_redacted || new_val != serde_json::Value::Null {
+                    if was_redacted || new_val != serde_json::Value::Null {
                         result.insert(key.clone(), new_val);
                     }
 
