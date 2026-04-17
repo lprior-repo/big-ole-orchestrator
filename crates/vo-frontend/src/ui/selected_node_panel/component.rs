@@ -4,7 +4,7 @@
 #![warn(clippy::pedantic)]
 
 use dioxus::prelude::*;
-use oya_frontend::flow_extender::ExtensionPatchPreview;
+use crate::flow_extender::ExtensionPatchPreview;
 use std::collections::HashMap;
 
 use crate::ui::graph::NodeCategory;
