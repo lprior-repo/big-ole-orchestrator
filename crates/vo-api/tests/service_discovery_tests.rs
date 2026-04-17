@@ -173,45 +173,33 @@ mod discovery_path_validation {
     }
 
     #[test]
+    #[should_panic(expected = "binary_name cannot be empty")]
     fn validate_discovery_path_empty_name() {
-        let path = DiscoveryPath::new(
+        let _path = DiscoveryPath::new(
             VERSION_BASE_PATH.to_string(),
             vo_types::BinaryHash::parse("abcdef0123456789").unwrap(),
             String::new(),
         );
-        let result = validate_discovery_path(&path);
-        assert!(matches!(
-            result,
-            Err(DiscoveryPathError::InvalidFormat { .. })
-        ));
     }
 
     #[test]
+    #[should_panic(expected = "binary_name cannot contain path separators")]
     fn validate_discovery_path_name_with_separator() {
-        let path = DiscoveryPath::new(
+        let _path = DiscoveryPath::new(
             VERSION_BASE_PATH.to_string(),
             vo_types::BinaryHash::parse("abcdef0123456789").unwrap(),
             "foo/bar".to_string(),
         );
-        let result = validate_discovery_path(&path);
-        assert!(matches!(
-            result,
-            Err(DiscoveryPathError::InvalidFormat { .. })
-        ));
     }
 
     #[test]
+    #[should_panic(expected = "binary_name cannot contain path separators")]
     fn validate_discovery_path_name_with_multiple_separators() {
-        let path = DiscoveryPath::new(
+        let _path = DiscoveryPath::new(
             VERSION_BASE_PATH.to_string(),
             vo_types::BinaryHash::parse("abcdef0123456789").unwrap(),
             "foo/bar/baz".to_string(),
         );
-        let result = validate_discovery_path(&path);
-        assert!(matches!(
-            result,
-            Err(DiscoveryPathError::InvalidFormat { .. })
-        ));
     }
 }
 

@@ -524,11 +524,11 @@ mod tests {
 
     #[test]
     fn test_split_path_id_valid_format() {
-        let result = split_path_id("test-namespace/test-instance");
+        let result = split_path_id("test-namespace/01ARZ3NDEKTSV4RRFFQ69G5FAV");
         assert!(result.is_some());
         let (ns, id) = result.unwrap();
         assert_eq!(ns.as_str(), "test-namespace");
-        assert_eq!(id.as_str(), "test-instance");
+        assert_eq!(id.as_str(), "01ARZ3NDEKTSV4RRFFQ69G5FAV");
     }
 
     #[test]

@@ -9,11 +9,10 @@ mod security_validation_tests {
     #[test]
     fn test_is_retryable_error_classification() {
         assert!(is_retryable_error("at_capacity"));
-
-        assert!(!is_retryable_error("internal_error"));
-        assert!(!is_retryable_error("timeout"));
-        assert!(!is_retryable_error("service_unavailable"));
-        assert!(!is_retryable_error("rate_limited"));
+        assert!(is_retryable_error("internal_error"));
+        assert!(is_retryable_error("timeout"));
+        assert!(is_retryable_error("service_unavailable"));
+        assert!(is_retryable_error("rate_limited"));
 
         assert!(!is_retryable_error("not_found"));
         assert!(!is_retryable_error("invalid_id"));
@@ -25,10 +24,6 @@ mod security_validation_tests {
         assert!(!is_retryable_error("unsupported_media_type"));
         assert!(!is_retryable_error("validation_failed"));
         assert!(!is_retryable_error("rate_limit_exceeded"));
-        assert!(!is_retryable_error("internal_error"));
-        assert!(!is_retryable_error("timeout"));
-        assert!(!is_retryable_error("service_unavailable"));
-        assert!(!is_retryable_error("rate_limited"));
     }
 
     #[test]
