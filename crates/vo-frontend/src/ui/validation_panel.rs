@@ -5,9 +5,9 @@
 #![warn(clippy::nursery)]
 #![forbid(unsafe_code)]
 
+use crate::ui::graph::{NodeId, ValidationIssue, ValidationResult, ValidationSeverity};
 use crate::ui::panel_types::ValidationResultCategory;
 use dioxus::prelude::*;
-use oya_frontend::graph::{NodeId, ValidationResult, ValidationSeverity};
 
 use crate::ui::icons::{AlertCircleIcon, AlertTriangleIcon, ChevronDownIcon, ChevronRightIcon};
 
@@ -92,10 +92,7 @@ struct IssueData {
 }
 
 #[component]
-fn IssueRow(
-    issue: oya_frontend::graph::ValidationIssue,
-    on_select_node: EventHandler<NodeId>,
-) -> Element {
+fn IssueRow(issue: ValidationIssue, on_select_node: EventHandler<NodeId>) -> Element {
     let node_id = issue.node_id;
     let (border_class, bg_class) = match issue.severity {
         ValidationSeverity::Error => ("border-l-red-400", "bg-red-50/50"),

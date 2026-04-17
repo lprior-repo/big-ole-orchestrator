@@ -383,6 +383,55 @@ impl Workflow {
     }
 }
 
+/// Severity level for a validation issue.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum ValidationSeverity {
+    Error,
+    Warning,
+}
+
+/// A single validation issue found during workflow validation.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ValidationIssue {
+    pub node_id: Option<NodeId>,
+    pub severity: ValidationSeverity,
+    pub message: String,
+}
+
+/// The result of validating a workflow.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct ValidationResult {
+    pub issues: Vec<ValidationIssue>,
+}
+
+impl ValidationResult {
+    #[must_use]
+    pub fn new(issues: Vec<ValidationIssue>) -> Self {
+        Self { issues }
+    }
+
+    #[must_use]
+    pub fn error_count(&self) -> usize {
+        self.issues
+            .iter()
+            .filter(|i| i.severity == ValidationSeverity::Error)
+            .count()
+    }
+
+    #[must_use]
+    pub fn warning_count(&self) -> usize {
+        self.issues
+            .iter()
+            .filter(|i| i.severity == ValidationSeverity::Warning)
+            .count()
+    }
+
+    #[must_use]
+    pub fn is_valid(&self) -> bool {
+        self.issues.is_empty()
+    }
+}
+
 // ============================================================================
 // Unit Tests
 // ============================================================================
