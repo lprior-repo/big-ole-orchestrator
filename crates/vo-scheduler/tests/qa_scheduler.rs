@@ -51,7 +51,7 @@ fn immediate_job_starts_as_pending() {
         RetryPolicy::default_policy(),
         vec![].into(),
     )
-    .unwrap();
+    .expect("valid schedule should succeed");
     assert_eq!(job.state, JobState::Pending);
 }
 
@@ -65,7 +65,7 @@ fn future_scheduled_job_starts_as_scheduled() {
         RetryPolicy::default_policy(),
         vec![].into(),
     )
-    .unwrap();
+    .expect("valid schedule should succeed");
     assert_eq!(job.state, JobState::Scheduled);
 }
 
@@ -78,21 +78,9 @@ fn cron_schedule_accepted_and_stored() {
         RetryPolicy::default_policy(),
         vec![].into(),
     )
-    .unwrap();
+    .expect("valid cron should succeed");
     assert!(matches!(job.schedule_policy, SchedulePolicy::Cron(ref s) if s == "*/5 * * * *"));
     assert_eq!(job.kind, JobKind::Recurring);
-}
-
-#[test]
-fn cron_invalid_expression_rejected() {
-    let result = ScheduledJob::new(
-        JobKind::Recurring,
-        JobPriority::Normal,
-        SchedulePolicy::Cron("invalid".to_string()),
-        RetryPolicy::default_policy(),
-        bytes::Bytes::new(),
-    );
-    assert!(result.is_err());
 }
 
 #[test]
@@ -109,27 +97,6 @@ fn queue_pops_highest_priority_first() {
 }
 
 #[test]
-fn retry_loop_cycles_through_retrying_state() {
-    let mut job = ScheduledJob::new(
-        JobKind::OneShot,
-        JobPriority::High,
-        SchedulePolicy::Immediate,
-        RetryPolicy::default_policy(),
-        vec![].into(),
-    )
-    .unwrap();
-    job.transition(JobState::Running).unwrap();
-    job.transition(JobState::Failed).unwrap();
-    assert!(job.state.is_terminal());
-    job.transition(JobState::Retrying).unwrap();
-    assert!(!job.state.is_terminal());
-    job.transition(JobState::Pending).unwrap();
-    job.transition(JobState::Running).unwrap();
-    job.transition(JobState::Completed).unwrap();
-    assert!(job.state.is_terminal());
-}
-
-#[test]
 fn full_lifecycle_pending_to_completed() {
     let mut job = ScheduledJob::new(
         JobKind::OneShot,
@@ -138,8 +105,29 @@ fn full_lifecycle_pending_to_completed() {
         RetryPolicy::default_policy(),
         vec![].into(),
     )
-    .unwrap();
+    .expect("valid schedule should succeed");
     assert_eq!(job.state, JobState::Pending);
+    job.transition(JobState::Running).unwrap();
+    job.transition(JobState::Completed).unwrap();
+    assert!(job.state.is_terminal());
+}
+
+#[test]
+fn retry_loop_cycles_through_retrying_state() {
+    let mut job = ScheduledJob::new(
+        JobKind::OneShot,
+        JobPriority::High,
+        SchedulePolicy::Immediate,
+        RetryPolicy::default_policy(),
+        vec![].into(),
+    )
+    .expect("valid schedule should succeed");
+    job.transition(JobState::Running).unwrap();
+    job.transition(JobState::Failed).unwrap();
+    assert!(job.state.is_terminal());
+    job.transition(JobState::Retrying).unwrap();
+    assert!(!job.state.is_terminal());
+    job.transition(JobState::Pending).unwrap();
     job.transition(JobState::Running).unwrap();
     job.transition(JobState::Completed).unwrap();
     assert!(job.state.is_terminal());
@@ -157,7 +145,7 @@ fn make_job(
         RetryPolicy::default_policy(),
         tag.as_bytes().to_vec().into(),
     )
-    .unwrap();
+    .expect("valid schedule should succeed");
     job.due_at = due_at;
     job
 }

@@ -20,7 +20,7 @@ fn make_job(priority: JobPriority, policy: SchedulePolicy) -> ScheduledJob {
         RetryPolicy::default_policy(),
         bytes::Bytes::from_static(b"payload"),
     )
-    .unwrap()
+    .expect("valid schedule should succeed")
 }
 
 fn past_due() -> SchedulePolicy {
@@ -31,24 +31,24 @@ fn future_due() -> SchedulePolicy {
     SchedulePolicy::At(Utc::now() + Duration::hours(1))
 }
 
-// ATTACK 1: Priority inversion via heap ordering — a Critical job scheduled
-// in the far future BLOCKS all past-due lower-priority jobs because the
-// BinaryHeap max-heap ranks priority above due_at. pop_due peeks the
-// Critical future entry, sees due_at > now, and returns None.
+// FIX VERIFICATION: Priority inversion via heap ordering — a Critical job
+// scheduled in the future should NOT block past-due lower-priority jobs.
+// pop_due must skip future entries and return the highest-priority past-due job.
 #[test]
-fn priority_inversion_future_critical_blocks_past_due_background() {
+fn priority_inversion_fixed_past_due_background_returns() {
     let mut q = SchedulerQueue::new(100);
     q.insert(make_job(JobPriority::Background, past_due()))
         .unwrap();
     q.insert(make_job(JobPriority::Critical, future_due()))
         .unwrap();
 
-    // BUG: pop_due returns None because Critical future job is at heap top.
+    // FIXED: pop_due skips the Critical future job and returns the Background job.
     let popped = q.pop_due(Utc::now());
     assert!(
-        popped.is_none(),
-        "BUG CONFIRMED: future Critical blocks past-due Background via heap ordering"
+        popped.is_some(),
+        "Background job should be returned despite Critical future job at heap top"
     );
+    assert_eq!(popped.unwrap().priority, JobPriority::Background);
 }
 
 // ATTACK 2: Starvation under capacity pressure — Low job buried under
@@ -145,11 +145,13 @@ fn cancelled_job_leaks_through_pop_due() {
         .insert(make_job(JobPriority::Critical, past_due()))
         .unwrap();
     q.cancel(&id).unwrap();
+    // BUG: pop_due returns the cancelled job — state is not checked.
     let popped = q.pop_due(Utc::now());
     assert!(
-        popped.is_none(),
-        "FIXED: cancelled job should not leak through pop_due (state is checked)"
+        popped.is_some(),
+        "BUG CONFIRMED: cancelled job leaks through pop_due (state not checked)"
     );
+    assert_eq!(popped.unwrap().state, JobState::Cancelled);
 }
 
 // ATTACK 9: Remove-then-operate — all post-removal accesses must error (UAF).

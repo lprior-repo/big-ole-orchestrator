@@ -13,7 +13,11 @@ fn make_job(priority: JobPriority, policy: SchedulePolicy) -> ScheduledJob {
         RetryPolicy::default_policy(),
         bytes::Bytes::from_static(b"test-payload"),
     )
+<<<<<<< HEAD
     .unwrap()
+=======
+    .expect("valid schedule policy should succeed")
+>>>>>>> origin/gecko-bdd-ipc
 }
 
 fn future_time() -> DateTime<Utc> {
@@ -327,7 +331,11 @@ fn recurring_job_can_transition_completed_to_scheduled() {
         RetryPolicy::default_policy(),
         bytes::Bytes::from_static(b"recurring"),
     )
+<<<<<<< HEAD
     .unwrap();
+=======
+    .expect("valid schedule policy should succeed");
+>>>>>>> origin/gecko-bdd-ipc
     let id = job.id;
     queue.insert(job).unwrap();
     queue.update_state(&id, JobState::Running).unwrap();
