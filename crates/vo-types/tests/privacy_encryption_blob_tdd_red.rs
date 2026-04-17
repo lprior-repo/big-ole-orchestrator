@@ -76,7 +76,9 @@ fn tdd_red_002_remove_omits_key_from_deeply_nested_object() {
     let (projection, _) = apply_redaction(&canonical, &rules);
 
     assert!(
-        projection["level1"]["level2"]["level3"].get("secret").is_none(),
+        projection["level1"]["level2"]["level3"]
+            .get("secret")
+            .is_none(),
         "Remove should omit deeply nested key entirely"
     );
     assert!(projection["level1"]["level2"]["level3"].is_object());
@@ -275,10 +277,7 @@ fn tdd_red_010_redacted_fields_count_equals_unique_rule_matches() {
             vec!["data".into(), "items".into(), "secret".into()],
             RedactionKind::Remove,
         ),
-        RedactionRule::new(
-            vec!["data".into(), "key".into()],
-            RedactionKind::Remove,
-        ),
+        RedactionRule::new(vec!["data".into(), "key".into()], RedactionKind::Remove),
     ];
 
     let (_, redacted) = apply_redaction(&canonical, &rules);
@@ -328,8 +327,14 @@ fn tdd_red_011_removed_field_not_in_serialized_projection() {
         "Removed field value must not leak in serialized projection: {}",
         serialized
     );
-    assert!(serialized.contains("John"), "Non-redacted 'name' should be present");
-    assert!(serialized.contains("Flu"), "Non-redacted 'diagnosis' should be present");
+    assert!(
+        serialized.contains("John"),
+        "Non-redacted 'name' should be present"
+    );
+    assert!(
+        serialized.contains("Flu"),
+        "Non-redacted 'diagnosis' should be present"
+    );
 }
 
 #[test]
@@ -345,7 +350,10 @@ fn tdd_red_012_multiple_removed_fields_absent_from_projection() {
 
     let rules = vec![
         RedactionRule::new(vec!["user".into(), "ssn".into()], RedactionKind::Remove),
-        RedactionRule::new(vec!["user".into(), "password".into()], RedactionKind::Remove),
+        RedactionRule::new(
+            vec!["user".into(), "password".into()],
+            RedactionKind::Remove,
+        ),
         RedactionRule::new(vec!["user".into(), "email".into()], RedactionKind::Remove),
     ];
 
@@ -353,11 +361,23 @@ fn tdd_red_012_multiple_removed_fields_absent_from_projection() {
     let serialized = serde_json::to_string(&projection).unwrap();
 
     assert!(!serialized.contains("ssn"), "Removed 'ssn' leaked");
-    assert!(!serialized.contains("password"), "Removed 'password' leaked");
+    assert!(
+        !serialized.contains("password"),
+        "Removed 'password' leaked"
+    );
     assert!(!serialized.contains("email"), "Removed 'email' leaked");
-    assert!(!serialized.contains("hunter2"), "Removed password value leaked");
-    assert!(!serialized.contains("example.com"), "Removed email domain leaked");
-    assert!(serialized.contains("Alice"), "Non-redacted 'name' should be present");
+    assert!(
+        !serialized.contains("hunter2"),
+        "Removed password value leaked"
+    );
+    assert!(
+        !serialized.contains("example.com"),
+        "Removed email domain leaked"
+    );
+    assert!(
+        serialized.contains("Alice"),
+        "Non-redacted 'name' should be present"
+    );
 
     let obj = projection["user"].as_object().unwrap();
     assert_eq!(
@@ -394,7 +414,10 @@ fn tdd_red_013_removed_nested_object_absent_from_projection() {
     let serialized = serde_json::to_string(&projection).unwrap();
     assert!(!serialized.contains("sk-12345"), "API key leaked");
     assert!(!serialized.contains("whs-67890"), "Webhook secret leaked");
-    assert!(!serialized.contains("private"), "Removed key name 'private' leaked");
+    assert!(
+        !serialized.contains("private"),
+        "Removed key name 'private' leaked"
+    );
 }
 
 // ========================================================================
@@ -414,7 +437,7 @@ use vo_types::{CryptoAlgorithm, WrappedDek};
 fn tdd_red_014_wrapped_dek_minimum_size_is_iv_plus_tag() {
     let min_wrapped_size = CryptoAlgorithm::IV_SIZE_BYTES + CryptoAlgorithm::TAG_SIZE_BYTES; // 28
 
-    let undersized = WrappedDek::new(vec![0u8; min_wrapped_size - 1]);
+    let undersized = WrappedDek::new(vec![0u8; min_wrapped_size - 1]).unwrap();
     assert!(
         undersized.as_bytes().len() >= min_wrapped_size,
         "I-DEK-1: WrappedDek must be >= {} bytes (IV + tag overhead), got {} bytes",
@@ -429,7 +452,7 @@ fn tdd_red_015_wrapped_dek_expected_size_for_aes256_key() {
         + CryptoAlgorithm::KEY_SIZE_BYTES
         + CryptoAlgorithm::TAG_SIZE_BYTES; // 60
 
-    let properly_wrapped = WrappedDek::new(vec![0u8; expected_size]);
+    let properly_wrapped = WrappedDek::new(vec![0u8; expected_size]).unwrap();
     assert_eq!(
         properly_wrapped.as_bytes().len(),
         expected_size,
@@ -437,7 +460,7 @@ fn tdd_red_015_wrapped_dek_expected_size_for_aes256_key() {
         expected_size
     );
 
-    let undersized = WrappedDek::new(vec![0u8; expected_size - 1]);
+    let undersized = WrappedDek::new(vec![0u8; expected_size - 1]).unwrap();
     assert!(
         undersized.as_bytes().len() >= expected_size,
         "I-DEK-2: WrappedDek < {} bytes indicates corruption",
@@ -447,7 +470,7 @@ fn tdd_red_015_wrapped_dek_expected_size_for_aes256_key() {
 
 #[test]
 fn tdd_red_016_empty_wrapped_dek_is_structurally_invalid() {
-    let empty = WrappedDek::new(vec![]);
+    let empty = WrappedDek::new(vec![]).unwrap();
     assert!(
         !empty.as_bytes().is_empty(),
         "I-DEK-1: Empty WrappedDek is structurally invalid (no IV, ciphertext, or tag)"
@@ -461,7 +484,7 @@ fn tdd_red_017_wrapped_dek_size_consistent_with_aes256gcm_algorithm() {
     let min_for_key = iv_tag_overhead + key_size; // 60
 
     // Only IV+tag overhead, no room for encrypted key material
-    let short_dek = WrappedDek::new(vec![0u8; iv_tag_overhead]);
+    let short_dek = WrappedDek::new(vec![0u8; iv_tag_overhead]).unwrap();
     assert!(
         short_dek.as_bytes().len() >= min_for_key,
         "I-DEK-2: {} bytes is only IV+tag overhead, no room for encrypted key material",
