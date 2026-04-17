@@ -1,3 +1,12 @@
+//! Linting rules for workflow source code.
+//!
+//! Each function in this module implements a single lint rule identified by a
+//! [`LintCode`] from the [`diagnostic`](crate::diagnostic) module.
+//!
+//! # Available Rules
+//!
+//! - [`check_random_in_workflow`] — **L002**: flags non-deterministic random calls
+
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::expect_used)]
 #![deny(clippy::panic)]
@@ -7,6 +16,11 @@ use crate::diagnostic::{Diagnostic, LintCode};
 use std::collections::HashMap;
 use syn::{visit::Visit, ExprCall, File, ItemUse, Path, UseTree};
 
+/// Check for non-deterministic random calls (L002).
+///
+/// Walks the AST looking for `Uuid::new_v4()` (no arguments) and
+/// `rand::random()` calls. Both break determinism guarantees in workflows.
+/// Returns a [`Diagnostic`] for each occurrence.
 #[must_use]
 pub fn check_random_in_workflow(file: &File) -> Vec<Diagnostic> {
     let mut detector = RandomDetector::default();

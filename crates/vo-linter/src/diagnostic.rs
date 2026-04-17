@@ -1,5 +1,10 @@
+/// Lint codes emitted by [`rules`](crate::rules) functions.
+///
+/// See the [Lint Code Registry](crate#lint-code-registry) in the crate root
+/// for human-readable descriptions.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LintCode {
+    /// L002 — Non-deterministic random call in workflow function.
     L002,
 }
 
