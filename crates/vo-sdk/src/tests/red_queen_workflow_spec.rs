@@ -425,8 +425,8 @@ fn rq_workflow_spec_accepts_edges_to_nonexistent_nodes_via_serde() {
     }"#;
     let result: Result<WorkflowSpec, _> = serde_json::from_str(json);
     assert!(
-        result.is_ok(),
-        "serde accepts invalid edge refs (validation happens elsewhere): {:?}",
+        result.is_err(),
+        "serde rejects edges to nonexistent nodes: {:?}",
         result
     );
 }
@@ -694,7 +694,7 @@ fn rq_workflow_spec_round_trip_preserves_all_fields() {
 // ===========================================================================
 
 #[test]
-fn rq_workflow_spec_accepts_cycle_via_serde() {
+fn rq_workflow_spec_rejects_cycle_via_serde() {
     let json = r#"{
         "workflow_name": "cycle_via_serde",
         "nodes": [
@@ -708,12 +708,17 @@ fn rq_workflow_spec_accepts_cycle_via_serde() {
     }"#;
     let result: Result<WorkflowSpec, _> = serde_json::from_str(json);
     assert!(
-        result.is_ok(),
-        "serde accepts cycle (validation happens elsewhere): {:?}",
+        result.is_err(),
+        "serde rejects cycle during deserialization: {:?}",
         result
     );
-    let spec = result.unwrap();
-    assert_eq!(spec.edges.len(), 2);
+    let err = result.unwrap_err();
+    let err_msg = err.to_string();
+    assert!(
+        err_msg.contains("cycle"),
+        "error should mention cycle: {}",
+        err_msg
+    );
 }
 
 #[test]
@@ -749,7 +754,7 @@ fn rq_dag_build_rejects_self_loop_with_proper_error() {
 // ===========================================================================
 
 #[test]
-fn rq_workflow_spec_accepts_self_loop_edge_via_serde() {
+fn rq_workflow_spec_rejects_self_loop_edge_via_serde() {
     let json = r#"{
         "workflow_name": "self_loop",
         "nodes": [
@@ -762,9 +767,16 @@ fn rq_workflow_spec_accepts_self_loop_edge_via_serde() {
     }"#;
     let result: Result<WorkflowSpec, _> = serde_json::from_str(json);
     assert!(
-        result.is_ok(),
-        "serde accepts self-loop (validation happens elsewhere): {:?}",
+        result.is_err(),
+        "serde rejects self-loop during deserialization: {:?}",
         result
+    );
+    let err = result.unwrap_err();
+    let err_msg = err.to_string();
+    assert!(
+        err_msg.contains("self-loop"),
+        "error should mention self-loop: {}",
+        err_msg
     );
 }
 

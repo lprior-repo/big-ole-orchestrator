@@ -4,14 +4,13 @@
 //! specifications when a binary is invoked with `--graph`. The Engine validates,
 //! hashes, and stores this spec as a workflow version.
 
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::io::Write;
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 pub use vo_types::NodeKind;
 use vo_types::{NodeName, WorkflowName};
-
-
 
 /// Marker returned when `--graph` flag is present.
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -67,11 +66,94 @@ pub struct EdgeSpec {
 /// This is the canonical workflow representation emitted by the SDK when
 /// `./binary --graph` is invoked. The Engine validates, hashes, and stores
 /// this spec as a workflow version.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct WorkflowSpec {
     pub workflow_name: WorkflowName,
     pub nodes: Vec<NodeSpec>,
     pub edges: Vec<EdgeSpec>,
+}
+
+impl<'de> serde::Deserialize<'de> for WorkflowSpec {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(serde::Deserialize)]
+        struct RawWorkflowSpec {
+            workflow_name: WorkflowName,
+            nodes: Vec<NodeSpec>,
+            edges: Vec<EdgeSpec>,
+        }
+
+        let raw: RawWorkflowSpec = RawWorkflowSpec::deserialize(deserializer)?;
+
+        let node_names: HashSet<&str> = raw.nodes.iter().map(|n| n.name.as_str()).collect();
+
+        for edge in &raw.edges {
+            if edge.from == edge.to {
+                return Err(serde::de::Error::custom(format!(
+                    "workflow contains a cycle: self-loop edge on {}",
+                    edge.from.as_str()
+                )));
+            }
+            if !node_names.contains(edge.from.as_str()) {
+                return Err(serde::de::Error::custom(format!(
+                    "edge references non-existent node: {}",
+                    edge.from.as_str()
+                )));
+            }
+            if !node_names.contains(edge.to.as_str()) {
+                return Err(serde::de::Error::custom(format!(
+                    "edge references non-existent node: {}",
+                    edge.to.as_str()
+                )));
+            }
+        }
+
+        let name_to_idx: HashMap<&str, usize> = raw
+            .nodes
+            .iter()
+            .enumerate()
+            .map(|(i, n)| (n.name.as_str(), i))
+            .collect();
+
+        let n = raw.nodes.len();
+        let mut in_degree = vec![0u32; n];
+        for edge in &raw.edges {
+            if let (Some(&_from), Some(&to)) = (
+                name_to_idx.get(edge.from.as_str()),
+                name_to_idx.get(edge.to.as_str()),
+            ) {
+                in_degree[to] += 1;
+            }
+        }
+
+        let mut queue: VecDeque<usize> = (0..n).filter(|&i| in_degree[i] == 0).collect();
+        let mut visited = 0usize;
+        while let Some(node) = queue.pop_front() {
+            visited += 1;
+            for edge in &raw.edges {
+                if let (Some(&from), Some(&to)) = (
+                    name_to_idx.get(edge.from.as_str()),
+                    name_to_idx.get(edge.to.as_str()),
+                ) {
+                    if from == node {
+                        in_degree[to] -= 1;
+                        if in_degree[to] == 0 {
+                            queue.push_back(to);
+                        }
+                    }
+                }
+            }
+        }
+
+        if visited != n {
+            return Err(serde::de::Error::custom("workflow contains a cycle"));
+        }
+
+        Ok(WorkflowSpec {
+            workflow_name: raw.workflow_name,
+            nodes: raw.nodes,
+            edges: raw.edges,
+        })
+    }
 }
 
 impl WorkflowSpec {
