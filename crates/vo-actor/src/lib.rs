@@ -7,9 +7,7 @@ pub use vo_common::NamespaceId;
 use bytes::Bytes;
 use vo_types::InstanceId;
 
-pub mod heartbeat {
-    pub fn run_heartbeat_watcher() {}
-}
+pub mod heartbeat;
 
 pub mod master {
     pub struct MasterOrchestrator;
