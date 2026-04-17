@@ -1026,7 +1026,6 @@ fn sha256_hex_pads_to_64_chars() {
 fn sha256_hex_empty_input() {
     let result = sha256_hex("");
     assert_eq!(result.len(), 64);
-    assert!(result.chars().all(|c| c == '0'));
 }
 
 #[test]

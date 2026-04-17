@@ -106,14 +106,12 @@ fn sha256_hex_pads_to_64_chars() {
 fn sha256_hex_empty_seed() {
     let result = sha256_hex("");
     assert_eq!(result.len(), 64);
-    assert!(result.chars().all(|c| c == '0'));
 }
 
 #[test]
-fn sha256_hex_long_seed_padded_to_at_least_64() {
+fn sha256_hex_long_seed_still_64_chars() {
     let result = sha256_hex(&"x".repeat(200));
-    assert!(result.len() >= 64);
-    assert!(result.starts_with(&"x".repeat(200)));
+    assert_eq!(result.len(), 64);
 }
 
 // ============================================================
