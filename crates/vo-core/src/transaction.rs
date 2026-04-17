@@ -101,7 +101,7 @@ mod tests {
     use vo_types::events::EventMetadata;
     use vo_types::{
         EventEnvelope, FenceToken, FireAtMs, IdempotencyKey, InstanceId, InstanceStatus,
-        SequenceNumber, StepId, TimerId,
+        SequenceNumber, StepId, TimerId, MAX_SUPPORTED_SCHEMA_VERSION,
     };
 
     struct MockCommitter {
@@ -225,7 +225,12 @@ mod tests {
                 fire_at: valid_fire_at(),
             }],
             snapshot: Some(
-                SnapshotData::new(valid_sequence(), vec![0x01, 0x02]).expect("valid snapshot"),
+                SnapshotData::new(
+                    valid_sequence(),
+                    MAX_SUPPORTED_SCHEMA_VERSION,
+                    vec![0x01, 0x02],
+                )
+                .expect("valid snapshot"),
             ),
             event: valid_event_envelope(),
         }
