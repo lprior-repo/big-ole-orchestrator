@@ -6,6 +6,7 @@ use axum::{
 };
 use tokio::sync::broadcast;
 
+use super::split_path_id;
 use crate::types::ApiError;
 
 const WS_BROADCAST_CAPACITY: usize = 1000;
@@ -143,13 +144,6 @@ impl Default for WsState {
     }
 }
 
-fn split_path_id(path: &str) -> Option<(String, String)> {
-    let slash = path.find('/')?;
-    let namespace = path[..slash].to_owned();
-    let instance_id = path[slash + 1..].to_owned();
-    Some((namespace, instance_id))
-}
-
 pub struct WsConnectionCount {
     pub active_connections: std::sync::atomic::AtomicUsize,
 }
@@ -192,7 +186,7 @@ pub async fn ws_workflow(
     Path(id): Path<String>,
     State(state): State<WsState>,
 ) -> impl IntoResponse {
-    let (_, _instance_id) = match split_path_id(&id) {
+    let (_namespace, _instance_id) = match split_path_id(&id) {
         Some(pair) => pair,
         None => {
             return (
@@ -287,10 +281,9 @@ mod tests {
     fn split_path_id_returns_namespace_and_id_when_valid() {
         let result = split_path_id("payments/01ARZ3NDEKTSV4RRFFQ69G5FAV");
         assert!(result.is_some());
-        if let Some((ns, id)) = result {
-            assert_eq!(ns, "payments");
-            assert_eq!(id.as_str(), "01ARZ3NDEKTSV4RRFFQ69G5FAV");
-        }
+        let (ns, id) = result.unwrap();
+        assert_eq!(ns, "payments");
+        assert_eq!(id.to_string(), "01ARZ3NDEKTSV4RRFFQ69G5FAV");
     }
 
     #[test]

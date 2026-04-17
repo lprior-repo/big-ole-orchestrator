@@ -13,6 +13,7 @@ use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 use vo_actor::OrchestratorMsg;
 
+use super::split_path_id;
 use crate::types::ApiError;
 
 const SSE_KEEPALIVE_INTERVAL: Duration = Duration::from_secs(15);
@@ -171,7 +172,7 @@ pub async fn watch_workflow(
     Path(id): Path<String>,
     State(state): State<SseState>,
 ) -> impl IntoResponse {
-    let (_, _instance_id) = match split_path_id(&id) {
+    let (_namespace, _instance_id) = match split_path_id(&id) {
         Some(pair) => pair,
         None => {
             return (
@@ -189,13 +190,6 @@ pub async fn watch_workflow(
     let stream = merge_with_keepalive(receiver);
 
     Sse::new(stream).into_response()
-}
-
-fn split_path_id(path: &str) -> Option<(String, String)> {
-    let slash = path.find('/')?;
-    let namespace = path[..slash].to_owned();
-    let instance_id = path[slash + 1..].to_owned();
-    Some((namespace, instance_id))
 }
 
 use axum::Json;
@@ -233,10 +227,9 @@ mod tests {
     fn split_path_id_returns_namespace_and_id_when_valid() {
         let result = split_path_id("payments/01ARZ3NDEKTSV4RRFFQ69G5FAV");
         assert!(result.is_some());
-        if let Some((ns, id)) = result {
-            assert_eq!(ns, "payments");
-            assert_eq!(id.as_str(), "01ARZ3NDEKTSV4RRFFQ69G5FAV");
-        }
+        let (ns, id) = result.unwrap();
+        assert_eq!(ns, "payments");
+        assert_eq!(id.to_string(), "01ARZ3NDEKTSV4RRFFQ69G5FAV");
     }
 
     #[test]
