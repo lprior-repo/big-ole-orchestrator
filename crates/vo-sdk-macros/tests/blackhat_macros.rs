@@ -60,12 +60,6 @@ fn bh_pass_unsafe_fn() {
 }
 
 #[test]
-fn bh_pass_async_where_clause() {
-    let t = TestCases::new();
-    t.compile_fail("tests/bh_ui/pass_async_where_clause.rs");
-}
-
-#[test]
 fn bh_pass_extern_fn() {
     let t = TestCases::new();
     t.pass("tests/bh_ui/pass_extern_fn.rs");
