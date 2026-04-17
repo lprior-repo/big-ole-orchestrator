@@ -5096,6 +5096,7 @@ version = "0.1.0"
 dependencies = [
  "criterion",
  "insta",
+ "libc",
  "proptest",
  "rstest 0.23.0",
  "serde",
