@@ -28,7 +28,7 @@ fn backward_recovery_full_chain_in_reverse_order() {
     saga.queue_pending("ship").unwrap();
 
     // Verify reverse order
-    let order = saga.get_compensation_order().unwrap();
+    let order = saga.get_compensation_order();
     assert_eq!(order, vec!["ship", "reserve", "charge"]);
 
     // Execute full backward-recovery chain
@@ -107,7 +107,7 @@ fn mixed_policies_none_skipped_automatic_and_manual_queued() {
     // Manual can be queued
     saga.queue_pending("reserve").unwrap();
 
-    let order = saga.get_compensation_order().unwrap();
+    let order = saga.get_compensation_order();
     assert_eq!(order, vec!["reserve", "charge"]);
 }
 
