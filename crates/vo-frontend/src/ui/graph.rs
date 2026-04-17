@@ -173,17 +173,6 @@ impl Display for NodeId {
     }
 }
 
-/// Execution state of a workflow node.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum ExecutionState {
-    Idle,
-    Queued,
-    Running,
-    Completed,
-    Failed,
-    Skipped,
-}
-
 /// Classification of a workflow node by its side-effect profile (ADR-031).
 /// This is the UI-facing category used for badge display.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -548,6 +537,23 @@ mod tests {
         workflow.remove_node(node_id.clone());
         assert_eq!(workflow.nodes.len(), 0);
         assert!(workflow.get_node(node_id).is_none());
+    }
+
+    #[test]
+    fn connection_stores_edge_data() {
+        let src = NodeId::new();
+        let tgt = NodeId::new();
+        let conn = Connection {
+            id: Uuid::new_v4(),
+            source: src.clone(),
+            target: tgt.clone(),
+            source_port: PortName::from("out"),
+            target_port: PortName::from("in"),
+        };
+        assert_eq!(conn.source, src);
+        assert_eq!(conn.target, tgt);
+        assert_eq!(conn.source_port, PortName::from("out"));
+        assert_eq!(conn.target_port, PortName::from("in"));
     }
 
     #[test]
