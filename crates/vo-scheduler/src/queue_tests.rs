@@ -398,3 +398,120 @@ fn multiple_inserts_and_lookup() {
         assert!(queue.lookup(id).is_ok());
     }
 }
+
+#[test]
+fn peek_returns_next_due_job_without_removing() {
+    let mut queue = SchedulerQueue::new(100);
+    let job = make_job(JobPriority::Normal, SchedulePolicy::Immediate);
+    let id = job.id;
+    queue.insert(job).unwrap();
+
+    let peeked = queue.peek(Utc::now());
+    assert!(peeked.is_some());
+    assert_eq!(peeked.unwrap().id, id);
+
+    assert!(queue.lookup(&id).is_ok());
+    assert_eq!(queue.len(), 1);
+}
+
+#[test]
+fn peek_returns_none_when_nothing_due() {
+    let mut queue = SchedulerQueue::new(100);
+    let job = make_job(JobPriority::Normal, SchedulePolicy::At(future_time()));
+    queue.insert(job).unwrap();
+
+    assert!(queue.peek(Utc::now()).is_none());
+}
+
+#[test]
+fn peek_respects_priority() {
+    let mut queue = SchedulerQueue::new(100);
+    let low_job = make_job(JobPriority::Low, SchedulePolicy::Immediate);
+    let high_job = make_job(JobPriority::High, SchedulePolicy::Immediate);
+    let high_id = high_job.id;
+    queue.insert(low_job).unwrap();
+    queue.insert(high_job).unwrap();
+
+    let peeked = queue.peek(Utc::now());
+    assert_eq!(peeked.unwrap().id, high_id);
+}
+
+#[test]
+fn peek_skips_cancelled_jobs() {
+    let mut queue = SchedulerQueue::new(100);
+    let job = make_job(JobPriority::Normal, SchedulePolicy::Immediate);
+    let id = job.id;
+    queue.insert(job).unwrap();
+    queue.cancel(&id).unwrap();
+
+    assert!(queue.peek(Utc::now()).is_none());
+}
+
+#[test]
+fn peek_returns_none_on_empty_queue() {
+    let queue = SchedulerQueue::new(100);
+    assert!(queue.peek(Utc::now()).is_none());
+}
+
+#[test]
+fn peek_next_returns_highest_priority_regardless_of_due_time() {
+    let mut queue = SchedulerQueue::new(100);
+    let future_job = make_job(JobPriority::High, SchedulePolicy::At(future_time()));
+    let immediate_job = make_job(JobPriority::Low, SchedulePolicy::Immediate);
+    let high_id = future_job.id;
+    queue.insert(future_job).unwrap();
+    queue.insert(immediate_job).unwrap();
+
+    let peeked = queue.peek_next();
+    assert_eq!(peeked.unwrap().id, high_id);
+}
+
+#[test]
+fn peek_next_skips_terminal_states() {
+    let mut queue = SchedulerQueue::new(100);
+    let job = make_job(JobPriority::Normal, SchedulePolicy::Immediate);
+    let id = job.id;
+    queue.insert(job).unwrap();
+    queue.update_state(&id, JobState::Running).unwrap();
+    queue.update_state(&id, JobState::Completed).unwrap();
+
+    assert!(queue.peek_next().is_none());
+}
+
+#[test]
+fn peek_next_returns_none_on_empty_queue() {
+    let queue = SchedulerQueue::new(100);
+    assert!(queue.peek_next().is_none());
+}
+
+#[test]
+fn peek_next_does_not_remove_job() {
+    let mut queue = SchedulerQueue::new(100);
+    let job = make_job(JobPriority::Normal, SchedulePolicy::Immediate);
+    let id = job.id;
+    queue.insert(job).unwrap();
+
+    let peeked = queue.peek_next();
+    assert!(peeked.is_some());
+    assert_eq!(peeked.unwrap().id, id);
+
+    assert!(queue.lookup(&id).is_ok());
+    assert_eq!(queue.len(), 1);
+}
+
+#[test]
+fn peek_skips_failed_and_completed_jobs() {
+    let mut queue = SchedulerQueue::new(100);
+    let job1 = make_job(JobPriority::High, SchedulePolicy::Immediate);
+    let job1_id = job1.id;
+    queue.insert(job1).unwrap();
+    queue.update_state(&job1_id, JobState::Running).unwrap();
+    queue.update_state(&job1_id, JobState::Completed).unwrap();
+
+    let job2 = make_job(JobPriority::Low, SchedulePolicy::Immediate);
+    let job2_id = job2.id;
+    queue.insert(job2).unwrap();
+
+    let peeked = queue.peek(Utc::now());
+    assert_eq!(peeked.unwrap().id, job2_id);
+}
