@@ -94,7 +94,19 @@ pub async fn start_workflow(
         Some(ref id) => id.clone(),
         None => Ulid::new().to_string(),
     };
-    let instance_id = vo_types::InstanceId::parse(&instance_id_str).expect("generated ULID should be valid");
+    let instance_id = match vo_types::InstanceId::parse(&instance_id_str) {
+        Ok(id) => id,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiError::new(
+                    "instance_id_error",
+                    format!("failed to parse instance ID: {e}"),
+                )),
+            )
+                .into_response();
+        }
+    };
 
     // Serialize input to msgpack bytes.
     let input = match serde_json::to_vec(&req.input) {
