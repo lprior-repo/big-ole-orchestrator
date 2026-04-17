@@ -25,7 +25,6 @@ wasm = ["wasm-bindgen", "wasm-bindgen-futures", "web-sys", "gloo-timers"]
 
 bytes = { workspace = true }
 chrono = { workspace = true }
-uuid = { workspace = true }
 itertools = { workspace = true }
 
 wasm-bindgen = { version = "0.2", optional = true }
