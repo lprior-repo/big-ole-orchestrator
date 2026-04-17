@@ -1,12 +1,8 @@
 use std::collections::HashMap;
 
-use oya_frontend::graph::workflow_node::WorkflowNode;
-use oya_frontend::graph::{Connection, Node, NodeId};
-
-use crate::ui::editor_interactions::{NODE_HEIGHT, NODE_WIDTH};
+use super::graph_types::{Connection, Node, NodeId, WorkflowNode};
+use super::types::{EdgeAnchor, Position, BEND_CLAMP, NODE_HEIGHT, NODE_WIDTH};
 use crate::ui::parallel_group_overlay::{AggregateStatus, BoundingBox, ParallelGroup};
-
-use super::types::{EdgeAnchor, Position, BEND_CLAMP};
 
 pub(crate) fn create_smooth_step_path(
     from: Position,

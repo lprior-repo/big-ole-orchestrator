@@ -9,11 +9,11 @@ dioxus = { workspace = true }
 serde = { workspace = true }
 serde_json.workspace = true
 ulid.workspace = true
+uuid.workspace = true
 vo-types = { path = "../vo-types" }
 
 bytes = { workspace = true }
 chrono = { workspace = true }
-uuid = { workspace = true }
 itertools = { workspace = true }
 
 wasm-bindgen = { version = "0.2", optional = true }

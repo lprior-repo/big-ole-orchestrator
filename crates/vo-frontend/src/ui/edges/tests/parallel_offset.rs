@@ -1,5 +1,7 @@
 use super::helpers::*;
+use crate::ui::edges::graph_types::NodeId;
 use crate::ui::edges::layout::calculate_parallel_offset;
+use uuid::Uuid;
 
 #[test]
 fn given_two_targets_when_calculate_offset_then_returns_symmetric_values() {

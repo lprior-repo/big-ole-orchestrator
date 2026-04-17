@@ -1,8 +1,6 @@
+use crate::ui::edges::graph_types::{Connection, ExecutionState, Node, NodeId, WorkflowNode};
 use dioxus::prelude::*;
-use oya_frontend::graph::workflow_node::WorkflowNode;
-use oya_frontend::graph::{Connection, ExecutionState, Node, NodeId};
 use std::collections::HashMap;
-use std::str::FromStr;
 
 const NODE_WIDTH: f32 = 220.0;
 const NODE_HEIGHT: f32 = 68.0;
@@ -267,12 +265,13 @@ pub fn ParallelGroupOverlay(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use oya_frontend::graph::workflow_node::WorkflowNode;
+    use crate::ui::edges::graph_types::WorkflowNode;
+    use std::str::FromStr;
     use uuid::Uuid;
 
     fn make_node(id: Uuid, node_type: &str, x: f32, y: f32) -> Node {
         let wfn = WorkflowNode::from_str(node_type).unwrap_or_else(|_| {
-            WorkflowNode::Run(oya_frontend::graph::workflow_node::RunConfig::default())
+            WorkflowNode::Run(crate::ui::edges::graph_types::RunConfig::default())
         });
         let mut node = Node::from_workflow_node(format!("{node_type} node"), wfn, x, y);
         node.id = NodeId(id);
@@ -284,8 +283,8 @@ mod tests {
             id: Uuid::new_v4(),
             source: NodeId(source),
             target: NodeId(target),
-            source_port: oya_frontend::graph::PortName("main".to_string()),
-            target_port: oya_frontend::graph::PortName("main".to_string()),
+            source_port: crate::ui::edges::graph_types::PortName("main".to_string()),
+            target_port: crate::ui::edges::graph_types::PortName("main".to_string()),
         }
     }
 

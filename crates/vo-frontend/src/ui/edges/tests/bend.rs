@@ -1,5 +1,4 @@
-use crate::ui::edges::layout::normalize_bend_delta;
-use crate::ui::edges::types::Rect;
+use crate::ui::edges::types::{normalize_bend_delta, Rect};
 
 // ==================== Rect Tests ====================
 

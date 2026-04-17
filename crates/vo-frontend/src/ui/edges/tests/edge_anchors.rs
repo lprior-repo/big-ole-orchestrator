@@ -1,6 +1,8 @@
 use super::helpers::*;
+use crate::ui::edges::graph_types::NodeId;
 use crate::ui::edges::layout::{find_parallel_branches, resolve_edge_anchors_with_parallel};
 use crate::ui::parallel_group_overlay::{AggregateStatus, BoundingBox, ParallelGroup};
+use uuid::Uuid;
 
 // ==================== resolve_edge_anchors_with_parallel Tests ====================
 

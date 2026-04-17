@@ -1,6 +1,5 @@
+use super::graph_types::{Connection, ExecutionState, Node, NodeId};
 use dioxus::prelude::*;
-use oya_frontend::graph::workflow_node::WorkflowNode;
-use oya_frontend::graph::{Connection, ExecutionState, Node, NodeId};
 use std::collections::HashMap;
 
 use super::layout::{
@@ -112,16 +111,21 @@ pub fn FlowEdges(
                         let source_status = node_by_id
                             .read()
                             .get(&edge.source)
-                            .and_then(|node| node.config.get("status"))
-                            .and_then(serde_json::Value::as_str)
-                            .map_or_else(|| "pending".to_string(), std::string::ToString::to_string);
+                            .map(|node| match node.execution_state {
+                                ExecutionState::Running => "running",
+                                ExecutionState::Queued => "running",
+                                ExecutionState::Completed => "completed",
+                                ExecutionState::Failed => "failed",
+                                ExecutionState::Idle | ExecutionState::Skipped => "pending",
+                            })
+                            .unwrap_or("pending");
                         let target_is_running = running_node_ids
                             .read()
                             .contains(&edge.target);
                         let stroke_color = match source_status {
-                            ref status if status == "running" => "url(#edge-running-gradient)",
-                            ref status if status == "completed" => "rgba(16, 185, 129, 0.85)",
-                            ref status if status == "failed" => "rgba(244, 63, 94, 0.85)",
+                            "running" => "url(#edge-running-gradient)",
+                            "completed" => "rgba(16, 185, 129, 0.85)",
+                            "failed" => "rgba(244, 63, 94, 0.85)",
                             _ => "rgba(148, 163, 184, 0.9)",
                         };
                         let marker = if source_status == "running" || target_is_running {
