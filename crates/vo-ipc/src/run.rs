@@ -2,7 +2,7 @@ use crate::config::SubprocessConfig;
 use crate::envelope;
 use crate::error::IpcError;
 use crate::stderr::{read_bounded_stderr, StderrCapture};
-use std::os::fd::FromRawFd;
+use std::os::fd::{FromRawFd, RawFd};
 use std::os::unix::process::ExitStatusExt;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
@@ -24,8 +24,8 @@ pub struct SubprocessOutput {
 /// - Subprocess times out
 #[tracing::instrument(skip(config))]
 pub async fn run_subprocess(config: SubprocessConfig) -> Result<SubprocessOutput, IpcError> {
-    let (fd3_read, fd3_write) = crate::pipe::create_pipe()?;
-    let (fd4_read, fd4_write) = crate::pipe::create_pipe()?;
+    let (fd3_read, fd3_write) = create_pipe()?;
+    let (fd4_read, fd4_write) = create_pipe()?;
 
     let mut command = tokio::process::Command::new(config.executable_path());
     command.args(config.argv());
@@ -46,6 +46,12 @@ pub async fn run_subprocess(config: SubprocessConfig) -> Result<SubprocessOutput
                 return Err(std::io::Error::last_os_error());
             }
             if libc::dup2(fd4_write, 4) == -1 {
+                return Err(std::io::Error::last_os_error());
+            }
+            if libc::fcntl(3, libc::F_SETFD, 0) == -1 {
+                return Err(std::io::Error::last_os_error());
+            }
+            if libc::fcntl(4, libc::F_SETFD, 0) == -1 {
                 return Err(std::io::Error::last_os_error());
             }
             Ok(())
@@ -137,10 +143,7 @@ async fn perform_ipc(
 ) -> Result<SubprocessOutput, IpcError> {
     let write_task = async {
         let len = u32::try_from(fd3_payload.len()).map_err(|_| {
-            std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "fd3 payload exceeds u32::MAX",
-            )
+            std::io::Error::new(std::io::ErrorKind::InvalidData, "fd3 payload exceeds u32::MAX")
         })?;
         if len > envelope::MAX_PAYLOAD_SIZE {
             return Err(std::io::Error::new(
@@ -217,6 +220,17 @@ async fn perform_ipc(
             stderr_truncated: false,
         })
     }
+}
+
+fn create_pipe() -> Result<(RawFd, RawFd), IpcError> {
+    let mut fds = [0; 2];
+    let res = unsafe { libc::pipe2(fds.as_mut_ptr(), libc::O_CLOEXEC) };
+    if res != 0 {
+        return Err(IpcError::PipeSetupFailed {
+            detail: std::io::Error::last_os_error().to_string(),
+        });
+    }
+    Ok(fds.into())
 }
 
 #[tracing::instrument]
