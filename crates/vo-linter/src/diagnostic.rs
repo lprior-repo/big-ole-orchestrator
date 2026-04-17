@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 /// Lint codes emitted by [`rules`](crate::rules) functions.
 ///
 /// See the [Lint Code Registry](crate#lint-code-registry) in the crate root
@@ -5,12 +6,19 @@
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LintCode {
     /// L002 — Non-deterministic random call in workflow function.
+=======
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LintCode {
+>>>>>>> origin/fury/black-hat-vo-executor-review
     L002,
 }
 
 #[derive(Debug, Clone)]
 pub struct Diagnostic {
+<<<<<<< HEAD
     #[allow(dead_code)]
+=======
+>>>>>>> origin/fury/black-hat-vo-executor-review
     code: LintCode,
     message: String,
     suggestion: Option<String>,
@@ -56,6 +64,7 @@ mod tests {
         assert!(d.suggestion.is_some());
         assert_eq!(d.suggestion.as_ref().unwrap(), "use this instead");
     }
+<<<<<<< HEAD
 
     #[test]
     fn test_diagnostic_message() {
@@ -81,4 +90,6 @@ mod tests {
         let d2 = d.clone();
         assert_eq!(d.message(), d2.message());
     }
+=======
+>>>>>>> origin/fury/black-hat-vo-executor-review
 }

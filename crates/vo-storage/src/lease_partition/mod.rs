@@ -6,6 +6,8 @@
 //! This module defines the trait and pure encoding/decoding functions. Concrete Fjall
 //! implementations are provided separately.
 
+use std::fmt;
+
 use vo_types::{FenceToken, InstanceId, LeaseRecord, StepId};
 
 #[cfg(all(test, feature = "proptest"))]
@@ -28,41 +30,71 @@ mod verification;
 mod fjall_lease_store;
 pub use fjall_lease_store::FjallLeaseStore;
 
-pub mod in_memory_lease;
-pub use in_memory_lease::InMemoryLeaseStore;
-
 // ---------------------------------------------------------------------------
 // Data layer — error enum
 // ---------------------------------------------------------------------------
 
 /// Errors from the lease store operations.
 #[non_exhaustive]
-#[derive(Debug, PartialEq, Eq, thiserror::Error)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum LeaseStoreError {
-    #[error("lease already held for {instance_id}::{step_id}")]
+    /// A lease already exists for this (`instance_id`, `step_id`) pair.
     LeaseAlreadyHeld {
         instance_id: String,
         step_id: String,
     },
-    #[error("lease not found for {instance_id}::{step_id}")]
+
+    /// The specified lease was not found.
     NotFound {
         instance_id: String,
         step_id: String,
     },
-    #[error("stale fence: expected {expected}, got {actual}")]
+
+    /// The fence token does not match (stale completion).
     StaleFence { expected: String, actual: String },
-    #[error("fence token exhausted for {instance_id}::{step_id}")]
+
+    /// The fence-token space for this lease pair is exhausted.
     FenceTokenExhausted {
         instance_id: String,
         step_id: String,
     },
-    #[error("lease storage error: {reason}")]
+
+    /// Storage operation failed.
     Storage { reason: String },
-    #[error("lease codec error: {reason}")]
+
+    /// Codec/serialization error.
     Codec { reason: String },
-    #[error("invalid lease argument")]
+
+    /// Invalid argument.
     InvalidArgument,
 }
+
+impl fmt::Display for LeaseStoreError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::LeaseAlreadyHeld {
+                instance_id,
+                step_id,
+            } => write!(f, "lease already held for {instance_id}::{step_id}"),
+            Self::NotFound {
+                instance_id,
+                step_id,
+            } => write!(f, "lease not found for {instance_id}::{step_id}"),
+            Self::StaleFence { expected, actual } => {
+                write!(f, "stale fence: expected {expected}, got {actual}")
+            }
+            Self::FenceTokenExhausted {
+                instance_id,
+                step_id,
+            } => write!(f, "fence token exhausted for {instance_id}::{step_id}"),
+            Self::Storage { reason } => write!(f, "lease storage error: {reason}"),
+            Self::Codec { reason } => write!(f, "lease codec error: {reason}"),
+            Self::InvalidArgument => write!(f, "invalid lease argument"),
+        }
+    }
+}
+
+impl std::error::Error for LeaseStoreError {}
 
 // ---------------------------------------------------------------------------
 // Data layer — LeaseEntry (persisted form with expiry)

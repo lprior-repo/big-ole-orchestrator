@@ -19,6 +19,9 @@ pub mod state;
 pub mod subprocess;
 pub mod types;
 
+#[cfg(test)]
+mod red_queen_tests;
+
 // Re-export for convenience
 pub use errors::{ExecuteNodeError, RetryPolicyError};
 pub use execution::{
