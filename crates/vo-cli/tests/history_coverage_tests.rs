@@ -11,6 +11,7 @@ fn test_snapshot() -> WorkflowSnapshot {
         vec![DagNode {
             node_name: NodeName::parse("node-a").unwrap(),
             retry_policy: RetryPolicy::new(3, 1000, 2.0).unwrap(),
+            compensation_policy: None,
         }],
         vec![],
     )
