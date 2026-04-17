@@ -32,6 +32,16 @@ impl HttpMethod {
             _ => Self::Post,
         }
     }
+
+    #[must_use]
+    pub fn parse(s: &str) -> Self {
+        Self::from_str_ignore_case(s)
+    }
+
+    #[must_use]
+    pub const fn all() -> &'static [Self] {
+        &[Self::Get, Self::Post, Self::Put, Self::Delete, Self::Patch]
+    }
 }
 
 impl fmt::Display for HttpMethod {
