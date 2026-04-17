@@ -9,7 +9,7 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use crate::graph::Workflow;
+use crate::ui::graph::Workflow;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SimProceduralState {
