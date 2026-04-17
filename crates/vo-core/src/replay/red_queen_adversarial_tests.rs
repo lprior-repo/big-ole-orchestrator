@@ -1257,7 +1257,7 @@ mod random_position_corruption_injection {
             prop_assert!(matches!(
                 err,
                 ReplayError::PayloadDecodeFailed { .. }
-            ));
+            ), "error should be PayloadDecodeFailed");
         }
 
         #[test]
@@ -1272,7 +1272,7 @@ mod random_position_corruption_injection {
             prop_assert!(matches!(
                 err,
                 ReplayError::PayloadDecodeFailed { .. }
-            ));
+            ), "error should be PayloadDecodeFailed");
         }
 
         #[test]
@@ -1287,7 +1287,7 @@ mod random_position_corruption_injection {
             prop_assert!(matches!(
                 err,
                 ReplayError::PayloadDecodeFailed { .. }
-            ));
+            ), "error should be PayloadDecodeFailed");
         }
 
         #[test]
@@ -1302,7 +1302,7 @@ mod random_position_corruption_injection {
             prop_assert!(matches!(
                 err,
                 ReplayError::PayloadDecodeFailed { .. }
-            ));
+            ), "error should be PayloadDecodeFailed");
         }
     }
 
