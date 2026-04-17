@@ -306,6 +306,8 @@ impl TimerSupervisorHandle {
 mod tests {
     use super::*;
     use crate::timer_supervisor::traits::{TimerStorage, WorkQueue};
+    use crate::timer_supervisor::types::TimerRecord;
+    use vo_types::InstanceId;
 
     struct MockStorage;
     impl TimerStorage for MockStorage {
