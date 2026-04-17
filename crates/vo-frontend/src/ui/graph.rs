@@ -173,6 +173,17 @@ impl Display for NodeId {
     }
 }
 
+/// Execution state of a workflow node.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum ExecutionState {
+    Idle,
+    Queued,
+    Running,
+    Completed,
+    Failed,
+    Skipped,
+}
+
 /// Classification of a workflow node by its side-effect profile (ADR-031).
 /// This is the UI-facing category used for badge display.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

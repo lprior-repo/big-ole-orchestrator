@@ -4,20 +4,23 @@
 #![warn(clippy::pedantic)]
 
 use super::get_str_val;
+use crate::ui::graph::ExecutionState;
 use crate::ui::icons::{icon_by_name, CopyIcon};
 use crate::ui::panel_types::{
     invocation_badge_style, ExecutionEventCategory, InvocationStatus, OutputOrigin, PayloadShape,
     StatusBadgeStyle,
 };
 use dioxus::prelude::*;
-use oya_frontend::graph::ExecutionState;
 use serde_json::Value;
+#[cfg(target_arch = "wasm32")]
 use wasm_bindgen::JsCast;
+#[cfg(target_arch = "wasm32")]
 use web_sys::window;
 
 const PINNED_OUTPUT_KEY: &str = "pinnedOutputSample";
 const DEFAULT_PREVIEW_LINES: usize = 10;
 
+#[cfg(target_arch = "wasm32")]
 fn copy_to_clipboard(text: &str) -> bool {
     if let Some(window) = window() {
         let navigator = window.navigator();
@@ -28,12 +31,19 @@ fn copy_to_clipboard(text: &str) -> bool {
                 js_sys::Reflect::get(&clipboard, &js_sys::JsString::from("writeText"))
             {
                 if let Some(write_text_fn) = write_text.dyn_ref::<js_sys::Function>() {
-                    write_text_fn.call1(&clipboard, &js_sys::JsString::from(text)).unwrap();
+                    write_text_fn
+                        .call1(&clipboard, &js_sys::JsString::from(text))
+                        .unwrap();
                     return true;
                 }
             }
         }
     }
+    false
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn copy_to_clipboard(_text: &str) -> bool {
     false
 }
 
@@ -401,9 +411,8 @@ fn json_preview(payload: &Value, max_lines: usize) -> String {
 mod tests {
     use super::{
         build_execution_timeline, get_pinned_output, json_preview, resolve_invocation_status,
-        ExecutionEventCategory, InvocationStatus,
+        ExecutionEventCategory, ExecutionState, InvocationStatus,
     };
-    use oya_frontend::graph::ExecutionState;
     use serde_json::json;
 
     #[test]
