@@ -1,32 +1,11 @@
-//! Health check probe framework for monitoring component health.
-//!
-//! Provides configurable health probes with:
-//! - HTTP/TCP/exec probe types
-//! - Interval and backoff configuration
-//! - Status aggregation across multiple probes
-//! - Alerting thresholds
-//!
-//! # Example
-//!
-//! ```ignore
-//! use vo_actor::probe::{Probe, HttpProbe, ProbeConfig};
-//!
-//! let probe = HttpProbe::new("http://localhost:8080/health");
-//! let config = ProbeConfig::default()
-//!     .with_interval(Duration::from_secs(30))
-//!     .with_failure_threshold(3);
-//! ```
-
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::process::Stdio;
 use std::str::FromStr;
 use std::time::Duration;
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use tokio::process::Command;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ProbeType {
@@ -315,300 +294,34 @@ pub trait Probe: Send + Sync {
     fn probe_id(&self) -> ProbeId;
 }
 
-pub struct HttpProbe {
-    id: ProbeId,
-    url: String,
-    expected_status: Option<u16>,
-    timeout: Duration,
-    client: reqwest::Client,
-}
-
-impl HttpProbe {
-    pub fn new(url: impl Into<String>) -> Self {
-        Self {
-            id: ProbeId::new(),
-            url: url.into(),
-            expected_status: Some(200),
-            timeout: Duration::from_secs(5),
-            client: reqwest::Client::builder()
-                .timeout(Duration::from_secs(5))
-                .build()
-                .unwrap_or_default(),
-        }
-    }
-
-    pub fn with_expected_status(mut self, status: u16) -> Self {
-        self.expected_status = Some(status);
-        self
-    }
-
-    pub fn with_timeout(mut self, timeout: Duration) -> Self {
-        self.timeout = timeout;
-        self.client = reqwest::Client::builder()
-            .timeout(timeout)
-            .build()
-            .unwrap_or_default();
-        self
-    }
-}
-
-#[async_trait]
-impl Probe for HttpProbe {
-    async fn check(&self) -> Result<ProbeResult, ProbeError> {
-        let start = tokio::time::Instant::now();
-
-        let response = self
-            .client
-            .get(&self.url)
-            .send()
-            .await
-            .map_err(|e| ProbeError::Http(e.to_string()))?;
-
-        let latency_ms = start.elapsed().as_millis() as u64;
-        let status = response.status().as_u16();
-
-        let probe_status = if let Some(expected) = self.expected_status {
-            if status == expected {
-                ProbeStatus::Healthy
-            } else {
-                ProbeStatus::Unhealthy
-            }
-        } else {
-            if response.status().is_success() {
-                ProbeStatus::Healthy
-            } else {
-                ProbeStatus::Unhealthy
-            }
-        };
-
-        Ok(ProbeResult {
-            probe_id: self.id,
-            status: probe_status,
-            latency_ms,
-            consecutive_failures: 0,
-            last_check_ms: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_millis() as u64,
-            message: Some(format!("HTTP {} -> {}", self.url, status)),
-        })
-    }
-
-    fn probe_id(&self) -> ProbeId {
-        self.id
-    }
-}
-
-pub struct TcpProbe {
-    id: ProbeId,
-    address: SocketAddr,
-    timeout: Duration,
-}
-
-impl TcpProbe {
-    pub fn new(address: SocketAddr) -> Self {
-        Self {
-            id: ProbeId::new(),
-            address,
-            timeout: Duration::from_secs(5),
-        }
-    }
-
-    pub fn with_timeout(mut self, timeout: Duration) -> Self {
-        self.timeout = timeout;
-        self
-    }
-}
-
-#[async_trait]
-impl Probe for TcpProbe {
-    async fn check(&self) -> Result<ProbeResult, ProbeError> {
-        let start = tokio::time::Instant::now();
-
-        let connection =
-            tokio::time::timeout(self.timeout, tokio::net::TcpStream::connect(self.address)).await;
-
-        let latency_ms = start.elapsed().as_millis() as u64;
-
-        let (status, message) = match connection {
-            Ok(Ok(_)) => (
-                ProbeStatus::Healthy,
-                format!("TCP connect to {}", self.address),
-            ),
-            Ok(Err(e)) => (
-                ProbeStatus::Unhealthy,
-                format!("TCP failed to {}: {}", self.address, e),
-            ),
-            Err(_) => (
-                ProbeStatus::Unhealthy,
-                format!(
-                    "TCP connect to {} timed out after {:?}",
-                    self.address, self.timeout
-                ),
-            ),
-        };
-
-        Ok(ProbeResult {
-            probe_id: self.id,
-            status,
-            latency_ms,
-            consecutive_failures: 0,
-            last_check_ms: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_millis() as u64,
-            message: Some(message),
-        })
-    }
-
-    fn probe_id(&self) -> ProbeId {
-        self.id
-    }
-}
-
-pub struct ExecProbe {
-    id: ProbeId,
-    command: String,
-    args: Vec<String>,
-    expected_exit_code: Option<i32>,
-    timeout: Duration,
-}
-
-impl ExecProbe {
-    pub fn new(command: impl Into<String>, args: Vec<String>) -> Self {
-        Self {
-            id: ProbeId::new(),
-            command: command.into(),
-            args,
-            expected_exit_code: Some(0),
-            timeout: Duration::from_secs(30),
-        }
-    }
-
-    pub fn with_expected_exit_code(mut self, code: i32) -> Self {
-        self.expected_exit_code = Some(code);
-        self
-    }
-
-    pub fn with_timeout(mut self, timeout: Duration) -> Self {
-        self.timeout = timeout;
-        self
-    }
-}
-
-#[async_trait]
-impl Probe for ExecProbe {
-    async fn check(&self) -> Result<ProbeResult, ProbeError> {
-        let start = tokio::time::Instant::now();
-
-        let mut cmd = Command::new(&self.command);
-        cmd.args(&self.args)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
-
-        let output = cmd
-            .output()
-            .await
-            .map_err(|e| ProbeError::Exec(e.to_string()))?;
-
-        let latency_ms = start.elapsed().as_millis() as u64;
-
-        let exit_code = output.status.code();
-        let probe_status = if let Some(expected) = self.expected_exit_code {
-            if exit_code == Some(expected) {
-                ProbeStatus::Healthy
-            } else {
-                ProbeStatus::Unhealthy
-            }
-        } else if output.status.success() {
-            ProbeStatus::Healthy
-        } else {
-            ProbeStatus::Unhealthy
-        };
-
-        let message = if let Some(code) = exit_code {
-            format!("Exec '{}' exited with {}", self.command, code)
-        } else {
-            format!("Exec '{}' terminated by signal", self.command)
-        };
-
-        Ok(ProbeResult {
-            probe_id: self.id,
-            status: probe_status,
-            latency_ms,
-            consecutive_failures: 0,
-            last_check_ms: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_millis() as u64,
-            message: Some(message),
-        })
-    }
-
-    fn probe_id(&self) -> ProbeId {
-        self.id
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct ProbeRegistry {
-    probes: HashMap<ProbeId, ProbeDefinition>,
-}
-
-impl ProbeRegistry {
-    pub fn new() -> Self {
-        Self {
-            probes: HashMap::new(),
-        }
-    }
-
-    pub fn register(&mut self, definition: ProbeDefinition) -> ProbeId {
-        let id = definition.id;
-        self.probes.insert(id, definition);
-        id
-    }
-
-    pub fn unregister(&mut self, id: ProbeId) -> Option<ProbeDefinition> {
-        self.probes.remove(&id)
-    }
-
-    pub fn get(&self, id: &ProbeId) -> Option<&ProbeDefinition> {
-        self.probes.get(id)
-    }
-
-    pub fn list(&self) -> Vec<&ProbeDefinition> {
-        self.probes.values().collect()
-    }
-
-    pub fn len(&self) -> usize {
-        self.probes.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.probes.is_empty()
-    }
-}
-
-impl Default for ProbeRegistry {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use proptest::prelude::*;
 
-    // =========================================================================
-    // ProbeId Tests (T01-T07)
-    // =========================================================================
+    fn now_ms() -> u64 {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64
+    }
+
+    fn make_result(id: ProbeId, status: ProbeStatus, failures: u32) -> ProbeResult {
+        ProbeResult {
+            probe_id: id,
+            status,
+            latency_ms: 10,
+            consecutive_failures: failures,
+            last_check_ms: now_ms(),
+            message: None,
+        }
+    }
 
     #[test]
     fn test_probe_id_new_generates_unique_ids() {
         let id1 = ProbeId::new();
         let id2 = ProbeId::new();
-        assert_ne!(id1, id2, "ProbeId::new() should generate unique IDs");
+        assert_ne!(id1, id2);
     }
 
     #[test]
@@ -616,7 +329,7 @@ mod tests {
         let id = ProbeId::new();
         let s = id.as_str();
         let parsed = ProbeId::from_string(&s);
-        assert!(parsed.is_some(), "Should parse valid probe-<ULID> format");
+        assert!(parsed.is_some());
         assert_eq!(parsed.unwrap(), id);
     }
 
@@ -632,10 +345,7 @@ mod tests {
     fn test_probe_id_as_str_returns_correct_format() {
         let id = ProbeId::new();
         let s = id.as_str();
-        assert!(
-            s.starts_with("probe-"),
-            "as_str() should return probe-<ULID> format"
-        );
+        assert!(s.starts_with("probe-"));
         assert_eq!(s, format!("probe-{}", id.0));
     }
 
@@ -661,10 +371,6 @@ mod tests {
         let result: Result<ProbeId, _> = serde_json::from_str("\"probe-\"");
         assert!(result.is_err());
     }
-
-    // =========================================================================
-    // ProbeResult Tests (T08-T11)
-    // =========================================================================
 
     #[test]
     fn test_probe_result_fields_healthy() {
@@ -725,15 +431,8 @@ mod tests {
                 .as_millis() as u64,
             message: None,
         };
-        assert!(
-            result.latency_ms > 0,
-            "Completed probe should have non-zero latency"
-        );
+        assert!(result.latency_ms > 0);
     }
-
-    // =========================================================================
-    // ProbeConfig Tests (T12-T18)
-    // =========================================================================
 
     #[test]
     fn test_probe_config_http_creates_valid_config() {
@@ -832,10 +531,6 @@ mod tests {
         assert_eq!(parsed.timeout(), config.timeout());
     }
 
-    // =========================================================================
-    // BackoffConfig Tests (T19-T25)
-    // =========================================================================
-
     #[test]
     fn test_backoff_config_calculate_interval_zero_failures() {
         let config = BackoffConfig::default();
@@ -902,10 +597,6 @@ mod tests {
         assert_eq!(config.calculate_interval(1), Duration::from_secs(5));
         assert_eq!(config.calculate_interval(5), Duration::from_secs(5));
     }
-
-    // =========================================================================
-    // AggregatedStatus Tests (T26-T35)
-    // =========================================================================
 
     #[test]
     fn test_aggregated_status_new_initializes_unknown() {
@@ -1122,10 +813,6 @@ mod tests {
         assert_eq!(status.healthy_count, 5);
     }
 
-    // =========================================================================
-    // ProbeError Tests (T66-T70)
-    // =========================================================================
-
     #[test]
     fn test_probe_error_http_message_format() {
         let err = ProbeError::Http("connection refused".to_string());
@@ -1162,135 +849,6 @@ mod tests {
         let msg = err.to_string();
         assert!(msg.contains("not found") || msg.contains("Probe"));
     }
-
-    // =========================================================================
-    // ProbeRegistry Tests (T57-T65)
-    // =========================================================================
-
-    #[test]
-    fn test_probe_registry_register() {
-        let mut registry = ProbeRegistry::new();
-        let definition = ProbeDefinition {
-            id: ProbeId::new(),
-            name: "test".to_string(),
-            config: ProbeConfig::http("http://localhost"),
-            interval: Duration::from_secs(30),
-            backoff: BackoffConfig::default(),
-            failure_threshold: 3,
-            success_threshold: 2,
-        };
-        let id = registry.register(definition);
-        assert!(registry.get(&id).is_some());
-    }
-
-    #[test]
-    fn test_probe_registry_unregister() {
-        let mut registry = ProbeRegistry::new();
-        let definition = ProbeDefinition {
-            id: ProbeId::new(),
-            name: "test".to_string(),
-            config: ProbeConfig::http("http://localhost"),
-            interval: Duration::from_secs(30),
-            backoff: BackoffConfig::default(),
-            failure_threshold: 3,
-            success_threshold: 2,
-        };
-        let id = registry.register(definition);
-        let removed = registry.unregister(id);
-        assert!(removed.is_some());
-        assert!(registry.get(&id).is_none());
-    }
-
-    #[test]
-    fn test_probe_registry_unregister_nonexistent() {
-        let mut registry = ProbeRegistry::new();
-        let id = ProbeId::new();
-        assert!(registry.unregister(id).is_none());
-    }
-
-    #[test]
-    fn test_probe_registry_get() {
-        let mut registry = ProbeRegistry::new();
-        let definition = ProbeDefinition {
-            id: ProbeId::new(),
-            name: "test".to_string(),
-            config: ProbeConfig::http("http://localhost"),
-            interval: Duration::from_secs(30),
-            backoff: BackoffConfig::default(),
-            failure_threshold: 3,
-            success_threshold: 2,
-        };
-        let id = registry.register(definition);
-        assert!(registry.get(&id).is_some());
-    }
-
-    #[test]
-    fn test_probe_registry_get_nonexistent() {
-        let registry = ProbeRegistry::new();
-        let id = ProbeId::new();
-        assert!(registry.get(&id).is_none());
-    }
-
-    #[test]
-    fn test_probe_registry_list() {
-        let mut registry = ProbeRegistry::new();
-        for i in 0..3 {
-            let definition = ProbeDefinition {
-                id: ProbeId::new(),
-                name: format!("test{}", i),
-                config: ProbeConfig::http("http://localhost"),
-                interval: Duration::from_secs(30),
-                backoff: BackoffConfig::default(),
-                failure_threshold: 3,
-                success_threshold: 2,
-            };
-            registry.register(definition);
-        }
-        assert_eq!(registry.list().len(), 3);
-    }
-
-    #[test]
-    fn test_probe_registry_len() {
-        let mut registry = ProbeRegistry::new();
-        assert_eq!(registry.len(), 0);
-        let definition = ProbeDefinition {
-            id: ProbeId::new(),
-            name: "test".to_string(),
-            config: ProbeConfig::http("http://localhost"),
-            interval: Duration::from_secs(30),
-            backoff: BackoffConfig::default(),
-            failure_threshold: 3,
-            success_threshold: 2,
-        };
-        registry.register(definition);
-        assert_eq!(registry.len(), 1);
-    }
-
-    #[test]
-    fn test_probe_registry_is_empty() {
-        let registry = ProbeRegistry::new();
-        assert!(registry.is_empty());
-    }
-
-    #[test]
-    fn test_probe_registry_is_empty_after_register() {
-        let mut registry = ProbeRegistry::new();
-        let definition = ProbeDefinition {
-            id: ProbeId::new(),
-            name: "test".to_string(),
-            config: ProbeConfig::http("http://localhost"),
-            interval: Duration::from_secs(30),
-            backoff: BackoffConfig::default(),
-            failure_threshold: 3,
-            success_threshold: 2,
-        };
-        registry.register(definition);
-        assert!(!registry.is_empty());
-    }
-
-    // =========================================================================
-    // Invariant Tests (T71-T85) - Key invariants from contract
-    // =========================================================================
 
     #[test]
     fn test_inv_healthy_only_after_consecutive_successes() {
@@ -1374,10 +932,6 @@ mod tests {
         };
         assert!(result.last_check_ms <= now_ms());
     }
-
-    // =========================================================================
-    // Property-Based Tests (T92-T96)
-    // =========================================================================
 
     proptest! {
         #[test]
@@ -1482,10 +1036,6 @@ mod tests {
         }
     }
 
-    // =========================================================================
-    // Edge Case Tests (T103-T115)
-    // =========================================================================
-
     #[test]
     fn test_zero_timeout_probe() {
         let config = ProbeConfig::http("http://localhost").with_timeout(Duration::from_secs(0));
@@ -1535,13 +1085,9 @@ mod tests {
         assert_eq!(result.latency_ms, u64::MAX);
     }
 
-    // =========================================================================
-    // Contract Compliance Tests (T116-T119)
-    // =========================================================================
-
     #[test]
     fn test_probe_types_exhaustive() {
-        assert_eq!(3, 3); // Http, Tcp, Exec - 3 types
+        assert_eq!(3, 3);
         let _ = ProbeType::Http;
         let _ = ProbeType::Tcp;
         let _ = ProbeType::Exec;
@@ -1549,118 +1095,11 @@ mod tests {
 
     #[test]
     fn test_probe_outcomes_exhaustive() {
-        assert_eq!(3, 3); // Healthy, Unhealthy, Unknown - 3 outcomes
+        assert_eq!(3, 3);
         let _ = ProbeStatus::Healthy;
         let _ = ProbeStatus::Unhealthy;
         let _ = ProbeStatus::Unknown;
     }
-
-    // =========================================================================
-    // Integration Tests (T86-T91)
-    // =========================================================================
-
-    #[tokio::test]
-    async fn test_probe_trait_object_can_be_stored_and_called() {
-        let probe: Box<dyn Probe> = Box::new(HttpProbe::new("http://localhost:9999"));
-        let result = probe.check().await;
-        assert!(
-            result.is_err(),
-            "HTTP probe to nonexistent host should fail"
-        );
-        let err = result.unwrap_err();
-        assert!(
-            matches!(err, ProbeError::Http(_)),
-            "Expected Http error variant, got {:?}",
-            err
-        );
-    }
-
-    #[tokio::test]
-    async fn test_multiple_probe_types_via_trait_object() {
-        let tcp_probe: Box<dyn Probe> = Box::new(TcpProbe::new("127.0.0.1:9999".parse().unwrap()));
-        let exec_probe: Box<dyn Probe> = Box::new(ExecProbe::new("false", vec![]));
-        let http_probe: Box<dyn Probe> = Box::new(HttpProbe::new("http://localhost:9999"));
-
-        let tcp_result = tcp_probe.check().await;
-        let exec_result = exec_probe.check().await;
-        let http_result = http_probe.check().await;
-
-        assert!(
-            tcp_result.is_ok(),
-            "TCP probe check should succeed (returns result with Unhealthy status)"
-        );
-        let tcp_r = tcp_result.unwrap();
-        assert_eq!(
-            tcp_r.status,
-            ProbeStatus::Unhealthy,
-            "TCP to nonexistent host should be Unhealthy"
-        );
-        assert!(matches!(tcp_r.probe_id, _));
-
-        assert!(
-            exec_result.is_ok(),
-            "Exec false should return Ok with Unhealthy status"
-        );
-        assert_eq!(exec_result.unwrap().status, ProbeStatus::Unhealthy);
-
-        assert!(http_result.is_err(), "HTTP to nonexistent host should fail");
-        assert!(matches!(http_result.unwrap_err(), ProbeError::Http(_)));
-    }
-
-    #[test]
-    fn test_registry_thread_safety_concurrent_register() {
-        use std::sync::Arc;
-        use tokio::sync::Mutex;
-
-        let registry = Arc::new(Mutex::new(ProbeRegistry::new()));
-        let mut handles = vec![];
-
-        for i in 0..10 {
-            let reg = Arc::clone(&registry);
-            let handle = std::thread::spawn(move || {
-                let definition = ProbeDefinition {
-                    id: ProbeId::new(),
-                    name: format!("test{}", i),
-                    config: ProbeConfig::http("http://localhost"),
-                    interval: Duration::from_secs(30),
-                    backoff: BackoffConfig::default(),
-                    failure_threshold: 3,
-                    success_threshold: 2,
-                };
-                let rt = tokio::runtime::Runtime::new().unwrap();
-                rt.block_on(async {
-                    let mut reg = reg.lock().await;
-                    reg.register(definition);
-                });
-            });
-            handles.push(handle);
-        }
-
-        for h in handles {
-            h.join().unwrap();
-        }
-
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(async {
-            let reg = registry.lock().await;
-            assert_eq!(reg.len(), 10);
-        });
-    }
-
-    // =========================================================================
-    // Helper Functions
-    // =========================================================================
-
-    fn now_ms() -> u64 {
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_millis() as u64
-    }
-
-    // =========================================================================
-    // Legacy tests from original implementation
-    // =========================================================================
 
     #[test]
     fn test_backoff_config_calculate_interval() {
@@ -1738,21 +1177,6 @@ mod tests {
         let id = ProbeId::new();
         let display = format!("{}", id);
         assert!(display.starts_with("probe-"));
-    }
-
-    // =========================================================================
-    // QA Smoke Tests: Contract Verification (ve-3edr)
-    // =========================================================================
-
-    fn make_result(id: ProbeId, status: ProbeStatus, failures: u32) -> ProbeResult {
-        ProbeResult {
-            probe_id: id,
-            status,
-            latency_ms: 10,
-            consecutive_failures: failures,
-            last_check_ms: now_ms(),
-            message: None,
-        }
     }
 
     #[test]
@@ -1868,79 +1292,6 @@ mod tests {
         assert!(result.last_check_ms <= now_ms());
     }
 
-    #[tokio::test]
-    async fn qa_smoke_exec_probe_true_command() {
-        let probe = ExecProbe::new("true", vec![]);
-        let result = probe.check().await;
-        assert!(result.is_ok(), "Exec true should succeed");
-        let r = result.unwrap();
-        assert_eq!(r.status, ProbeStatus::Healthy);
-        assert_eq!(r.probe_id, probe.probe_id());
-    }
-
-    #[tokio::test]
-    async fn qa_smoke_exec_probe_false_command() {
-        let probe = ExecProbe::new("false", vec![]);
-        let result = probe.check().await;
-        assert!(result.is_ok(), "Exec false should return Ok with Unhealthy");
-        let r = result.unwrap();
-        assert_eq!(r.status, ProbeStatus::Unhealthy);
-    }
-
-    #[tokio::test]
-    async fn qa_smoke_exec_probe_custom_exit_code() {
-        let probe = ExecProbe::new("bash", vec!["-c".to_string(), "exit 42".to_string()])
-            .with_expected_exit_code(42);
-        let result = probe.check().await;
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap().status, ProbeStatus::Healthy);
-    }
-
-    #[tokio::test]
-    async fn qa_smoke_exec_probe_nonexistent_command() {
-        let probe = ExecProbe::new("/nonexistent/command/xyz", vec![]);
-        let result = probe.check().await;
-        assert!(result.is_err(), "Nonexistent command should error");
-    }
-
-    #[tokio::test]
-    async fn qa_smoke_tcp_probe_refused_connection() {
-        let probe =
-            TcpProbe::new("127.0.0.1:1".parse().unwrap()).with_timeout(Duration::from_millis(500));
-        let result = probe.check().await;
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap().status, ProbeStatus::Unhealthy);
-    }
-
-    #[tokio::test]
-    async fn qa_smoke_probe_trait_dispatch() {
-        let probes: Vec<Box<dyn Probe>> = vec![
-            Box::new(ExecProbe::new("true", vec![])),
-            Box::new(
-                TcpProbe::new("127.0.0.1:1".parse().unwrap())
-                    .with_timeout(Duration::from_millis(200)),
-            ),
-        ];
-        let mut agg = AggregatedStatus::new();
-        for probe in &probes {
-            let result = probe.check().await.unwrap();
-            agg.update(result);
-        }
-        assert_eq!(agg.results.len(), 2);
-        assert_eq!(agg.overall, ProbeStatus::Unhealthy);
-    }
-
-    #[tokio::test]
-    async fn qa_smoke_probe_result_fields_populated() {
-        let probe = ExecProbe::new("echo", vec!["hello".to_string()]);
-        let result = probe.check().await.unwrap();
-        assert_eq!(result.status, ProbeStatus::Healthy);
-        assert!(result.message.is_some());
-        assert!(result.message.as_ref().unwrap().contains("echo"));
-        assert!(result.last_check_ms > 0);
-        assert_eq!(result.probe_id, probe.probe_id());
-    }
-
     #[test]
     fn qa_smoke_probe_config_tagged_serde() {
         let configs = vec![
@@ -1958,38 +1309,6 @@ mod tests {
             let parsed: ProbeConfig = serde_json::from_str(&json).unwrap();
             assert_eq!(parsed.probe_type(), config.probe_type());
         }
-    }
-
-    #[test]
-    fn qa_smoke_registry_crud_lifecycle() {
-        let mut registry = ProbeRegistry::new();
-        assert!(registry.is_empty());
-
-        let defs: Vec<ProbeDefinition> = (0..5)
-            .map(|i| ProbeDefinition {
-                id: ProbeId::new(),
-                name: format!("probe-{}", i),
-                config: ProbeConfig::http(format!("http://localhost:{}", 8080 + i)),
-                interval: Duration::from_secs(30),
-                backoff: BackoffConfig::default(),
-                failure_threshold: 3,
-                success_threshold: 2,
-            })
-            .collect();
-
-        let mut ids = vec![];
-        for def in defs {
-            ids.push(registry.register(def));
-        }
-        assert_eq!(registry.len(), 5);
-
-        let removed = registry.unregister(ids[2]);
-        assert!(removed.is_some());
-        assert!(registry.get(&ids[2]).is_none());
-        assert_eq!(registry.len(), 4);
-
-        let list = registry.list();
-        assert_eq!(list.len(), 4);
     }
 
     #[test]
