@@ -139,7 +139,7 @@ mod tests {
     #[test]
     fn workflow_version_store_get_returns_entry_when_exists() {
         let dir = tempfile::tempdir().unwrap();
-        let db = fjall::Config::new(dir.path()).open().unwrap();
+        let db = fjall::Database::builder(dir.path()).open().unwrap();
         let store = FjallWorkflowVersionStore::open(&db).unwrap();
         let entry = make_entry();
 
@@ -156,7 +156,7 @@ mod tests {
     #[test]
     fn workflow_version_store_get_returns_not_found_when_missing() {
         let dir = tempfile::tempdir().unwrap();
-        let db = fjall::Config::new(dir.path()).open().unwrap();
+        let db = fjall::Database::builder(dir.path()).open().unwrap();
         let store = FjallWorkflowVersionStore::open(&db).unwrap();
 
         let result = store.get(&make_hash());
@@ -169,7 +169,7 @@ mod tests {
     #[test]
     fn workflow_version_store_put_and_contains() {
         let dir = tempfile::tempdir().unwrap();
-        let db = fjall::Config::new(dir.path()).open().unwrap();
+        let db = fjall::Database::builder(dir.path()).open().unwrap();
         let store = FjallWorkflowVersionStore::open(&db).unwrap();
         let entry = make_entry();
 
@@ -183,7 +183,7 @@ mod tests {
     #[test]
     fn workflow_version_store_delete_removes_entry() {
         let dir = tempfile::tempdir().unwrap();
-        let db = fjall::Config::new(dir.path()).open().unwrap();
+        let db = fjall::Database::builder(dir.path()).open().unwrap();
         let store = FjallWorkflowVersionStore::open(&db).unwrap();
         let entry = make_entry();
 
@@ -197,7 +197,7 @@ mod tests {
     #[test]
     fn workflow_version_store_delete_returns_not_found_when_missing() {
         let dir = tempfile::tempdir().unwrap();
-        let db = fjall::Config::new(dir.path()).open().unwrap();
+        let db = fjall::Database::builder(dir.path()).open().unwrap();
         let store = FjallWorkflowVersionStore::open(&db).unwrap();
 
         let result = store.delete(&make_hash());
@@ -210,7 +210,7 @@ mod tests {
     #[test]
     fn workflow_version_store_list_hashes_returns_all_hashes() {
         let dir = tempfile::tempdir().unwrap();
-        let db = fjall::Config::new(dir.path()).open().unwrap();
+        let db = fjall::Database::builder(dir.path()).open().unwrap();
         let store = FjallWorkflowVersionStore::open(&db).unwrap();
 
         let hash1 =
@@ -249,7 +249,7 @@ mod tests {
     #[test]
     fn workflow_version_store_list_hashes_returns_empty_when_empty() {
         let dir = tempfile::tempdir().unwrap();
-        let db = fjall::Config::new(dir.path()).open().unwrap();
+        let db = fjall::Database::builder(dir.path()).open().unwrap();
         let store = FjallWorkflowVersionStore::open(&db).unwrap();
 
         let hashes = store.list_hashes().unwrap();
@@ -271,7 +271,7 @@ mod tests {
     #[test]
     fn workflow_version_store_persists_across_restart() {
         let dir = tempfile::tempdir().unwrap();
-        let db = fjall::Config::new(dir.path()).open().unwrap();
+        let db = fjall::Database::builder(dir.path()).open().unwrap();
         let store = FjallWorkflowVersionStore::open(&db).unwrap();
         let entry = make_entry();
 
@@ -279,7 +279,7 @@ mod tests {
         drop(store);
         drop(db);
 
-        let db2 = fjall::Config::new(dir.path()).open().unwrap();
+        let db2 = fjall::Database::builder(dir.path()).open().unwrap();
         let store2 = FjallWorkflowVersionStore::open(&db2).unwrap();
 
         let retrieved = store2.get(entry.version_hash()).unwrap();

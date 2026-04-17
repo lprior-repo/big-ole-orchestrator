@@ -762,7 +762,7 @@ mod tests {
         saga.queue_pending("fx-2").unwrap();
         saga.queue_pending("fx-3").unwrap();
 
-        let order = saga.get_compensation_order().unwrap();
+        let order = saga.get_compensation_order();
         assert_eq!(order, vec!["fx-3", "fx-2", "fx-1"]);
     }
 
@@ -934,7 +934,7 @@ mod tests {
         saga.queue_pending("fx-2").unwrap();
         saga.queue_pending("fx-3").unwrap();
 
-        let order = saga.get_compensation_order().unwrap();
+        let order = saga.get_compensation_order();
         assert_eq!(order, vec!["fx-3", "fx-2", "fx-1"]);
     }
 
@@ -1036,7 +1036,9 @@ mod tests {
         saga.queue_pending("fx-2").unwrap();
         saga.queue_pending("fx-3").unwrap();
 
-        let result = saga.get_compensation_order();
+        let manifest = saga.manifest();
+        let guard = manifest.lock().unwrap();
+        let result = guard.get_reverse_dependency_order();
         assert!(result.is_err());
         assert!(matches!(
             result.unwrap_err(),
@@ -1056,7 +1058,9 @@ mod tests {
 
         saga.queue_pending("fx-1").unwrap();
 
-        let result = saga.get_compensation_order();
+        let manifest = saga.manifest();
+        let guard = manifest.lock().unwrap();
+        let result = guard.get_reverse_dependency_order();
         assert!(result.is_err());
         assert!(matches!(
             result.unwrap_err(),
