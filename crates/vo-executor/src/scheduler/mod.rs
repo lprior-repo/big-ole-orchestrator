@@ -70,15 +70,6 @@ impl Scheduler {
         self.semaphore.clone().try_acquire_owned().ok()
     }
 
-    #[allow(dead_code)]
-    pub async fn acquire(&self) -> tokio::sync::OwnedSemaphorePermit {
-        self.semaphore
-            .clone()
-            .acquire_owned()
-            .await
-            .expect("scheduler semaphore closed")
-    }
-
     pub fn is_running(&self) -> bool {
         self.running.load(std::sync::atomic::Ordering::SeqCst)
     }
