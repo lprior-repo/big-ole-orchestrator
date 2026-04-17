@@ -164,6 +164,7 @@ impl WorkflowSpec {
     /// Serialize to JSON bytes for `--graph` emission.
     #[must_use]
     pub fn to_json_bytes(&self) -> Vec<u8> {
+        #[allow(clippy::expect_used)]
         serde_json::to_vec(self).expect("WorkflowSpec is always serializable")
     }
 
