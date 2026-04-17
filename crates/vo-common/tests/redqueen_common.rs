@@ -49,12 +49,18 @@ mod type_alias_boundary {
     /// Kills: type alias has Drop side effects or nonzero-size wrapper.
     #[test]
     fn rq_instance_id_zero_cost_abstraction() {
-        assert_eq!(std::mem::size_of::<InstanceId>(), std::mem::size_of::<String>());
+        assert_eq!(
+            std::mem::size_of::<InstanceId>(),
+            std::mem::size_of::<String>()
+        );
         assert_eq!(
             std::mem::size_of::<NamespaceId>(),
             std::mem::size_of::<String>()
         );
-        assert_eq!(std::mem::size_of::<TimerId>(), std::mem::size_of::<String>());
+        assert_eq!(
+            std::mem::size_of::<TimerId>(),
+            std::mem::size_of::<String>()
+        );
     }
 
     /// Kills: Into<String> impl broken for type aliases.
@@ -100,8 +106,7 @@ mod serialization_roundtrip {
             timestamp_ms: 1700000000000,
         };
         let json = serde_json::to_string(&event).expect("serialize");
-        let back: WorkflowEvent =
-            serde_json::from_str(&json).expect("deserialize roundtrip");
+        let back: WorkflowEvent = serde_json::from_str(&json).expect("deserialize roundtrip");
         assert_eq!(event, back);
     }
 
@@ -113,8 +118,7 @@ mod serialization_roundtrip {
             timestamp_ms: u64::MAX,
         };
         let json = serde_json::to_string(&event).expect("serialize max u64");
-        let back: WorkflowEvent =
-            serde_json::from_str(&json).expect("deserialize max u64");
+        let back: WorkflowEvent = serde_json::from_str(&json).expect("deserialize max u64");
         assert_eq!(event, back);
     }
 
@@ -126,8 +130,7 @@ mod serialization_roundtrip {
             timestamp_ms: 0,
         };
         let json = serde_json::to_string(&event).expect("serialize");
-        let back: WorkflowEvent =
-            serde_json::from_str(&json).expect("deserialize");
+        let back: WorkflowEvent = serde_json::from_str(&json).expect("deserialize");
         assert_eq!(event, back);
     }
 
@@ -142,23 +145,28 @@ mod serialization_roundtrip {
         let obj = json.as_object().expect("is object");
 
         // serde default: variant key is the outer key, fields are inner object
-        assert!(obj.contains_key("TimerFired"), "variant key must be TimerFired");
+        assert!(
+            obj.contains_key("TimerFired"),
+            "variant key must be TimerFired"
+        );
         let inner = obj["TimerFired"].as_object().expect("inner is object");
         assert!(inner.contains_key("timer_id"), "field must be timer_id");
-        assert!(inner.contains_key("timestamp_ms"), "field must be timestamp_ms");
+        assert!(
+            inner.contains_key("timestamp_ms"),
+            "field must be timestamp_ms"
+        );
     }
 
     /// Kills: extra fields silently ignored (strict deserialization broken).
     #[test]
     fn rq_timer_fired_extra_json_fields_ignored() {
         let json = r#"{"TimerFired":{"timer_id":"t1","timestamp_ms":99,"extra":"garbage"}}"#;
-        let event: WorkflowEvent = serde_json::from_str(json).expect("extra fields must be ignored");
-        match event {
-            WorkflowEvent::TimerFired { timer_id, timestamp_ms } => {
-                assert_eq!(timer_id, "t1");
-                assert_eq!(timestamp_ms, 99);
-            }
-        }
+        let event: WorkflowEvent =
+            serde_json::from_str(json).expect("extra fields must be ignored");
+        assert!(
+            matches!(event, WorkflowEvent::TimerFired { timer_id, timestamp_ms }
+            if timer_id == "t1" && timestamp_ms == 99)
+        );
     }
 
     /// Kills: missing field returns error instead of default.
@@ -240,11 +248,21 @@ mod voerror_constructors {
     /// Kills: Display prefix changed for any variant.
     #[test]
     fn rq_error_display_prefixes() {
-        assert!(VoError::config("x").to_string().starts_with("configuration error:"));
-        assert!(VoError::internal("x").to_string().starts_with("internal error:"));
-        assert!(VoError::not_found("x").to_string().starts_with("not found:"));
-        assert!(VoError::validation("x").to_string().starts_with("validation failed:"));
-        assert!(VoError::timeout("x").to_string().starts_with("operation timed out:"));
+        assert!(VoError::config("x")
+            .to_string()
+            .starts_with("configuration error:"));
+        assert!(VoError::internal("x")
+            .to_string()
+            .starts_with("internal error:"));
+        assert!(VoError::not_found("x")
+            .to_string()
+            .starts_with("not found:"));
+        assert!(VoError::validation("x")
+            .to_string()
+            .starts_with("validation failed:"));
+        assert!(VoError::timeout("x")
+            .to_string()
+            .starts_with("operation timed out:"));
     }
 
     /// Kills: Into<String> conversion on constructor argument broken.
@@ -526,9 +544,16 @@ mod serialization_adversarial {
     fn rq_duplicate_fields_rejected() {
         let json = r#"{"TimerFired":{"timer_id":"first","timer_id":"second","timestamp_ms":1}}"#;
         let result: Result<WorkflowEvent, _> = serde_json::from_str(json);
-        assert!(result.is_err(), "duplicate fields must be rejected by serde_json");
+        assert!(
+            result.is_err(),
+            "duplicate fields must be rejected by serde_json"
+        );
         let err_msg = result.unwrap_err().to_string();
-        assert!(err_msg.contains("duplicate"), "error must mention 'duplicate': {}", err_msg);
+        assert!(
+            err_msg.contains("duplicate"),
+            "error must mention 'duplicate': {}",
+            err_msg
+        );
     }
 
     /// Kills: unicode in timer_id roundtrip broken.
@@ -539,8 +564,7 @@ mod serialization_adversarial {
             timestamp_ms: 12345,
         };
         let json = serde_json::to_string(&event).expect("serialize unicode");
-        let back: WorkflowEvent =
-            serde_json::from_str(&json).expect("deserialize unicode");
+        let back: WorkflowEvent = serde_json::from_str(&json).expect("deserialize unicode");
         assert_eq!(event, back);
     }
 
@@ -552,8 +576,7 @@ mod serialization_adversarial {
             timestamp_ms: 99,
         };
         let json = serde_json::to_string(&event).expect("serialize control chars");
-        let back: WorkflowEvent =
-            serde_json::from_str(&json).expect("deserialize control chars");
+        let back: WorkflowEvent = serde_json::from_str(&json).expect("deserialize control chars");
         assert_eq!(event, back);
     }
 
@@ -565,8 +588,7 @@ mod serialization_adversarial {
             timestamp_ms: 50,
         };
         let json = serde_json::to_string(&event).expect("serialize escapes");
-        let back: WorkflowEvent =
-            serde_json::from_str(&json).expect("deserialize escapes");
+        let back: WorkflowEvent = serde_json::from_str(&json).expect("deserialize escapes");
         assert_eq!(event, back);
     }
 
@@ -579,13 +601,12 @@ mod serialization_adversarial {
             timestamp_ms: 1,
         };
         let json = serde_json::to_string(&event).expect("serialize long id");
-        let back: WorkflowEvent =
-            serde_json::from_str(&json).expect("deserialize long id");
-        match back {
-            WorkflowEvent::TimerFired { timer_id, .. } => {
-                assert_eq!(timer_id.len(), 10_000, "long id must not be truncated");
-            }
-        }
+        let back: WorkflowEvent = serde_json::from_str(&json).expect("deserialize long id");
+        assert!(
+            matches!(back, WorkflowEvent::TimerFired { timer_id, .. }
+            if timer_id.len() == 10_000),
+            "long id must not be truncated"
+        );
     }
 }
 
@@ -659,7 +680,11 @@ mod clone_partial_eq_semantics {
         match (&e1, &e2) {
             (VoError::Internal(a), VoError::Internal(b)) => {
                 assert_eq!(a, b);
-                assert_ne!(a.as_ptr(), b.as_ptr(), "cloned strings must be independent allocations");
+                assert_ne!(
+                    a.as_ptr(),
+                    b.as_ptr(),
+                    "cloned strings must be independent allocations"
+                );
             }
             _ => unreachable!(),
         }
@@ -679,8 +704,13 @@ mod clone_partial_eq_semantics {
                 WorkflowEvent::TimerFired { timer_id: b, .. },
             ) => {
                 assert_eq!(a, b);
-                assert_ne!(a.as_ptr(), b.as_ptr(), "cloned timer_id must be independent");
+                assert_ne!(
+                    a.as_ptr(),
+                    b.as_ptr(),
+                    "cloned timer_id must be independent"
+                );
             }
+            _ => panic!("expected TimerFired"),
         }
     }
 }
@@ -766,7 +796,10 @@ mod edge_case_strings {
     fn rq_error_display_null_byte_preserved() {
         let err = VoError::internal("error\0hidden");
         let display = err.to_string();
-        assert!(display.contains("error\0hidden"), "null byte must be preserved in Display");
+        assert!(
+            display.contains("error\0hidden"),
+            "null byte must be preserved in Display"
+        );
     }
 
     /// Kills: VoError message with unicode preserved in Display.

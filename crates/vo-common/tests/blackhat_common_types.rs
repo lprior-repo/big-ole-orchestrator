@@ -9,70 +9,158 @@ mod deser_attacks {
 
     #[test]
     fn reject_missing_fields() {
+        assert!(
+            serde_json::from_value::<WorkflowEvent>(json!({"TimerFired": {"timer_id": "x"}}))
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn reject_missing_task_result() {
         assert!(serde_json::from_value::<WorkflowEvent>(
-            json!({"TimerFired": {"timer_id": "x"}})).is_err());
+            json!({"TaskCompleted": {"task_id": "x"}})
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn reject_missing_task_error() {
+        assert!(
+            serde_json::from_value::<WorkflowEvent>(json!({"TaskFailed": {"task_id": "x"}}))
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn reject_missing_signal_name() {
+        assert!(serde_json::from_value::<WorkflowEvent>(
+            json!({"SignalReceived": {"payload_json": "x"}})
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn reject_missing_workflow_id_started() {
+        assert!(serde_json::from_value::<WorkflowEvent>(
+            json!({"WorkflowStarted": {"input_json": "x"}})
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn reject_missing_workflow_id_completed() {
+        assert!(serde_json::from_value::<WorkflowEvent>(
+            json!({"WorkflowCompleted": {"result_json": "x"}})
+        )
+        .is_err());
     }
 
     #[test]
     fn extra_fields_silently_accepted() {
         let r: WorkflowEvent = serde_json::from_value(json!({
             "TimerFired": {"timer_id": "t1", "timestamp_ms": 100, "_poison": "evil"}
-        })).unwrap();
-        let WorkflowEvent::TimerFired { timer_id, timestamp_ms } = r;
-        assert_eq!((timer_id, timestamp_ms), ("t1".to_string(), 100));
+        }))
+        .unwrap();
+        if let WorkflowEvent::TimerFired {
+            timer_id,
+            timestamp_ms,
+        } = r
+        {
+            assert_eq!((timer_id, timestamp_ms), ("t1".to_string(), 100));
+        } else {
+            panic!("expected TimerFired");
+        }
     }
 
     #[test]
     fn reject_unknown_variant() {
-        assert!(serde_json::from_value::<WorkflowEvent>(
-            json!({"UnknownVariant": {"x": 1}})).is_err());
+        assert!(
+            serde_json::from_value::<WorkflowEvent>(json!({"UnknownVariant": {"x": 1}})).is_err()
+        );
     }
 
     #[test]
     fn reject_null_timer_id() {
         assert!(serde_json::from_value::<WorkflowEvent>(
-            json!({"TimerFired": {"timer_id": null, "timestamp_ms": 0}})).is_err());
+            json!({"TimerFired": {"timer_id": null, "timestamp_ms": 0}})
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn reject_null_task_id() {
+        assert!(serde_json::from_value::<WorkflowEvent>(
+            json!({"TaskCompleted": {"task_id": null, "result_json": "x"}})
+        )
+        .is_err());
     }
 
     #[test]
     fn reject_array_payload() {
-        assert!(serde_json::from_value::<WorkflowEvent>(
-            json!({"TimerFired": [1, 2, 3]})).is_err());
+        assert!(serde_json::from_value::<WorkflowEvent>(json!({"TimerFired": [1, 2, 3]})).is_err());
     }
 
     #[test]
     fn reject_string_timestamp() {
         assert!(serde_json::from_value::<WorkflowEvent>(
-            json!({"TimerFired": {"timer_id": "t", "timestamp_ms": "x"}})).is_err());
+            json!({"TimerFired": {"timer_id": "t", "timestamp_ms": "x"}})
+        )
+        .is_err());
     }
 
     #[test]
     fn reject_negative_timestamp() {
         assert!(serde_json::from_value::<WorkflowEvent>(
-            json!({"TimerFired": {"timer_id": "t", "timestamp_ms": -1}})).is_err());
+            json!({"TimerFired": {"timer_id": "t", "timestamp_ms": -1}})
+        )
+        .is_err());
     }
 
     #[test]
     fn reject_float_timestamp() {
         assert!(serde_json::from_value::<WorkflowEvent>(
-            json!({"TimerFired": {"timer_id": "t", "timestamp_ms": 1.5}})).is_err());
+            json!({"TimerFired": {"timer_id": "t", "timestamp_ms": 1.5}})
+        )
+        .is_err());
     }
 
     #[test]
     fn accept_u64_max_timestamp() {
-        let val: serde_json::Value = serde_json::from_str(
-            &format!(r#"{{"TimerFired":{{"timer_id":"t","timestamp_ms":{}}}}}"#, u64::MAX)
-        ).unwrap();
-        let WorkflowEvent::TimerFired { timestamp_ms, .. } =
-            serde_json::from_value(val).unwrap();
-        assert_eq!(timestamp_ms, u64::MAX);
+        let val: serde_json::Value = serde_json::from_str(&format!(
+            r#"{{"TimerFired":{{"timer_id":"t","timestamp_ms":{}}}}}"#,
+            u64::MAX
+        ))
+        .unwrap();
+        let event = serde_json::from_value(val).unwrap();
+        if let WorkflowEvent::TimerFired { timestamp_ms, .. } = event {
+            assert_eq!(timestamp_ms, u64::MAX);
+        } else {
+            panic!("expected TimerFired");
+        }
     }
 
     #[test]
     fn accept_zero_timestamp() {
-        let WorkflowEvent::TimerFired { timestamp_ms, .. } = serde_json::from_value(
-            json!({"TimerFired": {"timer_id": "t", "timestamp_ms": 0}})).unwrap();
-        assert_eq!(timestamp_ms, 0);
+        let event =
+            serde_json::from_value(json!({"TimerFired": {"timer_id": "t", "timestamp_ms": 0}}))
+                .unwrap();
+        if let WorkflowEvent::TimerFired { timestamp_ms, .. } = event {
+            assert_eq!(timestamp_ms, 0);
+        } else {
+            panic!("expected TimerFired");
+        }
+    }
+
+    #[test]
+    fn empty_strings_accepted() {
+        let e: WorkflowEvent = serde_json::from_value(json!({
+            "TaskCompleted": {"task_id": "", "result_json": ""}
+        }))
+        .unwrap();
+        assert!(
+            matches!(e, WorkflowEvent::TaskCompleted { task_id, result_json }
+            if task_id.is_empty() && result_json.is_empty())
+        );
     }
 
     #[test]
@@ -95,9 +183,18 @@ mod string_attacks {
 
     #[test]
     fn unicode_roundtrips() {
-        for payload in ["\u{0}", "\u{FFFF}", "\u{10FFFF}", "\u{FEFF}",
-                        "\u{202E}evil\u{202C}", "████████████████████████"] {
-            let e = WorkflowEvent::TimerFired { timer_id: payload.into(), timestamp_ms: 42 };
+        for payload in [
+            "\u{0}",
+            "\u{FFFF}",
+            "\u{10FFFF}",
+            "\u{FEFF}",
+            "\u{202E}evil\u{202C}",
+            "████████████████████████",
+        ] {
+            let e = WorkflowEvent::TimerFired {
+                timer_id: payload.into(),
+                timestamp_ms: 42,
+            };
             let json = serde_json::to_string(&e).unwrap();
             assert_eq!(e, serde_json::from_str::<WorkflowEvent>(&json).unwrap());
         }
@@ -106,11 +203,17 @@ mod string_attacks {
     #[test]
     fn megabyte_string_no_panic() {
         let big = "x".repeat(1_000_000);
-        let e = WorkflowEvent::TimerFired { timer_id: big.clone(), timestamp_ms: 0 };
+        let e = WorkflowEvent::TimerFired {
+            timer_id: big.clone(),
+            timestamp_ms: 0,
+        };
         let json = serde_json::to_string(&e).unwrap();
-        let WorkflowEvent::TimerFired { timer_id, .. } =
-            serde_json::from_str::<WorkflowEvent>(&json).unwrap();
-        assert_eq!(timer_id.len(), 1_000_000);
+        let event = serde_json::from_str::<WorkflowEvent>(&json).unwrap();
+        if let WorkflowEvent::TimerFired { timer_id, .. } = event {
+            assert_eq!(timer_id.len(), 1_000_000);
+        } else {
+            panic!("expected TimerFired");
+        }
     }
 }
 
@@ -120,8 +223,13 @@ mod error_attacks {
 
     #[test]
     fn empty_messages_still_display() {
-        for e in [VoError::config(""), VoError::internal(""), VoError::not_found(""),
-                   VoError::validation(""), VoError::timeout("")] {
+        for e in [
+            VoError::config(""),
+            VoError::internal(""),
+            VoError::not_found(""),
+            VoError::validation(""),
+            VoError::timeout(""),
+        ] {
             assert!(!e.to_string().is_empty());
         }
     }
@@ -134,11 +242,18 @@ mod error_attacks {
 
     #[test]
     fn all_variants_distinct() {
-        let v = [VoError::config("x"), VoError::internal("x"), VoError::not_found("x"),
-                 VoError::validation("x"), VoError::timeout("x")];
+        let v = [
+            VoError::config("x"),
+            VoError::internal("x"),
+            VoError::not_found("x"),
+            VoError::validation("x"),
+            VoError::timeout("x"),
+        ];
         for (i, a) in v.iter().enumerate() {
             for (j, b) in v.iter().enumerate() {
-                if i != j { assert_ne!(a, b, "variants {i} and {j} collided"); }
+                if i != j {
+                    assert_ne!(a, b, "variants {i} and {j} collided");
+                }
             }
         }
     }
