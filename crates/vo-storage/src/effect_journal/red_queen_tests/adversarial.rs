@@ -51,8 +51,12 @@ fn red_queen_crash_after_prepare_recovers_all_pending_effects() {
     );
 
     // Verify each effect can still be committed (not corrupted)
+<<<<<<< HEAD
     let mut recovered_ids: Vec<String> =
         pending.iter().map(|r| r.intent_id().to_string()).collect();
+=======
+    let mut recovered_ids: Vec<String> = pending.iter().map(|r| r.intent_id().to_string()).collect();
+>>>>>>> origin/polecat/synth-mnw6kj8v
     recovered_ids.sort();
     for (i, name) in recovered_ids.iter().enumerate() {
         assert_eq!(
@@ -90,10 +94,14 @@ fn red_queen_crash_recovery_can_commit_each_recovered_effect() {
 
     // After committing all, pending should be empty
     let after = journal.list_pending(&id).unwrap();
+<<<<<<< HEAD
     assert!(
         after.is_empty(),
         "BUG: pending not empty after recovering all effects"
     );
+=======
+    assert!(after.is_empty(), "BUG: pending not empty after recovering all effects");
+>>>>>>> origin/polecat/synth-mnw6kj8v
 }
 
 #[test]
@@ -122,10 +130,14 @@ fn red_queen_crash_recovery_can_rollback_each_recovered_effect() {
     }
 
     let after = journal.list_pending(&id).unwrap();
+<<<<<<< HEAD
     assert!(
         after.is_empty(),
         "BUG: pending not empty after rolling back all"
     );
+=======
+    assert!(after.is_empty(), "BUG: pending not empty after rolling back all");
+>>>>>>> origin/polecat/synth-mnw6kj8v
 }
 
 #[test]
@@ -147,12 +159,17 @@ fn red_queen_partial_commit_then_crash_recovers_remaining() {
     }
 
     // Commit 2, then "crash" (simulate partial completion)
+<<<<<<< HEAD
     journal
         .commit(&super::super::EffectId::new(&id, "fx-partial-0").unwrap())
         .unwrap();
     journal
         .commit(&super::super::EffectId::new(&id, "fx-partial-1").unwrap())
         .unwrap();
+=======
+    journal.commit(&super::super::EffectId::new(&id, "fx-partial-0").unwrap()).unwrap();
+    journal.commit(&super::super::EffectId::new(&id, "fx-partial-1").unwrap()).unwrap();
+>>>>>>> origin/polecat/synth-mnw6kj8v
 
     // Recovery: should find exactly 3 remaining
     let pending = journal.list_pending(&id).unwrap();
@@ -259,6 +276,7 @@ fn red_queen_cross_instance_commit_does_not_affect_other_instance() {
     journal.commit(&eid_a).unwrap();
 
     let pending_b = journal.list_pending(&id_b).unwrap();
+<<<<<<< HEAD
     assert_eq!(
         pending_b.len(),
         1,
@@ -270,6 +288,12 @@ fn red_queen_cross_instance_commit_does_not_affect_other_instance() {
         commit_b.is_ok(),
         "BUG: B's effect became uncommittable after A committed"
     );
+=======
+    assert_eq!(pending_b.len(), 1, "BUG: committing A's effect affected B's pending list");
+
+    let commit_b = journal.commit(&eid_b);
+    assert!(commit_b.is_ok(), "BUG: B's effect became uncommittable after A committed");
+>>>>>>> origin/polecat/synth-mnw6kj8v
 }
 
 #[test]
@@ -289,10 +313,14 @@ fn red_queen_list_pending_for_empty_instance_returns_empty() {
     journal.prepare(&id_a, record).unwrap();
 
     let pending_b = journal.list_pending(&id_b).unwrap();
+<<<<<<< HEAD
     assert!(
         pending_b.is_empty(),
         "BUG: empty instance returned non-empty pending list"
     );
+=======
+    assert!(pending_b.is_empty(), "BUG: empty instance returned non-empty pending list");
+>>>>>>> origin/polecat/synth-mnw6kj8v
 }
 
 // ========================================================================
@@ -325,10 +353,14 @@ fn red_queen_prepare_idempotent_different_kind_preserves_original() {
     .unwrap();
     let eid2 = journal.prepare(&id, record_sql).unwrap();
 
+<<<<<<< HEAD
     assert_eq!(
         eid, eid2,
         "BUG: idempotent prepare returned different EffectId"
     );
+=======
+    assert_eq!(eid, eid2, "BUG: idempotent prepare returned different EffectId");
+>>>>>>> origin/polecat/synth-mnw6kj8v
 
     let pending = journal.list_pending(&id).unwrap();
     assert_eq!(pending.len(), 1);
@@ -418,10 +450,14 @@ fn red_queen_decode_key_rejects_truncated_utf8() {
     let result = super::super::decode_effect_key(&truncated);
     assert!(result.is_err(), "BUG: accepted truncated UTF-8");
     assert!(
+<<<<<<< HEAD
         matches!(
             result.unwrap_err(),
             super::super::EffectJournalError::Codec { .. }
         ),
+=======
+        matches!(result.unwrap_err(), super::super::EffectJournalError::Codec { .. }),
+>>>>>>> origin/polecat/synth-mnw6kj8v
         "BUG: wrong error variant for truncated UTF-8"
     );
 }
@@ -432,10 +468,14 @@ fn red_queen_decode_record_rejects_truncated_json() {
     let result = super::super::decode_effect_record(truncated);
     assert!(result.is_err(), "BUG: accepted truncated JSON");
     assert!(
+<<<<<<< HEAD
         matches!(
             result.unwrap_err(),
             super::super::EffectJournalError::Codec { .. }
         ),
+=======
+        matches!(result.unwrap_err(), super::super::EffectJournalError::Codec { .. }),
+>>>>>>> origin/polecat/synth-mnw6kj8v
         "BUG: wrong error variant for truncated JSON"
     );
 }
@@ -444,10 +484,14 @@ fn red_queen_decode_record_rejects_truncated_json() {
 fn red_queen_decode_record_rejects_valid_json_wrong_type() {
     let wrong_type = b"42";
     let result = super::super::decode_effect_record(wrong_type);
+<<<<<<< HEAD
     assert!(
         result.is_err(),
         "BUG: accepted JSON integer as EffectRecord"
     );
+=======
+    assert!(result.is_err(), "BUG: accepted JSON integer as EffectRecord");
+>>>>>>> origin/polecat/synth-mnw6kj8v
 }
 
 #[test]
@@ -461,10 +505,14 @@ fn red_queen_decode_record_rejects_json_array() {
 fn red_queen_decode_record_rejects_empty_json_object() {
     let empty = b"{}";
     let result = super::super::decode_effect_record(empty);
+<<<<<<< HEAD
     assert!(
         result.is_err(),
         "BUG: accepted empty JSON object as EffectRecord"
     );
+=======
+    assert!(result.is_err(), "BUG: accepted empty JSON object as EffectRecord");
+>>>>>>> origin/polecat/synth-mnw6kj8v
 }
 
 #[test]
@@ -506,8 +554,12 @@ fn red_queen_concurrent_prepare_same_intent_id_is_idempotent() {
         })
         .collect();
 
+<<<<<<< HEAD
     let mut effect_ids: Vec<super::super::EffectId> =
         handles.into_iter().map(|h| h.join().unwrap()).collect();
+=======
+    let mut effect_ids: Vec<super::super::EffectId> = handles.into_iter().map(|h| h.join().unwrap()).collect();
+>>>>>>> origin/polecat/synth-mnw6kj8v
 
     let first = effect_ids.pop().unwrap();
     for eid in &effect_ids {
@@ -550,8 +602,15 @@ fn red_queen_concurrent_prepare_different_intent_ids_all_succeed() {
         })
         .collect();
 
+<<<<<<< HEAD
     let effect_ids: std::collections::HashSet<_> =
         handles.into_iter().map(|h| h.join().unwrap()).collect();
+=======
+    let effect_ids: std::collections::HashSet<_> = handles
+        .into_iter()
+        .map(|h| h.join().unwrap())
+        .collect();
+>>>>>>> origin/polecat/synth-mnw6kj8v
 
     assert_eq!(
         effect_ids.len(),
@@ -608,8 +667,12 @@ fn red_queen_concurrent_commit_rollback_on_same_effect_one_wins() {
         if let Err(e) = result {
             assert!(
                 matches!(e, super::super::EffectJournalError::AlreadyTerminal { .. }),
+<<<<<<< HEAD
                 "BUG: concurrent race produced unexpected error: {:?}",
                 e
+=======
+                "BUG: concurrent race produced unexpected error: {:?}", e
+>>>>>>> origin/polecat/synth-mnw6kj8v
             );
         }
     }
@@ -631,10 +694,14 @@ fn red_queen_effectid_with_unicode_intent_id() {
 
         let bytes = super::super::encode_effect_key(&eid);
         let recovered = super::super::decode_effect_key(&bytes).unwrap();
+<<<<<<< HEAD
         assert_eq!(
             recovered, eid,
             "BUG: unicode roundtrip failed for: {intent}"
         );
+=======
+        assert_eq!(recovered, eid, "BUG: unicode roundtrip failed for: {intent}");
+>>>>>>> origin/polecat/synth-mnw6kj8v
     }
 }
 
@@ -654,11 +721,15 @@ fn red_queen_effectid_with_very_long_intent_id() {
 fn red_queen_prepare_with_all_effect_kinds() {
     let journal = InMemoryEffectJournal::new();
     let id = sample_instance_id();
+<<<<<<< HEAD
     let kinds = [
         EffectKind::HttpCall,
         EffectKind::SqlQuery,
         EffectKind::BlobWrite,
     ];
+=======
+    let kinds = [EffectKind::HttpCall, EffectKind::SqlQuery, EffectKind::BlobWrite];
+>>>>>>> origin/polecat/synth-mnw6kj8v
 
     for kind in &kinds {
         let record = vo_types::EffectRecord::new(
@@ -672,6 +743,7 @@ fn red_queen_prepare_with_all_effect_kinds() {
         let _eid = journal.prepare(&id, record).unwrap();
 
         let pending = journal.list_pending(&id).unwrap();
+<<<<<<< HEAD
         let found = pending
             .iter()
             .find(|r| r.intent_id() == format!("fx-kind-{:?}", kind));
@@ -685,6 +757,11 @@ fn red_queen_prepare_with_all_effect_kinds() {
             *kind,
             "BUG: EffectKind not preserved"
         );
+=======
+        let found = pending.iter().find(|r| r.intent_id() == format!("fx-kind-{:?}", kind));
+        assert!(found.is_some(), "BUG: effect with kind {:?} not found in pending", kind);
+        assert_eq!(found.unwrap().kind(), *kind, "BUG: EffectKind not preserved");
+>>>>>>> origin/polecat/synth-mnw6kj8v
     }
 }
 
@@ -756,10 +833,14 @@ fn red_queen_list_pending_preserves_effect_metadata() {
     assert_eq!(r.intent_id(), "fx-metadata-check");
     assert_eq!(r.kind(), EffectKind::SqlQuery);
     assert_eq!(r.status(), EffectIntent::Prepared);
+<<<<<<< HEAD
     assert_eq!(
         r.params_json()["query"],
         "SELECT * FROM users WHERE id = $1"
     );
+=======
+    assert_eq!(r.params_json()["query"], "SELECT * FROM users WHERE id = $1");
+>>>>>>> origin/polecat/synth-mnw6kj8v
     assert_eq!(r.params_json()["params"][0], 42);
     assert!(r.committed_at().is_none());
 }
@@ -895,9 +976,13 @@ fn red_queen_effects_partition_is_nonempty_utf8() {
         "BUG: EFFECTS_PARTITION is empty"
     );
     assert!(
+<<<<<<< HEAD
         super::super::EFFECTS_PARTITION
             .chars()
             .all(|c| !c.is_control()),
+=======
+        super::super::EFFECTS_PARTITION.chars().all(|c| !c.is_control()),
+>>>>>>> origin/polecat/synth-mnw6kj8v
         "BUG: EFFECTS_PARTITION contains control characters"
     );
 }
@@ -910,6 +995,7 @@ fn red_queen_effects_partition_no_leading_trailing_whitespace() {
         "BUG: EFFECTS_PARTITION has leading/trailing whitespace"
     );
 }
+<<<<<<< HEAD
 
 // ========================================================================
 // DIMENSION: compact
@@ -1320,3 +1406,5 @@ fn red_queen_concurrent_compact_and_prepare() {
         "BUG: concurrent compact removed newly prepared effects"
     );
 }
+=======
+>>>>>>> origin/polecat/synth-mnw6kj8v

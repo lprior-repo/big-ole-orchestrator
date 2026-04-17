@@ -5,6 +5,7 @@ use axum::{
     http::StatusCode,
     response::{sse::Event, IntoResponse, Sse},
 };
+<<<<<<< HEAD
 use ractor::ActorRef;
 use tokio::sync::broadcast;
 use tokio::time::interval;
@@ -14,6 +15,13 @@ use tokio_stream::StreamExt as TokioStreamExt;
 use vo_actor::OrchestratorMsg;
 
 use super::split_path_id;
+=======
+use futures::Stream;
+use ractor::ActorRef;
+use tokio::sync::broadcast;
+use vo_actor::OrchestratorMsg;
+
+>>>>>>> origin/polecat/synth-mnw6kj8v
 use crate::types::ApiError;
 
 const SSE_KEEPALIVE_INTERVAL: Duration = Duration::from_secs(15);
@@ -21,6 +29,7 @@ const SSE_BROADCAST_CAPACITY: usize = 1000;
 
 #[derive(Debug, Clone)]
 pub enum WorkflowSseEvent {
+<<<<<<< HEAD
     StepCompleted {
         node_name: String,
         sequence: u64,
@@ -43,26 +52,43 @@ pub enum WorkflowSseEvent {
     InstanceFailed {
         error: String,
     },
+=======
+    StepCompleted { node_name: String, sequence: u64 },
+    StepFailed { node_name: String, sequence: u64, error: String },
+    TimerFired { timer_id: String },
+    SignalReceived { signal_name: String },
+    PhaseChanged { phase: String },
+    InstanceCompleted,
+    InstanceFailed { error: String },
+>>>>>>> origin/polecat/synth-mnw6kj8v
 }
 
 impl WorkflowSseEvent {
     fn to_sse_event(&self) -> Event {
         let data = match self {
+<<<<<<< HEAD
             WorkflowSseEvent::StepCompleted {
                 node_name,
                 sequence,
             } => {
+=======
+            WorkflowSseEvent::StepCompleted { node_name, sequence } => {
+>>>>>>> origin/polecat/synth-mnw6kj8v
                 serde_json::json!({
                     "type": "step_completed",
                     "node_name": node_name,
                     "sequence": sequence,
                 })
             }
+<<<<<<< HEAD
             WorkflowSseEvent::StepFailed {
                 node_name,
                 sequence,
                 error,
             } => {
+=======
+            WorkflowSseEvent::StepFailed { node_name, sequence, error } => {
+>>>>>>> origin/polecat/synth-mnw6kj8v
                 serde_json::json!({
                     "type": "step_failed",
                     "node_name": node_name,
@@ -121,10 +147,14 @@ impl SseBroadcaster {
         self.tx.subscribe()
     }
 
+<<<<<<< HEAD
     pub fn send(
         &self,
         event: WorkflowSseEvent,
     ) -> Result<usize, broadcast::error::SendError<WorkflowSseEvent>> {
+=======
+    pub fn send(&self, event: WorkflowSseEvent) -> Result<(), broadcast::error::SendError> {
+>>>>>>> origin/polecat/synth-mnw6kj8v
         self.tx.send(event)
     }
 }
@@ -154,6 +184,7 @@ impl Default for SseState {
     }
 }
 
+<<<<<<< HEAD
 fn make_sse_stream(
     receiver: broadcast::Receiver<WorkflowSseEvent>,
 ) -> impl futures::Stream<Item = Result<Event, axum::Error>> + Send + 'static {
@@ -172,10 +203,37 @@ fn keepalive_stream() -> impl futures::Stream<Item = Result<Event, axum::Error>>
             yield Ok(Event::default()
                 .comment(":keepalive"));
             interval.tick().await;
+=======
+struct SseStream {
+    receiver: broadcast::Receiver<WorkflowSseEvent>,
+    #[allow(dead_code)]
+    _phantom: std::marker::PhantomData<()>,
+}
+
+impl Stream for SseStream {
+    type Item = Result<Event, axum::Error>;
+
+    fn poll_next(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Option<Self::Item>> {
+        match std::pin::Pin::new(&mut self.receiver).poll_recv(cx) {
+            std::task::Poll::Ready(Ok(event)) => {
+                std::task::Poll::Ready(Some(Ok(event.to_sse_event())))
+            }
+            std::task::Poll::Ready(Err(broadcast::error::RecvError::Closed)) => {
+                std::task::Poll::Ready(None)
+            }
+            std::task::Poll::Ready(Err(broadcast::error::RecvError::Lagged(_))) => {
+                std::task::Poll::Ready(None)
+            }
+            std::task::Poll::Pending => std::task::Poll::Pending,
+>>>>>>> origin/polecat/synth-mnw6kj8v
         }
     }
 }
 
+<<<<<<< HEAD
 fn merge_with_keepalive(
     receiver: broadcast::Receiver<WorkflowSseEvent>,
 ) -> impl futures::Stream<Item = Result<Event, axum::Error>> + Send + 'static {
@@ -188,6 +246,12 @@ fn merge_with_keepalive(
 ///
 /// Best-effort live tail of workflow events. Does not block the write path.
 /// Keeps connection alive with 15-second keepalive pings (`:keepalive` comment).
+=======
+/// GET /api/v1/watch/:instance_id — SSE stream for workflow live updates (ADR-007/024).
+///
+/// Best-effort live tail of workflow events. Does not block the write path.
+/// Keeps connection alive with 15-second keepalive pings.
+>>>>>>> origin/polecat/synth-mnw6kj8v
 /// If client falls behind by more than 1000 events, connection is dropped.
 #[tracing::instrument(skip_all)]
 pub async fn watch_workflow(
@@ -195,7 +259,11 @@ pub async fn watch_workflow(
     Path(id): Path<String>,
     State(state): State<SseState>,
 ) -> impl IntoResponse {
+<<<<<<< HEAD
     let (_namespace, _instance_id) = match split_path_id(&id) {
+=======
+    let (_, _instance_id) = match split_path_id(&id) {
+>>>>>>> origin/polecat/synth-mnw6kj8v
         Some(pair) => pair,
         None => {
             return (
@@ -210,9 +278,28 @@ pub async fn watch_workflow(
     };
 
     let receiver = state.broadcaster.subscribe();
+<<<<<<< HEAD
     let stream = merge_with_keepalive(receiver);
 
     Sse::new(stream).into_response()
+=======
+
+    let stream = SseStream {
+        receiver,
+        _phantom: std::marker::PhantomData,
+    };
+
+    Sse::new(stream)
+        .keep_alive(axum::response::sse::KeepAlive::new().interval(SSE_KEEPALIVE_INTERVAL))
+        .into_response()
+}
+
+fn split_path_id(path: &str) -> Option<(String, String)> {
+    let slash = path.find('/')?;
+    let namespace = path[..slash].to_owned();
+    let instance_id = path[slash + 1..].to_owned();
+    Some((namespace, instance_id))
+>>>>>>> origin/polecat/synth-mnw6kj8v
 }
 
 use axum::Json;
@@ -220,8 +307,11 @@ use axum::Json;
 #[cfg(test)]
 mod tests {
     use super::*;
+<<<<<<< HEAD
     use futures::StreamExt;
     use tokio_stream::StreamExt as TokioStreamExt;
+=======
+>>>>>>> origin/polecat/synth-mnw6kj8v
 
     #[test]
     fn sse_event_step_completed_serializes_correctly() {
@@ -229,7 +319,15 @@ mod tests {
             node_name: "build-step".to_string(),
             sequence: 42,
         };
+<<<<<<< HEAD
         let _sse_event = event.to_sse_event();
+=======
+        let sse_event = event.to_sse_event();
+        let data = sse_event.data().to_string();
+        assert!(data.contains("\"type\":\"step_completed\""));
+        assert!(data.contains("\"node_name\":\"build-step\""));
+        assert!(data.contains("\"sequence\":42"));
+>>>>>>> origin/polecat/synth-mnw6kj8v
     }
 
     #[test]
@@ -237,22 +335,41 @@ mod tests {
         let event = WorkflowSseEvent::TimerFired {
             timer_id: "timer-123".to_string(),
         };
+<<<<<<< HEAD
         let _sse_event = event.to_sse_event();
+=======
+        let sse_event = event.to_sse_event();
+        let data = sse_event.data().to_string();
+        assert!(data.contains("\"type\":\"timer_fired\""));
+        assert!(data.contains("\"timer_id\":\"timer-123\""));
+>>>>>>> origin/polecat/synth-mnw6kj8v
     }
 
     #[test]
     fn sse_broadcaster_creates_with_capacity() {
         let broadcaster = SseBroadcaster::new();
+<<<<<<< HEAD
         let _receiver = broadcaster.subscribe();
+=======
+        let receiver = broadcaster.subscribe();
+        assert!(receiver.is_empty());
+>>>>>>> origin/polecat/synth-mnw6kj8v
     }
 
     #[test]
     fn split_path_id_returns_namespace_and_id_when_valid() {
         let result = split_path_id("payments/01ARZ3NDEKTSV4RRFFQ69G5FAV");
         assert!(result.is_some());
+<<<<<<< HEAD
         let (ns, id) = result.unwrap();
         assert_eq!(ns, "payments");
         assert_eq!(id.to_string(), "01ARZ3NDEKTSV4RRFFQ69G5FAV");
+=======
+        if let Some((ns, id)) = result {
+            assert_eq!(ns, "payments");
+            assert_eq!(id.as_str(), "01ARZ3NDEKTSV4RRFFQ69G5FAV");
+        }
+>>>>>>> origin/polecat/synth-mnw6kj8v
     }
 
     #[test]
@@ -260,6 +377,7 @@ mod tests {
         let result = split_path_id("no-slash-here");
         assert!(result.is_none());
     }
+<<<<<<< HEAD
 
     #[tokio::test]
     async fn sse_lagged_error_closes_stream() {
@@ -408,3 +526,6 @@ mod tests {
         );
     }
 }
+=======
+}
+>>>>>>> origin/polecat/synth-mnw6kj8v

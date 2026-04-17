@@ -35,6 +35,7 @@ impl From<ReconcileOutcome> for vo_types::ReconcileAction {
         }
     }
 }
+<<<<<<< HEAD
 
 #[cfg(test)]
 mod tests {
@@ -284,3 +285,5 @@ mod tests {
         assert_ne!(o1, o2);
     }
 }
+=======
+>>>>>>> origin/polecat/synth-mnw6kj8v

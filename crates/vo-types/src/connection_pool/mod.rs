@@ -23,10 +23,14 @@ use crate::integer_types::TimestampMs;
 
 /// Configuration for the connection pool.
 <<<<<<< HEAD
+<<<<<<< HEAD
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 =======
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 >>>>>>> origin/vo-worker-tests
+=======
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+>>>>>>> origin/polecat/synth-mnw6kj8v
 pub struct PoolConfig {
     pub min_connections: u32,
     pub max_connections: u32,
@@ -38,10 +42,14 @@ pub struct PoolConfig {
 
 /// Unique identifier for a pooled connection.
 <<<<<<< HEAD
+<<<<<<< HEAD
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 =======
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 >>>>>>> origin/vo-worker-tests
+=======
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+>>>>>>> origin/polecat/synth-mnw6kj8v
 pub struct ConnectionId(pub(crate) Ulid);
 
 impl ConnectionId {
@@ -74,10 +82,14 @@ impl fmt::Display for ConnectionId {
 
 /// Identifies a specific connection pool instance.
 <<<<<<< HEAD
+<<<<<<< HEAD
 #[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 =======
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 >>>>>>> origin/vo-worker-tests
+=======
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+>>>>>>> origin/polecat/synth-mnw6kj8v
 pub struct PoolId(pub(crate) String);
 
 impl PoolId {
@@ -100,10 +112,14 @@ impl fmt::Display for PoolId {
 
 /// Status of a pooled connection.
 <<<<<<< HEAD
+<<<<<<< HEAD
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 =======
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 >>>>>>> origin/vo-worker-tests
+=======
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+>>>>>>> origin/polecat/synth-mnw6kj8v
 pub enum ConnectionStatus {
     #[default]
     Idle,
@@ -115,10 +131,14 @@ pub enum ConnectionStatus {
 
 /// Represents a connection in the pool with metadata.
 <<<<<<< HEAD
+<<<<<<< HEAD
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 =======
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 >>>>>>> origin/vo-worker-tests
+=======
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+>>>>>>> origin/polecat/synth-mnw6kj8v
 pub struct PooledConnection {
     pub connection_id: ConnectionId,
     pub created_at: TimestampMs,
@@ -227,10 +247,14 @@ pub enum EvictionReason {
 
 /// Current state statistics for the pool.
 <<<<<<< HEAD
+<<<<<<< HEAD
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 =======
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 >>>>>>> origin/vo-worker-tests
+=======
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+>>>>>>> origin/polecat/synth-mnw6kj8v
 pub struct PoolStats {
     pub pool_id: PoolId,
     pub total_connections: u32,
@@ -262,7 +286,7 @@ impl Default for PoolStats {
 }
 
 /// Circuit breaker state.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum CircuitBreakerState {
     #[default]
     Closed,
@@ -275,7 +299,7 @@ pub enum CircuitBreakerState {
 // ============================================================================
 
 /// Error category for connection pool errors.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ErrorCategory {
     PoolExhaustion,
     Timeout,
@@ -287,7 +311,7 @@ pub enum ErrorCategory {
 }
 
 /// Error detail for connection pool errors.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ErrorDetail {
     MaxConnectionsReached {
         max: u32,
@@ -320,7 +344,7 @@ pub enum ErrorDetail {
 }
 
 /// Context for connection pool errors.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ErrorContext {
     pub pool_id: PoolId,
     pub timestamp: TimestampMs,
@@ -329,7 +353,11 @@ pub struct ErrorContext {
 }
 
 /// Connection pool error.
+<<<<<<< HEAD
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+=======
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+>>>>>>> origin/polecat/synth-mnw6kj8v
 pub struct ConnectionPoolError {
     pub category: ErrorCategory,
     pub detail: ErrorDetail,

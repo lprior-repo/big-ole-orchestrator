@@ -1,20 +1,29 @@
 //! Connector lifecycle management (ADR-041 §5).
 
+<<<<<<< HEAD
 use crate::connector::Connector;
 use std::collections::HashMap;
 use std::sync::Arc;
+=======
+use std::collections::HashMap;
+use std::sync::Arc;
+use crate::connector::Connector;
+>>>>>>> origin/polecat/synth-mnw6kj8v
 
 /// Registry for managing connector instances by type name.
 pub struct ConnectorRegistry {
     connectors: HashMap<String, Arc<dyn Connector>>,
 }
 
+<<<<<<< HEAD
 impl Default for ConnectorRegistry {
     fn default() -> Self {
         Self::new()
     }
 }
 
+=======
+>>>>>>> origin/polecat/synth-mnw6kj8v
 impl ConnectorRegistry {
     pub fn new() -> Self {
         Self {
@@ -34,15 +43,19 @@ impl ConnectorRegistry {
         self.connectors.len()
     }
 
+<<<<<<< HEAD
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.connectors.is_empty()
     }
 
+=======
+>>>>>>> origin/polecat/synth-mnw6kj8v
     pub fn list(&self) -> Vec<&str> {
         self.connectors.keys().map(String::as_str).collect()
     }
 }
+<<<<<<< HEAD
 
 #[cfg(test)]
 mod tests {
@@ -377,3 +390,5 @@ mod tests {
         assert_eq!(amqp.connector_type(), "amqp");
     }
 }
+=======
+>>>>>>> origin/polecat/synth-mnw6kj8v

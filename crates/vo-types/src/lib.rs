@@ -21,12 +21,16 @@ mod dedupe;
 mod dedupe_tests;
 mod dependency_graph_resolver;
 pub mod discovery;
+<<<<<<< HEAD
 mod dual_representation;
 #[cfg(test)]
 mod dual_representation_tests;
 pub mod effects;
 #[cfg(test)]
 mod effects_receipt_tests;
+=======
+mod effects;
+>>>>>>> origin/polecat/synth-mnw6kj8v
 mod encryption;
 #[cfg(test)]
 mod encryption_tests;
@@ -77,10 +81,15 @@ pub mod workspace;
 
 pub use binomial_heap::BinomialHeap;
 pub use blob::{
+<<<<<<< HEAD
     BlobFailureAction, BlobGCPolicy, BlobRef, BlobStatus, OutputPolicy, OutputRef,
     INLINED_MAX_BYTES,
 };
 pub use btree::{BTree, BTreeError, BTreeNode};
+=======
+    BlobFailureAction, BlobRef, BlobStatus, OutputPolicy, OutputRef, INLINED_MAX_BYTES,
+};
+>>>>>>> origin/polecat/synth-mnw6kj8v
 pub use cartesian_tree::{CartesianNode, CartesianTree, CartesianTreeError};
 pub use clique_tree::{Clique, CliqueTree, CliqueTreeError};
 pub use command_envelope::{CommandEnvelope, CommandEnvelopeError, MAX_SUPPORTED_COMMAND_VERSION};
@@ -115,9 +124,12 @@ pub use discovery::{
     enforce_pin, validate_discovery_path, DiscoveryPath, DiscoveryPathError, PinEnforcementError,
     VersionConstraint, VersionPin, VERSION_BASE_PATH,
 };
+<<<<<<< HEAD
 pub use dual_representation::{
     apply_redaction, OperatorProjection, RedactionKind, RedactionPolicy, RedactionRule,
 };
+=======
+>>>>>>> origin/polecat/synth-mnw6kj8v
 pub use effects::{
     apply_effect_transition, CompensationPolicy, EffectIntent, EffectKind, EffectRecord,
     EffectTransitionError, EffectTransitionEvent,
@@ -157,8 +169,13 @@ pub use search::{
     SearchError, SearchResult, TfIdfScorer,
 };
 pub use signal::{
+<<<<<<< HEAD
     signal_match, BufferPolicy, FailureScope, LineageScope, SignalAddress, SignalDedupeKey,
     SignalDelivery, SignalMatchResult, WaitKey, WaitRecord,
+=======
+    signal_match, BufferPolicy, LineageScope, SignalAddress, SignalDedupeKey, SignalDelivery,
+    SignalMatchResult, WaitKey, WaitRecord,
+>>>>>>> origin/polecat/synth-mnw6kj8v
 };
 pub use skew_heap::{SkewHeap, SkewHeapError, SkewNode};
 pub use spqr_tree::{

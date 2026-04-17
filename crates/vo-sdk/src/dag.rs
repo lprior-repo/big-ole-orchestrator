@@ -6,10 +6,16 @@
 
 use std::any::Any;
 
+<<<<<<< HEAD
 use thiserror::Error;
 use vo_types::{NodeKind, NodeName, WorkflowName};
 
 use crate::graph::{EdgeSpec, NodeSpec, WorkflowSpec};
+=======
+use vo_types::{NodeKind, NodeName, WorkflowName};
+
+use crate::graph_args::{EdgeSpec, NodeSpec, WorkflowSpec};
+>>>>>>> origin/polecat/synth-mnw6kj8v
 use crate::node_handle::NodeHandle;
 
 /// Errors that can occur when building a DAG.
@@ -19,6 +25,7 @@ pub enum DagError {
     InvalidNodeName { name: String },
     #[error("node not found: {name}")]
     NodeNotFound { name: String },
+<<<<<<< HEAD
     #[error("workflow has no nodes")]
     EmptyWorkflow,
     #[error("cycle detected: {cycle}")]
@@ -32,6 +39,34 @@ struct DagNodeRecord {
     kind: NodeKind,
 }
 
+=======
+    /// The workflow has no nodes.
+    EmptyWorkflow,
+    /// The workflow contains a cycle.
+    CycleDetected,
+}
+
+impl fmt::Display for DagError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidNodeName { name } => write!(f, "invalid node name: {name}"),
+            Self::NodeNotFound { name } => write!(f, "node not found: {name}"),
+            Self::EmptyWorkflow => write!(f, "workflow has no nodes"),
+            Self::CycleDetected => write!(f, "workflow contains a cycle"),
+        }
+    }
+}
+
+impl std::error::Error for DagError {}
+
+/// Internal node record with name and kind.
+#[derive(Debug, Clone)]
+struct DagNodeRecord {
+    name: NodeName,
+    kind: NodeKind,
+}
+
+>>>>>>> origin/polecat/synth-mnw6kj8v
 /// A directed acyclic graph of typed workflow nodes.
 ///
 /// Nodes are registered via `add_node` and connected via `connect`.
@@ -139,6 +174,7 @@ impl Dag {
             })
     }
 
+<<<<<<< HEAD
     fn find_cycle_nodes(nodes: &[DagNodeRecord], edges: &[(usize, usize)]) -> String {
         let n = nodes.len();
         let mut visited = vec![0u8; n];
@@ -189,6 +225,8 @@ impl Dag {
         cycle_names.join(" -> ")
     }
 
+=======
+>>>>>>> origin/polecat/synth-mnw6kj8v
     /// Build a [`WorkflowSpec`] from this DAG.
     ///
     /// # Errors
@@ -200,6 +238,7 @@ impl Dag {
             return Err(DagError::EmptyWorkflow);
         }
 
+<<<<<<< HEAD
         // Cycle detection via Kahn's algorithm (topological sort).
         // Failing test: dag_tests::build_detects_simple_cycle
         let n = self.nodes.len();
@@ -224,16 +263,21 @@ impl Dag {
             return Err(DagError::CycleDetected { cycle: cycle_nodes });
         }
 
+=======
+>>>>>>> origin/polecat/synth-mnw6kj8v
         let wf_name =
             WorkflowName::parse(workflow_name).map_err(|_| DagError::InvalidNodeName {
                 name: workflow_name.to_string(),
             })?;
 
+<<<<<<< HEAD
         // Check for cycles before building spec
         if self.has_cycle() {
             return Err(DagError::CycleDetected);
         }
 
+=======
+>>>>>>> origin/polecat/synth-mnw6kj8v
         let node_specs: Vec<NodeSpec> = self
             .nodes
             .iter()
@@ -256,6 +300,7 @@ impl Dag {
             workflow_name: wf_name,
             nodes: node_specs,
             edges: edge_specs,
+<<<<<<< HEAD
             version: WorkflowSpec::default_version(),
         })
     }
@@ -311,6 +356,10 @@ impl Dag {
 
         false
     }
+=======
+        })
+    }
+>>>>>>> origin/polecat/synth-mnw6kj8v
 }
 
 impl Default for Dag {

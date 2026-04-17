@@ -34,11 +34,22 @@ impl<'a> AccessChecker<'a> {
         match self.caller {
             Principal::System => true,
             _ => {
+<<<<<<< HEAD
                 if self.policy.require_approval() {
                     self.policy.approvers().contains(self.caller)
                 } else {
                     self.policy.allowed_principals().contains(self.caller)
+=======
+                if !self.policy.allowed_principals().contains(self.caller) {
+                    return false;
+>>>>>>> origin/polecat/synth-mnw6kj8v
                 }
+                if self.policy.require_approval()
+                    && !self.policy.approvers().contains(self.caller)
+                {
+                    return false;
+                }
+                true
             }
         }
     }

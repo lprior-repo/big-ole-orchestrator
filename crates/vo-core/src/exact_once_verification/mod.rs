@@ -41,6 +41,7 @@
 //! 4. Storage crash-injection integration tests
 //! 5. Black-box product-owner scenarios
 
+<<<<<<< HEAD
 pub mod assertions;
 pub mod crash_points;
 pub mod harness;
@@ -48,3 +49,7 @@ pub mod macros;
 
 #[cfg(test)]
 mod component_failure_simulation_tests;
+=======
+pub mod crash_points;
+pub mod harness;
+>>>>>>> origin/polecat/synth-mnw6kj8v

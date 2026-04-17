@@ -13,6 +13,7 @@ use vo_types::{InstanceId, TimestampMs};
 use crate::reanimator::{ReanimatorError, TimerRecord, TimerStorage};
 
 /// Errors from timer lifecycle operations.
+<<<<<<< HEAD
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum TimerLifecycleError {
     #[error("Storage error: {0}")]
@@ -20,12 +21,38 @@ pub enum TimerLifecycleError {
     #[error("Instance not found: {0}")]
     InstanceNotFound(InstanceId),
     #[error("Timer not found: {instance_id} at {fire_at_ms}")]
+=======
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TimerLifecycleError {
+    /// Storage error while performing lifecycle operation.
+    StorageError(String),
+    /// Instance not found.
+    InstanceNotFound(InstanceId),
+    /// Timer not found.
+>>>>>>> origin/polecat/synth-mnw6kj8v
     TimerNotFound {
         instance_id: InstanceId,
         fire_at_ms: TimestampMs,
     },
 }
 
+<<<<<<< HEAD
+=======
+impl std::fmt::Display for TimerLifecycleError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::StorageError(s) => write!(f, "Storage error: {s}"),
+            Self::InstanceNotFound(id) => write!(f, "Instance not found: {id}"),
+            Self::TimerNotFound { instance_id, fire_at_ms } => {
+                write!(f, "Timer not found: {instance_id} at {fire_at_ms}")
+            }
+        }
+    }
+}
+
+impl std::error::Error for TimerLifecycleError {}
+
+>>>>>>> origin/polecat/synth-mnw6kj8v
 impl From<ReanimatorError> for TimerLifecycleError {
     fn from(err: ReanimatorError) -> Self {
         match err {
@@ -61,10 +88,66 @@ pub async fn cancel_timers_for_instance<S>(
 where
     S: TimerStorage + 'static,
 {
+<<<<<<< HEAD
     let cancelled_count = storage
         .delete_all_timers_for_instance(instance_id)
         .await
         .map_err(|e| TimerLifecycleError::StorageError(e.to_string()))?;
+=======
+    let now = TimestampMs::now();
+    let zero = TimestampMs::try_from(0u64).expect("0 is valid");
+    let mut cancelled_count = 0u32;
+
+    loop {
+        let timers = storage
+            .scan_due_timers(zero, now, 100)
+            .await
+            .map_err(|e| TimerLifecycleError::StorageError(e.to_string()))?;
+
+        let instance_timers: Vec<TimerRecord> = timers
+            .into_iter()
+            .filter(|t| t.instance_id == *instance_id)
+            .collect();
+
+        if instance_timers.is_empty() {
+            break;
+        }
+
+        for timer in instance_timers {
+            match storage
+                .delete_timer(&timer.instance_id, timer.fire_at_ms)
+                .await
+            {
+                Ok(()) => {
+                    cancelled_count += 1;
+                    tracing::debug!(
+                        instance_id = %timer.instance_id,
+                        fire_at_ms = %timer.fire_at_ms,
+                        "Cancelled timer on workflow completion"
+                    );
+                }
+                Err(ReanimatorError::InstanceNotFound(_)) => {
+                    tracing::debug!(
+                        instance_id = %instance_id,
+                        "Instance not found during timer cancellation"
+                    );
+                    break;
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        instance_id = %timer.instance_id,
+                        error = %e,
+                        "Failed to cancel timer"
+                    );
+                }
+            }
+        }
+
+        if cancelled_count < 100 {
+            break;
+        }
+    }
+>>>>>>> origin/polecat/synth-mnw6kj8v
 
     tracing::info!(
         instance_id = %instance_id,

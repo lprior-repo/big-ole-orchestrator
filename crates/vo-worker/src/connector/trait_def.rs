@@ -1,7 +1,12 @@
 //! Core Connector trait (ADR-041 §1).
 
+<<<<<<< HEAD
 use crate::connector::{CommitOutcome, ConnectorError, PreparedEffect, ReconcileOutcome};
 use async_trait::async_trait;
+=======
+use async_trait::async_trait;
+use crate::connector::{CommitOutcome, ConnectorError, PreparedEffect, ReconcileOutcome};
+>>>>>>> origin/polecat/synth-mnw6kj8v
 
 /// The uniform runtime contract for all managed connectors (ADR-041 §1).
 #[async_trait]
@@ -17,9 +22,21 @@ pub trait Connector: Send + Sync + 'static {
         fence: u64,
     ) -> Result<PreparedEffect, ConnectorError>;
 
+<<<<<<< HEAD
     async fn commit(&self, prepared: PreparedEffect) -> Result<CommitOutcome, ConnectorError>;
 
     async fn reconcile(&self, effect_id: &str) -> Result<ReconcileOutcome, ConnectorError>;
+=======
+    async fn commit(
+        &self,
+        prepared: PreparedEffect,
+    ) -> Result<CommitOutcome, ConnectorError>;
+
+    async fn reconcile(
+        &self,
+        effect_id: &str,
+    ) -> Result<ReconcileOutcome, ConnectorError>;
+>>>>>>> origin/polecat/synth-mnw6kj8v
 
     async fn compensate(
         &self,
@@ -27,6 +44,7 @@ pub trait Connector: Send + Sync + 'static {
         _compensation_effect_id: String,
         _fence: u64,
     ) -> Result<CommitOutcome, ConnectorError> {
+<<<<<<< HEAD
         Err(ConnectorError::compensation_not_supported(
             self.connector_type(),
         ))
@@ -237,5 +255,8 @@ mod tests {
         assert_eq!(connector.connector_type(), "");
         assert_eq!(connector.connector_version(), "");
         assert!(!connector.supports_compensation());
+=======
+        Err(ConnectorError::compensation_not_supported(self.connector_type()))
+>>>>>>> origin/polecat/synth-mnw6kj8v
     }
 }

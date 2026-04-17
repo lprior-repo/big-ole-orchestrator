@@ -410,7 +410,7 @@ fn rq_error_category_display_all_variants() {
     ];
 
     for variant in variants {
-        let display = format!("{}", variant);
+        let display = variant.to_string();
         assert!(
             !display.is_empty(),
             "ErrorCategory variant {:?} should Display",
@@ -561,12 +561,16 @@ fn rq_pooled_connection_status_checkers() {
     assert!(!idle.is_checked_out());
     assert!(!idle.is_closed());
 
-    let checked = idle.with_status(ConnectionStatus::CheckedOut);
+    let checked = idle.clone().with_status(ConnectionStatus::CheckedOut);
     assert!(!checked.is_idle());
     assert!(checked.is_checked_out());
     assert!(!checked.is_closed());
 
+<<<<<<< HEAD
     let closed = checked.with_status(ConnectionStatus::Closed);
+=======
+    let closed = idle.clone().with_status(ConnectionStatus::Closed);
+>>>>>>> origin/polecat/synth-mnw6kj8v
     assert!(!closed.is_idle());
     assert!(!closed.is_checked_out());
     assert!(closed.is_closed());
@@ -633,9 +637,13 @@ fn rq_pool_stats_invariant_violation() {
     // 5 + 10 + 5 = 20 > total_connections (5)
     let stats = PoolStats {
         pool_id: PoolId::new("test-pool"),
+<<<<<<< HEAD
         total_connections: 5,
+=======
+        total_connections: 8,
+>>>>>>> origin/polecat/synth-mnw6kj8v
         idle_connections: 5,
-        checked_out_connections: 10, // More checked out than total!
+        checked_out_connections: 25, // More checked out than total!
         pending_acquires: 5,
         total_acquires: 0,
         total_releases: 0,

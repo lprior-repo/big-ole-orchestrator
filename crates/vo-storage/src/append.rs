@@ -273,6 +273,191 @@ impl QueueStats {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // BackpressureSignal
+<<<<<<< HEAD
+=======
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Signals for backpressure state changes.
+///
+/// Emitted when a queue transitions between non-full and full states,
+/// allowing downstream consumers to apply backpressure or release it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BackpressureEvent {
+    /// A queue became full and can no longer accept writes.
+    QueueFull {
+        class: WriteClass,
+        depth: usize,
+        capacity: usize,
+    },
+    /// A queue had capacity available after being full.
+    QueueWritable {
+        class: WriteClass,
+        remaining_capacity: usize,
+    },
+}
+
+/// Thread-safe backpressure signal that notifies observers of queue state changes.
+///
+/// Observers can use this to apply backpressure to producers when queues are full,
+/// and release it when capacity becomes available.
+#[derive(Debug)]
+pub struct BackpressureSignal {
+    critical_full: AtomicBool,
+    projection_full: AtomicBool,
+    blob_full: AtomicBool,
+    last_event: Mutex<Option<BackpressureEvent>>,
+}
+
+impl BackpressureSignal {
+    /// Creates a new backpressure signal with all queues initially not full.
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            critical_full: AtomicBool::new(false),
+            projection_full: AtomicBool::new(false),
+            blob_full: AtomicBool::new(false),
+            last_event: Mutex::new(None),
+        }
+    }
+
+    /// Returns `true` if the queue for the given class is experiencing backpressure.
+    #[must_use]
+    pub fn is_backpressured(&self, class: WriteClass) -> bool {
+        match class {
+            WriteClass::CriticalControlPlane => self.critical_full.load(Ordering::SeqCst),
+            WriteClass::OperatorProjection => self.projection_full.load(Ordering::SeqCst),
+            WriteClass::BulkBlob => self.blob_full.load(Ordering::SeqCst),
+        }
+    }
+
+    /// Returns `true` if any queue is experiencing backpressure.
+    #[must_use]
+    pub fn any_backpressured(&self) -> bool {
+        self.critical_full.load(Ordering::SeqCst)
+            || self.projection_full.load(Ordering::SeqCst)
+            || self.blob_full.load(Ordering::SeqCst)
+    }
+
+    /// Returns the most recent backpressure event, if any.
+    #[must_use]
+    pub fn last_event(&self) -> Option<BackpressureEvent> {
+        #[expect(clippy::unwrap_used)]
+        self.last_event.lock().unwrap().clone()
+    }
+
+    /// Called when a queue becomes full.
+    pub(crate) fn set_full(&self, class: WriteClass, depth: usize, capacity: usize) {
+        let was_full = match class {
+            WriteClass::CriticalControlPlane => self.critical_full.swap(true, Ordering::SeqCst),
+            WriteClass::OperatorProjection => self.projection_full.swap(true, Ordering::SeqCst),
+            WriteClass::BulkBlob => self.blob_full.swap(true, Ordering::SeqCst),
+        };
+
+        if !was_full {
+            let event = BackpressureEvent::QueueFull {
+                class,
+                depth,
+                capacity,
+            };
+            *self.last_event.lock().unwrap() = Some(event);
+        }
+    }
+
+    /// Called when a queue becomes writable (was full, now has capacity).
+    pub(crate) fn set_writable(&self, class: WriteClass, remaining_capacity: usize) {
+        let was_full = match class {
+            WriteClass::CriticalControlPlane => self.critical_full.swap(false, Ordering::SeqCst),
+            WriteClass::OperatorProjection => self.projection_full.swap(false, Ordering::SeqCst),
+            WriteClass::BulkBlob => self.blob_full.swap(false, Ordering::SeqCst),
+        };
+
+        if was_full {
+            let event = BackpressureEvent::QueueWritable {
+                class,
+                remaining_capacity,
+            };
+            *self.last_event.lock().unwrap() = Some(event);
+        }
+    }
+
+    /// Returns `true` if writes of this class should be rejected due to backpressure.
+    ///
+    /// Note: `CriticalControlPlane` writes are never rejected due to backpressure
+    /// per ADR-032 (they must never be dropped).
+    #[must_use]
+    pub fn should_reject(&self, class: WriteClass) -> bool {
+        match class {
+            WriteClass::CriticalControlPlane => false,
+            WriteClass::OperatorProjection | WriteClass::BulkBlob => self.is_backpressured(class),
+        }
+    }
+}
+
+impl Default for BackpressureSignal {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CommitLatencyTracker
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Tracks commit latency for monitoring and backpressure decisions.
+#[derive(Debug, Default)]
+pub struct CommitLatencyTracker {
+    last_commit_at: Mutex<Option<Instant>>,
+    sample_count: Mutex<u64>,
+    total_latency_ms: Mutex<u128>,
+}
+
+impl CommitLatencyTracker {
+    /// Records a commit completion with the given latency in milliseconds.
+    pub fn record_commit(&self, latency_ms: u64) {
+        #[expect(clippy::unwrap_used)]
+        let mut last_commit = self.last_commit_at.lock().unwrap();
+        *last_commit = Some(Instant::now());
+
+        #[expect(clippy::unwrap_used)]
+        let mut count = self.sample_count.lock().unwrap();
+        *count += 1;
+
+        #[expect(clippy::unwrap_used)]
+        let mut total = self.total_latency_ms.lock().unwrap();
+        *total += latency_ms as u128;
+    }
+
+    /// Returns the time since the last commit, if any.
+    #[must_use]
+    pub fn time_since_last_commit(&self) -> Option<std::time::Duration> {
+        #[expect(clippy::unwrap_used)]
+        let last_commit = self.last_commit_at.lock().unwrap();
+        last_commit.map(|instant| instant.elapsed())
+    }
+
+    /// Returns the average commit latency in milliseconds, if samples exist.
+    #[must_use]
+    pub fn average_latency_ms(&self) -> Option<u64> {
+        #[expect(clippy::unwrap_used)]
+        let count = *self.sample_count.lock().unwrap();
+        if count == 0 {
+            return None;
+        }
+        #[expect(clippy::unwrap_used)]
+        let total = *self.total_latency_ms.lock().unwrap();
+        Some((total / count as u128) as u64)
+    }
+
+    #[must_use]
+    pub fn sample_count(&self) -> u64 {
+        #[expect(clippy::unwrap_used)]
+        *self.sample_count.lock().unwrap()
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BudgetQueues
+>>>>>>> origin/polecat/synth-mnw6kj8v
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Signals for backpressure state changes.
@@ -596,7 +781,11 @@ impl<T> BudgetQueues<T> {
     /// This constructor allows multiple `BudgetQueues` instances to share the same
     /// backpressure signal, useful when coordinating multiple queue subsystems.
     pub fn new_with_backpressure(
+<<<<<<< HEAD
         config: &QueueConfig,
+=======
+        config: QueueConfig,
+>>>>>>> origin/polecat/synth-mnw6kj8v
         budget: WriteBudget,
         backpressure: Arc<BackpressureSignal>,
     ) -> Self {
@@ -633,7 +822,11 @@ impl<T> BudgetQueues<T> {
 
     /// Returns a reference to the backpressure signal.
     #[must_use]
+<<<<<<< HEAD
     pub const fn backpressure(&self) -> &Arc<BackpressureSignal> {
+=======
+    pub fn backpressure(&self) -> &Arc<BackpressureSignal> {
+>>>>>>> origin/polecat/synth-mnw6kj8v
         &self.backpressure
     }
 
@@ -676,7 +869,10 @@ impl<T> BudgetQueues<T> {
             if q.is_full() {
                 let depth = q.len();
                 let capacity = q.capacity();
+<<<<<<< HEAD
                 emit_rejection(class, "queue_full");
+=======
+>>>>>>> origin/polecat/synth-mnw6kj8v
                 self.backpressure.set_full(class, depth, capacity);
                 return Err(BudgetQueuesError::QueueFull {
                     class,
@@ -689,7 +885,10 @@ impl<T> BudgetQueues<T> {
 
         // If overflow, return error
         if overflow.is_some() {
+<<<<<<< HEAD
             emit_rejection(class, "queue_full");
+=======
+>>>>>>> origin/polecat/synth-mnw6kj8v
             let depth = match self.stats.lock() {
                 Ok(guard) => guard.depth(class),
                 Err(poisoned) => poisoned.into_inner().depth(class),
@@ -722,16 +921,24 @@ impl<T> BudgetQueues<T> {
         }
 
         // Update stats
+<<<<<<< HEAD
         let new_depth = {
+=======
+        {
+>>>>>>> origin/polecat/synth-mnw6kj8v
             let mut guard = match self.stats.lock() {
                 Ok(guard) => guard,
                 Err(poisoned) => poisoned.into_inner(),
             };
             guard.increment(class);
+<<<<<<< HEAD
             guard.depth(class)
         };
 
         emit_queue_depth(class, new_depth);
+=======
+        }
+>>>>>>> origin/polecat/synth-mnw6kj8v
 
         Ok(())
     }
@@ -739,10 +946,14 @@ impl<T> BudgetQueues<T> {
     /// Dequeues an item from the front of the specified queue.
     ///
     /// Emits backpressure signals when queues transition from full to having capacity.
+<<<<<<< HEAD
     pub fn dequeue(&self, class: WriteClass) -> Option<T>
     where
         T: ClassifiedWrite,
     {
+=======
+    pub fn dequeue(&self, class: WriteClass) -> Option<T> {
+>>>>>>> origin/polecat/synth-mnw6kj8v
         let queue: &Mutex<InnerQueue<T>> = match class {
             WriteClass::CriticalControlPlane => &self.critical_queue,
             WriteClass::OperatorProjection => &self.projection_queue,
@@ -762,6 +973,7 @@ impl<T> BudgetQueues<T> {
                 Err(poisoned) => poisoned.into_inner().is_full(class),
             };
 
+<<<<<<< HEAD
             let new_depth = {
                 let mut guard = match self.stats.lock() {
                     Ok(guard) => guard,
@@ -779,21 +991,42 @@ impl<T> BudgetQueues<T> {
                     Err(poisoned) => poisoned.into_inner().remaining(class),
                 };
                 self.backpressure.set_writable(class, remaining);
+=======
+            match self.stats.lock() {
+                Ok(mut guard) => guard.decrement(class),
+                Err(poisoned) => poisoned.into_inner().decrement(class),
+>>>>>>> origin/polecat/synth-mnw6kj8v
+            }
+
+            if was_full {
+                let remaining = match self.stats.lock() {
+                    Ok(guard) => guard.remaining(class),
+                    Err(poisoned) => poisoned.into_inner().remaining(class),
+                };
+                self.backpressure.set_writable(class, remaining);
             }
         }
         item
     }
 
+<<<<<<< HEAD
     /// Dequeues items in priority order: `CriticalControlPlane` → `OperatorProjection` → `BulkBlob`.
+=======
+    /// Dequeues items in priority order: CriticalControlPlane → OperatorProjection → BulkBlob.
+>>>>>>> origin/polecat/synth-mnw6kj8v
     ///
     /// Returns the next item available in priority order, or `None` if all queues are empty.
     ///
     /// This method implements ADR-032 priority-based write ordering, ensuring that
     /// critical control-plane writes are always serviced before lower-priority writes.
+<<<<<<< HEAD
     pub fn dequeue_prioritized(&self) -> Option<(WriteClass, T)>
     where
         T: ClassifiedWrite,
     {
+=======
+    pub fn dequeue_prioritized(&self) -> Option<(WriteClass, T)> {
+>>>>>>> origin/polecat/synth-mnw6kj8v
         // Try critical first (highest priority)
         if let Some(item) = self.dequeue(WriteClass::CriticalControlPlane) {
             return Some((WriteClass::CriticalControlPlane, item));
@@ -961,7 +1194,11 @@ impl Appender {
     }
 
     #[must_use]
+<<<<<<< HEAD
     pub const fn backpressure(&self) -> &Arc<BackpressureSignal> {
+=======
+    pub fn backpressure(&self) -> &Arc<BackpressureSignal> {
+>>>>>>> origin/polecat/synth-mnw6kj8v
         self.queues.backpressure()
     }
 
@@ -1303,7 +1540,11 @@ mod tests {
             blob_capacity: 1,
         };
         let budget = WriteBudget::new(10000, 10000, 10000);
+<<<<<<< HEAD
         let queues = BudgetQueues::new(&config, budget);
+=======
+        let queues = BudgetQueues::new(config, budget);
+>>>>>>> origin/polecat/synth-mnw6kj8v
 
         let event = EventEnvelope {
             schema_version: 1,
@@ -1338,7 +1579,11 @@ mod tests {
             blob_capacity: 1,
         };
         let budget = WriteBudget::new(10000, 10000, 10000);
+<<<<<<< HEAD
         let queues = BudgetQueues::new(&config, budget);
+=======
+        let queues = BudgetQueues::new(config, budget);
+>>>>>>> origin/polecat/synth-mnw6kj8v
 
         let event = EventEnvelope {
             schema_version: 1,
@@ -1378,7 +1623,11 @@ mod tests {
     fn dequeue_prioritized_returns_critical_first() {
         let config = QueueConfig::default();
         let budget = WriteBudget::new(10000, 10000, 10000);
+<<<<<<< HEAD
         let queues = BudgetQueues::new(&config, budget);
+=======
+        let queues = BudgetQueues::new(config, budget);
+>>>>>>> origin/polecat/synth-mnw6kj8v
 
         let event = EventEnvelope {
             schema_version: 1,
@@ -1429,7 +1678,11 @@ mod tests {
     fn dequeue_prioritized_skips_empty_queues() {
         let config = QueueConfig::default();
         let budget = WriteBudget::new(10000, 10000, 10000);
+<<<<<<< HEAD
         let queues = BudgetQueues::new(&config, budget);
+=======
+        let queues = BudgetQueues::new(config, budget);
+>>>>>>> origin/polecat/synth-mnw6kj8v
 
         let event = EventEnvelope {
             schema_version: 1,
@@ -1473,7 +1726,11 @@ mod tests {
             blob_capacity: 1,
         };
         let budget = WriteBudget::new(10000, 10000, 10000);
+<<<<<<< HEAD
         let appender = Appender::new(&config, budget);
+=======
+        let appender = Appender::new(config, budget);
+>>>>>>> origin/polecat/synth-mnw6kj8v
 
         let signal = appender.backpressure().clone();
 
@@ -1505,6 +1762,7 @@ mod tests {
         // Backpressure should be set on projection
         assert!(signal.is_backpressured(WriteClass::OperatorProjection));
     }
+<<<<<<< HEAD
 
     use serial_test::serial;
 
@@ -1633,4 +1891,6 @@ mod tests {
             "expected budget_exceeded rejection counter"
         );
     }
+=======
+>>>>>>> origin/polecat/synth-mnw6kj8v
 }

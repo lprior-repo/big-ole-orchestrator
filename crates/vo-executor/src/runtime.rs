@@ -13,12 +13,30 @@ pub struct Runtime {
     handle: Handle,
 }
 
+<<<<<<< HEAD
 #[derive(Debug, Clone, thiserror::Error)]
 pub enum RuntimeError {
     #[error("failed to build runtime: {0}")]
     BuildFailed(String),
 }
 
+=======
+#[derive(Debug, Clone)]
+pub enum RuntimeError {
+    BuildFailed(String),
+}
+
+impl std::fmt::Display for RuntimeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RuntimeError::BuildFailed(msg) => write!(f, "Failed to build runtime: {}", msg),
+        }
+    }
+}
+
+impl std::error::Error for RuntimeError {}
+
+>>>>>>> origin/polecat/synth-mnw6kj8v
 impl Runtime {
     pub fn new() -> Result<Self, RuntimeError> {
         let runtime = Builder::new_current_thread()
@@ -43,9 +61,13 @@ impl Runtime {
         timeout_ms: u64,
     ) -> Result<StepResult, ExecuteNodeError> {
         let step_id_clone = step_id.clone();
+<<<<<<< HEAD
         self.block_on(
             async move { crate::execution::execute_step(step_id_clone, timeout_ms).await },
         )
+=======
+        self.block_on(async move { crate::execution::execute_step(step_id_clone, timeout_ms).await })
+>>>>>>> origin/polecat/synth-mnw6kj8v
     }
 
     pub fn execute_step_with_retry_sync(
@@ -57,8 +79,12 @@ impl Runtime {
         let step_id_clone = step_id.clone();
         let retry_policy_clone = retry_policy.clone();
         self.block_on(async move {
+<<<<<<< HEAD
             crate::execution::execute_step_with_retry(step_id_clone, timeout_ms, retry_policy_clone)
                 .await
+=======
+            crate::execution::execute_step_with_retry(step_id_clone, timeout_ms, retry_policy_clone).await
+>>>>>>> origin/polecat/synth-mnw6kj8v
         })
     }
 
@@ -90,13 +116,21 @@ pub struct StepContext {
 
 impl StepContext {
     pub fn new(step_id: StepId) -> Result<Self, ContextError> {
+<<<<<<< HEAD
         let runtime = Runtime::new()?;
+=======
+        let runtime = Runtime::new().map_err(ContextError::RuntimeInitFailed)?;
+>>>>>>> origin/polecat/synth-mnw6kj8v
         Ok(Self { step_id, runtime })
     }
 
     pub fn execute(&self, timeout_ms: u64) -> Result<StepResult, ExecuteNodeError> {
+<<<<<<< HEAD
         self.runtime
             .execute_step_sync(self.step_id.clone(), timeout_ms)
+=======
+        self.runtime.execute_step_sync(self.step_id.clone(), timeout_ms)
+>>>>>>> origin/polecat/synth-mnw6kj8v
     }
 
     pub fn execute_with_retry(
@@ -104,8 +138,12 @@ impl StepContext {
         timeout_ms: u64,
         retry_policy: RetryPolicy,
     ) -> Result<StepResult, ExecuteNodeError> {
+<<<<<<< HEAD
         self.runtime
             .execute_step_with_retry_sync(self.step_id.clone(), timeout_ms, retry_policy)
+=======
+        self.runtime.execute_step_with_retry_sync(self.step_id.clone(), timeout_ms, retry_policy)
+>>>>>>> origin/polecat/synth-mnw6kj8v
     }
 
     pub fn status(&self) -> ExecutionStatus {
@@ -121,17 +159,36 @@ impl StepContext {
     }
 }
 
+<<<<<<< HEAD
 #[derive(Debug, Clone, thiserror::Error)]
 pub enum ContextError {
     #[error("failed to initialize context: {0}")]
     RuntimeInitFailed(#[from] RuntimeError),
 }
 
+=======
+#[derive(Debug, Clone)]
+pub enum ContextError {
+    RuntimeInitFailed(RuntimeError),
+}
+
+impl std::fmt::Display for ContextError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ContextError::RuntimeInitFailed(e) => write!(f, "Failed to initialize context: {}", e),
+        }
+    }
+}
+
+impl std::error::Error for ContextError {}
+
+>>>>>>> origin/polecat/synth-mnw6kj8v
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::errors::RetryPolicyError;
     use crate::reset_all_state;
+<<<<<<< HEAD
     use std::sync::LazyLock;
     use std::sync::Mutex;
     use std::sync::MutexGuard;
@@ -142,47 +199,84 @@ mod tests {
         let guard = STATE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         reset_all_state();
         guard
+=======
+
+    fn reset_state() {
+        reset_all_state();
+>>>>>>> origin/polecat/synth-mnw6kj8v
     }
 
     #[test]
     fn runtime_creation() {
         let runtime = Runtime::new();
         assert!(runtime.is_ok());
+<<<<<<< HEAD
         let _guard = reset_state();
+=======
+        reset_state();
+>>>>>>> origin/polecat/synth-mnw6kj8v
     }
 
     #[test]
     fn runtime_execute_step_success() {
+<<<<<<< HEAD
         let _guard = reset_state();
+=======
+        reset_state();
+>>>>>>> origin/polecat/synth-mnw6kj8v
         let runtime = Runtime::new().unwrap();
         let result = runtime.execute_step_sync(StepId::new("step-1".to_string()), 5000);
         assert!(result.is_ok());
         assert!(result.unwrap().is_success());
+<<<<<<< HEAD
         let _guard = reset_state();
+=======
+        reset_state();
+>>>>>>> origin/polecat/synth-mnw6kj8v
     }
 
     #[test]
     fn runtime_execute_step_failure() {
+<<<<<<< HEAD
         let _guard = reset_state();
+=======
+        reset_state();
+>>>>>>> origin/polecat/synth-mnw6kj8v
         let runtime = Runtime::new().unwrap();
         let result = runtime.execute_step_sync(StepId::new("step-fail".to_string()), 5000);
         assert!(result.is_ok());
         assert!(!result.unwrap().is_success());
+<<<<<<< HEAD
         let _guard = reset_state();
+=======
+        reset_state();
+>>>>>>> origin/polecat/synth-mnw6kj8v
     }
 
     #[test]
     fn runtime_execute_step_not_found() {
+<<<<<<< HEAD
         let _guard = reset_state();
         let runtime = Runtime::new().unwrap();
         let result = runtime.execute_step_sync(StepId::new("nonexistent-step".to_string()), 5000);
         assert!(result.is_err());
         let _guard = reset_state();
+=======
+        reset_state();
+        let runtime = Runtime::new().unwrap();
+        let result = runtime.execute_step_sync(StepId::new("nonexistent-step".to_string()), 5000);
+        assert!(result.is_err());
+        reset_state();
+>>>>>>> origin/polecat/synth-mnw6kj8v
     }
 
     #[test]
     fn runtime_execute_with_retry_success() {
+<<<<<<< HEAD
         let _guard = reset_state();
+=======
+        reset_state();
+>>>>>>> origin/polecat/synth-mnw6kj8v
         let runtime = Runtime::new().unwrap();
         let retry_policy = RetryPolicy::new(3, 100, 2.0).unwrap();
         let result = runtime.execute_step_with_retry_sync(
@@ -191,56 +285,103 @@ mod tests {
             retry_policy,
         );
         assert!(result.is_ok());
+<<<<<<< HEAD
         let _guard = reset_state();
+=======
+        reset_state();
+>>>>>>> origin/polecat/synth-mnw6kj8v
     }
 
     #[test]
     fn runtime_get_status() {
+<<<<<<< HEAD
         let _guard = reset_state();
         let runtime = Runtime::new().unwrap();
         let status = runtime.get_status(&StepId::new("step-1".to_string()));
         assert_eq!(status, ExecutionStatus::Ready);
         let _guard = reset_state();
+=======
+        reset_state();
+        let runtime = Runtime::new().unwrap();
+        let status = runtime.get_status(&StepId::new("step-1".to_string()));
+        assert_eq!(status, ExecutionStatus::Ready);
+        reset_state();
+>>>>>>> origin/polecat/synth-mnw6kj8v
     }
 
     #[test]
     fn runtime_cancel() {
+<<<<<<< HEAD
         let _guard = reset_state();
         let runtime = Runtime::new().unwrap();
         let result = runtime.cancel(StepId::new("step-1".to_string()));
         assert!(result.is_ok());
         let _guard = reset_state();
+=======
+        reset_state();
+        let runtime = Runtime::new().unwrap();
+        let result = runtime.cancel(StepId::new("step-1".to_string()));
+        assert!(result.is_ok());
+        reset_state();
+>>>>>>> origin/polecat/synth-mnw6kj8v
     }
 
     #[test]
     fn step_context_creation() {
+<<<<<<< HEAD
         let _guard = reset_state();
         let context = StepContext::new(StepId::new("step-1".to_string()));
         assert!(context.is_ok());
         let _guard = reset_state();
+=======
+        reset_state();
+        let context = StepContext::new(StepId::new("step-1".to_string()));
+        assert!(context.is_ok());
+        reset_state();
+>>>>>>> origin/polecat/synth-mnw6kj8v
     }
 
     #[test]
     fn step_context_execute() {
+<<<<<<< HEAD
         let _guard = reset_state();
         let context = StepContext::new(StepId::new("step-1".to_string())).unwrap();
         let result = context.execute(5000);
         assert!(result.is_ok());
         let _guard = reset_state();
+=======
+        reset_state();
+        let context = StepContext::new(StepId::new("step-1".to_string())).unwrap();
+        let result = context.execute(5000);
+        assert!(result.is_ok());
+        reset_state();
+>>>>>>> origin/polecat/synth-mnw6kj8v
     }
 
     #[test]
     fn step_context_status() {
+<<<<<<< HEAD
         let _guard = reset_state();
         let context = StepContext::new(StepId::new("step-1".to_string())).unwrap();
         let status = context.status();
         assert_eq!(status, ExecutionStatus::Ready);
         let _guard = reset_state();
+=======
+        reset_state();
+        let context = StepContext::new(StepId::new("step-1".to_string())).unwrap();
+        let status = context.status();
+        assert_eq!(status, ExecutionStatus::Ready);
+        reset_state();
+>>>>>>> origin/polecat/synth-mnw6kj8v
     }
 
     #[test]
     fn invalid_timeout_rejected() {
+<<<<<<< HEAD
         let _guard = reset_state();
+=======
+        reset_state();
+>>>>>>> origin/polecat/synth-mnw6kj8v
         let runtime = Runtime::new().unwrap();
         let result = runtime.execute_step_sync(StepId::new("step-1".to_string()), 0);
         assert!(result.is_err());
@@ -248,7 +389,11 @@ mod tests {
             ExecuteNodeError::InvalidTimeout { .. } => {}
             _ => panic!("Expected InvalidTimeout error"),
         }
+<<<<<<< HEAD
         let _guard = reset_state();
+=======
+        reset_state();
+>>>>>>> origin/polecat/synth-mnw6kj8v
     }
 
     #[test]

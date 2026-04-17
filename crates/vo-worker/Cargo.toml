@@ -36,9 +36,12 @@ ulid = { workspace = true }
 # HTTP
 reqwest = { workspace = true }
 
+<<<<<<< HEAD
 # CRC
 crc32fast = "1.4"
 
+=======
+>>>>>>> origin/polecat/synth-mnw6kj8v
 [dev-dependencies]
 anyhow = { workspace = true }
 <<<<<<< HEAD

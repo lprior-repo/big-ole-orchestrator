@@ -1,9 +1,16 @@
 //! Idempotency-key HTTP connector (ADR-041).
 
+<<<<<<< HEAD
 use crate::connector::{
     CommitOutcome, Connector, ConnectorError, PreparedEffect, ReconcileOutcome,
 };
 use async_trait::async_trait;
+=======
+use async_trait::async_trait;
+use crate::connector::{
+    CommitOutcome, Connector, ConnectorError, PreparedEffect, ReconcileOutcome,
+};
+>>>>>>> origin/polecat/synth-mnw6kj8v
 
 /// HTTP connector with idempotency-key support for REST APIs.
 pub struct HttpConnector {
@@ -52,11 +59,24 @@ impl Connector for HttpConnector {
         })
     }
 
+<<<<<<< HEAD
     async fn commit(&self, prepared: PreparedEffect) -> Result<CommitOutcome, ConnectorError> {
         let url = prepared.payload["base_url"]
             .as_str()
             .unwrap_or(&self.base_url);
         let idempotency_key = prepared.payload["idempotency_key"].as_str().unwrap_or("");
+=======
+    async fn commit(
+        &self,
+        prepared: PreparedEffect,
+    ) -> Result<CommitOutcome, ConnectorError> {
+        let url = prepared.payload["base_url"]
+            .as_str()
+            .unwrap_or(&self.base_url);
+        let idempotency_key = prepared.payload["idempotency_key"]
+            .as_str()
+            .unwrap_or("");
+>>>>>>> origin/polecat/synth-mnw6kj8v
 
         let request_data = &prepared.payload["request"];
 
@@ -71,22 +91,30 @@ impl Connector for HttpConnector {
             "PUT" => self.client.put(&full_url),
             "DELETE" => self.client.delete(&full_url),
             "PATCH" => self.client.patch(&full_url),
+<<<<<<< HEAD
             _ => {
                 return Err(ConnectorError::terminal(format!(
                     "unsupported HTTP method: {}",
                     method
                 )))
             }
+=======
+            _ => return Err(ConnectorError::terminal(format!("unsupported HTTP method: {}", method))),
+>>>>>>> origin/polecat/synth-mnw6kj8v
         };
 
         let response = req_builder
             .header("Idempotency-Key", idempotency_key)
+<<<<<<< HEAD
             .json(
                 &request_data
                     .get("body")
                     .cloned()
                     .unwrap_or(serde_json::Value::Null),
             )
+=======
+            .json(&request_data.get("body").cloned().unwrap_or(serde_json::Value::Null))
+>>>>>>> origin/polecat/synth-mnw6kj8v
             .send()
             .await
             .map_err(|e| classify_http_error(&e))?;
@@ -98,17 +126,31 @@ impl Connector for HttpConnector {
             409 => Ok(CommitOutcome::Ambiguous),
             429 => Err(ConnectorError::retryable("rate limited")),
             400..=499 => Err(ConnectorError::terminal(format!(
+<<<<<<< HEAD
                 "client error: {}",
                 response.status()
             ))),
             _ => Err(ConnectorError::retryable(format!(
                 "server error: {}",
                 response.status()
+=======
+                "client error: {}", response.status()
+            ))),
+            _ => Err(ConnectorError::retryable(format!(
+                "server error: {}", response.status()
+>>>>>>> origin/polecat/synth-mnw6kj8v
             ))),
         }
     }
 
+<<<<<<< HEAD
     async fn reconcile(&self, effect_id: &str) -> Result<ReconcileOutcome, ConnectorError> {
+=======
+    async fn reconcile(
+        &self,
+        effect_id: &str,
+    ) -> Result<ReconcileOutcome, ConnectorError> {
+>>>>>>> origin/polecat/synth-mnw6kj8v
         // For HTTP connectors with idempotency keys, we can't reliably
         // determine if a request was processed. Return StillAmbiguous
         // to trigger retry with the same idempotency key.
@@ -126,6 +168,7 @@ fn classify_http_error(err: &reqwest::Error) -> ConnectorError {
         ConnectorError::retryable(err.to_string())
     }
 }
+<<<<<<< HEAD
 
 #[cfg(test)]
 mod tests {
@@ -406,3 +449,5 @@ mod tests {
         assert!(matches!(outcome, ReconcileOutcome::StillAmbiguous));
     }
 }
+=======
+>>>>>>> origin/polecat/synth-mnw6kj8v

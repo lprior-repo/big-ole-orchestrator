@@ -41,6 +41,7 @@
 pub mod dag;
 pub mod graph;
 pub mod node_handle;
+<<<<<<< HEAD
 
 pub use dag::Workflow;
 pub use graph::{
@@ -48,6 +49,15 @@ pub use graph::{
     ValidationError, WorkflowSpec,
 };
 pub mod io;
+=======
+pub use dag::Workflow;
+pub use graph_args::{
+    emit_graph_if_requested, parse_graph_args, EdgeSpec, GraphArgs, GraphArgsError, NodeSpec,
+    WorkflowSpec,
+};
+mod read;
+mod write;
+>>>>>>> origin/polecat/synth-mnw6kj8v
 
 #[cfg(test)]
 mod tests;

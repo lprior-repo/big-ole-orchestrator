@@ -4,7 +4,10 @@
 =======
 use std::collections::HashSet;
 use std::fmt;
+<<<<<<< HEAD
 >>>>>>> origin/vo-worker-tests
+=======
+>>>>>>> origin/polecat/synth-mnw6kj8v
 use std::io::Write;
 
 use serde::{Deserialize, Serialize};
@@ -124,6 +127,7 @@ pub struct EdgeSpec {
     pub to: NodeName,
 }
 
+<<<<<<< HEAD
 /// Internal representation for deserialization (bypasses validation).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 struct WorkflowSpecRaw {
@@ -145,6 +149,14 @@ struct WorkflowSpecRaw {
 /// being created via serde bypass.
 >>>>>>> origin/vo-worker-tests
 #[derive(Debug, Clone, PartialEq, Serialize)]
+=======
+/// Full workflow graph specification produced by `--graph` (ADR-004, ADR-009, ADR-031).
+///
+/// This is the canonical workflow representation emitted by the SDK when
+/// `./binary --graph` is invoked. The Engine validates, hashes, and stores
+/// this spec as a workflow version.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+>>>>>>> origin/polecat/synth-mnw6kj8v
 pub struct WorkflowSpec {
     pub workflow_name: WorkflowName,
     pub nodes: Vec<NodeSpec>,
@@ -505,6 +517,60 @@ pub fn emit_graph_if_requested(args: &[String], spec: &WorkflowSpec) -> Result<(
                 eprintln!("error: cycle detected: {}", cycle);
                 std::process::exit(1);
             }
+            let json = spec.to_json_bytes();
+            std::io::stdout()
+                .write_all(&json)
+                .expect("stdout write should not fail");
+            std::process::exit(0);
+        }
+        Err(GraphArgsError::NoGraphFlag) => Ok(()),
+        Err(e) => {
+            eprintln!("error: {e}");
+            Err(())
+        }
+    }
+}
+
+impl WorkflowSpec {
+    /// Serialize to JSON bytes for `--graph` emission.
+    #[must_use]
+    pub fn to_json_bytes(&self) -> Vec<u8> {
+        serde_json::to_vec(self).expect("WorkflowSpec is always serializable")
+    }
+}
+
+/// Full workflow graph specification produced by `--graph`.
+#[deprecated(
+    since = "0.1.0",
+    note = "Use `WorkflowSpec` instead. This type is kept for backward compatibility."
+)]
+pub type GraphWorkflowSpec = WorkflowSpec;
+
+/// Emit the workflow spec as JSON to stdout and exit.
+///
+/// This function is called when the binary is invoked with `--graph`.
+/// It serializes the `WorkflowSpec` to JSON, prints it to stdout,
+/// and exits with code 0.
+///
+/// # Example
+///
+/// ```ignore
+/// fn main() {
+///     let args: Vec<String> = std::env::args().collect();
+///     if let Err(()) = vo_sdk::emit_graph_if_requested(&args, workflow_spec) {
+///         std::process::exit(1);
+///     }
+/// }
+/// ```
+///
+/// # Errors
+///
+/// Returns `()` if `--graph` was not present. If `--graph` was present,
+/// this function always terminates the process.
+#[allow(clippy::result_unit_err)]
+pub fn emit_graph_if_requested(args: &[String], spec: &WorkflowSpec) -> Result<(), ()> {
+    match parse_graph_args(args) {
+        Ok(_graph_args) => {
             let json = spec.to_json_bytes();
             std::io::stdout()
                 .write_all(&json)

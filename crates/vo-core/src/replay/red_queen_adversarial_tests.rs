@@ -6,7 +6,10 @@
 use super::engine::ReplayEngine;
 use super::test_helpers::*;
 use super::types::ReplayError;
+<<<<<<< HEAD
 use vo_types::events::EventEnvelope;
+=======
+>>>>>>> origin/polecat/synth-mnw6kj8v
 use vo_types::state::LifecycleState;
 
 #[cfg(test)]
@@ -506,6 +509,7 @@ mod adversarial_transitions {
         assert_eq!(result.events_applied, 5);
     }
 }
+<<<<<<< HEAD
 
 #[cfg(test)]
 mod corrupted_payload_injection {
@@ -1648,3 +1652,5 @@ mod memory_pressure_aggressive {
         assert_eq!(result.final_state, Some(LifecycleState::StepScheduled));
     }
 }
+=======
+>>>>>>> origin/polecat/synth-mnw6kj8v

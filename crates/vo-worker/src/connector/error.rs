@@ -1,6 +1,10 @@
 //! Connector error classification (retryable vs terminal).
 
+<<<<<<< HEAD
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+=======
+#[derive(Debug, thiserror::Error)]
+>>>>>>> origin/polecat/synth-mnw6kj8v
 pub enum ConnectorError {
     #[error("retryable connector error: {0}")]
     Retryable(String),
@@ -27,6 +31,7 @@ impl ConnectorError {
         matches!(self, Self::Retryable(_) | Self::CompensationNotSupported(_))
     }
 }
+<<<<<<< HEAD
 
 #[cfg(test)]
 mod tests {
@@ -94,3 +99,5 @@ mod tests {
         assert!(!err.is_retryable());
     }
 }
+=======
+>>>>>>> origin/polecat/synth-mnw6kj8v

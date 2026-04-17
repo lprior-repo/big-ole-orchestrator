@@ -13,9 +13,12 @@ mod tests;
 #[cfg(test)]
 mod red_queen_tests;
 
+<<<<<<< HEAD
 #[cfg(test)]
 mod integration_tests;
 
+=======
+>>>>>>> origin/polecat/synth-mnw6kj8v
 #[cfg(feature = "proptest")]
 mod proptests;
 

@@ -46,6 +46,7 @@ mod tests;
 // Data layer — error enum
 // ---------------------------------------------------------------------------
 
+<<<<<<< HEAD
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum RecoveryError {
     #[error("no snapshot available for instance {instance_id}")]
@@ -62,6 +63,45 @@ pub enum RecoveryError {
     CodecError { reason: String },
 }
 
+=======
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RecoveryError {
+    NoSnapshotAvailable { instance_id: InstanceId },
+    ThrottleExceeded { wait_ms: u64 },
+    RecoveryInProgress { instance_id: InstanceId },
+    InvalidRecoveryPoint { reason: String },
+    AppendError { reason: String },
+    CodecError { reason: String },
+}
+
+impl std::fmt::Display for RecoveryError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::NoSnapshotAvailable { instance_id } => {
+                write!(f, "no snapshot available for instance {instance_id}")
+            }
+            Self::ThrottleExceeded { wait_ms } => {
+                write!(f, "throttle exceeded, would wait {wait_ms}ms")
+            }
+            Self::RecoveryInProgress { instance_id } => {
+                write!(f, "recovery already in progress for instance {instance_id}")
+            }
+            Self::InvalidRecoveryPoint { reason } => {
+                write!(f, "invalid recovery point: {reason}")
+            }
+            Self::AppendError { reason } => {
+                write!(f, "append error during recovery: {reason}")
+            }
+            Self::CodecError { reason } => {
+                write!(f, "codec error during recovery: {reason}")
+            }
+        }
+    }
+}
+
+impl std::error::Error for RecoveryError {}
+
+>>>>>>> origin/polecat/synth-mnw6kj8v
 impl From<StorageError> for RecoveryError {
     fn from(e: StorageError) -> Self {
         match e {
@@ -151,7 +191,11 @@ impl RecoveryPoint {
 }
 
 fn select_best_recovery_point_impl(
+<<<<<<< HEAD
     partition: &fjall::Keyspace,
+=======
+    partition: &fjall::PartitionHandle,
+>>>>>>> origin/polecat/synth-mnw6kj8v
     instance_id: &InstanceId,
 ) -> Result<Option<RecoveryPoint>, StorageError> {
     let result = snapshot_load_latest(partition, instance_id)?;
@@ -220,6 +264,7 @@ impl ThrottleState {
     fn is_idle(&self) -> bool {
         self.active_recoveries.load(Ordering::Relaxed) == 0
     }
+<<<<<<< HEAD
 
     #[cfg(kani)]
     fn available_tokens_for_kani(&self) -> usize {
@@ -321,6 +366,8 @@ mod verification {
         state.try_acquire_slot();
         assert!(throttle_invariant(&state));
     }
+=======
+>>>>>>> origin/polecat/synth-mnw6kj8v
 }
 
 // ---------------------------------------------------------------------------
@@ -343,7 +390,11 @@ impl SnapshotRecovery {
 
     pub fn select_best_recovery_point(
         &self,
+<<<<<<< HEAD
         partition: &fjall::Keyspace,
+=======
+        partition: &fjall::PartitionHandle,
+>>>>>>> origin/polecat/synth-mnw6kj8v
         instance_id: &InstanceId,
     ) -> Result<RecoveryPoint, RecoveryError> {
         select_best_recovery_point_impl(partition, instance_id)?.ok_or_else(|| {

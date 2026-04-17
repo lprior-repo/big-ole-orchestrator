@@ -11,7 +11,11 @@
 use thiserror::Error;
 
 /// Top-level error type for projection operations.
+<<<<<<< HEAD
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
+=======
+#[derive(Debug, Clone, Error)]
+>>>>>>> origin/polecat/synth-mnw6kj8v
 pub enum ProjectionError {
     #[error("projection '{0}' not found")]
     ProjectionNotFound(String),
@@ -64,7 +68,11 @@ impl ProjectionError {
 }
 
 /// Errors from invalid projection state transitions.
+<<<<<<< HEAD
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
+=======
+#[derive(Debug, Clone, Error)]
+>>>>>>> origin/polecat/synth-mnw6kj8v
 pub enum ProjectionStateError {
     #[error("cannot transition from {from} to {to}")]
     InvalidTransition { from: String, to: String },
@@ -80,7 +88,11 @@ pub enum ProjectionStateError {
 }
 
 /// Schema version compatibility errors.
+<<<<<<< HEAD
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
+=======
+#[derive(Debug, Clone, Error)]
+>>>>>>> origin/polecat/synth-mnw6kj8v
 pub enum ProjectionVersionError {
     #[error("schema version {0} is stale, cannot be upcast")]
     StaleVersion(u8),
@@ -96,22 +108,35 @@ pub enum ProjectionVersionError {
 }
 
 /// Event replay errors during projection rebuild.
+<<<<<<< HEAD
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum ReplayError {
     #[error("instance ID mismatch: expected '{expected}', got '{actual}'")]
     InstanceMismatch { expected: String, actual: String },
     #[error("sequence gap at index {at_index}: expected {expected}, got {actual}")]
+=======
+#[derive(Debug, Clone)]
+pub enum ReplayError {
+    InstanceMismatch {
+        expected: String,
+        actual: String,
+    },
+>>>>>>> origin/polecat/synth-mnw6kj8v
     SequenceGap {
         expected: u64,
         actual: u64,
         at_index: usize,
     },
+<<<<<<< HEAD
     #[error("duplicate sequence {sequence} at indices {first} and {second}")]
+=======
+>>>>>>> origin/polecat/synth-mnw6kj8v
     SequenceDuplicate {
         sequence: u64,
         first: usize,
         second: usize,
     },
+<<<<<<< HEAD
     #[error("payload decode failed at sequence {sequence}: {detail}")]
     PayloadDecodeFailed { sequence: u64, detail: String },
     #[error("event type '{payload_type}' at sequence {sequence} has no mapping")]
@@ -122,6 +147,89 @@ pub enum ReplayError {
 
 /// Storage layer errors for projection persistence.
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
+=======
+    PayloadDecodeFailed {
+        sequence: u64,
+        source: String,
+    },
+    TransitionFailed {
+        sequence: u64,
+        state: String,
+        reason: String,
+    },
+    UnexpectedEventType {
+        payload_type: String,
+        sequence: u64,
+    },
+    UpcastFailed {
+        sequence: u64,
+        reason: String,
+    },
+}
+
+impl std::fmt::Display for ReplayError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::InstanceMismatch { expected, actual } => {
+                write!(
+                    f,
+                    "instance ID mismatch: expected '{expected}', got '{actual}'"
+                )
+            }
+            Self::SequenceGap {
+                expected,
+                actual,
+                at_index,
+            } => {
+                write!(
+                    f,
+                    "sequence gap at index {at_index}: expected {expected}, got {actual}"
+                )
+            }
+            Self::SequenceDuplicate {
+                sequence,
+                first,
+                second,
+            } => {
+                write!(
+                    f,
+                    "duplicate sequence {sequence} at indices {first} and {second}"
+                )
+            }
+            Self::PayloadDecodeFailed { sequence, source } => {
+                write!(f, "payload decode failed at sequence {sequence}: {source}")
+            }
+            Self::TransitionFailed {
+                sequence,
+                state,
+                reason,
+            } => {
+                write!(
+                    f,
+                    "transition failed at sequence {sequence} in state {state}: {reason}"
+                )
+            }
+            Self::UnexpectedEventType {
+                payload_type,
+                sequence,
+            } => {
+                write!(
+                    f,
+                    "event type '{payload_type}' at sequence {sequence} has no mapping"
+                )
+            }
+            Self::UpcastFailed { sequence, reason } => {
+                write!(f, "upcasting failed at sequence {sequence}: {reason}")
+            }
+        }
+    }
+}
+
+impl std::error::Error for ReplayError {}
+
+/// Storage layer errors for projection persistence.
+#[derive(Debug, Clone, Error)]
+>>>>>>> origin/polecat/synth-mnw6kj8v
 pub enum StorageError {
     #[error("record not found for projection '{0}'")]
     RecordNotFound(String),
@@ -161,6 +269,7 @@ impl From<StorageError> for ProjectionError {
             StorageError::DeserializationFailed(s) => Self::Storage(s),
             StorageError::CorruptRecord(s) => Self::Storage(s),
             StorageError::WriteFailed(s) => Self::Storage(s),
+<<<<<<< HEAD
             StorageError::BatchFull {
                 class,
                 depth,
@@ -175,6 +284,10 @@ impl From<StorageError> for ProjectionError {
             } => Self::Storage(format!(
                 "budget exceeded for class {class}: item size {item_size}, remaining {remaining}"
             )),
+=======
+            StorageError::BatchFull { .. } => Self::Storage(format!("{:?}", e)),
+            StorageError::BudgetExceeded { .. } => Self::Storage(format!("{:?}", e)),
+>>>>>>> origin/polecat/synth-mnw6kj8v
         }
     }
 }

@@ -12,6 +12,7 @@
 
 mod connector;
 <<<<<<< HEAD
+<<<<<<< HEAD
 pub use connector::{
     CommitOutcome, Connector, ConnectorError, ConnectorRegistry, HttpConnector, PreparedEffect,
     ReconcileOutcome,
@@ -21,6 +22,8 @@ pub use executor::{
     ExecutionOutcome, ManagedEffectError, ManagedEffectExecutor, ManagedEffectTask,
 };
 pub mod pool;
+=======
+>>>>>>> origin/polecat/synth-mnw6kj8v
 mod port;
 pub mod retry;
 pub mod storage;
@@ -324,6 +327,7 @@ mod connector_tests {
 
     #[async_trait::async_trait]
     impl Connector for NoopConnector {
+<<<<<<< HEAD
         fn connector_type(&self) -> &str {
             "noop"
         }
@@ -351,6 +355,24 @@ mod connector_tests {
             })
         }
         async fn reconcile(&self, _effect_id: &str) -> Result<ReconcileOutcome, ConnectorError> {
+=======
+        fn connector_type(&self) -> &str { "noop" }
+        fn connector_version(&self) -> &str { "0.1.0" }
+        fn supports_compensation(&self) -> bool { false }
+        async fn prepare(
+            &self, _intent: serde_json::Value, effect_id: String, fence: u64,
+        ) -> Result<PreparedEffect, ConnectorError> {
+            Ok(PreparedEffect { effect_id, payload: serde_json::json!({}), fence })
+        }
+        async fn commit(
+            &self, _prepared: PreparedEffect,
+        ) -> Result<CommitOutcome, ConnectorError> {
+            Ok(CommitOutcome::Committed { receipt: "noop".into() })
+        }
+        async fn reconcile(
+            &self, _effect_id: &str,
+        ) -> Result<ReconcileOutcome, ConnectorError> {
+>>>>>>> origin/polecat/synth-mnw6kj8v
             Ok(ReconcileOutcome::NotCommitted)
         }
     }
@@ -400,9 +422,13 @@ mod connector_tests {
 
     #[test]
     fn commit_outcome_variants() {
+<<<<<<< HEAD
         let _ = CommitOutcome::Committed {
             receipt: "r".into(),
         };
+=======
+        let _ = CommitOutcome::Committed { receipt: "r".into() };
+>>>>>>> origin/polecat/synth-mnw6kj8v
         let _ = CommitOutcome::Failed;
         let _ = CommitOutcome::Ambiguous;
     }
@@ -411,9 +437,13 @@ mod connector_tests {
     fn reconcile_outcome_maps_to_reconcile_action() {
         use vo_types::ReconcileAction;
         assert_eq!(
+<<<<<<< HEAD
             ReconcileAction::from(ReconcileOutcome::Committed {
                 receipt: "r".into()
             }),
+=======
+            ReconcileAction::from(ReconcileOutcome::Committed { receipt: "r".into() }),
+>>>>>>> origin/polecat/synth-mnw6kj8v
             ReconcileAction::Commit,
         );
         assert_eq!(
@@ -437,6 +467,7 @@ mod connector_tests {
     #[tokio::test]
     async fn noop_connector_prepare_commit_cycle() {
         let c = NoopConnector;
+<<<<<<< HEAD
         let pe = c
             .prepare(
                 serde_json::json!({"url": "https://example.com"}),
@@ -453,6 +484,12 @@ mod connector_tests {
                 receipt: "noop".into()
             }
         );
+=======
+        let pe = c.prepare(serde_json::json!({"url": "https://example.com"}), "fx-1".into(), 1).await.unwrap();
+        assert_eq!(pe.effect_id, "fx-1");
+        let outcome = c.commit(pe).await.unwrap();
+        assert_eq!(outcome, CommitOutcome::Committed { receipt: "noop".into() });
+>>>>>>> origin/polecat/synth-mnw6kj8v
     }
 
     #[tokio::test]
@@ -482,6 +519,7 @@ mod connector_tests {
     #[tokio::test]
     async fn http_connector_prepare_includes_idempotency_key() {
         let c = crate::connector::HttpConnector::new("https://api.example.com");
+<<<<<<< HEAD
         let pe = c
             .prepare(
                 serde_json::json!({"method": "POST", "path": "/charges"}),
@@ -490,6 +528,12 @@ mod connector_tests {
             )
             .await
             .unwrap();
+=======
+        let pe = c.prepare(
+            serde_json::json!({"method": "POST", "path": "/charges"}),
+            "fx-42".into(), 7,
+        ).await.unwrap();
+>>>>>>> origin/polecat/synth-mnw6kj8v
         assert_eq!(pe.effect_id, "fx-42");
         assert_eq!(pe.fence, 7);
         assert_eq!(pe.payload["idempotency_key"], "fx-42:7");

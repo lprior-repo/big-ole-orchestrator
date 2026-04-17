@@ -17,6 +17,12 @@ impl std::fmt::Debug for FjallEffectJournal {
     }
 }
 
+impl std::fmt::Debug for FjallEffectJournal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FjallEffectJournal").finish()
+    }
+}
+
 impl FjallEffectJournal {
     /// Opens a new effect journal backed by the given keyspace.
     ///
@@ -169,10 +175,16 @@ impl EffectJournal for FjallEffectJournal {
             let iter = self.partition.iter();
             let mut keys = Vec::new();
             for item in iter {
+<<<<<<< HEAD
                 let (key_bytes, value_bytes) =
                     item.into_inner().map_err(|e| EffectJournalError::Storage {
                         reason: e.to_string(),
                     })?;
+=======
+                let (key_bytes, value_bytes) = item.map_err(|e| EffectJournalError::Storage {
+                    reason: e.to_string(),
+                })?;
+>>>>>>> origin/polecat/synth-mnw6kj8v
 
                 let record = super::decode_effect_record(&value_bytes)?;
 
@@ -419,7 +431,11 @@ mod tests {
     }
     #[test]
     fn fjall_journal_compact_removes_old_terminal_effects() {
+<<<<<<< HEAD
         let (keyspace, _dir) = create_test_keyspace();
+=======
+        let keyspace = create_test_keyspace();
+>>>>>>> origin/polecat/synth-mnw6kj8v
         let journal = FjallEffectJournal::open(&keyspace).unwrap();
         let id = sample_instance_id();
 
@@ -457,7 +473,11 @@ mod tests {
 
     #[test]
     fn fjall_journal_compact_does_not_remove_prepared_effects() {
+<<<<<<< HEAD
         let (keyspace, _dir) = create_test_keyspace();
+=======
+        let keyspace = create_test_keyspace();
+>>>>>>> origin/polecat/synth-mnw6kj8v
         let journal = FjallEffectJournal::open(&keyspace).unwrap();
         let id = sample_instance_id();
 
@@ -494,7 +514,11 @@ mod tests {
 
     #[test]
     fn fjall_journal_compact_does_not_remove_rolledback_effects_without_timestamp() {
+<<<<<<< HEAD
         let (keyspace, _dir) = create_test_keyspace();
+=======
+        let keyspace = create_test_keyspace();
+>>>>>>> origin/polecat/synth-mnw6kj8v
         let journal = FjallEffectJournal::open(&keyspace).unwrap();
         let id = sample_instance_id();
 

@@ -4,9 +4,12 @@
 //! to reconstruct `LifecycleState` from event history.
 
 mod engine;
+<<<<<<< HEAD
 pub mod event_sourcing_engine;
 #[cfg(test)]
 pub mod event_sourcing_engine_tests;
+=======
+>>>>>>> origin/polecat/synth-mnw6kj8v
 pub mod projection;
 mod types;
 
@@ -29,9 +32,13 @@ mod kani_proptests;
 #[cfg(test)]
 mod red_queen_adversarial_tests;
 #[cfg(test)]
+<<<<<<< HEAD
 mod stale_event_rejection_tests;
 #[cfg(test)]
 pub mod test_helpers;
+=======
+mod test_helpers;
+>>>>>>> origin/polecat/synth-mnw6kj8v
 #[cfg(test)]
 mod tests;
 #[cfg(test)]

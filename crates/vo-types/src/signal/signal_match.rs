@@ -298,6 +298,7 @@ mod tests {
         let restored: SignalMatchResult = serde_json::from_str(&json).expect("deserialize");
         assert_eq!(restored, mismatch);
     }
+<<<<<<< HEAD
 
     #[test]
     fn signal_match_epoch_local_signal_matches_when_epoch_is_zero() {
@@ -636,4 +637,6 @@ mod tests {
             "Should fail at wait_key check after passing lineage check"
         );
     }
+=======
+>>>>>>> origin/polecat/synth-mnw6kj8v
 }
