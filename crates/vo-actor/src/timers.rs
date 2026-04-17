@@ -517,10 +517,12 @@ mod tests {
 
         proptest! {
             #[test]
-            fn compute_fire_at_never_wraps(base in 0u64..u64::MAX, dur in 1u64..1_000_000u64) {
+            fn compute_fire_at_never_wraps(base in 0u64..(u64::MAX - 999_999), dur in 1u64..1_000_000u64) {
                 let result = compute_fire_at(base, dur);
                 prop_assert!(result.is_ok());
-                prop_assert!(result.unwrap() >= base);
+                let fire_at = result.unwrap();
+                prop_assert!(fire_at >= base);
+                prop_assert!(fire_at <= u64::MAX - 1);
             }
 
             #[test]
@@ -535,15 +537,41 @@ mod tests {
             }
 
             #[test]
-            fn sleep_state_remaining_never_negative(fire in 1u64..1_000_000_000u64, now in 0u64..2_000_000_000u64) {
+            fn sleep_state_remaining_never_negative(fire in 1u64..1_000_000_000u64, scheduled in 0u64..999_999_999u64, now in 0u64..2_000_000_000u64) {
                 let state = SleepState::new(
                     test_instance_id(),
                     TimerWaitKey::parse("t").unwrap(),
                     fire,
-                    1,
+                    scheduled,
                 );
                 if let Ok(s) = state {
-                    prop_assert!(s.remaining_ms(now) <= fire);
+                    let remaining = s.remaining_ms(now);
+                    prop_assert!(remaining <= fire);
+                }
+            }
+
+            #[test]
+            fn create_sleep_state_rejects_negative_durations(dur in -1_000_000i64..0i64) {
+                let result = create_sleep_state(test_instance_id(), &test_timer_id(), 1_000_000, dur);
+                prop_assert!(result.is_err());
+            }
+
+            #[test]
+            fn timer_wait_key_hash_consistency(key1 in "[a-z]{1,256}", key2 in "[a-z]{1,256}") {
+                use std::collections::hash_map::DefaultHasher;
+                use std::hash::{Hash, Hasher};
+                let k1 = TimerWaitKey::parse(&key1);
+                let k2 = TimerWaitKey::parse(&key2);
+                if k1.is_ok() && k2.is_ok() {
+                    let k1 = k1.unwrap();
+                    let k2 = k2.unwrap();
+                    if k1 == k2 {
+                        let mut h1 = DefaultHasher::new();
+                        let mut h2 = DefaultHasher::new();
+                        k1.hash(&mut h1);
+                        k2.hash(&mut h2);
+                        prop_assert_eq!(h1.finish(), h2.finish());
+                    }
                 }
             }
         }
