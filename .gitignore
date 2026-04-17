@@ -64,3 +64,7 @@ vel-u0e/
 # Decomposition/forge pipeline artifacts
 .decomposition/
 .forge/
+
+# Claude AI files
+.claude/
+.claude/tdd-guard/
