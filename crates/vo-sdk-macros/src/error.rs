@@ -1,3 +1,14 @@
+//! Error taxonomy for the `#[task]` procedural macro.
+//!
+//! # Error Categories
+//!
+//! | Category | Variants | Phase |
+//! |----------|----------|-------|
+//! | Input validation | `InvalidInputItem`, `UnsupportedSignature`, `GenericFunction` | Parsing |
+//! | Attribute errors | `EmptyAttribute`, `TooManyAttributes`, `UnsupportedAttribute` | Attribute parsing |
+//! | Code generation | `IdentParsingFailed`, `AsyncReturnTypeMismatch`, `GenerationFailed` | Generation |
+//! | Parse errors | `ParseFailure` | Parsing |
+
 use thiserror::Error;
 
 #[derive(Debug, PartialEq, Error)]

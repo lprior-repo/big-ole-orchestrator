@@ -14,9 +14,9 @@ fn qa_pass_sync_task_compiles() {
 }
 
 #[test]
-fn qa_pass_async_task_compiles() {
+fn qa_fail_async_with_return_rejected() {
     let t = TestCases::new();
-    t.pass("tests/qa_ui/pass_async_with_return.rs");
+    t.compile_fail("tests/qa_ui/fail_async_with_return.rs");
 }
 
 #[test]
