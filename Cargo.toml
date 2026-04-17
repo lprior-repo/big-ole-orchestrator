@@ -48,7 +48,7 @@ rmp-serde = "1"
 # Web framework
 axum = "0.8"
 tower = { version = "0.4", features = ["util"] }
-tower-http = { version = "0.6", features = ["trace"] }
+tower-http = { version = "0.6", features = ["trace", "cors", "timeout"] }
 reqwest = { version = "0.12", features = ["json"] }
 
 # CLI
@@ -122,7 +122,6 @@ toml = "0.8"
 # Dev / test utilities
 trybuild = "1.0"
 insta = "1"
-metrics-util = "0.18"
 serial_test = "3"
 
 [profile.release]
@@ -137,6 +136,7 @@ debug = true
 
 [workspace.lints.clippy]
 unwrap_used = "warn"
+expect_used = "warn"
 panic = "warn"
 unused_async = "deny"
 await_holding_lock = "deny"
@@ -147,22 +147,6 @@ cast_possible_truncation = "allow"
 collapsible_match = "allow"
 doc_overindented_list_items = "allow"
 double_must_use = "allow"
-expect_used = "allow"
-if_same_then_else = "allow"
-iter_with_drain = "allow"
-manual_let_else = "allow"
-match_like_matches_macro = "allow"
-match_same_arms = "allow"
-match_wildcard_for_single_variants = "allow"
-missing_const_for_fn = "allow"
-missing_errors_doc = "allow"
-missing_panics_doc = "allow"
-needless_pass_by_value = "allow"
-new_without_default = "allow"
-option_if_let_else = "allow"
-redundant_field_names = "allow"
-should_implement_trait = "allow"
-significant_drop_tightening = "allow"
 
 [workspace.lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(kani)'] }

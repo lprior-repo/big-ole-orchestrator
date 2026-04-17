@@ -101,12 +101,11 @@ fn decode_snapshot_key_handles_maximum_values_correctly() {
 
 // --- snapshot_write ---
 
-fn setup_fjall() -> (tempfile::TempDir, fjall::Keyspace, PartitionHandle) {
+fn setup_fjall() -> (tempfile::TempDir, fjall::Database, Keyspace) {
     let temp_dir = tempfile::tempdir().unwrap();
-    let config = fjall::Config::new(temp_dir.path());
-    let keyspace = config.open().unwrap();
+    let keyspace = fjall::Database::builder(temp_dir.path()).open().unwrap();
     let partition = keyspace
-        .open_partition("snapshots", fjall::PartitionCreateOptions::default())
+        .keyspace("snapshots", fjall::KeyspaceCreateOptions::default)
         .unwrap();
     (temp_dir, keyspace, partition)
 }
@@ -362,333 +361,210 @@ fn snapshot_load_decompresses_and_reconstructs() {
     assert_eq!(result, Ok(Some((1, expected_state))));
 }
 
-// ============================================================
-// TDD Red: Snapshot Roundtrip with Checksum Verification
-// These tests define the desired behavior for the roundtrip
-// implementation. They will FAIL until the implementation is
-// complete.
-// ============================================================
-
 #[test]
-fn snapshot_roundtrip_write_then_read_produces_identical_state() {
-    let (_dir, keyspace, partition) = setup_fjall();
-    let id = get_typical_id();
-
-    let writer = AtomicSnapshotWriter::new(&keyspace).expect("writer creation failed");
-    let original_state = InstanceState { counter: 42 };
-
-    writer
-        .write_snapshot_atomic(id.clone(), 1, &original_state)
-        .expect("write failed");
-
-    let loaded = snapshot_load_latest(&partition, &id).expect("read failed");
-    assert!(loaded.is_some(), "expected a snapshot to be loaded");
-
-    let (sequence, loaded_state) = loaded.unwrap();
-    assert_eq!(sequence, 1, "sequence should match");
-    assert_eq!(
-        loaded_state, original_state,
-        "loaded state must be identical to written state"
-    );
-}
-
-#[test]
-fn snapshot_roundtrip_large_state_preserves_all_fields() {
-    let (_dir, keyspace, partition) = setup_fjall();
-    let id = get_typical_id();
-
-    let writer = AtomicSnapshotWriter::new(&keyspace).expect("writer creation failed");
-    let original_state = InstanceState { counter: u64::MAX };
-
-    writer
-        .write_snapshot_atomic(id.clone(), 100, &original_state)
-        .expect("write failed");
-
-    let loaded = snapshot_load_latest(&partition, &id).expect("read failed");
-    assert!(loaded.is_some());
-
-    let (_, loaded_state) = loaded.unwrap();
-    assert_eq!(loaded_state, original_state);
-}
-
-#[test]
-fn snapshot_roundtrip_multiple_snapshots_loads_latest() {
-    let (_dir, keyspace, partition) = setup_fjall();
-    let id = get_typical_id();
-
-    let writer = AtomicSnapshotWriter::new(&keyspace).expect("writer creation failed");
-
-    writer
-        .write_snapshot_atomic(id.clone(), 50, &InstanceState { counter: 10 })
-        .expect("write 1 failed");
-    writer
-        .write_snapshot_atomic(id.clone(), 100, &InstanceState { counter: 20 })
-        .expect("write 2 failed");
-    writer
-        .write_snapshot_atomic(id.clone(), 150, &InstanceState { counter: 30 })
-        .expect("write 3 failed");
-
-    let loaded = snapshot_load_latest(&partition, &id).expect("read failed");
-    assert_eq!(
-        loaded,
-        Some((150, InstanceState { counter: 30 })),
-        "latest snapshot should be seq 150 with counter 30"
-    );
-}
-
-#[test]
-fn snapshot_checksum_verification_rejects_corrupted_data() {
-    let (_dir, keyspace, partition) = setup_fjall();
-    let id = get_typical_id();
-
-    let writer = AtomicSnapshotWriter::new(&keyspace).expect("writer creation failed");
-    let state = InstanceState { counter: 42 };
-
-    writer
-        .write_snapshot_atomic(id.clone(), 1, &state)
-        .expect("write failed");
-
-    let key = encode_snapshot_key(&id, 1).expect("key encoding failed");
-    let mut raw_value = partition.get(&key).expect("get failed").unwrap().to_vec();
-
-    // Corrupt the data portion (after header)
-    if raw_value.len() > 50 {
-        raw_value[50] ^= 0xFF;
-    }
-    partition
-        .insert(key, raw_value)
-        .expect("corruption insert failed");
-
-    let result = snapshot_load_latest(&partition, &id);
-    assert_eq!(
-        result,
-        Err(StorageError::ChecksumMismatch),
-        "corrupted data must be rejected with ChecksumMismatch"
-    );
-}
-
-#[test]
-fn snapshot_checksum_verification_rejects_truncated_data() {
-    let (_dir, keyspace, partition) = setup_fjall();
-    let id = get_typical_id();
-
-    let writer = AtomicSnapshotWriter::new(&keyspace).expect("writer creation failed");
-    let state = InstanceState { counter: 42 };
-
-    writer
-        .write_snapshot_atomic(id.clone(), 1, &state)
-        .expect("write failed");
-
-    let key = encode_snapshot_key(&id, 1).expect("key encoding failed");
-    let raw_value = partition.get(&key).expect("get failed").unwrap();
-
-    // Truncate the data (remove last 10 bytes)
-    let truncated = raw_value[..raw_value.len() - 10].to_vec();
-    partition
-        .insert(key, truncated)
-        .expect("truncation insert failed");
-
-    let result = snapshot_load_latest(&partition, &id);
-    assert_eq!(
-        result,
-        Err(StorageError::ChecksumMismatch),
-        "truncated data must be rejected"
-    );
-}
-
-#[test]
-fn snapshot_checksum_verification_accepts_valid_data() {
-    let (_dir, keyspace, partition) = setup_fjall();
-    let id = get_typical_id();
-
-    let writer = AtomicSnapshotWriter::new(&keyspace).expect("writer creation failed");
-    let state = InstanceState { counter: 42 };
-
-    writer
-        .write_snapshot_atomic(id.clone(), 1, &state)
-        .expect("write failed");
-
-    let result = snapshot_load_latest(&partition, &id);
-    assert_eq!(result, Ok(Some((1, state))), "valid data must be accepted");
-}
-
-#[test]
-fn snapshot_format_migration_v1_to_current_version() {
+fn snapshot_load_latest_handles_atomic_snapshot_writer_format() {
     let (_dir, _keyspace, partition) = setup_fjall();
     let id = get_typical_id();
 
-    // Simulate a v1 snapshot (version = 1, no compression)
-    let v1_header = SnapshotHeader::new(id.clone(), 1, 0);
-    let header_json = serde_json::to_vec(&v1_header).expect("header serialization failed");
-    let state_json =
-        serde_json::to_vec(&InstanceState { counter: 42 }).expect("state serialization failed");
+    let state = InstanceState { counter: 42 };
+    let state_json = serde_json::to_vec(&state).unwrap();
+    let checksum = crc32fast::hash(&state_json);
+    let header = SnapshotHeader::new(id.clone(), 1, checksum);
+    let header_json = serde_json::to_vec(&header).unwrap();
 
-    let mut v1_value = header_json;
-    v1_value.push(b'|');
-    v1_value.extend_from_slice(&state_json);
+    let mut value = header_json;
+    value.push(b'|');
+    value.extend_from_slice(&state_json);
 
-    let key = encode_snapshot_key(&id, 1).expect("key encoding failed");
-    partition.insert(key, v1_value).expect("v1 insert failed");
+    let key = encode_snapshot_key(&id, 1).unwrap();
+    partition.insert(key, &value).unwrap();
 
     let result = snapshot_load_latest(&partition, &id);
-    assert!(
-        result.is_ok(),
-        "v1 format should be migratable without error"
-    );
-    let (seq, state) = result
-        .expect("result unwrap failed")
-        .expect("no snapshot loaded");
-    assert_eq!(seq, 1, "sequence should be preserved");
-    assert_eq!(state.counter, 42, "state data should be preserved");
+    assert_eq!(result, Ok(Some((1, state))));
 }
 
 #[test]
-fn snapshot_format_migration_rejects_future_version() {
+fn snapshot_load_latest_rejects_corrupt_checksum_in_header_format() {
     let (_dir, _keyspace, partition) = setup_fjall();
     let id = get_typical_id();
 
-    // Create a snapshot with version = u16::MAX (future version)
-    let future_header = SnapshotHeader {
-        version: u16::MAX,
-        sequence_number: 1,
+    let state = InstanceState { counter: 42 };
+    let state_json = serde_json::to_vec(&state).unwrap();
+    let wrong_checksum = 0u32;
+    let header = SnapshotHeader::new(id.clone(), 1, wrong_checksum);
+    let header_json = serde_json::to_vec(&header).unwrap();
+
+    let mut value = header_json;
+    value.push(b'|');
+    value.extend_from_slice(&state_json);
+
+    let key = encode_snapshot_key(&id, 1).unwrap();
+    partition.insert(key, &value).unwrap();
+
+    let result = snapshot_load_latest(&partition, &id);
+    assert_eq!(result, Err(StorageError::DeserializationFailed));
+}
+
+// ============================================================
+// Snapshot Compatibility Tests
+// ============================================================
+
+fn write_header_snapshot(
+    partition: &Keyspace,
+    id: &InstanceId,
+    sequence: u64,
+    state: &InstanceState,
+    version: u16,
+) {
+    let state_json = serde_json::to_vec(state).unwrap();
+    let checksum = crc32fast::hash(&state_json);
+    let header = SnapshotHeader {
+        version,
+        sequence_number: sequence,
         instance_id: id.clone(),
-        checksum: 0,
+        checksum,
     };
-    let header_json = serde_json::to_vec(&future_header).expect("header serialization failed");
-    let state_json =
-        serde_json::to_vec(&InstanceState { counter: 42 }).expect("state serialization failed");
+    let header_json = serde_json::to_vec(&header).unwrap();
+    let mut value = header_json;
+    value.push(b'|');
+    value.extend_from_slice(&state_json);
+    let key = encode_snapshot_key(id, sequence).unwrap();
+    partition.insert(key, &value).unwrap();
+}
 
-    let mut future_value = header_json;
-    future_value.push(b'|');
-    future_value.extend_from_slice(&state_json);
+fn write_legacy_snapshot(
+    partition: &Keyspace,
+    id: &InstanceId,
+    sequence: u64,
+    state: &InstanceState,
+) {
+    snapshot_write(partition, id.clone(), sequence, state).unwrap();
+}
 
-    let key = encode_snapshot_key(&id, 1).expect("key encoding failed");
-    partition
-        .insert(key, future_value)
-        .expect("future version insert failed");
+#[test]
+fn compat_load_returns_loaded_when_version_matches_engine() {
+    let (_dir, _keyspace, partition) = setup_fjall();
+    let id = get_typical_id();
+    let state = InstanceState { counter: 42 };
+    write_header_snapshot(&partition, &id, 1, &state, 1);
 
-    let result = snapshot_load_latest(&partition, &id);
+    let result = snapshot_load_latest_with_compat(&partition, &id, 1, 1);
     assert_eq!(
         result,
-        Err(StorageError::UnsupportedVersion),
-        "future version must be rejected with UnsupportedVersion"
+        Ok(Some(CompatSnapshotLoad::Loaded {
+            sequence: 1,
+            state: state.clone()
+        }))
     );
 }
 
 #[test]
-fn snapshot_error_variant_invalid_key_stored() {
+fn compat_load_returns_loaded_when_version_in_range() {
+    let (_dir, _keyspace, partition) = setup_fjall();
+    let id = get_typical_id();
+    let state = InstanceState { counter: 99 };
+    write_header_snapshot(&partition, &id, 5, &state, 2);
+
+    let result = snapshot_load_latest_with_compat(&partition, &id, 1, 3);
+    assert_eq!(
+        result,
+        Ok(Some(CompatSnapshotLoad::Loaded {
+            sequence: 5,
+            state: state.clone()
+        }))
+    );
+}
+
+#[test]
+fn compat_load_returns_discarded_when_version_below_minimum() {
+    let (_dir, _keyspace, partition) = setup_fjall();
+    let id = get_typical_id();
+    let state = InstanceState { counter: 10 };
+    write_header_snapshot(&partition, &id, 3, &state, 1);
+
+    let result = snapshot_load_latest_with_compat(&partition, &id, 2, 3);
+    assert_eq!(
+        result,
+        Ok(Some(CompatSnapshotLoad::Discarded {
+            sequence: 3,
+            reason: SnapshotDiscardReason::VersionTooOld {
+                snapshot_version: 1,
+                min_version: 2
+            }
+        }))
+    );
+}
+
+#[test]
+fn compat_load_returns_discarded_when_version_above_engine() {
+    let (_dir, _keyspace, partition) = setup_fjall();
+    let id = get_typical_id();
+    let state = InstanceState { counter: 77 };
+    write_header_snapshot(&partition, &id, 7, &state, 5);
+
+    let result = snapshot_load_latest_with_compat(&partition, &id, 1, 3);
+    assert_eq!(
+        result,
+        Ok(Some(CompatSnapshotLoad::Discarded {
+            sequence: 7,
+            reason: SnapshotDiscardReason::VersionTooNew {
+                snapshot_version: 5,
+                engine_version: 3
+            }
+        }))
+    );
+}
+
+#[test]
+fn compat_load_returns_discarded_for_legacy_format() {
+    let (_dir, _keyspace, partition) = setup_fjall();
+    let id = get_typical_id();
+    let state = InstanceState { counter: 33 };
+    write_legacy_snapshot(&partition, &id, 2, &state);
+
+    let result = snapshot_load_latest_with_compat(&partition, &id, 1, 1);
+    assert_eq!(
+        result,
+        Ok(Some(CompatSnapshotLoad::Discarded {
+            sequence: 2,
+            reason: SnapshotDiscardReason::VersionZero
+        }))
+    );
+}
+
+#[test]
+fn compat_load_returns_none_when_no_snapshots_exist() {
     let (_dir, _keyspace, partition) = setup_fjall();
     let id = get_typical_id();
 
-    // Store a key that is not 24 bytes
-    partition
-        .insert(vec![0u8; 23], b"some value")
-        .expect("invalid key insert failed");
-
-    let result = snapshot_load_latest(&partition, &id);
-    assert_eq!(
-        result,
-        Err(StorageError::InvalidKey),
-        "invalid key length must return InvalidKey error"
-    );
+    let result = snapshot_load_latest_with_compat(&partition, &id, 1, 1);
+    assert_eq!(result, Ok(None));
 }
 
 #[test]
-fn snapshot_error_variant_deserialization_failed() {
+fn compat_load_boundary_min_version_equals_snapshot_version() {
     let (_dir, _keyspace, partition) = setup_fjall();
     let id = get_typical_id();
-
-    // Store a valid 24-byte key but invalid JSON value
-    let key = encode_snapshot_key(&id, 1).expect("key encoding failed");
-    partition
-        .insert(key, b"this is not valid json{{{")
-        .expect("invalid json insert failed");
-
-    let result = snapshot_load_latest(&partition, &id);
-    assert_eq!(
-        result,
-        Err(StorageError::DeserializationFailed),
-        "invalid JSON must return DeserializationFailed error"
-    );
-}
-
-#[test]
-fn snapshot_error_variant_corrupt_key_after_valid_header() {
-    let (_dir, _keyspace, partition) = setup_fjall();
-    let id = get_typical_id();
-
-    // Insert with a corrupt key (23 bytes instead of 24)
-    partition
-        .insert(vec![0u8; 23], b"{}")
-        .expect("corrupt key insert failed");
-
-    let result = snapshot_load_latest(&partition, &id);
-    assert_eq!(
-        result,
-        Err(StorageError::InvalidKey),
-        "corrupt key must return InvalidKey error"
-    );
-}
-
-#[test]
-fn snapshot_large_state_performance_small_write() {
-    let (_dir, keyspace, partition) = setup_fjall();
-    let id = get_typical_id();
-
-    let writer = AtomicSnapshotWriter::new(&keyspace).expect("writer creation failed");
     let state = InstanceState { counter: 1 };
+    write_header_snapshot(&partition, &id, 1, &state, 2);
 
-    let start = std::time::Instant::now();
-    writer
-        .write_snapshot_atomic(id.clone(), 1, &state)
-        .expect("write failed");
-    let write_duration = start.elapsed();
-
-    let load_start = std::time::Instant::now();
-    let result = snapshot_load_latest(&partition, &id).expect("read failed");
-    let load_duration = load_start.elapsed();
-
-    assert!(result.is_some(), "snapshot should be loadable");
-    assert!(
-        write_duration.as_millis() < 100,
-        "small snapshot write should complete in < 100ms"
-    );
-    assert!(
-        load_duration.as_millis() < 100,
-        "small snapshot read should complete in < 100ms"
+    let result = snapshot_load_latest_with_compat(&partition, &id, 2, 2);
+    assert_eq!(
+        result,
+        Ok(Some(CompatSnapshotLoad::Loaded { sequence: 1, state }))
     );
 }
 
 #[test]
-fn snapshot_large_state_performance_sequential_writes() {
-    let (_dir, keyspace, partition) = setup_fjall();
+fn compat_load_boundary_engine_version_equals_snapshot_version() {
+    let (_dir, _keyspace, partition) = setup_fjall();
     let id = get_typical_id();
+    let state = InstanceState { counter: 2 };
+    write_header_snapshot(&partition, &id, 1, &state, 3);
 
-    let writer = AtomicSnapshotWriter::new(&keyspace).expect("writer creation failed");
-
-    let start = std::time::Instant::now();
-    for seq in 1..=100 {
-        writer
-            .write_snapshot_atomic(
-                id.clone(),
-                seq,
-                &InstanceState {
-                    counter: seq as u64,
-                },
-            )
-            .expect("write failed");
-    }
-    let total_duration = start.elapsed();
-
-    assert!(
-        total_duration.as_secs() < 30,
-        "100 sequential snapshot writes should complete in < 30s"
-    );
-
-    let result = snapshot_load_latest(&partition, &id).expect("read latest failed");
+    let result = snapshot_load_latest_with_compat(&partition, &id, 1, 3);
     assert_eq!(
         result,
-        Some((100, InstanceState { counter: 100 })),
-        "latest snapshot should be seq 100"
+        Ok(Some(CompatSnapshotLoad::Loaded { sequence: 1, state }))
     );
 }

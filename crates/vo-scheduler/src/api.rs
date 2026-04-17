@@ -83,11 +83,7 @@ mod tests {
             SchedulePolicy::At(Utc::now() + Duration::hours(1)),
             RetryPolicy::default_policy(),
             bytes::Bytes::from_static(b"test payload"),
-<<<<<<< HEAD
         ).unwrap()
-=======
-        )
->>>>>>> origin/polecat/guzzle-veloxide-4wc
     }
 
     fn make_queue() -> SchedulerQueue {

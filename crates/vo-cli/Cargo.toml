@@ -13,7 +13,6 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 fjall.workspace = true
 vo-storage = { version = "0.1.0", path = "../vo-storage" }
-vo-types = { workspace = true }
 anyhow.workspace = true
 ractor.workspace = true
 vo-actor = { version = "0.1.0", path = "../vo-actor" }

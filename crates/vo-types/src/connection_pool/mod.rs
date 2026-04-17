@@ -12,7 +12,6 @@
 
 use std::fmt;
 
-use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
 use crate::integer_types::TimestampMs;
@@ -22,7 +21,7 @@ use crate::integer_types::TimestampMs;
 // ============================================================================
 
 /// Configuration for the connection pool.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct PoolConfig {
     pub min_connections: u32,
     pub max_connections: u32,
@@ -33,7 +32,7 @@ pub struct PoolConfig {
 }
 
 /// Unique identifier for a pooled connection.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct ConnectionId(pub(crate) Ulid);
 
 impl ConnectionId {
@@ -65,7 +64,7 @@ impl fmt::Display for ConnectionId {
 }
 
 /// Identifies a specific connection pool instance.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct PoolId(pub(crate) String);
 
 impl PoolId {
@@ -87,7 +86,7 @@ impl fmt::Display for PoolId {
 }
 
 /// Status of a pooled connection.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 pub enum ConnectionStatus {
     #[default]
     Idle,
@@ -98,7 +97,7 @@ pub enum ConnectionStatus {
 }
 
 /// Represents a connection in the pool with metadata.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct PooledConnection {
     pub connection_id: ConnectionId,
     pub created_at: TimestampMs,
@@ -120,25 +119,15 @@ impl PooledConnection {
     }
 
     #[must_use]
-    pub fn with_status(&self, status: ConnectionStatus) -> Self {
-        Self {
-            connection_id: self.connection_id,
-            created_at: self.created_at,
-            last_used_at: self.last_used_at,
-            use_count: self.use_count,
-            status,
-        }
+    pub fn with_status(mut self, status: ConnectionStatus) -> Self {
+        self.status = status;
+        self
     }
 
     #[must_use]
-    pub fn with_use_count(&self, use_count: u64) -> Self {
-        Self {
-            connection_id: self.connection_id,
-            created_at: self.created_at,
-            last_used_at: self.last_used_at,
-            use_count,
-            status: self.status,
-        }
+    pub fn with_use_count(mut self, use_count: u64) -> Self {
+        self.use_count = use_count;
+        self
     }
 
     pub fn increment_use_count(&mut self) {
@@ -206,7 +195,7 @@ pub enum EvictionReason {
 }
 
 /// Current state statistics for the pool.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct PoolStats {
     pub pool_id: PoolId,
     pub total_connections: u32,
@@ -286,7 +275,7 @@ pub enum ErrorDetail {
         connection_id: ConnectionId,
     },
     InvalidRelease {
-        reason: String,
+        reason: &'static str,
     },
     PoolNotInitialized,
     AlreadyShutdown,
@@ -300,23 +289,23 @@ pub enum ErrorDetail {
 pub struct ErrorContext {
     pub pool_id: PoolId,
     pub timestamp: TimestampMs,
-    pub operation: String,
+    pub operation: &'static str,
     pub connection_id: Option<ConnectionId>,
 }
 
 /// Connection pool error.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub struct ConnectionPoolError {
     pub category: ErrorCategory,
     pub detail: ErrorDetail,
     pub context: ErrorContext,
 }
 
-impl fmt::Display for ConnectionPoolError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Display for ConnectionPoolError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "[{}] {}: {:?}",
+            "[{}] {:?}: {:?}",
             self.context.pool_id, self.category, self.detail
         )
     }
@@ -324,7 +313,7 @@ impl fmt::Display for ConnectionPoolError {
 
 impl ErrorDetail {
     #[must_use]
-    pub fn to_string(&self) -> String {
+    pub fn to_string(self) -> String {
         match self {
             ErrorDetail::MaxConnectionsReached { max } => {
                 format!("Max connections reached: {max}")
@@ -1067,7 +1056,7 @@ mod tests {
             let context = ErrorContext {
                 pool_id,
                 timestamp,
-                operation: "acquire".to_string(),
+                operation: "acquire",
                 connection_id: Some(conn_id),
             };
 
@@ -1085,7 +1074,7 @@ mod tests {
             let context = ErrorContext {
                 pool_id,
                 timestamp,
-                operation: "shutdown".to_string(),
+                operation: "shutdown",
                 connection_id: None,
             };
 

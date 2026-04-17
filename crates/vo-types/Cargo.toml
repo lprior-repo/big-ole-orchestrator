@@ -10,7 +10,7 @@ proptest = ["dep:proptest"]
 [dependencies]
 thiserror.workspace = true
 serde.workspace = true
-ulid.workspace = true
+ulid = { workspace = true, features = ["serde"] }
 uuid.workspace = true
 serde_json.workspace = true
 proptest = { version = "1", optional = true }
@@ -19,9 +19,13 @@ any-rope = { workspace = true }
 
 [dev-dependencies]
 rstest.workspace = true
-serde_json.workspace = true
 proptest = { version = "1", features = ["fork"] }
 tokio = { workspace = true, features = ["full"] }
+criterion = { workspace = true }
 
-[lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(kani)'] }
+[[bench]]
+name = "types_bench"
+harness = false
+
+[lints]
+workspace = true

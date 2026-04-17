@@ -13,15 +13,6 @@
 //! # Protocol
 //!
 //! Uses file descriptor passing (fd3/fd4) for efficient zero-copy IPC.
-//!
-//! # Size Limits
-//!
-//! The IPC protocol enforces a [`MAX_PAYLOAD_SIZE`] of 10 MiB on all envelopes.
-//! Payloads exceeding this limit will fail with [`IpcError::PayloadTooLarge`].
-//! This protects against unbounded memory allocation and ensures predictable latency.
-//!
-//! For handling large data, consider chunking, streaming via file descriptors,
-//! compression, or external storage patterns.
 
 #![cfg_attr(not(test), deny(clippy::unwrap_used))]
 #![cfg_attr(not(test), deny(clippy::expect_used))]
@@ -32,7 +23,6 @@
 pub mod config;
 pub mod envelope;
 pub mod error;
-pub mod pipe;
 pub mod run;
 pub mod spsc;
 pub mod stderr;

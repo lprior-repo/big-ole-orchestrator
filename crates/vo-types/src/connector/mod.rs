@@ -18,6 +18,8 @@ mod transition;
 mod types;
 
 #[cfg(test)]
+mod runtime_tests;
+#[cfg(test)]
 mod tests;
 #[cfg(test)]
 mod transition_tests;
@@ -32,7 +34,7 @@ mod verification;
 
 // Re-export all public API items
 pub use runtime::{
-    reconcile_ambiguous, execute_with_reconciliation, Connector, ConnectorError,
+    execute_with_reconciliation, reconcile_ambiguous, Connector, ConnectorError,
     ReconciliationResult,
 };
 pub use transition::apply_connector_transition;

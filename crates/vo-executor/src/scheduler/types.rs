@@ -5,9 +5,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
-use vo_types::{
-    check_identifier_boundaries, extract_invalid_chars, is_identifier_char, ParseError,
-};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Default)]
 pub enum JobPriority {
@@ -235,65 +232,39 @@ impl Job {
     }
 }
 
+/// A validated job identifier wrapping a `u64`.
+///
+/// Construct via [`JobId::new`] (infallible for `u64`) or [`JobId::parse`] (validates
+/// string input). Implements [`FromStr`] and [`TryFrom<&str>`] for ergonomic integration.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct JobId(pub u64);
 
 impl JobId {
+    #[must_use]
     pub fn new(id: u64) -> Self {
         Self(id)
     }
 
-    pub fn parse(input: &str) -> Result<Self, ParseError> {
-        const TYPE_NAME: &str = "JobId";
-        const PREFIX: &str = "job-";
-
-        if input.is_empty() {
-            return Err(ParseError::Empty {
-                type_name: TYPE_NAME,
-            });
+    /// Parse a string into a `JobId`, trimming whitespace first.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SchedulerError::InvalidJobId`] if the input is empty or not a valid `u64`.
+    pub fn parse(input: &str) -> Result<Self, super::SchedulerError> {
+        let trimmed = input.trim();
+        if trimmed.is_empty() {
+            return Err(super::SchedulerError::InvalidJobId(
+                "JobId must not be empty".to_string(),
+            ));
         }
-
-        if !input.starts_with(PREFIX) {
-            return Err(ParseError::InvalidFormat {
-                type_name: TYPE_NAME,
-                reason: format!("must start with '{}'", PREFIX),
-            });
-        }
-
-        let id_str = &input[PREFIX.len()..];
-
-        if id_str.is_empty() {
-            return Err(ParseError::InvalidFormat {
-                type_name: TYPE_NAME,
-                reason: "empty identifier after prefix".to_string(),
-            });
-        }
-
-        let invalid = extract_invalid_chars(id_str, |c| c.is_ascii_digit());
-        if !invalid.is_empty() {
-            return Err(ParseError::InvalidCharacters {
-                type_name: TYPE_NAME,
-                invalid_chars: invalid,
-            });
-        }
-
-        let id: u64 = id_str.parse().map_err(|_| ParseError::InvalidFormat {
-            type_name: TYPE_NAME,
-            reason: format!("invalid u64: '{}'", id_str),
-        })?;
-
-        if id == 0 {
-            return Err(ParseError::InvalidFormat {
-                type_name: TYPE_NAME,
-                reason: "JobId cannot be zero".to_string(),
-            });
-        }
-
+        let id: u64 = trimmed
+            .parse()
+            .map_err(|e| super::SchedulerError::InvalidJobId(format!("invalid u64: {e}")))?;
         Ok(Self(id))
     }
 
     #[must_use]
-    pub fn as_u64(&self) -> u64 {
+    pub fn get(&self) -> u64 {
         self.0
     }
 }
@@ -301,6 +272,28 @@ impl JobId {
 impl std::fmt::Display for JobId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "job-{}", self.0)
+    }
+}
+
+impl std::str::FromStr for JobId {
+    type Err = super::SchedulerError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::parse(s)
+    }
+}
+
+impl TryFrom<&str> for JobId {
+    type Error = super::SchedulerError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        Self::parse(value)
+    }
+}
+
+impl AsRef<u64> for JobId {
+    fn as_ref(&self) -> &u64 {
+        &self.0
     }
 }
 
@@ -378,5 +371,67 @@ mod tests {
         assert_eq!(job.priority, JobPriority::High);
         assert_eq!(job.max_retries, 5);
         assert_eq!(job.backoff_ms, 500);
+    }
+
+    #[test]
+    fn job_id_parse_valid() {
+        assert_eq!(JobId::parse("42").unwrap(), JobId::new(42));
+        assert_eq!(JobId::parse("0").unwrap(), JobId::new(0));
+        assert_eq!(JobId::parse("  7  ").unwrap(), JobId::new(7));
+        assert_eq!(
+            JobId::parse(&u64::MAX.to_string()).unwrap(),
+            JobId::new(u64::MAX)
+        );
+    }
+
+    #[test]
+    fn job_id_parse_invalid() {
+        assert!(JobId::parse("").is_err());
+        assert!(JobId::parse("   ").is_err());
+        assert!(JobId::parse("abc").is_err());
+        assert!(JobId::parse("-1").is_err());
+        assert!(JobId::parse("1.5").is_err());
+        assert!(JobId::parse("18446744073709551616").is_err());
+    }
+
+    #[test]
+    fn job_id_get() {
+        assert_eq!(JobId::new(99).get(), 99);
+        assert_eq!(JobId::parse("123").unwrap().get(), 123);
+    }
+
+    #[test]
+    fn job_id_from_str_valid() {
+        use std::str::FromStr;
+        let id = JobId::from_str("42").unwrap();
+        assert_eq!(id, JobId::new(42));
+    }
+
+    #[test]
+    fn job_id_from_str_invalid() {
+        use std::str::FromStr;
+        assert!(JobId::from_str("").is_err());
+        assert!(JobId::from_str("abc").is_err());
+        assert!(JobId::from_str("-1").is_err());
+    }
+
+    #[test]
+    fn job_id_try_from_str() {
+        let id = JobId::try_from("99").unwrap();
+        assert_eq!(id, JobId::new(99));
+        assert!(JobId::try_from("").is_err());
+        assert!(JobId::try_from("not-a-number").is_err());
+    }
+
+    #[test]
+    fn job_id_as_ref() {
+        let id = JobId::new(42);
+        assert_eq!(*id.as_ref(), 42);
+    }
+
+    #[test]
+    fn job_id_display() {
+        assert_eq!(format!("{}", JobId::new(42)), "job-42");
+        assert_eq!(format!("{}", JobId::new(0)), "job-0");
     }
 }

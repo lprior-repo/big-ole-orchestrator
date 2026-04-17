@@ -78,7 +78,7 @@ impl Runtime {
 
 impl Default for Runtime {
     fn default() -> Self {
-        Self::new().unwrap()
+        Self::new().expect("Failed to create default runtime")
     }
 }
 

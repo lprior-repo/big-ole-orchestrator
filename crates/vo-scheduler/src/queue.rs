@@ -126,26 +126,71 @@ impl SchedulerQueue {
         self.jobs.is_empty()
     }
 
+    pub fn list_by_state(&self, state: JobState) -> Vec<&ScheduledJob> {
+        self.jobs
+            .values()
+            .filter(|job| job.state == state)
+            .collect()
+    }
+
+    pub fn list_by_states(&self, states: &[JobState]) -> Vec<&ScheduledJob> {
+        self.jobs
+            .values()
+            .filter(|job| states.contains(&job.state))
+            .collect()
+    }
+
     pub fn pop_due(&mut self, now: DateTime<Utc>) -> Option<ScheduledJob> {
-        loop {
-            let entry = self.heap.peek()?.clone();
-            if entry.due_at > now {
-<<<<<<< HEAD
-                self.heap.pop();
-                continue;
-=======
-                return None;
->>>>>>> origin/polecat/guzzle-veloxide-4wc
-            }
-            self.heap.pop();
+        while let Some(entry) = self.heap.pop() {
             let job_id = entry.job_id;
             if let Some(job) = self.jobs.get(&job_id) {
+                if job.state == JobState::Cancelled {
+                    continue;
+                }
                 if job.due_at <= now {
                     let job = self.jobs.remove(&job_id)?;
                     return Some(job);
                 }
+                let entry = QueueEntry {
+                    priority: job.priority,
+                    due_at: job.due_at,
+                    job_id,
+                };
+                self.heap.push(entry);
+                break;
             }
         }
+        None
+    }
+
+    pub fn peek(&self, now: DateTime<Utc>) -> Option<&ScheduledJob> {
+        self.heap
+            .iter()
+            .filter_map(|entry| {
+                let job = self.jobs.get(&entry.job_id)?;
+                if job.state.is_terminal() || job.due_at > now {
+                    None
+                } else {
+                    Some((entry, job))
+                }
+            })
+            .max_by(|a, b| a.0.cmp(b.0))
+            .map(|(_, job)| job)
+    }
+
+    pub fn peek_next(&self) -> Option<&ScheduledJob> {
+        self.heap
+            .iter()
+            .filter_map(|entry| {
+                let job = self.jobs.get(&entry.job_id)?;
+                if job.state.is_terminal() {
+                    None
+                } else {
+                    Some((entry, job))
+                }
+            })
+            .max_by(|a, b| a.0.cmp(b.0))
+            .map(|(_, job)| job)
     }
 
     pub fn cancel(&mut self, job_id: &JobId) -> Result<(), SchedulerError> {

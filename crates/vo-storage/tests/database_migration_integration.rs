@@ -58,17 +58,16 @@ fn sample_step_id() -> StepId {
 fn migration_keyspace_reopen_preserves_dedupe_entries() {
     let dir = tempdir().unwrap();
 
-    let keyspace = fjall::Config::new(dir.path()).open().unwrap();
-    let store = FjallDedupeStore::open(&keyspace).unwrap();
+    let database = fjall::Database::builder(dir.path()).open().unwrap();
+    let store = FjallDedupeStore::open(&database).unwrap();
 
     let key = DedupeKey::parse("migration-reopen-ve-yv21").unwrap();
     let iid = sample_instance_id();
     store.check_and_insert(&key, &iid, 60_000).unwrap();
     drop(store);
-    drop(keyspace);
 
-    let keyspace2 = fjall::Config::new(dir.path()).open().unwrap();
-    let store2 = FjallDedupeStore::open(&keyspace2).unwrap();
+    let database2 = fjall::Database::builder(dir.path()).open().unwrap();
+    let store2 = FjallDedupeStore::open(&database2).unwrap();
 
     assert!(
         store2.contains(&key).unwrap(),
@@ -88,18 +87,17 @@ fn migration_keyspace_reopen_preserves_dedupe_entries() {
 fn migration_keyspace_reopen_preserves_lease_entries() {
     let dir = tempdir().unwrap();
 
-    let keyspace = fjall::Config::new(dir.path()).open().unwrap();
-    let store = FjallLeaseStore::open(&keyspace).unwrap();
+    let database = fjall::Database::builder(dir.path()).open().unwrap();
+    let store = FjallLeaseStore::open(&database).unwrap();
 
     let iid = sample_instance_id();
     let step_id = sample_step_id();
     let lease = store.acquire(&iid, &step_id, 60_000).unwrap();
     let token = lease.token().clone();
     drop(store);
-    drop(keyspace);
 
-    let keyspace2 = fjall::Config::new(dir.path()).open().unwrap();
-    let store2 = FjallLeaseStore::open(&keyspace2).unwrap();
+    let database2 = fjall::Database::builder(dir.path()).open().unwrap();
+    let store2 = FjallLeaseStore::open(&database2).unwrap();
 
     let is_stale = store2.check_stale_fence(&iid, &step_id, &token).unwrap();
     assert!(
@@ -112,9 +110,9 @@ fn migration_keyspace_reopen_preserves_lease_entries() {
 fn migration_keyspace_reopen_preserves_cross_partition_data() {
     let dir = tempdir().unwrap();
 
-    let keyspace = fjall::Config::new(dir.path()).open().unwrap();
-    let dedupe = FjallDedupeStore::open(&keyspace).unwrap();
-    let lease = FjallLeaseStore::open(&keyspace).unwrap();
+    let database = fjall::Database::builder(dir.path()).open().unwrap();
+    let dedupe = FjallDedupeStore::open(&database).unwrap();
+    let lease = FjallLeaseStore::open(&database).unwrap();
 
     let dk = DedupeKey::parse("migration-cross-ve-yv21").unwrap();
     let iid = sample_instance_id();
@@ -125,11 +123,10 @@ fn migration_keyspace_reopen_preserves_cross_partition_data() {
     let token = l.token().clone();
     drop(dedupe);
     drop(lease);
-    drop(keyspace);
 
-    let keyspace2 = fjall::Config::new(dir.path()).open().unwrap();
-    let dedupe2 = FjallDedupeStore::open(&keyspace2).unwrap();
-    let lease2 = FjallLeaseStore::open(&keyspace2).unwrap();
+    let database2 = fjall::Database::builder(dir.path()).open().unwrap();
+    let dedupe2 = FjallDedupeStore::open(&database2).unwrap();
+    let lease2 = FjallLeaseStore::open(&database2).unwrap();
 
     assert!(
         dedupe2.contains(&dk).unwrap(),
@@ -193,9 +190,9 @@ fn migration_codec_event_key_roundtrip() {
 #[test]
 fn migration_codec_event_key_survives_write_to_fjall_and_read_back() {
     let dir = tempdir().unwrap();
-    let keyspace = fjall::Config::new(dir.path()).open().unwrap();
-    let partition = keyspace
-        .open_partition(EVENTS_PARTITION, fjall::PartitionCreateOptions::default())
+    let database = fjall::Database::builder(dir.path()).open().unwrap();
+    let partition = database
+        .keyspace(EVENTS_PARTITION, || fjall::KeyspaceCreateOptions::default())
         .unwrap();
 
     let id = InstanceId::parse("01ARZ3NDEKTSV4RRFFQ69G5FAV").unwrap();
@@ -305,9 +302,11 @@ fn migration_projection_batch_rejects_stale_in_middle() {
 #[test]
 fn migration_projection_json_payload_roundtrip_through_fjall() {
     let dir = tempdir().unwrap();
-    let keyspace = fjall::Config::new(dir.path()).open().unwrap();
-    let partition = keyspace
-        .open_partition("projection_test", fjall::PartitionCreateOptions::default())
+    let database = fjall::Database::builder(dir.path()).open().unwrap();
+    let partition = database
+        .keyspace("projection_test", || {
+            fjall::KeyspaceCreateOptions::default()
+        })
         .unwrap();
 
     let window = projection_compat_window(1, 3).unwrap();
@@ -437,19 +436,18 @@ fn migration_unclassified_partitions_get_default_config() {
 #[test]
 fn migration_adding_new_partition_does_not_corrupt_existing() {
     let dir = tempdir().unwrap();
-    let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+    let database = fjall::Database::builder(dir.path()).open().unwrap();
 
-    let dedupe = FjallDedupeStore::open(&keyspace).unwrap();
+    let dedupe = FjallDedupeStore::open(&database).unwrap();
     let dk = DedupeKey::parse("migration-new-part-ve-yv21").unwrap();
     dedupe
         .check_and_insert(&dk, &sample_instance_id(), 60_000)
         .unwrap();
 
-    let custom_partition = keyspace
-        .open_partition(
-            "future_new_partition_v2",
-            fjall::PartitionCreateOptions::default(),
-        )
+    let custom_partition = database
+        .keyspace("future_new_partition_v2", || {
+            fjall::KeyspaceCreateOptions::default()
+        })
         .unwrap();
     custom_partition.insert(b"new-key", b"new-value").unwrap();
 
@@ -470,18 +468,17 @@ fn migration_adding_new_partition_does_not_corrupt_existing() {
 fn migration_write_close_reopen_read_all_partitions_intact() {
     let dir = tempdir().unwrap();
 
-    let keyspace = fjall::Config::new(dir.path()).open().unwrap();
-    let dedupe = FjallDedupeStore::open(&keyspace).unwrap();
-    let lease = FjallLeaseStore::open(&keyspace).unwrap();
+    let database = fjall::Database::builder(dir.path()).open().unwrap();
+    let dedupe = FjallDedupeStore::open(&database).unwrap();
+    let lease = FjallLeaseStore::open(&database).unwrap();
 
-    let events_partition = keyspace
-        .open_partition(EVENTS_PARTITION, fjall::PartitionCreateOptions::default())
+    let events_partition = database
+        .keyspace(EVENTS_PARTITION, || fjall::KeyspaceCreateOptions::default())
         .unwrap();
-    let instances_partition = keyspace
-        .open_partition(
-            INSTANCES_PARTITION,
-            fjall::PartitionCreateOptions::default(),
-        )
+    let instances_partition = database
+        .keyspace(INSTANCES_PARTITION, || {
+            fjall::KeyspaceCreateOptions::default()
+        })
         .unwrap();
 
     let iid = sample_instance_id();
@@ -504,19 +501,18 @@ fn migration_write_close_reopen_read_all_partitions_intact() {
     drop(instances_partition);
     drop(dedupe);
     drop(lease);
-    drop(keyspace);
+    drop(database);
 
-    let keyspace2 = fjall::Config::new(dir.path()).open().unwrap();
-    let dedupe2 = FjallDedupeStore::open(&keyspace2).unwrap();
-    let lease2 = FjallLeaseStore::open(&keyspace2).unwrap();
-    let events2 = keyspace2
-        .open_partition(EVENTS_PARTITION, fjall::PartitionCreateOptions::default())
+    let database2 = fjall::Database::builder(dir.path()).open().unwrap();
+    let dedupe2 = FjallDedupeStore::open(&database2).unwrap();
+    let lease2 = FjallLeaseStore::open(&database2).unwrap();
+    let events2 = database2
+        .keyspace(EVENTS_PARTITION, || fjall::KeyspaceCreateOptions::default())
         .unwrap();
-    let instances2 = keyspace2
-        .open_partition(
-            INSTANCES_PARTITION,
-            fjall::PartitionCreateOptions::default(),
-        )
+    let instances2 = database2
+        .keyspace(INSTANCES_PARTITION, || {
+            fjall::KeyspaceCreateOptions::default()
+        })
         .unwrap();
 
     assert!(
@@ -541,9 +537,9 @@ fn migration_write_close_reopen_read_all_partitions_intact() {
 #[test]
 fn migration_binary_dedupe_entry_in_fjall_survives_codec_evolution() {
     let dir = tempdir().unwrap();
-    let keyspace = fjall::Config::new(dir.path()).open().unwrap();
-    let partition = keyspace
-        .open_partition(DEDUPE_PARTITION, fjall::PartitionCreateOptions::default())
+    let database = fjall::Database::builder(dir.path()).open().unwrap();
+    let partition = database
+        .keyspace(DEDUPE_PARTITION, || fjall::KeyspaceCreateOptions::default())
         .unwrap();
 
     let entry = DedupeEntry::new(
@@ -557,7 +553,7 @@ fn migration_binary_dedupe_entry_in_fjall_survives_codec_evolution() {
     let key_bytes = entry.dedupe_key().as_bytes().to_vec();
     partition.insert(&key_bytes, &binary).unwrap();
 
-    let store = FjallDedupeStore::open(&keyspace).unwrap();
+    let store = FjallDedupeStore::open(&database).unwrap();
     let dk = DedupeKey::parse("migration-fjall-codec-ve-yv21").unwrap();
     assert!(store.contains(&dk).unwrap());
 
@@ -578,8 +574,8 @@ fn migration_binary_dedupe_entry_in_fjall_survives_codec_evolution() {
 #[test]
 fn migration_multiple_entries_survive_reopen() {
     let dir = tempdir().unwrap();
-    let keyspace = fjall::Config::new(dir.path()).open().unwrap();
-    let store = FjallDedupeStore::open(&keyspace).unwrap();
+    let database = fjall::Database::builder(dir.path()).open().unwrap();
+    let store = FjallDedupeStore::open(&database).unwrap();
 
     let count = 50usize;
     for i in 0..count {
@@ -588,10 +584,9 @@ fn migration_multiple_entries_survive_reopen() {
         store.check_and_insert(&key, &iid, 60_000).unwrap();
     }
     drop(store);
-    drop(keyspace);
 
-    let keyspace2 = fjall::Config::new(dir.path()).open().unwrap();
-    let store2 = FjallDedupeStore::open(&keyspace2).unwrap();
+    let database2 = fjall::Database::builder(dir.path()).open().unwrap();
+    let store2 = FjallDedupeStore::open(&database2).unwrap();
 
     for i in 0..count {
         let key = DedupeKey::parse(&format!("migration-batch-{i}-ve-yv21")).unwrap();
