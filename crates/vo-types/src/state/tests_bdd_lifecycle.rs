@@ -23,6 +23,10 @@ mod invalid_transitions {
         let state = LifecycleState::Completed;
 
         for event in TransitionEvent::all_variants() {
+            // EmitOutputRef is valid from Completed (post-publication emission)
+            if *event == TransitionEvent::EmitOutputRef {
+                continue;
+            }
             // When any transition is attempted
             let result = apply(state, *event);
 
@@ -477,6 +481,12 @@ mod terminal_reachability {
             for event in TransitionEvent::all_variants() {
                 // Skip events not yet handled by apply()
                 if *event == TransitionEvent::YieldWithBlob {
+                    continue;
+                }
+                // EmitOutputRef is valid from Completed but not in get_valid_transitions()
+                if state == LifecycleState::Completed
+                    && *event == TransitionEvent::EmitOutputRef
+                {
                     continue;
                 }
                 let result = apply(state, *event);

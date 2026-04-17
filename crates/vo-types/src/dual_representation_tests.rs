@@ -348,11 +348,17 @@ fn apply_redaction_drops_non_redacted_null_values() {
         RedactionKind::Remove,
     )];
     let (result, redacted) = apply_redaction(&value, &rules);
+    // Non-redacted null values are preserved (not redacted, so !was_redacted retains them)
     assert!(
-        result.get("explicit_null").is_none(),
-        "Non-redacted null fields are dropped by apply_redaction (known behavior per line 188)"
+        result.get("explicit_null").is_some(),
+        "Non-redacted null fields are preserved by apply_redaction"
     );
-    assert_eq!(result["secret"], serde_json::Value::Null);
+    assert_eq!(result["explicit_null"], serde_json::Value::Null);
+    // Remove omits the key per ADR-025 §1
+    assert!(
+        result.get("secret").is_none(),
+        "Remove omits key entirely per ADR-025 §1"
+    );
     assert_eq!(redacted.len(), 1);
 }
 
@@ -523,11 +529,11 @@ fn apply_redaction_mixed_kinds_deeply_nested() {
     ];
     let (result, redacted) = apply_redaction(&value, &rules);
     let level2 = &result["level1"]["level2"];
+    // Remove omits key entirely per ADR-025 §1
     assert!(
-        level2.get("remove_field").is_some(),
-        "Remove retains key with Null value"
+        level2.get("remove_field").is_none(),
+        "Remove omits key entirely per ADR-025 §1"
     );
-    assert_eq!(level2["remove_field"], serde_json::Value::Null);
     assert_eq!(level2["replace_field"], "***");
     assert!(level2["hash_field"].as_str().unwrap().starts_with("HASH"));
     assert!(level2["type_field"].is_string());

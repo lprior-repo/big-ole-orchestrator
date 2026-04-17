@@ -256,7 +256,7 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
         mut node: BTreeNode<K, V>,
         key: &K,
     ) -> Result<(BTreeNode<K, V>, V), BTreeError> {
-        let mut idx = node.search_index(key);
+        let idx = node.search_index(key);
         let found_key = idx < node.keys.len() && &node.keys[idx] == key;
 
         if node.is_leaf() {

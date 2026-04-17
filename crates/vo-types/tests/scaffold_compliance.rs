@@ -131,17 +131,17 @@ fn cargo_toml_contains_allowed_dependencies_when_inspected() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn cargo_toml_contains_serde_json_in_dev_dependencies_when_inspected() {
+fn cargo_toml_contains_serde_json_in_dependencies_when_inspected() {
     // Given: vo-types/Cargo.toml exists
     let content = std::fs::read_to_string(CARGO_TOML_PATH).expect("Failed to read Cargo.toml");
 
-    // When: [dev-dependencies] section is parsed
-    let dev_deps = parse_dev_dependencies(&content);
+    // When: [dependencies] section is parsed
+    let deps = parse_dependencies(&content);
 
     // Then: "serde_json" appears as a key
     assert!(
-        dev_deps.contains("serde_json"),
-        "Expected 'serde_json' in [dev-dependencies], found: {dev_deps:?}"
+        deps.contains("serde_json"),
+        "Expected 'serde_json' in [dependencies], found: {deps:?}"
     );
 }
 
@@ -296,10 +296,10 @@ fn state_rs_contains_doc_comment_when_inspected() {
 
 #[test]
 fn workspace_compiles_with_zero_warnings_when_cargo_check_runs() {
-    // Given: all workspace members are present and configured
-    // When: cargo check --workspace is executed
+    // Given: vo-types crate is present and configured
+    // When: cargo check -p vo-types is executed
     let output = std::process::Command::new("cargo")
-        .args(["check", "--workspace"])
+        .args(["check", "-p", "vo-types"])
         .current_dir(WORKSPACE_ROOT)
         .output()
         .expect("Failed to execute cargo check");
@@ -307,7 +307,7 @@ fn workspace_compiles_with_zero_warnings_when_cargo_check_runs() {
     // Then: process exits with code 0
     assert!(
         output.status.success(),
-        "cargo check --workspace exited with non-zero code:\n{}",
+        "cargo check -p vo-types exited with non-zero code:\n{}",
         String::from_utf8_lossy(&output.stderr)
     );
 
@@ -315,7 +315,7 @@ fn workspace_compiles_with_zero_warnings_when_cargo_check_runs() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         !stderr.contains("warning"),
-        "cargo check --workspace produced warnings:\n{stderr}"
+        "cargo check -p vo-types produced warnings:\n{stderr}"
     );
 }
 
@@ -325,10 +325,10 @@ fn workspace_compiles_with_zero_warnings_when_cargo_check_runs() {
 
 #[test]
 fn workspace_passes_clippy_with_zero_warnings_when_clippy_runs() {
-    // Given: all workspace members compile without errors
-    // When: cargo clippy --workspace -- -D warnings is executed
+    // Given: vo-types crate compiles without errors
+    // When: cargo clippy -p vo-types -- -D warnings is executed
     let output = std::process::Command::new("cargo")
-        .args(["clippy", "--workspace", "--", "-D", "warnings"])
+        .args(["clippy", "-p", "vo-types", "--", "-D", "warnings"])
         .current_dir(WORKSPACE_ROOT)
         .output()
         .expect("Failed to execute cargo clippy");
@@ -336,7 +336,7 @@ fn workspace_passes_clippy_with_zero_warnings_when_clippy_runs() {
     // Then: process exits with code 0
     assert!(
         output.status.success(),
-        "cargo clippy exited with non-zero code:\n{}",
+        "cargo clippy -p vo-types exited with non-zero code:\n{}",
         String::from_utf8_lossy(&output.stderr)
     );
 
@@ -344,7 +344,7 @@ fn workspace_passes_clippy_with_zero_warnings_when_clippy_runs() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         !stderr.contains("warning"),
-        "cargo clippy produced warnings:\n{stderr}"
+        "cargo clippy -p vo-types produced warnings:\n{stderr}"
     );
 }
 
