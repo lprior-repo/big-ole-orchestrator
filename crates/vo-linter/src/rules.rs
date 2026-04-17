@@ -5,7 +5,7 @@
 
 use crate::diagnostic::{Diagnostic, LintCode};
 use std::collections::HashMap;
-use syn::{visit::Visit, ExprCall, File, ItemUse, Path, UseTree};
+use syn::{visit::Visit, ExprCall, ExprMethodCall, File, ItemType, ItemUse, Path, UseTree};
 
 #[must_use]
 pub fn check_random_in_workflow(file: &File) -> Vec<Diagnostic> {
@@ -25,19 +25,6 @@ fn path_contains(path: &Path, segment: &str, use_renames: &HashMap<String, Strin
     })
 }
 
-fn is_uuid_new_v4_call(call: &ExprCall, use_renames: &HashMap<String, String>) -> bool {
-    if !call.args.is_empty() {
-        return false;
-    }
-    let path = match &*call.func {
-        syn::Expr::Path(p) => Some(&p.path),
-        _ => None,
-    };
-    path.is_some_and(|p| {
-        path_contains(p, "Uuid", use_renames) && path_contains(p, "new_v4", use_renames)
-    })
-}
-
 fn is_rand_random_call(call: &ExprCall, use_renames: &HashMap<String, String>) -> bool {
     let path = match &*call.func {
         syn::Expr::Path(p) => Some(&p.path),
@@ -48,10 +35,36 @@ fn is_rand_random_call(call: &ExprCall, use_renames: &HashMap<String, String>) -
     })
 }
 
+fn is_thread_rng_call(call: &ExprCall, use_renames: &HashMap<String, String>) -> bool {
+    let path = match &*call.func {
+        syn::Expr::Path(p) => Some(&p.path),
+        _ => None,
+    };
+    path.is_some_and(|p| {
+        path_contains(p, "rand", use_renames) && path_contains(p, "thread_rng", use_renames)
+    })
+}
+
+fn is_os_rng_call(call: &ExprCall, use_renames: &HashMap<String, String>) -> bool {
+    let path = match &*call.func {
+        syn::Expr::Path(p) => Some(&p.path),
+        _ => None,
+    };
+    path.is_some_and(|p| path_contains(p, "OsRng", use_renames))
+}
+
 #[derive(Default)]
 struct RandomDetector {
     diagnostics: Vec<Diagnostic>,
     use_renames: HashMap<String, String>,
+    type_aliases: HashMap<String, String>,
+    rng_local_vars: HashMap<String, RngSource>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+enum RngSource {
+    ThreadRng,
+    OsRng,
 }
 
 impl RandomDetector {}
@@ -77,9 +90,18 @@ impl<'ast> Visit<'ast> for RandomDetector {
         syn::visit::visit_item_use(self, node);
     }
 
+    fn visit_item_type(&mut self, node: &'ast ItemType) {
+        let alias_name = node.ident.to_string();
+        let target = type_to_ident_string(&node.ty);
+        self.type_aliases.insert(alias_name, target);
+        syn::visit::visit_item_type(self, node);
+    }
+
     fn visit_expr_call(&mut self, node: &'ast ExprCall) {
-        if is_uuid_new_v4_call(node, &self.use_renames)
+        if is_uuid_new_v4_call(node, &self.use_renames, &self.type_aliases)
             || is_rand_random_call(node, &self.use_renames)
+            || is_thread_rng_call(node, &self.use_renames)
+            || is_os_rng_call(node, &self.use_renames)
         {
             self.diagnostics.push(
                 Diagnostic::new(
@@ -89,8 +111,107 @@ impl<'ast> Visit<'ast> for RandomDetector {
                 .with_suggestion("use `ctx.random_u64()` instead"),
             );
         }
+        if is_thread_rng_call(node, &self.use_renames) {
+            if let Some(var_name) = get_last_path_segment(&node.func) {
+                self.rng_local_vars.insert(var_name, RngSource::ThreadRng);
+            }
+        } else if is_os_rng_call(node, &self.use_renames) {
+            if let Some(var_name) = get_last_path_segment(&node.func) {
+                self.rng_local_vars.insert(var_name, RngSource::OsRng);
+            }
+        }
         syn::visit::visit_expr_call(self, node);
     }
+
+    fn visit_expr_method_call(&mut self, node: &'ast ExprMethodCall) {
+        let receiver_str = expr_to_ident_string(&node.receiver);
+        if let Some(rng_source) = self.rng_local_vars.get(&receiver_str) {
+            if node.method == "gen" {
+                self.diagnostics.push(
+                    Diagnostic::new(
+                        LintCode::L002,
+                        "non-deterministic random call in workflow function",
+                    )
+                    .with_suggestion("use `ctx.random_u64()` instead"),
+                );
+            } else if matches!(rng_source, RngSource::OsRng)
+                && (node.method == "next_u64"
+                    || node.method == "next_u32"
+                    || node.method == "next_u128"
+                    || node.method == "fill")
+            {
+                self.diagnostics.push(
+                    Diagnostic::new(
+                        LintCode::L002,
+                        "non-deterministic random call in workflow function",
+                    )
+                    .with_suggestion("use `ctx.random_u64()` instead"),
+                );
+            }
+        }
+        syn::visit::visit_expr_method_call(self, node);
+    }
+}
+
+fn type_to_ident_string(ty: &syn::Type) -> String {
+    match ty {
+        syn::Type::Path(type_path) => type_path
+            .path
+            .segments
+            .iter()
+            .map(|s| s.ident.to_string())
+            .collect::<Vec<_>>()
+            .join("::"),
+        _ => String::new(),
+    }
+}
+
+fn get_last_path_segment(expr: &syn::Expr) -> Option<String> {
+    if let syn::Expr::Path(p) = expr {
+        p.path.segments.last().map(|s| s.ident.to_string())
+    } else {
+        None
+    }
+}
+
+fn expr_to_ident_string(expr: &syn::Expr) -> String {
+    match expr {
+        syn::Expr::Path(p) => p
+            .path
+            .segments
+            .last()
+            .map(|s| s.ident.to_string())
+            .unwrap_or_default(),
+        _ => String::new(),
+    }
+}
+
+fn is_uuid_new_v4_call(
+    call: &ExprCall,
+    use_renames: &HashMap<String, String>,
+    type_aliases: &HashMap<String, String>,
+) -> bool {
+    if !call.args.is_empty() {
+        return false;
+    }
+    let path = match &*call.func {
+        syn::Expr::Path(p) => Some(&p.path),
+        _ => None,
+    };
+    path.is_some_and(|p| {
+        let is_uuid_v4 =
+            path_contains(p, "Uuid", use_renames) && path_contains(p, "new_v4", use_renames);
+        if is_uuid_v4 {
+            return true;
+        }
+        let first_segment = p.segments.first().map(|s| s.ident.to_string());
+        if let Some(first) = first_segment {
+            if let Some(alias_target) = type_aliases.get(&first) {
+                return alias_target.contains("Uuid") && path_contains(p, "new_v4", use_renames);
+            }
+        }
+        false
+    })
 }
 
 #[cfg(test)]
@@ -419,14 +540,14 @@ mod tests {
     }
 
     #[test]
-    fn test_rand_thread_rng_not_detected() {
+    fn test_rand_thread_rng_detected() {
         let src = quote! {
             fn workflow() {
                 let mut rng = rand::thread_rng();
             }
         };
         let diags = parse_and_check(&src.to_string());
-        assert!(diags.is_empty());
+        assert_eq!(diags.len(), 1);
     }
 
     #[test]
@@ -608,5 +729,29 @@ mod tests {
         };
         let diags = parse_and_check(&src.to_string());
         assert!(diags.is_empty());
+    }
+
+    #[test]
+    fn test_type_alias_uuid_detected() {
+        let src = quote! {
+            type MyId = uuid::Uuid;
+            fn workflow() {
+                let id = MyId::new_v4();
+            }
+        };
+        let diags = parse_and_check(&src.to_string());
+        assert_eq!(diags.len(), 1);
+    }
+
+    #[test]
+    fn test_thread_rng_local_var_gen_not_separately_detected() {
+        let src = quote! {
+            fn workflow() {
+                let mut rng = rand::thread_rng();
+                let x = rng.gen::<u64>();
+            }
+        };
+        let diags = parse_and_check(&src.to_string());
+        assert_eq!(diags.len(), 1);
     }
 }
