@@ -327,12 +327,6 @@ impl IdempotencyKey {
                 invalid_chars: invalid,
             });
         }
-        if input.chars().next().map_or(false, |c| c.is_ascii_digit()) {
-            return Err(ParseError::BoundaryViolation {
-                type_name: TYPE_NAME,
-                reason: "must not start with digit".to_string(),
-            });
-        }
         Ok(Self(input.to_string()))
     }
 

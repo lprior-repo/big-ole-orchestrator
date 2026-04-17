@@ -838,7 +838,7 @@ fn parse_rejects_self_loop_with_cycle_detected_when_node_edges_to_itself(
 fn parse_rejects_3_node_cycle_a_b_c_a_with_cycle_detected() -> Result<(), Box<dyn std::error::Error>>
 {
     let json = serde_json::json!({
-        "workflow_name": "3-cycle",
+        "workflow_name": "three-cycle",
         "nodes": [
             {"node_name": "a", "retry_policy": {"max_attempts": 1, "backoff_ms": 0, "backoff_multiplier": 1.0}},
             {"node_name": "b", "retry_policy": {"max_attempts": 1, "backoff_ms": 0, "backoff_multiplier": 1.0}},
