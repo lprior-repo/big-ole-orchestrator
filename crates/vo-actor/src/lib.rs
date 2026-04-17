@@ -17,6 +17,7 @@ pub mod master {
 pub mod fairness;
 pub mod instance_registry;
 pub mod lifecycle;
+pub mod async_message_router;
 pub mod message_router;
 pub mod port;
 pub mod probe;
