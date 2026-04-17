@@ -52,7 +52,7 @@ fn queue_depth_metrics_tracked_correctly() {
         blob_capacity: 5,
     };
     let budget = WriteBudget::new(100000, 100000, 100000);
-    let appender = Appender::new(&config, budget);
+    let appender = Appender::new(config, budget);
 
     let stats = appender.stats();
     assert_eq!(
@@ -98,7 +98,7 @@ fn queue_depth_respects_capacity_limits() {
         blob_capacity: 2,
     };
     let budget = WriteBudget::new(100000, 100000, 100000);
-    let appender = Appender::new(&config, budget);
+    let appender = Appender::new(config, budget);
 
     for i in 0..3 {
         let event = make_event("inst-1", i, 100);
@@ -123,7 +123,7 @@ fn backpressure_signal_set_after_queue_full() {
         blob_capacity: 1,
     };
     let budget = WriteBudget::new(100000, 100000, 100000);
-    let appender = Appender::new(&config, budget);
+    let appender = Appender::new(config, budget);
     let backpressure = appender.backpressure().clone();
 
     assert!(!backpressure.any_backpressured());
@@ -148,7 +148,7 @@ fn backpressure_cleared_on_dequeue() {
         blob_capacity: 1,
     };
     let budget = WriteBudget::new(100000, 100000, 100000);
-    let appender = Appender::new(&config, budget);
+    let appender = Appender::new(config, budget);
     let backpressure = appender.backpressure().clone();
 
     let event = make_event("inst-1", 1, 100);
@@ -171,7 +171,7 @@ fn projection_writes_rejected_under_backpressure() {
         blob_capacity: 1,
     };
     let budget = WriteBudget::new(100000, 100000, 100000);
-    let appender = Appender::new(&config, budget);
+    let appender = Appender::new(config, budget);
 
     let write1 = make_projection_write("proj-1", 100);
     assert!(appender.append_projection(write1).is_ok());
@@ -191,7 +191,7 @@ fn projection_writes_rejected_under_backpressure() {
 fn qos_tier_ordering_critical_over_projection_over_blob() {
     let config = QueueConfig::default();
     let budget = WriteBudget::new(100000, 100000, 100000);
-    let queues: BudgetQueues<AppendEntry> = BudgetQueues::new(&config, budget);
+    let queues: BudgetQueues<AppendEntry> = BudgetQueues::new(config, budget);
 
     queues
         .try_enqueue(&AppendEntry::Blob(make_blob_write("blob-1", 100)))
@@ -234,7 +234,7 @@ fn critical_never_dropped_policy_enforced() {
         blob_capacity: 1,
     };
     let budget = WriteBudget::new(100000, 100000, 100000);
-    let appender = Appender::new(&config, budget);
+    let appender = Appender::new(config, budget);
 
     let event1 = make_event("inst-1", 1, 100);
     assert!(appender
@@ -269,7 +269,7 @@ fn shared_backpressure_signal_coordinates_multiple_queues() {
 
     let budget = WriteBudget::new(100000, 100000, 100000);
     let queues1: BudgetQueues<AppendEntry> =
-        BudgetQueues::new_with_backpressure(&config.clone(), budget.clone(), backpressure.clone());
+        BudgetQueues::new_with_backpressure(config.clone(), budget.clone(), backpressure.clone());
 
     let event = make_event("inst-1", 1, 100);
     let write = AppendEntry::ControlPlane(ControlPlaneWrite::new(event, 100));
@@ -284,7 +284,7 @@ fn shared_backpressure_signal_coordinates_multiple_queues() {
     assert!(backpressure.is_backpressured(WriteClass::CriticalControlPlane));
 
     let queues2: BudgetQueues<AppendEntry> =
-        BudgetQueues::new_with_backpressure(&config, budget, backpressure.clone());
+        BudgetQueues::new_with_backpressure(config, budget, backpressure.clone());
     assert!(queues2
         .backpressure()
         .is_backpressured(WriteClass::CriticalControlPlane));
@@ -302,7 +302,7 @@ fn high_volume_load_critical_always_served_first() {
         blob_capacity: 10,
     };
     let budget = WriteBudget::new(1_000_000, 500_000, 500_000);
-    let queues: BudgetQueues<AppendEntry> = BudgetQueues::new(&config, budget);
+    let queues: BudgetQueues<AppendEntry> = BudgetQueues::new(config, budget);
 
     for i in 0..5 {
         let event = make_event("inst-1", i, 100);
@@ -347,7 +347,7 @@ fn load_shedding_exposes_class_and_reason() {
         blob_capacity: 1,
     };
     let budget = WriteBudget::new(1000, 1000, 1000);
-    let appender = Appender::new(&config, budget);
+    let appender = Appender::new(config, budget);
 
     let event = make_event("inst-1", 1, 100);
     let _ = appender.append_control_plane(ControlPlaneWrite::new(event, 100));
@@ -373,7 +373,7 @@ fn critical_writes_never_rejected_even_under_pressure() {
         blob_capacity: 1,
     };
     let budget = WriteBudget::new(100000, 100000, 100000);
-    let appender = Appender::new(&config, budget);
+    let appender = Appender::new(config, budget);
     let backpressure = appender.backpressure().clone();
 
     let event1 = make_event("inst-1", 1, 100);
@@ -415,7 +415,7 @@ fn backpressure_integrates_with_commit_latency_tracking() {
         blob_capacity: 5,
     };
     let budget = WriteBudget::new(100000, 100000, 100000);
-    let appender = Appender::new(&config, budget);
+    let appender = Appender::new(config, budget);
     let backpressure = appender.backpressure().clone();
 
     tracker.record_commit(50);
