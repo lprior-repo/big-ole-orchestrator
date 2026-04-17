@@ -1,5 +1,5 @@
 #[cfg(target_arch = "wasm32")]
-use oya_frontend::graph::Workflow;
+use crate::ui::graph::Workflow;
 
 #[cfg(target_arch = "wasm32")]
 use chrono;
