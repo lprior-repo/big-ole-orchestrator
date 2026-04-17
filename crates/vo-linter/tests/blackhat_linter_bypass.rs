@@ -20,8 +20,11 @@ fn bypass_type_alias_uuid() {
         type MyId = uuid::Uuid;
         fn workflow() { let id = MyId::new_v4(); }
     };
-    assert_eq!(parse_and_check(&src.to_string()), 0,
-        "CONFIRMED BYPASS: type alias hides Uuid from linter");
+    assert_eq!(
+        parse_and_check(&src.to_string()),
+        0,
+        "CONFIRMED BYPASS: type alias hides Uuid from linter"
+    );
 }
 
 #[test]
@@ -30,8 +33,11 @@ fn bypass_use_renamed_import() {
         use uuid::Uuid as GenId;
         fn workflow() { let id = GenId::new_v4(); }
     };
-    assert_eq!(parse_and_check(&src.to_string()), 0,
-        "CONFIRMED BYPASS: `use X as Y` renames Uuid, linter only checks literal ident");
+    assert_eq!(
+        parse_and_check(&src.to_string()),
+        1,
+        "FIXED: `use X as Y` renames now resolved, linter detects GenId::new_v4()"
+    );
 }
 
 #[test]
@@ -39,8 +45,11 @@ fn bypass_macro_wrapping_random() {
     let src = quote! {
         fn workflow() { let id = some_macro!(Uuid::new_v4()); }
     };
-    assert_eq!(parse_and_check(&src.to_string()), 0,
-        "CONFIRMED BYPASS: macro arguments are not expanded by syn");
+    assert_eq!(
+        parse_and_check(&src.to_string()),
+        0,
+        "CONFIRMED BYPASS: macro arguments are not expanded by syn"
+    );
 }
 
 #[test]
@@ -48,8 +57,11 @@ fn bypass_uppercase_uuid() {
     let src = quote! {
         fn workflow() { let id = UUID::new_v4(); }
     };
-    assert_eq!(parse_and_check(&src.to_string()), 0,
-        "CONFIRMED BYPASS: case-sensitive match misses UUID");
+    assert_eq!(
+        parse_and_check(&src.to_string()),
+        0,
+        "CONFIRMED BYPASS: case-sensitive match misses UUID"
+    );
 }
 
 #[test]
@@ -57,8 +69,11 @@ fn bypass_thread_rng_gen() {
     let src = quote! {
         fn workflow() { let mut rng = rand::thread_rng(); let x = rng.gen::<u64>(); }
     };
-    assert_eq!(parse_and_check(&src.to_string()), 0,
-        "CONFIRMED BYPASS: thread_rng().gen() is non-deterministic but not flagged");
+    assert_eq!(
+        parse_and_check(&src.to_string()),
+        0,
+        "CONFIRMED BYPASS: thread_rng().gen() is non-deterministic but not flagged"
+    );
 }
 
 #[test]
@@ -66,8 +81,11 @@ fn bypass_os_random() {
     let src = quote! {
         fn workflow() { let key = rand::rngs::OsRng.next_u64(); }
     };
-    assert_eq!(parse_and_check(&src.to_string()), 0,
-        "CONFIRMED BYPASS: OsRng provides non-deterministic bytes undetected");
+    assert_eq!(
+        parse_and_check(&src.to_string()),
+        0,
+        "CONFIRMED BYPASS: OsRng provides non-deterministic bytes undetected"
+    );
 }
 
 #[test]
@@ -75,15 +93,21 @@ fn bypass_random_via_helper() {
     let src = quote! {
         fn workflow() { let id = get_random_id(); }
     };
-    assert_eq!(parse_and_check(&src.to_string()), 0,
-        "FALSE NEGATIVE: helper function may contain random but is not inlined");
+    assert_eq!(
+        parse_and_check(&src.to_string()),
+        0,
+        "FALSE NEGATIVE: helper function may contain random but is not inlined"
+    );
 }
 
 #[test]
 fn edge_random_in_raw_string() {
     let src = r#"fn workflow() { let s = "Uuid::new_v4()"; }"#;
-    assert_eq!(parse_and_check(src), 0,
-        "string literals containing linter patterns must not be flagged");
+    assert_eq!(
+        parse_and_check(src),
+        0,
+        "string literals containing linter patterns must not be flagged"
+    );
 }
 
 #[test]
@@ -91,8 +115,11 @@ fn positive_fully_qualified_uuid() {
     let src = quote! {
         fn workflow() { let id = uuid::Uuid::new_v4(); }
     };
-    assert_eq!(parse_and_check(&src.to_string()), 1,
-        "SHOULD DETECT: fully qualified uuid::Uuid::new_v4()");
+    assert_eq!(
+        parse_and_check(&src.to_string()),
+        1,
+        "SHOULD DETECT: fully qualified uuid::Uuid::new_v4()"
+    );
 }
 
 #[test]
@@ -102,17 +129,27 @@ fn positive_random_in_let_else() {
             let Some(id) = Some(Uuid::new_v4()) else { return; };
         }
     };
-    assert_eq!(parse_and_check(&src.to_string()), 1,
-        "SHOULD DETECT: random inside let-else expression");
+    assert_eq!(
+        parse_and_check(&src.to_string()),
+        1,
+        "SHOULD DETECT: random inside let-else expression"
+    );
 }
 
 #[test]
 fn positive_random_in_try_context() {
-    let file: File = parse_str(&quote! {
-        fn workflow() { let id = some_fallible(Uuid::new_v4())?; }
-    }.to_string()).unwrap();
-    assert_eq!(check_random_in_workflow(&file).len(), 1,
-        "SHOULD DETECT: random inside ? operator context");
+    let file: File = parse_str(
+        &quote! {
+            fn workflow() { let id = some_fallible(Uuid::new_v4())?; }
+        }
+        .to_string(),
+    )
+    .unwrap();
+    assert_eq!(
+        check_random_in_workflow(&file).len(),
+        1,
+        "SHOULD DETECT: random inside ? operator context"
+    );
 }
 
 #[test]
@@ -120,8 +157,11 @@ fn positive_random_in_closure_arg() {
     let src = quote! {
         fn workflow() { items.iter().map(|_| Uuid::new_v4()); }
     };
-    assert_eq!(parse_and_check(&src.to_string()), 1,
-        "SHOULD DETECT: random inside closure passed to iterator adapter");
+    assert_eq!(
+        parse_and_check(&src.to_string()),
+        1,
+        "SHOULD DETECT: random inside closure passed to iterator adapter"
+    );
 }
 
 #[test]
@@ -131,8 +171,11 @@ fn positive_random_in_match_guard() {
             match val { x if x > rand::random() => {} _ => {} }
         }
     };
-    assert_eq!(parse_and_check(&src.to_string()), 1,
-        "SHOULD DETECT: random inside match guard");
+    assert_eq!(
+        parse_and_check(&src.to_string()),
+        1,
+        "SHOULD DETECT: random inside match guard"
+    );
 }
 
 #[test]
@@ -140,6 +183,9 @@ fn positive_double_random_in_tuple() {
     let src = quote! {
         fn workflow() { let (a, b) = (Uuid::new_v4(), rand::random::<u32>()); }
     };
-    assert_eq!(parse_and_check(&src.to_string()), 2,
-        "SHOULD DETECT: both randoms in tuple destructuring");
+    assert_eq!(
+        parse_and_check(&src.to_string()),
+        2,
+        "SHOULD DETECT: both randoms in tuple destructuring"
+    );
 }
