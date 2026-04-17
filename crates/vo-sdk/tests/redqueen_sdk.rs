@@ -26,8 +26,12 @@ fn rq_builder_two_node_chain_no_connect_produces_zero_edges() {
 #[test]
 fn rq_builder_duplicate_connect_creates_two_edges() {
     let mut dag = Dag::new();
-    let a = dag.add_node_with_kind::<i32, i32, _>("a", NodeKind::Pure, |x: i32| x).unwrap();
-    let b = dag.add_node_with_kind::<i32, i32, _>("b", NodeKind::Pure, |x: i32| x).unwrap();
+    let a = dag
+        .add_node_with_kind::<i32, i32, _>("a", NodeKind::Pure, |x: i32| x)
+        .unwrap();
+    let b = dag
+        .add_node_with_kind::<i32, i32, _>("b", NodeKind::Pure, |x: i32| x)
+        .unwrap();
     dag.connect(&a, &b).unwrap();
     dag.connect(&a, &b).unwrap();
     assert_eq!(dag.edge_count(), 2);
@@ -46,10 +50,16 @@ fn rq_builder_all_five_node_kinds_accepted() {
     let spec = wf.build().unwrap();
     assert_eq!(spec.nodes.len(), 5);
     let kinds: Vec<_> = spec.nodes.iter().map(|n| n.kind).collect();
-    assert_eq!(kinds, vec![
-        NodeKind::Pure, NodeKind::ManagedEffect,
-        NodeKind::Wait, NodeKind::Signal, NodeKind::Unsafe,
-    ]);
+    assert_eq!(
+        kinds,
+        vec![
+            NodeKind::Pure,
+            NodeKind::ManagedEffect,
+            NodeKind::Wait,
+            NodeKind::Signal,
+            NodeKind::Unsafe,
+        ]
+    );
 }
 
 #[test]
@@ -67,7 +77,9 @@ fn rq_serde_node_handle_erases_phantom_types() {
 #[test]
 fn rq_serde_roundtrip_spec_preserves_structure() {
     let mut wf = Workflow::new("roundtrip");
-    let a = wf.pure::<i32, String, _>("a", |_: i32| String::new()).unwrap();
+    let a = wf
+        .pure::<i32, String, _>("a", |_: i32| String::new())
+        .unwrap();
     let b = wf.effect::<String, bool, _>("b", |_: String| true).unwrap();
     wf.connect(&a, &b).unwrap();
     let spec = wf.build().unwrap();
@@ -90,17 +102,28 @@ fn rq_serde_corrupt_missing_brace_rejected() {
 
 #[test]
 fn rq_serde_edge_missing_node_rejected() {
-    // NOTE: WorkflowSpec serde does NOT validate edge endpoints — only Dag::build does.
-    // This test documents the current behavior: dangling edges pass through serde.
     let j = r#"{"workflow_name":"w","nodes":[{"name":"a","kind":"pure"}],"edges":[{"from":"ghost","to":"a"}]}"#;
-    let spec: WorkflowSpec = serde_json::from_str(j).unwrap();
-    assert_eq!(spec.edges.len(), 1, "serde accepts dangling edges — validation gap");
+    let result = serde_json::from_str::<WorkflowSpec>(j);
+    assert!(
+        result.is_err(),
+        "serde rejects edges to nonexistent nodes: {:?}",
+        result
+    );
 }
 
 #[test]
 fn rq_serde_nodespec_roundtrip_preserves_kind() {
-    for kind in [NodeKind::Pure, NodeKind::ManagedEffect, NodeKind::Wait, NodeKind::Signal, NodeKind::Unsafe] {
-        let ns = NodeSpec { name: NodeName::parse("n").unwrap(), kind };
+    for kind in [
+        NodeKind::Pure,
+        NodeKind::ManagedEffect,
+        NodeKind::Wait,
+        NodeKind::Signal,
+        NodeKind::Unsafe,
+    ] {
+        let ns = NodeSpec {
+            name: NodeName::parse("n").unwrap(),
+            kind,
+        };
         let j = serde_json::to_string(&ns).unwrap();
         let back: NodeSpec = serde_json::from_str(&j).unwrap();
         assert_eq!(ns.kind, back.kind);
@@ -109,7 +132,10 @@ fn rq_serde_nodespec_roundtrip_preserves_kind() {
 
 #[test]
 fn rq_serde_edgespec_roundtrip() {
-    let es = EdgeSpec { from: NodeName::parse("a").unwrap(), to: NodeName::parse("b").unwrap() };
+    let es = EdgeSpec {
+        from: NodeName::parse("a").unwrap(),
+        to: NodeName::parse("b").unwrap(),
+    };
     let j = serde_json::to_string(&es).unwrap();
     let back: EdgeSpec = serde_json::from_str(&j).unwrap();
     assert_eq!(es, back);

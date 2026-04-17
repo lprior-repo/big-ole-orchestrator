@@ -19,9 +19,6 @@ fn is_fd_valid(fd: std::os::unix::io::RawFd) -> bool {
 /// # Errors
 /// Returns `SdkError` if FD is not open, already read, or input is invalid.
 pub fn read_input() -> Result<TaskInput, SdkError> {
-    if IS_READ.swap(true, std::sync::atomic::Ordering::SeqCst) {
-        return Err(SdkError::FdNotOpen);
-    }
     if !is_fd_valid(3) {
         return Err(SdkError::FdNotOpen);
     }
@@ -51,12 +48,19 @@ fn parse_envelope(buf: &[u8]) -> Result<TaskInput, SdkError> {
 
 pub(crate) fn read_input_inner<R: Read>(
     reader: &mut R,
-    is_read: &mut bool,
+    _is_read: &mut bool,
 ) -> Result<TaskInput, SdkError> {
-    if *is_read {
+    if IS_READ
+        .compare_exchange(
+            false,
+            true,
+            std::sync::atomic::Ordering::SeqCst,
+            std::sync::atomic::Ordering::SeqCst,
+        )
+        .is_err()
+    {
         return Err(SdkError::FdNotOpen);
     }
-    *is_read = true;
 
     let mut buf = Vec::new();
     let len = reader

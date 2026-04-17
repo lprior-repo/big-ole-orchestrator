@@ -235,6 +235,43 @@ pub fn read_input_inner_with_state<R: Read>(
     parse_envelope(&buf)
 }
 
+/// Internal variant of `read_input` that uses an atomic guard for concurrent coordination.
+/// Used by concurrent tests to verify exactly-one semantics.
+///
+/// # Errors
+/// Returns `SdkError::FdNotOpen` if already read or I/O fails.
+pub fn read_input_inner_with_atomic_guard<R: Read>(
+    reader: &mut R,
+    guard: &std::sync::atomic::AtomicBool,
+) -> Result<TaskInput, SdkError> {
+    if guard
+        .compare_exchange(
+            false,
+            true,
+            std::sync::atomic::Ordering::SeqCst,
+            std::sync::atomic::Ordering::SeqCst,
+        )
+        .is_err()
+    {
+        return Err(SdkError::FdNotOpen);
+    }
+
+    let mut buf = Vec::new();
+    let len = reader
+        .take((MAX_INPUT_SIZE + 1) as u64)
+        .read_to_end(&mut buf)
+        .map_err(|_| SdkError::FdNotOpen)?;
+
+    if len == 0 {
+        return Err(SdkError::InvalidInput);
+    }
+    if len > MAX_INPUT_SIZE {
+        return Err(SdkError::InvalidInput);
+    }
+
+    parse_envelope(&buf)
+}
+
 // ============================================================================
 // Helper Functions
 // ============================================================================

@@ -73,8 +73,7 @@ fn graph_workflow_spec_round_trips_via_serde() {
         }],
     };
     let json = serde_json::to_string_pretty(&spec).expect("serialize");
-    let restored: crate::graph::WorkflowSpec =
-        serde_json::from_str(&json).expect("deserialize");
+    let restored: crate::graph::WorkflowSpec = serde_json::from_str(&json).expect("deserialize");
     assert_eq!(restored, spec, "round-trip should preserve all fields");
 }
 
