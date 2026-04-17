@@ -10,6 +10,8 @@ pub mod prototype_palette;
 #[cfg(test)]
 pub mod template_rendering_tests;
 
+pub mod app_bootstrap;
+
 pub use command_palette::NodeCommandPalette;
 pub use domain_types::{HandleKind, HttpMethod, NodeTemplateId};
 pub use operator_action_panel::{ActionType, OperatorActionPanel};

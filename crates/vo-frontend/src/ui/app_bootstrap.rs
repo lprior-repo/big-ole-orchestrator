@@ -2,7 +2,7 @@
 //!
 //! Provides default workflows and initial state setup.
 
-use vo_types::node_kind::NodeKind;
+use vo_types::NodeKind;
 
 use crate::ui::graph::{Node, NodeCategory, NodeId, Workflow};
 
@@ -47,5 +47,37 @@ mod tests {
 
         assert_eq!(workflow.nodes.len(), 3);
         assert_eq!(workflow.nodes[0].category, NodeCategory::Entry);
+    }
+
+    #[test]
+    fn given_default_workflow_when_created_then_first_node_category_is_entry() {
+        let workflow = default_workflow();
+        assert_eq!(workflow.nodes[0].category, NodeCategory::Entry);
+    }
+
+    #[test]
+    fn given_default_workflow_when_created_then_node_kinds_are_correct() {
+        let workflow = default_workflow();
+        let kinds: Vec<_> = workflow.nodes.iter().map(|n| n.kind).collect();
+        assert_eq!(
+            kinds,
+            vec![NodeKind::Pure, NodeKind::ManagedEffect, NodeKind::Pure]
+        );
+    }
+
+    #[test]
+    fn given_default_workflow_when_created_then_workflow_name_is_default() {
+        let workflow = default_workflow();
+        assert_eq!(workflow.name, "default");
+    }
+
+    #[test]
+    fn given_default_workflow_when_created_then_all_nodes_have_valid_ids() {
+        let workflow = default_workflow();
+        for node in &workflow.nodes {
+            let id_str: &str = node.id.as_str();
+            assert!(!id_str.is_empty(), "Node ID should not be empty");
+            assert_eq!(id_str.len(), 26, "Node ID should be 26-char ULID");
+        }
     }
 }
