@@ -4,6 +4,7 @@
 //! 1. RetryPolicy::new never panics
 //! 2. Exponential backoff never exceeds max delay
 //! 3. RetryPolicy invariants hold for arbitrary valid inputs
+//! 4. calculate_backoff_delay capping, overflow, and edge cases
 
 use proptest::prelude::*;
 use vo_executor::{RetryPolicy, RetryPolicyError};
@@ -293,6 +294,120 @@ fn retry_policy_error_clone_never_panics() {
         .iter()
         .zip(cloned_errors.iter())
         .all(|(err, cloned)| format!("{}", err) == format!("{}", cloned)));
+}
+
+// ============================================================================
+// Proptest: calculate_backoff_delay — max_backoff_ms capping
+// ============================================================================
+
+proptest! {
+    #[test]
+    fn backoff_delay_capped_at_max_backoff_ms(
+        max_attempts in 2u32..=20,
+        backoff_ms in 100u64..=10_000,
+        multiplier in 2.0f64..=100.0,
+        max_backoff_ms in 1_000u64..=50_000,
+    ) {
+        prop_assume!(max_backoff_ms >= backoff_ms, "max_backoff_ms must >= backoff_ms");
+        let policy = RetryPolicy::with_max_backoff(
+            max_attempts, backoff_ms, multiplier, max_backoff_ms,
+        ).unwrap();
+
+        for attempt in 1..=max_attempts {
+            let delay = policy.calculate_backoff_delay(attempt);
+            prop_assert!(
+                delay <= max_backoff_ms,
+                "delay {} exceeded max_backoff_ms {} at attempt {} (backoff_ms={}, multiplier={})",
+                delay, max_backoff_ms, attempt, backoff_ms, multiplier
+            );
+        }
+    }
+}
+
+// ============================================================================
+// Proptest: calculate_backoff_delay — linear backoff (multiplier=1.0)
+// ============================================================================
+
+proptest! {
+    #[test]
+    fn linear_backoff_stays_constant_with_multiplier_one(
+        max_attempts in 2u32..=50,
+        backoff_ms in 0u64..=1_000_000,
+    ) {
+        let policy = RetryPolicy::new(max_attempts, backoff_ms, 1.0).unwrap();
+        let first = policy.calculate_backoff_delay(1);
+        for attempt in 2..=max_attempts {
+            let delay = policy.calculate_backoff_delay(attempt);
+            prop_assert_eq!(
+                delay, first,
+                "linear backoff (multiplier=1.0) should stay constant: attempt {} gave {} vs expected {}",
+                attempt, delay, first
+            );
+        }
+    }
+}
+
+// ============================================================================
+// Proptest: calculate_backoff_delay — attempt 0 always returns 0
+// ============================================================================
+
+proptest! {
+    #[test]
+    fn backoff_attempt_zero_always_returns_zero(
+        max_attempts in 1u32..=100,
+        backoff_ms in 1u64..=u64::MAX,
+        multiplier in 1.0f64..=100.0,
+    ) {
+        let policy = RetryPolicy::new(max_attempts, backoff_ms, multiplier).unwrap();
+        prop_assert_eq!(
+            policy.calculate_backoff_delay(0), 0,
+            "attempt 0 must return 0 for backoff_ms={}, multiplier={}",
+            backoff_ms, multiplier
+        );
+    }
+}
+
+// ============================================================================
+// Proptest: calculate_backoff_delay — overflow returns capped value
+// ============================================================================
+
+proptest! {
+    #[test]
+    fn backoff_overflow_returns_capped_value(
+        backoff_ms in 1_000u64..=10_000,
+        multiplier in 1e6f64..=1e15,
+    ) {
+        let max_backoff_ms = 60_000u64;
+        let policy = RetryPolicy::with_max_backoff(10, backoff_ms, multiplier, max_backoff_ms).unwrap();
+
+        for attempt in 1..=10u32 {
+            let delay = std::panic::catch_unwind(|| policy.calculate_backoff_delay(attempt));
+            prop_assert!(delay.is_ok(), "should not panic at attempt {}", attempt);
+            prop_assert!(
+                *delay.as_ref().unwrap() <= max_backoff_ms,
+                "overflow backoff {} exceeded cap {} at attempt {}",
+                delay.unwrap(), max_backoff_ms, attempt
+            );
+        }
+    }
+}
+
+// ============================================================================
+// Proptest: calculate_backoff_delay — never panics for extreme u64
+// ============================================================================
+
+proptest! {
+    #[test]
+    fn backoff_never_panics_for_extreme_u64(
+        backoff_ms in any::<u64>(),
+        multiplier in 1.0f64..=1e18,
+    ) {
+        let policy = RetryPolicy::new(5, backoff_ms, multiplier).unwrap();
+        for attempt in 0..=5u32 {
+            let delay = std::panic::catch_unwind(|| policy.calculate_backoff_delay(attempt));
+            prop_assert!(delay.is_ok(), "panicked at attempt {} with backoff_ms={}", attempt, backoff_ms);
+        }
+    }
 }
 
 // ============================================================================
