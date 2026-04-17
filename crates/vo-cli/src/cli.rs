@@ -149,7 +149,7 @@ where
                 .arg(
                     clap::Arg::new("versions-dir")
                         .long("versions-dir")
-                        .default_value("/var/wtf/versions")
+                        .default_value(".vo/versions")
                         .help("Versions directory to garbage collect"),
                 )
                 .arg(
@@ -303,7 +303,7 @@ where
             let versions_dir = sub_matches
                 .get_one::<String>("versions-dir")
                 .map(PathBuf::from)
-                .unwrap_or_else(|| PathBuf::from("/var/wtf/versions"));
+                .unwrap_or_else(|| PathBuf::from(".vo/versions"));
             let dry_run = sub_matches.get_flag("dry-run");
             Ok(Cli {
                 command: Command::Gc {
