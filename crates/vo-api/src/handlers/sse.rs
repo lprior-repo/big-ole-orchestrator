@@ -19,8 +19,6 @@ use crate::types::{ApiError, events::WorkflowEvent};
 const SSE_KEEPALIVE_INTERVAL: Duration = Duration::from_secs(15);
 const SSE_BROADCAST_CAPACITY: usize = 1000;
 
-pub use crate::types::events::WorkflowEvent;
-
 #[derive(Clone)]
 pub struct SseBroadcaster {
     tx: broadcast::Sender<WorkflowEvent>,

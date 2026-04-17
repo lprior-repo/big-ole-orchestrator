@@ -33,6 +33,7 @@ pub enum CliError {
 pub enum Command {
     Purge {
         instance: String,
+        storage_path: PathBuf,
     },
     Check {
         workflow: bool,
@@ -45,6 +46,7 @@ pub enum Command {
     },
     Gc {
         engine_url: String,
+        versions_dir: PathBuf,
         dry_run: bool,
     },
     Init {
@@ -89,13 +91,20 @@ where
         .subcommand_required(true)
         .arg_required_else_help(true)
         .subcommand(
-            clap::Command::new("purge").arg(
-                clap::Arg::new("instance")
-                    .long("instance")
-                    .required(true)
-                    .value_name("ID")
-                    .help("The instance ID to purge"),
-            ),
+            clap::Command::new("purge")
+                .arg(
+                    clap::Arg::new("instance")
+                        .long("instance")
+                        .required(true)
+                        .value_name("ID")
+                        .help("The instance ID to purge"),
+                )
+                .arg(
+                    clap::Arg::new("storage-path")
+                        .long("storage-path")
+                        .default_value(".vo/storage")
+                        .help("Storage path for fjall database"),
+                ),
         )
         .subcommand(
             clap::Command::new("check")
@@ -136,6 +145,12 @@ where
                         .long("engine-url")
                         .env("VO_ENGINE_URL")
                         .default_value("http://localhost:3000"),
+                )
+                .arg(
+                    clap::Arg::new("versions-dir")
+                        .long("versions-dir")
+                        .default_value("/var/wtf/versions")
+                        .help("Versions directory to garbage collect"),
                 )
                 .arg(
                     clap::Arg::new("dry-run")
@@ -233,8 +248,15 @@ where
                 .get_one::<String>("instance")
                 .cloned()
                 .unwrap_or_default();
+            let storage_path = purge_matches
+                .get_one::<String>("storage-path")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from(".vo/storage"));
             Ok(Cli {
-                command: Command::Purge { instance },
+                command: Command::Purge {
+                    instance,
+                    storage_path,
+                },
             })
         }
         Some(("check", sub_matches)) => {
@@ -278,10 +300,15 @@ where
                 Some(u) => u.clone(),
                 None => "http://localhost:3000".to_string(),
             };
+            let versions_dir = sub_matches
+                .get_one::<String>("versions-dir")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from("/var/wtf/versions"));
             let dry_run = sub_matches.get_flag("dry-run");
             Ok(Cli {
                 command: Command::Gc {
                     engine_url,
+                    versions_dir,
                     dry_run,
                 },
             })
@@ -401,7 +428,8 @@ mod tests {
         assert_eq!(
             cli.command,
             Command::Purge {
-                instance: "123".to_string()
+                instance: "123".to_string(),
+                storage_path: PathBuf::from(".vo/storage"),
             }
         );
     }
