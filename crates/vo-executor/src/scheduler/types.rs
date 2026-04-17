@@ -76,6 +76,12 @@ impl SchedulePolicy {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum SchedulerRetryPolicyError {
+    #[error("initial_delay ({initial_ms}ms) must be <= max_delay ({max_ms}ms)")]
+    InitialDelayExceedsMax { initial_ms: u64, max_ms: u64 },
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct SchedulerRetryPolicy {
     pub max_attempts: u32,
@@ -85,27 +91,35 @@ pub struct SchedulerRetryPolicy {
 }
 
 impl SchedulerRetryPolicy {
+    /// Create a new `SchedulerRetryPolicy` with validation.
+    ///
+    /// # Errors
+    ///
+    /// Returns `SchedulerRetryPolicyError::InitialDelayExceedsMax` if
+    /// `initial_delay > max_delay`.
     pub fn new(
         max_attempts: u32,
         backoff_multiplier: f64,
         initial_delay: Duration,
         max_delay: Duration,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, SchedulerRetryPolicyError> {
+        if initial_delay > max_delay {
+            return Err(SchedulerRetryPolicyError::InitialDelayExceedsMax {
+                initial_ms: initial_delay.as_millis() as u64,
+                max_ms: max_delay.as_millis() as u64,
+            });
+        }
+        Ok(Self {
             max_attempts,
             backoff_multiplier,
             initial_delay,
             max_delay,
-        }
+        })
     }
 
     pub fn default_retry() -> Self {
-        Self {
-            max_attempts: 3,
-            backoff_multiplier: 2.0,
-            initial_delay: Duration::from_millis(1000),
-            max_delay: Duration::from_secs(60),
-        }
+        Self::new(3, 2.0, Duration::from_millis(1000), Duration::from_secs(60))
+            .expect("default_retry values are valid")
     }
 
     pub fn calculate_delay(&self, attempt: u32) -> Duration {
@@ -307,6 +321,50 @@ mod tests {
         assert!(next2 > next);
     }
 
+    #[test]
+    fn scheduler_retry_policy_rejects_initial_delay_exceeding_max() {
+        let result = SchedulerRetryPolicy::new(
+            3,
+            2.0,
+            Duration::from_secs(120),
+            Duration::from_secs(60),
+        );
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert_eq!(err.to_string(), "initial_delay (120000ms) must be <= max_delay (60000ms)");
+    }
+
+
+    #[test]
+    fn scheduler_retry_policy_valid_config_succeeds() {
+        let policy = SchedulerRetryPolicy::new(
+            3,
+            2.0,
+            Duration::from_secs(1),
+            Duration::from_secs(60),
+        );
+        assert!(policy.is_ok());
+        let p = policy.unwrap();
+        assert_eq!(p.max_attempts, 3);
+        assert_eq!(p.initial_delay, Duration::from_secs(1));
+        assert_eq!(p.max_delay, Duration::from_secs(60));
+    }
+
+    #[test]
+    fn scheduler_retry_policy_equal_delays_succeeds() {
+        let policy = SchedulerRetryPolicy::new(
+            1,
+            1.0,
+            Duration::from_secs(30),
+            Duration::from_secs(30),
+        );
+        assert!(policy.is_ok());
+    }
+
+    #[test]
+    fn scheduler_retry_policy_default_retry_is_valid() {
+        let _ = SchedulerRetryPolicy::default_retry();
+    }
     #[test]
     fn job_builder() {
         let job = Job::new(

@@ -16,7 +16,7 @@ pub use error::{ExecutionError, JobRunError, RetryExhaustedError, SchedulerError
 pub use queue::{PriorityQueue, SchedulerQueue};
 pub use types::{
     Job, JobId, JobKind, JobPriority, JobResult, JobState, Schedule, SchedulePolicy,
-    SchedulerConfig, SchedulerRetryPolicy, ScheduledJob, SerializedPayload,
+    SchedulerConfig, SchedulerRetryPolicy, SchedulerRetryPolicyError, ScheduledJob, SerializedPayload,
 };
 
 use std::sync::Arc;

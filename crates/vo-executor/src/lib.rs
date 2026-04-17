@@ -27,7 +27,7 @@ pub use execution::{
 pub use runtime::{ContextError, Runtime, RuntimeError, StepContext};
 pub use scheduler::{
     Job, JobId, JobKind, JobPriority, JobResult, JobState, Schedule, SchedulePolicy,
-    SchedulerConfig, SchedulerError, SchedulerRetryPolicy, ScheduledJob, SerializedPayload,
+    SchedulerConfig, SchedulerError, SchedulerRetryPolicy, SchedulerRetryPolicyError, ScheduledJob, SerializedPayload,
 };
 pub use state::{clear_error, get_error_count, get_state_count, reset_all_state, set_error};
 pub use state::set_executing_state_for_test;
