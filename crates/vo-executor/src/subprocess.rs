@@ -163,13 +163,16 @@ pub async fn run_subprocess(config: SubprocessConfig) -> Result<SubprocessOutput
 
     let res = timeout(
         Duration::from_millis(timeout_ms),
-        perform_ipc(fd3_writer, fd4_reader, fd3_payload),
+        async {
+            let ipc_result = perform_ipc(fd3_writer, fd4_reader, fd3_payload).await;
+            let exit_status = child.wait().await;
+            (ipc_result, exit_status)
+        },
     )
     .await;
 
     match res {
-        Ok(Ok(output)) => {
-            let exit_status = child.wait().await;
+        Ok((Ok(output), exit_status)) => {
             match exit_status {
                 Ok(status) => {
                     if let Some(exit_code) = status.code() {
@@ -188,7 +191,7 @@ pub async fn run_subprocess(config: SubprocessConfig) -> Result<SubprocessOutput
                 Err(_) => Err(SubprocessError::ProcessFailed { exit_code: -1 }),
             }
         }
-        Ok(Err(e)) => Err(e),
+        Ok((Err(e), _)) => Err(e),
         Err(_) => {
             let _ = child.kill().await;
             Err(SubprocessError::Timeout {
