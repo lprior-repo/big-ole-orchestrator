@@ -6,16 +6,13 @@
 
 use axum::{
     extract::Extension,
+    http::StatusCode,
     routing::{delete, get, post},
     Router,
 };
 use std::sync::Arc;
 use std::time::Duration;
-use tower_http::{
-    cors::CorsLayer,
-    timeout::TimeoutLayer,
-    trace::TraceLayer,
-};
+use tower_http::{cors::CorsLayer, timeout::TimeoutLayer, trace::TraceLayer};
 
 use crate::handlers::query::QueryState;
 use crate::handlers::sse::SseState;
@@ -54,10 +51,7 @@ pub fn create_router(state: AppState) -> Router {
     let workflow_routes = Router::new()
         .route("/api/v1/workflows", post(crate::handlers::start_workflow))
         .route("/api/v1/workflows", get(crate::handlers::list_workflows))
-        .route(
-            "/api/v1/workflows/{id}",
-            get(crate::handlers::get_workflow),
-        )
+        .route("/api/v1/workflows/{id}", get(crate::handlers::get_workflow))
         .route(
             "/api/v1/workflows/{id}",
             delete(crate::handlers::terminate_workflow),
@@ -119,7 +113,10 @@ pub fn create_router(state: AppState) -> Router {
         .merge(event_routes)
         .merge(sse_routes)
         .merge(ws_routes)
-        .layer(TimeoutLayer::new(Duration::from_secs(30)))
+        .layer(TimeoutLayer::with_status_code(
+            StatusCode::REQUEST_TIMEOUT,
+            Duration::from_secs(30),
+        ))
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
 }
