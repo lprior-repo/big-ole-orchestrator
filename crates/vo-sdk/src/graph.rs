@@ -266,9 +266,10 @@ pub fn emit_graph_if_requested(args: &[String], spec: &WorkflowSpec) -> Result<(
                 std::process::exit(1);
             }
             let json = spec.to_json_bytes();
-            std::io::stdout()
-                .write_all(&json)
-                .expect("stdout write should not fail");
+            if let Err(e) = std::io::stdout().write_all(&json) {
+                eprintln!("error: failed to write graph output: {e}");
+                std::process::exit(1);
+            }
             std::process::exit(0);
         }
         Err(GraphArgsError::NoGraphFlag) => Ok(()),
