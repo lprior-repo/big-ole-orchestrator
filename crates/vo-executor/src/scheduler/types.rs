@@ -253,6 +253,24 @@ impl JobId {
     pub fn new(id: u64) -> Self {
         Self(id)
     }
+
+    pub fn parse(input: &str) -> Result<Self, super::SchedulerError> {
+        let trimmed = input.trim();
+        if trimmed.is_empty() {
+            return Err(super::SchedulerError::InvalidJobId(
+                "JobId must not be empty".to_string(),
+            ));
+        }
+        let id: u64 = trimmed
+            .parse()
+            .map_err(|e| super::SchedulerError::InvalidJobId(format!("invalid u64: {e}")))?;
+        Ok(Self(id))
+    }
+
+    #[must_use]
+    pub fn get(&self) -> u64 {
+        self.0
+    }
 }
 
 impl std::fmt::Display for JobId {
@@ -379,5 +397,32 @@ mod tests {
         assert_eq!(job.priority, JobPriority::High);
         assert_eq!(job.max_retries, 5);
         assert_eq!(job.backoff_ms, 500);
+    }
+
+    #[test]
+    fn job_id_parse_valid() {
+        assert_eq!(JobId::parse("42").unwrap(), JobId::new(42));
+        assert_eq!(JobId::parse("0").unwrap(), JobId::new(0));
+        assert_eq!(JobId::parse("  7  ").unwrap(), JobId::new(7));
+        assert_eq!(
+            JobId::parse(&u64::MAX.to_string()).unwrap(),
+            JobId::new(u64::MAX)
+        );
+    }
+
+    #[test]
+    fn job_id_parse_invalid() {
+        assert!(JobId::parse("").is_err());
+        assert!(JobId::parse("   ").is_err());
+        assert!(JobId::parse("abc").is_err());
+        assert!(JobId::parse("-1").is_err());
+        assert!(JobId::parse("1.5").is_err());
+        assert!(JobId::parse("18446744073709551616").is_err());
+    }
+
+    #[test]
+    fn job_id_get() {
+        assert_eq!(JobId::new(99).get(), 99);
+        assert_eq!(JobId::parse("123").unwrap().get(), 123);
     }
 }
