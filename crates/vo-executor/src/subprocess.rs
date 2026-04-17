@@ -13,6 +13,8 @@
 
 use libc;
 use std::os::fd::{FromRawFd, RawFd};
+#[cfg(unix)]
+use std::os::unix::process::ExitStatusExt;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::process::Command;
 use tokio::time::{timeout, Duration};
@@ -167,11 +169,24 @@ pub async fn run_subprocess(config: SubprocessConfig) -> Result<SubprocessOutput
 
     match res {
         Ok(Ok(output)) => {
-            let exit_code = child.wait().await.ok().and_then(|s| s.code());
-            Ok(SubprocessOutput {
-                fd4_bytes: output,
-                exit_code,
-            })
+            let exit_status = child.wait().await;
+            match exit_status {
+                Ok(status) => {
+                    if let Some(exit_code) = status.code() {
+                        Ok(SubprocessOutput {
+                            fd4_bytes: output,
+                            exit_code: Some(exit_code),
+                        })
+                    } else {
+                        #[cfg(unix)]
+                        let sig_code = status.signal().map(|s| 128 + s).unwrap_or(-1);
+                        #[cfg(not(unix))]
+                        let sig_code = -1;
+                        Err(SubprocessError::ProcessFailed { exit_code: sig_code })
+                    }
+                }
+                Err(_) => Err(SubprocessError::ProcessFailed { exit_code: -1 }),
+            }
         }
         Ok(Err(e)) => Err(e),
         Err(_) => {
