@@ -6,6 +6,10 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use tokio::sync::{broadcast, watch};
+use tokio::task::JoinHandle;
+use tokio::time::{interval, MissedTickBehavior};
+
 use vo_types::InstanceId;
 
 // =============================================================================
@@ -76,6 +80,49 @@ pub enum TimerSupervisorError {
     ShutdownTimeout(Duration),
     #[error("Dispatch error: {0}")]
     DispatchError(String),
+}
+
+impl TimerSupervisorError {
+    #[must_use]
+    pub fn is_transient(&self) -> bool {
+        matches!(
+            self,
+            Self::StorageError(_)
+                | Self::InstanceNotFound(_)
+                | Self::MailboxFull(_)
+                | Self::DispatchError(_)
+        )
+    }
+
+    #[must_use]
+    pub fn is_fatal(&self) -> bool {
+        matches!(self, Self::CorruptTimer(_) | Self::InvalidConfig(_))
+    }
+
+    #[must_use]
+    pub fn is_operational(&self) -> bool {
+        matches!(
+            self,
+            Self::AlreadyRunning
+                | Self::ShutdownTimeout(_)
+                | Self::AtomicityViolation(_)
+        )
+    }
+}
+
+// =============================================================================
+// `TimerSupervisorState` - Runtime state of the supervisor
+// =============================================================================
+
+/// `TimerSupervisorState` - Runtime state of the supervisor
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TimerSupervisorState {
+    /// Supervisor is running and scanning timers.
+    Running,
+    /// Supervisor is shutting down.
+    ShuttingDown,
+    /// Supervisor has shut down.
+    ShutDown,
 }
 
 // =============================================================================
@@ -203,7 +250,6 @@ impl TimerSupervisor {
     /// # Errors
     /// Returns `AlreadyRunning` if the supervisor is already running.
     pub fn spawn(self) -> Result<TimerSupervisorHandle, TimerSupervisorError> {
-        // Check if already running
         if self
             .is_running
             .swap(true, std::sync::atomic::Ordering::SeqCst)
@@ -211,8 +257,23 @@ impl TimerSupervisor {
             return Err(TimerSupervisorError::AlreadyRunning);
         }
 
+        let (state_sender, _) = watch::channel(TimerSupervisorState::Running);
+        let (shutdown_trigger, _) = broadcast::channel(1);
+
+        let state_sender_clone = state_sender.clone();
+        let shutdown_receiver = shutdown_trigger.subscribe();
+
+        let task_handle = tokio::runtime::Handle::current().spawn(async move {
+            let result = self.run_loop(state_sender_clone, shutdown_receiver).await;
+            if let Err(e) = result {
+                tracing::error!("Timer supervisor loop exited with error: {}", e);
+            }
+        });
+
         Ok(TimerSupervisorHandle {
-            is_running: Arc::new(std::sync::atomic::AtomicBool::new(true)),
+            state_sender,
+            shutdown_trigger,
+            task_handle: Some(task_handle),
         })
     }
 
@@ -297,18 +358,39 @@ impl TimerSupervisor {
         })
     }
 
-    /// Shuts down the `TimerSupervisor`.
-    ///
-    /// # Errors
-    /// Returns `ShutdownTimeout` if shutdown does not complete within the given timeout.
-    pub fn shutdown(&self, timeout: Duration) -> Result<(), TimerSupervisorError> {
-        self.is_running
-            .store(false, std::sync::atomic::Ordering::SeqCst);
+    async fn run_loop(
+        self,
+        state_sender: watch::Sender<TimerSupervisorState>,
+        mut shutdown_receiver: broadcast::Receiver<()>,
+    ) -> Result<(), TimerSupervisorError> {
+        let mut scan_interval = interval(self.tick_interval);
+        scan_interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
 
-        // In a real implementation, we would wait for the background task to finish.
-        // For now, we just stop the running flag.
+        loop {
+            tokio::select! {
+                _ = shutdown_receiver.recv() => {
+                    let _ = state_sender.send(TimerSupervisorState::ShuttingDown);
+                    break;
+                }
+                _ = scan_interval.tick() => {
+                    match self.process_cycle() {
+                        Ok(_) => {}
+                        Err(e) if e.is_transient() => {
+                            tracing::warn!("Transient error in timer supervisor cycle: {}", e);
+                        }
+                        Err(e) if e.is_fatal() => {
+                            tracing::error!("Fatal error in timer supervisor cycle: {}", e);
+                        }
+                        Err(e) => {
+                            tracing::debug!("Operational error in timer supervisor cycle: {}", e);
+                        }
+                    }
+                }
+            }
+        }
 
-        Err(TimerSupervisorError::ShutdownTimeout(timeout))
+        let _ = state_sender.send(TimerSupervisorState::ShutDown);
+        Ok(())
     }
 }
 
@@ -319,23 +401,64 @@ impl TimerSupervisor {
 /// Handle for controlling `TimerSupervisor`
 #[derive(Debug)]
 pub struct TimerSupervisorHandle {
-    is_running: Arc<std::sync::atomic::AtomicBool>,
+    state_sender: watch::Sender<TimerSupervisorState>,
+    shutdown_trigger: broadcast::Sender<()>,
+    task_handle: Option<JoinHandle<()>>,
 }
 
 impl TimerSupervisorHandle {
     /// Returns true if the supervisor is running.
     #[must_use]
     pub fn is_running(&self) -> bool {
-        self.is_running.load(std::sync::atomic::Ordering::SeqCst)
+        *self.state_sender.borrow() == TimerSupervisorState::Running
     }
 
-    /// Stops the supervisor.
+    /// Returns the current state of the supervisor.
+    #[must_use]
+    pub fn current_state(&self) -> TimerSupervisorState {
+        self.state_sender.borrow().clone()
+    }
+
+    /// Requests the supervisor to shut down and waits for completion.
     ///
     /// # Errors
-    /// Returns an error if stopping fails.
-    pub fn stop(self) -> Result<(), TimerSupervisorError> {
-        self.is_running
-            .store(false, std::sync::atomic::Ordering::SeqCst);
+    /// Returns `ShutdownTimeout` if shutdown does not complete within the given timeout.
+    pub async fn shutdown(mut self, timeout: Duration) -> Result<(), TimerSupervisorError> {
+        let _ = self.shutdown_trigger.send(());
+
+        let mut receiver = self.state_sender.subscribe();
+        let start = std::time::Instant::now();
+        loop {
+            let remaining = timeout.saturating_sub(start.elapsed());
+            if remaining.is_zero() {
+                return Err(TimerSupervisorError::ShutdownTimeout(timeout));
+            }
+
+            match tokio::time::timeout(remaining, receiver.wait_for(|state| *state != TimerSupervisorState::Running)).await {
+                Ok(Ok(state)) => {
+                    if *state == TimerSupervisorState::ShutDown {
+                        break;
+                    }
+                }
+                _ => {
+                    return Err(TimerSupervisorError::ShutdownTimeout(timeout));
+                }
+            }
+        }
+
+        if let Some(task) = self.task_handle.take() {
+            match task.await {
+                Ok(()) => {}
+                Err(e) => {
+                    if !e.is_panic() {
+                        tracing::warn!("Timer supervisor task cancelled during shutdown");
+                    } else {
+                        tracing::error!("Timer supervisor task panicked during shutdown");
+                    }
+                }
+            }
+        }
+
         Ok(())
     }
 }
@@ -531,5 +654,57 @@ mod tests {
     fn is_overdue_returns_false_at_boundary() {
         // fire_at_ms + tick_interval_ms = 1000 + 100 = 1100 >= now_ms = 1100
         assert!(!is_overdue(1000, 1100, 100));
+    }
+
+    struct MockStorage;
+    impl TimerStorage for MockStorage {
+        fn scan_due_timers(&self, _from: u64, _to: u64, _max: u32) -> Vec<TimerRecord> {
+            Vec::new()
+        }
+        fn delete_timer(
+            &self,
+            _instance_id: &InstanceId,
+            _fire_at_ms: u64,
+        ) -> Result<(), TimerSupervisorError> {
+            Ok(())
+        }
+    }
+
+    struct MockQueue;
+    impl WorkQueue for MockQueue {
+        fn enqueue_resume(&self, _instance_id: InstanceId) -> Result<(), TimerSupervisorError> {
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn shutdown_returns_ok_on_clean_shutdown() {
+        let storage: Arc<dyn TimerStorage> = Arc::new(MockStorage);
+        let work_queue: Arc<dyn WorkQueue> = Arc::new(MockQueue);
+
+        let supervisor = TimerSupervisor::new(Duration::from_millis(100), storage, work_queue)
+            .expect("valid config should construct supervisor");
+
+        let handle = supervisor.spawn().expect("spawn should return a handle");
+        assert!(handle.is_running());
+        assert_eq!(handle.current_state(), TimerSupervisorState::Running);
+
+        let result = handle.shutdown(Duration::from_secs(5)).await;
+        assert!(result.is_ok(), "shutdown should return Ok, got {:?}", result);
+    }
+
+    #[tokio::test]
+    async fn shutdown_sets_state_to_shutdown() {
+        let storage: Arc<dyn TimerStorage> = Arc::new(MockStorage);
+        let work_queue: Arc<dyn WorkQueue> = Arc::new(MockQueue);
+
+        let supervisor = TimerSupervisor::new(Duration::from_secs(3600), storage, work_queue)
+            .expect("valid config should construct supervisor");
+
+        let handle = supervisor.spawn().expect("spawn should return a handle");
+        let state_before = handle.current_state();
+        assert_eq!(state_before, TimerSupervisorState::Running);
+
+        handle.shutdown(Duration::from_secs(5)).await.unwrap();
     }
 }
