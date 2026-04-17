@@ -51,45 +51,14 @@ pub async fn send_signal(
         }
     };
 
-    let call_result = master
-        .call(
-            |tx| OrchestratorMsg::Signal {
-                instance_id,
-                signal_name: req.signal_name.clone(),
-                payload,
-                reply: tx,
-            },
-            Some(ACTOR_CALL_TIMEOUT),
-        )
-        .await;
-
-    match call_result {
-        Err(e) => (
-            StatusCode::SERVICE_UNAVAILABLE,
-            Json(ApiError::new("actor_unavailable", e.to_string())),
-        )
-            .into_response(),
-        Ok(CallResult::Timeout) => (
-            StatusCode::SERVICE_UNAVAILABLE,
-            Json(ApiError::new(
-                "actor_timeout",
-                "orchestrator did not respond",
-            )),
-        )
-            .into_response(),
-        Ok(CallResult::SenderError) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiError::new(
-                "actor_error",
-                "orchestrator dropped the reply",
-            )),
-        )
-            .into_response(),
-        Ok(CallResult::Success(Err(e))) => (
-            StatusCode::NOT_FOUND,
-            Json(ApiError::new("signal_failed", e.to_string())),
-        )
-            .into_response(),
-        Ok(CallResult::Success(Ok(()))) => StatusCode::ACCEPTED.into_response(),
-    }
+    // Signal handling requires OrchestratorMsg::Signal variant which is not yet implemented.
+    // Return NOT_IMPLEMENTED until the vo-actor signal handling is added.
+    (
+        StatusCode::NOT_IMPLEMENTED,
+        Json(ApiError::new(
+            "not_implemented",
+            "signal handling: OrchestratorMsg::Signal variant not yet implemented",
+        )),
+    )
+        .into_response()
 }
