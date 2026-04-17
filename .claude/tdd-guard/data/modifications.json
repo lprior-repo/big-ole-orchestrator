@@ -1,12 +1,12 @@
 {
-  "session_id": "8d6d0504-58b8-4015-a243-7e88d3dac763",
-  "transcript_path": "/home/lewis/.claude/projects/-home-lewis-gt-veloxide-polecats-thunder-veloxide/8d6d0504-58b8-4015-a243-7e88d3dac763.jsonl",
+  "session_id": "5315a7fa-d9c0-4d49-8f01-c100b4258374",
+  "transcript_path": "/home/lewis/.claude/projects/-home-lewis-gt-veloxide-polecats-thunder-veloxide/5315a7fa-d9c0-4d49-8f01-c100b4258374.jsonl",
   "hook_event_name": "PreToolUse",
   "tool_name": "Edit",
   "tool_input": {
-    "file_path": "/home/lewis/gt/veloxide/polecats/thunder/veloxide/crates/vo-actor/src/message_router.rs",
-    "old_string": "                payload: Vec::new(), // Would serialize message here",
-    "new_string": "                payload: serde_json::to_vec(&_message).unwrap_or_default(),",
+    "file_path": "/home/lewis/gt/veloxide/polecats/thunder/veloxide/crates/vo-ipc/src/unit_tests.rs",
+    "old_string": "#[test]\nfn bus_error_variants_display_correctly() {\n    use crate::bus::BusError;\n    assert_eq!(BusError::BusClosed.to_string(), \"bus is closed\");\n    assert_eq!(\n        BusError::BackpressureLimitReached.to_string(),\n        \"backpressure limit reached\"\n    );\n    assert_eq!(BusError::Timeout.to_string(), \"timeout\");\n}",
+    "new_string": "#[test]\nfn bus_error_variants_display_correctly() {\n    use crate::bus::BusError;\n    assert_eq!(BusError::BusClosed.to_string(), \"bus is closed\");\n    assert_eq!(\n        BusError::BackpressureLimitReached.to_string(),\n        \"backpressure limit reached\"\n    );\n    assert_eq!(BusError::Timeout.to_string(), \"timeout\");\n}\n\n#[test]\nfn bus_message_equality() {\n    use crate::bus::BusMessage;\n    let drained = BusMessage::Drained;\n    assert_eq!(drained, BusMessage::Drained);\n}",
     "replace_all": false
   }
 }

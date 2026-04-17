@@ -1,4 +1,241 @@
     Blocking waiting for file lock on package cache
     Blocking waiting for file lock on package cache
     Blocking waiting for file lock on package cache
-    Blocking waiting for file lock on build directory
+    Checking tokio v1.52.0
+    Checking ulid v1.2.1
+    Checking tungstenite v0.29.0
+    Checking tungstenite v0.28.0
+    Checking manganis v0.7.5
+    Checking vo-types v0.1.0 (/home/lewis/gt/veloxide/polecats/thunder/veloxide/crates/vo-types)
+    Checking dioxus-devtools v0.7.4
+    Checking dioxus-web v0.7.5
+warning: unused import: `guarantee_class::GuaranteeClass`
+ --> crates/vo-types/src/workflow/mod.rs:4:9
+  |
+4 | pub use guarantee_class::GuaranteeClass;
+  |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+    Checking dioxus v0.7.5
+    Checking tokio-util v0.7.18
+    Checking tower v0.5.3
+    Checking tokio-native-tls v0.3.1
+    Checking ractor v0.15.12
+    Checking tokio-tungstenite v0.29.0
+    Checking vo-ipc v0.1.0 (/home/lewis/gt/veloxide/polecats/thunder/veloxide/crates/vo-ipc)
+    Checking vo-executor v0.1.0 (/home/lewis/gt/veloxide/polecats/thunder/veloxide/crates/vo-executor)
+    Checking tower-http v0.6.8
+    Checking h2 v0.4.13
+    Checking tokio-stream v0.1.18
+warning: variable does not need to be mutable
+   --> crates/vo-types/src/btree.rs:259:13
+    |
+259 |         let mut idx = node.search_index(key);
+    |             ----^^^
+    |             |
+    |             help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: enum `SelectionError` is never used
+  --> crates/vo-types/src/next_step_selection.rs:34:10
+   |
+34 | pub enum SelectionError {
+   |          ^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: struct `NextStep` is never constructed
+  --> crates/vo-types/src/next_step_selection.rs:67:12
+   |
+67 | pub struct NextStep {
+   |            ^^^^^^^^
+
+warning: struct `SchedulingIntention` is never constructed
+  --> crates/vo-types/src/next_step_selection.rs:91:12
+   |
+91 | pub struct SchedulingIntention {
+   |            ^^^^^^^^^^^^^^^^^^^
+
+warning: associated function `new` is never used
+   --> crates/vo-types/src/next_step_selection.rs:111:12
+    |
+108 | impl SchedulingIntention {
+    | ------------------------ associated function in this implementation
+...
+111 |     pub fn new(
+    |            ^^^
+
+warning: function `select_next_step` is never used
+   --> crates/vo-types/src/next_step_selection.rs:168:8
+    |
+168 | pub fn select_next_step(
+    |        ^^^^^^^^^^^^^^^^
+
+warning: function `find_ready_nodes` is never used
+   --> crates/vo-types/src/next_step_selection.rs:207:4
+    |
+207 | fn find_ready_nodes(
+    |    ^^^^^^^^^^^^^^^^
+
+warning: function `emit_scheduling_intention` is never used
+   --> crates/vo-types/src/next_step_selection.rs:278:8
+    |
+278 | pub fn emit_scheduling_intention(
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: field `index` is never read
+  --> crates/vo-types/src/search/mod.rs:23:5
+   |
+22 | pub struct SearchEngine {
+   |            ------------ field in this struct
+23 |     index: InvertedIndex,
+   |     ^^^^^
+   |
+   = note: `SearchEngine` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+    Checking hyper v1.9.0
+    Checking hyper-util v0.1.20
+    Checking hyper-tls v0.6.0
+    Checking axum v0.8.9
+    Checking reqwest v0.12.28
+warning: `vo-types` (lib) generated 10 warnings (run `cargo fix --lib -p vo-types` to apply 2 suggestions)
+    Checking vo-storage v0.1.0 (/home/lewis/gt/veloxide/polecats/thunder/veloxide/crates/vo-storage)
+    Checking vo-core v0.1.0 (/home/lewis/gt/veloxide/polecats/thunder/veloxide/crates/vo-core)
+    Checking vo-actor v0.1.0 (/home/lewis/gt/veloxide/polecats/thunder/veloxide/crates/vo-actor)
+    Checking vo-frontend v0.1.0 (/home/lewis/gt/veloxide/polecats/thunder/veloxide/crates/vo-frontend)
+    Checking vo-scheduler v0.1.0 (/home/lewis/gt/veloxide/polecats/thunder/veloxide/crates/vo-scheduler)
+    Checking vo-sdk v0.1.0 (/home/lewis/gt/veloxide/polecats/thunder/veloxide/crates/vo-sdk)
+warning: function `assert_send_sync` is never used
+   --> crates/vo-scheduler/src/types.rs:221:8
+    |
+221 |     fn assert_send_sync<T: Send + Sync>() {}
+    |        ^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `check` is never used
+   --> crates/vo-scheduler/src/types.rs:222:8
+    |
+222 |     fn check() {
+    |        ^^^^^
+
+warning: unused import: `apply_effect_transition`
+  --> crates/vo-core/src/effects.rs:25:5
+   |
+25 |     apply_effect_transition, CompensationPolicy, EffectIntent, EffectKind, EffectRecord,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `vo-scheduler` (lib) generated 2 warnings
+warning: unused variable: `e`
+   --> crates/vo-storage/src/crypto.rs:180:23
+    |
+180 |             .map_err(|e| CryptoError::EncryptionFailed)?,
+    |                       ^ help: if this is intentional, prefix it with an underscore: `_e`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: trait `Classifiable` is more private than the item `QosRouter::<T>::enqueue`
+   --> crates/vo-storage/src/qos_router.rs:132:5
+    |
+132 | /     pub fn enqueue(&mut self, item: T) -> Result<(), CapacityError>
+133 | |     where
+134 | |         T: Classifiable,
+    | |________________________^ method `QosRouter::<T>::enqueue` is reachable at visibility `pub`
+    |
+note: but trait `Classifiable` is only usable at visibility `pub(self)`
+   --> crates/vo-storage/src/qos_router.rs:34:1
+    |
+ 34 | trait Classifiable {
+    | ^^^^^^^^^^^^^^^^^^
+    = note: `#[warn(private_bounds)]` on by default
+
+warning: `vo-core` (lib) generated 1 warning (run `cargo fix --lib -p vo-core` to apply 1 suggestion)
+warning: `vo-storage` (lib) generated 2 warnings (run `cargo fix --lib -p vo-storage` to apply 1 suggestion)
+    Checking vo-worker v0.1.0 (/home/lewis/gt/veloxide/polecats/thunder/veloxide/crates/vo-worker)
+    Checking vo-api v0.1.0 (/home/lewis/gt/veloxide/polecats/thunder/veloxide/crates/vo-api)
+warning: unused import: `ingress::*`
+ --> crates/vo-api/src/handlers/mod.rs:2:9
+  |
+2 | pub use ingress::*;
+  |         ^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `vo_common::InstanceId as InstanceIdString`
+ --> crates/vo-api/src/handlers/helpers.rs:2:5
+  |
+2 | use vo_common::InstanceId as InstanceIdString;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `CompensateError` and `InstancePhaseView`
+  --> crates/vo-api/src/handlers/workflow.rs:12:16
+   |
+12 | use vo_actor::{CompensateError, InstancePhaseView, OrchestratorMsg, StartError, TerminateError};
+   |                ^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^
+
+warning: unused import: `InstanceId`
+  --> crates/vo-api/src/handlers/workflow.rs:13:17
+   |
+13 | use vo_common::{InstanceId, NamespaceId};
+   |                 ^^^^^^^^^^
+
+warning: unused imports: `CircuitBreakerConfig`, `CircuitBreakerState`, and `unquarantine`
+  --> crates/vo-api/src/handlers/workflow.rs:14:32
+   |
+14 | use vo_core::circuit_breaker::{unquarantine, CircuitBreakerConfig, CircuitBreakerState};
+   |                                ^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `BinaryHash`
+  --> crates/vo-api/src/handlers/workflow.rs:15:16
+   |
+15 | use vo_types::{BinaryHash, WorkflowName};
+   |                ^^^^^^^^^^
+
+warning: unused variable: `dedupe_key`
+  --> crates/vo-api/src/handlers/workflow.rs:58:9
+   |
+58 |     let dedupe_key = match req.dedupe_key {
+   |         ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_dedupe_key`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `workflow_name`
+   --> crates/vo-api/src/handlers/workflow.rs:427:9
+    |
+427 |     let workflow_name = match WorkflowName::parse(&instance_id.to_string()) {
+    |         ^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_workflow_name`
+
+warning: unused variable: `req`
+   --> crates/vo-api/src/handlers/workflow.rs:409:10
+    |
+409 |     Json(req): Json<UnquarantineRequest>,
+    |          ^^^ help: if this is intentional, prefix it with an underscore: `_req`
+
+warning: `vo-api` (lib) generated 9 warnings (run `cargo fix --lib -p vo-api` to apply 9 suggestions)
+    Checking vo-cli v0.1.0 (/home/lewis/gt/veloxide/polecats/thunder/veloxide/crates/vo-cli)
+warning: unused import: `std::collections::BTreeMap`
+ --> crates/vo-cli/src/cli.rs:1:5
+  |
+1 | use std::collections::BTreeMap;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused imports: `WorkspaceId`, `WorkspaceName`, and `WorkspacePath`
+ --> crates/vo-cli/src/cli.rs:4:27
+  |
+4 | use vo_types::workspace::{WorkspaceId, WorkspaceName, WorkspacePath};
+  |                           ^^^^^^^^^^^  ^^^^^^^^^^^^^  ^^^^^^^^^^^^^
+
+warning: unused import: `thiserror::Error`
+ --> crates/vo-cli/src/commands/compensate.rs:3:5
+  |
+3 | use thiserror::Error;
+  |     ^^^^^^^^^^^^^^^^
+
+warning: `vo-cli` (lib) generated 3 warnings (run `cargo fix --lib -p vo-cli` to apply 3 suggestions)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 17.64s
