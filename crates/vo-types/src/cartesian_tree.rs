@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 //! Cartesian tree (treap): a randomized binary search tree with O(log n) expected
 //! insert, search, and delete. Maintains the BST invariant on keys and the min-heap
 //! invariant on priorities. Uses priority-based rotations to self-balance.
@@ -297,6 +296,7 @@ impl<K: Ord, T: Clone> CartesianTree<K, T> {
         }
     }
 
+    #[expect(clippy::expect_used)]
     fn rotate_left(mut node: Box<CartesianNode<K, T>>) -> Box<CartesianNode<K, T>> {
         let mut new_root = node
             .right
@@ -307,6 +307,7 @@ impl<K: Ord, T: Clone> CartesianTree<K, T> {
         new_root
     }
 
+    #[expect(clippy::expect_used)]
     fn rotate_right(mut node: Box<CartesianNode<K, T>>) -> Box<CartesianNode<K, T>> {
         let mut new_root = node
             .left
@@ -1301,10 +1302,3 @@ mod proptests {
         }
     }
 }
-=======
-#![allow(dead_code)]
-
-pub struct CartesianNode;
-pub struct CartesianTree;
-pub struct CartesianTreeError;
->>>>>>> origin/polecat/guzzle-veloxide-4wc

@@ -1,20 +1,16 @@
 mod error;
-<<<<<<< HEAD
 mod inverted_index;
 mod query;
 mod scoring;
-=======
 pub mod inverted_index;
 pub mod query;
 pub mod scoring;
->>>>>>> origin/polecat/guzzle-veloxide-4wc
 
 pub use error::SearchError;
 pub use inverted_index::{InvertedIndex, Posting, PostingList};
 pub use query::{Query, QueryParser};
 pub use scoring::{Bm25Scorer, Scorer, TfIdfScorer};
 
-<<<<<<< HEAD
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -53,7 +49,5 @@ impl SearchEngine {
         let _ = (id, text, tags);
     }
 }
-=======
 pub struct SearchEngine;
 pub struct SearchResult;
->>>>>>> origin/polecat/guzzle-veloxide-4wc
