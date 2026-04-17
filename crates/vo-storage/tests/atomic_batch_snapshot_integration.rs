@@ -14,9 +14,12 @@
 //! 6. Crash injection at batch-write transition points
 //! 7. RecoveryThrottle behavior
 
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::thread;
+use std::time::Duration;
 
+use tempfile::tempdir;
 use vo_storage::instance_index::{instance_index_upsert, scan_all_instances, scan_by_status};
 use vo_storage::snapshots::{
     encode_snapshot_key, snapshot_load_latest, snapshot_write, AtomicSnapshotWriter,
@@ -24,6 +27,10 @@ use vo_storage::snapshots::{
 };
 use vo_types::state::InstanceState;
 use vo_types::{InstanceId, InstanceStatus, TimestampMs};
+
+// ---------------------------------------------------------------------------
+// Test helpers
+// ---------------------------------------------------------------------------
 
 fn make_typical_instance_id() -> InstanceId {
     InstanceId::from_bytes([1u8; 16])
@@ -37,20 +44,22 @@ fn make_timestamp(ms: u64) -> TimestampMs {
     TimestampMs::try_from(ms).unwrap()
 }
 
-fn setup_fjall_db() -> (tempfile::TempDir, fjall::Database) {
+fn setup_fjall_keyspace() -> (
+    tempfile::TempDir,
+    fjall::Keyspace,
+    fjall::PartitionHandle,
+    fjall::PartitionHandle,
+) {
     let temp_dir = tempfile::tempdir().unwrap();
-    let db = fjall::Database::builder(temp_dir.path()).open().unwrap();
-    (temp_dir, db)
-}
-
-fn setup_snapshot_keyspace(db: &fjall::Database) -> fjall::Keyspace {
-    db.keyspace("snapshots", || fjall::KeyspaceCreateOptions::default())
-        .unwrap()
-}
-
-fn setup_instance_keyspace(db: &fjall::Database) -> fjall::Keyspace {
-    db.keyspace("instances", || fjall::KeyspaceCreateOptions::default())
-        .unwrap()
+    let config = fjall::Config::new(temp_dir.path());
+    let keyspace = config.open().unwrap();
+    let snapshot_partition = keyspace
+        .open_partition("snapshots", fjall::PartitionCreateOptions::default())
+        .unwrap();
+    let instance_partition = keyspace
+        .open_partition("instances", fjall::PartitionCreateOptions::default())
+        .unwrap();
+    (temp_dir, keyspace, snapshot_partition, instance_partition)
 }
 
 // ---------------------------------------------------------------------------
@@ -59,15 +68,17 @@ fn setup_instance_keyspace(db: &fjall::Database) -> fjall::Keyspace {
 
 #[test]
 fn atomic_status_transition_removes_old_key_and_inserts_new_atomically() {
-    let (_temp_dir, db) = setup_fjall_db();
+    let (_temp_dir, keyspace, _snapshot_partition, _instance_partition) = setup_fjall_keyspace();
     let id = make_typical_instance_id();
     let ts = make_timestamp(1000);
 
-    instance_index_upsert(&db, &id, InstanceStatus::Pending, ts, None)
+    // Insert initial status as Pending
+    instance_index_upsert(&keyspace, &id, InstanceStatus::Pending, ts, None)
         .expect("initial insert failed");
 
+    // Transition to Running - this uses atomic batch (remove old + insert new)
     instance_index_upsert(
-        &db,
+        &keyspace,
         &id,
         InstanceStatus::Running,
         ts,
@@ -75,10 +86,11 @@ fn atomic_status_transition_removes_old_key_and_inserts_new_atomically() {
     )
     .expect("transition failed");
 
-    let running: Vec<_> = scan_by_status(&db, InstanceStatus::Running)
+    // Verify only Running exists, not Pending
+    let running: Vec<_> = scan_by_status(&keyspace, InstanceStatus::Running)
         .collect::<Result<Vec<_>, _>>()
         .expect("scan failed");
-    let pending: Vec<_> = scan_by_status(&db, InstanceStatus::Pending)
+    let pending: Vec<_> = scan_by_status(&keyspace, InstanceStatus::Pending)
         .collect::<Result<Vec<_>, _>>()
         .expect("scan failed");
 
@@ -88,27 +100,32 @@ fn atomic_status_transition_removes_old_key_and_inserts_new_atomically() {
 
 #[test]
 fn atomic_status_transition_from_nonexistent_removes_nothing() {
-    let (_temp_dir, db) = setup_fjall_db();
+    let (_temp_dir, keyspace, _snapshot_partition, _instance_partition) = setup_fjall_keyspace();
     let id = make_typical_instance_id();
     let ts = make_timestamp(1000);
 
-    instance_index_upsert(&db, &id, InstanceStatus::Pending, ts, None)
+    // Insert initial status
+    instance_index_upsert(&keyspace, &id, InstanceStatus::Pending, ts, None)
         .expect("initial insert failed");
 
+    // Transition from a status that doesn't exist - batch remove is a no-op but insert succeeds
     let result = instance_index_upsert(
-        &db,
+        &keyspace,
         &id,
         InstanceStatus::Running,
         ts,
-        Some(InstanceStatus::Failed),
+        Some(InstanceStatus::Failed), // Wrong previous status - doesn't exist
     );
 
+    // The transition succeeds (batch remove is no-op when key doesn't exist)
     assert!(
         result.is_ok(),
         "transition should succeed even if old key doesn't exist"
     );
 
-    let running: Vec<_> = scan_by_status(&db, InstanceStatus::Running)
+    // Now we have Running status (Pending was already removed by first transition)
+    // Actually we went Pending -> Running directly via atomic transition
+    let running: Vec<_> = scan_by_status(&keyspace, InstanceStatus::Running)
         .collect::<Result<Vec<_>, _>>()
         .expect("scan failed");
     assert_eq!(running.len(), 1, "should have Running status");
@@ -116,18 +133,20 @@ fn atomic_status_transition_from_nonexistent_removes_nothing() {
 
 #[test]
 fn atomic_batch_multiple_instances_transitioned_together() {
-    let (_temp_dir, db) = setup_fjall_db();
+    let (_temp_dir, keyspace, _snapshot_partition, _instance_partition) = setup_fjall_keyspace();
     let id1 = make_typical_instance_id();
     let id2 = InstanceId::from_bytes([2u8; 16]);
     let ts = make_timestamp(1000);
 
-    instance_index_upsert(&db, &id1, InstanceStatus::Pending, ts, None)
+    // Insert initial statuses
+    instance_index_upsert(&keyspace, &id1, InstanceStatus::Pending, ts, None)
         .expect("id1 initial failed");
-    instance_index_upsert(&db, &id2, InstanceStatus::Pending, ts, None)
+    instance_index_upsert(&keyspace, &id2, InstanceStatus::Pending, ts, None)
         .expect("id2 initial failed");
 
+    // Transition id1 to Running
     instance_index_upsert(
-        &db,
+        &keyspace,
         &id1,
         InstanceStatus::Running,
         ts,
@@ -135,10 +154,11 @@ fn atomic_batch_multiple_instances_transitioned_together() {
     )
     .expect("id1 transition failed");
 
-    let running: Vec<_> = scan_by_status(&db, InstanceStatus::Running)
+    // Verify states
+    let running: Vec<_> = scan_by_status(&keyspace, InstanceStatus::Running)
         .collect::<Result<Vec<_>, _>>()
         .expect("scan failed");
-    let pending: Vec<_> = scan_by_status(&db, InstanceStatus::Pending)
+    let pending: Vec<_> = scan_by_status(&keyspace, InstanceStatus::Pending)
         .collect::<Result<Vec<_>, _>>()
         .expect("scan failed");
 
@@ -152,53 +172,60 @@ fn atomic_batch_multiple_instances_transitioned_together() {
 
 #[test]
 fn snapshot_write_overwrites_same_sequence_idempotent() {
-    let (_temp_dir, db) = setup_fjall_db();
-    let snapshot_ks = setup_snapshot_keyspace(&db);
+    let (_temp_dir, _keyspace, snapshot_partition, _instance_partition) = setup_fjall_keyspace();
     let id = make_typical_instance_id();
 
+    // Write twice at same sequence
     snapshot_write(
-        &snapshot_ks,
+        &snapshot_partition,
         id.clone(),
         100,
         &InstanceState { counter: 50 },
     )
     .expect("first write failed");
     snapshot_write(
-        &snapshot_ks,
+        &snapshot_partition,
         id.clone(),
         100,
         &InstanceState { counter: 100 },
     )
     .expect("second write failed");
 
-    let loaded = snapshot_load_latest(&snapshot_ks, &id).expect("load failed");
+    // Latest should be the second write
+    let loaded = snapshot_load_latest(&snapshot_partition, &id).expect("load failed");
     assert_eq!(loaded, Some((100, InstanceState { counter: 100 })));
 }
 
 #[test]
 fn snapshot_write_at_different_sequences_preserves_both() {
-    let (_temp_dir, db) = setup_fjall_db();
-    let snapshot_ks = setup_snapshot_keyspace(&db);
+    let (_temp_dir, _keyspace, snapshot_partition, _instance_partition) = setup_fjall_keyspace();
     let id = make_typical_instance_id();
 
-    snapshot_write(&snapshot_ks, id.clone(), 50, &InstanceState { counter: 50 })
-        .expect("seq 50 failed");
+    // Write at different sequences
     snapshot_write(
-        &snapshot_ks,
+        &snapshot_partition,
+        id.clone(),
+        50,
+        &InstanceState { counter: 50 },
+    )
+    .expect("seq 50 failed");
+    snapshot_write(
+        &snapshot_partition,
         id.clone(),
         100,
         &InstanceState { counter: 100 },
     )
     .expect("seq 100 failed");
     snapshot_write(
-        &snapshot_ks,
+        &snapshot_partition,
         id.clone(),
         150,
         &InstanceState { counter: 150 },
     )
     .expect("seq 150 failed");
 
-    let loaded = snapshot_load_latest(&snapshot_ks, &id).expect("load failed");
+    // Latest should be highest sequence
+    let loaded = snapshot_load_latest(&snapshot_partition, &id).expect("load failed");
     assert_eq!(loaded, Some((150, InstanceState { counter: 150 })));
 }
 
@@ -212,21 +239,30 @@ fn concurrent_writes_to_same_instance_last_sequence_wins() {
     let id = make_typical_instance_id();
     let num_threads = 4;
 
-    let db = Arc::new(fjall::Database::builder(temp_dir.path()).open().unwrap());
-    let partition = Arc::new(setup_snapshot_keyspace(&db));
-
-    snapshot_write(&partition, id.clone(), 0, &InstanceState { counter: 0 })
-        .expect("initial write failed");
+    // Pre-write initial snapshot
+    {
+        let config = fjall::Config::new(temp_dir.path());
+        let keyspace = config.open().unwrap();
+        let partition = keyspace
+            .open_partition("snapshots", fjall::PartitionCreateOptions::default())
+            .unwrap();
+        snapshot_write(&partition, id.clone(), 0, &InstanceState { counter: 0 })
+            .expect("initial write failed");
+    }
 
     let barrier = Arc::new(std::sync::Barrier::new(num_threads));
     let results: Vec<_> = (0..num_threads)
         .map(|i| {
             let id = id.clone();
             let barrier = Arc::clone(&barrier);
-            let partition = Arc::clone(&partition);
-            let db = Arc::clone(&db);
+            let temp_path = temp_dir.path().to_path_buf();
             thread::spawn(move || {
                 barrier.wait();
+                let config = fjall::Config::new(temp_path);
+                let keyspace = config.open().unwrap();
+                let partition = keyspace
+                    .open_partition("snapshots", fjall::PartitionCreateOptions::default())
+                    .unwrap();
                 let seq = (i + 1) as u64 * 100;
                 snapshot_write(&partition, id.clone(), seq, &InstanceState { counter: seq })
             })
@@ -235,64 +271,75 @@ fn concurrent_writes_to_same_instance_last_sequence_wins() {
 
     let results: Vec<_> = results.into_iter().map(|h| h.join().unwrap()).collect();
 
+    // All writes should succeed
     let success_count = results.iter().filter(|r| r.is_ok()).count();
     assert_eq!(
         success_count, num_threads,
         "all concurrent writes should succeed"
     );
 
+    // Latest should be the highest sequence
+    let config = fjall::Config::new(temp_dir.path());
+    let keyspace = config.open().unwrap();
+    let partition = keyspace
+        .open_partition("snapshots", fjall::PartitionCreateOptions::default())
+        .unwrap();
     let loaded = snapshot_load_latest(&partition, &id).expect("load failed");
-    assert_eq!(loaded.unwrap().0, 400);
+    assert_eq!(loaded.unwrap().0, 400); // Last thread writes sequence 400
 }
 
-// ---------------------------------------------------------------------------
-// ADR-016: Snapshot Creation at Correct Boundaries
 // ---------------------------------------------------------------------------
 // ADR-016: Snapshot Creation at Correct Boundaries
 // ---------------------------------------------------------------------------
 
 #[test]
 fn snapshot_creation_boundary_at_exact_sequence_intervals() {
-    let (_temp_dir, db) = setup_fjall_db();
-    let snapshot_ks = setup_snapshot_keyspace(&db);
+    let (_temp_dir, _keyspace, snapshot_partition, _instance_partition) = setup_fjall_keyspace();
     let id = make_typical_instance_id();
 
+    // Write snapshots at sequence 100 (boundary), 101 (not boundary), 200 (boundary)
     snapshot_write(
-        &snapshot_ks,
+        &snapshot_partition,
         id.clone(),
         100,
         &InstanceState { counter: 100 },
     )
     .expect("write 100 failed");
     snapshot_write(
-        &snapshot_ks,
+        &snapshot_partition,
         id.clone(),
         101,
         &InstanceState { counter: 101 },
     )
     .expect("write 101 failed");
     snapshot_write(
-        &snapshot_ks,
+        &snapshot_partition,
         id.clone(),
         200,
         &InstanceState { counter: 200 },
     )
     .expect("write 200 failed");
 
-    let loaded = snapshot_load_latest(&snapshot_ks, &id).expect("load failed");
+    // Latest should be 200
+    let loaded = snapshot_load_latest(&snapshot_partition, &id).expect("load failed");
     assert_eq!(loaded, Some((200, InstanceState { counter: 200 })));
 }
 
 #[test]
 fn snapshot_creation_boundary_sequence_zero_no_snapshot() {
-    let (_temp_dir, db) = setup_fjall_db();
-    let snapshot_ks = setup_snapshot_keyspace(&db);
+    let (_temp_dir, _keyspace, snapshot_partition, _instance_partition) = setup_fjall_keyspace();
     let id = make_typical_instance_id();
 
-    snapshot_write(&snapshot_ks, id.clone(), 0, &InstanceState { counter: 0 })
-        .expect("write 0 failed");
+    // Sequence 0 should still be storable
+    snapshot_write(
+        &snapshot_partition,
+        id.clone(),
+        0,
+        &InstanceState { counter: 0 },
+    )
+    .expect("write 0 failed");
 
-    let loaded = snapshot_load_latest(&snapshot_ks, &id).expect("load failed");
+    let loaded = snapshot_load_latest(&snapshot_partition, &id).expect("load failed");
     assert_eq!(loaded, Some((0, InstanceState { counter: 0 })));
 }
 
@@ -302,13 +349,13 @@ fn snapshot_creation_boundary_sequence_zero_no_snapshot() {
 
 #[test]
 fn recovery_from_snapshot_loads_correct_sequence() {
-    let (_temp_dir, db) = setup_fjall_db();
-    let snapshot_ks = setup_snapshot_keyspace(&db);
+    let (_temp_dir, _keyspace, snapshot_partition, _instance_partition) = setup_fjall_keyspace();
     let id = make_typical_instance_id();
 
+    // Write multiple snapshots
     for seq in 1..=10u64 {
         snapshot_write(
-            &snapshot_ks,
+            &snapshot_partition,
             id.clone(),
             seq * 100,
             &InstanceState { counter: seq },
@@ -316,44 +363,47 @@ fn recovery_from_snapshot_loads_correct_sequence() {
         .expect("write failed");
     }
 
-    let loaded = snapshot_load_latest(&snapshot_ks, &id).expect("load failed");
+    // Load latest should give us the highest sequence
+    let loaded = snapshot_load_latest(&snapshot_partition, &id).expect("load failed");
     assert_eq!(loaded, Some((1000, InstanceState { counter: 10 })));
 }
 
 #[test]
 fn recovery_from_snapshot_empty_when_no_snapshots() {
-    let (_temp_dir, db) = setup_fjall_db();
-    let snapshot_ks = setup_snapshot_keyspace(&db);
+    let (_temp_dir, _keyspace, snapshot_partition, _instance_partition) = setup_fjall_keyspace();
     let id = make_typical_instance_id();
 
-    let loaded = snapshot_load_latest(&snapshot_ks, &id).expect("load failed");
+    let loaded = snapshot_load_latest(&snapshot_partition, &id).expect("load failed");
     assert_eq!(loaded, None, "no snapshots should return None");
 }
 
 #[test]
 fn recovery_from_snapshot_isolated_between_instances() {
-    let (_temp_dir, db) = setup_fjall_db();
-    let snapshot_ks = setup_snapshot_keyspace(&db);
+    let (_temp_dir, _keyspace, snapshot_partition, _instance_partition) = setup_fjall_keyspace();
     let id1 = make_typical_instance_id();
     let id2 = InstanceId::from_bytes([2u8; 16]);
 
+    // Write snapshots for id1
     snapshot_write(
-        &snapshot_ks,
+        &snapshot_partition,
         id1.clone(),
         100,
         &InstanceState { counter: 100 },
     )
     .expect("id1 write failed");
+
+    // Write snapshots for id2
     snapshot_write(
-        &snapshot_ks,
+        &snapshot_partition,
         id2.clone(),
         200,
         &InstanceState { counter: 200 },
     )
     .expect("id2 write failed");
 
-    let loaded1 = snapshot_load_latest(&snapshot_ks, &id1).expect("id1 load failed");
-    let loaded2 = snapshot_load_latest(&snapshot_ks, &id2).expect("id2 load failed");
+    // Each should only see their own
+    let loaded1 = snapshot_load_latest(&snapshot_partition, &id1).expect("id1 load failed");
+    let loaded2 = snapshot_load_latest(&snapshot_partition, &id2).expect("id2 load failed");
 
     assert_eq!(loaded1, Some((100, InstanceState { counter: 100 })));
     assert_eq!(loaded2, Some((200, InstanceState { counter: 200 })));
@@ -364,17 +414,25 @@ fn recovery_from_snapshot_correctness_after_reopen() {
     let temp_dir = tempfile::tempdir().unwrap();
     let id = make_typical_instance_id();
 
+    // Write snapshot
     {
-        let db = fjall::Database::builder(temp_dir.path()).open().unwrap();
-        let partition = setup_snapshot_keyspace(&db);
+        let config = fjall::Config::new(temp_dir.path());
+        let keyspace = config.open().unwrap();
+        let partition = keyspace
+            .open_partition("snapshots", fjall::PartitionCreateOptions::default())
+            .unwrap();
         snapshot_write(&partition, id.clone(), 100, &InstanceState { counter: 42 })
             .expect("write failed");
-        db.persist(fjall::PersistMode::SyncAll).unwrap();
+        keyspace.persist(fjall::PersistMode::SyncAll).unwrap();
     }
 
+    // Reopen and recover
     {
-        let db = fjall::Database::builder(temp_dir.path()).open().unwrap();
-        let partition = setup_snapshot_keyspace(&db);
+        let config = fjall::Config::new(temp_dir.path());
+        let keyspace = config.open().unwrap();
+        let partition = keyspace
+            .open_partition("snapshots", fjall::PartitionCreateOptions::default())
+            .unwrap();
 
         let loaded = snapshot_load_latest(&partition, &id).expect("load failed after reopen");
         assert_eq!(loaded, Some((100, InstanceState { counter: 42 })));
@@ -387,18 +445,19 @@ fn recovery_from_snapshot_correctness_after_reopen() {
 
 #[test]
 fn snapshot_format_version_stored_in_header() {
-    let (_temp_dir, db) = setup_fjall_db();
-    let snapshot_ks = setup_snapshot_keyspace(&db);
-    let writer = AtomicSnapshotWriter::new(&db).expect("writer creation failed");
+    let (_temp_dir, keyspace, snapshot_partition, _instance_partition) = setup_fjall_keyspace();
+    let writer = AtomicSnapshotWriter::new(&keyspace).expect("writer creation failed");
     let id = make_typical_instance_id();
 
     writer
         .write_snapshot_atomic(id.clone(), 1, &InstanceState { counter: 42 })
         .expect("write failed");
 
+    // Read raw bytes and verify header contains version
     let key = encode_snapshot_key(&id, 1).unwrap();
-    let raw_value = snapshot_ks.get(&key).unwrap().unwrap();
+    let raw_value = snapshot_partition.get(&key).unwrap().unwrap();
 
+    // Parse header (JSON before '|')
     let parts: Vec<&[u8]> = raw_value.split(|&b| b == b'|').collect();
     assert_eq!(parts.len(), 2, "should have header and state parts");
 
@@ -449,21 +508,29 @@ fn snapshot_compat_check_returns_incompatible_for_newer_version() {
 
 #[test]
 fn crash_injection_before_batch_commit_no_state_persisted() {
-    let (_temp_dir, db) = setup_fjall_db();
-    let snapshot_ks = setup_snapshot_keyspace(&db);
+    let (temp_dir, keyspace, snapshot_partition, _instance_partition) = setup_fjall_keyspace();
     let id = make_typical_instance_id();
 
-    snapshot_write(&snapshot_ks, id.clone(), 1, &InstanceState { counter: 1 })
-        .expect("setup write failed");
+    // Pre-write to ensure partition exists
+    snapshot_write(
+        &snapshot_partition,
+        id.clone(),
+        1,
+        &InstanceState { counter: 1 },
+    )
+    .expect("setup write failed");
 
-    let mut batch = db.batch();
+    // Create batch but don't commit - simulates crash before commit
+    let mut batch = keyspace.batch();
     let key = encode_snapshot_key(&id, 2).unwrap();
     let state_json = serde_json::to_vec(&InstanceState { counter: 2 }).unwrap();
-    batch.insert(&snapshot_ks, key, &state_json);
+    batch.insert(&snapshot_partition, key, &state_json);
 
+    // Simulate crash by dropping the batch without commit
     drop(batch);
 
-    let loaded = snapshot_load_latest(&snapshot_ks, &id).expect("load failed");
+    // Verify nothing new was persisted (still has sequence 1)
+    let loaded = snapshot_load_latest(&snapshot_partition, &id).expect("load failed");
     assert_eq!(
         loaded,
         Some((1, InstanceState { counter: 1 })),
@@ -473,27 +540,31 @@ fn crash_injection_before_batch_commit_no_state_persisted() {
 
 #[test]
 fn crash_injection_at_multiple_partitions_batch_atomicity() {
-    let (_temp_dir, db) = setup_fjall_db();
-    let snapshot_ks = setup_snapshot_keyspace(&db);
-    let instance_ks = setup_instance_keyspace(&db);
+    let (temp_dir, keyspace, snapshot_partition, instance_partition) = setup_fjall_keyspace();
     let id = make_typical_instance_id();
     let ts = make_timestamp(1000);
 
-    let mut batch = db.batch();
+    // Create batch with operations on multiple partitions
+    let mut batch = keyspace.batch();
 
+    // Snapshot write
     let snapshot_key = encode_snapshot_key(&id, 1).unwrap();
     let state_json = serde_json::to_vec(&InstanceState { counter: 1 }).unwrap();
-    batch.insert(&snapshot_ks, snapshot_key, &state_json);
+    batch.insert(&snapshot_partition, snapshot_key, &state_json);
 
+    // Instance index write
     let instance_key =
         vo_storage::instance_index::encode_instance_index_key(InstanceStatus::Running, ts, &id)
             .unwrap();
-    batch.insert(&instance_ks, instance_key, &[] as &[u8]);
+    batch.insert(&instance_partition, instance_key, &[] as &[u8]);
 
+    // Commit atomically
     batch.commit().expect("batch commit failed");
 
-    let loaded_snapshot = snapshot_load_latest(&snapshot_ks, &id).expect("snapshot load failed");
-    let running: Vec<_> = scan_by_status(&db, InstanceStatus::Running)
+    // Both should be visible after successful commit
+    let loaded_snapshot =
+        snapshot_load_latest(&snapshot_partition, &id).expect("snapshot load failed");
+    let running: Vec<_> = scan_by_status(&keyspace, InstanceStatus::Running)
         .collect::<Result<Vec<_>, _>>()
         .expect("scan failed");
 
@@ -506,17 +577,25 @@ fn crash_injection_simulated_power_loss_after_persist() {
     let temp_dir = tempfile::tempdir().unwrap();
     let id = make_typical_instance_id();
 
+    // Write snapshot and persist
     {
-        let db = fjall::Database::builder(temp_dir.path()).open().unwrap();
-        let partition = setup_snapshot_keyspace(&db);
+        let config = fjall::Config::new(temp_dir.path());
+        let keyspace = config.open().unwrap();
+        let partition = keyspace
+            .open_partition("snapshots", fjall::PartitionCreateOptions::default())
+            .unwrap();
         snapshot_write(&partition, id.clone(), 1, &InstanceState { counter: 1 })
             .expect("write failed");
-        db.persist(fjall::PersistMode::SyncAll).unwrap();
+        keyspace.persist(fjall::PersistMode::SyncAll).unwrap();
     }
 
+    // Simulate power loss and restart - data should survive
     {
-        let db = fjall::Database::builder(temp_dir.path()).open().unwrap();
-        let partition = setup_snapshot_keyspace(&db);
+        let config = fjall::Config::new(temp_dir.path());
+        let keyspace = config.open().unwrap();
+        let partition = keyspace
+            .open_partition("snapshots", fjall::PartitionCreateOptions::default())
+            .unwrap();
 
         let loaded =
             snapshot_load_latest(&partition, &id).expect("load failed after power loss simulation");
@@ -536,11 +615,13 @@ fn recovery_throttle_respects_batch_size() {
     };
     let mut throttle = RecoveryThrottle::new(config);
 
+    // Process 50 items
     for _ in 0..50 {
         assert!(throttle.should_process());
         throttle.mark_processed();
     }
 
+    // Should now be at batch size limit
     assert!(!throttle.should_process());
     assert!(throttle.delay_ms().is_some());
 }
@@ -553,12 +634,14 @@ fn recovery_throttle_reset_allows_continuation() {
     };
     let mut throttle = RecoveryThrottle::new(config);
 
+    // Exhaust batch
     for _ in 0..10 {
         throttle.mark_processed();
     }
 
     assert!(!throttle.should_process());
 
+    // Reset
     throttle.reset();
 
     assert!(throttle.should_process());
@@ -609,6 +692,7 @@ fn recovery_throttle_mark_processed_overflow_handled() {
     };
     let mut throttle = RecoveryThrottle::new(config);
 
+    // Mark more processed than batch size
     for _ in 0..10 {
         throttle.mark_processed();
     }
@@ -641,6 +725,7 @@ fn snapshot_key_encoding_big_endian_sequence() {
 
     let key = encode_snapshot_key(&id, sequence).unwrap();
 
+    // Sequence should be in bytes 16-24 as big endian
     assert_eq!(&key[16..24], &[1, 2, 3, 4, 5, 6, 7, 8]);
 }
 
@@ -663,9 +748,8 @@ fn snapshot_key_maximum_values() {
 
 #[test]
 fn atomic_snapshot_writer_checksum_verification() {
-    let (_temp_dir, db) = setup_fjall_db();
-    let snapshot_ks = setup_snapshot_keyspace(&db);
-    let writer = AtomicSnapshotWriter::new(&db).expect("writer creation failed");
+    let (temp_dir, keyspace, snapshot_partition, _instance_partition) = setup_fjall_keyspace();
+    let writer = AtomicSnapshotWriter::new(&keyspace).expect("writer creation failed");
     let id = make_typical_instance_id();
     let state = InstanceState { counter: 42 };
 
@@ -673,15 +757,18 @@ fn atomic_snapshot_writer_checksum_verification() {
         .write_snapshot_atomic(id.clone(), 1, &state)
         .expect("write failed");
 
+    // Read raw bytes and verify checksum
     let key = encode_snapshot_key(&id, 1).unwrap();
-    let raw_value = snapshot_ks.get(&key).unwrap().unwrap();
+    let raw_value = snapshot_partition.get(&key).unwrap().unwrap();
 
+    // Find the '|' separator
     let parts: Vec<&[u8]> = raw_value.split(|&b| b == b'|').collect();
     assert_eq!(parts.len(), 2);
 
     let state_json = parts[1];
     let expected_checksum = crc32fast::hash(state_json);
 
+    // Parse header to get stored checksum
     let header: vo_storage::snapshots::SnapshotHeader =
         serde_json::from_slice(parts[0]).expect("header parse failed");
 
@@ -690,24 +777,24 @@ fn atomic_snapshot_writer_checksum_verification() {
 
 #[test]
 fn atomic_snapshot_writer_empty_state_still_works() {
-    let (_temp_dir, db) = setup_fjall_db();
-    let snapshot_ks = setup_snapshot_keyspace(&db);
-    let writer = AtomicSnapshotWriter::new(&db).expect("writer creation failed");
+    let (_temp_dir, keyspace, snapshot_partition, _instance_partition) = setup_fjall_keyspace();
+    let writer = AtomicSnapshotWriter::new(&keyspace).expect("writer creation failed");
     let id = make_typical_instance_id();
     let state = InstanceState { counter: 0 };
 
+    // This test verifies AtomicSnapshotWriter can write (not read back due to format mismatch)
     let result = writer.write_snapshot_atomic(id.clone(), 1, &state);
     assert!(result.is_ok(), "atomic write should succeed");
 }
 
 #[test]
 fn atomic_snapshot_writer_large_counter_value() {
-    let (_temp_dir, db) = setup_fjall_db();
-    let snapshot_ks = setup_snapshot_keyspace(&db);
-    let writer = AtomicSnapshotWriter::new(&db).expect("writer creation failed");
+    let (_temp_dir, keyspace, snapshot_partition, _instance_partition) = setup_fjall_keyspace();
+    let writer = AtomicSnapshotWriter::new(&keyspace).expect("writer creation failed");
     let id = make_typical_instance_id();
     let state = InstanceState { counter: u64::MAX };
 
+    // This test verifies AtomicSnapshotWriter can write large values
     let result = writer.write_snapshot_atomic(id.clone(), 1, &state);
     assert!(
         result.is_ok(),
@@ -717,23 +804,26 @@ fn atomic_snapshot_writer_large_counter_value() {
 
 #[test]
 fn atomic_snapshot_writer_multiple_instances_same_sequence() {
-    let (_temp_dir, db) = setup_fjall_db();
-    let snapshot_ks = setup_snapshot_keyspace(&db);
-    let writer = AtomicSnapshotWriter::new(&db).expect("writer creation failed");
+    let (_temp_dir, keyspace, snapshot_partition, _instance_partition) = setup_fjall_keyspace();
+    let writer = AtomicSnapshotWriter::new(&keyspace).expect("writer creation failed");
     let id1 = make_typical_instance_id();
     let id2 = InstanceId::from_bytes([2u8; 16]);
 
+    // Write at same sequence for different instances
+    // Note: AtomicSnapshotWriter writes in header+state format which snapshot_load_latest
+    // cannot read back. This test verifies the writes succeed.
     let result1 = writer.write_snapshot_atomic(id1.clone(), 1, &InstanceState { counter: 10 });
     let result2 = writer.write_snapshot_atomic(id2.clone(), 1, &InstanceState { counter: 20 });
 
     assert!(result1.is_ok());
     assert!(result2.is_ok());
 
+    // Verify data was written by checking raw partition access
     let key1 = encode_snapshot_key(&id1, 1).unwrap();
     let key2 = encode_snapshot_key(&id2, 1).unwrap();
 
-    let value1 = snapshot_ks.get(&key1).unwrap();
-    let value2 = snapshot_ks.get(&key2).unwrap();
+    let value1 = snapshot_partition.get(&key1).unwrap();
+    let value2 = snapshot_partition.get(&key2).unwrap();
 
     assert!(value1.is_some(), "data for id1 should be written");
     assert!(value2.is_some(), "data for id2 should be written");
