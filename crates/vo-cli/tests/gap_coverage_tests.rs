@@ -18,7 +18,7 @@ use vo_cli::commands::lock::{LockConfig, LockError, LOCK_FILE_NAME};
 use vo_cli::commands::rebuild::{RebuildConfig, RebuildError, RebuildReport, RebuildStatus};
 use vo_cli::{
     interpret_cli_from, map_error_to_exit_code, parse_strict_numeric, CliError, Command,
-    CommandContext, HandlerRegistry,
+    HandlerRegistry,
 };
 
 fn make_temp_dir() -> PathBuf {

@@ -25,7 +25,7 @@ use vo_cli::commands::rebuild::{
 use vo_cli::utils::{file_hash, sha256_hex};
 use vo_cli::{
     create_dispatcher_v2, dispatch, dispatch_v2, interpret_cli_from, map_error_to_exit_code,
-    parse_strict_numeric, CliError, Command, CommandContext, CommandDispatcher,
+    parse_strict_numeric, CliError, Command,
     CommandDispatcherV2, DefaultDispatchContext, DispatchContext, HandlerRegistry,
     LoggingMiddlewareV2, MetricsMiddlewareV2, MiddlewareResult, MiddlewareV2,
 };
