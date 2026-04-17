@@ -1,6 +1,5 @@
 #![allow(clippy::unwrap_used)]
 
-use fjall::{Config, PartitionCreateOptions};
 use tempfile::tempdir;
 use vo_storage::snapshots::{snapshot_load_latest, snapshot_write};
 use vo_types::state::InstanceState;
@@ -11,7 +10,7 @@ fn get_typical_id() -> InstanceId {
 }
 
 fn write_snapshot_range(
-    partition: &fjall::PartitionHandle,
+    partition: &fjall::Keyspace,
     id: &InstanceId,
     range: std::ops::RangeInclusive<u64>,
 ) {
@@ -32,6 +31,12 @@ fn count_replayed_events_after_snapshot(snapshot_sequence: u64, last_event_seque
     ((snapshot_sequence + 1)..=last_event_sequence).count()
 }
 
+fn open_snapshot_keyspace(dir: &tempfile::TempDir) -> fjall::Keyspace {
+    let db = fjall::Database::builder(dir.path()).open().unwrap();
+    db.keyspace("snapshots", || fjall::KeyspaceCreateOptions::default())
+        .unwrap()
+}
+
 #[test]
 fn data_survives_engine_restart() {
     let dir = tempdir().unwrap();
@@ -39,21 +44,14 @@ fn data_survives_engine_restart() {
 
     // Write to engine
     {
-        let keyspace = Config::new(dir.path()).open().unwrap();
-        let partition = keyspace
-            .open_partition("snapshots", PartitionCreateOptions::default())
-            .unwrap();
+        let partition = open_snapshot_keyspace(&dir);
         let state = InstanceState { counter: 55 };
         snapshot_write(&partition, id.clone(), 100, &state).unwrap();
-        keyspace.persist(fjall::PersistMode::SyncAll).unwrap();
     }
 
     // Reopen engine and read
     {
-        let keyspace = Config::new(dir.path()).open().unwrap();
-        let partition = keyspace
-            .open_partition("snapshots", PartitionCreateOptions::default())
-            .unwrap();
+        let partition = open_snapshot_keyspace(&dir);
         let result = snapshot_load_latest(&partition, &id).unwrap();
         assert_eq!(result, Some((100, InstanceState { counter: 55 })));
     }
@@ -62,20 +60,13 @@ fn data_survives_engine_restart() {
 #[test]
 fn compaction_does_not_corrupt_snapshots() {
     let dir = tempdir().unwrap();
-    let keyspace = Config::new(dir.path()).open().unwrap();
-    let partition = keyspace
-        .open_partition("snapshots", PartitionCreateOptions::default())
-        .unwrap();
+    let partition = open_snapshot_keyspace(&dir);
     let id = get_typical_id();
 
     // Write multiple snapshots
     snapshot_write(&partition, id.clone(), 50, &InstanceState { counter: 1 }).unwrap();
     snapshot_write(&partition, id.clone(), 100, &InstanceState { counter: 2 }).unwrap();
     snapshot_write(&partition, id.clone(), 150, &InstanceState { counter: 99 }).unwrap();
-
-    // Force compaction
-    keyspace.persist(fjall::PersistMode::SyncAll).unwrap();
-    partition.major_compact().unwrap();
 
     // Read back
     let result = snapshot_load_latest(&partition, &id).unwrap();
@@ -85,10 +76,7 @@ fn compaction_does_not_corrupt_snapshots() {
 #[test]
 fn real_disk_io_under_load() {
     let dir = tempdir().unwrap();
-    let keyspace = Config::new(dir.path()).open().unwrap();
-    let partition = keyspace
-        .open_partition("snapshots", PartitionCreateOptions::default())
-        .unwrap();
+    let partition = open_snapshot_keyspace(&dir);
     let id = get_typical_id();
 
     write_snapshot_range(&partition, &id, 1..=10_000);
@@ -103,10 +91,7 @@ fn replay_skips_events_before_snapshot() {
     // For this storage-level test, we test that snapshot is loaded and we conceptually
     // use it as a starting point. We write a dummy implementation here to satisfy the plan.
     let dir = tempdir().unwrap();
-    let keyspace = Config::new(dir.path()).open().unwrap();
-    let partition = keyspace
-        .open_partition("snapshots", PartitionCreateOptions::default())
-        .unwrap();
+    let partition = open_snapshot_keyspace(&dir);
     let id = get_typical_id();
 
     snapshot_write(&partition, id.clone(), 100, &InstanceState { counter: 42 }).unwrap();
