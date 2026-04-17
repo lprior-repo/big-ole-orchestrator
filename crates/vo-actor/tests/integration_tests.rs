@@ -5,6 +5,7 @@
 //! that are Send + 'static, we test the Message trait bounds here.
 
 use vo_actor::actor_messages::{ControlActorMessage, InstanceActorMessage};
+use vo_actor::test_utilities::TestStateLookup;
 use vo_types::{InstanceId, NodeName, SequenceNumber, TimerId, WorkflowName};
 
 /// Integration test: InstanceActorMessage implements Message trait and can be sent.
@@ -150,9 +151,7 @@ fn control_actor_message_clone_preserves_type() {
 
 use std::sync::Arc;
 use vo_actor::mock_signal_storage::{MockSignalStorage, MockSignalWorkQueue};
-use vo_actor::{
-    AcceptResumeError, ControlActor, SignalPayload, SignalStorage, SignalWorkQueue, WaitKey,
-};
+use vo_actor::{AcceptResumeError, ControlActor, SignalPayload, WaitKey};
 
 /// Integration test: accept_and_resume succeeds with valid storage and work queue.
 #[test]
@@ -161,7 +160,11 @@ fn accept_and_resume_with_storage_and_queue_succeeds() {
     let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9B00W000").unwrap();
     let storage = Arc::new(MockSignalStorage::new());
     let work_queue = Arc::new(MockSignalWorkQueue::new());
-    let actor = ControlActor::with_storage_and_queue(storage.clone(), work_queue.clone());
+    let actor = ControlActor::with_storage_and_queue(
+        storage.clone(),
+        work_queue.clone(),
+        Arc::new(TestStateLookup::new()),
+    );
 
     let wait_key = WaitKey::parse("approval").unwrap();
     let payload = SignalPayload::empty();
@@ -198,7 +201,11 @@ fn accept_and_resume_rolls_back_when_enqueue_fails() {
     let work_queue = Arc::new(MockSignalWorkQueue::new());
     work_queue.set_should_fail(true);
 
-    let actor = ControlActor::with_storage_and_queue(storage.clone(), work_queue.clone());
+    let actor = ControlActor::with_storage_and_queue(
+        storage.clone(),
+        work_queue.clone(),
+        Arc::new(TestStateLookup::new()),
+    );
 
     let wait_key = WaitKey::parse("approval").unwrap();
     let payload = SignalPayload::empty();
@@ -230,7 +237,11 @@ fn accept_and_resume_returns_error_when_storage_fails() {
     storage.set_should_fail(true);
     let work_queue = Arc::new(MockSignalWorkQueue::new());
 
-    let actor = ControlActor::with_storage_and_queue(storage.clone(), work_queue.clone());
+    let actor = ControlActor::with_storage_and_queue(
+        storage.clone(),
+        work_queue.clone(),
+        Arc::new(TestStateLookup::new()),
+    );
 
     let wait_key = WaitKey::parse("approval").unwrap();
     let payload = SignalPayload::empty();
@@ -265,7 +276,11 @@ fn accept_and_resume_returns_error_when_storage_fails() {
 fn accept_and_resume_returns_instance_not_found_when_actor_missing() {
     let storage = Arc::new(MockSignalStorage::new());
     let work_queue = Arc::new(MockSignalWorkQueue::new());
-    let actor = ControlActor::with_storage_and_queue(storage.clone(), work_queue.clone());
+    let actor = ControlActor::with_storage_and_queue(
+        storage.clone(),
+        work_queue.clone(),
+        Arc::new(TestStateLookup::new()),
+    );
 
     // Use an instance_id that triggers non-existent actor pattern
     let instance_id = InstanceId::parse("00000000000000000000000001").unwrap();
