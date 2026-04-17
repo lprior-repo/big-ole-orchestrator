@@ -148,6 +148,36 @@ impl SchedulerQueue {
         }
     }
 
+    pub fn peek(&self, now: DateTime<Utc>) -> Option<&ScheduledJob> {
+        self.heap
+            .iter()
+            .filter_map(|entry| {
+                let job = self.jobs.get(&entry.job_id)?;
+                if job.state.is_terminal() || job.due_at > now {
+                    None
+                } else {
+                    Some((entry, job))
+                }
+            })
+            .max_by(|a, b| a.0.cmp(b.0))
+            .map(|(_, job)| job)
+    }
+
+    pub fn peek_next(&self) -> Option<&ScheduledJob> {
+        self.heap
+            .iter()
+            .filter_map(|entry| {
+                let job = self.jobs.get(&entry.job_id)?;
+                if job.state.is_terminal() {
+                    None
+                } else {
+                    Some((entry, job))
+                }
+            })
+            .max_by(|a, b| a.0.cmp(b.0))
+            .map(|(_, job)| job)
+    }
+
     pub fn cancel(&mut self, job_id: &JobId) -> Result<(), SchedulerError> {
         let job = self.jobs.get(job_id).ok_or(SchedulerError::JobNotFound)?;
         if matches!(job.state, JobState::Completed | JobState::Failed) {
