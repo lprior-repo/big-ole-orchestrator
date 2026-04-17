@@ -856,20 +856,12 @@ async fn delete_all_timers_for_instance_cancels_all() {
     let storage = Arc::new(MockTimerStorage::empty());
 
     // Add multiple timers for instance1
-    storage
-        .add_timer(make_timer(instance1.clone(), 5000))
-        .await;
-    storage
-        .add_timer(make_timer(instance1.clone(), 6000))
-        .await;
-    storage
-        .add_timer(make_timer(instance1.clone(), 7000))
-        .await;
+    storage.add_timer(make_timer(instance1.clone(), 5000)).await;
+    storage.add_timer(make_timer(instance1.clone(), 6000)).await;
+    storage.add_timer(make_timer(instance1.clone(), 7000)).await;
 
     // Add timer for instance2 (should not be deleted)
-    storage
-        .add_timer(make_timer(instance2.clone(), 5000))
-        .await;
+    storage.add_timer(make_timer(instance2.clone(), 5000)).await;
 
     // Verify all timers exist
     let before = storage

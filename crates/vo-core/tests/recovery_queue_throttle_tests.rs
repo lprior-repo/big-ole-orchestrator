@@ -20,8 +20,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use vo_core::recovery::{
-    OrphanDetector, OrphanProcess, OrphanQuery, RecoveryError, RecoveryItem,
-    RecoveryThrottle, RecoveryThrottleConfig,
+    OrphanDetector, OrphanProcess, OrphanQuery, RecoveryError, RecoveryItem, RecoveryThrottle,
+    RecoveryThrottleConfig,
 };
 
 fn make_orphan(instance_id: &str) -> OrphanProcess {
@@ -93,7 +93,10 @@ async fn throttle_refill_at_exact_boundary() {
 
     let item3 = make_item("third");
     let r3 = throttle.enqueue(item3).await;
-    assert!(r3.is_ok(), "at exact refill boundary, token should be available");
+    assert!(
+        r3.is_ok(),
+        "at exact refill boundary, token should be available"
+    );
 }
 
 #[tokio::test]
@@ -130,7 +133,10 @@ async fn throttle_sustained_load_drains_faster_than_refill() {
 
     throttle.advance_time(Duration::from_millis(50));
     let refill2 = throttle.enqueue(make_item("refill-2")).await;
-    assert!(refill2.is_ok(), "second refill cycle allows another enqueue");
+    assert!(
+        refill2.is_ok(),
+        "second refill cycle allows another enqueue"
+    );
 }
 
 #[tokio::test]
@@ -162,7 +168,9 @@ async fn throttle_tokens_never_exceed_max_capacity_after_large_refill() {
     );
 
     for i in 0..3 {
-        let r = throttle.enqueue(make_item(&format!("after-refill-{i}"))).await;
+        let r = throttle
+            .enqueue(make_item(&format!("after-refill-{i}")))
+            .await;
         assert!(r.is_ok(), "should be able to enqueue up to capacity again");
     }
     let over_again = throttle.enqueue(make_item("over-again")).await;
@@ -213,7 +221,10 @@ async fn throttle_release_slot_allows_reuse() {
     throttle.release();
 
     let r3 = throttle.enqueue(make_item("after-release")).await;
-    assert!(r3.is_ok(), "after releasing a slot, enqueue should succeed even without refill");
+    assert!(
+        r3.is_ok(),
+        "after releasing a slot, enqueue should succeed even without refill"
+    );
 }
 
 #[tokio::test]
@@ -315,7 +326,10 @@ async fn sweep_timeout_returns_error_when_detector_exceeds_deadline() {
         Err(RecoveryError::SweepTimeout { .. }) => true,
         _ => false,
     };
-    assert!(is_sweep_timeout, "sweep should return SweepTimeout when it exceeds the deadline");
+    assert!(
+        is_sweep_timeout,
+        "sweep should return SweepTimeout when it exceeds the deadline"
+    );
 }
 
 #[tokio::test]
@@ -438,7 +452,10 @@ async fn sweep_returns_empty_results_gracefully() {
     while let Ok(item) = rx.try_recv() {
         received.push(item);
     }
-    assert!(received.is_empty(), "no orphans should be sent on empty result");
+    assert!(
+        received.is_empty(),
+        "no orphans should be sent on empty result"
+    );
 }
 
 #[tokio::test]

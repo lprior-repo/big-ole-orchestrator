@@ -18,8 +18,8 @@ use tokio::time::{interval, Instant};
 use tracing::{error, info, warn};
 
 use crate::probe::{
-    BackoffConfig, Probe, ProbeConfig, ProbeDefinition, ProbeError,
-    ProbeId, ProbeRegistry, ProbeResult, ProbeStatus,
+    BackoffConfig, Probe, ProbeConfig, ProbeDefinition, ProbeError, ProbeId, ProbeRegistry,
+    ProbeResult, ProbeStatus,
 };
 
 /// Configuration for the heartbeat watcher.
@@ -47,8 +47,7 @@ impl Default for HeartbeatWatcherConfig {
 }
 
 /// Callback for when an actor should be shut down due to health failure.
-pub type ShutdownCallback =
-    Box<dyn Fn(InstanceIdOwned) -> Result<(), ShutdownError> + Send + Sync>;
+pub type ShutdownCallback = Box<dyn Fn(InstanceIdOwned) -> Result<(), ShutdownError> + Send + Sync>;
 
 use thiserror::Error;
 
@@ -217,7 +216,11 @@ impl HeartbeatWatcher {
     async fn check_all_probes(&self) -> Result<(), HeartbeatError> {
         let definitions: Vec<_> = {
             let registry = self.probe_registry.read().await;
-            registry.list().iter().map(|d| (d.id, d.name.clone(), d.config.clone())).collect()
+            registry
+                .list()
+                .iter()
+                .map(|d| (d.id, d.name.clone(), d.config.clone()))
+                .collect()
         };
 
         for (probe_id, actor_id, config) in definitions {
@@ -247,24 +250,39 @@ impl HeartbeatWatcher {
         config: &ProbeConfig,
     ) -> Result<ProbeResult, ProbeError> {
         let probe: Box<dyn Probe> = match config {
-            ProbeConfig::Http { url, expected_status, timeout_ms } => {
-                Box::new(crate::probe::HttpProbe::new(url.clone())
+            ProbeConfig::Http {
+                url,
+                expected_status,
+                timeout_ms,
+            } => Box::new(
+                crate::probe::HttpProbe::new(url.clone())
                     .with_expected_status(expected_status.unwrap_or(200))
-                    .with_timeout(Duration::from_millis(*timeout_ms)))
-            }
-            ProbeConfig::Tcp { address, port, timeout_ms } => {
+                    .with_timeout(Duration::from_millis(*timeout_ms)),
+            ),
+            ProbeConfig::Tcp {
+                address,
+                port,
+                timeout_ms,
+            } => {
                 use std::net::SocketAddr;
-                let addr: SocketAddr = format!("{}:{}", address, port)
-                    .parse()
-                    .map_err(|_| ProbeError::Tcp(format!("invalid address {}:{}", address, port)))?;
-                Box::new(crate::probe::TcpProbe::new(addr)
-                    .with_timeout(Duration::from_millis(*timeout_ms)))
+                let addr: SocketAddr = format!("{}:{}", address, port).parse().map_err(|_| {
+                    ProbeError::Tcp(format!("invalid address {}:{}", address, port))
+                })?;
+                Box::new(
+                    crate::probe::TcpProbe::new(addr)
+                        .with_timeout(Duration::from_millis(*timeout_ms)),
+                )
             }
-            ProbeConfig::Exec { command, args, expected_exit_code, timeout_ms } => {
-                Box::new(crate::probe::ExecProbe::new(command.clone(), args.clone())
+            ProbeConfig::Exec {
+                command,
+                args,
+                expected_exit_code,
+                timeout_ms,
+            } => Box::new(
+                crate::probe::ExecProbe::new(command.clone(), args.clone())
                     .with_expected_exit_code(expected_exit_code.unwrap_or(0))
-                    .with_timeout(Duration::from_millis(*timeout_ms)))
-            }
+                    .with_timeout(Duration::from_millis(*timeout_ms)),
+            ),
         };
 
         let mut result = probe.check().await?;
@@ -476,8 +494,7 @@ mod tests {
             Ok(())
         });
 
-        let watcher = HeartbeatWatcher::new(config.clone())
-            .with_shutdown_callback(callback);
+        let watcher = HeartbeatWatcher::new(config.clone()).with_shutdown_callback(callback);
 
         watcher.register_actor("test-actor".to_string()).await;
 

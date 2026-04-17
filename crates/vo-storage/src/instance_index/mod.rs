@@ -220,10 +220,14 @@ impl Iterator for ScanIterator {
         }
         let inner = self.inner.as_mut()?;
         match inner.next() {
-            Some(guard) => if let Ok((k_bytes, _v_bytes)) = guard.into_inner() { Some(decode_instance_index_key(&k_bytes)) } else {
-                self.inner = None;
-                Some(Err(StorageError::Storage))
-            },
+            Some(guard) => {
+                if let Ok((k_bytes, _v_bytes)) = guard.into_inner() {
+                    Some(decode_instance_index_key(&k_bytes))
+                } else {
+                    self.inner = None;
+                    Some(Err(StorageError::Storage))
+                }
+            }
             None => None,
         }
     }

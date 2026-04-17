@@ -12,13 +12,13 @@ pub use ws::*;
 pub mod helpers;
 pub use helpers::*;
 
+pub mod workflow_lifecycle;
 pub mod workflow_start;
 pub mod workflow_status;
-pub mod workflow_lifecycle;
 
+pub use workflow_lifecycle::*;
 pub use workflow_start::*;
 pub use workflow_status::*;
-pub use workflow_lifecycle::*;
 
 pub mod events;
 pub use events::*;

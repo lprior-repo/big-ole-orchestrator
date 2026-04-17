@@ -341,10 +341,7 @@ mod subprocess_boundary_tests {
         let _guard = state_guard();
         const MAX_PAYLOAD: usize = 10_485_760;
         const FIFTEEN_MB: usize = 15_000_000;
-        assert!(
-            FIFTEEN_MB > MAX_PAYLOAD,
-            "15MB exceeds 10MB max payload"
-        );
+        assert!(FIFTEEN_MB > MAX_PAYLOAD, "15MB exceeds 10MB max payload");
     }
 
     // -------------------------------------------------------------------------
@@ -502,7 +499,11 @@ mod subprocess_boundary_tests {
             vec![],
         );
 
-        assert_eq!(config.timeout_ms(), 100, "Timeout should be 100ms for zombie cleanup test");
+        assert_eq!(
+            config.timeout_ms(),
+            100,
+            "Timeout should be 100ms for zombie cleanup test"
+        );
     }
 
     #[test]
@@ -523,7 +524,10 @@ mod subprocess_boundary_tests {
     fn bdd_fd_budget_bounded_buffer_64kb_enforced() {
         let _guard = state_guard();
         const BOUNDED_BUFFER_SIZE: usize = 65536;
-        assert_eq!(BOUNDED_BUFFER_SIZE, 65536, "Bounded buffer must be 64KB to match kernel pipe size");
+        assert_eq!(
+            BOUNDED_BUFFER_SIZE, 65536,
+            "Bounded buffer must be 64KB to match kernel pipe size"
+        );
     }
 
     #[test]
@@ -532,7 +536,10 @@ mod subprocess_boundary_tests {
         const CHUNK_SIZE: usize = 65536;
         const PAYLOAD_SIZE: usize = 200_000;
         let num_chunks = (PAYLOAD_SIZE + CHUNK_SIZE - 1) / CHUNK_SIZE;
-        assert_eq!(num_chunks, 4, "200KB payload requires 4 chunks of 64KB each");
+        assert_eq!(
+            num_chunks, 4,
+            "200KB payload requires 4 chunks of 64KB each"
+        );
     }
 
     #[test]
@@ -556,10 +563,7 @@ mod subprocess_boundary_tests {
             LARGE_PAYLOAD > BOUNDED_BUFFER_SIZE,
             "100KB payload exceeds 64KB buffer"
         );
-        assert!(
-            LARGE_PAYLOAD < 10_485_760,
-            "100KB is under 10MB limit"
-        );
+        assert!(LARGE_PAYLOAD < 10_485_760, "100KB is under 10MB limit");
     }
 
     #[test]
@@ -613,7 +617,10 @@ mod subprocess_boundary_tests {
     #[test]
     fn bdd_subprocess_error_bounded_buffer_exceeded_contains_details() {
         let _guard = state_guard();
-        let err = vo_executor::SubprocessError::BoundedBufferExceeded { max: 65536, tried: 100000 };
+        let err = vo_executor::SubprocessError::BoundedBufferExceeded {
+            max: 65536,
+            tried: 100000,
+        };
         let err_str = err.to_string();
         assert!(
             err_str.contains("65536") && err_str.contains("100000"),
@@ -637,8 +644,7 @@ mod adr012_subprocess_integration_tests {
     use super::*;
 
     fn helper_path() -> String {
-        let manifest_dir = std::env::var("CARGO_MANIFEST_DIR")
-            .expect("CARGO_MANIFEST_DIR not set");
+        let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR not set");
         let target_dir = std::path::Path::new(&manifest_dir)
             .parent()
             .unwrap()
@@ -671,7 +677,11 @@ mod adr012_subprocess_integration_tests {
         );
         let result = run_subprocess(config).await;
         assert!(result.is_ok(), "Subprocess should complete: {:?}", result);
-        assert_eq!(result.unwrap().exit_code, Some(42), "Exit code 42 should be propagated");
+        assert_eq!(
+            result.unwrap().exit_code,
+            Some(42),
+            "Exit code 42 should be propagated"
+        );
     }
 
     #[tokio::test]
@@ -1664,8 +1674,7 @@ mod adr012_bdd_scenario_tests {
     use super::*;
 
     fn helper_path() -> String {
-        let manifest_dir = std::env::var("CARGO_MANIFEST_DIR")
-            .expect("CARGO_MANIFEST_DIR not set");
+        let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR not set");
         let target_dir = std::path::Path::new(&manifest_dir)
             .parent()
             .unwrap()
@@ -1766,11 +1775,7 @@ mod adr012_bdd_scenario_tests {
             elapsed.as_millis() < 500,
             "50ms sleep should complete in under 500ms"
         );
-        assert_eq!(
-            result.unwrap().exit_code,
-            Some(0),
-            "Exit code should be 0"
-        );
+        assert_eq!(result.unwrap().exit_code, Some(0), "Exit code should be 0");
     }
 
     #[tokio::test]
@@ -1808,11 +1813,7 @@ mod adr012_bdd_scenario_tests {
 
     #[tokio::test]
     async fn bdd_fd_budget_cloexec_constant_verification() {
-        assert_eq!(
-            libc::FD_CLOEXEC,
-            1,
-            "FD_CLOEXEC should be 1"
-        );
+        assert_eq!(libc::FD_CLOEXEC, 1, "FD_CLOEXEC should be 1");
     }
 
     #[tokio::test]
@@ -1863,18 +1864,9 @@ mod adr012_bdd_scenario_tests {
         const FIFTEEN_MB: usize = 15_720_384;
         const ELEVEN_MB: usize = 11_534_336;
 
-        assert!(
-            FIFTEEN_MB > MAX_OUTPUT,
-            "15MB exceeds 10MB limit"
-        );
-        assert!(
-            ELEVEN_MB > MAX_OUTPUT,
-            "11MB exceeds 10MB limit"
-        );
-        assert!(
-            MAX_OUTPUT > 0,
-            "10MB limit should be positive"
-        );
+        assert!(FIFTEEN_MB > MAX_OUTPUT, "15MB exceeds 10MB limit");
+        assert!(ELEVEN_MB > MAX_OUTPUT, "11MB exceeds 10MB limit");
+        assert!(MAX_OUTPUT > 0, "10MB limit should be positive");
     }
 
     #[tokio::test]
@@ -1933,7 +1925,8 @@ mod adr012_bdd_scenario_tests {
     async fn bdd_adr012_pr_set_pdeath_signal_constant() {
         const PR_SET_PDEATHSIG: libc::c_int = 1;
         assert_eq!(
-            PR_SET_PDEATHSIG, libc::PR_SET_PDEATHSIG,
+            PR_SET_PDEATHSIG,
+            libc::PR_SET_PDEATHSIG,
             "PR_SET_PDEATHSIG constant should match libc"
         );
     }
@@ -1941,9 +1934,6 @@ mod adr012_bdd_scenario_tests {
     #[tokio::test]
     async fn bdd_adr012_sigterm_constant() {
         const SIGTERM: libc::c_int = 15;
-        assert_eq!(
-            SIGTERM, libc::SIGTERM,
-            "SIGTERM constant should match libc"
-        );
+        assert_eq!(SIGTERM, libc::SIGTERM, "SIGTERM constant should match libc");
     }
 }

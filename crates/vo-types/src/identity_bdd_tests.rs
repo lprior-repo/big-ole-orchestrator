@@ -9,13 +9,17 @@ use std::collections::HashMap;
 
 use uuid::Uuid;
 
+use crate::command_envelope::CommandEnvelope;
 use crate::events::envelope::EventEnvelope;
 use crate::events::metadata::EventMetadata;
-use crate::command_envelope::CommandEnvelope;
 use crate::identity::{CausationId, CommandId, CorrelationId};
 use crate::{CommandMetadata, IdempotencyKey, Issuer, TimestampMs};
 
-fn make_command_meta(command_id: &str, correlation_id: &str, causation_id: &str) -> CommandMetadata {
+fn make_command_meta(
+    command_id: &str,
+    correlation_id: &str,
+    causation_id: &str,
+) -> CommandMetadata {
     CommandMetadata {
         command_id: IdempotencyKey::parse(command_id).unwrap(),
         correlation_id: IdempotencyKey::parse(correlation_id).unwrap(),
@@ -25,7 +29,11 @@ fn make_command_meta(command_id: &str, correlation_id: &str, causation_id: &str)
     }
 }
 
-fn make_event_with_metadata(instance_id: &str, sequence: u64, meta: CommandMetadata) -> EventEnvelope {
+fn make_event_with_metadata(
+    instance_id: &str,
+    sequence: u64,
+    meta: CommandMetadata,
+) -> EventEnvelope {
     EventEnvelope {
         schema_version: 1,
         instance_id: instance_id.to_string(),
@@ -123,7 +131,11 @@ fn identity_types_reject_invalid_uuids() {
 fn event_causation_id_equals_command_id() {
     let cmd_meta = make_command_meta("cmd-001", "corr-root", "cause-root");
     let event = make_event_with_metadata("inst-1", 1, cmd_meta);
-    let event_meta = event.metadata.command_metadata.as_ref().expect("event must carry command metadata");
+    let event_meta = event
+        .metadata
+        .command_metadata
+        .as_ref()
+        .expect("event must carry command metadata");
     assert_eq!(
         event_meta.causation_id.as_str(),
         "cause-root",
@@ -143,8 +155,18 @@ fn multiple_events_share_causation_from_same_command() {
 
     for (i, event) in events.iter().enumerate() {
         let meta = event.metadata.command_metadata.as_ref().unwrap();
-        assert_eq!(meta.command_id.as_str(), "cmd-multi", "event {} command_id", i + 1);
-        assert_eq!(meta.causation_id.as_str(), "cause-multi", "event {} causation_id", i + 1);
+        assert_eq!(
+            meta.command_id.as_str(),
+            "cmd-multi",
+            "event {} command_id",
+            i + 1
+        );
+        assert_eq!(
+            meta.causation_id.as_str(),
+            "cause-multi",
+            "event {} causation_id",
+            i + 1
+        );
     }
 }
 
@@ -158,11 +180,21 @@ fn same_correlation_id_groups_commands() {
     let cmd2 = make_command_meta("cmd-b", correlation_id, "cause-b");
 
     let mut by_correlation: HashMap<&str, Vec<&IdempotencyKey>> = HashMap::new();
-    by_correlation.entry(correlation_id).or_default().push(&cmd1.command_id);
-    by_correlation.entry(correlation_id).or_default().push(&cmd2.command_id);
+    by_correlation
+        .entry(correlation_id)
+        .or_default()
+        .push(&cmd1.command_id);
+    by_correlation
+        .entry(correlation_id)
+        .or_default()
+        .push(&cmd2.command_id);
 
     let grouped = by_correlation.get(correlation_id).unwrap();
-    assert_eq!(grouped.len(), 2, "both commands must be grouped under the same correlation_id");
+    assert_eq!(
+        grouped.len(),
+        2,
+        "both commands must be grouped under the same correlation_id"
+    );
 }
 
 /// Given events from correlated commands,
@@ -177,8 +209,20 @@ fn events_from_correlated_commands_share_correlation_id() {
     let event1 = make_event_with_metadata("inst-1", 1, cmd1);
     let event2 = make_event_with_metadata("inst-1", 2, cmd2);
 
-    let corr1 = event1.metadata.command_metadata.as_ref().unwrap().correlation_id.as_str();
-    let corr2 = event2.metadata.command_metadata.as_ref().unwrap().correlation_id.as_str();
+    let corr1 = event1
+        .metadata
+        .command_metadata
+        .as_ref()
+        .unwrap()
+        .correlation_id
+        .as_str();
+    let corr2 = event2
+        .metadata
+        .command_metadata
+        .as_ref()
+        .unwrap()
+        .correlation_id
+        .as_str();
     assert_eq!(corr1, corr2);
     assert_eq!(corr1, correlation);
 }
@@ -232,7 +276,14 @@ fn all_chain_events_share_correlation_id() {
 
     let correlations: Vec<&str> = events
         .iter()
-        .map(|e| e.metadata.command_metadata.as_ref().unwrap().correlation_id.as_str())
+        .map(|e| {
+            e.metadata
+                .command_metadata
+                .as_ref()
+                .unwrap()
+                .correlation_id
+                .as_str()
+        })
         .collect();
 
     assert!(correlations.iter().all(|c| c == &correlation));
@@ -245,7 +296,11 @@ fn chain_command_ids_are_distinct() {
     let cmd_b = make_command_meta("chain-b", "corr", "chain-a");
     let cmd_c = make_command_meta("chain-c", "corr", "chain-b");
 
-    let ids = [cmd_a.command_id.as_str(), cmd_b.command_id.as_str(), cmd_c.command_id.as_str()];
+    let ids = [
+        cmd_a.command_id.as_str(),
+        cmd_b.command_id.as_str(),
+        cmd_c.command_id.as_str(),
+    ];
     let unique: std::collections::HashSet<&str> = ids.iter().copied().collect();
     assert_eq!(unique.len(), 3);
 }
@@ -290,7 +345,15 @@ fn causation_chain_recoverable_from_serialized_events() {
 
     let causation_chain: Vec<String> = restored
         .iter()
-        .map(|e| e.metadata.command_metadata.as_ref().unwrap().causation_id.as_str().to_string())
+        .map(|e| {
+            e.metadata
+                .command_metadata
+                .as_ref()
+                .unwrap()
+                .causation_id
+                .as_str()
+                .to_string()
+        })
         .collect();
 
     assert_eq!(causation_chain[0], "scause-root");
@@ -317,8 +380,14 @@ fn envelope_preserves_lineage_through_wire_format() {
     let restored = CommandEnvelope::from_str(&serialized).unwrap();
 
     assert_eq!(envelope.metadata.command_id, restored.metadata.command_id);
-    assert_eq!(envelope.metadata.correlation_id, restored.metadata.correlation_id);
-    assert_eq!(envelope.metadata.causation_id, restored.metadata.causation_id);
+    assert_eq!(
+        envelope.metadata.correlation_id,
+        restored.metadata.correlation_id
+    );
+    assert_eq!(
+        envelope.metadata.causation_id,
+        restored.metadata.causation_id
+    );
 }
 
 /// Given two envelopes in the same correlation group,

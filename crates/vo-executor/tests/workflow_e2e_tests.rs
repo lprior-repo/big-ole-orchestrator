@@ -15,8 +15,8 @@ mod workflow_lifecycle_tests {
     use std::sync::Mutex;
     use std::sync::MutexGuard;
     use vo_executor::{
-        cancel_execution, execute_step, get_execution_status,
-        get_last_error, reset_all_state, StepId, StepResult,
+        cancel_execution, execute_step, get_execution_status, get_last_error, reset_all_state,
+        StepId, StepResult,
     };
 
     static STATE_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
@@ -818,8 +818,8 @@ mod workflow_concurrent_e2e_tests {
     use std::sync::Mutex;
     use std::sync::MutexGuard;
     use vo_executor::{
-        execute_step, execute_step_with_retry, get_execution_status,
-        reset_all_state, RetryPolicy, StepId, StepResult,
+        execute_step, execute_step_with_retry, get_execution_status, reset_all_state, RetryPolicy,
+        StepId, StepResult,
     };
 
     static STATE_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));

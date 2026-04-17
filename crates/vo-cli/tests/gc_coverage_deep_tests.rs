@@ -1,7 +1,7 @@
-use std::path::PathBuf;
-use vo_cli::commands::gc::{GcConfig, GcError, GcSummary};
-use vo_cli::commands::gc::{delete_version_dir, find_unpinned_directories};
 use std::collections::HashSet;
+use std::path::PathBuf;
+use vo_cli::commands::gc::{delete_version_dir, find_unpinned_directories};
+use vo_cli::commands::gc::{GcConfig, GcError, GcSummary};
 
 #[test]
 fn gc_config_default_engine_url() {
@@ -124,7 +124,9 @@ async fn delete_version_dir_nonexistent_returns_error() {
 async fn find_unpinned_empty_dir_returns_empty() {
     let dir = tempfile::tempdir().unwrap();
     let pinned: HashSet<String> = HashSet::new();
-    let result = find_unpinned_directories(dir.path(), &pinned).await.unwrap();
+    let result = find_unpinned_directories(dir.path(), &pinned)
+        .await
+        .unwrap();
     assert!(result.is_empty());
 }
 
@@ -152,6 +154,8 @@ async fn find_unpinned_skips_non_hex_directories() {
     std::fs::create_dir_all(dir.path().join("not-a-hash")).unwrap();
     std::fs::create_dir_all(dir.path().join("README.md")).unwrap();
     let pinned: HashSet<String> = HashSet::new();
-    let result = find_unpinned_directories(dir.path(), &pinned).await.unwrap();
+    let result = find_unpinned_directories(dir.path(), &pinned)
+        .await
+        .unwrap();
     assert!(result.is_empty());
 }

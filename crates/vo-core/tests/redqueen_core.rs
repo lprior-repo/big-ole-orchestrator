@@ -7,21 +7,29 @@
 use vo_core::effects::{can_commit, can_rollback, commit_effect, is_terminal, rollback_effect};
 use vo_core::replay::{ReplayEngine, ReplayError};
 use vo_core::workload_class::{DegradedBudget, WorkloadBudget, WorkloadClass};
-use vo_types::state::{LifecycleState, TransitionEvent, apply};
+use vo_types::state::{apply, LifecycleState, TransitionEvent};
 use vo_types::{EffectIntent, EffectKind, TimestampMs};
 
 fn prepared_effect(id: &str) -> vo_types::EffectRecord {
     vo_types::EffectRecord::new(
-        id.to_string(), EffectKind::HttpCall, serde_json::json!({}).into(),
-        EffectIntent::Prepared, None,
-    ).expect("valid effect")
+        id.to_string(),
+        EffectKind::HttpCall,
+        serde_json::json!({}).into(),
+        EffectIntent::Prepared,
+        None,
+    )
+    .expect("valid effect")
 }
 
 fn committed_effect(id: &str) -> vo_types::EffectRecord {
     vo_types::EffectRecord::new(
-        id.to_string(), EffectKind::HttpCall, serde_json::json!({}).into(),
-        EffectIntent::Committed, Some(TimestampMs::new_unchecked(9999)),
-    ).expect("valid effect")
+        id.to_string(),
+        EffectKind::HttpCall,
+        serde_json::json!({}).into(),
+        EffectIntent::Committed,
+        Some(TimestampMs::new_unchecked(9999)),
+    )
+    .expect("valid effect")
 }
 
 fn make_envelope(instance: &str, seq: u64) -> serde_json::Value {
@@ -41,13 +49,19 @@ fn make_envelope(instance: &str, seq: u64) -> serde_json::Value {
 fn rq_core_01_terminal_states_reject_all_transitions() {
     let terminals = [LifecycleState::Completed, LifecycleState::Cancelled];
     let events = [
-        TransitionEvent::AssignToNode, TransitionEvent::StepScheduled,
-        TransitionEvent::ExecuteStep, TransitionEvent::CompleteStep,
-        TransitionEvent::WaitForTimer, TransitionEvent::TimerFired,
+        TransitionEvent::AssignToNode,
+        TransitionEvent::StepScheduled,
+        TransitionEvent::ExecuteStep,
+        TransitionEvent::CompleteStep,
+        TransitionEvent::WaitForTimer,
+        TransitionEvent::TimerFired,
     ];
     for state in &terminals {
         for event in &events {
-            assert!(apply(*state, *event).is_err(), "{state:?} + {event:?} should fail");
+            assert!(
+                apply(*state, *event).is_err(),
+                "{state:?} + {event:?} should fail"
+            );
         }
     }
 }
@@ -55,12 +69,17 @@ fn rq_core_01_terminal_states_reject_all_transitions() {
 #[test]
 fn rq_core_02_cancel_from_eligible_nonterminal_states() {
     let eligible = [
-        LifecycleState::Pending, LifecycleState::RunningDecision,
-        LifecycleState::StepScheduled, LifecycleState::StepExecuting,
+        LifecycleState::Pending,
+        LifecycleState::RunningDecision,
+        LifecycleState::StepScheduled,
+        LifecycleState::StepExecuting,
         LifecycleState::WaitingForTimer,
     ];
     for state in &eligible {
-        assert_eq!(apply(*state, TransitionEvent::Cancel), Ok(LifecycleState::Cancelled));
+        assert_eq!(
+            apply(*state, TransitionEvent::Cancel),
+            Ok(LifecycleState::Cancelled)
+        );
     }
     assert!(apply(LifecycleState::PendingPublication, TransitionEvent::Cancel).is_err());
 }
@@ -68,11 +87,15 @@ fn rq_core_02_cancel_from_eligible_nonterminal_states() {
 #[test]
 fn rq_core_03_failed_only_allows_resume() {
     let bad = [
-        TransitionEvent::AssignToNode, TransitionEvent::StepScheduled,
-        TransitionEvent::ExecuteStep, TransitionEvent::CompleteStep,
+        TransitionEvent::AssignToNode,
+        TransitionEvent::StepScheduled,
+        TransitionEvent::ExecuteStep,
+        TransitionEvent::CompleteStep,
         TransitionEvent::WaitForTimer,
     ];
-    for event in &bad { assert!(apply(LifecycleState::Failed, *event).is_err()); }
+    for event in &bad {
+        assert!(apply(LifecycleState::Failed, *event).is_err());
+    }
     assert_eq!(
         apply(LifecycleState::Failed, TransitionEvent::InstanceResumed),
         Ok(LifecycleState::RunningDecision),
@@ -156,21 +179,33 @@ fn rq_core_10_degraded_mode_blocks_non_critical_classes() {
 #[test]
 fn rq_core_11_replay_sequence_gap_detected() {
     let engine = ReplayEngine::new();
-    let events: Vec<_> = [1u64, 2, 5].iter()
+    let events: Vec<_> = [1u64, 2, 5]
+        .iter()
         .map(|s| serde_json::from_value(make_envelope("inst", *s)).unwrap())
         .collect();
     let err = engine.replay(&events).unwrap_err();
-    assert!(matches!(err, ReplayError::SequenceGap { expected: 3, actual: 5, .. }));
+    assert!(matches!(
+        err,
+        ReplayError::SequenceGap {
+            expected: 3,
+            actual: 5,
+            ..
+        }
+    ));
 }
 
 #[test]
 fn rq_core_12_replay_duplicate_sequence_detected() {
     let engine = ReplayEngine::new();
-    let events: Vec<_> = [1u64, 2, 2].iter()
+    let events: Vec<_> = [1u64, 2, 2]
+        .iter()
         .map(|s| serde_json::from_value(make_envelope("inst", *s)).unwrap())
         .collect();
     let err = engine.replay(&events).unwrap_err();
-    assert!(matches!(err, ReplayError::SequenceDuplicate { sequence: 2, .. }));
+    assert!(matches!(
+        err,
+        ReplayError::SequenceDuplicate { sequence: 2, .. }
+    ));
 }
 
 #[test]
@@ -189,7 +224,9 @@ fn rq_core_13_replay_instance_mismatch_detected() {
 #[test]
 fn rq_core_14_budget_acquire_release_cycle_maintains_balance() {
     let budget = WorkloadBudget::new(2, 3, 1, 0);
-    for _ in 0..3 { budget.acquire(WorkloadClass::Standard).unwrap(); }
+    for _ in 0..3 {
+        budget.acquire(WorkloadClass::Standard).unwrap();
+    }
     assert!(!budget.can_acquire(WorkloadClass::Standard));
     assert_eq!(budget.remaining(WorkloadClass::Standard), 0);
     budget.release(WorkloadClass::Standard);

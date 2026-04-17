@@ -7,8 +7,8 @@ use axum::{
 use tokio::sync::broadcast;
 
 use super::split_path_id;
-use crate::types::ApiError;
 pub use crate::types::events::WorkflowEvent;
+use crate::types::ApiError;
 
 const WS_BROADCAST_CAPACITY: usize = 1000;
 

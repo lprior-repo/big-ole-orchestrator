@@ -26,13 +26,13 @@
 pub mod admission;
 pub mod circuit_breaker;
 pub mod compensation_order;
-pub mod ghost_workflow;
 pub mod config_hot_reload;
 pub mod connector;
 mod db_writer_message;
 pub mod debounce;
 pub mod effects;
 pub mod exact_once_verification;
+pub mod ghost_workflow;
 pub mod transaction;
 
 pub use exact_once_verification::assertions::{
@@ -58,14 +58,14 @@ pub mod workspace_swap;
 pub mod write_class;
 
 pub use validation::{
-    KnownSinks, UnsupportedSinkError, WorkflowSinkValidator, validate_effect_kinds,
-    validate_workflow_effects, validate_workflow_sinks,
+    validate_effect_kinds, validate_workflow_effects, validate_workflow_sinks, KnownSinks,
+    UnsupportedSinkError, WorkflowSinkValidator,
 };
 
 #[cfg(kani)]
-pub mod write_class_verification;
-#[cfg(kani)]
 pub mod shedding_verification;
+#[cfg(kani)]
+pub mod write_class_verification;
 
 #[cfg(test)]
 mod invalid_business_data_tests;
