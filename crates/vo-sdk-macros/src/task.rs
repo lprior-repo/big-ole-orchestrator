@@ -357,7 +357,11 @@ mod tests {
     fn parse_task_accepts_generic_function() {
         let input = quote! { fn generic_task<T: Default>() -> T { T::default() } };
         let result = parse_task(&input);
-        assert!(result.is_ok(), "generic function should be accepted, got: {:?}", result);
+        assert!(
+            result.is_ok(),
+            "generic function should be accepted, got: {:?}",
+            result
+        );
         let def = result.unwrap();
         assert_eq!(def.ident, "generic_task");
         assert!(!def.generics.params.is_empty());
@@ -367,7 +371,11 @@ mod tests {
     fn parse_task_accepts_async_generic_with_where_clause() {
         let input = quote! { async fn complex<'a, T>() where T: Send + 'a {} };
         let result = parse_task(&input);
-        assert!(result.is_ok(), "async generic with where clause should be accepted, got: {:?}", result);
+        assert!(
+            result.is_ok(),
+            "async generic with where clause should be accepted, got: {:?}",
+            result
+        );
         let def = result.unwrap();
         assert_eq!(def.ident, "complex");
         assert!(def.generics.where_clause.is_some());
@@ -380,8 +388,16 @@ mod tests {
         let result = generate_task_entrypoint(&def).unwrap();
         let output = result.to_string();
         // fn main<T> is invalid Rust — main must not have generics
-        assert!(!output.contains("fn main <"), "main should not have generics: {}", output);
-        assert!(output.contains("fn main ()"), "main should be non-generic: {}", output);
+        assert!(
+            !output.contains("fn main <"),
+            "main should not have generics: {}",
+            output
+        );
+        assert!(
+            output.contains("fn main ()"),
+            "main should be non-generic: {}",
+            output
+        );
     }
 
     #[test]
@@ -390,7 +406,11 @@ mod tests {
         let def = parse_task(&input).unwrap();
         let result = generate_task_entrypoint(&def).unwrap();
         let output = result.to_string();
-        assert!(output.contains("generic_task ()"), "main should call the generic function: {}", output);
+        assert!(
+            output.contains("generic_task ()"),
+            "main should call the generic function: {}",
+            output
+        );
     }
 
     #[test]
@@ -400,7 +420,11 @@ mod tests {
         let result = generate_task_entrypoint(&def).unwrap();
         let output = result.to_string();
         // main() must not have -> T since T is not in main's scope
-        assert!(!output.contains("-> T"), "main should not have generic return type: {}", output);
+        assert!(
+            !output.contains("-> T"),
+            "main should not have generic return type: {}",
+            output
+        );
     }
 
     proptest! {

@@ -150,11 +150,7 @@ async fn bdd_zombie_prevention_process_group_isolation() {
         let pid_str = std::fs::read_to_string(&pid_path).unwrap();
         let pid: i32 = pid_str.trim().parse().unwrap();
         let proc_exists = Path::new(&format!("/proc/{}", pid)).exists();
-        assert!(
-            !proc_exists,
-            "process {} should be reaped",
-            pid
-        );
+        assert!(!proc_exists, "process {} should be reaped", pid);
     }
 }
 
@@ -204,12 +200,14 @@ async fn bdd_fd_budget_pipe_ends_have_cloexec() {
     make_executable(&script);
 
     // WHEN: Subprocess runs briefly
-    let config =
-        SubprocessConfig::new(script.to_string_lossy().to_string(), vec![], 2000, vec![]);
+    let config = SubprocessConfig::new(script.to_string_lossy().to_string(), vec![], 2000, vec![]);
     let result = run_subprocess(config).await;
 
     // THEN: Execution succeeds (pipes were properly set up with CLOEXEC)
-    assert!(result.is_ok(), "subprocess should succeed with CLOEXEC pipes");
+    assert!(
+        result.is_ok(),
+        "subprocess should succeed with CLOEXEC pipes"
+    );
 }
 
 #[tokio::test]
@@ -221,8 +219,7 @@ async fn bdd_fd_budget_stdin_stdout_stderr_not_used() {
     make_executable(&script);
 
     // WHEN: Executed with null I/O
-    let config =
-        SubprocessConfig::new(script.to_string_lossy().to_string(), vec![], 2000, vec![]);
+    let config = SubprocessConfig::new(script.to_string_lossy().to_string(), vec![], 2000, vec![]);
     let result = run_subprocess(config).await;
 
     // THEN: Success (stdin/stdout/stderr are set to null, not affecting FD3/FD4)
@@ -312,7 +309,11 @@ async fn bdd_memory_bomb_bounded_buffer_prevents_blocking() {
     // GIVEN: A large FD4 response that exceeds kernel pipe buffer
     let dir = tempdir().unwrap();
     let script = dir.path().join("large_output.sh");
-    std::fs::write(&script, "#!/bin/sh\ndd if=/dev/zero bs=1024 count=100 2>/dev/null\nexit 0\n").unwrap();
+    std::fs::write(
+        &script,
+        "#!/bin/sh\ndd if=/dev/zero bs=1024 count=100 2>/dev/null\nexit 0\n",
+    )
+    .unwrap();
     make_executable(&script);
 
     // WHEN: Subprocess generates ~100KB output
@@ -410,14 +411,7 @@ async fn bdd_process_lifecycle_concurrent_spawns_all_complete() {
 
     // WHEN: 5 concurrent subprocesses spawn
     let configs: Vec<_> = (0..5)
-        .map(|_| {
-            SubprocessConfig::new(
-                script.to_string_lossy().to_string(),
-                vec![],
-                2000,
-                vec![],
-            )
-        })
+        .map(|_| SubprocessConfig::new(script.to_string_lossy().to_string(), vec![], 2000, vec![]))
         .collect();
 
     let handles: Vec<_> = configs
@@ -442,14 +436,7 @@ async fn bdd_process_lifecycle_concurrent_timeouts_all_cleaned() {
 
     // WHEN: 5 concurrent subprocesses with short timeouts
     let configs: Vec<_> = (0..5)
-        .map(|_| {
-            SubprocessConfig::new(
-                script.to_string_lossy().to_string(),
-                vec![],
-                100,
-                vec![],
-            )
-        })
+        .map(|_| SubprocessConfig::new(script.to_string_lossy().to_string(), vec![], 100, vec![]))
         .collect();
 
     let handles: Vec<_> = configs

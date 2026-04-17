@@ -15,8 +15,8 @@ mod types;
 pub use error::{ExecutionError, JobRunError, RetryExhaustedError, SchedulerError};
 pub use queue::{PriorityQueue, SchedulerQueue};
 pub use types::{
-    Job, JobId, JobKind, JobPriority, JobResult, JobState, Schedule, SchedulePolicy,
-    SchedulerConfig, SchedulerRetryPolicy, ScheduledJob, SerializedPayload,
+    Job, JobId, JobKind, JobPriority, JobResult, JobState, Schedule, SchedulePolicy, ScheduledJob,
+    SchedulerConfig, SchedulerRetryPolicy, SerializedPayload,
 };
 
 use std::sync::Arc;

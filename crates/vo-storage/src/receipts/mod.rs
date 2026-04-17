@@ -178,10 +178,7 @@ pub trait ReceiptStore {
     ///
     /// Returns `ReceiptStoreError::InvalidArgument` if `effect_id` is empty.
     /// Returns `ReceiptStoreError::Storage` if the underlying storage fails.
-    fn store_receipt(
-        &self,
-        receipt: ExecutionReceipt,
-    ) -> Result<(), ReceiptStoreError>;
+    fn store_receipt(&self, receipt: ExecutionReceipt) -> Result<(), ReceiptStoreError>;
 
     /// Retrieve an execution receipt by effect ID.
     ///

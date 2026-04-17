@@ -26,19 +26,22 @@ fn then_no_cycle(result: Option<Vec<String>>) -> bool {
     result.is_none()
 }
 
-fn then_has_cycle(result: Option<Vec<String>>) -> bool {
+fn then_has_cycle(result: &Option<Vec<String>>) -> bool {
     result.is_some()
 }
 
-fn then_cycle_contains(result: Option<Vec<String>>, node_id: &str) -> bool {
+fn then_cycle_contains(result: &Option<Vec<String>>, node_id: &str) -> bool {
     result
         .as_ref()
         .map(|cycle| cycle.iter().any(|n| n == node_id))
         .unwrap_or(false)
 }
 
-fn then_cycle_length(result: Option<Vec<String>>, expected: usize) -> bool {
-    result.map(|cycle| cycle.len() == expected).unwrap_or(false)
+fn then_cycle_length(result: &Option<Vec<String>>, expected: usize) -> bool {
+    result
+        .as_ref()
+        .map(|cycle| cycle.len() == expected)
+        .unwrap_or(false)
 }
 
 #[test]
@@ -59,15 +62,18 @@ fn dag_with_diamond_dependency_returns_none() {
 fn self_referencing_node_is_cycle() {
     let nodes = given_nodes(&[("a", &["a"])]);
     let result = when_detect_cycle(&nodes);
-    assert!(then_has_cycle(result), "Self-reference is a cycle");
-    assert!(then_cycle_contains(result, "a"), "Cycle should contain 'a'");
+    assert!(then_has_cycle(&result), "Self-reference is a cycle");
+    assert!(
+        then_cycle_contains(&result, "a"),
+        "Cycle should contain 'a'"
+    );
 }
 
 #[test]
 fn two_node_mutual_cycle_is_detected() {
     let nodes = given_nodes(&[("x", &["y"]), ("y", &["x"])]);
     let result = when_detect_cycle(&nodes);
-    assert!(then_has_cycle(result), "Mutual dependency is a cycle");
+    assert!(then_has_cycle(&result), "Mutual dependency is a cycle");
 }
 
 #[test]
@@ -75,10 +81,10 @@ fn three_node_chain_cycle_is_detected() {
     let nodes = given_nodes(&[("a", &["b"]), ("b", &["c"]), ("c", &["a"])]);
     let result = when_detect_cycle(&nodes);
     assert!(
-        then_has_cycle(result),
+        then_has_cycle(&result),
         "Chain returning to start is a cycle"
     );
-    assert!(then_cycle_length(result, 3), "Cycle should have 3 members");
+    assert!(then_cycle_length(&result, 3), "Cycle should have 3 members");
 }
 
 #[test]
@@ -103,8 +109,11 @@ fn partial_cycle_is_detected() {
     let nodes = given_nodes(&[("a", &[]), ("b", &["a"]), ("c", &["b", "c"])]);
     let result = when_detect_cycle(&nodes);
     assert!(
-        then_has_cycle(result),
+        then_has_cycle(&result),
         "Partial cycle with DAG branch should be detected"
     );
-    assert!(then_cycle_contains(result, "c"), "Cycle should contain 'c'");
+    assert!(
+        then_cycle_contains(&result, "c"),
+        "Cycle should contain 'c'"
+    );
 }

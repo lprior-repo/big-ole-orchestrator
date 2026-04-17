@@ -134,10 +134,13 @@ impl TimerStorage for MockTimerStorage {
             return Err(ReanimatorError::StorageError("Mock failure".to_string()));
         }
 
-        self.fire_calls
-            .lock()
-            .await
-            .push((instance_id.clone(), fire_at_ms));
+        // Deduplicate fire calls by (instance_id, fire_at_ms, timer_id)
+        // Deduplicate fire calls by (instance_id, fire_at_ms)
+        let mut fire_calls = self.fire_calls.lock().await;
+        let key = (instance_id.clone(), fire_at_ms);
+        if !fire_calls.contains(&key) {
+            fire_calls.push(key);
+        }
 
         Ok(())
     }

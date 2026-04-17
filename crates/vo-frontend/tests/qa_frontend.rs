@@ -7,14 +7,21 @@ use vo_frontend::ui::graph::{Node, NodeCategory, NodeId, Workflow};
 fn node_render_invariants_category_matches_kind() {
     let kinds = [
         (vo_types::NodeKind::Pure, NodeCategory::Flow, "zap"),
-        (vo_types::NodeKind::ManagedEffect, NodeCategory::Durable, "database"),
+        (
+            vo_types::NodeKind::ManagedEffect,
+            NodeCategory::Durable,
+            "database",
+        ),
         (vo_types::NodeKind::Wait, NodeCategory::Timing, "clock"),
         (vo_types::NodeKind::Signal, NodeCategory::Signal, "wifi"),
         (vo_types::NodeKind::Unsafe, NodeCategory::Flow, "zap"),
     ];
     for (kind, expected_cat, expected_icon) in kinds {
         let node = Node::new(NodeId::new(), "test".into(), kind);
-        assert_eq!(node.category, expected_cat, "category mismatch for {kind:?}");
+        assert_eq!(
+            node.category, expected_cat,
+            "category mismatch for {kind:?}"
+        );
         assert_eq!(node.icon, expected_icon, "icon mismatch for {kind:?}");
     }
 }
@@ -35,12 +42,16 @@ fn command_palette_filters_by_substring() {
 
 #[test]
 fn template_categories_partition_all_templates() {
-    let all: std::collections::HashSet<NodeTemplateId> = NodeTemplateId::all().into_iter().collect();
+    let all: std::collections::HashSet<NodeTemplateId> =
+        NodeTemplateId::all().into_iter().collect();
     let categorized: std::collections::HashSet<NodeTemplateId> = TemplateCategory::all()
         .iter()
         .flat_map(|cat| cat.members().iter().copied())
         .collect();
-    assert_eq!(all, categorized, "every template must belong to exactly one category");
+    assert_eq!(
+        all, categorized,
+        "every template must belong to exactly one category"
+    );
 }
 
 #[test]
@@ -114,14 +125,20 @@ fn node_id_generates_unique_26_char_ulid() {
 fn command_palette_case_insensitive_filter() {
     let results = vo_frontend::ui::command_palette::filtered_templates("HTTP");
     assert!(!results.is_empty());
-    assert!(results.iter().all(|t| t.label.to_lowercase().contains("http")));
+    assert!(results
+        .iter()
+        .all(|t| t.label.to_lowercase().contains("http")));
 }
 
 #[test]
 fn workflow_nodes_by_id_lookup_consistent() {
     let mut wf = Workflow::new("lookup".into());
     let id = NodeId::new();
-    wf.add_node(Node::new(id.clone(), "x".into(), vo_types::NodeKind::Signal));
+    wf.add_node(Node::new(
+        id.clone(),
+        "x".into(),
+        vo_types::NodeKind::Signal,
+    ));
     let map = wf.nodes_by_id();
     assert_eq!(map.len(), 1);
     assert_eq!(map[&id.0].name, "x");

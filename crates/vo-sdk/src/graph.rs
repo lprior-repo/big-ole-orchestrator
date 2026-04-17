@@ -63,7 +63,6 @@ pub struct EdgeSpec {
     pub to: NodeName,
 }
 
-
 /// Validation errors for [`WorkflowSpec::validate`].
 #[derive(Debug, PartialEq, Clone, Error)]
 pub enum ValidationError {
@@ -255,9 +254,7 @@ impl WorkflowSpec {
                         }
                         return true;
                     }
-                    if colors[neighbor] == 0
-                        && dfs(neighbor, adj, colors, stack, cycle_path)
-                    {
+                    if colors[neighbor] == 0 && dfs(neighbor, adj, colors, stack, cycle_path) {
                         return true;
                     }
                 }
@@ -371,10 +368,19 @@ mod tests {
         let spec = WorkflowSpec {
             workflow_name: WorkflowName::parse("test-workflow").unwrap(),
             nodes: vec![
-                NodeSpec { name: NodeName::parse("step_a").unwrap(), kind: NodeKind::Pure },
-                NodeSpec { name: NodeName::parse("step_b").unwrap(), kind: NodeKind::ManagedEffect },
+                NodeSpec {
+                    name: NodeName::parse("step_a").unwrap(),
+                    kind: NodeKind::Pure,
+                },
+                NodeSpec {
+                    name: NodeName::parse("step_b").unwrap(),
+                    kind: NodeKind::ManagedEffect,
+                },
             ],
-            edges: vec![EdgeSpec { from: NodeName::parse("step_a").unwrap(), to: NodeName::parse("step_b").unwrap() }],
+            edges: vec![EdgeSpec {
+                from: NodeName::parse("step_a").unwrap(),
+                to: NodeName::parse("step_b").unwrap(),
+            }],
         };
         assert!(spec.validate().is_ok());
     }
@@ -384,46 +390,90 @@ mod tests {
         let spec = WorkflowSpec {
             workflow_name: WorkflowName::parse("test").unwrap(),
             nodes: vec![
-                NodeSpec { name: NodeName::parse("step_a").unwrap(), kind: NodeKind::Pure },
-                NodeSpec { name: NodeName::parse("step_a").unwrap(), kind: NodeKind::Pure },
+                NodeSpec {
+                    name: NodeName::parse("step_a").unwrap(),
+                    kind: NodeKind::Pure,
+                },
+                NodeSpec {
+                    name: NodeName::parse("step_a").unwrap(),
+                    kind: NodeKind::Pure,
+                },
             ],
             edges: vec![],
         };
         let err = spec.validate().unwrap_err();
-        assert_eq!(err, ValidationError::DuplicateNodeName { name: "step_a".to_string() });
+        assert_eq!(
+            err,
+            ValidationError::DuplicateNodeName {
+                name: "step_a".to_string()
+            }
+        );
     }
 
     #[test]
     fn validate_rejects_missing_edge_source() {
         let spec = WorkflowSpec {
             workflow_name: WorkflowName::parse("test").unwrap(),
-            nodes: vec![NodeSpec { name: NodeName::parse("step_a").unwrap(), kind: NodeKind::Pure }],
-            edges: vec![EdgeSpec { from: NodeName::parse("ghost").unwrap(), to: NodeName::parse("step_a").unwrap() }],
+            nodes: vec![NodeSpec {
+                name: NodeName::parse("step_a").unwrap(),
+                kind: NodeKind::Pure,
+            }],
+            edges: vec![EdgeSpec {
+                from: NodeName::parse("ghost").unwrap(),
+                to: NodeName::parse("step_a").unwrap(),
+            }],
         };
         let err = spec.validate().unwrap_err();
-        assert_eq!(err, ValidationError::MissingEdgeSource { name: "ghost".to_string() });
+        assert_eq!(
+            err,
+            ValidationError::MissingEdgeSource {
+                name: "ghost".to_string()
+            }
+        );
     }
 
     #[test]
     fn validate_rejects_missing_edge_target() {
         let spec = WorkflowSpec {
             workflow_name: WorkflowName::parse("test").unwrap(),
-            nodes: vec![NodeSpec { name: NodeName::parse("step_a").unwrap(), kind: NodeKind::Pure }],
-            edges: vec![EdgeSpec { from: NodeName::parse("step_a").unwrap(), to: NodeName::parse("ghost").unwrap() }],
+            nodes: vec![NodeSpec {
+                name: NodeName::parse("step_a").unwrap(),
+                kind: NodeKind::Pure,
+            }],
+            edges: vec![EdgeSpec {
+                from: NodeName::parse("step_a").unwrap(),
+                to: NodeName::parse("ghost").unwrap(),
+            }],
         };
         let err = spec.validate().unwrap_err();
-        assert_eq!(err, ValidationError::MissingEdgeTarget { name: "ghost".to_string() });
+        assert_eq!(
+            err,
+            ValidationError::MissingEdgeTarget {
+                name: "ghost".to_string()
+            }
+        );
     }
 
     #[test]
     fn validate_rejects_self_loop() {
         let spec = WorkflowSpec {
             workflow_name: WorkflowName::parse("test").unwrap(),
-            nodes: vec![NodeSpec { name: NodeName::parse("step_a").unwrap(), kind: NodeKind::Pure }],
-            edges: vec![EdgeSpec { from: NodeName::parse("step_a").unwrap(), to: NodeName::parse("step_a").unwrap() }],
+            nodes: vec![NodeSpec {
+                name: NodeName::parse("step_a").unwrap(),
+                kind: NodeKind::Pure,
+            }],
+            edges: vec![EdgeSpec {
+                from: NodeName::parse("step_a").unwrap(),
+                to: NodeName::parse("step_a").unwrap(),
+            }],
         };
         let err = spec.validate().unwrap_err();
-        assert_eq!(err, ValidationError::SelfLoop { name: "step_a".to_string() });
+        assert_eq!(
+            err,
+            ValidationError::SelfLoop {
+                name: "step_a".to_string()
+            }
+        );
     }
 
     #[test]
@@ -431,14 +481,32 @@ mod tests {
         let spec = WorkflowSpec {
             workflow_name: WorkflowName::parse("test").unwrap(),
             nodes: vec![
-                NodeSpec { name: NodeName::parse("a").unwrap(), kind: NodeKind::Pure },
-                NodeSpec { name: NodeName::parse("b").unwrap(), kind: NodeKind::Pure },
-                NodeSpec { name: NodeName::parse("c").unwrap(), kind: NodeKind::Pure },
+                NodeSpec {
+                    name: NodeName::parse("a").unwrap(),
+                    kind: NodeKind::Pure,
+                },
+                NodeSpec {
+                    name: NodeName::parse("b").unwrap(),
+                    kind: NodeKind::Pure,
+                },
+                NodeSpec {
+                    name: NodeName::parse("c").unwrap(),
+                    kind: NodeKind::Pure,
+                },
             ],
             edges: vec![
-                EdgeSpec { from: NodeName::parse("a").unwrap(), to: NodeName::parse("b").unwrap() },
-                EdgeSpec { from: NodeName::parse("b").unwrap(), to: NodeName::parse("c").unwrap() },
-                EdgeSpec { from: NodeName::parse("c").unwrap(), to: NodeName::parse("a").unwrap() },
+                EdgeSpec {
+                    from: NodeName::parse("a").unwrap(),
+                    to: NodeName::parse("b").unwrap(),
+                },
+                EdgeSpec {
+                    from: NodeName::parse("b").unwrap(),
+                    to: NodeName::parse("c").unwrap(),
+                },
+                EdgeSpec {
+                    from: NodeName::parse("c").unwrap(),
+                    to: NodeName::parse("a").unwrap(),
+                },
             ],
         };
         let err = spec.validate().unwrap_err();
@@ -450,16 +518,40 @@ mod tests {
         let spec = WorkflowSpec {
             workflow_name: WorkflowName::parse("test").unwrap(),
             nodes: vec![
-                NodeSpec { name: NodeName::parse("start").unwrap(), kind: NodeKind::Pure },
-                NodeSpec { name: NodeName::parse("left").unwrap(), kind: NodeKind::Pure },
-                NodeSpec { name: NodeName::parse("right").unwrap(), kind: NodeKind::Pure },
-                NodeSpec { name: NodeName::parse("end").unwrap(), kind: NodeKind::Pure },
+                NodeSpec {
+                    name: NodeName::parse("start").unwrap(),
+                    kind: NodeKind::Pure,
+                },
+                NodeSpec {
+                    name: NodeName::parse("left").unwrap(),
+                    kind: NodeKind::Pure,
+                },
+                NodeSpec {
+                    name: NodeName::parse("right").unwrap(),
+                    kind: NodeKind::Pure,
+                },
+                NodeSpec {
+                    name: NodeName::parse("end").unwrap(),
+                    kind: NodeKind::Pure,
+                },
             ],
             edges: vec![
-                EdgeSpec { from: NodeName::parse("start").unwrap(), to: NodeName::parse("left").unwrap() },
-                EdgeSpec { from: NodeName::parse("start").unwrap(), to: NodeName::parse("right").unwrap() },
-                EdgeSpec { from: NodeName::parse("left").unwrap(), to: NodeName::parse("end").unwrap() },
-                EdgeSpec { from: NodeName::parse("right").unwrap(), to: NodeName::parse("end").unwrap() },
+                EdgeSpec {
+                    from: NodeName::parse("start").unwrap(),
+                    to: NodeName::parse("left").unwrap(),
+                },
+                EdgeSpec {
+                    from: NodeName::parse("start").unwrap(),
+                    to: NodeName::parse("right").unwrap(),
+                },
+                EdgeSpec {
+                    from: NodeName::parse("left").unwrap(),
+                    to: NodeName::parse("end").unwrap(),
+                },
+                EdgeSpec {
+                    from: NodeName::parse("right").unwrap(),
+                    to: NodeName::parse("end").unwrap(),
+                },
             ],
         };
         assert!(spec.validate().is_ok());
@@ -469,7 +561,10 @@ mod tests {
     fn validate_accepts_single_node_no_edges() {
         let spec = WorkflowSpec {
             workflow_name: WorkflowName::parse("test").unwrap(),
-            nodes: vec![NodeSpec { name: NodeName::parse("solo").unwrap(), kind: NodeKind::Pure }],
+            nodes: vec![NodeSpec {
+                name: NodeName::parse("solo").unwrap(),
+                kind: NodeKind::Pure,
+            }],
             edges: vec![],
         };
         assert!(spec.validate().is_ok());

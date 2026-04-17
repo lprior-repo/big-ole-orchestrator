@@ -177,10 +177,14 @@ impl Iterator for EventReplayIterator {
             return None;
         };
         match inner.next() {
-            Some(guard) => if let Ok((k_bytes, v_bytes)) = guard.into_inner() { self.process_kv(&k_bytes, &v_bytes) } else {
-                self.inner = None;
-                Some(Err(StorageError::Storage))
-            },
+            Some(guard) => {
+                if let Ok((k_bytes, v_bytes)) = guard.into_inner() {
+                    self.process_kv(&k_bytes, &v_bytes)
+                } else {
+                    self.inner = None;
+                    Some(Err(StorageError::Storage))
+                }
+            }
             None => None,
         }
     }

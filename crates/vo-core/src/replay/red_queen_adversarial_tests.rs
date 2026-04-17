@@ -6,6 +6,7 @@
 use super::engine::ReplayEngine;
 use super::test_helpers::*;
 use super::types::ReplayError;
+use vo_types::events::EventEnvelope;
 use vo_types::state::LifecycleState;
 
 #[cfg(test)]
@@ -1250,14 +1251,13 @@ mod random_position_corruption_injection {
             seq_len in 5usize..50usize,
             corrupt_pos in 1usize..50usize,
         ) {
+            let engine = ReplayEngine::new();
             let mut events = build_valid_sequence(seq_len);
             let actual_pos = corrupt_pos % events.len().max(1);
             corrupt_payload_at_position(&mut events, actual_pos, "InvalidGarbageType");
             let err = engine.replay(&events).expect_err("should fail at corrupted position");
-            prop_assert!(matches!(
-                err,
-                ReplayError::PayloadDecodeFailed { .. }
-            ));
+            let is_decode_error = matches!(err, ReplayError::PayloadDecodeFailed { sequence: _, source: _ });
+            prop_assert!(is_decode_error);
         }
 
         #[test]
@@ -1265,14 +1265,13 @@ mod random_position_corruption_injection {
             seq_len in 5usize..50usize,
             corrupt_pos in 1usize..50usize,
         ) {
+            let engine = ReplayEngine::new();
             let mut events = build_valid_sequence(seq_len);
             let actual_pos = corrupt_pos % events.len().max(1);
             inject_truncation_at_position(&mut events, actual_pos);
             let err = engine.replay(&events).expect_err("should fail at truncation");
-            prop_assert!(matches!(
-                err,
-                ReplayError::PayloadDecodeFailed { .. }
-            ));
+            let is_decode_error = matches!(err, ReplayError::PayloadDecodeFailed { sequence: _, source: _ });
+            prop_assert!(is_decode_error);
         }
 
         #[test]
@@ -1280,14 +1279,13 @@ mod random_position_corruption_injection {
             seq_len in 5usize..50usize,
             corrupt_pos in 1usize..50usize,
         ) {
+            let engine = ReplayEngine::new();
             let mut events = build_valid_sequence(seq_len);
             let actual_pos = corrupt_pos % events.len().max(1);
             inject_null_type_at_position(&mut events, actual_pos);
             let err = engine.replay(&events).expect_err("should fail at null type");
-            prop_assert!(matches!(
-                err,
-                ReplayError::PayloadDecodeFailed { .. }
-            ));
+            let is_decode_error = matches!(err, ReplayError::PayloadDecodeFailed { sequence: _, source: _ });
+            prop_assert!(is_decode_error);
         }
 
         #[test]
@@ -1295,19 +1293,19 @@ mod random_position_corruption_injection {
             seq_len in 5usize..50usize,
             corrupt_pos in 1usize..50usize,
         ) {
+            let engine = ReplayEngine::new();
             let mut events = build_valid_sequence(seq_len);
             let actual_pos = corrupt_pos % events.len().max(1);
             inject_wrong_type_at_position(&mut events, actual_pos);
             let err = engine.replay(&events).expect_err("should fail at wrong type");
-            prop_assert!(matches!(
-                err,
-                ReplayError::PayloadDecodeFailed { .. }
-            ));
+            let is_decode_error = matches!(err, ReplayError::PayloadDecodeFailed { sequence: _, source: _ });
+            prop_assert!(is_decode_error);
         }
     }
 
     #[test]
     fn replay_handles_corruption_at_first_event_position() {
+        let engine = ReplayEngine::new();
         let mut events = build_valid_sequence(10);
         corrupt_payload_at_position(&mut events, 0, "InvalidType");
         let err = engine
@@ -1321,6 +1319,7 @@ mod random_position_corruption_injection {
 
     #[test]
     fn replay_handles_corruption_at_last_event_position() {
+        let engine = ReplayEngine::new();
         let mut events = build_valid_sequence(10);
         corrupt_payload_at_position(&mut events, 9, "InvalidType");
         let err = engine
@@ -1334,6 +1333,7 @@ mod random_position_corruption_injection {
 
     #[test]
     fn replay_handles_corruption_at_second_event_position() {
+        let engine = ReplayEngine::new();
         let mut events = build_valid_sequence(10);
         corrupt_payload_at_position(&mut events, 1, "InvalidType");
         let err = engine

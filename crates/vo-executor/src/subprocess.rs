@@ -161,36 +161,33 @@ pub async fn run_subprocess(config: SubprocessConfig) -> Result<SubprocessOutput
     let timeout_ms = config.timeout_ms();
     let fd3_payload = config.fd3_payload;
 
-    let res = timeout(
-        Duration::from_millis(timeout_ms),
-        async {
-            let ipc_result = perform_ipc(fd3_writer, fd4_reader, fd3_payload).await;
-            let exit_status = child.wait().await;
-            (ipc_result, exit_status)
-        },
-    )
+    let res = timeout(Duration::from_millis(timeout_ms), async {
+        let ipc_result = perform_ipc(fd3_writer, fd4_reader, fd3_payload).await;
+        let exit_status = child.wait().await;
+        (ipc_result, exit_status)
+    })
     .await;
 
     match res {
-        Ok((Ok(output), exit_status)) => {
-            match exit_status {
-                Ok(status) => {
-                    if let Some(exit_code) = status.code() {
-                        Ok(SubprocessOutput {
-                            fd4_bytes: output,
-                            exit_code: Some(exit_code),
-                        })
-                    } else {
-                        #[cfg(unix)]
-                        let sig_code = status.signal().map(|s| 128 + s).unwrap_or(-1);
-                        #[cfg(not(unix))]
-                        let sig_code = -1;
-                        Err(SubprocessError::ProcessFailed { exit_code: sig_code })
-                    }
+        Ok((Ok(output), exit_status)) => match exit_status {
+            Ok(status) => {
+                if let Some(exit_code) = status.code() {
+                    Ok(SubprocessOutput {
+                        fd4_bytes: output,
+                        exit_code: Some(exit_code),
+                    })
+                } else {
+                    #[cfg(unix)]
+                    let sig_code = status.signal().map(|s| 128 + s).unwrap_or(-1);
+                    #[cfg(not(unix))]
+                    let sig_code = -1;
+                    Err(SubprocessError::ProcessFailed {
+                        exit_code: sig_code,
+                    })
                 }
-                Err(_) => Err(SubprocessError::ProcessFailed { exit_code: -1 }),
             }
-        }
+            Err(_) => Err(SubprocessError::ProcessFailed { exit_code: -1 }),
+        },
         Ok((Err(e), _)) => Err(e),
         Err(_) => {
             let _ = child.kill().await;

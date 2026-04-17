@@ -66,7 +66,14 @@ pub enum Command {
     },
     Status {
         engine_url: String,
-        instance: String,
+        workflow_id: String,
+    },
+    Hardline {
+        target: String,
+        engine_url: String,
+        timeout: u64,
+        force: bool,
+        dry_run: bool,
     },
 }
 
@@ -223,6 +230,42 @@ where
                         .default_value("http://localhost:3000")
                         .help("Engine URL"),
                 ),
+        )
+        .subcommand(
+            clap::Command::new("hardline")
+                .about("Execute hardline command")
+                .arg(
+                    clap::Arg::new("target")
+                        .required(true)
+                        .index(1)
+                        .help("Target identifier"),
+                )
+                .arg(
+                    clap::Arg::new("engine-url")
+                        .long("engine-url")
+                        .env("VO_ENGINE_URL")
+                        .default_value("http://localhost:3000")
+                        .help("Engine URL"),
+                )
+                .arg(
+                    clap::Arg::new("timeout")
+                        .long("timeout")
+                        .value_name("SECONDS")
+                        .default_value("60")
+                        .help("Timeout in seconds"),
+                )
+                .arg(
+                    clap::Arg::new("force")
+                        .long("force")
+                        .action(clap::ArgAction::SetTrue)
+                        .help("Skip confirmation"),
+                )
+                .arg(
+                    clap::Arg::new("dry-run")
+                        .long("dry-run")
+                        .action(clap::ArgAction::SetTrue)
+                        .help("Dry run mode"),
+                ),
         );
 
     let matches = cmd.try_get_matches_from(args)?;
@@ -343,7 +386,7 @@ where
             })
         }
         Some(("status", sub_matches)) => {
-            let instance = sub_matches
+            let workflow_id = sub_matches
                 .get_one::<String>("instance")
                 .cloned()
                 .unwrap_or_default();
@@ -354,7 +397,37 @@ where
             Ok(Cli {
                 command: Command::Status {
                     engine_url,
-                    instance,
+                    workflow_id,
+                },
+            })
+        }
+        Some(("hardline", sub_matches)) => {
+            let target = match sub_matches.get_one::<String>("target") {
+                Some(t) => t.clone(),
+                None => {
+                    return Err(clap::Error::new(
+                        clap::error::ErrorKind::MissingRequiredArgument,
+                    ))
+                }
+            };
+            let engine_url = sub_matches
+                .get_one::<String>("engine-url")
+                .cloned()
+                .unwrap_or_else(|| "http://localhost:3000".to_string());
+            let timeout_str = sub_matches
+                .get_one::<String>("timeout")
+                .map(|s| s.as_str())
+                .unwrap_or("60");
+            let timeout: u64 = timeout_str.parse().unwrap_or(60);
+            let force = sub_matches.get_flag("force");
+            let dry_run = sub_matches.get_flag("dry-run");
+            Ok(Cli {
+                command: Command::Hardline {
+                    target,
+                    engine_url,
+                    timeout,
+                    force,
+                    dry_run,
                 },
             })
         }
@@ -471,7 +544,7 @@ mod tests {
             cli.command,
             Command::Status {
                 engine_url: "http://localhost:3000".to_string(),
-                instance: "01ARZ3NDEKTSV4RRFFQ69G5FAV".to_string(),
+                workflow_id: "01ARZ3NDEKTSV4RRFFQ69G5FAV".to_string(),
             }
         );
     }
@@ -490,7 +563,7 @@ mod tests {
             cli.command,
             Command::Status {
                 engine_url: "http://localhost:9000".to_string(),
-                instance: "instance-123".to_string(),
+                workflow_id: "instance-123".to_string(),
             }
         );
     }

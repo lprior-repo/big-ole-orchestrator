@@ -7,9 +7,7 @@
 mod bdd_lifecycle {
     //! BDD Scenario: Full lifecycle from Idle to terminal states.
 
-    use crate::connector::{
-        apply_connector_transition, ConnectorState, ConnectorTransition,
-    };
+    use crate::connector::{apply_connector_transition, ConnectorState, ConnectorTransition};
 
     #[tokio::test]
     async fn bdd_lifecycle_full_happy_path_to_succeeded() {
@@ -151,7 +149,8 @@ mod bdd_reconciliation {
     }
 
     #[tokio::test]
-    async fn given_execution_failure_when_reconcile_determines_not_committed_then_action_is_rollback() {
+    async fn given_execution_failure_when_reconcile_determines_not_committed_then_action_is_rollback(
+    ) {
         // GIVEN connector in Ambiguous state (execution timed out)
         let state = ConnectorState::Ambiguous;
         let mut connector = ReconcileConnector::new(ReconciliationResult::NotCommitted);
@@ -163,8 +162,7 @@ mod bdd_reconciliation {
         assert_eq!(action, ReconcileAction::Rollback);
 
         // AND the state machine transitions to Failed
-        let next =
-            apply_connector_transition(state, ConnectorTransition::ReconcileFailed).unwrap();
+        let next = apply_connector_transition(state, ConnectorTransition::ReconcileFailed).unwrap();
         assert_eq!(next, ConnectorState::Failed);
         assert!(next.is_terminal());
     }
@@ -316,7 +314,10 @@ mod bdd_ambiguity_resolution {
         // THEN MaxRetriesExceeded error returned (safe failure, not silent data loss)
         assert!(result.is_err());
         let err = result.unwrap_err();
-        assert!(matches!(err, ConnectorError::MaxRetriesExceeded { max_retries: 2 }));
+        assert!(matches!(
+            err,
+            ConnectorError::MaxRetriesExceeded { max_retries: 2 }
+        ));
     }
 
     #[tokio::test]
@@ -335,7 +336,9 @@ mod bdd_ambiguity_resolution {
             }
 
             async fn commit(&mut self) -> Result<ConnectorResult, ConnectorError> {
-                let attempt = self.attempt.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                let attempt = self
+                    .attempt
+                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 if attempt == 0 {
                     Ok(ConnectorResult::Ambiguous)
                 } else {
@@ -357,7 +360,9 @@ mod bdd_ambiguity_resolution {
         };
 
         // WHEN execute_with_reconciliation runs (prepare + commit with ambiguity handling)
-        let result = execute_with_reconciliation(&mut connector, true, 3).await.unwrap();
+        let result = execute_with_reconciliation(&mut connector, true, 3)
+            .await
+            .unwrap();
 
         // THEN ultimately succeeds after reconciliation returned Unknown (retry) then commit succeeded
         assert_eq!(result, ConnectorResult::Success);
@@ -484,7 +489,8 @@ mod bdd_state_transition_invariants {
         assert!(result.is_terminal());
 
         // WHEN ReconcileRetry applied THEN transitions to Prepared (for retry)
-        let result = apply_connector_transition(state, ConnectorTransition::ReconcileRetry).unwrap();
+        let result =
+            apply_connector_transition(state, ConnectorTransition::ReconcileRetry).unwrap();
         assert_eq!(result, ConnectorState::Prepared);
         assert!(!result.is_terminal());
     }

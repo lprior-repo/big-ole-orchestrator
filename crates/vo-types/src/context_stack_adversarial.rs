@@ -164,8 +164,7 @@ fn rq_lifecycle_terminal_states_reject_all_transitions() {
             // Known valid exceptions from terminal states
             let is_known_exception = (state == LifecycleState::Failed
                 && event == &TransitionEvent::InstanceResumed)
-                || (state == LifecycleState::Completed
-                    && event == &TransitionEvent::EmitOutputRef);
+                || (state == LifecycleState::Completed && event == &TransitionEvent::EmitOutputRef);
             if is_known_exception {
                 assert!(result.is_ok(), "{:?} + {:?} should be valid", state, event);
             } else {

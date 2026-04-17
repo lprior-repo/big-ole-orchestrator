@@ -249,8 +249,16 @@ mod tests {
         let item = quote! { fn generic_task<T: Default>() -> T { T::default() } };
         let result = internal_task_macro(attr, item);
         let output = result.to_string();
-        assert!(!output.contains("compile_error"), "should not emit compile_error: {}", output);
-        assert!(output.contains("fn main"), "should generate main: {}", output);
+        assert!(
+            !output.contains("compile_error"),
+            "should not emit compile_error: {}",
+            output
+        );
+        assert!(
+            output.contains("fn main"),
+            "should generate main: {}",
+            output
+        );
     }
 
     #[test]
@@ -259,8 +267,16 @@ mod tests {
         let item = quote! { async fn generic_task<T: Send>() where T: Default {} };
         let result = internal_task_macro(attr, item);
         let output = result.to_string();
-        assert!(!output.contains("compile_error"), "should not emit compile_error: {}", output);
-        assert!(output.contains("fn main"), "should generate main: {}", output);
+        assert!(
+            !output.contains("compile_error"),
+            "should not emit compile_error: {}",
+            output
+        );
+        assert!(
+            output.contains("fn main"),
+            "should generate main: {}",
+            output
+        );
     }
 
     proptest! {

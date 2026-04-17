@@ -42,7 +42,12 @@ impl SearchEngine {
         Ok(vec![])
     }
 
-    pub fn index_workspace(&mut self, id: crate::workspace::WorkspaceId, text: &str, tags: &[String]) {
+    pub fn index_workspace(
+        &mut self,
+        id: crate::workspace::WorkspaceId,
+        text: &str,
+        tags: &[String],
+    ) {
         let _ = (id, text, tags);
     }
 }

@@ -3,7 +3,7 @@
 //! roundtrip corruption, and field injection through derive macros.
 
 use serde_json::json;
-use vo_types::{BlobRef, EncryptedBlob, EventEnvelope, InstanceId, WrappedDek, WorkflowName};
+use vo_types::{BlobRef, EncryptedBlob, EventEnvelope, InstanceId, WorkflowName, WrappedDek};
 
 // ── Serde Derive Bypasses Constructor Validation ──────────────────────────────
 
@@ -43,7 +43,8 @@ fn event_envelope_rejects_future_schema_version() {
         "instance_id": "01H0CHPTKV0ME1N2A3B4C5D6E7",
         "sequence": 1, "timestamp_ms": 1000,
         "payload": {"type": "WorkflowStarted"}, "metadata": {}
-    })).unwrap();
+    }))
+    .unwrap();
     let result = EventEnvelope::from_str(&json_str);
     assert!(result.is_err());
 }
@@ -55,7 +56,8 @@ fn event_envelope_rejects_zero_sequence() {
         "instance_id": "01H0CHPTKV0ME1N2A3B4C5D6E7",
         "sequence": 0, "timestamp_ms": 1000,
         "payload": {"type": "WorkflowStarted"}, "metadata": {}
-    })).unwrap();
+    }))
+    .unwrap();
     let result = EventEnvelope::from_str(&json_str);
     assert!(result.is_err());
 }
@@ -66,7 +68,8 @@ fn event_envelope_rejects_empty_instance_id() {
         "version": 1, "instance_id": "",
         "sequence": 1, "timestamp_ms": 1000,
         "payload": {"type": "WorkflowStarted"}, "metadata": {}
-    })).unwrap();
+    }))
+    .unwrap();
     let result = EventEnvelope::from_str(&json_str);
     assert!(result.is_err());
 }
@@ -79,7 +82,8 @@ fn event_envelope_rejects_non_object_payload() {
             "instance_id": "01H0CHPTKV0ME1N2A3B4C5D6E7",
             "sequence": 1, "timestamp_ms": 1000,
             "payload": bad_payload, "metadata": {}
-        })).unwrap();
+        }))
+        .unwrap();
         let result = EventEnvelope::from_str(&json_str);
         assert!(result.is_err());
     }
@@ -89,8 +93,7 @@ fn event_envelope_rejects_non_object_payload() {
 
 #[test]
 fn instance_id_rejects_nil_ulid() {
-    let result: Result<InstanceId, _> =
-        serde_json::from_value(json!("00000000000000000000000000"));
+    let result: Result<InstanceId, _> = serde_json::from_value(json!("00000000000000000000000000"));
     assert!(result.is_err());
 }
 
@@ -150,8 +153,9 @@ fn event_envelope_rejects_missing_required_fields() {
 
 #[test]
 fn instance_id_normalizes_to_uppercase() {
-    let id: InstanceId =
-        serde_json::from_value(json!("01h0chptkv0me1n2a3b4c5d6e7")).unwrap();
+    let id: InstanceId = serde_json::from_value(json!("01h0chptkv0me1n2a3b4c5d6e7")).unwrap();
     let ser = serde_json::to_string(&id).unwrap();
-    assert!(ser.chars().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '"'));
+    assert!(ser
+        .chars()
+        .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '"'));
 }
