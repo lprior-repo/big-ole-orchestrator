@@ -1,5 +1,4 @@
 use vo_actor::{InstancePhaseView, WorkflowParadigm};
-use vo_common::InstanceId as InstanceIdString;
 
 /// Split a path `<namespace>/<instance_id>` into the two parts.
 ///
