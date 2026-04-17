@@ -20,6 +20,7 @@ fn make_job(priority: JobPriority, policy: SchedulePolicy) -> ScheduledJob {
         RetryPolicy::default_policy(),
         bytes::Bytes::from_static(b"payload"),
     )
+    .expect("job creation should succeed with valid policy")
 }
 
 fn past_due() -> SchedulePolicy {
@@ -37,13 +38,17 @@ fn future_due() -> SchedulePolicy {
 #[test]
 fn priority_inversion_future_critical_blocks_past_due_background() {
     let mut q = SchedulerQueue::new(100);
-    q.insert(make_job(JobPriority::Background, past_due())).unwrap();
-    q.insert(make_job(JobPriority::Critical, future_due())).unwrap();
+    q.insert(make_job(JobPriority::Background, past_due()))
+        .unwrap();
+    q.insert(make_job(JobPriority::Critical, future_due()))
+        .unwrap();
 
     // BUG: pop_due returns None because Critical future job is at heap top.
     let popped = q.pop_due(Utc::now());
-    assert!(popped.is_none(),
-        "BUG CONFIRMED: future Critical blocks past-due Background via heap ordering");
+    assert!(
+        popped.is_none(),
+        "BUG CONFIRMED: future Critical blocks past-due Background via heap ordering"
+    );
 }
 
 // ATTACK 2: Starvation under capacity pressure — Low job buried under
@@ -54,11 +59,14 @@ fn starvation_low_priority_eventually_served() {
     let mut q = SchedulerQueue::new(cap);
     let id_low = q.insert(make_job(JobPriority::Low, past_due())).unwrap();
     for _ in 0..cap - 1 {
-        q.insert(make_job(JobPriority::Critical, past_due())).unwrap();
+        q.insert(make_job(JobPriority::Critical, past_due()))
+            .unwrap();
     }
     let mut found = false;
     while let Some(job) = q.pop_due(Utc::now()) {
-        if job.id == id_low { found = true; }
+        if job.id == id_low {
+            found = true;
+        }
     }
     assert!(found, "Low-priority job starved despite being past-due");
 }
@@ -68,10 +76,14 @@ fn starvation_low_priority_eventually_served() {
 #[test]
 fn stale_heap_entry_skipped_after_reschedule() {
     let mut q = SchedulerQueue::new(10);
-    let id = q.insert(make_job(JobPriority::Critical, past_due())).unwrap();
+    let id = q
+        .insert(make_job(JobPriority::Critical, past_due()))
+        .unwrap();
     q.update_schedule(&id, future_due()).unwrap();
-    assert!(q.pop_due(Utc::now()).is_none(),
-        "Rescheduled future job must not pop as due");
+    assert!(
+        q.pop_due(Utc::now()).is_none(),
+        "Rescheduled future job must not pop as due"
+    );
 }
 
 // ATTACK 4: OneShot must not exploit Recurring Completed->Scheduled path.
@@ -82,8 +94,10 @@ fn oneshot_cannot_recur() {
     // Past-due jobs start as Pending. Drive through to Completed.
     q.update_state(&id, JobState::Running).unwrap();
     q.update_state(&id, JobState::Completed).unwrap();
-    assert!(q.update_state(&id, JobState::Scheduled).is_err(),
-            "OneShot must not transition Completed -> Scheduled");
+    assert!(
+        q.update_state(&id, JobState::Scheduled).is_err(),
+        "OneShot must not transition Completed -> Scheduled"
+    );
 }
 
 // ATTACK 5: Capacity overflow must not corrupt existing jobs.
@@ -99,14 +113,18 @@ fn capacity_exhaustion_preserves_existing_jobs() {
         q.insert(make_job(JobPriority::Normal, past_due())),
         Err(vo_scheduler::error::SchedulerError::QueueFull)
     ));
-    for id in &ids { assert!(q.lookup(id).is_ok()); }
+    for id in &ids {
+        assert!(q.lookup(id).is_ok());
+    }
 }
 
 // ATTACK 6: Popping an empty queue must never panic.
 #[test]
 fn pop_empty_queue_no_panic() {
     let mut q = SchedulerQueue::new(10);
-    for _ in 0..100 { assert!(q.pop_due(Utc::now()).is_none()); }
+    for _ in 0..100 {
+        assert!(q.pop_due(Utc::now()).is_none());
+    }
 }
 
 // ATTACK 7: Backoff computation must not overflow or panic on extreme attempts.
@@ -123,12 +141,16 @@ proptest! {
 #[test]
 fn cancelled_job_leaks_through_pop_due() {
     let mut q = SchedulerQueue::new(10);
-    let id = q.insert(make_job(JobPriority::Critical, past_due())).unwrap();
+    let id = q
+        .insert(make_job(JobPriority::Critical, past_due()))
+        .unwrap();
     q.cancel(&id).unwrap();
     // BUG: pop_due returns the cancelled job — state is not checked.
     let popped = q.pop_due(Utc::now());
-    assert!(popped.is_some(),
-        "BUG CONFIRMED: cancelled job leaks through pop_due (state not checked)");
+    assert!(
+        popped.is_some(),
+        "BUG CONFIRMED: cancelled job leaks through pop_due (state not checked)"
+    );
     assert_eq!(popped.unwrap().state, JobState::Cancelled);
 }
 

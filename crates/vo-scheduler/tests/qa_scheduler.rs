@@ -1,18 +1,22 @@
 use std::time::Duration;
 
-use vo_scheduler::types::{JobKind, JobPriority, JobState, RetryPolicy, RetryPolicyError, SchedulePolicy};
 use vo_scheduler::job::ScheduledJob;
 use vo_scheduler::queue::SchedulerQueue;
+use vo_scheduler::types::{
+    JobKind, JobPriority, JobState, RetryPolicy, RetryPolicyError, SchedulePolicy,
+};
 
 #[test]
 fn retry_policy_rejects_zero_max_attempts() {
-    let err = RetryPolicy::try_new(0, 2.0, Duration::from_secs(1), Duration::from_secs(300)).unwrap_err();
+    let err =
+        RetryPolicy::try_new(0, 2.0, Duration::from_secs(1), Duration::from_secs(300)).unwrap_err();
     assert_eq!(err, RetryPolicyError::MaxAttemptsZero);
 }
 
 #[test]
 fn retry_policy_rejects_backoff_below_one() {
-    let err = RetryPolicy::try_new(3, 0.5, Duration::from_secs(1), Duration::from_secs(300)).unwrap_err();
+    let err =
+        RetryPolicy::try_new(3, 0.5, Duration::from_secs(1), Duration::from_secs(300)).unwrap_err();
     match err {
         RetryPolicyError::BackoffMultiplierBelowOne { value } => assert_eq!(value, 0.5),
         other => panic!("expected BackoffMultiplierBelowOne, got {other:?}"),
@@ -21,7 +25,8 @@ fn retry_policy_rejects_backoff_below_one() {
 
 #[test]
 fn exponential_backoff_caps_at_max_delay() {
-    let policy = RetryPolicy::try_new(5, 2.0, Duration::from_secs(1), Duration::from_secs(10)).unwrap();
+    let policy =
+        RetryPolicy::try_new(5, 2.0, Duration::from_secs(1), Duration::from_secs(10)).unwrap();
     assert_eq!(policy.compute_backoff(0), Duration::from_secs(1));
     assert_eq!(policy.compute_backoff(1), Duration::from_secs(2));
     assert_eq!(policy.compute_backoff(3), Duration::from_secs(8));
@@ -45,7 +50,8 @@ fn immediate_job_starts_as_pending() {
         SchedulePolicy::Immediate,
         RetryPolicy::default_policy(),
         vec![].into(),
-    );
+    )
+    .expect("job creation should succeed");
     assert_eq!(job.state, JobState::Pending);
 }
 
@@ -58,7 +64,8 @@ fn future_scheduled_job_starts_as_scheduled() {
         SchedulePolicy::At(future),
         RetryPolicy::default_policy(),
         vec![].into(),
-    );
+    )
+    .expect("job creation should succeed");
     assert_eq!(job.state, JobState::Scheduled);
 }
 
@@ -70,9 +77,50 @@ fn cron_schedule_accepted_and_stored() {
         SchedulePolicy::Cron("*/5 * * * *".into()),
         RetryPolicy::default_policy(),
         vec![].into(),
-    );
+    )
+    .expect("job creation should succeed");
     assert!(matches!(job.schedule_policy, SchedulePolicy::Cron(ref s) if s == "*/5 * * * *"));
     assert_eq!(job.kind, JobKind::Recurring);
+}
+
+#[test]
+fn cron_invalid_expression_rejected() {
+    let result = ScheduledJob::new(
+        JobKind::Recurring,
+        JobPriority::Normal,
+        SchedulePolicy::Cron("invalid".into()),
+        RetryPolicy::default_policy(),
+        vec![].into(),
+    );
+    assert!(result.is_err());
+    assert!(matches!(
+        result.unwrap_err(),
+        vo_scheduler::error::SchedulerError::InvalidSchedule
+    ));
+}
+
+#[test]
+fn cron_wrong_field_count_rejected() {
+    let result = ScheduledJob::new(
+        JobKind::Recurring,
+        JobPriority::Normal,
+        SchedulePolicy::Cron("* * * *".into()),
+        RetryPolicy::default_policy(),
+        vec![].into(),
+    );
+    assert!(result.is_err());
+}
+
+#[test]
+fn cron_out_of_range_rejected() {
+    let result = ScheduledJob::new(
+        JobKind::Recurring,
+        JobPriority::Normal,
+        SchedulePolicy::Cron("60 * * * *".into()),
+        RetryPolicy::default_policy(),
+        vec![].into(),
+    );
+    assert!(result.is_err());
 }
 
 #[test]
@@ -80,7 +128,8 @@ fn queue_pops_highest_priority_first() {
     let mut q = SchedulerQueue::new(10);
     let due = chrono::Utc::now();
     q.insert(make_job(JobPriority::Low, due, "low")).unwrap();
-    q.insert(make_job(JobPriority::Critical, due, "crit")).unwrap();
+    q.insert(make_job(JobPriority::Critical, due, "crit"))
+        .unwrap();
     q.insert(make_job(JobPriority::High, due, "high")).unwrap();
     assert_eq!(q.pop_due(due).unwrap().payload, b"crit"[..]);
     assert_eq!(q.pop_due(due).unwrap().payload, b"high"[..]);
@@ -88,27 +137,15 @@ fn queue_pops_highest_priority_first() {
 }
 
 #[test]
-fn full_lifecycle_pending_to_completed() {
-    let mut job = ScheduledJob::new(
-        JobKind::OneShot, JobPriority::Normal,
-        SchedulePolicy::Immediate,
-        RetryPolicy::default_policy(),
-        vec![].into(),
-    );
-    assert_eq!(job.state, JobState::Pending);
-    job.transition(JobState::Running).unwrap();
-    job.transition(JobState::Completed).unwrap();
-    assert!(job.state.is_terminal());
-}
-
-#[test]
 fn retry_loop_cycles_through_retrying_state() {
     let mut job = ScheduledJob::new(
-        JobKind::OneShot, JobPriority::High,
+        JobKind::OneShot,
+        JobPriority::High,
         SchedulePolicy::Immediate,
         RetryPolicy::default_policy(),
         vec![].into(),
-    );
+    )
+    .expect("job creation should succeed");
     job.transition(JobState::Running).unwrap();
     job.transition(JobState::Failed).unwrap();
     assert!(job.state.is_terminal());
@@ -120,13 +157,35 @@ fn retry_loop_cycles_through_retrying_state() {
     assert!(job.state.is_terminal());
 }
 
-fn make_job(priority: JobPriority, due_at: chrono::DateTime<chrono::Utc>, tag: &str) -> ScheduledJob {
+#[test]
+fn full_lifecycle_pending_to_completed() {
     let mut job = ScheduledJob::new(
-        JobKind::OneShot, priority,
+        JobKind::OneShot,
+        JobPriority::Normal,
+        SchedulePolicy::Immediate,
+        RetryPolicy::default_policy(),
+        vec![].into(),
+    )
+    .expect("job creation should succeed");
+    assert_eq!(job.state, JobState::Pending);
+    job.transition(JobState::Running).unwrap();
+    job.transition(JobState::Completed).unwrap();
+    assert!(job.state.is_terminal());
+}
+
+fn make_job(
+    priority: JobPriority,
+    due_at: chrono::DateTime<chrono::Utc>,
+    tag: &str,
+) -> ScheduledJob {
+    let mut job = ScheduledJob::new(
+        JobKind::OneShot,
+        priority,
         SchedulePolicy::At(due_at),
         RetryPolicy::default_policy(),
         tag.as_bytes().to_vec().into(),
-    );
+    )
+    .expect("job creation should succeed");
     job.due_at = due_at;
     job
 }
