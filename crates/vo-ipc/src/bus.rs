@@ -1,6 +1,7 @@
 use crate::config::SubprocessConfig;
 use crate::envelope::{Fd3Envelope, Fd4Envelope};
 use crate::error::IpcError;
+use std::os::fd::{FromRawFd, IntoRawFd, RawFd};
 use std::path::Path;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::{mpsc, OwnedPermit};
@@ -67,8 +68,8 @@ impl MessageBus {
         config: SubprocessConfig,
         bus_config: BusConfig,
     ) -> Result<Self, IpcError> {
-        let (fd3_read, fd3_write) = crate::pipe::create_pipe()?;
-        let (fd4_read, fd4_write) = crate::pipe::create_pipe()?;
+        let (fd3_read, fd3_write) = create_pipe()?;
+        let (fd4_read, fd4_write) = create_pipe()?;
 
         let mut command = tokio::process::Command::new(config.executable_path());
         command.args(config.argv());
@@ -274,6 +275,17 @@ impl MessageBus {
             }
         }
     }
+}
+
+fn create_pipe() -> Result<(RawFd, RawFd), IpcError> {
+    let mut fds = [0; 2];
+    let res = unsafe { libc::pipe2(fds.as_mut_ptr(), libc::O_CLOEXEC) };
+    if res != 0 {
+        return Err(IpcError::PipeSetupFailed {
+            detail: std::io::Error::last_os_error().to_string(),
+        });
+    }
+    Ok(fds.into())
 }
 
 #[must_use]
