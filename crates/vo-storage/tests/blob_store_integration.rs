@@ -125,30 +125,6 @@ impl BlobStore for InMemoryBlobStore {
             })
     }
 
-    fn stage_blob(&self, _data: &[u8]) -> Result<ContentAddress, BlobStoreError> {
-        Err(BlobStoreError::Storage {
-            reason: "not implemented".to_string(),
-        })
-    }
-
-    fn mark_durable(&self, _addr: &ContentAddress) -> Result<(), BlobStoreError> {
-        Err(BlobStoreError::Storage {
-            reason: "not implemented".to_string(),
-        })
-    }
-
-    fn publish(&self, _addr: &ContentAddress) -> Result<(), BlobStoreError> {
-        Err(BlobStoreError::Storage {
-            reason: "not implemented".to_string(),
-        })
-    }
-
-    fn mark_failed(&self, _addr: &ContentAddress) -> Result<(), BlobStoreError> {
-        Err(BlobStoreError::Storage {
-            reason: "not implemented".to_string(),
-        })
-    }
-
     fn list_gc_candidates(&self, now_ms: u64) -> Result<Vec<ContentAddress>, BlobStoreError> {
         Ok(self
             .records

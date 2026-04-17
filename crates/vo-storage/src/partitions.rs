@@ -296,11 +296,9 @@ impl StorageEngine {
             })?;
         }
 
-        let db = fjall::Database::builder(path)
-            .open()
-            .map_err(|e| StorageError::InvalidPath {
-                reason: e.to_string(),
-            })?;
+        let db = fjall::Database::builder(path).open().map_err(|e| StorageError::InvalidPath {
+            reason: e.to_string(),
+        })?;
 
         let dedupe_store = Arc::new(crate::dedupe_partition::FjallDedupeStore::open(&db)?);
         let effect_journal = Arc::new(crate::effect_journal::FjallEffectJournal::open(&db)?);
@@ -316,7 +314,6 @@ impl StorageEngine {
         })
     }
 
-    #[must_use]
     pub fn db(&self) -> &fjall::Database {
         &self.db
     }
@@ -457,11 +454,7 @@ mod tests {
         let path = temp_dir.path().join("test-storage");
 
         let engine = StorageEngine::open(&path);
-        assert!(
-            engine.is_ok(),
-            "StorageEngine::open failed: {:?}",
-            engine.err()
-        );
+        assert!(engine.is_ok(), "StorageEngine::open failed: {:?}", engine.err());
         let _engine = engine.unwrap();
     }
 

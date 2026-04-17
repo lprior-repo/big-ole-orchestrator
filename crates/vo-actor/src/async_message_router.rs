@@ -230,7 +230,10 @@ mod tests {
             .register_channel(channel_id.clone(), dest1)
             .await
             .unwrap();
-        router.add_destination(&channel_id, dest2).await.unwrap();
+        router
+            .add_destination(&channel_id, dest2)
+            .await
+            .unwrap();
 
         assert_eq!(router.total_destinations().await, 2);
     }
@@ -292,11 +295,11 @@ mod tests {
         let router3 = router.clone();
 
         let handle1 = tokio::spawn(async move {
-            router2
-                .add_destination(&channel_id, test_destination())
-                .await
+            router2.add_destination(&channel_id, test_destination()).await
         });
-        let handle2 = tokio::spawn(async move { router3.num_channels().await });
+        let handle2 = tokio::spawn(async move {
+            router3.num_channels().await
+        });
 
         let (result1, result2) = tokio::join!(handle1, handle2);
         assert!(result1.unwrap().is_ok());

@@ -132,7 +132,6 @@ impl<V: LctAggregate<A>, A: Monoid> LinkCutTree<V, A> {
     }
 
     /// Which side is x on in its parent?
-    #[allow(clippy::expect_used)]
     fn dir(&self, x: usize) -> usize {
         let p = self.nodes[x]
             .parent
@@ -144,7 +143,6 @@ impl<V: LctAggregate<A>, A: Monoid> LinkCutTree<V, A> {
         }
     }
 
-    #[allow(clippy::expect_used)]
     fn rotate(&mut self, x: usize) {
         let p = self.nodes[x]
             .parent
@@ -179,7 +177,6 @@ impl<V: LctAggregate<A>, A: Monoid> LinkCutTree<V, A> {
         self.pull(x);
     }
 
-    #[allow(clippy::expect_used)]
     fn splay(&mut self, x: usize) {
         self.push(x);
         while !self.is_root(x) {

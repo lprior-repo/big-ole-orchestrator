@@ -373,8 +373,7 @@ mod tests {
     async fn dispatch_v2_check_command_runs() {
         let dispatcher = create_dispatcher_v2();
         let cli = Cli {
-            command: Command::Check {
-                workflow: false,
+            command: Command::Check { workflow: false,
                 path: PathBuf::from("/nonexistent"),
             },
         };

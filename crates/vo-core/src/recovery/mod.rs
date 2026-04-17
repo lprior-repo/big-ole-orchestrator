@@ -20,14 +20,14 @@ use std::time::Duration;
 pub use sweep::{OrphanDetector, OrphanQuery};
 pub use throttle::{RecoveryThrottle, RecoveryThrottleConfig};
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrphanProcess {
     pub instance_id: String,
     pub lineage_id: String,
     pub failed_at: Duration,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RecoveryItem {
     pub orphan: OrphanProcess,
     pub enqueued_at: Duration,
@@ -43,31 +43,9 @@ pub enum RecoveryError {
 
     #[error("orphan detection query failed: {0}")]
     SweepQueryFailed(String),
-
-    #[error("sweep exceeded timeout: elapsed={elapsed:?}")]
-    SweepTimeout { elapsed: std::time::Duration },
-}
-
-impl From<String> for RecoveryError {
-    fn from(s: String) -> Self {
-        RecoveryError::SweepQueryFailed(s)
-    }
 }
 
 pub type RecoveryResult<T> = Result<T, RecoveryError>;
-
-/// Metrics collected during an orphan detection sweep.
-#[derive(Debug, Clone, PartialEq)]
-pub struct RecoveryMetrics {
-    /// Number of orphans detected in the sweep.
-    pub detected: usize,
-    /// Number of orphans successfully enqueued.
-    pub enqueued: usize,
-    /// Number of orphans rejected (channel closed or full).
-    pub rejected: usize,
-    /// Elapsed time for the sweep operation.
-    pub elapsed: Duration,
-}
 
 #[cfg(test)]
 mod tests {

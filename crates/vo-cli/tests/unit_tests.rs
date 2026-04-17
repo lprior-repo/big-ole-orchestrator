@@ -50,10 +50,7 @@ fn interpret_cli_from_parses_check_subcommand() {
     let cli = interpret_cli_from(vec!["vo", "check", "/usr/bin/ls"]).expect("parse");
     assert_eq!(
         cli.command,
-        Command::Check {
-            workflow: false,
-            path: std::path::PathBuf::from("/usr/bin/ls")
-        }
+        Command::Check { workflow: false, path: std::path::PathBuf::from("/usr/bin/ls") }
     );
 }
 

@@ -26,8 +26,8 @@ fn http_record(intent_id: &str) -> vo_types::EffectRecord {
 }
 
 fn open_journal(dir: &std::path::Path) -> FjallEffectJournal {
-    let db = fjall::Database::builder(dir).open().unwrap();
-    FjallEffectJournal::open(&db).unwrap()
+    let keyspace = fjall::Config::new(dir).open().unwrap();
+    FjallEffectJournal::open(&keyspace).unwrap()
 }
 
 #[test]

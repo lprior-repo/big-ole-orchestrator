@@ -126,7 +126,6 @@ impl WorkspaceIndex {
         Ok(())
     }
 
-    #[allow(clippy::expect_used)]
     pub fn move_workspace(
         &mut self,
         id: WorkspaceId,

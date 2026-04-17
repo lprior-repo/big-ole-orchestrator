@@ -159,7 +159,6 @@ pub fn decode_instance_key(bytes: &[u8]) -> Result<InstanceId, DekStoreError> {
 ///
 /// Panics if `DekEntry` cannot be serialized (should never happen).
 #[expect(clippy::expect_used)]
-#[must_use]
 pub fn encode_dek_entry(entry: &DekEntry) -> Vec<u8> {
     serde_json::to_vec(entry).expect("DekEntry should always be serializable")
 }

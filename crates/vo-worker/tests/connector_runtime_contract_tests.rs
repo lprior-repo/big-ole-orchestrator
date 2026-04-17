@@ -1478,10 +1478,7 @@ mod sql_connector_transaction_tests {
             .expect("prepare should succeed");
         let outcome = c.commit(pe).await.expect("commit should succeed");
         assert!(matches!(outcome, CommitOutcome::Committed { .. }));
-        let reconcile = c
-            .reconcile("tx-sqli-drop")
-            .await
-            .expect("reconcile should succeed");
+        let reconcile = c.reconcile("tx-sqli-drop").await.expect("reconcile should succeed");
         assert!(matches!(reconcile, ReconcileOutcome::Committed { .. }));
     }
 
@@ -1498,10 +1495,7 @@ mod sql_connector_transaction_tests {
             .expect("prepare should succeed");
         let outcome = c.commit(pe).await.expect("commit should succeed");
         assert!(matches!(outcome, CommitOutcome::Committed { .. }));
-        let reconcile = c
-            .reconcile("tx-sqli-or")
-            .await
-            .expect("reconcile should succeed");
+        let reconcile = c.reconcile("tx-sqli-or").await.expect("reconcile should succeed");
         assert!(matches!(reconcile, ReconcileOutcome::Committed { .. }));
     }
 
@@ -1518,10 +1512,7 @@ mod sql_connector_transaction_tests {
             .expect("prepare should succeed");
         let outcome = c.commit(pe).await.expect("commit should succeed");
         assert!(matches!(outcome, CommitOutcome::Committed { .. }));
-        let reconcile = c
-            .reconcile("tx-sqli-select")
-            .await
-            .expect("reconcile should succeed");
+        let reconcile = c.reconcile("tx-sqli-select").await.expect("reconcile should succeed");
         assert!(matches!(reconcile, ReconcileOutcome::Committed { .. }));
     }
 
@@ -1538,10 +1529,7 @@ mod sql_connector_transaction_tests {
             .expect("prepare should succeed");
         let outcome = c.commit(pe).await.expect("commit should succeed");
         assert!(matches!(outcome, CommitOutcome::Committed { .. }));
-        let reconcile = c
-            .reconcile("tx-sqli-admin")
-            .await
-            .expect("reconcile should succeed");
+        let reconcile = c.reconcile("tx-sqli-admin").await.expect("reconcile should succeed");
         assert!(matches!(reconcile, ReconcileOutcome::Committed { .. }));
     }
 
@@ -1558,10 +1546,7 @@ mod sql_connector_transaction_tests {
             .expect("prepare should succeed");
         let outcome = c.commit(pe).await.expect("commit should succeed");
         assert!(matches!(outcome, CommitOutcome::Committed { .. }));
-        let reconcile = c
-            .reconcile("tx-sqli-update")
-            .await
-            .expect("reconcile should succeed");
+        let reconcile = c.reconcile("tx-sqli-update").await.expect("reconcile should succeed");
         assert!(matches!(reconcile, ReconcileOutcome::Committed { .. }));
     }
 
@@ -1578,10 +1563,7 @@ mod sql_connector_transaction_tests {
             .expect("prepare should succeed");
         let outcome = c.commit(pe).await.expect("commit should succeed");
         assert!(matches!(outcome, CommitOutcome::Committed { .. }));
-        let reconcile = c
-            .reconcile("tx-sqli-delete")
-            .await
-            .expect("reconcile should succeed");
+        let reconcile = c.reconcile("tx-sqli-delete").await.expect("reconcile should succeed");
         assert!(matches!(reconcile, ReconcileOutcome::Committed { .. }));
     }
 
@@ -1598,10 +1580,7 @@ mod sql_connector_transaction_tests {
             .expect("prepare should succeed");
         let outcome = c.commit(pe).await.expect("commit should succeed");
         assert!(matches!(outcome, CommitOutcome::Committed { .. }));
-        let reconcile = c
-            .reconcile("tx-sqli-union")
-            .await
-            .expect("reconcile should succeed");
+        let reconcile = c.reconcile("tx-sqli-union").await.expect("reconcile should succeed");
         assert!(matches!(reconcile, ReconcileOutcome::Committed { .. }));
     }
 
@@ -1618,10 +1597,7 @@ mod sql_connector_transaction_tests {
             .expect("prepare should succeed");
         let outcome = c.commit(pe).await.expect("commit should succeed");
         assert!(matches!(outcome, CommitOutcome::Committed { .. }));
-        let reconcile = c
-            .reconcile("tx-sqli-insert")
-            .await
-            .expect("reconcile should succeed");
+        let reconcile = c.reconcile("tx-sqli-insert").await.expect("reconcile should succeed");
         assert!(matches!(reconcile, ReconcileOutcome::Committed { .. }));
     }
 
@@ -1707,8 +1683,7 @@ mod sql_connector_transaction_tests {
         }
 
         for i in 0..3 {
-            let reconcile = c
-                .reconcile(&format!("fx-multi-{}", i))
+            let reconcile = c.reconcile(&format!("fx-multi-{}", i))
                 .await
                 .expect("reconcile should succeed");
             assert!(matches!(reconcile, ReconcileOutcome::Committed { .. }));

@@ -191,11 +191,7 @@ fn rebuild_with_custom_project_and_projection() {
 fn check_path_with_relative_path() {
     let args: Vec<OsString> = vec!["vo".into(), "check".into(), "../bin/workflow".into()];
     let cli = interpret_cli_from(args).unwrap();
-    if let Command::Check {
-        workflow: false,
-        path,
-    } = &cli.command
-    {
+    if let Command::Check { workflow: false, path } = &cli.command {
         assert_eq!(*path, PathBuf::from("../bin/workflow"));
     } else {
         panic!("expected Check");
@@ -206,11 +202,7 @@ fn check_path_with_relative_path() {
 fn check_path_with_dot() {
     let args: Vec<OsString> = vec!["vo".into(), "check".into(), ".".into()];
     let cli = interpret_cli_from(args).unwrap();
-    if let Command::Check {
-        workflow: false,
-        path,
-    } = &cli.command
-    {
+    if let Command::Check { workflow: false, path } = &cli.command {
         assert_eq!(*path, PathBuf::from("."));
     } else {
         panic!("expected Check");
@@ -837,10 +829,7 @@ fn cli_debug_format_all_commands() {
         Command::Purge {
             instance: "i".into(),
         },
-        Command::Check {
-            workflow: false,
-            path: PathBuf::from("/p"),
-        },
+        Command::Check { workflow: false, path: PathBuf::from("/p"), },
         Command::Gc {
             engine_url: "http://x".into(),
             dry_run: true,

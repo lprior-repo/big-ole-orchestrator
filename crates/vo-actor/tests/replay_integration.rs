@@ -2,11 +2,11 @@
 //!
 //! Verifies that the actor correctly reconstructs LifecycleState from event history.
 
-use serde_json::json;
 use vo_core::replay::ReplayEngine;
 use vo_types::events::{EventEnvelope, EventMetadata};
 use vo_types::state::LifecycleState;
 use vo_types::InstanceId;
+use serde_json::json;
 
 #[tokio::test]
 async fn instance_actor_recovers_state_from_event_history() {

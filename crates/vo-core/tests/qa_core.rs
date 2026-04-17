@@ -7,14 +7,8 @@
 
 use std::time::{Duration, Instant};
 
-use vo_core::admission::{
-    check_admission, check_admission_with_thresholds, AdmissionError, AdmissionThresholds,
-    WritePressureState,
-};
-use vo_core::circuit_breaker::{
-    evaluate_registration, record_failure, unquarantine, CircuitBreakerConfig, CircuitBreakerState,
-    RegistrationOutcome, RegistrationRequest, RegistrationStatus,
-};
+use vo_core::admission::{check_admission, check_admission_with_thresholds, AdmissionError, AdmissionThresholds, WritePressureState};
+use vo_core::circuit_breaker::{evaluate_registration, record_failure, unquarantine, CircuitBreakerConfig, CircuitBreakerState, RegistrationOutcome, RegistrationRequest, RegistrationStatus};
 use vo_core::replay::{ReplayEngine, ReplayError};
 use vo_types::events::EventEnvelope;
 
@@ -39,8 +33,7 @@ fn replay_detects_instance_id_mismatch() {
                 "binary_hash": "h", "workflow_version_hash": "wv",
                 "dedupe_key_hash": null, "version": 1},
             "metadata": {}
-        }))
-        .unwrap(),
+        })).unwrap(),
         serde_json::from_value::<EventEnvelope>(serde_json::json!({
             "schema_version": 1, "instance_id": "inst-2", "sequence": 2,
             "timestamp_ms": 2000,
@@ -48,8 +41,7 @@ fn replay_detects_instance_id_mismatch() {
                 "step_id": "s1", "attempt": 1, "fence": 1,
                 "execution_id": "e1", "version": 1},
             "metadata": {}
-        }))
-        .unwrap(),
+        })).unwrap(),
     ];
     let err = engine.replay(&events).unwrap_err();
     assert!(matches!(err, ReplayError::InstanceMismatch { .. }));
@@ -59,17 +51,14 @@ fn replay_detects_instance_id_mismatch() {
 fn replay_detects_sequence_gap() {
     let engine = ReplayEngine::new();
     let id = "inst-gap";
-    let mk = |seq| {
-        serde_json::from_value::<EventEnvelope>(serde_json::json!({
-            "schema_version": 1, "instance_id": id, "sequence": seq,
-            "timestamp_ms": 1000 * seq,
-            "payload": {"type": "WorkflowStarted", "workflow_id": "wf",
-                "binary_hash": "h", "workflow_version_hash": "wv",
-                "dedupe_key_hash": null, "version": 1},
-            "metadata": {}
-        }))
-        .unwrap()
-    };
+    let mk = |seq| serde_json::from_value::<EventEnvelope>(serde_json::json!({
+        "schema_version": 1, "instance_id": id, "sequence": seq,
+        "timestamp_ms": 1000 * seq,
+        "payload": {"type": "WorkflowStarted", "workflow_id": "wf",
+            "binary_hash": "h", "workflow_version_hash": "wv",
+            "dedupe_key_hash": null, "version": 1},
+        "metadata": {}
+    })).unwrap();
     let events = vec![mk(1), mk(3)]; // gap at sequence 2
     let err = engine.replay(&events).unwrap_err();
     assert!(matches!(err, ReplayError::SequenceGap { .. }));
@@ -90,10 +79,7 @@ fn admission_rejects_writer_queue_overflow() {
         ..Default::default()
     };
     let err = check_admission(&state).unwrap_err();
-    assert!(matches!(
-        err,
-        AdmissionError::WriterQueueDepthExceeded { .. }
-    ));
+    assert!(matches!(err, AdmissionError::WriterQueueDepthExceeded { .. }));
 }
 
 #[test]
@@ -106,10 +92,7 @@ fn admission_rejects_multiple_indicators() {
         storage_stall_active: true,
     };
     let err = check_admission(&state).unwrap_err();
-    assert!(matches!(
-        err,
-        AdmissionError::MultiplePressureIndicators { .. }
-    ));
+    assert!(matches!(err, AdmissionError::MultiplePressureIndicators { .. }));
     if let AdmissionError::MultiplePressureIndicators { indicators } = err {
         assert_eq!(indicators.len(), 5);
     }
@@ -145,8 +128,7 @@ fn admission_custom_thresholds_boundary() {
 #[test]
 fn circuit_breaker_allows_fresh_registration() {
     let state = CircuitBreakerState::new();
-    let config =
-        CircuitBreakerConfig::new(Duration::from_secs(1), Duration::from_secs(60), 3).unwrap();
+    let config = CircuitBreakerConfig::new(Duration::from_secs(1), Duration::from_secs(60), 3).unwrap();
     let req = RegistrationRequest {
         workflow_name: vo_types::WorkflowName::parse("wf-test").unwrap(),
         binary_hash: vo_types::BinaryHash::parse("aabbccdd").unwrap(),
@@ -159,12 +141,8 @@ fn circuit_breaker_allows_fresh_registration() {
 #[test]
 fn circuit_breaker_force_bypasses_quarantine() {
     let state = CircuitBreakerState::new();
-    state.statuses.insert(
-        vo_types::WorkflowName::parse("wf-q").unwrap(),
-        RegistrationStatus::Quarantined,
-    );
-    let config =
-        CircuitBreakerConfig::new(Duration::from_secs(1), Duration::from_secs(60), 3).unwrap();
+    state.statuses.insert(vo_types::WorkflowName::parse("wf-q").unwrap(), RegistrationStatus::Quarantined);
+    let config = CircuitBreakerConfig::new(Duration::from_secs(1), Duration::from_secs(60), 3).unwrap();
     let req = RegistrationRequest {
         workflow_name: vo_types::WorkflowName::parse("wf-q").unwrap(),
         binary_hash: vo_types::BinaryHash::parse("aabbccdd").unwrap(),
@@ -177,8 +155,7 @@ fn circuit_breaker_force_bypasses_quarantine() {
 #[test]
 fn circuit_breaker_quarantine_after_threshold() {
     let state = CircuitBreakerState::new();
-    let config =
-        CircuitBreakerConfig::new(Duration::from_secs(1), Duration::from_secs(60), 3).unwrap();
+    let config = CircuitBreakerConfig::new(Duration::from_secs(1), Duration::from_secs(60), 3).unwrap();
     let wf = vo_types::WorkflowName::parse("wf-fail").unwrap();
     let now = Instant::now();
     for i in 0..3u8 {

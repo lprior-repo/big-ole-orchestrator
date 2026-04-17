@@ -23,12 +23,6 @@
 //! subsystem ensures crash safety by validating that effects are applied
 //! exactly once even across system failures.
 
-#![allow(
-    clippy::unwrap_used,
-    clippy::expect_used,
-    clippy::module_name_repetitions
-)]
-
 pub mod admission;
 pub mod circuit_breaker;
 pub mod compensation_order;
@@ -38,34 +32,41 @@ mod db_writer_message;
 pub mod debounce;
 pub mod effects;
 pub mod exact_once_verification;
-pub mod execution;
-pub mod ghost_workflow;
-pub mod lease_calc;
+pub mod transaction;
+
+pub use exact_once_verification::assertions::{
+    assert_fence_token_ordering, assert_invariant_no_orphans, assert_no_duplicate_effects,
+    RecoveryAssertion, RecoveryAssertionError, RecoveryContext,
+};
+pub use exact_once_verification::crash_points::{CrashPoint, CrashPosition, CrashScenario};
+pub use exact_once_verification::harness::{
+    LineageRolloverEvent, LineageRoutingState, VerificationHarness,
+};
+pub use exact_once_verification::macros::CrashError;
 pub mod quadtree;
-pub mod recovery;
 pub mod replay;
 pub mod resource_quota;
 pub mod segment_tree;
-pub mod shedding;
 pub mod snapshot_compat;
 pub mod upcaster;
 pub mod validation;
 pub mod vault;
 pub mod workflow_version;
 pub mod workload_class;
-pub mod saga;
 pub mod workspace_swap;
 pub mod write_class;
 
 pub use validation::{
-    validate_effect_kinds, validate_workflow_effects, validate_workflow_sinks, KnownSinks,
-    UnsupportedSinkError, WorkflowSinkValidator,
+    KnownSinks, UnsupportedSinkError, WorkflowSinkValidator, validate_effect_kinds,
+    validate_workflow_effects, validate_workflow_sinks,
 };
 
 #[cfg(kani)]
-pub mod shedding_verification;
-#[cfg(kani)]
 pub mod write_class_verification;
+#[cfg(kani)]
+pub mod shedding_verification;
 
 #[cfg(test)]
 mod invalid_business_data_tests;
+
+mod execution;

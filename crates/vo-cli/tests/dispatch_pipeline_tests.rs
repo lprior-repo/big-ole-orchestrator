@@ -27,10 +27,7 @@ async fn v1_dispatch_unknown_command_returns_error() {
 async fn v1_dispatch_check_nonexistent_returns_error() {
     let dispatcher = create_dispatcher();
     let cli = Cli {
-        command: Command::Check {
-            workflow: false,
-            path: PathBuf::from("/nonexistent/path"),
-        },
+        command: Command::Check { workflow: false, path: PathBuf::from("/nonexistent/path"), },
     };
     let result = dispatcher.dispatch(cli).await;
     assert!(result.is_err());
@@ -287,10 +284,7 @@ async fn v2_dispatch_check_valid_elf() {
 
     let dispatcher = create_dispatcher_v2();
     let cli = Cli {
-        command: Command::Check {
-            workflow: false,
-            path: elf_path,
-        },
+        command: Command::Check { workflow: false, path: elf_path },
     };
     let result = dispatcher.dispatch(cli).await;
     assert!(result.is_ok());
@@ -300,10 +294,7 @@ async fn v2_dispatch_check_valid_elf() {
 async fn v2_dispatch_check_nonexistent_file() {
     let dispatcher = create_dispatcher_v2();
     let cli = Cli {
-        command: Command::Check {
-            workflow: false,
-            path: PathBuf::from("/nonexistent/binary"),
-        },
+        command: Command::Check { workflow: false, path: PathBuf::from("/nonexistent/binary"), },
     };
     let result = dispatcher.dispatch(cli).await;
     assert!(result.is_err());

@@ -26,21 +26,15 @@ async fn stub_get(_: Request<Body>) -> (StatusCode, String) {
     (StatusCode::OK, r#"{"id":"wf-ok"}"#.into())
 }
 
-async fn stub_delete(_: Request<Body>) -> (StatusCode, String) {
-    (StatusCode::NO_CONTENT, String::new())
-}
-async fn stub_events(_: Request<Body>) -> (StatusCode, String) {
-    (StatusCode::OK, "[]".into())
-}
+async fn stub_delete(_: Request<Body>) -> (StatusCode, String) { (StatusCode::NO_CONTENT, String::new()) }
+async fn stub_events(_: Request<Body>) -> (StatusCode, String) { (StatusCode::OK, "[]".into()) }
 
 #[tokio::test]
 async fn sqli_in_query_param_handled_safely() {
     let app = attack_router();
-    let req = Request::builder()
-        .method("GET")
+    let req = Request::builder().method("GET")
         .uri("/api/v1/workflows/wf-1?limit=10%20DROP%20TABLE%20events--")
-        .body(Body::empty())
-        .unwrap();
+        .body(Body::empty()).unwrap();
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK, "Stub handler ignores query params — no SQL execution surface in vo-api (uses fjall KV store, not SQL)");
 }

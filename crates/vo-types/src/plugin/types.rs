@@ -253,7 +253,6 @@ impl PluginState {
     }
 
     #[must_use]
-    #[allow(clippy::expect_used)]
     pub fn get_valid_transitions(&self) -> Vec<PluginTransition> {
         match self {
             PluginState::Registered => vec![PluginTransition::Load {

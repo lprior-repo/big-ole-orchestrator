@@ -18,12 +18,12 @@ use vo_types::{InstanceId, InstanceStatus, TimestampMs};
 // Test helpers
 // ---------------------------------------------------------------------------
 
-fn make_test_keyspace() -> (tempfile::TempDir, fjall::Database) {
+fn make_test_keyspace() -> (tempfile::TempDir, fjall::Keyspace) {
     let dir = tempfile::tempdir().expect("Failed to create temp dir");
-    let database = fjall::Database::builder(dir.path())
+    let keyspace = fjall::Config::new(dir.path())
         .open()
-        .expect("Failed to open database");
-    (dir, database)
+        .expect("Failed to open keyspace");
+    (dir, keyspace)
 }
 
 fn make_test_instance_id(byte_fill: u8) -> InstanceId {
@@ -41,12 +41,12 @@ fn make_test_timestamp(ms: u64) -> TimestampMs {
 }
 
 fn seed_instance(
-    database: &fjall::Database,
+    keyspace: &fjall::Keyspace,
     id: &InstanceId,
     status: InstanceStatus,
     ts: TimestampMs,
 ) {
-    instance_index_upsert(database, id, status, ts, None).unwrap();
+    instance_index_upsert(keyspace, id, status, ts, None).unwrap();
 }
 
 fn collect_scan_ok(
@@ -62,14 +62,14 @@ fn collect_scan_ok(
 
 #[test]
 fn upsert_inserts_one_key_when_previous_status_is_none() {
-    let (_dir, database) = make_test_keyspace();
+    let (_dir, keyspace) = make_test_keyspace();
     let id = make_test_instance_id(0x42);
     let ts = make_test_timestamp(1000);
 
-    let result = instance_index_upsert(&database, &id, InstanceStatus::Pending, ts, None);
+    let result = instance_index_upsert(&keyspace, &id, InstanceStatus::Pending, ts, None);
     assert_eq!(result, Ok(()));
 
-    let all = collect_scan_ok(scan_all_instances(&database));
+    let all = collect_scan_ok(scan_all_instances(&keyspace));
     assert_eq!(all.len(), 1);
 
     let entry = &all[0];
@@ -84,14 +84,14 @@ fn upsert_inserts_one_key_when_previous_status_is_none() {
 
 #[test]
 fn upsert_atomically_transitions_status_when_previous_differs_from_new() {
-    let (_dir, database) = make_test_keyspace();
+    let (_dir, keyspace) = make_test_keyspace();
     let id = make_test_instance_id(0x42);
     let ts = make_test_timestamp(1000);
 
-    seed_instance(&database, &id, InstanceStatus::Running, ts);
+    seed_instance(&keyspace, &id, InstanceStatus::Running, ts);
 
     let result = instance_index_upsert(
-        &database,
+        &keyspace,
         &id,
         InstanceStatus::Completed,
         ts,
@@ -99,13 +99,13 @@ fn upsert_atomically_transitions_status_when_previous_differs_from_new() {
     );
     assert_eq!(result, Ok(()));
 
-    let all = collect_scan_ok(scan_all_instances(&database));
+    let all = collect_scan_ok(scan_all_instances(&keyspace));
     assert_eq!(all.len(), 1);
 
-    let running = collect_scan_ok(scan_by_status(&database, InstanceStatus::Running));
+    let running = collect_scan_ok(scan_by_status(&keyspace, InstanceStatus::Running));
     assert_eq!(running.len(), 0);
 
-    let completed = collect_scan_ok(scan_by_status(&database, InstanceStatus::Completed));
+    let completed = collect_scan_ok(scan_by_status(&keyspace, InstanceStatus::Completed));
     assert_eq!(completed.len(), 1);
     assert_eq!(completed[0].instance_id, id);
     assert_eq!(completed[0].status, InstanceStatus::Completed);
@@ -117,14 +117,14 @@ fn upsert_atomically_transitions_status_when_previous_differs_from_new() {
 
 #[test]
 fn upsert_is_idempotent_when_status_unchanged() {
-    let (_dir, database) = make_test_keyspace();
+    let (_dir, keyspace) = make_test_keyspace();
     let id = make_test_instance_id(0x42);
     let ts = make_test_timestamp(1000);
 
-    seed_instance(&database, &id, InstanceStatus::Pending, ts);
+    seed_instance(&keyspace, &id, InstanceStatus::Pending, ts);
 
     let result = instance_index_upsert(
-        &database,
+        &keyspace,
         &id,
         InstanceStatus::Pending,
         ts,
@@ -134,7 +134,7 @@ fn upsert_is_idempotent_when_status_unchanged() {
 
     // Call again — should be idempotent
     let result2 = instance_index_upsert(
-        &database,
+        &keyspace,
         &id,
         InstanceStatus::Pending,
         ts,
@@ -142,7 +142,7 @@ fn upsert_is_idempotent_when_status_unchanged() {
     );
     assert_eq!(result2, Ok(()));
 
-    let all = collect_scan_ok(scan_all_instances(&database));
+    let all = collect_scan_ok(scan_all_instances(&keyspace));
     assert_eq!(all.len(), 1);
 }
 
@@ -152,14 +152,14 @@ fn upsert_is_idempotent_when_status_unchanged() {
 
 #[test]
 fn upsert_stores_empty_value_when_inserting_key() {
-    let (_dir, database) = make_test_keyspace();
+    let (_dir, keyspace) = make_test_keyspace();
     let id = make_test_instance_id(0x42);
     let ts = make_test_timestamp(1000);
 
-    seed_instance(&database, &id, InstanceStatus::Pending, ts);
+    seed_instance(&keyspace, &id, InstanceStatus::Pending, ts);
 
-    let partition = database
-        .keyspace("instances", || fjall::KeyspaceCreateOptions::default())
+    let partition = keyspace
+        .open_partition("instances", fjall::PartitionCreateOptions::default())
         .unwrap();
     let encoded_key = encode_instance_index_key(InstanceStatus::Pending, ts, &id).unwrap();
     let raw_value = partition
@@ -175,18 +175,18 @@ fn upsert_stores_empty_value_when_inserting_key() {
 
 #[test]
 fn upsert_removes_instance_from_old_status_scan_when_status_transitions() {
-    let (_dir, database) = make_test_keyspace();
+    let (_dir, keyspace) = make_test_keyspace();
     let id1 = make_unique_instance_id(1);
     let id2 = make_unique_instance_id(2);
     let ts1 = make_test_timestamp(100);
     let ts2 = make_test_timestamp(200);
 
-    seed_instance(&database, &id1, InstanceStatus::Running, ts1);
-    seed_instance(&database, &id2, InstanceStatus::Running, ts2);
+    seed_instance(&keyspace, &id1, InstanceStatus::Running, ts1);
+    seed_instance(&keyspace, &id2, InstanceStatus::Running, ts2);
 
     // Transition id1 from Running to Failed
     instance_index_upsert(
-        &database,
+        &keyspace,
         &id1,
         InstanceStatus::Failed,
         ts1,
@@ -194,11 +194,11 @@ fn upsert_removes_instance_from_old_status_scan_when_status_transitions() {
     )
     .unwrap();
 
-    let running = collect_scan_ok(scan_by_status(&database, InstanceStatus::Running));
+    let running = collect_scan_ok(scan_by_status(&keyspace, InstanceStatus::Running));
     assert_eq!(running.len(), 1, "Only id2 should remain in Running");
     assert_eq!(running[0].instance_id, id2);
 
-    let failed = collect_scan_ok(scan_by_status(&database, InstanceStatus::Failed));
+    let failed = collect_scan_ok(scan_by_status(&keyspace, InstanceStatus::Failed));
     assert_eq!(failed.len(), 1, "id1 should now be in Failed");
     assert_eq!(failed[0].instance_id, id1);
 }
@@ -209,31 +209,31 @@ fn upsert_removes_instance_from_old_status_scan_when_status_transitions() {
 
 #[test]
 fn scan_by_status_returns_only_entries_matching_requested_status() {
-    let (_dir, database) = make_test_keyspace();
+    let (_dir, keyspace) = make_test_keyspace();
     let id1 = make_unique_instance_id(1);
     let id2 = make_unique_instance_id(2);
     let id3 = make_unique_instance_id(3);
 
     seed_instance(
-        &database,
+        &keyspace,
         &id1,
         InstanceStatus::Pending,
         make_test_timestamp(10),
     );
     seed_instance(
-        &database,
+        &keyspace,
         &id2,
         InstanceStatus::Running,
         make_test_timestamp(20),
     );
     seed_instance(
-        &database,
+        &keyspace,
         &id3,
         InstanceStatus::Pending,
         make_test_timestamp(30),
     );
 
-    let pending = collect_scan_ok(scan_by_status(&database, InstanceStatus::Pending));
+    let pending = collect_scan_ok(scan_by_status(&keyspace, InstanceStatus::Pending));
     assert_eq!(pending.len(), 2);
     assert!(pending.iter().all(|e| e.status == InstanceStatus::Pending));
 
@@ -248,32 +248,32 @@ fn scan_by_status_returns_only_entries_matching_requested_status() {
 
 #[test]
 fn scan_by_status_returns_entries_ordered_by_created_at_ascending() {
-    let (_dir, database) = make_test_keyspace();
+    let (_dir, keyspace) = make_test_keyspace();
     let id1 = make_unique_instance_id(1);
     let id2 = make_unique_instance_id(2);
     let id3 = make_unique_instance_id(3);
 
     // Insert out of order
     seed_instance(
-        &database,
+        &keyspace,
         &id1,
         InstanceStatus::Pending,
         make_test_timestamp(300),
     );
     seed_instance(
-        &database,
+        &keyspace,
         &id2,
         InstanceStatus::Pending,
         make_test_timestamp(100),
     );
     seed_instance(
-        &database,
+        &keyspace,
         &id3,
         InstanceStatus::Pending,
         make_test_timestamp(200),
     );
 
-    let entries = collect_scan_ok(scan_by_status(&database, InstanceStatus::Pending));
+    let entries = collect_scan_ok(scan_by_status(&keyspace, InstanceStatus::Pending));
     assert_eq!(entries.len(), 3);
     assert_eq!(entries[0].created_at, make_test_timestamp(100));
     assert_eq!(entries[1].created_at, make_test_timestamp(200));
@@ -286,8 +286,8 @@ fn scan_by_status_returns_entries_ordered_by_created_at_ascending() {
 
 #[test]
 fn scan_by_status_returns_empty_iterator_when_partition_is_empty() {
-    let (_dir, database) = make_test_keyspace();
-    let results = collect_scan_ok(scan_by_status(&database, InstanceStatus::Pending));
+    let (_dir, keyspace) = make_test_keyspace();
+    let results = collect_scan_ok(scan_by_status(&keyspace, InstanceStatus::Pending));
     assert!(results.is_empty());
 }
 
@@ -297,16 +297,16 @@ fn scan_by_status_returns_empty_iterator_when_partition_is_empty() {
 
 #[test]
 fn scan_yields_corrupt_key_error_when_partition_contains_malformed_key() {
-    let (_dir, database) = make_test_keyspace();
-    let partition = database
-        .keyspace("instances", || fjall::KeyspaceCreateOptions::default())
+    let (_dir, keyspace) = make_test_keyspace();
+    let partition = keyspace
+        .open_partition("instances", fjall::PartitionCreateOptions::default())
         .unwrap();
 
     // Manually insert a 20-byte key that starts with 0x01 (Pending prefix range)
     let bad_key = [0x01u8; 20];
     partition.insert(bad_key, &[] as &[u8]).unwrap();
 
-    let results: Vec<_> = scan_by_status(&database, InstanceStatus::Pending).collect();
+    let results: Vec<_> = scan_by_status(&keyspace, InstanceStatus::Pending).collect();
     assert!(!results.is_empty(), "Should have at least one item");
     assert!(
         results
@@ -322,38 +322,38 @@ fn scan_yields_corrupt_key_error_when_partition_contains_malformed_key() {
 
 #[test]
 fn scan_all_instances_returns_entries_ordered_by_status_then_created_at() {
-    let (_dir, database) = make_test_keyspace();
+    let (_dir, keyspace) = make_test_keyspace();
     let id1 = make_unique_instance_id(1);
     let id2 = make_unique_instance_id(2);
     let id3 = make_unique_instance_id(3);
     let id4 = make_unique_instance_id(4);
 
     seed_instance(
-        &database,
+        &keyspace,
         &id1,
         InstanceStatus::Running,
         make_test_timestamp(200),
     );
     seed_instance(
-        &database,
+        &keyspace,
         &id2,
         InstanceStatus::Pending,
         make_test_timestamp(100),
     );
     seed_instance(
-        &database,
+        &keyspace,
         &id3,
         InstanceStatus::Running,
         make_test_timestamp(100),
     );
     seed_instance(
-        &database,
+        &keyspace,
         &id4,
         InstanceStatus::Pending,
         make_test_timestamp(300),
     );
 
-    let entries = collect_scan_ok(scan_all_instances(&database));
+    let entries = collect_scan_ok(scan_all_instances(&keyspace));
     assert_eq!(entries.len(), 4);
 
     // Order: (status=0x01/Pending, ts=100), (status=0x01/Pending, ts=300),
@@ -381,8 +381,8 @@ fn scan_all_instances_returns_entries_ordered_by_status_then_created_at() {
 
 #[test]
 fn scan_all_instances_returns_empty_iterator_when_partition_is_empty() {
-    let (_dir, database) = make_test_keyspace();
-    let results = collect_scan_ok(scan_all_instances(&database));
+    let (_dir, keyspace) = make_test_keyspace();
+    let results = collect_scan_ok(scan_all_instances(&keyspace));
     assert!(results.is_empty());
 }
 
@@ -392,16 +392,16 @@ fn scan_all_instances_returns_empty_iterator_when_partition_is_empty() {
 
 #[test]
 fn upsert_with_wrong_previous_status_leaves_orphaned_key() {
-    let (_dir, database) = make_test_keyspace();
+    let (_dir, keyspace) = make_test_keyspace();
     let id = make_test_instance_id(0x42);
     let ts = make_test_timestamp(100);
 
     // Insert as Running
-    seed_instance(&database, &id, InstanceStatus::Running, ts);
+    seed_instance(&keyspace, &id, InstanceStatus::Running, ts);
 
     // Transition with WRONG previous_status (Pending instead of Running)
     let result = instance_index_upsert(
-        &database,
+        &keyspace,
         &id,
         InstanceStatus::Completed,
         ts,
@@ -410,7 +410,7 @@ fn upsert_with_wrong_previous_status_leaves_orphaned_key() {
     assert_eq!(result, Ok(()));
 
     // Orphan detection: 2 keys should exist (violation of INV-001)
-    let all = collect_scan_ok(scan_all_instances(&database));
+    let all = collect_scan_ok(scan_all_instances(&keyspace));
     assert_eq!(
         all.len(),
         2,
@@ -418,11 +418,11 @@ fn upsert_with_wrong_previous_status_leaves_orphaned_key() {
     );
 
     // Old Running key still present (orphan)
-    let running = collect_scan_ok(scan_by_status(&database, InstanceStatus::Running));
+    let running = collect_scan_ok(scan_by_status(&keyspace, InstanceStatus::Running));
     assert_eq!(running.len(), 1, "Orphaned Running key should still exist");
 
     // New Completed key inserted
-    let completed = collect_scan_ok(scan_by_status(&database, InstanceStatus::Completed));
+    let completed = collect_scan_ok(scan_by_status(&keyspace, InstanceStatus::Completed));
     assert_eq!(completed.len(), 1, "New Completed key should exist");
 }
 
@@ -432,102 +432,102 @@ fn upsert_with_wrong_previous_status_leaves_orphaned_key() {
 
 #[test]
 fn upsert_transitions_through_all_six_statuses_for_single_instance() {
-    let (_dir, database) = make_test_keyspace();
+    let (_dir, keyspace) = make_test_keyspace();
     let id = make_test_instance_id(0x42);
     let ts = make_test_timestamp(0); // boundary: minimum timestamp
 
     // Step 1: Insert as Pending
-    instance_index_upsert(&database, &id, InstanceStatus::Pending, ts, None).unwrap();
-    assert_eq!(collect_scan_ok(scan_all_instances(&database)).len(), 1);
+    instance_index_upsert(&keyspace, &id, InstanceStatus::Pending, ts, None).unwrap();
+    assert_eq!(collect_scan_ok(scan_all_instances(&keyspace)).len(), 1);
     assert_eq!(
-        collect_scan_ok(scan_by_status(&database, InstanceStatus::Pending)).len(),
+        collect_scan_ok(scan_by_status(&keyspace, InstanceStatus::Pending)).len(),
         1
     );
 
     // Step 2: Pending → Running
     instance_index_upsert(
-        &database,
+        &keyspace,
         &id,
         InstanceStatus::Running,
         ts,
         Some(InstanceStatus::Pending),
     )
     .unwrap();
-    assert_eq!(collect_scan_ok(scan_all_instances(&database)).len(), 1);
+    assert_eq!(collect_scan_ok(scan_all_instances(&keyspace)).len(), 1);
     assert_eq!(
-        collect_scan_ok(scan_by_status(&database, InstanceStatus::Pending)).len(),
+        collect_scan_ok(scan_by_status(&keyspace, InstanceStatus::Pending)).len(),
         0
     );
     assert_eq!(
-        collect_scan_ok(scan_by_status(&database, InstanceStatus::Running)).len(),
+        collect_scan_ok(scan_by_status(&keyspace, InstanceStatus::Running)).len(),
         1
     );
 
     // Step 3: Running → Paused
     instance_index_upsert(
-        &database,
+        &keyspace,
         &id,
         InstanceStatus::Paused,
         ts,
         Some(InstanceStatus::Running),
     )
     .unwrap();
-    assert_eq!(collect_scan_ok(scan_all_instances(&database)).len(), 1);
+    assert_eq!(collect_scan_ok(scan_all_instances(&keyspace)).len(), 1);
     assert_eq!(
-        collect_scan_ok(scan_by_status(&database, InstanceStatus::Running)).len(),
+        collect_scan_ok(scan_by_status(&keyspace, InstanceStatus::Running)).len(),
         0
     );
     assert_eq!(
-        collect_scan_ok(scan_by_status(&database, InstanceStatus::Paused)).len(),
+        collect_scan_ok(scan_by_status(&keyspace, InstanceStatus::Paused)).len(),
         1
     );
 
     // Step 4: Paused → Running
     instance_index_upsert(
-        &database,
+        &keyspace,
         &id,
         InstanceStatus::Running,
         ts,
         Some(InstanceStatus::Paused),
     )
     .unwrap();
-    assert_eq!(collect_scan_ok(scan_all_instances(&database)).len(), 1);
+    assert_eq!(collect_scan_ok(scan_all_instances(&keyspace)).len(), 1);
 
     // Step 5: Running → Completed
     instance_index_upsert(
-        &database,
+        &keyspace,
         &id,
         InstanceStatus::Completed,
         ts,
         Some(InstanceStatus::Running),
     )
     .unwrap();
-    assert_eq!(collect_scan_ok(scan_all_instances(&database)).len(), 1);
+    assert_eq!(collect_scan_ok(scan_all_instances(&keyspace)).len(), 1);
 
     // Step 6: Completed → Failed
     instance_index_upsert(
-        &database,
+        &keyspace,
         &id,
         InstanceStatus::Failed,
         ts,
         Some(InstanceStatus::Completed),
     )
     .unwrap();
-    assert_eq!(collect_scan_ok(scan_all_instances(&database)).len(), 1);
+    assert_eq!(collect_scan_ok(scan_all_instances(&keyspace)).len(), 1);
 
     // Step 7: Failed → Cancelled
     instance_index_upsert(
-        &database,
+        &keyspace,
         &id,
         InstanceStatus::Cancelled,
         ts,
         Some(InstanceStatus::Failed),
     )
     .unwrap();
-    assert_eq!(collect_scan_ok(scan_all_instances(&database)).len(), 1);
+    assert_eq!(collect_scan_ok(scan_all_instances(&keyspace)).len(), 1);
 
     // Final verification
-    let cancelled = collect_scan_ok(scan_by_status(&database, InstanceStatus::Cancelled));
+    let cancelled = collect_scan_ok(scan_by_status(&keyspace, InstanceStatus::Cancelled));
     assert_eq!(cancelled.len(), 1);
     assert_eq!(cancelled[0].instance_id, id);
     assert_eq!(cancelled[0].status, InstanceStatus::Cancelled);
@@ -540,7 +540,7 @@ fn upsert_transitions_through_all_six_statuses_for_single_instance() {
 
 #[test]
 fn scan_by_status_returns_correct_counts_after_interleaved_upserts() {
-    let (_dir, database) = make_test_keyspace();
+    let (_dir, keyspace) = make_test_keyspace();
 
     // 4 Pending instances — explicit inline setup
     let p0 = make_unique_instance_id(0);
@@ -548,25 +548,25 @@ fn scan_by_status_returns_correct_counts_after_interleaved_upserts() {
     let p2 = make_unique_instance_id(2);
     let p3 = make_unique_instance_id(3);
     seed_instance(
-        &database,
+        &keyspace,
         &p0,
         InstanceStatus::Pending,
         make_test_timestamp(10),
     );
     seed_instance(
-        &database,
+        &keyspace,
         &p1,
         InstanceStatus::Pending,
         make_test_timestamp(20),
     );
     seed_instance(
-        &database,
+        &keyspace,
         &p2,
         InstanceStatus::Pending,
         make_test_timestamp(30),
     );
     seed_instance(
-        &database,
+        &keyspace,
         &p3,
         InstanceStatus::Pending,
         make_test_timestamp(40),
@@ -577,19 +577,19 @@ fn scan_by_status_returns_correct_counts_after_interleaved_upserts() {
     let r1 = make_unique_instance_id(5);
     let r2 = make_unique_instance_id(6);
     seed_instance(
-        &database,
+        &keyspace,
         &r0,
         InstanceStatus::Running,
         make_test_timestamp(50),
     );
     seed_instance(
-        &database,
+        &keyspace,
         &r1,
         InstanceStatus::Running,
         make_test_timestamp(60),
     );
     seed_instance(
-        &database,
+        &keyspace,
         &r2,
         InstanceStatus::Running,
         make_test_timestamp(70),
@@ -599,13 +599,13 @@ fn scan_by_status_returns_correct_counts_after_interleaved_upserts() {
     let pa0 = make_unique_instance_id(7);
     let pa1 = make_unique_instance_id(8);
     seed_instance(
-        &database,
+        &keyspace,
         &pa0,
         InstanceStatus::Paused,
         make_test_timestamp(80),
     );
     seed_instance(
-        &database,
+        &keyspace,
         &pa1,
         InstanceStatus::Paused,
         make_test_timestamp(90),
@@ -615,13 +615,13 @@ fn scan_by_status_returns_correct_counts_after_interleaved_upserts() {
     let c0 = make_unique_instance_id(9);
     let c1 = make_unique_instance_id(10);
     seed_instance(
-        &database,
+        &keyspace,
         &c0,
         InstanceStatus::Completed,
         make_test_timestamp(100),
     );
     seed_instance(
-        &database,
+        &keyspace,
         &c1,
         InstanceStatus::Completed,
         make_test_timestamp(110),
@@ -630,7 +630,7 @@ fn scan_by_status_returns_correct_counts_after_interleaved_upserts() {
     // 1 Failed instance with ts=u64::MAX (MI-06 boundary)
     let failed_id = make_unique_instance_id(11);
     seed_instance(
-        &database,
+        &keyspace,
         &failed_id,
         InstanceStatus::Failed,
         make_test_timestamp(u64::MAX),
@@ -639,7 +639,7 @@ fn scan_by_status_returns_correct_counts_after_interleaved_upserts() {
     // 1 Cancelled instance
     let cancelled_id = make_unique_instance_id(12);
     seed_instance(
-        &database,
+        &keyspace,
         &cancelled_id,
         InstanceStatus::Cancelled,
         make_test_timestamp(120),
@@ -647,33 +647,33 @@ fn scan_by_status_returns_correct_counts_after_interleaved_upserts() {
 
     // Verify counts
     assert_eq!(
-        collect_scan_ok(scan_by_status(&database, InstanceStatus::Pending)).len(),
+        collect_scan_ok(scan_by_status(&keyspace, InstanceStatus::Pending)).len(),
         4
     );
     assert_eq!(
-        collect_scan_ok(scan_by_status(&database, InstanceStatus::Running)).len(),
+        collect_scan_ok(scan_by_status(&keyspace, InstanceStatus::Running)).len(),
         3
     );
     assert_eq!(
-        collect_scan_ok(scan_by_status(&database, InstanceStatus::Paused)).len(),
+        collect_scan_ok(scan_by_status(&keyspace, InstanceStatus::Paused)).len(),
         2
     );
     assert_eq!(
-        collect_scan_ok(scan_by_status(&database, InstanceStatus::Completed)).len(),
+        collect_scan_ok(scan_by_status(&keyspace, InstanceStatus::Completed)).len(),
         2
     );
     assert_eq!(
-        collect_scan_ok(scan_by_status(&database, InstanceStatus::Failed)).len(),
+        collect_scan_ok(scan_by_status(&keyspace, InstanceStatus::Failed)).len(),
         1
     );
     assert_eq!(
-        collect_scan_ok(scan_by_status(&database, InstanceStatus::Cancelled)).len(),
+        collect_scan_ok(scan_by_status(&keyspace, InstanceStatus::Cancelled)).len(),
         1
     );
-    assert_eq!(collect_scan_ok(scan_all_instances(&database)).len(), 13);
+    assert_eq!(collect_scan_ok(scan_all_instances(&keyspace)).len(), 13);
 
     // Verify the Failed instance has ts=u64::MAX
-    let failed_entries = collect_scan_ok(scan_by_status(&database, InstanceStatus::Failed));
+    let failed_entries = collect_scan_ok(scan_by_status(&keyspace, InstanceStatus::Failed));
     assert_eq!(failed_entries[0].created_at, make_test_timestamp(u64::MAX));
 }
 
@@ -683,7 +683,7 @@ fn scan_by_status_returns_correct_counts_after_interleaved_upserts() {
 
 #[test]
 fn scan_all_instances_returns_correct_total_after_mixed_operations() {
-    let (_dir, database) = make_test_keyspace();
+    let (_dir, keyspace) = make_test_keyspace();
 
     // Insert 6 instances as Pending with ts=100..600 — explicit inline setup
     let id0 = make_unique_instance_id(0);
@@ -694,37 +694,37 @@ fn scan_all_instances_returns_correct_total_after_mixed_operations() {
     let id5 = make_unique_instance_id(5);
 
     seed_instance(
-        &database,
+        &keyspace,
         &id0,
         InstanceStatus::Pending,
         make_test_timestamp(100),
     );
     seed_instance(
-        &database,
+        &keyspace,
         &id1,
         InstanceStatus::Pending,
         make_test_timestamp(200),
     );
     seed_instance(
-        &database,
+        &keyspace,
         &id2,
         InstanceStatus::Pending,
         make_test_timestamp(300),
     );
     seed_instance(
-        &database,
+        &keyspace,
         &id3,
         InstanceStatus::Pending,
         make_test_timestamp(400),
     );
     seed_instance(
-        &database,
+        &keyspace,
         &id4,
         InstanceStatus::Pending,
         make_test_timestamp(500),
     );
     seed_instance(
-        &database,
+        &keyspace,
         &id5,
         InstanceStatus::Pending,
         make_test_timestamp(600),
@@ -732,7 +732,7 @@ fn scan_all_instances_returns_correct_total_after_mixed_operations() {
 
     // Transition id0, id1, id2 to Running — explicit inline transitions
     instance_index_upsert(
-        &database,
+        &keyspace,
         &id0,
         InstanceStatus::Running,
         make_test_timestamp(100),
@@ -740,7 +740,7 @@ fn scan_all_instances_returns_correct_total_after_mixed_operations() {
     )
     .unwrap();
     instance_index_upsert(
-        &database,
+        &keyspace,
         &id1,
         InstanceStatus::Running,
         make_test_timestamp(200),
@@ -748,7 +748,7 @@ fn scan_all_instances_returns_correct_total_after_mixed_operations() {
     )
     .unwrap();
     instance_index_upsert(
-        &database,
+        &keyspace,
         &id2,
         InstanceStatus::Running,
         make_test_timestamp(300),
@@ -758,7 +758,7 @@ fn scan_all_instances_returns_correct_total_after_mixed_operations() {
 
     // Transition id3 to Completed
     instance_index_upsert(
-        &database,
+        &keyspace,
         &id3,
         InstanceStatus::Completed,
         make_test_timestamp(400),
@@ -769,7 +769,7 @@ fn scan_all_instances_returns_correct_total_after_mixed_operations() {
     // id4 and id5 remain Pending
 
     // Verify total
-    let all = collect_scan_ok(scan_all_instances(&database));
+    let all = collect_scan_ok(scan_all_instances(&keyspace));
     assert_eq!(all.len(), 6);
 
     // Verify ordering: Pending entries first (sorted by ts), then Running, then Completed
@@ -783,15 +783,15 @@ fn scan_all_instances_returns_correct_total_after_mixed_operations() {
 
     // Verify counts per status
     assert_eq!(
-        collect_scan_ok(scan_by_status(&database, InstanceStatus::Pending)).len(),
+        collect_scan_ok(scan_by_status(&keyspace, InstanceStatus::Pending)).len(),
         2
     );
     assert_eq!(
-        collect_scan_ok(scan_by_status(&database, InstanceStatus::Running)).len(),
+        collect_scan_ok(scan_by_status(&keyspace, InstanceStatus::Running)).len(),
         3
     );
     assert_eq!(
-        collect_scan_ok(scan_by_status(&database, InstanceStatus::Completed)).len(),
+        collect_scan_ok(scan_by_status(&keyspace, InstanceStatus::Completed)).len(),
         1
     );
 }
@@ -802,15 +802,15 @@ fn scan_all_instances_returns_correct_total_after_mixed_operations() {
 
 #[test]
 fn upsert_status_transition_is_atomic_via_scan_state() {
-    let (_dir, database) = make_test_keyspace();
+    let (_dir, keyspace) = make_test_keyspace();
     let id = make_test_instance_id(0x42);
     let ts = make_test_timestamp(100);
 
-    seed_instance(&database, &id, InstanceStatus::Pending, ts);
+    seed_instance(&keyspace, &id, InstanceStatus::Pending, ts);
 
     // Transition Pending → Running
     instance_index_upsert(
-        &database,
+        &keyspace,
         &id,
         InstanceStatus::Running,
         ts,
@@ -819,7 +819,7 @@ fn upsert_status_transition_is_atomic_via_scan_state() {
     .unwrap();
 
     // Immediately after: exactly 1 key should exist
-    let all = collect_scan_ok(scan_all_instances(&database));
+    let all = collect_scan_ok(scan_all_instances(&keyspace));
     assert_eq!(
         all.len(),
         1,
@@ -834,31 +834,31 @@ fn upsert_status_transition_is_atomic_via_scan_state() {
 
 #[test]
 fn scan_by_status_returns_empty_when_queried_status_has_no_entries_but_others_exist() {
-    let (_dir, database) = make_test_keyspace();
+    let (_dir, keyspace) = make_test_keyspace();
     let id1 = make_unique_instance_id(1);
     let id2 = make_unique_instance_id(2);
     let id3 = make_unique_instance_id(3);
 
     seed_instance(
-        &database,
+        &keyspace,
         &id1,
         InstanceStatus::Pending,
         make_test_timestamp(10),
     );
     seed_instance(
-        &database,
+        &keyspace,
         &id2,
         InstanceStatus::Running,
         make_test_timestamp(20),
     );
     seed_instance(
-        &database,
+        &keyspace,
         &id3,
         InstanceStatus::Pending,
         make_test_timestamp(30),
     );
 
-    let cancelled = collect_scan_ok(scan_by_status(&database, InstanceStatus::Cancelled));
+    let cancelled = collect_scan_ok(scan_by_status(&keyspace, InstanceStatus::Cancelled));
     assert_eq!(cancelled.len(), 0);
 }
 
@@ -868,31 +868,31 @@ fn scan_by_status_returns_empty_when_queried_status_has_no_entries_but_others_ex
 
 #[test]
 fn scan_by_status_returns_all_entries_when_every_entry_matches_queried_status() {
-    let (_dir, database) = make_test_keyspace();
+    let (_dir, keyspace) = make_test_keyspace();
     let id1 = make_unique_instance_id(1);
     let id2 = make_unique_instance_id(2);
     let id3 = make_unique_instance_id(3);
 
     seed_instance(
-        &database,
+        &keyspace,
         &id1,
         InstanceStatus::Running,
         make_test_timestamp(100),
     );
     seed_instance(
-        &database,
+        &keyspace,
         &id2,
         InstanceStatus::Running,
         make_test_timestamp(200),
     );
     seed_instance(
-        &database,
+        &keyspace,
         &id3,
         InstanceStatus::Running,
         make_test_timestamp(300),
     );
 
-    let running = collect_scan_ok(scan_by_status(&database, InstanceStatus::Running));
+    let running = collect_scan_ok(scan_by_status(&keyspace, InstanceStatus::Running));
     assert_eq!(running.len(), 3);
     assert!(running.iter().all(|e| e.status == InstanceStatus::Running));
     // Verify ascending order
@@ -925,23 +925,23 @@ fn scan_by_status_returns_all_entries_when_every_entry_matches_queried_status() 
 
 #[test]
 fn upsert_does_not_batch_delete_when_status_is_unchanged() {
-    let (_dir, database) = make_test_keyspace();
+    let (_dir, keyspace) = make_test_keyspace();
     let id = make_test_instance_id(0x42);
     let ts = make_test_timestamp(1000);
 
     // Step 1: Insert as Pending
-    seed_instance(&database, &id, InstanceStatus::Pending, ts);
+    seed_instance(&keyspace, &id, InstanceStatus::Pending, ts);
 
     // Step 2: Manually plant a "canary" key at Running status for the same instance.
     // This simulates a key that should NOT be touched by same-status upsert.
-    let partition = database
-        .keyspace("instances", || fjall::KeyspaceCreateOptions::default())
+    let partition = keyspace
+        .open_partition("instances", fjall::PartitionCreateOptions::default())
         .unwrap();
     let canary_key = encode_instance_index_key(InstanceStatus::Running, ts, &id).unwrap();
     partition.insert(canary_key, &[] as &[u8]).unwrap();
 
     // Verify: 2 keys exist (Pending + Running canary)
-    assert_eq!(collect_scan_ok(scan_all_instances(&database)).len(), 2);
+    assert_eq!(collect_scan_ok(scan_all_instances(&keyspace)).len(), 2);
 
     // Step 3: Same-status upsert (Pending→Pending, previous=Some(Pending))
     // Correct: simple insert path, canary survives
@@ -950,7 +950,7 @@ fn upsert_does_not_batch_delete_when_status_is_unchanged() {
     // BUT: if we then do a DIFFERENT-status transition, the mutant would take the
     //   simple insert path (no delete), leaving the old key.
     instance_index_upsert(
-        &database,
+        &keyspace,
         &id,
         InstanceStatus::Pending,
         ts,
@@ -959,7 +959,7 @@ fn upsert_does_not_batch_delete_when_status_is_unchanged() {
     .unwrap();
 
     // Canary must still exist (same-status upsert should not touch other keys)
-    let running = collect_scan_ok(scan_by_status(&database, InstanceStatus::Running));
+    let running = collect_scan_ok(scan_by_status(&keyspace, InstanceStatus::Running));
     assert_eq!(
         running.len(),
         1,
@@ -970,7 +970,7 @@ fn upsert_does_not_batch_delete_when_status_is_unchanged() {
     // Correct: batch path deletes Pending key, inserts Completed key
     // Mutant (!=→==): simple insert path — Pending key NOT deleted — 3 keys total!
     instance_index_upsert(
-        &database,
+        &keyspace,
         &id,
         InstanceStatus::Completed,
         ts,
@@ -980,7 +980,7 @@ fn upsert_does_not_batch_delete_when_status_is_unchanged() {
 
     // After transition: should have 2 keys (Running canary + Completed)
     // Mutant would have 3 keys (Running canary + Pending orphan + Completed)
-    let all = collect_scan_ok(scan_all_instances(&database));
+    let all = collect_scan_ok(scan_all_instances(&keyspace));
     assert_eq!(
         all.len(),
         2,
@@ -989,7 +989,7 @@ fn upsert_does_not_batch_delete_when_status_is_unchanged() {
     );
 
     // Pending must be gone (batch deleted it)
-    let pending = collect_scan_ok(scan_by_status(&database, InstanceStatus::Pending));
+    let pending = collect_scan_ok(scan_by_status(&keyspace, InstanceStatus::Pending));
     assert_eq!(
         pending.len(),
         0,
@@ -1012,9 +1012,9 @@ fn upsert_does_not_batch_delete_when_status_is_unchanged() {
 
 #[test]
 fn scan_iterator_continues_after_corrupt_key_but_would_stop_after_storage_error() {
-    let (_dir, database) = make_test_keyspace();
-    let partition = database
-        .keyspace("instances", || fjall::KeyspaceCreateOptions::default())
+    let (_dir, keyspace) = make_test_keyspace();
+    let partition = keyspace
+        .open_partition("instances", fjall::PartitionCreateOptions::default())
         .unwrap();
 
     // Insert a corrupt 10-byte key with Pending prefix (sorts first by lexicographic order)
@@ -1028,10 +1028,10 @@ fn scan_iterator_continues_after_corrupt_key_but_would_stop_after_storage_error(
     // Insert a valid Pending entry with a higher timestamp (sorts after corrupt key)
     let id = make_test_instance_id(0xFF);
     let ts = make_test_timestamp(u64::MAX);
-    instance_index_upsert(&database, &id, InstanceStatus::Pending, ts, None).unwrap();
+    instance_index_upsert(&keyspace, &id, InstanceStatus::Pending, ts, None).unwrap();
 
     // Scan by Pending status — should get BOTH items (corrupt + valid)
-    let results: Vec<_> = scan_by_status(&database, InstanceStatus::Pending).collect();
+    let results: Vec<_> = scan_by_status(&keyspace, InstanceStatus::Pending).collect();
     assert!(
         results.len() >= 2,
         "Should yield at least 2 items (corrupt + valid)"
@@ -1080,20 +1080,20 @@ mod proptests {
             ts in proptest::num::u64::ANY,
             id_bytes in arb_instance_id_bytes(),
         ) {
-            let (_dir, database) = make_test_keyspace();
+            let (_dir, keyspace) = make_test_keyspace();
             let id = InstanceId::from_bytes(id_bytes);
             let timestamp = TimestampMs::try_from(ts).unwrap();
 
             // First insert
-            instance_index_upsert(&database, &id, status, timestamp, None).unwrap();
+            instance_index_upsert(&keyspace, &id, status, timestamp, None).unwrap();
 
             // Repeat 4 times with Some(status) (idempotent)
-            instance_index_upsert(&database, &id, status, timestamp, Some(status)).unwrap();
-            instance_index_upsert(&database, &id, status, timestamp, Some(status)).unwrap();
-            instance_index_upsert(&database, &id, status, timestamp, Some(status)).unwrap();
-            instance_index_upsert(&database, &id, status, timestamp, Some(status)).unwrap();
+            instance_index_upsert(&keyspace, &id, status, timestamp, Some(status)).unwrap();
+            instance_index_upsert(&keyspace, &id, status, timestamp, Some(status)).unwrap();
+            instance_index_upsert(&keyspace, &id, status, timestamp, Some(status)).unwrap();
+            instance_index_upsert(&keyspace, &id, status, timestamp, Some(status)).unwrap();
 
-            let all = collect_scan_ok(scan_all_instances(&database));
+            let all = collect_scan_ok(scan_all_instances(&keyspace));
             prop_assert_eq!(all.len(), 1, "After multiple upserts, should have exactly 1 key");
         }
     }

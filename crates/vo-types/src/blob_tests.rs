@@ -773,11 +773,7 @@ fn bdd_given_inline_blob_under_limit_when_stored_then_embedded_in_event() {
     assert!(output.is_inline(), "Data at limit must be stored inline");
     assert!(!output.is_blob_ref(), "Must not be an external blob ref");
     assert_eq!(output.as_inline(), Some(data.as_slice()));
-    assert_eq!(
-        output.as_blob_ref(),
-        None,
-        "Must not have external blob ref"
-    );
+    assert_eq!(output.as_blob_ref(), None, "Must not have external blob ref");
 }
 
 #[test]
@@ -821,10 +817,7 @@ fn bdd_given_blob_exceeding_threshold_when_inline_attempted_then_rejected() {
     let result = OutputRef::inline(data);
 
     // Then: Rejected with ExceedsMaxLength error
-    assert!(
-        result.is_err(),
-        "Must reject data exceeding inline threshold"
-    );
+    assert!(result.is_err(), "Must reject data exceeding inline threshold");
     assert_eq!(
         result,
         Err(ParseError::ExceedsMaxLength {

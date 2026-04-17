@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use vo_types::state::InstanceState;
 use vo_types::InstanceId;
 
+
 pub const CURRENT_SNAPSHOT_VERSION: u16 = 1;
 pub const MIN_SNAPSHOT_VERSION: u16 = 1;
 
@@ -340,7 +341,7 @@ pub fn snapshot_load_latest_with_compat(
         .map_err(|_| StorageError::CorruptKey)?;
 
     let mut best: Option<CompatSnapshotLoad> = None;
-    for item in partition.prefix(prefix) {
+    for item in partition.prefix(&prefix) {
         let (key, value) = item.into_inner().map_err(|_| StorageError::FjallError)?;
         let (_, sequence) = decode_snapshot_key(&key).map_err(|_| StorageError::InvalidKey)?;
         let ds = deserialize_snapshot_value(&value)?;

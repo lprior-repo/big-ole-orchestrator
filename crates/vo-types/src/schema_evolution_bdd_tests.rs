@@ -11,7 +11,9 @@ mod bdd_matching_version_deploys {
     //! When deployed to an engine whose max supported version is 1
     //! Then deployment succeeds without errors
 
-    use crate::types::{extract_schema_version, State, WorkflowSpec, MAX_SUPPORTED_SCHEMA_VERSION};
+    use crate::types::{
+        extract_schema_version, State, WorkflowSpec, MAX_SUPPORTED_SCHEMA_VERSION,
+    };
     use serde_json::json;
 
     #[test]
@@ -366,24 +368,13 @@ mod bdd_adr035_upcaster_registration {
     fn bdd_custom_upcaster_transforms_old_events_to_new_schema() {
         struct RenameFieldUpcaster;
         impl Upcaster for RenameFieldUpcaster {
-            fn source_version(&self) -> u8 {
-                0
-            }
-            fn target_version(&self) -> u8 {
-                1
-            }
-            fn upcast(
-                &self,
-                payload: &serde_json::Value,
-            ) -> Result<serde_json::Value, crate::events::upcaster::UpcasterError> {
+            fn source_version(&self) -> u8 { 0 }
+            fn target_version(&self) -> u8 { 1 }
+            fn upcast(&self, payload: &serde_json::Value) -> Result<serde_json::Value, crate::events::upcaster::UpcasterError> {
                 let mut r = payload.clone();
                 if let Some(obj) = r.as_object_mut() {
-                    if let Some(old) = obj.remove("old_name") {
-                        obj.insert("new_name".to_string(), old);
-                    }
-                    if let Some(v) = obj.get_mut("version") {
-                        *v = json!(1);
-                    }
+                    if let Some(old) = obj.remove("old_name") { obj.insert("new_name".to_string(), old); }
+                    if let Some(v) = obj.get_mut("version") { *v = json!(1); }
                 }
                 Ok(r)
             }
@@ -408,40 +399,18 @@ mod bdd_adr035_upcaster_registration {
     fn bdd_multiple_upcasters_can_be_registered() {
         struct V0ToV1;
         impl Upcaster for V0ToV1 {
-            fn source_version(&self) -> u8 {
-                0
-            }
-            fn target_version(&self) -> u8 {
-                1
-            }
-            fn upcast(
-                &self,
-                payload: &serde_json::Value,
-            ) -> Result<serde_json::Value, crate::events::upcaster::UpcasterError> {
-                let mut r = payload.clone();
-                r.as_object_mut()
-                    .unwrap()
-                    .insert("stage".to_string(), json!("v1"));
-                Ok(r)
+            fn source_version(&self) -> u8 { 0 }
+            fn target_version(&self) -> u8 { 1 }
+            fn upcast(&self, payload: &serde_json::Value) -> Result<serde_json::Value, crate::events::upcaster::UpcasterError> {
+                let mut r = payload.clone(); r.as_object_mut().unwrap().insert("stage".to_string(), json!("v1")); Ok(r)
             }
         }
         struct V1ToV2;
         impl Upcaster for V1ToV2 {
-            fn source_version(&self) -> u8 {
-                1
-            }
-            fn target_version(&self) -> u8 {
-                2
-            }
-            fn upcast(
-                &self,
-                payload: &serde_json::Value,
-            ) -> Result<serde_json::Value, crate::events::upcaster::UpcasterError> {
-                let mut r = payload.clone();
-                r.as_object_mut()
-                    .unwrap()
-                    .insert("stage".to_string(), json!("v2"));
-                Ok(r)
+            fn source_version(&self) -> u8 { 1 }
+            fn target_version(&self) -> u8 { 2 }
+            fn upcast(&self, payload: &serde_json::Value) -> Result<serde_json::Value, crate::events::upcaster::UpcasterError> {
+                let mut r = payload.clone(); r.as_object_mut().unwrap().insert("stage".to_string(), json!("v2")); Ok(r)
             }
         }
 
@@ -465,7 +434,7 @@ mod bdd_max_supported_schema_version_constant {
     //! When checked against the engine's actual capability
     //! Then the constant accurately reflects the highest schema version the engine can process
 
-    use crate::types::{State, MAX_SUPPORTED_SCHEMA_VERSION};
+    use crate::types::{MAX_SUPPORTED_SCHEMA_VERSION, State};
 
     #[test]
     fn bdd_max_supported_schema_version_is_positive() {

@@ -16,8 +16,8 @@ use vo_types::events::{
 };
 use vo_types::state::LifecycleState;
 
-use crate::upcaster::{UpcasterError, UpcasterRegistry, UpcasterRegistryImpl};
-use vo_types::events::upcaster::Upcaster;
+use crate::upcaster::{UpcasterError as RegistryError, UpcasterRegistry, UpcasterRegistryImpl};
+use vo_types::events::upcaster::{Upcaster, UpcasterError};
 
 // =============================================================================
 // Helper upcasters for multi-step chain testing
@@ -359,7 +359,7 @@ fn upcast_envelope_returns_error_when_no_upcaster_for_intermediate_version() {
     let result = registry.upcast_envelope(envelope);
     assert!(result.is_err(), "Should fail without registered upcaster");
     assert!(
-        matches!(result.unwrap_err(), UpcasterError::NoUpcasterRegistered(0)),
+        matches!(result.unwrap_err(), RegistryError::NoUpcasterRegistered(0)),
         "Expected NoUpcasterRegistered(0)"
     );
 }
@@ -533,7 +533,7 @@ fn upcast_envelope_with_no_upcaster_returns_error_with_correct_version() {
     let envelope = make_v0_event("inst-1", 1, workflow_started_payload("wf-1"));
     let result = registry.upcast_envelope(envelope);
     let err = result.expect_err("should fail without upcaster");
-    assert_eq!(err, UpcasterError::NoUpcasterRegistered(0));
+    assert_eq!(err, RegistryError::NoUpcasterRegistered(0));
 }
 
 #[test]

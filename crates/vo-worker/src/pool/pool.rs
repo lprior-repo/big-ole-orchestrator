@@ -133,7 +133,6 @@ pub struct ConnectionPool {
 }
 
 impl ConnectionPool {
-    #[allow(clippy::panic)]
     pub fn new(pool_id: PoolId, nats_urls: Vec<String>, config: PoolConfig) -> Self {
         let vo_config: VoPoolConfig = config.clone().into();
         if let Err(e) = validate_config(&vo_config) {

@@ -794,10 +794,7 @@ fn command_debug_all_variants() {
         ),
         format!(
             "{:?}",
-            Command::Check {
-                workflow: false,
-                path: PathBuf::from("/tmp")
-            }
+            Command::Check { workflow: false, path: PathBuf::from("/tmp") }
         ),
         format!(
             "{:?}",

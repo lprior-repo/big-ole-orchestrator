@@ -5,6 +5,7 @@
 //! "Recovery queue ingestion rate never exceeds configured throttle"
 
 use std::time::Duration;
+use tokio::time::Instant;
 
 use super::{RecoveryError, RecoveryItem, RecoveryResult};
 
@@ -33,8 +34,6 @@ struct TokenBucket {
     refill_period: Duration,
     last_refill: u64,
     current_time: u64,
-    depth: usize,
-    rejections: usize,
 }
 
 impl TokenBucket {
@@ -46,8 +45,6 @@ impl TokenBucket {
             refill_period,
             last_refill: 0,
             current_time: 0,
-            depth: 0,
-            rejections: 0,
         }
     }
 
@@ -57,7 +54,6 @@ impl TokenBucket {
             self.tokens -= 1;
             true
         } else {
-            self.rejections += 1;
             false
         }
     }
@@ -83,31 +79,6 @@ impl TokenBucket {
     fn available(&self) -> usize {
         self.tokens
     }
-
-    pub fn release(&mut self) {
-        if self.depth > 0 {
-            self.depth -= 1;
-        }
-    }
-
-    pub fn current_depth(&self) -> usize {
-        self.depth
-    }
-
-    pub fn rejection_count(&self) -> usize {
-        self.rejections
-    }
-
-    pub fn push(&mut self) {
-        self.depth += 1;
-    }
-
-    #[allow(dead_code)]
-    pub fn pop(&mut self) {
-        if self.depth > 0 {
-            self.depth -= 1;
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -126,7 +97,6 @@ impl RecoveryThrottle {
         if !self.bucket.try_consume() {
             return Err(RecoveryError::QueueFull);
         }
-        self.bucket.push();
         Ok(())
     }
 
@@ -142,28 +112,17 @@ impl RecoveryThrottle {
         &self.config
     }
 
+    #[cfg(test)]
     pub fn advance_time(&mut self, duration: Duration) {
         self.bucket.advance_time(duration);
-    }
-
-    pub fn release(&mut self) {
-        self.bucket.release();
-    }
-
-    pub fn current_depth(&self) -> usize {
-        self.bucket.current_depth()
-    }
-
-    pub fn total_rejections(&self) -> usize {
-        self.bucket.rejection_count()
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::super::OrphanProcess;
     use super::*;
     use tokio::time::sleep;
+    use super::super::OrphanProcess;
 
     fn make_test_item(id: &str) -> RecoveryItem {
         RecoveryItem {
@@ -183,10 +142,9 @@ mod tests {
 
         assert!(throttle.enqueue(make_test_item("1")).await.is_ok());
         assert!(throttle.enqueue(make_test_item("2")).await.is_ok());
-        assert!(matches!(
-            throttle.enqueue(make_test_item("3")).await,
-            Err(RecoveryError::QueueFull)
-        ));
+        assert!(
+            matches!(throttle.enqueue(make_test_item("3")).await, Err(RecoveryError::QueueFull))
+        );
     }
 
     #[tokio::test]
@@ -195,10 +153,9 @@ mod tests {
         let mut throttle = RecoveryThrottle::new(config);
 
         assert!(throttle.enqueue(make_test_item("1")).await.is_ok());
-        assert!(matches!(
-            throttle.enqueue(make_test_item("2")).await,
-            Err(RecoveryError::QueueFull)
-        ));
+        assert!(
+            matches!(throttle.enqueue(make_test_item("2")).await, Err(RecoveryError::QueueFull))
+        );
 
         throttle.advance_time(Duration::from_millis(150));
 
@@ -213,20 +170,18 @@ mod tests {
         assert!(throttle.enqueue(make_test_item("1")).await.is_ok());
         assert!(throttle.enqueue(make_test_item("2")).await.is_ok());
         assert!(throttle.enqueue(make_test_item("3")).await.is_ok());
-        assert!(matches!(
-            throttle.enqueue(make_test_item("4")).await,
-            Err(RecoveryError::QueueFull)
-        ));
+        assert!(
+            matches!(throttle.enqueue(make_test_item("4")).await, Err(RecoveryError::QueueFull))
+        );
 
         throttle.advance_time(Duration::from_millis(200));
 
         assert!(throttle.enqueue(make_test_item("4")).await.is_ok());
         assert!(throttle.enqueue(make_test_item("5")).await.is_ok());
         assert!(throttle.enqueue(make_test_item("6")).await.is_ok());
-        assert!(matches!(
-            throttle.enqueue(make_test_item("7")).await,
-            Err(RecoveryError::QueueFull)
-        ));
+        assert!(
+            matches!(throttle.enqueue(make_test_item("7")).await, Err(RecoveryError::QueueFull))
+        );
     }
 
     #[tokio::test]
@@ -242,10 +197,9 @@ mod tests {
         assert_eq!(throttle.available_capacity(), 2);
         assert!(throttle.enqueue(make_test_item("3")).await.is_ok());
         assert!(throttle.enqueue(make_test_item("4")).await.is_ok());
-        assert!(matches!(
-            throttle.enqueue(make_test_item("5")).await,
-            Err(RecoveryError::QueueFull)
-        ));
+        assert!(
+            matches!(throttle.enqueue(make_test_item("5")).await, Err(RecoveryError::QueueFull))
+        );
     }
 
     #[tokio::test]

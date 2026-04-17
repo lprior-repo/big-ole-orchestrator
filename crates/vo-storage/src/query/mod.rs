@@ -177,14 +177,10 @@ impl Iterator for EventReplayIterator {
             return None;
         };
         match inner.next() {
-            Some(guard) => {
-                if let Ok((k_bytes, v_bytes)) = guard.into_inner() {
-                    self.process_kv(&k_bytes, &v_bytes)
-                } else {
-                    self.inner = None;
-                    Some(Err(StorageError::Storage))
-                }
-            }
+            Some(guard) => if let Ok((k_bytes, v_bytes)) = guard.into_inner() { self.process_kv(&k_bytes, &v_bytes) } else {
+                self.inner = None;
+                Some(Err(StorageError::Storage))
+            },
             None => None,
         }
     }
@@ -241,7 +237,7 @@ impl EventReplayIterator {
 
 #[must_use]
 pub fn replay_events_by_prefix(keyspace: &fjall::Database, prefix: Vec<u8>) -> EventReplayIterator {
-    let Ok(partition) = keyspace.keyspace("events", fjall::KeyspaceCreateOptions::default)
+    let Ok(partition) = keyspace.keyspace("events", || fjall::KeyspaceCreateOptions::default())
     else {
         return EventReplayIterator::error(StorageError::Storage);
     };

@@ -3,17 +3,8 @@
 //! Provides the actor model implementation using the Ractor library.
 //! Actors are the fundamental units of computation in the engine.
 
-#![allow(
-    clippy::unwrap_used,
-    clippy::expect_used,
-    clippy::must_use_candidate,
-    clippy::redundant_closure,
-    clippy::map_unwrap_or,
-    clippy::module_name_repetitions
-)]
-
-use bytes::Bytes;
 pub use vo_common::NamespaceId;
+use bytes::Bytes;
 use vo_types::InstanceId;
 
 pub mod heartbeat;
@@ -23,10 +14,10 @@ pub mod master {
     pub struct OrchestratorConfig;
 }
 
-pub mod async_message_router;
 pub mod fairness;
 pub mod instance_registry;
 pub mod lifecycle;
+pub mod async_message_router;
 pub mod message_router;
 pub mod port;
 pub mod probe;
@@ -153,13 +144,7 @@ mod signal_error_tests {
     #[test]
     fn orchestrator_msg_signal_variant_exists() {
         fn _check(_msg: OrchestratorMsg) {
-            if let OrchestratorMsg::Signal {
-                instance_id: _,
-                signal_name: _,
-                payload: _,
-                reply: _,
-            } = _msg
-            {}
+            if let OrchestratorMsg::Signal { instance_id: _, signal_name: _, payload: _, reply: _ } = _msg {}
         }
     }
 }
@@ -182,8 +167,6 @@ mod terminate_error_tests {
 pub mod actor_messages;
 pub mod signal_messages;
 
-pub use signal_messages::mock_signal_storage;
-pub use signal_messages::mock_signal_storage::{MockSignalStorage, MockSignalWorkQueue};
 pub use signal_messages::{
     AcceptResumeError, AcceptResumeOutcome, BinaryHash, CancelError, CancelRequested,
     ContinueAsNewError, InstanceResumed, LifecycleState, NodeName, ResumeError, RolloverState,
@@ -191,6 +174,8 @@ pub use signal_messages::{
     SignalWorkQueueError, StateLookup, TestStateLookup, TimestampMs, WaitKey, WorkflowCancelled,
     WorkflowContinued,
 };
+pub use signal_messages::mock_signal_storage::{MockSignalStorage, MockSignalWorkQueue};
+pub use signal_messages::mock_signal_storage;
 
 // =============================================================================
 // Workload Classes and Reserved Permit Budget (ADR-033)
@@ -1852,8 +1837,7 @@ mod accept_resume_tests {
 
     /// Test: Workflow correctly transitions from Waiting to Ready when signaled (duplicate for schema).
     #[tokio::test]
-    async fn test_workflow_correctly_transitions_from_waiting_to_ready_when_signaled_duplicate_for()
-    {
+    async fn test_workflow_correctly_transitions_from_waiting_to_ready_when_signaled_duplicate_for() {
         let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9B00W000").unwrap();
         let actor = ControlActor::new();
         let wait_key = WaitKey::parse("webhook").unwrap();
@@ -1897,8 +1881,7 @@ mod accept_resume_tests {
 
     /// Test: Transition fails gracefully if workflow is in a terminal state (duplicate for schema).
     #[tokio::test]
-    async fn test_transition_fails_gracefully_if_workflow_is_in_a_terminal_state_duplicate_for_sch()
-    {
+    async fn test_transition_fails_gracefully_if_workflow_is_in_a_terminal_state_duplicate_for_sch() {
         let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9B00X000").unwrap();
         let actor = ControlActor::new();
         let wait_key = WaitKey::parse("approval-v2").unwrap();

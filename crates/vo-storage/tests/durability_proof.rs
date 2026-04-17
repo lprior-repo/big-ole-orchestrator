@@ -106,6 +106,9 @@ fn dur_001_write_10k_events_kill_restart_verify_all() {
             count, event_count,
             "All 10,000 events must be readable after crash recovery"
         );
-        assert_eq!(last_seq, event_count, "Last event sequence must be 10,000");
+        assert_eq!(
+            last_seq, event_count,
+            "Last event sequence must be 10,000"
+        );
     }
 }

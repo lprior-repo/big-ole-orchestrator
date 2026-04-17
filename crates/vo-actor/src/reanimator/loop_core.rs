@@ -337,8 +337,16 @@ impl ReanimatorLoop {
         // Reset budget for this cycle
         budget.reset();
 
-        // No dedup - let all timers through
-        let deduped_timers = scan_result;
+        // Deduplicate timers by (instance_id, fire_at_ms) to prevent double-fire
+        // when the same timer appears multiple times in scan results
+        let mut seen = std::collections::HashSet::new();
+        let deduped_timers: Vec<_> = scan_result
+            .into_iter()
+            .filter(|timer| {
+                let key = (timer.instance_id.clone(), timer.fire_at_ms);
+                seen.insert(key)
+            })
+            .collect();
 
         let concurrency_limit = config.max_concurrent_resumes as usize;
         let storage_ref = storage.clone();

@@ -15,23 +15,16 @@ struct Node<T: Ord + Clone> {
 }
 
 impl<T: Ord + Clone> PairingHeap<T> {
-    fn new() -> Self {
-        Self { root: None, len: 0 }
-    }
+    fn new() -> Self { Self { root: None, len: 0 } }
     fn push(&mut self, elem: T) {
-        let node = Box::new(Node {
-            elem,
-            children: Vec::new(),
-        });
+        let node = Box::new(Node { elem, children: Vec::new() });
         self.root = Some(match self.root.take() {
             Some(r) => link(node, r),
             None => node,
         });
         self.len += 1;
     }
-    fn peek(&self) -> Option<T> {
-        self.root.as_ref().map(|n| n.elem.clone())
-    }
+    fn peek(&self) -> Option<T> { self.root.as_ref().map(|n| n.elem.clone()) }
     fn pop(&mut self) -> Option<T> {
         let root = self.root.take()?;
         self.len = self.len.saturating_sub(1);
@@ -39,9 +32,7 @@ impl<T: Ord + Clone> PairingHeap<T> {
         Some(root.elem)
     }
     fn merge(&mut self, other: &mut Self) {
-        if other.root.is_none() {
-            return;
-        }
+        if other.root.is_none() { return; }
         self.root = Some(match (self.root.take(), other.root.take()) {
             (Some(a), Some(b)) => link(a, b),
             (a, b) => a.or(b).unwrap(),
@@ -49,48 +40,29 @@ impl<T: Ord + Clone> PairingHeap<T> {
         self.len += other.len;
         other.len = 0;
     }
-    fn len(&self) -> usize {
-        self.len
-    }
+    fn len(&self) -> usize { self.len }
 }
 
 fn link<T: Ord + Clone>(a: Box<Node<T>>, b: Box<Node<T>>) -> Box<Node<T>> {
     if a.elem <= b.elem {
-        let mut ch = a.children;
-        ch.push(b);
-        Box::new(Node {
-            elem: a.elem,
-            children: ch,
-        })
+        let mut ch = a.children; ch.push(b);
+        Box::new(Node { elem: a.elem, children: ch })
     } else {
-        let mut ch = b.children;
-        ch.push(a);
-        Box::new(Node {
-            elem: b.elem,
-            children: ch,
-        })
+        let mut ch = b.children; ch.push(a);
+        Box::new(Node { elem: b.elem, children: ch })
     }
 }
 
 fn merge_pairs<T: Ord + Clone>(nodes: Vec<Box<Node<T>>>) -> Option<Box<Node<T>>> {
-    if nodes.is_empty() {
-        return None;
-    }
-    if nodes.len() == 1 {
-        return Some(nodes.into_iter().next().unwrap());
-    }
+    if nodes.is_empty() { return None; }
+    if nodes.len() == 1 { return Some(nodes.into_iter().next().unwrap()); }
     let mut it = nodes.into_iter();
     let mut merged = Vec::new();
     while let Some(f) = it.next() {
-        merged.push(match it.next() {
-            Some(s) => link(f, s),
-            None => f,
-        });
+        merged.push(match it.next() { Some(s) => link(f, s), None => f });
     }
     let mut acc = merged.pop().unwrap();
-    while let Some(next) = merged.pop() {
-        acc = link(acc, next);
-    }
+    while let Some(next) = merged.pop() { acc = link(acc, next); }
     Some(acc)
 }
 

@@ -1,10 +1,11 @@
-use fjall::Database;
+use fjall::Config;
 
 #[test]
 fn cargo_check_workspace_compiles_vo_storage_cleanly_after_scaffold() {
     let folder = tempfile::tempdir().expect("Failed to create temp dir");
-    let _db = Database::builder(folder.path())
+    let _keyspace = Config::new(folder.path())
         .open()
-        .expect("Failed to open database");
+        .expect("Failed to open keyspace");
+    // Just verifying fjall links and opens a keyspace correctly
     assert!(folder.path().exists());
 }

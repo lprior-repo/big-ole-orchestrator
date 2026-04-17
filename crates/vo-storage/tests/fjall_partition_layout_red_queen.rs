@@ -44,9 +44,9 @@ fn alternate_step_id() -> StepId {
 #[test]
 fn red_queen_fjall_concurrent_dedupe_and_lease_access() {
     let dir = tempdir().unwrap();
-    let database = fjall::Database::builder(dir.path()).open().unwrap();
-    let dedupe_store = FjallDedupeStore::open(&database).unwrap();
-    let lease_store = FjallLeaseStore::open(&database).unwrap();
+    let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+    let dedupe_store = FjallDedupeStore::open(&keyspace).unwrap();
+    let lease_store = FjallLeaseStore::open(&keyspace).unwrap();
 
     let dedupe_store = Arc::new(dedupe_store);
     let lease_store = Arc::new(lease_store);
@@ -112,8 +112,8 @@ fn red_queen_fjall_concurrent_dedupe_and_lease_access() {
 #[test]
 fn red_queen_fjall_concurrent_same_partition_different_keys() {
     let dir = tempdir().unwrap();
-    let database = fjall::Database::builder(dir.path()).open().unwrap();
-    let store = FjallDedupeStore::open(&database).unwrap();
+    let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+    let store = FjallDedupeStore::open(&keyspace).unwrap();
     let store = Arc::new(store);
     let num_threads = 16;
     let barrier = Arc::new(std::sync::Barrier::new(num_threads));
@@ -146,9 +146,9 @@ fn red_queen_fjall_concurrent_same_partition_different_keys() {
 #[test]
 fn red_queen_fjall_concurrent_cross_partition_key_isolation() {
     let dir = tempdir().unwrap();
-    let database = fjall::Database::builder(dir.path()).open().unwrap();
-    let dedupe_store = FjallDedupeStore::open(&database).unwrap();
-    let lease_store = FjallLeaseStore::open(&database).unwrap();
+    let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+    let dedupe_store = FjallDedupeStore::open(&keyspace).unwrap();
+    let lease_store = FjallLeaseStore::open(&keyspace).unwrap();
 
     let iid = sample_instance_id();
     let step_id = sample_step_id();
@@ -185,11 +185,11 @@ fn red_queen_fjall_concurrent_cross_partition_key_isolation() {
 #[test]
 fn red_queen_fjall_corruption_truncated_dedupe_key_rejected() {
     let dir = tempdir().unwrap();
-    let database = fjall::Database::builder(dir.path()).open().unwrap();
-    let store = FjallDedupeStore::open(&database).unwrap();
+    let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+    let store = FjallDedupeStore::open(&keyspace).unwrap();
 
-    let partition = database
-        .keyspace("dedupe", || fjall::KeyspaceCreateOptions::default())
+    let partition = keyspace
+        .open_partition("dedupe", fjall::PartitionCreateOptions::default())
         .unwrap();
 
     let truncated_key = vec![0xFF, 0xFE];
@@ -216,11 +216,11 @@ fn red_queen_fjall_corruption_truncated_dedupe_key_rejected() {
 #[test]
 fn red_queen_fjall_corruption_truncated_json_value_handled() {
     let dir = tempdir().unwrap();
-    let database = fjall::Database::builder(dir.path()).open().unwrap();
-    let store = FjallDedupeStore::open(&database).unwrap();
+    let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+    let store = FjallDedupeStore::open(&keyspace).unwrap();
 
-    let partition = database
-        .keyspace("dedupe", || fjall::KeyspaceCreateOptions::default())
+    let partition = keyspace
+        .open_partition("dedupe", fjall::PartitionCreateOptions::default())
         .unwrap();
 
     let valid_key = DedupeKey::parse("rq-trunc-json-ve-3zrs").unwrap();
@@ -242,11 +242,11 @@ fn red_queen_fjall_corruption_truncated_json_value_handled() {
 #[test]
 fn red_queen_fjall_corruption_valid_json_wrong_type_rejected() {
     let dir = tempdir().unwrap();
-    let database = fjall::Database::builder(dir.path()).open().unwrap();
-    let store = FjallDedupeStore::open(&database).unwrap();
+    let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+    let store = FjallDedupeStore::open(&keyspace).unwrap();
 
-    let partition = database
-        .keyspace("dedupe", || fjall::KeyspaceCreateOptions::default())
+    let partition = keyspace
+        .open_partition("dedupe", fjall::PartitionCreateOptions::default())
         .unwrap();
 
     let valid_key = DedupeKey::parse("rq-wrong-type-ve-3zrs").unwrap();
@@ -268,11 +268,11 @@ fn red_queen_fjall_corruption_valid_json_wrong_type_rejected() {
 #[test]
 fn red_queen_fjall_corruption_missing_required_fields_handled() {
     let dir = tempdir().unwrap();
-    let database = fjall::Database::builder(dir.path()).open().unwrap();
-    let store = FjallDedupeStore::open(&database).unwrap();
+    let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+    let store = FjallDedupeStore::open(&keyspace).unwrap();
 
-    let partition = database
-        .keyspace("dedupe", || fjall::KeyspaceCreateOptions::default())
+    let partition = keyspace
+        .open_partition("dedupe", fjall::PartitionCreateOptions::default())
         .unwrap();
 
     let valid_key = DedupeKey::parse("rq-missing-fields-ve-3zrs").unwrap();
@@ -295,11 +295,11 @@ fn red_queen_fjall_corruption_missing_required_fields_handled() {
 #[test]
 fn red_queen_fjall_corruption_expired_entry_allows_reinsert() {
     let dir = tempdir().unwrap();
-    let database = fjall::Database::builder(dir.path()).open().unwrap();
-    let store = FjallDedupeStore::open(&database).unwrap();
+    let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+    let store = FjallDedupeStore::open(&keyspace).unwrap();
 
-    let partition = database
-        .keyspace("dedupe", || fjall::KeyspaceCreateOptions::default())
+    let partition = keyspace
+        .open_partition("dedupe", fjall::PartitionCreateOptions::default())
         .unwrap();
 
     let valid_key = DedupeKey::parse("rq-expired-corrupt-ve-3zrs").unwrap();
@@ -324,11 +324,11 @@ fn red_queen_fjall_corruption_expired_entry_allows_reinsert() {
 #[test]
 fn red_queen_fjall_corruption_null_bytes_in_value_handled() {
     let dir = tempdir().unwrap();
-    let database = fjall::Database::builder(dir.path()).open().unwrap();
-    let store = FjallDedupeStore::open(&database).unwrap();
+    let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+    let store = FjallDedupeStore::open(&keyspace).unwrap();
 
-    let partition = database
-        .keyspace("dedupe", || fjall::KeyspaceCreateOptions::default())
+    let partition = keyspace
+        .open_partition("dedupe", fjall::PartitionCreateOptions::default())
         .unwrap();
 
     let valid_key = DedupeKey::parse("rq-null-bytes-ve-3zrs").unwrap();
@@ -353,11 +353,11 @@ fn red_queen_fjall_corruption_null_bytes_in_value_handled() {
 #[test]
 fn red_queen_fjall_schema_migration_binary_format_readable() {
     let dir = tempdir().unwrap();
-    let database = fjall::Database::builder(dir.path()).open().unwrap();
-    let store = FjallDedupeStore::open(&database).unwrap();
+    let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+    let store = FjallDedupeStore::open(&keyspace).unwrap();
 
-    let partition = database
-        .keyspace("dedupe", || fjall::KeyspaceCreateOptions::default())
+    let partition = keyspace
+        .open_partition("dedupe", fjall::PartitionCreateOptions::default())
         .unwrap();
 
     let valid_key = DedupeKey::parse("rq-schema-migrate-ve-3zrs").unwrap();
@@ -390,11 +390,11 @@ fn red_queen_fjall_schema_migration_binary_format_readable() {
 #[test]
 fn red_queen_fjall_schema_migration_binary_roundtrip() {
     let dir = tempdir().unwrap();
-    let database = fjall::Database::builder(dir.path()).open().unwrap();
-    let store = FjallDedupeStore::open(&database).unwrap();
+    let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+    let store = FjallDedupeStore::open(&keyspace).unwrap();
 
-    let partition = database
-        .keyspace("dedupe", || fjall::KeyspaceCreateOptions::default())
+    let partition = keyspace
+        .open_partition("dedupe", fjall::PartitionCreateOptions::default())
         .unwrap();
 
     let valid_key = DedupeKey::parse("rq-schema-reorder-ve-3zrs").unwrap();
@@ -416,11 +416,11 @@ fn red_queen_fjall_schema_migration_binary_roundtrip() {
 #[test]
 fn red_queen_fjall_schema_migration_minimal_v1_format() {
     let dir = tempdir().unwrap();
-    let database = fjall::Database::builder(dir.path()).open().unwrap();
-    let store = FjallDedupeStore::open(&database).unwrap();
+    let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+    let store = FjallDedupeStore::open(&keyspace).unwrap();
 
-    let partition = database
-        .keyspace("dedupe", || fjall::KeyspaceCreateOptions::default())
+    let partition = keyspace
+        .open_partition("dedupe", fjall::PartitionCreateOptions::default())
         .unwrap();
 
     let valid_key = DedupeKey::parse("rq-schema-minimal-ve-3zrs").unwrap();
@@ -442,11 +442,11 @@ fn red_queen_fjall_schema_migration_minimal_v1_format() {
 #[test]
 fn red_queen_fjall_schema_migration_binary_with_trailing_bytes() {
     let dir = tempdir().unwrap();
-    let database = fjall::Database::builder(dir.path()).open().unwrap();
-    let store = FjallDedupeStore::open(&database).unwrap();
+    let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+    let store = FjallDedupeStore::open(&keyspace).unwrap();
 
-    let partition = database
-        .keyspace("dedupe", || fjall::KeyspaceCreateOptions::default())
+    let partition = keyspace
+        .open_partition("dedupe", fjall::PartitionCreateOptions::default())
         .unwrap();
 
     let valid_key = DedupeKey::parse("rq-schema-unknown-ve-3zrs").unwrap();
@@ -484,12 +484,12 @@ fn red_queen_fjall_schema_migration_binary_with_trailing_bytes() {
 #[test]
 fn red_queen_fjall_concurrent_schema_migration_and_purge() {
     let dir = tempdir().unwrap();
-    let database = fjall::Database::builder(dir.path()).open().unwrap();
-    let store = FjallDedupeStore::open(&database).unwrap();
+    let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+    let store = FjallDedupeStore::open(&keyspace).unwrap();
     let store = Arc::new(store);
 
-    let partition = database
-        .keyspace("dedupe", || fjall::KeyspaceCreateOptions::default())
+    let partition = keyspace
+        .open_partition("dedupe", fjall::PartitionCreateOptions::default())
         .unwrap();
 
     for i in 0..16usize {
@@ -568,11 +568,11 @@ fn red_queen_fjall_concurrent_schema_migration_and_purge() {
 #[test]
 fn red_queen_fjall_lease_corruption_truncated_key_handled() {
     let dir = tempdir().unwrap();
-    let database = fjall::Database::builder(dir.path()).open().unwrap();
-    let lease_store = FjallLeaseStore::open(&database).unwrap();
+    let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+    let lease_store = FjallLeaseStore::open(&keyspace).unwrap();
 
-    let partition = database
-        .keyspace("leases", || fjall::KeyspaceCreateOptions::default())
+    let partition = keyspace
+        .open_partition("leases", fjall::PartitionCreateOptions::default())
         .unwrap();
 
     let truncated_key = vec![0xFF, 0xFE];
@@ -599,11 +599,11 @@ fn red_queen_fjall_lease_corruption_truncated_key_handled() {
 #[test]
 fn red_queen_fjall_lease_schema_migration_old_format() {
     let dir = tempdir().unwrap();
-    let database = fjall::Database::builder(dir.path()).open().unwrap();
-    let lease_store = FjallLeaseStore::open(&database).unwrap();
+    let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+    let lease_store = FjallLeaseStore::open(&keyspace).unwrap();
 
-    let partition = database
-        .keyspace("leases", || fjall::KeyspaceCreateOptions::default())
+    let partition = keyspace
+        .open_partition("leases", fjall::PartitionCreateOptions::default())
         .unwrap();
 
     let old_format_key = format!("{}::{}", sample_instance_id(), sample_step_id());
@@ -642,12 +642,12 @@ fn red_queen_fjall_lease_schema_migration_old_format() {
 #[test]
 fn red_queen_fjall_partition_isolation_dedupe_corruption_no_effect_on_lease() {
     let dir = tempdir().unwrap();
-    let database = fjall::Database::builder(dir.path()).open().unwrap();
-    let dedupe_store = FjallDedupeStore::open(&database).unwrap();
-    let lease_store = FjallLeaseStore::open(&database).unwrap();
+    let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+    let dedupe_store = FjallDedupeStore::open(&keyspace).unwrap();
+    let lease_store = FjallLeaseStore::open(&keyspace).unwrap();
 
-    let dedupe_partition = database
-        .keyspace("dedupe", || fjall::KeyspaceCreateOptions::default())
+    let dedupe_partition = keyspace
+        .open_partition("dedupe", fjall::PartitionCreateOptions::default())
         .unwrap();
 
     let corrupted_key = vec![0xFF, 0xFE, 0xFD];
@@ -674,12 +674,12 @@ fn red_queen_fjall_partition_isolation_dedupe_corruption_no_effect_on_lease() {
 #[test]
 fn red_queen_fjall_partition_isolation_lease_corruption_no_effect_on_dedupe() {
     let dir = tempdir().unwrap();
-    let database = fjall::Database::builder(dir.path()).open().unwrap();
-    let dedupe_store = FjallDedupeStore::open(&database).unwrap();
-    let lease_store = FjallLeaseStore::open(&database).unwrap();
+    let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+    let dedupe_store = FjallDedupeStore::open(&keyspace).unwrap();
+    let lease_store = FjallLeaseStore::open(&keyspace).unwrap();
 
-    let lease_partition = database
-        .keyspace("leases", || fjall::KeyspaceCreateOptions::default())
+    let lease_partition = keyspace
+        .open_partition("leases", fjall::PartitionCreateOptions::default())
         .unwrap();
 
     let corrupted_key = vec![0xFF, 0xFE, 0xFD];
@@ -710,9 +710,9 @@ fn red_queen_fjall_partition_isolation_lease_corruption_no_effect_on_dedupe() {
 #[test]
 fn red_queen_fjall_high_concurrency_multi_partition_stress() {
     let dir = tempdir().unwrap();
-    let database = fjall::Database::builder(dir.path()).open().unwrap();
-    let dedupe_store = FjallDedupeStore::open(&database).unwrap();
-    let lease_store = FjallLeaseStore::open(&database).unwrap();
+    let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+    let dedupe_store = FjallDedupeStore::open(&keyspace).unwrap();
+    let lease_store = FjallLeaseStore::open(&keyspace).unwrap();
 
     let dedupe_store = Arc::new(dedupe_store);
     let lease_store = Arc::new(lease_store);

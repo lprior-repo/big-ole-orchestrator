@@ -15,7 +15,7 @@ impl Default for StatusConfig {
     }
 }
 
-#[derive(Debug, thiserror::Error, PartialEq)]
+#[derive(Debug, thiserror::Error)]
 pub enum StatusError {
     #[error("API unreachable at {url}: {reason}")]
     Unreachable { url: String, reason: String },

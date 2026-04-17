@@ -457,7 +457,6 @@ impl HistoryEntry {
     /// * `snapshot_after` - State after the command
     /// * `batch_metadata` - Optional batch metadata for extension commands
     /// * `command_id` - Optional pre-generated command ID (for undo tracking)
-    #[allow(clippy::expect_used)]
     pub fn new(
         kind: CommandKind,
         snapshot_before: Option<WorkflowSnapshot>,
@@ -643,7 +642,6 @@ impl CommandHistory {
     /// - `Ok(true)` if undo was successful
     /// - `Ok(false)` if nothing to undo
     /// - `Err(...)` if an error occurred (e.g., missing snapshot, checksum mismatch)
-    #[allow(clippy::expect_used)]
     pub fn undo(&mut self) -> Result<bool, CommandHistoryError> {
         if self.undo_stack.is_empty() {
             return Ok(false);
@@ -693,7 +691,6 @@ impl CommandHistory {
     /// - `Ok(true)` if redo was successful
     /// - `Ok(false)` if nothing to redo
     /// - `Err(...)` if an error occurred (e.g., missing snapshot)
-    #[allow(clippy::expect_used)]
     pub fn redo(&mut self) -> Result<bool, CommandHistoryError> {
         if self.redo_stack.is_empty() {
             return Ok(false);

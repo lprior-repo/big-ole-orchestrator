@@ -55,10 +55,7 @@ fn dur_004_budget_rejection_under_pressure() {
         events_rejected = rejected;
 
         assert!(events_accepted > 0, "Some events must be accepted");
-        assert!(
-            events_rejected > 0,
-            "Some events must be rejected under pressure"
-        );
+        assert!(events_rejected > 0, "Some events must be rejected under pressure");
     }
 
     // Phase 2: Verify accepted events survived crash

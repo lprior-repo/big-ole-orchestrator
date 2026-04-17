@@ -67,11 +67,9 @@ impl<T: Clone + Serialize> Octree<T> {
             return true;
         }
         self.subdivide();
-        if let Some(children) = self.children.as_mut() {
-            for child in children.iter_mut() {
-                if child.insert(point, value.clone()) {
-                    return true;
-                }
+        for child in self.children.as_mut().unwrap().iter_mut() {
+            if child.insert(point, value.clone()) {
+                return true;
             }
         }
         false
@@ -110,12 +108,10 @@ impl<T: Clone + Serialize> Octree<T> {
             Octree::new(Bounds::new(corners[i], opp[i]))
         })));
         let drained: Vec<_> = self.data.drain(..).collect();
-        if let Some(children) = self.children.as_mut() {
-            for (pt, val) in drained {
-                for child in children.iter_mut() {
-                    if child.insert(pt, val.clone()) {
-                        break;
-                    }
+        for (pt, val) in drained {
+            for child in self.children.as_mut().unwrap().iter_mut() {
+                if child.insert(pt, val.clone()) {
+                    break;
                 }
             }
         }
@@ -157,22 +153,5 @@ impl<T: Clone + Serialize> Octree<T> {
             }
         }
         n
-    }
-
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn is_empty_on_new_octree() {
-        let bounds = Bounds::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(10.0, 10.0, 10.0));
-        let tree: Octree<i32> = Octree::new(bounds);
-        assert!(tree.is_empty());
     }
 }

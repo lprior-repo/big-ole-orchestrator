@@ -316,7 +316,12 @@ impl CredentialVault {
             .entries
             .values()
             .map(|entry| {
-                let rotation_status = entry.rotation_state.state();
+                let rotation_status = match entry.rotation_state.state() {
+                    vo_types::credentials::RotationStatus::Idle => {
+                        vo_types::credentials::RotationStatus::Idle
+                    }
+                    other => other,
+                };
                 CredentialSummary {
                     id: entry.credential.id.clone(),
                     name: entry.credential.name.clone(),

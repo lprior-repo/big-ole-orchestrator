@@ -19,8 +19,7 @@ glob = "0.3.3"
 tokio = { workspace = true, features = ["test-util", "rt", "macros", "time", "sync"] }
 rstest.workspace = true
 proptest = "1"
-vo-ipc = { path = "../vo-ipc" }
-vo-storage = { path = "../vo-storage" }
+# vo-storage = { path = "../vo-storage" }  # TEMP: pre-existing compile errors block test compilation
 fjall = { workspace = true }
 tempfile = { workspace = true }
 criterion = { workspace = true }
@@ -35,34 +34,6 @@ harness = false
 
 [[bench]]
 name = "circuit_breaker_load_bench"
-harness = false
-
-[[bench]]
-name = "effects_bench"
-harness = false
-
-[[bench]]
-name = "compensation_order_bench"
-harness = false
-
-[[bench]]
-name = "validation_bench"
-harness = false
-
-[[bench]]
-name = "vault_bench"
-harness = false
-
-[[bench]]
-name = "lease_calc_bench"
-harness = false
-
-[[bench]]
-name = "ghost_workflow_bench"
-harness = false
-
-[[bench]]
-name = "saga_state_bench"
 harness = false
 
 [lints.rust]

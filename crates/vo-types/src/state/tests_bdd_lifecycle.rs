@@ -93,10 +93,7 @@ mod invalid_transitions {
     #[test]
     fn given_running_decision_when_complete_step_then_invalid_transition_error() {
         // Must go through StepScheduled → StepExecuting first
-        let result = apply(
-            LifecycleState::RunningDecision,
-            TransitionEvent::CompleteStep,
-        );
+        let result = apply(LifecycleState::RunningDecision, TransitionEvent::CompleteStep);
         assert_eq!(result, Err(TransitionError::InvalidTransition));
     }
 
@@ -315,11 +312,7 @@ mod terminal_reachability {
 
     #[test]
     fn given_waiting_for_timer_when_timer_expired_then_failed() {
-        let next = apply(
-            LifecycleState::WaitingForTimer,
-            TransitionEvent::TimerExpired,
-        )
-        .unwrap();
+        let next = apply(LifecycleState::WaitingForTimer, TransitionEvent::TimerExpired).unwrap();
         assert_eq!(next, LifecycleState::Failed);
         assert!(next.is_terminal());
         assert_eq!(next.superstate(), LifecycleSuperstate::Terminal);
@@ -491,7 +484,9 @@ mod terminal_reachability {
                     continue;
                 }
                 // EmitOutputRef is valid from Completed but not in get_valid_transitions()
-                if state == LifecycleState::Completed && *event == TransitionEvent::EmitOutputRef {
+                if state == LifecycleState::Completed
+                    && *event == TransitionEvent::EmitOutputRef
+                {
                     continue;
                 }
                 let result = apply(state, *event);

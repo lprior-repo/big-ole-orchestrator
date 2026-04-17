@@ -296,7 +296,9 @@ pub fn poll_expired_timers(
         let duration_ms = u64::from_be_bytes(duration_bytes);
         let trigger_time_ms = fire_at_ms.saturating_sub(duration_ms);
 
-        storage.delete(&k)?;
+        if let Err(e) = storage.delete(&k) {
+            return Err(e);
+        }
 
         deleted += 1;
         claimed.push(TimerRecord {

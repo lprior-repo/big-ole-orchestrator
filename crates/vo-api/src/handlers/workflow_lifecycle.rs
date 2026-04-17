@@ -1,3 +1,4 @@
+use std::time::Duration;
 use axum::{
     extract::{Extension, Json, Path},
     http::StatusCode,
@@ -6,12 +7,11 @@ use axum::{
 use ractor::rpc::CallResult;
 use ractor::ActorRef;
 use serde::{Deserialize, Serialize};
-use std::time::Duration;
 use vo_actor::{OrchestratorMsg, TerminateError};
 use vo_types::WorkflowName;
 
-use crate::handlers::helpers::split_path_id;
 use crate::types::ApiError;
+use crate::handlers::helpers::split_path_id;
 
 const ACTOR_CALL_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -203,13 +203,9 @@ pub async fn compensate_workflow(
             )),
         )
             .into_response(),
-        Ok(CallResult::Success(Ok(_))) => (
-            StatusCode::ACCEPTED,
-            Json(serde_json::json!({
-                "instance_id": id,
-                "status": "compensation_initiated",
-            })),
-        )
-            .into_response(),
+        Ok(CallResult::Success(Ok(_))) => (StatusCode::ACCEPTED, Json(serde_json::json!({
+            "instance_id": id,
+            "status": "compensation_initiated",
+        }))).into_response(),
     }
 }

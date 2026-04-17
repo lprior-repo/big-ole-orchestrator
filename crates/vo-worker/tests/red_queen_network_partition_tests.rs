@@ -10,17 +10,17 @@
 //! These tests attack the contracts from the other side — they verify that
 //! the system fails (or succeeds) correctly under adversarial network conditions.
 
-use async_trait::async_trait;
-use std::sync::Arc;
 use std::sync::LazyLock;
 use std::sync::Mutex;
 use std::sync::MutexGuard;
+use std::sync::Arc;
 use std::time::Duration;
+use async_trait::async_trait;
 use vo_worker::{
-    CommitOutcome, Connector, ConnectorError, LockError, LockId, LockManager,
-    LockManagerRetryWrapper, LockMode, LockPromote, LockPromoteResponse, LockQuery,
-    LockQueryResponse, LockRelease, LockRequest, LockResponse, OwnerId, PreparedEffect,
-    ReconcileOutcome, RetryConfig,
+    CommitOutcome, Connector, ConnectorError, PreparedEffect, ReconcileOutcome,
+    LockError, LockId, LockMode, LockQuery, LockQueryResponse, LockRelease,
+    LockRequest, LockResponse, LockPromote, LockPromoteResponse, LockManager,
+    OwnerId, RetryConfig, LockManagerRetryWrapper,
 };
 
 static STATE_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
@@ -48,13 +48,11 @@ impl NetworkPartitionConnector {
     }
 
     fn induce_partition(&self) {
-        self.fail_mode
-            .store(true, std::sync::atomic::Ordering::SeqCst);
+        self.fail_mode.store(true, std::sync::atomic::Ordering::SeqCst);
     }
 
     fn heal_partition(&self) {
-        self.fail_mode
-            .store(false, std::sync::atomic::Ordering::SeqCst);
+        self.fail_mode.store(false, std::sync::atomic::Ordering::SeqCst);
     }
 
     fn is_partitioned(&self) -> bool {
@@ -69,40 +67,24 @@ impl NetworkPartitionConnector {
 impl Clone for NetworkPartitionConnector {
     fn clone(&self) -> Self {
         Self {
-            fail_mode: std::sync::atomic::AtomicBool::new(
-                self.fail_mode.load(std::sync::atomic::Ordering::SeqCst),
-            ),
-            call_count: std::sync::atomic::AtomicUsize::new(
-                self.call_count.load(std::sync::atomic::Ordering::SeqCst),
-            ),
+            fail_mode: std::sync::atomic::AtomicBool::new(self.fail_mode.load(std::sync::atomic::Ordering::SeqCst)),
+            call_count: std::sync::atomic::AtomicUsize::new(self.call_count.load(std::sync::atomic::Ordering::SeqCst)),
         }
     }
 }
 
 #[async_trait]
 impl Connector for NetworkPartitionConnector {
-    fn connector_type(&self) -> &str {
-        "network-partition"
-    }
-    fn connector_version(&self) -> &str {
-        "0.1.0"
-    }
-    fn supports_compensation(&self) -> bool {
-        true
-    }
+    fn connector_type(&self) -> &str { "network-partition" }
+    fn connector_version(&self) -> &str { "0.1.0" }
+    fn supports_compensation(&self) -> bool { true }
 
     async fn prepare(
-        &self,
-        _intent: serde_json::Value,
-        effect_id: String,
-        fence: u64,
+        &self, _intent: serde_json::Value, effect_id: String, fence: u64,
     ) -> Result<PreparedEffect, ConnectorError> {
-        self.call_count
-            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        self.call_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         if self.is_partitioned() {
-            Err(ConnectorError::retryable(
-                "NATS connection timeout: network partition",
-            ))
+            Err(ConnectorError::retryable("NATS connection timeout: network partition"))
         } else {
             Ok(PreparedEffect {
                 effect_id,
@@ -112,27 +94,23 @@ impl Connector for NetworkPartitionConnector {
         }
     }
 
-    async fn commit(&self, _prepared: PreparedEffect) -> Result<CommitOutcome, ConnectorError> {
-        self.call_count
-            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    async fn commit(
+        &self, _prepared: PreparedEffect,
+    ) -> Result<CommitOutcome, ConnectorError> {
+        self.call_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         if self.is_partitioned() {
-            Err(ConnectorError::retryable(
-                "NATS send failed: network unreachable",
-            ))
+            Err(ConnectorError::retryable("NATS send failed: network unreachable"))
         } else {
-            Ok(CommitOutcome::Committed {
-                receipt: "ok".into(),
-            })
+            Ok(CommitOutcome::Committed { receipt: "ok".into() })
         }
     }
 
-    async fn reconcile(&self, _effect_id: &str) -> Result<ReconcileOutcome, ConnectorError> {
-        self.call_count
-            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    async fn reconcile(
+        &self, _effect_id: &str,
+    ) -> Result<ReconcileOutcome, ConnectorError> {
+        self.call_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         if self.is_partitioned() {
-            Err(ConnectorError::retryable(
-                "NATS subscription failed: network unreachable",
-            ))
+            Err(ConnectorError::retryable("NATS subscription failed: network unreachable"))
         } else {
             Ok(ReconcileOutcome::NotCommitted)
         }
@@ -159,23 +137,19 @@ impl PartitionableLockManager {
     }
 
     fn induce_partition(&self) {
-        self.is_partitioned
-            .store(true, std::sync::atomic::Ordering::SeqCst);
+        self.is_partitioned.store(true, std::sync::atomic::Ordering::SeqCst);
     }
 
     fn heal_partition(&self) {
-        self.is_partitioned
-            .store(false, std::sync::atomic::Ordering::SeqCst);
+        self.is_partitioned.store(false, std::sync::atomic::Ordering::SeqCst);
     }
 
     fn is_partitioned(&self) -> bool {
-        self.is_partitioned
-            .load(std::sync::atomic::Ordering::SeqCst)
+        self.is_partitioned.load(std::sync::atomic::Ordering::SeqCst)
     }
 
     fn partition_call_count(&self) -> usize {
-        self.partition_call_count
-            .load(std::sync::atomic::Ordering::SeqCst)
+        self.partition_call_count.load(std::sync::atomic::Ordering::SeqCst)
     }
 }
 
@@ -189,14 +163,8 @@ impl Clone for PartitionableLockManager {
     fn clone(&self) -> Self {
         Self {
             locked_locks: self.locked_locks.clone(),
-            is_partitioned: std::sync::atomic::AtomicBool::new(
-                self.is_partitioned
-                    .load(std::sync::atomic::Ordering::SeqCst),
-            ),
-            partition_call_count: std::sync::atomic::AtomicUsize::new(
-                self.partition_call_count
-                    .load(std::sync::atomic::Ordering::SeqCst),
-            ),
+            is_partitioned: std::sync::atomic::AtomicBool::new(self.is_partitioned.load(std::sync::atomic::Ordering::SeqCst)),
+            partition_call_count: std::sync::atomic::AtomicUsize::new(self.partition_call_count.load(std::sync::atomic::Ordering::SeqCst)),
         }
     }
 }
@@ -204,8 +172,7 @@ impl Clone for PartitionableLockManager {
 #[async_trait]
 impl LockManager for PartitionableLockManager {
     async fn acquire(&self, request: LockRequest) -> LockResponse {
-        self.partition_call_count
-            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        self.partition_call_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
 
         if self.is_partitioned() {
             return LockResponse {
@@ -251,13 +218,10 @@ impl LockManager for PartitionableLockManager {
     }
 
     async fn release(&self, release: LockRelease) -> Result<(), LockError> {
-        self.partition_call_count
-            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        self.partition_call_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
 
         if self.is_partitioned() {
-            return Err(LockError::Nats(
-                "network partition: cannot release lock".to_string(),
-            ));
+            return Err(LockError::Nats("network partition: cannot release lock".to_string()));
         }
 
         let lock_key = release.lock_id.as_str().to_string();
@@ -277,14 +241,12 @@ impl LockManager for PartitionableLockManager {
     }
 
     async fn query(&self, _query: LockQuery) -> LockQueryResponse {
-        self.partition_call_count
-            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        self.partition_call_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         LockQueryResponse { locks: vec![] }
     }
 
     async fn promote(&self, _promote: LockPromote) -> LockPromoteResponse {
-        self.partition_call_count
-            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        self.partition_call_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         LockPromoteResponse {
             request_id: String::new(),
             lock_id: _promote.lock_id,
@@ -294,48 +256,31 @@ impl LockManager for PartitionableLockManager {
         }
     }
 
-    async fn demote(
-        &self,
-        lock_id: LockId,
-        _owner: OwnerId,
-        _hold_token: String,
-    ) -> Result<LockMode, LockError> {
-        self.partition_call_count
-            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    async fn demote(&self, lock_id: LockId, _owner: OwnerId, _hold_token: String) -> Result<LockMode, LockError> {
+        self.partition_call_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         Err(LockError::NotFound(lock_id))
     }
 
     async fn extend_ttl(
-        &self,
-        lock_id: LockId,
-        _owner: OwnerId,
-        _hold_token: String,
-        _ttl_ms: u64,
+        &self, lock_id: LockId, _owner: OwnerId, _hold_token: String, _ttl_ms: u64,
     ) -> Result<chrono::DateTime<chrono::Utc>, LockError> {
-        self.partition_call_count
-            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        self.partition_call_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         if self.is_partitioned() {
-            return Err(LockError::Nats(
-                "network partition: cannot extend TTL".to_string(),
-            ));
+            return Err(LockError::Nats("network partition: cannot extend TTL".to_string()));
         }
         Err(LockError::NotFound(lock_id))
     }
 
     async fn is_locked(&self, lock_id: &LockId) -> bool {
-        self.partition_call_count
-            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        self.partition_call_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         let locks = self.locked_locks.lock().unwrap();
         locks.contains_key(lock_id.as_str())
     }
 
     async fn get_holder(&self, lock_id: &LockId) -> Option<(OwnerId, LockMode)> {
-        self.partition_call_count
-            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        self.partition_call_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         let locks = self.locked_locks.lock().unwrap();
-        locks
-            .get(lock_id.as_str())
-            .map(|(o, _)| (o.clone(), LockMode::Exclusive))
+        locks.get(lock_id.as_str()).map(|(o, _)| (o.clone(), LockMode::Exclusive))
     }
 }
 
@@ -363,10 +308,7 @@ mod red_queen_network_partition_acquire_tests {
         };
 
         let response = manager.acquire(request).await;
-        assert!(
-            !response.granted,
-            "lock should not be granted during partition"
-        );
+        assert!(!response.granted, "lock should not be granted during partition");
         assert!(response.error.is_some());
         let error_msg = response.error.unwrap();
         assert!(error_msg.contains("NATS") || error_msg.contains("network"));
@@ -394,10 +336,7 @@ mod red_queen_network_partition_acquire_tests {
         manager.heal_partition();
 
         let response_healed = manager.acquire(request).await;
-        assert!(
-            response_healed.granted,
-            "lock should be granted after partition heals"
-        );
+        assert!(response_healed.granted, "lock should be granted after partition heals");
         assert!(response_healed.hold_token.is_some());
     }
 
@@ -429,10 +368,7 @@ mod red_queen_network_partition_acquire_tests {
             }
         }
 
-        assert_eq!(
-            failure_count, 5,
-            "all acquires should fail during partition"
-        );
+        assert_eq!(failure_count, 5, "all acquires should fail during partition");
     }
 
     #[tokio::test]
@@ -453,28 +389,20 @@ mod red_queen_network_partition_acquire_tests {
         };
 
         let response = wrapper.acquire(request).await;
-        assert!(
-            !response.granted,
-            "lock should not be granted after retries exhausted"
-        );
+        assert!(!response.granted, "lock should not be granted after retries exhausted");
         assert!(response.error.is_some());
 
         manager.heal_partition();
 
-        let response_after_heal = wrapper
-            .acquire(LockRequest {
-                lock_id: LockId::new("test-lock-2"),
-                owner: OwnerId::new("owner1".to_string()),
-                mode: LockMode::Exclusive,
-                ttl_ms: 1000,
-                request_id: "req2".to_string(),
-            })
-            .await;
+        let response_after_heal = wrapper.acquire(LockRequest {
+            lock_id: LockId::new("test-lock-2"),
+            owner: OwnerId::new("owner1".to_string()),
+            mode: LockMode::Exclusive,
+            ttl_ms: 1000,
+            request_id: "req2".to_string(),
+        }).await;
 
-        assert!(
-            response_after_heal.granted,
-            "lock should succeed after partition heals"
-        );
+        assert!(response_after_heal.granted, "lock should succeed after partition heals");
     }
 }
 
@@ -513,10 +441,7 @@ mod red_queen_network_partition_release_tests {
         let result = manager.release(release).await;
         assert!(result.is_err(), "release should fail during partition");
         let err = result.unwrap_err();
-        assert!(
-            matches!(err, LockError::Nats(_)),
-            "error should be NATS error"
-        );
+        assert!(matches!(err, LockError::Nats(_)), "error should be NATS error");
     }
 
     #[tokio::test]
@@ -537,28 +462,21 @@ mod red_queen_network_partition_release_tests {
 
         manager.induce_partition();
 
-        let release_partitioned = manager
-            .release(LockRelease {
-                lock_id: LockId::new("test-lock"),
-                owner: OwnerId::new("owner1".to_string()),
-                hold_token: acquire_response.hold_token.clone().unwrap(),
-            })
-            .await;
+        let release_partitioned = manager.release(LockRelease {
+            lock_id: LockId::new("test-lock"),
+            owner: OwnerId::new("owner1".to_string()),
+            hold_token: acquire_response.hold_token.clone().unwrap(),
+        }).await;
         assert!(release_partitioned.is_err());
 
         manager.heal_partition();
 
-        let release_healed = manager
-            .release(LockRelease {
-                lock_id: LockId::new("test-lock"),
-                owner: OwnerId::new("owner1".to_string()),
-                hold_token: acquire_response.hold_token.unwrap(),
-            })
-            .await;
-        assert!(
-            release_healed.is_ok(),
-            "release should succeed after partition heals"
-        );
+        let release_healed = manager.release(LockRelease {
+            lock_id: LockId::new("test-lock"),
+            owner: OwnerId::new("owner1".to_string()),
+            hold_token: acquire_response.hold_token.unwrap(),
+        }).await;
+        assert!(release_healed.is_ok(), "release should succeed after partition heals");
     }
 
     #[tokio::test]
@@ -587,10 +505,7 @@ mod red_queen_network_partition_release_tests {
         let _ = manager.release(release).await;
 
         let is_locked = manager.is_locked(&LockId::new("test-lock")).await;
-        assert!(
-            is_locked,
-            "lock should still be held after failed release during partition"
-        );
+        assert!(is_locked, "lock should still be held after failed release during partition");
     }
 }
 
@@ -620,21 +535,16 @@ mod red_queen_network_partition_ttl_tests {
 
         manager.induce_partition();
 
-        let result = manager
-            .extend_ttl(
-                LockId::new("test-lock"),
-                OwnerId::new("owner1".to_string()),
-                acquire_response.hold_token.unwrap(),
-                5000,
-            )
-            .await;
+        let result = manager.extend_ttl(
+            LockId::new("test-lock"),
+            OwnerId::new("owner1".to_string()),
+            acquire_response.hold_token.unwrap(),
+            5000,
+        ).await;
 
         assert!(result.is_err());
         let err = result.unwrap_err();
-        assert!(
-            matches!(err, LockError::Nats(_)),
-            "TTL extend should fail with NATS error during partition"
-        );
+        assert!(matches!(err, LockError::Nats(_)), "TTL extend should fail with NATS error during partition");
     }
 
     #[tokio::test]
@@ -659,10 +569,7 @@ mod red_queen_network_partition_ttl_tests {
         manager.induce_partition();
 
         let is_locked_during = manager.is_locked(&LockId::new("test-lock")).await;
-        assert!(
-            is_locked_during,
-            "is_locked should still return true during partition"
-        );
+        assert!(is_locked_during, "is_locked should still return true during partition");
     }
 
     #[tokio::test]
@@ -684,10 +591,7 @@ mod red_queen_network_partition_ttl_tests {
         manager.induce_partition();
 
         let holder = manager.get_holder(&LockId::new("test-lock")).await;
-        assert!(
-            holder.is_some(),
-            "get_holder should return holder during partition"
-        );
+        assert!(holder.is_some(), "get_holder should return holder during partition");
         let (owner, mode) = holder.unwrap();
         assert_eq!(owner, OwnerId::new("owner1".to_string()));
         assert_eq!(mode, LockMode::Exclusive);
@@ -719,12 +623,10 @@ mod red_queen_network_partition_query_tests {
 
         manager.induce_partition();
 
-        let query_response = manager
-            .query(LockQuery {
-                lock_id: None,
-                owner: None,
-            })
-            .await;
+        let query_response = manager.query(LockQuery {
+            lock_id: None,
+            owner: None,
+        }).await;
 
         assert!(query_response.locks.is_empty());
         assert_eq!(manager.partition_call_count(), 2);
@@ -765,10 +667,7 @@ mod red_queen_network_partition_deadlock_tests {
         });
 
         let cycle = graph.detect_cycle();
-        assert!(
-            cycle.is_some(),
-            "deadlock should be detected even during partition simulation"
-        );
+        assert!(cycle.is_some(), "deadlock should be detected even during partition simulation");
         let cycle_owners = cycle.unwrap();
         assert!(cycle_owners.len() == 2);
     }
@@ -828,10 +727,7 @@ mod red_queen_network_partition_recovery_tests {
         manager.heal_partition();
 
         let response_healed = manager.acquire(request).await;
-        assert!(
-            response_healed.granted,
-            "system should recover and grant lock"
-        );
+        assert!(response_healed.granted, "system should recover and grant lock");
         assert_eq!(manager.partition_call_count(), 2);
     }
 
@@ -852,20 +748,12 @@ mod red_queen_network_partition_recovery_tests {
             };
 
             let response_partitioned = manager.acquire(request.clone()).await;
-            assert!(
-                !response_partitioned.granted,
-                "cycle {}: acquire should fail during partition",
-                i
-            );
+            assert!(!response_partitioned.granted, "cycle {}: acquire should fail during partition", i);
 
             manager.heal_partition();
 
             let response_healed = manager.acquire(request).await;
-            assert!(
-                response_healed.granted,
-                "cycle {}: acquire should succeed after heal",
-                i
-            );
+            assert!(response_healed.granted, "cycle {}: acquire should succeed after heal", i);
         }
     }
 
@@ -892,10 +780,7 @@ mod red_queen_network_partition_recovery_tests {
 
         let wrapper = LockManagerRetryWrapper::new(&manager, config);
         let response_healed = wrapper.acquire(request).await;
-        assert!(
-            response_healed.granted,
-            "lock should be granted after partition heals"
-        );
+        assert!(response_healed.granted, "lock should be granted after partition heals");
     }
 }
 
@@ -962,16 +847,12 @@ mod red_queen_network_partition_connector_tests {
         let connector = NetworkPartitionConnector::new();
 
         connector.induce_partition();
-        let result_partitioned = connector
-            .prepare(serde_json::json!({}), "fx-1".into(), 1)
-            .await;
+        let result_partitioned = connector.prepare(serde_json::json!({}), "fx-1".into(), 1).await;
         assert!(result_partitioned.is_err());
 
         connector.heal_partition();
 
-        let result_healed = connector
-            .prepare(serde_json::json!({}), "fx-2".into(), 2)
-            .await;
+        let result_healed = connector.prepare(serde_json::json!({}), "fx-2".into(), 2).await;
         assert!(result_healed.is_ok());
         assert_eq!(connector.call_count(), 2);
     }
@@ -983,9 +864,7 @@ mod red_queen_network_partition_connector_tests {
         connector.induce_partition();
 
         for i in 0..5 {
-            let result = connector
-                .prepare(serde_json::json!({}), format!("fx-{}", i), i as u64 + 1)
-                .await;
+            let result = connector.prepare(serde_json::json!({}), format!("fx-{}", i), i as u64 + 1).await;
             assert!(result.is_err(), "call {} should fail", i);
         }
 
@@ -1070,9 +949,6 @@ mod red_queen_network_partition_state_tests {
             }
         }
 
-        assert_eq!(
-            success_count, 5,
-            "all concurrent locks should succeed after recovery"
-        );
+        assert_eq!(success_count, 5, "all concurrent locks should succeed after recovery");
     }
 }

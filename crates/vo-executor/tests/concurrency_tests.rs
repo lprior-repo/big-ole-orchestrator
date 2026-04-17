@@ -590,11 +590,9 @@ mod concurrency_resource_tests {
                     let retrieved = get_state(SHARED_KEY);
                     if let StepState::Completed { output, .. } = &retrieved {
                         assert_eq!(
-                            output,
-                            &expected_value.to_string(),
+                            output, &expected_value.to_string(),
                             "Got unexpected value for shared key: expected {}, got {}",
-                            expected_value,
-                            output
+                            expected_value, output
                         );
                     }
                 }
@@ -610,9 +608,9 @@ mod concurrency_resource_tests {
     #[tokio::test]
     async fn stress_concurrent_set_error_clear_error_last_write_wins() {
         let _guard = state_guard();
-        use std::sync::atomic::{AtomicU64, Ordering};
-        use vo_executor::errors::ExecuteNodeError;
         use vo_executor::state::{get_last_error, set_error};
+        use vo_executor::errors::ExecuteNodeError;
+        use std::sync::atomic::{AtomicU64, Ordering};
 
         static LAST_WRITER_ID: AtomicU64 = AtomicU64::new(0);
 
@@ -642,7 +640,10 @@ mod concurrency_resource_tests {
 
         let final_writer = LAST_WRITER_ID.load(Ordering::SeqCst);
         let retrieved = get_last_error(SHARED_KEY);
-        assert!(retrieved.is_some(), "Error should exist for shared key");
+        assert!(
+            retrieved.is_some(),
+            "Error should exist for shared key"
+        );
         if let Some(err) = retrieved {
             match err {
                 ExecuteNodeError::ExecutionCancelled { reason } => {
@@ -661,9 +662,9 @@ mod concurrency_resource_tests {
     #[tokio::test]
     async fn stress_concurrent_different_keys_error_count_monotonic() {
         let _guard = state_guard();
-        use std::sync::atomic::{AtomicUsize, Ordering};
-        use vo_executor::errors::ExecuteNodeError;
         use vo_executor::{get_error_count, set_error};
+        use vo_executor::errors::ExecuteNodeError;
+        use std::sync::atomic::{AtomicUsize, Ordering};
 
         static MAX_COUNT_SEEN: AtomicUsize = AtomicUsize::new(0);
 
@@ -714,9 +715,9 @@ mod concurrency_resource_tests {
     #[tokio::test]
     async fn stress_concurrent_set_clear_state_count_monotonic() {
         let _guard = state_guard();
-        use std::sync::atomic::{AtomicUsize, Ordering};
-        use vo_executor::get_state_count;
         use vo_executor::state::{set_state, StepState};
+        use vo_executor::get_state_count;
+        use std::sync::atomic::{AtomicUsize, Ordering};
 
         static MAX_COUNT_SEEN: AtomicUsize = AtomicUsize::new(0);
 
@@ -768,8 +769,8 @@ mod concurrency_resource_tests {
     #[tokio::test]
     async fn stress_reset_all_state_during_active_operations_no_panic() {
         let _guard = state_guard();
-        use vo_executor::reset_all_state;
         use vo_executor::state::{get_state, set_state, StepState};
+        use vo_executor::reset_all_state;
 
         const OUTER_ITERS: usize = 20;
         const INNER_OPS: usize = 100;
@@ -834,9 +835,9 @@ mod concurrency_resource_tests {
     #[tokio::test]
     async fn stress_concurrent_mixed_state_and_error_operations() {
         let _guard = state_guard();
-        use std::sync::atomic::{AtomicUsize, Ordering};
+        use vo_executor::state::{get_state, set_state, StepState, clear_error, set_error};
         use vo_executor::errors::ExecuteNodeError;
-        use vo_executor::state::{clear_error, get_state, set_error, set_state, StepState};
+        use std::sync::atomic::{AtomicUsize, Ordering};
 
         static TOTAL_OPS: AtomicUsize = AtomicUsize::new(0);
 

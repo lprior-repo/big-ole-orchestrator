@@ -506,10 +506,7 @@ fn parse_unknown_subcommand() {
 fn parse_check_path_with_spaces() {
     let cli = interpret_cli_from(vec!["vo", "check", "/path/with spaces/bin"]).unwrap();
     match cli.command {
-        Command::Check {
-            workflow: false,
-            path,
-        } => {
+        Command::Check { workflow: false, path } => {
             assert_eq!(path, PathBuf::from("/path/with spaces/bin"));
         }
         _ => panic!("expected Check"),
@@ -964,7 +961,6 @@ fn history_save_and_reload_roundtrip() {
     let snapshot = vo_types::WorkflowSnapshot::new(
         "wf-test".into(),
         vec![vo_types::DagNode {
-            compensation_policy: None,
             node_name: vo_types::NodeName::parse("node-1").unwrap(),
             retry_policy: vo_types::RetryPolicy::new(3, 1000, 2.0).unwrap(),
         }],
@@ -1104,10 +1100,7 @@ impl MiddlewareV2 for AbortMiddleware {
 async fn dispatch_v2_abort_middleware_returns_error() {
     let dispatcher = CommandDispatcherV2::new().with_middleware(AbortMiddleware);
     let cli = vo_cli::Cli {
-        command: Command::Check {
-            workflow: false,
-            path: PathBuf::from("/tmp"),
-        },
+        command: Command::Check { workflow: false, path: PathBuf::from("/tmp"), },
     };
     let result = dispatcher.dispatch(cli).await;
     assert!(result.is_err());
@@ -1133,10 +1126,7 @@ fn registry_lookups_all_commands() {
             "purge",
         ),
         (
-            Command::Check {
-                workflow: false,
-                path: PathBuf::from("/tmp"),
-            },
+            Command::Check { workflow: false, path: PathBuf::from("/tmp"), },
             "check",
         ),
         (
@@ -1424,18 +1414,9 @@ fn binary_format_display_names() {
 
 #[test]
 fn command_equality() {
-    let c1 = Command::Check {
-        workflow: false,
-        path: PathBuf::from("/tmp"),
-    };
-    let c2 = Command::Check {
-        workflow: false,
-        path: PathBuf::from("/tmp"),
-    };
-    let c3 = Command::Check {
-        workflow: false,
-        path: PathBuf::from("/other"),
-    };
+    let c1 = Command::Check { workflow: false, path: PathBuf::from("/tmp"), };
+    let c2 = Command::Check { workflow: false, path: PathBuf::from("/tmp"), };
+    let c3 = Command::Check { workflow: false, path: PathBuf::from("/other"), };
     assert_eq!(c1, c2);
     assert_ne!(c1, c3);
 }

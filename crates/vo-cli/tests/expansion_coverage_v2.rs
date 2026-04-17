@@ -386,10 +386,7 @@ fn parse_purge_with_special_chars_in_instance() {
 fn parse_check_with_absolute_path() {
     let cli = interpret_cli_from(vec!["vo", "check", "/usr/bin/ls"]).unwrap();
     match cli.command {
-        Command::Check {
-            workflow: false,
-            path,
-        } => assert_eq!(path, PathBuf::from("/usr/bin/ls")),
+        Command::Check { workflow: false, path } => assert_eq!(path, PathBuf::from("/usr/bin/ls")),
         _ => panic!("expected Check"),
     }
 }
@@ -398,10 +395,7 @@ fn parse_check_with_absolute_path() {
 fn parse_check_with_relative_path() {
     let cli = interpret_cli_from(vec!["vo", "check", "../bin/app"]).unwrap();
     match cli.command {
-        Command::Check {
-            workflow: false,
-            path,
-        } => assert_eq!(path, PathBuf::from("../bin/app")),
+        Command::Check { workflow: false, path } => assert_eq!(path, PathBuf::from("../bin/app")),
         _ => panic!("expected Check"),
     }
 }
@@ -904,10 +898,7 @@ fn command_all_variants_debug_format() {
         ),
         format!(
             "{:?}",
-            Command::Check {
-                workflow: false,
-                path: PathBuf::from("/tmp")
-            }
+            Command::Check { workflow: false, path: PathBuf::from("/tmp") }
         ),
         format!(
             "{:?}",

@@ -10,9 +10,7 @@ use std::fs;
 use std::sync::Arc;
 
 use tempfile::TempDir;
-use vo_storage::blob_store::{
-    BlobRecord, BlobStore, BlobStoreError, ContentAddress, PackIndexEntry,
-};
+use vo_storage::blob_store::{BlobRecord, BlobStore, BlobStoreError, ContentAddress, PackIndexEntry};
 use vo_storage::checksum::{verify_checksum, ChunkedHasher};
 use vo_storage::codec::{decode_event_key, encode_event_key, StorageError};
 use vo_storage::crypto::{
@@ -21,7 +19,8 @@ use vo_storage::crypto::{
 use vo_storage::fs_store::FsBlobStore;
 use vo_storage::key_encoding::{
     decode_dedupe_key, decode_effect_key, decode_event_key as ke_decode_event_key,
-    decode_lease_key, decode_timer_key, encode_effect_key, encode_lease_key, get_event_key_prefix,
+    decode_lease_key, decode_timer_key, encode_effect_key, encode_lease_key,
+    get_event_key_prefix,
 };
 use vo_storage::merkle_tree::MerkleTree;
 use vo_storage::partitions::{create_partition_layout, open_all_partitions, StorageEngine};
@@ -29,8 +28,8 @@ use vo_storage::snapshots::{
     compact_snapshots, decode_snapshot_key, encode_snapshot_key, snapshot_load_latest,
     snapshot_write, CompatSnapshotLoad, SnapshotDiscardReason,
 };
-use vo_types::state::InstanceState;
 use vo_types::InstanceId;
+use vo_types::state::InstanceState;
 
 fn min_instance_id() -> InstanceId {
     let mut bytes = [0u8; 16];
@@ -48,17 +47,11 @@ fn fjall_truncated_sst_does_not_panic_on_scan() {
     {
         let layout = create_partition_layout(&path).unwrap();
         let partitions = open_all_partitions(&layout).unwrap();
-        let events = partitions
-            .iter()
-            .find(|(n, _)| *n == "events")
-            .unwrap()
-            .1
-            .clone();
+        let events = partitions.iter().find(|(n, _)| *n == "events").unwrap().1.clone();
 
         let id = min_instance_id();
         for seq in 1..=50u64 {
-            let key =
-                encode_event_key(&id, &vo_types::SequenceNumber::try_from(seq).unwrap()).unwrap();
+            let key = encode_event_key(&id, &vo_types::SequenceNumber::try_from(seq).unwrap()).unwrap();
             let val = serde_json::to_vec(&format!("event-{seq}")).unwrap();
             events.insert(key, val).unwrap();
         }
@@ -90,19 +83,10 @@ fn fjall_invalid_key_bytes_rejected_on_decode() {
 
     let layout = create_partition_layout(&path).unwrap();
     let partitions = open_all_partitions(&layout).unwrap();
-    let events = partitions
-        .iter()
-        .find(|(n, _)| *n == "events")
-        .unwrap()
-        .1
-        .clone();
+    let events = partitions.iter().find(|(n, _)| *n == "events").unwrap().1.clone();
 
-    events
-        .insert(b"\x00\x00\x00\x00".to_vec(), b"garbage".to_vec())
-        .unwrap();
-    events
-        .insert([0xFF; 24].to_vec(), b"bad-key".to_vec())
-        .unwrap();
+    events.insert(b"\x00\x00\x00\x00".to_vec(), b"garbage".to_vec()).unwrap();
+    events.insert([0xFF; 24].to_vec(), b"bad-key".to_vec()).unwrap();
 
     for item in events.prefix(b"\x00\x00\x00\x00") {
         let (key, _val) = item.into_inner().unwrap();
@@ -124,12 +108,7 @@ fn concurrent_snapshot_writes_do_not_corrupt_each_other() {
 
     let layout = create_partition_layout(&path).unwrap();
     let partitions = open_all_partitions(&layout).unwrap();
-    let snaps = partitions
-        .iter()
-        .find(|(n, _)| *n == "snapshots")
-        .unwrap()
-        .1
-        .clone();
+    let snaps = partitions.iter().find(|(n, _)| *n == "snapshots").unwrap().1.clone();
 
     let id = min_instance_id();
     let state = InstanceState { counter: 42 };
@@ -155,18 +134,12 @@ fn concurrent_snapshot_writes_do_not_corrupt_each_other() {
         }
     }
 
-    assert!(
-        successes > 0,
-        "expected some concurrent writes to succeed, got {successes} ok, {errors} err"
-    );
+    assert!(successes > 0, "expected some concurrent writes to succeed, got {successes} ok, {errors} err");
 
     let prefix = id.to_bytes().unwrap();
     for item in snaps.prefix(prefix) {
         let (key, value) = item.into_inner().unwrap();
-        assert!(
-            decode_snapshot_key(&key).is_ok(),
-            "corrupted snapshot key from concurrent writes"
-        );
+        assert!(decode_snapshot_key(&key).is_ok(), "corrupted snapshot key from concurrent writes");
         let _: serde_json::Value = serde_json::from_slice(&value)
             .expect("snapshot value should be valid JSON after concurrent writes");
     }
@@ -179,10 +152,7 @@ fn concurrent_snapshot_writes_do_not_corrupt_each_other() {
 fn blob_store_gracefully_handles_write_failure() {
     use std::os::unix::fs::PermissionsExt;
 
-    let rt = tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()
-        .unwrap();
+    let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
     let _guard = rt.enter();
     let tmp = TempDir::new().unwrap();
     let store = FsBlobStore::new(tmp.path());
@@ -210,12 +180,7 @@ fn snapshot_load_rejects_truncated_header_json() {
 
     let layout = create_partition_layout(&path).unwrap();
     let partitions = open_all_partitions(&layout).unwrap();
-    let snaps = partitions
-        .iter()
-        .find(|(n, _)| *n == "snapshots")
-        .unwrap()
-        .1
-        .clone();
+    let snaps = partitions.iter().find(|(n, _)| *n == "snapshots").unwrap().1.clone();
 
     let id = min_instance_id();
     let key = encode_snapshot_key(&id, 1).unwrap();
@@ -236,12 +201,7 @@ fn snapshot_load_rejects_bad_checksum() {
 
     let layout = create_partition_layout(&path).unwrap();
     let partitions = open_all_partitions(&layout).unwrap();
-    let snaps = partitions
-        .iter()
-        .find(|(n, _)| *n == "snapshots")
-        .unwrap()
-        .1
-        .clone();
+    let snaps = partitions.iter().find(|(n, _)| *n == "snapshots").unwrap().1.clone();
 
     let id = min_instance_id();
     let key = encode_snapshot_key(&id, 1).unwrap();
@@ -250,10 +210,7 @@ fn snapshot_load_rejects_bad_checksum() {
     snaps.insert(key, bad_value).unwrap();
 
     let result = snapshot_load_latest(&snaps, &id);
-    assert!(
-        result.is_err(),
-        "snapshot with wrong checksum should be rejected"
-    );
+    assert!(result.is_err(), "snapshot with wrong checksum should be rejected");
 }
 
 // ── 7. Snapshot legacy format fallback ────────────────────────────────────────
@@ -265,12 +222,7 @@ fn snapshot_load_falls_back_to_legacy_format() {
 
     let layout = create_partition_layout(&path).unwrap();
     let partitions = open_all_partitions(&layout).unwrap();
-    let snaps = partitions
-        .iter()
-        .find(|(n, _)| *n == "snapshots")
-        .unwrap()
-        .1
-        .clone();
+    let snaps = partitions.iter().find(|(n, _)| *n == "snapshots").unwrap().1.clone();
 
     let id = min_instance_id();
     let state = InstanceState { counter: 99 };
@@ -291,10 +243,7 @@ fn snapshot_load_falls_back_to_legacy_format() {
 #[cfg(unix)]
 #[test]
 fn fs_blob_store_detects_tampered_content() {
-    let rt = tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()
-        .unwrap();
+    let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
     let _guard = rt.enter();
     let tmp = TempDir::new().unwrap();
     let store = FsBlobStore::new(tmp.path());
@@ -309,10 +258,7 @@ fn fs_blob_store_detects_tampered_content() {
 
     let result = store.retrieve(&addr);
     assert!(result.is_err());
-    assert!(matches!(
-        result.unwrap_err(),
-        BlobStoreError::ChecksumMismatch { .. }
-    ));
+    assert!(matches!(result.unwrap_err(), BlobStoreError::ChecksumMismatch { .. }));
 }
 
 // ── 9. Blob integrity: tampered metadata ──────────────────────────────────────
@@ -320,10 +266,7 @@ fn fs_blob_store_detects_tampered_content() {
 #[cfg(unix)]
 #[test]
 fn fs_blob_store_detects_tampered_metadata() {
-    let rt = tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()
-        .unwrap();
+    let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
     let _guard = rt.enter();
     let tmp = TempDir::new().unwrap();
     let store = FsBlobStore::new(tmp.path());
@@ -331,10 +274,7 @@ fn fs_blob_store_detects_tampered_metadata() {
     let original = b"metadata tamper test";
     let addr = store.store(original).unwrap();
 
-    let meta_path = tmp
-        .path()
-        .join("meta")
-        .join(format!("{}.json", addr.as_str()));
+    let meta_path = tmp.path().join("meta").join(format!("{}.json", addr.as_str()));
     fs::write(&meta_path, b"{}").unwrap();
 
     let result = store.get_metadata(&addr);
@@ -347,10 +287,7 @@ fn fs_blob_store_detects_tampered_metadata() {
 fn key_encoding_event_key_all_zero_bytes_is_corrupt() {
     let key = [0u8; 24];
     let result = ke_decode_event_key(&key);
-    assert!(
-        result.is_err(),
-        "all-zero key (sequence=0) should be corrupt"
-    );
+    assert!(result.is_err(), "all-zero key (sequence=0) should be corrupt");
 }
 
 #[test]
@@ -385,30 +322,21 @@ fn key_encoding_effect_key_missing_marker_rejected() {
     let mut key = [0u8; 25];
     key[24] = 0x00;
     let result = decode_effect_key(&key);
-    assert!(
-        result.is_err(),
-        "effect key without 0xFF marker should be rejected"
-    );
+    assert!(result.is_err(), "effect key without 0xFF marker should be rejected");
 }
 
 #[test]
 fn key_encoding_lease_key_missing_delimiter_rejected() {
     let key = b"01H5JYV4XHGSR2F8KZ9BWNRFMAstep-id-without-delimiter";
     let result = decode_lease_key(key);
-    assert!(
-        result.is_err(),
-        "lease key without :: delimiter should be rejected"
-    );
+    assert!(result.is_err(), "lease key without :: delimiter should be rejected");
 }
 
 #[test]
 fn key_encoding_lease_key_empty_components_rejected() {
     let key = b"::step-id";
     let result = decode_lease_key(key);
-    assert!(
-        result.is_err(),
-        "lease key with empty instance should be rejected"
-    );
+    assert!(result.is_err(), "lease key with empty instance should be rejected");
 }
 
 #[test]
@@ -423,10 +351,7 @@ fn key_encoding_dedupe_key_length_exceeds_data() {
     let mut key = vec![0x00, 0x64];
     key.extend_from_slice(b"abc");
     let result = decode_dedupe_key(&key);
-    assert!(
-        result.is_err(),
-        "dedupe key claiming more bytes than available should be rejected"
-    );
+    assert!(result.is_err(), "dedupe key claiming more bytes than available should be rejected");
 }
 
 // ── 11. Codec: event key encode/decode roundtrip adversarial ───────────────────
@@ -450,9 +375,7 @@ fn codec_encode_decode_roundtrip_boundary_sequences() {
 #[test]
 fn codec_decode_rejects_short_and_long_keys() {
     for len in [0, 1, 5, 10, 15, 16, 17, 20, 23] {
-        if len == 24 {
-            continue;
-        }
+        if len == 24 { continue; }
         let key = vec![0xFF; len];
         let result = decode_event_key(&key);
         assert!(result.is_err(), "codec should reject key of len={len}");
@@ -479,10 +402,7 @@ fn crypto_unwrap_truncated_data_rejected() {
     let short_data = vec![0u8; 10];
     let result = unwrap_dek(&short_data, &kek);
     assert!(result.is_err());
-    assert!(matches!(
-        result.unwrap_err(),
-        CryptoError::InvalidKeyMaterial
-    ));
+    assert!(matches!(result.unwrap_err(), CryptoError::InvalidKeyMaterial));
 }
 
 #[test]
@@ -547,10 +467,7 @@ fn crypto_decrypt_wrong_iv_length_rejected() {
 
     let result = decrypt_blob(&blob, &dek);
     assert!(result.is_err());
-    assert!(matches!(
-        result.unwrap_err(),
-        CryptoError::InvalidKeyMaterial
-    ));
+    assert!(matches!(result.unwrap_err(), CryptoError::InvalidKeyMaterial));
 }
 
 #[test]
@@ -563,10 +480,7 @@ fn crypto_decrypt_wrong_tag_length_rejected() {
 
     let result = decrypt_blob(&blob, &dek);
     assert!(result.is_err());
-    assert!(matches!(
-        result.unwrap_err(),
-        CryptoError::InvalidKeyMaterial
-    ));
+    assert!(matches!(result.unwrap_err(), CryptoError::InvalidKeyMaterial));
 }
 
 // ── 13. Checksum: verify detects single-byte corruption ───────────────────────
@@ -591,10 +505,7 @@ fn checksum_detects_single_byte_flip() {
 fn checksum_empty_data_verifies() {
     let empty: &[u8] = &[];
     let expected = vo_storage::checksum::compute_checksum(empty);
-    assert!(
-        verify_checksum(empty, &expected).is_ok(),
-        "empty data should verify"
-    );
+    assert!(verify_checksum(empty, &expected).is_ok(), "empty data should verify");
 }
 
 #[test]
@@ -605,10 +516,7 @@ fn chunked_hasher_produces_correct_total_size() {
     hasher.update(data);
     let chunks = hasher.finalize();
     let total: u64 = chunks.iter().map(|c| c.size).sum();
-    assert_eq!(
-        total, 16,
-        "chunked hasher total size should equal input size"
-    );
+    assert_eq!(total, 16, "chunked hasher total size should equal input size");
 }
 
 // ── 14. Merkle tree: adversarial inputs ───────────────────────────────────────
@@ -640,11 +548,8 @@ fn merkle_tree_proof_with_tampered_sibling_fails() {
     if tree.leaf_hashes.len() >= 2 {
         let mut proof = tree.proof(0).unwrap();
         if !proof.proof_hashes.is_empty() {
-            proof.proof_hashes[0].0[0] = proof.proof_hashes[0].0[0].wrapping_add(1);
-            assert!(
-                !proof.verify(root),
-                "tampered sibling hash should fail proof"
-            );
+            proof.proof_hashes[0][0] = proof.proof_hashes[0][0].wrapping_add(1);
+            assert!(!proof.verify(root), "tampered sibling hash should fail proof");
         }
     }
 }
@@ -660,9 +565,7 @@ fn snapshot_compat_rejects_future_version() {
     let db = layout.db();
 
     let snaps = db
-        .keyspace("snapshots_test_compat", || {
-            fjall::KeyspaceCreateOptions::default()
-        })
+        .keyspace("snapshots_test_compat", || fjall::KeyspaceCreateOptions::default())
         .unwrap();
 
     let id = min_instance_id();
@@ -677,16 +580,13 @@ fn snapshot_compat_rejects_future_version() {
     let result = vo_storage::snapshots::snapshot_load_latest_with_compat(&snaps, &id, 1, 1);
     // Future version should be discarded, not cause a panic. Either Ok(Discarded) or Err is acceptable.
     if let Ok(Some(loaded)) = &result {
-        assert!(
-            matches!(
-                loaded,
-                CompatSnapshotLoad::Discarded {
-                    reason: SnapshotDiscardReason::VersionTooNew { .. },
-                    ..
-                }
-            ),
-            "future version should be discarded: {loaded:?}"
-        );
+        assert!(matches!(
+            loaded,
+            CompatSnapshotLoad::Discarded {
+                reason: SnapshotDiscardReason::VersionTooNew { .. },
+                ..
+            }
+        ), "future version should be discarded: {loaded:?}");
     }
     // Err is also acceptable (engine rejects malformed snapshot before compat check)
 }
@@ -700,9 +600,7 @@ fn snapshot_compat_rejects_legacy_version_zero() {
     let db = layout.db();
 
     let snaps = db
-        .keyspace("snapshots_compat_old", || {
-            fjall::KeyspaceCreateOptions::default()
-        })
+        .keyspace("snapshots_compat_old", || fjall::KeyspaceCreateOptions::default())
         .unwrap();
 
     let id = min_instance_id();
@@ -747,10 +645,7 @@ fn blob_record_rejects_zero_reference_count() {
     let addr = ContentAddress::from_bytes(&[0u8; 32]);
     let result = BlobRecord::new(addr.clone(), 100, 0, 1000, None);
     assert!(result.is_err());
-    assert!(matches!(
-        result.unwrap_err(),
-        BlobStoreError::InvalidArgument { .. }
-    ));
+    assert!(matches!(result.unwrap_err(), BlobStoreError::InvalidArgument { .. }));
 }
 
 #[test]
@@ -758,40 +653,28 @@ fn blob_record_rejects_zero_created_at() {
     let addr = ContentAddress::from_bytes(&[0u8; 32]);
     let result = BlobRecord::new(addr.clone(), 100, 1, 0, None);
     assert!(result.is_err());
-    assert!(matches!(
-        result.unwrap_err(),
-        BlobStoreError::InvalidArgument { .. }
-    ));
+    assert!(matches!(result.unwrap_err(), BlobStoreError::InvalidArgument { .. }));
 }
 
 #[test]
 fn pack_index_entry_decode_rejects_garbage_json() {
     let result = vo_storage::blob_store::decode_pack_index_entry(b"not json at all");
     assert!(result.is_err());
-    assert!(matches!(
-        result.unwrap_err(),
-        BlobStoreError::CorruptPackIndex { .. }
-    ));
+    assert!(matches!(result.unwrap_err(), BlobStoreError::CorruptPackIndex { .. }));
 }
 
 #[test]
 fn blob_record_decode_rejects_garbage_json() {
     let result = vo_storage::blob_store::decode_blob_record(b"{{{{invalid");
     assert!(result.is_err());
-    assert!(matches!(
-        result.unwrap_err(),
-        BlobStoreError::DeserializationFailed { .. }
-    ));
+    assert!(matches!(result.unwrap_err(), BlobStoreError::DeserializationFailed { .. }));
 }
 
 #[test]
 fn content_address_decode_rejects_non_utf8() {
     let result = vo_storage::blob_store::decode_content_address(&[0xFF, 0xFE, 0xFD]);
     assert!(result.is_err());
-    assert!(matches!(
-        result.unwrap_err(),
-        BlobStoreError::CorruptPackIndex { .. }
-    ));
+    assert!(matches!(result.unwrap_err(), BlobStoreError::CorruptPackIndex { .. }));
 }
 
 // ── 17. BlobStore error taxonomy: is_transient / is_fatal ────────────────────
@@ -799,21 +682,10 @@ fn content_address_decode_rejects_non_utf8() {
 #[test]
 fn blob_store_error_taxonomy_correct() {
     let fatal_variants = [
-        BlobStoreError::CorruptPackIndex {
-            reason: "test".into(),
-        },
-        BlobStoreError::CorruptPackFile {
-            pack_file_id: "p".into(),
-            reason: "r".into(),
-        },
-        BlobStoreError::ChecksumMismatch {
-            content_addr: "a".into(),
-            expected: "e".into(),
-            actual: "a".into(),
-        },
-        BlobStoreError::InvalidArgument {
-            reason: "test".into(),
-        },
+        BlobStoreError::CorruptPackIndex { reason: "test".into() },
+        BlobStoreError::CorruptPackFile { pack_file_id: "p".into(), reason: "r".into() },
+        BlobStoreError::ChecksumMismatch { content_addr: "a".into(), expected: "e".into(), actual: "a".into() },
+        BlobStoreError::InvalidArgument { reason: "test".into() },
     ];
 
     for err in &fatal_variants {
@@ -822,17 +694,10 @@ fn blob_store_error_taxonomy_correct() {
     }
 
     let transient_variants = [
-        BlobStoreError::Storage {
-            reason: "io error".into(),
-        },
-        BlobStoreError::DuplicateContent {
-            content_addr: "a".into(),
-        },
+        BlobStoreError::Storage { reason: "io error".into() },
+        BlobStoreError::DuplicateContent { content_addr: "a".into() },
         BlobStoreError::GcCycleInProgress,
-        BlobStoreError::PackFileFull {
-            pack_file_id: "p".into(),
-            max_size_bytes: 1024,
-        },
+        BlobStoreError::PackFileFull { pack_file_id: "p".into(), max_size_bytes: 1024 },
     ];
 
     for err in &transient_variants {
@@ -841,18 +706,10 @@ fn blob_store_error_taxonomy_correct() {
     }
 
     let neither_variants = [
-        BlobStoreError::ContentNotFound {
-            content_addr: "a".into(),
-        },
-        BlobStoreError::PackFileNotFound {
-            pack_file_id: "p".into(),
-        },
-        BlobStoreError::SerializationFailed {
-            reason: "test".into(),
-        },
-        BlobStoreError::DeserializationFailed {
-            reason: "test".into(),
-        },
+        BlobStoreError::ContentNotFound { content_addr: "a".into() },
+        BlobStoreError::PackFileNotFound { pack_file_id: "p".into() },
+        BlobStoreError::SerializationFailed { reason: "test".into() },
+        BlobStoreError::DeserializationFailed { reason: "test".into() },
     ];
 
     for err in &neither_variants {
@@ -872,14 +729,8 @@ fn pack_index_entry_roundtrip_max_values() {
     let encoded = vo_storage::blob_store::encode_pack_index_entry(&entry).unwrap();
     let decoded = vo_storage::blob_store::decode_pack_index_entry(&encoded).unwrap();
 
-    assert_eq!(
-        decoded.content_addr().as_str(),
-        entry.content_addr().as_str()
-    );
-    assert_eq!(
-        decoded.pack_file_id().as_str(),
-        entry.pack_file_id().as_str()
-    );
+    assert_eq!(decoded.content_addr().as_str(), entry.content_addr().as_str());
+    assert_eq!(decoded.pack_file_id().as_str(), entry.pack_file_id().as_str());
     assert_eq!(decoded.offset_bytes(), u64::MAX);
     assert_eq!(decoded.size_bytes(), u64::MAX);
 }
@@ -888,10 +739,7 @@ fn pack_index_entry_roundtrip_max_values() {
 fn pack_file_id_rejects_empty() {
     let result = vo_storage::blob_store::PackFileId::new("");
     assert!(result.is_err());
-    assert!(matches!(
-        result.unwrap_err(),
-        BlobStoreError::InvalidArgument { .. }
-    ));
+    assert!(matches!(result.unwrap_err(), BlobStoreError::InvalidArgument { .. }));
 }
 
 // ── 19. Key encoding prefix isolation ────────────────────────────────────────
@@ -910,10 +758,7 @@ fn event_key_prefix_isolation() {
         &id1,
         vo_types::SequenceNumber::try_from(1u64).unwrap(),
     );
-    assert!(
-        !key1.starts_with(&prefix2),
-        "id1's key must not start with id2's prefix"
-    );
+    assert!(!key1.starts_with(&prefix2), "id1's key must not start with id2's prefix");
 }
 
 // ── 20. Compact snapshots with corrupted keys ────────────────────────────────
@@ -925,26 +770,15 @@ fn compact_snapshots_with_corrupted_keys_returns_error() {
 
     let layout = create_partition_layout(&path).unwrap();
     let partitions = open_all_partitions(&layout).unwrap();
-    let snaps = partitions
-        .iter()
-        .find(|(n, _)| *n == "snapshots")
-        .unwrap()
-        .1
-        .clone();
+    let snaps = partitions.iter().find(|(n, _)| *n == "snapshots").unwrap().1.clone();
 
     let id = min_instance_id();
 
     let key1 = encode_snapshot_key(&id, 1).unwrap();
-    snaps
-        .insert(
-            key1,
-            serde_json::to_vec(&InstanceState { counter: 1 }).unwrap(),
-        )
+    snaps.insert(key1, serde_json::to_vec(&InstanceState { counter: 1 }).unwrap())
         .unwrap();
 
-    snaps
-        .insert(b"short_key".to_vec(), b"garbage".to_vec())
-        .unwrap();
+    snaps.insert(b"short_key".to_vec(), b"garbage".to_vec()).unwrap();
 
     let result = compact_snapshots(&snaps, &id, 0);
     let _ = result; // Must not panic

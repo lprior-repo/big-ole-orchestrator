@@ -918,10 +918,7 @@ mod tests {
     #[test]
     fn idempotency_key_rejects_non_identifier_chars_when_invalid_input() {
         let result = IdempotencyKey::parse("key@\t\n!()");
-        assert!(
-            result.is_err(),
-            "IdempotencyKey must reject non-identifier chars"
-        );
+        assert!(result.is_err(), "IdempotencyKey must reject non-identifier chars");
     }
 
     #[test]
@@ -963,19 +960,13 @@ mod tests {
     #[test]
     fn idempotency_key_rejects_unicode_when_input_has_non_ascii_chars() {
         let result = IdempotencyKey::parse("key-\u{00e9}");
-        assert!(
-            result.is_err(),
-            "IdempotencyKey must reject non-ASCII chars"
-        );
+        assert!(result.is_err(), "IdempotencyKey must reject non-ASCII chars");
     }
 
     #[test]
     fn idempotency_key_rejects_trailing_whitespace_because_not_identifier_char() {
         let result = IdempotencyKey::parse("key ");
-        assert!(
-            result.is_err(),
-            "IdempotencyKey must reject whitespace (not identifier char)"
-        );
+        assert!(result.is_err(), "IdempotencyKey must reject whitespace (not identifier char)");
     }
 
     #[test]

@@ -8,6 +8,8 @@ pub enum Error {
     ParseFailure,
     #[error("unsupported signature")]
     UnsupportedSignature,
+    #[error("generic functions are not supported")]
+    GenericFunction,
     #[error("macro attribute is empty")]
     EmptyAttribute,
     #[error("too many macro attributes (max 255)")]

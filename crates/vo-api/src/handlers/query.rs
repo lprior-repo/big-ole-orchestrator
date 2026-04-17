@@ -46,7 +46,7 @@ pub async fn get_timeline(
         }
     };
 
-    let iter = replay_events(&state.db, &instance_id);
+    let iter = replay_events(&*state.db, &instance_id);
     let mut entries = Vec::new();
     let mut total_replayed = 0usize;
 
@@ -108,7 +108,7 @@ pub async fn get_history(
         }
     };
 
-    let iter = replay_events(&state.db, &instance_id);
+    let iter = replay_events(&*state.db, &instance_id);
     let mut entries = Vec::new();
 
     for result in iter {
@@ -181,7 +181,7 @@ pub async fn get_effect_journal(
         }
     };
 
-    let iter = replay_events(&state.db, &instance_id);
+    let iter = replay_events(&*state.db, &instance_id);
     let mut entries = Vec::new();
 
     for result in iter {
@@ -256,7 +256,7 @@ pub async fn get_workflow_version(
         }
     };
 
-    let iter = replay_events(&state.db, &instance_id);
+    let iter = replay_events(&*state.db, &instance_id);
     let mut event_count = 0u64;
     let mut last_sequence = None;
     let mut last_timestamp_ms = None;
@@ -313,7 +313,7 @@ pub async fn search(
         Err(e) => {
             return (
                 StatusCode::BAD_REQUEST,
-                Json(ApiError::new("invalid_query", e.to_string())),
+                Json(ApiError::new("invalid_query", &e.to_string())),
             )
                 .into_response();
         }
@@ -327,17 +327,16 @@ pub async fn search(
         )
     });
 
-    let results: Result<Vec<vo_types::search::SearchResult>, (StatusCode, Json<ApiError>)> =
-        match engine {
-            Ok(engine) => engine.search(&parsed_query).map_err(|e| {
-                tracing::error!(error = %e, "search failed");
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ApiError::new("search_error", e.to_string())),
-                )
-            }),
-            Err(e) => Err(e),
-        };
+    let results: Result<Vec<vo_types::search::SearchResult>, (StatusCode, Json<ApiError>)> = match engine {
+        Ok(engine) => engine.search(&parsed_query).map_err(|e| {
+            tracing::error!(error = %e, "search failed");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiError::new("search_error", &e.to_string())),
+            )
+        }),
+        Err(e) => Err(e),
+    };
 
     let results = match results {
         Ok(r) => r,
@@ -355,14 +354,7 @@ pub async fn search(
         })
         .collect();
 
-    (
-        StatusCode::OK,
-        Json(SearchResponse {
-            query: params.query,
-            results,
-        }),
-    )
-        .into_response()
+    (StatusCode::OK, Json(SearchResponse { query: params.query, results })).into_response()
 }
 
 #[cfg(test)]

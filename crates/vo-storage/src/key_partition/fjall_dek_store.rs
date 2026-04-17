@@ -21,7 +21,7 @@ pub struct FjallDekStore {
 impl FjallDekStore {
     pub fn open(db: &fjall::Database) -> Result<Self, DekStoreError> {
         let dek_partition = db
-            .keyspace(DEK_PARTITION, fjall::KeyspaceCreateOptions::default)
+            .keyspace(DEK_PARTITION, || fjall::KeyspaceCreateOptions::default())
             .map_err(|e| DekStoreError::Storage {
                 reason: format!("failed to open dek_store partition: {e}"),
             })?;

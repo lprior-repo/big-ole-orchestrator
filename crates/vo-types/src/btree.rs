@@ -118,7 +118,6 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
         Self::search_node(&node.children[idx], key)
     }
 
-    #[allow(clippy::expect_used)]
     pub fn insert(&mut self, key: K, value: V) {
         if self.root.is_none() {
             self.root = Some(BTreeNode::leaf(vec![key], vec![value]));
@@ -212,7 +211,6 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
         }
     }
 
-    #[allow(clippy::expect_used)]
     pub fn delete(&mut self, key: &K) -> Result<V, BTreeError> {
         if self.root.is_none() {
             return Err(BTreeError::KeyNotFound);
@@ -377,7 +375,6 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
         }
     }
 
-    #[allow(clippy::expect_used)]
     fn borrow_from_left(&self, node: &mut BTreeNode<K, V>, idx: usize) {
         let left_idx = idx - 1;
         let parent_key = node.keys.remove(left_idx);
@@ -433,7 +430,12 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
     /// This handles the case where ensure_child_has_minimum merges two min_keys
     /// children with a separator, producing 2*min_keys+1 keys which can exceed
     /// max_keys for odd-order B-trees (e.g., order 3: 1+1+1=3 > max_keys=2).
-    fn maybe_split_child(&self, parent: &mut BTreeNode<K, V>, idx: usize, child: BTreeNode<K, V>) {
+    fn maybe_split_child(
+        &self,
+        parent: &mut BTreeNode<K, V>,
+        idx: usize,
+        child: BTreeNode<K, V>,
+    ) {
         if child.keys.len() <= self.max_keys() {
             parent.children.insert(idx, child);
             return;
@@ -579,26 +581,14 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
         is_root: bool,
     ) -> Result<(), String> {
         if node.keys.len() > max_keys {
-            return Err(format!(
-                "keys.len {} > max_keys {}",
-                node.keys.len(),
-                max_keys
-            ));
+            return Err(format!("keys.len {} > max_keys {}", node.keys.len(), max_keys));
         }
         // Root is exempt from minimum keys constraint (B-tree invariant)
         if !is_root && !node.is_leaf() && node.keys.len() < min_keys {
-            return Err(format!(
-                "non-root keys.len {} < min_keys {}",
-                node.keys.len(),
-                min_keys
-            ));
+            return Err(format!("non-root keys.len {} < min_keys {}", node.keys.len(), min_keys));
         }
         if !node.children.is_empty() && node.children.len() != node.keys.len() + 1 {
-            return Err(format!(
-                "children {} != keys+1 {}",
-                node.children.len(),
-                node.keys.len() + 1
-            ));
+            return Err(format!("children {} != keys+1 {}", node.children.len(), node.keys.len() + 1));
         }
         if node.is_leaf() && expected_height != 1 {
             return Err(format!("leaf height {} != 1", expected_height));

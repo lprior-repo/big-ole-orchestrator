@@ -284,7 +284,8 @@ impl CompensationManifest {
             .filter_map(|id| {
                 self.entries
                     .get(id)
-                    .is_some_and(|e| e.status == SagaCompensationStatus::Pending)
+                    .map(|e| e.status == SagaCompensationStatus::Pending)
+                    .unwrap_or(false)
                     .then_some(id.clone())
             })
             .collect();
@@ -318,7 +319,8 @@ impl CompensationManifest {
         for effect_id in pending_effects.iter().rev() {
             let all_deps_emitted = dependents
                 .get(effect_id)
-                .is_none_or(|deps| deps.iter().all(|d| emitted.contains(d)));
+                .map(|deps| deps.iter().all(|d| emitted.contains(d)))
+                .unwrap_or(true);
 
             if all_deps_emitted {
                 result.push((*effect_id).clone());

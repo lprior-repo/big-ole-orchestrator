@@ -76,9 +76,7 @@ fn tdd_red_002_remove_omits_key_from_deeply_nested_object() {
     let (projection, _) = apply_redaction(&canonical, &rules);
 
     assert!(
-        projection["level1"]["level2"]["level3"]
-            .get("secret")
-            .is_none(),
+        projection["level1"]["level2"]["level3"].get("secret").is_none(),
         "Remove should omit deeply nested key entirely"
     );
     assert!(projection["level1"]["level2"]["level3"].is_object());
@@ -277,7 +275,10 @@ fn tdd_red_010_redacted_fields_count_equals_unique_rule_matches() {
             vec!["data".into(), "items".into(), "secret".into()],
             RedactionKind::Remove,
         ),
-        RedactionRule::new(vec!["data".into(), "key".into()], RedactionKind::Remove),
+        RedactionRule::new(
+            vec!["data".into(), "key".into()],
+            RedactionKind::Remove,
+        ),
     ];
 
     let (_, redacted) = apply_redaction(&canonical, &rules);
@@ -327,14 +328,8 @@ fn tdd_red_011_removed_field_not_in_serialized_projection() {
         "Removed field value must not leak in serialized projection: {}",
         serialized
     );
-    assert!(
-        serialized.contains("John"),
-        "Non-redacted 'name' should be present"
-    );
-    assert!(
-        serialized.contains("Flu"),
-        "Non-redacted 'diagnosis' should be present"
-    );
+    assert!(serialized.contains("John"), "Non-redacted 'name' should be present");
+    assert!(serialized.contains("Flu"), "Non-redacted 'diagnosis' should be present");
 }
 
 #[test]
@@ -350,10 +345,7 @@ fn tdd_red_012_multiple_removed_fields_absent_from_projection() {
 
     let rules = vec![
         RedactionRule::new(vec!["user".into(), "ssn".into()], RedactionKind::Remove),
-        RedactionRule::new(
-            vec!["user".into(), "password".into()],
-            RedactionKind::Remove,
-        ),
+        RedactionRule::new(vec!["user".into(), "password".into()], RedactionKind::Remove),
         RedactionRule::new(vec!["user".into(), "email".into()], RedactionKind::Remove),
     ];
 
@@ -361,23 +353,11 @@ fn tdd_red_012_multiple_removed_fields_absent_from_projection() {
     let serialized = serde_json::to_string(&projection).unwrap();
 
     assert!(!serialized.contains("ssn"), "Removed 'ssn' leaked");
-    assert!(
-        !serialized.contains("password"),
-        "Removed 'password' leaked"
-    );
+    assert!(!serialized.contains("password"), "Removed 'password' leaked");
     assert!(!serialized.contains("email"), "Removed 'email' leaked");
-    assert!(
-        !serialized.contains("hunter2"),
-        "Removed password value leaked"
-    );
-    assert!(
-        !serialized.contains("example.com"),
-        "Removed email domain leaked"
-    );
-    assert!(
-        serialized.contains("Alice"),
-        "Non-redacted 'name' should be present"
-    );
+    assert!(!serialized.contains("hunter2"), "Removed password value leaked");
+    assert!(!serialized.contains("example.com"), "Removed email domain leaked");
+    assert!(serialized.contains("Alice"), "Non-redacted 'name' should be present");
 
     let obj = projection["user"].as_object().unwrap();
     assert_eq!(
@@ -414,10 +394,7 @@ fn tdd_red_013_removed_nested_object_absent_from_projection() {
     let serialized = serde_json::to_string(&projection).unwrap();
     assert!(!serialized.contains("sk-12345"), "API key leaked");
     assert!(!serialized.contains("whs-67890"), "Webhook secret leaked");
-    assert!(
-        !serialized.contains("private"),
-        "Removed key name 'private' leaked"
-    );
+    assert!(!serialized.contains("private"), "Removed key name 'private' leaked");
 }
 
 // ========================================================================
@@ -450,8 +427,8 @@ fn tdd_red_015_wrapped_dek_expected_size_for_aes256_key() {
         + CryptoAlgorithm::KEY_SIZE_BYTES
         + CryptoAlgorithm::TAG_SIZE_BYTES; // 60
 
-    let properly_wrapped =
-        WrappedDek::new(vec![0u8; expected_size]).expect("valid size should be accepted");
+    let properly_wrapped = WrappedDek::new(vec![0u8; expected_size])
+        .expect("valid size should be accepted");
     assert_eq!(
         properly_wrapped.as_bytes().len(),
         expected_size,

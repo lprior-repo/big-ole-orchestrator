@@ -10,9 +10,7 @@ use std::sync::Arc;
 use tokio::sync::{Semaphore, TryAcquireError};
 
 use crate::semaphore::calc::status_from_config_and_state;
-use crate::semaphore::types::{
-    AdmissionDecision, BackpressureStatus, RejectionReason, SemaphoreConfig,
-};
+use crate::semaphore::types::{AdmissionDecision, BackpressureStatus, RejectionReason, SemaphoreConfig};
 
 /// The global execution semaphore for binary spawn limiting.
 pub struct ExecutionSemaphore {
@@ -53,7 +51,7 @@ impl ExecutionSemaphore {
 
     /// Creates a new execution semaphore with default config.
     #[must_use]
-    pub fn with_default_config() -> Self {
+    pub fn default() -> Self {
         Self::new(SemaphoreConfig::default())
     }
 
@@ -186,7 +184,7 @@ mod tests {
 
     #[tokio::test]
     async fn execution_semaphore_try_acquire_success() {
-        let sem = ExecutionSemaphore::with_default_config();
+        let sem = ExecutionSemaphore::default();
         let initial_available = sem.available_permits();
 
         let permit = sem.try_acquire();
@@ -208,7 +206,7 @@ mod tests {
 
     #[tokio::test]
     async fn execution_semaphore_try_acquire_recovery_success() {
-        let sem = ExecutionSemaphore::with_default_config();
+        let sem = ExecutionSemaphore::default();
         let initial_reserved = sem.reserved_available();
 
         let permit = sem.try_acquire_recovery();
@@ -245,7 +243,7 @@ mod tests {
 
     #[tokio::test]
     async fn execution_semaphore_acquire_and_release() {
-        let sem = Arc::new(ExecutionSemaphore::with_default_config());
+        let sem = Arc::new(ExecutionSemaphore::default());
         let initial = sem.available_permits();
 
         let decision = sem.acquire().await;
@@ -255,7 +253,7 @@ mod tests {
 
     #[tokio::test]
     async fn execution_semaphore_status_tracking() {
-        let sem = ExecutionSemaphore::with_default_config();
+        let sem = ExecutionSemaphore::default();
         assert_eq!(sem.current_status(), BackpressureStatus::Healthy);
         assert_eq!(sem.waiting_count(), 0);
     }

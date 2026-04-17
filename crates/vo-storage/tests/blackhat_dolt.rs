@@ -13,8 +13,8 @@ use tempfile::TempDir;
 use vo_storage::codec::{decode_event_key, encode_event_key};
 use vo_storage::key_encoding::{decode_effect_key, decode_lease_key};
 use vo_storage::partitions::{create_partition_layout, open_all_partitions};
-use vo_storage::snapshots::{compact_snapshots, encode_snapshot_key};
 use vo_storage::status_store::{decode_status, StatusStoreError};
+use vo_storage::snapshots::{compact_snapshots, encode_snapshot_key};
 use vo_types::state::InstanceState;
 use vo_types::InstanceId;
 
@@ -34,15 +34,9 @@ fn dolt_zeroed_sst_files_do_not_panic_on_scan() {
     {
         let layout = create_partition_layout(&path).unwrap();
         let partitions = open_all_partitions(&layout).unwrap();
-        let events = partitions
-            .iter()
-            .find(|(n, _)| *n == "events")
-            .unwrap()
-            .1
-            .clone();
+        let events = partitions.iter().find(|(n, _)| *n == "events").unwrap().1.clone();
         let id = test_instance_id();
-        let key =
-            encode_event_key(&id, &vo_types::SequenceNumber::try_from(1u64).unwrap()).unwrap();
+        let key = encode_event_key(&id, &vo_types::SequenceNumber::try_from(1u64).unwrap()).unwrap();
         events.insert(key, b"original".to_vec()).unwrap();
     }
 
@@ -69,12 +63,7 @@ fn concurrent_writes_on_same_event_key_last_writer_wins() {
     let layout = create_partition_layout(&path).unwrap();
     let partitions = open_all_partitions(&layout).unwrap();
     let events = Arc::new(
-        partitions
-            .iter()
-            .find(|(n, _)| *n == "events")
-            .unwrap()
-            .1
-            .clone(),
+        partitions.iter().find(|(n, _)| *n == "events").unwrap().1.clone(),
     );
     let id = test_instance_id();
     let seq = vo_types::SequenceNumber::try_from(42u64).unwrap();
@@ -155,12 +144,7 @@ fn concurrent_compaction_with_corrupt_keys_does_not_panic() {
     let layout = create_partition_layout(&path).unwrap();
     let partitions = open_all_partitions(&layout).unwrap();
     let snaps = Arc::new(
-        partitions
-            .iter()
-            .find(|(n, _)| *n == "snapshots")
-            .unwrap()
-            .1
-            .clone(),
+        partitions.iter().find(|(n, _)| *n == "snapshots").unwrap().1.clone(),
     );
     let id = test_instance_id();
 
@@ -169,12 +153,8 @@ fn concurrent_compaction_with_corrupt_keys_does_not_panic() {
         let val = serde_json::to_vec(&InstanceState { counter: seq }).unwrap();
         snaps.insert(key, val).unwrap();
     }
-    snaps
-        .insert(b"\x00garbage_key".to_vec(), b"\xff".to_vec())
-        .unwrap();
-    snaps
-        .insert(b"another_corrupt".to_vec(), b"".to_vec())
-        .unwrap();
+    snaps.insert(b"\x00garbage_key".to_vec(), b"\xff".to_vec()).unwrap();
+    snaps.insert(b"another_corrupt".to_vec(), b"".to_vec()).unwrap();
 
     let handles: Vec<_> = (0..4)
         .map(|_| {
@@ -202,23 +182,11 @@ fn crafted_key_bytes_never_decode_to_wrong_key_type() {
     .unwrap();
 
     // Lease and effect keys use text/binary formats — must reject binary event keys
-    assert!(
-        decode_lease_key(&event_key).is_err(),
-        "event key must not decode as lease key"
-    );
-    assert!(
-        decode_effect_key(&event_key).is_err(),
-        "event key must not decode as effect key"
-    );
+    assert!(decode_lease_key(&event_key).is_err(), "event key must not decode as lease key");
+    assert!(decode_effect_key(&event_key).is_err(), "event key must not decode as effect key");
 
     // Timer key (8-byte timestamp + 16-byte instance) must not decode as lease/effect
     let timer_key = vo_storage::key_encoding::encode_timer_key(u64::MAX, &test_instance_id());
-    assert!(
-        decode_lease_key(&timer_key).is_err(),
-        "timer key must not decode as lease key"
-    );
-    assert!(
-        decode_effect_key(&timer_key).is_err(),
-        "timer key must not decode as effect key"
-    );
+    assert!(decode_lease_key(&timer_key).is_err(), "timer key must not decode as lease key");
+    assert!(decode_effect_key(&timer_key).is_err(), "timer key must not decode as effect key");
 }

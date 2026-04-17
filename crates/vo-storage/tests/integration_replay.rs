@@ -7,7 +7,7 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::pedantic)]
 
-use fjall::{Database, Keyspace, KeyspaceCreateOptions};
+use fjall::{Config, PartitionCreateOptions};
 use vo_storage::codec::StorageError;
 use vo_storage::query::epoch_prefix_generator;
 use vo_storage::query::lineage_prefix_generator;
@@ -50,18 +50,19 @@ fn make_unsupported_version_envelope_json(instance_id: &str) -> Vec<u8> {
     .into_bytes()
 }
 
-fn insert_event(partition: &fjall::Keyspace, instance_id: &str, seq: u64, value: &[u8]) {
+fn insert_event(partition: &fjall::PartitionHandle, instance_id: &str, seq: u64, value: &[u8]) {
     let mut key = instance_id.as_bytes().to_vec();
     key.extend_from_slice(&seq.to_be_bytes());
     partition.insert(&key, value).unwrap();
 }
 
-fn setup_keyspace() -> (tempfile::TempDir, fjall::Database) {
+fn setup_keyspace() -> (tempfile::TempDir, fjall::Keyspace) {
     let folder = tempfile::tempdir().expect("temp dir");
-    let db = Database::builder(folder.path()).open().expect("database");
-    db.keyspace("events", || KeyspaceCreateOptions::default())
+    let keyspace = Config::new(folder.path()).open().expect("keyspace");
+    keyspace
+        .open_partition("events", PartitionCreateOptions::default())
         .expect("partition");
-    (folder, db)
+    (folder, keyspace)
 }
 
 fn parse_instance_id(s: &str) -> InstanceId {
@@ -89,7 +90,7 @@ fn replay_events_returns_single_event_in_order() {
     let instance_id_str = id_string.as_str();
     let instance_id = parse_instance_id(instance_id_str);
     let partition = keyspace
-        .keyspace("events", || KeyspaceCreateOptions::default())
+        .open_partition("events", PartitionCreateOptions::default())
         .unwrap();
     let value = make_envelope_json(1, instance_id_str);
     insert_event(&partition, instance_id_str, 1, &value);
@@ -107,7 +108,7 @@ fn replay_events_returns_multiple_events_in_sequence() {
     let instance_id_str = id_string.as_str();
     let instance_id = parse_instance_id(instance_id_str);
     let partition = keyspace
-        .keyspace("events", || KeyspaceCreateOptions::default())
+        .open_partition("events", PartitionCreateOptions::default())
         .unwrap();
     let value_1 = make_envelope_json(1, instance_id_str);
     let value_2 = make_envelope_json(2, instance_id_str);
@@ -137,7 +138,7 @@ fn replay_events_detects_sequence_gap() {
     let instance_id_str = id_string.as_str();
     let instance_id = parse_instance_id(instance_id_str);
     let partition = keyspace
-        .keyspace("events", || KeyspaceCreateOptions::default())
+        .open_partition("events", PartitionCreateOptions::default())
         .unwrap();
     let v1 = make_envelope_json(1, instance_id_str);
     insert_event(&partition, instance_id_str, 1, &v1);
@@ -159,7 +160,7 @@ fn replay_events_handles_corrupt_payload() {
     let instance_id_str = id_string.as_str();
     let instance_id = parse_instance_id(instance_id_str);
     let partition = keyspace
-        .keyspace("events", || KeyspaceCreateOptions::default())
+        .open_partition("events", PartitionCreateOptions::default())
         .unwrap();
     let bad_value = make_bad_envelope_json();
     insert_event(&partition, instance_id_str, 1, &bad_value);
@@ -177,7 +178,7 @@ fn replay_events_handles_unsupported_version() {
     let instance_id_str = id_string.as_str();
     let instance_id = parse_instance_id(instance_id_str);
     let partition = keyspace
-        .keyspace("events", || KeyspaceCreateOptions::default())
+        .open_partition("events", PartitionCreateOptions::default())
         .unwrap();
     let bad_value = make_unsupported_version_envelope_json(instance_id_str);
     insert_event(&partition, instance_id_str, 1, &bad_value);
@@ -195,7 +196,7 @@ fn replay_events_isolates_different_instances() {
     let id_a = id_a_string.as_str();
     let id_b = "01H5JYV4XHGSR2F8KZ9BWNRFMB";
     let partition = keyspace
-        .keyspace("events", || KeyspaceCreateOptions::default())
+        .open_partition("events", PartitionCreateOptions::default())
         .unwrap();
     let a1 = make_envelope_json(1, id_a);
     let a2 = make_envelope_json(2, id_a);
@@ -231,7 +232,7 @@ fn replay_events_stops_after_first_error() {
     let instance_id_str = id_string.as_str();
     let instance_id = parse_instance_id(instance_id_str);
     let partition = keyspace
-        .keyspace("events", || KeyspaceCreateOptions::default())
+        .open_partition("events", PartitionCreateOptions::default())
         .unwrap();
     let v1 = make_envelope_json(1, instance_id_str);
     insert_event(&partition, instance_id_str, 1, &v1);
@@ -256,7 +257,7 @@ fn replay_events_accepts_non_one_starting_sequence() {
     let instance_id_str = id_string.as_str();
     let instance_id = parse_instance_id(instance_id_str);
     let partition = keyspace
-        .keyspace("events", || KeyspaceCreateOptions::default())
+        .open_partition("events", PartitionCreateOptions::default())
         .unwrap();
     // start from seq 10
     let value_10 = make_envelope_json(10, instance_id_str);
@@ -281,7 +282,7 @@ fn replay_events_handles_gap_at_start() {
     let instance_id_str = id_string.as_str();
     let instance_id = parse_instance_id(instance_id_str);
     let partition = keyspace
-        .keyspace("events", || KeyspaceCreateOptions::default())
+        .open_partition("events", PartitionCreateOptions::default())
         .unwrap();
     // Starting from seq 5 is fine — iterator accepts any first event
     insert_event(
@@ -314,7 +315,7 @@ fn replay_events_handles_large_sequence_range() {
     let instance_id_str = id_string.as_str();
     let instance_id = parse_instance_id(instance_id_str);
     let partition = keyspace
-        .keyspace("events", || KeyspaceCreateOptions::default())
+        .open_partition("events", PartitionCreateOptions::default())
         .unwrap();
     let seq_start = 1_000_000u64;
     let value_1 = make_envelope_json(seq_start, instance_id_str);
@@ -371,7 +372,7 @@ fn optimized_replay_iterator_with_limit() {
     let instance_id_str = id_string.as_str();
     let instance_id = parse_instance_id(instance_id_str);
     let partition = keyspace
-        .keyspace("events", || KeyspaceCreateOptions::default())
+        .open_partition("events", PartitionCreateOptions::default())
         .expect("partition");
     for seq in 1..=10u64 {
         let value = make_envelope_json(seq, instance_id_str);
@@ -398,7 +399,7 @@ fn optimized_replay_iterator_with_offset() {
     let instance_id_str = id_string.as_str();
     let instance_id = parse_instance_id(instance_id_str);
     let partition = keyspace
-        .keyspace("events", || KeyspaceCreateOptions::default())
+        .open_partition("events", PartitionCreateOptions::default())
         .expect("partition");
     for seq in 1..=10u64 {
         let value = make_envelope_json(seq, instance_id_str);
@@ -428,7 +429,7 @@ fn optimized_replay_iterator_with_sequence_range() {
     let instance_id_str = id_string.as_str();
     let instance_id = parse_instance_id(instance_id_str);
     let partition = keyspace
-        .keyspace("events", || KeyspaceCreateOptions::default())
+        .open_partition("events", PartitionCreateOptions::default())
         .expect("partition");
     for seq in 1..=20u64 {
         let value = make_envelope_json(seq, instance_id_str);
@@ -474,7 +475,7 @@ fn optimized_replay_iterator_with_event_type_predicate() {
     let instance_id_str = id_string.as_str();
     let instance_id = parse_instance_id(instance_id_str);
     let partition = keyspace
-        .keyspace("events", || KeyspaceCreateOptions::default())
+        .open_partition("events", PartitionCreateOptions::default())
         .expect("partition");
     let event_types = [
         "WorkflowStarted",
@@ -526,7 +527,7 @@ fn optimized_replay_iterator_empty_when_no_matching_events() {
     let instance_id_str = id_string.as_str();
     let instance_id = parse_instance_id(instance_id_str);
     let partition = keyspace
-        .keyspace("events", || KeyspaceCreateOptions::default())
+        .open_partition("events", PartitionCreateOptions::default())
         .expect("partition");
     for seq in 1..=5u64 {
         let value = make_envelope_json(seq, instance_id_str);
@@ -554,7 +555,7 @@ fn optimized_replay_iterator_with_schema_version_predicate() {
     let instance_id_str = id_string.as_str();
     let instance_id = parse_instance_id(instance_id_str);
     let partition = keyspace
-        .keyspace("events", || KeyspaceCreateOptions::default())
+        .open_partition("events", PartitionCreateOptions::default())
         .expect("partition");
     for seq in 1..=5u64 {
         let version = if seq % 2 == 0 { 1 } else { 0 };
@@ -592,7 +593,7 @@ fn optimized_replay_iterator_with_timestamp_range_predicate() {
     let instance_id_str = id_string.as_str();
     let instance_id = parse_instance_id(&id_string);
     let partition = keyspace
-        .keyspace("events", || KeyspaceCreateOptions::default())
+        .open_partition("events", PartitionCreateOptions::default())
         .expect("partition");
     for seq in 1..=10u64 {
         let timestamp_ms = 1000 + (seq * 100);
@@ -634,7 +635,7 @@ fn optimized_replay_iterator_combined_predicates_and_limit() {
     let instance_id_str = id_string.as_str();
     let instance_id = parse_instance_id(instance_id_str);
     let partition = keyspace
-        .keyspace("events", || KeyspaceCreateOptions::default())
+        .open_partition("events", PartitionCreateOptions::default())
         .expect("partition");
     for seq in 1..=20u64 {
         let value = make_envelope_json(seq, instance_id_str);
@@ -662,7 +663,7 @@ fn optimized_replay_iterator_isolates_different_instances() {
     let id_a = id_a_string.as_str();
     let id_b = "01H5JYV4XHGSR2F8KZ9BWNRFMB";
     let partition = keyspace
-        .keyspace("events", || KeyspaceCreateOptions::default())
+        .open_partition("events", PartitionCreateOptions::default())
         .expect("partition");
     let a1 = make_envelope_json(1, id_a);
     let a2 = make_envelope_json(2, id_a);
@@ -701,7 +702,7 @@ fn optimized_replay_iterator_isolates_different_instances() {
 }
 
 fn insert_lineage_event(
-    partition: &fjall::Keyspace,
+    partition: &fjall::PartitionHandle,
     lineage_id: &str,
     epoch: u64,
     seq: u64,
@@ -719,7 +720,7 @@ fn insert_lineage_event(
 fn lineage_wide_query_returns_events_across_all_epochs() {
     let (_dir, keyspace) = setup_keyspace();
     let partition = keyspace
-        .keyspace("events", || KeyspaceCreateOptions::default())
+        .open_partition("events", PartitionCreateOptions::default())
         .unwrap();
 
     let lineage_id = "wf-lineage-42";
@@ -757,7 +758,7 @@ fn lineage_wide_query_returns_events_across_all_epochs() {
 fn epoch_specific_query_returns_events_only_for_target_epoch() {
     let (_dir, keyspace) = setup_keyspace();
     let partition = keyspace
-        .keyspace("events", || KeyspaceCreateOptions::default())
+        .open_partition("events", PartitionCreateOptions::default())
         .unwrap();
 
     let lineage_id = "wf-lineage-99";
@@ -812,7 +813,7 @@ fn lineage_wide_query_returns_empty_for_nonexistent_lineage() {
 fn epoch_specific_query_returns_empty_for_nonexistent_epoch() {
     let (_dir, keyspace) = setup_keyspace();
     let partition = keyspace
-        .keyspace("events", || KeyspaceCreateOptions::default())
+        .open_partition("events", PartitionCreateOptions::default())
         .unwrap();
 
     let lineage_id = "wf-lineage-empty";
@@ -838,7 +839,7 @@ fn epoch_specific_query_returns_empty_for_nonexistent_epoch() {
 fn lineage_wide_query_does_not_return_instance_id_events() {
     let (_dir, keyspace) = setup_keyspace();
     let partition = keyspace
-        .keyspace("events", || KeyspaceCreateOptions::default())
+        .open_partition("events", PartitionCreateOptions::default())
         .unwrap();
 
     let instance_id_str = ulid::Ulid::new().to_string();

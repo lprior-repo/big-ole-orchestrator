@@ -22,7 +22,7 @@
 
 use vo_types::TimestampMs;
 use vo_types::{
-    CompensationPolicy, EffectIntent, EffectKind, EffectRecord,
+    apply_effect_transition, CompensationPolicy, EffectIntent, EffectKind, EffectRecord,
     EffectTransitionError,
 };
 

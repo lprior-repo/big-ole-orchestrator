@@ -71,7 +71,9 @@ impl<C: Connector> ConnectorOrchestrator<C> {
         match result {
             Ok(Ok(result)) => Ok(result),
             Ok(Err(e)) => Err(e),
-            Err(_) => Ok(ConnectorResult::Ambiguous),
+            Err(_) => {
+                Ok(ConnectorResult::Ambiguous)
+            }
         }
     }
 
@@ -85,7 +87,9 @@ impl<C: Connector> ConnectorOrchestrator<C> {
         match result {
             Ok(Ok(result)) => Ok(result),
             Ok(Err(e)) => Err(e),
-            Err(_) => Ok(ConnectorResult::Ambiguous),
+            Err(_) => {
+                Ok(ConnectorResult::Ambiguous)
+            }
         }
     }
 
@@ -112,7 +116,9 @@ impl<C: Connector> ConnectorOrchestrator<C> {
         match commit_result {
             ConnectorResult::Success => Ok(ConnectorResult::Success),
             ConnectorResult::Failure => Ok(ConnectorResult::Failure),
-            ConnectorResult::Ambiguous => self.handle_ambiguous().await,
+            ConnectorResult::Ambiguous => {
+                self.handle_ambiguous().await
+            }
         }
     }
 

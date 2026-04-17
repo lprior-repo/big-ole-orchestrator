@@ -57,9 +57,7 @@ async fn parent_child_add_and_query() {
     assert_eq!(reg.active_children_count().await, 1);
     assert!(!reg.all_children_terminal().await);
 
-    let pending = reg
-        .get_children_by_state(ActorLifecycleState::Pending)
-        .await;
+    let pending = reg.get_children_by_state(ActorLifecycleState::Pending).await;
     assert_eq!(pending, vec![id]);
 }
 
@@ -76,8 +74,7 @@ async fn shutdown_propagation_all_children_stopped() {
     assert_eq!(reg.active_children_count().await, 2);
 
     for id in &ids {
-        reg.update_child_state(id, ActorLifecycleState::Stopped)
-            .await;
+        reg.update_child_state(id, ActorLifecycleState::Stopped).await;
     }
 
     assert!(reg.all_children_terminal().await);
@@ -86,12 +83,7 @@ async fn shutdown_propagation_all_children_stopped() {
 
 #[tokio::test]
 async fn message_routing_unknown_channel_returns_error() {
-    let config = vo_actor::message_router::RouterConfig::new(
-        10,
-        100,
-        std::time::Duration::from_secs(5),
-        true,
-    );
+    let config = vo_actor::message_router::RouterConfig::new(10, 100, std::time::Duration::from_secs(5), true);
     let mut router = vo_actor::message_router::MessageRouter::new(config);
     let ch = vo_actor::message_router::ChannelId::new("no-such-channel");
 
@@ -108,8 +100,5 @@ fn shutdown_propagator_config() {
         std::time::Duration::from_secs(10),
     );
     assert_eq!(prop.graceful_timeout(), std::time::Duration::from_secs(30));
-    assert_eq!(
-        prop.force_kill_timeout(),
-        std::time::Duration::from_secs(10)
-    );
+    assert_eq!(prop.force_kill_timeout(), std::time::Duration::from_secs(10));
 }

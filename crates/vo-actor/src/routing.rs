@@ -55,10 +55,7 @@ pub enum RoutingError {
     #[error("lineage not found: {0}")]
     LineageNotFound(String),
     #[error("epoch {requested} does not exist for lineage {lineage_id}")]
-    EpochNotFound {
-        lineage_id: String,
-        requested: Epoch,
-    },
+    EpochNotFound { lineage_id: String, requested: Epoch },
     #[error("lineage is tombstoned: {0}")]
     LineageTombstoned(String),
     #[error("storage error: {0}")]
@@ -120,10 +117,10 @@ impl<R: EpochResolver> LineageRouter<R> {
                 lineage_id,
                 epoch: Some(requested_epoch),
             } => {
-                let instance_id = self
-                    .resolver
-                    .resolve_specific_epoch(&lineage_id, requested_epoch)
-                    .await?;
+                let instance_id =
+                    self.resolver
+                        .resolve_specific_epoch(&lineage_id, requested_epoch)
+                        .await?;
                 let active_info = self.resolver.resolve_active_epoch(&lineage_id).await?;
                 Ok(ResolvedRoute {
                     lineage_id,
@@ -195,15 +192,14 @@ mod tests {
                     requested: epoch,
                 });
             }
-            InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA")
-                .map_err(|e| RoutingError::StorageError(e.to_string()))
+            InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").map_err(|e| RoutingError::StorageError(e.to_string()))
         }
     }
 
     #[tokio::test]
     async fn route_query_without_epoch_resolves_to_active_epoch() {
-        let resolver =
-            MockEpochResolver::new().with_lineage("lin-1", Epoch::new(3), LineageStatus::Active);
+        let resolver = MockEpochResolver::new()
+            .with_lineage("lin-1", Epoch::new(3), LineageStatus::Active);
         let router = LineageRouter::new(Arc::new(resolver));
 
         let query = LineageQuery::QueryByLineage {
@@ -219,8 +215,8 @@ mod tests {
 
     #[tokio::test]
     async fn route_query_with_explicit_epoch_routes_to_that_epoch() {
-        let resolver =
-            MockEpochResolver::new().with_lineage("lin-1", Epoch::new(3), LineageStatus::Active);
+        let resolver = MockEpochResolver::new()
+            .with_lineage("lin-1", Epoch::new(3), LineageStatus::Active);
         let router = LineageRouter::new(Arc::new(resolver));
 
         let query = LineageQuery::QueryByLineage {
@@ -250,11 +246,8 @@ mod tests {
 
     #[tokio::test]
     async fn route_tombstoned_lineage_returns_error() {
-        let resolver = MockEpochResolver::new().with_lineage(
-            "lin-dead",
-            Epoch::ZERO,
-            LineageStatus::Tombstoned,
-        );
+        let resolver = MockEpochResolver::new()
+            .with_lineage("lin-dead", Epoch::ZERO, LineageStatus::Tombstoned);
         let router = LineageRouter::new(Arc::new(resolver));
 
         let query = LineageQuery::QueryByLineage {

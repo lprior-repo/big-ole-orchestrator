@@ -7,9 +7,8 @@
 use std::fmt;
 use std::str::FromStr;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum WorkloadClass {
-    #[default]
     Recovery,
     NewInstance,
     Internal,
@@ -35,6 +34,12 @@ impl FromStr for WorkloadClass {
                 input: s.to_string(),
             }),
         }
+    }
+}
+
+impl Default for WorkloadClass {
+    fn default() -> Self {
+        Self::Internal
     }
 }
 
