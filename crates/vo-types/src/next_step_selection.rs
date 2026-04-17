@@ -185,6 +185,7 @@ pub fn select_next_step(
     }
 
     // Select first node in definition order (deterministic tiebreaker)
+    #[allow(clippy::unwrap_used)]
     let selected = ready_nodes.into_iter().next().unwrap();
 
     // TODO: Compute attempt and fence from command history / instance state
