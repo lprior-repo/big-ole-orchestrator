@@ -117,11 +117,14 @@ impl<R: EpochResolver> LineageRouter<R> {
                 lineage_id,
                 epoch: Some(requested_epoch),
             } => {
+                let active_info = self.resolver.resolve_active_epoch(&lineage_id).await?;
+                if !active_info.lineage_state.can_spawn_epoch() {
+                    return Err(RoutingError::LineageTombstoned(lineage_id));
+                }
                 let instance_id =
                     self.resolver
                         .resolve_specific_epoch(&lineage_id, requested_epoch)
                         .await?;
-                let active_info = self.resolver.resolve_active_epoch(&lineage_id).await?;
                 Ok(ResolvedRoute {
                     lineage_id,
                     target_epoch: requested_epoch,
@@ -289,5 +292,90 @@ mod tests {
         .is_not_found());
         assert!(!RoutingError::LineageTombstoned("x".to_string()).is_not_found());
         assert!(!RoutingError::StorageError("x".to_string()).is_not_found());
+    }
+
+    #[tokio::test]
+    async fn route_requested_epoch_equals_active_epoch_sets_is_active() {
+        let resolver = MockEpochResolver::new()
+            .with_lineage("lin-1", Epoch::new(3), LineageStatus::Active);
+        let router = LineageRouter::new(Arc::new(resolver));
+
+        let query = LineageQuery::QueryByLineage {
+            lineage_id: "lin-1".to_string(),
+            epoch: Some(Epoch::new(3)),
+        };
+
+        let result = router.route(query).await.unwrap();
+        assert_eq!(result.lineage_id, "lin-1");
+        assert_eq!(result.target_epoch, Epoch::new(3));
+        assert!(result.is_active_epoch, "is_active_epoch should be true when requested epoch equals active epoch");
+    }
+
+    #[tokio::test]
+    async fn route_requested_epoch_greater_than_active_returns_not_found() {
+        let resolver = MockEpochResolver::new()
+            .with_lineage("lin-1", Epoch::new(3), LineageStatus::Active);
+        let router = LineageRouter::new(Arc::new(resolver));
+
+        let query = LineageQuery::QueryByLineage {
+            lineage_id: "lin-1".to_string(),
+            epoch: Some(Epoch::new(10)),
+        };
+
+        let result = router.route(query).await;
+        assert!(matches!(result, Err(RoutingError::EpochNotFound { .. })), "Should return EpochNotFound when requested epoch does not exist");
+    }
+
+    #[tokio::test]
+    async fn route_multiple_sequential_calls_are_consistent() {
+        let resolver = MockEpochResolver::new()
+            .with_lineage("lin-1", Epoch::new(3), LineageStatus::Active);
+        let router = LineageRouter::new(Arc::new(resolver));
+
+        let query1 = LineageQuery::QueryByLineage {
+            lineage_id: "lin-1".to_string(),
+            epoch: Some(Epoch::new(1)),
+        };
+        let query2 = LineageQuery::QueryByLineage {
+            lineage_id: "lin-1".to_string(),
+            epoch: Some(Epoch::new(1)),
+        };
+
+        let result1 = router.route(query1).await.unwrap();
+        let result2 = router.route(query2).await.unwrap();
+
+        assert_eq!(result1, result2, "Sequential calls with same lineage and epoch should return consistent results");
+        assert_eq!(result1.target_epoch, result2.target_epoch);
+        assert_eq!(result1.target_instance_id, result2.target_instance_id);
+        assert_eq!(result1.is_active_epoch, result2.is_active_epoch);
+    }
+
+    #[tokio::test]
+    async fn route_lineage_not_found_returns_lineage_not_found_not_epoch_not_found() {
+        let resolver = MockEpochResolver::new();
+        let router = LineageRouter::new(Arc::new(resolver));
+
+        let query = LineageQuery::QueryByLineage {
+            lineage_id: "nonexistent".to_string(),
+            epoch: Some(Epoch::new(1)),
+        };
+
+        let result = router.route(query).await;
+        assert!(matches!(result, Err(RoutingError::LineageNotFound(_))), "Should return LineageNotFound when lineage does not exist, not EpochNotFound");
+    }
+
+    #[tokio::test]
+    async fn route_tombstoned_lineage_with_explicit_epoch_returns_tombstoned() {
+        let resolver = MockEpochResolver::new()
+            .with_lineage("lin-dead", Epoch::new(1), LineageStatus::Tombstoned);
+        let router = LineageRouter::new(Arc::new(resolver));
+
+        let query = LineageQuery::QueryByLineage {
+            lineage_id: "lin-dead".to_string(),
+            epoch: Some(Epoch::new(1)),
+        };
+
+        let result = router.route(query).await;
+        assert!(matches!(result, Err(RoutingError::LineageTombstoned(_))), "Tombstoned lineage should return LineageTombstoned regardless of epoch specification");
     }
 }
