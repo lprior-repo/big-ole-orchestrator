@@ -12,8 +12,13 @@ pub use ws::*;
 pub mod helpers;
 pub use helpers::*;
 
-pub mod workflow;
-pub use workflow::*;
+pub mod workflow_start;
+pub mod workflow_status;
+pub mod workflow_lifecycle;
+
+pub use workflow_start::*;
+pub use workflow_status::*;
+pub use workflow_lifecycle::*;
 
 // NOTE: signal, events, and sse modules have pre-existing
 // compilation errors that need to be fixed separately.
