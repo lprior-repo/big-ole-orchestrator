@@ -14,6 +14,33 @@ pub struct TaskDef {
 
 use crate::error::Error;
 
+pub fn parse_attributes(attr: &TokenStream) -> Result<(), Error> {
+    if attr.is_empty() {
+        return Ok(());
+    }
+
+    let attr_str = attr.to_string();
+    if attr_str.is_empty() {
+        return Err(Error::EmptyAttribute);
+    }
+
+    let attr_count = attr_str.split_whitespace().count();
+    if attr_count > 255 {
+        return Err(Error::TooManyAttributes { count: attr_count });
+    }
+
+    let first_attr = attr_str.split_whitespace().next().unwrap_or("");
+    if first_attr == "retries" {
+        return Err(Error::UnsupportedAttribute {
+            attribute: first_attr.to_string(),
+        });
+    }
+
+    Err(Error::UnsupportedAttribute {
+        attribute: first_attr.to_string(),
+    })
+}
+
 pub fn parse_task(item: &TokenStream) -> Result<TaskDef, Error> {
     if item.is_empty() {
         return Err(Error::ParseFailure);
@@ -41,7 +68,15 @@ pub fn parse_task(item: &TokenStream) -> Result<TaskDef, Error> {
 
     let return_type = match parsed.sig.output {
         syn::ReturnType::Default => None,
-        syn::ReturnType::Type(_, ty) => Some(*ty),
+        syn::ReturnType::Type(_, ty) => {
+            if parsed.sig.asyncness.is_some() {
+                return Err(Error::AsyncReturnTypeMismatch {
+                    ident: parsed.sig.ident.to_string(),
+                    return_type: quote::quote! { #ty }.to_string(),
+                });
+            }
+            Some(*ty)
+        }
     };
 
     Ok(TaskDef {
@@ -55,7 +90,10 @@ pub fn parse_task(item: &TokenStream) -> Result<TaskDef, Error> {
 
 #[allow(clippy::unnecessary_wraps)]
 pub fn generate_task_entrypoint(task: &TaskDef) -> Result<TokenStream, Error> {
-    let ident = syn::parse_str::<syn::Ident>(&task.ident).map_err(|_| Error::IdentParsingFailed)?;
+    let ident =
+        syn::parse_str::<syn::Ident>(&task.ident).map_err(|_| Error::IdentParsingFailed {
+            ident: task.ident.clone(),
+        })?;
 
     let ret_type = match &task.return_type {
         Some(ty) => quote::quote! { -> #ty },
@@ -146,6 +184,51 @@ mod tests {
     }
 
     #[test]
+    fn parse_task_rejects_async_with_return_type() {
+        let input = quote! { async fn my_task() -> i32 {} };
+        let result = parse_task(&input);
+        assert!(matches!(
+            result,
+            Err(Error::AsyncReturnTypeMismatch {
+                ident,
+                return_type
+            }) if ident == "my_task" && return_type == "i32"
+        ));
+    }
+
+    #[test]
+    fn parse_task_accepts_async_without_return_type() {
+        let input = quote! { async fn my_task() {} };
+        let result = parse_task(&input).unwrap();
+        assert!(result.is_async);
+        assert!(result.return_type.is_none());
+    }
+
+    #[test]
+    fn parse_attributes_accepts_empty() {
+        let attr = quote! {};
+        assert_eq!(parse_attributes(&attr), Ok(()));
+    }
+
+    #[test]
+    fn parse_attributes_rejects_non_empty() {
+        let attr = quote! { foo };
+        let result = parse_attributes(&attr);
+        assert!(
+            matches!(result, Err(Error::UnsupportedAttribute { attribute }) if attribute == "foo")
+        );
+    }
+
+    #[test]
+    fn parse_attributes_rejects_retries() {
+        let attr = quote! { retries = 3 };
+        let result = parse_attributes(&attr);
+        assert!(
+            matches!(result, Err(Error::UnsupportedAttribute { attribute }) if attribute == "retries")
+        );
+    }
+
+    #[test]
     fn parse_task_handles_complex_return_type() {
         let input = quote! { fn my_task() -> Result<(), std::io::Error> {} };
         let expected_ty: Type = parse_quote!(Result<(), std::io::Error>);
@@ -232,7 +315,9 @@ mod tests {
             generics: syn::Generics::default(),
         };
         let result = generate_task_entrypoint(&task);
-        assert!(matches!(result, Err(Error::IdentParsingFailed)));
+        assert!(
+            matches!(result, Err(Error::IdentParsingFailed { ident }) if ident == "123invalid")
+        );
     }
 
     #[test]
@@ -245,7 +330,7 @@ mod tests {
             generics: syn::Generics::default(),
         };
         let result = generate_task_entrypoint(&task);
-        assert!(matches!(result, Err(Error::IdentParsingFailed)));
+        assert!(matches!(result, Err(Error::IdentParsingFailed { ident }) if ident.is_empty()));
     }
 
     #[test]
@@ -258,7 +343,7 @@ mod tests {
             generics: syn::Generics::default(),
         };
         let result = generate_task_entrypoint(&task);
-        assert!(matches!(result, Err(Error::IdentParsingFailed)));
+        assert!(matches!(result, Err(Error::IdentParsingFailed { ident }) if ident == " "));
     }
 
     proptest! {

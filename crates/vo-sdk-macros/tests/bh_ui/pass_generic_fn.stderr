@@ -1,4 +1,4 @@
-error: generic functions are not supported
+error: generic functions are not supported: task functions must be concrete
  --> tests/bh_ui/pass_generic_fn.rs:3:1
   |
 3 | #[task]
