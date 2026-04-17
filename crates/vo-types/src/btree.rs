@@ -125,6 +125,7 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
             return;
         }
 
+        #[allow(clippy::expect_used)]
         let root = self
             .root
             .take()
@@ -223,10 +224,12 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
             return Err(BTreeError::KeyNotFound);
         }
 
+        #[allow(clippy::expect_used)]
         let root = self
             .root
             .take()
             .expect("btree root missing after search check");
+        #[allow(clippy::expect_used)]
         let (updated_root, removed) = self
             .delete_recursive(root, key)
             .expect("search confirmed key exists");
@@ -236,13 +239,13 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
             if updated_root.is_leaf() {
                 self.root = None;
             } else {
-                self.root = Some(
-                    updated_root
-                        .children
-                        .into_iter()
-                        .next()
-                        .expect("btree children missing despite internal node"),
-                );
+                #[allow(clippy::expect_used)]
+                let first_child = updated_root
+                    .children
+                    .into_iter()
+                    .next()
+                    .expect("btree children missing despite internal node");
+                self.root = Some(first_child);
             }
         } else {
             self.root = Some(updated_root);
@@ -379,14 +382,17 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
         let left_idx = idx - 1;
         let parent_key = node.keys.remove(left_idx);
         let parent_val = node.values.remove(left_idx);
+        #[allow(clippy::expect_used)]
         let donor_key = node.children[left_idx]
             .keys
             .pop()
             .expect("btree donor node keys empty despite invariant");
+        #[allow(clippy::expect_used)]
         let donor_val = node.children[left_idx]
             .values
             .pop()
             .expect("btree donor node values empty despite invariant");
+        #[allow(clippy::expect_used)]
         let donor_child = if !node.children[left_idx].children.is_empty() {
             Some(
                 node.children[left_idx]
@@ -430,12 +436,7 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
     /// This handles the case where ensure_child_has_minimum merges two min_keys
     /// children with a separator, producing 2*min_keys+1 keys which can exceed
     /// max_keys for odd-order B-trees (e.g., order 3: 1+1+1=3 > max_keys=2).
-    fn maybe_split_child(
-        &self,
-        parent: &mut BTreeNode<K, V>,
-        idx: usize,
-        child: BTreeNode<K, V>,
-    ) {
+    fn maybe_split_child(&self, parent: &mut BTreeNode<K, V>, idx: usize, child: BTreeNode<K, V>) {
         if child.keys.len() <= self.max_keys() {
             parent.children.insert(idx, child);
             return;
@@ -581,14 +582,26 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
         is_root: bool,
     ) -> Result<(), String> {
         if node.keys.len() > max_keys {
-            return Err(format!("keys.len {} > max_keys {}", node.keys.len(), max_keys));
+            return Err(format!(
+                "keys.len {} > max_keys {}",
+                node.keys.len(),
+                max_keys
+            ));
         }
         // Root is exempt from minimum keys constraint (B-tree invariant)
         if !is_root && !node.is_leaf() && node.keys.len() < min_keys {
-            return Err(format!("non-root keys.len {} < min_keys {}", node.keys.len(), min_keys));
+            return Err(format!(
+                "non-root keys.len {} < min_keys {}",
+                node.keys.len(),
+                min_keys
+            ));
         }
         if !node.children.is_empty() && node.children.len() != node.keys.len() + 1 {
-            return Err(format!("children {} != keys+1 {}", node.children.len(), node.keys.len() + 1));
+            return Err(format!(
+                "children {} != keys+1 {}",
+                node.children.len(),
+                node.keys.len() + 1
+            ));
         }
         if node.is_leaf() && expected_height != 1 {
             return Err(format!("leaf height {} != 1", expected_height));

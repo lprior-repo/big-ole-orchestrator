@@ -297,6 +297,7 @@ impl<K: Ord, T: Clone> CartesianTree<K, T> {
     }
 
     fn rotate_left(mut node: Box<CartesianNode<K, T>>) -> Box<CartesianNode<K, T>> {
+        #[allow(clippy::expect_used)]
         let mut new_root = node
             .right
             .take()
@@ -307,6 +308,7 @@ impl<K: Ord, T: Clone> CartesianTree<K, T> {
     }
 
     fn rotate_right(mut node: Box<CartesianNode<K, T>>) -> Box<CartesianNode<K, T>> {
+        #[allow(clippy::expect_used)]
         let mut new_root = node
             .left
             .take()

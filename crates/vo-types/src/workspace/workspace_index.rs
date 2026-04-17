@@ -201,6 +201,7 @@ impl WorkspaceIndex {
         }
 
         {
+            #[allow(clippy::expect_used)]
             let new_node = self
                 .nodes
                 .get_mut(&id)
@@ -233,6 +234,7 @@ impl WorkspaceIndex {
             .collect();
 
         for (i, desc_id) in all_ids.iter().enumerate() {
+            #[allow(clippy::expect_used)]
             let desc_new_path = WorkspacePath::new(crate::NonEmptyVec::new_unchecked(
                 current_path_segments.clone(),
             ))

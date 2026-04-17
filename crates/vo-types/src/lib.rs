@@ -1,3 +1,5 @@
+#![feature(stmt_expr_attributes)]
+
 mod binomial_heap;
 #[cfg(test)]
 mod blob_tests;
