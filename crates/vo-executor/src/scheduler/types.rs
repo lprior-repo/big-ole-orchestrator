@@ -5,6 +5,9 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
+use vo_types::{
+    check_identifier_boundaries, extract_invalid_chars, is_identifier_char, ParseError,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Default)]
 pub enum JobPriority {
@@ -238,6 +241,60 @@ pub struct JobId(pub u64);
 impl JobId {
     pub fn new(id: u64) -> Self {
         Self(id)
+    }
+
+    pub fn parse(input: &str) -> Result<Self, ParseError> {
+        const TYPE_NAME: &str = "JobId";
+        const PREFIX: &str = "job-";
+
+        if input.is_empty() {
+            return Err(ParseError::Empty {
+                type_name: TYPE_NAME,
+            });
+        }
+
+        if !input.starts_with(PREFIX) {
+            return Err(ParseError::InvalidFormat {
+                type_name: TYPE_NAME,
+                reason: format!("must start with '{}'", PREFIX),
+            });
+        }
+
+        let id_str = &input[PREFIX.len()..];
+
+        if id_str.is_empty() {
+            return Err(ParseError::InvalidFormat {
+                type_name: TYPE_NAME,
+                reason: "empty identifier after prefix".to_string(),
+            });
+        }
+
+        let invalid = extract_invalid_chars(id_str, |c| c.is_ascii_digit());
+        if !invalid.is_empty() {
+            return Err(ParseError::InvalidCharacters {
+                type_name: TYPE_NAME,
+                invalid_chars: invalid,
+            });
+        }
+
+        let id: u64 = id_str.parse().map_err(|_| ParseError::InvalidFormat {
+            type_name: TYPE_NAME,
+            reason: format!("invalid u64: '{}'", id_str),
+        })?;
+
+        if id == 0 {
+            return Err(ParseError::InvalidFormat {
+                type_name: TYPE_NAME,
+                reason: "JobId cannot be zero".to_string(),
+            });
+        }
+
+        Ok(Self(id))
+    }
+
+    #[must_use]
+    pub fn as_u64(&self) -> u64 {
+        self.0
     }
 }
 
