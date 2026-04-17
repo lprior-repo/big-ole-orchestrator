@@ -67,6 +67,9 @@ pub(crate) fn internal_task_macro(
         Err(error::Error::UnsupportedSignature) => {
             quote::quote! { compile_error!("task functions cannot have arguments"); }
         }
+        Err(error::Error::GenericFunction) => {
+            quote::quote! { compile_error!("generic functions are not supported"); }
+        }
         Err(error::Error::ParseFailure) => {
             quote::quote! { compile_error!("parse error"); }
         }

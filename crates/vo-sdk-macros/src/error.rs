@@ -8,4 +8,6 @@ pub enum Error {
     ParseFailure,
     #[error("unsupported signature")]
     UnsupportedSignature,
+    #[error("generic functions are not supported")]
+    GenericFunction,
 }

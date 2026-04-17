@@ -7,7 +7,9 @@ use syn::Type;
 pub struct TaskDef {
     pub ident: String,
     pub is_async: bool,
+    pub is_unsafe: bool,
     pub return_type: Option<Type>,
+    pub generics: syn::Generics,
 }
 
 use crate::error::Error;
@@ -30,6 +32,13 @@ pub fn parse_task(item: &TokenStream) -> Result<TaskDef, Error> {
         return Err(Error::UnsupportedSignature);
     }
 
+    if !parsed.sig.generics.params.is_empty()
+        || parsed.sig.generics.lt_token.is_some()
+        || parsed.sig.generics.where_clause.is_some()
+    {
+        return Err(Error::GenericFunction);
+    }
+
     let return_type = match parsed.sig.output {
         syn::ReturnType::Default => None,
         syn::ReturnType::Type(_, ty) => Some(*ty),
@@ -38,7 +47,9 @@ pub fn parse_task(item: &TokenStream) -> Result<TaskDef, Error> {
     Ok(TaskDef {
         ident: parsed.sig.ident.to_string(),
         is_async: parsed.sig.asyncness.is_some(),
+        is_unsafe: parsed.sig.unsafety.is_some(),
         return_type,
+        generics: parsed.sig.generics,
     })
 }
 
@@ -57,15 +68,23 @@ pub fn generate_task_entrypoint(task: &TaskDef) -> Result<TokenStream, Error> {
         quote::quote! { #ident() }
     };
 
-    let body = if task.return_type.is_some() {
-        quote::quote! { #call }
+    let call_or_unsafe = if task.is_unsafe {
+        quote::quote! { unsafe { #call } }
     } else {
-        quote::quote! { #call; }
+        call
     };
+
+    let body = if task.return_type.is_some() {
+        quote::quote! { #call_or_unsafe }
+    } else {
+        quote::quote! { #call_or_unsafe; }
+    };
+
+    let (impl_generics, ty_generics, where_clause) = task.generics.split_for_impl();
 
     let wrapper = if task.is_async {
         quote::quote! {
-            fn main() #ret_type {
+            fn main (#impl_generics) #ret_type #where_clause {
                 let rt = tokio::runtime::Builder::new_current_thread()
                     .enable_all()
                     .build()
@@ -75,7 +94,7 @@ pub fn generate_task_entrypoint(task: &TaskDef) -> Result<TokenStream, Error> {
         }
     } else {
         quote::quote! {
-            fn main() #ret_type {
+            fn main (#impl_generics) #ret_type #where_clause {
                 #body
             }
         }
@@ -118,7 +137,9 @@ mod tests {
         let expected = TaskDef {
             ident: "a".to_string(),
             is_async: false,
+            is_unsafe: false,
             return_type: None,
+            generics: syn::Generics::default(),
         };
         let result = parse_task(&input);
         assert_eq!(result.unwrap(), expected);
@@ -131,7 +152,9 @@ mod tests {
         let expected = TaskDef {
             ident: "my_task".to_string(),
             is_async: false,
+            is_unsafe: false,
             return_type: Some(expected_ty),
+            generics: syn::Generics::default(),
         };
         let result = parse_task(&input);
         assert_eq!(result.unwrap(), expected);
@@ -143,7 +166,9 @@ mod tests {
         let expected = TaskDef {
             ident: "a".to_string(),
             is_async: false,
+            is_unsafe: false,
             return_type: None,
+            generics: syn::Generics::default(),
         };
         let result = parse_task(&input);
         assert_eq!(result.unwrap(), expected);
@@ -173,7 +198,9 @@ mod tests {
         let task = TaskDef {
             ident: "a".to_string(),
             is_async: false,
+            is_unsafe: false,
             return_type: None,
+            generics: syn::Generics::default(),
         };
         let expected = quote! { fn main() { a(); } };
         let result = generate_task_entrypoint(&task).unwrap();
@@ -186,7 +213,9 @@ mod tests {
         let task = TaskDef {
             ident: "run".to_string(),
             is_async: false,
+            is_unsafe: false,
             return_type: Some(expected_ty),
+            generics: syn::Generics::default(),
         };
         let expected = quote! { fn main() -> Result<(), std::io::Error> { run() } };
         let result = generate_task_entrypoint(&task).unwrap();
@@ -208,7 +237,9 @@ mod tests {
             let task = TaskDef {
                 ident,
                 is_async,
+                is_unsafe: false,
                 return_type: None,
+                generics: syn::Generics::default(),
             };
             let _ = generate_task_entrypoint(&task);
         }
@@ -229,7 +260,9 @@ mod verification {
             let task = TaskDef {
                 ident: s.to_string(),
                 is_async,
+                is_unsafe: false,
                 return_type: None,
+                generics: syn::Generics::default(),
             };
             let _ = generate_task_entrypoint(&task);
         }

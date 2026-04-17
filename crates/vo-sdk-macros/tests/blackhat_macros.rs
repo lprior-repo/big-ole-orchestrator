@@ -56,7 +56,7 @@ fn bh_rejects_retries_overflow() {
 #[test]
 fn bh_pass_unsafe_fn() {
     let t = TestCases::new();
-    t.compile_fail("tests/bh_ui/pass_unsafe_fn.rs");
+    t.pass("tests/bh_ui/pass_unsafe_fn.rs");
 }
 
 #[test]
@@ -68,7 +68,7 @@ fn bh_pass_async_where_clause() {
 #[test]
 fn bh_pass_extern_fn() {
     let t = TestCases::new();
-    t.compile_fail("tests/bh_ui/pass_extern_fn.rs");
+    t.pass("tests/bh_ui/pass_extern_fn.rs");
 }
 
 #[test]
