@@ -195,7 +195,7 @@ mod tests {
             .unwrap();
         assert_eq!(state.event_log.len(), 1);
         assert!(matches!(
-            state.event_log[0],
+            &state.event_log[0],
             SimWorkflowEvent::ActivityCompleted { activity_id, .. }
                 if activity_id == "act-001"
         ));
@@ -275,18 +275,18 @@ mod tests {
     }
 
     #[test]
-    fn provide_result_returns_no_ops_when_ops_list_empty() {
+    fn provide_result_returns_already_completed_when_zero_ops() {
         let mut state = SimProceduralState::new();
         let result = state.provide_result("ok".to_string(), "act-1", 0);
         assert!(matches!(result, Err(_)));
-        assert!(matches!(result.unwrap_err(), SimError::NoOpsAvailable));
+        assert!(matches!(result.unwrap_err(), SimError::AlreadyCompleted));
     }
 
     #[test]
     fn invariant_current_op_never_exceeds_ops_length() {
         let mut state = SimProceduralState::new();
         (0..5).for_each(|i| {
-            let result = state.provide_result(format!("r{i}"), format!("act-{i}"), 5);
+            let result = state.provide_result(format!("r{i}"), &format!("act-{i}"), 5);
             result.unwrap();
         });
         assert!(!state.can_advance(5));
@@ -297,7 +297,7 @@ mod tests {
         let mut state = SimProceduralState::new();
         (0..3).for_each(|i| {
             state
-                .provide_result(format!("r{i}"), format!("act-{i}"), 3)
+                .provide_result(format!("r{i}"), &format!("act-{i}"), 3)
                 .unwrap();
             assert_eq!(state.checkpoint_map.len(), state.current_op as usize);
         });
@@ -308,7 +308,7 @@ mod tests {
         let mut state = SimProceduralState::new();
         (0..3).for_each(|i| {
             state
-                .provide_result(format!("r{i}"), format!("act-{i}"), 3)
+                .provide_result(format!("r{i}"), &format!("act-{i}"), 3)
                 .unwrap();
             assert_eq!(state.event_log.len(), state.current_op as usize);
         });
