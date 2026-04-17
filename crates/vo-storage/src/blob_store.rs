@@ -553,6 +553,10 @@ pub const BLOB_RECORD_PARTITION: &str = "blob_records";
 pub trait BlobStore {
     /// Store a blob from a byte slice, computing SHA-256 for content address.
     ///
+    /// The blob is stored with `DurablyStored` status immediately.
+    /// Use [`BlobStore::stage_blob`] to create a blob in `Pending` status
+    /// for the full ADR-040 publication protocol.
+    ///
     /// If the content already exists (dedup), returns `BlobStoreError::DuplicateContent`.
     ///
     /// # Errors
@@ -560,6 +564,23 @@ pub trait BlobStore {
     /// Returns `BlobStoreError::DuplicateContent` if content already exists.
     /// Returns `BlobStoreError::Storage` if the underlying storage fails.
     fn store(&self, data: &[u8]) -> Result<ContentAddress, BlobStoreError>;
+
+    /// Stage a blob for later publication, creating it with `Pending` status.
+    ///
+    /// The blob data is written durably, but the metadata is created with
+    /// `Pending` status. The caller MUST call [`BlobStore::mark_durable`] before
+    /// publishing an `output_ref` referencing this blob (per ADR-040 §2).
+    ///
+    /// Use this for the full ADR-040 publication protocol:
+    /// 1. `stage_blob` - creates blob as `Pending`
+    /// 2. `mark_durable` - transitions to `DurablyStored`
+    /// 3. `publish` - transitions to `Published`
+    ///
+    /// # Errors
+    ///
+    /// Returns `BlobStoreError::DuplicateContent` if content already exists.
+    /// Returns `BlobStoreError::Storage` if the underlying storage fails.
+    fn stage_blob(&self, data: &[u8]) -> Result<ContentAddress, BlobStoreError>;
 
     /// Store a blob from a streaming source, computing SHA-256 incrementally.
     ///
@@ -653,4 +674,42 @@ pub trait BlobStore {
     /// Returns `BlobStoreError::GcCycleInProgress` if GC is already running.
     /// Returns `BlobStoreError::Storage` if the underlying storage fails.
     fn run_gc(&self, now_ms: u64) -> Result<u64, BlobStoreError>;
+
+    /// Mark a staged blob as durably stored.
+    ///
+    /// Transitions blob status from `Pending` to `DurablyStored`.
+    /// After this call, the blob is guaranteed durable and the Engine
+    /// may publish an `output_ref` referencing it (per ADR-040 §2).
+    ///
+    /// # Errors
+    ///
+    /// Returns `BlobStoreError::ContentNotFound` if no blob exists.
+    /// Returns `BlobStoreError::InvalidPublicationStatus` if blob is not in `Pending` status.
+    /// Returns `BlobStoreError::Storage` if the underlying storage fails.
+    fn mark_durable(&self, addr: &ContentAddress) -> Result<(), BlobStoreError>;
+
+    /// Publish a durably stored blob, making it referenceable by `output_ref`.
+    ///
+    /// Transitions blob status from `DurablyStored` to `Published`.
+    /// After this call, the blob has crossed the publication boundary
+    /// and is part of the exact-once replay contract (ADR-040 §4).
+    ///
+    /// # Errors
+    ///
+    /// Returns `BlobStoreError::ContentNotFound` if no blob exists.
+    /// Returns `BlobStoreError::InvalidPublicationStatus` if blob is not in `DurablyStored` status.
+    /// Returns `BlobStoreError::Storage` if the underlying storage fails.
+    fn publish(&self, addr: &ContentAddress) -> Result<(), BlobStoreError>;
+
+    /// Mark a blob as failed.
+    ///
+    /// Transitions blob status from `Pending` to `Failed`.
+    /// Used when blob persistence fails and cannot be retried.
+    ///
+    /// # Errors
+    ///
+    /// Returns `BlobStoreError::ContentNotFound` if no blob exists.
+    /// Returns `BlobStoreError::InvalidPublicationStatus` if blob is not in `Pending` status.
+    /// Returns `BlobStoreError::Storage` if the underlying storage fails.
+    fn mark_failed(&self, addr: &ContentAddress) -> Result<(), BlobStoreError>;
 }
