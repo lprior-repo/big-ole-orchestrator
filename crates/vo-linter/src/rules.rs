@@ -5,7 +5,7 @@
 
 use crate::diagnostic::{Diagnostic, LintCode};
 use std::collections::HashMap;
-use syn::{visit::Visit, ExprCall, ExprMethodCall, File, ItemUse, Path, UseTree};
+use syn::{visit::Visit, ExprCall, ExprMethodCall, File, ItemType, ItemUse, Path, UseTree};
 
 #[must_use]
 pub fn check_random_in_workflow(file: &File) -> Vec<Diagnostic> {
@@ -14,18 +14,31 @@ pub fn check_random_in_workflow(file: &File) -> Vec<Diagnostic> {
     detector.diagnostics
 }
 
-fn path_contains(path: &Path, segment: &str, use_renames: &HashMap<String, String>) -> bool {
+fn path_contains(
+    path: &Path,
+    segment: &str,
+    use_renames: &HashMap<String, String>,
+    case_insensitive: bool,
+) -> bool {
     path.segments.iter().any(|s| {
         let ident_str = s.ident.to_string();
         let resolved = use_renames
             .get(&ident_str)
             .map(|r| r.as_str())
             .unwrap_or(&ident_str);
-        resolved == segment
+        if case_insensitive {
+            resolved.eq_ignore_ascii_case(segment)
+        } else {
+            resolved == segment
+        }
     })
 }
 
-fn is_uuid_new_v4_call(call: &ExprCall, use_renames: &HashMap<String, String>) -> bool {
+fn is_uuid_new_v4_call(
+    call: &ExprCall,
+    use_renames: &HashMap<String, String>,
+    type_aliases: &HashMap<String, String>,
+) -> bool {
     if !call.args.is_empty() {
         return false;
     }
@@ -34,8 +47,21 @@ fn is_uuid_new_v4_call(call: &ExprCall, use_renames: &HashMap<String, String>) -
         _ => None,
     };
     path.is_some_and(|p| {
-        path_contains(p, "Uuid", use_renames) && path_contains(p, "new_v4", use_renames)
+        let is_uuid_path = path_contains(p, "Uuid", use_renames, true);
+        let is_alias_to_uuid = p.segments.first().is_some_and(|first_seg| {
+            type_aliases
+                .get(&first_seg.ident.to_string())
+                .is_some_and(|alias_val| alias_points_to_uuid(alias_val))
+        });
+        (is_uuid_path || is_alias_to_uuid) && path_contains(p, "new_v4", use_renames, false)
     })
+}
+
+fn alias_points_to_uuid(alias_value: &str) -> bool {
+    alias_value
+        .replace("::", ".")
+        .to_lowercase()
+        .contains("uuid")
 }
 
 fn is_rand_random_call(call: &ExprCall, use_renames: &HashMap<String, String>) -> bool {
@@ -44,7 +70,8 @@ fn is_rand_random_call(call: &ExprCall, use_renames: &HashMap<String, String>) -
         _ => None,
     };
     path.is_some_and(|p| {
-        path_contains(p, "rand", use_renames) && path_contains(p, "random", use_renames)
+        path_contains(p, "rand", use_renames, false)
+            && path_contains(p, "random", use_renames, false)
     })
 }
 
@@ -54,7 +81,8 @@ fn is_thread_rng_gen_call(call: &ExprCall, use_renames: &HashMap<String, String>
         _ => None,
     };
     path.is_some_and(|p| {
-        path_contains(p, "thread_rng", use_renames) && path_contains(p, "gen", use_renames)
+        path_contains(p, "thread_rng", use_renames, false)
+            && path_contains(p, "gen", use_renames, false)
     })
 }
 
@@ -64,11 +92,11 @@ fn is_os_rng_call(call: &ExprCall, use_renames: &HashMap<String, String>) -> boo
         _ => None,
     };
     path.is_some_and(|p| {
-        path_contains(p, "OsRng", use_renames)
-            && (path_contains(p, "next_u64", use_renames)
-                || path_contains(p, "next_u32", use_renames)
-                || path_contains(p, "next_u128", use_renames)
-                || path_contains(p, "fill", use_renames))
+        path_contains(p, "OsRng", use_renames, true)
+            && (path_contains(p, "next_u64", use_renames, false)
+                || path_contains(p, "next_u32", use_renames, false)
+                || path_contains(p, "next_u128", use_renames, false)
+                || path_contains(p, "fill", use_renames, false))
     })
 }
 
@@ -82,7 +110,7 @@ fn is_method_on_thread_rng(
                 syn::Expr::Path(p) => Some(&p.path),
                 _ => None,
             };
-            func_path.is_some_and(|p| path_contains(p, "thread_rng", use_renames))
+            func_path.is_some_and(|p| path_contains(p, "thread_rng", use_renames, false))
         }
         _ => false,
     };
@@ -94,7 +122,7 @@ fn is_os_rng_method_call(
     use_renames: &HashMap<String, String>,
 ) -> bool {
     let receiver_is_osrng = match &*method_call.receiver {
-        syn::Expr::Path(p) => path_contains(&p.path, "OsRng", use_renames),
+        syn::Expr::Path(p) => path_contains(&p.path, "OsRng", use_renames, true),
         _ => false,
     };
     receiver_is_osrng
@@ -108,6 +136,7 @@ fn is_os_rng_method_call(
 struct RandomDetector {
     diagnostics: Vec<Diagnostic>,
     use_renames: HashMap<String, String>,
+    type_aliases: HashMap<String, String>,
 }
 
 impl RandomDetector {}
@@ -133,8 +162,24 @@ impl<'ast> Visit<'ast> for RandomDetector {
         syn::visit::visit_item_use(self, node);
     }
 
+    fn visit_item_type(&mut self, node: &'ast ItemType) {
+        let alias_value = match &*node.ty {
+            syn::Type::Path(type_path) => type_path
+                .path
+                .segments
+                .iter()
+                .map(|s| s.ident.to_string())
+                .collect::<Vec<_>>()
+                .join("::"),
+            _ => format!("{:?}", node.ty),
+        };
+        self.type_aliases
+            .insert(node.ident.to_string(), alias_value);
+        syn::visit::visit_item_type(self, node);
+    }
+
     fn visit_expr_call(&mut self, node: &'ast ExprCall) {
-        if is_uuid_new_v4_call(node, &self.use_renames)
+        if is_uuid_new_v4_call(node, &self.use_renames, &self.type_aliases)
             || is_rand_random_call(node, &self.use_renames)
             || is_thread_rng_gen_call(node, &self.use_renames)
             || is_os_rng_call(node, &self.use_renames)
@@ -658,7 +703,7 @@ mod tests {
             }
         };
         let diags = parse_and_check(&src.to_string());
-        assert!(diags.is_empty());
+        assert_eq!(diags.len(), 1);
     }
 
     #[test]
@@ -680,7 +725,7 @@ mod tests {
             }
         };
         let diags = parse_and_check(&src.to_string());
-        assert!(diags.is_empty());
+        assert_eq!(diags.len(), 1);
     }
 
     #[test]
