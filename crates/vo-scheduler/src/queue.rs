@@ -109,7 +109,9 @@ impl SchedulerQueue {
         match new_schedule {
             SchedulePolicy::At(t) => job.due_at = t,
             SchedulePolicy::After(d) => {
-                job.due_at = Utc::now() + chrono::Duration::from_std(d).unwrap_or_default()
+                let chrono_dur = chrono::Duration::from_std(d)
+                    .map_err(|e| SchedulerError::DurationOverflow(e.to_string()))?;
+                job.due_at = Utc::now() + chrono_dur;
             }
             SchedulePolicy::Immediate => job.due_at = Utc::now(),
             SchedulePolicy::Cron(_) => job.due_at = Utc::now(),
