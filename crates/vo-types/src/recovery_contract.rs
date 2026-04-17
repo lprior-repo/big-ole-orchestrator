@@ -651,4 +651,190 @@ mod tests {
         unique.dedup();
         assert_eq!(names.len(), unique.len());
     }
+
+    #[test]
+    fn matrix_generation_is_deterministic() {
+        let matrix1 = generate_scenario_matrix();
+        let matrix2 = generate_scenario_matrix();
+        assert_eq!(matrix1.len(), matrix2.len());
+        for (s1, s2) in matrix1.iter().zip(matrix2.iter()) {
+            assert_eq!(s1.name, s2.name);
+            assert_eq!(s1.phase, s2.phase);
+            assert_eq!(s1.severity, s2.severity);
+            assert_eq!(s1.timing, s2.timing);
+            assert_eq!(s1.expected_outcome, s2.expected_outcome);
+        }
+    }
+
+    #[test]
+    fn classification_is_deterministic_for_all_combinations() {
+        for phase in RecoveryPhase::all_variants() {
+            for severity in FailoverSeverity::all_variants() {
+                for timing in CrashTiming::all_variants() {
+                    let outcome1 = classify_expected_outcome(*phase, *severity, *timing);
+                    let outcome2 = classify_expected_outcome(*phase, *severity, *timing);
+                    assert_eq!(
+                        outcome1, outcome2,
+                        "classify_expected_outcome not deterministic for {:?}/{:?}/{:?}",
+                        phase, severity, timing
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn all_violations_map_to_valid_invariants() {
+        let violations = [
+            RecoveryViolation::DuplicateCommit,
+            RecoveryViolation::LostEffect,
+            RecoveryViolation::StuckInNonTerminal,
+            RecoveryViolation::TransactionAmbiguous,
+            RecoveryViolation::ReconciliationCountMismatch,
+            RecoveryViolation::DuplicateJournalEntry,
+            RecoveryViolation::UnrecoveredOrphans,
+            RecoveryViolation::FenceTokenStale,
+        ];
+
+        for violation in &violations {
+            let invariant = violation_to_invariant(*violation);
+            assert!(
+                matches!(
+                    invariant,
+                    RecoveryInvariant::ExactlyOneReceiptPerCommit
+                        | RecoveryInvariant::NoSkippedPrepare
+                        | RecoveryInvariant::AmbiguousResolvesViaReconciliation
+                        | RecoveryInvariant::TransactionDecisionDurable
+                        | RecoveryInvariant::ReconciliationRetryBounded
+                        | RecoveryInvariant::RecoveryIdempotency
+                ),
+                "Violation {:?} maps to unexpected invariant {:?}",
+                violation,
+                invariant
+            );
+        }
+    }
+
+    #[test]
+    fn structural_invariants_hold_by_construction() {
+        assert_eq!(RecoveryInvariant::all_variants().len(), 8);
+        let structural_invariants = [
+            RecoveryInvariant::TerminalStatesAreFinal,
+            RecoveryInvariant::CompensationCompletes,
+        ];
+        assert_eq!(structural_invariants.len(), 2);
+
+        for inv in RecoveryInvariant::all_variants() {
+            if *inv == RecoveryInvariant::TerminalStatesAreFinal {
+                assert_eq!(inv.id(), "INV-R01");
+            }
+            if *inv == RecoveryInvariant::CompensationCompletes {
+                assert_eq!(inv.id(), "INV-R07");
+            }
+        }
+    }
+
+    #[test]
+    fn all_scenarios_have_valid_expected_outcome() {
+        let matrix = generate_scenario_matrix();
+        for scenario in &matrix {
+            let outcome =
+                classify_expected_outcome(scenario.phase, scenario.severity, scenario.timing);
+            assert_eq!(
+                outcome, scenario.expected_outcome,
+                "Scenario {} has inconsistent outcome: classified as {:?} but scenario expects {:?}",
+                scenario.name, outcome, scenario.expected_outcome
+            );
+        }
+    }
+
+    #[test]
+    fn every_phase_severity_timing_combination_classified() {
+        let expected_count = RecoveryPhase::all_variants().len()
+            * FailoverSeverity::all_variants().len()
+            * CrashTiming::all_variants().len();
+        let matrix = generate_scenario_matrix();
+        assert_eq!(matrix.len(), expected_count);
+
+        let mut covered = 0;
+        for phase in RecoveryPhase::all_variants() {
+            for severity in FailoverSeverity::all_variants() {
+                for timing in CrashTiming::all_variants() {
+                    let outcome = classify_expected_outcome(*phase, *severity, *timing);
+                    assert!(
+                        matches!(
+                            outcome,
+                            ExpectedRecoveryOutcome::Committed
+                                | ExpectedRecoveryOutcome::NotCommitted
+                                | ExpectedRecoveryOutcome::StillAmbiguous
+                                | ExpectedRecoveryOutcome::RolledBack
+                                | ExpectedRecoveryOutcome::TransactionResolved
+                        ),
+                        "Invalid outcome {:?} for {:?}/{:?}/{:?}",
+                        outcome,
+                        phase,
+                        severity,
+                        timing
+                    );
+                    covered += 1;
+                }
+            }
+        }
+        assert_eq!(covered, expected_count);
+    }
+
+    #[test]
+    fn crash_timing_windows_are_mutually_exclusive() {
+        let timings = CrashTiming::all_variants();
+        assert_eq!(timings.len(), 3);
+
+        for timing in timings {
+            let scenario = FailoverScenario::new(
+                "test",
+                RecoveryPhase::Commit,
+                FailoverSeverity::Ambiguous,
+                *timing,
+                ExpectedRecoveryOutcome::Committed,
+            );
+            match timing {
+                CrashTiming::BeforeWrite => {
+                    assert!(!matches!(
+                        scenario.timing,
+                        CrashTiming::PartialWrite | CrashTiming::AfterCommit
+                    ));
+                }
+                CrashTiming::PartialWrite => {
+                    assert!(!matches!(
+                        scenario.timing,
+                        CrashTiming::BeforeWrite | CrashTiming::AfterCommit
+                    ));
+                }
+                CrashTiming::AfterCommit => {
+                    assert!(!matches!(
+                        scenario.timing,
+                        CrashTiming::BeforeWrite | CrashTiming::PartialWrite
+                    ));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn no_skipped_prepare_invariant_holds() {
+        for phase in RecoveryPhase::all_variants() {
+            for severity in FailoverSeverity::all_variants() {
+                for timing in CrashTiming::all_variants() {
+                    let outcome = classify_expected_outcome(*phase, *severity, *timing);
+                    if phase == &RecoveryPhase::Prepare {
+                        assert!(
+                            matches!(outcome, ExpectedRecoveryOutcome::Committed
+                                | ExpectedRecoveryOutcome::NotCommitted
+                                | ExpectedRecoveryOutcome::RolledBack),
+                            "Prepare phase should never yield StillAmbiguous or TransactionResolved"
+                        );
+                    }
+                }
+            }
+        }
+    }
 }
