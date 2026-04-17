@@ -4,11 +4,11 @@
 #![warn(clippy::pedantic)]
 
 use dioxus::prelude::*;
-use oya_frontend::flow_extender::{
+use crate::flow_extender::{
     apply_extension, extension_presets, suggest_extensions, ExtensionPatchPreview,
     ExtensionPriority,
 };
-use oya_frontend::graph::{NodeId, Workflow};
+use crate::ui::graph::{NodeId, Workflow};
 
 use super::preset_card::PresetCard;
 use super::suggestion_card::SuggestionCard;
