@@ -45,7 +45,7 @@ mod node_kind;
 mod non_empty_vec;
 mod octree;
 mod payload_parser;
-mod next_step_selection;
+pub mod next_step_selection;
 mod pairing_heap;
 mod plugin;
 #[cfg(feature = "proptest")]
