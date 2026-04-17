@@ -20,7 +20,11 @@ use vo_types::connection_pool::{CircuitBreakerState, PoolId};
 use vo_worker::pool::circuit_breaker::CircuitBreaker;
 use vo_worker::pool::config::{PoolConfig, PoolConfigError};
 use vo_worker::pool::hash_ring::{HashRing, HashRingConfig, RingNode};
+<<<<<<< HEAD
 use vo_worker::retry::RetryConfig;
+=======
+use vo_worker::retry::{rand_jitter, RetryConfig};
+>>>>>>> origin/vo-worker-tests
 
 //==============================================================================
 // RETRY CONFIG PROPTESTS
@@ -35,9 +39,14 @@ proptest! {
         initial_backoff_ms in 1u64..10000,
         multiplier in 1.0f64..5.0,
         attempt1 in 1u32..10,
+<<<<<<< HEAD
         attempt2 in 11u32..20u32,
     ) {
         prop_assert!(attempt2 > attempt1, "attempt2 must be greater than attempt1");
+=======
+        attempt2 in (attempt1 + 1)..20,
+    ) {
+>>>>>>> origin/vo-worker-tests
         let config = RetryConfig::new(initial_backoff_ms, multiplier, 10);
         let backoff1 = config.calculate_backoff(attempt1);
         let backoff2 = config.calculate_backoff(attempt2);
@@ -107,6 +116,7 @@ proptest! {
             .with_jitter(jitter_factor);
         let base = Duration::from_millis(base_ms);
 
+<<<<<<< HEAD
         // Run multiple trials - note: rand_jitter uses time-based LCG seed,
         // so tight-loop iterations produce correlated values, not uniform randomness.
         // We only verify the jitter produces values in a reasonable range.
@@ -119,6 +129,27 @@ proptest! {
                 base, jitter_ms, max_expected
             );
         }
+=======
+        // Run multiple trials to check symmetry
+        let mut positive_count = 0u32;
+        let mut negative_count = 0u32;
+
+        for _ in 0..100 {
+            let with_jitter = config.calculate_jitter(base);
+            let diff = with_jitter.as_millis() as i64 - base.as_millis() as i64;
+            if diff > 0 {
+                positive_count += 1;
+            } else if diff < 0 {
+                negative_count += 1;
+            }
+        }
+
+        // Jitter should be roughly symmetric (allowing for randomness)
+        prop_assert!((positive_count as i32 - negative_count as i32).abs() < 30,
+            "Jitter should be symmetric: positive={} vs negative={}",
+            positive_count, negative_count
+        );
+>>>>>>> origin/vo-worker-tests
     }
 }
 
@@ -288,8 +319,13 @@ proptest! {
 
         // Determinism invariant: all results should be identical
         let first_result = results[0].clone();
+<<<<<<< HEAD
         for result in results.iter() {
             prop_assert_eq!(result, &first_result,
+=======
+        for result in results {
+            prop_assert_eq!(result, first_result,
+>>>>>>> origin/vo-worker-tests
                 "Consistent hashing should be deterministic for same key"
             );
         }
@@ -335,13 +371,20 @@ proptest! {
     #[test]
     fn test_valid_configs_pass_validation(
         min_connections in 1u32..100u32,
+<<<<<<< HEAD
         max_offset in 1u32..100u32,
+=======
+        max_connections in min_connections..200u32,
+>>>>>>> origin/vo-worker-tests
         connection_timeout_ms in 100u64..60000u64,
         idle_timeout_ms in 1000u64..300000u64,
         health_check_interval_ms in 100u64..60000u64,
         max_pending_acquires in 0u32..100u32,
     ) {
+<<<<<<< HEAD
         let max_connections = min_connections.saturating_add(max_offset);
+=======
+>>>>>>> origin/vo-worker-tests
         let result = PoolConfig::new(
             min_connections,
             max_connections,
@@ -456,6 +499,7 @@ proptest! {
 /// Invariant: with_defaults produces valid config
 /// Strategy: None (deterministic)
 /// Anti-invariant: with_defaults produces invalid config
+<<<<<<< HEAD
 #[test]
 fn test_with_defaults_valid() {
     let config = PoolConfig::with_defaults();
@@ -467,6 +511,21 @@ fn test_with_defaults_valid() {
     assert!(config.idle_timeout_ms > 0);
     assert!(config.health_check_interval_ms > 0);
     assert!(config.min_connections <= config.max_connections);
+=======
+proptest! {
+    #[test]
+    fn test_with_defaults_valid() {
+        let config = PoolConfig::with_defaults();
+
+        // Defaults invariant: should always be valid
+        prop_assert!(config.min_connections > 0);
+        prop_assert!(config.max_connections > 0);
+        prop_assert!(config.connection_timeout_ms > 0);
+        prop_assert!(config.idle_timeout_ms > 0);
+        prop_assert!(config.health_check_interval_ms > 0);
+        prop_assert!(config.min_connections <= config.max_connections);
+    }
+>>>>>>> origin/vo-worker-tests
 }
 
 //==============================================================================
@@ -476,12 +535,23 @@ fn test_with_defaults_valid() {
 /// Invariant: Circuit breaker starts in Closed state
 /// Strategy: None (deterministic)
 /// Anti-invariant: Circuit breaker starts in Open or HalfOpen state
+<<<<<<< HEAD
 #[test]
 fn test_initial_state_is_closed() {
     let cb = CircuitBreaker::new();
 
     // Initial state invariant
     assert_eq!(cb.state(), CircuitBreakerState::Closed);
+=======
+proptest! {
+    #[test]
+    fn test_initial_state_is_closed() {
+        let cb = CircuitBreaker::new();
+
+        // Initial state invariant
+        prop_assert_eq!(cb.state(), CircuitBreakerState::Closed);
+    }
+>>>>>>> origin/vo-worker-tests
 }
 
 /// Invariant: Success resets consecutive failures to 0
@@ -513,7 +583,11 @@ proptest! {
 }
 
 /// Invariant: Open state rejects requests, Closed/HalfOpen allow
+<<<<<<< HEAD
 /// Strategy: Record failures to trip circuit to Open, or timeout for HalfOpen
+=======
+/// Strategy: Random state transitions
+>>>>>>> origin/vo-worker-tests
 /// Anti-invariant: State allows/rejects incorrectly
 proptest! {
     #[test]
@@ -526,6 +600,7 @@ proptest! {
             "Closed state should allow requests"
         );
 
+<<<<<<< HEAD
         // Test HalfOpen state - use try_transition_to_half_open for testing
         // This requires internal state manipulation which we can't do in tests
         // Instead, we test the states we can reach via public API
@@ -544,16 +619,35 @@ proptest! {
         let cb_closed = CircuitBreaker::new();
         prop_assert!(cb_closed.should_allow_request(),
             "Closed state should allow requests"
+=======
+        // Test HalfOpen state
+        let mut cb_half_open = CircuitBreaker::new();
+        cb_half_open.transition_to(CircuitBreakerState::HalfOpen);
+        prop_assert!(cb_half_open.should_allow_request(),
+            "HalfOpen state should allow requests"
+        );
+
+        // Test Open state
+        let mut cb_open = CircuitBreaker::new();
+        cb_open.transition_to(CircuitBreakerState::Open);
+        prop_assert!(!cb_open.should_allow_request(),
+            "Open state should reject requests"
+>>>>>>> origin/vo-worker-tests
         );
     }
 }
 
 /// Invariant: reset() returns to initial Closed state with clean state
+<<<<<<< HEAD
 /// Strategy: Random failure count, then reset
+=======
+/// Strategy: Random state before reset
+>>>>>>> origin/vo-worker-tests
 /// Anti-invariant: reset() does not return to clean Closed state
 proptest! {
     #[test]
     fn test_reset_clears_state(
+<<<<<<< HEAD
         failures_before_reset in 0u32..100u32,
     ) {
         let mut cb = CircuitBreaker::new();
@@ -566,10 +660,26 @@ proptest! {
         let state_before = cb.state();
         let failures_before = cb.consecutive_failures();
 
+=======
+        target_state in any::<CircuitBreakerState>(),
+    ) {
+        let mut cb = CircuitBreaker::new();
+
+        // Transition to any state
+        if target_state == CircuitBreakerState::Closed {
+            // Already closed
+        } else if target_state == CircuitBreakerState::HalfOpen {
+            cb.transition_to(CircuitBreakerState::HalfOpen);
+        } else if target_state == CircuitBreakerState::Open {
+            cb.transition_to(CircuitBreakerState::Open);
+        }
+
+>>>>>>> origin/vo-worker-tests
         // Reset
         cb.reset();
 
         // Reset invariant
+<<<<<<< HEAD
         prop_assert_eq!(cb.state(), CircuitBreakerState::Closed,
             "Reset should return to Closed state, was {:?}", state_before
         );
@@ -629,21 +739,97 @@ proptest! {
         let mut cb = CircuitBreaker::new();
 
         // Record 10 failures to trip to Open
+=======
+        prop_assert_eq!(cb.state(), CircuitBreakerState::Closed);
+        prop_assert_eq!(cb.consecutive_failures(), 0);
+    }
+}
+
+/// Invariant: HalfOpen requires exactly 1 success to close
+/// Strategy: HalfOpen state, success/failure sequences
+/// Anti-invariant: HalfOpen requires different number of successes to close
+proptest! {
+    #[test]
+    fn test_half_open_success_threshold(
+        _seed in 0u32..1u32,
+    ) {
+        let mut cb = CircuitBreaker::new();
+        cb.transition_to(CircuitBreakerState::HalfOpen);
+
+        // Record 1 success
+        cb.record_success();
+
+        // Should transition to Closed after 1 success
+        prop_assert_eq!(cb.state(), CircuitBreakerState::Closed,
+            "HalfOpen should transition to Closed after 1 success"
+        );
+    }
+}
+
+/// Invariant: HalfOpen requires 10 failures to reopen
+/// Strategy: HalfOpen state, 10 failures
+/// Anti-invariant: 10 failures do not reopen circuit
+proptest! {
+    #[test]
+    fn test_half_open_failure_threshold(
+        _seed in 0u32..1u32,
+    ) {
+        let mut cb = CircuitBreaker::new();
+        cb.transition_to(CircuitBreakerState::HalfOpen);
+
+        // Record 10 failures
+>>>>>>> origin/vo-worker-tests
         for _ in 0..10 {
             cb.record_failure();
         }
 
+<<<<<<< HEAD
         // Circuit should be open now
         prop_assert_eq!(cb.state(), CircuitBreakerState::Open);
 
         // We cannot easily test HalfOpen without internal state access
         // The HalfOpen transition requires timestamp manipulation
         // So we verify the Open state and that reset works
+=======
+        // Should transition to Open after 10 failures
+        prop_assert_eq!(cb.state(), CircuitBreakerState::Open,
+            "HalfOpen should transition to Open after 10 failures"
+        );
+    }
+}
+
+/// Invariant: State transitions are irreversible without explicit reset
+/// Strategy: Sequence of transitions
+/// Anti-invariant: State can transition backwards without reset
+proptest! {
+    #[test]
+    fn test_transition_irreversibility(
+        _seed in 0u32..1u32,
+    ) {
+        let mut cb = CircuitBreaker::new();
+
+        // Closed -> HalfOpen (via timeout)
+        cb.transition_to(CircuitBreakerState::HalfOpen);
+        prop_assert_eq!(cb.state(), CircuitBreakerState::HalfOpen);
+
+        // HalfOpen -> Open (via failures)
+        for _ in 0..10 {
+            cb.record_failure();
+        }
+        prop_assert_eq!(cb.state(), CircuitBreakerState::Open);
+
+        // Open -> Closed should NOT happen automatically
+        // (would require explicit reset or timeout transition to HalfOpen first)
+        // This is tested by try_transition_to_half_open timing
+
+        // Only reset can return to Closed
+>>>>>>> origin/vo-worker-tests
         cb.reset();
         prop_assert_eq!(cb.state(), CircuitBreakerState::Closed);
     }
 }
 
+<<<<<<< HEAD
 /// Invariant: Failure count tracks correctly through operations
 /// Strategy: Random sequences of successes and failures
 /// Anti-invariant: Failure count diverges from actual recorded failures
@@ -703,6 +889,8 @@ proptest! {
     }
 }
 
+=======
+>>>>>>> origin/vo-worker-tests
 //==============================================================================
 // TYPE CONVERSION INVARIANTS
 //==============================================================================
@@ -917,17 +1105,27 @@ pub fn pool_config_strategy() -> impl Strategy<Value = PoolConfig> {
 
 /// Strategy for generating random keys for hash ring
 pub fn hash_ring_key_strategy() -> impl Strategy<Value = String> {
+<<<<<<< HEAD
     any::<String>()
+=======
+    prop::collection::any::<String>()
+>>>>>>> origin/vo-worker-tests
 }
 
 /// Strategy for generating random nodes
 pub fn ring_node_strategy(
     virtual_nodes: u32,
 ) -> impl Strategy<Value = (HashRingConfig, Vec<RingNode>)> {
+<<<<<<< HEAD
     use proptest::strategy::Just;
     (
         Just(HashRingConfig { virtual_nodes }),
         proptest::collection::vec((any::<u32>(), 1u32..10u32), 1usize..10usize),
+=======
+    (
+        proptest::just(HashRingConfig { virtual_nodes }),
+        prop::collection::vec((any::<u32>(), 1u32..10u32), 1usize..10usize),
+>>>>>>> origin/vo-worker-tests
     )
         .prop_map(|(config, nodes)| {
             let ring_nodes: Vec<RingNode> = nodes

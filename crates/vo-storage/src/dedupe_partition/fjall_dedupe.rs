@@ -26,9 +26,20 @@ pub struct FjallDedupeStore {
 }
 
 impl FjallDedupeStore {
+<<<<<<< HEAD
     pub fn open(db: &fjall::Database) -> Result<Self, DedupeStoreError> {
         let partition = db
             .keyspace(DEDUPE_PARTITION, fjall::KeyspaceCreateOptions::default)
+=======
+    /// Opens a new `FjallDedupeStore` backed by the given keyspace.
+    ///
+    /// # Errors
+    ///
+    /// Returns `DedupeStoreError::Storage` if the dedupe partition cannot be opened.
+    pub fn open(keyspace: &fjall::Keyspace) -> Result<Self, DedupeStoreError> {
+        let partition = keyspace
+            .open_partition(DEDUPE_PARTITION, fjall::PartitionCreateOptions::default())
+>>>>>>> origin/vo-worker-tests
             .map_err(|e| DedupeStoreError::Storage {
                 reason: format!("failed to open dedupe partition: {e}"),
             })?;
@@ -52,7 +63,11 @@ impl FjallDedupeStore {
 }
 
 impl DedupeStore for FjallDedupeStore {
+<<<<<<< HEAD
     #[allow(clippy::expect_used)]
+=======
+    #[expect(clippy::expect_used)]
+>>>>>>> origin/vo-worker-tests
     fn check_and_insert(
         &self,
         key: &DedupeKey,
@@ -64,10 +79,20 @@ impl DedupeStore for FjallDedupeStore {
         }
 
         let encoded_key = super::encode_dedupe_key(key);
+<<<<<<< HEAD
         let stripe_idx = stripe_for_key(&encoded_key);
         let _guard = self.stripes[stripe_idx].lock();
 
         let now_ms = Self::now_ms();
+=======
+        #[expect(clippy::expect_used, clippy::cast_possible_truncation)]
+        let now_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect(
+                "system time is guaranteed to be after UNIX epoch on properly configured systems",
+            )
+            .as_millis() as u64;
+>>>>>>> origin/vo-worker-tests
         let expires_at = now_ms.saturating_add(ttl_ms);
 
         if let Ok(Some(value_bytes)) = self.partition.get(&encoded_key) {
@@ -138,6 +163,7 @@ impl DedupeStore for FjallDedupeStore {
         Ok(purged_count)
     }
 
+<<<<<<< HEAD
     #[allow(clippy::expect_used)]
     fn contains(&self, key: &DedupeKey) -> Result<bool, DedupeStoreError> {
         let encoded_key = super::encode_dedupe_key(key);
@@ -147,6 +173,24 @@ impl DedupeStore for FjallDedupeStore {
             Ok(Some(value_bytes)) => super::decode_dedupe_entry(&value_bytes)
                 .map(|entry| Ok(!entry.is_expired(now_ms)))
                 .unwrap_or(Ok(false)),
+=======
+    #[expect(clippy::expect_used)]
+    fn contains(&self, key: &DedupeKey) -> Result<bool, DedupeStoreError> {
+        let encoded_key = super::encode_dedupe_key(key);
+        #[expect(clippy::expect_used, clippy::cast_possible_truncation)]
+        let now_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect(
+                "system time is guaranteed to be after UNIX epoch on properly configured systems",
+            )
+            .as_millis() as u64;
+
+        match self.partition.get(&encoded_key) {
+            Ok(Some(value_bytes)) => match super::decode_dedupe_entry(&value_bytes) {
+                Ok(entry) => Ok(!entry.is_expired(now_ms)),
+                Err(_) => Ok(false),
+            },
+>>>>>>> origin/vo-worker-tests
             Ok(None) => Ok(false),
             Err(e) => Err(DedupeStoreError::Storage {
                 reason: e.to_string(),

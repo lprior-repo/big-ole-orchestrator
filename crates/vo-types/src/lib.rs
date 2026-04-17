@@ -51,7 +51,12 @@ mod plugin;
 #[cfg(feature = "proptest")]
 mod proptest_targets;
 pub mod proptest_verifier;
+<<<<<<< HEAD
 mod recovery_contract;
+=======
+#[cfg(feature = "proptest")]
+mod proptest_targets;
+>>>>>>> origin/vo-worker-tests
 mod registration_status;
 mod rope;
 pub mod search;
@@ -91,8 +96,13 @@ pub use compensation::{
 };
 pub use connector::{
     apply_connector_transition, execute_with_reconciliation, reconcile_ambiguous, Connector,
+<<<<<<< HEAD
     ConnectorError, ConnectorResult, ConnectorState, ConnectorTransition, ConnectorTransitionError,
     ReconcileAction, ReconciliationResult,
+=======
+    ConnectorError, ConnectorResult, ConnectorState, ConnectorTransition,
+    ConnectorTransitionError, ReconciliationResult, ReconcileAction,
+>>>>>>> origin/vo-worker-tests
 };
 pub use credentials::{
     AccessPolicy, Credential, CredentialId, CredentialKind, CredentialStatus, CredentialVersion,
@@ -118,7 +128,11 @@ pub use events::{Error as EventError, EventEnvelope};
 pub use identity::{CausationId, CommandId, CorrelationId};
 pub use instance_status::InstanceStatus;
 pub use lifecycle_superstate::LifecycleSuperstate;
+<<<<<<< HEAD
 pub use lineage::{Epoch, LineageError, LineageState, LineageStatus, WorkflowLineage};
+=======
+pub use lineage::{Epoch, LineageError, RolloverPolicy, RolloverTrigger, WorkflowLineage};
+>>>>>>> origin/vo-worker-tests
 pub use link_cut_tree::{LctAggregate, LctError, LinkCutTree, Monoid};
 pub use node_kind::NodeKind;
 pub use non_empty_vec::NonEmptyVec;
@@ -187,6 +201,8 @@ mod dependency_graph_resolver_tests;
 mod identity_bdd_tests;
 #[cfg(test)]
 mod identity_tests;
+#[cfg(test)]
+mod command_envelope_red_queen_tests;
 #[cfg(test)]
 mod red_queen_tests;
 #[cfg(test)]

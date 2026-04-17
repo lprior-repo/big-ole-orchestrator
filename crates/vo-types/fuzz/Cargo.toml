@@ -45,8 +45,132 @@ doc = false
 bench = false
 
 [[bin]]
+<<<<<<< HEAD
 name = "transaction_boundaries"
 path = "fuzz_targets/transaction_boundaries.rs"
+=======
+name = "instance_id_parse"
+path = "fuzz_targets/instance_id_parse.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "workflow_name_parse"
+path = "fuzz_targets/workflow_name_parse.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "node_id_parse"
+path = "fuzz_targets/node_id_parse.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "binary_hash_parse"
+path = "fuzz_targets/binary_hash_parse.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "timer_id_parse"
+path = "fuzz_targets/timer_id_parse.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "idempotency_key_parse"
+path = "fuzz_targets/idempotency_key_parse.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "spawn_id_parse"
+path = "fuzz_targets/spawn_id_parse.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "event_envelope_parse"
+path = "fuzz_targets/event_envelope_parse.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "command_envelope_parse"
+path = "fuzz_targets/command_envelope_parse.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "command_history_parse"
+path = "fuzz_targets/command_history_parse.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "credentials_parse"
+path = "fuzz_targets/credentials_parse.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "cuckoo_parse"
+path = "fuzz_targets/cuckoo_parse.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "dedupe_key_parse"
+path = "fuzz_targets/dedupe_key_parse.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "discovery_path_parse"
+path = "fuzz_targets/discovery_path_parse.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "encryption_key_parse"
+path = "fuzz_targets/encryption_key_parse.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "sequence_number_parse"
+path = "fuzz_targets/sequence_number_parse.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "write_counter_parse"
+path = "fuzz_targets/write_counter_parse.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "suffix_array_parse"
+path = "fuzz_targets/suffix_array_parse.rs"
+>>>>>>> origin/vo-worker-tests
 test = false
 doc = false
 bench = false

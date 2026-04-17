@@ -247,7 +247,11 @@ fn red_queen_blob_record_with_nonzero_ref_count_not_gc_eligible() {
     let record = make_blob_record(1);
     assert_eq!(record.reference_count(), 1, "ref_count must be 1");
     assert!(
+<<<<<<< HEAD
         !record.is_gc_eligible(2000),
+=======
+        !record.is_expired(2000),
+>>>>>>> origin/vo-worker-tests
         "record with ref_count=1 must not be GC eligible regardless of expiry"
     );
 }
@@ -257,7 +261,11 @@ fn red_queen_blob_record_with_high_ref_count_not_gc_eligible() {
     let content_addr = make_content_addr();
     let record = BlobRecord::new(content_addr, 1024, 100, 1000, Some(1500)).unwrap();
     assert!(
+<<<<<<< HEAD
         !record.is_gc_eligible(3000),
+=======
+        !record.is_expired(3000),
+>>>>>>> origin/vo-worker-tests
         "ref_count=100 must prevent GC even when expired"
     );
 }

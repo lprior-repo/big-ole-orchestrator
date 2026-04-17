@@ -27,9 +27,12 @@ mod verification;
 
 mod fjall_lease_store;
 pub use fjall_lease_store::FjallLeaseStore;
+<<<<<<< HEAD
 
 pub mod in_memory_lease;
 pub use in_memory_lease::InMemoryLeaseStore;
+=======
+>>>>>>> origin/vo-worker-tests
 
 // ---------------------------------------------------------------------------
 // Data layer — error enum

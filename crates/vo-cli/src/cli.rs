@@ -26,7 +26,11 @@ pub enum CliError {
     #[error(transparent)]
     Rebuild(#[from] crate::commands::rebuild::RebuildError),
     #[error(transparent)]
+<<<<<<< HEAD
     Status(#[from] crate::commands::status::StatusError),
+=======
+    Unquarantine(#[from] crate::commands::unquarantine::UnquarantineError),
+>>>>>>> origin/vo-worker-tests
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -58,6 +62,7 @@ pub enum Command {
     Doctor {
         project_dir: PathBuf,
     },
+<<<<<<< HEAD
     Rebuild {
         project_dir: PathBuf,
         projection_id: Option<String>,
@@ -73,6 +78,19 @@ pub enum Command {
         engine_url: String,
         timeout: u64,
         force: bool,
+=======
+    Unquarantine {
+        workflow_name: String,
+        operator: String,
+        engine_url: String,
+    },
+    Rebuild {
+        projection_id: String,
+        storage_path: PathBuf,
+        from_sequence: Option<u64>,
+        to_sequence: Option<u64>,
+        cancel_file: Option<PathBuf>,
+>>>>>>> origin/vo-worker-tests
         dry_run: bool,
     },
 }
@@ -188,6 +206,7 @@ where
             ),
         )
         .subcommand(
+<<<<<<< HEAD
             clap::Command::new("rebuild")
                 .about("Rebuild projection from canonical event log")
                 .arg(
@@ -259,12 +278,72 @@ where
                         .long("force")
                         .action(clap::ArgAction::SetTrue)
                         .help("Skip confirmation"),
+=======
+            clap::Command::new("unquarantine")
+                .about("Manually unquarantine a workflow (ADR-026)")
+                .arg(
+                    clap::Arg::new("workflow-name")
+                        .required(true)
+                        .value_name("WORKFLOW_NAME")
+                        .help("The workflow name to unquarantine"),
+                )
+                .arg(
+                    clap::Arg::new("operator")
+                        .long("operator")
+                        .required(true)
+                        .value_name("OPERATOR")
+                        .help("The operator performing the unquarantine"),
+                )
+                .arg(
+                    clap::Arg::new("engine-url")
+                        .long("engine-url")
+                        .env("VO_ENGINE_URL")
+                        .default_value("http://localhost:3000"),
+                ),
+        )
+        .subcommand(
+            clap::Command::new("rebuild")
+                .about("Rebuild a projection from event log")
+                .arg(
+                    clap::Arg::new("projection-id")
+                        .required(true)
+                        .value_name("PROJECTION_ID")
+                        .help("The projection ID to rebuild"),
+                )
+                .arg(
+                    clap::Arg::new("storage-path")
+                        .long("storage-path")
+                        .default_value(".vo/storage")
+                        .help("Storage path"),
+                )
+                .arg(
+                    clap::Arg::new("from-sequence")
+                        .long("from-sequence")
+                        .value_name("SEQ")
+                        .help("Start sequence number (inclusive)"),
+                )
+                .arg(
+                    clap::Arg::new("to-sequence")
+                        .long("to-sequence")
+                        .value_name("SEQ")
+                        .help("End sequence number (inclusive)"),
+                )
+                .arg(
+                    clap::Arg::new("cancel-file")
+                        .long("cancel-file")
+                        .value_name("PATH")
+                        .help("File path to signal cancellation"),
+>>>>>>> origin/vo-worker-tests
                 )
                 .arg(
                     clap::Arg::new("dry-run")
                         .long("dry-run")
+<<<<<<< HEAD
                         .action(clap::ArgAction::SetTrue)
                         .help("Dry run mode"),
+=======
+                        .action(clap::ArgAction::SetTrue),
+>>>>>>> origin/vo-worker-tests
                 ),
         );
 
@@ -368,6 +447,7 @@ where
                 command: Command::Doctor { project_dir },
             })
         }
+<<<<<<< HEAD
         Some(("rebuild", sub_matches)) => {
             let project_dir = sub_matches
                 .get_one::<String>("project-dir")
@@ -404,12 +484,18 @@ where
         Some(("hardline", sub_matches)) => {
             let target = match sub_matches.get_one::<String>("target") {
                 Some(t) => t.clone(),
+=======
+        Some(("unquarantine", sub_matches)) => {
+            let workflow_name = match sub_matches.get_one::<String>("workflow-name") {
+                Some(w) => w.clone(),
+>>>>>>> origin/vo-worker-tests
                 None => {
                     return Err(clap::Error::new(
                         clap::error::ErrorKind::MissingRequiredArgument,
                     ))
                 }
             };
+<<<<<<< HEAD
             let engine_url = sub_matches
                 .get_one::<String>("engine-url")
                 .cloned()
@@ -427,6 +513,58 @@ where
                     engine_url,
                     timeout,
                     force,
+=======
+            let operator = match sub_matches.get_one::<String>("operator") {
+                Some(o) => o.clone(),
+                None => {
+                    return Err(clap::Error::new(
+                        clap::error::ErrorKind::MissingRequiredArgument,
+                    ))
+                }
+            };
+            let engine_url = match sub_matches.get_one::<String>("engine-url") {
+                Some(u) => u.clone(),
+                None => "http://localhost:3000".to_string(),
+            };
+            Ok(Cli {
+                command: Command::Unquarantine {
+                    workflow_name,
+                    operator,
+                    engine_url,
+                },
+            })
+        }
+        Some(("rebuild", sub_matches)) => {
+            let projection_id = match sub_matches.get_one::<String>("projection-id") {
+                Some(p) => p.clone(),
+                None => {
+                    return Err(clap::Error::new(
+                        clap::error::ErrorKind::MissingRequiredArgument,
+                    ))
+                }
+            };
+            let storage_path = sub_matches
+                .get_one::<String>("storage-path")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from(".vo/storage"));
+            let from_sequence = sub_matches
+                .get_one::<String>("from-sequence")
+                .and_then(|s| s.parse::<u64>().ok());
+            let to_sequence = sub_matches
+                .get_one::<String>("to-sequence")
+                .and_then(|s| s.parse::<u64>().ok());
+            let cancel_file = sub_matches
+                .get_one::<String>("cancel-file")
+                .map(PathBuf::from);
+            let dry_run = sub_matches.get_flag("dry-run");
+            Ok(Cli {
+                command: Command::Rebuild {
+                    projection_id,
+                    storage_path,
+                    from_sequence,
+                    to_sequence,
+                    cancel_file,
+>>>>>>> origin/vo-worker-tests
                     dry_run,
                 },
             })
@@ -452,7 +590,11 @@ pub fn map_error_to_exit_code(err: &CliError) -> i32 {
         | CliError::Lock(_)
         | CliError::Doctor(_)
         | CliError::Rebuild(_)
+<<<<<<< HEAD
         | CliError::Status(_) => 1,
+=======
+        | CliError::Unquarantine(_) => 1,
+>>>>>>> origin/vo-worker-tests
         CliError::InvalidNumeric(_) => 2,
     }
 }

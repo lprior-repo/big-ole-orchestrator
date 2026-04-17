@@ -255,6 +255,7 @@ fn rq_command_envelope_accepts_command_id_at_max_length() {
 }
 
 // CE-RQ-09: IdempotencyKey with null byte via direct construction (not JSON parsing)
+<<<<<<< HEAD
 // IdempotencyKey validates identifier chars — null bytes must be rejected
 #[test]
 fn rq_idempotency_key_rejects_null_byte_directly() {
@@ -262,6 +263,15 @@ fn rq_idempotency_key_rejects_null_byte_directly() {
     assert!(
         result.is_err(),
         "IdempotencyKey must reject null byte (identifier chars only)"
+=======
+// JSON parsing will reject null bytes in strings, but IdempotencyKey::parse accepts them
+#[test]
+fn rq_idempotency_key_accepts_null_byte_directly() {
+    let result = IdempotencyKey::parse("key\x00val");
+    assert!(
+        result.is_ok(),
+        "IdempotencyKey is opaque and must accept null byte when parsed directly"
+>>>>>>> origin/vo-worker-tests
     );
 }
 

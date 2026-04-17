@@ -60,9 +60,25 @@ impl DiscoveryPath {
         let hash_str = parts[0];
         let binary_name = parts[1].to_string();
 
+<<<<<<< HEAD
         if binary_name.is_empty() {
             return Err(DiscoveryPathError::InvalidFormat {
                 reason: "binary_name cannot be empty".to_string(),
+=======
+        if binary_name.contains("..") {
+            return Err(DiscoveryPathError::InvalidFormat {
+                reason: "binary_name cannot contain path traversal sequences".to_string(),
+            });
+        }
+        if binary_name.contains('/') {
+            return Err(DiscoveryPathError::InvalidFormat {
+                reason: "binary_name cannot contain path separators".to_string(),
+            });
+        }
+        if binary_name.contains('%') {
+            return Err(DiscoveryPathError::InvalidFormat {
+                reason: "binary_name cannot contain URL-encoded characters".to_string(),
+>>>>>>> origin/vo-worker-tests
             });
         }
 
@@ -167,6 +183,16 @@ pub fn validate_discovery_path(path: &DiscoveryPath) -> Result<(), DiscoveryPath
     if path.binary_name.contains('/') || path.binary_name.contains("..") {
         return Err(DiscoveryPathError::InvalidFormat {
             reason: "binary_name cannot contain path separators or '..'".to_string(),
+        });
+    }
+    if path.binary_name.contains("..") {
+        return Err(DiscoveryPathError::InvalidFormat {
+            reason: "binary_name cannot contain path traversal sequences".to_string(),
+        });
+    }
+    if path.binary_name.contains('%') {
+        return Err(DiscoveryPathError::InvalidFormat {
+            reason: "binary_name cannot contain URL-encoded characters".to_string(),
         });
     }
     Ok(())
@@ -333,5 +359,89 @@ mod tests {
             result,
             Err(PinEnforcementError::HashMismatch { .. })
         ));
+    }
+
+    #[test]
+    fn version_constraint_compatible_rejects_downgrade() {
+        let pinned_hash = BinaryHash::parse("abcdef0123456789").unwrap();
+        let downgrade_hash = BinaryHash::parse("abcd000000000000").unwrap();
+        let constraint = VersionConstraint::Compatible;
+        assert!(!constraint.matches(&downgrade_hash, &pinned_hash));
+    }
+
+    #[test]
+    fn version_constraint_compatible_allows_upgrade() {
+        let pinned_hash = BinaryHash::parse("abcdef0123456789").unwrap();
+        let upgrade_hash = BinaryHash::parse("abcdef01deadbeef").unwrap();
+        let constraint = VersionConstraint::Compatible;
+        assert!(constraint.matches(&upgrade_hash, &pinned_hash));
+    }
+
+    #[test]
+    fn path_traversal_prevention_dotdot() {
+        let result = DiscoveryPath::parse("/var/wtf/versions/abcdef0123456789/../../etc/passwd");
+        assert!(matches!(
+            result,
+            Err(DiscoveryPathError::InvalidFormat { .. })
+        ));
+    }
+
+    #[test]
+    fn path_traversal_prevention_nested_path() {
+        let result = DiscoveryPath::parse("/var/wtf/versions/abcdef0123456789/foo/bar/baz");
+        assert!(matches!(
+            result,
+            Err(DiscoveryPathError::InvalidFormat { .. })
+        ));
+    }
+
+    #[test]
+    fn path_traversal_prevention_encoded_dotdot() {
+        let result = DiscoveryPath::parse("/var/wtf/versions/abcdef0123456789/%2e%2e/etc/passwd");
+        assert!(matches!(
+            result,
+            Err(DiscoveryPathError::InvalidFormat { .. })
+        ));
+    }
+
+    #[test]
+    fn path_traversal_prevention_multiple_slashes() {
+        let result = DiscoveryPath::parse("/var/wtf/versions/abcdef0123456789/foo/bar/baz");
+        assert!(matches!(
+            result,
+            Err(DiscoveryPathError::InvalidFormat { .. })
+        ));
+    }
+
+    #[test]
+    fn concurrent_discovery_safety_same_hash() {
+        let hash = BinaryHash::parse("abcdef0123456789").unwrap();
+        let path1 = DiscoveryPath::new(
+            VERSION_BASE_PATH.to_string(),
+            hash.clone(),
+            "binary-v1".to_string(),
+        );
+        let path2 = DiscoveryPath::new(
+            VERSION_BASE_PATH.to_string(),
+            hash.clone(),
+            "binary-v1".to_string(),
+        );
+        assert_eq!(path1, path2);
+    }
+
+    #[test]
+    fn concurrent_discovery_safety_different_names_same_hash() {
+        let hash = BinaryHash::parse("abcdef0123456789").unwrap();
+        let path1 = DiscoveryPath::new(
+            VERSION_BASE_PATH.to_string(),
+            hash.clone(),
+            "binary-v1".to_string(),
+        );
+        let path2 = DiscoveryPath::new(
+            VERSION_BASE_PATH.to_string(),
+            hash.clone(),
+            "binary-v2".to_string(),
+        );
+        assert_ne!(path1, path2);
     }
 }

@@ -130,9 +130,13 @@ fn classify_http_error(err: &reqwest::Error) -> ConnectorError {
 #[cfg(test)]
 mod tests {
     use super::*;
+<<<<<<< HEAD
     use crate::connector::{
         CommitOutcome, Connector, ConnectorError, PreparedEffect, ReconcileOutcome,
     };
+=======
+    use crate::connector::{CommitOutcome, Connector, ConnectorError, PreparedEffect, ReconcileOutcome};
+>>>>>>> origin/vo-worker-tests
     use serde_json::json;
 
     #[test]
@@ -163,12 +167,18 @@ mod tests {
     async fn test_http_connector_prepare_basic() {
         let connector = HttpConnector::new("https://api.example.com");
         let effect_intent = json!({"method": "POST", "path": "/charges"});
+<<<<<<< HEAD
 
         let result = connector
             .prepare(effect_intent, "fx-123".to_string(), 42)
             .await
             .unwrap();
 
+=======
+        
+        let result = connector.prepare(effect_intent, "fx-123".to_string(), 42).await.unwrap();
+        
+>>>>>>> origin/vo-worker-tests
         assert_eq!(result.effect_id, "fx-123");
         assert_eq!(result.fence, 42);
         assert_eq!(result.payload["base_url"], "https://api.example.com");
@@ -183,12 +193,18 @@ mod tests {
             "path": "/users/123",
             "body": {"name": "John", "email": "john@example.com"}
         });
+<<<<<<< HEAD
 
         let result = connector
             .prepare(effect_intent, "fx-456".to_string(), 1)
             .await
             .unwrap();
 
+=======
+        
+        let result = connector.prepare(effect_intent, "fx-456".to_string(), 1).await.unwrap();
+        
+>>>>>>> origin/vo-worker-tests
         assert_eq!(result.payload["idempotency_key"], "fx-456:1");
         assert_eq!(result.payload["request"]["method"], "PUT");
         assert_eq!(result.payload["request"]["path"], "/users/123");
@@ -199,12 +215,18 @@ mod tests {
     async fn test_http_connector_prepare_empty_intent() {
         let connector = HttpConnector::new("https://api.example.com");
         let effect_intent = json!({});
+<<<<<<< HEAD
 
         let result = connector
             .prepare(effect_intent, "fx-789".to_string(), 999)
             .await
             .unwrap();
 
+=======
+        
+        let result = connector.prepare(effect_intent, "fx-789".to_string(), 999).await.unwrap();
+        
+>>>>>>> origin/vo-worker-tests
         assert_eq!(result.payload["idempotency_key"], "fx-789:999");
         assert_eq!(result.payload["request"], json!({}));
     }
@@ -237,7 +259,11 @@ mod tests {
     #[tokio::test]
     async fn test_connector_error_from_prepare() {
         let connector = HttpConnector::new("https://api.example.com");
+<<<<<<< HEAD
 
+=======
+        
+>>>>>>> origin/vo-worker-tests
         // Test that prepare always succeeds (no async I/O)
         let result = connector.prepare(json!({}), "id".to_string(), 1).await;
         assert!(result.is_ok());
@@ -246,7 +272,11 @@ mod tests {
     #[tokio::test]
     async fn test_reconcile_returns_ambiguous() {
         let connector = HttpConnector::new("https://api.example.com");
+<<<<<<< HEAD
 
+=======
+        
+>>>>>>> origin/vo-worker-tests
         let result = connector.reconcile("effect-123").await.unwrap();
         assert_eq!(result, ReconcileOutcome::StillAmbiguous);
     }
@@ -254,7 +284,11 @@ mod tests {
     #[tokio::test]
     async fn test_reconcile_empty_effect_id() {
         let connector = HttpConnector::new("https://api.example.com");
+<<<<<<< HEAD
 
+=======
+        
+>>>>>>> origin/vo-worker-tests
         let result = connector.reconcile("").await.unwrap();
         assert_eq!(result, ReconcileOutcome::StillAmbiguous);
     }
@@ -262,6 +296,7 @@ mod tests {
     #[tokio::test]
     async fn test_http_connector_prepare_multiple_effects() {
         let connector = HttpConnector::new("https://api.example.com");
+<<<<<<< HEAD
 
         let result1 = connector
             .prepare(json!({"path": "/a"}), "fx-1".to_string(), 1)
@@ -284,6 +319,15 @@ mod tests {
             result2.payload["idempotency_key"],
             result3.payload["idempotency_key"]
         );
+=======
+        
+        let result1 = connector.prepare(json!({"path": "/a"}), "fx-1".to_string(), 1).await.unwrap();
+        let result2 = connector.prepare(json!({"path": "/b"}), "fx-2".to_string(), 2).await.unwrap();
+        let result3 = connector.prepare(json!({"path": "/c"}), "fx-3".to_string(), 3).await.unwrap();
+        
+        assert_ne!(result1.payload["idempotency_key"], result2.payload["idempotency_key"]);
+        assert_ne!(result2.payload["idempotency_key"], result3.payload["idempotency_key"]);
+>>>>>>> origin/vo-worker-tests
         assert_eq!(result1.payload["idempotency_key"], "fx-1:1");
         assert_eq!(result2.payload["idempotency_key"], "fx-2:2");
         assert_eq!(result3.payload["idempotency_key"], "fx-3:3");
@@ -293,7 +337,11 @@ mod tests {
     fn test_connector_error_retryable_classification() {
         let retryable = ConnectorError::retryable("timeout");
         let terminal = ConnectorError::terminal("bad request");
+<<<<<<< HEAD
 
+=======
+        
+>>>>>>> origin/vo-worker-tests
         assert!(retryable.is_retryable());
         assert!(!terminal.is_retryable());
     }
@@ -301,16 +349,24 @@ mod tests {
     #[test]
     fn test_connector_error_terminal_classification() {
         let terminal = ConnectorError::terminal("auth failed");
+<<<<<<< HEAD
 
+=======
+        
+>>>>>>> origin/vo-worker-tests
         assert!(!terminal.is_retryable());
         assert!(terminal.to_string().contains("auth failed"));
     }
 
     #[test]
     fn test_commit_outcome_committed() {
+<<<<<<< HEAD
         let outcome = CommitOutcome::Committed {
             receipt: "test-receipt".to_string(),
         };
+=======
+        let outcome = CommitOutcome::Committed { receipt: "test-receipt".to_string() };
+>>>>>>> origin/vo-worker-tests
         assert!(matches!(outcome, CommitOutcome::Committed { .. }));
     }
 
@@ -328,9 +384,13 @@ mod tests {
 
     #[test]
     fn test_reconcile_outcome_committed() {
+<<<<<<< HEAD
         let outcome = ReconcileOutcome::Committed {
             receipt: "r".to_string(),
         };
+=======
+        let outcome = ReconcileOutcome::Committed { receipt: "r".to_string() };
+>>>>>>> origin/vo-worker-tests
         assert!(matches!(outcome, ReconcileOutcome::Committed { .. }));
     }
 

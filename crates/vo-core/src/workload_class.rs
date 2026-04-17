@@ -42,7 +42,11 @@ pub enum WorkloadClassError {
 ///
 /// Determines scheduling priority, permit reservation, and load-shedding
 /// behavior. Classes are ordered by dispatch priority: lower rank = higher priority.
+<<<<<<< HEAD
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Hash, Serialize, Deserialize)]
+=======
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
+>>>>>>> origin/vo-worker-tests
 #[serde(rename_all = "snake_case")]
 pub enum WorkloadClass {
     /// Highest priority. Never starved by lower classes.
@@ -50,6 +54,11 @@ pub enum WorkloadClass {
     /// Default priority for normal workflow execution.
     #[default]
     Standard,
+<<<<<<< HEAD
+=======
+    /// Lower priority. Capped under contention.
+    UnsafeBulk,
+>>>>>>> origin/vo-worker-tests
     /// Reserved capacity for crash recovery.
     Recovery,
     /// Lower priority. Capped under contention.
@@ -65,6 +74,15 @@ impl PartialOrd for WorkloadClass {
 impl Ord for WorkloadClass {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.rank().cmp(&other.rank())
+<<<<<<< HEAD
+=======
+    }
+}
+
+impl Default for WorkloadClass {
+    fn default() -> Self {
+        WorkloadClass::Standard
+>>>>>>> origin/vo-worker-tests
     }
 }
 

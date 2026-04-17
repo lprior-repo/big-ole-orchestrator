@@ -12,7 +12,11 @@
 //!   - version-pin-bypass: WorkflowSpec serialization bypassing Dag validation
 
 use crate::dag::{Dag, DagError, Workflow};
+<<<<<<< HEAD
 use crate::{EdgeSpec, NodeSpec, WorkflowSpec};
+=======
+use crate::graph_args::{EdgeSpec, NodeSpec, WorkflowSpec};
+>>>>>>> origin/vo-worker-tests
 use vo_types::{NodeKind, NodeName, WorkflowName};
 
 #[cfg(feature = "proptest")]
@@ -245,7 +249,11 @@ fn rq_dag_build_rejects_self_loop() {
     dag.connect(&a, &a).expect("connect should succeed");
     let result = dag.build("self_loop");
     assert!(
+<<<<<<< HEAD
         matches!(result, Err(DagError::CycleDetected { .. })),
+=======
+        matches!(result, Err(DagError::CycleDetected)),
+>>>>>>> origin/vo-worker-tests
         "Dag::build should reject self-loop: {:?}",
         result
     );
@@ -264,7 +272,11 @@ fn rq_dag_build_rejects_two_node_cycle() {
     dag.connect(&b, &a).expect("connect b->a");
     let result = dag.build("two_cycle");
     assert!(
+<<<<<<< HEAD
         matches!(result, Err(DagError::CycleDetected { .. })),
+=======
+        matches!(result, Err(DagError::CycleDetected)),
+>>>>>>> origin/vo-worker-tests
         "Dag::build should reject 2-cycle: {:?}",
         result
     );
@@ -287,7 +299,11 @@ fn rq_dag_build_rejects_large_five_node_cycle() {
     }
     let result = dag.build("large_cycle");
     assert!(
+<<<<<<< HEAD
         matches!(result, Err(DagError::CycleDetected { .. })),
+=======
+        matches!(result, Err(DagError::CycleDetected)),
+>>>>>>> origin/vo-worker-tests
         "Dag::build should reject 5-cycle: {:?}",
         result
     );
@@ -308,7 +324,11 @@ fn rq_dag_build_rejects_cycle_in_disconnected_component() {
     dag.connect(&a, &a).expect("self-loop on a");
     let result = dag.build("disconnected_cycle");
     assert!(
+<<<<<<< HEAD
         matches!(result, Err(DagError::CycleDetected { .. })),
+=======
+        matches!(result, Err(DagError::CycleDetected)),
+>>>>>>> origin/vo-worker-tests
         "Dag::build should detect cycle in disconnected component: {:?}",
         result
     );
@@ -342,7 +362,11 @@ fn rq_dag_build_accepts_diamond_graph_without_cycle() {
 }
 
 #[test]
+<<<<<<< HEAD
 fn rq_dag_build_accepts_diamond_pattern() {
+=======
+fn rq_dag_build_rejects_partial_cycle_in_diamond() {
+>>>>>>> origin/vo-worker-tests
     let mut dag = Dag::new();
     let a: crate::node_handle::NodeHandle<(), ()> = dag
         .add_node_with_kind("a", NodeKind::Pure, |_: ()| ())
@@ -353,6 +377,7 @@ fn rq_dag_build_accepts_diamond_pattern() {
     let c: crate::node_handle::NodeHandle<(), ()> = dag
         .add_node_with_kind("c", NodeKind::Pure, |_: ()| ())
         .expect("valid");
+<<<<<<< HEAD
     dag.connect(&a, &b).expect("a->b");
     dag.connect(&a, &c).expect("a->c");
     dag.connect(&c, &b).expect("c->b converges to b");
@@ -360,6 +385,18 @@ fn rq_dag_build_accepts_diamond_pattern() {
     assert!(
         result.is_ok(),
         "diamond pattern is valid DAG (not a cycle): {:?}",
+=======
+    let _d: crate::node_handle::NodeHandle<(), ()> = dag
+        .add_node_with_kind("d", NodeKind::Pure, |_: ()| ())
+        .expect("valid");
+    dag.connect(&a, &b).expect("a->b");
+    dag.connect(&a, &c).expect("a->c");
+    dag.connect(&c, &b).expect("c->b creates cycle b<-c<-a<-b");
+    let result = dag.build("partial_cycle");
+    assert!(
+        matches!(result, Err(DagError::CycleDetected)),
+        "Dag::build should detect partial cycle in diamond: {:?}",
+>>>>>>> origin/vo-worker-tests
         result
     );
 }
@@ -384,7 +421,11 @@ fn rq_dag_build_accepts_unreachable_nodes() {
     dag.connect(&a, &a).expect("a->a self-loop");
     let result = dag.build("unreachable");
     assert!(
+<<<<<<< HEAD
         matches!(result, Err(DagError::CycleDetected { .. })),
+=======
+        matches!(result, Err(DagError::CycleDetected)),
+>>>>>>> origin/vo-worker-tests
         "Dag should reject self-loop even with unreachable nodes: {:?}",
         result
     );
@@ -411,7 +452,11 @@ fn rq_dag_build_accepts_completely_disconnected_nodes() {
 }
 
 #[test]
+<<<<<<< HEAD
 fn rq_workflow_spec_accepts_edges_to_nonexistent_nodes_via_serde() {
+=======
+fn rq_workflow_spec_rejects_edges_to_nonexistent_nodes_via_serde() {
+>>>>>>> origin/vo-worker-tests
     let json = r#"{
         "workflow_name": "test",
         "nodes": [
@@ -421,14 +466,30 @@ fn rq_workflow_spec_accepts_edges_to_nonexistent_nodes_via_serde() {
         "edges": [
             {"from": "a", "to": "ghost"},
             {"from": "phantom", "to": "b"}
+<<<<<<< HEAD
         ]
+=======
+        ],
+        "version": 1
+>>>>>>> origin/vo-worker-tests
     }"#;
     let result: Result<WorkflowSpec, _> = serde_json::from_str(json);
     assert!(
         result.is_err(),
+<<<<<<< HEAD
         "serde rejects edges to nonexistent nodes: {:?}",
         result
     );
+=======
+        "edges to nonexistent nodes should be rejected: {:?}",
+        result
+    );
+    let err = result.unwrap_err().to_string();
+    assert!(
+        err.contains("non-existent") || err.contains("references"),
+        "error should mention non-existent node: {err}"
+    );
+>>>>>>> origin/vo-worker-tests
 }
 
 // ===========================================================================
@@ -682,6 +743,10 @@ fn rq_workflow_spec_round_trip_preserves_all_fields() {
             from: NodeName::parse("node-a").expect("valid"),
             to: NodeName::parse("node-b").expect("valid"),
         }],
+<<<<<<< HEAD
+=======
+        version: 1,
+>>>>>>> origin/vo-worker-tests
     };
     let json = serde_json::to_string(&spec).expect("serialize");
     let restored: WorkflowSpec = serde_json::from_str(&json).expect("deserialize");
@@ -694,7 +759,11 @@ fn rq_workflow_spec_round_trip_preserves_all_fields() {
 // ===========================================================================
 
 #[test]
+<<<<<<< HEAD
 fn rq_workflow_spec_accepts_cycle_via_serde() {
+=======
+fn rq_workflow_spec_rejects_cycle_via_serde() {
+>>>>>>> origin/vo-worker-tests
     let json = r#"{
         "workflow_name": "cycle_via_serde",
         "nodes": [
@@ -704,10 +773,23 @@ fn rq_workflow_spec_accepts_cycle_via_serde() {
         "edges": [
             {"from": "a", "to": "b"},
             {"from": "b", "to": "a"}
+<<<<<<< HEAD
         ]
     }"#;
     let result: Result<WorkflowSpec, _> = serde_json::from_str(json);
     assert!(result.is_err(), "serde rejects cycle: {:?}", result);
+=======
+        ],
+        "version": 1
+    }"#;
+    let result: Result<WorkflowSpec, _> = serde_json::from_str(json);
+    assert!(result.is_err(), "cycle should be rejected: {:?}", result);
+    let err = result.unwrap_err().to_string();
+    assert!(
+        err.contains("cycle") || err.contains("Cycle"),
+        "error should mention cycle: {err}"
+    );
+>>>>>>> origin/vo-worker-tests
 }
 
 #[test]
@@ -716,6 +798,10 @@ fn rq_workflow_spec_serde_bypasses_dag_empty_validation() {
         workflow_name: WorkflowName::parse("empty_via_serde").expect("valid"),
         nodes: vec![],
         edges: vec![],
+<<<<<<< HEAD
+=======
+        version: 1,
+>>>>>>> origin/vo-worker-tests
     };
     let json = serde_json::to_string(&spec).expect("serialize");
     let restored: WorkflowSpec = serde_json::from_str(&json).expect("deserialize");
@@ -731,7 +817,11 @@ fn rq_dag_build_rejects_self_loop_with_proper_error() {
     dag.connect(&a, &a).expect("connect succeeds");
     let build_result = dag.build("self_loop");
     assert!(
+<<<<<<< HEAD
         matches!(build_result, Err(DagError::CycleDetected { .. })),
+=======
+        matches!(build_result, Err(DagError::CycleDetected)),
+>>>>>>> origin/vo-worker-tests
         "Dag::build should reject self-loop with CycleDetected error: {:?}",
         build_result
     );
@@ -743,7 +833,11 @@ fn rq_dag_build_rejects_self_loop_with_proper_error() {
 // ===========================================================================
 
 #[test]
+<<<<<<< HEAD
 fn rq_workflow_spec_accepts_self_loop_edge_via_serde() {
+=======
+fn rq_workflow_spec_rejects_self_loop_edge_via_serde() {
+>>>>>>> origin/vo-worker-tests
     let json = r#"{
         "workflow_name": "self_loop",
         "nodes": [
@@ -752,10 +846,27 @@ fn rq_workflow_spec_accepts_self_loop_edge_via_serde() {
         ],
         "edges": [
             {"from": "a", "to": "a"}
+<<<<<<< HEAD
         ]
     }"#;
     let result: Result<WorkflowSpec, _> = serde_json::from_str(json);
     assert!(result.is_err(), "serde rejects self-loop: {:?}", result);
+=======
+        ],
+        "version": 1
+    }"#;
+    let result: Result<WorkflowSpec, _> = serde_json::from_str(json);
+    assert!(
+        result.is_err(),
+        "self-loop edge should be rejected: {:?}",
+        result
+    );
+    let err = result.unwrap_err().to_string();
+    assert!(
+        err.contains("cycle") || err.contains("Cycle"),
+        "error should mention cycle: {err}"
+    );
+>>>>>>> origin/vo-worker-tests
 }
 
 #[test]
@@ -868,9 +979,13 @@ fn rq_dag_error_empty_workflow_display() {
 
 #[test]
 fn rq_dag_error_cycle_detected_display() {
+<<<<<<< HEAD
     let err = DagError::CycleDetected {
         cycle: "a -> b".to_string(),
     };
+=======
+    let err = DagError::CycleDetected;
+>>>>>>> origin/vo-worker-tests
     let msg = err.to_string();
     assert!(
         msg.contains("cycle") || msg.contains("Cycle"),

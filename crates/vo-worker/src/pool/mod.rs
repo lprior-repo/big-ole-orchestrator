@@ -7,7 +7,10 @@ pub mod circuit_breaker;
 pub mod config;
 pub mod hash_ring;
 pub mod health_check;
+<<<<<<< HEAD
 #[allow(clippy::module_inception)]
+=======
+>>>>>>> origin/vo-worker-tests
 mod pool;
 
 pub use circuit_breaker::CircuitBreaker;
@@ -28,6 +31,7 @@ pub use vo_types::connection_pool::HealthCheckResult;
 
 pub(crate) use pool::PoolState;
 
+<<<<<<< HEAD
 #[cfg(test)]
 mod tests {
     mod circuit_breaker_tests;
@@ -35,3 +39,6 @@ mod tests {
     mod health_check_tests;
     mod pool_tests;
 }
+=======
+
+>>>>>>> origin/vo-worker-tests

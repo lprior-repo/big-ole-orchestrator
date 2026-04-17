@@ -229,6 +229,11 @@ impl Dag {
                 name: workflow_name.to_string(),
             })?;
 
+        // Check for cycles before building spec
+        if self.has_cycle() {
+            return Err(DagError::CycleDetected);
+        }
+
         let node_specs: Vec<NodeSpec> = self
             .nodes
             .iter()
@@ -251,6 +256,7 @@ impl Dag {
             workflow_name: wf_name,
             nodes: node_specs,
             edges: edge_specs,
+            version: WorkflowSpec::default_version(),
         })
     }
 
@@ -262,7 +268,10 @@ impl Dag {
     /// - BLACK: finished visiting
     ///
     /// A back edge to a GRAY node indicates a cycle.
+<<<<<<< HEAD
     #[allow(dead_code)]
+=======
+>>>>>>> origin/vo-worker-tests
     fn has_cycle(&self) -> bool {
         if self.edges.is_empty() {
             return false;

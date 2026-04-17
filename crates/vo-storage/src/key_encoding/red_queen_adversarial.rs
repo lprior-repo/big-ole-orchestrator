@@ -47,7 +47,11 @@ fn red_queen_event_key_lexicographic_increments_monotone() {
     let id = min_instance_id();
     let mut prev_key: Vec<u8> = Vec::new();
 
+<<<<<<< HEAD
     for seq in 1..=1000u64 {
+=======
+    for seq in 0..1000u64 {
+>>>>>>> origin/vo-worker-tests
         let sn = SequenceNumber::try_from(seq).unwrap();
         let key = encode_event_key(&id, sn);
         assert!(
@@ -110,7 +114,11 @@ fn red_queen_timer_key_lexicographic_ordering_is_chronological() {
     let id = min_instance_id();
     let mut prev_key: Vec<u8> = Vec::new();
 
+<<<<<<< HEAD
     for ts in 0..1000u64 {
+=======
+    for ts in (0..1000u64).rev() {
+>>>>>>> origin/vo-worker-tests
         let key = encode_timer_key(ts, &id);
         assert!(
             key > prev_key,
@@ -233,6 +241,7 @@ fn red_queen_event_effect_keys_do_not_collide_in_sorted_order() {
 // ========================================================================
 
 #[test]
+<<<<<<< HEAD
 fn red_queen_dedupe_key_has_length_prefix_format() {
     let dedupe_str = "test-dedupe-key";
     let dedupe_key = encode_dedupe_key(dedupe_str);
@@ -249,11 +258,30 @@ fn red_queen_dedupe_key_has_length_prefix_format() {
         decoded_len,
         dedupe_str.len() as u16,
         "BUG: dedupe prefix length should match key length"
+=======
+fn red_queen_dedupe_key_prefix_cannot_collision_with_event_key_prefix() {
+    let id = min_instance_id();
+    let dedupe_str = "events:00000000000000000000000001::1";
+    let dedupe_key = encode_dedupe_key(dedupe_str);
+    let dedupe_prefix = get_dedupe_key_prefix(dedupe_str);
+
+    let event_key = encode_event_key(&id, SequenceNumber::try_from(1u64).unwrap());
+
+    // Dedupe keys start with a length prefix (u16 be), not with instance_id bytes
+    // This means they cannot collide with event keys which start with raw instance_id bytes
+    assert_ne!(
+        dedupe_prefix[0], event_key[0],
+        "BUG: dedupe prefix and event key should not share first byte (length prefix vs raw id)"
+>>>>>>> origin/vo-worker-tests
     );
 }
 
 #[test]
+<<<<<<< HEAD
 fn red_queen_lease_key_prefix_is_string_representation() {
+=======
+fn red_queen_lease_key_prefix_is_instance_id_bytes() {
+>>>>>>> origin/vo-worker-tests
     let id = min_instance_id();
     let step = StepId::parse("step-1").unwrap();
     let lease_key = encode_lease_key(&id, &step);
@@ -265,6 +293,7 @@ fn red_queen_lease_key_prefix_is_string_representation() {
     );
     assert_eq!(
         lease_prefix.len(),
+<<<<<<< HEAD
         28,
         "BUG: lease prefix should be 28 bytes (ULID string 26 + '::' 2)"
     );
@@ -273,6 +302,10 @@ fn red_queen_lease_key_prefix_is_string_representation() {
         lease_prefix.as_slice(),
         expected_prefix.as_bytes(),
         "BUG: lease prefix should be ULID string + '::'"
+=======
+        16,
+        "BUG: lease prefix should be exactly 16 bytes (instance_id)"
+>>>>>>> origin/vo-worker-tests
     );
 }
 
@@ -295,9 +328,15 @@ fn red_queen_no_key_type_shares_prefix_with_different_key_type_unambiguously() {
     assert!(timer_key.starts_with(&timer_key[0..8])); // timestamp first
     assert!(instance_key.starts_with(&instance_key[0..1])); // status byte first
 
+<<<<<<< HEAD
     // Dedupe starts with length prefix (0x00 0x0b for "test-dedupe" = 11 bytes)
     let dedupe_len = decode_u16_be(&dedupe_key[0..2]).unwrap();
     assert_eq!(dedupe_len, 11);
+=======
+    // Dedupe starts with length prefix (0x00 0x0c for "test-dedupe" = 12 bytes)
+    let dedupe_len = decode_u16_be(&dedupe_key[0..2]).unwrap();
+    assert_eq!(dedupe_len, 12);
+>>>>>>> origin/vo-worker-tests
 
     // Lease is string format: instance_id::step_id
     let lease_str = String::from_utf8(lease_key.clone()).unwrap();
@@ -520,7 +559,12 @@ fn red_queen_instance_id_encode_decode_exhaustive() {
     let test_cases = vec![
         InstanceId::parse("00000000000000000000000001").unwrap(),
         InstanceId::parse("7ZZZZZZZZZZZZZZZZZZZZZZZZZ").unwrap(),
+<<<<<<< HEAD
         InstanceId::parse("40000000000000000000000000").unwrap(),
+=======
+        InstanceId::parse("00000000000000000000000000").unwrap(),
+        InstanceId::from_bytes([0u8; 16]),
+>>>>>>> origin/vo-worker-tests
         InstanceId::from_bytes([0xFFu8; 16]),
         InstanceId::from_bytes([
             0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0, 0x00, 0x11, 0x22, 0x33, 0x44, 0x55,
@@ -535,23 +579,34 @@ fn red_queen_instance_id_encode_decode_exhaustive() {
     }
 }
 
+<<<<<<< HEAD
 #[test]
 fn red_queen_instance_id_rejects_nil_ulid() {
     let result = InstanceId::parse("00000000000000000000000000");
     assert!(result.is_err(), "BUG: nil ULID should be rejected");
 }
 
+=======
+>>>>>>> origin/vo-worker-tests
 // ========================================================================
 // DIMENSION: sequence-number-edge-cases — SequenceNumber boundaries
 // ========================================================================
 
 #[test]
+<<<<<<< HEAD
 fn red_queen_sequence_number_rejects_zero() {
     let result = SequenceNumber::try_from(0u64);
     assert!(
         result.is_err(),
         "BUG: sequence number zero should be rejected (must be nonzero)"
     );
+=======
+fn red_queen_sequence_number_zero_is_valid() {
+    let seq = SequenceNumber::try_from(0u64).unwrap();
+    let encoded = encode_sequence_number(seq);
+    let decoded = decode_sequence_number(&encoded).unwrap();
+    assert_eq!(decoded, seq, "BUG: sequence 0 roundtrip failed");
+>>>>>>> origin/vo-worker-tests
 }
 
 #[test]
@@ -563,6 +618,7 @@ fn red_queen_sequence_number_max_is_valid() {
 }
 
 #[test]
+<<<<<<< HEAD
 fn red_queen_event_key_with_sequence_one_and_max() {
     let id = min_instance_id();
     let seq1 = SequenceNumber::try_from(1u64).unwrap();
@@ -576,6 +632,21 @@ fn red_queen_event_key_with_sequence_one_and_max() {
         key1.len(),
         24,
         "BUG: event key with seq 1 should be 24 bytes"
+=======
+fn red_queen_event_key_with_sequence_zero_and_max() {
+    let id = min_instance_id();
+    let seq0 = SequenceNumber::try_from(0u64).unwrap();
+    let seq_max = SequenceNumber::try_from(u64::MAX).unwrap();
+
+    let key0 = encode_event_key(&id, seq0);
+    let key_max = encode_event_key(&id, seq_max);
+
+    assert!(key0 < key_max, "BUG: seq 0 should be < seq MAX");
+    assert_eq!(
+        key0.len(),
+        24,
+        "BUG: event key with seq 0 should be 24 bytes"
+>>>>>>> origin/vo-worker-tests
     );
     assert_eq!(
         key_max.len(),
@@ -622,9 +693,17 @@ fn red_queen_all_partition_constants_are_valid_non_empty_utf8() {
 // ========================================================================
 
 #[test]
+<<<<<<< HEAD
 fn red_queen_step_id_rejects_empty_string() {
     let result = StepId::parse("");
     assert!(result.is_err(), "BUG: empty step_id should be rejected");
+=======
+fn red_queen_step_id_encoding_handles_empty_string() {
+    let step = StepId::parse("").unwrap();
+    let encoded = encode_step_id(&step);
+    let decoded = decode_step_id(&encoded).unwrap();
+    assert_eq!(decoded.as_str(), "", "BUG: empty step_id roundtrip failed");
+>>>>>>> origin/vo-worker-tests
 }
 
 #[test]
@@ -641,6 +720,7 @@ fn red_queen_step_id_encoding_handles_long_strings() {
 }
 
 #[test]
+<<<<<<< HEAD
 fn red_queen_step_id_encoding_handles_valid_special_characters() {
     let valid_steps = vec![
         "step-with-dashes",
@@ -651,6 +731,20 @@ fn red_queen_step_id_encoding_handles_valid_special_characters() {
     ];
 
     for step_str in valid_steps {
+=======
+fn red_queen_step_id_encoding_handles_special_characters() {
+    let special_steps = vec![
+        "step-with-dashes",
+        "step.with.dots",
+        "step_with_underscores",
+        "step:with:colons",
+        "step/with/slashes",
+        "💝-emoji-step",
+        "日本語-step",
+    ];
+
+    for step_str in special_steps {
+>>>>>>> origin/vo-worker-tests
         let step = StepId::parse(step_str).unwrap();
         let encoded = encode_step_id(&step);
         let decoded = decode_step_id(&encoded).unwrap();
@@ -663,6 +757,7 @@ fn red_queen_step_id_encoding_handles_valid_special_characters() {
     }
 }
 
+<<<<<<< HEAD
 #[test]
 fn red_queen_step_id_rejects_invalid_characters() {
     let invalid_steps = vec![
@@ -681,6 +776,8 @@ fn red_queen_step_id_rejects_invalid_characters() {
     }
 }
 
+=======
+>>>>>>> origin/vo-worker-tests
 // ========================================================================
 // DIMENSION: lease-key-delimiter-safety
 // ========================================================================
@@ -717,11 +814,37 @@ fn red_queen_lease_key_rejects_missing_delimiter() {
 }
 
 #[test]
+<<<<<<< HEAD
 fn red_queen_step_id_rejects_colons_in_identifier() {
     let result = StepId::parse("outer::inner");
     assert!(
         result.is_err(),
         "BUG: step_id with colons should be rejected"
+=======
+fn red_queen_lease_key_rejects_multiple_delimiters_in_step_id() {
+    let id = min_instance_id();
+    // This tests that step IDs with :: are preserved (not treated as extra delimiter)
+    let step = StepId::parse("outer::inner::deep").unwrap();
+    let key = encode_lease_key(&id, &step);
+    let key_str = String::from_utf8(key.clone()).unwrap();
+
+    // The entire step_id including internal :: should be preserved
+    assert!(
+        key_str.ends_with("outer::inner::deep"),
+        "BUG: step_id with internal :: not preserved in lease key: {}",
+        key_str
+    );
+
+    let (decoded_id, decoded_step) = decode_lease_key(&key).unwrap();
+    assert_eq!(
+        decoded_id, id,
+        "BUG: lease key instance_id roundtrip failed"
+    );
+    assert_eq!(
+        decoded_step.as_str(),
+        "outer::inner::deep",
+        "BUG: step_id with :: roundtrip failed"
+>>>>>>> origin/vo-worker-tests
     );
 }
 

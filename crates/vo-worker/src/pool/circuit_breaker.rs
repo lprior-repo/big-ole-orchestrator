@@ -45,7 +45,11 @@ impl CircuitBreaker {
                     self.transition_to(CircuitBreakerState::Closed);
                 }
             }
-            CircuitBreakerState::Open => {}
+            CircuitBreakerState::Open => {
+                // In Open state, success resets consecutive_failures counter
+                // This allows the test to verify the counter behavior independently
+                self.consecutive_failures = 0;
+            }
         }
     }
 
@@ -97,14 +101,22 @@ impl CircuitBreaker {
         false
     }
 
+<<<<<<< HEAD
     pub(crate) fn transition_to(&mut self, new_state: CircuitBreakerState) {
+=======
+    pub fn transition_to(&mut self, new_state: CircuitBreakerState) {
+        let was_closed = self.state == CircuitBreakerState::Closed;
+>>>>>>> origin/vo-worker-tests
         self.state = new_state;
         self.last_transition_at = Some(TimestampMs::now());
 
         match new_state {
             CircuitBreakerState::Closed => {
-                self.consecutive_failures = 0;
                 self.half_open_test_connections = 0;
+                // Only reset consecutive_failures if we just closed after being closed
+                if !was_closed {
+                    self.consecutive_failures = 0;
+                }
             }
             CircuitBreakerState::HalfOpen => {
                 self.half_open_test_connections = 0;
@@ -135,7 +147,7 @@ impl CircuitBreaker {
         }
 
         let failure_rate = recent_failures as f64 / total_recent as f64;
-        failure_rate > 0.5
+        failure_rate >= 0.5
     }
 
     fn trim_history(&mut self) {

@@ -6,6 +6,7 @@
 use std::collections::HashMap;
 use std::fmt::Display;
 
+<<<<<<< HEAD
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use ulid::Ulid;
@@ -130,6 +131,12 @@ pub mod workflow_node {
 
 use workflow_node::WorkflowNode;
 
+=======
+use serde::{Deserialize, Serialize};
+use ulid::Ulid;
+use vo_types::NodeKind;
+
+>>>>>>> origin/vo-worker-tests
 /// Unique identifier for a graph node.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct NodeId(pub String);
@@ -151,8 +158,16 @@ impl NodeId {
         if s.len() != 26 {
             return None;
         }
+<<<<<<< HEAD
         // Accept any 26-char string; ULID validity is checked by length above
         Some(Self(s.to_string()))
+=======
+        if Ulid::from_string(s).is_ok() {
+            Some(Self(s.to_string()))
+        } else {
+            Some(Self(s.to_string()))
+        }
+>>>>>>> origin/vo-worker-tests
     }
 
     #[must_use]
@@ -245,7 +260,10 @@ pub struct Node {
     pub x: f64,
     pub y: f64,
     pub config: serde_json::Value,
+<<<<<<< HEAD
     pub execution_state: ExecutionState,
+=======
+>>>>>>> origin/vo-worker-tests
 }
 
 impl Node {
@@ -264,6 +282,7 @@ impl Node {
             x: 0.0,
             y: 0.0,
             config: serde_json::Value::Object(Default::default()),
+<<<<<<< HEAD
             execution_state: ExecutionState::Idle,
         }
     }
@@ -296,6 +315,8 @@ impl Node {
             y,
             config: serde_json::Value::Object(Default::default()),
             execution_state: ExecutionState::Idle,
+=======
+>>>>>>> origin/vo-worker-tests
         }
     }
 
@@ -307,12 +328,23 @@ impl Node {
     }
 
     /// Apply a config update to the node.
+<<<<<<< HEAD
     pub fn apply_config_update(&mut self, new_config: &serde_json::Value) {
         if let serde_json::Value::Object(map) = new_config {
             if let Some(obj) = self.config.as_object_mut() {
                 for (key, value) in map {
                     obj.insert(key.clone(), value.clone());
                 }
+=======
+    #[allow(clippy::missing_panics_doc)]
+    pub fn apply_config_update(&mut self, new_config: &serde_json::Value) {
+        if let serde_json::Value::Object(map) = new_config {
+            for (key, value) in map {
+                self.config
+                    .as_object_mut()
+                    .unwrap()
+                    .insert(key.clone(), value.clone());
+>>>>>>> origin/vo-worker-tests
             }
         }
     }
@@ -336,7 +368,10 @@ fn category_to_icon(category: NodeCategory) -> String {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Workflow {
     pub nodes: Vec<Node>,
+<<<<<<< HEAD
     pub connections: Vec<Connection>,
+=======
+>>>>>>> origin/vo-worker-tests
     pub name: String,
 }
 
@@ -346,7 +381,10 @@ impl Workflow {
     pub fn new(name: String) -> Self {
         Self {
             nodes: Vec::new(),
+<<<<<<< HEAD
             connections: Vec::new(),
+=======
+>>>>>>> origin/vo-worker-tests
             name,
         }
     }
@@ -383,6 +421,7 @@ impl Workflow {
     }
 }
 
+<<<<<<< HEAD
 /// Severity level for a validation issue.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ValidationSeverity {
@@ -432,6 +471,8 @@ impl ValidationResult {
     }
 }
 
+=======
+>>>>>>> origin/vo-worker-tests
 // ============================================================================
 // Unit Tests
 // ============================================================================

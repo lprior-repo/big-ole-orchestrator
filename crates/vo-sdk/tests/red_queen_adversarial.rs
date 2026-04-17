@@ -11,7 +11,11 @@
 //!   - unbounded-recursion: large DAG causing stack overflow in traversal
 //!   - type-confusion: unknown NodeKind variants
 
+<<<<<<< HEAD
 use vo_sdk::graph::{EdgeSpec, NodeSpec, WorkflowSpec};
+=======
+use vo_sdk::graph_args::{EdgeSpec, NodeSpec, WorkflowSpec};
+>>>>>>> origin/vo-worker-tests
 use vo_types::{NodeKind, NodeName, WorkflowName};
 
 #[test]
@@ -44,11 +48,18 @@ fn rq_workflowspec_accepts_edges_to_nonexistent_nodes() {
         ]
     }"#;
 
+<<<<<<< HEAD
     let result: Result<WorkflowSpec, _> = serde_json::from_str(json);
     assert!(
         result.is_err(),
         "Edges to nonexistent nodes should be rejected by serde"
     );
+=======
+    let spec: WorkflowSpec = serde_json::from_str(json)
+        .expect("Deserialization succeeds but edges reference non-existent nodes!");
+    assert_eq!(spec.nodes.len(), 1);
+    assert_eq!(spec.edges.len(), 2);
+>>>>>>> origin/vo-worker-tests
 }
 
 #[test]
@@ -63,11 +74,19 @@ fn rq_workflowspec_accepts_self_loop_edge() {
         ]
     }"#;
 
+<<<<<<< HEAD
     let result: Result<WorkflowSpec, _> = serde_json::from_str(json);
     assert!(
         result.is_err(),
         "Self-loop edge should be rejected by serde"
     );
+=======
+    let spec: WorkflowSpec =
+        serde_json::from_str(json).expect("Self-loop accepted! Dag::build would reject this.");
+    assert_eq!(spec.edges.len(), 1);
+    assert_eq!(spec.edges[0].from.as_str(), "self_node");
+    assert_eq!(spec.edges[0].to.as_str(), "self_node");
+>>>>>>> origin/vo-worker-tests
 }
 
 #[test]
@@ -86,8 +105,14 @@ fn rq_workflowspec_accepts_cycle_via_direct_deserialization() {
         ]
     }"#;
 
+<<<<<<< HEAD
     let result: Result<WorkflowSpec, _> = serde_json::from_str(json);
     assert!(result.is_err(), "Cycle should be rejected by serde");
+=======
+    let spec: WorkflowSpec = serde_json::from_str(json)
+        .expect("Cycle accepted via direct deserialization! Dag::build would reject this.");
+    assert_eq!(spec.edges.len(), 3);
+>>>>>>> origin/vo-worker-tests
 }
 
 #[test]
@@ -118,11 +143,17 @@ fn rq_workflowspec_accepts_orphaned_edges() {
         ]
     }"#;
 
+<<<<<<< HEAD
     let result: Result<WorkflowSpec, _> = serde_json::from_str(json);
     assert!(
         result.is_err(),
         "Orphaned edges should be rejected by serde"
     );
+=======
+    let spec: WorkflowSpec = serde_json::from_str(json).expect("Orphaned edges accepted!");
+    assert_eq!(spec.nodes.len(), 1);
+    assert_eq!(spec.edges.len(), 2);
+>>>>>>> origin/vo-worker-tests
 }
 
 #[test]

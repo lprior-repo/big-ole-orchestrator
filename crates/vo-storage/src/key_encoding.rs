@@ -20,10 +20,15 @@ mod tests;
 
 #[cfg(test)]
 mod red_queen_adversarial;
+<<<<<<< HEAD
 #[cfg(test)]
 mod red_queen_tests;
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+=======
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+>>>>>>> origin/vo-worker-tests
 pub enum KeyEncodingError {
     #[error("instance ID encoding error: {0}")]
     InstanceId(#[from] ParseError),
@@ -216,6 +221,7 @@ pub fn encode_event_key(instance_id: &InstanceId, sequence: SequenceNumber) -> V
     key
 }
 
+<<<<<<< HEAD
 /// Decode an event key into instance ID and sequence number.
 ///
 /// # Errors
@@ -225,6 +231,9 @@ pub fn encode_event_key(instance_id: &InstanceId, sequence: SequenceNumber) -> V
 /// # Panics
 ///
 /// Panics if the key is not exactly 24 bytes.
+=======
+#[expect(clippy::unwrap_used)]
+>>>>>>> origin/vo-worker-tests
 pub fn decode_event_key(bytes: &[u8]) -> Result<(InstanceId, SequenceNumber), KeyEncodingError> {
     if bytes.len() != 24 {
         return Err(KeyEncodingError::InvalidLength {
@@ -251,6 +260,7 @@ pub fn encode_timer_key(fire_at_ms: u64, instance_id: &InstanceId) -> Vec<u8> {
     key
 }
 
+<<<<<<< HEAD
 /// Decode a timer key into fire-at timestamp and instance ID.
 ///
 /// # Errors
@@ -260,6 +270,9 @@ pub fn encode_timer_key(fire_at_ms: u64, instance_id: &InstanceId) -> Vec<u8> {
 /// # Panics
 ///
 /// Panics if the key is not exactly 24 bytes.
+=======
+#[expect(clippy::unwrap_used)]
+>>>>>>> origin/vo-worker-tests
 pub fn decode_timer_key(bytes: &[u8]) -> Result<(u64, InstanceId), KeyEncodingError> {
     if bytes.len() != 24 {
         return Err(KeyEncodingError::InvalidLength {
@@ -355,6 +368,7 @@ pub fn encode_effect_key(instance_id: &InstanceId, sequence: SequenceNumber) -> 
     key
 }
 
+<<<<<<< HEAD
 /// Decode an effect key into instance ID and sequence number.
 ///
 /// # Errors
@@ -364,6 +378,9 @@ pub fn encode_effect_key(instance_id: &InstanceId, sequence: SequenceNumber) -> 
 /// # Panics
 ///
 /// Panics if the key is not exactly 25 bytes.
+=======
+#[expect(clippy::unwrap_used)]
+>>>>>>> origin/vo-worker-tests
 pub fn decode_effect_key(bytes: &[u8]) -> Result<(InstanceId, SequenceNumber), KeyEncodingError> {
     if bytes.len() != 25 {
         return Err(KeyEncodingError::InvalidLength {

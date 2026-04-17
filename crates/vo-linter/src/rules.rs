@@ -25,7 +25,11 @@ fn path_contains(path: &Path, segment: &str, use_renames: &HashMap<String, Strin
     })
 }
 
+<<<<<<< HEAD
 fn is_uuid_new_v4_call(call: &ExprCall, use_renames: &HashMap<String, String>) -> bool {
+=======
+fn is_uuid_new_v4_call(call: &ExprCall) -> bool {
+>>>>>>> origin/vo-worker-tests
     if !call.args.is_empty() {
         return false;
     }
@@ -98,9 +102,14 @@ mod tests {
     use super::*;
     use quote::quote;
 
+<<<<<<< HEAD
     #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
     fn parse_and_check(src: &str) -> Vec<Diagnostic> {
         let file: File = syn::parse_str(src).unwrap();
+=======
+    fn parse_and_check(src: &str) -> Vec<Diagnostic> {
+        let file: File = syn::parse_str(src).expect("failed to parse");
+>>>>>>> origin/vo-worker-tests
         check_random_in_workflow(&file)
     }
 

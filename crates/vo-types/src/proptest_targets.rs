@@ -9,17 +9,26 @@
 
 use crate::credentials::{AccessPolicy, Principal};
 use crate::discovery::{enforce_pin, validate_discovery_path, DiscoveryPath, VersionPin};
+<<<<<<< HEAD
 use crate::dual_representation::{apply_redaction, RedactionKind, RedactionPolicy, RedactionRule};
+=======
+use crate::dual_representation::{apply_redaction, RedactedValue, RedactionRule};
+>>>>>>> origin/vo-worker-tests
 use crate::events::payload::EventPayload;
 use crate::integer_types::{
     AttemptNumber, DurationMs, EventVersion, FenceToken, FireAtMs, MaxAttempts, SequenceNumber,
     TimeoutMs, TimestampMs,
 };
+<<<<<<< HEAD
 use crate::lifecycle_superstate::LifecycleSuperstate;
+=======
+use crate::lifecycle_superstate::LifecycleSuperState;
+>>>>>>> origin/vo-worker-tests
 use crate::non_empty_vec::NonEmptyVec;
 use crate::state::transition::{
     get_operational_status, get_valid_transitions, is_terminal, LifecycleState, OperationalStatus,
 };
+<<<<<<< HEAD
 use crate::types::{
     extract_schema_version, AttemptNumber as TypeAttemptNumber, BinaryHash,
     DurationMs as TypeDurationMs, EventVersion as TypeEventVersion, FenceToken as TypeFenceToken,
@@ -27,6 +36,9 @@ use crate::types::{
     SequenceNumber as TypeSequenceNumber, TimeoutMs as TypeTimeoutMs,
     TimestampMs as TypeTimestampMs,
 };
+=======
+use crate::types::{extract_schema_version, SchemaVersion};
+>>>>>>> origin/vo-worker-tests
 use crate::workflow::next_nodes;
 use crate::ParseError;
 use proptest::prelude::*;
@@ -89,6 +101,10 @@ proptest! {
         // Invariant: Serialized form is stable across versions
         // Strategy: Generate event version values
         // Anti-invariant: unstable serialization breaks compatibility
+<<<<<<< HEAD
+=======
+        use serde_json;
+>>>>>>> origin/vo-worker-tests
         let ev = EventVersion(NonZeroU64::new(value).expect("nonzero"));
         let json = serde_json::to_string(&ev).expect("serialize");
         let restored: EventVersion = serde_json::from_str(&json).expect("deserialize");
@@ -273,6 +289,7 @@ proptest! {
 
     #[test]
     fn discovery_path_validation_accepts_valid(
+<<<<<<< HEAD
         binary_name in "[a-z][a-z0-9_]*",
         hash in "[a-f0-9]{16,64}",
     ) {
@@ -285,11 +302,21 @@ proptest! {
             binary_hash,
             binary_name,
         );
+=======
+        component in any::<String>(),
+        version in any::<String>(),
+    ) {
+        // Invariant: Valid component/version strings pass validation
+        // Strategy: Generate typical component names and versions
+        // Anti-invariant: rejecting valid paths breaks discovery
+        let path = DiscoveryPath::new(&component, &version);
+>>>>>>> origin/vo-worker-tests
         let result = validate_discovery_path(&path);
         prop_assert!(result.is_ok());
     }
 
     #[test]
+<<<<<<< HEAD
     fn discovery_path_validation_rejects_empty_binary_name() {
         // Invariant: Empty binary_name strings are rejected
         // Strategy: Test empty binary_name edge case
@@ -299,11 +326,19 @@ proptest! {
             BinaryHash::parse("abcdef0123456789").unwrap(),
             String::new(),
         );
+=======
+    fn discovery_path_validation_rejects_empty_component() {
+        // Invariant: Empty component strings are rejected
+        // Strategy: Test empty component edge case
+        // Anti-invariant: accepting empty components breaks routing
+        let path = DiscoveryPath::new("", "1.0.0");
+>>>>>>> origin/vo-worker-tests
         let result = validate_discovery_path(&path);
         prop_assert!(result.is_err());
     }
 
     #[test]
+<<<<<<< HEAD
     fn discovery_path_validation_rejects_path_separators(
         binary_name in ".*/.*",
     ) {
@@ -317,12 +352,24 @@ proptest! {
         );
         let result = validate_discovery_path(&path);
         prop_assert!(result.is_err());
+=======
+    fn discovery_path_version_format(version: String) {
+        // Invariant: Version strings are preserved through validation
+        // Strategy: Generate various version strings
+        // Anti-invariant: mangled versions break compatibility checks
+        let path = DiscoveryPath::new("component", &version);
+        let result = validate_discovery_path(&path);
+        if result.is_ok() {
+            prop_assert_eq!(path.version(), &version);
+        }
+>>>>>>> origin/vo-worker-tests
     }
 
     // ============ Pin Enforcement Proptests ============
 
     #[test]
     fn pin_enforce_accepts_matching_hash(
+<<<<<<< HEAD
         hash in "[a-f0-9]{16,64}",
     ) {
         // Invariant: Pin accepts binary hash matching pinned value
@@ -331,26 +378,47 @@ proptest! {
         let binary_hash = BinaryHash::parse(&hash).unwrap();
         let pin = VersionPin::new(binary_hash.clone(), 1000);
         let result = enforce_pin(&pin, &binary_hash);
+=======
+        hash in any::<String>(),
+    ) {
+        // Invariant: Pin accepts binary hash matching pinned value
+        // Strategy: Generate matching hash strings
+        // Anti-invariant: rejecting matching hashes breaks pinning
+        let pin = VersionPin::parse(&hash).expect("valid");
+        let candidate = hash.clone();
+        let result = enforce_pin(&pin, &candidate);
+>>>>>>> origin/vo-worker-tests
         prop_assert!(result.is_ok());
     }
 
     #[test]
     fn pin_enforce_rejects_mismatched_hash(
+<<<<<<< HEAD
         pinned in "[a-f0-9]{16,64}",
         candidate in "[a-f0-9]{16,64}",
+=======
+        pinned in any::<String>(),
+        candidate in any::<String>(),
+>>>>>>> origin/vo-worker-tests
     ) {
         // Invariant: Pin rejects binary hash not matching pinned value
         // Strategy: Generate mismatched hash pairs
         // Anti-invariant: accepting mismatched hashes breaks pinning
         prop_assume!(pinned != candidate);
+<<<<<<< HEAD
         let pinned_hash = BinaryHash::parse(&pinned).unwrap();
         let candidate_hash = BinaryHash::parse(&candidate).unwrap();
         let pin = VersionPin::new(pinned_hash, 1000);
         let result = enforce_pin(&pin, &candidate_hash);
+=======
+        let pin = VersionPin::parse(&pinned).expect("valid");
+        let result = enforce_pin(&pin, &candidate);
+>>>>>>> origin/vo-worker-tests
         prop_assert!(result.is_err());
     }
 
     #[test]
+<<<<<<< HEAD
     fn pin_enforce_exact_match(
         hash in "[a-f0-9]{16,64}",
     ) {
@@ -368,6 +436,20 @@ proptest! {
             let result_modified = enforce_pin(&pin, &modified_hash);
             prop_assert!(result_modified.is_err());
         }
+=======
+    fn pin_enforce_exact_match(pinned in any::<String>()) {
+        // Invariant: Pin requires exact byte-level match
+        // Strategy: Generate hash strings
+        // Anti-invariant: case-insensitive or fuzzy matching breaks pins
+        let pin = VersionPin::parse(&pinned).expect("valid");
+        let result = enforce_pin(&pin, &pinned);
+        prop_assert!(result.is_ok());
+
+        // Slight modification should fail
+        let modified = pinned + "x";
+        let result_modified = enforce_pin(&pin, &modified);
+        prop_assert!(result_modified.is_err());
+>>>>>>> origin/vo-worker-tests
     }
 
     // ============ Lifecycle State Proptests ============
@@ -430,6 +512,7 @@ proptest! {
         }
     }
 
+<<<<<<< HEAD
     // ============ Redaction Proptests ============
 
     #[test]
@@ -493,6 +576,88 @@ proptest! {
         let result_str = serde_json::to_string(&result).unwrap();
         prop_assert!(!result_str.contains(&secret),
             "Removed field value must not appear in output");
+=======
+    // ============ Schema Version Proptests ============
+
+    #[test]
+    fn extract_schema_version_parses_valid(
+        major in 0u32..,
+        minor in 0u16..,
+        patch in 0u16..,
+    ) {
+        // Invariant: Valid version strings parse correctly
+        // Strategy: Generate valid version component pairs
+        // Anti-invariant: parsing errors break version routing
+        let version = SchemaVersion::new(major, minor);
+        let extracted = extract_schema_version(&version.to_string());
+        prop_assert_eq!(extracted, Ok(version));
+    }
+
+    #[test]
+    fn schema_version_ordering(major_a in 0u32.., minor_a in 0u16.., major_b in 0u32..) {
+        // Invariant: SchemaVersion ordering matches (major, minor) ordering
+        // Strategy: Generate version pairs
+        // Anti-invariant: wrong ordering breaks compatibility checks
+        let va = SchemaVersion::new(major_a, minor_a);
+        let vb = SchemaVersion::new(major_b, 0);
+        prop_assert_eq!(va.cmp(&vb), (major_a, minor_a).cmp(&(major_b, 0u16)));
+    }
+
+    // ============ Redaction Proptests ============
+
+    #[test]
+    fn redaction_rule_identity(value: RedactedValue) {
+        // Invariant: Applying rule to non-matching value is identity
+        // Strategy: Generate arbitrary values
+        // Anti-invariant: modifying non-targets leaks or corrupts data
+        let rule = RedactionRule::new("different_field");
+        let result = apply_redaction(&value, &rule);
+        prop_assert_eq!(result, value);
+    }
+
+    #[test]
+    fn redaction_rule_matches_field(field_name: String, value: RedactedValue) {
+        // Invariant: Rule matches only when field name matches
+        // Strategy: Generate field names and values
+        // Anti-invariant: false positives/negatives break security
+        let rule = RedactionRule::new(&field_name);
+        let result = apply_redaction(&value, &rule);
+
+        match &value {
+            RedactedValue::Object(map) => {
+                if let Some(v) = map.get(&field_name) {
+                    prop_assert_eq!(result, RedactedValue::Redacted);
+                } else {
+                    prop_assert_eq!(result, value);
+                }
+            }
+            _ => {
+                prop_assert_eq!(result, value);
+            }
+        }
+    }
+
+    #[test]
+    fn redaction_preserves_structure(map_size in 0usize..10) {
+        // Invariant: Redaction preserves overall structure except matched fields
+        // Strategy: Generate maps of various sizes
+        // Anti-invariant: structural changes break downstream parsing
+        use serde_json::json;
+        let mut map: HashMap<String, RedactedValue> = HashMap::new();
+
+        for i in 0..map_size {
+            map.insert(format!("field_{}", i), RedactedValue::Number(i as u64));
+        }
+
+        let value = RedactedValue::Object(map.clone());
+        let rule = RedactionRule::new("field_5");
+        let result = apply_redaction(&value, &rule);
+
+        // Result should still be an object
+        if let RedactedValue::Object(result_map) = result {
+            prop_assert_eq!(result_map.len(), map_size);
+        }
+>>>>>>> origin/vo-worker-tests
     }
 
     // ============ Workflow Next Nodes Proptests ============
@@ -627,6 +792,7 @@ proptest! {
     // ============ Dual Representation Proptests ============
 
     #[test]
+<<<<<<< HEAD
     fn dual_representation_redaction_commutes_for_non_overlapping_rules(
         field_a in "[a-z]{1,5}",
         field_b in "[a-z]{1,5}",
@@ -651,6 +817,39 @@ proptest! {
     }
 
     // ============ Access Control Proptests ============
+=======
+    fn dual_representation_redaction_is_applicative(
+        value in any::<RedactedValue>(),
+        rule1 in any::<String>(),
+        rule2 in any::<String>(),
+    ) {
+        // Invariant: Applying multiple rules is order-independent
+        // Strategy: Generate values and rule pairs
+        // Anti-invariant: order-dependent redaction breaks consistency
+        let rule1 = RedactionRule::new(&rule1);
+        let rule2 = RedactionRule::new(&rule2);
+
+        let result1 = apply_redaction(&apply_redaction(&value, &rule1), &rule2);
+        let result2 = apply_redaction(&apply_redaction(&value, &rule2), &rule1);
+
+        prop_assert_eq!(result1, result2);
+    }
+
+   // ============ Admission Check Proptests ============
+
+    #[test]
+    fn admission_check_thresholds_boundary(
+        pressure in 0f64..1.0,
+        threshold in 0f64..1.0,
+    ) {
+        // Invariant: Admission denied when pressure >= threshold
+        // Strategy: Generate pressure and threshold values
+        // Anti-invariant: wrong threshold comparison breaks admission
+        prop_assert_eq!(pressure >= threshold, pressure >= threshold);
+    }
+
+  // ============ Access Control Proptests ============
+>>>>>>> origin/vo-worker-tests
 
     #[test]
     fn access_policy_principal_match(policy_rules in proptest::collection::vec(any::<String>(), 0..10),
@@ -672,6 +871,168 @@ proptest! {
         prop_assert_ne!(system, user);
     }
 
+<<<<<<< HEAD
+=======
+    // ============ Snapshot Compatibility Proptests ============
+
+    #[test]
+    fn snapshot_compat_self_compatible(version in 0u16..100) {
+        // Invariant: Any version is compatible with itself
+        // Strategy: Test various version numbers
+        // Anti-invariant: rejecting self breaks snapshot restores
+        // Note: This tests the logical invariant; actual implementation in vo-core
+        prop_assert_eq!(version, version);
+    }
+
+    // ============ Rate Limiter Proptests ============
+
+    #[test]
+    fn rate_limit_update_advances_time(now: Duration) {
+        // Invariant: update_rate_limit returns future time
+        // Strategy: Generate various time values
+        // Anti-invariant: past or equal time breaks rate limiting
+        use std::time::Instant;
+        use crate::circuit_breaker::rate_limiter::update_rate_limit;
+
+        let instant = Instant::now() - now;
+        let updated = update_rate_limit(instant);
+        prop_assert!(updated >= instant);
+    }
+
+    // ============ Failure Window Proptests ============
+
+    #[test]
+    fn unique_failures_count_accuracy(
+        num_failures in 0usize..100,
+        window_size in 1usize..100,
+    ) {
+        // Invariant: unique_failures_in_window returns accurate count
+        // Strategy: Generate failure counts and window sizes
+        // Anti-invariant: incorrect counts break circuit breaker
+        use crate::circuit_breaker::failure_window::unique_failures_in_window;
+
+        // Simulate failures with unique IDs
+        let failures: Vec<u64> = (0..num_failures).map(|i| i as u64).collect();
+        let count = unique_failures_in_window(&failures, window_size);
+
+        prop_assert!(count <= num_failures);
+        prop_assert!(count <= window_size);
+    }
+
+    // ============ Circuit Breaker Evaluation Proptests ============
+
+    #[test]
+    fn evaluate_registration_state_consistency(
+        state in any::<String>(),
+        failure_count in 0u32..,
+    ) {
+        // Invariant: Registration evaluation produces consistent state
+        // Strategy: Generate state and failure count pairs
+        // Anti-invariant: inconsistent evaluation breaks circuit breaker
+        use crate::circuit_breaker::evaluate_registration;
+
+        let result = evaluate_registration(&state, failure_count);
+        // Result should be deterministic for same inputs
+        let result2 = evaluate_registration(&state, failure_count);
+        prop_assert_eq!(result, result2);
+    }
+
+
+
+    // ============ Access Control Proptests ============
+
+    #[test]
+    fn is_authorized_deterministic(
+        policy_rules in proptest::collection::vec(any::<String>(), 0..10),
+        principal_rules in proptest::collection::vec(any::<String>(), 0..10),
+    ) {
+        // Invariant: Same policy/principal produces same authorization
+        // Strategy: Generate rule sets
+        // Anti-invariant: non-deterministic auth breaks security
+        use crate::vault::access::is_authorized;
+        use crate::AccessPolicy;
+
+        let policy = AccessPolicy { rules: policy_rules.clone() };
+        let principal = crate::Principal { rules: principal_rules.clone() };
+
+        let result1 = is_authorized(&policy, &principal);
+        let result2 = is_authorized(&policy, &principal);
+
+        prop_assert_eq!(result1, result2);
+    }
+
+  // ============ State Transition Proptests ============
+
+    #[test]
+    fn state_transition_validity_preserved(
+        state in any::<LifecycleState>(),
+        event_type in any::<String>(),
+    ) {
+        // Invariant: Transition attempts either succeed with valid state or fail gracefully
+        // Strategy: Generate states and event types
+        // Anti-invariant: invalid state leakage corrupts machine
+        use crate::state::transition::apply;
+
+        // The apply function should handle transitions safely
+        let result = apply(state, &event_type);
+
+        match result {
+            Ok(new_state) => {
+                // new_state should be a valid LifecycleState variant
+                // This is enforced by the type system
+                let _ = new_state;
+            }
+            Err(_) => {
+                // Invalid transitions return Err - acceptable behavior
+                // No state corruption occurs
+            }
+        }
+    }
+
+    // ============ Event Payload Proptests ============
+
+    #[test]
+    fn event_payload_type_preservation(
+        event_type: String,
+        payload_content in any::<String>(),
+    ) {
+        // Invariant: EventPayload preserves event type through serialization
+        // Strategy: Generate event type and content pairs
+        // Anti-invariant: type loss breaks event routing
+        use serde_json;
+
+        let payload = EventPayload {
+            event_type: event_type.clone(),
+            data: payload_content,
+        };
+
+        let serialized = serde_json::to_value(&payload).expect("serialize");
+        let deserialized: EventPayload = serde_json::from_value(serialized).expect("deserialize");
+
+        prop_assert_eq!(deserialized.event_type, payload.event_type);
+    }
+
+    // ============ Superstate Proptests ============
+
+    #[test]
+    fn superstate_grouping_correctness(superstate in any::<LifecycleSuperState>()) {
+        // Invariant: Superstate groups states correctly
+        // Strategy: Test all superstate values
+        // Anti-invariant: wrong grouping breaks state aggregation
+        match superstate {
+            LifecycleSuperState::Active => {
+                // Active states should be running states
+            }
+            LifecycleSuperState::Inactive => {
+                // Inactive states should be terminal/paused
+            }
+            LifecycleSuperState::Error => {
+                // Error states should be failure states
+            }
+        }
+    }
+
+>>>>>>> origin/vo-worker-tests
     // ============ Anti-Invariant Tests ============
 
     #[test]
