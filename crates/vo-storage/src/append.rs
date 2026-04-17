@@ -11,16 +11,25 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use vo_types::events::EventEnvelope;
 
-/// Emit a rejection metric for monitoring. Stub - TODO: wire to metrics crate.
-#[allow(dead_code)]
-fn emit_rejection(_class: WriteClass, _reason: &str) {
-    // TODO: Integrate with metrics crate for rejection counters
+/// Emit a rejection metric for monitoring.
+fn emit_rejection(class: WriteClass, reason: &str) {
+    let label = match class {
+        WriteClass::CriticalControlPlane => "critical_control_plane",
+        WriteClass::OperatorProjection => "operator_projection",
+        WriteClass::BulkBlob => "bulk_blob",
+    };
+    metrics::counter!("vo_storage.write_rejected_total", "class" => label, "reason" => reason.to_string())
+        .increment(1);
 }
 
-/// Emit a queue depth metric for monitoring. Stub - TODO: wire to metrics crate.
-#[allow(dead_code)]
-fn emit_queue_depth(_class: WriteClass, _depth: usize) {
-    // TODO: Integrate with metrics crate for queue depth gauges
+/// Emit a queue depth metric for monitoring.
+fn emit_queue_depth(class: WriteClass, depth: usize) {
+    let label = match class {
+        WriteClass::CriticalControlPlane => "critical_control_plane",
+        WriteClass::OperatorProjection => "projection",
+        WriteClass::BulkBlob => "bulk_blob",
+    };
+    metrics::gauge!("vo_storage.queue_depth", "class" => label).set(depth as f64);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -456,7 +465,10 @@ impl CommitLatencyTracker {
         if state.sample_count == 0 {
             return None;
         }
-        Some(u64::try_from(state.total_latency_ms / u128::from(state.sample_count)).unwrap_or(u64::MAX))
+        Some(
+            u64::try_from(state.total_latency_ms / u128::from(state.sample_count))
+                .unwrap_or(u64::MAX),
+        )
     }
 
     /// Returns the number of commit samples recorded.
@@ -1514,7 +1526,7 @@ mod tests {
             blob_capacity: 1,
         };
         let budget = WriteBudget::new(10000, 10000, 10000);
-        let queues = BudgetQueues::<AppendEntry>::new(config, budget);
+        let queues = BudgetQueues::<AppendEntry>::new(&config, budget);
 
         queues
             .try_enqueue(&AppendEntry::ControlPlane(ControlPlaneWrite::new(
@@ -1594,7 +1606,7 @@ mod tests {
 
         let budget_config = QueueConfig::default();
         let budget_queues = WriteBudget::new(10, 10, 10);
-        let q2 = BudgetQueues::<AppendEntry>::new(budget_config, budget_queues);
+        let q2 = BudgetQueues::<AppendEntry>::new(&budget_config, budget_queues);
         let _ = q2.try_enqueue(&AppendEntry::Blob(BlobWrite::bulk("b1".to_string(), 100)));
 
         let entries = snapshot.snapshot().into_vec();

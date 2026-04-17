@@ -27,7 +27,9 @@ impl FjallReceiptStore {
     /// Returns `ReceiptStoreError::Storage` if the receipts partition cannot be opened.
     pub fn open(db: &fjall::Database) -> Result<Self, ReceiptStoreError> {
         let partition = db
-            .keyspace(RECEIPTS_PARTITION, || fjall::KeyspaceCreateOptions::default())
+            .keyspace(RECEIPTS_PARTITION, || {
+                fjall::KeyspaceCreateOptions::default()
+            })
             .map_err(|e| ReceiptStoreError::Storage {
                 reason: format!("failed to open receipts partition: {e}"),
             })?;
@@ -101,9 +103,10 @@ impl ReceiptStore for FjallReceiptStore {
 
         let iter = self.partition.iter();
         for item in iter {
-            let (key_bytes, value_bytes) = item.into_inner().map_err(|e| ReceiptStoreError::Storage {
-                reason: e.to_string(),
-            })?;
+            let (key_bytes, value_bytes) =
+                item.into_inner().map_err(|e| ReceiptStoreError::Storage {
+                    reason: e.to_string(),
+                })?;
 
             if !key_bytes.starts_with(prefix_bytes) {
                 continue;
@@ -123,9 +126,10 @@ mod tests {
     use tempfile::tempdir;
     use vo_types::EffectKind;
 
-    fn create_test_keyspace() -> fjall::Keyspace {
+    fn create_test_db() -> (tempfile::TempDir, fjall::Database) {
         let dir = tempdir().unwrap();
-        fjall::Database::builder(dir.path()).open().unwrap()
+        let db = fjall::Database::builder(dir.path()).open().unwrap();
+        (dir, db)
     }
 
     fn sample_instance_id() -> InstanceId {
@@ -146,8 +150,8 @@ mod tests {
 
     #[test]
     fn fjall_store_receipt_and_retrieve() {
-        let keyspace = create_test_keyspace();
-        let store = FjallReceiptStore::open(&keyspace).unwrap();
+        let (_dir, db) = create_test_db();
+        let store = FjallReceiptStore::open(&db).unwrap();
         let id = sample_instance_id();
         let receipt = make_receipt("fx-1", &id);
 
@@ -160,8 +164,8 @@ mod tests {
 
     #[test]
     fn fjall_store_receipt_is_idempotent() {
-        let keyspace = create_test_keyspace();
-        let store = FjallReceiptStore::open(&keyspace).unwrap();
+        let (_dir, db) = create_test_db();
+        let store = FjallReceiptStore::open(&db).unwrap();
         let id = sample_instance_id();
         let receipt = make_receipt("fx-2", &id);
 
@@ -174,8 +178,8 @@ mod tests {
 
     #[test]
     fn fjall_get_nonexistent_receipt_returns_none() {
-        let keyspace = create_test_keyspace();
-        let store = FjallReceiptStore::open(&keyspace).unwrap();
+        let (_dir, db) = create_test_db();
+        let store = FjallReceiptStore::open(&db).unwrap();
 
         let result = store.get_receipt("nonexistent");
         assert_eq!(result, Ok(None));
@@ -183,8 +187,8 @@ mod tests {
 
     #[test]
     fn fjall_has_receipt_returns_true_for_existing() {
-        let keyspace = create_test_keyspace();
-        let store = FjallReceiptStore::open(&keyspace).unwrap();
+        let (_dir, db) = create_test_db();
+        let store = FjallReceiptStore::open(&db).unwrap();
         let id = sample_instance_id();
 
         store.store_receipt(make_receipt("fx-3", &id)).unwrap();
@@ -194,16 +198,16 @@ mod tests {
 
     #[test]
     fn fjall_has_receipt_returns_false_for_missing() {
-        let keyspace = create_test_keyspace();
-        let store = FjallReceiptStore::open(&keyspace).unwrap();
+        let (_dir, db) = create_test_db();
+        let store = FjallReceiptStore::open(&db).unwrap();
 
         assert_eq!(store.has_receipt("missing"), Ok(false));
     }
 
     #[test]
     fn fjall_list_by_instance_returns_only_matching_receipts() {
-        let keyspace = create_test_keyspace();
-        let store = FjallReceiptStore::open(&keyspace).unwrap();
+        let (_dir, db) = create_test_db();
+        let store = FjallReceiptStore::open(&db).unwrap();
         let id = sample_instance_id();
         let other_id = InstanceId::from_bytes([2u8; 16]);
 
@@ -219,8 +223,8 @@ mod tests {
 
     #[test]
     fn fjall_store_rejects_empty_effect_id() {
-        let keyspace = create_test_keyspace();
-        let store = FjallReceiptStore::open(&keyspace).unwrap();
+        let (_dir, db) = create_test_db();
+        let store = FjallReceiptStore::open(&db).unwrap();
         let receipt = ExecutionReceipt::new(
             "".to_string(),
             "inst-1".to_string(),
@@ -233,8 +237,8 @@ mod tests {
 
     #[test]
     fn fjall_get_rejects_empty_effect_id() {
-        let keyspace = create_test_keyspace();
-        let store = FjallReceiptStore::open(&keyspace).unwrap();
+        let (_dir, db) = create_test_db();
+        let store = FjallReceiptStore::open(&db).unwrap();
 
         let result = store.get_receipt("");
         assert_eq!(result, Err(ReceiptStoreError::InvalidArgument));

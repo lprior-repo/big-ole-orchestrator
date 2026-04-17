@@ -97,7 +97,9 @@ impl MerkleTree {
 
             let current_level = &self.levels[level];
             if sibling_index < current_level.len() {
-                proof_hashes.push(current_level[sibling_index].hash);
+                proof_hashes.push((current_level[sibling_index].hash, is_left));
+            } else {
+                proof_hashes.push((current_level[current_index].hash, is_left));
             }
 
             current_index /= 2;
@@ -142,7 +144,7 @@ fn pair_and_hash(nodes: &[MerkleNode]) -> Vec<MerkleNode> {
 pub struct MerkleProof {
     pub leaf_hash: [u8; 32],
     pub leaf_index: usize,
-    pub proof_hashes: Vec<[u8; 32]>,
+    pub proof_hashes: Vec<([u8; 32], bool)>,
     pub chunk_size: u64,
 }
 
@@ -151,10 +153,15 @@ impl MerkleProof {
     pub fn verify(&self, expected_root: [u8; 32]) -> bool {
         let mut current_hash = self.leaf_hash;
 
-        for sibling_hash in &self.proof_hashes {
+        for (sibling_hash, is_left) in &self.proof_hashes {
             let mut hasher = blake3::Hasher::new();
-            hasher.update(&current_hash);
-            hasher.update(sibling_hash);
+            if *is_left {
+                hasher.update(&current_hash);
+                hasher.update(sibling_hash);
+            } else {
+                hasher.update(sibling_hash);
+                hasher.update(&current_hash);
+            }
             current_hash = *hasher.finalize().as_bytes();
         }
 
@@ -323,7 +330,11 @@ mod tests {
         let expected_proof_length = tree.levels.len() - 1;
         for i in 0..tree.leaf_hashes.len() {
             let proof = tree.proof(i).expect("should have proof");
-            assert_eq!(proof.proof_hashes.len(), expected_proof_length);
+            assert_eq!(
+                proof.proof_hashes.len(),
+                expected_proof_length,
+                "proof {i} length mismatch"
+            );
         }
     }
 }
