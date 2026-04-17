@@ -32,6 +32,7 @@ pub mod connector;
 mod db_writer_message;
 pub mod debounce;
 pub mod effects;
+pub mod lease_calc;
 pub mod exact_once_verification;
 pub mod transaction;
 
