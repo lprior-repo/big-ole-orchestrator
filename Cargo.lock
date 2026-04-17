@@ -4965,13 +4965,11 @@ dependencies = [
 name = "vo-cli"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "clap",
  "criterion",
  "fjall",
  "libc",
  "proptest",
- "ractor",
  "reqwest",
  "rstest 0.18.2",
  "serde",
@@ -4982,10 +4980,6 @@ dependencies = [
  "tokio",
  "toml 1.1.2+spec-1.1.0",
  "tracing",
- "ulid",
- "uuid",
- "vo-actor",
- "vo-api",
  "vo-storage",
  "vo-types",
 ]
