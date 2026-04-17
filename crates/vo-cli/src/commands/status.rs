@@ -92,6 +92,8 @@ pub async fn run_status(config: &StatusConfig) -> Result<WorkflowStatusResponse,
 #[cfg(test)]
 mod tests {
     use super::*;
+    use wiremock::{matchers::{method, path}, Mock, ResponseTemplate};
+    use std::time::Duration;
 
     #[test]
     fn status_config_default_engine_url() {
@@ -168,5 +170,157 @@ mod tests {
         };
         assert_eq!(config.engine_url, "http://localhost:9000");
         assert_eq!(config.instance_id, "test-instance-123");
+    }
+
+    #[tokio::test]
+    async fn fetch_workflow_status_returns_success_response() {
+        let instance_id = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
+        let server = wiremock::MockServer::start().await;
+        let server_url = server.uri();
+
+        Mock::given(method("GET"))
+            .and(path(format!("/api/v1/workflows/{}/status", instance_id)))
+            .respond_with(ResponseTemplate::new(200).set_body_json(WorkflowStatusResponse {
+                instance_id: instance_id.to_string(),
+                namespace: "default".to_string(),
+                workflow_type: "test".to_string(),
+                paradigm: "fsm".to_string(),
+                phase: "running".to_string(),
+                events_applied: 42,
+                registration_status: Some("registered".to_string()),
+                is_quarantined: false,
+            }))
+            .mount(&server)
+            .await;
+
+        let result = fetch_workflow_status(&server_url, instance_id).await;
+        assert!(result.is_ok());
+        let response = result.unwrap();
+        assert_eq!(response.instance_id, instance_id);
+        assert_eq!(response.namespace, "default");
+        assert_eq!(response.phase, "running");
+        assert_eq!(response.events_applied, 42);
+    }
+
+    #[tokio::test]
+    async fn fetch_workflow_status_returns_not_found_for_404() {
+        let instance_id = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
+        let server = wiremock::MockServer::start().await;
+        let server_url = server.uri();
+
+        Mock::given(method("GET"))
+            .and(path(format!("/api/v1/workflows/{}/status", instance_id)))
+            .respond_with(ResponseTemplate::new(404))
+            .mount(&server)
+            .await;
+
+        let result = fetch_workflow_status(&server_url, instance_id).await;
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        matches!(err, StatusError::NotFound { instance_id: id } if id == instance_id);
+    }
+
+    #[tokio::test]
+    async fn fetch_workflow_status_returns_http_error_for_500() {
+        let instance_id = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
+        let server = wiremock::MockServer::start().await;
+        let server_url = server.uri();
+
+        Mock::given(method("GET"))
+            .and(path(format!("/api/v1/workflows/{}/status", instance_id)))
+            .respond_with(ResponseTemplate::new(500))
+            .mount(&server)
+            .await;
+
+        let result = fetch_workflow_status(&server_url, instance_id).await;
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        matches!(err, StatusError::HttpError { status: 500, .. });
+    }
+
+    #[tokio::test]
+    async fn fetch_workflow_status_returns_invalid_response_for_malformed_json() {
+        let instance_id = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
+        let server = wiremock::MockServer::start().await;
+        let server_url = server.uri();
+
+        Mock::given(method("GET"))
+            .and(path(format!("/api/v1/workflows/{}/status", instance_id)))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_raw("not valid json".as_bytes(), "text/plain"),
+            )
+            .mount(&server)
+            .await;
+
+        let result = fetch_workflow_status(&server_url, instance_id).await;
+        assert!(result.is_err());
+        matches!(result.unwrap_err(), StatusError::InvalidResponse { .. });
+    }
+
+    #[tokio::test]
+    async fn run_status_delegates_to_fetch_workflow_status() {
+        let instance_id = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
+        let server = wiremock::MockServer::start().await;
+        let server_url = server.uri();
+
+        Mock::given(method("GET"))
+            .and(path(format!("/api/v1/workflows/{}/status", instance_id)))
+            .respond_with(ResponseTemplate::new(200).set_body_json(WorkflowStatusResponse {
+                instance_id: instance_id.to_string(),
+                namespace: "test-ns".to_string(),
+                workflow_type: "batch".to_string(),
+                paradigm: "fsm".to_string(),
+                phase: "completed".to_string(),
+                events_applied: 100,
+                registration_status: None,
+                is_quarantined: true,
+            }))
+            .mount(&server)
+            .await;
+
+        let config = StatusConfig {
+            engine_url: server_url,
+            instance_id: instance_id.to_string(),
+        };
+        let result = run_status(&config).await;
+        assert!(result.is_ok());
+        let response = result.unwrap();
+        assert_eq!(response.instance_id, instance_id);
+        assert_eq!(response.phase, "completed");
+        assert!(response.is_quarantined);
+    }
+
+    #[tokio::test]
+    async fn fetch_workflow_status_unreachable_network_error() {
+        let result = fetch_workflow_status("http://localhost:9999", "test-id").await;
+        assert!(result.is_err());
+        matches!(result.unwrap_err(), StatusError::Unreachable { .. });
+    }
+
+    #[tokio::test]
+    async fn status_error_variants_have_correct_display() {
+        let not_found = StatusError::NotFound {
+            instance_id: "test-123".to_string(),
+        };
+        assert!(not_found.to_string().contains("not found"));
+        assert!(not_found.to_string().contains("test-123"));
+
+        let unreachable = StatusError::Unreachable {
+            url: "http://example.com".to_string(),
+            reason: "timeout".to_string(),
+        };
+        assert!(unreachable.to_string().contains("unreachable"));
+        assert!(unreachable.to_string().contains("timeout"));
+
+        let http_err = StatusError::HttpError {
+            url: "http://example.com".to_string(),
+            status: 503,
+        };
+        assert!(http_err.to_string().contains("HTTP 503"));
+
+        let invalid = StatusError::InvalidResponse {
+            reason: "truncated".to_string(),
+        };
+        assert!(invalid.to_string().contains("invalid response"));
     }
 }
