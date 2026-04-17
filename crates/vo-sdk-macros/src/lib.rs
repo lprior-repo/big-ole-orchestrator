@@ -174,12 +174,18 @@ mod tests {
     }
 
     #[test]
-    fn task_macro_rejects_exactly_1_argument_boundary() {
+    fn task_macro_accepts_single_argument_boundary() {
         let attr = quote! {};
         let item = quote! { fn task(a: i32) {} };
-        let expected = quote! { compile_error!("task functions cannot have arguments"); };
         let result = internal_task_macro(attr, item);
-        assert_eq!(result.to_string(), expected.to_string());
+        let result_str = result.to_string();
+        assert!(
+            result_str.contains("fn main"),
+            "missing fn main in: {}",
+            result_str
+        );
+        assert!(result_str.contains("env"), "missing env in: {}", result_str);
+        assert!(result_str.contains("\"A\""), "missing A in: {}", result_str);
     }
 
     #[test]
