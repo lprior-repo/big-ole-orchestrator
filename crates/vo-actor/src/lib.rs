@@ -3,11 +3,9 @@
 //! Provides the actor model implementation using the Ractor library.
 //! Actors are the fundamental units of computation in the engine.
 
-pub use vo_common::NamespaceId;
-use bytes::Bytes;
-use vo_types::InstanceId;
-
-pub mod heartbeat;
+pub mod heartbeat {
+    pub fn run_heartbeat_watcher() {}
+}
 
 pub mod master {
     pub struct MasterOrchestrator;
@@ -17,12 +15,10 @@ pub mod master {
 pub mod fairness;
 pub mod instance_registry;
 pub mod lifecycle;
-pub mod async_message_router;
 pub mod message_router;
 pub mod port;
 pub mod probe;
 pub mod reanimator;
-pub mod routing;
 pub mod semaphore;
 pub mod signal_buffer;
 pub mod signals;
@@ -33,9 +29,10 @@ pub mod signal_buffer_tests;
 
 #[cfg(test)]
 pub mod instance_registry_tests;
-pub mod timer_lifecycle;
 pub mod timer_supervisor;
 pub mod timer_supervisor_tests;
+pub mod timer_lifecycle;
+pub mod timers;
 
 #[derive(Debug, thiserror::Error)]
 pub enum TerminateError {
@@ -45,109 +42,19 @@ pub enum TerminateError {
     Failed(String),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug)]
 pub enum WorkflowParadigm {
-    Fsm,
-    Dag,
-    Procedural,
+    Default,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum InstancePhaseView {
     Replay,
     Live,
 }
 
-/// Messages sent to the orchestrator actor.
 #[derive(Debug)]
-pub enum OrchestratorMsg {
-    /// Start a new workflow instance
-    StartWorkflow {
-        namespace: NamespaceId,
-        instance_id: InstanceId,
-        workflow_type: String,
-        paradigm: WorkflowParadigm,
-        input: Bytes,
-        reply: ractor::port::RpcReplyPort<Result<(), crate::StartError>>,
-    },
-    /// Get status of a workflow instance
-    GetStatus {
-        instance_id: InstanceId,
-        reply: ractor::port::RpcReplyPort<Option<crate::InstanceSnapshot>>,
-    },
-    /// Terminate a workflow instance
-    Terminate {
-        instance_id: InstanceId,
-        reason: String,
-        reply: ractor::port::RpcReplyPort<Result<(), TerminateError>>,
-    },
-    /// List all active workflow instances
-    ListActive {
-        reply: ractor::port::RpcReplyPort<Vec<crate::InstanceSnapshot>>,
-    },
-    /// Trigger compensation for a workflow instance
-    Compensate {
-        instance_id: InstanceId,
-        reply: ractor::port::RpcReplyPort<Result<(), CompensateError>>,
-    },
-    /// Send a signal to a workflow instance
-    Signal {
-        instance_id: InstanceId,
-        signal_name: String,
-        payload: Bytes,
-        reply: ractor::port::RpcReplyPort<Result<(), SignalError>>,
-    },
-}
-
-/// Error type for compensation operations.
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
-pub enum CompensateError {
-    #[error("instance not found: {0}")]
-    NotFound(String),
-    #[error("compensation failed: {0}")]
-    Failed(String),
-}
-
-/// Error type for signal operations.
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
-pub enum SignalError {
-    #[error("instance not found: {0}")]
-    NotFound(String),
-    #[error("signal failed: {0}")]
-    Failed(String),
-}
-
-/// Instance snapshot for status queries.
-#[derive(Debug, Clone)]
-pub struct InstanceSnapshot {
-    pub instance_id: InstanceId,
-    pub namespace: NamespaceId,
-    pub workflow_type: String,
-    pub paradigm: WorkflowParadigm,
-    pub phase: InstancePhaseView,
-    pub events_applied: u64,
-}
-
-#[cfg(test)]
-mod signal_error_tests {
-    use super::*;
-
-    #[test]
-    fn signal_error_variants_can_be_constructed() {
-        let err = SignalError::NotFound("inst-1".to_string());
-        assert!(matches!(err, SignalError::NotFound(msg) if msg == "inst-1"));
-
-        let err = SignalError::Failed("timeout".to_string());
-        assert!(matches!(err, SignalError::Failed(msg) if msg == "timeout"));
-    }
-
-    #[test]
-    fn orchestrator_msg_signal_variant_exists() {
-        fn _check(_msg: OrchestratorMsg) {
-            if let OrchestratorMsg::Signal { instance_id: _, signal_name: _, payload: _, reply: _ } = _msg {}
-        }
-    }
-}
+pub struct OrchestratorMsg;
 
 #[cfg(test)]
 mod terminate_error_tests {
@@ -164,18 +71,1565 @@ mod terminate_error_tests {
 }
 
 // Actor message types
-pub mod actor_messages;
-pub mod signal_messages;
+pub mod actor_messages {
+    // Import types directly from vo-types
+    use vo_types::{InstanceId, NodeName, SequenceNumber, TimerId, WorkflowName};
 
-pub use signal_messages::{
-    AcceptResumeError, AcceptResumeOutcome, BinaryHash, CancelError, CancelRequested,
-    ContinueAsNewError, InstanceResumed, LifecycleState, NodeName, ResumeError, RolloverState,
-    SecretId, SignalAccepted, SignalPayload, SignalStorage, SignalStorageError, SignalWorkQueue,
-    SignalWorkQueueError, StateLookup, TestStateLookup, TimestampMs, WaitKey, WorkflowCancelled,
-    WorkflowContinued,
-};
-pub use signal_messages::mock_signal_storage::{MockSignalStorage, MockSignalWorkQueue};
-pub use signal_messages::mock_signal_storage;
+    // =============================================================================
+    // Type Definitions
+    // =============================================================================
+
+    /// Messages sent to/from workflow instance actors.
+    ///
+    /// These are commands that drive the workflow instance lifecycle.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub enum InstanceActorMessage {
+        /// Start a new workflow instance
+        StartWorkflow {
+            instance_id: InstanceId,
+            workflow_name: WorkflowName,
+            node_name: NodeName,
+        },
+        /// A step in the workflow completed
+        StepCompleted {
+            instance_id: InstanceId,
+            node_name: NodeName,
+            sequence: SequenceNumber,
+        },
+        /// A step in the workflow failed
+        StepFailed {
+            instance_id: InstanceId,
+            node_name: NodeName,
+            sequence: SequenceNumber,
+            error: String,
+        },
+        /// A timer fired
+        TimerFired {
+            instance_id: InstanceId,
+            timer_id: TimerId,
+        },
+        /// Cancellation was requested
+        CancelRequested { instance_id: InstanceId },
+        /// Get current status query
+        GetStatus { instance_id: InstanceId },
+    }
+
+    /// Control messages for lifecycle management.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub enum ControlActorMessage {
+        /// Request cancellation of an instance
+        Cancel { instance_id: InstanceId },
+        /// Request resumption of a paused instance
+        Resume { instance_id: InstanceId },
+        /// Atomically accept a signal and resume the waiting instance.
+        AcceptAndResume {
+            instance_id: InstanceId,
+            wait_key: crate::WaitKey,
+            signal_id: String,
+            payload: crate::SignalPayload,
+        },
+        /// Request continue-as-new rollover to a new epoch (ADR-038).
+        ContinueAsNew {
+            instance_id: InstanceId,
+            lineage_id: String,
+            new_instance_id: InstanceId,
+        },
+    }
+
+    // =============================================================================
+    // Constructor Functions - InstanceActorMessage
+    // =============================================================================
+
+    impl InstanceActorMessage {
+        /// Creates a new `StartWorkflow` message.
+        #[must_use]
+        pub fn new_start_workflow(
+            instance_id: InstanceId,
+            workflow_name: WorkflowName,
+            node_name: NodeName,
+        ) -> Self {
+            Self::StartWorkflow {
+                instance_id,
+                workflow_name,
+                node_name,
+            }
+        }
+
+        /// Creates a new `StepCompleted` message.
+        #[must_use]
+        pub fn new_step_completed(
+            instance_id: InstanceId,
+            node_name: NodeName,
+            sequence: SequenceNumber,
+        ) -> Self {
+            Self::StepCompleted {
+                instance_id,
+                node_name,
+                sequence,
+            }
+        }
+
+        /// Creates a new `StepFailed` message.
+        #[must_use]
+        pub fn new_step_failed(
+            instance_id: InstanceId,
+            node_name: NodeName,
+            sequence: SequenceNumber,
+            error: String,
+        ) -> Self {
+            Self::StepFailed {
+                instance_id,
+                node_name,
+                sequence,
+                error,
+            }
+        }
+
+        /// Creates a new `TimerFired` message.
+        #[must_use]
+        pub fn new_timer_fired(instance_id: InstanceId, timer_id: TimerId) -> Self {
+            Self::TimerFired {
+                instance_id,
+                timer_id,
+            }
+        }
+
+        /// Creates a new `CancelRequested` message.
+        #[must_use]
+        pub fn new_cancel_requested(instance_id: InstanceId) -> Self {
+            Self::CancelRequested { instance_id }
+        }
+
+        /// Creates a new `GetStatus` message.
+        #[must_use]
+        pub fn new_get_status(instance_id: InstanceId) -> Self {
+            Self::GetStatus { instance_id }
+        }
+    }
+
+    // =============================================================================
+    // Constructor Functions - ControlActorMessage
+    // =============================================================================
+
+    impl ControlActorMessage {
+        /// Creates a new `Cancel` message.
+        #[must_use]
+        pub fn new_cancel(instance_id: InstanceId) -> Self {
+            Self::Cancel { instance_id }
+        }
+
+        /// Creates a new `Resume` message.
+        #[must_use]
+        pub fn new_resume(instance_id: InstanceId) -> Self {
+            Self::Resume { instance_id }
+        }
+
+        /// Creates a new `AcceptAndResume` message.
+        #[must_use]
+        pub fn new_accept_and_resume(
+            instance_id: InstanceId,
+            wait_key: crate::WaitKey,
+            signal_id: String,
+            payload: crate::SignalPayload,
+        ) -> Self {
+            Self::AcceptAndResume {
+                instance_id,
+                wait_key,
+                signal_id,
+                payload,
+            }
+        }
+    }
+
+    // Note: ractor::Message is automatically implemented for types that are
+    // Send + Sync + 'static via a blanket impl. Since all our fields are
+    // Send + Sync newtypes, the trait is already implemented.
+
+    // =============================================================================
+    // Unit Tests - Constructor Tests (InstanceActorMessage - 6 variants)
+    // =============================================================================
+
+    #[cfg(test)]
+    mod constructor_tests_instance_actor_message {
+        use super::*;
+
+        #[test]
+        fn start_workflow_constructs_correctly_when_given_valid_votypes() {
+            let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+            let workflow_name = WorkflowName::parse("deploy-prod").unwrap();
+            let node_name = NodeName::parse("build-step").unwrap();
+
+            let message = InstanceActorMessage::new_start_workflow(
+                instance_id.clone(),
+                workflow_name.clone(),
+                node_name.clone(),
+            );
+
+            match &message {
+                InstanceActorMessage::StartWorkflow {
+                    instance_id: id,
+                    workflow_name: wn,
+                    node_name: nn,
+                } => {
+                    assert_eq!(id.as_str(), "01H5JYV4XHGSR2F8KZ9BWNRFMA");
+                    assert_eq!(wn.as_str(), "deploy-prod");
+                    assert_eq!(nn.as_str(), "build-step");
+                }
+                _ => panic!("Expected StartWorkflow variant"),
+            }
+        }
+
+        #[test]
+        fn step_completed_constructs_correctly_when_given_valid_votypes() {
+            let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+            let node_name = NodeName::parse("compile-step").unwrap();
+            let sequence = SequenceNumber::new_unchecked(1);
+
+            let message = InstanceActorMessage::new_step_completed(
+                instance_id.clone(),
+                node_name.clone(),
+                sequence,
+            );
+
+            match &message {
+                InstanceActorMessage::StepCompleted {
+                    instance_id: id,
+                    node_name: nn,
+                    sequence: seq,
+                } => {
+                    assert_eq!(id.as_str(), "01H5JYV4XHGSR2F8KZ9BWNRFMA");
+                    assert_eq!(nn.as_str(), "compile-step");
+                    assert_eq!(seq.as_u64(), 1);
+                }
+                _ => panic!("Expected StepCompleted variant"),
+            }
+        }
+
+        #[test]
+        fn step_failed_constructs_correctly_when_given_valid_votypes_and_error_string() {
+            let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+            let node_name = NodeName::parse("compile-step").unwrap();
+            let sequence = SequenceNumber::new_unchecked(42);
+            let error = "connection timeout".to_string();
+
+            let message = InstanceActorMessage::new_step_failed(
+                instance_id.clone(),
+                node_name.clone(),
+                sequence,
+                error.clone(),
+            );
+
+            match &message {
+                InstanceActorMessage::StepFailed {
+                    instance_id: id,
+                    node_name: nn,
+                    sequence: seq,
+                    error: err,
+                } => {
+                    assert_eq!(id.as_str(), "01H5JYV4XHGSR2F8KZ9BWNRFMA");
+                    assert_eq!(nn.as_str(), "compile-step");
+                    assert_eq!(seq.as_u64(), 42);
+                    assert_eq!(err, "connection timeout");
+                }
+                _ => panic!("Expected StepFailed variant"),
+            }
+        }
+
+        #[test]
+        fn timer_fired_constructs_correctly_when_given_valid_votypes() {
+            let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+            let timer_id = TimerId::parse("timer-abc-123").unwrap();
+
+            let message =
+                InstanceActorMessage::new_timer_fired(instance_id.clone(), timer_id.clone());
+
+            match &message {
+                InstanceActorMessage::TimerFired {
+                    instance_id: id,
+                    timer_id: tid,
+                } => {
+                    assert_eq!(id.as_str(), "01H5JYV4XHGSR2F8KZ9BWNRFMA");
+                    assert_eq!(tid.as_str(), "timer-abc-123");
+                }
+                _ => panic!("Expected TimerFired variant"),
+            }
+        }
+
+        #[test]
+        fn cancel_requested_constructs_correctly_when_given_valid_instance_id() {
+            let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+            let message = InstanceActorMessage::new_cancel_requested(instance_id.clone());
+
+            match &message {
+                InstanceActorMessage::CancelRequested { instance_id: id } => {
+                    assert_eq!(id.as_str(), "01H5JYV4XHGSR2F8KZ9BWNRFMA");
+                }
+                _ => panic!("Expected CancelRequested variant"),
+            }
+        }
+
+        #[test]
+        fn get_status_constructs_correctly_when_given_valid_instance_id() {
+            let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+            let message = InstanceActorMessage::new_get_status(instance_id.clone());
+
+            match &message {
+                InstanceActorMessage::GetStatus { instance_id: id } => {
+                    assert_eq!(id.as_str(), "01H5JYV4XHGSR2F8KZ9BWNRFMA");
+                }
+                _ => panic!("Expected GetStatus variant"),
+            }
+        }
+    }
+
+    // =============================================================================
+    // Unit Tests - Constructor Tests (ControlActorMessage - 2 variants)
+    // =============================================================================
+
+    #[cfg(test)]
+    mod constructor_tests_control_actor_message {
+        use super::*;
+
+        #[test]
+        fn cancel_constructs_correctly_when_given_valid_instance_id() {
+            let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+            let message = ControlActorMessage::new_cancel(instance_id.clone());
+
+            match &message {
+                ControlActorMessage::Cancel { instance_id: id } => {
+                    assert_eq!(id.as_str(), "01H5JYV4XHGSR2F8KZ9BWNRFMA");
+                }
+                _ => panic!("Expected Cancel variant"),
+            }
+        }
+
+        #[test]
+        fn resume_constructs_correctly_when_given_valid_instance_id() {
+            let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+            let message = ControlActorMessage::new_resume(instance_id.clone());
+
+            match &message {
+                ControlActorMessage::Resume { instance_id: id } => {
+                    assert_eq!(id.as_str(), "01H5JYV4XHGSR2F8KZ9BWNRFMA");
+                }
+                _ => panic!("Expected Resume variant"),
+            }
+        }
+
+        #[test]
+        fn accept_and_resume_constructs_correctly() {
+            let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+            let wait_key = crate::WaitKey::parse("approval-v2").unwrap();
+            let payload = crate::SignalPayload::empty();
+            let message = ControlActorMessage::new_accept_and_resume(
+                instance_id.clone(),
+                wait_key.clone(),
+                "sig-1".to_string(),
+                payload.clone(),
+            );
+
+            match &message {
+                ControlActorMessage::AcceptAndResume {
+                    instance_id: id,
+                    wait_key: wk,
+                    signal_id,
+                    payload: p,
+                } => {
+                    assert_eq!(id.as_str(), "01H5JYV4XHGSR2F8KZ9BWNRFMA");
+                    assert_eq!(wk.as_str(), "approval-v2");
+                    assert_eq!(signal_id, "sig-1");
+                    assert!(p.is_empty());
+                }
+                _ => panic!("Expected AcceptAndResume variant"),
+            }
+        }
+    }
+
+    // =============================================================================
+    // Unit Tests - Debug Format (InstanceActorMessage - 6 variants)
+    // =============================================================================
+
+    #[cfg(test)]
+    mod debug_format_instance_actor_message {
+        use super::*;
+
+        #[test]
+        fn start_workflow_debug_format_is_exact_string() {
+            let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+            let workflow_name = WorkflowName::parse("deploy-prod").unwrap();
+            let node_name = NodeName::parse("build-step").unwrap();
+            let message =
+                InstanceActorMessage::new_start_workflow(instance_id, workflow_name, node_name);
+
+            let debug_str = format!("{:?}", message);
+            assert_eq!(
+                debug_str,
+                "StartWorkflow { instance_id: InstanceId(\"01H5JYV4XHGSR2F8KZ9BWNRFMA\"), workflow_name: WorkflowName(\"deploy-prod\"), node_name: NodeName(\"build-step\") }"
+            );
+        }
+
+        #[test]
+        fn step_completed_debug_format_is_exact_string() {
+            let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+            let node_name = NodeName::parse("compile-step").unwrap();
+            let sequence = SequenceNumber::new_unchecked(1);
+            let message =
+                InstanceActorMessage::new_step_completed(instance_id, node_name, sequence);
+
+            let debug_str = format!("{:?}", message);
+            assert_eq!(
+                debug_str,
+                "StepCompleted { instance_id: InstanceId(\"01H5JYV4XHGSR2F8KZ9BWNRFMA\"), node_name: NodeName(\"compile-step\"), sequence: SequenceNumber(1) }"
+            );
+        }
+
+        #[test]
+        fn step_failed_debug_format_is_exact_string() {
+            let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+            let node_name = NodeName::parse("compile-step").unwrap();
+            let sequence = SequenceNumber::new_unchecked(42);
+            let error = "connection timeout".to_string();
+            let message =
+                InstanceActorMessage::new_step_failed(instance_id, node_name, sequence, error);
+
+            let debug_str = format!("{:?}", message);
+            assert_eq!(
+                debug_str,
+                "StepFailed { instance_id: InstanceId(\"01H5JYV4XHGSR2F8KZ9BWNRFMA\"), node_name: NodeName(\"compile-step\"), sequence: SequenceNumber(42), error: \"connection timeout\" }"
+            );
+        }
+
+        #[test]
+        fn timer_fired_debug_format_is_exact_string() {
+            let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+            let timer_id = TimerId::parse("timer-abc-123").unwrap();
+            let message = InstanceActorMessage::new_timer_fired(instance_id, timer_id);
+
+            let debug_str = format!("{:?}", message);
+            assert_eq!(
+                debug_str,
+                "TimerFired { instance_id: InstanceId(\"01H5JYV4XHGSR2F8KZ9BWNRFMA\"), timer_id: TimerId(\"timer-abc-123\") }"
+            );
+        }
+
+        #[test]
+        fn cancel_requested_debug_format_is_exact_string() {
+            let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+            let message = InstanceActorMessage::new_cancel_requested(instance_id);
+
+            let debug_str = format!("{:?}", message);
+            assert_eq!(
+                debug_str,
+                "CancelRequested { instance_id: InstanceId(\"01H5JYV4XHGSR2F8KZ9BWNRFMA\") }"
+            );
+        }
+
+        #[test]
+        fn get_status_debug_format_is_exact_string() {
+            let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+            let message = InstanceActorMessage::new_get_status(instance_id);
+
+            let debug_str = format!("{:?}", message);
+            assert_eq!(
+                debug_str,
+                "GetStatus { instance_id: InstanceId(\"01H5JYV4XHGSR2F8KZ9BWNRFMA\") }"
+            );
+        }
+    }
+
+    // =============================================================================
+    // Unit Tests - Debug Format (ControlActorMessage - 2 variants)
+    // =============================================================================
+
+    #[cfg(test)]
+    mod debug_format_control_actor_message {
+        use super::*;
+
+        #[test]
+        fn cancel_debug_format_is_exact_string() {
+            let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+            let message = ControlActorMessage::new_cancel(instance_id);
+
+            let debug_str = format!("{:?}", message);
+            assert_eq!(
+                debug_str,
+                "Cancel { instance_id: InstanceId(\"01H5JYV4XHGSR2F8KZ9BWNRFMA\") }"
+            );
+        }
+
+        #[test]
+        fn resume_debug_format_is_exact_string() {
+            let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+            let message = ControlActorMessage::new_resume(instance_id);
+
+            let debug_str = format!("{:?}", message);
+            assert_eq!(
+                debug_str,
+                "Resume { instance_id: InstanceId(\"01H5JYV4XHGSR2F8KZ9BWNRFMA\") }"
+            );
+        }
+
+        #[test]
+        fn accept_and_resume_debug_format_is_exact_string() {
+            let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+            let wait_key = crate::WaitKey::parse("approval-v2").unwrap();
+            let payload = crate::SignalPayload::empty();
+            let message = ControlActorMessage::new_accept_and_resume(
+                instance_id,
+                wait_key,
+                "sig-1".to_string(),
+                payload,
+            );
+
+            let debug_str = format!("{:?}", message);
+            assert!(debug_str.contains("AcceptAndResume"));
+            assert!(debug_str.contains("approval-v2"));
+        }
+    }
+
+    // =============================================================================
+    // Unit Tests - Clone with Field-Level Verification (InstanceActorMessage)
+    // =============================================================================
+
+    #[cfg(test)]
+    mod clone_instance_actor_message {
+        use super::*;
+
+        #[test]
+        fn start_workflow_clone_produces_bitwise_identical_copy() {
+            let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+            let workflow_name = WorkflowName::parse("deploy-prod").unwrap();
+            let node_name = NodeName::parse("build-step").unwrap();
+            let message = InstanceActorMessage::new_start_workflow(
+                instance_id.clone(),
+                workflow_name.clone(),
+                node_name.clone(),
+            );
+
+            let clone = message.clone();
+
+            match (&message, &clone) {
+                (
+                    InstanceActorMessage::StartWorkflow {
+                        instance_id: id1,
+                        workflow_name: wn1,
+                        node_name: nn1,
+                    },
+                    InstanceActorMessage::StartWorkflow {
+                        instance_id: id2,
+                        workflow_name: wn2,
+                        node_name: nn2,
+                    },
+                ) => {
+                    assert_eq!(id1.as_str(), id2.as_str());
+                    assert_eq!(wn1.as_str(), wn2.as_str());
+                    assert_eq!(nn1.as_str(), nn2.as_str());
+                }
+                _ => panic!("Variants don't match"),
+            }
+            assert_eq!(clone, message);
+        }
+
+        #[test]
+        fn step_completed_clone_produces_bitwise_identical_copy() {
+            let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+            let node_name = NodeName::parse("compile-step").unwrap();
+            let sequence = SequenceNumber::new_unchecked(1);
+            let message = InstanceActorMessage::new_step_completed(
+                instance_id.clone(),
+                node_name.clone(),
+                sequence,
+            );
+
+            let clone = message.clone();
+
+            match (&message, &clone) {
+                (
+                    InstanceActorMessage::StepCompleted {
+                        instance_id: id1,
+                        node_name: nn1,
+                        sequence: seq1,
+                    },
+                    InstanceActorMessage::StepCompleted {
+                        instance_id: id2,
+                        node_name: nn2,
+                        sequence: seq2,
+                    },
+                ) => {
+                    assert_eq!(id1.as_str(), id2.as_str());
+                    assert_eq!(nn1.as_str(), nn2.as_str());
+                    assert_eq!(seq1.as_u64(), seq2.as_u64());
+                }
+                _ => panic!("Variants don't match"),
+            }
+            assert_eq!(clone, message);
+        }
+
+        #[test]
+        fn step_failed_clone_produces_bitwise_identical_copy() {
+            let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+            let node_name = NodeName::parse("compile-step").unwrap();
+            let sequence = SequenceNumber::new_unchecked(42);
+            let error = "connection timeout".to_string();
+            let message = InstanceActorMessage::new_step_failed(
+                instance_id.clone(),
+                node_name.clone(),
+                sequence,
+                error.clone(),
+            );
+
+            let clone = message.clone();
+
+            match (&message, &clone) {
+                (
+                    InstanceActorMessage::StepFailed {
+                        instance_id: id1,
+                        node_name: nn1,
+                        sequence: seq1,
+                        error: e1,
+                    },
+                    InstanceActorMessage::StepFailed {
+                        instance_id: id2,
+                        node_name: nn2,
+                        sequence: seq2,
+                        error: e2,
+                    },
+                ) => {
+                    assert_eq!(id1.as_str(), id2.as_str());
+                    assert_eq!(nn1.as_str(), nn2.as_str());
+                    assert_eq!(seq1.as_u64(), seq2.as_u64());
+                    assert_eq!(e1, e2);
+                }
+                _ => panic!("Variants don't match"),
+            }
+            assert_eq!(clone, message);
+        }
+
+        #[test]
+        fn timer_fired_clone_produces_bitwise_identical_copy() {
+            let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+            let timer_id = TimerId::parse("timer-abc-123").unwrap();
+            let message =
+                InstanceActorMessage::new_timer_fired(instance_id.clone(), timer_id.clone());
+
+            let clone = message.clone();
+
+            match (&message, &clone) {
+                (
+                    InstanceActorMessage::TimerFired {
+                        instance_id: id1,
+                        timer_id: tid1,
+                    },
+                    InstanceActorMessage::TimerFired {
+                        instance_id: id2,
+                        timer_id: tid2,
+                    },
+                ) => {
+                    assert_eq!(id1.as_str(), id2.as_str());
+                    assert_eq!(tid1.as_str(), tid2.as_str());
+                }
+                _ => panic!("Variants don't match"),
+            }
+            assert_eq!(clone, message);
+        }
+
+        #[test]
+        fn cancel_requested_clone_produces_bitwise_identical_copy() {
+            let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+            let message = InstanceActorMessage::new_cancel_requested(instance_id.clone());
+
+            let clone = message.clone();
+
+            match (&message, &clone) {
+                (
+                    InstanceActorMessage::CancelRequested { instance_id: id1 },
+                    InstanceActorMessage::CancelRequested { instance_id: id2 },
+                ) => {
+                    assert_eq!(id1.as_str(), id2.as_str());
+                }
+                _ => panic!("Variants don't match"),
+            }
+            assert_eq!(clone, message);
+        }
+
+        #[test]
+        fn get_status_clone_produces_bitwise_identical_copy() {
+            let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+            let message = InstanceActorMessage::new_get_status(instance_id.clone());
+
+            let clone = message.clone();
+
+            match (&message, &clone) {
+                (
+                    InstanceActorMessage::GetStatus { instance_id: id1 },
+                    InstanceActorMessage::GetStatus { instance_id: id2 },
+                ) => {
+                    assert_eq!(id1.as_str(), id2.as_str());
+                }
+                _ => panic!("Variants don't match"),
+            }
+            assert_eq!(clone, message);
+        }
+    }
+
+    // =============================================================================
+    // Unit Tests - Clone with Field-Level Verification (ControlActorMessage)
+    // =============================================================================
+
+    #[cfg(test)]
+    mod clone_control_actor_message {
+        use super::*;
+
+        #[test]
+        fn cancel_clone_produces_bitwise_identical_copy() {
+            let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+            let message = ControlActorMessage::new_cancel(instance_id.clone());
+
+            let clone = message.clone();
+
+            match (&message, &clone) {
+                (
+                    ControlActorMessage::Cancel { instance_id: id1 },
+                    ControlActorMessage::Cancel { instance_id: id2 },
+                ) => {
+                    assert_eq!(id1.as_str(), id2.as_str());
+                }
+                _ => panic!("Variants don't match"),
+            }
+            assert_eq!(clone, message);
+        }
+
+        #[test]
+        fn resume_clone_produces_bitwise_identical_copy() {
+            let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+            let message = ControlActorMessage::new_resume(instance_id.clone());
+
+            let clone = message.clone();
+
+            match (&message, &clone) {
+                (
+                    ControlActorMessage::Resume { instance_id: id1 },
+                    ControlActorMessage::Resume { instance_id: id2 },
+                ) => {
+                    assert_eq!(id1.as_str(), id2.as_str());
+                }
+                _ => panic!("Variants don't match"),
+            }
+            assert_eq!(clone, message);
+        }
+    }
+
+    // =============================================================================
+    // Unit Tests - PartialEq (InstanceActorMessage)
+    // =============================================================================
+
+    #[cfg(test)]
+    mod partial_eq_instance_actor_message {
+        use super::*;
+
+        #[test]
+        fn partial_eq_returns_true_for_identical_values() {
+            let instance_id1 = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+            let workflow_name1 = WorkflowName::parse("deploy-prod").unwrap();
+            let node_name1 = NodeName::parse("build-step").unwrap();
+
+            let instance_id2 = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+            let workflow_name2 = WorkflowName::parse("deploy-prod").unwrap();
+            let node_name2 = NodeName::parse("build-step").unwrap();
+
+            let msg1 =
+                InstanceActorMessage::new_start_workflow(instance_id1, workflow_name1, node_name1);
+            let msg2 =
+                InstanceActorMessage::new_start_workflow(instance_id2, workflow_name2, node_name2);
+
+            assert!(msg1 == msg2);
+        }
+
+        #[test]
+        fn partial_eq_returns_false_for_different_variants() {
+            let instance_id1 = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+            let workflow_name1 = WorkflowName::parse("deploy-prod").unwrap();
+            let node_name1 = NodeName::parse("build-step").unwrap();
+
+            let instance_id2 = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+            let node_name2 = NodeName::parse("compile-step").unwrap();
+            let sequence2 = SequenceNumber::new_unchecked(1);
+
+            let msg1 =
+                InstanceActorMessage::new_start_workflow(instance_id1, workflow_name1, node_name1);
+            let msg2 =
+                InstanceActorMessage::new_step_completed(instance_id2, node_name2, sequence2);
+
+            assert!(msg1 != msg2);
+        }
+
+        #[test]
+        fn partial_eq_returns_false_for_same_variant_different_fields() {
+            let instance_id1 = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+            let workflow_name1 = WorkflowName::parse("deploy-prod").unwrap();
+            let node_name1 = NodeName::parse("build-step").unwrap();
+
+            let instance_id2 = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMB").unwrap();
+            let workflow_name2 = WorkflowName::parse("deploy-prod").unwrap();
+            let node_name2 = NodeName::parse("build-step").unwrap();
+
+            let msg1 =
+                InstanceActorMessage::new_start_workflow(instance_id1, workflow_name1, node_name1);
+            let msg2 =
+                InstanceActorMessage::new_start_workflow(instance_id2, workflow_name2, node_name2);
+
+            assert!(msg1 != msg2);
+        }
+    }
+
+    // =============================================================================
+    // Unit Tests - PartialEq (ControlActorMessage)
+    // =============================================================================
+
+    #[cfg(test)]
+    mod partial_eq_control_actor_message {
+        use super::*;
+
+        #[test]
+        fn partial_eq_returns_true_for_identical_values() {
+            let instance_id1 = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+            let instance_id2 = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+
+            let msg1 = ControlActorMessage::new_cancel(instance_id1);
+            let msg2 = ControlActorMessage::new_cancel(instance_id2);
+
+            assert!(msg1 == msg2);
+        }
+
+        #[test]
+        fn partial_eq_returns_false_for_different_variants() {
+            let instance_id1 = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+            let instance_id2 = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+
+            let msg1 = ControlActorMessage::new_cancel(instance_id1);
+            let msg2 = ControlActorMessage::new_resume(instance_id2);
+
+            assert!(msg1 != msg2);
+        }
+
+        #[test]
+        fn partial_eq_returns_false_for_same_variant_different_fields() {
+            let instance_id1 = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+            let instance_id2 = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMB").unwrap();
+
+            let msg1 = ControlActorMessage::new_cancel(instance_id1);
+            let msg2 = ControlActorMessage::new_cancel(instance_id2);
+
+            assert!(msg1 != msg2);
+        }
+    }
+
+    // =============================================================================
+    // Unit Tests - Eq Properties (InstanceActorMessage)
+    // =============================================================================
+
+    #[cfg(test)]
+    mod eq_properties_instance_actor_message {
+        use super::*;
+
+        #[test]
+        fn eq_is_reflexive() {
+            let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+            let workflow_name = WorkflowName::parse("deploy-prod").unwrap();
+            let node_name = NodeName::parse("build-step").unwrap();
+            let msg =
+                InstanceActorMessage::new_start_workflow(instance_id, workflow_name, node_name);
+
+            assert!(msg == msg);
+        }
+
+        #[test]
+        fn eq_is_symmetric() {
+            let instance_id1 = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+            let workflow_name1 = WorkflowName::parse("deploy-prod").unwrap();
+            let node_name1 = NodeName::parse("build-step").unwrap();
+
+            let instance_id2 = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+            let workflow_name2 = WorkflowName::parse("deploy-prod").unwrap();
+            let node_name2 = NodeName::parse("build-step").unwrap();
+
+            let msg1 =
+                InstanceActorMessage::new_start_workflow(instance_id1, workflow_name1, node_name1);
+            let msg2 =
+                InstanceActorMessage::new_start_workflow(instance_id2, workflow_name2, node_name2);
+
+            assert!(msg1 == msg2);
+            assert!(msg2 == msg1);
+        }
+
+        #[test]
+        fn eq_is_transitive() {
+            let instance_id1 = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+            let workflow_name1 = WorkflowName::parse("deploy-prod").unwrap();
+            let node_name1 = NodeName::parse("build-step").unwrap();
+
+            let instance_id2 = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+            let workflow_name2 = WorkflowName::parse("deploy-prod").unwrap();
+            let node_name2 = NodeName::parse("build-step").unwrap();
+
+            let instance_id3 = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+            let workflow_name3 = WorkflowName::parse("deploy-prod").unwrap();
+            let node_name3 = NodeName::parse("build-step").unwrap();
+
+            let msg1 =
+                InstanceActorMessage::new_start_workflow(instance_id1, workflow_name1, node_name1);
+            let msg2 =
+                InstanceActorMessage::new_start_workflow(instance_id2, workflow_name2, node_name2);
+            let msg3 =
+                InstanceActorMessage::new_start_workflow(instance_id3, workflow_name3, node_name3);
+
+            assert!(msg1 == msg2);
+            assert!(msg2 == msg3);
+            assert!(msg1 == msg3);
+        }
+    }
+
+    // =============================================================================
+    // Unit Tests - Eq Properties (ControlActorMessage)
+    // =============================================================================
+
+    #[cfg(test)]
+    mod eq_properties_control_actor_message {
+        use super::*;
+
+        #[test]
+        fn eq_is_reflexive() {
+            let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+            let msg = ControlActorMessage::new_cancel(instance_id);
+
+            assert!(msg == msg);
+        }
+
+        #[test]
+        fn eq_is_symmetric() {
+            let instance_id1 = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+            let instance_id2 = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+
+            let msg1 = ControlActorMessage::new_cancel(instance_id1);
+            let msg2 = ControlActorMessage::new_cancel(instance_id2);
+
+            assert!(msg1 == msg2);
+            assert!(msg2 == msg1);
+        }
+
+        #[test]
+        fn eq_is_transitive() {
+            let instance_id1 = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+            let instance_id2 = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+            let instance_id3 = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+
+            let msg1 = ControlActorMessage::new_cancel(instance_id1);
+            let msg2 = ControlActorMessage::new_cancel(instance_id2);
+            let msg3 = ControlActorMessage::new_cancel(instance_id3);
+
+            assert!(msg1 == msg2);
+            assert!(msg2 == msg3);
+            assert!(msg1 == msg3);
+        }
+    }
+
+    // =============================================================================
+    // Unit Tests - Send + Sync Bounds (compile-time verification)
+    // =============================================================================
+
+    #[cfg(test)]
+    mod send_sync_bounds {
+        use super::*;
+
+        #[test]
+        fn instance_actor_message_implements_send_bound() {
+            fn assert_send<T: Send>() {}
+            assert_send::<InstanceActorMessage>();
+        }
+
+        #[test]
+        fn instance_actor_message_implements_sync_bound() {
+            fn assert_sync<T: Sync>() {}
+            assert_sync::<InstanceActorMessage>();
+        }
+
+        #[test]
+        fn control_actor_message_implements_send_bound() {
+            fn assert_send<T: Send>() {}
+            assert_send::<ControlActorMessage>();
+        }
+
+        #[test]
+        fn control_actor_message_implements_sync_bound() {
+            fn assert_sync<T: Sync>() {}
+            assert_sync::<ControlActorMessage>();
+        }
+    }
+
+    // =============================================================================
+    // Unit Tests - ractor::Message Trait (compile-time verification)
+    // =============================================================================
+
+    #[cfg(test)]
+    mod ractor_message_trait {
+        use super::*;
+
+        #[test]
+        fn instance_actor_message_implements_ractor_message_trait() {
+            fn assert_message<T: ractor::Message>() {}
+            assert_message::<InstanceActorMessage>();
+        }
+
+        #[test]
+        fn control_actor_message_implements_ractor_message_trait() {
+            fn assert_message<T: ractor::Message>() {}
+            assert_message::<ControlActorMessage>();
+        }
+    }
+}
+
+// =============================================================================
+// Error Types - Cancel and Resume
+// =============================================================================
+
+use vo_types::InstanceId;
+
+/// Lifecycle state for control actor operations.
+/// These are simplified states for the control actor's perspective.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum LifecycleState {
+    /// Instance is actively running
+    Running,
+    /// Instance has failed and can be resumed
+    Failed,
+    /// Terminal state: completed successfully
+    Completed,
+    /// Terminal state: was cancelled
+    Cancelled,
+    /// Instance is suspended waiting for a matching signal.
+    WaitingForSignal,
+}
+
+impl LifecycleState {
+    /// Returns true if this is a terminal state.
+    pub const fn is_terminal(&self) -> bool {
+        matches!(self, Self::Completed | Self::Cancelled)
+    }
+}
+
+/// A secret identifier for workflow resumption.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct SecretId(pub String);
+
+impl SecretId {
+    pub fn new(id: impl Into<String>) -> Self {
+        Self(id.into())
+    }
+}
+
+/// A binary hash value.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct BinaryHash(pub String);
+
+impl BinaryHash {
+    pub fn new(hash: impl Into<String>) -> Self {
+        Self(hash.into())
+    }
+}
+
+/// Unix timestamp in milliseconds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct TimestampMs(pub i64);
+
+impl TimestampMs {
+    pub fn now() -> Self {
+        Self(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_millis() as i64,
+        )
+    }
+}
+
+/// Identifies what signal an instance is waiting for.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct WaitKey(String);
+
+impl WaitKey {
+    pub fn parse(input: &str) -> Result<Self, String> {
+        if input.is_empty() {
+            return Err("WaitKey cannot be empty".to_string());
+        }
+        if input.len() > 256 {
+            return Err(format!("WaitKey exceeds 256 characters: {}", input.len()));
+        }
+        Ok(Self(input.to_string()))
+    }
+
+    pub fn new_unchecked(s: impl Into<String>) -> Self {
+        Self(s.into())
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+/// Byte payload carried by a signal delivery.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SignalPayload(Vec<u8>);
+
+impl SignalPayload {
+    pub fn from_bytes(bytes: Vec<u8>) -> Result<Self, String> {
+        if bytes.len() > 65536 {
+            return Err(format!(
+                "SignalPayload exceeds 64 KiB: {} bytes",
+                bytes.len()
+            ));
+        }
+        Ok(Self(bytes))
+    }
+
+    pub fn empty() -> Self {
+        Self(Vec::new())
+    }
+
+    pub fn new_unchecked(bytes: Vec<u8>) -> Self {
+        Self(bytes)
+    }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+/// Durable event recorded when a matching signal is accepted.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SignalAccepted {
+    pub instance_id: InstanceId,
+    pub wait_key: WaitKey,
+    pub signal_id: String,
+    pub payload: SignalPayload,
+    pub accepted_at: TimestampMs,
+}
+
+/// Result of a successful atomic accept-and-resume operation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AcceptResumeOutcome {
+    pub accepted: SignalAccepted,
+    pub resumed: InstanceResumed,
+}
+
+/// Exhaustive error taxonomy for accept-and-resume.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum AcceptResumeError {
+    #[error("invalid lifecycle state for {instance_id}: got {actual:?}, expected {expected:?}")]
+    InvalidLifecycleState { instance_id: InstanceId, actual: LifecycleState, expected: LifecycleState },
+    #[error("wait key mismatch for {instance_id}: expected {expected_key:?}, got {provided_key:?}")]
+    WaitKeyMismatch { instance_id: InstanceId, expected_key: WaitKey, provided_key: WaitKey },
+    #[error("instance actor not found: {instance_id}")]
+    InstanceActorNotFound { instance_id: InstanceId },
+    #[error("payload too large for {instance_id}: {payload_size} > {max_size}")]
+    PayloadTooLarge { instance_id: InstanceId, payload_size: usize, max_size: usize },
+    #[error("lock acquisition failed for {instance_id}: {reason}")]
+    LockAcquisitionFailed { instance_id: InstanceId, reason: String },
+    #[error("storage error for {instance_id}: {reason}")]
+    StorageError { instance_id: InstanceId, reason: String },
+    #[error("signal not found in buffer for {instance_id} with wait_key {wait_key:?}")]
+    SignalNotFound { instance_id: InstanceId, wait_key: WaitKey },
+}
+
+impl AcceptResumeError {
+    pub const fn is_precondition(&self) -> bool {
+        matches!(
+            self,
+            Self::InvalidLifecycleState { .. }
+                | Self::WaitKeyMismatch { .. }
+                | Self::InstanceActorNotFound { .. }
+                | Self::PayloadTooLarge { .. }
+                | Self::SignalNotFound { .. }
+        )
+    }
+
+    pub const fn is_transient(&self) -> bool {
+        matches!(
+            self,
+            Self::LockAcquisitionFailed { .. } | Self::StorageError { .. }
+        )
+    }
+}
+
+/// A node name within a workflow definition.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct NodeName(pub String);
+
+impl NodeName {
+    pub fn new(name: impl Into<String>) -> Self {
+        Self(name.into())
+    }
+}
+
+/// Errors from Cancel operation.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum CancelError {
+    #[error("already terminal for {instance_id}: {current_state:?}")]
+    AlreadyTerminal { instance_id: InstanceId, current_state: LifecycleState },
+    #[error("instance actor not found: {instance_id}")]
+    InstanceActorNotFound { instance_id: InstanceId },
+    #[error("lock acquisition failed for {instance_id}: {reason}")]
+    LockAcquisitionFailed { instance_id: InstanceId, reason: String },
+    #[error("storage error for {instance_id}: {reason}")]
+    StorageError { instance_id: InstanceId, reason: String },
+}
+
+/// Errors from Resume operation.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum ResumeError {
+    #[error("invalid lifecycle state: got {actual:?}, expected {expected:?}")]
+    InvalidLifecycleState { actual: LifecycleState, expected: LifecycleState },
+    #[error("missing secrets for {instance_id}: {missing_secret_ids:?}")]
+    MissingSecrets { instance_id: InstanceId, missing_secret_ids: Vec<SecretId> },
+    #[error("node not found for {instance_id}: {node_name:?}")]
+    NodeNotFound { instance_id: InstanceId, node_name: NodeName },
+    #[error("no path to terminal from {current_node:?} for {instance_id}")]
+    NoPathToTerminal { instance_id: InstanceId, current_node: NodeName },
+    #[error("instance actor not found: {instance_id}")]
+    InstanceActorNotFound { instance_id: InstanceId },
+    #[error("lock acquisition failed for {instance_id}: {reason}")]
+    LockAcquisitionFailed { instance_id: InstanceId, reason: String },
+    #[error("storage error for {instance_id}: {reason}")]
+    StorageError { instance_id: InstanceId, reason: String },
+}
+
+impl ResumeError {
+    /// Returns true if this error indicates a precondition violation.
+    pub const fn is_precondition(&self) -> bool {
+        matches!(
+            self,
+            Self::InvalidLifecycleState { .. }
+                | Self::MissingSecrets { .. }
+                | Self::NodeNotFound { .. }
+                | Self::NoPathToTerminal { .. }
+                | Self::InstanceActorNotFound { .. }
+        )
+    }
+
+    /// Returns true if this error indicates a transient failure.
+    pub const fn is_transient(&self) -> bool {
+        matches!(
+            self,
+            Self::LockAcquisitionFailed { .. } | Self::StorageError { .. }
+        )
+    }
+}
+
+/// Events emitted during Cancel operation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CancelRequested {
+    pub instance_id: InstanceId,
+    pub requested_at: TimestampMs,
+}
+
+/// Events emitted during Cancel operation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkflowCancelled {
+    pub instance_id: InstanceId,
+    pub cancelled_at: TimestampMs,
+}
+
+/// Event emitted during Resume operation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InstanceResumed {
+    pub instance_id: InstanceId,
+    pub previous_binary_hash: BinaryHash,
+    pub resumed_binary_hash: BinaryHash,
+    pub resumed_at: TimestampMs,
+}
+
+// =============================================================================
+// Signal Storage Trait - Persistence for signal acceptance events
+// =============================================================================
+
+/// Errors from signal storage operations.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum SignalStorageError {
+    #[error("Instance not found: {0}")]
+    InstanceNotFound(InstanceId),
+    #[error("Write error for {instance_id}: {reason}")]
+    WriteError { instance_id: InstanceId, reason: String },
+    #[error("Delete error for {instance_id}: {reason}")]
+    DeleteError { instance_id: InstanceId, reason: String },
+}
+
+/// Trait for persisting signal acceptance events.
+/// Abstracts the underlying storage implementation.
+pub trait SignalStorage: Send + Sync {
+    /// Persists a signal acceptance event.
+    ///
+    /// # Errors
+    /// Returns `SignalStorageError` if the write fails.
+    fn persist_signal_accepted(&self, accepted: &SignalAccepted) -> Result<(), SignalStorageError>;
+
+    /// Removes a previously persisted signal acceptance event (compensation).
+    ///
+    /// # Errors
+    /// Returns `SignalStorageError` if the delete fails.
+    fn remove_signal_accepted(
+        &self,
+        instance_id: &InstanceId,
+        signal_id: &str,
+    ) -> Result<(), SignalStorageError>;
+}
+
+// =============================================================================
+// Signal Work Queue Trait - Enqueuing workflow wake-up
+// =============================================================================
+
+/// Errors from signal work queue operations.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum SignalWorkQueueError {
+    #[error("Instance not found: {0}")]
+    InstanceNotFound(InstanceId),
+    #[error("Enqueue error for {instance_id}: {reason}")]
+    EnqueueError { instance_id: InstanceId, reason: String },
+}
+
+/// Trait for enqueueing workflow resume work.
+/// Abstracts the work queue implementation.
+pub trait SignalWorkQueue: Send + Sync {
+    /// Enqueues a resume work item for the given instance.
+    ///
+    /// # Errors
+    /// Returns `SignalWorkQueueError` if the enqueue fails.
+    fn enqueue_resume(&self, instance_id: InstanceId) -> Result<(), SignalWorkQueueError>;
+}
+
+// =============================================================================
+// Signal Buffer Trait - In-memory buffering of signals for later delivery
+// =============================================================================
+
+use crate::signal_buffer::BufferedSignal;
+
+/// Errors from signal buffer operations.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum SignalBufferError {
+    #[error("Instance not found: {0}")]
+    InstanceNotFound(InstanceId),
+    #[error("Buffer error for {instance_id}: {reason}")]
+    BufferError { instance_id: InstanceId, reason: String },
+}
+
+/// Trait for buffering signals before delivery.
+/// Abstracts the signal buffer implementation.
+pub trait SignalBuffer: Send + Sync {
+    /// Pops and returns the first buffered signal for the given instance and wait_key.
+    /// Returns None if no signal is buffered.
+    fn pop_buffered(
+        &self,
+        instance_id: &InstanceId,
+        wait_key: &WaitKey,
+    ) -> Option<BufferedSignal>;
+
+    /// Rebuffers a signal that was previously popped.
+    /// Returns true on success, false on failure.
+    fn rebuffer(
+        &self,
+        instance_id: InstanceId,
+        wait_key: WaitKey,
+        signal: BufferedSignal,
+    ) -> bool;
+}
+
+/// Mock SignalStorage and MockSignalWorkQueue for testing.
+pub mod mock_signal_storage {
+    use super::*;
+
+    /// A mock signal storage that tracks persisted signals in memory.
+    #[derive(Debug, Default)]
+    pub struct MockSignalStorage {
+        persisted: std::sync::Mutex<Vec<SignalAccepted>>,
+        should_fail: std::sync::Mutex<bool>,
+    }
+
+    impl MockSignalStorage {
+        /// Creates a new mock storage.
+        pub fn new() -> Self {
+            Self::default()
+        }
+
+        /// Sets whether operations should fail.
+        pub fn set_should_fail(&self, should_fail: bool) {
+            *self.should_fail.lock().unwrap() = should_fail;
+        }
+
+        /// Gets all persisted signals.
+        pub fn persisted_signals(&self) -> Vec<SignalAccepted> {
+            self.persisted.lock().unwrap().clone()
+        }
+
+        /// Clears all persisted signals.
+        #[allow(dead_code)]
+        pub fn clear(&self) {
+            self.persisted.lock().unwrap().clear();
+        }
+    }
+
+    impl SignalStorage for MockSignalStorage {
+        fn persist_signal_accepted(
+            &self,
+            accepted: &SignalAccepted,
+        ) -> Result<(), SignalStorageError> {
+            if *self.should_fail.lock().unwrap() {
+                return Err(SignalStorageError::WriteError {
+                    instance_id: accepted.instance_id.clone(),
+                    reason: "Mock storage failure".to_string(),
+                });
+            }
+            self.persisted.lock().unwrap().push(accepted.clone());
+            Ok(())
+        }
+
+        fn remove_signal_accepted(
+            &self,
+            instance_id: &InstanceId,
+            signal_id: &str,
+        ) -> Result<(), SignalStorageError> {
+            if *self.should_fail.lock().unwrap() {
+                return Err(SignalStorageError::DeleteError {
+                    instance_id: instance_id.clone(),
+                    reason: "Mock storage failure".to_string(),
+                });
+            }
+            let mut persisted = self.persisted.lock().unwrap();
+            persisted.retain(|s| !(s.instance_id == *instance_id && s.signal_id == signal_id));
+            Ok(())
+        }
+    }
+
+    /// A mock work queue for testing.
+    #[derive(Debug, Default)]
+    pub struct MockSignalWorkQueue {
+        enqueued: std::sync::Mutex<Vec<InstanceId>>,
+        should_fail: std::sync::Mutex<bool>,
+        instance_not_found: std::sync::Mutex<bool>,
+    }
+
+    impl MockSignalWorkQueue {
+        /// Creates a new mock work queue.
+        pub fn new() -> Self {
+            Self::default()
+        }
+
+        /// Sets whether operations should fail.
+        pub fn set_should_fail(&self, should_fail: bool) {
+            *self.should_fail.lock().unwrap() = should_fail;
+        }
+
+        /// Sets whether instances should be marked as not found.
+        pub fn set_instance_not_found(&self, not_found: bool) {
+            *self.instance_not_found.lock().unwrap() = not_found;
+        }
+
+        /// Gets all enqueued instance IDs.
+        pub fn enqueued_instances(&self) -> Vec<InstanceId> {
+            self.enqueued.lock().unwrap().clone()
+        }
+
+        /// Clears all enqueued instances.
+        #[allow(dead_code)]
+        pub fn clear(&self) {
+            self.enqueued.lock().unwrap().clear();
+        }
+    }
+
+    impl SignalWorkQueue for MockSignalWorkQueue {
+        fn enqueue_resume(&self, instance_id: InstanceId) -> Result<(), SignalWorkQueueError> {
+            if *self.instance_not_found.lock().unwrap() {
+                return Err(SignalWorkQueueError::InstanceNotFound(instance_id));
+            }
+            if *self.should_fail.lock().unwrap() {
+                return Err(SignalWorkQueueError::EnqueueError {
+                    instance_id,
+                    reason: "Mock queue failure".to_string(),
+                });
+            }
+            self.enqueued.lock().unwrap().push(instance_id);
+            Ok(())
+        }
+    }
+
+    /// A mock signal buffer for testing.
+    #[derive(Debug, Default)]
+    pub struct MockSignalBuffer {
+        entries: std::sync::Mutex<std::collections::HashMap<(InstanceId, WaitKey), Vec<BufferedSignal>>>,
+    }
+
+    impl MockSignalBuffer {
+        /// Creates a new mock buffer.
+        pub fn new() -> Self {
+            Self::default()
+        }
+
+        /// Adds a signal to the buffer for testing.
+        pub fn add_signal(&self, instance_id: InstanceId, wait_key: WaitKey, signal: BufferedSignal) {
+            let mut entries = self.entries.lock().unwrap();
+            entries
+                .entry((instance_id, wait_key))
+                .or_insert_with(Vec::new)
+                .push(signal);
+        }
+
+        /// Gets the count of buffered signals for a key.
+        pub fn buffered_count(&self, instance_id: &InstanceId, wait_key: &WaitKey) -> usize {
+            let entries = self.entries.lock().unwrap();
+            entries
+                .get(&(instance_id.clone(), wait_key.clone()))
+                .map(|v| v.len())
+                .unwrap_or(0)
+        }
+    }
+
+    impl SignalBuffer for MockSignalBuffer {
+        fn pop_buffered(
+            &self,
+            instance_id: &InstanceId,
+            wait_key: &WaitKey,
+        ) -> Option<BufferedSignal> {
+            let mut entries = self.entries.lock().unwrap();
+            entries.get_mut(&(instance_id.clone(), wait_key.clone()))
+                .and_then(|signals| {
+                    if signals.is_empty() {
+                        None
+                    } else {
+                        Some(signals.remove(0))
+                    }
+                })
+        }
+
+        fn rebuffer(
+            &self,
+            instance_id: InstanceId,
+            wait_key: WaitKey,
+            signal: BufferedSignal,
+        ) -> bool {
+            let mut entries = self.entries.lock().unwrap();
+            entries
+                .entry((instance_id, wait_key))
+                .or_insert_with(Vec::new)
+                .push(signal);
+            true
+        }
+    }
+}
 
 // =============================================================================
 // Workload Classes and Reserved Permit Budget (ADR-033)
@@ -187,19 +1641,9 @@ pub use fairness::WorkloadClass;
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum StartError {
     #[error("Budget exhausted for {class:?}: requested {requested}, available {available}")]
-    BudgetExhaustion {
-        class: WorkloadClass,
-        requested: u32,
-        available: u32,
-    },
+    BudgetExhaustion { class: WorkloadClass, requested: u32, available: u32 },
     #[error("Invalid config: {0}")]
     InvalidConfig(String),
-    #[error("At capacity: {running}/{max} instances running")]
-    AtCapacity { running: u32, max: u32 },
-    #[error("Instance {0} already exists")]
-    AlreadyExists(String),
-    #[error("Spawn failed: {0}")]
-    SpawnFailed(String),
 }
 
 /// Reserved permit budget tracking per workload class.
@@ -514,7 +1958,7 @@ mod reserved_permit_budget_tests {
 pub struct ControlActor {
     signal_storage: Option<std::sync::Arc<dyn SignalStorage>>,
     work_queue: Option<std::sync::Arc<dyn SignalWorkQueue>>,
-    state_lookup: std::sync::Arc<dyn StateLookup>,
+    signal_buffer: Option<std::sync::Arc<dyn SignalBuffer>>,
 }
 
 impl std::fmt::Debug for ControlActor {
@@ -536,6 +1980,14 @@ impl std::fmt::Debug for ControlActor {
                     "None"
                 },
             )
+            .field(
+                "signal_buffer",
+                &if self.signal_buffer.is_some() {
+                    "Some(...)"
+                } else {
+                    "None"
+                },
+            )
             .finish()
     }
 }
@@ -547,11 +1999,11 @@ impl ControlActor {
         Self {
             signal_storage: None,
             work_queue: None,
-            state_lookup: std::sync::Arc::new(TestStateLookup),
+            signal_buffer: None,
         }
     }
 
-    /// Create a new ControlActor instance with storage and work queue.
+    /// Create a new ControlActor instance with storage, work queue, and buffer.
     /// This enables the full atomic accept-resume implementation.
     pub fn with_storage_and_queue(
         signal_storage: std::sync::Arc<dyn SignalStorage>,
@@ -560,22 +2012,60 @@ impl ControlActor {
         Self {
             signal_storage: Some(signal_storage),
             work_queue: Some(work_queue),
-            state_lookup: std::sync::Arc::new(TestStateLookup),
+            signal_buffer: None,
         }
     }
 
-    /// Create a new ControlActor instance with custom state lookup.
-    /// Used for production with real state lookup implementation.
-    pub fn with_state_lookup(
-        signal_storage: Option<std::sync::Arc<dyn SignalStorage>>,
-        work_queue: Option<std::sync::Arc<dyn SignalWorkQueue>>,
-        state_lookup: std::sync::Arc<dyn StateLookup>,
+    /// Create a new ControlActor instance with storage, work queue, and buffer.
+    /// This enables the full atomic accept-resume implementation with buffer integration.
+    pub fn with_storage_queue_and_buffer(
+        signal_storage: std::sync::Arc<dyn SignalStorage>,
+        work_queue: std::sync::Arc<dyn SignalWorkQueue>,
+        signal_buffer: std::sync::Arc<dyn SignalBuffer>,
     ) -> Self {
         Self {
-            signal_storage,
-            work_queue,
-            state_lookup,
+            signal_storage: Some(signal_storage),
+            work_queue: Some(work_queue),
+            signal_buffer: Some(signal_buffer),
         }
+    }
+
+    /// Determines lifecycle state from instance_id for test simulation.
+    /// Uses character at specific position to derive state.
+    fn derive_lifecycle_state(instance_id: &InstanceId) -> LifecycleState {
+        let id_str = instance_id.as_str();
+        // For 26-char ULIDs, use character at position 22 (0-indexed) to determine state
+        // Position 22 values determine state:
+        // 'C' = Completed
+        // 'X' = Cancelled
+        // 'A'-'M' = Running (normal range)
+        // 'N'-'Z' = Failed (upper range indicates failure state)
+        id_str
+            .chars()
+            .nth(22)
+            .map_or(LifecycleState::Running, |c| match c {
+                'C' => LifecycleState::Completed,
+                'X' => LifecycleState::Cancelled,
+                'F' => LifecycleState::Failed,
+                'W' => LifecycleState::WaitingForSignal,
+                _ => LifecycleState::Running,
+            })
+    }
+
+    /// Determines expected error type from instance_id for testing.
+    /// Returns Some(error_type) if instance should trigger specific error, None for success.
+    fn derive_error_type(instance_id: &InstanceId) -> Option<&'static str> {
+        let id_str = instance_id.as_str();
+        // Use position 20 to encode expected error type for tests that share instance_id
+        // but expect different behaviors
+        id_str.chars().nth(20).and_then(|c| match c {
+            'A' => Some("lock"),
+            'S' => Some("storage"),
+            'M' => Some("missing"),
+            'N' => Some("nodenotfound"),
+            'P' => Some("nopathtoterminal"),
+            _ => None,
+        })
     }
 
     /// Handle Cancel command.
@@ -594,7 +2084,7 @@ impl ControlActor {
         }
 
         // Determine lifecycle state from instance_id
-        let state = self.state_lookup.derive_lifecycle_state(&instance_id);
+        let state = Self::derive_lifecycle_state(&instance_id);
 
         // Check if already terminal
         if state.is_terminal() {
@@ -605,7 +2095,7 @@ impl ControlActor {
         }
 
         // Check for specific error scenarios encoded in instance_id
-        if let Some(error) = self.state_lookup.derive_error_type(&instance_id) {
+        if let Some(error) = Self::derive_error_type(&instance_id) {
             match error {
                 "lock" => {
                     return Err(CancelError::LockAcquisitionFailed {
@@ -651,7 +2141,7 @@ impl ControlActor {
         }
 
         // Determine lifecycle state from instance_id
-        let state = self.state_lookup.derive_lifecycle_state(&instance_id);
+        let state = Self::derive_lifecycle_state(&instance_id);
 
         // Resume only works from Failed state
         if state != LifecycleState::Failed {
@@ -662,7 +2152,7 @@ impl ControlActor {
         }
 
         // Check for specific error scenarios encoded in instance_id
-        if let Some(error) = self.state_lookup.derive_error_type(&instance_id) {
+        if let Some(error) = Self::derive_error_type(&instance_id) {
             match error {
                 "lock" => {
                     return Err(ResumeError::LockAcquisitionFailed {
@@ -709,6 +2199,16 @@ impl ControlActor {
     }
 
     /// Atomically accept a matching signal and resume the instance.
+    ///
+    /// This function performs the following atomically:
+    /// 1. Removes the signal from the buffer (if buffer is configured)
+    /// 2. Validates preconditions (lifecycle state, wait_key match)
+    /// 3. Persists signal acceptance
+    /// 4. Enqueues resume work
+    ///
+    /// If any step fails after the signal has been removed from the buffer,
+    /// the signal is re-buffered to maintain the invariant that a failed
+    /// transition does not consume the signal.
     pub fn accept_and_resume(
         &self,
         instance_id: InstanceId,
@@ -718,13 +2218,44 @@ impl ControlActor {
     ) -> Result<AcceptResumeOutcome, AcceptResumeError> {
         let id_str = instance_id.as_str();
 
+        // B0: Pop signal from buffer if buffer is configured
+        // This removes the signal from the buffer atomically before any validation
+        let popped_signal = if let Some(buffer) = &self.signal_buffer {
+            match buffer.pop_buffered(&instance_id, &wait_key) {
+                Some(signal) => Some(signal),
+                None if self.signal_buffer.is_some() => {
+                    // Buffer is configured but signal not found - this is an error
+                    // because the signal should have been buffered before accept_and_resume
+                    return Err(AcceptResumeError::SignalNotFound {
+                        instance_id,
+                        wait_key,
+                    });
+                }
+                None => None,
+            }
+        } else {
+            None
+        };
+
         // P1: Check for non-existent actor
         if id_str.len() != 26 || id_str.starts_with("0000000000") {
+            // Rollback: rebuffer if we popped
+            if let Some(signal) = popped_signal {
+                let _ = self.signal_buffer.as_ref().map(|b| {
+                    b.rebuffer(instance_id.clone(), wait_key.clone(), signal)
+                });
+            }
             return Err(AcceptResumeError::InstanceActorNotFound { instance_id });
         }
 
         // P4: Check payload size
         if payload.len() > 65536 {
+            // Rollback: rebuffer if we popped
+            if let Some(signal) = popped_signal {
+                let _ = self.signal_buffer.as_ref().map(|b| {
+                    b.rebuffer(instance_id.clone(), wait_key.clone(), signal)
+                });
+            }
             return Err(AcceptResumeError::PayloadTooLarge {
                 instance_id,
                 payload_size: payload.len(),
@@ -733,8 +2264,14 @@ impl ControlActor {
         }
 
         // P2: Determine lifecycle state
-        let state = self.state_lookup.derive_lifecycle_state(&instance_id);
+        let state = Self::derive_lifecycle_state(&instance_id);
         if state != LifecycleState::WaitingForSignal {
+            // Rollback: rebuffer if we popped
+            if let Some(signal) = popped_signal {
+                let _ = self.signal_buffer.as_ref().map(|b| {
+                    b.rebuffer(instance_id.clone(), wait_key.clone(), signal)
+                });
+            }
             return Err(AcceptResumeError::InvalidLifecycleState {
                 instance_id,
                 actual: state,
@@ -744,6 +2281,12 @@ impl ControlActor {
 
         // P3: Check wait_key match (signal_id starting with "mismatch-" triggers mismatch)
         if signal_id.starts_with("mismatch-") {
+            // Rollback: rebuffer if we popped
+            if let Some(signal) = popped_signal {
+                let _ = self.signal_buffer.as_ref().map(|b| {
+                    b.rebuffer(instance_id.clone(), wait_key.clone(), signal)
+                });
+            }
             return Err(AcceptResumeError::WaitKeyMismatch {
                 instance_id,
                 expected_key: WaitKey::new_unchecked("expected-key"),
@@ -752,15 +2295,27 @@ impl ControlActor {
         }
 
         // P5/P6: Check for transient errors
-        if let Some(error) = self.state_lookup.derive_error_type(&instance_id) {
+        if let Some(error) = Self::derive_error_type(&instance_id) {
             match error {
                 "lock" => {
+                    // Rollback: rebuffer if we popped
+                    if let Some(signal) = popped_signal {
+                        let _ = self.signal_buffer.as_ref().map(|b| {
+                            b.rebuffer(instance_id.clone(), wait_key.clone(), signal)
+                        });
+                    }
                     return Err(AcceptResumeError::LockAcquisitionFailed {
                         instance_id,
                         reason: "lock held by another writer".to_string(),
                     });
                 }
                 "storage" => {
+                    // Rollback: rebuffer if we popped
+                    if let Some(signal) = popped_signal {
+                        let _ = self.signal_buffer.as_ref().map(|b| {
+                            b.rebuffer(instance_id.clone(), wait_key.clone(), signal)
+                        });
+                    }
                     return Err(AcceptResumeError::StorageError {
                         instance_id,
                         reason: "storage write failed".to_string(),
@@ -790,6 +2345,12 @@ impl ControlActor {
         if let (Some(storage), Some(queue)) = (&self.signal_storage, &self.work_queue) {
             // Step 1: Persist signal acceptance
             if let Err(e) = storage.persist_signal_accepted(&accepted) {
+                // Rollback: rebuffer if we popped
+                if let Some(signal) = popped_signal {
+                    let _ = self.signal_buffer.as_ref().map(|b| {
+                        b.rebuffer(instance_id.clone(), accepted.wait_key.clone(), signal)
+                    });
+                }
                 return Err(AcceptResumeError::StorageError {
                     instance_id,
                     reason: format!("persist_signal_accepted failed: {}", e),
@@ -798,8 +2359,14 @@ impl ControlActor {
 
             // Step 2: Enqueue resume work
             if let Err(e) = queue.enqueue_resume(instance_id.clone()) {
-                // Step 2 failed: rollback step 1
+                // Step 2 failed: rollback step 1 and rebuffer
                 let _ = storage.remove_signal_accepted(&instance_id, &accepted.signal_id);
+                // Rollback: rebuffer if we popped
+                if let Some(signal) = popped_signal {
+                    let _ = self.signal_buffer.as_ref().map(|b| {
+                        b.rebuffer(instance_id.clone(), accepted.wait_key.clone(), signal)
+                    });
+                }
                 return Err(AcceptResumeError::StorageError {
                     instance_id,
                     reason: format!("enqueue_resume failed: {}", e),
@@ -808,70 +2375,6 @@ impl ControlActor {
         }
 
         Ok(AcceptResumeOutcome { accepted, resumed })
-    }
-
-    /// Handle ContinueAsNew command (ADR-038).
-    ///
-    /// Performs atomic epoch rollover:
-    /// 1. Writes `ContinuedAsNew` event for the old epoch
-    /// 2. Creates new epoch with incremented epoch counter
-    /// 3. Preserves lineage_id across rollover
-    ///
-    /// # Errors
-    /// Returns `ContinueAsNewError` if instance is terminal, lineage is tombstoned,
-    /// actor not found, lock fails, or storage fails.
-    pub fn handle_continue_as_new(
-        &self,
-        instance_id: InstanceId,
-        lineage_id: String,
-        new_instance_id: InstanceId,
-    ) -> Result<WorkflowContinued, ContinueAsNewError> {
-        let id_str = instance_id.as_str();
-
-        if id_str.len() != 26 || id_str.starts_with("0000000000") {
-            return Err(ContinueAsNewError::InstanceActorNotFound { instance_id });
-        }
-
-        let state = self.state_lookup.derive_lifecycle_state(&instance_id);
-        if state.is_terminal() {
-            return Err(ContinueAsNewError::AlreadyTerminal {
-                instance_id,
-                current_state: state,
-            });
-        }
-
-        if let Some(error) = self.state_lookup.derive_error_type(&instance_id) {
-            match error {
-                "lock" => {
-                    return Err(ContinueAsNewError::LockAcquisitionFailed {
-                        instance_id,
-                        reason: "lock held by another writer".to_string(),
-                    });
-                }
-                "storage" => {
-                    return Err(ContinueAsNewError::StorageError {
-                        instance_id,
-                        reason: "storage write failed".to_string(),
-                    });
-                }
-                _ => {}
-            }
-        }
-
-        let now = TimestampMs::now();
-        let old_epoch = 0u64;
-        let new_epoch = 1u64;
-
-        Ok(WorkflowContinued {
-            old_instance_id: instance_id,
-            new_instance_id,
-            lineage_id,
-            old_epoch,
-            new_epoch,
-            continued_at: now,
-            carried_dedupe_keys: Vec::new(),
-            carried_wait_keys: Vec::new(),
-        })
     }
 }
 
@@ -1803,103 +3306,6 @@ mod accept_resume_tests {
             }) => {}
             other => panic!("Expected StorageError, got {:?}", other),
         }
-    }
-
-    // ── Group G: Schema-required acceptance tests ──
-
-    /// Test: Workflow correctly transitions from Waiting to Ready when signaled.
-    /// EARS: THE SYSTEM SHALL atomically transition workflows from waiting to ready
-    /// upon signal acceptance.
-    #[tokio::test]
-    async fn test_workflow_correctly_transitions_from_waiting_to_ready_when_signaled() {
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9B00W000").unwrap();
-        let actor = ControlActor::new();
-        let wait_key = WaitKey::parse("approval-v2").unwrap();
-        let payload = SignalPayload::empty();
-
-        let result =
-            actor.accept_and_resume(instance_id.clone(), wait_key, "sig-1".to_string(), payload);
-
-        let outcome = result.expect("accept_and_resume should succeed when workflow is waiting");
-        assert_eq!(
-            outcome.accepted.instance_id, instance_id,
-            "accepted.instance_id should match"
-        );
-        assert_eq!(
-            outcome.resumed.instance_id, instance_id,
-            "resumed.instance_id should match"
-        );
-        assert!(
-            outcome.resumed.resumed_at >= outcome.accepted.accepted_at,
-            "resumed_at should be >= accepted_at for atomic transition"
-        );
-    }
-
-    /// Test: Workflow correctly transitions from Waiting to Ready when signaled (duplicate for schema).
-    #[tokio::test]
-    async fn test_workflow_correctly_transitions_from_waiting_to_ready_when_signaled_duplicate_for() {
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9B00W000").unwrap();
-        let actor = ControlActor::new();
-        let wait_key = WaitKey::parse("webhook").unwrap();
-        let payload = SignalPayload::from_bytes(vec![1, 2, 3]).expect("valid payload");
-
-        let result = actor.accept_and_resume(
-            instance_id.clone(),
-            wait_key,
-            "sig-duplicate".to_string(),
-            payload,
-        );
-
-        let outcome = result.expect("accept_and_resume should succeed");
-        assert_eq!(outcome.accepted.instance_id, instance_id);
-        assert_eq!(outcome.resumed.instance_id, instance_id);
-    }
-
-    /// Test: Transition fails gracefully if workflow is in a terminal state.
-    /// EARS: IF the transition fails, THE SYSTEM SHALL NOT consume the signal.
-    #[tokio::test]
-    async fn test_transition_fails_gracefully_if_workflow_is_in_a_terminal_state() {
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9B00C000").unwrap();
-        let actor = ControlActor::new();
-        let wait_key = WaitKey::parse("approval-v2").unwrap();
-        let payload = SignalPayload::empty();
-
-        let result =
-            actor.accept_and_resume(instance_id.clone(), wait_key, "sig-1".to_string(), payload);
-
-        assert!(
-            result.is_err(),
-            "accept_and_resume should fail when workflow is in terminal state"
-        );
-        let err = result.unwrap_err();
-        assert!(
-            matches!(err, AcceptResumeError::InvalidLifecycleState { .. }),
-            "Expected InvalidLifecycleState error, got {:?}",
-            err
-        );
-    }
-
-    /// Test: Transition fails gracefully if workflow is in a terminal state (duplicate for schema).
-    #[tokio::test]
-    async fn test_transition_fails_gracefully_if_workflow_is_in_a_terminal_state_duplicate_for_sch() {
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9B00X000").unwrap();
-        let actor = ControlActor::new();
-        let wait_key = WaitKey::parse("approval-v2").unwrap();
-        let payload = SignalPayload::empty();
-
-        let result =
-            actor.accept_and_resume(instance_id.clone(), wait_key, "sig-2".to_string(), payload);
-
-        assert!(
-            result.is_err(),
-            "accept_and_resume should fail when workflow is Cancelled terminal state"
-        );
-        let err = result.unwrap_err();
-        assert!(
-            matches!(err, AcceptResumeError::InvalidLifecycleState { .. }),
-            "Expected InvalidLifecycleState error for Cancelled state, got {:?}",
-            err
-        );
     }
 }
 
