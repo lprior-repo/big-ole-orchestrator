@@ -5,6 +5,8 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
+use crate::error::SchedulerError;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct JobId(pub Ulid);
 
@@ -81,6 +83,60 @@ pub enum SchedulePolicy {
     After(#[serde(with = "humantime_serde")] Duration),
     Cron(String),
     Immediate,
+}
+
+impl SchedulePolicy {
+    pub fn validate_cron(expr: &str) -> Result<(), SchedulerError> {
+        let fields: Vec<&str> = expr.split_whitespace().collect();
+        if fields.len() != 5 {
+            return Err(SchedulerError::InvalidSchedule);
+        }
+
+        let minute_valid = validate_cron_field(fields[0], 0, 59)?;
+        let hour_valid = validate_cron_field(fields[1], 0, 23)?;
+        let day_of_month_valid = validate_cron_field(fields[2], 1, 31)?;
+        let month_valid = validate_cron_field(fields[3], 1, 12)?;
+        let day_of_week_valid = validate_cron_field(fields[4], 0, 6)?;
+
+        if minute_valid && hour_valid && day_of_month_valid && month_valid && day_of_week_valid {
+            Ok(())
+        } else {
+            Err(SchedulerError::InvalidSchedule)
+        }
+    }
+}
+
+fn validate_cron_field(field: &str, min: u32, max: u32) -> Result<bool, SchedulerError> {
+    if field == "*" {
+        return Ok(true);
+    }
+
+    if let Some(step_val) = field.strip_prefix("*/") {
+        let step: u32 = step_val
+            .parse()
+            .map_err(|_| SchedulerError::InvalidSchedule)?;
+        if step == 0 || step > max {
+            return Err(SchedulerError::InvalidSchedule);
+        }
+        return Ok(true);
+    }
+
+    if let Some((start, end)) = field.split_once('-') {
+        let start: u32 = start.parse().map_err(|_| SchedulerError::InvalidSchedule)?;
+        let end: u32 = end.parse().map_err(|_| SchedulerError::InvalidSchedule)?;
+        if start < min || end > max || start > end {
+            return Err(SchedulerError::InvalidSchedule);
+        }
+        return Ok(true);
+    }
+
+    if let Ok(val) = field.parse::<u32>() {
+        if val >= min && val <= max {
+            return Ok(true);
+        }
+    }
+
+    Err(SchedulerError::InvalidSchedule)
 }
 
 impl fmt::Display for SchedulePolicy {

@@ -29,7 +29,10 @@ impl ScheduledJob {
         schedule_policy: SchedulePolicy,
         retry_policy: RetryPolicy,
         payload: SerializedPayload,
-    ) -> Self {
+    ) -> Result<Self, SchedulerError> {
+        if let SchedulePolicy::Cron(ref expr) = schedule_policy {
+            SchedulePolicy::validate_cron(expr)?;
+        }
         let now = Utc::now();
         let due_at = match &schedule_policy {
             SchedulePolicy::At(t) => *t,
@@ -42,7 +45,7 @@ impl ScheduledJob {
         } else {
             JobState::Scheduled
         };
-        Self {
+        Ok(Self {
             id: JobId::generate(),
             kind,
             state,
@@ -55,7 +58,7 @@ impl ScheduledJob {
             last_error: None,
             created_at: now,
             updated_at: now,
-        }
+        })
     }
 
     pub fn transition(&mut self, new_state: JobState) -> Result<(), SchedulerError> {
