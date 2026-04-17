@@ -154,14 +154,12 @@ impl Node {
     }
 
     /// Apply a config update to the node.
-    #[allow(clippy::missing_panics_doc)]
     pub fn apply_config_update(&mut self, new_config: &serde_json::Value) {
         if let serde_json::Value::Object(map) = new_config {
-            for (key, value) in map {
-                self.config
-                    .as_object_mut()
-                    .unwrap()
-                    .insert(key.clone(), value.clone());
+            if let Some(obj) = self.config.as_object_mut() {
+                for (key, value) in map {
+                    obj.insert(key.clone(), value.clone());
+                }
             }
         }
     }
