@@ -847,3 +847,65 @@ async fn stale_timer_cleanup_with_thresholds() {
     assert_eq!(remaining.len(), 1);
     assert_eq!(remaining[0].instance_id, instance1);
 }
+
+/// Test that delete_all_timers_for_instance correctly cancels all timers for an instance.
+#[tokio::test]
+async fn delete_all_timers_for_instance_cancels_all() {
+    let instance1 = make_instance_id(1);
+    let instance2 = make_instance_id(2);
+    let storage = Arc::new(MockTimerStorage::empty());
+
+    // Add multiple timers for instance1
+    storage
+        .add_timer(make_timer(instance1.clone(), 5000))
+        .await;
+    storage
+        .add_timer(make_timer(instance1.clone(), 6000))
+        .await;
+    storage
+        .add_timer(make_timer(instance1.clone(), 7000))
+        .await;
+
+    // Add timer for instance2 (should not be deleted)
+    storage
+        .add_timer(make_timer(instance2.clone(), 5000))
+        .await;
+
+    // Verify all timers exist
+    let before = storage
+        .scan_due_timers(
+            TimestampMs::try_from(0u64).expect("valid"),
+            TimestampMs::try_from(10000u64).expect("valid"),
+            100,
+        )
+        .await
+        .expect("scan should succeed");
+
+    assert_eq!(before.len(), 4, "should have 4 timers initially");
+
+    // Delete all timers for instance1
+    let deleted = storage
+        .delete_all_timers_for_instance(&instance1)
+        .await
+        .expect("delete should succeed");
+
+    assert_eq!(deleted, 3, "should delete 3 timers for instance1");
+
+    // Verify instance2 timer remains
+    let after = storage
+        .scan_due_timers(
+            TimestampMs::try_from(0u64).expect("valid"),
+            TimestampMs::try_from(10000u64).expect("valid"),
+            100,
+        )
+        .await
+        .expect("scan should succeed");
+
+    assert_eq!(after.len(), 1, "should have 1 timer remaining");
+    assert_eq!(after[0].instance_id, instance2);
+
+    // Verify delete_all_calls was recorded
+    let calls = storage.delete_all_calls().await;
+    assert_eq!(calls.len(), 1);
+    assert_eq!(calls[0], instance1);
+}
