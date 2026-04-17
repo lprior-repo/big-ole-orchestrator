@@ -19,6 +19,7 @@ pub mod executor;
 pub use executor::{
     ExecutionOutcome, ManagedEffectError, ManagedEffectExecutor, ManagedEffectTask,
 };
+pub mod lock_storage;
 pub mod pool;
 mod port;
 pub mod retry;
