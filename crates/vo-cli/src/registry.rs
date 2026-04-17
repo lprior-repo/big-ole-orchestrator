@@ -21,6 +21,7 @@ impl Default for HandlerRegistry {
         registry.register(Box::new(handlers::DoctorHandler));
         registry.register(Box::new(handlers::RebuildHandler));
         registry.register(Box::new(handlers::StatusHandler));
+        registry.register(Box::new(handlers::WorkspaceHandler));
         registry
     }
 }
@@ -56,6 +57,7 @@ fn command_key(command: &Command) -> Option<&'static str> {
         Command::Doctor { .. } => Some("doctor"),
         Command::Rebuild { .. } => Some("rebuild"),
         Command::Status { .. } => Some("status"),
+        Command::Workspace { .. } => Some("workspace"),
     }
 }
 
@@ -402,6 +404,44 @@ mod handlers {
                 let result =
                     crate::commands::unquarantine::unquarantine_workflow(&engine_url, &workflow_name, &operator).await?;
                 crate::commands::unquarantine::display_result(&result);
+                Ok(())
+            })
+        }
+    }
+
+    pub struct WorkspaceHandler;
+
+    impl CommandHandler for WorkspaceHandler {
+        fn name(&self) -> &'static str {
+            "workspace"
+        }
+
+        fn execute(
+            &self,
+            cli: &Cli,
+        ) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + '_>> {
+            let Command::Workspace { ref subcommand } = cli.command else {
+                return Box::pin(async {
+                    Err(CliError::Dispatch("not a workspace command".to_string()))
+                });
+            };
+            let subcommand = subcommand.clone();
+            Box::pin(async move {
+                let config = crate::commands::workspace::WorkspaceConfig::default();
+                match subcommand {
+                    crate::cli::WorkspaceSubcommand::Create { name } => {
+                        crate::commands::workspace::create_workspace(config, name).await?;
+                    }
+                    crate::cli::WorkspaceSubcommand::List => {
+                        crate::commands::workspace::list_workspaces(config).await?;
+                    }
+                    crate::cli::WorkspaceSubcommand::Delete { id } => {
+                        crate::commands::workspace::delete_workspace(config, id).await?;
+                    }
+                    crate::cli::WorkspaceSubcommand::Show { id } => {
+                        crate::commands::workspace::show_workspace(config, id).await?;
+                    }
+                }
                 Ok(())
             })
         }
