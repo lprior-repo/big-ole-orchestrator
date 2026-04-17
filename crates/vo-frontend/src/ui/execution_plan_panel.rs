@@ -156,7 +156,7 @@ pub fn ExecutionPlanPanel(
                 button {
                     class: "flex items-center gap-2 text-slate-700 hover:text-slate-900 transition-colors",
                     onclick: move |_| {
-                        collapsed.try_write().map(|mut c| *c = !*c).unwrap();
+                        let _ = collapsed.try_write().map(|mut c| *c = !*c);
                     },
                     crate::ui::icons::LayersIcon { class: "h-4 w-4 text-slate-500" }
                     span { class: "text-[12px] font-semibold", "Execution Plan" }
