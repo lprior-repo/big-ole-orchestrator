@@ -1,0 +1,12 @@
+{
+  "session_id": "4c9df5e1-4c46-45e8-97dc-1e9719e31015",
+  "transcript_path": "/home/lewis/.claude/projects/-home-lewis-gt-veloxide-polecats-thunder-veloxide/4c9df5e1-4c46-45e8-97dc-1e9719e31015.jsonl",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Edit",
+  "tool_input": {
+    "file_path": "/home/lewis/gt/veloxide/polecats/thunder/veloxide/crates/vo-frontend/src/ui/edges/graph_types.rs",
+    "old_string": "use serde::{Deserialize, Serialize};\nuse uuid::Uuid;\n\n#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]\npub struct NodeId(pub Uuid);",
+    "new_string": "use serde::{Deserialize, Serialize};\nuse uuid::Uuid;\n\n// Re-export canonical types from crate::ui::graph (ADR-031).\npub use crate::ui::graph::{ExecutionState, PortName};\n\n#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]\npub struct NodeId(pub Uuid);",
+    "replace_all": false
+  }
+}
