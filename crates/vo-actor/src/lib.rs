@@ -89,6 +89,13 @@ pub enum OrchestratorMsg {
         instance_id: InstanceId,
         reply: ractor::port::RpcReplyPort<Result<(), CompensateError>>,
     },
+    /// Send a signal to a workflow instance
+    Signal {
+        instance_id: InstanceId,
+        signal_name: String,
+        payload: Bytes,
+        reply: ractor::port::RpcReplyPort<Result<(), SignalError>>,
+    },
 }
 
 /// Error type for compensation operations.
@@ -97,6 +104,15 @@ pub enum CompensateError {
     #[error("instance not found: {0}")]
     NotFound(String),
     #[error("compensation failed: {0}")]
+    Failed(String),
+}
+
+/// Error type for signal operations.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum SignalError {
+    #[error("instance not found: {0}")]
+    NotFound(String),
+    #[error("signal failed: {0}")]
     Failed(String),
 }
 
@@ -109,6 +125,27 @@ pub struct InstanceSnapshot {
     pub paradigm: WorkflowParadigm,
     pub phase: InstancePhaseView,
     pub events_applied: u64,
+}
+
+#[cfg(test)]
+mod signal_error_tests {
+    use super::*;
+
+    #[test]
+    fn signal_error_variants_can_be_constructed() {
+        let err = SignalError::NotFound("inst-1".to_string());
+        assert!(matches!(err, SignalError::NotFound(msg) if msg == "inst-1"));
+
+        let err = SignalError::Failed("timeout".to_string());
+        assert!(matches!(err, SignalError::Failed(msg) if msg == "timeout"));
+    }
+
+    #[test]
+    fn orchestrator_msg_signal_variant_exists() {
+        fn _check(_msg: OrchestratorMsg) {
+            if let OrchestratorMsg::Signal { instance_id: _, signal_name: _, payload: _, reply: _ } = _msg {}
+        }
+    }
 }
 
 #[cfg(test)]
