@@ -63,6 +63,23 @@ pub struct EdgeSpec {
     pub to: NodeName,
 }
 
+
+/// Validation errors for [`WorkflowSpec::validate`].
+#[derive(Debug, PartialEq, Clone, Error)]
+pub enum ValidationError {
+    #[error("duplicate node name: {name}")]
+    DuplicateNodeName { name: String },
+    #[error("edge references non-existent source node: {name}")]
+    MissingEdgeSource { name: String },
+    #[error("edge references non-existent target node: {name}")]
+    MissingEdgeTarget { name: String },
+    #[error("self-loop edge on node: {name}")]
+    SelfLoop { name: String },
+    #[error("cycle detected: {cycle}")]
+    CycleDetected { cycle: String },
+    #[error("no entry point: every node has at least one incoming edge")]
+    NoEntryPoint,
+}
 /// Full workflow graph specification produced by `--graph` (ADR-004, ADR-009, ADR-031).
 ///
 /// This is the canonical workflow representation emitted by the SDK when
@@ -167,6 +184,114 @@ impl WorkflowSpec {
         serde_json::to_vec(self).expect("WorkflowSpec is always serializable")
     }
 
+    /// Validate this spec before graph emission.
+    pub fn validate(&self) -> Result<(), ValidationError> {
+        let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
+        for node in &self.nodes {
+            if !seen.insert(node.name.as_str()) {
+                return Err(ValidationError::DuplicateNodeName {
+                    name: node.name.as_str().to_string(),
+                });
+            }
+        }
+
+        let node_names: std::collections::HashSet<&str> =
+            self.nodes.iter().map(|n| n.name.as_str()).collect();
+        for edge in &self.edges {
+            if !node_names.contains(edge.from.as_str()) {
+                return Err(ValidationError::MissingEdgeSource {
+                    name: edge.from.as_str().to_string(),
+                });
+            }
+            if !node_names.contains(edge.to.as_str()) {
+                return Err(ValidationError::MissingEdgeTarget {
+                    name: edge.to.as_str().to_string(),
+                });
+            }
+            if edge.from == edge.to {
+                return Err(ValidationError::SelfLoop {
+                    name: edge.from.as_str().to_string(),
+                });
+            }
+        }
+
+        // Cycle detection via DFS (3-color).
+        let n = self.nodes.len();
+        if n > 0 {
+            let name_to_idx: std::collections::HashMap<&str, usize> = self
+                .nodes
+                .iter()
+                .enumerate()
+                .map(|(i, node)| (node.name.as_str(), i))
+                .collect();
+
+            let mut adj: Vec<Vec<usize>> = vec![Vec::new(); n];
+            for edge in &self.edges {
+                if let (Some(&from), Some(&to)) = (
+                    name_to_idx.get(edge.from.as_str()),
+                    name_to_idx.get(edge.to.as_str()),
+                ) {
+                    adj[from].push(to);
+                }
+            }
+
+            let mut colors = vec![0u8; n]; // 0=WHITE, 1=GRAY, 2=BLACK
+            let mut cycle_path: Vec<usize> = Vec::new();
+            let mut stack: Vec<usize> = Vec::new();
+
+            fn dfs(
+                node: usize,
+                adj: &[Vec<usize>],
+                colors: &mut [u8],
+                stack: &mut Vec<usize>,
+                cycle_path: &mut Vec<usize>,
+            ) -> bool {
+                colors[node] = 1;
+                stack.push(node);
+                for &neighbor in &adj[node] {
+                    if colors[neighbor] == 1 {
+                        if let Some(pos) = stack.iter().position(|&x| x == neighbor) {
+                            cycle_path.extend(stack[pos..].iter().copied());
+                        }
+                        return true;
+                    }
+                    if colors[neighbor] == 0
+                        && dfs(neighbor, adj, colors, stack, cycle_path)
+                    {
+                        return true;
+                    }
+                }
+                stack.pop();
+                colors[node] = 2;
+                false
+            }
+
+            for i in 0..n {
+                if colors[i] == 0 && dfs(i, &adj, &mut colors, &mut stack, &mut cycle_path) {
+                    let names: Vec<String> = cycle_path
+                        .iter()
+                        .map(|&idx| self.nodes[idx].name.as_str().to_string())
+                        .collect();
+                    return Err(ValidationError::CycleDetected {
+                        cycle: names.join(" -> "),
+                    });
+                }
+            }
+
+            // Entry point check: at least one node with no incoming edges.
+            let has_target: std::collections::HashSet<usize> = self
+                .edges
+                .iter()
+                .filter_map(|e| name_to_idx.get(e.to.as_str()).copied())
+                .collect();
+            if has_target.len() == n {
+                return Err(ValidationError::NoEntryPoint);
+            }
+        }
+
+        Ok(())
+    }
+
     pub(crate) fn detect_cycle(&self) -> Option<String> {
         let n = self.nodes.len();
         if n == 0 {
@@ -233,6 +358,121 @@ impl WorkflowSpec {
             .map(|&idx| self.nodes[idx].name.as_str().to_string())
             .collect();
         Some(cycle_names.join(" -> "))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use vo_types::NodeKind;
+
+    #[test]
+    fn validate_accepts_valid_spec() {
+        let spec = WorkflowSpec {
+            workflow_name: WorkflowName::parse("test-workflow").unwrap(),
+            nodes: vec![
+                NodeSpec { name: NodeName::parse("step_a").unwrap(), kind: NodeKind::Pure },
+                NodeSpec { name: NodeName::parse("step_b").unwrap(), kind: NodeKind::ManagedEffect },
+            ],
+            edges: vec![EdgeSpec { from: NodeName::parse("step_a").unwrap(), to: NodeName::parse("step_b").unwrap() }],
+        };
+        assert!(spec.validate().is_ok());
+    }
+
+    #[test]
+    fn validate_rejects_duplicate_node_names() {
+        let spec = WorkflowSpec {
+            workflow_name: WorkflowName::parse("test").unwrap(),
+            nodes: vec![
+                NodeSpec { name: NodeName::parse("step_a").unwrap(), kind: NodeKind::Pure },
+                NodeSpec { name: NodeName::parse("step_a").unwrap(), kind: NodeKind::Pure },
+            ],
+            edges: vec![],
+        };
+        let err = spec.validate().unwrap_err();
+        assert_eq!(err, ValidationError::DuplicateNodeName { name: "step_a".to_string() });
+    }
+
+    #[test]
+    fn validate_rejects_missing_edge_source() {
+        let spec = WorkflowSpec {
+            workflow_name: WorkflowName::parse("test").unwrap(),
+            nodes: vec![NodeSpec { name: NodeName::parse("step_a").unwrap(), kind: NodeKind::Pure }],
+            edges: vec![EdgeSpec { from: NodeName::parse("ghost").unwrap(), to: NodeName::parse("step_a").unwrap() }],
+        };
+        let err = spec.validate().unwrap_err();
+        assert_eq!(err, ValidationError::MissingEdgeSource { name: "ghost".to_string() });
+    }
+
+    #[test]
+    fn validate_rejects_missing_edge_target() {
+        let spec = WorkflowSpec {
+            workflow_name: WorkflowName::parse("test").unwrap(),
+            nodes: vec![NodeSpec { name: NodeName::parse("step_a").unwrap(), kind: NodeKind::Pure }],
+            edges: vec![EdgeSpec { from: NodeName::parse("step_a").unwrap(), to: NodeName::parse("ghost").unwrap() }],
+        };
+        let err = spec.validate().unwrap_err();
+        assert_eq!(err, ValidationError::MissingEdgeTarget { name: "ghost".to_string() });
+    }
+
+    #[test]
+    fn validate_rejects_self_loop() {
+        let spec = WorkflowSpec {
+            workflow_name: WorkflowName::parse("test").unwrap(),
+            nodes: vec![NodeSpec { name: NodeName::parse("step_a").unwrap(), kind: NodeKind::Pure }],
+            edges: vec![EdgeSpec { from: NodeName::parse("step_a").unwrap(), to: NodeName::parse("step_a").unwrap() }],
+        };
+        let err = spec.validate().unwrap_err();
+        assert_eq!(err, ValidationError::SelfLoop { name: "step_a".to_string() });
+    }
+
+    #[test]
+    fn validate_rejects_cycle() {
+        let spec = WorkflowSpec {
+            workflow_name: WorkflowName::parse("test").unwrap(),
+            nodes: vec![
+                NodeSpec { name: NodeName::parse("a").unwrap(), kind: NodeKind::Pure },
+                NodeSpec { name: NodeName::parse("b").unwrap(), kind: NodeKind::Pure },
+                NodeSpec { name: NodeName::parse("c").unwrap(), kind: NodeKind::Pure },
+            ],
+            edges: vec![
+                EdgeSpec { from: NodeName::parse("a").unwrap(), to: NodeName::parse("b").unwrap() },
+                EdgeSpec { from: NodeName::parse("b").unwrap(), to: NodeName::parse("c").unwrap() },
+                EdgeSpec { from: NodeName::parse("c").unwrap(), to: NodeName::parse("a").unwrap() },
+            ],
+        };
+        let err = spec.validate().unwrap_err();
+        assert!(matches!(err, ValidationError::CycleDetected { .. }));
+    }
+
+    #[test]
+    fn validate_accepts_diamond_dag() {
+        let spec = WorkflowSpec {
+            workflow_name: WorkflowName::parse("test").unwrap(),
+            nodes: vec![
+                NodeSpec { name: NodeName::parse("start").unwrap(), kind: NodeKind::Pure },
+                NodeSpec { name: NodeName::parse("left").unwrap(), kind: NodeKind::Pure },
+                NodeSpec { name: NodeName::parse("right").unwrap(), kind: NodeKind::Pure },
+                NodeSpec { name: NodeName::parse("end").unwrap(), kind: NodeKind::Pure },
+            ],
+            edges: vec![
+                EdgeSpec { from: NodeName::parse("start").unwrap(), to: NodeName::parse("left").unwrap() },
+                EdgeSpec { from: NodeName::parse("start").unwrap(), to: NodeName::parse("right").unwrap() },
+                EdgeSpec { from: NodeName::parse("left").unwrap(), to: NodeName::parse("end").unwrap() },
+                EdgeSpec { from: NodeName::parse("right").unwrap(), to: NodeName::parse("end").unwrap() },
+            ],
+        };
+        assert!(spec.validate().is_ok());
+    }
+
+    #[test]
+    fn validate_accepts_single_node_no_edges() {
+        let spec = WorkflowSpec {
+            workflow_name: WorkflowName::parse("test").unwrap(),
+            nodes: vec![NodeSpec { name: NodeName::parse("solo").unwrap(), kind: NodeKind::Pure }],
+            edges: vec![],
+        };
+        assert!(spec.validate().is_ok());
     }
 }
 
