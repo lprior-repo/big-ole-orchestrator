@@ -17,6 +17,18 @@ pub enum VoError {
     Timeout(String),
 }
 
+impl From<std::io::Error> for VoError {
+    fn from(err: std::io::Error) -> Self {
+        Self::Internal(err.to_string())
+    }
+}
+
+impl From<serde_json::Error> for VoError {
+    fn from(err: serde_json::Error) -> Self {
+        Self::Validation(err.to_string())
+    }
+}
+
 impl VoError {
     pub fn config(msg: impl Into<String>) -> Self {
         Self::Config(msg.into())
