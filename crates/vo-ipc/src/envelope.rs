@@ -4,6 +4,45 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::io::{Read, Write};
 
+/// Maximum payload size for IPC envelopes (10 MiB).
+///
+/// This limit exists to:
+/// - Prevent unbounded memory allocation during deserialization
+/// - Limit the blast radius of a malicious or malformed payload
+/// - Ensure reasonable latency for IPC operations (no long blocking reads)
+///
+/// The limit is enforced at serialization time ([`write_envelope`] returns
+/// [`IpcError::PayloadTooLarge`] if the payload exceeds this size) and at
+/// deserialization time ([`read_envelope`] rejects payloads larger than this).
+///
+/// # Large Payload Handling
+///
+/// If you need to send data larger than 10 MiB, consider:
+/// - **Chunking**: Split the data into multiple envelopes and reassemble
+/// - **Streaming**: Use file-based IPC (pass file descriptors instead of data)
+/// - **Compression**: Pre-compress data to reduce serialized size
+/// - **External storage**: Write large data to temp files and pass paths
+///
+/// # Examples
+///
+/// ```rust
+/// # use vo_ipc::envelope::{write_envelope, read_envelope, Fd4Envelope};
+/// # use vo_ipc::IpcError;
+/// # use std::io::Cursor;
+/// # fn demo() -> Result<(), IpcError> {
+/// // Normal-sized payloads work fine
+/// let envelope = Fd4Envelope {
+/// #     version: 1,
+/// #     instance_id: "test".into(),
+/// #     node_id: "node".into(),
+/// #     result: vo_ipc::TaskResult::Success { output: serde_json::json!("ok") },
+/// # };
+/// let mut buf = Vec::new();
+/// write_envelope(&mut buf, &envelope)?;
+/// let decoded: Fd4Envelope = read_envelope(&mut Cursor::new(&buf))?;
+/// # Ok(())
+/// # }
+/// ```
 pub const MAX_PAYLOAD_SIZE: u32 = 10_485_760;
 
 /// The envelope sent from Engine to Child over FD3.
