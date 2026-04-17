@@ -26,6 +26,7 @@
 pub mod admission;
 pub mod circuit_breaker;
 pub mod compensation_order;
+pub mod ghost_workflow;
 pub mod config_hot_reload;
 pub mod connector;
 mod db_writer_message;
