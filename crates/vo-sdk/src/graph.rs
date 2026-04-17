@@ -11,8 +11,6 @@ use thiserror::Error;
 pub use vo_types::NodeKind;
 use vo_types::{NodeName, WorkflowName};
 
-
-
 /// Marker returned when `--graph` flag is present.
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub struct GraphArgs;
@@ -31,11 +29,14 @@ pub enum GraphArgsError {
 /// # Errors
 ///
 /// Returns `GraphArgsError::NoGraphFlag` when `--graph` is absent.
-/// Returns `GraphArgsError::UnrecognizedArgument` when extra positional args follow `--graph`.
+/// Returns `GraphArgsError::UnrecognizedArgument` when extra positional args follow `--graph` or when `--graph` appears twice.
 pub fn parse_graph_args(args: &[String]) -> Result<GraphArgs, GraphArgsError> {
     let mut found_graph = false;
     for arg in args.iter().skip(1) {
         if arg == "--graph" {
+            if found_graph {
+                return Err(GraphArgsError::UnrecognizedArgument { arg: arg.clone() });
+            }
             found_graph = true;
         } else if found_graph {
             return Err(GraphArgsError::UnrecognizedArgument { arg: arg.clone() });

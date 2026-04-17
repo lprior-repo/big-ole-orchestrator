@@ -184,7 +184,12 @@ fn write_success_envelope_has_exact_keys() {
     write_success_inner(&mut buf, &output, &mut is_written).unwrap();
 
     let written: Value = serde_json::from_slice(&buf).expect("valid JSON");
-    let keys: Vec<&str> = written.as_object().unwrap().keys().map(|s| s.as_str()).collect();
+    let keys: Vec<&str> = written
+        .as_object()
+        .unwrap()
+        .keys()
+        .map(|s| s.as_str())
+        .collect();
     assert_eq!(
         keys,
         vec!["output", "status"],
@@ -241,7 +246,12 @@ fn write_failure_envelope_has_exact_keys() {
     write_failure_inner(&mut buf, TaskFailureKind::User, "err", &mut is_written).unwrap();
 
     let written: Value = serde_json::from_slice(&buf).expect("valid JSON");
-    let keys: Vec<&str> = written.as_object().unwrap().keys().map(|s| s.as_str()).collect();
+    let keys: Vec<&str> = written
+        .as_object()
+        .unwrap()
+        .keys()
+        .map(|s| s.as_str())
+        .collect();
     assert_eq!(
         keys,
         vec!["kind", "message", "status"],
@@ -385,10 +395,10 @@ fn concurrent_read_input_only_one_succeeds() {
             let payload = valid_envelope("key-abc", &json!(null));
             let mut cursor = Cursor::new(payload);
             let mut local_guard = false;
-            if guard
+            let exchanged = guard
                 .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
-                .is_ok()
-            {
+                .is_ok();
+            if exchanged {
                 local_guard = true;
             }
             let result = read_input_inner(&mut cursor, &mut local_guard);

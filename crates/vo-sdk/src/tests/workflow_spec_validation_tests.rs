@@ -126,13 +126,13 @@ fn valid_spec_with_hyphenated_names_round_trips() {
 // ===========================================================================
 
 #[test]
-fn dag_accepts_node_with_digit_prefix_as_valid() {
+fn dag_rejects_node_with_digit_prefix() {
     let mut dag = Dag::new();
     let result: Result<crate::node_handle::NodeHandle<(), ()>, _> =
         dag.add_node_with_kind("1valid-per-grammar", NodeKind::Pure, |_: ()| ());
     assert!(
-        result.is_ok(),
-        "node name starting with digit is accepted by current grammar"
+        result.is_err(),
+        "node name starting with digit should be rejected"
     );
 }
 

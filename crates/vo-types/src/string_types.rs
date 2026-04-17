@@ -131,6 +131,12 @@ impl WorkflowName {
             });
         }
         check_identifier_boundaries(input, TYPE_NAME)?;
+        if input.chars().next().map_or(false, |c| c.is_ascii_digit()) {
+            return Err(ParseError::BoundaryViolation {
+                type_name: TYPE_NAME,
+                reason: "must not start with digit".to_string(),
+            });
+        }
         Ok(Self(input.to_string()))
     }
 
@@ -180,6 +186,12 @@ impl NodeName {
             });
         }
         check_identifier_boundaries(input, TYPE_NAME)?;
+        if input.chars().next().map_or(false, |c| c.is_ascii_digit()) {
+            return Err(ParseError::BoundaryViolation {
+                type_name: TYPE_NAME,
+                reason: "must not start with digit".to_string(),
+            });
+        }
         Ok(Self(input.to_string()))
     }
 
@@ -292,7 +304,7 @@ impl IdempotencyKey {
     ///
     /// # Errors
     ///
-    /// Returns `ParseError` if the input is empty or exceeds max length.
+    /// Returns `ParseError` if the input is empty, exceeds max length, or contains invalid characters.
     pub fn parse(input: &str) -> Result<Self, ParseError> {
         const TYPE_NAME: &str = "IdempotencyKey";
         const MAX_LEN: usize = 1024;
@@ -306,6 +318,19 @@ impl IdempotencyKey {
                 type_name: TYPE_NAME,
                 max: MAX_LEN,
                 actual: input.chars().count(),
+            });
+        }
+        let invalid = extract_invalid_chars(input, is_identifier_char);
+        if !invalid.is_empty() {
+            return Err(ParseError::InvalidCharacters {
+                type_name: TYPE_NAME,
+                invalid_chars: invalid,
+            });
+        }
+        if input.chars().next().map_or(false, |c| c.is_ascii_digit()) {
+            return Err(ParseError::BoundaryViolation {
+                type_name: TYPE_NAME,
+                reason: "must not start with digit".to_string(),
             });
         }
         Ok(Self(input.to_string()))
