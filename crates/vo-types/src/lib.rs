@@ -59,7 +59,7 @@ pub mod signal;
 pub mod skew_heap;
 mod spqr_tree;
 pub mod state;
-mod string_types;
+pub mod string_types;
 #[cfg(test)]
 mod string_types_tests;
 mod topology;

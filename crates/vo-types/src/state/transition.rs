@@ -78,7 +78,8 @@ pub fn apply(
             | LifecycleState::RunningDecision
             | LifecycleState::StepScheduled
             | LifecycleState::StepExecuting
-            | LifecycleState::WaitingForTimer,
+            | LifecycleState::WaitingForTimer
+            | LifecycleState::PendingPublication,
             TransitionEvent::Cancel,
         ) => Ok(LifecycleState::Cancelled),
 
@@ -87,9 +88,21 @@ pub fn apply(
             LifecycleState::RunningDecision
             | LifecycleState::StepScheduled
             | LifecycleState::StepExecuting
-            | LifecycleState::WaitingForTimer,
+            | LifecycleState::WaitingForTimer
+            | LifecycleState::PendingPublication,
             TransitionEvent::Fail,
         ) => Ok(LifecycleState::Failed),
+
+        // Publication barrier transitions (ADR-040)
+        (LifecycleState::StepExecuting, TransitionEvent::YieldWithBlob) => {
+            Ok(LifecycleState::PendingPublication)
+        }
+        (LifecycleState::PendingPublication, TransitionEvent::ConfirmPublication) => {
+            Ok(LifecycleState::Completed)
+        }
+        (LifecycleState::PendingPublication, TransitionEvent::PublicationFailed) => {
+            Ok(LifecycleState::Failed)
+        }
 
         // EmitOutputRef is allowed from Completed (post-publication emission)
         (LifecycleState::Completed, TransitionEvent::EmitOutputRef) => {
