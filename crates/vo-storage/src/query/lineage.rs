@@ -84,7 +84,7 @@ impl Iterator for LineageReplayIterator {
                             return Some(Err(e));
                         }
                         Some(Ok(env)) => return Some(Ok(env)),
-                        None => continue,
+                        None => {}
                     }
                 }
                 None => return None,
@@ -115,7 +115,7 @@ pub fn replay_events_for_lineage(
         }
     };
     let prefix_len = prefix.len();
-    let Ok(partition) = keyspace.keyspace("events", || fjall::KeyspaceCreateOptions::default())
+    let Ok(partition) = keyspace.keyspace("events", fjall::KeyspaceCreateOptions::default)
     else {
         return LineageReplayIterator::error(StorageError::Storage);
     };

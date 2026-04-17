@@ -54,7 +54,7 @@ impl MerkleTree {
             .collect();
         levels.push(leaf_nodes);
 
-        while levels.last().map_or(false, |level| level.len() > 1) {
+        while levels.last().is_some_and(|level| level.len() > 1) {
             let parent_level = pair_and_hash(levels.last().unwrap());
             levels.push(parent_level);
         }
@@ -62,8 +62,7 @@ impl MerkleTree {
         let root_hash = levels
             .last()
             .and_then(|level| level.first())
-            .map(|node| node.hash)
-            .unwrap_or([0u8; 32]);
+            .map_or([0u8; 32], |node| node.hash);
 
         Self {
             root_hash,
@@ -88,7 +87,7 @@ impl MerkleTree {
         let mut current_index = leaf_index;
 
         for level in 0..self.levels.len() - 1 {
-            let is_left = current_index % 2 == 0;
+            let is_left = current_index.is_multiple_of(2);
             let sibling_index = if is_left {
                 current_index + 1
             } else {

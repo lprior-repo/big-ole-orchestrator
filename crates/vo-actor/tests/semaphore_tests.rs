@@ -8,7 +8,7 @@ use vo_types::WorkflowName;
 
 #[tokio::test]
 async fn execution_semaphore_fairness_fifo_order() {
-    let sem = Arc::new(ExecutionSemaphore::default());
+    let sem = Arc::new(ExecutionSemaphore::with_default_config());
     let mut handles = Vec::new();
 
     for i in 0..5 {

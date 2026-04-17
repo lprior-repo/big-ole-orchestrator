@@ -23,13 +23,15 @@ fn emit_rejection(class: WriteClass, reason: &str) {
 }
 
 /// Emit a queue depth metric for monitoring.
+#[allow(clippy::cast_precision_loss)]
 fn emit_queue_depth(class: WriteClass, depth: usize) {
     let label = match class {
         WriteClass::CriticalControlPlane => "critical_control_plane",
         WriteClass::OperatorProjection => "projection",
         WriteClass::BulkBlob => "bulk_blob",
     };
-    metrics::gauge!("vo_storage.queue_depth", "class" => label).set(depth as f64);
+    metrics::gauge!("vo_storage.queue_depth", "class" => label)
+        .set(depth as f64);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -938,7 +940,7 @@ impl Appender {
     /// Creates a new `Appender` with the given queue configuration and budget.
     pub fn new(config: &QueueConfig, budget: WriteBudget) -> Self {
         Self {
-            queues: BudgetQueues::new(&config, budget),
+            queues: BudgetQueues::new(config, budget),
         }
     }
 

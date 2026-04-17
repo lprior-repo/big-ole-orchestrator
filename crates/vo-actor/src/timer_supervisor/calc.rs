@@ -7,8 +7,6 @@
 
 use std::sync::Arc;
 
-use vo_types::InstanceId;
-
 use super::traits::TimerStorage;
 use super::types::{TimerRecord, TimerSupervisorError};
 

@@ -53,7 +53,7 @@ impl ExecutionSemaphore {
 
     /// Creates a new execution semaphore with default config.
     #[must_use]
-    pub fn default() -> Self {
+    pub fn with_default_config() -> Self {
         Self::new(SemaphoreConfig::default())
     }
 
@@ -186,7 +186,7 @@ mod tests {
 
     #[tokio::test]
     async fn execution_semaphore_try_acquire_success() {
-        let sem = ExecutionSemaphore::default();
+        let sem = ExecutionSemaphore::with_default_config();
         let initial_available = sem.available_permits();
 
         let permit = sem.try_acquire();
@@ -208,7 +208,7 @@ mod tests {
 
     #[tokio::test]
     async fn execution_semaphore_try_acquire_recovery_success() {
-        let sem = ExecutionSemaphore::default();
+        let sem = ExecutionSemaphore::with_default_config();
         let initial_reserved = sem.reserved_available();
 
         let permit = sem.try_acquire_recovery();
@@ -245,7 +245,7 @@ mod tests {
 
     #[tokio::test]
     async fn execution_semaphore_acquire_and_release() {
-        let sem = Arc::new(ExecutionSemaphore::default());
+        let sem = Arc::new(ExecutionSemaphore::with_default_config());
         let initial = sem.available_permits();
 
         let decision = sem.acquire().await;
@@ -255,7 +255,7 @@ mod tests {
 
     #[tokio::test]
     async fn execution_semaphore_status_tracking() {
-        let sem = ExecutionSemaphore::default();
+        let sem = ExecutionSemaphore::with_default_config();
         assert_eq!(sem.current_status(), BackpressureStatus::Healthy);
         assert_eq!(sem.waiting_count(), 0);
     }

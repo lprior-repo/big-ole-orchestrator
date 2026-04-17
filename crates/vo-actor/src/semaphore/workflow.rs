@@ -36,6 +36,7 @@ impl WorkflowSemaphoreMap {
 
     /// Creates a new workflow semaphore map with default settings.
     #[must_use]
+    #[allow(clippy::should_implement_trait)]
     pub fn default() -> Self {
         Self::new(DEFAULT_MAX_PER_WORKFLOW)
     }

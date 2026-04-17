@@ -5,7 +5,6 @@
 //! "Recovery queue ingestion rate never exceeds configured throttle"
 
 use std::time::Duration;
-use tokio::time::Instant;
 
 use super::{RecoveryError, RecoveryItem, RecoveryResult};
 
@@ -103,6 +102,7 @@ impl TokenBucket {
         self.depth += 1;
     }
 
+    #[allow(dead_code)]
     pub fn pop(&mut self) {
         if self.depth > 0 {
             self.depth -= 1;

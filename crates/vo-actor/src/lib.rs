@@ -3,6 +3,15 @@
 //! Provides the actor model implementation using the Ractor library.
 //! Actors are the fundamental units of computation in the engine.
 
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::must_use_candidate,
+    clippy::redundant_closure,
+    clippy::map_unwrap_or,
+    clippy::module_name_repetitions
+)]
+
 use bytes::Bytes;
 pub use vo_common::NamespaceId;
 use vo_types::InstanceId;

@@ -11,6 +11,7 @@ use axum::{
 };
 use std::sync::Arc;
 use std::time::Duration;
+#[allow(deprecated)]
 use tower_http::{cors::CorsLayer, timeout::TimeoutLayer, trace::TraceLayer};
 
 use crate::handlers::query::QueryState;
@@ -45,6 +46,7 @@ pub struct AppState {
 ///
 /// All state is provided up-front via [`AppState`]. The returned router is
 /// ready to pass to `axum::serve(listener, router)`.
+#[allow(deprecated)]
 pub fn create_router(state: AppState) -> Router {
     // Workflow CRUD — uses Extension<ActorRef<OrchestratorMsg>>
     let workflow_routes = Router::new()

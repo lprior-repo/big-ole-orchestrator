@@ -23,6 +23,12 @@
 //! subsystem ensures crash safety by validating that effects are applied
 //! exactly once even across system failures.
 
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::module_name_repetitions
+)]
+
 pub mod admission;
 pub mod circuit_breaker;
 pub mod compensation_order;

@@ -4603,6 +4603,7 @@ dependencies = [
  "http-body",
  "iri-string",
  "pin-project-lite",
+ "tokio",
  "tower 0.5.3",
  "tower-layer",
  "tower-service",
@@ -5016,6 +5017,8 @@ dependencies = [
  "thiserror 2.0.18",
  "tokio",
  "ulid",
+ "vo-ipc",
+ "vo-storage",
  "vo-types",
 ]
 
@@ -5026,11 +5029,14 @@ dependencies = [
  "chrono",
  "criterion",
  "dashmap",
+ "libc",
  "proptest",
  "serde",
  "serde_json",
+ "tempfile",
  "thiserror 2.0.18",
  "tokio",
+ "tracing",
  "uuid",
 ]
 
@@ -5075,6 +5081,8 @@ dependencies = [
 name = "vo-linter"
 version = "0.1.0"
 dependencies = [
+ "criterion",
+ "quote",
  "syn",
 ]
 
@@ -5161,6 +5169,7 @@ name = "vo-types"
 version = "0.1.0"
 dependencies = [
  "any-rope",
+ "criterion",
  "proptest",
  "rstest 0.23.0",
  "serde",

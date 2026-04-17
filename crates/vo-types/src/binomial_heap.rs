@@ -180,6 +180,7 @@ impl<T: Ord> BinomialHeap<T> {
         self.len += other_len;
     }
 
+    #[allow(clippy::expect_used)]
     pub fn delete_min(&mut self) -> Option<T> {
         if self.is_empty() {
             return None;

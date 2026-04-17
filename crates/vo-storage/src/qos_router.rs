@@ -31,7 +31,7 @@ impl std::fmt::Display for CapacityError {
 
 impl std::error::Error for CapacityError {}
 
-trait Classifiable {
+pub(crate) trait Classifiable {
     fn write_class(&self) -> WriteClass;
 }
 
@@ -101,6 +101,7 @@ impl Default for QosRouterConfig {
 }
 
 impl<T> QosRouter<T> {
+    #[must_use]
     pub fn new(config: QosRouterConfig) -> Self {
         Self {
             control_plane: InnerChannel::new(config.control_plane_capacity),
@@ -109,6 +110,7 @@ impl<T> QosRouter<T> {
         }
     }
 
+    #[must_use]
     pub fn with_capacity(
         control_plane_capacity: usize,
         projection_capacity: usize,
@@ -195,6 +197,7 @@ impl<T> QosRouter<T> {
         self.blob.pop()
     }
 
+    #[must_use]
     pub fn depth(&self, class: WriteClass) -> usize {
         match class {
             WriteClass::CriticalControlPlane => self.control_plane.len(),
@@ -203,6 +206,7 @@ impl<T> QosRouter<T> {
         }
     }
 
+    #[must_use]
     pub fn capacity(&self, class: WriteClass) -> usize {
         match class {
             WriteClass::CriticalControlPlane => self.control_plane.capacity(),

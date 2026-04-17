@@ -17,13 +17,13 @@
 #![cfg_attr(not(test), deny(clippy::unwrap_used))]
 #![cfg_attr(not(test), deny(clippy::expect_used))]
 #![cfg_attr(not(test), deny(clippy::panic))]
-#![allow(clippy::module_name_repetitions)]
 #![warn(clippy::pedantic)]
 #![warn(clippy::nursery)]
 #![warn(clippy::complexity)]
 #![warn(clippy::cognitive_complexity)]
 #![allow(
     clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
     clippy::missing_errors_doc,
     clippy::missing_panics_doc,
     clippy::iter_with_drain,
@@ -36,6 +36,14 @@
     clippy::option_if_let_else,
     clippy::match_wildcard_for_single_variants,
     clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::must_use_candidate,
+    clippy::redundant_closure,
+    clippy::needless_continue,
+    clippy::needless_borrow,
+    clippy::doc_markdown,
+    clippy::module_name_repetitions,
+    private_bounds,
     unsafe_code
 )]
 

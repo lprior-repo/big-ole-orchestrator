@@ -9,12 +9,10 @@ use tokio::sync::{broadcast, watch};
 use tokio::task::JoinHandle;
 use tokio::time::{interval, MissedTickBehavior};
 
-use vo_types::InstanceId;
-
 use super::calc::{is_overdue, timer_delete_before_dispatch, verify_dual_clock};
 use super::traits::{TimerStorage, WorkQueue};
 use super::types::{
-    CycleResult, TimerRecord, TimerSupervisorError, TimerSupervisorMetrics, TimerSupervisorState,
+    CycleResult, TimerSupervisorError, TimerSupervisorMetrics, TimerSupervisorState,
 };
 
 // =============================================================================
@@ -317,6 +315,7 @@ impl TimerSupervisorHandle {
 mod tests {
     use super::*;
     use crate::timer_supervisor::traits::{TimerStorage, WorkQueue};
+    use vo_types::InstanceId;
 
     struct MockStorage;
     impl TimerStorage for MockStorage {
