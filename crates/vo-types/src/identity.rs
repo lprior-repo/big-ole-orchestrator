@@ -1,3 +1,18 @@
+//! Command identity types for causal tracing and idempotency.
+//!
+//! Every mutating action that enters the Engine carries three identity keys
+//! that together form a durable causal chain:
+//!
+//! - [`CommandId`] — unique identifier for a single command invocation.
+//!   Used for deduplication and idempotent retries.
+//! - [`CorrelationId`] — groups all work caused by one higher-level business
+//!   request (e.g., one HTTP API call may fan out to many commands).
+//! - [`CausationId`] — points to the immediate parent event or command that
+//!   caused this one, enabling fine-grained causal tracing.
+//!
+//! All three are UUID v4 newtypes with `Display`, `TryFrom<String>`,
+//! `From<..> for String`, and serde round-trip support.
+
 use std::fmt;
 
 use serde::{Deserialize, Serialize};
