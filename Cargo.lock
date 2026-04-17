@@ -5042,11 +5042,19 @@ dependencies = [
 name = "vo-frontend"
 version = "0.1.0"
 dependencies = [
+ "bytes",
+ "chrono",
  "dioxus",
+ "gloo-timers",
+ "itertools 0.14.0",
  "serde",
  "serde_json",
  "ulid",
+ "uuid",
  "vo-types",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
 ]
 
 [[package]]
