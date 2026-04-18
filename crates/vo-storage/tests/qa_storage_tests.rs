@@ -2,17 +2,17 @@
 //!
 //! All tests use real Fjall instances in temp directories. No mocks.
 
+use vo_storage::blob_store::{BlobRecord, BlobStore, BlobStoreError, ContentAddress};
 use vo_storage::codec::encode_event_key;
 use vo_storage::fs_store::FsBlobStore;
 use vo_storage::partitions::{
-    create_partition_layout, open_all_partitions, ALL_PARTITIONS, BLOB_PARTITIONS,
-    COLD_PARTITIONS, HOT_PARTITIONS,
+    create_partition_layout, open_all_partitions, ALL_PARTITIONS, BLOB_PARTITIONS, COLD_PARTITIONS,
+    HOT_PARTITIONS,
 };
 use vo_storage::snapshots::{
     compact_snapshots, encode_snapshot_key, snapshot_load_latest, snapshot_write,
     AtomicSnapshotWriter, SnapshotPolicy,
 };
-use vo_storage::blob_store::{BlobStore, BlobStoreError, BlobRecord, ContentAddress};
 use vo_types::events::{EventEnvelope, EventMetadata};
 use vo_types::state::InstanceState;
 use vo_types::InstanceId;
@@ -128,7 +128,9 @@ fn fjall_binary_key_values_roundtrip() {
     let key: [u8; 24] = [0xFF; 24];
     let value: [u8; 128] = {
         let mut v = [0u8; 128];
-        v.iter_mut().enumerate().for_each(|(i, b)| *b = (i as u8).wrapping_mul(7));
+        v.iter_mut()
+            .enumerate()
+            .for_each(|(i, b)| *b = (i as u8).wrapping_mul(7));
         v
     };
 
@@ -175,10 +177,7 @@ fn events_persist_on_fjall_keyspace() {
 
     ks.insert(key, &event_bytes).expect("insert");
 
-    let stored = ks
-        .get(&key)
-        .expect("get")
-        .expect("event should exist");
+    let stored = ks.get(&key).expect("get").expect("event should exist");
     let restored: EventEnvelope = serde_json::from_slice(&stored).expect("deserialize");
     assert_eq!(restored.sequence, 1);
     assert_eq!(restored.instance_id, id.to_string());
@@ -217,11 +216,13 @@ fn events_from_different_instances_dont_interfere() {
 
     let event1 = make_envelope(&id1, 1);
     let key1 = encode_event_seq(&id1, 1);
-    ks.insert(key1, &serde_json::to_vec(&event1).unwrap()).unwrap();
+    ks.insert(key1, &serde_json::to_vec(&event1).unwrap())
+        .unwrap();
 
     let event2 = make_envelope(&id2, 1);
     let key2 = encode_event_seq(&id2, 1);
-    ks.insert(key2, &serde_json::to_vec(&event2).unwrap()).unwrap();
+    ks.insert(key2, &serde_json::to_vec(&event2).unwrap())
+        .unwrap();
 
     let stored1 = ks.get(&encode_event_seq(&id1, 1)).unwrap().unwrap();
     let env1: EventEnvelope = serde_json::from_slice(&stored1).unwrap();
@@ -329,7 +330,8 @@ fn snapshot_encode_decode_key_roundtrip() {
     let key = encode_snapshot_key(&id, seq).expect("encode");
     assert_eq!(key.len(), 24);
 
-    let (decoded_id, decoded_seq) = vo_storage::snapshots::decode_snapshot_key(&key).expect("decode");
+    let (decoded_id, decoded_seq) =
+        vo_storage::snapshots::decode_snapshot_key(&key).expect("decode");
     assert_eq!(decoded_id, id);
     assert_eq!(decoded_seq, seq);
 }
@@ -395,13 +397,15 @@ async fn blob_store_retrieve_missing_returns_content_not_found() {
     let dir = tempfile::tempdir().unwrap();
     let store = FsBlobStore::new(dir.path());
 
-    let missing = ContentAddress::new(
-        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    )
-    .unwrap();
+    let missing =
+        ContentAddress::new("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
+            .unwrap();
 
     let result = store.retrieve(&missing);
-    assert!(matches!(result, Err(BlobStoreError::ContentNotFound { .. })));
+    assert!(matches!(
+        result,
+        Err(BlobStoreError::ContentNotFound { .. })
+    ));
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -413,7 +417,10 @@ async fn blob_store_duplicate_content_rejected() {
     store.store(data).expect("first store");
 
     let result = store.store(data);
-    assert!(matches!(result, Err(BlobStoreError::DuplicateContent { .. })));
+    assert!(matches!(
+        result,
+        Err(BlobStoreError::DuplicateContent { .. })
+    ));
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -424,10 +431,9 @@ async fn blob_store_contains_works() {
     let addr = store.store(b"check me").expect("store");
     assert!(store.contains(&addr).expect("contains"));
 
-    let missing = ContentAddress::new(
-        "0000000000000000000000000000000000000000000000000000000000000000",
-    )
-    .unwrap();
+    let missing =
+        ContentAddress::new("0000000000000000000000000000000000000000000000000000000000000000")
+            .unwrap();
     assert!(!store.contains(&missing).expect("contains missing"));
 }
 
@@ -524,9 +530,14 @@ async fn blob_store_gc_collects_expired_zero_ref_blobs() {
         Some(1),
         meta.status(),
     );
-    let meta_path = dir.path().join("meta").join(format!("{}.json", addr.as_str()));
+    let meta_path = dir
+        .path()
+        .join("meta")
+        .join(format!("{}.json", addr.as_str()));
     let encoded = vo_storage::blob_store::encode_blob_record(&expired_record).expect("encode");
-    tokio::fs::write(&meta_path, &encoded).await.expect("write meta");
+    tokio::fs::write(&meta_path, &encoded)
+        .await
+        .expect("write meta");
 
     let collected = store.run_gc(u64::MAX).expect("gc");
     assert_eq!(collected, 1);
@@ -608,24 +619,30 @@ fn storage_engine_opens_with_all_stores() {
 fn content_address_rejects_wrong_length() {
     let result = ContentAddress::new("too_short");
     assert!(result.is_err());
-    assert!(matches!(result.unwrap_err(), BlobStoreError::InvalidArgument { .. }));
+    assert!(matches!(
+        result.unwrap_err(),
+        BlobStoreError::InvalidArgument { .. }
+    ));
 }
 
 #[test]
 fn content_address_rejects_uppercase_hex() {
-    let result = ContentAddress::new("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
+    let result =
+        ContentAddress::new("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
     assert!(result.is_err());
 }
 
 #[test]
 fn content_address_rejects_non_hex_chars() {
-    let result = ContentAddress::new("zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz");
+    let result =
+        ContentAddress::new("zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz");
     assert!(result.is_err());
 }
 
 #[test]
 fn content_address_accepts_valid_sha256_hex() {
-    let result = ContentAddress::new("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+    let result =
+        ContentAddress::new("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
     assert!(result.is_ok());
 }
 
@@ -645,21 +662,27 @@ fn content_address_from_bytes_roundtrip() {
 
 #[test]
 fn blob_record_rejects_zero_ref_count() {
-    let addr = ContentAddress::new("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855").unwrap();
+    let addr =
+        ContentAddress::new("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
+            .unwrap();
     let result = BlobRecord::new(addr.clone(), 100, 0, 1000, None);
     assert!(result.is_err());
 }
 
 #[test]
 fn blob_record_rejects_zero_created_at() {
-    let addr = ContentAddress::new("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855").unwrap();
+    let addr =
+        ContentAddress::new("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
+            .unwrap();
     let result = BlobRecord::new(addr.clone(), 100, 1, 0, None);
     assert!(result.is_err());
 }
 
 #[test]
 fn blob_record_gc_eligible_when_expired_and_zero_refs() {
-    let addr = ContentAddress::new("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855").unwrap();
+    let addr =
+        ContentAddress::new("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
+            .unwrap();
     let record = BlobRecord::with_status(
         addr,
         100,
@@ -676,7 +699,9 @@ fn blob_record_gc_eligible_when_expired_and_zero_refs() {
 
 #[test]
 fn blob_record_not_gc_eligible_with_refs() {
-    let addr = ContentAddress::new("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855").unwrap();
+    let addr =
+        ContentAddress::new("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
+            .unwrap();
     let record = BlobRecord::with_status(
         addr,
         100,
@@ -692,8 +717,17 @@ fn blob_record_not_gc_eligible_with_refs() {
 
 #[test]
 fn blob_record_saturating_ref_count_ops() {
-    let addr = ContentAddress::new("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855").unwrap();
-    let record = BlobRecord::with_status(addr, 100, 1, 1000, None, vo_types::BlobStatus::DurablyStored);
+    let addr =
+        ContentAddress::new("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
+            .unwrap();
+    let record = BlobRecord::with_status(
+        addr,
+        100,
+        1,
+        1000,
+        None,
+        vo_types::BlobStatus::DurablyStored,
+    );
 
     assert_eq!(record.increment_ref_count(), 2);
     assert_eq!(record.decrement_ref_count(), 0);
@@ -717,9 +751,18 @@ fn batch_write_commits_multiple_keys_atomically() {
     batch.insert(&ks, b"key-c", b"val-c");
     batch.commit().expect("commit");
 
-    assert_eq!(ks.get(b"key-a").expect("get").expect("a").as_ref(), b"val-a");
-    assert_eq!(ks.get(b"key-b").expect("get").expect("b").as_ref(), b"val-b");
-    assert_eq!(ks.get(b"key-c").expect("get").expect("c").as_ref(), b"val-c");
+    assert_eq!(
+        ks.get(b"key-a").expect("get").expect("a").as_ref(),
+        b"val-a"
+    );
+    assert_eq!(
+        ks.get(b"key-b").expect("get").expect("b").as_ref(),
+        b"val-b"
+    );
+    assert_eq!(
+        ks.get(b"key-c").expect("get").expect("c").as_ref(),
+        b"val-c"
+    );
 }
 
 #[test]
@@ -738,7 +781,10 @@ fn batch_write_with_delete_commits_both() {
     batch.commit().expect("commit");
 
     assert!(ks.get(b"old").expect("get").is_none());
-    assert_eq!(ks.get(b"new").expect("get").expect("new").as_ref(), b"fresh");
+    assert_eq!(
+        ks.get(b"new").expect("get").expect("new").as_ref(),
+        b"fresh"
+    );
 }
 
 // ══════════════════════════════════════════════════════════════════════════════

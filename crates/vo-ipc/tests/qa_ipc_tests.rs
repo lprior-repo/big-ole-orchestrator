@@ -60,12 +60,7 @@ fn make_fd4_success(instance_id: &str, node_id: &str, output: serde_json::Value)
     }
 }
 
-fn make_fd4_failure(
-    instance_id: &str,
-    node_id: &str,
-    code: &str,
-    message: &str,
-) -> Fd4Envelope {
+fn make_fd4_failure(instance_id: &str, node_id: &str, code: &str, message: &str) -> Fd4Envelope {
     Fd4Envelope {
         version: 1,
         instance_id: instance_id.to_string(),
@@ -600,10 +595,22 @@ fn multi_envelope_mixed_success_failure() {
     write_envelope(&mut buf, &make_fd4_success("i", "n", serde_json::json!(2))).unwrap();
     write_envelope(&mut buf, &make_fd4_failure("i", "n", "E2", "err2")).unwrap();
     let mut reader = Cursor::new(buf);
-    assert!(matches!(read_envelope::<Fd4Envelope>(&mut reader).unwrap().result, TaskResult::Success { .. }));
-    assert!(matches!(read_envelope::<Fd4Envelope>(&mut reader).unwrap().result, TaskResult::Failure { .. }));
-    assert!(matches!(read_envelope::<Fd4Envelope>(&mut reader).unwrap().result, TaskResult::Success { .. }));
-    assert!(matches!(read_envelope::<Fd4Envelope>(&mut reader).unwrap().result, TaskResult::Failure { .. }));
+    assert!(matches!(
+        read_envelope::<Fd4Envelope>(&mut reader).unwrap().result,
+        TaskResult::Success { .. }
+    ));
+    assert!(matches!(
+        read_envelope::<Fd4Envelope>(&mut reader).unwrap().result,
+        TaskResult::Failure { .. }
+    ));
+    assert!(matches!(
+        read_envelope::<Fd4Envelope>(&mut reader).unwrap().result,
+        TaskResult::Success { .. }
+    ));
+    assert!(matches!(
+        read_envelope::<Fd4Envelope>(&mut reader).unwrap().result,
+        TaskResult::Failure { .. }
+    ));
 }
 
 // ============================================================================
@@ -614,18 +621,35 @@ fn multi_envelope_mixed_success_failure() {
 fn ipc_error_display_contains_useful_info() {
     let errors = vec![
         IpcError::PayloadTooLarge(100),
-        IpcError::IncompleteRead { expected: 10, actual: 5 },
+        IpcError::IncompleteRead {
+            expected: 10,
+            actual: 5,
+        },
         IpcError::InvalidJson("bad json".to_string()),
         IpcError::VersionMismatch(0),
         IpcError::VersionMismatch(255),
         IpcError::SchemaViolation("bad field".to_string()),
-        IpcError::PipeSetupFailed { detail: "os error".to_string() },
-        IpcError::SpawnFailed { detail: "no such file".to_string() },
-        IpcError::WaitFailed { detail: "wait error".to_string() },
-        IpcError::Fd4ReadFailed { detail: "read error".to_string() },
-        IpcError::Fd3WriteFailed { detail: "write error".to_string() },
-        IpcError::StderrReadFailed { detail: "stderr error".to_string() },
-        IpcError::SignalFailed { detail: "signal error".to_string() },
+        IpcError::PipeSetupFailed {
+            detail: "os error".to_string(),
+        },
+        IpcError::SpawnFailed {
+            detail: "no such file".to_string(),
+        },
+        IpcError::WaitFailed {
+            detail: "wait error".to_string(),
+        },
+        IpcError::Fd4ReadFailed {
+            detail: "read error".to_string(),
+        },
+        IpcError::Fd3WriteFailed {
+            detail: "write error".to_string(),
+        },
+        IpcError::StderrReadFailed {
+            detail: "stderr error".to_string(),
+        },
+        IpcError::SignalFailed {
+            detail: "signal error".to_string(),
+        },
         IpcError::IdentityMismatch {
             expected_instance: "ei".to_string(),
             expected_node: "en".to_string(),
@@ -636,7 +660,10 @@ fn ipc_error_display_contains_useful_info() {
     for err in errors {
         let display = format!("{err}");
         assert!(!display.is_empty());
-        assert!(display.len() > 5, "error display should be descriptive: {display}");
+        assert!(
+            display.len() > 5,
+            "error display should be descriptive: {display}"
+        );
     }
 }
 
@@ -721,7 +748,11 @@ async fn adversary_fd4_byte_by_byte_response() {
     match result {
         Ok(output) => {
             let parsed = serde_json::from_slice::<Fd4Envelope>(&output.fd4_bytes);
-            assert!(parsed.is_ok(), "byte-by-byte fd4 should be parseable: {:?}", String::from_utf8_lossy(&output.fd4_bytes));
+            assert!(
+                parsed.is_ok(),
+                "byte-by-byte fd4 should be parseable: {:?}",
+                String::from_utf8_lossy(&output.fd4_bytes)
+            );
             assert_eq!(parsed.unwrap().instance_id, "bytebybyte");
         }
         Err(e) => panic!("byte-by-byte fd4 should succeed: {:?}", e),
@@ -732,12 +763,19 @@ async fn adversary_fd4_byte_by_byte_response() {
 async fn adversary_fd4_byte_by_byte_header_only_then_eof() {
     let dir = tempdir().unwrap();
     let script = dir.path().join("header_only.py");
-    std::fs::write(&script, "#!/usr/bin/python3\nimport os\nos.write(4, b'\\x00\\x00\\x00')\n").unwrap();
+    std::fs::write(
+        &script,
+        "#!/usr/bin/python3\nimport os\nos.write(4, b'\\x00\\x00\\x00')\n",
+    )
+    .unwrap();
     make_executable(&script);
 
     let cfg = SubprocessConfig::new(&script, 2000, vec![]).unwrap();
     let result = run_subprocess(cfg).await;
-    assert!(result.is_err(), "incomplete byte-by-byte header should fail");
+    assert!(
+        result.is_err(),
+        "incomplete byte-by-byte header should fail"
+    );
 }
 
 #[tokio::test]
@@ -780,7 +818,11 @@ async fn adversary_timeout_during_read_exact() {
     let elapsed = start.elapsed();
 
     assert!(matches!(result, Err(IpcError::Timeout { .. })));
-    assert!(elapsed < Duration::from_secs(5), "timeout should fire quickly: {:?}", elapsed);
+    assert!(
+        elapsed < Duration::from_secs(5),
+        "timeout should fire quickly: {:?}",
+        elapsed
+    );
 }
 
 #[tokio::test]
@@ -844,7 +886,11 @@ async fn concurrent_subprocess_spawns_no_fd_leak() {
     }
     for handle in handles {
         let result = handle.await.expect("task panicked");
-        assert!(result.is_ok(), "concurrent spawn should succeed: {:?}", result);
+        assert!(
+            result.is_ok(),
+            "concurrent spawn should succeed: {:?}",
+            result
+        );
     }
 }
 
@@ -890,7 +936,14 @@ async fn signal_sighup_during_ipc_child_handles() {
             assert!(parsed.is_ok(), "SIGHUP should be handled gracefully");
         }
         Err(e) => {
-            assert!(matches!(e, IpcError::ProcessFailed { .. } | IpcError::Fd4ReadFailed { .. }), "unexpected: {:?}", e);
+            assert!(
+                matches!(
+                    e,
+                    IpcError::ProcessFailed { .. } | IpcError::Fd4ReadFailed { .. }
+                ),
+                "unexpected: {:?}",
+                e
+            );
         }
     }
 }
@@ -929,13 +982,21 @@ async fn fd3_write_broken_pipe_after_child_exit_is_non_fatal() {
     // Use Python script that exits immediately — avoids ARG_MAX from large payload-as-argv
     let dir = tempdir().unwrap();
     let script = dir.path().join("quick_exit.py");
-    std::fs::write(&script, "#!/usr/bin/python3\n# exit immediately without reading fd3 or writing fd4\n").unwrap();
+    std::fs::write(
+        &script,
+        "#!/usr/bin/python3\n# exit immediately without reading fd3 or writing fd4\n",
+    )
+    .unwrap();
     make_executable(&script);
 
     let large_payload: Vec<u8> = "A ".repeat(100_000).into_bytes();
     let cfg = SubprocessConfig::new(&script, 2000, large_payload).unwrap();
     let result = run_subprocess(cfg).await;
-    assert!(result.is_ok(), "broken pipe should be non-fatal: {:?}", result);
+    assert!(
+        result.is_ok(),
+        "broken pipe should be non-fatal: {:?}",
+        result
+    );
 }
 
 #[tokio::test]
@@ -970,7 +1031,11 @@ async fn fd3_zero_bytes_then_child_responds() {
     match result {
         Ok(output) => {
             let parsed = serde_json::from_slice::<Fd4Envelope>(&output.fd4_bytes);
-            assert!(parsed.is_ok(), "zero-byte fd3 child should respond: {:?}", String::from_utf8_lossy(&output.fd4_bytes));
+            assert!(
+                parsed.is_ok(),
+                "zero-byte fd3 child should respond: {:?}",
+                String::from_utf8_lossy(&output.fd4_bytes)
+            );
         }
         Err(e) => panic!("unexpected: {:?}", e),
     }
@@ -981,7 +1046,11 @@ async fn large_fd3_payload_near_limit() {
     // Use Python script that exits immediately — avoids ARG_MAX from large payload-as-argv
     let dir = tempdir().unwrap();
     let script = dir.path().join("large_fd3_child.py");
-    std::fs::write(&script, "#!/usr/bin/python3\n# exit immediately without reading fd3\n").unwrap();
+    std::fs::write(
+        &script,
+        "#!/usr/bin/python3\n# exit immediately without reading fd3\n",
+    )
+    .unwrap();
     make_executable(&script);
 
     let large_payload: Vec<u8> = ("Z".repeat(10_000) + " ").repeat(100).into_bytes();
@@ -989,7 +1058,10 @@ async fn large_fd3_payload_near_limit() {
     let start = Instant::now();
     let result = run_subprocess(cfg).await;
     assert!(result.is_ok(), "1MB fd3 should succeed: {:?}", result);
-    assert!(start.elapsed() < Duration::from_secs(10), "should complete quickly");
+    assert!(
+        start.elapsed() < Duration::from_secs(10),
+        "should complete quickly"
+    );
 }
 
 #[tokio::test]
@@ -1007,7 +1079,11 @@ async fn large_fd4_response_handled() {
     let result = run_subprocess(cfg).await;
     match result {
         Ok(output) => {
-            assert!(output.fd4_bytes.len() > 1024 * 1024, "large fd4 should be read: {} bytes", output.fd4_bytes.len());
+            assert!(
+                output.fd4_bytes.len() > 1024 * 1024,
+                "large fd4 should be read: {} bytes",
+                output.fd4_bytes.len()
+            );
             assert!(serde_json::from_slice::<Fd4Envelope>(&output.fd4_bytes).is_ok());
         }
         Err(e) => panic!("large fd4 should succeed: {:?}", e),
@@ -1033,7 +1109,11 @@ async fn stderr_one_byte_over_limit_truncated() {
     let payload = format!("stderr-repeat {} x 1", MAX_STDERR_BYTES + 1);
     let error = run_subprocess(config(payload, 500)).await.unwrap_err();
     match error {
-        IpcError::ProcessFailed { stderr_bytes, stderr_truncated, .. } => {
+        IpcError::ProcessFailed {
+            stderr_bytes,
+            stderr_truncated,
+            ..
+        } => {
             assert!(stderr_truncated);
             assert!(stderr_bytes.ends_with(TRUNCATION_MARKER.as_bytes()));
         }
@@ -1057,6 +1137,14 @@ async fn timeout_grace_period_sigterm_then_sigkill() {
     let elapsed = start.elapsed();
 
     assert!(matches!(result, Err(IpcError::Timeout { .. })));
-    assert!(elapsed >= Duration::from_millis(120), "should wait grace period: {:?}", elapsed);
-    assert!(elapsed < Duration::from_secs(5), "should not wait forever: {:?}", elapsed);
+    assert!(
+        elapsed >= Duration::from_millis(120),
+        "should wait grace period: {:?}",
+        elapsed
+    );
+    assert!(
+        elapsed < Duration::from_secs(5),
+        "should not wait forever: {:?}",
+        elapsed
+    );
 }

@@ -1277,7 +1277,9 @@ fn registry_names_contains_all() {
     let registry = HandlerRegistry::default();
     let names = registry.names();
     assert_eq!(names.len(), 8);
-    for name in &["purge", "check", "gc", "init", "lock", "doctor", "rebuild", "status"] {
+    for name in &[
+        "purge", "check", "gc", "init", "lock", "doctor", "rebuild", "status",
+    ] {
         assert!(names.contains(name), "missing handler: {name}");
     }
 }
@@ -1990,7 +1992,10 @@ fn check_constants_values() {
 
 #[test]
 fn command_clone_equality() {
-    let cmd = Command::Check { workflow: false, path: PathBuf::from("/test"), };
+    let cmd = Command::Check {
+        workflow: false,
+        path: PathBuf::from("/test"),
+    };
     let cmd2 = cmd.clone();
     assert_eq!(cmd, cmd2);
 }

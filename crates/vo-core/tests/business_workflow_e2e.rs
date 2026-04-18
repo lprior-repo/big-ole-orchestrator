@@ -42,7 +42,12 @@ fn workflow_started_payload(workflow_id: &str) -> serde_json::Value {
     })
 }
 
-fn step_scheduled_payload(workflow_id: &str, step_id: &str, attempt: u32, fence: u64) -> serde_json::Value {
+fn step_scheduled_payload(
+    workflow_id: &str,
+    step_id: &str,
+    attempt: u32,
+    fence: u64,
+) -> serde_json::Value {
     json!({
         "type": "StepScheduled",
         "workflow_id": workflow_id,
@@ -64,7 +69,12 @@ fn step_started_payload(workflow_id: &str, step_id: &str) -> serde_json::Value {
     })
 }
 
-fn step_completed_payload(workflow_id: &str, step_id: &str, attempt: u32, fence: u64) -> serde_json::Value {
+fn step_completed_payload(
+    workflow_id: &str,
+    step_id: &str,
+    attempt: u32,
+    fence: u64,
+) -> serde_json::Value {
     json!({
         "type": "StepCompleted",
         "workflow_id": workflow_id,
@@ -123,23 +133,43 @@ fn simulate_saga(
     let mut attempt: u32 = 1;
 
     seq += 1;
-    events.push(make_event(instance_id, seq, workflow_started_payload(workflow_id)));
+    events.push(make_event(
+        instance_id,
+        seq,
+        workflow_started_payload(workflow_id),
+    ));
 
     for (step_name, outcome) in step_outcomes {
         seq += 1;
-        events.push(make_event(instance_id, seq, step_scheduled_payload(workflow_id, step_name, attempt, fence)));
+        events.push(make_event(
+            instance_id,
+            seq,
+            step_scheduled_payload(workflow_id, step_name, attempt, fence),
+        ));
         seq += 1;
-        events.push(make_event(instance_id, seq, step_started_payload(workflow_id, step_name)));
+        events.push(make_event(
+            instance_id,
+            seq,
+            step_started_payload(workflow_id, step_name),
+        ));
 
         match outcome {
             StepOutcome::Success => {
                 seq += 1;
-                events.push(make_event(instance_id, seq, step_completed_payload(workflow_id, step_name, attempt, fence)));
+                events.push(make_event(
+                    instance_id,
+                    seq,
+                    step_completed_payload(workflow_id, step_name, attempt, fence),
+                ));
                 let current = vo_types::NodeName::parse(&current_node)
                     .map_err(|e| format!("invalid node name '{current_node}': {e}"))?;
                 let successors = next_nodes(&current, StepOutcome::Success, workflow);
                 if !successors.is_empty() {
-                    assert_eq!(successors.len(), 1, "linear step should have exactly 1 successor");
+                    assert_eq!(
+                        successors.len(),
+                        1,
+                        "linear step should have exactly 1 successor"
+                    );
                     current_node = successors[0].node_name.as_str().to_string();
                 }
                 fence += 1;
@@ -147,15 +177,19 @@ fn simulate_saga(
             }
             StepOutcome::Failure => {
                 seq += 1;
-                events.push(make_event(instance_id, seq, json!({
-                    "type": "StepFailed",
-                    "workflow_id": workflow_id,
-                    "step_id": step_name,
-                    "failure_reason": "step failed",
-                    "attempt": attempt,
-                    "fence": fence,
-                    "version": 1
-                })));
+                events.push(make_event(
+                    instance_id,
+                    seq,
+                    json!({
+                        "type": "StepFailed",
+                        "workflow_id": workflow_id,
+                        "step_id": step_name,
+                        "failure_reason": "step failed",
+                        "attempt": attempt,
+                        "fence": fence,
+                        "version": 1
+                    }),
+                ));
                 let current = vo_types::NodeName::parse(&current_node)
                     .map_err(|e| format!("invalid node name '{current_node}': {e}"))?;
                 let successors = next_nodes(&current, StepOutcome::Failure, workflow);
@@ -172,7 +206,9 @@ fn simulate_saga(
     events.push(make_event(instance_id, seq, terminal_event.clone()));
 
     let engine = ReplayEngine::new();
-    let result = engine.replay(&events).map_err(|e| format!("replay failed: {e}"))?;
+    let result = engine
+        .replay(&events)
+        .map_err(|e| format!("replay failed: {e}"))?;
     Ok((events, result.final_state))
 }
 
@@ -193,18 +229,34 @@ fn e2e_linear_two_node_workflow_completes_successfully() {
         .expect("saga simulation should succeed");
 
     // WorkflowStarted + 2 * (Scheduled + Started + Completed) + WorkflowCompleted = 8
-    assert_eq!(events.len(), 8, "should emit 8 events for 2-step linear workflow");
+    assert_eq!(
+        events.len(),
+        8,
+        "should emit 8 events for 2-step linear workflow"
+    );
 
     for (i, event) in events.iter().enumerate() {
-        assert_eq!(event.sequence as usize, i + 1, "event at index {i} should have sequence {}", i + 1);
+        assert_eq!(
+            event.sequence as usize,
+            i + 1,
+            "event at index {i} should have sequence {}",
+            i + 1
+        );
     }
 
     let instance_id = events[0].instance_id.clone();
     for event in &events {
-        assert_eq!(event.instance_id, instance_id, "all events must share the same instance_id");
+        assert_eq!(
+            event.instance_id, instance_id,
+            "all events must share the same instance_id"
+        );
     }
 
-    assert_eq!(final_state, Some(LifecycleState::Completed), "workflow should complete successfully");
+    assert_eq!(
+        final_state,
+        Some(LifecycleState::Completed),
+        "workflow should complete successfully"
+    );
 }
 
 #[test]
@@ -224,7 +276,11 @@ fn e2e_single_node_workflow_completes_immediately() {
 
     // WorkflowStarted + Scheduled + Started + Completed + WorkflowCompleted = 5
     assert_eq!(events.len(), 5, "single-node workflow should emit 5 events");
-    assert_eq!(final_state, Some(LifecycleState::Completed), "single-node workflow should complete");
+    assert_eq!(
+        final_state,
+        Some(LifecycleState::Completed),
+        "single-node workflow should complete"
+    );
 }
 
 #[test]
@@ -259,7 +315,11 @@ fn e2e_five_node_pipeline_executes_in_order() {
 
     // 1 (started) + 5*3 (sched+start+complete) + 1 (completed) = 17
     assert_eq!(events.len(), 17, "five-node pipeline should emit 17 events");
-    assert_eq!(final_state, Some(LifecycleState::Completed), "pipeline should complete");
+    assert_eq!(
+        final_state,
+        Some(LifecycleState::Completed),
+        "pipeline should complete"
+    );
 }
 
 #[test]
@@ -267,11 +327,18 @@ fn e2e_next_nodes_returns_correct_successors_after_success() {
     let workflow = two_node_linear_workflow();
     let fetch = vo_types::NodeName::parse("fetch").expect("valid node name");
     let successors = next_nodes(&fetch, StepOutcome::Success, &workflow);
-    assert_eq!(successors.len(), 1, "fetch should have one successor on success");
+    assert_eq!(
+        successors.len(),
+        1,
+        "fetch should have one successor on success"
+    );
     assert_eq!(successors[0].node_name.as_str(), "process");
 
     let no_successors = next_nodes(&fetch, StepOutcome::Failure, &workflow);
-    assert!(no_successors.is_empty(), "fetch should have no successor on failure");
+    assert!(
+        no_successors.is_empty(),
+        "fetch should have no successor on failure"
+    );
 }
 
 #[test]
@@ -293,7 +360,11 @@ fn e2e_next_nodes_diamond_fan_out() {
     }));
     let start = vo_types::NodeName::parse("start").expect("valid node name");
     let successors = next_nodes(&start, StepOutcome::Success, &workflow);
-    assert_eq!(successors.len(), 2, "start should fan out to 2 nodes on success");
+    assert_eq!(
+        successors.len(),
+        2,
+        "start should fan out to 2 nodes on success"
+    );
 
     let names: Vec<&str> = successors.iter().map(|n| n.node_name.as_str()).collect();
     assert!(names.contains(&"left"), "successors should include left");
@@ -345,29 +416,45 @@ fn e2e_step_failure_transitions_to_failed_state() {
     let workflow_id = workflow.workflow_name.as_str();
     let events = vec![
         make_event(instance_id, 1, workflow_started_payload(workflow_id)),
-        make_event(instance_id, 2, step_scheduled_payload(workflow_id, "action", 1, 1)),
+        make_event(
+            instance_id,
+            2,
+            step_scheduled_payload(workflow_id, "action", 1, 1),
+        ),
         make_event(instance_id, 3, step_started_payload(workflow_id, "action")),
-        make_event(instance_id, 4, json!({
-            "type": "StepFailed",
-            "workflow_id": workflow_id,
-            "step_id": "action",
-            "failure_reason": "step failed",
-            "attempt": 1,
-            "fence": 1,
-            "version": 1
-        })),
+        make_event(
+            instance_id,
+            4,
+            json!({
+                "type": "StepFailed",
+                "workflow_id": workflow_id,
+                "step_id": "action",
+                "failure_reason": "step failed",
+                "attempt": 1,
+                "fence": 1,
+                "version": 1
+            }),
+        ),
     ];
 
     let engine = ReplayEngine::new();
     let result = engine.replay(&events).expect("replay should succeed");
 
     assert_eq!(result.events_applied, 4, "all 4 events should be applied");
-    assert_eq!(result.final_state, Some(LifecycleState::Failed), "StepFailed should transition to Failed");
+    assert_eq!(
+        result.final_state,
+        Some(LifecycleState::Failed),
+        "StepFailed should transition to Failed"
+    );
 
     // Verify the DAG has a compensation path via next_nodes (even though replay is terminal)
     let action = vo_types::NodeName::parse("action").expect("valid node name");
     let failure_successors = next_nodes(&action, StepOutcome::Failure, &workflow);
-    assert_eq!(failure_successors.len(), 1, "DAG should have compensation path");
+    assert_eq!(
+        failure_successors.len(),
+        1,
+        "DAG should have compensation path"
+    );
     assert_eq!(failure_successors[0].node_name.as_str(), "compensate");
 }
 
@@ -378,21 +465,33 @@ fn e2e_workflow_cancellation_reaches_cancelled_state() {
     let workflow_id = "e2e-cancel-wf";
     let events = vec![
         make_event(instance_id, 1, workflow_started_payload(workflow_id)),
-        make_event(instance_id, 2, step_scheduled_payload(workflow_id, "step-1", 1, 1)),
+        make_event(
+            instance_id,
+            2,
+            step_scheduled_payload(workflow_id, "step-1", 1, 1),
+        ),
         make_event(instance_id, 3, step_started_payload(workflow_id, "step-1")),
-        make_event(instance_id, 4, json!({
-            "type": "CancelRequested",
-            "workflow_id": workflow_id,
-            "requested_by": "user",
-            "version": 1
-        })),
+        make_event(
+            instance_id,
+            4,
+            json!({
+                "type": "CancelRequested",
+                "workflow_id": workflow_id,
+                "requested_by": "user",
+                "version": 1
+            }),
+        ),
     ];
 
     let engine = ReplayEngine::new();
     let result = engine.replay(&events).expect("replay should succeed");
 
     assert_eq!(result.events_applied, 4);
-    assert_eq!(result.final_state, Some(LifecycleState::Cancelled), "cancel during execution should reach Cancelled");
+    assert_eq!(
+        result.final_state,
+        Some(LifecycleState::Cancelled),
+        "cancel during execution should reach Cancelled"
+    );
 }
 
 #[test]
@@ -401,23 +500,43 @@ fn e2e_timer_workflow_resumes_after_timer_fired() {
     let workflow_id = "e2e-timer";
     let events = vec![
         make_event(instance_id, 1, workflow_started_payload(workflow_id)),
-        make_event(instance_id, 2, step_scheduled_payload(workflow_id, "wait-step", 1, 1)),
-        make_event(instance_id, 3, step_started_payload(workflow_id, "wait-step")),
-        make_event(instance_id, 4, json!({
-            "type": "TimerSet",
-            "workflow_id": workflow_id,
-            "timer_id": "timer-001",
-            "fire_at_ms": 5000,
-            "version": 1
-        })),
-        make_event(instance_id, 5, json!({
-            "type": "TimerFired",
-            "workflow_id": workflow_id,
-            "timer_id": "timer-001",
-            "fired_at_ms": 5000,
-            "version": 1
-        })),
-        make_event(instance_id, 6, step_completed_payload(workflow_id, "wait-step", 1, 1)),
+        make_event(
+            instance_id,
+            2,
+            step_scheduled_payload(workflow_id, "wait-step", 1, 1),
+        ),
+        make_event(
+            instance_id,
+            3,
+            step_started_payload(workflow_id, "wait-step"),
+        ),
+        make_event(
+            instance_id,
+            4,
+            json!({
+                "type": "TimerSet",
+                "workflow_id": workflow_id,
+                "timer_id": "timer-001",
+                "fire_at_ms": 5000,
+                "version": 1
+            }),
+        ),
+        make_event(
+            instance_id,
+            5,
+            json!({
+                "type": "TimerFired",
+                "workflow_id": workflow_id,
+                "timer_id": "timer-001",
+                "fired_at_ms": 5000,
+                "version": 1
+            }),
+        ),
+        make_event(
+            instance_id,
+            6,
+            step_completed_payload(workflow_id, "wait-step", 1, 1),
+        ),
         make_event(instance_id, 7, workflow_completed_payload(workflow_id)),
     ];
 
@@ -426,6 +545,9 @@ fn e2e_timer_workflow_resumes_after_timer_fired() {
     // Replay breaks at Completed after StepCompleted (event 6).
     // WorkflowCompleted (event 7) is never processed.
     assert_eq!(result.events_applied, 6);
-    assert_eq!(result.final_state, Some(LifecycleState::Completed), "timer workflow should complete");
+    assert_eq!(
+        result.final_state,
+        Some(LifecycleState::Completed),
+        "timer workflow should complete"
+    );
 }
-

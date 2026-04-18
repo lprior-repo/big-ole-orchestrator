@@ -51,9 +51,7 @@ pub use commands::lock::{run_lock, LockConfig, LockError, LOCK_FILE_NAME};
 pub use commands::rebuild::{
     run_rebuild, RebuildConfig, RebuildError, RebuildReport, RebuildStatus,
 };
-pub use commands::status::{
-    run_status, StatusConfig, StatusError, WorkflowStatusResponse,
-};
+pub use commands::status::{run_status, StatusConfig, StatusError, WorkflowStatusResponse};
 pub use dispatch_mod::dispatch;
 pub use dispatch_v2::{
     create_dispatcher_v2, dispatch_v2, CommandDispatcherV2, DefaultDispatchContext,

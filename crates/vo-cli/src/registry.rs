@@ -146,14 +146,19 @@ mod handlers {
             "compensate"
         }
 
-        fn execute(&self, cli: &Cli) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + '_>> {
+        fn execute(
+            &self,
+            cli: &Cli,
+        ) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + '_>> {
             let Command::Compensate {
                 ref engine_url,
                 ref workflow_id,
                 force,
             } = cli.command
             else {
-                return Box::pin(async { Err(CliError::Dispatch("not a compensate command".to_string())) });
+                return Box::pin(async {
+                    Err(CliError::Dispatch("not a compensate command".to_string()))
+                });
             };
             let engine_url = engine_url.clone();
             let workflow_id = workflow_id.clone();
@@ -347,13 +352,18 @@ mod handlers {
             "status"
         }
 
-        fn execute(&self, cli: &Cli) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + '_>> {
+        fn execute(
+            &self,
+            cli: &Cli,
+        ) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + '_>> {
             let Command::Status {
                 ref engine_url,
                 ref instance,
             } = cli.command
             else {
-                return Box::pin(async { Err(CliError::Dispatch("not a status command".to_string())) });
+                return Box::pin(async {
+                    Err(CliError::Dispatch("not a status command".to_string()))
+                });
             };
             let engine_url = engine_url.clone();
             let instance = instance.clone();
@@ -410,7 +420,8 @@ mod tests {
     fn registry_lookup_returns_handler() {
         let registry = HandlerRegistry::default();
         let cli = Cli {
-            command: Command::Check { workflow: false,
+            command: Command::Check {
+                workflow: false,
                 path: PathBuf::from("/tmp"),
             },
         };

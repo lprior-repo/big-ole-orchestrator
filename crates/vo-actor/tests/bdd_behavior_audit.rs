@@ -16,37 +16,46 @@ use vo_actor::lifecycle::{
     compute_next_state, is_valid_transition, ActorLifecycleState, LifecycleTransition,
     ShutdownPropagator,
 };
-use vo_actor::semaphore::{
-    calculate_backpressure_status, estimate_wait_ms, is_workflow_saturated, BackpressureStatus,
-    ExecutionSemaphore, SemaphoreConfig, WorkflowSemaphoreMap,
-};
 use vo_actor::message_router::{
-    ChannelId, DeadLetterQueue, DeadLetterReason, MessageMetadata, MessageRouter,
-    RouteError, TimestampMs as RouterTimestampMs,
-};
-use vo_actor::signal_buffer::{
-    can_buffer, SignalBuffer, SignalBufferConfig,
+    ChannelId, DeadLetterQueue, DeadLetterReason, MessageMetadata, MessageRouter, RouteError,
+    TimestampMs as RouterTimestampMs,
 };
 use vo_actor::probe::{
     AggregatedStatus, BackoffConfig, ProbeConfig, ProbeId, ProbeRegistry, ProbeStatus,
 };
-use vo_actor::spawn_supervisor::{calculate_backoff_delay, is_zombie_state, should_respawn, SpawnPhase, SpawnRecord, SpawnSupervisorError};
 use vo_actor::reanimator::{
     calculate_batch_size, check_resume_budget, filter_timers_by_fairness, validate_timer_record,
-    FairnessBudget, ReanimatorConfig, ReanimatorState, TimerRecord as ReanimatorTimerRecord,
-    ReanimatorError,
+    FairnessBudget, ReanimatorConfig, ReanimatorError, ReanimatorState,
+    TimerRecord as ReanimatorTimerRecord,
+};
+use vo_actor::semaphore::{
+    calculate_backpressure_status, estimate_wait_ms, is_workflow_saturated, BackpressureStatus,
+    ExecutionSemaphore, SemaphoreConfig, WorkflowSemaphoreMap,
+};
+use vo_actor::signal_buffer::{can_buffer, SignalBuffer, SignalBufferConfig};
+use vo_actor::spawn_supervisor::{
+    calculate_backoff_delay, is_zombie_state, should_respawn, SpawnPhase, SpawnRecord,
+    SpawnSupervisorError,
 };
 use vo_actor::timer_lifecycle::validate_timer_for_cancellation;
 use vo_actor::timer_supervisor::{
     is_overdue, verify_dual_clock, Counter, TimerSupervisorError, TimerSupervisorMetrics,
 };
-use vo_types::{InstanceId, TimerId};
 use vo_types::BufferPolicy;
+use vo_types::{InstanceId, TimerId};
 
-fn make_id(s: &str) -> InstanceId { InstanceId::parse(s).unwrap() }
-fn make_instance(suffix: &str) -> InstanceId { make_id(&format!("01H5JYV4XHGSR2F8KZ9B000{}", suffix)) }
-fn wf(name: &str) -> vo_types::WorkflowName { vo_types::WorkflowName::parse(name).unwrap() }
-fn timer_id(s: &str) -> TimerId { TimerId::parse(s).unwrap() }
+fn make_id(s: &str) -> InstanceId {
+    InstanceId::parse(s).unwrap()
+}
+fn make_instance(suffix: &str) -> InstanceId {
+    make_id(&format!("01H5JYV4XHGSR2F8KZ9B000{}", suffix))
+}
+fn wf(name: &str) -> vo_types::WorkflowName {
+    vo_types::WorkflowName::parse(name).unwrap()
+}
+fn timer_id(s: &str) -> TimerId {
+    TimerId::parse(s).unwrap()
+}
 
 // Helper to create vo_types::TimestampMs for reanimator records
 fn vts(v: u64) -> vo_types::TimestampMs {
@@ -70,11 +79,26 @@ mod bdd_fairness {
     #[test]
     fn given_valid_string_when_parse_then_correct_class() {
         use std::str::FromStr;
-        assert_eq!(WorkloadClass::from_str("recovery").unwrap(), WorkloadClass::Recovery);
-        assert_eq!(WorkloadClass::from_str("RECOVERY").unwrap(), WorkloadClass::Recovery);
-        assert_eq!(WorkloadClass::from_str("new_instance").unwrap(), WorkloadClass::NewInstance);
-        assert_eq!(WorkloadClass::from_str("newinstance").unwrap(), WorkloadClass::NewInstance);
-        assert_eq!(WorkloadClass::from_str("internal").unwrap(), WorkloadClass::Internal);
+        assert_eq!(
+            WorkloadClass::from_str("recovery").unwrap(),
+            WorkloadClass::Recovery
+        );
+        assert_eq!(
+            WorkloadClass::from_str("RECOVERY").unwrap(),
+            WorkloadClass::Recovery
+        );
+        assert_eq!(
+            WorkloadClass::from_str("new_instance").unwrap(),
+            WorkloadClass::NewInstance
+        );
+        assert_eq!(
+            WorkloadClass::from_str("newinstance").unwrap(),
+            WorkloadClass::NewInstance
+        );
+        assert_eq!(
+            WorkloadClass::from_str("internal").unwrap(),
+            WorkloadClass::Internal
+        );
     }
 
     #[test]
@@ -113,36 +137,56 @@ mod bdd_lifecycle {
 
     #[test]
     fn given_pending_when_start_then_running() {
-        assert_eq!(compute_next_state(ActorLifecycleState::Pending, LifecycleTransition::Start),
-            Some(ActorLifecycleState::Running));
+        assert_eq!(
+            compute_next_state(ActorLifecycleState::Pending, LifecycleTransition::Start),
+            Some(ActorLifecycleState::Running)
+        );
     }
 
     #[test]
     fn given_running_when_stop_then_stopping() {
-        assert_eq!(compute_next_state(ActorLifecycleState::Running, LifecycleTransition::Stop),
-            Some(ActorLifecycleState::Stopping));
+        assert_eq!(
+            compute_next_state(ActorLifecycleState::Running, LifecycleTransition::Stop),
+            Some(ActorLifecycleState::Stopping)
+        );
     }
 
     #[test]
     fn given_stopping_when_all_children_stopped_then_stopped() {
-        assert_eq!(compute_next_state(ActorLifecycleState::Stopping,
-            LifecycleTransition::AllChildrenStopped), Some(ActorLifecycleState::Stopped));
+        assert_eq!(
+            compute_next_state(
+                ActorLifecycleState::Stopping,
+                LifecycleTransition::AllChildrenStopped
+            ),
+            Some(ActorLifecycleState::Stopped)
+        );
     }
 
     #[test]
     fn given_running_when_fail_then_failed() {
-        assert_eq!(compute_next_state(ActorLifecycleState::Running, LifecycleTransition::Fail),
-            Some(ActorLifecycleState::Failed));
+        assert_eq!(
+            compute_next_state(ActorLifecycleState::Running, LifecycleTransition::Fail),
+            Some(ActorLifecycleState::Failed)
+        );
     }
 
     #[test]
     fn given_terminal_state_when_any_transition_then_none() {
         for state in [ActorLifecycleState::Stopped, ActorLifecycleState::Failed] {
-            for t in [LifecycleTransition::Start, LifecycleTransition::Stop,
-                      LifecycleTransition::Fail, LifecycleTransition::ChildStopped,
-                      LifecycleTransition::AllChildrenStopped] {
-                assert_eq!(compute_next_state(state, t), None,
-                    "Terminal {:?} should reject {:?}", state, t);
+            for t in [
+                LifecycleTransition::Start,
+                LifecycleTransition::Stop,
+                LifecycleTransition::Fail,
+                LifecycleTransition::ChildStopped,
+                LifecycleTransition::AllChildrenStopped,
+            ] {
+                assert_eq!(
+                    compute_next_state(state, t),
+                    None,
+                    "Terminal {:?} should reject {:?}",
+                    state,
+                    t
+                );
             }
         }
     }
@@ -174,8 +218,14 @@ mod bdd_lifecycle {
 
     #[test]
     fn given_invalid_transition_when_check_then_false() {
-        assert!(!is_valid_transition(ActorLifecycleState::Pending, LifecycleTransition::Stop));
-        assert!(!is_valid_transition(ActorLifecycleState::Stopped, LifecycleTransition::Start));
+        assert!(!is_valid_transition(
+            ActorLifecycleState::Pending,
+            LifecycleTransition::Stop
+        ));
+        assert!(!is_valid_transition(
+            ActorLifecycleState::Stopped,
+            LifecycleTransition::Start
+        ));
     }
 }
 
@@ -197,7 +247,8 @@ mod bdd_instance_registry {
     fn given_registry_when_register_then_active_count_consistent() {
         let mut reg = InstanceRegistry::new(RegistryConfig::default());
         let id = make_id("01H5JYV4XHGSR2F8KZ9B000001");
-        reg.register(id.clone(), InstanceActorHandle::test(1), |_| Ok(())).unwrap();
+        reg.register(id.clone(), InstanceActorHandle::test(1), |_| Ok(()))
+            .unwrap();
         assert_eq!(reg.active_count(), 1);
         assert!(reg.is_active(&id));
     }
@@ -206,7 +257,8 @@ mod bdd_instance_registry {
     fn given_registry_when_deregister_then_count_decreases() {
         let mut reg = InstanceRegistry::new(RegistryConfig::default());
         let id = make_id("01H5JYV4XHGSR2F8KZ9B000001");
-        reg.register(id.clone(), InstanceActorHandle::test(1), |_| Ok(())).unwrap();
+        reg.register(id.clone(), InstanceActorHandle::test(1), |_| Ok(()))
+            .unwrap();
         reg.deregister(&id).unwrap();
         assert_eq!(reg.active_count(), 0);
         assert!(!reg.is_active(&id));
@@ -226,12 +278,16 @@ mod bdd_instance_registry {
         let count = Arc::new(std::sync::atomic::AtomicU32::new(0));
         let sc = count.clone();
         reg.register(id.clone(), InstanceActorHandle::test(1), move |_| {
-            sc.fetch_add(1, std::sync::atomic::Ordering::SeqCst); Ok(())
-        }).unwrap();
+            sc.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Ok(())
+        })
+        .unwrap();
         let sc2 = count.clone();
         reg.register(id.clone(), InstanceActorHandle::test(2), move |_| {
-            sc2.fetch_add(1, std::sync::atomic::Ordering::SeqCst); Ok(())
-        }).unwrap();
+            sc2.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Ok(())
+        })
+        .unwrap();
         assert_eq!(count.load(std::sync::atomic::Ordering::SeqCst), 1);
         assert_eq!(reg.active_count(), 1);
     }
@@ -240,7 +296,8 @@ mod bdd_instance_registry {
     fn given_registry_when_stop_fn_fails_then_no_partial_mutation() {
         let mut reg = InstanceRegistry::new(RegistryConfig::default());
         let id = make_id("01H5JYV4XHGSR2F8KZ9B000001");
-        reg.register(id.clone(), InstanceActorHandle::test(1), |_| Ok(())).unwrap();
+        reg.register(id.clone(), InstanceActorHandle::test(1), |_| Ok(()))
+            .unwrap();
         let result = reg.register(id.clone(), InstanceActorHandle::test(2), |_| {
             Err("forced stop failure".to_string())
         });
@@ -252,7 +309,9 @@ mod bdd_instance_registry {
     #[test]
     fn given_config_when_zero_timeout_then_panics() {
         let result = std::panic::catch_unwind(|| {
-            InstanceRegistry::new(RegistryConfig { stop_timeout: Duration::ZERO });
+            InstanceRegistry::new(RegistryConfig {
+                stop_timeout: Duration::ZERO,
+            });
         });
         assert!(result.is_err());
     }
@@ -269,7 +328,10 @@ mod bdd_semaphore {
 
     #[test]
     fn given_high_available_when_backpressure_then_healthy() {
-        assert_eq!(calculate_backpressure_status(400, 500, 0, 5000), BackpressureStatus::Healthy);
+        assert_eq!(
+            calculate_backpressure_status(400, 500, 0, 5000),
+            BackpressureStatus::Healthy
+        );
     }
 
     #[test]
@@ -324,7 +386,10 @@ mod bdd_semaphore {
 
     #[test]
     fn given_exhausted_semaphore_when_try_acquire_then_none() {
-        let config = SemaphoreConfig { max_concurrent_binaries: 1, ..SemaphoreConfig::default() };
+        let config = SemaphoreConfig {
+            max_concurrent_binaries: 1,
+            ..SemaphoreConfig::default()
+        };
         let sem = ExecutionSemaphore::new(config);
         let _p = sem.try_acquire();
         assert!(sem.try_acquire().is_none());
@@ -332,9 +397,14 @@ mod bdd_semaphore {
 
     #[test]
     fn given_permit_when_dropped_then_available() {
-        let config = SemaphoreConfig { max_concurrent_binaries: 1, ..SemaphoreConfig::default() };
+        let config = SemaphoreConfig {
+            max_concurrent_binaries: 1,
+            ..SemaphoreConfig::default()
+        };
         let sem = ExecutionSemaphore::new(config);
-        { let _p = sem.try_acquire(); }
+        {
+            let _p = sem.try_acquire();
+        }
         assert!(sem.try_acquire().is_some());
     }
 
@@ -348,7 +418,10 @@ mod bdd_semaphore {
 
     #[test]
     fn given_reserved_exhausted_when_try_recovery_then_none() {
-        let config = SemaphoreConfig { reserved_permits: 1, ..SemaphoreConfig::default() };
+        let config = SemaphoreConfig {
+            reserved_permits: 1,
+            ..SemaphoreConfig::default()
+        };
         let sem = ExecutionSemaphore::new(config);
         let _p = sem.try_acquire_recovery();
         assert!(sem.try_acquire_recovery().is_none());
@@ -356,9 +429,14 @@ mod bdd_semaphore {
 
     #[test]
     fn given_reserved_dropped_when_try_recovery_then_available() {
-        let config = SemaphoreConfig { reserved_permits: 1, ..SemaphoreConfig::default() };
+        let config = SemaphoreConfig {
+            reserved_permits: 1,
+            ..SemaphoreConfig::default()
+        };
         let sem = ExecutionSemaphore::new(config);
-        { let _p = sem.try_acquire_recovery(); }
+        {
+            let _p = sem.try_acquire_recovery();
+        }
         assert!(sem.try_acquire_recovery().is_some());
     }
 
@@ -409,7 +487,10 @@ mod bdd_semaphore {
     fn given_default_map_then_uses_default_max() {
         let map = WorkflowSemaphoreMap::default();
         let sem = map.semaphore_for(&wf("wf"));
-        assert_eq!(sem.available_permits(), vo_actor::semaphore::DEFAULT_MAX_PER_WORKFLOW);
+        assert_eq!(
+            sem.available_permits(),
+            vo_actor::semaphore::DEFAULT_MAX_PER_WORKFLOW
+        );
     }
 }
 
@@ -434,7 +515,9 @@ mod bdd_message_router {
     #[test]
     fn given_router_when_register_channel_then_has_channel() {
         let mut router = MessageRouter::with_default_config();
-        router.register_channel(ChannelId::new("ch-1"), ActorDestination::new(42usize)).unwrap();
+        router
+            .register_channel(ChannelId::new("ch-1"), ActorDestination::new(42usize))
+            .unwrap();
         assert!(router.has_channel(&ChannelId::new("ch-1")));
         assert_eq!(router.num_channels(), 1);
     }
@@ -443,15 +526,21 @@ mod bdd_message_router {
     fn given_router_when_duplicate_channel_then_error() {
         let mut router = MessageRouter::with_default_config();
         let dest = ActorDestination::new(42usize);
-        router.register_channel(ChannelId::new("ch-1"), dest.clone()).unwrap();
-        assert!(matches!(router.register_channel(ChannelId::new("ch-1"), dest),
-            Err(RouteError::ChannelAlreadyExists(_))));
+        router
+            .register_channel(ChannelId::new("ch-1"), dest.clone())
+            .unwrap();
+        assert!(matches!(
+            router.register_channel(ChannelId::new("ch-1"), dest),
+            Err(RouteError::ChannelAlreadyExists(_))
+        ));
     }
 
     #[test]
     fn given_router_when_unregister_then_removed() {
         let mut router = MessageRouter::with_default_config();
-        router.register_channel(ChannelId::new("ch-1"), ActorDestination::new(42usize)).unwrap();
+        router
+            .register_channel(ChannelId::new("ch-1"), ActorDestination::new(42usize))
+            .unwrap();
         router.unregister_channel(&ChannelId::new("ch-1"));
         assert!(!router.has_channel(&ChannelId::new("ch-1")));
     }
@@ -459,7 +548,9 @@ mod bdd_message_router {
     #[test]
     fn given_router_when_deactivate_then_not_active() {
         let mut router = MessageRouter::with_default_config();
-        router.register_channel(ChannelId::new("ch-1"), ActorDestination::new(42usize)).unwrap();
+        router
+            .register_channel(ChannelId::new("ch-1"), ActorDestination::new(42usize))
+            .unwrap();
         router.deactivate_channel(&ChannelId::new("ch-1")).unwrap();
         assert!(!router.is_channel_active(&ChannelId::new("ch-1")));
     }
@@ -474,7 +565,12 @@ mod bdd_message_router {
 
     #[test]
     fn given_metadata_when_increment_attempt_then_one() {
-        assert_eq!(MessageMetadata::default().with_incremented_attempt().attempt, 1);
+        assert_eq!(
+            MessageMetadata::default()
+                .with_incremented_attempt()
+                .attempt,
+            1
+        );
     }
 
     #[test]
@@ -489,7 +585,10 @@ mod bdd_message_router {
             });
         }
         assert_eq!(dlq.len(), 2);
-        assert!(dlq.entries().iter().all(|e| e.channel_id.as_str() != "ch-0"));
+        assert!(dlq
+            .entries()
+            .iter()
+            .all(|e| e.channel_id.as_str() != "ch-0"));
     }
 
     #[test]
@@ -520,16 +619,21 @@ mod bdd_signal_buffer {
     use vo_actor::signal_buffer::BufferedSignal;
     use vo_actor::{SignalPayload, WaitKey};
 
-    fn buf_id() -> InstanceId { make_id("01H5JYV4XHGSR2F8KZ9B000001") }
+    fn buf_id() -> InstanceId {
+        make_id("01H5JYV4XHGSR2F8KZ9B000001")
+    }
 
     #[test]
     fn given_buffer_when_buffer_signal_then_count_increases() {
         let mut buf = SignalBuffer::with_default_config();
         let id = buf_id();
         let wk = WaitKey::parse("test-key").unwrap();
-        buf.buffer_signal(id.clone(), wk.clone(),
+        buf.buffer_signal(
+            id.clone(),
+            wk.clone(),
             BufferedSignal::new("s1".into(), SignalPayload::empty(), vts(1)),
-            BufferPolicy::BufferOne);
+            BufferPolicy::BufferOne,
+        );
         assert_eq!(buf.buffered_count(&id, &wk), 1);
     }
 
@@ -538,9 +642,12 @@ mod bdd_signal_buffer {
         let mut buf = SignalBuffer::with_default_config();
         let id = buf_id();
         let wk = WaitKey::parse("test-key").unwrap();
-        buf.buffer_signal(id.clone(), wk.clone(),
+        buf.buffer_signal(
+            id.clone(),
+            wk.clone(),
             BufferedSignal::new("s1".into(), SignalPayload::empty(), vts(1)),
-            BufferPolicy::BufferOne);
+            BufferPolicy::BufferOne,
+        );
         assert!(buf.pop_buffered(&id, &wk).is_some());
         assert_eq!(buf.buffered_count(&id, &wk), 0);
     }
@@ -550,9 +657,12 @@ mod bdd_signal_buffer {
         let mut buf = SignalBuffer::with_default_config();
         let id = buf_id();
         let wk = WaitKey::parse("test-key").unwrap();
-        buf.buffer_signal(id.clone(), wk.clone(),
+        buf.buffer_signal(
+            id.clone(),
+            wk.clone(),
             BufferedSignal::new("s1".into(), SignalPayload::empty(), vts(1)),
-            BufferPolicy::BufferOne);
+            BufferPolicy::BufferOne,
+        );
         buf.clear(&id, &wk);
         assert_eq!(buf.buffered_count(&id, &wk), 0);
     }
@@ -565,11 +675,26 @@ mod bdd_signal_buffer {
     #[test]
     fn given_can_buffer_when_reject_then_false_and_buffer_many_at_capacity_then_false() {
         // Reject policy never allows buffering
-        assert!(!can_buffer(BufferPolicy::Reject, false, 0, &SignalBufferConfig::new(100)));
+        assert!(!can_buffer(
+            BufferPolicy::Reject,
+            false,
+            0,
+            &SignalBufferConfig::new(100)
+        ));
         // BufferMany respects max_buffered_per_key
-        assert!(!can_buffer(BufferPolicy::BufferMany, true, 100, &SignalBufferConfig::new(1)));
+        assert!(!can_buffer(
+            BufferPolicy::BufferMany,
+            true,
+            100,
+            &SignalBufferConfig::new(1)
+        ));
         // BufferOne always returns true (unconditional)
-        assert!(can_buffer(BufferPolicy::BufferOne, true, 100, &SignalBufferConfig::new(1)));
+        assert!(can_buffer(
+            BufferPolicy::BufferOne,
+            true,
+            100,
+            &SignalBufferConfig::new(1)
+        ));
     }
 
     #[test]
@@ -578,12 +703,18 @@ mod bdd_signal_buffer {
         let id = buf_id();
         let wk1 = WaitKey::parse("key-1").unwrap();
         let wk2 = WaitKey::parse("key-2").unwrap();
-        buf.buffer_signal(id.clone(), wk1,
+        buf.buffer_signal(
+            id.clone(),
+            wk1,
             BufferedSignal::new("s1".into(), SignalPayload::empty(), vts(1)),
-            BufferPolicy::BufferOne);
-        buf.buffer_signal(id.clone(), wk2,
+            BufferPolicy::BufferOne,
+        );
+        buf.buffer_signal(
+            id.clone(),
+            wk2,
             BufferedSignal::new("s2".into(), SignalPayload::empty(), vts(1)),
-            BufferPolicy::BufferOne);
+            BufferPolicy::BufferOne,
+        );
         assert_eq!(buf.total_buffered_count(), 2);
         assert_eq!(buf.num_keys_with_signals(), 2);
     }
@@ -607,10 +738,13 @@ mod bdd_probe {
         let mut reg = ProbeRegistry::new();
         assert!(reg.is_empty());
         reg.register(ProbeDefinition {
-            id: ProbeId::new(), name: "test".into(),
+            id: ProbeId::new(),
+            name: "test".into(),
             config: ProbeConfig::http("http://localhost/health"),
-            interval: Duration::from_secs(10), backoff: BackoffConfig::default(),
-            failure_threshold: 3, success_threshold: 2,
+            interval: Duration::from_secs(10),
+            backoff: BackoffConfig::default(),
+            failure_threshold: 3,
+            success_threshold: 2,
         });
         assert_eq!(reg.len(), 1);
     }
@@ -620,10 +754,13 @@ mod bdd_probe {
         let mut reg = ProbeRegistry::new();
         let id = ProbeId::new();
         reg.register(ProbeDefinition {
-            id, name: "test".into(),
+            id,
+            name: "test".into(),
             config: ProbeConfig::http("http://localhost/health"),
-            interval: Duration::from_secs(10), backoff: BackoffConfig::default(),
-            failure_threshold: 3, success_threshold: 2,
+            interval: Duration::from_secs(10),
+            backoff: BackoffConfig::default(),
+            failure_threshold: 3,
+            success_threshold: 2,
         });
         reg.unregister(id);
         assert!(reg.is_empty());
@@ -640,23 +777,40 @@ mod bdd_probe {
     fn given_aggregated_when_healthy_then_is_healthy() {
         let mut status = AggregatedStatus::new();
         status.update(vo_actor::probe::ProbeResult {
-            probe_id: ProbeId::new(), status: ProbeStatus::Healthy,
-            latency_ms: 10, consecutive_failures: 0, last_check_ms: 100, message: None,
+            probe_id: ProbeId::new(),
+            status: ProbeStatus::Healthy,
+            latency_ms: 10,
+            consecutive_failures: 0,
+            last_check_ms: 100,
+            message: None,
         });
         assert!(status.is_healthy());
     }
 
     #[test]
     fn given_probe_config_when_probe_type_then_correct() {
-        assert_eq!(ProbeConfig::http("http://x").probe_type(), vo_actor::probe::ProbeType::Http);
-        assert_eq!(ProbeConfig::tcp("127.0.0.1", 8080).probe_type(), vo_actor::probe::ProbeType::Tcp);
-        assert_eq!(ProbeConfig::exec("ls", vec![]).probe_type(), vo_actor::probe::ProbeType::Exec);
+        assert_eq!(
+            ProbeConfig::http("http://x").probe_type(),
+            vo_actor::probe::ProbeType::Http
+        );
+        assert_eq!(
+            ProbeConfig::tcp("127.0.0.1", 8080).probe_type(),
+            vo_actor::probe::ProbeType::Tcp
+        );
+        assert_eq!(
+            ProbeConfig::exec("ls", vec![]).probe_type(),
+            vo_actor::probe::ProbeType::Exec
+        );
     }
 
     #[test]
     fn given_probe_config_when_timeout_then_correct() {
-        assert_eq!(ProbeConfig::http("http://x").with_timeout(Duration::from_secs(5)).timeout(),
-            Duration::from_secs(5));
+        assert_eq!(
+            ProbeConfig::http("http://x")
+                .with_timeout(Duration::from_secs(5))
+                .timeout(),
+            Duration::from_secs(5)
+        );
     }
 }
 
@@ -681,14 +835,16 @@ mod bdd_spawn_supervisor {
     #[test]
     fn given_record_when_failed_many_attempts_then_zombie() {
         let mut r = test_spawn_record();
-        r.spawn_attempts = 4; r.spawn_phase = SpawnPhase::Failed;
+        r.spawn_attempts = 4;
+        r.spawn_phase = SpawnPhase::Failed;
         assert!(is_zombie_state(&r));
     }
 
     #[test]
     fn given_record_when_failed_few_attempts_then_not_zombie() {
         let mut r = test_spawn_record();
-        r.spawn_attempts = 2; r.spawn_phase = SpawnPhase::Failed;
+        r.spawn_attempts = 2;
+        r.spawn_phase = SpawnPhase::Failed;
         assert!(!is_zombie_state(&r));
     }
 
@@ -700,14 +856,16 @@ mod bdd_spawn_supervisor {
     #[test]
     fn given_record_when_should_respawn_under_max_then_true() {
         let mut r = test_spawn_record();
-        r.spawn_phase = SpawnPhase::Failed; r.spawn_attempts = 2;
+        r.spawn_phase = SpawnPhase::Failed;
+        r.spawn_attempts = 2;
         assert!(should_respawn(&r, 5));
     }
 
     #[test]
     fn given_record_when_should_respawn_at_max_then_false() {
         let mut r = test_spawn_record();
-        r.spawn_phase = SpawnPhase::Failed; r.spawn_attempts = 5;
+        r.spawn_phase = SpawnPhase::Failed;
+        r.spawn_attempts = 5;
         assert!(!should_respawn(&r, 5));
     }
 
@@ -723,8 +881,16 @@ mod bdd_spawn_supervisor {
     fn given_record_when_transitions_then_phases_correct() {
         let r = test_spawn_record();
         assert_eq!(r.spawn_phase, SpawnPhase::Spawn);
-        assert_eq!(r.transition_to_health_check().spawn_phase, SpawnPhase::HealthCheck);
-        assert_eq!(r.transition_to_health_check().transition_to_running().spawn_phase, SpawnPhase::Running);
+        assert_eq!(
+            r.transition_to_health_check().spawn_phase,
+            SpawnPhase::HealthCheck
+        );
+        assert_eq!(
+            r.transition_to_health_check()
+                .transition_to_running()
+                .spawn_phase,
+            SpawnPhase::Running
+        );
     }
 
     #[test]
@@ -735,8 +901,17 @@ mod bdd_spawn_supervisor {
     #[test]
     fn given_error_when_resumable_then_correct() {
         let id = make_id("01H5JYV4XHGSR2F8KZ9B000001");
-        assert!(SpawnSupervisorError::SpawnFailed { command: "c".into(), error: "x".into() }.is_resumable());
-        assert!(SpawnSupervisorError::HealthCheckFailed { instance_id: id, check_number: 1, error: "x".into() }.is_resumable());
+        assert!(SpawnSupervisorError::SpawnFailed {
+            command: "c".into(),
+            error: "x".into()
+        }
+        .is_resumable());
+        assert!(SpawnSupervisorError::HealthCheckFailed {
+            instance_id: id,
+            check_number: 1,
+            error: "x".into()
+        }
+        .is_resumable());
     }
 
     #[test]
@@ -792,8 +967,10 @@ mod bdd_timer_supervisor {
     fn given_counter_when_incr_then_increases() {
         let c = Counter::new();
         assert_eq!(c.get(), 0);
-        c.incr(); assert_eq!(c.get(), 1);
-        c.incr(); assert_eq!(c.get(), 2);
+        c.incr();
+        assert_eq!(c.get(), 1);
+        c.incr();
+        assert_eq!(c.get(), 2);
     }
 
     #[test]
@@ -936,7 +1113,8 @@ mod bdd_timer_lifecycle {
     #[test]
     fn given_timer_matching_instance_when_validate_then_ok() {
         let id = make_id("01H5JYV4XHGSR2F8KZ9B000001");
-        let timer = ReanimatorTimerRecord::new(id.clone(), vts(1000), Some(timer_id("t-1")), vts(900));
+        let timer =
+            ReanimatorTimerRecord::new(id.clone(), vts(1000), Some(timer_id("t-1")), vts(900));
         assert!(validate_timer_for_cancellation(&timer, &id).is_ok());
     }
 

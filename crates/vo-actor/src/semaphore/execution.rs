@@ -10,7 +10,9 @@ use std::sync::Arc;
 use tokio::sync::{Semaphore, TryAcquireError};
 
 use crate::semaphore::calc::status_from_config_and_state;
-use crate::semaphore::types::{AdmissionDecision, BackpressureStatus, RejectionReason, SemaphoreConfig};
+use crate::semaphore::types::{
+    AdmissionDecision, BackpressureStatus, RejectionReason, SemaphoreConfig,
+};
 
 /// The global execution semaphore for binary spawn limiting.
 pub struct ExecutionSemaphore {

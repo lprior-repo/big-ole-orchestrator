@@ -161,7 +161,9 @@ proptest! {
 #[test]
 fn adversarial_delete_all_sorted() {
     let mut tree = BTree::with_order(4);
-    for i in 0..200 { tree.insert(i, i); }
+    for i in 0..200 {
+        tree.insert(i, i);
+    }
     for i in 0..200 {
         tree.delete(&i).unwrap();
         assert!(tree.verify(), "failed after deleting {i}");
@@ -172,7 +174,9 @@ fn adversarial_delete_all_sorted() {
 #[test]
 fn adversarial_delete_all_reverse_sorted() {
     let mut tree = BTree::with_order(4);
-    for i in 0..200 { tree.insert(i, i); }
+    for i in 0..200 {
+        tree.insert(i, i);
+    }
     for i in (0..200).rev() {
         tree.delete(&i).unwrap();
         assert!(tree.verify(), "failed after deleting {i}");
@@ -199,7 +203,9 @@ fn adversarial_ping_pong_insert_delete() {
     let mut tree = BTree::with_order(3);
     for i in 0..100 {
         tree.insert(i, i);
-        if i > 0 { tree.delete(&(i - 1)).unwrap(); }
+        if i > 0 {
+            tree.delete(&(i - 1)).unwrap();
+        }
         assert!(tree.verify());
     }
     assert_eq!(tree.len(), 1);
@@ -209,10 +215,14 @@ fn adversarial_ping_pong_insert_delete() {
 #[test]
 fn adversarial_many_root_splits_and_shrinks() {
     let mut tree = BTree::with_order(3);
-    for i in 0..50 { tree.insert(i, i); }
+    for i in 0..50 {
+        tree.insert(i, i);
+    }
     assert!(tree.height() >= 3);
     assert!(tree.verify());
-    for i in 0..50 { tree.delete(&i).unwrap(); }
+    for i in 0..50 {
+        tree.delete(&i).unwrap();
+    }
     assert!(tree.is_empty());
     assert_eq!(tree.height(), 0);
 }
@@ -221,7 +231,9 @@ fn adversarial_many_root_splits_and_shrinks() {
 fn adversarial_duplicate_keys_maintain_invariant() {
     let mut tree = BTree::with_order(3);
     for _ in 0..50 {
-        for k in [1, 5, 10, 20, 50, 100] { tree.insert(k, k); }
+        for k in [1, 5, 10, 20, 50, 100] {
+            tree.insert(k, k);
+        }
         assert!(tree.verify());
     }
     assert_eq!(tree.len(), 6);
@@ -230,7 +242,9 @@ fn adversarial_duplicate_keys_maintain_invariant() {
 #[test]
 fn adversarial_delete_alternating_ends() {
     let mut tree = BTree::with_order(4);
-    for i in 0..100 { tree.insert(i, i); }
+    for i in 0..100 {
+        tree.insert(i, i);
+    }
     let mut lo = 0i32;
     let mut hi = 99i32;
     for _ in 0..50 {
@@ -248,7 +262,9 @@ fn adversarial_insert_delete_same_key_repeatedly() {
     let mut tree = BTree::with_order(3);
     for i in 0..100 {
         tree.insert(42, i);
-        if i > 0 { assert_eq!(tree.len(), 1); }
+        if i > 0 {
+            assert_eq!(tree.len(), 1);
+        }
         assert!(tree.verify());
     }
     assert_eq!(tree.search(&42), Some(&99));
@@ -257,14 +273,20 @@ fn adversarial_insert_delete_same_key_repeatedly() {
 #[test]
 fn adversarial_bulk_insert_then_random_delete() {
     let mut tree = BTree::with_order(4);
-    for i in 0..300 { tree.insert(i, i); }
+    for i in 0..300 {
+        tree.insert(i, i);
+    }
 
     let mut seed = 12345u64;
     let mut remaining = vec![0i32; 300];
-    for i in 0..300 { remaining[i] = i as i32; }
+    for i in 0..300 {
+        remaining[i] = i as i32;
+    }
 
     for _ in 0..250 {
-        seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        seed = seed
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         let idx = (seed >> 33) as usize % remaining.len();
         let val = remaining.remove(idx);
         tree.delete(&val).unwrap();
@@ -310,7 +332,9 @@ fn boundary_order_one_panics() {
 #[test]
 fn boundary_order_large() {
     let mut tree = BTree::with_order(1000);
-    for i in 0..500 { tree.insert(i, i); }
+    for i in 0..500 {
+        tree.insert(i, i);
+    }
     assert!(tree.verify());
     assert_eq!(tree.height(), 1);
 }
@@ -329,7 +353,9 @@ fn boundary_exact_max_keys_triggers_split() {
 #[test]
 fn boundary_min_keys_delete_triggers_merge() {
     let mut tree = BTree::with_order(3);
-    for i in 0..10 { tree.insert(i, i); }
+    for i in 0..10 {
+        tree.insert(i, i);
+    }
     for i in 0..8 {
         tree.delete(&i).unwrap();
         assert!(tree.verify(), "merge boundary failed deleting {i}");
@@ -350,7 +376,9 @@ fn boundary_single_key_insert_delete_cycle() {
 #[test]
 fn boundary_empty_range_on_populated_tree() {
     let mut tree = BTree::new();
-    for i in 0..10 { tree.insert(i, i); }
+    for i in 0..10 {
+        tree.insert(i, i);
+    }
     assert!(tree.range(-100..-50).is_empty());
     assert!(tree.range(100..200).is_empty());
 }
@@ -358,7 +386,9 @@ fn boundary_empty_range_on_populated_tree() {
 #[test]
 fn boundary_range_single_element() {
     let mut tree = BTree::new();
-    for i in 0..10 { tree.insert(i, i); }
+    for i in 0..10 {
+        tree.insert(i, i);
+    }
     let single = tree.range(5..=5);
     assert_eq!(single.len(), 1);
     assert_eq!(single[0].0, &5);
@@ -367,14 +397,18 @@ fn boundary_range_single_element() {
 #[test]
 fn boundary_full_unbounded_range() {
     let mut tree = BTree::new();
-    for i in 0..50 { tree.insert(i, i); }
+    for i in 0..50 {
+        tree.insert(i, i);
+    }
     assert_eq!(tree.range(..).len(), 50);
 }
 
 #[test]
 fn boundary_negative_keys() {
     let mut tree = BTree::new();
-    for i in -100..0 { tree.insert(i, i * 10); }
+    for i in -100..0 {
+        tree.insert(i, i * 10);
+    }
     tree.insert(0, 0);
     assert!(tree.verify());
     assert_eq!(tree.len(), 101);
@@ -407,7 +441,9 @@ fn boundary_delete_only_key_leaves_empty() {
 #[test]
 fn boundary_clone_preserves_structure() {
     let mut tree = BTree::with_order(4);
-    for i in 0..50 { tree.insert(i, format!("val_{i}")); }
+    for i in 0..50 {
+        tree.insert(i, format!("val_{i}"));
+    }
     let cloned = tree.clone();
     assert_eq!(cloned.len(), tree.len());
     assert_eq!(cloned.height(), tree.height());
@@ -420,7 +456,9 @@ fn boundary_clone_preserves_structure() {
 #[test]
 fn boundary_serde_roundtrip_large() {
     let mut tree = BTree::with_order(5);
-    for i in 0..200 { tree.insert(i, i * 3); }
+    for i in 0..200 {
+        tree.insert(i, i * 3);
+    }
     let json = serde_json::to_string(&tree).unwrap();
     let back: BTree<i32, i32> = serde_json::from_str(&json).unwrap();
     assert_eq!(back.len(), 200);
@@ -444,7 +482,9 @@ fn boundary_string_key_with_empty_string() {
 #[test]
 fn boundary_zero_value_keys() {
     let mut tree = BTree::new();
-    for _ in 0..5 { tree.insert(0, 0); }
+    for _ in 0..5 {
+        tree.insert(0, 0);
+    }
     assert_eq!(tree.len(), 1);
     assert_eq!(tree.search(&0), Some(&0));
 }
@@ -468,7 +508,9 @@ async fn concurrent_insert_from_multiple_tasks() {
         }));
     }
 
-    for h in handles { h.await.unwrap(); }
+    for h in handles {
+        h.await.unwrap();
+    }
 
     let tree = tree.lock().unwrap();
     assert_eq!(tree.len(), 200);
@@ -487,26 +529,38 @@ async fn concurrent_insert_delete_different_keys() {
 
     let t0 = Arc::clone(&tree);
     handles.push(tokio::spawn(async move {
-        for i in 0..100 { t0.lock().unwrap().insert(i, i); }
+        for i in 0..100 {
+            t0.lock().unwrap().insert(i, i);
+        }
     }));
 
     let t1 = Arc::clone(&tree);
     handles.push(tokio::spawn(async move {
-        for i in 100..200 { t1.lock().unwrap().insert(i, i); }
+        for i in 100..200 {
+            t1.lock().unwrap().insert(i, i);
+        }
     }));
 
     let t2 = Arc::clone(&tree);
     handles.push(tokio::spawn(async move {
         tokio::task::yield_now().await;
-        for i in 50..100 { let _ = t2.lock().unwrap().delete(&i); }
+        for i in 50..100 {
+            let _ = t2.lock().unwrap().delete(&i);
+        }
     }));
 
-    for h in handles { h.await.unwrap(); }
+    for h in handles {
+        h.await.unwrap();
+    }
 
     let tree = tree.lock().unwrap();
     assert!(tree.verify());
     for i in 100..200 {
-        assert_eq!(tree.search(&i), Some(&i), "key {i} missing after concurrent ops");
+        assert_eq!(
+            tree.search(&i),
+            Some(&i),
+            "key {i} missing after concurrent ops"
+        );
     }
 }
 
@@ -517,12 +571,16 @@ async fn concurrent_reads_during_writes() {
     let tree = Arc::new(Mutex::new(BTree::<i32, i32>::with_order(8)));
     let mut handles = Vec::new();
 
-    for i in 0..100 { tree.lock().unwrap().insert(i, i); }
+    for i in 0..100 {
+        tree.lock().unwrap().insert(i, i);
+    }
 
     for task_id in 0..2 {
         let t = Arc::clone(&tree);
         handles.push(tokio::spawn(async move {
-            for i in 0..100 { t.lock().unwrap().insert(i, i + task_id * 1000); }
+            for i in 0..100 {
+                t.lock().unwrap().insert(i, i + task_id * 1000);
+            }
         }));
     }
 
@@ -535,7 +593,9 @@ async fn concurrent_reads_during_writes() {
         }));
     }
 
-    for h in handles { h.await.unwrap(); }
+    for h in handles {
+        h.await.unwrap();
+    }
 
     let tree = tree.lock().unwrap();
     assert!(tree.verify());

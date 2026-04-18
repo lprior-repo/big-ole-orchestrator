@@ -61,7 +61,8 @@ fn dur_002_effect_commit_kill_verify_exactly_once() {
 
         let pending = journal.list_pending(&id).unwrap();
         assert_eq!(
-            pending.len(), 5,
+            pending.len(),
+            5,
             "Exactly 5 effects must be pending after crash"
         );
 
