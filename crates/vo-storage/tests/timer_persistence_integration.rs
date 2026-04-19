@@ -15,41 +15,10 @@
 
 use vo_storage::codec::StorageError;
 use vo_storage::timer_index::{
-    scan_all_timers_for_instance, scan_due_timers, timer_delete, timer_set, Storage, TimerRecord,
+    poll_expired_timers, scan_all_timers_for_instance, scan_due_timers, timer_delete, timer_set,
+    Storage,
 };
 use vo_types::{InstanceId, TimerId};
-
-// ── Stub types for poll_expired_timers (TDD-RED) ──────────────────────────────
-// These stubs define the contract for the atomic timer claiming API.
-// Replace with `use vo_storage::timer_index::{poll_expired_timers, ClaimedTimer};`
-// when the implementation lands.
-
-/// A timer atomically claimed with a fence token to prevent duplicate dispatch.
-#[derive(Debug, Clone)]
-struct ClaimedTimer {
-    record: TimerRecord,
-    fence_token: u64,
-}
-
-/// Error type for poll_expired_timers.
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
-enum PollError {
-    #[error("not implemented: poll_expired_timers has not been implemented yet")]
-    NotImplemented,
-    #[error("storage error: {0}")]
-    Storage(#[from] StorageError),
-}
-
-/// Atomically scans for expired timers and claims them with fence tokens.
-/// STUB: Always returns `PollError::NotImplemented`.
-fn poll_expired_timers(
-    _storage: &mut FjallTimerStorage,
-    _now_ms: u64,
-    _max_count: usize,
-    _fence_token: u64,
-) -> Result<Vec<ClaimedTimer>, PollError> {
-    Err(PollError::NotImplemented)
-}
 
 // ── FjallStorage adapter ──────────────────────────────────────────────────────
 

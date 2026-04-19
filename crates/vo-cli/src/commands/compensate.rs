@@ -104,4 +104,44 @@ mod tests {
         let config = CompensateConfig::default();
         assert!(!config.force);
     }
+
+    #[test]
+    fn compensate_config_with_custom_values() {
+        let config = CompensateConfig {
+            engine_url: "http://localhost:9000".to_string(),
+            workflow_id: "test-workflow-123".to_string(),
+            force: true,
+        };
+        assert_eq!(config.engine_url, "http://localhost:9000");
+        assert_eq!(config.workflow_id, "test-workflow-123");
+        assert!(config.force);
+    }
+
+    #[test]
+    fn compensate_error_display_format() {
+        let err = CompensateError::ApiError {
+            status: 500,
+            message: "internal error".to_string(),
+        };
+        assert!(err.to_string().contains("HTTP 500"));
+        assert!(err.to_string().contains("internal error"));
+
+        let err = CompensateError::EngineNotReachable("localhost:3000".to_string());
+        assert!(err.to_string().contains("localhost:3000"));
+
+        let err = CompensateError::CompensateFailed("connection failed".to_string());
+        assert!(err.to_string().contains("Compensate failed"));
+    }
+
+    #[test]
+    fn compensate_error_aborted_display() {
+        let err = CompensateError::Aborted;
+        assert!(err.to_string().contains("aborted"));
+    }
+
+    #[test]
+    fn compensate_config_workflow_id_empty_by_default() {
+        let config = CompensateConfig::default();
+        assert!(config.workflow_id.is_empty());
+    }
 }
