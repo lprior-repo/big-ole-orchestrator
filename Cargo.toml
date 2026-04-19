@@ -48,8 +48,8 @@ rmp-serde = "1"
 # Web framework
 axum = "0.8"
 tower = { version = "0.4", features = ["util"] }
-tower-http = { version = "0.6", features = ["trace"] }
-reqwest = { version = "0.12", features = ["json"] }
+tower-http = { version = "0.6", features = ["trace", "cors", "timeout"] }
+reqwest = { version = "0.11", features = ["json"] }
 
 # CLI
 clap = { version = "4", features = ["derive"] }
@@ -58,7 +58,7 @@ clap = { version = "4", features = ["derive"] }
 async-nats = "0.33"
 uuid = { version = "1", features = ["v4", "v5", "serde"] }
 ulid = { version = "1", features = ["serde"] }
-fjall = "2"
+fjall = "2.0"
 vo-types = { path = "crates/vo-types" }
 vo-common = { path = "crates/vo-common" }
 vo-core = { path = "crates/vo-core" }

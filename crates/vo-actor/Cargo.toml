@@ -9,7 +9,7 @@ proptest = ["dep:proptest"]
 
 [dependencies]
 vo-types = { workspace = true }
-vo-common = { workspace = true }
+bytes = { workspace = true }
 ractor.workspace = true
 thiserror.workspace = true
 async-trait = "0.1"

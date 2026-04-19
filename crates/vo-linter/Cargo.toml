@@ -9,10 +9,3 @@ syn = { version = "2", features = ["full", "visit", "extra-traits"] }
 
 [dev-dependencies]
 quote = "1"
-criterion = { workspace = true }
-
-[[bench]]
-name = "linter_bench"
-harness = false
-[lints]
-workspace = true

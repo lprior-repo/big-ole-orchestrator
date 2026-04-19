@@ -75,59 +75,10 @@ pub async fn cancel_timers_for_instance<S>(
 where
     S: TimerStorage + 'static,
 {
-    let now = TimestampMs::now();
-    let zero = TimestampMs::try_from(0u64).expect("0 is valid");
-    let mut cancelled_count = 0u32;
-
-    loop {
-        let timers = storage
-            .scan_due_timers(zero, now, 100)
-            .await
-            .map_err(|e| TimerLifecycleError::StorageError(e.to_string()))?;
-
-        let instance_timers: Vec<TimerRecord> = timers
-            .into_iter()
-            .filter(|t| t.instance_id == *instance_id)
-            .collect();
-
-        if instance_timers.is_empty() {
-            break;
-        }
-
-        for timer in instance_timers {
-            match storage
-                .delete_timer(&timer.instance_id, timer.fire_at_ms)
-                .await
-            {
-                Ok(()) => {
-                    cancelled_count += 1;
-                    tracing::debug!(
-                        instance_id = %timer.instance_id,
-                        fire_at_ms = %timer.fire_at_ms,
-                        "Cancelled timer on workflow completion"
-                    );
-                }
-                Err(ReanimatorError::InstanceNotFound(_)) => {
-                    tracing::debug!(
-                        instance_id = %instance_id,
-                        "Instance not found during timer cancellation"
-                    );
-                    break;
-                }
-                Err(e) => {
-                    tracing::warn!(
-                        instance_id = %timer.instance_id,
-                        error = %e,
-                        "Failed to cancel timer"
-                    );
-                }
-            }
-        }
-
-        if cancelled_count < 100 {
-            break;
-        }
-    }
+    let cancelled_count = storage
+        .delete_all_timers_for_instance(instance_id)
+        .await
+        .map_err(|e| TimerLifecycleError::StorageError(e.to_string()))?;
 
     tracing::info!(
         instance_id = %instance_id,

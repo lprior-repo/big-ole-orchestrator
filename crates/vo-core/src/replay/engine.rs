@@ -250,6 +250,7 @@ pub(super) fn payload_to_transition(
         EventPayload::WorkflowCancelled { .. } => Ok(TransitionEvent::Cancel),
         EventPayload::CancelRequested { .. } => Ok(TransitionEvent::Cancel),
         EventPayload::InstanceResumed { .. } => Ok(TransitionEvent::InstanceResumed),
+        EventPayload::WorkflowQuarantined { .. } => Ok(TransitionEvent::Fail),
         EventPayload::ContinuedAsNew { .. } => {
             // Handled as a no-op in the replay loop before calling this function.
             // This branch should never be reached.

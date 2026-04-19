@@ -84,8 +84,8 @@ pub use compensation::{
 };
 pub use connector::{
     apply_connector_transition, execute_with_reconciliation, reconcile_ambiguous, Connector,
-    ConnectorError, ConnectorResult, ConnectorState, ConnectorTransition, ConnectorTransitionError,
-    ReconcileAction, ReconciliationResult,
+    ConnectorError, ConnectorResult, ConnectorState, ConnectorTransition,
+    ConnectorTransitionError, ReconciliationResult, ReconcileAction,
 };
 pub use credentials::{
     AccessPolicy, Credential, CredentialId, CredentialKind, CredentialStatus, CredentialVersion,
@@ -171,6 +171,8 @@ mod dependency_graph_resolver_tests;
 mod identity_bdd_tests;
 #[cfg(test)]
 mod identity_tests;
+#[cfg(test)]
+mod command_envelope_red_queen_tests;
 #[cfg(test)]
 mod red_queen_tests;
 #[cfg(test)]

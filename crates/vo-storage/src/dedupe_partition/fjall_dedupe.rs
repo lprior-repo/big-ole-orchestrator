@@ -12,7 +12,11 @@ pub struct FjallDedupeStore {
 }
 
 impl FjallDedupeStore {
-    #[must_use]
+    /// Opens a new `FjallDedupeStore` backed by the given keyspace.
+    ///
+    /// # Errors
+    ///
+    /// Returns `DedupeStoreError::Storage` if the dedupe partition cannot be opened.
     pub fn open(keyspace: &fjall::Keyspace) -> Result<Self, DedupeStoreError> {
         let partition = keyspace
             .open_partition(DEDUPE_PARTITION, fjall::PartitionCreateOptions::default())
@@ -27,6 +31,7 @@ impl FjallDedupeStore {
 }
 
 impl DedupeStore for FjallDedupeStore {
+    #[expect(clippy::expect_used)]
     fn check_and_insert(
         &self,
         key: &DedupeKey,
@@ -38,10 +43,12 @@ impl DedupeStore for FjallDedupeStore {
         }
 
         let encoded_key = super::encode_dedupe_key(key);
-        #[expect(clippy::expect_used)]
+        #[expect(clippy::expect_used, clippy::cast_possible_truncation)]
         let now_ms = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .expect("system time before epoch")
+            .expect(
+                "system time is guaranteed to be after UNIX epoch on properly configured systems",
+            )
             .as_millis() as u64;
         let expires_at = now_ms.saturating_add(ttl_ms);
 
@@ -100,19 +107,22 @@ impl DedupeStore for FjallDedupeStore {
         Ok(purged_count)
     }
 
+    #[expect(clippy::expect_used)]
     fn contains(&self, key: &DedupeKey) -> Result<bool, DedupeStoreError> {
         let encoded_key = super::encode_dedupe_key(key);
-        #[expect(clippy::expect_used)]
+        #[expect(clippy::expect_used, clippy::cast_possible_truncation)]
         let now_ms = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .expect("system time before epoch")
+            .expect(
+                "system time is guaranteed to be after UNIX epoch on properly configured systems",
+            )
             .as_millis() as u64;
 
         match self.partition.get(&encoded_key) {
-            Ok(Some(value_bytes)) => {
-                let entry = super::decode_dedupe_entry(&value_bytes)?;
-                Ok(!entry.is_expired(now_ms))
-            }
+            Ok(Some(value_bytes)) => match super::decode_dedupe_entry(&value_bytes) {
+                Ok(entry) => Ok(!entry.is_expired(now_ms)),
+                Err(_) => Ok(false),
+            },
             Ok(None) => Ok(false),
             Err(e) => Err(DedupeStoreError::Storage {
                 reason: e.to_string(),

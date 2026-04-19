@@ -125,7 +125,7 @@ impl SignalAddress {
             LineageScope::LineageWide if self.epoch_id.is_some() => Err(
                 "SignalAddress invariant violated: LineageWide scope requires epoch_id to be None",
             ),
-            LineageScope::EpochLocal | LineageScope::LineageWide => Ok(()),
+            _ => Ok(()),
         }
     }
 }
@@ -153,7 +153,7 @@ impl<'de> Deserialize<'de> for SignalAddress {
             epoch_id: raw.epoch_id,
         };
 
-        addr.validate().map_err(DeError::custom)?;
+        addr.validate().map_err(|msg| DeError::custom(msg))?;
         Ok(addr)
     }
 }

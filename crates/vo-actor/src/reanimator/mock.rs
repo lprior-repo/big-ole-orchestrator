@@ -18,7 +18,6 @@ pub struct MockTimerStorage {
     fire_calls: Mutex<Vec<(InstanceId, TimestampMs, Option<vo_types::TimerId>)>>,
     /// Tracks (instance_id, fire_at_ms) tuples that have been deleted
     delete_calls: Mutex<Vec<(InstanceId, TimestampMs)>>,
-    /// Tracks instances that had all timers deleted
     delete_all_calls: Mutex<Vec<InstanceId>>,
     should_fail: Mutex<bool>,
     /// Tracks timers that have been deleted but not yet fired

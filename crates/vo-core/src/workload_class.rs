@@ -50,7 +50,8 @@ pub enum WorkloadClass {
     ExactCritical,
     /// Default priority for normal workflow execution.
     Standard,
-
+    /// Lower priority. Capped under contention.
+    UnsafeBulk,
     /// Reserved capacity for crash recovery.
     Recovery,
     /// Lower priority. Capped under contention.
@@ -70,8 +71,8 @@ impl WorkloadClass {
         match self {
             WorkloadClass::ExactCritical => 0,
             WorkloadClass::Standard => 1,
-            WorkloadClass::Recovery => 2,
-            WorkloadClass::UnsafeBulk => 3,
+            WorkloadClass::UnsafeBulk => 2,
+            WorkloadClass::Recovery => 3,
         }
     }
 

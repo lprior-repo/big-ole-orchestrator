@@ -319,6 +319,7 @@ impl BackpressureSignal {
     }
 
     /// Called when a queue becomes full.
+    #[expect(clippy::unwrap_used)]
     pub(crate) fn set_full(&self, class: WriteClass, depth: usize, capacity: usize) {
         let was_full = match class {
             WriteClass::CriticalControlPlane => self.critical_full.swap(true, Ordering::SeqCst),
@@ -333,12 +334,14 @@ impl BackpressureSignal {
                 capacity,
             };
             #[expect(clippy::unwrap_used)]
-            let mut last_event = self.last_event.lock().unwrap();
-            *last_event = Some(event);
+            {
+                *self.last_event.lock().unwrap() = Some(event);
+            }
         }
     }
 
     /// Called when a queue becomes writable (was full, now has capacity).
+    #[expect(clippy::unwrap_used)]
     pub(crate) fn set_writable(&self, class: WriteClass, remaining_capacity: usize) {
         let was_full = match class {
             WriteClass::CriticalControlPlane => self.critical_full.swap(false, Ordering::SeqCst),
@@ -352,8 +355,9 @@ impl BackpressureSignal {
                 remaining_capacity,
             };
             #[expect(clippy::unwrap_used)]
-            let mut last_event = self.last_event.lock().unwrap();
-            *last_event = Some(event);
+            {
+                *self.last_event.lock().unwrap() = Some(event);
+            }
         }
     }
 

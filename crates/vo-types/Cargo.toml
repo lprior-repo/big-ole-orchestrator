@@ -22,7 +22,6 @@ any-rope = { workspace = true }
 rstest.workspace = true
 proptest = { version = "1", features = ["fork"] }
 tokio = { workspace = true, features = ["full"] }
-criterion = { workspace = true }
 
 [[bench]]
 name = "types_bench"

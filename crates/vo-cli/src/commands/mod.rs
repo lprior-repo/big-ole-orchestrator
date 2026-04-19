@@ -6,6 +6,4 @@ pub mod gc;
 pub mod history;
 pub mod init;
 pub mod lock;
-pub mod rebuild;
-pub mod status;
-pub mod workspace;
+pub mod unquarantine;
