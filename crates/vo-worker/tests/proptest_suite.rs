@@ -107,18 +107,25 @@ proptest! {
             .with_jitter(jitter_factor);
         let base = Duration::from_millis(base_ms);
 
-        // Run multiple trials - note: rand_jitter uses time-based LCG seed,
-        // so tight-loop iterations produce correlated values, not uniform randomness.
-        // We only verify the jitter produces values in a reasonable range.
+        // Run multiple trials to check symmetry
+        let mut positive_count = 0u32;
+        let mut negative_count = 0u32;
+
         for _ in 0..100 {
             let with_jitter = config.calculate_jitter(base);
-            let jitter_ms = (with_jitter.as_millis() as i64).abs_diff(base.as_millis() as i64);
-            let max_expected = (base_ms as f64 * jitter_factor * 1.5) as u64;
-            prop_assert!(jitter_ms <= max_expected + 1,
-                "Jitter out of range: base={:?}, jitter_ms={}, max_expected={}",
-                base, jitter_ms, max_expected
-            );
+            let diff = with_jitter.as_millis() as i64 - base.as_millis() as i64;
+            if diff > 0 {
+                positive_count += 1;
+            } else if diff < 0 {
+                negative_count += 1;
+            }
         }
+
+        // Jitter should be roughly symmetric (allowing for randomness)
+        prop_assert!((positive_count as i32 - negative_count as i32).abs() < 30,
+            "Jitter should be symmetric: positive={} vs negative={}",
+            positive_count, negative_count
+        );
     }
 }
 
@@ -654,7 +661,7 @@ proptest! {
     ) {
         let mut cb = CircuitBreaker::new();
         let mut actual_failures = 0u32;
-        let mut last_was_success = false;
+        let mut actual_successes = 0u32;
 
         // Generate deterministic sequence
         for i in 0..30 {
@@ -663,14 +670,13 @@ proptest! {
             if should_fail {
                 cb.record_failure();
                 actual_failures += 1;
-                last_was_success = false;
             } else {
                 cb.record_success();
-                last_was_success = true;
+                actual_successes += 1;
             }
 
             // After success, failure count should be 0
-            if last_was_success {
+            if !should_fail {
                 prop_assert_eq!(cb.consecutive_failures(), 0,
                     "Success should reset failure count"
                 );
@@ -678,7 +684,7 @@ proptest! {
         }
 
         // After all operations, if last was success, count should be 0
-        if last_was_success {
+        if actual_successes > 0 {
             prop_assert_eq!(cb.consecutive_failures(), 0);
         }
     }

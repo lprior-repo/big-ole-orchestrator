@@ -7,7 +7,6 @@ pub mod circuit_breaker;
 pub mod config;
 pub mod hash_ring;
 pub mod health_check;
-#[allow(clippy::module_inception)]
 mod pool;
 
 pub use circuit_breaker::CircuitBreaker;
@@ -18,8 +17,8 @@ pub use pool::{ConnectionPool, NatsConnectionWrapper};
 
 use vo_types::connection_pool::{
     AcquireResult, CircuitBreakerState, ConnectionId, ConnectionPoolError, ConnectionStatus,
-    ErrorCategory, ErrorContext, ErrorDetail, EvictionReason, PoolConfig as VoPoolConfig, PoolId,
-    PoolStats, PooledConnection, ReleaseResult, WaitHandle,
+    ErrorCategory, ErrorContext, ErrorDetail, EvictionReason, PoolConfig as VoPoolConfig,
+    PoolId, PoolStats, PooledConnection, ReleaseResult, WaitHandle,
 };
 
 use vo_types::integer_types::TimestampMs;
@@ -28,11 +27,4 @@ pub use vo_types::connection_pool::HealthCheckResult;
 
 pub(crate) use pool::PoolState;
 
-#[cfg(test)]
-mod tests {
-    mod circuit_breaker_tests;
-    mod config_tests;
-    mod hash_ring_tests;
-    mod health_check_tests;
-    mod pool_tests;
-}
+

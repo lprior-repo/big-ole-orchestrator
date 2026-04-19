@@ -11,20 +11,11 @@
 #![allow(missing_docs)]
 
 mod connector;
-pub use connector::{
-    CommitOutcome, Connector, ConnectorError, ConnectorRegistry, HttpConnector, PreparedEffect,
-    ReconcileOutcome,
-};
-pub mod executor;
-pub use executor::{
-    ExecutionOutcome, ManagedEffectError, ManagedEffectExecutor, ManagedEffectTask,
-};
-pub mod lock_storage;
 pub mod pool;
 mod port;
 pub mod retry;
 mod storage;
-pub mod supervisor;
+mod supervisor;
 
 use chrono::{DateTime, Utc};
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -32,12 +23,7 @@ use thiserror::Error;
 use tokio::time::Duration;
 
 pub use port::LockManager;
-pub use retry::{LockManagerRetryWrapper, RetryConfig};
-pub use lock_supervisor::{
-    Counter, HealthCheckResult, HealthStatus, LockManagerSupervisor,
-    LockManagerSupervisorError, LockManagerSupervisorHandle, LockManagerSupervisorMetrics,
-    LockManagerSupervisorState,
-};
+pub use retry::{LockManagerRetryWrapper, RetryConfig, rand_jitter};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LockId(String);
