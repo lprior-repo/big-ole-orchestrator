@@ -3,6 +3,9 @@
 //! Provides the actor model implementation using the Ractor library.
 //! Actors are the fundamental units of computation in the engine.
 
+use bytes::Bytes;
+use vo_types::InstanceId;
+
 pub mod heartbeat {
     pub fn run_heartbeat_watcher() {}
 }
@@ -49,7 +52,24 @@ pub enum InstancePhaseView {
 }
 
 #[derive(Debug)]
-pub struct OrchestratorMsg;
+pub enum OrchestratorMsg {
+    /// Send a signal to a workflow instance
+    Signal {
+        instance_id: InstanceId,
+        signal_name: String,
+        payload: Bytes,
+        reply: ractor::port::RpcReplyPort<Result<(), SignalError>>,
+    },
+}
+
+/// Error type for signal operations.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum SignalError {
+    #[error("instance not found: {0}")]
+    NotFound(String),
+    #[error("signal failed: {0}")]
+    Failed(String),
+}
 
 #[cfg(test)]
 mod terminate_error_tests {
@@ -1080,8 +1100,6 @@ pub mod actor_messages {
 // =============================================================================
 // Error Types - Cancel and Resume
 // =============================================================================
-
-use vo_types::InstanceId;
 
 /// Lifecycle state for control actor operations.
 /// These are simplified states for the control actor's perspective.

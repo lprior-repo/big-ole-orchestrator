@@ -1,8 +1,6 @@
 //! Unquarantine command for circuit-breaker recovery (ADR-026).
 
-use std::path::PathBuf;
 use std::time::Duration;
-use axum::{http::StatusCode, Json};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;

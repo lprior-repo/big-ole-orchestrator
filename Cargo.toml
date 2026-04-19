@@ -46,7 +46,7 @@ serde_yaml = "0.9"
 # Web framework
 axum = "0.7"
 tower = { version = "0.4", features = ["util"] }
-tower-http = { version = "0.5", features = ["trace"] }
+tower-http = { version = "0.6", features = ["trace", "cors", "timeout"] }
 reqwest = { version = "0.11", features = ["json"] }
 
 # CLI
