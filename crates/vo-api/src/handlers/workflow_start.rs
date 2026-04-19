@@ -1,3 +1,4 @@
+use std::time::Duration;
 use axum::{
     extract::{Extension, Json},
     http::StatusCode,
@@ -6,13 +7,12 @@ use axum::{
 use bytes::Bytes;
 use ractor::rpc::CallResult;
 use ractor::ActorRef;
-use std::time::Duration;
 use ulid::Ulid;
 use vo_actor::{OrchestratorMsg, StartError};
 use vo_common::NamespaceId;
 
-use crate::handlers::helpers::parse_paradigm;
 use crate::types::{ApiError, V3StartRequest, V3StartResponse, WorkloadRejectionError};
+use crate::handlers::helpers::parse_paradigm;
 
 const ACTOR_CALL_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -59,8 +59,19 @@ pub async fn start_workflow(
         Some(ref id) => id.clone(),
         None => Ulid::new().to_string(),
     };
-    let instance_id =
-        vo_types::InstanceId::parse(&instance_id_str).expect("generated ULID should be valid");
+    let instance_id = match vo_types::InstanceId::parse(&instance_id_str) {
+        Ok(id) => id,
+        Err(_) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ApiError::new(
+                    "invalid_instance_id",
+                    format!("instance_id is not a valid ULID: {instance_id_str}"),
+                )),
+            )
+                .into_response();
+        }
+    };
 
     let input = match serde_json::to_vec(&req.input) {
         Ok(v) => Bytes::from(v),
@@ -142,19 +153,14 @@ pub async fn start_workflow(
             Json(ApiError::new("invalid_config", msg)),
         )
             .into_response(),
-        Ok(CallResult::Success(Err(StartError::BudgetExhaustion {
-            class,
-            requested,
-            available,
-        }))) => {
+        Ok(CallResult::Success(Err(StartError::BudgetExhaustion { class, requested, available }))) => {
             let rejection = WorkloadRejectionError::BudgetExhausted {
                 class: class.to_string(),
                 requested,
                 available,
             };
             (
-                StatusCode::from_u16(rejection.status_code())
-                    .unwrap_or(StatusCode::TOO_MANY_REQUESTS),
+                StatusCode::from_u16(rejection.status_code()).unwrap_or(StatusCode::TOO_MANY_REQUESTS),
                 Json(ApiError::new(rejection.error_code(), rejection.to_string())),
             )
                 .into_response()
