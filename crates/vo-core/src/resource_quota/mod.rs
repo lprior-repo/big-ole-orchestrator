@@ -15,6 +15,9 @@ mod proptests;
 #[cfg(test)]
 mod integration_tests;
 
+#[cfg(test)]
+mod tenant_isolation_tests;
+
 pub use enforcer::{NamespaceRegistry, QuotaEnforcer};
 pub use policy::OvercommitPolicy;
 
