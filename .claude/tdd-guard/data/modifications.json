@@ -1,12 +1,12 @@
 {
-  "session_id": "43fdc912-66f7-4cf4-a235-069c929f2cca",
-  "transcript_path": "/home/lewis/.claude/projects/-home-lewis-gt-veloxide-polecats-thunder-veloxide/43fdc912-66f7-4cf4-a235-069c929f2cca.jsonl",
+  "session_id": "a2a8f72c-13aa-49f3-9570-a5da976234dc",
+  "transcript_path": "/home/lewis/.claude/projects/-home-lewis-gt-veloxide-polecats-deathclaw-veloxide/a2a8f72c-13aa-49f3-9570-a5da976234dc.jsonl",
   "hook_event_name": "PreToolUse",
   "tool_name": "Edit",
   "tool_input": {
-    "file_path": "/home/lewis/gt/veloxide/polecats/thunder/veloxide/crates/vo-storage/src/effect_journal/tests/tests_journal_append.rs",
-    "old_string": "    assert_eq!(\n        actual_intent_ids, expected_intent_ids,\n        \"All intent IDs must match\"\n    );\n}",
-    "new_string": "    assert_eq!(\n        actual_intent_ids, expected_intent_ids,\n        \"All intent IDs must match\"\n    );\n}\n\n#[test]\nfn concurrent_prepare_all_records_persisted_without_loss() {\n    use std::thread;\n\n    let journal = Arc::new(InMemoryEffectJournal::new());\n    let id = sample_instance_id();\n    let thread_count = 8;\n    let records_per_thread = 50;\n\n    let handles: Vec<_> = (0..thread_count)\n        .map(|t| {\n            let j = journal.clone();\n            let inst = id.clone();\n            thread::spawn(move || {\n                for i in 0..records_per_thread {\n                    let intent_id = format!(\"fx-t{t}-r{i}\");\n                    let record = EffectRecord::new(\n                        intent_id,\n                        EffectKind::SqlQuery,\n                        json!({\"thread\": t, \"index\": i}),\n                        EffectIntent::Prepared,\n                        None,\n                    )\n                    .unwrap();\n                    let result = j.prepare(&inst, record);\n                    assert!(result.is_ok(), \"concurrent prepare failed for t{t}-r{i}\");\n                }\n            })\n        })\n        .collect();\n\n    for h in handles {\n        h.join().expect(\"thread panicked\");\n    }\n\n    let pending = journal.list_pending(&id).unwrap();\n    let expected_total = thread_count * records_per_thread;\n    assert_eq!(\n        pending.len(),\n        expected_total,\n        \"All {} concurrent records must be persisted without loss\",\n        expected_total\n    );\n}",
+    "file_path": "/home/lewis/gt/veloxide/polecats/deathclaw/veloxide/crates/vo-worker/src/pool/tests/circuit_breaker_tests.rs",
+    "old_string": "#[test]\nfn closed_incremental_failures_eventually_trip() {\n    let mut cb = CircuitBreaker::new();\n    // Add failures one at a time, checking state transition\n    for i in 1..=20u32 {\n        cb.record_failure();\n        if cb.state() == CircuitBreakerState::Open {\n            // Should trip when failure rate exceeds 50%\n            // All operations are failures, so it should trip after enough samples\n            assert!(i >= 2, \"should need at least 2 failures to calculate a rate\");\n            return;\n        }\n    }\n    panic!(\"circuit breaker should have tripped after 20 consecutive failures\");\n}",
+    "new_string": "#[test]\nfn closed_first_failure_trips_with_100_percent_rate() {\n    let mut cb = CircuitBreaker::new();\n    // A single failure = 100% failure rate (1/1), which exceeds 50% threshold\n    cb.record_failure();\n    assert_eq!(\n        cb.state(),\n        CircuitBreakerState::Open,\n        \"first failure has 100% failure rate and should trip immediately\"\n    );\n}",
     "replace_all": false
   }
 }
