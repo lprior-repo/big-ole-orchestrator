@@ -4603,7 +4603,6 @@ dependencies = [
  "http-body",
  "iri-string",
  "pin-project-lite",
- "tokio",
  "tower 0.5.3",
  "tower-layer",
  "tower-service",
@@ -5017,8 +5016,6 @@ dependencies = [
  "thiserror 2.0.18",
  "tokio",
  "ulid",
- "vo-ipc",
- "vo-storage",
  "vo-types",
 ]
 
