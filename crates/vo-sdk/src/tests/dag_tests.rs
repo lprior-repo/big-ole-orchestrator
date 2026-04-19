@@ -357,3 +357,106 @@ fn node_count_tracks_multiple_adds() {
     }
     assert_eq!(dag.node_count(), 5);
 }
+
+#[test]
+fn build_with_independent_parallel_branches_succeeds() {
+    let mut dag = Dag::new();
+    let start: NodeHandle<String, String> = dag
+        .add_node_with_kind("start", NodeKind::Pure, |s: String| s)
+        .expect("valid");
+    let left: NodeHandle<String, String> = dag
+        .add_node_with_kind("left", NodeKind::Pure, |s: String| s)
+        .expect("valid");
+    let right: NodeHandle<String, String> = dag
+        .add_node_with_kind("right", NodeKind::Pure, |s: String| s)
+        .expect("valid");
+    let end: NodeHandle<String, String> = dag
+        .add_node_with_kind("end", NodeKind::Pure, |s: String| s)
+        .expect("valid");
+
+    dag.connect(&start, &left).expect("start->left");
+    dag.connect(&start, &right).expect("start->right");
+    dag.connect(&left, &end).expect("left->end");
+    dag.connect(&right, &end).expect("right->end");
+
+    let spec = dag.build("parallel-workflow").expect("should build diamond DAG");
+    assert_eq!(spec.nodes.len(), 4);
+    assert_eq!(spec.edges.len(), 4);
+}
+
+#[test]
+fn build_with_dependent_parallel_branches_detects_cycle() {
+    let mut dag = Dag::new();
+    let a: NodeHandle<String, String> = dag
+        .add_node_with_kind("a", NodeKind::Pure, |s: String| s)
+        .expect("valid");
+    let b: NodeHandle<String, String> = dag
+        .add_node_with_kind("b", NodeKind::Pure, |s: String| s)
+        .expect("valid");
+    let c: NodeHandle<String, String> = dag
+        .add_node_with_kind("c", NodeKind::Pure, |s: String| s)
+        .expect("valid");
+
+    dag.connect(&a, &b).expect("a->b");
+    dag.connect(&b, &c).expect("b->c");
+    dag.connect(&c, &b).expect("c->b creates cycle");
+
+    let err = dag.build("cycle-workflow").expect_err("should detect cycle");
+    assert!(matches!(err, DagError::CycleDetected { .. }));
+}
+
+#[test]
+fn parallel_branches_produce_correct_topological_order() {
+    let mut dag = Dag::new();
+    let start: NodeHandle<i32, i32> = dag
+        .add_node_with_kind("start", NodeKind::Pure, |s: i32| s)
+        .expect("valid");
+    let branch_a: NodeHandle<i32, i32> = dag
+        .add_node_with_kind("branch_a", NodeKind::Pure, |s: i32| s * 2)
+        .expect("valid");
+    let branch_b: NodeHandle<i32, i32> = dag
+        .add_node_with_kind("branch_b", NodeKind::Pure, |s: i32| s + 10)
+        .expect("valid");
+    let join: NodeHandle<i32, i32> = dag
+        .add_node_with_kind("join", NodeKind::Pure, |s: i32| s)
+        .expect("valid");
+
+    dag.connect(&start, &branch_a).expect("start->branch_a");
+    dag.connect(&start, &branch_b).expect("start->branch_b");
+    dag.connect(&branch_a, &join).expect("branch_a->join");
+    dag.connect(&branch_b, &join).expect("branch_b->join");
+
+    let spec = dag.build("fork-join").expect("fork-join should build");
+    assert_eq!(spec.workflow_name.as_str(), "fork-join");
+    assert_eq!(spec.nodes.len(), 4);
+    assert_eq!(spec.edges.len(), 4);
+}
+
+#[test]
+fn diamond_dag_edges_form_correct_structure() {
+    let mut dag = Dag::new();
+    let source: NodeHandle<(), ()> = dag
+        .add_node_with_kind("source", NodeKind::Pure, |_: ()| ())
+        .expect("valid");
+    let left: NodeHandle<(), ()> = dag
+        .add_node_with_kind("left", NodeKind::Pure, |_: ()| ())
+        .expect("valid");
+    let right: NodeHandle<(), ()> = dag
+        .add_node_with_kind("right", NodeKind::Pure, |_: ()| ())
+        .expect("valid");
+    let sink: NodeHandle<(), ()> = dag
+        .add_node_with_kind("sink", NodeKind::Pure, |_: ()| ())
+        .expect("valid");
+
+    dag.connect(&source, &left).expect("source->left");
+    dag.connect(&source, &right).expect("source->right");
+    dag.connect(&left, &sink).expect("left->sink");
+    dag.connect(&right, &sink).expect("right->sink");
+
+    let edges = dag.edges();
+    assert_eq!(edges.len(), 4);
+    assert!(edges.contains(&("source", "left")));
+    assert!(edges.contains(&("source", "right")));
+    assert!(edges.contains(&("left", "sink")));
+    assert!(edges.contains(&("right", "sink")));
+}
