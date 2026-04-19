@@ -28,6 +28,8 @@ pub mod check_tests;
 #[cfg(kani)]
 pub mod check_verification;
 #[cfg(test)]
+pub mod circuit_breaker_tests;
+#[cfg(test)]
 pub mod control_tests;
 #[cfg(test)]
 pub mod controller_tests;
