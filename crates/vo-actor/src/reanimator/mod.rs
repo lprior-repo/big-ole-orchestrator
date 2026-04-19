@@ -13,6 +13,8 @@ mod mock_tests;
 #[cfg(test)]
 mod recovery_tests;
 #[cfg(test)]
+mod recovery_timing_blackhat_tests;
+#[cfg(test)]
 mod tests;
 #[cfg(test)]
 mod tests_types;
