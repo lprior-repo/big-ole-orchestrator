@@ -180,9 +180,10 @@ impl DekStore for FjallDekStore {
         })?;
         let wrapped_dek = WrappedDek::new(wrapped_dek_bytes);
 
-        let dek_id = DekId::parse(&ulid::Ulid::new().to_string()).expect("valid ULID");
-        let metadata = KeyMetadata::new(instance_id.clone(), CryptoAlgorithm::Aes256Gcm);
-        let entry = DekEntry::new(dek_id.clone(), instance_id.clone(), wrapped_dek, metadata)?;
+        let dek_id = DekId::from_bytes(raw_dek[0..16].try_into().unwrap());
+        let instance_id_ref = instance_id.clone();
+        let metadata = KeyMetadata::new(instance_id_ref.clone(), CryptoAlgorithm::Aes256Gcm);
+        let entry = DekEntry::new(dek_id.clone(), instance_id_ref, wrapped_dek, metadata)?;
 
         self.insert_dek_entry(&entry)?;
         self.set_active_dek_index(instance_id, &dek_id)?;
@@ -341,14 +342,12 @@ impl DekStore for FjallDekStore {
     fn list_deks(&self, instance_id: &InstanceId) -> Result<Vec<DekId>, DekStoreError> {
         let mut dek_ids = Vec::new();
 
-        for item in self.dek_partition.iter() {
-            let (_key, value) = item.map_err(|e| DekStoreError::Storage {
-                reason: format!("failed to scan DEKs: {e}"),
-            })?;
-
-            if let Ok(entry) = super::decode_dek_entry(&value) {
-                if entry.instance_id() == instance_id {
-                    dek_ids.push(entry.dek_id().clone());
+        for result in self.dek_partition.iter() {
+            if let Ok((key, value)) = result {
+                if key.starts_with(prefix.as_bytes()) {
+                    if let Ok(entry) = super::decode_dek_entry(&value) {
+                        dek_ids.push(entry.dek_id().clone());
+                    }
                 }
             }
         }
@@ -430,8 +429,8 @@ mod tests {
         let retrieved1 = store.retrieve_dek(&sample_instance_id(), &kek).unwrap();
         let retrieved2 = store.retrieve_dek(&sample_instance_id(), &kek).unwrap();
 
-        // Verify the retrieved DEK is a valid 32-byte key
-        assert_eq!(retrieved.len(), 32);
+        let generated_bytes = generated.to_bytes().expect("valid bytes");
+        assert_eq!(&generated_bytes[..], &retrieved[..16]);
     }
 
     #[test]

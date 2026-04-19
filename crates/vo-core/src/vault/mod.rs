@@ -235,33 +235,30 @@ impl Default for CredentialVault {
 
 #[cfg(test)]
 mod tests {
+    use super::access::{is_authorized, AccessChecker};
+    use super::rotation::RotationStateMachine;
     use super::*;
     use vo_types::credentials::{
         AccessPolicy, Credential, CredentialId, CredentialKind, CredentialStatus,
-        CredentialVersion, CredentialVersionId, RotationPolicy, RotationState, SecretValue,
-        VaultEntry, VaultEntryId,
+        CredentialVersion, CredentialVersionId, Principal, RotationPolicy, RotationState,
+        RotationStatus, SecretValue, VaultEntry, VaultEntryId,
     };
-    use vo_types::{InstanceId, TimestampMs};
+    use vo_types::{DurationMs, InstanceId, SpawnId, TimestampMs, WorkflowName};
 
-    fn create_test_vault_entry() -> VaultEntry {
-        let credential_id = CredentialId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").expect("valid ULID");
-        let version_id =
-            CredentialVersionId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMB").expect("valid ULID");
-        let entry_id = VaultEntryId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMC").expect("valid ULID");
-
+    fn create_test_vault_entry(cred_id: &str, ver_id: &str, entry_id: &str) -> VaultEntry {
         let version = CredentialVersion::new(
-            version_id.clone(),
-            SecretValue::new(vec![0u8; 32], [0u8; 12], 1).expect("valid secret"),
+            CredentialVersionId::parse(ver_id).expect("valid ULID"),
+            SecretValue::new(vec![0u8; 32], [0u8; 12], 1).expect("valid ciphertext"),
             CredentialStatus::Active,
             TimestampMs::new_unchecked(1000),
             None,
         );
 
         let credential = Credential {
-            id: credential_id.clone(),
+            id: CredentialId::parse(cred_id).expect("valid ULID"),
             kind: CredentialKind::ApiKey,
-            name: "github-api".to_string(),
-            current_version: version_id.clone(),
+            name: "test-credential".to_string(),
+            current_version: CredentialVersionId::parse(ver_id).expect("valid ULID"),
             versions: vec![version],
             rotation_policy: RotationPolicy::Manual,
             metadata: std::collections::HashMap::new(),
@@ -270,7 +267,7 @@ mod tests {
         };
 
         VaultEntry {
-            entry_id,
+            entry_id: VaultEntryId::parse(entry_id).expect("valid ULID"),
             credential,
             access_policy: AccessPolicy::new(vec![]),
             rotation_state: RotationState::new(),
@@ -428,7 +425,11 @@ mod tests {
     #[test]
     fn vault_create_credential_returns_id() {
         let vault = CredentialVault::new();
-        let entry = create_test_vault_entry();
+        let entry = create_test_vault_entry(
+            "01H5JYV4XHGSR2F8KZ9BWNRFMA",
+            "01H5JYV4XHGSR2F8KZ9BWNRFMB",
+            "01H5JYV4XHGSR2F8KZ9BWNRFMC",
+        );
         let result = vault.create_credential(entry);
         assert!(result.is_ok());
     }
@@ -494,5 +495,398 @@ mod tests {
             result.unwrap().state(),
             vo_types::credentials::RotationStatus::Idle
         );
+    }
+
+    // ============================================================================
+    // INTEGRATION TESTS - Full business logic integration
+    // ============================================================================
+
+    /// Integration test: Full credential lifecycle - create, rotate, revoke (stub behavior)
+    /// Note: CredentialVault is a stub - methods return without storing data
+    #[test]
+    fn full_credential_lifecycle_stub_behavior() {
+        let vault = CredentialVault::new();
+
+        // Step 1: Create credential returns ID (stub - doesn't store)
+        let cred_id = "01H5JYV4XHGSR2F8KZ9BWNRFMA";
+        let ver_id = "01H5JYV4XHGSR2F8KZ9BWNRFMB";
+        let entry_id = "01H5JYV4XHGSR2F8KZ9BWNRFMC";
+        let entry = create_test_vault_entry(cred_id, ver_id, entry_id);
+
+        let result = vault.create_credential(entry);
+        assert!(result.is_ok(), "Credential creation should return ID");
+        assert_eq!(result.unwrap().as_str(), cred_id);
+
+        // Step 2: Get credential returns not found (stub - doesn't store)
+        let retrieved = vault.get_credential(&CredentialId::parse(cred_id).unwrap());
+        assert!(retrieved.is_err(), "Credential should not be found (stub)");
+        assert!(matches!(
+            retrieved.unwrap_err(),
+            CredentialError::CredentialNotFound(_)
+        ));
+
+        // Step 3: Get secret returns not found (stub - doesn't store)
+        let user = Principal::User(InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMD").unwrap());
+        let secret = vault.get_secret(&CredentialId::parse(cred_id).unwrap(), &user);
+        assert!(secret.is_err(), "Secret should not be found (stub)");
+
+        // Step 4: Rotate credential returns dummy version (stub)
+        let rotated = vault.rotate(&CredentialId::parse(cred_id).unwrap(), None);
+        assert!(rotated.is_ok(), "Rotation should return a version ID");
+        assert!(rotated.unwrap().as_str().len() > 0);
+
+        // Step 5: Revoke version succeeds (stub)
+        let version_to_revoke = "01H5JYV4XHGSR2F8KZ9BWNRFMB";
+        let revoke_result = vault.revoke_version(
+            &CredentialId::parse(cred_id).unwrap(),
+            &CredentialVersionId::parse(version_to_revoke).unwrap(),
+            &user,
+        );
+        assert!(revoke_result.is_ok(), "Revoke should succeed (stub)");
+
+        // Step 6: List credentials returns empty (stub)
+        let list_result = vault.list_credentials();
+        assert!(list_result.is_ok(), "List should succeed");
+        assert!(
+            list_result.unwrap().is_empty(),
+            "List should be empty (stub)"
+        );
+    }
+
+    /// Integration test: Metadata update is no-op in stub
+    #[test]
+    fn metadata_update_noop() {
+        let vault = CredentialVault::new();
+
+        let cred_id = "01H5JYV4XHGSR2F8KZ9BWNRFMA";
+        let entry = create_test_vault_entry(
+            cred_id,
+            "01H5JYV4XHGSR2F8KZ9BWNRFMB",
+            "01H5JYV4XHGSR2F8KZ9BWNRFMC",
+        );
+        assert!(vault.create_credential(entry).is_ok());
+
+        // Update metadata - stub implementation returns Ok without storing
+        let mut metadata = std::collections::HashMap::new();
+        metadata.insert("environment".to_string(), "production".to_string());
+
+        let update_result =
+            vault.update_metadata(&CredentialId::parse(cred_id).unwrap(), metadata.clone());
+        assert!(
+            update_result.is_ok(),
+            "Metadata update should return Ok (stub)"
+        );
+
+        // List still empty (metadata not stored)
+        let list = vault.list_credentials().unwrap();
+        assert!(list.is_empty(), "List should still be empty");
+    }
+
+    /// Integration test: Duplicate credential detection (stub returns Ok for both)
+    /// Note: Vault is a stub - create_credential doesn't persist, so no duplicate detection
+    #[test]
+    fn duplicate_credential_stub_behavior() {
+        let vault = CredentialVault::new();
+
+        let cred_id = "01H5JYV4XHGSR2F8KZ9BWNRFMA";
+        let entry1 = create_test_vault_entry(
+            cred_id,
+            "01H5JYV4XHGSR2F8KZ9BWNRFMB",
+            "01H5JYV4XHGSR2F8KZ9BWNRFMC",
+        );
+        let entry2 = create_test_vault_entry(
+            cred_id,
+            "01H5JYV4XHGSR2F8KZ9BWNRFMD",
+            "01H5JYV4XHGSR2F8KZ9BWNRFME",
+        );
+
+        // Both succeed because vault doesn't persist (stub)
+        assert!(vault.create_credential(entry1).is_ok());
+        assert!(vault.create_credential(entry2).is_ok());
+    }
+
+    /// Integration test: Access control across all principal types
+    #[test]
+    fn access_control_all_principal_types() {
+        let user = Principal::User(InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap());
+        let actor =
+            Principal::Actor(vo_types::SpawnId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMB").unwrap());
+        let workflow = Principal::Workflow(vo_types::WorkflowName::parse("deploy-prod").unwrap());
+        let system = Principal::System;
+
+        let policy = AccessPolicy::new(vec![user.clone()]);
+
+        // System always authorized
+        assert!(is_authorized(&policy, &system));
+
+        // User in allowed list authorized
+        assert!(is_authorized(&policy, &user));
+
+        // Actor not in list denied
+        assert!(!is_authorized(&policy, &actor));
+
+        // Workflow not in list denied
+        assert!(!is_authorized(&policy, &workflow));
+    }
+
+    /// Integration test: Access control with approval required
+    #[test]
+    fn access_control_approval_required() {
+        let user = Principal::User(InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap());
+        let approver = Principal::User(InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMB").unwrap());
+
+        let mut policy = AccessPolicy::new(vec![user.clone()]);
+        policy = AccessPolicy {
+            allowed_principals: policy.allowed_principals,
+            require_approval: true,
+            approvers: vec![approver.clone()],
+            audit_enabled: true,
+        };
+
+        // User not in approvers denied
+        assert!(!is_authorized(&policy, &user));
+
+        // Approver authorized
+        assert!(is_authorized(&policy, &approver));
+    }
+
+    /// Integration test: AccessChecker permission checks
+    #[test]
+    fn access_checker_permission_checks() {
+        let user = Principal::User(InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap());
+        let policy = AccessPolicy::new(vec![user.clone()]);
+        let checker = AccessChecker::new(&policy, &user);
+
+        // All permissions granted to authorized user
+        assert!(checker.can_read());
+        assert!(checker.can_write());
+        assert!(checker.can_delete());
+        assert!(checker.can_rotate());
+        assert!(checker.can_revoke());
+    }
+
+    /// Integration test: AccessChecker denies unauthorized
+    #[test]
+    fn access_checker_denies_unauthorized() {
+        let user = Principal::User(InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap());
+        let unauthorized =
+            Principal::User(InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMB").unwrap());
+        let policy = AccessPolicy::new(vec![user.clone()]);
+
+        let checker = AccessChecker::new(&policy, &unauthorized);
+
+        // All permissions denied to unauthorized user
+        assert!(!checker.can_read());
+        assert!(!checker.can_write());
+        assert!(!checker.can_delete());
+        assert!(!checker.can_rotate());
+        assert!(!checker.can_revoke());
+    }
+
+    /// Integration test: Full rotation state machine lifecycle
+    #[test]
+    fn rotation_state_machine_full_lifecycle() {
+        let mut machine = RotationStateMachine::new();
+
+        // Initial state: Idle
+        assert_eq!(machine.state().state(), RotationState::new().state());
+
+        // Start rotation
+        assert!(machine.start_rotation().is_ok());
+        assert_eq!(machine.state().state(), RotationStatus::Rotating);
+
+        // Complete rotation
+        machine.complete_rotation(None);
+        assert_eq!(machine.state().state(), RotationState::new().state());
+    }
+
+    /// Integration test: Rotation with failure and retry
+    #[test]
+    fn rotation_with_failure_and_retry() {
+        let mut machine = RotationStateMachine::new();
+
+        // Start and fail
+        assert!(machine.start_rotation().is_ok());
+        machine.fail_rotation("encryption failed".to_string());
+        assert!(matches!(
+            machine.state().state(),
+            RotationStatus::Failed(ref s) if s == "encryption failed"
+        ));
+        assert_eq!(machine.state().consecutive_failures(), 1);
+
+        // Acknowledge and retry
+        machine.acknowledge_failure();
+        assert_eq!(machine.state().state(), RotationState::new().state());
+
+        // Retry succeeds
+        assert!(machine.start_rotation().is_ok());
+        machine.complete_rotation(None);
+        assert_eq!(machine.state().state(), RotationState::new().state());
+    }
+
+    /// Integration test: Rotation overlap workflow
+    #[test]
+    fn rotation_overlap_workflow() {
+        let mut machine = RotationStateMachine::new();
+
+        // Start rotation
+        assert!(machine.start_rotation().is_ok());
+
+        // Enter overlap window
+        machine.enter_overlap();
+        assert_eq!(machine.state().state(), RotationStatus::WaitingForOverlap);
+
+        // Can still complete from overlap
+        machine.complete_rotation(None);
+        assert_eq!(machine.state().state(), RotationState::new().state());
+    }
+
+    /// Integration test: Rotation policy next computation
+    #[test]
+    fn rotation_policy_next_computation() {
+        let last_rotation = TimestampMs::new_unchecked(1000);
+
+        // Manual policy: no next rotation
+        let manual_policy = RotationPolicy::Manual;
+        assert!(
+            RotationStateMachine::compute_next_rotation(&manual_policy, last_rotation).is_none()
+        );
+
+        // Time-based policy: computes next rotation
+        let time_policy = RotationPolicy::TimeBased {
+            interval: DurationMs::try_from(86400000u64).unwrap(),
+            overlap_window: DurationMs::try_from(60000u64).unwrap(),
+        };
+        let next = RotationStateMachine::compute_next_rotation(&time_policy, last_rotation);
+        assert!(next.is_some());
+        assert!(next.unwrap().as_u64() > last_rotation.as_u64());
+    }
+
+    /// Integration test: Consecutive failure counter persists
+    #[test]
+    fn consecutive_failures_persist_across_rotations() {
+        let mut machine = RotationStateMachine::new();
+
+        // First rotation fails
+        machine.start_rotation().unwrap();
+        machine.fail_rotation("error 1".to_string());
+        assert_eq!(machine.state().consecutive_failures(), 1);
+
+        // Second rotation fails (counter persists)
+        machine.start_rotation().unwrap();
+        machine.fail_rotation("error 2".to_string());
+        assert_eq!(machine.state().consecutive_failures(), 2);
+
+        // Complete resets counter
+        machine.complete_rotation(None);
+        assert_eq!(machine.state().consecutive_failures(), 0);
+    }
+
+    /// Integration test: Vault + AccessControl + Rotation working together
+    #[test]
+    fn vault_access_rotation_integration() {
+        let vault = CredentialVault::new();
+        let mut rotation_machine = RotationStateMachine::new();
+
+        let cred_id = "01H5JYV4XHGSR2F8KZ9BWNRFMA";
+        let user = Principal::User(InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMD").unwrap());
+
+        // Create credential (stub - doesn't store)
+        let entry = create_test_vault_entry(
+            cred_id,
+            "01H5JYV4XHGSR2F8KZ9BWNRFMB",
+            "01H5JYV4XHGSR2F8KZ9BWNRFMC",
+        );
+        assert!(vault.create_credential(entry).is_ok());
+
+        // Access check works independently
+        let policy = AccessPolicy::new(vec![user.clone()]);
+        assert!(is_authorized(&policy, &user));
+
+        // Rotation state machine works
+        assert_eq!(
+            rotation_machine.state().state(),
+            RotationState::new().state()
+        );
+        assert!(rotation_machine.start_rotation().is_ok());
+        assert_eq!(rotation_machine.state().state(), RotationStatus::Rotating);
+
+        // Complete rotation
+        rotation_machine.complete_rotation(None);
+        assert_eq!(
+            rotation_machine.state().state(),
+            RotationState::new().state()
+        );
+    }
+
+    /// Integration test: Credential not found error propagation
+    #[test]
+    fn credential_not_found_error_propagation() {
+        let vault = CredentialVault::new();
+
+        let result =
+            vault.get_credential(&CredentialId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap());
+        assert!(matches!(
+            result.unwrap_err(),
+            CredentialError::CredentialNotFound(_)
+        ));
+    }
+
+    /// Integration test: Rotation state error
+    #[test]
+    fn rotation_state_error_already_rotating() {
+        let mut machine = RotationStateMachine::new();
+
+        // Start rotation
+        assert!(machine.start_rotation().is_ok());
+
+        // Try to start again
+        let result = machine.start_rotation();
+        assert!(matches!(
+            result.unwrap_err(),
+            rotation::RotationStateError::AlreadyRotating
+        ));
+    }
+
+    /// Integration test: Access denied error
+    #[test]
+    fn access_denied_error() {
+        let user = Principal::User(InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap());
+        let unauthorized =
+            Principal::User(InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMB").unwrap());
+
+        let policy = AccessPolicy::new(vec![user.clone()]);
+
+        let checker = AccessChecker::new(&policy, &unauthorized);
+        assert!(!checker.can_read());
+    }
+
+    /// Integration test: Permission display
+    #[test]
+    fn permission_display_integration() {
+        assert_eq!(format!("{}", Permission::Read), "read");
+        assert_eq!(format!("{}", Permission::Write), "write");
+        assert_eq!(format!("{}", Permission::Delete), "delete");
+        assert_eq!(format!("{}", Permission::Rotate), "rotate");
+        assert_eq!(format!("{}", Permission::Revoke), "revoke");
+    }
+
+    /// Integration test: Credential summary accessors
+    #[test]
+    fn credential_summary_accessors_integration() {
+        let id = CredentialId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+
+        let summary = CredentialSummary {
+            id: id.clone(),
+            name: "test".to_string(),
+            kind: CredentialKind::ApiKey,
+            version_count: 3,
+            rotation_status: vo_types::credentials::RotationStatus::Idle,
+        };
+
+        assert_eq!(summary.id(), id);
+        assert_eq!(summary.name(), "test");
+        assert_eq!(summary.kind(), CredentialKind::ApiKey);
+        assert_eq!(summary.version_count(), 3);
     }
 }
