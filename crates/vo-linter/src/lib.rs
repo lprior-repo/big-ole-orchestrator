@@ -6,7 +6,7 @@
 //! # Modules
 //!
 //! - [`rules`] - Collection of linting rules for workflow validation
-//! - [`diagnostic`] - Diagnostic types and lint codes for reporting issues
+//! - [`Diagnostic`] and [`LintCode`] - Diagnostic types and lint codes for reporting issues
 //!
 //! # Lint Code Registry
 //!

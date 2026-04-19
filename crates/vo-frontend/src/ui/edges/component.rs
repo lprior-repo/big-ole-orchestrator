@@ -1,4 +1,5 @@
-use super::graph_types::{Connection, ExecutionState, Node, NodeId};
+use super::graph_types::{Connection, Node, NodeId};
+use crate::ui::graph::ExecutionState;
 use dioxus::prelude::*;
 use std::collections::HashMap;
 

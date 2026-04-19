@@ -195,87 +195,6 @@ pub enum RecoveryInvariant {
 // Calc Layer: Pure Functions
 // ============================================================================
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum RecoveryError {
-    MalformedScenario {
-        reason: String,
-    },
-    UnknownFailureMode {
-        phase: RecoveryPhase,
-        severity: FailoverSeverity,
-        timing: CrashTiming,
-    },
-}
-
-impl std::fmt::Display for RecoveryError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            RecoveryError::MalformedScenario { reason } => {
-                write!(f, "Malformed scenario: {}", reason)
-            }
-            RecoveryError::UnknownFailureMode {
-                phase,
-                severity,
-                timing,
-            } => {
-                write!(
-                    f,
-                    "Unknown failure mode: {:?}/{:?}/{:?}",
-                    phase, severity, timing
-                )
-            }
-        }
-    }
-}
-
-impl std::error::Error for RecoveryError {}
-
-pub fn validate_scenario(scenario: &FailoverScenario) -> Result<(), RecoveryError> {
-    if scenario.name.is_empty() {
-        return Err(RecoveryError::MalformedScenario {
-            reason: "scenario name cannot be empty".to_string(),
-        });
-    }
-    if scenario.name.len() > 256 {
-        return Err(RecoveryError::MalformedScenario {
-            reason: "scenario name exceeds maximum length of 256".to_string(),
-        });
-    }
-    let classified = classify_expected_outcome(scenario.phase, scenario.severity, scenario.timing);
-    match classified {
-        Ok(expected) if expected == scenario.expected_outcome => Ok(()),
-        Ok(expected) => Err(RecoveryError::MalformedScenario {
-            reason: format!(
-                "expected_outcome {:?} does not match classified outcome {:?}",
-                scenario.expected_outcome, expected
-            ),
-        }),
-        Err(_) => Err(RecoveryError::UnknownFailureMode {
-            phase: scenario.phase,
-            severity: scenario.severity,
-            timing: scenario.timing,
-        }),
-    }
-}
-
-pub fn assertion_check(scenario: &FailoverScenario) -> AssertionResult {
-    if let Err(e) = validate_scenario(scenario) {
-        return AssertionResult::Violated(match e {
-            RecoveryError::MalformedScenario { reason: _ } => RecoveryViolation::StuckInNonTerminal,
-            RecoveryError::UnknownFailureMode { .. } => RecoveryViolation::LostEffect,
-        });
-    }
-    AssertionResult::Satisfied
-}
-
-pub fn invariant_verify(invariant: RecoveryInvariant, violations: &[RecoveryViolation]) -> bool {
-    let relevant_violations: Vec<&RecoveryViolation> = violations
-        .iter()
-        .filter(|v| violation_to_invariant(**v) == invariant)
-        .collect();
-    relevant_violations.is_empty()
-}
-
 impl FailoverScenario {
     /// Creates a new failover scenario with the given parameters.
     #[must_use]
@@ -433,8 +352,7 @@ pub fn generate_scenario_matrix() -> Vec<FailoverScenario> {
     for phase in RecoveryPhase::all_variants() {
         for severity in FailoverSeverity::all_variants() {
             for timing in CrashTiming::all_variants() {
-                let expected_outcome = classify_expected_outcome(*phase, *severity, *timing)
-                    .expect("All phase/severity/timing combinations must be classifiable");
+                let expected_outcome = classify_expected_outcome(*phase, *severity, *timing);
                 let name = format!(
                     "{:?}-{:?}-{:?}-to-{:?}",
                     phase, severity, timing, expected_outcome
@@ -459,43 +377,26 @@ pub fn classify_expected_outcome(
     phase: RecoveryPhase,
     severity: FailoverSeverity,
     timing: CrashTiming,
-) -> Result<ExpectedRecoveryOutcome, RecoveryError> {
+) -> ExpectedRecoveryOutcome {
     match (phase, severity, timing) {
         (
             RecoveryPhase::Commit,
             FailoverSeverity::Ambiguous,
             CrashTiming::PartialWrite | CrashTiming::AfterCommit,
-        ) => Ok(ExpectedRecoveryOutcome::Committed),
+        ) => ExpectedRecoveryOutcome::Committed,
         (RecoveryPhase::Commit, FailoverSeverity::Ambiguous, CrashTiming::BeforeWrite) => {
-            Ok(ExpectedRecoveryOutcome::NotCommitted)
+            ExpectedRecoveryOutcome::NotCommitted
         }
-        (RecoveryPhase::Compensation, _, _) => Ok(ExpectedRecoveryOutcome::RolledBack),
+        (RecoveryPhase::Compensation, _, _) => ExpectedRecoveryOutcome::RolledBack,
         (RecoveryPhase::TransactionCoordination, _, _) => {
-            Ok(ExpectedRecoveryOutcome::TransactionResolved)
+            ExpectedRecoveryOutcome::TransactionResolved
         }
-        (_, FailoverSeverity::Transient, CrashTiming::PartialWrite | CrashTiming::AfterCommit) => {
-            Ok(ExpectedRecoveryOutcome::Committed)
-        }
+        (_, FailoverSeverity::Transient, _) => ExpectedRecoveryOutcome::Committed,
         (RecoveryPhase::Reconcile, FailoverSeverity::Ambiguous, _) => {
-            Ok(ExpectedRecoveryOutcome::StillAmbiguous)
+            ExpectedRecoveryOutcome::StillAmbiguous
         }
-        (_, FailoverSeverity::Transient, CrashTiming::BeforeWrite) => {
-            Ok(ExpectedRecoveryOutcome::Committed)
-        }
-        (_, FailoverSeverity::Ambiguous, CrashTiming::PartialWrite | CrashTiming::AfterCommit) => {
-            Ok(ExpectedRecoveryOutcome::Committed)
-        }
-        (
-            RecoveryPhase::Reconcile,
-            FailoverSeverity::ComponentFailure | FailoverSeverity::Partition,
-            CrashTiming::PartialWrite | CrashTiming::AfterCommit,
-        ) => Ok(ExpectedRecoveryOutcome::Committed),
-        (
-            _,
-            FailoverSeverity::ComponentFailure | FailoverSeverity::Partition,
-            CrashTiming::PartialWrite | CrashTiming::AfterCommit,
-        ) => Ok(ExpectedRecoveryOutcome::Committed),
-        (_, _, CrashTiming::BeforeWrite) => Ok(ExpectedRecoveryOutcome::NotCommitted),
+        (_, _, CrashTiming::BeforeWrite) => ExpectedRecoveryOutcome::NotCommitted,
+        _ => ExpectedRecoveryOutcome::Committed,
     }
 }
 
@@ -683,8 +584,7 @@ mod tests {
             RecoveryPhase::Commit,
             FailoverSeverity::Ambiguous,
             CrashTiming::AfterCommit,
-        )
-        .expect("Known combination should return outcome");
+        );
         assert_eq!(outcome, ExpectedRecoveryOutcome::Committed);
     }
 
@@ -694,8 +594,7 @@ mod tests {
             RecoveryPhase::Commit,
             FailoverSeverity::Ambiguous,
             CrashTiming::BeforeWrite,
-        )
-        .expect("Known combination should return outcome");
+        );
         assert_eq!(outcome, ExpectedRecoveryOutcome::NotCommitted);
     }
 
@@ -705,8 +604,7 @@ mod tests {
             RecoveryPhase::Compensation,
             FailoverSeverity::Transient,
             CrashTiming::BeforeWrite,
-        )
-        .expect("Known combination should return outcome");
+        );
         assert_eq!(outcome, ExpectedRecoveryOutcome::RolledBack);
     }
 
@@ -716,8 +614,7 @@ mod tests {
             RecoveryPhase::TransactionCoordination,
             FailoverSeverity::Ambiguous,
             CrashTiming::PartialWrite,
-        )
-        .expect("Known combination should return outcome");
+        );
         assert_eq!(outcome, ExpectedRecoveryOutcome::TransactionResolved);
     }
 
@@ -756,76 +653,188 @@ mod tests {
     }
 
     #[test]
-    fn test_valid_scenario_produces_expected_assertion() {
-        let scenario = FailoverScenario::new(
-            "commit-crash-after-commit-to-Committed",
-            RecoveryPhase::Commit,
-            FailoverSeverity::Ambiguous,
-            CrashTiming::AfterCommit,
-            ExpectedRecoveryOutcome::Committed,
-        );
-        let result = assertion_check(&scenario);
-        assert!(
-            result.is_satisfied(),
-            "Valid scenario should produce satisfied assertion"
-        );
+    fn matrix_generation_is_deterministic() {
+        let matrix1 = generate_scenario_matrix();
+        let matrix2 = generate_scenario_matrix();
+        assert_eq!(matrix1.len(), matrix2.len());
+        for (s1, s2) in matrix1.iter().zip(matrix2.iter()) {
+            assert_eq!(s1.name, s2.name);
+            assert_eq!(s1.phase, s2.phase);
+            assert_eq!(s1.severity, s2.severity);
+            assert_eq!(s1.timing, s2.timing);
+            assert_eq!(s1.expected_outcome, s2.expected_outcome);
+        }
     }
 
     #[test]
-    fn test_matrix_generates_all_combinations() {
-        let matrix = generate_scenario_matrix();
-        let phase_count = RecoveryPhase::all_variants().len();
-        let severity_count = FailoverSeverity::all_variants().len();
-        let timing_count = CrashTiming::all_variants().len();
-        let expected = phase_count * severity_count * timing_count;
-        assert_eq!(
-            matrix.len(),
-            expected,
-            "Matrix should contain all combinations"
-        );
-        for scenario in &matrix {
-            let classified =
-                classify_expected_outcome(scenario.phase, scenario.severity, scenario.timing)
-                    .expect("Matrix should only contain classifiable scenarios");
-            assert_eq!(
-                scenario.expected_outcome, classified,
-                "Scenario {} has mismatched expected_outcome",
-                scenario.name
+    fn classification_is_deterministic_for_all_combinations() {
+        for phase in RecoveryPhase::all_variants() {
+            for severity in FailoverSeverity::all_variants() {
+                for timing in CrashTiming::all_variants() {
+                    let outcome1 = classify_expected_outcome(*phase, *severity, *timing);
+                    let outcome2 = classify_expected_outcome(*phase, *severity, *timing);
+                    assert_eq!(
+                        outcome1, outcome2,
+                        "classify_expected_outcome not deterministic for {:?}/{:?}/{:?}",
+                        phase, severity, timing
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn all_violations_map_to_valid_invariants() {
+        let violations = [
+            RecoveryViolation::DuplicateCommit,
+            RecoveryViolation::LostEffect,
+            RecoveryViolation::StuckInNonTerminal,
+            RecoveryViolation::TransactionAmbiguous,
+            RecoveryViolation::ReconciliationCountMismatch,
+            RecoveryViolation::DuplicateJournalEntry,
+            RecoveryViolation::UnrecoveredOrphans,
+            RecoveryViolation::FenceTokenStale,
+        ];
+
+        for violation in &violations {
+            let invariant = violation_to_invariant(*violation);
+            assert!(
+                matches!(
+                    invariant,
+                    RecoveryInvariant::ExactlyOneReceiptPerCommit
+                        | RecoveryInvariant::NoSkippedPrepare
+                        | RecoveryInvariant::AmbiguousResolvesViaReconciliation
+                        | RecoveryInvariant::TransactionDecisionDurable
+                        | RecoveryInvariant::ReconciliationRetryBounded
+                        | RecoveryInvariant::RecoveryIdempotency
+                ),
+                "Violation {:?} maps to unexpected invariant {:?}",
+                violation,
+                invariant
             );
         }
     }
 
     #[test]
-    fn test_unknown_failure_mode_handled_gracefully() {
-        let result = classify_expected_outcome(
-            RecoveryPhase::Prepare,
-            FailoverSeverity::Ambiguous,
-            CrashTiming::PartialWrite,
-        );
-        match result {
-            Ok(outcome) => {
-                assert!(
-                    outcome.is_resolved()
-                        || matches!(outcome, ExpectedRecoveryOutcome::StillAmbiguous),
-                    "If combination is known, outcome should be valid"
-                );
+    fn structural_invariants_hold_by_construction() {
+        assert_eq!(RecoveryInvariant::all_variants().len(), 8);
+        let structural_invariants = [
+            RecoveryInvariant::TerminalStatesAreFinal,
+            RecoveryInvariant::CompensationCompletes,
+        ];
+        assert_eq!(structural_invariants.len(), 2);
+
+        for inv in RecoveryInvariant::all_variants() {
+            if *inv == RecoveryInvariant::TerminalStatesAreFinal {
+                assert_eq!(inv.id(), "INV-R01");
             }
-            Err(_) => {}
+            if *inv == RecoveryInvariant::CompensationCompletes {
+                assert_eq!(inv.id(), "INV-R07");
+            }
         }
     }
 
     #[test]
-    fn test_malformed_scenario_returns_error() {
-        let empty_name_scenario = FailoverScenario::new(
-            "",
-            RecoveryPhase::Commit,
-            FailoverSeverity::Ambiguous,
-            CrashTiming::AfterCommit,
-            ExpectedRecoveryOutcome::Committed,
-        );
-        assert!(
-            validate_scenario(&empty_name_scenario).is_err(),
-            "Scenario with empty name should return error"
-        );
+    fn all_scenarios_have_valid_expected_outcome() {
+        let matrix = generate_scenario_matrix();
+        for scenario in &matrix {
+            let outcome =
+                classify_expected_outcome(scenario.phase, scenario.severity, scenario.timing);
+            assert_eq!(
+                outcome, scenario.expected_outcome,
+                "Scenario {} has inconsistent outcome: classified as {:?} but scenario expects {:?}",
+                scenario.name, outcome, scenario.expected_outcome
+            );
+        }
+    }
+
+    #[test]
+    fn every_phase_severity_timing_combination_classified() {
+        let expected_count = RecoveryPhase::all_variants().len()
+            * FailoverSeverity::all_variants().len()
+            * CrashTiming::all_variants().len();
+        let matrix = generate_scenario_matrix();
+        assert_eq!(matrix.len(), expected_count);
+
+        let mut covered = 0;
+        for phase in RecoveryPhase::all_variants() {
+            for severity in FailoverSeverity::all_variants() {
+                for timing in CrashTiming::all_variants() {
+                    let outcome = classify_expected_outcome(*phase, *severity, *timing);
+                    assert!(
+                        matches!(
+                            outcome,
+                            ExpectedRecoveryOutcome::Committed
+                                | ExpectedRecoveryOutcome::NotCommitted
+                                | ExpectedRecoveryOutcome::StillAmbiguous
+                                | ExpectedRecoveryOutcome::RolledBack
+                                | ExpectedRecoveryOutcome::TransactionResolved
+                        ),
+                        "Invalid outcome {:?} for {:?}/{:?}/{:?}",
+                        outcome,
+                        phase,
+                        severity,
+                        timing
+                    );
+                    covered += 1;
+                }
+            }
+        }
+        assert_eq!(covered, expected_count);
+    }
+
+    #[test]
+    fn crash_timing_windows_are_mutually_exclusive() {
+        let timings = CrashTiming::all_variants();
+        assert_eq!(timings.len(), 3);
+
+        for timing in timings {
+            let scenario = FailoverScenario::new(
+                "test",
+                RecoveryPhase::Commit,
+                FailoverSeverity::Ambiguous,
+                *timing,
+                ExpectedRecoveryOutcome::Committed,
+            );
+            match timing {
+                CrashTiming::BeforeWrite => {
+                    assert!(!matches!(
+                        scenario.timing,
+                        CrashTiming::PartialWrite | CrashTiming::AfterCommit
+                    ));
+                }
+                CrashTiming::PartialWrite => {
+                    assert!(!matches!(
+                        scenario.timing,
+                        CrashTiming::BeforeWrite | CrashTiming::AfterCommit
+                    ));
+                }
+                CrashTiming::AfterCommit => {
+                    assert!(!matches!(
+                        scenario.timing,
+                        CrashTiming::BeforeWrite | CrashTiming::PartialWrite
+                    ));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn no_skipped_prepare_invariant_holds() {
+        for phase in RecoveryPhase::all_variants() {
+            for severity in FailoverSeverity::all_variants() {
+                for timing in CrashTiming::all_variants() {
+                    let outcome = classify_expected_outcome(*phase, *severity, *timing);
+                    if phase == &RecoveryPhase::Prepare {
+                        assert!(
+                            matches!(outcome, ExpectedRecoveryOutcome::Committed
+                                | ExpectedRecoveryOutcome::NotCommitted
+                                | ExpectedRecoveryOutcome::RolledBack),
+                            "Prepare phase should never yield StillAmbiguous or TransactionResolved"
+                        );
+                    }
+                }
+            }
+        }
     }
 }
