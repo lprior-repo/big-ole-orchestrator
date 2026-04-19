@@ -47,6 +47,24 @@ pub fn parse_task(item: &TokenStream) -> Result<TaskDef, Error> {
         })
         .collect();
 
+    let args: Vec<(String, Type)> = parsed
+        .sig
+        .inputs
+        .iter()
+        .filter_map(|arg| {
+            if let syn::FnArg::Typed(pat_type) = arg {
+                let ident = if let syn::Pat::Ident(ident) = &*pat_type.pat {
+                    ident.ident.to_string()
+                } else {
+                    return None;
+                };
+                Some((ident, (*pat_type.ty).clone()))
+            } else {
+                None
+            }
+        })
+        .collect();
+
     let return_type = match parsed.sig.output {
         syn::ReturnType::Default => None,
         syn::ReturnType::Type(_, ty) => Some(*ty),

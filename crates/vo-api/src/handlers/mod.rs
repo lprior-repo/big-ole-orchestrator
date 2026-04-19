@@ -1,14 +1,31 @@
+pub mod ingress;
+
 pub mod query;
 pub use query::*;
 
-// NOTE: workflow, signal, events, sse, and helpers modules have pre-existing
-// compilation errors (they reference vo_actor::messages which doesn't exist,
-// and use API methods from a different axum version). They are preserved for
-// reference but not compiled until the V2 actor migration is complete.
-// Uncomment each module as its dependencies are fixed.
-//
-// pub mod helpers;
-// pub mod workflow;
-// pub mod signal;
-// pub mod events;
-// pub mod sse;
+pub mod search;
+pub use search::*;
+
+pub mod ws;
+pub use ws::*;
+
+pub mod helpers;
+pub use helpers::*;
+
+pub mod workflow_lifecycle;
+pub mod workflow_start;
+pub mod workflow_status;
+
+pub use workflow_lifecycle::*;
+pub use workflow_start::*;
+pub use workflow_status::*;
+
+pub mod events;
+pub use events::*;
+pub use sse::*;
+
+pub mod signal;
+pub use signal::*;
+
+pub mod sse;
+pub use sse::*;

@@ -1,0 +1,262 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on build directory
+   Compiling const_format_proc_macros v0.2.34
+   Compiling tracing-attributes v0.1.31
+   Compiling synstructure v0.13.2
+   Compiling zerovec-derive v0.11.2
+   Compiling displaydoc v0.2.5
+   Compiling wasm-bindgen-macro-support v0.2.115
+   Compiling pin-project-internal v1.1.11
+   Compiling async-trait v0.1.89
+   Compiling warnings-macro v0.2.0
+    Checking serde v1.0.228
+    Checking futures-util v0.3.32
+    Checking thiserror v2.0.18
+    Checking thiserror v1.0.69
+   Compiling const-serialize-macro v0.7.2
+   Compiling darling_core v0.21.3
+   Compiling openssl-macros v0.1.1
+   Compiling darling_core v0.20.11
+   Compiling serde_core v1.0.228
+   Compiling proc-macro2-diagnostics v0.10.1
+   Compiling const-serialize-macro v0.8.0-alpha.0
+   Compiling curve25519-dalek-derive v0.1.1
+   Compiling enum_dispatch v0.3.13
+   Compiling strum_macros v0.26.4
+   Compiling dioxus-html-internal-macro v0.7.4
+   Compiling serde_repr v0.1.20
+   Compiling sledgehammer_bindgen_macro v0.6.5
+   Compiling macro-string v0.1.4
+   Compiling dioxus-router-macro v0.7.4
+   Compiling clap_derive v4.6.0
+   Compiling dioxus-stores-macro v0.7.4
+    Checking proc-macro2 v1.0.106
+   Compiling dioxus-config-macro v0.7.4
+   Compiling zerofrom-derive v0.1.6
+   Compiling yoke-derive v0.8.1
+   Compiling dioxus-rsx v0.7.4
+    Checking quote v1.0.45
+    Checking spqr-tree v4.0.2
+   Compiling wasm-bindgen-macro v0.2.115
+   Compiling const-serialize v0.7.2
+   Compiling darling_macro v0.20.11
+    Checking openssl v0.10.76
+    Checking curve25519-dalek v4.1.3
+    Checking syn v2.0.117
+   Compiling darling_macro v0.21.3
+    Checking pin-project v1.1.11
+    Checking lsm-tree v2.10.4
+    Checking wasm-bindgen v0.2.115
+   Compiling darling v0.20.11
+    Checking bytes v1.11.1
+    Checking subsecond-types v0.7.4
+    Checking slotmap v1.1.1
+    Checking ulid v1.2.1
+    Checking serde_urlencoded v0.7.1
+    Checking serde_nanos v0.1.4
+    Checking rmp-serde v1.3.1
+    Checking chrono v0.4.44
+    Checking const-serialize v0.8.0-alpha.0
+    Checking tracing v0.1.44
+    Checking ed25519-dalek v2.2.0
+   Compiling bon-macros v2.3.0
+    Checking futures-executor v0.3.32
+    Checking js-sys v0.3.92
+    Checking dioxus-cli-config v0.7.4
+    Checking generational-box v0.7.4
+    Checking warnings v0.2.1
+    Checking tracing-subscriber v0.3.23
+    Checking tower v0.4.13
+   Compiling darling v0.21.3
+    Checking fjall v2.11.2
+    Checking vo-sdk-macros v0.1.0 (/home/lewis/gt/veloxide/polecats/synth/veloxide/crates/vo-sdk-macros)
+    Checking nkeys v0.3.2
+    Checking sledgehammer_bindgen v0.6.0
+    Checking const_format v0.2.35
+    Checking zerofrom v0.1.6
+    Checking futures v0.3.32
+    Checking native-tls v0.2.18
+    Checking vo-types v0.1.0 (/home/lewis/gt/veloxide/polecats/synth/veloxide/crates/vo-types)
+    Checking subsecond v0.7.4
+   Compiling enumset_derive v0.14.0
+    Checking yoke v0.8.1
+   Compiling dioxus-core-macro v0.7.4
+    Checking manganis-core v0.7.4
+    Checking clap v4.6.0
+    Checking strum v0.26.3
+    Checking zerovec v0.11.5
+    Checking zerotrie v0.2.3
+    Checking dioxus-logger v0.7.4
+    Checking tokio v1.50.0
+    Checking http v1.4.0
+    Checking http v0.2.12
+    Checking tinystr v0.8.2
+    Checking potential_utf v0.1.4
+    Checking dioxus-core v0.7.4
+    Checking icu_locale_core v2.1.1
+    Checking icu_collections v2.1.1
+    Checking http-body v0.4.6
+    Checking icu_provider v2.1.1
+    Checking enumset v1.1.10
+    Checking http-body v1.0.1
+    Checking tungstenite v0.28.0
+    Checking icu_normalizer v2.1.1
+    Checking icu_properties v2.1.2
+    Checking http-body-util v0.1.3
+    Checking wasm-bindgen-futures v0.4.65
+    Checking web-sys v0.3.92
+    Checking serde-wasm-bindgen v0.6.5
+    Checking gloo-timers v0.3.0
+    Checking bon v2.3.0
+    Checking idna_adapter v1.2.1
+    Checking idna v1.1.0
+    Checking axum-core v0.4.5
+    Checking tower-http v0.5.2
+    Checking url v2.5.8
+    Checking dioxus-signals v0.7.4
+    Checking dioxus-devtools-types v0.7.4
+    Checking dioxus-history v0.7.4
+    Checking dioxus-hooks v0.7.4
+    Checking dioxus-devtools v0.7.4
+    Checking dioxus-stores v0.7.4
+    Checking dioxus-html v0.7.5
+   Compiling manganis-macro v0.7.4
+    Checking wasm-streams v0.4.2
+    Checking dioxus-interpreter-js v0.7.4
+    Checking dioxus-asset-resolver v0.7.4
+    Checking tokio-util v0.7.18
+    Checking tokio-native-tls v0.3.1
+    Checking tokio-rustls v0.24.1
+    Checking ractor v0.15.12
+    Checking tokio-retry v0.3.0
+    Checking hyper v1.8.1
+    Checking tower v0.5.3
+    Checking vo-ipc v0.1.0 (/home/lewis/gt/veloxide/polecats/synth/veloxide/crates/vo-ipc)
+    Checking vo-executor v0.1.0 (/home/lewis/gt/veloxide/polecats/synth/veloxide/crates/vo-executor)
+    Checking async-nats v0.33.0
+    Checking vo-storage v0.1.0 (/home/lewis/gt/veloxide/polecats/synth/veloxide/crates/vo-storage)
+    Checking vo-core v0.1.0 (/home/lewis/gt/veloxide/polecats/synth/veloxide/crates/vo-core)
+    Checking vo-sdk v0.1.0 (/home/lewis/gt/veloxide/polecats/synth/veloxide/crates/vo-sdk)
+    Checking h2 v0.3.27
+    Checking hyper-util v0.1.20
+    Checking manganis v0.7.5
+    Checking axum v0.7.9
+    Checking dioxus-document v0.7.4
+    Checking dioxus-router v0.7.4
+warning: variable does not need to be mutable
+  --> crates/vo-storage/src/effect_journal/fjall_journal.rs:59:13
+   |
+59 |         let mut record = self
+   |             ----^^^^^^
+   |             |
+   |             help: remove this `mut`
+   |
+   = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+   --> crates/vo-storage/src/effect_journal/fjall_journal.rs:100:13
+    |
+100 |         let mut record = self
+    |             ----^^^^^^
+    |             |
+    |             help: remove this `mut`
+
+warning: struct `FjallEffectJournal` is never constructed
+  --> crates/vo-storage/src/effect_journal/fjall_journal.rs:10:12
+   |
+10 | pub struct FjallEffectJournal {
+   |            ^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: associated function `open` is never used
+  --> crates/vo-storage/src/effect_journal/fjall_journal.rs:22:12
+   |
+20 | impl FjallEffectJournal {
+   | ----------------------- associated function in this implementation
+21 |     #[must_use]
+22 |     pub fn open(keyspace: &fjall::Keyspace) -> Result<Self, EffectJournalError> {
+   |            ^^^^
+
+warning: method `get_impl` is never used
+   --> crates/vo-storage/src/effect_journal/fjall_journal.rs:196:8
+    |
+195 | impl FjallEffectJournal {
+    | ----------------------- method in this implementation
+196 |     fn get_impl(&self, key: &[u8]) -> Result<Option<EffectRecord>, EffectJournalError> {
+    |        ^^^^^^^^
+
+warning: constant `FENCE_PARTITION` is never used
+ --> crates/vo-storage/src/lease_partition/fjall_lease_store.rs:9:7
+  |
+9 | const FENCE_PARTITION: &str = "lease_fences";
+  |       ^^^^^^^^^^^^^^^
+
+warning: struct `FjallLeaseStore` is never constructed
+  --> crates/vo-storage/src/lease_partition/fjall_lease_store.rs:11:12
+   |
+11 | pub struct FjallLeaseStore {
+   |            ^^^^^^^^^^^^^^^
+
+warning: multiple associated items are never used
+   --> crates/vo-storage/src/lease_partition/fjall_lease_store.rs:18:12
+    |
+ 16 | impl FjallLeaseStore {
+    | -------------------- associated items in this implementation
+ 17 |     #[must_use]
+ 18 |     pub fn open(keyspace: &fjall::Keyspace) -> Result<Self, LeaseStoreError> {
+    |            ^^^^
+...
+ 35 |     fn encode_lease_key(instance_id: &InstanceId, step_id: &StepId) -> Vec<u8> {
+    |        ^^^^^^^^^^^^^^^^
+...
+ 39 |     fn encode_fence_key(instance_id: &InstanceId, step_id: &StepId) -> Vec<u8> {
+    |        ^^^^^^^^^^^^^^^^
+...
+ 43 |     fn get_current_lease(
+    |        ^^^^^^^^^^^^^^^^^
+...
+ 61 |     fn allocate_fence_token(
+    |        ^^^^^^^^^^^^^^^^^^^^
+...
+104 |     fn insert_lease(&self, entry: &LeaseEntry) -> Result<(), LeaseStoreError> {
+    |        ^^^^^^^^^^^^
+...
+121 |     fn delete_lease(
+    |        ^^^^^^^^^^^^
+
+warning: `vo-storage` (lib) generated 8 warnings (run `cargo fix --lib -p vo-storage` to apply 2 suggestions)
+    Checking dioxus-web v0.7.5
+warning: field `active_rebuilds` is never read
+   --> crates/vo-core/src/replay/projection/mod.rs:337:5
+    |
+332 | pub struct ProjectionEngine {
+    |            ---------------- field in this struct
+...
+337 |     active_rebuilds: Arc<HashMap<String, Arc<RebuildContext>>>,
+    |     ^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: field `engine` is never read
+   --> crates/vo-core/src/replay/projection/mod.rs:488:5
+    |
+482 | pub struct ProjectionRebuilder<'a, S, E, P>
+    |            ------------------- field in this struct
+...
+488 |     engine: &'a ProjectionEngine,
+    |     ^^^^^^
+
+warning: `vo-core` (lib) generated 2 warnings
+    Checking dioxus v0.7.5
+    Checking hyper v0.14.32
+    Checking vo-frontend v0.1.0 (/home/lewis/gt/veloxide/polecats/synth/veloxide/crates/vo-frontend)
+    Checking hyper-tls v0.5.0
+    Checking reqwest v0.11.27
+    Checking vo-actor v0.1.0 (/home/lewis/gt/veloxide/polecats/synth/veloxide/crates/vo-actor)
+    Checking vo-worker v0.1.0 (/home/lewis/gt/veloxide/polecats/synth/veloxide/crates/vo-worker)
+    Checking vo-api v0.1.0 (/home/lewis/gt/veloxide/polecats/synth/veloxide/crates/vo-api)
+    Checking vo-cli v0.1.0 (/home/lewis/gt/veloxide/polecats/synth/veloxide/crates/vo-cli)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 24.20s

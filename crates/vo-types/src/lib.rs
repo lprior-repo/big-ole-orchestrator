@@ -51,12 +51,14 @@ mod recovery_contract;
 mod registration_status;
 mod rope;
 pub mod signal;
+pub mod security_validation_tests;
 pub mod skew_heap;
 mod spqr_tree;
 pub mod state;
 pub mod string_types;
 #[cfg(test)]
 mod string_types_tests;
+mod task_io;
 mod topology;
 mod tx_coordinator;
 mod types;
@@ -145,6 +147,7 @@ pub use spqr_tree::{
     StaticGraph,
 };
 pub use topology::{LeaseKey, NodeId};
+pub use task_io::{TaskFailureKind, TaskInputEnvelope};
 pub use tx_coordinator::{
     apply_coordinator_transition, CoordinatorDecision, CoordinatorTransition,
     CoordinatorTransitionError, ParticipantRecord, ParticipantStatus, ParticipantVote,
