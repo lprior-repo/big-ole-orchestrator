@@ -1638,6 +1638,8 @@ pub mod mock_signal_storage {
 // =============================================================================
 // Workload Classes and Reserved Permit Budget (ADR-033)
 // =============================================================================
+// Workload Classes and Reserved Permit Budget (ADR-033)
+// =============================================================================
 
 pub use fairness::WorkloadClass;
 
