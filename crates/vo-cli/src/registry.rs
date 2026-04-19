@@ -77,15 +77,15 @@ mod handlers {
             &self,
             cli: &Cli,
         ) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + '_>> {
-            let Command::Purge { ref instance } = cli.command else {
+            let Command::Purge { ref instance, ref storage_path } = cli.command else {
                 return Box::pin(async {
                     Err(CliError::Dispatch("not a purge command".to_string()))
                 });
             };
             let instance = instance.clone();
+            let storage_path = storage_path.clone();
             Box::pin(async move {
-                let fjall_path = std::path::Path::new("/home/lewis/.gemini/tmp/veloxide/fjall");
-                let db = fjall::Database::builder(fjall_path)
+                let db = fjall::Database::builder(&storage_path)
                     .open()
                     .map_err(|e| CliError::Dispatch(format!("Failed to open database: {e}")))?;
 
@@ -189,16 +189,18 @@ mod handlers {
         ) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + '_>> {
             let Command::Gc {
                 ref engine_url,
+                ref versions_dir,
                 dry_run,
             } = cli.command
             else {
                 return Box::pin(async { Err(CliError::Dispatch("not a gc command".to_string())) });
             };
             let engine_url = engine_url.clone();
+            let versions_dir = versions_dir.clone();
             Box::pin(async move {
                 let config = crate::commands::gc::GcConfig {
                     engine_url,
-                    versions_dir: PathBuf::from("/var/wtf/versions"),
+                    versions_dir,
                     dry_run,
                 };
                 crate::commands::gc::run_gc(&config).await?;
@@ -424,6 +426,7 @@ mod tests {
         let cli = Cli {
             command: Command::Purge {
                 instance: "test".to_string(),
+                storage_path: PathBuf::from(".vo/storage"),
             },
         };
         let handler = registry.get(&cli).expect("handler found");
