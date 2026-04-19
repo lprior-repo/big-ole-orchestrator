@@ -216,3 +216,237 @@ pub fn validate_identity(
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Cursor;
+
+    #[test]
+    fn test_fd3_envelope_roundtrip_empty() {
+        let envelope = Fd3Envelope {
+            version: 1,
+            instance_id: "test123".to_string(),
+            node_id: "node456".to_string(),
+            input: serde_json::Value::Null,
+            secrets: BTreeMap::new(),
+            metadata: BTreeMap::new(),
+        };
+
+        let mut buf = Vec::new();
+        write_envelope(&mut buf, &envelope).unwrap();
+
+        let mut cursor = Cursor::new(buf);
+        let decoded: Fd3Envelope = read_envelope(&mut cursor).unwrap();
+
+        assert_eq!(envelope, decoded);
+    }
+
+    #[test]
+    fn test_fd4_envelope_success_variant() {
+        let envelope = Fd4Envelope {
+            version: 1,
+            instance_id: "test123".to_string(),
+            node_id: "node456".to_string(),
+            result: TaskResult::Success {
+                output: serde_json::json!({"key": "value"}),
+            },
+        };
+
+        let mut buf = Vec::new();
+        write_envelope(&mut buf, &envelope).unwrap();
+
+        let mut cursor = Cursor::new(buf);
+        let decoded: Fd4Envelope = read_envelope(&mut cursor).unwrap();
+
+        assert_eq!(envelope, decoded);
+    }
+
+    #[test]
+    fn test_fd4_envelope_failure_variant() {
+        let envelope = Fd4Envelope {
+            version: 1,
+            instance_id: "test123".to_string(),
+            node_id: "node456".to_string(),
+            result: TaskResult::Failure {
+                error: TaskError {
+                    code: "ERR_CODE".to_string(),
+                    message: "Something went wrong".to_string(),
+                    details: Some(serde_json::json!({"info": "additional"})),
+                },
+            },
+        };
+
+        let mut buf = Vec::new();
+        write_envelope(&mut buf, &envelope).unwrap();
+
+        let mut cursor = Cursor::new(buf);
+        let decoded: Fd4Envelope = read_envelope(&mut cursor).unwrap();
+
+        assert_eq!(envelope, decoded);
+    }
+
+    #[test]
+    fn test_max_payload_size_at_boundary() {
+        let large_payload: String = "x".repeat(9_000_000);
+        let envelope = Fd3Envelope {
+            version: 1,
+            instance_id: "test".to_string(),
+            node_id: "node".to_string(),
+            input: serde_json::json!({"data": large_payload}),
+            secrets: BTreeMap::new(),
+            metadata: BTreeMap::new(),
+        };
+
+        let mut buf = Vec::new();
+        write_envelope(&mut buf, &envelope).unwrap();
+
+        let mut cursor = Cursor::new(buf);
+        let decoded: Fd3Envelope = read_envelope(&mut cursor).unwrap();
+
+        assert_eq!(envelope.instance_id, decoded.instance_id);
+    }
+
+    #[test]
+    fn test_max_payload_size_exceeded() {
+        let large_payload: String = "x".repeat(11_000_000);
+        let envelope = Fd3Envelope {
+            version: 1,
+            instance_id: "test".to_string(),
+            node_id: "node".to_string(),
+            input: serde_json::json!({"data": large_payload}),
+            secrets: BTreeMap::new(),
+            metadata: BTreeMap::new(),
+        };
+
+        let mut buf = Vec::new();
+        let result = write_envelope(&mut buf, &envelope);
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), IpcError::PayloadTooLarge(_)));
+    }
+
+    #[test]
+    fn test_non_ascii_characters_in_instance_id() {
+        let envelope = Fd3Envelope {
+            version: 1,
+            instance_id: "test!@#".to_string(),
+            node_id: "node123".to_string(),
+            input: serde_json::Value::Null,
+            secrets: BTreeMap::new(),
+            metadata: BTreeMap::new(),
+        };
+
+        let mut buf = Vec::new();
+        write_envelope(&mut buf, &envelope).unwrap();
+
+        let mut cursor = Cursor::new(buf);
+        let result = read_envelope::<Fd3Envelope>(&mut cursor);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(
+            matches!(err, IpcError::SchemaViolation(ref s) if s.contains("invalid characters"))
+        );
+    }
+
+    #[test]
+    fn test_non_ascii_characters_in_node_id() {
+        let envelope = Fd3Envelope {
+            version: 1,
+            instance_id: "test123".to_string(),
+            node_id: "node!@#".to_string(),
+            input: serde_json::Value::Null,
+            secrets: BTreeMap::new(),
+            metadata: BTreeMap::new(),
+        };
+
+        let mut buf = Vec::new();
+        write_envelope(&mut buf, &envelope).unwrap();
+
+        let mut cursor = Cursor::new(buf);
+        let result = read_envelope::<Fd3Envelope>(&mut cursor);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(
+            matches!(err, IpcError::SchemaViolation(ref s) if s.contains("invalid characters"))
+        );
+    }
+
+    #[test]
+    fn test_version_0_rejected() {
+        let value = serde_json::json!({
+            "version": 0,
+            "instance_id": "test123",
+            "node_id": "node456",
+            "input": null,
+            "secrets": {},
+            "metadata": {}
+        });
+
+        let result = deserialize_and_validate::<Fd3Envelope>(&serde_json::to_vec(&value).unwrap());
+        assert!(matches!(result, Err(IpcError::VersionMismatch(v)) if v == 0));
+    }
+
+    #[test]
+    fn test_version_2_rejected() {
+        let value = serde_json::json!({
+            "version": 2,
+            "instance_id": "test123",
+            "node_id": "node456",
+            "input": null,
+            "secrets": {},
+            "metadata": {}
+        });
+
+        let result = deserialize_and_validate::<Fd3Envelope>(&serde_json::to_vec(&value).unwrap());
+        assert!(matches!(result, Err(IpcError::VersionMismatch(v)) if v == 2));
+    }
+
+    #[test]
+    fn test_empty_instance_id_rejected() {
+        let value = serde_json::json!({
+            "version": 1,
+            "instance_id": "",
+            "node_id": "node456",
+            "input": null,
+            "secrets": {},
+            "metadata": {}
+        });
+
+        let result = deserialize_and_validate::<Fd3Envelope>(&serde_json::to_vec(&value).unwrap());
+        assert!(matches!(result, Err(IpcError::SchemaViolation(_))));
+    }
+
+    #[test]
+    fn test_empty_node_id_rejected() {
+        let value = serde_json::json!({
+            "version": 1,
+            "instance_id": "test123",
+            "node_id": "",
+            "input": null,
+            "secrets": {},
+            "metadata": {}
+        });
+
+        let result = deserialize_and_validate::<Fd3Envelope>(&serde_json::to_vec(&value).unwrap());
+        assert!(matches!(result, Err(IpcError::SchemaViolation(_))));
+    }
+
+    #[test]
+    fn test_identity_validation_empty_strings() {
+        let envelope = Fd4Envelope {
+            version: 1,
+            instance_id: "".to_string(),
+            node_id: "".to_string(),
+            result: TaskResult::Success {
+                output: serde_json::Value::Null,
+            },
+        };
+
+        let result = validate_identity(&envelope, "expected_instance", "expected_node");
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            IpcError::IdentityMismatch { .. }
+        ));
+    }
+}

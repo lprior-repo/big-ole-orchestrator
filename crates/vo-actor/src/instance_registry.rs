@@ -181,6 +181,7 @@ fn execute_stop_fn_with_timeout(
 /// - **INV-3 (Count Consistency)**: `active_count()` always equals the map length.
 /// - **INV-4 (Stop-Before-Replace)**: Prior actor stopped before new one replaces it.
 /// - **INV-5 (No Partial Mutations)**: On error, registry state is unchanged.
+#[derive(Debug)]
 pub struct InstanceRegistry {
     entries: HashMap<InstanceId, InstanceActorHandle>,
     stop_timeout: Duration,

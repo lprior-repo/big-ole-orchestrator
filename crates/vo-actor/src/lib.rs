@@ -10,10 +10,7 @@ pub mod heartbeat {
     pub fn run_heartbeat_watcher() {}
 }
 
-pub mod master {
-    pub struct MasterOrchestrator;
-    pub struct OrchestratorConfig;
-}
+pub mod master;
 
 pub mod async_message_router;
 pub mod fairness;
@@ -34,6 +31,7 @@ pub mod signal_buffer_tests;
 #[cfg(test)]
 pub mod instance_registry_tests;
 pub mod timer_lifecycle;
+pub mod timers;
 pub mod timer_supervisor;
 pub mod timer_supervisor_tests;
 pub mod timers;

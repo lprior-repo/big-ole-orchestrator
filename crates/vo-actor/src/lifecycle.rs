@@ -230,7 +230,7 @@ pub enum ShutdownResult {
 }
 
 /// Controls graceful shutdown propagation through the actor hierarchy.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ShutdownPropagator {
     graceful_timeout: std::time::Duration,
     force_kill_timeout: std::time::Duration,

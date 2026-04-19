@@ -23,9 +23,8 @@ pub mod lock_storage;
 pub mod pool;
 mod port;
 pub mod retry;
-pub mod storage;
+mod storage;
 pub mod supervisor;
-pub mod lock_supervisor;
 
 use chrono::{DateTime, Utc};
 use std::collections::{BTreeMap, HashMap, HashSet};

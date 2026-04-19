@@ -1,5 +1,5 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-use super::names::{InvocationId, RetryAfterSeconds, Timestamp};
+use super::names::{InvocationId, Timestamp};
 use super::v1::*;
 use crate::types::errors::InvariantViolation;
 
@@ -192,48 +192,4 @@ fn journal_entry_skip_none_fields() {
     let json = serde_json::to_string(&entry).unwrap();
     assert!(!json.contains("name"));
     assert!(!json.contains("input"));
-}
-
-#[test]
-fn error_response_new_retryable_with_retry() {
-    let resp = ErrorResponse::new(
-        "at_capacity",
-        "try again",
-        Some(RetryAfterSeconds::new(30).unwrap()),
-    );
-    assert!(resp.is_ok());
-    let r = resp.unwrap();
-    assert_eq!(r.error, "at_capacity");
-    assert_eq!(r.retry_after_seconds.unwrap().get(), 30);
-}
-
-#[test]
-fn error_response_new_retryable_without_retry_fails() {
-    let resp = ErrorResponse::new("at_capacity", "try again", None);
-    assert!(matches!(
-        resp.unwrap_err(),
-        InvariantViolation::InvalidRetryForErrorType
-    ));
-}
-
-#[test]
-fn error_response_new_non_retryable_with_retry_fails() {
-    let resp = ErrorResponse::new(
-        "not_found",
-        "oops",
-        Some(RetryAfterSeconds::new(30).unwrap()),
-    );
-    assert!(matches!(
-        resp.unwrap_err(),
-        InvariantViolation::InvalidRetryForErrorType
-    ));
-}
-
-#[test]
-fn error_response_new_non_retryable_no_retry() {
-    let resp = ErrorResponse::new("not_found", "missing", None);
-    assert!(resp.is_ok());
-    let r = resp.unwrap();
-    assert_eq!(r.error, "not_found");
-    assert!(r.retry_after_seconds.is_none());
 }

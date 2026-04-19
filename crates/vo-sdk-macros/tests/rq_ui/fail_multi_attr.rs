@@ -1,7 +1,7 @@
 use vo_sdk_macros::task_macro as task;
 
-#[task(foo)]
-#[task(bar)]
-fn multi_attr() {}
+#[task]
+#[task]
+fn my_task() {}
 
 fn main() {}
