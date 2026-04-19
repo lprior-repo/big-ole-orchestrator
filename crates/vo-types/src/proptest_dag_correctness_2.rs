@@ -75,7 +75,9 @@ fn transitive_dependencies_correct_for_diamond_fan_in() {
         NodeName("a".into()),
         NodeName("b".into()),
         NodeName("c".into()),
-    ].into_iter().collect();
+    ]
+    .into_iter()
+    .collect();
 
     assert_eq!(result_set, expected);
 }

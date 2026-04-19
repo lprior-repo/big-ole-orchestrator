@@ -11,6 +11,7 @@ pub struct Vec3 {
 
 impl Vec3 {
     #[inline]
+    #[must_use]
     pub fn new(x: f64, y: f64, z: f64) -> Self {
         Self { x, y, z }
     }
@@ -24,11 +25,13 @@ pub struct Bounds {
 
 impl Bounds {
     #[inline]
+    #[must_use]
     pub fn new(min: Vec3, max: Vec3) -> Self {
         Self { min, max }
     }
 
     #[inline]
+    #[must_use]
     pub fn contains(&self, p: Vec3) -> bool {
         p.x >= self.min.x
             && p.x <= self.max.x
@@ -50,6 +53,7 @@ impl<T: Clone + Serialize> Octree<T> {
     pub const CAPACITY: usize = 8;
 
     #[inline]
+    #[must_use]
     pub fn new(bounds: Bounds) -> Self {
         Self {
             bounds,
@@ -58,6 +62,12 @@ impl<T: Clone + Serialize> Octree<T> {
         }
     }
 
+    /// Inserts a point-value pair into the octree.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the octree needs to subdivide and the children box is unexpectedly None.
+    #[must_use]
     pub fn insert(&mut self, point: Vec3, value: T) -> bool {
         if !self.bounds.contains(point) {
             return false;
@@ -67,7 +77,10 @@ impl<T: Clone + Serialize> Octree<T> {
             return true;
         }
         self.subdivide();
-        for child in self.children.as_mut().unwrap().iter_mut() {
+        let Some(children) = self.children.as_mut() else {
+            return false;
+        };
+        for child in children.iter_mut() {
             if child.insert(point, value.clone()) {
                 return true;
             }
@@ -80,9 +93,9 @@ impl<T: Clone + Serialize> Octree<T> {
             return;
         }
         let m = Vec3::new(
-            (self.bounds.min.x + self.bounds.max.x) / 2.0,
-            (self.bounds.min.y + self.bounds.max.y) / 2.0,
-            (self.bounds.min.z + self.bounds.max.z) / 2.0,
+            f64::midpoint(self.bounds.min.x, self.bounds.max.x),
+            f64::midpoint(self.bounds.min.y, self.bounds.max.y),
+            f64::midpoint(self.bounds.min.z, self.bounds.max.z),
         );
         let corners = [
             Vec3::new(self.bounds.min.x, self.bounds.min.y, self.bounds.min.z),
@@ -108,8 +121,11 @@ impl<T: Clone + Serialize> Octree<T> {
             Octree::new(Bounds::new(corners[i], opp[i]))
         })));
         let drained: Vec<_> = self.data.drain(..).collect();
+        let Some(children) = self.children.as_mut() else {
+            return;
+        };
         for (pt, val) in drained {
-            for child in self.children.as_mut().unwrap().iter_mut() {
+            for child in children.iter_mut() {
                 if child.insert(pt, val.clone()) {
                     break;
                 }
@@ -117,6 +133,7 @@ impl<T: Clone + Serialize> Octree<T> {
         }
     }
 
+    #[must_use]
     pub fn query_range(&self, range: &Bounds) -> Vec<&T> {
         let mut out = Vec::new();
         self.collect_range(range, &mut out);
@@ -145,6 +162,7 @@ impl<T: Clone + Serialize> Octree<T> {
         }
     }
 
+    #[must_use]
     pub fn len(&self) -> usize {
         let mut n = self.data.len();
         if let Some(children) = &self.children {
@@ -153,5 +171,10 @@ impl<T: Clone + Serialize> Octree<T> {
             }
         }
         n
+    }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 }

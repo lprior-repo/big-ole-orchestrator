@@ -1,7 +1,4 @@
-use std::collections::BTreeMap;
 use std::path::PathBuf;
-
-use vo_types::workspace::{WorkspaceId, WorkspaceName, WorkspacePath};
 
 #[derive(Debug, thiserror::Error)]
 pub enum CliError {

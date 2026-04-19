@@ -151,17 +151,15 @@ impl HeartbeatWatcher {
         };
 
         let mut registry = self.probe_registry.write().await;
-        let id = registry.register(definition);
-        id
+
+        registry.register(definition)
     }
 
     /// Registers an actor with a probe configuration without creating the probe.
     /// This allows manual probe management.
     pub async fn register_actor(&self, actor_id: String) {
         let mut states = self.actor_states.write().await;
-        if !states.contains_key(&actor_id) {
-            states.insert(actor_id, ActorHealthState::new());
-        }
+        states.entry(actor_id).or_insert_with(ActorHealthState::new);
     }
 
     /// Unregisters an actor from heartbeat monitoring.
@@ -339,11 +337,11 @@ impl HeartbeatWatcher {
                 "Actor exceeded failure threshold, triggering shutdown"
             );
             drop(states);
-            self.trigger_shutdown(actor_id).await;
+            self.trigger_shutdown(actor_id);
         }
     }
 
-    async fn trigger_shutdown(&self, actor_id: &str) {
+    fn trigger_shutdown(&self, actor_id: &str) {
         if let Some(ref callback) = self.shutdown_callback {
             match callback(actor_id.to_string()) {
                 Ok(()) => {

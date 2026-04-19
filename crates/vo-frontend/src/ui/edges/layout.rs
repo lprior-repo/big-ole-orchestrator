@@ -82,8 +82,7 @@ pub(crate) fn resolve_edge_anchors_with_parallel(
             let to = super::types::get_target_point(target);
 
             let group = parallel_groups.iter().find(|g| {
-                g.parallel_node_id == edge.source
-                    && g.branch_node_ids.iter().any(|id| *id == edge.target)
+                g.parallel_node_id == edge.source && g.branch_node_ids.contains(&edge.target)
             });
 
             let adjusted_to = group.map_or(to, |g| {
@@ -117,7 +116,7 @@ pub(crate) fn calculate_parallel_offset(
     node_height: f32,
 ) -> f32 {
     let mut sorted: Vec<_> = targets.iter().enumerate().collect();
-    sorted.sort_by(|a, b| a.1.id.0.cmp(&b.1.id.0));
+    sorted.sort_by_key(|a| a.1.id.0);
 
     let idx = sorted
         .iter()
@@ -166,7 +165,7 @@ pub(crate) fn find_parallel_branches(
                 .filter_map(|id| node_by_id.get(&id).cloned())
                 .collect();
 
-            target_nodes.sort_by(|a, b| a.id.0.cmp(&b.id.0));
+            target_nodes.sort_by_key(|a| a.id.0);
 
             let min_y = target_nodes
                 .iter()

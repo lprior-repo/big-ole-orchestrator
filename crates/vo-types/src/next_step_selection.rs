@@ -164,7 +164,6 @@ impl SchedulingIntention {
 /// For full per-node outcome tracking, the caller should ensure `completed` only
 /// contains nodes whose outcomes are consistent with `last_outcome`, or use a
 /// more sophisticated outcome map in a future extension.
-#[must_use]
 pub fn select_next_step(
     workflow: &crate::WorkflowDefinition,
     completed: &[NodeName],

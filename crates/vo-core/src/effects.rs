@@ -21,10 +21,7 @@
 //! - vo-core re-exports and tests the domain model
 
 use vo_types::TimestampMs;
-use vo_types::{
-    apply_effect_transition, CompensationPolicy, EffectIntent, EffectKind, EffectRecord,
-    EffectTransitionError,
-};
+use vo_types::{CompensationPolicy, EffectIntent, EffectKind, EffectRecord, EffectTransitionError};
 
 #[cfg(test)]
 mod tests;

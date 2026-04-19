@@ -228,6 +228,7 @@ pub const WORKFLOW_VERSIONS_PARTITION_NAME: &str = "workflow_versions";
 /// Encode a workflow version key (the hash) as bytes for storage.
 ///
 /// The key is the version hash string bytes.
+#[must_use]
 pub fn encode_workflow_version_key(hash: &BinaryHash) -> Vec<u8> {
     hash.as_str().as_bytes().to_vec()
 }

@@ -36,11 +36,17 @@ impl WorkflowSemaphoreMap {
 
     /// Creates a new workflow semaphore map with default settings.
     #[must_use]
-    pub fn default() -> Self {
+    pub fn with_default_limits() -> Self {
         Self::new(DEFAULT_MAX_PER_WORKFLOW)
     }
 
     /// Gets or creates a semaphore for the given workflow.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the semaphore lock is poisoned (should not happen unless a thread
+    /// panicked while holding the lock, indicating a serious programming error).
+    #[allow(clippy::unwrap_used)] // Lock poisoning indicates unrecoverable programming error
     fn get_or_create(&self, workflow_name: &WorkflowName) -> Arc<Semaphore> {
         {
             let semaphores = self.semaphores.read().unwrap();
@@ -68,12 +74,14 @@ impl WorkflowSemaphoreMap {
 
     /// Returns the number of semaphores currently tracked.
     #[must_use]
+    #[allow(clippy::unwrap_used)] // Lock poisoning indicates unrecoverable programming error
     pub fn len(&self) -> usize {
         self.semaphores.read().unwrap().len()
     }
 
     /// Returns true if no workflows are being tracked.
     #[must_use]
+    #[allow(clippy::unwrap_used)] // Lock poisoning indicates unrecoverable programming error
     pub fn is_empty(&self) -> bool {
         self.semaphores.read().unwrap().is_empty()
     }

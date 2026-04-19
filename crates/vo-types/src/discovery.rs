@@ -14,6 +14,7 @@ pub struct DiscoveryPath {
 }
 
 impl DiscoveryPath {
+    #[allow(clippy::panic)]
     pub fn new(version_root: String, binary_hash: BinaryHash, binary_name: String) -> Self {
         if binary_name.is_empty() {
             panic!("binary_name cannot be empty");

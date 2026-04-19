@@ -145,8 +145,7 @@ impl DedupeStore for FjallDedupeStore {
 
         match self.partition.get(&encoded_key) {
             Ok(Some(value_bytes)) => super::decode_dedupe_entry(&value_bytes)
-                .map(|entry| Ok(!entry.is_expired(now_ms)))
-                .unwrap_or(Ok(false)),
+                .map_or(Ok(false), |entry| Ok(!entry.is_expired(now_ms))),
             Ok(None) => Ok(false),
             Err(e) => Err(DedupeStoreError::Storage {
                 reason: e.to_string(),

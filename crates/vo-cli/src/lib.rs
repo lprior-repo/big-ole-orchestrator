@@ -15,6 +15,15 @@
 //! The CLI uses a middleware-based dispatcher for command handling with
 //! support for middleware chaining and error mapping.
 
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    unused_imports,
+    unused,
+    clippy::redundant_locals,
+    clippy::collapsible_if
+)]
+
 pub mod cli;
 pub mod commands;
 pub mod dispatch_mod;

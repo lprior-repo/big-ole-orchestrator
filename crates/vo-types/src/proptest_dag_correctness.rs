@@ -25,7 +25,11 @@ fn random_acyclic_dag() -> impl Strategy<Value = (Vec<String>, Vec<(usize, usize
         );
         let edges = proptest::collection::vec(
             (0usize..nc, 0usize..nc).prop_filter_map("src < target", |(src, tgt)| {
-                if src < tgt { Some((src, tgt)) } else { None }
+                if src < tgt {
+                    Some((src, tgt))
+                } else {
+                    None
+                }
             }),
             0..nc * 3,
         );

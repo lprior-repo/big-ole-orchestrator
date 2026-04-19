@@ -422,14 +422,16 @@ fn dek_lifecycle_rotation_preserves_data() {
     let encrypted_old = encrypt_blob(data, &old_dek).expect("encrypt with old DEK");
 
     // Verify old DEK can decrypt
-    let decrypted_with_old = decrypt_blob(&encrypted_old, &old_dek).expect("old DEK should decrypt");
+    let decrypted_with_old =
+        decrypt_blob(&encrypted_old, &old_dek).expect("old DEK should decrypt");
     assert_eq!(data.as_slice(), decrypted_with_old.as_slice());
 
     // Re-encrypt with new DEK (simulating re-encryption after rotation)
     let encrypted_new = encrypt_blob(data, &new_dek).expect("encrypt with new DEK");
 
     // Verify new DEK can decrypt
-    let decrypted_with_new = decrypt_blob(&encrypted_new, &new_dek).expect("new DEK should decrypt");
+    let decrypted_with_new =
+        decrypt_blob(&encrypted_new, &new_dek).expect("new DEK should decrypt");
     assert_eq!(data.as_slice(), decrypted_with_new.as_slice());
 
     // Verify ciphertexts are different

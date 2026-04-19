@@ -467,10 +467,21 @@ mod tests {
                     error: Some("not implemented".to_string()),
                 }
             }
-            async fn demote(&self, _lock_id: LockId, _owner: OwnerId, _hold_token: String) -> Result<LockMode, LockError> {
+            async fn demote(
+                &self,
+                _lock_id: LockId,
+                _owner: OwnerId,
+                _hold_token: String,
+            ) -> Result<LockMode, LockError> {
                 Err(LockError::NotFound(LockId::new("")))
             }
-            async fn extend_ttl(&self, _lock_id: LockId, _owner: OwnerId, _hold_token: String, _ttl_ms: u64) -> Result<chrono::DateTime<chrono::Utc>, LockError> {
+            async fn extend_ttl(
+                &self,
+                _lock_id: LockId,
+                _owner: OwnerId,
+                _hold_token: String,
+                _ttl_ms: u64,
+            ) -> Result<chrono::DateTime<chrono::Utc>, LockError> {
                 Err(LockError::NotFound(LockId::new("")))
             }
             async fn is_locked(&self, _lock_id: &LockId) -> bool {
