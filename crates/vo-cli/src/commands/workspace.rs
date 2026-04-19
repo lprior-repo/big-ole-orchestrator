@@ -1,5 +1,6 @@
 use std::path::PathBuf;
-use vo_types::workspace::{WorkspaceId, WorkspaceIndex, WorkspaceMetadata, WorkspaceName};
+use vo_types::TimestampMs;
+use vo_types::workspace::{WorkspaceId, WorkspaceIndex, WorkspaceMetadata, WorkspaceName, WorkspaceIndexError};
 
 #[derive(Debug, thiserror::Error)]
 pub enum WorkspaceError {
@@ -8,9 +9,46 @@ pub enum WorkspaceError {
     #[error("invalid workspace name: {0}")]
     InvalidName(String),
     #[error("IO error: {0}")]
-    Io(#[from] std::io::Error),
+    Io(std::io::Error),
     #[error("serialization error: {0}")]
-    Serialization(#[from] serde_json::Error),
+    Serialization(serde_json::Error),
+    #[error("index error: {0}")]
+    Index(#[from] WorkspaceIndexError),
+}
+
+impl PartialEq for WorkspaceError {
+    fn eq(&self, other: &Self) -> bool {
+        use WorkspaceError::*;
+        match (self, other) {
+            (NotFound(a), NotFound(b)) => a == b,
+            (InvalidName(a), InvalidName(b)) => a == b,
+            (Io(_), Io(_)) => false,
+            (Serialization(_), Serialization(_)) => false,
+            (Index(a), Index(b)) => a == b,
+            _ => false,
+        }
+    }
+}
+
+impl From<std::io::Error> for WorkspaceError {
+    fn from(e: std::io::Error) -> Self {
+        Self::Io(e)
+    }
+}
+
+impl From<serde_json::Error> for WorkspaceError {
+    fn from(e: serde_json::Error) -> Self {
+        Self::Serialization(e)
+    }
+}
+
+impl WorkspaceError {
+    pub fn from_io(e: std::io::Error) -> Self {
+        Self::Io(e)
+    }
+    pub fn from_serde(e: serde_json::Error) -> Self {
+        Self::Serialization(e)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -68,19 +106,10 @@ pub async fn create_workspace(
     let ws_name = WorkspaceName::parse(&name)
         .map_err(|_| WorkspaceError::InvalidName(name.clone()))?;
     let metadata = WorkspaceMetadata::empty();
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_millis() as u64;
-    match index.insert(None, ws_name, metadata, now) {
-        Ok(id) => {
-            save_index(&index, &config.storage_path)?;
-            println!("Created workspace '{}' with ID {}", name, id);
-        }
-        Err(e) => {
-            eprintln!("Failed to create workspace: {}", e);
-        }
-    }
+    let now = TimestampMs::now();
+    let id = index.insert(None, ws_name, metadata, now)?;
+    save_index(&index, &config.storage_path)?;
+    println!("Created workspace '{}' with ID {}", name, id);
     Ok(())
 }
 
@@ -89,17 +118,13 @@ pub async fn delete_workspace(
     id_str: String,
 ) -> Result<(), WorkspaceError> {
     let mut index = load_index(&config.storage_path)?;
-    let id = WorkspaceId::parse(&id_str)
-        .map_err(|_| WorkspaceError::NotFound(format!("invalid workspace ID: {}", id_str)))?;
-    match index.delete(id) {
-        Ok(()) => {
-            save_index(&index, &config.storage_path)?;
-            println!("Deleted workspace {}", id_str);
-        }
-        Err(e) => {
-            eprintln!("Failed to delete workspace: {}", e);
-        }
-    }
+    let id = WorkspaceId::from_ulid(
+        ulid::Ulid::from_string(&id_str)
+            .map_err(|_| WorkspaceError::NotFound(format!("invalid workspace ID: {}", id_str)))?
+    );
+    index.delete(id)?;
+    save_index(&index, &config.storage_path)?;
+    println!("Deleted workspace {}", id_str);
     Ok(())
 }
 
@@ -108,22 +133,18 @@ pub async fn show_workspace(
     id_str: String,
 ) -> Result<(), WorkspaceError> {
     let index = load_index(&config.storage_path)?;
-    let id = WorkspaceId::parse(&id_str)
-        .map_err(|_| WorkspaceError::NotFound(format!("invalid workspace ID: {}", id_str)))?;
-    match index.find_by_id(id) {
-        Ok(node) => {
-            println!("Workspace: {}", node.name);
-            println!("ID: {}", id);
-            if let Some(parent) = node.parent_id {
-                println!("Parent: {}", parent);
-            }
-            println!("Children: {}", node.children.len());
-            println!("Metadata keys: {}", node.metadata.keys().len());
-        }
-        Err(e) => {
-            eprintln!("Workspace not found: {}", e);
-        }
+    let id = WorkspaceId::from_ulid(
+        ulid::Ulid::from_string(&id_str)
+            .map_err(|_| WorkspaceError::NotFound(format!("invalid workspace ID: {}", id_str)))?
+    );
+    let node = index.find_by_id(id)?;
+    println!("Workspace: {}", node.name);
+    println!("ID: {}", id);
+    if let Some(parent) = node.parent_id {
+        println!("Parent: {}", parent);
     }
+    println!("Children: {}", node.children.len());
+    println!("Metadata keys: {}", node.metadata.entries.keys().len());
     Ok(())
 }
 

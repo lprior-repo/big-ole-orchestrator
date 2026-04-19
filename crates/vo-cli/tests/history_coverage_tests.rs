@@ -9,7 +9,7 @@ fn test_snapshot() -> WorkflowSnapshot {
     WorkflowSnapshot::new(
         "test-wf".into(),
         vec![DagNode {
-            compensation_policy: None,
+                compensation_policy: None,
             node_name: NodeName::parse("node-a").unwrap(),
             retry_policy: RetryPolicy::new(3, 1000, 2.0).unwrap(),
         }],

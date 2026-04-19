@@ -967,6 +967,7 @@ fn history_save_and_reload_roundtrip() {
             compensation_policy: None,
             node_name: vo_types::NodeName::parse("node-1").unwrap(),
             retry_policy: vo_types::RetryPolicy::new(3, 1000, 2.0).unwrap(),
+            compensation_policy: None,
         }],
         vec![],
     );

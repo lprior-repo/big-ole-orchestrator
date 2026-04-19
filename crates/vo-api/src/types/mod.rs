@@ -20,6 +20,7 @@ mod security_validation_tests;
 mod v3_test;
 
 pub use errors::*;
+pub use ingress::*;
 pub use names::*;
 pub use v1::*;
 pub use v3::*;
