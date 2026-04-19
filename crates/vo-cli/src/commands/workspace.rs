@@ -1,5 +1,7 @@
 use std::path::PathBuf;
-use vo_types::workspace::{WorkspaceId, WorkspaceIndex, WorkspaceMetadata, WorkspaceName};
+use ulid::Ulid;
+use vo_types::workspace::{WorkspaceId, WorkspaceIndex, WorkspaceMetadata, WorkspaceName, WorkspaceIndexError};
+use vo_types::TimestampMs;
 
 #[derive(Debug, thiserror::Error)]
 pub enum WorkspaceError {
@@ -11,6 +13,8 @@ pub enum WorkspaceError {
     Io(#[from] std::io::Error),
     #[error("serialization error: {0}")]
     Serialization(#[from] serde_json::Error),
+    #[error("index error: {0}")]
+    IndexError(#[from] WorkspaceIndexError),
 }
 
 #[derive(Debug, Clone)]
@@ -68,19 +72,10 @@ pub async fn create_workspace(
     let ws_name = WorkspaceName::parse(&name)
         .map_err(|_| WorkspaceError::InvalidName(name.clone()))?;
     let metadata = WorkspaceMetadata::empty();
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_millis() as u64;
-    match index.insert(None, ws_name, metadata, now) {
-        Ok(id) => {
-            save_index(&index, &config.storage_path)?;
-            println!("Created workspace '{}' with ID {}", name, id);
-        }
-        Err(e) => {
-            eprintln!("Failed to create workspace: {}", e);
-        }
-    }
+    let now = TimestampMs::now();
+    let id = index.insert(None, ws_name, metadata, now)?;
+    save_index(&index, &config.storage_path)?;
+    println!("Created workspace '{}' with ID {}", name, id);
     Ok(())
 }
 
@@ -89,17 +84,12 @@ pub async fn delete_workspace(
     id_str: String,
 ) -> Result<(), WorkspaceError> {
     let mut index = load_index(&config.storage_path)?;
-    let id = WorkspaceId::parse(&id_str)
+    let ulid = Ulid::from_string(&id_str)
         .map_err(|_| WorkspaceError::NotFound(format!("invalid workspace ID: {}", id_str)))?;
-    match index.delete(id) {
-        Ok(()) => {
-            save_index(&index, &config.storage_path)?;
-            println!("Deleted workspace {}", id_str);
-        }
-        Err(e) => {
-            eprintln!("Failed to delete workspace: {}", e);
-        }
-    }
+    let id = WorkspaceId::from_ulid(ulid);
+    index.delete(id)?;
+    save_index(&index, &config.storage_path)?;
+    println!("Deleted workspace {}", id_str);
     Ok(())
 }
 
@@ -108,22 +98,17 @@ pub async fn show_workspace(
     id_str: String,
 ) -> Result<(), WorkspaceError> {
     let index = load_index(&config.storage_path)?;
-    let id = WorkspaceId::parse(&id_str)
+    let ulid = Ulid::from_string(&id_str)
         .map_err(|_| WorkspaceError::NotFound(format!("invalid workspace ID: {}", id_str)))?;
-    match index.find_by_id(id) {
-        Ok(node) => {
-            println!("Workspace: {}", node.name);
-            println!("ID: {}", id);
-            if let Some(parent) = node.parent_id {
-                println!("Parent: {}", parent);
-            }
-            println!("Children: {}", node.children.len());
-            println!("Metadata keys: {}", node.metadata.keys().len());
-        }
-        Err(e) => {
-            eprintln!("Workspace not found: {}", e);
-        }
+    let id = WorkspaceId::from_ulid(ulid);
+    let node = index.find_by_id(id)?;
+    println!("Workspace: {}", node.name);
+    println!("ID: {}", id);
+    if let Some(parent) = node.parent_id {
+        println!("Parent: {}", parent);
     }
+    println!("Children: {}", node.children.len());
+    println!("Metadata keys: {}", node.metadata.entries.keys().len());
     Ok(())
 }
 

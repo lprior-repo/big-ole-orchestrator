@@ -21,6 +21,7 @@ impl Default for HandlerRegistry {
         registry.register(Box::new(handlers::DoctorHandler));
         registry.register(Box::new(handlers::RebuildHandler));
         registry.register(Box::new(handlers::StatusHandler));
+        registry.register(Box::new(handlers::WorkspaceHandler));
         registry
     }
 }
@@ -55,6 +56,7 @@ fn command_key(command: &Command) -> Option<&'static str> {
         Command::Doctor { .. } => Some("doctor"),
         Command::Rebuild { .. } => Some("rebuild"),
         Command::Status { .. } => Some("status"),
+        Command::Workspace { .. } => Some("workspace"),
     }
 }
 
@@ -63,7 +65,7 @@ mod handlers {
     use std::path::PathBuf;
     use std::pin::Pin;
 
-    use crate::cli::{Cli, CliError, Command};
+    use crate::cli::{Cli, CliError, Command, WorkspaceAction};
     use crate::handler::CommandHandler;
 
     pub struct PurgeHandler;
@@ -395,6 +397,56 @@ mod handlers {
             })
         }
     }
+
+    pub struct WorkspaceHandler;
+
+    impl CommandHandler for WorkspaceHandler {
+        fn name(&self) -> &'static str {
+            "workspace"
+        }
+
+        fn execute(&self, cli: &Cli) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + '_>> {
+            let Command::Workspace { ref action } = cli.command else {
+                return Box::pin(async {
+                    Err(CliError::Dispatch("not a workspace command".to_string()))
+                });
+            };
+            let config = crate::commands::workspace::WorkspaceConfig::default();
+            match action {
+                WorkspaceAction::List => {
+                    let config = config.clone();
+                    Box::pin(async move {
+                        crate::commands::workspace::list_workspaces(config).await?;
+                        Ok(())
+                    })
+                }
+                WorkspaceAction::Create { name } => {
+                    let name = name.clone();
+                    let config = config.clone();
+                    Box::pin(async move {
+                        crate::commands::workspace::create_workspace(config, name).await?;
+                        Ok(())
+                    })
+                }
+                WorkspaceAction::Delete { id } => {
+                    let id = id.clone();
+                    let config = config.clone();
+                    Box::pin(async move {
+                        crate::commands::workspace::delete_workspace(config, id).await?;
+                        Ok(())
+                    })
+                }
+                WorkspaceAction::Show { id } => {
+                    let id = id.clone();
+                    let config = config.clone();
+                    Box::pin(async move {
+                        crate::commands::workspace::show_workspace(config, id).await?;
+                        Ok(())
+                    })
+                }
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -416,6 +468,7 @@ mod tests {
         assert!(names.contains(&"doctor"));
         assert!(names.contains(&"rebuild"));
         assert!(names.contains(&"status"));
+        assert!(names.contains(&"workspace"));
     }
 
     #[test]
