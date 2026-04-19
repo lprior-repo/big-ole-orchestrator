@@ -525,7 +525,7 @@ fn registry_get_doctor_handler() {
 fn registry_names_contains_all_eight() {
     let registry = vo_cli::HandlerRegistry::default();
     let names = registry.names();
-    assert_eq!(names.len(), 8);
+    assert_eq!(names.len(), 10);
     assert!(names.contains(&"purge"));
     assert!(names.contains(&"check"));
     assert!(names.contains(&"compensate"));
@@ -535,6 +535,7 @@ fn registry_names_contains_all_eight() {
     assert!(names.contains(&"doctor"));
     assert!(names.contains(&"rebuild"));
     assert!(names.contains(&"status"));
+    assert!(names.contains(&"workspace"));
 }
 
 #[test]
@@ -562,7 +563,7 @@ fn registry_register_custom_handler() {
     let mut registry = vo_cli::HandlerRegistry::default();
     registry.register(Box::new(CustomHandler));
     assert!(registry.names().contains(&"custom"));
-    assert_eq!(registry.names().len(), 9);
+    assert_eq!(registry.names().len(), 11);
 }
 
 #[test]

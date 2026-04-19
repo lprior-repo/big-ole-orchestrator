@@ -1,6 +1,7 @@
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LintCode {
     L002,
+    L004,
 }
 
 #[derive(Debug, Clone)]

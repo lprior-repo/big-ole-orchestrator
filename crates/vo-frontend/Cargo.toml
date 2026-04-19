@@ -23,5 +23,8 @@ gloo-timers = { version = "0.3", optional = true }
 default = []
 wasm = ["wasm-bindgen", "wasm-bindgen-futures", "web-sys", "gloo-timers"]
 
+[dev-dependencies]
+chrono = "0.4"
+
 [lints]
 workspace = true

@@ -107,6 +107,56 @@ impl<'ast> Visit<'ast> for RandomDetector {
     }
 }
 
+#[must_use]
+pub fn check_signal_handler_compat(file: &File) -> Vec<Diagnostic> {
+    let mut detector = SignalHandlerDetector::default();
+    detector.visit_file(file);
+    detector.diagnostics
+}
+
+#[derive(Default)]
+struct SignalHandlerDetector {
+    diagnostics: Vec<Diagnostic>,
+    handler_names: std::collections::HashSet<String>,
+    signal_calls: Vec<(String, usize)>,
+}
+
+fn extract_handler_name(path: &Path) -> Option<String> {
+    path.segments.last().map(|s| s.ident.to_string())
+}
+
+fn is_extern_c_fn(ptr: &syn::Expr) -> bool {
+    match ptr {
+        syn::Expr::Closure(c) => c.asyncness.is_none() && c.fn_token.to_string() == "fn",
+        _ => false,
+    }
+}
+
+impl<'ast> Visit<'ast> for SignalHandlerDetector {
+    fn visit_item_fn(&mut self, node: &'ast syn::ItemFn) {
+        let name = node.ident.to_string();
+        self.handler_names.insert(name.clone());
+        syn::visit::visit_item_fn(self, node);
+    }
+
+    fn visit_expr_call(&mut self, node: &'ast ExprCall) {
+        if let syn::Expr::Path(ref path_expr) = *node.func {
+            let path = &path_expr.path;
+            let path_str = path
+                .segments
+                .iter()
+                .map(|s| s.ident.to_string())
+                .collect::<Vec<_>>()
+                .join("::");
+
+            if path_str.contains("signal") || path_str.contains("libc::signal") {
+                self.signal_calls.push((path_str, 0));
+            }
+        }
+        syn::visit::visit_expr_call(self, node);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -89,28 +89,6 @@ impl<T: Ord, V> IntervalTree<T, V> {
         );
     }
 
-    fn rotate_right(node: &mut Option<Box<IntervalNode<T, V>>>) {
-        let mut n = node.take().unwrap();
-        let mut left = n.left.take().unwrap();
-        n.left = left.right.take();
-        if let Some(ref mut l) = n.left {
-            l.parent = None;
-        }
-        left.right = Some(n);
-        *node = Some(left);
-    }
-
-    fn rotate_left(node: &mut Option<Box<IntervalNode<T, V>>>) {
-        let mut n = node.take().unwrap();
-        let mut right = n.right.take().unwrap();
-        n.right = right.left.take();
-        if let Some(ref mut r) = n.right {
-            r.parent = None;
-        }
-        right.left = Some(n);
-        *node = Some(right);
-    }
-
     fn recalculate_max(&mut self, node: &mut Box<IntervalNode<T, V>>) {
         let left_max = node
             .left
@@ -197,18 +175,10 @@ impl<T: Ord, V> IntervalTree<T, V> {
         Ok(())
     }
 
-    fn rebalance_on_insert(&mut self, node: &mut Option<Box<IntervalNode<T, V>>>) {
-        // Simple AVL-like rebalancing after insert
-        // This is a simplified version - for production, full AVL rotations would be used
-        if let Some(ref mut n) = node {
-            // Update max_end after any structural changes
-            let left_max = n.left.as_mut().map_or(&n.interval.end, |l| &l.max_end);
-            let right_max = n.right.as_mut().map_or(&n.interval.end, |r| &r.max_end);
-            n.max_end = std::cmp::max(
-                n.interval.end.clone(),
-                std::cmp::max(left_max.clone(), right_max.clone()),
-            );
-        }
+    fn rebalance_on_insert(&mut self, _node: &mut Option<Box<IntervalNode<T, V>>>) {
+        // No-op: interval tree does not use AVL rotations.
+        // The max_end field is updated during insert and remove operations.
+        // Full AVL rebalancing is not implemented; this is a best-effort BST with augmentation.
     }
 
     pub fn find_point_overlaps(&self, point: &T) -> Vec<&V>
