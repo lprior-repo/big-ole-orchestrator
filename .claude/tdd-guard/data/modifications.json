@@ -1,12 +1,12 @@
 {
-  "session_id": "43fdc912-66f7-4cf4-a235-069c929f2cca",
-  "transcript_path": "/home/lewis/.claude/projects/-home-lewis-gt-veloxide-polecats-thunder-veloxide/43fdc912-66f7-4cf4-a235-069c929f2cca.jsonl",
+  "session_id": "8448f4fe-e4fd-4895-937f-342e0aacaaba",
+  "transcript_path": "/home/lewis/.claude/projects/-home-lewis-gt-veloxide-polecats-thunder-veloxide/8448f4fe-e4fd-4895-937f-342e0aacaaba.jsonl",
   "hook_event_name": "PreToolUse",
   "tool_name": "Edit",
   "tool_input": {
-    "file_path": "/home/lewis/gt/veloxide/polecats/thunder/veloxide/crates/vo-types/src/effect_schema_evolution_tests.rs",
-    "old_string": "    assert_eq!(recovered.params_json(), &large_params);\n    assert_eq!(recovered, record);\n}",
-    "new_string": "    assert_eq!(recovered.params_json(), &large_params);\n    assert_eq!(recovered, record);\n}\n\n#[test]\nfn effect_record_wide_object_params_roundtrips() {\n    let mut map = serde_json::Map::new();\n    for i in 0..500 {\n        map.insert(format!(\"field_{i}\"), json!(format!(\"value_{i}\")));\n    }\n    let wide_params = serde_json::Value::Object(map);\n    let record = EffectRecord::new(\n        \"fx-wide\".to_string(),\n        EffectKind::HttpCall,\n        wide_params.clone(),\n        EffectIntent::Prepared,\n        None,\n    )\n    .unwrap();\n    let json = serde_json::to_string(&record).unwrap();\n    let recovered: EffectRecord = serde_json::from_str(&json).unwrap();\n    assert_eq!(recovered.params_json(), &wide_params);\n}",
+    "file_path": "/home/lewis/gt/veloxide/polecats/thunder/veloxide/crates/vo-core/tests/config_schema_validation.rs",
+    "old_string": "    assert!(err.contains(\"host\"), \"error should name the missing field: {err}\");\n}",
+    "new_string": "    assert!(err.contains(\"host\"), \"error should name the missing field: {err}\");\n}\n\n#[test]\nfn schema_validator_rejects_non_object_config() {\n    let schema = SchemaValidator::new(\n        vec![FieldDef {\n            name: \"port\".into(),\n            field_type: FieldType::Integer,\n        }],\n        false,\n    );\n\n    let config = serde_json::json!(\"not an object\");\n    let result = schema.validate(&config);\n    assert!(result.is_err());\n    let err = result.unwrap_err();\n    assert!(err.contains(\"must be a JSON object\"), \"error should mention object requirement: {err}\");\n}",
     "replace_all": false
   }
 }
