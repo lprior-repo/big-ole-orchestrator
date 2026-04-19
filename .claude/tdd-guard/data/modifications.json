@@ -1,12 +1,12 @@
 {
-  "session_id": "a2a8f72c-13aa-49f3-9570-a5da976234dc",
-  "transcript_path": "/home/lewis/.claude/projects/-home-lewis-gt-veloxide-polecats-deathclaw-veloxide/a2a8f72c-13aa-49f3-9570-a5da976234dc.jsonl",
+  "session_id": "43fdc912-66f7-4cf4-a235-069c929f2cca",
+  "transcript_path": "/home/lewis/.claude/projects/-home-lewis-gt-veloxide-polecats-thunder-veloxide/43fdc912-66f7-4cf4-a235-069c929f2cca.jsonl",
   "hook_event_name": "PreToolUse",
   "tool_name": "Edit",
   "tool_input": {
-    "file_path": "/home/lewis/gt/veloxide/polecats/deathclaw/veloxide/crates/vo-worker/src/pool/tests/circuit_breaker_tests.rs",
-    "old_string": "    // Simulate timeout: transition to HalfOpen\n    cb.last_transition_at = Some(TimestampMs::new_unchecked(\n        TimestampMs::now().as_u64().saturating_sub(31000),\n    ));\n    let transitioned = cb.try_transition_to_half_open(TimestampMs::now());\n    assert!(transitioned);\n    assert_eq!(cb.state(), CircuitBreakerState::HalfOpen);",
-    "new_string": "    // Transition to HalfOpen (timeout mechanics tested in inline tests)\n    cb.transition_to(CircuitBreakerState::HalfOpen);\n    assert_eq!(cb.state(), CircuitBreakerState::HalfOpen);",
+    "file_path": "/home/lewis/gt/veloxide/polecats/thunder/veloxide/crates/vo-core/tests/debounce_thrash_prevention.rs",
+    "old_string": "        \"Stable state must not produce spurious yields\");\n}",
+    "new_string": "        \"Stable state must not produce spurious yields\");\n}\n\n#[tokio::test(start_paused = true)]\nasync fn debounce_window_separates_distinct_bursts() {\n    // Two bursts of events for the same file, separated by more than\n    // the debounce window, must produce two separate yields.\n    let debounce_ms = 100u64;\n    let (tx, mut debouncer) = setup(Duration::from_millis(debounce_ms)).await;\n    let path = PathBuf::from(\"bursts.json\");\n\n    // Burst 1: 10 rapid events\n    for _ in 0..10 {\n        tx.send(FileEvent::Modify(path.clone())).await.unwrap();\n        tokio::time::advance(Duration::from_millis(1)).await;\n    }\n\n    // Let debounce window expire for burst 1\n    tokio::time::advance(Duration::from_millis(debounce_ms + 1)).await;\n\n    let result1 = debouncer.next_debounced_event().await;\n    assert_eq!(result1, Ok(path.clone()), \"Burst 1 should yield\");\n\n    // Gap between bursts — longer than debounce window\n    tokio::time::advance(Duration::from_millis(debounce_ms * 3)).await;\n\n    // Burst 2: 10 more rapid events\n    for _ in 0..10 {\n        tx.send(FileEvent::Modify(path.clone())).await.unwrap();\n        tokio::time::advance(Duration::from_millis(1)).await;\n    }\n\n    // Let debounce window expire for burst 2\n    tokio::time::advance(Duration::from_millis(debounce_ms + 1)).await;\n\n    let result2 = debouncer.next_debounced_event().await;\n    assert_eq!(result2, Ok(path.clone()), \"Burst 2 should yield as separate event\");\n\n    // No third yield\n    assert!(poll_ready(&mut debouncer).await.is_none(),\n        \"Only two bursts should produce two yields\");\n}",
     "replace_all": false
   }
 }
