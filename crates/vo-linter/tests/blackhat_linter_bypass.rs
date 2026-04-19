@@ -83,8 +83,8 @@ fn bypass_os_random() {
     };
     assert_eq!(
         parse_and_check(&src.to_string()),
-        0,
-        "CONFIRMED BYPASS: OsRng provides non-deterministic bytes undetected"
+        1,
+        "FIXED: OsRng.next_u64() is now detected as non-deterministic"
     );
 }
 

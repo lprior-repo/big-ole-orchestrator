@@ -9,6 +9,7 @@ use tokio::sync::broadcast;
 use super::split_path_id;
 pub use crate::types::events::WorkflowEvent;
 use crate::types::ApiError;
+pub use crate::types::events::WorkflowEvent;
 
 const WS_BROADCAST_CAPACITY: usize = 1000;
 

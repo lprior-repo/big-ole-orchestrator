@@ -8,13 +8,13 @@ use axum::{
 use ractor::ActorRef;
 use tokio::sync::broadcast;
 use tokio::time::interval;
-use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
-use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::StreamExt as TokioStreamExt;
+use tokio_stream::wrappers::BroadcastStream;
+use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 use vo_actor::OrchestratorMsg;
 
 use super::split_path_id;
-use crate::types::ApiError;
+use crate::types::{ApiError, events::WorkflowEvent};
 
 const SSE_KEEPALIVE_INTERVAL: Duration = Duration::from_secs(15);
 const SSE_BROADCAST_CAPACITY: usize = 1000;
@@ -36,10 +36,7 @@ impl SseBroadcaster {
         self.tx.subscribe()
     }
 
-    pub fn send(
-        &self,
-        event: WorkflowEvent,
-    ) -> Result<usize, broadcast::error::SendError<WorkflowEvent>> {
+    pub fn send(&self, event: WorkflowEvent) -> Result<usize, broadcast::error::SendError<WorkflowEvent>> {
         self.tx.send(event)
     }
 }
@@ -72,10 +69,12 @@ impl Default for SseState {
 fn make_sse_stream(
     receiver: broadcast::Receiver<WorkflowEvent>,
 ) -> impl futures::Stream<Item = Result<Event, axum::Error>> + Send + 'static {
-    TokioStreamExt::map(BroadcastStream::new(receiver), |result| match result {
-        Ok(event) => Ok(event.to_sse_event()),
-        Err(BroadcastStreamRecvError::Lagged(_)) => {
-            Err(axum::Error::new("client fell behind, closing stream"))
+    TokioStreamExt::map(BroadcastStream::new(receiver), |result| {
+        match result {
+            Ok(event) => Ok(event.to_sse_event()),
+            Err(BroadcastStreamRecvError::Lagged(_)) => {
+                Err(axum::Error::new("client fell behind, closing stream"))
+            }
         }
     })
 }
@@ -206,10 +205,7 @@ mod tests {
         }
 
         assert!(lagged_received || count <= 11, "Should emit lag or close");
-        assert!(
-            count <= 11,
-            "Should close after lag, not receive all 15 events"
-        );
+        assert!(count <= 11, "Should close after lag, not receive all 15 events");
     }
 
     #[tokio::test]
@@ -304,10 +300,7 @@ mod tests {
             match result {
                 Ok(_) => {}
                 Err(e) => {
-                    assert!(
-                        e.to_string().contains("client fell behind")
-                            || e.to_string().contains("channel closed")
-                    );
+                    assert!(e.to_string().contains("client fell behind") || e.to_string().contains("channel closed"));
                     lagged = true;
                     break;
                 }
@@ -317,9 +310,6 @@ mod tests {
             }
         }
 
-        assert!(
-            lagged || count <= 11,
-            "Slow client should be dropped via Lagged error"
-        );
+        assert!(lagged || count <= 11, "Slow client should be dropped via Lagged error");
     }
 }
