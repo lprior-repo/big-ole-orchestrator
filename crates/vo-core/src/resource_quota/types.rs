@@ -9,6 +9,23 @@ pub struct QuotaUsage {
     pub disk_bytes_used: u64,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct QuotaUsageOverflow {
+    pub resource: ResourceKind,
+    pub current: u64,
+    pub attempted_addition: u64,
+}
+
+impl std::fmt::Display for QuotaUsageOverflow {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "quota usage overflow for {}: current {} + attempted {} would exceed u64::MAX",
+            self.resource, self.current, self.attempted_addition
+        )
+    }
+}
+
 impl QuotaUsage {
     #[must_use]
     pub fn new() -> Self {
@@ -35,6 +52,51 @@ impl QuotaUsage {
     pub fn with_disk(mut self, bytes: u64) -> Self {
         self.disk_bytes_used = bytes;
         self
+    }
+
+    pub fn add_cpu(&mut self, cores: u64) -> Result<(), QuotaUsageOverflow> {
+        self.cpu_cores_used = self.cpu_cores_used.checked_add(cores).ok_or(
+            QuotaUsageOverflow {
+                resource: ResourceKind::Cpu,
+                current: self.cpu_cores_used,
+                attempted_addition: cores,
+            },
+        )?;
+        Ok(())
+    }
+
+    pub fn add_memory(&mut self, bytes: u64) -> Result<(), QuotaUsageOverflow> {
+        self.memory_bytes_used = self.memory_bytes_used.checked_add(bytes).ok_or(
+            QuotaUsageOverflow {
+                resource: ResourceKind::Memory,
+                current: self.memory_bytes_used,
+                attempted_addition: bytes,
+            },
+        )?;
+        Ok(())
+    }
+
+    pub fn add_disk(&mut self, bytes: u64) -> Result<(), QuotaUsageOverflow> {
+        self.disk_bytes_used = self.disk_bytes_used.checked_add(bytes).ok_or(
+            QuotaUsageOverflow {
+                resource: ResourceKind::Disk,
+                current: self.disk_bytes_used,
+                attempted_addition: bytes,
+            },
+        )?;
+        Ok(())
+    }
+
+    pub fn release_cpu(&mut self, cores: u64) {
+        self.cpu_cores_used = self.cpu_cores_used.saturating_sub(cores);
+    }
+
+    pub fn release_memory(&mut self, bytes: u64) {
+        self.memory_bytes_used = self.memory_bytes_used.saturating_sub(bytes);
+    }
+
+    pub fn release_disk(&mut self, bytes: u64) {
+        self.disk_bytes_used = self.disk_bytes_used.saturating_sub(bytes);
     }
 }
 
@@ -172,6 +234,13 @@ pub enum QuotaError {
     QuotaNotConfigured {
         resource: ResourceKind,
         namespace: String,
+    },
+
+    #[error("quota usage counter overflow for {resource}: current {current} + attempted {attempted} would exceed u64::MAX")]
+    UsageOverflow {
+        resource: ResourceKind,
+        current: u64,
+        attempted: u64,
     },
 }
 
