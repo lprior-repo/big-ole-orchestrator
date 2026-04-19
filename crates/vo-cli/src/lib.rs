@@ -12,7 +12,7 @@
 //!
 //! # Architecture
 //!
-//! The CLI uses a middleware-based dispatcher for command handling with
+//! The CLI uses a V2 middleware-based dispatcher for command handling with
 //! support for middleware chaining and error mapping.
 
 pub mod cli;
@@ -21,7 +21,6 @@ pub mod dispatch_mod;
 pub mod dispatch_v2;
 pub mod handler;
 pub mod lint_targets;
-pub mod middleware;
 pub mod parse;
 pub mod registry;
 pub mod utils;
@@ -60,6 +59,5 @@ pub use dispatch_v2::{
     DispatchContext, LoggingMiddlewareV2, MetricsMiddlewareV2, MiddlewareResult, MiddlewareV2,
 };
 pub use handler::CommandHandler;
-pub use middleware::{create_dispatcher, CommandContext, CommandDispatcher, Middleware};
 pub use parse::parse_strict_numeric;
 pub use registry::HandlerRegistry;

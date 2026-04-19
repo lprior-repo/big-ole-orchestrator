@@ -270,6 +270,160 @@ impl SignalBufferEntry {
     }
 }
 
+#[cfg(feature = "proptest")]
+mod proptest_invariants {
+    use super::*;
+    use proptest::prelude::*;
+
+    fn make_instance_id(ulid_val: u128) -> InstanceId {
+        let ulid = ulid::Ulid::from(ulid_val);
+        InstanceId::parse(&ulid.to_string()).unwrap()
+    }
+
+    proptest! {
+        #[test]
+        fn buffer_policy_reject_never_buffers(has_matching_wait in proptest::bool::ANY) {
+            let (delivery, result) = apply_policy(BufferPolicy::Reject, has_matching_wait, true);
+            if !has_matching_wait {
+                prop_assert_eq!(delivery, SignalDelivery::Rejected);
+                prop_assert_eq!(result, Some(BufferResult::Rejected));
+            } else {
+                prop_assert_eq!(delivery, SignalDelivery::Accepted);
+                prop_assert_eq!(result, None);
+            }
+        }
+
+        #[test]
+        fn buffer_policy_buffer_one_allows_at_most_one(has_matching_wait in proptest::bool::ANY, has_existing in proptest::bool::ANY) {
+            let (delivery, result) = apply_policy(BufferPolicy::BufferOne, has_matching_wait, has_existing);
+            if has_matching_wait {
+                prop_assert_eq!(delivery, SignalDelivery::Accepted);
+                prop_assert_eq!(result, None);
+            } else if has_existing {
+                prop_assert_eq!(delivery, SignalDelivery::Rejected);
+                prop_assert_eq!(result, Some(BufferResult::Rejected));
+            } else {
+                prop_assert_eq!(delivery, SignalDelivery::Buffered);
+                prop_assert_eq!(result, Some(BufferResult::Buffered));
+            }
+        }
+
+        #[test]
+        fn buffer_policy_buffer_many_always_buffers_without_wait(
+            has_matching_wait in proptest::bool::ANY,
+            has_existing in proptest::bool::ANY
+        ) {
+            let (delivery, result) = apply_policy(BufferPolicy::BufferMany, has_matching_wait, has_existing);
+            if has_matching_wait {
+                prop_assert_eq!(delivery, SignalDelivery::Accepted);
+                prop_assert_eq!(result, None);
+            } else {
+                prop_assert_eq!(delivery, SignalDelivery::Buffered);
+                prop_assert_eq!(result, Some(BufferResult::Buffered));
+            }
+        }
+
+        #[test]
+        fn can_buffer_reject_always_false(has_existing in proptest::bool::ANY, current_len in 0usize..1000usize) {
+            let config = SignalBufferConfig::default();
+            prop_assert!(!can_buffer(BufferPolicy::Reject, has_existing, current_len, &config));
+        }
+
+        #[test]
+        fn can_buffer_buffer_one_always_true(has_existing in proptest::bool::ANY, current_len in 0usize..1000usize) {
+            let config = SignalBufferConfig::default();
+            prop_assert!(can_buffer(BufferPolicy::BufferOne, has_existing, current_len, &config));
+        }
+
+        #[test]
+        fn can_buffer_buffer_many_respects_max(max_per_key in 1usize..100usize, current_len in 0usize..200usize) {
+            let config = SignalBufferConfig::new(max_per_key);
+            let expected = current_len < max_per_key;
+            prop_assert_eq!(can_buffer(BufferPolicy::BufferMany, false, current_len, &config), expected);
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn signal_buffer_total_count_equals_sum_of_counts(
+            max_per_key in 1usize..50usize,
+            instance_seed in 1u128..1000u128,
+            wait_key in "[a-z]+".prop_filter("non-empty", |s| !s.is_empty()),
+            num_signals in 0usize..20usize
+        ) {
+            let config = SignalBufferConfig::new(max_per_key);
+            let mut buffer = SignalBuffer::new(config);
+            let wait_key = WaitKey::parse(&wait_key).unwrap();
+            let instance = make_instance_id(instance_seed);
+
+            for i in 0..num_signals {
+                let signal = BufferedSignal::new(
+                    format!("sig-{}", i),
+                    crate::SignalPayload::empty(),
+                    TimestampMs::now(),
+                );
+                buffer.buffer_signal(instance.clone(), wait_key.clone(), signal, BufferPolicy::BufferMany);
+            }
+
+            let total = buffer.total_buffered_count();
+            let per_key = buffer.buffered_count(&instance, &wait_key);
+            prop_assert_eq!(total, per_key);
+        }
+
+        #[test]
+        fn signal_buffer_num_keys_equals_non_empty_entries(
+            max_per_key in 1usize..50usize,
+            instance1_seed in 1u128..1000u128,
+            instance2_seed in 1001u128..2000u128,
+            wait_key1 in "[a-z]+".prop_filter("non-empty", |s| !s.is_empty()),
+            wait_key2 in "[a-z]+".prop_filter("non-empty", |s| !s.is_empty()),
+        ) {
+            let config = SignalBufferConfig::new(max_per_key);
+            let mut buffer = SignalBuffer::new(config);
+            let wk1 = WaitKey::parse(&wait_key1).unwrap();
+            let wk2 = WaitKey::parse(&wait_key2).unwrap();
+            let instance1 = make_instance_id(instance1_seed);
+            let instance2 = make_instance_id(instance2_seed);
+
+            let signal1 = BufferedSignal::new("sig-1".to_string(), crate::SignalPayload::empty(), TimestampMs::now());
+            let signal2 = BufferedSignal::new("sig-2".to_string(), crate::SignalPayload::empty(), TimestampMs::now());
+
+            buffer.buffer_signal(instance1.clone(), wk1.clone(), signal1, BufferPolicy::BufferMany);
+            buffer.buffer_signal(instance2.clone(), wk2.clone(), signal2, BufferPolicy::BufferMany);
+
+            prop_assert_eq!(buffer.num_keys_with_signals(), 2);
+        }
+
+        #[test]
+        fn pop_buffered_returns_fifo_order(
+            max_per_key in 3usize..20usize,
+            instance_seed in 1u128..1000u128,
+            wait_key in "[a-z]+".prop_filter("non-empty", |s| !s.is_empty()),
+        ) {
+            let config = SignalBufferConfig::new(max_per_key);
+            let mut buffer = SignalBuffer::new(config);
+            let wait_key = WaitKey::parse(&wait_key).unwrap();
+            let instance = make_instance_id(instance_seed);
+
+            let signal_ids = vec!["first", "second", "third"];
+            for id in &signal_ids {
+                let signal = BufferedSignal::new(
+                    id.to_string(),
+                    crate::SignalPayload::empty(),
+                    TimestampMs::now(),
+                );
+                buffer.buffer_signal(instance.clone(), wait_key.clone(), signal, BufferPolicy::BufferMany);
+            }
+
+            for expected_id in signal_ids {
+                let popped = buffer.pop_buffered(&instance, &wait_key);
+                prop_assert!(popped.is_some());
+                prop_assert_eq!(popped.unwrap().signal_id, expected_id);
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod signal_buffer_entry_tests {
     use super::*;

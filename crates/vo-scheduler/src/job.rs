@@ -36,7 +36,10 @@ impl ScheduledJob {
         let now = Utc::now();
         let due_at = match &schedule_policy {
             SchedulePolicy::At(t) => *t,
-            SchedulePolicy::After(d) => now + chrono::Duration::from_std(*d).unwrap_or_default(),
+            SchedulePolicy::After(d) => {
+                now + chrono::Duration::from_std(*d)
+                    .map_err(|e| SchedulerError::DurationOverflow(e.to_string()))?
+            }
             SchedulePolicy::Immediate => now,
             SchedulePolicy::Cron(_) => now,
         };

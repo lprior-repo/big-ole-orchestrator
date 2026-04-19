@@ -28,6 +28,8 @@ pub mod signal_buffer;
 pub mod signals;
 pub mod spawn_supervisor;
 
+pub mod test_utilities;
+
 #[cfg(test)]
 pub mod signal_buffer_tests;
 
@@ -36,6 +38,7 @@ pub mod instance_registry_tests;
 pub mod timer_lifecycle;
 pub mod timer_supervisor;
 pub mod timer_supervisor_tests;
+pub mod timers;
 
 #[derive(Debug, thiserror::Error)]
 pub enum TerminateError {
@@ -171,9 +174,10 @@ pub use signal_messages::{
     AcceptResumeError, AcceptResumeOutcome, BinaryHash, CancelError, CancelRequested,
     ContinueAsNewError, InstanceResumed, LifecycleState, NodeName, ResumeError, RolloverState,
     SecretId, SignalAccepted, SignalPayload, SignalStorage, SignalStorageError, SignalWorkQueue,
-    SignalWorkQueueError, StateLookup, TestStateLookup, TimestampMs, WaitKey, WorkflowCancelled,
+    SignalWorkQueueError, StateLookup, TimestampMs, WaitKey, WorkflowCancelled,
     WorkflowContinued,
 };
+pub use test_utilities::TestStateLookup;
 pub use signal_messages::mock_signal_storage::{MockSignalStorage, MockSignalWorkQueue};
 pub use signal_messages::mock_signal_storage;
 
@@ -551,16 +555,17 @@ impl ControlActor {
         }
     }
 
-    /// Create a new ControlActor instance with storage and work queue.
+    /// Create a new ControlActor instance with storage, work queue, and state lookup.
     /// This enables the full atomic accept-resume implementation.
     pub fn with_storage_and_queue(
         signal_storage: std::sync::Arc<dyn SignalStorage>,
         work_queue: std::sync::Arc<dyn SignalWorkQueue>,
+        state_lookup: std::sync::Arc<dyn StateLookup>,
     ) -> Self {
         Self {
             signal_storage: Some(signal_storage),
             work_queue: Some(work_queue),
-            state_lookup: std::sync::Arc::new(TestStateLookup),
+            state_lookup,
         }
     }
 

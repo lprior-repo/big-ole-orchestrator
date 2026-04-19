@@ -14,11 +14,10 @@ use vo_cli::commands::lock::{run_lock, LockConfig, LockError, LOCK_FILE_NAME};
 use vo_cli::commands::rebuild::{
     run_rebuild, RebuildConfig, RebuildError, RebuildReport, RebuildStatus,
 };
-use vo_cli::middleware::{LoggingMiddleware, MetricsMiddleware};
 use vo_cli::utils::{file_hash, sha256_hex};
 use vo_cli::{
     interpret_cli_from, map_error_to_exit_code, parse_strict_numeric, CliError, Command,
-    CommandContext, CommandDispatcher, HandlerRegistry, Middleware,
+    HandlerRegistry,
 };
 
 fn setup_project(dir: &std::path::Path) {
@@ -106,14 +105,12 @@ fn sha256_hex_pads_to_64_chars() {
 fn sha256_hex_empty_seed() {
     let result = sha256_hex("");
     assert_eq!(result.len(), 64);
-    assert!(result.chars().all(|c| c == '0'));
 }
 
 #[test]
-fn sha256_hex_long_seed_padded_to_at_least_64() {
+fn sha256_hex_long_seed_still_64_chars() {
     let result = sha256_hex(&"x".repeat(200));
-    assert!(result.len() >= 64);
-    assert!(result.starts_with(&"x".repeat(200)));
+    assert_eq!(result.len(), 64);
 }
 
 // ============================================================
@@ -468,43 +465,6 @@ fn exit_code_for_rebuild_io_error() {
 }
 
 // ============================================================
-// Dispatch: unknown command via empty registry
-// ============================================================
-
-#[tokio::test]
-async fn dispatch_default_registry_handles_init() {
-    let registry = HandlerRegistry::new();
-    let dispatcher = CommandDispatcher::new(registry);
-    let dir = tempfile::tempdir().unwrap();
-    let cli = vo_cli::Cli {
-        command: Command::Init {
-            project_dir: dir.path().to_path_buf(),
-            engine_url: "http://test".into(),
-            storage_path: dir.path().join(".vo/s"),
-        },
-    };
-    let result = dispatcher.dispatch(cli).await;
-    assert!(result.is_ok());
-}
-
-#[tokio::test]
-async fn dispatch_with_middleware_runs_before_and_after() {
-    let registry = HandlerRegistry::default();
-    let dispatcher = CommandDispatcher::new(registry)
-        .with_middleware(LoggingMiddleware::new())
-        .with_middleware(MetricsMiddleware::new());
-
-    let cli = vo_cli::Cli {
-        command: Command::Gc {
-            engine_url: "http://localhost:19998".into(),
-            dry_run: true,
-        },
-    };
-    let result = dispatcher.dispatch(cli).await;
-    assert!(result.is_ok() || result.is_err());
-}
-
-// ============================================================
 // Doctor report: JSON with multiple error/warning counts
 // ============================================================
 
@@ -675,24 +635,6 @@ fn validate_macho_32be_magic_direct() {
         validate_binary_header(&path),
         Ok(BinaryFormat::MachO32BigEndian)
     );
-}
-
-// ============================================================
-// Command context: comprehensive metadata tests
-// ============================================================
-
-#[test]
-fn command_context_metadata_many_keys() {
-    let ctx = CommandContext::new("cmd");
-    for i in 0..10 {
-        ctx.set_metadata(format!("key{i}"), format!("val{i}"));
-    }
-    for i in 0..10 {
-        assert_eq!(
-            ctx.get_metadata(&format!("key{i}")),
-            Some(format!("val{i}"))
-        );
-    }
 }
 
 // ============================================================
@@ -951,18 +893,6 @@ fn command_all_variants_debug_format() {
 fn cli_error_from_rebuild_error() {
     let err = CliError::Rebuild(RebuildError::ProjectionNotFound("p".into()));
     assert!(err.to_string().contains("p"));
-}
-
-// ============================================================
-// Middleware: name verification
-// ============================================================
-
-#[test]
-fn middleware_names() {
-    assert_eq!(LoggingMiddleware::new().name(), "logging");
-    assert_eq!(MetricsMiddleware::new().name(), "metrics");
-    assert_eq!(LoggingMiddleware::default().name(), "logging");
-    assert_eq!(MetricsMiddleware::default().name(), "metrics");
 }
 
 // ============================================================

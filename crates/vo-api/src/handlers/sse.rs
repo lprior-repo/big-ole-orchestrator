@@ -14,79 +14,16 @@ use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 use vo_actor::OrchestratorMsg;
 
 use super::split_path_id;
-use crate::types::ApiError;
+use crate::types::{ApiError, events::WorkflowEvent};
 
 const SSE_KEEPALIVE_INTERVAL: Duration = Duration::from_secs(15);
 const SSE_BROADCAST_CAPACITY: usize = 1000;
 
-#[derive(Debug, Clone)]
-pub enum WorkflowSseEvent {
-    StepCompleted { node_name: String, sequence: u64 },
-    StepFailed { node_name: String, sequence: u64, error: String },
-    TimerFired { timer_id: String },
-    SignalReceived { signal_name: String },
-    PhaseChanged { phase: String },
-    InstanceCompleted,
-    InstanceFailed { error: String },
-}
-
-impl WorkflowSseEvent {
-    fn to_sse_event(&self) -> Event {
-        let data = match self {
-            WorkflowSseEvent::StepCompleted { node_name, sequence } => {
-                serde_json::json!({
-                    "type": "step_completed",
-                    "node_name": node_name,
-                    "sequence": sequence,
-                })
-            }
-            WorkflowSseEvent::StepFailed { node_name, sequence, error } => {
-                serde_json::json!({
-                    "type": "step_failed",
-                    "node_name": node_name,
-                    "sequence": sequence,
-                    "error": error,
-                })
-            }
-            WorkflowSseEvent::TimerFired { timer_id } => {
-                serde_json::json!({
-                    "type": "timer_fired",
-                    "timer_id": timer_id,
-                })
-            }
-            WorkflowSseEvent::SignalReceived { signal_name } => {
-                serde_json::json!({
-                    "type": "signal_received",
-                    "signal_name": signal_name,
-                })
-            }
-            WorkflowSseEvent::PhaseChanged { phase } => {
-                serde_json::json!({
-                    "type": "phase_changed",
-                    "phase": phase,
-                })
-            }
-            WorkflowSseEvent::InstanceCompleted => {
-                serde_json::json!({
-                    "type": "instance_completed",
-                })
-            }
-            WorkflowSseEvent::InstanceFailed { error } => {
-                serde_json::json!({
-                    "type": "instance_failed",
-                    "error": error,
-                })
-            }
-        };
-        Event::default()
-            .event("workflow-event")
-            .data(data.to_string())
-    }
-}
+pub use crate::types::events::WorkflowEvent;
 
 #[derive(Clone)]
 pub struct SseBroadcaster {
-    tx: broadcast::Sender<WorkflowSseEvent>,
+    tx: broadcast::Sender<WorkflowEvent>,
 }
 
 impl SseBroadcaster {
@@ -95,11 +32,11 @@ impl SseBroadcaster {
         Self { tx }
     }
 
-    pub fn subscribe(&self) -> broadcast::Receiver<WorkflowSseEvent> {
+    pub fn subscribe(&self) -> broadcast::Receiver<WorkflowEvent> {
         self.tx.subscribe()
     }
 
-    pub fn send(&self, event: WorkflowSseEvent) -> Result<usize, broadcast::error::SendError<WorkflowSseEvent>> {
+    pub fn send(&self, event: WorkflowEvent) -> Result<usize, broadcast::error::SendError<WorkflowEvent>> {
         self.tx.send(event)
     }
 }
@@ -130,7 +67,7 @@ impl Default for SseState {
 }
 
 fn make_sse_stream(
-    receiver: broadcast::Receiver<WorkflowSseEvent>,
+    receiver: broadcast::Receiver<WorkflowEvent>,
 ) -> impl futures::Stream<Item = Result<Event, axum::Error>> + Send + 'static {
     TokioStreamExt::map(BroadcastStream::new(receiver), |result| {
         match result {
@@ -154,7 +91,7 @@ fn keepalive_stream() -> impl futures::Stream<Item = Result<Event, axum::Error>>
 }
 
 fn merge_with_keepalive(
-    receiver: broadcast::Receiver<WorkflowSseEvent>,
+    receiver: broadcast::Receiver<WorkflowEvent>,
 ) -> impl futures::Stream<Item = Result<Event, axum::Error>> + Send + 'static {
     let events = make_sse_stream(receiver);
     let keepalive = keepalive_stream();
@@ -202,7 +139,7 @@ mod tests {
 
     #[test]
     fn sse_event_step_completed_serializes_correctly() {
-        let event = WorkflowSseEvent::StepCompleted {
+        let event = WorkflowEvent::StepCompleted {
             node_name: "build-step".to_string(),
             sequence: 42,
         };
@@ -211,7 +148,7 @@ mod tests {
 
     #[test]
     fn sse_event_timer_fired_serializes_correctly() {
-        let event = WorkflowSseEvent::TimerFired {
+        let event = WorkflowEvent::TimerFired {
             timer_id: "timer-123".to_string(),
         };
         let _sse_event = event.to_sse_event();
@@ -242,13 +179,13 @@ mod tests {
     async fn sse_lagged_error_closes_stream() {
         use tokio::sync::broadcast;
 
-        let (tx, rx) = broadcast::channel::<WorkflowSseEvent>(10);
+        let (tx, rx) = broadcast::channel::<WorkflowEvent>(10);
 
         let stream = make_sse_stream(rx);
         let mut event = futures::StreamExt::fuse(stream);
 
         for i in 0..15 {
-            let _ = tx.send(WorkflowSseEvent::StepCompleted {
+            let _ = tx.send(WorkflowEvent::StepCompleted {
                 node_name: format!("step-{}", i),
                 sequence: i,
             });
@@ -275,13 +212,13 @@ mod tests {
     async fn sse_stream_closes_after_lag_event() {
         use tokio::sync::broadcast;
 
-        let (tx, rx) = broadcast::channel::<WorkflowSseEvent>(5);
+        let (tx, rx) = broadcast::channel::<WorkflowEvent>(5);
 
         let stream = make_sse_stream(rx);
         let mut event = futures::StreamExt::fuse(stream);
 
         for i in 0..20 {
-            let _ = tx.send(WorkflowSseEvent::StepCompleted {
+            let _ = tx.send(WorkflowEvent::StepCompleted {
                 node_name: format!("step-{}", i),
                 sequence: i,
             });
@@ -325,7 +262,7 @@ mod tests {
         });
 
         for i in 0..(SSE_BROADCAST_CAPACITY + 1) {
-            let _ = broadcaster.send(WorkflowSseEvent::StepCompleted {
+            let _ = broadcaster.send(WorkflowEvent::StepCompleted {
                 node_name: format!("step-{}", i),
                 sequence: i as u64,
             });
@@ -344,13 +281,13 @@ mod tests {
     async fn sse_lagged_error_drops_slow_client() {
         use tokio::sync::broadcast;
 
-        let (tx, rx) = broadcast::channel::<WorkflowSseEvent>(10);
+        let (tx, rx) = broadcast::channel::<WorkflowEvent>(10);
 
         let stream = make_sse_stream(rx);
         let mut event = futures::StreamExt::fuse(stream);
 
         for i in 0..100 {
-            let _ = tx.send(WorkflowSseEvent::StepCompleted {
+            let _ = tx.send(WorkflowEvent::StepCompleted {
                 node_name: format!("step-{}", i),
                 sequence: i,
             });

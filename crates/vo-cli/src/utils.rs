@@ -17,5 +17,5 @@ pub fn file_hash(path: &Path) -> Result<String, std::io::Error> {
 }
 
 pub fn sha256_hex(seed: &str) -> String {
-    format!("{:0<64}", seed)
+    format!("{:x}", Sha256::digest(seed.as_bytes()))
 }

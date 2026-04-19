@@ -13,13 +13,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 fjall.workspace = true
 vo-storage = { version = "0.1.0", path = "../vo-storage" }
-anyhow.workspace = true
-ractor.workspace = true
-vo-actor = { version = "0.1.0", path = "../vo-actor" }
-vo-api = { version = "0.1.0", path = "../vo-api" }
 vo-types = { version = "0.1.0", path = "../vo-types" }
-ulid = { workspace = true }
-uuid.workspace = true
 tracing.workspace = true
 sha2 = "0.10"
 toml = "1.1.2"
@@ -30,6 +24,7 @@ proptest = "1.4"
 rstest = "0.18"
 tempfile = { workspace = true }
 criterion = { workspace = true }
+wiremock = "0.6"
 
 [[bench]]
 name = "cli_bench"

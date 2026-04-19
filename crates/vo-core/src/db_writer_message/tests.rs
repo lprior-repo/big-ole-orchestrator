@@ -1,177 +1,11 @@
-//! DbWriterMessage enum for atomic control-plane transitions.
-//!
-//! Per ADR-016: DbWriterActor uses fjall::OwnedWriteBatch for every control-plane
-//! transition. All events are sent to DbWriterActor for batch commit.
-//!
-//! Per ADR-029: Execution leases with monotonic fence tokens for
-//! (instance_id, step_id) pairs. All completion paths carry the fence.
-
-use serde::{Deserialize, Serialize};
-use thiserror::Error;
-#[cfg(test)]
-use vo_types::events::EventMetadata;
-use vo_types::{
-    EffectRecord, EventEnvelope, FenceToken, FireAtMs, IdempotencyKey, InstanceId, InstanceStatus,
-    SequenceNumber, StepId, TimerId, MAX_SUPPORTED_SCHEMA_VERSION,
-};
-
-fn default_schema_version() -> u16 {
-    MAX_SUPPORTED_SCHEMA_VERSION
-}
-
-/// Error types for DbWriterMessage operations.
-#[allow(dead_code)]
-#[derive(Debug, Clone, PartialEq, Eq, Error)]
-pub enum DbWriterMessageError {
-    /// Fence token was zero (must be nonzero).
-    #[error("fence token must be nonzero")]
-    ZeroFenceToken,
-    /// Sequence number was zero (must be nonzero).
-    #[error("sequence number must be nonzero")]
-    ZeroSequenceNumber,
-    /// Serialization or deserialization failed.
-    #[error("serialization error: {0}")]
-    SerializationError(String),
-    /// Unknown variant tag encountered during deserialization.
-    #[error("unknown DbWriterMessage variant: {0}")]
-    UnknownVariant(String),
-    /// Required field was missing during deserialization.
-    #[error("missing field: {0}")]
-    MissingField(String),
-}
-
-/// Timer operation for atomic timer management.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum TimerOp {
-    /// Upsert (insert or update) a timer.
-    Upsert {
-        timer_id: TimerId,
-        fire_at: FireAtMs,
-    },
-    /// Delete a timer.
-    Delete { timer_id: TimerId },
-}
-
-/// Snapshot data for instance state hibernation.
-///
-/// Invariant: `state_bytes` must be non-empty.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SnapshotData {
-    sequence_number: SequenceNumber,
-    #[serde(default = "default_schema_version")]
-    schema_version: u16,
-    state_bytes: Vec<u8>,
-}
-
-#[allow(dead_code)]
-impl SnapshotData {
-    /// Create a new `SnapshotData`.
-    ///
-    /// Returns `Err` if `state_bytes` is empty (invariant: state must be non-empty).
-    #[must_use]
-    pub fn new(
-        sequence_number: SequenceNumber,
-        schema_version: u16,
-        state_bytes: Vec<u8>,
-    ) -> Option<Self> {
-        if state_bytes.is_empty() {
-            return None;
-        }
-        Some(Self {
-            sequence_number,
-            schema_version,
-            state_bytes,
-        })
-    }
-
-    #[must_use]
-    pub fn sequence_number(&self) -> SequenceNumber {
-        self.sequence_number
-    }
-
-    #[must_use]
-    pub fn schema_version(&self) -> u16 {
-        self.schema_version
-    }
-
-    #[must_use]
-    pub fn state_bytes(&self) -> &[u8] {
-        &self.state_bytes
-    }
-}
-
-/// Messages sent to `DbWriterActor` for atomic batch commits.
-///
-/// Per ADR-016: every control-plane transition must atomically update
-/// all touched partitions in the same batch.
-///
-/// Per ADR-029: all completion paths carry fence tokens for lease validation.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-#[allow(dead_code, clippy::large_enum_variant)]
-pub enum DbWriterMessage {
-    /// Append an event to the event log with idempotency protection.
-    AppendEvent {
-        instance_id: InstanceId,
-        sequence_number: SequenceNumber,
-        idempotency_key: IdempotencyKey,
-    },
-    /// Record the current instance status in the instances index partition.
-    RecordInstanceStatus {
-        instance_id: InstanceId,
-        status_byte: u8,
-    },
-    /// Acquire an execution lease for a (instance_id, step_id) pair (ADR-029).
-    AcquireLease {
-        instance_id: InstanceId,
-        step_id: StepId,
-        fence: FenceToken,
-    },
-    /// Release an execution lease for a (instance_id, step_id) pair (ADR-029).
-    ReleaseLease {
-        instance_id: InstanceId,
-        step_id: StepId,
-    },
-    /// Upsert a timer in the timers partition.
-    UpsertTimer {
-        instance_id: InstanceId,
-        timer_id: TimerId,
-        fire_at: FireAtMs,
-    },
-    /// Delete a timer from the timers partition.
-    DeleteTimer {
-        instance_id: InstanceId,
-        timer_id: TimerId,
-    },
-    /// Record an effect in the effect journal.
-    RecordEffect { effect: EffectRecord },
-    /// Take a snapshot of instance state for hibernation.
-    TakeSnapshot {
-        instance_id: InstanceId,
-        sequence_number: SequenceNumber,
-        snapshot_data: SnapshotData,
-    },
-    /// Atomic transition with all sub-messages for batch commit.
-    AtomicTransition {
-        step_id: Option<StepId>,
-        instance_status: Option<InstanceStatus>,
-        timer_ops: Vec<TimerOp>,
-        snapshot: Option<SnapshotData>,
-        event: EventEnvelope,
-    },
-}
-
-// SAFETY: EventEnvelope does not implement Eq (contains serde_json::Value),
-// but DbWriterMessage only uses AtomicTransition in contexts that don't
-// exercise Eq (serde round-trips use PartialEq). The test suite (B39-B42)
-// only tests Eq on variants that don't contain EventEnvelope.
-impl Eq for DbWriterMessage {}
-
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use vo_types::{EffectIntent, EffectKind, EffectRecord, FireAtMs, StepId, TimerId};
+    use crate::db_writer_message::message::DbWriterMessage;
+    use crate::db_writer_message::types::{DbWriterMessageError, SnapshotData, TimerOp};
+    use vo_types::{
+        EffectIntent, EffectKind, EffectRecord, FenceToken, FireAtMs, IdempotencyKey, InstanceId,
+        InstanceStatus, SequenceNumber, StepId, TimerId, MAX_SUPPORTED_SCHEMA_VERSION,
+    };
 
     fn valid_instance_id() -> InstanceId {
         InstanceId::parse("01ARYZ6S410000000000000000").expect("valid instance id")
@@ -232,9 +66,7 @@ mod tests {
         .expect("valid snapshot data")
     }
 
-    // ========================================================================
     // B01-B09: snake_case tag serialization
-    // ========================================================================
 
     #[test]
     fn append_event_serializes_with_snake_case_tag() {
@@ -362,9 +194,7 @@ mod tests {
         );
     }
 
-    // ========================================================================
     // B10-B21: Serde round-trip tests
-    // ========================================================================
 
     #[test]
     fn append_event_round_trips_through_serde_json() {
@@ -522,9 +352,7 @@ mod tests {
         assert_eq!(sd, recovered);
     }
 
-    // ========================================================================
     // B22-B25: Deserialization rejection
-    // ========================================================================
 
     #[test]
     fn db_writer_message_rejects_unknown_variant_when_deserializing() {
@@ -554,9 +382,7 @@ mod tests {
         assert!(result.is_err(), "expected Err for truncated JSON");
     }
 
-    // ========================================================================
     // B26-B29: Nonzero guarantees
-    // ========================================================================
 
     #[test]
     fn fence_token_rejects_zero_value_when_constructed() {
@@ -582,9 +408,7 @@ mod tests {
         assert!(result.is_err());
     }
 
-    // ========================================================================
     // B30-B33: Non-empty string guarantees
-    // ========================================================================
 
     #[test]
     fn instance_id_rejects_empty_string_when_parsed() {
@@ -610,9 +434,7 @@ mod tests {
         assert!(result.is_err());
     }
 
-    // ========================================================================
     // B34-B38: Error display
-    // ========================================================================
 
     #[test]
     fn db_writer_message_error_zero_fence_token_displays_expected_message() {
@@ -644,9 +466,7 @@ mod tests {
         assert_eq!(err.to_string(), "missing field: instance_id");
     }
 
-    // ========================================================================
     // B39-B42: PartialEq/Eq correctness
-    // ========================================================================
 
     #[test]
     fn db_writer_message_equal_values_compare_equal() {
@@ -698,9 +518,7 @@ mod tests {
         assert_ne!(sd1, sd2);
     }
 
-    // ========================================================================
     // SnapshotData invariants
-    // ========================================================================
 
     #[test]
     fn snapshot_data_new_returns_some_when_state_bytes_non_empty() {

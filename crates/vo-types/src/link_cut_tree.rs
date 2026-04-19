@@ -133,6 +133,7 @@ impl<V: LctAggregate<A>, A: Monoid> LinkCutTree<V, A> {
 
     /// Which side is x on in its parent?
     fn dir(&self, x: usize) -> usize {
+        #[allow(clippy::expect_used)]
         let p = self.nodes[x]
             .parent
             .expect("LCT node has no parent despite not being root");
@@ -144,6 +145,7 @@ impl<V: LctAggregate<A>, A: Monoid> LinkCutTree<V, A> {
     }
 
     fn rotate(&mut self, x: usize) {
+        #[allow(clippy::expect_used)]
         let p = self.nodes[x]
             .parent
             .expect("LCT node has no parent despite not being root");
@@ -180,10 +182,12 @@ impl<V: LctAggregate<A>, A: Monoid> LinkCutTree<V, A> {
     fn splay(&mut self, x: usize) {
         self.push(x);
         while !self.is_root(x) {
+            #[allow(clippy::expect_used)]
             let p = self.nodes[x]
                 .parent
                 .expect("LCT node has no parent in splay loop");
             if !self.is_root(p) {
+                #[allow(clippy::expect_used)]
                 let _g = self.nodes[p]
                     .parent
                     .expect("LCT grandparent missing despite non-root parent");

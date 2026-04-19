@@ -37,6 +37,7 @@ impl EventMetadata {
 
     /// Serialize to a JSON object value.
     pub fn to_json(&self) -> serde_json::Value {
+        #[allow(clippy::expect_used)]
         serde_json::to_value(self).expect("EventMetadata should always serialize")
     }
 }

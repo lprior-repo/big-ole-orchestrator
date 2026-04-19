@@ -466,10 +466,13 @@ impl HistoryEntry {
     ) -> Self {
         let cmd_id = command_id.unwrap_or_default();
         let metadata = crate::command_metadata::CommandMetadata {
+            #[allow(clippy::expect_used)]
             command_id: crate::IdempotencyKey::parse(cmd_id.as_str())
                 .expect("IdempotencyKey parsing from String should succeed"),
+            #[allow(clippy::expect_used)]
             correlation_id: crate::IdempotencyKey::parse(&ulid::Ulid::new().to_string())
                 .expect("IdempotencyKey parsing from ULID string should succeed"),
+            #[allow(clippy::expect_used)]
             causation_id: crate::IdempotencyKey::parse(&ulid::Ulid::new().to_string())
                 .expect("IdempotencyKey parsing from ULID string should succeed"),
             issuer: Issuer::Operator,
@@ -647,6 +650,7 @@ impl CommandHistory {
             return Ok(false);
         }
 
+        #[allow(clippy::expect_used)]
         let command_id = self
             .undo_stack
             .pop()
@@ -696,6 +700,7 @@ impl CommandHistory {
             return Ok(false);
         }
 
+        #[allow(clippy::expect_used)]
         let command_id = self
             .redo_stack
             .pop()

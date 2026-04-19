@@ -92,6 +92,28 @@ pub async fn run_status(config: &StatusConfig) -> Result<WorkflowStatusResponse,
 #[cfg(test)]
 mod tests {
     use super::*;
+    use wiremock::{Match, Mock, MockServer, ResponseTemplate};
+
+    struct AnyMatch;
+
+    impl Match for AnyMatch {
+        fn matches(&self, _request: &wiremock::Request) -> bool {
+            true
+        }
+    }
+
+    fn sample_response() -> WorkflowStatusResponse {
+        WorkflowStatusResponse {
+            instance_id: "01ARZ3NDEKTSV4RRFFQ69G5FAV".to_string(),
+            namespace: "default".to_string(),
+            workflow_type: "test-workflow".to_string(),
+            paradigm: "fsm".to_string(),
+            phase: "running".to_string(),
+            events_applied: 42,
+            registration_status: Some("active".to_string()),
+            is_quarantined: false,
+        }
+    }
 
     #[test]
     fn status_config_default_engine_url() {
@@ -168,5 +190,186 @@ mod tests {
         };
         assert_eq!(config.engine_url, "http://localhost:9000");
         assert_eq!(config.instance_id, "test-instance-123");
+    }
+
+    #[tokio::test]
+    async fn fetch_workflow_status_success() {
+        let server = MockServer::start().await;
+        Mock::given(AnyMatch)
+            .respond_with(ResponseTemplate::new(200).set_body_json(sample_response()))
+            .mount(&server)
+            .await;
+
+        let result = fetch_workflow_status(&server.uri(), "01ARZ3NDEKTSV4RRFFQ69G5FAV").await;
+        let response = result.expect("should succeed");
+        assert_eq!(response.instance_id, "01ARZ3NDEKTSV4RRFFQ69G5FAV");
+        assert_eq!(response.namespace, "default");
+        assert_eq!(response.phase, "running");
+        assert_eq!(response.events_applied, 42);
+        assert_eq!(response.registration_status, Some("active".to_string()));
+        assert!(!response.is_quarantined);
+    }
+
+    #[tokio::test]
+    async fn fetch_workflow_status_404_returns_not_found() {
+        let server = MockServer::start().await;
+        Mock::given(AnyMatch)
+            .respond_with(ResponseTemplate::new(404))
+            .mount(&server)
+            .await;
+
+        let result = fetch_workflow_status(&server.uri(), "missing-id").await;
+        let err = result.expect_err("should return NotFound");
+        match err {
+            StatusError::NotFound { instance_id } => {
+                assert_eq!(instance_id, "missing-id");
+            }
+            other => panic!("expected NotFound, got: {other}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn fetch_workflow_status_500_returns_http_error() {
+        let server = MockServer::start().await;
+        Mock::given(AnyMatch)
+            .respond_with(ResponseTemplate::new(500))
+            .mount(&server)
+            .await;
+
+        let result = fetch_workflow_status(&server.uri(), "some-id").await;
+        let err = result.expect_err("should return HttpError");
+        match err {
+            StatusError::HttpError { status, .. } => {
+                assert_eq!(status, 500);
+            }
+            other => panic!("expected HttpError, got: {other}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn fetch_workflow_status_503_returns_http_error() {
+        let server = MockServer::start().await;
+        Mock::given(AnyMatch)
+            .respond_with(ResponseTemplate::new(503))
+            .mount(&server)
+            .await;
+
+        let result = fetch_workflow_status(&server.uri(), "some-id").await;
+        let err = result.expect_err("should return HttpError");
+        match err {
+            StatusError::HttpError { status, .. } => {
+                assert_eq!(status, 503);
+            }
+            other => panic!("expected HttpError, got: {other}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn fetch_workflow_status_network_error_returns_unreachable() {
+        let result = fetch_workflow_status("http://127.0.0.1:1", "some-id").await;
+        let err = result.expect_err("should return Unreachable");
+        match err {
+            StatusError::Unreachable { url, reason } => {
+                assert!(url.contains("127.0.0.1:1"));
+                assert!(!reason.is_empty());
+            }
+            other => panic!("expected Unreachable, got: {other}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn fetch_workflow_status_invalid_json_returns_invalid_response() {
+        let server = MockServer::start().await;
+        Mock::given(AnyMatch)
+            .respond_with(ResponseTemplate::new(200).set_body_string("not json at all"))
+            .mount(&server)
+            .await;
+
+        let result = fetch_workflow_status(&server.uri(), "some-id").await;
+        let err = result.expect_err("should return InvalidResponse");
+        match err {
+            StatusError::InvalidResponse { reason } => {
+                assert!(reason.contains("expected") || reason.contains("JSON"));
+            }
+            other => panic!("expected InvalidResponse, got: {other}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn fetch_workflow_status_truncated_json_returns_invalid_response() {
+        let server = MockServer::start().await;
+        Mock::given(AnyMatch)
+            .respond_with(ResponseTemplate::new(200).set_body_string(r#"{"instance_id":"abc"#))
+            .mount(&server)
+            .await;
+
+        let result = fetch_workflow_status(&server.uri(), "some-id").await;
+        let err = result.expect_err("should return InvalidResponse");
+        match err {
+            StatusError::InvalidResponse { reason } => {
+                assert!(!reason.is_empty());
+            }
+            other => panic!("expected InvalidResponse, got: {other}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn fetch_workflow_status_401_returns_http_error() {
+        let server = MockServer::start().await;
+        Mock::given(AnyMatch)
+            .respond_with(ResponseTemplate::new(401))
+            .mount(&server)
+            .await;
+
+        let result = fetch_workflow_status(&server.uri(), "some-id").await;
+        let err = result.expect_err("should return HttpError");
+        match err {
+            StatusError::HttpError { status, .. } => {
+                assert_eq!(status, 401);
+            }
+            other => panic!("expected HttpError, got: {other}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn run_status_delegates_to_fetch_workflow_status() {
+        let server = MockServer::start().await;
+        Mock::given(AnyMatch)
+            .respond_with(ResponseTemplate::new(200).set_body_json(sample_response()))
+            .mount(&server)
+            .await;
+
+        let config = StatusConfig {
+            engine_url: server.uri(),
+            instance_id: "01ARZ3NDEKTSV4RRFFQ69G5FAV".to_string(),
+        };
+
+        let result = run_status(&config).await;
+        let response = result.expect("should succeed");
+        assert_eq!(response.instance_id, "01ARZ3NDEKTSV4RRFFQ69G5FAV");
+        assert_eq!(response.phase, "running");
+    }
+
+    #[tokio::test]
+    async fn run_status_propagates_404_error() {
+        let server = MockServer::start().await;
+        Mock::given(AnyMatch)
+            .respond_with(ResponseTemplate::new(404))
+            .mount(&server)
+            .await;
+
+        let config = StatusConfig {
+            engine_url: server.uri(),
+            instance_id: "missing-instance".to_string(),
+        };
+
+        let result = run_status(&config).await;
+        let err = result.expect_err("should propagate NotFound");
+        match err {
+            StatusError::NotFound { instance_id } => {
+                assert_eq!(instance_id, "missing-instance");
+            }
+            other => panic!("expected NotFound, got: {other}"),
+        }
     }
 }

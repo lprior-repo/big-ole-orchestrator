@@ -5,91 +5,7 @@ use vo_cli::dispatch_v2::{
     create_dispatcher_v2, dispatch_v2, CommandDispatcherV2, DefaultDispatchContext,
     DispatchContext, LoggingMiddlewareV2, MetricsMiddlewareV2, MiddlewareResult, MiddlewareV2,
 };
-use vo_cli::middleware::Middleware as V1Middleware;
-use vo_cli::middleware::{
-    create_dispatcher, CommandContext, CommandDispatcher, LoggingMiddleware, MetricsMiddleware,
-};
 use vo_cli::registry::HandlerRegistry;
-
-#[tokio::test]
-async fn v1_dispatch_unknown_command_returns_error() {
-    let dispatcher = create_dispatcher();
-    let cli = Cli {
-        command: Command::Purge {
-            instance: "nope".into(),
-        },
-    };
-    let result = dispatcher.dispatch(cli).await;
-    assert!(result.is_err());
-}
-
-#[tokio::test]
-async fn v1_dispatch_check_nonexistent_returns_error() {
-    let dispatcher = create_dispatcher();
-    let cli = Cli {
-        command: Command::Check { workflow: false, path: PathBuf::from("/nonexistent/path"), },
-    };
-    let result = dispatcher.dispatch(cli).await;
-    assert!(result.is_err());
-}
-
-#[tokio::test]
-async fn v1_dispatch_init_in_temp_dir() {
-    let dir = tempfile::tempdir().unwrap();
-    let dispatcher = create_dispatcher();
-    let cli = Cli {
-        command: Command::Init {
-            project_dir: dir.path().to_path_buf(),
-            engine_url: "http://localhost:3000".into(),
-            storage_path: PathBuf::from(".vo/storage"),
-        },
-    };
-    let result = dispatcher.dispatch(cli).await;
-    assert!(result.is_ok());
-    assert!(dir.path().join(".vo").is_dir());
-}
-
-#[tokio::test]
-async fn v1_dispatch_lock_uninit_fails() {
-    let dir = tempfile::tempdir().unwrap();
-    let dispatcher = create_dispatcher();
-    let cli = Cli {
-        command: Command::Lock {
-            project_dir: dir.path().to_path_buf(),
-        },
-    };
-    let result = dispatcher.dispatch(cli).await;
-    assert!(result.is_err());
-}
-
-#[tokio::test]
-async fn v1_dispatch_doctor_uninit_fails() {
-    let dir = tempfile::tempdir().unwrap();
-    let dispatcher = create_dispatcher();
-    let cli = Cli {
-        command: Command::Doctor {
-            project_dir: dir.path().to_path_buf(),
-        },
-    };
-    let result = dispatcher.dispatch(cli).await;
-    assert!(result.is_err());
-}
-
-#[tokio::test]
-async fn v1_dispatch_rebuild_uninit_fails() {
-    let dir = tempfile::tempdir().unwrap();
-    let dispatcher = create_dispatcher();
-    let cli = Cli {
-        command: Command::Rebuild {
-            project_dir: dir.path().to_path_buf(),
-            projection_id: Some("proj-1".into()),
-            list_projections: false,
-            force: false,
-        },
-    };
-    let result = dispatcher.dispatch(cli).await;
-    assert!(result.is_err());
-}
 
 #[tokio::test]
 async fn v2_dispatch_init_then_doctor_roundtrip() {
@@ -142,27 +58,6 @@ async fn v2_dispatch_rebuild_list_after_init() {
 }
 
 #[test]
-fn command_context_clone_preserves_metadata() {
-    let ctx = CommandContext::new("cmd");
-    ctx.set_metadata("k1", "v1");
-    let cloned = ctx.clone();
-    assert_eq!(cloned.get_metadata("k1"), Some("v1".into()));
-    ctx.set_metadata("k2", "v2");
-    assert_eq!(cloned.get_metadata("k2"), Some("v2".into()));
-}
-
-#[test]
-fn dispatcher_add_middleware_incremental() {
-    let registry = HandlerRegistry::default();
-    let mut dispatcher = CommandDispatcher::new(registry);
-    assert_eq!(dispatcher.middleware_count(), 0);
-    dispatcher.add_middleware(LoggingMiddleware::new());
-    assert_eq!(dispatcher.middleware_count(), 1);
-    dispatcher.add_middleware(MetricsMiddleware::new());
-    assert_eq!(dispatcher.middleware_count(), 2);
-}
-
-#[test]
 fn dispatch_context_trait_default_impl() {
     let ctx = DefaultDispatchContext::new("test-cmd");
     assert_eq!(ctx.command_name(), "test-cmd");
@@ -183,18 +78,6 @@ async fn v2_dispatcher_with_no_middleware_dispatches() {
     let result = dispatcher.dispatch(cli).await;
     assert!(result.is_ok());
     dir.close().unwrap();
-}
-
-#[test]
-fn logging_middleware_name() {
-    let mw = LoggingMiddleware::new();
-    assert_eq!(V1Middleware::name(&mw), "logging");
-}
-
-#[test]
-fn metrics_middleware_name() {
-    let mw = MetricsMiddleware::new();
-    assert_eq!(V1Middleware::name(&mw), "metrics");
 }
 
 #[test]
@@ -238,39 +121,6 @@ async fn dispatch_v2_function_dispatches() {
         },
     };
     let result = dispatch_v2(cli).await;
-    assert!(result.is_ok());
-}
-
-#[tokio::test]
-async fn v1_dispatch_full_init_lock_doctor_pipeline() {
-    let dir = tempfile::tempdir().unwrap();
-    let dispatcher = create_dispatcher();
-
-    let init_cli = Cli {
-        command: Command::Init {
-            project_dir: dir.path().to_path_buf(),
-            engine_url: "http://localhost:3000".into(),
-            storage_path: PathBuf::from(".vo/storage"),
-        },
-    };
-    dispatcher.dispatch(init_cli).await.unwrap();
-
-    std::fs::write(dir.path().join(".vo/workflows/test-wf"), b"\x7FELFtestdata").unwrap();
-
-    let lock_cli = Cli {
-        command: Command::Lock {
-            project_dir: dir.path().to_path_buf(),
-        },
-    };
-    dispatcher.dispatch(lock_cli).await.unwrap();
-    assert!(dir.path().join("vo.lock").exists());
-
-    let doctor_cli = Cli {
-        command: Command::Doctor {
-            project_dir: dir.path().to_path_buf(),
-        },
-    };
-    let result = dispatcher.dispatch(doctor_cli).await;
     assert!(result.is_ok());
 }
 

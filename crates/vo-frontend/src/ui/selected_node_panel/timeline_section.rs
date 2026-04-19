@@ -4,8 +4,8 @@
 #![warn(clippy::pedantic)]
 
 use dioxus::prelude::*;
-use oya_frontend::flow_extender::ExtensionPatchPreview;
-use oya_frontend::graph::Workflow;
+use crate::flow_extender::ExtensionPatchPreview;
+use crate::ui::graph::Workflow;
 
 use super::types::{
     event_appearance, mode_label, push_timeline, snapshot_by_id, ExtensionBatchSnapshot,

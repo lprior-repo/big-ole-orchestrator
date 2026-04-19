@@ -126,3 +126,95 @@ mod tests {
         assert!(is_workflow_saturated(15, 10));
     }
 }
+
+#[cfg(feature = "proptest")]
+mod proptest_invariants {
+    use super::*;
+    use proptest::prelude::*;
+
+    proptest! {
+        #[test]
+        fn calculate_backpressure_status_monotonic_in_waiters(
+            available_permits in 0..500usize,
+            total_permits in 1..500usize,
+            max_waiters_for_shed in 1..10000usize,
+        ) {
+            prop_assume!(available_permits <= total_permits);
+            let waiting_a: usize = 0;
+            let waiting_b: usize = 1;
+            let status_a = calculate_backpressure_status(available_permits, total_permits, waiting_a, max_waiters_for_shed);
+            let status_b = calculate_backpressure_status(available_permits, total_permits, waiting_b, max_waiters_for_shed);
+            prop_assert!(status_a <= status_b);
+        }
+
+        #[test]
+        fn calculate_backpressure_status_healthy_never_above_half_usage(
+            available_permits in 0..500usize,
+            total_permits in 1..500usize,
+            max_waiters_for_shed in 1000..10000usize,
+        ) {
+            prop_assume!(available_permits <= total_permits);
+            let usage_ratio = if total_permits > 0 {
+                (total_permits - available_permits) as f64 / total_permits as f64
+            } else {
+                1.0
+            };
+            let status = calculate_backpressure_status(available_permits, total_permits, 0, max_waiters_for_shed);
+            if usage_ratio <= 0.5 {
+                prop_assert_eq!(status, BackpressureStatus::Healthy);
+            }
+        }
+
+        #[test]
+        fn calculate_backpressure_status_shed_when_waiters_exceed_threshold(
+            waiting_count in 5000..10000usize,
+            max_waiters_for_shed in 1..5000usize,
+        ) {
+            let status = calculate_backpressure_status(250, 500, waiting_count, max_waiters_for_shed);
+            if waiting_count >= max_waiters_for_shed {
+                prop_assert_eq!(status, BackpressureStatus::ShedLoad);
+            }
+        }
+
+        #[test]
+        fn estimate_wait_ms_never_zero_when_position_nonzero(
+            position in 1..10000usize,
+            available_permits in 0..100usize,
+            avg_task_duration_ms in 1..10000u64,
+        ) {
+            let wait = estimate_wait_ms(position, available_permits, avg_task_duration_ms);
+            prop_assert!(wait > 0);
+        }
+
+        #[test]
+        fn estimate_wait_ms_monotonic_in_position(
+            available_permits in 1..100usize,
+            avg_task_duration_ms in 1..1000u64,
+        ) {
+            let pos_a = 10;
+            let pos_b = 20;
+            let wait_a = estimate_wait_ms(pos_a, available_permits, avg_task_duration_ms);
+            let wait_b = estimate_wait_ms(pos_b, available_permits, avg_task_duration_ms);
+            prop_assert!(wait_a <= wait_b);
+        }
+
+        #[test]
+        fn estimate_wait_ms_at_least_one_task_duration(
+            position in 1..1000usize,
+            available_permits in 0..100usize,
+            avg_task_duration_ms in 1..1000u64,
+        ) {
+            let wait = estimate_wait_ms(position, available_permits, avg_task_duration_ms);
+            prop_assert!(wait >= avg_task_duration_ms);
+        }
+
+        #[test]
+        fn is_workflow_saturated_threshold_only(
+            pending_count in 0..100usize,
+            max_per_workflow in 1..100usize,
+        ) {
+            let result = is_workflow_saturated(pending_count, max_per_workflow);
+            prop_assert_eq!(result, pending_count >= max_per_workflow);
+        }
+    }
+}

@@ -2,8 +2,6 @@
 //!
 //! Contains the storage and work queue trait definitions.
 
-use std::sync::Arc;
-
 use vo_types::InstanceId;
 
 use super::types::{TimerRecord, TimerSupervisorError};

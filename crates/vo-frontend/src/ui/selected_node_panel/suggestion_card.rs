@@ -4,10 +4,10 @@
 #![warn(clippy::pedantic)]
 
 use dioxus::prelude::*;
-use oya_frontend::flow_extender::{
+use crate::flow_extender::{
     apply_extension, preview_extension, ExtensionPriority, FlowExtension,
 };
-use oya_frontend::graph::Workflow;
+use crate::ui::graph::Workflow;
 
 use super::types::{
     push_timeline, record_suggestion_decision, remember_extension_snapshot, ExtensionApplyMode,
