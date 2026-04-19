@@ -61,3 +61,20 @@ pub enum ReplayError {
         blob_id: String,
     },
 }
+
+impl ReplayError {
+    /// Classify this error as deterministic (permanent) or transient (retryable).
+    #[must_use]
+    pub const fn kind(&self) -> ReplayErrorKind {
+        match self {
+            Self::InstanceMismatch { .. }
+            | Self::SequenceGap { .. }
+            | Self::SequenceDuplicate { .. }
+            | Self::PayloadDecodeFailed { .. }
+            | Self::TransitionFailed { .. }
+            | Self::UnexpectedEventType { .. }
+            | Self::UpcastingFailed { .. }
+            | Self::BlobPublicationFailed { .. } => ReplayErrorKind::Deterministic,
+        }
+    }
+}
