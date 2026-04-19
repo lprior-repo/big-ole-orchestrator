@@ -13,12 +13,10 @@ use std::sync::LazyLock;
 use std::sync::Mutex;
 use std::sync::MutexGuard;
 use async_trait::async_trait;
-use vo_worker::{
-    connector::{
-        CommitOutcome, Connector, ConnectorError, PreparedEffect, ReconcileOutcome,
-    },
-    ConnectorRegistry,
+use vo_worker::connector::{
+    CommitOutcome, Connector, ConnectorError, PreparedEffect, ReconcileOutcome,
 };
+use vo_worker::connector::ConnectorRegistry;
 
 static STATE_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
