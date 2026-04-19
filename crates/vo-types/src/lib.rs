@@ -56,6 +56,7 @@ mod registration_status;
 mod rope;
 pub mod search;
 pub mod signal;
+pub mod security_validation_tests;
 pub mod skew_heap;
 mod spqr_tree;
 pub mod state;

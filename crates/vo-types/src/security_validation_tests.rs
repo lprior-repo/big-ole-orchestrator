@@ -258,7 +258,7 @@ mod security_validation_tests {
         let ciphertext = vec![1u8; 64];
         let tag = vec![2u8; 16];
 
-        let blob = EncryptedBlob::new(iv.clone(), ciphertext.clone(), tag.clone()).unwrap();
+        let blob = EncryptedBlob::new(iv.clone(), ciphertext.clone(), tag.clone());
 
         assert_eq!(blob.iv, iv);
         assert_eq!(blob.ciphertext, ciphertext);
@@ -475,7 +475,7 @@ mod security_validation_tests {
 
     #[test]
     fn test_encrypted_blob_serialization() {
-        let blob = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 64], vec![2u8; 16]).unwrap();
+        let blob = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 64], vec![2u8; 16]);
 
         let serialized = serde_json::to_string(&blob).expect("serializable");
         let deserialized: EncryptedBlob =
