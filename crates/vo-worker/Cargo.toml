@@ -26,6 +26,7 @@ crc32fast = { workspace = true }
 thiserror = { workspace = true }
 chrono = { workspace = true }
 tracing = { workspace = true }
+rand = { workspace = true }
 
 # Actor framework
 ractor = { workspace = true }
