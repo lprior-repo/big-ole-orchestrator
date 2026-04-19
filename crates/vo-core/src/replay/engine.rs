@@ -40,6 +40,10 @@ impl ReplayEngine {
             return Ok(ReplayResult {
                 final_state: None,
                 events_applied: 0,
+                position: super::types::ReplayPosition {
+                    last_applied_sequence: None,
+                    last_applied_timestamp_ms: None,
+                },
             });
         }
 
@@ -68,9 +72,14 @@ impl ReplayEngine {
                     second_at_index: i,
                 });
             }
-            if event.sequence != expected_seq + 1 {
+            let next_expected = expected_seq.checked_add(1).ok_or_else(|| ReplayError::SequenceGap {
+                    expected: 0,
+                    actual: event.sequence,
+                    at_index: i,
+                })?;
+            if event.sequence != next_expected {
                 return Err(ReplayError::SequenceGap {
-                    expected: expected_seq + 1,
+                    expected: next_expected,
                     actual: event.sequence,
                     at_index: i,
                 });
@@ -142,9 +151,24 @@ impl ReplayEngine {
             }
         }
 
+        let last_applied_sequence = if events_applied > 0 {
+            Some(events[events_applied - 1].sequence)
+        } else {
+            None
+        };
+        let last_applied_timestamp_ms = if events_applied > 0 {
+            Some(events[events_applied - 1].timestamp_ms)
+        } else {
+            None
+        };
+
         Ok(ReplayResult {
             final_state: current_state,
             events_applied,
+            position: super::types::ReplayPosition {
+                last_applied_sequence,
+                last_applied_timestamp_ms,
+            },
         })
     }
 
@@ -174,6 +198,10 @@ impl ReplayEngine {
             return Ok(ReplayResult {
                 final_state: None,
                 events_applied: 0,
+                position: super::types::ReplayPosition {
+                    last_applied_sequence: None,
+                    last_applied_timestamp_ms: None,
+                },
             });
         }
 

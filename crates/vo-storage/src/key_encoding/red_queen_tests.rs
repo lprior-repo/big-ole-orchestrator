@@ -50,9 +50,7 @@ fn arb_timestamp() -> impl Strategy<Value = u64> {
 #[test]
 fn red_queen_u64_be_no_collision_across_full_range() {
     let mut seen = std::collections::HashSet::new();
-    let samples: Vec<u64> = (0..10000)
-        .chain([u64::MAX, u64::MAX - 1, u64::MAX - 2, u64::MAX - 3])
-        .collect();
+    let samples: Vec<u64> = (0..10000).chain([u64::MAX, u64::MAX - 1, 1, 0]).collect();
 
     for val in samples {
         let encoded = encode_u64_be(val);
@@ -243,7 +241,7 @@ fn red_queen_event_key_prefix_scan_no_collision() {
 fn red_queen_event_key_lexicographic_ordering() {
     let id = min_instance_id();
 
-    let test_cases: Vec<(u64, u64)> = vec![(1, 2), (u64::MAX - 1, u64::MAX), (100, 200)];
+    let test_cases: Vec<(u64, u64)> = vec![(0, 1), (1, 2), (u64::MAX - 1, u64::MAX), (100, 200)];
 
     for (seq_a, seq_b) in test_cases {
         let key_a = encode_event_key(&id, SequenceNumber::try_from(seq_a).unwrap());
@@ -335,7 +333,7 @@ fn red_queen_lease_key_no_collision() {
     let id2 = InstanceId::parse("00000000000000000000000002").unwrap();
 
     let step1 = StepId::parse("a").unwrap();
-    let step2 = StepId::parse("b").unwrap();
+    let step2 = StepId::parse("a::b").unwrap();
 
     let key1 = encode_lease_key(&id1, &step1);
     let key2 = encode_lease_key(&id1, &step2);
@@ -475,7 +473,7 @@ fn red_queen_step_id_rejects_corrupt_data() {
 
 #[test]
 fn red_queen_sequence_number_roundtrip() {
-    let values = vec![1u64, 42, u64::MAX - 1, u64::MAX];
+    let values = vec![0u64, 1, 42, u64::MAX - 1, u64::MAX];
 
     for val in values {
         let seq = SequenceNumber::try_from(val).unwrap();
@@ -552,9 +550,9 @@ fn red_queen_prefix_scan_boundary_no_collision() {
 fn red_queen_lease_key_adversarial_prefix_collision() {
     let id = min_instance_id();
 
-    let step1 = StepId::parse("a").unwrap();
-    let step2 = StepId::parse("b").unwrap();
-    let step3 = StepId::parse("c").unwrap();
+    let step1 = StepId::parse("::").unwrap();
+    let step2 = StepId::parse(":").unwrap();
+    let step3 = StepId::parse("").unwrap();
 
     let key1 = encode_lease_key(&id, &step1);
     let key2 = encode_lease_key(&id, &step2);

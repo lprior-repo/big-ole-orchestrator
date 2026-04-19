@@ -1,35 +1,10 @@
 //! HTTP API for vo-engine.
 //!
-//! This crate provides the REST API for the Veloxide workflow engine,
-//! including endpoints for workflow management, step execution, and
-//! system health monitoring.
-//!
-//! # API Version
-//!
-//! The current API version is v3, providing:
-//! - [`types::v3`] - Request/response types for v3 endpoints
-//! - [`types::errors`] - Standard API error types
-//! - [`handlers::query`] - Query handlers for workflow status
-//!
-//! # Endpoint Overview
-//!
-//! - `POST /api/v1/workflows` - Start a new workflow instance
-//! - `GET /api/v1/workflows/:id` - Get workflow status
-//! - `GET /api/v1/workflows/:id/timeline` - Get timeline events
-//! - `GET /api/v1/workflows/:id/history` - Get step execution history
-//! - `GET /api/v1/workflows/:id/effect-journal` - Get effect journal
-//! - `GET /api/v1/workflows/:id/version` - Get schema version info
-//! - `GET /api/v1/search` - Full-text search across workspaces
-//! - `POST /api/v1/workflows/:id/signals` - Send a signal to a workflow
-//!
-//! # Modules
-//!
-//! - [`types`] - Request/response types for the API
-//! - [`handlers`] - HTTP request handlers (query endpoints active; workflow, signal, events, sse pending V2 actor migration)
+//! Provides REST endpoints for workflow management, step execution,
+//! and system health monitoring.
 
-pub mod handlers;
-pub mod router;
 pub mod types;
+pub mod handlers;
 
 #[cfg(test)]
 mod lib_tests {
@@ -72,6 +47,7 @@ mod lib_tests {
         assert!(json.contains(r#""instance_id":"inst-1""#));
         assert!(json.contains(r#""total_replayed":0"#));
     }
+}
 
     // --- HistoryEntry tests ---
 
@@ -111,26 +87,17 @@ mod lib_tests {
 
     #[test]
     fn effect_semantics_exact_serializes_lowercase() {
-        assert_eq!(
-            serde_json::to_string(&crate::types::v3::EffectSemantics::Exact).unwrap(),
-            r#""exact""#
-        );
+        assert_eq!(serde_json::to_string(&crate::types::v3::EffectSemantics::Exact).unwrap(), r#""exact""#);
     }
 
     #[test]
     fn effect_semantics_unsafe_serializes_lowercase() {
-        assert_eq!(
-            serde_json::to_string(&crate::types::v3::EffectSemantics::Unsafe).unwrap(),
-            r#""unsafe""#
-        );
+        assert_eq!(serde_json::to_string(&crate::types::v3::EffectSemantics::Unsafe).unwrap(), r#""unsafe""#);
     }
 
     #[test]
     fn effect_semantics_roundtrip() {
-        for variant in [
-            crate::types::v3::EffectSemantics::Exact,
-            crate::types::v3::EffectSemantics::Unsafe,
-        ] {
+        for variant in [crate::types::v3::EffectSemantics::Exact, crate::types::v3::EffectSemantics::Unsafe] {
             let json = serde_json::to_string(&variant).unwrap();
             let parsed: crate::types::v3::EffectSemantics = serde_json::from_str(&json).unwrap();
             assert_eq!(parsed, variant);
@@ -182,4 +149,3 @@ mod lib_tests {
         assert!(json.contains(r#""last_sequence":null"#));
         assert!(json.contains(r#""last_timestamp_ms":null"#));
     }
-}

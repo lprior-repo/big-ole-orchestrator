@@ -3,24 +3,28 @@
 use std::sync::Arc;
 
 use axum::{
-    extract::{Path, Query as AxumQuery, State},
+    extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
     Json,
 };
 use vo_storage::query::replay_events;
-use vo_types::search::{QueryParser, SearchEngine};
 
 use crate::types::v3::*;
 use crate::types::ApiError;
 
-use super::split_path_id;
-
 /// Shared state for query handlers.
 #[derive(Clone)]
 pub struct QueryState {
-    pub db: Arc<fjall::Database>,
-    pub search_engine: Arc<std::sync::Mutex<SearchEngine>>,
+    pub keyspace: Arc<fjall::Keyspace>,
+}
+
+/// Split `<namespace>/<instance_id>` path into parts.
+fn split_path_id(path: &str) -> Option<(String, vo_types::InstanceId)> {
+    let slash = path.find('/')?;
+    let namespace = path[..slash].to_owned();
+    let instance_id = vo_types::InstanceId::parse(&path[slash + 1..]).ok()?;
+    Some((namespace, instance_id))
 }
 
 // ---------------------------------------------------------------------------
@@ -37,16 +41,13 @@ pub async fn get_timeline(
         None => {
             return (
                 StatusCode::BAD_REQUEST,
-                Json(ApiError::new(
-                    "invalid_id",
-                    "id must be <namespace>/<instance_id>",
-                )),
+                Json(ApiError::new("invalid_id", "id must be <namespace>/<instance_id>")),
             )
                 .into_response();
         }
     };
 
-    let iter = replay_events(&*state.db, &instance_id);
+    let iter = replay_events(&state.keyspace, &instance_id);
     let mut entries = Vec::new();
     let mut total_replayed = 0usize;
 
@@ -74,15 +75,7 @@ pub async fn get_timeline(
         }
     }
 
-    (
-        StatusCode::OK,
-        Json(TimelineResponse {
-            instance_id: id,
-            entries,
-            total_replayed,
-        }),
-    )
-        .into_response()
+    (StatusCode::OK, Json(TimelineResponse { instance_id: id, entries, total_replayed })).into_response()
 }
 
 // ---------------------------------------------------------------------------
@@ -99,16 +92,13 @@ pub async fn get_history(
         None => {
             return (
                 StatusCode::BAD_REQUEST,
-                Json(ApiError::new(
-                    "invalid_id",
-                    "id must be <namespace>/<instance_id>",
-                )),
+                Json(ApiError::new("invalid_id", "id must be <namespace>/<instance_id>")),
             )
                 .into_response();
         }
     };
 
-    let iter = replay_events(&*state.db, &instance_id);
+    let iter = replay_events(&state.keyspace, &instance_id);
     let mut entries = Vec::new();
 
     for result in iter {
@@ -120,16 +110,8 @@ pub async fn get_history(
                     .and_then(|v| v.as_str())
                     .unwrap_or("unknown")
                     .to_string();
-                let step_id = envelope
-                    .payload
-                    .get("step_id")
-                    .and_then(|v| v.as_str())
-                    .map(String::from);
-                let error = envelope
-                    .payload
-                    .get("error")
-                    .and_then(|v| v.as_str())
-                    .map(String::from);
+                let step_id = envelope.payload.get("step_id").and_then(|v| v.as_str()).map(String::from);
+                let error = envelope.payload.get("error").and_then(|v| v.as_str()).map(String::from);
                 let output = envelope.payload.get("output").cloned();
 
                 entries.push(HistoryEntry {
@@ -148,14 +130,7 @@ pub async fn get_history(
         }
     }
 
-    (
-        StatusCode::OK,
-        Json(HistoryResponse {
-            instance_id: id,
-            entries,
-        }),
-    )
-        .into_response()
+    (StatusCode::OK, Json(HistoryResponse { instance_id: id, entries })).into_response()
 }
 
 // ---------------------------------------------------------------------------
@@ -172,16 +147,13 @@ pub async fn get_effect_journal(
         None => {
             return (
                 StatusCode::BAD_REQUEST,
-                Json(ApiError::new(
-                    "invalid_id",
-                    "id must be <namespace>/<instance_id>",
-                )),
+                Json(ApiError::new("invalid_id", "id must be <namespace>/<instance_id>")),
             )
                 .into_response();
         }
     };
 
-    let iter = replay_events(&*state.db, &instance_id);
+    let iter = replay_events(&state.keyspace, &instance_id);
     let mut entries = Vec::new();
 
     for result in iter {
@@ -199,13 +171,7 @@ pub async fn get_effect_journal(
                     .annotations
                     .get("semantics")
                     .and_then(|v| v.as_str())
-                    .map(|s| {
-                        if s == "exact" {
-                            EffectSemantics::Exact
-                        } else {
-                            EffectSemantics::Unsafe
-                        }
-                    })
+                    .map(|s| if s == "exact" { EffectSemantics::Exact } else { EffectSemantics::Unsafe })
                     .unwrap_or(EffectSemantics::Unsafe);
 
                 entries.push(EffectJournalEntry {
@@ -223,14 +189,7 @@ pub async fn get_effect_journal(
         }
     }
 
-    (
-        StatusCode::OK,
-        Json(EffectJournalResponse {
-            instance_id: id,
-            entries,
-        }),
-    )
-        .into_response()
+    (StatusCode::OK, Json(EffectJournalResponse { instance_id: id, entries })).into_response()
 }
 
 // ---------------------------------------------------------------------------
@@ -247,16 +206,13 @@ pub async fn get_workflow_version(
         None => {
             return (
                 StatusCode::BAD_REQUEST,
-                Json(ApiError::new(
-                    "invalid_id",
-                    "id must be <namespace>/<instance_id>",
-                )),
+                Json(ApiError::new("invalid_id", "id must be <namespace>/<instance_id>")),
             )
                 .into_response();
         }
     };
 
-    let iter = replay_events(&*state.db, &instance_id);
+    let iter = replay_events(&state.keyspace, &instance_id);
     let mut event_count = 0u64;
     let mut last_sequence = None;
     let mut last_timestamp_ms = None;
@@ -285,81 +241,6 @@ pub async fn get_workflow_version(
             event_count,
             last_sequence,
             last_timestamp_ms,
-        }),
-    )
-        .into_response()
-}
-
-// ---------------------------------------------------------------------------
-// GET /api/v1/search?q=<query>&limit=<limit>
-// ---------------------------------------------------------------------------
-
-#[tracing::instrument(skip_all)]
-pub async fn search(
-    AxumQuery(params): AxumQuery<SearchRequest>,
-    State(state): State<QueryState>,
-) -> impl IntoResponse {
-    let query_text = params.query.trim();
-    if query_text.is_empty() {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(ApiError::new("empty_query", "query string cannot be empty")),
-        )
-            .into_response();
-    }
-
-    let parsed_query = match QueryParser::new().parse(query_text) {
-        Ok(q) => q,
-        Err(e) => {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(ApiError::new("invalid_query", &e.to_string())),
-            )
-                .into_response();
-        }
-    };
-
-    let engine = state.search_engine.lock().map_err(|e| {
-        tracing::error!(error = %e, "search engine lock poisoned");
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiError::new("search_error", "search engine unavailable")),
-        )
-    });
-
-    let results: Result<Vec<vo_types::search::SearchResult>, (StatusCode, Json<ApiError>)> =
-        match engine {
-            Ok(engine) => engine.search(&parsed_query).map_err(|e| {
-                tracing::error!(error = %e, "search failed");
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ApiError::new("search_error", &e.to_string())),
-                )
-            }),
-            Err(e) => Err(e),
-        };
-
-    let results = match results {
-        Ok(r) => r,
-        Err(e) => return e.into_response(),
-    };
-
-    let limit = params.limit.unwrap_or(10).min(100);
-    let results: Vec<SearchResultEntry> = results
-        .into_iter()
-        .take(limit)
-        .map(|r| SearchResultEntry {
-            workspace_id: r.workspace_id.to_string(),
-            score: r.score,
-            matched_terms: r.matched_terms,
-        })
-        .collect();
-
-    (
-        StatusCode::OK,
-        Json(SearchResponse {
-            query: params.query,
-            results,
         }),
     )
         .into_response()

@@ -22,7 +22,6 @@ pub mod message_router;
 pub mod port;
 pub mod probe;
 pub mod reanimator;
-pub mod routing;
 pub mod semaphore;
 pub mod signal_buffer;
 pub mod signals;
@@ -36,6 +35,7 @@ pub mod instance_registry_tests;
 pub mod timer_lifecycle;
 pub mod timer_supervisor;
 pub mod timer_supervisor_tests;
+pub mod timer_lifecycle;
 
 #[derive(Debug, thiserror::Error)]
 pub enum TerminateError {

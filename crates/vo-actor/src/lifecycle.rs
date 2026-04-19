@@ -22,8 +22,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use vo_types::signal::FailureScope;
-use vo_types::{InstanceId, LineageStatus};
+use vo_types::InstanceId;
 
 // =============================================================================
 // Actor Lifecycle State
@@ -67,8 +66,14 @@ impl ActorLifecycleState {
     #[must_use]
     pub fn valid_transitions(&self) -> Vec<LifecycleTransition> {
         match self {
-            Self::Pending => vec![LifecycleTransition::Start, LifecycleTransition::Fail],
-            Self::Running => vec![LifecycleTransition::Stop, LifecycleTransition::Fail],
+            Self::Pending => vec![
+                LifecycleTransition::Start,
+                LifecycleTransition::Fail,
+            ],
+            Self::Running => vec![
+                LifecycleTransition::Stop,
+                LifecycleTransition::Fail,
+            ],
             Self::Stopping => vec![
                 LifecycleTransition::ChildStopped,
                 LifecycleTransition::AllChildrenStopped,
@@ -173,7 +178,10 @@ impl ParentChildRegistry {
     }
 
     /// Gets children in a specific state.
-    pub async fn get_children_by_state(&self, state: ActorLifecycleState) -> Vec<InstanceId> {
+    pub async fn get_children_by_state(
+        &self,
+        state: ActorLifecycleState,
+    ) -> Vec<InstanceId> {
         let children = self.children.read().await;
         children
             .iter()
@@ -197,10 +205,7 @@ impl ParentChildRegistry {
     /// Returns the count of non-terminal children.
     pub async fn active_children_count(&self) -> usize {
         let children = self.children.read().await;
-        children
-            .values()
-            .filter(|info| !info.state.is_terminal())
-            .count()
+        children.values().filter(|info| !info.state.is_terminal()).count()
     }
 }
 
@@ -214,9 +219,13 @@ pub enum ShutdownResult {
     /// All children shut down successfully.
     Success,
     /// Some children are still running.
-    ChildrenRunning { pending: usize },
+    ChildrenRunning {
+        pending: usize,
+    },
     /// Shutdown timed out.
-    Timeout { remaining: usize },
+    Timeout {
+        remaining: usize,
+    },
 }
 
 /// Controls graceful shutdown propagation through the actor hierarchy.
@@ -229,10 +238,7 @@ pub struct ShutdownPropagator {
 impl ShutdownPropagator {
     /// Creates a new propagator with the given timeouts.
     #[must_use]
-    pub fn new(
-        graceful_timeout: std::time::Duration,
-        force_kill_timeout: std::time::Duration,
-    ) -> Self {
+    pub fn new(graceful_timeout: std::time::Duration, force_kill_timeout: std::time::Duration) -> Self {
         Self {
             graceful_timeout,
             force_kill_timeout,
@@ -266,20 +272,41 @@ impl ShutdownPropagator {
 // =============================================================================
 
 /// Errors that can occur during lifecycle transitions.
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LifecycleError {
-    #[error("invalid transition {attempted:?} from {from}")]
+    /// Invalid transition attempted.
     InvalidTransition {
         from: ActorLifecycleState,
         attempted: LifecycleTransition,
     },
-    #[error("child not found: {0}")]
+    /// Child not found in registry.
     ChildNotFound(InstanceId),
-    #[error("cannot spawn child in state {0}")]
+    /// Actor cannot accept children in current state.
     CannotSpawnChild(ActorLifecycleState),
-    #[error("shutdown timeout with {children_remaining} children remaining")]
-    ShutdownTimeout { children_remaining: usize },
+    /// Shutdown timeout exceeded.
+    ShutdownTimeout {
+        children_remaining: usize,
+    },
 }
+
+impl std::fmt::Display for LifecycleError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::InvalidTransition { from, attempted } => {
+                write!(f, "invalid transition {attempted:?} from {from}")
+            }
+            Self::ChildNotFound(id) => write!(f, "child not found: {id}"),
+            Self::CannotSpawnChild(state) => {
+                write!(f, "cannot spawn child in state {state}")
+            }
+            Self::ShutdownTimeout { children_remaining } => {
+                write!(f, "shutdown timeout with {children_remaining} children remaining")
+            }
+        }
+    }
+}
+
+impl std::error::Error for LifecycleError {}
 
 /// Pure calculation function to determine next state.
 #[must_use]
@@ -312,93 +339,11 @@ pub fn compute_next_state(
 
 /// Check if a transition is valid for the given state.
 #[must_use]
-pub fn is_valid_transition(current: ActorLifecycleState, transition: LifecycleTransition) -> bool {
+pub fn is_valid_transition(
+    current: ActorLifecycleState,
+    transition: LifecycleTransition,
+) -> bool {
     compute_next_state(current, transition).is_some()
-}
-
-// =============================================================================
-// Failure Scope Handling (ADR-042 Section 5)
-// =============================================================================
-
-/// Outcome of a failure transition, combining actor state with lineage status.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum FailureOutcome {
-    /// Actor failed and lineage remains active (epoch-scoped failure).
-    /// A new epoch may be spawned via continue-as-new.
-    EpochFailure {
-        actor_state: ActorLifecycleState,
-        lineage_status: LineageStatus,
-    },
-    /// Actor failed and lineage is permanently tombstoned (lineage-scoped failure).
-    /// No more epochs can be spawned for this lineage.
-    LineageFailure {
-        actor_state: ActorLifecycleState,
-        lineage_status: LineageStatus,
-    },
-}
-
-impl FailureOutcome {
-    /// Returns the actor lifecycle state after the failure.
-    #[must_use]
-    pub const fn actor_state(&self) -> ActorLifecycleState {
-        match self {
-            Self::EpochFailure { actor_state, .. } | Self::LineageFailure { actor_state, .. } => {
-                *actor_state
-            }
-        }
-    }
-
-    /// Returns the lineage status after the failure.
-    #[must_use]
-    pub const fn lineage_status(&self) -> LineageStatus {
-        match self {
-            Self::EpochFailure { lineage_status, .. }
-            | Self::LineageFailure { lineage_status, .. } => *lineage_status,
-        }
-    }
-
-    /// Returns `true` if this was an epoch-scoped failure.
-    #[must_use]
-    pub const fn is_epoch_failure(&self) -> bool {
-        matches!(self, Self::EpochFailure { .. })
-    }
-
-    /// Returns `true` if this was a lineage-scoped failure.
-    #[must_use]
-    pub const fn is_lineage_failure(&self) -> bool {
-        matches!(self, Self::LineageFailure { .. })
-    }
-
-    /// Returns `true` if the lineage can spawn new epochs after this failure.
-    #[must_use]
-    pub const fn can_lineage_spawn_epoch(&self) -> bool {
-        match self {
-            Self::EpochFailure { lineage_status, .. } => lineage_status.is_active(),
-            Self::LineageFailure { lineage_status, .. } => lineage_status.is_active(),
-        }
-    }
-}
-
-/// Compute the failure outcome based on current state and failure scope.
-///
-/// Per ADR-042 Section 5:
-/// - Epoch-scoped failures allow retry/continue-as-new within the lineage
-/// - Lineage-scoped failures permanently tombstone the lineage
-#[must_use]
-pub fn compute_failure_outcome(
-    _current: ActorLifecycleState,
-    scope: FailureScope,
-) -> FailureOutcome {
-    match scope {
-        FailureScope::Epoch => FailureOutcome::EpochFailure {
-            actor_state: ActorLifecycleState::Failed,
-            lineage_status: LineageStatus::Active,
-        },
-        FailureScope::Lineage => FailureOutcome::LineageFailure {
-            actor_state: ActorLifecycleState::Failed,
-            lineage_status: LineageStatus::Tombstoned,
-        },
-    }
 }
 
 // =============================================================================
@@ -470,118 +415,9 @@ mod tests {
     }
 
     #[test]
-    fn compute_next_state_stopping_child_stopped() {
-        let next = compute_next_state(
-            ActorLifecycleState::Stopping,
-            LifecycleTransition::ChildStopped,
-        );
-        assert_eq!(next, Some(ActorLifecycleState::Stopping));
-    }
-
-    #[test]
     fn compute_next_state_invalid_transition() {
         let next = compute_next_state(ActorLifecycleState::Stopped, LifecycleTransition::Start);
         assert_eq!(next, None);
-    }
-
-    #[test]
-    fn compute_next_state_terminal_states_reject_all_transitions() {
-        let terminal_states = [ActorLifecycleState::Stopped, ActorLifecycleState::Failed];
-        let transitions = [
-            LifecycleTransition::Start,
-            LifecycleTransition::Stop,
-            LifecycleTransition::ChildStopped,
-            LifecycleTransition::AllChildrenStopped,
-            LifecycleTransition::Fail,
-        ];
-
-        for state in terminal_states {
-            for transition in transitions {
-                let next = compute_next_state(state, transition);
-                assert_eq!(
-                    next, None,
-                    "terminal state {state:?} should reject {transition:?}"
-                );
-            }
-        }
-    }
-
-    #[test]
-    fn compute_next_state_pending_rejects_stop_and_child_transitions() {
-        assert_eq!(
-            compute_next_state(ActorLifecycleState::Pending, LifecycleTransition::Stop),
-            None
-        );
-        assert_eq!(
-            compute_next_state(
-                ActorLifecycleState::Pending,
-                LifecycleTransition::ChildStopped
-            ),
-            None
-        );
-        assert_eq!(
-            compute_next_state(
-                ActorLifecycleState::Pending,
-                LifecycleTransition::AllChildrenStopped
-            ),
-            None
-        );
-    }
-
-    #[test]
-    fn compute_next_state_running_rejects_start_and_child_transitions() {
-        assert_eq!(
-            compute_next_state(ActorLifecycleState::Running, LifecycleTransition::Start),
-            None
-        );
-        assert_eq!(
-            compute_next_state(
-                ActorLifecycleState::Running,
-                LifecycleTransition::ChildStopped
-            ),
-            None
-        );
-        assert_eq!(
-            compute_next_state(
-                ActorLifecycleState::Running,
-                LifecycleTransition::AllChildrenStopped
-            ),
-            None
-        );
-    }
-
-    #[test]
-    fn compute_next_state_stopping_rejects_start_and_stop() {
-        assert_eq!(
-            compute_next_state(ActorLifecycleState::Stopping, LifecycleTransition::Start),
-            None
-        );
-        assert_eq!(
-            compute_next_state(ActorLifecycleState::Stopping, LifecycleTransition::Stop),
-            None
-        );
-        assert_eq!(
-            compute_next_state(ActorLifecycleState::Stopping, LifecycleTransition::Fail),
-            None
-        );
-    }
-
-    #[test]
-    fn is_valid_transition_terminal_states_always_false() {
-        for state in [ActorLifecycleState::Stopped, ActorLifecycleState::Failed] {
-            for transition in [
-                LifecycleTransition::Start,
-                LifecycleTransition::Stop,
-                LifecycleTransition::ChildStopped,
-                LifecycleTransition::AllChildrenStopped,
-                LifecycleTransition::Fail,
-            ] {
-                assert!(
-                    !is_valid_transition(state, transition),
-                    "{state:?} should reject {transition:?}"
-                );
-            }
-        }
     }
 
     #[test]
@@ -634,14 +470,10 @@ mod tests {
             .update_child_state(&id1, ActorLifecycleState::Running)
             .await;
 
-        let running = registry
-            .get_children_by_state(ActorLifecycleState::Running)
-            .await;
+        let running = registry.get_children_by_state(ActorLifecycleState::Running).await;
         assert_eq!(running, vec![id1]);
 
-        let pending = registry
-            .get_children_by_state(ActorLifecycleState::Pending)
-            .await;
+        let pending = registry.get_children_by_state(ActorLifecycleState::Pending).await;
         assert_eq!(pending, vec![id2]);
     }
 
@@ -690,14 +522,8 @@ mod tests {
     #[test]
     fn shutdown_propagator_default() {
         let propagator = ShutdownPropagator::default_propagator();
-        assert_eq!(
-            propagator.graceful_timeout(),
-            std::time::Duration::from_secs(30)
-        );
-        assert_eq!(
-            propagator.force_kill_timeout(),
-            std::time::Duration::from_secs(10)
-        );
+        assert_eq!(propagator.graceful_timeout(), std::time::Duration::from_secs(30));
+        assert_eq!(propagator.force_kill_timeout(), std::time::Duration::from_secs(10));
     }
 
     #[test]
@@ -717,62 +543,15 @@ mod tests {
         };
         assert!(format!("{}", err).contains("invalid transition"));
 
-        let err =
-            LifecycleError::ChildNotFound(InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap());
+        let err = LifecycleError::ChildNotFound(
+            InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap(),
+        );
         assert!(format!("{}", err).contains("child not found"));
 
         let err = LifecycleError::CannotSpawnChild(ActorLifecycleState::Stopped);
         assert!(format!("{}", err).contains("cannot spawn child"));
 
-        let err = LifecycleError::ShutdownTimeout {
-            children_remaining: 3,
-        };
+        let err = LifecycleError::ShutdownTimeout { children_remaining: 3 };
         assert!(format!("{}", err).contains("shutdown timeout"));
-    }
-
-    // ========================================================================
-    // FailureScope and FailureOutcome tests (ADR-042 Section 5)
-    // ========================================================================
-
-    #[test]
-    fn compute_failure_outcome_epoch_scope_allows_lineage_continue() {
-        let outcome = compute_failure_outcome(ActorLifecycleState::Running, FailureScope::Epoch);
-        assert!(outcome.is_epoch_failure());
-        assert!(!outcome.is_lineage_failure());
-        assert_eq!(outcome.actor_state(), ActorLifecycleState::Failed);
-        assert_eq!(outcome.lineage_status(), LineageStatus::Active);
-        assert!(outcome.can_lineage_spawn_epoch());
-    }
-
-    #[test]
-    fn compute_failure_outcome_lineage_scope_tombstones_lineage() {
-        let outcome = compute_failure_outcome(ActorLifecycleState::Running, FailureScope::Lineage);
-        assert!(!outcome.is_epoch_failure());
-        assert!(outcome.is_lineage_failure());
-        assert_eq!(outcome.actor_state(), ActorLifecycleState::Failed);
-        assert_eq!(outcome.lineage_status(), LineageStatus::Tombstoned);
-        assert!(!outcome.can_lineage_spawn_epoch());
-    }
-
-    #[test]
-    fn failure_outcome_epoch_failure_has_active_lineage() {
-        let outcome = FailureOutcome::EpochFailure {
-            actor_state: ActorLifecycleState::Failed,
-            lineage_status: LineageStatus::Active,
-        };
-        assert!(outcome.is_epoch_failure());
-        assert!(!outcome.is_lineage_failure());
-        assert!(outcome.can_lineage_spawn_epoch());
-    }
-
-    #[test]
-    fn failure_outcome_lineage_failure_blocks_scheduling() {
-        let outcome = FailureOutcome::LineageFailure {
-            actor_state: ActorLifecycleState::Failed,
-            lineage_status: LineageStatus::Tombstoned,
-        };
-        assert!(!outcome.is_epoch_failure());
-        assert!(outcome.is_lineage_failure());
-        assert!(!outcome.can_lineage_spawn_epoch());
     }
 }

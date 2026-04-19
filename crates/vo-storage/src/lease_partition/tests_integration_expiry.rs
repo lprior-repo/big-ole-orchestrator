@@ -482,12 +482,7 @@ fn crash_recovery_retry_cycles_advance_fence_without_release() {
     }
 
     for window in tokens.windows(2) {
-        assert!(
-            window[1] > window[0],
-            "token {} not > {}",
-            window[1],
-            window[0]
-        );
+        assert!(window[1] > window[0], "token {} not > {}", window[1], window[0]);
     }
 
     assert!(stale_result(
@@ -649,9 +644,7 @@ fn fence_exhaustion_is_per_pair_not_global() {
     store.release(&max_lease).unwrap();
 
     // Pair A is exhausted
-    assert!(store
-        .acquire(&sample_instance_id(), &sample_step_id(), 5_000)
-        .is_err());
+    assert!(store.acquire(&sample_instance_id(), &sample_step_id(), 5_000).is_err());
 
     // Pair B is unaffected — gets token 1
     let lease_b = acquire_lease(&store, &iid_b, &sid_b, 5_000);

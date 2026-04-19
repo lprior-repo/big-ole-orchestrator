@@ -26,10 +26,6 @@ mod tests_lease_entry;
 mod verification;
 
 mod fjall_lease_store;
-pub use fjall_lease_store::FjallLeaseStore;
-
-pub mod in_memory_lease;
-pub use in_memory_lease::InMemoryLeaseStore;
 
 // ---------------------------------------------------------------------------
 // Data layer — error enum
