@@ -310,3 +310,315 @@ fn enforcer_exposes_registry() {
     let enforcer = QuotaEnforcer::with_default_namespace();
     assert!(enforcer.registry().get("default").is_some());
 }
+
+#[test]
+fn concurrent_check_cpu_under_limit_all_ok() {
+    use std::sync::{Arc, Mutex};
+    use std::thread;
+
+    let enforcer = Arc::new(make_test_enforcer());
+    let results = Arc::new(Mutex::new(Vec::new()));
+
+    let handles: Vec<_> = (0..10)
+        .map(|_| {
+            let enforcer = Arc::clone(&enforcer);
+            let results = Arc::clone(&results);
+            thread::spawn(move || {
+                let result = enforcer.check_cpu("payments", 2);
+                results.lock().unwrap().push(result);
+            })
+        })
+        .collect();
+
+    for handle in handles {
+        handle.join().unwrap();
+    }
+
+    let all_results = results.lock().unwrap();
+    assert_eq!(all_results.len(), 10);
+    assert!(all_results.iter().all(|r| r.is_ok()));
+}
+
+#[test]
+fn concurrent_check_cpu_at_limit_all_ok() {
+    use std::sync::{Arc, Mutex};
+    use std::thread;
+
+    let enforcer = Arc::new(make_test_enforcer());
+    let results = Arc::new(Mutex::new(Vec::new()));
+
+    let handles: Vec<_> = (0..10)
+        .map(|_| {
+            let enforcer = Arc::clone(&enforcer);
+            let results = Arc::clone(&results);
+            thread::spawn(move || {
+                let result = enforcer.check_cpu("payments", 4);
+                results.lock().unwrap().push(result);
+            })
+        })
+        .collect();
+
+    for handle in handles {
+        handle.join().unwrap();
+    }
+
+    let all_results = results.lock().unwrap();
+    assert_eq!(all_results.len(), 10);
+    assert!(all_results.iter().all(|r| r.is_ok()));
+}
+
+#[test]
+fn concurrent_check_cpu_over_limit_all_fail() {
+    use std::sync::{Arc, Mutex};
+    use std::thread;
+
+    let enforcer = Arc::new(make_test_enforcer());
+    let results = Arc::new(Mutex::new(Vec::new()));
+
+    let handles: Vec<_> = (0..10)
+        .map(|_| {
+            let enforcer = Arc::clone(&enforcer);
+            let results = Arc::clone(&results);
+            thread::spawn(move || {
+                let result = enforcer.check_cpu("payments", 8);
+                results.lock().unwrap().push(result);
+            })
+        })
+        .collect();
+
+    for handle in handles {
+        handle.join().unwrap();
+    }
+
+    let all_results = results.lock().unwrap();
+    assert_eq!(all_results.len(), 10);
+    assert!(all_results.iter().all(|r| r.is_err()));
+}
+
+#[test]
+fn concurrent_check_memory_under_limit_all_ok() {
+    use std::sync::{Arc, Mutex};
+    use std::thread;
+
+    let enforcer = Arc::new(make_test_enforcer());
+    let results = Arc::new(Mutex::new(Vec::new()));
+
+    let handles: Vec<_> = (0..10)
+        .map(|_| {
+            let enforcer = Arc::clone(&enforcer);
+            let results = Arc::clone(&results);
+            thread::spawn(move || {
+                let result = enforcer.check_memory("payments", 512);
+                results.lock().unwrap().push(result);
+            })
+        })
+        .collect();
+
+    for handle in handles {
+        handle.join().unwrap();
+    }
+
+    let all_results = results.lock().unwrap();
+    assert_eq!(all_results.len(), 10);
+    assert!(all_results.iter().all(|r| r.is_ok()));
+}
+
+#[test]
+fn concurrent_check_memory_at_limit_all_ok() {
+    use std::sync::{Arc, Mutex};
+    use std::thread;
+
+    let enforcer = Arc::new(make_test_enforcer());
+    let results = Arc::new(Mutex::new(Vec::new()));
+
+    let handles: Vec<_> = (0..10)
+        .map(|_| {
+            let enforcer = Arc::clone(&enforcer);
+            let results = Arc::clone(&results);
+            thread::spawn(move || {
+                let result = enforcer.check_memory("payments", 1024);
+                results.lock().unwrap().push(result);
+            })
+        })
+        .collect();
+
+    for handle in handles {
+        handle.join().unwrap();
+    }
+
+    let all_results = results.lock().unwrap();
+    assert_eq!(all_results.len(), 10);
+    assert!(all_results.iter().all(|r| r.is_ok()));
+}
+
+#[test]
+fn concurrent_check_memory_over_limit_all_fail() {
+    use std::sync::{Arc, Mutex};
+    use std::thread;
+
+    let enforcer = Arc::new(make_test_enforcer());
+    let results = Arc::new(Mutex::new(Vec::new()));
+
+    let handles: Vec<_> = (0..10)
+        .map(|_| {
+            let enforcer = Arc::clone(&enforcer);
+            let results = Arc::clone(&results);
+            thread::spawn(move || {
+                let result = enforcer.check_memory("payments", 2048);
+                results.lock().unwrap().push(result);
+            })
+        })
+        .collect();
+
+    for handle in handles {
+        handle.join().unwrap();
+    }
+
+    let all_results = results.lock().unwrap();
+    assert_eq!(all_results.len(), 10);
+    assert!(all_results.iter().all(|r| r.is_err()));
+}
+
+#[test]
+fn concurrent_check_disk_under_limit_all_ok() {
+    use std::sync::{Arc, Mutex};
+    use std::thread;
+
+    let enforcer = Arc::new(make_test_enforcer());
+    let results = Arc::new(Mutex::new(Vec::new()));
+
+    let handles: Vec<_> = (0..10)
+        .map(|_| {
+            let enforcer = Arc::clone(&enforcer);
+            let results = Arc::clone(&results);
+            thread::spawn(move || {
+                let result = enforcer.check_disk("payments", 5000);
+                results.lock().unwrap().push(result);
+            })
+        })
+        .collect();
+
+    for handle in handles {
+        handle.join().unwrap();
+    }
+
+    let all_results = results.lock().unwrap();
+    assert_eq!(all_results.len(), 10);
+    assert!(all_results.iter().all(|r| r.is_ok()));
+}
+
+#[test]
+fn concurrent_check_disk_at_limit_all_ok() {
+    use std::sync::{Arc, Mutex};
+    use std::thread;
+
+    let enforcer = Arc::new(make_test_enforcer());
+    let results = Arc::new(Mutex::new(Vec::new()));
+
+    let handles: Vec<_> = (0..10)
+        .map(|_| {
+            let enforcer = Arc::clone(&enforcer);
+            let results = Arc::clone(&results);
+            thread::spawn(move || {
+                let result = enforcer.check_disk("payments", 10_000);
+                results.lock().unwrap().push(result);
+            })
+        })
+        .collect();
+
+    for handle in handles {
+        handle.join().unwrap();
+    }
+
+    let all_results = results.lock().unwrap();
+    assert_eq!(all_results.len(), 10);
+    assert!(all_results.iter().all(|r| r.is_ok()));
+}
+
+#[test]
+fn concurrent_check_disk_over_limit_all_fail() {
+    use std::sync::{Arc, Mutex};
+    use std::thread;
+
+    let enforcer = Arc::new(make_test_enforcer());
+    let results = Arc::new(Mutex::new(Vec::new()));
+
+    let handles: Vec<_> = (0..10)
+        .map(|_| {
+            let enforcer = Arc::clone(&enforcer);
+            let results = Arc::clone(&results);
+            thread::spawn(move || {
+                let result = enforcer.check_disk("payments", 20_000);
+                results.lock().unwrap().push(result);
+            })
+        })
+        .collect();
+
+    for handle in handles {
+        handle.join().unwrap();
+    }
+
+    let all_results = results.lock().unwrap();
+    assert_eq!(all_results.len(), 10);
+    assert!(all_results.iter().all(|r| r.is_err()));
+}
+
+#[test]
+fn concurrent_mixed_resource_checks() {
+    use std::sync::{Arc, Mutex};
+    use std::thread;
+
+    let enforcer = Arc::new(make_test_enforcer());
+    let results = Arc::new(Mutex::new(Vec::new()));
+
+    let handles: Vec<_> = (0..20)
+        .map(|i| {
+            let enforcer = Arc::clone(&enforcer);
+            let results = Arc::clone(&results);
+            thread::spawn(move || {
+                let result = match i % 3 {
+                    0 => enforcer.check_cpu("payments", 2),
+                    1 => enforcer.check_memory("payments", 512),
+                    _ => enforcer.check_disk("payments", 5000),
+                };
+                results.lock().unwrap().push(result);
+            })
+        })
+        .collect();
+
+    for handle in handles {
+        handle.join().unwrap();
+    }
+
+    let all_results = results.lock().unwrap();
+    assert_eq!(all_results.len(), 20);
+    assert!(all_results.iter().all(|r| r.is_ok()));
+}
+
+#[test]
+fn concurrent_unknown_namespace_returns_not_found() {
+    use std::sync::{Arc, Mutex};
+    use std::thread;
+
+    let enforcer = Arc::new(make_test_enforcer());
+    let results = Arc::new(Mutex::new(Vec::new()));
+
+    let handles: Vec<_> = (0..10)
+        .map(|_| {
+            let enforcer = Arc::clone(&enforcer);
+            let results = Arc::clone(&results);
+            thread::spawn(move || {
+                let result = enforcer.check_cpu("unknown", 1);
+                results.lock().unwrap().push(result);
+            })
+        })
+        .collect();
+
+    for handle in handles {
+        handle.join().unwrap();
+    }
+
+    let all_results = results.lock().unwrap();
+    assert_eq!(all_results.len(), 10);
+    assert!(all_results.iter().all(|r| r.is_err()));
+}

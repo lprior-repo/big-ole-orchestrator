@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
-    use crate::debouncer::Debouncer;
-    use crate::debouncer::types::{Error, FileEvent};
+    use crate::debounce::Debouncer;
+    use crate::debounce::types::{Error, FileEvent};
     use std::future::Future;
     use std::path::PathBuf;
     use std::pin::Pin;
@@ -387,8 +387,8 @@ mod tests {
 
 #[cfg(test)]
 mod proptests {
-    use crate::debouncer::Debouncer;
-    use crate::debouncer::types::{Error, FileEvent};
+    use crate::debounce::Debouncer;
+    use crate::debounce::types::{Error, FileEvent};
     use proptest::prelude::*;
     use std::path::PathBuf;
     use std::time::Duration;
@@ -446,8 +446,8 @@ mod proptests {
 
 #[cfg(kani)]
 mod verification {
-    use crate::debouncer::Debouncer;
-    use crate::debouncer::types::FileEvent;
+    use crate::debounce::Debouncer;
+    use crate::debounce::types::FileEvent;
 
     #[kani::proof]
     fn verify_event_tracking_state_bounds() {

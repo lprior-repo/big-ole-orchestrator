@@ -3,7 +3,7 @@
 //! Defines the core data structures for degraded-mode admission coupling.
 
 use serde::{Deserialize, Serialize};
-use vo_types::InstanceId;
+use vo_types::{DedupeKey, InstanceId};
 
 /// Represents current write pressure state.
 ///
@@ -42,7 +42,7 @@ pub enum PressureIndicator {
 }
 
 /// Errors for degraded-mode admission coupling violations.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AdmissionError {
     /// Writer queue depth exceeded threshold.
     WriterQueueDepthExceeded {
@@ -85,6 +85,81 @@ pub enum AdmissionError {
     },
     /// A generic admission policy violation with a human-readable message.
     PolicyViolation(String),
+}
+
+/// A rejected admission request stored for later retry.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RejectedRequest {
+    /// The dedupe key of the rejected request.
+    pub dedupe_key: DedupeKey,
+    /// Why the request was rejected.
+    pub reason: AdmissionError,
+    /// When the request was rejected (Unix timestamp in milliseconds).
+    pub rejected_at_ms: u64,
+}
+
+impl RejectedRequest {
+    pub fn new(dedupe_key: DedupeKey, reason: AdmissionError) -> Self {
+        Self {
+            dedupe_key,
+            reason,
+            rejected_at_ms: current_timestamp_ms(),
+        }
+    }
+}
+
+fn current_timestamp_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64
+}
+
+/// Dead letter queue for rejected admission requests.
+#[derive(Debug, Clone)]
+pub struct AdmissionDeadLetterQueue {
+    entries: Vec<RejectedRequest>,
+    max_size: usize,
+}
+
+impl AdmissionDeadLetterQueue {
+    pub fn new(max_size: usize) -> Self {
+        Self {
+            entries: Vec::new(),
+            max_size,
+        }
+    }
+
+    pub fn enqueue(&mut self, entry: RejectedRequest) {
+        if self.entries.len() >= self.max_size {
+            self.entries.remove(0);
+        }
+        self.entries.push(entry);
+    }
+
+    pub fn dequeue(&mut self) -> Option<RejectedRequest> {
+        if self.entries.is_empty() {
+            None
+        } else {
+            Some(self.entries.remove(0))
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
+    pub fn clear(&mut self) {
+        self.entries.clear();
+    }
+
+    pub fn entries(&self) -> &[RejectedRequest] {
+        &self.entries
+    }
 }
 
 /// Configurable thresholds for admission decisions.

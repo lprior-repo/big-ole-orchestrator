@@ -3,9 +3,11 @@ mod tests {
     use crate::db_writer_message::message::DbWriterMessage;
     use crate::db_writer_message::types::{DbWriterMessageError, SnapshotData, TimerOp};
     use vo_types::{
-        EffectIntent, EffectKind, EffectRecord, FenceToken, FireAtMs, IdempotencyKey, InstanceId,
-        InstanceStatus, SequenceNumber, StepId, TimerId, MAX_SUPPORTED_SCHEMA_VERSION,
+        EffectIntent, EffectKind, EffectRecord, EventEnvelope, FenceToken, FireAtMs,
+        IdempotencyKey, InstanceId, InstanceStatus, SequenceNumber, StepId, TimerId,
+        MAX_SUPPORTED_SCHEMA_VERSION,
     };
+    use vo_types::events::EventMetadata;
 
     fn valid_instance_id() -> InstanceId {
         InstanceId::parse("01ARYZ6S410000000000000000").expect("valid instance id")
