@@ -152,7 +152,8 @@ Panics on invalid inputs:
 - **No Async**: All operations are synchronous.
 - **No Persistence**: In-memory only.
 - **Generic**: Works with any `T: Clone` and any binary merge operation.
-- **Panics on Invalid Input**: No `Result` type — invalid indices panic (programmer error).
+- **Panics on Invalid Input**: Invalid indices panic (programmer error) via `assert!` with descriptive messages.
+- **Fallible API**: `SegmentTree` provides `try_from_slice`, `try_query`, `try_get` returning `Result<T, SegmentTreeError>` for callers that prefer error handling over panics. `LazySegmentTree` does not yet have `try_*` methods (tracked as inconsistency).
 
 ### 9. Acceptance Criteria
 
