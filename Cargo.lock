@@ -5044,7 +5044,6 @@ dependencies = [
 name = "vo-frontend"
 version = "0.1.0"
 dependencies = [
- "bytes",
  "chrono",
  "dioxus",
  "gloo-timers",

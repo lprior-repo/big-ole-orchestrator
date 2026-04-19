@@ -2,9 +2,6 @@
 use crate::ui::graph::Workflow;
 
 #[cfg(target_arch = "wasm32")]
-use chrono;
-
-#[cfg(target_arch = "wasm32")]
 pub fn canvas_rect_size() -> Option<(f32, f32)> {
     use web_sys::window;
 

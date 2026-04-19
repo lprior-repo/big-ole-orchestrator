@@ -1,10 +1,10 @@
 use crate::config::SubprocessConfig;
 use crate::envelope::{Fd3Envelope, Fd4Envelope};
 use crate::error::IpcError;
-use crate::run::SubprocessOutput;
-use std::os::fd::{FromRawFd, RawFd};
+use std::os::fd::{FromRawFd, IntoRawFd, RawFd};
+use std::path::Path;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, OwnedPermit};
 use tokio::time::{timeout, Duration};
 
 const DEFAULT_BACKPRESSURE_LIMIT: usize = 64;
@@ -45,7 +45,7 @@ impl Default for BusConfig {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BusMessage {
     Request(Fd3Envelope),
     Response(Fd4Envelope),
@@ -131,15 +131,16 @@ impl MessageBus {
 
     pub async fn send(&self, envelope: Fd3Envelope) -> Result<(), BusError> {
         let permit = self.sender.reserve().await.map_err(|_| BusError::BusClosed)?;
-        permit.send(BusMessage::Request(envelope));
+        permit.send(BusMessage::Request(envelope)).await.map_err(|_| BusError::BusClosed)?;
         Ok(())
     }
 
-    pub fn send_with_permit(
-        permit: mpsc::OwnedPermit<BusMessage>,
+    pub async fn send_with_permit(
+        permit: OwnedPermit<'_, BusMessage>,
         envelope: Fd3Envelope,
-    ) {
-        permit.send(BusMessage::Request(envelope));
+    ) -> Result<(), BusError> {
+        permit.send(BusMessage::Request(envelope)).await.map_err(|_| BusError::BusClosed)?;
+        Ok(())
     }
 
     pub async fn recv(&mut self) -> Result<BusMessage, BusError> {
@@ -244,18 +245,36 @@ impl MessageBus {
             })
         } else {
             Err(IpcError::ProcessFailed {
-                exit_code: crate::run::map_exit_code(exit_status),
+                exit_code: map_exit_code(exit_status),
                 stderr_bytes: capture.bytes,
                 stderr_truncated: capture.truncated,
             })
         }
     }
 
-    pub async fn shutdown(self) -> Result<(), IpcError> {
-        let _ = self.drain().await;
+    pub async fn shutdown(mut self) -> Result<(), IpcError> {
+        let result = self.drain().await;
+        if result.is_err() {
+            self.terminate().await;
+        }
         Ok(())
     }
 
+    async fn terminate(&mut self) {
+        let Some(pid) = self.child.id() else {
+            return;
+        };
+        let kill_pgid = pid.cast_signed();
+        unsafe {
+            libc::kill(-kill_pgid, libc::SIGTERM);
+        }
+        let res = tokio::time::timeout(Duration::from_millis(100), self.child.wait()).await;
+        if res.is_err() {
+            unsafe {
+                libc::kill(-kill_pgid, libc::SIGKILL);
+            }
+        }
+    }
 }
 
 fn create_pipe() -> Result<(RawFd, RawFd), IpcError> {
@@ -269,9 +288,14 @@ fn create_pipe() -> Result<(RawFd, RawFd), IpcError> {
     Ok(fds.into())
 }
 
+#[must_use]
+pub(crate) fn map_exit_code(status: std::process::ExitStatus) -> i32 {
+    status
+        .code()
+        .unwrap_or_else(|| status.signal().map_or(-1, |s| 128 + s))
+}
 
-
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum BusError {
     #[error("bus is closed")]
     BusClosed,
@@ -285,6 +309,12 @@ pub enum BusError {
 
 impl From<mpsc::error::SendError<BusMessage>> for BusError {
     fn from(_: mpsc::error::SendError<BusMessage>) -> Self {
+        BusError::BusClosed
+    }
+}
+
+impl From<mpsc::error::SendErrorOwned<BusMessage>> for BusError {
+    fn from(_: mpsc::error::SendErrorOwned<BusMessage>) -> Self {
         BusError::BusClosed
     }
 }

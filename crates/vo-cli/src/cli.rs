@@ -1,8 +1,6 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-use vo_types::workspace::{WorkspaceId, WorkspaceName, WorkspacePath};
-
 #[derive(Debug, thiserror::Error)]
 pub enum CliError {
     #[error("{0}")]
@@ -27,6 +25,32 @@ pub enum CliError {
     Rebuild(#[from] crate::commands::rebuild::RebuildError),
     #[error(transparent)]
     Status(#[from] crate::commands::status::StatusError),
+    #[error(transparent)]
+    Unquarantine(#[from] crate::commands::unquarantine::UnquarantineError),
+    #[error(transparent)]
+    Workspace(#[from] crate::commands::workspace::WorkspaceError),
+}
+
+impl PartialEq for CliError {
+    fn eq(&self, other: &Self) -> bool {
+        use CliError::*;
+        match (self, other) {
+            (Clap(_), Clap(_)) => true,
+            (InvalidNumeric(a), InvalidNumeric(b)) => a == b,
+            (Dispatch(a), Dispatch(b)) => a == b,
+            (Check(_), Check(_)) => true,
+            (Compensate(_), Compensate(_)) => true,
+            (Gc(_), Gc(_)) => true,
+            (Init(_), Init(_)) => true,
+            (Lock(_), Lock(_)) => true,
+            (Doctor(_), Doctor(_)) => true,
+            (Rebuild(_), Rebuild(_)) => true,
+            (Status(_), Status(_)) => true,
+            (Unquarantine(_), Unquarantine(_)) => true,
+            (Workspace(_), Workspace(_)) => true,
+            _ => false,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -42,6 +66,11 @@ pub enum Command {
         engine_url: String,
         workflow_id: String,
         force: bool,
+    },
+    Unquarantine {
+        engine_url: String,
+        workflow_name: String,
+        operator: String,
     },
     Gc {
         engine_url: String,
@@ -75,6 +104,17 @@ pub enum Command {
         force: bool,
         dry_run: bool,
     },
+    Workspace {
+        subcommand: WorkspaceSubcommand,
+    },
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum WorkspaceSubcommand {
+    Create { name: String },
+    List,
+    Delete { id: String },
+    Show { id: String },
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -134,6 +174,28 @@ where
                         .long("force")
                         .action(clap::ArgAction::SetTrue)
                         .help("Skip confirmation prompt"),
+                ),
+        )
+        .subcommand(
+            clap::Command::new("unquarantine")
+                .about("Unquarantine a workflow instance")
+                .arg(
+                    clap::Arg::new("workflow-name")
+                        .required(true)
+                        .index(1)
+                        .help("The workflow name to unquarantine"),
+                )
+                .arg(
+                    clap::Arg::new("engine-url")
+                        .long("engine-url")
+                        .env("VO_ENGINE_URL")
+                        .default_value("http://localhost:3000"),
+                )
+                .arg(
+                    clap::Arg::new("operator")
+                        .long("operator")
+                        .required(true)
+                        .help("Operator performing the unquarantine"),
                 ),
         )
         .subcommand(
@@ -232,39 +294,40 @@ where
                 ),
         )
         .subcommand(
-            clap::Command::new("hardline")
-                .about("Execute hardline command")
-                .arg(
-                    clap::Arg::new("target")
-                        .required(true)
-                        .index(1)
-                        .help("Target identifier"),
+            clap::Command::new("workspace")
+                .about("Manage workspaces")
+                .subcommand_required(true)
+                .arg_required_else_help(true)
+                .subcommand(
+                    clap::Command::new("create")
+                        .about("Create a new workspace")
+                        .arg(
+                            clap::Arg::new("name")
+                                .required(true)
+                                .index(1)
+                                .help("Workspace name"),
+                        ),
                 )
-                .arg(
-                    clap::Arg::new("engine-url")
-                        .long("engine-url")
-                        .env("VO_ENGINE_URL")
-                        .default_value("http://localhost:3000")
-                        .help("Engine URL"),
+                .subcommand(clap::Command::new("list").about("List all workspaces"))
+                .subcommand(
+                    clap::Command::new("delete")
+                        .about("Delete a workspace")
+                        .arg(
+                            clap::Arg::new("id")
+                                .required(true)
+                                .index(1)
+                                .help("Workspace ID"),
+                        ),
                 )
-                .arg(
-                    clap::Arg::new("timeout")
-                        .long("timeout")
-                        .value_name("SECONDS")
-                        .default_value("60")
-                        .help("Timeout in seconds"),
-                )
-                .arg(
-                    clap::Arg::new("force")
-                        .long("force")
-                        .action(clap::ArgAction::SetTrue)
-                        .help("Skip confirmation"),
-                )
-                .arg(
-                    clap::Arg::new("dry-run")
-                        .long("dry-run")
-                        .action(clap::ArgAction::SetTrue)
-                        .help("Dry run mode"),
+                .subcommand(
+                    clap::Command::new("show")
+                        .about("Show workspace details")
+                        .arg(
+                            clap::Arg::new("id")
+                                .required(true)
+                                .index(1)
+                                .help("Workspace ID"),
+                        ),
                 ),
         );
 
@@ -313,6 +376,35 @@ where
                     engine_url,
                     workflow_id,
                     force,
+                },
+            })
+        }
+        Some(("unquarantine", sub_matches)) => {
+            let workflow_name = match sub_matches.get_one::<String>("workflow-name") {
+                Some(id) => id.clone(),
+                None => {
+                    return Err(clap::Error::new(
+                        clap::error::ErrorKind::MissingRequiredArgument,
+                    ))
+                }
+            };
+            let engine_url = match sub_matches.get_one::<String>("engine-url") {
+                Some(u) => u.clone(),
+                None => "http://localhost:3000".to_string(),
+            };
+            let operator = match sub_matches.get_one::<String>("operator") {
+                Some(o) => o.clone(),
+                None => {
+                    return Err(clap::Error::new(
+                        clap::error::ErrorKind::MissingRequiredArgument,
+                    ))
+                }
+            };
+            Ok(Cli {
+                command: Command::Unquarantine {
+                    engine_url,
+                    workflow_name,
+                    operator,
                 },
             })
         }
@@ -431,6 +523,59 @@ where
                 },
             })
         }
+        Some(("workspace", sub_matches)) => match sub_matches.subcommand() {
+            Some(("create", create_matches)) => {
+                let name = match create_matches.get_one::<String>("name") {
+                    Some(n) => n.clone(),
+                    None => {
+                        return Err(clap::Error::new(
+                            clap::error::ErrorKind::MissingRequiredArgument,
+                        ))
+                    }
+                };
+                Ok(Cli {
+                    command: Command::Workspace {
+                        subcommand: WorkspaceSubcommand::Create { name },
+                    },
+                })
+            }
+            Some(("list", _)) => Ok(Cli {
+                command: Command::Workspace {
+                    subcommand: WorkspaceSubcommand::List,
+                },
+            }),
+            Some(("delete", delete_matches)) => {
+                let id = match delete_matches.get_one::<String>("id") {
+                    Some(i) => i.clone(),
+                    None => {
+                        return Err(clap::Error::new(
+                            clap::error::ErrorKind::MissingRequiredArgument,
+                        ))
+                    }
+                };
+                Ok(Cli {
+                    command: Command::Workspace {
+                        subcommand: WorkspaceSubcommand::Delete { id },
+                    },
+                })
+            }
+            Some(("show", show_matches)) => {
+                let id = match show_matches.get_one::<String>("id") {
+                    Some(i) => i.clone(),
+                    None => {
+                        return Err(clap::Error::new(
+                            clap::error::ErrorKind::MissingRequiredArgument,
+                        ))
+                    }
+                };
+                Ok(Cli {
+                    command: Command::Workspace {
+                        subcommand: WorkspaceSubcommand::Show { id },
+                    },
+                })
+            }
+            _ => Err(clap::Error::new(clap::error::ErrorKind::InvalidSubcommand)),
+        },
         _ => Err(clap::Error::new(clap::error::ErrorKind::InvalidSubcommand)),
     }
 }
@@ -447,12 +592,14 @@ pub fn map_error_to_exit_code(err: &CliError) -> i32 {
         CliError::Dispatch(_)
         | CliError::Check(_)
         | CliError::Compensate(_)
+        | CliError::Unquarantine(_)
         | CliError::Gc(_)
         | CliError::Init(_)
         | CliError::Lock(_)
         | CliError::Doctor(_)
         | CliError::Rebuild(_)
-        | CliError::Status(_) => 1,
+        | CliError::Status(_)
+        | CliError::Workspace(_) => 1,
         CliError::InvalidNumeric(_) => 2,
     }
 }
