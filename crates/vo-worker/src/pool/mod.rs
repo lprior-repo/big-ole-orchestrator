@@ -14,7 +14,7 @@ pub use circuit_breaker::CircuitBreaker;
 pub use config::{PoolConfig, PoolConfigError};
 pub use hash_ring::{HashRing, HashRingConfig, RingNode};
 pub use health_check::{determine_health_check_result, HealthCheck, HealthCheckFuture};
-pub use pool::{ConnectionPool, NatsConnectionWrapper};
+pub use pool::{ConnectionPool, NatsConnectionWrapper, QuotaError, QuotaStatus, ResourceQuota};
 
 use vo_types::connection_pool::{
     AcquireResult, CircuitBreakerState, ConnectionId, ConnectionPoolError, ConnectionStatus,
@@ -34,4 +34,5 @@ mod tests {
     mod config_tests;
     mod health_check_tests;
     mod pool_tests;
+    mod resource_quota_tests;
 }

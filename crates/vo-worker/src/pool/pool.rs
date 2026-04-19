@@ -45,6 +45,38 @@ impl NatsConnectionWrapper {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResourceQuota {
+    pub soft_limit: u32,
+    pub hard_limit: u32,
+    pub warning_interval_ms: u64,
+}
+
+impl ResourceQuota {
+    pub fn new(soft_limit: u32, hard_limit: u32, warning_interval_ms: u64) -> Result<Self, QuotaError> {
+        if soft_limit == 0 || hard_limit == 0 {
+            return Err(QuotaError::ZeroLimit);
+        }
+        if soft_limit >= hard_limit {
+            return Err(QuotaError::SoftNotLessThanHard);
+        }
+        Ok(Self { soft_limit, hard_limit, warning_interval_ms })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum QuotaError {
+    ZeroLimit,
+    SoftNotLessThanHard,
+    HardLimitExceeded,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum QuotaStatus {
+    Ok,
+    SoftLimitReached,
+}
+
 #[derive(Debug, Clone)]
 pub struct PoolState {
     pub pool_id: PoolId,
@@ -61,6 +93,8 @@ pub struct PoolState {
     pub total_health_checks: u64,
     pub failed_health_checks: u64,
     pub is_shutting_down: bool,
+    pub resource_quota: Option<ResourceQuota>,
+    pub last_quota_warning_at: Option<TimestampMs>,
 }
 
 impl PoolState {
@@ -80,6 +114,8 @@ impl PoolState {
             total_health_checks: 0,
             failed_health_checks: 0,
             is_shutting_down: false,
+            resource_quota: None,
+            last_quota_warning_at: None,
         }
     }
 
@@ -124,6 +160,35 @@ impl PoolState {
 
     pub fn reset_circuit_breaker(&mut self) {
         self.circuit_breaker.reset();
+    }
+
+    pub fn check_quota(&mut self) -> Result<QuotaStatus, QuotaError> {
+        let quota = match &self.resource_quota {
+            Some(q) => q.clone(),
+            None => return Ok(QuotaStatus::Ok),
+        };
+
+        let usage = self.total_connections();
+
+        if usage >= quota.hard_limit {
+            return Err(QuotaError::HardLimitExceeded);
+        }
+
+        if usage >= quota.soft_limit {
+            let now = TimestampMs::now();
+            let should_warn = match self.last_quota_warning_at {
+                None => true,
+                Some(last) => now.as_u64().saturating_sub(last.as_u64()) >= quota.warning_interval_ms,
+            };
+
+            if should_warn {
+                self.last_quota_warning_at = Some(now);
+                return Ok(QuotaStatus::SoftLimitReached);
+            }
+            return Ok(QuotaStatus::Ok);
+        }
+
+        Ok(QuotaStatus::Ok)
     }
 }
 
