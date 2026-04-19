@@ -318,27 +318,19 @@ mod tests {
     #[test]
     fn test_retry_config_jitter_zero_factor_returns_base() {
         let config = RetryConfig::new(100, 2.0, 3).with_jitter(0.0);
-        let base = Duration::from_millis(200);
-        let result = config.calculate_jitter(base);
-        assert_eq!(result, base);
+        let base = Duration::from_millis(500);
+        assert_eq!(config.calculate_jitter(base), base);
     }
 
     #[test]
     fn test_retry_config_jitter_with_positive_factor_stays_within_bounds() {
-        let config = RetryConfig::new(100, 2.0, 3).with_jitter(0.1);
-        let base = Duration::from_millis(200);
-        let base_ms = base.as_millis() as u64;
+        let config = RetryConfig::new(100, 2.0, 3).with_jitter(0.5);
+        let base = Duration::from_millis(1000);
         let result = config.calculate_jitter(base);
-        let result_ms = result.as_millis() as u64;
-        let max_jitter = base_ms / 10;
-        let lower_bound = base_ms - max_jitter;
-        let upper_bound = base_ms + max_jitter;
-        assert!(
-            result_ms >= lower_bound && result_ms <= upper_bound,
-            "jitter result {} should be within [{}, {}]",
-            result_ms,
-            lower_bound,
-            upper_bound
-        );
+        let base_ms = 1000.0;
+        let lower_bound = (base_ms * 0.5) as u64;
+        let upper_bound = (base_ms * 1.5) as u64;
+        assert!(result.as_millis() as u64 >= lower_bound);
+        assert!(result.as_millis() as u64 <= upper_bound);
     }
 }
