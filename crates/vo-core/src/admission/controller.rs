@@ -115,6 +115,10 @@ impl<C: AdmissionCheck> AdmissionController<C> {
     pub fn is_in_flight(&self, instance_id: &InstanceId) -> bool {
         self.in_flight.contains(instance_id)
     }
+
+    pub fn update_pressure_state(&mut self, pressure_state: WritePressureState) {
+        self.pressure_state = pressure_state;
+    }
 }
 
 impl AdmissionError {

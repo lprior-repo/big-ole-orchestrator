@@ -33,6 +33,8 @@ pub mod control_tests;
 pub mod controller_tests;
 #[cfg(test)]
 pub mod workload_tests;
+#[cfg(test)]
+pub mod backpressure_release_tests;
 
 pub use check::{check_admission, check_admission_with_thresholds};
 pub use control::{AdmissionCheck, AdmissionResult, DedupeToken, RejectionReason};
