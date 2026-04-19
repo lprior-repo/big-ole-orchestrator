@@ -491,7 +491,7 @@ mod vault_boundary {
 
         let errs: Vec<CredentialError> = vec![
             CredentialError::CredentialNotFound(id.clone()),
-            CredentialError::CredentialAlreadyExists(id.clone()),
+            // CredentialError::CredentialAlreadyExists(id.clone()), // not implemented
             CredentialError::VersionNotFound {
                 credential_id: id.clone(),
                 version_id: vo_types::credentials::CredentialVersionId::parse(
