@@ -45,7 +45,6 @@ pub use budget_ops::{
 };
 pub use check::{check_admission, check_admission_with_thresholds};
 pub use control::{AdmissionCheck, AdmissionResult, DedupeToken, RejectionReason};
-pub use controller::AdmissionController;
+pub use controller::{AdmissionController, AdmissionControllerWithDlq};
 pub use metrics::{BoolGauge, Gauge, WritePressureMetrics};
-pub use types::{AdmissionError, AdmissionThresholds, PressureIndicator, WritePressureState};
-pub use workload::{DegradedMode, WorkloadClass};
+pub use types::{AdmissionDeadLetterQueue, AdmissionError, AdmissionThresholds, PressureIndicator, RejectedRequest, WritePressureState};

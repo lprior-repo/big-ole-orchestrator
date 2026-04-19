@@ -186,7 +186,7 @@ impl ConnectionPool {
             };
         }
 
-        // Try idle connections with health check loop: evict stale/unhealthy
+// Try idle connections with health check loop: evict stale/unhealthy
         // and keep trying until a healthy one is found or pool is exhausted.
         while let Some(conn_id) = self.state.idle_connections.pop_front() {
             if !self.health_check_connection(conn_id) {
@@ -198,20 +198,22 @@ impl ConnectionPool {
             }
 
             if let Some(mut conn) = self.state.connections.get_mut(&conn_id) {
-                conn.status = ConnectionStatus::CheckedOut;
-                conn.increment_use_count();
-                self.state.total_acquires += 1;
+                if self.health_check_connection(conn_id) {
+                    conn.status = ConnectionStatus::CheckedOut;
+                    conn.increment_use_count();
+                    self.state.total_acquires += 1;
 
-                let checkout_id = ConnectionId::new();
-                self.state
-                    .checked_out_connections
-                    .insert(checkout_id, conn_id);
+                    let checkout_id = ConnectionId::new();
+                    self.state
+                        .checked_out_connections
+                        .insert(checkout_id, conn_id);
 
-                debug!("Acquired connection {} from pool {}", conn_id, self.pool_id);
+                    debug!("Acquired connection {} from pool {}", conn_id, self.pool_id);
 
-                return AcquireResult::Available {
-                    connection: conn.clone(),
-                };
+                    return AcquireResult::Available {
+                        connection: conn.clone(),
+                    };
+                }
             }
         }
 
