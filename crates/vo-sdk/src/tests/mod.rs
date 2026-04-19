@@ -4,6 +4,7 @@
 //! using in-memory readers/writers, since actual FD3/FD4 are unavailable in test.
 
 mod adversarial_tests;
+mod dag_cycle_detection_tests;
 mod dag_tests;
 mod graph_args_tests;
 mod proptest_dag;
