@@ -7,15 +7,98 @@ use axum::{
 use tokio::sync::broadcast;
 
 use super::split_path_id;
-pub use crate::types::events::WorkflowEvent;
 use crate::types::ApiError;
-pub use crate::types::events::WorkflowEvent;
 
 const WS_BROADCAST_CAPACITY: usize = 1000;
 
+#[derive(Debug, Clone)]
+pub enum WorkflowWsEvent {
+    StepCompleted {
+        node_name: String,
+        sequence: u64,
+    },
+    StepFailed {
+        node_name: String,
+        sequence: u64,
+        error: String,
+    },
+    TimerFired {
+        timer_id: String,
+    },
+    SignalReceived {
+        signal_name: String,
+    },
+    PhaseChanged {
+        phase: String,
+    },
+    InstanceCompleted,
+    InstanceFailed {
+        error: String,
+    },
+}
+
+impl WorkflowWsEvent {
+    pub fn to_json_string(&self) -> String {
+        let data = match self {
+            WorkflowWsEvent::StepCompleted {
+                node_name,
+                sequence,
+            } => {
+                serde_json::json!({
+                    "type": "step_completed",
+                    "node_name": node_name,
+                    "sequence": sequence,
+                })
+            }
+            WorkflowWsEvent::StepFailed {
+                node_name,
+                sequence,
+                error,
+            } => {
+                serde_json::json!({
+                    "type": "step_failed",
+                    "node_name": node_name,
+                    "sequence": sequence,
+                    "error": error,
+                })
+            }
+            WorkflowWsEvent::TimerFired { timer_id } => {
+                serde_json::json!({
+                    "type": "timer_fired",
+                    "timer_id": timer_id,
+                })
+            }
+            WorkflowWsEvent::SignalReceived { signal_name } => {
+                serde_json::json!({
+                    "type": "signal_received",
+                    "signal_name": signal_name,
+                })
+            }
+            WorkflowWsEvent::PhaseChanged { phase } => {
+                serde_json::json!({
+                    "type": "phase_changed",
+                    "phase": phase,
+                })
+            }
+            WorkflowWsEvent::InstanceCompleted => {
+                serde_json::json!({
+                    "type": "instance_completed",
+                })
+            }
+            WorkflowWsEvent::InstanceFailed { error } => {
+                serde_json::json!({
+                    "type": "instance_failed",
+                    "error": error,
+                })
+            }
+        };
+        data.to_string()
+    }
+}
+
 #[derive(Clone)]
 pub struct WsBroadcaster {
-    tx: broadcast::Sender<WorkflowEvent>,
+    tx: broadcast::Sender<WorkflowWsEvent>,
 }
 
 impl WsBroadcaster {
@@ -24,14 +107,14 @@ impl WsBroadcaster {
         Self { tx }
     }
 
-    pub fn subscribe(&self) -> broadcast::Receiver<WorkflowEvent> {
+    pub fn subscribe(&self) -> broadcast::Receiver<WorkflowWsEvent> {
         self.tx.subscribe()
     }
 
     pub fn send(
         &self,
-        event: WorkflowEvent,
-    ) -> Result<usize, broadcast::error::SendError<WorkflowEvent>> {
+        event: WorkflowWsEvent,
+    ) -> Result<usize, broadcast::error::SendError<WorkflowWsEvent>> {
         self.tx.send(event)
     }
 }
@@ -167,7 +250,7 @@ mod tests {
 
     #[test]
     fn ws_event_step_completed_serializes_correctly() {
-        let event = WorkflowEvent::StepCompleted {
+        let event = WorkflowWsEvent::StepCompleted {
             node_name: "build-step".to_string(),
             sequence: 42,
         };
@@ -179,7 +262,7 @@ mod tests {
 
     #[test]
     fn ws_event_timer_fired_serializes_correctly() {
-        let event = WorkflowEvent::TimerFired {
+        let event = WorkflowWsEvent::TimerFired {
             timer_id: "timer-123".to_string(),
         };
         let json = event.to_json_string();
