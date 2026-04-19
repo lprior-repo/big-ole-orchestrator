@@ -3,8 +3,8 @@ mod tests {
     use crate::db_writer_message::message::DbWriterMessage;
     use crate::db_writer_message::types::{DbWriterMessageError, SnapshotData, TimerOp};
     use vo_types::{
-        EffectIntent, EffectKind, EffectRecord, EventEnvelope, FenceToken, FireAtMs,
-        IdempotencyKey, InstanceId, InstanceStatus, SequenceNumber, StepId, TimerId,
+        events::{EventEnvelope, EventMetadata}, EffectIntent, EffectKind, EffectRecord, FenceToken,
+        FireAtMs, IdempotencyKey, InstanceId, InstanceStatus, SequenceNumber, StepId, TimerId,
         MAX_SUPPORTED_SCHEMA_VERSION,
     };
     use vo_types::events::EventMetadata;

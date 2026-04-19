@@ -251,7 +251,7 @@ mod tests {
 
         let version = CredentialVersion::new(
             version_id.clone(),
-            SecretValue::new(vec![0u8; 32], [0u8; 12], 1).expect("valid secret value"),
+            SecretValue::new(vec![0u8; 32], [0u8; 12], 1).expect("valid secret"),
             CredentialStatus::Active,
             TimestampMs::new_unchecked(1000),
             None,

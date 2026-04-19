@@ -6,6 +6,7 @@ mod proptest_workload_invariants {
     use proptest::{proptest, prop_assert, prop_assert_eq};
     use super::super::budget::WorkloadBudget;
     use super::super::types::WorkloadClass;
+    use proptest::{proptest, prop_assert, prop_assert_eq};
 
     proptest! {
         #[test]

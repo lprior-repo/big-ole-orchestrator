@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::debounce::Debouncer;
+    use crate::debounce::debouncer::Debouncer;
     use crate::debounce::types::{Error, FileEvent};
     use std::future::Future;
     use std::path::PathBuf;
@@ -387,7 +387,7 @@ mod tests {
 
 #[cfg(test)]
 mod proptests {
-    use crate::debounce::Debouncer;
+    use crate::debounce::debouncer::Debouncer;
     use crate::debounce::types::{Error, FileEvent};
     use proptest::prelude::*;
     use std::path::PathBuf;
@@ -446,7 +446,7 @@ mod proptests {
 
 #[cfg(kani)]
 mod verification {
-    use crate::debounce::Debouncer;
+    use crate::debounce::debouncer::Debouncer;
     use crate::debounce::types::FileEvent;
 
     #[kani::proof]

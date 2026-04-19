@@ -665,7 +665,7 @@ mod priority_inheritance_tests {
         };
         let critical_count = all_classes
             .iter()
-            .filter(|c| is_class_accepted_in_mode(**c, critical))
+            .filter(|c| is_class_accepted_in_mode(**c, critical.clone()))
             .count();
         assert_eq!(critical_count, 2);
     }

@@ -37,6 +37,8 @@ pub mod control_tests;
 pub mod controller_tests;
 #[cfg(test)]
 pub mod workload_tests;
+#[cfg(test)]
+pub mod backpressure_release_tests;
 
 pub use budget::{BudgetAllocation, WorkloadBudget};
 pub use budget_ops::{
