@@ -568,3 +568,267 @@ fn ready_nodes_always_edges_ready_after_any_outcome() {
     );
     assert!(ready_failure.contains(&NodeName("b".into())));
 }
+
+// ============================================================================
+// DependencyGraphResolver: parallel execution invariants (DAG-engine throughput)
+// ============================================================================
+
+// DGR-23: Parallel execution invariant - nodes in same layer have no path between them
+// This ensures independent nodes (same layer) can run concurrently without blocking each other
+#[test]
+fn execution_layers_nodes_in_same_layer_are_independent() {
+    // Diamond DAG:    a
+    //               / \
+    //              b   c
+    //               \ /
+    //                d
+    let workflow = make_workflow(
+        "test",
+        vec![
+            ("a", 1, 0, 1.0),
+            ("b", 1, 0, 1.0),
+            ("c", 1, 0, 1.0),
+            ("d", 1, 0, 1.0),
+        ],
+        vec![
+            ("a", "b", EdgeCondition::Always),
+            ("a", "c", EdgeCondition::Always),
+            ("b", "d", EdgeCondition::Always),
+            ("c", "d", EdgeCondition::Always),
+        ],
+    );
+
+    let layers = DependencyGraphResolver::execution_layers(&workflow);
+    assert_eq!(layers.len(), 3);
+
+    // Layer 1: b and c should be in the same layer (parallel)
+    let layer1_nodes: Vec<&NodeName> = layers[1].iter().collect();
+    assert_eq!(layer1_nodes.len(), 2);
+    assert!(layer1_nodes.iter().any(|n| n.as_str() == "b"));
+    assert!(layer1_nodes.iter().any(|n| n.as_str() == "c"));
+
+    // Verify b and c have no path between them (they are independent)
+    let b_deps = DependencyGraphResolver::transitive_dependencies(&workflow, &NodeName("b".into()));
+    let c_deps = DependencyGraphResolver::transitive_dependencies(&workflow, &NodeName("c".into()));
+
+    // b should not depend on c, and c should not depend on b
+    assert!(
+        !b_deps.contains(&NodeName("c".into())),
+        "b should not depend on c (they are parallel)"
+    );
+    assert!(
+        !c_deps.contains(&NodeName("b".into())),
+        "c should not depend on b (they are parallel)"
+    );
+}
+
+// DGR-24: Edges always go from earlier layers to later layers (forward direction)
+// This ensures dependent nodes always wait for their dependencies
+#[test]
+fn execution_layers_all_edges_go_forward() {
+    // Complex DAG with multiple layers
+    //       a
+    //      / \
+    //     b   c
+    //     |   |
+    //     d   e
+    //      \ /
+    //       f
+    let workflow = make_workflow(
+        "test",
+        vec![
+            ("a", 1, 0, 1.0),
+            ("b", 1, 0, 1.0),
+            ("c", 1, 0, 1.0),
+            ("d", 1, 0, 1.0),
+            ("e", 1, 0, 1.0),
+            ("f", 1, 0, 1.0),
+        ],
+        vec![
+            ("a", "b", EdgeCondition::Always),
+            ("a", "c", EdgeCondition::Always),
+            ("b", "d", EdgeCondition::Always),
+            ("c", "e", EdgeCondition::Always),
+            ("d", "f", EdgeCondition::Always),
+            ("e", "f", EdgeCondition::Always),
+        ],
+    );
+
+    let layers = DependencyGraphResolver::execution_layers(&workflow);
+
+    // Build a map from node name to layer index
+    let mut node_layer: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
+    for (i, layer) in layers.iter().enumerate() {
+        for node in layer {
+            node_layer.insert(node.as_str(), i);
+        }
+    }
+
+    // Verify all edges go from earlier to later layers
+    for edge in &workflow.edges {
+        let from_layer = node_layer.get(edge.source_node.as_str()).expect("source should be in layers");
+        let to_layer = node_layer.get(edge.target_node.as_str()).expect("target should be in layers");
+        assert!(
+            from_layer < to_layer,
+            "Edge {} -> {} should go forward: layer {} -> layer {}",
+            edge.source_node.as_str(),
+            edge.target_node.as_str(),
+            from_layer,
+            to_layer
+        );
+    }
+}
+
+// DGR-25: Layer iteration produces correct ready nodes at each step
+// This verifies that completing each layer's nodes makes exactly the next layer's nodes ready
+#[test]
+fn execution_layers_iteration_matches_ready_nodes() {
+    // Diamond DAG:    a
+    //               / \
+    //              b   c
+    //               \ /
+    //                d
+    let workflow = make_workflow(
+        "test",
+        vec![
+            ("a", 1, 0, 1.0),
+            ("b", 1, 0, 1.0),
+            ("c", 1, 0, 1.0),
+            ("d", 1, 0, 1.0),
+        ],
+        vec![
+            ("a", "b", EdgeCondition::Always),
+            ("a", "c", EdgeCondition::Always),
+            ("b", "d", EdgeCondition::Always),
+            ("c", "d", EdgeCondition::Always),
+        ],
+    );
+
+    let layers = DependencyGraphResolver::execution_layers(&workflow);
+    assert_eq!(layers.len(), 3);
+
+    // Layer 0: only 'a' should be ready initially
+    let mut completed: Vec<NodeName> = vec![];
+    let ready_layer0 = DependencyGraphResolver::ready_nodes(&workflow, &completed);
+    assert_eq!(ready_layer0.len(), layers[0].len());
+    for node in &layers[0] {
+        assert!(
+            ready_layer0.contains(node),
+            "Layer 0 node {:?} should be ready initially",
+            node
+        );
+    }
+
+    // After completing layer 0, layer 1 should be ready
+    completed.extend(layers[0].clone());
+    let ready_layer1 = DependencyGraphResolver::ready_nodes(&workflow, &completed);
+    assert_eq!(ready_layer1.len(), layers[1].len());
+    for node in &layers[1] {
+        assert!(
+            ready_layer1.contains(node),
+            "Layer 1 node {:?} should be ready after layer 0 completes",
+            node
+        );
+    }
+
+    // After completing layer 1, layer 2 should be ready
+    completed.extend(layers[1].clone());
+    let ready_layer2 = DependencyGraphResolver::ready_nodes(&workflow, &completed);
+    assert_eq!(ready_layer2.len(), layers[2].len());
+    for node in &layers[2] {
+        assert!(
+            ready_layer2.contains(node),
+            "Layer 2 node {:?} should be ready after layer 1 completes",
+            node
+        );
+    }
+}
+
+// DGR-26: Parallel execution maximizes throughput - timing verification
+// Independent nodes (same layer) should all be ready at the same time
+#[test]
+fn execution_layers_parallel_nodes_all_ready_together() {
+    // Fan-out pattern: a -> {b, c, d} (b, c, d are independent and can run in parallel)
+    let workflow = make_workflow(
+        "test",
+        vec![
+            ("a", 1, 0, 1.0),
+            ("b", 1, 0, 1.0),
+            ("c", 1, 0, 1.0),
+            ("d", 1, 0, 1.0),
+        ],
+        vec![
+            ("a", "b", EdgeCondition::Always),
+            ("a", "c", EdgeCondition::Always),
+            ("a", "d", EdgeCondition::Always),
+        ],
+    );
+
+    let layers = DependencyGraphResolver::execution_layers(&workflow);
+    assert_eq!(layers.len(), 2);
+
+    // After 'a' completes, all of {b, c, d} should be ready simultaneously
+    let completed = vec![NodeName("a".into())];
+    let ready = DependencyGraphResolver::ready_nodes(&workflow, &completed);
+
+    // All three parallel nodes should be ready at the same time
+    assert_eq!(ready.len(), 3, "All 3 parallel nodes should be ready together");
+    assert!(ready.contains(&NodeName("b".into())));
+    assert!(ready.contains(&NodeName("c".into())));
+    assert!(ready.contains(&NodeName("d".into())));
+}
+
+// DGR-27: Dependent nodes wait - nodes in later layers cannot start until earlier layers complete
+#[test]
+fn execution_layers_dependent_nodes_wait() {
+    // Chain with parallel segment: a -> {b, c} -> d
+    // b and c are parallel, but d must wait for both
+    let workflow = make_workflow(
+        "test",
+        vec![
+            ("a", 1, 0, 1.0),
+            ("b", 1, 0, 1.0),
+            ("c", 1, 0, 1.0),
+            ("d", 1, 0, 1.0),
+        ],
+        vec![
+            ("a", "b", EdgeCondition::Always),
+            ("a", "c", EdgeCondition::Always),
+            ("b", "d", EdgeCondition::Always),
+            ("c", "d", EdgeCondition::Always),
+        ],
+    );
+
+    let layers = DependencyGraphResolver::execution_layers(&workflow);
+    assert_eq!(layers.len(), 3);
+
+    // Layer 0: {a}, Layer 1: {b, c}, Layer 2: {d}
+
+    // After completing only 'a', 'd' should NOT be ready yet (depends on b and c)
+    let completed_after_a = vec![NodeName("a".into())];
+    let ready_after_a = DependencyGraphResolver::ready_nodes(&workflow, &completed_after_a);
+    assert!(
+        !ready_after_a.contains(&NodeName("d".into())),
+        "d should NOT be ready after only 'a' completes (still waiting for b and c)"
+    );
+
+    // After completing 'a' and 'b' only, 'd' should NOT be ready yet (still waiting for 'c')
+    let completed_after_ab = vec![NodeName("a".into()), NodeName("b".into())];
+    let ready_after_ab = DependencyGraphResolver::ready_nodes(&workflow, &completed_after_ab);
+    assert!(
+        !ready_after_ab.contains(&NodeName("d".into())),
+        "d should NOT be ready after 'a' and 'b' complete (still waiting for c)"
+    );
+
+    // After completing 'a', 'b', AND 'c', 'd' should finally be ready
+    let completed_after_abc = vec![
+        NodeName("a".into()),
+        NodeName("b".into()),
+        NodeName("c".into()),
+    ];
+    let ready_after_abc = DependencyGraphResolver::ready_nodes(&workflow, &completed_after_abc);
+    assert!(
+        ready_after_abc.contains(&NodeName("d".into())),
+        "d SHOULD be ready after 'a', 'b', and 'c' all complete"
+    );
+}
