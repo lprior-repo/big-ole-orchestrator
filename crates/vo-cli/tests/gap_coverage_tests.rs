@@ -463,7 +463,6 @@ fn history_undo_success_path() {
         WorkflowSnapshot::new(
             "test-workflow".into(),
             vec![DagNode {
-                compensation_policy: None,
                 node_name: NodeName::parse("test-node").unwrap(),
                 retry_policy: RetryPolicy::new(3, 1000, 2.0).unwrap(),
                 compensation_policy: None,
@@ -489,7 +488,6 @@ fn history_redo_success_path() {
         WorkflowSnapshot::new(
             "test-workflow".into(),
             vec![DagNode {
-                compensation_policy: None,
                 node_name: NodeName::parse("test-node").unwrap(),
                 retry_policy: RetryPolicy::new(3, 1000, 2.0).unwrap(),
                 compensation_policy: None,
@@ -516,7 +514,6 @@ fn history_undo_then_undo_empty() {
         WorkflowSnapshot::new(
             "test-workflow".into(),
             vec![DagNode {
-                compensation_policy: None,
                 node_name: NodeName::parse("test-node").unwrap(),
                 retry_policy: RetryPolicy::new(3, 1000, 2.0).unwrap(),
                 compensation_policy: None,
@@ -542,7 +539,6 @@ fn history_redo_empty_after_push() {
         WorkflowSnapshot::new(
             "test-workflow".into(),
             vec![DagNode {
-                compensation_policy: None,
                 node_name: NodeName::parse("test-node").unwrap(),
                 retry_policy: RetryPolicy::new(3, 1000, 2.0).unwrap(),
                 compensation_policy: None,
@@ -567,7 +563,6 @@ fn history_get_history_with_entries() {
         WorkflowSnapshot::new(
             "test-workflow".into(),
             vec![DagNode {
-                compensation_policy: None,
                 node_name: NodeName::parse("test-node").unwrap(),
                 retry_policy: RetryPolicy::new(3, 1000, 2.0).unwrap(),
                 compensation_policy: None,
@@ -594,7 +589,6 @@ fn history_save_and_reload_roundtrip() {
         WorkflowSnapshot::new(
             "test-workflow".into(),
             vec![DagNode {
-                compensation_policy: None,
                 node_name: NodeName::parse("test-node").unwrap(),
                 retry_policy: RetryPolicy::new(3, 1000, 2.0).unwrap(),
                 compensation_policy: None,
@@ -1288,10 +1282,8 @@ fn registry_lookup_doctor_handler() {
 fn registry_names_contains_all() {
     let registry = HandlerRegistry::default();
     let names = registry.names();
-    assert_eq!(names.len(), 8);
-    for name in &[
-        "purge", "check", "gc", "init", "lock", "doctor", "rebuild", "status",
-    ] {
+    assert_eq!(names.len(), 9);
+    for name in &["purge", "check", "compensate", "gc", "init", "lock", "doctor", "rebuild", "status"] {
         assert!(names.contains(name), "missing handler: {name}");
     }
 }
@@ -2004,10 +1996,7 @@ fn check_constants_values() {
 
 #[test]
 fn command_clone_equality() {
-    let cmd = Command::Check {
-        workflow: false,
-        path: PathBuf::from("/test"),
-    };
+    let cmd = Command::Check { workflow: false, path: PathBuf::from("/test"), };
     let cmd2 = cmd.clone();
     assert_eq!(cmd, cmd2);
 }
