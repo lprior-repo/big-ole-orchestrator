@@ -837,7 +837,7 @@ mod tests {
             }
         }
     }
-}
+
     #[test]
     fn crash_timing_windows_are_mutually_exclusive() {
         let timings = CrashTiming::all_variants();
