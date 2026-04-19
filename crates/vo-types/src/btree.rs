@@ -574,27 +574,13 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
         expected_height: usize,
     ) -> bool {
         if node.keys.len() > max_keys {
-            return Err(format!(
-                "keys.len {} > max_keys {}",
-                node.keys.len(),
-                max_keys
-            ));
+            return false;
         }
-        // Root is exempt from minimum keys constraint (B-tree invariant)
-        if !is_root && !node.is_leaf() && node.keys.len() < min_keys {
-            return Err(format!(
-                "non-root keys.len {} < min_keys {}",
-                node.keys.len(),
-                min_keys
-            ));
+        if node.keys.len() < min_keys {
+            return false;
         }
         if !node.children.is_empty() && node.children.len() != node.keys.len() + 1 {
-            return Err(format!(
-                "children {} != keys+1 {}",
-                node.children.len(),
-                node.keys.len() + 1
-            ));
-        }
+            return false;
         }
         if node.is_leaf() && expected_height != 1 {
             return false;

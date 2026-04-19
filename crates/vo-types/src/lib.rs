@@ -57,6 +57,7 @@ mod string_types;
 #[cfg(test)]
 mod string_types_tests;
 mod topology;
+mod recovery_contract;
 mod tx_coordinator;
 mod types;
 #[cfg(test)]
