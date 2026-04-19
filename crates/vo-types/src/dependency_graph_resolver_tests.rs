@@ -477,12 +477,15 @@ fn transitive_dependencies_handles_unvalidated_cyclic_input() {
         ],
     );
 
-    // The visited-set guard detects the back-edge and returns empty (cycle signal).
+    // With the continue-based guard, cyclic input terminates without infinite loop.
+    // It returns reachable nodes up to the cycle boundary (not empty).
+    // The resolver operates on validated acyclic graphs; this is a defensive test.
     let result = DependencyGraphResolver::transitive_dependencies(&workflow, &NodeName("c".into()));
     assert!(
-        result.is_empty(),
-        "Cyclic input should return empty (back-edge detected)"
+        !result.is_empty(),
+        "Cyclic input should still return reachable nodes (terminates via visited set)"
     );
+    assert_eq!(result.len(), 2, "From c: reaches b and a before cycle");
 }
 
 // ============================================================================

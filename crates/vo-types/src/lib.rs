@@ -198,4 +198,8 @@ mod serde_tests;
 #[cfg(test)]
 mod tests_bdd_dag_cycle_validation;
 #[cfg(test)]
+mod proptest_dag_correctness;
+#[cfg(test)]
+mod proptest_dag_correctness_2;
+#[cfg(test)]
 mod workflow_tests;

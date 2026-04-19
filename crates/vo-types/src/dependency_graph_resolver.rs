@@ -57,8 +57,8 @@ impl DependencyGraphResolver {
             let direct_deps = Self::dependencies(workflow, &current);
             for dep in direct_deps {
                 if visited.contains(&dep) {
-                    // Back-edge detected (cycle) — return empty as signal.
-                    return vec![];
+                    // Already visited — skip (shared predecessor in diamond, not a cycle).
+                    continue;
                 }
                 visited.insert(dep.clone());
                 result.push(dep.clone());
@@ -82,8 +82,8 @@ impl DependencyGraphResolver {
             let direct_deps = Self::dependents(workflow, &current);
             for dep in direct_deps {
                 if visited.contains(&dep) {
-                    // Back-edge detected (cycle) — return empty as signal.
-                    return vec![];
+                    // Already visited — skip (shared predecessor in diamond, not a cycle).
+                    continue;
                 }
                 visited.insert(dep.clone());
                 result.push(dep.clone());
