@@ -11,7 +11,13 @@ use tokio::time::{interval, MissedTickBehavior};
 
 use super::calc::{is_overdue, timer_delete_before_dispatch, verify_dual_clock};
 use super::traits::{TimerStorage, WorkQueue};
+<<<<<<< HEAD
 use super::types::{CycleResult, TimerSupervisorError, TimerSupervisorMetrics, TimerSupervisorState};
+=======
+use super::types::{
+    CycleResult, TimerRecord, TimerSupervisorError, TimerSupervisorMetrics, TimerSupervisorState,
+};
+>>>>>>> 7e356012 (style: apply consistent rustfmt formatting)
 
 // =============================================================================
 // `TimerSupervisor` - Actor that manages timer scanning and dispatch
@@ -159,7 +165,9 @@ impl TimerSupervisor {
                                 "Timer deleted but dispatch failed - attempting retry"
                             );
                             let retry_fire_at_ms = now_ms.saturating_add(1000);
-                            if let Err(retry_err) = self.storage.retry_timer(&timer, retry_fire_at_ms) {
+                            if let Err(retry_err) =
+                                self.storage.retry_timer(&timer, retry_fire_at_ms)
+                            {
                                 tracing::error!(
                                     instance_id = %timer.instance_id,
                                     fire_at_ms = timer.fire_at_ms,
@@ -273,7 +281,12 @@ impl TimerSupervisorHandle {
                 return Err(TimerSupervisorError::ShutdownTimeout(timeout));
             }
 
-            match tokio::time::timeout(remaining, receiver.wait_for(|state| *state != TimerSupervisorState::Running)).await {
+            match tokio::time::timeout(
+                remaining,
+                receiver.wait_for(|state| *state != TimerSupervisorState::Running),
+            )
+            .await
+            {
                 Ok(Ok(state)) => {
                     if *state == TimerSupervisorState::ShutDown {
                         break;
@@ -350,7 +363,11 @@ mod tests {
         assert_eq!(handle.current_state(), TimerSupervisorState::Running);
 
         let result = handle.shutdown(Duration::from_secs(5)).await;
-        assert!(result.is_ok(), "shutdown should return Ok, got {:?}", result);
+        assert!(
+            result.is_ok(),
+            "shutdown should return Ok, got {:?}",
+            result
+        );
     }
 
     #[tokio::test]

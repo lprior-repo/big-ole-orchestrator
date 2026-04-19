@@ -8,9 +8,9 @@ use axum::{
 use ractor::ActorRef;
 use tokio::sync::broadcast;
 use tokio::time::interval;
-use tokio_stream::StreamExt as TokioStreamExt;
-use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
+use tokio_stream::wrappers::BroadcastStream;
+use tokio_stream::StreamExt as TokioStreamExt;
 use vo_actor::OrchestratorMsg;
 
 use super::split_path_id;
@@ -21,26 +21,48 @@ const SSE_BROADCAST_CAPACITY: usize = 1000;
 
 #[derive(Debug, Clone)]
 pub enum WorkflowSseEvent {
-    StepCompleted { node_name: String, sequence: u64 },
-    StepFailed { node_name: String, sequence: u64, error: String },
-    TimerFired { timer_id: String },
-    SignalReceived { signal_name: String },
-    PhaseChanged { phase: String },
+    StepCompleted {
+        node_name: String,
+        sequence: u64,
+    },
+    StepFailed {
+        node_name: String,
+        sequence: u64,
+        error: String,
+    },
+    TimerFired {
+        timer_id: String,
+    },
+    SignalReceived {
+        signal_name: String,
+    },
+    PhaseChanged {
+        phase: String,
+    },
     InstanceCompleted,
-    InstanceFailed { error: String },
+    InstanceFailed {
+        error: String,
+    },
 }
 
 impl WorkflowSseEvent {
     fn to_sse_event(&self) -> Event {
         let data = match self {
-            WorkflowSseEvent::StepCompleted { node_name, sequence } => {
+            WorkflowSseEvent::StepCompleted {
+                node_name,
+                sequence,
+            } => {
                 serde_json::json!({
                     "type": "step_completed",
                     "node_name": node_name,
                     "sequence": sequence,
                 })
             }
-            WorkflowSseEvent::StepFailed { node_name, sequence, error } => {
+            WorkflowSseEvent::StepFailed {
+                node_name,
+                sequence,
+                error,
+            } => {
                 serde_json::json!({
                     "type": "step_failed",
                     "node_name": node_name,
@@ -99,7 +121,10 @@ impl SseBroadcaster {
         self.tx.subscribe()
     }
 
-    pub fn send(&self, event: WorkflowSseEvent) -> Result<usize, broadcast::error::SendError<WorkflowSseEvent>> {
+    pub fn send(
+        &self,
+        event: WorkflowSseEvent,
+    ) -> Result<usize, broadcast::error::SendError<WorkflowSseEvent>> {
         self.tx.send(event)
     }
 }
@@ -132,12 +157,10 @@ impl Default for SseState {
 fn make_sse_stream(
     receiver: broadcast::Receiver<WorkflowSseEvent>,
 ) -> impl futures::Stream<Item = Result<Event, axum::Error>> + Send + 'static {
-    TokioStreamExt::map(BroadcastStream::new(receiver), |result| {
-        match result {
-            Ok(event) => Ok(event.to_sse_event()),
-            Err(BroadcastStreamRecvError::Lagged(_)) => {
-                Err(axum::Error::new("client fell behind, closing stream"))
-            }
+    TokioStreamExt::map(BroadcastStream::new(receiver), |result| match result {
+        Ok(event) => Ok(event.to_sse_event()),
+        Err(BroadcastStreamRecvError::Lagged(_)) => {
+            Err(axum::Error::new("client fell behind, closing stream"))
         }
     })
 }
@@ -263,9 +286,17 @@ mod tests {
         })
         .await;
 
+<<<<<<< HEAD
         let completed = result.is_ok();
         assert!(completed, "Stream should terminate after channel closes");
         assert!(count <= 15, "Should receive at most 15 events, got {count}");
+=======
+        assert!(lagged_received || count <= 11, "Should emit lag or close");
+        assert!(
+            count <= 11,
+            "Should close after lag, not receive all 15 events"
+        );
+>>>>>>> 7e356012 (style: apply consistent rustfmt formatting)
     }
 
     #[tokio::test]
@@ -361,7 +392,10 @@ mod tests {
             match result {
                 Ok(_) => {}
                 Err(e) => {
-                    assert!(e.to_string().contains("client fell behind") || e.to_string().contains("channel closed"));
+                    assert!(
+                        e.to_string().contains("client fell behind")
+                            || e.to_string().contains("channel closed")
+                    );
                     lagged = true;
                     break;
                 }
@@ -371,6 +405,9 @@ mod tests {
             }
         }
 
-        assert!(lagged || count <= 11, "Slow client should be dropped via Lagged error");
+        assert!(
+            lagged || count <= 11,
+            "Slow client should be dropped via Lagged error"
+        );
     }
 }
