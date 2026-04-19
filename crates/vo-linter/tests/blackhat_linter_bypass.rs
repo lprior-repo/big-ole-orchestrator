@@ -22,8 +22,8 @@ fn bypass_type_alias_uuid() {
     };
     assert_eq!(
         parse_and_check(&src.to_string()),
-        0,
-        "CONFIRMED BYPASS: type alias hides Uuid from linter"
+        1,
+        "FIXED: type alias now resolved, linter detects MyId::new_v4()"
     );
 }
 
@@ -59,8 +59,8 @@ fn bypass_uppercase_uuid() {
     };
     assert_eq!(
         parse_and_check(&src.to_string()),
-        0,
-        "CONFIRMED BYPASS: case-sensitive match misses UUID"
+        1,
+        "FIXED: case-insensitive match now catches uppercase UUID"
     );
 }
 

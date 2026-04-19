@@ -28,7 +28,10 @@ fn parse_check_with_path() {
     let cli = interpret_cli_from(args).unwrap();
     assert_eq!(
         cli.command,
-        Command::Check { workflow: false, path: PathBuf::from("/usr/bin/ls") }
+        Command::Check {
+            workflow: false,
+            path: PathBuf::from("/usr/bin/ls")
+        }
     );
 }
 

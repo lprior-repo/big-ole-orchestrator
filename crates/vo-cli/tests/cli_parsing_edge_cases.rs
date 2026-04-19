@@ -304,7 +304,10 @@ fn check_parses_path() {
     let args: Vec<OsString> = vec!["vo".into(), "check".into(), "/bin/ls".into()];
     let cli = interpret_cli_from(args).unwrap();
     match cli.command {
-        Command::Check { workflow: false, path } => {
+        Command::Check {
+            workflow: false,
+            path,
+        } => {
             assert_eq!(path, PathBuf::from("/bin/ls"));
         }
         _ => panic!("expected Check command"),
@@ -330,15 +333,27 @@ fn purge_parses_instance() {
 
 #[test]
 fn cli_command_equality() {
-    let c1 = Command::Check { workflow: false, path: PathBuf::from("/a"), };
-    let c2 = Command::Check { workflow: false, path: PathBuf::from("/a"), };
+    let c1 = Command::Check {
+        workflow: false,
+        path: PathBuf::from("/a"),
+    };
+    let c2 = Command::Check {
+        workflow: false,
+        path: PathBuf::from("/a"),
+    };
     assert_eq!(c1, c2);
 }
 
 #[test]
 fn cli_command_inequality() {
-    let c1 = Command::Check { workflow: false, path: PathBuf::from("/a"), };
-    let c2 = Command::Check { workflow: false, path: PathBuf::from("/b"), };
+    let c1 = Command::Check {
+        workflow: false,
+        path: PathBuf::from("/a"),
+    };
+    let c2 = Command::Check {
+        workflow: false,
+        path: PathBuf::from("/b"),
+    };
     assert_ne!(c1, c2);
 }
 

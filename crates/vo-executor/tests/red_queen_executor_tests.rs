@@ -12,17 +12,17 @@
 use std::sync::LazyLock;
 use std::sync::Mutex;
 use std::sync::MutexGuard;
-use vo_executor::{
-    cancel_execution, clear_error, execute_step, execute_step_with_retry, get_execution_status,
-    get_last_error, reset_all_state, set_error, set_executing_state_for_test,
-    ExecutionStatus, ExecuteNodeError, RetryPolicy, StepId, StepResult,
-};
 use vo_executor::scheduler::{
     Job, JobId, JobPriority, JobResult, JobState, Schedule, SchedulePolicy, SchedulerConfig,
     SchedulerError, SchedulerQueue,
 };
 use vo_executor::state::{get_state, get_state_count, StepState};
 use vo_executor::subprocess::{SubprocessConfig, SubprocessError};
+use vo_executor::{
+    cancel_execution, clear_error, execute_step, execute_step_with_retry, get_execution_status,
+    get_last_error, reset_all_state, set_error, set_executing_state_for_test, ExecuteNodeError,
+    ExecutionStatus, RetryPolicy, StepId, StepResult,
+};
 
 static STATE_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
@@ -53,7 +53,10 @@ mod scheduler_state_adversarial {
         ];
 
         let terminal_count = all_states.iter().filter(|s| s.is_terminal()).count();
-        assert_eq!(terminal_count, 3, "Exactly 3 terminal states: Completed, Failed, Cancelled");
+        assert_eq!(
+            terminal_count, 3,
+            "Exactly 3 terminal states: Completed, Failed, Cancelled"
+        );
 
         let non_terminal_count = all_states.iter().filter(|s| s.is_non_terminal()).count();
         assert_eq!(non_terminal_count, 4, "Exactly 4 non-terminal states");
@@ -61,13 +64,13 @@ mod scheduler_state_adversarial {
 
     #[test]
     fn job_state_terminal_symmetry() {
-        for state in [
-            JobState::Completed,
-            JobState::Failed,
-            JobState::Cancelled,
-        ] {
+        for state in [JobState::Completed, JobState::Failed, JobState::Cancelled] {
             assert!(state.is_terminal(), "{:?} should be terminal", state);
-            assert!(!state.is_non_terminal(), "{:?} should not be non-terminal", state);
+            assert!(
+                !state.is_non_terminal(),
+                "{:?} should not be non-terminal",
+                state
+            );
         }
     }
 
@@ -80,7 +83,11 @@ mod scheduler_state_adversarial {
             JobState::Retrying,
         ] {
             assert!(!state.is_terminal(), "{:?} should not be terminal", state);
-            assert!(state.is_non_terminal(), "{:?} should be non-terminal", state);
+            assert!(
+                state.is_non_terminal(),
+                "{:?} should be non-terminal",
+                state
+            );
         }
     }
 
@@ -597,9 +604,7 @@ mod concurrent_state_adversarial {
         let handles: Vec<_> = (0..20)
             .map(|i| {
                 let step_id = StepId::new(format!("step-{}", i));
-                tokio::spawn(async move {
-                    execute_step(step_id, 5000).await
-                })
+                tokio::spawn(async move { execute_step(step_id, 5000).await })
             })
             .collect();
 
@@ -689,7 +694,10 @@ mod concurrent_state_adversarial {
         let _ = exec_handle.await;
         let status = status_handle.await.unwrap();
         assert!(
-            matches!(status, ExecutionStatus::Ready | ExecutionStatus::Executing { .. }),
+            matches!(
+                status,
+                ExecutionStatus::Ready | ExecutionStatus::Executing { .. }
+            ),
             "Status should be Ready or Executing, got {:?}",
             status
         );
@@ -717,23 +725,14 @@ mod subprocess_ipc_adversarial {
 
     #[test]
     fn subprocess_config_empty_argv() {
-        let config = SubprocessConfig::new(
-            "/bin/true".to_string(),
-            vec![],
-            5000,
-            vec![1],
-        );
+        let config = SubprocessConfig::new("/bin/true".to_string(), vec![], 5000, vec![1]);
         assert_eq!(config.argv().len(), 0);
     }
 
     #[test]
     fn subprocess_config_zero_timeout() {
-        let config = SubprocessConfig::new(
-            "/bin/true".to_string(),
-            vec!["true".to_string()],
-            0,
-            vec![],
-        );
+        let config =
+            SubprocessConfig::new("/bin/true".to_string(), vec!["true".to_string()], 0, vec![]);
         assert_eq!(config.timeout_ms(), 0);
     }
 
@@ -955,8 +954,8 @@ mod timeout_boundary_adversarial {
 #[cfg(test)]
 mod scheduler_retry_adversarial {
     use super::*;
-    use vo_executor::scheduler::SchedulerRetryPolicy;
     use std::time::Duration;
+    use vo_executor::scheduler::SchedulerRetryPolicy;
 
     #[test]
     fn scheduler_retry_policy_default() {
@@ -969,7 +968,8 @@ mod scheduler_retry_adversarial {
 
     #[test]
     fn scheduler_retry_policy_calculate_delay_monotonic() {
-        let policy = SchedulerRetryPolicy::new(10, 2.0, Duration::from_millis(100), Duration::from_secs(60));
+        let policy =
+            SchedulerRetryPolicy::new(10, 2.0, Duration::from_millis(100), Duration::from_secs(60));
 
         let mut prev = Duration::ZERO;
         for attempt in 0..10 {
@@ -977,7 +977,9 @@ mod scheduler_retry_adversarial {
             assert!(
                 delay >= prev,
                 "Delay should be monotonically non-decreasing: attempt {} gave {:?} < {:?}",
-                attempt, delay, prev
+                attempt,
+                delay,
+                prev
             );
             prev = delay;
         }
@@ -985,13 +987,21 @@ mod scheduler_retry_adversarial {
 
     #[test]
     fn scheduler_retry_policy_calculate_delay_capped() {
-        let policy = SchedulerRetryPolicy::new(10, 1000.0, Duration::from_millis(100), Duration::from_millis(500));
+        let policy = SchedulerRetryPolicy::new(
+            10,
+            1000.0,
+            Duration::from_millis(100),
+            Duration::from_millis(500),
+        );
 
         let delay_0 = policy.calculate_delay(0);
         let delay_1 = policy.calculate_delay(1);
 
         assert!(delay_1 > delay_0, "First retry should increase delay");
-        assert!(policy.calculate_delay(5) <= Duration::from_millis(500), "Should be capped");
+        assert!(
+            policy.calculate_delay(5) <= Duration::from_millis(500),
+            "Should be capped"
+        );
     }
 
     #[test]

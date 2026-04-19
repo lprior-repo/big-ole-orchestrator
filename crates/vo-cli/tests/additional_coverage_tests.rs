@@ -13,9 +13,10 @@ use vo_cli::commands::init::{
     InitConfig, InitError, CONFIG_FILE_NAME, VO_DIR_NAME, WORKFLOWS_DIR_NAME,
 };
 use vo_cli::commands::lock::{LockConfig, LockError, LOCK_FILE_NAME};
+use vo_cli::middleware::{CommandDispatcher, LoggingMiddleware, MetricsMiddleware, Middleware};
 use vo_cli::{
     interpret_cli_from, map_error_to_exit_code, parse_strict_numeric, CliError, Command,
-    HandlerRegistry,
+    CommandContext, HandlerRegistry,
 };
 
 #[test]
@@ -109,11 +110,20 @@ fn gc_summary_construction() {
 
 #[test]
 fn command_equality() {
-    let c1 = Command::Check { workflow: false, path: PathBuf::from("/tmp"), };
-    let c2 = Command::Check { workflow: false, path: PathBuf::from("/tmp"), };
+    let c1 = Command::Check {
+        workflow: false,
+        path: PathBuf::from("/tmp"),
+    };
+    let c2 = Command::Check {
+        workflow: false,
+        path: PathBuf::from("/tmp"),
+    };
     assert_eq!(c1, c2);
 
-    let c3 = Command::Check { workflow: false, path: PathBuf::from("/other"), };
+    let c3 = Command::Check {
+        workflow: false,
+        path: PathBuf::from("/other"),
+    };
     assert_ne!(c1, c3);
 }
 
@@ -136,6 +146,32 @@ fn command_purge_equality() {
         instance: "abc".into(),
     };
     assert_eq!(c1, c2);
+}
+
+#[test]
+fn dispatcher_add_middleware_method() {
+    let registry = vo_cli::HandlerRegistry::default();
+    let mut dispatcher = CommandDispatcher::new(registry);
+    dispatcher.add_middleware(LoggingMiddleware::new());
+    dispatcher.add_middleware(MetricsMiddleware::new());
+}
+
+#[test]
+fn dispatcher_new_with_registry() {
+    let registry = vo_cli::HandlerRegistry::default();
+    let _dispatcher = CommandDispatcher::new(registry);
+}
+
+#[test]
+fn logging_middleware_default() {
+    let m = LoggingMiddleware::default();
+    assert_eq!(m.name(), "logging");
+}
+
+#[test]
+fn metrics_middleware_default() {
+    let m = MetricsMiddleware::default();
+    assert_eq!(m.name(), "metrics");
 }
 
 #[test]
@@ -293,10 +329,28 @@ fn parse_strict_numeric_rejects_overflow() {
 #[test]
 fn cli_struct_debug_format() {
     let cli = vo_cli::Cli {
-        command: Command::Check { workflow: false, path: PathBuf::from("/tmp"), },
+        command: Command::Check {
+            workflow: false,
+            path: PathBuf::from("/tmp"),
+        },
     };
     let debug = format!("{cli:?}");
     assert!(debug.contains("Check"));
+}
+
+#[test]
+fn command_context_stores_command_names() {
+    let names = vec!["purge", "check", "gc", "init", "lock", "doctor", "rebuild"];
+    for name in names {
+        let ctx = CommandContext::new(name);
+        assert_eq!(ctx.command_name, name);
+    }
+}
+
+#[test]
+fn command_context_from_string() {
+    let ctx = CommandContext::new(String::from("check"));
+    assert_eq!(ctx.command_name, "check");
 }
 
 #[test]
@@ -512,6 +566,30 @@ fn registry_register_custom_handler() {
 }
 
 #[test]
+fn command_context_metadata_overwrite() {
+    let ctx = CommandContext::new("cmd");
+    ctx.set_metadata("key", "v1");
+    assert_eq!(ctx.get_metadata("key"), Some("v1".to_string()));
+    ctx.set_metadata("key", "v2");
+    assert_eq!(ctx.get_metadata("key"), Some("v2".to_string()));
+}
+
+#[test]
+fn command_context_missing_metadata_returns_none() {
+    let ctx = CommandContext::new("cmd");
+    assert_eq!(ctx.get_metadata("nonexistent"), None);
+}
+
+#[test]
+fn command_context_multiple_metadata_keys() {
+    let ctx = CommandContext::new("cmd");
+    ctx.set_metadata("a", "1");
+    ctx.set_metadata("b", "2");
+    assert_eq!(ctx.get_metadata("a"), Some("1".to_string()));
+    assert_eq!(ctx.get_metadata("b"), Some("2".to_string()));
+}
+
+#[test]
 fn gc_config_clone_preserves_values() {
     let config = GcConfig::default();
     let cloned = config.clone();
@@ -634,7 +712,10 @@ fn cli_error_from_doctor_error() {
 #[test]
 fn cli_struct_clone_preserves_command() {
     let cli = vo_cli::Cli {
-        command: Command::Check { workflow: false, path: PathBuf::from("/tmp"), },
+        command: Command::Check {
+            workflow: false,
+            path: PathBuf::from("/tmp"),
+        },
     };
     let cloned = cli.clone();
     assert_eq!(cli, cloned);
@@ -653,6 +734,30 @@ fn cli_struct_equality() {
         },
     };
     assert_eq!(c1, c2);
+}
+
+#[test]
+fn dispatcher_with_middleware_chain() {
+    let registry = vo_cli::HandlerRegistry::default();
+    let dispatcher = CommandDispatcher::new(registry)
+        .with_middleware(LoggingMiddleware::new())
+        .with_middleware(MetricsMiddleware::new())
+        .with_middleware(LoggingMiddleware::new());
+    assert_eq!(dispatcher.middleware_count(), 3);
+}
+
+#[tokio::test]
+async fn dispatcher_dispatch_unknown_command_returns_error() {
+    let registry = vo_cli::HandlerRegistry::new();
+    let dispatcher = CommandDispatcher::new(registry);
+    let cli = vo_cli::Cli {
+        command: Command::Check {
+            workflow: false,
+            path: PathBuf::from("/tmp"),
+        },
+    };
+    let result = dispatcher.dispatch(cli).await;
+    assert!(result.is_err());
 }
 
 #[test]

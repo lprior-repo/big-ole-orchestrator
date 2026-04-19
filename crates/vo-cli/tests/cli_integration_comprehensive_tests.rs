@@ -376,7 +376,10 @@ fn cli_command_all_variants_cloneable() {
         Command::Purge {
             instance: "x".into(),
         },
-        Command::Check { workflow: false, path: PathBuf::from("/p"), },
+        Command::Check {
+            workflow: false,
+            path: PathBuf::from("/p"),
+        },
         Command::Gc {
             engine_url: "http://x".into(),
             dry_run: false,

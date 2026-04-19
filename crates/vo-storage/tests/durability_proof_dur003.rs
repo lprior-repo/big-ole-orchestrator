@@ -4,8 +4,8 @@
 #![allow(clippy::expect_used)]
 
 use vo_storage::instance_index::{instance_index_upsert, scan_by_status};
-use vo_storage::snapshots::snapshot_load_latest;
 use vo_storage::partitions::{INSTANCES_PARTITION, SNAPSHOTS_PARTITION};
+use vo_storage::snapshots::snapshot_load_latest;
 use vo_types::state::InstanceState;
 use vo_types::{InstanceId, InstanceStatus, TimestampMs};
 
@@ -46,8 +46,7 @@ fn dur_003_snapshot_1k_instances_kill_restart_verify_recovery() {
             let state = InstanceState { counter: i as u64 };
 
             // Write snapshot via raw keyspace insert
-            let snapshot_key =
-                vo_storage::snapshots::encode_snapshot_key(&id, seq).unwrap();
+            let snapshot_key = vo_storage::snapshots::encode_snapshot_key(&id, seq).unwrap();
             let state_json = serde_json::to_vec(&state).unwrap();
             snapshot_ks.insert(snapshot_key, &state_json).unwrap();
 
@@ -82,23 +81,38 @@ fn dur_003_snapshot_1k_instances_kill_restart_verify_recovery() {
             let id = make_instance_id(byte_val as u8);
             let loaded = snapshot_load_latest(&snapshot_ks, &id).unwrap();
 
-            assert!(loaded.is_some(),
-                "Snapshot for instance byte {} must exist after crash recovery", byte_val);
+            assert!(
+                loaded.is_some(),
+                "Snapshot for instance byte {} must exist after crash recovery",
+                byte_val
+            );
 
             let (seq, state) = loaded.unwrap();
             verified += 1;
 
             // Verify sequence and counter are consistent: seq = (counter + 1) * 100
-            assert_eq!(seq, (state.counter + 1) * 100,
+            assert_eq!(
+                seq,
+                (state.counter + 1) * 100,
                 "Sequence/counter inconsistency for byte {}: seq={}, counter={}",
-                byte_val, seq, state.counter);
+                byte_val,
+                seq,
+                state.counter
+            );
 
             // Verify counter is in valid range
-            assert!(state.counter < instance_count as u64,
-                "Counter {} out of range for byte {}", state.counter, byte_val);
+            assert!(
+                state.counter < instance_count as u64,
+                "Counter {} out of range for byte {}",
+                state.counter,
+                byte_val
+            );
         }
 
-        assert_eq!(verified, unique_ids,
-            "All {} unique instance snapshots must be recoverable", unique_ids);
+        assert_eq!(
+            verified, unique_ids,
+            "All {} unique instance snapshots must be recoverable",
+            unique_ids
+        );
     }
 }

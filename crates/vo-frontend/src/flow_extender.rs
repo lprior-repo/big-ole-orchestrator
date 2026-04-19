@@ -61,7 +61,10 @@ pub fn preview_extension(
 }
 
 /// Apply an extension to the workflow. Stub — always returns an error.
-pub fn apply_extension(_workflow: &mut Workflow, _key: &str) -> Result<ExtensionApplyResult, String> {
+pub fn apply_extension(
+    _workflow: &mut Workflow,
+    _key: &str,
+) -> Result<ExtensionApplyResult, String> {
     Err("extension engine not yet implemented".to_string())
 }
 

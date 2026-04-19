@@ -2,8 +2,10 @@
 
 mod binomial_heap;
 #[cfg(test)]
-mod blob_tests;
+mod blackhat_encryption_credentials_tests;
 mod blob;
+#[cfg(test)]
+mod blob_tests;
 mod btree;
 pub mod cartesian_tree;
 mod clique_tree;
@@ -13,25 +15,23 @@ pub mod command_metadata;
 mod compensation;
 pub mod connection_pool;
 mod connector;
+pub mod credentials;
 #[cfg(test)]
 mod credentials_tests;
-pub mod credentials;
 mod dedupe;
 #[cfg(test)]
 mod dedupe_tests;
 mod dependency_graph_resolver;
 pub mod discovery;
+mod dual_representation;
 #[cfg(test)]
 mod dual_representation_tests;
-mod dual_representation;
 pub mod effects;
-mod encryption;
 #[cfg(test)]
 mod effects_receipt_tests;
+mod encryption;
 #[cfg(test)]
 mod encryption_tests;
-#[cfg(test)]
-mod blackhat_encryption_credentials_tests;
 mod errors;
 pub mod events;
 mod identity;
@@ -43,12 +43,12 @@ mod lifecycle_superstate;
 mod lineage;
 mod link_cut_tree;
 mod macros;
+pub mod next_step_selection;
 mod node_kind;
 mod non_empty_vec;
 mod octree;
-mod payload_parser;
-pub mod next_step_selection;
 mod pairing_heap;
+mod payload_parser;
 mod plugin;
 #[cfg(feature = "proptest")]
 mod proptest_targets;
@@ -107,7 +107,6 @@ pub use discovery::{
     enforce_pin, validate_discovery_path, DiscoveryPath, DiscoveryPathError, PinEnforcementError,
     VersionConstraint, VersionPin, VERSION_BASE_PATH,
 };
-pub use identity::{CausationId, CommandId, CorrelationId};
 pub use dual_representation::{
     apply_redaction, OperatorProjection, RedactionKind, RedactionPolicy, RedactionRule,
 };
@@ -118,6 +117,7 @@ pub use effects::{
 pub use encryption::{CryptoAlgorithm, DekId, EncryptedBlob, KeyMetadata, WrappedDek};
 pub use errors::ParseError;
 pub use events::{Error as EventError, EventEnvelope};
+pub use identity::{CausationId, CommandId, CorrelationId};
 pub use instance_status::InstanceStatus;
 pub use lifecycle_superstate::LifecycleSuperstate;
 pub use lineage::{Epoch, LineageError, LineageState, LineageStatus, WorkflowLineage};
@@ -126,17 +126,17 @@ pub use node_kind::NodeKind;
 pub use non_empty_vec::NonEmptyVec;
 pub use octree::{BoundingBox, Octree, OctreeConfig, OctreeEntry, OctreeError, OctreeNode, Point3};
 pub use pairing_heap::{PairingHeap, PairingHeapError};
-pub use recovery_contract::{
-    classify_expected_outcome, generate_scenario_matrix, violation_to_invariant, AssertionResult,
-    CrashTiming, ExpectedRecoveryOutcome, FailoverScenario, FailoverSeverity, RecoveryAssertion,
-    RecoveryInvariant, RecoveryPhase, RecoveryViolation,
-};
 pub use plugin::{
     apply_plugin_transition, ArtifactRef, CapabilityId, HotLoadEvent, InstanceKey,
     IsolationBreachType, IsolationLevel, PluginArtifact, PluginDescriptor, PluginErrorCategory,
     PluginErrorContext, PluginErrorDetail, PluginFailureContext, PluginHotLoadError, PluginId,
     PluginInstance, PluginName, PluginState, PluginTransition, PluginVersion,
     PluginVersionConstraint, ResourceBudget, SchemaVersion, VersionRange,
+};
+pub use recovery_contract::{
+    classify_expected_outcome, generate_scenario_matrix, violation_to_invariant, AssertionResult,
+    CrashTiming, ExpectedRecoveryOutcome, FailoverScenario, FailoverSeverity, RecoveryAssertion,
+    RecoveryInvariant, RecoveryPhase, RecoveryViolation,
 };
 pub use registration_status::RegistrationStatus;
 pub use rope::{Measurable, Rope, RopeBuilder, RopeError, RopeSlice};
@@ -166,8 +166,8 @@ pub use types::{
     MAX_SUPPORTED_SCHEMA_VERSION,
 };
 pub use workflow::{
-    next_nodes, DagNode, Edge, EdgeCondition, RetryPolicy, RetryPolicyError,
-    StepOutcome, WorkflowDefinition, WorkflowDefinitionError,
+    next_nodes, DagNode, Edge, EdgeCondition, RetryPolicy, RetryPolicyError, StepOutcome,
+    WorkflowDefinition, WorkflowDefinitionError,
 };
 
 #[cfg(kani)]
@@ -184,11 +184,11 @@ mod context_stack_adversarial;
 #[cfg(test)]
 mod cross_cutting_tests;
 #[cfg(test)]
-mod identity_tests;
+mod dependency_graph_resolver_tests;
 #[cfg(test)]
 mod identity_bdd_tests;
 #[cfg(test)]
-mod dependency_graph_resolver_tests;
+mod identity_tests;
 #[cfg(test)]
 mod red_queen_tests;
 #[cfg(test)]

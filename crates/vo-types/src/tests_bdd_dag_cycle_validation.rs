@@ -251,9 +251,15 @@ mod scenario_3_self_loop {
             ]
         });
         let result = parse_workflow(json);
-        assert!(matches!(result, Err(WorkflowDefinitionError::CycleDetected { .. })));
+        assert!(matches!(
+            result,
+            Err(WorkflowDefinitionError::CycleDetected { .. })
+        ));
         if let Err(WorkflowDefinitionError::CycleDetected { cycle_nodes }) = result {
-            assert_eq!(cycle_nodes, vec![NodeName("B".into()), NodeName("B".into())]);
+            assert_eq!(
+                cycle_nodes,
+                vec![NodeName("B".into()), NodeName("B".into())]
+            );
         }
         Ok(())
     }
@@ -293,7 +299,10 @@ mod scenario_4_disconnected_subgraph {
             ]
         });
         let result = parse_workflow(json);
-        assert!(matches!(result, Err(WorkflowDefinitionError::CycleDetected { .. })));
+        assert!(matches!(
+            result,
+            Err(WorkflowDefinitionError::CycleDetected { .. })
+        ));
         Ok(())
     }
 
@@ -409,10 +418,8 @@ mod scenario_6_exhaustive_conditional_coverage {
         assert_eq!(def.nodes.len(), 4);
         assert_eq!(def.edges.len(), 3);
 
-        let on_success =
-            crate::next_nodes(&NodeName("check".into()), StepOutcome::Success, &def);
-        let on_failure =
-            crate::next_nodes(&NodeName("check".into()), StepOutcome::Failure, &def);
+        let on_success = crate::next_nodes(&NodeName("check".into()), StepOutcome::Success, &def);
+        let on_failure = crate::next_nodes(&NodeName("check".into()), StepOutcome::Failure, &def);
 
         let success_names: std::collections::HashSet<&str> =
             on_success.iter().map(|n| n.node_name.as_str()).collect();
@@ -558,9 +565,8 @@ mod scenario_8_large_dag_performance {
     #[test]
     fn given_100_node_diamond_structure_when_dag_validated_then_completes_under_100ms(
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let nodes: Vec<serde_json::Value> = (0..100)
-            .map(|i| node_json(&format!("node{}", i)))
-            .collect();
+        let nodes: Vec<serde_json::Value> =
+            (0..100).map(|i| node_json(&format!("node{}", i))).collect();
         let mut edges: Vec<serde_json::Value> = Vec::new();
         for i in 1..50 {
             edges.push(edge_json("node0", &format!("node{}", i), "Always"));
@@ -569,7 +575,11 @@ mod scenario_8_large_dag_performance {
             edges.push(edge_json(&format!("node{}", i), "node50", "Always"));
         }
         for i in 50..99 {
-            edges.push(edge_json(&format!("node{}", i), &format!("node{}", i + 1), "Always"));
+            edges.push(edge_json(
+                &format!("node{}", i),
+                &format!("node{}", i + 1),
+                "Always",
+            ));
         }
         let json = serde_json::json!({
             "workflow_name": "large-diamond",
@@ -688,7 +698,10 @@ mod scenario_10_terminal_to_active_edge {
             ]
         });
         let result = parse_workflow(json);
-        assert!(matches!(result, Err(WorkflowDefinitionError::CycleDetected { .. })));
+        assert!(matches!(
+            result,
+            Err(WorkflowDefinitionError::CycleDetected { .. })
+        ));
         if let Err(WorkflowDefinitionError::CycleDetected { cycle_nodes }) = result {
             assert!(cycle_nodes.len() >= 3);
             assert_eq!(cycle_nodes.first(), Some(&NodeName("A".into())));
@@ -710,7 +723,10 @@ mod scenario_10_terminal_to_active_edge {
             ]
         });
         let result = parse_workflow(json);
-        assert!(matches!(result, Err(WorkflowDefinitionError::CycleDetected { .. })));
+        assert!(matches!(
+            result,
+            Err(WorkflowDefinitionError::CycleDetected { .. })
+        ));
         if let Err(WorkflowDefinitionError::CycleDetected { cycle_nodes }) = result {
             assert_eq!(
                 cycle_nodes,
@@ -739,7 +755,10 @@ mod scenario_10_terminal_to_active_edge {
             ]
         });
         let result = parse_workflow(json);
-        assert!(matches!(result, Err(WorkflowDefinitionError::CycleDetected { .. })));
+        assert!(matches!(
+            result,
+            Err(WorkflowDefinitionError::CycleDetected { .. })
+        ));
         Ok(())
     }
 }
@@ -798,7 +817,10 @@ mod edge_integrity {
             "edges": [edge_json("phantom", "specter", "Always")]
         });
         let result = parse_workflow(json);
-        assert!(matches!(result, Err(WorkflowDefinitionError::UnknownNode { .. })));
+        assert!(matches!(
+            result,
+            Err(WorkflowDefinitionError::UnknownNode { .. })
+        ));
         Ok(())
     }
 }

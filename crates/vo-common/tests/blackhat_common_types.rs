@@ -25,7 +25,7 @@ mod deser_attacks {
             timer_id,
             timestamp_ms,
         } = r;
-        assert_eq!((timer_id.as_str(), timestamp_ms), ("t1", 100));
+        assert_eq!((timer_id, timestamp_ms), ("t1".to_string(), 100));
     }
 
     #[test]
@@ -104,9 +104,9 @@ mod string_attacks {
 
     #[test]
     fn empty_strings_no_panic() {
-        let _: InstanceId = String::new().into();
-        let _: NamespaceId = String::new().into();
-        let _: TimerId = String::new().into();
+        let _: InstanceId = String::new();
+        let _: NamespaceId = String::new();
+        let _: TimerId = String::new();
     }
 
     #[test]
@@ -132,7 +132,7 @@ mod string_attacks {
     fn megabyte_string_no_panic() {
         let big = "x".repeat(1_000_000);
         let e = WorkflowEvent::TimerFired {
-            timer_id: TimerId::new(big.clone()),
+            timer_id: big.clone(),
             timestamp_ms: 0,
         };
         let json = serde_json::to_string(&e).unwrap();

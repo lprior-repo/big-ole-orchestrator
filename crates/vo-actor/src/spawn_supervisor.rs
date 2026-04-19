@@ -1190,12 +1190,8 @@ mod tests {
         }
 
         fn any_spawn_record() -> impl Strategy<Value = SpawnRecord> {
-            (
-                any_spawn_phase(),
-                0u32..1000u32,
-                0u32..100u32,
-            )
-                .prop_map(|(phase, health_checks, spawn_attempts)| SpawnRecord {
+            (any_spawn_phase(), 0u32..1000u32, 0u32..100u32).prop_map(
+                |(phase, health_checks, spawn_attempts)| SpawnRecord {
                     spawn_id: None,
                     instance_id: test_instance_id(),
                     command: "test".to_string(),
@@ -1203,7 +1199,8 @@ mod tests {
                     health_checks,
                     spawn_attempts,
                     last_error: None,
-                })
+                },
+            )
         }
 
         proptest! {

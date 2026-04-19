@@ -35,9 +35,7 @@ fn coevo_gen0_rand_random_always_detected() {
 
 #[test]
 fn coevo_gen0_safe_alternatives_never_flagged() {
-    let diags = lint(
-        &quote! { fn f() { ctx.random_u64(); ctx.random_u128(); } }.to_string(),
-    );
+    let diags = lint(&quote! { fn f() { ctx.random_u64(); ctx.random_u128(); } }.to_string());
     assert!(diags.is_empty(), "ctx.random_* must never be flagged");
 }
 
@@ -45,27 +43,30 @@ fn coevo_gen0_safe_alternatives_never_flagged() {
 
 #[test]
 fn coevo_gen1_uuid_v4_chained_method_not_silenced() {
-    let diags = lint(
-        &quote! { fn f() { let s = Uuid::new_v4().hyphenated().to_string(); } }.to_string(),
-    );
+    let diags =
+        lint(&quote! { fn f() { let s = Uuid::new_v4().hyphenated().to_string(); } }.to_string());
     assert_eq!(diags.len(), 1, "chaining on Uuid::new_v4() must be caught");
 }
 
 #[test]
 fn coevo_gen1_uuid_v4_in_tuple_not_silenced() {
-    let diags = lint(
-        &quote! { fn f() { let pair = (Uuid::new_v4(), "name"); } }.to_string(),
+    let diags = lint(&quote! { fn f() { let pair = (Uuid::new_v4(), "name"); } }.to_string());
+    assert_eq!(
+        diags.len(),
+        1,
+        "Uuid::new_v4() inside tuples must be caught"
     );
-    assert_eq!(diags.len(), 1, "Uuid::new_v4() inside tuples must be caught");
 }
 
 #[test]
 fn coevo_gen1_rand_random_in_vec_macro_not_expanded() {
     // Known limitation: macro bodies aren't expanded by syn visitor.
-    let diags = lint(
-        &quote! { fn f() { let v = vec![rand::random::<u8>(); 256]; } }.to_string(),
+    let diags = lint(&quote! { fn f() { let v = vec![rand::random::<u8>(); 256]; } }.to_string());
+    assert_eq!(
+        diags.len(),
+        0,
+        "macro bodies are not expanded — known blind spot"
     );
-    assert_eq!(diags.len(), 0, "macro bodies are not expanded — known blind spot");
 }
 
 #[test]
@@ -74,7 +75,11 @@ fn coevo_gen1_rand_random_near_default_still_caught() {
         &quote! { fn f() { let x: u64 = Default::default(); let r = rand::random::<u64>(); } }
             .to_string(),
     );
-    assert_eq!(diags.len(), 1, "rand::random near defaults must still be caught");
+    assert_eq!(
+        diags.len(),
+        1,
+        "rand::random near defaults must still be caught"
+    );
 }
 
 // ── Generation 2: Structural camouflage ──
@@ -116,14 +121,16 @@ fn coevo_gen2_random_in_let_else() {
         }
         .to_string(),
     );
-    assert_eq!(diags.len(), 1, "Uuid::new_v4() inside let-else must be caught");
+    assert_eq!(
+        diags.len(),
+        1,
+        "Uuid::new_v4() inside let-else must be caught"
+    );
 }
 
 #[test]
 fn coevo_gen2_random_in_unsafe_block() {
-    let diags = lint(
-        &quote! { fn f() { unsafe { let id = Uuid::new_v4(); } } }.to_string(),
-    );
+    let diags = lint(&quote! { fn f() { unsafe { let id = Uuid::new_v4(); } } }.to_string());
     assert_eq!(diags.len(), 1, "random inside unsafe blocks must be caught");
 }
 
@@ -149,7 +156,10 @@ fn coevo_gen3_false_positive_pressure_empty_structs() {
         }
         .to_string(),
     );
-    assert!(diags.is_empty(), "pure data structs must never trigger diagnostics");
+    assert!(
+        diags.is_empty(),
+        "pure data structs must never trigger diagnostics"
+    );
 }
 
 #[test]
@@ -161,7 +171,10 @@ fn coevo_gen3_false_positive_pressure_traits_only() {
         }
         .to_string(),
     );
-    assert!(diags.is_empty(), "trait declarations alone must not trigger diagnostics");
+    assert!(
+        diags.is_empty(),
+        "trait declarations alone must not trigger diagnostics"
+    );
 }
 
 #[test]

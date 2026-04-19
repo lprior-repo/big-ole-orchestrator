@@ -124,10 +124,7 @@ fn cycle_detected_fails() {
     let f = write_json(json.as_bytes());
     let err = vo_cli::commands::check::validate_workflow_spec(f.path()).unwrap_err();
     let msg = err.to_string();
-    assert!(
-        msg.contains("cycle"),
-        "expected cycle error, got: {msg}"
-    );
+    assert!(msg.contains("cycle"), "expected cycle error, got: {msg}");
 }
 
 #[test]

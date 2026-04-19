@@ -10,7 +10,9 @@ use std::sync::Arc;
 use tokio::sync::{Semaphore, TryAcquireError};
 
 use crate::semaphore::calc::status_from_config_and_state;
-use crate::semaphore::types::{AdmissionDecision, BackpressureStatus, RejectionReason, SemaphoreConfig};
+use crate::semaphore::types::{
+    AdmissionDecision, BackpressureStatus, RejectionReason, SemaphoreConfig,
+};
 
 /// The global execution semaphore for binary spawn limiting.
 pub struct ExecutionSemaphore {
@@ -292,7 +294,11 @@ mod tests {
         assert_eq!(sem.available_permits(), initial - 1);
 
         drop(p1);
-        assert_eq!(sem.available_permits(), initial - 1, "available_permits does not auto-restore on drop");
+        assert_eq!(
+            sem.available_permits(),
+            initial - 1,
+            "available_permits does not auto-restore on drop"
+        );
 
         let p2 = sem.try_acquire().unwrap();
         assert_eq!(sem.available_permits(), initial - 2);
@@ -416,11 +422,20 @@ mod tests {
 
         let general_permit = sem.try_acquire().unwrap();
         assert!(sem.try_acquire().is_none(), "general pool exhausted");
-        assert!(sem.try_acquire_recovery().is_some(), "reserved pool still available");
+        assert!(
+            sem.try_acquire_recovery().is_some(),
+            "reserved pool still available"
+        );
 
         drop(general_permit);
-        assert!(sem.try_acquire().is_some(), "general pool replenished after drop");
-        assert!(sem.try_acquire_recovery().is_some(), "reserved pool still available");
+        assert!(
+            sem.try_acquire().is_some(),
+            "general pool replenished after drop"
+        );
+        assert!(
+            sem.try_acquire_recovery().is_some(),
+            "reserved pool still available"
+        );
     }
 
     #[tokio::test]
@@ -441,7 +456,11 @@ mod tests {
         drop(_g1);
         drop(_g2);
         drop(_g3);
-        assert_eq!(sem.reserved_available(), 2, "reserved still unaffected after general drops");
+        assert_eq!(
+            sem.reserved_available(),
+            2,
+            "reserved still unaffected after general drops"
+        );
     }
 
     #[tokio::test]
