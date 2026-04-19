@@ -3,7 +3,7 @@ use std::time::Duration;
 use vo_scheduler::job::ScheduledJob;
 use vo_scheduler::queue::SchedulerQueue;
 use vo_scheduler::types::{
-    JobKind, JobPriority, JobState, RetryPolicy, RetryPolicyError, SchedulePolicy,
+    JobId, JobKind, JobPriority, JobState, RetryPolicy, RetryPolicyError, SchedulePolicy,
 };
 
 #[test]
@@ -160,4 +160,168 @@ fn make_job(
     .unwrap();
     job.due_at = due_at;
     job
+}
+
+#[test]
+fn scheduler_error_is_transient_for_queue_full_and_serialization() {
+    use vo_scheduler::error::SchedulerError;
+    assert!(SchedulerError::QueueFull.is_transient());
+    assert!(SchedulerError::SerializationError("boom".into()).is_transient());
+    assert!(!SchedulerError::JobNotFound.is_transient());
+    assert!(!SchedulerError::InvalidSchedule.is_transient());
+    assert!(!SchedulerError::InvalidTransition.is_transient());
+}
+
+#[test]
+fn scheduler_error_is_permanent_for_invalid_and_transition() {
+    use vo_scheduler::error::SchedulerError;
+    assert!(SchedulerError::InvalidSchedule.is_permanent());
+    assert!(SchedulerError::InvalidTransition.is_permanent());
+    assert!(!SchedulerError::QueueFull.is_permanent());
+    assert!(!SchedulerError::JobNotFound.is_permanent());
+    assert!(!SchedulerError::SerializationError("x".into()).is_permanent());
+}
+
+#[test]
+fn execution_error_is_retryable_only_for_resource_exhausted() {
+    use vo_scheduler::error::ExecutionError;
+    assert!(ExecutionError::ResourceExhausted.is_retryable());
+    assert!(!ExecutionError::Panicked.is_retryable());
+    assert!(!ExecutionError::TimedOut.is_retryable());
+    assert!(!ExecutionError::Cancelled.is_retryable());
+}
+
+#[test]
+fn execution_error_is_transient_only_for_resource_exhausted() {
+    use vo_scheduler::error::ExecutionError;
+    assert!(ExecutionError::ResourceExhausted.is_transient());
+    assert!(!ExecutionError::Panicked.is_transient());
+    assert!(!ExecutionError::TimedOut.is_transient());
+    assert!(!ExecutionError::Cancelled.is_transient());
+}
+
+#[test]
+fn job_state_is_terminal_for_completed_failed_cancelled() {
+    assert!(JobState::Completed.is_terminal());
+    assert!(JobState::Failed.is_terminal());
+    assert!(JobState::Cancelled.is_terminal());
+    assert!(!JobState::Scheduled.is_terminal());
+    assert!(!JobState::Pending.is_terminal());
+    assert!(!JobState::Running.is_terminal());
+    assert!(!JobState::Retrying.is_terminal());
+}
+
+#[test]
+fn job_state_is_non_terminal_opposite_of_terminal() {
+    assert!(!JobState::Completed.is_non_terminal());
+    assert!(!JobState::Failed.is_non_terminal());
+    assert!(!JobState::Cancelled.is_non_terminal());
+    assert!(JobState::Scheduled.is_non_terminal());
+    assert!(JobState::Pending.is_non_terminal());
+    assert!(JobState::Running.is_non_terminal());
+    assert!(JobState::Retrying.is_non_terminal());
+}
+
+#[test]
+fn job_id_generate_produces_unique_ids() {
+    let ids: std::collections::HashSet<_> = (0..1000).map(|_| JobId::generate()).collect();
+    assert_eq!(ids.len(), 1000, "JobId::generate() must produce unique IDs");
+}
+
+#[test]
+fn schedule_policy_validate_cron_accepts_valid_expressions() {
+    SchedulePolicy::validate_cron("* * * * *").unwrap();
+    SchedulePolicy::validate_cron("0 * * * *").unwrap();
+    SchedulePolicy::validate_cron("*/5 * * * *").unwrap();
+    SchedulePolicy::validate_cron("0-59 * * * *").unwrap();
+    SchedulePolicy::validate_cron("0 0 * * *").unwrap();
+    SchedulePolicy::validate_cron("0 0 1 * *").unwrap();
+    SchedulePolicy::validate_cron("0 0 1 1 *").unwrap();
+    SchedulePolicy::validate_cron("0 0 * * 0").unwrap();
+}
+
+#[test]
+fn schedule_policy_validate_cron_rejects_invalid_expressions() {
+    use vo_scheduler::error::SchedulerError;
+    assert!(matches!(
+        SchedulePolicy::validate_cron("invalid"),
+        Err(SchedulerError::InvalidSchedule)
+    ));
+    assert!(matches!(
+        SchedulePolicy::validate_cron("60 * * * *"),
+        Err(SchedulerError::InvalidSchedule)
+    ));
+    assert!(matches!(
+        SchedulePolicy::validate_cron("* 24 * * *"),
+        Err(SchedulerError::InvalidSchedule)
+    ));
+    assert!(matches!(
+        SchedulePolicy::validate_cron("* * 32 * *"),
+        Err(SchedulerError::InvalidSchedule)
+    ));
+    assert!(matches!(
+        SchedulePolicy::validate_cron("* * * 13 *"),
+        Err(SchedulerError::InvalidSchedule)
+    ));
+    assert!(matches!(
+        SchedulePolicy::validate_cron("* * * * 7"),
+        Err(SchedulerError::InvalidSchedule)
+    ));
+    assert!(matches!(
+        SchedulePolicy::validate_cron("*/0 * * * *"),
+        Err(SchedulerError::InvalidSchedule)
+    ));
+    assert!(matches!(
+        SchedulePolicy::validate_cron("5-3 * * * *"),
+        Err(SchedulerError::InvalidSchedule)
+    ));
+}
+
+#[test]
+fn job_display_impl_formatters_work() {
+    assert_eq!(format!("{}", JobKind::OneShot), "one_shot");
+    assert_eq!(format!("{}", JobKind::Recurring), "recurring");
+    assert_eq!(format!("{}", JobKind::Delayed), "delayed");
+    assert_eq!(format!("{}", JobState::Pending), "pending");
+    assert_eq!(format!("{}", JobState::Running), "running");
+    assert_eq!(format!("{}", JobState::Completed), "completed");
+    assert_eq!(format!("{}", JobState::Failed), "failed");
+    assert_eq!(format!("{}", JobState::Cancelled), "cancelled");
+    assert_eq!(format!("{}", JobState::Retrying), "retrying");
+    assert_eq!(format!("{}", JobState::Scheduled), "scheduled");
+    assert_eq!(format!("{}", JobPriority::Critical), "critical");
+    assert_eq!(format!("{}", JobPriority::High), "high");
+    assert_eq!(format!("{}", JobPriority::Normal), "normal");
+    assert_eq!(format!("{}", JobPriority::Low), "low");
+    assert_eq!(format!("{}", JobPriority::Background), "background");
+}
+
+#[test]
+fn queue_lookup_mut_returns_mutable_reference() {
+    let mut q = SchedulerQueue::new(10);
+    let job = make_job(JobPriority::Normal, chrono::Utc::now(), "test");
+    let id = job.id;
+    q.insert(job).unwrap();
+    let retrieved = q.lookup_mut(&id).unwrap();
+    assert_eq!(retrieved.id, id);
+    retrieved.attempt_count = 5;
+    let viewed = q.lookup(&id).unwrap();
+    assert_eq!(viewed.attempt_count, 5);
+}
+
+#[test]
+fn queue_get_state_returns_state_for_existing_job() {
+    let mut q = SchedulerQueue::new(10);
+    let job = make_job(JobPriority::Normal, chrono::Utc::now(), "test");
+    let id = job.id;
+    q.insert(job).unwrap();
+    assert_eq!(q.get_state(&id), Some(JobState::Pending));
+    q.update_state(&id, JobState::Running).unwrap();
+    assert_eq!(q.get_state(&id), Some(JobState::Running));
+}
+
+#[test]
+fn queue_get_state_returns_none_for_missing_job() {
+    let q = SchedulerQueue::new(10);
+    assert_eq!(q.get_state(&JobId::generate()), None);
 }
