@@ -1,12 +1,12 @@
 {
-  "session_id": "43fdc912-66f7-4cf4-a235-069c929f2cca",
-  "transcript_path": "/home/lewis/.claude/projects/-home-lewis-gt-veloxide-polecats-thunder-veloxide/43fdc912-66f7-4cf4-a235-069c929f2cca.jsonl",
+  "session_id": "b5e3db3b-3734-4a79-b9ee-ec8891c16ce6",
+  "transcript_path": "/home/lewis/.claude/projects/-home-lewis-gt-veloxide-polecats-synth-veloxide/b5e3db3b-3734-4a79-b9ee-ec8891c16ce6.jsonl",
   "hook_event_name": "PreToolUse",
   "tool_name": "Edit",
   "tool_input": {
-    "file_path": "/home/lewis/gt/veloxide/polecats/thunder/veloxide/crates/vo-types/src/effect_schema_evolution_tests.rs",
-    "old_string": "        assert_eq!(recovered.kind(), *kind, \"Kind {:?} should roundtrip\", kind);\n    }\n}",
-    "new_string": "        assert_eq!(recovered.kind(), *kind, \"Kind {:?} should roundtrip\", kind);\n    }\n}\n\n#[test]\nfn effect_record_all_intents_roundtrip() {\n    for intent in EffectIntent::all_variants() {\n        let record = make_record(\"fx-intent-test\", EffectKind::HttpCall, *intent);\n        let json = serde_json::to_string(&record).unwrap();\n        let recovered: EffectRecord = serde_json::from_str(&json).unwrap();\n        assert_eq!(recovered.status(), *intent, \"Intent {:?} should roundtrip\", intent);\n    }\n}",
+    "file_path": "/home/lewis/gt/veloxide/polecats/synth/veloxide/crates/vo-worker/src/pool/pool.rs",
+    "old_string": "        assert_eq!(pool.stats().total_connections, 1, \"no new connection created\");\n    }\n}",
+    "new_string": "        assert_eq!(pool.stats().total_connections, 1, \"no new connection created\");\n    }\n\n    // ve-xy6ah: acquire/release stats counters are accurate\n    #[test]\n    fn test_acquire_release_stats_counters() {\n        let mut pool = create_test_pool();\n\n        let acquire1 = futures::executor::block_on(pool.acquire());\n        let conn_id = match acquire1 {\n            AcquireResult::Available { connection } => connection.connection_id,\n            _ => panic!(\"Expected Available\"),\n        };\n\n        assert_eq!(pool.stats().total_acquires, 1);\n        assert_eq!(pool.stats().total_releases, 0);\n        assert_eq!(pool.stats().checked_out_connections, 1);\n        assert_eq!(pool.stats().idle_connections, 0);\n\n        pool.release(conn_id);\n        assert_eq!(pool.stats().total_releases, 1);\n        assert_eq!(pool.stats().checked_out_connections, 0);\n        assert_eq!(pool.stats().idle_connections, 1);\n    }\n}",
     "replace_all": false
   }
 }
