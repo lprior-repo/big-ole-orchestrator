@@ -57,6 +57,7 @@ pub mod workflow_version;
 pub mod workload_class;
 pub mod workspace_swap;
 pub mod write_class;
+pub mod shedding;
 
 pub use validation::{
     validate_effect_kinds, validate_workflow_effects, validate_workflow_sinks, KnownSinks,
