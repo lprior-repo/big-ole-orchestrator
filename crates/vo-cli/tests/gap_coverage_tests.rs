@@ -466,6 +466,7 @@ fn history_undo_success_path() {
                 compensation_policy: None,
                 node_name: NodeName::parse("test-node").unwrap(),
                 retry_policy: RetryPolicy::new(3, 1000, 2.0).unwrap(),
+                compensation_policy: None,
             }],
             vec![],
         )
@@ -491,6 +492,7 @@ fn history_redo_success_path() {
                 compensation_policy: None,
                 node_name: NodeName::parse("test-node").unwrap(),
                 retry_policy: RetryPolicy::new(3, 1000, 2.0).unwrap(),
+                compensation_policy: None,
             }],
             vec![],
         )
@@ -517,6 +519,7 @@ fn history_undo_then_undo_empty() {
                 compensation_policy: None,
                 node_name: NodeName::parse("test-node").unwrap(),
                 retry_policy: RetryPolicy::new(3, 1000, 2.0).unwrap(),
+                compensation_policy: None,
             }],
             vec![],
         )
@@ -542,6 +545,7 @@ fn history_redo_empty_after_push() {
                 compensation_policy: None,
                 node_name: NodeName::parse("test-node").unwrap(),
                 retry_policy: RetryPolicy::new(3, 1000, 2.0).unwrap(),
+                compensation_policy: None,
             }],
             vec![],
         )
@@ -566,6 +570,7 @@ fn history_get_history_with_entries() {
                 compensation_policy: None,
                 node_name: NodeName::parse("test-node").unwrap(),
                 retry_policy: RetryPolicy::new(3, 1000, 2.0).unwrap(),
+                compensation_policy: None,
             }],
             vec![],
         )
@@ -592,6 +597,7 @@ fn history_save_and_reload_roundtrip() {
                 compensation_policy: None,
                 node_name: NodeName::parse("test-node").unwrap(),
                 retry_policy: RetryPolicy::new(3, 1000, 2.0).unwrap(),
+                compensation_policy: None,
             }],
             vec![],
         )

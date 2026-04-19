@@ -246,6 +246,81 @@ pub async fn get_workflow_version(
         .into_response()
 }
 
+// ---------------------------------------------------------------------------
+// GET /api/v1/search?q=<query>&limit=<limit>
+// ---------------------------------------------------------------------------
+
+#[tracing::instrument(skip_all)]
+pub async fn search(
+    AxumQuery(params): AxumQuery<SearchRequest>,
+    State(state): State<QueryState>,
+) -> impl IntoResponse {
+    let query_text = params.query.trim();
+    if query_text.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiError::new("empty_query", "query string cannot be empty")),
+        )
+            .into_response();
+    }
+
+    let parsed_query = match QueryParser::new().parse(query_text) {
+        Ok(q) => q,
+        Err(e) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ApiError::new("invalid_query", &e.to_string())),
+            )
+                .into_response();
+        }
+    };
+
+    let engine = state.search_engine.lock().map_err(|e| {
+        tracing::error!(error = %e, "search engine lock poisoned");
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiError::new("search_error", "search engine unavailable")),
+        )
+    });
+
+    let results: Result<Vec<vo_types::search::SearchResult>, (StatusCode, Json<ApiError>)> =
+        match engine {
+            Ok(engine) => engine.search(&parsed_query).map_err(|e| {
+                tracing::error!(error = %e, "search failed");
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ApiError::new("search_error", &e.to_string())),
+                )
+            }),
+            Err(e) => Err(e),
+        };
+
+    let results = match results {
+        Ok(r) => r,
+        Err(e) => return e.into_response(),
+    };
+
+    let limit = params.limit.unwrap_or(10).min(100);
+    let results: Vec<SearchResultEntry> = results
+        .into_iter()
+        .take(limit)
+        .map(|r| SearchResultEntry {
+            workspace_id: r.workspace_id.to_string(),
+            score: r.score,
+            matched_terms: r.matched_terms,
+        })
+        .collect();
+
+    (
+        StatusCode::OK,
+        Json(SearchResponse {
+            query: params.query,
+            results,
+        }),
+    )
+        .into_response()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

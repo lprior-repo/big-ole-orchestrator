@@ -2,7 +2,7 @@
 //!
 //! The [`Workflow`] struct provides a fluent builder API for constructing
 //! workflow graphs. After building with [`Workflow::build`], a validated
-//! [`WorkflowSpec`](crate::graph_args::WorkflowSpec) is emitted.
+//! [`WorkflowSpec`] is emitted.
 
 use std::any::Any;
 
@@ -283,7 +283,7 @@ impl Workflow {
         self.dag.connect(from, to)
     }
 
-    /// Build and return the validated [`WorkflowSpec`](crate::graph_args::WorkflowSpec).
+    /// Build and return the validated [`WorkflowSpec`].
     ///
     /// # Errors
     ///

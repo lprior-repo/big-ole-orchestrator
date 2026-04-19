@@ -1204,188 +1204,124 @@ mod tests {
         assert!(!SpawnSupervisorError::StorageError("test".to_string()).is_operational());
     }
 
-    // =============================================================================
-    // Proptest tests
-    // =============================================================================
-
-    #[cfg(test)]
-    mod proptests {
+    #[cfg(feature = "proptest")]
+    mod proptest_invariants {
         use super::*;
         use proptest::prelude::*;
 
-        fn test_instance_id() -> InstanceId {
-            let ulid = ulid::Ulid::new();
-            InstanceId::from_bytes(ulid.to_bytes())
+        fn any_spawn_phase() -> impl Strategy<Value = SpawnPhase> {
+            prop_oneof![
+                Just(SpawnPhase::Spawn),
+                Just(SpawnPhase::HealthCheck),
+                Just(SpawnPhase::Running),
+                Just(SpawnPhase::Shutdown),
+                Just(SpawnPhase::Terminated),
+                Just(SpawnPhase::Failed),
+            ]
         }
 
-        #[test]
-        fn proptest_calculate_backoff_delay_monotonic_in_attempt() {
-            let config = proptest::test_runner::Config::with_cases(100);
-            let mut runner = proptest::test_runner::TestRunner::new(config);
-
-            runner.run(
-                &(proptest::prop_oneof![
-                    (1u64..10000u64, 1.1f64..10.0f64)
-                ]),
-                |(backoff_ms, multiplier)| {
-                    let mut prev_delay = 0u64;
-                    for attempt in 1..=10u32 {
-                        let delay = calculate_backoff_delay(backoff_ms, multiplier, attempt);
-                        assert!(delay >= prev_delay, "Backoff delay should be monotonic in attempt");
-                        prev_delay = delay;
-                    }
-                    Ok(())
+        fn any_spawn_record() -> impl Strategy<Value = SpawnRecord> {
+            (any_spawn_phase(), 0u32..1000u32, 0u32..100u32).prop_map(
+                |(phase, health_checks, spawn_attempts)| SpawnRecord {
+                    spawn_id: None,
+                    instance_id: test_instance_id(),
+                    command: "test".to_string(),
+                    spawn_phase: phase,
+                    health_checks,
+                    spawn_attempts,
+                    last_error: None,
                 },
-            ).unwrap();
+            )
         }
 
-        #[test]
-        fn proptest_calculate_backoff_delay_constant_for_multiplier_1_0() {
-            let config = proptest::test_runner::Config::with_cases(100);
-            let mut runner = proptest::test_runner::TestRunner::new(config);
-
-            runner.run(
-                &(1u64..10000u64),
-                |(backoff_ms)| {
-                    let base_delay = calculate_backoff_delay(backoff_ms, 1.0, 1);
-                    for attempt in 2u32..=100u32 {
-                        let delay = calculate_backoff_delay(backoff_ms, 1.0, attempt);
-                        assert_eq!(delay, base_delay, "Backoff delay should be constant when multiplier is 1.0");
-                    }
-                    Ok(())
-                },
-            ).unwrap();
-        }
-
-        #[test]
-        fn proptest_calculate_backoff_delay_increases_with_exponential_multiplier() {
-            let config = proptest::test_runner::Config::with_cases(100);
-            let mut runner = proptest::test_runner::TestRunner::new(config);
-
-            runner.run(
-                &(proptest::prop_oneof![
-                    (100u64..5000u64, 1.5f64..3.0f64)
-                ]),
-                |(backoff_ms, multiplier)| {
-                    let delay_1 = calculate_backoff_delay(backoff_ms, multiplier, 1);
-                    let delay_2 = calculate_backoff_delay(backoff_ms, multiplier, 2);
-                    let delay_3 = calculate_backoff_delay(backoff_ms, multiplier, 3);
-                    
-                    assert!(delay_2 > delay_1, "Delay at attempt 2 should be greater than attempt 1");
-                    assert!(delay_3 > delay_2, "Delay at attempt 3 should be greater than attempt 2");
-                    Ok(())
-                },
-            ).unwrap();
-        }
-
-        #[test]
-        fn proptest_is_zombie_state_returns_true_iff_phase_failed_and_attempts_gt_3() {
-            let instance_id = test_instance_id();
-            
-            let failed_high_attempts = SpawnRecord {
-                spawn_id: None,
-                instance_id: instance_id.clone(),
-                command: "test".to_string(),
-                spawn_phase: SpawnPhase::Failed,
-                health_checks: 0,
-                spawn_attempts: 4,
-                last_error: None,
-            };
-            
-            let failed_low_attempts = SpawnRecord {
-                spawn_id: None,
-                instance_id: instance_id.clone(),
-                command: "test".to_string(),
-                spawn_phase: SpawnPhase::Failed,
-                health_checks: 0,
-                spawn_attempts: 3,
-                last_error: None,
-            };
-            
-            let running = SpawnRecord {
-                spawn_id: None,
-                instance_id: instance_id.clone(),
-                command: "test".to_string(),
-                spawn_phase: SpawnPhase::Running,
-                health_checks: 0,
-                spawn_attempts: 10,
-                last_error: None,
-            };
-
-            assert!(is_zombie_state(&failed_high_attempts), "Should be zombie when phase is Failed and attempts > 3");
-            assert!(!is_zombie_state(&failed_low_attempts), "Should not be zombie when attempts <= 3");
-            assert!(!is_zombie_state(&running), "Should not be zombie when phase is not Failed");
-        }
-
-        #[test]
-        fn proptest_should_respawn_returns_true_iff_phase_failed_and_attempts_lt_max() {
-            let instance_id = test_instance_id();
-            
-            for max_attempts in 1u32..10u32 {
-                let failed_within_limit = SpawnRecord {
-                    spawn_id: None,
-                    instance_id: instance_id.clone(),
-                    command: "test".to_string(),
-                    spawn_phase: SpawnPhase::Failed,
-                    health_checks: 0,
-                    spawn_attempts: max_attempts.saturating_sub(1),
-                    last_error: None,
-                };
-                
-                let failed_at_limit = SpawnRecord {
-                    spawn_id: None,
-                    instance_id: instance_id.clone(),
-                    command: "test".to_string(),
-                    spawn_phase: SpawnPhase::Failed,
-                    health_checks: 0,
-                    spawn_attempts: max_attempts,
-                    last_error: None,
-                };
-                
-                let failed_over_limit = SpawnRecord {
-                    spawn_id: None,
-                    instance_id: instance_id.clone(),
-                    command: "test".to_string(),
-                    spawn_phase: SpawnPhase::Failed,
-                    health_checks: 0,
-                    spawn_attempts: max_attempts + 1,
-                    last_error: None,
-                };
-                
-                let running = SpawnRecord {
-                    spawn_id: None,
-                    instance_id: instance_id.clone(),
-                    command: "test".to_string(),
-                    spawn_phase: SpawnPhase::Running,
-                    health_checks: 0,
-                    spawn_attempts: max_attempts.saturating_sub(1),
-                    last_error: None,
-                };
-
-                assert!(should_respawn(&failed_within_limit, max_attempts), "Should respawn when phase is Failed and attempts < max");
-                assert!(!should_respawn(&failed_at_limit, max_attempts), "Should not respawn when attempts == max");
-                assert!(!should_respawn(&failed_over_limit, max_attempts), "Should not respawn when attempts > max");
-                assert!(!should_respawn(&running, max_attempts), "Should not respawn when phase is not Failed");
+        proptest! {
+            #[test]
+            fn backoff_monotonic_for_multiplier_gt_1(
+                initial_ms in 1u64..10_000u64,
+                multiplier in 1.0001f64..10.0f64,
+                a in 1u32..20u32,
+                b in 1u32..20u32,
+            ) {
+                let (lo, hi) = if a < b { (a, b) } else { (b, a) };
+                let delay_lo = calculate_backoff_delay(initial_ms, multiplier, lo);
+                let delay_hi = calculate_backoff_delay(initial_ms, multiplier, hi);
+                prop_assert!(
+                    delay_hi >= delay_lo,
+                    "delay_hi={} should be >= delay_lo={} for attempts {} vs {}",
+                    delay_hi, delay_lo, hi, lo,
+                );
             }
-        }
 
-        #[test]
-        fn proptest_calculate_backoff_delay_formula_correct() {
-            let config = proptest::test_runner::Config::with_cases(100);
-            let mut runner = proptest::test_runner::TestRunner::new(config);
+            #[test]
+            fn backoff_constant_for_multiplier_1(
+                initial_ms in 1u64..10_000u64,
+                attempt in 1u32..100u32,
+            ) {
+                let delay = calculate_backoff_delay(initial_ms, 1.0, attempt);
+                prop_assert_eq!(delay, initial_ms);
+            }
 
-            runner.run(
-                &(proptest::prop_oneof![
-                    (1u64..10000u64, 1.0f64..10.0f64, 1u32..10u32)
-                ]),
-                |(backoff_ms, multiplier, attempt)| {
-                    let exponent = (attempt.saturating_sub(1)) as f64;
-                    let expected = (backoff_ms as f64 * multiplier.powf(exponent)) as u64;
-                    let actual = calculate_backoff_delay(backoff_ms, multiplier, attempt);
-                    assert_eq!(actual, expected, "Backoff delay should match formula");
-                    Ok(())
-                },
-            ).unwrap();
+            #[test]
+            fn backoff_first_attempt_equals_initial(initial_ms in 1u64..10_000u64, multiplier in 1.0f64..5.0f64) {
+                let delay = calculate_backoff_delay(initial_ms, multiplier, 1);
+                prop_assert_eq!(delay, initial_ms);
+            }
+
+            #[test]
+            fn is_zombie_true_iff_failed_and_attempts_gt_3(record in any_spawn_record()) {
+                let expected = matches!(record.spawn_phase, SpawnPhase::Failed)
+                    && record.spawn_attempts > 3;
+                prop_assert_eq!(is_zombie_state(&record), expected);
+            }
+
+            #[test]
+            fn is_zombie_non_failed_always_false(
+                phase in any_spawn_phase(),
+                attempts in 0u32..100u32,
+            ) {
+                if !matches!(phase, SpawnPhase::Failed) {
+                    let record = SpawnRecord {
+                        spawn_id: None,
+                        instance_id: test_instance_id(),
+                        command: "test".to_string(),
+                        spawn_phase: phase,
+                        health_checks: 0,
+                        spawn_attempts: attempts,
+                        last_error: None,
+                    };
+                    prop_assert!(!is_zombie_state(&record));
+                }
+            }
+
+            #[test]
+            fn should_respawn_true_iff_failed_and_attempts_lt_max(
+                record in any_spawn_record(),
+                max_attempts in 1u32..100u32,
+            ) {
+                let expected = matches!(record.spawn_phase, SpawnPhase::Failed)
+                    && record.spawn_attempts < max_attempts;
+                prop_assert_eq!(should_respawn(&record, max_attempts), expected);
+            }
+
+            #[test]
+            fn should_respawn_non_failed_always_false(
+                phase in any_spawn_phase(),
+                attempts in 0u32..100u32,
+                max_attempts in 1u32..100u32,
+            ) {
+                if !matches!(phase, SpawnPhase::Failed) {
+                    let record = SpawnRecord {
+                        spawn_id: None,
+                        instance_id: test_instance_id(),
+                        command: "test".to_string(),
+                        spawn_phase: phase,
+                        health_checks: 0,
+                        spawn_attempts: attempts,
+                        last_error: None,
+                    };
+                    prop_assert!(!should_respawn(&record, max_attempts));
+                }
+            }
         }
     }
 }

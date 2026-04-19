@@ -24,7 +24,9 @@ impl<'de> Deserialize<'de> for WorkspaceId {
 }
 
 impl WorkspaceId {
+    #[allow(clippy::expect_used)]
     pub fn generate() -> Self {
+        #[allow(clippy::expect_used)]
         let mut last = LAST_ULID.lock().expect("LAST_ULID mutex poisoned");
         let ulid = Ulid::new();
         let ulid = match *last {

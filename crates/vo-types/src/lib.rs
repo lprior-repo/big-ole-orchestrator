@@ -1,12 +1,11 @@
 mod binomial_heap;
+mod rope;
 #[cfg(test)]
 mod blackhat_encryption_credentials_tests;
 mod blob;
 #[cfg(test)]
 mod blob_tests;
 mod btree;
-pub mod cartesian_tree;
-mod clique_tree;
 mod command_envelope;
 pub mod command_history;
 pub mod command_metadata;
@@ -22,7 +21,11 @@ mod dedupe_tests;
 mod dependency_graph_resolver;
 pub mod discovery;
 mod dual_representation;
-mod effects;
+#[cfg(test)]
+mod dual_representation_tests;
+pub mod effects;
+#[cfg(test)]
+mod effects_receipt_tests;
 mod encryption;
 #[cfg(test)]
 mod encryption_tests;
@@ -49,13 +52,9 @@ mod proptest_targets;
 pub mod proptest_verifier;
 mod recovery_contract;
 mod registration_status;
-mod rope;
 pub mod signal;
-pub mod security_validation_tests;
-pub mod skew_heap;
-mod spqr_tree;
 pub mod state;
-pub mod string_types;
+mod string_types;
 #[cfg(test)]
 mod string_types_tests;
 mod task_io;
@@ -71,8 +70,7 @@ pub use binomial_heap::BinomialHeap;
 pub use blob::{
     BlobFailureAction, BlobRef, BlobStatus, OutputPolicy, OutputRef, INLINED_MAX_BYTES,
 };
-pub use cartesian_tree::{CartesianNode, CartesianTree, CartesianTreeError};
-pub use clique_tree::{Clique, CliqueTree, CliqueTreeError};
+pub use btree::{BTree, BTreeError, BTreeNode};
 pub use command_envelope::{CommandEnvelope, CommandEnvelopeError, MAX_SUPPORTED_COMMAND_VERSION};
 pub use command_history::{
     BatchId, CommandHistory, CommandHistoryError, CommandKind, ExtensionApplyMode,
@@ -132,19 +130,9 @@ pub use recovery_contract::{
     RecoveryInvariant, RecoveryPhase, RecoveryViolation,
 };
 pub use registration_status::RegistrationStatus;
-pub use rope::{Measurable, Rope, RopeBuilder, RopeError, RopeSlice};
-pub use search::{
-    Bm25Scorer, InvertedIndex, Posting, PostingList, Query, QueryParser, Scorer, SearchEngine,
-    SearchError, SearchResult, TfIdfScorer,
-};
 pub use signal::{
     signal_match, BufferPolicy, LineageScope, SignalAddress, SignalDedupeKey, SignalDelivery,
     SignalMatchResult, WaitKey, WaitRecord,
-};
-pub use skew_heap::{SkewHeap, SkewHeapError, SkewNode};
-pub use spqr_tree::{
-    Block, Component, CutNode, SPQRDecomposition, SPQREdge, SPQRNode, SPQRNodeType, SpqrError,
-    StaticGraph,
 };
 pub use topology::{LeaseKey, NodeId};
 pub use task_io::{TaskFailureKind, TaskInputEnvelope};
@@ -186,12 +174,14 @@ mod identity_tests;
 #[cfg(test)]
 mod red_queen_tests;
 #[cfg(test)]
-mod schema_evolution_bdd_tests;
-#[cfg(test)]
 mod schema_version_tests;
 #[cfg(test)]
 mod serde_tests;
 #[cfg(test)]
+mod tests_bdd_dag_connectivity;
+#[cfg(test)]
 mod tests_bdd_dag_cycle_validation;
+#[cfg(test)]
+mod tests_bdd_dag_merge_point;
 #[cfg(test)]
 mod workflow_tests;

@@ -266,14 +266,14 @@ mod scenario_3_self_loop {
 }
 
 // ============================================================================
-// Scenario 4: Disconnected subgraph produces warning (parses OK, no error)
+// Scenario 4: Disconnected subgraph (orphan) produces error
 // ============================================================================
 
 mod scenario_4_disconnected_subgraph {
     use super::*;
 
     #[test]
-    fn given_disconnected_node_c_when_dag_validated_then_dag_still_valid(
+    fn given_disconnected_node_c_when_dag_validated_then_orphan_error(
     ) -> Result<(), Box<dyn std::error::Error>> {
         let json = serde_json::json!({
             "workflow_name": "disconnected",
@@ -281,9 +281,10 @@ mod scenario_4_disconnected_subgraph {
             "edges": [edge_json("A", "B", "Always")]
         });
         let result = parse_workflow(json);
-        let def = result.expect("disconnected DAG should parse OK");
-        assert_eq!(def.nodes.len(), 3);
-        assert_eq!(def.edges.len(), 1);
+        assert!(matches!(result, Err(WorkflowDefinitionError::OrphanNodes { .. })));
+        if let Err(WorkflowDefinitionError::OrphanNodes { orphan_nodes }) = result {
+            assert!(orphan_nodes.contains(&NodeName("C".into())));
+        }
         Ok(())
     }
 

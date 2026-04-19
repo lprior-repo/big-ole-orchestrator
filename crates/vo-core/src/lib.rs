@@ -30,9 +30,23 @@ pub mod config_hot_reload;
 pub mod connector;
 mod db_writer_message;
 pub mod debounce;
+pub mod effects;
+pub mod lease_calc;
 pub mod exact_once_verification;
+pub mod ghost_workflow;
+pub mod transaction;
+
+pub use exact_once_verification::assertions::{
+    assert_fence_token_ordering, assert_invariant_no_orphans, assert_no_duplicate_effects,
+    RecoveryAssertion, RecoveryAssertionError, RecoveryContext,
+};
+pub use exact_once_verification::crash_points::{CrashPoint, CrashPosition, CrashScenario};
+pub use exact_once_verification::harness::{
+    LineageRolloverEvent, LineageRoutingState, VerificationHarness,
+};
+pub use exact_once_verification::macros::CrashError;
 pub mod quadtree;
-pub mod recovery;
+pub mod red_black_tree;
 pub mod replay;
 pub mod resource_quota;
 pub mod segment_tree;
@@ -46,6 +60,7 @@ pub mod workload_class;
 pub mod workspace_swap;
 pub mod workload_class;
 pub mod write_class;
+pub mod shedding;
 
 pub use validation::{
     validate_effect_kinds, validate_workflow_effects, validate_workflow_sinks, KnownSinks,

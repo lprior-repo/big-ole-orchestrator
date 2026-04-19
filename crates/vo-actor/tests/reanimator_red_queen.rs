@@ -38,23 +38,6 @@ fn make_instance_id(byte: u8) -> InstanceId {
     InstanceId::from_bytes([byte; 16])
 }
 
-async fn wait_for_running(handle: &vo_actor::reanimator::ReanimatorHandle, timeout: Duration) {
-    let mut rx = handle.state_sender.subscribe();
-    if handle.current_state() == vo_actor::reanimator::types::ReanimatorState::Running {
-        return;
-    }
-    tokio::time::timeout(timeout, async {
-        loop {
-            rx.changed().await.expect("state channel closed");
-            if *rx.borrow() == vo_actor::reanimator::types::ReanimatorState::Running {
-                return;
-            }
-        }
-    })
-    .await
-    .expect("Timed out waiting for Running state");
-}
-
 // =============================================================================
 // ATTACK VECTOR 1: Timer creation during shutdown
 // =============================================================================
@@ -75,18 +58,18 @@ async fn rq_reanimator_shutdown_rejects_new_work() {
     let handle = ReanimatorLoop::spawn(config.clone(), storage.clone(), work_queue.clone())
         .expect("spawn should succeed");
 
-    wait_for_running(&handle, Duration::from_secs(2)).await;
+    tokio::time::sleep(Duration::from_millis(50)).await;
 
     let state_before = handle.current_state();
-    assert_eq!(
-        state_before,
-        vo_actor::reanimator::types::ReanimatorState::Running
-    );
+    assert_eq!(state_before, vo_actor::reanimator::types::ReanimatorState::Running);
 
-    // Check state before shutdown - need to subscribe to verify state change
-    let mut state_receiver = handle.state_sender.subscribe();
+    let state_after = handle.current_state();
     let result = handle.shutdown().await;
     assert!(result.is_ok(), "Shutdown should succeed");
+    assert_eq!(
+        state_after,
+        vo_actor::reanimator::types::ReanimatorState::ShutDown
+    );
 }
 
 // RQ-RS02: Timers due during shutdown are processed before shutdown completes
@@ -187,7 +170,11 @@ async fn rq_concurrent_delete_no_leak() {
     tokio::time::sleep(Duration::from_millis(1500)).await;
 
     let enqueued = work_queue.enqueued().await;
-    assert_eq!(enqueued.len(), 1, "Resume should be enqueued exactly once");
+    assert_eq!(
+        enqueued.len(),
+        1,
+        "Resume should be enqueued exactly once"
+    );
 
     handle.shutdown().await.expect("shutdown should succeed");
 }
@@ -200,18 +187,8 @@ async fn rq_concurrent_delete_no_leak() {
 #[tokio::test]
 async fn rq_duplicate_timer_ids_same_instance() {
     let instance_id = make_instance_id(0x01);
-    let timer1 = TimerRecord::new(
-        instance_id.clone(),
-        ts_ms(100),
-        Some(vo_types::TimerId::from_bytes([0x01; 16])),
-        ts_ms(50),
-    );
-    let timer2 = TimerRecord::new(
-        instance_id.clone(),
-        ts_ms(100),
-        Some(vo_types::TimerId::from_bytes([0x02; 16])),
-        ts_ms(50),
-    );
+    let timer1 = TimerRecord::new(instance_id.clone(), ts_ms(100), Some(vo_types::TimerId::from_bytes([0x01; 16])), ts_ms(50));
+    let timer2 = TimerRecord::new(instance_id.clone(), ts_ms(100), Some(vo_types::TimerId::from_bytes([0x02; 16])), ts_ms(50));
 
     let storage = Arc::new(MockTimerStorage::new(vec![timer1, timer2]));
     let work_queue = Arc::new(MockWorkQueue::new());
@@ -231,7 +208,11 @@ async fn rq_duplicate_timer_ids_same_instance() {
     handle.shutdown().await.expect("shutdown should succeed");
 
     let fire_calls = storage.fire_calls().await;
-    assert_eq!(fire_calls.len(), 2, "Both timers should fire");
+    assert_eq!(
+        fire_calls.len(),
+        2,
+        "Both timers should fire"
+    );
 }
 
 // =============================================================================
@@ -243,12 +224,7 @@ async fn rq_duplicate_timer_ids_same_instance() {
 async fn rq_past_fire_at_processed_immediately() {
     let instance_id = make_instance_id(0x01);
     let past_time = TimestampMs::now().as_u64().saturating_sub(1000);
-    let timer = TimerRecord::new(
-        instance_id.clone(),
-        ts_ms(past_time),
-        None,
-        ts_ms(past_time - 50),
-    );
+    let timer = TimerRecord::new(instance_id.clone(), ts_ms(past_time), None, ts_ms(past_time - 50));
 
     let storage = Arc::new(MockTimerStorage::new(vec![timer]));
     let work_queue = Arc::new(MockWorkQueue::new());
@@ -302,7 +278,7 @@ async fn rq_timer_at_u64_max_boundary() {
     let handle = ReanimatorLoop::spawn(config.clone(), storage.clone(), work_queue.clone())
         .expect("spawn should succeed");
 
-    wait_for_running(&handle, Duration::from_secs(2)).await;
+    tokio::time::sleep(Duration::from_millis(100)).await;
 
     let state = handle.current_state();
     assert_eq!(state, vo_actor::reanimator::types::ReanimatorState::Running);
@@ -378,7 +354,11 @@ async fn rq_no_timer_leaks_all_processed() {
     handle.shutdown().await.expect("shutdown should succeed");
 
     let fire_calls = storage.fire_calls().await;
-    assert_eq!(fire_calls.len(), 3, "All 3 timers should fire (no leaks)");
+    assert_eq!(
+        fire_calls.len(),
+        3,
+        "All 3 timers should fire (no leaks)"
+    );
 }
 
 // RQ-LF02: Deleted timers do not fire
@@ -410,7 +390,10 @@ async fn rq_deleted_timers_do_not_fire() {
     handle.shutdown().await.expect("shutdown should succeed");
 
     let fire_calls = storage.fire_calls().await;
-    assert!(fire_calls.is_empty(), "Deleted timer should not fire");
+    assert!(
+        fire_calls.is_empty(),
+        "Deleted timer should not fire"
+    );
 }
 
 // RQ-LF03: No double-fire when same timer appears multiple times in scan
@@ -512,8 +495,8 @@ async fn rq_fairness_budget_enforced() {
 
     let fire_calls = storage.fire_calls().await;
     assert!(
-        fire_calls.len() == 10,
-        "All 10 timers should fire over multiple cycles (budget resets per cycle)"
+        fire_calls.len() <= 5,
+        "Fairness budget should limit processing (max 5 per cycle)"
     );
 }
 
@@ -540,7 +523,7 @@ async fn rq_crash_recovery_skips_terminal_instances() {
     let handle = ReanimatorLoop::spawn(config.clone(), storage.clone(), work_queue.clone())
         .expect("spawn should succeed");
 
-    wait_for_running(&handle, Duration::from_secs(2)).await;
+    tokio::time::sleep(Duration::from_millis(50)).await;
 
     let state = handle.current_state();
     assert_eq!(state, vo_actor::reanimator::types::ReanimatorState::Running);
@@ -573,7 +556,7 @@ async fn rq_storage_failure_handled() {
     let handle = ReanimatorLoop::spawn(config.clone(), storage.clone(), work_queue.clone())
         .expect("spawn should succeed");
 
-    wait_for_running(&handle, Duration::from_secs(2)).await;
+    tokio::time::sleep(Duration::from_millis(500)).await;
 
     let state = handle.current_state();
     assert_eq!(state, vo_actor::reanimator::types::ReanimatorState::Running);

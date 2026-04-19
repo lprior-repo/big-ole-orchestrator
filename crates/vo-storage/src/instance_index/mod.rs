@@ -106,8 +106,8 @@ pub fn instance_index_upsert(
     created_at: TimestampMs,
     previous_status: Option<InstanceStatus>,
 ) -> Result<(), StorageError> {
-    let partition = db
-        .keyspace("instances", fjall::KeyspaceCreateOptions::default)
+    let keyspace = db
+        .keyspace("instances", || fjall::KeyspaceCreateOptions::default())
         .map_err(|_| StorageError::Storage)?;
 
     let new_key = encode_instance_index_key(status, created_at, instance_id)?;
@@ -115,9 +115,9 @@ pub fn instance_index_upsert(
     match previous_status {
         Some(old_status) if old_status != status => {
             let old_key = encode_instance_index_key(old_status, created_at, instance_id)?;
-            atomic_status_transition(db, &partition, &old_key, &new_key)
+            atomic_status_transition(db, &keyspace, &old_key, &new_key)
         }
-        _ => partition
+        _ => keyspace
             .insert(new_key, &[] as &[u8])
             .map_err(|_| StorageError::Storage),
     }
@@ -126,13 +126,13 @@ pub fn instance_index_upsert(
 /// Atomically delete the old status key and insert the new one via `fjall::OwnedWriteBatch`.
 fn atomic_status_transition(
     db: &fjall::Database,
-    partition: &fjall::Keyspace,
+    keyspace: &fjall::Keyspace,
     old_key: &[u8; 25],
     new_key: &[u8; 25],
 ) -> Result<(), StorageError> {
     let mut batch = db.batch();
-    batch.remove(partition, *old_key);
-    batch.insert(partition, *new_key, &[] as &[u8]);
+    batch.remove(keyspace, *old_key);
+    batch.insert(keyspace, *new_key, &[] as &[u8]);
     batch.commit().map_err(|_| StorageError::Storage)
 }
 
@@ -152,9 +152,9 @@ pub fn scan_by_status(
     db: &fjall::Database,
     status: InstanceStatus,
 ) -> impl Iterator<Item = Result<InstanceIndexEntry, StorageError>> {
-    let partition_result = db.keyspace("instances", fjall::KeyspaceCreateOptions::default);
+    let keyspace_result = db.keyspace("instances", || fjall::KeyspaceCreateOptions::default());
 
-    let Ok(partition) = partition_result else {
+    let Ok(keyspace) = keyspace_result else {
         return ScanIterator {
             inner: None,
             init_error: Some(StorageError::Storage),
@@ -162,7 +162,7 @@ pub fn scan_by_status(
     };
 
     let prefix = [status.to_byte()];
-    let iter = partition.prefix(prefix);
+    let iter = keyspace.prefix(prefix);
 
     ScanIterator {
         inner: Some(Box::new(iter)),
@@ -185,16 +185,16 @@ pub fn scan_by_status(
 pub fn scan_all_instances(
     db: &fjall::Database,
 ) -> impl Iterator<Item = Result<InstanceIndexEntry, StorageError>> {
-    let partition_result = db.keyspace("instances", fjall::KeyspaceCreateOptions::default);
+    let keyspace_result = db.keyspace("instances", || fjall::KeyspaceCreateOptions::default());
 
-    let Ok(partition) = partition_result else {
+    let Ok(keyspace) = keyspace_result else {
         return ScanIterator {
             inner: None,
             init_error: Some(StorageError::Storage),
         };
     };
 
-    let iter = partition.prefix([]);
+    let iter = keyspace.prefix([]);
 
     ScanIterator {
         inner: Some(Box::new(iter)),

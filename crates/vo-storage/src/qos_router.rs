@@ -31,7 +31,7 @@ impl std::fmt::Display for CapacityError {
 
 impl std::error::Error for CapacityError {}
 
-trait Classifiable {
+pub(crate) trait Classifiable {
     fn write_class(&self) -> WriteClass;
 }
 
@@ -129,7 +129,7 @@ impl<T> QosRouter<T> {
         }
     }
 
-    pub fn enqueue(&mut self, item: T) -> Result<(), CapacityError>
+    pub(crate) fn enqueue(&mut self, item: T) -> Result<(), CapacityError>
     where
         T: Classifiable,
     {

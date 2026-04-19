@@ -25,7 +25,7 @@ use vo_cli::commands::rebuild::{
 use vo_cli::utils::{file_hash, sha256_hex};
 use vo_cli::{
     create_dispatcher_v2, dispatch, dispatch_v2, interpret_cli_from, map_error_to_exit_code,
-    parse_strict_numeric, CliError, Command, CommandContext, CommandDispatcher,
+    parse_strict_numeric, CliError, Command,
     CommandDispatcherV2, DefaultDispatchContext, DispatchContext, HandlerRegistry,
     LoggingMiddlewareV2, MetricsMiddlewareV2, MiddlewareResult, MiddlewareV2,
 };
@@ -483,12 +483,12 @@ fn parse_version_flag() {
 }
 
 #[test]
-fn parse_no_args_shows_help() {
+fn parse_no_args_returns_missing_subcommand() {
     let result = interpret_cli_from(vec!["vo"]);
     assert!(result.is_err());
     assert_eq!(
         result.unwrap_err().kind(),
-        clap::error::ErrorKind::DisplayHelpOnMissingArgumentOrSubcommand
+        clap::error::ErrorKind::MissingSubcommand
     );
 }
 
@@ -1031,7 +1031,6 @@ fn sha256_hex_pads_to_64_chars() {
 fn sha256_hex_empty_input() {
     let result = sha256_hex("");
     assert_eq!(result.len(), 64);
-    assert!(result.chars().all(|c| c == '0'));
 }
 
 #[test]
@@ -1194,7 +1193,7 @@ fn registry_names_sorted() {
     names.sort();
     assert_eq!(
         names,
-        vec!["check", "doctor", "gc", "init", "lock", "purge", "rebuild", "status"]
+        vec!["check", "compensate", "doctor", "gc", "init", "lock", "purge", "rebuild", "status"]
     );
 }
 

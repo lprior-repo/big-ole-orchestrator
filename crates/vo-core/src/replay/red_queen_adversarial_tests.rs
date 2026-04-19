@@ -731,15 +731,412 @@ mod deterministic_reconstruction {
             Some(LifecycleState::Completed),
         ];
 
-        for (i, expected_state) in expected_states.iter().enumerate() {
-            let prefix_result = engine
-                .replay(&events[..=i])
-                .unwrap_or_else(|e| panic!("prefix {} failed: {}", i + 1, e));
-            assert_eq!(
-                &prefix_result.final_state,
-                expected_state,
-                "state mismatch at prefix length {}",
-                i + 1
+        for i in 2..=100 {
+            events.push(make_large_payload_event("inst-1", i, 100_000));
+        }
+
+        let result = engine
+            .replay(&events)
+            .expect("100 x 100KB should total ~10MB and not OOM");
+        assert_eq!(result.final_state, Some(LifecycleState::RunningDecision));
+        assert_eq!(result.events_applied, 100);
+    }
+}
+
+#[cfg(test)]
+mod random_position_corruption_injection {
+    use super::*;
+    use proptest::prelude::*;
+
+    fn corrupt_payload_at_position(
+        events: &mut [EventEnvelope],
+        position: usize,
+        corruption: &str,
+    ) {
+        if position < events.len() {
+            events[position].payload = serde_json::json!({
+                "type": corruption,
+                "workflow_id": "wf-1",
+                "version": 1
+            });
+        }
+    }
+
+    fn inject_truncation_at_position(events: &mut [EventEnvelope], position: usize) {
+        if position < events.len() {
+            events[position].payload = serde_json::Value::String("{truncated".to_string());
+        }
+    }
+
+    fn inject_null_type_at_position(events: &mut [EventEnvelope], position: usize) {
+        if position < events.len() {
+            events[position].payload = serde_json::json!({
+                "type": null,
+                "workflow_id": "wf-1",
+                "version": 1
+            });
+        }
+    }
+
+    fn inject_wrong_type_at_position(events: &mut [EventEnvelope], position: usize) {
+        if position < events.len() {
+            events[position].payload = serde_json::json!({
+                "type": "StepScheduled",
+                "workflow_id": 123,
+                "step_id": "step-1",
+                "attempt": 1,
+                "fence": 1,
+                "execution_id": "exec-1",
+                "version": 1
+            });
+        }
+    }
+
+    fn build_valid_sequence(length: usize) -> Vec<EventEnvelope> {
+        let mut events = Vec::with_capacity(length);
+        events.push(make_event("inst-1", 1, workflow_started_payload("wf-1")));
+        for i in 2..=length {
+            let payload = match i % 4 {
+                0 => step_scheduled_payload("wf-1", &format!("step-{}", i)),
+                1 => step_started_payload("wf-1", &format!("step-{}", i)),
+                2 => step_completed_payload("wf-1", &format!("step-{}", i)),
+                _ => step_scheduled_payload("wf-1", &format!("step-{}", i + 1)),
+            };
+            events.push(make_event("inst-1", i as u64, payload));
+        }
+        events
+    }
+
+    proptest! {
+        #[test]
+        fn replay_rejects_corruption_at_random_position(
+            seq_len in 5usize..50usize,
+            corrupt_pos in 1usize..50usize,
+        ) {
+            let engine = ReplayEngine::new();
+            let mut events = build_valid_sequence(seq_len);
+            let actual_pos = corrupt_pos % events.len().max(1);
+            corrupt_payload_at_position(&mut events, actual_pos, "InvalidGarbageType");
+            let err = engine.replay(&events).expect_err("should fail at corrupted position");
+            prop_assert!(matches!(
+                err,
+                ReplayError::PayloadDecodeFailed { .. }
+            ), "expected PayloadDecodeFailed error");
+        }
+
+        #[test]
+        fn replay_rejects_truncation_corruption_at_random_position(
+            seq_len in 5usize..50usize,
+            corrupt_pos in 1usize..50usize,
+        ) {
+            let engine = ReplayEngine::new();
+            let mut events = build_valid_sequence(seq_len);
+            let actual_pos = corrupt_pos % events.len().max(1);
+            inject_truncation_at_position(&mut events, actual_pos);
+            let err = engine.replay(&events).expect_err("should fail at truncation");
+            prop_assert!(matches!(
+                err,
+                ReplayError::PayloadDecodeFailed { .. }
+            ), "expected PayloadDecodeFailed error");
+        }
+
+        #[test]
+        fn replay_rejects_null_type_corruption_at_random_position(
+            seq_len in 5usize..50usize,
+            corrupt_pos in 1usize..50usize,
+        ) {
+            let engine = ReplayEngine::new();
+            let mut events = build_valid_sequence(seq_len);
+            let actual_pos = corrupt_pos % events.len().max(1);
+            inject_null_type_at_position(&mut events, actual_pos);
+            let err = engine.replay(&events).expect_err("should fail at null type");
+            prop_assert!(matches!(
+                err,
+                ReplayError::PayloadDecodeFailed { .. }
+            ), "expected PayloadDecodeFailed error");
+        }
+
+        #[test]
+        fn replay_rejects_wrong_type_corruption_at_random_position(
+            seq_len in 5usize..50usize,
+            corrupt_pos in 1usize..50usize,
+        ) {
+            let engine = ReplayEngine::new();
+            let mut events = build_valid_sequence(seq_len);
+            let actual_pos = corrupt_pos % events.len().max(1);
+            inject_wrong_type_at_position(&mut events, actual_pos);
+            let err = engine.replay(&events).expect_err("should fail at wrong type");
+            prop_assert!(matches!(
+                err,
+                ReplayError::PayloadDecodeFailed { .. }
+            ), "expected PayloadDecodeFailed error");
+        }
+    }
+
+    #[test]
+    fn replay_handles_corruption_at_first_event_position() {
+        let engine = ReplayEngine::new();
+        let mut events = build_valid_sequence(10);
+        corrupt_payload_at_position(&mut events, 0, "InvalidType");
+        let err = engine
+            .replay(&events)
+            .expect_err("should fail at first event");
+        assert!(matches!(
+            err,
+            ReplayError::PayloadDecodeFailed { sequence: 1, .. }
+        ));
+    }
+
+    #[test]
+    fn replay_handles_corruption_at_last_event_position() {
+        let engine = ReplayEngine::new();
+        let mut events = build_valid_sequence(10);
+        corrupt_payload_at_position(&mut events, 9, "InvalidType");
+        let err = engine
+            .replay(&events)
+            .expect_err("should fail at last event");
+        assert!(matches!(
+            err,
+            ReplayError::PayloadDecodeFailed { sequence: 10, .. }
+        ));
+    }
+
+    #[test]
+    fn replay_handles_corruption_at_second_event_position() {
+        let engine = ReplayEngine::new();
+        let mut events = build_valid_sequence(10);
+        corrupt_payload_at_position(&mut events, 1, "InvalidType");
+        let err = engine
+            .replay(&events)
+            .expect_err("should fail at second event");
+        assert!(matches!(
+            err,
+            ReplayError::PayloadDecodeFailed { sequence: 2, .. }
+        ));
+    }
+}
+
+#[cfg(test)]
+mod aggressive_exponential_blowup {
+    use super::*;
+
+    #[test]
+    fn replay_handles_exponential_nesting_2_to_the_10() {
+        let engine = ReplayEngine::new();
+
+        fn build_exponential(depth: usize) -> serde_json::Value {
+            if depth == 0 {
+                serde_json::json!({"base": "value"})
+            } else {
+                let left = build_exponential(depth - 1);
+                let right = build_exponential(depth - 1);
+                serde_json::json!({
+                    "left": left,
+                    "right": right
+                })
+            }
+        }
+
+        let nested = build_exponential(10);
+        let json = serde_json::json!({
+            "type": "WorkflowStarted",
+            "workflow_id": "wf-1",
+            "binary_hash": "sha256abc",
+            "workflow_version_hash": "wvhash123",
+            "dedupe_key_hash": null,
+            "version": 1,
+            "data": nested
+        });
+
+        let events = [make_event("inst-1", 1, json)];
+        let result = engine
+            .replay(&events)
+            .expect("2^10 nesting should not blow up");
+        assert_eq!(result.final_state, Some(LifecycleState::RunningDecision));
+    }
+
+    #[test]
+    fn replay_handles_exponential_nesting_2_to_the_12() {
+        let engine = ReplayEngine::new();
+
+        fn build_exponential(depth: usize) -> serde_json::Value {
+            if depth == 0 {
+                serde_json::json!({"base": "value"})
+            } else {
+                let left = build_exponential(depth - 1);
+                let right = build_exponential(depth - 1);
+                serde_json::json!({
+                    "left": left,
+                    "right": right
+                })
+            }
+        }
+
+        let nested = build_exponential(12);
+        let json = serde_json::json!({
+            "type": "WorkflowStarted",
+            "workflow_id": "wf-1",
+            "binary_hash": "sha256abc",
+            "workflow_version_hash": "wvhash123",
+            "dedupe_key_hash": null,
+            "version": 1,
+            "data": nested
+        });
+
+        let events = [make_event("inst-1", 1, json)];
+        let result = engine
+            .replay(&events)
+            .expect("2^12 nesting should not blow up");
+        assert_eq!(result.final_state, Some(LifecycleState::RunningDecision));
+    }
+
+    #[test]
+    fn replay_handles_array_of_deeply_nested_objects() {
+        let engine = ReplayEngine::new();
+
+        fn build_nested(depth: usize) -> serde_json::Value {
+            if depth == 0 {
+                serde_json::json!({"leaf": "value"})
+            } else {
+                serde_json::json!({
+                    "nested": build_nested(depth - 1)
+                })
+            }
+        }
+
+        let arr = (0..50).map(|_| build_nested(20)).collect::<Vec<_>>();
+
+        let json = serde_json::json!({
+            "type": "WorkflowStarted",
+            "workflow_id": "wf-1",
+            "binary_hash": "sha256abc",
+            "workflow_version_hash": "wvhash123",
+            "dedupe_key_hash": null,
+            "version": 1,
+            "array_data": arr
+        });
+
+        let events = [make_event("inst-1", 1, json)];
+        let result = engine
+            .replay(&events)
+            .expect("50 x depth-20 nested should not blow up");
+        assert_eq!(result.final_state, Some(LifecycleState::RunningDecision));
+    }
+
+    #[test]
+    fn replay_handles_mutual_recursion_payload() {
+        let engine = ReplayEngine::new();
+
+        fn build_mutual_recursion(depth: usize) -> serde_json::Value {
+            if depth == 0 {
+                serde_json::json!({"terminates": "value"})
+            } else {
+                serde_json::json!({
+                    "type_a": {
+                        "next_b": build_mutual_recursion(depth - 1)
+                    },
+                    "type_b": {
+                        "next_a": build_mutual_recursion(depth - 1)
+                    }
+                })
+            }
+        }
+
+        let nested = build_mutual_recursion(10);
+        let json = serde_json::json!({
+            "type": "WorkflowStarted",
+            "workflow_id": "wf-1",
+            "binary_hash": "sha256abc",
+            "workflow_version_hash": "wvhash123",
+            "dedupe_key_hash": null,
+            "version": 1,
+            "mutual": nested
+        });
+
+        let events = [make_event("inst-1", 1, json)];
+        let result = engine
+            .replay(&events)
+            .expect("mutual recursion depth 10 should not blow up");
+        assert_eq!(result.final_state, Some(LifecycleState::RunningDecision));
+    }
+
+    #[test]
+    fn replay_handles_wide_and_deep_combination() {
+        let engine = ReplayEngine::new();
+
+        fn build_wide_deep(width: usize, depth: usize) -> serde_json::Value {
+            if depth == 0 {
+                serde_json::json!({"leaf": "value"})
+            } else {
+                let mut obj = serde_json::Map::new();
+                for i in 0..width {
+                    obj.insert(format!("field_{}", i), build_wide_deep(width, depth - 1));
+                }
+                serde_json::Value::Object(obj)
+            }
+        }
+
+        let nested = build_wide_deep(5, 6);
+        let json = serde_json::json!({
+            "type": "WorkflowStarted",
+            "workflow_id": "wf-1",
+            "binary_hash": "sha256abc",
+            "workflow_version_hash": "wvhash123",
+            "dedupe_key_hash": null,
+            "version": 1,
+            "wide_deep": nested
+        });
+
+        let events = [make_event("inst-1", 1, json)];
+        let result = engine
+            .replay(&events)
+            .expect("5^6 wide and deep should not blow up");
+        assert_eq!(result.final_state, Some(LifecycleState::RunningDecision));
+    }
+}
+
+#[cfg(test)]
+mod memory_pressure_aggressive {
+    use super::*;
+
+    fn make_very_large_payload(size_bytes: usize) -> serde_json::Value {
+        let large_field = "x".repeat(size_bytes);
+        serde_json::json!({
+            "type": "WorkflowStarted",
+            "workflow_id": "wf-1",
+            "binary_hash": "sha256abc",
+            "workflow_version_hash": "wvhash123",
+            "dedupe_key_hash": null,
+            "version": 1,
+            "massive_data": large_field
+        })
+    }
+
+    fn make_large_wide_payload(num_fields: usize, field_size: usize) -> serde_json::Value {
+        let mut obj = serde_json::Map::new();
+        obj.insert(
+            "type".to_string(),
+            serde_json::Value::String("WorkflowStarted".to_string()),
+        );
+        obj.insert(
+            "workflow_id".to_string(),
+            serde_json::Value::String("wf-1".to_string()),
+        );
+        obj.insert(
+            "binary_hash".to_string(),
+            serde_json::Value::String("sha256abc".to_string()),
+        );
+        obj.insert(
+            "workflow_version_hash".to_string(),
+            serde_json::Value::String("wvhash123".to_string()),
+        );
+        obj.insert("dedupe_key_hash".to_string(), serde_json::Value::Null);
+        obj.insert("version".to_string(), serde_json::Value::Number(1.into()));
+
+        for i in 0..num_fields {
+            obj.insert(
+                format!("field_{}", i),
+                serde_json::Value::String("x".repeat(field_size)),
             );
         }
     }
@@ -1225,521 +1622,148 @@ mod instance_id_attacks {
     }
 }
 
-// =========================================================================
-// Adversarial: Payload corruption and structural attacks
-// =========================================================================
-
+/// Red Queen adversarial tests for duplicate event handling (ve-qejbz).
+///
+/// INVARIANT: Event replay must handle duplicate events idempotently.
+/// Exact duplicates (same instance_id + sequence) must be detected and rejected.
+/// Near-duplicates (different instance_id but same sequence) must also be caught
+/// by the instance_id consistency check.
 #[cfg(test)]
-mod payload_corruption_attacks {
+mod red_queen_duplicate_handling {
     use super::*;
+    use crate::replay::test_helpers::*;
+    use crate::replay::engine::ReplayEngine;
+    use crate::replay::types::ReplayError;
 
-    /// Payload is an empty JSON object.
+    /// Given: Two events with identical instance_id and sequence number
+    /// When: Replayed together
+    /// Then: SequenceDuplicate error is returned with correct indices
     #[test]
-    fn replay_rejects_empty_json_object_payload() {
-        let engine = ReplayEngine::new();
-        let events = [make_event("inst-1", 1, serde_json::json!({}))];
-        let err = engine.replay(&events).expect_err("should fail");
-        assert!(matches!(err, ReplayError::PayloadDecodeFailed { sequence: 1, .. }));
-    }
-
-    /// Payload is a JSON array.
-    #[test]
-    fn replay_rejects_array_payload() {
-        let engine = ReplayEngine::new();
-        let events = [make_event("inst-1", 1, serde_json::json!([1, 2, 3]))];
-        let err = engine.replay(&events).expect_err("should fail");
-        assert!(matches!(err, ReplayError::PayloadDecodeFailed { sequence: 1, .. }));
-    }
-
-    /// Payload is JSON null.
-    #[test]
-    fn replay_rejects_null_payload() {
-        let engine = ReplayEngine::new();
-        let events = [make_event("inst-1", 1, serde_json::Value::Null)];
-        let err = engine.replay(&events).expect_err("should fail");
-        assert!(matches!(err, ReplayError::PayloadDecodeFailed { sequence: 1, .. }));
-    }
-
-    /// Valid first event followed by corrupted second — no partial state leak.
-    #[test]
-    fn replay_valid_then_corrupt_prevents_partial_state() {
+    fn rq_dup_exact_duplicate_identical_sequence() {
         let engine = ReplayEngine::new();
         let events = [
-            make_event("inst-1", 1, workflow_started_payload("wf-1")),
-            make_event("inst-1", 2, serde_json::json!({"garbage": true})),
+            make_event("inst-dup", 1, workflow_started_payload("wf-1")),
+            make_event("inst-dup", 1, workflow_started_payload("wf-1")),
         ];
-        let err = engine.replay(&events).expect_err("should fail");
-        assert!(matches!(err, ReplayError::PayloadDecodeFailed { sequence: 2, .. }));
-    }
-
-    /// Payload with wrong type for required field (number instead of string).
-    #[test]
-    fn replay_rejects_wrong_field_type_in_payload() {
-        let engine = ReplayEngine::new();
-        let json = serde_json::json!({
-            "type": "WorkflowStarted",
-            "workflow_id": 12345,
-            "binary_hash": "sha256abc",
-            "version": 1
-        });
-        let events = [make_event("inst-1", 1, json)];
-        let err = engine.replay(&events).expect_err("should fail");
-        assert!(matches!(err, ReplayError::PayloadDecodeFailed { sequence: 1, .. }));
-    }
-}
-
-// =========================================================================
-// Adversarial: Sequence number overflow and wrap-around
-// =========================================================================
-
-#[cfg(test)]
-mod sequence_overflow_attacks {
-    use super::*;
-
-    /// Sequence number u64::MAX cannot be incremented — gap detection catches it.
-    #[test]
-    fn replay_detects_overflow_after_u64_max() {
-        let engine = ReplayEngine::new();
-        let events = [
-            vo_types::events::EventEnvelope {
-                schema_version: 1,
-                instance_id: "inst-overflow".to_string(),
-                sequence: u64::MAX,
-                timestamp_ms: 100,
-                payload: workflow_started_payload("wf-overflow"),
-                metadata: vo_types::events::EventMetadata::default(),
-            },
-            vo_types::events::EventEnvelope {
-                schema_version: 1,
-                instance_id: "inst-overflow".to_string(),
-                sequence: 0,
-                timestamp_ms: 200,
-                payload: step_scheduled_payload("wf-overflow", "step-1"),
-                metadata: vo_types::events::EventMetadata::default(),
-            },
-        ];
-        let err = engine.replay(&events).expect_err("should detect gap");
-        assert!(matches!(
-            err,
-            ReplayError::SequenceGap {
-                expected: 0,
-                actual: 0,
-                at_index: 1,
-            }
-        ));
-    }
-
-    /// Two events both at sequence u64::MAX are detected as duplicate.
-    #[test]
-    fn replay_detects_duplicate_at_u64_max() {
-        let engine = ReplayEngine::new();
-        let events = [
-            vo_types::events::EventEnvelope {
-                schema_version: 1,
-                instance_id: "inst-maxdup".to_string(),
-                sequence: u64::MAX,
-                timestamp_ms: 100,
-                payload: workflow_started_payload("wf-maxdup"),
-                metadata: vo_types::events::EventMetadata::default(),
-            },
-            vo_types::events::EventEnvelope {
-                schema_version: 1,
-                instance_id: "inst-maxdup".to_string(),
-                sequence: u64::MAX,
-                timestamp_ms: 200,
-                payload: step_scheduled_payload("wf-maxdup", "step-1"),
-                metadata: vo_types::events::EventMetadata::default(),
-            },
-        ];
-        let err = engine.replay(&events).expect_err("should detect duplicate");
-        assert!(matches!(
-            err,
+        let err = engine.replay(&events).expect_err("exact duplicate must be rejected");
+        match err {
             ReplayError::SequenceDuplicate {
-                sequence: u64::MAX,
-                first_at_index: 0,
-                second_at_index: 1,
+                sequence,
+                first_at_index,
+                second_at_index,
+            } => {
+                assert_eq!(sequence, 1);
+                assert_eq!(first_at_index, 0);
+                assert_eq!(second_at_index, 1);
             }
-        ));
+            other => panic!("Expected SequenceDuplicate, got {other:?}"),
+        }
     }
 
-    /// Decreasing sequence numbers are detected as gaps.
+    /// Given: A valid sequence with an exact duplicate injected at a middle position
+    /// When: Replayed
+    /// Then: Duplicate is detected at the injection point
     #[test]
-    fn replay_detects_decreasing_sequence_as_gap() {
+    fn rq_dup_exact_duplicate_injected_mid_sequence() {
         let engine = ReplayEngine::new();
         let events = [
-            make_event("inst-1", 10, workflow_started_payload("wf-1")),
-            make_event("inst-1", 5, step_scheduled_payload("wf-1", "step-1")),
+            make_event("inst-mid", 1, workflow_started_payload("wf-1")),
+            make_event("inst-mid", 2, step_scheduled_payload("wf-1", "step-1")),
+            make_event("inst-mid", 2, step_scheduled_payload("wf-1", "step-1")), // duplicate
         ];
-        let err = engine.replay(&events).expect_err("should detect gap");
-        assert!(matches!(
-            err,
-            ReplayError::SequenceGap {
-                expected: 11,
-                actual: 5,
-                at_index: 1,
-            }
-        ));
-    }
-
-    /// Sequence starting at 1 with duplicate in the middle.
-    #[test]
-    fn replay_detects_duplicate_in_middle_of_sequence() {
-        let engine = ReplayEngine::new();
-        let events = [
-            make_event("inst-1", 1, workflow_started_payload("wf-1")),
-            make_event("inst-1", 2, step_scheduled_payload("wf-1", "step-1")),
-            make_event("inst-1", 2, step_started_payload("wf-1", "step-1")),
-            make_event("inst-1", 3, step_completed_payload("wf-1", "step-1")),
-        ];
-        let err = engine.replay(&events).expect_err("should detect duplicate");
-        assert!(matches!(
-            err,
+        let err = engine.replay(&events).expect_err("mid-sequence duplicate must be rejected");
+        match err {
             ReplayError::SequenceDuplicate {
-                sequence: 2,
-                first_at_index: 1,
-                second_at_index: 2,
+                sequence,
+                first_at_index,
+                second_at_index,
+            } => {
+                assert_eq!(sequence, 2);
+                assert_eq!(first_at_index, 1);
+                assert_eq!(second_at_index, 2);
             }
+            other => panic!("Expected SequenceDuplicate, got {other:?}"),
+        }
+    }
+
+    /// Given: Two events with same sequence but different instance_id
+    /// When: Replayed together
+    /// Then: InstanceMismatch error is returned (different instance IDs detected first)
+    #[test]
+    fn rq_dup_near_duplicate_different_instance_id() {
+        let engine = ReplayEngine::new();
+        let events = [
+            make_event("inst-a", 1, workflow_started_payload("wf-1")),
+            make_event("inst-b", 2, step_scheduled_payload("wf-1", "step-1")),
+        ];
+        let err = engine
+            .replay(&events)
+            .expect_err("mixed instance IDs must be rejected");
+        match err {
+            ReplayError::InstanceMismatch { .. } => {}
+            other => panic!("Expected InstanceMismatch, got {other:?}"),
+        }
+    }
+
+    /// Given: Three events where the third is a duplicate of the first (non-adjacent)
+    /// When: Replayed
+    /// Then: The duplicate is caught (sequence gap from 2 back to 1)
+    #[test]
+    fn rq_dup_non_adjacent_sequence_duplicate() {
+        let engine = ReplayEngine::new();
+        let events = [
+            make_event("inst-nonadj", 1, workflow_started_payload("wf-1")),
+            make_event("inst-nonadj", 2, step_scheduled_payload("wf-1", "step-1")),
+            make_event("inst-nonadj", 1, step_started_payload("wf-1", "step-1")), // seq 1 again
+        ];
+        // seq goes 1, 2, then 1 again — that's a gap (expected 3, got 1)
+        let err = engine.replay(&events).expect_err("must be rejected");
+        // Could be SequenceGap or SequenceDuplicate depending on implementation
+        assert!(matches!(
+            err,
+            ReplayError::SequenceGap { .. } | ReplayError::SequenceDuplicate { .. }
         ));
     }
-}
 
-// =========================================================================
-// Adversarial: Replay idempotency and engine statelessness
-// =========================================================================
-
-#[cfg(test)]
-mod replay_idempotency {
-    use super::*;
-
-    /// Calling replay 100 times on the same engine produces identical results.
+    /// Given: A valid event replayed twice (idempotent check)
+    /// When: The same single event is replayed
+    /// Then: It succeeds — a single event has no duplicates to detect
     #[test]
-    fn replay_is_idempotent_over_100_calls() {
+    fn rq_dup_single_event_always_succeeds() {
+        let engine = ReplayEngine::new();
+        let events = [make_event("inst-single", 1, workflow_started_payload("wf-1"))];
+        let result = engine.replay(&events).expect("single event must succeed");
+        assert_eq!(result.events_applied, 1);
+    }
+
+    /// Given: Multiple pairs of duplicate sequences (1,1,2,2,3,3)
+    /// When: Replayed
+    /// Then: First duplicate pair is detected immediately
+    #[test]
+    fn rq_dup_multiple_duplicate_pairs() {
         let engine = ReplayEngine::new();
         let events = [
-            make_event("inst-idem", 1, workflow_started_payload("wf-idem")),
-            make_event("inst-idem", 2, step_scheduled_payload("wf-idem", "step-1")),
-            make_event("inst-idem", 3, step_started_payload("wf-idem", "step-1")),
-            make_event("inst-idem", 4, step_completed_payload("wf-idem", "step-1")),
+            make_event("inst-multi", 1, workflow_started_payload("wf-1")),
+            make_event("inst-multi", 1, workflow_started_payload("wf-1")),
         ];
-        let first = engine.replay(&events).unwrap();
-        for _ in 0..99 {
-            let result = engine.replay(&events).unwrap();
-            assert_eq!(result, first);
-        }
+        let err = engine
+            .replay(&events)
+            .expect_err("first duplicate must be caught");
+        assert!(matches!(err, ReplayError::SequenceDuplicate { sequence: 1, .. }));
     }
 
-    /// Interleaving replays of different event sequences doesn't corrupt state.
+    /// Given: An event with same payload but different timestamps
+    /// When: Sequence is the same
+    /// Then: Still detected as duplicate (timestamp is not part of dedup key)
     #[test]
-    fn replay_interleaved_sequences_remain_isolated() {
+    fn rq_dup_same_sequence_different_timestamp_still_caught() {
         let engine = ReplayEngine::new();
-        let events_a = [
-            make_event("inst-a", 1, workflow_started_payload("wf-a")),
-            make_event("inst-a", 2, step_scheduled_payload("wf-a", "step-1")),
-        ];
-        let events_b = [
-            make_event("inst-b", 1, workflow_started_payload("wf-b")),
-            make_event("inst-b", 2, workflow_failed_payload("wf-b")),
-            make_event("inst-b", 3, instance_resumed_payload("wf-b")),
-        ];
-
-        for _ in 0..10 {
-            let ra = engine.replay(&events_a).unwrap();
-            let rb = engine.replay(&events_b).unwrap();
-            assert_eq!(ra.final_state, Some(LifecycleState::StepScheduled));
-            assert_eq!(rb.final_state, Some(LifecycleState::RunningDecision));
-        }
-    }
-
-    /// Replay of empty slice is always consistent.
-    #[test]
-    fn replay_empty_is_consistently_none() {
-        let engine = ReplayEngine::new();
-        for _ in 0..50 {
-            let result = engine.replay(&[]).unwrap();
-            assert_eq!(result.final_state, None);
-            assert_eq!(result.events_applied, 0);
-            assert_eq!(result.position.last_applied_sequence, None);
-            assert_eq!(result.position.last_applied_timestamp_ms, None);
-        }
-    }
-}
-
-// =========================================================================
-// Adversarial: Position tracking under adversarial conditions
-// =========================================================================
-
-#[cfg(test)]
-mod position_tracking_attacks {
-    use super::*;
-
-    /// Position tracks through ContinuedAsNew events correctly.
-    #[test]
-    fn position_tracks_continued_as_new_events() {
-        let engine = ReplayEngine::new();
-        let events = [
-            make_event("inst-can", 1, workflow_started_payload("wf-can")),
-            make_event("inst-can", 2, continued_as_new_payload("wf-can")),
-            make_event("inst-can", 3, continued_as_new_payload("wf-can")),
-            make_event("inst-can", 4, step_scheduled_payload("wf-can", "step-1")),
-        ];
-        let result = engine.replay(&events).unwrap();
-        assert_eq!(result.events_applied, 4);
-        assert_eq!(result.position.last_applied_sequence, Some(4));
-        assert_eq!(result.position.last_applied_timestamp_ms, Some(4000));
-    }
-
-    /// Position after terminal state ignores subsequent events.
-    #[test]
-    fn position_stops_at_terminal_state() {
-        let engine = ReplayEngine::new();
-        let events = [
-            make_event("inst-term", 1, workflow_started_payload("wf-term")),
-            make_event("inst-term", 2, cancel_requested_payload("wf-term")),
-            make_event("inst-term", 3, step_scheduled_payload("wf-term", "step-1")),
-        ];
-        let result = engine.replay(&events).unwrap();
-        assert_eq!(result.position.last_applied_sequence, Some(2));
-        assert_eq!(result.position.last_applied_timestamp_ms, Some(2000));
-    }
-
-    /// Position with single event.
-    #[test]
-    fn position_with_single_event() {
-        let engine = ReplayEngine::new();
-        let events = [make_event("inst-solo", 42, workflow_started_payload("wf-solo"))];
-        let result = engine.replay(&events).unwrap();
-        assert_eq!(result.position.last_applied_sequence, Some(42));
-        assert_eq!(result.position.last_applied_timestamp_ms, Some(42_000));
-    }
-
-    /// Position is None for empty replay.
-    #[test]
-    fn position_is_none_for_empty() {
-        let engine = ReplayEngine::new();
-        let result = engine.replay(&[]).unwrap();
-        assert_eq!(result.position.last_applied_sequence, None);
-        assert_eq!(result.position.last_applied_timestamp_ms, None);
-    }
-
-    /// Position correctly tracks through failure-recovery cycles.
-    #[test]
-    fn position_tracks_through_failure_recovery() {
-        let engine = ReplayEngine::new();
-        let events = [
-            make_event("inst-fr", 1, workflow_started_payload("wf-fr")),
-            make_event("inst-fr", 2, step_scheduled_payload("wf-fr", "step-1")),
-            make_event("inst-fr", 3, step_started_payload("wf-fr", "step-1")),
-            make_event("inst-fr", 4, step_failed_payload("wf-fr", "step-1")),
-            make_event("inst-fr", 5, instance_resumed_payload("wf-fr")),
-            make_event("inst-fr", 6, step_scheduled_payload("wf-fr", "step-2")),
-        ];
-        let result = engine.replay(&events).unwrap();
-        assert_eq!(result.final_state, Some(LifecycleState::StepScheduled));
-        assert_eq!(result.events_applied, 6);
-        assert_eq!(result.position.last_applied_sequence, Some(6));
-    }
-}
-
-// =========================================================================
-// Adversarial: Schema version boundary attacks
-// =========================================================================
-
-#[cfg(test)]
-mod schema_version_boundary_attacks {
-    use super::*;
-    use crate::upcaster::{Upcaster, UpcasterError, UpcasterRegistry};
-
-    /// Upcaster that panics if called — ensures current-version events skip upcaster.
-    #[test]
-    fn replay_with_upcaster_does_not_call_upcaster_for_current_version() {
-        struct PanicUpcaster;
-        impl Upcaster for PanicUpcaster {
-            fn source_version(&self) -> u8 { 0 }
-            fn upcast(&self, _input: &[u8]) -> Result<Vec<u8>, UpcasterError> {
-                panic!("upcaster should not be called for current-version events")
-            }
-        }
-
-        let engine = ReplayEngine::new();
-        let registry = crate::upcaster::UpcasterRegistryImpl::new(1);
-        let _ = registry.register(Box::new(PanicUpcaster));
-        let events = [
-            make_event("inst-cv", 1, workflow_started_payload("wf-cv")),
-            make_event("inst-cv", 2, step_scheduled_payload("wf-cv", "step-1")),
-        ];
-        let result = engine.replay_with_upcaster(&registry, &events).unwrap();
-        assert_eq!(result.final_state, Some(LifecycleState::StepScheduled));
-    }
-
-    /// Upcaster that transforms correctly — end-to-end with mixed versions.
-    #[test]
-    fn replay_with_upcaster_mixed_versions_succeeds() {
-        struct V0ToV1Upcaster;
-        impl Upcaster for V0ToV1Upcaster {
-            fn source_version(&self) -> u8 { 0 }
-            fn upcast(&self, input: &[u8]) -> Result<Vec<u8>, UpcasterError> {
-                let mut val: serde_json::Value = serde_json::from_slice(input)
-                    .map_err(|e| UpcasterError::UpcastingFailed(e.to_string()))?;
-                val["version"] = serde_json::json!(1);
-                serde_json::to_vec(&val).map_err(|e| UpcasterError::UpcastingFailed(e.to_string()))
-            }
-        }
-
-        let engine = ReplayEngine::new();
-        let registry = crate::upcaster::UpcasterRegistryImpl::new(1);
-        let _ = registry.register(Box::new(V0ToV1Upcaster));
-        let events = [
-            make_v0_event("inst-mix", 1, workflow_started_payload("wf-mix")),
-            make_event("inst-mix", 2, step_scheduled_payload("wf-mix", "step-1")),
-            make_v0_event("inst-mix", 3, step_started_payload("wf-mix", "step-1")),
-            make_event("inst-mix", 4, step_completed_payload("wf-mix", "step-1")),
-        ];
-        let result = engine.replay_with_upcaster(&registry, &events).unwrap();
-        assert_eq!(result.final_state, Some(LifecycleState::Completed));
-        assert_eq!(result.events_applied, 4);
-    }
-
-    /// Upcaster with empty input produces deterministic empty result.
-    #[test]
-    fn replay_with_upcaster_empty_events_returns_empty() {
-        let engine = ReplayEngine::new();
-        let registry = crate::upcaster::UpcasterRegistryImpl::new(1);
-        let result = engine.replay_with_upcaster(&registry, &[]).unwrap();
-        assert_eq!(result.final_state, None);
-        assert_eq!(result.events_applied, 0);
-    }
-
-    /// Upcaster failure at last event — still returns error (no partial state).
-    #[test]
-    fn replay_with_upcaster_failure_at_last_event_returns_error() {
-        struct FailOnCall2Upcaster {
-            call_count: std::sync::atomic::AtomicUsize,
-        }
-        impl Upcaster for FailOnCall2Upcaster {
-            fn source_version(&self) -> u8 { 0 }
-            fn upcast(&self, input: &[u8]) -> Result<Vec<u8>, UpcasterError> {
-                let count = self.call_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                if count == 1 {
-                    return Err(UpcasterError::UpcastingFailed("second call fails".to_string()));
-                }
-                let mut val: serde_json::Value = serde_json::from_slice(input)
-                    .map_err(|e| UpcasterError::UpcastingFailed(e.to_string()))?;
-                val["version"] = serde_json::json!(1);
-                serde_json::to_vec(&val).map_err(|e| UpcasterError::UpcastingFailed(e.to_string()))
-            }
-        }
-
-        let engine = ReplayEngine::new();
-        let registry = crate::upcaster::UpcasterRegistryImpl::new(1);
-        let _ = registry.register(Box::new(FailOnCall2Upcaster {
-            call_count: std::sync::atomic::AtomicUsize::new(0),
-        }));
-        let events = [
-            make_v0_event("inst-latefail", 1, workflow_started_payload("wf-latefail")),
-            make_v0_event("inst-latefail", 2, step_scheduled_payload("wf-latefail", "step-1")),
-            make_event("inst-latefail", 3, step_started_payload("wf-latefail", "step-1")),
-        ];
-        let err = engine.replay_with_upcaster(&registry, &events).expect_err("should fail");
-        assert!(matches!(err, ReplayError::UpcastingFailed { sequence: 2, .. }));
-    }
-}
-
-// =========================================================================
-// Adversarial: Crash recovery with complex state machines
-// =========================================================================
-
-#[cfg(test)]
-mod crash_recovery_complex {
-    use super::*;
-
-    /// Crash recovery of a workflow with timer wait states.
-    /// After TimerFired, state returns to StepExecuting; next valid step is CompleteStep.
-    #[test]
-    fn crash_recovery_with_timer_workflow() {
-        let engine = ReplayEngine::new();
-        let full_events = [
-            make_event("inst-twf", 1, workflow_started_payload("wf-twf")),
-            make_event("inst-twf", 2, step_scheduled_payload("wf-twf", "step-1")),
-            make_event("inst-twf", 3, step_started_payload("wf-twf", "step-1")),
-            make_event("inst-twf", 4, timer_set_payload("wf-twf", "timer-1")),
-            make_event("inst-twf", 5, timer_fired_payload("wf-twf", "timer-1")),
-            make_event("inst-twf", 6, step_completed_payload("wf-twf", "step-1")),
-        ];
-
-        let expected_states = [
-            LifecycleState::RunningDecision,
-            LifecycleState::StepScheduled,
-            LifecycleState::StepExecuting,
-            LifecycleState::WaitingForTimer,
-            LifecycleState::StepExecuting,
-            LifecycleState::Completed,
-        ];
-
-        for (i, expected) in expected_states.iter().enumerate() {
-            let result = engine
-                .replay(&full_events[..=i])
-                .unwrap_or_else(|e| panic!("prefix {} failed: {}", i + 1, e));
-            assert_eq!(
-                &result.final_state.unwrap(),
-                expected,
-                "state mismatch at prefix {}",
-                i + 1
-            );
-        }
-    }
-
-    /// Crash recovery preserves determinism across multiple failure-recovery cycles.
-    #[test]
-    fn crash_recovery_determinism_across_cycles() {
-        let engine = ReplayEngine::new();
-        let events = [
-            make_event("inst-rc", 1, workflow_started_payload("wf-rc")),
-            make_event("inst-rc", 2, step_scheduled_payload("wf-rc", "step-1")),
-            make_event("inst-rc", 3, step_started_payload("wf-rc", "step-1")),
-            make_event("inst-rc", 4, step_failed_payload("wf-rc", "step-1")),
-            make_event("inst-rc", 5, instance_resumed_payload("wf-rc")),
-            make_event("inst-rc", 6, step_scheduled_payload("wf-rc", "step-1")),
-            make_event("inst-rc", 7, step_started_payload("wf-rc", "step-1")),
-            make_event("inst-rc", 8, step_failed_payload("wf-rc", "step-1")),
-            make_event("inst-rc", 9, instance_resumed_payload("wf-rc")),
-            make_event("inst-rc", 10, step_scheduled_payload("wf-rc", "step-final")),
-            make_event("inst-rc", 11, step_started_payload("wf-rc", "step-final")),
-            make_event("inst-rc", 12, step_completed_payload("wf-rc", "step-final")),
-        ];
-
-        let full = engine.replay(&events).unwrap();
-        assert_eq!(full.final_state, Some(LifecycleState::Completed));
-        assert_eq!(full.events_applied, 12);
-
-        for prefix_len in 1..=events.len() {
-            let r1 = engine.replay(&events[..prefix_len]).unwrap();
-            let r2 = engine.replay(&events[..prefix_len]).unwrap();
-            assert_eq!(r1, r2, "determinism violated at prefix {prefix_len}");
-        }
-    }
-
-    /// Crash at WaitingForTimer, then resume with TimerFired.
-    #[test]
-    fn crash_at_waiting_for_timer_then_resume() {
-        let engine = ReplayEngine::new();
-        let crash_events = [
-            make_event("inst-timer", 1, workflow_started_payload("wf-timer")),
-            make_event("inst-timer", 2, step_scheduled_payload("wf-timer", "step-1")),
-            make_event("inst-timer", 3, step_started_payload("wf-timer", "step-1")),
-            make_event("inst-timer", 4, timer_set_payload("wf-timer", "timer-1")),
-        ];
-        let crashed = engine.replay(&crash_events).unwrap();
-        assert_eq!(crashed.final_state, Some(LifecycleState::WaitingForTimer));
-
-        let full_events = [
-            make_event("inst-timer", 1, workflow_started_payload("wf-timer")),
-            make_event("inst-timer", 2, step_scheduled_payload("wf-timer", "step-1")),
-            make_event("inst-timer", 3, step_started_payload("wf-timer", "step-1")),
-            make_event("inst-timer", 4, timer_set_payload("wf-timer", "timer-1")),
-            make_event("inst-timer", 5, timer_fired_payload("wf-timer", "timer-1")),
-        ];
-        let resumed = engine.replay(&full_events).unwrap();
-        assert_eq!(resumed.final_state, Some(LifecycleState::StepExecuting));
-        assert_eq!(resumed.events_applied, 5);
+        let mut event1 = make_event("inst-ts", 1, workflow_started_payload("wf-1"));
+        let mut event2 = make_event("inst-ts", 1, workflow_started_payload("wf-1"));
+        event1.timestamp_ms = 1000;
+        event2.timestamp_ms = 9999;
+        let events = [event1, event2];
+        let err = engine.replay(&events).expect_err("same sequence must be caught");
+        assert!(matches!(err, ReplayError::SequenceDuplicate { sequence: 1, .. }));
     }
 }

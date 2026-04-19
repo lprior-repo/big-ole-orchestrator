@@ -52,8 +52,8 @@ fn make_effect_record(intent_id: &str) -> vo_types::EffectRecord {
 #[test]
 fn pers_001_fjall_basic_prepare_commit() {
     let dir = tempfile::tempdir().unwrap();
-    let database = fjall::Database::builder(dir.path()).open().unwrap();
-    let journal = FjallEffectJournal::open(&database).unwrap();
+    let db = fjall::Database::builder(dir.path()).open().unwrap();
+    let journal = FjallEffectJournal::open(&db).unwrap();
     let id = sample_instance_id();
 
     let record = make_effect_record("pers-basic-1");
@@ -115,8 +115,8 @@ fn pers_001_inmemory_basic_prepare_commit() {
 #[test]
 fn pers_002_fjall_basic_rollback() {
     let dir = tempfile::tempdir().unwrap();
-    let database = fjall::Database::builder(dir.path()).open().unwrap();
-    let journal = FjallEffectJournal::open(&database).unwrap();
+    let db = fjall::Database::builder(dir.path()).open().unwrap();
+    let journal = FjallEffectJournal::open(&db).unwrap();
     let id = sample_instance_id();
 
     let record = make_effect_record("pers-rollback-1");
@@ -174,8 +174,8 @@ fn pers_003_fjall_power_failure_multiple_prepares() {
 
     let effect_ids;
     {
-        let database = fjall::Database::builder(dir.path()).open().unwrap();
-        let journal = FjallEffectJournal::open(&database).unwrap();
+        let db = fjall::Database::builder(dir.path()).open().unwrap();
+        let journal = FjallEffectJournal::open(&db).unwrap();
 
         effect_ids = (0..5)
             .map(|i| {
@@ -185,8 +185,8 @@ fn pers_003_fjall_power_failure_multiple_prepares() {
             .collect::<Vec<_>>();
     }
 
-    let database = fjall::Database::builder(dir.path()).open().unwrap();
-    let journal = FjallEffectJournal::open(&database).unwrap();
+    let db = fjall::Database::builder(dir.path()).open().unwrap();
+    let journal = FjallEffectJournal::open(&db).unwrap();
 
     let pending = journal.list_pending(&id).unwrap();
     assert_eq!(
@@ -217,8 +217,8 @@ fn pers_004_fjall_power_failure_partial_commit() {
 
     let effect_ids;
     {
-        let database = fjall::Database::builder(dir.path()).open().unwrap();
-        let journal = FjallEffectJournal::open(&database).unwrap();
+        let db = fjall::Database::builder(dir.path()).open().unwrap();
+        let journal = FjallEffectJournal::open(&db).unwrap();
 
         effect_ids = (0..4)
             .map(|i| {
@@ -231,8 +231,8 @@ fn pers_004_fjall_power_failure_partial_commit() {
         journal.commit(&effect_ids[1]).unwrap();
     }
 
-    let database = fjall::Database::builder(dir.path()).open().unwrap();
-    let journal = FjallEffectJournal::open(&database).unwrap();
+    let db = fjall::Database::builder(dir.path()).open().unwrap();
+    let journal = FjallEffectJournal::open(&db).unwrap();
 
     let pending = journal.list_pending(&id).unwrap();
     assert_eq!(
@@ -396,14 +396,14 @@ fn pers_008_fjall_idempotent_prepare_after_crash() {
     let id = sample_instance_id();
 
     {
-        let database = fjall::Database::builder(dir.path()).open().unwrap();
-        let journal = FjallEffectJournal::open(&database).unwrap();
+        let db = fjall::Database::builder(dir.path()).open().unwrap();
+        let journal = FjallEffectJournal::open(&db).unwrap();
         let record = make_effect_record("pers-idempotent");
         journal.prepare(&id, record).unwrap();
     }
 
-    let database = fjall::Database::builder(dir.path()).open().unwrap();
-    let journal = FjallEffectJournal::open(&database).unwrap();
+    let db = fjall::Database::builder(dir.path()).open().unwrap();
+    let journal = FjallEffectJournal::open(&db).unwrap();
 
     let record2 = make_effect_record("pers-idempotent");
     let eid = journal.prepare(&id, record2).unwrap();
@@ -459,8 +459,8 @@ fn pers_010_fjall_batch_crash_recovery_exactly_once() {
 
     let committed_ids;
     {
-        let database = fjall::Database::builder(dir.path()).open().unwrap();
-        let journal = FjallEffectJournal::open(&database).unwrap();
+        let db = fjall::Database::builder(dir.path()).open().unwrap();
+        let journal = FjallEffectJournal::open(&db).unwrap();
 
         let mut committed = Vec::new();
         for i in 0..10 {
@@ -474,8 +474,8 @@ fn pers_010_fjall_batch_crash_recovery_exactly_once() {
         committed_ids = committed;
     }
 
-    let database = fjall::Database::builder(dir.path()).open().unwrap();
-    let journal = FjallEffectJournal::open(&database).unwrap();
+    let db = fjall::Database::builder(dir.path()).open().unwrap();
+    let journal = FjallEffectJournal::open(&db).unwrap();
 
     let pending = journal.list_pending(&id).unwrap();
     assert_eq!(pending.len(), 5, "Exactly 5 effects pending after crash");
@@ -508,8 +508,8 @@ fn pers_011_fjall_exactly_once_across_multiple_cycles() {
     let effect_id = EffectId::new(&id, "pers-multi-cycle").unwrap();
 
     for _ in 0..3 {
-        let database = fjall::Database::builder(dir.path()).open().unwrap();
-        let journal = FjallEffectJournal::open(&database).unwrap();
+        let db = fjall::Database::builder(dir.path()).open().unwrap();
+        let journal = FjallEffectJournal::open(&db).unwrap();
 
         let pending = journal.list_pending(&id).unwrap();
         if pending.is_empty() {
@@ -524,8 +524,8 @@ fn pers_011_fjall_exactly_once_across_multiple_cycles() {
         drop(journal);
     }
 
-    let database = fjall::Database::builder(dir.path()).open().unwrap();
-    let journal = FjallEffectJournal::open(&database).unwrap();
+    let db = fjall::Database::builder(dir.path()).open().unwrap();
+    let journal = FjallEffectJournal::open(&db).unwrap();
 
     let result = journal.commit(&effect_id);
     assert!(
@@ -550,8 +550,8 @@ fn pers_012_fjall_compact_after_crash_recovery() {
     let id = sample_instance_id();
 
     {
-        let database = fjall::Database::builder(dir.path()).open().unwrap();
-        let journal = FjallEffectJournal::open(&database).unwrap();
+        let db = fjall::Database::builder(dir.path()).open().unwrap();
+        let journal = FjallEffectJournal::open(&db).unwrap();
 
         for i in 0..3 {
             let record = make_effect_record(&format!("pers-compact-{}", i));
@@ -560,8 +560,8 @@ fn pers_012_fjall_compact_after_crash_recovery() {
         }
     }
 
-    let database = fjall::Database::builder(dir.path()).open().unwrap();
-    let journal = FjallEffectJournal::open(&database).unwrap();
+    let db = fjall::Database::builder(dir.path()).open().unwrap();
+    let journal = FjallEffectJournal::open(&db).unwrap();
 
     let ts = vo_types::TimestampMs::parse("1000").unwrap();
     let removed = journal.compact(ts).unwrap();
@@ -588,8 +588,8 @@ fn pers_013_fjall_concurrent_with_crash() {
         let barrier = barrier.clone();
         move || {
             barrier.wait();
-            let database = fjall::Database::builder(&dir).open().unwrap();
-            let journal = FjallEffectJournal::open(&database).unwrap();
+            let db = fjall::Database::builder(&dir).open().unwrap();
+            let journal = FjallEffectJournal::open(&db).unwrap();
             for i in 0..10 {
                 let record = make_effect_record(&format!("thread1-{}", i));
                 let _ = journal.prepare(&id1_clone, record);
@@ -602,8 +602,8 @@ fn pers_013_fjall_concurrent_with_crash() {
         let barrier = barrier.clone();
         move || {
             barrier.wait();
-            let database = fjall::Database::builder(&dir).open().unwrap();
-            let journal = FjallEffectJournal::open(&database).unwrap();
+            let db = fjall::Database::builder(&dir).open().unwrap();
+            let journal = FjallEffectJournal::open(&db).unwrap();
             for i in 0..10 {
                 let record = make_effect_record(&format!("thread2-{}", i));
                 let _ = journal.prepare(&id2_clone, record);
@@ -614,8 +614,8 @@ fn pers_013_fjall_concurrent_with_crash() {
     h1.join().unwrap();
     h2.join().unwrap();
 
-    let database = fjall::Database::builder(dir.path()).open().unwrap();
-    let journal = FjallEffectJournal::open(&database).unwrap();
+    let db = fjall::Database::builder(dir.path()).open().unwrap();
+    let journal = FjallEffectJournal::open(&db).unwrap();
 
     let pending1 = journal.list_pending(&id1).unwrap();
     let pending2 = journal.list_pending(&id2).unwrap();

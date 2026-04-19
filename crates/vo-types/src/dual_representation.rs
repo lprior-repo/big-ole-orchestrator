@@ -179,7 +179,10 @@ pub fn apply_redaction(
                 }
                 serde_json::Value::Array(result)
             }
-            other => other.clone(),
+            other @ serde_json::Value::Null
+            | other @ serde_json::Value::Bool(_)
+            | other @ serde_json::Value::Number(_)
+            | other @ serde_json::Value::String(_) => other.clone(),
         }
     }
 

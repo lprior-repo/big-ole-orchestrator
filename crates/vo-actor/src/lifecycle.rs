@@ -22,7 +22,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use vo_types::InstanceId;
+use vo_types::signal::FailureScope;
+use vo_types::{InstanceId, LineageStatus};
 
 // =============================================================================
 // Actor Lifecycle State
@@ -347,6 +348,91 @@ pub fn is_valid_transition(
 }
 
 // =============================================================================
+// Failure Scope Handling (ADR-042 Section 5)
+// =============================================================================
+
+/// Outcome of a failure transition, combining actor state with lineage status.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FailureOutcome {
+    /// Actor failed and lineage remains active (epoch-scoped failure).
+    /// A new epoch may be spawned via continue-as-new.
+    EpochFailure {
+        actor_state: ActorLifecycleState,
+        lineage_status: LineageStatus,
+    },
+    /// Actor failed and lineage is permanently tombstoned (lineage-scoped failure).
+    /// No more epochs can be spawned for this lineage.
+    LineageFailure {
+        actor_state: ActorLifecycleState,
+        lineage_status: LineageStatus,
+    },
+}
+
+impl FailureOutcome {
+    /// Returns the actor lifecycle state after the failure.
+    #[must_use]
+    pub const fn actor_state(&self) -> ActorLifecycleState {
+        match self {
+            Self::EpochFailure { actor_state, .. } | Self::LineageFailure { actor_state, .. } => {
+                *actor_state
+            }
+        }
+    }
+
+    /// Returns the lineage status after the failure.
+    #[must_use]
+    pub const fn lineage_status(&self) -> LineageStatus {
+        match self {
+            Self::EpochFailure { lineage_status, .. }
+            | Self::LineageFailure { lineage_status, .. } => *lineage_status,
+        }
+    }
+
+    /// Returns `true` if this was an epoch-scoped failure.
+    #[must_use]
+    pub const fn is_epoch_failure(&self) -> bool {
+        matches!(self, Self::EpochFailure { .. })
+    }
+
+    /// Returns `true` if this was a lineage-scoped failure.
+    #[must_use]
+    pub const fn is_lineage_failure(&self) -> bool {
+        matches!(self, Self::LineageFailure { .. })
+    }
+
+    /// Returns `true` if the lineage can spawn new epochs after this failure.
+    #[must_use]
+    pub const fn can_lineage_spawn_epoch(&self) -> bool {
+        match self {
+            Self::EpochFailure { lineage_status, .. } => lineage_status.is_active(),
+            Self::LineageFailure { lineage_status, .. } => lineage_status.is_active(),
+        }
+    }
+}
+
+/// Compute the failure outcome based on current state and failure scope.
+///
+/// Per ADR-042 Section 5:
+/// - Epoch-scoped failures allow retry/continue-as-new within the lineage
+/// - Lineage-scoped failures permanently tombstone the lineage
+#[must_use]
+pub fn compute_failure_outcome(
+    _current: ActorLifecycleState,
+    scope: FailureScope,
+) -> FailureOutcome {
+    match scope {
+        FailureScope::Epoch => FailureOutcome::EpochFailure {
+            actor_state: ActorLifecycleState::Failed,
+            lineage_status: LineageStatus::Active,
+        },
+        FailureScope::Lineage => FailureOutcome::LineageFailure {
+            actor_state: ActorLifecycleState::Failed,
+            lineage_status: LineageStatus::Tombstoned,
+        },
+    }
+}
+
+// =============================================================================
 // Tests
 // =============================================================================
 
@@ -553,5 +639,290 @@ mod tests {
 
         let err = LifecycleError::ShutdownTimeout { children_remaining: 3 };
         assert!(format!("{}", err).contains("shutdown timeout"));
+    }
+
+    // ========================================================================
+    // FailureScope and FailureOutcome tests (ADR-042 Section 5)
+    // ========================================================================
+
+    #[test]
+    fn compute_failure_outcome_epoch_scope_allows_lineage_continue() {
+        let outcome = compute_failure_outcome(ActorLifecycleState::Running, FailureScope::Epoch);
+        assert!(outcome.is_epoch_failure());
+        assert!(!outcome.is_lineage_failure());
+        assert_eq!(outcome.actor_state(), ActorLifecycleState::Failed);
+        assert_eq!(outcome.lineage_status(), LineageStatus::Active);
+        assert!(outcome.can_lineage_spawn_epoch());
+    }
+
+    #[test]
+    fn compute_failure_outcome_lineage_scope_tombstones_lineage() {
+        let outcome = compute_failure_outcome(ActorLifecycleState::Running, FailureScope::Lineage);
+        assert!(!outcome.is_epoch_failure());
+        assert!(outcome.is_lineage_failure());
+        assert_eq!(outcome.actor_state(), ActorLifecycleState::Failed);
+        assert_eq!(outcome.lineage_status(), LineageStatus::Tombstoned);
+        assert!(!outcome.can_lineage_spawn_epoch());
+    }
+
+    #[test]
+    fn failure_outcome_epoch_failure_has_active_lineage() {
+        let outcome = FailureOutcome::EpochFailure {
+            actor_state: ActorLifecycleState::Failed,
+            lineage_status: LineageStatus::Active,
+        };
+        assert!(outcome.is_epoch_failure());
+        assert!(!outcome.is_lineage_failure());
+        assert!(outcome.can_lineage_spawn_epoch());
+    }
+
+    #[test]
+    fn failure_outcome_lineage_failure_blocks_scheduling() {
+        let outcome = FailureOutcome::LineageFailure {
+            actor_state: ActorLifecycleState::Failed,
+            lineage_status: LineageStatus::Tombstoned,
+        };
+        assert!(!outcome.is_epoch_failure());
+        assert!(outcome.is_lineage_failure());
+        assert!(!outcome.can_lineage_spawn_epoch());
+    }
+
+    // =========================================================================
+    // Proptest Property-Based Tests
+    // =========================================================================
+
+    mod proptest_tests {
+        use super::*;
+        use proptest::prelude::*;
+
+        proptest! {
+            #[test]
+            fn compute_next_state_is_deterministic_and_pure(
+                state in prop::sample::select(vec![
+                    ActorLifecycleState::Pending,
+                    ActorLifecycleState::Running,
+                    ActorLifecycleState::Stopping,
+                    ActorLifecycleState::Stopped,
+                    ActorLifecycleState::Failed,
+                ]),
+                transition in prop::sample::select(vec![
+                    LifecycleTransition::Start,
+                    LifecycleTransition::Stop,
+                    LifecycleTransition::ChildStopped,
+                    LifecycleTransition::AllChildrenStopped,
+                    LifecycleTransition::Fail,
+                ])
+            ) {
+                let result1 = compute_next_state(state, transition);
+                let result2 = compute_next_state(state, transition);
+                prop_assert_eq!(result1, result2, "compute_next_state must be deterministic");
+            }
+        }
+
+        proptest! {
+            #[test]
+            fn terminal_states_never_transition(
+                terminal_state in prop::sample::select(vec![
+                    ActorLifecycleState::Stopped,
+                    ActorLifecycleState::Failed,
+                ]),
+                transition in prop::sample::select(vec![
+                    LifecycleTransition::Start,
+                    LifecycleTransition::Stop,
+                    LifecycleTransition::ChildStopped,
+                    LifecycleTransition::AllChildrenStopped,
+                    LifecycleTransition::Fail,
+                ])
+            ) {
+                let next = compute_next_state(terminal_state, transition);
+                prop_assert_eq!(next, None, "terminal state {:?} should reject {:?}", terminal_state, transition);
+            }
+        }
+
+        proptest! {
+            #[test]
+            fn valid_transitions_are_acyclic(
+                initial_state in prop::sample::select(vec![
+                    ActorLifecycleState::Pending,
+                    ActorLifecycleState::Running,
+                    ActorLifecycleState::Stopping,
+                ])
+            ) {
+                let mut visited = std::collections::HashSet::new();
+                let mut current = Some(initial_state);
+                let mut iterations = 0;
+                const MAX_ITERATIONS: usize = 100;
+
+                while let Some(state) = current {
+                    prop_assert!(
+                        !visited.contains(&state),
+                        "Cycle detected! State {:?} was already visited",
+                        state
+                    );
+                    visited.insert(state);
+
+                    if iterations >= MAX_ITERATIONS {
+                        prop_assert!(false, "Exceeded max iterations, likely infinite loop");
+                        break;
+                    }
+                    iterations += 1;
+
+                    let transitions = state.valid_transitions();
+                    if transitions.is_empty() {
+                        break;
+                    }
+
+                    let mut found_next = false;
+                    for transition in &transitions {
+                        if let Some(next_state) = compute_next_state(state, *transition) {
+                            if next_state != state {
+                                current = Some(next_state);
+                                found_next = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if !found_next {
+                        break;
+                    }
+                }
+            }
+        }
+
+        proptest! {
+            #[test]
+            fn compute_failure_outcome_epoch_scope_preserves_active_lineage(
+                _seed: u32
+            ) {
+                let outcome = compute_failure_outcome(ActorLifecycleState::Running, FailureScope::Epoch);
+                prop_assert!(
+                    matches!(outcome, FailureOutcome::EpochFailure { lineage_status: LineageStatus::Active, .. }),
+                    "Epoch failure must have Active lineage, got {:?}",
+                    outcome
+                );
+                prop_assert_eq!(
+                    outcome.lineage_status(),
+                    LineageStatus::Active,
+                    "Epoch failure preserves Active lineage"
+                );
+                prop_assert!(
+                    outcome.can_lineage_spawn_epoch(),
+                    "Epoch failure lineage must be able to spawn epoch"
+                );
+            }
+        }
+
+        proptest! {
+            #[test]
+            fn compute_failure_outcome_lineage_scope_preserves_tombstoned_lineage(
+                _seed: u32
+            ) {
+                let outcome = compute_failure_outcome(ActorLifecycleState::Running, FailureScope::Lineage);
+                prop_assert!(
+                    matches!(outcome, FailureOutcome::LineageFailure { lineage_status: LineageStatus::Tombstoned, .. }),
+                    "Lineage failure must have Tombstoned lineage, got {:?}",
+                    outcome
+                );
+                prop_assert_eq!(
+                    outcome.lineage_status(),
+                    LineageStatus::Tombstoned,
+                    "Lineage failure preserves Tombstoned lineage"
+                );
+                prop_assert!(
+                    !outcome.can_lineage_spawn_epoch(),
+                    "Lineage failure lineage must NOT be able to spawn epoch"
+                );
+            }
+        }
+
+        proptest! {
+            #[test]
+            fn compute_failure_outcome_always_returns_failed_actor_state(
+                initial_state in prop::sample::select(vec![
+                    ActorLifecycleState::Pending,
+                    ActorLifecycleState::Running,
+                    ActorLifecycleState::Stopping,
+                    ActorLifecycleState::Stopped,
+                    ActorLifecycleState::Failed,
+                ])
+            ) {
+                let epoch_outcome = compute_failure_outcome(initial_state, FailureScope::Epoch);
+                prop_assert_eq!(
+                    epoch_outcome.actor_state(),
+                    ActorLifecycleState::Failed,
+                    "Epoch failure outcome actor_state must be Failed"
+                );
+
+                let lineage_outcome = compute_failure_outcome(initial_state, FailureScope::Lineage);
+                prop_assert_eq!(
+                    lineage_outcome.actor_state(),
+                    ActorLifecycleState::Failed,
+                    "Lineage failure outcome actor_state must be Failed"
+                );
+            }
+        }
+
+        proptest! {
+            #[test]
+            fn failure_outcome_preserves_scope_semantics_across_states(
+                state in prop::sample::select(vec![
+                    ActorLifecycleState::Pending,
+                    ActorLifecycleState::Running,
+                    ActorLifecycleState::Stopping,
+                ])
+            ) {
+                let epoch_outcome = compute_failure_outcome(state, FailureScope::Epoch);
+                let lineage_outcome = compute_failure_outcome(state, FailureScope::Lineage);
+
+                prop_assert!(
+                    epoch_outcome.is_epoch_failure(),
+                    "Epoch scope must produce EpochFailure"
+                );
+                prop_assert!(
+                    lineage_outcome.is_lineage_failure(),
+                    "Lineage scope must produce LineageFailure"
+                );
+
+                prop_assert_eq!(
+                    epoch_outcome.lineage_status(),
+                    LineageStatus::Active,
+                    "Epoch failure always has Active lineage"
+                );
+                prop_assert_eq!(
+                    lineage_outcome.lineage_status(),
+                    LineageStatus::Tombstoned,
+                    "Lineage failure always has Tombstoned lineage"
+                );
+            }
+        }
+
+        proptest! {
+            #[test]
+            fn is_valid_transition_matches_compute_next_state(
+                state in prop::sample::select(vec![
+                    ActorLifecycleState::Pending,
+                    ActorLifecycleState::Running,
+                    ActorLifecycleState::Stopping,
+                    ActorLifecycleState::Stopped,
+                    ActorLifecycleState::Failed,
+                ]),
+                transition in prop::sample::select(vec![
+                    LifecycleTransition::Start,
+                    LifecycleTransition::Stop,
+                    LifecycleTransition::ChildStopped,
+                    LifecycleTransition::AllChildrenStopped,
+                    LifecycleTransition::Fail,
+                ])
+            ) {
+                let is_valid = is_valid_transition(state, transition);
+                let next_state = compute_next_state(state, transition);
+                prop_assert_eq!(
+                    is_valid,
+                    next_state.is_some(),
+                    "is_valid_transition must match compute_next_state result"
+                );
+            }
+        }
     }
 }

@@ -10,27 +10,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use vo_types::events::EventEnvelope;
-
-/// Emit a rejection metric for monitoring.
-fn emit_rejection(class: WriteClass, reason: &str) {
-    let label = match class {
-        WriteClass::CriticalControlPlane => "critical_control_plane",
-        WriteClass::OperatorProjection => "operator_projection",
-        WriteClass::BulkBlob => "bulk_blob",
-    };
-    metrics::counter!("vo_storage.write_rejected_total", "class" => label, "reason" => reason.to_string())
-        .increment(1);
-}
-
-/// Emit a queue depth metric for monitoring.
-fn emit_queue_depth(class: WriteClass, depth: usize) {
-    let label = match class {
-        WriteClass::CriticalControlPlane => "critical_control_plane",
-        WriteClass::OperatorProjection => "projection",
-        WriteClass::BulkBlob => "bulk_blob",
-    };
-    metrics::gauge!("vo_storage.queue_depth", "class" => label).set(depth as f64);
-}
+#[cfg(test)]
+use vo_types::events::EventMetadata;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // WriteClass
@@ -151,33 +132,27 @@ impl WriteBudget {
         }
         Ok(())
     }
-
-    pub fn release(&self, class: WriteClass, size_bytes: u64) {
-        match class {
-            WriteClass::CriticalControlPlane => {
-                let current = self.critical_used.borrow().saturating_sub(size_bytes);
-                *self.critical_used.borrow_mut() = current;
-            }
-            WriteClass::OperatorProjection => {
-                let current = self.projection_used.borrow().saturating_sub(size_bytes);
-                *self.projection_used.borrow_mut() = current;
-            }
-            WriteClass::BulkBlob => {
-                let current = self.blob_used.borrow().saturating_sub(size_bytes);
-                *self.blob_used.borrow_mut() = current;
-            }
-        }
-    }
 }
 
 /// Budget exceeded error.
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
-#[error("budget exceeded for {class:?}: requested {requested}, available {available}")]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BudgetError {
     pub class: WriteClass,
     pub requested: u64,
     pub available: u64,
 }
+
+impl std::fmt::Display for BudgetError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "budget exceeded for {:?}: requested {}, available {}",
+            self.class, self.requested, self.available
+        )
+    }
+}
+
+impl std::error::Error for BudgetError {}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // QueueConfig
@@ -358,9 +333,8 @@ impl BackpressureSignal {
                 capacity,
             };
             #[expect(clippy::unwrap_used)]
-            {
-                *self.last_event.lock().unwrap() = Some(event);
-            }
+            let mut last_event = self.last_event.lock().unwrap();
+            *last_event = Some(event);
         }
     }
 
@@ -378,9 +352,8 @@ impl BackpressureSignal {
                 remaining_capacity,
             };
             #[expect(clippy::unwrap_used)]
-            {
-                *self.last_event.lock().unwrap() = Some(event);
-            }
+            let mut last_event = self.last_event.lock().unwrap();
+            *last_event = Some(event);
         }
     }
 
@@ -463,235 +436,42 @@ impl CommitLatencyTracker {
 // BudgetQueues
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Signals for backpressure state changes.
-///
-/// Emitted when a queue transitions between non-full and full states,
-/// allowing downstream consumers to apply backpressure or release it.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum BackpressureEvent {
-    /// A queue became full and can no longer accept writes.
-    QueueFull {
-        class: WriteClass,
-        depth: usize,
-        capacity: usize,
-    },
-    /// A queue had capacity available after being full.
-    QueueWritable {
-        class: WriteClass,
-        remaining_capacity: usize,
-    },
-}
-
-/// Thread-safe backpressure signal that notifies observers of queue state changes.
-///
-/// Observers can use this to apply backpressure to producers when queues are full,
-/// and release it when capacity becomes available.
-#[derive(Debug)]
-pub struct BackpressureSignal {
-    critical_full: AtomicBool,
-    projection_full: AtomicBool,
-    blob_full: AtomicBool,
-    last_event: Mutex<Option<BackpressureEvent>>,
-}
-
-impl BackpressureSignal {
-    /// Creates a new backpressure signal with all queues initially not full.
-    #[must_use]
-    pub const fn new() -> Self {
-        Self {
-            critical_full: AtomicBool::new(false),
-            projection_full: AtomicBool::new(false),
-            blob_full: AtomicBool::new(false),
-            last_event: Mutex::new(None),
-        }
-    }
-
-    /// Returns `true` if the queue for the given class is experiencing backpressure.
-    #[must_use]
-    pub fn is_backpressured(&self, class: WriteClass) -> bool {
-        match class {
-            WriteClass::CriticalControlPlane => self.critical_full.load(Ordering::SeqCst),
-            WriteClass::OperatorProjection => self.projection_full.load(Ordering::SeqCst),
-            WriteClass::BulkBlob => self.blob_full.load(Ordering::SeqCst),
-        }
-    }
-
-    /// Returns `true` if any queue is experiencing backpressure.
-    #[must_use]
-    pub fn any_backpressured(&self) -> bool {
-        self.critical_full.load(Ordering::SeqCst)
-            || self.projection_full.load(Ordering::SeqCst)
-            || self.blob_full.load(Ordering::SeqCst)
-    }
-
-    /// Returns the most recent backpressure event, if any.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the internal mutex is poisoned.
-    #[must_use]
-    pub fn last_event(&self) -> Option<BackpressureEvent> {
-        #[expect(clippy::unwrap_used)]
-        self.last_event.lock().unwrap().clone()
-    }
-
-    /// Called when a queue becomes full.
-    #[allow(clippy::unwrap_used)]
-    pub(crate) fn set_full(&self, class: WriteClass, depth: usize, capacity: usize) {
-        let was_full = match class {
-            WriteClass::CriticalControlPlane => self.critical_full.swap(true, Ordering::SeqCst),
-            WriteClass::OperatorProjection => self.projection_full.swap(true, Ordering::SeqCst),
-            WriteClass::BulkBlob => self.blob_full.swap(true, Ordering::SeqCst),
-        };
-
-        if !was_full {
-            let event = BackpressureEvent::QueueFull {
-                class,
-                depth,
-                capacity,
-            };
-            #[expect(clippy::unwrap_used)]
-            {
-                *self.last_event.lock().unwrap() = Some(event);
-            }
-        }
-    }
-
-    /// Called when a queue becomes writable (was full, now has capacity).
-    #[allow(clippy::unwrap_used)]
-    pub(crate) fn set_writable(&self, class: WriteClass, remaining_capacity: usize) {
-        let was_full = match class {
-            WriteClass::CriticalControlPlane => self.critical_full.swap(false, Ordering::SeqCst),
-            WriteClass::OperatorProjection => self.projection_full.swap(false, Ordering::SeqCst),
-            WriteClass::BulkBlob => self.blob_full.swap(false, Ordering::SeqCst),
-        };
-
-        if was_full {
-            let event = BackpressureEvent::QueueWritable {
-                class,
-                remaining_capacity,
-            };
-            #[expect(clippy::unwrap_used)]
-            {
-                *self.last_event.lock().unwrap() = Some(event);
-            }
-        }
-    }
-
-    /// Returns `true` if writes of this class should be rejected due to backpressure.
-    ///
-    /// Note: `CriticalControlPlane` writes are never rejected due to backpressure
-    /// per ADR-032 (they must never be dropped).
-    #[must_use]
-    pub fn should_reject(&self, class: WriteClass) -> bool {
-        match class {
-            WriteClass::CriticalControlPlane => false,
-            WriteClass::OperatorProjection | WriteClass::BulkBlob => self.is_backpressured(class),
-        }
-    }
-}
-
-impl Default for BackpressureSignal {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// CommitLatencyTracker
-// ─────────────────────────────────────────────────────────────────────────────
-
-/// Tracks commit latency for monitoring and backpressure decisions.
-#[derive(Debug, Default)]
-pub struct CommitLatencyTracker {
-    state: Mutex<CommitLatencyState>,
-}
-
-#[derive(Debug, Default)]
-struct CommitLatencyState {
-    last_commit_at: Option<Instant>,
-    sample_count: u64,
-    total_latency_ms: u128,
-}
-
-impl CommitLatencyTracker {
-    /// Records a commit completion with the given latency in milliseconds.
-    ///
-    /// # Panics
-    ///
-    /// Panics if any internal mutex is poisoned.
-    pub fn record_commit(&self, latency_ms: u64) {
-        #[expect(clippy::unwrap_used)]
-        let mut state = self.state.lock().unwrap();
-        state.last_commit_at = Some(Instant::now());
-        state.sample_count += 1;
-        state.total_latency_ms += u128::from(latency_ms);
-    }
-
-    /// Returns the time since the last commit, if any.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the internal mutex is poisoned.
-    #[must_use]
-    pub fn time_since_last_commit(&self) -> Option<std::time::Duration> {
-        #[expect(clippy::unwrap_used)]
-        let state = self.state.lock().unwrap();
-        state.last_commit_at.map(|instant| instant.elapsed())
-    }
-
-    /// Returns the average commit latency in milliseconds, if samples exist.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the internal mutex is poisoned.
-    #[must_use]
-    #[allow(clippy::cast_possible_truncation)]
-    pub fn average_latency_ms(&self) -> Option<u64> {
-        #[expect(clippy::unwrap_used)]
-        let state = self.state.lock().unwrap();
-        if state.sample_count == 0 {
-            return None;
-        }
-        Some(
-            u64::try_from(state.total_latency_ms / u128::from(state.sample_count))
-                .unwrap_or(u64::MAX),
-        )
-    }
-
-    /// Returns the number of commit samples recorded.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the internal mutex is poisoned.
-    #[must_use]
-    pub fn sample_count(&self) -> u64 {
-        #[expect(clippy::unwrap_used)]
-        let state = self.state.lock().unwrap();
-        state.sample_count
-    }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// BudgetQueues
-// ─────────────────────────────────────────────────────────────────────────────
-
 /// Errors returned by `BudgetQueues` operations.
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BudgetQueuesError {
-    #[error("queue full for {class:?}: {depth}/{capacity}")]
     QueueFull {
         class: WriteClass,
         depth: usize,
         capacity: usize,
     },
-    #[error("budget exceeded for {class:?}: item size {item_size}, remaining {remaining}")]
     BudgetExceeded {
         class: WriteClass,
         item_size: u64,
         remaining: u64,
     },
 }
+
+impl std::fmt::Display for BudgetQueuesError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::QueueFull {
+                class,
+                depth,
+                capacity,
+            } => write!(f, "queue full for {class:?}: {depth}/{capacity}"),
+            Self::BudgetExceeded {
+                class,
+                item_size,
+                remaining,
+            } => write!(
+                f,
+                "budget exceeded for {class:?}: item size {item_size}, remaining {remaining}"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for BudgetQueuesError {}
 
 /// Trait for items that can be queued with `WriteClass` awareness.
 pub trait ClassifiedWrite {
@@ -751,7 +531,7 @@ pub struct BudgetQueues<T> {
 
 impl<T> BudgetQueues<T> {
     /// Creates new budget queues with the given configuration and budget.
-    pub fn new(config: &QueueConfig, budget: WriteBudget) -> Self {
+    pub fn new(config: QueueConfig, budget: WriteBudget) -> Self {
         let critical_cap = config.critical_capacity;
         let projection_cap = config.projection_capacity;
         let blob_cap = config.blob_capacity;
@@ -832,7 +612,6 @@ impl<T> BudgetQueues<T> {
 
         // Check budget first
         if !self.budget.can_write(class, size) {
-            emit_rejection(class, "budget_exceeded");
             return Err(BudgetQueuesError::BudgetExceeded {
                 class,
                 item_size: size,
@@ -891,7 +670,6 @@ impl<T> BudgetQueues<T> {
                 Ok(mut guard) => guard.pop(),
                 Err(poisoned) => poisoned.into_inner().pop(),
             };
-            emit_rejection(class, "budget_exceeded");
             return Err(BudgetQueuesError::BudgetExceeded {
                 class,
                 item_size: size,
@@ -937,14 +715,6 @@ impl<T> BudgetQueues<T> {
             match self.stats.lock() {
                 Ok(mut guard) => guard.decrement(class),
                 Err(poisoned) => poisoned.into_inner().decrement(class),
-            }
-
-            if was_full {
-                let remaining = match self.stats.lock() {
-                    Ok(guard) => guard.remaining(class),
-                    Err(poisoned) => poisoned.into_inner().remaining(class),
-                };
-                self.backpressure.set_writable(class, remaining);
             }
 
             if was_full {
@@ -1055,16 +825,6 @@ pub struct ProjectionWrite {
     size_bytes: u64,
 }
 
-impl ProjectionWrite {
-    #[must_use]
-    pub const fn new(projection_id: String, size_bytes: u64) -> Self {
-        Self {
-            projection_id,
-            size_bytes,
-        }
-    }
-}
-
 impl ClassifiedWrite for ProjectionWrite {
     fn write_class(&self) -> WriteClass {
         WriteClass::OperatorProjection
@@ -1115,9 +875,9 @@ pub struct Appender {
 
 impl Appender {
     /// Creates a new `Appender` with the given queue configuration and budget.
-    pub fn new(config: &QueueConfig, budget: WriteBudget) -> Self {
+    pub fn new(config: QueueConfig, budget: WriteBudget) -> Self {
         Self {
-            queues: BudgetQueues::new(&config, budget),
+            queues: BudgetQueues::new(config, budget),
         }
     }
 
@@ -1183,7 +943,6 @@ impl Appender {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use vo_types::events::EventMetadata;
 
     #[test]
     fn write_class_tier() {
@@ -1275,7 +1034,7 @@ mod tests {
     fn appender_queues_control_plane_write() {
         let config = QueueConfig::default();
         let budget = WriteBudget::new(10000, 10000, 10000);
-        let appender = Appender::new(&config, budget);
+        let appender = Appender::new(config, budget);
 
         let event = EventEnvelope {
             schema_version: 1,
@@ -1295,7 +1054,7 @@ mod tests {
     fn appender_rejects_when_budget_exhausted() {
         let config = QueueConfig::default();
         let budget = WriteBudget::new(50, 50, 50);
-        let appender = Appender::new(&config, budget);
+        let appender = Appender::new(config, budget);
 
         let event = EventEnvelope {
             schema_version: 1,
@@ -1322,7 +1081,7 @@ mod tests {
             blob_capacity: 1,
         };
         let budget = WriteBudget::new(10000, 10000, 10000);
-        let appender = Appender::new(&config, budget);
+        let appender = Appender::new(config, budget);
 
         let event = EventEnvelope {
             schema_version: 1,
@@ -1345,7 +1104,7 @@ mod tests {
     fn appender_dequeue_returns_queued_items() {
         let config = QueueConfig::default();
         let budget = WriteBudget::new(10000, 10000, 10000);
-        let appender = Appender::new(&config, budget);
+        let appender = Appender::new(config, budget);
 
         let event = EventEnvelope {
             schema_version: 1,

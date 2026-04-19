@@ -3,6 +3,7 @@
 //! Provides REST endpoints for workflow management, step execution,
 //! and system health monitoring.
 
+pub mod handlers;
 pub mod types;
 pub mod handlers;
 
@@ -47,39 +48,65 @@ mod lib_tests {
         assert!(json.contains(r#""instance_id":"inst-1""#));
         assert!(json.contains(r#""total_replayed":0"#));
     }
-}
 
     // --- HistoryEntry tests ---
 
-#[test]
-fn history_entry_omits_none_fields() {
-    let entry = crate::types::v3::HistoryEntry {
-        sequence: 1,
-        timestamp_ms: 0,
-        event_type: "workflow_started".to_string(),
-        step_id: None,
-        error: None,
-        output: None,
-    };
-    let json = serde_json::to_string(&entry).unwrap();
-    assert!(!json.contains("step_id"));
-    assert!(!json.contains("error"));
-    assert!(!json.contains("output"));
-}
+    #[test]
+    fn history_entry_serializes_step_fields() {
+        let entry = crate::types::v3::HistoryEntry {
+            sequence: 3,
+            timestamp_ms: 5000,
+            event_type: "step_completed".to_string(),
+            step_id: Some("build".to_string()),
+            error: None,
+            output: Some(serde_json::json!({"result": "ok"})),
+        };
+        let json = serde_json::to_string(&entry).unwrap();
+        assert!(json.contains(r#""step_id":"build""#));
+        assert!(json.contains("output"));
+        assert!(!json.contains("error"));
+    }
+
+    #[test]
+    fn history_entry_omits_none_fields() {
+        let entry = crate::types::v3::HistoryEntry {
+            sequence: 1,
+            timestamp_ms: 0,
+            event_type: "workflow_started".to_string(),
+            step_id: None,
+            error: None,
+            output: None,
+        };
+        let json = serde_json::to_string(&entry).unwrap();
+        assert!(!json.contains("step_id"));
+        assert!(!json.contains("error"));
+        assert!(!json.contains("output"));
+    }
+
+    // --- EffectSemantics tests ---
 
     #[test]
     fn effect_semantics_exact_serializes_lowercase() {
-        assert_eq!(serde_json::to_string(&crate::types::v3::EffectSemantics::Exact).unwrap(), r#""exact""#);
+        assert_eq!(
+            serde_json::to_string(&crate::types::v3::EffectSemantics::Exact).unwrap(),
+            r#""exact""#
+        );
     }
 
     #[test]
     fn effect_semantics_unsafe_serializes_lowercase() {
-        assert_eq!(serde_json::to_string(&crate::types::v3::EffectSemantics::Unsafe).unwrap(), r#""unsafe""#);
+        assert_eq!(
+            serde_json::to_string(&crate::types::v3::EffectSemantics::Unsafe).unwrap(),
+            r#""unsafe""#
+        );
     }
 
     #[test]
     fn effect_semantics_roundtrip() {
-        for variant in [crate::types::v3::EffectSemantics::Exact, crate::types::v3::EffectSemantics::Unsafe] {
+        for variant in [
+            crate::types::v3::EffectSemantics::Exact,
+            crate::types::v3::EffectSemantics::Unsafe,
+        ] {
             let json = serde_json::to_string(&variant).unwrap();
             let parsed: crate::types::v3::EffectSemantics = serde_json::from_str(&json).unwrap();
             assert_eq!(parsed, variant);
@@ -131,3 +158,4 @@ fn history_entry_omits_none_fields() {
         assert!(json.contains(r#""last_sequence":null"#));
         assert!(json.contains(r#""last_timestamp_ms":null"#));
     }
+}

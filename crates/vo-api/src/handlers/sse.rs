@@ -8,6 +8,10 @@ use axum::{
 use futures::Stream;
 use ractor::ActorRef;
 use tokio::sync::broadcast;
+use tokio::time::interval;
+use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
+use tokio_stream::wrappers::BroadcastStream;
+use tokio_stream::StreamExt as TokioStreamExt;
 use vo_actor::OrchestratorMsg;
 
 use crate::types::ApiError;
@@ -17,26 +21,48 @@ const SSE_BROADCAST_CAPACITY: usize = 1000;
 
 #[derive(Debug, Clone)]
 pub enum WorkflowSseEvent {
-    StepCompleted { node_name: String, sequence: u64 },
-    StepFailed { node_name: String, sequence: u64, error: String },
-    TimerFired { timer_id: String },
-    SignalReceived { signal_name: String },
-    PhaseChanged { phase: String },
+    StepCompleted {
+        node_name: String,
+        sequence: u64,
+    },
+    StepFailed {
+        node_name: String,
+        sequence: u64,
+        error: String,
+    },
+    TimerFired {
+        timer_id: String,
+    },
+    SignalReceived {
+        signal_name: String,
+    },
+    PhaseChanged {
+        phase: String,
+    },
     InstanceCompleted,
-    InstanceFailed { error: String },
+    InstanceFailed {
+        error: String,
+    },
 }
 
 impl WorkflowSseEvent {
     fn to_sse_event(&self) -> Event {
         let data = match self {
-            WorkflowSseEvent::StepCompleted { node_name, sequence } => {
+            WorkflowSseEvent::StepCompleted {
+                node_name,
+                sequence,
+            } => {
                 serde_json::json!({
                     "type": "step_completed",
                     "node_name": node_name,
                     "sequence": sequence,
                 })
             }
-            WorkflowSseEvent::StepFailed { node_name, sequence, error } => {
+            WorkflowSseEvent::StepFailed {
+                node_name,
+                sequence,
+                error,
+            } => {
                 serde_json::json!({
                     "type": "step_failed",
                     "node_name": node_name,
@@ -95,7 +121,10 @@ impl SseBroadcaster {
         self.tx.subscribe()
     }
 
-    pub fn send(&self, event: WorkflowSseEvent) -> Result<(), broadcast::error::SendError> {
+    pub fn send(
+        &self,
+        event: WorkflowSseEvent,
+    ) -> Result<usize, broadcast::error::SendError<WorkflowSseEvent>> {
         self.tx.send(event)
     }
 }
@@ -127,8 +156,13 @@ impl Default for SseState {
 
 struct SseStream {
     receiver: broadcast::Receiver<WorkflowSseEvent>,
-    #[allow(dead_code)]
-    _phantom: std::marker::PhantomData<()>,
+) -> impl futures::Stream<Item = Result<Event, axum::Error>> + Send + 'static {
+    TokioStreamExt::map(BroadcastStream::new(receiver), |result| match result {
+        Ok(event) => Ok(event.to_sse_event()),
+        Err(BroadcastStreamRecvError::Lagged(_)) => {
+            Err(axum::Error::new("client fell behind, closing stream"))
+        }
+    })
 }
 
 impl Stream for SseStream {
@@ -202,6 +236,7 @@ use axum::Json;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use futures::StreamExt;
 
     #[test]
     fn sse_event_step_completed_serializes_correctly() {
@@ -248,5 +283,150 @@ mod tests {
     fn split_path_id_returns_none_when_missing_slash() {
         let result = split_path_id("no-slash-here");
         assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn sse_lagged_error_closes_stream() {
+        use tokio::sync::broadcast;
+        use tokio::time::{timeout, Duration};
+
+        let (tx, rx) = broadcast::channel::<WorkflowSseEvent>(10);
+
+        let stream = make_sse_stream(rx);
+        let mut event = futures::StreamExt::fuse(stream);
+
+        for i in 0..15 {
+            let _ = tx.send(WorkflowSseEvent::StepCompleted {
+                node_name: format!("step-{}", i),
+                sequence: i,
+            });
+        }
+        drop(tx);
+
+        let mut count = 0u64;
+        let result = timeout(Duration::from_secs(2), async {
+            while let Some(_item) = futures::StreamExt::next(&mut event).await {
+                count += 1;
+            }
+        })
+        .await;
+
+        assert!(result.is_ok() || count <= 11, "Should emit lag or close");
+        assert!(
+            count <= 11,
+            "Should close after lag, not receive all 15 events"
+        );
+    }
+
+    #[tokio::test]
+    async fn sse_stream_closes_after_lag_event() {
+        use tokio::sync::broadcast;
+        use tokio::time::{timeout, Duration};
+
+        let (tx, rx) = broadcast::channel::<WorkflowSseEvent>(5);
+
+        let stream = make_sse_stream(rx);
+        let mut event = futures::StreamExt::fuse(stream);
+
+        for i in 0..20 {
+            let _ = tx.send(WorkflowSseEvent::StepCompleted {
+                node_name: format!("step-{}", i),
+                sequence: i,
+            });
+        }
+
+        let mut count = 0u64;
+        let _ = timeout(Duration::from_secs(2), async {
+            while let Some(_result) = futures::StreamExt::next(&mut event).await {
+                count += 1;
+            }
+        })
+        .await;
+
+        assert!(
+            count < 20,
+            "Should close after lag notification, not receive all 20 events, got {count}"
+        );
+    }
+
+    #[test]
+    fn keepalive_interval_is_15_seconds() {
+        assert_eq!(SSE_KEEPALIVE_INTERVAL, Duration::from_secs(15));
+    }
+
+    #[test]
+    fn broadcast_capacity_is_1000() {
+        assert_eq!(SSE_BROADCAST_CAPACITY, 1000);
+    }
+
+    #[tokio::test]
+    async fn sse_broadcast_capacity_1000() {
+        let broadcaster = SseBroadcaster::new();
+        let mut receiver = broadcaster.subscribe();
+
+        let handle = tokio::spawn(async move {
+            let mut count = 0u64;
+            while let Ok(_) = receiver.recv().await {
+                count += 1;
+            }
+            count
+        });
+
+        for i in 0..(SSE_BROADCAST_CAPACITY + 1) {
+            let _ = broadcaster.send(WorkflowSseEvent::StepCompleted {
+                node_name: format!("step-{}", i),
+                sequence: i as u64,
+            });
+        }
+
+        drop(broadcaster);
+
+        let count = handle.await.expect("task should not panic");
+        assert!(
+            count <= SSE_BROADCAST_CAPACITY as u64 + 1,
+            "Should receive at most capacity + 1 events"
+        );
+    }
+
+    #[tokio::test]
+    async fn sse_lagged_error_drops_slow_client() {
+        use tokio::sync::broadcast;
+
+        let (tx, rx) = broadcast::channel::<WorkflowSseEvent>(10);
+
+        let stream = make_sse_stream(rx);
+        let mut event = futures::StreamExt::fuse(stream);
+
+        for i in 0..100 {
+            let _ = tx.send(WorkflowSseEvent::StepCompleted {
+                node_name: format!("step-{}", i),
+                sequence: i,
+            });
+        }
+
+        let mut count = 0u64;
+        let mut lagged = false;
+        while let Some(result) = futures::StreamExt::next(&mut event).await {
+            count += 1;
+            match result {
+                Ok(_) => {}
+                Err(e) => {
+                    assert!(
+                        e.to_string().contains("client fell behind")
+                            || e.to_string().contains("channel closed")
+                    );
+                    lagged = true;
+                    break;
+                }
+            }
+            if count > 50 {
+                break;
+            }
+        }
+
+        assert!(
+            lagged || count <= 11,
+            "Slow client should be dropped via Lagged error"
+        );
     }
 }

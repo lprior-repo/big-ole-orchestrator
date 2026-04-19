@@ -185,6 +185,7 @@ pub fn select_next_step(
     }
 
     // Select first node in definition order (deterministic tiebreaker)
+    #[allow(clippy::unwrap_used)]
     let selected = ready_nodes.into_iter().next().unwrap();
 
     // TODO: Compute attempt and fence from command history / instance state
@@ -300,17 +301,17 @@ mod tests {
             DagNode {
                 node_name: NodeName("A".to_string()),
                 retry_policy: RetryPolicy::new(3, 100, 2.0).unwrap(),
-                compensation_policy: Default::default(),
+                compensation_policy: None,
             },
             DagNode {
                 node_name: NodeName("B".to_string()),
                 retry_policy: RetryPolicy::new(3, 100, 2.0).unwrap(),
-                compensation_policy: Default::default(),
+                compensation_policy: None,
             },
             DagNode {
                 node_name: NodeName("C".to_string()),
                 retry_policy: RetryPolicy::new(3, 100, 2.0).unwrap(),
-                compensation_policy: Default::default(),
+                compensation_policy: None,
             },
         ]);
 

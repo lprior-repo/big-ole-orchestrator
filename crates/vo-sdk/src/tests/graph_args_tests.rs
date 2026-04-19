@@ -222,3 +222,82 @@ fn parse_graph_args_unrecognized_arg_display_shows_arg() {
         err
     );
 }
+
+#[test]
+fn workflow_spec_deserialize_valid_spec_succeeds() {
+    let json = r#"{
+        "workflow_name": "valid_workflow",
+        "nodes": [
+            {"name": "a", "kind": "pure"},
+            {"name": "b", "kind": "managed_effect"},
+            {"name": "c", "kind": "pure"}
+        ],
+        "edges": [
+            {"from": "a", "to": "b"},
+            {"from": "b", "to": "c"}
+        ]
+    }"#;
+    let result: Result<WorkflowSpec, _> = serde_json::from_str(json);
+    assert!(
+        result.is_ok(),
+        "valid spec should deserialize: {:?}",
+        result
+    );
+    let spec = result.unwrap();
+    assert_eq!(spec.workflow_name.as_str(), "valid_workflow");
+    assert_eq!(spec.nodes.len(), 3);
+    assert_eq!(spec.edges.len(), 2);
+}
+
+#[test]
+fn workflow_spec_deserialize_rejects_self_cycle() {
+    let json = r#"{
+        "workflow_name": "self_cycle",
+        "nodes": [
+            {"name": "a", "kind": "pure"},
+            {"name": "b", "kind": "pure"}
+        ],
+        "edges": [
+            {"from": "a", "to": "a"}
+        ]
+    }"#;
+    let result: Result<WorkflowSpec, _> = serde_json::from_str(json);
+    assert!(
+        result.is_err(),
+        "self-cycle should be rejected: {:?}",
+        result
+    );
+    let err_msg = result.unwrap_err().to_string();
+    assert!(
+        err_msg.contains("self-loop"),
+        "error should mention self-loop: {}",
+        err_msg
+    );
+}
+
+#[test]
+fn workflow_spec_deserialize_rejects_mutual_dependency() {
+    let json = r#"{
+        "workflow_name": "mutual_dep",
+        "nodes": [
+            {"name": "a", "kind": "pure"},
+            {"name": "b", "kind": "pure"}
+        ],
+        "edges": [
+            {"from": "a", "to": "b"},
+            {"from": "b", "to": "a"}
+        ]
+    }"#;
+    let result: Result<WorkflowSpec, _> = serde_json::from_str(json);
+    assert!(
+        result.is_err(),
+        "mutual dependency should be rejected: {:?}",
+        result
+    );
+    let err_msg = result.unwrap_err().to_string();
+    assert!(
+        err_msg.contains("cycle"),
+        "error should mention cycle: {}",
+        err_msg
+    );
+}

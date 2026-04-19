@@ -86,7 +86,7 @@ fn build_plan_snapshot(workflow: &Workflow) -> PlanSnapshot {
         available.clear();
 
         for id in &current {
-            visited.insert(*id).unwrap();
+            let _already_seen = visited.insert(*id);
             if let Some(targets) = outgoing.get(id) {
                 for target in targets {
                     if let Some(count) = indegree.get_mut(target) {
@@ -156,7 +156,9 @@ pub fn ExecutionPlanPanel(
                 button {
                     class: "flex items-center gap-2 text-slate-700 hover:text-slate-900 transition-colors",
                     onclick: move |_| {
-                        collapsed.try_write().map(|mut c| *c = !*c).unwrap();
+                        if let Some(mut c) = collapsed.try_write() {
+                            *c = !*c;
+                        }
                     },
                     crate::ui::icons::LayersIcon { class: "h-4 w-4 text-slate-500" }
                     span { class: "text-[12px] font-semibold", "Execution Plan" }

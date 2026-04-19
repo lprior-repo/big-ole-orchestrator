@@ -120,14 +120,11 @@ impl<R: EpochResolver> LineageRouter<R> {
                 lineage_id,
                 epoch: Some(requested_epoch),
             } => {
+                let instance_id = self
+                    .resolver
+                    .resolve_specific_epoch(&lineage_id, requested_epoch)
+                    .await?;
                 let active_info = self.resolver.resolve_active_epoch(&lineage_id).await?;
-                if !active_info.lineage_state.can_spawn_epoch() {
-                    return Err(RoutingError::LineageTombstoned(lineage_id));
-                }
-                let instance_id =
-                    self.resolver
-                        .resolve_specific_epoch(&lineage_id, requested_epoch)
-                        .await?;
                 Ok(ResolvedRoute {
                     lineage_id,
                     target_epoch: requested_epoch,

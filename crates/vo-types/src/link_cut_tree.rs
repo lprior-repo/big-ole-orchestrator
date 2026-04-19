@@ -132,7 +132,9 @@ impl<V: LctAggregate<A>, A: Monoid> LinkCutTree<V, A> {
     }
 
     /// Which side is x on in its parent?
+    #[allow(clippy::expect_used)]
     fn dir(&self, x: usize) -> usize {
+        #[allow(clippy::expect_used)]
         let p = self.nodes[x]
             .parent
             .expect("LCT node has no parent despite not being root");
@@ -143,7 +145,9 @@ impl<V: LctAggregate<A>, A: Monoid> LinkCutTree<V, A> {
         }
     }
 
+    #[allow(clippy::expect_used)]
     fn rotate(&mut self, x: usize) {
+        #[allow(clippy::expect_used)]
         let p = self.nodes[x]
             .parent
             .expect("LCT node has no parent despite not being root");
@@ -177,13 +181,16 @@ impl<V: LctAggregate<A>, A: Monoid> LinkCutTree<V, A> {
         self.pull(x);
     }
 
+    #[allow(clippy::expect_used)]
     fn splay(&mut self, x: usize) {
         self.push(x);
         while !self.is_root(x) {
+            #[allow(clippy::expect_used)]
             let p = self.nodes[x]
                 .parent
                 .expect("LCT node has no parent in splay loop");
             if !self.is_root(p) {
+                #[allow(clippy::expect_used)]
                 let _g = self.nodes[p]
                     .parent
                     .expect("LCT grandparent missing despite non-root parent");
@@ -374,6 +381,628 @@ mod tests {
         let n = lct.make_tree(());
         assert_eq!(lct.len(), 1);
         assert_eq!(lct.find_root(n).unwrap(), n);
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // Proptest and Adversarial Tests
+    // ──────────────────────────────────────────────────────────────────
+
+    #[cfg(feature = "proptest")]
+    mod proptest_tests {
+        use super::*;
+        use proptest::collection::vec;
+        use proptest::prelude::*;
+
+        fn arb_node_ops(max_nodes: usize) -> impl Strategy<Value = Vec<NodeOp>> {
+            let make_node =
+                proptest::collection::uniform(1..=max_nodes, any::<u64>()).prop_map(|vals| {
+                    vals.into_iter()
+                        .map(|v| NodeOp::Make(v))
+                        .collect::<Vec<_>>()
+                });
+            let ops: Vec<NodeOp> = vec(any::<NodeOp>(), 1..=50).prop_filter(
+                "must have enough nodes for link/cut",
+                |ops| {
+                    let make_count = ops.iter().filter(|o| matches!(o, NodeOp::Make(_))).count();
+                    let link_count = ops
+                        .iter()
+                        .filter(|o| matches!(o, NodeOp::Link(_, _)))
+                        .count();
+                    let cut_count = ops.iter().filter(|o| matches!(o, NodeOp::Cut(_))).count();
+                    make_count >= link_count && make_count > cut_count
+                },
+            );
+            prop_oneof![100, make_node, ops.prop_map(|v| v)]
+        }
+
+        #[derive(Debug, Clone)]
+        enum NodeOp {
+            Make(u64),
+            Link(usize, usize),
+            Cut(usize),
+            Set(usize, u64),
+        }
+
+        #[cfg(feature = "proptest")]
+        proptest! {
+            #[test]
+            fn proptest_random_sequence(
+                ops in arb_node_ops(20)
+            ) {
+                let mut lct: LinkCutTree<u64, u64> = LinkCutTree::new();
+                let mut node_indices = Vec::new();
+
+                for op in ops {
+                    match op {
+                        NodeOp::Make(value) => {
+                            let idx = lct.make_tree(value);
+                            node_indices.push(idx);
+                            assert_eq!(lct.len(), node_indices.len());
+                            assert_eq!(lct.find_root(idx).unwrap(), idx);
+                        }
+                        NodeOp::Link(child, parent) => {
+                            if child < node_indices.len() && parent < node_indices.len() {
+                                let _ = lct.link(node_indices[child], node_indices[parent]);
+                            }
+                        }
+                        NodeOp::Cut(node_idx) => {
+                            if node_idx < node_indices.len() {
+                                let _ = lct.cut(node_indices[node_idx]);
+                            }
+                        }
+                        NodeOp::Set(node_idx, value) => {
+                            if node_idx < node_indices.len() {
+                                let _ = lct.set(node_indices[node_idx], value);
+                            }
+                        }
+                    }
+                }
+            }
+
+            #[test]
+            fn proptest_link_cut_invariants(
+                num_nodes in 1..=15u32,
+                seed in any::<u64>()
+            ) {
+                use rand::SeedableRng;
+                use rand::rngs::StdRng;
+                use rand::Rng;
+
+                let mut rng = StdRng::seed_from_u64(seed);
+                let mut lct: LinkCutTree<u64, u64> = LinkCutTree::new();
+                let mut nodes = Vec::new();
+
+                // Make all nodes
+                for i in 0..num_nodes {
+                    let value = rng.gen_range(0..=100);
+                    let idx = lct.make_tree(value);
+                    nodes.push(idx);
+                }
+
+                // Random link/cut operations
+                let mut parent_map: Vec<Option<usize>> = vec![None; nodes.len()];
+
+                for _ in 0..(num_nodes as usize * 5) {
+                    let op = rng.gen_range(0..100);
+                    if op < 40 && nodes.len() > 1 {
+                        // Link operation
+                        let child_idx = rng.gen_range(0..nodes.len());
+                        let parent_idx = rng.gen_range(0..nodes.len());
+                        if child_idx != parent_idx {
+                            let child = nodes[child_idx];
+                            let parent = nodes[parent_idx];
+                            if lct.find_root(child).unwrap() == child {
+                                if lct.link(child, parent).is_ok() {
+                                    parent_map[child_idx] = Some(parent_idx);
+                                }
+                            }
+                        }
+                    } else if op < 70 {
+                        // Cut operation
+                        let node_idx = rng.gen_range(0..nodes.len());
+                        if parent_map[node_idx].is_some() {
+                            if lct.cut(nodes[node_idx]).is_ok() {
+                                parent_map[node_idx] = None;
+                            }
+                        }
+                    } else {
+                        // Aggregate query
+                        let node_idx = rng.gen_range(0..nodes.len());
+                        let _agg = lct.path_aggregate(nodes[node_idx]);
+                    }
+                }
+            }
+
+            #[test]
+            fn proptest_tree_connectivity(
+                num_nodes in 2..=10u32,
+                seed in any::<u64>()
+            ) {
+                use rand::SeedableRng;
+                use rand::rngs::StdRng;
+                use rand::Rng;
+
+                let mut rng = StdRng::seed_from_u64(seed);
+                let mut lct: LinkCutTree<u64, u64> = LinkCutTree::new();
+                let mut nodes = Vec::new();
+
+                for _ in 0..num_nodes {
+                    let idx = lct.make_tree(0);
+                    nodes.push(idx);
+                }
+
+                // Build a random tree structure
+                for i in 1..nodes.len() {
+                    let parent_i = rng.gen_range(0..i);
+                    let _ = lct.link(nodes[i], nodes[parent_i]);
+                }
+
+                // Verify all nodes connected to root
+                let root = lct.find_root(nodes[0]).unwrap();
+                for node in &nodes {
+                    assert_eq!(lct.find_root(*node).unwrap(), root);
+                }
+
+                // Verify connectivity
+                for i in 0..nodes.len() {
+                    for j in 0..nodes.len() {
+                        assert_eq!(lct.connected(nodes[i], nodes[j]).unwrap(), true);
+                    }
+                }
+            }
+
+            #[test]
+            fn proptest_aggregate_correctness(
+                depth in 1..=8u32,
+                seed in any::<u64>()
+            ) {
+                use rand::SeedableRng;
+                use rand::rngs::StdRng;
+                use rand::Rng;
+
+                let mut rng = StdRng::seed_from_u64(seed);
+                let mut lct: LinkCutTree<u64, u64> = LinkCutTree::new();
+                let mut nodes = Vec::new();
+                let mut expected_sum = 0u64;
+
+                // Make nodes with random values
+                for _ in 0..depth {
+                    let value = rng.gen_range(1..=10);
+                    expected_sum += value;
+                    let idx = lct.make_tree(value);
+                    nodes.push(idx);
+                }
+
+                // Create a chain
+                for i in 1..nodes.len() {
+                    lct.link(nodes[i], nodes[i-1]).unwrap();
+                }
+
+                // Aggregate at deepest node should be sum of all
+                let agg = lct.path_aggregate(nodes[depth as usize - 1]).unwrap();
+                assert_eq!(agg, expected_sum);
+
+                // Modify a node and verify aggregate
+                let mid = depth as usize / 2;
+                let new_val = 100u64;
+                lct.set(nodes[mid], new_val).unwrap();
+                expected_sum = expected_sum - nodes[mid].lct_aggregate() + new_val;
+                let agg = lct.path_aggregate(nodes[depth as usize - 1]).unwrap();
+                assert_eq!(agg, expected_sum);
+            }
+
+            #[test]
+            fn proptest_deep_chain_stress(
+                chain_len in 1..=100u32,
+                seed in any::<u64>()
+            ) {
+                use rand::SeedableRng;
+                use rand::rngs::StdRng;
+
+                let mut rng = StdRng::seed_from_u64(seed);
+                let mut lct: LinkCutTree<u64, u64> = LinkCutTree::new();
+                let mut nodes = Vec::new();
+
+                // Make nodes
+                for _ in 0..chain_len {
+                    let value = rng.gen_range(0..=100);
+                    let idx = lct.make_tree(value);
+                    nodes.push(idx);
+                }
+
+                // Create a deep chain
+                for i in 1..nodes.len() {
+                    lct.link(nodes[i], nodes[i-1]).unwrap();
+                }
+
+                // Find root should be first node
+                assert_eq!(lct.find_root(nodes[chain_len as usize - 1]).unwrap(), nodes[0]);
+
+                // Aggregate at end
+                let agg = lct.path_aggregate(nodes[chain_len as usize - 1]).unwrap();
+                let expected: u64 = (0..chain_len).map(|i| {
+                    let idx = i as usize;
+                    lct.get(nodes[idx]).unwrap()
+                }).sum();
+                assert_eq!(agg, expected);
+
+                // Cut in middle
+                let mid = chain_len as usize / 2;
+                lct.cut(nodes[mid]).unwrap();
+
+                // Now two separate trees
+                assert!(!lct.connected(nodes[0], nodes[chain_len as usize - 1]).unwrap());
+                assert_eq!(lct.find_root(nodes[chain_len as usize - 1]).unwrap(), nodes[mid]);
+            }
+
+            #[test]
+            fn proptest_random_forest_operations(
+                seed in any::<u64>()
+            ) {
+                use rand::SeedableRng;
+                use rand::rngs::StdRng;
+                use rand::Rng;
+
+                let mut rng = StdRng::seed_from_u64(seed);
+                let mut lct: LinkCutTree<u64, u64> = LinkCutTree::new();
+                let mut nodes = Vec::new();
+
+                // Make 20 nodes
+                for _ in 0..20 {
+                    let idx = lct.make_tree(rng.gen_range(0..=100));
+                    nodes.push(idx);
+                }
+
+                // Random operations
+                for _ in 0..200 {
+                    let op = rng.gen_range(0..100);
+                    match op {
+                        0..=20 => {
+                            // Find root
+                            let node = nodes[rng.gen_range(0..nodes.len())];
+                            let _ = lct.find_root(node);
+                        }
+                        21..=45 => {
+                            // Link
+                            let c = nodes[rng.gen_range(0..nodes.len())];
+                            let p = nodes[rng.gen_range(0..nodes.len())];
+                            if c != p && lct.find_root(c).unwrap() == c {
+                                let _ = lct.link(c, p);
+                            }
+                        }
+                        46..=70 => {
+                            // Cut
+                            let node = nodes[rng.gen_range(0..nodes.len())];
+                            if lct.find_root(node).unwrap() != node {
+                                let _ = lct.cut(node);
+                            }
+                        }
+                        71..=85 => {
+                            // Path aggregate
+                            let node = nodes[rng.gen_range(0..nodes.len())];
+                            let _ = lct.path_aggregate(node);
+                        }
+                        86..=95 => {
+                            // Connected
+                            let a = nodes[rng.gen_range(0..nodes.len())];
+                            let b = nodes[rng.gen_range(0..nodes.len())];
+                            let _ = lct.connected(a, b);
+                        }
+                        96..=100 => {
+                            // Set value
+                            let node = nodes[rng.gen_range(0..nodes.len())];
+                            let val = rng.gen_range(0..=1000);
+                            let _ = lct.set(node, val);
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+    }
+
+    #[cfg(test)]
+    mod adversarial_tests {
+        use super::*;
+
+        // Test worst-case deep chain pattern
+        #[test]
+        fn adversarial_deep_chain_1000() {
+            let mut lct: LinkCutTree<u64, u64> = LinkCutTree::new();
+            let mut nodes = Vec::new();
+
+            for i in 0..1000 {
+                let idx = lct.make_tree(i as u64);
+                nodes.push(idx);
+            }
+
+            for i in 1..1000 {
+                lct.link(nodes[i], nodes[i - 1]).unwrap();
+            }
+
+            // Find root at end
+            let root = lct.find_root(nodes[999]).unwrap();
+            assert_eq!(root, nodes[0]);
+
+            // Aggregate
+            let agg = lct.path_aggregate(nodes[999]).unwrap();
+            let expected: u64 = (0..1000).sum();
+            assert_eq!(agg, expected);
+        }
+
+        // Test zig-zag linking pattern
+        #[test]
+        fn adversarial_zigzag_links() {
+            let mut lct: LinkCutTree<u64, u64> = LinkCutTree::new();
+            let mut nodes = Vec::new();
+
+            for _ in 0..50 {
+                let idx = lct.make_tree(1);
+                nodes.push(idx);
+            }
+
+            // Zigzag: 1->0, 2->1, 3->2, etc.
+            for i in 1..nodes.len() {
+                lct.link(nodes[i], nodes[i - 1]).unwrap();
+            }
+
+            // Cut every other edge
+            for i in 0..nodes.len() {
+                if i % 2 == 1 {
+                    let _ = lct.cut(nodes[i]);
+                }
+            }
+
+            // Verify splits
+            for i in (0..nodes.len()).step_by(2) {
+                if i + 1 < nodes.len() {
+                    assert!(!lct.connected(nodes[i], nodes[i + 1]).unwrap());
+                }
+            }
+        }
+
+        // Test alternating link/cut operations
+        #[test]
+        fn adversarial_alternate_link_cut() {
+            let mut lct: LinkCutTree<u64, u64> = LinkCutTree::new();
+            let a = lct.make_tree(0);
+            let b = lct.make_tree(1);
+
+            // Link and cut repeatedly
+            for _ in 0..100 {
+                lct.link(b, a).unwrap();
+                assert!(lct.connected(a, b).unwrap());
+                lct.cut(b).unwrap();
+                assert!(!lct.connected(a, b).unwrap());
+            }
+        }
+
+        // Test aggregate after multiple cuts
+        #[test]
+        fn adversarial_aggregate_after_cuts() {
+            let mut lct: LinkCutTree<u64, u64> = LinkCutTree::new();
+            let mut nodes = Vec::new();
+
+            for i in 0..20 {
+                let idx = lct.make_tree(i as u64);
+                nodes.push(idx);
+            }
+
+            // Build a balanced-like tree
+            for i in 1..nodes.len() {
+                let parent = i / 2;
+                lct.link(nodes[i], nodes[parent]).unwrap();
+            }
+
+            // Cut all edges from even nodes
+            for i in (0..nodes.len()).step_by(2) {
+                if i > 0 {
+                    let _ = lct.cut(nodes[i]);
+                }
+            }
+
+            // Verify aggregates on remaining connected components
+            for i in 0..nodes.len() {
+                let agg = lct.path_aggregate(nodes[i]).unwrap();
+                assert!(agg >= 0);
+            }
+        }
+
+        // Test LCA correctness on various structures
+        #[test]
+        fn adversarial_lca_deep_tree() {
+            let mut lct: LinkCutTree<u64, u64> = LinkCutTree::new();
+            let mut nodes = Vec::new();
+
+            for _ in 0..100 {
+                let idx = lct.make_tree(0);
+                nodes.push(idx);
+            }
+
+            for i in 1..nodes.len() {
+                lct.link(nodes[i], nodes[i - 1]).unwrap();
+            }
+
+            // LCA of any node with root is root
+            assert_eq!(lct.lca(nodes[0], nodes[50]).unwrap(), nodes[0]);
+            assert_eq!(lct.lca(nodes[0], nodes[99]).unwrap(), nodes[0]);
+
+            // LCA of adjacent nodes
+            assert_eq!(lct.lca(nodes[10], nodes[11]).unwrap(), nodes[10]);
+            assert_eq!(lct.lca(nodes[50], nodes[50]).unwrap(), nodes[50]);
+        }
+
+        // Test set updates propagate through path aggregates
+        #[test]
+        fn adversarial_set_propagation() {
+            let mut lct: LinkCutTree<u64, u64> = LinkCutTree::new();
+            let mut nodes = Vec::new();
+
+            for i in 0..10 {
+                let idx = lct.make_tree(1);
+                nodes.push(idx);
+            }
+
+            for i in 1..nodes.len() {
+                lct.link(nodes[i], nodes[i - 1]).unwrap();
+            }
+
+            // Initial aggregate: sum of all = 10
+            let initial_agg = lct.path_aggregate(nodes[9]).unwrap();
+            assert_eq!(initial_agg, 10);
+
+            // Set middle node to 100
+            lct.set(nodes[5], 100).unwrap();
+            let new_agg = lct.path_aggregate(nodes[9]).unwrap();
+            assert_eq!(new_agg, 19); // 9 + 100 = 109 - 90 (original 5's contribution)
+                                     // Actually: nodes 0-4 = 5, node 5 = 100, nodes 6-9 = 4, total = 109
+            assert_eq!(new_agg, 109);
+
+            // Set root to 0
+            lct.set(nodes[0], 0).unwrap();
+            let final_agg = lct.path_aggregate(nodes[9]).unwrap();
+            assert_eq!(final_agg, 108);
+        }
+
+        // Test multiple disjoint trees
+        #[test]
+        fn adversarial_multiple_forests() {
+            let mut lct: LinkCutTree<u64, u64> = LinkCutTree::new();
+            let mut forests = Vec::new();
+
+            // Create 10 separate trees
+            for _ in 0..10 {
+                let root = lct.make_tree(0);
+                let mut tree_nodes = vec![root];
+
+                // Add 5 children to each
+                for _ in 0..5 {
+                    let child = lct.make_tree(1);
+                    lct.link(child, root).unwrap();
+                    tree_nodes.push(child);
+                }
+                forests.push(tree_nodes);
+            }
+
+            // Verify all nodes in same forest are connected
+            for tree in &forests {
+                for i in 0..tree.len() {
+                    for j in 0..tree.len() {
+                        assert!(lct.connected(tree[i], tree[j]).unwrap());
+                    }
+                }
+            }
+
+            // Verify nodes in different forests are not connected
+            for i in 0..forests.len() {
+                for j in (i + 1)..forests.len() {
+                    assert!(!lct.connected(forests[i][0], forests[j][0]).unwrap());
+                }
+            }
+        }
+
+        // Test cut and reconnect patterns
+        #[test]
+        fn adversarial_cut_reconnect_cycle() {
+            let mut lct: LinkCutTree<u64, u64> = LinkCutTree::new();
+            let root = lct.make_tree(0);
+            let mut children = Vec::new();
+
+            for i in 0..20 {
+                let child = lct.make_tree(i as u64);
+                lct.link(child, root).unwrap();
+                children.push(child);
+            }
+
+            // Cut and reconnect repeatedly
+            for i in 0..100 {
+                let child = children[i % children.len()];
+                lct.cut(child).unwrap();
+                assert!(!lct.connected(root, child).unwrap());
+                lct.link(child, root).unwrap();
+                assert!(lct.connected(root, child).unwrap());
+            }
+
+            // Verify aggregate is correct
+            let agg = lct.path_aggregate(root).unwrap();
+            let expected: u64 = (1..=20).sum();
+            assert_eq!(agg, expected);
+        }
+
+        // Test path aggregate on star topology
+        #[test]
+        fn adversarial_star_topology() {
+            let mut lct: LinkCutTree<u64, u64> = LinkCutTree::new();
+            let root = lct.make_tree(0);
+
+            let mut leaves = Vec::new();
+            for i in 0..50 {
+                let leaf = lct.make_tree((i + 1) as u64);
+                lct.link(leaf, root).unwrap();
+                leaves.push(leaf);
+            }
+
+            // Aggregate from each leaf should include all nodes
+            let mut total = 0u64;
+            for leaf in &leaves {
+                let agg = lct.path_aggregate(*leaf).unwrap();
+                total += agg;
+            }
+
+            // Each path goes through root + leaf
+            // Sum over all leaves: 50 * (root_val + leaf_val)
+            // = 50 * (0 + 1) + 50 * (0 + 2) + ... = 50 * (1 + 2 + ... + 50)
+            let expected: u64 = (1..=50).map(|i| 50 * (i as u64)).sum();
+            assert_eq!(total, expected);
+        }
+
+        // Test find_root after many operations
+        #[test]
+        fn adversarial_root_stability() {
+            let mut lct: LinkCutTree<u64, u64> = LinkCutTree::new();
+            let mut nodes = Vec::new();
+
+            for i in 0..30 {
+                let idx = lct.make_tree(i as u64);
+                nodes.push(idx);
+            }
+
+            // Build complex structure
+            for i in 1..10 {
+                lct.link(nodes[i], nodes[0]).unwrap();
+            }
+            for i in 10..20 {
+                lct.link(nodes[i], nodes[5]).unwrap();
+            }
+            for i in 20..30 {
+                lct.link(nodes[i], nodes[15]).unwrap();
+            }
+
+            // Verify roots
+            for _i in 0..10 {
+                assert_eq!(lct.find_root(nodes[_i]).unwrap(), nodes[0]);
+            }
+            for _i in 10..20 {
+                assert_eq!(lct.find_root(nodes[_i]).unwrap(), nodes[0]);
+            }
+            for _i in 20..30 {
+                assert_eq!(lct.find_root(nodes[_i]).unwrap(), nodes[0]);
+            }
+
+            // Cut edge 5->0
+            lct.cut(nodes[5]).unwrap();
+
+            // Now 10-19 have different root
+            for _i in 0..10 {
+                assert_eq!(lct.find_root(nodes[_i]).unwrap(), nodes[0]);
+            }
+            for _i in 10..20 {
+                assert_eq!(lct.find_root(nodes[_i]).unwrap(), nodes[5]);
+            }
+            for _i in 20..30 {
+                assert_eq!(lct.find_root(nodes[_i]).unwrap(), nodes[5]);
+            }
+        }
     }
 
     #[test]

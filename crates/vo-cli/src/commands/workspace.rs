@@ -1,6 +1,7 @@
 use std::path::PathBuf;
-use vo_types::TimestampMs;
+use ulid::Ulid;
 use vo_types::workspace::{WorkspaceId, WorkspaceIndex, WorkspaceMetadata, WorkspaceName, WorkspaceIndexError};
+use vo_types::TimestampMs;
 
 #[derive(Debug, thiserror::Error)]
 pub enum WorkspaceError {
@@ -11,44 +12,9 @@ pub enum WorkspaceError {
     #[error("IO error: {0}")]
     Io(std::io::Error),
     #[error("serialization error: {0}")]
-    Serialization(serde_json::Error),
+    Serialization(#[from] serde_json::Error),
     #[error("index error: {0}")]
-    Index(#[from] WorkspaceIndexError),
-}
-
-impl PartialEq for WorkspaceError {
-    fn eq(&self, other: &Self) -> bool {
-        use WorkspaceError::*;
-        match (self, other) {
-            (NotFound(a), NotFound(b)) => a == b,
-            (InvalidName(a), InvalidName(b)) => a == b,
-            (Io(_), Io(_)) => false,
-            (Serialization(_), Serialization(_)) => false,
-            (Index(a), Index(b)) => a == b,
-            _ => false,
-        }
-    }
-}
-
-impl From<std::io::Error> for WorkspaceError {
-    fn from(e: std::io::Error) -> Self {
-        Self::Io(e)
-    }
-}
-
-impl From<serde_json::Error> for WorkspaceError {
-    fn from(e: serde_json::Error) -> Self {
-        Self::Serialization(e)
-    }
-}
-
-impl WorkspaceError {
-    pub fn from_io(e: std::io::Error) -> Self {
-        Self::Io(e)
-    }
-    pub fn from_serde(e: serde_json::Error) -> Self {
-        Self::Serialization(e)
-    }
+    IndexError(#[from] WorkspaceIndexError),
 }
 
 #[derive(Debug, Clone)]
@@ -118,10 +84,9 @@ pub async fn delete_workspace(
     id_str: String,
 ) -> Result<(), WorkspaceError> {
     let mut index = load_index(&config.storage_path)?;
-    let id = WorkspaceId::from_ulid(
-        ulid::Ulid::from_string(&id_str)
-            .map_err(|_| WorkspaceError::NotFound(format!("invalid workspace ID: {}", id_str)))?
-    );
+    let ulid = Ulid::from_string(&id_str)
+        .map_err(|_| WorkspaceError::NotFound(format!("invalid workspace ID: {}", id_str)))?;
+    let id = WorkspaceId::from_ulid(ulid);
     index.delete(id)?;
     save_index(&index, &config.storage_path)?;
     println!("Deleted workspace {}", id_str);
@@ -133,10 +98,9 @@ pub async fn show_workspace(
     id_str: String,
 ) -> Result<(), WorkspaceError> {
     let index = load_index(&config.storage_path)?;
-    let id = WorkspaceId::from_ulid(
-        ulid::Ulid::from_string(&id_str)
-            .map_err(|_| WorkspaceError::NotFound(format!("invalid workspace ID: {}", id_str)))?
-    );
+    let ulid = Ulid::from_string(&id_str)
+        .map_err(|_| WorkspaceError::NotFound(format!("invalid workspace ID: {}", id_str)))?;
+    let id = WorkspaceId::from_ulid(ulid);
     let node = index.find_by_id(id)?;
     println!("Workspace: {}", node.name);
     println!("ID: {}", id);

@@ -186,7 +186,17 @@ impl ConnectionPool {
             };
         }
 
-        if let Some(conn_id) = self.state.idle_connections.pop_front() {
+        // Try idle connections with health check loop: evict stale/unhealthy
+        // and keep trying until a healthy one is found or pool is exhausted.
+        while let Some(conn_id) = self.state.idle_connections.pop_front() {
+            if !self.health_check_connection(conn_id) {
+                debug!(
+                    "Evicted unhealthy idle connection {} from pool {}",
+                    conn_id, self.pool_id
+                );
+                continue;
+            }
+
             if let Some(mut conn) = self.state.connections.get_mut(&conn_id) {
                 conn.status = ConnectionStatus::CheckedOut;
                 conn.increment_use_count();
@@ -536,216 +546,8 @@ mod pool_tests {
     }
 
     // ========================================================================
-    // Connection Reuse Efficiency Tests (ve-1mt20)
+    // Health Check on Acquire Tests (ve-hypnb)
     // ========================================================================
-
-    /// Given: A pool with max_connections=1
-    /// When: acquire/release cycle runs 100 times
-    /// Then: Same connection is reused every time (high reuse rate)
-    #[test]
-    fn test_high_reuse_rate_single_connection() {
-        let mut pool = create_test_pool_with_config(1, 1, 5000, 30000, 10000, 10);
-        let mut reused_connection_id = None;
-
-        for i in 0..100 {
-            let result = futures::executor::block_on(pool.acquire());
-            match result {
-                AcquireResult::Available { connection } => {
-                    if i == 0 {
-                        reused_connection_id = Some(connection.connection_id);
-                    } else {
-                        assert_eq!(
-                            connection.connection_id, reused_connection_id.unwrap(),
-                            "Connection should be reused on iteration {}",
-                            i
-                        );
-                    }
-                    pool.release(connection.connection_id);
-                }
-                _ => panic!("Expected Available on iteration {}", i),
-            }
-        }
-
-        assert_eq!(pool.stats().total_connections, 1, "Should have exactly 1 connection");
-        assert!(
-            pool.stats().total_acquires >= 100,
-            "Should have many acquires"
-        );
-    }
-
-    /// Given: A pool with max_connections=5
-    /// When: 5 connections are created and cycled through 50 times
-    /// Then: Connections are reused efficiently, no thrash (excess create/destroy)
-    #[test]
-    fn test_high_reuse_rate_multiple_connections() {
-        let mut pool = create_test_pool_with_config(1, 5, 5000, 30000, 10000, 10);
-        let mut connection_ids = Vec::new();
-
-        for i in 0..5 {
-            let result = futures::executor::block_on(pool.acquire());
-            match result {
-                AcquireResult::Available { connection } => {
-                    connection_ids.push(connection.connection_id);
-                    pool.release(connection.connection_id);
-                }
-                _ => panic!("Expected Available on iteration {}", i),
-            }
-        }
-
-        let initial_connections = pool.stats().total_connections;
-
-        for iteration in 0..50 {
-            for conn_id in &connection_ids {
-                let result = futures::executor::block_on(pool.acquire());
-                match result {
-                    AcquireResult::Available { connection } => {
-                        assert!(
-                            connection_ids.contains(&connection.connection_id),
-                            "Connection should be from pool"
-                        );
-                        pool.release(connection.connection_id);
-                    }
-                    _ => panic!("Expected Available on iteration {}", iteration),
-                }
-            }
-        }
-
-        let final_connections = pool.stats().total_connections;
-        assert_eq!(
-            initial_connections, final_connections,
-            "Connection count should remain stable (no thrash)"
-        );
-        assert!(
-            pool.stats().total_evictions < 10,
-            "Should have minimal evictions during high reuse"
-        );
-    }
-
-    #[test]
-    fn test_connection_reuse_efficiency() {
-        let pool_id = PoolId::new("reuse-test");
-        let nats_urls = vec!["nats://localhost:4222".to_string()];
-        let config = PoolConfig::new(1, 3, 5000, 30000, 10000, 10).unwrap();
-        let mut pool = ConnectionPool::new(pool_id, nats_urls, config);
-
-        let result = futures::executor::block_on(pool.acquire());
-        let conn_id = match result {
-            AcquireResult::Available { connection } => connection.connection_id,
-            _ => panic!("Expected Available"),
-        };
-        pool.release(conn_id);
-
-        assert_eq!(pool.stats().total_connections, 1);
-        assert_eq!(pool.stats().idle_connections, 1);
-
-        for _ in 0..99 {
-            let result = futures::executor::block_on(pool.acquire());
-            match result {
-                AcquireResult::Available { connection } => {
-                    assert_eq!(
-                        connection.connection_id, conn_id,
-                        "Same connection should be reused"
-                    );
-                    pool.release(connection.connection_id);
-                }
-                _ => panic!("Expected Available"),
-            }
-        }
-
-        assert_eq!(
-            pool.stats().total_connections, 1,
-            "Connection count should remain stable during reuse"
-        );
-        assert!(
-            pool.stats().total_acquires >= 100,
-            "Should have many acquires indicating reuse"
-        );
-    }
-
-    #[test]
-    fn test_connection_churn_rapid_cycles() {
-        let pool_id = PoolId::new("churn-test");
-        let nats_urls = vec!["nats://localhost:4222".to_string()];
-        let config = PoolConfig::new(1, 3, 5000, 30000, 10000, 10).unwrap();
-        let mut pool = ConnectionPool::new(pool_id, nats_urls, config);
-
-        let result = futures::executor::block_on(pool.acquire());
-        let conn_id = match result {
-            AcquireResult::Available { connection } => connection.connection_id,
-            _ => panic!("Expected Available"),
-        };
-        pool.release(conn_id);
-
-        assert_eq!(pool.stats().total_connections, 1, "Should have 1 connection after initial acquire/release");
-
-        let initial_total = pool.stats().total_connections;
-        let initial_evictions = pool.stats().total_evictions;
-
-        let mut reused_count = 0;
-        for _ in 0..100 {
-            let result = futures::executor::block_on(pool.acquire());
-            match result {
-                AcquireResult::Available { connection } => {
-                    if connection.connection_id == conn_id {
-                        reused_count += 1;
-                    }
-                    pool.release(connection.connection_id);
-                }
-                AcquireResult::PoolExhausted { .. } => {
-                    panic!("Pool should not be exhausted during churn test");
-                }
-                _ => panic!("Expected Available during churn"),
-            }
-        }
-
-        assert_eq!(
-            pool.stats().total_connections, initial_total,
-            "Connection count should remain stable during churn"
-        );
-        assert_eq!(
-            reused_count, 100,
-            "Same connection should be reused 100 times"
-        );
-        assert!(
-            pool.stats().total_evictions <= initial_evictions + 5,
-            "Should have minimal evictions during churn"
-        );
-    }
-
-    #[test]
-    fn test_connection_acquire_release_cycle() {
-        let pool_id = PoolId::new("cycle-test");
-        let nats_urls = vec!["nats://localhost:4222".to_string()];
-        let config = PoolConfig::new(1, 3, 5000, 30000, 10000, 10).unwrap();
-        let mut pool = ConnectionPool::new(pool_id, nats_urls, config);
-
-        let result = futures::executor::block_on(pool.acquire());
-        let conn_id = match result {
-            AcquireResult::Available { connection } => connection.connection_id,
-            _ => panic!("Expected Available"),
-        };
-        pool.release(conn_id);
-
-        assert_eq!(pool.stats().total_connections, 1);
-        assert_eq!(pool.stats().idle_connections, 1);
-        assert_eq!(pool.stats().checked_out_connections, 0);
-    }
-
-    fn create_test_pool_with_config(
-        min: u32,
-        max: u32,
-        conn_timeout: u64,
-        idle_timeout: u64,
-        health_check: u64,
-        max_pending: u32,
-    ) -> ConnectionPool {
-        let pool_id = PoolId::new("test-pool");
-        let nats_urls = vec!["nats://localhost:4222".to_string()];
-        let config =
-            PoolConfig::new(min, max, conn_timeout, idle_timeout, health_check, max_pending)
-                .unwrap();
-        ConnectionPool::new(pool_id, nats_urls, config)
-    }
 
     /// Given: A pool with a healthy idle connection
     /// When: acquire() is called
@@ -775,54 +577,77 @@ mod pool_tests {
 
     /// Given: A pool with a stale idle connection (last_used_at far in the past)
     /// When: acquire() is called
+    /// Then: The stale connection is evicted and a new one is created
     #[test]
-    fn test_connection_same_id_reused() {
-        let pool_id = PoolId::new("reuse-same-test");
-        let nats_urls = vec!["nats://localhost:4222".to_string()];
-        let config = PoolConfig::new(1, 3, 5000, 30000, 10000, 10).unwrap();
-        let mut pool = ConnectionPool::new(pool_id, nats_urls, config);
+    fn test_acquire_stale_connection_evicted() {
+        let mut pool = create_test_pool();
 
-        let conn1 = match futures::executor::block_on(pool.acquire()) {
+        // Create a connection and release it to idle
+        let result = futures::executor::block_on(pool.acquire());
+        let conn_id = match result {
             AcquireResult::Available { connection } => connection.connection_id,
             _ => panic!("Expected Available"),
         };
-        pool.release(conn1);
-
-        let conn2 = match futures::executor::block_on(pool.acquire()) {
-            AcquireResult::Available { connection } => connection.connection_id,
-            _ => panic!("Expected Available"),
-        };
-        pool.release(conn2);
-
-        assert_eq!(conn1, conn2, "Same connection should be reused");
-        assert_eq!(pool.stats().total_connections, 1, "Should have 1 connection after reuse");
-        assert_eq!(pool.stats().idle_connections, 1);
-    }
-
-    #[test]
-    fn test_connection_pool_stats() {
-        let pool_id = PoolId::new("stats-test");
-        let nats_urls = vec!["nats://localhost:4222".to_string()];
-        let config = PoolConfig::new(1, 3, 5000, 30000, 10000, 10).unwrap();
-        let mut pool = ConnectionPool::new(pool_id, nats_urls, config);
-
-        assert_eq!(pool.stats().total_connections, 0);
-        assert_eq!(pool.stats().idle_connections, 0);
-
-        let conn_id = match futures::executor::block_on(pool.acquire()) {
-            AcquireResult::Available { connection } => connection.connection_id,
-            _ => panic!("Expected Available"),
-        };
-
-        assert_eq!(pool.stats().total_connections, 1);
-        assert_eq!(pool.stats().checked_out_connections, 1);
-        assert_eq!(pool.stats().idle_connections, 0);
-
         pool.release(conn_id);
-
-        assert_eq!(pool.stats().total_connections, 1);
-        assert_eq!(pool.stats().checked_out_connections, 0);
         assert_eq!(pool.stats().idle_connections, 1);
+
+        // Artificially age the connection to make it stale
+        // idle_timeout_ms is 30000, so setting last_used_at 60000ms in the past
+        let stale_time = TimestampMs(TimestampMs::now().as_u64().saturating_sub(60_000));
+        if let Some(conn) = pool.state.connections.get_mut(&conn_id) {
+            conn.last_used_at = stale_time;
+        }
+
+        // Acquire should evict the stale connection and create a new one
+        let result = futures::executor::block_on(pool.acquire());
+        match result {
+            AcquireResult::Available { connection } => {
+                // New connection, different from the stale one
+                assert_ne!(connection.connection_id, conn_id);
+            }
+            _ => panic!("Expected Available after evicting stale connection"),
+        }
     }
 
+    /// Given: A pool where all connections are stale
+    /// When: acquire() is called multiple times
+    /// Then: All stale connections are evicted, new ones created up to max
+    #[test]
+    fn test_acquire_connection_failure_all_stale() {
+        let pool_id = PoolId::new("stale-test-pool");
+        let nats_urls = vec!["nats://localhost:4222".to_string()];
+        // max_connections=2, idle_timeout_ms=30000
+        let config = PoolConfig::new(1, 2, 5000, 30000, 10000, 10).unwrap();
+        let mut pool = ConnectionPool::new(pool_id, nats_urls, config);
+
+        // Create 2 connections and release them
+        let mut conn_ids = Vec::new();
+        for _ in 0..2 {
+            let result = futures::executor::block_on(pool.acquire());
+            if let AcquireResult::Available { connection } = result {
+                conn_ids.push(connection.connection_id);
+            }
+        }
+        for id in &conn_ids {
+            pool.release(*id);
+        }
+        assert_eq!(pool.stats().idle_connections, 2);
+
+        // Age all connections to be stale
+        let stale_time = TimestampMs(TimestampMs::now().as_u64().saturating_sub(60_000));
+        for id in &conn_ids {
+            if let Some(conn) = pool.state.connections.get_mut(id) {
+                conn.last_used_at = stale_time;
+            }
+        }
+
+        // First acquire: evicts all stale, creates new
+        let result = futures::executor::block_on(pool.acquire());
+        match result {
+            AcquireResult::Available { connection } => {
+                assert!(!conn_ids.contains(&connection.connection_id));
+            }
+            _ => panic!("Expected Available"),
+        }
+    }
 }

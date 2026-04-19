@@ -9,6 +9,7 @@
 //! - [`helpers`] - Helper functions for type conversions
 
 pub mod errors;
+pub mod events;
 pub mod helpers;
 pub mod names;
 pub mod v1;

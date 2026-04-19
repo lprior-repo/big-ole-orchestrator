@@ -3,8 +3,8 @@ use std::mem::MaybeUninit;
 use std::sync::atomic::{fence, AtomicUsize, Ordering};
 use std::sync::Arc;
 
-#[allow(dead_code)]
-const CACHE_LINE: usize = 64;
+use thiserror::Error;
+const _CACHE_LINE: usize = 64;
 
 pub struct SpscQueue<T> {
     buffer: *mut MaybeUninit<T>,

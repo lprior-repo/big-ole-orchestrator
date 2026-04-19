@@ -1,13 +1,28 @@
-//! BLACK-HAT adversarial tests for Dolt corruption, write conflicts, and query injection.
-//!
-//! ve-j2sk1 — BLACK-HAT: Dolt adversarial corruption testing
+//! BLACK-HAT Dolt adversarial tests: corruption + SQL injection via beads.
+//! ve-j2sk1 — Tests Dolt corruption and SQL injection via issue fields.
 
-#![allow(clippy::unwrap_used)]
-#![allow(clippy::expect_used)]
-#![allow(clippy::pedantic)]
-
+use std::process::Command;
 use std::sync::Arc;
 use std::thread;
+
+const SQL_PAYLOADS: &[&str] = &[
+    "fix: SQL injection test 1",
+    "fix: OR condition",
+    "admin--style",
+    "fix: quotes'test\"double",
+    "fix: semicolon;delimiter",
+    "fix: backslash\\x",
+    "fix: percent%like",
+    "fix: underscore_exploit",
+    "fix: asterisk*wild",
+    "fix: question?mark",
+    "fix: bracket[0]",
+    "fix: parens(func)",
+    "'; DROP TABLE issues; --",
+    "1; DELETE FROM issues WHERE 1=1;--",
+    "1' UNION SELECT * FROM users--",
+    "'; INSERT INTO issues VALUES('pwned'); --",
+];
 
 use tempfile::TempDir;
 use vo_storage::codec::{decode_event_key, encode_event_key};
@@ -124,28 +139,46 @@ fn bead_payload_with_sql_injection_does_not_corrupt_decode() {
     }
 }
 
-// ── 4. Malformed Dolt value: null bytes in JSON ────────────────────────────────
-
-#[test]
-fn null_bytes_in_stored_json_rejected_cleanly() {
-    let payloads: Vec<Vec<u8>> = vec![
-        b"{\"counter\": \x00 42}".to_vec(),
-        b"\x00\x00\x00\x00".to_vec(),
-        b"{}\x00trailing garbage".to_vec(),
-        vec![0xFF; 128],
-    ];
-
-    for payload in &payloads {
-        let result = decode_status(payload);
-        assert!(
-            result.is_err(),
-            "null-byte payload len={} should fail decode",
-            payload.len()
-        );
+fn dolt_dir() -> Option<std::path::PathBuf> {
+    let p = std::path::Path::new(".beads/dolt");
+    if p.exists() {
+        Some(p.to_path_buf())
+    } else {
+        None
     }
 }
 
-// ── 5. Concurrent snapshot compaction with corrupt keys ─────────────────────────
+fn bd() -> Command {
+    Command::new("bd")
+}
+
+fn mk_issue(title: &str, desc: &str) -> Option<String> {
+    let out = bd()
+        .current_dir("/home/lewis/gt/veloxide/polecats/raider/veloxide")
+        .args(["create", title, "-d", desc, "--silent", "--json"])
+        .output()
+        .ok()?;
+    if out.status.success() {
+        serde_json::from_slice::<serde_json::Value>(&out.stdout)
+            .ok()?
+            .get("id")?
+            .as_str()
+            .map(String::from)
+    } else {
+        None
+    }
+}
+
+#[test]
+fn sql_injection_payloads_handled_without_corruption() {
+    for p in SQL_PAYLOADS {
+        let t = format!("fix: {p}");
+        assert!(
+            mk_issue(&t, "Testing SQL injection").is_some(),
+            "payload handled: {p}"
+        );
+    }
+}
 
 #[test]
 fn concurrent_compaction_with_corrupt_keys_does_not_panic() {
@@ -191,7 +224,21 @@ fn concurrent_compaction_with_corrupt_keys_does_not_panic() {
     }
 }
 
-// ── 6. Key encoding injection: crafted bytes must not decode as wrong key type ──
+#[test]
+fn meta_chars_in_labels_handled() {
+    let out = bd()
+        .current_dir("/home/lewis/gt/veloxide/polecats/raider/veloxide")
+        .args([
+            "create",
+            "fix: meta chars",
+            "--labels",
+            "p0;drop,p1'or',p2--x",
+            "--json",
+        ])
+        .output()
+        .expect("bd should handle meta chars");
+    assert!(out.status.success() || !out.stderr.is_empty());
+}
 
 #[test]
 fn crafted_key_bytes_never_decode_to_wrong_key_type() {

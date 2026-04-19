@@ -4,6 +4,7 @@
 //! specifications when a binary is invoked with `--graph`. The Engine validates,
 //! hashes, and stores this spec as a workflow version.
 
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::io::Write;
 
 use serde::{Deserialize, Serialize};
@@ -29,14 +30,11 @@ pub enum GraphArgsError {
 /// # Errors
 ///
 /// Returns `GraphArgsError::NoGraphFlag` when `--graph` is absent.
-/// Returns `GraphArgsError::UnrecognizedArgument` when extra positional args follow `--graph` or when `--graph` appears twice.
+/// Returns `GraphArgsError::UnrecognizedArgument` when extra positional args follow `--graph`.
 pub fn parse_graph_args(args: &[String]) -> Result<GraphArgs, GraphArgsError> {
     let mut found_graph = false;
     for arg in args.iter().skip(1) {
         if arg == "--graph" {
-            if found_graph {
-                return Err(GraphArgsError::UnrecognizedArgument { arg: arg.clone() });
-            }
             found_graph = true;
         } else if found_graph {
             return Err(GraphArgsError::UnrecognizedArgument { arg: arg.clone() });
@@ -102,8 +100,7 @@ impl<'de> serde::Deserialize<'de> for WorkflowSpec {
 
         let raw: RawWorkflowSpec = RawWorkflowSpec::deserialize(deserializer)?;
 
-        let node_names: std::collections::HashSet<&str> =
-            raw.nodes.iter().map(|n| n.name.as_str()).collect();
+        let node_names: HashSet<&str> = raw.nodes.iter().map(|n| n.name.as_str()).collect();
 
         for edge in &raw.edges {
             if edge.from == edge.to {
@@ -126,7 +123,7 @@ impl<'de> serde::Deserialize<'de> for WorkflowSpec {
             }
         }
 
-        let name_to_idx: std::collections::HashMap<&str, usize> = raw
+        let name_to_idx: HashMap<&str, usize> = raw
             .nodes
             .iter()
             .enumerate()
@@ -134,38 +131,37 @@ impl<'de> serde::Deserialize<'de> for WorkflowSpec {
             .collect();
 
         let n = raw.nodes.len();
-        let mut adj: Vec<Vec<usize>> = vec![Vec::new(); n];
+        let mut in_degree = vec![0u32; n];
         for edge in &raw.edges {
-            if let (Some(&from), Some(&to)) = (
+            if let (Some(&_from), Some(&to)) = (
                 name_to_idx.get(edge.from.as_str()),
                 name_to_idx.get(edge.to.as_str()),
             ) {
-                adj[from].push(to);
+                in_degree[to] += 1;
             }
         }
 
-        const WHITE: u8 = 0;
-        const GRAY: u8 = 1;
-        let mut colors = vec![WHITE; n];
-
-        fn has_cycle_from(node: usize, adj: &[Vec<usize>], colors: &mut [u8]) -> bool {
-            colors[node] = GRAY;
-            for &neighbor in &adj[node] {
-                if colors[neighbor] == GRAY {
-                    return true;
-                }
-                if colors[neighbor] == WHITE && has_cycle_from(neighbor, adj, colors) {
-                    return true;
+        let mut queue: VecDeque<usize> = (0..n).filter(|&i| in_degree[i] == 0).collect();
+        let mut visited = 0usize;
+        while let Some(node) = queue.pop_front() {
+            visited += 1;
+            for edge in &raw.edges {
+                if let (Some(&from), Some(&to)) = (
+                    name_to_idx.get(edge.from.as_str()),
+                    name_to_idx.get(edge.to.as_str()),
+                ) {
+                    if from == node {
+                        in_degree[to] -= 1;
+                        if in_degree[to] == 0 {
+                            queue.push_back(to);
+                        }
+                    }
                 }
             }
-            colors[node] = 2;
-            false
         }
 
-        for i in 0..n {
-            if colors[i] == WHITE && has_cycle_from(i, &adj, &mut colors) {
-                return Err(serde::de::Error::custom("workflow contains a cycle"));
-            }
+        if visited != n {
+            return Err(serde::de::Error::custom("workflow contains a cycle"));
         }
 
         Ok(WorkflowSpec {

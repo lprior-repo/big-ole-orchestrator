@@ -9,12 +9,12 @@ use ractor::rpc::CallResult;
 use ractor::ActorRef;
 use serde::{Deserialize, Serialize};
 use ulid::Ulid;
-use vo_actor::{OrchestratorMsg, StartError};
+use vo_actor::{CompensateError, InstancePhaseView, OrchestratorMsg, StartError, TerminateError};
 use vo_common::{InstanceId, NamespaceId};
 use vo_core::circuit_breaker::{unquarantine, CircuitBreakerConfig, CircuitBreakerState};
 use vo_types::{BinaryHash, WorkflowName};
 
-use crate::types::{ApiError, V3StartRequest, V3StartResponse, V3StatusResponse};
+use crate::types::{ApiError, V3StartRequest, V3StartResponse, V3StatusResponse, WorkloadRejectionError};
 use crate::handlers::helpers::{parse_paradigm, split_path_id, paradigm_to_str, phase_to_str};
 
 /// Request body for unquarantine API.
@@ -55,7 +55,7 @@ pub async fn start_workflow(
     Json(req): Json<V3StartRequest>,
 ) -> impl IntoResponse {
     // Validate dedupe key is present for exact workflow ingress (ADR-028).
-    let _dedupe_key = match req.dedupe_key {
+    let dedupe_key = match req.dedupe_key {
         Some(ref key) if !key.is_empty() => key.clone(),
         _ => {
             return (
@@ -70,19 +70,7 @@ pub async fn start_workflow(
     };
 
     // Validate namespace.
-    let namespace = match NamespaceId::try_new(&req.namespace) {
-        Ok(ns) => ns,
-        Err(_) => {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(ApiError::new(
-                    "invalid_namespace",
-                    format!("namespace contains illegal characters: {:?}", req.namespace),
-                )),
-            )
-                .into_response();
-        }
-    };
+    let namespace = NamespaceId::from(req.namespace);
 
     // Parse paradigm.
     let paradigm = match parse_paradigm(&req.paradigm) {
@@ -103,22 +91,11 @@ pub async fn start_workflow(
     };
 
     // Generate or validate instance_id.
-    let instance_id = match req.instance_id {
-        Some(ref id) => match InstanceId::try_new(id) {
-            Ok(id) => id,
-            Err(_) => {
-                return (
-                    StatusCode::BAD_REQUEST,
-                    Json(ApiError::new(
-                        "invalid_instance_id",
-                        "instance_id contains NATS-illegal characters",
-                    )),
-                )
-                    .into_response();
-            }
-        },
-        None => InstanceId::new(Ulid::new().to_string()),
+    let instance_id_str = match req.instance_id {
+        Some(ref id) => id.clone(),
+        None => Ulid::new().to_string(),
     };
+    let instance_id = vo_types::InstanceId::parse(&instance_id_str).expect("generated ULID should be valid");
 
     // Serialize input to msgpack bytes.
     let input = match serde_json::to_vec(&req.input) {
@@ -196,6 +173,23 @@ pub async fn start_workflow(
             Json(ApiError::new("spawn_failed", msg)),
         )
             .into_response(),
+        Ok(CallResult::Success(Err(StartError::InvalidConfig(msg)))) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiError::new("invalid_config", msg)),
+        )
+            .into_response(),
+        Ok(CallResult::Success(Err(StartError::BudgetExhaustion { class, requested, available }))) => {
+            let rejection = WorkloadRejectionError::BudgetExhausted {
+                class: class.to_string(),
+                requested,
+                available,
+            };
+            (
+                StatusCode::from_u16(rejection.status_code()).unwrap_or(StatusCode::TOO_MANY_REQUESTS),
+                Json(ApiError::new(rejection.error_code(), rejection.to_string())),
+            )
+                .into_response()
+        }
         Ok(CallResult::Success(Ok(_))) => (
             StatusCode::CREATED,
             Json(V3StartResponse {
@@ -339,7 +333,7 @@ pub async fn terminate_workflow(
             )),
         )
             .into_response(),
-        Ok(CallResult::Success(Err(vo_actor::messages::TerminateError::NotFound(id)))) => (
+        Ok(CallResult::Success(Err(TerminateError::NotFound(id)))) => (
             StatusCode::NOT_FOUND,
             Json(ApiError::new(
                 "not_found",
@@ -347,7 +341,7 @@ pub async fn terminate_workflow(
             )),
         )
             .into_response(),
-        Ok(CallResult::Success(Err(vo_actor::messages::TerminateError::Failed(msg)))) => (
+        Ok(CallResult::Success(Err(TerminateError::Failed(msg)))) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ApiError::new("terminate_failed", msg)),
         )
@@ -412,7 +406,7 @@ pub async fn list_workflows(
 pub async fn unquarantine_workflow(
     Extension(_master): Extension<ActorRef<OrchestratorMsg>>,
     Path(id): Path<String>,
-    Json(_req): Json<UnquarantineRequest>,
+    Json(req): Json<UnquarantineRequest>,
 ) -> impl IntoResponse {
     // Parse workflow name from path
     let (_, instance_id) = match split_path_id(&id) {
@@ -430,7 +424,7 @@ pub async fn unquarantine_workflow(
     };
 
     // Parse workflow name
-    let _workflow_name = match WorkflowName::parse(&instance_id.to_string()) {
+    let workflow_name = match WorkflowName::parse(&instance_id.to_string()) {
         Ok(name) => name,
         Err(_) => {
             return (
@@ -454,6 +448,100 @@ pub async fn unquarantine_workflow(
         )),
     )
         .into_response()
+}
+
+/// POST /api/v1/workflows/:id/compensate — trigger manual compensation for a workflow instance.
+#[tracing::instrument(skip_all)]
+pub async fn compensate_workflow(
+    Extension(master): Extension<ActorRef<OrchestratorMsg>>,
+    Path(id): Path<String>,
+) -> impl IntoResponse {
+    let (_, instance_id) = match split_path_id(&id) {
+        Some(pair) => pair,
+        None => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ApiError::new(
+                    "invalid_id",
+                    "id must be <namespace>/<instance_id>",
+                )),
+            )
+                .into_response();
+        }
+    };
+
+    let call_result = master
+        .call(
+            |tx| OrchestratorMsg::Compensate {
+                instance_id,
+                reply: tx,
+            },
+            Some(ACTOR_CALL_TIMEOUT),
+        )
+        .await;
+
+    match call_result {
+        Err(e) => (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(ApiError::new("actor_unavailable", e.to_string())),
+        )
+            .into_response(),
+        Ok(CallResult::Timeout) => (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(ApiError::new(
+                "actor_timeout",
+                "orchestrator did not respond",
+            )),
+        )
+            .into_response(),
+        Ok(CallResult::SenderError) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiError::new(
+                "actor_error",
+                "orchestrator dropped the reply",
+            )),
+        )
+            .into_response(),
+        Ok(CallResult::Success(Err(_))) => (
+            StatusCode::BAD_REQUEST,
+            Json(ApiError::new(
+                "compensation_failed",
+                "workflow compensation could not be initiated",
+            )),
+        )
+            .into_response(),
+        Ok(CallResult::Success(Ok(_))) => (StatusCode::ACCEPTED, Json(serde_json::json!({
+            "instance_id": id,
+            "status": "compensation_initiated",
+        }))).into_response(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::handlers::helpers::split_path_id;
+
+    #[test]
+    fn test_split_path_id_valid_format() {
+        let result = split_path_id("test-namespace/01ARZ3NDEKTSV4RRFFQ69G5FAV");
+        assert!(result.is_some());
+        let (ns, id) = result.unwrap();
+        assert_eq!(ns.as_str(), "test-namespace");
+        assert_eq!(id.as_str(), "01ARZ3NDEKTSV4RRFFQ69G5FAV");
+    }
+
+    #[test]
+    fn test_split_path_id_invalid_format() {
+        let result = split_path_id("invalid_id_format");
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_split_path_id_empty_path() {
+        let result = split_path_id("");
+        assert!(result.is_none());
+    }
 }
 
 /// GET /api/v1/workflows/:id/status — get workflow status including quarantine info (ADR-026).

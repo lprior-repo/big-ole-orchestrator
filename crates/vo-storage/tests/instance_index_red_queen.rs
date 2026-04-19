@@ -28,12 +28,12 @@ use vo_types::{InstanceId, InstanceStatus, TimestampMs};
 // Test helpers
 // ---------------------------------------------------------------------------
 
-fn make_test_keyspace() -> (tempfile::TempDir, fjall::Database) {
+fn make_test_db() -> (tempfile::TempDir, fjall::Database) {
     let dir = tempfile::tempdir().expect("Failed to create temp dir");
-    let database = fjall::Database::builder(dir.path())
+    let db = fjall::Database::builder(dir.path())
         .open()
         .expect("Failed to open database");
-    (dir, database)
+    (dir, db)
 }
 
 fn make_test_instance_id(byte_fill: u8) -> InstanceId {
@@ -52,13 +52,8 @@ fn make_test_timestamp(ms: u64) -> TimestampMs {
     TimestampMs::try_from(ms).unwrap()
 }
 
-fn seed_instance(
-    database: &fjall::Database,
-    id: &InstanceId,
-    status: InstanceStatus,
-    ts: TimestampMs,
-) {
-    instance_index_upsert(database, id, status, ts, None).unwrap();
+fn seed_instance(db: &fjall::Database, id: &InstanceId, status: InstanceStatus, ts: TimestampMs) {
+    instance_index_upsert(db, id, status, ts, None).unwrap();
 }
 
 fn collect_scan_ok(
@@ -160,7 +155,7 @@ fn rq_nil_uuid_encode_decode_behavior_is_consistent() {
 
 #[test]
 fn rq_nil_uuid_upsert_either_succeeds_consistently_or_fails_with_corrupt_key() {
-    let (_dir, database) = make_test_keyspace();
+    let (_dir, keyspace) = make_test_db();
     let nil_id = InstanceId::from_bytes([0x00; 16]);
     let ts = make_test_timestamp(500);
 
@@ -232,7 +227,7 @@ fn rq_zero_timestamp_round_trips_through_encode_decode() {
 
 #[test]
 fn rq_u64_max_timestamp_sorts_after_all_other_timestamps_in_scan() {
-    let (_dir, database) = make_test_keyspace();
+    let (_dir, keyspace) = make_test_db();
     let id_early = make_unique_instance_id(1);
     let id_late = make_unique_instance_id(2);
     let id_max = make_unique_instance_id(3);
@@ -269,7 +264,7 @@ fn rq_u64_max_timestamp_sorts_after_all_other_timestamps_in_scan() {
 
 #[test]
 fn rq_same_timestamp_different_ids_produce_deterministic_scan_order() {
-    let (_dir, database) = make_test_keyspace();
+    let (_dir, keyspace) = make_test_db();
     let ts = make_test_timestamp(5000);
 
     // Create IDs with different byte patterns
@@ -298,7 +293,7 @@ fn rq_same_timestamp_different_ids_produce_deterministic_scan_order() {
 
 #[test]
 fn rq_all_instances_same_status_returns_all_in_status_scan_none_in_others() {
-    let (_dir, database) = make_test_keyspace();
+    let (_dir, keyspace) = make_test_db();
 
     (0u16..10).into_iter().for_each(|i| {
         let id = make_unique_instance_id(i);
@@ -336,7 +331,7 @@ fn rq_all_instances_same_status_returns_all_in_status_scan_none_in_others() {
 
 #[test]
 fn rq_circular_status_transitions_leave_exactly_one_key() {
-    let (_dir, database) = make_test_keyspace();
+    let (_dir, keyspace) = make_test_db();
     let id = make_test_instance_id(0x42);
     let ts = make_test_timestamp(1000);
 
@@ -410,7 +405,7 @@ fn rq_max_instance_id_bytes_round_trip() {
 
 #[test]
 fn rq_max_pending_key_does_not_leak_into_running_scan() {
-    let (_dir, database) = make_test_keyspace();
+    let (_dir, keyspace) = make_test_db();
 
     // Construct the maximum possible Pending key:
     // status=0x01, created_at=u64::MAX, instance_id=[0xFF; 16]
@@ -442,7 +437,7 @@ fn rq_max_pending_key_does_not_leak_into_running_scan() {
 
 #[test]
 fn rq_min_running_key_does_not_leak_into_pending_scan() {
-    let (_dir, database) = make_test_keyspace();
+    let (_dir, keyspace) = make_test_db();
 
     // Minimum Running key: status=0x02, created_at=0, instance_id=[0x01; 16]
     let id_min = InstanceId::from_bytes([0x01; 16]);
@@ -471,7 +466,7 @@ fn rq_min_running_key_does_not_leak_into_pending_scan() {
 
 #[test]
 fn rq_adjacent_status_boundaries_do_not_cross_contaminate() {
-    let (_dir, database) = make_test_keyspace();
+    let (_dir, keyspace) = make_test_db();
     let _id = InstanceId::from_bytes([0xFF; 16]);
     let ts_max = make_test_timestamp(u64::MAX);
     let ts_zero = make_test_timestamp(0);
@@ -522,9 +517,9 @@ fn rq_adjacent_status_boundaries_do_not_cross_contaminate() {
 
 #[test]
 fn rq_manually_injected_boundary_key_stays_in_correct_prefix_range() {
-    let (_dir, database) = make_test_keyspace();
-    let partition = database
-        .keyspace("instances", || fjall::KeyspaceCreateOptions::default())
+    let (_dir, keyspace) = make_test_db();
+    let partition = keyspace
+        .open_partition("instances", fjall::PartitionCreateOptions::default())
         .unwrap();
 
     // Max Pending key: [0x01, 0xFF x 24]
@@ -562,9 +557,9 @@ fn rq_manually_injected_boundary_key_stays_in_correct_prefix_range() {
 
 #[test]
 fn rq_key_with_zero_status_byte_not_returned_by_any_valid_status_scan() {
-    let (_dir, database) = make_test_keyspace();
-    let partition = database
-        .keyspace("instances", || fjall::KeyspaceCreateOptions::default())
+    let (_dir, keyspace) = make_test_db();
+    let partition = keyspace
+        .open_partition("instances", fjall::PartitionCreateOptions::default())
         .unwrap();
 
     // Inject key with status byte 0x00 (invalid, below valid range)
@@ -600,9 +595,9 @@ fn rq_key_with_zero_status_byte_not_returned_by_any_valid_status_scan() {
 
 #[test]
 fn rq_key_with_0x07_status_byte_not_returned_by_cancelled_scan() {
-    let (_dir, database) = make_test_keyspace();
-    let partition = database
-        .keyspace("instances", || fjall::KeyspaceCreateOptions::default())
+    let (_dir, keyspace) = make_test_db();
+    let partition = keyspace
+        .open_partition("instances", fjall::PartitionCreateOptions::default())
         .unwrap();
 
     // Inject key with status byte 0x07 (one above Cancelled=0x06)
@@ -633,9 +628,9 @@ fn rq_key_with_0x07_status_byte_not_returned_by_cancelled_scan() {
 
 #[test]
 fn rq_phantom_entries_detectable_via_scan_count() {
-    let (_dir, database) = make_test_keyspace();
-    let partition = database
-        .keyspace("instances", || fjall::KeyspaceCreateOptions::default())
+    let (_dir, keyspace) = make_test_db();
+    let partition = keyspace
+        .open_partition("instances", fjall::PartitionCreateOptions::default())
         .unwrap();
 
     let id = make_test_instance_id(0x42);
@@ -670,7 +665,7 @@ fn rq_phantom_entries_detectable_via_scan_count() {
 
 #[test]
 fn rq_1000_instances_across_all_statuses_scan_returns_correct_counts() {
-    let (_dir, database) = make_test_keyspace();
+    let (_dir, keyspace) = make_test_db();
     let statuses = InstanceStatus::all_variants();
 
     // Insert 1000 instances: ~166-167 per status
@@ -728,7 +723,7 @@ fn rq_1000_instances_across_all_statuses_scan_returns_correct_counts() {
 
 #[test]
 fn rq_scan_all_returns_globally_ordered_by_status_byte_then_created_at() {
-    let (_dir, database) = make_test_keyspace();
+    let (_dir, keyspace) = make_test_db();
 
     // Insert entries in random-ish order across statuses
     let data: &[(u16, InstanceStatus, u64)] = &[
@@ -772,7 +767,7 @@ fn rq_scan_all_returns_globally_ordered_by_status_byte_then_created_at() {
 
 #[test]
 fn rq_rapid_transitions_on_50_instances_leave_exactly_50_keys() {
-    let (_dir, database) = make_test_keyspace();
+    let (_dir, keyspace) = make_test_db();
 
     // Insert 50 instances as Pending
     (0u16..50).for_each(|i| {
@@ -837,7 +832,7 @@ fn rq_rapid_transitions_on_50_instances_leave_exactly_50_keys() {
 
 #[test]
 fn rq_interleaved_transitions_do_not_cross_contaminate_instances() {
-    let (_dir, database) = make_test_keyspace();
+    let (_dir, keyspace) = make_test_db();
 
     let id_a = make_unique_instance_id(1);
     let id_b = make_unique_instance_id(2);
@@ -1007,7 +1002,7 @@ fn rq_decode_handles_extreme_timestamp_and_id_values() {
 
 #[test]
 fn rq_value_is_empty_after_status_transition() {
-    let (_dir, database) = make_test_keyspace();
+    let (_dir, keyspace) = make_test_db();
     let id = make_test_instance_id(0x42);
     let ts = make_test_timestamp(1000);
 
@@ -1042,7 +1037,7 @@ fn rq_value_is_empty_after_status_transition() {
 
 #[test]
 fn rq_value_is_empty_after_idempotent_upsert() {
-    let (_dir, database) = make_test_keyspace();
+    let (_dir, keyspace) = make_test_db();
     let id = make_test_instance_id(0x42);
     let ts = make_test_timestamp(1000);
 
@@ -1080,7 +1075,7 @@ fn rq_value_is_empty_after_idempotent_upsert() {
 
 #[test]
 fn rq_scan_all_finds_entries_across_all_six_status_buckets() {
-    let (_dir, database) = make_test_keyspace();
+    let (_dir, keyspace) = make_test_db();
 
     (InstanceStatus::all_variants().iter().enumerate())
         .into_iter()
@@ -1115,9 +1110,9 @@ fn rq_scan_all_finds_entries_across_all_six_status_buckets() {
 
 #[test]
 fn rq_scan_all_with_mixed_corrupt_and_valid_keys_yields_errors_and_entries() {
-    let (_dir, database) = make_test_keyspace();
-    let partition = database
-        .keyspace("instances", || fjall::KeyspaceCreateOptions::default())
+    let (_dir, keyspace) = make_test_db();
+    let partition = keyspace
+        .open_partition("instances", fjall::PartitionCreateOptions::default())
         .unwrap();
 
     // Inject: 1 key with invalid status (0x00), 1 valid key, 1 key with invalid length
@@ -1189,7 +1184,7 @@ mod proptests {
             ts in proptest::num::u64::ANY,
             id_bytes in arb_instance_id_bytes(),
         ) {
-            let (_dir, database) = make_test_keyspace();
+            let (_dir, keyspace) = make_test_db();
             let id = InstanceId::from_bytes(id_bytes);
             let timestamp = TimestampMs::try_from(ts).unwrap();
 
@@ -1210,7 +1205,7 @@ mod proptests {
             ts in proptest::num::u64::ANY,
             id_bytes in arb_instance_id_bytes(),
         ) {
-            let (_dir, database) = make_test_keyspace();
+            let (_dir, keyspace) = make_test_db();
             let id = InstanceId::from_bytes(id_bytes);
             let timestamp = TimestampMs::try_from(ts).unwrap();
 
