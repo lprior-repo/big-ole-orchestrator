@@ -130,6 +130,43 @@ fn write_failure_multibyte_message_exceeds_byte_limit() {
 }
 
 #[test]
+fn write_failure_byte_vs_char_semantics() {
+    // Chinese characters are 3 bytes each in UTF-8
+    // "中" = 3 bytes, "文" = 3 bytes
+    // "中文" = 6 bytes (2 chars)
+    // "中文中文中文中文" = 24 bytes (8 chars, 4 pairs)
+    let multibyte_msg = "中文中文中文中文"; // 8 chars × 3 bytes = 24 bytes
+    let ascii_msg = "aaaaaaaaaa"; // 10 chars = 10 bytes
+
+    assert_eq!(multibyte_msg.len(), 24, "Chinese chars are 3 bytes each");
+    assert_eq!(ascii_msg.len(), 10, "ASCII chars are 1 byte each");
+
+    // 8 Chinese chars (24 bytes) should fit in 1024 byte limit
+    let mut buf: Vec<u8> = Vec::new();
+    let mut is_written = false;
+    let result = write_failure_inner(
+        &mut buf,
+        TaskFailureKind::User,
+        multibyte_msg,
+        &mut is_written,
+    );
+    assert_eq!(result, Ok(()));
+
+    // 1025 ASCII chars (1025 bytes) should exceed limit
+    let long_ascii = "a".repeat(1025);
+    assert!(long_ascii.len() > 1024);
+    buf.clear();
+    is_written = false;
+    let result = write_failure_inner(
+        &mut buf,
+        TaskFailureKind::User,
+        &long_ascii,
+        &mut is_written,
+    );
+    assert_eq!(result, Err(SdkError::InvalidInput));
+}
+
+#[test]
 fn write_failure_empty_message_is_valid() {
     let mut buf: Vec<u8> = Vec::new();
     let mut is_written = false;
