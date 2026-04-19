@@ -186,6 +186,8 @@ pub use signal_messages::{
 // =============================================================================
 // Workload Classes and Reserved Permit Budget (ADR-033)
 // =============================================================================
+// Workload Classes and Reserved Permit Budget (ADR-033)
+// =============================================================================
 
 pub use fairness::WorkloadClass;
 

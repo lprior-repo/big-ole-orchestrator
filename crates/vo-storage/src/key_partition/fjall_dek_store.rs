@@ -132,7 +132,29 @@ impl FjallDekStore {
                 instance_id: dek_id.as_str().to_string(),
             }),
             Err(e) => Err(DekStoreError::Storage {
-                reason: e.to_string(),
+                reason: format!("failed to update retired DEK: {e}"),
+            }),
+        }
+    }
+
+    fn revoke_dek_entry(&self, dek_id: &DekId) -> Result<(), DekStoreError> {
+        let key = Self::encode_dek_key(dek_id);
+        match self.dek_partition.get(&key) {
+            Ok(Some(bytes)) => {
+                let mut entry = super::decode_dek_entry(&bytes)?;
+                entry.revoke();
+                let value = super::encode_dek_entry(&entry);
+                self.dek_partition
+                    .insert(&key, &value)
+                    .map_err(|e| DekStoreError::Storage {
+                        reason: format!("failed to update revoked DEK: {e}"),
+                    })
+            }
+            Ok(None) => Err(DekStoreError::DekNotFound {
+                instance_id: dek_id.as_str().to_string(),
+            }),
+            Err(e) => Err(DekStoreError::Storage {
+                reason: format!("failed to update revoked DEK: {e}"),
             }),
         }
     }
@@ -199,6 +221,12 @@ impl DekStore for FjallDekStore {
             });
         }
 
+        if entry.status() == DekStatus::Revoked {
+            return Err(DekStoreError::DekRevoked {
+                dek_id: dek_id.as_str().to_string(),
+            });
+        }
+
         let wrapped_bytes = entry.wrapped_dek().as_bytes();
         let raw_dek = unwrap_dek(wrapped_bytes, kek).map_err(|e| DekStoreError::Storage {
             reason: format!("failed to unwrap DEK: {e}"),
@@ -244,6 +272,62 @@ impl DekStore for FjallDekStore {
         };
 
         self.retire_dek_entry(&dek_id)
+    }
+
+    fn revoke_dek(&self, instance_id: &InstanceId) -> Result<(), DekStoreError> {
+        let dek_id = self.get_active_dek_id_internal(instance_id)?;
+
+        let dek_id = match dek_id {
+            Some(id) => id,
+            None => {
+                return Err(DekStoreError::DekNotFound {
+                    instance_id: instance_id.to_string(),
+                });
+            }
+        };
+
+        self.revoke_dek_entry(&dek_id)
+    }
+
+    fn retrieve_dek_for_decryption(
+        &self,
+        instance_id: &InstanceId,
+        kek: &[u8; 32],
+    ) -> Result<[u8; 32], DekStoreError> {
+        let dek_id = self.get_active_dek_id_internal(instance_id)?;
+
+        let dek_id = match dek_id {
+            Some(id) => id,
+            None => {
+                return Err(DekStoreError::DekNotFound {
+                    instance_id: instance_id.to_string(),
+                });
+            }
+        };
+
+        let entry = self.get_dek_entry(&dek_id)?;
+
+        let entry = match entry {
+            Some(e) => e,
+            None => {
+                return Err(DekStoreError::DekNotFound {
+                    instance_id: instance_id.to_string(),
+                });
+            }
+        };
+
+        if entry.status() == DekStatus::Retired {
+            return Err(DekStoreError::DekRetired {
+                dek_id: dek_id.as_str().to_string(),
+            });
+        }
+
+        let wrapped_bytes = entry.wrapped_dek().as_bytes();
+        let raw_dek = unwrap_dek(wrapped_bytes, kek).map_err(|e| DekStoreError::Storage {
+            reason: format!("failed to unwrap DEK: {e}"),
+        })?;
+
+        Ok(raw_dek)
     }
 
     fn list_deks(&self, instance_id: &InstanceId) -> Result<Vec<DekId>, DekStoreError> {
@@ -520,5 +604,83 @@ mod tests {
 
         let result = store.retrieve_dek(&sample_instance_id(), &kek);
         assert!(matches!(result, Err(DekStoreError::DekRetired { .. })));
+    }
+
+    #[test]
+    fn revoke_dek_marks_dek_as_revoked() {
+        let keyspace = create_test_keyspace();
+        let store = FjallDekStore::open(&keyspace).unwrap();
+        let kek = create_test_kek();
+
+        store
+            .generate_and_store_dek(&sample_instance_id(), &kek)
+            .unwrap();
+        store.revoke_dek(&sample_instance_id()).unwrap();
+
+        let result = store.retrieve_dek(&sample_instance_id(), &kek);
+        assert!(matches!(result, Err(DekStoreError::DekRevoked { .. })));
+    }
+
+    #[test]
+    fn revoke_dek_fails_when_not_found() {
+        let keyspace = create_test_keyspace();
+        let store = FjallDekStore::open(&keyspace).unwrap();
+
+        let result = store.revoke_dek(&sample_instance_id());
+        assert!(matches!(result, Err(DekStoreError::DekNotFound { .. })));
+    }
+
+    #[test]
+    fn retrieve_dek_for_decryption_succeeds_after_revoke() {
+        let keyspace = create_test_keyspace();
+        let store = FjallDekStore::open(&keyspace).unwrap();
+        let kek = create_test_kek();
+
+        store
+            .generate_and_store_dek(&sample_instance_id(), &kek)
+            .unwrap();
+        let original_dek = store.retrieve_dek(&sample_instance_id(), &kek).unwrap();
+        store.revoke_dek(&sample_instance_id()).unwrap();
+
+        let result = store.retrieve_dek_for_decryption(&sample_instance_id(), &kek);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), original_dek);
+    }
+
+    #[test]
+    fn retrieve_dek_for_decryption_fails_after_retire() {
+        let keyspace = create_test_keyspace();
+        let store = FjallDekStore::open(&keyspace).unwrap();
+        let kek = create_test_kek();
+
+        store
+            .generate_and_store_dek(&sample_instance_id(), &kek)
+            .unwrap();
+        store.retire_dek(&sample_instance_id()).unwrap();
+
+        let result = store.retrieve_dek_for_decryption(&sample_instance_id(), &kek);
+        assert!(matches!(result, Err(DekStoreError::DekRetired { .. })));
+    }
+
+    #[test]
+    fn revoke_allows_re_encryption_with_new_key_during_recovery() {
+        let keyspace = create_test_keyspace();
+        let store = FjallDekStore::open(&keyspace).unwrap();
+        let kek = create_test_kek();
+
+        store
+            .generate_and_store_dek(&sample_instance_id(), &kek)
+            .unwrap();
+
+        let old_dek = store.retrieve_dek(&sample_instance_id(), &kek).unwrap();
+
+        store.revoke_dek(&sample_instance_id()).unwrap();
+
+        let recovered_dek = store.retrieve_dek_for_decryption(&sample_instance_id(), &kek).unwrap();
+        assert_eq!(old_dek, recovered_dek);
+
+        store.rotate_dek(&sample_instance_id(), &kek).unwrap();
+        let new_dek = store.retrieve_dek(&sample_instance_id(), &kek).unwrap();
+        assert_ne!(old_dek, new_dek);
     }
 }
