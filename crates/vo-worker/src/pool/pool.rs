@@ -534,4 +534,69 @@ mod pool_tests {
         let result = pool.release(never_acquired);
         assert_eq!(result, ReleaseResult::AlreadyClosed);
     }
+
+    // ve-xy6ah: acquire when pool at max_connections returns PoolExhausted
+    #[test]
+    fn test_acquire_at_max_capacity_returns_pool_exhausted() {
+        let pool_id = PoolId::new("max-test-pool");
+        let nats_urls = vec!["nats://localhost:4222".to_string()];
+        let config = PoolConfig::new(0, 2, 5000, 30000, 10000, 0).unwrap();
+        let mut pool = ConnectionPool::new(pool_id, nats_urls, config);
+
+        // Fill pool to max (2 connections)
+        let r1 = futures::executor::block_on(pool.acquire());
+        assert!(matches!(r1, AcquireResult::Available { .. }));
+        let r2 = futures::executor::block_on(pool.acquire());
+        assert!(matches!(r2, AcquireResult::Available { .. }));
+
+        // Third acquire should exhaust (max_pending_acquires=0)
+        let r3 = futures::executor::block_on(pool.acquire());
+        assert!(matches!(r3, AcquireResult::PoolExhausted { .. }), "expected PoolExhausted at max capacity with no pending queue");
+    }
+
+    // ve-xy6ah: acquire→release→reacquire reuses the connection
+    #[test]
+    fn test_acquire_release_reacquire_reuses_connection() {
+        let mut pool = create_test_pool();
+        let acquire1 = futures::executor::block_on(pool.acquire());
+        let conn_id = match acquire1 {
+            AcquireResult::Available { connection } => connection.connection_id,
+            _ => panic!("Expected Available"),
+        };
+
+        pool.release(conn_id);
+        assert_eq!(pool.stats().idle_connections, 1);
+
+        // Reacquire should get the same connection (from idle queue)
+        let acquire2 = futures::executor::block_on(pool.acquire());
+        let reacquired_id = match acquire2 {
+            AcquireResult::Available { connection } => connection.connection_id,
+            _ => panic!("Expected Available"),
+        };
+
+        assert_eq!(reacquired_id, conn_id, "should reuse released connection");
+        assert_eq!(pool.stats().total_connections, 1, "no new connection created");
+    }
+
+    // ve-xy6ah: acquire/release stats counters are accurate
+    #[test]
+    fn test_acquire_release_stats_counters() {
+        let mut pool = create_test_pool();
+
+        let acquire1 = futures::executor::block_on(pool.acquire());
+        let conn_id = match acquire1 {
+            AcquireResult::Available { connection } => connection.connection_id,
+            _ => panic!("Expected Available"),
+        };
+
+        assert_eq!(pool.stats().total_acquires, 1);
+        assert_eq!(pool.stats().total_releases, 0);
+        assert_eq!(pool.stats().checked_out_connections, 1);
+        assert_eq!(pool.stats().idle_connections, 0);
+
+        pool.release(conn_id);
+        assert_eq!(pool.stats().total_releases, 1);
+        assert_eq!(pool.stats().checked_out_connections, 0);
+        assert_eq!(pool.stats().idle_connections, 1);
+    }
 }
