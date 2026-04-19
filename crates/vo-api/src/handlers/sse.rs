@@ -14,7 +14,7 @@ use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 use vo_actor::OrchestratorMsg;
 
 use super::split_path_id;
-use crate::types::{ApiError, events::WorkflowEvent};
+use crate::types::ApiError;
 
 const SSE_KEEPALIVE_INTERVAL: Duration = Duration::from_secs(15);
 const SSE_BROADCAST_CAPACITY: usize = 1000;

@@ -205,7 +205,7 @@ impl WorkspaceIndex {
             let new_node = self
                 .nodes
                 .get_mut(&id)
-                .expect("workspace node must exist after move operations");
+                .ok_or(WorkspaceIndexError::WorkspaceNotFound(id))?;
             new_node.parent_id = new_parent_id;
             new_node.updated_at = now;
         }
@@ -237,8 +237,7 @@ impl WorkspaceIndex {
             #[allow(clippy::expect_used)]
             let desc_new_path = WorkspacePath::new(crate::NonEmptyVec::new_unchecked(
                 current_path_segments.clone(),
-            ))
-            .expect("workspace path segments should be non-empty");
+            ))?;
             self.path_index.insert(desc_new_path, *desc_id);
 
             if i < descendants.len() {
