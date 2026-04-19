@@ -39,21 +39,11 @@ impl TimerKey {
     }
     #[must_use]
     pub fn instance_id(&self) -> InstanceId {
-        let bytes: [u8; 16] = [
-            self.0[8], self.0[9], self.0[10], self.0[11], self.0[12], self.0[13], self.0[14],
-            self.0[15], self.0[16], self.0[17], self.0[18], self.0[19], self.0[20], self.0[21],
-            self.0[22], self.0[23],
-        ];
-        InstanceId::from_bytes(bytes)
+        InstanceId::from_bytes(self.0[8..24].try_into().unwrap_or_default())
     }
     #[must_use]
     pub fn timer_id(&self) -> TimerId {
-        let bytes: [u8; 16] = [
-            self.0[24], self.0[25], self.0[26], self.0[27], self.0[28], self.0[29], self.0[30],
-            self.0[31], self.0[32], self.0[33], self.0[34], self.0[35], self.0[36], self.0[37],
-            self.0[38], self.0[39],
-        ];
-        TimerId::from_bytes(bytes)
+        TimerId::from_bytes(self.0[24..40].try_into().unwrap_or_default())
     }
     #[must_use]
     pub const fn as_bytes(&self) -> &[u8; 40] {
@@ -61,7 +51,6 @@ impl TimerKey {
     }
 }
 
-#[derive(Debug)]
 pub struct TimerValue(u64);
 
 impl TimerValue {
@@ -294,59 +283,6 @@ pub fn scan_all_timers_for_instance(
             })
         })
         .collect();
-    Ok(records)
-}
-
-pub fn poll_expired_timers(
-    storage: &mut impl Storage,
-    now_ms: u64,
-    max_timers: usize,
-) -> Result<Vec<TimerRecord>, StorageError> {
-    let start = [0u8; 40];
-    let end = {
-        let mut e = [0u8; 40];
-        e[0..8].copy_from_slice(&(now_ms.saturating_add(1)).to_be_bytes());
-        e
-    };
-
-    let pairs = storage.scan(&start, &end)?;
-    let mut records: Vec<TimerRecord> = Vec::new();
-
-    for (k, v) in pairs {
-        if records.len() >= max_timers {
-            break;
-        }
-
-        let key_bytes: [u8; 40] = match k.try_into().ok() {
-            Some(bytes) => bytes,
-            None => continue,
-        };
-        let key = TimerKey(key_bytes);
-
-        if key.fire_at_ms() > now_ms {
-            continue;
-        }
-
-        let duration_bytes: [u8; 8] = match v.try_into().ok() {
-            Some(bytes) => bytes,
-            None => continue,
-        };
-        let duration_ms = u64::from_be_bytes(duration_bytes);
-        let trigger_time_ms = key.fire_at_ms().saturating_sub(duration_ms);
-
-        let record = TimerRecord {
-            timer_id: key.timer_id(),
-            instance_id: key.instance_id(),
-            fire_at_ms: key.fire_at_ms(),
-            trigger_time_ms,
-            duration_ms,
-        };
-
-        let key_to_delete = TimerKey::new(key.fire_at_ms(), key.instance_id(), key.timer_id())?;
-        storage.delete(key_to_delete.as_bytes())?;
-        records.push(record);
-    }
-
     Ok(records)
 }
 
@@ -756,71 +692,94 @@ mod tests {
     }
 
     #[test]
-    fn fn_poll_expired_timers_returns_only_unclaimed_expired_timers() {
+    fn fn_scan_all_timers_for_instance_returns_all_timers_including_future() {
         let mut storage = MockStorage::new();
         let instance_id = create_instance_id();
-        let timer_id = create_timer_id();
+        let timer_id_1 = create_timer_id();
+        let timer_id_2 = TimerId::from_bytes([3; 16]);
 
         timer_set(
             &mut storage,
             instance_id.clone(),
-            timer_id.clone(),
-            1000,
-            900,
+            timer_id_1.clone(),
+            500,
+            400,
             100,
-            999,
+            0,
         )
         .unwrap();
-
-        let result = poll_expired_timers(&mut storage, 1000, 10).unwrap();
-        assert_eq!(result.len(), 1);
-        assert_eq!(result[0].instance_id, instance_id);
-        assert_eq!(result[0].timer_id, timer_id);
-    }
-
-    #[test]
-    fn fn_poll_expired_timers_does_not_return_already_claimed_timers() {
-        let mut storage = MockStorage::new();
-        let instance_id = create_instance_id();
-        let timer_id = create_timer_id();
 
         timer_set(
             &mut storage,
             instance_id.clone(),
-            timer_id.clone(),
-            1000,
-            900,
+            timer_id_2.clone(),
+            2000,
+            1900,
             100,
-            999,
+            0,
         )
         .unwrap();
 
-        let first_poll = poll_expired_timers(&mut storage, 1000, 10).unwrap();
-        assert_eq!(first_poll.len(), 1);
-
-        let second_poll = poll_expired_timers(&mut storage, 1000, 10).unwrap();
-        assert_eq!(second_poll.len(), 0);
+        let result = scan_all_timers_for_instance(&storage, &instance_id).unwrap();
+        assert_eq!(result.len(), 2);
     }
 
     #[test]
-    fn fn_poll_expired_timers_respects_max_timers_parameter() {
+    fn fn_scan_all_timers_for_instance_filters_out_different_instance() {
         let mut storage = MockStorage::new();
+        let wanted_instance = create_instance_id();
+        let other_instance = InstanceId::from_bytes([9; 16]);
 
-        for i in 0..10u64 {
-            timer_set(
-                &mut storage,
-                create_instance_id(),
-                create_timer_id(),
-                1000 + i,
-                900 + i,
-                100,
-                999,
-            )
-            .unwrap();
-        }
+        timer_set(
+            &mut storage,
+            other_instance,
+            create_timer_id(),
+            500,
+            400,
+            100,
+            0,
+        )
+        .unwrap();
 
-        let result = poll_expired_timers(&mut storage, 1010, 5).unwrap();
-        assert!(result.len() <= 5);
+        let result = scan_all_timers_for_instance(&storage, &wanted_instance).unwrap();
+        assert_eq!(result, Vec::<TimerRecord>::new());
+    }
+
+    #[test]
+    fn fn_scan_all_timers_for_instance_returns_both_due_and_future_timers() {
+        let mut storage = MockStorage::new();
+        let instance_id = create_instance_id();
+        let timer_id_due = create_timer_id();
+        let timer_id_future = TimerId::from_bytes([3; 16]);
+
+        timer_set(
+            &mut storage,
+            instance_id.clone(),
+            timer_id_due.clone(),
+            500,
+            400,
+            100,
+            0,
+        )
+        .unwrap();
+
+        timer_set(
+            &mut storage,
+            instance_id.clone(),
+            timer_id_future.clone(),
+            2000,
+            1900,
+            100,
+            0,
+        )
+        .unwrap();
+
+        let result = scan_all_timers_for_instance(&storage, &instance_id).unwrap();
+        assert_eq!(result.len(), 2);
+
+        let fire_times: Vec<u64> = result.iter().map(|r| r.fire_at_ms).collect();
+        assert!(fire_times.contains(&500));
+        assert!(fire_times.contains(&2000));
     }
 
     proptest! {
