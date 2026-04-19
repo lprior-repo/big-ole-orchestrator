@@ -11,11 +11,15 @@ pub mod types;
 mod enforcer_tests;
 
 #[cfg(test)]
+mod overflow_tests;
+
+#[cfg(test)]
 mod tests;
 
 pub use enforcer::QuotaEnforcer;
 pub use policy::OvercommitPolicy;
 pub use registry::NamespaceRegistry;
 pub use types::{
-    CpuQuota, DiskQuota, MemoryQuota, NamespaceQuota, QuotaError, QuotaUsage, ResourceKind,
+    CpuQuota, DiskQuota, MemoryQuota, NamespaceQuota, QuotaError, QuotaUsage, QuotaUsageOverflow,
+    ResourceKind,
 };
