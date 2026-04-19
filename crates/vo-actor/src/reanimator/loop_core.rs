@@ -337,14 +337,13 @@ impl ReanimatorLoop {
         // Reset budget for this cycle
         budget.reset();
 
-        // Deduplicate timers by (instance_id, fire_at_ms, timer_id) to prevent double-fire
-        // when the same timer appears multiple times in scan results.
-        // Different timer_ids at the same (instance_id, fire_at_ms) are distinct events.
+        // Deduplicate timers by (instance_id, fire_at_ms) to prevent double-fire
+        // when the same timer appears multiple times in scan results
         let mut seen = std::collections::HashSet::new();
         let deduped_timers: Vec<_> = scan_result
             .into_iter()
             .filter(|timer| {
-                let key = (timer.instance_id.clone(), timer.fire_at_ms, timer.timer_id.clone());
+                let key = (timer.instance_id.clone(), timer.fire_at_ms);
                 seen.insert(key)
             })
             .collect();

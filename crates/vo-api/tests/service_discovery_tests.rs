@@ -173,33 +173,33 @@ mod discovery_path_validation {
     }
 
     #[test]
+    #[should_panic(expected = "binary_name cannot be empty")]
     fn validate_discovery_path_empty_name() {
-        let result = DiscoveryPath::new(
+        let _path = DiscoveryPath::new(
             VERSION_BASE_PATH.to_string(),
             vo_types::BinaryHash::parse("abcdef0123456789").unwrap(),
             String::new(),
         );
-        assert!(result.is_err());
     }
 
     #[test]
+    #[should_panic(expected = "binary_name cannot contain path separators")]
     fn validate_discovery_path_name_with_separator() {
-        let result = DiscoveryPath::new(
+        let _path = DiscoveryPath::new(
             VERSION_BASE_PATH.to_string(),
             vo_types::BinaryHash::parse("abcdef0123456789").unwrap(),
             "foo/bar".to_string(),
         );
-        assert!(result.is_err());
     }
 
     #[test]
+    #[should_panic(expected = "binary_name cannot contain path separators")]
     fn validate_discovery_path_name_with_multiple_separators() {
-        let result = DiscoveryPath::new(
+        let _path = DiscoveryPath::new(
             VERSION_BASE_PATH.to_string(),
             vo_types::BinaryHash::parse("abcdef0123456789").unwrap(),
             "foo/bar/baz".to_string(),
         );
-        assert!(result.is_err());
     }
 }
 
@@ -386,8 +386,7 @@ mod edge_cases {
             String::new(),
             vo_types::BinaryHash::parse("abcdef0123456789").unwrap(),
             "binary".to_string(),
-        )
-        .unwrap();
+        );
         assert_eq!(path.version_root(), "");
     }
 
