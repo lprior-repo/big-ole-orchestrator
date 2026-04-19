@@ -9,6 +9,9 @@ use vo_types::credentials::{
 pub mod access;
 pub mod rotation;
 
+#[cfg(test)]
+mod audit_tests;
+
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum CredentialError {
     #[error("credential not found: {0}")]
