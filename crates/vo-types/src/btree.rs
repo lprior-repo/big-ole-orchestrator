@@ -574,15 +574,6 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
         expected_height: usize,
     ) -> bool {
         if node.keys.len() > max_keys {
-<<<<<<< HEAD
-            return false;
-        }
-        if node.keys.len() < min_keys {
-            return false;
-        }
-        if !node.children.is_empty() && node.children.len() != node.keys.len() + 1 {
-            return false;
-=======
             return Err(format!(
                 "keys.len {} > max_keys {}",
                 node.keys.len(),
@@ -603,7 +594,7 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
                 node.children.len(),
                 node.keys.len() + 1
             ));
->>>>>>> 7e356012 (style: apply consistent rustfmt formatting)
+        }
         }
         if node.is_leaf() && expected_height != 1 {
             return false;

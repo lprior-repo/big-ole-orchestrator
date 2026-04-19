@@ -4,9 +4,9 @@
   "hook_event_name": "PreToolUse",
   "tool_name": "Edit",
   "tool_input": {
-    "file_path": "/home/lewis/gt/veloxide/polecats/shiny/veloxide/crates/vo-worker/src/pool/pool.rs",
-    "old_string": "#[derive(Debug, Clone)]\npub struct PoolState {",
-    "new_string": "#[derive(Debug, Clone)]\npub struct ResourceQuota {\n    pub soft_limit: u32,\n    pub hard_limit: u32,\n}\n\n#[derive(Debug, Clone)]\npub struct PoolState {",
+    "file_path": "/home/lewis/gt/veloxide/polecats/shiny/veloxide/crates/vo-types/src/btree.rs",
+    "old_string": "    ) -> bool {\n        if node.keys.len() > max_keys {\n<<<<<<< HEAD\n            return false;\n        }\n        if node.keys.len() < min_keys {\n            return false;\n        }\n        if !node.children.is_empty() && node.children.len() != node.keys.len() + 1 {\n            return false;\n=======\n            return Err(format!(\n                \"keys.len {} > max_keys {}\",\n                node.keys.len(),\n                max_keys\n            ));\n        }\n        // Root is exempt from minimum keys constraint (B-tree invariant)\n        if !is_root && !node.is_leaf() && node.keys.len() < min_keys {\n            return Err(format!(\n                \"non-root keys.len {} < min_keys {}\",\n                node.keys.len(),\n                min_keys\n            ));\n        }\n        if !node.children.is_empty() && node.children.len() != node.keys.len() + 1 {\n            return Err(format!(\n                \"children {} != keys+1 {}\",\n                node.children.len(),\n                node.keys.len() + 1\n            ));\n>>>>>>> 7e356012 (style: apply consistent rustfmt formatting)",
+    "new_string": "    ) -> bool {\n        if node.keys.len() > max_keys {\n            return Err(format!(\n                \"keys.len {} > max_keys {}\",\n                node.keys.len(),\n                max_keys\n            ));\n        }\n        // Root is exempt from minimum keys constraint (B-tree invariant)\n        if !is_root && !node.is_leaf() && node.keys.len() < min_keys {\n            return Err(format!(\n                \"non-root keys.len {} < min_keys {}\",\n                node.keys.len(),\n                min_keys\n            ));\n        }\n        if !node.children.is_empty() && node.children.len() != node.keys.len() + 1 {\n            return Err(format!(\n                \"children {} != keys+1 {}\",\n                node.children.len(),\n                node.keys.len() + 1\n            ));\n        }",
     "replace_all": false
   }
 }

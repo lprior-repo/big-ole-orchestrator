@@ -22,26 +22,6 @@ const SQL_PAYLOADS: &[&str] = &[
     "'; INSERT INTO issues VALUES('pwned'); --",
 ];
 
-<<<<<<< HEAD
-fn bd() -> Command {
-    Command::new("bd")
-}
-
-fn mk_issue(title: &str, desc: &str) -> Option<String> {
-    let out = bd()
-        .current_dir("/home/lewis/gt/veloxide/polecats/raider/veloxide")
-        .args(["create", title, "-d", desc, "--silent", "--json"])
-        .output()
-        .ok()?;
-    if out.status.success() {
-        serde_json::from_slice::<serde_json::Value>(&out.stdout)
-            .ok()?
-            .get("id")?
-            .as_str()
-            .map(String::from)
-    } else {
-        None
-=======
 use tempfile::TempDir;
 use vo_storage::codec::{decode_event_key, encode_event_key};
 use vo_storage::key_encoding::{decode_effect_key, decode_lease_key};
@@ -154,7 +134,6 @@ fn bead_payload_with_sql_injection_does_not_corrupt_decode() {
             Ok(_) | Err(StatusStoreError::CorruptValue { .. }) => {}
             other => panic!("unexpected error variant for injection payload: {other:?}"),
         }
->>>>>>> 7e356012 (style: apply consistent rustfmt formatting)
     }
 }
 
@@ -179,21 +158,6 @@ fn sql_injection_payloads_handled_without_corruption() {
 }
 
 #[test]
-<<<<<<< HEAD
-fn sql_injection_query_handles_special_chars() {
-    for q in [
-        "p0", "p1 or", "admin--", "union", "drop", "'; DROP", "1 OR 1",
-    ] {
-        let out = bd()
-            .current_dir("/home/lewis/gt/veloxide/polecats/raider/veloxide")
-            .args(["q", q, "--json"])
-            .output()
-            .expect("q should not panic");
-        assert!(
-            out.status.success() || !out.stderr.is_empty(),
-            "query safe: {q}"
-        );
-=======
 fn concurrent_compaction_with_corrupt_keys_does_not_panic() {
     let tmp = TempDir::new().unwrap();
     let path = tmp.path().join("compact_race");
@@ -234,7 +198,6 @@ fn concurrent_compaction_with_corrupt_keys_does_not_panic() {
 
     for h in handles {
         h.join().unwrap();
->>>>>>> 7e356012 (style: apply consistent rustfmt formatting)
     }
 }
 
@@ -255,58 +218,6 @@ fn meta_chars_in_labels_handled() {
 }
 
 #[test]
-<<<<<<< HEAD
-fn corrupt_sst_file_detected() {
-    if let Some(dd) = dolt_dir() {
-        let sd = dd.join("data");
-        if sd.exists() {
-            if let Some(sst) = std::fs::read_dir(&sd)
-                .unwrap()
-                .filter_map(|e| e.ok())
-                .find(|e| e.path().extension().is_some_and(|ex| ex == "sst"))
-            {
-                let p = sst.path();
-                let orig = std::fs::read(&p).unwrap();
-                if orig.len() > 64 {
-                    std::fs::write(&p, &orig[..orig.len() / 2]).unwrap();
-                    let _ = bd()
-                        .current_dir("/home/lewis/gt/veloxide/polecats/raider/veloxide")
-                        .args(["list", "--json"])
-                        .output();
-                    std::fs::write(&p, &orig).unwrap();
-                }
-            }
-        }
-    }
-}
-
-#[test]
-fn dolt_data_dir_missing_graceful() {
-    if let Some(dd) = dolt_dir() {
-        let sql_dir = dd.join("data");
-        if sql_dir.exists() {
-            let files: Vec<_> = std::fs::read_dir(&sql_dir)
-                .unwrap()
-                .filter_map(|e| e.ok())
-                .map(|e| e.path())
-                .collect();
-            for f in &files {
-                std::fs::rename(f, format!("{}.bak", f.display())).ok();
-            }
-            let out = bd()
-                .current_dir("/home/lewis/gt/veloxide/polecats/raider/veloxide")
-                .args(["list", "--json"])
-                .output();
-            for f in &files {
-                std::fs::rename(format!("{}.bak", f.display()), f).ok();
-            }
-            assert!(
-                out.is_ok(),
-                "bd should not panic when data dir is inaccessible"
-            );
-        }
-    }
-=======
 fn crafted_key_bytes_never_decode_to_wrong_key_type() {
     let event_key = encode_event_key(
         &test_instance_id(),
@@ -334,5 +245,4 @@ fn crafted_key_bytes_never_decode_to_wrong_key_type() {
         decode_effect_key(&timer_key).is_err(),
         "timer key must not decode as effect key"
     );
->>>>>>> 7e356012 (style: apply consistent rustfmt formatting)
 }

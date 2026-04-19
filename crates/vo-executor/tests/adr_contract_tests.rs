@@ -167,8 +167,6 @@ mod execution_semaphore_tests {
 mod subprocess_boundary_tests {
     use super::*;
 
-<<<<<<< HEAD
-=======
     // -------------------------------------------------------------------------
     // ADR-012 Scenario 1: Zombie Process Cleanup
     // Given: A subprocess that forks and parent dies
@@ -345,7 +343,6 @@ mod subprocess_boundary_tests {
     // ADR-012: Existing boundary tests preserved
     // -------------------------------------------------------------------------
 
->>>>>>> 7e356012 (style: apply consistent rustfmt formatting)
     #[tokio::test]
     async fn step_not_found_rejected_before_execution() {
         let _guard = state_guard();
@@ -438,8 +435,6 @@ mod subprocess_boundary_tests {
         let cancel_result = cancel_execution(step_id.clone()).await;
         assert!(cancel_result.is_ok());
     }
-<<<<<<< HEAD
-=======
 
     // -------------------------------------------------------------------------
     // ADR-012 BDD Tests: Boundary Enforcement Verification
@@ -727,7 +722,6 @@ mod adr012_subprocess_integration_tests {
         assert!(result.is_ok(), "Subprocess should complete without FD leak");
         assert_eq!(result.unwrap().exit_code, Some(0));
     }
->>>>>>> 7e356012 (style: apply consistent rustfmt formatting)
 }
 
 // ============================================================================
@@ -1577,14 +1571,6 @@ mod execution_status_format_tests {
             output: String::new()
         }
         .is_ready());
-<<<<<<< HEAD
-        assert!(
-            !ExecutionStatus::Cancelled {
-                reason: String::new()
-            }
-            .is_ready()
-        );
-=======
         assert!(!ExecutionStatus::Cancelled {
             reason: String::new()
         }
@@ -1872,6 +1858,5 @@ mod adr012_bdd_scenario_tests {
     async fn bdd_adr012_sigterm_constant() {
         const SIGTERM: libc::c_int = 15;
         assert_eq!(SIGTERM, libc::SIGTERM, "SIGTERM constant should match libc");
->>>>>>> 7e356012 (style: apply consistent rustfmt formatting)
     }
 }
