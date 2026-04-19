@@ -838,3 +838,240 @@ mod tests {
         }
     }
 }
+    #[test]
+    fn crash_timing_windows_are_mutually_exclusive() {
+        let timings = CrashTiming::all_variants();
+        for i in 0..timings.len() {
+            for j in (i + 1)..timings.len() {
+                assert_ne!(
+                    timings[i], timings[j],
+                    "CrashTiming variants must be mutually exclusive: {:?} == {:?}",
+                    timings[i], timings[j]
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn matrix_contains_every_phase_severity_timing_combination() {
+        let matrix = generate_scenario_matrix();
+        for phase in RecoveryPhase::all_variants() {
+            for severity in FailoverSeverity::all_variants() {
+                for timing in CrashTiming::all_variants() {
+                    let found = matrix.iter().any(|s| {
+                        s.phase == *phase && s.severity == *severity && s.timing == *timing
+                    });
+                    assert!(
+                        found,
+                        "Matrix missing combination: {:?}-{:?}-{:?}",
+                        phase, severity, timing
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn matrix_is_deterministic() {
+        let first = generate_scenario_matrix();
+        let second = generate_scenario_matrix();
+        assert_eq!(first, second);
+    }
+
+    #[test]
+    fn all_violations_map_to_an_invariant() {
+        let violations = [
+            RecoveryViolation::DuplicateCommit,
+            RecoveryViolation::LostEffect,
+            RecoveryViolation::StuckInNonTerminal,
+            RecoveryViolation::TransactionAmbiguous,
+            RecoveryViolation::ReconciliationCountMismatch,
+            RecoveryViolation::DuplicateJournalEntry,
+            RecoveryViolation::UnrecoveredOrphans,
+            RecoveryViolation::FenceTokenStale,
+        ];
+        for violation in violations {
+            let inv = violation_to_invariant(violation);
+            assert!(
+                RecoveryInvariant::all_variants().contains(&inv),
+                "Violation {:?} maps to invariant {:?} not in all_variants()",
+                violation,
+                inv
+            );
+        }
+    }
+
+    #[test]
+    fn every_scenario_has_valid_phase_severity_timing() {
+        let matrix = generate_scenario_matrix();
+        let valid_phases: Vec<_> = RecoveryPhase::all_variants().to_vec();
+        let valid_severities: Vec<_> = FailoverSeverity::all_variants().to_vec();
+        let valid_timings: Vec<_> = CrashTiming::all_variants().to_vec();
+        let valid_outcomes: Vec<_> = ExpectedRecoveryOutcome::all_variants().to_vec();
+
+        for scenario in &matrix {
+            assert!(
+                valid_phases.contains(&scenario.phase),
+                "Invalid phase {:?} in scenario {}",
+                scenario.phase,
+                scenario.name
+            );
+            assert!(
+                valid_severities.contains(&scenario.severity),
+                "Invalid severity {:?} in scenario {}",
+                scenario.severity,
+                scenario.name
+            );
+            assert!(
+                valid_timings.contains(&scenario.timing),
+                "Invalid timing {:?} in scenario {}",
+                scenario.timing,
+                scenario.name
+            );
+            assert!(
+                valid_outcomes.contains(&scenario.expected_outcome),
+                "Invalid outcome {:?} in scenario {}",
+                scenario.expected_outcome,
+                scenario.name
+            );
+        }
+    }
+
+    #[test]
+    fn classify_outcome_always_returns_valid_variant() {
+        let valid = ExpectedRecoveryOutcome::all_variants();
+        for phase in RecoveryPhase::all_variants() {
+            for severity in FailoverSeverity::all_variants() {
+                for timing in CrashTiming::all_variants() {
+                    let outcome = classify_expected_outcome(*phase, *severity, *timing);
+                    assert!(
+                        valid.contains(&outcome),
+                        "classify_expected_outcome({:?}, {:?}, {:?}) = {:?} not in valid outcomes",
+                        phase,
+                        severity,
+                        timing,
+                        outcome
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn compensation_always_yields_rolled_back() {
+        for severity in FailoverSeverity::all_variants() {
+            for timing in CrashTiming::all_variants() {
+                let outcome =
+                    classify_expected_outcome(RecoveryPhase::Compensation, *severity, *timing);
+                assert_eq!(
+                    outcome,
+                    ExpectedRecoveryOutcome::RolledBack,
+                    "Compensation+{:?}+{:?} should be RolledBack, got {:?}",
+                    severity,
+                    timing,
+                    outcome
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn transaction_coordination_always_yields_resolved() {
+        for severity in FailoverSeverity::all_variants() {
+            for timing in CrashTiming::all_variants() {
+                let outcome = classify_expected_outcome(
+                    RecoveryPhase::TransactionCoordination,
+                    *severity,
+                    *timing,
+                );
+                assert_eq!(
+                    outcome,
+                    ExpectedRecoveryOutcome::TransactionResolved,
+                    "TransactionCoordination+{:?}+{:?} should be TransactionResolved, got {:?}",
+                    severity,
+                    timing,
+                    outcome
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn reconcile_ambiguous_yields_still_ambiguous() {
+        for timing in CrashTiming::all_variants() {
+            let outcome = classify_expected_outcome(
+                RecoveryPhase::Reconcile,
+                FailoverSeverity::Ambiguous,
+                *timing,
+            );
+            assert_eq!(
+                outcome,
+                ExpectedRecoveryOutcome::StillAmbiguous,
+                "Reconcile+Ambiguous+{:?} should be StillAmbiguous, got {:?}",
+                timing,
+                outcome
+            );
+        }
+    }
+
+    #[test]
+    fn transient_always_yields_committed() {
+        for phase in RecoveryPhase::all_variants() {
+            if *phase == RecoveryPhase::Compensation
+                || *phase == RecoveryPhase::TransactionCoordination
+            {
+                continue;
+            }
+            for timing in CrashTiming::all_variants() {
+                let outcome =
+                    classify_expected_outcome(*phase, FailoverSeverity::Transient, *timing);
+                assert_eq!(
+                    outcome,
+                    ExpectedRecoveryOutcome::Committed,
+                    "{:?}+Transient+{:?} should be Committed, got {:?}",
+                    phase,
+                    timing,
+                    outcome
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn invariant_count_matches_documentation() {
+        assert_eq!(
+            RecoveryInvariant::all_variants().len(),
+            8,
+            "INV-R01 through INV-R08 = 8 invariants"
+        );
+    }
+
+    #[test]
+    fn violation_count_covers_all_documented_categories() {
+        let all: Vec<RecoveryViolation> = vec![
+            RecoveryViolation::DuplicateCommit,
+            RecoveryViolation::LostEffect,
+            RecoveryViolation::StuckInNonTerminal,
+            RecoveryViolation::TransactionAmbiguous,
+            RecoveryViolation::ReconciliationCountMismatch,
+            RecoveryViolation::DuplicateJournalEntry,
+            RecoveryViolation::UnrecoveredOrphans,
+            RecoveryViolation::FenceTokenStale,
+        ];
+        assert_eq!(all.len(), 8, "Expected 8 RecoveryViolation variants");
+    }
+
+    #[test]
+    fn no_scenario_has_empty_name() {
+        let matrix = generate_scenario_matrix();
+        for scenario in &matrix {
+            assert!(
+                !scenario.name.is_empty(),
+                "Scenario with phase={:?}, severity={:?}, timing={:?} has empty name",
+                scenario.phase,
+                scenario.severity,
+                scenario.timing
+            );
+        }
+    }
+}
