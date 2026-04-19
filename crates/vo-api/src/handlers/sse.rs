@@ -4,6 +4,7 @@ use axum::{
     extract::{Extension, Path, State},
     http::StatusCode,
     response::{sse::Event, IntoResponse, Sse},
+    Json,
 };
 use futures::Stream;
 use ractor::ActorRef;
@@ -15,6 +16,7 @@ use tokio_stream::StreamExt as TokioStreamExt;
 use vo_actor::OrchestratorMsg;
 
 use crate::types::ApiError;
+use crate::handlers::helpers::split_path_id;
 
 const SSE_KEEPALIVE_INTERVAL: Duration = Duration::from_secs(15);
 const SSE_BROADCAST_CAPACITY: usize = 1000;
@@ -224,14 +226,7 @@ pub async fn watch_workflow(
         .into_response()
 }
 
-fn split_path_id(path: &str) -> Option<(String, String)> {
-    let slash = path.find('/')?;
-    let namespace = path[..slash].to_owned();
-    let instance_id = path[slash + 1..].to_owned();
-    Some((namespace, instance_id))
-}
 
-use axum::Json;
 
 #[cfg(test)]
 mod tests {

@@ -147,6 +147,8 @@ pub use types::{
     Snapshot, SpawnId, State, StepId, TimeoutMs, TimerId, TimestampMs, WorkflowName, WorkflowSpec,
     MAX_SUPPORTED_SCHEMA_VERSION,
 };
+// Re-export NamespaceId from vo-common for type safety
+pub use vo_common::NamespaceId;
 pub use workflow::{
     next_nodes, DagNode, Edge, EdgeCondition, RetryPolicy, RetryPolicyError, StepOutcome,
     WorkflowDefinition, WorkflowDefinitionError,

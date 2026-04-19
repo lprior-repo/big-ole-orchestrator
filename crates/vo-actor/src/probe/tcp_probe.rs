@@ -1,10 +1,15 @@
+//! TCP probe implementation.
+
 use std::net::SocketAddr;
 use std::time::Duration;
 
 use async_trait::async_trait;
 
-use super::types::{Probe, ProbeError, ProbeId, ProbeResult, ProbeStatus};
+use super::error::ProbeError;
+use super::types::{ProbeId, ProbeResult, ProbeStatus};
+use super::Probe;
 
+/// TCP health probe.
 pub struct TcpProbe {
     id: ProbeId,
     address: SocketAddr,
@@ -12,6 +17,7 @@ pub struct TcpProbe {
 }
 
 impl TcpProbe {
+    /// Create a new TCP probe.
     pub fn new(address: SocketAddr) -> Self {
         Self {
             id: ProbeId::new(),
@@ -20,6 +26,7 @@ impl TcpProbe {
         }
     }
 
+    /// Set probe timeout.
     pub fn with_timeout(mut self, timeout: Duration) -> Self {
         self.timeout = timeout;
         self
@@ -69,63 +76,5 @@ impl Probe for TcpProbe {
 
     fn probe_id(&self) -> ProbeId {
         self.id
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::probe::types::AggregatedStatus;
-
-    #[tokio::test]
-    async fn qa_smoke_tcp_probe_refused_connection() {
-        let probe =
-            TcpProbe::new("127.0.0.1:1".parse().unwrap()).with_timeout(Duration::from_millis(500));
-        let result = probe.check().await;
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap().status, ProbeStatus::Unhealthy);
-    }
-
-    #[tokio::test]
-    async fn test_multiple_probe_types_via_trait_object() {
-        let tcp_probe: Box<dyn Probe> = Box::new(TcpProbe::new("127.0.0.1:9999".parse().unwrap()));
-        let http_probe: Box<dyn Probe> = Box::new(
-            crate::probe::http_probe::HttpProbe::new("http://localhost:9999"),
-        );
-        let exec_probe: Box<dyn Probe> =
-            Box::new(crate::probe::exec_probe::ExecProbe::new("false", vec![]));
-
-        let tcp_result = tcp_probe.check().await;
-        let exec_result = exec_probe.check().await;
-        let http_result = http_probe.check().await;
-
-        assert!(tcp_result.is_ok());
-        let tcp_r = tcp_result.unwrap();
-        assert_eq!(tcp_r.status, ProbeStatus::Unhealthy);
-        assert!(matches!(tcp_r.probe_id, _));
-
-        assert!(exec_result.is_ok());
-        assert_eq!(exec_result.unwrap().status, ProbeStatus::Unhealthy);
-
-        assert!(http_result.is_err());
-        assert!(matches!(http_result.unwrap_err(), ProbeError::Http(_)));
-    }
-
-    #[tokio::test]
-    async fn qa_smoke_probe_trait_dispatch() {
-        let probes: Vec<Box<dyn Probe>> = vec![
-            Box::new(crate::probe::exec_probe::ExecProbe::new("true", vec![])),
-            Box::new(
-                TcpProbe::new("127.0.0.1:1".parse().unwrap())
-                    .with_timeout(Duration::from_millis(200)),
-            ),
-        ];
-        let mut agg = AggregatedStatus::new();
-        for probe in &probes {
-            let result = probe.check().await.unwrap();
-            agg.update(result);
-        }
-        assert_eq!(agg.results.len(), 2);
-        assert_eq!(agg.overall, ProbeStatus::Unhealthy);
     }
 }

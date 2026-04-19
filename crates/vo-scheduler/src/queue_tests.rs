@@ -13,7 +13,7 @@ fn make_job(priority: JobPriority, policy: SchedulePolicy) -> ScheduledJob {
         RetryPolicy::default_policy(),
         bytes::Bytes::from_static(b"test-payload"),
     )
-    .unwrap()
+    .expect("job creation should succeed with valid policy")
 }
 
 fn future_time() -> DateTime<Utc> {
@@ -327,7 +327,7 @@ fn recurring_job_can_transition_completed_to_scheduled() {
         RetryPolicy::default_policy(),
         bytes::Bytes::from_static(b"recurring"),
     )
-    .unwrap();
+    .expect("job creation should succeed");
     let id = job.id;
     queue.insert(job).unwrap();
     queue.update_state(&id, JobState::Running).unwrap();

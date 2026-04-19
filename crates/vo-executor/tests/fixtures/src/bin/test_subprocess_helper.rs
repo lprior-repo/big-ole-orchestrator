@@ -16,13 +16,17 @@ fn main() {
 }
 
 fn command_echo() {
+    eprintln!("command_echo called");
     let payload = read_fd3_frame();
+    eprintln!("Read {} bytes from FD3", payload.len());
     write_fd4_envelope(&payload);
+    eprintln!("Wrote to FD4");
 }
 
 fn command_sleep_exit(args: &[String]) {
     let delay_ms = args.get(2).and_then(|v| v.parse::<u64>().ok()).unwrap_or(0);
     let exit_code = args.get(3).and_then(|v| v.parse::<i32>().ok()).unwrap_or(0);
+    eprintln!("sleep-exit: delay={}ms, exit_code={}, payload arg={:?}", delay_ms, exit_code, args.get(4));
     let payload = args.get(4).map_or(Vec::new(), |v| v.as_bytes().to_vec());
     if !payload.is_empty() {
         write_fd4_envelope(&payload);
@@ -63,23 +67,37 @@ fn command_memory_bomb(args: &[String]) {
 }
 
 fn read_fd3_frame() -> Vec<u8> {
+    eprintln!("read_fd3_frame called");
     let mut file = fd3_file();
     let mut len_buf = [0u8; 4];
-    let _ = file.read(&mut len_buf);
-    let len = u32::from_be_bytes(len_buf) as usize;
+    let read_result = file.read(&mut len_buf);
+    eprintln!("FD3 read len_buf result: {:?}", read_result);
+    let len = match u32::from_be_bytes(len_buf) {
+        n if n > 10_000_000 => {
+            eprintln!("Payload too large: {}", n);
+            return vec![];
+        }
+        n => n as usize,
+    };
+    eprintln!("Payload length: {}", len);
     let mut payload = vec![0u8; len];
-    let _ = file.read_exact(&mut payload);
+    let read_exact_result = file.read_exact(&mut payload);
+    eprintln!("FD3 read_exact result: {:?}", read_exact_result);
     payload
 }
 
 fn write_fd4_envelope(payload: &[u8]) {
+    eprintln!("write_fd4_envelope called with {} bytes", payload.len());
     let mut file = fd4_file();
     let length = u32::try_from(payload.len())
         .unwrap_or(u32::MAX)
         .to_be_bytes();
-    let _ = file.write_all(&length);
-    let _ = file.write_all(payload);
-    let _ = file.flush();
+    let write_len_result = file.write_all(&length);
+    eprintln!("FD4 write length result: {:?}", write_len_result);
+    let write_payload_result = file.write_all(payload);
+    eprintln!("FD4 write payload result: {:?}", write_payload_result);
+    let flush_result = file.flush();
+    eprintln!("FD4 flush result: {:?}", flush_result);
 }
 
 fn set_cloexec(fd: i32) -> std::io::Result<()> {

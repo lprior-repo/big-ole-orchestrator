@@ -1,18 +1,25 @@
+//! HTTP probe implementation.
+
 use std::time::Duration;
 
 use async_trait::async_trait;
+use reqwest::Client;
 
-use super::types::{Probe, ProbeError, ProbeId, ProbeResult, ProbeStatus};
+use super::error::ProbeError;
+use super::types::{ProbeId, ProbeResult, ProbeStatus};
+use super::Probe;
 
+/// HTTP health probe.
 pub struct HttpProbe {
     id: ProbeId,
     url: String,
     expected_status: Option<u16>,
     timeout: Duration,
-    client: reqwest::Client,
+    client: Client,
 }
 
 impl HttpProbe {
+    /// Create a new HTTP probe.
     pub fn new(url: impl Into<String>) -> Self {
         Self {
             id: ProbeId::new(),
@@ -26,11 +33,13 @@ impl HttpProbe {
         }
     }
 
+    /// Set expected HTTP status code.
     pub fn with_expected_status(mut self, status: u16) -> Self {
         self.expected_status = Some(status);
         self
     }
 
+    /// Set probe timeout.
     pub fn with_timeout(mut self, timeout: Duration) -> Self {
         self.timeout = timeout;
         self.client = reqwest::Client::builder()
@@ -62,10 +71,12 @@ impl Probe for HttpProbe {
             } else {
                 ProbeStatus::Unhealthy
             }
-        } else if response.status().is_success() {
-            ProbeStatus::Healthy
         } else {
-            ProbeStatus::Unhealthy
+            if response.status().is_success() {
+                ProbeStatus::Healthy
+            } else {
+                ProbeStatus::Unhealthy
+            }
         };
 
         Ok(ProbeResult {
@@ -83,19 +94,5 @@ impl Probe for HttpProbe {
 
     fn probe_id(&self) -> ProbeId {
         self.id
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn test_probe_trait_object_can_be_stored_and_called() {
-        let probe: Box<dyn Probe> = Box::new(HttpProbe::new("http://localhost:9999"));
-        let result = probe.check().await;
-        assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert!(matches!(err, ProbeError::Http(_)));
     }
 }

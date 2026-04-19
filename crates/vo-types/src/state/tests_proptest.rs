@@ -5,7 +5,7 @@ use super::{apply, LeaseRecord, LifecycleState, TransitionError, TransitionEvent
 proptest! {
     #[test]
     fn leaserecord_immutability_proptest(i in ".*", s in ".*", t in 1u64..) {
-        let instance = crate::string_types::InstanceId(i);
+        let instance = crate::InstanceId(i);
         let step = crate::string_types::StepId(s);
         let token = crate::integer_types::FenceToken(std::num::NonZeroU64::new(t).unwrap());
 

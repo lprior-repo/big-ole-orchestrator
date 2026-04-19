@@ -21,12 +21,42 @@ pub async fn send_signal(
     Extension(_master): Extension<ActorRef<OrchestratorMsg>>,
     Path(id): Path<String>,
 ) -> impl IntoResponse {
-    let _ = split_path_id(&id);
+    let (_, instance_id) = match split_path_id(&id) {
+        Some(pair) => pair,
+        None => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ApiError::new(
+                    "invalid_id",
+                    "id must be <namespace>/<instance_id>",
+                )),
+            )
+                .into_response();
+        }
+    };
+
+    // Serialize signal payload to bytes.
+    let payload = match serde_json::to_vec(&req.payload) {
+        Ok(v) => Bytes::from(v),
+        Err(e) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ApiError::new(
+                    "invalid_payload",
+                    format!("failed to encode payload: {e}"),
+                )),
+            )
+                .into_response();
+        }
+    };
+
+    // Signal handling requires OrchestratorMsg::Signal variant which is not yet implemented.
+    // Return NOT_IMPLEMENTED until the vo-actor signal handling is added.
     (
         StatusCode::NOT_IMPLEMENTED,
         Json(ApiError::new(
             "not_implemented",
-            "signal dispatch: awaiting OrchestratorMsg::Signal variant (see bead vo-meua)",
+            "signal handling: OrchestratorMsg::Signal variant not yet implemented",
         )),
     )
         .into_response()
