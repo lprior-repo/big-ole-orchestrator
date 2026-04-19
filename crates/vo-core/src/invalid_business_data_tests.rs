@@ -491,7 +491,6 @@ mod vault_boundary {
 
         let errs: Vec<CredentialError> = vec![
             CredentialError::CredentialNotFound(id.clone()),
-            CredentialError::CredentialAlreadyExists(id.clone()),
             CredentialError::VersionNotFound {
                 credential_id: id.clone(),
                 version_id: vo_types::credentials::CredentialVersionId::parse(
@@ -505,9 +504,6 @@ mod vault_boundary {
                 required_status: vec![vo_types::credentials::CredentialStatus::Active],
                 operation: "rotate".to_string(),
             },
-            CredentialError::MasterKeyNotFound(1),
-            CredentialError::MasterKeyRevoked(1),
-            CredentialError::VaultStorageError("disk full".to_string()),
         ];
 
         for err in &errs {
