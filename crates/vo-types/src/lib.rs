@@ -26,6 +26,8 @@ mod dual_representation;
 mod dual_representation_tests;
 pub mod effects;
 #[cfg(test)]
+mod effect_schema_evolution_tests;
+#[cfg(test)]
 mod effects_receipt_tests;
 mod encryption;
 #[cfg(test)]
