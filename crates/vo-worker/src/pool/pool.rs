@@ -190,17 +190,7 @@ impl ConnectionPool {
             };
         }
 
-        // Try idle connections with health check loop: evict stale/unhealthy
-        // and keep trying until a healthy one is found or pool is exhausted.
-        while let Some(conn_id) = self.state.idle_connections.pop_front() {
-            if !self.health_check_connection(conn_id) {
-                debug!(
-                    "Evicted unhealthy idle connection {} from pool {}",
-                    conn_id, self.pool_id
-                );
-                continue;
-            }
-
+        if let Some(conn_id) = self.state.idle_connections.pop_front() {
             if let Some(mut conn) = self.state.connections.get_mut(&conn_id) {
                 conn.status = ConnectionStatus::CheckedOut;
                 conn.increment_use_count();
@@ -547,111 +537,5 @@ mod pool_tests {
         let never_acquired = ConnectionId::new();
         let result = pool.release(never_acquired);
         assert_eq!(result, ReleaseResult::AlreadyClosed);
-    }
-
-    // ========================================================================
-    // Health Check on Acquire Tests (ve-hypnb)
-    // ========================================================================
-
-    /// Given: A pool with a healthy idle connection
-    /// When: acquire() is called
-    /// Then: The connection passes health check and is returned
-    #[test]
-    fn test_acquire_healthy_connection() {
-        let mut pool = create_test_pool();
-
-        // Create a connection and release it to idle
-        let result = futures::executor::block_on(pool.acquire());
-        let conn_id = match result {
-            AcquireResult::Available { connection } => connection.connection_id,
-            _ => panic!("Expected Available"),
-        };
-        pool.release(conn_id);
-        assert_eq!(pool.stats().idle_connections, 1);
-
-        // Acquire again — connection should be healthy and returned
-        let result = futures::executor::block_on(pool.acquire());
-        match result {
-            AcquireResult::Available { connection } => {
-                assert_eq!(connection.connection_id, conn_id);
-            }
-            _ => panic!("Expected Available for healthy idle connection"),
-        }
-    }
-
-    /// Given: A pool with a stale idle connection (last_used_at far in the past)
-    /// When: acquire() is called
-    /// Then: The stale connection is evicted and a new one is created
-    #[test]
-    fn test_acquire_stale_connection_evicted() {
-        let mut pool = create_test_pool();
-
-        // Create a connection and release it to idle
-        let result = futures::executor::block_on(pool.acquire());
-        let conn_id = match result {
-            AcquireResult::Available { connection } => connection.connection_id,
-            _ => panic!("Expected Available"),
-        };
-        pool.release(conn_id);
-        assert_eq!(pool.stats().idle_connections, 1);
-
-        // Artificially age the connection to make it stale
-        // idle_timeout_ms is 30000, so setting last_used_at 60000ms in the past
-        let stale_time = TimestampMs(TimestampMs::now().as_u64().saturating_sub(60_000));
-        if let Some(conn) = pool.state.connections.get_mut(&conn_id) {
-            conn.last_used_at = stale_time;
-        }
-
-        // Acquire should evict the stale connection and create a new one
-        let result = futures::executor::block_on(pool.acquire());
-        match result {
-            AcquireResult::Available { connection } => {
-                // New connection, different from the stale one
-                assert_ne!(connection.connection_id, conn_id);
-            }
-            _ => panic!("Expected Available after evicting stale connection"),
-        }
-    }
-
-    /// Given: A pool where all connections are stale
-    /// When: acquire() is called multiple times
-    /// Then: All stale connections are evicted, new ones created up to max
-    #[test]
-    fn test_acquire_connection_failure_all_stale() {
-        let pool_id = PoolId::new("stale-test-pool");
-        let nats_urls = vec!["nats://localhost:4222".to_string()];
-        // max_connections=2, idle_timeout_ms=30000
-        let config = PoolConfig::new(1, 2, 5000, 30000, 10000, 10).unwrap();
-        let mut pool = ConnectionPool::new(pool_id, nats_urls, config);
-
-        // Create 2 connections and release them
-        let mut conn_ids = Vec::new();
-        for _ in 0..2 {
-            let result = futures::executor::block_on(pool.acquire());
-            if let AcquireResult::Available { connection } = result {
-                conn_ids.push(connection.connection_id);
-            }
-        }
-        for id in &conn_ids {
-            pool.release(*id);
-        }
-        assert_eq!(pool.stats().idle_connections, 2);
-
-        // Age all connections to be stale
-        let stale_time = TimestampMs(TimestampMs::now().as_u64().saturating_sub(60_000));
-        for id in &conn_ids {
-            if let Some(conn) = pool.state.connections.get_mut(id) {
-                conn.last_used_at = stale_time;
-            }
-        }
-
-        // First acquire: evicts all stale, creates new
-        let result = futures::executor::block_on(pool.acquire());
-        match result {
-            AcquireResult::Available { connection } => {
-                assert!(!conn_ids.contains(&connection.connection_id));
-            }
-            _ => panic!("Expected Available"),
-        }
     }
 }

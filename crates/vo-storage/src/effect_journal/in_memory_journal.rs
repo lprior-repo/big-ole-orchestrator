@@ -42,11 +42,7 @@ impl InMemoryEffectJournal {
         target: EffectIntent,
     ) -> Result<EffectRecord, EffectJournalError> {
         let ts = match target {
-            EffectIntent::Committed => Some(vo_types::TimestampMs::parse("100").map_err(|e| {
-                EffectJournalError::Storage {
-                    reason: format!("failed to parse timestamp: {e}"),
-                }
-            })?),
+            EffectIntent::Committed => Some(vo_types::TimestampMs::now()),
             EffectIntent::RolledBack => None,
             EffectIntent::Prepared => unreachable!(),
         };
@@ -186,5 +182,10 @@ impl EffectJournal for InMemoryEffectJournal {
         }
 
         Ok(count)
+    }
+
+    fn flush(&self) -> Result<(), EffectJournalError> {
+        // In-memory journal has no buffered writes to flush.
+        Ok(())
     }
 }

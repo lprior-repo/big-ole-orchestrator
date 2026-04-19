@@ -19,4 +19,6 @@ mod hot_reload_extended_tests;
 #[cfg(test)]
 mod hot_reload_tests;
 #[cfg(test)]
+mod rollback_tests;
+#[cfg(test)]
 mod watcher_tests;

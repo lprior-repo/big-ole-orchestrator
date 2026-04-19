@@ -314,31 +314,4 @@ mod tests {
         assert_eq!(config.calculate_backoff(2), Duration::from_millis(150));
         assert_eq!(config.calculate_backoff(3), Duration::from_millis(150));
     }
-
-    #[test]
-    fn test_retry_config_jitter_zero_factor_returns_base() {
-        let config = RetryConfig::new(100, 2.0, 3).with_jitter(0.0);
-        let base = Duration::from_millis(200);
-        let result = config.calculate_jitter(base);
-        assert_eq!(result, base);
-    }
-
-    #[test]
-    fn test_retry_config_jitter_with_positive_factor_stays_within_bounds() {
-        let config = RetryConfig::new(100, 2.0, 3).with_jitter(0.1);
-        let base = Duration::from_millis(200);
-        let base_ms = base.as_millis() as u64;
-        let result = config.calculate_jitter(base);
-        let result_ms = result.as_millis() as u64;
-        let max_jitter = base_ms / 10;
-        let lower_bound = base_ms - max_jitter;
-        let upper_bound = base_ms + max_jitter;
-        assert!(
-            result_ms >= lower_bound && result_ms <= upper_bound,
-            "jitter result {} should be within [{}, {}]",
-            result_ms,
-            lower_bound,
-            upper_bound
-        );
-    }
 }

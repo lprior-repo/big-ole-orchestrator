@@ -69,6 +69,7 @@ mod admission_boundary {
             writer_queue_depth_threshold: 0,
             batch_commit_latency_ms_threshold: 0,
             blob_queue_depth_threshold: 0,
+max_queued_memory_bytes: 512 * 1024 * 1024,
         };
         let state = WritePressureState {
             writer_queue_depth: 1,
@@ -1110,6 +1111,7 @@ mod admission_multi_indicator_boundary {
             writer_queue_depth_threshold: 100,
             batch_commit_latency_ms_threshold: 1000,
             blob_queue_depth_threshold: 50,
+max_queued_memory_bytes: 512 * 1024 * 1024,
         };
         let result = crate::admission::check::check_admission_with_thresholds(&state, &thresholds);
         assert!(matches!(
@@ -1136,6 +1138,7 @@ mod admission_multi_indicator_boundary {
             writer_queue_depth_threshold: 100,
             batch_commit_latency_ms_threshold: 1000,
             blob_queue_depth_threshold: 50,
+max_queued_memory_bytes: 512 * 1024 * 1024,
         };
         let result = crate::admission::check::check_admission_with_thresholds(&state, &thresholds);
         assert!(matches!(
@@ -1160,6 +1163,7 @@ mod admission_multi_indicator_boundary {
             writer_queue_depth_threshold: 0,
             batch_commit_latency_ms_threshold: 0,
             blob_queue_depth_threshold: 0,
+max_queued_memory_bytes: 512 * 1024 * 1024,
         };
         let result = crate::admission::check::check_admission_with_thresholds(&state, &thresholds);
         assert!(result.is_ok());

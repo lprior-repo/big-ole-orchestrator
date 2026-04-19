@@ -30,6 +30,17 @@ fn http_record(intent_id: &str, params: serde_json::Value) -> EffectRecord {
     .unwrap()
 }
 
+fn committed_http_record(intent_id: &str, params: serde_json::Value, ts: vo_types::TimestampMs) -> EffectRecord {
+    EffectRecord::new(
+        intent_id.to_string(),
+        EffectKind::HttpCall,
+        params,
+        EffectIntent::Committed,
+        Some(ts),
+    )
+    .unwrap()
+}
+
 fn open_journal(dir: &std::path::Path) -> FjallEffectJournal {
     let keyspace = fjall::Database::builder(dir).open().unwrap();
     FjallEffectJournal::open(&keyspace).unwrap()
@@ -268,10 +279,11 @@ fn fjall_compact_after_reopen_removes_correct_effects() {
 
     {
         let journal = open_journal(dir.path());
-        let committed_eid = journal
-            .prepare(&id, http_record("fx-compact-old", json!({})))
+        // Create committed effect directly with known old timestamp
+        journal
+            .prepare(&id, committed_http_record("fx-compact-old", json!({}), vo_types::TimestampMs::parse("100").unwrap()))
             .unwrap();
-        journal.commit(&committed_eid).unwrap();
+        // Create prepared effect (should not be removed by compact)
         journal
             .prepare(&id, http_record("fx-compact-still-pending", json!({})))
             .unwrap();

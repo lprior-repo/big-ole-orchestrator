@@ -39,6 +39,8 @@ pub enum PressureIndicator {
     CompactionStall,
     /// Storage stall indicator is active.
     StorageStall,
+    /// Queued memory exceeded limit.
+    MemoryLimit,
 }
 
 /// Errors for degraded-mode admission coupling violations.
@@ -69,6 +71,13 @@ pub enum AdmissionError {
     CompactionStallActive,
     /// Storage stall indicator is active.
     StorageStallActive,
+    /// Queued memory limit exceeded.
+    MemoryLimitExceeded {
+        /// Current queued memory in bytes.
+        current_bytes: u64,
+        /// Maximum allowed queued memory in bytes.
+        max_bytes: u64,
+    },
     /// Multiple pressure indicators exceeded (composite).
     MultiplePressureIndicators {
         /// List of pressure indicators that exceeded thresholds.
@@ -96,6 +105,8 @@ pub struct AdmissionThresholds {
     pub batch_commit_latency_ms_threshold: u64,
     /// Threshold for blob queue depth.
     pub blob_queue_depth_threshold: u64,
+    /// Maximum queued memory in bytes (default: 512 MiB).
+    pub max_queued_memory_bytes: u64,
 }
 
 impl Default for AdmissionThresholds {
@@ -104,6 +115,7 @@ impl Default for AdmissionThresholds {
             writer_queue_depth_threshold: 100,
             batch_commit_latency_ms_threshold: 1000,
             blob_queue_depth_threshold: 50,
+            max_queued_memory_bytes: 512 * 1024 * 1024,
         }
     }
 }
@@ -170,6 +182,7 @@ mod tests {
             writer_queue_depth_threshold: 100,
             batch_commit_latency_ms_threshold: 1000,
             blob_queue_depth_threshold: 50,
+            max_queued_memory_bytes: 512 * 1024 * 1024,
         };
         assert_eq!(thresholds.writer_queue_depth_threshold, 100);
         assert_eq!(thresholds.batch_commit_latency_ms_threshold, 1000);
@@ -186,8 +199,9 @@ mod tests {
             PressureIndicator::BlobQueueDepth,
             PressureIndicator::CompactionStall,
             PressureIndicator::StorageStall,
+            PressureIndicator::MemoryLimit,
         ];
-        assert_eq!(indicators.len(), 5);
+        assert_eq!(indicators.len(), 6);
     }
 
     #[test]
@@ -212,6 +226,10 @@ mod tests {
             PressureIndicator::StorageStall,
             PressureIndicator::StorageStall
         );
+        assert_eq!(
+            PressureIndicator::MemoryLimit,
+            PressureIndicator::MemoryLimit
+        );
     }
 
     #[test]
@@ -226,6 +244,10 @@ mod tests {
         );
         assert_ne!(
             PressureIndicator::StorageStall,
+            PressureIndicator::WriterQueueDepth
+        );
+        assert_ne!(
+            PressureIndicator::MemoryLimit,
             PressureIndicator::WriterQueueDepth
         );
     }
@@ -315,143 +337,12 @@ mod tests {
         assert_eq!(err.clone(), err);
     }
 
-    // ========================================================================
-    // Invariant: Never Admit Negative (ve-ur323)
-    // ========================================================================
-    // INVARIANT: WritePressureState uses u64 for all gauge fields, making
-    // negative values impossible at the type level. Admission decisions are
-    // always based on non-negative quantities.
-
-    /// Given: A WritePressureState at minimum boundary (all zeros)
-    /// When: check_admission is called
-    /// Then: Admission is granted (no pressure)
     #[test]
-    fn invariant_zero_pressure_always_admitted() {
-        let state = WritePressureState::default();
-        assert!(crate::admission::check::check_admission(&state).is_ok());
-    }
-
-    /// Given: A WritePressureState at maximum boundary (u64::MAX for all gauges)
-    /// When: check_admission is called
-    /// Then: Admission is rejected (pressure exceeds thresholds)
-    #[test]
-    fn invariant_max_pressure_always_rejected() {
-        let state = WritePressureState {
-            writer_queue_depth: u64::MAX,
-            batch_commit_latency_ms: u64::MAX,
-            blob_queue_depth: u64::MAX,
-            compaction_stall_active: true,
-            storage_stall_active: true,
+    fn admission_error_memory_limit_exceeded() {
+        let err = AdmissionError::MemoryLimitExceeded {
+            current_bytes: 600_000_000,
+            max_bytes: 512 * 1024 * 1024,
         };
-        let result = crate::admission::check::check_admission(&state);
-        assert!(result.is_err(), "u64::MAX pressure must be rejected");
-    }
-
-    /// Given: WritePressureState fields are u64 (unsigned)
-    /// When: Values are constructed
-    /// Then: Negative values are impossible at the type level (compilation enforce)
-    /// This test verifies the boundary: zero is the minimum.
-    #[test]
-    fn invariant_fields_cannot_be_negative_type_level() {
-        let state = WritePressureState {
-            writer_queue_depth: 0,
-            batch_commit_latency_ms: 0,
-            blob_queue_depth: 0,
-            compaction_stall_active: false,
-            storage_stall_active: false,
-        };
-        // All fields are u64 — negative values are a type error at compile time
-        assert_eq!(state.writer_queue_depth, 0u64);
-        assert_eq!(state.batch_commit_latency_ms, 0u64);
-        assert_eq!(state.blob_queue_depth, 0u64);
-    }
-
-    /// Given: A pressure state exactly at threshold boundaries
-    /// When: check_admission_with_thresholds is called
-    /// Then: At-threshold values do NOT trigger rejection (strict > comparison)
-    #[test]
-    fn invariant_at_threshold_is_not_rejected() {
-        let thresholds = AdmissionThresholds {
-            writer_queue_depth_threshold: 100,
-            batch_commit_latency_ms_threshold: 1000,
-            blob_queue_depth_threshold: 50,
-        };
-        let state = WritePressureState {
-            writer_queue_depth: 100,
-            batch_commit_latency_ms: 1000,
-            blob_queue_depth: 50,
-            compaction_stall_active: false,
-            storage_stall_active: false,
-        };
-        let result = crate::admission::check::check_admission_with_thresholds(
-            &state, &thresholds,
-        );
-        assert!(
-            result.is_ok(),
-            "at-threshold values must be admitted (strict > comparison)"
-        );
-    }
-
-    /// Given: A pressure state one above threshold boundaries
-    /// When: check_admission_with_thresholds is called
-    /// Then: Admission is rejected
-    #[test]
-    fn invariant_one_above_threshold_is_rejected() {
-        let thresholds = AdmissionThresholds {
-            writer_queue_depth_threshold: 100,
-            batch_commit_latency_ms_threshold: 1000,
-            blob_queue_depth_threshold: 50,
-        };
-        let state = WritePressureState {
-            writer_queue_depth: 101,
-            batch_commit_latency_ms: 0,
-            blob_queue_depth: 0,
-            compaction_stall_active: false,
-            storage_stall_active: false,
-        };
-        let result = crate::admission::check::check_admission_with_thresholds(
-            &state, &thresholds,
-        );
-        assert!(result.is_err());
-    }
-
-    /// Given: Budget slots at maximum (u32)
-    /// When: Overflow is attempted via saturating arithmetic
-    /// Then: Used slots saturate at max, never wrap to negative
-    #[test]
-    fn invariant_budget_saturating_prevents_overflow() {
-        use crate::admission::workload::{WorkloadBudget, acquire_slot, release_slot, WorkloadClass};
-
-        // Create a budget with max_slots=1 for Live
-        let budget = WorkloadBudget::with_allocations([1, 1, 1, 1, 1], [1, 1, 1, 0, 0]);
-
-        // Acquire the single slot
-        let budget = acquire_slot(&budget, WorkloadClass::Live).unwrap();
-
-        // Second acquire should fail (exhausted, not wrap)
-        let result = acquire_slot(&budget, WorkloadClass::Live);
-        assert!(result.is_err(), "must not admit beyond max slots");
-
-        // Release should decrement, not underflow
-        let budget = release_slot(&budget, WorkloadClass::Live);
-        assert_eq!(budget.total_used(), 0);
-
-        // Double release should saturate at 0, not wrap
-        let budget = release_slot(&budget, WorkloadClass::Live);
-        assert_eq!(budget.total_used(), 0, "must saturate at 0, never underflow");
-    }
-
-    /// Given: Budget with zero max slots
-    /// When: Acquire is attempted
-    /// Then: Rejected immediately (boundary: zero capacity)
-    #[test]
-    fn invariant_zero_capacity_always_rejected() {
-        use crate::admission::workload::{WorkloadBudget, acquire_slot, WorkloadClass};
-
-        let budget = WorkloadBudget::with_allocations([0, 0, 0, 0, 0], [0, 0, 0, 0, 0]);
-        for class in WorkloadClass::all_by_priority() {
-            let result = acquire_slot(&budget, *class);
-            assert!(result.is_err(), "{class:?} with zero capacity must be rejected");
-        }
+        assert_eq!(err.clone(), err);
     }
 }

@@ -43,14 +43,9 @@ mod macros;
 pub mod next_step_selection;
 mod node_kind;
 mod non_empty_vec;
-<<<<<<< HEAD
-mod payload_parser;
-mod next_step_selection;
-=======
 mod octree;
 mod pairing_heap;
 mod payload_parser;
->>>>>>> 7e356012 (style: apply consistent rustfmt formatting)
 mod plugin;
 #[cfg(feature = "proptest")]
 mod proptest_targets;
@@ -119,11 +114,8 @@ pub use lineage::{Epoch, LineageError, LineageState, LineageStatus, WorkflowLine
 pub use link_cut_tree::{LctAggregate, LctError, LinkCutTree, Monoid};
 pub use node_kind::NodeKind;
 pub use non_empty_vec::NonEmptyVec;
-<<<<<<< HEAD
-=======
 pub use octree::{BoundingBox, Octree, OctreeConfig, OctreeEntry, OctreeError, OctreeNode, Point3};
 pub use pairing_heap::{PairingHeap, PairingHeapError};
->>>>>>> 7e356012 (style: apply consistent rustfmt formatting)
 pub use plugin::{
     apply_plugin_transition, ArtifactRef, CapabilityId, HotLoadEvent, InstanceKey,
     IsolationBreachType, IsolationLevel, PluginArtifact, PluginDescriptor, PluginErrorCategory,
@@ -174,13 +166,9 @@ mod cross_cutting_tests;
 #[cfg(test)]
 mod dependency_graph_resolver_tests;
 #[cfg(test)]
-<<<<<<< HEAD
-mod dependency_graph_resolver_tests;
-=======
 mod identity_bdd_tests;
 #[cfg(test)]
 mod identity_tests;
->>>>>>> 7e356012 (style: apply consistent rustfmt formatting)
 #[cfg(test)]
 mod red_queen_tests;
 #[cfg(test)]
@@ -188,10 +176,6 @@ mod schema_version_tests;
 #[cfg(test)]
 mod serde_tests;
 #[cfg(test)]
-mod tests_bdd_dag_connectivity;
-#[cfg(test)]
 mod tests_bdd_dag_cycle_validation;
-#[cfg(test)]
-mod tests_bdd_dag_merge_point;
 #[cfg(test)]
 mod workflow_tests;

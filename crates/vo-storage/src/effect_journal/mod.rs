@@ -213,6 +213,16 @@ pub trait EffectJournal {
     ///
     /// Returns `EffectJournalError::Storage` if the underlying storage fails.
     fn compact(&self, older_than: vo_types::TimestampMs) -> Result<usize, EffectJournalError>;
+
+    /// Flush any buffered writes to durable storage.
+    ///
+    /// For Fjall-backed journals this is a no-op since fjall auto-persists via WAL.
+    /// For in-memory journals this is also a no-op.
+    ///
+    /// # Errors
+    ///
+    /// Returns `EffectJournalError::Storage` if the flush fails.
+    fn flush(&self) -> Result<(), EffectJournalError>;
 }
 
 // ---------------------------------------------------------------------------
