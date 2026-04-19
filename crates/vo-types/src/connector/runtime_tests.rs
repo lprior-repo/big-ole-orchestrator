@@ -31,27 +31,24 @@ impl Connector for MockConnector {
 #[tokio::test]
 async fn reconcile_ambiguous_returns_commit_when_server_committed() {
     let mut connector = MockConnector::new(ReconciliationResult::Committed);
-    let action = reconcile_ambiguous(&mut connector, ConnectorState::Ambiguous)
-        .await
-        .unwrap();
+    let action =
+        reconcile_ambiguous(&mut connector, ConnectorState::Ambiguous).await.unwrap();
     assert_eq!(action, ReconcileAction::Commit);
 }
 
 #[tokio::test]
 async fn reconcile_ambiguous_returns_rollback_when_server_not_committed() {
     let mut connector = MockConnector::new(ReconciliationResult::NotCommitted);
-    let action = reconcile_ambiguous(&mut connector, ConnectorState::Ambiguous)
-        .await
-        .unwrap();
+    let action =
+        reconcile_ambiguous(&mut connector, ConnectorState::Ambiguous).await.unwrap();
     assert_eq!(action, ReconcileAction::Rollback);
 }
 
 #[tokio::test]
 async fn reconcile_ambiguous_returns_retry_when_outcome_unknown() {
     let mut connector = MockConnector::new(ReconciliationResult::Unknown);
-    let action = reconcile_ambiguous(&mut connector, ConnectorState::Ambiguous)
-        .await
-        .unwrap();
+    let action =
+        reconcile_ambiguous(&mut connector, ConnectorState::Ambiguous).await.unwrap();
     assert_eq!(action, ReconcileAction::Retry);
 }
 
@@ -74,23 +71,20 @@ async fn execute_with_reconciliation_commits_on_success() {
     }
 
     let mut connector = SuccessConnector;
-    let result = execute_with_reconciliation(&mut connector, true, 0)
-        .await
-        .unwrap();
+    let result = execute_with_reconciliation(&mut connector, true, 3).await.unwrap();
     assert_eq!(result, ConnectorResult::Success);
 }
 
 #[tokio::test]
 async fn execute_with_reconciliation_resolves_ambiguous() {
     let mut connector = MockConnector::new(ReconciliationResult::Committed);
-    let result = execute_with_reconciliation(&mut connector, false, 0)
-        .await
-        .unwrap();
+    let result = execute_with_reconciliation(&mut connector, false, 3).await.unwrap();
     assert_eq!(result, ConnectorResult::Success);
 }
 
 #[tokio::test]
-async fn reconcile_ambiguous_returns_error_on_non_ambiguous_state() {
+#[should_panic(expected = "reconcile_ambiguous called with non-Ambiguous state")]
+async fn reconcile_ambiguous_panics_on_non_ambiguous_state() {
     struct DummyConnector;
     impl Connector for DummyConnector {
         async fn prepare(&mut self) -> Result<ConnectorResult, ConnectorError> {
@@ -108,16 +102,5 @@ async fn reconcile_ambiguous_returns_error_on_non_ambiguous_state() {
     }
 
     let mut connector = DummyConnector;
-    let result = reconcile_ambiguous(&mut connector, ConnectorState::Executing).await;
-    assert!(
-        result.is_err(),
-        "reconcile_ambiguous on non-Ambiguous state should return Err"
-    );
-    match result {
-        Err(ConnectorError::InvalidState { current, expected }) => {
-            assert_eq!(current, ConnectorState::Executing);
-            assert!(expected.contains(&ConnectorState::Ambiguous));
-        }
-        other => panic!("Expected InvalidState error, got {:?}", other),
-    }
+    let _ = reconcile_ambiguous(&mut connector, ConnectorState::Executing).await;
 }
