@@ -1,10 +1,12 @@
 {
-  "session_id": "db882ccb-718f-4b0c-9044-a58a9387ef1d",
-  "transcript_path": "/home/lewis/.claude/projects/-home-lewis-gt-veloxide-polecats-thunder-veloxide/db882ccb-718f-4b0c-9044-a58a9387ef1d.jsonl",
+  "session_id": "8448f4fe-e4fd-4895-937f-342e0aacaaba",
+  "transcript_path": "/home/lewis/.claude/projects/-home-lewis-gt-veloxide-polecats-thunder-veloxide/8448f4fe-e4fd-4895-937f-342e0aacaaba.jsonl",
   "hook_event_name": "PreToolUse",
   "tool_name": "Write",
   "tool_input": {
-    "file_path": "/home/lewis/gt/veloxide/polecats/thunder/veloxide/crates/vo-api/src/lib.rs",
-    "content": "//! HTTP API for vo-engine.\n//!\n//! Provides REST endpoints for workflow management, step execution,\n//! and system health monitoring.\n\npub mod types;\n\n#[cfg(test)]\nmod lib_tests {\n    #[test]\n    fn crate_root_test_smoke() {\n        assert!(true);\n    }\n\n    #[test]\n    fn timeline_entry_serializes_with_all_fields() {\n        let entry = crate::types::v3::TimelineEntry {\n            sequence: 1,\n            timestamp_ms: 1_714_000_000_000,\n            event_type: \"workflow_started\".to_string(),\n            payload: serde_json::json!({\"workflow_id\": \"wf-1\"}),\n        };\n        let json = serde_json::to_string(&entry).unwrap();\n        assert!(json.contains(r#\"\"sequence\":1\"#));\n        assert!(json.contains(r#\"\"event_type\":\"workflow_started\"\"#));\n        assert!(json.contains(r#\"\"timestamp_ms\":1714000000000\"#));\n    }\n\n    #[test]\n    fn timeline_entry_deserializes_roundtrip() {\n        let json = r#\"{\"sequence\":5,\"timestamp_ms\":1000,\"event_type\":\"step_completed\",\"payload\":{\"step\":\"a\"}}\"#;\n        let entry: crate::types::v3::TimelineEntry = serde_json::from_str(json).unwrap();\n        assert_eq!(entry.sequence, 5);\n        assert_eq!(entry.event_type, \"step_completed\");\n        assert_eq!(entry.payload[\"step\"], \"a\");\n    }\n\n    #[test]\n    fn timeline_response_serializes() {\n        let resp = crate::types::v3::TimelineResponse {\n            instance_id: \"inst-1\".to_string(),\n            entries: vec![],\n            total_replayed: 0,\n        };\n        let json = serde_json::to_string(&resp).unwrap();\n        assert!(json.contains(r#\"\"instance_id\":\"inst-1\"\"#));\n        assert!(json.contains(r#\"\"total_replayed\":0\"#));\n    }\n}\n"
+    "file_path": "/home/lewis/gt/veloxide/polecats/thunder/veloxide/crates/vo-core/tests/config_schema_validation.rs",
+    "old_string": "    assert!(err.contains(\"host\"), \"error should name the missing field: {err}\");\n}",
+    "new_string": "    assert!(err.contains(\"host\"), \"error should name the missing field: {err}\");\n}\n\n#[test]\nfn schema_validator_rejects_non_object_config() {\n    let schema = SchemaValidator::new(\n        vec![FieldDef {\n            name: \"port\".into(),\n            field_type: FieldType::Integer,\n        }],\n        false,\n    );\n\n    let config = serde_json::json!(\"not an object\");\n    let result = schema.validate(&config);\n    assert!(result.is_err());\n    let err = result.unwrap_err();\n    assert!(err.contains(\"must be a JSON object\"), \"error should mention object requirement: {err}\");\n}",
+    "replace_all": false
   }
 }
