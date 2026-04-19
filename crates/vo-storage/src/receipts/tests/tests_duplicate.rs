@@ -1,141 +1,152 @@
 //! Idempotency and duplicate rejection tests (Fjall-backed).
 
 use super::super::*;
-use vo_types::EffectKind;
+use crate::effect_journal::EffectId;
+use vo_types::ConnectorResult;
 use vo_types::InstanceId;
 
 fn sample_instance_id() -> InstanceId {
     InstanceId::from_bytes([1u8; 16])
 }
 
-fn create_db() -> (tempfile::TempDir, fjall::Database) {
+fn sample_effect_id(intent: &str) -> EffectId {
+    EffectId::new(&sample_instance_id(), intent).unwrap()
+}
+
+fn create_keyspace() -> (tempfile::TempDir, fjall::Keyspace) {
     let dir = tempfile::tempdir().expect("tempdir");
-    let db = fjall::Database::builder(dir.path()).open().expect("db");
-    (dir, db)
+    let ks = fjall::Config::new(dir.path()).open().expect("keyspace");
+    (dir, ks)
 }
 
 #[test]
 fn fjall_store_same_receipt_twice_is_idempotent() {
-    let (_dir, db) = create_db();
-    let store = FjallReceiptStore::open(&db).unwrap();
-    let id = sample_instance_id();
-    let receipt = ExecutionReceipt::new(
-        format!("{id}::fx-dup-1"),
-        id.to_string(),
-        EffectKind::HttpCall,
+    let (_dir, keyspace) = create_keyspace();
+    let store = FjallReceiptStore::open(&keyspace).unwrap();
+
+    let receipt = Receipt::new(
+        sample_effect_id("fx-dup-1").as_str().to_string(),
+        "stripe-connector".to_string(),
+        ConnectorResult::Success,
         1713000000,
-        "Success".to_string(),
+        None,
     )
     .unwrap();
 
-    let result1 = store.store_receipt(receipt.clone());
+    let result1 = store.store(receipt.clone());
     assert_eq!(result1, Ok(()));
 
-    let result2 = store.store_receipt(receipt);
+    let result2 = store.store(receipt);
     assert_eq!(result2, Ok(()), "second store must be idempotent Ok");
 
-    let retrieved = store
-        .get_receipt(&format!("{id}::fx-dup-1"))
-        .unwrap()
-        .unwrap();
+    let eid = sample_effect_id("fx-dup-1");
+    let retrieved = store.get(&eid).unwrap().unwrap();
+    assert_eq!(retrieved.connector_id(), "stripe-connector");
     assert_eq!(retrieved.committed_at_ms(), 1713000000);
 }
 
 #[test]
 fn fjall_store_different_receipts_same_effect_id_keeps_first() {
-    let (_dir, db) = create_db();
-    let store = FjallReceiptStore::open(&db).unwrap();
-    let id = sample_instance_id();
-    let eid = format!("{id}::fx-dup-2");
+    let (_dir, keyspace) = create_keyspace();
+    let store = FjallReceiptStore::open(&keyspace).unwrap();
 
-    let receipt_first = ExecutionReceipt::new(
-        eid.clone(),
-        id.to_string(),
-        EffectKind::HttpCall,
+    let eid = sample_effect_id("fx-dup-2");
+
+    let receipt_first = Receipt::new(
+        eid.as_str().to_string(),
+        "conn-original".to_string(),
+        ConnectorResult::Success,
         100,
-        "Success".to_string(),
+        Some(serde_json::json!({"v": 1})),
     )
     .unwrap();
 
-    let receipt_second = ExecutionReceipt::new(
-        eid.clone(),
-        id.to_string(),
-        EffectKind::HttpCall,
+    let receipt_second = Receipt::new(
+        eid.as_str().to_string(),
+        "conn-overwrite".to_string(),
+        ConnectorResult::Failure,
         200,
-        "Failure".to_string(),
+        Some(serde_json::json!({"v": 2})),
     )
     .unwrap();
 
-    store.store_receipt(receipt_first).unwrap();
-    store.store_receipt(receipt_second).unwrap();
+    store.store(receipt_first).unwrap();
+    store.store(receipt_second).unwrap();
 
-    let retrieved = store.get_receipt(&eid).unwrap().unwrap();
+    let retrieved = store.get(&eid).unwrap().unwrap();
+    assert_eq!(retrieved.connector_id(), "conn-original");
     assert_eq!(retrieved.committed_at_ms(), 100);
-    assert_eq!(retrieved.connector_result(), "Success");
+    assert_eq!(retrieved.result(), ConnectorResult::Success);
+    assert_eq!(
+        retrieved.payload_json().cloned(), Some(serde_json::json!({"v": 1})),
+        "first write wins, second must be no-op"
+    );
 }
 
 #[test]
-fn fjall_has_receipt_true_after_idempotent_store() {
-    let (_dir, db) = create_db();
-    let store = FjallReceiptStore::open(&db).unwrap();
-    let id = sample_instance_id();
-    let eid = format!("{id}::fx-dup-3");
+fn fjall_contains_true_after_idempotent_store() {
+    let (_dir, keyspace) = create_keyspace();
+    let store = FjallReceiptStore::open(&keyspace).unwrap();
 
-    assert!(!store.has_receipt(&eid).unwrap());
-
-    let receipt = ExecutionReceipt::new(
-        eid.clone(),
-        id.to_string(),
-        EffectKind::HttpCall,
+    let receipt = Receipt::new(
+        sample_effect_id("fx-dup-3").as_str().to_string(),
+        "conn".to_string(),
+        ConnectorResult::Success,
         0,
-        "Success".to_string(),
+        None,
     )
     .unwrap();
-    store.store_receipt(receipt).unwrap();
 
-    let receipt2 = ExecutionReceipt::new(
-        eid.clone(),
-        id.to_string(),
-        EffectKind::HttpCall,
-        999,
-        "Success".to_string(),
-    )
-    .unwrap();
-    store.store_receipt(receipt2).unwrap();
+    assert!(!store.contains(&sample_effect_id("fx-dup-3")).unwrap());
 
-    assert!(store.has_receipt(&eid).unwrap());
+    store.store(receipt).unwrap();
+    store
+        .store(
+            Receipt::new(
+                sample_effect_id("fx-dup-3").as_str().to_string(),
+                "conn".to_string(),
+                ConnectorResult::Success,
+                999,
+                None,
+            )
+            .unwrap(),
+        )
+        .unwrap();
+
+    assert!(store.contains(&sample_effect_id("fx-dup-3")).unwrap());
 }
 
 #[test]
 fn fjall_receipt_enforces_exact_once_boundary() {
-    let (_dir, db) = create_db();
-    let store = FjallReceiptStore::open(&db).unwrap();
-    let id = sample_instance_id();
-    let eid = format!("{id}::fx-once");
+    let (_dir, keyspace) = create_keyspace();
+    let store = FjallReceiptStore::open(&keyspace).unwrap();
 
-    let receipt = ExecutionReceipt::new(
-        eid.clone(),
-        id.to_string(),
-        EffectKind::HttpCall,
+    let receipt = Receipt::new(
+        sample_effect_id("fx-once").as_str().to_string(),
+        "payment-connector".to_string(),
+        ConnectorResult::Success,
         1713000000,
-        "Success".to_string(),
+        Some(serde_json::json!({"charge_id": "ch_once"})),
     )
     .unwrap();
 
-    store.store_receipt(receipt).unwrap();
+    store.store(receipt).unwrap();
 
-    let overwrite_attempt = ExecutionReceipt::new(
-        eid.clone(),
-        id.to_string(),
-        EffectKind::HttpCall,
+    let overwrite_attempt = Receipt::new(
+        sample_effect_id("fx-once").as_str().to_string(),
+        "payment-connector".to_string(),
+        ConnectorResult::Failure,
         1713000001,
-        "Failure".to_string(),
+        Some(serde_json::json!({"charge_id": "ch_once_retry"})),
     )
     .unwrap();
 
-    store.store_receipt(overwrite_attempt).unwrap();
+    store.store(overwrite_attempt).unwrap();
 
-    let retrieved = store.get_receipt(&eid).unwrap().unwrap();
-    assert_eq!(retrieved.connector_result(), "Success");
-    assert_eq!(retrieved.committed_at_ms(), 1713000000);
+    let retrieved = store.get(&sample_effect_id("fx-once")).unwrap().unwrap();
+    assert_eq!(retrieved.result(), ConnectorResult::Success);
+    assert_eq!(
+        retrieved.payload_json().cloned(), Some(serde_json::json!({"charge_id": "ch_once"})),
+        "receipts enforce exact-once: first write must win"
+    );
 }
