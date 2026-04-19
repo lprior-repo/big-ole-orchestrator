@@ -22,11 +22,7 @@ mod dedupe_tests;
 mod dependency_graph_resolver;
 pub mod discovery;
 mod dual_representation;
-#[cfg(test)]
-mod dual_representation_tests;
-pub mod effects;
-#[cfg(test)]
-mod effects_receipt_tests;
+mod effects;
 mod encryption;
 #[cfg(test)]
 mod encryption_tests;
@@ -54,7 +50,6 @@ pub mod proptest_verifier;
 mod recovery_contract;
 mod registration_status;
 mod rope;
-pub mod search;
 pub mod signal;
 pub mod security_validation_tests;
 pub mod skew_heap;
@@ -74,10 +69,8 @@ pub mod workspace;
 
 pub use binomial_heap::BinomialHeap;
 pub use blob::{
-    BlobFailureAction, BlobGCPolicy, BlobRef, BlobStatus, OutputPolicy, OutputRef,
-    INLINED_MAX_BYTES,
+    BlobFailureAction, BlobRef, BlobStatus, OutputPolicy, OutputRef, INLINED_MAX_BYTES,
 };
-pub use btree::{BTree, BTreeError, BTreeNode};
 pub use cartesian_tree::{CartesianNode, CartesianTree, CartesianTreeError};
 pub use clique_tree::{Clique, CliqueTree, CliqueTreeError};
 pub use command_envelope::{CommandEnvelope, CommandEnvelopeError, MAX_SUPPORTED_COMMAND_VERSION};
@@ -145,8 +138,8 @@ pub use search::{
     SearchError, SearchResult, TfIdfScorer,
 };
 pub use signal::{
-    signal_match, BufferPolicy, FailureScope, LineageScope, SignalAddress, SignalDedupeKey,
-    SignalDelivery, SignalMatchResult, WaitKey, WaitRecord,
+    signal_match, BufferPolicy, LineageScope, SignalAddress, SignalDedupeKey, SignalDelivery,
+    SignalMatchResult, WaitKey, WaitRecord,
 };
 pub use skew_heap::{SkewHeap, SkewHeapError, SkewNode};
 pub use spqr_tree::{

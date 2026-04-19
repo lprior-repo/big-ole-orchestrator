@@ -144,26 +144,13 @@ pub fn generate_task_entrypoint(task: &TaskDef) -> Result<TokenStream, Error> {
     };
 
     let wrapper = if task.is_async {
-        if env_bindings.is_empty() {
-            quote::quote! {
-                fn main () #ret_type {
-                    let rt = tokio::runtime::Builder::new_current_thread()
-                        .enable_all()
-                        .build()
-                        .expect("Failed to build current-thread runtime");
-                    rt.block_on(async { #body })
-                }
-            }
-        } else {
-            quote::quote! {
-                fn main () #ret_type {
-                    #(#env_bindings)*
-                    let rt = tokio::runtime::Builder::new_current_thread()
-                        .enable_all()
-                        .build()
-                        .expect("Failed to build current-thread runtime");
-                    rt.block_on(async { #body })
-                }
+        quote::quote! {
+            fn main() #ret_type {
+                let rt = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .expect("Failed to build current-thread runtime");
+                rt.block_on(async { #body })
             }
         }
     } else {

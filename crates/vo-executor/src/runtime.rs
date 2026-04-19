@@ -13,11 +13,20 @@ pub struct Runtime {
     handle: Handle,
 }
 
-#[derive(Debug, Clone, thiserror::Error)]
+#[derive(Debug, Clone)]
 pub enum RuntimeError {
-    #[error("failed to build runtime: {0}")]
     BuildFailed(String),
 }
+
+impl std::fmt::Display for RuntimeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RuntimeError::BuildFailed(msg) => write!(f, "Failed to build runtime: {}", msg),
+        }
+    }
+}
+
+impl std::error::Error for RuntimeError {}
 
 impl Runtime {
     pub fn new() -> Result<Self, RuntimeError> {
@@ -43,9 +52,7 @@ impl Runtime {
         timeout_ms: u64,
     ) -> Result<StepResult, ExecuteNodeError> {
         let step_id_clone = step_id.clone();
-        self.block_on(
-            async move { crate::execution::execute_step(step_id_clone, timeout_ms).await },
-        )
+        self.block_on(async move { crate::execution::execute_step(step_id_clone, timeout_ms).await })
     }
 
     pub fn execute_step_with_retry_sync(
@@ -57,8 +64,7 @@ impl Runtime {
         let step_id_clone = step_id.clone();
         let retry_policy_clone = retry_policy.clone();
         self.block_on(async move {
-            crate::execution::execute_step_with_retry(step_id_clone, timeout_ms, retry_policy_clone)
-                .await
+            crate::execution::execute_step_with_retry(step_id_clone, timeout_ms, retry_policy_clone).await
         })
     }
 
@@ -90,13 +96,12 @@ pub struct StepContext {
 
 impl StepContext {
     pub fn new(step_id: StepId) -> Result<Self, ContextError> {
-        let runtime = Runtime::new()?;
+        let runtime = Runtime::new().map_err(ContextError::RuntimeInitFailed)?;
         Ok(Self { step_id, runtime })
     }
 
     pub fn execute(&self, timeout_ms: u64) -> Result<StepResult, ExecuteNodeError> {
-        self.runtime
-            .execute_step_sync(self.step_id.clone(), timeout_ms)
+        self.runtime.execute_step_sync(self.step_id.clone(), timeout_ms)
     }
 
     pub fn execute_with_retry(
@@ -104,8 +109,7 @@ impl StepContext {
         timeout_ms: u64,
         retry_policy: RetryPolicy,
     ) -> Result<StepResult, ExecuteNodeError> {
-        self.runtime
-            .execute_step_with_retry_sync(self.step_id.clone(), timeout_ms, retry_policy)
+        self.runtime.execute_step_with_retry_sync(self.step_id.clone(), timeout_ms, retry_policy)
     }
 
     pub fn status(&self) -> ExecutionStatus {
@@ -121,68 +125,70 @@ impl StepContext {
     }
 }
 
-#[derive(Debug, Clone, thiserror::Error)]
+#[derive(Debug, Clone)]
 pub enum ContextError {
-    #[error("failed to initialize context: {0}")]
-    RuntimeInitFailed(#[from] RuntimeError),
+    RuntimeInitFailed(RuntimeError),
 }
+
+impl std::fmt::Display for ContextError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ContextError::RuntimeInitFailed(e) => write!(f, "Failed to initialize context: {}", e),
+        }
+    }
+}
+
+impl std::error::Error for ContextError {}
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::errors::RetryPolicyError;
     use crate::reset_all_state;
-    use std::sync::LazyLock;
-    use std::sync::Mutex;
-    use std::sync::MutexGuard;
 
-    static STATE_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
-
-    fn reset_state() -> MutexGuard<'static, ()> {
-        let guard = STATE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    fn reset_state() {
         reset_all_state();
-        guard
     }
 
     #[test]
     fn runtime_creation() {
         let runtime = Runtime::new();
         assert!(runtime.is_ok());
-        let _guard = reset_state();
+        reset_state();
     }
 
     #[test]
     fn runtime_execute_step_success() {
-        let _guard = reset_state();
+        reset_state();
         let runtime = Runtime::new().unwrap();
         let result = runtime.execute_step_sync(StepId::new("step-1".to_string()), 5000);
         assert!(result.is_ok());
         assert!(result.unwrap().is_success());
-        let _guard = reset_state();
+        reset_state();
     }
 
     #[test]
     fn runtime_execute_step_failure() {
-        let _guard = reset_state();
+        reset_state();
         let runtime = Runtime::new().unwrap();
         let result = runtime.execute_step_sync(StepId::new("step-fail".to_string()), 5000);
         assert!(result.is_ok());
         assert!(!result.unwrap().is_success());
-        let _guard = reset_state();
+        reset_state();
     }
 
     #[test]
     fn runtime_execute_step_not_found() {
-        let _guard = reset_state();
+        reset_state();
         let runtime = Runtime::new().unwrap();
         let result = runtime.execute_step_sync(StepId::new("nonexistent-step".to_string()), 5000);
         assert!(result.is_err());
-        let _guard = reset_state();
+        reset_state();
     }
 
     #[test]
     fn runtime_execute_with_retry_success() {
-        let _guard = reset_state();
+        reset_state();
         let runtime = Runtime::new().unwrap();
         let retry_policy = RetryPolicy::new(3, 100, 2.0).unwrap();
         let result = runtime.execute_step_with_retry_sync(
@@ -191,56 +197,56 @@ mod tests {
             retry_policy,
         );
         assert!(result.is_ok());
-        let _guard = reset_state();
+        reset_state();
     }
 
     #[test]
     fn runtime_get_status() {
-        let _guard = reset_state();
+        reset_state();
         let runtime = Runtime::new().unwrap();
         let status = runtime.get_status(&StepId::new("step-1".to_string()));
         assert_eq!(status, ExecutionStatus::Ready);
-        let _guard = reset_state();
+        reset_state();
     }
 
     #[test]
     fn runtime_cancel() {
-        let _guard = reset_state();
+        reset_state();
         let runtime = Runtime::new().unwrap();
         let result = runtime.cancel(StepId::new("step-1".to_string()));
         assert!(result.is_ok());
-        let _guard = reset_state();
+        reset_state();
     }
 
     #[test]
     fn step_context_creation() {
-        let _guard = reset_state();
+        reset_state();
         let context = StepContext::new(StepId::new("step-1".to_string()));
         assert!(context.is_ok());
-        let _guard = reset_state();
+        reset_state();
     }
 
     #[test]
     fn step_context_execute() {
-        let _guard = reset_state();
+        reset_state();
         let context = StepContext::new(StepId::new("step-1".to_string())).unwrap();
         let result = context.execute(5000);
         assert!(result.is_ok());
-        let _guard = reset_state();
+        reset_state();
     }
 
     #[test]
     fn step_context_status() {
-        let _guard = reset_state();
+        reset_state();
         let context = StepContext::new(StepId::new("step-1".to_string())).unwrap();
         let status = context.status();
         assert_eq!(status, ExecutionStatus::Ready);
-        let _guard = reset_state();
+        reset_state();
     }
 
     #[test]
     fn invalid_timeout_rejected() {
-        let _guard = reset_state();
+        reset_state();
         let runtime = Runtime::new().unwrap();
         let result = runtime.execute_step_sync(StepId::new("step-1".to_string()), 0);
         assert!(result.is_err());
@@ -248,7 +254,7 @@ mod tests {
             ExecuteNodeError::InvalidTimeout { .. } => {}
             _ => panic!("Expected InvalidTimeout error"),
         }
-        let _guard = reset_state();
+        reset_state();
     }
 
     #[test]

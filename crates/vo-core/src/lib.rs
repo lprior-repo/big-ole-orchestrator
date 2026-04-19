@@ -30,9 +30,7 @@ pub mod config_hot_reload;
 pub mod connector;
 mod db_writer_message;
 pub mod debounce;
-pub mod effects;
 pub mod exact_once_verification;
-pub mod execution;
 pub mod quadtree;
 pub mod recovery;
 pub mod replay;
@@ -46,6 +44,7 @@ pub mod vault;
 pub mod workflow_version;
 pub mod workload_class;
 pub mod workspace_swap;
+pub mod workload_class;
 pub mod write_class;
 
 pub use validation::{

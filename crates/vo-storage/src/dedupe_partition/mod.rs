@@ -25,9 +25,6 @@ mod verification;
 mod fjall_dedupe;
 pub use fjall_dedupe::FjallDedupeStore;
 
-pub mod in_memory_dedupe;
-pub use in_memory_dedupe::InMemoryDedupeStore;
-
 // ---------------------------------------------------------------------------
 // Data layer — AdmissionResult
 // ---------------------------------------------------------------------------

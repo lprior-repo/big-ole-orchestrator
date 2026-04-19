@@ -437,9 +437,7 @@ fn acquire_returns_new_authoritative_lease_when_now_greater_than_expiry() {
 fn concurrent_acquire_on_same_pair_first_writer_wins() {
     let store = DeterministicLeaseStore::new();
 
-    let first = store
-        .acquire(&sample_instance_id(), &sample_step_id(), 5_000)
-        .unwrap();
+    let first = store.acquire(&sample_instance_id(), &sample_step_id(), 5_000).unwrap();
 
     let second = store.acquire(&sample_instance_id(), &sample_step_id(), 5_000);
     assert_eq!(
@@ -471,7 +469,8 @@ fn interleaved_acquisition_on_different_pairs_is_independent() {
         5_000,
     );
     let lease_a2_result = store.acquire(&sample_instance_id(), &sample_step_id(), 5_000);
-    let lease_b2_result = store.acquire(&alternate_instance_id(), &alternate_step_id(), 5_000);
+    let lease_b2_result =
+        store.acquire(&alternate_instance_id(), &alternate_step_id(), 5_000);
 
     assert!(lease_a2_result.is_err());
     assert!(lease_b2_result.is_err());

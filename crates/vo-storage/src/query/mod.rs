@@ -1,13 +1,21 @@
 //! Event replay query engine — Data → Calc → Actions layering.
 //!
-//! Lineage-aware query routing (ADR-038, ADR-042): [`LineageQuery`] supports
-//! instance-id, lineage-wide, and epoch-specific range scans.
+//! Architecture: Data (`StorageError`, `IteratorState`) → Calc (`encode_key`, `decode_key`,
+//! `prefix_generator`, `error_mapper`) → Actions (`EventReplayIterator`, `replay_events`).
+//!
+//! ## Lineage-Aware Query Routing (ADR-038, ADR-042)
+//!
+//! Workflows may perform continue-as-new, creating new execution epochs while maintaining
+//! a stable lineage_id. Lineage-aware query routing enables:
+//!
+//! - **Lineage-wide queries**: Retrieve all events across all epochs of a lineage
+//! - **Epoch-specific queries**: Retrieve events for a specific epoch within a lineage
+//!
+//! The routing is determined by [`LineageQuery`] which specifies whether to query
+//! by instance_id directly, or by lineage_id (+ optional epoch).
 
 pub use crate::codec::StorageError;
 use vo_types::{Epoch, EventEnvelope, EventError, InstanceId};
-
-pub mod lineage;
-pub mod optimizer;
 
 #[cfg(test)]
 mod tests;
@@ -63,8 +71,6 @@ pub fn prefix_generator(instance_id: &InstanceId) -> Result<Vec<u8>, StorageErro
 pub const LINEAGE_ID_NULL_BYTE: u8 = 0xFF;
 pub const LINEAGE_ID_MAX_LEN: usize = 255;
 
-/// Produce the lineage prefix bytes for range-scanning.
-/// Returns `StorageError::InvalidArgument` if the lineage ID is empty, too long, or contains null bytes.
 pub fn lineage_prefix_generator(lineage_id: &str) -> Result<Vec<u8>, StorageError> {
     if lineage_id.is_empty() {
         return Err(StorageError::InvalidArgument);
@@ -82,8 +88,6 @@ pub fn lineage_prefix_generator(lineage_id: &str) -> Result<Vec<u8>, StorageErro
     Ok(prefix)
 }
 
-/// Produce the epoch-specific prefix bytes for range-scanning.
-/// Returns `StorageError::InvalidArgument` if the lineage ID is invalid.
 pub fn epoch_prefix_generator(lineage_id: &str, epoch: Epoch) -> Result<Vec<u8>, StorageError> {
     let lineage_prefix = lineage_prefix_generator(lineage_id)?;
     let epoch_bytes = epoch.0.to_be_bytes();
@@ -92,9 +96,7 @@ pub fn epoch_prefix_generator(lineage_id: &str, epoch: Epoch) -> Result<Vec<u8>,
     Ok(prefix)
 }
 
-impl LineageQuery<'_> {
-    /// Converts this query into a prefix byte vector for range scanning.
-    /// Returns `StorageError::InvalidArgument` if any component is invalid.
+impl<'a> LineageQuery<'a> {
     pub fn to_prefix(&self) -> Result<Vec<u8>, StorageError> {
         match self {
             LineageQuery::InstanceId(instance_id) => prefix_generator(instance_id),
@@ -262,12 +264,64 @@ pub fn replay_events_by_prefix(keyspace: &fjall::Database, prefix: Vec<u8>) -> E
     }
 }
 
-#[must_use]
-pub fn replay_events(keyspace: &fjall::Database, instance_id: &InstanceId) -> EventReplayIterator {
-    match prefix_generator(instance_id) {
-        Ok(prefix) => replay_events_by_prefix(keyspace, prefix),
-        Err(e) => EventReplayIterator::error(e),
+#[allow(dead_code)]
+pub struct LineageReplayIterator {
+    instance_iter: Option<EventReplayIterator>,
+    lineage_id: Option<String>,
+    epoch: Option<Epoch>,
+}
+
+impl Iterator for LineageReplayIterator {
+    type Item = Result<EventEnvelope, StorageError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(ref mut iter) = self.instance_iter {
+            iter.next()
+        } else {
+            None
+        }
     }
 }
 
-pub use lineage::{replay_events_for_lineage, LineageReplayIterator};
+#[must_use]
+pub fn replay_events_for_lineage(
+    keyspace: &fjall::Keyspace,
+    query: &LineageQuery,
+) -> LineageReplayIterator {
+    match query {
+        LineageQuery::InstanceId(instance_id) => {
+            let iter = replay_events(keyspace, instance_id);
+            LineageReplayIterator {
+                instance_iter: Some(iter),
+                lineage_id: None,
+                epoch: None,
+            }
+        }
+        LineageQuery::LineageWide { lineage_id: _ } => LineageReplayIterator {
+            instance_iter: None,
+            lineage_id: Some(
+                query
+                    .to_prefix()
+                    .map(|p| String::from_utf8_lossy(&p).to_string())
+                    .unwrap_or_default(),
+            ),
+            epoch: None,
+        },
+        LineageQuery::EpochSpecific {
+            lineage_id: _,
+            epoch: _,
+        } => LineageReplayIterator {
+            instance_iter: None,
+            lineage_id: Some(
+                query
+                    .to_prefix()
+                    .map(|p| String::from_utf8_lossy(&p).to_string())
+                    .unwrap_or_default(),
+            ),
+            epoch: Some(match query {
+                LineageQuery::EpochSpecific { epoch, .. } => *epoch,
+                _ => Epoch::ZERO,
+            }),
+        },
+    }
+}

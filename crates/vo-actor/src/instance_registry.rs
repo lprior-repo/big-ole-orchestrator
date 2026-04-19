@@ -205,9 +205,6 @@ impl InstanceRegistry {
 }
 
 /// Interface for instance registry operations needed by InvariantEnforcer.
-///
-/// Note: All operations are **local** only. This interface does not provide
-/// global fencing guarantees. See ADR-029 for execution leases.
 pub trait InstanceRegistryInterface: Send + Sync {
     /// Checks if an instance is currently active.
     fn is_active(&self, instance_id: &InstanceId) -> bool;

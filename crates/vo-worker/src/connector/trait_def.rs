@@ -1,7 +1,7 @@
 //! Core Connector trait (ADR-041 §1).
 
-use crate::connector::{CommitOutcome, ConnectorError, PreparedEffect, ReconcileOutcome};
 use async_trait::async_trait;
+use crate::connector::{CommitOutcome, ConnectorError, PreparedEffect, ReconcileOutcome};
 
 /// The uniform runtime contract for all managed connectors (ADR-041 §1).
 #[async_trait]
@@ -17,9 +17,15 @@ pub trait Connector: Send + Sync + 'static {
         fence: u64,
     ) -> Result<PreparedEffect, ConnectorError>;
 
-    async fn commit(&self, prepared: PreparedEffect) -> Result<CommitOutcome, ConnectorError>;
+    async fn commit(
+        &self,
+        prepared: PreparedEffect,
+    ) -> Result<CommitOutcome, ConnectorError>;
 
-    async fn reconcile(&self, effect_id: &str) -> Result<ReconcileOutcome, ConnectorError>;
+    async fn reconcile(
+        &self,
+        effect_id: &str,
+    ) -> Result<ReconcileOutcome, ConnectorError>;
 
     async fn compensate(
         &self,
@@ -27,8 +33,6 @@ pub trait Connector: Send + Sync + 'static {
         _compensation_effect_id: String,
         _fence: u64,
     ) -> Result<CommitOutcome, ConnectorError> {
-        Err(ConnectorError::compensation_not_supported(
-            self.connector_type(),
-        ))
+        Err(ConnectorError::compensation_not_supported(self.connector_type()))
     }
 }

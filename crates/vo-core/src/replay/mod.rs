@@ -4,9 +4,6 @@
 //! to reconstruct `LifecycleState` from event history.
 
 mod engine;
-pub mod event_sourcing_engine;
-#[cfg(test)]
-pub mod event_sourcing_engine_tests;
 pub mod projection;
 mod types;
 
@@ -34,6 +31,8 @@ mod stale_event_rejection_tests;
 pub mod test_helpers;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod position_tests;
 #[cfg(test)]
 mod upcaster_tests;
 

@@ -7,6 +7,8 @@
 //! This module defines the trait and pure encoding/decoding functions. Concrete Fjall
 //! implementations are provided separately.
 
+use std::fmt;
+
 use vo_types::{EffectRecord, InstanceId};
 
 #[cfg(all(test, feature = "proptest"))]
@@ -217,6 +219,13 @@ pub trait EffectJournal {
 
 // ---------------------------------------------------------------------------
 // Production implementation
+// ---------------------------------------------------------------------------
+
+pub mod fjall_journal;
+pub use fjall_journal::FjallEffectJournal;
+
+// ---------------------------------------------------------------------------
+// Test infrastructure
 // ---------------------------------------------------------------------------
 
 pub mod fjall_journal;

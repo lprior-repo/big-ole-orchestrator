@@ -22,7 +22,6 @@ pub mod message_router;
 pub mod port;
 pub mod probe;
 pub mod reanimator;
-pub mod routing;
 pub mod semaphore;
 pub mod signal_buffer;
 pub mod signals;

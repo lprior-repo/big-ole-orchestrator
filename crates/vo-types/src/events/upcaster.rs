@@ -20,10 +20,6 @@ pub enum UpcasterError {
     InvalidVersion(u8),
     #[error("Upcast chain exhausted before reaching target version")]
     ChainExhausted,
-    #[error("Invalid target version: {0}")]
-    InvalidTargetVersion(u8),
-    #[error("Duplicate registration for source version: {0}")]
-    DuplicateRegistration(u8),
 }
 
 pub trait Upcaster: Send + Sync {
