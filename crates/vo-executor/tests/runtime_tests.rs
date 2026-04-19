@@ -382,6 +382,7 @@ mod runtime_error_recovery_tests {
             backoff_ms: 100,
             backoff_multiplier: 2.0,
             max_backoff_ms: u64::MAX,
+            jitter_factor: 0.1,
         };
         let result = execute_step_with_retry(StepId::new("step-1".to_string()), 5000, policy).await;
         assert!(matches!(

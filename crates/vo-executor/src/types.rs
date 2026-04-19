@@ -87,6 +87,7 @@ pub struct RetryPolicy {
     pub backoff_ms: u64,
     pub backoff_multiplier: f64,
     pub max_backoff_ms: u64,
+    pub jitter_factor: f64,
 }
 
 impl RetryPolicy {
@@ -115,6 +116,7 @@ impl RetryPolicy {
             backoff_ms,
             backoff_multiplier,
             max_backoff_ms: u64::MAX,
+            jitter_factor: 0.1,
         })
     }
 
@@ -151,7 +153,18 @@ impl RetryPolicy {
             backoff_ms,
             backoff_multiplier,
             max_backoff_ms,
+            jitter_factor: 0.1,
         })
+    }
+
+    /// Configure the jitter factor for this retry policy.
+    ///
+    /// Jitter helps prevent thundering herd by randomizing retry timing.
+    /// A jitter_factor of 0.0 means no jitter (deterministic backoff).
+    /// A jitter_factor of 0.5 means the retry delay can vary by ±50%.
+    pub fn with_jitter(mut self, jitter_factor: f64) -> Self {
+        self.jitter_factor = jitter_factor;
+        self
     }
 
     /// Calculate the backoff delay for a given attempt (1-indexed).
@@ -171,6 +184,29 @@ impl RetryPolicy {
         let capped = product.min(self.max_backoff_ms as f64).min(u64::MAX as f64);
         capped as u64
     }
+
+    /// Calculate jittered delay by adding randomization to base duration.
+    ///
+    /// Jitter prevents thundering herd by spreading out retry times.
+    /// If jitter_factor is 0.0, returns base_duration unchanged.
+    #[must_use]
+    pub fn calculate_jitter(&self, base_duration: u64) -> u64 {
+        if self.jitter_factor <= 0.0 {
+            return base_duration;
+        }
+        let base_ms = base_duration as f64;
+        let jitter_range = base_ms * self.jitter_factor;
+        let jitter_ms = rand_jitter(jitter_range);
+        let total_ms = (base_ms + jitter_ms).abs().min(u64::MAX as f64);
+        total_ms as u64
+    }
+}
+
+fn rand_jitter(range: f64) -> f64 {
+    use rand::Rng;
+    let mut rng = rand::thread_rng();
+    let normalized: f64 = rng.gen_range(-1.0..1.0);
+    normalized * range
 }
 
 /// Execution status for a step.
@@ -447,6 +483,91 @@ mod tests {
         assert_eq!(p.calculate_backoff_delay(1), 100);
         assert_eq!(p.calculate_backoff_delay(2), 500);
         assert_eq!(p.calculate_backoff_delay(3), 500);
+    }
+
+    #[test]
+    fn calculate_jitter_zero_factor_returns_base() {
+        let p = RetryPolicy::new(3, 1000, 2.0).unwrap().with_jitter(0.0);
+        assert_eq!(p.calculate_jitter(1000), 1000);
+    }
+
+    #[test]
+    fn calculate_jitter_with_factor_adds_variation() {
+        let p = RetryPolicy::new(3, 1000, 2.0).unwrap().with_jitter(0.5);
+        let base = 1000u64;
+        let jittered = p.calculate_jitter(base);
+        let diff = (jittered as i64 - base as i64).abs();
+        let allowed_range = 1000i64 * 50 / 100;
+        assert!(
+            diff <= allowed_range,
+            "Jitter {} out of range ±50%: diff={}, allowed={}",
+            jittered,
+            diff,
+            allowed_range
+        );
+    }
+
+    #[test]
+    fn calculate_jitter_distribution_reasonable() {
+        let p = RetryPolicy::new(3, 1000, 2.0).unwrap().with_jitter(0.3);
+        let base = 1000u64;
+        let jitter_range = 1000.0 * 0.3;
+
+        let mut min_sample = u64::MAX;
+        let mut max_sample = u64::MIN;
+        let num_samples = 100;
+
+        for _ in 0..num_samples {
+            let jittered = p.calculate_jitter(base);
+            min_sample = min_sample.min(jittered);
+            max_sample = max_sample.max(jittered);
+        }
+
+        let min_expected = base as i64 - jitter_range as i64;
+        let max_expected = base as i64 + jitter_range as i64;
+        assert!(
+            min_sample as i64 >= min_expected,
+            "Min sample {} below expected {}",
+            min_sample,
+            min_expected
+        );
+        assert!(
+            max_sample as i64 <= max_expected,
+            "Max sample {} above expected {}",
+            max_sample,
+            max_expected
+        );
+    }
+
+    #[test]
+    fn calculate_jitter_concurrent_differentiation() {
+        use std::sync::Arc;
+        use std::thread;
+
+        let p = Arc::new(RetryPolicy::new(3, 1000, 2.0).unwrap().with_jitter(0.5));
+        let base = 1000u64;
+
+        let mut handles: Vec<thread::JoinHandle<u64>> = Vec::new();
+        for _ in 0..100 {
+            let p = p.clone();
+            handles.push(thread::spawn(move || p.calculate_jitter(base)));
+        }
+
+        let mut values: Vec<u64> = Vec::new();
+        for h in handles {
+            values.push(h.join().unwrap());
+        }
+
+        let total_count = values.len();
+        let unique_values: std::collections::HashSet<u64> = values.into_iter().collect();
+        let uniqueness_ratio = unique_values.len() as f64 / total_count as f64;
+        assert!(
+            uniqueness_ratio > 0.5,
+            "Too many duplicate jitter values: {}/{} unique ({:.1}%), expected >50%",
+            unique_values.len(),
+            total_count,
+            uniqueness_ratio * 100.0
+        );
     }
 
     #[test]
