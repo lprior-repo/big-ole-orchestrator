@@ -88,7 +88,7 @@ impl CircuitBreaker {
             let elapsed = current_time
                 .as_u64()
                 .saturating_sub(last_transition.as_u64());
-            if elapsed >= FAILURE_WINDOW_MS {
+            if elapsed > FAILURE_WINDOW_MS {
                 self.transition_to(CircuitBreakerState::HalfOpen);
                 return true;
             }
@@ -267,6 +267,21 @@ mod circuit_breaker_tests {
 
         let result = cb.try_transition_to_half_open(TimestampMs::now());
         assert!(!result);
+        assert_eq!(cb.state(), CircuitBreakerState::Open);
+    }
+
+    // ve-izua6: exact timeout boundary — exactly at FAILURE_WINDOW_MS should NOT transition
+    #[test]
+    fn test_try_transition_to_half_open_exact_boundary_stays_open() {
+        let mut cb = CircuitBreaker::new();
+        cb.transition_to(CircuitBreakerState::Open);
+        let exactly_at_window = TimestampMs::now()
+            .as_u64()
+            .saturating_sub(FAILURE_WINDOW_MS);
+        cb.last_transition_at = Some(TimestampMs::new_unchecked(exactly_at_window));
+
+        let result = cb.try_transition_to_half_open(TimestampMs::now());
+        assert!(!result, "exactly at timeout boundary should stay Open");
         assert_eq!(cb.state(), CircuitBreakerState::Open);
     }
 }
