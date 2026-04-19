@@ -1,6 +1,5 @@
 use crate::types::errors::*;
 use crate::types::helpers::*;
-use crate::types::ApiError;
 
 #[cfg(test)]
 mod security_validation_tests {
@@ -83,7 +82,9 @@ mod security_validation_tests {
 
     #[test]
     fn test_parse_error_empty_workflow_name() {
-        let err = ParseError::EmptyWorkflowName;
+        let err = ParseError::Empty {
+            type_name: "workflow_name",
+        };
         let msg = err.to_string();
         assert!(msg.contains("workflow_name"));
         assert!(msg.contains("empty"));
@@ -99,7 +100,9 @@ mod security_validation_tests {
 
     #[test]
     fn test_parse_error_empty_signal_name() {
-        let err = ParseError::EmptySignalName;
+        let err = ParseError::Empty {
+            type_name: "signal_name",
+        };
         let msg = err.to_string();
         assert!(msg.contains("signal_name"));
     }
@@ -166,6 +169,7 @@ mod security_validation_tests {
         let err = InvariantViolation::EntriesNotSorted;
         let msg = err.to_string();
         assert!(msg.contains("ascending"));
+        assert!(msg.contains("sort"));
     }
 
     #[test]
