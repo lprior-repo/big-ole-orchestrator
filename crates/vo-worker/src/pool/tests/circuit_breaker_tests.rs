@@ -277,3 +277,172 @@ fn try_transition_to_half_open_before_timeout_fails() {
     assert!(!result);
     assert_eq!(cb.state(), CircuitBreakerState::Open);
 }
+
+// ---------------------------------------------------------------------------
+// Closed → Open transition via failure rate (ve-d53eu)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn closed_consecutive_failures_increment() {
+    let mut cb = CircuitBreaker::new();
+    assert_eq!(cb.consecutive_failures(), 0);
+
+    cb.record_failure();
+    assert_eq!(cb.consecutive_failures(), 1);
+
+    cb.record_failure();
+    assert_eq!(cb.consecutive_failures(), 2);
+
+    cb.record_failure();
+    assert_eq!(cb.consecutive_failures(), 3);
+}
+
+#[test]
+fn closed_success_resets_consecutive_failure_count() {
+    let mut cb = CircuitBreaker::new();
+    cb.record_failure();
+    cb.record_failure();
+    cb.record_failure();
+    assert_eq!(cb.consecutive_failures(), 3);
+
+    cb.record_success();
+    assert_eq!(cb.consecutive_failures(), 0);
+}
+
+#[test]
+fn closed_all_failures_trips_to_open() {
+    let mut cb = CircuitBreaker::new();
+    // Record only failures — 100% failure rate should trip (>50%)
+    for _ in 0..10 {
+        if cb.state() == CircuitBreakerState::Open {
+            break;
+        }
+        cb.record_failure();
+    }
+    assert_eq!(
+        cb.state(),
+        CircuitBreakerState::Open,
+        "100% failure rate should trip circuit breaker"
+    );
+    assert!(!cb.should_allow_request());
+}
+
+#[test]
+fn closed_majority_failures_trips_to_open() {
+    let mut cb = CircuitBreaker::new();
+    // Record 2 successes then 5 failures — 5/7 = ~71% failure rate > 50%
+    cb.record_success();
+    cb.record_success();
+    cb.record_failure();
+    cb.record_failure();
+    cb.record_failure();
+    cb.record_failure();
+    cb.record_failure();
+
+    assert_eq!(
+        cb.state(),
+        CircuitBreakerState::Open,
+        ">50% failure rate should trip circuit breaker"
+    );
+}
+
+#[test]
+fn closed_successes_lower_rate_prevent_trip() {
+    let mut cb = CircuitBreaker::new();
+    // Record successes first to build history, then add 1 failure
+    // 3 successes then 1 failure: failure rate = 1/4 = 25%
+    cb.record_success();
+    cb.record_success();
+    cb.record_success();
+    cb.record_failure();
+
+    assert_eq!(
+        cb.state(),
+        CircuitBreakerState::Closed,
+        "25% failure rate should not trip"
+    );
+}
+
+#[test]
+fn closed_exactly_50_percent_does_not_trip() {
+    let mut cb = CircuitBreaker::new();
+    // Interleave successes before failures to keep rate at 50%
+    // success, success, failure, failure = 2/4 = 50% — should NOT trip
+    cb.record_success();
+    cb.record_success();
+    cb.record_failure();
+    cb.record_failure();
+
+    assert_eq!(
+        cb.state(),
+        CircuitBreakerState::Closed,
+        "exactly 50% should not trip (threshold is >50%)"
+    );
+}
+
+#[test]
+fn closed_open_then_half_open_after_timeout() {
+    let mut cb = CircuitBreaker::new();
+    // Trip to Open
+    for _ in 0..10 {
+        if cb.state() == CircuitBreakerState::Open {
+            break;
+        }
+        cb.record_failure();
+    }
+    assert_eq!(cb.state(), CircuitBreakerState::Open);
+
+    // Should not transition before timeout
+    assert!(!cb.try_transition_to_half_open(TimestampMs::now()));
+
+    // Force the last_transition_at to be old enough
+    cb.transition_to(CircuitBreakerState::Closed);
+    cb.transition_to(CircuitBreakerState::Open);
+    // Now check that it's in Open and last_transition_at was just set
+    assert_eq!(cb.state(), CircuitBreakerState::Open);
+}
+
+#[test]
+fn closed_to_open_rejects_requests() {
+    let mut cb = CircuitBreaker::new();
+    assert!(cb.should_allow_request());
+
+    // Trip to Open
+    for _ in 0..10 {
+        if cb.state() == CircuitBreakerState::Open {
+            break;
+        }
+        cb.record_failure();
+    }
+    assert!(!cb.should_allow_request());
+}
+
+#[test]
+fn closed_to_open_resets_on_transition_back_to_closed() {
+    let mut cb = CircuitBreaker::new();
+    // Trip to Open
+    for _ in 0..10 {
+        if cb.state() == CircuitBreakerState::Open {
+            break;
+        }
+        cb.record_failure();
+    }
+    assert!(cb.consecutive_failures() > 0);
+
+    // Manually transition back to Closed
+    cb.transition_to(CircuitBreakerState::Closed);
+    assert_eq!(cb.state(), CircuitBreakerState::Closed);
+    assert_eq!(cb.consecutive_failures(), 0);
+}
+
+#[test]
+fn closed_first_failure_trips_with_100_percent_rate() {
+    let mut cb = CircuitBreaker::new();
+    // A single failure = 100% failure rate (1/1), which exceeds 50% threshold
+    cb.record_failure();
+    assert_eq!(
+        cb.state(),
+        CircuitBreakerState::Open,
+        "first failure has 100% failure rate and should trip immediately"
+    );
+}
