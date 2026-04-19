@@ -350,3 +350,88 @@ fn wrap_unwrap_different_deks_produce_different_wrappings() {
     assert_eq!(unwrap_dek(&wrapped1, &kek).unwrap(), dek1);
     assert_eq!(unwrap_dek(&wrapped2, &kek).unwrap(), dek2);
 }
+
+// ve-13i8m: Key rotation without downtime
+// ve-cu8xp: KEK management - key generation, storage, retrieval
+// ve-xy2i6: DEK lifecycle
+
+#[test]
+fn kek_generation_produces_32_bytes() {
+    let kek = generate_dek().expect("should generate KEK");
+    assert_eq!(kek.len(), KEK_SIZE_BYTES);
+}
+
+#[test]
+fn kek_generation_produces_unique_keys() {
+    let kek1 = generate_dek().expect("should generate KEK 1");
+    let kek2 = generate_dek().expect("should generate KEK 2");
+    assert_ne!(kek1, kek2, "two generated KEKs should differ");
+}
+
+#[test]
+fn key_rotation_operation_completes_without_error() {
+    let dek = generate_dek().expect("should generate DEK");
+    let old_kek = generate_dek().expect("should generate old KEK");
+    let new_kek = generate_dek().expect("should generate new KEK");
+
+    let wrapped_old = wrap_dek(&dek, &old_kek).expect("wrap with old KEK should succeed");
+    let unwrapped = unwrap_dek(&wrapped_old, &old_kek).expect("unwrap with old KEK should succeed");
+    let wrapped_new = wrap_dek(&unwrapped, &new_kek).expect("rewrap with new KEK should succeed");
+
+    assert!(unwrap_dek(&wrapped_new, &new_kek).is_ok());
+}
+
+#[test]
+fn access_during_rotation_old_key_still_works_before_rewrap() {
+    let dek = generate_dek().expect("should generate DEK");
+    let old_kek = generate_dek().expect("should generate old KEK");
+    let new_kek = generate_dek().expect("should generate new KEK");
+
+    let wrapped_old = wrap_dek(&dek, &old_kek).expect("wrap with old KEK");
+
+    // Old key works before rewrap
+    let unwrapped = unwrap_dek(&wrapped_old, &old_kek).expect("old KEK should unwrap");
+    assert_eq!(dek, unwrapped);
+
+    // Now rewrap with new KEK
+    let wrapped_new = wrap_dek(&unwrapped, &new_kek).expect("rewrap with new KEK");
+
+    // After rewrap, new key works, old key doesn't
+    assert!(unwrap_dek(&wrapped_new, &new_kek).is_ok());
+    assert!(unwrap_dek(&wrapped_new, &old_kek).is_err());
+}
+
+#[test]
+fn dek_lifecycle_generation_to_encryption_to_decryption() {
+    let dek = generate_dek().expect("should generate DEK");
+    let data = b"Sensitive payload for DEK lifecycle test";
+
+    let encrypted = encrypt_blob(data, &dek).expect("encrypt should succeed");
+    let decrypted = decrypt_blob(&encrypted, &dek).expect("decrypt should succeed");
+
+    assert_eq!(data.as_slice(), decrypted.as_slice());
+}
+
+#[test]
+fn dek_lifecycle_rotation_preserves_data() {
+    let old_dek = generate_dek().expect("should generate old DEK");
+    let new_dek = generate_dek().expect("should generate new DEK");
+    let data = b"Data that must survive key rotation";
+
+    // Encrypt with old DEK
+    let encrypted_old = encrypt_blob(data, &old_dek).expect("encrypt with old DEK");
+
+    // Verify old DEK can decrypt
+    let decrypted_with_old = decrypt_blob(&encrypted_old, &old_dek).expect("old DEK should decrypt");
+    assert_eq!(data.as_slice(), decrypted_with_old.as_slice());
+
+    // Re-encrypt with new DEK (simulating re-encryption after rotation)
+    let encrypted_new = encrypt_blob(data, &new_dek).expect("encrypt with new DEK");
+
+    // Verify new DEK can decrypt
+    let decrypted_with_new = decrypt_blob(&encrypted_new, &new_dek).expect("new DEK should decrypt");
+    assert_eq!(data.as_slice(), decrypted_with_new.as_slice());
+
+    // Verify ciphertexts are different
+    assert_ne!(encrypted_old.ciphertext, encrypted_new.ciphertext);
+}

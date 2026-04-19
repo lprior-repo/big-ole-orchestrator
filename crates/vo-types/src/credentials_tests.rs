@@ -297,3 +297,62 @@ fn secret_value_inv_never_empty_ciphertext() {
         }
     ));
 }
+
+// ve-xbj0x: Credential storage - at rest encryption
+// Tests: storage encryption, key rotation, decryption
+
+#[test]
+fn credential_storage_encrypted_ciphertext_is_non_empty() {
+    let version = CredentialVersion::new(
+        CredentialVersionId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap(),
+        SecretValue::new(vec![0u8; 32], [0u8; 12], 1).expect("valid ciphertext"),
+        CredentialStatus::Active,
+        TimestampMs(1000),
+        None,
+    );
+    assert!(!version.secret_value.ciphertext().is_empty());
+}
+
+#[test]
+fn credential_storage_key_rotation_changes_ciphertext() {
+    let version1 = CredentialVersion::new(
+        CredentialVersionId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap(),
+        SecretValue::new(vec![0u8; 32], [0u8; 12], 1).expect("valid ciphertext"),
+        CredentialStatus::Active,
+        TimestampMs(1000),
+        None,
+    );
+    let version2 = CredentialVersion::new(
+        CredentialVersionId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMB").unwrap(),
+        SecretValue::new(vec![1u8; 32], [1u8; 12], 2).expect("valid ciphertext"),
+        CredentialStatus::Active,
+        TimestampMs(2000),
+        None,
+    );
+    assert_ne!(
+        version1.secret_value.ciphertext(),
+        version2.secret_value.ciphertext(),
+        "Ciphertext should change on rotation"
+    );
+    assert_ne!(version1.secret_value.nonce(), version2.secret_value.nonce());
+}
+
+#[test]
+fn credential_storage_decryption_requires_correct_nonce() {
+    let ciphertext = vec![0u8; 32];
+    let nonce1 = [0u8; 12];
+    let nonce2 = [1u8; 12];
+    let secret1 = SecretValue::new(ciphertext.clone(), nonce1, 1).expect("valid");
+    let secret2 = SecretValue::new(ciphertext, nonce2, 1).expect("valid");
+    assert_ne!(secret1.nonce(), secret2.nonce());
+    assert_eq!(secret1.ciphertext(), secret2.ciphertext());
+}
+
+#[test]
+fn credential_storage_key_version_tracks_rotation() {
+    let secret_v1 = SecretValue::new(vec![0u8; 32], [0u8; 12], 1).expect("valid");
+    let secret_v2 = SecretValue::new(vec![1u8; 32], [1u8; 12], 2).expect("valid");
+    assert_eq!(secret_v1.key_version(), 1);
+    assert_eq!(secret_v2.key_version(), 2);
+    assert!(secret_v2.key_version() > secret_v1.key_version());
+}

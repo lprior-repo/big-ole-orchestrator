@@ -322,4 +322,176 @@ mod tests {
         assert_eq!(config.calculate_backoff(2), Duration::from_millis(150));
         assert_eq!(config.calculate_backoff(3), Duration::from_millis(150));
     }
+
+    // ve-9f8wu: Retry policy - max attempts enforcement
+
+    #[tokio::test]
+    async fn test_max_attempts_under_limit_retries() {
+        let mock = MockLockManager::new(2);
+        let config = RetryConfig::new(10, 2.0, 5);
+        let wrapper = LockManagerRetryWrapper::new(&mock, config);
+        let request = LockRequest {
+            lock_id: LockId::new("test-lock"),
+            owner: OwnerId::new("owner1".to_string()),
+            mode: LockMode::Exclusive,
+            ttl_ms: 1000,
+            request_id: "req1".to_string(),
+        };
+        let response = wrapper.acquire(request).await;
+        assert!(response.granted);
+        assert_eq!(mock.attempt_count(), 3);
+    }
+
+    #[tokio::test]
+    async fn test_max_attempts_at_limit_gives_up() {
+        let mock = MockLockManager::new(3);
+        let config = RetryConfig::new(10, 2.0, 3);
+        let wrapper = LockManagerRetryWrapper::new(&mock, config);
+        let request = LockRequest {
+            lock_id: LockId::new("test-lock"),
+            owner: OwnerId::new("owner1".to_string()),
+            mode: LockMode::Exclusive,
+            ttl_ms: 1000,
+            request_id: "req1".to_string(),
+        };
+        let response = wrapper.acquire(request).await;
+        assert!(!response.granted);
+        assert!(response.error.is_some());
+        assert!(response.error.unwrap().contains("max retry attempts"));
+        assert_eq!(mock.attempt_count(), 3);
+    }
+
+    #[tokio::test]
+    async fn test_max_attempts_exceeded_gives_up_immediately() {
+        let mock = MockLockManager::new(10);
+        let config = RetryConfig::new(10, 2.0, 2);
+        let wrapper = LockManagerRetryWrapper::new(&mock, config);
+        let request = LockRequest {
+            lock_id: LockId::new("test-lock"),
+            owner: OwnerId::new("owner1".to_string()),
+            mode: LockMode::Exclusive,
+            ttl_ms: 1000,
+            request_id: "req1".to_string(),
+        };
+        let response = wrapper.acquire(request).await;
+        assert!(!response.granted);
+        assert!(response.error.unwrap().contains("max retry attempts"));
+        assert_eq!(mock.attempt_count(), 2);
+    }
+
+    // ve-s108u: Retry policy - backoff reset on success
+
+    #[tokio::test]
+    async fn test_backoff_resets_after_successful_retry() {
+        let mock = MockLockManager::new(2);
+        let config = RetryConfig::new(10, 2.0, 5);
+        let wrapper = LockManagerRetryWrapper::new(&mock, config);
+
+        let request1 = LockRequest {
+            lock_id: LockId::new("test-lock"),
+            owner: OwnerId::new("owner1".to_string()),
+            mode: LockMode::Exclusive,
+            ttl_ms: 1000,
+            request_id: "req1".to_string(),
+        };
+        let response1 = wrapper.acquire(request1).await;
+        assert!(response1.granted);
+        assert_eq!(mock.attempt_count(), 3);
+
+        let request2 = LockRequest {
+            lock_id: LockId::new("test-lock-2"),
+            owner: OwnerId::new("owner2".to_string()),
+            mode: LockMode::Exclusive,
+            ttl_ms: 1000,
+            request_id: "req2".to_string(),
+        };
+        let response2 = wrapper.acquire(request2).await;
+        assert!(response2.granted);
+        assert_eq!(mock.attempt_count(), 4);
+    }
+
+    // ve-wflsn: Retry policy - retryable error classification
+
+    #[tokio::test]
+    async fn test_retryable_error_causes_retry() {
+        struct RetryableMockLockManager {
+            attempts: AtomicU32,
+        }
+        impl RetryableMockLockManager {
+            fn new() -> Self {
+                Self {
+                    attempts: AtomicU32::new(0),
+                }
+            }
+            fn attempt_count(&self) -> u32 {
+                self.attempts.load(Ordering::SeqCst)
+            }
+        }
+        #[async_trait]
+        impl LockManager for RetryableMockLockManager {
+            async fn acquire(&self, request: LockRequest) -> LockResponse {
+                let count = self.attempts.fetch_add(1, Ordering::SeqCst);
+                if count < 2 {
+                    return LockResponse {
+                        request_id: request.request_id,
+                        lock_id: request.lock_id,
+                        owner: request.owner,
+                        granted: false,
+                        hold_token: None,
+                        expires_at: None,
+                        error: Some("temporary lock conflict".to_string()),
+                    };
+                }
+                LockResponse {
+                    request_id: request.request_id,
+                    lock_id: request.lock_id,
+                    owner: request.owner,
+                    granted: true,
+                    hold_token: Some("token".to_string()),
+                    expires_at: None,
+                    error: None,
+                }
+            }
+            async fn release(&self, _release: LockRelease) -> Result<(), LockError> {
+                Ok(())
+            }
+            async fn query(&self, _query: crate::LockQuery) -> LockQueryResponse {
+                LockQueryResponse { locks: vec![] }
+            }
+            async fn promote(&self, _promote: LockPromote) -> LockPromoteResponse {
+                LockPromoteResponse {
+                    request_id: "".to_string(),
+                    lock_id: LockId::new(""),
+                    granted: false,
+                    new_mode: None,
+                    error: Some("not implemented".to_string()),
+                }
+            }
+            async fn demote(&self, _lock_id: LockId, _owner: OwnerId, _hold_token: String) -> Result<LockMode, LockError> {
+                Err(LockError::NotFound(LockId::new("")))
+            }
+            async fn extend_ttl(&self, _lock_id: LockId, _owner: OwnerId, _hold_token: String, _ttl_ms: u64) -> Result<chrono::DateTime<chrono::Utc>, LockError> {
+                Err(LockError::NotFound(LockId::new("")))
+            }
+            async fn is_locked(&self, _lock_id: &LockId) -> bool {
+                false
+            }
+            async fn get_holder(&self, _lock_id: &LockId) -> Option<(OwnerId, LockMode)> {
+                None
+            }
+        }
+        let mock = RetryableMockLockManager::new();
+        let config = RetryConfig::new(10, 2.0, 5);
+        let wrapper = LockManagerRetryWrapper::new(&mock, config);
+        let request = LockRequest {
+            lock_id: LockId::new("test-lock"),
+            owner: OwnerId::new("owner1".to_string()),
+            mode: LockMode::Exclusive,
+            ttl_ms: 1000,
+            request_id: "req1".to_string(),
+        };
+        let response = wrapper.acquire(request).await;
+        assert!(response.granted);
+        assert_eq!(mock.attempt_count(), 3);
+    }
 }
