@@ -1,12 +1,12 @@
 {
-  "session_id": "b5e3db3b-3734-4a79-b9ee-ec8891c16ce6",
-  "transcript_path": "/home/lewis/.claude/projects/-home-lewis-gt-veloxide-polecats-synth-veloxide/b5e3db3b-3734-4a79-b9ee-ec8891c16ce6.jsonl",
+  "session_id": "a2a8f72c-13aa-49f3-9570-a5da976234dc",
+  "transcript_path": "/home/lewis/.claude/projects/-home-lewis-gt-veloxide-polecats-deathclaw-veloxide/a2a8f72c-13aa-49f3-9570-a5da976234dc.jsonl",
   "hook_event_name": "PreToolUse",
   "tool_name": "Edit",
   "tool_input": {
-    "file_path": "/home/lewis/gt/veloxide/polecats/synth/veloxide/crates/vo-worker/src/pool/pool.rs",
-    "old_string": "        assert_eq!(pool.stats().total_connections, 1, \"no new connection created\");\n    }\n}",
-    "new_string": "        assert_eq!(pool.stats().total_connections, 1, \"no new connection created\");\n    }\n\n    // ve-xy6ah: acquire/release stats counters are accurate\n    #[test]\n    fn test_acquire_release_stats_counters() {\n        let mut pool = create_test_pool();\n\n        let acquire1 = futures::executor::block_on(pool.acquire());\n        let conn_id = match acquire1 {\n            AcquireResult::Available { connection } => connection.connection_id,\n            _ => panic!(\"Expected Available\"),\n        };\n\n        assert_eq!(pool.stats().total_acquires, 1);\n        assert_eq!(pool.stats().total_releases, 0);\n        assert_eq!(pool.stats().checked_out_connections, 1);\n        assert_eq!(pool.stats().idle_connections, 0);\n\n        pool.release(conn_id);\n        assert_eq!(pool.stats().total_releases, 1);\n        assert_eq!(pool.stats().checked_out_connections, 0);\n        assert_eq!(pool.stats().idle_connections, 1);\n    }\n}",
+    "file_path": "/home/lewis/gt/veloxide/polecats/deathclaw/veloxide/crates/vo-worker/src/pool/tests/circuit_breaker_tests.rs",
+    "old_string": "    // Simulate timeout: transition to HalfOpen\n    cb.last_transition_at = Some(TimestampMs::new_unchecked(\n        TimestampMs::now().as_u64().saturating_sub(31000),\n    ));\n    let transitioned = cb.try_transition_to_half_open(TimestampMs::now());\n    assert!(transitioned);\n    assert_eq!(cb.state(), CircuitBreakerState::HalfOpen);",
+    "new_string": "    // Transition to HalfOpen (timeout mechanics tested in inline tests)\n    cb.transition_to(CircuitBreakerState::HalfOpen);\n    assert_eq!(cb.state(), CircuitBreakerState::HalfOpen);",
     "replace_all": false
   }
 }
