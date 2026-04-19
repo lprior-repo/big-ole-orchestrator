@@ -14,8 +14,7 @@
 use super::engine::ReplayEngine;
 use super::test_helpers::*;
 use super::types::ReplayError;
-use vo_types::events::EventEnvelope;
-use vo_types::state::LifecycleState;
+use vo_types::{events::EventEnvelope, state::LifecycleState};
 
 #[cfg(test)]
 mod adversarial_transitions {
@@ -747,6 +746,7 @@ mod deterministic_reconstruction {
 mod random_position_corruption_injection {
     use super::*;
     use proptest::prelude::*;
+    use vo_types::{events::EventEnvelope, events::EventMetadata};
 
     fn corrupt_payload_at_position(
         events: &mut [EventEnvelope],

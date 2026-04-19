@@ -107,7 +107,7 @@ pub use effects::{
 };
 pub use encryption::{CryptoAlgorithm, DekId, EncryptedBlob, KeyMetadata, WrappedDek};
 pub use errors::ParseError;
-pub use events::{Error as EventError, EventEnvelope};
+pub use events::{Error as EventError, EventEnvelope, EventMetadata};
 pub use identity::{CausationId, CommandId, CorrelationId};
 pub use instance_status::InstanceStatus;
 pub use lifecycle_superstate::LifecycleSuperstate;
