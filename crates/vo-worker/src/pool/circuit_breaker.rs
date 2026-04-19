@@ -269,4 +269,103 @@ mod circuit_breaker_tests {
         assert!(!result);
         assert_eq!(cb.state(), CircuitBreakerState::Open);
     }
+
+    // ========================================================================
+    // Half-Open → Open Transition Tests (ve-gltfe)
+    // ========================================================================
+
+    /// Given: Circuit breaker in HalfOpen state
+    /// When: A single failure is recorded
+    /// Then: The breaker does NOT immediately transition to Open (threshold=10)
+    #[test]
+    fn test_half_open_single_failure_stays_half_open() {
+        let mut cb = CircuitBreaker::new();
+        cb.transition_to(CircuitBreakerState::HalfOpen);
+        assert_eq!(cb.state(), CircuitBreakerState::HalfOpen);
+
+        cb.record_failure();
+        assert_eq!(
+            cb.state(),
+            CircuitBreakerState::HalfOpen,
+            "single failure should not immediately trip to Open"
+        );
+        assert_eq!(cb.consecutive_failures(), 1);
+    }
+
+    /// Given: Circuit breaker in HalfOpen state
+    /// When: Failures are recorded up to the threshold (10)
+    /// Then: The breaker transitions back to Open
+    #[test]
+    fn test_half_open_threshold_failures_transitions_to_open() {
+        let mut cb = CircuitBreaker::new();
+        cb.transition_to(CircuitBreakerState::HalfOpen);
+
+        // 9 failures: still half-open
+        for _ in 0..9 {
+            cb.record_failure();
+        }
+        assert_eq!(
+            cb.state(),
+            CircuitBreakerState::HalfOpen,
+            "9 failures should not yet trip to Open"
+        );
+
+        // 10th failure: transitions to Open
+        cb.record_failure();
+        assert_eq!(
+            cb.state(),
+            CircuitBreakerState::Open,
+            "10 failures in half-open should trip to Open"
+        );
+    }
+
+    /// Given: Circuit breaker in HalfOpen state
+    /// When: Interleaved successes and failures
+    /// Then: Success resets to Closed; subsequent failures start fresh count
+    #[test]
+    fn test_half_open_success_resets_then_failures_accumulate() {
+        let mut cb = CircuitBreaker::new();
+        cb.transition_to(CircuitBreakerState::HalfOpen);
+
+        // Some failures first
+        cb.record_failure();
+        cb.record_failure();
+
+        // Success transitions to Closed immediately
+        cb.record_success();
+        assert_eq!(cb.state(), CircuitBreakerState::Closed);
+
+        // Now record failures in Closed state — should eventually trip to Open
+        // via failure rate (need >50% failure rate in window)
+        for _ in 0..100 {
+            cb.record_failure();
+        }
+        assert_eq!(
+            cb.state(),
+            CircuitBreakerState::Open,
+            "sustained failures should trip breaker back to Open"
+        );
+    }
+
+    /// Given: Circuit breaker in HalfOpen state
+    /// When: 9 failures followed by a success
+    /// Then: Success transitions to Closed, resetting the failure counter
+    #[test]
+    fn test_half_open_near_threshold_then_success_closes() {
+        let mut cb = CircuitBreaker::new();
+        cb.transition_to(CircuitBreakerState::HalfOpen);
+
+        for _ in 0..9 {
+            cb.record_failure();
+        }
+        assert_eq!(cb.state(), CircuitBreakerState::HalfOpen);
+
+        cb.record_success();
+        assert_eq!(
+            cb.state(),
+            CircuitBreakerState::Closed,
+            "success at 9 failures should close the breaker"
+        );
+        assert_eq!(cb.consecutive_failures(), 0);
+    }
 }
