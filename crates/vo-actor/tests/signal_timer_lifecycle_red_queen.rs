@@ -1318,3 +1318,197 @@ mod timer_accuracy_under_load {
         );
     }
 }
+
+// =============================================================================
+// ATTACK VECTOR 10: Signal buffer overflow and backpressure
+// ADR-042: THE SYSTEM SHALL handle buffer overflow gracefully
+// EARS: When buffer full, THE SYSTEM SHALL apply backpressure
+// EARS: If signals dropped, THE SYSTEM SHALL lose critical signals (Signal accountability)
+// =============================================================================
+
+mod signal_buffer_overflow {
+    use super::*;
+    use vo_actor::signal_buffer::BufferedSignal;
+    use vo_types::BufferPolicy;
+
+    fn make_signal(signal_id: &str) -> BufferedSignal {
+        BufferedSignal::new(signal_id.to_string(), vo_actor::SignalPayload::empty(), TimestampMs::now())
+    }
+
+    // RQ-SBO01: BufferMany returns Dropped when at capacity
+    // EARS Ubiquitous: THE SYSTEM SHALL handle buffer overflow gracefully
+    #[test]
+    fn rq_buffer_many_returns_dropped_when_at_capacity() {
+        let mut buffer = SignalBuffer::new(SignalBufferConfig::new(3));
+        let instance_id = make_instance_id(0x01);
+        let wait_key = make_wait_key("approval");
+
+        for i in 0..3 {
+            let result = buffer.buffer_signal(
+                instance_id.clone(),
+                wait_key.clone(),
+                make_signal(&format!("sig-{i}")),
+                BufferPolicy::BufferMany,
+            );
+            assert_eq!(result, BufferResult::Buffered, "First 3 signals should be buffered");
+        }
+
+        let overflow_result = buffer.buffer_signal(
+            instance_id.clone(),
+            wait_key.clone(),
+            make_signal("sig-overflow"),
+            BufferPolicy::BufferMany,
+        );
+        assert_eq!(overflow_result, BufferResult::Dropped, "Overflow signal should be dropped");
+    }
+
+    // RQ-SBO02: Buffer count stays at max when overflow occurs
+    // EARS Event-Driven: When buffer full, THE SYSTEM SHALL apply backpressure
+    #[test]
+    fn rq_buffer_count_stays_at_max_on_overflow() {
+        let mut buffer = SignalBuffer::new(SignalBufferConfig::new(3));
+        let instance_id = make_instance_id(0x01);
+        let wait_key = make_wait_key("approval");
+
+        for i in 0..3 {
+            buffer.buffer_signal(
+                instance_id.clone(),
+                wait_key.clone(),
+                make_signal(&format!("sig-{i}")),
+                BufferPolicy::BufferMany,
+            );
+        }
+
+        buffer.buffer_signal(
+            instance_id.clone(),
+            wait_key.clone(),
+            make_signal("sig-overflow"),
+            BufferPolicy::BufferMany,
+        );
+
+        assert_eq!(
+            buffer.buffered_count(&instance_id, &wait_key),
+            3,
+            "Buffer count should stay at max (3) after overflow"
+        );
+    }
+
+    // RQ-SBO03: BufferOne rejects subsequent signals until first is consumed
+    // EARS Event-Driven: When buffer full, THE SYSTEM SHALL apply backpressure
+    #[test]
+    fn rq_buffer_one_rejects_subsequent_signals() {
+        let mut buffer = SignalBuffer::with_default_config();
+        let instance_id = make_instance_id(0x01);
+        let wait_key = make_wait_key("approval");
+
+        let first = buffer.buffer_signal(
+            instance_id.clone(),
+            wait_key.clone(),
+            make_signal("sig-first"),
+            BufferPolicy::BufferOne,
+        );
+        assert_eq!(first, BufferResult::Buffered, "First signal should be buffered");
+
+        let second = buffer.buffer_signal(
+            instance_id.clone(),
+            wait_key.clone(),
+            make_signal("sig-second"),
+            BufferPolicy::BufferOne,
+        );
+        assert_eq!(second, BufferResult::Rejected, "Second signal should be rejected");
+
+        let third = buffer.buffer_signal(
+            instance_id.clone(),
+            wait_key.clone(),
+            make_signal("sig-third"),
+            BufferPolicy::BufferOne,
+        );
+        assert_eq!(third, BufferResult::Rejected, "Third signal should also be rejected");
+
+        let popped = buffer.pop_buffered(&instance_id, &wait_key);
+        assert_eq!(popped.unwrap().signal_id, "sig-first", "Should pop first signal");
+
+        let after_pop = buffer.buffer_signal(
+            instance_id.clone(),
+            wait_key.clone(),
+            make_signal("sig-after-pop"),
+            BufferPolicy::BufferOne,
+        );
+        assert_eq!(after_pop, BufferResult::Buffered, "Signal after pop should be buffered");
+    }
+
+    // RQ-SBO04: Overflow signals are not silently lost - caller receives Dropped
+    // EARS Unwanted: If signals dropped, THE SYSTEM SHALL lose critical signals
+    // This test verifies the caller CAN detect overflow via BufferResult
+    #[test]
+    fn rq_overflow_result_enables_accountability() {
+        let mut buffer = SignalBuffer::new(SignalBufferConfig::new(2));
+        let instance_id = make_instance_id(0x01);
+        let wait_key = make_wait_key("approval");
+
+        buffer.buffer_signal(instance_id.clone(), wait_key.clone(), make_signal("sig-0"), BufferPolicy::BufferMany);
+        buffer.buffer_signal(instance_id.clone(), wait_key.clone(), make_signal("sig-1"), BufferPolicy::BufferMany);
+
+        let dropped_signal_id = "sig-dropped".to_string();
+        let overflow_result = buffer.buffer_signal(
+            instance_id.clone(),
+            wait_key.clone(),
+            make_signal(&dropped_signal_id),
+            BufferPolicy::BufferMany,
+        );
+
+        assert_eq!(overflow_result, BufferResult::Dropped, "Overflow must return Dropped for accountability");
+        assert!(
+            buffer.peek_all(&instance_id, &wait_key)
+                .iter()
+                .all(|s| s.signal_id != dropped_signal_id),
+            "Dropped signal must not appear in buffer"
+        );
+    }
+
+    // RQ-SBO05: Separate keys have independent buffer capacity
+    #[test]
+    fn rq_separate_keys_independent_overflow() {
+        let mut buffer = SignalBuffer::new(SignalBufferConfig::new(2));
+        let instance_id = make_instance_id(0x01);
+        let wait_key_a = make_wait_key("approval");
+        let wait_key_b = make_wait_key("authorization");
+
+        for i in 0..2 {
+            buffer.buffer_signal(instance_id.clone(), wait_key_a.clone(), make_signal(&format!("sig-a-{i}")), BufferPolicy::BufferMany);
+        }
+
+        for i in 0..2 {
+            buffer.buffer_signal(instance_id.clone(), wait_key_b.clone(), make_signal(&format!("sig-b-{i}")), BufferPolicy::BufferMany);
+        }
+
+        let overflow_a = buffer.buffer_signal(instance_id.clone(), wait_key_a.clone(), make_signal("sig-a-overflow"), BufferPolicy::BufferMany);
+        let overflow_b = buffer.buffer_signal(instance_id.clone(), wait_key_b.clone(), make_signal("sig-b-overflow"), BufferPolicy::BufferMany);
+
+        assert_eq!(overflow_a, BufferResult::Dropped, "Key A should be at capacity");
+        assert_eq!(overflow_b, BufferResult::Dropped, "Key B should be at capacity");
+        assert_eq!(buffer.buffered_count(&instance_id, &wait_key_a), 2);
+        assert_eq!(buffer.buffered_count(&instance_id, &wait_key_b), 2);
+    }
+
+    // RQ-SBO06: Signals can be consumed to make room for new signals
+    #[test]
+    fn rq_signals_can_be_consumed_to_allow_more() {
+        let mut buffer = SignalBuffer::new(SignalBufferConfig::new(2));
+        let instance_id = make_instance_id(0x01);
+        let wait_key = make_wait_key("approval");
+
+        buffer.buffer_signal(instance_id.clone(), wait_key.clone(), make_signal("sig-0"), BufferPolicy::BufferMany);
+        buffer.buffer_signal(instance_id.clone(), wait_key.clone(), make_signal("sig-1"), BufferPolicy::BufferMany);
+
+        let overflow = buffer.buffer_signal(instance_id.clone(), wait_key.clone(), make_signal("sig-overflow"), BufferPolicy::BufferMany);
+        assert_eq!(overflow, BufferResult::Dropped, "Should be at capacity");
+
+        let popped = buffer.pop_buffered(&instance_id, &wait_key);
+        assert_eq!(popped.unwrap().signal_id, "sig-0", "Should pop first signal");
+
+        let after_consume = buffer.buffer_signal(instance_id.clone(), wait_key.clone(), make_signal("sig-new"), BufferPolicy::BufferMany);
+        assert_eq!(after_consume, BufferResult::Buffered, "Should be able to buffer after consume");
+        assert_eq!(buffer.buffered_count(&instance_id, &wait_key), 2, "Should have 2 signals again");
+    }
+}
