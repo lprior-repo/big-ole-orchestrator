@@ -4,13 +4,12 @@
 //! Actors are the fundamental units of computation in the engine.
 
 use bytes::Bytes;
+pub use vo_common::NamespaceId;
 use vo_types::InstanceId;
 
 pub mod heartbeat {
     pub fn run_heartbeat_watcher() {}
 }
-
-pub mod master;
 
 pub mod async_message_router;
 pub mod fairness;
@@ -75,6 +74,44 @@ pub enum SignalError {
     NotFound(String),
     #[error("signal failed: {0}")]
     Failed(String),
+}
+
+/// Instance snapshot for status queries.
+#[derive(Debug, Clone)]
+pub struct InstanceSnapshot {
+    pub instance_id: InstanceId,
+    pub namespace: NamespaceId,
+    pub workflow_type: String,
+    pub paradigm: WorkflowParadigm,
+    pub phase: InstancePhaseView,
+    pub events_applied: u64,
+}
+
+#[cfg(test)]
+mod signal_error_tests {
+    use super::*;
+
+    #[test]
+    fn signal_error_variants_can_be_constructed() {
+        let err = SignalError::NotFound("inst-1".to_string());
+        assert!(matches!(err, SignalError::NotFound(msg) if msg == "inst-1"));
+
+        let err = SignalError::Failed("timeout".to_string());
+        assert!(matches!(err, SignalError::Failed(msg) if msg == "timeout"));
+    }
+
+    #[test]
+    fn orchestrator_msg_signal_variant_exists() {
+        fn _check(_msg: OrchestratorMsg) {
+            if let OrchestratorMsg::Signal {
+                instance_id: _,
+                signal_name: _,
+                payload: _,
+                reply: _,
+            } = _msg
+            {}
+        }
+    }
 }
 
 #[cfg(test)]

@@ -114,7 +114,7 @@ pub use effects::{
 };
 pub use encryption::{CryptoAlgorithm, DekId, EncryptedBlob, KeyMetadata, WrappedDek};
 pub use errors::ParseError;
-pub use events::{Error as EventError, EventEnvelope, EventMetadata};
+pub use events::{Error as EventError, EventEnvelope};
 pub use identity::{CausationId, CommandId, CorrelationId};
 pub use instance_status::InstanceStatus;
 pub use lifecycle_superstate::LifecycleSuperstate;
@@ -200,9 +200,5 @@ mod schema_version_tests;
 mod serde_tests;
 #[cfg(test)]
 mod tests_bdd_dag_cycle_validation;
-#[cfg(test)]
-mod tests_bdd_dag_connectivity;
-#[cfg(test)]
-mod tests_bdd_dag_merge_point;
 #[cfg(test)]
 mod workflow_tests;

@@ -3,7 +3,7 @@ mod types;
 
 pub use types::{DagNode, Edge, EdgeCondition, RetryPolicy, RetryPolicyError, StepOutcome};
 
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 
@@ -46,18 +46,6 @@ pub enum WorkflowDefinitionError {
         node_name: NodeName,
         reason: RetryPolicyError,
     },
-
-    /// No node has in-degree zero (no entry point exists).
-    #[error("workflow has no start node: every node has at least one incoming edge")]
-    NoStartNode,
-
-    /// One or more nodes have no edges and are disconnected from the graph.
-    #[error("workflow contains orphan nodes with no edges: {orphan_nodes:?}")]
-    OrphanNodes { orphan_nodes: Vec<NodeName> },
-
-    /// One or more nodes are not reachable from any start node.
-    #[error("workflow contains unreachable nodes: {unreachable_nodes:?}")]
-    UnreachableNodes { unreachable_nodes: Vec<NodeName> },
 }
 
 // ---------------------------------------------------------------------------
@@ -85,13 +73,11 @@ impl WorkflowDefinition {
     /// 3. `RetryPolicy` validation per node
     /// 4. Edge referential integrity (source and target node names must exist)
     /// 5. DFS cycle detection
-    /// 6. Connectivity validation (orphan nodes, unreachable nodes, start node)
     ///
     /// # Errors
     ///
     /// Returns `WorkflowDefinitionError` if deserialization fails, the graph is
-    /// empty, contains invalid retry policies, unknown edge references, cycles,
-    /// orphan nodes, unreachable nodes, or has no start node.
+    /// empty, contains invalid retry policies, unknown edge references, or cycles.
     pub fn from_deserializer<'de, D>(deserializer: D) -> Result<Self, WorkflowDefinitionError>
     where
         D: serde::de::Deserializer<'de>,
@@ -176,9 +162,6 @@ impl WorkflowDefinition {
         if let Some(cycle_nodes) = detect_cycle(&unvalidated.nodes, &unvalidated.edges) {
             return Err(WorkflowDefinitionError::CycleDetected { cycle_nodes });
         }
-
-        // Step 6: Connectivity validation
-        validate_connectivity(&unvalidated.nodes, &unvalidated.edges)?;
 
         // Construct validated definition
         Ok(WorkflowDefinition {
@@ -289,76 +272,4 @@ fn dfs_cycle<'a>(
             None
         }
     }
-}
-
-fn validate_connectivity(
-    nodes: &[DagNode],
-    edges: &[Edge],
-) -> Result<(), WorkflowDefinitionError> {
-    if nodes.len() <= 1 || edges.is_empty() {
-        return Ok(());
-    }
-
-    let node_names: HashSet<&NodeName> = nodes.iter().map(|n| &n.node_name).collect();
-
-    let mut in_degree: HashMap<&NodeName, usize> = HashMap::new();
-    let mut out_degree: HashMap<&NodeName, usize> = HashMap::new();
-    for name in &node_names {
-        in_degree.entry(name).or_insert(0);
-        out_degree.entry(name).or_insert(0);
-    }
-    for edge in edges {
-        *out_degree.entry(&edge.source_node).or_insert(0) += 1;
-        *in_degree.entry(&edge.target_node).or_insert(0) += 1;
-    }
-
-    let orphan_nodes: Vec<NodeName> = nodes
-        .iter()
-        .filter(|n| in_degree[&n.node_name] == 0 && out_degree[&n.node_name] == 0)
-        .map(|n| n.node_name.clone())
-        .collect();
-    if !orphan_nodes.is_empty() {
-        return Err(WorkflowDefinitionError::OrphanNodes { orphan_nodes });
-    }
-
-    let start_nodes: Vec<&NodeName> = node_names
-        .iter()
-        .filter(|name| in_degree[*name] == 0)
-        .copied()
-        .collect();
-
-    if start_nodes.is_empty() {
-        return Err(WorkflowDefinitionError::NoStartNode);
-    }
-
-    let mut adj: HashMap<&NodeName, Vec<&NodeName>> = HashMap::new();
-    for edge in edges {
-        adj.entry(&edge.source_node).or_default().push(&edge.target_node);
-    }
-
-    let mut reachable: HashSet<&NodeName> = HashSet::new();
-    let mut queue: VecDeque<&NodeName> = start_nodes.iter().copied().collect();
-    for name in &start_nodes {
-        reachable.insert(name);
-    }
-    while let Some(current) = queue.pop_front() {
-        if let Some(neighbors) = adj.get(current) {
-            for neighbor in neighbors {
-                if reachable.insert(neighbor) {
-                    queue.push_back(neighbor);
-                }
-            }
-        }
-    }
-
-    let unreachable_nodes: Vec<NodeName> = node_names
-        .iter()
-        .filter(|name| !reachable.contains(*name))
-        .map(|name| (*name).clone())
-        .collect();
-    if !unreachable_nodes.is_empty() {
-        return Err(WorkflowDefinitionError::UnreachableNodes { unreachable_nodes });
-    }
-
-    Ok(())
 }

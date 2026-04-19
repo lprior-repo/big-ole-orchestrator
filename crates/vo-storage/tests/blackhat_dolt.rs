@@ -126,27 +126,6 @@ fn bead_payload_with_sql_injection_does_not_corrupt_decode() {
 
 // ── 4. Malformed Dolt value: null bytes in JSON ────────────────────────────────
 
-fn bd() -> Command {
-    Command::new("bd")
-}
-
-fn mk_issue(title: &str, desc: &str) -> Option<String> {
-    let out = bd()
-        .current_dir("/home/lewis/gt/veloxide/polecats/raider/veloxide")
-        .args(["create", title, "-d", desc, "--silent", "--json"])
-        .output()
-        .ok()?;
-    if out.status.success() {
-        serde_json::from_slice::<serde_json::Value>(&out.stdout)
-            .ok()?
-            .get("id")?
-            .as_str()
-            .map(String::from)
-    } else {
-        None
-    }
-}
-
 #[test]
 fn null_bytes_in_stored_json_rejected_cleanly() {
     let payloads: Vec<Vec<u8>> = vec![

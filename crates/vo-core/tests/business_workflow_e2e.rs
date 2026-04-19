@@ -551,3 +551,111 @@ fn e2e_timer_workflow_resumes_after_timer_fired() {
         "timer workflow should complete"
     );
 }
+
+// =========================================================================
+// Section 6: DAG Failure Cascade Tests (BDD)
+// =========================================================================
+
+// DAG-01: BDD — Given a DAG with OnFailure/OnSuccess branches,
+// When a node fails, Then OnFailure edge correctly routes to compensation
+#[test]
+fn e2e_dag_node_failure_routes_via_on_failure_edge() {
+    let workflow = workflow_from_json(json!({
+        "workflow_name": "e2e-dag-failure-route",
+        "nodes": [
+            { "node_name": "action", "retry_policy": { "max_attempts": 1, "backoff_ms": 0, "backoff_multiplier": 1.0 } },
+            { "node_name": "success_path", "retry_policy": { "max_attempts": 1, "backoff_ms": 0, "backoff_multiplier": 1.0 } },
+            { "node_name": "compensate", "retry_policy": { "max_attempts": 1, "backoff_ms": 0, "backoff_multiplier": 1.0 } }
+        ],
+        "edges": [
+            { "source_node": "action", "target_node": "success_path", "condition": "OnSuccess" },
+            { "source_node": "action", "target_node": "compensate", "condition": "OnFailure" }
+        ]
+    }));
+
+    let instance_id = "dag-fail-route-001";
+    let workflow_id = workflow.workflow_name.as_str();
+    let events = vec![
+        make_event(instance_id, 1, workflow_started_payload(workflow_id)),
+        make_event(instance_id, 2, step_scheduled_payload(workflow_id, "action", 1, 1)),
+        make_event(instance_id, 3, step_started_payload(workflow_id, "action")),
+        make_event(instance_id, 4, json!({
+            "type": "StepFailed",
+            "workflow_id": workflow_id,
+            "step_id": "action",
+            "failure_reason": "action failed",
+            "attempt": 1,
+            "fence": 1,
+            "version": 1
+        })),
+    ];
+
+    let engine = ReplayEngine::new();
+    let result = engine.replay(&events).expect("replay should succeed");
+
+    assert_eq!(result.events_applied, 4, "all 4 events should be applied");
+    assert_eq!(
+        result.final_state,
+        Some(LifecycleState::Failed),
+        "StepFailed should transition to Failed"
+    );
+
+    let action = vo_types::NodeName::parse("action").expect("valid node name");
+    let failure_successors = next_nodes(&action, StepOutcome::Failure, &workflow);
+    assert_eq!(failure_successors.len(), 1);
+    assert_eq!(failure_successors[0].node_name.as_str(), "compensate");
+
+    let success_successors = next_nodes(&action, StepOutcome::Success, &workflow);
+    assert_eq!(success_successors.len(), 1);
+    assert_eq!(success_successors[0].node_name.as_str(), "success_path");
+}
+
+// DAG-02: BDD — Given a DAG with OnFailure compensation path,
+// When node fails, Then compensation path is selected via OnFailure edge
+#[test]
+fn e2e_dag_failure_routes_to_compensation_via_on_failure() {
+    let workflow = workflow_from_json(json!({
+        "workflow_name": "e2e-dag-compensation",
+        "nodes": [
+            { "node_name": "action", "retry_policy": { "max_attempts": 1, "backoff_ms": 0, "backoff_multiplier": 1.0 } },
+            { "node_name": "success_handler", "retry_policy": { "max_attempts": 1, "backoff_ms": 0, "backoff_multiplier": 1.0 } },
+            { "node_name": "compensate", "retry_policy": { "max_attempts": 1, "backoff_ms": 0, "backoff_multiplier": 1.0 } }
+        ],
+        "edges": [
+            { "source_node": "action", "target_node": "success_handler", "condition": "OnSuccess" },
+            { "source_node": "action", "target_node": "compensate", "condition": "OnFailure" }
+        ]
+    }));
+
+    let instance_id = "dag-comp-001";
+    let workflow_id = workflow.workflow_name.as_str();
+    let events = vec![
+        make_event(instance_id, 1, workflow_started_payload(workflow_id)),
+        make_event(instance_id, 2, step_scheduled_payload(workflow_id, "action", 1, 1)),
+        make_event(instance_id, 3, step_started_payload(workflow_id, "action")),
+        make_event(instance_id, 4, json!({
+            "type": "StepFailed",
+            "workflow_id": workflow_id,
+            "step_id": "action",
+            "failure_reason": "action failed",
+            "attempt": 1,
+            "fence": 1,
+            "version": 1
+        })),
+    ];
+
+    let engine = ReplayEngine::new();
+    let result = engine.replay(&events).expect("replay should succeed");
+
+    assert_eq!(result.events_applied, 4, "all 4 events should be applied");
+    assert_eq!(
+        result.final_state,
+        Some(LifecycleState::Failed),
+        "StepFailed should transition to Failed"
+    );
+
+    let action = vo_types::NodeName::parse("action").expect("valid node name");
+    let compensate_path = next_nodes(&action, StepOutcome::Failure, &workflow);
+    assert_eq!(compensate_path.len(), 1);
+    assert_eq!(compensate_path[0].node_name.as_str(), "compensate");
+}

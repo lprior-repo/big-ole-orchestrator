@@ -76,19 +76,12 @@ pub enum EffectTransitionError {
 }
 
 /// Persisted record of a managed effect.
-///
-/// Schema evolution guarantees (ADR-035 alignment):
-/// - `committed_at` has `#[serde(default)]` so records persisted before this
-///   field was added (or when it was `None`) deserialize correctly.
-/// - Unknown fields are silently ignored (forward compatibility: old code can
-///   read records written by newer versions without error).
 #[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct EffectRecord {
     intent_id: String,
     kind: EffectKind,
     params_json: serde_json::Value,
     status: EffectIntent,
-    #[serde(default)]
     committed_at: Option<crate::types::TimestampMs>,
 }
 
@@ -589,119 +582,6 @@ mod tests {
         let json = serde_json::to_string(&r).unwrap();
         let recovered: EffectRecord = serde_json::from_str(&json).unwrap();
         assert_eq!(recovered, r);
-    }
-
-    // ========================================================================
-    // Schema Evolution Tests
-    // ========================================================================
-
-    /// Old-format record (no `committed_at` field) deserializes correctly.
-    /// This simulates records persisted before `committed_at` was added or when
-    /// a future version drops the field. The `#[serde(default)]` ensures it
-    /// becomes `None`.
-    #[test]
-    fn schema_evolution_old_format_without_committed_at_deserializes() {
-        let old_json = r#"{
-            "intent_id": "fx-old-1",
-            "kind": "HttpCall",
-            "params_json": {"url": "https://legacy.example.com"},
-            "status": "Prepared"
-        }"#;
-        let record: EffectRecord = serde_json::from_str(old_json).unwrap();
-        assert_eq!(record.intent_id(), "fx-old-1");
-        assert_eq!(record.kind(), EffectKind::HttpCall);
-        assert_eq!(record.status(), EffectIntent::Prepared);
-        assert_eq!(record.committed_at(), None);
-    }
-
-    /// Old-format record with all statuses deserializes without `committed_at`.
-    #[test]
-    fn schema_evolution_old_format_all_statuses() {
-        for (status_str, expected) in [
-            ("\"Prepared\"", EffectIntent::Prepared),
-            ("\"Committed\"", EffectIntent::Committed),
-            ("\"RolledBack\"", EffectIntent::RolledBack),
-        ] {
-            let old_json = format!(
-                r#"{{"intent_id": "fx-old-status", "kind": "SqlQuery", "params_json": {{}}, "status": {status_str}}}"#
-            );
-            let record: EffectRecord = serde_json::from_str(&old_json).unwrap();
-            assert_eq!(record.status(), expected);
-            assert_eq!(record.committed_at(), None);
-        }
-    }
-
-    /// New-format record with all fields including `committed_at` deserializes.
-    #[test]
-    fn schema_evolution_new_format_with_committed_at_deserializes() {
-        let new_json = r#"{
-            "intent_id": "fx-new-1",
-            "kind": "BlobWrite",
-            "params_json": {"bucket": "data"},
-            "status": "Committed",
-            "committed_at": 1700000000
-        }"#;
-        let record: EffectRecord = serde_json::from_str(new_json).unwrap();
-        assert_eq!(record.intent_id(), "fx-new-1");
-        assert_eq!(record.kind(), EffectKind::BlobWrite);
-        assert_eq!(record.status(), EffectIntent::Committed);
-        assert!(record.committed_at().is_some());
-    }
-
-    /// Forward compatibility: unknown fields from a future version are ignored.
-    /// Old code reading records written by a newer version must not break.
-    #[test]
-    fn schema_evolution_unknown_fields_ignored() {
-        let future_json = r#"{
-            "intent_id": "fx-future-1",
-            "kind": "HttpCall",
-            "params_json": {},
-            "status": "Prepared",
-            "committed_at": null,
-            "future_field_a": "some value",
-            "future_field_b": 42,
-            "nested_future": {"deep": [1, 2, 3]}
-        }"#;
-        let record: EffectRecord = serde_json::from_str(future_json).unwrap();
-        assert_eq!(record.intent_id(), "fx-future-1");
-        assert_eq!(record.kind(), EffectKind::HttpCall);
-        assert_eq!(record.status(), EffectIntent::Prepared);
-        assert_eq!(record.committed_at(), None);
-    }
-
-    /// Round-trip preserves `committed_at: Some(...)` across serialize/deserialize.
-    #[test]
-    fn schema_evolution_roundtrip_with_committed_at_some() {
-        let ts = crate::types::TimestampMs(1700000000);
-        let record = EffectRecord::new(
-            "fx-rt-ts".to_string(),
-            EffectKind::SqlQuery,
-            json!({"q": "SELECT 1"}),
-            EffectIntent::Committed,
-            Some(ts),
-        )
-        .unwrap();
-        let json = serde_json::to_string(&record).unwrap();
-        let recovered: EffectRecord = serde_json::from_str(&json).unwrap();
-        assert_eq!(recovered.committed_at(), Some(&ts));
-    }
-
-    /// Round-trip preserves `committed_at: None` — serialized JSON omits it
-    /// when using serde default, or includes null. Either way, deserialization
-    /// must yield None.
-    #[test]
-    fn schema_evolution_roundtrip_with_committed_at_none() {
-        let record = EffectRecord::new(
-            "fx-rt-none".to_string(),
-            EffectKind::BlobWrite,
-            json!({"bucket": "b"}),
-            EffectIntent::Prepared,
-            None,
-        )
-        .unwrap();
-        let json = serde_json::to_string(&record).unwrap();
-        let recovered: EffectRecord = serde_json::from_str(&json).unwrap();
-        assert_eq!(recovered.committed_at(), None);
     }
 
     // ========================================================================
