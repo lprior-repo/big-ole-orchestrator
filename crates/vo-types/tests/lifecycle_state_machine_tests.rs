@@ -6,6 +6,8 @@
 //! - Transition completeness (every state has exhaustive valid transitions)
 //! - Superstate mappings are correct
 //! - Property-based invariants over random transition sequences
+#![allow(clippy::expect_used, clippy::unwrap_used, clippy::useless_vec, unused_imports, unused_variables)]
+
 
 use proptest::prelude::*;
 use vo_types::state::{LifecycleState, OperationalStatus, TransitionEvent};

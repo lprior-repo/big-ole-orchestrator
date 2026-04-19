@@ -14,6 +14,8 @@
 //! 9. Parallel fan-in validity
 //! 10. Terminal-to-active edge rejection
 
+#![allow(clippy::expect_used, clippy::unwrap_used, clippy::useless_conversion, unused_imports, unused_variables)]
+
 use crate::{
     DagNode, DependencyGraphResolver, Edge, EdgeCondition, NodeName, NonEmptyVec, RetryPolicy,
     StepOutcome, WorkflowDefinition, WorkflowDefinitionError, WorkflowName,

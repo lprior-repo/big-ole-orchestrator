@@ -1,3 +1,5 @@
+#![allow(clippy::expect_used, clippy::unwrap_used, clippy::useless_vec, unused_imports, unused_variables)]
+
 use vo_types::events::EventEnvelope;
 use vo_types::RetryPolicy;
 

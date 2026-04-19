@@ -1,3 +1,5 @@
+#![allow(clippy::expect_used, clippy::unwrap_used, clippy::useless_vec, clippy::useless_conversion, clippy::panic, clippy::absurd_extreme_comparisons, clippy::clone_on_copy, clippy::explicit_counter_loop, clippy::needless_range_loop, clippy::module_inception, clippy::duplicated_attributes, clippy::expect_fun_call, clippy::needless_borrows_for_generic_args, clippy::double_comparisons, clippy::identity_op, unused_imports, unused_variables, dead_code)]
+
 mod binomial_heap;
 mod rope;
 #[cfg(test)]

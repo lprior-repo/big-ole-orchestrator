@@ -5,6 +5,8 @@
 //! - CorrelationId groups all work from a single business request
 //! - Command chains can be fully traced via causation links
 
+#![allow(clippy::expect_used, clippy::unwrap_used, clippy::useless_vec, unused_imports, unused_variables)]
+
 use std::collections::HashMap;
 
 use uuid::Uuid;

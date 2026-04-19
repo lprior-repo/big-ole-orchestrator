@@ -1,3 +1,5 @@
+#![allow(clippy::expect_used, clippy::unwrap_used, unused_imports, unused_variables)]
+
 use crate::*;
 #[cfg(feature = "proptest")]
 use proptest::prelude::*;

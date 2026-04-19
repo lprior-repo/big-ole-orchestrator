@@ -4,6 +4,8 @@
 //! These tests verify that exotic control characters (form feed, bell, backspace,
 //! vertical tab) are rejected, and that dual-side injection scenarios cannot bypass
 //! validation.
+#![allow(clippy::expect_used, clippy::unwrap_used, clippy::useless_vec, unused_imports, unused_variables)]
+
 
 use vo_types::WorkflowLineage;
 

@@ -1,5 +1,7 @@
 //! QA tests for btree.rs: proptest, adversarial, boundary, and concurrent coverage.
 
+#![allow(clippy::expect_used, clippy::unwrap_used, clippy::useless_vec, clippy::needless_range_loop, clippy::explicit_counter_loop, unused_imports, unused_variables)]
+
 use proptest::prelude::*;
 use vo_types::BTree;
 

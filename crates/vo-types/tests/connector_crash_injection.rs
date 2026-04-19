@@ -3,6 +3,8 @@
 //! This module provides integration tests for the connector runtime,
 //! verifying exactly-once commit semantics under crash injection and
 //! checking the reconciliation path.
+#![allow(clippy::expect_used, clippy::unwrap_used, clippy::useless_vec, unused_imports, unused_variables)]
+
 
 use vo_types::{
     execute_with_reconciliation, reconcile_ambiguous, Connector, ConnectorError, ConnectorResult,
