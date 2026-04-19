@@ -167,14 +167,10 @@ mod terminate_error_tests {
 // Actor message types
 pub mod actor_messages;
 pub mod signal_messages;
+mod test_utilities;
 
-pub use signal_messages::{
-    AcceptResumeError, AcceptResumeOutcome, BinaryHash, CancelError, CancelRequested,
-    ContinueAsNewError, InstanceResumed, LifecycleState, NodeName, ResumeError, RolloverState,
-    SecretId, SignalAccepted, SignalPayload, SignalStorage, SignalStorageError, SignalWorkQueue,
-    SignalWorkQueueError, StateLookup, TestStateLookup, TimestampMs, WaitKey, WorkflowCancelled,
-    WorkflowContinued,
-};
+pub use signal_messages::{AcceptResumeError, AcceptResumeOutcome, BinaryHash, CancelError, CancelRequested, ContinueAsNewError, InstanceResumed, LifecycleState, NodeName, ResumeError, SecretId, SignalAccepted, SignalPayload, SignalStorage, SignalWorkQueue, SignalWorkQueueError, StateLookup, TimestampMs, WaitKey, WorkflowCancelled, WorkflowContinued};
+pub use test_utilities::TestStateLookup;
 pub use signal_messages::mock_signal_storage::{MockSignalStorage, MockSignalWorkQueue};
 pub use signal_messages::mock_signal_storage;
 

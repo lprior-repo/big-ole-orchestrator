@@ -43,6 +43,11 @@ impl MockTimerStorage {
         self.timers.lock().await.push_back(timer);
     }
 
+    /// Adds a pending timer to the storage.
+    pub async fn add_pending_timer(&self, timer: PendingTimer) {
+        self.pending_timers.lock().await.insert(timer.instance_id.clone(), timer);
+    }
+
     /// Sets whether operations should fail.
     pub async fn set_should_fail(&self, should_fail: bool) {
         *self.should_fail.lock().await = should_fail;
