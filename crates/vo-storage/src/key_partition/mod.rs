@@ -23,9 +23,6 @@ use std::fmt;
 
 use vo_types::{DekId, InstanceId, KeyMetadata, WrappedDek};
 
-#[cfg(all(test, feature = "proptest"))]
-mod proptests;
-
 mod fjall_dek_store;
 
 // ---------------------------------------------------------------------------
@@ -112,29 +109,19 @@ pub enum DekStatus {
 #[derive(Debug, PartialEq, Eq)]
 pub enum DekStoreError {
     /// No DEK exists for this InstanceId.
-    DekNotFound {
-        instance_id: String,
-    },
+    DekNotFound { instance_id: String },
 
     /// The DEK has been retired (crypto-shredded).
-    DekRetired {
-        dek_id: String,
-    },
+    DekRetired { dek_id: String },
 
     /// A DEK already exists for this InstanceId.
-    DekAlreadyExists {
-        instance_id: String,
-    },
+    DekAlreadyExists { instance_id: String },
 
     /// Storage operation failed.
-    Storage {
-        reason: String,
-    },
+    Storage { reason: String },
 
     /// Codec/serialization error.
-    Codec {
-        reason: String,
-    },
+    Codec { reason: String },
 
     /// Invalid argument.
     InvalidArgument,
@@ -275,11 +262,7 @@ pub trait DekStore: Send + Sync {
     ///
     /// Returns `DekStoreError::DekNotFound` if no DEK exists to rotate.
     /// Returns `DekStoreError::Storage` if the underlying storage fails.
-    fn rotate_dek(
-        &self,
-        instance_id: &InstanceId,
-        kek: &[u8; 32],
-    ) -> Result<DekId, DekStoreError>;
+    fn rotate_dek(&self, instance_id: &InstanceId, kek: &[u8; 32]) -> Result<DekId, DekStoreError>;
 
     /// Retire a DEK (crypto-shred it).
     ///

@@ -1,5 +1,5 @@
 use crate::codec::StorageError;
-use fjall::PartitionHandle;
+pub use fjall::PartitionHandle;
 use serde::{Deserialize, Serialize};
 use vo_types::state::InstanceState;
 use vo_types::InstanceId;
