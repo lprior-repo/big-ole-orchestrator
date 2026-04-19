@@ -56,54 +56,27 @@ impl TimerRecord {
 // =============================================================================
 
 /// `TimerSupervisorError` - All error variants for `TimerSupervisor`
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum TimerSupervisorError {
-    /// Storage operation failed - transient, retryable
+    #[error("Storage error: {0}")]
     StorageError(String),
-
-    /// Timer key corrupt or malformed - fatal, requires manual intervention
+    #[error("Corrupt timer: {0}")]
     CorruptTimer(String),
-
-    /// Atomicity violation: delete succeeded but dispatch failed
-    /// Timer may be lost; requires reconciliation
+    #[error("Atomicity violation: {0}")]
     AtomicityViolation(String),
-
-    /// Instance actor not found - transient if actor is restarting
+    #[error("Instance not found: {0}")]
     InstanceNotFound(InstanceId),
-
-    /// Dispatch failed due to actor mailbox full
+    #[error("Mailbox full: {0}")]
     MailboxFull(InstanceId),
-
-    /// Configuration error - fatal
+    #[error("Invalid config: {0}")]
     InvalidConfig(String),
-
-    /// Reanimator already running
+    #[error("Already running")]
     AlreadyRunning,
-
-    /// Reanimator shutdown timeout
+    #[error("Shutdown timeout: {0:?}")]
     ShutdownTimeout(Duration),
-
-    /// Dispatch error
+    #[error("Dispatch error: {0}")]
     DispatchError(String),
 }
-
-impl std::fmt::Display for TimerSupervisorError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::StorageError(s) => write!(f, "Storage error: {s}"),
-            Self::CorruptTimer(s) => write!(f, "Corrupt timer: {s}"),
-            Self::AtomicityViolation(s) => write!(f, "Atomicity violation: {s}"),
-            Self::InstanceNotFound(id) => write!(f, "Instance not found: {id}"),
-            Self::MailboxFull(id) => write!(f, "Mailbox full: {id}"),
-            Self::InvalidConfig(s) => write!(f, "Invalid config: {s}"),
-            Self::AlreadyRunning => write!(f, "Already running"),
-            Self::ShutdownTimeout(d) => write!(f, "Shutdown timeout: {d:?}"),
-            Self::DispatchError(s) => write!(f, "Dispatch error: {s}"),
-        }
-    }
-}
-
-impl std::error::Error for TimerSupervisorError {}
 
 // =============================================================================
 // TimerSupervisorMetrics - Metrics for TimerSupervisor
@@ -142,6 +115,8 @@ pub struct TimerSupervisorMetrics {
     pub overdue_timers: Counter,
     /// Number of dispatch errors.
     pub dispatch_errors: Counter,
+    /// Number of timers deleted but dispatch failed (DLQ rollback needed).
+    pub timer_deleted_but_dispatch_failed: Counter,
 }
 
 // =============================================================================
@@ -161,6 +136,23 @@ pub trait TimerStorage: Send + Sync {
         &self,
         instance_id: &InstanceId,
         fire_at_ms: u64,
+    ) -> Result<(), TimerSupervisorError>;
+
+    /// Reschedules a timer for retry with a backoff delay.
+    ///
+    /// Called when dispatch fails after the timer was deleted, providing
+    /// DLQ rollback to recover the timer.
+    ///
+    /// # Arguments
+    /// * `timer` - The timer record to reschedule
+    /// * `retry_delay_ms` - Delay in milliseconds before the timer should fire
+    ///
+    /// # Errors
+    /// Returns an error if the retry scheduling fails.
+    fn retry_timer(
+        &self,
+        timer: &TimerRecord,
+        retry_delay_ms: u64,
     ) -> Result<(), TimerSupervisorError>;
 }
 
@@ -288,7 +280,7 @@ impl TimerSupervisor {
             // Delete before dispatch (INV-2)
             match timer_delete_before_dispatch(&self.storage, &timer) {
                 Ok(()) => {
-                    // Dispatch succeeded
+                    // Dispatch
                     match self.work_queue.enqueue_resume(timer.instance_id.clone()) {
                         Ok(()) => {
                             self.metrics.timers_fired.incr();
@@ -296,12 +288,25 @@ impl TimerSupervisor {
                         }
                         Err(e) => {
                             self.metrics.dispatch_errors.incr();
+                            self.metrics.timer_deleted_but_dispatch_failed.incr();
                             error_count += 1;
                             tracing::error!(
                                 instance_id = %timer.instance_id,
+                                fire_at_ms = timer.fire_at_ms,
                                 error = %e,
-                                "Failed to enqueue resume work"
+                                "Failed to enqueue resume work after timer deletion - DLQ rollback: rescheduling with 1s backoff"
                             );
+                            // DLQ rollback: reschedule timer with 1s backoff for retry
+                            const RETRY_DELAY_MS: u64 = 1000;
+                            if let Err(retry_err) = self.storage.retry_timer(&timer, RETRY_DELAY_MS)
+                            {
+                                tracing::error!(
+                                    instance_id = %timer.instance_id,
+                                    fire_at_ms = timer.fire_at_ms,
+                                    retry_error = %retry_err,
+                                    "CRITICAL: Failed to reschedule timer after dispatch failure - timer permanently lost"
+                                );
+                            }
                         }
                     }
                 }

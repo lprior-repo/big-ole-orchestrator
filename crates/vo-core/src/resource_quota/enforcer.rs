@@ -173,7 +173,7 @@ impl Default for QuotaEnforcer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::resource_quota::OvercommitPolicy;
+    use crate::resource_quota::{OvercommitPolicy, QuotaUsage};
     use std::num::NonZeroU64;
 
     fn make_test_enforcer() -> QuotaEnforcer {
@@ -552,5 +552,142 @@ mod tests {
     fn enforcer_exposes_registry() {
         let enforcer = QuotaEnforcer::with_default_namespace();
         assert!(enforcer.registry().get("default").is_some());
+    }
+
+    #[test]
+    fn overflow_cpu_quota_at_u64_max_request_u64_max_returns_ok() {
+        let mut registry = NamespaceRegistry::new();
+        let _ = registry.register(
+            NamespaceQuota::new("max-ns")
+                .with_cpu(CpuQuota::new(NonZeroU64::new(u64::MAX).unwrap())),
+        );
+        let enforcer = QuotaEnforcer::new(registry);
+        assert!(enforcer.check_cpu("max-ns", u64::MAX).is_ok());
+    }
+
+    #[test]
+    fn overflow_cpu_quota_at_u64_max_request_max_minus_one_returns_ok() {
+        let mut registry = NamespaceRegistry::new();
+        let _ = registry.register(
+            NamespaceQuota::new("max-ns")
+                .with_cpu(CpuQuota::new(NonZeroU64::new(u64::MAX).unwrap())),
+        );
+        let enforcer = QuotaEnforcer::new(registry);
+        assert!(enforcer.check_cpu("max-ns", u64::MAX - 1).is_ok());
+    }
+
+    #[test]
+    fn overflow_memory_quota_at_u64_max_request_u64_max_returns_ok() {
+        let mut registry = NamespaceRegistry::new();
+        let _ = registry.register(
+            NamespaceQuota::new("max-ns")
+                .with_memory(MemoryQuota::new(NonZeroU64::new(u64::MAX).unwrap())),
+        );
+        let enforcer = QuotaEnforcer::new(registry);
+        assert!(enforcer.check_memory("max-ns", u64::MAX).is_ok());
+    }
+
+    #[test]
+    fn overflow_disk_quota_at_u64_max_request_u64_max_returns_ok() {
+        let mut registry = NamespaceRegistry::new();
+        let _ = registry.register(
+            NamespaceQuota::new("max-ns")
+                .with_disk(DiskQuota::new(NonZeroU64::new(u64::MAX).unwrap())),
+        );
+        let enforcer = QuotaEnforcer::new(registry);
+        assert!(enforcer.check_disk("max-ns", u64::MAX).is_ok());
+    }
+
+    #[test]
+    fn overflow_cpu_quota_max_minus_one_request_u64_max_returns_exceeded() {
+        let mut registry = NamespaceRegistry::new();
+        let _ = registry.register(
+            NamespaceQuota::new("max-ns")
+                .with_cpu(CpuQuota::new(NonZeroU64::new(u64::MAX - 1).unwrap())),
+        );
+        let enforcer = QuotaEnforcer::new(registry);
+        let err = enforcer.check_cpu("max-ns", u64::MAX).unwrap_err();
+        assert!(matches!(err, QuotaError::QuotaExceeded { resource: ResourceKind::Cpu, requested: u64::MAX, available, .. } if available == u64::MAX - 1));
+    }
+
+    #[test]
+    fn overflow_memory_quota_max_minus_one_request_u64_max_returns_exceeded() {
+        let mut registry = NamespaceRegistry::new();
+        let _ = registry.register(
+            NamespaceQuota::new("max-ns")
+                .with_memory(MemoryQuota::new(NonZeroU64::new(u64::MAX - 1).unwrap())),
+        );
+        let enforcer = QuotaEnforcer::new(registry);
+        let err = enforcer.check_memory("max-ns", u64::MAX).unwrap_err();
+        assert!(matches!(err, QuotaError::QuotaExceeded { resource: ResourceKind::Memory, requested: u64::MAX, available, .. } if available == u64::MAX - 1));
+    }
+
+    #[test]
+    fn overflow_disk_quota_max_minus_one_request_u64_max_returns_exceeded() {
+        let mut registry = NamespaceRegistry::new();
+        let _ = registry.register(
+            NamespaceQuota::new("max-ns")
+                .with_disk(DiskQuota::new(NonZeroU64::new(u64::MAX - 1).unwrap())),
+        );
+        let enforcer = QuotaEnforcer::new(registry);
+        let err = enforcer.check_disk("max-ns", u64::MAX).unwrap_err();
+        assert!(matches!(err, QuotaError::QuotaExceeded { resource: ResourceKind::Disk, requested: u64::MAX, available, .. } if available == u64::MAX - 1));
+    }
+
+    #[test]
+    fn overflow_all_resources_at_u64_max_with_overcommit_returns_ok() {
+        let mut registry = NamespaceRegistry::new();
+        let _ = registry.register(
+            NamespaceQuota::new("max-ns")
+                .with_cpu(CpuQuota::new(NonZeroU64::new(1).unwrap()))
+                .with_memory(MemoryQuota::new(NonZeroU64::new(1).unwrap()))
+                .with_disk(DiskQuota::new(NonZeroU64::new(1).unwrap()))
+                .with_overcommit(OvercommitPolicy::AllowOvercommit),
+        );
+        let enforcer = QuotaEnforcer::new(registry);
+        assert!(enforcer.check_cpu("max-ns", u64::MAX).is_ok());
+        assert!(enforcer.check_memory("max-ns", u64::MAX).is_ok());
+        assert!(enforcer.check_disk("max-ns", u64::MAX).is_ok());
+    }
+
+    #[test]
+    fn overflow_quota_usage_holds_u64_max_values() {
+        let usage = QuotaUsage::new()
+            .with_cpu(u64::MAX)
+            .with_memory(u64::MAX)
+            .with_disk(u64::MAX);
+        assert_eq!(usage.cpu_cores_used, u64::MAX);
+        assert_eq!(usage.memory_bytes_used, u64::MAX);
+        assert_eq!(usage.disk_bytes_used, u64::MAX);
+    }
+
+    #[test]
+    fn overflow_cpu_quota_at_u64_max_request_zero_returns_ok() {
+        let mut registry = NamespaceRegistry::new();
+        let _ = registry.register(
+            NamespaceQuota::new("max-ns")
+                .with_cpu(CpuQuota::new(NonZeroU64::new(u64::MAX).unwrap())),
+        );
+        let enforcer = QuotaEnforcer::new(registry);
+        assert!(enforcer.check_cpu("max-ns", 0).is_ok());
+    }
+
+    #[test]
+    fn overflow_cpu_quota_at_one_request_u64_max_returns_exceeded() {
+        let mut registry = NamespaceRegistry::new();
+        let _ = registry.register(
+            NamespaceQuota::new("max-ns")
+                .with_cpu(CpuQuota::new(NonZeroU64::new(1).unwrap())),
+        );
+        let enforcer = QuotaEnforcer::new(registry);
+        assert!(matches!(
+            enforcer.check_cpu("max-ns", u64::MAX),
+            Err(QuotaError::QuotaExceeded {
+                resource: ResourceKind::Cpu,
+                requested: u64::MAX,
+                available: 1,
+                ..
+            })
+        ));
     }
 }
