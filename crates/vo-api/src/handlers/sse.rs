@@ -14,10 +14,12 @@ use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 use vo_actor::OrchestratorMsg;
 
 use super::split_path_id;
-use crate::types::ApiError;
+use crate::types::{ApiError, events::WorkflowEvent};
 
 const SSE_KEEPALIVE_INTERVAL: Duration = Duration::from_secs(15);
 const SSE_BROADCAST_CAPACITY: usize = 1000;
+
+pub use crate::types::events::WorkflowEvent;
 
 #[derive(Clone)]
 pub struct SseBroadcaster {

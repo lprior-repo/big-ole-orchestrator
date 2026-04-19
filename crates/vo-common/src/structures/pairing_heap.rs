@@ -51,9 +51,7 @@ impl<T: Ord + Clone> PairingHeap<T> {
         }
         self.root = Some(match (self.root.take(), other.root.take()) {
             (Some(a), Some(b)) => link(a, b),
-            (None, Some(b)) => b,
-            (Some(a), None) => a,
-            (None, None) => unreachable!(),
+            (a, b) => a.or(b).unwrap(),
         });
         self.len += other.len;
         other.len = 0;
@@ -100,8 +98,7 @@ fn merge_pairs<T: Ord + Clone>(nodes: Vec<Box<Node<T>>>) -> Option<Box<Node<T>>>
         return None;
     }
     if nodes.len() == 1 {
-        let mut nodes = nodes;
-        return nodes.pop();
+        return Some(nodes.into_iter().next().unwrap());
     }
     let mut it = nodes.into_iter();
     let mut merged = Vec::new();
@@ -111,7 +108,7 @@ fn merge_pairs<T: Ord + Clone>(nodes: Vec<Box<Node<T>>>) -> Option<Box<Node<T>>>
             None => f,
         });
     }
-    let mut acc = merged.pop()?;
+    let mut acc = merged.pop().unwrap();
     while let Some(next) = merged.pop() {
         acc = link(acc, next);
     }

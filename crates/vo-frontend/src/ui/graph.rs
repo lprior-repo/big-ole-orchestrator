@@ -597,6 +597,190 @@ mod tests {
     }
 
     #[test]
+    fn node_id_serde_roundtrip_preserves_string() {
+        let original = NodeId::new();
+        let json = serde_json::to_string(&original).unwrap();
+        let deserialized: NodeId = serde_json::from_str(&json).unwrap();
+        assert_eq!(original, deserialized);
+        assert_eq!(original.0, deserialized.0);
+    }
+
+    #[test]
+    fn node_id_serde_json_value_roundtrip() {
+        let original = NodeId::new();
+        let value = serde_json::to_value(&original).unwrap();
+        let deserialized: NodeId = serde_json::from_value(value).unwrap();
+        assert_eq!(original, deserialized);
+        let raw = serde_json::to_value(&original).unwrap();
+        assert!(raw.is_string());
+    }
+
+    #[test]
+    fn execution_state_serde_roundtrip() {
+        for state in [
+            ExecutionState::Idle,
+            ExecutionState::Queued,
+            ExecutionState::Running,
+            ExecutionState::Completed,
+            ExecutionState::Failed,
+            ExecutionState::Skipped,
+        ] {
+            let json = serde_json::to_string(&state).unwrap();
+            let deserialized: ExecutionState = serde_json::from_str(&json).unwrap();
+            assert_eq!(state, deserialized);
+        }
+    }
+
+    #[test]
+    fn node_category_serde_roundtrip() {
+        for category in [
+            NodeCategory::Entry,
+            NodeCategory::Durable,
+            NodeCategory::State,
+            NodeCategory::Flow,
+            NodeCategory::Timing,
+            NodeCategory::Signal,
+        ] {
+            let json = serde_json::to_string(&category).unwrap();
+            let deserialized: NodeCategory = serde_json::from_str(&json).unwrap();
+            assert_eq!(category, deserialized);
+        }
+    }
+
+    #[test]
+    fn node_serde_roundtrip_all_fields() {
+        let id = NodeId::new();
+        let original = Node {
+            id: id.clone(),
+            name: "http-handler".to_string(),
+            description: "Handles incoming requests".to_string(),
+            kind: NodeKind::ManagedEffect,
+            category: NodeCategory::Durable,
+            icon: "database".to_string(),
+            x: 150.5,
+            y: 300.0,
+            config: serde_json::json!({"port": 8080, "timeout": 30}),
+            execution_state: ExecutionState::Running,
+        };
+
+        let json = serde_json::to_string(&original).unwrap();
+        let deserialized: Node = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(original, deserialized);
+        assert_eq!(deserialized.id, id);
+        assert_eq!(deserialized.name, "http-handler");
+        assert_eq!(deserialized.description, "Handles incoming requests");
+        assert_eq!(deserialized.kind, NodeKind::ManagedEffect);
+        assert_eq!(deserialized.category, NodeCategory::Durable);
+        assert_eq!(deserialized.icon, "database");
+        assert_eq!(deserialized.x, 150.5);
+        assert_eq!(deserialized.y, 300.0);
+        assert_eq!(deserialized.config["port"], 8080);
+        assert_eq!(deserialized.execution_state, ExecutionState::Running);
+    }
+
+    #[test]
+    fn node_serde_json_value_roundtrip() {
+        let original = Node::new(NodeId::new(), "test-node".to_string(), NodeKind::Pure);
+        let value = serde_json::to_value(&original).unwrap();
+        let deserialized: Node = serde_json::from_value(value).unwrap();
+        assert_eq!(original, deserialized);
+    }
+
+    #[test]
+    fn workflow_serde_roundtrip_multiple_nodes() {
+        let mut workflow = Workflow::new("test-pipeline".to_string());
+        workflow.current_step = 1;
+
+        let node1 = Node::new(NodeId::new(), "fetch-data".to_string(), NodeKind::ManagedEffect);
+        let node1_id = node1.id.clone();
+        let node2 = Node::new(NodeId::new(), "transform".to_string(), NodeKind::Pure);
+        let node2_id = node2.id.clone();
+        let node3 = Node::new(NodeId::new(), "store-result".to_string(), NodeKind::ManagedEffect);
+
+        workflow.add_node(node1);
+        workflow.add_node(node2);
+        workflow.add_node(node3);
+
+        workflow
+            .add_connection(node1_id.clone(), node2_id.clone(), &"output".into(), &"input".into())
+            .unwrap();
+
+        workflow.execution_queue.push(node1_id.clone());
+        workflow.execution_queue.push(node2_id);
+
+        let json = serde_json::to_string(&workflow).unwrap();
+        let deserialized: Workflow = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(workflow.name, deserialized.name);
+        assert_eq!(workflow.nodes.len(), deserialized.nodes.len());
+        assert_eq!(workflow.connections.len(), deserialized.connections.len());
+        assert_eq!(workflow.execution_queue.len(), deserialized.execution_queue.len());
+        assert_eq!(workflow.current_step, deserialized.current_step);
+
+        // Verify node contents survived roundtrip
+        assert_eq!(deserialized.nodes[0].name, "fetch-data");
+        assert_eq!(deserialized.nodes[1].name, "transform");
+        assert_eq!(deserialized.nodes[2].name, "store-result");
+        assert_eq!(deserialized.connections[0].source, node1_id);
+    }
+
+    #[test]
+    fn connection_serde_roundtrip() {
+        let original = Connection {
+            id: Uuid::new_v4(),
+            source: NodeId::new(),
+            target: NodeId::new(),
+            source_port: PortName("output".to_string()),
+            target_port: PortName("input".to_string()),
+        };
+
+        let json = serde_json::to_string(&original).unwrap();
+        let deserialized: Connection = serde_json::from_str(&json).unwrap();
+        assert_eq!(original, deserialized);
+    }
+
+    #[test]
+    fn node_from_value_with_extra_fields_tolerates_unknown() {
+        // serde (without #[serde(deny_unknown_fields)]) ignores unknown fields by default
+        let id = NodeId::new();
+        let id_str = id.0.clone();
+        let json_str = format!(
+            r#"{{
+                "id": "{id_str}",
+                "name": "test",
+                "description": "",
+                "kind": "pure",
+                "category": "Flow",
+                "icon": "zap",
+                "x": 0.0,
+                "y": 0.0,
+                "config": {{}},
+                "execution_state": "Idle",
+                "unknown_field": "should be ignored"
+            }}"#
+        );
+        let node: Node = serde_json::from_str(&json_str).unwrap();
+        assert_eq!(node.name, "test");
+        assert_eq!(node.kind, NodeKind::Pure);
+    }
+
+    #[test]
+    fn node_id_from_value_wrong_type_fails() {
+        let value = serde_json::json!(42);
+        let result: Result<NodeId, _> = serde_json::from_value(value);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn port_name_serde_roundtrip() {
+        let original = PortName("my-port".to_string());
+        let json = serde_json::to_string(&original).unwrap();
+        let deserialized: PortName = serde_json::from_str(&json).unwrap();
+        assert_eq!(original, deserialized);
+    }
+
+    #[test]
     fn workflow_nodes_by_id() {
         let mut workflow = Workflow::new("test".to_string());
         let node1 = Node::new(NodeId::new(), "test1".to_string(), NodeKind::Pure);
