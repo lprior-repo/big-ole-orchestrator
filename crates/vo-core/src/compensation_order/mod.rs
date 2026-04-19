@@ -9,6 +9,6 @@ mod topology_tests;
 
 pub use topology::CompensationPolicy;
 pub use topology::{
-    filter_compensatable, validate_dependencies, CompensationNode, CompensationOrderResult,
-    OrderingError,
+    compute_compensation_order, detect_cycle, filter_compensatable, validate_dependencies,
+    CompensationNode, CompensationOrderResult, OrderingError,
 };
