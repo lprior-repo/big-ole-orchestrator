@@ -1282,15 +1282,10 @@ fn registry_lookup_doctor_handler() {
 fn registry_names_contains_all() {
     let registry = HandlerRegistry::default();
     let names = registry.names();
-<<<<<<< HEAD
-    assert_eq!(names.len(), 9);
-    for name in &["purge", "check", "compensate", "gc", "init", "lock", "doctor", "rebuild", "status"] {
-=======
     assert_eq!(names.len(), 8);
     for name in &[
         "purge", "check", "gc", "init", "lock", "doctor", "rebuild", "status",
     ] {
->>>>>>> 7e356012 (style: apply consistent rustfmt formatting)
         assert!(names.contains(name), "missing handler: {name}");
     }
 }
@@ -2004,10 +1999,7 @@ fn check_constants_values() {
 #[test]
 fn command_clone_equality() {
     let cmd = Command::Check {
-<<<<<<< HEAD
-=======
         workflow: false,
->>>>>>> 7e356012 (style: apply consistent rustfmt formatting)
         path: PathBuf::from("/test"),
     };
     let cmd2 = cmd.clone();

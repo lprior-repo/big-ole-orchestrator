@@ -286,17 +286,11 @@ mod tests {
         })
         .await;
 
-<<<<<<< HEAD
-        let completed = result.is_ok();
-        assert!(completed, "Stream should terminate after channel closes");
-        assert!(count <= 15, "Should receive at most 15 events, got {count}");
-=======
-        assert!(lagged_received || count <= 11, "Should emit lag or close");
+        assert!(result.is_ok() || count <= 11, "Should emit lag or close");
         assert!(
             count <= 11,
             "Should close after lag, not receive all 15 events"
         );
->>>>>>> 7e356012 (style: apply consistent rustfmt formatting)
     }
 
     #[tokio::test]

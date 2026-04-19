@@ -212,12 +212,6 @@ impl Iterator for EventReplayIterator {
             return None;
         };
         match inner.next() {
-<<<<<<< HEAD
-            Some(Ok((k_bytes, v_bytes))) => self.process_kv(&k_bytes, &v_bytes),
-            Some(Err(_)) => {
-                self.inner = None;
-                Some(Err(StorageError::Storage))
-=======
             Some(guard) => {
                 if let Ok((k_bytes, v_bytes)) = guard.into_inner() {
                     self.process_kv(&k_bytes, &v_bytes)
@@ -225,7 +219,6 @@ impl Iterator for EventReplayIterator {
                     self.inner = None;
                     Some(Err(StorageError::Storage))
                 }
->>>>>>> 7e356012 (style: apply consistent rustfmt formatting)
             }
             None => None,
         }

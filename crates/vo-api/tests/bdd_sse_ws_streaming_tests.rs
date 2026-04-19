@@ -431,10 +431,6 @@ mod tests {
     // =========================================================================
 
     mod ws_instance_completed {
-<<<<<<< HEAD
-        use vo_api::handlers::ws::{WorkflowEvent, WsBroadcaster};
-=======
->>>>>>> 7e356012 (style: apply consistent rustfmt formatting)
         use tokio::sync::broadcast;
         use vo_api::handlers::ws::{WorkflowWsEvent, WsBroadcaster};
 
@@ -602,10 +598,6 @@ mod tests {
 
     mod ws_client_lag_silent_drop {
         use crate::WorkflowSseEvent;
-<<<<<<< HEAD
-        use vo_api::handlers::ws::{WorkflowEvent, WsBroadcaster};
-=======
->>>>>>> 7e356012 (style: apply consistent rustfmt formatting)
         use tokio::sync::broadcast;
         use vo_api::handlers::ws::{WorkflowWsEvent, WsBroadcaster};
 
@@ -700,10 +692,6 @@ mod tests {
 
     mod broadcast_multiple_clients {
         use super::*;
-<<<<<<< HEAD
-        use vo_api::handlers::ws::{WorkflowEvent, WsBroadcaster};
-=======
->>>>>>> 7e356012 (style: apply consistent rustfmt formatting)
         use tokio::sync::broadcast;
         use vo_api::handlers::ws::{WorkflowWsEvent, WsBroadcaster};
 

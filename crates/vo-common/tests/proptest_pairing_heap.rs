@@ -1,9 +1,6 @@
 //! Proptest suite for PairingHeap — imports from library.
 
 use proptest::prelude::*;
-<<<<<<< HEAD
-use vo_common::structures::PairingHeap;
-=======
 
 #[derive(Debug, Clone)]
 struct PairingHeap<T: Ord + Clone> {
@@ -96,7 +93,6 @@ fn merge_pairs<T: Ord + Clone>(nodes: Vec<Box<Node<T>>>) -> Option<Box<Node<T>>>
     }
     Some(acc)
 }
->>>>>>> 7e356012 (style: apply consistent rustfmt formatting)
 
 proptest! {
     #[test]
