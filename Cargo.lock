@@ -4993,6 +4993,7 @@ dependencies = [
 name = "vo-common"
 version = "0.1.0"
 dependencies = [
+ "proptest",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
@@ -5004,6 +5005,7 @@ version = "0.1.0"
 dependencies = [
  "criterion",
  "dashmap",
+ "fjall",
  "glob",
  "notify",
  "proptest",
@@ -5013,6 +5015,7 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.18",
  "tokio",
+ "ulid",
  "vo-types",
 ]
 
@@ -5023,11 +5026,14 @@ dependencies = [
  "chrono",
  "criterion",
  "dashmap",
+ "libc",
  "proptest",
  "serde",
  "serde_json",
+ "tempfile",
  "thiserror 2.0.18",
  "tokio",
+ "tracing",
  "uuid",
 ]
 
@@ -5035,11 +5041,19 @@ dependencies = [
 name = "vo-frontend"
 version = "0.1.0"
 dependencies = [
+ "bytes",
+ "chrono",
  "dioxus",
+ "gloo-timers",
+ "itertools 0.14.0",
  "serde",
  "serde_json",
  "ulid",
+ "uuid",
  "vo-types",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
 ]
 
 [[package]]
@@ -5091,6 +5105,7 @@ version = "0.1.0"
 dependencies = [
  "criterion",
  "insta",
+ "libc",
  "proptest",
  "rstest 0.23.0",
  "serde",

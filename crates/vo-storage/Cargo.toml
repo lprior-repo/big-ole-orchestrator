@@ -20,7 +20,6 @@ parking_lot = { workspace = true }
 crc32fast = { workspace = true }
 sha2 = { workspace = true }
 blake3 = { workspace = true }
-async-trait = { workspace = true }
 tokio = { workspace = true }
 bytes = { workspace = true }
 thiserror = { workspace = true }
