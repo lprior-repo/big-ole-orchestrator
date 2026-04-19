@@ -279,10 +279,17 @@ fn lease_key_format_uses_delimiter() {
 }
 
 #[test]
-fn get_lease_key_prefix_for_instance_returns_16_bytes() {
+fn get_lease_key_prefix_for_instance_matches_lease_key_encoding() {
     let id = min_instance_id();
     let prefix = get_lease_key_prefix_for_instance(&id);
-    assert_eq!(prefix.len(), 16);
+    // Prefix should be "{instance_id}::" (26 chars + 2 separator = 28 bytes)
+    assert_eq!(prefix.len(), 28);
+    assert!(prefix.ends_with(b"::"));
+
+    // Verify it actually matches lease key encoding
+    let step = vo_types::StepId::parse("test-step").unwrap();
+    let lease_key = encode_lease_key(&id, &step);
+    assert!(lease_key.starts_with(&prefix));
 }
 
 #[test]
