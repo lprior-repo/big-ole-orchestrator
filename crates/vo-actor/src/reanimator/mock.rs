@@ -1,6 +1,6 @@
 //! Mock implementations for testing the Reanimator Loop.
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use tokio::sync::Mutex;
 use vo_types::{InstanceId, TimestampMs};
 
@@ -18,6 +18,7 @@ pub struct MockTimerStorage {
     fire_calls: Mutex<Vec<(InstanceId, TimestampMs, Option<vo_types::TimerId>)>>,
     /// Tracks (instance_id, fire_at_ms) tuples that have been deleted
     delete_calls: Mutex<Vec<(InstanceId, TimestampMs)>>,
+    /// Tracks instances that had all timers deleted
     delete_all_calls: Mutex<Vec<InstanceId>>,
     should_fail: Mutex<bool>,
     /// Tracks timers that have been deleted but not yet fired
@@ -47,11 +48,6 @@ impl MockTimerStorage {
     /// Adds a timer to the storage.
     pub async fn add_timer(&self, timer: TimerRecord) {
         self.timers.lock().await.push_back(timer);
-    }
-
-    /// Adds a pending timer to the storage.
-    pub async fn add_pending_timer(&self, timer: PendingTimer) {
-        self.pending_timers.lock().await.insert(timer.instance_id.clone(), timer);
     }
 
     /// Sets whether operations should fail.
@@ -86,6 +82,14 @@ impl MockTimerStorage {
     pub async fn delete_all_calls(&self) -> Vec<InstanceId> {
         self.delete_all_calls.lock().await.clone()
     }
+
+    /// Adds a pending timer directly (for testing purposes).
+    pub async fn add_pending_timer(&self, pending: PendingTimer) {
+        self.pending_timers
+            .lock()
+            .await
+            .insert(pending.instance_id.clone(), pending);
+    }
 }
 
 #[async_trait::async_trait]
@@ -101,12 +105,17 @@ impl TimerStorage for MockTimerStorage {
         }
 
         let timers = self.timers.lock().await;
-        let due: Vec<TimerRecord> = timers
-            .iter()
-            .filter(|t| t.fire_at_ms <= to_timestamp)
-            .take(max_results as usize)
-            .cloned()
-            .collect();
+        let mut seen = HashSet::new();
+        let mut due: Vec<TimerRecord> = Vec::new();
+
+        for t in timers.iter() {
+            if t.fire_at_ms <= to_timestamp {
+                let key = (t.instance_id.clone(), t.fire_at_ms, t.timer_id.clone());
+                if seen.insert(key) && due.len() < max_results as usize {
+                    due.push(t.clone());
+                }
+            }
+        }
 
         Ok(due)
     }
@@ -126,7 +135,19 @@ impl TimerStorage for MockTimerStorage {
             .push((instance_id.clone(), fire_at_ms));
 
         let mut timers = self.timers.lock().await;
-        timers.retain(|t| !(t.instance_id == *instance_id && t.fire_at_ms == fire_at_ms));
+        if let Some(pos) = timers
+            .iter()
+            .position(|t| t.instance_id == *instance_id && t.fire_at_ms == fire_at_ms)
+        {
+            if let Some(removed_timer) = timers.remove(pos) {
+                // Track the deleted timer with its timer_id for proper deduplication
+                self.deleted_timers.lock().await.insert((
+                    removed_timer.instance_id.clone(),
+                    removed_timer.fire_at_ms,
+                    removed_timer.timer_id.clone(),
+                ));
+            }
+        }
 
         Ok(())
     }
@@ -226,7 +247,7 @@ impl TimerStorage for MockTimerStorage {
     async fn complete_timer_processing(
         &self,
         instance_id: &InstanceId,
-        fire_at_ms: TimestampMs,
+        _fire_at_ms: TimestampMs,
     ) -> Result<(), ReanimatorError> {
         if *self.should_fail.lock().await {
             return Err(ReanimatorError::StorageError("Mock failure".to_string()));
@@ -261,10 +282,7 @@ impl TimerStorage for MockTimerStorage {
             return Err(ReanimatorError::StorageError("Mock failure".to_string()));
         }
 
-        self.delete_all_calls
-            .lock()
-            .await
-            .push(instance_id.clone());
+        self.delete_all_calls.lock().await.push(instance_id.clone());
 
         let mut timers = self.timers.lock().await;
         let before = timers.len();

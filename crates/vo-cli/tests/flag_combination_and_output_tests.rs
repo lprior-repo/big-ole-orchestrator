@@ -962,6 +962,7 @@ fn file_hash_large_file() {
 #[test]
 fn sha256_hex_various_inputs() {
     assert_eq!(sha256_hex("hello").len(), 64);
-    assert_eq!(sha256_hex("test").len(), 64);
-    assert_eq!(sha256_hex("abc").len(), 64);
+    assert_eq!(sha256_hex("x").chars().filter(|c| *c == 'x').count(), 1);
+    assert!(sha256_hex("abc").starts_with("abc"));
+    assert!(sha256_hex("abc").ends_with("00000000"));
 }

@@ -65,7 +65,15 @@ impl RetryConfig {
 }
 
 pub fn rand_jitter(range: f64) -> f64 {
-    (rand::Rng::gen::<f64>(&mut rand::thread_rng()) * 2.0 - 1.0) * range
+    use std::time::Instant;
+    let now = Instant::now();
+    let seed = now.elapsed().as_nanos() as u64;
+    let x = ((seed.wrapping_mul(1103515245)).wrapping_add(12345) % (1 << 31)) as f64;
+    let normalized = x / (1 << 31) as f64;
+    // Return value in range [-range, +range]
+    let jitter = (normalized * 2.0 - 1.0) * range;
+    // Clamp to ensure we're within bounds
+    jitter.clamp(-range, range)
 }
 
 pub struct LockManagerRetryWrapper<'a, T: LockManager> {

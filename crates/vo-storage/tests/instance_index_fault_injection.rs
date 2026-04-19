@@ -26,12 +26,12 @@ use vo_types::{InstanceId, InstanceStatus, TimestampMs};
 // Test helpers
 // ---------------------------------------------------------------------------
 
-fn make_test_db() -> (tempfile::TempDir, fjall::Database) {
+fn make_test_keyspace() -> (tempfile::TempDir, fjall::Database) {
     let dir = tempfile::tempdir().expect("Failed to create temp dir");
-    let db = fjall::Database::builder(dir.path())
+    let database = fjall::Database::builder(dir.path())
         .open()
         .expect("Failed to open database");
-    (dir, db)
+    (dir, database)
 }
 
 fn make_test_instance_id(byte_fill: u8) -> InstanceId {
@@ -51,19 +51,21 @@ fn make_test_timestamp(ms: u64) -> TimestampMs {
 
 #[test]
 fn scan_by_status_yields_corrupt_key_error_when_partition_has_invalid_length_key() {
-    let (_dir, db) = make_test_db();
-    let partition = db
+    let (_dir, database) = make_test_keyspace();
+    let partition = database
         .keyspace("instances", || fjall::KeyspaceCreateOptions::default())
         .unwrap();
 
+    // Inject a 10-byte key with Pending prefix — too short to decode as valid 25-byte key
     let short_key = [0x01u8; 10];
     partition.insert(short_key, &[] as &[u8]).unwrap();
 
+    // Also insert a valid entry to verify mixed iteration works
     let id = make_test_instance_id(0x42);
     let ts = make_test_timestamp(1000);
-    instance_index_upsert(&db, &id, InstanceStatus::Pending, ts, None).unwrap();
+    instance_index_upsert(&database, &id, InstanceStatus::Pending, ts, None).unwrap();
 
-    let results: Vec<_> = scan_by_status(&db, InstanceStatus::Pending).collect();
+    let results: Vec<_> = scan_by_status(&database, InstanceStatus::Pending).collect();
 
     // Should have 2 items: one corrupt, one valid
     assert_eq!(results.len(), 2);
@@ -87,15 +89,16 @@ fn scan_by_status_yields_corrupt_key_error_when_partition_has_invalid_length_key
 
 #[test]
 fn scan_all_instances_yields_corrupt_key_error_when_partition_has_invalid_key() {
-    let (_dir, db) = make_test_db();
-    let partition = db
+    let (_dir, database) = make_test_keyspace();
+    let partition = database
         .keyspace("instances", || fjall::KeyspaceCreateOptions::default())
         .unwrap();
 
+    // Inject a 5-byte key — invalid for 25-byte decode
     let bad_key = [0x02u8; 5];
     partition.insert(bad_key, &[] as &[u8]).unwrap();
 
-    let results: Vec<_> = scan_all_instances(&db).collect();
+    let results: Vec<_> = scan_all_instances(&database).collect();
 
     assert_eq!(results.len(), 1);
     assert_eq!(
@@ -160,17 +163,20 @@ fn storage_error_corrupt_key_variant_is_constructible_and_matchable() {
 
 #[test]
 fn decode_instance_index_key_returns_corrupt_key_when_status_byte_is_invalid_in_scan_context() {
-    let (_dir, db) = make_test_db();
-    let partition = db
+    let (_dir, database) = make_test_keyspace();
+    let partition = database
         .keyspace("instances", || fjall::KeyspaceCreateOptions::default())
         .unwrap();
 
+    // Inject a 25-byte key with an invalid status byte (0x07)
     let mut bad_key = [0x01u8; 25];
-    bad_key[0] = 0x07;
+    bad_key[0] = 0x07; // invalid status byte
 
+    // Insert with prefix 0x07 — won't match any status prefix scan,
+    // but will appear in scan_all_instances which uses prefix([])
     partition.insert(bad_key, &[] as &[u8]).unwrap();
 
-    let results: Vec<_> = scan_all_instances(&db).collect();
+    let results: Vec<_> = scan_all_instances(&database).collect();
     assert_eq!(results.len(), 1);
     assert_eq!(
         results[0],

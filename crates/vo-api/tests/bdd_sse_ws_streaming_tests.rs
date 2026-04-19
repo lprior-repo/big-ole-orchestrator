@@ -381,12 +381,12 @@ mod tests {
     // =========================================================================
 
     mod ws_step_completed_event {
-        use vo_api::handlers::ws::{WorkflowEvent, WsBroadcaster};
+        use vo_api::handlers::ws::{WorkflowWsEvent, WsBroadcaster};
 
         #[test]
         fn given_step_completes_when_ws_message_pushed_then_has_type_node_name_sequence() {
             // GIVEN a step completes
-            let event = WorkflowEvent::StepCompleted {
+            let event = WorkflowWsEvent::StepCompleted {
                 node_name: "validate-input".to_string(),
                 sequence: 7,
             };
@@ -408,7 +408,7 @@ mod tests {
 
             let handle = tokio::spawn(async move { receiver.recv().await.ok() });
 
-            let _ = broadcaster.send(WorkflowEvent::StepCompleted {
+            let _ = broadcaster.send(WorkflowWsEvent::StepCompleted {
                 node_name: "process".to_string(),
                 sequence: 1,
             });
@@ -436,7 +436,7 @@ mod tests {
 
         #[test]
         fn given_instance_completes_when_ws_message_pushed_then_type_is_instance_completed() {
-            let event = WorkflowEvent::InstanceCompleted;
+            let event = WorkflowWsEvent::InstanceCompleted;
             let json_str = event.to_json_string();
             let json: serde_json::Value = serde_json::from_str(&json_str).unwrap();
 
@@ -447,26 +447,26 @@ mod tests {
         #[test]
         fn given_all_ws_event_types_when_serialized_then_type_field_present() {
             let events = vec![
-                WorkflowEvent::StepCompleted {
+                WorkflowWsEvent::StepCompleted {
                     node_name: "s1".to_string(),
                     sequence: 1,
                 },
-                WorkflowEvent::StepFailed {
+                WorkflowWsEvent::StepFailed {
                     node_name: "s1".to_string(),
                     sequence: 1,
                     error: "fail".to_string(),
                 },
-                WorkflowEvent::TimerFired {
+                WorkflowWsEvent::TimerFired {
                     timer_id: "t1".to_string(),
                 },
-                WorkflowEvent::SignalReceived {
+                WorkflowWsEvent::SignalReceived {
                     signal_name: "sig".to_string(),
                 },
-                WorkflowEvent::PhaseChanged {
+                WorkflowWsEvent::PhaseChanged {
                     phase: "live".to_string(),
                 },
-                WorkflowEvent::InstanceCompleted,
-                WorkflowEvent::InstanceFailed {
+                WorkflowWsEvent::InstanceCompleted,
+                WorkflowWsEvent::InstanceFailed {
                     error: "err".to_string(),
                 },
             ];
@@ -490,7 +490,7 @@ mod tests {
                 let mut received_completion = false;
                 loop {
                     match receiver.recv().await {
-                        Ok(WorkflowEvent::InstanceCompleted) => {
+                        Ok(WorkflowWsEvent::InstanceCompleted) => {
                             received_completion = true;
                             break;
                         }
@@ -502,11 +502,11 @@ mod tests {
                 received_completion
             });
 
-            let _ = broadcaster.send(WorkflowEvent::StepCompleted {
+            let _ = broadcaster.send(WorkflowWsEvent::StepCompleted {
                 node_name: "final-step".to_string(),
                 sequence: 10,
             });
-            let _ = broadcaster.send(WorkflowEvent::InstanceCompleted);
+            let _ = broadcaster.send(WorkflowWsEvent::InstanceCompleted);
             drop(broadcaster);
 
             let received = tokio::time::timeout(std::time::Duration::from_secs(2), handle)
@@ -526,7 +526,7 @@ mod tests {
     // =========================================================================
 
     mod ws_bidirectional_messages {
-        use vo_api::handlers::ws::{WorkflowEvent, WsBroadcaster, WsConnectionCount};
+        use vo_api::handlers::ws::{WorkflowWsEvent, WsBroadcaster, WsConnectionCount};
 
         #[test]
         fn given_ws_client_sends_text_when_received_then_message_parseable() {
@@ -671,7 +671,7 @@ mod tests {
             });
 
             for i in 0..send_count {
-                let _ = broadcaster.send(WorkflowEvent::StepCompleted {
+                let _ = broadcaster.send(WorkflowWsEvent::StepCompleted {
                     node_name: format!("step-{}", i),
                     sequence: i,
                 });
@@ -766,7 +766,7 @@ mod tests {
             // WHEN same instance event is broadcast
             let event_count = 100u64;
             for i in 0..event_count {
-                let _ = broadcaster.send(WorkflowEvent::StepCompleted {
+                let _ = broadcaster.send(WorkflowWsEvent::StepCompleted {
                     node_name: format!("step-{}", i),
                     sequence: i,
                 });
@@ -830,7 +830,7 @@ mod tests {
                     node_name: format!("step-{}", i),
                     sequence: i,
                 });
-                let _ = ws_broadcaster.send(WorkflowEvent::StepCompleted {
+                let _ = ws_broadcaster.send(WorkflowWsEvent::StepCompleted {
                     node_name: format!("step-{}", i),
                     sequence: i,
                 });

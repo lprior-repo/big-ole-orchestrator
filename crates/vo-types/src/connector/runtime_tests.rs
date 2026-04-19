@@ -90,8 +90,7 @@ async fn execute_with_reconciliation_resolves_ambiguous() {
 }
 
 #[tokio::test]
-#[should_panic(expected = "reconcile_ambiguous called with non-Ambiguous state")]
-async fn reconcile_ambiguous_panics_on_non_ambiguous_state() {
+async fn reconcile_ambiguous_returns_error_on_non_ambiguous_state() {
     struct DummyConnector;
     impl Connector for DummyConnector {
         async fn prepare(&mut self) -> Result<ConnectorResult, ConnectorError> {

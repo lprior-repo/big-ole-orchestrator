@@ -159,6 +159,115 @@ fn make_registry() -> ConnectorRegistry {
     ConnectorRegistry::new()
 }
 
+struct SlowPrepareConnector {
+    delay_ms: u64,
+}
+
+impl SlowPrepareConnector {
+    fn new(delay_ms: u64) -> Self {
+        Self { delay_ms }
+    }
+}
+
+#[async_trait::async_trait]
+impl Connector for SlowPrepareConnector {
+    fn connector_type(&self) -> &str {
+        "slow-prepare"
+    }
+    fn connector_version(&self) -> &str {
+        "0.0.1"
+    }
+    fn supports_compensation(&self) -> bool {
+        false
+    }
+    async fn prepare(
+        &self,
+        _intent: serde_json::Value,
+        effect_id: String,
+        fence: u64,
+    ) -> Result<PreparedEffect, ConnectorError> {
+        tokio::time::sleep(std::time::Duration::from_millis(self.delay_ms)).await;
+        Ok(PreparedEffect {
+            effect_id,
+            payload: json!({}),
+            fence,
+        })
+    }
+    async fn commit(&self, _prepared: PreparedEffect) -> Result<CommitOutcome, ConnectorError> {
+        Ok(CommitOutcome::Committed {
+            receipt: "slow-prep".to_string(),
+        })
+    }
+    async fn reconcile(&self, _effect_id: &str) -> Result<ReconcileOutcome, ConnectorError> {
+        Ok(ReconcileOutcome::NotCommitted)
+    }
+}
+
+struct SlowCommitConnector;
+
+#[async_trait::async_trait]
+impl Connector for SlowCommitConnector {
+    fn connector_type(&self) -> &str {
+        "slow-commit"
+    }
+    fn connector_version(&self) -> &str {
+        "0.0.1"
+    }
+    fn supports_compensation(&self) -> bool {
+        false
+    }
+    async fn prepare(
+        &self,
+        _intent: serde_json::Value,
+        effect_id: String,
+        fence: u64,
+    ) -> Result<PreparedEffect, ConnectorError> {
+        Ok(PreparedEffect {
+            effect_id,
+            payload: json!({}),
+            fence,
+        })
+    }
+    async fn commit(&self, _prepared: PreparedEffect) -> Result<CommitOutcome, ConnectorError> {
+        tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+        Ok(CommitOutcome::Committed {
+            receipt: "slow-commit".to_string(),
+        })
+    }
+    async fn reconcile(&self, _effect_id: &str) -> Result<ReconcileOutcome, ConnectorError> {
+        Ok(ReconcileOutcome::NotCommitted)
+    }
+}
+
+struct HangingConnector;
+
+#[async_trait::async_trait]
+impl Connector for HangingConnector {
+    fn connector_type(&self) -> &str {
+        "hanging"
+    }
+    fn connector_version(&self) -> &str {
+        "0.0.1"
+    }
+    fn supports_compensation(&self) -> bool {
+        false
+    }
+    async fn prepare(
+        &self,
+        _intent: serde_json::Value,
+        effect_id: String,
+        fence: u64,
+    ) -> Result<PreparedEffect, ConnectorError> {
+        std::future::pending().await
+    }
+    async fn commit(&self, _prepared: PreparedEffect) -> Result<CommitOutcome, ConnectorError> {
+        std::future::pending().await
+    }
+    async fn reconcile(&self, _effect_id: &str) -> Result<ReconcileOutcome, ConnectorError> {
+        std::future::pending().await
+    }
+}
+
 #[tokio::test]
 async fn managed_effect_routes_to_dedicated_path_and_committed() {
     let mut registry = make_registry();

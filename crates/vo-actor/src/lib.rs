@@ -34,7 +34,6 @@ pub mod timer_lifecycle;
 pub mod timers;
 pub mod timer_supervisor;
 pub mod timer_supervisor_tests;
-pub mod timers;
 
 #[derive(Debug, thiserror::Error)]
 pub enum TerminateError {
@@ -93,13 +92,18 @@ mod terminate_error_tests {
 }
 
 // Actor message types
-pub mod actor_messages {
-    // Import types directly from vo-types
-    use vo_types::{InstanceId, NodeName, SequenceNumber, TimerId, WorkflowName};
+pub mod actor_messages;
+pub mod signal_messages;
 
-    // =============================================================================
-    // Type Definitions
-    // =============================================================================
+pub use signal_messages::mock_signal_storage;
+pub use signal_messages::mock_signal_storage::{MockSignalStorage, MockSignalWorkQueue};
+pub use signal_messages::{
+    AcceptResumeError, AcceptResumeOutcome, BinaryHash, CancelError, CancelRequested,
+    ContinueAsNewError, InstanceResumed, LifecycleState, NodeName, ResumeError, RolloverState,
+    SecretId, SignalAccepted, SignalPayload, SignalStorage, SignalStorageError, SignalWorkQueue,
+    SignalWorkQueueError, StateLookup, TestStateLookup, TimestampMs, WaitKey, WorkflowCancelled,
+    WorkflowContinued,
+};
 
     /// Messages sent to/from workflow instance actors.
     ///

@@ -1,0 +1,68 @@
+{
+  "hooks": {
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "command": "bd prime",
+            "type": "command"
+          }
+        ],
+        "matcher": ""
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "tdd-guard",
+            "type": "command"
+          }
+        ],
+        "matcher": "Write|Edit|MultiEdit|TodoWrite"
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "command": "tdd-guard",
+            "type": "command"
+          }
+        ],
+        "matcher": "startup|resume|clear"
+      },
+      {
+        "hooks": [
+          {
+            "command": "bd prime",
+            "type": "command"
+          }
+        ],
+        "matcher": ""
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "command": "cd /home/lewis/src/vo-engine \u0026\u0026 cargo nextest run 2\u003e\u00261 | tdd-guard-rust --project-root /home/lewis/src/vo-engine --passthrough",
+            "statusMessage": "Running TDD guard...",
+            "timeout": 120,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "command": "tdd-guard",
+            "type": "command"
+          }
+        ]
+      }
+    ]
+  }
+}

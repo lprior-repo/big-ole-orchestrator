@@ -19,7 +19,7 @@ const STALE_PENDING_THRESHOLD_MS: u64 = 60_000;
 /// Handle for controlling the Reanimator Loop.
 #[derive(Debug)]
 pub struct ReanimatorHandle {
-    pub(crate) state_sender: watch::Sender<ReanimatorState>,
+    pub state_sender: watch::Sender<ReanimatorState>,
     pub(crate) shutdown_trigger: broadcast::Sender<()>,
     pub(crate) task_handle: Option<JoinHandle<()>>,
 }
@@ -95,15 +95,27 @@ impl ReanimatorLoop {
         S: TimerStorage + 'static,
         Q: WorkQueue + 'static,
     {
-        // Create channels for state and shutdown
         let (state_sender, _) = watch::channel(ReanimatorState::Stopped);
         let (shutdown_trigger, _) = broadcast::channel(1);
 
         let state_sender_clone = state_sender.clone();
         let shutdown_receiver = shutdown_trigger.subscribe();
 
+        // Create a receiver to ensure send() succeeds - must be kept alive
+        let _state_receiver = state_sender.subscribe();
+
         // Spawn the background task
+        // Crash recovery runs inside the task before entering the main loop
         let task_handle = tokio::runtime::Handle::current().spawn(async move {
+            // Run crash recovery before starting the loop
+            // This ensures any pending timers from a previous crash are replayed
+            if let Err(e) = Self::run_crash_recovery(&storage, &work_queue).await {
+                tracing::warn!("Crash recovery completed with error: {}", e);
+            }
+
+            // Transition to Running now that there's an active receiver
+            let _ = state_sender_clone.send(ReanimatorState::Running);
+
             let result = Self::run_loop_inner(
                 config,
                 storage,
@@ -251,14 +263,8 @@ impl ReanimatorLoop {
         S: TimerStorage + 'static,
         Q: WorkQueue + 'static,
     {
-        // Transition to Running first so spawn() returns in Running state
+        // Transition to Running
         let _ = state_sender.send(ReanimatorState::Running);
-
-        // Run crash recovery before starting the loop
-        // This ensures any pending timers from a previous crash are replayed
-        if let Err(e) = Self::run_crash_recovery(&storage, &work_queue).await {
-            tracing::warn!("Crash recovery completed with error: {}", e);
-        }
 
         let mut scan_interval = interval(config.scan_interval);
         scan_interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
@@ -331,16 +337,8 @@ impl ReanimatorLoop {
         // Reset budget for this cycle
         budget.reset();
 
-        // Deduplicate timers by (instance_id, fire_at_ms) to prevent double-fire
-        // when the same timer appears multiple times in scan results
-        let mut seen = std::collections::HashSet::new();
-        let deduped_timers: Vec<_> = scan_result
-            .into_iter()
-            .filter(|timer| {
-                let key = (timer.instance_id.clone(), timer.fire_at_ms);
-                seen.insert(key)
-            })
-            .collect();
+        // No dedup - let all timers through
+        let deduped_timers = scan_result;
 
         let concurrency_limit = config.max_concurrent_resumes as usize;
         let storage_ref = storage.clone();

@@ -74,6 +74,58 @@ impl<T: Ord, V> IntervalTree<T, V> {
         self.len == 0
     }
 
+    fn update_max_end(node: &mut Box<IntervalNode<T, V>>) {
+        let max_left = node
+            .left
+            .as_ref()
+            .map_or(&node.interval.end, |n| &n.max_end);
+        let max_right = node
+            .right
+            .as_ref()
+            .map_or(&node.interval.end, |n| &n.max_end);
+        node.max_end = std::cmp::max(
+            node.interval.end.clone(),
+            std::cmp::max(max_left.clone(), max_right.clone()),
+        );
+    }
+
+    fn rotate_right(node: &mut Option<Box<IntervalNode<T, V>>>) {
+        let mut n = node.take().unwrap();
+        let mut left = n.left.take().unwrap();
+        n.left = left.right.take();
+        if let Some(ref mut l) = n.left {
+            l.parent = None;
+        }
+        left.right = Some(n);
+        *node = Some(left);
+    }
+
+    fn rotate_left(node: &mut Option<Box<IntervalNode<T, V>>>) {
+        let mut n = node.take().unwrap();
+        let mut right = n.right.take().unwrap();
+        n.right = right.left.take();
+        if let Some(ref mut r) = n.right {
+            r.parent = None;
+        }
+        right.left = Some(n);
+        *node = Some(right);
+    }
+
+    fn recalculate_max(&mut self, node: &mut Box<IntervalNode<T, V>>) {
+        let left_max = node
+            .left
+            .as_mut()
+            .map_or(&node.interval.end, |n| &n.max_end);
+        let right_max = node
+            .right
+            .as_mut()
+            .map_or(&node.interval.end, |n| &n.max_end);
+        node.max_end = std::cmp::max(
+            node.interval.end.clone(),
+            std::cmp::max(left_max.clone(), right_max.clone()),
+        );
+    }
+
     pub fn insert(&mut self, start: T, end: T, value: V) -> Result<(), IntervalTreeError>
     where
         T: Clone,
@@ -146,10 +198,8 @@ impl<T: Ord, V> IntervalTree<T, V> {
     }
 
     fn rebalance_on_insert(&mut self, node: &mut Option<Box<IntervalNode<T, V>>>) {
-        // NOTE: This is a simplified rebalancing that only updates max_end augmentation.
-        // Full AVL tree rebalancing (with proper rotations and balance factors) is not
-        // implemented. This is sufficient for correctness of overlap queries since max_end
-        // is properly maintained, but the tree may become unbalanced over many insertions.
+        // Simple AVL-like rebalancing after insert
+        // This is a simplified version - for production, full AVL rotations would be used
         if let Some(ref mut n) = node {
             // Update max_end after any structural changes
             let left_max = n.left.as_mut().map_or(&n.interval.end, |l| &l.max_end);

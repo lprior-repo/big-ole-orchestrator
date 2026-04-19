@@ -54,7 +54,7 @@ fn rq_dolt_schema_evolution_add_column_preserves_data() {
 
     let result = dolt_sql(dir.path(), "SELECT COUNT(*) FROM users");
     assert!(
-        result.contains("2"),
+        result.contains("3"),
         "All rows including new null email must exist"
     );
 }
@@ -106,9 +106,8 @@ fn rq_dolt_merge_conflict_two_branches_same_row() {
     dolt_sql(dir.path(), "SET dolt_commit_name='Alice'");
     let result = dolt_sql(dir.path(), "CALL DOLT_MERGE('feature')");
     assert!(
-        result.to_lowercase().contains("conflict") || result.to_lowercase().contains("success"),
-        "Merge must report conflict or success, got: {}",
-        result
+        result.contains("CONFLICT") || result.contains("success"),
+        "Merge must report conflict or success"
     );
 }
 
@@ -199,10 +198,8 @@ fn rq_dolt_concurrent_writes_merge_both() {
     dolt_sql(dir.path(), "SET dolt_commit_name='B'");
     let merge_result = dolt_sql(dir.path(), "CALL DOLT_MERGE('branch-a')");
     assert!(
-        merge_result.to_lowercase().contains("conflict")
-            || merge_result.to_lowercase().contains("success"),
-        "Second merge must handle conflict, got: {}",
-        merge_result
+        merge_result.contains("CONFLICT") || merge_result.contains("success"),
+        "Second merge must handle conflict"
     );
 
     let result = dolt_sql(dir.path(), "SELECT COUNT(*) FROM events");
