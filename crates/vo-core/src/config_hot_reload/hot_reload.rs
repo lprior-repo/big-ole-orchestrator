@@ -3,8 +3,8 @@ use std::sync::{Arc, RwLock};
 use std::time::Instant;
 
 use super::error::Error;
-use super::events::ReloadEvent;
-use super::metrics::HotReloadMetrics;
+use crate::config_hot_reload::events::ReloadEvent;
+use crate::config_hot_reload::metrics::HotReloadMetrics;
 
 pub trait ConfigValidator<T: Clone + Send + Sync>: Send + Sync {
     fn validate(&self, config: &T) -> Result<(), String>;

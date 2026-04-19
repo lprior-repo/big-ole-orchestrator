@@ -495,4 +495,206 @@ mod tests {
             vo_types::credentials::RotationStatus::Idle
         );
     }
+
+    #[test]
+    fn vault_update_metadata_updates_stored_entry() {
+        let mut vault = CredentialVault::new();
+        let entry = create_test_vault_entry();
+        let id = entry.credential.id.clone();
+        vault.create_credential(entry).unwrap();
+
+        let mut new_meta = std::collections::HashMap::new();
+        new_meta.insert("env".to_string(), "production".to_string());
+        vault.update_metadata(&id, new_meta).unwrap();
+
+        let cred = vault.get_credential(&id).unwrap();
+        assert_eq!(cred.metadata.get("env").unwrap(), "production");
+    }
+
+    #[test]
+    fn vault_update_metadata_not_found() {
+        let mut vault = CredentialVault::new();
+        let id = CredentialId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+        let result = vault.update_metadata(&id, std::collections::HashMap::new());
+        assert!(matches!(
+            result.unwrap_err(),
+            CredentialError::CredentialNotFound(_)
+        ));
+    }
+
+    #[test]
+    fn vault_rotate_generates_unique_ids() {
+        let mut vault = CredentialVault::new();
+        let entry = create_test_vault_entry();
+        let id = entry.credential.id.clone();
+        vault.create_credential(entry).unwrap();
+
+        let v1 = vault.rotate(&id, None).unwrap();
+        let v2 = vault.rotate(&id, None).unwrap();
+        assert_ne!(v1, v2, "each rotation should produce a unique version ID");
+    }
+
+    #[test]
+    fn vault_rotate_tracks_rotated_from() {
+        let mut vault = CredentialVault::new();
+        let entry = create_test_vault_entry();
+        let id = entry.credential.id.clone();
+        let original_version = entry.credential.current_version.clone();
+        vault.create_credential(entry).unwrap();
+
+        let new_version = vault.rotate(&id, None).unwrap();
+
+        let cred = vault.get_credential(&id).unwrap();
+        let new_entry = cred
+            .versions
+            .iter()
+            .find(|v| v.version_id == new_version)
+            .unwrap();
+        assert_eq!(new_entry.rotated_from, Some(original_version));
+    }
+
+    #[test]
+    fn vault_immediate_rotation_completes_synchronously() {
+        let mut vault = CredentialVault::new();
+        let entry = create_test_vault_entry();
+        let id = entry.credential.id.clone();
+        vault.create_credential(entry).unwrap();
+
+        let old_cred = vault.get_credential(&id).unwrap();
+        let old_version_id = old_cred.current_version.clone();
+        let old_secret = vault.get_secret(&id, &vo_types::credentials::Principal::System).unwrap();
+
+        let rotation_result = vault.rotate(&id, None);
+        assert!(rotation_result.is_ok(), "immediate rotation should complete without error");
+
+        let new_version_id = rotation_result.unwrap();
+        assert_ne!(
+            new_version_id, old_version_id,
+            "new version ID should differ from old"
+        );
+
+        let new_cred = vault.get_credential(&id).unwrap();
+        assert_eq!(
+            new_cred.current_version, new_version_id,
+            "current_version should point to new version"
+        );
+        assert_eq!(
+            new_cred.versions.len(), 2,
+            "should have exactly 2 versions after rotation"
+        );
+
+        let new_secret = vault.get_secret(&id, &vo_types::credentials::Principal::System).unwrap();
+        assert_ne!(
+            new_secret.ciphertext(), old_secret.ciphertext(),
+            "new secret should differ from old secret"
+        );
+        assert_eq!(
+            new_secret.key_version(),
+            old_secret.key_version() + 1,
+            "key_version should be incremented"
+        );
+    }
+
+    #[test]
+    fn vault_rotation_with_reconnect_uses_new_secret() {
+        let mut vault = CredentialVault::new();
+        let entry = create_test_vault_entry();
+        let id = entry.credential.id.clone();
+        vault.create_credential(entry).unwrap();
+
+        let old_cred = vault.get_credential(&id).unwrap();
+        let old_version_id = old_cred.current_version.clone();
+        let old_secret = vault.get_secret(&id, &vo_types::credentials::Principal::System).unwrap();
+        assert_eq!(
+            old_secret.key_version(), 1,
+            "initial key_version should be 1"
+        );
+
+        vault.rotate(&id, None).expect("rotation should succeed");
+
+        let post_rotation_cred = vault.get_credential(&id).unwrap();
+        let post_rotation_secret = vault
+            .get_secret(&id, &vo_types::credentials::Principal::System)
+            .expect("should be able to get secret after rotation");
+
+        assert_ne!(
+            post_rotation_cred.current_version, old_version_id,
+            "current version should have changed"
+        );
+        assert_eq!(
+            post_rotation_secret.key_version(), 2,
+            "key_version should increment after rotation"
+        );
+
+        let superseded_versions: Vec<_> = post_rotation_cred
+            .versions
+            .iter()
+            .filter(|v| v.status == CredentialStatus::Superseded)
+            .collect();
+        assert_eq!(
+            superseded_versions.len(), 1,
+            "exactly one version should be superseded"
+        );
+        assert_eq!(
+            superseded_versions[0].version_id, old_version_id,
+            "the old version should be marked as superseded"
+        );
+    }
+
+    #[test]
+    fn vault_rotation_with_reconnect_allows_immediate_authentication() {
+        use vo_types::credentials::Principal;
+
+        let mut vault = CredentialVault::new();
+        let entry = create_test_vault_entry();
+        let id = entry.credential.id.clone();
+        vault.create_credential(entry).unwrap();
+
+        let system_principal = Principal::System;
+        let secret_before = vault
+            .get_secret(&id, &system_principal)
+            .expect("should get secret before rotation");
+
+        vault.rotate(&id, None).expect("rotation should succeed");
+
+        let secret_after = vault
+            .get_secret(&id, &system_principal)
+            .expect("should get secret immediately after rotation (reconnect scenario)");
+
+        assert_ne!(
+            secret_before.ciphertext(), secret_after.ciphertext(),
+            "secrets should differ after rotation"
+        );
+        assert_eq!(
+            secret_before.key_version() + 1,
+            secret_after.key_version(),
+            "key_version should increment by 1"
+        );
+    }
+
+    #[test]
+    fn vault_multiple_rotations_increment_key_version() {
+        let mut vault = CredentialVault::new();
+        let entry = create_test_vault_entry();
+        let id = entry.credential.id.clone();
+        vault.create_credential(entry).unwrap();
+
+        vault.rotate(&id, None).expect("first rotation should succeed");
+        let v2_secret = vault.get_secret(&id, &vo_types::credentials::Principal::System).unwrap();
+        assert_eq!(v2_secret.key_version(), 2);
+
+        vault.rotate(&id, None).expect("second rotation should succeed");
+        let v3_secret = vault.get_secret(&id, &vo_types::credentials::Principal::System).unwrap();
+        assert_eq!(v3_secret.key_version(), 3);
+
+        vault.rotate(&id, None).expect("third rotation should succeed");
+        let v4_secret = vault.get_secret(&id, &vo_types::credentials::Principal::System).unwrap();
+        assert_eq!(v4_secret.key_version(), 4);
+
+        let cred = vault.get_credential(&id).expect("should get credential");
+        assert_eq!(
+            cred.versions.len(), 4,
+            "should have 4 versions after 3 rotations"
+        );
+    }
 }
