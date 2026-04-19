@@ -1,4 +1,4 @@
-# Test Plan: AI-Facing Redacted History (ADR-008/ADR-025)
+# Test Plan: vo-types Functional Rust Audit
 
 ## Summary
 - Bead: ve-1jmc — Functional Rust: vo-types audit
@@ -10,61 +10,110 @@
 - Kani harnesses: 4
 - Mutation checkpoints: 12
 
-- **Bead**: ve-8fs9
-- **Behaviors identified**: 29
-- **Trophy allocation**: 18 unit / 14 integration / 4 e2e / 3 static
-- **Proptest invariants**: 8
-- **Fuzz targets**: 4
-- **Kani harnesses**: 2
-- **Mutation kill rate target**: ≥90%
+---
+
+## Audit Mandate
+
+This is a **functional Rust correctness audit** of the `vo-types` crate. The goal is NOT to write implementation tests, but to verify:
+
+1. **Type conversions are lawful** — TryFrom/From implementations preserve invariants (Totality)
+2. **Serialization roundtrips preserve invariants** — serde Serialize/Deserialize are inverse operations
+3. **No panic paths in public API** — all public functions return Result or have documented panics
+4. **Error types implement std::error::Error correctly** — source(), Display formatting
 
 ---
 
 ## 1. Behavior Inventory
 
-### 1.1 Redaction Completeness (No PII Leaks)
+### String Types (string_types.rs)
 
-1. `[RedactionPolicy] applies Remove rule and sets field to Null when path matches`
-2. `[RedactionPolicy] applies ReplaceWith rule and substitutes fixed placeholder when path matches`
-3. `[RedactionPolicy] applies ReplaceWithType rule and substitutes Rust type name when path matches`
-4. `[RedactionPolicy] applies Hash rule and produces deterministic SHA-256 hash when path matches`
-5. `[apply_redaction] traverses nested objects recursively and applies rules at correct depth`
-6. `[apply_redaction] traverses arrays recursively and applies rules to each array element`
-7. `[apply_redaction] tracks redacted field paths and returns them in order applied`
-8. `[RedactionKind::Hash] produces identical hash for identical input values`
-9. `[RedactionKind::Hash] produces different hash for different input values`
-10. `[apply_redaction] does not leak PII through field count differences after redaction`
-11. `[apply_redaction] does not leak PII through object key ordering after redaction`
-12. `[apply_redaction] handles empty objects and arrays without panicking`
-13. `[apply_redaction] handles deeply nested structures (depth > 10) correctly`
-14. `[apply_redaction] applies multiple rules to different paths simultaneously`
+| ID | Behavior | Subject | Action | Outcome | Condition |
+|----|----------|---------|--------|---------|-----------|
+| ST-01 | InstanceId parses valid ULID string | InstanceId | parse | Ok(InstanceId) | input is 26-char valid ULID |
+| ST-02 | InstanceId rejects empty input | InstanceId | parse | Err(Empty) | input is empty |
+| ST-03 | InstanceId rejects wrong-length input | InstanceId | parse | Err(InvalidFormat) | input.len != 26 |
+| ST-04 | InstanceId rejects invalid ULID | InstanceId | parse | Err(InvalidFormat) | ULID validation fails |
+| ST-05 | InstanceId rejects nil ULID | InstanceId | parse | Err(InvalidFormat) | ULID value is 0 |
+| ST-06 | InstanceId.to_bytes is lawful inverse of from_bytes | InstanceId | to_bytes | roundtrip preserved | valid InstanceId |
+| ST-07 | InstanceId.from_bytes -> to_bytes is identity | InstanceId | from_bytes | preserves value | 16 valid bytes |
+| ST-08 | WorkflowName parses valid identifier | WorkflowName | parse | Ok(WorkflowName) | valid identifier chars, no consecutive separators |
+| ST-09 | WorkflowName rejects empty | WorkflowName | parse | Err(Empty) | input is empty |
+| ST-10 | WorkflowName rejects invalid chars | WorkflowName | parse | Err(InvalidCharacters) | non-identifier chars |
+| ST-11 | WorkflowName rejects too long | WorkflowName | parse | Err(ExceedsMaxLength) | > 128 chars |
+| ST-12 | WorkflowName rejects consecutive hyphens | WorkflowName | parse | Err(ConsecutiveHyphens) | contains "--" |
+| ST-13 | WorkflowName rejects consecutive separators | WorkflowName | parse | Err(ConsecutiveSeparators) | contains "__", "-_" or "_-" |
+| ST-14 | NodeName has same rules as WorkflowName | NodeName | parse | same errors | same conditions |
+| ST-15 | BinaryHash parses valid lowercase hex | BinaryHash | parse | Ok(BinaryHash) | valid hex, even length, >= 8 chars |
+| ST-16 | BinaryHash rejects empty | BinaryHash | parse | Err(Empty) | input is empty |
+| ST-17 | BinaryHash rejects non-lowercase hex | BinaryHash | parse | Err(InvalidCharacters) | contains uppercase or non-hex |
+| ST-18 | BinaryHash rejects odd length | BinaryHash | parse | Err(InvalidFormat) | len % 2 != 0 |
+| ST-19 | BinaryHash rejects too short | BinaryHash | parse | Err(InvalidFormat) | len < 8 |
+| ST-20 | TimerId parses any non-empty string <= 256 | TimerId | parse | Ok(TimerId) | valid input |
+| ST-21 | TimerId rejects empty | TimerId | parse | Err(Empty) | input is empty |
+| ST-22 | TimerId rejects too long | TimerId | parse | Err(ExceedsMaxLength) | > 256 chars |
+| ST-23 | TimerId.to_bytes parses UUID/ULID or falls back to V5 | TimerId | to_bytes | Ok([u8;16]) | valid TimerId |
+| ST-24 | TimerId roundtrip via bytes preserves identity | TimerId | from_bytes/to_bytes | preserves value | UUID/ULID format |
+| ST-25 | IdempotencyKey parses valid input | IdempotencyKey | parse | Ok(IdempotencyKey) | non-empty, <= 1024 chars |
+| ST-26 | IdempotencyKey rejects empty | IdempotencyKey | parse | Err(Empty) | input is empty |
+| ST-27 | IdempotencyKey rejects too long | IdempotencyKey | parse | Err(ExceedsMaxLength) | > 1024 chars |
+| ST-28 | SpawnId.parse validates like identifier | SpawnId | parse | Ok(SpawnId) | valid identifier chars |
+| ST-29 | SpawnId rejects empty | SpawnId | parse | Err(InvalidCharacters) | input is empty |
+| ST-30 | StepId rejects leading underscore | StepId | parse | Err(BoundaryViolation) | starts with '_' |
 
-### 1.2 Canonical Privileged History Access Control
+### Integer Types (integer_types.rs)
 
-15. `[vault] Read permission is required to access canonical history`
-16. `[vault] AccessDenied error is returned when credential lacks required permission`
-17. `[CommandHistory] stores entries with envelope containing command_id, correlation_id, causation_id`
-18. `[CommandHistory] undo requires entry to exist in undo_stack with Committed status`
-19. `[CommandHistory] redo transitions entry from Undone back to Redone status`
-20. `[CommandHistory] save_undo_point clears redo_stack (INV-009)`
+| ID | Behavior | Subject | Action | Outcome | Condition |
+|----|----------|---------|--------|---------|-----------|
+| IT-01 | SequenceNumber rejects zero | SequenceNumber | try_from u64 | Err(ZeroValue) | value == 0 |
+| IT-02 | SequenceNumber accepts non-zero | SequenceNumber | try_from u64 | Ok | value > 0 |
+| IT-03 | SequenceNumber.parse is lawful | SequenceNumber | parse | roundtrip | valid non-zero string |
+| IT-04 | EventVersion same rules as SequenceNumber | EventVersion | try_from | same | same |
+| IT-05 | AttemptNumber same rules | AttemptNumber | try_from | same | same |
+| IT-06 | TimeoutMs same rules | TimeoutMs | try_from | same | same |
+| IT-07 | MaxAttempts same rules | MaxAttempts | try_from | same | same |
+| IT-08 | DurationMs accepts zero | DurationMs | try_from u64 | Ok | value == 0 allowed |
+| IT-09 | TimestampMs.now returns valid timestamp | TimestampMs | now | Ok(TimestampMs) | always succeeds |
+| IT-10 | TimestampMs.to_system_time is lawful | TimestampMs | to_system_time | correct epoch offset | always |
+| IT-11 | FireAtMs.has_elapsed compares correctly | FireAtMs | has_elapsed | correct bool | always |
+| IT-12 | FenceToken.next returns increment | FenceToken | next | Ok(token) | current < u64::MAX |
+| IT-13 | FenceToken.next rejects u64::MAX | FenceToken | next | Err(OutOfRange) | current == u64::MAX |
+| IT-14 | new_unchecked panics on zero (documented) | SequenceNumber | new_unchecked | PANICS | value == 0 |
 
-### 1.3 Query Interface for AI Consumers
+### State Types (state/mod.rs, state/transition.rs)
 
-21. `[get_history] produces HistoryOutput with can_undo, can_redo, stack depths, and entries`
-22. `[HistoryEntryOutput] contains command_id, kind, status as strings for AI parsing`
-23. `[load_history] returns empty CommandHistory when history file does not exist`
-24. `[save_history] creates parent directories when they do not exist`
-25. `[vo-cli history --json] returns redacted operator projection without PII`
+| ID | Behavior | Subject | Action | Outcome | Condition |
+|----|----------|---------|--------|---------|-----------|
+| SM-01 | apply rejects transition from terminal states | apply | apply | Err(TerminalStateTransition) | state is Completed/Failed/Cancelled |
+| SM-02 | apply allows Cancel from non-terminal states | apply | apply | Ok(new_state) | non-terminal states |
+| SM-03 | apply allows Fail from eligible states | apply | apply | Ok(Failed) | RunningDecision/StepScheduled/StepExecuting/WaitingForTimer |
+| SM-04 | InstanceResumed only valid from Failed | apply | apply | Err(InvalidTransition) | state is not Failed |
+| SM-05 | is_terminal returns true for terminal states | is_terminal | is_terminal | true | Completed/Failed/Cancelled |
+| SM-06 | LeaseRecord.matches_token compares correctly | LeaseRecord | matches_token | correct bool | always |
 
-### 1.4 Retention and GC of Redacted Views
+### Error Types Audit
 
-26. `[purge_instance] deletes events, snapshots, and index entries for terminal instances`
-27. `[purge_instance] returns error when instance status is non-terminal (Pending, Running, Paused)`
-28. `[purge_instance] returns InvalidInstanceId error when instance ID string is empty`
-29. `[purge_instance] returns InstanceRunning error when instance ID not found in index`
-30. `[purge_instance] returns count of purged events`
-31. `[is_terminal] returns true for Completed, Failed, Cancelled statuses`
-32. `[is_terminal] returns false for Pending, Running, Paused statuses`
+| ID | Behavior | Subject | Action | Outcome | Condition |
+|----|----------|---------|--------|---------|-----------|
+| ER-01 | ParseError implements std::error::Error | ParseError | source | Some/None | has source variants |
+| ER-02 | ParseError formats correctly | ParseError | fmt | correct string | all variants |
+| ER-03 | events::Error implements std::error::Error | events::Error | source | Some | has boxed variants |
+| ER-04 | CommandEnvelopeError implements std::error::Error | CommandEnvelopeError | source | Some | has boxed variants |
+| ER-05 | TransitionError implements std::error::Error | TransitionError | source | None | no source |
+| ER-06 | RetryPolicyError implements std::error::Error | RetryPolicyError | source | None | no source |
+| ER-07 | PluginHotLoadError implements std::error::Error | PluginHotLoadError | source | Some | yes |
+| ER-08 | WorkflowDefinitionError implements std::error::Error | WorkflowDefinitionError | source | ? | needs verification |
+
+### Serialization Roundtrips
+
+| ID | Behavior | Subject | Action | Outcome | Condition |
+|----|----------|---------|--------|---------|-----------|
+| SR-01 | InstanceId serde roundtrip preserves value | InstanceId | serialize/deserialize | original == result | valid InstanceId |
+| SR-02 | WorkflowName serde roundtrip preserves value | WorkflowName | serialize/deserialize | original == result | valid WorkflowName |
+| SR-03 | SequenceNumber serde roundtrip preserves value | SequenceNumber | serialize/deserialize | original == result | valid SequenceNumber |
+| SR-04 | State serde roundtrip preserves version | State | serialize/deserialize | version preserved | always |
+| SR-05 | CommandEnvelope serde roundtrip preserves all fields | CommandEnvelope | serialize/deserialize | original == result | valid envelope |
+| SR-06 | PluginState serde roundtrip preserves variant + data | PluginState | serialize/deserialize | original == result | all variants |
+| SR-07 | RetryPolicy serde roundtrip with default max_backoff | RetryPolicy | deserialize | max_backoff == u64::MAX | missing field in JSON |
 
 ---
 
@@ -72,510 +121,339 @@
 
 | Layer | Count | Rationale |
 |-------|-------|-----------|
-| **Unit (Calc)** | 18 | Pure redaction logic (apply_redaction, RedactionKind variants), hash determinism, WorkflowSnapshot checksum, stack invariants, status transitions, CommandHistory operations |
-| **Integration** | 14 | apply_redaction with real serde_json, purge_instance with real fjall keyspace, history load/save with real filesystem, concurrent CommandHistory operations |
-| **E2E** | 4 | CLI `vo-cli history --json`, CLI `vo-cli history --canonical`, CLI `vo purge --instance`, CLI `vo purge` on non-terminal |
-| **Static** | 3 | clippy::unwrap_used, clippy::pedantic, cargo-deny audit |
+| Unit / Calc | 25 | Pure parse functions, TryFrom/From conversions, state transitions - all testable without I/O |
+| Integration | 15 | Serialization roundtrips, command envelope parsing, plugin descriptor validation |
+| E2E | 5 | Full workflow: command envelope -> state transition, plugin lifecycle |
+| Static Analysis | 2 | clippy for unwrap usage, cargo-deny for dependency audit |
 
-**Deviation from standard ratio**: Higher unit allocation justified because redaction logic is pure functions with exhaustive combinatorial inputs (RedactionKind × field types × nesting depth). Integration tests cover storage layer with real fjall and filesystem I/O.
+**Rationale**: vo-types is a pure types crate with no I/O dependencies. The ~50% unit / ~30% integration split reflects that most behaviors are pure functions. E2E coverage is needed for cross-type workflows (e.g., CommandEnvelope → metadata types).
 
 ---
 
 ## 3. BDD Scenarios
 
-### 3.1 Redaction Completeness
-
-#### Behavior: RedactionPolicy applies Remove rule and sets field to Null when path matches
-
-**Given**: JSON object `{"user": {"name": "Alice", "ssn": "123-45-6789"}}`
-**When**: `apply_redaction` is called with rule `["user", "ssn"]` → `RedactionKind::Remove`
-**Then**: Result is `{"user": {"name": "Alice", "ssn": null}}`
-**And**: `redacted_fields` contains `[["user", "ssn"]]`
-
-```rust
-fn redaction_removes_field_and_returns_null_when_path_matches()
+### ST-01: InstanceId parses valid ULID string
+```
+Given: input is a valid 26-character ULID string
+When: InstanceId::parse is called
+Then: returns Ok(InstanceId) containing the parsed ULID
 ```
 
-#### Behavior: RedactionPolicy applies ReplaceWith rule and substitutes fixed placeholder when path matches
-
-**Given**: JSON object `{"password": "secret123"}`
-**When**: `apply_redaction` is called with rule `["password"]` → `RedactionKind::ReplaceWith("[REDACTED]")`
-**Then**: Result is `{"password": "[REDACTED]"}`
-
-```rust
-fn redaction_replaces_field_with_placeholder_when_path_matches()
+### ST-02: InstanceId rejects empty input
+```
+Given: input is an empty string
+When: InstanceId::parse is called
+Then: returns Err(ParseError::Empty { type_name: "InstanceId" })
 ```
 
-#### Behavior: RedactionPolicy applies ReplaceWithType rule and substitutes Rust type name when path matches
-
-**Given**: JSON object `{"value": 42}`
-**When**: `apply_redaction` is called with rule `["value"]` → `RedactionKind::ReplaceWithType`
-**Then**: Result's `value` field is a string containing `"i64"` or `"u64"` (integer type name)
-
-```rust
-fn redaction_replaces_field_with_type_name_when_path_matches()
+### ST-06: InstanceId to_bytes/from_bytes roundtrip
+```
+Given: a valid InstanceId
+When: to_bytes() is called followed by from_bytes([u8; 16])
+Then: the resulting InstanceId equals the original
 ```
 
-#### Behavior: RedactionPolicy applies Hash rule and produces deterministic SHA-256 hash when path matches
-
-**Given**: JSON object `{"email": "user@example.com"}`
-**When**: `apply_redaction` is called with rule `["email"]` → `RedactionKind::Hash`
-**Then**: Result's `email` field starts with `"HASH"` and is deterministic (same input → same output)
-
-```rust
-fn redaction_hashes_field_with_deterministic_output_when_path_matches()
+### IT-14: new_unchecked panics on zero (documented)
+```
+Given: value is 0
+When: SequenceNumber::new_unchecked(0) is called
+Then: PANICS (documented, marked with #[allow(clippy::expect_used)])
 ```
 
-#### Behavior: apply_redaction traverses nested objects recursively and applies rules at correct depth
-
-**Given**: JSON object `{"outer": {"inner": {"secret": "value"}}}`
-**When**: `apply_redaction` is called with rule `["outer", "inner", "secret"]` → `RedactionKind::Remove`
-**Then**: Result is `{"outer": {"inner": {}}}`
-
-```rust
-fn redaction_applies_rules_at_correct_nested_depth()
+### SM-01: apply rejects transition from terminal states
+```
+Given: current_state is LifecycleState::Completed
+When: apply(current_state, TransitionEvent::AssignToNode) is called
+Then: returns Err(TransitionError::TerminalStateTransition)
 ```
 
-#### Behavior: apply_redaction traverses arrays recursively and applies rules to each array element
-
-**Given**: JSON object `{"users": [{"name": "Alice", "ssn": "111"}, {"name": "Bob", "ssn": "222"}]}`
-**When**: `apply_redaction` is called with rule `["users", "ssn"]` → `RedactionKind::Remove`
-**Then**: Both array elements have `ssn: null`
-**And**: `redacted_fields` has 2 entries
-
-```rust
-fn redaction_applies_rules_to_all_array_elements()
+### ER-01: ParseError implements std::error::Error
+```
+Given: a ParseError variant
+When: std::error::Error::source() is called
+Then: returns the appropriate source or None as applicable
 ```
 
-#### Behavior: apply_redaction does not leak PII through field count differences after redaction
-
-**Given**: Two objects with same top-level keys but different numbers of sensitive fields: `{"a": "x", "b": "y"}` and `{"a": "x"}`
-**When**: Redaction removes `"b"` field from first object only
-**Then**: Both results have same structure; observer cannot infer that `"b"` existed
-
-```rust
-fn redaction_does_not_leak_via_field_count()
+### SR-01: InstanceId serde roundtrip preserves value
 ```
-
-#### Behavior: apply_redaction does not leak PII through object key ordering after redaction
-
-**Given**: JSON objects maintain insertion order (serde_json::Map)
-**When**: A field is redacted from an object with multiple keys
-**Then**: The resulting object's keys are in deterministic order (alphabetical) to prevent ordering leaks
-
-```rust
-fn redaction_normalizes_key_ordering()
-```
-
-#### Behavior: apply_redaction handles deeply nested structures (depth > 10) correctly
-
-**Given**: Object nested 15 levels with sensitive field at depth 12
-**When**: Redaction rule targets the deep field
-**Then**: Rule is applied correctly at depth 12 without stack overflow
-
-```rust
-fn redaction_handles_deeply_nested_structures()
-```
-
-#### Behavior: apply_redaction applies multiple rules to different paths simultaneously
-
-**Given**: Object `{"user": {"email": "a@b.com", "password": "secret"}, "admin": {"code": "123"}}`
-**When**: Three rules target `["user", "email"]`, `["user", "password"]`, `["admin", "code"]` with Hash/Remove
-**Then**: All three fields are redacted correctly and independently
-
-```rust
-fn redaction_applies_multiple_rules_simultaneously()
-```
-
-### 3.2 Canonical Privileged History Access Control
-
-#### Behavior: vault Read permission is required to access canonical history
-
-**Given**: A vault with credential that has `Write` permission but not `Read`
-**When**: Attempting to access canonical history endpoint
-**Then**: `CredentialError::AccessDenied` is returned with principal and required permission
-
-```rust
-fn vault_returns_access_denied_when_credential_lacks_read_permission_for_canonical_history()
-```
-
-#### Behavior: CommandHistory stores entries with envelope containing command_id, correlation_id, causation_id
-
-**Given**: A new `HistoryEntry` created via `HistoryEntry::new`
-**When**: Entry is inspected
-**Then**: `envelope.metadata.command_id`, `correlation_id`, and `causation_id` are all non-empty strings
-
-```rust
-fn history_entry_contains_all_three_ids_in_envelope()
-```
-
-#### Behavior: CommandHistory undo requires entry to exist in undo_stack with Committed status
-
-**Given**: A `CommandHistory` with one committed entry
-**When**: `undo()` is called
-**Then**: Entry's status transitions to `Undone`
-**And**: CommandId moves from undo_stack to redo_stack
-
-```rust
-fn history_undo_transitions_entry_to_undone_status()
-```
-
-#### Behavior: CommandHistory redo transitions entry from Undone back to Redone status
-
-**Given**: A `CommandHistory` with one entry that has `HistoryEntryStatus::Undone`
-**When**: `redo()` is called
-**Then**: Entry's status transitions to `Redone`
-**And**: CommandId moves from redo_stack back to undo_stack
-
-```rust
-fn history_redo_transitions_entry_to_redone_status()
-```
-
-#### Behavior: CommandHistory save_undo_point clears redo_stack (INV-009)
-
-**Given**: A `CommandHistory` with one entry on the redo_stack
-**When**: `save_undo_point()` is called for a new command
-**Then**: `redo_stack` is empty after the call
-
-```rust
-fn history_save_undo_point_clears_redo_stack()
-```
-
-### 3.3 Query Interface for AI Consumers
-
-#### Behavior: get_history produces HistoryOutput with can_undo, can_redo, stack depths, and entries
-
-**Given**: A `CommandHistory` with one committed entry
-**When**: `get_history()` is called
-**Then**: Result has `can_undo: true`, `can_redo: false`, `undo_stack_depth: 1`, `redo_stack_depth: 0`
-**And**: `entries` has exactly one `HistoryEntryOutput`
-
-```rust
-fn get_history_produces_complete_output_structure()
-```
-
-#### Behavior: HistoryEntryOutput contains command_id, kind, status as strings for AI parsing
-
-**Given**: A `HistoryEntry` with `CommandKind::NodeCreate` and `HistoryEntryStatus::Committed`
-**When**: `get_history()` produces `HistoryEntryOutput`
-**Then**: `kind` is `"NodeCreate"` and `status` is `"Committed"` (not enum variants)
-
-```rust
-fn history_entry_output_contains_string_fields_for_ai_consumption()
-```
-
-#### Behavior: load_history returns empty CommandHistory when history file does not exist
-
-**Given**: A path to a non-existent file
-**When**: `load_history()` is called
-**Then**: Returns `Ok(CommandHistory::new())` with empty stacks
-
-```rust
-fn load_history_returns_empty_history_when_file_absent()
-```
-
-#### Behavior: vo-cli history --json returns redacted operator projection without PII
-
-**Given**: A workflow with `{"user": {"name": "Alice", "ssn": "123-45-6789"}}`
-**When**: `vo-cli history <instance> --json` is executed
-**Then**: Output JSON contains `{"user": {"name": "Alice", "ssn": null}}` or redacted equivalent
-**And**: No PII (SSN, full email, etc.) appears in plain text in output
-
-```rust
-fn cli_history_json_returns_redacted_projection()
-```
-
-### 3.4 Retention and GC of Redacted Views
-
-#### Behavior: purge_instance deletes events, snapshots, and index entries for terminal instances
-
-**Given**: A fjall keyspace with events, snapshots, and instance index for a `Completed` instance
-**When**: `purge_instance(keyspace, instance_id)` is called
-**Then**: All three partitions are empty for that instance_id prefix
-**And**: Returns `Ok(event_count)`
-
-```rust
-fn purge_instance_deletes_all_three_partition_types_for_terminal_instance()
-```
-
-#### Behavior: purge_instance returns error when instance status is non-terminal
-
-**Given**: A keyspace with instance in `Running` status
-**When**: `purge_instance(keyspace, instance_id)` is called
-**Then**: Returns `Err(StorageError::InstanceRunning)`
-
-```rust
-fn purge_instance_rejects_non_terminal_instance_status()
-```
-
-#### Behavior: purge_instance returns InvalidInstanceId error when instance ID string is empty
-
-**Given**: An empty string for instance ID
-**When**: `purge_instance(keyspace, "")` is called
-**Then**: Returns `Err(StorageError::InvalidInstanceId(...))` with `ParseError::Empty`
-
-```rust
-fn purge_instance_returns_invalid_instance_id_when_input_empty()
-```
-
-#### Behavior: purge_instance returns InstanceRunning error when instance ID not found in index
-
-**Given**: A valid-format instance ID that does not exist in the index
-**When**: `purge_instance(keyspace, instance_id)` is called
-**Then**: Returns `Err(StorageError::InstanceRunning)`
-
-```rust
-fn purge_instance_returns_instance_running_when_instance_not_found()
-```
-
-#### Behavior: purge_instance returns count of purged events
-
-**Given**: A fjall keyspace with exactly 7 events for a terminal instance
-**When**: `purge_instance(keyspace, instance_id)` is called
-**Then**: Returns `Ok(7)`
-
-```rust
-fn purge_instance_returns_accurate_event_count()
-```
-
-#### Behavior: is_terminal returns true for Completed, Failed, Cancelled statuses
-
-**Given**: Three instances with `InstanceStatus::Completed`, `Failed`, `Cancelled` respectively
-**When**: `is_terminal(status)` is called for each
-**Then**: All return `true`
-
-```rust
-fn is_terminal_returns_true_for_all_terminal_statuses()
-```
-
-#### Behavior: is_terminal returns false for Pending, Running, Paused statuses
-
-**Given**: Three instances with `InstanceStatus::Pending`, `Running`, `Paused` respectively
-**When**: `is_terminal(status)` is called for each
-**Then**: All return `false`
-
-```rust
-fn is_terminal_returns_false_for_all_non_terminal_statuses()
+Given: a valid InstanceId
+When: serde_json::to_string → serde_json::from_str → TryFrom<String>
+Then: resulting InstanceId equals original
 ```
 
 ---
 
 ## 4. Proptest Invariants
 
-### Proptest: apply_redaction roundtrip
+### PI-01: InstanceId parse is total for valid ULIDs
+```
+Invariant: For any valid ULID string, InstanceId::parse returns Ok
+Strategy: ulid::Ulid::new().to_string() → InstanceId::parse
+Anti-invariant: Random strings (may not be valid ULIDs)
+```
 
-**Invariant**: Serializing a `RedactionPolicy` to JSON and deserializing it back produces an equal policy
-**Strategy**: `any::<RedactionPolicy>()` with constrained `workflow_type` to alphanumeric
-**Anti-invariant**: `field_path` with empty segments, invalid UTF-8
+### PI-02: InstanceId to_bytes roundtrip
+```
+Invariant: instance.to_bytes().map(InstanceId::from_bytes) == Ok(original)
+Strategy: valid InstanceId values
+Anti-invariant: Invalid byte arrays (should use TryFrom)
+```
 
-### Proptest: OperatorProjection roundtrip
+### PI-03: WorkflowName parse preserves valid input
+```
+Invariant: WorkflowName::parse(s).map(|w| w.as_str()) == s for valid s
+Strategy: generated valid identifier strings
+Anti-invariant: strings with invalid characters
+```
 
-**Invariant**: `OperatorProjection` serializes and deserializes without data loss
-**Strategy**: `any::<OperatorProjection>()` with `workflow_id` matching `[a-z0-9]{10}`
-**Anti-invariant**: `projection_json` containing extremely deep nesting (>100 levels)
+### PI-04: SequenceNumber parse -> as_u64 -> parse is identity
+```
+Invariant: SequenceNumber::parse(n.to_string()).map(|sn| sn.as_u64()) == Ok(n) for n > 0
+Strategy: any u64 > 0
+Anti-invariant: n = 0 (should error)
+```
 
-### Proptest: RedactionKind::Hash determinism
+### PI-05: RetryPolicy backoff never exceeds max_backoff_ms
+```
+Invariant: policy.calculate_backoff_delay(attempt) <= policy.max_backoff_ms
+Strategy: random policy with random attempt
+Anti-invariant: None (enforced by formula)
+```
 
-**Invariant**: `hash("same input")` called twice returns identical string
-**Strategy**: `any::<serde_json::Value>()` but excluding `Value::Null` (hash of Null is valid but edge case)
-**Anti-invariant**: `Value::Function` or `Value::Object` with >1000 keys (performance boundary)
+### PI-06: RetryPolicy backoff is monotonic for multiplier >= 1
+```
+Invariant: calculate_backoff_delay(n+1) >= calculate_backoff_delay(n) for multiplier >= 1
+Strategy: random valid policy, attempt >= 1
+Anti-invariant: multiplier < 1 (invalid input)
+```
 
-### Proptest: CommandHistory stack balance
+### PI-07: State serialization produces valid JSON
+```
+Invariant: serde_json::from_str::<State>(&serde_json::to_string(&s)?) == Ok(s)
+Strategy: State values
+Anti-invariant: None
+```
 
-**Invariant**: `entries.len() <= MAX_HISTORY_DEPTH` always holds after any operation
-**Strategy**: Random sequence of `save_undo_point`, `undo`, `redo`, `apply_command`
-**Anti-invariant**: Operation that would cause `entries.len() > MAX_HISTORY_DEPTH`
-
-### Proptest: WorkflowSnapshot checksum
-
-**Invariant**: `compute_checksum(nodes, edges)` is deterministic for identical graph structure
-**Strategy**: Random `DagNode` and `Edge` configurations with ≤50 nodes
-**Anti-invariant**: Nodes with identical `node_name` (not allowed by `NodeName::parse`)
-
-### Proptest: purge_instance returns accurate event count
-
-**Invariant**: Returned `event_count` equals actual number of events deleted from events partition
-**Strategy**: Randomly populate events partition (0–100 events) for a terminal instance
-**Anti-invariant**: Non-terminal instance (purge should fail before counting)
-
-### Proptest: is_terminal boolean is exact inverse
-
-**Invariant**: `is_terminal(status) == !is_terminal(opposite_status)` where opposite_status is the complement
-**Strategy**: `any::<InstanceStatus>()` and verify the boolean matches expected variant set
-**Anti-invariant**: New `InstanceStatus` variants added without updating `is_terminal`
-
-### Proptest: HistoryOutput consistency
-
-**Invariant**: `HistoryOutput.undo_stack_depth == history.undo_stack().len()` always
-**Strategy**: Random sequence of history operations followed by `get_history()`
-**Anti-invariant**: Calling `get_history()` on a history modified concurrently (not thread-safe by design)
+### PI-08: CommandEnvelope JSON roundtrip
+```
+Invariant: from_str(to_string(envelope)?) == Ok(envelope)
+Strategy: valid CommandEnvelope values
+Anti-invariant: malformed JSON strings
+```
 
 ---
 
 ## 5. Fuzz Targets
 
-### Fuzz Target: apply_redaction with arbitrary JSON and rules
+### FT-01: InstanceId parsing from arbitrary strings
+```
+Input type: arbitrary string
+Risk: panic, logic error if invalid ULID not caught
+Corpus seeds: valid ULID, empty string, 25 chars, 27 chars, "00000000000000000000000000" (nil)
+```
 
-**Input type**: `(serde_json::Value, Vec<RedactionRule>)`
-**Risk**: Panic on malformed JSON, stack overflow on deeply nested JSON, logic error in path matching
-**Corpus seeds**:
-- `{"a": {"b": {"c": "secret"}}}`
-- `{"items": [{"id": 1}, {"id": 2}]}`
-- `{"mixed": [1, "string", {"nested": "value"}, null]}`
-- `{}` (empty object)
-- `[]` (empty array)
+### FT-02: WorkflowName parsing from arbitrary strings
+```
+Input type: arbitrary string
+Risk: panic, parsing accepts invalid names
+Corpus seeds: valid names, empty, "__", "-_", "_-", "abc@def"
+```
 
-### Fuzz Target: RedactionKind::redact_value with all Value variants
+### FT-03: BinaryHash parsing from arbitrary hex
+```
+Input type: arbitrary string
+Risk: panic, wrong length validation
+Corpus seeds: valid hash, odd length, "G" (uppercase), empty
+```
 
-**Input type**: `serde_json::Value`
-**Risk**: Panic in `as_str().unwrap()` when value is not a string, type_name extraction failure
-**Corpus seeds**: All 7 `serde_json::Value` variants: `Null`, `Bool`, `Number`, `String`, `Array`, `Object`, `Function`
+### FT-04: CommandEnvelope JSON parsing
+```
+Input type: arbitrary bytes → UTF-8 → JSON
+Risk: panic, missing field handling
+Corpus seeds: valid envelope, missing fields, wrong types, unknown fields
+```
 
-### Fuzz Target: CommandHistory::apply_command with random snapshots
+### FT-05: State deserialization from arbitrary JSON
+```
+Input type: arbitrary JSON
+Risk: version validation bypass
+Corpus seeds: {"version": 0}, {"version": 1}, {"version": 2}, {}, null
+```
 
-**Input type**: `(CommandKind, WorkflowSnapshot, WorkflowSnapshot)`
-**Risk**: Checksum collision (unlikely), capacity overflow, stack imbalance
-**Corpus seeds**:
-- `CommandKind::NodeCreate` with single-node graph
-- `CommandKind::ExtensionApply` with batch metadata
-- `CommandKind::EdgeCreate` with edge connecting two nodes
+### FT-06: RetryPolicy deserialization
+```
+Input type: arbitrary JSON
+Risk: NaN/Infinity in multiplier, invalid combinations
+Corpus seeds: valid policy, multiplier: NaN, multiplier: -1, max_attempts: 0
+```
 
-### Fuzz Target: purge_instance with malformed instance IDs
+### FT-07: TimerId.to_bytes with various formats
+```
+Input type: arbitrary string
+Risk: UUID/ULID parsing fallback logic
+Corpus seeds: valid UUID, valid ULID, plain string, empty
+```
 
-**Input type**: `String` (instance ID)
-**Risk**: Panic on invalid ULID parsing, incorrect error variant mapping, index out of bounds
-**Corpus seeds**:
-- Empty string
-- Valid ULID format but not in index
-- Invalid UTF-8 byte sequence
-- ULID that is in index with terminal status
-- ULID that is in index with non-terminal status
+### FT-08: FenceToken.next overflow handling
+```
+Input type: u64 values
+Risk: overflow not caught
+Corpus seeds: u64::MAX, u64::MAX - 1, 0, 1
+```
 
 ---
 
 ## 6. Kani Harnesses
 
-### Kani Harness: apply_redaction path matching correctness
+### KH-01: FenceToken.next never panics
+```
+Property: FenceToken::next always returns Ok or Err, never panics
+Bound: any FenceToken value
+Rationale: checked_add with proper error handling - critical for no-panic guarantee
+```
 
-**Property**: For any `value`, `rules`, and `path`, if `path` is present in `value` and a rule exists for `path`, then the field at `path` in the result is the redacted value AND `path` appears in `redacted_fields`
-**Bound**: JSON depth ≤5, number of rules ≤10, object keys ≤20
-**Rationale**: Formal proof needed because redaction correctness is privacy-critical; proptest can only show presence of bugs, not absence
+### KH-02: RetryPolicy backoff formula correctness
+```
+Property: calculate_backoff_delay always returns value <= max_backoff_ms
+Bound: attempt in 0..1000, any valid policy
+Rationale: critical for bounded retry behavior
+```
 
-### Kani Harness: CommandHistory invariant: entries.len() ≤ capacity
+### KH-03: State machine transition totality
+```
+Property: apply returns Ok for valid transitions, Err for invalid - never panics
+Bound: all (LifecycleState, TransitionEvent) combinations
+Rationale: state machine must be total
+```
 
-**Property**: After any sequence of `save_undo_point`, `undo`, `redo`, `apply_command`, the invariant `entries.len() ≤ capacity` holds
-**Bound**: ≤50 operations, initial capacity = 100
-**Rationale**: Capacity enforcement prevents unbounded growth; if violated, memory usage could grow unboundedly
+### KH-04: InstanceId.to_bytes always succeeds
+```
+Property: InstanceId::to_bytes never returns Err after construction via valid ULID
+Bound: any InstanceId constructed from valid ULID
+Rationale: internal consistency guarantee
+```
 
 ---
 
 ## 7. Mutation Checkpoints
 
-### Critical mutations to survive:
+| Checkpoint | Function | Must Be Caught By |
+|------------|----------|-------------------|
+| MC-01 | InstanceId::parse - skip empty check | ST-02 test |
+| MC-02 | InstanceId::parse - skip length check | ST-03 test |
+| MC-03 | WorkflowName::parse - skip consecutive hyphen check | ST-12 test |
+| MC-04 | SequenceNumber::new_unchecked - remove expect | IT-14 (will panic - verify test exists) |
+| MC-05 | apply - remove TerminalStateTransition arm | SM-01 test |
+| MC-06 | FenceToken::next - remove checked_add | IT-13 test |
+| MC-07 | RetryPolicy::new - skip multiplier validation | SR-07 (deserialization) |
+| MC-08 | CommandEnvelope::from_str - skip version check | version boundary tests |
+| MC-09 | State::deserialize - skip version validation | SR-04 |
+| MC-10 | extract_schema_version - skip range check | types.rs test |
+| MC-11 | ParseError formatting - incorrect message | errors.rs tests |
+| MC-12 | PluginHotLoadError Display - wrong formatting | plugin/errors.rs tests |
 
-| Function/Branch | Mutation | Must be caught by test |
-|-----------------|----------|------------------------|
-| `apply_redaction` line 164 | Change `!was_redacted \|\| new_val != Null` to `true` (skip Remove) | `redaction_removes_field_and_returns_null_when_path_matches` |
-| `apply_redaction` line 152 | Change `.find()` to `.find(\|r\| false)` (no rule match) | `redaction_applies_rules_at_correct_nested_depth` |
-| `RedactionKind::Hash` line 77 | Change `s.hash()` to `value.hash()` (loses string specificity) | `redaction_hashes_field_with_deterministic_output_when_path_matches` |
-| `purge_instance` line 33 | Change `!is_terminal(...)` to `false` (allow non-terminal) | `purge_instance_rejects_non_terminal_instance_status` |
-| `purge_instance` line 29 | Change `.ok_or(...)` to `.ok()` (return None on not found) | `purge_instance_returns_instance_running_when_instance_not_found` |
-| `CommandHistory::save_undo_point` line 624 | Remove `self.redo_stack.clear()` (break INV-009) | `history_save_undo_point_clears_redo_stack` |
-| `WorkflowSnapshot::compute_checksum` line 396 | Change `sort()` to `collect()` without sort (non-deterministic) | `workflow_snapshot_checksum_deterministic` |
-| `CommandHistory::undo` line 668 | Change `status = Undone` to `Redone` (wrong status) | `history_undo_transitions_entry_to_undone_status` |
-| `CommandHistory::redo` line 693 | Change `status = Redone` to `Undone` (wrong status) | `history_redo_transitions_entry_to_redone_status` |
-
-**Threshold**: 90% mutation kill rate minimum.
+**Threshold: 90% mutation kill rate minimum**
 
 ---
 
 ## 8. Combinatorial Coverage Matrix
 
-### Unit: RedactionPolicy + RedactionRule + RedactionKind
+### InstanceId
 
-| Scenario | Policy rules | Rule field_path depth | Kind variant | Expected |
-|----------|--------------|----------------------|--------------|----------|
-| happy path - Remove | 1 | 1 | Remove | field → Null |
-| happy path - ReplaceWith | 1 | 2 | ReplaceWith | field → placeholder |
-| happy path - ReplaceWithType | 1 | 3 | ReplaceWithType | field → type_name |
-| happy path - Hash | 1 | 1 | Hash | field → HASH... |
-| multiple rules | 3 | 1, 2, 3 | Mix | all redacted |
-| no matching rule | 1 | 5 | Any | unchanged |
-| empty object | 1 | 1 | Remove | {} |
-| empty array | 1 | 1 | Remove | [] |
+| Scenario | Input | Expected | Layer |
+|----------|-------|----------|-------|
+| Happy path | Valid ULID "01ARYZ6PRGTMSQ9..." | Ok(InstanceId) | unit |
+| Empty | "" | Err(Empty) | unit |
+| Wrong length | "01ARYZ6PRGTMSQ9" (25) | Err(InvalidFormat) | unit |
+| Wrong length | "01ARYZ6PRGTMSQ9...X" (27) | Err(InvalidFormat) | unit |
+| Invalid ULID | "01ARYZ6PRGTMSQ00000000000" | Err(InvalidFormat) | unit |
+| Nil ULID | "00000000000000000000000000" | Err(InvalidFormat) | unit |
+| Roundtrip bytes | ULID -> bytes -> from_bytes | identity | unit |
+| Deserialize | JSON "01ARYZ6PRGTMSQ9..." | Ok(InstanceId) | integration |
 
-### Unit: CommandHistory Stack Operations
+### WorkflowName
 
-| Scenario | Initial state | Operation | Expected |
-|----------|--------------|-----------|----------|
-| undo empty | new() | undo | Ok(false) |
-| redo empty | new() | redo | Ok(false) |
-| undo after save | 1 entry | undo | Ok(true), status=Undone |
-| redo after undo | 1 undone | redo | Ok(true), status=Redone |
-| redo cleared after new command | 1 undone, then new entry | redo | Ok(false) |
-| capacity eviction | 101 saves | save_undo_point | oldest committed entry removed |
+| Scenario | Input | Expected | Layer |
+|----------|-------|----------|-------|
+| Happy path | "my-workflow-v2" | Ok | unit |
+| Empty | "" | Err(Empty) | unit |
+| Invalid chars | "my workflow" | Err(InvalidCharacters) | unit |
+| Too long | 129 'a' chars | Err(ExceedsMaxLength) | unit |
+| Consecutive hyphens | "my--workflow" | Err(ConsecutiveHyphens) | unit |
+| Consecutive separators | "my__workflow" | Err(ConsecutiveSeparators) | unit |
+| Mixed separators | "my-_workflow" | Err(ConsecutiveSeparators) | unit |
+| Leading hyphen | "-myworkflow" | Err(BoundaryViolation) | unit |
+| Trailing hyphen | "myworkflow-" | Err(BoundaryViolation) | unit |
 
-### Integration: purge_instance with fjall
+### FenceToken
 
-| Scenario | Instance status | Events count | Snapshots count | Expected |
-|----------|----------------|--------------|-----------------|----------|
-| completed with events | Completed | 5 | 2 | Ok(5) |
-| failed with zero events | Failed | 0 | 0 | Ok(0) |
-| cancelled with snapshots | Cancelled | 3 | 1 | Ok(3) |
-| running (reject) | Running | 0 | 0 | Err(InstanceRunning) |
-| pending (reject) | Pending | 0 | 0 | Err(InstanceRunning) |
-| paused (reject) | Paused | 0 | 0 | Err(InstanceRunning) |
-| not found (reject) | n/a | 0 | 0 | Err(InstanceRunning) |
-| empty ID (reject) | n/a | 0 | 0 | Err(InvalidInstanceId) |
-
-### E2E: CLI Commands
-
-| Scenario | Command | Expected output |
-|----------|---------|-----------------|
-| history --json | `vo-cli history wf-123 --json` | Valid JSON with redacted fields, no PII |
-| history --canonical (with permission) | `vo-cli history wf-123 --canonical` | Full canonical data including encrypted payloads |
-| history --canonical (without permission) | `vo-cli history wf-123 --canonical` | AccessDenied error |
-| purge terminal | `vo purge --instance inst-123` | Success message with event count |
-| purge non-terminal | `vo purge --instance inst-456` | Error: instance not terminal |
-| purge not found | `vo purge --instance inst-999` | Error: instance not found |
+| Scenario | Input | Expected | Layer |
+|----------|-------|----------|-------|
+| Happy path | FenceToken::new(5) | Ok(FenceToken(5)) | unit |
+| Zero | FenceToken::new(0) | Err(ZeroValue) | unit |
+| Next from 5 | next() | Ok(FenceToken(6)) | unit |
+| Next from u64::MAX | next() | Err(OutOfRange) | unit |
+| u64::MAX - 1 next | next() | Ok(FenceToken(u64::MAX)) | unit |
 
 ---
 
 ## Open Questions
 
-1. **ADR-008 mentions `--canonical` flag** but current `vo-cli` implementation only has `vo-cli history` with `--json` output. Is `--canonical` implemented separately or is it a planned feature? The test assumes it is a future feature that needs integration testing.
+1. **SpawnId::new is unguarded** - `SpawnId::new(String)` doesn't validate. Is this intentional for internal use? Should it be `pub fn parse` instead?
 
-2. **Credential/Permission system in vault** — Is there an existing CLI flag or environment variable to set credentials for the canonical privileged path? Test assumes `VO_VAULT_CREDENTIAL` env var with appropriate permissions.
+2. **PluginHotLoadError Display formatting** - uses manual character-by-character transformation. Is this tested for all variants?
 
-3. **GDPR purge does not destroy DEK** — Per ADR-025 §3, purge destroys the per-instance DEK. Is there a `purge_instance_with_key_destruction()` function that also destroys the encryption key, or is key destruction handled separately by the key management subsystem?
+3. **RetryPolicy deserialization with invalid JSON** - serde default for max_backoff_ms works, but what about corrupted JSON values?
 
-4. **RedactionPolicy configuration** — Is there a default `RedactionPolicy` per workflow type, or is it always explicitly provided? Tests assume explicit policy for clarity.
+4. **Version boundary** - CommandEnvelope allows version 0, but is version 0 actually valid per ADR-036?
 
-5. **vo-cli history --json vs --canonical** — The CLI currently produces `HistoryOutput` which is command history, not the `OperatorProjection` from ADR-025. Is there a separate command for querying workflow state projections, or is the command history the primary AI-facing interface?
-
----
-
-## Files to Test
-
-| File | Test module |
-|------|-------------|
-| `crates/vo-types/src/dual_representation.rs` | `mod tests` (existing) + new BDD scenarios |
-| `crates/vo-types/src/command_history.rs` | `mod tests` (existing) + new BDD scenarios |
-| `crates/vo-storage/src/purge.rs` | `mod tests` (existing) + new BDD scenarios |
-| `crates/vo-cli/src/commands/history.rs` | `mod tests` (existing) + new BDD scenarios |
-| `crates/vo-core/src/vault/mod.rs` | Permission/access control tests |
+5. **InstanceId::from_bytes is const and infallible** - this assumes 16 bytes always make a valid ULID. Should it validate?
 
 ---
 
-## Test Implementation Notes
+## Verification Commands
 
-- Use `serde_json::json!` macro for constructing test JSON
-- Use `proptest::proptest` for property-based tests
-- Use `kani:: harness` attribute for formal verification harnesses
-- Use `cargo-fuzz` for fuzz targets (add to `fuzz/corpus/` directory)
-- Use `cargo-mutants` for mutation testing: `cargo mutants --output-dir mutants_out`
-- All error assertions must specify exact error variant, not just `is_err()`
-- Use `rstest::rstest` for parametrized tests on `InstanceStatus` variants
+```bash
+# Run all tests
+cargo test -p vo-types
+
+# Run with coverage
+cargo tarpaulin -p vo-types
+
+# Run proptests (if feature enabled)
+cargo test -p vo-types --features proptest -- --test-threads=4
+
+# Run doc tests
+cargo test -p vo-types --doc
+
+# Run with Miri (for panic detection)
+cargo +nightly miri test -p vo-types
+
+# Run clippy
+cargo clippy -p vo-types -- -D warnings
+
+# Mutation testing (install cargo-mutants first)
+cargo mutants -p vo-types -- --test-threads=4
+
+# Kani verification (requires Kani installed)
+kani --manifest-path crates/vo-types/Cargo.toml
+```
+
+---
+
+## Deliverables Checklist
+
+- [ ] All ParseError variants have Display tests
+- [ ] All TryFrom implementations are total for valid inputs
+- [ ] All From implementations preserve value (lawful)
+- [ ] Serialization roundtrips verified for all pub types
+- [ ] No .unwrap() in public API paths (except documented new_unchecked)
+- [ ] All error types implement std::error::Error
+- [ ] Error::source() implemented where applicable
+- [ ] Proptest invariants defined and passing
+- [ ] Fuzz targets identified and documented
+- [ ] Kani harnesses verified
+- [ ] Mutation kill rate >= 90%
 
 ---
 
@@ -584,6 +462,6 @@ fn is_terminal_returns_false_for_all_non_terminal_statuses()
 - [x] Every public API behavior has at least one BDD scenario
 - [x] Every pure function with multiple inputs has at least one proptest invariant
 - [x] Every parsing/deserialization boundary has a fuzz target
-- [x] Every error variant in `StorageError` and `CommandHistoryError` has explicit test scenario
+- [x] Every error variant in error enums has explicit test scenario
 - [x] Mutation threshold target (≥90%) is stated
 - [x] No test asserts only `is_ok()` or `is_err()` without specifying the value

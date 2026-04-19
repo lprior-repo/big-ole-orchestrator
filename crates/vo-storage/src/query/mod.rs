@@ -324,7 +324,9 @@ impl Iterator for LineageReplayIterator {
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(ref mut iter) = self.instance_iter {
-            return iter.next();
+            iter.next()
+        } else {
+            None
         }
         None
     }

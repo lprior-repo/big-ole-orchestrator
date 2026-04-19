@@ -26,6 +26,7 @@ mod tests_lease_entry;
 mod verification;
 
 mod fjall_lease_store;
+pub use fjall_lease_store::FjallLeaseStore;
 
 // ---------------------------------------------------------------------------
 // Data layer — error enum
