@@ -1,3 +1,7 @@
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+use super::errors::ApiError;
+use super::v3::*;
+
 #[test]
 fn timeline_entry_serializes_with_all_fields() {
     let entry = super::v3::TimelineEntry {

@@ -2,7 +2,7 @@ use serde_json::json;
 use vo_api::types::errors::*;
 use vo_api::types::helpers::*;
 use vo_api::types::names::{RetryAfterSeconds, Timestamp};
-use vo_api::types::v1::{ErrorResponse, StartWorkflowResponse, WorkflowStatusValue};
+use vo_api::types::v1::{StartWorkflowResponse, WorkflowStatusValue};
 use vo_api::types::v3::*;
 
 mod v3_start_request_flow {
@@ -736,9 +736,10 @@ mod error_handling_edge_cases {
     use vo_api::types::names::InvocationId;
 
     #[test]
-    fn error_response_with_retry_after() {
+    fn api_error_with_retry_after() {
         let retry = RetryAfterSeconds::new(30).expect("valid retry seconds");
-        let result = ErrorResponse::new("at_capacity", "Server at capacity", Some(retry));
+        let result =
+            ApiError::new_with_retry_validation("at_capacity", "Server at capacity", Some(retry));
         assert!(result.is_ok());
         let resp = result.unwrap();
         assert_eq!(resp.error, "at_capacity");
@@ -746,15 +747,15 @@ mod error_handling_edge_cases {
     }
 
     #[test]
-    fn error_response_retryable_without_retry_field_fails() {
-        let result = ErrorResponse::new("at_capacity", "Server at capacity", None);
+    fn api_error_retryable_without_retry_field_fails() {
+        let result = ApiError::new_with_retry_validation("at_capacity", "Server at capacity", None);
         assert!(result.is_err());
     }
 
     #[test]
-    fn error_response_non_retryable_with_retry_field_fails() {
+    fn api_error_non_retryable_with_retry_field_fails() {
         let retry = RetryAfterSeconds::new(30).expect("valid retry seconds");
-        let result = ErrorResponse::new("not_found", "Not found", Some(retry));
+        let result = ApiError::new_with_retry_validation("not_found", "Not found", Some(retry));
         assert!(result.is_err());
     }
 

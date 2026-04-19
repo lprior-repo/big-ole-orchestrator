@@ -57,10 +57,13 @@ pub mod validation;
 pub mod vault;
 pub mod workflow_version;
 pub mod workload_class;
+pub mod workload_class_tests;
+pub mod workload_budget;
 pub mod workspace_swap;
-pub mod workload_class;
+pub mod workspace_swap_tests;
+pub mod write_budget;
 pub mod write_class;
-pub mod shedding;
+pub mod write_class_tests;
 
 pub use validation::{
     validate_effect_kinds, validate_workflow_effects, validate_workflow_sinks, KnownSinks,
