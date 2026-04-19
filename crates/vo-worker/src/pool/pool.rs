@@ -121,6 +121,10 @@ impl PoolState {
             && self.idle_count() == 0
             && !self.is_shutting_down
     }
+
+    pub fn reset_circuit_breaker(&mut self) {
+        self.circuit_breaker.reset();
+    }
 }
 
 #[derive(Debug)]
