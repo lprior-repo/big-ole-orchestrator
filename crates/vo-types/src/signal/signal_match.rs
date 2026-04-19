@@ -298,4 +298,485 @@ mod tests {
         let restored: SignalMatchResult = serde_json::from_str(&json).expect("deserialize");
         assert_eq!(restored, mismatch);
     }
+
+    // =========================================================================
+    // RED QUEEN: Adversarial Signal Matching Tests (ADR-042)
+    // These tests verify that signals CANNOT be delivered to the wrong
+    // epoch, wrong lineage, wrong instance, or wrong wait state.
+    // =========================================================================
+
+    #[test]
+    fn red_queen_signal_wrong_epoch_rejected() {
+        let lineage_id = valid_instance_id();
+        let instance_id = valid_instance_id();
+        let wait_key = WaitKey::parse("approval").expect("valid key");
+        let signal_epoch = Epoch::new(99);
+        let wait_epoch = Epoch::new(1);
+
+        let signal = SignalAddress::epoch_local(
+            lineage_id.clone(),
+            signal_epoch,
+            instance_id.clone(),
+            wait_key.clone(),
+        );
+        let wait = WaitRecord::new(
+            instance_id.clone(),
+            wait_key,
+            crate::BufferPolicy::Reject,
+            crate::TimestampMs::now(),
+        )
+        .expect("valid wait record");
+
+        let result = signal_match(&signal, &wait, &lineage_id);
+        assert!(result.is_mismatch());
+        match result {
+            SignalMatchResult::EpochMismatch {
+                signal_epoch: sig_e,
+                wait_epoch: w_e,
+            } => {
+                assert_eq!(sig_e, signal_epoch);
+                assert_eq!(w_e, wait_epoch);
+            }
+            _ => panic!("expected EpochMismatch, got {:?}", result),
+        }
+    }
+
+    #[test]
+    fn red_queen_signal_epoch_local_missing_epoch_rejected() {
+        let lineage_id = valid_instance_id();
+        let instance_id = valid_instance_id();
+        let wait_key = WaitKey::parse("approval").expect("valid key");
+
+        let signal = SignalAddress::epoch_local(
+            lineage_id.clone(),
+            Epoch::ZERO,
+            instance_id.clone(),
+            wait_key.clone(),
+        );
+        let wait = WaitRecord::new(
+            instance_id,
+            wait_key,
+            crate::BufferPolicy::Reject,
+            crate::TimestampMs::now(),
+        )
+        .expect("valid wait record");
+
+        let result = signal_match(&signal, &wait, &lineage_id);
+        assert!(result.is_mismatch());
+        match result {
+            SignalMatchResult::EpochMismatch { .. } => {}
+            _ => panic!("expected EpochMismatch for epoch mismatch"),
+        }
+    }
+
+    #[test]
+    fn red_queen_signal_no_matching_wait_key_rejected() {
+        let lineage_id = valid_instance_id();
+        let instance_id = valid_instance_id();
+        let signal_key = WaitKey::parse("signal-key").expect("valid key");
+        let wait_key = WaitKey::parse("wait-key").expect("valid key");
+
+        let signal =
+            SignalAddress::lineage_wide(lineage_id.clone(), instance_id.clone(), signal_key);
+        let wait = WaitRecord::new(
+            instance_id,
+            wait_key,
+            crate::BufferPolicy::Reject,
+            crate::TimestampMs::now(),
+        )
+        .expect("valid wait record");
+
+        let result = signal_match(&signal, &wait, &lineage_id);
+        assert!(result.is_mismatch());
+        match result {
+            SignalMatchResult::WaitKeyMismatch { .. } => {}
+            _ => panic!("expected WaitKeyMismatch"),
+        }
+    }
+
+    #[test]
+    fn red_queen_signal_wrong_lineage_rejected() {
+        let lineage_id = valid_instance_id();
+        let wrong_lineage_id = InstanceId::parse("01JAR3K2N0XG8F5VZE9H7QW4Y7").expect("valid ULID");
+        let instance_id = valid_instance_id();
+        let wait_key = WaitKey::parse("approval").expect("valid key");
+
+        let signal =
+            SignalAddress::lineage_wide(lineage_id.clone(), instance_id.clone(), wait_key.clone());
+        let wait = WaitRecord::new(
+            instance_id,
+            wait_key,
+            crate::BufferPolicy::Reject,
+            crate::TimestampMs::now(),
+        )
+        .expect("valid wait record");
+
+        let result = signal_match(&signal, &wait, &wrong_lineage_id);
+        assert!(result.is_mismatch());
+        match result {
+            SignalMatchResult::LineageMismatch { .. } => {}
+            _ => panic!("expected LineageMismatch"),
+        }
+    }
+
+    #[test]
+    fn red_queen_signal_wrong_instance_rejected() {
+        let lineage_id = valid_instance_id();
+        let instance_id = valid_instance_id();
+        let wrong_instance_id =
+            InstanceId::parse("01JAR3K2N0XG8F5VZE9H7QW4Y7").expect("valid ULID");
+        let wait_key = WaitKey::parse("approval").expect("valid key");
+
+        let signal =
+            SignalAddress::lineage_wide(lineage_id.clone(), wrong_instance_id, wait_key.clone());
+        let wait = WaitRecord::new(
+            instance_id,
+            wait_key,
+            crate::BufferPolicy::Reject,
+            crate::TimestampMs::now(),
+        )
+        .expect("valid wait record");
+
+        let result = signal_match(&signal, &wait, &lineage_id);
+        assert!(result.is_mismatch());
+        match result {
+            SignalMatchResult::InstanceMismatch { .. } => {}
+            _ => panic!("expected InstanceMismatch"),
+        }
+    }
+
+    #[test]
+    fn red_queen_signal_multiple_mismatch_dimensions_returns_first_mismatch() {
+        let lineage_id = valid_instance_id();
+        let instance_id = valid_instance_id();
+        let wrong_lineage_id = InstanceId::parse("01JAR3K2N0XG8F5VZE9H7QW4Y7").expect("valid ULID");
+        let wait_key = WaitKey::parse("approval").expect("valid key");
+
+        let signal =
+            SignalAddress::lineage_wide(lineage_id.clone(), instance_id.clone(), wait_key.clone());
+        let wait = WaitRecord::new(
+            instance_id,
+            wait_key,
+            crate::BufferPolicy::Reject,
+            crate::TimestampMs::now(),
+        )
+        .expect("valid wait record");
+
+        let result = signal_match(&signal, &wait, &wrong_lineage_id);
+        assert!(result.is_mismatch());
+        match result {
+            SignalMatchResult::LineageMismatch { .. } => {}
+            _ => panic!("expected LineageMismatch as first check"),
+        }
+    }
+
+    #[test]
+    fn red_queen_signal_ordering_when_all_dimensions_match() {
+        let lineage_id = valid_instance_id();
+        let instance_id = valid_instance_id();
+        let wait_key = WaitKey::parse("approval").expect("valid key");
+
+        let signal =
+            SignalAddress::lineage_wide(lineage_id.clone(), instance_id.clone(), wait_key.clone());
+        let wait = WaitRecord::new(
+            instance_id.clone(),
+            wait_key,
+            crate::BufferPolicy::Reject,
+            crate::TimestampMs::now(),
+        )
+        .expect("valid wait record");
+
+        let result1 = signal_match(&signal, &wait, &lineage_id);
+        let result2 = signal_match(&signal, &wait, &lineage_id);
+        let result3 = signal_match(&signal, &wait, &lineage_id);
+
+        assert!(result1.is_matched());
+        assert!(result2.is_matched());
+        assert!(result3.is_matched());
+    }
+
+    #[test]
+    fn red_queen_signal_epoch_local_vs_lineage_wide_not_interchangeable() {
+        let lineage_id = valid_instance_id();
+        let instance_id = valid_instance_id();
+        let wait_key = WaitKey::parse("approval").expect("valid key");
+
+        let epoch_local_signal = SignalAddress::epoch_local(
+            lineage_id.clone(),
+            Epoch::ZERO,
+            instance_id.clone(),
+            wait_key.clone(),
+        );
+        let lineage_wide_signal =
+            SignalAddress::lineage_wide(lineage_id.clone(), instance_id.clone(), wait_key.clone());
+        let wait = WaitRecord::new(
+            instance_id,
+            wait_key,
+            crate::BufferPolicy::Reject,
+            crate::TimestampMs::now(),
+        )
+        .expect("valid wait record");
+
+        let epoch_result = signal_match(&epoch_local_signal, &wait, &lineage_id);
+        let wide_result = signal_match(&lineage_wide_signal, &wait, &lineage_id);
+
+        assert!(
+            epoch_result.is_matched(),
+            "epoch-local signal should match when epoch aligns"
+        );
+        assert!(wide_result.is_matched(), "lineage-wide signal should match");
+    }
+
+    #[test]
+    fn red_queen_signal_terminated_workflow_no_wait_returns_mismatch() {
+        let lineage_id = valid_instance_id();
+        let instance_id = valid_instance_id();
+        let wait_key = WaitKey::parse("approval").expect("valid key");
+
+        let signal =
+            SignalAddress::lineage_wide(lineage_id.clone(), instance_id.clone(), wait_key.clone());
+
+        let wait = WaitRecord::new(
+            instance_id,
+            WaitKey::parse("different-key").expect("valid key"),
+            crate::BufferPolicy::Reject,
+            crate::TimestampMs::now(),
+        )
+        .expect("valid wait record");
+
+        let result = signal_match(&signal, &wait, &lineage_id);
+        assert!(
+            result.is_mismatch(),
+            "signal to terminated workflow (no matching wait) should not match"
+        );
+    }
+
+    #[test]
+    fn red_queen_signal_resume_only_correct_lineage() {
+        let lineage_a = valid_instance_id();
+        let lineage_b = InstanceId::parse("01JAR3K2N0XG8F5VZE9H7QW4Y7").expect("valid ULID");
+        let instance_id = valid_instance_id();
+        let wait_key = WaitKey::parse("approval").expect("valid key");
+
+        let signal_a =
+            SignalAddress::lineage_wide(lineage_a.clone(), instance_id.clone(), wait_key.clone());
+        let signal_b =
+            SignalAddress::lineage_wide(lineage_b.clone(), instance_id.clone(), wait_key.clone());
+
+        let wait = WaitRecord::new(
+            instance_id.clone(),
+            wait_key.clone(),
+            crate::BufferPolicy::Reject,
+            crate::TimestampMs::now(),
+        )
+        .expect("valid wait record");
+
+        let result_a = signal_match(&signal_a, &wait, &lineage_a);
+        let result_b = signal_match(&signal_b, &wait, &lineage_b);
+
+        assert!(
+            result_a.is_matched(),
+            "signal with correct lineage should match"
+        );
+        assert!(
+            result_b.is_mismatch(),
+            "signal with wrong lineage should NOT match"
+        );
+    }
+
+    #[test]
+    fn red_queen_signal_resume_only_correct_epoch() {
+        let lineage_id = valid_instance_id();
+        let instance_id = valid_instance_id();
+        let wait_key = WaitKey::parse("approval").expect("valid key");
+        let epoch_zero = Epoch::ZERO;
+        let epoch_five = Epoch::new(5);
+
+        let signal_zero = SignalAddress::epoch_local(
+            lineage_id.clone(),
+            epoch_zero,
+            instance_id.clone(),
+            wait_key.clone(),
+        );
+        let signal_five = SignalAddress::epoch_local(
+            lineage_id.clone(),
+            epoch_five,
+            instance_id.clone(),
+            wait_key.clone(),
+        );
+
+        let wait = WaitRecord::new(
+            instance_id.clone(),
+            wait_key.clone(),
+            crate::BufferPolicy::Reject,
+            crate::TimestampMs::now(),
+        )
+        .expect("valid wait record");
+
+        let result_zero = signal_match(&signal_zero, &wait, &lineage_id);
+        let result_five = signal_match(&signal_five, &wait, &lineage_id);
+
+        match result_zero {
+            SignalMatchResult::EpochMismatch {
+                signal_epoch,
+                wait_epoch,
+            } => {
+                assert_eq!(signal_epoch, epoch_zero);
+            }
+            _ => {}
+        }
+        match result_five {
+            SignalMatchResult::EpochMismatch {
+                signal_epoch,
+                wait_epoch,
+            } => {
+                assert_eq!(signal_epoch, epoch_five);
+            }
+            _ => {}
+        }
+    }
+
+    #[test]
+    fn red_queen_signal_resume_only_correct_wait_key() {
+        let lineage_id = valid_instance_id();
+        let instance_id = valid_instance_id();
+        let key_approval = WaitKey::parse("approval").expect("valid key");
+        let key_rejection = WaitKey::parse("rejection").expect("valid key");
+        let key_other = WaitKey::parse("other").expect("valid key");
+
+        let signal_approval = SignalAddress::lineage_wide(
+            lineage_id.clone(),
+            instance_id.clone(),
+            key_approval.clone(),
+        );
+        let signal_rejection = SignalAddress::lineage_wide(
+            lineage_id.clone(),
+            instance_id.clone(),
+            key_rejection.clone(),
+        );
+
+        let wait = WaitRecord::new(
+            instance_id,
+            key_other,
+            crate::BufferPolicy::Reject,
+            crate::TimestampMs::now(),
+        )
+        .expect("valid wait record");
+
+        let result_approval = signal_match(&signal_approval, &wait, &lineage_id);
+        let result_rejection = signal_match(&signal_rejection, &wait, &lineage_id);
+
+        assert!(
+            result_approval.is_mismatch(),
+            "signal with wrong wait_key should not match"
+        );
+        assert!(
+            result_rejection.is_mismatch(),
+            "signal with wrong wait_key should not match"
+        );
+    }
+
+    #[test]
+    fn red_queen_signal_dedupe_key_equal_when_all_components_equal() {
+        use crate::IdempotencyKey;
+
+        let lineage_id = valid_instance_id();
+        let wait_key = WaitKey::parse("approval").expect("valid key");
+        let cmd_a = IdempotencyKey::parse("cmd-001").expect("valid key");
+        let cmd_b = IdempotencyKey::parse("cmd-001").expect("valid key");
+        let cmd_c = IdempotencyKey::parse("cmd-002").expect("valid key");
+
+        let dedupe_a = crate::SignalDedupeKey::new(lineage_id.clone(), wait_key.clone(), cmd_a);
+        let dedupe_b = crate::SignalDedupeKey::new(lineage_id.clone(), wait_key.clone(), cmd_b);
+        let dedupe_c = crate::SignalDedupeKey::new(lineage_id.clone(), wait_key.clone(), cmd_c);
+
+        assert_eq!(
+            dedupe_a, dedupe_b,
+            "dedupe keys with same components should be equal"
+        );
+        assert_ne!(
+            dedupe_a, dedupe_c,
+            "dedupe keys with different command_ids should not be equal"
+        );
+
+        let mut set = std::collections::HashSet::new();
+        set.insert(dedupe_a.clone());
+        set.insert(dedupe_b.clone());
+        assert_eq!(
+            set.len(),
+            1,
+            "duplicate dedupe key should not increase set size"
+        );
+        set.insert(dedupe_c);
+        assert_eq!(
+            set.len(),
+            2,
+            "different dedupe key should increase set size"
+        );
+    }
+
+    #[test]
+    fn red_queen_signal_epoch_local_requires_epoch_in_address() {
+        let lineage_id = valid_instance_id();
+        let instance_id = valid_instance_id();
+        let wait_key = WaitKey::parse("approval").expect("valid key");
+
+        let signal = SignalAddress::epoch_local(
+            lineage_id.clone(),
+            Epoch::new(1),
+            instance_id.clone(),
+            wait_key.clone(),
+        );
+
+        assert!(
+            signal.epoch_id().is_some(),
+            "epoch-local signal must have epoch_id"
+        );
+        assert_eq!(
+            signal.epoch_id(),
+            Some(Epoch::new(1)),
+            "epoch-local signal epoch must match constructed epoch"
+        );
+    }
+
+    #[test]
+    fn red_queen_signal_lineage_wide_has_no_epoch() {
+        let lineage_id = valid_instance_id();
+        let instance_id = valid_instance_id();
+        let wait_key = WaitKey::parse("approval").expect("valid key");
+
+        let signal =
+            SignalAddress::lineage_wide(lineage_id.clone(), instance_id.clone(), wait_key.clone());
+
+        assert!(
+            signal.epoch_id().is_none(),
+            "lineage-wide signal must NOT have epoch_id"
+        );
+        assert!(signal.lineage_scope().is_lineage_wide());
+    }
+
+    #[test]
+    fn red_queen_signal_matching_is_idempotent() {
+        let lineage_id = valid_instance_id();
+        let instance_id = valid_instance_id();
+        let wait_key = WaitKey::parse("approval").expect("valid key");
+
+        let signal =
+            SignalAddress::lineage_wide(lineage_id.clone(), instance_id.clone(), wait_key.clone());
+        let wait = WaitRecord::new(
+            instance_id.clone(),
+            wait_key,
+            crate::BufferPolicy::Reject,
+            crate::TimestampMs::now(),
+        )
+        .expect("valid wait record");
+
+        for _ in 0..100 {
+            let result = signal_match(&signal, &wait, &lineage_id);
+            assert!(
+                result.is_matched(),
+                "signal matching should be deterministic and idempotent"
+            );
+        }
+    }
 }

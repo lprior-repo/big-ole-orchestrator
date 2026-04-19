@@ -10,19 +10,10 @@
 #![allow(unused)]
 #![allow(missing_docs)]
 
-mod connector;
-pub use connector::{
-    CommitOutcome, Connector, ConnectorError, ConnectorRegistry, HttpConnector, PreparedEffect,
-    ReconcileOutcome,
-};
-pub mod executor;
-pub use executor::{
-    ExecutionOutcome, ManagedEffectError, ManagedEffectExecutor, ManagedEffectTask,
-};
-pub mod pool;
-mod port;
+pub mod connector;
+pub mod port;
 pub mod retry;
-mod storage;
+pub mod storage;
 pub mod supervisor;
 
 use chrono::{DateTime, Utc};
@@ -32,6 +23,11 @@ use tokio::time::Duration;
 
 pub use port::LockManager;
 pub use retry::{LockManagerRetryWrapper, RetryConfig};
+
+pub use connector::{
+    CommitOutcome, Connector, ConnectorError, ConnectorRegistry, HttpConnector, PreparedEffect,
+    ReconcileOutcome,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LockId(String);

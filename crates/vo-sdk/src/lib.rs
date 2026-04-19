@@ -41,11 +41,13 @@
 pub mod dag;
 pub mod graph;
 pub mod node_handle;
+pub mod runtime;
 pub use dag::Workflow;
 pub use graph_args::{
     emit_graph_if_requested, parse_graph_args, EdgeSpec, GraphArgs, GraphArgsError, NodeSpec,
     ValidationError, WorkflowSpec,
 };
+pub use runtime::start;
 mod read;
 mod write;
 
