@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::vault::{CredentialError, RotationFailureReason, CredentialSummary, Permission, CredentialVault};
     use vo_types::credentials::{
         AccessPolicy, Credential, CredentialId, CredentialKind, CredentialStatus,
         CredentialVersion, CredentialVersionId, RotationPolicy, RotationState, SecretValue,
