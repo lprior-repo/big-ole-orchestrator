@@ -1,5 +1,3 @@
-use std::cmp::Ordering;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum Color {
     Red,
@@ -28,66 +26,87 @@ impl<K, V> Node<K, V> {
     pub fn is_red(n: &Option<Box<Self>>) -> bool {
         n.as_ref().is_some_and(|n| n.color == Color::Red)
     }
-    pub fn flip(node: &mut Self) {
-        let f = |c: Color| {
-            if c == Color::Red {
+    pub fn flip(&mut self) {
+        let toggle = |c: &mut Color| {
+            *c = if *c == Color::Red {
                 Color::Black
             } else {
                 Color::Red
-            }
+            };
         };
-        node.color = f(node.color);
-        if let Some(ref mut l) = node.left {
-            l.color = f(l.color);
+        toggle(&mut self.color);
+        if let Some(ref mut l) = self.left {
+            toggle(&mut l.color);
         }
-        if let Some(ref mut r) = node.right {
-            r.color = f(r.color);
+        if let Some(ref mut r) = self.right {
+            toggle(&mut r.color);
         }
     }
-    pub fn rot_left(mut h: Box<Self>) -> Box<Self> {
-        let mut x = h.right.take().expect("rot_left");
-        h.right = x.left.take();
-        x.color = h.color;
-        h.color = Color::Red;
-        x.left = Some(h);
+    pub fn fix_up(h: Box<Self>) -> Box<Self> {
+        let mut node = h;
+        if Self::is_red(&node.right) && !Self::is_red(&node.left) {
+            node = Self::rotate_left(node);
+        }
+        if Self::is_red(&node.left) && Self::is_red_left_left(&node) {
+            node = Self::rotate_right(node);
+        }
+        if Self::is_red(&node.left) && Self::is_red(&node.right) {
+            node.flip();
+        }
+        node
+    }
+    pub(super) fn rotate_left(h: Box<Self>) -> Box<Self> {
+        let mut node = h;
+        let mut x = node.right.take();
+        node.right = x.as_mut().and_then(|x| x.left.take());
+        let mut x = x.unwrap_or_else(|| {
+            panic!("rotate_left: invariant violated — called when right child is None")
+        });
+        x.color = node.color;
+        node.color = Color::Red;
+        x.left = Some(node);
         x
     }
-    pub fn rot_right(mut h: Box<Self>) -> Box<Self> {
-        let mut x = h.left.take().expect("rot_right");
-        h.left = x.right.take();
-        x.color = h.color;
-        h.color = Color::Red;
-        x.right = Some(h);
+    pub(super) fn rotate_right(h: Box<Self>) -> Box<Self> {
+        let mut node = h;
+        let mut x = node.left.take();
+        node.left = x.as_mut().and_then(|x| x.right.take());
+        let mut x = x.unwrap_or_else(|| {
+            panic!("rotate_right: invariant violated — called when left child is None")
+        });
+        x.color = node.color;
+        node.color = Color::Red;
+        x.right = Some(node);
         x
     }
-    pub fn fix_up(mut h: Box<Self>) -> Box<Self> {
-        if Self::is_red(&h.right) && !Self::is_red(&h.left) {
-            h = Self::rot_left(h);
-        }
-        if Self::is_red(&h.left) && Self::is_red(&h.left.as_ref().and_then(|l| l.left.clone())) {
-            h = Self::rot_right(h);
-        }
-        if Self::is_red(&h.left) && Self::is_red(&h.right) {
-            h.flip();
-        }
-        h
+    pub fn is_red_left_left(n: &Box<Self>) -> bool {
+        n.left.as_ref().is_some_and(|l| Self::is_red(&l.left))
     }
-    pub fn move_red_left(mut h: Box<Self>) -> Box<Self> {
-        h.flip();
-        if Self::is_red(&h.right.as_ref().and_then(|r| r.right.clone())) {
-            h.right = h.right.map(Self::rot_left);
-            h = Self::rot_right(h);
-            h.flip();
-        }
-        h
+    pub fn is_red_right_right(n: &Box<Self>) -> bool {
+        n.right.as_ref().is_some_and(|r| Self::is_red(&r.right))
     }
-    pub fn move_red_right(mut h: Box<Self>) -> Box<Self> {
-        h.flip();
-        if Self::is_red(&h.left.as_ref().and_then(|l| l.left.clone())) {
-            h = Self::rot_right(h);
-            h.flip();
+    pub fn is_red_right_left(n: &Box<Self>) -> bool {
+        n.right.as_ref().is_some_and(|r| Self::is_red(&r.left))
+    }
+    pub fn move_red_left(h: Box<Self>) -> Box<Self> {
+        let mut node = h;
+        node.flip();
+        if Self::is_red_right_right(&node) {
+            let right = node.right.take();
+            node.right = right.map(Self::rotate_left);
+            node = Self::rotate_right(node);
+            node.flip();
         }
-        h
+        node
+    }
+    pub fn move_red_right(h: Box<Self>) -> Box<Self> {
+        let mut node = h;
+        node.flip();
+        if Self::is_red_left_left(&node) {
+            node = Self::rotate_right(node);
+            node.flip();
+        }
+        node
     }
     pub fn min_node(n: &Box<Self>) -> (&K, &V) {
         n.left
@@ -99,7 +118,7 @@ impl<K, V> Node<K, V> {
             .as_ref()
             .map_or((&n.key, &n.value), |r| Self::max_node(r))
     }
-    pub fn collect_inorder(n: &Self, v: &mut Vec<(&K, &V)>) {
+    pub fn collect_inorder<'a>(n: &'a Self, v: &mut Vec<(&'a K, &'a V)>) {
         if let Some(ref l) = n.left {
             Self::collect_inorder(l, v);
         }
@@ -108,7 +127,15 @@ impl<K, V> Node<K, V> {
             Self::collect_inorder(r, v);
         }
     }
-    pub fn collect_range(n: &Self, v: &mut Vec<(&K, &V)>, lo: Option<&K>, hi: Option<&K>) {
+}
+
+impl<K: Ord, V> Node<K, V> {
+    pub fn collect_range<'a>(
+        n: &'a Self,
+        v: &mut Vec<(&'a K, &'a V)>,
+        lo: Option<&'a K>,
+        hi: Option<&'a K>,
+    ) {
         if let Some(ref l) = n.left {
             if lo.is_none_or(|b| &n.key > b) {
                 Self::collect_range(l, v, lo, hi);

@@ -46,6 +46,7 @@ pub use exact_once_verification::harness::{
 };
 pub use exact_once_verification::macros::CrashError;
 pub mod quadtree;
+pub mod red_black_tree;
 pub mod replay;
 pub mod resource_quota;
 pub mod segment_tree;
