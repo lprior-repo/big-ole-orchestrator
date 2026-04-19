@@ -829,7 +829,7 @@ mod tests {
 
             // LCA of adjacent nodes
             assert_eq!(lct.lca(nodes[10], nodes[11]).unwrap(), nodes[10]);
-            assert_eq!(lca(nodes[50], nodes[50]).unwrap(), nodes[50]);
+            assert_eq!(lct.lca(nodes[50], nodes[50]).unwrap(), nodes[50]);
         }
 
         // Test set updates propagate through path aggregates

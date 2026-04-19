@@ -164,3 +164,5 @@ mod schema_version_tests;
 mod serde_tests;
 #[cfg(test)]
 mod workflow_tests;
+#[cfg(test)]
+mod tests_bdd_dag_cycle_validation;
