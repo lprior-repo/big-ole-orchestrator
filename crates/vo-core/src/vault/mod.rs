@@ -18,6 +18,9 @@ pub enum CredentialError {
     #[error("credential not found: {0}")]
     CredentialNotFound(CredentialId),
 
+    #[error("credential already exists: {0}")]
+    CredentialAlreadyExists(CredentialId),
+
     #[error("version {version_id} not found for credential {credential_id}")]
     VersionNotFound {
         credential_id: CredentialId,
@@ -162,7 +165,9 @@ impl CredentialVault {
 
     pub fn create_credential(&self, entry: VaultEntry) -> Result<CredentialId, CredentialError> {
         if self.entries.contains_key(&entry.credential.id) {
-            return Err(CredentialError::CredentialNotFound(entry.credential.id));
+            return Err(CredentialError::CredentialAlreadyExists(
+                entry.credential.id,
+            ));
         }
         Ok(entry.credential.id.clone())
     }
@@ -259,7 +264,7 @@ mod tests {
 
         let version = CredentialVersion::new(
             version_id.clone(),
-            SecretValue::new(vec![0u8; 32], [0u8; 12], 1),
+            SecretValue::new(vec![0u8; 32], [0u8; 12], 1).expect("valid ciphertext"),
             CredentialStatus::Active,
             TimestampMs::new_unchecked(1000),
             None,
