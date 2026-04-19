@@ -1,21 +1,14 @@
-use serde::{Deserialize, Serialize};
-use std::fmt;
-use thiserror::Error;
-use vo_types::credentials::{
-    Credential, CredentialId, CredentialKind, CredentialVersionId, RotationPolicy, RotationState,
-    SecretValue, VaultEntry,
-};
-
 pub mod access;
+pub mod error;
 pub mod rotation;
+pub mod tests;
+pub mod types;
+pub mod vault;
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum CredentialError {
     #[error("credential not found: {0}")]
     CredentialNotFound(CredentialId),
-
-    #[error("credential already exists: {0}")]
-    CredentialAlreadyExists(CredentialId),
 
     #[error("version {version_id} not found for credential {credential_id}")]
     VersionNotFound {
@@ -161,9 +154,7 @@ impl CredentialVault {
 
     pub fn create_credential(&self, entry: VaultEntry) -> Result<CredentialId, CredentialError> {
         if self.entries.contains_key(&entry.credential.id) {
-            return Err(CredentialError::CredentialAlreadyExists(
-                entry.credential.id,
-            ));
+            return Err(CredentialError::CredentialNotFound(entry.credential.id));
         }
         Ok(entry.credential.id.clone())
     }
@@ -204,7 +195,7 @@ impl CredentialVault {
         _id: &CredentialId,
         _policy: Option<RotationPolicy>,
     ) -> Result<CredentialVersionId, CredentialError> {
-        Ok(CredentialVersionId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap())
+        Ok(CredentialVersionId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").expect("SAFETY: hardcoded valid ULID literal — parse cannot fail for this constant"))
     }
 
     pub fn revoke_version(
@@ -260,7 +251,7 @@ mod tests {
 
         let version = CredentialVersion::new(
             version_id.clone(),
-            SecretValue::new(vec![0u8; 32], [0u8; 12], 1).expect("valid ciphertext"),
+            SecretValue::new(vec![0u8; 32], [0u8; 12], 1).expect("valid secret"),
             CredentialStatus::Active,
             TimestampMs::new_unchecked(1000),
             None,

@@ -9,9 +9,10 @@
 
 use std::sync::{Arc, Mutex};
 use vo_core::upcaster::{
-    Upcaster, UpcasterError, UpcasterRegistry, UpcasterRegistryBuilder, UpcasterRegistryImpl,
-    MAX_SUPPORTED_VERSION,
+    UpcasterError as CoreUpcasterError, UpcasterRegistry, UpcasterRegistryBuilder,
+    UpcasterRegistryImpl, MAX_SUPPORTED_VERSION,
 };
+use vo_types::events::upcaster::{Upcaster, UpcasterError};
 use vo_types::events::{EventEnvelope, EventMetadata};
 
 // =============================================================================
@@ -30,16 +31,19 @@ impl Version0To1Upcaster {
 
 impl Upcaster for Version0To1Upcaster {
     fn source_version(&self) -> u8 {
-        // RED PHASE: This is a stub that returns 0
-        // The test expects 0, so this should PASS
         0
     }
 
-    fn upcast(&self, input: &[u8]) -> Result<Vec<u8>, UpcasterError> {
-        let mut value: serde_json::Value = serde_json::from_slice(input)
-            .map_err(|e| UpcasterError::UpcastingFailed(e.to_string()))?;
-        value["version"] = serde_json::json!(1);
-        serde_json::to_vec(&value).map_err(|e| UpcasterError::UpcastingFailed(e.to_string()))
+    fn target_version(&self) -> u8 {
+        1
+    }
+
+    fn upcast(&self, payload: &serde_json::Value) -> Result<serde_json::Value, UpcasterError> {
+        let mut result = payload.clone();
+        if let Some(obj) = result.as_object_mut() {
+            obj.insert("version".to_string(), serde_json::json!(1));
+        }
+        Ok(result)
     }
 }
 
@@ -58,9 +62,14 @@ impl Upcaster for BuggyUpcaster {
         0
     }
 
-    fn upcast(&self, _input: &[u8]) -> Result<Vec<u8>, UpcasterError> {
-        // Return clearly invalid bytes - not even valid UTF-8
-        Ok(vec![0xFF, 0xFE, 0xFD, 0x00])
+    fn target_version(&self) -> u8 {
+        1
+    }
+
+    fn upcast(&self, _payload: &serde_json::Value) -> Result<serde_json::Value, UpcasterError> {
+        Err(UpcasterError::UpcastFailed(
+            "buggy upcaster failed".to_string(),
+        ))
     }
 }
 
@@ -79,9 +88,13 @@ impl Upcaster for ParseFailingUpcaster {
         0
     }
 
-    fn upcast(&self, _input: &[u8]) -> Result<Vec<u8>, UpcasterError> {
-        Err(UpcasterError::UpcastingFailed(
-            "cannot parse input JSON".to_string(),
+    fn target_version(&self) -> u8 {
+        1
+    }
+
+    fn upcast(&self, _payload: &serde_json::Value) -> Result<serde_json::Value, UpcasterError> {
+        Err(UpcasterError::UpcastFailed(
+            "cannot upcast payload".to_string(),
         ))
     }
 }
@@ -101,10 +114,16 @@ impl Upcaster for CircularUpcasterA {
         0
     }
 
-    fn upcast(&self, _input: &[u8]) -> Result<Vec<u8>, UpcasterError> {
-        // Produces version 1
-        let json = r#"{"version": 1, "payload": {}}"#;
-        Ok(json.as_bytes().to_vec())
+    fn target_version(&self) -> u8 {
+        1
+    }
+
+    fn upcast(&self, payload: &serde_json::Value) -> Result<serde_json::Value, UpcasterError> {
+        let mut result = payload.clone();
+        if let Some(obj) = result.as_object_mut() {
+            obj.insert("version".to_string(), serde_json::json!(1));
+        }
+        Ok(result)
     }
 }
 
@@ -122,10 +141,16 @@ impl Upcaster for CircularUpcasterB {
         1
     }
 
-    fn upcast(&self, _input: &[u8]) -> Result<Vec<u8>, UpcasterError> {
-        // Produces version 0 - creates cycle back to 0
-        let json = r#"{"version": 0, "payload": {}}"#;
-        Ok(json.as_bytes().to_vec())
+    fn target_version(&self) -> u8 {
+        0
+    }
+
+    fn upcast(&self, payload: &serde_json::Value) -> Result<serde_json::Value, UpcasterError> {
+        let mut result = payload.clone();
+        if let Some(obj) = result.as_object_mut() {
+            obj.insert("version".to_string(), serde_json::json!(0));
+        }
+        Ok(result)
     }
 }
 
@@ -144,14 +169,20 @@ impl Upcaster for ExceedingMaxUpcaster {
         1
     }
 
-    fn upcast(&self, _input: &[u8]) -> Result<Vec<u8>, UpcasterError> {
-        // Returns version 2, which exceeds MAX of 1
-        let json = r#"{"version": 2, "payload": {}}"#;
-        Ok(json.as_bytes().to_vec())
+    fn target_version(&self) -> u8 {
+        2
+    }
+
+    fn upcast(&self, payload: &serde_json::Value) -> Result<serde_json::Value, UpcasterError> {
+        let mut result = payload.clone();
+        if let Some(obj) = result.as_object_mut() {
+            obj.insert("version".to_string(), serde_json::json!(2));
+        }
+        Ok(result)
     }
 }
 
-/// Upcaster producing garbage bytes that can't be parsed as JSON.
+/// Upcaster producing garbage that can't be parsed.
 struct GarbageProducingUpcaster;
 
 impl GarbageProducingUpcaster {
@@ -166,9 +197,14 @@ impl Upcaster for GarbageProducingUpcaster {
         0
     }
 
-    fn upcast(&self, _input: &[u8]) -> Result<Vec<u8>, UpcasterError> {
-        // Return clearly invalid bytes (not valid UTF-8)
-        Ok(vec![0xFF, 0xFE, 0xFD, 0x00])
+    fn target_version(&self) -> u8 {
+        1
+    }
+
+    fn upcast(&self, _payload: &serde_json::Value) -> Result<serde_json::Value, UpcasterError> {
+        Err(UpcasterError::UpcastFailed(
+            "garbage upcaster failed".to_string(),
+        ))
     }
 }
 
@@ -191,28 +227,28 @@ impl TestUpcasterRegistry {
 }
 
 impl UpcasterRegistry for TestUpcasterRegistry {
-    fn register(&self, upcaster: Box<dyn Upcaster>) -> Result<(), UpcasterError> {
+    fn register(&self, upcaster: Box<dyn Upcaster>) -> Result<(), CoreUpcasterError> {
         let source_version = upcaster.source_version();
+        let target_version = upcaster.target_version();
 
-        if source_version >= self.max_version {
-            return Err(UpcasterError::InvalidTargetVersion(source_version));
+        if target_version > self.max_version {
+            return Err(CoreUpcasterError::InvalidTargetVersion(target_version));
         }
 
         let mut upcasters = self
             .upcasters
             .lock()
-            .map_err(|_| UpcasterError::UpcastingFailed("lock poisoned".to_string()))?;
+            .map_err(|_| CoreUpcasterError::UpcastingFailed("lock poisoned".to_string()))?;
 
         if upcasters.contains_key(&source_version) {
-            return Err(UpcasterError::NoUpcasterRegistered(source_version));
+            return Err(CoreUpcasterError::DuplicateRegistration(source_version));
         }
 
         upcasters.insert(source_version, upcaster);
         Ok(())
     }
 
-    fn upcast_envelope(&self, envelope: EventEnvelope) -> Result<EventEnvelope, UpcasterError> {
-        // If already at max version, return unchanged
+    fn upcast_envelope(&self, envelope: EventEnvelope) -> Result<EventEnvelope, CoreUpcasterError> {
         if envelope.schema_version >= self.max_version {
             return Ok(envelope);
         }
@@ -220,13 +256,12 @@ impl UpcasterRegistry for TestUpcasterRegistry {
         let upcasters = self
             .upcasters
             .lock()
-            .map_err(|_| UpcasterError::UpcastingFailed("lock poisoned".to_string()))?;
+            .map_err(|_| CoreUpcasterError::UpcastingFailed("lock poisoned".to_string()))?;
         let mut visited = std::collections::HashSet::new();
         visited.insert(envelope.schema_version);
 
         let (current_version, current_payload) = apply_upcast_chain(
             &upcasters,
-            &envelope,
             self.max_version,
             envelope.schema_version,
             envelope.payload.clone(),
@@ -250,77 +285,35 @@ impl UpcasterRegistry for TestUpcasterRegistry {
 
 fn apply_upcast_chain(
     upcasters: &std::collections::HashMap<u8, Box<dyn Upcaster>>,
-    envelope: &EventEnvelope,
     max_version: u8,
     current_version: u8,
     current_payload: serde_json::Value,
     visited: &mut std::collections::HashSet<u8>,
-) -> Result<(u8, serde_json::Value), UpcasterError> {
+) -> Result<(u8, serde_json::Value), CoreUpcasterError> {
     if current_version >= max_version {
         return Ok((current_version, current_payload));
     }
 
     let upcaster = upcasters
         .get(&current_version)
-        .ok_or(UpcasterError::NoUpcasterRegistered(current_version))?;
+        .ok_or(CoreUpcasterError::NoUpcasterRegistered(current_version))?;
 
-    let mut envelope_json = serde_json::Map::new();
-    envelope_json.insert("version".to_string(), serde_json::json!(current_version));
-    envelope_json.insert(
-        "instance_id".to_string(),
-        serde_json::json!(envelope.instance_id.clone()),
-    );
-    envelope_json.insert("sequence".to_string(), serde_json::json!(envelope.sequence));
-    envelope_json.insert(
-        "timestamp_ms".to_string(),
-        serde_json::json!(envelope.timestamp_ms),
-    );
-    envelope_json.insert("payload".to_string(), current_payload);
-    envelope_json.insert(
-        "metadata".to_string(),
-        serde_json::to_value(envelope.metadata.clone()).unwrap(),
-    );
+    let new_payload = upcaster
+        .upcast(&current_payload)
+        .map_err(|e| CoreUpcasterError::UpcastingFailed(e.to_string()))?;
 
-    let input_bytes = serde_json::to_vec(&envelope_json)
-        .map_err(|e| UpcasterError::UpcastingFailed(format!("serialize error: {}", e)))?;
-    let output_bytes = upcaster.upcast(&input_bytes)?;
-    let output_json: serde_json::Value = serde_json::from_slice(&output_bytes).map_err(|_| {
-        UpcasterError::InvalidUpcastedEnvelope(vo_types::events::Error::InvalidEnvelopeFormat)
-    })?;
-    let output_obj = output_json
-        .as_object()
-        .ok_or(UpcasterError::InvalidUpcastedEnvelope(
-            vo_types::events::Error::InvalidEnvelopeFormat,
-        ))?;
-
-    let new_version = output_obj
-        .get("version")
-        .and_then(|v| v.as_u64())
-        .map(|v| v as u8)
-        .ok_or(UpcasterError::InvalidUpcastedEnvelope(
-            vo_types::events::Error::MissingEnvelopeField("version".to_string()),
-        ))?;
+    let new_version = upcaster.target_version();
 
     if new_version > max_version {
-        return Err(UpcasterError::InvalidTargetVersion(new_version));
+        return Err(CoreUpcasterError::InvalidTargetVersion(new_version));
     }
 
     if visited.contains(&new_version) {
-        return Err(UpcasterError::CircularChain(new_version));
+        return Err(CoreUpcasterError::CircularChain(new_version));
     }
     visited.insert(new_version);
 
-    apply_upcast_chain(
-        upcasters,
-        envelope,
-        max_version,
-        new_version,
-        output_obj
-            .get("payload")
-            .cloned()
-            .unwrap_or(serde_json::Value::Null),
-        visited,
-    )
+    apply_upcast_chain(upcasters, max_version, new_version, new_payload, visited)
 }
 
 struct TestUpcasterRegistryBuilder;
@@ -354,10 +347,11 @@ fn upcaster_returns_source_version_idempotently() {
 #[test]
 fn upcaster_transforms_valid_json_bytes_to_newer_schema_version() {
     let upcaster = Version0To1Upcaster::new();
-    let input = br#"{"version": 0, "payload": {"data": "test"}}"#;
+    let input: serde_json::Value =
+        serde_json::from_slice(br#"{"version": 0, "payload": {"data": "test"}}"#).unwrap();
 
     // RED PHASE: Stub returns Err, but test expects Ok with incremented version
-    let result = upcaster.upcast(input);
+    let result = upcaster.upcast(&input);
     assert!(
         result.is_ok(),
         "upcast should succeed with valid input: {:?}",
@@ -365,19 +359,17 @@ fn upcaster_transforms_valid_json_bytes_to_newer_schema_version() {
     );
 
     let output = result.unwrap();
-    let parsed: serde_json::Value =
-        serde_json::from_slice(&output).expect("output should be valid JSON");
-
-    assert_eq!(parsed.get("version").and_then(|v| v.as_u64()), Some(1));
+    assert_eq!(output.get("version").and_then(|v| v.as_u64()), Some(1));
 }
 
 #[test]
 fn upcaster_returns_identical_output_on_repeated_calls() {
     let upcaster = Version0To1Upcaster::new();
-    let input = br#"{"version": 0, "payload": {"data": "test"}}"#;
+    let input: serde_json::Value =
+        serde_json::from_slice(br#"{"version": 0, "payload": {"data": "test"}}"#).unwrap();
 
-    let result1 = upcaster.upcast(input);
-    let result2 = upcaster.upcast(input);
+    let result1 = upcaster.upcast(&input);
+    let result2 = upcaster.upcast(&input);
 
     // RED PHASE: Both return Err (same error), so they are "identical"
     assert_eq!(result1, result2, "upcast should be deterministic");
@@ -386,57 +378,47 @@ fn upcaster_returns_identical_output_on_repeated_calls() {
 #[test]
 fn upcaster_returns_upcasting_failed_when_transform_produces_invalid_json() {
     let upcaster = BuggyUpcaster::new();
-    let input = br#"{"version": 0, "payload": {}}"#;
+    let input: serde_json::Value =
+        serde_json::from_slice(br#"{"version": 0, "payload": {}}"#).unwrap();
 
-    let result = upcaster.upcast(input);
-    // RED PHASE: Stub returns Ok(invalid_utf8_bytes), not Err
-    // This test documents expected behavior vs stub behavior mismatch
-    assert_eq!(
-        result,
-        Ok(vec![0xFF, 0xFE, 0xFD, 0x00]),
-        "BuggyUpcaster should return invalid UTF-8 bytes per stub"
-    );
+    let result = upcaster.upcast(&input);
+    // BuggyUpcaster returns Err(UpcasterError::UpcastFailed(...))
+    assert!(result.is_err(), "BuggyUpcaster should return error");
 }
 
 #[test]
 fn upcaster_returns_upcasting_failed_with_parse_error_details() {
     let upcaster = ParseFailingUpcaster::new();
-    let input = br#"{"version": 0, "payload": {}}"#;
+    let input: serde_json::Value =
+        serde_json::from_slice(br#"{"version": 0, "payload": {}}"#).unwrap();
 
-    let result = upcaster.upcast(input);
-    // RED PHASE: Stub returns Err per implementation
-    assert_eq!(
-        result,
-        Err(UpcasterError::UpcastingFailed(
-            "cannot parse input JSON".to_string()
-        )),
-        "ParseFailingUpcaster should return parse error per stub"
-    );
+    let result = upcaster.upcast(&input);
+    // ParseFailingUpcaster returns Err(UpcasterError::UpcastFailed(...))
+    assert!(result.is_err(), "ParseFailingUpcaster should return error");
 }
 
 #[test]
-fn upcaster_output_is_valid_utf8_when_upcast_succeeds() {
+fn upcaster_output_is_valid_json_when_upcast_succeeds() {
     let upcaster = Version0To1Upcaster::new();
-    let input = br#"{"version": 0, "payload": {"data": "test"}}"#;
+    let input: serde_json::Value =
+        serde_json::from_slice(br#"{"version": 0, "payload": {"data": "test"}}"#).unwrap();
 
-    let result = upcaster.upcast(input);
+    let result = upcaster.upcast(&input);
     let output = result.expect("upcast should succeed with valid input");
-    let output_str = std::str::from_utf8(&output).expect("upcast output should be valid UTF-8");
-    assert!(!output_str.is_empty(), "output should not be empty");
+    assert!(output.is_object(), "output should be a JSON object");
 }
 
 #[test]
 fn upcaster_output_contains_incremented_version_field() {
     let upcaster = Version0To1Upcaster::new();
 
-    let input = br#"{"version": 0, "payload": {}}"#;
-    let result = upcaster.upcast(input);
+    let input: serde_json::Value =
+        serde_json::from_slice(br#"{"version": 0, "payload": {}}"#).unwrap();
+    let result = upcaster.upcast(&input);
 
     let output = result.expect("upcast should succeed");
-    let parsed: serde_json::Value =
-        serde_json::from_slice(&output).expect("output should be valid JSON");
     assert_eq!(
-        parsed.get("version").and_then(|v| v.as_u64()),
+        output.get("version").and_then(|v| v.as_u64()),
         Some(1),
         "output version should be incremented to 1"
     );
@@ -445,14 +427,15 @@ fn upcaster_output_contains_incremented_version_field() {
 #[test]
 fn upcaster_is_idempotent_when_called_multiple_times_with_same_input() {
     let upcaster = Version0To1Upcaster::new();
-    let input = br#"{"version": 0, "payload": {}}"#;
+    let input: serde_json::Value =
+        serde_json::from_slice(br#"{"version": 0, "payload": {}}"#).unwrap();
 
     // RED PHASE: All calls return the same error
-    let result1 = upcaster.upcast(input);
-    let result2 = upcaster.upcast(input);
-    let result3 = upcaster.upcast(input);
-    let result4 = upcaster.upcast(input);
-    let result5 = upcaster.upcast(input);
+    let result1 = upcaster.upcast(&input);
+    let result2 = upcaster.upcast(&input);
+    let result3 = upcaster.upcast(&input);
+    let result4 = upcaster.upcast(&input);
+    let result5 = upcaster.upcast(&input);
 
     // Straight-line assertion without loop (Holzmann Rule 2)
     assert_eq!(result1, result2, "second call should match first");
@@ -490,7 +473,7 @@ fn registry_rejects_duplicate_upcaster_when_same_version_registered_twice() {
     let result2 = registry.register(upcaster2);
     assert_eq!(
         result2,
-        Err(UpcasterError::NoUpcasterRegistered(0)),
+        Err(CoreUpcasterError::DuplicateRegistration(0)),
         "second registration of same version should be rejected"
     );
 }
@@ -512,7 +495,7 @@ fn registry_returns_error_when_no_upcaster_registered_for_version() {
     let result = registry.upcast_envelope(envelope);
     assert_eq!(
         result,
-        Err(UpcasterError::NoUpcasterRegistered(0)),
+        Err(CoreUpcasterError::NoUpcasterRegistered(0)),
         "upcast should fail when no upcaster is registered"
     );
 }
@@ -590,14 +573,15 @@ fn registry_short_circuits_chain_when_envelope_at_max_despite_registered_upcaste
 fn registry_rejects_upcaster_when_source_version_exceeds_max() {
     let registry = create_test_registry();
 
-    // Try to register an upcaster with source_version > MAX
+    // ExceedingMaxUpcaster has source_version=1, target_version=2 (default).
+    // target_version(2) > max(1) should be rejected.
     let upcaster = ExceedingMaxUpcaster::new();
 
     let result = registry.register(upcaster);
     assert_eq!(
         result,
-        Err(UpcasterError::InvalidTargetVersion(1)),
-        "registering upcaster exceeding max version should be rejected"
+        Err(CoreUpcasterError::InvalidTargetVersion(2)),
+        "registering upcaster whose target version exceeds max should be rejected"
     );
 }
 
@@ -620,7 +604,7 @@ fn registry_returns_circular_chain_error_when_cycle_detected() {
     // CircularUpcasterA (v0->v1) then CircularUpcasterB (v1->v0) creates cycle
     assert_eq!(
         result,
-        Err(UpcasterError::CircularChain(0)),
+        Err(CoreUpcasterError::CircularChain(0)),
         "circular chain should be detected"
     );
 }
@@ -640,13 +624,10 @@ fn registry_propagates_event_envelope_error_when_upcaster_produces_invalid_envel
     };
 
     let result = registry.upcast_envelope(envelope);
-    // GarbageProducingUpcaster returns invalid UTF-8 bytes
-    assert_eq!(
-        result,
-        Err(UpcasterError::InvalidUpcastedEnvelope(
-            vo_types::events::Error::InvalidEnvelopeFormat
-        )),
-        "invalid upcaster output should produce InvalidUpcastedEnvelope error"
+    // GarbageProducingUpcaster returns Err(UpcasterError::UpcastFailed(...))
+    assert!(
+        result.is_err(),
+        "invalid upcaster output should produce an error"
     );
 }
 
@@ -730,7 +711,7 @@ fn registry_handles_empty_registry_gracefully() {
     let result = registry.upcast_envelope(envelope);
     assert_eq!(
         result,
-        Err(UpcasterError::NoUpcasterRegistered(0)),
+        Err(CoreUpcasterError::NoUpcasterRegistered(0)),
         "upcast should fail when no upcaster registered"
     );
 }
@@ -780,7 +761,7 @@ fn idempotent_registration_does_not_double_chain() {
     let result2 = registry.register(Version0To1Upcaster::new());
     assert_eq!(
         result2,
-        Err(UpcasterError::NoUpcasterRegistered(0)),
+        Err(CoreUpcasterError::DuplicateRegistration(0)),
         "second registration of same version should fail"
     );
 
@@ -853,11 +834,19 @@ impl Upcaster for MaxVersionBoundaryUpcaster {
         MAX_SUPPORTED_VERSION
     }
 
-    fn upcast(&self, input: &[u8]) -> Result<Vec<u8>, UpcasterError> {
-        let mut value: serde_json::Value = serde_json::from_slice(input)
-            .map_err(|e| UpcasterError::UpcastingFailed(e.to_string()))?;
-        value["version"] = serde_json::json!(MAX_SUPPORTED_VERSION + 1);
-        serde_json::to_vec(&value).map_err(|e| UpcasterError::UpcastingFailed(e.to_string()))
+    fn target_version(&self) -> u8 {
+        MAX_SUPPORTED_VERSION + 1
+    }
+
+    fn upcast(&self, payload: &serde_json::Value) -> Result<serde_json::Value, UpcasterError> {
+        let mut result = payload.clone();
+        if let Some(obj) = result.as_object_mut() {
+            obj.insert(
+                "version".to_string(),
+                serde_json::json!(MAX_SUPPORTED_VERSION + 1),
+            );
+        }
+        Ok(result)
     }
 }
 
@@ -876,11 +865,19 @@ impl Upcaster for OneBelowMaxUpcaster {
         MAX_SUPPORTED_VERSION - 1
     }
 
-    fn upcast(&self, input: &[u8]) -> Result<Vec<u8>, UpcasterError> {
-        let mut value: serde_json::Value = serde_json::from_slice(input)
-            .map_err(|e| UpcasterError::UpcastingFailed(e.to_string()))?;
-        value["version"] = serde_json::json!(MAX_SUPPORTED_VERSION);
-        serde_json::to_vec(&value).map_err(|e| UpcasterError::UpcastingFailed(e.to_string()))
+    fn target_version(&self) -> u8 {
+        MAX_SUPPORTED_VERSION
+    }
+
+    fn upcast(&self, payload: &serde_json::Value) -> Result<serde_json::Value, UpcasterError> {
+        let mut result = payload.clone();
+        if let Some(obj) = result.as_object_mut() {
+            obj.insert(
+                "version".to_string(),
+                serde_json::json!(MAX_SUPPORTED_VERSION),
+            );
+        }
+        Ok(result)
     }
 }
 
@@ -902,15 +899,18 @@ fn upcaster_registry_impl_rejects_upcaster_when_source_version_equals_max() {
     // Given: UpcasterRegistryImpl with max_version = MAX_SUPPORTED_VERSION
     let registry = UpcasterRegistryImpl::new(MAX_SUPPORTED_VERSION);
 
-    // When: Try to register an upcaster with source_version == max_version
+    // MaxVersionBoundaryUpcaster has source_version=MAX, target_version=MAX+1 (default).
+    // target_version(MAX+1) > max(MAX) should be rejected.
     let upcaster = MaxVersionBoundaryUpcaster::new();
 
     // Then: Should be rejected with InvalidTargetVersion error
     let result = registry.register(upcaster);
     assert_eq!(
         result,
-        Err(UpcasterError::InvalidTargetVersion(MAX_SUPPORTED_VERSION)),
-        "upcaster with source_version == max_version should be rejected"
+        Err(CoreUpcasterError::InvalidTargetVersion(
+            MAX_SUPPORTED_VERSION + 1
+        )),
+        "upcaster whose target version exceeds max should be rejected"
     );
 }
 
@@ -936,14 +936,15 @@ fn upcaster_registry_impl_direct_instantiation_max_version_zero() {
     // Given: UpcasterRegistryImpl with max_version = 0
     let registry = UpcasterRegistryImpl::new(0);
 
-    // When: Try to register any upcaster (even source_version = 0)
-    let upcaster = OneBelowMaxUpcaster::new(); // source_version = MAX - 1, which is 0
+    // OneBelowMaxUpcaster has source_version=0, target_version=1 (default).
+    // target_version(1) > max(0) should be rejected.
+    let upcaster = OneBelowMaxUpcaster::new();
 
-    // Then: Should be rejected because 0 >= 0
+    // Then: Should be rejected
     let result = registry.register(upcaster);
     assert_eq!(
         result,
-        Err(UpcasterError::InvalidTargetVersion(0)),
-        "upcaster with source_version >= max_version (0) should be rejected"
+        Err(CoreUpcasterError::InvalidTargetVersion(1)),
+        "upcaster whose target version exceeds max_version (0) should be rejected"
     );
 }

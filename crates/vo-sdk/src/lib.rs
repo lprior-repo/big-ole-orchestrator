@@ -2,6 +2,13 @@
 
 //! vo-sdk: Thin, zero-panic library for task binaries to read FD3 input and write FD4 output.
 //!
+//! ## Modules
+//!
+//! - [`io`] - I/O helpers: `read_input`, `write_success`, `write_failure` with single-write guard
+//! - [`graph`] - Graph emission: `--graph` CLI argument handling and workflow specification types
+//! - [`dag`] - DAG construction with compile-time type-safe workflow graph builder
+//! - [`node_handle`] - Typed node handles for workflow connections
+//!
 //! ## Write-once invariant
 //! `write_success` / `write_failure` may be called at most once per process lifetime.
 //! The guard is set *before* any I/O attempt — even if the write fails, subsequent
@@ -32,7 +39,7 @@
 //! ```
 
 pub mod dag;
-pub mod graph_args;
+pub mod graph;
 pub mod node_handle;
 pub use dag::Workflow;
 pub use graph_args::{
@@ -50,8 +57,8 @@ use thiserror::Error;
 use vo_types::IdempotencyKey;
 
 // Re-export public API
-pub use read::read_input;
-pub use write::{write_failure, write_success};
+pub use io::{is_read, is_written, read_input, write_failure, write_success};
+pub use vo_types::{TaskFailureKind, TaskInputEnvelope};
 
 #[derive(Debug, PartialEq, Error)]
 pub enum SdkError {
@@ -63,26 +70,6 @@ pub enum SdkError {
     AlreadyWritten,
     #[error("WriteError")]
     WriteError,
-}
-
-// TODO(vel-edo): TaskFailureKind should live in vo-types per the contract.
-// Kept here temporarily because this bead is scoped to vo-sdk only.
-// See: contract.md precondition "vo-types must define the shared IPC types"
-#[derive(Debug, PartialEq, Clone, Copy)]
-pub enum TaskFailureKind {
-    User,
-    System,
-    Timeout,
-}
-
-impl TaskFailureKind {
-    pub(crate) fn as_str(self) -> &'static str {
-        match self {
-            Self::User => "User",
-            Self::System => "System",
-            Self::Timeout => "Timeout",
-        }
-    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -98,10 +85,3 @@ impl TaskInput {
     }
 }
 
-// TODO(vel-edo): TaskInputEnvelope should live in vo-types per the contract.
-// Kept here temporarily because this bead is scoped to vo-sdk only.
-#[derive(serde::Deserialize)]
-pub(crate) struct TaskInputEnvelope {
-    idempotency_key: String,
-    data: Value,
-}

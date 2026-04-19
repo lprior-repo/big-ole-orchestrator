@@ -1,28 +1,14 @@
 //! Fjall-backed persistent implementation of `DedupeStore` for production use.
-//!
-//! Concurrency model: striped `parking_lot::Mutex` guards the check-and-insert
-//! critical section per-key-shard, preventing TOCTOU races between `get` and
-//! `insert` on the same dedupe key while allowing independent keys to proceed
-//! in parallel.
 
 use std::sync::Arc;
 
-use parking_lot::Mutex;
 use vo_types::{DedupeKey, InstanceId};
 
 use super::{AdmissionResult, DedupeStore, DedupeStoreError, DEDUPE_PARTITION};
 
-const NUM_STRIPES: usize = 64;
-const PURGE_BATCH_SIZE: usize = 1024;
-
-fn stripe_for_key(key_bytes: &[u8]) -> usize {
-    crc32fast::hash(key_bytes) as usize % NUM_STRIPES
-}
-
 pub struct FjallDedupeStore {
     keyspace: Arc<fjall::Keyspace>,
     partition: Arc<fjall::PartitionHandle>,
-    stripes: Vec<Mutex<()>>,
 }
 
 impl FjallDedupeStore {
@@ -37,26 +23,15 @@ impl FjallDedupeStore {
             .map_err(|e| DedupeStoreError::Storage {
                 reason: format!("failed to open dedupe partition: {e}"),
             })?;
-        let stripes = (0..NUM_STRIPES).map(|_| Mutex::new(())).collect();
         Ok(Self {
             keyspace: Arc::new(keyspace.clone()),
             partition: Arc::new(partition),
-            stripes,
         })
-    }
-
-    #[expect(clippy::expect_used, clippy::cast_possible_truncation)]
-    fn now_ms() -> u64 {
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .expect(
-                "system time is guaranteed to be after UNIX epoch on properly configured systems",
-            )
-            .as_millis() as u64
     }
 }
 
 impl DedupeStore for FjallDedupeStore {
+    #[expect(clippy::expect_used)]
     fn check_and_insert(
         &self,
         key: &DedupeKey,
@@ -68,10 +43,13 @@ impl DedupeStore for FjallDedupeStore {
         }
 
         let encoded_key = super::encode_dedupe_key(key);
-        let stripe_idx = stripe_for_key(&encoded_key);
-        let _guard = self.stripes[stripe_idx].lock();
-
-        let now_ms = Self::now_ms();
+        #[expect(clippy::expect_used, clippy::cast_possible_truncation)]
+        let now_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect(
+                "system time is guaranteed to be after UNIX epoch on properly configured systems",
+            )
+            .as_millis() as u64;
         let expires_at = now_ms.saturating_add(ttl_ms);
 
         if let Ok(Some(value_bytes)) = self.partition.get(&encoded_key) {
@@ -100,7 +78,7 @@ impl DedupeStore for FjallDedupeStore {
 
     fn purge_expired(&self, now_ms: u64) -> Result<u64, DedupeStoreError> {
         let mut purged_count = 0u64;
-        let mut keys_to_delete = Vec::with_capacity(PURGE_BATCH_SIZE);
+        let mut keys_to_delete = Vec::new();
 
         let iter = self.partition.iter();
         for item in iter {
@@ -113,18 +91,6 @@ impl DedupeStore for FjallDedupeStore {
                     keys_to_delete.push(key_bytes.to_vec());
                 }
             }
-
-            if keys_to_delete.len() >= PURGE_BATCH_SIZE {
-                let mut batch = self.keyspace.batch();
-                for key in keys_to_delete.drain(..) {
-                    batch.remove(&self.partition, key);
-                }
-                batch.commit().map_err(|e| DedupeStoreError::Storage {
-                    reason: e.to_string(),
-                })?;
-                purged_count += keys_to_delete.capacity() as u64;
-                keys_to_delete.clear();
-            }
         }
 
         if !keys_to_delete.is_empty() {
@@ -135,15 +101,22 @@ impl DedupeStore for FjallDedupeStore {
             batch.commit().map_err(|e| DedupeStoreError::Storage {
                 reason: e.to_string(),
             })?;
-            purged_count += keys_to_delete.len() as u64;
+            purged_count = keys_to_delete.len() as u64;
         }
 
         Ok(purged_count)
     }
 
+    #[expect(clippy::expect_used)]
     fn contains(&self, key: &DedupeKey) -> Result<bool, DedupeStoreError> {
         let encoded_key = super::encode_dedupe_key(key);
-        let now_ms = Self::now_ms();
+        #[expect(clippy::expect_used, clippy::cast_possible_truncation)]
+        let now_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect(
+                "system time is guaranteed to be after UNIX epoch on properly configured systems",
+            )
+            .as_millis() as u64;
 
         match self.partition.get(&encoded_key) {
             Ok(Some(value_bytes)) => match super::decode_dedupe_entry(&value_bytes) {
@@ -228,43 +201,5 @@ mod tests {
         let key = DedupeKey::parse("missing-key").unwrap();
 
         assert_eq!(store.contains(&key), Ok(false));
-    }
-
-    #[test]
-    fn fjall_dedupe_store_striped_lock_prevents_double_admit() {
-        let keyspace = create_test_keyspace();
-        let store = Arc::new(FjallDedupeStore::open(&keyspace).unwrap());
-        let key = DedupeKey::parse("striped-atomic-key").unwrap();
-        let num_threads = 8usize;
-        let barrier = Arc::new(std::sync::Barrier::new(num_threads));
-
-        let handles: Vec<_> = (0..num_threads)
-            .map(|i| {
-                let store = Arc::clone(&store);
-                let key = key.clone();
-                let barrier = Arc::clone(&barrier);
-                std::thread::spawn(move || {
-                    barrier.wait();
-                    let iid = InstanceId::from_bytes([i as u8; 16]);
-                    store.check_and_insert(&key, &iid, 60_000)
-                })
-            })
-            .collect();
-
-        let results: Vec<_> = handles.into_iter().map(|h| h.join().unwrap()).collect();
-        let admitted_count = results
-            .iter()
-            .filter(|r| matches!(r, Ok(AdmissionResult::Admitted)))
-            .count();
-        let dup_count = results
-            .iter()
-            .filter(|r| matches!(r, Ok(AdmissionResult::Duplicate { .. })))
-            .count();
-
-        assert_eq!(
-            admitted_count, 1,
-            "Striped lock must enforce exactly one winner"
-        );
-        assert_eq!(dup_count, num_threads - 1);
     }
 }

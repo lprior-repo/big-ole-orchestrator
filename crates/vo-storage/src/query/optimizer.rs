@@ -25,21 +25,22 @@ pub enum Predicate {
 }
 
 impl Predicate {
+    /// Evaluate this predicate against an event envelope.
+    #[must_use]
     pub fn evaluate(&self, envelope: &EventEnvelope) -> bool {
         match self {
-            Predicate::SequenceRange { min, max } => {
+            Self::SequenceRange { min, max } => {
                 envelope.sequence >= *min && envelope.sequence <= *max
             }
-            Predicate::TimestampRange { min_ms, max_ms } => {
+            Self::TimestampRange { min_ms, max_ms } => {
                 envelope.timestamp_ms >= *min_ms && envelope.timestamp_ms <= *max_ms
             }
-            Predicate::EventType(event_type) => envelope
+            Self::EventType(event_type) => envelope
                 .payload
                 .get("type")
                 .and_then(|v| v.as_str())
-                .map(|t| t == event_type)
-                .unwrap_or(false),
-            Predicate::SchemaVersion(version) => envelope.schema_version == *version,
+                .is_some_and(|t| t == event_type),
+            Self::SchemaVersion(version) => envelope.schema_version == *version,
         }
     }
 }
@@ -54,14 +55,18 @@ pub enum Projection {
 }
 
 impl Projection {
-    pub fn include_payload(&self) -> bool {
+    /// Returns `true` if the projection includes the payload.
+    #[must_use]
+    pub const fn include_payload(&self) -> bool {
         !matches!(self, Projection::WorkflowVersion)
     }
 
-    pub fn include_metadata(&self) -> bool {
+    /// Returns `true` if the projection includes metadata fields.
+    #[must_use]
+    pub const fn include_metadata(&self) -> bool {
         matches!(
             self,
-            Projection::Full | Projection::EffectJournal | Projection::WorkflowVersion
+            Self::Full | Self::EffectJournal | Self::WorkflowVersion
         )
     }
 }
@@ -89,8 +94,9 @@ pub struct QueryPlan {
 pub struct QueryOptimizer;
 
 impl QueryOptimizer {
+    /// Optimize a query specification into a query plan.
     #[must_use]
-    pub fn optimize<'a>(spec: QuerySpec<'a>) -> QueryPlan {
+    pub fn optimize(spec: QuerySpec<'_>) -> QueryPlan {
         let prefix = spec.lineage_query.to_prefix().unwrap_or_default();
         let (scan_range_start, scan_range_end) =
             Self::compute_scan_range(&spec.predicates, &prefix);
@@ -147,7 +153,7 @@ impl QueryOptimizer {
             .collect()
     }
 
-    fn optimize_projection(projection: Projection) -> Projection {
+    const fn optimize_projection(projection: Projection) -> Projection {
         projection
     }
 }
@@ -161,9 +167,13 @@ pub struct OptimizedReplayIterator {
 }
 
 impl OptimizedReplayIterator {
-    pub fn from_plan(plan: &QueryPlan, keyspace: &fjall::Keyspace) -> Result<Self, StorageError> {
-        let partition =
-            keyspace.open_partition("events", fjall::PartitionCreateOptions::default())?;
+    /// Create an optimized replay iterator from a query plan.
+    ///
+    /// # Errors
+    ///
+    /// Returns `StorageError::Storage` if the events partition cannot be opened.
+    pub fn from_plan(plan: &QueryPlan, keyspace: &fjall::Database) -> Result<Self, StorageError> {
+        let partition = keyspace.keyspace("events", || fjall::KeyspaceCreateOptions::default())?;
         let scan_start = plan.scan_range_start.clone().unwrap_or_else(|| {
             let mut s = plan.prefix.clone();
             s.extend_from_slice(&1u64.to_be_bytes());
@@ -345,5 +355,149 @@ mod optimizer_tests {
         assert!(Projection::EffectJournal.include_metadata());
         assert!(!Projection::WorkflowVersion.include_payload());
         assert!(Projection::WorkflowVersion.include_metadata());
+    }
+
+    #[test]
+    fn predicate_schema_version_evaluate() {
+        let pred = Predicate::SchemaVersion(1);
+        let mut env = make_envelope(1, "WorkflowStarted", 1000);
+        env.schema_version = 1;
+        assert!(pred.evaluate(&env));
+        env.schema_version = 2;
+        assert!(!pred.evaluate(&env));
+        env.schema_version = 0;
+        assert!(!pred.evaluate(&env));
+    }
+
+    fn make_envelope_with_version(
+        seq: u64,
+        event_type: &str,
+        timestamp_ms: u64,
+        schema_version: u8,
+    ) -> EventEnvelope {
+        EventEnvelope {
+            schema_version,
+            instance_id: "test-instance".to_string(),
+            sequence: seq,
+            timestamp_ms,
+            payload: serde_json::json!({"type": event_type}),
+            metadata: EventMetadata::default(),
+        }
+    }
+
+    #[test]
+    fn query_optimizer_with_schema_version_predicate() {
+        let spec = QuerySpec {
+            lineage_query: super::super::LineageQuery::InstanceId(
+                &InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap(),
+            ),
+            predicates: vec![Predicate::SchemaVersion(1)],
+            projection: Projection::Full,
+            limit: None,
+            offset: 0,
+        };
+        let plan = QueryOptimizer::optimize(spec);
+        assert_eq!(plan.predicates.len(), 1);
+        let env_v1 = make_envelope_with_version(1, "WorkflowStarted", 1000, 1);
+        let env_v2 = make_envelope_with_version(1, "WorkflowStarted", 1000, 2);
+        assert!(plan.predicates[0].evaluate(&env_v1));
+        assert!(!plan.predicates[0].evaluate(&env_v2));
+    }
+
+    #[test]
+    fn query_optimizer_combined_predicates() {
+        let spec = QuerySpec {
+            lineage_query: super::super::LineageQuery::InstanceId(
+                &InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap(),
+            ),
+            predicates: vec![
+                Predicate::SequenceRange { min: 10, max: 50 },
+                Predicate::EventType("WorkflowStarted".to_string()),
+                Predicate::SchemaVersion(1),
+            ],
+            projection: Projection::Full,
+            limit: Some(10),
+            offset: 5,
+        };
+        let plan = QueryOptimizer::optimize(spec);
+        assert!(plan.scan_range_start.is_some());
+        assert!(plan.scan_range_end.is_some());
+        assert_eq!(plan.predicates.len(), 2);
+        assert_eq!(plan.limit, Some(10));
+        assert_eq!(plan.offset, 5);
+    }
+
+    #[test]
+    fn query_optimizer_empty_predicates_preserves_none() {
+        let spec = QuerySpec {
+            lineage_query: super::super::LineageQuery::InstanceId(
+                &InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap(),
+            ),
+            predicates: vec![],
+            projection: Projection::Timeline,
+            limit: None,
+            offset: 0,
+        };
+        let plan = QueryOptimizer::optimize(spec);
+        assert!(plan.predicates.is_empty());
+        assert!(plan.scan_range_start.is_none());
+        assert!(plan.scan_range_end.is_none());
+        assert_eq!(plan.projection, Projection::Timeline);
+    }
+
+    #[test]
+    fn query_plan_clone() {
+        let plan = QueryPlan {
+            prefix: vec![1, 2, 3],
+            predicates: vec![Predicate::SchemaVersion(1)],
+            projection: Projection::Full,
+            limit: Some(100),
+            offset: 10,
+            scan_range_start: Some(vec![1]),
+            scan_range_end: Some(vec![255]),
+        };
+        let cloned = plan.clone();
+        assert_eq!(cloned.prefix, plan.prefix);
+        assert_eq!(cloned.predicates.len(), plan.predicates.len());
+        assert_eq!(cloned.limit, plan.limit);
+        assert_eq!(cloned.offset, plan.offset);
+    }
+
+    #[test]
+    fn predicate_schema_version_edge_cases() {
+        let pred = Predicate::SchemaVersion(0);
+        let env = make_envelope_with_version(1, "WorkflowStarted", 1000, 0);
+        assert!(pred.evaluate(&env));
+
+        let pred255 = Predicate::SchemaVersion(255);
+        let mut env255 = make_envelope_with_version(1, "WorkflowStarted", 1000, 255);
+        assert!(pred255.evaluate(&env255));
+        env255.schema_version = 254;
+        assert!(!pred255.evaluate(&env255));
+    }
+
+    #[test]
+    fn predicate_timestamp_range_boundary_conditions() {
+        let pred = Predicate::TimestampRange {
+            min_ms: 1000,
+            max_ms: 1000,
+        };
+        let env_at_min = make_envelope_with_version(1, "WorkflowStarted", 1000, 1);
+        assert!(pred.evaluate(&env_at_min));
+        let env_above = make_envelope_with_version(1, "WorkflowStarted", 1001, 1);
+        assert!(!pred.evaluate(&env_above));
+        let env_below = make_envelope_with_version(1, "WorkflowStarted", 999, 1);
+        assert!(!pred.evaluate(&env_below));
+    }
+
+    #[test]
+    fn predicate_sequence_range_boundary_conditions() {
+        let pred = Predicate::SequenceRange { min: 5, max: 5 };
+        let env_at_min = make_envelope_with_version(5, "WorkflowStarted", 1000, 1);
+        assert!(pred.evaluate(&env_at_min));
+        let env_above = make_envelope_with_version(6, "WorkflowStarted", 1000, 1);
+        assert!(!pred.evaluate(&env_above));
+        let env_below = make_envelope_with_version(4, "WorkflowStarted", 1000, 1);
+        assert!(!pred.evaluate(&env_below));
     }
 }

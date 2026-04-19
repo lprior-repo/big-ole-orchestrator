@@ -1,12 +1,12 @@
-use oya_frontend::graph::{Connection, Node, NodeId, PortName, WorkflowNode};
+use crate::ui::edges::graph_types::{Connection, Node, NodeId, PortName, WorkflowNode};
 use uuid::Uuid;
 
-pub(crate) const NODE_HEIGHT: f32 = 68.0;
+pub(crate) use crate::ui::edges::types::NODE_HEIGHT;
 
 pub(crate) fn build_node(id: NodeId, x: f32, y: f32) -> Node {
     let mut node = Node::from_workflow_node(
         format!("Node {}", id),
-        WorkflowNode::Run(oya_frontend::graph::workflow_node::RunConfig::default()),
+        WorkflowNode::Run(crate::ui::edges::graph_types::RunConfig::default()),
         x,
         y,
     );
@@ -17,7 +17,7 @@ pub(crate) fn build_node(id: NodeId, x: f32, y: f32) -> Node {
 pub(crate) fn build_parallel_node(id: NodeId, x: f32, y: f32) -> Node {
     let mut node = Node::from_workflow_node(
         format!("Parallel {}", id),
-        WorkflowNode::Parallel(oya_frontend::graph::workflow_node::ParallelConfig::default()),
+        WorkflowNode::Parallel(crate::ui::edges::graph_types::ParallelConfig::default()),
         x,
         y,
     );

@@ -4,11 +4,8 @@ use proptest::prelude::*;
 use std::collections::HashSet;
 use vo_cli::commands::check::{validate_binary_header, KNOWN_MAGICS};
 use vo_cli::commands::gc::find_unpinned_directories;
+use vo_cli::utils::sha256_hex;
 use vo_cli::{parse_strict_numeric, CliError};
-
-fn sha256_hex(seed: &str) -> String {
-    format!("{:0<64}", seed)
-}
 
 proptest! {
     #[test]

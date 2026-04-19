@@ -1,10 +1,34 @@
 //! HTTP API for vo-engine.
 //!
-//! Provides REST endpoints for workflow management, step execution,
-//! and system health monitoring.
+//! This crate provides the REST API for the Veloxide workflow engine,
+//! including endpoints for workflow management, step execution, and
+//! system health monitoring.
+//!
+//! # API Version
+//!
+//! The current API version is v3, providing:
+//! - [`types::v3`] - Request/response types for v3 endpoints
+//! - [`types::errors`] - Standard API error types
+//! - [`handlers::query`] - Query handlers for workflow status
+//!
+//! # Endpoint Overview
+//!
+//! - `POST /api/v1/workflows` - Start a new workflow instance
+//! - `GET /api/v1/workflows/:id` - Get workflow status
+//! - `GET /api/v1/workflows/:id/timeline` - Get timeline events
+//! - `GET /api/v1/workflows/:id/history` - Get step execution history
+//! - `GET /api/v1/workflows/:id/effect-journal` - Get effect journal
+//! - `GET /api/v1/workflows/:id/version` - Get schema version info
+//! - `GET /api/v1/search` - Full-text search across workspaces
+//! - `POST /api/v1/workflows/:id/signals` - Send a signal to a workflow
+//!
+//! # Modules
+//!
+//! - [`types`] - Request/response types for the API
+//! - [`handlers`] - HTTP request handlers (query endpoints active; workflow, signal, events, sse pending V2 actor migration)
 
-pub mod types;
 pub mod handlers;
+pub mod types;
 
 #[cfg(test)]
 mod lib_tests {
@@ -42,110 +66,126 @@ mod lib_tests {
             instance_id: "inst-1".to_string(),
             entries: vec![],
             total_replayed: 0,
+            replay_error_count: 0,
+            truncated: false,
         };
         let json = serde_json::to_string(&resp).unwrap();
         assert!(json.contains(r#""instance_id":"inst-1""#));
         assert!(json.contains(r#""total_replayed":0"#));
     }
+
+// --- HistoryEntry tests ---
+
+#[test]
+fn history_entry_serializes_step_fields() {
+    let entry = crate::types::v3::HistoryEntry {
+        sequence: 3,
+        timestamp_ms: 5000,
+        event_type: "step_completed".to_string(),
+        step_id: Some("build".to_string()),
+        error: None,
+        output: Some(serde_json::json!({"result": "ok"})),
+    };
+    let json = serde_json::to_string(&entry).unwrap();
+    assert!(json.contains(r#""step_id":"build""#));
+    assert!(json.contains("output"));
+    assert!(!json.contains("error"));
 }
 
-    // --- HistoryEntry tests ---
+#[test]
+fn history_entry_omits_none_fields() {
+    let entry = crate::types::v3::HistoryEntry {
+        sequence: 1,
+        timestamp_ms: 0,
+        event_type: "workflow_started".to_string(),
+        step_id: None,
+        error: None,
+        output: None,
+    };
+    let json = serde_json::to_string(&entry).unwrap();
+    assert!(!json.contains("step_id"));
+    assert!(!json.contains("error"));
+    assert!(!json.contains("output"));
+}
 
-    #[test]
-    fn history_entry_serializes_step_fields() {
-        let entry = crate::types::v3::HistoryEntry {
-            sequence: 3,
-            timestamp_ms: 5000,
-            event_type: "step_completed".to_string(),
-            step_id: Some("build".to_string()),
-            error: None,
-            output: Some(serde_json::json!({"result": "ok"})),
-        };
-        let json = serde_json::to_string(&entry).unwrap();
-        assert!(json.contains(r#""step_id":"build""#));
-        assert!(json.contains("output"));
-        assert!(!json.contains("error"));
+// --- EffectSemantics tests ---
+
+#[test]
+fn effect_semantics_exact_serializes_lowercase() {
+    assert_eq!(
+        serde_json::to_string(&crate::types::v3::EffectSemantics::Exact).unwrap(),
+        r#""exact""#
+    );
+}
+
+#[test]
+fn effect_semantics_unsafe_serializes_lowercase() {
+    assert_eq!(
+        serde_json::to_string(&crate::types::v3::EffectSemantics::Unsafe).unwrap(),
+        r#""unsafe""#
+    );
+}
+
+#[test]
+fn effect_semantics_roundtrip() {
+    for variant in [
+        crate::types::v3::EffectSemantics::Exact,
+        crate::types::v3::EffectSemantics::Unsafe,
+    ] {
+        let json = serde_json::to_string(&variant).unwrap();
+        let parsed: crate::types::v3::EffectSemantics = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed, variant);
     }
+}
 
-    #[test]
-    fn history_entry_omits_none_fields() {
-        let entry = crate::types::v3::HistoryEntry {
-            sequence: 1,
-            timestamp_ms: 0,
-            event_type: "workflow_started".to_string(),
-            step_id: None,
-            error: None,
-            output: None,
-        };
-        let json = serde_json::to_string(&entry).unwrap();
-        assert!(!json.contains("step_id"));
-        assert!(!json.contains("error"));
-        assert!(!json.contains("output"));
-    }
+// --- EffectJournalEntry tests ---
 
-    // --- EffectSemantics tests ---
+#[test]
+fn effect_journal_entry_serializes_with_semantics() {
+    let entry = crate::types::v3::EffectJournalEntry {
+        sequence: 2,
+        timestamp_ms: 1000,
+        event_type: "step_completed".to_string(),
+        semantics: crate::types::v3::EffectSemantics::Exact,
+        payload: serde_json::json!({}),
+    };
+    let json = serde_json::to_string(&entry).unwrap();
+    assert!(json.contains(r#""semantics":"exact""#));
+}
 
-    #[test]
-    fn effect_semantics_exact_serializes_lowercase() {
-        assert_eq!(serde_json::to_string(&crate::types::v3::EffectSemantics::Exact).unwrap(), r#""exact""#);
-    }
+// --- WorkflowVersionResponse tests ---
 
-    #[test]
-    fn effect_semantics_unsafe_serializes_lowercase() {
-        assert_eq!(serde_json::to_string(&crate::types::v3::EffectSemantics::Unsafe).unwrap(), r#""unsafe""#);
-    }
+#[test]
+fn workflow_version_response_serializes() {
+    let resp = crate::types::v3::WorkflowVersionResponse {
+        instance_id: "inst-4".to_string(),
+        schema_version: 1,
+        event_count: 42,
+        last_sequence: Some(42),
+        last_timestamp_ms: Some(1714000000000),
+        replay_error_count: 0,
+        truncated: false,
+    };
+    let json = serde_json::to_string(&resp).unwrap();
+    assert!(json.contains(r#""schema_version":1"#));
+    assert!(json.contains(r#""event_count":42"#));
+    assert!(json.contains(r#""last_sequence":42"#));
+}
 
-    #[test]
-    fn effect_semantics_roundtrip() {
-        for variant in [crate::types::v3::EffectSemantics::Exact, crate::types::v3::EffectSemantics::Unsafe] {
-            let json = serde_json::to_string(&variant).unwrap();
-            let parsed: crate::types::v3::EffectSemantics = serde_json::from_str(&json).unwrap();
-            assert_eq!(parsed, variant);
-        }
-    }
+#[test]
+fn workflow_version_response_handles_empty_stream() {
+    let resp = crate::types::v3::WorkflowVersionResponse {
+        instance_id: "inst-5".to_string(),
+        schema_version: 1,
+        event_count: 0,
+        last_sequence: None,
+        last_timestamp_ms: None,
+        replay_error_count: 0,
+        truncated: false,
+    };
+    let json = serde_json::to_string(&resp).unwrap();
+    assert!(json.contains(r#""last_sequence":null"#));
+    assert!(json.contains(r#""last_timestamp_ms":null"#));
+}
 
-    // --- EffectJournalEntry tests ---
-
-    #[test]
-    fn effect_journal_entry_serializes_with_semantics() {
-        let entry = crate::types::v3::EffectJournalEntry {
-            sequence: 2,
-            timestamp_ms: 1000,
-            event_type: "step_completed".to_string(),
-            semantics: crate::types::v3::EffectSemantics::Exact,
-            payload: serde_json::json!({}),
-        };
-        let json = serde_json::to_string(&entry).unwrap();
-        assert!(json.contains(r#""semantics":"exact""#));
-    }
-
-    // --- WorkflowVersionResponse tests ---
-
-    #[test]
-    fn workflow_version_response_serializes() {
-        let resp = crate::types::v3::WorkflowVersionResponse {
-            instance_id: "inst-4".to_string(),
-            schema_version: 1,
-            event_count: 42,
-            last_sequence: Some(42),
-            last_timestamp_ms: Some(1714000000000),
-        };
-        let json = serde_json::to_string(&resp).unwrap();
-        assert!(json.contains(r#""schema_version":1"#));
-        assert!(json.contains(r#""event_count":42"#));
-        assert!(json.contains(r#""last_sequence":42"#));
-    }
-
-    #[test]
-    fn workflow_version_response_handles_empty_stream() {
-        let resp = crate::types::v3::WorkflowVersionResponse {
-            instance_id: "inst-5".to_string(),
-            schema_version: 1,
-            event_count: 0,
-            last_sequence: None,
-            last_timestamp_ms: None,
-        };
-        let json = serde_json::to_string(&resp).unwrap();
-        assert!(json.contains(r#""last_sequence":null"#));
-        assert!(json.contains(r#""last_timestamp_ms":null"#));
-    }
+}

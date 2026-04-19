@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+use crate::effects::CompensationPolicy;
 use crate::NodeName;
 
 // ---------------------------------------------------------------------------
@@ -179,6 +180,29 @@ impl RetryPolicy {
 pub struct DagNode {
     pub node_name: NodeName,
     pub retry_policy: RetryPolicy,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub compensation_policy: Option<CompensationPolicy>,
+}
+
+impl DagNode {
+    /// Create a valid default `DagNode` with minimal retry policy.
+    ///
+    /// This provides a sensible default retry policy (1 attempt, no backoff)
+    /// that passes validation. Use this when you need a `DagNode` without
+    /// specifying custom parameters.
+    ///
+    /// # Errors
+    ///
+    /// Returns `RetryPolicyError::ZeroAttempts` if the default parameters
+    /// are invalid (should never happen with current defaults).
+    #[must_use]
+    pub fn valid_default(node_name: NodeName) -> Result<Self, RetryPolicyError> {
+        Ok(Self {
+            node_name,
+            retry_policy: RetryPolicy::new(1, 0, 1.0)?,
+            compensation_policy: None,
+        })
+    }
 }
 
 // ---------------------------------------------------------------------------

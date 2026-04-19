@@ -11,11 +11,15 @@ pub mod mock;
 #[cfg(test)]
 mod mock_tests;
 #[cfg(test)]
+mod recovery_tests;
+#[cfg(test)]
 mod tests;
 #[cfg(test)]
 mod tests_types;
 pub mod traits;
 pub mod types;
+#[cfg(kani)]
+mod verification;
 
 pub use error::ReanimatorError;
 pub use loop_core::{ReanimatorHandle, ReanimatorLoop};

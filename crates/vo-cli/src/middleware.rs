@@ -210,16 +210,18 @@ async fn dispatch_inner(cli: Cli) -> Result<(), CliError> {
             eprint!("{stderr}");
             Ok(())
         }
-        Command::Rebuild { project_dir, projection_id, list_projections, force } => {
-            let config = crate::commands::rebuild::RebuildConfig {
-                project_dir,
-                projection_id,
-                list_projections,
-                force,
-                schema_version: None,
-            };
-            let report = crate::commands::rebuild::run_rebuild(&config)?;
-            println!("{}", report.format_progress());
+        Command::Unquarantine {
+            workflow_name,
+            operator,
+            engine_url,
+        } => {
+            let result = crate::commands::unquarantine::unquarantine_workflow(
+                &engine_url,
+                &workflow_name,
+                &operator,
+            )
+            .await?;
+            crate::commands::unquarantine::display_result(&result);
             Ok(())
         }
     }

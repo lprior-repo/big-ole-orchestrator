@@ -1,7 +1,7 @@
 //! Shared test helpers for replay engine tests.
 
 use serde_json::json;
-use vo_types::events::{EventEnvelope, EventMetadata};
+pub use vo_types::events::{EventEnvelope, EventMetadata};
 
 /// Helper: create a valid EventEnvelope for testing.
 pub fn make_event(instance_id: &str, sequence: u64, payload: serde_json::Value) -> EventEnvelope {

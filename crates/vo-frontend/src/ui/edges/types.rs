@@ -1,6 +1,7 @@
-use dioxus::prelude::*;
+use super::graph_types::Node;
 
-use crate::ui::editor_interactions::{NODE_HEIGHT, NODE_WIDTH};
+pub(crate) const NODE_WIDTH: f32 = 220.0;
+pub(crate) const NODE_HEIGHT: f32 = 68.0;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Position {
@@ -31,14 +32,14 @@ pub(crate) struct Rect {
     pub(crate) height: f32,
 }
 
-pub(crate) fn get_source_point(node: &oya_frontend::graph::Node) -> Position {
+pub(crate) fn get_source_point(node: &Node) -> Position {
     Position {
         x: node.x + NODE_WIDTH,
         y: node.y + NODE_HEIGHT / 2.0,
     }
 }
 
-pub(crate) fn get_target_point(node: &oya_frontend::graph::Node) -> Position {
+pub(crate) fn get_target_point(node: &Node) -> Position {
     Position {
         x: node.x,
         y: node.y + NODE_HEIGHT / 2.0,

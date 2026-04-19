@@ -1,7 +1,9 @@
 pub mod check;
+pub mod compensate;
 pub mod doctor;
 pub mod doctor_checks;
 pub mod gc;
+pub mod history;
 pub mod init;
 pub mod lock;
-pub mod rebuild;
+pub mod unquarantine;

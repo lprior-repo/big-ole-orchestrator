@@ -11,9 +11,11 @@ fn sample_instance_id() -> InstanceId {
     InstanceId::from_bytes([1u8; 16])
 }
 
-fn create_keyspace() -> (tempfile::TempDir, fjall::Keyspace) {
+fn create_keyspace() -> (tempfile::TempDir, fjall::Database) {
     let dir = tempfile::tempdir().expect("tempdir");
-    let ks = fjall::Config::new(dir.path()).open().expect("keyspace");
+    let ks = fjall::Database::builder(dir.path())
+        .open()
+        .expect("keyspace");
     (dir, ks)
 }
 
@@ -306,7 +308,9 @@ fn fjall_replay_survives_keyspace_reopen_prepared_effects() {
     let id = sample_instance_id();
 
     {
-        let keyspace = fjall::Config::new(&dir_path).open().expect("keyspace");
+        let keyspace = fjall::Database::builder(&dir_path)
+            .open()
+            .expect("keyspace");
         let journal = FjallEffectJournal::open(&keyspace).expect("journal");
 
         let record = EffectRecord::new(
@@ -321,7 +325,7 @@ fn fjall_replay_survives_keyspace_reopen_prepared_effects() {
         eid_prepared = journal.prepare(&id, record).expect("prepare");
     }
 
-    let keyspace = fjall::Config::new(&dir_path)
+    let keyspace = fjall::Database::builder(&dir_path)
         .open()
         .expect("keyspace reopen");
     let journal = FjallEffectJournal::open(&keyspace).expect("journal reopen");
@@ -341,7 +345,9 @@ fn fjall_replay_survives_keyspace_reopen_committed_effects() {
     let id = sample_instance_id();
 
     {
-        let keyspace = fjall::Config::new(&dir_path).open().expect("keyspace");
+        let keyspace = fjall::Database::builder(&dir_path)
+            .open()
+            .expect("keyspace");
         let journal = FjallEffectJournal::open(&keyspace).expect("journal");
 
         let record = EffectRecord::new(
@@ -357,7 +363,7 @@ fn fjall_replay_survives_keyspace_reopen_committed_effects() {
         journal.commit(&eid).expect("commit");
     }
 
-    let keyspace = fjall::Config::new(&dir_path)
+    let keyspace = fjall::Database::builder(&dir_path)
         .open()
         .expect("keyspace reopen");
     let journal = FjallEffectJournal::open(&keyspace).expect("journal reopen");
@@ -383,7 +389,9 @@ fn fjall_replay_survives_keyspace_reopen_rolledback_effects() {
     let id = sample_instance_id();
 
     {
-        let keyspace = fjall::Config::new(&dir_path).open().expect("keyspace");
+        let keyspace = fjall::Database::builder(&dir_path)
+            .open()
+            .expect("keyspace");
         let journal = FjallEffectJournal::open(&keyspace).expect("journal");
 
         let record = EffectRecord::new(
@@ -399,7 +407,7 @@ fn fjall_replay_survives_keyspace_reopen_rolledback_effects() {
         journal.rollback(&eid).expect("rollback");
     }
 
-    let keyspace = fjall::Config::new(&dir_path)
+    let keyspace = fjall::Database::builder(&dir_path)
         .open()
         .expect("keyspace reopen");
     let journal = FjallEffectJournal::open(&keyspace).expect("journal reopen");
@@ -425,7 +433,9 @@ fn fjall_replay_mixed_effects_survive_keyspace_reopen() {
     let id = sample_instance_id();
 
     {
-        let keyspace = fjall::Config::new(&dir_path).open().expect("keyspace");
+        let keyspace = fjall::Database::builder(&dir_path)
+            .open()
+            .expect("keyspace");
         let journal = FjallEffectJournal::open(&keyspace).expect("journal");
 
         for i in 0..6 {
@@ -451,7 +461,7 @@ fn fjall_replay_mixed_effects_survive_keyspace_reopen() {
         }
     }
 
-    let keyspace = fjall::Config::new(&dir_path)
+    let keyspace = fjall::Database::builder(&dir_path)
         .open()
         .expect("keyspace reopen");
     let journal = FjallEffectJournal::open(&keyspace).expect("journal reopen");
@@ -474,7 +484,9 @@ fn fjall_replay_idempotent_prepare_after_reopen() {
     let id = sample_instance_id();
 
     {
-        let keyspace = fjall::Config::new(&dir_path).open().expect("keyspace");
+        let keyspace = fjall::Database::builder(&dir_path)
+            .open()
+            .expect("keyspace");
         let journal = FjallEffectJournal::open(&keyspace).expect("journal");
 
         let record = EffectRecord::new(
@@ -489,7 +501,7 @@ fn fjall_replay_idempotent_prepare_after_reopen() {
         journal.prepare(&id, record).expect("first prepare");
     }
 
-    let keyspace = fjall::Config::new(&dir_path)
+    let keyspace = fjall::Database::builder(&dir_path)
         .open()
         .expect("keyspace reopen");
     let journal = FjallEffectJournal::open(&keyspace).expect("journal reopen");
@@ -519,7 +531,9 @@ fn fjall_replay_compact_removes_terminal_after_reopen() {
     let id = sample_instance_id();
 
     {
-        let keyspace = fjall::Config::new(&dir_path).open().expect("keyspace");
+        let keyspace = fjall::Database::builder(&dir_path)
+            .open()
+            .expect("keyspace");
         let journal = FjallEffectJournal::open(&keyspace).expect("journal");
 
         for i in 0..3 {
@@ -536,7 +550,7 @@ fn fjall_replay_compact_removes_terminal_after_reopen() {
         }
     }
 
-    let keyspace = fjall::Config::new(&dir_path)
+    let keyspace = fjall::Database::builder(&dir_path)
         .open()
         .expect("keyspace reopen");
     let journal = FjallEffectJournal::open(&keyspace).expect("journal reopen");

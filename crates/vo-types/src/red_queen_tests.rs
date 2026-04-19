@@ -41,6 +41,7 @@ fn make_def(
                         backoff_multiplier: m,
                         max_backoff_ms: u64::MAX,
                     },
+                    compensation_policy: None,
                 })
                 .collect(),
         ),
@@ -597,10 +598,12 @@ fn rq_next_nodes_duplicate_edges_returns_duplicates() {
             DagNode {
                 node_name: NodeName("a".into()),
                 retry_policy: RetryPolicy::new(1, 0, 1.0).unwrap(),
+                compensation_policy: None,
             },
             DagNode {
                 node_name: NodeName("b".into()),
                 retry_policy: RetryPolicy::new(1, 0, 1.0).unwrap(),
+                compensation_policy: None,
             },
         ]),
         edges: vec![
@@ -632,10 +635,12 @@ fn rq_next_nodes_same_target_different_conditions_success() {
             DagNode {
                 node_name: NodeName("a".into()),
                 retry_policy: RetryPolicy::new(1, 0, 1.0).unwrap(),
+                compensation_policy: None,
             },
             DagNode {
                 node_name: NodeName("b".into()),
                 retry_policy: RetryPolicy::new(1, 0, 1.0).unwrap(),
+                compensation_policy: None,
             },
         ]),
         edges: vec![
@@ -837,6 +842,7 @@ fn rq_serde_round_trip_boundary_values() {
                 backoff_multiplier: 1.0,
                 max_backoff_ms: u64::MAX,
             },
+            compensation_policy: None,
         }]),
         edges: vec![],
     };
@@ -1063,6 +1069,7 @@ fn rq_dag_node_is_clone_not_copy() {
     let node = DagNode {
         node_name: NodeName("a".into()),
         retry_policy: RetryPolicy::new(1, 0, 1.0).unwrap(),
+        compensation_policy: None,
     };
     require_clone(node.clone());
     // DagNode should NOT be Copy (NodeName wraps String)
@@ -1109,7 +1116,7 @@ mod proptests {
             backoff_ms in 0u64..1_000_000u64,
             multiplier in -1e38f32..0.9999f32,
         ) {
-            let result = RetryPolicy::new(max_attempts, backoff_ms, multiplier);
+            let result = RetryPolicy::new(max_attempts, backoff_ms, multiplier as f64);
             prop_assert!(matches!(result, Err(RetryPolicyError::InvalidMultiplier { .. })), "multiplier {} should be rejected", multiplier);
         }
 
@@ -1120,7 +1127,7 @@ mod proptests {
             backoff_ms in 0u64..1_000_000u64,
             multiplier in 1.0f32..1e38f32,
         ) {
-            let result = RetryPolicy::new(max_attempts, backoff_ms, multiplier);
+            let result = RetryPolicy::new(max_attempts, backoff_ms, multiplier as f64);
             result.unwrap();
         }
 

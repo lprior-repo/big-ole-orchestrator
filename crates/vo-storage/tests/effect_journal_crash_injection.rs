@@ -26,8 +26,8 @@ fn http_record(intent_id: &str) -> vo_types::EffectRecord {
 }
 
 fn open_journal(dir: &std::path::Path) -> FjallEffectJournal {
-    let keyspace = fjall::Config::new(dir).open().unwrap();
-    FjallEffectJournal::open(&keyspace).unwrap()
+    let db = fjall::Database::builder(dir).open().unwrap();
+    FjallEffectJournal::open(&db).unwrap()
 }
 
 #[test]
@@ -38,7 +38,9 @@ fn exactly_once_commit_survives_crash_between_prepare_and_commit() {
     // Phase 1: prepare but crash before commit
     let eid = {
         let journal = open_journal(dir.path());
-        journal.prepare(&id, http_record("fx-exactly-once")).unwrap()
+        journal
+            .prepare(&id, http_record("fx-exactly-once"))
+            .unwrap()
     };
 
     // Phase 2: reopen and commit
@@ -99,7 +101,11 @@ fn crash_between_multiple_prepares_recovers_all_as_pending() {
     {
         let journal = open_journal(dir.path());
         let pending = journal.list_pending(&id).unwrap();
-        assert_eq!(pending.len(), 5, "all 5 effects must be recovered as pending");
+        assert_eq!(
+            pending.len(),
+            5,
+            "all 5 effects must be recovered as pending"
+        );
 
         // Commit all to complete the saga
         for record in &pending {
@@ -124,7 +130,8 @@ fn partial_commit_crash_recovers_uncommitted_and_preserves_committed() {
                 .unwrap();
         }
         for i in 0..2 {
-            let eid = vo_storage::effect_journal::EffectId::new(&id, &format!("fx-partial-{i}")).unwrap();
+            let eid =
+                vo_storage::effect_journal::EffectId::new(&id, &format!("fx-partial-{i}")).unwrap();
             journal.commit(&eid).unwrap();
         }
     }
@@ -137,7 +144,8 @@ fn partial_commit_crash_recovers_uncommitted_and_preserves_committed() {
 
         // Re-committing already-committed must fail
         for i in 0..2 {
-            let eid = vo_storage::effect_journal::EffectId::new(&id, &format!("fx-partial-{i}")).unwrap();
+            let eid =
+                vo_storage::effect_journal::EffectId::new(&id, &format!("fx-partial-{i}")).unwrap();
             assert!(journal.commit(&eid).is_err(), "re-commit must fail");
         }
 

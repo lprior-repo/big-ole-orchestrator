@@ -51,6 +51,7 @@ fn interpret_cli_from_parses_check_subcommand() {
     assert_eq!(
         cli.command,
         Command::Check {
+            workflow: false,
             path: std::path::PathBuf::from("/usr/bin/ls")
         }
     );

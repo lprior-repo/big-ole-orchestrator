@@ -185,13 +185,14 @@ impl<T: Ord> BinomialHeap<T> {
             return None;
         }
 
+        #[allow(clippy::expect_used)]
         let (min_degree, _) = self
             .trees
             .iter()
             .enumerate()
             .filter_map(|(i, t)| t.as_ref().map(|tree| (i, tree.min_value())))
             .min_by_key(|(_, v)| *v)
-            .unwrap();
+            .expect("binomial heap trees empty despite is_empty check");
 
         let min_tree = self.trees[min_degree].take()?;
         let min_value = min_tree.value;
@@ -199,25 +200,25 @@ impl<T: Ord> BinomialHeap<T> {
         let mut children: Vec<Option<BinomialNode<T>>> = Vec::new();
         let mut current = min_tree.child;
         while let Some(mut node) = current {
-            current = node.sibling.take();
-            children.push(Some(BinomialNode {
-                value: node.value,
-                degree: node.degree,
-                child: node.child.take(),
-                sibling: None,
-            }));
+            let sibling = node.sibling.take();
+            children.push(Some(*node));
+            current = sibling;
         }
         children.reverse();
 
-        let child_count = children.len();
+        let child_count = 2usize.pow(min_tree.degree as u32) - 1;
         self.len -= 1;
 
         let mut child_heap = BinomialHeap {
             trees: children,
-            len: child_count,
+            len: 0,
         };
 
+        // Merge children back — self.len is already correct (root removed).
+        // The child_heap.len is only for the merge's bookkeeping, so we
+        // subtract it after merge to avoid double-counting.
         self.merge(&mut child_heap);
+        self.len -= child_count;
 
         Some(min_value)
     }

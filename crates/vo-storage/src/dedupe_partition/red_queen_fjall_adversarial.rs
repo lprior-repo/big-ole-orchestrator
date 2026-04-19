@@ -16,9 +16,9 @@ use vo_storage::dedupe_partition::{
     AdmissionResult, DedupeEntry, DedupeStore, DedupeStoreError, FjallDedupeStore, DEDUPE_PARTITION,
 };
 
-fn create_test_keyspace() -> fjall::Keyspace {
+fn create_test_keyspace() -> fjall::Database {
     let dir = tempdir().unwrap();
-    fjall::Config::new(dir.path()).open().unwrap()
+    fjall::Database::builder(dir.path()).open().unwrap()
 }
 
 fn sample_instance_id() -> vo_types::InstanceId {
@@ -355,7 +355,7 @@ fn rq_fjall_max_length_key_256_chars() {
 #[test]
 fn rq_fjall_post_compaction_dedupe_still_works() {
     let dir = tempdir().unwrap();
-    let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+    let keyspace = fjall::Database::builder(dir.path()).open().unwrap();
     let store = FjallDedupeStore::open(&keyspace).unwrap();
 
     let keys: Vec<_> = (0..50)
@@ -370,7 +370,7 @@ fn rq_fjall_post_compaction_dedupe_still_works() {
     keyspace.persist(fjall::PersistMode::SyncAll).unwrap();
 
     let partition = keyspace
-        .open_partition(DEDUPE_PARTITION, fjall::PartitionCreateOptions::default())
+        .keyspace(DEDUPE_PARTITION, fjall::KeyspaceCreateOptions::default)
         .unwrap();
     partition.major_compact().unwrap();
 
@@ -387,7 +387,7 @@ fn rq_fjall_post_compaction_dedupe_still_works() {
 #[test]
 fn rq_fjall_post_compaction_zero_data_loss() {
     let dir = tempdir().unwrap();
-    let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+    let keyspace = fjall::Database::builder(dir.path()).open().unwrap();
     let store = FjallDedupeStore::open(&keyspace).unwrap();
 
     let mut admitted = Vec::new();
@@ -401,7 +401,7 @@ fn rq_fjall_post_compaction_zero_data_loss() {
     keyspace.persist(fjall::PersistMode::SyncAll).unwrap();
 
     let partition = keyspace
-        .open_partition(DEDUPE_PARTITION, fjall::PartitionCreateOptions::default())
+        .keyspace(DEDUPE_PARTITION, fjall::KeyspaceCreateOptions::default)
         .unwrap();
     partition.major_compact().unwrap();
 
@@ -421,7 +421,7 @@ fn rq_fjall_post_compaction_zero_data_loss() {
 #[test]
 fn rq_fjall_post_compaction_new_keys_still_admitted() {
     let dir = tempdir().unwrap();
-    let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+    let keyspace = fjall::Database::builder(dir.path()).open().unwrap();
     let store = FjallDedupeStore::open(&keyspace).unwrap();
 
     let key_pre = DedupeKey::parse("rq-fjall-pre-compact-vega").unwrap();
@@ -432,7 +432,7 @@ fn rq_fjall_post_compaction_new_keys_still_admitted() {
     keyspace.persist(fjall::PersistMode::SyncAll).unwrap();
 
     let partition = keyspace
-        .open_partition(DEDUPE_PARTITION, fjall::PartitionCreateOptions::default())
+        .keyspace(DEDUPE_PARTITION, fjall::KeyspaceCreateOptions::default)
         .unwrap();
     partition.major_compact().unwrap();
 
@@ -462,7 +462,7 @@ fn rq_fjall_post_compaction_new_keys_still_admitted() {
 #[test]
 fn rq_fjall_post_compaction_purge_removes_expired() {
     let dir = tempdir().unwrap();
-    let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+    let keyspace = fjall::Database::builder(dir.path()).open().unwrap();
     let store = FjallDedupeStore::open(&keyspace).unwrap();
 
     let key_short = DedupeKey::parse("rq-fjall-short-ttl-vega").unwrap();
@@ -478,7 +478,7 @@ fn rq_fjall_post_compaction_purge_removes_expired() {
     keyspace.persist(fjall::PersistMode::SyncAll).unwrap();
 
     let partition = keyspace
-        .open_partition(DEDUPE_PARTITION, fjall::PartitionCreateOptions::default())
+        .keyspace(DEDUPE_PARTITION, fjall::KeyspaceCreateOptions::default)
         .unwrap();
     partition.major_compact().unwrap();
 
@@ -504,7 +504,7 @@ fn rq_fjall_post_compaction_purge_removes_expired() {
 #[test]
 fn rq_fjall_concurrent_purge_insert_post_compaction() {
     let dir = tempdir().unwrap();
-    let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+    let keyspace = fjall::Database::builder(dir.path()).open().unwrap();
     let store = Arc::new(FjallDedupeStore::open(&keyspace).unwrap());
 
     for i in 0..20 {
@@ -517,7 +517,7 @@ fn rq_fjall_concurrent_purge_insert_post_compaction() {
     keyspace.persist(fjall::PersistMode::SyncAll).unwrap();
 
     let partition = keyspace
-        .open_partition(DEDUPE_PARTITION, fjall::PartitionCreateOptions::default())
+        .keyspace(DEDUPE_PARTITION, fjall::KeyspaceCreateOptions::default)
         .unwrap();
     partition.major_compact().unwrap();
 

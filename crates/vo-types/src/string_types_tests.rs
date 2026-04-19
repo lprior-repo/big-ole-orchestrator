@@ -916,9 +916,12 @@ mod tests {
     }
 
     #[test]
-    fn idempotency_key_accepts_any_non_empty_chars_when_opaque_string() {
-        let ik = IdempotencyKey::parse("key@\t\n!()").expect("valid");
-        assert_eq!(ik.as_str(), "key@\t\n!()");
+    fn idempotency_key_rejects_non_identifier_chars_when_invalid_input() {
+        let result = IdempotencyKey::parse("key@\t\n!()");
+        assert!(
+            result.is_err(),
+            "IdempotencyKey must reject non-identifier chars"
+        );
     }
 
     #[test]
@@ -958,15 +961,21 @@ mod tests {
     }
 
     #[test]
-    fn idempotency_key_accepts_unicode_when_input_has_non_ascii_chars() {
-        let ik = IdempotencyKey::parse("key-\u{00e9}").expect("valid");
-        assert_eq!(ik.as_str(), "key-\u{00e9}");
+    fn idempotency_key_rejects_unicode_when_input_has_non_ascii_chars() {
+        let result = IdempotencyKey::parse("key-\u{00e9}");
+        assert!(
+            result.is_err(),
+            "IdempotencyKey must reject non-ASCII chars"
+        );
     }
 
     #[test]
-    fn idempotency_key_accepts_trailing_whitespace_when_opaque_type_preserves_input() {
-        let ik = IdempotencyKey::parse("key ").expect("valid");
-        assert_eq!(ik.as_str(), "key ");
+    fn idempotency_key_rejects_trailing_whitespace_because_not_identifier_char() {
+        let result = IdempotencyKey::parse("key ");
+        assert!(
+            result.is_err(),
+            "IdempotencyKey must reject whitespace (not identifier char)"
+        );
     }
 
     #[test]

@@ -10,12 +10,14 @@
 use super::engine::ReplayEngine;
 use super::test_helpers::*;
 use super::types::ReplayError;
+use vo_types::events::UpcasterError as VoUpcasterError;
 use vo_types::events::{
     decode_event, EventEnvelope, EventMetadata, EventPayload, MAX_SUPPORTED_VERSION,
 };
 use vo_types::state::LifecycleState;
 
-use crate::upcaster::{Upcaster, UpcasterError, UpcasterRegistry, UpcasterRegistryImpl};
+use crate::upcaster::{UpcasterError, UpcasterRegistry, UpcasterRegistryImpl};
+use vo_types::events::upcaster::Upcaster;
 
 // =============================================================================
 // Helper upcasters for multi-step chain testing
@@ -27,14 +29,16 @@ impl Upcaster for Version0To1Upcaster {
     fn source_version(&self) -> u8 {
         0
     }
-    fn upcast(&self, input: &[u8]) -> Result<Vec<u8>, UpcasterError> {
-        let mut value: serde_json::Value = serde_json::from_slice(input)
-            .map_err(|e| UpcasterError::UpcastingFailed(e.to_string()))?;
+    fn target_version(&self) -> u8 {
+        1
+    }
+    fn upcast(&self, input: &serde_json::Value) -> Result<serde_json::Value, VoUpcasterError> {
+        let mut value = input.clone();
         value["version"] = serde_json::json!(1);
         if let Some(obj) = value["payload"].as_object_mut() {
             obj.insert("version".to_string(), serde_json::json!(1));
         }
-        serde_json::to_vec(&value).map_err(|e| UpcasterError::UpcastingFailed(e.to_string()))
+        Ok(value)
     }
 }
 
@@ -53,14 +57,16 @@ impl Upcaster for PassthroughUpcaster {
     fn source_version(&self) -> u8 {
         self.from
     }
-    fn upcast(&self, input: &[u8]) -> Result<Vec<u8>, UpcasterError> {
-        let mut value: serde_json::Value = serde_json::from_slice(input)
-            .map_err(|e| UpcasterError::UpcastingFailed(e.to_string()))?;
+    fn target_version(&self) -> u8 {
+        self.to
+    }
+    fn upcast(&self, input: &serde_json::Value) -> Result<serde_json::Value, VoUpcasterError> {
+        let mut value = input.clone();
         value["version"] = serde_json::json!(self.to);
         if let Some(obj) = value["payload"].as_object_mut() {
             obj.insert("version".to_string(), serde_json::json!(self.to));
         }
-        serde_json::to_vec(&value).map_err(|e| UpcasterError::UpcastingFailed(e.to_string()))
+        Ok(value)
     }
 }
 
@@ -88,7 +94,7 @@ fn make_event_with_version(
 
 fn make_envelope_json(schema_version: u8, payload_type: &str, workflow_id: &str) -> String {
     format!(
-        r#"{{"version": {schema_version}, "instance_id": "inst-1", "sequence": 1, "timestamp_ms": 1000, "payload": {{"type": "{payload_type}", "workflow_id": "{workflow_id}", "binary_hash": "sha256abc", "version": {schema_version}}}, "metadata": {{}}}}"#
+        r#"{{"version": {schema_version}, "instance_id": "inst-1", "sequence": 1, "timestamp_ms": 1000, "payload": {{"type": "{payload_type}", "workflow_id": "{workflow_id}", "binary_hash": "sha256abc", "workflow_version_hash": "vhash", "dedupe_key_hash": null, "version": {schema_version}}}, "metadata": {{}}}}"#
     )
 }
 
@@ -217,7 +223,7 @@ fn decode_event_rejects_future_version_above_max_supported() {
 
 #[test]
 fn v0_payload_decodes_with_default_version_when_missing_version() {
-    let json = r#"{"version": 0, "instance_id": "inst-1", "sequence": 1, "timestamp_ms": 1000, "payload": {"type": "WorkflowStarted", "workflow_id": "wf-1", "binary_hash": "abc"}, "metadata": {}}"#;
+    let json = r#"{"version": 0, "instance_id": "inst-1", "sequence": 1, "timestamp_ms": 1000, "payload": {"type": "WorkflowStarted", "workflow_id": "wf-1", "binary_hash": "abc", "workflow_version_hash": "vhash", "dedupe_key_hash": null}, "metadata": {}}"#;
     let result = decode_event(json.as_bytes());
     assert!(
         result.is_ok(),
@@ -227,21 +233,21 @@ fn v0_payload_decodes_with_default_version_when_missing_version() {
 
 #[test]
 fn payload_version_zero_is_accepted() {
-    let json = r#"{"version": 0, "instance_id": "inst-1", "sequence": 1, "timestamp_ms": 1000, "payload": {"type": "WorkflowStarted", "workflow_id": "wf-1", "binary_hash": "abc", "version": 0}, "metadata": {}}"#;
+    let json = r#"{"version": 0, "instance_id": "inst-1", "sequence": 1, "timestamp_ms": 1000, "payload": {"type": "WorkflowStarted", "workflow_id": "wf-1", "binary_hash": "abc", "workflow_version_hash": "vhash", "dedupe_key_hash": null, "version": 0}, "metadata": {}}"#;
     let result = decode_event(json.as_bytes());
     assert!(result.is_ok(), "Payload v0 should decode: {result:?}");
 }
 
 #[test]
 fn payload_version_one_is_accepted() {
-    let json = r#"{"version": 1, "instance_id": "inst-1", "sequence": 1, "timestamp_ms": 1000, "payload": {"type": "WorkflowStarted", "workflow_id": "wf-1", "binary_hash": "abc", "version": 1}, "metadata": {}}"#;
+    let json = r#"{"version": 1, "instance_id": "inst-1", "sequence": 1, "timestamp_ms": 1000, "payload": {"type": "WorkflowStarted", "workflow_id": "wf-1", "binary_hash": "abc", "workflow_version_hash": "vhash", "dedupe_key_hash": null, "version": 1}, "metadata": {}}"#;
     let result = decode_event(json.as_bytes());
     assert!(result.is_ok(), "Payload v1 should decode: {result:?}");
 }
 
 #[test]
 fn payload_missing_version_defaults_to_zero() {
-    let json = r#"{"version": 1, "instance_id": "inst-1", "sequence": 1, "timestamp_ms": 1000, "payload": {"type": "WorkflowStarted", "workflow_id": "wf-1", "binary_hash": "abc"}, "metadata": {}}"#;
+    let json = r#"{"version": 1, "instance_id": "inst-1", "sequence": 1, "timestamp_ms": 1000, "payload": {"type": "WorkflowStarted", "workflow_id": "wf-1", "binary_hash": "abc", "workflow_version_hash": "vhash", "dedupe_key_hash": null}, "metadata": {}}"#;
     let result = decode_event(json.as_bytes());
     assert!(
         result.is_ok(),
@@ -290,7 +296,7 @@ fn registry_rejects_upcaster_at_max_version() {
     let registry = UpcasterRegistryImpl::new(1);
     let result = registry.register(Box::new(PassthroughUpcaster::new(1, 2)));
     assert!(result.is_err(), "Should reject upcaster at max version");
-    assert_eq!(result.unwrap_err(), UpcasterError::InvalidTargetVersion(1));
+    assert_eq!(result.unwrap_err(), RegistryError::InvalidTargetVersion(2));
 }
 
 #[test]
@@ -299,7 +305,7 @@ fn registry_rejects_duplicate_upcaster_for_same_source() {
     let _ = registry.register(Box::new(PassthroughUpcaster::new(0, 1)));
     let result = registry.register(Box::new(PassthroughUpcaster::new(0, 1)));
     assert!(result.is_err(), "Should reject duplicate source version");
-    assert_eq!(result.unwrap_err(), UpcasterError::NoUpcasterRegistered(0));
+    assert_eq!(result.unwrap_err(), RegistryError::DuplicateRegistration(0));
 }
 
 #[test]
@@ -537,13 +543,13 @@ fn upcast_envelope_detects_circular_chain() {
         fn source_version(&self) -> u8 {
             0
         }
-        fn upcast(&self, input: &[u8]) -> Result<Vec<u8>, UpcasterError> {
-            let mut value: serde_json::Value = serde_json::from_slice(input)
-                .map_err(|e| UpcasterError::UpcastingFailed(e.to_string()))?;
-            // Return version 0 again, creating a loop when the chain builder
-            // looks up the upcaster for version 0 again
+        fn target_version(&self) -> u8 {
+            1
+        }
+        fn upcast(&self, input: &serde_json::Value) -> Result<serde_json::Value, VoUpcasterError> {
+            let mut value = input.clone();
             value["version"] = serde_json::json!(0);
-            serde_json::to_vec(&value).map_err(|e| UpcasterError::UpcastingFailed(e.to_string()))
+            Ok(value)
         }
     }
 
@@ -606,7 +612,7 @@ fn all_payload_types_decode_from_v0_envelope() {
     let payloads: Vec<(&str, serde_json::Value)> = vec![
         (
             "WorkflowStarted",
-            serde_json::json!({"type": "WorkflowStarted", "workflow_id": "wf-1", "binary_hash": "abc", "version": 0}),
+            serde_json::json!({"type": "WorkflowStarted", "workflow_id": "wf-1", "binary_hash": "abc", "workflow_version_hash": "vhash", "dedupe_key_hash": null, "version": 0}),
         ),
         (
             "WorkflowCompleted",
@@ -622,7 +628,7 @@ fn all_payload_types_decode_from_v0_envelope() {
         ),
         (
             "StepScheduled",
-            serde_json::json!({"type": "StepScheduled", "workflow_id": "wf-1", "step_id": "s1", "attempt": 1, "execution_id": "e1", "version": 0}),
+            serde_json::json!({"type": "StepScheduled", "workflow_id": "wf-1", "step_id": "s1", "attempt": 1, "fence": 1, "execution_id": "e1", "version": 0}),
         ),
         (
             "StepStarted",
@@ -630,11 +636,11 @@ fn all_payload_types_decode_from_v0_envelope() {
         ),
         (
             "StepCompleted",
-            serde_json::json!({"type": "StepCompleted", "workflow_id": "wf-1", "step_id": "s1", "completed_at_ms": 200, "version": 0}),
+            serde_json::json!({"type": "StepCompleted", "workflow_id": "wf-1", "step_id": "s1", "completed_at_ms": 200, "attempt": 1, "fence": 1, "routing_projection": null, "output_ref": null, "output_hash": null, "version": 0}),
         ),
         (
             "StepFailed",
-            serde_json::json!({"type": "StepFailed", "workflow_id": "wf-1", "step_id": "s1", "failure_reason": "err", "attempt": 1, "version": 0}),
+            serde_json::json!({"type": "StepFailed", "workflow_id": "wf-1", "step_id": "s1", "failure_reason": "err", "attempt": 1, "fence": 1, "version": 0}),
         ),
         (
             "TimerSet",
@@ -680,7 +686,7 @@ fn all_payload_types_decode_from_v1_envelope() {
     let payloads: Vec<(&str, serde_json::Value)> = vec![
         (
             "WorkflowStarted",
-            serde_json::json!({"type": "WorkflowStarted", "workflow_id": "wf-1", "binary_hash": "abc", "version": 1}),
+            serde_json::json!({"type": "WorkflowStarted", "workflow_id": "wf-1", "binary_hash": "abc", "workflow_version_hash": "vhash", "dedupe_key_hash": null, "version": 1}),
         ),
         (
             "WorkflowCompleted",
@@ -696,7 +702,7 @@ fn all_payload_types_decode_from_v1_envelope() {
         ),
         (
             "StepScheduled",
-            serde_json::json!({"type": "StepScheduled", "workflow_id": "wf-1", "step_id": "s1", "attempt": 1, "execution_id": "e1", "version": 1}),
+            serde_json::json!({"type": "StepScheduled", "workflow_id": "wf-1", "step_id": "s1", "attempt": 1, "fence": 1, "execution_id": "e1", "version": 1}),
         ),
         (
             "StepStarted",
@@ -704,11 +710,11 @@ fn all_payload_types_decode_from_v1_envelope() {
         ),
         (
             "StepCompleted",
-            serde_json::json!({"type": "StepCompleted", "workflow_id": "wf-1", "step_id": "s1", "completed_at_ms": 200, "version": 1}),
+            serde_json::json!({"type": "StepCompleted", "workflow_id": "wf-1", "step_id": "s1", "completed_at_ms": 200, "attempt": 1, "fence": 1, "routing_projection": null, "output_ref": null, "output_hash": null, "version": 1}),
         ),
         (
             "StepFailed",
-            serde_json::json!({"type": "StepFailed", "workflow_id": "wf-1", "step_id": "s1", "failure_reason": "err", "attempt": 1, "version": 1}),
+            serde_json::json!({"type": "StepFailed", "workflow_id": "wf-1", "step_id": "s1", "failure_reason": "err", "attempt": 1, "fence": 1, "version": 1}),
         ),
         (
             "TimerSet",

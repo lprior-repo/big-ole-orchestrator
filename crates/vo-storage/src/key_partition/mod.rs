@@ -19,8 +19,6 @@
 //! - Each `DekId` maps to exactly one `InstanceId` at runtime
 //! - Purge ordering: DEK destruction → index cleanup → blob reference removal
 
-use std::fmt;
-
 use vo_types::{DekId, InstanceId, KeyMetadata, WrappedDek};
 
 #[cfg(all(test, feature = "proptest"))]
@@ -48,7 +46,7 @@ impl DekEntry {
     /// # Errors
     ///
     /// Returns `DekStoreError::InvalidArgument` if inputs are invalid.
-    pub fn new(
+    pub const fn new(
         dek_id: DekId,
         instance_id: InstanceId,
         wrapped_dek: WrappedDek,
@@ -64,17 +62,17 @@ impl DekEntry {
     }
 
     #[must_use]
-    pub fn dek_id(&self) -> &DekId {
+    pub const fn dek_id(&self) -> &DekId {
         &self.dek_id
     }
 
     #[must_use]
-    pub fn instance_id(&self) -> &InstanceId {
+    pub const fn instance_id(&self) -> &InstanceId {
         &self.instance_id
     }
 
     #[must_use]
-    pub fn wrapped_dek(&self) -> &WrappedDek {
+    pub const fn wrapped_dek(&self) -> &WrappedDek {
         &self.wrapped_dek
     }
 
@@ -89,8 +87,14 @@ impl DekEntry {
     }
 
     /// Mark this DEK as retired (crypto-shredded).
-    pub fn retire(&mut self) {
+    pub const fn retire(&mut self) {
         self.status = DekStatus::Retired;
+    }
+
+    /// Mark this DEK as revoked.
+    /// Revoked DEKs can still be used for decryption (recovery) but not encryption.
+    pub const fn revoke(&mut self) {
+        self.status = DekStatus::Revoked;
     }
 }
 
@@ -99,7 +103,10 @@ impl DekEntry {
 pub enum DekStatus {
     /// DEK is active and can be used for encryption/decryption.
     Active,
-    /// DEK has been retired (crypto-shredded) and cannot be used.
+    /// DEK has been revoked and cannot be used for NEW encryption operations,
+    /// but existing data encrypted with it can still be decrypted (recovery path).
+    Revoked,
+    /// DEK has been retired (crypto-shredded) and cannot be used for any operations.
     Retired,
 }
 
@@ -113,6 +120,8 @@ pub enum DekStatus {
 pub enum DekStoreError {
     #[error("DEK not found for instance: {instance_id}")]
     DekNotFound { instance_id: String },
+    #[error("DEK has been revoked: {dek_id}")]
+    DekRevoked { dek_id: String },
     #[error("DEK has been retired (crypto-shredded): {dek_id}")]
     DekRetired { dek_id: String },
     #[error("DEK already exists for instance: {instance_id}")]
@@ -145,7 +154,7 @@ pub fn encode_instance_key(instance_id: &InstanceId) -> Vec<u8> {
 /// # Errors
 ///
 /// Returns `DekStoreError::Codec` if bytes are not valid UTF-8 or if the
-/// resulting string is not a valid InstanceId.
+/// resulting string is not a valid `InstanceId`.
 pub fn decode_instance_key(bytes: &[u8]) -> Result<InstanceId, DekStoreError> {
     let s = std::str::from_utf8(bytes).map_err(|e| DekStoreError::Codec {
         reason: e.to_string(),
@@ -156,11 +165,13 @@ pub fn decode_instance_key(bytes: &[u8]) -> Result<InstanceId, DekStoreError> {
 }
 
 /// Encode a `DekEntry` to JSON bytes for storage.
-#[must_use]
+///
+/// # Panics
+///
+/// Panics if `DekEntry` cannot be serialized (should never happen).
+#[expect(clippy::expect_used)]
 pub fn encode_dek_entry(entry: &DekEntry) -> Vec<u8> {
-    #[allow(clippy::unwrap_used)]
-    let result = serde_json::to_vec(entry).unwrap();
-    result
+    serde_json::to_vec(entry).expect("DekEntry should always be serializable")
 }
 
 /// Decode JSON bytes into a `DekEntry`.
@@ -228,6 +239,10 @@ pub trait DekStore: Send + Sync {
     fn get_active_dek_id(&self, instance_id: &InstanceId) -> Result<DekId, DekStoreError>;
 
     /// Check if a DEK exists and is active for an instance.
+    ///
+    /// # Errors
+    ///
+    /// Returns `DekStoreError::Storage` if the underlying storage fails.
     fn has_active_dek(&self, instance_id: &InstanceId) -> Result<bool, DekStoreError>;
 
     /// Rotate the DEK for an instance: retire old DEK, generate new DEK.
@@ -239,11 +254,7 @@ pub trait DekStore: Send + Sync {
     ///
     /// Returns `DekStoreError::DekNotFound` if no DEK exists to rotate.
     /// Returns `DekStoreError::Storage` if the underlying storage fails.
-    fn rotate_dek(
-        &self,
-        instance_id: &InstanceId,
-        kek: &[u8; 32],
-    ) -> Result<DekId, DekStoreError>;
+    fn rotate_dek(&self, instance_id: &InstanceId, kek: &[u8; 32]) -> Result<DekId, DekStoreError>;
 
     /// Retire a DEK (crypto-shred it).
     ///
@@ -255,7 +266,37 @@ pub trait DekStore: Send + Sync {
     /// Returns `DekStoreError::DekNotFound` if no DEK exists to retire.
     fn retire_dek(&self, instance_id: &InstanceId) -> Result<(), DekStoreError>;
 
+    /// Revoke a DEK.
+    ///
+    /// After revocation, the DEK cannot be used for NEW encryption operations,
+    /// but existing data encrypted with it CAN still be decrypted (recovery path).
+    /// This is different from retirement which makes the DEK completely unusable.
+    ///
+    /// # Errors
+    ///
+    /// Returns `DekStoreError::DekNotFound` if no DEK exists to revoke.
+    fn revoke_dek(&self, instance_id: &InstanceId) -> Result<(), DekStoreError>;
+
+    /// Retrieve a DEK for decryption/recovery purposes.
+    ///
+    /// Unlike `retrieve_dek`, this method allows retrieval of revoked DEKs
+    /// to enable recovery of data encrypted with revoked keys.
+    ///
+    /// # Errors
+    ///
+    /// Returns `DekStoreError::DekNotFound` if no DEK exists.
+    /// Returns `DekStoreError::DekRetired` if the DEK has been retired (crypto-shredded).
+    fn retrieve_dek_for_decryption(
+        &self,
+        instance_id: &InstanceId,
+        kek: &[u8; 32],
+    ) -> Result<[u8; 32], DekStoreError>;
+
     /// List all DEK IDs for a given instance.
+    ///
+    /// # Errors
+    ///
+    /// Returns `DekStoreError::Storage` if the underlying storage fails.
     fn list_deks(&self, instance_id: &InstanceId) -> Result<Vec<DekId>, DekStoreError>;
 
     /// Get DEK metadata.

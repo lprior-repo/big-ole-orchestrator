@@ -6,7 +6,10 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 
-use crate::{LockId, LockMode, LockQueryResponse, LockRelease, LockRequest, LockResponse, LockPromote, LockPromoteResponse, OwnerId};
+use crate::{
+    LockId, LockMode, LockPromote, LockPromoteResponse, LockQueryResponse, LockRelease,
+    LockRequest, LockResponse, OwnerId,
+};
 
 #[async_trait]
 pub trait LockManager: Send + Sync {
@@ -23,10 +26,21 @@ pub trait LockManager: Send + Sync {
     async fn promote(&self, promote: LockPromote) -> LockPromoteResponse;
 
     /// Demote an exclusive lock to shared mode.
-    async fn demote(&self, lock_id: LockId, owner: OwnerId, hold_token: String) -> Result<LockMode, crate::LockError>;
+    async fn demote(
+        &self,
+        lock_id: LockId,
+        owner: OwnerId,
+        hold_token: String,
+    ) -> Result<LockMode, crate::LockError>;
 
     /// Extend the TTL of a held lock.
-    async fn extend_ttl(&self, lock_id: LockId, owner: OwnerId, hold_token: String, ttl_ms: u64) -> Result<DateTime<Utc>, crate::LockError>;
+    async fn extend_ttl(
+        &self,
+        lock_id: LockId,
+        owner: OwnerId,
+        hold_token: String,
+        ttl_ms: u64,
+    ) -> Result<DateTime<Utc>, crate::LockError>;
 
     /// Check if a specific lock is held.
     async fn is_locked(&self, lock_id: &LockId) -> bool;

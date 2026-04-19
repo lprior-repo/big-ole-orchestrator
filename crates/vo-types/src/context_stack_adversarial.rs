@@ -161,9 +161,12 @@ fn rq_lifecycle_terminal_states_reject_all_transitions() {
     for state in terminal_states {
         for event in all_events {
             let result = apply(state, *event);
-            // Special case: Failed + InstanceResumed is valid
-            if state == LifecycleState::Failed && event == &TransitionEvent::InstanceResumed {
-                assert!(result.is_ok(), "Failed + InstanceResumed should be valid");
+            // Known valid exceptions from terminal states
+            let is_known_exception = (state == LifecycleState::Failed
+                && event == &TransitionEvent::InstanceResumed)
+                || (state == LifecycleState::Completed && event == &TransitionEvent::EmitOutputRef);
+            if is_known_exception {
+                assert!(result.is_ok(), "{:?} + {:?} should be valid", state, event);
             } else {
                 assert!(
                     result.is_err(),
@@ -368,6 +371,7 @@ fn rq_lifecycle_get_valid_transitions_completeness() {
             LifecycleState::StepExecuting,
             vec![
                 TransitionEvent::WaitForTimer,
+                TransitionEvent::YieldWithBlob,
                 TransitionEvent::CompleteStep,
                 TransitionEvent::Cancel,
                 TransitionEvent::Fail,
@@ -378,6 +382,15 @@ fn rq_lifecycle_get_valid_transitions_completeness() {
             vec![
                 TransitionEvent::TimerFired,
                 TransitionEvent::TimerExpired,
+                TransitionEvent::Cancel,
+                TransitionEvent::Fail,
+            ],
+        ),
+        (
+            LifecycleState::PendingPublication,
+            vec![
+                TransitionEvent::ConfirmPublication,
+                TransitionEvent::PublicationFailed,
                 TransitionEvent::Cancel,
                 TransitionEvent::Fail,
             ],
@@ -411,6 +424,7 @@ fn rq_lifecycle_instance_resumed_only_from_failed() {
         LifecycleState::StepScheduled,
         LifecycleState::StepExecuting,
         LifecycleState::WaitingForTimer,
+        LifecycleState::PendingPublication,
         LifecycleState::Completed,
         LifecycleState::Cancelled,
     ];

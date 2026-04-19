@@ -105,7 +105,7 @@ macro_rules! crash_point_matrix_tests {
     ($name_prefix:expr => $harness:ident, $($test_name:ident => $block:block)*) => {
         mod crash_point_matrix {
             use super::*;
-            use crate::exact_once_verification::crash_points::{CrashPoint, CrashPosition};
+            use $crate::exact_once_verification::crash_points::{CrashPoint, CrashPosition};
 
             $(
                 #[test]

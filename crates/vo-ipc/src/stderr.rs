@@ -56,13 +56,12 @@ pub fn finalize_capture(capture: StderrCapture) -> StderrCapture {
 ///
 /// Returns an error if reading from the underlying reader fails.
 #[tracing::instrument(skip(reader))]
-pub async fn read_bounded_stderr<R>(reader: R) -> std::io::Result<StderrCapture>
+pub async fn read_bounded_stderr<R>(mut reader: R) -> std::io::Result<StderrCapture>
 where
     R: tokio::io::AsyncRead + Unpin,
 {
     use tokio::io::AsyncReadExt;
 
-    let mut reader = reader;
     let mut capture = StderrCapture::empty();
     let mut buf = [0u8; 4096];
 

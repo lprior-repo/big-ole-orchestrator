@@ -1,3 +1,24 @@
+//! Procedural macros for the Veloxide SDK.
+//!
+//! This crate provides derive macros and attribute macros for the Veloxide SDK:
+//!
+//! # Macros
+//!
+//! - [`task_macro`] / `#[task]` - Generates executable entrypoints from functions
+//!
+//! # Example
+//!
+//! ```ignore
+//! #[task]
+//! fn my_task() {
+//!     // task implementation
+//! }
+//! ```
+//!
+//! When applied to a function, the `#[task]` macro generates a `main()` function
+//! that calls the annotated function, making it easy to compile workflow tasks
+//! as standalone executables.
+
 #![allow(dead_code, unused_variables)]
 
 use proc_macro::TokenStream;
@@ -5,7 +26,7 @@ use proc_macro::TokenStream;
 mod error;
 mod task;
 
-use task::{generate_task_entrypoint, parse_task};
+use task::{generate_task_entrypoint, parse_attributes, parse_task};
 
 #[proc_macro_attribute]
 pub fn task_macro(attr: TokenStream, item: TokenStream) -> TokenStream {
@@ -21,35 +42,29 @@ pub(crate) fn internal_task_macro(
         return quote::quote! { compile_error!("expected a function item"); };
     }
 
-    if !attr.is_empty() {
-        let attr_str = attr.to_string();
-        if attr_str.starts_with("retries") {
-            return quote::quote! { compile_error!("unsupported attribute: retries"); };
-        }
-        return quote::quote! { compile_error!("unsupported attribute"); };
+    if let Err(err) = parse_attributes(&attr) {
+        return error_to_compile_error(&err);
     }
 
-    match parse_task(&item) {
-        Ok(task_def) => {
-            if let Ok(main_fn) = generate_task_entrypoint(&task_def) {
-                quote::quote! {
-                    #item
-                    #main_fn
-                }
-            } else {
-                quote::quote! { compile_error!("generation failed"); }
+    let task_def = match parse_task(&item) {
+        Ok(def) => def,
+        Err(err) => return error_to_compile_error(&err),
+    };
+
+    match generate_task_entrypoint(&task_def) {
+        Ok(main_fn) => {
+            quote::quote! {
+                #item
+                #main_fn
             }
         }
-        Err(error::Error::InvalidInputItem) => {
-            quote::quote! { compile_error!("#[task] can only be applied to functions"); }
-        }
-        Err(error::Error::UnsupportedSignature) => {
-            quote::quote! { compile_error!("task functions cannot have arguments"); }
-        }
-        Err(error::Error::ParseFailure) => {
-            quote::quote! { compile_error!("parse error"); }
-        }
+        Err(err) => error_to_compile_error(&err),
     }
+}
+
+fn error_to_compile_error(err: &error::Error) -> proc_macro2::TokenStream {
+    let msg = err.to_string();
+    quote::quote! { compile_error!(#msg); }
 }
 
 #[cfg(test)]
@@ -116,27 +131,27 @@ mod tests {
     fn task_macro_rejects_unsupported_macro_attributes() {
         let attr = quote! { retries = 3 };
         let item = quote! { fn my_task() {} };
-        let expected = quote! { compile_error!("unsupported attribute: retries"); };
         let result = internal_task_macro(attr, item);
-        assert_eq!(result.to_string(), expected.to_string());
+        let output = result.to_string();
+        assert!(output.contains("unsupported attribute") && output.contains("retries"));
     }
 
     #[test]
     fn task_macro_emits_compile_error_for_non_function_items() {
         let attr = quote! {};
         let item = quote! { struct MyTask; };
-        let expected = quote! { compile_error!("#[task] can only be applied to functions"); };
         let result = internal_task_macro(attr, item);
-        assert_eq!(result.to_string(), expected.to_string());
+        let output = result.to_string();
+        assert!(output.contains("invalid input item"));
     }
 
     #[test]
     fn task_macro_rejects_exactly_1_argument_boundary() {
         let attr = quote! {};
         let item = quote! { fn task(a: i32) {} };
-        let expected = quote! { compile_error!("task functions cannot have arguments"); };
         let result = internal_task_macro(attr, item);
-        assert_eq!(result.to_string(), expected.to_string());
+        let output = result.to_string();
+        assert!(output.contains("unsupported signature"));
     }
 
     #[test]
@@ -179,22 +194,58 @@ mod tests {
     fn task_macro_rejects_exactly_one_attribute() {
         let attr = quote! { foo };
         let item = quote! { fn a() {} };
-        let expected = quote! { compile_error!("unsupported attribute"); };
         let result = internal_task_macro(attr, item);
-        assert_eq!(result.to_string(), expected.to_string());
+        let output = result.to_string();
+        assert!(output.contains("unsupported attribute") && output.contains("foo"));
     }
 
     #[test]
-    fn task_macro_rejects_maximum_attributes() {
+    fn task_macro_rejects_too_many_attributes() {
         let mut attrs = Vec::new();
         for _ in 0..256 {
             attrs.push(quote! { foo });
         }
         let attr = quote! { #(#attrs)* };
         let item = quote! { fn a() {} };
-        let expected = quote! { compile_error!("unsupported attribute"); };
         let result = internal_task_macro(attr, item);
-        assert_eq!(result.to_string(), expected.to_string());
+        let output = result.to_string();
+        assert!(output.contains("too many macro attributes") && output.contains("256"));
+    }
+
+    #[test]
+    fn task_macro_generates_main_for_generic_sync_function() {
+        let attr = quote! {};
+        let item = quote! { fn generic_task<T: Default>() -> T { T::default() } };
+        let result = internal_task_macro(attr, item);
+        let output = result.to_string();
+        assert!(
+            !output.contains("compile_error"),
+            "should not emit compile_error: {}",
+            output
+        );
+        assert!(
+            output.contains("fn main"),
+            "should generate main: {}",
+            output
+        );
+    }
+
+    #[test]
+    fn task_macro_generates_main_for_generic_async_function() {
+        let attr = quote! {};
+        let item = quote! { async fn generic_task<T: Send>() where T: Default {} };
+        let result = internal_task_macro(attr, item);
+        let output = result.to_string();
+        assert!(
+            !output.contains("compile_error"),
+            "should not emit compile_error: {}",
+            output
+        );
+        assert!(
+            output.contains("fn main"),
+            "should generate main: {}",
+            output
+        );
     }
 
     proptest! {

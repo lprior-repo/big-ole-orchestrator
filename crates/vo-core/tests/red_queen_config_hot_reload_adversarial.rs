@@ -4,8 +4,8 @@
 //! These tests attempt to break the debounce logic from every angle,
 //! targeting debounce invariants (DEB-001 through DEB-025).
 
-use std::path::PathBuf;
 use std::future::Future;
+use std::path::PathBuf;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::Duration;
@@ -119,7 +119,9 @@ async fn attack_deb005_delete_nonexistent_path_is_noop() {
     tx.send(FileEvent::Delete(unrelated_path)).await.unwrap();
 
     let watched_path = PathBuf::from("/test/file.txt");
-    tx.send(FileEvent::Modify(watched_path.clone())).await.unwrap();
+    tx.send(FileEvent::Modify(watched_path.clone()))
+        .await
+        .unwrap();
 
     time::advance(Duration::from_millis(101)).await;
 
@@ -187,7 +189,9 @@ async fn attack_deb009_empty_path_handled() {
     let (tx, mut debouncer) = setup(duration);
 
     let empty_path = PathBuf::from("");
-    tx.send(FileEvent::Modify(empty_path.clone())).await.unwrap();
+    tx.send(FileEvent::Modify(empty_path.clone()))
+        .await
+        .unwrap();
 
     time::advance(Duration::from_millis(101)).await;
 
@@ -240,14 +244,19 @@ async fn attack_deb011_concurrent_sends_no_panics() {
 
     time::advance(Duration::from_millis(101)).await;
 
-    while let Ok(Ok(_)) = time::timeout(Duration::from_millis(10), debouncer.next_debounced_event()).await {}
+    while let Ok(Ok(_)) =
+        time::timeout(Duration::from_millis(10), debouncer.next_debounced_event()).await
+    {}
 }
 
 #[test]
 fn attack_deb012_zero_duration_rejected() {
     let (_tx, rx) = mpsc::channel::<FileEvent>(10);
     let result = Debouncer::new(Duration::from_nanos(0), rx);
-    assert_eq!(result, Err(vo_core::debounce::Error::InvalidDebounceDuration));
+    assert_eq!(
+        result,
+        Err(vo_core::debounce::Error::InvalidDebounceDuration)
+    );
 }
 
 #[tokio::test(start_paused = true)]
@@ -264,7 +273,9 @@ async fn attack_deb013_channel_capacity_exhaustion_handled() {
 
     time::advance(Duration::from_millis(101)).await;
 
-    while let Ok(Ok(_)) = time::timeout(Duration::from_millis(10), debouncer.next_debounced_event()).await {}
+    while let Ok(Ok(_)) =
+        time::timeout(Duration::from_millis(10), debouncer.next_debounced_event()).await
+    {}
 }
 
 #[tokio::test(start_paused = true)]
@@ -408,7 +419,9 @@ async fn attack_deb021_multiple_files_all_arrive() {
     let duration = Duration::from_millis(100);
     let (tx, mut debouncer) = setup(duration);
 
-    let paths: Vec<PathBuf> = (0..5).map(|i| PathBuf::from(format!("/test/file_{}.txt", i))).collect();
+    let paths: Vec<PathBuf> = (0..5)
+        .map(|i| PathBuf::from(format!("/test/file_{}.txt", i)))
+        .collect();
 
     for path in &paths {
         tx.send(FileEvent::Modify(path.clone())).await.unwrap();

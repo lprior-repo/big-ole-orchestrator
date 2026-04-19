@@ -26,6 +26,9 @@ pub enum LifecycleState {
     /// Waiting for external timer/callback
     WaitingForTimer,
 
+    /// Publication barrier: waiting for blob to be verified durable (ADR-040)
+    PendingPublication,
+
     /// Terminal state: bead completed successfully
     Completed,
 
@@ -44,8 +47,11 @@ impl LifecycleState {
             LifecycleState::Pending
             | LifecycleState::RunningDecision
             | LifecycleState::StepScheduled
-            | LifecycleState::StepExecuting
-            | LifecycleState::WaitingForTimer => OperationalStatus::Healthy,
+            | LifecycleState::StepExecuting => OperationalStatus::Healthy,
+            LifecycleState::WaitingForTimer => OperationalStatus::Healthy,
+            LifecycleState::PendingPublication => {
+                OperationalStatus::Blocked(BlockedReason::DependenciesPending)
+            }
             LifecycleState::Completed | LifecycleState::Cancelled => {
                 OperationalStatus::Blocked(BlockedReason::ManualHold)
             }
@@ -72,7 +78,7 @@ impl LifecycleState {
             | LifecycleState::StepExecuting => {
                 crate::lifecycle_superstate::LifecycleSuperstate::Active
             }
-            LifecycleState::WaitingForTimer => {
+            LifecycleState::WaitingForTimer | LifecycleState::PendingPublication => {
                 crate::lifecycle_superstate::LifecycleSuperstate::Suspended
             }
             LifecycleState::Completed | LifecycleState::Failed | LifecycleState::Cancelled => {
@@ -104,6 +110,7 @@ impl LifecycleState {
             }
             LifecycleState::StepExecuting => vec![
                 TransitionEvent::WaitForTimer,
+                TransitionEvent::YieldWithBlob,
                 TransitionEvent::CompleteStep,
                 TransitionEvent::Cancel,
                 TransitionEvent::Fail,
@@ -111,6 +118,12 @@ impl LifecycleState {
             LifecycleState::WaitingForTimer => vec![
                 TransitionEvent::TimerFired,
                 TransitionEvent::TimerExpired,
+                TransitionEvent::Cancel,
+                TransitionEvent::Fail,
+            ],
+            LifecycleState::PendingPublication => vec![
+                TransitionEvent::ConfirmPublication,
+                TransitionEvent::PublicationFailed,
                 TransitionEvent::Cancel,
                 TransitionEvent::Fail,
             ],
@@ -164,12 +177,19 @@ pub enum TransitionEvent {
     // From StepExecuting
     WaitForTimer,
     CompleteStep,
+    YieldWithBlob,
 
     // From WaitingForTimer
     TimerFired,
     TimerExpired,
 
-    // From Completed (terminal - no transitions)
+    // From PendingPublication
+    ConfirmPublication,
+    PublicationFailed,
+
+    // From Completed (terminal but allows EmitOutputRef for post-publication emission)
+    EmitOutputRef,
+
     // From Failed (only InstanceResumed valid)
     InstanceResumed,
     // From Cancelled (terminal - no transitions)
@@ -187,8 +207,12 @@ impl TransitionEvent {
             TransitionEvent::ExecuteStep,
             TransitionEvent::WaitForTimer,
             TransitionEvent::CompleteStep,
+            TransitionEvent::YieldWithBlob,
             TransitionEvent::TimerFired,
             TransitionEvent::TimerExpired,
+            TransitionEvent::ConfirmPublication,
+            TransitionEvent::PublicationFailed,
+            TransitionEvent::EmitOutputRef,
             TransitionEvent::InstanceResumed,
         ]
     }

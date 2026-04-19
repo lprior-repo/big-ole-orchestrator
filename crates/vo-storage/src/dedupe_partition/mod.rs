@@ -7,8 +7,6 @@
 //! This module defines the trait and pure encoding/decoding functions. Concrete Fjall
 //! implementations are provided separately.
 
-use std::fmt;
-
 use vo_types::{DedupeKey, InstanceId};
 
 #[cfg(all(test, feature = "proptest"))]
@@ -313,6 +311,72 @@ pub fn decode_dedupe_entry(bytes: &[u8]) -> Result<DedupeEntry, DedupeStoreError
     ]);
 
     DedupeEntry::new(dk_str.to_string(), iid_str.to_string(), expires_at)
+}
+
+// ---------------------------------------------------------------------------
+// Calc layer — retention record encoding/decoding
+// ---------------------------------------------------------------------------
+
+/// Partition name for the dedupe retention store.
+pub const DEDUPE_RETENTION_PARTITION: &str = "dedupe_retention";
+
+/// Encode a `DedupeRetentionRecord` to JSON bytes for storage.
+///
+/// # Errors
+///
+/// Returns `DedupeStoreError::Codec` if serialization fails.
+pub fn encode_dedupe_retention_record(
+    record: &DedupeRetentionRecord,
+) -> Result<Vec<u8>, DedupeStoreError> {
+    serde_json::to_vec(record).map_err(|e| DedupeStoreError::Codec {
+        reason: e.to_string(),
+    })
+}
+
+/// Decode JSON bytes into a `DedupeRetentionRecord`.
+///
+/// # Errors
+///
+/// Returns `DedupeStoreError::Codec` if deserialization fails.
+pub fn decode_dedupe_retention_record(
+    bytes: &[u8],
+) -> Result<DedupeRetentionRecord, DedupeStoreError> {
+    serde_json::from_slice(bytes).map_err(|e| DedupeStoreError::Codec {
+        reason: e.to_string(),
+    })
+}
+
+// ---------------------------------------------------------------------------
+// Calc layer — retention record encoding/decoding
+// ---------------------------------------------------------------------------
+
+/// Partition name for the dedupe retention store.
+pub const DEDUPE_RETENTION_PARTITION: &str = "dedupe_retention";
+
+/// Encode a `DedupeRetentionRecord` to JSON bytes for storage.
+///
+/// # Errors
+///
+/// Returns `DedupeStoreError::Codec` if serialization fails.
+pub fn encode_dedupe_retention_record(
+    record: &DedupeRetentionRecord,
+) -> Result<Vec<u8>, DedupeStoreError> {
+    serde_json::to_vec(record).map_err(|e| DedupeStoreError::Codec {
+        reason: e.to_string(),
+    })
+}
+
+/// Decode JSON bytes into a `DedupeRetentionRecord`.
+///
+/// # Errors
+///
+/// Returns `DedupeStoreError::Codec` if deserialization fails.
+pub fn decode_dedupe_retention_record(
+    bytes: &[u8],
+) -> Result<DedupeRetentionRecord, DedupeStoreError> {
+    serde_json::from_slice(bytes).map_err(|e| DedupeStoreError::Codec {
+        reason: e.to_string(),
+    })
 }
 
 // ---------------------------------------------------------------------------

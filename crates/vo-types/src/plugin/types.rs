@@ -117,6 +117,12 @@ impl fmt::Display for CapabilityId {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct InstanceKey(pub(crate) String);
 
+impl Default for InstanceKey {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl InstanceKey {
     #[must_use]
     pub fn new() -> Self {
@@ -146,8 +152,15 @@ pub struct ResourceBudget {
     pub max_instances: u32,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct SchemaVersion(pub(crate) u16);
+
+impl SchemaVersion {
+    #[must_use]
+    pub fn new(version: u16) -> Self {
+        Self(version)
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ArtifactRef(pub(crate) String);
@@ -240,6 +253,7 @@ impl PluginState {
     }
 
     #[must_use]
+    #[allow(clippy::expect_used)]
     pub fn get_valid_transitions(&self) -> Vec<PluginTransition> {
         match self {
             PluginState::Registered => vec![PluginTransition::Load {
@@ -251,7 +265,10 @@ impl PluginState {
                     error: PluginHotLoadError::new(
                         super::PluginErrorCategory::LoadFailure,
                         super::PluginErrorDetail::PluginNotFound(PluginId::new(
-                            PluginName::new("").unwrap_or_else(|_| PluginName::new("x").unwrap()),
+                            PluginName::new("").unwrap_or_else(|_| {
+                                #[allow(clippy::expect_used)]
+                                PluginName::new("x").expect("'x' is always a valid PluginName")
+                            }),
                             PluginVersion::new(0, 0, 0),
                             InstanceKey::new(),
                         )),
@@ -264,7 +281,10 @@ impl PluginState {
                 PluginTransition::Reload {
                     new_descriptor: PluginDescriptor {
                         id: PluginId::new(
-                            PluginName::new("").unwrap_or_else(|_| PluginName::new("x").unwrap()),
+                            PluginName::new("").unwrap_or_else(|_| {
+                                #[allow(clippy::expect_used)]
+                                PluginName::new("x").expect("'x' is always a valid PluginName")
+                            }),
                             PluginVersion::new(0, 0, 0),
                             InstanceKey::new(),
                         ),
@@ -283,7 +303,10 @@ impl PluginState {
                     error: PluginHotLoadError::new(
                         super::PluginErrorCategory::ActivationFailure,
                         super::PluginErrorDetail::PluginNotFound(PluginId::new(
-                            PluginName::new("").unwrap_or_else(|_| PluginName::new("x").unwrap()),
+                            PluginName::new("").unwrap_or_else(|_| {
+                                #[allow(clippy::expect_used)]
+                                PluginName::new("x").expect("'x' is always a valid PluginName")
+                            }),
                             PluginVersion::new(0, 0, 0),
                             InstanceKey::new(),
                         )),
@@ -297,7 +320,10 @@ impl PluginState {
                     error: PluginHotLoadError::new(
                         super::PluginErrorCategory::QuiesceTimeout,
                         super::PluginErrorDetail::PluginNotFound(PluginId::new(
-                            PluginName::new("").unwrap_or_else(|_| PluginName::new("x").unwrap()),
+                            PluginName::new("").unwrap_or_else(|_| {
+                                #[allow(clippy::expect_used)]
+                                PluginName::new("x").expect("'x' is always a valid PluginName")
+                            }),
                             PluginVersion::new(0, 0, 0),
                             InstanceKey::new(),
                         )),
@@ -307,7 +333,10 @@ impl PluginState {
             ],
             PluginState::Unloaded => vec![PluginTransition::Register(PluginDescriptor {
                 id: PluginId::new(
-                    PluginName::new("").unwrap_or_else(|_| PluginName::new("x").unwrap()),
+                    PluginName::new("").unwrap_or_else(|_| {
+                        #[allow(clippy::expect_used)]
+                        PluginName::new("x").expect("'x' is always a valid PluginName")
+                    }),
                     PluginVersion::new(0, 0, 0),
                     InstanceKey::new(),
                 ),
@@ -323,7 +352,10 @@ impl PluginState {
             })],
             PluginState::Failed(_) => vec![PluginTransition::Register(PluginDescriptor {
                 id: PluginId::new(
-                    PluginName::new("").unwrap_or_else(|_| PluginName::new("x").unwrap()),
+                    PluginName::new("").unwrap_or_else(|_| {
+                        #[allow(clippy::expect_used)]
+                        PluginName::new("x").expect("'x' is always a valid PluginName")
+                    }),
                     PluginVersion::new(0, 0, 0),
                     InstanceKey::new(),
                 ),

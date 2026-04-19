@@ -6,9 +6,9 @@ use vo_types::DedupeKey;
 
 use vo_storage::dedupe_partition::{DedupeStore, FjallDedupeStore};
 
-fn create_test_keyspace() -> fjall::Keyspace {
+fn create_test_keyspace() -> fjall::Database {
     let dir = tempdir().unwrap();
-    fjall::Config::new(dir.path()).open().unwrap()
+    fjall::Database::builder(dir.path()).open().unwrap()
 }
 
 fn sample_instance_id() -> vo_types::InstanceId {

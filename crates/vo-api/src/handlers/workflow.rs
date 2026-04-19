@@ -1,19 +1,51 @@
 use std::time::Duration;
 use axum::{
-    extract::{Extension, Path},
+    extract::{Extension, Json, Path},
     http::StatusCode,
     response::IntoResponse,
-    Json,
 };
 use bytes::Bytes;
 use ractor::rpc::CallResult;
 use ractor::ActorRef;
+use serde::{Deserialize, Serialize};
 use ulid::Ulid;
-use vo_actor::{OrchestratorMsg, StartError};
-use vo_common::{InstanceId, NamespaceId};
+use vo_actor::{CompensateError, InstancePhaseView, OrchestratorMsg, StartError, TerminateError};
+use vo_common::NamespaceId;
+use vo_types::InstanceId;
+use vo_core::circuit_breaker::{unquarantine, CircuitBreakerConfig, CircuitBreakerState};
+use vo_types::{BinaryHash, WorkflowName};
 
-use crate::types::{ApiError, V3StartRequest, V3StartResponse, V3StatusResponse};
+use crate::types::{ApiError, V3StartRequest, V3StartResponse, V3StatusResponse, WorkloadRejectionError};
 use crate::handlers::helpers::{parse_paradigm, split_path_id, paradigm_to_str, phase_to_str};
+
+/// Request body for unquarantine API.
+#[derive(Debug, Deserialize)]
+pub struct UnquarantineRequest {
+    /// The operator performing the unquarantine.
+    pub operator: String,
+}
+
+/// Response for unquarantine API.
+#[derive(Debug, Serialize)]
+pub struct UnquarantineResponse {
+    pub workflow_name: String,
+    pub previous_status: String,
+    pub new_status: String,
+    pub failures_cleared: usize,
+}
+
+/// Response for workflow status API (includes quarantine info).
+#[derive(Debug, Serialize)]
+pub struct WorkflowStatusResponse {
+    pub instance_id: String,
+    pub namespace: String,
+    pub workflow_type: String,
+    pub paradigm: String,
+    pub phase: String,
+    pub events_applied: u64,
+    pub registration_status: Option<String>,
+    pub is_quarantined: bool,
+}
 
 const ACTOR_CALL_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -39,19 +71,7 @@ pub async fn start_workflow(
     };
 
     // Validate namespace.
-    let namespace = match NamespaceId::try_new(&req.namespace) {
-        Ok(ns) => ns,
-        Err(_) => {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(ApiError::new(
-                    "invalid_namespace",
-                    format!("namespace contains illegal characters: {:?}", req.namespace),
-                )),
-            )
-                .into_response();
-        }
-    };
+    let namespace = NamespaceId::from(req.namespace);
 
     // Parse paradigm.
     let paradigm = match parse_paradigm(&req.paradigm) {
@@ -72,22 +92,11 @@ pub async fn start_workflow(
     };
 
     // Generate or validate instance_id.
-    let instance_id = match req.instance_id {
-        Some(ref id) => match InstanceId::try_new(id) {
-            Ok(id) => id,
-            Err(_) => {
-                return (
-                    StatusCode::BAD_REQUEST,
-                    Json(ApiError::new(
-                        "invalid_instance_id",
-                        "instance_id contains NATS-illegal characters",
-                    )),
-                )
-                    .into_response();
-            }
-        },
-        None => InstanceId::new(Ulid::new().to_string()),
+    let instance_id_str = match req.instance_id {
+        Some(ref id) => id.clone(),
+        None => Ulid::new().to_string(),
     };
+    let instance_id = vo_types::InstanceId::parse(&instance_id_str).expect("generated ULID should be valid");
 
     // Serialize input to msgpack bytes.
     let input = match serde_json::to_vec(&req.input) {
@@ -165,6 +174,23 @@ pub async fn start_workflow(
             Json(ApiError::new("spawn_failed", msg)),
         )
             .into_response(),
+        Ok(CallResult::Success(Err(StartError::InvalidConfig(msg)))) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiError::new("invalid_config", msg)),
+        )
+            .into_response(),
+        Ok(CallResult::Success(Err(StartError::BudgetExhaustion { class, requested, available }))) => {
+            let rejection = WorkloadRejectionError::BudgetExhausted {
+                class: class.to_string(),
+                requested,
+                available,
+            };
+            (
+                StatusCode::from_u16(rejection.status_code()).unwrap_or(StatusCode::TOO_MANY_REQUESTS),
+                Json(ApiError::new(rejection.error_code(), rejection.to_string())),
+            )
+                .into_response()
+        }
         Ok(CallResult::Success(Ok(_))) => (
             StatusCode::CREATED,
             Json(V3StartResponse {
@@ -308,7 +334,7 @@ pub async fn terminate_workflow(
             )),
         )
             .into_response(),
-        Ok(CallResult::Success(Err(vo_actor::messages::TerminateError::NotFound(id)))) => (
+        Ok(CallResult::Success(Err(TerminateError::NotFound(id)))) => (
             StatusCode::NOT_FOUND,
             Json(ApiError::new(
                 "not_found",
@@ -316,7 +342,7 @@ pub async fn terminate_workflow(
             )),
         )
             .into_response(),
-        Ok(CallResult::Success(Err(vo_actor::messages::TerminateError::Failed(msg)))) => (
+        Ok(CallResult::Success(Err(TerminateError::Failed(msg)))) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ApiError::new("terminate_failed", msg)),
         )
@@ -372,6 +398,135 @@ pub async fn list_workflows(
                 })
                 .collect();
             (StatusCode::OK, Json(views)).into_response()
+        }
+    }
+}
+
+/// POST /api/v1/workflows/:id/unquarantine — manually unquarantine a workflow (ADR-026).
+#[tracing::instrument(skip_all)]
+pub async fn unquarantine_workflow(
+    Extension(_master): Extension<ActorRef<OrchestratorMsg>>,
+    Path(id): Path<String>,
+    Json(req): Json<UnquarantineRequest>,
+) -> impl IntoResponse {
+    // Parse workflow name from path
+    let (_, instance_id) = match split_path_id(&id) {
+        Some(pair) => pair,
+        None => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ApiError::new(
+                    "invalid_id",
+                    "id must be <namespace>/<instance_id>",
+                )),
+            )
+                .into_response();
+        }
+    };
+
+    // Parse workflow name
+    let workflow_name = match WorkflowName::parse(&instance_id.to_string()) {
+        Ok(name) => name,
+        Err(_) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ApiError::new(
+                    "invalid_workflow_name",
+                    format!("invalid workflow name: {}", instance_id),
+                )),
+            )
+                .into_response();
+        }
+    };
+
+    // Get circuit breaker state from extension (would be injected in production)
+    // For now, return not implemented - this requires circuit breaker state injection
+    (
+        StatusCode::NOT_IMPLEMENTED,
+        Json(ApiError::new(
+            "not_implemented",
+            "circuit breaker state injection required (see bead ve-jfj5)",
+        )),
+    )
+        .into_response()
+}
+
+/// GET /api/v1/workflows/:id/status — get workflow status including quarantine info (ADR-026).
+#[tracing::instrument(skip_all)]
+pub async fn get_workflow_status(
+    Extension(master): Extension<ActorRef<OrchestratorMsg>>,
+    Path(id): Path<String>,
+) -> impl IntoResponse {
+    let (namespace, instance_id) = match split_path_id(&id) {
+        Some(pair) => pair,
+        None => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ApiError::new(
+                    "invalid_id",
+                    "id must be <namespace>/<instance_id>",
+                )),
+            )
+                .into_response();
+        }
+    };
+
+    let call_result = master
+        .call(
+            |tx| OrchestratorMsg::GetStatus {
+                instance_id,
+                reply: tx,
+            },
+            Some(ACTOR_CALL_TIMEOUT),
+        )
+        .await;
+
+    match call_result {
+        Err(e) => (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(ApiError::new("actor_unavailable", e.to_string())),
+        )
+            .into_response(),
+        Ok(CallResult::Timeout) => (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(ApiError::new(
+                "actor_timeout",
+                "orchestrator did not respond",
+            )),
+        )
+            .into_response(),
+        Ok(CallResult::SenderError) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiError::new(
+                "actor_error",
+                "orchestrator dropped the reply",
+            )),
+        )
+            .into_response(),
+        Ok(CallResult::Success(None)) => (
+            StatusCode::NOT_FOUND,
+            Json(ApiError::new(
+                "not_found",
+                format!(
+                    "instance {namespace}/{instance_id_str} not found",
+                    instance_id_str = id
+                ),
+            )),
+        )
+            .into_response(),
+        Ok(CallResult::Success(Some(snapshot))) => {
+            // TODO: Add quarantine status from circuit breaker
+            let status_response = WorkflowStatusResponse {
+                instance_id: snapshot.instance_id.to_string(),
+                namespace: snapshot.namespace.to_string(),
+                workflow_type: snapshot.workflow_type,
+                paradigm: paradigm_to_str(snapshot.paradigm).to_owned(),
+                phase: phase_to_str(snapshot.phase).to_owned(),
+                events_applied: snapshot.events_applied,
+                registration_status: None,
+                is_quarantined: false,
+            };
+            (StatusCode::OK, Json(status_response)).into_response()
         }
     }
 }

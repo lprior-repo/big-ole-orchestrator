@@ -115,7 +115,7 @@ fn blocked_reason_variants() {
 #[test]
 fn transition_event_all_variants() {
     let variants = TransitionEvent::all_variants();
-    assert_eq!(variants.len(), 10);
+    assert_eq!(variants.len(), 14);
 }
 
 // ========================================================================

@@ -89,6 +89,12 @@ impl MessageBus {
                 if libc::dup2(fd4_write, 4) == -1 {
                     return Err(std::io::Error::last_os_error());
                 }
+                if libc::fcntl(3, libc::F_SETFD, libc::FD_CLOEXEC) == -1 {
+                    return Err(std::io::Error::last_os_error());
+                }
+                if libc::fcntl(4, libc::F_SETFD, libc::FD_CLOEXEC) == -1 {
+                    return Err(std::io::Error::last_os_error());
+                }
                 Ok(())
             });
         }
@@ -125,7 +131,7 @@ impl MessageBus {
 
     pub async fn send(&self, envelope: Fd3Envelope) -> Result<(), BusError> {
         let permit = self.sender.reserve().await.map_err(|_| BusError::BusClosed)?;
-        permit.send(BusMessage::Request(envelope));
+        permit.send(BusMessage::Request(envelope)).await.map_err(|_| BusError::BusClosed)?;
         Ok(())
     }
 
@@ -133,7 +139,7 @@ impl MessageBus {
         permit: OwnedPermit<'_, BusMessage>,
         envelope: Fd3Envelope,
     ) -> Result<(), BusError> {
-        permit.send(BusMessage::Request(envelope));
+        permit.send(BusMessage::Request(envelope)).await.map_err(|_| BusError::BusClosed)?;
         Ok(())
     }
 

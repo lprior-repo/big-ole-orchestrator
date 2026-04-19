@@ -8,11 +8,11 @@ fn valid_dek_id() -> DekId {
 }
 
 fn sample_encrypted_blob() -> EncryptedBlob {
-    EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![2u8; 16])
+    EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![2u8; 16]).unwrap()
 }
 
 fn sample_wrapped_dek() -> WrappedDek {
-    WrappedDek::new(vec![0xDE, 0xAD, 0xBE, 0xEF])
+    WrappedDek::new(vec![0xDE, 0xAD, 0xBE, 0xEF].repeat(15)).expect("valid wrapped DEK")
 }
 
 fn sample_key_metadata() -> KeyMetadata {
@@ -176,27 +176,30 @@ mod wrapped_dek_tests {
 
     #[test]
     fn wrapped_dek_new_accepts_vec() {
-        let wrapped = WrappedDek::new(vec![0xDE, 0xAD, 0xBE, 0xEF]);
-        assert_eq!(wrapped.as_bytes(), &[0xDE, 0xAD, 0xBE, 0xEF]);
+        let bytes = vec![0xDE, 0xAD, 0xBE, 0xEF].repeat(15); // 60 bytes
+        let wrapped = WrappedDek::new(bytes.clone()).expect("valid wrapped DEK");
+        assert_eq!(wrapped.as_bytes(), bytes.as_slice());
     }
 
     #[test]
     fn wrapped_dek_creation() {
         let wrapped = sample_wrapped_dek();
-        assert_eq!(wrapped.as_bytes(), &[0xDE, 0xAD, 0xBE, 0xEF]);
+        let expected: Vec<u8> = vec![0xDE, 0xAD, 0xBE, 0xEF].repeat(15);
+        assert_eq!(wrapped.as_bytes(), expected.as_slice());
     }
 
     #[test]
     fn wrapped_dek_as_bytes_returns_borrowed_slice() {
         let wrapped = sample_wrapped_dek();
         let bytes: &[u8] = wrapped.as_bytes();
-        assert_eq!(bytes, &[0xDE, 0xAD, 0xBE, 0xEF]);
+        let expected: Vec<u8> = vec![0xDE, 0xAD, 0xBE, 0xEF].repeat(15);
+        assert_eq!(bytes, expected.as_slice());
     }
 
     #[test]
     fn wrapped_dek_len_returns_byte_count() {
         let wrapped = sample_wrapped_dek();
-        assert_eq!(wrapped.as_bytes().len(), 4);
+        assert_eq!(wrapped.as_bytes().len(), 60);
     }
 
     #[test]
@@ -207,8 +210,8 @@ mod wrapped_dek_tests {
 
     #[test]
     fn wrapped_dek_is_empty_true_for_empty_vec() {
-        let wrapped = WrappedDek::new(vec![]);
-        assert!(wrapped.as_bytes().is_empty());
+        let result = WrappedDek::new(vec![]);
+        assert!(result.is_err());
     }
 
     #[test]
@@ -216,7 +219,7 @@ mod wrapped_dek_tests {
         let wrapped = sample_wrapped_dek();
         let display = format!("{wrapped}");
         assert!(display.contains("WrappedDek"));
-        assert!(display.contains("4 bytes"));
+        assert!(display.contains("60 bytes"));
     }
 
     #[test]
@@ -228,15 +231,16 @@ mod wrapped_dek_tests {
 
     #[test]
     fn wrapped_dek_eq_true_identical_bytes() {
-        let w1 = WrappedDek::new(vec![0xDE, 0xAD, 0xBE, 0xEF]);
-        let w2 = WrappedDek::new(vec![0xDE, 0xAD, 0xBE, 0xEF]);
+        let bytes = vec![0xDE, 0xAD, 0xBE, 0xEF].repeat(15);
+        let w1 = WrappedDek::new(bytes.clone());
+        let w2 = WrappedDek::new(bytes);
         assert_eq!(w1, w2);
     }
 
     #[test]
     fn wrapped_dek_eq_false_different_bytes() {
-        let w1 = WrappedDek::new(vec![0xDE, 0xAD, 0xBE, 0xEF]);
-        let w2 = WrappedDek::new(vec![0xFE, 0xEE, 0x00, 0x11]);
+        let w1 = WrappedDek::new(vec![0xDE, 0xAD, 0xBE, 0xEF].repeat(15));
+        let w2 = WrappedDek::new(vec![0xFE, 0xEE, 0x00, 0x11].repeat(15));
         assert_ne!(w1, w2);
     }
 }
@@ -248,7 +252,7 @@ mod encrypted_blob_tests {
 
     #[test]
     fn encrypted_blob_new_accepts_components() {
-        let blob = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![2u8; 16]);
+        let blob = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![2u8; 16]).unwrap();
         assert_eq!(blob.iv.len(), 12);
         assert_eq!(blob.ciphertext.len(), 32);
         assert_eq!(blob.tag.len(), 16);
@@ -271,22 +275,22 @@ mod encrypted_blob_tests {
 
     #[test]
     fn encrypted_blob_iv_size_fixed_12() {
-        let blob = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![2u8; 16]);
+        let blob = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![2u8; 16]).unwrap();
         assert_eq!(blob.iv.len(), 12);
     }
 
     #[test]
     fn encrypted_blob_tag_size_fixed_16() {
-        let blob = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![2u8; 16]);
+        let blob = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![2u8; 16]).unwrap();
         assert_eq!(blob.tag.len(), 16);
     }
 
     #[test]
     fn encrypted_blob_ciphertext_size_variable() {
-        let blob_empty = EncryptedBlob::new(vec![0u8; 12], vec![], vec![2u8; 16]);
+        let blob_empty = EncryptedBlob::new(vec![0u8; 12], vec![], vec![2u8; 16]).unwrap();
         assert_eq!(blob_empty.ciphertext.len(), 0);
 
-        let blob_large = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 1000], vec![2u8; 16]);
+        let blob_large = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 1000], vec![2u8; 16]).unwrap();
         assert_eq!(blob_large.ciphertext.len(), 1000);
     }
 
@@ -300,7 +304,7 @@ mod encrypted_blob_tests {
 
     #[test]
     fn encrypted_blob_total_size_empty() {
-        let blob = EncryptedBlob::new(vec![0u8; 12], vec![], vec![2u8; 16]);
+        let blob = EncryptedBlob::new(vec![0u8; 12], vec![], vec![2u8; 16]).unwrap();
         assert_eq!(blob.total_size(), 28);
     }
 
@@ -323,29 +327,29 @@ mod encrypted_blob_tests {
 
     #[test]
     fn encrypted_blob_eq_true_all_components_match() {
-        let blob1 = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![2u8; 16]);
-        let blob2 = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![2u8; 16]);
+        let blob1 = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![2u8; 16]).unwrap();
+        let blob2 = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![2u8; 16]).unwrap();
         assert_eq!(blob1, blob2);
     }
 
     #[test]
     fn encrypted_blob_eq_false_iv_mismatch() {
-        let blob1 = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![2u8; 16]);
-        let blob2 = EncryptedBlob::new(vec![1u8; 12], vec![1u8; 32], vec![2u8; 16]);
+        let blob1 = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![2u8; 16]).unwrap();
+        let blob2 = EncryptedBlob::new(vec![1u8; 12], vec![1u8; 32], vec![2u8; 16]).unwrap();
         assert_ne!(blob1, blob2);
     }
 
     #[test]
     fn encrypted_blob_eq_false_ciphertext_mismatch() {
-        let blob1 = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![2u8; 16]);
-        let blob2 = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 33], vec![2u8; 16]);
+        let blob1 = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![2u8; 16]).unwrap();
+        let blob2 = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 33], vec![2u8; 16]).unwrap();
         assert_ne!(blob1, blob2);
     }
 
     #[test]
     fn encrypted_blob_eq_false_tag_mismatch() {
-        let blob1 = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![2u8; 16]);
-        let blob2 = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![3u8; 16]);
+        let blob1 = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![2u8; 16]).unwrap();
+        let blob2 = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![3u8; 16]).unwrap();
         assert_ne!(blob1, blob2);
     }
 }
@@ -575,8 +579,8 @@ mod proptests {
         }
 
         #[test]
-        fn wrapped_dek_roundtrip(bytes in ".*") {
-            let original = WrappedDek::new(bytes.as_bytes().to_vec());
+        fn wrapped_dek_roundtrip(bytes in ".{60,}") {
+            let original = WrappedDek::new(bytes.as_bytes().to_vec()).expect("valid wrapped DEK");
             prop_assert_eq!(original.as_bytes(), bytes.as_bytes());
         }
 
@@ -587,7 +591,7 @@ mod proptests {
             let iv_vec: Vec<u8> = iv.chars().map(|c| c as u8).collect();
             let ciphertext_vec: Vec<u8> = ciphertext.chars().map(|c| c as u8).collect();
             let tag_vec: Vec<u8> = tag.chars().map(|c| c as u8).collect();
-            let blob = EncryptedBlob::new(iv_vec.clone(), ciphertext_vec.clone(), tag_vec.clone());
+            let blob = EncryptedBlob::new(iv_vec.clone(), ciphertext_vec.clone(), tag_vec.clone()).unwrap();
             prop_assert_eq!(
                 blob.total_size(),
                 iv_vec.len() + ciphertext_vec.len() + tag_vec.len()
@@ -606,9 +610,9 @@ mod proptests {
         }
 
         #[test]
-        fn serde_roundtrip_wrapped_dek(len in 0u8..64) {
-            let bytes: Vec<u8> = (0..len).map(|_| rand::random()).collect();
-            let original = WrappedDek::new(bytes.clone());
+        fn serde_roundtrip_wrapped_dek(len in 60u8..120) {
+            let bytes: Vec<u8> = (0..len).map(|i| i.wrapping_add(0x42)).collect();
+            let original = WrappedDek::new(bytes.clone()).expect("valid wrapped DEK");
             let json = serde_json::to_string(&original).expect("serialize");
             let restored: WrappedDek = serde_json::from_str(&json).expect("deserialize");
             prop_assert_eq!(restored.as_bytes(), &bytes);

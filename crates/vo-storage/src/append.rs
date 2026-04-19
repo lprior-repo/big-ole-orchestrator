@@ -10,6 +10,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use vo_types::events::EventEnvelope;
+#[cfg(test)]
 use vo_types::events::EventMetadata;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -307,6 +308,7 @@ impl BackpressureSignal {
     }
 
     /// Called when a queue becomes full.
+    #[expect(clippy::unwrap_used)]
     pub(crate) fn set_full(&self, class: WriteClass, depth: usize, capacity: usize) {
         let was_full = match class {
             WriteClass::CriticalControlPlane => self.critical_full.swap(true, Ordering::SeqCst),
@@ -328,6 +330,7 @@ impl BackpressureSignal {
     }
 
     /// Called when a queue becomes writable (was full, now has capacity).
+    #[expect(clippy::unwrap_used)]
     pub(crate) fn set_writable(&self, class: WriteClass, remaining_capacity: usize) {
         let was_full = match class {
             WriteClass::CriticalControlPlane => self.critical_full.swap(false, Ordering::SeqCst),
@@ -793,16 +796,6 @@ impl ClassifiedWrite for ControlPlaneWrite {
 pub struct ProjectionWrite {
     pub projection_id: String,
     size_bytes: u64,
-}
-
-impl ProjectionWrite {
-    #[must_use]
-    pub const fn new(projection_id: String, size_bytes: u64) -> Self {
-        Self {
-            projection_id,
-            size_bytes,
-        }
-    }
 }
 
 impl ClassifiedWrite for ProjectionWrite {

@@ -14,9 +14,11 @@ fn sample_instance_id() -> InstanceId {
     InstanceId::from_bytes([1u8; 16])
 }
 
-fn create_keyspace() -> (tempfile::TempDir, fjall::Keyspace) {
+fn create_keyspace() -> (tempfile::TempDir, fjall::Database) {
     let dir = tempfile::tempdir().expect("tempdir");
-    let ks = fjall::Config::new(dir.path()).open().expect("keyspace");
+    let ks = fjall::Database::builder(dir.path())
+        .open()
+        .expect("keyspace");
     (dir, ks)
 }
 
@@ -33,7 +35,9 @@ fn crash_after_prepare_effect_remains_prepared_on_recovery() {
 
     let effect_id;
     {
-        let keyspace = fjall::Config::new(&dir_path).open().expect("keyspace");
+        let keyspace = fjall::Database::builder(&dir_path)
+            .open()
+            .expect("keyspace");
         let journal = FjallEffectJournal::open(&keyspace).expect("journal");
 
         let record = EffectRecord::new(
@@ -51,7 +55,7 @@ fn crash_after_prepare_effect_remains_prepared_on_recovery() {
     }
 
     // Recovery: reopen keyspace
-    let keyspace = fjall::Config::new(&dir_path)
+    let keyspace = fjall::Database::builder(&dir_path)
         .open()
         .expect("keyspace reopen");
     let journal = FjallEffectJournal::open(&keyspace).expect("journal reopen");
@@ -80,7 +84,9 @@ fn crash_after_prepare_rollback_still_works_on_recovery() {
 
     let effect_id;
     {
-        let keyspace = fjall::Config::new(&dir_path).open().expect("keyspace");
+        let keyspace = fjall::Database::builder(&dir_path)
+            .open()
+            .expect("keyspace");
         let journal = FjallEffectJournal::open(&keyspace).expect("journal");
 
         let record = EffectRecord::new(
@@ -95,7 +101,7 @@ fn crash_after_prepare_rollback_still_works_on_recovery() {
         effect_id = journal.prepare(&id, record).expect("prepare");
     }
 
-    let keyspace = fjall::Config::new(&dir_path)
+    let keyspace = fjall::Database::builder(&dir_path)
         .open()
         .expect("keyspace reopen");
     let journal = FjallEffectJournal::open(&keyspace).expect("journal reopen");
@@ -120,7 +126,9 @@ fn crash_after_commit_re_commit_returns_already_terminal() {
 
     let effect_id;
     {
-        let keyspace = fjall::Config::new(&dir_path).open().expect("keyspace");
+        let keyspace = fjall::Database::builder(&dir_path)
+            .open()
+            .expect("keyspace");
         let journal = FjallEffectJournal::open(&keyspace).expect("journal");
 
         let record = EffectRecord::new(
@@ -138,7 +146,7 @@ fn crash_after_commit_re_commit_returns_already_terminal() {
         // Crash after commit
     }
 
-    let keyspace = fjall::Config::new(&dir_path)
+    let keyspace = fjall::Database::builder(&dir_path)
         .open()
         .expect("keyspace reopen");
     let journal = FjallEffectJournal::open(&keyspace).expect("journal reopen");
@@ -164,7 +172,9 @@ fn crash_after_commit_rollback_returns_already_terminal() {
 
     let effect_id;
     {
-        let keyspace = fjall::Config::new(&dir_path).open().expect("keyspace");
+        let keyspace = fjall::Database::builder(&dir_path)
+            .open()
+            .expect("keyspace");
         let journal = FjallEffectJournal::open(&keyspace).expect("journal");
 
         let record = EffectRecord::new(
@@ -180,7 +190,7 @@ fn crash_after_commit_rollback_returns_already_terminal() {
         journal.commit(&effect_id).expect("commit");
     }
 
-    let keyspace = fjall::Config::new(&dir_path)
+    let keyspace = fjall::Database::builder(&dir_path)
         .open()
         .expect("keyspace reopen");
     let journal = FjallEffectJournal::open(&keyspace).expect("journal reopen");
@@ -205,7 +215,9 @@ fn crash_after_rollback_re_rollback_returns_already_terminal() {
 
     let effect_id;
     {
-        let keyspace = fjall::Config::new(&dir_path).open().expect("keyspace");
+        let keyspace = fjall::Database::builder(&dir_path)
+            .open()
+            .expect("keyspace");
         let journal = FjallEffectJournal::open(&keyspace).expect("journal");
 
         let record = EffectRecord::new(
@@ -221,7 +233,7 @@ fn crash_after_rollback_re_rollback_returns_already_terminal() {
         journal.rollback(&effect_id).expect("rollback");
     }
 
-    let keyspace = fjall::Config::new(&dir_path)
+    let keyspace = fjall::Database::builder(&dir_path)
         .open()
         .expect("keyspace reopen");
     let journal = FjallEffectJournal::open(&keyspace).expect("journal reopen");
@@ -252,7 +264,9 @@ fn crash_mid_batch_replays_uncommitted_effects() {
 
     let committed_ids;
     {
-        let keyspace = fjall::Config::new(&dir_path).open().expect("keyspace");
+        let keyspace = fjall::Database::builder(&dir_path)
+            .open()
+            .expect("keyspace");
         let journal = FjallEffectJournal::open(&keyspace).expect("journal");
 
         let mut committed = Vec::new();
@@ -278,7 +292,7 @@ fn crash_mid_batch_replays_uncommitted_effects() {
         committed_ids = committed;
     }
 
-    let keyspace = fjall::Config::new(&dir_path)
+    let keyspace = fjall::Database::builder(&dir_path)
         .open()
         .expect("keyspace reopen");
     let journal = FjallEffectJournal::open(&keyspace).expect("journal reopen");
@@ -320,7 +334,9 @@ fn crash_after_prepare_idempotent_reprepare_no_duplicate() {
     let id = sample_instance_id();
 
     {
-        let keyspace = fjall::Config::new(&dir_path).open().expect("keyspace");
+        let keyspace = fjall::Database::builder(&dir_path)
+            .open()
+            .expect("keyspace");
         let journal = FjallEffectJournal::open(&keyspace).expect("journal");
 
         let record = EffectRecord::new(
@@ -336,7 +352,7 @@ fn crash_after_prepare_idempotent_reprepare_no_duplicate() {
         // Crash: engine retries by re-preparing
     }
 
-    let keyspace = fjall::Config::new(&dir_path)
+    let keyspace = fjall::Database::builder(&dir_path)
         .open()
         .expect("keyspace reopen");
     let journal = FjallEffectJournal::open(&keyspace).expect("journal reopen");
@@ -373,7 +389,9 @@ fn exactly_once_across_multiple_crash_recovery_cycles() {
 
     // Cycle 1: Prepare, crash
     {
-        let keyspace = fjall::Config::new(&dir_path).open().expect("keyspace");
+        let keyspace = fjall::Database::builder(&dir_path)
+            .open()
+            .expect("keyspace");
         let journal = FjallEffectJournal::open(&keyspace).expect("journal");
 
         let record = EffectRecord::new(
@@ -391,7 +409,9 @@ fn exactly_once_across_multiple_crash_recovery_cycles() {
 
     // Cycle 2: Recover, attempt commit, crash
     {
-        let keyspace = fjall::Config::new(&dir_path).open().expect("keyspace");
+        let keyspace = fjall::Database::builder(&dir_path)
+            .open()
+            .expect("keyspace");
         let journal = FjallEffectJournal::open(&keyspace).expect("journal");
 
         let pending = journal.list_pending(&id).unwrap();
@@ -402,7 +422,9 @@ fn exactly_once_across_multiple_crash_recovery_cycles() {
 
     // Cycle 3: Recover, attempt re-commit (must fail)
     {
-        let keyspace = fjall::Config::new(&dir_path).open().expect("keyspace");
+        let keyspace = fjall::Database::builder(&dir_path)
+            .open()
+            .expect("keyspace");
         let journal = FjallEffectJournal::open(&keyspace).expect("journal");
 
         let result = journal.commit(&effect_id);
@@ -434,7 +456,9 @@ fn crash_isolation_between_instances() {
     let id2 = InstanceId::from_bytes([2u8; 16]);
 
     {
-        let keyspace = fjall::Config::new(&dir_path).open().expect("keyspace");
+        let keyspace = fjall::Database::builder(&dir_path)
+            .open()
+            .expect("keyspace");
         let journal = FjallEffectJournal::open(&keyspace).expect("journal");
 
         let r1 = EffectRecord::new(
@@ -461,7 +485,7 @@ fn crash_isolation_between_instances() {
         // Instance 2: prepared but NOT committed (crash)
     }
 
-    let keyspace = fjall::Config::new(&dir_path)
+    let keyspace = fjall::Database::builder(&dir_path)
         .open()
         .expect("keyspace reopen");
     let journal = FjallEffectJournal::open(&keyspace).expect("journal reopen");

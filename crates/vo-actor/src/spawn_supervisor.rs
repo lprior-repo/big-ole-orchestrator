@@ -3,6 +3,48 @@
 //! Provides async spawn supervisor that manages subprocess lifecycle:
 //! spawn → health-check → ready → running → shutdown
 //!
+//! # ADR-046 Contract
+//!
+//! This implementation follows the async process supervisor contract defined in ADR-046.
+//!
+//! ## State Machine (ADR-046 Section 1)
+//!
+//! ```text
+//! ┌─────────┐   spawn    ┌──────────────┐ health-check ┌─────────┐   healthy   ┌─────────┐
+//! │  None   │ ─────────► │    Spawn     │ ───────────► │HealthChk│ ─────────► │ Running │
+//! └─────────┘            └──────────────┘              └─────────┘            └─────────┘
+//!                               │                            │                       │
+//!                               │ failure                    │ failure               │ terminate
+//!                               ▼                            ▼                       ▼
+//!                         ┌─────────┐                  ┌─────────┐           ┌─────────┐
+//!                         │  Failed │                  │  Failed │           │ Shutdown│
+//!                         └─────────┘                  └─────────┘           └─────────┘
+//!                               │                            │                       │
+//!                               │ respawn                    │ respawn               │ exit
+//!                               └────────────────────────────┴───────────────────────┘
+//!                                                                                    │
+//!                                                                                    ▼
+//!                                                                            ┌─────────────┐
+//!                                                                            │ Terminated  │
+//!                                                                            └─────────────┘
+//! ```
+//!
+//! ## Error Taxonomy (ADR-046 Section 2)
+//!
+//! - **Transient**: StorageError, InstanceNotFound, MailboxFull, DispatchError
+//! - **Resumable**: HealthCheckFailed, ProcessExited, SpawnFailed
+//! - **Fatal**: CorruptSpawn, InvalidConfig, ZombieDetected
+//! - **Operational**: AlreadyRunning, AlreadyShutdown, NotRunning, ShutdownTimeout, AtomicityViolation
+//!
+//! ## Observability (ADR-046 Section 7)
+//!
+//! Emits: spawns_successful, spawns_failed, health_checks_performed, health_checks_failed,
+//!        zombies_detected, respawns, dispatch_errors
+//!
+//! ## Cancellation Safety (ADR-046 Section 8)
+//!
+//! shutdown() waits for loop to reach ShutDown state before returning.
+//!
 //! Features:
 //! - Zombie detection and reaping
 //! - Exponential backoff respawn
@@ -93,6 +135,16 @@ impl SpawnRecord {
         }
     }
 
+    /// Transition to failed phase.
+    #[must_use]
+    pub fn transition_to_failed(&self, error: SpawnSupervisorError) -> Self {
+        Self {
+            spawn_phase: SpawnPhase::Failed,
+            last_error: Some(error),
+            ..self.clone()
+        }
+    }
+
     /// Create a new spawn record after respawn.
     #[must_use]
     pub fn respawn(&self, new_spawn_id: Option<vo_types::SpawnId>) -> Self {
@@ -173,11 +225,19 @@ pub enum SpawnSupervisorError {
     #[error("Spawn failed for '{command}': {error}")]
     SpawnFailed { command: String, error: String },
     #[error("Health check {check_number} failed for {instance_id}: {error}")]
-    HealthCheckFailed { instance_id: InstanceId, check_number: u32, error: String },
+    HealthCheckFailed {
+        instance_id: InstanceId,
+        check_number: u32,
+        error: String,
+    },
     #[error("Zombie detected for {instance_id}: pid={pid}")]
     ZombieDetected { instance_id: InstanceId, pid: u32 },
     #[error("Process exited for {instance_id}: pid={pid}, code={exit_code}")]
-    ProcessExited { instance_id: InstanceId, pid: u32, exit_code: i32 },
+    ProcessExited {
+        instance_id: InstanceId,
+        pid: u32,
+        exit_code: i32,
+    },
     #[error("Supervisor not running")]
     NotRunning,
     #[error("Supervisor already shutdown")]
@@ -201,6 +261,14 @@ impl SpawnSupervisorError {
     }
 
     #[must_use]
+    pub fn is_resumable(&self) -> bool {
+        matches!(
+            self,
+            Self::HealthCheckFailed { .. } | Self::ProcessExited { .. } | Self::SpawnFailed { .. }
+        )
+    }
+
+    #[must_use]
     pub fn is_fatal(&self) -> bool {
         matches!(
             self,
@@ -211,6 +279,18 @@ impl SpawnSupervisorError {
                 | Self::ShutdownTimeout(_)
                 | Self::NotRunning
                 | Self::AlreadyShutdown
+        )
+    }
+
+    #[must_use]
+    pub fn is_operational(&self) -> bool {
+        matches!(
+            self,
+            Self::AlreadyRunning
+                | Self::AlreadyShutdown
+                | Self::NotRunning
+                | Self::ShutdownTimeout(_)
+                | Self::AtomicityViolation(_)
         )
     }
 }
@@ -455,7 +535,7 @@ impl SpawnSupervisor {
     /// # Errors
     /// Returns `AlreadyRunning` if the supervisor is already running.
     pub fn spawn(self) -> Result<SpawnSupervisorHandle, SpawnSupervisorError> {
-        let (state_sender, _) = watch::channel(SpawnSupervisorState::Stopped);
+        let (state_sender, _) = watch::channel(SpawnSupervisorState::Running);
         let (shutdown_trigger, _) = broadcast::channel(1);
 
         let state_sender_clone = state_sender.clone();
@@ -485,8 +565,6 @@ impl SpawnSupervisor {
         let mut scan_interval = interval(self.health_check_interval);
         scan_interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
 
-        let _ = state_sender.send(SpawnSupervisorState::Running);
-
         loop {
             tokio::select! {
                 _ = shutdown_receiver.recv() => {
@@ -499,8 +577,14 @@ impl SpawnSupervisor {
                         Err(e) if e.is_transient() => {
                             tracing::warn!("Transient error in spawn supervisor cycle: {}", e);
                         }
+                        Err(e) if e.is_resumable() => {
+                            tracing::info!("Resumable error in spawn supervisor cycle: {}", e);
+                        }
                         Err(e) if e.is_fatal() => {
                             tracing::error!("Fatal error in spawn supervisor cycle: {}", e);
+                        }
+                        Err(e) if e.is_operational() => {
+                            tracing::debug!("Operational error in spawn supervisor cycle: {}", e);
                         }
                         Err(e) => {
                             tracing::error!("Unknown error in spawn supervisor cycle: {}", e);
@@ -596,6 +680,17 @@ impl SpawnSupervisor {
                                 "Health check failed"
                             );
 
+                            // Transition to Failed so HealthCheck scan skips it
+                            let failed_record = new_record.transition_to_failed(e.clone());
+                            if let Err(save_err) = self.storage.save_spawn_record(&failed_record).await {
+                                self.metrics.dispatch_errors.incr();
+                                tracing::error!(
+                                    instance_id = %record.instance_id,
+                                    error = %save_err,
+                                    "Failed to save failed spawn record"
+                                );
+                            }
+
                             if record.spawn_attempts < self.max_spawn_attempts {
                                 respawns += 1;
                                 self.metrics.respawns.incr();
@@ -606,7 +701,7 @@ impl SpawnSupervisor {
                                     "Scheduling respawn with backoff"
                                 );
 
-                                let _ = backoff_delay;
+                                tokio::time::sleep(backoff_delay).await;
                             }
                         }
                     }
@@ -674,6 +769,57 @@ impl SpawnSupervisor {
                         "Health check failed"
                     );
                 }
+            }
+        }
+
+        let failed_records = self
+            .storage
+            .scan_spawns_by_phase(SpawnPhase::Failed, 100)
+            .await;
+
+        for record in failed_records {
+            spawns_processed += 1;
+
+            if should_respawn(&record, self.max_spawn_attempts) {
+                let backoff_delay = self.calculate_backoff_delay(record.spawn_attempts);
+                tracing::info!(
+                    instance_id = %record.instance_id,
+                    backoff_ms = backoff_delay.as_millis(),
+                    "Respawning failed spawn with backoff"
+                );
+
+                tokio::time::sleep(backoff_delay).await;
+
+                let new_record = record.respawn(None);
+
+                if let Err(e) = self.storage.save_spawn_record(&new_record).await {
+                    self.metrics.dispatch_errors.incr();
+                    errors += 1;
+                    tracing::error!(
+                        instance_id = %record.instance_id,
+                        error = %e,
+                        "Failed to save respawn record"
+                    );
+                    continue;
+                }
+
+                if let Err(e) = self
+                    .work_queue
+                    .enqueue_spawn(record.instance_id.clone(), record.command.clone())
+                    .await
+                {
+                    self.metrics.dispatch_errors.incr();
+                    errors += 1;
+                    tracing::error!(
+                        instance_id = %record.instance_id,
+                        error = %e,
+                        "Failed to enqueue respawn"
+                    );
+                    continue;
+                }
+
+                respawns += 1;
+                self.metrics.respawns.incr();
             }
         }
 
@@ -1009,13 +1155,173 @@ mod tests {
     fn spawn_supervisor_error_is_transient() {
         assert!(SpawnSupervisorError::StorageError("test".to_string()).is_transient());
         assert!(SpawnSupervisorError::InstanceNotFound(test_instance_id()).is_transient());
+        assert!(SpawnSupervisorError::MailboxFull(test_instance_id()).is_transient());
+        assert!(SpawnSupervisorError::DispatchError("test".to_string()).is_transient());
         assert!(!SpawnSupervisorError::InvalidConfig("test".to_string()).is_transient());
+    }
+
+    #[test]
+    fn spawn_supervisor_error_is_resumable() {
+        assert!(SpawnSupervisorError::HealthCheckFailed {
+            instance_id: test_instance_id(),
+            check_number: 1,
+            error: "test".to_string()
+        }
+        .is_resumable());
+        assert!(SpawnSupervisorError::ProcessExited {
+            instance_id: test_instance_id(),
+            pid: 123,
+            exit_code: 1
+        }
+        .is_resumable());
+        assert!(SpawnSupervisorError::SpawnFailed {
+            command: "test".to_string(),
+            error: "test".to_string()
+        }
+        .is_resumable());
+        assert!(!SpawnSupervisorError::StorageError("test".to_string()).is_resumable());
     }
 
     #[test]
     fn spawn_supervisor_error_is_fatal() {
         assert!(SpawnSupervisorError::CorruptSpawn("test".to_string()).is_fatal());
         assert!(SpawnSupervisorError::InvalidConfig("test".to_string()).is_fatal());
+        assert!(SpawnSupervisorError::ZombieDetected {
+            instance_id: test_instance_id(),
+            pid: 123
+        }
+        .is_fatal());
         assert!(!SpawnSupervisorError::StorageError("test".to_string()).is_fatal());
+    }
+
+    #[test]
+    fn spawn_supervisor_error_is_operational() {
+        assert!(SpawnSupervisorError::AlreadyRunning.is_operational());
+        assert!(SpawnSupervisorError::AlreadyShutdown.is_operational());
+        assert!(SpawnSupervisorError::NotRunning.is_operational());
+        assert!(SpawnSupervisorError::ShutdownTimeout(Duration::from_secs(30)).is_operational());
+        assert!(SpawnSupervisorError::AtomicityViolation("test".to_string()).is_operational());
+        assert!(!SpawnSupervisorError::StorageError("test".to_string()).is_operational());
+    }
+
+    #[cfg(feature = "proptest")]
+    mod proptest_invariants {
+        use super::*;
+        use proptest::prelude::*;
+
+        fn any_spawn_phase() -> impl Strategy<Value = SpawnPhase> {
+            prop_oneof![
+                Just(SpawnPhase::Spawn),
+                Just(SpawnPhase::HealthCheck),
+                Just(SpawnPhase::Running),
+                Just(SpawnPhase::Shutdown),
+                Just(SpawnPhase::Terminated),
+                Just(SpawnPhase::Failed),
+            ]
+        }
+
+        fn any_spawn_record() -> impl Strategy<Value = SpawnRecord> {
+            (any_spawn_phase(), 0u32..1000u32, 0u32..100u32).prop_map(
+                |(phase, health_checks, spawn_attempts)| SpawnRecord {
+                    spawn_id: None,
+                    instance_id: test_instance_id(),
+                    command: "test".to_string(),
+                    spawn_phase: phase,
+                    health_checks,
+                    spawn_attempts,
+                    last_error: None,
+                },
+            )
+        }
+
+        proptest! {
+            #[test]
+            fn backoff_monotonic_for_multiplier_gt_1(
+                initial_ms in 1u64..10_000u64,
+                multiplier in 1.0001f64..10.0f64,
+                a in 1u32..20u32,
+                b in 1u32..20u32,
+            ) {
+                let (lo, hi) = if a < b { (a, b) } else { (b, a) };
+                let delay_lo = calculate_backoff_delay(initial_ms, multiplier, lo);
+                let delay_hi = calculate_backoff_delay(initial_ms, multiplier, hi);
+                prop_assert!(
+                    delay_hi >= delay_lo,
+                    "delay_hi={} should be >= delay_lo={} for attempts {} vs {}",
+                    delay_hi, delay_lo, hi, lo,
+                );
+            }
+
+            #[test]
+            fn backoff_constant_for_multiplier_1(
+                initial_ms in 1u64..10_000u64,
+                attempt in 1u32..100u32,
+            ) {
+                let delay = calculate_backoff_delay(initial_ms, 1.0, attempt);
+                prop_assert_eq!(delay, initial_ms);
+            }
+
+            #[test]
+            fn backoff_first_attempt_equals_initial(initial_ms in 1u64..10_000u64, multiplier in 1.0f64..5.0f64) {
+                let delay = calculate_backoff_delay(initial_ms, multiplier, 1);
+                prop_assert_eq!(delay, initial_ms);
+            }
+
+            #[test]
+            fn is_zombie_true_iff_failed_and_attempts_gt_3(record in any_spawn_record()) {
+                let expected = matches!(record.spawn_phase, SpawnPhase::Failed)
+                    && record.spawn_attempts > 3;
+                prop_assert_eq!(is_zombie_state(&record), expected);
+            }
+
+            #[test]
+            fn is_zombie_non_failed_always_false(
+                phase in any_spawn_phase(),
+                attempts in 0u32..100u32,
+            ) {
+                if !matches!(phase, SpawnPhase::Failed) {
+                    let record = SpawnRecord {
+                        spawn_id: None,
+                        instance_id: test_instance_id(),
+                        command: "test".to_string(),
+                        spawn_phase: phase,
+                        health_checks: 0,
+                        spawn_attempts: attempts,
+                        last_error: None,
+                    };
+                    prop_assert!(!is_zombie_state(&record));
+                }
+            }
+
+            #[test]
+            fn should_respawn_true_iff_failed_and_attempts_lt_max(
+                record in any_spawn_record(),
+                max_attempts in 1u32..100u32,
+            ) {
+                let expected = matches!(record.spawn_phase, SpawnPhase::Failed)
+                    && record.spawn_attempts < max_attempts;
+                prop_assert_eq!(should_respawn(&record, max_attempts), expected);
+            }
+
+            #[test]
+            fn should_respawn_non_failed_always_false(
+                phase in any_spawn_phase(),
+                attempts in 0u32..100u32,
+                max_attempts in 1u32..100u32,
+            ) {
+                if !matches!(phase, SpawnPhase::Failed) {
+                    let record = SpawnRecord {
+                        spawn_id: None,
+                        instance_id: test_instance_id(),
+                        command: "test".to_string(),
+                        spawn_phase: phase,
+                        health_checks: 0,
+                        spawn_attempts: attempts,
+                        last_error: None,
+                    };
+                    prop_assert!(!should_respawn(&record, max_attempts));
+                }
+            }
+        }
     }
 }

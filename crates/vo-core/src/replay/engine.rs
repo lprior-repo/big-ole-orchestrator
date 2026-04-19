@@ -40,6 +40,10 @@ impl ReplayEngine {
             return Ok(ReplayResult {
                 final_state: None,
                 events_applied: 0,
+                position: super::types::ReplayPosition {
+                    last_applied_sequence: None,
+                    last_applied_timestamp_ms: None,
+                },
             });
         }
 
@@ -68,9 +72,14 @@ impl ReplayEngine {
                     second_at_index: i,
                 });
             }
-            if event.sequence != expected_seq + 1 {
+            let next_expected = expected_seq.checked_add(1).ok_or_else(|| ReplayError::SequenceGap {
+                    expected: 0,
+                    actual: event.sequence,
+                    at_index: i,
+                })?;
+            if event.sequence != next_expected {
                 return Err(ReplayError::SequenceGap {
-                    expected: expected_seq + 1,
+                    expected: next_expected,
                     actual: event.sequence,
                     at_index: i,
                 });
@@ -101,9 +110,13 @@ impl ReplayEngine {
             // They are checkpoint markers in the ADR-027 managed effect sequence:
             // StepScheduled -> StepStarted -> EffectPrepared -> EffectCommitted -> StepCompleted
             // Count them as applied but do not change state.
+            // WorkflowQuarantined is an operational circuit breaker event (ADR-026),
+            // not a state machine transition.
             if matches!(
                 payload,
-                EventPayload::EffectPrepared { .. } | EventPayload::EffectCommitted { .. }
+                EventPayload::EffectPrepared { .. }
+                    | EventPayload::EffectCommitted { .. }
+                    | EventPayload::WorkflowQuarantined { .. }
             ) {
                 events_applied += 1;
                 continue;
@@ -138,9 +151,24 @@ impl ReplayEngine {
             }
         }
 
+        let last_applied_sequence = if events_applied > 0 {
+            Some(events[events_applied - 1].sequence)
+        } else {
+            None
+        };
+        let last_applied_timestamp_ms = if events_applied > 0 {
+            Some(events[events_applied - 1].timestamp_ms)
+        } else {
+            None
+        };
+
         Ok(ReplayResult {
             final_state: current_state,
             events_applied,
+            position: super::types::ReplayPosition {
+                last_applied_sequence,
+                last_applied_timestamp_ms,
+            },
         })
     }
 
@@ -170,6 +198,10 @@ impl ReplayEngine {
             return Ok(ReplayResult {
                 final_state: None,
                 events_applied: 0,
+                position: super::types::ReplayPosition {
+                    last_applied_sequence: None,
+                    last_applied_timestamp_ms: None,
+                },
             });
         }
 
@@ -214,9 +246,11 @@ pub(super) fn payload_to_transition(
         EventPayload::TimerFired { .. } => Ok(TransitionEvent::TimerFired),
         EventPayload::WorkflowCompleted { .. } => Ok(TransitionEvent::CompleteStep),
         EventPayload::WorkflowFailed { .. } => Ok(TransitionEvent::Fail),
+        EventPayload::WorkflowQuarantined { .. } => Ok(TransitionEvent::Fail),
         EventPayload::WorkflowCancelled { .. } => Ok(TransitionEvent::Cancel),
         EventPayload::CancelRequested { .. } => Ok(TransitionEvent::Cancel),
         EventPayload::InstanceResumed { .. } => Ok(TransitionEvent::InstanceResumed),
+        EventPayload::WorkflowQuarantined { .. } => Ok(TransitionEvent::Fail),
         EventPayload::ContinuedAsNew { .. } => {
             // Handled as a no-op in the replay loop before calling this function.
             // This branch should never be reached.

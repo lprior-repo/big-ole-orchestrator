@@ -1,5 +1,7 @@
 use super::helpers::*;
+use crate::ui::edges::graph_types::NodeId;
 use crate::ui::edges::layout::find_parallel_branches;
+use uuid::Uuid;
 
 #[test]
 fn given_source_with_two_targets_when_find_parallel_then_returns_one_group() {

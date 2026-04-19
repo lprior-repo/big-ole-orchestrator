@@ -8,11 +8,15 @@ pub mod projection;
 mod types;
 
 #[cfg(test)]
+mod adr035_bdd_tests;
+#[cfg(test)]
 mod adr035_event_versioning_tests;
 #[cfg(test)]
 mod crash_injection_tests;
 #[cfg(test)]
 mod deterministic_replay_tests;
+#[cfg(test)]
+mod error_propagation_tests;
 #[cfg(test)]
 mod error_tests;
 #[cfg(test)]
@@ -24,11 +28,15 @@ mod kani_proptests;
 #[cfg(test)]
 mod red_queen_adversarial_tests;
 #[cfg(test)]
+mod stale_event_rejection_tests;
+#[cfg(test)]
 pub mod test_helpers;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
+mod position_tests;
+#[cfg(test)]
 mod upcaster_tests;
 
 pub use engine::ReplayEngine;
-pub use types::{ReplayError, ReplayResult};
+pub use types::{ReplayError, ReplayErrorKind, ReplayResult};

@@ -10,7 +10,7 @@ use vo_types::TimestampMs;
 
 use crate::reanimator::{
     traits::{TimerStorage, WorkQueue},
-    types::{validate_timer_record, FairnessBudget, ReanimatorConfig, ReanimatorState, TimerRecord},
+    types::{validate_timer_record, FairnessBudget, ReanimatorConfig, ReanimatorState},
     ReanimatorError,
 };
 
@@ -101,19 +101,6 @@ impl ReanimatorLoop {
 
         let state_sender_clone = state_sender.clone();
         let shutdown_receiver = shutdown_trigger.subscribe();
-
-        // Run crash recovery synchronously before spawning the task
-        // This ensures any pending timers from a previous crash are replayed
-        let storage_clone = storage.clone();
-        let work_queue_clone = work_queue.clone();
-        tokio::task::spawn_blocking(move || {
-            let rt = tokio::runtime::Handle::current();
-            rt.block_on(async {
-                if let Err(e) = Self::run_crash_recovery(&storage_clone, &work_queue_clone).await {
-                    tracing::warn!("Crash recovery completed with error: {}", e);
-                }
-            });
-        });
 
         // Spawn the background task
         let task_handle = tokio::runtime::Handle::current().spawn(async move {
@@ -216,31 +203,6 @@ impl ReanimatorLoop {
                 }
             }
 
-            let timer_record = TimerRecord {
-                instance_id: pending.instance_id.clone(),
-                fire_at_ms: pending.fire_at_ms,
-                timer_id: None,
-                scheduled_at_ms: pending.scheduled_at_ms,
-            };
-            if let Err(e) = validate_timer_record(&timer_record) {
-                tracing::warn!(
-                    instance_id = %pending.instance_id,
-                    error = %e,
-                    "Skipping corrupt pending timer during crash recovery"
-                );
-                if let Err(e) = storage
-                    .complete_timer_processing(&pending.instance_id, pending.fire_at_ms)
-                    .await
-                {
-                    tracing::warn!(
-                        instance_id = %pending.instance_id,
-                        error = %e,
-                        "Failed to clean up corrupt pending timer"
-                    );
-                }
-                continue;
-            }
-
             tracing::info!(
                 instance_id = %pending.instance_id,
                 fire_at_ms = %pending.fire_at_ms,
@@ -289,8 +251,14 @@ impl ReanimatorLoop {
         S: TimerStorage + 'static,
         Q: WorkQueue + 'static,
     {
-        // Transition to Running
+        // Transition to Running first so spawn() returns in Running state
         let _ = state_sender.send(ReanimatorState::Running);
+
+        // Run crash recovery before starting the loop
+        // This ensures any pending timers from a previous crash are replayed
+        if let Err(e) = Self::run_crash_recovery(&storage, &work_queue).await {
+            tracing::warn!("Crash recovery completed with error: {}", e);
+        }
 
         let mut scan_interval = interval(config.scan_interval);
         scan_interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
@@ -363,6 +331,17 @@ impl ReanimatorLoop {
         // Reset budget for this cycle
         budget.reset();
 
+        // Deduplicate timers by (instance_id, fire_at_ms) to prevent double-fire
+        // when the same timer appears multiple times in scan results
+        let mut seen = std::collections::HashSet::new();
+        let deduped_timers: Vec<_> = scan_result
+            .into_iter()
+            .filter(|timer| {
+                let key = (timer.instance_id.clone(), timer.fire_at_ms);
+                seen.insert(key)
+            })
+            .collect();
+
         let concurrency_limit = config.max_concurrent_resumes as usize;
         let storage_ref = storage.clone();
         let work_queue_ref = work_queue.clone();
@@ -372,8 +351,8 @@ impl ReanimatorLoop {
 
         use futures::StreamExt;
         futures::stream::iter(
-            scan_result
-                .iter()
+            deduped_timers
+                .into_iter()
                 .take(config.max_timers_per_cycle as usize),
         )
         .filter(|timer| {

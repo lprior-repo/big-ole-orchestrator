@@ -1,12 +1,12 @@
 {
-  "session_id": "2c79871c-d83f-43e4-991c-99f7bf98a3a6",
-  "transcript_path": "/home/lewis/.claude/projects/-home-lewis-gt-veloxide-polecats-thunder-veloxide/2c79871c-d83f-43e4-991c-99f7bf98a3a6.jsonl",
+  "session_id": "8448f4fe-e4fd-4895-937f-342e0aacaaba",
+  "transcript_path": "/home/lewis/.claude/projects/-home-lewis-gt-veloxide-polecats-thunder-veloxide/8448f4fe-e4fd-4895-937f-342e0aacaaba.jsonl",
   "hook_event_name": "PreToolUse",
-  "tool_name": "Edit",
+  "tool_name": "Write",
   "tool_input": {
-    "file_path": "/home/lewis/gt/veloxide/polecats/thunder/veloxide/crates/vo-storage/tests/effect_journal_crash_injection.rs",
-    "old_string": "        assert!(journal.list_pending(&id).unwrap().is_empty());\n    }\n}",
-    "new_string": "        assert!(journal.list_pending(&id).unwrap().is_empty());\n    }\n}\n\n#[test]\nfn partial_commit_crash_recovers_uncommitted_and_preserves_committed() {\n    let dir = tempfile::tempdir().unwrap();\n    let id = sample_instance_id();\n\n    // Prepare 4, commit 2, crash\n    {\n        let journal = open_journal(dir.path());\n        for i in 0..4 {\n            journal\n                .prepare(&id, http_record(&format!(\"fx-partial-{i}\")))\n                .unwrap();\n        }\n        for i in 0..2 {\n            let eid = vo_storage::effect_journal::EffectId::new(&id, &format!(\"fx-partial-{i}\")).unwrap();\n            journal.commit(&eid).unwrap();\n        }\n    }\n\n    // Reopen: 2 pending, 2 committed\n    {\n        let journal = open_journal(dir.path());\n        let pending = journal.list_pending(&id).unwrap();\n        assert_eq!(pending.len(), 2);\n\n        // Re-committing already-committed must fail\n        for i in 0..2 {\n            let eid = vo_storage::effect_journal::EffectId::new(&id, &format!(\"fx-partial-{i}\")).unwrap();\n            assert!(journal.commit(&eid).is_err(), \"re-commit must fail\");\n        }\n\n        // Rollback remaining pending\n        for record in &pending {\n            let eid = vo_storage::effect_journal::EffectId::new(&id, record.intent_id()).unwrap();\n            journal.rollback(&eid).unwrap();\n        }\n        assert!(journal.list_pending(&id).unwrap().is_empty());\n    }\n}",
+    "file_path": "/home/lewis/gt/veloxide/polecats/thunder/veloxide/crates/vo-core/tests/config_schema_validation.rs",
+    "old_string": "    assert!(err.contains(\"host\"), \"error should name the missing field: {err}\");\n}",
+    "new_string": "    assert!(err.contains(\"host\"), \"error should name the missing field: {err}\");\n}\n\n#[test]\nfn schema_validator_rejects_non_object_config() {\n    let schema = SchemaValidator::new(\n        vec![FieldDef {\n            name: \"port\".into(),\n            field_type: FieldType::Integer,\n        }],\n        false,\n    );\n\n    let config = serde_json::json!(\"not an object\");\n    let result = schema.validate(&config);\n    assert!(result.is_err());\n    let err = result.unwrap_err();\n    assert!(err.contains(\"must be a JSON object\"), \"error should mention object requirement: {err}\");\n}",
     "replace_all": false
   }
 }

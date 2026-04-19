@@ -10,11 +10,17 @@ use vo_storage::blob_store::{BlobRecord, BlobStoreError, ContentAddress, PackFil
 pub trait ContentAddressedStorage: Send + Sync {
     async fn store(&self, data: &[u8]) -> Result<ContentAddress, ContentAddressedStorageError>;
 
-    async fn store_streaming<R>(&self, reader: R) -> Result<ContentAddress, ContentAddressedStorageError>
+    async fn store_streaming<R>(
+        &self,
+        reader: R,
+    ) -> Result<ContentAddress, ContentAddressedStorageError>
     where
         R: tokio::io::AsyncRead + Send + Unpin + 'static;
 
-    async fn retrieve(&self, addr: &ContentAddress) -> Result<Vec<u8>, ContentAddressedStorageError>;
+    async fn retrieve(
+        &self,
+        addr: &ContentAddress,
+    ) -> Result<Vec<u8>, ContentAddressedStorageError>;
 
     async fn retrieve_streaming<W>(
         &self,
@@ -55,7 +61,10 @@ pub enum ContentAddressedStorageError {
     PackFileNotFound(String),
     DuplicateContent(String),
     CorruptPackIndex(String),
-    CorruptPackFile { pack_file_id: String, reason: String },
+    CorruptPackFile {
+        pack_file_id: String,
+        reason: String,
+    },
     ChecksumMismatch {
         content_addr: String,
         expected: String,
@@ -66,7 +75,10 @@ pub enum ContentAddressedStorageError {
     Storage(String),
     InvalidArgument(String),
     GcCycleInProgress,
-    PackFileFull { pack_file_id: String, max_size_bytes: u64 },
+    PackFileFull {
+        pack_file_id: String,
+        max_size_bytes: u64,
+    },
 }
 
 impl ContentAddressedStorageError {
@@ -124,7 +136,11 @@ impl std::fmt::Display for ContentAddressedStorageError {
                 pack_file_id,
                 max_size_bytes,
             } => {
-                write!(f, "Pack file {} full (max {} bytes)", pack_file_id, max_size_bytes)
+                write!(
+                    f,
+                    "Pack file {} full (max {} bytes)",
+                    pack_file_id, max_size_bytes
+                )
             }
         }
     }
@@ -135,9 +151,7 @@ impl std::error::Error for ContentAddressedStorageError {}
 impl From<BlobStoreError> for ContentAddressedStorageError {
     fn from(err: BlobStoreError) -> Self {
         match err {
-            BlobStoreError::ContentNotFound { content_addr } => {
-                Self::ContentNotFound(content_addr)
-            }
+            BlobStoreError::ContentNotFound { content_addr } => Self::ContentNotFound(content_addr),
             BlobStoreError::PackFileNotFound { pack_file_id } => {
                 Self::PackFileNotFound(pack_file_id)
             }
@@ -161,12 +175,8 @@ impl From<BlobStoreError> for ContentAddressedStorageError {
                 expected,
                 actual,
             },
-            BlobStoreError::SerializationFailed { reason } => {
-                Self::SerializationFailed(reason)
-            }
-            BlobStoreError::DeserializationFailed { reason } => {
-                Self::DeserializationFailed(reason)
-            }
+            BlobStoreError::SerializationFailed { reason } => Self::SerializationFailed(reason),
+            BlobStoreError::DeserializationFailed { reason } => Self::DeserializationFailed(reason),
             BlobStoreError::Storage { reason } => Self::Storage(reason),
             BlobStoreError::InvalidArgument { reason } => Self::InvalidArgument(reason),
             BlobStoreError::GcCycleInProgress => Self::GcCycleInProgress,

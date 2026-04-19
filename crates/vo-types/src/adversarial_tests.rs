@@ -290,10 +290,12 @@ fn rq_timer_id_accepts_newlines() {
 }
 
 #[test]
-fn rq_idempotency_key_accepts_null_byte() {
+fn rq_idempotency_key_rejects_null_byte() {
     let result = IdempotencyKey::parse("key\x00val");
-    let val = result.expect("IdempotencyKey is opaque and should accept null byte");
-    assert!(val.as_str().contains('\x00'));
+    assert!(
+        result.is_err(),
+        "IdempotencyKey must reject null byte (identifier chars only)"
+    );
 }
 
 #[test]

@@ -3,7 +3,8 @@
 //! These tests verify properties that should hold for ANY valid implementation.
 
 use proptest::prelude::*;
-use vo_core::upcaster::{Upcaster, UpcasterError};
+use vo_core::upcaster::Upcaster;
+use vo_types::events::upcaster::UpcasterError;
 
 // =============================================================================
 // Upcaster Invariants
@@ -14,10 +15,10 @@ proptest! {
     #[test]
     fn upcaster_is_deterministic(source_version in 0u8..=10u8) {
         let upcaster = TestDeterministicUpcaster { source_version };
-        let input = br#"{"version": 0, "payload": {}}"#;
+        let input = serde_json::json!({"version": 0, "payload": {}});
 
-        let result1 = upcaster.upcast(input);
-        let result2 = upcaster.upcast(input);
+        let result1 = upcaster.upcast(&input);
+        let result2 = upcaster.upcast(&input);
 
         prop_assert_eq!(result1, result2);
     }
@@ -37,8 +38,11 @@ impl Upcaster for TestDeterministicUpcaster {
         self.source_version
     }
 
-    fn upcast(&self, _input: &[u8]) -> Result<Vec<u8>, UpcasterError> {
-        // RED PHASE: This is a stub that returns an error
-        Err(UpcasterError::UpcastingFailed("stub".to_string()))
+    fn target_version(&self) -> u8 {
+        self.source_version + 1
+    }
+
+    fn upcast(&self, _payload: &serde_json::Value) -> Result<serde_json::Value, UpcasterError> {
+        Err(UpcasterError::UpcastFailed("stub".to_string()))
     }
 }

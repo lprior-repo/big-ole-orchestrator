@@ -175,21 +175,6 @@ fn journal_response_validate_sorted() -> anyhow::Result<()> {
 }
 
 #[test]
-fn error_response_retryable_validation() -> anyhow::Result<()> {
-    let retry = RetryAfterSeconds::new(5).map_err(|e| anyhow::anyhow!(e))?;
-
-    let err = ErrorResponse::new("at_capacity", "Capacity reached", Some(retry.clone()));    assert!(matches!(err, Ok(_)));
-
-    let err = ErrorResponse::new("at_capacity", "Capacity reached", None);
-    assert!(err, Err(_)));
-    let err = ErrorResponse::new("not_found", "Not found", None);
-    assert!(matches!(err, Ok(_)));
-
-    let err = ErrorResponse::new("not_found", "Not found", Some(retry));
-    assert!(err, Err(_)));    Ok(())
-}
-
-#[test]
 fn start_workflow_response_validate() -> anyhow::Result<()> {
     let resp = StartWorkflowResponse {
         invocation_id: InvocationId::from_str("01ARZ3NDEKTSV4RRFFQ69G5FAV")

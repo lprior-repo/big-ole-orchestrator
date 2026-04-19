@@ -1,5 +1,8 @@
 //! Scheduler domain types
+//!
+//! Types aligned to ADR-047 Background Job Scheduler Contract.
 
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
@@ -10,6 +13,149 @@ pub enum JobPriority {
     #[default]
     Normal = 2,
     Low = 3,
+    Background = 4,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum JobState {
+    Scheduled,
+    Pending,
+    Running,
+    Completed,
+    Failed,
+    Cancelled,
+    Retrying,
+}
+
+impl JobState {
+    pub fn is_terminal(&self) -> bool {
+        matches!(
+            self,
+            JobState::Completed | JobState::Failed | JobState::Cancelled
+        )
+    }
+
+    pub fn is_non_terminal(&self) -> bool {
+        !self.is_terminal()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum JobKind {
+    OneShot,
+    Recurring,
+    Delayed,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SchedulePolicy {
+    At(DateTime<Utc>),
+    After(Duration),
+    Cron(String),
+    Immediate,
+}
+
+impl SchedulePolicy {
+    pub fn at(dt: DateTime<Utc>) -> Self {
+        Self::At(dt)
+    }
+
+    pub fn after(duration: Duration) -> Self {
+        Self::After(duration)
+    }
+
+    pub fn cron(expr: &str) -> Self {
+        Self::Cron(expr.to_string())
+    }
+
+    pub fn immediate() -> Self {
+        Self::Immediate
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum SchedulerRetryPolicyError {
+    #[error("initial_delay ({initial_ms}ms) must be <= max_delay ({max_ms}ms)")]
+    InitialDelayExceedsMax { initial_ms: u64, max_ms: u64 },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct SchedulerRetryPolicy {
+    pub max_attempts: u32,
+    pub backoff_multiplier: f64,
+    pub initial_delay: Duration,
+    pub max_delay: Duration,
+}
+
+impl SchedulerRetryPolicy {
+    /// Create a new `SchedulerRetryPolicy` with validation.
+    ///
+    /// # Errors
+    ///
+    /// Returns `SchedulerRetryPolicyError::InitialDelayExceedsMax` if
+    /// `initial_delay > max_delay`.
+    pub fn new(
+        max_attempts: u32,
+        backoff_multiplier: f64,
+        initial_delay: Duration,
+        max_delay: Duration,
+    ) -> Result<Self, SchedulerRetryPolicyError> {
+        if initial_delay > max_delay {
+            return Err(SchedulerRetryPolicyError::InitialDelayExceedsMax {
+                initial_ms: initial_delay.as_millis() as u64,
+                max_ms: max_delay.as_millis() as u64,
+            });
+        }
+        Ok(Self {
+            max_attempts,
+            backoff_multiplier,
+            initial_delay,
+            max_delay,
+        })
+    }
+
+    pub fn default_retry() -> Self {
+        Self::new(3, 2.0, Duration::from_millis(1000), Duration::from_secs(60))
+            .expect("default_retry values are valid")
+    }
+
+    pub fn calculate_delay(&self, attempt: u32) -> Duration {
+        let delay_ms = (self.initial_delay.as_millis() as f64
+            * self.backoff_multiplier.powi(attempt as i32)) as u64;
+        Duration::from_millis(delay_ms.min(self.max_delay.as_millis() as u64))
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScheduledJob {
+    pub id: JobId,
+    pub kind: JobKind,
+    pub state: JobState,
+    pub priority: JobPriority,
+    pub schedule_policy: SchedulePolicy,
+    pub retry_policy: SchedulerRetryPolicy,
+    pub attempt_count: u32,
+    pub due_at: DateTime<Utc>,
+    pub payload: SerializedPayload,
+    pub last_error: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SerializedPayload(pub String);
+
+impl SerializedPayload {
+    pub fn new(data: String) -> Self {
+        Self(data)
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -100,18 +246,68 @@ impl Job {
     }
 }
 
+/// A validated job identifier wrapping a `u64`.
+///
+/// Construct via [`JobId::new`] (infallible for `u64`) or [`JobId::parse`] (validates
+/// string input). Implements [`FromStr`] and [`TryFrom<&str>`] for ergonomic integration.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct JobId(pub u64);
 
 impl JobId {
+    #[must_use]
     pub fn new(id: u64) -> Self {
         Self(id)
+    }
+
+    /// Parse a string into a `JobId`, trimming whitespace first.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SchedulerError::InvalidJobId`] if the input is empty or not a valid `u64`.
+    pub fn parse(input: &str) -> Result<Self, super::SchedulerError> {
+        let trimmed = input.trim();
+        if trimmed.is_empty() {
+            return Err(super::SchedulerError::InvalidJobId(
+                "JobId must not be empty".to_string(),
+            ));
+        }
+        let id: u64 = trimmed
+            .parse()
+            .map_err(|e| super::SchedulerError::InvalidJobId(format!("invalid u64: {e}")))?;
+        Ok(Self(id))
+    }
+
+    #[must_use]
+    pub fn get(&self) -> u64 {
+        self.0
     }
 }
 
 impl std::fmt::Display for JobId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "job-{}", self.0)
+    }
+}
+
+impl std::str::FromStr for JobId {
+    type Err = super::SchedulerError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::parse(s)
+    }
+}
+
+impl TryFrom<&str> for JobId {
+    type Error = super::SchedulerError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        Self::parse(value)
+    }
+}
+
+impl AsRef<u64> for JobId {
+    fn as_ref(&self) -> &u64 {
+        &self.0
     }
 }
 
@@ -176,6 +372,50 @@ mod tests {
     }
 
     #[test]
+    fn scheduler_retry_policy_rejects_initial_delay_exceeding_max() {
+        let result = SchedulerRetryPolicy::new(
+            3,
+            2.0,
+            Duration::from_secs(120),
+            Duration::from_secs(60),
+        );
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert_eq!(err.to_string(), "initial_delay (120000ms) must be <= max_delay (60000ms)");
+    }
+
+
+    #[test]
+    fn scheduler_retry_policy_valid_config_succeeds() {
+        let policy = SchedulerRetryPolicy::new(
+            3,
+            2.0,
+            Duration::from_secs(1),
+            Duration::from_secs(60),
+        );
+        assert!(policy.is_ok());
+        let p = policy.unwrap();
+        assert_eq!(p.max_attempts, 3);
+        assert_eq!(p.initial_delay, Duration::from_secs(1));
+        assert_eq!(p.max_delay, Duration::from_secs(60));
+    }
+
+    #[test]
+    fn scheduler_retry_policy_equal_delays_succeeds() {
+        let policy = SchedulerRetryPolicy::new(
+            1,
+            1.0,
+            Duration::from_secs(30),
+            Duration::from_secs(30),
+        );
+        assert!(policy.is_ok());
+    }
+
+    #[test]
+    fn scheduler_retry_policy_default_retry_is_valid() {
+        let _ = SchedulerRetryPolicy::default_retry();
+    }
+    #[test]
     fn job_builder() {
         let job = Job::new(
             JobId::new(1),
@@ -189,5 +429,67 @@ mod tests {
         assert_eq!(job.priority, JobPriority::High);
         assert_eq!(job.max_retries, 5);
         assert_eq!(job.backoff_ms, 500);
+    }
+
+    #[test]
+    fn job_id_parse_valid() {
+        assert_eq!(JobId::parse("42").unwrap(), JobId::new(42));
+        assert_eq!(JobId::parse("0").unwrap(), JobId::new(0));
+        assert_eq!(JobId::parse("  7  ").unwrap(), JobId::new(7));
+        assert_eq!(
+            JobId::parse(&u64::MAX.to_string()).unwrap(),
+            JobId::new(u64::MAX)
+        );
+    }
+
+    #[test]
+    fn job_id_parse_invalid() {
+        assert!(JobId::parse("").is_err());
+        assert!(JobId::parse("   ").is_err());
+        assert!(JobId::parse("abc").is_err());
+        assert!(JobId::parse("-1").is_err());
+        assert!(JobId::parse("1.5").is_err());
+        assert!(JobId::parse("18446744073709551616").is_err());
+    }
+
+    #[test]
+    fn job_id_get() {
+        assert_eq!(JobId::new(99).get(), 99);
+        assert_eq!(JobId::parse("123").unwrap().get(), 123);
+    }
+
+    #[test]
+    fn job_id_from_str_valid() {
+        use std::str::FromStr;
+        let id = JobId::from_str("42").unwrap();
+        assert_eq!(id, JobId::new(42));
+    }
+
+    #[test]
+    fn job_id_from_str_invalid() {
+        use std::str::FromStr;
+        assert!(JobId::from_str("").is_err());
+        assert!(JobId::from_str("abc").is_err());
+        assert!(JobId::from_str("-1").is_err());
+    }
+
+    #[test]
+    fn job_id_try_from_str() {
+        let id = JobId::try_from("99").unwrap();
+        assert_eq!(id, JobId::new(99));
+        assert!(JobId::try_from("").is_err());
+        assert!(JobId::try_from("not-a-number").is_err());
+    }
+
+    #[test]
+    fn job_id_as_ref() {
+        let id = JobId::new(42);
+        assert_eq!(*id.as_ref(), 42);
+    }
+
+    #[test]
+    fn job_id_display() {
+        assert_eq!(format!("{}", JobId::new(42)), "job-42");
+        assert_eq!(format!("{}", JobId::new(0)), "job-0");
     }
 }

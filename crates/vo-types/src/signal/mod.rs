@@ -5,6 +5,7 @@
 
 mod buffer_policy;
 mod dedupe_key;
+mod failure_scope;
 mod lineage_scope;
 mod signal_address;
 mod signal_delivery;
@@ -14,6 +15,7 @@ mod wait_record;
 
 pub use buffer_policy::BufferPolicy;
 pub use dedupe_key::SignalDedupeKey;
+pub use failure_scope::FailureScope;
 pub use lineage_scope::LineageScope;
 pub use signal_address::SignalAddress;
 pub use signal_delivery::SignalDelivery;

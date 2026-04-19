@@ -1,6 +1,6 @@
 use crate::types::errors::InvariantViolation;
-use crate::types::helpers::{is_retryable_error, is_sorted};
-use crate::types::names::{InvocationId, RetryAfterSeconds, SignalName, Timestamp, WorkflowName};
+use crate::types::helpers::is_sorted;
+use crate::types::names::{InvocationId, SignalName, Timestamp, WorkflowName};
 use serde::{Deserialize, Serialize};
 
 /// Request to start a new workflow
@@ -140,41 +140,4 @@ impl JournalResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ListWorkflowsResponse {
     pub workflows: Vec<WorkflowStatus>,
-}
-
-/// API error response
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ErrorResponse {
-    pub error: String,
-    pub message: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub retry_after_seconds: Option<RetryAfterSeconds>,
-}
-
-impl ErrorResponse {
-    /// Create a new `ErrorResponse` with validation.
-    ///
-    /// # Errors
-    /// Returns `InvariantViolation` if retry_after_seconds is missing for retryable errors
-    /// or present for non-retryable errors.
-    pub fn new(
-        error: impl Into<String>,
-        message: impl Into<String>,
-        retry_after: Option<RetryAfterSeconds>,
-    ) -> Result<Self, InvariantViolation> {
-        let error_str = error.into();
-        let is_retryable = is_retryable_error(&error_str);
-        let has_retry = retry_after.is_some();
-        if is_retryable && !has_retry {
-            return Err(InvariantViolation::InvalidRetryForErrorType);
-        }
-        if !is_retryable && has_retry {
-            return Err(InvariantViolation::InvalidRetryForErrorType);
-        }
-        Ok(Self {
-            error: error_str,
-            message: message.into(),
-            retry_after_seconds: retry_after,
-        })
-    }
 }

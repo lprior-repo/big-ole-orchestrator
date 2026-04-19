@@ -3,7 +3,8 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use crate::upcaster::{EventEnvelopeError, Upcaster, UpcasterError, MAX_SUPPORTED_VERSION};
+use crate::upcaster::{UpcasterError, MAX_SUPPORTED_VERSION};
+use vo_types::events::upcaster::Upcaster;
 use vo_types::events::EventEnvelope;
 
 /// Registry for resolving and applying upcaster chains
@@ -52,15 +53,14 @@ impl UpcasterRegistry for UpcasterRegistryImpl {
     /// Returns `UpcasterError::InvalidTargetVersion` if the source version exceeds
     /// the maximum supported version.
     ///
-    /// Returns `UpcasterError::NoUpcasterRegistered` if an upcaster is already
+    /// Returns `UpcasterError::DuplicateRegistration` if an upcaster is already
     /// registered for the given source version.
     fn register(&self, upcaster: Box<dyn Upcaster>) -> Result<(), UpcasterError> {
         let source_version = upcaster.source_version();
+        let target_version = upcaster.target_version();
 
-        // Reject upcasters whose source version is at or above max
-        // (since upcasters produce source_version + 1, this would exceed max)
-        if source_version >= self.max_version {
-            return Err(UpcasterError::InvalidTargetVersion(source_version));
+        if target_version > self.max_version {
+            return Err(UpcasterError::InvalidTargetVersion(target_version));
         }
 
         let mut upcasters = self
@@ -69,7 +69,7 @@ impl UpcasterRegistry for UpcasterRegistryImpl {
             .map_err(|_| UpcasterError::UpcastingFailed("lock poisoned".to_string()))?;
 
         if upcasters.contains_key(&source_version) {
-            return Err(UpcasterError::NoUpcasterRegistered(source_version));
+            return Err(UpcasterError::DuplicateRegistration(source_version));
         }
 
         upcasters.insert(source_version, upcaster);
@@ -130,7 +130,7 @@ fn build_upcast_chain(
         let upcaster = get_upcaster_for_version(upcasters, current_version)?;
         chain.push((current_version, upcaster));
         visited.insert(current_version, true);
-        current_version = upcaster.source_version() + 1;
+        current_version = upcaster.target_version();
     }
 
     Ok(chain)
@@ -158,15 +158,16 @@ fn get_upcaster_for_version(
 
 /// Applies a single upcaster step, returning new version and payload.
 fn apply_single_upcast(
-    envelope: &EventEnvelope,
-    version: u8,
+    _envelope: &EventEnvelope,
+    _version: u8,
     upcaster: &dyn Upcaster,
     current_payload: &serde_json::Value,
-    max_version: u8,
+    _max_version: u8,
 ) -> Result<(u8, serde_json::Value), UpcasterError> {
-    let input_bytes = serialize_envelope_for_upcast(envelope, version, current_payload)?;
-    let output_bytes = upcaster.upcast(&input_bytes)?;
-    parse_and_validate_upcasted_envelope(&output_bytes, max_version)
+    let new_payload = upcaster
+        .upcast(current_payload)
+        .map_err(|e| UpcasterError::UpcastingFailed(e.to_string()))?;
+    Ok((upcaster.target_version(), new_payload))
 }
 
 /// Applies the upcast chain to transform the envelope payload.
@@ -193,91 +194,6 @@ fn apply_upcast_chain<'a>(
         payload: current_payload,
         metadata: envelope.metadata.clone(),
     })
-}
-
-/// Serializes the current envelope state as JSON for upcaster input.
-fn serialize_envelope_for_upcast(
-    envelope: &EventEnvelope,
-    version: u8,
-    payload: &serde_json::Value,
-) -> Result<Vec<u8>, UpcasterError> {
-    let mut envelope_json = serde_json::Map::new();
-    envelope_json.insert("version".to_string(), serde_json::json!(version));
-    envelope_json.insert(
-        "instance_id".to_string(),
-        serde_json::json!(envelope.instance_id.clone()),
-    );
-    envelope_json.insert("sequence".to_string(), serde_json::json!(envelope.sequence));
-    envelope_json.insert(
-        "timestamp_ms".to_string(),
-        serde_json::json!(envelope.timestamp_ms),
-    );
-    envelope_json.insert("payload".to_string(), payload.clone());
-    envelope_json.insert("metadata".to_string(), envelope.metadata.to_json());
-
-    serde_json::to_vec(&envelope_json)
-        .map_err(|e| UpcasterError::UpcastingFailed(format!("serialization error: {}", e)))
-}
-
-/// Extracts and validates version number from envelope object.
-fn extract_version(
-    output_obj: &serde_json::Map<String, serde_json::Value>,
-    max_version: u8,
-) -> Result<u8, UpcasterError> {
-    let v = parse_version_from_json(output_obj)?;
-    validate_version_within_limit(v, max_version)
-}
-
-/// Parses the version field from JSON, returning u8 or error.
-fn parse_version_from_json(
-    output_obj: &serde_json::Map<String, serde_json::Value>,
-) -> Result<u8, UpcasterError> {
-    output_obj
-        .get("version")
-        .and_then(|v| v.as_u64())
-        .map(u8::try_from)
-        .ok_or_else(|| {
-            UpcasterError::InvalidUpcastedEnvelope(EventEnvelopeError::MissingEnvelopeField(
-                "version".to_string(),
-            ))
-        })?
-        .map_err(|_| {
-            UpcasterError::InvalidUpcastedEnvelope(EventEnvelopeError::InvalidEnvelopeField(
-                "version exceeds u8 range".to_string(),
-            ))
-        })
-}
-
-/// Validates that version does not exceed max_version.
-fn validate_version_within_limit(v: u8, max_version: u8) -> Result<u8, UpcasterError> {
-    if v > max_version {
-        Err(UpcasterError::InvalidTargetVersion(v))
-    } else {
-        Ok(v)
-    }
-}
-
-/// Parses and validates upcaster output, extracting new version and payload.
-fn parse_and_validate_upcasted_envelope(
-    output_bytes: &[u8],
-    max_version: u8,
-) -> Result<(u8, serde_json::Value), UpcasterError> {
-    let output_json: serde_json::Value = serde_json::from_slice(output_bytes).map_err(|_| {
-        UpcasterError::InvalidUpcastedEnvelope(EventEnvelopeError::InvalidEnvelopeFormat)
-    })?;
-
-    let output_obj = output_json.as_object().ok_or({
-        UpcasterError::InvalidUpcastedEnvelope(EventEnvelopeError::InvalidEnvelopeFormat)
-    })?;
-
-    let new_version = extract_version(output_obj, max_version)?;
-    let new_payload = output_obj.get("payload").cloned().ok_or_else(|| {
-        UpcasterError::InvalidUpcastedEnvelope(EventEnvelopeError::MissingEnvelopeField(
-            "payload".to_string(),
-        ))
-    })?;
-
-    Ok((new_version, new_payload))
 }
 
 // =============================================================================

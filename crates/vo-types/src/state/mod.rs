@@ -3,16 +3,9 @@
 //! Lifecycle state machine with exhaustive transition rules.
 #![allow(dead_code)]
 
-mod compiler;
 mod lifecycle;
 mod semantic_types;
 mod transition;
-
-pub use compiler::{
-    create_lifecycle_table, CompilerTransitionError, Guard, GuardFn, GuardResult, SideEffect,
-    SideEffectFn, SideEffectResult, TransitionBuilder, TransitionRule, TransitionTable,
-    TransitionTableBuilder,
-};
 
 pub use lifecycle::{BlockedReason, LifecycleState, OperationalStatus, TransitionEvent};
 pub use semantic_types::{AttemptNumber, InstanceState, NodeName, TimerId};
@@ -33,3 +26,9 @@ mod tests_lease;
 
 #[cfg(feature = "proptest")]
 mod tests_proptest;
+
+#[cfg(test)]
+mod tests_integration_paths;
+
+#[cfg(feature = "proptest")]
+mod tests_properties;

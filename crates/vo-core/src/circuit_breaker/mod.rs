@@ -23,6 +23,9 @@ pub use types::{
     UnquarantineResult,
 };
 
+/// Callback type for quarantine notifications.
+pub type QuarantineCallback = Box<dyn Fn(&QuarantineEvent) + Send + Sync>;
+
 use std::time::Instant;
 use vo_types::{BinaryHash, WorkflowName};
 
@@ -66,6 +69,11 @@ pub fn evaluate_registration(
             });
         }
         RegistrationStatus::Deactivated => {
+            return Ok(RegistrationOutcome::WorkflowDeactivated {
+                workflow_name: request.workflow_name.clone(),
+            });
+        }
+        RegistrationStatus::Deleted => {
             return Ok(RegistrationOutcome::WorkflowDeactivated {
                 workflow_name: request.workflow_name.clone(),
             });
@@ -147,9 +155,14 @@ pub fn record_failure(
         // Transition to Quarantined
         state.set_status(workflow_name.clone(), RegistrationStatus::Quarantined);
 
-        Ok(Some(QuarantineEvent {
+        let event = QuarantineEvent {
             workflow_name: workflow_name.clone(),
-        }))
+        };
+
+        // Notify callback if set (ADR-026)
+        state.notify_quarantine(&event);
+
+        Ok(Some(event))
     } else {
         Ok(None)
     }

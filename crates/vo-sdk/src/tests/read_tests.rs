@@ -4,7 +4,7 @@ use std::io::Cursor;
 
 use serde_json::json;
 
-use crate::read::read_input_inner;
+use super::read_input_inner_with_state as read_input_inner;
 use crate::SdkError;
 
 use super::valid_envelope;
@@ -243,13 +243,13 @@ fn read_truncated_json_returns_invalid_input() {
 }
 
 #[test]
-fn read_idempotency_key_with_spaces_is_valid() {
+fn read_idempotency_key_with_spaces_returns_invalid_input() {
     let payload = valid_envelope("has spaces", &json!(1));
     let mut cursor = Cursor::new(payload);
     let mut is_read = false;
 
-    let input = read_input_inner(&mut cursor, &mut is_read).expect("spaces in key should be valid");
-    assert_eq!(input.idempotency_key.as_str(), "has spaces");
+    let result = read_input_inner(&mut cursor, &mut is_read);
+    assert_eq!(result, Err(SdkError::InvalidInput));
 }
 
 #[test]

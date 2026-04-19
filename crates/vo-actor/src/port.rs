@@ -45,7 +45,7 @@ pub trait MessageRouterPort: Send + Sync {
         message: T,
     ) -> Result<(), RouteError>;
 
-    async fn route_unicast<T: Send + 'static>(
+    async fn route_unicast<T: Send + Sync + 'static>(
         &self,
         channel_id: &ChannelId,
         message: T,
@@ -75,5 +75,3 @@ pub trait MessageRouterPort: Send + Sync {
 
     async fn clear_dlq(&self);
 }
-
-

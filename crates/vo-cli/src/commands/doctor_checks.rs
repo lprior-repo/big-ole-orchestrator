@@ -1,6 +1,7 @@
-use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
+
+use crate::utils::file_hash;
 
 /// Category of health check.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -63,7 +64,7 @@ impl CategoryReport {
         self.checks.iter().filter(|c| c.severity == Severity::Warn)
     }
 
-    fn push(&mut self, check: &'static str, severity: Severity, message: String) {
+    pub fn push(&mut self, check: &'static str, severity: Severity, message: String) {
         self.checks.push(CheckResult {
             check,
             severity,
@@ -102,21 +103,6 @@ impl DoctorReport {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-fn file_hash(path: &Path) -> Result<String, std::io::Error> {
-    use std::io::Read;
-    let mut file = std::fs::File::open(path)?;
-    let mut hasher = Sha256::new();
-    let mut buf = [0u8; 8192];
-    loop {
-        let n = file.read(&mut buf)?;
-        if n == 0 {
-            break;
-        }
-        hasher.update(&buf[..n]);
-    }
-    Ok(format!("{:x}", hasher.finalize()))
-}
 
 fn parse_lockfile(content: &str) -> BTreeMap<String, String> {
     content
@@ -830,6 +816,7 @@ pub fn format_report_json(report: &DoctorReport) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sha2::{Digest, Sha256};
     use std::fs;
 
     fn make_project_dir() -> PathBuf {
@@ -966,7 +953,6 @@ mod tests {
         assert!(r.is_healthy());
     }
 
-    #[test]
     #[test]
     fn lock_state_detects_orphan_binaries() {
         let dir = make_project_dir();

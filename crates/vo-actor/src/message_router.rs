@@ -722,7 +722,7 @@ impl MessageRouter {
     /// # Errors
     /// Returns `RouteError` if routing fails. The message may be sent to DLQ
     /// if delivery fails but routing succeeds.
-    pub async fn route_unicast<T: Send + 'static>(
+    pub async fn route_unicast<T: serde::Serialize + Send + 'static>(
         &mut self,
         channel_id: &ChannelId,
         message: T,
@@ -766,7 +766,7 @@ impl MessageRouter {
     /// # Errors
     /// Returns `RouteError` if no destinations are available. Messages that fail
     /// delivery individually are still sent to DLQ.
-    pub async fn route_broadcast<T: Send + Sync + 'static>(
+    pub async fn route_broadcast<T: serde::Serialize + Send + Sync + 'static>(
         &mut self,
         channel_id: &ChannelId,
         message: T,
@@ -815,7 +815,7 @@ impl MessageRouter {
 
     /// Routes a message to a channel, auto-selecting unicast or broadcast
     /// based on channel configuration and number of destinations.
-    pub async fn route<T: Send + Sync + 'static>(
+    pub async fn route<T: serde::Serialize + Send + Sync + 'static>(
         &mut self,
         channel_id: &ChannelId,
         message: T,
@@ -831,6 +831,7 @@ impl MessageRouter {
 
     /// Delivers a message to a specific destination (unicast version).
     /// Takes a reference since unicast consumes the message after delivery.
+    #[allow(clippy::unused_async)]
     async fn deliver_to_destination_unicast<T: Send + 'static>(
         &self,
         destination: &RoutingDestination,
@@ -853,6 +854,7 @@ impl MessageRouter {
 
     /// Delivers a message to a specific destination (broadcast version).
     /// Takes a reference since broadcast shares the message across destinations.
+    #[allow(clippy::unused_async)]
     async fn deliver_to_destination_broadcast<T: Send + Sync + 'static>(
         &self,
         destination: &RoutingDestination,
@@ -874,7 +876,7 @@ impl MessageRouter {
     }
 
     /// Sends an undeliverable message to the dead letter queue.
-    fn send_to_dlq<T: Send + 'static>(
+    pub(crate) fn send_to_dlq<T: serde::Serialize + Send + 'static>(
         &mut self,
         channel_id: &ChannelId,
         _message: T,
@@ -883,7 +885,7 @@ impl MessageRouter {
         let entry = DeadLetterEntry {
             channel_id: channel_id.clone(),
             message: DeadLetterMessage {
-                payload: Vec::new(), // Would serialize message here
+                payload: serde_json::to_vec(&_message).unwrap_or_default(),
                 type_name: std::any::type_name::<T>().to_string(),
             },
             enqueued_at: TimestampMs::now(),
@@ -1196,5 +1198,242 @@ mod tests {
             type_name: std::any::type_name::<i32>().to_string(),
         };
         assert!(msg.type_name().contains("i32"));
+    }
+
+    #[test]
+    fn dead_letter_message_new_roundtrips() {
+        let original = String::from("hello dlq");
+        let msg = DeadLetterMessage::new(&original).unwrap();
+        let recovered: String = msg.deserialize().unwrap();
+        assert_eq!(recovered, original);
+    }
+
+    #[test]
+    fn send_to_dlq_stores_serialized_payload() {
+        let mut router = MessageRouter::with_default_config();
+        let ch = ChannelId::new("dlq-test");
+        router.send_to_dlq(&ch, 42i32, DeadLetterReason::ChannelNotFound);
+        let entries = router.drain_dlq();
+        assert_eq!(entries.len(), 1);
+        let recovered: i32 = entries[0].message.deserialize().unwrap();
+        assert_eq!(recovered, 42);
+    }
+
+}
+
+// =============================================================================
+// Property-Based Tests - Message Ordering Guarantees
+// =============================================================================
+
+#[cfg(feature = "proptest")]
+mod proptest_message_ordering {
+    use super::*;
+    use proptest::prelude::*;
+
+    proptest! {
+        #[test]
+        fn dlq_fifo_ordering_respects_insertion_order(
+            capacity in 1..=100usize,
+            num_entries in 0..=200usize
+        ) {
+            // Property: DLQ maintains FIFO order - earlier entries are evicted first
+            let mut dlq = DeadLetterQueue::new(capacity);
+            let mut expected_order = Vec::new();
+
+            for i in 0..num_entries {
+                let channel_id = ChannelId::new(format!("channel-{}", i % 10));
+                let entry = DeadLetterEntry {
+                    channel_id: channel_id.clone(),
+                    message: DeadLetterMessage {
+                        payload: vec![i as u8],
+                        type_name: "test".to_string(),
+                    },
+                    enqueued_at: TimestampMs(i as i64),
+                    reason: DeadLetterReason::ChannelNotFound,
+                };
+                expected_order.push(channel_id);
+                dlq.enqueue(entry);
+            }
+
+            // After all insertions, DLQ should contain min(num_entries, capacity) entries
+            let final_len = dlq.len();
+            prop_assert_eq!(final_len, std::cmp::min(num_entries, capacity));
+
+            // If not full, entries should be in insertion order
+            if num_entries <= capacity {
+                let entries: Vec<_> = dlq.entries.iter().map(|e| e.channel_id.as_str()).collect();
+                let expected: Vec<_> = expected_order.iter().map(|s| s.as_str()).collect();
+                prop_assert_eq!(entries, expected);
+            } else {
+                // If full, oldest entries (first num_entries - capacity) should be evicted
+                // and the most recent 'capacity' entries should remain
+                let expected_remaining: Vec<_> = expected_order
+                    .iter()
+                    .skip(num_entries - capacity)
+                    .map(|s| s.as_str())
+                    .collect();
+                let actual_remaining: Vec<_> = dlq.entries.iter().map(|e| e.channel_id.as_str()).collect();
+                prop_assert_eq!(actual_remaining, expected_remaining);
+            }
+        }
+
+        #[test]
+        fn routing_table_operations_are_deterministic(
+            num_channels in 1..=20usize,
+            operations in 1..=50usize
+        ) {
+            // Property: Given same initial state and operations, routing decisions are identical
+            let mut router1 = MessageRouter::with_default_config();
+            let mut router2 = MessageRouter::with_default_config();
+
+            // Register channels
+            for i in 0..num_channels {
+                let channel_id = ChannelId::new(format!("channel-{}", i));
+                let dest = ActorDestination::new(i);
+                prop_assert!(router1.register_channel(channel_id.clone(), dest.clone()).is_ok());
+                prop_assert!(router2.register_channel(channel_id.clone(), dest.clone()).is_ok());
+            }
+
+            // Perform same operations on both routers
+            let mut rng = proptest::test_runner::TestRng::default();
+            for op_idx in 0..operations {
+                let channel_idx = op_idx % num_channels;
+                let channel_id = ChannelId::new(format!("channel-{}", channel_idx));
+
+                // Operation: add destination (always succeeds since we control the value)
+                let dest = ActorDestination::new(op_idx);
+                let _ = router1.add_destination(&channel_id, dest.clone());
+                let _ = router2.add_destination(&channel_id, dest.clone());
+
+                // Both routers should have same number of channels
+                prop_assert_eq!(router1.num_channels(), router2.num_channels());
+                prop_assert_eq!(router1.total_destinations(), router2.total_destinations());
+            }
+        }
+
+        #[test]
+        fn channel_entry_active_count_is_consistent(
+            initial_destinations in 1..=10usize,
+            activations in 0..=20usize
+        ) {
+            // Property: active_count always matches actual number of active destinations
+            let channel_id = ChannelId::new("test-channel");
+            let mut entry = {
+                let first_dest = RoutingDestination::new(ActorDestination::new(0));
+                ChannelEntry::new(channel_id.clone(), first_dest)
+            };
+
+            // Add more destinations
+            for i in 1..initial_destinations {
+                let dest = RoutingDestination::new(ActorDestination::new(i));
+                prop_assert!(entry.add_destination(dest, 100).is_ok());
+            }
+
+            // Record initial state
+            let initial_active = entry.active_count();
+
+            // Toggle activations randomly
+            let mut expected_active = initial_active;
+            for i in 0..activations {
+                let dest_idx = i % entry.destinations.len();
+                if entry.destinations[dest_idx].is_active {
+                    entry.destinations[dest_idx].deactivate();
+                    expected_active = expected_active.saturating_sub(1);
+                } else {
+                    entry.destinations[dest_idx].activate();
+                    expected_active += 1;
+                }
+                prop_assert_eq!(entry.active_count(), expected_active);
+            }
+        }
+
+        #[test]
+        fn typed_message_metadata_is_properly_captured(
+            payload in any::<i32>(),
+            attempt in 0u32..=10u32
+        ) {
+            // Property: TypedMessage preserves payload and metadata correctly
+            let metadata = MessageMetadata {
+                message_id: "test-id".to_string(),
+                timestamp: TimestampMs::now(),
+                attempt,
+                origin_channel: None,
+            };
+            let msg = TypedMessage::with_metadata(payload, metadata.clone());
+
+            prop_assert_eq!(*msg.payload(), payload);
+            prop_assert_eq!(msg.metadata().attempt, attempt);
+            prop_assert_eq!(msg.metadata().message_id, "test-id");
+        }
+
+        #[test]
+        fn select_active_destinations_is_idempotent(
+            num_destinations in 1..=20usize,
+            num_inactive in 0..=15usize
+        ) {
+            // Property: Selecting active destinations multiple times yields same result
+            let channel_id = ChannelId::new("test-channel");
+            let mut entry = {
+                let first_dest = RoutingDestination::new(ActorDestination::new(0));
+                ChannelEntry::new(channel_id.clone(), first_dest)
+            };
+
+            for i in 1..num_destinations {
+                let dest = RoutingDestination::new(ActorDestination::new(i));
+                prop_assert!(entry.add_destination(dest, 100).is_ok());
+            }
+
+            // Deactivate some destinations
+            let deactivate_count = std::cmp::min(num_inactive, num_destinations);
+            for i in 0..deactivate_count {
+                entry.destinations[i].deactivate();
+            }
+
+            // Multiple calls to select_active_destinations should yield same result
+            let result1 = select_active_destinations(&entry);
+            let result2 = select_active_destinations(&entry);
+            let result3 = select_active_destinations(&entry);
+
+            prop_assert_eq!(result1.len(), result2.len());
+            prop_assert_eq!(result2.len(), result3.len());
+            prop_assert_eq!(result1.len(), num_destinations - deactivate_count);
+        }
+
+        #[test]
+        fn should_broadcast_is_deterministic(
+            num_destinations in 1..=10usize,
+            broadcast_enabled in proptest::bool::ANY,
+            global_broadcast_enabled in proptest::bool::ANY
+        ) {
+            // Property: should_broadcast decision is deterministic based on inputs
+            let channel_id = ChannelId::new("test-channel");
+            let mut entry = {
+                let first_dest = RoutingDestination::new(ActorDestination::new(0));
+                ChannelEntry::new(channel_id.clone(), first_dest)
+            };
+
+            for i in 1..num_destinations {
+                let dest = RoutingDestination::new(ActorDestination::new(i));
+                prop_assert!(entry.add_destination(dest, 100).is_ok());
+            }
+
+            entry.broadcast_enabled = broadcast_enabled;
+
+            let config = RouterConfig {
+                max_destinations_per_channel: 16,
+                max_dlq_size: 1000,
+                delivery_timeout: Duration::from_secs(5),
+                broadcast_enabled: global_broadcast_enabled,
+            };
+
+            let result1 = should_broadcast(&entry, &config);
+            let result2 = should_broadcast(&entry, &config);
+
+            prop_assert_eq!(result1, result2);
+
+            // Expected: broadcast if both enabled AND more than 1 destination
+            let expected = global_broadcast_enabled && broadcast_enabled && num_destinations > 1;
+            prop_assert_eq!(result1, expected);
+        }
     }
 }

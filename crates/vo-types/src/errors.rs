@@ -1,4 +1,6 @@
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, thiserror::Error)]
 pub enum ParseError {
     #[error("{type_name}: value must not be empty")]
     Empty { type_name: &'static str },

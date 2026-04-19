@@ -5,14 +5,19 @@
 //! - Priority queue
 //! - Concurrency limits
 //! - Failure handling with retries
+//!
+//! Types aligned to ADR-047 Background Job Scheduler Contract.
 
 mod error;
 mod queue;
 mod types;
 
-pub use error::{JobRunError, SchedulerError};
-pub use queue::PriorityQueue;
-pub use types::{Job, JobId, JobPriority, JobResult, Schedule, SchedulerConfig};
+pub use error::{ExecutionError, JobRunError, RetryExhaustedError, SchedulerError};
+pub use queue::{PriorityQueue, SchedulerQueue};
+pub use types::{
+    Job, JobId, JobKind, JobPriority, JobResult, JobState, Schedule, SchedulePolicy, ScheduledJob,
+    SchedulerConfig, SchedulerRetryPolicy, SerializedPayload,
+};
 
 use std::sync::Arc;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
@@ -53,8 +58,8 @@ impl Scheduler {
     }
 
     pub fn poll_due_jobs(&mut self, now_ms: u64) -> Vec<Job> {
-        let due = self.queue.due_jobs(now_ms, self.config.max_jobs_per_scan);
-        due.into_iter().map(|(job, _)| job).collect()
+        self.queue
+            .pop_due_jobs(now_ms, self.config.max_jobs_per_scan)
     }
 
     pub fn reschedule(&mut self, job: Job, next_fire_ms: u64) {
@@ -67,7 +72,11 @@ impl Scheduler {
 
     #[allow(dead_code)]
     pub async fn acquire(&self) -> tokio::sync::OwnedSemaphorePermit {
-        self.semaphore.clone().acquire_owned().await.unwrap()
+        self.semaphore
+            .clone()
+            .acquire_owned()
+            .await
+            .expect("scheduler semaphore closed")
     }
 
     pub fn is_running(&self) -> bool {
@@ -84,12 +93,10 @@ impl Scheduler {
             .store(false, std::sync::atomic::Ordering::SeqCst);
     }
 
-    #[cfg(test)]
     pub fn len(&self) -> usize {
         self.queue.len()
     }
 
-    #[cfg(test)]
     pub fn is_empty(&self) -> bool {
         self.queue.is_empty()
     }

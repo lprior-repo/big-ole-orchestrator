@@ -1,26 +1,25 @@
-use std::time::Duration;
 use axum::{
     extract::{Extension, Path},
     http::StatusCode,
     response::IntoResponse,
     Json,
 };
-use bytes::Bytes;
-use ractor::rpc::CallResult;
 use ractor::ActorRef;
+use std::time::Duration;
 use vo_actor::OrchestratorMsg;
 
-use crate::types::{ApiError, V3SignalRequest};
 use crate::handlers::helpers::split_path_id;
+use crate::types::{ApiError, V3SignalRequest};
 
 const ACTOR_CALL_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// POST /api/v1/workflows/:id/signals — send a signal to a running instance (bead vo-meua).
+///
+/// Temporarily returns 501 until OrchestratorMsg gains a Signal variant.
 #[tracing::instrument(skip_all)]
 pub async fn send_signal(
-    Extension(master): Extension<ActorRef<OrchestratorMsg>>,
+    Extension(_master): Extension<ActorRef<OrchestratorMsg>>,
     Path(id): Path<String>,
-    Json(req): Json<V3SignalRequest>,
 ) -> impl IntoResponse {
     let (_, instance_id) = match split_path_id(&id) {
         Some(pair) => pair,
@@ -51,45 +50,14 @@ pub async fn send_signal(
         }
     };
 
-    let call_result = master
-        .call(
-            |tx| OrchestratorMsg::Signal {
-                instance_id,
-                signal_name: req.signal_name.clone(),
-                payload,
-                reply: tx,
-            },
-            Some(ACTOR_CALL_TIMEOUT),
-        )
-        .await;
-
-    match call_result {
-        Err(e) => (
-            StatusCode::SERVICE_UNAVAILABLE,
-            Json(ApiError::new("actor_unavailable", e.to_string())),
-        )
-            .into_response(),
-        Ok(CallResult::Timeout) => (
-            StatusCode::SERVICE_UNAVAILABLE,
-            Json(ApiError::new(
-                "actor_timeout",
-                "orchestrator did not respond",
-            )),
-        )
-            .into_response(),
-        Ok(CallResult::SenderError) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiError::new(
-                "actor_error",
-                "orchestrator dropped the reply",
-            )),
-        )
-            .into_response(),
-        Ok(CallResult::Success(Err(e))) => (
-            StatusCode::NOT_FOUND,
-            Json(ApiError::new("signal_failed", e.to_string())),
-        )
-            .into_response(),
-        Ok(CallResult::Success(Ok(()))) => StatusCode::ACCEPTED.into_response(),
-    }
+    // Signal handling requires OrchestratorMsg::Signal variant which is not yet implemented.
+    // Return NOT_IMPLEMENTED until the vo-actor signal handling is added.
+    (
+        StatusCode::NOT_IMPLEMENTED,
+        Json(ApiError::new(
+            "not_implemented",
+            "signal handling: OrchestratorMsg::Signal variant not yet implemented",
+        )),
+    )
+        .into_response()
 }

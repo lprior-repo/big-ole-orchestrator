@@ -1,32 +1,10 @@
 //! Dedupe key types for ADR-028 exactly-once ingress deduplication.
 
-use std::fmt;
-
 use serde::{Deserialize, Serialize};
 
-use crate::string_types::InstanceId;
+use crate::string_newtype;
+use crate::InstanceId;
 use crate::ParseError;
-
-macro_rules! string_newtype {
-    ($name:ident) => {
-        impl fmt::Display for $name {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                f.write_str(&self.0)
-            }
-        }
-        impl TryFrom<String> for $name {
-            type Error = ParseError;
-            fn try_from(value: String) -> Result<Self, Self::Error> {
-                Self::parse(&value)
-            }
-        }
-        impl From<$name> for String {
-            fn from(value: $name) -> String {
-                value.0
-            }
-        }
-    };
-}
 
 /// Stable dedupe key supplied by caller or derived from provider-native event ID.
 ///

@@ -14,8 +14,7 @@ use std::thread;
 
 use tempfile::tempdir;
 use vo_storage::dedupe_partition::{
-    encode_dedupe_entry, AdmissionResult, DedupeEntry, DedupeStore, DedupeStoreError,
-    FjallDedupeStore,
+    AdmissionResult, DedupeStore, DedupeStoreError, FjallDedupeStore,
 };
 use vo_storage::lease_partition::{FjallLeaseStore, LeaseStore};
 use vo_types::{DedupeKey, FenceToken, InstanceId, StepId};
@@ -304,14 +303,13 @@ fn red_queen_fjall_corruption_expired_entry_allows_reinsert() {
 
     let valid_key = DedupeKey::parse("rq-expired-corrupt-ve-3zrs").unwrap();
     let key_bytes = valid_key.as_str().as_bytes().to_vec();
-    let expired_entry = DedupeEntry::new(
-        "rq-expired-corrupt-ve-3zrs".to_string(),
-        "01ARZ3NDEKTSV4RRFFQ69G5FAV".to_string(),
-        0,
-    )
+    let expired_json = serde_json::to_vec(&serde_json::json!({
+        "dedupe_key": "rq-expired-corrupt-ve-3zrs",
+        "instance_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "expires_at": 0u64
+    }))
     .unwrap();
-    let expired_binary = encode_dedupe_entry(&expired_entry).unwrap();
-    partition.insert(&key_bytes, &expired_binary).unwrap();
+    partition.insert(&key_bytes, &expired_json).unwrap();
 
     let result = store.check_and_insert(&valid_key, &sample_instance_id(), 60_000);
     assert_eq!(
@@ -351,7 +349,7 @@ fn red_queen_fjall_corruption_null_bytes_in_value_handled() {
 // ========================================================================
 
 #[test]
-fn red_queen_fjall_schema_migration_binary_format_readable() {
+fn red_queen_fjall_schema_migration_old_dedupe_format_still_readable() {
     let dir = tempdir().unwrap();
     let keyspace = fjall::Config::new(dir.path()).open().unwrap();
     let store = FjallDedupeStore::open(&keyspace).unwrap();
@@ -363,24 +361,24 @@ fn red_queen_fjall_schema_migration_binary_format_readable() {
     let valid_key = DedupeKey::parse("rq-schema-migrate-ve-3zrs").unwrap();
     let key_bytes = valid_key.as_str().as_bytes().to_vec();
 
-    let entry = DedupeEntry::new(
-        "rq-schema-migrate-ve-3zrs".to_string(),
-        "01ARZ3NDEKTSV4RRFFQ69G5FAV".to_string(),
-        u64::MAX,
-    )
+    let old_format_json = serde_json::to_vec(&serde_json::json!({
+        "dedupe_key": "rq-schema-migrate-ve-3zrs",
+        "instance_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "expires_at": u64::MAX,
+        "extra_field_ignored": true
+    }))
     .unwrap();
-    let binary_data = encode_dedupe_entry(&entry).unwrap();
-    partition.insert(&key_bytes, &binary_data).unwrap();
+    partition.insert(&key_bytes, &old_format_json).unwrap();
 
     let contains = store.contains(&valid_key).unwrap();
-    assert!(contains, "BUG: binary format not readable");
+    assert!(contains, "BUG: old format with extra fields not readable");
 
     let result = store.check_and_insert(&valid_key, &sample_instance_id(), 60_000);
     match result {
         Ok(AdmissionResult::Duplicate { instance_id }) => {
             assert_eq!(
                 instance_id, "01ARZ3NDEKTSV4RRFFQ69G5FAV",
-                "BUG: binary format corrupted instance_id"
+                "BUG: schema migration changed stored instance_id"
             );
         }
         other => panic!("BUG: expected Duplicate, got {:?}", other),
@@ -388,7 +386,7 @@ fn red_queen_fjall_schema_migration_binary_format_readable() {
 }
 
 #[test]
-fn red_queen_fjall_schema_migration_binary_roundtrip() {
+fn red_queen_fjall_schema_migration_reordered_fields_still_readable() {
     let dir = tempdir().unwrap();
     let keyspace = fjall::Config::new(dir.path()).open().unwrap();
     let store = FjallDedupeStore::open(&keyspace).unwrap();
@@ -400,17 +398,16 @@ fn red_queen_fjall_schema_migration_binary_roundtrip() {
     let valid_key = DedupeKey::parse("rq-schema-reorder-ve-3zrs").unwrap();
     let key_bytes = valid_key.as_str().as_bytes().to_vec();
 
-    let entry = DedupeEntry::new(
-        "rq-schema-reorder-ve-3zrs".to_string(),
-        "01ARZ3NDEKTSV4RRFFQ69G5FAV".to_string(),
-        u64::MAX,
-    )
+    let reordered_json = serde_json::to_vec(&serde_json::json!({
+        "expires_at": u64::MAX,
+        "instance_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "dedupe_key": "rq-schema-reorder-ve-3zrs"
+    }))
     .unwrap();
-    let binary_data = encode_dedupe_entry(&entry).unwrap();
-    partition.insert(&key_bytes, &binary_data).unwrap();
+    partition.insert(&key_bytes, &reordered_json).unwrap();
 
     let contains = store.contains(&valid_key).unwrap();
-    assert!(contains, "BUG: binary roundtrip failed");
+    assert!(contains, "BUG: reordered JSON fields not readable");
 }
 
 #[test]
@@ -426,21 +423,20 @@ fn red_queen_fjall_schema_migration_minimal_v1_format() {
     let valid_key = DedupeKey::parse("rq-schema-minimal-ve-3zrs").unwrap();
     let key_bytes = valid_key.as_str().as_bytes().to_vec();
 
-    let entry = DedupeEntry::new(
-        "rq-schema-minimal-ve-3zrs".to_string(),
-        "01ARZ3NDEKTSV4RRFFQ69G5FAV".to_string(),
-        u64::MAX,
-    )
+    let minimal_json = serde_json::to_vec(&serde_json::json!({
+        "dedupe_key": "rq-schema-minimal-ve-3zrs",
+        "instance_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "expires_at": u64::MAX
+    }))
     .unwrap();
-    let binary_data = encode_dedupe_entry(&entry).unwrap();
-    partition.insert(&key_bytes, &binary_data).unwrap();
+    partition.insert(&key_bytes, &minimal_json).unwrap();
 
     let contains = store.contains(&valid_key).unwrap();
-    assert!(contains, "BUG: minimal binary format not readable");
+    assert!(contains, "BUG: minimal v1 format not readable");
 }
 
 #[test]
-fn red_queen_fjall_schema_migration_binary_with_trailing_bytes() {
+fn red_queen_fjall_schema_migration_unknown_field_ignored() {
     let dir = tempdir().unwrap();
     let keyspace = fjall::Config::new(dir.path()).open().unwrap();
     let store = FjallDedupeStore::open(&keyspace).unwrap();
@@ -452,25 +448,25 @@ fn red_queen_fjall_schema_migration_binary_with_trailing_bytes() {
     let valid_key = DedupeKey::parse("rq-schema-unknown-ve-3zrs").unwrap();
     let key_bytes = valid_key.as_str().as_bytes().to_vec();
 
-    let entry = DedupeEntry::new(
-        "rq-schema-unknown-ve-3zrs".to_string(),
-        "01ARZ3NDEKTSV4RRFFQ69G5FAV".to_string(),
-        u64::MAX,
-    )
+    let with_unknown = serde_json::to_vec(&serde_json::json!({
+        "dedupe_key": "rq-schema-unknown-ve-3zrs",
+        "instance_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "expires_at": u64::MAX,
+        "schema_version": "2.0",
+        "migration_info": {"source": "v1", "destination": "v2"}
+    }))
     .unwrap();
-    let mut binary_data = encode_dedupe_entry(&entry).unwrap();
-    binary_data.extend_from_slice(b"trailing_metadata");
-    partition.insert(&key_bytes, &binary_data).unwrap();
+    partition.insert(&key_bytes, &with_unknown).unwrap();
 
     let contains = store.contains(&valid_key).unwrap();
-    assert!(contains, "BUG: entry with trailing bytes not readable");
+    assert!(contains, "BUG: entry with unknown fields not readable");
 
     let duplicate_result = store.check_and_insert(&valid_key, &alternate_instance_id(), 60_000);
     match duplicate_result {
         Ok(AdmissionResult::Duplicate { instance_id }) => {
             assert_eq!(
                 instance_id, "01ARZ3NDEKTSV4RRFFQ69G5FAV",
-                "BUG: trailing bytes corrupted instance_id"
+                "BUG: schema migration corrupted instance_id"
             );
         }
         other => panic!("BUG: expected Duplicate, got {:?}", other),
@@ -495,14 +491,13 @@ fn red_queen_fjall_concurrent_schema_migration_and_purge() {
     for i in 0..16usize {
         let key = DedupeKey::parse(&format!("rq-schema-purge-{i}-ve-3zrs")).unwrap();
         let key_bytes = key.as_str().as_bytes().to_vec();
-        let entry = DedupeEntry::new(
-            format!("rq-schema-purge-{i}-ve-3zrs"),
-            InstanceId::from_bytes([i as u8; 16]).to_string(),
-            u64::MAX,
-        )
+        let json = serde_json::to_vec(&serde_json::json!({
+            "dedupe_key": format!("rq-schema-purge-{i}-ve-3zrs"),
+            "instance_id": InstanceId::from_bytes([i as u8; 16]).to_string(),
+            "expires_at": u64::MAX
+        }))
         .unwrap();
-        let binary_data = encode_dedupe_entry(&entry).unwrap();
-        partition.insert(&key_bytes, &binary_data).unwrap();
+        partition.insert(&key_bytes, &json).unwrap();
     }
 
     let barrier = Arc::new(std::sync::Barrier::new(3));

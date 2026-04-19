@@ -90,7 +90,7 @@ impl ContentAddress {
             .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase())
         {
             return Err(BlobStoreError::InvalidArgument {
-                reason: "content address must be lowercase hex".to_string(),
+                reason: "content address must be lowercase hex (0-9, a-f)".to_string(),
             });
         }
         Ok(Self(s.to_string()))
@@ -114,8 +114,9 @@ impl ContentAddress {
     pub fn as_bytes(&self) -> [u8; 32] {
         let mut bytes = [0u8; 32];
         for (i, chunk) in self.0.as_bytes().chunks(2).enumerate() {
-            let hex_str = unsafe { std::str::from_utf8_unchecked(chunk) };
-            bytes[i] = unsafe { u8::from_str_radix(hex_str, 16).unwrap_unchecked() };
+            let high = hex_nibble(chunk[0]);
+            let low = hex_nibble(chunk[1]);
+            bytes[i] = (high << 4) | low;
         }
         bytes
     }
@@ -322,6 +323,13 @@ impl BlobRecord {
         }
     }
 
+    /// Check if this record is eligible for garbage collection.
+    /// A record is GC-eligible when it has expired AND has no references.
+    #[must_use]
+    pub const fn is_gc_eligible(&self, now_ms: u64) -> bool {
+        self.reference_count == 0 && self.is_expired(now_ms)
+    }
+
     /// Increment reference count, saturating at `u64::MAX`.
     #[must_use]
     pub const fn increment_ref_count(&self) -> u64 {
@@ -398,9 +406,94 @@ pub enum BlobStoreError {
     NotDurablyStored { content_addr: String },
 }
 
+impl fmt::Display for BlobStoreError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::ContentNotFound { content_addr } => {
+                write!(f, "content not found: {content_addr}")
+            }
+            Self::PackFileNotFound { pack_file_id } => {
+                write!(f, "pack file not found: {pack_file_id}")
+            }
+            Self::DuplicateContent { content_addr } => {
+                write!(f, "duplicate content: {content_addr}")
+            }
+            Self::CorruptPackIndex { reason } => {
+                write!(f, "corrupt pack index: {reason}")
+            }
+            Self::CorruptPackFile {
+                pack_file_id,
+                reason,
+            } => {
+                write!(f, "corrupt pack file {pack_file_id}: {reason}")
+            }
+            Self::ChecksumMismatch {
+                content_addr,
+                expected,
+                actual,
+            } => {
+                write!(
+                    f,
+                    "checksum mismatch for {content_addr}: expected {expected}, got {actual}"
+                )
+            }
+            Self::SerializationFailed { reason } => {
+                write!(f, "serialization failed: {reason}")
+            }
+            Self::DeserializationFailed { reason } => {
+                write!(f, "deserialization failed: {reason}")
+            }
+            Self::Storage { reason } => {
+                write!(f, "storage error: {reason}")
+            }
+            Self::InvalidArgument { reason } => {
+                write!(f, "invalid argument: {reason}")
+            }
+            Self::GcCycleInProgress => {
+                write!(f, "GC cycle already in progress")
+            }
+            Self::PackFileFull {
+                pack_file_id,
+                max_size_bytes,
+            } => {
+                write!(
+                    f,
+                    "pack file {pack_file_id} full (max {max_size_bytes} bytes)"
+                )
+            }
+            Self::InvalidPublicationStatus {
+                content_addr,
+                current_status,
+                attempted_operation,
+            } => {
+                write!(
+                    f,
+                    "invalid publication status for {content_addr}: current={current_status}, attempted={attempted_operation}"
+                )
+            }
+            Self::NotDurablyStored { content_addr } => {
+                write!(
+                    f,
+                    "blob {content_addr} is not durably stored, cannot publish"
+                )
+            }
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Calc Layer — Content Address Encoding
 // ---------------------------------------------------------------------------
+
+#[must_use]
+const fn hex_nibble(byte: u8) -> u8 {
+    match byte {
+        b'0'..=b'9' => byte - b'0',
+        b'a'..=b'f' => byte - b'a' + 10,
+        b'A'..=b'F' => byte - b'A' + 10,
+        _ => 0,
+    }
+}
 
 /// Encode a `ContentAddress` as UTF-8 bytes for use as a storage key.
 #[must_use]
@@ -451,11 +544,11 @@ pub fn encode_pack_index_entry(entry: &PackIndexEntry) -> Result<Vec<u8>, BlobSt
 ///
 /// # Errors
 ///
-/// Returns `BlobStoreError::DeserializationFailed` if the bytes are not valid JSON
+/// Returns `BlobStoreError::CorruptPackIndex` if the bytes are not valid JSON
 /// or do not represent a valid `PackIndexEntry`.
 pub fn decode_pack_index_entry(bytes: &[u8]) -> Result<PackIndexEntry, BlobStoreError> {
-    serde_json::from_slice(bytes).map_err(|e| BlobStoreError::DeserializationFailed {
-        reason: e.to_string(),
+    serde_json::from_slice(bytes).map_err(|e| BlobStoreError::CorruptPackIndex {
+        reason: format!("JSON parse error: {e}"),
     })
 }
 
@@ -511,6 +604,10 @@ pub const BLOB_RECORD_PARTITION: &str = "blob_records";
 pub trait BlobStore {
     /// Store a blob from a byte slice, computing SHA-256 for content address.
     ///
+    /// The blob is stored with `DurablyStored` status immediately.
+    /// Use [`BlobStore::stage_blob`] to create a blob in `Pending` status
+    /// for the full ADR-040 publication protocol.
+    ///
     /// If the content already exists (dedup), returns `BlobStoreError::DuplicateContent`.
     ///
     /// # Errors
@@ -518,6 +615,23 @@ pub trait BlobStore {
     /// Returns `BlobStoreError::DuplicateContent` if content already exists.
     /// Returns `BlobStoreError::Storage` if the underlying storage fails.
     fn store(&self, data: &[u8]) -> Result<ContentAddress, BlobStoreError>;
+
+    /// Stage a blob for later publication, creating it with `Pending` status.
+    ///
+    /// The blob data is written durably, but the metadata is created with
+    /// `Pending` status. The caller MUST call [`BlobStore::mark_durable`] before
+    /// publishing an `output_ref` referencing this blob (per ADR-040 §2).
+    ///
+    /// Use this for the full ADR-040 publication protocol:
+    /// 1. `stage_blob` - creates blob as `Pending`
+    /// 2. `mark_durable` - transitions to `DurablyStored`
+    /// 3. `publish` - transitions to `Published`
+    ///
+    /// # Errors
+    ///
+    /// Returns `BlobStoreError::DuplicateContent` if content already exists.
+    /// Returns `BlobStoreError::Storage` if the underlying storage fails.
+    fn stage_blob(&self, data: &[u8]) -> Result<ContentAddress, BlobStoreError>;
 
     /// Store a blob from a streaming source, computing SHA-256 incrementally.
     ///

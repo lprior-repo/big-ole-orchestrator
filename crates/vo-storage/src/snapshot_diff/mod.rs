@@ -144,7 +144,12 @@ pub const fn apply_diff(
     })
 }
 
-pub fn three_way_merge(
+/// Performs a three-way merge of two states relative to a common base.
+///
+/// # Errors
+///
+/// Returns `MergeError::Conflict` if both sides modified the counter differently.
+pub const fn three_way_merge(
     base: &InstanceState,
     ours: &InstanceState,
     theirs: &InstanceState,

@@ -10,7 +10,7 @@
 //!   5. Node kind constraints — each kind's specific behavioral contracts
 
 use crate::dag::{Dag, DagError, Workflow};
-use crate::graph_args::{EdgeSpec, NodeSpec, WorkflowSpec};
+use crate::{EdgeSpec, NodeSpec, WorkflowSpec};
 use vo_types::{NodeKind, NodeName, WorkflowName};
 
 // ===========================================================================
@@ -126,13 +126,13 @@ fn valid_spec_with_hyphenated_names_round_trips() {
 // ===========================================================================
 
 #[test]
-fn dag_accepts_node_with_digit_prefix_as_valid() {
+fn dag_rejects_node_with_digit_prefix() {
     let mut dag = Dag::new();
     let result: Result<crate::node_handle::NodeHandle<(), ()>, _> =
         dag.add_node_with_kind("1valid-per-grammar", NodeKind::Pure, |_: ()| ());
     assert!(
-        result.is_ok(),
-        "node name starting with digit is accepted by current grammar"
+        result.is_err(),
+        "node name starting with digit should be rejected"
     );
 }
 
@@ -751,7 +751,7 @@ fn dag_build_rejects_three_node_cycle() {
     dag.connect(&c, &a).expect("c->a");
     let result = dag.build("triangle-cycle");
     assert!(
-        matches!(result, Err(DagError::CycleDetected)),
+        matches!(result, Err(DagError::CycleDetected { .. })),
         "3-node cycle should be detected"
     );
 }
@@ -769,7 +769,7 @@ fn dag_build_rejects_cycle_with_mixed_node_kinds() {
     dag.connect(&b, &a).expect("b->a");
     let result = dag.build("mixed-cycle");
     assert!(
-        matches!(result, Err(DagError::CycleDetected)),
+        matches!(result, Err(DagError::CycleDetected { .. })),
         "cycle with mixed kinds should be detected"
     );
 }

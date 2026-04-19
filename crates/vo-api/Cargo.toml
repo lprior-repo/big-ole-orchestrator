@@ -16,7 +16,7 @@ vo-worker = { path = "../vo-worker" }
 ractor = { workspace = true }
 
 # Web framework
-axum = { workspace = true }
+axum = { workspace = true, features = ["ws"] }
 tower = { workspace = true }
 tower-http = { workspace = true }
 reqwest = { workspace = true }
@@ -24,6 +24,9 @@ reqwest = { workspace = true }
 # Async
 tokio = { workspace = true }
 futures = { workspace = true }
+tokio-stream = { workspace = true }
+tokio-util = { workspace = true }
+async-stream = { workspace = true }
 
 # Serialization
 serde = { workspace = true }
@@ -41,3 +44,8 @@ bytes = { workspace = true }
 
 # Regex for validation
 regex = { workspace = true }
+
+[dev-dependencies]
+rstest = { workspace = true }
+tempfile = { workspace = true }
+http-body-util = "0.1"

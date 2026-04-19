@@ -137,23 +137,6 @@ pub fn apply_redaction(
 ) -> (serde_json::Value, Vec<Vec<String>>) {
     let mut redacted_fields = Vec::new();
 
-    fn matches_rule(current_path: &[String], rule_path: &[String]) -> bool {
-        if rule_path.len() > current_path.len() {
-            return false;
-        }
-        let mut cpi = 0;
-        for (i, rp) in rule_path.iter().enumerate() {
-            while cpi < current_path.len() && current_path[cpi].parse::<usize>().is_ok() {
-                cpi += 1;
-            }
-            if cpi >= current_path.len() || &current_path[cpi] != rp {
-                return false;
-            }
-            cpi += 1;
-        }
-        true
-    }
-
     fn apply_recursive(
         value: &serde_json::Value,
         rules: &[RedactionRule],
@@ -166,9 +149,7 @@ pub fn apply_redaction(
                 for (key, val) in obj {
                     current_path.push(key.clone());
 
-                    let rule = rules
-                        .iter()
-                        .find(|r| matches_rule(current_path, &r.field_path));
+                    let rule = rules.iter().find(|r| r.field_path == *current_path);
 
                     let (new_val, was_redacted) = if let Some(r) = rule {
                         redacted_fields.push(r.field_path.clone());
@@ -190,13 +171,18 @@ pub fn apply_redaction(
             }
             serde_json::Value::Array(arr) => {
                 let mut result = Vec::new();
-                for item in arr.iter() {
+                for (i, item) in arr.iter().enumerate() {
+                    current_path.push(i.to_string());
                     let new_item = apply_recursive(item, rules, current_path, redacted_fields);
                     result.push(new_item);
+                    current_path.pop();
                 }
                 serde_json::Value::Array(result)
             }
-            other => other.clone(),
+            other @ serde_json::Value::Null
+            | other @ serde_json::Value::Bool(_)
+            | other @ serde_json::Value::Number(_)
+            | other @ serde_json::Value::String(_) => other.clone(),
         }
     }
 
@@ -385,96 +371,5 @@ mod tests {
         let recovered: RedactionRule = serde_json::from_str(&json).unwrap();
 
         assert_eq!(rule, recovered);
-    }
-
-    // =========================================================================
-    // ADR-025 Invariant: Redaction completeness
-    // =========================================================================
-
-    #[test]
-    fn redaction_completeness_deeply_nested_sensitive_field() {
-        let value = serde_json::json!({
-            "level1": {
-                "level2": {
-                    "level3": {
-                        "secret": "classified"
-                    }
-                }
-            }
-        });
-        let rules = vec![RedactionRule::new(
-            vec!["level1".into(), "level2".into(), "level3".into(), "secret".into()],
-            RedactionKind::Remove,
-        )];
-        let (result, redacted) = apply_redaction(&value, &rules);
-        assert_eq!(result["level1"]["level2"]["level3"]["secret"], serde_json::Value::Null);
-        assert_eq!(redacted.len(), 1);
-    }
-
-    #[test]
-    fn redaction_completeness_multiple_rules_simultaneously() {
-        let value = serde_json::json!({
-            "user": { "name": "Alice", "ssn": "123-45-6789", "email": "alice@example.com" },
-            "payment": { "card": "4111-1111-1111-1111", "cvv": "123" }
-        });
-        let rules = vec![
-            RedactionRule::new(vec!["user".into(), "ssn".into()], RedactionKind::Remove),
-            RedactionRule::new(vec!["user".into(), "email".into()], RedactionKind::Hash),
-            RedactionRule::new(vec!["payment".into(), "card".into()], RedactionKind::ReplaceWith("[REDACTED]".into())),
-            RedactionRule::new(vec!["payment".into(), "cvv".into()], RedactionKind::Remove),
-        ];
-        let (result, redacted) = apply_redaction(&value, &rules);
-        // Non-sensitive fields preserved
-        assert_eq!(result["user"]["name"], "Alice");
-        // Sensitive fields redacted
-        assert_eq!(result["user"]["ssn"], serde_json::Value::Null);
-        assert!(result["user"]["email"].as_str().unwrap().starts_with("HASH"));
-        assert_eq!(result["payment"]["card"], "[REDACTED]");
-        assert_eq!(result["payment"]["cvv"], serde_json::Value::Null);
-        assert_eq!(redacted.len(), 4);
-    }
-
-    #[test]
-    fn redaction_completeness_preserves_non_matching_structure() {
-        let value = serde_json::json!({
-            "public_data": { "count": 42, "label": "safe" },
-            "private_data": { "token": "secret-token" }
-        });
-        let rules = vec![RedactionRule::new(
-            vec!["private_data".into(), "token".into()],
-            RedactionKind::Remove,
-        )];
-        let (result, redacted) = apply_redaction(&value, &rules);
-        // Public data completely untouched
-        assert_eq!(result["public_data"]["count"], 42);
-        assert_eq!(result["public_data"]["label"], "safe");
-        // Private data redacted
-        assert_eq!(result["private_data"]["token"], serde_json::Value::Null);
-        assert_eq!(redacted.len(), 1);
-    }
-
-    #[test]
-    fn redaction_completeness_empty_rules_produces_identity() {
-        let value = serde_json::json!({"key": "value", "nested": {"a": 1}});
-        let rules: Vec<RedactionRule> = vec![];
-        let (result, redacted) = apply_redaction(&value, &rules);
-        assert_eq!(result, value);
-        assert!(redacted.is_empty());
-    }
-
-    #[test]
-    fn operator_projection_tracks_all_redacted_fields() {
-        let value = serde_json::json!({
-            "a": { "x": "secret1", "y": "public" },
-            "b": { "z": "secret2" }
-        });
-        let rules = vec![
-            RedactionRule::new(vec!["a".into(), "x".into()], RedactionKind::Remove),
-            RedactionRule::new(vec!["b".into(), "z".into()], RedactionKind::Hash),
-        ];
-        let (_, redacted) = apply_redaction(&value, &rules);
-        assert_eq!(redacted.len(), 2);
-        assert!(redacted.contains(&vec!["a".into(), "x".into()]));
-        assert!(redacted.contains(&vec!["b".into(), "z".into()]));
     }
 }

@@ -180,7 +180,7 @@ pub enum RecoveryOutcome {
 
 /// Fjall-backed persistent store for saga entries.
 pub struct SagaStore {
-    partition: fjall::PartitionHandle,
+    partition: fjall::Keyspace,
 }
 
 impl SagaStore {
@@ -189,9 +189,9 @@ impl SagaStore {
     /// # Errors
     ///
     /// Returns [`SagaError::Storage`] if the `saga_manifest` partition cannot be opened.
-    pub fn open(keyspace: &fjall::Keyspace) -> Result<Self, SagaError> {
-        let partition = keyspace
-            .open_partition("saga_manifest", fjall::PartitionCreateOptions::default())
+    pub fn open(db: &fjall::Database) -> Result<Self, SagaError> {
+        let partition = db
+            .keyspace("saga_manifest", fjall::KeyspaceCreateOptions::default)
             .map_err(|e| SagaError::Storage {
                 reason: format!("failed to open saga_manifest partition: {e}"),
             })?;
@@ -320,7 +320,7 @@ impl SagaStore {
         let mut count = 0usize;
         let iter = self.partition.iter();
         for item in iter {
-            let (key_bytes, value_bytes) = item.map_err(|e| SagaError::Storage {
+            let (key_bytes, value_bytes) = item.into_inner().map_err(|e| SagaError::Storage {
                 reason: e.to_string(),
             })?;
             let key_str = std::str::from_utf8(&key_bytes).unwrap_or("");
@@ -404,10 +404,10 @@ impl DurableBudgetSaga {
     ///
     /// Returns [`SagaError::Storage`] if the saga partition cannot be opened.
     pub fn open(
-        keyspace: &fjall::Keyspace,
+        db: &fjall::Database,
         queues: BudgetQueues<StagedWrite>,
     ) -> Result<Self, SagaError> {
-        let store = SagaStore::open(keyspace)?;
+        let store = SagaStore::open(db)?;
         Ok(Self {
             store: Some(store),
             manifest: Arc::new(Mutex::new(BudgetManifest::default())),
@@ -547,7 +547,7 @@ mod tests {
     fn create_test_queues() -> BudgetQueues<StagedWrite> {
         let config = crate::append::QueueConfig::default();
         let budget = crate::append::WriteBudget::new(1000, 1000, 1000);
-        BudgetQueues::new(config, budget)
+        BudgetQueues::new(&config, budget)
     }
 
     #[test]
@@ -645,7 +645,9 @@ mod tests {
     #[test]
     fn saga_store_stage_and_read_entry() {
         let dir = tempfile::tempdir().expect("tempdir");
-        let keyspace = fjall::Config::new(dir.path()).open().expect("keyspace");
+        let keyspace = fjall::Database::builder(dir.path())
+            .open()
+            .expect("keyspace");
         let store = SagaStore::open(&keyspace).expect("store");
 
         store
@@ -661,7 +663,9 @@ mod tests {
     #[test]
     fn saga_store_commit_transitions_to_committed() {
         let dir = tempfile::tempdir().expect("tempdir");
-        let keyspace = fjall::Config::new(dir.path()).open().expect("keyspace");
+        let keyspace = fjall::Database::builder(dir.path())
+            .open()
+            .expect("keyspace");
         let store = SagaStore::open(&keyspace).expect("store");
 
         store
@@ -676,7 +680,9 @@ mod tests {
     #[test]
     fn saga_store_rollback_transitions_to_rolled_back() {
         let dir = tempfile::tempdir().expect("tempdir");
-        let keyspace = fjall::Config::new(dir.path()).open().expect("keyspace");
+        let keyspace = fjall::Database::builder(dir.path())
+            .open()
+            .expect("keyspace");
         let store = SagaStore::open(&keyspace).expect("store");
 
         store
@@ -691,7 +697,9 @@ mod tests {
     #[test]
     fn saga_store_recovery_rolls_back_staged_entries() {
         let dir = tempfile::tempdir().expect("tempdir");
-        let keyspace = fjall::Config::new(dir.path()).open().expect("keyspace");
+        let keyspace = fjall::Database::builder(dir.path())
+            .open()
+            .expect("keyspace");
         let store = SagaStore::open(&keyspace).expect("store");
 
         store
@@ -722,7 +730,9 @@ mod tests {
 
         // Phase 1: stage entries then "crash"
         {
-            let keyspace = fjall::Config::new(&dir_path).open().expect("keyspace");
+            let keyspace = fjall::Database::builder(&dir_path)
+                .open()
+                .expect("keyspace");
             let store = SagaStore::open(&keyspace).expect("store");
             store
                 .stage_entry("key1", WriteClass::CriticalControlPlane, 100)
@@ -734,7 +744,9 @@ mod tests {
         }
 
         // Phase 2: reopen and recover
-        let keyspace = fjall::Config::new(&dir_path).open().expect("keyspace");
+        let keyspace = fjall::Database::builder(&dir_path)
+            .open()
+            .expect("keyspace");
         let store = SagaStore::open(&keyspace).expect("store");
         let outcome = store.recover().expect("recover");
         assert_eq!(outcome, RecoveryOutcome::RolledBack { count: 2 });
@@ -746,7 +758,9 @@ mod tests {
     #[test]
     fn saga_store_stage_duplicate_fails() {
         let dir = tempfile::tempdir().expect("tempdir");
-        let keyspace = fjall::Config::new(dir.path()).open().expect("keyspace");
+        let keyspace = fjall::Database::builder(dir.path())
+            .open()
+            .expect("keyspace");
         let store = SagaStore::open(&keyspace).expect("store");
 
         store
@@ -759,7 +773,9 @@ mod tests {
     #[test]
     fn saga_store_recovery_is_idempotent() {
         let dir = tempfile::tempdir().expect("tempdir");
-        let keyspace = fjall::Config::new(dir.path()).open().expect("keyspace");
+        let keyspace = fjall::Database::builder(dir.path())
+            .open()
+            .expect("keyspace");
         let store = SagaStore::open(&keyspace).expect("store");
 
         store
@@ -776,9 +792,11 @@ mod tests {
     #[test]
     fn durable_saga_fjall_stage_and_commit() {
         let dir = tempfile::tempdir().expect("tempdir");
-        let keyspace = fjall::Config::new(dir.path()).open().expect("keyspace");
+        let db = fjall::Database::builder(dir.path())
+            .open()
+            .expect("keyspace");
         let queues = create_test_queues();
-        let saga = DurableBudgetSaga::open(&keyspace, queues).expect("saga");
+        let saga = DurableBudgetSaga::open(&db, queues).expect("saga");
 
         saga.stage_write("key1", WriteClass::CriticalControlPlane, 100)
             .expect("stage");

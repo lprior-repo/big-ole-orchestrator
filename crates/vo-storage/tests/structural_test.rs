@@ -74,12 +74,14 @@ impl DependencyChecker {
         let required = [
             "aes",
             "aes-gcm",
+            "async-trait",
             "blake3",
             "bytes",
             "crc32fast",
             "fjall",
             "generic-array",
             "memmap2",
+            "metrics",
             "parking_lot",
             "rand",
             "serde",
@@ -87,9 +89,10 @@ impl DependencyChecker {
             "sha2",
             "thiserror",
             "tokio",
+            "ulid",
             "vo-types",
         ];
-        let allowed_dev = ["tempfile", "thiserror", "proptest", "rstest", "ulid"];
+        let allowed_dev = ["tempfile", "thiserror", "proptest", "rstest"];
 
         if let Some(missing) = required
             .iter()
@@ -230,12 +233,14 @@ fn dependency_checker_returns_ok_when_cargo_toml_is_valid() {
 [dependencies]
 aes = "0.7"
 aes-gcm = "0.9"
+async-trait = "0.1"
 blake3 = "1.0"
 bytes = "1.0"
 crc32fast = "1.0"
 fjall = "1.0"
 generic-array = "0.14"
 memmap2 = "0.9"
+metrics = "1.0"
 parking_lot = "0.12"
 rand = "0.8"
 serde = "1.0"
@@ -243,6 +248,7 @@ serde_json = "1.0"
 sha2 = "0.10"
 thiserror = "1.0"
 tokio = "1.0"
+ulid = "1.0"
 vo-types = "1.0"
 "#;
     let result = DependencyChecker::validate(toml);
@@ -255,11 +261,13 @@ fn dependency_checker_returns_missing_dependency_error_when_fjall_absent() {
 [dependencies]
 aes = "0.7"
 aes-gcm = "0.9"
+async-trait = "0.1"
 blake3 = "1.0"
 bytes = "1.0"
 crc32fast = "1.0"
 generic-array = "0.14"
 memmap2 = "0.9"
+metrics = "1.0"
 parking_lot = "0.12"
 rand = "0.8"
 serde = "1.0"
@@ -267,6 +275,7 @@ serde_json = "1.0"
 sha2 = "0.10"
 thiserror = "1.0"
 tokio = "1.0"
+ulid = "1.0"
 vo-types = "1.0"
 "#;
     let result = DependencyChecker::validate(toml);
@@ -284,12 +293,14 @@ fn dependency_checker_returns_missing_dependency_error_when_vo_types_absent() {
 [dependencies]
 aes = "0.7"
 aes-gcm = "0.9"
+async-trait = "0.1"
 blake3 = "1.0"
 bytes = "1.0"
 crc32fast = "1.0"
 fjall = "1.0"
 generic-array = "0.14"
 memmap2 = "0.9"
+metrics = "1.0"
 parking_lot = "0.12"
 rand = "0.8"
 serde = "1.0"
@@ -297,6 +308,7 @@ serde_json = "1.0"
 sha2 = "0.10"
 thiserror = "1.0"
 tokio = "1.0"
+ulid = "1.0"
 "#;
     let result = DependencyChecker::validate(toml);
     assert_eq!(
@@ -313,18 +325,21 @@ fn dependency_checker_returns_missing_dependency_error_when_serde_absent() {
 [dependencies]
 aes = "0.7"
 aes-gcm = "0.9"
+async-trait = "0.1"
 blake3 = "1.0"
 bytes = "1.0"
 crc32fast = "1.0"
 fjall = "1.0"
 generic-array = "0.14"
 memmap2 = "0.9"
+metrics = "1.0"
 parking_lot = "0.12"
 rand = "0.8"
 serde_json = "1.0"
 sha2 = "0.10"
 thiserror = "1.0"
 tokio = "1.0"
+ulid = "1.0"
 vo-types = "1.0"
 "#;
     let result = DependencyChecker::validate(toml);
@@ -342,18 +357,21 @@ fn dependency_checker_returns_missing_dependency_error_when_serde_json_absent() 
 [dependencies]
 aes = "0.7"
 aes-gcm = "0.9"
+async-trait = "0.1"
 blake3 = "1.0"
 bytes = "1.0"
 crc32fast = "1.0"
 fjall = "1.0"
 generic-array = "0.14"
 memmap2 = "0.9"
+metrics = "1.0"
 parking_lot = "0.12"
 rand = "0.8"
 serde = "1.0"
 sha2 = "0.10"
 thiserror = "1.0"
 tokio = "1.0"
+ulid = "1.0"
 vo-types = "1.0"
 "#;
     let result = DependencyChecker::validate(toml);
@@ -371,12 +389,14 @@ fn dependency_checker_returns_disallowed_dependency_error_when_tokio_present() {
 [dependencies]
 aes = "0.7"
 aes-gcm = "0.9"
+async-trait = "0.1"
 blake3 = "1.0"
 bytes = "1.0"
 crc32fast = "1.0"
 fjall = "1.0"
 generic-array = "0.14"
 memmap2 = "0.9"
+metrics = "1.0"
 parking_lot = "0.12"
 rand = "0.8"
 serde = "1.0"
@@ -384,6 +404,7 @@ serde_json = "1.0"
 sha2 = "0.10"
 thiserror = "1.0"
 tokio = "1.0"
+ulid = "1.0"
 vo-types = "1.0"
 log = "0.4"
 "#;
@@ -402,12 +423,14 @@ fn dependency_checker_returns_disallowed_dependency_error_when_arbitrary_unliste
 [dependencies]
 aes = "0.7"
 aes-gcm = "0.9"
+async-trait = "0.1"
 blake3 = "1.0"
 bytes = "1.0"
 crc32fast = "1.0"
 fjall = "1.0"
 generic-array = "0.14"
 memmap2 = "0.9"
+metrics = "1.0"
 parking_lot = "0.12"
 rand = "0.8"
 serde = "1.0"
@@ -415,6 +438,7 @@ serde_json = "1.0"
 sha2 = "0.10"
 thiserror = "1.0"
 tokio = "1.0"
+ulid = "1.0"
 vo-types = "1.0"
 postgres = "1.0"
 "#;
@@ -434,11 +458,13 @@ fn dependency_checker_returns_missing_dependency_error_when_fjall_is_commented_o
 # fjall = "1.0"
 aes = "0.7"
 aes-gcm = "0.9"
+async-trait = "0.1"
 blake3 = "1.0"
 bytes = "1.0"
 crc32fast = "1.0"
 generic-array = "0.14"
 memmap2 = "0.9"
+metrics = "1.0"
 parking_lot = "0.12"
 rand = "0.8"
 serde = "1.0"
@@ -446,6 +472,7 @@ serde_json = "1.0"
 sha2 = "0.10"
 thiserror = "1.0"
 tokio = "1.0"
+ulid = "1.0"
 vo-types = "1.0"
 "#;
     let result = DependencyChecker::validate(toml);
@@ -463,11 +490,13 @@ fn dependency_checker_returns_missing_dependency_error_when_fjall_is_only_in_dev
 [dependencies]
 aes = "0.7"
 aes-gcm = "0.9"
+async-trait = "0.1"
 blake3 = "1.0"
 bytes = "1.0"
 crc32fast = "1.0"
 generic-array = "0.14"
 memmap2 = "0.9"
+metrics = "1.0"
 parking_lot = "0.12"
 rand = "0.8"
 serde = "1.0"
@@ -475,6 +504,7 @@ serde_json = "1.0"
 sha2 = "0.10"
 thiserror = "1.0"
 tokio = "1.0"
+ulid = "1.0"
 vo-types = "1.0"
 
 [dev-dependencies]
@@ -522,12 +552,14 @@ fn dependency_checker_returns_disallowed_dependency_error_when_tokio_in_dev_depe
 [dependencies]
 aes = "0.7"
 aes-gcm = "0.9"
+async-trait = "0.1"
 blake3 = "1.0"
 bytes = "1.0"
 crc32fast = "1.0"
 fjall = "1.0"
 generic-array = "0.14"
 memmap2 = "0.9"
+metrics = "1.0"
 parking_lot = "0.12"
 rand = "0.8"
 serde = "1.0"
@@ -535,6 +567,7 @@ serde_json = "1.0"
 sha2 = "0.10"
 thiserror = "1.0"
 tokio = "1.0"
+ulid = "1.0"
 vo-types = "1.0"
 
 [dev-dependencies]
@@ -555,12 +588,14 @@ fn dependency_checker_returns_disallowed_dependency_error_when_tokio_in_build_de
 [dependencies]
 aes = "0.7"
 aes-gcm = "0.9"
+async-trait = "0.1"
 blake3 = "1.0"
 bytes = "1.0"
 crc32fast = "1.0"
 fjall = "1.0"
 generic-array = "0.14"
 memmap2 = "0.9"
+metrics = "1.0"
 parking_lot = "0.12"
 rand = "0.8"
 serde = "1.0"
@@ -568,6 +603,7 @@ serde_json = "1.0"
 sha2 = "0.10"
 thiserror = "1.0"
 tokio = "1.0"
+ulid = "1.0"
 vo-types = "1.0"
 
 [build-dependencies]
@@ -588,12 +624,14 @@ fn dependency_checker_returns_disallowed_dependency_error_when_serde_json_core_i
 [dependencies]
 aes = "0.7"
 aes-gcm = "0.9"
+async-trait = "0.1"
 blake3 = "1.0"
 bytes = "1.0"
 crc32fast = "1.0"
 fjall = "1.0"
 generic-array = "0.14"
 memmap2 = "0.9"
+metrics = "1.0"
 parking_lot = "0.12"
 rand = "0.8"
 serde = "1.0"
@@ -601,6 +639,7 @@ serde_json = "1.0"
 sha2 = "0.10"
 thiserror = "1.0"
 tokio = "1.0"
+ulid = "1.0"
 vo-types = "1.0"
 serde_json_core = "1.0"
 "#;
@@ -621,12 +660,14 @@ fn dependency_checker_returns_ok_when_cargo_toml_is_exactly_maximum_size() {
 [dependencies]
 aes = "0.7"
 aes-gcm = "0.9"
+async-trait = "0.1"
 blake3 = "1.0"
 bytes = "1.0"
 crc32fast = "1.0"
 fjall = "1.0"
 generic-array = "0.14"
 memmap2 = "0.9"
+metrics = "1.0"
 parking_lot = "0.12"
 rand = "0.8"
 serde = "1.0"
@@ -634,6 +675,7 @@ serde_json = "1.0"
 sha2 = "0.10"
 thiserror = "1.0"
 tokio = "1.0"
+ulid = "1.0"
 vo-types = "1.0"
 {}
 "#,
@@ -657,6 +699,7 @@ crc32fast = "1.0"
 fjall = "1.0"
 generic-array = "0.14"
 memmap2 = "0.9"
+metrics = "1.0"
 parking_lot = "0.12"
 rand = "0.8"
 serde = "1.0"
@@ -919,7 +962,7 @@ fn checker_returns_error_when_validating_real_project_with_missing_module_on_dis
     let temp_dir = tempfile::tempdir().unwrap();
     std::fs::write(
         temp_dir.path().join("Cargo.toml"),
-        "[dependencies]\naes = \"0.7\"\naes-gcm = \"0.9\"\nblake3 = \"1\"\nbytes = \"1\"\ncrc32fast = \"1\"\nfjall = \"1\"\ngeneric-array = \"0.14\"\nmemmap2 = \"0.9\"\nparking_lot = \"0.12\"\nrand = \"0.8\"\nserde = \"1\"\nserde_json = \"1\"\nsha2 = \"0.10\"\nthiserror = \"1\"\ntokio = \"1\"\nvo-types = \"1\"",
+        "[dependencies]\naes = \"0.7\"\naes-gcm = \"0.9\"\nblake3 = \"1\"\nbytes = \"1\"\ncrc32fast = \"1\"\nfjall = \"1\"\ngeneric-array = \"0.14\"\nmemmap2 = \"0.9\"\nparking_lot = \"0.12\"\nrand = \"0.8\"\nserde = \"1\"\nserde_json = \"1\"\nsha2 = \"0.10\"\nthiserror = \"1\"\ntokio = \"1\"\nulid = \"1\"\nvo-types = \"1\"",
     )
     .unwrap();
     // In a real test, setup invalid files here

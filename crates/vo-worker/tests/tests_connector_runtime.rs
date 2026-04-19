@@ -5,8 +5,8 @@ use std::sync::Mutex;
 
 use async_trait::async_trait;
 use vo_worker::{
-    CommitOutcome, Connector, ConnectorError, ConnectorRegistry, HttpConnector,
-    PreparedEffect, ReconcileOutcome,
+    CommitOutcome, Connector, ConnectorError, ConnectorRegistry, HttpConnector, PreparedEffect,
+    ReconcileOutcome,
 };
 
 // ========================================================================
@@ -62,10 +62,7 @@ impl Connector for MockSqlConnector {
         })
     }
 
-    async fn commit(
-        &self,
-        prepared: PreparedEffect,
-    ) -> Result<CommitOutcome, ConnectorError> {
+    async fn commit(&self, prepared: PreparedEffect) -> Result<CommitOutcome, ConnectorError> {
         let unique_key = prepared.payload["unique_key"]
             .as_str()
             .unwrap_or("")
@@ -83,10 +80,7 @@ impl Connector for MockSqlConnector {
         })
     }
 
-    async fn reconcile(
-        &self,
-        effect_id: &str,
-    ) -> Result<ReconcileOutcome, ConnectorError> {
+    async fn reconcile(&self, effect_id: &str) -> Result<ReconcileOutcome, ConnectorError> {
         let committed = self.committed_keys.lock().unwrap();
         let key = committed.iter().find(|k| k.contains(effect_id));
         if key.is_some() {
@@ -157,8 +151,7 @@ async fn http_connector_fence_advancement_changes_idempotency_key() {
     assert_eq!(pe1.payload["idempotency_key"], "fx-1:1");
     assert_eq!(pe2.payload["idempotency_key"], "fx-1:2");
     assert_ne!(
-        pe1.payload["idempotency_key"],
-        pe2.payload["idempotency_key"],
+        pe1.payload["idempotency_key"], pe2.payload["idempotency_key"],
         "fence advancement must produce different idempotency keys"
     );
 }
@@ -232,7 +225,11 @@ async fn sql_connector_commit_succeeds_first_time() {
     let connector = MockSqlConnector::new();
 
     let pe = connector
-        .prepare(serde_json::json!({"query": "INSERT INTO t VALUES (1)"}), "fx-sql-2".into(), 1)
+        .prepare(
+            serde_json::json!({"query": "INSERT INTO t VALUES (1)"}),
+            "fx-sql-2".into(),
+            1,
+        )
         .await
         .unwrap();
 
@@ -332,10 +329,7 @@ async fn registry_stores_http_and_sql_connectors() {
         "http-stripe".to_string(),
         Box::new(HttpConnector::new("https://api.stripe.com")),
     );
-    reg.register(
-        "sql-primary".to_string(),
-        Box::new(MockSqlConnector::new()),
-    );
+    reg.register("sql-primary".to_string(), Box::new(MockSqlConnector::new()));
 
     assert_eq!(reg.len(), 2);
 
@@ -430,7 +424,10 @@ async fn sql_connector_crash_after_prepare_recover_and_commit() {
 
     // Verify reconciliation now returns Committed
     let reconcile_after = connector.reconcile("fx-crash-sql").await.unwrap();
-    assert!(matches!(reconcile_after, ReconcileOutcome::Committed { .. }));
+    assert!(matches!(
+        reconcile_after,
+        ReconcileOutcome::Committed { .. }
+    ));
 }
 
 #[tokio::test]

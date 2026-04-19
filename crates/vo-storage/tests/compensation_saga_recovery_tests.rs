@@ -478,13 +478,8 @@ fn cannot_fail_already_failed() {
 #[test]
 fn cannot_transition_from_timed_out() {
     let saga = CompensationSaga::with_reconciler(RetryReconciler::new(1));
-    saga.register_with_timeout(
-        "fx-1".to_string(),
-        CompensationPolicy::Automatic,
-        vec![],
-        10,
-    )
-    .unwrap();
+    saga.register_with_timeout("fx-1", CompensationPolicy::Automatic, vec![], 10)
+        .unwrap();
     saga.queue_pending("fx-1").unwrap();
     saga.start_compensation("fx-1").unwrap();
 

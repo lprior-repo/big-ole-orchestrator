@@ -9,8 +9,9 @@ proptest = ["dep:proptest"]
 
 [dependencies]
 vo-types = { workspace = true }
+bytes = { workspace = true }
 ractor.workspace = true
-thiserror = "1"
+thiserror.workspace = true
 async-trait = "0.1"
 tracing = "0.1"
 tokio = { workspace = true, features = ["rt", "sync", "time", "macros"] }
@@ -22,10 +23,13 @@ reqwest = { workspace = true }
 proptest = { workspace = true, optional = true }
 
 [dev-dependencies]
+vo-core = { path = "../vo-core" }
 proptest.workspace = true
-ulid = "1"
 criterion = { workspace = true }
 
 [[bench]]
 name = "reanimator_bench"
 harness = false
+
+[lints]
+workspace = true

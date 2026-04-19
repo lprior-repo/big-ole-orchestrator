@@ -15,8 +15,8 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
 use crate::replay::projection::{
-    ProjectionEngine, ProjectionError, ProjectionRebuilder, ProjectionRecord, ProjectionResult,
-    ProjectionState, ProjectionStateManager, Projector, StaleReason,
+    ProjectionEngine, ProjectionError, ProjectionRebuilder, ProjectionRecord,
+    ProjectionResult, ProjectionState, ProjectionStateManager, Projector, StaleReason,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -112,9 +112,10 @@ impl ProjectionRegistry {
         let max_version = projector.schema_version();
         let registered = RegisteredProjection::<S, E, P>::new(projector, class, max_version);
 
-        registered
-            .state_manager
-            .set_state(projection_id, ProjectionState::Building)?;
+        registered.state_manager.set_state(
+            projection_id,
+            ProjectionState::Building,
+        )?;
 
         let mut projections = self.projections.write().map_err(|_| {
             ProjectionError::InvalidState("projection registry lock poisoned".to_string())
@@ -137,17 +138,18 @@ impl ProjectionRegistry {
             ProjectionError::InvalidState("projection registry lock poisoned".to_string())
         })?;
 
-        let registered = projections
-            .get(projection_id)
+        let registered = projections.get(projection_id)
             .ok_or_else(|| ProjectionError::ProjectionNotFound(projection_id.to_string()))?;
 
         let registered = registered
             .downcast_ref::<RegisteredProjection<S, E, P>>()
-            .ok_or_else(|| ProjectionError::InvalidState("projection type mismatch".to_string()))?;
+            .ok_or_else(|| {
+                ProjectionError::InvalidState(
+                    "projection type mismatch".to_string()
+                )
+            })?;
 
-        let state = registered
-            .state_manager
-            .get_state(projection_id)
+        let state = registered.state_manager.get_state(projection_id)
             .ok_or_else(|| ProjectionError::ProjectionNotFound(projection_id.to_string()))?;
 
         Ok(ProjectionRecord::new(
@@ -185,13 +187,14 @@ impl ProjectionRegistry {
             ProjectionError::InvalidState("projection registry lock poisoned".to_string())
         })?;
 
-        let _registered = projections
-            .get(projection_id)
+        let _registered = projections.get(projection_id)
             .ok_or_else(|| ProjectionError::ProjectionNotFound(projection_id.to_string()))?;
 
         let _registered = _registered
             .downcast_ref::<RegisteredProjection<(), (), ()>>()
-            .map_err(|_| ProjectionError::InvalidState("projection type mismatch".to_string()))?;
+            .map_err(|_| {
+                ProjectionError::InvalidState("projection type mismatch".to_string())
+            })?;
 
         let now = self.current_sequence();
         _registered.state_manager.transition_to(
@@ -233,9 +236,10 @@ impl ProjectionRegistry {
         projection_id: &str,
         record: &ProjectionRecord,
     ) -> Result<Option<StaleReason>, ProjectionError> {
-        let stale_reason = self
-            .engine
-            .detect_staleness(record, self.current_sequence());
+        let stale_reason = self.engine.detect_staleness(
+            record,
+            self.current_sequence(),
+        );
         Ok(stale_reason)
     }
 
@@ -254,13 +258,14 @@ impl ProjectionRegistry {
             ProjectionError::InvalidState("projection registry lock poisoned".to_string())
         })?;
 
-        let registered = projections
-            .get(projection_id)
+        let registered = projections.get(projection_id)
             .ok_or_else(|| ProjectionError::ProjectionNotFound(projection_id.to_string()))?;
 
         let registered = registered
             .downcast_ref::<RegisteredProjection<S, E, P>>()
-            .ok_or_else(|| ProjectionError::InvalidState("projection type mismatch".to_string()))?;
+            .ok_or_else(|| {
+                ProjectionError::InvalidState("projection type mismatch".to_string())
+            })?;
 
         if !self.engine.is_idle() {
             return Err(ProjectionError::ThrottleExceeded(100));
@@ -302,9 +307,10 @@ impl ProjectionRegistry {
                         .map_err(|_| {
                             ProjectionError::InvalidState("projection type mismatch".to_string())
                         })?;
-                    registered
-                        .state_manager
-                        .transition_to(projection_id, ProjectionState::Ready)?;
+                    registered.state_manager.transition_to(
+                        projection_id,
+                        ProjectionState::Ready,
+                    )?;
                 }
                 Ok(Some(res))
             }
@@ -360,15 +366,12 @@ impl ProjectionRegistry {
 
         for registered in projections.values() {
             let state = registered
-                .downcast_ref::<RegisteredProjection<(), (), ()>>()
+                .downcast_ref::<RegisteredProjection<(), (), ()()
                 .map_err(|_| {
                     ProjectionError::InvalidState("projection type mismatch".to_string())
                 })?;
 
-            let state = state
-                .state_manager
-                .get_state("")
-                .unwrap_or(ProjectionState::Building);
+            let state = state.state_manager.get_state("").unwrap_or(ProjectionState::Building);
             match state {
                 ProjectionState::Ready => ready_count += 1,
                 ProjectionState::Stale { .. } => stale_count += 1,
@@ -430,7 +433,7 @@ mod tests {
         Arc::new(
             ProjectionEngine::builder(1)
                 .throttle_config(RebuildThrottleConfig::new(5, 100, 1))
-                .build(),
+                .build()
         )
     }
 

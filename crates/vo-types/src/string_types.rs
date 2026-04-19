@@ -1,32 +1,10 @@
-use std::fmt;
-
 use serde::{Deserialize, Serialize};
 
+use crate::string_newtype;
 use crate::types::{
     check_identifier_boundaries, extract_invalid_chars, is_identifier_char, is_lowercase_hex,
 };
 use crate::ParseError;
-
-macro_rules! string_newtype {
-    ($name:ident) => {
-        impl fmt::Display for $name {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                f.write_str(&self.0)
-            }
-        }
-        impl TryFrom<String> for $name {
-            type Error = ParseError;
-            fn try_from(value: String) -> Result<Self, Self::Error> {
-                Self::parse(&value)
-            }
-        }
-        impl From<$name> for String {
-            fn from(value: $name) -> String {
-                value.0
-            }
-        }
-    };
-}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
@@ -153,6 +131,12 @@ impl WorkflowName {
             });
         }
         check_identifier_boundaries(input, TYPE_NAME)?;
+        if input.chars().next().is_some_and(|c| c.is_ascii_digit()) {
+            return Err(ParseError::BoundaryViolation {
+                type_name: TYPE_NAME,
+                reason: "must not start with digit".to_string(),
+            });
+        }
         Ok(Self(input.to_string()))
     }
 
@@ -202,6 +186,12 @@ impl NodeName {
             });
         }
         check_identifier_boundaries(input, TYPE_NAME)?;
+        if input.chars().next().is_some_and(|c| c.is_ascii_digit()) {
+            return Err(ParseError::BoundaryViolation {
+                type_name: TYPE_NAME,
+                reason: "must not start with digit".to_string(),
+            });
+        }
         Ok(Self(input.to_string()))
     }
 
@@ -314,7 +304,7 @@ impl IdempotencyKey {
     ///
     /// # Errors
     ///
-    /// Returns `ParseError` if the input is empty or exceeds max length.
+    /// Returns `ParseError` if the input is empty, exceeds max length, or contains invalid characters.
     pub fn parse(input: &str) -> Result<Self, ParseError> {
         const TYPE_NAME: &str = "IdempotencyKey";
         const MAX_LEN: usize = 1024;
@@ -328,6 +318,13 @@ impl IdempotencyKey {
                 type_name: TYPE_NAME,
                 max: MAX_LEN,
                 actual: input.chars().count(),
+            });
+        }
+        let invalid = extract_invalid_chars(input, is_identifier_char);
+        if !invalid.is_empty() {
+            return Err(ParseError::InvalidCharacters {
+                type_name: TYPE_NAME,
+                invalid_chars: invalid,
             });
         }
         Ok(Self(input.to_string()))

@@ -238,7 +238,7 @@ impl Default for PoolStats {
 }
 
 /// Circuit breaker state.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum CircuitBreakerState {
     #[default]
     Closed,
@@ -251,7 +251,7 @@ pub enum CircuitBreakerState {
 // ============================================================================
 
 /// Error category for connection pool errors.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ErrorCategory {
     PoolExhaustion,
     Timeout,
@@ -263,7 +263,7 @@ pub enum ErrorCategory {
 }
 
 /// Error detail for connection pool errors.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ErrorDetail {
     MaxConnectionsReached {
         max: u32,
@@ -296,7 +296,7 @@ pub enum ErrorDetail {
 }
 
 /// Context for connection pool errors.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ErrorContext {
     pub pool_id: PoolId,
     pub timestamp: TimestampMs,

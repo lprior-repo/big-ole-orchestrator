@@ -28,7 +28,7 @@ use crate::types::{
     TimestampMs as TypeTimestampMs,
 };
 use crate::workflow::next_nodes;
-use crate::{ParseError, RedactedValue};
+use crate::ParseError;
 use proptest::prelude::*;
 use std::collections::HashMap;
 use std::num::NonZeroU64;
@@ -273,81 +273,99 @@ proptest! {
 
     #[test]
     fn discovery_path_validation_accepts_valid(
-        component in any::<String>(),
-        version in any::<String>(),
+        binary_name in "[a-z][a-z0-9_]*",
+        hash in "[a-f0-9]{16,64}",
     ) {
-        // Invariant: Valid component/version strings pass validation
-        // Strategy: Generate typical component names and versions
+        // Invariant: Valid binary_name and hash pass validation
+        // Strategy: Generate valid binary names and hex hashes
         // Anti-invariant: rejecting valid paths breaks discovery
-        let path = DiscoveryPath::new(&component, &version);
+        let binary_hash = BinaryHash::parse(&hash).unwrap();
+        let path = DiscoveryPath::new(
+            "/var/wtf/versions".to_string(),
+            binary_hash,
+            binary_name,
+        ).expect("valid inputs should create path");
         let result = validate_discovery_path(&path);
         prop_assert!(result.is_ok());
     }
 
     #[test]
-    fn discovery_path_validation_rejects_empty_component() {
-        // Invariant: Empty component strings are rejected
-        // Strategy: Test empty component edge case
-        // Anti-invariant: accepting empty components breaks routing
-        let path = DiscoveryPath::new("", "1.0.0");
-        let result = validate_discovery_path(&path);
+    fn discovery_path_validation_rejects_empty_binary_name() {
+        // Invariant: Empty binary_name strings are rejected
+        // Strategy: Test empty binary_name edge case
+        // Anti-invariant: accepting empty binary_name breaks routing
+        let result = DiscoveryPath::new(
+            "/var/wtf/versions".to_string(),
+            BinaryHash::parse("abcdef0123456789").unwrap(),
+            String::new(),
+        );
         prop_assert!(result.is_err());
     }
 
     #[test]
-    fn discovery_path_version_format(version: String) {
-        // Invariant: Version strings are preserved through validation
-        // Strategy: Generate various version strings
-        // Anti-invariant: mangled versions break compatibility checks
-        let path = DiscoveryPath::new("component", &version);
-        let result = validate_discovery_path(&path);
-        if result.is_ok() {
-            prop_assert_eq!(path.version(), &version);
-        }
+    fn discovery_path_validation_rejects_path_separators(
+        binary_name in ".*/.*",
+    ) {
+        // Invariant: binary_name with path separators is rejected
+        // Strategy: Generate names containing /
+        // Anti-invariant: accepting path separators allows path traversal
+        let result = DiscoveryPath::new(
+            "/var/wtf/versions".to_string(),
+            BinaryHash::parse("abcdef0123456789").unwrap(),
+            binary_name,
+        );
+        prop_assert!(result.is_err());
     }
 
     // ============ Pin Enforcement Proptests ============
 
     #[test]
     fn pin_enforce_accepts_matching_hash(
-        hash in any::<String>(),
+        hash in "[a-f0-9]{16,64}",
     ) {
         // Invariant: Pin accepts binary hash matching pinned value
-        // Strategy: Generate matching hash strings
+        // Strategy: Generate valid hash strings
         // Anti-invariant: rejecting matching hashes breaks pinning
-        let pin = VersionPin::parse(&hash).expect("valid");
-        let candidate = hash.clone();
-        let result = enforce_pin(&pin, &candidate);
+        let binary_hash = BinaryHash::parse(&hash).unwrap();
+        let pin = VersionPin::new(binary_hash.clone(), 1000);
+        let result = enforce_pin(&pin, &binary_hash);
         prop_assert!(result.is_ok());
     }
 
     #[test]
     fn pin_enforce_rejects_mismatched_hash(
-        pinned in any::<String>(),
-        candidate in any::<String>(),
+        pinned in "[a-f0-9]{16,64}",
+        candidate in "[a-f0-9]{16,64}",
     ) {
         // Invariant: Pin rejects binary hash not matching pinned value
         // Strategy: Generate mismatched hash pairs
         // Anti-invariant: accepting mismatched hashes breaks pinning
         prop_assume!(pinned != candidate);
-        let pin = VersionPin::parse(&pinned).expect("valid");
-        let result = enforce_pin(&pin, &candidate);
+        let pinned_hash = BinaryHash::parse(&pinned).unwrap();
+        let candidate_hash = BinaryHash::parse(&candidate).unwrap();
+        let pin = VersionPin::new(pinned_hash, 1000);
+        let result = enforce_pin(&pin, &candidate_hash);
         prop_assert!(result.is_err());
     }
 
     #[test]
-    fn pin_enforce_exact_match(pinned in any::<String>()) {
+    fn pin_enforce_exact_match(
+        hash in "[a-f0-9]{16,64}",
+    ) {
         // Invariant: Pin requires exact byte-level match
         // Strategy: Generate hash strings
         // Anti-invariant: case-insensitive or fuzzy matching breaks pins
-        let pin = VersionPin::parse(&pinned).expect("valid");
-        let result = enforce_pin(&pin, &pinned);
+        let binary_hash = BinaryHash::parse(&hash).unwrap();
+        let pin = VersionPin::new(binary_hash.clone(), 1000);
+        let result = enforce_pin(&pin, &binary_hash);
         prop_assert!(result.is_ok());
 
         // Slight modification should fail
-        let modified = pinned + "x";
-        let result_modified = enforce_pin(&pin, &modified);
-        prop_assert!(result_modified.is_err());
+        let modified = format!("{}x", &hash[..hash.len().saturating_sub(1)]);
+        if let Ok(modified_hash) = BinaryHash::parse(&modified) {
+            let result_modified = enforce_pin(&pin, &modified_hash);
+            prop_assert!(result_modified.is_err());
+        }
     }
 
     // ============ Lifecycle State Proptests ============
@@ -413,57 +431,66 @@ proptest! {
     // ============ Redaction Proptests ============
 
     #[test]
-    fn redaction_rule_identity(value: RedactedValue, field: String) {
-        // Invariant: Applying rule to non-matching value is identity
-        // Strategy: Generate arbitrary values and field names
-        // Anti-invariant: modifying non-targets leaks or corrupts data
-        let rule = RedactionRule::new(&field);
-        let result = apply_redaction(&value, &rule);
-        prop_assert_eq!(result, value);
+    fn redaction_never_panics(value in any::<serde_json::Value>(), field in ".*") {
+        let rules = vec![RedactionRule::new(
+            vec![field],
+            RedactionKind::Remove,
+        )];
+        let _ = apply_redaction(&value, &rules);
     }
 
     #[test]
-    fn redaction_rule_matches_field(field_name: String, value: RedactedValue) {
-        // Invariant: Rule matches only when field name matches
-        // Strategy: Generate field names and values
-        // Anti-invariant: false positives/negatives break security
-        let rule = RedactionRule::new(&field_name);
-        let result = apply_redaction(&value, &rule);
-
-        match &value {
-            RedactedValue::Object(map) => {
-                if let Some(v) = map.get(&field_name) {
-                    prop_assert_eq!(result, RedactedValue::Redacted);
-                } else {
-                    prop_assert_eq!(result, value);
-                }
-            }
-            _ => {
-                prop_assert_eq!(result, value);
-            }
-        }
+    fn redaction_idempotent(
+        field_name in "[a-z]{1,10}",
+        data in any::<serde_json::Value>(),
+    ) {
+        let value = serde_json::json!({ &field_name: data });
+        let rules = vec![RedactionRule::new(
+            vec![field_name.clone()],
+            RedactionKind::Hash,
+        )];
+        let (result1, _) = apply_redaction(&value, &rules);
+        let (result2, _) = apply_redaction(&result1, &rules);
+        prop_assert_eq!(result1, result2, "Applying same redaction twice must be idempotent");
     }
 
     #[test]
-    fn redaction_preserves_structure(map_size in 0usize..10, target_field: String) {
-        // Invariant: Redaction preserves overall structure except matched fields
-        // Strategy: Generate maps of various sizes
-        // Anti-invariant: structural changes break downstream parsing
-        use serde_json::json;
-        let mut map: HashMap<String, RedactedValue> = HashMap::new();
+    fn redaction_hash_deterministic(
+        field_name in "[a-z]{1,10}",
+        payload in ".*",
+    ) {
+        let value = serde_json::json!({ &field_name: payload });
+        let rules = vec![RedactionRule::new(
+            vec![field_name],
+            RedactionKind::Hash,
+        )];
+        let (result1, _) = apply_redaction(&value, &rules);
+        let (result2, _) = apply_redaction(&value, &rules);
+        prop_assert_eq!(result1, result2, "Same input must produce same hash");
+    }
 
-        for i in 0..map_size {
-            map.insert(format!("field_{}", i), RedactedValue::Number(i as u64));
-        }
+    #[test]
+    fn redaction_empty_rules_is_identity(data in any::<serde_json::Value>()) {
+        let rules: Vec<RedactionRule> = vec![];
+        let (result, redacted) = apply_redaction(&data, &rules);
+        prop_assert_eq!(result, data);
+        prop_assert!(redacted.is_empty());
+    }
 
-        let value = RedactedValue::Object(map.clone());
-        let rule = RedactionRule::new(&target_field);
-        let result = apply_redaction(&value, &rule);
-
-        // Result should still be an object
-        if let RedactedValue::Object(result_map) = result {
-            prop_assert_eq!(result_map.len(), map_size);
-        }
+    #[test]
+    fn redaction_remove_never_exposes_original(
+        field_name in "[a-z]{1,10}",
+        secret in "[A-Z]{5,20}",
+    ) {
+        let value = serde_json::json!({ &field_name: secret });
+        let rules = vec![RedactionRule::new(
+            vec![field_name.clone()],
+            RedactionKind::Remove,
+        )];
+        let (result, _) = apply_redaction(&value, &rules);
+        let result_str = serde_json::to_string(&result).unwrap();
+        prop_assert!(!result_str.contains(&secret),
+            "Removed field value must not appear in output");
     }
 
     // ============ Workflow Next Nodes Proptests ============
@@ -598,21 +625,27 @@ proptest! {
     // ============ Dual Representation Proptests ============
 
     #[test]
-    fn dual_representation_redaction_is_applicative(
-        value in any::<RedactedValue>(),
-        rule1 in any::<String>(),
-        rule2 in any::<String>(),
+    fn dual_representation_redaction_commutes_for_non_overlapping_rules(
+        field_a in "[a-z]{1,5}",
+        field_b in "[a-z]{1,5}",
+        val_a in ".*",
+        val_b in ".*",
     ) {
-        // Invariant: Applying multiple rules is order-independent
-        // Strategy: Generate values and rule pairs
-        // Anti-invariant: order-dependent redaction breaks consistency
-        let rule1 = RedactionRule::new(&rule1);
-        let rule2 = RedactionRule::new(&rule2);
+        prop_assume!(field_a != field_b);
+        let value = serde_json::json!({ &field_a: val_a, &field_b: val_b });
+        let rule_a = vec![RedactionRule::new(vec![field_a.clone()], RedactionKind::Hash)];
+        let rule_b = vec![RedactionRule::new(vec![field_b.clone()], RedactionKind::Remove)];
+        let both = vec![
+            RedactionRule::new(vec![field_a], RedactionKind::Hash),
+            RedactionRule::new(vec![field_b], RedactionKind::Remove),
+        ];
 
-        let result1 = apply_redaction(&apply_redaction(&value, &rule1), &rule2);
-        let result2 = apply_redaction(&apply_redaction(&value, &rule2), &rule1);
+        let (ab, _) = apply_redaction(&value, &both);
 
-        prop_assert_eq!(result1, result2);
+        let (a_then_val, _) = apply_redaction(&value, &rule_a);
+        let (ab2, _) = apply_redaction(&a_then_val, &rule_b);
+
+        prop_assert_eq!(ab, ab2, "Non-overlapping redaction rules should commute");
     }
 
     // ============ Access Control Proptests ============

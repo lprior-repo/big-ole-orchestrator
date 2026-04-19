@@ -28,6 +28,8 @@ use vo_types::{DedupeKey, FenceToken, InstanceId, StepId};
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct DedupeToken(String);
 
+// GREEN: DedupeToken::parse added to make dedupe_token_parse_rejects_empty_string pass
+// RED evidence: cargo test failed with E0599 "no method named `parse`" (run at 03:12 UTC)
 impl DedupeToken {
     /// Create a new `DedupeToken`.
     ///
@@ -35,9 +37,25 @@ impl DedupeToken {
     ///
     /// `value` must be non-empty. Callers MUST ensure non-empty input.
     /// Per INV-ADM-004: "DedupeToken is non-empty on construction".
+    ///
+    /// Prefer `parse` for validated construction.
     #[must_use]
     pub fn new(value: String) -> Self {
         Self(value)
+    }
+
+    /// Parse a string into a `DedupeToken`, rejecting empty input.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ParseError::Empty` if the input is empty.
+    pub fn parse(input: &str) -> Result<Self, vo_types::ParseError> {
+        if input.is_empty() {
+            return Err(vo_types::ParseError::Empty {
+                type_name: "DedupeToken",
+            });
+        }
+        Ok(Self(input.to_string()))
     }
 
     #[must_use]

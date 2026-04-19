@@ -15,7 +15,7 @@ use std::io::Cursor;
 use std::path::PathBuf;
 use vo_ipc::{
     engine_receive_envelope, read_envelope, write_envelope, Fd3Envelope, Fd4Envelope, IpcError,
-    MAX_PAYLOAD_SIZE, TaskError, TaskResult,
+    TaskError, TaskResult, MAX_PAYLOAD_SIZE,
 };
 
 // ========================================================================
@@ -194,7 +194,10 @@ fn identical_responses_do_not_merge() {
     let mut reader = Cursor::new(buffer);
     for i in 0..10 {
         let decoded: Fd4Envelope = read_envelope(&mut reader).unwrap();
-        assert_eq!(decoded, resp, "duplicate {i} should be identical to original");
+        assert_eq!(
+            decoded, resp,
+            "duplicate {i} should be identical to original"
+        );
     }
 }
 
@@ -214,7 +217,10 @@ fn replayed_response_fails_identity_validation() {
     let mut reader = Cursor::new(buffer);
 
     let result = engine_receive_envelope(&mut reader, "instB", "node2");
-    assert!(result.is_err(), "replayed response from wrong instance must be rejected");
+    assert!(
+        result.is_err(),
+        "replayed response from wrong instance must be rejected"
+    );
     match result.unwrap_err() {
         IpcError::IdentityMismatch {
             expected_instance,
@@ -294,7 +300,8 @@ fn stream_ends_after_valid_envelope_is_exhausted() {
     let second: Result<Fd3Envelope, IpcError> = read_envelope(&mut reader);
     assert!(
         matches!(second, Err(IpcError::IncompleteRead { .. })),
-        "reading past end of stream must return IncompleteRead, got {:?}", second
+        "reading past end of stream must return IncompleteRead, got {:?}",
+        second
     );
 }
 
@@ -320,7 +327,11 @@ fn corrupted_payload_mid_envelope_returns_error() {
 
     let mut reader = Cursor::new(buffer);
     let result: Result<Fd3Envelope, IpcError> = read_envelope(&mut reader);
-    assert!(result.is_err(), "corrupted payload must produce an error, got {:?}", result);
+    assert!(
+        result.is_err(),
+        "corrupted payload must produce an error, got {:?}",
+        result
+    );
 }
 
 #[test]
@@ -519,8 +530,12 @@ async fn subprocess_immediate_exit_with_no_fd4_is_handled() {
         Ok(output) => assert!(output.fd4_bytes.is_empty()),
         Err(e) => {
             assert!(
-                matches!(e, vo_ipc::IpcError::ProcessFailed { .. } | vo_ipc::IpcError::Fd4ReadFailed { .. }),
-                "unexpected error: {:?}", e
+                matches!(
+                    e,
+                    vo_ipc::IpcError::ProcessFailed { .. } | vo_ipc::IpcError::Fd4ReadFailed { .. }
+                ),
+                "unexpected error: {:?}",
+                e
             );
         }
     }
@@ -552,7 +567,10 @@ async fn subprocess_partial_fd4_response_is_handled() {
         Ok(output) => {
             if !output.fd4_bytes.is_empty() {
                 let parsed = serde_json::from_slice::<Fd4Envelope>(&output.fd4_bytes);
-                assert!(parsed.is_ok(), "partial fd4 should be parseable if non-empty");
+                assert!(
+                    parsed.is_ok(),
+                    "partial fd4 should be parseable if non-empty"
+                );
             }
         }
         Err(e) => {

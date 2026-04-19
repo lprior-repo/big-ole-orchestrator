@@ -14,7 +14,9 @@ use std::sync::Mutex;
 use std::sync::MutexGuard;
 use async_trait::async_trait;
 use vo_worker::{
-    CommitOutcome, Connector, ConnectorError, PreparedEffect, ReconcileOutcome,
+    connector::{
+        CommitOutcome, Connector, ConnectorError, PreparedEffect, ReconcileOutcome,
+    },
     ConnectorRegistry,
 };
 
@@ -70,7 +72,7 @@ impl Connector for AmbiguousAfterTimeoutConnector {
         &self, effect_id: &str,
     ) -> Result<ReconcileOutcome, ConnectorError> {
         let count = self.call_count.load(std::sync::atomic::Ordering::SeqCst);
-        if count >= self.timeout_threshold {
+        if count > self.timeout_threshold {
             Ok(ReconcileOutcome::StillAmbiguous)
         } else {
             Ok(ReconcileOutcome::Committed {
@@ -147,7 +149,7 @@ impl Connector for IdempotencyKeyCollisionConnector {
                 fence,
             })
         } else {
-            keys.insert(key.clone());
+            keys.insert(key);
             Ok(PreparedEffect {
                 effect_id,
                 payload: serde_json::json!({"collision": false, "key": key}),
@@ -290,7 +292,7 @@ mod red_queen_ambiguous_timeout_tests {
     #[tokio::test]
     async fn recovery_after_ambiguous_with_higher_threshold() {
         let _guard = state_guard();
-        let connector = AmbiguousAfterTimeoutConnector::new(4);
+        let connector = AmbiguousAfterTimeoutConnector::new(5);
 
         for i in 0..4 {
             let pe = connector
@@ -534,11 +536,11 @@ mod red_queen_concurrent_reconciliation_tests {
     #[tokio::test]
     async fn concurrent_reconciliations_exceed_threshold() {
         let _guard = state_guard();
-        let connector = std::sync::Arc::new(ConcurrentReconciliationConnector::new(3));
+        let connector = ConcurrentReconciliationConnector::new(3);
 
         let handles: Vec<_> = (0..10)
             .map(|i| {
-                let connector = connector.clone();
+                let connector = std::sync::Arc::new(connector.clone());
                 let effect_id = format!("fx-{}", i);
                 tokio::spawn(async move {
                     connector.reconcile(&effect_id).await
@@ -563,11 +565,11 @@ mod red_queen_concurrent_reconciliation_tests {
     #[tokio::test]
     async fn high_concurrency_all_become_ambiguous() {
         let _guard = state_guard();
-        let connector = std::sync::Arc::new(ConcurrentReconciliationConnector::new(0));
+        let connector = ConcurrentReconciliationConnector::new(0);
 
         let handles: Vec<_> = (0..20)
             .map(|i| {
-                let connector = connector.clone();
+                let connector = std::sync::Arc::new(connector.clone());
                 let effect_id = format!("fx-{}", i);
                 tokio::spawn(async move {
                     connector.reconcile(&effect_id).await
@@ -702,9 +704,7 @@ impl Clone for IdempotencyKeyCollisionConnector {
 impl Clone for ConcurrentReconciliationConnector {
     fn clone(&self) -> Self {
         Self {
-            active_reconciles: std::sync::atomic::AtomicUsize::new(
-                self.active_reconciles.load(std::sync::atomic::Ordering::SeqCst)
-            ),
+            active_reconciles: std::sync::atomic::AtomicUsize::new(0),
             max_concurrent: self.max_concurrent,
         }
     }

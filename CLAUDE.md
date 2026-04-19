@@ -34,7 +34,7 @@ Veloxide is the Indestructible Rust Orchestrator. It is a true single-binary eng
 | `vo-sdk-macros` | Procedural macros backing `vo-sdk` attribute macros |
 | `vo-frontend` | Dioxus WASM visual dashboard (graph UI, node panels) |
 | `vo-linter` | Static analysis crate for linting workflow definitions (AST-based via `syn`) |
-| `vel-k1t9` | Execute-node error handling, timeout enforcement, and retry policies |
+| `vo-executor` | Execute-node error handling, timeout enforcement, and retry policies |
 
 ## Development & AI Guidelines
 1. **Zero External DBs:** Never introduce dependencies on Redis or Postgres. NATS is used exclusively by `vo-worker` for distributed task execution.

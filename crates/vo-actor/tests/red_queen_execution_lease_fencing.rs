@@ -10,11 +10,11 @@
 use vo_types::{FenceToken, InstanceId, LeaseRecord, StepId};
 
 fn test_instance_id() -> InstanceId {
-    InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap()
+    InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").expect("valid test instance id")
 }
 
 fn test_step_id() -> StepId {
-    StepId::parse("step-1").unwrap()
+    StepId::parse("step-1").expect("valid test step id")
 }
 
 fn make_fence_token(v: u64) -> FenceToken {
@@ -193,8 +193,8 @@ fn concurrent_acquisition_same_instance_id_only_one_wins() {
 #[test]
 fn different_step_ids_have_independent_fence_tokens() {
     let instance_id = test_instance_id();
-    let step_a = StepId::parse("step-a").unwrap();
-    let step_b = StepId::parse("step-b").unwrap();
+    let step_a = StepId::parse("step-a").expect("valid test step id");
+    let step_b = StepId::parse("step-b").expect("valid test step id");
 
     let lease_step_a = LeaseRecord::new(instance_id.clone(), step_a.clone(), make_fence_token(1));
 
@@ -219,8 +219,8 @@ fn different_step_ids_have_independent_fence_tokens() {
 #[test]
 fn same_instance_different_step_ids_fences_dont_cross_contaminate() {
     let instance_id = test_instance_id();
-    let step_1 = StepId::parse("first-step").unwrap();
-    let step_2 = StepId::parse("second-step").unwrap();
+    let step_1 = StepId::parse("first-step").expect("valid test step id");
+    let step_2 = StepId::parse("second-step").expect("valid test step id");
 
     let lease_1_v1 = LeaseRecord::new(instance_id.clone(), step_1.clone(), make_fence_token(1));
     let lease_2_v1 = LeaseRecord::new(instance_id.clone(), step_2.clone(), make_fence_token(1));
@@ -249,14 +249,14 @@ fn same_instance_different_step_ids_fences_dont_cross_contaminate() {
     );
 
     assert_eq!(
-        lease_1_v1.token().inner().get(),
-        lease_2_v1.token().inner().get(),
+        lease_1_v1.token(),
+        lease_2_v1.token(),
         "Same token values match regardless of step ID"
     );
 
     assert_ne!(
-        lease_1_v2.token().inner().get(),
-        lease_2_v1.token().inner().get(),
+        lease_1_v2.token(),
+        lease_2_v1.token(),
         "Step 1 v2 token (2) differs from Step 2 v1 token (1)"
     );
 }
@@ -270,14 +270,14 @@ fn fence_tokens_are_strictly_monotonic() {
     let instance_id = test_instance_id();
     let step_id = test_step_id();
 
-    let tokens: Vec<FenceToken> = (1..=100).map(|v| make_fence_token(v)).collect();
+    let tokens: Vec<FenceToken> = (1..=100).map(make_fence_token).collect();
 
     for window in tokens.windows(2) {
         assert!(
             window[1] > window[0],
-            "Token {} must be > {}",
-            window[1].inner().get(),
-            window[0].inner().get()
+            "Token {:?} must be > {:?}",
+            window[1],
+            window[0]
         );
     }
 
@@ -302,10 +302,18 @@ fn token_next_increments_by_one() {
     let t1 = make_fence_token(1);
     let t2 = t1.next().expect("next token");
 
-    assert_eq!(t2.inner().get(), 2, "next() must increment by exactly 1");
+    assert_eq!(
+        t2,
+        make_fence_token(2),
+        "next() must increment by exactly 1"
+    );
 
     let t3 = t2.next().expect("next token");
-    assert_eq!(t3.inner().get(), 3, "next() must increment by exactly 1");
+    assert_eq!(
+        t3,
+        make_fence_token(3),
+        "next() must increment by exactly 1"
+    );
 }
 
 #[test]

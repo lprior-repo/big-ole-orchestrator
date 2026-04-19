@@ -4,9 +4,11 @@
 #![warn(clippy::pedantic)]
 
 use dioxus::prelude::*;
-use oya_frontend::flow_extender::ExtensionPatchPreview;
-use oya_frontend::graph::{Node, NodeCategory, NodeId, Workflow};
+use crate::flow_extender::ExtensionPatchPreview;
 use std::collections::HashMap;
+
+use crate::ui::graph::NodeCategory;
+use crate::ui::graph::{Node, NodeId, Workflow};
 
 use crate::ui::NodeConfigEditor;
 

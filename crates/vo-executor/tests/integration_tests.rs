@@ -7,8 +7,8 @@ mod integration_tests {
     use std::sync::Mutex;
     use std::sync::MutexGuard;
     use vo_executor::{
-        cancel_execution, clear_error, execute_step, execute_step_with_retry,
-        get_execution_status, get_last_error, reset_all_state, set_error, RetryPolicy, StepId,
+        cancel_execution, clear_error, execute_step, execute_step_with_retry, get_execution_status,
+        get_last_error, reset_all_state, set_error, RetryPolicy, StepId,
     };
 
     /// Global mutex to prevent concurrent tests from racing on shared DashMap state
@@ -206,6 +206,7 @@ mod integration_tests {
             backoff_ms: 10,
             backoff_multiplier: 2.0,
             max_backoff_ms: u64::MAX,
+            jitter_factor: 0.1,
         };
         let result = execute_step_with_retry(StepId::new("step-1".to_string()), 5000, policy).await;
         assert_eq!(

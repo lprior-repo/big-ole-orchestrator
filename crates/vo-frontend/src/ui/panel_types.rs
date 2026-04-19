@@ -6,49 +6,7 @@
 
 use std::fmt;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum HttpMethod {
-    Get,
-    Post,
-    Put,
-    Delete,
-    Patch,
-}
-
-impl HttpMethod {
-    #[must_use]
-    pub fn parse(s: &str) -> Self {
-        let lower = s.to_lowercase();
-        match lower.as_str() {
-            "get" => Self::Get,
-            "put" => Self::Put,
-            "delete" => Self::Delete,
-            "patch" => Self::Patch,
-            _ => Self::Post,
-        }
-    }
-
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Get => "GET",
-            Self::Post => "POST",
-            Self::Put => "PUT",
-            Self::Delete => "DELETE",
-            Self::Patch => "PATCH",
-        }
-    }
-
-    pub const fn all() -> &'static [Self] {
-        &[Self::Get, Self::Post, Self::Put, Self::Delete, Self::Patch]
-    }
-}
-
-impl fmt::Display for HttpMethod {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.as_str())
-    }
-}
+pub use crate::ui::domain_types::HttpMethod;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum InvocationStatus {

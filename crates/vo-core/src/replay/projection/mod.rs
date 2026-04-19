@@ -609,20 +609,41 @@ impl ProjectionStateManager {
 
         let current = states.get(projection_id);
 
-        let valid = match (&current, &new_state) {
-            (None, _) => true,
-            (Some(ProjectionState::Building), ProjectionState::Ready) => true,
-            (Some(ProjectionState::Building), ProjectionState::Failed { .. }) => true,
-            (Some(ProjectionState::Ready), ProjectionState::Stale { .. }) => true,
-            (Some(ProjectionState::Ready), ProjectionState::Rebuilding { .. }) => true,
-            (Some(ProjectionState::Ready), ProjectionState::Failed { .. }) => true,
-            (Some(ProjectionState::Stale { .. }), ProjectionState::Rebuilding { .. }) => true,
-            (Some(ProjectionState::Stale { .. }), ProjectionState::Failed { .. }) => true,
-            (Some(ProjectionState::Rebuilding { .. }), ProjectionState::Ready) => true,
-            (Some(ProjectionState::Rebuilding { .. }), ProjectionState::Failed { .. }) => true,
-            (Some(ProjectionState::Failed { .. }), ProjectionState::Rebuilding { .. }) => true,
-            _ => false,
-        };
+        let valid = matches!(
+            (&current, &new_state),
+            (None, _)
+                | (Some(ProjectionState::Building), ProjectionState::Ready)
+                | (
+                    Some(ProjectionState::Building),
+                    ProjectionState::Failed { .. }
+                )
+                | (Some(ProjectionState::Ready), ProjectionState::Stale { .. })
+                | (
+                    Some(ProjectionState::Ready),
+                    ProjectionState::Rebuilding { .. }
+                )
+                | (Some(ProjectionState::Ready), ProjectionState::Failed { .. })
+                | (
+                    Some(ProjectionState::Stale { .. }),
+                    ProjectionState::Rebuilding { .. }
+                )
+                | (
+                    Some(ProjectionState::Stale { .. }),
+                    ProjectionState::Failed { .. }
+                )
+                | (
+                    Some(ProjectionState::Rebuilding { .. }),
+                    ProjectionState::Ready
+                )
+                | (
+                    Some(ProjectionState::Rebuilding { .. }),
+                    ProjectionState::Failed { .. }
+                )
+                | (
+                    Some(ProjectionState::Failed { .. }),
+                    ProjectionState::Rebuilding { .. }
+                )
+        );
 
         if !valid {
             return Err(ProjectionStateError::InvalidTransition {

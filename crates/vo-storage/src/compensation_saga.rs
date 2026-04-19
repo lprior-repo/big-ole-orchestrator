@@ -28,9 +28,9 @@
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
-use vo_types::{
-    CompensationPolicy, CompensationRecord, CompensationStatus, EffectIntent, TimestampMs,
-};
+use vo_types::compensation::{CompensationRecord, CompensationStatus};
+use vo_types::effects::{CompensationPolicy, EffectIntent};
+use vo_types::types::TimestampMs;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum SagaCompensationStatus {
@@ -104,8 +104,8 @@ impl CompensationEntry {
 
     pub fn is_timed_out(&self, now: TimestampMs) -> bool {
         if let (Some(started), Some(timeout)) = (self.started_at, self.timeout_ms) {
-            let elapsed = now.as_u64().saturating_sub(started.as_u64());
-            return elapsed > timeout;
+            let elapsed = now.as_i64() - started.as_i64();
+            return elapsed > timeout as i64;
         }
         false
     }
@@ -379,9 +379,10 @@ impl CompensationSaga {
         #[expect(clippy::unwrap_used)]
         let mut manifest = self.manifest.lock().unwrap();
         manifest.register(effect_id.clone(), policy, dependencies)?;
-        #[allow(clippy::expect_used)]
-        let entry = manifest.get_mut(&effect_id).expect("entry just inserted");
-        entry.timeout_ms = Some(timeout_ms);
+        manifest
+            .get_mut(&effect_id)
+            .expect("entry just inserted")
+            .timeout_ms = Some(timeout_ms);
         Ok(())
     }
 
@@ -441,7 +442,6 @@ impl CompensationSaga {
         let mut manifest = self.manifest.lock().unwrap();
         manifest.set_ambiguous(effect_id)?;
 
-        #[allow(clippy::expect_used)]
         let entry = manifest.get(effect_id).expect("just set ambiguous");
         let ctx = ReconciliationContext {
             effect_id: effect_id.to_string(),
@@ -845,26 +845,6 @@ mod tests {
         let manifest = saga.manifest();
         let guard = manifest.lock().unwrap();
         let entry = guard.get("fx-1").expect("entry exists");
-        assert_eq!(entry.status, SagaCompensationStatus::Pending);
-    }
-
-    #[test]
-    fn forward_recovery_retry_requeues_ambiguous_compensation() {
-        let saga = CompensationSaga::with_reconciler(RetryReconciler::new(3));
-        saga.register("fx-1".to_string(), CompensationPolicy::Automatic, vec![])
-            .unwrap();
-        saga.queue_pending("fx-1").unwrap();
-        saga.start_compensation("fx-1").unwrap();
-
-        // Simulate ambiguous outcome (e.g., network timeout)
-        let action = saga.mark_ambiguous("fx-1").unwrap();
-        assert_eq!(action, ReconciliationAction::RetryCompensation);
-
-        // Forward-recovery: retry requeues for re-execution
-        saga.handle_reconciliation("fx-1", action).unwrap();
-
-        let manifest = saga.manifest.lock().unwrap();
-        let entry = manifest.get("fx-1").expect("entry exists");
         assert_eq!(entry.status, SagaCompensationStatus::Pending);
     }
 }

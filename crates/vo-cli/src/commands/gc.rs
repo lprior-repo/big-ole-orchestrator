@@ -12,7 +12,7 @@ impl Default for GcConfig {
     fn default() -> Self {
         Self {
             engine_url: "http://localhost:3000".to_string(),
-            versions_dir: PathBuf::from("/var/wtf/versions"),
+            versions_dir: PathBuf::from(".vo/versions"),
             dry_run: false,
         }
     }
@@ -225,4 +225,135 @@ pub async fn run_gc(config: &GcConfig) -> Result<GcSummary, GcError> {
         deleted_hashes,
         failures,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashSet;
+
+    #[test]
+    fn is_hex_64_valid_64_char_hex() {
+        let s64 = "a".repeat(64);
+        assert!(is_hex_64(&s64));
+        let s64upper = "A".repeat(64);
+        assert!(is_hex_64(&s64upper));
+        let s64num = "0".repeat(64);
+        assert!(is_hex_64(&s64num));
+        let valid_chars = "0123456789abcdef".repeat(4);
+        assert!(is_hex_64(&valid_chars));
+    }
+
+    #[test]
+    fn is_hex_64_invalid_lengths() {
+        assert!(!is_hex_64("abc"));
+        let s63 = "a".repeat(63);
+        assert!(!is_hex_64(&s63));
+        let s65 = "a".repeat(65);
+        assert!(!is_hex_64(&s65));
+    }
+
+    #[test]
+    fn is_hex_64_invalid_characters() {
+        let sg = "g".repeat(64);
+        assert!(!is_hex_64(&sg));
+        let sG = "G".repeat(64);
+        assert!(!is_hex_64(&sG));
+    }
+
+    #[test]
+    fn extract_hash_from_path_extracts_filename() {
+        let hash = "a".repeat(64);
+        let full_path = format!("/versions/{}", hash);
+        let path = Path::new(&full_path);
+        assert_eq!(extract_hash_from_path(path), Some(hash));
+    }
+
+    #[test]
+    fn extract_hash_from_path_returns_none_for_root() {
+        let path = Path::new("/");
+        assert!(extract_hash_from_path(path).is_none());
+    }
+
+    #[test]
+    fn gc_config_default_values() {
+        let config = GcConfig::default();
+        assert_eq!(config.engine_url, "http://localhost:3000");
+        assert_eq!(config.versions_dir, PathBuf::from("/var/wtf/versions"));
+        assert!(!config.dry_run);
+    }
+
+    #[test]
+    fn gc_summary_zero_initialization() {
+        let summary = GcSummary {
+            pinned_count: 0,
+            scanned_count: 0,
+            deleted_count: 0,
+            deleted_hashes: vec![],
+            failures: vec![],
+        };
+        assert_eq!(summary.pinned_count, 0);
+        assert_eq!(summary.scanned_count, 0);
+        assert_eq!(summary.deleted_count, 0);
+        assert!(summary.deleted_hashes.is_empty());
+        assert!(summary.failures.is_empty());
+    }
+
+    #[test]
+    fn gc_error_display_format() {
+        let err = GcError::VersionsDirNotFound {
+            path: PathBuf::from("/test/path"),
+        };
+        assert!(err.to_string().contains("/test/path"));
+
+        let err = GcError::EngineHttpError {
+            url: "http://localhost:3000".to_string(),
+            status: 500,
+        };
+        assert!(err.to_string().contains("HTTP 500"));
+
+        let err = GcError::InvalidApiResponse {
+            reason: "missing field".to_string(),
+        };
+        assert!(err.to_string().contains("missing field"));
+    }
+
+    #[tokio::test]
+    async fn find_unpinned_directories_empty_when_no_dir() {
+        let result = find_unpinned_directories(Path::new("/nonexistent/path"), &HashSet::new()).await;
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn delete_version_dir_removes_directory() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let version_dir = temp_dir.path().join("a".repeat(64));
+        std::fs::create_dir_all(&version_dir).unwrap();
+        std::fs::write(version_dir.join("file.txt"), "content").unwrap();
+
+        assert!(version_dir.exists());
+
+        let result = delete_version_dir(&version_dir).await;
+        assert!(result.is_ok());
+        assert!(!version_dir.exists());
+    }
+
+    #[tokio::test]
+    async fn delete_version_dir_error_on_nonexistent() {
+        let result = delete_version_dir(Path::new("/nonexistent/path")).await;
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn gc_config_with_custom_values() {
+        let config = GcConfig {
+            engine_url: "http://localhost:9000".to_string(),
+            versions_dir: PathBuf::from("/custom/path"),
+            dry_run: true,
+        };
+        assert_eq!(config.engine_url, "http://localhost:9000");
+        assert_eq!(config.versions_dir, PathBuf::from("/custom/path"));
+        assert!(config.dry_run);
+    }
 }

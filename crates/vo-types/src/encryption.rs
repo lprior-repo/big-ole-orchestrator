@@ -76,9 +76,17 @@ impl From<DekId> for String {
 pub struct WrappedDek(pub Vec<u8>);
 
 impl WrappedDek {
-    #[must_use]
-    pub fn new(wrapped_bytes: Vec<u8>) -> Self {
-        Self(wrapped_bytes)
+    pub fn new(wrapped_bytes: Vec<u8>) -> Result<Self, ParseError> {
+        if wrapped_bytes.len() < 60 {
+            return Err(ParseError::InvalidFormat {
+                type_name: "WrappedDek",
+                reason: format!(
+                    "wrapped DEK must be at least 60 bytes (IV+DEK+tag), got {}",
+                    wrapped_bytes.len()
+                ),
+            });
+        }
+        Ok(Self(wrapped_bytes))
     }
 
     #[must_use]
@@ -101,24 +109,32 @@ pub struct EncryptedBlob {
 }
 
 impl EncryptedBlob {
-    pub fn new(iv: Vec<u8>, ciphertext: Vec<u8>, tag: Vec<u8>) -> Self {
+    pub fn new(iv: Vec<u8>, ciphertext: Vec<u8>, tag: Vec<u8>) -> Result<Self, ParseError> {
         if iv.len() != CryptoAlgorithm::IV_SIZE_BYTES {
-            panic!(
-                "IV must be exactly {} bytes",
-                CryptoAlgorithm::IV_SIZE_BYTES
-            );
+            return Err(ParseError::InvalidFormat {
+                type_name: "EncryptedBlob",
+                reason: format!(
+                    "invalid IV length: expected {}, got {}",
+                    CryptoAlgorithm::IV_SIZE_BYTES,
+                    iv.len()
+                ),
+            });
         }
         if tag.len() != CryptoAlgorithm::TAG_SIZE_BYTES {
-            panic!(
-                "tag must be exactly {} bytes",
-                CryptoAlgorithm::TAG_SIZE_BYTES
-            );
+            return Err(ParseError::InvalidFormat {
+                type_name: "EncryptedBlob",
+                reason: format!(
+                    "invalid tag length: expected {}, got {}",
+                    CryptoAlgorithm::TAG_SIZE_BYTES,
+                    tag.len()
+                ),
+            });
         }
-        Self {
+        Ok(Self {
             iv,
             ciphertext,
             tag,
-        }
+        })
     }
 
     #[must_use]
@@ -217,13 +233,14 @@ mod tests {
 
     #[test]
     fn wrapped_dek_creation() {
-        let wrapped = WrappedDek::new(vec![0xDE, 0xAD, 0xBE, 0xEF]);
-        assert_eq!(wrapped.as_bytes(), &[0xDE, 0xAD, 0xBE, 0xEF]);
+        let bytes = vec![0xDE, 0xAD, 0xBE, 0xEF].repeat(15); // 60 bytes minimum
+        let wrapped = WrappedDek::new(bytes.clone()).expect("valid wrapped DEK");
+        assert_eq!(wrapped.as_bytes(), bytes.as_slice());
     }
 
     #[test]
     fn encrypted_blob_creation() {
-        let blob = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![2u8; 16]);
+        let blob = EncryptedBlob::new(vec![0u8; 12], vec![1u8; 32], vec![2u8; 16]).unwrap();
         assert_eq!(blob.total_size(), 60);
     }
 

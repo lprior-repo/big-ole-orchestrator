@@ -65,6 +65,15 @@ fn dedupe_token_display_returns_inner_string() {
 }
 
 #[test]
+fn dedupe_token_parse_rejects_empty_string() {
+    let result = DedupeToken::parse("");
+    assert!(
+        result.is_err(),
+        "Empty string must be rejected by DedupeToken::parse"
+    );
+}
+
+#[test]
 fn dedupe_token_clone_equality() {
     let token = DedupeToken::new("clone-test".to_string());
     assert_eq!(token.clone(), token);
