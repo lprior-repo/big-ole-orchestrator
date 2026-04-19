@@ -19,7 +19,6 @@ futures = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 ulid = { workspace = true }
-bytes = { workspace = true }
 reqwest = { workspace = true }
 proptest = { workspace = true, optional = true }
 
