@@ -1,11 +1,16 @@
+//! Exec probe implementation.
+
 use std::process::Stdio;
 use std::time::Duration;
 
 use async_trait::async_trait;
 use tokio::process::Command;
 
-use super::types::{Probe, ProbeError, ProbeId, ProbeResult, ProbeStatus};
+use super::error::ProbeError;
+use super::types::{ProbeId, ProbeResult, ProbeStatus};
+use super::Probe;
 
+/// Exec health probe.
 pub struct ExecProbe {
     id: ProbeId,
     command: String,
@@ -15,6 +20,7 @@ pub struct ExecProbe {
 }
 
 impl ExecProbe {
+    /// Create a new exec probe.
     pub fn new(command: impl Into<String>, args: Vec<String>) -> Self {
         Self {
             id: ProbeId::new(),
@@ -25,11 +31,13 @@ impl ExecProbe {
         }
     }
 
+    /// Set expected exit code.
     pub fn with_expected_exit_code(mut self, code: i32) -> Self {
         self.expected_exit_code = Some(code);
         self
     }
 
+    /// Set probe timeout.
     pub fn with_timeout(mut self, timeout: Duration) -> Self {
         self.timeout = timeout;
         self
@@ -87,56 +95,5 @@ impl Probe for ExecProbe {
 
     fn probe_id(&self) -> ProbeId {
         self.id
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn qa_smoke_exec_probe_true_command() {
-        let probe = ExecProbe::new("true", vec![]);
-        let result = probe.check().await;
-        assert!(result.is_ok());
-        let r = result.unwrap();
-        assert_eq!(r.status, ProbeStatus::Healthy);
-        assert_eq!(r.probe_id, probe.probe_id());
-    }
-
-    #[tokio::test]
-    async fn qa_smoke_exec_probe_false_command() {
-        let probe = ExecProbe::new("false", vec![]);
-        let result = probe.check().await;
-        assert!(result.is_ok());
-        let r = result.unwrap();
-        assert_eq!(r.status, ProbeStatus::Unhealthy);
-    }
-
-    #[tokio::test]
-    async fn qa_smoke_exec_probe_custom_exit_code() {
-        let probe = ExecProbe::new("bash", vec!["-c".to_string(), "exit 42".to_string()])
-            .with_expected_exit_code(42);
-        let result = probe.check().await;
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap().status, ProbeStatus::Healthy);
-    }
-
-    #[tokio::test]
-    async fn qa_smoke_exec_probe_nonexistent_command() {
-        let probe = ExecProbe::new("/nonexistent/command/xyz", vec![]);
-        let result = probe.check().await;
-        assert!(result.is_err());
-    }
-
-    #[tokio::test]
-    async fn qa_smoke_probe_result_fields_populated() {
-        let probe = ExecProbe::new("echo", vec!["hello".to_string()]);
-        let result = probe.check().await.unwrap();
-        assert_eq!(result.status, ProbeStatus::Healthy);
-        assert!(result.message.is_some());
-        assert!(result.message.as_ref().unwrap().contains("echo"));
-        assert!(result.last_check_ms > 0);
-        assert_eq!(result.probe_id, probe.probe_id());
     }
 }

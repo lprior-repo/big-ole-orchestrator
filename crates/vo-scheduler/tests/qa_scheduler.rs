@@ -51,7 +51,7 @@ fn immediate_job_starts_as_pending() {
         RetryPolicy::default_policy(),
         vec![].into(),
     )
-    .unwrap();
+    .expect("job creation should succeed");
     assert_eq!(job.state, JobState::Pending);
 }
 
@@ -65,7 +65,7 @@ fn future_scheduled_job_starts_as_scheduled() {
         RetryPolicy::default_policy(),
         vec![].into(),
     )
-    .unwrap();
+    .expect("job creation should succeed");
     assert_eq!(job.state, JobState::Scheduled);
 }
 
@@ -78,7 +78,7 @@ fn cron_schedule_accepted_and_stored() {
         RetryPolicy::default_policy(),
         vec![].into(),
     )
-    .unwrap();
+    .expect("job creation should succeed");
     assert!(matches!(job.schedule_policy, SchedulePolicy::Cron(ref s) if s == "*/5 * * * *"));
     assert_eq!(job.kind, JobKind::Recurring);
 }
@@ -88,9 +88,37 @@ fn cron_invalid_expression_rejected() {
     let result = ScheduledJob::new(
         JobKind::Recurring,
         JobPriority::Normal,
-        SchedulePolicy::Cron("invalid".to_string()),
+        SchedulePolicy::Cron("invalid".into()),
         RetryPolicy::default_policy(),
-        bytes::Bytes::new(),
+        vec![].into(),
+    );
+    assert!(result.is_err());
+    assert!(matches!(
+        result.unwrap_err(),
+        vo_scheduler::error::SchedulerError::InvalidSchedule
+    ));
+}
+
+#[test]
+fn cron_wrong_field_count_rejected() {
+    let result = ScheduledJob::new(
+        JobKind::Recurring,
+        JobPriority::Normal,
+        SchedulePolicy::Cron("* * * *".into()),
+        RetryPolicy::default_policy(),
+        vec![].into(),
+    );
+    assert!(result.is_err());
+}
+
+#[test]
+fn cron_out_of_range_rejected() {
+    let result = ScheduledJob::new(
+        JobKind::Recurring,
+        JobPriority::Normal,
+        SchedulePolicy::Cron("60 * * * *".into()),
+        RetryPolicy::default_policy(),
+        vec![].into(),
     );
     assert!(result.is_err());
 }
@@ -117,7 +145,7 @@ fn retry_loop_cycles_through_retrying_state() {
         RetryPolicy::default_policy(),
         vec![].into(),
     )
-    .unwrap();
+    .expect("job creation should succeed");
     job.transition(JobState::Running).unwrap();
     job.transition(JobState::Failed).unwrap();
     assert!(job.state.is_terminal());
@@ -138,7 +166,7 @@ fn full_lifecycle_pending_to_completed() {
         RetryPolicy::default_policy(),
         vec![].into(),
     )
-    .unwrap();
+    .expect("job creation should succeed");
     assert_eq!(job.state, JobState::Pending);
     job.transition(JobState::Running).unwrap();
     job.transition(JobState::Completed).unwrap();
@@ -157,7 +185,7 @@ fn make_job(
         RetryPolicy::default_policy(),
         tag.as_bytes().to_vec().into(),
     )
-    .unwrap();
+    .expect("job creation should succeed");
     job.due_at = due_at;
     job
 }

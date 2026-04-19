@@ -2,7 +2,9 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::error::SchedulerError;
-use crate::types::{JobId, JobKind, JobPriority, JobState, RetryPolicy, SchedulePolicy};
+use crate::types::{
+    validate_cron_expression, JobId, JobKind, JobPriority, JobState, RetryPolicy, SchedulePolicy,
+};
 
 pub type SerializedPayload = bytes::Bytes;
 
@@ -31,8 +33,9 @@ impl ScheduledJob {
         payload: SerializedPayload,
     ) -> Result<Self, SchedulerError> {
         if let SchedulePolicy::Cron(ref expr) = schedule_policy {
-            SchedulePolicy::validate_cron(expr)?;
+            validate_cron_expression(expr).map_err(|_| SchedulerError::InvalidSchedule)?;
         }
+
         let now = Utc::now();
         let due_at = match &schedule_policy {
             SchedulePolicy::At(t) => *t,

@@ -17,6 +17,7 @@ serde_json.workspace = true
 proptest = { version = "1", optional = true }
 spqr-tree = { workspace = true }
 any-rope = { workspace = true }
+vo-common = { path = "../vo-common" }
 
 [dev-dependencies]
 rstest.workspace = true

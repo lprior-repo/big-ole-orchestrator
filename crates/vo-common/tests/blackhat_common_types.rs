@@ -16,16 +16,60 @@ mod deser_attacks {
     }
 
     #[test]
+    fn reject_missing_task_result() {
+        assert!(serde_json::from_value::<WorkflowEvent>(
+            json!({"TaskCompleted": {"task_id": "x"}})
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn reject_missing_task_error() {
+        assert!(
+            serde_json::from_value::<WorkflowEvent>(json!({"TaskFailed": {"task_id": "x"}}))
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn reject_missing_signal_name() {
+        assert!(serde_json::from_value::<WorkflowEvent>(
+            json!({"SignalReceived": {"payload_json": "x"}})
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn reject_missing_workflow_id_started() {
+        assert!(serde_json::from_value::<WorkflowEvent>(
+            json!({"WorkflowStarted": {"input_json": "x"}})
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn reject_missing_workflow_id_completed() {
+        assert!(serde_json::from_value::<WorkflowEvent>(
+            json!({"WorkflowCompleted": {"result_json": "x"}})
+        )
+        .is_err());
+    }
+
+    #[test]
     fn extra_fields_silently_accepted() {
         let r: WorkflowEvent = serde_json::from_value(json!({
             "TimerFired": {"timer_id": "t1", "timestamp_ms": 100, "_poison": "evil"}
         }))
         .unwrap();
-        let WorkflowEvent::TimerFired {
+        if let WorkflowEvent::TimerFired {
             timer_id,
             timestamp_ms,
-        } = r;
-        assert_eq!((timer_id, timestamp_ms), ("t1".to_string(), 100));
+        } = r
+        {
+            assert_eq!((timer_id, timestamp_ms), ("t1".to_string(), 100));
+        } else {
+            panic!("expected TimerFired");
+        }
     }
 
     #[test]
@@ -39,6 +83,14 @@ mod deser_attacks {
     fn reject_null_timer_id() {
         assert!(serde_json::from_value::<WorkflowEvent>(
             json!({"TimerFired": {"timer_id": null, "timestamp_ms": 0}})
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn reject_null_task_id() {
+        assert!(serde_json::from_value::<WorkflowEvent>(
+            json!({"TaskCompleted": {"task_id": null, "result_json": "x"}})
         )
         .is_err());
     }
@@ -79,16 +131,36 @@ mod deser_attacks {
             u64::MAX
         ))
         .unwrap();
-        let WorkflowEvent::TimerFired { timestamp_ms, .. } = serde_json::from_value(val).unwrap();
-        assert_eq!(timestamp_ms, u64::MAX);
+        let event = serde_json::from_value(val).unwrap();
+        if let WorkflowEvent::TimerFired { timestamp_ms, .. } = event {
+            assert_eq!(timestamp_ms, u64::MAX);
+        } else {
+            panic!("expected TimerFired");
+        }
     }
 
     #[test]
     fn accept_zero_timestamp() {
-        let WorkflowEvent::TimerFired { timestamp_ms, .. } =
+        let event =
             serde_json::from_value(json!({"TimerFired": {"timer_id": "t", "timestamp_ms": 0}}))
                 .unwrap();
-        assert_eq!(timestamp_ms, 0);
+        if let WorkflowEvent::TimerFired { timestamp_ms, .. } = event {
+            assert_eq!(timestamp_ms, 0);
+        } else {
+            panic!("expected TimerFired");
+        }
+    }
+
+    #[test]
+    fn empty_strings_accepted() {
+        let e: WorkflowEvent = serde_json::from_value(json!({
+            "TaskCompleted": {"task_id": "", "result_json": ""}
+        }))
+        .unwrap();
+        assert!(
+            matches!(e, WorkflowEvent::TaskCompleted { task_id, result_json }
+            if task_id.is_empty() && result_json.is_empty())
+        );
     }
 
     #[test]
@@ -136,9 +208,12 @@ mod string_attacks {
             timestamp_ms: 0,
         };
         let json = serde_json::to_string(&e).unwrap();
-        let WorkflowEvent::TimerFired { timer_id, .. } =
-            serde_json::from_str::<WorkflowEvent>(&json).unwrap();
-        assert_eq!(timer_id.len(), 1_000_000);
+        let event = serde_json::from_str::<WorkflowEvent>(&json).unwrap();
+        if let WorkflowEvent::TimerFired { timer_id, .. } = event {
+            assert_eq!(timer_id.len(), 1_000_000);
+        } else {
+            panic!("expected TimerFired");
+        }
     }
 }
 
