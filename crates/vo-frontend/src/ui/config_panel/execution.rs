@@ -33,7 +33,7 @@ fn copy_to_clipboard(text: &str) -> bool {
                 if let Some(write_text_fn) = write_text.dyn_ref::<js_sys::Function>() {
                     write_text_fn
                         .call1(&clipboard, &js_sys::JsString::from(text))
-                        .ok();
+                        .unwrap();
                     return true;
                 }
             }

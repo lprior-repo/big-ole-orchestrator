@@ -49,7 +49,7 @@ fn sample_step_id(id: &str) -> StepId {
 #[test]
 fn pers_015_fjall_dedupe_basic_admit_new_key() {
     let dir = tempfile::tempdir().unwrap();
-    let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+    let keyspace = fjall::Database::builder(dir.path()).open().unwrap();
     let store = FjallDedupeStore::open(&keyspace).unwrap();
     let key = sample_dedupe_key("pers-dedupe-basic");
     let id = sample_instance_id();
@@ -70,7 +70,7 @@ fn pers_015_fjall_dedupe_basic_admit_new_key() {
 #[test]
 fn pers_015_fjall_dedupe_contains_after_insert() {
     let dir = tempfile::tempdir().unwrap();
-    let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+    let keyspace = fjall::Database::builder(dir.path()).open().unwrap();
     let store = FjallDedupeStore::open(&keyspace).unwrap();
     let key = sample_dedupe_key("pers-dedupe-contain");
     let id = sample_instance_id();
@@ -97,13 +97,13 @@ fn pers_016_fjall_dedupe_power_failure_survives() {
     let id = sample_instance_id();
 
     {
-        let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+        let keyspace = fjall::Database::builder(dir.path()).open().unwrap();
         let store = FjallDedupeStore::open(&keyspace).unwrap();
         store.check_and_insert(&key1, &id, 10000).unwrap();
         store.check_and_insert(&key2, &id, 10000).unwrap();
     }
 
-    let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+    let keyspace = fjall::Database::builder(dir.path()).open().unwrap();
     let store = FjallDedupeStore::open(&keyspace).unwrap();
 
     assert!(
@@ -123,14 +123,14 @@ fn pers_017_fjall_dedupe_expiry_persists_across_restart() {
     let id = sample_instance_id();
 
     {
-        let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+        let keyspace = fjall::Database::builder(dir.path()).open().unwrap();
         let store = FjallDedupeStore::open(&keyspace).unwrap();
         store.check_and_insert(&key, &id, 100).unwrap();
     }
 
     std::thread::sleep(std::time::Duration::from_millis(150));
 
-    let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+    let keyspace = fjall::Database::builder(dir.path()).open().unwrap();
     let store = FjallDedupeStore::open(&keyspace).unwrap();
 
     assert!(
@@ -146,7 +146,7 @@ fn pers_017_fjall_dedupe_expiry_persists_across_restart() {
 #[test]
 fn pers_018_fjall_lease_basic_acquire_release() {
     let dir = tempfile::tempdir().unwrap();
-    let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+    let keyspace = fjall::Database::builder(dir.path()).open().unwrap();
     let store = FjallLeaseStore::open(&keyspace).unwrap();
     let id = sample_instance_id();
     let step = sample_step_id("step-1");
@@ -172,7 +172,7 @@ fn pers_018_fjall_lease_basic_acquire_release() {
 #[test]
 fn pers_019_fjall_lease_cannot_double_acquire() {
     let dir = tempfile::tempdir().unwrap();
-    let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+    let keyspace = fjall::Database::builder(dir.path()).open().unwrap();
     let store = FjallLeaseStore::open(&keyspace).unwrap();
     let id = sample_instance_id();
     let step = sample_step_id("step-double");
@@ -208,14 +208,14 @@ fn pers_020_fjall_lease_power_failure_survives() {
 
     let lease1_token;
     {
-        let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+        let keyspace = fjall::Database::builder(dir.path()).open().unwrap();
         let store = FjallLeaseStore::open(&keyspace).unwrap();
         let lease1 = store.acquire(&id, &step1, 10000).unwrap();
         lease1_token = lease1.token().clone();
         store.acquire(&id, &step2, 10000).unwrap();
     }
 
-    let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+    let keyspace = fjall::Database::builder(dir.path()).open().unwrap();
     let store = FjallLeaseStore::open(&keyspace).unwrap();
 
     let is_stale = store.check_stale_fence(&id, &step1, &lease1_token).unwrap();
@@ -229,7 +229,7 @@ fn pers_021_fjall_lease_fence_token_persists_across_restart() {
     let step = sample_step_id("step-fence");
 
     {
-        let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+        let keyspace = fjall::Database::builder(dir.path()).open().unwrap();
         let store = FjallLeaseStore::open(&keyspace).unwrap();
         let l1 = store.acquire(&id, &step, 50).unwrap();
         store.release(&l1).unwrap();
@@ -240,7 +240,7 @@ fn pers_021_fjall_lease_fence_token_persists_across_restart() {
 
     std::thread::sleep(std::time::Duration::from_millis(100));
 
-    let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+    let keyspace = fjall::Database::builder(dir.path()).open().unwrap();
     let store = FjallLeaseStore::open(&keyspace).unwrap();
 
     let lease = store.acquire(&id, &step, 10000).unwrap();
@@ -258,7 +258,7 @@ fn pers_021_fjall_lease_fence_token_persists_across_restart() {
 #[test]
 fn pers_022_fjall_dedupe_concurrent_insert_same_key() {
     let dir = tempfile::tempdir().unwrap();
-    let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+    let keyspace = fjall::Database::builder(dir.path()).open().unwrap();
     let store = Arc::new(FjallDedupeStore::open(&keyspace).unwrap());
     let key = sample_dedupe_key("pers-concurrent-dedup");
     let id = sample_instance_id();
@@ -315,7 +315,7 @@ fn pers_023_fjall_dedupe_concurrent_different_keys() {
                 barrier.wait();
                 let key = sample_dedupe_key(&format!("pers-concurrent-diff-{}", i));
                 let id = InstanceId::from_bytes([i as u8; 16]);
-                let keyspace = fjall::Config::new(&dir_path).open().unwrap();
+                let keyspace = fjall::Database::builder(&dir_path).open().unwrap();
                 let store = FjallDedupeStore::open(&keyspace).unwrap();
                 let result = store.check_and_insert(&key, &id, 5000);
                 results.lock().unwrap().push(result.is_ok());
@@ -342,7 +342,7 @@ fn pers_023_fjall_dedupe_concurrent_different_keys() {
 #[test]
 fn pers_024_fjall_lease_concurrent_acquire_same_step() {
     let dir = tempfile::tempdir().unwrap();
-    let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+    let keyspace = fjall::Database::builder(dir.path()).open().unwrap();
     let store = Arc::new(FjallLeaseStore::open(&keyspace).unwrap());
     let id = sample_instance_id();
     let step = sample_step_id("step-concurrent");
@@ -392,7 +392,7 @@ fn pers_025_multi_component_crash_recovery() {
     let dedupe_key = sample_dedupe_key("pers-multi");
 
     {
-        let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+        let keyspace = fjall::Database::builder(dir.path()).open().unwrap();
         let journal = FjallEffectJournal::open(&keyspace).unwrap();
         let dedupe = FjallDedupeStore::open(&keyspace).unwrap();
 
@@ -409,7 +409,7 @@ fn pers_025_multi_component_crash_recovery() {
     }
 
     {
-        let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+        let keyspace = fjall::Database::builder(dir.path()).open().unwrap();
         let journal = FjallEffectJournal::open(&keyspace).unwrap();
         let dedupe = FjallDedupeStore::open(&keyspace).unwrap();
 
@@ -435,7 +435,7 @@ fn pers_026_fjall_dedupe_persists_while_valid_across_crashes() {
 
     // First insert: admitted
     {
-        let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+        let keyspace = fjall::Database::builder(dir.path()).open().unwrap();
         let store = FjallDedupeStore::open(&keyspace).unwrap();
         let result = store.check_and_insert(&key, &id, 10000).unwrap();
         assert!(
@@ -446,7 +446,7 @@ fn pers_026_fjall_dedupe_persists_while_valid_across_crashes() {
 
     // After crash: entry is still valid, so re-insert returns Duplicate
     {
-        let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+        let keyspace = fjall::Database::builder(dir.path()).open().unwrap();
         let store = FjallDedupeStore::open(&keyspace).unwrap();
         let result = store.check_and_insert(&key, &id, 10000).unwrap();
         assert!(
@@ -468,7 +468,7 @@ fn pers_027_fjall_lease_stale_fence_after_restart() {
 
     let old_lease;
     {
-        let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+        let keyspace = fjall::Database::builder(dir.path()).open().unwrap();
         let store = FjallLeaseStore::open(&keyspace).unwrap();
         old_lease = store.acquire(&id, &step, 10000).unwrap();
         store.release(&old_lease).unwrap();
@@ -476,7 +476,7 @@ fn pers_027_fjall_lease_stale_fence_after_restart() {
 
     let old_token = old_lease.token().clone();
     {
-        let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+        let keyspace = fjall::Database::builder(dir.path()).open().unwrap();
         let store = FjallLeaseStore::open(&keyspace).unwrap();
         let new_lease = store.acquire(&id, &step, 10000).unwrap();
 
@@ -503,7 +503,7 @@ fn pers_028_fjall_dedupe_purge_after_restart() {
     let id = sample_instance_id();
 
     {
-        let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+        let keyspace = fjall::Database::builder(dir.path()).open().unwrap();
         let store = FjallDedupeStore::open(&keyspace).unwrap();
         store.check_and_insert(&key1, &id, 100).unwrap();
         store.check_and_insert(&key2, &id, 10000).unwrap();
@@ -512,7 +512,7 @@ fn pers_028_fjall_dedupe_purge_after_restart() {
     std::thread::sleep(std::time::Duration::from_millis(150));
 
     {
-        let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+        let keyspace = fjall::Database::builder(dir.path()).open().unwrap();
         let store = FjallDedupeStore::open(&keyspace).unwrap();
         let now_ms = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -534,14 +534,14 @@ fn pers_029_fjall_lease_acquire_after_expiry() {
     let step = sample_step_id("step-expired");
 
     {
-        let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+        let keyspace = fjall::Database::builder(dir.path()).open().unwrap();
         let store = FjallLeaseStore::open(&keyspace).unwrap();
         store.acquire(&id, &step, 50).unwrap();
     }
 
     std::thread::sleep(std::time::Duration::from_millis(100));
 
-    let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+    let keyspace = fjall::Database::builder(dir.path()).open().unwrap();
     let store = FjallLeaseStore::open(&keyspace).unwrap();
 
     let lease = store.acquire(&id, &step, 10000).unwrap();
@@ -565,7 +565,7 @@ fn pers_030_triple_component_crash_recovery() {
 
     let eid1;
     {
-        let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+        let keyspace = fjall::Database::builder(dir.path()).open().unwrap();
         let journal = FjallEffectJournal::open(&keyspace).unwrap();
         let dedupe = FjallDedupeStore::open(&keyspace).unwrap();
         let lease = FjallLeaseStore::open(&keyspace).unwrap();
@@ -588,7 +588,7 @@ fn pers_030_triple_component_crash_recovery() {
     std::thread::sleep(std::time::Duration::from_millis(100));
 
     {
-        let keyspace = fjall::Config::new(dir.path()).open().unwrap();
+        let keyspace = fjall::Database::builder(dir.path()).open().unwrap();
         let journal = FjallEffectJournal::open(&keyspace).unwrap();
         let dedupe = FjallDedupeStore::open(&keyspace).unwrap();
         let lease_store = FjallLeaseStore::open(&keyspace).unwrap();

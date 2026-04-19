@@ -1,5 +1,4 @@
-use crate::ui::edges::graph_types::{Connection, Node, NodeId, WorkflowNode};
-use crate::ui::graph::ExecutionState;
+use crate::ui::edges::graph_types::{Connection, ExecutionState, Node, NodeId, WorkflowNode};
 use dioxus::prelude::*;
 use std::collections::HashMap;
 

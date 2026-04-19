@@ -1,8 +1,6 @@
 //! RED-QUEEN coevolutionary adversarial tests for vo-types.
 //! Attacks: serde bypass of constructors, schema evolution, type confusion,
 //! roundtrip corruption, and field injection through derive macros.
-#![allow(clippy::expect_used, clippy::unwrap_used, clippy::useless_vec, unused_imports, unused_variables)]
-
 
 use serde_json::json;
 use vo_types::{BlobRef, EncryptedBlob, EventEnvelope, InstanceId, WorkflowName, WrappedDek};

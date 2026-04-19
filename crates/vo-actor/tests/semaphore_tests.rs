@@ -1,8 +1,8 @@
 use std::sync::Arc;
 use std::time::Duration;
 use vo_actor::semaphore::{
-    calculate_backpressure_status, estimate_wait_ms, is_workflow_saturated,
-    BackpressureStatus, ExecutionSemaphore, SemaphoreConfig, WorkflowSemaphoreMap,
+    calculate_backpressure_status, estimate_wait_ms, is_workflow_saturated, BackpressureStatus,
+    ExecutionSemaphore, SemaphoreConfig, WorkflowSemaphoreMap,
 };
 use vo_types::WorkflowName;
 
@@ -23,7 +23,10 @@ async fn execution_semaphore_fairness_fifo_order() {
     let results: Vec<Result<(usize, _), _>> = futures::future::join_all(handles).await;
     for result in results {
         let (_i, decision) = result.unwrap();
-        assert!(matches!(decision, vo_actor::semaphore::AdmissionDecision::Admitted));
+        assert!(matches!(
+            decision,
+            vo_actor::semaphore::AdmissionDecision::Admitted
+        ));
     }
 }
 
@@ -34,6 +37,7 @@ async fn execution_semaphore_concurrent_limit_enforced() {
         max_waiters_for_shed: 1000,
         max_per_workflow: 10,
         acquire_timeout: Duration::from_secs(30),
+        reserved_permits: 50,
     };
     let sem = Arc::new(ExecutionSemaphore::new(config));
 
@@ -91,7 +95,7 @@ fn workflow_saturation_detection() {
 
 #[tokio::test]
 async fn workflow_semaphore_map_isolates_workflows() {
-    let map = WorkflowSemaphoreMap::default();
+    let map = WorkflowSemaphoreMap::new(10);
     let wf_a = WorkflowName::parse("workflow-a").unwrap();
     let wf_b = WorkflowName::parse("workflow-b").unwrap();
 

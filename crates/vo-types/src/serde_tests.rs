@@ -1,5 +1,3 @@
-#![allow(clippy::expect_used, clippy::unwrap_used, unused_imports, unused_variables)]
-
 use crate::*;
 
 // --- Serde Serialize matches Display ---

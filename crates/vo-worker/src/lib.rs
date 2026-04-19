@@ -19,13 +19,11 @@ pub mod executor;
 pub use executor::{
     ExecutionOutcome, ManagedEffectError, ManagedEffectExecutor, ManagedEffectTask,
 };
-pub mod lock_storage;
 pub mod pool;
 mod port;
 pub mod retry;
 pub mod storage;
 pub mod supervisor;
-pub mod lock_supervisor;
 
 use chrono::{DateTime, Utc};
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -34,11 +32,6 @@ use tokio::time::Duration;
 
 pub use port::LockManager;
 pub use retry::{LockManagerRetryWrapper, RetryConfig};
-pub use lock_supervisor::{
-    Counter, HealthCheckResult, HealthStatus, LockManagerSupervisor,
-    LockManagerSupervisorError, LockManagerSupervisorHandle, LockManagerSupervisorMetrics,
-    LockManagerSupervisorState,
-};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LockId(String);

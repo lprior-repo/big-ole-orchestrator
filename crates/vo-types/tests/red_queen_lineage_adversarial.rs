@@ -10,8 +10,6 @@
 //!
 //! Target: vo-types lineage + signal routing
 
-#![allow(clippy::expect_used, clippy::unwrap_used, clippy::useless_vec, clippy::useless_conversion, clippy::needless_range_loop, clippy::explicit_counter_loop, clippy::expect_fun_call, clippy::needless_borrows_for_generic_args, clippy::double_comparisons, clippy::identity_op, unused_imports, unused_variables, dead_code)]
-
 use vo_types::signal::{LineageScope, SignalAddress, WaitKey};
 use vo_types::Epoch;
 use vo_types::InstanceId;

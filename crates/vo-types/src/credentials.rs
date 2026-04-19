@@ -462,21 +462,6 @@ impl Credential {
             .iter()
             .find(|v| v.status == CredentialStatus::Active)
     }
-
-    pub fn is_valid(&self, now: TimestampMs) -> bool {
-        let Some(active) = self.active_version() else {
-            return false;
-        };
-        if active.status.is_terminal() {
-            return false;
-        }
-        if let Some(expires_at) = active.expires_at {
-            if now >= expires_at {
-                return false;
-            }
-        }
-        true
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

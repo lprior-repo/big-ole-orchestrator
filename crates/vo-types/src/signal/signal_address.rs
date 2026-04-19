@@ -125,7 +125,7 @@ impl SignalAddress {
             LineageScope::LineageWide if self.epoch_id.is_some() => Err(
                 "SignalAddress invariant violated: LineageWide scope requires epoch_id to be None",
             ),
-            LineageScope::EpochLocal | LineageScope::LineageWide => Ok(()),
+            _ => Ok(()),
         }
     }
 }

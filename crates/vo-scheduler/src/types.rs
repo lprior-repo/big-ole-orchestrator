@@ -272,15 +272,3 @@ impl fmt::Display for JobPriority {
         }
     }
 }
-
-const _: () = {
-    fn assert_send_sync<T: Send + Sync>() {}
-    fn check() {
-        assert_send_sync::<JobId>();
-        assert_send_sync::<JobState>();
-        assert_send_sync::<JobKind>();
-        assert_send_sync::<SchedulePolicy>();
-        assert_send_sync::<RetryPolicy>();
-        assert_send_sync::<JobPriority>();
-    }
-};

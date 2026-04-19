@@ -11,7 +11,7 @@
 //! ALL TESTS MUST FAIL — implementation does not yet satisfy contracts.
 //! Next bead (ve-xlfki, IMPL phase) will make these pass.
 
-#![allow(clippy::expect_used, clippy::unwrap_used, clippy::useless_vec, clippy::useless_conversion, clippy::needless_range_loop, clippy::explicit_counter_loop, clippy::expect_fun_call, clippy::needless_borrows_for_generic_args, clippy::double_comparisons, clippy::identity_op, unused_imports, unused_variables, dead_code)]
+#![allow(clippy::unwrap_used)]
 
 use vo_types::{apply_redaction, RedactionKind, RedactionRule};
 

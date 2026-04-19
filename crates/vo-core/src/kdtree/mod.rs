@@ -6,13 +6,153 @@
 //! - Configurable capacity and max depth
 //! - Generic over number of dimensions
 
-mod ops;
-mod types;
+use std::fmt::Display;
+use thiserror::Error;
 
-pub use types::{KdtreeError, Point, PointValue, AABB};
+pub type PointValue = String;
 
-use ops::{count_node, insert_node, query_node};
-use types::{KdtreeError, Point, AABB};
+#[derive(Debug, Clone, PartialEq)]
+pub struct Point {
+    coords: Vec<f64>,
+    value: PointValue,
+}
+
+impl Point {
+    pub fn new(coords: &[f64], value: impl Into<String>) -> Self {
+        Self {
+            coords: coords.to_vec(),
+            value: value.into(),
+        }
+    }
+
+    pub fn coordinates(&self) -> &[f64] {
+        &self.coords
+    }
+
+    pub fn get_coord(&self, dim: usize) -> f64 {
+        self.coords[dim]
+    }
+
+    pub fn dim(&self) -> usize {
+        self.coords.len()
+    }
+}
+
+impl Display for Point {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Point({})",
+            self.coords
+                .iter()
+                .map(|c| format!("{:.1}", c))
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct AABB {
+    mins: Vec<f64>,
+    maxs: Vec<f64>,
+}
+
+impl AABB {
+    pub fn new(mins: &[f64], maxs: &[f64]) -> Self {
+        Self {
+            mins: mins.to_vec(),
+            maxs: maxs.to_vec(),
+        }
+    }
+
+    pub fn from_point(point: &Point, margin: f64) -> Self {
+        let dim = point.dim();
+        let mins: Vec<f64> = point.coordinates().iter().map(|c| c - margin).collect();
+        let maxs: Vec<f64> = point.coordinates().iter().map(|c| c + margin).collect();
+        Self { mins, maxs }
+    }
+
+    pub fn dimension(&self) -> usize {
+        self.mins.len()
+    }
+
+    fn contains_point(&self, point: &Point) -> bool {
+        if point.dim() != self.dimension() {
+            return false;
+        }
+        for i in 0..self.dimension() {
+            if point.coords[i] < self.mins[i] || point.coords[i] >= self.maxs[i] {
+                return false;
+            }
+        }
+        true
+    }
+
+    fn intersects(&self, other: &AABB) -> bool {
+        if self.dimension() != other.dimension() {
+            return false;
+        }
+        for i in 0..self.dimension() {
+            if self.mins[i] >= other.maxs[i] || self.maxs[i] <= other.mins[i] {
+                return false;
+            }
+        }
+        true
+    }
+
+    fn split(&self, dim: usize, split_val: f64) -> (AABB, AABB) {
+        let mut left_maxs = self.maxs.clone();
+        left_maxs[dim] = split_val;
+        let mut right_mins = self.mins.clone();
+        right_mins[dim] = split_val;
+
+        (
+            AABB::new(&self.mins, &left_maxs),
+            AABB::new(&right_mins, &self.maxs),
+        )
+    }
+}
+
+impl Display for AABB {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "AABB[({})-({})]",
+            self.mins
+                .iter()
+                .map(|c| format!("{:.1}", c))
+                .collect::<Vec<_>>()
+                .join(", "),
+            self.maxs
+                .iter()
+                .map(|c| format!("{:.1}", c))
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Error)]
+pub enum KdtreeError {
+    #[error("point {point} is outside kdtree bounds {bounds}")]
+    OutOfBounds { point: Point, bounds: AABB },
+
+    #[error("max depth {max_depth} exceeded at point {point}")]
+    MaxDepthExceeded { point: Point, max_depth: usize },
+
+    #[error("dimension mismatch: point has {point_dim} dims, bounds has {bounds_dim} dims")]
+    DimensionMismatch { point_dim: usize, bounds_dim: usize },
+
+    #[error("cannot subdivide: split would be degenerate at dimension {dim}")]
+    DegenerateSubdivision { dim: usize },
+}
+
+impl KdtreeError {
+    pub const fn is_recoverable(&self) -> bool {
+        matches!(self, KdtreeError::MaxDepthExceeded { .. })
+    }
+}
 
 enum Node {
     Leaf {
@@ -77,6 +217,134 @@ impl Kdtree {
 
     pub fn is_empty(&self) -> bool {
         self.len() == 0
+    }
+}
+
+fn insert_node(
+    node: &mut Node,
+    bounds: &AABB,
+    point: Point,
+    depth: usize,
+    capacity: usize,
+    max_depth: usize,
+) -> Result<(), KdtreeError> {
+    let splitting_dim = depth % bounds.dimension();
+
+    match node {
+        Node::Leaf { points } => {
+            if points.len() < capacity || depth >= max_depth {
+                points.push(point);
+                Ok(())
+            } else {
+                let existing: Vec<Point> = std::mem::take(points);
+                let mid_val = existing
+                    .iter()
+                    .map(|p| p.get_coord(splitting_dim))
+                    .sum::<f64>()
+                    / existing.len() as f64;
+
+                let mut children = Box::new((
+                    Node::Leaf { points: Vec::new() },
+                    Node::Leaf { points: Vec::new() },
+                ));
+
+                for p in existing {
+                    let child_idx = if p.get_coord(splitting_dim) < mid_val {
+                        0
+                    } else {
+                        1
+                    };
+                    let (left_bounds, right_bounds) = bounds.split(splitting_dim, mid_val);
+                    let target_bounds = if child_idx == 0 {
+                        &left_bounds
+                    } else {
+                        &right_bounds
+                    };
+                    insert_node(
+                        &mut children[child_idx],
+                        target_bounds,
+                        p,
+                        depth + 1,
+                        capacity,
+                        max_depth,
+                    )?;
+                }
+
+                let (left_bounds, right_bounds) = bounds.split(splitting_dim, mid_val);
+                let child_idx = if point.get_coord(splitting_dim) < mid_val {
+                    0
+                } else {
+                    1
+                };
+                let target_bounds = if child_idx == 0 {
+                    &left_bounds
+                } else {
+                    &right_bounds
+                };
+                insert_node(
+                    &mut children[child_idx],
+                    target_bounds,
+                    point,
+                    depth + 1,
+                    capacity,
+                    max_depth,
+                )?;
+
+                *node = Node::Branch {
+                    dim: splitting_dim,
+                    split_val: mid_val,
+                    left: children.0,
+                    right: children.1,
+                };
+                Ok(())
+            }
+        }
+        Node::Branch {
+            dim,
+            split_val,
+            left,
+            right,
+        } => {
+            let (left_bounds, right_bounds) = bounds.split(*dim, *split_val);
+            if point.get_coord(*dim) < *split_val {
+                insert_node(left, &left_bounds, point, depth + 1, capacity, max_depth)
+            } else {
+                insert_node(right, &right_bounds, point, depth + 1, capacity, max_depth)
+            }
+        }
+    }
+}
+
+fn query_node(node: &Node, bounds: &AABB, region: &AABB, result: &mut Vec<Point>) {
+    if !bounds.intersects(region) {
+        return;
+    }
+
+    match node {
+        Node::Leaf { points } => {
+            for p in points {
+                if region.contains_point(p) {
+                    result.push(p.clone());
+                }
+            }
+        }
+        Node::Branch {
+            dim,
+            split_val,
+            left,
+            right,
+        } => {
+            let (left_bounds, right_bounds) = bounds.split(*dim, *split_val);
+            query_node(left, &left_bounds, region, result);
+            query_node(right, &right_bounds, region, result);
+        }
+    }
+}
+
+fn count_node(node: &Node) -> usize {
+    match node {
+        Node::Leaf { points } => points.len(),
+        Node::Branch { left, right, .. } => count_node(left) + count_node(right),
     }
 }
 

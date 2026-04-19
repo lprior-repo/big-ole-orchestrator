@@ -4,7 +4,6 @@ use std::sync::atomic::{fence, AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use thiserror::Error;
-const _CACHE_LINE: usize = 64;
 
 pub struct SpscQueue<T> {
     buffer: *mut MaybeUninit<T>,
@@ -199,7 +198,7 @@ mod tests {
     #[test]
     fn spsc_queue_full_error() {
         let queue = Arc::new(SpscQueue::<i32>::new(2));
-        let (tx, rx) = queue.sender();
+        let (tx, _rx) = queue.sender();
 
         tx.send(1).unwrap();
         tx.send(2).unwrap();

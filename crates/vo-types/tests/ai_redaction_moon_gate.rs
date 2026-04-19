@@ -9,7 +9,7 @@
 //! ADR-025: Dual-representation privacy model with canonical (encrypted) and
 //!          operator projection (redacted).
 
-#![allow(clippy::expect_used, clippy::unwrap_used, clippy::useless_vec, unused_imports, unused_variables)]
+#![allow(clippy::unwrap_used)]
 
 use vo_types::{
     apply_redaction, CryptoAlgorithm, DekId, EncryptedBlob, InstanceId, KeyMetadata,

@@ -1,5 +1,3 @@
-#![allow(clippy::expect_used, clippy::unwrap_used, clippy::useless_vec, unused_imports, unused_variables)]
-
 use crate::{ParseError, *};
 
 #[cfg(feature = "proptest")]

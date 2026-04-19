@@ -1,5 +1,3 @@
-#![allow(clippy::expect_used, clippy::unwrap_used, clippy::useless_vec, unused_imports, unused_variables)]
-
 use vo_types::{Snapshot, State, WorkflowSpec, MAX_SUPPORTED_SCHEMA_VERSION};
 
 #[test]

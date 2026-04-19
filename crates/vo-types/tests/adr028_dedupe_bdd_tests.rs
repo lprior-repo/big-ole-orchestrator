@@ -5,8 +5,6 @@
 //! 2. Duplicate with different timestamp → idempotency key prevents double-create
 //! 3. Dedup window expiry → stale request creates new instance
 
-#![allow(clippy::expect_used, clippy::unwrap_used, clippy::useless_vec, unused_imports, unused_variables)]
-
 use std::collections::HashSet;
 use vo_types::{DedupeKey, DedupePartitionKey, InstanceId, TimestampMs};
 

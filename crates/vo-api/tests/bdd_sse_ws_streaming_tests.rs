@@ -216,17 +216,17 @@ mod tests {
         async fn given_instance_fails_when_broadcast_then_subscriber_receives_failure() {
             let (tx, mut rx) = broadcast::channel::<WorkflowSseEvent>(SSE_BROADCAST_CAPACITY);
 
-            let handle = tokio::spawn(async move {
-                rx.recv().await.ok().map(|e| e.to_json_value())
-            });
+            let handle =
+                tokio::spawn(async move { rx.recv().await.ok().map(|e| e.to_json_value()) });
 
             let _ = tx.send(WorkflowSseEvent::InstanceFailed {
                 error: "critical failure".to_string(),
             });
 
-            let result = tokio::time::timeout(
-                std::time::Duration::from_secs(1), handle
-            ).await.expect("should not timeout").expect("task should not panic");
+            let result = tokio::time::timeout(std::time::Duration::from_secs(1), handle)
+                .await
+                .expect("should not timeout")
+                .expect("task should not panic");
 
             let json = result.expect("should receive event");
             assert_eq!(json["type"], "instance_failed");
@@ -257,7 +257,9 @@ mod tests {
                             count += 1;
                             tokio::time::sleep(std::time::Duration::from_millis(10)).await;
                         }
-                        Err(tokio_stream::wrappers::errors::BroadcastStreamRecvError::Lagged(_)) => {
+                        Err(tokio_stream::wrappers::errors::BroadcastStreamRecvError::Lagged(
+                            _,
+                        )) => {
                             // THEN connection dropped with server-side close (Lagged error)
                             return (count, true);
                         }
@@ -275,14 +277,20 @@ mod tests {
             }
             drop(tx);
 
-            let (count, lagged) = tokio::time::timeout(
-                std::time::Duration::from_secs(5), slow_consumer
-            ).await.expect("should not timeout").expect("task should not panic");
+            let (count, lagged) =
+                tokio::time::timeout(std::time::Duration::from_secs(5), slow_consumer)
+                    .await
+                    .expect("should not timeout")
+                    .expect("task should not panic");
 
             // THEN client received Lagged error (server-side close)
             assert!(lagged, "Slow client should be dropped via Lagged error");
             // THEN client did NOT receive all 1500 events
-            assert!(count < 1500, "Lagged client should miss events, got {}", count);
+            assert!(
+                count < 1500,
+                "Lagged client should miss events, got {}",
+                count
+            );
         }
 
         #[tokio::test]
@@ -306,9 +314,10 @@ mod tests {
             }
             drop(tx);
 
-            let count = tokio::time::timeout(
-                std::time::Duration::from_secs(5), handle
-            ).await.expect("should not timeout").expect("task should not panic");
+            let count = tokio::time::timeout(std::time::Duration::from_secs(5), handle)
+                .await
+                .expect("should not timeout")
+                .expect("task should not panic");
 
             assert_eq!(count, event_count, "Fast client should receive all events");
         }
@@ -355,11 +364,15 @@ mod tests {
             let _ = tx.send(WorkflowSseEvent::InstanceCompleted);
             drop(tx);
 
-            let received = tokio::time::timeout(
-                std::time::Duration::from_secs(2), handle
-            ).await.expect("should not timeout").expect("task should not panic");
+            let received = tokio::time::timeout(std::time::Duration::from_secs(2), handle)
+                .await
+                .expect("should not timeout")
+                .expect("task should not panic");
 
-            assert!(received, "Subscriber should receive InstanceCompleted event");
+            assert!(
+                received,
+                "Subscriber should receive InstanceCompleted event"
+            );
         }
     }
 
@@ -368,12 +381,12 @@ mod tests {
     // =========================================================================
 
     mod ws_step_completed_event {
-        use vo_api::handlers::ws::{WorkflowEvent, WsBroadcaster};
+        use vo_api::handlers::ws::{WorkflowWsEvent, WsBroadcaster};
 
         #[test]
         fn given_step_completes_when_ws_message_pushed_then_has_type_node_name_sequence() {
             // GIVEN a step completes
-            let event = WorkflowEvent::StepCompleted {
+            let event = WorkflowWsEvent::StepCompleted {
                 node_name: "validate-input".to_string(),
                 sequence: 7,
             };
@@ -393,18 +406,17 @@ mod tests {
             let broadcaster = WsBroadcaster::new();
             let mut receiver = broadcaster.subscribe();
 
-            let handle = tokio::spawn(async move {
-                receiver.recv().await.ok()
-            });
+            let handle = tokio::spawn(async move { receiver.recv().await.ok() });
 
-            let _ = broadcaster.send(WorkflowEvent::StepCompleted {
+            let _ = broadcaster.send(WorkflowWsEvent::StepCompleted {
                 node_name: "process".to_string(),
                 sequence: 1,
             });
 
-            let result = tokio::time::timeout(
-                std::time::Duration::from_secs(1), handle
-            ).await.expect("should not timeout").expect("task should not panic");
+            let result = tokio::time::timeout(std::time::Duration::from_secs(1), handle)
+                .await
+                .expect("should not timeout")
+                .expect("task should not panic");
 
             let event = result.expect("should receive event");
             let json_str = event.to_json_string();
@@ -419,12 +431,12 @@ mod tests {
     // =========================================================================
 
     mod ws_instance_completed {
-        use vo_api::handlers::ws::{WorkflowEvent, WsBroadcaster};
         use tokio::sync::broadcast;
+        use vo_api::handlers::ws::{WorkflowWsEvent, WsBroadcaster};
 
         #[test]
         fn given_instance_completes_when_ws_message_pushed_then_type_is_instance_completed() {
-            let event = WorkflowEvent::InstanceCompleted;
+            let event = WorkflowWsEvent::InstanceCompleted;
             let json_str = event.to_json_string();
             let json: serde_json::Value = serde_json::from_str(&json_str).unwrap();
 
@@ -435,26 +447,26 @@ mod tests {
         #[test]
         fn given_all_ws_event_types_when_serialized_then_type_field_present() {
             let events = vec![
-                WorkflowEvent::StepCompleted {
+                WorkflowWsEvent::StepCompleted {
                     node_name: "s1".to_string(),
                     sequence: 1,
                 },
-                WorkflowEvent::StepFailed {
+                WorkflowWsEvent::StepFailed {
                     node_name: "s1".to_string(),
                     sequence: 1,
                     error: "fail".to_string(),
                 },
-                WorkflowEvent::TimerFired {
+                WorkflowWsEvent::TimerFired {
                     timer_id: "t1".to_string(),
                 },
-                WorkflowEvent::SignalReceived {
+                WorkflowWsEvent::SignalReceived {
                     signal_name: "sig".to_string(),
                 },
-                WorkflowEvent::PhaseChanged {
+                WorkflowWsEvent::PhaseChanged {
                     phase: "live".to_string(),
                 },
-                WorkflowEvent::InstanceCompleted,
-                WorkflowEvent::InstanceFailed {
+                WorkflowWsEvent::InstanceCompleted,
+                WorkflowWsEvent::InstanceFailed {
                     error: "err".to_string(),
                 },
             ];
@@ -478,7 +490,7 @@ mod tests {
                 let mut received_completion = false;
                 loop {
                     match receiver.recv().await {
-                        Ok(WorkflowEvent::InstanceCompleted) => {
+                        Ok(WorkflowWsEvent::InstanceCompleted) => {
                             received_completion = true;
                             break;
                         }
@@ -490,18 +502,22 @@ mod tests {
                 received_completion
             });
 
-            let _ = broadcaster.send(WorkflowEvent::StepCompleted {
+            let _ = broadcaster.send(WorkflowWsEvent::StepCompleted {
                 node_name: "final-step".to_string(),
                 sequence: 10,
             });
-            let _ = broadcaster.send(WorkflowEvent::InstanceCompleted);
+            let _ = broadcaster.send(WorkflowWsEvent::InstanceCompleted);
             drop(broadcaster);
 
-            let received = tokio::time::timeout(
-                std::time::Duration::from_secs(2), handle
-            ).await.expect("should not timeout").expect("task should not panic");
+            let received = tokio::time::timeout(std::time::Duration::from_secs(2), handle)
+                .await
+                .expect("should not timeout")
+                .expect("task should not panic");
 
-            assert!(received, "Subscriber should receive InstanceCompleted event");
+            assert!(
+                received,
+                "Subscriber should receive InstanceCompleted event"
+            );
         }
     }
 
@@ -510,7 +526,7 @@ mod tests {
     // =========================================================================
 
     mod ws_bidirectional_messages {
-        use vo_api::handlers::ws::{WorkflowEvent, WsBroadcaster, WsConnectionCount};
+        use vo_api::handlers::ws::{WorkflowWsEvent, WsBroadcaster, WsConnectionCount};
 
         #[test]
         fn given_ws_client_sends_text_when_received_then_message_parseable() {
@@ -531,21 +547,27 @@ mod tests {
             let before = counter.increment();
             assert_eq!(before, 0, "Should return previous count before increment");
             assert_eq!(
-                counter.active_connections.load(std::sync::atomic::Ordering::SeqCst),
+                counter
+                    .active_connections
+                    .load(std::sync::atomic::Ordering::SeqCst),
                 1
             );
 
             // WHEN another client connects
             counter.increment();
             assert_eq!(
-                counter.active_connections.load(std::sync::atomic::Ordering::SeqCst),
+                counter
+                    .active_connections
+                    .load(std::sync::atomic::Ordering::SeqCst),
                 2
             );
 
             // WHEN client disconnects
             counter.decrement();
             assert_eq!(
-                counter.active_connections.load(std::sync::atomic::Ordering::SeqCst),
+                counter
+                    .active_connections
+                    .load(std::sync::atomic::Ordering::SeqCst),
                 1
             );
         }
@@ -561,7 +583,11 @@ mod tests {
 
             for msg in messages {
                 let json: serde_json::Value = serde_json::from_str(msg).unwrap();
-                assert!(json.is_object(), "Text message should be valid JSON: {}", msg);
+                assert!(
+                    json.is_object(),
+                    "Text message should be valid JSON: {}",
+                    msg
+                );
             }
         }
     }
@@ -572,11 +598,12 @@ mod tests {
 
     mod ws_client_lag_silent_drop {
         use crate::WorkflowSseEvent;
-        use vo_api::handlers::ws::{WorkflowEvent, WsBroadcaster};
         use tokio::sync::broadcast;
+        use vo_api::handlers::ws::{WorkflowWsEvent, WsBroadcaster};
 
         #[tokio::test]
-        async fn given_ws_client_lags_over_1000_when_detected_then_events_silently_dropped_connection_stays_open() {
+        async fn given_ws_client_lags_over_1000_when_detected_then_events_silently_dropped_connection_stays_open(
+        ) {
             // GIVEN WebSocket client connected with capacity 10
             let (tx, mut receiver) = broadcast::channel::<WorkflowSseEvent>(10);
 
@@ -612,15 +639,21 @@ mod tests {
             }
             drop(tx);
 
-            let (count, lagged_count, stayed_open) = tokio::time::timeout(
-                std::time::Duration::from_secs(5), handle
-            ).await.expect("should not timeout").expect("task should not panic");
+            let (count, lagged_count, stayed_open) =
+                tokio::time::timeout(std::time::Duration::from_secs(5), handle)
+                    .await
+                    .expect("should not timeout")
+                    .expect("task should not panic");
 
             // THEN connection stayed open (received Lagged but did NOT disconnect)
             assert!(stayed_open, "WS connection should stay open on lag");
             assert!(lagged_count > 0, "Should have experienced Lagged errors");
             // THEN not all events received (silently dropped)
-            assert!(count < 500, "Lagged client should miss events, got {}", count);
+            assert!(
+                count < 500,
+                "Lagged client should miss events, got {}",
+                count
+            );
         }
 
         #[tokio::test]
@@ -638,25 +671,29 @@ mod tests {
             });
 
             for i in 0..send_count {
-                let _ = broadcaster.send(WorkflowEvent::StepCompleted {
+                let _ = broadcaster.send(WorkflowWsEvent::StepCompleted {
                     node_name: format!("step-{}", i),
                     sequence: i,
                 });
             }
             drop(broadcaster);
 
-            let count = tokio::time::timeout(
-                std::time::Duration::from_secs(5), handle
-            ).await.expect("should not timeout").expect("task should not panic");
+            let count = tokio::time::timeout(std::time::Duration::from_secs(5), handle)
+                .await
+                .expect("should not timeout")
+                .expect("task should not panic");
 
-            assert_eq!(count, send_count, "Fast WS consumer should receive all events");
+            assert_eq!(
+                count, send_count,
+                "Fast WS consumer should receive all events"
+            );
         }
     }
 
     mod broadcast_multiple_clients {
         use super::*;
-        use vo_api::handlers::ws::{WorkflowEvent, WsBroadcaster};
         use tokio::sync::broadcast;
+        use vo_api::handlers::ws::{WorkflowWsEvent, WsBroadcaster};
 
         #[tokio::test]
         async fn given_multiple_sse_clients_when_same_event_then_all_clients_receive_event() {
@@ -689,16 +726,19 @@ mod tests {
             // THEN all clients receive event (broadcast semantics)
             let mut total = 0u64;
             for handle in handles {
-                let count = tokio::time::timeout(
-                    std::time::Duration::from_secs(5), handle
-                ).await.expect("should not timeout").expect("task should not panic");
+                let count = tokio::time::timeout(std::time::Duration::from_secs(5), handle)
+                    .await
+                    .expect("should not timeout")
+                    .expect("task should not panic");
                 total += count;
             }
 
             assert!(
                 total >= event_count,
                 "All {} SSE clients should collectively receive all {} events, got {}",
-                client_count, event_count, total
+                client_count,
+                event_count,
+                total
             );
         }
 
@@ -726,7 +766,7 @@ mod tests {
             // WHEN same instance event is broadcast
             let event_count = 100u64;
             for i in 0..event_count {
-                let _ = broadcaster.send(WorkflowEvent::StepCompleted {
+                let _ = broadcaster.send(WorkflowWsEvent::StepCompleted {
                     node_name: format!("step-{}", i),
                     sequence: i,
                 });
@@ -736,16 +776,19 @@ mod tests {
             // THEN all clients receive event (broadcast semantics)
             let mut total = 0u64;
             for handle in handles {
-                let count = tokio::time::timeout(
-                    std::time::Duration::from_secs(5), handle
-                ).await.expect("should not timeout").expect("task should not panic");
+                let count = tokio::time::timeout(std::time::Duration::from_secs(5), handle)
+                    .await
+                    .expect("should not timeout")
+                    .expect("task should not panic");
                 total += count;
             }
 
             assert!(
                 total >= event_count,
                 "All {} WS clients should collectively receive all {} events, got {}",
-                client_count, event_count, total
+                client_count,
+                event_count,
+                total
             );
         }
 
@@ -787,7 +830,7 @@ mod tests {
                     node_name: format!("step-{}", i),
                     sequence: i,
                 });
-                let _ = ws_broadcaster.send(WorkflowEvent::StepCompleted {
+                let _ = ws_broadcaster.send(WorkflowWsEvent::StepCompleted {
                     node_name: format!("step-{}", i),
                     sequence: i,
                 });
@@ -796,20 +839,31 @@ mod tests {
             drop(ws_broadcaster);
 
             // THEN both SSE and WS clients receive events
-            let sse_count = tokio::time::timeout(
-                std::time::Duration::from_secs(5), sse_handle
-            ).await.expect("should not timeout").expect("task should not panic");
+            let sse_count = tokio::time::timeout(std::time::Duration::from_secs(5), sse_handle)
+                .await
+                .expect("should not timeout")
+                .expect("task should not panic");
 
-            let ws_count = tokio::time::timeout(
-                std::time::Duration::from_secs(5), ws_handle
-            ).await.expect("should not timeout").expect("task should not panic");
+            let ws_count = tokio::time::timeout(std::time::Duration::from_secs(5), ws_handle)
+                .await
+                .expect("should not timeout")
+                .expect("task should not panic");
 
-            assert_eq!(sse_count, event_count, "SSE client should receive all {} events", event_count);
-            assert_eq!(ws_count, event_count, "WS client should receive all {} events", event_count);
+            assert_eq!(
+                sse_count, event_count,
+                "SSE client should receive all {} events",
+                event_count
+            );
+            assert_eq!(
+                ws_count, event_count,
+                "WS client should receive all {} events",
+                event_count
+            );
         }
 
         #[tokio::test]
-        async fn given_clients_join_at_different_times_when_events_broadcast_then_late_client_misses_early_events() {
+        async fn given_clients_join_at_different_times_when_events_broadcast_then_late_client_misses_early_events(
+        ) {
             // GIVEN two SSE clients joining at different times
             let (tx, _) = broadcast::channel::<WorkflowSseEvent>(SSE_BROADCAST_CAPACITY);
 
@@ -850,19 +904,22 @@ mod tests {
             }
             drop(tx);
 
-            let early_count = tokio::time::timeout(
-                std::time::Duration::from_secs(5), early_handle
-            ).await.expect("should not timeout").expect("task should not panic");
+            let early_count = tokio::time::timeout(std::time::Duration::from_secs(5), early_handle)
+                .await
+                .expect("should not timeout")
+                .expect("task should not panic");
 
-            let late_count = tokio::time::timeout(
-                std::time::Duration::from_secs(5), late_handle
-            ).await.expect("should not timeout").expect("task should not panic");
+            let late_count = tokio::time::timeout(std::time::Duration::from_secs(5), late_handle)
+                .await
+                .expect("should not timeout")
+                .expect("task should not panic");
 
             // THEN late client receives fewer events than early client
             assert!(
                 late_count <= early_count,
                 "Late client should receive <= early client events ({} vs {})",
-                late_count, early_count
+                late_count,
+                early_count
             );
         }
     }

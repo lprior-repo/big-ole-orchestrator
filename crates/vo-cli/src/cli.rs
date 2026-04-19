@@ -1,4 +1,7 @@
+use std::collections::BTreeMap;
 use std::path::PathBuf;
+
+use vo_types::workspace::{WorkspaceId, WorkspaceName, WorkspacePath};
 
 #[derive(Debug, thiserror::Error)]
 pub enum CliError {
@@ -24,15 +27,12 @@ pub enum CliError {
     Rebuild(#[from] crate::commands::rebuild::RebuildError),
     #[error(transparent)]
     Status(#[from] crate::commands::status::StatusError),
-    #[error(transparent)]
-    Workspace(#[from] crate::commands::workspace::WorkspaceError),
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Command {
     Purge {
         instance: String,
-        storage_path: PathBuf,
     },
     Check {
         workflow: bool,
@@ -45,7 +45,6 @@ pub enum Command {
     },
     Gc {
         engine_url: String,
-        versions_dir: PathBuf,
         dry_run: bool,
     },
     Init {
@@ -67,19 +66,15 @@ pub enum Command {
     },
     Status {
         engine_url: String,
-        instance: String,
+        workflow_id: String,
     },
-    Workspace {
-        action: WorkspaceAction,
+    Hardline {
+        target: String,
+        engine_url: String,
+        timeout: u64,
+        force: bool,
+        dry_run: bool,
     },
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub enum WorkspaceAction {
-    List,
-    Create { name: String },
-    Delete { id: String },
-    Show { id: String },
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -99,21 +94,15 @@ where
     let cmd = clap::Command::new("vo")
         .version("0.1.0")
         .subcommand_required(true)
+        .arg_required_else_help(true)
         .subcommand(
-            clap::Command::new("purge")
-                .arg(
-                    clap::Arg::new("instance")
-                        .long("instance")
-                        .required(true)
-                        .value_name("ID")
-                        .help("The instance ID to purge"),
-                )
-                .arg(
-                    clap::Arg::new("storage-path")
-                        .long("storage-path")
-                        .default_value(".vo/storage")
-                        .help("Storage path for fjall database"),
-                ),
+            clap::Command::new("purge").arg(
+                clap::Arg::new("instance")
+                    .long("instance")
+                    .required(true)
+                    .value_name("ID")
+                    .help("The instance ID to purge"),
+            ),
         )
         .subcommand(
             clap::Command::new("check")
@@ -132,13 +121,7 @@ where
                     clap::Arg::new("workflow-id")
                         .required(true)
                         .index(1)
-                        .help("The workflow instance ID to compensate")
-                        .value_parser(|s: &str| {
-                            if s.is_empty() {
-                                return Err(clap::Error::new(clap::error::ErrorKind::InvalidValue));
-                            }
-                            Ok(s.to_string())
-                        }),
+                        .help("The workflow instance ID to compensate"),
                 )
                 .arg(
                     clap::Arg::new("engine-url")
@@ -160,12 +143,6 @@ where
                         .long("engine-url")
                         .env("VO_ENGINE_URL")
                         .default_value("http://localhost:3000"),
-                )
-                .arg(
-                    clap::Arg::new("versions-dir")
-                        .long("versions-dir")
-                        .default_value(".vo/versions")
-                        .help("Versions directory to garbage collect"),
                 )
                 .arg(
                     clap::Arg::new("dry-run")
@@ -255,38 +232,39 @@ where
                 ),
         )
         .subcommand(
-            clap::Command::new("workspace")
-                .about("Manage workspaces")
-                .subcommand(clap::Command::new("list").about("List all workspaces"))
-                .subcommand(
-                    clap::Command::new("create")
-                        .about("Create a new workspace")
-                        .arg(
-                            clap::Arg::new("name")
-                                .required(true)
-                                .index(1)
-                                .help("Workspace name"),
-                        ),
+            clap::Command::new("hardline")
+                .about("Execute hardline command")
+                .arg(
+                    clap::Arg::new("target")
+                        .required(true)
+                        .index(1)
+                        .help("Target identifier"),
                 )
-                .subcommand(
-                    clap::Command::new("delete")
-                        .about("Delete a workspace")
-                        .arg(
-                            clap::Arg::new("id")
-                                .required(true)
-                                .index(1)
-                                .help("Workspace ID"),
-                        ),
+                .arg(
+                    clap::Arg::new("engine-url")
+                        .long("engine-url")
+                        .env("VO_ENGINE_URL")
+                        .default_value("http://localhost:3000")
+                        .help("Engine URL"),
                 )
-                .subcommand(
-                    clap::Command::new("show")
-                        .about("Show workspace details")
-                        .arg(
-                            clap::Arg::new("id")
-                                .required(true)
-                                .index(1)
-                                .help("Workspace ID"),
-                        ),
+                .arg(
+                    clap::Arg::new("timeout")
+                        .long("timeout")
+                        .value_name("SECONDS")
+                        .default_value("60")
+                        .help("Timeout in seconds"),
+                )
+                .arg(
+                    clap::Arg::new("force")
+                        .long("force")
+                        .action(clap::ArgAction::SetTrue)
+                        .help("Skip confirmation"),
+                )
+                .arg(
+                    clap::Arg::new("dry-run")
+                        .long("dry-run")
+                        .action(clap::ArgAction::SetTrue)
+                        .help("Dry run mode"),
                 ),
         );
 
@@ -298,15 +276,8 @@ where
                 .get_one::<String>("instance")
                 .cloned()
                 .unwrap_or_default();
-            let storage_path = purge_matches
-                .get_one::<String>("storage-path")
-                .map(PathBuf::from)
-                .unwrap_or_else(|| PathBuf::from(".vo/storage"));
             Ok(Cli {
-                command: Command::Purge {
-                    instance,
-                    storage_path,
-                },
+                command: Command::Purge { instance },
             })
         }
         Some(("check", sub_matches)) => {
@@ -350,15 +321,10 @@ where
                 Some(u) => u.clone(),
                 None => "http://localhost:3000".to_string(),
             };
-            let versions_dir = sub_matches
-                .get_one::<String>("versions-dir")
-                .map(PathBuf::from)
-                .unwrap_or_else(|| PathBuf::from(".vo/versions"));
             let dry_run = sub_matches.get_flag("dry-run");
             Ok(Cli {
                 command: Command::Gc {
                     engine_url,
-                    versions_dir,
                     dry_run,
                 },
             })
@@ -420,7 +386,7 @@ where
             })
         }
         Some(("status", sub_matches)) => {
-            let instance = sub_matches
+            let workflow_id = sub_matches
                 .get_one::<String>("instance")
                 .cloned()
                 .unwrap_or_default();
@@ -431,51 +397,40 @@ where
             Ok(Cli {
                 command: Command::Status {
                     engine_url,
-                    instance,
+                    workflow_id,
                 },
             })
         }
-        Some(("workspace", sub_matches)) => match sub_matches.subcommand() {
-            Some(("list", _)) => Ok(Cli {
-                command: Command::Workspace {
-                    action: WorkspaceAction::List,
+        Some(("hardline", sub_matches)) => {
+            let target = match sub_matches.get_one::<String>("target") {
+                Some(t) => t.clone(),
+                None => {
+                    return Err(clap::Error::new(
+                        clap::error::ErrorKind::MissingRequiredArgument,
+                    ))
+                }
+            };
+            let engine_url = sub_matches
+                .get_one::<String>("engine-url")
+                .cloned()
+                .unwrap_or_else(|| "http://localhost:3000".to_string());
+            let timeout_str = sub_matches
+                .get_one::<String>("timeout")
+                .map(|s| s.as_str())
+                .unwrap_or("60");
+            let timeout: u64 = timeout_str.parse().unwrap_or(60);
+            let force = sub_matches.get_flag("force");
+            let dry_run = sub_matches.get_flag("dry-run");
+            Ok(Cli {
+                command: Command::Hardline {
+                    target,
+                    engine_url,
+                    timeout,
+                    force,
+                    dry_run,
                 },
-            }),
-            Some(("create", create_matches)) => {
-                let name = create_matches
-                    .get_one::<String>("name")
-                    .cloned()
-                    .unwrap_or_default();
-                Ok(Cli {
-                    command: Command::Workspace {
-                        action: WorkspaceAction::Create { name },
-                    },
-                })
-            }
-            Some(("delete", delete_matches)) => {
-                let id = delete_matches
-                    .get_one::<String>("id")
-                    .cloned()
-                    .unwrap_or_default();
-                Ok(Cli {
-                    command: Command::Workspace {
-                        action: WorkspaceAction::Delete { id },
-                    },
-                })
-            }
-            Some(("show", show_matches)) => {
-                let id = show_matches
-                    .get_one::<String>("id")
-                    .cloned()
-                    .unwrap_or_default();
-                Ok(Cli {
-                    command: Command::Workspace {
-                        action: WorkspaceAction::Show { id },
-                    },
-                })
-            }
-            _ => Err(clap::Error::new(clap::error::ErrorKind::InvalidSubcommand)),
-        },
+            })
+        }
         _ => Err(clap::Error::new(clap::error::ErrorKind::InvalidSubcommand)),
     }
 }
@@ -497,8 +452,7 @@ pub fn map_error_to_exit_code(err: &CliError) -> i32 {
         | CliError::Lock(_)
         | CliError::Doctor(_)
         | CliError::Rebuild(_)
-        | CliError::Status(_)
-        | CliError::Workspace(_) => 1,
+        | CliError::Status(_) => 1,
         CliError::InvalidNumeric(_) => 2,
     }
 }
@@ -520,8 +474,7 @@ mod tests {
         assert_eq!(
             cli.command,
             Command::Purge {
-                instance: "123".to_string(),
-                storage_path: PathBuf::from(".vo/storage"),
+                instance: "123".to_string()
             }
         );
     }
@@ -591,7 +544,7 @@ mod tests {
             cli.command,
             Command::Status {
                 engine_url: "http://localhost:3000".to_string(),
-                instance: "01ARZ3NDEKTSV4RRFFQ69G5FAV".to_string(),
+                workflow_id: "01ARZ3NDEKTSV4RRFFQ69G5FAV".to_string(),
             }
         );
     }
@@ -610,7 +563,7 @@ mod tests {
             cli.command,
             Command::Status {
                 engine_url: "http://localhost:9000".to_string(),
-                instance: "instance-123".to_string(),
+                workflow_id: "instance-123".to_string(),
             }
         );
     }

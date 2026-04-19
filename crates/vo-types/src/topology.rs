@@ -1,17 +1,3 @@
-//! Cluster topology identity types for node discovery and partition leasing.
-//!
-//! This module provides the type system for identifying engine nodes in a
-//! distributed veloxide cluster and naming the lease targets used for
-//! partition-based work distribution:
-//!
-//! - [`NodeId`] — ULID-based unique identifier for a single engine node.
-//!   Validated to be a non-nil 26-character ULID string.
-//! - [`LeaseKey`] — Partition-scoped lease target (e.g., `"workers/partition-42"`).
-//!   Validated to be non-empty and at most 256 characters.
-//!
-//! Both types are serde-transparent newtypes with `Display`, `From`/`Into`,
-//! and `TryFrom<String>` for ergonomic parsing and serialization.
-
 use serde::{Deserialize, Serialize};
 
 use crate::string_newtype;

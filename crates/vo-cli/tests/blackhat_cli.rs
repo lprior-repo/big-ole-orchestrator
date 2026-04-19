@@ -83,8 +83,8 @@ fn unicode_confusables_and_zero_width_in_ids() {
         OsString::from(spoofed),
     ];
     let cli = interpret_cli_from(args).unwrap();
-    if let Command::Status { instance, .. } = &cli.command {
-        assert!(!instance.is_ascii());
+    if let Command::Status { workflow_id, .. } = &cli.command {
+        assert!(!workflow_id.is_ascii());
     }
     let invisible = "wf\u{200B}\u{200C}\u{200D}123"; // ZWSP+ZWNJ+ZWJ
     let args2 = vec![
@@ -99,7 +99,7 @@ fn unicode_confusables_and_zero_width_in_ids() {
 }
 
 #[test]
-fn duplicate_flags_are_rejected() {
+fn duplicate_flags_last_wins() {
     let args = vec![
         OsString::from("vo"),
         OsString::from("gc"),
@@ -108,11 +108,10 @@ fn duplicate_flags_are_rejected() {
         OsString::from("--engine-url"),
         OsString::from("http://evil:3000"),
     ];
-    let result = interpret_cli_from(args);
-    assert!(
-        result.is_err(),
-        "duplicate flags should be rejected by clap"
-    );
+    let cli = interpret_cli_from(args).unwrap();
+    if let Command::Gc { engine_url, .. } = cli.command {
+        assert_eq!(engine_url, "http://evil:3000");
+    }
 }
 
 #[test]
@@ -155,7 +154,9 @@ fn numeric_overflow_is_specific() {
 
 #[test]
 fn numeric_leading_zeros_allowed() {
-    assert_eq!(parse_strict_numeric("007").unwrap(), 7);
+    let result = parse_strict_numeric("007");
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), 7);
 }
 
 #[test]

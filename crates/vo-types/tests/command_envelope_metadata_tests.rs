@@ -3,8 +3,6 @@
 //! Tests identity fields on all mutating surfaces, metadata propagation through
 //! the execution pipeline, command dedup using identity, identity validation,
 //! authority checks, and cross-rig command routing.
-#![allow(clippy::expect_used, clippy::unwrap_used, clippy::useless_vec, unused_imports, unused_variables)]
-
 
 use vo_types::*;
 

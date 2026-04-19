@@ -640,7 +640,7 @@ fn merkle_tree_proof_with_tampered_sibling_fails() {
     if tree.leaf_hashes.len() >= 2 {
         let mut proof = tree.proof(0).unwrap();
         if !proof.proof_hashes.is_empty() {
-            proof.proof_hashes[0][0] = proof.proof_hashes[0][0].wrapping_add(1);
+            proof.proof_hashes[0].0[0] = proof.proof_hashes[0].0[0].wrapping_add(1);
             assert!(
                 !proof.verify(root),
                 "tampered sibling hash should fail proof"

@@ -418,10 +418,10 @@ async fn sweep_partial_query_failure_does_not_lose_previously_found_orphans() {
     let detector = OrphanDetector::new(Duration::from_millis(10), query);
     let (tx, mut rx) = tokio::sync::mpsc::channel(100);
 
-    let first_result = detector.run_single_sweep(tx).await;
+    let first_result = detector.run_single_sweep(tx.clone()).await;
     assert!(first_result.is_ok(), "first sweep should succeed");
 
-    let second_result = detector.run_single_sweep(tx).await;
+    let second_result = detector.run_single_sweep(tx.clone()).await;
     assert!(
         second_result.is_err(),
         "second sweep should fail (query configured to fail after 1 call)"

@@ -197,8 +197,6 @@ impl KeyMetadata {
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::useless_vec, unused_imports, unused_variables)]
-
     use super::*;
 
     #[test]

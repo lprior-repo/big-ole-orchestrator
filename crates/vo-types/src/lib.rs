@@ -1,32 +1,33 @@
-#![allow(clippy::expect_used, clippy::unwrap_used, clippy::useless_vec, clippy::useless_conversion, clippy::panic, clippy::absurd_extreme_comparisons, clippy::clone_on_copy, clippy::explicit_counter_loop, clippy::needless_range_loop, clippy::module_inception, clippy::duplicated_attributes, clippy::expect_fun_call, clippy::needless_borrows_for_generic_args, clippy::double_comparisons, clippy::identity_op, unused_imports, unused_variables, dead_code)]
-
 mod binomial_heap;
-mod rope;
+#[cfg(test)]
+mod blackhat_encryption_credentials_tests;
+mod blob;
 #[cfg(test)]
 mod blob_tests;
-mod blob;
 mod btree;
+pub mod cartesian_tree;
+mod clique_tree;
 mod command_envelope;
 pub mod command_history;
 pub mod command_metadata;
 mod compensation;
 pub mod connection_pool;
 mod connector;
+pub mod credentials;
 #[cfg(test)]
 mod credentials_tests;
-pub mod credentials;
 mod dedupe;
 #[cfg(test)]
 mod dedupe_tests;
 mod dependency_graph_resolver;
 pub mod discovery;
+mod dual_representation;
 #[cfg(test)]
 mod dual_representation_tests;
-mod dual_representation;
 pub mod effects;
-mod encryption;
 #[cfg(test)]
 mod effects_receipt_tests;
+mod encryption;
 #[cfg(test)]
 mod encryption_tests;
 mod errors;
@@ -40,18 +41,25 @@ mod lifecycle_superstate;
 mod lineage;
 mod link_cut_tree;
 mod macros;
+pub mod next_step_selection;
 mod node_kind;
 mod non_empty_vec;
+mod octree;
+mod pairing_heap;
 mod payload_parser;
-mod next_step_selection;
 mod plugin;
 #[cfg(feature = "proptest")]
 mod proptest_targets;
 pub mod proptest_verifier;
+mod recovery_contract;
 mod registration_status;
+mod rope;
+pub mod search;
 pub mod signal;
+pub mod skew_heap;
+mod spqr_tree;
 pub mod state;
-mod string_types;
+pub mod string_types;
 #[cfg(test)]
 mod string_types_tests;
 mod topology;
@@ -68,6 +76,8 @@ pub use blob::{
     INLINED_MAX_BYTES,
 };
 pub use btree::{BTree, BTreeError, BTreeNode};
+pub use cartesian_tree::{CartesianNode, CartesianTree, CartesianTreeError};
+pub use clique_tree::{Clique, CliqueTree, CliqueTreeError};
 pub use command_envelope::{CommandEnvelope, CommandEnvelopeError, MAX_SUPPORTED_COMMAND_VERSION};
 pub use command_history::{
     BatchId, CommandHistory, CommandHistoryError, CommandKind, ExtensionApplyMode,
@@ -95,7 +105,6 @@ pub use discovery::{
     enforce_pin, validate_discovery_path, DiscoveryPath, DiscoveryPathError, PinEnforcementError,
     VersionConstraint, VersionPin, VERSION_BASE_PATH,
 };
-pub use identity::{CausationId, CommandId, CorrelationId};
 pub use dual_representation::{
     apply_redaction, OperatorProjection, RedactionKind, RedactionPolicy, RedactionRule,
 };
@@ -106,12 +115,15 @@ pub use effects::{
 pub use encryption::{CryptoAlgorithm, DekId, EncryptedBlob, KeyMetadata, WrappedDek};
 pub use errors::ParseError;
 pub use events::{Error as EventError, EventEnvelope};
+pub use identity::{CausationId, CommandId, CorrelationId};
 pub use instance_status::InstanceStatus;
 pub use lifecycle_superstate::LifecycleSuperstate;
 pub use lineage::{Epoch, LineageError, LineageState, LineageStatus, WorkflowLineage};
 pub use link_cut_tree::{LctAggregate, LctError, LinkCutTree, Monoid};
 pub use node_kind::NodeKind;
 pub use non_empty_vec::NonEmptyVec;
+pub use octree::{BoundingBox, Octree, OctreeConfig, OctreeEntry, OctreeError, OctreeNode, Point3};
+pub use pairing_heap::{PairingHeap, PairingHeapError};
 pub use plugin::{
     apply_plugin_transition, ArtifactRef, CapabilityId, HotLoadEvent, InstanceKey,
     IsolationBreachType, IsolationLevel, PluginArtifact, PluginDescriptor, PluginErrorCategory,
@@ -119,10 +131,25 @@ pub use plugin::{
     PluginInstance, PluginName, PluginState, PluginTransition, PluginVersion,
     PluginVersionConstraint, ResourceBudget, SchemaVersion, VersionRange,
 };
+pub use recovery_contract::{
+    classify_expected_outcome, generate_scenario_matrix, violation_to_invariant, AssertionResult,
+    CrashTiming, ExpectedRecoveryOutcome, FailoverScenario, FailoverSeverity, RecoveryAssertion,
+    RecoveryInvariant, RecoveryPhase, RecoveryViolation,
+};
 pub use registration_status::RegistrationStatus;
+pub use rope::{Measurable, Rope, RopeBuilder, RopeError, RopeSlice};
+pub use search::{
+    Bm25Scorer, InvertedIndex, Posting, PostingList, Query, QueryParser, Scorer, SearchEngine,
+    SearchError, SearchResult, TfIdfScorer,
+};
 pub use signal::{
     signal_match, BufferPolicy, FailureScope, LineageScope, SignalAddress, SignalDedupeKey,
     SignalDelivery, SignalMatchResult, WaitKey, WaitRecord,
+};
+pub use skew_heap::{SkewHeap, SkewHeapError, SkewNode};
+pub use spqr_tree::{
+    Block, Component, CutNode, SPQRDecomposition, SPQREdge, SPQRNode, SPQRNodeType, SpqrError,
+    StaticGraph,
 };
 pub use topology::{LeaseKey, NodeId};
 pub use tx_coordinator::{
@@ -137,8 +164,8 @@ pub use types::{
     MAX_SUPPORTED_SCHEMA_VERSION,
 };
 pub use workflow::{
-    next_nodes, DagNode, Edge, EdgeCondition, RetryPolicy, RetryPolicyError,
-    StepOutcome, WorkflowDefinition, WorkflowDefinitionError,
+    next_nodes, DagNode, Edge, EdgeCondition, RetryPolicy, RetryPolicyError, StepOutcome,
+    WorkflowDefinition, WorkflowDefinitionError,
 };
 
 #[cfg(kani)]
@@ -155,20 +182,20 @@ mod context_stack_adversarial;
 #[cfg(test)]
 mod cross_cutting_tests;
 #[cfg(test)]
-mod identity_tests;
-#[cfg(test)]
 mod dependency_graph_resolver_tests;
 #[cfg(test)]
+mod identity_bdd_tests;
+#[cfg(test)]
+mod identity_tests;
+#[cfg(test)]
 mod red_queen_tests;
+#[cfg(test)]
+mod schema_evolution_bdd_tests;
 #[cfg(test)]
 mod schema_version_tests;
 #[cfg(test)]
 mod serde_tests;
 #[cfg(test)]
-mod tests_bdd_dag_connectivity;
-#[cfg(test)]
 mod tests_bdd_dag_cycle_validation;
-#[cfg(test)]
-mod tests_bdd_dag_merge_point;
 #[cfg(test)]
 mod workflow_tests;

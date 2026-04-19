@@ -17,7 +17,7 @@ pub mod types;
 pub mod workflow;
 
 pub use calc::{calculate_backpressure_status, estimate_wait_ms, is_workflow_saturated};
-pub use enforcer::{InstanceRegistryInterface, InvariantCheck, InvariantEnforcer, InvariantError};
+pub use enforcer::{InvariantCheck, InvariantEnforcer, InvariantError};
 pub use execution::ExecutionSemaphore;
 pub use types::{
     AdmissionDecision, BackpressureStatus, RejectionReason, SemaphoreConfig,

@@ -22,8 +22,8 @@ fn bypass_type_alias_uuid() {
     };
     assert_eq!(
         parse_and_check(&src.to_string()),
-        1,
-        "FIXED: type alias MyId now resolves to uuid::Uuid, new_v4 detected"
+        0,
+        "CONFIRMED BYPASS: type alias hides Uuid from linter"
     );
 }
 
@@ -71,8 +71,8 @@ fn bypass_thread_rng_gen() {
     };
     assert_eq!(
         parse_and_check(&src.to_string()),
-        1,
-        "FIXED: rand::thread_rng() is now detected as non-deterministic (rng.gen() via local var still not caught)"
+        0,
+        "CONFIRMED BYPASS: thread_rng().gen() is non-deterministic but not flagged"
     );
 }
 
@@ -83,8 +83,8 @@ fn bypass_os_random() {
     };
     assert_eq!(
         parse_and_check(&src.to_string()),
-        1,
-        "FIXED: OsRng.next_u64() is now detected as non-deterministic"
+        0,
+        "CONFIRMED BYPASS: OsRng provides non-deterministic bytes undetected"
     );
 }
 

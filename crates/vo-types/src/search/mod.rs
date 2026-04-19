@@ -2,9 +2,6 @@ mod error;
 mod inverted_index;
 mod query;
 mod scoring;
-pub mod inverted_index;
-pub mod query;
-pub mod scoring;
 
 pub use error::SearchError;
 pub use inverted_index::{InvertedIndex, Posting, PostingList};
@@ -45,9 +42,12 @@ impl SearchEngine {
         Ok(vec![])
     }
 
-    pub fn index_workspace(&mut self, id: crate::workspace::WorkspaceId, text: &str, tags: &[String]) {
+    pub fn index_workspace(
+        &mut self,
+        id: crate::workspace::WorkspaceId,
+        text: &str,
+        tags: &[String],
+    ) {
         let _ = (id, text, tags);
     }
 }
-pub struct SearchEngine;
-pub struct SearchResult;

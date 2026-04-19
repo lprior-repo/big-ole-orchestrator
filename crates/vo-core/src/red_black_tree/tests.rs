@@ -25,7 +25,7 @@ fn remove() {
     t.insert(1, "a");
     t.insert(2, "b");
     t.insert(3, "c");
-    assert!(t.remove(&2));
+    assert_eq!(t.remove(&2), Some("b"));
     assert_eq!(t.get(&2), None);
     assert_eq!(t.len(), 2);
 }
@@ -97,7 +97,7 @@ fn bulk_ops() {
     }
     assert_eq!(t.len(), 200);
     for i in 1..=100 {
-        assert!(t.remove(&i));
+        assert_eq!(t.remove(&i), Some(i));
     }
     assert_eq!(t.len(), 100);
 }
@@ -118,7 +118,7 @@ fn delete_all() {
 fn remove_missing() {
     let mut t = RedBlackTree::new();
     t.insert(1, "a");
-    assert!(!t.remove(&99));
+    assert_eq!(t.remove(&99), None);
 }
 
 #[test]

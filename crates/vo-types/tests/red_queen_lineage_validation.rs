@@ -3,8 +3,6 @@
 //! These tests verify that lineage_id containing control characters is rejected.
 //! Control characters (codepoints U+0000–U+001F) must not appear in lineage_id
 //! because they corrupt logs, headers, and wire formats.
-#![allow(clippy::expect_used, clippy::unwrap_used, clippy::useless_vec, unused_imports, unused_variables)]
-
 
 use vo_types::{LineageError, WorkflowLineage};
 

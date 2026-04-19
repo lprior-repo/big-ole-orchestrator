@@ -96,11 +96,6 @@ pub fn write_success_inner_with_state<W: Write>(
 
 /// Write a failure result to FD4.
 ///
-/// # Message Size Limit
-/// The message is limited to 1024 **bytes**, not characters. A 4-byte UTF-8 character
-/// (e.g., a Chinese character) counts as 4 bytes toward this limit. An ASCII character
-/// counts as 1 byte. For example, `"中文中文中文"` is 10 characters but 20 bytes.
-///
 /// # Errors
 /// Returns `SdkError` if already written, input invalid, or write fails.
 pub fn write_failure(kind: TaskFailureKind, message: &str) -> Result<(), SdkError> {
