@@ -6,6 +6,7 @@
 
 use axum::{
     extract::Extension,
+    http::StatusCode,
     routing::{delete, get, post},
     Router,
 };
@@ -112,7 +113,10 @@ pub fn create_router(state: AppState) -> Router {
         .merge(event_routes)
         .merge(sse_routes)
         .merge(ws_routes)
-        .layer(TimeoutLayer::new(Duration::from_secs(30)))
+        .layer(TimeoutLayer::with_status_code(
+            StatusCode::REQUEST_TIMEOUT,
+            Duration::from_secs(30),
+        ))
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
 }

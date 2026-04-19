@@ -29,6 +29,8 @@ fn emit_queue_depth(class: WriteClass, depth: usize) {
         WriteClass::OperatorProjection => "projection",
         WriteClass::BulkBlob => "bulk_blob",
     };
+    // Casting usize to f64 for metrics - precision loss is acceptable for large queue depths
+    #[allow(clippy::cast_precision_loss)]
     metrics::gauge!("vo_storage.queue_depth", "class" => label).set(depth as f64);
 }
 
@@ -1117,7 +1119,7 @@ impl Appender {
     /// Creates a new `Appender` with the given queue configuration and budget.
     pub fn new(config: &QueueConfig, budget: WriteBudget) -> Self {
         Self {
-            queues: BudgetQueues::new(&config, budget),
+            queues: BudgetQueues::new(config, budget),
         }
     }
 

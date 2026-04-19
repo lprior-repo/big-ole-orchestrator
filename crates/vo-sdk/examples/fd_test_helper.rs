@@ -1,3 +1,11 @@
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::io_other_error,
+    unused_imports,
+    dead_code
+)]
+
 use std::env;
 use std::fs::File;
 use std::io::{Read, Write};

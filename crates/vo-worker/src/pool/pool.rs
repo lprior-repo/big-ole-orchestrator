@@ -133,6 +133,13 @@ pub struct ConnectionPool {
 }
 
 impl ConnectionPool {
+    /// Creates a new connection pool.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the configuration is invalid. This indicates a programming error
+    /// in the configuration setup and is not recoverable.
+    #[allow(clippy::panic)] // Programming error if config is invalid - panic is appropriate
     pub fn new(pool_id: PoolId, nats_urls: Vec<String>, config: PoolConfig) -> Self {
         let vo_config: VoPoolConfig = config.clone().into();
         if let Err(e) = validate_config(&vo_config) {

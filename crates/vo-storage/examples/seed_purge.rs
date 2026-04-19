@@ -1,3 +1,11 @@
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    unused_imports,
+    dead_code,
+    clippy::needless_borrows_for_generic_args
+)]
+
 use vo_storage::codec::encode_event_key;
 use vo_storage::instance_index::instance_index_upsert;
 use vo_types::{InstanceId, InstanceStatus, SequenceNumber, TimestampMs};

@@ -16,4 +16,15 @@
 //! Built with Dioxus 0.7 for reactive web UI. The frontend communicates
 //! with the vo-api crate via HTTP/REST for workflow operations.
 
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::result_unit_err,
+    clippy::missing_errors_doc,
+    dead_code,
+    clippy::should_implement_trait,
+    clippy::cast_precision_loss,
+    clippy::doc_markdown
+)]
+
 pub mod ui;

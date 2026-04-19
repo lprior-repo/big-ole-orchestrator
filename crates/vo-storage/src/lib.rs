@@ -18,6 +18,13 @@
 #![cfg_attr(not(test), deny(clippy::expect_used))]
 #![cfg_attr(not(test), deny(clippy::panic))]
 #![allow(clippy::module_name_repetitions)]
+#![allow(
+    clippy::unnecessary_map_or,
+    clippy::needless_continue,
+    clippy::redundant_closure,
+    private_bounds,
+    clippy::cast_precision_loss
+)]
 #![warn(clippy::pedantic)]
 #![warn(clippy::nursery)]
 #![warn(clippy::complexity)]

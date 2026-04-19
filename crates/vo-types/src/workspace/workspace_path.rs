@@ -41,29 +41,50 @@ impl<'de> Deserialize<'de> for WorkspacePath {
 }
 
 impl WorkspacePath {
+    /// Creates a new workspace path from a non-empty list of segments.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WorkspaceIndexError::PathTooDeep` if the number of segments exceeds `MAX_DEPTH`.
     pub fn new(segments: NonEmptyVec<WorkspaceName>) -> Result<Self, WorkspaceIndexError> {
         let depth = segments.len();
         if depth > MAX_DEPTH as usize {
             return Err(WorkspaceIndexError::PathTooDeep {
                 max_depth: MAX_DEPTH,
+                // SAFETY: depth is bounded by MAX_DEPTH which fits in u32
+                #[allow(clippy::cast_possible_truncation)]
                 actual_depth: depth as u32,
             });
         }
         Ok(Self { segments })
     }
 
+    /// Creates a single-segment workspace path.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WorkspaceIndexError::PathTooDeep` if MAX_DEPTH is 0 (it isn't).
     pub fn single(name: WorkspaceName) -> Result<Self, WorkspaceIndexError> {
         Self::new(NonEmptyVec::new_unchecked(vec![name]))
     }
 
+    /// Returns the path segments.
+    #[must_use]
     pub fn segments(&self) -> &[WorkspaceName] {
         self.segments.as_slice()
     }
 
+    /// Returns the number of segments in the path.
+    #[must_use]
     pub fn depth(&self) -> usize {
         self.segments.len()
     }
 
+    /// Creates a child path by appending a segment.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WorkspaceIndexError::PathTooDeep` if the resulting path would exceed `MAX_DEPTH`.
     pub fn child(&self, name: WorkspaceName) -> Result<Self, WorkspaceIndexError> {
         let mut all: Vec<WorkspaceName> = self.segments.as_slice().to_vec();
         all.push(name);
@@ -77,7 +98,7 @@ impl fmt::Display for WorkspacePath {
             .segments
             .as_slice()
             .iter()
-            .map(|s| s.as_str())
+            .map(WorkspaceName::as_str)
             .collect();
         write!(f, "{}", parts.join("/"))
     }

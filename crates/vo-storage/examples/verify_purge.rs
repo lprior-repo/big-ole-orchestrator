@@ -1,3 +1,11 @@
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    unused_imports,
+    dead_code,
+    clippy::needless_borrows_for_generic_args
+)]
+
 use vo_types::InstanceId;
 
 fn main() {

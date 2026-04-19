@@ -101,6 +101,7 @@ impl Default for QosRouterConfig {
 }
 
 impl<T> QosRouter<T> {
+    #[must_use]
     pub fn new(config: QosRouterConfig) -> Self {
         Self {
             control_plane: InnerChannel::new(config.control_plane_capacity),
@@ -109,6 +110,7 @@ impl<T> QosRouter<T> {
         }
     }
 
+    #[must_use]
     pub fn with_capacity(
         control_plane_capacity: usize,
         projection_capacity: usize,
@@ -129,6 +131,8 @@ impl<T> QosRouter<T> {
         }
     }
 
+    /// Enqueues an item into the appropriate queue based on its class.
+    #[allow(private_bounds)] // Classifiable is an internal implementation detail
     pub fn enqueue(&mut self, item: T) -> Result<(), CapacityError>
     where
         T: Classifiable,
@@ -195,6 +199,7 @@ impl<T> QosRouter<T> {
         self.blob.pop()
     }
 
+    #[must_use]
     pub fn depth(&self, class: WriteClass) -> usize {
         match class {
             WriteClass::CriticalControlPlane => self.control_plane.len(),
@@ -203,6 +208,7 @@ impl<T> QosRouter<T> {
         }
     }
 
+    #[must_use]
     pub fn capacity(&self, class: WriteClass) -> usize {
         match class {
             WriteClass::CriticalControlPlane => self.control_plane.capacity(),
@@ -211,6 +217,7 @@ impl<T> QosRouter<T> {
         }
     }
 
+    #[must_use]
     pub fn is_full(&self, class: WriteClass) -> bool {
         match class {
             WriteClass::CriticalControlPlane => self.control_plane.is_full(),
@@ -219,14 +226,17 @@ impl<T> QosRouter<T> {
         }
     }
 
+    #[must_use]
     pub fn remaining_capacity(&self, class: WriteClass) -> usize {
         self.capacity(class).saturating_sub(self.depth(class))
     }
 
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.control_plane.is_empty() && self.projection.is_empty() && self.blob.is_empty()
     }
 
+    #[must_use]
     pub fn len(&self) -> usize {
         self.control_plane.len() + self.projection.len() + self.blob.len()
     }

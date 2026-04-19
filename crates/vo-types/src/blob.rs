@@ -18,7 +18,7 @@ pub const INLINED_MAX_BYTES: usize = 4096;
 
 /// Immutable reference to a canonical payload blob.
 ///
-/// Invariant: blob_id is a valid ULID, size_bytes > 0, content_hash is valid lowercase hex.
+/// Invariant: `blob_id` is a valid ULID, `size_bytes` > 0, `content_hash` is valid lowercase hex.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct BlobRef {
     blob_id: String,
@@ -31,8 +31,8 @@ impl BlobRef {
     ///
     /// # Errors
     ///
-    /// Returns `ParseError` if blob_id is empty/invalid ULID, size_bytes is zero,
-    /// or content_hash is empty/invalid hex.
+    /// Returns `ParseError` if `blob_id` is empty/invalid ULID, `size_bytes` is zero,
+    /// or `content_hash` is empty/invalid hex.
     pub fn new(
         blob_id: &str,
         size_bytes: u64,
@@ -123,7 +123,7 @@ impl BlobRef {
 /// Per ADR-040 §3 "Failure Semantics":
 /// - Required outputs: replay depends on them, blob failure blocks step completion
 /// - Optional outputs: only needed for operator UX, blob failure allows completion
-///   with only routing_projection (inline data)
+///   with only `routing_projection` (inline data)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum OutputPolicy {
     /// Output is required for exact-once replay.
@@ -137,7 +137,7 @@ pub enum OutputPolicy {
 impl OutputPolicy {
     /// Returns true if this policy allows step completion when blob fails.
     ///
-    /// Per ADR-040: Optional outputs permit completion with routing_projection
+    /// Per ADR-040: Optional outputs permit completion with `routing_projection`
     /// only when blob persistence fails.
     #[must_use]
     pub fn permits_completion_on_blob_failure(self) -> bool {
@@ -159,13 +159,13 @@ impl OutputPolicy {
 ///
 /// Per ADR-040 §3, when blob persistence fails:
 /// - If output is Required: step stays incomplete (retry or fail)
-/// - If output is Optional: step may complete with routing_projection only
+/// - If output is Optional: step may complete with `routing_projection` only
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum BlobFailureAction {
     /// Step must stay incomplete. Blob failure is blocking.
     /// The step may be retried or failed according to retry policy.
     BlockStep,
-    /// Step may complete with only inline routing data (no output_ref).
+    /// Step may complete with only inline routing data (no `output_ref`).
     /// The blob failure is non-blocking because output is optional.
     CompleteWithInline,
 }
@@ -205,8 +205,8 @@ impl OutputPolicy {
 /// Lifecycle state of a blob through the publication pipeline.
 ///
 /// State machine:
-///   Pending → DurablyStored → Published (terminal)
-///   Pending → Failed (terminal)
+///   `Pending` → `DurablyStored` → `Published` (terminal)
+///   `Pending` → `Failed` (terminal)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum BlobStatus {
     /// Blob has been accepted but not yet durably written.
@@ -230,8 +230,7 @@ impl BlobStatus {
     pub fn can_transition_to(self, target: Self) -> bool {
         matches!(
             (self, target),
-            (Self::Pending, Self::DurablyStored)
-                | (Self::Pending, Self::Failed)
+            (Self::Pending, Self::DurablyStored | Self::Failed)
                 | (Self::DurablyStored, Self::Published)
         )
     }

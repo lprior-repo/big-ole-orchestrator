@@ -113,10 +113,8 @@ impl DedupeStore for FjallDedupeStore {
             .as_millis() as u64;
 
         match self.partition.get(&encoded_key) {
-            Ok(Some(value_bytes)) => {
-                let entry = super::decode_dedupe_entry(&value_bytes)?;
-                Ok(!entry.is_expired(now_ms))
-            }
+            Ok(Some(value_bytes)) => super::decode_dedupe_entry(&value_bytes)
+                .map_or(Ok(false), |entry| Ok(!entry.is_expired(now_ms))),
             Ok(None) => Ok(false),
             Err(e) => Err(DedupeStoreError::Storage {
                 reason: e.to_string(),

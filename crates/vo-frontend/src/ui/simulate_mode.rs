@@ -44,6 +44,13 @@ impl SimProceduralState {
         self.current_op
     }
 
+    /// Provides a result for the current operation.
+    ///
+    /// # Errors
+    ///
+    /// Returns `SimError::EmptyResult` if result is empty.
+    /// Returns `SimError::NoOpsAvailable` if `total_ops` is 0 or conversion fails.
+    /// Returns `SimError::AlreadyCompleted` if the simulation has already completed.
     pub fn provide_result(
         &mut self,
         result: String,
@@ -126,6 +133,7 @@ pub enum SimOp {
 }
 
 impl SimOp {
+    #[must_use]
     pub fn activity_id(&self) -> Option<&str> {
         match self {
             Self::CtxActivity { activity_id, .. } => Some(activity_id),
@@ -133,6 +141,7 @@ impl SimOp {
         }
     }
 
+    #[must_use]
     pub fn label(&self) -> &'static str {
         match self {
             Self::CtxActivity { .. } => "Activity",
@@ -142,6 +151,7 @@ impl SimOp {
     }
 }
 
+#[must_use]
 pub fn extract_ctx_ops_from_workflow(_workflow: &Workflow) -> Vec<SimOp> {
     Vec::new()
 }

@@ -53,9 +53,17 @@ fn spsc_concurrent_fifo_with_wraparound() {
 fn spsc_capacity_always_power_of_two() {
     for cap in [1, 2, 3, 4, 5, 7, 8, 15, 16, 31, 32, 100, 1024] {
         let q = SpscQueue::<()>::new(cap);
-        assert!(q.capacity().is_power_of_two(),
-            "Capacity {} should be power of two, got {}", cap, q.capacity());
-        assert!(q.capacity() >= cap,
-            "Capacity {} should be >= requested {}", q.capacity(), cap);
+        assert!(
+            q.capacity().is_power_of_two(),
+            "Capacity {} should be power of two, got {}",
+            cap,
+            q.capacity()
+        );
+        assert!(
+            q.capacity() >= cap,
+            "Capacity {} should be >= requested {}",
+            q.capacity(),
+            cap
+        );
     }
 }

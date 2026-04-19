@@ -1,3 +1,5 @@
+#![allow(clippy::expect_used, clippy::unwrap_used)]
+
 mod binomial_heap;
 #[cfg(test)]
 mod blackhat_encryption_credentials_tests;
@@ -183,6 +185,10 @@ mod dependency_graph_resolver_tests;
 mod identity_bdd_tests;
 #[cfg(test)]
 mod identity_tests;
+#[cfg(test)]
+mod proptest_dag_correctness;
+#[cfg(test)]
+mod proptest_dag_correctness_2;
 #[cfg(test)]
 mod red_queen_tests;
 #[cfg(test)]

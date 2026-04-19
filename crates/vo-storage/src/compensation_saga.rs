@@ -259,6 +259,69 @@ impl CompensationManifest {
         }
         false
     }
+
+    pub fn get_reverse_dependency_order(&self) -> Result<Vec<String>, CompensationError> {
+        let pending_effects: Vec<String> = self
+            .registration_order
+            .iter()
+            .filter_map(|id| {
+                self.entries
+                    .get(id)
+                    .is_some_and(|e| e.status == SagaCompensationStatus::Pending)
+                    .then_some(id.clone())
+            })
+            .collect();
+
+        if pending_effects.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let pending_set: std::collections::HashSet<&String> = pending_effects.iter().collect();
+
+        let mut dependents: HashMap<&String, Vec<&String>> = HashMap::new();
+        for effect_id in &pending_effects {
+            dependents.insert(effect_id, Vec::new());
+        }
+
+        for effect_id in &pending_effects {
+            if let Some(entry) = self.entries.get(effect_id) {
+                for dep in &entry.dependencies {
+                    if pending_set.contains(dep) {
+                        if let Some(dependents_list) = dependents.get_mut(dep) {
+                            dependents_list.push(effect_id);
+                        }
+                    }
+                }
+            }
+        }
+
+        let mut emitted: std::collections::HashSet<&String> = std::collections::HashSet::new();
+        let mut result: Vec<String> = Vec::with_capacity(pending_effects.len());
+
+        for effect_id in pending_effects.iter().rev() {
+            let all_deps_emitted = dependents
+                .get(effect_id)
+                .map_or(true, |deps| deps.iter().all(|d| emitted.contains(d)));
+
+            if all_deps_emitted {
+                result.push((*effect_id).clone());
+                emitted.insert(effect_id);
+            }
+        }
+
+        if result.len() != pending_effects.len() {
+            let cycle_nodes: Vec<String> = pending_effects
+                .iter()
+                .filter(|id| !emitted.contains(id))
+                .cloned()
+                .collect();
+            return Err(CompensationError::CycleDetected {
+                effect_ids: cycle_nodes,
+            });
+        }
+
+        Ok(result)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

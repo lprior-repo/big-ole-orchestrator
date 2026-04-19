@@ -69,18 +69,22 @@ impl<T> Default for BinomialHeap<T> {
 }
 
 impl<T: Ord> BinomialHeap<T> {
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
+    #[must_use]
     pub fn len(&self) -> usize {
         self.len
     }
 
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.len == 0
     }
 
+    #[must_use]
     pub fn find_min(&self) -> Option<&T> {
         let mut min = None;
         for tree in self.trees.iter().flatten() {
@@ -97,7 +101,7 @@ impl<T: Ord> BinomialHeap<T> {
         min
     }
 
-    fn merge_trees(&self, a: BinomialNode<T>, b: BinomialNode<T>) -> BinomialNode<T> {
+    fn merge_trees(a: BinomialNode<T>, b: BinomialNode<T>) -> BinomialNode<T> {
         let mut a = a;
         let mut b = b;
         if a.value <= b.value {
@@ -118,7 +122,7 @@ impl<T: Ord> BinomialHeap<T> {
             (None, None) => (None, None),
             (Some(tree), None) | (None, Some(tree)) => (Some(tree), None),
             (Some(a), Some(b)) => {
-                let result = self.merge_trees(a, b);
+                let result = Self::merge_trees(a, b);
                 (None, Some(result))
             }
         };
@@ -160,17 +164,14 @@ impl<T: Ord> BinomialHeap<T> {
                     self.trees[degree] = Some(c);
                 }
                 (None, Some(a), Some(b)) => {
-                    carry = Some(self.merge_trees(a, b));
+                    carry = Some(Self::merge_trees(a, b));
                 }
-                (Some(c), Some(a), None) => {
-                    carry = Some(self.merge_trees(c, a));
-                }
-                (Some(c), None, Some(a)) => {
-                    carry = Some(self.merge_trees(c, a));
+                (Some(c), Some(a), None) | (Some(c), None, Some(a)) => {
+                    carry = Some(Self::merge_trees(c, a));
                 }
                 (Some(c), Some(a), Some(b)) => {
-                    let merged1 = self.merge_trees(a, b);
-                    carry = Some(self.merge_trees(c, merged1));
+                    let merged1 = Self::merge_trees(a, b);
+                    carry = Some(Self::merge_trees(c, merged1));
                 }
             }
         }
@@ -180,11 +181,20 @@ impl<T: Ord> BinomialHeap<T> {
         self.len += other_len;
     }
 
+    /// Removes and returns the minimum element from the heap.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal tree structure is corrupted (should not happen
+    /// with valid heap invariants).
+    #[must_use]
     pub fn delete_min(&mut self) -> Option<T> {
         if self.is_empty() {
             return None;
         }
 
+        // SAFETY: `is_empty()` check above guarantees trees is non-empty
+        #[allow(clippy::expect_used)]
         let (min_degree, _) = self
             .trees
             .iter()
@@ -205,6 +215,8 @@ impl<T: Ord> BinomialHeap<T> {
         }
         children.reverse();
 
+        // `degree` is bounded by log2(capacity) so casting to u32 is safe
+        #[allow(clippy::cast_possible_truncation)]
         let child_count = 2usize.pow(min_tree.degree as u32) - 1;
         self.len -= 1;
 

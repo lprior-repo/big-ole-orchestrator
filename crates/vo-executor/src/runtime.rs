@@ -83,6 +83,7 @@ impl Runtime {
 }
 
 impl Default for Runtime {
+    #[allow(clippy::expect_used)]
     fn default() -> Self {
         Self::new().expect("Failed to create default runtime")
     }
