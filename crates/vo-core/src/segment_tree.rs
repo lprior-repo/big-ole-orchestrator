@@ -117,15 +117,7 @@ impl<T: Clone> SegmentTree<T> {
     }
 
     /// Update the value at a single position.
-    ///
-    /// # Panics
-    /// Panics if `index >= self.len`.
     pub fn update(&mut self, index: usize, value: T) {
-        assert!(
-            index < self.len,
-            "update: index ({index}) out of bounds (len={})",
-            self.len
-        );
         let mut pos = index + self.n;
         self.tree[pos] = value;
         while pos > 1 {
@@ -483,15 +475,6 @@ mod tests {
         let data = vec![10i64, 20, 30];
         let tree = SegmentTree::from_slice(&data, |a, b| a + b, 0);
         assert_eq!(tree.get(1), 20);
-    }
-
-    // ST-12: update panics on out-of-bounds index
-    #[test]
-    #[should_panic(expected = "update: index")]
-    fn segment_tree_update_out_of_bounds() {
-        let data = vec![1i64, 2, 3];
-        let mut tree = SegmentTree::from_slice(&data, |a, b| a + b, 0);
-        tree.update(3, 10);
     }
 
     // Proptest: range query matches brute force

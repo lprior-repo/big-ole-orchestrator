@@ -1,12 +1,12 @@
 {
-  "session_id": "43fdc912-66f7-4cf4-a235-069c929f2cca",
-  "transcript_path": "/home/lewis/.claude/projects/-home-lewis-gt-veloxide-polecats-thunder-veloxide/43fdc912-66f7-4cf4-a235-069c929f2cca.jsonl",
+  "session_id": "4acef851-2cf0-4e17-8ebe-201439afe796",
+  "transcript_path": "/home/lewis/.claude/projects/-home-lewis-gt-veloxide-polecats-rust-veloxide/4acef851-2cf0-4e17-8ebe-201439afe796.jsonl",
   "hook_event_name": "PreToolUse",
   "tool_name": "Edit",
   "tool_input": {
-    "file_path": "/home/lewis/gt/veloxide/polecats/thunder/veloxide/crates/vo-core/tests/missing_event_handling.rs",
-    "old_string": "        \"Burst gap should report expected=2 (first missing), actual=5 at index 1\"\n    );\n}",
-    "new_string": "        \"Burst gap should report expected=2 (first missing), actual=5 at index 1\"\n    );\n}\n\n#[test]\nfn replay_succeeds_then_gap_at_end_reports_truncation() {\n    let engine = ReplayEngine::new();\n    // Valid sequence 1-3, then gap: 3 → 5 (event 4 missing at end)\n    let events = [\n        make_event(\"inst-1\", 1, EventPayload::WorkflowStarted {\n            workflow_id: \"wf-1\".into(),\n            dag_topology: serde_json::json!({}),\n            binary_hash: \"h1\".into(),\n            workflow_version_hash: \"v1\".into(),\n            dedupe_key_hash: None,\n        }),\n        make_event(\"inst-1\", 2, EventPayload::StepScheduled {\n            workflow_id: \"wf-1\".into(),\n            step_id: \"step-1\".into(),\n            attempt: 1,\n            fence: 0,\n            execution_id: \"exec-1\".into(),\n        }),\n        make_event(\"inst-1\", 3, EventPayload::StepStarted {\n            workflow_id: \"wf-1\".into(),\n            step_id: \"step-1\".into(),\n            started_at_ms: 2000,\n        }),\n        make_event(\"inst-1\", 5, EventPayload::StepCompleted {\n            workflow_id: \"wf-1\".into(),\n            step_id: \"step-1\".into(),\n            completed_at_ms: 5000,\n            attempt: 1,\n            fence: 0,\n            routing_projection: serde_json::json!({}),\n            output_ref: None,\n            output_hash: None,\n            output: serde_json::json!(null),\n        }),\n    ];\n    let err = engine.replay(&events).expect_err(\"should detect end-of-stream gap\");\n    assert_eq!(\n        err,\n        ReplayError::SequenceGap { expected: 4, actual: 5, at_index: 3 },\n        \"End-of-stream gap should report expected=4, actual=5 at index 3\"\n    );\n}",
+    "file_path": "/home/lewis/gt/veloxide/polecats/rust/veloxide/crates/vo-types/src/string_types.rs",
+    "old_string": "            });\n        }\n        Ok(Self(input.to_string()))\n    }\n\n    #[must_use]\n    pub fn as_str(&self) -> &str {\n        &self.0\n    }\n}\nstring_newtype!(IdempotencyKey);",
+    "new_string": "            });\n        }\n        let invalid = extract_invalid_chars(input, is_identifier_char);\n        if !invalid.is_empty() {\n            return Err(ParseError::InvalidCharacters {\n                type_name: TYPE_NAME,\n                invalid_chars: invalid,\n            });\n        }\n        Ok(Self(input.to_string()))\n    }\n\n    #[must_use]\n    pub fn as_str(&self) -> &str {\n        &self.0\n    }\n}\nstring_newtype!(IdempotencyKey);",
     "replace_all": false
   }
 }

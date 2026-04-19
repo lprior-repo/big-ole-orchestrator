@@ -24,37 +24,41 @@ pub struct ReplayResult {
 }
 
 /// Errors that can occur during event replay.
-#[derive(Debug, Clone, PartialEq, Eq, Error)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ReplayError {
-    #[error("Instance ID mismatch: expected '{expected}', got '{actual}'")]
-    InstanceMismatch { expected: String, actual: String },
-    #[error("Sequence gap at index {at_index}: expected {expected}, got {actual}")]
+    InstanceMismatch {
+        expected: String,
+        actual: String,
+    },
     SequenceGap {
         expected: u64,
         actual: u64,
         at_index: usize,
     },
-    #[error("Duplicate sequence {sequence} at indices {first_at_index} and {second_at_index}")]
     SequenceDuplicate {
         sequence: u64,
         first_at_index: usize,
         second_at_index: usize,
     },
-    #[error("Payload decode failed at sequence {sequence}: {detail}")]
-    PayloadDecodeFailed { sequence: u64, detail: String },
-    #[error("Transition failed at sequence {sequence} in state {state:?}: {reason}")]
+    PayloadDecodeFailed {
+        sequence: u64,
+        source: String,
+    },
     TransitionFailed {
         sequence: u64,
         state: LifecycleState,
         reason: String,
     },
-    #[error("Unexpected event type '{payload_type}' at sequence {sequence}")]
-    UnexpectedEventType { payload_type: String, sequence: u64 },
-    #[error("Upcasting failed at sequence {sequence}: {reason}")]
-    UpcastingFailed { sequence: u64, reason: String },
+    UnexpectedEventType {
+        payload_type: String,
+        sequence: u64,
+    },
+    UpcastingFailed {
+        sequence: u64,
+        reason: String,
+    },
     /// Blob publication failed for a required output (ADR-040 §3).
     /// The step stays incomplete and may be retried or failed.
-    #[error("Blob publication failed at sequence {sequence} for step '{step_id}': blob {blob_id}")]
     BlobPublicationFailed {
         sequence: u64,
         step_id: String,
@@ -62,10 +66,73 @@ pub enum ReplayError {
     },
 }
 
+impl std::fmt::Display for ReplayError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::InstanceMismatch { expected, actual } => {
+                write!(
+                    f,
+                    "Instance ID mismatch: expected '{expected}', got '{actual}'"
+                )
+            }
+            Self::SequenceGap {
+                expected,
+                actual,
+                at_index,
+            } => {
+                write!(
+                    f,
+                    "Sequence gap at index {at_index}: expected {expected}, got {actual}"
+                )
+            }
+            Self::SequenceDuplicate {
+                sequence,
+                first_at_index,
+                second_at_index,
+            } => {
+                write!(f, "Duplicate sequence {sequence} at indices {first_at_index} and {second_at_index}")
+            }
+            Self::PayloadDecodeFailed { sequence, source } => {
+                write!(f, "Payload decode failed at sequence {sequence}: {source}")
+            }
+            Self::TransitionFailed {
+                sequence,
+                state,
+                reason,
+            } => {
+                write!(
+                    f,
+                    "Transition failed at sequence {sequence} in state {state:?}: {reason}"
+                )
+            }
+            Self::UnexpectedEventType {
+                payload_type,
+                sequence,
+            } => {
+                write!(
+                    f,
+                    "Unexpected event type '{payload_type}' at sequence {sequence}"
+                )
+            }
+            Self::UpcastingFailed { sequence, reason } => {
+                write!(f, "Upcasting failed at sequence {sequence}: {reason}")
+            }
+            Self::BlobPublicationFailed {
+                sequence,
+                step_id,
+                blob_id,
+            } => {
+                write!(f, "Blob publication failed at sequence {sequence} for step '{step_id}': blob {blob_id}")
+            }
+        }
+    }
+}
+
+impl std::error::Error for ReplayError {}
+
 impl ReplayError {
-    /// Classify this error as deterministic (permanent) or transient (retryable).
     #[must_use]
-    pub const fn kind(&self) -> ReplayErrorKind {
+    pub fn kind(&self) -> ReplayErrorKind {
         match self {
             Self::InstanceMismatch { .. }
             | Self::SequenceGap { .. }

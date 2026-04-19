@@ -158,6 +158,7 @@ mod tests {
             vec![DagNode {
                 node_name: NodeName::parse("test-node").unwrap(),
                 retry_policy: RetryPolicy::new(3, 1000, 2.0).unwrap(),
+                compensation_policy: None,
             }],
             vec![],
         )

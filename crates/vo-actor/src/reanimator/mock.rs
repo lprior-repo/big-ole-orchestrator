@@ -14,10 +14,16 @@ use crate::reanimator::{
 pub struct MockTimerStorage {
     timers: Mutex<VecDeque<TimerRecord>>,
     pending_timers: Mutex<HashMap<InstanceId, PendingTimer>>,
-    fire_calls: Mutex<Vec<(InstanceId, TimestampMs)>>,
+    /// Tracks (instance_id, fire_at_ms, timer_id) tuples that have been fired
+    fire_calls: Mutex<Vec<(InstanceId, TimestampMs, Option<vo_types::TimerId>)>>,
+    /// Tracks (instance_id, fire_at_ms) tuples that have been deleted
     delete_calls: Mutex<Vec<(InstanceId, TimestampMs)>>,
+    /// Tracks instances that had all timers deleted
     delete_all_calls: Mutex<Vec<InstanceId>>,
     should_fail: Mutex<bool>,
+    /// Tracks timers that have been deleted but not yet fired
+    /// Key: (instance_id, fire_at_ms, timer_id)
+    deleted_timers: Mutex<HashSet<(InstanceId, TimestampMs, Option<vo_types::TimerId>)>>,
 }
 
 impl MockTimerStorage {
@@ -30,6 +36,7 @@ impl MockTimerStorage {
             delete_calls: Mutex::new(Vec::new()),
             delete_all_calls: Mutex::new(Vec::new()),
             should_fail: Mutex::new(false),
+            deleted_timers: Mutex::new(HashSet::new()),
         }
     }
 
@@ -48,8 +55,21 @@ impl MockTimerStorage {
         *self.should_fail.lock().await = should_fail;
     }
 
-    /// Gets the recorded fire calls.
+    /// Gets the recorded fire calls (backward compatible format).
+    /// This returns (instance_id, fire_at_ms) tuples for compatibility with existing tests.
     pub async fn fire_calls(&self) -> Vec<(InstanceId, TimestampMs)> {
+        self.fire_calls
+            .lock()
+            .await
+            .iter()
+            .map(|(i, f, _)| (i.clone(), *f))
+            .collect()
+    }
+
+    /// Gets the recorded fire calls with full detail including timer_id.
+    pub async fn fire_calls_full(
+        &self,
+    ) -> Vec<(InstanceId, TimestampMs, Option<vo_types::TimerId>)> {
         self.fire_calls.lock().await.clone()
     }
 
@@ -119,7 +139,14 @@ impl TimerStorage for MockTimerStorage {
             .iter()
             .position(|t| t.instance_id == *instance_id && t.fire_at_ms == fire_at_ms)
         {
-            timers.remove(pos);
+            if let Some(removed_timer) = timers.remove(pos) {
+                // Track the deleted timer with its timer_id for proper deduplication
+                self.deleted_timers.lock().await.insert((
+                    removed_timer.instance_id.clone(),
+                    removed_timer.fire_at_ms,
+                    removed_timer.timer_id.clone(),
+                ));
+            }
         }
 
         Ok(())
@@ -134,10 +161,47 @@ impl TimerStorage for MockTimerStorage {
             return Err(ReanimatorError::StorageError("Mock failure".to_string()));
         }
 
-        self.fire_calls
-            .lock()
-            .await
-            .push((instance_id.clone(), fire_at_ms));
+        // Deduplicate by checking if we've already recorded this specific timer as fired.
+        // We need to find which timer_id corresponds to this (instance_id, fire_at_ms)
+        // that has been deleted but not yet marked as fired.
+        let mut fire_calls = self.fire_calls.lock().await;
+        let mut deleted_timers = self.deleted_timers.lock().await;
+
+        // Find all deleted timers with this (instance_id, fire_at_ms)
+        let candidates: Vec<_> = deleted_timers
+            .iter()
+            .filter(|(del_instance_id, del_fire_at, _)| {
+                *del_instance_id == *instance_id && *del_fire_at == fire_at_ms
+            })
+            .cloned()
+            .collect();
+
+        // If no deleted timer was found, this is a direct record_timer_fired call
+        // Track it with timer_id = None for backward compatibility
+        if candidates.is_empty() {
+            let key = (instance_id.clone(), fire_at_ms, None);
+            if !fire_calls
+                .iter()
+                .any(|(fi, ff, fti)| fi == &key.0 && ff == &key.1 && fti == &key.2)
+            {
+                fire_calls.push(key);
+            }
+        } else {
+            // Find the first candidate that hasn't been fired yet
+            for (del_instance_id, del_fire_at, timer_id) in candidates {
+                // Check if this specific (instance_id, fire_at_ms, timer_id) has been fired
+                if !fire_calls.iter().any(|(fi, ff, fti)| {
+                    fi == &del_instance_id && ff == &del_fire_at && fti == &timer_id
+                }) {
+                    // This timer hasn't been fired yet, so record it
+                    fire_calls.push((del_instance_id.clone(), del_fire_at, timer_id.clone()));
+                    // Remove from deleted_timers since it's now been fired
+                    deleted_timers.remove(&(del_instance_id, del_fire_at, timer_id));
+                    // Only fire one timer per (instance_id, fire_at_ms) call
+                    break;
+                }
+            }
+        }
 
         Ok(())
     }

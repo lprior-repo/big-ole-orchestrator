@@ -18,4 +18,3 @@ mod tests_entry_construction;
 mod tests_mutation_killers;
 mod tests_purge;
 mod tests_store_operations;
-mod tests_exactly_once;

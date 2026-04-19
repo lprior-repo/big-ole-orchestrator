@@ -69,12 +69,17 @@ fn given_sensitive_data_when_fd4_response_sent_then_result_includes_secrets() {
     ]
     .into();
 
+    let output_value: serde_json::Map<String, serde_json::Value> = output
+        .into_iter()
+        .map(|(k, v)| (k, serde_json::Value::String(v)))
+        .collect();
+
     let envelope = Fd4Envelope {
         version: 1,
         instance_id: "inst-3".into(),
         node_id: "node-3".into(),
         result: TaskResult::Success {
-            output: serde_json::Value::Object(output.into_iter().collect()),
+            output: serde_json::Value::Object(output_value),
         },
     };
 

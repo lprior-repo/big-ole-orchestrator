@@ -32,21 +32,13 @@ mod db_writer_message;
 pub mod debounce;
 pub mod effects;
 pub mod exact_once_verification;
-pub mod transaction;
-
-pub use exact_once_verification::assertions::{
-    assert_fence_token_ordering, assert_invariant_no_orphans, assert_no_duplicate_effects,
-    RecoveryAssertion, RecoveryAssertionError, RecoveryContext,
-};
-pub use exact_once_verification::crash_points::{CrashPoint, CrashPosition, CrashScenario};
-pub use exact_once_verification::harness::{
-    LineageRolloverEvent, LineageRoutingState, VerificationHarness,
-};
-pub use exact_once_verification::macros::CrashError;
+pub mod execution;
 pub mod quadtree;
+pub mod recovery;
 pub mod replay;
 pub mod resource_quota;
 pub mod segment_tree;
+pub mod shedding;
 pub mod snapshot_compat;
 pub mod upcaster;
 pub mod validation;
@@ -68,5 +60,3 @@ pub mod write_class_verification;
 
 #[cfg(test)]
 mod invalid_business_data_tests;
-
-mod execution;

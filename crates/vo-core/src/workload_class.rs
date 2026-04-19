@@ -679,7 +679,6 @@ mod tests {
         assert_eq!(budget.remaining(WorkloadClass::ExactCritical), 10);
         assert_eq!(budget.remaining(WorkloadClass::Recovery), 10);
     }
-
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

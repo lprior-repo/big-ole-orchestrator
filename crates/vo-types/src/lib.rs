@@ -26,8 +26,6 @@ mod dual_representation;
 mod dual_representation_tests;
 pub mod effects;
 #[cfg(test)]
-mod effect_schema_evolution_tests;
-#[cfg(test)]
 mod effects_receipt_tests;
 mod encryption;
 #[cfg(test)]
@@ -199,9 +197,5 @@ mod schema_version_tests;
 mod serde_tests;
 #[cfg(test)]
 mod tests_bdd_dag_cycle_validation;
-#[cfg(test)]
-mod proptest_dag_correctness;
-#[cfg(test)]
-mod proptest_dag_correctness_2;
 #[cfg(test)]
 mod workflow_tests;

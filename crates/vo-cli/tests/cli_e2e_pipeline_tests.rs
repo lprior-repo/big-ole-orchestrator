@@ -964,6 +964,7 @@ fn history_save_and_reload_roundtrip() {
     let snapshot = vo_types::WorkflowSnapshot::new(
         "wf-test".into(),
         vec![vo_types::DagNode {
+            compensation_policy: None,
             node_name: vo_types::NodeName::parse("node-1").unwrap(),
             retry_policy: vo_types::RetryPolicy::new(3, 1000, 2.0).unwrap(),
         }],

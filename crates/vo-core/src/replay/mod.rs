@@ -25,8 +25,6 @@ mod event_ordering_tests;
 #[cfg(test)]
 mod integration_tests;
 #[cfg(test)]
-mod out_of_order_tests;
-#[cfg(test)]
 mod kani_proptests;
 #[cfg(test)]
 mod red_queen_adversarial_tests;

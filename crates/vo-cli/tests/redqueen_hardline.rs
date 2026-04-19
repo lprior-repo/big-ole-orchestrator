@@ -6,7 +6,7 @@ use vo_cli::cli::{interpret_cli_from, CliError, Command};
 use vo_cli::map_error_to_exit_code;
 
 fn exit_code(args: Vec<&str>) -> i32 {
-    map_error_to_exit_code(&interpret_cli_from(args).unwrap_err())
+    map_error_to_exit_code(&CliError::Clap(interpret_cli_from(args).unwrap_err()))
 }
 
 // ============================================================
@@ -138,8 +138,8 @@ fn rq_hardline_timeout_flag_accepts_valid_value() {
 fn rq_status_accepts_8kb_instance_id() {
     let id: String = "wf-".to_string() + &"x".repeat(8192);
     let cli = interpret_cli_from(["vo", "status", &id]).unwrap();
-    if let Command::Status { instance, .. } = cli.command {
-        assert_eq!(instance.len(), 8195);
+    if let Command::Status { workflow_id, .. } = cli.command {
+        assert_eq!(workflow_id.len(), 8195);
     }
 }
 

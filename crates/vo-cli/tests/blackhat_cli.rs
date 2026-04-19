@@ -83,8 +83,8 @@ fn unicode_confusables_and_zero_width_in_ids() {
         OsString::from(spoofed),
     ];
     let cli = interpret_cli_from(args).unwrap();
-    if let Command::Status { instance, .. } = &cli.command {
-        assert!(!instance.is_ascii());
+    if let Command::Status { workflow_id, .. } = &cli.command {
+        assert!(!workflow_id.is_ascii());
     }
     let invisible = "wf\u{200B}\u{200C}\u{200D}123"; // ZWSP+ZWNJ+ZWJ
     let args2 = vec![
@@ -154,7 +154,9 @@ fn numeric_overflow_is_specific() {
 
 #[test]
 fn numeric_leading_zeros_allowed() {
-    assert_eq!(parse_strict_numeric("007"), Ok(7));
+    let result = parse_strict_numeric("007");
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), 7);
 }
 
 #[test]

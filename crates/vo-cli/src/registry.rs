@@ -55,6 +55,7 @@ fn command_key(command: &Command) -> Option<&'static str> {
         Command::Doctor { .. } => Some("doctor"),
         Command::Rebuild { .. } => Some("rebuild"),
         Command::Status { .. } => Some("status"),
+        Command::Hardline { .. } => Some("hardline"),
     }
 }
 
@@ -358,7 +359,7 @@ mod handlers {
         ) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + '_>> {
             let Command::Status {
                 ref engine_url,
-                ref instance,
+                ref workflow_id,
             } = cli.command
             else {
                 return Box::pin(async {
@@ -366,11 +367,11 @@ mod handlers {
                 });
             };
             let engine_url = engine_url.clone();
-            let instance = instance.clone();
+            let workflow_id = workflow_id.clone();
             Box::pin(async move {
                 let config = crate::commands::status::StatusConfig {
                     engine_url,
-                    instance_id: instance,
+                    instance_id: workflow_id,
                 };
                 let status = crate::commands::status::run_status(&config).await?;
                 println!("+---------------------------+-------------------------------+");

@@ -29,14 +29,6 @@ pub fn parse_task(item: &TokenStream) -> Result<TaskDef, Error> {
         return Err(Error::ParseFailure);
     };
 
-    let has_generics = !parsed.sig.generics.params.is_empty()
-        || parsed.sig.generics.lt_token.is_some()
-        || parsed.sig.generics.where_clause.is_some();
-
-    if has_generics && parsed.sig.asyncness.is_none() {
-        return Err(Error::GenericFunction);
-    }
-
     let args: Vec<(String, Type)> = parsed
         .sig
         .inputs
@@ -74,9 +66,18 @@ pub fn parse_task(item: &TokenStream) -> Result<TaskDef, Error> {
 pub fn generate_task_entrypoint(task: &TaskDef) -> Result<TokenStream, Error> {
     let ident = syn::parse_str::<syn::Ident>(&task.ident).map_err(|_| Error::IdentParsingFailed)?;
 
-    let ret_type = match &task.return_type {
-        Some(ty) => quote::quote! { -> #ty },
-        None => quote::quote! {},
+    let is_generic = !task.generics.params.is_empty()
+        || task.generics.lt_token.is_some()
+        || task.generics.where_clause.is_some();
+
+    // Generic tasks: main() has no return type (type params can't appear in main's signature)
+    let ret_type = if is_generic {
+        quote::quote! {}
+    } else {
+        match &task.return_type {
+            Some(ty) => quote::quote! { -> #ty },
+            None => quote::quote! {},
+        }
     };
 
     let arg_idents: Vec<syn::Ident> = task
@@ -117,18 +118,17 @@ pub fn generate_task_entrypoint(task: &TaskDef) -> Result<TokenStream, Error> {
         call
     };
 
-    let body = if task.return_type.is_some() {
-        quote::quote! { #call_or_unsafe }
-    } else {
+    // Generic tasks always get a semicolon (no return type propagation)
+    let body = if is_generic || task.return_type.is_none() {
         quote::quote! { #call_or_unsafe; }
+    } else {
+        quote::quote! { #call_or_unsafe }
     };
-
-    let (impl_generics, ty_generics, where_clause) = task.generics.split_for_impl();
 
     let wrapper = if task.is_async {
         if env_bindings.is_empty() {
             quote::quote! {
-                fn main (#impl_generics) #ret_type {
+                fn main () #ret_type {
                     let rt = tokio::runtime::Builder::new_current_thread()
                         .enable_all()
                         .build()
@@ -138,7 +138,7 @@ pub fn generate_task_entrypoint(task: &TaskDef) -> Result<TokenStream, Error> {
             }
         } else {
             quote::quote! {
-                fn main (#impl_generics) #ret_type {
+                fn main () #ret_type {
                     #(#env_bindings)*
                     let rt = tokio::runtime::Builder::new_current_thread()
                         .enable_all()
@@ -151,13 +151,13 @@ pub fn generate_task_entrypoint(task: &TaskDef) -> Result<TokenStream, Error> {
     } else {
         if env_bindings.is_empty() {
             quote::quote! {
-                fn main (#impl_generics) #ret_type {
+                fn main () #ret_type {
                     #body
                 }
             }
         } else {
             quote::quote! {
-                fn main (#impl_generics) #ret_type {
+                fn main () #ret_type {
                     #(#env_bindings)*
                     #body
                 }
@@ -351,6 +351,80 @@ mod tests {
         };
         let result = generate_task_entrypoint(&task);
         assert!(matches!(result, Err(Error::IdentParsingFailed)));
+    }
+
+    #[test]
+    fn parse_task_accepts_generic_function() {
+        let input = quote! { fn generic_task<T: Default>() -> T { T::default() } };
+        let result = parse_task(&input);
+        assert!(
+            result.is_ok(),
+            "generic function should be accepted, got: {:?}",
+            result
+        );
+        let def = result.unwrap();
+        assert_eq!(def.ident, "generic_task");
+        assert!(!def.generics.params.is_empty());
+    }
+
+    #[test]
+    fn parse_task_accepts_async_generic_with_where_clause() {
+        let input = quote! { async fn complex<'a, T>() where T: Send + 'a {} };
+        let result = parse_task(&input);
+        assert!(
+            result.is_ok(),
+            "async generic with where clause should be accepted, got: {:?}",
+            result
+        );
+        let def = result.unwrap();
+        assert_eq!(def.ident, "complex");
+        assert!(def.generics.where_clause.is_some());
+    }
+
+    #[test]
+    fn generate_task_entrypoint_omits_generics_from_main_for_generic_task() {
+        let input = quote! { fn generic_task<T: Default>() -> T { T::default() } };
+        let def = parse_task(&input).unwrap();
+        let result = generate_task_entrypoint(&def).unwrap();
+        let output = result.to_string();
+        // fn main<T> is invalid Rust — main must not have generics
+        assert!(
+            !output.contains("fn main <"),
+            "main should not have generics: {}",
+            output
+        );
+        assert!(
+            output.contains("fn main ()"),
+            "main should be non-generic: {}",
+            output
+        );
+    }
+
+    #[test]
+    fn generate_task_entrypoint_calls_generic_function() {
+        let input = quote! { fn generic_task<T: Default>() -> T { T::default() } };
+        let def = parse_task(&input).unwrap();
+        let result = generate_task_entrypoint(&def).unwrap();
+        let output = result.to_string();
+        assert!(
+            output.contains("generic_task ()"),
+            "main should call the generic function: {}",
+            output
+        );
+    }
+
+    #[test]
+    fn generate_task_entrypoint_omits_generic_return_type_from_main() {
+        let input = quote! { fn generic_task<T: Default>() -> T { T::default() } };
+        let def = parse_task(&input).unwrap();
+        let result = generate_task_entrypoint(&def).unwrap();
+        let output = result.to_string();
+        // main() must not have -> T since T is not in main's scope
+        assert!(
+            !output.contains("-> T"),
+            "main should not have generic return type: {}",
+            output
+        );
     }
 
     proptest! {

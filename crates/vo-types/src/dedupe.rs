@@ -1,14 +1,4 @@
-//! Dedupe key types for exactly-once ingress deduplication (ADR-028).
-//!
-//! This module provides the type system for detecting duplicate ingress
-//! requests, ensuring idempotent delivery at the engine boundary:
-//!
-//! - [`DedupeKey`] — stable key supplied by the caller or derived from a
-//!   provider-native event ID. Validated to be non-empty and at most 256
-//!   characters. Used to detect duplicate ingress requests.
-//! - [`DedupePartitionKey`] — composite key of [`InstanceId`] + command type
-//!   for partitioning dedupe records, enabling per-instance, per-command-type
-//!   deduplication scopes.
+//! Dedupe key types for ADR-028 exactly-once ingress deduplication.
 
 use serde::{Deserialize, Serialize};
 

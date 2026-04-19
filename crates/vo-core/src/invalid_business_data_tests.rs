@@ -762,7 +762,7 @@ mod replay_boundary {
     fn replay_error_payload_decode_failed_display() {
         let err = ReplayError::PayloadDecodeFailed {
             sequence: 10,
-            detail: "invalid UTF-8".to_string(),
+            source: "invalid UTF-8".to_string(),
         };
         let msg = err.to_string();
         assert!(msg.contains("decode failed"));

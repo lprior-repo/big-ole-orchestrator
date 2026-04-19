@@ -463,6 +463,7 @@ fn history_undo_success_path() {
         WorkflowSnapshot::new(
             "test-workflow".into(),
             vec![DagNode {
+                compensation_policy: None,
                 node_name: NodeName::parse("test-node").unwrap(),
                 retry_policy: RetryPolicy::new(3, 1000, 2.0).unwrap(),
             }],
@@ -487,6 +488,7 @@ fn history_redo_success_path() {
         WorkflowSnapshot::new(
             "test-workflow".into(),
             vec![DagNode {
+                compensation_policy: None,
                 node_name: NodeName::parse("test-node").unwrap(),
                 retry_policy: RetryPolicy::new(3, 1000, 2.0).unwrap(),
             }],
@@ -512,6 +514,7 @@ fn history_undo_then_undo_empty() {
         WorkflowSnapshot::new(
             "test-workflow".into(),
             vec![DagNode {
+                compensation_policy: None,
                 node_name: NodeName::parse("test-node").unwrap(),
                 retry_policy: RetryPolicy::new(3, 1000, 2.0).unwrap(),
             }],
@@ -536,6 +539,7 @@ fn history_redo_empty_after_push() {
         WorkflowSnapshot::new(
             "test-workflow".into(),
             vec![DagNode {
+                compensation_policy: None,
                 node_name: NodeName::parse("test-node").unwrap(),
                 retry_policy: RetryPolicy::new(3, 1000, 2.0).unwrap(),
             }],
@@ -559,6 +563,7 @@ fn history_get_history_with_entries() {
         WorkflowSnapshot::new(
             "test-workflow".into(),
             vec![DagNode {
+                compensation_policy: None,
                 node_name: NodeName::parse("test-node").unwrap(),
                 retry_policy: RetryPolicy::new(3, 1000, 2.0).unwrap(),
             }],
@@ -584,6 +589,7 @@ fn history_save_and_reload_roundtrip() {
         WorkflowSnapshot::new(
             "test-workflow".into(),
             vec![DagNode {
+                compensation_policy: None,
                 node_name: NodeName::parse("test-node").unwrap(),
                 retry_policy: RetryPolicy::new(3, 1000, 2.0).unwrap(),
             }],

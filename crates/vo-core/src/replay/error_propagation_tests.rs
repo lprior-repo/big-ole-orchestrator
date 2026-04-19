@@ -538,7 +538,7 @@ fn ep_12_replay_error_sequence_duplicate_display() {
 fn ep_12_replay_error_payload_decode_failed_display() {
     let err = ReplayError::PayloadDecodeFailed {
         sequence: 42,
-        detail: "invalid json".to_string(),
+        source: "invalid json".to_string(),
     };
     let display = format!("{}", err);
     assert!(display.contains("Payload decode failed"));
