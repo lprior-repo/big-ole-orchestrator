@@ -73,29 +73,12 @@ impl std::fmt::Display for ResourceKind {
 #[serde(rename_all = "snake_case")]
 pub struct CpuQuota {
     pub max_cores: NonZeroU64,
-    /// Soft limit as percentage of hard limit (1-99). None disables warning.
-    pub soft_limit_pct: Option<u8>,
 }
 
 impl CpuQuota {
     #[must_use]
     pub fn new(max_cores: NonZeroU64) -> Self {
-        Self {
-            max_cores,
-            soft_limit_pct: None,
-        }
-    }
-
-    #[must_use]
-    pub fn with_soft_limit(mut self, pct: u8) -> Self {
-        self.soft_limit_pct = Some(pct.clamp(1, 99));
-        self
-    }
-
-    #[must_use]
-    pub fn soft_limit(&self) -> Option<u64> {
-        self.soft_limit_pct
-            .map(|p| self.max_cores.get() * u64::from(p) / 100)
+        Self { max_cores }
     }
 }
 
@@ -103,29 +86,12 @@ impl CpuQuota {
 #[serde(rename_all = "snake_case")]
 pub struct MemoryQuota {
     pub max_bytes: NonZeroU64,
-    /// Soft limit as percentage of hard limit (1-99). None disables warning.
-    pub soft_limit_pct: Option<u8>,
 }
 
 impl MemoryQuota {
     #[must_use]
     pub fn new(max_bytes: NonZeroU64) -> Self {
-        Self {
-            max_bytes,
-            soft_limit_pct: None,
-        }
-    }
-
-    #[must_use]
-    pub fn with_soft_limit(mut self, pct: u8) -> Self {
-        self.soft_limit_pct = Some(pct.clamp(1, 99));
-        self
-    }
-
-    #[must_use]
-    pub fn soft_limit(&self) -> Option<u64> {
-        self.soft_limit_pct
-            .map(|p| self.max_bytes.get() * u64::from(p) / 100)
+        Self { max_bytes }
     }
 }
 
@@ -133,29 +99,12 @@ impl MemoryQuota {
 #[serde(rename_all = "snake_case")]
 pub struct DiskQuota {
     pub max_bytes: NonZeroU64,
-    /// Soft limit as percentage of hard limit (1-99). None disables warning.
-    pub soft_limit_pct: Option<u8>,
 }
 
 impl DiskQuota {
     #[must_use]
     pub fn new(max_bytes: NonZeroU64) -> Self {
-        Self {
-            max_bytes,
-            soft_limit_pct: None,
-        }
-    }
-
-    #[must_use]
-    pub fn with_soft_limit(mut self, pct: u8) -> Self {
-        self.soft_limit_pct = Some(pct.clamp(1, 99));
-        self
-    }
-
-    #[must_use]
-    pub fn soft_limit(&self) -> Option<u64> {
-        self.soft_limit_pct
-            .map(|p| self.max_bytes.get() * u64::from(p) / 100)
+        Self { max_bytes }
     }
 }
 
@@ -226,37 +175,6 @@ pub enum QuotaError {
     },
 }
 
-/// Warning emitted when resource usage crosses the soft limit threshold.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct QuotaWarning {
-    pub resource: ResourceKind,
-    pub namespace: String,
-    pub current_usage: u64,
-    pub soft_limit: u64,
-    pub hard_limit: u64,
-}
-
-impl std::fmt::Display for QuotaWarning {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "soft limit warning for {} in namespace {}: usage {} exceeds soft limit {} (hard limit {})",
-            self.resource, self.namespace, self.current_usage, self.soft_limit, self.hard_limit
-        )
-    }
-}
-
-/// Outcome of a quota check that distinguishes between allowed, warned, and rejected.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum QuotaCheckOutcome {
-    /// Request is within normal limits.
-    Allowed,
-    /// Request exceeds soft limit but is within hard limit.
-    SoftLimitExceeded(QuotaWarning),
-    /// Request exceeds hard limit.
-    HardLimitExceeded(QuotaError),
-}
-
 impl QuotaError {
     #[must_use]
     pub const fn is_overcommit_rejected(&self) -> bool {
@@ -264,5 +182,140 @@ impl QuotaError {
             self,
             QuotaError::QuotaExceeded { .. } | QuotaError::QuotaNotConfigured { .. }
         )
+    }
+}
+
+/// Soft limit percentage for quota warning thresholds.
+///
+/// Represents a percentage (0-100) of the hard limit at which a warning
+/// should be emitted. For example, `SoftLimitPercent::new(80)` triggers
+/// a warning when usage reaches 80% of the hard limit.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct SoftLimitPercent(u8);
+
+impl SoftLimitPercent {
+    pub const DEFAULT: Self = Self(80);
+
+    /// Creates a new soft limit percentage. Clamped to [1, 99].
+    #[must_use]
+    pub fn new(percent: u8) -> Self {
+        Self(percent.clamp(1, 99))
+    }
+
+    #[must_use]
+    pub fn value(&self) -> u8 {
+        self.0
+    }
+
+    /// Returns the threshold value for a given hard limit.
+    /// `soft_threshold = (hard_limit * percent) / 100`
+    #[must_use]
+    pub fn threshold_for(&self, hard_limit: u64) -> u64 {
+        (hard_limit * u64::from(self.0)) / 100
+    }
+}
+
+impl Default for SoftLimitPercent {
+    fn default() -> Self {
+        Self::DEFAULT
+    }
+}
+
+/// A warning emitted when resource usage crosses the soft limit threshold.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SoftLimitWarning {
+    pub resource: ResourceKind,
+    pub namespace: String,
+    pub requested: u64,
+    pub soft_threshold: u64,
+    pub hard_limit: u64,
+    pub utilization_percent: u8,
+}
+
+impl SoftLimitWarning {
+    #[must_use]
+    pub fn new(
+        resource: ResourceKind,
+        namespace: impl Into<String>,
+        requested: u64,
+        soft_threshold: u64,
+        hard_limit: u64,
+    ) -> Self {
+        let utilization_percent = if hard_limit > 0 {
+            ((requested as u128 * 100) / hard_limit as u128).clamp(1, 100) as u8
+        } else {
+            100
+        };
+        Self {
+            resource,
+            namespace: namespace.into(),
+            requested,
+            soft_threshold,
+            hard_limit,
+            utilization_percent,
+        }
+    }
+}
+
+impl std::fmt::Display for SoftLimitWarning {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "soft limit warning for {} in namespace {}: \
+             requested {} ({}% of hard limit {}), \
+             soft threshold at {}",
+            self.resource,
+            self.namespace,
+            self.requested,
+            self.utilization_percent,
+            self.hard_limit,
+            self.soft_threshold,
+        )
+    }
+}
+
+/// Result of a quota check with soft limit awareness.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum QuotaCheckResult {
+    /// Usage is within the soft limit threshold.
+    WithinLimits,
+    /// Usage has crossed the soft limit but is still under the hard limit.
+    SoftLimitExceeded(SoftLimitWarning),
+    /// Usage has exceeded the hard limit.
+    HardLimitExceeded(QuotaError),
+}
+
+impl QuotaCheckResult {
+    #[must_use]
+    pub fn is_within_limits(&self) -> bool {
+        matches!(self, QuotaCheckResult::WithinLimits)
+    }
+
+    #[must_use]
+    pub fn is_soft_warning(&self) -> bool {
+        matches!(self, QuotaCheckResult::SoftLimitExceeded(_))
+    }
+
+    #[must_use]
+    pub fn is_hard_exceeded(&self) -> bool {
+        matches!(self, QuotaCheckResult::HardLimitExceeded(_))
+    }
+
+    /// Converts to `Result<(), QuotaError>`, discarding soft warnings.
+    #[must_use]
+    pub fn into_hard_result(self) -> Result<(), QuotaError> {
+        match self {
+            QuotaCheckResult::WithinLimits | QuotaCheckResult::SoftLimitExceeded(_) => Ok(()),
+            QuotaCheckResult::HardLimitExceeded(err) => Err(err),
+        }
+    }
+
+    /// Extracts the soft warning, if any.
+    #[must_use]
+    pub fn soft_warning(&self) -> Option<&SoftLimitWarning> {
+        match self {
+            QuotaCheckResult::SoftLimitExceeded(w) => Some(w),
+            _ => None,
+        }
     }
 }

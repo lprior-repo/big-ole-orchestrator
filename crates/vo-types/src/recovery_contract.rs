@@ -837,20 +837,6 @@ mod tests {
             }
         }
     }
-}
-    #[test]
-    fn crash_timing_windows_are_mutually_exclusive() {
-        let timings = CrashTiming::all_variants();
-        for i in 0..timings.len() {
-            for j in (i + 1)..timings.len() {
-                assert_ne!(
-                    timings[i], timings[j],
-                    "CrashTiming variants must be mutually exclusive: {:?} == {:?}",
-                    timings[i], timings[j]
-                );
-            }
-        }
-    }
 
     #[test]
     fn matrix_contains_every_phase_severity_timing_combination() {
@@ -1074,3 +1060,4 @@ mod tests {
             );
         }
     }
+}
