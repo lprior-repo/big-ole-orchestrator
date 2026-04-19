@@ -297,3 +297,162 @@ fn secret_value_inv_never_empty_ciphertext() {
         }
     ));
 }
+
+#[test]
+fn credential_is_valid_returns_true_for_active_not_expired() {
+    let version = CredentialVersion::new(
+        CredentialVersionId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap(),
+        SecretValue::new(vec![0u8; 32], [0u8; 12], 1).expect("valid ciphertext"),
+        CredentialStatus::Active,
+        TimestampMs::new_unchecked(1000),
+        None,
+    );
+    let credential = Credential {
+        id: CredentialId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap(),
+        kind: CredentialKind::ApiKey,
+        name: "test".to_string(),
+        current_version: version.version_id.clone(),
+        versions: vec![version],
+        rotation_policy: RotationPolicy::Manual,
+        metadata: std::collections::HashMap::new(),
+        created_at: TimestampMs::new_unchecked(1000),
+        updated_at: TimestampMs::new_unchecked(1000),
+    };
+    let now = TimestampMs::new_unchecked(2000);
+    assert!(credential.is_valid(now), "Active credential with no expiry should be valid");
+}
+
+#[test]
+fn credential_is_valid_returns_false_for_revoked_status() {
+    let version = CredentialVersion::new(
+        CredentialVersionId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap(),
+        SecretValue::new(vec![0u8; 32], [0u8; 12], 1).expect("valid ciphertext"),
+        CredentialStatus::Revoked,
+        TimestampMs::new_unchecked(1000),
+        None,
+    );
+    let credential = Credential {
+        id: CredentialId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap(),
+        kind: CredentialKind::ApiKey,
+        name: "test".to_string(),
+        current_version: version.version_id.clone(),
+        versions: vec![version],
+        rotation_policy: RotationPolicy::Manual,
+        metadata: std::collections::HashMap::new(),
+        created_at: TimestampMs::new_unchecked(1000),
+        updated_at: TimestampMs::new_unchecked(1000),
+    };
+    let now = TimestampMs::new_unchecked(2000);
+    assert!(
+        !credential.is_valid(now),
+        "Revoked credential should be invalid"
+    );
+}
+
+#[test]
+fn credential_is_valid_returns_false_for_expired_credential() {
+    let version = CredentialVersion::new(
+        CredentialVersionId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap(),
+        SecretValue::new(vec![0u8; 32], [0u8; 12], 1).expect("valid ciphertext"),
+        CredentialStatus::Active,
+        TimestampMs::new_unchecked(1000),
+        Some(TimestampMs::new_unchecked(3000)),
+    );
+    let credential = Credential {
+        id: CredentialId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap(),
+        kind: CredentialKind::ApiKey,
+        name: "test".to_string(),
+        current_version: version.version_id.clone(),
+        versions: vec![version],
+        rotation_policy: RotationPolicy::Manual,
+        metadata: std::collections::HashMap::new(),
+        created_at: TimestampMs::new_unchecked(1000),
+        updated_at: TimestampMs::new_unchecked(1000),
+    };
+    let now = TimestampMs::new_unchecked(5000);
+    assert!(
+        !credential.is_valid(now),
+        "Expired credential should be invalid"
+    );
+}
+
+#[test]
+fn credential_is_valid_returns_true_when_not_yet_expired() {
+    let version = CredentialVersion::new(
+        CredentialVersionId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap(),
+        SecretValue::new(vec![0u8; 32], [0u8; 12], 1).expect("valid ciphertext"),
+        CredentialStatus::Active,
+        TimestampMs::new_unchecked(1000),
+        Some(TimestampMs::new_unchecked(5000)),
+    );
+    let credential = Credential {
+        id: CredentialId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap(),
+        kind: CredentialKind::ApiKey,
+        name: "test".to_string(),
+        current_version: version.version_id.clone(),
+        versions: vec![version],
+        rotation_policy: RotationPolicy::Manual,
+        metadata: std::collections::HashMap::new(),
+        created_at: TimestampMs::new_unchecked(1000),
+        updated_at: TimestampMs::new_unchecked(1000),
+    };
+    let now = TimestampMs::new_unchecked(3000);
+    assert!(
+        credential.is_valid(now),
+        "Credential with future expiry should be valid before expiry time"
+    );
+}
+
+#[test]
+fn credential_is_valid_returns_false_for_superseded_status() {
+    let version = CredentialVersion::new(
+        CredentialVersionId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap(),
+        SecretValue::new(vec![0u8; 32], [0u8; 12], 1).expect("valid ciphertext"),
+        CredentialStatus::Superseded,
+        TimestampMs::new_unchecked(1000),
+        None,
+    );
+    let credential = Credential {
+        id: CredentialId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap(),
+        kind: CredentialKind::ApiKey,
+        name: "test".to_string(),
+        current_version: version.version_id.clone(),
+        versions: vec![version],
+        rotation_policy: RotationPolicy::Manual,
+        metadata: std::collections::HashMap::new(),
+        created_at: TimestampMs::new_unchecked(1000),
+        updated_at: TimestampMs::new_unchecked(1000),
+    };
+    let now = TimestampMs::new_unchecked(2000);
+    assert!(
+        !credential.is_valid(now),
+        "Superseded credential should be invalid"
+    );
+}
+
+#[test]
+fn credential_is_valid_returns_false_when_no_active_version() {
+    let version = CredentialVersion::new(
+        CredentialVersionId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap(),
+        SecretValue::new(vec![0u8; 32], [0u8; 12], 1).expect("valid ciphertext"),
+        CredentialStatus::Superseded,
+        TimestampMs::new_unchecked(1000),
+        None,
+    );
+    let credential = Credential {
+        id: CredentialId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap(),
+        kind: CredentialKind::ApiKey,
+        name: "test".to_string(),
+        current_version: version.version_id.clone(),
+        versions: vec![version],
+        rotation_policy: RotationPolicy::Manual,
+        metadata: std::collections::HashMap::new(),
+        created_at: TimestampMs::new_unchecked(1000),
+        updated_at: TimestampMs::new_unchecked(1000),
+    };
+    let now = TimestampMs::new_unchecked(2000);
+    assert!(
+        !credential.is_valid(now),
+        "Credential with no active version should be invalid"
+    );
+}
