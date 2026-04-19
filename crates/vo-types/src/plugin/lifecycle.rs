@@ -36,6 +36,7 @@ pub fn apply_plugin_transition(
     }
 }
 
+#[allow(clippy::expect_used)]
 fn make_unknown_plugin_id() -> super::types::PluginId {
     use super::types::{InstanceKey, PluginId, PluginName, PluginVersion};
     PluginId::new(

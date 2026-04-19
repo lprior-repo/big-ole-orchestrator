@@ -118,6 +118,7 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
         Self::search_node(&node.children[idx], key)
     }
 
+    #[allow(clippy::expect_used)]
     pub fn insert(&mut self, key: K, value: V) {
         if self.root.is_none() {
             self.root = Some(BTreeNode::leaf(vec![key], vec![value]));
@@ -212,6 +213,7 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
         }
     }
 
+    #[allow(clippy::expect_used)]
     pub fn delete(&mut self, key: &K) -> Result<V, BTreeError> {
         if self.root.is_none() {
             return Err(BTreeError::KeyNotFound);
@@ -378,6 +380,7 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
         }
     }
 
+    #[allow(clippy::expect_used)]
     fn borrow_from_left(&self, node: &mut BTreeNode<K, V>, idx: usize) {
         let left_idx = idx - 1;
         let parent_key = node.keys.remove(left_idx);

@@ -14,26 +14,19 @@ pub struct DiscoveryPath {
 }
 
 impl DiscoveryPath {
-    pub fn new(
-        version_root: String,
-        binary_hash: BinaryHash,
-        binary_name: String,
-    ) -> Result<Self, DiscoveryPathError> {
+    #[allow(clippy::panic)]
+    pub fn new(version_root: String, binary_hash: BinaryHash, binary_name: String) -> Self {
         if binary_name.is_empty() {
-            return Err(DiscoveryPathError::InvalidFormat {
-                reason: "binary_name cannot be empty".to_string(),
-            });
+            panic!("binary_name cannot be empty");
         }
         if binary_name.contains('/') || binary_name.contains("..") {
-            return Err(DiscoveryPathError::InvalidFormat {
-                reason: "binary_name cannot contain path separators or '..'".to_string(),
-            });
+            panic!("binary_name cannot contain path separators or '..'");
         }
-        Ok(Self {
+        Self {
             version_root,
             binary_hash,
             binary_name,
-        })
+        }
     }
 
     pub fn version_root(&self) -> &str {
@@ -290,31 +283,37 @@ mod tests {
 
     #[test]
     fn validate_discovery_path_empty_name() {
-        let result = DiscoveryPath::new(
-            VERSION_BASE_PATH.to_string(),
-            BinaryHash::parse("abcdef0123456789").unwrap(),
-            String::new(),
-        );
+        let result = std::panic::catch_unwind(|| {
+            DiscoveryPath::new(
+                VERSION_BASE_PATH.to_string(),
+                BinaryHash::parse("abcdef0123456789").unwrap(),
+                String::new(),
+            )
+        });
         assert!(result.is_err());
     }
 
     #[test]
     fn validate_discovery_path_name_with_separator() {
-        let result = DiscoveryPath::new(
-            VERSION_BASE_PATH.to_string(),
-            BinaryHash::parse("abcdef0123456789").unwrap(),
-            "foo/bar".to_string(),
-        );
+        let result = std::panic::catch_unwind(|| {
+            DiscoveryPath::new(
+                VERSION_BASE_PATH.to_string(),
+                BinaryHash::parse("abcdef0123456789").unwrap(),
+                "foo/bar".to_string(),
+            )
+        });
         assert!(result.is_err());
     }
 
     #[test]
     fn validate_discovery_path_rejects_path_traversal() {
-        let result = DiscoveryPath::new(
-            VERSION_BASE_PATH.to_string(),
-            BinaryHash::parse("abcdef0123456789").unwrap(),
-            "foo..bar".to_string(),
-        );
+        let result = std::panic::catch_unwind(|| {
+            DiscoveryPath::new(
+                VERSION_BASE_PATH.to_string(),
+                BinaryHash::parse("abcdef0123456789").unwrap(),
+                "foo..bar".to_string(),
+            )
+        });
         assert!(result.is_err());
     }
 
