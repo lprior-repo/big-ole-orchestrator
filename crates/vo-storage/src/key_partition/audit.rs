@@ -119,4 +119,105 @@ mod tests {
         assert!(entry.dek_id.is_none());
         assert!(!entry.success);
     }
+
+    #[test]
+    fn key_audit_entry_use_operation() {
+        let instance_id = sample_instance_id();
+        let dek_id = sample_dek_id();
+        let entry = KeyAuditEntry::new(KeyOperation::Use, instance_id.clone(), Some(dek_id.clone()), true);
+
+        assert_eq!(entry.operation, KeyOperation::Use);
+        assert_eq!(entry.instance_id, instance_id);
+        assert_eq!(entry.dek_id.as_ref().unwrap(), &dek_id);
+        assert!(entry.success);
+        assert!(entry.timestamp_ms > 0);
+    }
+
+    #[test]
+    fn key_audit_entry_use_operation_trace_message() {
+        let instance_id = sample_instance_id();
+        let dek_id = sample_dek_id();
+        let entry = KeyAuditEntry::new(KeyOperation::Use, instance_id.clone(), Some(dek_id.clone()), true);
+
+        let msg = entry.to_trace_message();
+        assert!(msg.contains("key_audit"));
+        assert!(msg.contains("key_use"));
+        assert!(msg.contains(instance_id.as_str()));
+        assert!(msg.contains(dek_id.as_str()));
+        assert!(msg.contains("success=true"));
+    }
+
+    #[test]
+    fn key_audit_entry_use_operation_failed() {
+        let instance_id = sample_instance_id();
+        let entry = KeyAuditEntry::new(KeyOperation::Use, instance_id.clone(), None, false);
+
+        assert_eq!(entry.operation, KeyOperation::Use);
+        assert!(entry.dek_id.is_none());
+        assert!(!entry.success);
+    }
+
+    #[test]
+    fn key_audit_entry_destroy_operation() {
+        let instance_id = sample_instance_id();
+        let dek_id = sample_dek_id();
+        let entry = KeyAuditEntry::new(KeyOperation::Destroy, instance_id.clone(), Some(dek_id.clone()), true);
+
+        assert_eq!(entry.operation, KeyOperation::Destroy);
+        assert_eq!(entry.instance_id, instance_id);
+        assert_eq!(entry.dek_id.as_ref().unwrap(), &dek_id);
+        assert!(entry.success);
+        assert!(entry.timestamp_ms > 0);
+    }
+
+    #[test]
+    fn key_audit_entry_destroy_operation_trace_message() {
+        let instance_id = sample_instance_id();
+        let dek_id = sample_dek_id();
+        let entry = KeyAuditEntry::new(KeyOperation::Destroy, instance_id.clone(), Some(dek_id.clone()), true);
+
+        let msg = entry.to_trace_message();
+        assert!(msg.contains("key_audit"));
+        assert!(msg.contains("key_destroy"));
+        assert!(msg.contains(instance_id.as_str()));
+        assert!(msg.contains(dek_id.as_str()));
+        assert!(msg.contains("success=true"));
+    }
+
+    #[test]
+    fn key_audit_entry_destroy_operation_failed() {
+        let instance_id = sample_instance_id();
+        let entry = KeyAuditEntry::new(KeyOperation::Destroy, instance_id.clone(), None, false);
+
+        assert_eq!(entry.operation, KeyOperation::Destroy);
+        assert!(entry.dek_id.is_none());
+        assert!(!entry.success);
+    }
+
+    #[test]
+    fn key_audit_entry_rotate_operation() {
+        let instance_id = sample_instance_id();
+        let dek_id = sample_dek_id();
+        let entry = KeyAuditEntry::new(KeyOperation::Rotate, instance_id.clone(), Some(dek_id.clone()), true);
+
+        assert_eq!(entry.operation, KeyOperation::Rotate);
+        assert_eq!(entry.instance_id, instance_id);
+        assert_eq!(entry.dek_id.as_ref().unwrap(), &dek_id);
+        assert!(entry.success);
+        assert!(entry.timestamp_ms > 0);
+    }
+
+    #[test]
+    fn key_audit_entry_rotate_operation_trace_message() {
+        let instance_id = sample_instance_id();
+        let dek_id = sample_dek_id();
+        let entry = KeyAuditEntry::new(KeyOperation::Rotate, instance_id.clone(), Some(dek_id.clone()), true);
+
+        let msg = entry.to_trace_message();
+        assert!(msg.contains("key_audit"));
+        assert!(msg.contains("key_rotate"));
+        assert!(msg.contains(instance_id.as_str()));
+        assert!(msg.contains(dek_id.as_str()));
+        assert!(msg.contains("success=true"));
+    }
 }
