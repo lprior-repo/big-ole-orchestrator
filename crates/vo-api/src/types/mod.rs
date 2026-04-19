@@ -17,7 +17,7 @@ pub mod v3;
 #[cfg(test)]
 mod security_validation_tests;
 #[cfg(test)]
-mod v3_test;
+mod v1_test;
 
 pub use errors::*;
 pub use ingress::*;
