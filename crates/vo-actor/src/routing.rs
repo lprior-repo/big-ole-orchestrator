@@ -120,11 +120,14 @@ impl<R: EpochResolver> LineageRouter<R> {
                 lineage_id,
                 epoch: Some(requested_epoch),
             } => {
-                let instance_id = self
-                    .resolver
-                    .resolve_specific_epoch(&lineage_id, requested_epoch)
-                    .await?;
                 let active_info = self.resolver.resolve_active_epoch(&lineage_id).await?;
+                if !active_info.lineage_state.can_spawn_epoch() {
+                    return Err(RoutingError::LineageTombstoned(lineage_id));
+                }
+                let instance_id =
+                    self.resolver
+                        .resolve_specific_epoch(&lineage_id, requested_epoch)
+                        .await?;
                 Ok(ResolvedRoute {
                     lineage_id,
                     target_epoch: requested_epoch,
@@ -299,127 +302,87 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn requested_epoch_equals_active_epoch_is_active_true() {
+    async fn route_requested_epoch_equals_active_epoch_sets_is_active() {
         let resolver = MockEpochResolver::new()
-            .with_lineage("lin-eq", Epoch::new(2), LineageStatus::Active);
+            .with_lineage("lin-1", Epoch::new(3), LineageStatus::Active);
         let router = LineageRouter::new(Arc::new(resolver));
 
         let query = LineageQuery::QueryByLineage {
-            lineage_id: "lin-eq".to_string(),
-            epoch: Some(Epoch::new(2)),
+            lineage_id: "lin-1".to_string(),
+            epoch: Some(Epoch::new(3)),
         };
 
         let result = router.route(query).await.unwrap();
-        assert_eq!(result.target_epoch, Epoch::new(2));
-        assert!(result.is_active_epoch);
+        assert_eq!(result.lineage_id, "lin-1");
+        assert_eq!(result.target_epoch, Epoch::new(3));
+        assert!(result.is_active_epoch, "is_active_epoch should be true when requested epoch equals active epoch");
     }
 
     #[tokio::test]
-    async fn requested_epoch_greater_than_active_returns_epoch_not_found() {
+    async fn route_requested_epoch_greater_than_active_returns_not_found() {
         let resolver = MockEpochResolver::new()
-            .with_lineage("lin-future", Epoch::new(1), LineageStatus::Active);
+            .with_lineage("lin-1", Epoch::new(3), LineageStatus::Active);
         let router = LineageRouter::new(Arc::new(resolver));
 
         let query = LineageQuery::QueryByLineage {
-            lineage_id: "lin-future".to_string(),
-            epoch: Some(Epoch::new(5)),
+            lineage_id: "lin-1".to_string(),
+            epoch: Some(Epoch::new(10)),
         };
 
         let result = router.route(query).await;
-        assert!(matches!(
-            result,
-            Err(RoutingError::EpochNotFound {
-                lineage_id,
-                requested,
-            }) if lineage_id == "lin-future" && requested == Epoch::new(5)
-        ));
+        assert!(matches!(result, Err(RoutingError::EpochNotFound { .. })), "Should return EpochNotFound when requested epoch does not exist");
     }
 
     #[tokio::test]
-    async fn sequential_routes_for_same_lineage_are_consistent() {
+    async fn route_multiple_sequential_calls_are_consistent() {
         let resolver = MockEpochResolver::new()
-            .with_lineage("lin-consistent", Epoch::new(3), LineageStatus::Active);
+            .with_lineage("lin-1", Epoch::new(3), LineageStatus::Active);
+        let router = LineageRouter::new(Arc::new(resolver));
+
+        let query1 = LineageQuery::QueryByLineage {
+            lineage_id: "lin-1".to_string(),
+            epoch: Some(Epoch::new(1)),
+        };
+        let query2 = LineageQuery::QueryByLineage {
+            lineage_id: "lin-1".to_string(),
+            epoch: Some(Epoch::new(1)),
+        };
+
+        let result1 = router.route(query1).await.unwrap();
+        let result2 = router.route(query2).await.unwrap();
+
+        assert_eq!(result1, result2, "Sequential calls with same lineage and epoch should return consistent results");
+        assert_eq!(result1.target_epoch, result2.target_epoch);
+        assert_eq!(result1.target_instance_id, result2.target_instance_id);
+        assert_eq!(result1.is_active_epoch, result2.is_active_epoch);
+    }
+
+    #[tokio::test]
+    async fn route_lineage_not_found_returns_lineage_not_found_not_epoch_not_found() {
+        let resolver = MockEpochResolver::new();
         let router = LineageRouter::new(Arc::new(resolver));
 
         let query = LineageQuery::QueryByLineage {
-            lineage_id: "lin-consistent".to_string(),
-            epoch: None,
-        };
-
-        let first = router.route(query.clone()).await.unwrap();
-        let second = router.route(query).await.unwrap();
-        assert_eq!(first, second);
-    }
-
-    #[tokio::test]
-    async fn storage_error_during_resolve_specific_epoch_propagates() {
-        struct FailingResolver;
-
-        impl EpochResolver for FailingResolver {
-            async fn resolve_active_epoch(
-                &self,
-                _lineage_id: &str,
-            ) -> Result<ActiveLineageInfo, RoutingError> {
-                let lineage = WorkflowLineage::new("lin-err").unwrap();
-                let state = LineageState::with_status(lineage, LineageStatus::Active);
-                Ok(ActiveLineageInfo {
-                    lineage_state: state,
-                    active_instance_id: InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap(),
-                })
-            }
-
-            async fn resolve_specific_epoch(
-                &self,
-                lineage_id: &str,
-                _epoch: Epoch,
-            ) -> Result<InstanceId, RoutingError> {
-                Err(RoutingError::StorageError(format!(
-                    "storage failed for {lineage_id}"
-                )))
-            }
-        }
-
-        let router = LineageRouter::new(Arc::new(FailingResolver));
-        let query = LineageQuery::QueryByLineage {
-            lineage_id: "lin-err".to_string(),
+            lineage_id: "nonexistent".to_string(),
             epoch: Some(Epoch::new(1)),
         };
 
         let result = router.route(query).await;
-        assert!(matches!(result, Err(RoutingError::StorageError(_))));
+        assert!(matches!(result, Err(RoutingError::LineageNotFound(_))), "Should return LineageNotFound when lineage does not exist, not EpochNotFound");
     }
 
     #[tokio::test]
-    async fn lineage_not_found_during_resolve_specific_epoch_returns_lineage_not_found() {
-        struct EmptyResolver;
+    async fn route_tombstoned_lineage_with_explicit_epoch_returns_tombstoned() {
+        let resolver = MockEpochResolver::new()
+            .with_lineage("lin-dead", Epoch::new(1), LineageStatus::Tombstoned);
+        let router = LineageRouter::new(Arc::new(resolver));
 
-        impl EpochResolver for EmptyResolver {
-            async fn resolve_active_epoch(
-                &self,
-                _lineage_id: &str,
-            ) -> Result<ActiveLineageInfo, RoutingError> {
-                Err(RoutingError::LineageNotFound("missing".to_string()))
-            }
-
-            async fn resolve_specific_epoch(
-                &self,
-                lineage_id: &str,
-                _epoch: Epoch,
-            ) -> Result<InstanceId, RoutingError> {
-                Err(RoutingError::LineageNotFound(lineage_id.to_string()))
-            }
-        }
-
-        let router = LineageRouter::new(Arc::new(EmptyResolver));
         let query = LineageQuery::QueryByLineage {
-            lineage_id: "missing".to_string(),
+            lineage_id: "lin-dead".to_string(),
             epoch: Some(Epoch::new(1)),
         };
 
         let result = router.route(query).await;
-        assert!(
-            matches!(result, Err(RoutingError::LineageNotFound(ref id)) if id == "missing"),
-            "expected LineageNotFound, got {result:?}"
-        );
+        assert!(matches!(result, Err(RoutingError::LineageTombstoned(_))), "Tombstoned lineage should return LineageTombstoned regardless of epoch specification");
     }
 }

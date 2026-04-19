@@ -8,3 +8,5 @@ pub mod init;
 pub mod lock;
 pub mod rebuild;
 pub mod status;
+pub mod unquarantine;
+pub mod workspace;
