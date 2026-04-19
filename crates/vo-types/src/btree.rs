@@ -413,8 +413,6 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
         }
     }
 
-<<<<<<< HEAD
-=======
     /// Insert a child back into a parent, splitting it if it exceeds max_keys.
     /// This handles the case where ensure_child_has_minimum merges two min_keys
     /// children with a separator, producing 2*min_keys+1 keys which can exceed
@@ -446,7 +444,6 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
         parent.children.insert(idx + 1, right);
     }
 
->>>>>>> 7e356012 (style: apply consistent rustfmt formatting)
     fn merge_nodes(
         left: BTreeNode<K, V>,
         parent_key: K,
