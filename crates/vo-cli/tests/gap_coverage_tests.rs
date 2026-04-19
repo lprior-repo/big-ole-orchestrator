@@ -18,7 +18,7 @@ use vo_cli::commands::lock::{LockConfig, LockError, LOCK_FILE_NAME};
 use vo_cli::commands::rebuild::{RebuildConfig, RebuildError, RebuildReport, RebuildStatus};
 use vo_cli::{
     interpret_cli_from, map_error_to_exit_code, parse_strict_numeric, CliError, Command,
-    HandlerRegistry,
+    CommandContext, HandlerRegistry,
 };
 
 fn make_temp_dir() -> PathBuf {
@@ -465,6 +465,7 @@ fn history_undo_success_path() {
             vec![DagNode {
                 node_name: NodeName::parse("test-node").unwrap(),
                 retry_policy: RetryPolicy::new(3, 1000, 2.0).unwrap(),
+                compensation_policy: None,
             }],
             vec![],
         )
@@ -489,6 +490,7 @@ fn history_redo_success_path() {
             vec![DagNode {
                 node_name: NodeName::parse("test-node").unwrap(),
                 retry_policy: RetryPolicy::new(3, 1000, 2.0).unwrap(),
+                compensation_policy: None,
             }],
             vec![],
         )
@@ -514,6 +516,7 @@ fn history_undo_then_undo_empty() {
             vec![DagNode {
                 node_name: NodeName::parse("test-node").unwrap(),
                 retry_policy: RetryPolicy::new(3, 1000, 2.0).unwrap(),
+                compensation_policy: None,
             }],
             vec![],
         )
@@ -538,6 +541,7 @@ fn history_redo_empty_after_push() {
             vec![DagNode {
                 node_name: NodeName::parse("test-node").unwrap(),
                 retry_policy: RetryPolicy::new(3, 1000, 2.0).unwrap(),
+                compensation_policy: None,
             }],
             vec![],
         )
@@ -561,6 +565,7 @@ fn history_get_history_with_entries() {
             vec![DagNode {
                 node_name: NodeName::parse("test-node").unwrap(),
                 retry_policy: RetryPolicy::new(3, 1000, 2.0).unwrap(),
+                compensation_policy: None,
             }],
             vec![],
         )
@@ -586,6 +591,7 @@ fn history_save_and_reload_roundtrip() {
             vec![DagNode {
                 node_name: NodeName::parse("test-node").unwrap(),
                 retry_policy: RetryPolicy::new(3, 1000, 2.0).unwrap(),
+                compensation_policy: None,
             }],
             vec![],
         )
@@ -1276,10 +1282,8 @@ fn registry_lookup_doctor_handler() {
 fn registry_names_contains_all() {
     let registry = HandlerRegistry::default();
     let names = registry.names();
-    assert_eq!(names.len(), 8);
-    for name in &[
-        "purge", "check", "gc", "init", "lock", "doctor", "rebuild", "status",
-    ] {
+    assert_eq!(names.len(), 9);
+    for name in &["purge", "check", "compensate", "gc", "init", "lock", "doctor", "rebuild", "status"] {
         assert!(names.contains(name), "missing handler: {name}");
     }
 }
@@ -1993,7 +1997,6 @@ fn check_constants_values() {
 #[test]
 fn command_clone_equality() {
     let cmd = Command::Check {
-        workflow: false,
         path: PathBuf::from("/test"),
     };
     let cmd2 = cmd.clone();

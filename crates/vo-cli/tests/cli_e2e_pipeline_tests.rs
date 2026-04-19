@@ -483,12 +483,12 @@ fn parse_version_flag() {
 }
 
 #[test]
-fn parse_no_args_shows_help() {
+fn parse_no_args_returns_missing_subcommand() {
     let result = interpret_cli_from(vec!["vo"]);
     assert!(result.is_err());
     assert_eq!(
         result.unwrap_err().kind(),
-        clap::error::ErrorKind::DisplayHelpOnMissingArgumentOrSubcommand
+        clap::error::ErrorKind::MissingSubcommand
     );
 }
 
@@ -966,6 +966,7 @@ fn history_save_and_reload_roundtrip() {
         vec![vo_types::DagNode {
             node_name: vo_types::NodeName::parse("node-1").unwrap(),
             retry_policy: vo_types::RetryPolicy::new(3, 1000, 2.0).unwrap(),
+            compensation_policy: None,
         }],
         vec![],
     );
@@ -1191,7 +1192,7 @@ fn registry_names_sorted() {
     names.sort();
     assert_eq!(
         names,
-        vec!["check", "doctor", "gc", "init", "lock", "purge", "rebuild", "status"]
+        vec!["check", "compensate", "doctor", "gc", "init", "lock", "purge", "rebuild", "status"]
     );
 }
 

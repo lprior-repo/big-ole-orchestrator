@@ -99,7 +99,7 @@ fn unicode_confusables_and_zero_width_in_ids() {
 }
 
 #[test]
-fn duplicate_flags_last_wins() {
+fn duplicate_flags_are_rejected() {
     let args = vec![
         OsString::from("vo"),
         OsString::from("gc"),
@@ -108,10 +108,11 @@ fn duplicate_flags_last_wins() {
         OsString::from("--engine-url"),
         OsString::from("http://evil:3000"),
     ];
-    let cli = interpret_cli_from(args).unwrap();
-    if let Command::Gc { engine_url, .. } = cli.command {
-        assert_eq!(engine_url, "http://evil:3000");
-    }
+    let result = interpret_cli_from(args);
+    assert!(
+        result.is_err(),
+        "duplicate flags should be rejected by clap"
+    );
 }
 
 #[test]
@@ -154,7 +155,7 @@ fn numeric_overflow_is_specific() {
 
 #[test]
 fn numeric_leading_zeros_allowed() {
-    assert_eq!(parse_strict_numeric("007"), Ok(7));
+    assert_eq!(parse_strict_numeric("007").unwrap(), 7);
 }
 
 #[test]
