@@ -76,5 +76,13 @@ path = "tests/backpressure_tests.rs"
 name = "qa_ipc_tests"
 path = "tests/qa_ipc_tests.rs"
 
+[[test]]
+name = "prop_spsc_concurrent"
+path = "tests/prop_spsc_concurrent.rs"
+
+[[test]]
+name = "prop_envelope_framing"
+path = "tests/prop_envelope_framing.rs"
+
 [lints]
 workspace = true
