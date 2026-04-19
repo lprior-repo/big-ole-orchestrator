@@ -1489,9 +1489,10 @@ fn parse_detects_cycle_in_disconnected_component_when_first_node_is_isolated(
 }
 
 // Item 5: Cover the disconnected-component branch for an acyclic graph.
-// Two disconnected components with no edges linking them should parse OK.
+// Two disconnected components: a→b and c (orphan with no edges).
+// Orphan detection now rejects this.
 #[test]
-fn parse_accepts_disconnected_acyclic_components_when_no_edges_link_them(
+fn parse_rejects_disconnected_component_with_orphan_node(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let json = serde_json::json!({
         "workflow_name": "disconnected-ok",
@@ -1505,9 +1506,11 @@ fn parse_accepts_disconnected_acyclic_components_when_no_edges_link_them(
         ]
     });
     let bytes = serde_json::to_vec(&json)?;
-    let def = WorkflowDefinition::parse(&bytes)?;
-    assert_eq!(def.nodes.len(), 3);
-    assert_eq!(def.edges.len(), 1);
+    let result = WorkflowDefinition::parse(&bytes);
+    assert!(matches!(
+        result,
+        Err(WorkflowDefinitionError::OrphanNodes { .. })
+    ));
     Ok(())
 }
 

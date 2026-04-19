@@ -163,6 +163,8 @@ mod schema_version_tests;
 #[cfg(test)]
 mod serde_tests;
 #[cfg(test)]
+mod tests_bdd_dag_connectivity;
+#[cfg(test)]
 mod tests_bdd_dag_cycle_validation;
 #[cfg(test)]
 mod tests_bdd_dag_merge_point;
