@@ -207,7 +207,7 @@ fn encrypted_blob_has_correct_sizes() {
     let tag = vec![0u8; CryptoAlgorithm::TAG_SIZE_BYTES];
     let ciphertext = vec![0xAA; 256];
 
-    let blob = EncryptedBlob::new(iv, ciphertext, tag);
+    let blob = EncryptedBlob::new(iv, ciphertext, tag).unwrap();
 
     assert_eq!(blob.iv.len(), CryptoAlgorithm::IV_SIZE_BYTES);
     assert_eq!(blob.tag.len(), CryptoAlgorithm::TAG_SIZE_BYTES);
@@ -244,7 +244,7 @@ fn crypto_algorithm_constants_are_valid() {
 #[kani::proof]
 fn wrapped_dek_preserves_bytes() {
     let bytes = vec![0xDE, 0xAD, 0xBE, 0xEF, 0xCA, 0xFE, 0xBA, 0xBE];
-    let wrapped = WrappedDek::new(bytes.clone());
+    let wrapped = WrappedDek::new(bytes.clone()).unwrap();
     assert_eq!(wrapped.as_bytes(), bytes);
 }
 
@@ -425,7 +425,7 @@ fn encrypted_blob_total_size_invariant() {
     let ct_len: u8 = kani::any();
     let ciphertext = vec![0u8; ct_len as usize];
 
-    let blob = EncryptedBlob::new(iv.clone(), ciphertext.clone(), tag.clone());
+    let blob = EncryptedBlob::new(iv.clone(), ciphertext.clone(), tag.clone()).unwrap();
 
     assert_eq!(blob.total_size(), iv.len() + ciphertext.len() + tag.len());
 }

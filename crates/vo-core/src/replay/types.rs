@@ -61,3 +61,18 @@ pub enum ReplayError {
         blob_id: String,
     },
 }
+
+impl ReplayError {
+    pub fn kind(&self) -> ReplayErrorKind {
+        match self {
+            ReplayError::InstanceMismatch { .. } => ReplayErrorKind::Deterministic,
+            ReplayError::SequenceGap { .. } => ReplayErrorKind::Deterministic,
+            ReplayError::SequenceDuplicate { .. } => ReplayErrorKind::Deterministic,
+            ReplayError::PayloadDecodeFailed { .. } => ReplayErrorKind::Deterministic,
+            ReplayError::TransitionFailed { .. } => ReplayErrorKind::Deterministic,
+            ReplayError::UnexpectedEventType { .. } => ReplayErrorKind::Deterministic,
+            ReplayError::UpcastingFailed { .. } => ReplayErrorKind::Deterministic,
+            ReplayError::BlobPublicationFailed { .. } => ReplayErrorKind::Deterministic,
+        }
+    }
+}
