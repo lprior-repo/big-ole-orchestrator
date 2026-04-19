@@ -5,8 +5,8 @@
 
 use std::time::Duration;
 
-use vo_actor::spawn_supervisor::SpawnSupervisorError;
 use vo_actor::reanimator::ReanimatorError;
+use vo_actor::spawn_supervisor::SpawnSupervisorError;
 use vo_types::InstanceId;
 
 fn test_instance_id() -> InstanceId {
@@ -18,125 +18,177 @@ fn test_instance_id() -> InstanceId {
 // =============================================================================
 // ATTACK 1: Error Classification Completeness
 // =============================================================================
-// INV: Every error variant MUST be either transient or fatal.
+// INV: Every error variant MUST be classified into one of four categories:
+// transient, resumable, fatal, or operational.
 // Per ER-007/ER-008, unclassified errors are treated as fatal.
-// SpawnSupervisorError has variants that are NEITHER — this test exposes them.
+// This test verifies the 4-way classification is exhaustive.
 
 #[test]
 fn spawn_supervisor_error_no_unclassified_variants() {
     let instance_id = test_instance_id();
 
     let unclassified: Vec<&str> = vec![
-        ("AtomicityViolation", SpawnSupervisorError::AtomicityViolation("test".into())),
+        (
+            "AtomicityViolation",
+            SpawnSupervisorError::AtomicityViolation("test".into()),
+        ),
         ("AlreadyRunning", SpawnSupervisorError::AlreadyRunning),
-        ("ShutdownTimeout", SpawnSupervisorError::ShutdownTimeout(Duration::from_secs(5))),
-        ("SpawnFailed", SpawnSupervisorError::SpawnFailed { command: "cmd".into(), error: "err".into() }),
-        ("HealthCheckFailed", SpawnSupervisorError::HealthCheckFailed {
-            instance_id: instance_id.clone(),
-            check_number: 1,
-            error: "timeout".into(),
-        }),
-        ("ProcessExited", SpawnSupervisorError::ProcessExited {
-            instance_id: instance_id.clone(),
-            pid: 1234,
-            exit_code: 1,
-        }),
+        (
+            "ShutdownTimeout",
+            SpawnSupervisorError::ShutdownTimeout(Duration::from_secs(5)),
+        ),
+        (
+            "SpawnFailed",
+            SpawnSupervisorError::SpawnFailed {
+                command: "cmd".into(),
+                error: "err".into(),
+            },
+        ),
+        (
+            "HealthCheckFailed",
+            SpawnSupervisorError::HealthCheckFailed {
+                instance_id: instance_id.clone(),
+                check_number: 1,
+                error: "timeout".into(),
+            },
+        ),
+        (
+            "ProcessExited",
+            SpawnSupervisorError::ProcessExited {
+                instance_id: instance_id.clone(),
+                pid: 1234,
+                exit_code: 1,
+            },
+        ),
         ("NotRunning", SpawnSupervisorError::NotRunning),
         ("AlreadyShutdown", SpawnSupervisorError::AlreadyShutdown),
+        (
+            "StorageError",
+            SpawnSupervisorError::StorageError("test".into()),
+        ),
+        (
+            "CorruptSpawn",
+            SpawnSupervisorError::CorruptSpawn("test".into()),
+        ),
+        (
+            "InstanceNotFound",
+            SpawnSupervisorError::InstanceNotFound(instance_id.clone()),
+        ),
+        (
+            "MailboxFull",
+            SpawnSupervisorError::MailboxFull(instance_id.clone()),
+        ),
+        (
+            "InvalidConfig",
+            SpawnSupervisorError::InvalidConfig("test".into()),
+        ),
+        (
+            "DispatchError",
+            SpawnSupervisorError::DispatchError("test".into()),
+        ),
+        (
+            "ZombieDetected",
+            SpawnSupervisorError::ZombieDetected {
+                instance_id: instance_id.clone(),
+                pid: 1234,
+            },
+        ),
     ]
     .into_iter()
-    .filter(|(_, e)| !e.is_transient() && !e.is_fatal())
+    .filter(|(_, e)| {
+        !e.is_transient() && !e.is_resumable() && !e.is_fatal() && !e.is_operational()
+    })
     .map(|(name, _)| name)
     .collect();
 
     assert!(
         unclassified.is_empty(),
-        "SpawnSupervisorError has unclassified variants (neither transient nor fatal): {:?}\n\
-         Per ER-007/ER-008, ALL errors must be classified. Unknown errors are treated as fatal.",
+        "SpawnSupervisorError has unclassified variants: {:?}\n\
+         All errors must be in one of: transient, resumable, fatal, operational",
         unclassified
     );
 }
 
 #[test]
-fn atomicity_violation_is_classified() {
+fn atomicity_violation_is_operational() {
     let error = SpawnSupervisorError::AtomicityViolation("partial delete".into());
     assert!(
-        error.is_transient() || error.is_fatal(),
-        "AtomicityViolation must be classified as either transient or fatal"
+        error.is_operational(),
+        "AtomicityViolation must be operational"
     );
 }
 
 #[test]
-fn already_running_is_classified() {
+fn already_running_is_operational() {
     let error = SpawnSupervisorError::AlreadyRunning;
     assert!(
-        error.is_transient() || error.is_fatal(),
-        "AlreadyRunning must be classified as either transient or fatal"
+        error.is_operational(),
+        "AlreadyRunning must be operational"
     );
 }
 
 #[test]
-fn shutdown_timeout_is_classified() {
+fn shutdown_timeout_is_operational() {
     let error = SpawnSupervisorError::ShutdownTimeout(Duration::from_secs(5));
     assert!(
-        error.is_transient() || error.is_fatal(),
-        "ShutdownTimeout must be classified as either transient or fatal"
+        error.is_operational(),
+        "ShutdownTimeout must be operational"
     );
 }
 
 #[test]
-fn spawn_failed_is_classified() {
+fn spawn_failed_is_resumable() {
     let error = SpawnSupervisorError::SpawnFailed {
         command: "cmd".into(),
         error: "err".into(),
     };
     assert!(
-        error.is_transient() || error.is_fatal(),
-        "SpawnFailed must be classified as either transient or fatal"
+        error.is_resumable(),
+        "SpawnFailed must be resumable (permanent restart strategy)"
     );
 }
 
 #[test]
-fn health_check_failed_is_classified() {
+fn health_check_failed_is_resumable() {
     let error = SpawnSupervisorError::HealthCheckFailed {
         instance_id: test_instance_id(),
         check_number: 1,
         error: "timeout".into(),
     };
     assert!(
-        error.is_transient() || error.is_fatal(),
-        "HealthCheckFailed must be classified as either transient or fatal"
+        error.is_resumable(),
+        "HealthCheckFailed must be resumable (permanent restart strategy)"
     );
 }
 
 #[test]
-fn process_exited_is_classified() {
+fn process_exited_is_resumable() {
     let error = SpawnSupervisorError::ProcessExited {
         instance_id: test_instance_id(),
         pid: 1234,
         exit_code: 1,
     };
     assert!(
-        error.is_transient() || error.is_fatal(),
-        "ProcessExited must be classified as either transient or fatal"
+        error.is_resumable(),
+        "ProcessExited must be resumable (permanent restart strategy)"
     );
 }
 
 #[test]
-fn not_running_is_classified() {
+fn not_running_is_operational() {
     let error = SpawnSupervisorError::NotRunning;
     assert!(
-        error.is_transient() || error.is_fatal(),
-        "NotRunning must be classified as either transient or fatal"
+        error.is_operational(),
+        "NotRunning must be operational"
     );
 }
 
 #[test]
-fn already_shutdown_is_classified() {
+fn already_shutdown_is_operational() {
     let error = SpawnSupervisorError::AlreadyShutdown;
     assert!(
-        error.is_transient() || error.is_fatal(),
-        "AlreadyShutdown must be classified as either transient or fatal"
+        error.is_operational(),
+        "AlreadyShutdown must be operational"
     );
 }
 
@@ -238,7 +290,11 @@ fn metrics_counters_are_independent() {
     metrics.spawns_failed.incr();
 
     assert_eq!(metrics.spawns_failed.get(), 3);
-    assert_eq!(metrics.spawns_successful.get(), 0, "spawns_successful affected by spawns_failed incr");
+    assert_eq!(
+        metrics.spawns_successful.get(),
+        0,
+        "spawns_successful affected by spawns_failed incr"
+    );
     assert_eq!(metrics.health_checks_performed.get(), 0);
     assert_eq!(metrics.health_checks_failed.get(), 0);
     assert_eq!(metrics.zombies_detected.get(), 0);
@@ -247,7 +303,11 @@ fn metrics_counters_are_independent() {
 
     metrics.zombies_detected.incr();
     assert_eq!(metrics.zombies_detected.get(), 1);
-    assert_eq!(metrics.spawns_failed.get(), 3, "spawns_failed changed after zombies_detected incr");
+    assert_eq!(
+        metrics.spawns_failed.get(),
+        3,
+        "spawns_failed changed after zombies_detected incr"
+    );
 }
 
 #[test]
@@ -258,7 +318,10 @@ fn spawn_supervisor_error_display_with_empty_strings() {
         SpawnSupervisorError::CorruptSpawn(String::new()),
         SpawnSupervisorError::AtomicityViolation(String::new()),
         SpawnSupervisorError::DispatchError(String::new()),
-        SpawnSupervisorError::SpawnFailed { command: String::new(), error: String::new() },
+        SpawnSupervisorError::SpawnFailed {
+            command: String::new(),
+            error: String::new(),
+        },
         SpawnSupervisorError::HealthCheckFailed {
             instance_id,
             check_number: 0,
@@ -276,7 +339,8 @@ fn spawn_supervisor_error_display_with_empty_strings() {
         assert!(
             display.trim().len() >= 3,
             "Error display too short with empty payload: {:?} → {:?}",
-            error, display
+            error,
+            display
         );
     }
 }
@@ -290,13 +354,25 @@ fn spawn_supervisor_error_clone_eq_symmetry() {
         SpawnSupervisorError::InstanceNotFound(instance_id.clone()),
         SpawnSupervisorError::AlreadyRunning,
         SpawnSupervisorError::NotRunning,
-        SpawnSupervisorError::ZombieDetected { instance_id, pid: 42 },
+        SpawnSupervisorError::ZombieDetected {
+            instance_id,
+            pid: 42,
+        },
     ];
 
     for error in &errors {
         let cloned = error.clone();
-        assert_eq!(error, &cloned, "Cloned error not equal to original: {:?}", error);
-        assert_eq!(format!("{}", error), format!("{}", cloned), "Cloned error displays differently: {:?}", error);
+        assert_eq!(
+            error, &cloned,
+            "Cloned error not equal to original: {:?}",
+            error
+        );
+        assert_eq!(
+            format!("{}", error),
+            format!("{}", cloned),
+            "Cloned error displays differently: {:?}",
+            error
+        );
         assert_eq!(error.is_transient(), cloned.is_transient());
         assert_eq!(error.is_fatal(), cloned.is_fatal());
     }
@@ -354,7 +430,10 @@ fn spawn_record_last_error_preserved_through_transition() {
     };
 
     let transitioned = record.transition_to_health_check();
-    assert!(transitioned.last_error.is_some(), "last_error lost during transition");
+    assert!(
+        transitioned.last_error.is_some(),
+        "last_error lost during transition"
+    );
     assert_eq!(transitioned.last_error, Some(original_error));
 }
 
@@ -377,6 +456,12 @@ fn spawn_record_respawn_clears_error() {
     };
 
     let respawned = record.respawn(None);
-    assert!(respawned.last_error.is_none(), "Respawn must clear last_error");
-    assert_eq!(respawned.health_checks, 0, "Respawn must reset health_checks");
+    assert!(
+        respawned.last_error.is_none(),
+        "Respawn must clear last_error"
+    );
+    assert_eq!(
+        respawned.health_checks, 0,
+        "Respawn must reset health_checks"
+    );
 }

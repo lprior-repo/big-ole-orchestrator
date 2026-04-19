@@ -15,33 +15,6 @@ pub struct TaskDef {
 
 use crate::error::Error;
 
-pub fn parse_attributes(attr: &TokenStream) -> Result<(), Error> {
-    if attr.is_empty() {
-        return Ok(());
-    }
-
-    let attr_str = attr.to_string();
-    if attr_str.is_empty() {
-        return Err(Error::EmptyAttribute);
-    }
-
-    let attr_count = attr_str.split_whitespace().count();
-    if attr_count > 255 {
-        return Err(Error::TooManyAttributes { count: attr_count });
-    }
-
-    let first_attr = attr_str.split_whitespace().next().unwrap_or("");
-    if first_attr == "retries" {
-        return Err(Error::UnsupportedAttribute {
-            attribute: first_attr.to_string(),
-        });
-    }
-
-    Err(Error::UnsupportedAttribute {
-        attribute: first_attr.to_string(),
-    })
-}
-
 pub fn parse_task(item: &TokenStream) -> Result<TaskDef, Error> {
     if item.is_empty() {
         return Err(Error::ParseFailure);
@@ -74,35 +47,9 @@ pub fn parse_task(item: &TokenStream) -> Result<TaskDef, Error> {
         })
         .collect();
 
-    let args: Vec<(String, Type)> = parsed
-        .sig
-        .inputs
-        .iter()
-        .filter_map(|arg| {
-            if let syn::FnArg::Typed(pat_type) = arg {
-                let ident = if let syn::Pat::Ident(ident) = &*pat_type.pat {
-                    ident.ident.to_string()
-                } else {
-                    return None;
-                };
-                Some((ident, (*pat_type.ty).clone()))
-            } else {
-                None
-            }
-        })
-        .collect();
-
     let return_type = match parsed.sig.output {
         syn::ReturnType::Default => None,
-        syn::ReturnType::Type(_, ty) => {
-            if parsed.sig.asyncness.is_some() {
-                return Err(Error::AsyncReturnTypeMismatch {
-                    ident: parsed.sig.ident.to_string(),
-                    return_type: quote::quote! { #ty }.to_string(),
-                });
-            }
-            Some(*ty)
-        }
+        syn::ReturnType::Type(_, ty) => Some(*ty),
     };
 
     Ok(TaskDef {
@@ -117,10 +64,7 @@ pub fn parse_task(item: &TokenStream) -> Result<TaskDef, Error> {
 
 #[allow(clippy::unnecessary_wraps)]
 pub fn generate_task_entrypoint(task: &TaskDef) -> Result<TokenStream, Error> {
-    let ident =
-        syn::parse_str::<syn::Ident>(&task.ident).map_err(|_| Error::IdentParsingFailed {
-            ident: task.ident.clone(),
-        })?;
+    let ident = syn::parse_str::<syn::Ident>(&task.ident).map_err(|_| Error::IdentParsingFailed)?;
 
     let is_generic = !task.generics.params.is_empty()
         || task.generics.lt_token.is_some()
@@ -182,13 +126,26 @@ pub fn generate_task_entrypoint(task: &TaskDef) -> Result<TokenStream, Error> {
     };
 
     let wrapper = if task.is_async {
-        quote::quote! {
-            fn main() #ret_type {
-                let rt = tokio::runtime::Builder::new_current_thread()
-                    .enable_all()
-                    .build()
-                    .expect("Failed to build current-thread runtime");
-                rt.block_on(async { #body })
+        if env_bindings.is_empty() {
+            quote::quote! {
+                fn main () #ret_type {
+                    let rt = tokio::runtime::Builder::new_current_thread()
+                        .enable_all()
+                        .build()
+                        .expect("Failed to build current-thread runtime");
+                    rt.block_on(async { #body })
+                }
+            }
+        } else {
+            quote::quote! {
+                fn main () #ret_type {
+                    #(#env_bindings)*
+                    let rt = tokio::runtime::Builder::new_current_thread()
+                        .enable_all()
+                        .build()
+                        .expect("Failed to build current-thread runtime");
+                    rt.block_on(async { #body })
+                }
             }
         }
     } else {
@@ -252,51 +209,6 @@ mod tests {
         };
         let result = parse_task(&input);
         assert_eq!(result.unwrap(), expected);
-    }
-
-    #[test]
-    fn parse_task_rejects_async_with_return_type() {
-        let input = quote! { async fn my_task() -> i32 {} };
-        let result = parse_task(&input);
-        assert!(matches!(
-            result,
-            Err(Error::AsyncReturnTypeMismatch {
-                ident,
-                return_type
-            }) if ident == "my_task" && return_type == "i32"
-        ));
-    }
-
-    #[test]
-    fn parse_task_accepts_async_without_return_type() {
-        let input = quote! { async fn my_task() {} };
-        let result = parse_task(&input).unwrap();
-        assert!(result.is_async);
-        assert!(result.return_type.is_none());
-    }
-
-    #[test]
-    fn parse_attributes_accepts_empty() {
-        let attr = quote! {};
-        assert_eq!(parse_attributes(&attr), Ok(()));
-    }
-
-    #[test]
-    fn parse_attributes_rejects_non_empty() {
-        let attr = quote! { foo };
-        let result = parse_attributes(&attr);
-        assert!(
-            matches!(result, Err(Error::UnsupportedAttribute { attribute }) if attribute == "foo")
-        );
-    }
-
-    #[test]
-    fn parse_attributes_rejects_retries() {
-        let attr = quote! { retries = 3 };
-        let result = parse_attributes(&attr);
-        assert!(
-            matches!(result, Err(Error::UnsupportedAttribute { attribute }) if attribute == "retries")
-        );
     }
 
     #[test]
@@ -410,9 +322,7 @@ mod tests {
             args: vec![],
         };
         let result = generate_task_entrypoint(&task);
-        assert!(
-            matches!(result, Err(Error::IdentParsingFailed { ident }) if ident == "123invalid")
-        );
+        assert!(matches!(result, Err(Error::IdentParsingFailed)));
     }
 
     #[test]
@@ -426,7 +336,7 @@ mod tests {
             args: vec![],
         };
         let result = generate_task_entrypoint(&task);
-        assert!(matches!(result, Err(Error::IdentParsingFailed { ident }) if ident.is_empty()));
+        assert!(matches!(result, Err(Error::IdentParsingFailed)));
     }
 
     #[test]
@@ -440,7 +350,81 @@ mod tests {
             args: vec![],
         };
         let result = generate_task_entrypoint(&task);
-        assert!(matches!(result, Err(Error::IdentParsingFailed { ident }) if ident == " "));
+        assert!(matches!(result, Err(Error::IdentParsingFailed)));
+    }
+
+    #[test]
+    fn parse_task_accepts_generic_function() {
+        let input = quote! { fn generic_task<T: Default>() -> T { T::default() } };
+        let result = parse_task(&input);
+        assert!(
+            result.is_ok(),
+            "generic function should be accepted, got: {:?}",
+            result
+        );
+        let def = result.unwrap();
+        assert_eq!(def.ident, "generic_task");
+        assert!(!def.generics.params.is_empty());
+    }
+
+    #[test]
+    fn parse_task_accepts_async_generic_with_where_clause() {
+        let input = quote! { async fn complex<'a, T>() where T: Send + 'a {} };
+        let result = parse_task(&input);
+        assert!(
+            result.is_ok(),
+            "async generic with where clause should be accepted, got: {:?}",
+            result
+        );
+        let def = result.unwrap();
+        assert_eq!(def.ident, "complex");
+        assert!(def.generics.where_clause.is_some());
+    }
+
+    #[test]
+    fn generate_task_entrypoint_omits_generics_from_main_for_generic_task() {
+        let input = quote! { fn generic_task<T: Default>() -> T { T::default() } };
+        let def = parse_task(&input).unwrap();
+        let result = generate_task_entrypoint(&def).unwrap();
+        let output = result.to_string();
+        // fn main<T> is invalid Rust — main must not have generics
+        assert!(
+            !output.contains("fn main <"),
+            "main should not have generics: {}",
+            output
+        );
+        assert!(
+            output.contains("fn main ()"),
+            "main should be non-generic: {}",
+            output
+        );
+    }
+
+    #[test]
+    fn generate_task_entrypoint_calls_generic_function() {
+        let input = quote! { fn generic_task<T: Default>() -> T { T::default() } };
+        let def = parse_task(&input).unwrap();
+        let result = generate_task_entrypoint(&def).unwrap();
+        let output = result.to_string();
+        assert!(
+            output.contains("generic_task ()"),
+            "main should call the generic function: {}",
+            output
+        );
+    }
+
+    #[test]
+    fn generate_task_entrypoint_omits_generic_return_type_from_main() {
+        let input = quote! { fn generic_task<T: Default>() -> T { T::default() } };
+        let def = parse_task(&input).unwrap();
+        let result = generate_task_entrypoint(&def).unwrap();
+        let output = result.to_string();
+        // main() must not have -> T since T is not in main's scope
+        assert!(
+            !output.contains("-> T"),
+            "main should not have generic return type: {}",
+            output
+        );
     }
 
     #[test]

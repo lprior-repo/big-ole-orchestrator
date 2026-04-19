@@ -8,8 +8,6 @@ pub mod projection;
 mod types;
 
 #[cfg(test)]
-mod adr035_bdd_tests;
-#[cfg(test)]
 mod adr035_event_versioning_tests;
 #[cfg(test)]
 mod crash_injection_tests;

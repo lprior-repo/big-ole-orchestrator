@@ -595,7 +595,7 @@ mod pool_tests {
 
         // Artificially age the connection to make it stale
         // idle_timeout_ms is 30000, so setting last_used_at 60000ms in the past
-        let stale_time = TimestampMs(TimestampMs::now().as_u64().saturating_sub(60_000));
+        let stale_time = TimestampMs::new_unchecked(TimestampMs::now().as_u64().saturating_sub(60_000));
         if let Some(conn) = pool.state.connections.get_mut(&conn_id) {
             conn.last_used_at = stale_time;
         }
@@ -636,7 +636,7 @@ mod pool_tests {
         assert_eq!(pool.stats().idle_connections, 2);
 
         // Age all connections to be stale
-        let stale_time = TimestampMs(TimestampMs::now().as_u64().saturating_sub(60_000));
+        let stale_time = TimestampMs::new_unchecked(TimestampMs::now().as_u64().saturating_sub(60_000));
         for id in &conn_ids {
             if let Some(conn) = pool.state.connections.get_mut(id) {
                 conn.last_used_at = stale_time;

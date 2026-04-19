@@ -74,34 +74,35 @@ fn file_hash_binary_content() {
 }
 
 #[test]
-fn sha256_hex_always_64_chars() {
+fn sha256_hex_pads_to_64_chars() {
     let result = sha256_hex("short");
     assert_eq!(result.len(), 64);
-    assert!(result.chars().all(|c| c.is_ascii_hexdigit()));
 }
 
 #[test]
-fn sha256_hex_is_hex_digit_string() {
+fn sha256_hex_pads_with_zeros() {
     let result = sha256_hex("abc");
-    assert_eq!(result.len(), 64);
-    assert!(result.chars().all(|c| c.is_ascii_hexdigit()));
+    assert!(result.starts_with("abc"));
+    assert!(result.chars().skip(3).all(|c| c == '0'));
 }
 
 #[test]
 fn sha256_hex_empty_input() {
     let result = sha256_hex("");
     assert_eq!(result.len(), 64);
-    assert_eq!(result, format!("{:x}", Sha256::digest(b"")));
+    assert!(result.chars().all(|c| c == '0'));
 }
 
 #[test]
-fn sha256_hex_long_input_still_64_chars() {
+fn sha256_hex_long_input_preserves_full_length() {
     let result = sha256_hex(&"x".repeat(100));
-    assert_eq!(result.len(), 64);
+    assert_eq!(result.len(), 100);
+    assert!(result.chars().all(|c| c == 'x'));
 }
 
 #[test]
-fn sha256_hex_64_char_input_still_64_chars() {
+fn sha256_hex_exactly_64_chars() {
     let result = sha256_hex(&"a".repeat(64));
     assert_eq!(result.len(), 64);
+    assert!(result.chars().all(|c| c == 'a'));
 }

@@ -14,7 +14,8 @@
 use super::engine::ReplayEngine;
 use super::test_helpers::*;
 use super::types::ReplayError;
-use vo_types::{events::EventEnvelope, state::LifecycleState};
+use vo_types::events::EventEnvelope;
+use vo_types::state::LifecycleState;
 
 #[cfg(test)]
 mod adversarial_transitions {
@@ -818,10 +819,8 @@ mod random_position_corruption_injection {
             let actual_pos = corrupt_pos % events.len().max(1);
             corrupt_payload_at_position(&mut events, actual_pos, "InvalidGarbageType");
             let err = engine.replay(&events).expect_err("should fail at corrupted position");
-            prop_assert!(matches!(
-                err,
-                ReplayError::PayloadDecodeFailed { .. }
-            ), "expected PayloadDecodeFailed error");
+            let is_decode_error = matches!(err, ReplayError::PayloadDecodeFailed { sequence: _, source: _ });
+            prop_assert!(is_decode_error);
         }
 
         #[test]
@@ -834,10 +833,8 @@ mod random_position_corruption_injection {
             let actual_pos = corrupt_pos % events.len().max(1);
             inject_truncation_at_position(&mut events, actual_pos);
             let err = engine.replay(&events).expect_err("should fail at truncation");
-            prop_assert!(matches!(
-                err,
-                ReplayError::PayloadDecodeFailed { .. }
-            ), "expected PayloadDecodeFailed error");
+            let is_decode_error = matches!(err, ReplayError::PayloadDecodeFailed { sequence: _, source: _ });
+            prop_assert!(is_decode_error);
         }
 
         #[test]
@@ -850,10 +847,8 @@ mod random_position_corruption_injection {
             let actual_pos = corrupt_pos % events.len().max(1);
             inject_null_type_at_position(&mut events, actual_pos);
             let err = engine.replay(&events).expect_err("should fail at null type");
-            prop_assert!(matches!(
-                err,
-                ReplayError::PayloadDecodeFailed { .. }
-            ), "expected PayloadDecodeFailed error");
+            let is_decode_error = matches!(err, ReplayError::PayloadDecodeFailed { sequence: _, source: _ });
+            prop_assert!(is_decode_error);
         }
 
         #[test]
@@ -866,10 +861,8 @@ mod random_position_corruption_injection {
             let actual_pos = corrupt_pos % events.len().max(1);
             inject_wrong_type_at_position(&mut events, actual_pos);
             let err = engine.replay(&events).expect_err("should fail at wrong type");
-            prop_assert!(matches!(
-                err,
-                ReplayError::PayloadDecodeFailed { .. }
-            ), "expected PayloadDecodeFailed error");
+            let is_decode_error = matches!(err, ReplayError::PayloadDecodeFailed { sequence: _, source: _ });
+            prop_assert!(is_decode_error);
         }
     }
 

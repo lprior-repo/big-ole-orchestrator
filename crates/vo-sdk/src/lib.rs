@@ -44,7 +44,7 @@ pub mod node_handle;
 pub use dag::Workflow;
 pub use graph_args::{
     emit_graph_if_requested, parse_graph_args, EdgeSpec, GraphArgs, GraphArgsError, NodeSpec,
-    WorkflowSpec,
+    ValidationError, WorkflowSpec,
 };
 mod read;
 mod write;

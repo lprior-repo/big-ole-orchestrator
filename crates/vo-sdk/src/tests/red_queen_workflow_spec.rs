@@ -672,33 +672,20 @@ fn rq_workflow_spec_round_trip_preserves_all_fields() {
 // ===========================================================================
 
 #[test]
-fn rq_workflow_spec_serde_bypasses_dag_cycle_validation() {
-    let spec = WorkflowSpec {
-        workflow_name: WorkflowName::parse("cycle_via_serde").expect("valid"),
-        nodes: vec![
-            NodeSpec {
-                name: NodeName::parse("a").expect("valid"),
-                kind: NodeKind::Pure,
-            },
-            NodeSpec {
-                name: NodeName::parse("b").expect("valid"),
-                kind: NodeKind::Pure,
-            },
+fn rq_workflow_spec_accepts_cycle_via_serde() {
+    let json = r#"{
+        "workflow_name": "cycle_via_serde",
+        "nodes": [
+            {"name": "a", "kind": "pure"},
+            {"name": "b", "kind": "pure"}
         ],
-        edges: vec![
-            EdgeSpec {
-                from: NodeName::parse("a").expect("valid"),
-                to: NodeName::parse("b").expect("valid"),
-            },
-            EdgeSpec {
-                from: NodeName::parse("b").expect("valid"),
-                to: NodeName::parse("a").expect("valid"),
-            },
-        ],
-    };
-    let json = serde_json::to_string(&spec).expect("serialize");
-    let restored: WorkflowSpec = serde_json::from_str(&json).expect("deserialize");
-    assert_eq!(restored.edges.len(), 2);
+        "edges": [
+            {"from": "a", "to": "b"},
+            {"from": "b", "to": "a"}
+        ]
+    }"#;
+    let result: Result<WorkflowSpec, _> = serde_json::from_str(json);
+    assert!(result.is_err(), "serde rejects cycle: {:?}", result);
 }
 
 #[test]
@@ -746,11 +733,7 @@ fn rq_workflow_spec_accepts_self_loop_edge_via_serde() {
         ]
     }"#;
     let result: Result<WorkflowSpec, _> = serde_json::from_str(json);
-    assert!(
-        result.is_ok(),
-        "self-loop via serde is accepted: {:?}",
-        result
-    );
+    assert!(result.is_err(), "serde rejects self-loop: {:?}", result);
 }
 
 #[test]

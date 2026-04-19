@@ -10,6 +10,7 @@ workspace = true
 proptest = []
 
 [dependencies]
+async-trait = { workspace = true }
 fjall = { workspace = true }
 memmap2 = { workspace = true }
 serde = { workspace = true }
@@ -22,9 +23,10 @@ blake3 = { workspace = true }
 tokio = { workspace = true }
 bytes = { workspace = true }
 thiserror = { workspace = true }
-aes = "0.7"
-aes-gcm = "0.9"
-rand = "0.8"
+aes = { workspace = true }
+aes-gcm = { workspace = true }
+rand = { workspace = true }
+generic-array = { workspace = true }
 ulid = { workspace = true }
 generic-array = "0.14"
 
