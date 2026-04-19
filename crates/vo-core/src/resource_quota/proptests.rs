@@ -223,4 +223,64 @@ proptest! {
         prop_assert_eq!(r.memory.unwrap().max_bytes.get(), mem);
         prop_assert_eq!(r.disk.unwrap().max_bytes.get(), disk);
     }
+
+    #[test]
+    fn inv_overflow_add_cpu_never_wraps(base in 0u64.., add in 0u64..) {
+        let mut usage = QuotaUsage::new().with_cpu(base);
+        usage.add_cpu(add);
+        prop_assert!(usage.cpu_cores_used >= base);
+    }
+
+    #[test]
+    fn inv_overflow_add_memory_never_wraps(base in 0u64.., add in 0u64..) {
+        let mut usage = QuotaUsage::new().with_memory(base);
+        usage.add_memory(add);
+        prop_assert!(usage.memory_bytes_used >= base);
+    }
+
+    #[test]
+    fn inv_overflow_add_disk_never_wraps(base in 0u64.., add in 0u64..) {
+        let mut usage = QuotaUsage::new().with_disk(base);
+        usage.add_disk(add);
+        prop_assert!(usage.disk_bytes_used >= base);
+    }
+
+    #[test]
+    fn inv_overflow_release_cpu_never_goes_negative(initial in 0u64.., release in 0u64..) {
+        let mut usage = QuotaUsage::new().with_cpu(initial);
+        let actual = usage.release_cpu(release);
+        prop_assert_eq!(actual, release.min(initial));
+        prop_assert!(usage.cpu_cores_used <= initial);
+    }
+
+    #[test]
+    fn inv_overflow_release_memory_never_goes_negative(initial in 0u64.., release in 0u64..) {
+        let mut usage = QuotaUsage::new().with_memory(initial);
+        let actual = usage.release_memory(release);
+        prop_assert_eq!(actual, release.min(initial));
+        prop_assert!(usage.memory_bytes_used <= initial);
+    }
+
+    #[test]
+    fn inv_overflow_release_disk_never_goes_negative(initial in 0u64.., release in 0u64..) {
+        let mut usage = QuotaUsage::new().with_disk(initial);
+        let actual = usage.release_disk(release);
+        prop_assert_eq!(actual, release.min(initial));
+        prop_assert!(usage.disk_bytes_used <= initial);
+    }
+
+    #[test]
+    fn inv_overflow_accumulate_release_roundtrip_conserves(
+        add1 in 0u64..1_000_000u64,
+        add2 in 0u64..1_000_000u64,
+        release in 0u64..2_000_000u64,
+    ) {
+        let mut usage = QuotaUsage::new();
+        usage.add_cpu(add1);
+        usage.add_cpu(add2);
+        let expected = add1.saturating_add(add2);
+        let actual_released = usage.release_cpu(release);
+        prop_assert_eq!(actual_released, release.min(expected));
+        prop_assert_eq!(usage.cpu_cores_used, expected.saturating_sub(release));
+    }
 }

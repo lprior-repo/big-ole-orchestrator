@@ -51,6 +51,36 @@ impl QuotaUsage {
         self.disk_bytes_used = bytes;
         self
     }
+
+    pub fn add_cpu(&mut self, cores: u64) {
+        self.cpu_cores_used = self.cpu_cores_used.saturating_add(cores);
+    }
+
+    pub fn add_memory(&mut self, bytes: u64) {
+        self.memory_bytes_used = self.memory_bytes_used.saturating_add(bytes);
+    }
+
+    pub fn add_disk(&mut self, bytes: u64) {
+        self.disk_bytes_used = self.disk_bytes_used.saturating_add(bytes);
+    }
+
+    pub fn release_cpu(&mut self, cores: u64) -> u64 {
+        let actual = cores.min(self.cpu_cores_used);
+        self.cpu_cores_used -= actual;
+        actual
+    }
+
+    pub fn release_memory(&mut self, bytes: u64) -> u64 {
+        let actual = bytes.min(self.memory_bytes_used);
+        self.memory_bytes_used -= actual;
+        actual
+    }
+
+    pub fn release_disk(&mut self, bytes: u64) -> u64 {
+        let actual = bytes.min(self.disk_bytes_used);
+        self.disk_bytes_used -= actual;
+        actual
+    }
 }
 
 impl Default for QuotaUsage {
@@ -453,10 +483,132 @@ mod tests {
     }
 
     #[test]
-    fn edge_zero_requested_cores_returns_ok() {
+    fn overflow_cpu_quota_at_u64_max_request_zero_returns_ok() {
         let enforcer = crate::resource_quota::QuotaEnforcer::with_default_namespace();
         let result = enforcer.check_cpu("default", 0);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn overflow_add_cpu_saturates_at_max() {
+        let mut usage = QuotaUsage::new().with_cpu(u64::MAX - 1);
+        usage.add_cpu(5);
+        assert_eq!(usage.cpu_cores_used, u64::MAX);
+    }
+
+    #[test]
+    fn overflow_add_cpu_at_max_stays_at_max() {
+        let mut usage = QuotaUsage::new().with_cpu(u64::MAX);
+        usage.add_cpu(1);
+        assert_eq!(usage.cpu_cores_used, u64::MAX);
+    }
+
+    #[test]
+    fn overflow_add_memory_saturates_at_max() {
+        let mut usage = QuotaUsage::new().with_memory(u64::MAX - 100);
+        usage.add_memory(200);
+        assert_eq!(usage.memory_bytes_used, u64::MAX);
+    }
+
+    #[test]
+    fn overflow_add_memory_at_max_stays_at_max() {
+        let mut usage = QuotaUsage::new().with_memory(u64::MAX);
+        usage.add_memory(u64::MAX);
+        assert_eq!(usage.memory_bytes_used, u64::MAX);
+    }
+
+    #[test]
+    fn overflow_add_disk_saturates_at_max() {
+        let mut usage = QuotaUsage::new().with_disk(u64::MAX - 1);
+        usage.add_disk(2);
+        assert_eq!(usage.disk_bytes_used, u64::MAX);
+    }
+
+    #[test]
+    fn overflow_add_disk_at_max_stays_at_max() {
+        let mut usage = QuotaUsage::new().with_disk(u64::MAX);
+        usage.add_disk(1);
+        assert_eq!(usage.disk_bytes_used, u64::MAX);
+    }
+
+    #[test]
+    fn overflow_add_zero_does_not_change_counters() {
+        let mut usage = QuotaUsage::new().with_cpu(100).with_memory(200).with_disk(300);
+        usage.add_cpu(0);
+        usage.add_memory(0);
+        usage.add_disk(0);
+        assert_eq!(usage.cpu_cores_used, 100);
+        assert_eq!(usage.memory_bytes_used, 200);
+        assert_eq!(usage.disk_bytes_used, 300);
+    }
+
+    #[test]
+    fn overflow_release_cpu_clamps_to_zero() {
+        let mut usage = QuotaUsage::new().with_cpu(10);
+        let released = usage.release_cpu(100);
+        assert_eq!(released, 10);
+        assert_eq!(usage.cpu_cores_used, 0);
+    }
+
+    #[test]
+    fn overflow_release_memory_clamps_to_zero() {
+        let mut usage = QuotaUsage::new().with_memory(50);
+        let released = usage.release_memory(u64::MAX);
+        assert_eq!(released, 50);
+        assert_eq!(usage.memory_bytes_used, 0);
+    }
+
+    #[test]
+    fn overflow_release_disk_clamps_to_zero() {
+        let mut usage = QuotaUsage::new().with_disk(1);
+        let released = usage.release_disk(u64::MAX);
+        assert_eq!(released, 1);
+        assert_eq!(usage.disk_bytes_used, 0);
+    }
+
+    #[test]
+    fn overflow_release_zero_returns_zero() {
+        let mut usage = QuotaUsage::new().with_cpu(100).with_memory(200).with_disk(300);
+        assert_eq!(usage.release_cpu(0), 0);
+        assert_eq!(usage.release_memory(0), 0);
+        assert_eq!(usage.release_disk(0), 0);
+        assert_eq!(usage.cpu_cores_used, 100);
+        assert_eq!(usage.memory_bytes_used, 200);
+        assert_eq!(usage.disk_bytes_used, 300);
+    }
+
+    #[test]
+    fn overflow_saturate_then_release_roundtrip() {
+        let mut usage = QuotaUsage::new();
+        usage.add_cpu(u64::MAX);
+        usage.add_memory(u64::MAX);
+        usage.add_disk(u64::MAX);
+        assert_eq!(usage.cpu_cores_used, u64::MAX);
+        assert_eq!(usage.memory_bytes_used, u64::MAX);
+        assert_eq!(usage.disk_bytes_used, u64::MAX);
+
+        let r_cpu = usage.release_cpu(1);
+        let r_mem = usage.release_memory(1);
+        let r_disk = usage.release_disk(1);
+        assert_eq!(r_cpu, 1);
+        assert_eq!(r_mem, 1);
+        assert_eq!(r_disk, 1);
+        assert_eq!(usage.cpu_cores_used, u64::MAX - 1);
+        assert_eq!(usage.memory_bytes_used, u64::MAX - 1);
+        assert_eq!(usage.disk_bytes_used, u64::MAX - 1);
+    }
+
+    #[test]
+    fn overflow_multiple_accumulations_saturate_correctly() {
+        let mut usage = QuotaUsage::new();
+        for _ in 0..=u8::MAX {
+            usage.add_cpu(1 << 56);
+            usage.add_memory(1 << 56);
+            usage.add_disk(1 << 56);
+        }
+        assert_eq!(usage.cpu_cores_used, u64::MAX);
+        assert_eq!(usage.memory_bytes_used, u64::MAX);
+        assert_eq!(usage.disk_bytes_used, u64::MAX);
     }
 
     #[test]
