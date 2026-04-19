@@ -12,8 +12,6 @@ pub enum SchedulerError {
     InvalidTransition,
     #[error("serialization error: {0}")]
     SerializationError(String),
-    #[error("duration overflow: {0}")]
-    DurationOverflow(String),
 }
 
 #[derive(Debug, Error)]

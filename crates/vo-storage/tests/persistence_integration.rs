@@ -18,18 +18,17 @@ fn make_wf(s: &str) -> WorkflowName {
 }
 
 /// Create a Fjall keyspace in a tempdir and open the `workflows` partition.
-fn setup_partition() -> (tempfile::TempDir, fjall::Keyspace, fjall::PartitionHandle) {
+fn setup_partition() -> (tempfile::TempDir, fjall::Database, fjall::Keyspace) {
     let dir = tempfile::tempdir().expect("tempdir should be created");
-    let keyspace = fjall::Config::new(dir.path())
+    let db = fjall::Database::builder(dir.path())
         .open()
-        .expect("keyspace should open");
-    let partition = keyspace
-        .open_partition(
-            vo_storage::status_store::WORKFLOWS_PARTITION,
-            fjall::PartitionCreateOptions::default(),
-        )
+        .expect("database should open");
+    let partition = db
+        .keyspace(vo_storage::status_store::WORKFLOWS_PARTITION, || {
+            fjall::KeyspaceCreateOptions::default()
+        })
         .expect("partition should open");
-    (dir, keyspace, partition)
+    (dir, db, partition)
 }
 
 // ── B-34: Read unknown workflow returns None ─────────────────────────────────
@@ -266,9 +265,9 @@ mod proptests {
     }
 
     thread_local! {
-        static PROPTEST_DB: (std::rc::Rc<tempfile::TempDir>, fjall::Keyspace, fjall::PartitionHandle) = {
-            let (dir, ks, partition) = setup_partition();
-            (std::rc::Rc::new(dir), ks, partition)
+        static PROPTEST_DB: (std::rc::Rc<tempfile::TempDir>, fjall::Database, fjall::Keyspace) = {
+            let (dir, _db, partition) = setup_partition();
+            (std::rc::Rc::new(dir), _db, partition)
         };
     }
 

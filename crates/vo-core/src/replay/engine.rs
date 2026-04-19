@@ -86,7 +86,7 @@ impl ReplayEngine {
             let payload = EventPayload::try_from_json(&event.payload).map_err(|e| {
                 ReplayError::PayloadDecodeFailed {
                     sequence: event.sequence,
-                    detail: e.to_string(),
+                    source: e.to_string(),
                 }
             })?;
 

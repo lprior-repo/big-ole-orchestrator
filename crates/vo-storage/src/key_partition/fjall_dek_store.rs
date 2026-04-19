@@ -2,31 +2,33 @@
 
 use std::sync::Arc;
 
+use ulid::Ulid;
 use vo_types::{CryptoAlgorithm, DekId, InstanceId, KeyMetadata, WrappedDek};
 
 use super::{DekEntry, DekStatus, DekStore, DekStoreError, DEK_PARTITION};
 use crate::crypto::{self, unwrap_dek, wrap_dek};
 
+#[allow(dead_code)]
 const DEK_INDEX_PARTITION: &str = "dek_index";
 
+#[allow(dead_code)]
 pub struct FjallDekStore {
-    dek_partition: Arc<fjall::PartitionHandle>,
-    index_partition: Arc<fjall::PartitionHandle>,
+    dek_partition: Arc<fjall::Keyspace>,
+    index_partition: Arc<fjall::Keyspace>,
 }
 
+#[allow(dead_code)]
 impl FjallDekStore {
-    #[must_use]
-    pub fn open(keyspace: &fjall::Keyspace) -> Result<Self, DekStoreError> {
-        let dek_partition = keyspace
-            .open_partition(DEK_PARTITION, fjall::PartitionCreateOptions::default())
+    pub fn open(db: &fjall::Database) -> Result<Self, DekStoreError> {
+        let dek_partition = db
+            .keyspace(DEK_PARTITION, || fjall::KeyspaceCreateOptions::default())
             .map_err(|e| DekStoreError::Storage {
                 reason: format!("failed to open dek_store partition: {e}"),
             })?;
-        let index_partition = keyspace
-            .open_partition(
-                DEK_INDEX_PARTITION,
-                fjall::PartitionCreateOptions::default(),
-            )
+        let index_partition = db
+            .keyspace(DEK_INDEX_PARTITION, || {
+                fjall::KeyspaceCreateOptions::default()
+            })
             .map_err(|e| DekStoreError::Storage {
                 reason: format!("failed to open dek_index partition: {e}"),
             })?;
@@ -104,6 +106,15 @@ impl FjallDekStore {
             })
     }
 
+    fn clear_active_dek_index(&self, instance_id: &InstanceId) -> Result<(), DekStoreError> {
+        let key = Self::encode_index_key(instance_id);
+        self.index_partition
+            .remove(&key)
+            .map_err(|e| DekStoreError::Storage {
+                reason: format!("failed to clear DEK index: {e}"),
+            })
+    }
+
     fn retire_dek_entry(&self, dek_id: &DekId) -> Result<(), DekStoreError> {
         let key = Self::encode_dek_key(dek_id);
         match self.dek_partition.get(&key) {
@@ -146,9 +157,12 @@ impl DekStore for FjallDekStore {
         let wrapped_dek_bytes = wrap_dek(&raw_dek, kek).map_err(|e| DekStoreError::Storage {
             reason: format!("failed to wrap DEK: {e}"),
         })?;
-        let wrapped_dek = WrappedDek::new(wrapped_dek_bytes);
+        let wrapped_dek =
+            WrappedDek::new(wrapped_dek_bytes).map_err(|e| DekStoreError::Storage {
+                reason: format!("invalid wrapped DEK from wrap_dek: {e}"),
+            })?;
 
-        let dek_id = DekId::from_bytes(ulid::Ulid::new().0.to_be_bytes());
+        let dek_id = DekId::from_bytes(Ulid::new().0.to_be_bytes());
         let metadata = KeyMetadata::new(instance_id.clone(), CryptoAlgorithm::Aes256Gcm);
         let entry = DekEntry::new(dek_id.clone(), instance_id.clone(), wrapped_dek, metadata)?;
 
@@ -165,24 +179,18 @@ impl DekStore for FjallDekStore {
     ) -> Result<[u8; 32], DekStoreError> {
         let dek_id = self.get_active_dek_id_internal(instance_id)?;
 
-        let dek_id = match dek_id {
-            Some(id) => id,
-            None => {
-                return Err(DekStoreError::DekNotFound {
-                    instance_id: instance_id.to_string(),
-                });
-            }
+        let Some(dek_id) = dek_id else {
+            return Err(DekStoreError::DekNotFound {
+                instance_id: instance_id.to_string(),
+            });
         };
 
         let entry = self.get_dek_entry(&dek_id)?;
 
-        let entry = match entry {
-            Some(e) => e,
-            None => {
-                return Err(DekStoreError::DekNotFound {
-                    instance_id: instance_id.to_string(),
-                });
-            }
+        let Some(entry) = entry else {
+            return Err(DekStoreError::DekNotFound {
+                instance_id: instance_id.to_string(),
+            });
         };
 
         if entry.status() == DekStatus::Retired {
@@ -214,16 +222,14 @@ impl DekStore for FjallDekStore {
     fn rotate_dek(&self, instance_id: &InstanceId, kek: &[u8; 32]) -> Result<DekId, DekStoreError> {
         let old_dek_id = self.get_active_dek_id_internal(instance_id)?;
 
-        let old_dek_id = match old_dek_id {
-            Some(id) => id,
-            None => {
-                return Err(DekStoreError::DekNotFound {
-                    instance_id: instance_id.to_string(),
-                });
-            }
+        let Some(old_dek_id) = old_dek_id else {
+            return Err(DekStoreError::DekNotFound {
+                instance_id: instance_id.to_string(),
+            });
         };
 
         self.retire_dek_entry(&old_dek_id)?;
+        self.clear_active_dek_index(instance_id)?;
 
         self.generate_and_store_dek(instance_id, kek)
     }
@@ -231,33 +237,24 @@ impl DekStore for FjallDekStore {
     fn retire_dek(&self, instance_id: &InstanceId) -> Result<(), DekStoreError> {
         let dek_id = self.get_active_dek_id_internal(instance_id)?;
 
-        let dek_id = match dek_id {
-            Some(id) => id,
-            None => {
-                return Err(DekStoreError::DekNotFound {
-                    instance_id: instance_id.to_string(),
-                });
-            }
+        let Some(dek_id) = dek_id else {
+            return Err(DekStoreError::DekNotFound {
+                instance_id: instance_id.to_string(),
+            });
         };
 
         self.retire_dek_entry(&dek_id)
     }
 
     fn list_deks(&self, instance_id: &InstanceId) -> Result<Vec<DekId>, DekStoreError> {
-        let prefix = format!("{instance_id}::");
         let mut dek_ids = Vec::new();
 
         for item in self.dek_partition.iter() {
-            let (key, value) = match item {
-                Ok((key, value)) => (key, value),
-                Err(e) => {
-                    return Err(DekStoreError::Storage {
-                        reason: format!("failed to scan DEKs: {e}"),
-                    });
-                }
-            };
-            if key.starts_with(prefix.as_bytes()) {
-                if let Ok(entry) = super::decode_dek_entry(&value) {
+            let (_key, value) = item.into_inner().map_err(|e| DekStoreError::Storage {
+                reason: format!("failed to scan DEKs: {e}"),
+            })?;
+            if let Ok(entry) = super::decode_dek_entry(&value) {
+                if entry.instance_id() == instance_id {
                     dek_ids.push(entry.dek_id().clone());
                 }
             }
@@ -289,9 +286,10 @@ mod tests {
         InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap()
     }
 
-    fn create_test_keyspace() -> fjall::Keyspace {
+    fn create_test_db() -> (tempfile::TempDir, fjall::Database) {
         let dir = tempdir().unwrap();
-        fjall::Config::new(dir.path()).open().unwrap()
+        let db = fjall::Database::builder(dir.path()).open().unwrap();
+        (dir, db)
     }
 
     fn create_test_kek() -> [u8; 32] {
@@ -300,7 +298,7 @@ mod tests {
 
     #[test]
     fn generate_and_store_dek_creates_new_dek() {
-        let keyspace = create_test_keyspace();
+        let (_dir, keyspace) = create_test_db();
         let store = FjallDekStore::open(&keyspace).unwrap();
         let kek = create_test_kek();
 
@@ -313,7 +311,7 @@ mod tests {
 
     #[test]
     fn generate_and_store_dek_fails_if_dek_already_exists() {
-        let keyspace = create_test_keyspace();
+        let (_dir, keyspace) = create_test_db();
         let store = FjallDekStore::open(&keyspace).unwrap();
         let kek = create_test_kek();
 
@@ -330,11 +328,11 @@ mod tests {
 
     #[test]
     fn retrieve_dek_returns_stored_dek() {
-        let keyspace = create_test_keyspace();
+        let (_dir, keyspace) = create_test_db();
         let store = FjallDekStore::open(&keyspace).unwrap();
         let kek = create_test_kek();
 
-        let _generated = store
+        store
             .generate_and_store_dek(&sample_instance_id(), &kek)
             .unwrap();
         let retrieved1 = store.retrieve_dek(&sample_instance_id(), &kek).unwrap();
@@ -345,7 +343,7 @@ mod tests {
 
     #[test]
     fn retrieve_dek_fails_with_wrong_kek() {
-        let keyspace = create_test_keyspace();
+        let (_dir, keyspace) = create_test_db();
         let store = FjallDekStore::open(&keyspace).unwrap();
         let kek1 = [0x42u8; 32];
         let kek2 = [0x99u8; 32];
@@ -360,7 +358,7 @@ mod tests {
 
     #[test]
     fn retrieve_dek_fails_when_not_found() {
-        let keyspace = create_test_keyspace();
+        let (_dir, keyspace) = create_test_db();
         let store = FjallDekStore::open(&keyspace).unwrap();
         let kek = create_test_kek();
 
@@ -370,7 +368,7 @@ mod tests {
 
     #[test]
     fn get_active_dek_id_returns_dek_id() {
-        let keyspace = create_test_keyspace();
+        let (_dir, keyspace) = create_test_db();
         let store = FjallDekStore::open(&keyspace).unwrap();
         let kek = create_test_kek();
 
@@ -384,7 +382,7 @@ mod tests {
 
     #[test]
     fn get_active_dek_id_fails_when_not_found() {
-        let keyspace = create_test_keyspace();
+        let (_dir, keyspace) = create_test_db();
         let store = FjallDekStore::open(&keyspace).unwrap();
 
         let result = store.get_active_dek_id(&sample_instance_id());
@@ -393,7 +391,7 @@ mod tests {
 
     #[test]
     fn has_active_dek_returns_true_when_exists() {
-        let keyspace = create_test_keyspace();
+        let (_dir, keyspace) = create_test_db();
         let store = FjallDekStore::open(&keyspace).unwrap();
         let kek = create_test_kek();
 
@@ -405,7 +403,7 @@ mod tests {
 
     #[test]
     fn has_active_dek_returns_false_when_not_exists() {
-        let keyspace = create_test_keyspace();
+        let (_dir, keyspace) = create_test_db();
         let store = FjallDekStore::open(&keyspace).unwrap();
 
         assert!(!store.has_active_dek(&sample_instance_id()).unwrap());
@@ -413,7 +411,7 @@ mod tests {
 
     #[test]
     fn rotate_dek_retires_old_dek() {
-        let keyspace = create_test_keyspace();
+        let (_dir, keyspace) = create_test_db();
         let store = FjallDekStore::open(&keyspace).unwrap();
         let kek = create_test_kek();
 
@@ -431,7 +429,7 @@ mod tests {
 
     #[test]
     fn rotate_dek_fails_when_no_dek_exists() {
-        let keyspace = create_test_keyspace();
+        let (_dir, keyspace) = create_test_db();
         let store = FjallDekStore::open(&keyspace).unwrap();
         let kek = create_test_kek();
 
@@ -441,7 +439,7 @@ mod tests {
 
     #[test]
     fn retire_dek_marks_dek_as_retired() {
-        let keyspace = create_test_keyspace();
+        let (_dir, keyspace) = create_test_db();
         let store = FjallDekStore::open(&keyspace).unwrap();
         let kek = create_test_kek();
 
@@ -456,7 +454,7 @@ mod tests {
 
     #[test]
     fn retire_dek_fails_when_not_found() {
-        let keyspace = create_test_keyspace();
+        let (_dir, keyspace) = create_test_db();
         let store = FjallDekStore::open(&keyspace).unwrap();
 
         let result = store.retire_dek(&sample_instance_id());
@@ -465,7 +463,7 @@ mod tests {
 
     #[test]
     fn list_deks_returns_all_deks_for_instance() {
-        let keyspace = create_test_keyspace();
+        let (_dir, keyspace) = create_test_db();
         let store = FjallDekStore::open(&keyspace).unwrap();
         let kek = create_test_kek();
 
@@ -480,7 +478,7 @@ mod tests {
 
     #[test]
     fn list_deks_returns_empty_for_instance_with_no_deks() {
-        let keyspace = create_test_keyspace();
+        let (_dir, keyspace) = create_test_db();
         let store = FjallDekStore::open(&keyspace).unwrap();
 
         let dek_ids = store.list_deks(&sample_instance_id()).unwrap();
@@ -489,7 +487,7 @@ mod tests {
 
     #[test]
     fn different_instances_have_independent_deks() {
-        let keyspace = create_test_keyspace();
+        let (_dir, keyspace) = create_test_db();
         let store = FjallDekStore::open(&keyspace).unwrap();
         let kek = create_test_kek();
 
@@ -511,7 +509,7 @@ mod tests {
 
     #[test]
     fn retrieve_dek_fails_after_retire() {
-        let keyspace = create_test_keyspace();
+        let (_dir, keyspace) = create_test_db();
         let store = FjallDekStore::open(&keyspace).unwrap();
         let kek = create_test_kek();
 

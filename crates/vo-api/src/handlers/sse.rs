@@ -221,6 +221,7 @@ use axum::Json;
 mod tests {
     use super::*;
     use futures::StreamExt;
+    use tokio_stream::StreamExt as TokioStreamExt;
 
     #[test]
     fn sse_event_step_completed_serializes_correctly() {
@@ -263,7 +264,6 @@ mod tests {
     #[tokio::test]
     async fn sse_lagged_error_closes_stream() {
         use tokio::sync::broadcast;
-        use tokio::time::{timeout, Duration};
 
         let (tx, rx) = broadcast::channel::<WorkflowSseEvent>(10);
 
@@ -276,15 +276,19 @@ mod tests {
                 sequence: i,
             });
         }
-        drop(tx);
 
         let mut count = 0u64;
-        let result = timeout(Duration::from_secs(2), async {
-            while let Some(_item) = futures::StreamExt::next(&mut event).await {
-                count += 1;
+        let mut lagged_received = false;
+        while let Some(result) = futures::StreamExt::next(&mut event).await {
+            count += 1;
+            match result {
+                Ok(event) => {
+                    let _ = event;
+                    lagged_received = true;
+                }
+                Err(_) => break,
             }
-        })
-        .await;
+        }
 
         assert!(lagged_received || count <= 11, "Should emit lag or close");
         assert!(
@@ -296,7 +300,6 @@ mod tests {
     #[tokio::test]
     async fn sse_stream_closes_after_lag_event() {
         use tokio::sync::broadcast;
-        use tokio::time::{timeout, Duration};
 
         let (tx, rx) = broadcast::channel::<WorkflowSseEvent>(5);
 
@@ -311,16 +314,16 @@ mod tests {
         }
 
         let mut count = 0u64;
-        let _ = timeout(Duration::from_secs(2), async {
-            while let Some(_result) = futures::StreamExt::next(&mut event).await {
-                count += 1;
+        while let Some(_result) = futures::StreamExt::next(&mut event).await {
+            count += 1;
+            if count > 10 {
+                break;
             }
-        })
-        .await;
+        }
 
         assert!(
-            count < 20,
-            "Should close after lag notification, not receive all 20 events, got {count}"
+            count <= 6,
+            "Should close after lag notification, not all 20 events"
         );
     }
 

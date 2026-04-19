@@ -184,6 +184,27 @@ pub struct DagNode {
     pub compensation_policy: Option<CompensationPolicy>,
 }
 
+impl DagNode {
+    /// Create a valid default `DagNode` with minimal retry policy.
+    ///
+    /// This provides a sensible default retry policy (1 attempt, no backoff)
+    /// that passes validation. Use this when you need a `DagNode` without
+    /// specifying custom parameters.
+    ///
+    /// # Errors
+    ///
+    /// Returns `RetryPolicyError::ZeroAttempts` if the default parameters
+    /// are invalid (should never happen with current defaults).
+    #[must_use]
+    pub fn valid_default(node_name: NodeName) -> Result<Self, RetryPolicyError> {
+        Ok(Self {
+            node_name,
+            retry_policy: RetryPolicy::new(1, 0, 1.0)?,
+            compensation_policy: None,
+        })
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Edge
 // ---------------------------------------------------------------------------

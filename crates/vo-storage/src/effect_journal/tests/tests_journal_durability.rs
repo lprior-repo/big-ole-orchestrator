@@ -536,17 +536,17 @@ fn fjall_replay_compact_removes_terminal_after_reopen() {
             .expect("keyspace");
         let journal = FjallEffectJournal::open(&keyspace).expect("journal");
 
-        // Create 3 committed effects directly with known old timestamp
         for i in 0..3 {
             let record = EffectRecord::new(
                 format!("fx-compact-{i}"),
                 EffectKind::HttpCall,
                 json!({}),
-                EffectIntent::Committed,
-                Some(vo_types::TimestampMs::parse("100").unwrap()),
+                EffectIntent::Prepared,
+                None,
             )
             .unwrap();
-            journal.prepare(&id, record).unwrap();
+            let eid = journal.prepare(&id, record).unwrap();
+            journal.commit(&eid).unwrap();
         }
     }
 

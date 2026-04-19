@@ -15,7 +15,6 @@
 
 use std::sync::Arc;
 use vo_actor::mock_signal_storage::{MockSignalStorage, MockSignalWorkQueue};
-use vo_actor::test_utilities::TestStateLookup;
 use vo_actor::{AcceptResumeError, ControlActor, SignalPayload, WaitKey};
 use vo_types::InstanceId;
 
@@ -73,11 +72,7 @@ fn make_actor_with_storage_and_queue() -> (
 ) {
     let storage = Arc::new(MockSignalStorage::new());
     let work_queue = Arc::new(MockSignalWorkQueue::new());
-    let actor = ControlActor::with_storage_and_queue(
-        storage.clone(),
-        work_queue.clone(),
-        Arc::new(TestStateLookup::new()),
-    );
+    let actor = ControlActor::with_storage_and_queue(storage.clone(), work_queue.clone());
     (actor, storage, work_queue)
 }
 
@@ -366,11 +361,7 @@ fn bdd_accept_resume_can_be_called_multiple_times_same_instance() {
     let instance_id = instance_id_waiting();
     let storage = Arc::new(MockSignalStorage::new());
     let work_queue = Arc::new(MockSignalWorkQueue::new());
-    let actor = ControlActor::with_storage_and_queue(
-        storage.clone(),
-        work_queue.clone(),
-        Arc::new(TestStateLookup::new()),
-    );
+    let actor = ControlActor::with_storage_and_queue(storage.clone(), work_queue.clone());
 
     // WHEN: Multiple signals are accepted for the same instance
     let result_a = actor.accept_and_resume(
@@ -636,11 +627,7 @@ fn bdd_rollback_on_enqueue_failure() {
     let storage = Arc::new(MockSignalStorage::new());
     let work_queue = Arc::new(MockSignalWorkQueue::new());
     work_queue.set_should_fail(true); // Enqueue will fail
-    let actor = ControlActor::with_storage_and_queue(
-        storage.clone(),
-        work_queue.clone(),
-        Arc::new(TestStateLookup::new()),
-    );
+    let actor = ControlActor::with_storage_and_queue(storage.clone(), work_queue.clone());
 
     let wait_key = wait_key_ok("rollback-test");
     let signal_id = "sig-rollback-001".to_string();
@@ -668,11 +655,7 @@ fn bdd_storage_failure_prevents_signal_persistence() {
     let storage = Arc::new(MockSignalStorage::new());
     storage.set_should_fail(true); // Storage will fail
     let work_queue = Arc::new(MockSignalWorkQueue::new());
-    let actor = ControlActor::with_storage_and_queue(
-        storage.clone(),
-        work_queue.clone(),
-        Arc::new(TestStateLookup::new()),
-    );
+    let actor = ControlActor::with_storage_and_queue(storage.clone(), work_queue.clone());
 
     let wait_key = wait_key_ok("storage-fail-test");
     let signal_id = "sig-storage-fail-001".to_string();

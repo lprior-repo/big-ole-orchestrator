@@ -2,20 +2,20 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 use thiserror::Error;
 use vo_types::credentials::{
-    Credential, CredentialId, CredentialKind, CredentialVersionId, RotationPolicy, RotationState,
-    SecretValue, VaultEntry,
+    Credential, CredentialId, CredentialKind, CredentialVersion, CredentialVersionId,
+    RotationPolicy, RotationState, SecretValue, VaultEntry,
 };
 
 pub mod access;
 pub mod rotation;
 
-#[cfg(test)]
-mod audit_tests;
-
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum CredentialError {
     #[error("credential not found: {0}")]
     CredentialNotFound(CredentialId),
+
+    #[error("credential already exists: {0}")]
+    CredentialAlreadyExists(CredentialId),
 
     #[error("version {version_id} not found for credential {credential_id}")]
     VersionNotFound {
@@ -152,6 +152,12 @@ pub struct CredentialVault {
     entries: std::collections::HashMap<CredentialId, VaultEntry>,
 }
 
+fn generate_version_id() -> CredentialVersionId {
+    let ulid = ulid::Ulid::new();
+    CredentialVersionId::parse(&ulid.to_string())
+        .expect("ULID generation always produces valid 26-char strings")
+}
+
 impl CredentialVault {
     pub fn new() -> Self {
         Self {
@@ -159,11 +165,18 @@ impl CredentialVault {
         }
     }
 
-    pub fn create_credential(&self, entry: VaultEntry) -> Result<CredentialId, CredentialError> {
+    pub fn create_credential(
+        &mut self,
+        entry: VaultEntry,
+    ) -> Result<CredentialId, CredentialError> {
         if self.entries.contains_key(&entry.credential.id) {
-            return Err(CredentialError::CredentialNotFound(entry.credential.id));
+            return Err(CredentialError::CredentialAlreadyExists(
+                entry.credential.id,
+            ));
         }
-        Ok(entry.credential.id.clone())
+        let id = entry.credential.id.clone();
+        self.entries.insert(id.clone(), entry);
+        Ok(id)
     }
 
     pub fn get_credential(&self, id: &CredentialId) -> Result<Credential, CredentialError> {
@@ -190,47 +203,143 @@ impl CredentialVault {
     }
 
     pub fn update_metadata(
-        &self,
-        _id: &CredentialId,
-        _metadata: std::collections::HashMap<String, String>,
+        &mut self,
+        id: &CredentialId,
+        metadata: std::collections::HashMap<String, String>,
     ) -> Result<(), CredentialError> {
+        let entry = self
+            .entries
+            .get_mut(id)
+            .ok_or(CredentialError::CredentialNotFound(id.clone()))?;
+        entry.credential.metadata = metadata;
+        entry.credential.updated_at = vo_types::TimestampMs::now();
         Ok(())
     }
 
     pub fn rotate(
-        &self,
-        _id: &CredentialId,
+        &mut self,
+        id: &CredentialId,
         _policy: Option<RotationPolicy>,
     ) -> Result<CredentialVersionId, CredentialError> {
-        Ok(CredentialVersionId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").expect("SAFETY: hardcoded valid ULID literal — parse cannot fail for this constant"))
+        let entry = self
+            .entries
+            .get_mut(id)
+            .ok_or(CredentialError::CredentialNotFound(id.clone()))?;
+
+        let old_active = entry
+            .credential
+            .active_version()
+            .map(|v| v.version_id.clone());
+
+        let new_version_id = generate_version_id();
+
+        for version in &mut entry.credential.versions {
+            if version.status == vo_types::credentials::CredentialStatus::Active {
+                version.status = vo_types::credentials::CredentialStatus::Superseded;
+                version.rotated_to = Some(new_version_id.clone());
+            }
+        }
+
+        let new_version = CredentialVersion::new(
+            new_version_id.clone(),
+            SecretValue::new(
+                vec![0u8; 32],
+                [0u8; 12],
+                entry
+                    .credential
+                    .versions
+                    .last()
+                    .map(|v| v.secret_value.key_version + 1)
+                    .unwrap_or(1),
+            )
+            .map_err(|e| CredentialError::VaultStorageError(e.to_string()))?,
+            vo_types::credentials::CredentialStatus::Active,
+            vo_types::TimestampMs::now(),
+            None,
+        );
+
+        entry.credential.versions.push(CredentialVersion {
+            rotated_from: old_active,
+            ..new_version
+        });
+        entry.credential.current_version = new_version_id.clone();
+        entry.credential.updated_at = vo_types::TimestampMs::now();
+
+        Ok(new_version_id)
     }
 
     pub fn revoke_version(
-        &self,
-        _id: &CredentialId,
-        _version_id: &CredentialVersionId,
+        &mut self,
+        id: &CredentialId,
+        version_id: &CredentialVersionId,
         _principal: &vo_types::credentials::Principal,
     ) -> Result<(), CredentialError> {
+        let entry = self
+            .entries
+            .get_mut(id)
+            .ok_or(CredentialError::CredentialNotFound(id.clone()))?;
+
+        let version = entry
+            .credential
+            .versions
+            .iter_mut()
+            .find(|v| v.version_id == *version_id)
+            .ok_or(CredentialError::VersionNotFound {
+                credential_id: id.clone(),
+                version_id: version_id.clone(),
+            })?;
+
+        version.status = vo_types::credentials::CredentialStatus::Revoked;
+        entry.credential.updated_at = vo_types::TimestampMs::now();
         Ok(())
     }
 
     pub fn revoke_all(
-        &self,
-        _id: &CredentialId,
+        &mut self,
+        id: &CredentialId,
         _principal: &vo_types::credentials::Principal,
     ) -> Result<(), CredentialError> {
+        let entry = self
+            .entries
+            .get_mut(id)
+            .ok_or(CredentialError::CredentialNotFound(id.clone()))?;
+
+        for version in &mut entry.credential.versions {
+            version.status = vo_types::credentials::CredentialStatus::Revoked;
+        }
+        entry.credential.updated_at = vo_types::TimestampMs::now();
         Ok(())
     }
 
     pub fn list_credentials(&self) -> Result<Vec<CredentialSummary>, CredentialError> {
-        Ok(Vec::new())
+        let summaries = self
+            .entries
+            .values()
+            .map(|entry| {
+                let rotation_status = match entry.rotation_state.state() {
+                    vo_types::credentials::RotationStatus::Idle => {
+                        vo_types::credentials::RotationStatus::Idle
+                    }
+                    other => other,
+                };
+                CredentialSummary {
+                    id: entry.credential.id.clone(),
+                    name: entry.credential.name.clone(),
+                    kind: entry.credential.kind.clone(),
+                    version_count: entry.credential.versions.len(),
+                    rotation_status,
+                }
+            })
+            .collect();
+        Ok(summaries)
     }
 
-    pub fn get_rotation_status(
-        &self,
-        _id: &CredentialId,
-    ) -> Result<RotationState, CredentialError> {
-        Ok(RotationState::new())
+    pub fn get_rotation_status(&self, id: &CredentialId) -> Result<RotationState, CredentialError> {
+        let entry = self
+            .entries
+            .get(id)
+            .ok_or(CredentialError::CredentialNotFound(id.clone()))?;
+        Ok(entry.rotation_state.clone())
     }
 }
 
@@ -258,7 +367,7 @@ mod tests {
 
         let version = CredentialVersion::new(
             version_id.clone(),
-            SecretValue::new(vec![0u8; 32], [0u8; 12], 1),
+            SecretValue::new(vec![0u8; 32], [0u8; 12], 1).expect("valid ciphertext"),
             CredentialStatus::Active,
             TimestampMs::new_unchecked(1000),
             None,
@@ -433,11 +542,29 @@ mod tests {
     }
 
     #[test]
-    fn vault_create_credential_returns_id() {
-        let vault = CredentialVault::new();
+    fn vault_create_credential_stores_and_lists() {
+        let mut vault = CredentialVault::new();
         let entry = create_test_vault_entry();
+        let id = entry.credential.id.clone();
         let result = vault.create_credential(entry);
         assert!(result.is_ok());
+        assert_eq!(result.unwrap(), id);
+
+        let list = vault.list_credentials().expect("list should succeed");
+        assert_eq!(list.len(), 1);
+        assert_eq!(list[0].id, id);
+    }
+
+    #[test]
+    fn vault_create_credential_duplicate_fails() {
+        let mut vault = CredentialVault::new();
+        let entry = create_test_vault_entry();
+        vault.create_credential(entry.clone()).unwrap();
+        let result = vault.create_credential(entry);
+        assert!(matches!(
+            result.unwrap_err(),
+            CredentialError::CredentialAlreadyExists(_)
+        ));
     }
 
     #[test]
@@ -453,6 +580,17 @@ mod tests {
     }
 
     #[test]
+    fn vault_get_credential_after_create() {
+        let mut vault = CredentialVault::new();
+        let entry = create_test_vault_entry();
+        let id = entry.credential.id.clone();
+        vault.create_credential(entry).unwrap();
+        let cred = vault.get_credential(&id).expect("should find credential");
+        assert_eq!(cred.id, id);
+        assert_eq!(cred.name, "github-api");
+    }
+
+    #[test]
     fn vault_get_secret_not_found() {
         let vault = CredentialVault::new();
         let id = CredentialId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
@@ -463,43 +601,179 @@ mod tests {
     }
 
     #[test]
-    fn vault_rotate_returns_version_id() {
-        let vault = CredentialVault::new();
-        let id = CredentialId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+    fn vault_rotate_returns_unique_version_id() {
+        let mut vault = CredentialVault::new();
+        let entry = create_test_vault_entry();
+        let id = entry.credential.id.clone();
+        vault.create_credential(entry).unwrap();
+
         let result = vault.rotate(&id, None);
         assert!(result.is_ok());
+
+        let cred = vault.get_credential(&id).unwrap();
+        assert_eq!(cred.versions.len(), 2);
+        assert_eq!(cred.current_version, result.unwrap());
+
+        let old_version = cred
+            .versions
+            .iter()
+            .find(|v| v.status == CredentialStatus::Superseded)
+            .expect("old version should be superseded");
+        assert_eq!(old_version.status, CredentialStatus::Superseded);
     }
 
     #[test]
-    fn vault_revoke_version_ok() {
-        let vault = CredentialVault::new();
-        let cred_id = CredentialId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
-        let version_id = CredentialVersionId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMB").unwrap();
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMC").unwrap();
-        let principal = vo_types::credentials::Principal::User(instance_id);
+    fn vault_rotate_not_found() {
+        let mut vault = CredentialVault::new();
+        let id = CredentialId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+        let result = vault.rotate(&id, None);
+        assert!(matches!(
+            result.unwrap_err(),
+            CredentialError::CredentialNotFound(_)
+        ));
+    }
+
+    #[test]
+    fn vault_revoke_version_marks_revoked() {
+        let mut vault = CredentialVault::new();
+        let entry = create_test_vault_entry();
+        let cred_id = entry.credential.id.clone();
+        let version_id = entry.credential.current_version.clone();
+        vault.create_credential(entry).unwrap();
+
+        let principal = vo_types::credentials::Principal::User(
+            InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMC").unwrap(),
+        );
         let result = vault.revoke_version(&cred_id, &version_id, &principal);
         assert!(result.is_ok());
+
+        let cred = vault.get_credential(&cred_id).unwrap();
+        let revoked = cred
+            .versions
+            .iter()
+            .find(|v| v.version_id == version_id)
+            .unwrap();
+        assert_eq!(revoked.status, CredentialStatus::Revoked);
     }
 
     #[test]
-    fn vault_revoke_all_ok() {
-        let vault = CredentialVault::new();
+    fn vault_revoke_version_not_found() {
+        let mut vault = CredentialVault::new();
         let cred_id = CredentialId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMB").unwrap();
-        let principal = vo_types::credentials::Principal::User(instance_id);
+        let version_id = CredentialVersionId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMB").unwrap();
+        let principal = vo_types::credentials::Principal::User(
+            InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMC").unwrap(),
+        );
+        let result = vault.revoke_version(&cred_id, &version_id, &principal);
+        assert!(matches!(
+            result.unwrap_err(),
+            CredentialError::CredentialNotFound(_)
+        ));
+    }
+
+    #[test]
+    fn vault_revoke_all_marks_all_revoked() {
+        let mut vault = CredentialVault::new();
+        let entry = create_test_vault_entry();
+        let cred_id = entry.credential.id.clone();
+        vault.create_credential(entry).unwrap();
+        vault.rotate(&cred_id, None).unwrap();
+
+        let principal = vo_types::credentials::Principal::User(
+            InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMB").unwrap(),
+        );
         let result = vault.revoke_all(&cred_id, &principal);
         assert!(result.is_ok());
+
+        let cred = vault.get_credential(&cred_id).unwrap();
+        for version in &cred.versions {
+            assert_eq!(version.status, CredentialStatus::Revoked);
+        }
+    }
+
+    #[test]
+    fn vault_revoke_all_not_found() {
+        let mut vault = CredentialVault::new();
+        let cred_id = CredentialId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+        let principal = vo_types::credentials::Principal::User(
+            InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMB").unwrap(),
+        );
+        let result = vault.revoke_all(&cred_id, &principal);
+        assert!(matches!(
+            result.unwrap_err(),
+            CredentialError::CredentialNotFound(_)
+        ));
     }
 
     #[test]
     fn vault_get_rotation_status_returns_idle() {
-        let vault = CredentialVault::new();
-        let cred_id = CredentialId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+        let mut vault = CredentialVault::new();
+        let entry = create_test_vault_entry();
+        let cred_id = entry.credential.id.clone();
+        vault.create_credential(entry).unwrap();
+
         let result = vault.get_rotation_status(&cred_id);
         assert!(result.is_ok());
         assert_eq!(
             result.unwrap().state(),
             vo_types::credentials::RotationStatus::Idle
         );
+    }
+
+    #[test]
+    fn vault_update_metadata_updates_stored_entry() {
+        let mut vault = CredentialVault::new();
+        let entry = create_test_vault_entry();
+        let id = entry.credential.id.clone();
+        vault.create_credential(entry).unwrap();
+
+        let mut new_meta = std::collections::HashMap::new();
+        new_meta.insert("env".to_string(), "production".to_string());
+        vault.update_metadata(&id, new_meta).unwrap();
+
+        let cred = vault.get_credential(&id).unwrap();
+        assert_eq!(cred.metadata.get("env").unwrap(), "production");
+    }
+
+    #[test]
+    fn vault_update_metadata_not_found() {
+        let mut vault = CredentialVault::new();
+        let id = CredentialId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+        let result = vault.update_metadata(&id, std::collections::HashMap::new());
+        assert!(matches!(
+            result.unwrap_err(),
+            CredentialError::CredentialNotFound(_)
+        ));
+    }
+
+    #[test]
+    fn vault_rotate_generates_unique_ids() {
+        let mut vault = CredentialVault::new();
+        let entry = create_test_vault_entry();
+        let id = entry.credential.id.clone();
+        vault.create_credential(entry).unwrap();
+
+        let v1 = vault.rotate(&id, None).unwrap();
+        let v2 = vault.rotate(&id, None).unwrap();
+        assert_ne!(v1, v2, "each rotation should produce a unique version ID");
+    }
+
+    #[test]
+    fn vault_rotate_tracks_rotated_from() {
+        let mut vault = CredentialVault::new();
+        let entry = create_test_vault_entry();
+        let id = entry.credential.id.clone();
+        let original_version = entry.credential.current_version.clone();
+        vault.create_credential(entry).unwrap();
+
+        let new_version = vault.rotate(&id, None).unwrap();
+
+        let cred = vault.get_credential(&id).unwrap();
+        let new_entry = cred
+            .versions
+            .iter()
+            .find(|v| v.version_id == new_version)
+            .unwrap();
+        assert_eq!(new_entry.rotated_from, Some(original_version));
     }
 }

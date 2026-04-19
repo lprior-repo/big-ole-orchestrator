@@ -5,7 +5,6 @@
 //! are rejected while in-flight workflows continue to execute.
 
 use std::collections::HashSet;
-use std::sync::atomic::{AtomicU64, Ordering};
 
 use vo_types::{DedupeKey, FenceToken, InstanceId, StepId};
 
@@ -14,13 +13,12 @@ use super::control::{AdmissionCheck, AdmissionResult, DedupeToken};
 use super::types::{AdmissionError, AdmissionThresholds, WritePressureState};
 use super::AdmissionThresholds as ConfiguredThresholds;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AdmissionController<C: AdmissionCheck> {
     check: C,
     pressure_state: WritePressureState,
     thresholds: AdmissionThresholds,
     in_flight: HashSet<InstanceId>,
-    queued_memory_bytes: AtomicU64,
 }
 
 impl<C: AdmissionCheck> AdmissionController<C> {
@@ -32,10 +30,8 @@ impl<C: AdmissionCheck> AdmissionController<C> {
                 writer_queue_depth_threshold: 100,
                 batch_commit_latency_ms_threshold: 1000,
                 blob_queue_depth_threshold: 50,
-                max_queued_memory_bytes: 512 * 1024 * 1024,
             },
             in_flight: HashSet::new(),
-            queued_memory_bytes: AtomicU64::new(0),
         }
     }
 
@@ -51,10 +47,8 @@ impl<C: AdmissionCheck> AdmissionController<C> {
                 writer_queue_depth_threshold: thresholds.writer_queue_depth_threshold,
                 batch_commit_latency_ms_threshold: thresholds.batch_commit_latency_ms_threshold,
                 blob_queue_depth_threshold: thresholds.blob_queue_depth_threshold,
-                max_queued_memory_bytes: thresholds.max_queued_memory_bytes,
             },
             in_flight: HashSet::new(),
-            queued_memory_bytes: AtomicU64::new(0),
         }
     }
 
@@ -80,33 +74,6 @@ impl<C: AdmissionCheck> AdmissionController<C> {
         check_admission_with_thresholds(&self.pressure_state, &self.thresholds)?;
 
         Ok(dedupe_token)
-    }
-
-    /// Admit a new workflow, tracking its estimated memory size against the queued memory limit.
-    pub fn admit_new_workflow_with_size(
-        &self,
-        dedupe_key: &DedupeKey,
-        estimated_bytes: u64,
-    ) -> Result<DedupeToken, AdmissionError> {
-        let current = self.queued_memory_bytes.fetch_add(estimated_bytes, Ordering::Relaxed) + estimated_bytes;
-        if current > self.thresholds.max_queued_memory_bytes {
-            self.queued_memory_bytes.fetch_sub(estimated_bytes, Ordering::Relaxed);
-            return Err(AdmissionError::MemoryLimitExceeded {
-                current_bytes: current,
-                max_bytes: self.thresholds.max_queued_memory_bytes,
-            });
-        }
-        self.admit_new_workflow(dedupe_key)
-    }
-
-    /// Release tracked memory after a workflow completes or is rejected.
-    pub fn release_memory(&self, bytes: u64) {
-        self.queued_memory_bytes.fetch_sub(bytes, Ordering::Relaxed);
-    }
-
-    /// Current queued memory bytes.
-    pub fn queued_memory_bytes(&self) -> u64 {
-        self.queued_memory_bytes.load(Ordering::Relaxed)
     }
 
     pub fn mark_in_flight(&mut self, instance_id: &InstanceId) {
@@ -159,7 +126,6 @@ impl AdmissionError {
                 | AdmissionError::BlobQueueDepthExceeded { .. }
                 | AdmissionError::CompactionStallActive
                 | AdmissionError::StorageStallActive
-                | AdmissionError::MemoryLimitExceeded { .. }
                 | AdmissionError::MultiplePressureIndicators { .. }
         )
     }

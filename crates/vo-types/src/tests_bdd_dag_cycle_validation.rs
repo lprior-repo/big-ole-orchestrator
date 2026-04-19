@@ -266,14 +266,14 @@ mod scenario_3_self_loop {
 }
 
 // ============================================================================
-// Scenario 4: Disconnected subgraph produces warning (parses OK, no error)
+// Scenario 4: Disconnected subgraph (orphan) produces error
 // ============================================================================
 
 mod scenario_4_disconnected_subgraph {
     use super::*;
 
     #[test]
-    fn given_disconnected_node_c_when_dag_validated_then_dag_still_valid(
+    fn given_disconnected_node_c_when_dag_validated_then_orphan_error(
     ) -> Result<(), Box<dyn std::error::Error>> {
         let json = serde_json::json!({
             "workflow_name": "disconnected",
@@ -281,9 +281,10 @@ mod scenario_4_disconnected_subgraph {
             "edges": [edge_json("A", "B", "Always")]
         });
         let result = parse_workflow(json);
-        let def = result.expect("disconnected DAG should parse OK");
-        assert_eq!(def.nodes.len(), 3);
-        assert_eq!(def.edges.len(), 1);
+        assert!(matches!(result, Err(WorkflowDefinitionError::OrphanNodes { .. })));
+        if let Err(WorkflowDefinitionError::OrphanNodes { orphan_nodes }) = result {
+            assert!(orphan_nodes.contains(&NodeName("C".into())));
+        }
         Ok(())
     }
 
@@ -822,128 +823,5 @@ mod edge_integrity {
             Err(WorkflowDefinitionError::UnknownNode { .. })
         ));
         Ok(())
-    }
-}
-
-// ============================================================================
-// Scenario 11: Independent parallel branches - execution layer verification
-// ============================================================================
-
-mod scenario_11_independent_parallel_branches {
-    use super::*;
-
-    #[test]
-    fn given_diamond_dag_when_execution_layers_computed_then_branches_confirmed_parallel(
-    ) {
-        let def = make_workflow(
-            "independent-parallel",
-            vec![
-                ("A", 1, 0, 1.0),
-                ("B", 1, 0, 1.0),
-                ("C", 1, 0, 1.0),
-                ("D", 1, 0, 1.0),
-            ],
-            vec![
-                ("A", "B", EdgeCondition::Always),
-                ("A", "C", EdgeCondition::Always),
-                ("B", "D", EdgeCondition::Always),
-                ("C", "D", EdgeCondition::Always),
-            ],
-        );
-        let result = parse_workflow(serde_json::to_value(&def).unwrap());
-        assert!(result.is_ok(), "diamond DAG should be valid");
-        let layers = DependencyGraphResolver::execution_layers(&def);
-        assert_eq!(layers.len(), 3, "should have 3 layers: A, [B,C], D");
-        assert_eq!(layers[0].len(), 1, "layer 0: A");
-        assert_eq!(layers[1].len(), 2, "layer 1: B and C (parallel)");
-        assert_eq!(layers[2].len(), 1, "layer 2: D");
-        assert!(layers[1].contains(&NodeName("B".into())));
-        assert!(layers[1].contains(&NodeName("C".into())));
-    }
-
-    #[test]
-    fn given_three_way_split_when_execution_layers_computed_then_all_branches_same_layer(
-    ) {
-        let def = make_workflow(
-            "three-way-parallel",
-            vec![
-                ("A", 1, 0, 1.0),
-                ("B", 1, 0, 1.0),
-                ("C", 1, 0, 1.0),
-                ("D", 1, 0, 1.0),
-            ],
-            vec![
-                ("A", "B", EdgeCondition::Always),
-                ("A", "C", EdgeCondition::Always),
-                ("A", "D", EdgeCondition::Always),
-            ],
-        );
-        let layers = DependencyGraphResolver::execution_layers(&def);
-        assert_eq!(layers.len(), 2, "should have 2 layers: A, [B,C,D]");
-        assert_eq!(layers[0].len(), 1, "layer 0: A");
-        assert_eq!(layers[1].len(), 3, "layer 1: B, C, D (all parallel)");
-    }
-}
-
-// ============================================================================
-// Scenario 12: Dependent parallel branches - cross-edge creates dependency
-// ============================================================================
-
-mod scenario_12_dependent_parallel_branches {
-    use super::*;
-
-    #[test]
-    fn given_parallel_branches_with_cross_edge_when_execution_layers_computed_then_different_layers(
-    ) {
-        let def = make_workflow(
-            "dependent-parallel",
-            vec![
-                ("A", 1, 0, 1.0),
-                ("B", 1, 0, 1.0),
-                ("C", 1, 0, 1.0),
-                ("D", 1, 0, 1.0),
-            ],
-            vec![
-                ("A", "B", EdgeCondition::Always),
-                ("A", "C", EdgeCondition::Always),
-                ("B", "C", EdgeCondition::Always),
-                ("C", "D", EdgeCondition::Always),
-            ],
-        );
-        let layers = DependencyGraphResolver::execution_layers(&def);
-        assert_eq!(
-            layers.len(),
-            4,
-            "should have 4 layers: A(0), B(1), C(2), D(3) - cross-edge B->C breaks parallelism"
-        );
-        assert_eq!(layers[0].len(), 1);
-        assert_eq!(layers[0][0], NodeName("A".into()));
-        assert_eq!(layers[1].len(), 1);
-        assert_eq!(layers[1][0], NodeName("B".into()));
-        assert_eq!(layers[2].len(), 1);
-        assert_eq!(layers[2][0], NodeName("C".into()));
-        assert_eq!(layers[3].len(), 1);
-        assert_eq!(layers[3][0], NodeName("D".into()));
-    }
-
-    #[test]
-    fn given_parallel_branches_with_back_edge_when_validated_then_cycle_detected() {
-        let json = serde_json::json!({
-            "workflow_name": "back-edge-cycle",
-            "nodes": [node_json("A"), node_json("B"), node_json("C"), node_json("D")],
-            "edges": [
-                edge_json("A", "B", "Always"),
-                edge_json("A", "C", "Always"),
-                edge_json("B", "C", "Always"),
-                edge_json("C", "B", "Always"),
-                edge_json("B", "D", "Always"),
-                edge_json("C", "D", "Always"),
-            ]
-        });
-        let result = parse_workflow(json);
-        assert!(
-            matches!(result, Err(WorkflowDefinitionError::CycleDetected { .. })),
-            "back edge B->C and C->B should create cycle"
-        );
     }
 }

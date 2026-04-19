@@ -8,10 +8,12 @@ use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio::time::interval;
 
-use super::OrphanProcess;
+use super::{OrphanProcess, RecoveryError, RecoveryMetrics};
 
 pub trait OrphanQuery: Send + Sync {
-    fn query_orphans(&self) -> impl std::future::Future<Output = Result<Vec<OrphanProcess>, String>> + Send;
+    fn query_orphans(
+        &self,
+    ) -> impl std::future::Future<Output = Result<Vec<OrphanProcess>, String>> + Send;
 }
 
 pub struct OrphanDetector<Q> {
@@ -45,6 +47,108 @@ where
                 Err(_) => {}
             }
         }
+    }
+
+    /// Run a single sweep with a timeout.
+    ///
+    /// # Errors
+    ///
+    /// Returns `RecoveryError::SweepTimeout` if the sweep exceeds the deadline.
+    pub async fn run_with_timeout(
+        &self,
+        tx: mpsc::Sender<OrphanProcess>,
+        deadline: Duration,
+    ) -> Result<(), RecoveryError> {
+        use tokio::time::timeout;
+        let result = timeout(deadline, self.run_single_sweep_impl(tx)).await;
+        match result {
+            Ok(r) => r,
+            Err(_) => Err(RecoveryError::SweepTimeout { elapsed: deadline }),
+        }
+    }
+
+    /// Run a single sweep with a batch limit.
+    ///
+    /// # Errors
+    ///
+    /// Returns `RecoveryError::SweepChannelClosed` if the channel is closed.
+    pub async fn run_with_batch_limit(
+        &self,
+        tx: mpsc::Sender<OrphanProcess>,
+        batch_limit: usize,
+    ) -> Result<(), RecoveryError> {
+        let orphans = self.query.query_orphans().await?;
+        let to_send = orphans.into_iter().take(batch_limit);
+        for orphan in to_send {
+            tx.send(orphan)
+                .await
+                .map_err(|_| RecoveryError::SweepChannelClosed)?;
+        }
+        Ok(())
+    }
+
+    /// Run a single sweep and collect metrics.
+    ///
+    /// Returns `RecoveryMetrics` with detection and enqueue statistics.
+    pub async fn run_and_collect_metrics(
+        &self,
+        tx: mpsc::Sender<OrphanProcess>,
+    ) -> RecoveryMetrics {
+        let start = tokio::time::Instant::now();
+        let mut detected = 0usize;
+        let mut enqueued = 0usize;
+        let mut rejected = 0usize;
+
+        match self.query.query_orphans().await {
+            Ok(orphans) => {
+                detected = orphans.len();
+                for orphan in orphans {
+                    if tx.send(orphan).await.is_ok() {
+                        enqueued += 1;
+                    } else {
+                        rejected += 1;
+                    }
+                }
+            }
+            Err(_) => {
+                // Query failure doesn't count as detected
+            }
+        }
+
+        let elapsed = start.elapsed();
+
+        RecoveryMetrics {
+            detected,
+            enqueued,
+            rejected,
+            elapsed,
+        }
+    }
+
+    /// Run a single sweep operation.
+    ///
+    /// # Errors
+    ///
+    /// Returns `RecoveryError::SweepChannelClosed` if the channel is closed,
+    /// or query errors from the underlying query implementation.
+    pub async fn run_single_sweep(
+        &self,
+        tx: mpsc::Sender<OrphanProcess>,
+    ) -> Result<(), RecoveryError> {
+        self.run_single_sweep_impl(tx).await
+    }
+
+    async fn run_single_sweep_impl(
+        &self,
+        tx: mpsc::Sender<OrphanProcess>,
+    ) -> Result<(), RecoveryError> {
+        let orphans = self.query.query_orphans().await?;
+        for orphan in orphans {
+            tx.send(orphan)
+                .await
+                .map_err(|_| RecoveryError::SweepChannelClosed)?;
+        }
+        Ok(())
     }
 }
 

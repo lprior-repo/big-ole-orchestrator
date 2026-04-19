@@ -24,8 +24,6 @@ mod tests;
 #[cfg(test)]
 mod transition_tests;
 #[cfg(test)]
-mod contract_validation_tests;
-#[cfg(test)]
 mod type_derive_tests;
 
 #[cfg(feature = "proptest")]

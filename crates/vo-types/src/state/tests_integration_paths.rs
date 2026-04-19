@@ -1,162 +1,260 @@
-//! Integration path tests for complete lifecycle sequences.
+//! Integration path tests for lifecycle state machine (behaviors 178-190)
 //!
-//! These tests verify end-to-end state machine paths through the lifecycle.
-//! Covers behaviors 178-190 from the test plan.
+//! These tests verify full lifecycle paths through the state machine,
+//! covering the complete journey from Pending to various terminal states.
 
-use super::*;
+use crate::state::compiler::create_lifecycle_table;
+use crate::state::lifecycle::{LifecycleState, TransitionEvent};
 
-// ========================================================================
-// 3.1 Happy Path: Pending -> Completed
-// ========================================================================
-
+/// Full happy path: Pending -> Completed
+/// 178. Full happy path: Pending -> AssignToNode -> RunningDecision -> StepScheduled -> ExecuteStep -> StepExecuting -> CompleteStep -> Completed
 #[test]
-fn happy_path_pending_to_completed() {
-    let state = LifecycleState::Pending;
-    let state = apply(state, TransitionEvent::AssignToNode).unwrap();
-    assert_eq!(state, LifecycleState::RunningDecision);
-    let state = apply(state, TransitionEvent::StepScheduled).unwrap();
-    assert_eq!(state, LifecycleState::StepScheduled);
-    let state = apply(state, TransitionEvent::ExecuteStep).unwrap();
-    assert_eq!(state, LifecycleState::StepExecuting);
-    let state = apply(state, TransitionEvent::CompleteStep).unwrap();
-    assert_eq!(state, LifecycleState::Completed);
+fn test_path_happy_to_completed() {
+    let table = create_lifecycle_table();
+
+    let state0 = LifecycleState::Pending;
+    let state1 = table.apply(state0, TransitionEvent::AssignToNode).unwrap();
+    assert_eq!(state1, LifecycleState::RunningDecision);
+
+    let state2 = table.apply(state1, TransitionEvent::StepScheduled).unwrap();
+    assert_eq!(state2, LifecycleState::StepScheduled);
+
+    let state3 = table.apply(state2, TransitionEvent::ExecuteStep).unwrap();
+    assert_eq!(state3, LifecycleState::StepExecuting);
+
+    let state4 = table.apply(state3, TransitionEvent::CompleteStep).unwrap();
+    assert_eq!(state4, LifecycleState::Completed);
 }
 
-// ========================================================================
-// 3.2 Fail Path via Fail Event
-// ========================================================================
-
+/// Fail from RunningDecision
+/// 179. Fail from RunningDecision: Pending -> AssignToNode -> RunningDecision -> Fail -> Failed
 #[test]
-fn fail_path_from_running_decision() {
-    let state = LifecycleState::Pending;
-    let state = apply(state, TransitionEvent::AssignToNode).unwrap();
-    assert_eq!(state, LifecycleState::RunningDecision);
-    let state = apply(state, TransitionEvent::Fail).unwrap();
-    assert_eq!(state, LifecycleState::Failed);
+fn test_path_fail_from_running_decision() {
+    let table = create_lifecycle_table();
+
+    let state0 = LifecycleState::Pending;
+    let state1 = table.apply(state0, TransitionEvent::AssignToNode).unwrap();
+    assert_eq!(state1, LifecycleState::RunningDecision);
+
+    let state2 = table.apply(state1, TransitionEvent::Fail).unwrap();
+    assert_eq!(state2, LifecycleState::Failed);
 }
 
+/// Fail from StepScheduled
+/// 180. Fail from StepScheduled: Pending -> AssignToNode -> StepScheduled -> ExecuteStep -> StepExecuting -> Fail -> Failed
 #[test]
-fn fail_path_from_step_scheduled() {
-    let state = LifecycleState::Pending;
-    let state = apply(state, TransitionEvent::AssignToNode).unwrap();
-    let state = apply(state, TransitionEvent::StepScheduled).unwrap();
-    let state = apply(state, TransitionEvent::ExecuteStep).unwrap();
-    let state = apply(state, TransitionEvent::Fail).unwrap();
-    assert_eq!(state, LifecycleState::Failed);
+fn test_path_fail_from_step_scheduled() {
+    let table = create_lifecycle_table();
+
+    let state0 = LifecycleState::Pending;
+    let state1 = table.apply(state0, TransitionEvent::AssignToNode).unwrap();
+    assert_eq!(state1, LifecycleState::RunningDecision);
+
+    let state2 = table.apply(state1, TransitionEvent::StepScheduled).unwrap();
+    assert_eq!(state2, LifecycleState::StepScheduled);
+
+    let state3 = table.apply(state2, TransitionEvent::ExecuteStep).unwrap();
+    assert_eq!(state3, LifecycleState::StepExecuting);
+
+    let state4 = table.apply(state3, TransitionEvent::Fail).unwrap();
+    assert_eq!(state4, LifecycleState::Failed);
 }
 
+/// Fail from StepExecuting
+/// 181. Fail from StepExecuting: Pending -> AssignToNode -> StepScheduled -> ExecuteStep -> StepExecuting -> Fail -> Failed
 #[test]
-fn fail_path_from_step_executing() {
-    let state = LifecycleState::Pending;
-    let state = apply(state, TransitionEvent::AssignToNode).unwrap();
-    let state = apply(state, TransitionEvent::StepScheduled).unwrap();
-    let state = apply(state, TransitionEvent::ExecuteStep).unwrap();
-    let state = apply(state, TransitionEvent::Fail).unwrap();
-    assert_eq!(state, LifecycleState::Failed);
+fn test_path_fail_from_step_executing() {
+    let table = create_lifecycle_table();
+
+    let state0 = LifecycleState::Pending;
+    let state1 = table.apply(state0, TransitionEvent::AssignToNode).unwrap();
+    assert_eq!(state1, LifecycleState::RunningDecision);
+
+    let state2 = table.apply(state1, TransitionEvent::StepScheduled).unwrap();
+    assert_eq!(state2, LifecycleState::StepScheduled);
+
+    let state3 = table.apply(state2, TransitionEvent::ExecuteStep).unwrap();
+    assert_eq!(state3, LifecycleState::StepExecuting);
+
+    let state4 = table.apply(state3, TransitionEvent::Fail).unwrap();
+    assert_eq!(state4, LifecycleState::Failed);
 }
 
+/// Fail from WaitingForTimer
+/// 182. Fail from WaitingForTimer: Pending -> AssignToNode -> StepScheduled -> ExecuteStep -> WaitForTimer -> Fail -> Failed
 #[test]
-fn fail_path_from_waiting_for_timer() {
-    let state = LifecycleState::Pending;
-    let state = apply(state, TransitionEvent::AssignToNode).unwrap();
-    let state = apply(state, TransitionEvent::StepScheduled).unwrap();
-    let state = apply(state, TransitionEvent::ExecuteStep).unwrap();
-    let state = apply(state, TransitionEvent::WaitForTimer).unwrap();
-    let state = apply(state, TransitionEvent::Fail).unwrap();
-    assert_eq!(state, LifecycleState::Failed);
+fn test_path_fail_from_waiting_for_timer() {
+    let table = create_lifecycle_table();
+
+    let state0 = LifecycleState::Pending;
+    let state1 = table.apply(state0, TransitionEvent::AssignToNode).unwrap();
+    assert_eq!(state1, LifecycleState::RunningDecision);
+
+    let state2 = table.apply(state1, TransitionEvent::StepScheduled).unwrap();
+    assert_eq!(state2, LifecycleState::StepScheduled);
+
+    let state3 = table.apply(state2, TransitionEvent::ExecuteStep).unwrap();
+    assert_eq!(state3, LifecycleState::StepExecuting);
+
+    let state4 = table.apply(state3, TransitionEvent::WaitForTimer).unwrap();
+    assert_eq!(state4, LifecycleState::WaitingForTimer);
+
+    let state5 = table.apply(state4, TransitionEvent::Fail).unwrap();
+    assert_eq!(state5, LifecycleState::Failed);
 }
 
-// ========================================================================
-// 3.3 Fail Path via TimerExpired
-// ========================================================================
-
+/// TimerExpired path
+/// 183. TimerExpired path: Pending -> AssignToNode -> StepScheduled -> ExecuteStep -> WaitForTimer -> TimerExpired -> Failed
 #[test]
-fn fail_path_via_timer_expired() {
-    let state = LifecycleState::Pending;
-    let state = apply(state, TransitionEvent::AssignToNode).unwrap();
-    let state = apply(state, TransitionEvent::StepScheduled).unwrap();
-    let state = apply(state, TransitionEvent::ExecuteStep).unwrap();
-    let state = apply(state, TransitionEvent::WaitForTimer).unwrap();
-    let state = apply(state, TransitionEvent::TimerExpired).unwrap();
-    assert_eq!(state, LifecycleState::Failed);
+fn test_path_timer_expired() {
+    let table = create_lifecycle_table();
+
+    let state0 = LifecycleState::Pending;
+    let state1 = table.apply(state0, TransitionEvent::AssignToNode).unwrap();
+    assert_eq!(state1, LifecycleState::RunningDecision);
+
+    let state2 = table.apply(state1, TransitionEvent::StepScheduled).unwrap();
+    assert_eq!(state2, LifecycleState::StepScheduled);
+
+    let state3 = table.apply(state2, TransitionEvent::ExecuteStep).unwrap();
+    assert_eq!(state3, LifecycleState::StepExecuting);
+
+    let state4 = table.apply(state3, TransitionEvent::WaitForTimer).unwrap();
+    assert_eq!(state4, LifecycleState::WaitingForTimer);
+
+    let state5 = table.apply(state4, TransitionEvent::TimerExpired).unwrap();
+    assert_eq!(state5, LifecycleState::Failed);
 }
 
-// ========================================================================
-// 3.4 Cancel Path from Various States
-// ========================================================================
-
+/// Cancel from Pending
+/// 184. Cancel from Pending: Pending -> Cancel -> Cancelled
 #[test]
-fn cancel_path_from_pending() {
-    let state = LifecycleState::Pending;
-    let state = apply(state, TransitionEvent::Cancel).unwrap();
-    assert_eq!(state, LifecycleState::Cancelled);
+fn test_path_cancel_from_pending() {
+    let table = create_lifecycle_table();
+
+    let state0 = LifecycleState::Pending;
+    let state1 = table.apply(state0, TransitionEvent::Cancel).unwrap();
+    assert_eq!(state1, LifecycleState::Cancelled);
 }
 
+/// Cancel from RunningDecision
+/// 185. Cancel from RunningDecision: Pending -> AssignToNode -> RunningDecision -> Cancel -> Cancelled
 #[test]
-fn cancel_path_from_running_decision() {
-    let state = LifecycleState::Pending;
-    let state = apply(state, TransitionEvent::AssignToNode).unwrap();
-    let state = apply(state, TransitionEvent::Cancel).unwrap();
-    assert_eq!(state, LifecycleState::Cancelled);
+fn test_path_cancel_from_running_decision() {
+    let table = create_lifecycle_table();
+
+    let state0 = LifecycleState::Pending;
+    let state1 = table.apply(state0, TransitionEvent::AssignToNode).unwrap();
+    assert_eq!(state1, LifecycleState::RunningDecision);
+
+    let state2 = table.apply(state1, TransitionEvent::Cancel).unwrap();
+    assert_eq!(state2, LifecycleState::Cancelled);
 }
 
+/// Cancel from StepScheduled
+/// 186. Cancel from StepScheduled: Pending -> AssignToNode -> StepScheduled -> Cancel -> Cancelled
 #[test]
-fn cancel_path_from_step_scheduled() {
-    let state = LifecycleState::Pending;
-    let state = apply(state, TransitionEvent::AssignToNode).unwrap();
-    let state = apply(state, TransitionEvent::StepScheduled).unwrap();
-    let state = apply(state, TransitionEvent::Cancel).unwrap();
-    assert_eq!(state, LifecycleState::Cancelled);
+fn test_path_cancel_from_step_scheduled() {
+    let table = create_lifecycle_table();
+
+    let state0 = LifecycleState::Pending;
+    let state1 = table.apply(state0, TransitionEvent::AssignToNode).unwrap();
+    assert_eq!(state1, LifecycleState::RunningDecision);
+
+    let state2 = table.apply(state1, TransitionEvent::StepScheduled).unwrap();
+    assert_eq!(state2, LifecycleState::StepScheduled);
+
+    let state3 = table.apply(state2, TransitionEvent::Cancel).unwrap();
+    assert_eq!(state3, LifecycleState::Cancelled);
 }
 
+/// Cancel from StepExecuting
+/// 187. Cancel from StepExecuting: Pending -> AssignToNode -> StepScheduled -> ExecuteStep -> StepExecuting -> Cancel -> Cancelled
 #[test]
-fn cancel_path_from_step_executing() {
-    let state = LifecycleState::Pending;
-    let state = apply(state, TransitionEvent::AssignToNode).unwrap();
-    let state = apply(state, TransitionEvent::StepScheduled).unwrap();
-    let state = apply(state, TransitionEvent::ExecuteStep).unwrap();
-    let state = apply(state, TransitionEvent::Cancel).unwrap();
-    assert_eq!(state, LifecycleState::Cancelled);
+fn test_path_cancel_from_step_executing() {
+    let table = create_lifecycle_table();
+
+    let state0 = LifecycleState::Pending;
+    let state1 = table.apply(state0, TransitionEvent::AssignToNode).unwrap();
+    assert_eq!(state1, LifecycleState::RunningDecision);
+
+    let state2 = table.apply(state1, TransitionEvent::StepScheduled).unwrap();
+    assert_eq!(state2, LifecycleState::StepScheduled);
+
+    let state3 = table.apply(state2, TransitionEvent::ExecuteStep).unwrap();
+    assert_eq!(state3, LifecycleState::StepExecuting);
+
+    let state4 = table.apply(state3, TransitionEvent::Cancel).unwrap();
+    assert_eq!(state4, LifecycleState::Cancelled);
 }
 
+/// Cancel from WaitingForTimer
+/// 188. Cancel from WaitingForTimer: Pending -> AssignToNode -> StepScheduled -> ExecuteStep -> WaitForTimer -> Cancel -> Cancelled
 #[test]
-fn cancel_path_from_waiting_for_timer() {
-    let state = LifecycleState::Pending;
-    let state = apply(state, TransitionEvent::AssignToNode).unwrap();
-    let state = apply(state, TransitionEvent::StepScheduled).unwrap();
-    let state = apply(state, TransitionEvent::ExecuteStep).unwrap();
-    let state = apply(state, TransitionEvent::WaitForTimer).unwrap();
-    let state = apply(state, TransitionEvent::Cancel).unwrap();
-    assert_eq!(state, LifecycleState::Cancelled);
+fn test_path_cancel_from_waiting_for_timer() {
+    let table = create_lifecycle_table();
+
+    let state0 = LifecycleState::Pending;
+    let state1 = table.apply(state0, TransitionEvent::AssignToNode).unwrap();
+    assert_eq!(state1, LifecycleState::RunningDecision);
+
+    let state2 = table.apply(state1, TransitionEvent::StepScheduled).unwrap();
+    assert_eq!(state2, LifecycleState::StepScheduled);
+
+    let state3 = table.apply(state2, TransitionEvent::ExecuteStep).unwrap();
+    assert_eq!(state3, LifecycleState::StepExecuting);
+
+    let state4 = table.apply(state3, TransitionEvent::WaitForTimer).unwrap();
+    assert_eq!(state4, LifecycleState::WaitingForTimer);
+
+    let state5 = table.apply(state4, TransitionEvent::Cancel).unwrap();
+    assert_eq!(state5, LifecycleState::Cancelled);
 }
 
-// ========================================================================
-// 3.5 Recovery Path
-// ========================================================================
-
+/// Recovery path
+/// 189. Recovery path: Pending -> AssignToNode -> RunningDecision -> StepScheduled -> ExecuteStep -> StepExecuting -> Fail -> Failed -> InstanceResumed -> RunningDecision
 #[test]
-fn recovery_path() {
-    let state = LifecycleState::Pending;
-    let state = apply(state, TransitionEvent::AssignToNode).unwrap();
-    let state = apply(state, TransitionEvent::StepScheduled).unwrap();
-    let state = apply(state, TransitionEvent::ExecuteStep).unwrap();
-    let state = apply(state, TransitionEvent::Fail).unwrap();
-    assert_eq!(state, LifecycleState::Failed);
-    let state = apply(state, TransitionEvent::InstanceResumed).unwrap();
-    assert_eq!(state, LifecycleState::RunningDecision);
+fn test_path_recovery() {
+    let table = create_lifecycle_table();
+
+    let state0 = LifecycleState::Pending;
+    let state1 = table.apply(state0, TransitionEvent::AssignToNode).unwrap();
+    assert_eq!(state1, LifecycleState::RunningDecision);
+
+    let state2 = table.apply(state1, TransitionEvent::StepScheduled).unwrap();
+    assert_eq!(state2, LifecycleState::StepScheduled);
+
+    let state3 = table.apply(state2, TransitionEvent::ExecuteStep).unwrap();
+    assert_eq!(state3, LifecycleState::StepExecuting);
+
+    let state4 = table.apply(state3, TransitionEvent::Fail).unwrap();
+    assert_eq!(state4, LifecycleState::Failed);
+
+    let state5 = table
+        .apply(state4, TransitionEvent::InstanceResumed)
+        .unwrap();
+    assert_eq!(state5, LifecycleState::RunningDecision);
 }
 
-// ========================================================================
-// 3.6 Timer Firing Path
-// ========================================================================
-
+/// Timer firing path
+/// 190. Timer firing path: Pending -> AssignToNode -> StepScheduled -> ExecuteStep -> WaitForTimer -> TimerFired -> StepExecuting
 #[test]
-fn timer_firing_path() {
-    let state = LifecycleState::Pending;
-    let state = apply(state, TransitionEvent::AssignToNode).unwrap();
-    let state = apply(state, TransitionEvent::StepScheduled).unwrap();
-    let state = apply(state, TransitionEvent::ExecuteStep).unwrap();
-    let state = apply(state, TransitionEvent::WaitForTimer).unwrap();
-    let state = apply(state, TransitionEvent::TimerFired).unwrap();
-    assert_eq!(state, LifecycleState::StepExecuting);
+fn test_path_timer_fired() {
+    let table = create_lifecycle_table();
+
+    let state0 = LifecycleState::Pending;
+    let state1 = table.apply(state0, TransitionEvent::AssignToNode).unwrap();
+    assert_eq!(state1, LifecycleState::RunningDecision);
+
+    let state2 = table.apply(state1, TransitionEvent::StepScheduled).unwrap();
+    assert_eq!(state2, LifecycleState::StepScheduled);
+
+    let state3 = table.apply(state2, TransitionEvent::ExecuteStep).unwrap();
+    assert_eq!(state3, LifecycleState::StepExecuting);
+
+    let state4 = table.apply(state3, TransitionEvent::WaitForTimer).unwrap();
+    assert_eq!(state4, LifecycleState::WaitingForTimer);
+
+    let state5 = table.apply(state4, TransitionEvent::TimerFired).unwrap();
+    assert_eq!(state5, LifecycleState::StepExecuting);
 }

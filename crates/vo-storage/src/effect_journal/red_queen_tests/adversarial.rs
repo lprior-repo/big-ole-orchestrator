@@ -927,17 +927,18 @@ fn red_queen_compact_removes_committed_effects_older_than_threshold() {
     let journal = InMemoryEffectJournal::new();
     let id = sample_instance_id();
 
-    // Create 5 committed effects directly with known timestamp (100)
+    // Prepare and commit 5 effects (all get committed_at = 100 from InMemory impl)
     for i in 0..5u32 {
         let record = vo_types::EffectRecord::new(
             format!("fx-compact-{i}"),
             EffectKind::HttpCall,
             json!({}),
-            EffectIntent::Committed,
-            Some(ts(100)),
+            EffectIntent::Prepared,
+            None,
         )
         .unwrap();
-        journal.prepare(&id, record).unwrap();
+        let eid = journal.prepare(&id, record).unwrap();
+        journal.commit(&eid).unwrap();
     }
 
     // Compact with threshold > 100 should remove all 5
@@ -1053,7 +1054,7 @@ fn red_queen_compact_mixed_states_removes_only_committed() {
     let journal = InMemoryEffectJournal::new();
     let id = sample_instance_id();
 
-    // 2 Prepared, 2 Committed (with timestamp 100), 2 RolledBack
+    // 2 Prepared, 2 Committed, 2 RolledBack
     for i in 0..2u32 {
         let record = vo_types::EffectRecord::new(
             format!("fx-mixed-prepared-{i}"),
@@ -1070,22 +1071,24 @@ fn red_queen_compact_mixed_states_removes_only_committed() {
             format!("fx-mixed-committed-{i}"),
             EffectKind::SqlQuery,
             json!({}),
-            EffectIntent::Committed,
-            Some(ts(100)),
+            EffectIntent::Prepared,
+            None,
         )
         .unwrap();
-        journal.prepare(&id, record).unwrap();
+        let eid = journal.prepare(&id, record).unwrap();
+        journal.commit(&eid).unwrap();
     }
     for i in 0..2u32 {
         let record = vo_types::EffectRecord::new(
             format!("fx-mixed-rolledback-{i}"),
             EffectKind::BlobWrite,
             json!({}),
-            EffectIntent::RolledBack,
+            EffectIntent::Prepared,
             None,
         )
         .unwrap();
-        journal.prepare(&id, record).unwrap();
+        let eid = journal.prepare(&id, record).unwrap();
+        journal.rollback(&eid).unwrap();
     }
 
     let removed = journal.compact(ts(200)).unwrap();
@@ -1115,11 +1118,12 @@ fn red_queen_compact_idempotent_double_compact_removes_zero_second_time() {
         "fx-dbl-compact".to_string(),
         EffectKind::HttpCall,
         json!({}),
-        EffectIntent::Committed,
-        Some(ts(100)),
+        EffectIntent::Prepared,
+        None,
     )
     .unwrap();
-    journal.prepare(&id, record).unwrap();
+    let eid = journal.prepare(&id, record).unwrap();
+    journal.commit(&eid).unwrap();
 
     let first = journal.compact(ts(200)).unwrap();
     assert_eq!(first, 1);
@@ -1187,16 +1191,17 @@ fn red_queen_compact_boundary_exact_timestamp() {
     let journal = InMemoryEffectJournal::new();
     let id = sample_instance_id();
 
-    // Create committed effect directly with timestamp 100
+    // committed_at is set to 100 by InMemory impl
     let record = vo_types::EffectRecord::new(
         "fx-boundary".to_string(),
         EffectKind::HttpCall,
         json!({}),
-        EffectIntent::Committed,
-        Some(ts(100)),
+        EffectIntent::Prepared,
+        None,
     )
     .unwrap();
-    journal.prepare(&id, record).unwrap();
+    let eid = journal.prepare(&id, record).unwrap();
+    journal.commit(&eid).unwrap();
 
     // Compact with threshold exactly equal to committed_at — contract is strict less-than
     let removed = journal.compact(ts(100)).unwrap();

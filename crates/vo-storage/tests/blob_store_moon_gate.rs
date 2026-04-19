@@ -241,6 +241,119 @@ impl BlobStore for CrashableBlobStore {
 
         Ok(count)
     }
+
+    fn stage_blob(&self, data: &[u8]) -> Result<ContentAddress, BlobStoreError> {
+        use sha2::Digest;
+        let addr = ContentAddress::from_bytes(&sha2::Sha256::digest(data).into());
+        let size = data.len() as u64;
+
+        if self.blobs.borrow().contains_key(&addr) {
+            return Err(BlobStoreError::DuplicateContent {
+                content_addr: addr.to_string(),
+            });
+        }
+
+        let record =
+            BlobRecord::with_status(addr.clone(), size, 1, 1000, None, BlobStatus::Pending);
+
+        self.blobs.borrow_mut().insert(addr.clone(), data.to_vec());
+        self.records.borrow_mut().insert(addr.clone(), record);
+
+        Ok(addr)
+    }
+
+    fn mark_durable(&self, addr: &ContentAddress) -> Result<(), BlobStoreError> {
+        let record = self
+            .records
+            .borrow()
+            .get(addr)
+            .ok_or_else(|| BlobStoreError::ContentNotFound {
+                content_addr: addr.to_string(),
+            })?
+            .clone();
+
+        if !record.can_transition_to(BlobStatus::DurablyStored) {
+            return Err(BlobStoreError::InvalidPublicationStatus {
+                content_addr: addr.to_string(),
+                current_status: format!("{:?}", record.status()),
+                attempted_operation: "mark_durable".to_string(),
+            });
+        }
+
+        let new_record = BlobRecord::with_status(
+            record.content_addr().clone(),
+            record.size_bytes(),
+            record.reference_count(),
+            record.created_at_ms(),
+            record.expires_at_ms(),
+            BlobStatus::DurablyStored,
+        );
+
+        self.records.borrow_mut().insert(addr.clone(), new_record);
+        Ok(())
+    }
+
+    fn publish(&self, addr: &ContentAddress) -> Result<(), BlobStoreError> {
+        let record = self
+            .records
+            .borrow()
+            .get(addr)
+            .ok_or_else(|| BlobStoreError::ContentNotFound {
+                content_addr: addr.to_string(),
+            })?
+            .clone();
+
+        if !record.can_transition_to(BlobStatus::Published) {
+            return Err(BlobStoreError::InvalidPublicationStatus {
+                content_addr: addr.to_string(),
+                current_status: format!("{:?}", record.status()),
+                attempted_operation: "publish".to_string(),
+            });
+        }
+
+        let new_record = BlobRecord::with_status(
+            record.content_addr().clone(),
+            record.size_bytes(),
+            record.reference_count(),
+            record.created_at_ms(),
+            record.expires_at_ms(),
+            BlobStatus::Published,
+        );
+
+        self.records.borrow_mut().insert(addr.clone(), new_record);
+        Ok(())
+    }
+
+    fn mark_failed(&self, addr: &ContentAddress) -> Result<(), BlobStoreError> {
+        let record = self
+            .records
+            .borrow()
+            .get(addr)
+            .ok_or_else(|| BlobStoreError::ContentNotFound {
+                content_addr: addr.to_string(),
+            })?
+            .clone();
+
+        if !record.can_transition_to(BlobStatus::Failed) {
+            return Err(BlobStoreError::InvalidPublicationStatus {
+                content_addr: addr.to_string(),
+                current_status: format!("{:?}", record.status()),
+                attempted_operation: "mark_failed".to_string(),
+            });
+        }
+
+        let new_record = BlobRecord::with_status(
+            record.content_addr().clone(),
+            record.size_bytes(),
+            record.reference_count(),
+            record.created_at_ms(),
+            record.expires_at_ms(),
+            BlobStatus::Failed,
+        );
+
+        self.records.borrow_mut().insert(addr.clone(), new_record);
+        Ok(())
+    }
 }
 
 // ========================================================================

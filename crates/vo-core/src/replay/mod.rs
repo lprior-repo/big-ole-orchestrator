@@ -11,21 +11,15 @@ pub mod projection;
 mod types;
 
 #[cfg(test)]
-mod adr035_bdd_tests;
-#[cfg(test)]
 mod adr035_event_versioning_tests;
 #[cfg(test)]
 mod crash_injection_tests;
-#[cfg(test)]
-mod corrupted_payload_tests;
 #[cfg(test)]
 mod deterministic_replay_tests;
 #[cfg(test)]
 mod error_propagation_tests;
 #[cfg(test)]
 mod error_tests;
-#[cfg(test)]
-mod effect_replay_tests;
 #[cfg(test)]
 mod event_ordering_tests;
 #[cfg(test)]

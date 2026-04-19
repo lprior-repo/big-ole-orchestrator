@@ -181,7 +181,6 @@ fn controller_with_zero_thresholds_accepts_zero_values() {
         writer_queue_depth_threshold: 0,
         batch_commit_latency_ms_threshold: 0,
         blob_queue_depth_threshold: 0,
-max_queued_memory_bytes: 512 * 1024 * 1024,
     };
     let controller = AdmissionController::with_thresholds(check, state, &thresholds);
 

@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use vo_cli::{interpret_cli_from, map_error_to_exit_code, parse_strict_numeric, CliError, Command};
 
 #[test]
-fn parse_purge_with_instance_flag() {
+fn parse_purge_with_instance_id_flag() {
     let cli = interpret_cli_from(["vo", "purge", "--instance", "abc-123"]).unwrap();
     assert_eq!(
         cli.command,
@@ -121,16 +121,16 @@ fn parse_status_with_custom_url() {
     .unwrap();
     let Command::Status {
         engine_url,
-        instance,
+        workflow_id,
     } = cli.command
     else {
         panic!("expected Status")
     };
     assert_eq!(engine_url, "http://staging:4000");
-    assert_eq!(instance, "ns/01ARZ3NDEKTSV4RRFFQ69G5FAV");
+    assert_eq!(workflow_id, "ns/01ARZ3NDEKTSV4RRFFQ69G5FAV");
 }
 #[test]
-fn missing_purge_instance_is_error() {
+fn missing_purge_instance_id_is_error() {
     assert!(interpret_cli_from(["vo", "purge"]).is_err());
 }
 #[test]
@@ -142,7 +142,7 @@ fn missing_compensate_workflow_id_is_error() {
     assert!(interpret_cli_from(["vo", "compensate"]).is_err());
 }
 #[test]
-fn missing_status_instance_is_error() {
+fn missing_status_instance_id_is_error() {
     assert!(interpret_cli_from(["vo", "status"]).is_err());
 }
 #[test]

@@ -46,7 +46,7 @@
       {
         "hooks": [
           {
-            "command": "cd /home/lewis/src/vo-engine && cargo nextest run 2>&1 | tdd-guard-rust --project-root /home/lewis/src/vo-engine --passthrough",
+            "command": "cd /home/lewis/src/vo-engine \u0026\u0026 cargo nextest run 2\u003e\u00261 | tdd-guard-rust --project-root /home/lewis/src/vo-engine --passthrough",
             "statusMessage": "Running TDD guard...",
             "timeout": 120,
             "type": "command"

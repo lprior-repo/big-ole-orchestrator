@@ -1,6 +1,6 @@
 #![allow(clippy::unwrap_used)]
 
-use fjall::{Config, PartitionCreateOptions};
+use fjall::{Database, Keyspace, KeyspaceCreateOptions};
 use tempfile::tempdir;
 use vo_storage::snapshots::{
     compact_snapshots, get_all_snapshot_sequences, snapshot_load_latest, snapshot_write,
@@ -17,13 +17,13 @@ fn get_other_id() -> InstanceId {
     InstanceId::from_bytes([2; 16])
 }
 
-fn setup_fjall() -> (tempfile::TempDir, fjall::Keyspace, fjall::PartitionHandle) {
+fn setup_fjall() -> (tempfile::TempDir, fjall::Database, fjall::Keyspace) {
     let temp_dir = tempfile::tempdir().unwrap();
-    let keyspace = Config::new(temp_dir.path()).open().unwrap();
-    let partition = keyspace
-        .open_partition("snapshots", PartitionCreateOptions::default())
+    let db = Database::builder(temp_dir.path()).open().unwrap();
+    let partition = db
+        .keyspace("snapshots", || KeyspaceCreateOptions::default())
         .unwrap();
-    (temp_dir, keyspace, partition)
+    (temp_dir, db, partition)
 }
 
 // ---------------------------------------------------------------------------
@@ -152,18 +152,17 @@ fn restore_from_backup_after_crash() {
     let id = get_typical_id();
 
     {
-        let keyspace = Config::new(dir.path()).open().unwrap();
-        let partition = keyspace
-            .open_partition("snapshots", PartitionCreateOptions::default())
+        let db = Database::builder(dir.path()).open().unwrap();
+        let partition = db
+            .keyspace("snapshots", || KeyspaceCreateOptions::default())
             .unwrap();
         snapshot_write(&partition, id.clone(), 50, &InstanceState { counter: 1234 }).unwrap();
-        keyspace.persist(fjall::PersistMode::SyncAll).unwrap();
     }
 
     {
-        let keyspace = Config::new(dir.path()).open().unwrap();
+        let keyspace = Database::builder(dir.path()).open().unwrap();
         let partition = keyspace
-            .open_partition("snapshots", PartitionCreateOptions::default())
+            .keyspace("snapshots", || KeyspaceCreateOptions::default())
             .unwrap();
         let result = snapshot_load_latest(&partition, &id).unwrap();
         assert_eq!(result, Some((50, InstanceState { counter: 1234 })));
@@ -212,9 +211,9 @@ fn full_backup_restore_workflow() {
     let backup_sequence;
     let backup_state;
     {
-        let keyspace = Config::new(dir.path()).open().unwrap();
+        let keyspace = Database::builder(dir.path()).open().unwrap();
         let partition = keyspace
-            .open_partition("snapshots", PartitionCreateOptions::default())
+            .keyspace("snapshots", || KeyspaceCreateOptions::default())
             .unwrap();
 
         for i in 1..=50 {
@@ -228,9 +227,9 @@ fn full_backup_restore_workflow() {
     }
 
     {
-        let keyspace = Config::new(dir.path()).open().unwrap();
+        let keyspace = Database::builder(dir.path()).open().unwrap();
         let partition = keyspace
-            .open_partition("snapshots", PartitionCreateOptions::default())
+            .keyspace("snapshots", || KeyspaceCreateOptions::default())
             .unwrap();
 
         let result = snapshot_load_latest(&partition, &id).unwrap().unwrap();
@@ -242,9 +241,9 @@ fn full_backup_restore_workflow() {
 #[test]
 fn backup_restore_with_compaction() {
     let dir = tempdir().unwrap();
-    let keyspace = Config::new(dir.path()).open().unwrap();
+    let keyspace = Database::builder(dir.path()).open().unwrap();
     let partition = keyspace
-        .open_partition("snapshots", PartitionCreateOptions::default())
+        .keyspace("snapshots", || KeyspaceCreateOptions::default())
         .unwrap();
     let id = get_typical_id();
 
@@ -282,9 +281,9 @@ fn backup_restore_multiple_instances_independent() {
     let id2 = get_other_id();
 
     {
-        let keyspace = Config::new(dir.path()).open().unwrap();
+        let keyspace = Database::builder(dir.path()).open().unwrap();
         let partition = keyspace
-            .open_partition("snapshots", PartitionCreateOptions::default())
+            .keyspace("snapshots", || KeyspaceCreateOptions::default())
             .unwrap();
 
         snapshot_write(&partition, id1.clone(), 10, &InstanceState { counter: 111 }).unwrap();
@@ -294,9 +293,9 @@ fn backup_restore_multiple_instances_independent() {
     }
 
     {
-        let keyspace = Config::new(dir.path()).open().unwrap();
+        let keyspace = Database::builder(dir.path()).open().unwrap();
         let partition = keyspace
-            .open_partition("snapshots", PartitionCreateOptions::default())
+            .keyspace("snapshots", || KeyspaceCreateOptions::default())
             .unwrap();
 
         let result1 = snapshot_load_latest(&partition, &id1).unwrap();

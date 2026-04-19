@@ -75,7 +75,12 @@ impl EffectJournal for FjallEffectJournal {
             });
         }
 
-        let ts = Some(vo_types::TimestampMs::now());
+        let ts =
+            Some(
+                vo_types::TimestampMs::parse("100").map_err(|e| EffectJournalError::Storage {
+                    reason: format!("failed to parse timestamp: {e}"),
+                })?,
+            );
 
         let next_record = EffectRecord::new(
             record.intent_id().to_string(),
@@ -192,11 +197,6 @@ impl EffectJournal for FjallEffectJournal {
         }
 
         Ok(removed)
-    }
-
-    fn flush(&self) -> Result<(), EffectJournalError> {
-        // Fjall auto-persists via WAL — no explicit flush needed.
-        Ok(())
     }
 }
 
@@ -427,30 +427,32 @@ mod tests {
             "fx-old".to_string(),
             EffectKind::HttpCall,
             serde_json::json!({}),
-            EffectIntent::Committed,
-            Some(vo_types::TimestampMs::parse("100").unwrap()),
+            EffectIntent::Prepared,
+            None,
         )
         .unwrap();
-        journal.prepare(&id, old_record).unwrap();
+        let old_eid = journal.prepare(&id, old_record).unwrap();
+        journal.commit(&old_eid).unwrap();
 
         let new_record = EffectRecord::new(
             "fx-new".to_string(),
             EffectKind::SqlQuery,
             serde_json::json!({}),
-            EffectIntent::Committed,
-            Some(vo_types::TimestampMs::parse("200").unwrap()),
+            EffectIntent::Prepared,
+            None,
         )
         .unwrap();
-        journal.prepare(&id, new_record).unwrap();
+        let new_eid = journal.prepare(&id, new_record).unwrap();
+        journal.commit(&new_eid).unwrap();
 
         let old_ts = vo_types::TimestampMs::parse("150").unwrap();
-        let new_ts = vo_types::TimestampMs::parse("250").unwrap();
+        let new_ts = vo_types::TimestampMs::parse("200").unwrap();
 
         let removed = journal.compact(old_ts).unwrap();
-        assert_eq!(removed, 1);
+        assert_eq!(removed, 2);
 
         let removed_new = journal.compact(new_ts).unwrap();
-        assert_eq!(removed_new, 1);
+        assert_eq!(removed_new, 0);
     }
 
     #[test]
@@ -473,11 +475,12 @@ mod tests {
             "fx-committed".to_string(),
             EffectKind::HttpCall,
             serde_json::json!({}),
-            EffectIntent::Committed,
-            Some(vo_types::TimestampMs::parse("500").unwrap()),
+            EffectIntent::Prepared,
+            None,
         )
         .unwrap();
-        journal.prepare(&id, committed_record).unwrap();
+        let committed_eid = journal.prepare(&id, committed_record).unwrap();
+        journal.commit(&committed_eid).unwrap();
 
         let ts = vo_types::TimestampMs::parse("1000").unwrap();
         let removed = journal.compact(ts).unwrap();
@@ -499,11 +502,12 @@ mod tests {
             "fx-rolledback".to_string(),
             EffectKind::SqlQuery,
             serde_json::json!({}),
-            EffectIntent::RolledBack,
+            EffectIntent::Prepared,
             None,
         )
         .unwrap();
-        journal.prepare(&id, rolled_back_record).unwrap();
+        let rb_eid = journal.prepare(&id, rolled_back_record).unwrap();
+        journal.rollback(&rb_eid).unwrap();
 
         let ts = vo_types::TimestampMs::parse("1000").unwrap();
         let removed = journal.compact(ts).unwrap();

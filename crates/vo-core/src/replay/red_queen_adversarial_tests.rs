@@ -6,6 +6,7 @@
 use super::engine::ReplayEngine;
 use super::test_helpers::*;
 use super::types::ReplayError;
+use vo_types::events::EventEnvelope;
 use vo_types::state::LifecycleState;
 
 #[cfg(test)]
@@ -1255,10 +1256,8 @@ mod random_position_corruption_injection {
             let actual_pos = corrupt_pos % events.len().max(1);
             corrupt_payload_at_position(&mut events, actual_pos, "InvalidGarbageType");
             let err = engine.replay(&events).expect_err("should fail at corrupted position");
-            prop_assert!(matches!(
-                err,
-                ReplayError::PayloadDecodeFailed { .. }
-            ), "expected PayloadDecodeFailed error");
+            let is_decode_error = matches!(err, ReplayError::PayloadDecodeFailed { sequence: _, source: _ });
+            prop_assert!(is_decode_error);
         }
 
         #[test]
@@ -1271,10 +1270,8 @@ mod random_position_corruption_injection {
             let actual_pos = corrupt_pos % events.len().max(1);
             inject_truncation_at_position(&mut events, actual_pos);
             let err = engine.replay(&events).expect_err("should fail at truncation");
-            prop_assert!(matches!(
-                err,
-                ReplayError::PayloadDecodeFailed { .. }
-            ), "expected PayloadDecodeFailed error");
+            let is_decode_error = matches!(err, ReplayError::PayloadDecodeFailed { sequence: _, source: _ });
+            prop_assert!(is_decode_error);
         }
 
         #[test]
@@ -1287,10 +1284,8 @@ mod random_position_corruption_injection {
             let actual_pos = corrupt_pos % events.len().max(1);
             inject_null_type_at_position(&mut events, actual_pos);
             let err = engine.replay(&events).expect_err("should fail at null type");
-            prop_assert!(matches!(
-                err,
-                ReplayError::PayloadDecodeFailed { .. }
-            ), "expected PayloadDecodeFailed error");
+            let is_decode_error = matches!(err, ReplayError::PayloadDecodeFailed { sequence: _, source: _ });
+            prop_assert!(is_decode_error);
         }
 
         #[test]
@@ -1303,10 +1298,8 @@ mod random_position_corruption_injection {
             let actual_pos = corrupt_pos % events.len().max(1);
             inject_wrong_type_at_position(&mut events, actual_pos);
             let err = engine.replay(&events).expect_err("should fail at wrong type");
-            prop_assert!(matches!(
-                err,
-                ReplayError::PayloadDecodeFailed { .. }
-            ), "expected PayloadDecodeFailed error");
+            let is_decode_error = matches!(err, ReplayError::PayloadDecodeFailed { sequence: _, source: _ });
+            prop_assert!(is_decode_error);
         }
     }
 
@@ -1653,5 +1646,151 @@ mod memory_pressure_aggressive {
             .replay(&events)
             .expect("mixed large/small should not OOM");
         assert_eq!(result.final_state, Some(LifecycleState::StepScheduled));
+    }
+}
+
+/// Red Queen adversarial tests for duplicate event handling (ve-qejbz).
+///
+/// INVARIANT: Event replay must handle duplicate events idempotently.
+/// Exact duplicates (same instance_id + sequence) must be detected and rejected.
+/// Near-duplicates (different instance_id but same sequence) must also be caught
+/// by the instance_id consistency check.
+#[cfg(test)]
+mod red_queen_duplicate_handling {
+    use super::*;
+    use crate::replay::test_helpers::*;
+    use crate::replay::engine::ReplayEngine;
+    use crate::replay::types::ReplayError;
+
+    /// Given: Two events with identical instance_id and sequence number
+    /// When: Replayed together
+    /// Then: SequenceDuplicate error is returned with correct indices
+    #[test]
+    fn rq_dup_exact_duplicate_identical_sequence() {
+        let engine = ReplayEngine::new();
+        let events = [
+            make_event("inst-dup", 1, workflow_started_payload("wf-1")),
+            make_event("inst-dup", 1, workflow_started_payload("wf-1")),
+        ];
+        let err = engine.replay(&events).expect_err("exact duplicate must be rejected");
+        match err {
+            ReplayError::SequenceDuplicate {
+                sequence,
+                first_at_index,
+                second_at_index,
+            } => {
+                assert_eq!(sequence, 1);
+                assert_eq!(first_at_index, 0);
+                assert_eq!(second_at_index, 1);
+            }
+            other => panic!("Expected SequenceDuplicate, got {other:?}"),
+        }
+    }
+
+    /// Given: A valid sequence with an exact duplicate injected at a middle position
+    /// When: Replayed
+    /// Then: Duplicate is detected at the injection point
+    #[test]
+    fn rq_dup_exact_duplicate_injected_mid_sequence() {
+        let engine = ReplayEngine::new();
+        let events = [
+            make_event("inst-mid", 1, workflow_started_payload("wf-1")),
+            make_event("inst-mid", 2, step_scheduled_payload("wf-1", "step-1")),
+            make_event("inst-mid", 2, step_scheduled_payload("wf-1", "step-1")), // duplicate
+        ];
+        let err = engine.replay(&events).expect_err("mid-sequence duplicate must be rejected");
+        match err {
+            ReplayError::SequenceDuplicate {
+                sequence,
+                first_at_index,
+                second_at_index,
+            } => {
+                assert_eq!(sequence, 2);
+                assert_eq!(first_at_index, 1);
+                assert_eq!(second_at_index, 2);
+            }
+            other => panic!("Expected SequenceDuplicate, got {other:?}"),
+        }
+    }
+
+    /// Given: Two events with same sequence but different instance_id
+    /// When: Replayed together
+    /// Then: InstanceMismatch error is returned (different instance IDs detected first)
+    #[test]
+    fn rq_dup_near_duplicate_different_instance_id() {
+        let engine = ReplayEngine::new();
+        let events = [
+            make_event("inst-a", 1, workflow_started_payload("wf-1")),
+            make_event("inst-b", 2, step_scheduled_payload("wf-1", "step-1")),
+        ];
+        let err = engine
+            .replay(&events)
+            .expect_err("mixed instance IDs must be rejected");
+        match err {
+            ReplayError::InstanceMismatch { .. } => {}
+            other => panic!("Expected InstanceMismatch, got {other:?}"),
+        }
+    }
+
+    /// Given: Three events where the third is a duplicate of the first (non-adjacent)
+    /// When: Replayed
+    /// Then: The duplicate is caught (sequence gap from 2 back to 1)
+    #[test]
+    fn rq_dup_non_adjacent_sequence_duplicate() {
+        let engine = ReplayEngine::new();
+        let events = [
+            make_event("inst-nonadj", 1, workflow_started_payload("wf-1")),
+            make_event("inst-nonadj", 2, step_scheduled_payload("wf-1", "step-1")),
+            make_event("inst-nonadj", 1, step_started_payload("wf-1", "step-1")), // seq 1 again
+        ];
+        // seq goes 1, 2, then 1 again — that's a gap (expected 3, got 1)
+        let err = engine.replay(&events).expect_err("must be rejected");
+        // Could be SequenceGap or SequenceDuplicate depending on implementation
+        assert!(matches!(
+            err,
+            ReplayError::SequenceGap { .. } | ReplayError::SequenceDuplicate { .. }
+        ));
+    }
+
+    /// Given: A valid event replayed twice (idempotent check)
+    /// When: The same single event is replayed
+    /// Then: It succeeds — a single event has no duplicates to detect
+    #[test]
+    fn rq_dup_single_event_always_succeeds() {
+        let engine = ReplayEngine::new();
+        let events = [make_event("inst-single", 1, workflow_started_payload("wf-1"))];
+        let result = engine.replay(&events).expect("single event must succeed");
+        assert_eq!(result.events_applied, 1);
+    }
+
+    /// Given: Multiple pairs of duplicate sequences (1,1,2,2,3,3)
+    /// When: Replayed
+    /// Then: First duplicate pair is detected immediately
+    #[test]
+    fn rq_dup_multiple_duplicate_pairs() {
+        let engine = ReplayEngine::new();
+        let events = [
+            make_event("inst-multi", 1, workflow_started_payload("wf-1")),
+            make_event("inst-multi", 1, workflow_started_payload("wf-1")),
+        ];
+        let err = engine
+            .replay(&events)
+            .expect_err("first duplicate must be caught");
+        assert!(matches!(err, ReplayError::SequenceDuplicate { sequence: 1, .. }));
+    }
+
+    /// Given: An event with same payload but different timestamps
+    /// When: Sequence is the same
+    /// Then: Still detected as duplicate (timestamp is not part of dedup key)
+    #[test]
+    fn rq_dup_same_sequence_different_timestamp_still_caught() {
+        let engine = ReplayEngine::new();
+        let mut event1 = make_event("inst-ts", 1, workflow_started_payload("wf-1"));
+        let mut event2 = make_event("inst-ts", 1, workflow_started_payload("wf-1"));
+        event1.timestamp_ms = 1000;
+        event2.timestamp_ms = 9999;
+        let events = [event1, event2];
+        let err = engine.replay(&events).expect_err("same sequence must be caught");
+        assert!(matches!(err, ReplayError::SequenceDuplicate { sequence: 1, .. }));
     }
 }

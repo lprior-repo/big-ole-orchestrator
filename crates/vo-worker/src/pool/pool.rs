@@ -45,38 +45,6 @@ impl NatsConnectionWrapper {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ResourceQuota {
-    pub soft_limit: u32,
-    pub hard_limit: u32,
-    pub warning_interval_ms: u64,
-}
-
-impl ResourceQuota {
-    pub fn new(soft_limit: u32, hard_limit: u32, warning_interval_ms: u64) -> Result<Self, QuotaError> {
-        if soft_limit == 0 || hard_limit == 0 {
-            return Err(QuotaError::ZeroLimit);
-        }
-        if soft_limit >= hard_limit {
-            return Err(QuotaError::SoftNotLessThanHard);
-        }
-        Ok(Self { soft_limit, hard_limit, warning_interval_ms })
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum QuotaError {
-    ZeroLimit,
-    SoftNotLessThanHard,
-    HardLimitExceeded,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum QuotaStatus {
-    Ok,
-    SoftLimitReached,
-}
-
 #[derive(Debug, Clone)]
 pub struct PoolState {
     pub pool_id: PoolId,
@@ -93,8 +61,6 @@ pub struct PoolState {
     pub total_health_checks: u64,
     pub failed_health_checks: u64,
     pub is_shutting_down: bool,
-    pub resource_quota: Option<ResourceQuota>,
-    pub last_quota_warning_at: Option<TimestampMs>,
 }
 
 impl PoolState {
@@ -114,8 +80,6 @@ impl PoolState {
             total_health_checks: 0,
             failed_health_checks: 0,
             is_shutting_down: false,
-            resource_quota: None,
-            last_quota_warning_at: None,
         }
     }
 
@@ -156,39 +120,6 @@ impl PoolState {
         self.total_connections() < self.config.max_connections
             && self.idle_count() == 0
             && !self.is_shutting_down
-    }
-
-    pub fn reset_circuit_breaker(&mut self) {
-        self.circuit_breaker.reset();
-    }
-
-    pub fn check_quota(&mut self) -> Result<QuotaStatus, QuotaError> {
-        let quota = match &self.resource_quota {
-            Some(q) => q.clone(),
-            None => return Ok(QuotaStatus::Ok),
-        };
-
-        let usage = self.total_connections();
-
-        if usage >= quota.hard_limit {
-            return Err(QuotaError::HardLimitExceeded);
-        }
-
-        if usage >= quota.soft_limit {
-            let now = TimestampMs::now();
-            let should_warn = match self.last_quota_warning_at {
-                None => true,
-                Some(last) => now.as_u64().saturating_sub(last.as_u64()) >= quota.warning_interval_ms,
-            };
-
-            if should_warn {
-                self.last_quota_warning_at = Some(now);
-                return Ok(QuotaStatus::SoftLimitReached);
-            }
-            return Ok(QuotaStatus::Ok);
-        }
-
-        Ok(QuotaStatus::Ok)
     }
 }
 
@@ -255,7 +186,17 @@ impl ConnectionPool {
             };
         }
 
-        if let Some(conn_id) = self.state.idle_connections.pop_front() {
+        // Try idle connections with health check loop: evict stale/unhealthy
+        // and keep trying until a healthy one is found or pool is exhausted.
+        while let Some(conn_id) = self.state.idle_connections.pop_front() {
+            if !self.health_check_connection(conn_id) {
+                debug!(
+                    "Evicted unhealthy idle connection {} from pool {}",
+                    conn_id, self.pool_id
+                );
+                continue;
+            }
+
             if let Some(mut conn) = self.state.connections.get_mut(&conn_id) {
                 conn.status = ConnectionStatus::CheckedOut;
                 conn.increment_use_count();
@@ -602,5 +543,111 @@ mod pool_tests {
         let never_acquired = ConnectionId::new();
         let result = pool.release(never_acquired);
         assert_eq!(result, ReleaseResult::AlreadyClosed);
+    }
+
+    // ========================================================================
+    // Health Check on Acquire Tests (ve-hypnb)
+    // ========================================================================
+
+    /// Given: A pool with a healthy idle connection
+    /// When: acquire() is called
+    /// Then: The connection passes health check and is returned
+    #[test]
+    fn test_acquire_healthy_connection() {
+        let mut pool = create_test_pool();
+
+        // Create a connection and release it to idle
+        let result = futures::executor::block_on(pool.acquire());
+        let conn_id = match result {
+            AcquireResult::Available { connection } => connection.connection_id,
+            _ => panic!("Expected Available"),
+        };
+        pool.release(conn_id);
+        assert_eq!(pool.stats().idle_connections, 1);
+
+        // Acquire again — connection should be healthy and returned
+        let result = futures::executor::block_on(pool.acquire());
+        match result {
+            AcquireResult::Available { connection } => {
+                assert_eq!(connection.connection_id, conn_id);
+            }
+            _ => panic!("Expected Available for healthy idle connection"),
+        }
+    }
+
+    /// Given: A pool with a stale idle connection (last_used_at far in the past)
+    /// When: acquire() is called
+    /// Then: The stale connection is evicted and a new one is created
+    #[test]
+    fn test_acquire_stale_connection_evicted() {
+        let mut pool = create_test_pool();
+
+        // Create a connection and release it to idle
+        let result = futures::executor::block_on(pool.acquire());
+        let conn_id = match result {
+            AcquireResult::Available { connection } => connection.connection_id,
+            _ => panic!("Expected Available"),
+        };
+        pool.release(conn_id);
+        assert_eq!(pool.stats().idle_connections, 1);
+
+        // Artificially age the connection to make it stale
+        // idle_timeout_ms is 30000, so setting last_used_at 60000ms in the past
+        let stale_time = TimestampMs::new_unchecked(TimestampMs::now().as_u64().saturating_sub(60_000));
+        if let Some(conn) = pool.state.connections.get_mut(&conn_id) {
+            conn.last_used_at = stale_time;
+        }
+
+        // Acquire should evict the stale connection and create a new one
+        let result = futures::executor::block_on(pool.acquire());
+        match result {
+            AcquireResult::Available { connection } => {
+                // New connection, different from the stale one
+                assert_ne!(connection.connection_id, conn_id);
+            }
+            _ => panic!("Expected Available after evicting stale connection"),
+        }
+    }
+
+    /// Given: A pool where all connections are stale
+    /// When: acquire() is called multiple times
+    /// Then: All stale connections are evicted, new ones created up to max
+    #[test]
+    fn test_acquire_connection_failure_all_stale() {
+        let pool_id = PoolId::new("stale-test-pool");
+        let nats_urls = vec!["nats://localhost:4222".to_string()];
+        // max_connections=2, idle_timeout_ms=30000
+        let config = PoolConfig::new(1, 2, 5000, 30000, 10000, 10).unwrap();
+        let mut pool = ConnectionPool::new(pool_id, nats_urls, config);
+
+        // Create 2 connections and release them
+        let mut conn_ids = Vec::new();
+        for _ in 0..2 {
+            let result = futures::executor::block_on(pool.acquire());
+            if let AcquireResult::Available { connection } = result {
+                conn_ids.push(connection.connection_id);
+            }
+        }
+        for id in &conn_ids {
+            pool.release(*id);
+        }
+        assert_eq!(pool.stats().idle_connections, 2);
+
+        // Age all connections to be stale
+        let stale_time = TimestampMs::new_unchecked(TimestampMs::now().as_u64().saturating_sub(60_000));
+        for id in &conn_ids {
+            if let Some(conn) = pool.state.connections.get_mut(id) {
+                conn.last_used_at = stale_time;
+            }
+        }
+
+        // First acquire: evicts all stale, creates new
+        let result = futures::executor::block_on(pool.acquire());
+        match result {
+            AcquireResult::Available { connection } => {
+                assert!(!conn_ids.contains(&connection.connection_id));
+            }
+            _ => panic!("Expected Available"),
+        }
     }
 }

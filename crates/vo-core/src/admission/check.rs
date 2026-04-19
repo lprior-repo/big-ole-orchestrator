@@ -33,7 +33,6 @@ pub fn check_admission(state: &WritePressureState) -> Result<(), AdmissionError>
         writer_queue_depth_threshold: 100,
         batch_commit_latency_ms_threshold: 1000,
         blob_queue_depth_threshold: 50,
-        max_queued_memory_bytes: 512 * 1024 * 1024,
     };
     check_admission_with_thresholds(state, &thresholds)
 }
@@ -80,10 +79,6 @@ pub fn check_admission_with_thresholds(
             }),
             PressureIndicator::CompactionStall => Err(AdmissionError::CompactionStallActive),
             PressureIndicator::StorageStall => Err(AdmissionError::StorageStallActive),
-            PressureIndicator::MemoryLimit => Err(AdmissionError::MemoryLimitExceeded {
-                current_bytes: 0,
-                max_bytes: thresholds.max_queued_memory_bytes,
-            }),
         },
         _ => Err(AdmissionError::MultiplePressureIndicators { indicators }),
     }

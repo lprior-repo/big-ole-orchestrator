@@ -6,21 +6,21 @@ use vo_common::{InstanceId, NamespaceId, TimerId, VoError, WorkflowEvent};
 fn type_alias_instance_id_roundtrip() {
     let id: InstanceId = "inst-42".into();
     assert_eq!(id.as_str(), "inst-42");
-    let s: String = id.to_string();
+    let s: String = id;
     assert_eq!(s, "inst-42");
 }
 
 #[test]
 fn type_alias_namespace_id_roundtrip() {
     let ns: NamespaceId = "ns/prod".into();
-    let s: String = ns.to_string();
+    let s: String = ns;
     assert_eq!(s, "ns/prod");
 }
 
 #[test]
 fn type_alias_timer_id_roundtrip() {
     let t: TimerId = "timer-abc".into();
-    let s: String = t.to_string();
+    let s: String = t;
     assert_eq!(s, "timer-abc");
 }
 

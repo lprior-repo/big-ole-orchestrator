@@ -355,7 +355,6 @@ fn check_admission_with_custom_thresholds_returns_ok_when_within_custom_limits()
         writer_queue_depth_threshold: 250,
         batch_commit_latency_ms_threshold: 1000,
         blob_queue_depth_threshold: 50,
-max_queued_memory_bytes: 512 * 1024 * 1024,
     };
     let result = check_admission_with_thresholds(&state, &thresholds);
     assert_eq!(result, Ok(()));
@@ -374,7 +373,6 @@ fn check_admission_with_custom_thresholds_returns_error_when_exceeded() {
         writer_queue_depth_threshold: 250,
         batch_commit_latency_ms_threshold: 1000,
         blob_queue_depth_threshold: 50,
-max_queued_memory_bytes: 512 * 1024 * 1024,
     };
     let result = check_admission_with_thresholds(&state, &thresholds);
     assert_eq!(
@@ -399,7 +397,6 @@ fn check_admission_with_custom_thresholds_rejects_over_blob_threshold() {
         writer_queue_depth_threshold: 100,
         batch_commit_latency_ms_threshold: 1000,
         blob_queue_depth_threshold: 50,
-max_queued_memory_bytes: 512 * 1024 * 1024,
     };
     let result = check_admission_with_thresholds(&state, &thresholds);
     assert_eq!(
@@ -424,7 +421,6 @@ fn check_admission_with_zero_thresholds_accepts_zero_values() {
         writer_queue_depth_threshold: 0,
         batch_commit_latency_ms_threshold: 0,
         blob_queue_depth_threshold: 0,
-max_queued_memory_bytes: 512 * 1024 * 1024,
     };
     let result = check_admission_with_thresholds(&state, &thresholds);
     assert_eq!(result, Ok(()));
@@ -443,7 +439,6 @@ fn check_admission_with_zero_thresholds_rejects_nonzero_values() {
         writer_queue_depth_threshold: 0,
         batch_commit_latency_ms_threshold: 0,
         blob_queue_depth_threshold: 0,
-max_queued_memory_bytes: 512 * 1024 * 1024,
     };
     let result = check_admission_with_thresholds(&state, &thresholds);
     assert_eq!(
@@ -473,7 +468,6 @@ fn check_admission_detects_threshold_swap_mutation() {
         writer_queue_depth_threshold: 100,
         batch_commit_latency_ms_threshold: 1000,
         blob_queue_depth_threshold: 75,
-max_queued_memory_bytes: 512 * 1024 * 1024,
     };
     let result = check_admission_with_thresholds(&state, &thresholds);
     // MUST be WriterQueueDepthExceeded, NOT BlobQueueDepthExceeded
@@ -502,7 +496,6 @@ fn check_admission_with_thresholds_detects_blob_threshold_swap() {
         writer_queue_depth_threshold: 100,
         batch_commit_latency_ms_threshold: 1000,
         blob_queue_depth_threshold: 75,
-max_queued_memory_bytes: 512 * 1024 * 1024,
     };
     let result = check_admission_with_thresholds(&state, &thresholds);
     // MUST be BlobQueueDepthExceeded, NOT WriterQueueDepthExceeded
@@ -591,7 +584,6 @@ fn check_admission_with_thresholds_is_idempotent() {
         writer_queue_depth_threshold: 100,
         batch_commit_latency_ms_threshold: 1000,
         blob_queue_depth_threshold: 50,
-max_queued_memory_bytes: 512 * 1024 * 1024,
     };
     let result1 = check_admission_with_thresholds(&state, &thresholds);
     let result2 = check_admission_with_thresholds(&state, &thresholds);

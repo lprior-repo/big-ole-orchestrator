@@ -8,7 +8,8 @@ pub trait ConfigValidator<T: Clone + Send + Sync>: Send + Sync {
 }
 
 pub struct HotReloadConfig<T: Clone + Send + Sync> {
-    state: RwLock<(T, Option<T>)>,
+    current: RwLock<T>,
+    pending: RwLock<Option<T>>,
     path: PathBuf,
     validator: Arc<dyn ConfigValidator<T>>,
 }
@@ -24,7 +25,8 @@ impl<T: Clone + Send + Sync + 'static> HotReloadConfig<T> {
         }
 
         Ok(Self {
-            state: RwLock::new((initial, None)),
+            current: RwLock::new(initial),
+            pending: RwLock::new(None),
             path,
             validator,
         })
@@ -35,11 +37,10 @@ impl<T: Clone + Send + Sync + 'static> HotReloadConfig<T> {
     where
         T: Clone,
     {
-        let state = self
-            .state
+        self.current
             .read()
-            .expect("SAFETY: RwLock not poisoned — no code path panics while holding this lock");
-        state.0.clone()
+            .expect("SAFETY: RwLock not poisoned — no code path panics while holding this lock")
+            .clone()
     }
 
     pub fn try_update(&self, new_config: T) -> Result<(), Error> {
@@ -47,34 +48,37 @@ impl<T: Clone + Send + Sync + 'static> HotReloadConfig<T> {
             .validate(&new_config)
             .map_err(Error::ValidationFailed)?;
 
-        let mut state = self
-            .state
+        let mut pending = self
+            .pending
             .write()
             .expect("SAFETY: RwLock not poisoned — no code path panics while holding this lock");
-        state.1 = Some(new_config);
+        *pending = Some(new_config);
 
         Ok(())
     }
 
     pub fn commit(&self) -> Result<T, Error> {
-        let mut state = self
-            .state
+        let mut pending = self
+            .pending
             .write()
             .expect("SAFETY: RwLock not poisoned — no code path panics while holding this lock");
-        if let Some(new_config) = state.1.take() {
-            let old = state.0.clone();
-            state.0 = new_config;
+        if let Some(new_config) = pending.take() {
+            let mut current = self.current.write().expect(
+                "SAFETY: RwLock not poisoned — no code path panics while holding this lock",
+            );
+            let old = (*current).clone();
+            *current = new_config.clone();
             return Ok(old);
         }
         Err(Error::SwapFailed)
     }
 
     pub fn rollback(&self) {
-        let mut state = self
-            .state
+        let mut pending = self
+            .pending
             .write()
             .expect("SAFETY: RwLock not poisoned — no code path panics while holding this lock");
-        state.1 = None;
+        *pending = None;
     }
 
     #[must_use]
@@ -96,12 +100,12 @@ impl<T: Clone + Send + Sync + 'static> HotReloadConfig<T> {
             .validate(&new_config)
             .map_err(Error::ValidationFailed)?;
 
-        let mut state = self
-            .state
+        let mut current = self
+            .current
             .write()
             .expect("SAFETY: RwLock not poisoned — no code path panics while holding this lock");
-        let old = state.0.clone();
-        state.0 = new_config;
+        let old = (*current).clone();
+        *current = new_config;
 
         Ok(old)
     }
