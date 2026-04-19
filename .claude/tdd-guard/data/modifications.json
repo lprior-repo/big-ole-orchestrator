@@ -1,12 +1,12 @@
 {
-  "session_id": "43fdc912-66f7-4cf4-a235-069c929f2cca",
-  "transcript_path": "/home/lewis/.claude/projects/-home-lewis-gt-veloxide-polecats-thunder-veloxide/43fdc912-66f7-4cf4-a235-069c929f2cca.jsonl",
+  "session_id": "b5e3db3b-3734-4a79-b9ee-ec8891c16ce6",
+  "transcript_path": "/home/lewis/.claude/projects/-home-lewis-gt-veloxide-polecats-synth-veloxide/b5e3db3b-3734-4a79-b9ee-ec8891c16ce6.jsonl",
   "hook_event_name": "PreToolUse",
   "tool_name": "Edit",
   "tool_input": {
-    "file_path": "/home/lewis/gt/veloxide/polecats/thunder/veloxide/crates/vo-core/tests/debounce_thrash_prevention.rs",
-    "old_string": "        \"Stable state must not produce spurious yields\");\n}",
-    "new_string": "        \"Stable state must not produce spurious yields\");\n}\n\n#[tokio::test(start_paused = true)]\nasync fn debounce_window_separates_distinct_bursts() {\n    // Two bursts of events for the same file, separated by more than\n    // the debounce window, must produce two separate yields.\n    let debounce_ms = 100u64;\n    let (tx, mut debouncer) = setup(Duration::from_millis(debounce_ms)).await;\n    let path = PathBuf::from(\"bursts.json\");\n\n    // Burst 1: 10 rapid events\n    for _ in 0..10 {\n        tx.send(FileEvent::Modify(path.clone())).await.unwrap();\n        tokio::time::advance(Duration::from_millis(1)).await;\n    }\n\n    // Let debounce window expire for burst 1\n    tokio::time::advance(Duration::from_millis(debounce_ms + 1)).await;\n\n    let result1 = debouncer.next_debounced_event().await;\n    assert_eq!(result1, Ok(path.clone()), \"Burst 1 should yield\");\n\n    // Gap between bursts — longer than debounce window\n    tokio::time::advance(Duration::from_millis(debounce_ms * 3)).await;\n\n    // Burst 2: 10 more rapid events\n    for _ in 0..10 {\n        tx.send(FileEvent::Modify(path.clone())).await.unwrap();\n        tokio::time::advance(Duration::from_millis(1)).await;\n    }\n\n    // Let debounce window expire for burst 2\n    tokio::time::advance(Duration::from_millis(debounce_ms + 1)).await;\n\n    let result2 = debouncer.next_debounced_event().await;\n    assert_eq!(result2, Ok(path.clone()), \"Burst 2 should yield as separate event\");\n\n    // No third yield\n    assert!(poll_ready(&mut debouncer).await.is_none(),\n        \"Only two bursts should produce two yields\");\n}",
+    "file_path": "/home/lewis/gt/veloxide/polecats/synth/veloxide/crates/vo-types/tests/effect_serialization_qa.rs",
+    "old_string": "    assert!(result.is_err(), \"Integer kind should fail to deserialize\");\n}",
+    "new_string": "    assert!(result.is_err(), \"Integer kind should fail to deserialize\");\n}\n\n#[test]\nfn effect_record_accepts_empty_intent_id_via_deserialize() {\n    let result: Result<EffectRecord, _> = serde_json::from_str(r#\"{\n        \"intent_id\": \"\",\n        \"kind\": \"HttpCall\",\n        \"params_json\": {},\n        \"status\": \"Prepared\",\n        \"committed_at\": null\n    }\"#);\n    // serde accepts empty string — the empty-id guard is in new(), not serde\n    assert!(result.is_ok(), \"Empty intent_id is valid JSON, serde accepts it\");\n    assert_eq!(result.unwrap().intent_id(), \"\");\n}",
     "replace_all": false
   }
 }
