@@ -1,0 +1,12 @@
+{
+  "session_id": "b0ac07a6-75a9-42c5-bb8b-a7155386043d",
+  "transcript_path": "/home/lewis/.claude/projects/-home-lewis-gt-veloxide-polecats-shiny-veloxide/b0ac07a6-75a9-42c5-bb8b-a7155386043d.jsonl",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Edit",
+  "tool_input": {
+    "file_path": "/home/lewis/gt/veloxide/polecats/shiny/veloxide/crates/vo-worker/src/pool/pool.rs",
+    "old_string": "#[derive(Debug, Clone)]\npub struct PoolState {",
+    "new_string": "#[derive(Debug, Clone)]\npub struct ResourceQuota {\n    pub soft_limit: u32,\n    pub hard_limit: u32,\n}\n\n#[derive(Debug, Clone)]\npub struct PoolState {",
+    "replace_all": false
+  }
+}
