@@ -1329,10 +1329,15 @@ mod timer_accuracy_under_load {
 mod signal_buffer_overflow {
     use super::*;
     use vo_actor::signal_buffer::BufferedSignal;
+    use vo_actor::WaitKey;
     use vo_types::BufferPolicy;
 
     fn make_signal(signal_id: &str) -> BufferedSignal {
         BufferedSignal::new(signal_id.to_string(), vo_actor::SignalPayload::empty(), TimestampMs::now())
+    }
+
+    fn make_actor_wait_key(s: &str) -> WaitKey {
+        WaitKey::parse(s).expect("valid wait key")
     }
 
     // RQ-SBO01: BufferMany returns Dropped when at capacity
@@ -1341,7 +1346,7 @@ mod signal_buffer_overflow {
     fn rq_buffer_many_returns_dropped_when_at_capacity() {
         let mut buffer = SignalBuffer::new(SignalBufferConfig::new(3));
         let instance_id = make_instance_id(0x01);
-        let wait_key = make_wait_key("approval");
+        let wait_key = make_actor_wait_key("approval");
 
         for i in 0..3 {
             let result = buffer.buffer_signal(
@@ -1368,7 +1373,7 @@ mod signal_buffer_overflow {
     fn rq_buffer_count_stays_at_max_on_overflow() {
         let mut buffer = SignalBuffer::new(SignalBufferConfig::new(3));
         let instance_id = make_instance_id(0x01);
-        let wait_key = make_wait_key("approval");
+        let wait_key = make_actor_wait_key("approval");
 
         for i in 0..3 {
             buffer.buffer_signal(
@@ -1399,7 +1404,7 @@ mod signal_buffer_overflow {
     fn rq_buffer_one_rejects_subsequent_signals() {
         let mut buffer = SignalBuffer::with_default_config();
         let instance_id = make_instance_id(0x01);
-        let wait_key = make_wait_key("approval");
+        let wait_key = make_actor_wait_key("approval");
 
         let first = buffer.buffer_signal(
             instance_id.clone(),
@@ -1444,7 +1449,7 @@ mod signal_buffer_overflow {
     fn rq_overflow_result_enables_accountability() {
         let mut buffer = SignalBuffer::new(SignalBufferConfig::new(2));
         let instance_id = make_instance_id(0x01);
-        let wait_key = make_wait_key("approval");
+        let wait_key = make_actor_wait_key("approval");
 
         buffer.buffer_signal(instance_id.clone(), wait_key.clone(), make_signal("sig-0"), BufferPolicy::BufferMany);
         buffer.buffer_signal(instance_id.clone(), wait_key.clone(), make_signal("sig-1"), BufferPolicy::BufferMany);
@@ -1471,8 +1476,8 @@ mod signal_buffer_overflow {
     fn rq_separate_keys_independent_overflow() {
         let mut buffer = SignalBuffer::new(SignalBufferConfig::new(2));
         let instance_id = make_instance_id(0x01);
-        let wait_key_a = make_wait_key("approval");
-        let wait_key_b = make_wait_key("authorization");
+        let wait_key_a = make_actor_wait_key("approval");
+        let wait_key_b = make_actor_wait_key("authorization");
 
         for i in 0..2 {
             buffer.buffer_signal(instance_id.clone(), wait_key_a.clone(), make_signal(&format!("sig-a-{i}")), BufferPolicy::BufferMany);
@@ -1496,7 +1501,7 @@ mod signal_buffer_overflow {
     fn rq_signals_can_be_consumed_to_allow_more() {
         let mut buffer = SignalBuffer::new(SignalBufferConfig::new(2));
         let instance_id = make_instance_id(0x01);
-        let wait_key = make_wait_key("approval");
+        let wait_key = make_actor_wait_key("approval");
 
         buffer.buffer_signal(instance_id.clone(), wait_key.clone(), make_signal("sig-0"), BufferPolicy::BufferMany);
         buffer.buffer_signal(instance_id.clone(), wait_key.clone(), make_signal("sig-1"), BufferPolicy::BufferMany);

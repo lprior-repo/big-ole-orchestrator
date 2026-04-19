@@ -30,6 +30,9 @@ pub mod signal_buffer_tests;
 
 #[cfg(test)]
 pub mod instance_registry_tests;
+
+#[cfg(test)]
+pub mod actor_messages_replay_blackhat_tests;
 pub mod timer_lifecycle;
 pub mod timers;
 pub mod timer_supervisor;
