@@ -368,4 +368,122 @@ mod circuit_breaker_tests {
         );
         assert_eq!(cb.consecutive_failures(), 0);
     }
+
+    // ========================================================================
+    // Open → Half-Open Transition Tests (ve-xx2g7)
+    // ========================================================================
+
+    /// Given: Circuit breaker in Open state with timeout window just expired
+    /// When: try_transition_to_half_open is called at exact boundary
+    /// Then: Transition succeeds
+    #[test]
+    fn test_open_to_half_open_at_exact_timeout_boundary() {
+        let mut cb = CircuitBreaker::new();
+        cb.transition_to(CircuitBreakerState::Open);
+        // Set last transition exactly FAILURE_WINDOW_MS ago
+        cb.last_transition_at = Some(TimestampMs::new_unchecked(
+            TimestampMs::now().as_u64().saturating_sub(FAILURE_WINDOW_MS),
+        ));
+
+        let result = cb.try_transition_to_half_open(TimestampMs::now());
+        assert!(result, "should transition at exact boundary");
+        assert_eq!(cb.state(), CircuitBreakerState::HalfOpen);
+    }
+
+    /// Given: Circuit breaker in Open state, just barely past timeout
+    /// When: try_transition_to_half_open is called
+    /// Then: Transition succeeds (1ms past is enough)
+    #[test]
+    fn test_open_to_half_open_one_ms_past_timeout() {
+        let mut cb = CircuitBreaker::new();
+        cb.transition_to(CircuitBreakerState::Open);
+        cb.last_transition_at = Some(TimestampMs::new_unchecked(
+            TimestampMs::now().as_u64().saturating_sub(FAILURE_WINDOW_MS + 1),
+        ));
+
+        let result = cb.try_transition_to_half_open(TimestampMs::now());
+        assert!(result);
+        assert_eq!(cb.state(), CircuitBreakerState::HalfOpen);
+    }
+
+    /// Given: Circuit breaker in Open state, 1ms before timeout
+    /// When: try_transition_to_half_open is called
+    /// Then: Transition fails, stays Open
+    #[test]
+    fn test_open_stays_open_one_ms_before_timeout() {
+        let mut cb = CircuitBreaker::new();
+        cb.transition_to(CircuitBreakerState::Open);
+        cb.last_transition_at = Some(TimestampMs::new_unchecked(
+            TimestampMs::now().as_u64().saturating_sub(FAILURE_WINDOW_MS - 1),
+        ));
+
+        let result = cb.try_transition_to_half_open(TimestampMs::now());
+        assert!(!result, "should NOT transition before timeout");
+        assert_eq!(cb.state(), CircuitBreakerState::Open);
+    }
+
+    /// Given: Circuit breaker in Open state (rejects requests)
+    /// When: Requests are attempted during Open state
+    /// Then: All requests are rejected
+    #[test]
+    fn test_open_state_rejects_all_requests_early_access() {
+        let mut cb = CircuitBreaker::new();
+        cb.transition_to(CircuitBreakerState::Open);
+
+        // Multiple attempts while Open — all rejected
+        for _ in 0..5 {
+            assert!(
+                !cb.should_allow_request(),
+                "Open state must reject all requests"
+            );
+        }
+        assert_eq!(cb.state(), CircuitBreakerState::Open);
+    }
+
+    /// Given: Circuit breaker in Open state
+    /// When: HalfOpen is entered via timeout, then success
+    /// Then: Full cycle Open → HalfOpen → Closed completes
+    #[test]
+    fn test_full_cycle_open_to_half_open_to_closed() {
+        let mut cb = CircuitBreaker::new();
+        cb.transition_to(CircuitBreakerState::Open);
+        assert_eq!(cb.state(), CircuitBreakerState::Open);
+        assert!(!cb.should_allow_request());
+
+        // Advance past timeout
+        cb.last_transition_at = Some(TimestampMs::new_unchecked(
+            TimestampMs::now().as_u64().saturating_sub(FAILURE_WINDOW_MS + 1),
+        ));
+        assert!(cb.try_transition_to_half_open(TimestampMs::now()));
+        assert_eq!(cb.state(), CircuitBreakerState::HalfOpen);
+        assert!(cb.should_allow_request());
+
+        // Success closes the breaker
+        cb.record_success();
+        assert_eq!(cb.state(), CircuitBreakerState::Closed);
+        assert!(cb.should_allow_request());
+    }
+
+    /// Given: Circuit breaker NOT in Open state
+    /// When: try_transition_to_half_open is called
+    /// Then: Returns false, state unchanged
+    #[test]
+    fn test_try_half_open_from_closed_is_noop() {
+        let mut cb = CircuitBreaker::new();
+        assert_eq!(cb.state(), CircuitBreakerState::Closed);
+
+        let result = cb.try_transition_to_half_open(TimestampMs::now());
+        assert!(!result);
+        assert_eq!(cb.state(), CircuitBreakerState::Closed);
+    }
+
+    #[test]
+    fn test_try_half_open_from_half_open_is_noop() {
+        let mut cb = CircuitBreaker::new();
+        cb.transition_to(CircuitBreakerState::HalfOpen);
+
+        let result = cb.try_transition_to_half_open(TimestampMs::now());
+        assert!(!result);
+        assert_eq!(cb.state(), CircuitBreakerState::HalfOpen);
+    }
 }
