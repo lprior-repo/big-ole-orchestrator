@@ -261,27 +261,21 @@ pub fn timer_delete(
     storage.delete(key.as_bytes())
 }
 
-/// Polls for expired timers and atomically claims them with fence tokens.
+/// Polls for expired timers and atomically claims them by deleting from storage.
 ///
 /// This implements the "fencing" pattern where a timer can only be processed by one node.
-/// When a timer is returned by this function, it has been marked as claimed with the given
-/// fence_token, preventing duplicate delivery by other pollers with different tokens.
-///
-/// Value format:
-/// - 8 bytes: old format (unclaimed), only duration_ms
-/// - 16 bytes: fence_token (8 bytes) || duration_ms (8 bytes)
-///
-/// On claiming, the value is updated to include the fence_token (8 bytes -> 16 bytes).
+/// When a timer is returned by this function, it has been deleted from storage,
+/// preventing duplicate delivery.
 ///
 /// # Errors
 ///
-/// Returns `PollError` if storage operations fail.
+/// Returns `StorageError::CorruptKey` if timer key or value bytes cannot be decoded.
 pub fn poll_expired_timers(
     storage: &mut impl Storage,
+    instance_id: &InstanceId,
     now_ms: u64,
     max_timers: usize,
-    fence_token: u64,
-) -> Result<Vec<ClaimedTimer>, PollError> {
+) -> Result<Vec<TimerRecord>, StorageError> {
     let start = [0u8; 40];
     let end = {
         let mut e = [0u8; 40];
@@ -289,13 +283,13 @@ pub fn poll_expired_timers(
         e
     };
 
-    let pairs = storage.scan(&start, &end).map_err(PollError::from)?;
+    let pairs = storage.scan(&start, &end)?;
 
     let mut claimed = Vec::with_capacity(max_timers);
-    let mut claimed_count = 0;
+    let mut deleted = 0;
 
     for (k, v) in pairs {
-        if claimed_count >= max_timers {
+        if deleted >= max_timers {
             break;
         }
 
@@ -305,51 +299,33 @@ pub fn poll_expired_timers(
         };
         let key = TimerKey(key_bytes);
 
+        if key.instance_id() != *instance_id {
+            continue;
+        }
+
         let fire_at_ms = key.fire_at_ms();
         if fire_at_ms > now_ms {
             continue;
         }
 
-        let (stored_fence_token, duration_ms) = if v.len() == 8 {
-            let duration_ms = u64::from_be_bytes([v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7]]);
-            (0u64, duration_ms)
-        } else if v.len() == 16 {
-            let stored_fence_token =
-                u64::from_be_bytes([v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7]]);
-            let duration_ms =
-                u64::from_be_bytes([v[8], v[9], v[10], v[11], v[12], v[13], v[14], v[15]]);
-            (stored_fence_token, duration_ms)
-        } else {
-            continue;
+        let duration_bytes: [u8; 8] = match v.try_into() {
+            Ok(b) => b,
+            Err(_) => continue,
         };
-
-        if stored_fence_token != 0 {
-            continue;
-        }
-
+        let duration_ms = u64::from_be_bytes(duration_bytes);
         let trigger_time_ms = fire_at_ms.saturating_sub(duration_ms);
 
-        let new_value = {
-            let mut bytes = [0u8; 16];
-            bytes[0..8].copy_from_slice(&fence_token.to_be_bytes());
-            bytes[8..16].copy_from_slice(&duration_ms.to_be_bytes());
-            bytes
-        };
-
-        if let Err(e) = storage.put(&k, &new_value) {
-            return Err(PollError::from(e));
+        if let Err(e) = storage.delete(&k) {
+            return Err(e);
         }
 
-        claimed_count += 1;
-        claimed.push(ClaimedTimer {
-            record: TimerRecord {
-                timer_id: key.timer_id(),
-                instance_id: key.instance_id(),
-                fire_at_ms,
-                trigger_time_ms,
-                duration_ms,
-            },
-            fence_token,
+        deleted += 1;
+        claimed.push(TimerRecord {
+            timer_id: key.timer_id(),
+            instance_id: key.instance_id(),
+            fire_at_ms,
+            trigger_time_ms,
+            duration_ms,
         });
     }
 
@@ -851,10 +827,10 @@ mod tests {
         )
         .unwrap();
 
-        let result = poll_expired_timers(&mut storage, 1500, 10, 1).unwrap();
+        let result = poll_expired_timers(&mut storage, &instance_id, 1500, 10).unwrap();
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0].record.timer_id, timer_id_1);
-        assert_eq!(result[0].record.fire_at_ms, 1000);
+        assert_eq!(result[0].timer_id, timer_id_1);
+        assert_eq!(result[0].fire_at_ms, 1000);
     }
 
     #[test]
@@ -874,10 +850,10 @@ mod tests {
         )
         .unwrap();
 
-        let first_poll = poll_expired_timers(&mut storage, 1500, 10, 1).unwrap();
+        let first_poll = poll_expired_timers(&mut storage, &instance_id, 1500, 10).unwrap();
         assert_eq!(first_poll.len(), 1);
 
-        let second_poll = poll_expired_timers(&mut storage, 1500, 10, 2).unwrap();
+        let second_poll = poll_expired_timers(&mut storage, &instance_id, 1500, 10).unwrap();
         assert_eq!(second_poll.len(), 0);
     }
 
@@ -920,10 +896,10 @@ mod tests {
         )
         .unwrap();
 
-        let result = poll_expired_timers(&mut storage, 2000, 2, 1).unwrap();
+        let result = poll_expired_timers(&mut storage, &instance_id, 2000, 2).unwrap();
         assert_eq!(result.len(), 2);
 
-        let remaining = poll_expired_timers(&mut storage, 2000, 10, 2).unwrap();
+        let remaining = poll_expired_timers(&mut storage, &instance_id, 2000, 10).unwrap();
         assert_eq!(remaining.len(), 1);
     }
 

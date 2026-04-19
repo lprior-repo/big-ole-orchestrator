@@ -1,5 +1,5 @@
 error: #[task] can only be applied to functions
- --> tests/rq_ui/fail_trait_fn.rs:4:5
+ --> tests/rq_ui/fail_trait_fn.rs:3:1
   |
 4 |     #[task]
   |     ^^^^^^^

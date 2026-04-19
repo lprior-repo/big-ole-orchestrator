@@ -8,8 +8,8 @@ use super::{
     snapshot_by_id, ExtensionApplyMode, ExtensionBatchSnapshot, ExtensionTimelineEvent,
     ExtensionTimelineEventKind,
 };
-use crate::flow_extender::preview_extension;
-use crate::ui::graph::Workflow;
+use oya_frontend::flow_extender::preview_extension;
+use oya_frontend::graph::Workflow;
 
 #[test]
 fn timeline_keeps_latest_items_with_cap() {

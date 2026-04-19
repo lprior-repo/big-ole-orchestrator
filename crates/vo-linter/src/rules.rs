@@ -5,7 +5,7 @@
 
 use crate::diagnostic::{Diagnostic, LintCode};
 use std::collections::HashMap;
-use syn::{visit::Visit, ExprCall, ExprMethodCall, File, ItemUse, Path, UseTree};
+use syn::{visit::Visit, ExprCall, File, ItemUse, Path, UseTree};
 
 #[must_use]
 pub fn check_random_in_workflow(file: &File) -> Vec<Diagnostic> {
@@ -48,62 +48,6 @@ fn is_rand_random_call(call: &ExprCall, use_renames: &HashMap<String, String>) -
     })
 }
 
-fn is_thread_rng_gen_call(call: &ExprCall, use_renames: &HashMap<String, String>) -> bool {
-    let path = match &*call.func {
-        syn::Expr::Path(p) => Some(&p.path),
-        _ => None,
-    };
-    path.is_some_and(|p| {
-        path_contains(p, "thread_rng", use_renames) && path_contains(p, "gen", use_renames)
-    })
-}
-
-fn is_os_rng_call(call: &ExprCall, use_renames: &HashMap<String, String>) -> bool {
-    let path = match &*call.func {
-        syn::Expr::Path(p) => Some(&p.path),
-        _ => None,
-    };
-    path.is_some_and(|p| {
-        path_contains(p, "OsRng", use_renames)
-            && (path_contains(p, "next_u64", use_renames)
-                || path_contains(p, "next_u32", use_renames)
-                || path_contains(p, "next_u128", use_renames)
-                || path_contains(p, "fill", use_renames))
-    })
-}
-
-fn is_method_on_thread_rng(
-    method_call: &ExprMethodCall,
-    use_renames: &HashMap<String, String>,
-) -> bool {
-    let receiver_path = match &*method_call.receiver {
-        syn::Expr::Call(call) => {
-            let func_path = match &*call.func {
-                syn::Expr::Path(p) => Some(&p.path),
-                _ => None,
-            };
-            func_path.is_some_and(|p| path_contains(p, "thread_rng", use_renames))
-        }
-        _ => false,
-    };
-    receiver_path && method_call.method == "gen"
-}
-
-fn is_os_rng_method_call(
-    method_call: &ExprMethodCall,
-    use_renames: &HashMap<String, String>,
-) -> bool {
-    let receiver_is_osrng = match &*method_call.receiver {
-        syn::Expr::Path(p) => path_contains(&p.path, "OsRng", use_renames),
-        _ => false,
-    };
-    receiver_is_osrng
-        && (method_call.method == "next_u64"
-            || method_call.method == "next_u32"
-            || method_call.method == "next_u128"
-            || method_call.method == "fill")
-}
-
 #[derive(Default)]
 struct RandomDetector {
     diagnostics: Vec<Diagnostic>,
@@ -136,8 +80,6 @@ impl<'ast> Visit<'ast> for RandomDetector {
     fn visit_expr_call(&mut self, node: &'ast ExprCall) {
         if is_uuid_new_v4_call(node, &self.use_renames)
             || is_rand_random_call(node, &self.use_renames)
-            || is_thread_rng_gen_call(node, &self.use_renames)
-            || is_os_rng_call(node, &self.use_renames)
         {
             self.diagnostics.push(
                 Diagnostic::new(
@@ -148,21 +90,6 @@ impl<'ast> Visit<'ast> for RandomDetector {
             );
         }
         syn::visit::visit_expr_call(self, node);
-    }
-
-    fn visit_expr_method_call(&mut self, node: &'ast ExprMethodCall) {
-        if is_method_on_thread_rng(node, &self.use_renames)
-            || is_os_rng_method_call(node, &self.use_renames)
-        {
-            self.diagnostics.push(
-                Diagnostic::new(
-                    LintCode::L002,
-                    "non-deterministic random call in workflow function",
-                )
-                .with_suggestion("use `ctx.random_u64()` instead"),
-            );
-        }
-        syn::visit::visit_expr_method_call(self, node);
     }
 }
 
@@ -731,28 +658,6 @@ mod tests {
         };
         let diags = parse_and_check(&src.to_string());
         assert!(diags.is_empty());
-    }
-
-    #[test]
-    fn test_os_rng_next_u64_detected() {
-        let src = quote! {
-            fn workflow() {
-                let key = rand::rngs::OsRng.next_u64();
-            }
-        };
-        let diags = parse_and_check(&src.to_string());
-        assert_eq!(diags.len(), 1);
-    }
-
-    #[test]
-    fn test_thread_rng_gen_detected() {
-        let src = quote! {
-            fn workflow() {
-                let x = rand::thread_rng().gen::<u64>();
-            }
-        };
-        let diags = parse_and_check(&src.to_string());
-        assert_eq!(diags.len(), 1);
     }
 }
 

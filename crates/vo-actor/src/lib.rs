@@ -4,13 +4,12 @@
 //! Actors are the fundamental units of computation in the engine.
 
 use bytes::Bytes;
+pub use vo_common::NamespaceId;
 use vo_types::InstanceId;
 
 pub mod heartbeat {
     pub fn run_heartbeat_watcher() {}
 }
-
-pub mod master;
 
 pub mod async_message_router;
 pub mod fairness;
@@ -34,7 +33,6 @@ pub mod timer_lifecycle;
 pub mod timers;
 pub mod timer_supervisor;
 pub mod timer_supervisor_tests;
-pub mod timers;
 
 #[derive(Debug, thiserror::Error)]
 pub enum TerminateError {
@@ -78,6 +76,44 @@ pub enum SignalError {
     Failed(String),
 }
 
+/// Instance snapshot for status queries.
+#[derive(Debug, Clone)]
+pub struct InstanceSnapshot {
+    pub instance_id: InstanceId,
+    pub namespace: NamespaceId,
+    pub workflow_type: String,
+    pub paradigm: WorkflowParadigm,
+    pub phase: InstancePhaseView,
+    pub events_applied: u64,
+}
+
+#[cfg(test)]
+mod signal_error_tests {
+    use super::*;
+
+    #[test]
+    fn signal_error_variants_can_be_constructed() {
+        let err = SignalError::NotFound("inst-1".to_string());
+        assert!(matches!(err, SignalError::NotFound(msg) if msg == "inst-1"));
+
+        let err = SignalError::Failed("timeout".to_string());
+        assert!(matches!(err, SignalError::Failed(msg) if msg == "timeout"));
+    }
+
+    #[test]
+    fn orchestrator_msg_signal_variant_exists() {
+        fn _check(_msg: OrchestratorMsg) {
+            if let OrchestratorMsg::Signal {
+                instance_id: _,
+                signal_name: _,
+                payload: _,
+                reply: _,
+            } = _msg
+            {}
+        }
+    }
+}
+
 #[cfg(test)]
 mod terminate_error_tests {
     use super::*;
@@ -93,13 +129,18 @@ mod terminate_error_tests {
 }
 
 // Actor message types
-pub mod actor_messages {
-    // Import types directly from vo-types
-    use vo_types::{InstanceId, NodeName, SequenceNumber, TimerId, WorkflowName};
+pub mod actor_messages;
+pub mod signal_messages;
 
-    // =============================================================================
-    // Type Definitions
-    // =============================================================================
+pub use signal_messages::mock_signal_storage;
+pub use signal_messages::mock_signal_storage::{MockSignalStorage, MockSignalWorkQueue};
+pub use signal_messages::{
+    AcceptResumeError, AcceptResumeOutcome, BinaryHash, CancelError, CancelRequested,
+    ContinueAsNewError, InstanceResumed, LifecycleState, NodeName, ResumeError, RolloverState,
+    SecretId, SignalAccepted, SignalPayload, SignalStorage, SignalStorageError, SignalWorkQueue,
+    SignalWorkQueueError, StateLookup, TestStateLookup, TimestampMs, WaitKey, WorkflowCancelled,
+    WorkflowContinued,
+};
 
     /// Messages sent to/from workflow instance actors.
     ///

@@ -25,7 +25,7 @@ use vo_cli::commands::rebuild::{
 use vo_cli::utils::{file_hash, sha256_hex};
 use vo_cli::{
     create_dispatcher_v2, dispatch, dispatch_v2, interpret_cli_from, map_error_to_exit_code,
-    parse_strict_numeric, CliError, Command,
+    parse_strict_numeric, CliError, Command, CommandContext, CommandDispatcher,
     CommandDispatcherV2, DefaultDispatchContext, DispatchContext, HandlerRegistry,
     LoggingMiddlewareV2, MetricsMiddlewareV2, MiddlewareResult, MiddlewareV2,
 };
@@ -483,12 +483,12 @@ fn parse_version_flag() {
 }
 
 #[test]
-fn parse_no_args_returns_missing_subcommand() {
+fn parse_no_args_shows_help() {
     let result = interpret_cli_from(vec!["vo"]);
     assert!(result.is_err());
     assert_eq!(
         result.unwrap_err().kind(),
-        clap::error::ErrorKind::MissingSubcommand
+        clap::error::ErrorKind::DisplayHelpOnMissingArgumentOrSubcommand
     );
 }
 
@@ -967,7 +967,6 @@ fn history_save_and_reload_roundtrip() {
             compensation_policy: None,
             node_name: vo_types::NodeName::parse("node-1").unwrap(),
             retry_policy: vo_types::RetryPolicy::new(3, 1000, 2.0).unwrap(),
-            compensation_policy: None,
         }],
         vec![],
     );
@@ -1031,6 +1030,7 @@ fn sha256_hex_pads_to_64_chars() {
 fn sha256_hex_empty_input() {
     let result = sha256_hex("");
     assert_eq!(result.len(), 64);
+    assert!(result.chars().all(|c| c == '0'));
 }
 
 #[test]
@@ -1193,7 +1193,7 @@ fn registry_names_sorted() {
     names.sort();
     assert_eq!(
         names,
-        vec!["check", "compensate", "doctor", "gc", "init", "lock", "purge", "rebuild", "status"]
+        vec!["check", "doctor", "gc", "init", "lock", "purge", "rebuild", "status"]
     );
 }
 

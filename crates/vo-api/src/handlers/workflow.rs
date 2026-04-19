@@ -9,13 +9,12 @@ use ractor::rpc::CallResult;
 use ractor::ActorRef;
 use serde::{Deserialize, Serialize};
 use ulid::Ulid;
-use vo_actor::{CompensateError, InstancePhaseView, OrchestratorMsg, StartError, TerminateError};
-use vo_common::NamespaceId;
-use vo_types::InstanceId;
+use vo_actor::{OrchestratorMsg, StartError};
+use vo_common::{InstanceId, NamespaceId};
 use vo_core::circuit_breaker::{unquarantine, CircuitBreakerConfig, CircuitBreakerState};
 use vo_types::{BinaryHash, WorkflowName};
 
-use crate::types::{ApiError, V3StartRequest, V3StartResponse, V3StatusResponse, WorkloadRejectionError};
+use crate::types::{ApiError, V3StartRequest, V3StartResponse, V3StatusResponse};
 use crate::handlers::helpers::{parse_paradigm, split_path_id, paradigm_to_str, phase_to_str};
 
 /// Request body for unquarantine API.
@@ -71,7 +70,19 @@ pub async fn start_workflow(
     };
 
     // Validate namespace.
-    let namespace = NamespaceId::from(req.namespace);
+    let namespace = match NamespaceId::try_new(&req.namespace) {
+        Ok(ns) => ns,
+        Err(_) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ApiError::new(
+                    "invalid_namespace",
+                    format!("namespace contains illegal characters: {:?}", req.namespace),
+                )),
+            )
+                .into_response();
+        }
+    };
 
     // Parse paradigm.
     let paradigm = match parse_paradigm(&req.paradigm) {
@@ -92,11 +103,22 @@ pub async fn start_workflow(
     };
 
     // Generate or validate instance_id.
-    let instance_id_str = match req.instance_id {
-        Some(ref id) => id.clone(),
-        None => Ulid::new().to_string(),
+    let instance_id = match req.instance_id {
+        Some(ref id) => match InstanceId::try_new(id) {
+            Ok(id) => id,
+            Err(_) => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(ApiError::new(
+                        "invalid_instance_id",
+                        "instance_id contains NATS-illegal characters",
+                    )),
+                )
+                    .into_response();
+            }
+        },
+        None => InstanceId::new(Ulid::new().to_string()),
     };
-    let instance_id = vo_types::InstanceId::parse(&instance_id_str).expect("generated ULID should be valid");
 
     // Serialize input to msgpack bytes.
     let input = match serde_json::to_vec(&req.input) {
@@ -174,23 +196,6 @@ pub async fn start_workflow(
             Json(ApiError::new("spawn_failed", msg)),
         )
             .into_response(),
-        Ok(CallResult::Success(Err(StartError::InvalidConfig(msg)))) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiError::new("invalid_config", msg)),
-        )
-            .into_response(),
-        Ok(CallResult::Success(Err(StartError::BudgetExhaustion { class, requested, available }))) => {
-            let rejection = WorkloadRejectionError::BudgetExhausted {
-                class: class.to_string(),
-                requested,
-                available,
-            };
-            (
-                StatusCode::from_u16(rejection.status_code()).unwrap_or(StatusCode::TOO_MANY_REQUESTS),
-                Json(ApiError::new(rejection.error_code(), rejection.to_string())),
-            )
-                .into_response()
-        }
         Ok(CallResult::Success(Ok(_))) => (
             StatusCode::CREATED,
             Json(V3StartResponse {
@@ -334,7 +339,7 @@ pub async fn terminate_workflow(
             )),
         )
             .into_response(),
-        Ok(CallResult::Success(Err(TerminateError::NotFound(id)))) => (
+        Ok(CallResult::Success(Err(vo_actor::messages::TerminateError::NotFound(id)))) => (
             StatusCode::NOT_FOUND,
             Json(ApiError::new(
                 "not_found",
@@ -342,7 +347,7 @@ pub async fn terminate_workflow(
             )),
         )
             .into_response(),
-        Ok(CallResult::Success(Err(TerminateError::Failed(msg)))) => (
+        Ok(CallResult::Success(Err(vo_actor::messages::TerminateError::Failed(msg)))) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ApiError::new("terminate_failed", msg)),
         )

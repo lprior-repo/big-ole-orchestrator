@@ -457,7 +457,7 @@ mod tests {
 
         #[test]
         fn given_workflow_status_response_when_formatted_then_contains_required_fields() {
-            let response = vo_api::handlers::workflow::WorkflowStatusResponse {
+            let response = vo_api::handlers::workflow_status::WorkflowStatusResponse {
                 instance_id: "01ARZ3NDEKTSV4RRFFQ69G5FAV".to_string(),
                 namespace: "payments".to_string(),
                 workflow_type: "charge".to_string(),
@@ -477,7 +477,7 @@ mod tests {
 
         #[test]
         fn given_quarantined_instance_when_status_queried_then_is_quarantined_true() {
-            let response = vo_api::handlers::workflow::WorkflowStatusResponse {
+            let response = vo_api::handlers::workflow_status::WorkflowStatusResponse {
                 instance_id: "01ARZ3NDEKTSV4RRFFQ69G5FAV".to_string(),
                 namespace: "payments".to_string(),
                 workflow_type: "charge".to_string(),

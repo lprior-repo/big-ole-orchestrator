@@ -5,23 +5,23 @@ use vo_types::{InstanceId, TimerId};
 
 #[test]
 fn type_alias_instance_id_roundtrip() {
-    let id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").expect("valid ULID");
-    assert_eq!(id.as_str(), "01H5JYV4XHGSR2F8KZ9BWNRFMA");
-    let s: String = id.into_inner();
-    assert_eq!(s, "01H5JYV4XHGSR2F8KZ9BWNRFMA");
+    let id: InstanceId = "inst-42".into();
+    assert_eq!(id.as_str(), "inst-42");
+    let s: String = id;
+    assert_eq!(s, "inst-42");
 }
 
 #[test]
 fn type_alias_namespace_id_roundtrip() {
-    let ns = NamespaceId::new("ns/prod").unwrap();
-    let s: String = ns.into_inner();
+    let ns: NamespaceId = "ns/prod".into();
+    let s: String = ns;
     assert_eq!(s, "ns/prod");
 }
 
 #[test]
 fn type_alias_timer_id_roundtrip() {
-    let t = TimerId::new("timer-abc").unwrap();
-    let s: String = t.into_inner();
+    let t: TimerId = "timer-abc".into();
+    let s: String = t;
     assert_eq!(s, "timer-abc");
 }
 

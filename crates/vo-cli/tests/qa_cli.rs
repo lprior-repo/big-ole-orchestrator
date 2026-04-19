@@ -121,7 +121,7 @@ fn parse_status_with_custom_url() {
     .unwrap();
     let Command::Status {
         engine_url,
-        instance,
+        workflow_id,
     } = cli.command
     else {
         panic!("expected Status")

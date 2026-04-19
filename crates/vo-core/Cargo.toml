@@ -21,7 +21,8 @@ metrics = { workspace = true }
 tokio = { workspace = true, features = ["test-util", "rt", "macros", "time", "sync"] }
 rstest.workspace = true
 proptest = "1"
-# vo-storage = { path = "../vo-storage" }  # TEMP: pre-existing compile errors block test compilation
+vo-ipc = { path = "../vo-ipc" }
+vo-storage = { path = "../vo-storage" }
 fjall = { workspace = true }
 tempfile = { workspace = true }
 criterion = { workspace = true }

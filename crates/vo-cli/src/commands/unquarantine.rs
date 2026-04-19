@@ -15,7 +15,7 @@ pub struct UnquarantineResult {
 }
 
 /// Error type for the unquarantine command.
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq)]
 pub enum UnquarantineError {
     #[error("HTTP error: {0}")]
     HttpError(#[from] reqwest::Error),

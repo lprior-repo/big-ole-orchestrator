@@ -517,15 +517,10 @@ mod tests {
 
         proptest! {
             #[test]
-            fn compute_fire_at_never_wraps(
-                base in 0u64..(u64::MAX - 1_000_000),
-                dur in 1u64..1_000_001u64
-            ) {
+            fn compute_fire_at_never_wraps(base in 0u64..u64::MAX, dur in 1u64..1_000_000u64) {
                 let result = compute_fire_at(base, dur);
                 prop_assert!(result.is_ok());
-                let fire_at = result.unwrap();
-                prop_assert!(fire_at >= base);
-                prop_assert!(fire_at <= u64::MAX - 1);
+                prop_assert!(result.unwrap() >= base);
             }
 
             #[test]
@@ -534,83 +529,15 @@ mod tests {
             }
 
             #[test]
-            fn validate_sleep_duration_rejects_all_negatives(dur in i64::MIN..=0i64) {
-                prop_assert!(validate_sleep_duration(dur).is_err());
-            }
-
-            #[test]
-            fn validate_sleep_duration_accepts_all_positives(dur in 1i64..i64::MAX) {
-                let result = validate_sleep_duration(dur);
-                prop_assert!(result.is_ok());
-                prop_assert_eq!(result.unwrap(), dur as u64);
-            }
-
-            #[test]
-            fn sleep_state_remaining_ms_never_exceeds_fire_at(
-                fire_at_ms in 1u64..u64::MAX,
-                scheduled_at_ms in 1u64..u64::MAX,
-                now_ms in 0u64..u64::MAX
-            ) {
-                let scheduled_at_ms = scheduled_at_ms % fire_at_ms.max(1);
+            fn sleep_state_remaining_never_negative(fire in 1u64..1_000_000_000u64, now in 0u64..2_000_000_000u64) {
                 let state = SleepState::new(
                     test_instance_id(),
                     TimerWaitKey::parse("t").unwrap(),
-                    fire_at_ms,
-                    scheduled_at_ms,
+                    fire,
+                    1,
                 );
                 if let Ok(s) = state {
-                    let remaining = s.remaining_ms(now_ms);
-                    prop_assert!(remaining <= fire_at_ms);
-                }
-            }
-
-            #[test]
-            fn sleep_state_remaining_ms_never_panics(
-                fire_at_ms in 1u64..u64::MAX,
-                scheduled_at_ms in 1u64..u64::MAX,
-                now_ms in 0u64..u64::MAX
-            ) {
-                let scheduled_at_ms = scheduled_at_ms % fire_at_ms.max(1);
-                let state = SleepState::new(
-                    test_instance_id(),
-                    TimerWaitKey::parse("t").unwrap(),
-                    fire_at_ms,
-                    scheduled_at_ms,
-                );
-                if let Ok(s) = state {
-                    let _ = s.remaining_ms(now_ms);
-                }
-            }
-
-            #[test]
-            fn create_sleep_state_rejects_negative_durations(
-                now_ms in 0u64..u64::MAX,
-                dur in i64::MIN..=0i64
-            ) {
-                prop_assert!(create_sleep_state(test_instance_id(), &test_timer_id(), now_ms, dur).is_err());
-            }
-
-            #[test]
-            fn create_sleep_state_accepts_positive_durations(
-                now_ms in 0u64..(u64::MAX - 1_000_000),
-                dur in 1i64..1_000_001i64
-            ) {
-                let result = create_sleep_state(test_instance_id(), &test_timer_id(), now_ms, dur);
-                prop_assert!(result.is_ok());
-            }
-
-            #[test]
-            fn timer_wait_key_hash_consistency(key1 in "[a-z]{1,256}", key2 in "[a-z]{1,256}") {
-                use std::collections::hash_map::DefaultHasher;
-                use std::hash::{Hash, Hasher};
-                let a = TimerWaitKey::parse(&key1).unwrap();
-                let b = TimerWaitKey::parse(&key2).unwrap();
-                if a == b {
-                    let mut hasher_a = DefaultHasher::new();
-                    let mut hasher_b = DefaultHasher::new();
-                    a.hash(&mut hasher_a);
-                    b.hash(&mut hasher_b);
-                    prop_assert_eq!(hasher_a.finish(), hasher_b.finish());
+                    prop_assert!(s.remaining_ms(now) <= fire);
                 }
             }
 

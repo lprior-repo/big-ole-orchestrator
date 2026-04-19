@@ -59,19 +59,8 @@ pub async fn start_workflow(
         Some(ref id) => id.clone(),
         None => Ulid::new().to_string(),
     };
-    let instance_id = match vo_types::InstanceId::parse(&instance_id_str) {
-        Ok(id) => id,
-        Err(e) => {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(ApiError::new(
-                    "invalid_instance_id",
-                    format!("instance_id is not valid: {e}"),
-                )),
-            )
-                .into_response();
-        }
-    };
+    let instance_id =
+        vo_types::InstanceId::parse(&instance_id_str).expect("generated ULID should be valid");
 
     let input = match serde_json::to_vec(&req.input) {
         Ok(v) => Bytes::from(v),

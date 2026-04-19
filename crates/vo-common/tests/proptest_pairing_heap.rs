@@ -1,4 +1,4 @@
-//! Proptest suite for PairingHeap — imports from library.
+//! Proptest suite for a min-pairing-heap. Self-contained inline implementation.
 
 use proptest::prelude::*;
 

@@ -349,8 +349,6 @@ pub struct Workflow {
     pub nodes: Vec<Node>,
     pub connections: Vec<Connection>,
     pub name: String,
-    pub execution_queue: Vec<NodeId>,
-    pub current_step: usize,
 }
 
 impl Workflow {
@@ -361,56 +359,12 @@ impl Workflow {
             nodes: Vec::new(),
             connections: Vec::new(),
             name,
-            execution_queue: Vec::new(),
-            current_step: 0,
         }
-    }
-
-    /// Create a new empty workflow with no name (for testing).
-    #[must_use]
-    pub fn new_test() -> Self {
-        Self::new(String::new())
     }
 
     /// Add a node to the workflow.
     pub fn add_node(&mut self, node: Node) {
         self.nodes.push(node);
-    }
-
-    /// Add a node by name and position (for testing compatibility).
-    /// Returns the ID of the added node.
-    pub fn add_node_simple(&mut self, name: &str, x: f64, y: f64) -> NodeId {
-        let kind = if name.contains("http") || name.contains("handler") {
-            vo_types::NodeKind::ManagedEffect
-        } else {
-            vo_types::NodeKind::Pure
-        };
-        let node = Node::new(NodeId::new(), name.to_string(), kind);
-        let id = node.id.clone();
-        self.nodes.push(node);
-        id
-    }
-
-    /// Add a connection between two nodes.
-    pub fn add_connection(
-        &mut self,
-        source: NodeId,
-        target: NodeId,
-        source_port: &PortName,
-        target_port: &PortName,
-    ) -> Result<(), String> {
-        if self.nodes.iter().any(|n| n.id == source) && self.nodes.iter().any(|n| n.id == target) {
-            self.connections.push(Connection {
-                id: Uuid::new_v4(),
-                source,
-                target,
-                source_port: source_port.clone(),
-                target_port: target_port.clone(),
-            });
-            Ok(())
-        } else {
-            Err("Source or target node not found".to_string())
-        }
     }
 
     /// Remove a node from the workflow.
@@ -594,23 +548,6 @@ mod tests {
         workflow.remove_node(node_id.clone());
         assert_eq!(workflow.nodes.len(), 0);
         assert!(workflow.get_node(node_id).is_none());
-    }
-
-    #[test]
-    fn connection_stores_edge_data() {
-        let src = NodeId::new();
-        let tgt = NodeId::new();
-        let conn = Connection {
-            id: Uuid::new_v4(),
-            source: src.clone(),
-            target: tgt.clone(),
-            source_port: PortName::from("out"),
-            target_port: PortName::from("in"),
-        };
-        assert_eq!(conn.source, src);
-        assert_eq!(conn.target, tgt);
-        assert_eq!(conn.source_port, PortName::from("out"));
-        assert_eq!(conn.target_port, PortName::from("in"));
     }
 
     #[test]

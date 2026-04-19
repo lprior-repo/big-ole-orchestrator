@@ -185,7 +185,6 @@ impl<T: Ord> BinomialHeap<T> {
             return None;
         }
 
-        #[allow(clippy::expect_used)]
         let (min_degree, _) = self
             .trees
             .iter()
