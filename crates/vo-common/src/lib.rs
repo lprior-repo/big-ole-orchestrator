@@ -5,7 +5,9 @@
 
 use serde::{Deserialize, Serialize};
 use std::fmt;
-use thiserror::Error;
+
+mod error;
+pub use crate::error::VoError;
 
 const MAX_ID_LENGTH: usize = 256;
 
@@ -110,8 +112,6 @@ pub enum WorkflowEvent {
         result_json: String,
     },
 }
-
-pub type VoError = String;
 
 #[cfg(test)]
 mod tests {

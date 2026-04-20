@@ -25,7 +25,7 @@ fn path_contains(path: &Path, segment: &str, use_renames: &HashMap<String, Strin
     })
 }
 
-fn is_uuid_new_v4_call(call: &ExprCall) -> bool {
+fn is_uuid_new_v4_call(call: &ExprCall, use_renames: &HashMap<String, String>) -> bool {
     if !call.args.is_empty() {
         return false;
     }
@@ -111,16 +111,9 @@ fn extract_handler_name(path: &Path) -> Option<String> {
     path.segments.last().map(|s| s.ident.to_string())
 }
 
-fn is_extern_c_fn(ptr: &syn::Expr) -> bool {
-    match ptr {
-        syn::Expr::Closure(c) => c.asyncness.is_none() && c.fn_token.to_string() == "fn",
-        _ => false,
-    }
-}
-
 impl<'ast> Visit<'ast> for SignalHandlerDetector {
     fn visit_item_fn(&mut self, node: &'ast syn::ItemFn) {
-        let name = node.ident.to_string();
+        let name = node.sig.ident.to_string();
         self.handler_names.insert(name.clone());
         syn::visit::visit_item_fn(self, node);
     }
