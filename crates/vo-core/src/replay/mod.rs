@@ -37,4 +37,4 @@ mod position_tests;
 mod upcaster_tests;
 
 pub use engine::ReplayEngine;
-pub use types::{ReplayError, ReplayErrorKind, ReplayResult};
+pub use types::{ReplayError, ReplayResult};

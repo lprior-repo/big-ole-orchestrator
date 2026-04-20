@@ -29,6 +29,9 @@ pub mod signal_buffer_tests;
 
 #[cfg(test)]
 pub mod instance_registry_tests;
+
+#[cfg(test)]
+pub mod replay_attack_tests;
 pub mod timer_lifecycle;
 pub mod timers;
 pub mod timer_supervisor;
@@ -1143,7 +1146,6 @@ pub use signal_messages::{
             assert_message::<ControlActorMessage>();
         }
     }
-}
 
 // =============================================================================
 // Error Types - Cancel and Resume

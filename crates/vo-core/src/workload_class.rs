@@ -54,8 +54,6 @@ pub enum WorkloadClass {
     UnsafeBulk,
     /// Reserved capacity for crash recovery.
     Recovery,
-    /// Lower priority. Capped under contention.
-    UnsafeBulk,
 }
 
 impl PartialOrd for WorkloadClass {

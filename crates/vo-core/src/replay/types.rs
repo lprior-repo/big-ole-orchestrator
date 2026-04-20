@@ -132,16 +132,17 @@ impl std::error::Error for ReplayError {}
 
 impl ReplayError {
     #[must_use]
-    pub fn kind(&self) -> ReplayErrorKind {
-        match self {
+    pub fn is_deterministic(&self) -> bool {
+        matches!(
+            self,
             Self::InstanceMismatch { .. }
-            | Self::SequenceGap { .. }
-            | Self::SequenceDuplicate { .. }
-            | Self::PayloadDecodeFailed { .. }
-            | Self::TransitionFailed { .. }
-            | Self::UnexpectedEventType { .. }
-            | Self::UpcastingFailed { .. }
-            | Self::BlobPublicationFailed { .. } => ReplayErrorKind::Deterministic,
-        }
+                | Self::SequenceGap { .. }
+                | Self::SequenceDuplicate { .. }
+                | Self::PayloadDecodeFailed { .. }
+                | Self::TransitionFailed { .. }
+                | Self::UnexpectedEventType { .. }
+                | Self::UpcastingFailed { .. }
+                | Self::BlobPublicationFailed { .. }
+        )
     }
 }
