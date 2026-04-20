@@ -652,4 +652,130 @@ mod pool_tests {
             _ => panic!("Expected Available"),
         }
     }
+
+    // ========================================================================
+    // BLACKHAT: Connection Hijacking Tests (ve-cby51)
+    // Tests designed to expose connection hijacking vulnerabilities
+    // ========================================================================
+
+    /// BH-001: Connection hijacking without ownership verification
+    ///
+    /// Vulnerability: release() accepts any connection_id without verifying
+    /// that the caller actually owns the checkout. An attacker who learns
+    /// another actor's connection_id can prematurely return that connection
+    /// to the pool, causing the original owner to hold a stale reference.
+    #[test]
+    fn bh_connection_hijacking_without_ownership_verification() {
+        let pool_id = PoolId::new("bh-hijack-pool");
+        let nats_urls = vec!["nats://localhost:4222".to_string()];
+        let config = PoolConfig::new(1, 3, 5000, 30000, 10000, 10).unwrap();
+        let mut pool = ConnectionPool::new(pool_id, nats_urls, config);
+
+        let result_a = futures::executor::block_on(pool.acquire());
+        let conn_a = match result_a {
+            AcquireResult::Available { connection } => connection.connection_id,
+            _ => panic!("Actor A should acquire connection"),
+        };
+
+        let result_b = futures::executor::block_on(pool.acquire());
+        let _conn_b = match result_b {
+            AcquireResult::Available { connection } => connection.connection_id,
+            _ => panic!("Actor B should acquire connection"),
+        };
+
+        let release_result = pool.release(conn_a);
+        assert_eq!(
+            release_result,
+            ReleaseResult::Returned,
+            "Attacker can release Actor A's connection without ownership"
+        );
+
+        let stats = pool.stats();
+        assert_eq!(
+            stats.checked_out_connections, 0,
+            "After hijack: no connections checked out (Actor A's was stolen!)"
+        );
+        assert_eq!(
+            stats.idle_connections, 2,
+            "Both connections returned to idle (one was hijacked)"
+        );
+    }
+
+    /// BH-002: Connection reuse after hijack creates use-after-free scenario
+    ///
+    /// After an attacker releases Actor A's connection, Actor C can acquire
+    /// the same connection_id. Both Actor A and Actor C now hold references
+    /// to the same physical connection, but only Actor C's reference is valid.
+    #[test]
+    fn bh_connection_hijacking_allows_stale_reference_use() {
+        let pool_id = PoolId::new("bh-stale-ref-pool");
+        let nats_urls = vec!["nats://localhost:4222".to_string()];
+        let config = PoolConfig::new(1, 2, 5000, 30000, 10000, 10).unwrap();
+        let mut pool = ConnectionPool::new(pool_id, nats_urls, config);
+
+        let result_a = futures::executor::block_on(pool.acquire());
+        let conn_a = match result_a {
+            AcquireResult::Available { connection } => connection,
+            _ => panic!("Actor A should acquire"),
+        };
+        let conn_a_id = conn_a.connection_id;
+
+        pool.release(conn_a_id);
+
+        let result_b = futures::executor::block_on(pool.acquire());
+        let conn_b = match result_b {
+            AcquireResult::Available { connection } => connection,
+            _ => panic!("Actor B should acquire after hijack"),
+        };
+
+        assert_eq!(
+            conn_a_id, conn_b.connection_id,
+            "Actor B gets same connection_id that Actor A was using!"
+        );
+
+        assert!(
+            conn_a.is_checked_out(),
+            "Actor A's reference still shows CheckedOut even though pool returned it!"
+        );
+        assert!(
+            conn_b.is_checked_out(),
+            "Actor B's reference shows CheckedOut"
+        );
+
+        panic!("VULNERABILITY: Two actors hold references to same connection_id but only one is valid in pool");
+    }
+
+    /// BH-003: Premature release by concurrent actor causes ownership confusion
+    ///
+    /// When Actor B prematurely releases Actor A's connection, the pool
+    /// returns it to idle. Actor A's reference becomes stale but still
+    /// shows CheckedOut status. The next acquire() will give this
+    /// connection to another actor, creating a data race.
+    #[test]
+    fn bh_connection_hijacking_premature_release_creates_data_race() {
+        let pool_id = PoolId::new("bh-race-pool");
+        let nats_urls = vec!["nats://localhost:4222".to_string()];
+        let config = PoolConfig::new(1, 2, 5000, 30000, 10000, 10).unwrap();
+        let mut pool = ConnectionPool::new(pool_id, nats_urls, config);
+
+        let result_a = futures::executor::block_on(pool.acquire());
+        let conn_a = match result_a {
+            AcquireResult::Available { connection } => connection.connection_id,
+            _ => panic!("Actor A should acquire"),
+        };
+
+        let result_b = futures::executor::block_on(pool.acquire());
+        let _conn_b = match result_b {
+            AcquireResult::Available { connection } => connection.connection_id,
+            _ => panic!("Actor B should acquire"),
+        };
+
+        pool.release(conn_a);
+
+        let stats = pool.stats();
+        assert_eq!(stats.idle_connections, 2, "Both connections now idle");
+        assert_eq!(stats.checked_out_connections, 0, "No connections checked out");
+
+        panic!("VULNERABILITY: Actor A's connection was released by Actor B without Actor A's consent");
+    }
 }
