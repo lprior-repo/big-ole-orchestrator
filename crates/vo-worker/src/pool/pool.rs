@@ -5,7 +5,9 @@
 
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::{mpsc, OwnedSemaphorePermit, Semaphore};
+use tokio::time::timeout;
 use tracing::{debug, error, info, warn};
 
 use vo_types::connection_pool::{
@@ -130,6 +132,8 @@ pub struct ConnectionPool {
     nats_urls: Vec<String>,
     connection_semaphore: Arc<Semaphore>,
     wait_semaphore: Arc<Semaphore>,
+    total_timeouts: u64,
+    total_deadlocks_prevented: u64,
 }
 
 impl ConnectionPool {
@@ -147,6 +151,8 @@ impl ConnectionPool {
             nats_urls,
             connection_semaphore: Arc::new(Semaphore::new(0)),
             wait_semaphore: Arc::new(Semaphore::new(0)),
+            total_timeouts: 0,
+            total_deadlocks_prevented: 0,
         }
     }
 
@@ -161,10 +167,13 @@ impl ConnectionPool {
         .await
     }
 
-    #[allow(clippy::unused_async)]
-    pub async fn acquire_with_timeout(&mut self, timeout: std::time::Duration) -> AcquireResult {
+    pub async fn acquire_with_timeout(&mut self, timeout: Duration) -> AcquireResult {
         if self.state.is_shutting_down {
             return AcquireResult::PoolClosing;
+        }
+
+        if let Some(timed_out) = self.check_pending_timeouts(timeout) {
+            return timed_out;
         }
 
         if !self.state.circuit_breaker.should_allow_request() {
@@ -335,6 +344,29 @@ impl ConnectionPool {
         }
 
         ReleaseResult::AlreadyClosed
+    }
+
+    fn check_pending_timeouts(&mut self, timeout: Duration) -> Option<AcquireResult> {
+        if self.state.pending_acquires.is_empty() {
+            return None;
+        }
+
+        let now = TimestampMs::now();
+        let timeout_ms = timeout.as_millis() as u64;
+
+        if let Some(oldest) = self.state.pending_acquires.front() {
+            let waited_ms = now.as_u64().saturating_sub(oldest.enqueued_at.as_u64());
+            if waited_ms >= timeout_ms {
+                self.total_timeouts += 1;
+                warn!(
+                    "Deadlock prevented: oldest pending acquire timed out after {}ms (timeout: {}ms) in pool {}",
+                    waited_ms, timeout_ms, self.pool_id
+                );
+                return Some(AcquireResult::Timeout { waited_ms });
+            }
+        }
+
+        None
     }
 
     pub fn stats(&self) -> PoolStats {
@@ -650,6 +682,408 @@ mod pool_tests {
                 assert!(!conn_ids.contains(&connection.connection_id));
             }
             _ => panic!("Expected Available"),
+        }
+    }
+
+    // ========================================================================
+    // Deadlock Prevention Tests (rq-011)
+    // ========================================================================
+
+    /// Given: A pool with max 1 connection, all connections checked out
+    /// When: acquire_with_timeout is called with a short timeout
+    /// Then: Timeout is returned to prevent indefinite waiting
+    #[tokio::test]
+    async fn test_deadlock_prevention_timeout_returned() {
+        let pool_id = PoolId::new("deadlock-test-pool");
+        let nats_urls = vec!["nats://localhost:4222".to_string()];
+        let config = PoolConfig::new(1, 1, 5000, 30000, 10000, 10).unwrap();
+        let mut pool = ConnectionPool::new(pool_id, nats_urls, config);
+
+        // Acquire the single connection - it becomes checked out
+        let result = pool.acquire().await;
+        let _conn_id = match result {
+            AcquireResult::Available { connection } => connection.connection_id,
+            _ => panic!("Expected Available"),
+        };
+        assert_eq!(pool.stats().checked_out_connections, 1);
+
+        // Simulate time passing by adding a pending acquire
+        let old_enqueue_time =
+            TimestampMs(TimestampMs::now().as_u64().saturating_sub(6000)); // 6 seconds ago
+        pool.state.pending_acquires.push_back(WaitHandle {
+            request_id: 1,
+            enqueued_at: old_enqueue_time,
+            pool_id: pool_id.clone(),
+        });
+
+        // Now try to acquire with a 5 second timeout
+        // Since there's already a pending waiter that has been waiting 6 seconds (exceeding 5s timeout)
+        // the system should return Timeout, NOT allow another pending waiter
+        let short_timeout = Duration::from_secs(5);
+        let result = pool.acquire_with_timeout(short_timeout).await;
+
+        match result {
+            AcquireResult::Timeout { waited_ms } => {
+                assert!(waited_ms >= 5000, "Expected waited_ms >= 5000, got {}", waited_ms);
+            }
+            _ => panic!("Expected Timeout to prevent deadlock, got {:?}", result),
+        }
+    }
+
+    /// Given: A pool with no pending waiters
+    /// When: acquire_with_timeout is called
+    /// Then: Returns PoolExhausted (not Timeout) when at capacity
+    #[tokio::test]
+    async fn test_no_timeout_when_no_pending_waiters() {
+        let pool_id = PoolId::new("no-pending-pool");
+        let nats_urls = vec!["nats://localhost:4222".to_string()];
+        let config = PoolConfig::new(1, 1, 5000, 30000, 10000, 0).unwrap(); // max_pending_acquires = 0
+        let mut pool = ConnectionPool::new(pool_id, nats_urls, config);
+
+        // Acquire the single connection
+        let result = pool.acquire().await;
+        let _conn_id = match result {
+            AcquireResult::Available { connection } => connection.connection_id,
+            _ => panic!("Expected Available"),
+        };
+
+        // Now pool is exhausted, no pending allowed
+        let result = pool.acquire_with_timeout(Duration::from_secs(5)).await;
+        match result {
+            AcquireResult::PoolExhausted { .. } => {}
+            _ => panic!("Expected PoolExhausted when max_pending=0, got {:?}", result),
+        }
+    }
+
+    /// Given: A pool with a recent pending waiter (not timed out)
+    /// When: acquire_with_timeout is called
+    /// Then: Returns PoolExhausted since pending slot is filled
+    #[tokio::test]
+    async fn test_pool_exhausted_when_pending_filled() {
+        let pool_id = PoolId::new("pending-filled-pool");
+        let nats_urls = vec!["nats://localhost:4222".to_string()];
+        let config = PoolConfig::new(1, 1, 5000, 30000, 10000, 1).unwrap(); // max_pending_acquires = 1
+        let mut pool = ConnectionPool::new(pool_id, nats_urls, config);
+
+        // Acquire the single connection
+        let result = pool.acquire().await;
+        let _conn_id = match result {
+            AcquireResult::Available { connection } => connection.connection_id,
+            _ => panic!("Expected Available"),
+        };
+
+        // Add one pending waiter (recent, not timed out)
+        pool.state.pending_acquires.push_back(WaitHandle {
+            request_id: 1,
+            enqueued_at: TimestampMs::now(), // now - not timed out
+            pool_id: pool_id.clone(),
+        });
+
+        // Second acquire should get PoolExhausted since pending slot is filled
+        let result = pool.acquire_with_timeout(Duration::from_secs(5)).await;
+        match result {
+            AcquireResult::PoolExhausted { .. } => {}
+            _ => panic!("Expected PoolExhausted when pending filled, got {:?}", result),
+        }
+    }
+
+    /// Given: Pool at capacity with pending waiter that hasn't timed out
+    /// When: acquire is called (uses default timeout from config)
+    /// Then: Pending is returned for new waiter
+    #[tokio::test]
+    async fn test_pending_returned_for_new_waiter() {
+        let pool_id = PoolId::new("pending-new-waiter-pool");
+        let nats_urls = vec!["nats://localhost:4222".to_string()];
+        let config = PoolConfig::new(1, 1, 5000, 30000, 10000, 2).unwrap();
+        let mut pool = ConnectionPool::new(pool_id, nats_urls, config);
+
+        // Acquire the single connection
+        let result = pool.acquire().await;
+        let _conn_id = match result {
+            AcquireResult::Available { connection } => connection.connection_id,
+            _ => panic!("Expected Available"),
+        };
+
+        // Add one pending waiter (recent)
+        pool.state.pending_acquires.push_back(WaitHandle {
+            request_id: 1,
+            enqueued_at: TimestampMs::now(),
+            pool_id: pool_id.clone(),
+        });
+
+        // Second acquire should return Pending (room for more pending)
+        let result = pool.acquire_with_timeout(Duration::from_secs(5)).await;
+        match result {
+            AcquireResult::Pending { wait_handle } => {
+                assert_eq!(wait_handle.request_id, 2);
+            }
+            _ => panic!("Expected Pending for new waiter, got {:?}", result),
+        }
+    }
+
+    /// Given: Pool with connections and no contention
+    /// When: acquire is called
+    /// Then: Connection is returned immediately (happy path)
+    #[tokio::test]
+    async fn test_no_deadlock_happy_path() {
+        let pool_id = PoolId::new("happy-path-pool");
+        let nats_urls = vec!["nats://localhost:4222".to_string()];
+        let config = PoolConfig::new(1, 5, 5000, 30000, 10000, 10).unwrap();
+        let mut pool = ConnectionPool::new(pool_id, nats_urls, config);
+
+        // Should get connection immediately
+        let result = pool.acquire().await;
+        match result {
+            AcquireResult::Available { connection } => {
+                assert!(connection.connection_id.to_string().len() > 0);
+            }
+            _ => panic!("Expected Available in happy path"),
+        }
+
+        // Release should work
+        if let AcquireResult::Available { connection } = pool.acquire().await {
+            pool.release(connection.connection_id);
+            assert_eq!(pool.stats().idle_connections, 1);
+        }
+    }
+}
+            _ => panic!("Expected Available for healthy idle connection"),
+        }
+    }
+
+    /// Given: A pool with a stale idle connection (last_used_at far in the past)
+    /// When: acquire() is called
+    /// Then: The stale connection is evicted and a new one is created
+    #[test]
+    fn test_acquire_stale_connection_evicted() {
+        let mut pool = create_test_pool();
+
+        // Create a connection and release it to idle
+        let result = futures::executor::block_on(pool.acquire());
+        let conn_id = match result {
+            AcquireResult::Available { connection } => connection.connection_id,
+            _ => panic!("Expected Available"),
+        };
+        pool.release(conn_id);
+        assert_eq!(pool.stats().idle_connections, 1);
+
+        // Artificially age the connection to make it stale
+        // idle_timeout_ms is 30000, so setting last_used_at 60000ms in the past
+        let stale_time = TimestampMs::new_unchecked(TimestampMs::now().as_u64().saturating_sub(60_000));
+        if let Some(conn) = pool.state.connections.get_mut(&conn_id) {
+            conn.last_used_at = stale_time;
+        }
+
+        // Acquire should evict the stale connection and create a new one
+        let result = futures::executor::block_on(pool.acquire());
+        match result {
+            AcquireResult::Available { connection } => {
+                // New connection, different from the stale one
+                assert_ne!(connection.connection_id, conn_id);
+            }
+            _ => panic!("Expected Available after evicting stale connection"),
+        }
+    }
+
+    /// Given: A pool where all connections are stale
+    /// When: acquire() is called multiple times
+    /// Then: All stale connections are evicted, new ones created up to max
+    #[test]
+    fn test_acquire_connection_failure_all_stale() {
+        let pool_id = PoolId::new("stale-test-pool");
+        let nats_urls = vec!["nats://localhost:4222".to_string()];
+        // max_connections=2, idle_timeout_ms=30000
+        let config = PoolConfig::new(1, 2, 5000, 30000, 10000, 10).unwrap();
+        let mut pool = ConnectionPool::new(pool_id, nats_urls, config);
+
+        // Create 2 connections and release them
+        let mut conn_ids = Vec::new();
+        for _ in 0..2 {
+            let result = futures::executor::block_on(pool.acquire());
+            if let AcquireResult::Available { connection } = result {
+                conn_ids.push(connection.connection_id);
+            }
+        }
+        for id in &conn_ids {
+            pool.release(*id);
+        }
+        assert_eq!(pool.stats().idle_connections, 2);
+
+        // Age all connections to be stale
+        let stale_time = TimestampMs::new_unchecked(TimestampMs::now().as_u64().saturating_sub(60_000));
+        for id in &conn_ids {
+            if let Some(conn) = pool.state.connections.get_mut(id) {
+                conn.last_used_at = stale_time;
+            }
+        }
+
+        // First acquire: evicts all stale, creates new
+        let result = futures::executor::block_on(pool.acquire());
+        match result {
+            AcquireResult::Available { connection } => {
+                assert!(!conn_ids.contains(&connection.connection_id));
+            }
+            _ => panic!("Expected Available"),
+=======
+    // Deadlock Prevention Tests (rq-011)
+    // ========================================================================
+
+    /// Given: A pool with max 1 connection, all connections checked out
+    /// When: acquire_with_timeout is called with a short timeout
+    /// Then: Timeout is returned to prevent indefinite waiting
+    #[tokio::test]
+    async fn test_deadlock_prevention_timeout_returned() {
+        let pool_id = PoolId::new("deadlock-test-pool");
+        let nats_urls = vec!["nats://localhost:4222".to_string()];
+        let config = PoolConfig::new(1, 1, 5000, 30000, 10000, 10).unwrap();
+        let mut pool = ConnectionPool::new(pool_id, nats_urls, config);
+
+        // Acquire the single connection - it becomes checked out
+        let result = pool.acquire().await;
+        let _conn_id = match result {
+            AcquireResult::Available { connection } => connection.connection_id,
+            _ => panic!("Expected Available"),
+        };
+        assert_eq!(pool.stats().checked_out_connections, 1);
+
+        // Simulate time passing by adding a pending acquire
+        let old_enqueue_time =
+            TimestampMs(TimestampMs::now().as_u64().saturating_sub(6000)); // 6 seconds ago
+        pool.state.pending_acquires.push_back(WaitHandle {
+            request_id: 1,
+            enqueued_at: old_enqueue_time,
+            pool_id: pool_id.clone(),
+        });
+
+        // Now try to acquire with a 5 second timeout
+        // Since there's already a pending waiter that has been waiting 6 seconds (exceeding 5s timeout)
+        // the system should return Timeout, NOT allow another pending waiter
+        let short_timeout = Duration::from_secs(5);
+        let result = pool.acquire_with_timeout(short_timeout).await;
+
+        match result {
+            AcquireResult::Timeout { waited_ms } => {
+                assert!(waited_ms >= 5000, "Expected waited_ms >= 5000, got {}", waited_ms);
+            }
+            _ => panic!("Expected Timeout to prevent deadlock, got {:?}", result),
+        }
+    }
+
+    /// Given: A pool with no pending waiters
+    /// When: acquire_with_timeout is called
+    /// Then: Returns PoolExhausted (not Timeout) when at capacity
+    #[tokio::test]
+    async fn test_no_timeout_when_no_pending_waiters() {
+        let pool_id = PoolId::new("no-pending-pool");
+        let nats_urls = vec!["nats://localhost:4222".to_string()];
+        let config = PoolConfig::new(1, 1, 5000, 30000, 10000, 0).unwrap(); // max_pending_acquires = 0
+        let mut pool = ConnectionPool::new(pool_id, nats_urls, config);
+
+        // Acquire the single connection
+        let result = pool.acquire().await;
+        let _conn_id = match result {
+            AcquireResult::Available { connection } => connection.connection_id,
+            _ => panic!("Expected Available"),
+        };
+
+        // Now pool is exhausted, no pending allowed
+        let result = pool.acquire_with_timeout(Duration::from_secs(5)).await;
+        match result {
+            AcquireResult::PoolExhausted { .. } => {}
+            _ => panic!("Expected PoolExhausted when max_pending=0, got {:?}", result),
+        }
+    }
+
+    /// Given: A pool with a recent pending waiter (not timed out)
+    /// When: acquire_with_timeout is called
+    /// Then: Returns PoolExhausted since pending slot is filled
+    #[tokio::test]
+    async fn test_pool_exhausted_when_pending_filled() {
+        let pool_id = PoolId::new("pending-filled-pool");
+        let nats_urls = vec!["nats://localhost:4222".to_string()];
+        let config = PoolConfig::new(1, 1, 5000, 30000, 10000, 1).unwrap(); // max_pending_acquires = 1
+        let mut pool = ConnectionPool::new(pool_id, nats_urls, config);
+
+        // Acquire the single connection
+        let result = pool.acquire().await;
+        let _conn_id = match result {
+            AcquireResult::Available { connection } => connection.connection_id,
+            _ => panic!("Expected Available"),
+        };
+
+        // Add one pending waiter (recent, not timed out)
+        pool.state.pending_acquires.push_back(WaitHandle {
+            request_id: 1,
+            enqueued_at: TimestampMs::now(), // now - not timed out
+            pool_id: pool_id.clone(),
+        });
+
+        // Second acquire should get PoolExhausted since pending slot is filled
+        let result = pool.acquire_with_timeout(Duration::from_secs(5)).await;
+        match result {
+            AcquireResult::PoolExhausted { .. } => {}
+            _ => panic!("Expected PoolExhausted when pending filled, got {:?}", result),
+        }
+    }
+
+    /// Given: Pool at capacity with pending waiter that hasn't timed out
+    /// When: acquire is called (uses default timeout from config)
+    /// Then: Pending is returned for new waiter
+    #[tokio::test]
+    async fn test_pending_returned_for_new_waiter() {
+        let pool_id = PoolId::new("pending-new-waiter-pool");
+        let nats_urls = vec!["nats://localhost:4222".to_string()];
+        let config = PoolConfig::new(1, 1, 5000, 30000, 10000, 2).unwrap();
+        let mut pool = ConnectionPool::new(pool_id, nats_urls, config);
+
+        // Acquire the single connection
+        let result = pool.acquire().await;
+        let _conn_id = match result {
+            AcquireResult::Available { connection } => connection.connection_id,
+            _ => panic!("Expected Available"),
+        };
+
+        // Add one pending waiter (recent)
+        pool.state.pending_acquires.push_back(WaitHandle {
+            request_id: 1,
+            enqueued_at: TimestampMs::now(),
+            pool_id: pool_id.clone(),
+        });
+
+        // Second acquire should return Pending (room for more pending)
+        let result = pool.acquire_with_timeout(Duration::from_secs(5)).await;
+        match result {
+            AcquireResult::Pending { wait_handle } => {
+                assert_eq!(wait_handle.request_id, 2);
+            }
+            _ => panic!("Expected Pending for new waiter, got {:?}", result),
+        }
+    }
+
+    /// Given: Pool with connections and no contention
+    /// When: acquire is called
+    /// Then: Connection is returned immediately (happy path)
+    #[tokio::test]
+    async fn test_no_deadlock_happy_path() {
+        let pool_id = PoolId::new("happy-path-pool");
+        let nats_urls = vec!["nats://localhost:4222".to_string()];
+        let config = PoolConfig::new(1, 5, 5000, 30000, 10000, 10).unwrap();
+        let mut pool = ConnectionPool::new(pool_id, nats_urls, config);
+
+        // Should get connection immediately
+        let result = pool.acquire().await;
+        match result {
+            AcquireResult::Available { connection } => {
+                assert!(connection.connection_id.to_string().len() > 0);
+            }
+            _ => panic!("Expected Available in happy path"),
+        }
+
+        // Release should work
+        if let AcquireResult::Available { connection } = pool.acquire().await {
+            pool.release(connection.connection_id);
+            assert_eq!(pool.stats().idle_connections, 1);
+>>>>>>> 4e1684d5 (polecat/raider: completed ve-d4wz9)
         }
     }
 }
