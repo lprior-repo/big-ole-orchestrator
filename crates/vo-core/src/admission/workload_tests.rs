@@ -1,13 +1,13 @@
 //! Tests for workload class budget and degraded mode module.
 
+
 use super::*;
 use crate::admission::types::WritePressureState;
-use crate::admission::workload::{
+use crate::admission::{
     acquire_slot, check_budget, compute_degraded_mode, is_class_accepted_in_mode, release_slot,
     set_degraded_mode, BudgetAllocation, BudgetCheckResult, BudgetRejectionReason, DegradedMode,
     WorkloadBudget, WorkloadClass,
 };
-
 #[test]
 fn workload_class_never_starved_live() {
     assert!(WorkloadClass::Live.never_starved());

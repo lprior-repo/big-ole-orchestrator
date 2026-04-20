@@ -1,4 +1,8 @@
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
+
+use crate::types::helpers::is_retryable_error;
+use crate::types::names::RetryAfterSeconds;
 
 /// Parse errors for invalid input format
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
@@ -88,6 +92,59 @@ impl WorkloadRejectionError {
             WorkloadRejectionError::WorkflowCapExceeded { .. } => "workflow_cap_exceeded",
             WorkloadRejectionError::GlobalConcurrencyLimit { .. } => "global_concurrency_limit",
         }
+    }
+}
+
+/// Generic API error response.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ApiError {
+    pub error: String,
+    pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub retry_after_seconds: Option<RetryAfterSeconds>,
+}
+
+impl ApiError {
+    #[must_use]
+    pub fn new(error: impl Into<String>, message: impl Into<String>) -> Self {
+        Self {
+            error: error.into(),
+            message: message.into(),
+            retry_after_seconds: None,
+        }
+    }
+
+    pub fn with_retry(
+        error: impl Into<String>,
+        message: impl Into<String>,
+        retry_after: RetryAfterSeconds,
+    ) -> Self {
+        Self {
+            error: error.into(),
+            message: message.into(),
+            retry_after_seconds: Some(retry_after),
+        }
+    }
+
+    pub fn new_with_retry_validation(
+        error: impl Into<String>,
+        message: impl Into<String>,
+        retry_after: Option<RetryAfterSeconds>,
+    ) -> Result<Self, InvariantViolation> {
+        let error_str = error.into();
+        let is_retryable = is_retryable_error(&error_str);
+        let has_retry = retry_after.is_some();
+        if is_retryable && !has_retry {
+            return Err(InvariantViolation::InvalidRetryForErrorType);
+        }
+        if !is_retryable && has_retry {
+            return Err(InvariantViolation::InvalidRetryForErrorType);
+        }
+        Ok(Self {
+            error: error_str,
+            message: message.into(),
+            retry_after_seconds: retry_after,
+        })
     }
 }
 

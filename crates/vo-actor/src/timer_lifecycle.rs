@@ -13,18 +13,32 @@ use vo_types::{InstanceId, TimestampMs};
 use crate::reanimator::{ReanimatorError, TimerRecord, TimerStorage};
 
 /// Errors from timer lifecycle operations.
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TimerLifecycleError {
-    #[error("Storage error: {0}")]
+    /// Storage error while performing lifecycle operation.
     StorageError(String),
-    #[error("Instance not found: {0}")]
+    /// Instance not found.
     InstanceNotFound(InstanceId),
-    #[error("Timer not found: {instance_id} at {fire_at_ms}")]
+    /// Timer not found.
     TimerNotFound {
         instance_id: InstanceId,
         fire_at_ms: TimestampMs,
     },
 }
+
+impl std::fmt::Display for TimerLifecycleError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::StorageError(s) => write!(f, "Storage error: {s}"),
+            Self::InstanceNotFound(id) => write!(f, "Instance not found: {id}"),
+            Self::TimerNotFound { instance_id, fire_at_ms } => {
+                write!(f, "Timer not found: {instance_id} at {fire_at_ms}")
+            }
+        }
+    }
+}
+
+impl std::error::Error for TimerLifecycleError {}
 
 impl From<ReanimatorError> for TimerLifecycleError {
     fn from(err: ReanimatorError) -> Self {

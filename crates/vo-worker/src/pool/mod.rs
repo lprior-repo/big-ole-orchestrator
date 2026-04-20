@@ -32,6 +32,7 @@ pub(crate) use pool::PoolState;
 mod tests {
     mod circuit_breaker_tests;
     mod config_tests;
+    mod hash_ring_tests;
     mod health_check_tests;
     mod pool_tests;
 }

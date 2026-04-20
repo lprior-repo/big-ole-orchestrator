@@ -98,24 +98,14 @@ fn rq_concurrent_same_key_exactly_one_admitted() {
         .collect();
 
     let results: Vec<_> = handles.into_iter().map(|h| h.join().unwrap()).collect();
-    let admitted_count = results
-        .iter()
-        .filter(|r| *r == &Ok(AdmissionResult::Admitted))
-        .count();
+    let admitted_count = results.iter().filter(|r| *r == &Ok(AdmissionResult::Admitted)).count();
     let dup_count = results
         .iter()
         .filter(|r| matches!(r, Ok(AdmissionResult::Duplicate { .. })))
         .count();
 
-    assert_eq!(
-        admitted_count, 1,
-        "Exactly one thread must win, got {admitted_count}"
-    );
-    assert_eq!(
-        dup_count,
-        num_threads - 1,
-        "All others must be Duplicate, got {dup_count}"
-    );
+    assert_eq!(admitted_count, 1, "Exactly one thread must win, got {admitted_count}");
+    assert_eq!(dup_count, num_threads - 1, "All others must be Duplicate, got {dup_count}");
     assert_eq!(admitted_count + dup_count, num_threads);
 }
 
@@ -148,10 +138,7 @@ fn rq_concurrent_distinct_keys_all_admitted() {
         .filter(|r| *r == &Ok(AdmissionResult::Admitted))
         .count();
 
-    assert_eq!(
-        admitted_count, num_threads,
-        "All distinct keys must be admitted"
-    );
+    assert_eq!(admitted_count, num_threads, "All distinct keys must be admitted");
 }
 
 // ========================================================================
@@ -186,11 +173,8 @@ fn rq_concurrent_duplicate_preserves_winner_instance_id() {
     for result in &results {
         match result {
             Ok(AdmissionResult::Duplicate { instance_id }) => {
-                assert_eq!(
-                    instance_id,
-                    &winner_iid.to_string(),
-                    "Duplicate must report the ORIGINAL winner's instance_id"
-                );
+                assert_eq!(instance_id, &winner_iid.to_string(),
+                    "Duplicate must report the ORIGINAL winner's instance_id");
             }
             other => panic!("Expected Duplicate, got: {other:?}"),
         }
@@ -247,25 +231,12 @@ fn rq_concurrent_purge_and_insert_no_false_duplicates() {
         })
         .collect();
 
-    let purger_results: Vec<_> = purger_handles
-        .into_iter()
-        .map(|h| h.join().unwrap())
-        .collect();
-    let inserter_results: Vec<_> = inserter_handles
-        .into_iter()
-        .map(|h| h.join().unwrap())
-        .collect();
+    let purger_results: Vec<_> = purger_handles.into_iter().map(|h| h.join().unwrap()).collect();
+    let inserter_results: Vec<_> = inserter_handles.into_iter().map(|h| h.join().unwrap()).collect();
 
     let total_purged: u64 = purger_results.iter().sum();
-    assert!(
-        total_purged > 0,
-        "At least some entries should have been purged"
-    );
+    assert!(total_purged > 0, "At least some entries should have been purged");
 
     let total_ops: u64 = inserter_results.iter().map(|(a, d)| a + d).sum();
-    assert_eq!(
-        total_ops,
-        (num_inserters * 10) as u64,
-        "Every insert attempt must yield a result"
-    );
+    assert_eq!(total_ops, (num_inserters * 10) as u64, "Every insert attempt must yield a result");
 }

@@ -10,7 +10,7 @@ use vo_types::{DedupeKey, FenceToken, InstanceId, StepId};
 
 use super::check::check_admission_with_thresholds;
 use super::control::{AdmissionCheck, AdmissionResult, DedupeToken};
-use super::types::{AdmissionError, AdmissionThresholds, WritePressureState};
+use super::types::{AdmissionDeadLetterQueue, AdmissionError, AdmissionThresholds, RejectedRequest, WritePressureState};
 use super::AdmissionThresholds as ConfiguredThresholds;
 
 #[derive(Debug, Clone)]
@@ -19,6 +19,13 @@ pub struct AdmissionController<C: AdmissionCheck> {
     pressure_state: WritePressureState,
     thresholds: AdmissionThresholds,
     in_flight: HashSet<InstanceId>,
+    dlq: AdmissionDeadLetterQueue,
+}
+
+#[derive(Debug, Clone)]
+pub struct AdmissionControllerWithDlq<C: AdmissionCheck> {
+    controller: AdmissionController<C>,
+    dlq_max_size: usize,
 }
 
 impl<C: AdmissionCheck> AdmissionController<C> {
@@ -32,6 +39,7 @@ impl<C: AdmissionCheck> AdmissionController<C> {
                 blob_queue_depth_threshold: 50,
             },
             in_flight: HashSet::new(),
+            dlq: AdmissionDeadLetterQueue::new(1000),
         }
     }
 
@@ -49,6 +57,7 @@ impl<C: AdmissionCheck> AdmissionController<C> {
                 blob_queue_depth_threshold: thresholds.blob_queue_depth_threshold,
             },
             in_flight: HashSet::new(),
+            dlq: AdmissionDeadLetterQueue::new(1000),
         }
     }
 
@@ -114,6 +123,10 @@ impl<C: AdmissionCheck> AdmissionController<C> {
 
     pub fn is_in_flight(&self, instance_id: &InstanceId) -> bool {
         self.in_flight.contains(instance_id)
+    }
+
+    pub fn update_pressure_state(&mut self, pressure_state: WritePressureState) {
+        self.pressure_state = pressure_state;
     }
 }
 

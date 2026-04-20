@@ -536,9 +536,9 @@ impl AccessPolicy {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Principal {
-    User(crate::string_types::InstanceId),
-    Actor(crate::string_types::SpawnId),
-    Workflow(crate::string_types::WorkflowName),
+    User(crate::InstanceId),
+    Actor(crate::SpawnId),
+    Workflow(crate::WorkflowName),
     System,
 }
 

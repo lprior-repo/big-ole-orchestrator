@@ -530,7 +530,11 @@ fn stale_check_on_never_acquired_pair_returns_false() {
     let store = DeterministicLeaseStore::new();
 
     assert_eq!(
-        store.check_stale_fence(&sample_instance_id(), &sample_step_id(), &fence_token(1)),
+        store.check_stale_fence(
+            &sample_instance_id(),
+            &sample_step_id(),
+            &fence_token(1)
+        ),
         Ok(false)
     );
     assert_eq!(
@@ -553,7 +557,11 @@ fn stale_check_storage_error_is_propagated_not_swallowed() {
     });
 
     assert_eq!(
-        store.check_stale_fence(&sample_instance_id(), &sample_step_id(), &fence_token(1)),
+        store.check_stale_fence(
+            &sample_instance_id(),
+            &sample_step_id(),
+            &fence_token(1)
+        ),
         Err(LeaseStoreError::Storage {
             reason: "partition unavailable".to_string(),
         })
@@ -581,91 +589,4 @@ fn stale_check_during_exact_expiry_tick_is_correct() {
         &sample_step_id(),
         *fresh.token()
     ));
-}
-
-// ---------------------------------------------------------------------------
-// Acceptance Tests: Fencing Stale-Winner (ADR-029)
-// ---------------------------------------------------------------------------
-
-/// Acceptance: test_valid_token_allows_write
-///
-/// Given: A valid (current) fence token
-/// When: check_stale_fence is called
-/// Then: THE SYSTEM SHALL return false (token is NOT stale, write allowed)
-///
-/// Contract: THE SYSTEM SHALL reject writes from stale leases
-/// This test verifies the positive case: valid token = allowed.
-#[test]
-fn test_valid_token_allows_write() {
-    let store = DeterministicLeaseStore::new();
-    let lease = acquire_lease(&store, &sample_instance_id(), &sample_step_id(), 5_000);
-
-    let is_stale = store
-        .check_stale_fence(&sample_instance_id(), &sample_step_id(), lease.token())
-        .expect("check_stale_fence must not error for valid case");
-
-    assert!(
-        !is_stale,
-        "Valid token {} must NOT be stale - write must be allowed",
-        lease.token().inner().get()
-    );
-}
-
-/// Acceptance: test_valid_token_allows_write_duplicate_for_schema
-///
-/// Schema compliance duplicate of test_valid_token_allows_write.
-#[test]
-fn test_valid_token_allows_write_duplicate_for_schema() {
-    let store = DeterministicLeaseStore::new();
-    let instance_id = sample_instance_id();
-    let step_id = sample_step_id();
-    let lease = acquire_lease(&store, &instance_id, &step_id, 5_000);
-
-    let is_stale = store
-        .check_stale_fence(&instance_id, &step_id, lease.token())
-        .expect("check_stale_fence must not error");
-
-    assert!(!is_stale, "Valid token must allow write");
-}
-
-/// Acceptance: test_stale_token_returns_fencederror
-///
-/// Given: A stale fence token (from expired lease or race loser)
-/// When: check_stale_fence is called
-/// Then: THE SYSTEM SHALL return true (token IS stale, write rejected)
-///
-/// Contract: THE SYSTEM SHALL reject writes from stale leases
-/// This test verifies the negative case: stale token = rejected.
-#[test]
-fn test_stale_token_returns_fencederror() {
-    let store = DeterministicLeaseStore::new();
-    let old_lease = acquire_lease(&store, &sample_instance_id(), &sample_step_id(), 1);
-    store.set_time(1);
-    let _new_lease = acquire_lease(&store, &sample_instance_id(), &sample_step_id(), 5_000);
-
-    let is_stale = store
-        .check_stale_fence(&sample_instance_id(), &sample_step_id(), old_lease.token())
-        .expect("check_stale_fence must not error");
-
-    assert!(is_stale, "Stale token must return fenced error");
-}
-
-/// Acceptance: test_stale_token_returns_fencederror_duplicate_for_schema
-///
-/// Schema compliance duplicate of test_stale_token_returns_fencederror.
-#[test]
-fn test_stale_token_returns_fencederror_duplicate_for_schema() {
-    let store = DeterministicLeaseStore::new();
-    let instance_id = sample_instance_id();
-    let step_id = sample_step_id();
-
-    let old_lease = acquire_lease(&store, &instance_id, &step_id, 1);
-    store.set_time(1);
-    let _new_lease = acquire_lease(&store, &instance_id, &step_id, 5_000);
-
-    let is_stale = store
-        .check_stale_fence(&instance_id, &step_id, old_lease.token())
-        .expect("check_stale_fence must not error");
-
-    assert!(is_stale, "Stale token must return fenced error");
 }

@@ -1,6 +1,7 @@
 use super::*;
 use crate::resource_quota::{
     CpuQuota, DiskQuota, MemoryQuota, NamespaceQuota, OvercommitPolicy, QuotaEnforcer, QuotaError,
+    QuotaUsage,
 };
 use std::num::NonZeroU64;
 
@@ -231,6 +232,72 @@ fn integration_boundary_exact_limits() {
     ));
     assert!(matches!(
         enforcer.check_disk("payments", 10_001),
+        Err(QuotaError::QuotaExceeded { .. })
+    ));
+}
+
+#[test]
+fn integration_overflow_accumulate_and_check_enforcement() {
+    let mut usage = QuotaUsage::new();
+    usage.add_cpu(2);
+    usage.add_memory(512);
+    usage.add_disk(3000);
+
+    let enforcer = make_full_enforcer();
+    assert!(enforcer.check_cpu("payments", usage.cpu_cores_used).is_ok());
+    assert!(enforcer.check_memory("payments", usage.memory_bytes_used).is_ok());
+    assert!(enforcer.check_disk("payments", usage.disk_bytes_used).is_ok());
+
+    usage.add_cpu(10);
+    assert!(matches!(
+        enforcer.check_cpu("payments", usage.cpu_cores_used),
+        Err(QuotaError::QuotaExceeded { .. })
+    ));
+}
+
+#[test]
+fn integration_overflow_release_and_check() {
+    let mut usage = QuotaUsage::new();
+    usage.add_cpu(8);
+    usage.add_memory(2048);
+
+    let enforcer = make_full_enforcer();
+    assert!(matches!(
+        enforcer.check_cpu("payments", usage.cpu_cores_used),
+        Err(QuotaError::QuotaExceeded { .. })
+    ));
+
+    let released = usage.release_cpu(5);
+    assert_eq!(released, 5);
+    assert!(enforcer.check_cpu("payments", usage.cpu_cores_used).is_ok());
+
+    let released_mem = usage.release_memory(2048);
+    assert_eq!(released_mem, 2048);
+    assert!(enforcer.check_memory("payments", usage.memory_bytes_used).is_ok());
+}
+
+#[test]
+fn integration_overflow_saturate_at_u64_max_preserves_enforcement() {
+    let mut usage = QuotaUsage::new();
+    usage.add_cpu(u64::MAX);
+    usage.add_memory(u64::MAX);
+    usage.add_disk(u64::MAX);
+
+    assert_eq!(usage.cpu_cores_used, u64::MAX);
+    assert_eq!(usage.memory_bytes_used, u64::MAX);
+    assert_eq!(usage.disk_bytes_used, u64::MAX);
+
+    let enforcer = make_full_enforcer();
+    assert!(matches!(
+        enforcer.check_cpu("payments", usage.cpu_cores_used),
+        Err(QuotaError::QuotaExceeded { .. })
+    ));
+    assert!(matches!(
+        enforcer.check_memory("payments", usage.memory_bytes_used),
+        Err(QuotaError::QuotaExceeded { .. })
+    ));
+    assert!(matches!(
+        enforcer.check_disk("payments", usage.disk_bytes_used),
         Err(QuotaError::QuotaExceeded { .. })
     ));
 }

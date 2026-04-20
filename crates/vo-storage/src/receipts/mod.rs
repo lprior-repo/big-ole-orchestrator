@@ -1,64 +1,56 @@
-//! Receipt persistence partition — durable execution receipts for managed connectors (ADR-041).
+//! Receipt persistence partition — durable storage for connector execution receipts (ADR-041).
 //!
-//! Architecture: Data (`ExecutionReceipt`, `ReceiptStoreError`)
-//!             → Calc (`encode_receipt_key`, `decode_receipt_key`, `encode_receipt`, `decode_receipt`)
-//!             → Actions (`ReceiptStore` trait).
+//! Architecture: Data (`Receipt`, `ReceiptStoreError`) → Calc (`encode_receipt_key`,
+//! `decode_receipt_key`, `encode_receipt`, `decode_receipt`) → Actions (`ReceiptStore` trait).
 //!
-//! When a managed connector commit succeeds, the engine writes an execution receipt
-//! to durable storage. This receipt enforces exact-once execution boundaries:
-//! if a receipt exists for an effect ID, the effect MUST NOT be re-executed.
-//!
-//! Invariant: Writing a receipt for an already-completed effect ID is a no-op
-//! (idempotency success).
+//! Receipts enforce exact-once execution boundaries. Once a receipt exists for an effect ID,
+//! the system SHALL NOT allow re-execution of that effect.
 
-use vo_types::{EffectKind, InstanceId};
+use crate::effect_journal::EffectId;
+use vo_types::ConnectorResult;
 
 #[cfg(test)]
 mod tests;
 
-mod fjall_receipt_store;
-pub use fjall_receipt_store::FjallReceiptStore;
-
 // ---------------------------------------------------------------------------
-// Data layer — ExecutionReceipt
+// Data layer — Receipt
 // ---------------------------------------------------------------------------
 
-/// Durable record proving a connector effect was successfully committed.
+/// Immutable execution receipt for a managed connector commit (ADR-041 §4).
 ///
-/// Immutable once written. Used to enforce exact-once execution boundaries:
-/// the presence of a receipt for an effect ID means the effect MUST NOT
-/// be re-executed.
+/// Write-once: once persisted, a receipt MUST NOT be mutated. The system uses
+/// receipts to enforce exact-once execution boundaries.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub struct ExecutionReceipt {
+pub struct Receipt {
     effect_id: String,
-    instance_id: String,
-    kind: EffectKind,
+    connector_id: String,
+    result: ConnectorResult,
     committed_at_ms: u64,
-    connector_result: String,
+    payload_json: Option<serde_json::Value>,
 }
 
-impl ExecutionReceipt {
-    /// Construct a new `ExecutionReceipt`.
+impl Receipt {
+    /// Construct a new `Receipt`.
     ///
     /// # Errors
     ///
-    /// Returns `ReceiptStoreError::InvalidArgument` if `effect_id` or `instance_id` is empty.
+    /// Returns `ReceiptStoreError::InvalidArgument` if `effect_id` or `connector_id` is empty.
     pub fn new(
         effect_id: String,
-        instance_id: String,
-        kind: EffectKind,
+        connector_id: String,
+        result: ConnectorResult,
         committed_at_ms: u64,
-        connector_result: String,
+        payload_json: Option<serde_json::Value>,
     ) -> Result<Self, ReceiptStoreError> {
-        if effect_id.is_empty() || instance_id.is_empty() {
+        if effect_id.is_empty() || connector_id.is_empty() {
             return Err(ReceiptStoreError::InvalidArgument);
         }
         Ok(Self {
             effect_id,
-            instance_id,
-            kind,
+            connector_id,
+            result,
             committed_at_ms,
-            connector_result,
+            payload_json,
         })
     }
 
@@ -68,13 +60,13 @@ impl ExecutionReceipt {
     }
 
     #[must_use]
-    pub fn instance_id(&self) -> &str {
-        &self.instance_id
+    pub fn connector_id(&self) -> &str {
+        &self.connector_id
     }
 
     #[must_use]
-    pub fn kind(&self) -> EffectKind {
-        self.kind
+    pub fn result(&self) -> ConnectorResult {
+        self.result
     }
 
     #[must_use]
@@ -83,8 +75,8 @@ impl ExecutionReceipt {
     }
 
     #[must_use]
-    pub fn connector_result(&self) -> &str {
-        &self.connector_result
+    pub fn payload_json(&self) -> Option<&serde_json::Value> {
+        self.payload_json.as_ref()
     }
 }
 
@@ -102,26 +94,29 @@ pub enum ReceiptStoreError {
     Codec { reason: String },
     #[error("invalid receipt argument")]
     InvalidArgument,
+    #[error("receipt for effect {effect_id} already exists")]
+    AlreadyExists { effect_id: String },
 }
 
 // ---------------------------------------------------------------------------
 // Calc layer — key encoding/decoding
 // ---------------------------------------------------------------------------
 
-/// Encode an effect ID as UTF-8 bytes for use as a receipt partition key.
-///
-/// Key format: the raw effect ID string (e.g., `<instance_id>::<intent_id>`).
+/// Partition name for the receipts store.
+pub const RECEIPTS_PARTITION: &str = "receipts";
+
+/// Encode an `EffectId` as UTF-8 bytes for use as a receipt partition key.
 #[must_use]
-pub fn encode_receipt_key(effect_id: &str) -> Vec<u8> {
-    effect_id.as_bytes().to_vec()
+pub fn encode_receipt_key(effect_id: &EffectId) -> Vec<u8> {
+    effect_id.as_str().as_bytes().to_vec()
 }
 
-/// Decode UTF-8 bytes into an effect ID string.
+/// Decode UTF-8 bytes into an `EffectId`.
 ///
 /// # Errors
 ///
 /// Returns `ReceiptStoreError::Codec` if the bytes are not valid UTF-8 or empty.
-pub fn decode_receipt_key(bytes: &[u8]) -> Result<String, ReceiptStoreError> {
+pub fn decode_receipt_key(bytes: &[u8]) -> Result<EffectId, ReceiptStoreError> {
     let s = std::str::from_utf8(bytes).map_err(|e| ReceiptStoreError::Codec {
         reason: e.to_string(),
     })?;
@@ -130,30 +125,32 @@ pub fn decode_receipt_key(bytes: &[u8]) -> Result<String, ReceiptStoreError> {
             reason: "empty receipt key".to_string(),
         });
     }
-    Ok(s.to_string())
+    EffectId::try_from(s.to_string()).map_err(|e| ReceiptStoreError::Codec {
+        reason: e.to_string(),
+    })
 }
 
 // ---------------------------------------------------------------------------
 // Calc layer — receipt encoding/decoding
 // ---------------------------------------------------------------------------
 
-/// Encode an `ExecutionReceipt` to JSON bytes for storage.
+/// Encode a `Receipt` to JSON bytes for storage.
 ///
 /// # Errors
 ///
 /// Returns `ReceiptStoreError::Codec` if serialization fails.
-pub fn encode_receipt(receipt: &ExecutionReceipt) -> Result<Vec<u8>, ReceiptStoreError> {
+pub fn encode_receipt(receipt: &Receipt) -> Result<Vec<u8>, ReceiptStoreError> {
     serde_json::to_vec(receipt).map_err(|e| ReceiptStoreError::Codec {
         reason: e.to_string(),
     })
 }
 
-/// Decode JSON bytes into an `ExecutionReceipt`.
+/// Decode JSON bytes into a `Receipt`.
 ///
 /// # Errors
 ///
 /// Returns `ReceiptStoreError::Codec` if deserialization fails.
-pub fn decode_receipt(bytes: &[u8]) -> Result<ExecutionReceipt, ReceiptStoreError> {
+pub fn decode_receipt(bytes: &[u8]) -> Result<Receipt, ReceiptStoreError> {
     serde_json::from_slice(bytes).map_err(|e| ReceiptStoreError::Codec {
         reason: e.to_string(),
     })
@@ -163,55 +160,45 @@ pub fn decode_receipt(bytes: &[u8]) -> Result<ExecutionReceipt, ReceiptStoreErro
 // Actions layer — ReceiptStore trait
 // ---------------------------------------------------------------------------
 
-/// Partition name for the receipts store.
-pub const RECEIPTS_PARTITION: &str = "receipts";
-
-/// Storage interface for durable execution receipts (ADR-041).
+/// Storage interface for connector execution receipts (ADR-041 §4).
 ///
-/// Receipts enforce exact-once execution boundaries: if a receipt exists
-/// for an effect ID, the effect MUST NOT be re-executed.
+/// Receipts are write-once and immutable. Storing a receipt for an already-persisted
+/// effect ID is idempotent — it MUST return success without mutation.
 pub trait ReceiptStore {
-    /// Store an execution receipt. Idempotent: if a receipt already exists
-    /// for the same effect ID, this is a no-op and returns `Ok(())`.
+    /// Persist a receipt for the given effect ID.
+    ///
+    /// Idempotent: if a receipt already exists for the effect ID, returns
+    /// `Ok` without mutation (no-op success).
     ///
     /// # Errors
     ///
-    /// Returns `ReceiptStoreError::InvalidArgument` if `effect_id` is empty.
+    /// Returns `ReceiptStoreError::InvalidArgument` if the receipt's effect_id is empty.
     /// Returns `ReceiptStoreError::Storage` if the underlying storage fails.
-    fn store_receipt(&self, receipt: ExecutionReceipt) -> Result<(), ReceiptStoreError>;
+    fn store(&self, receipt: Receipt) -> Result<(), ReceiptStoreError>;
 
-    /// Retrieve an execution receipt by effect ID.
+    /// Retrieve a receipt by effect ID.
     ///
     /// Returns `Ok(None)` if no receipt exists for the given effect ID.
     ///
     /// # Errors
     ///
     /// Returns `ReceiptStoreError::Storage` if the underlying storage fails.
-    fn get_receipt(&self, effect_id: &str) -> Result<Option<ExecutionReceipt>, ReceiptStoreError>;
+    fn get(&self, effect_id: &EffectId) -> Result<Option<Receipt>, ReceiptStoreError>;
 
     /// Check whether a receipt exists for the given effect ID.
     ///
-    /// This is equivalent to `get_receipt` but avoids deserialization overhead.
-    ///
     /// # Errors
     ///
     /// Returns `ReceiptStoreError::Storage` if the underlying storage fails.
-    fn has_receipt(&self, effect_id: &str) -> Result<bool, ReceiptStoreError>;
-
-    /// List all receipts for a given instance ID.
-    ///
-    /// # Errors
-    ///
-    /// Returns `ReceiptStoreError::Storage` if the underlying storage fails.
-    fn list_by_instance(
-        &self,
-        instance_id: &InstanceId,
-    ) -> Result<Vec<ExecutionReceipt>, ReceiptStoreError>;
+    fn contains(&self, effect_id: &EffectId) -> Result<bool, ReceiptStoreError>;
 }
 
 // ---------------------------------------------------------------------------
-// Test infrastructure
+// Fjall implementation (stub — no methods, tests will fail)
 // ---------------------------------------------------------------------------
 
-#[cfg(test)]
-pub mod in_memory_receipt_store;
+pub mod fjall_receipts;
+pub use fjall_receipts::FjallReceiptStore;
+
+pub mod in_memory_receipts;
+pub use in_memory_receipts::InMemoryReceiptStore;

@@ -188,13 +188,7 @@ async fn fd4_burst_write_handled_gracefully() {
 
     match result {
         Err(IpcError::Fd4ReadFailed { .. }) => {}
-        Ok(output) => {
-            assert!(
-                output.fd4_bytes.len() > 6_000_000,
-                "large fd4 payload should be read: {} bytes",
-                output.fd4_bytes.len()
-            );
-        }
+        Ok(_) => panic!("Should have failed reading huge fd4 payload"),
         Err(e) => panic!("Unexpected error: {:?}", e),
     }
 }
@@ -228,9 +222,7 @@ async fn fd4_closed_before_read_returns_error() {
 
     match result {
         Err(IpcError::Fd4ReadFailed { .. }) => {}
-        Ok(output) => {
-            assert!(output.fd4_bytes.is_empty());
-        }
+        Ok(_) => panic!("Should have failed reading from closed fd4"),
         Err(e) => panic!("Unexpected error: {:?}", e),
     }
 }

@@ -20,6 +20,7 @@
 #![cfg_attr(not(test), warn(clippy::pedantic))]
 #![cfg_attr(not(test), warn(clippy::nursery))]
 
+pub mod bus;
 pub mod config;
 pub mod envelope;
 pub mod error;
@@ -27,6 +28,7 @@ pub mod run;
 pub mod spsc;
 pub mod stderr;
 
+pub use bus::{BusConfig, BusError, BusMessage, MessageBus};
 pub use config::SubprocessConfig;
 pub use envelope::MAX_PAYLOAD_SIZE;
 pub use envelope::{

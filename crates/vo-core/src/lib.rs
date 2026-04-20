@@ -45,7 +45,11 @@ pub mod validation;
 pub mod vault;
 pub mod workflow_version;
 pub mod workload_class;
+pub mod workload_class_tests;
+pub mod workload_budget;
 pub mod workspace_swap;
+pub mod workspace_swap_tests;
+pub mod write_budget;
 pub mod write_class;
 
 pub use validation::{

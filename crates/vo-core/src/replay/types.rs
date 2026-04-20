@@ -3,15 +3,13 @@
 use thiserror::Error;
 use vo_types::state::LifecycleState;
 
-/// Categorizes replay errors to determine system behavior.
-/// Deterministic errors mark state as permanently blocked/corrupt.
-/// Transient errors should be retried by the infrastructure.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ReplayErrorKind {
-    /// Permanent corruption - state cannot be recovered, no retry should occur.
-    Deterministic,
-    /// Temporary failure - infrastructure should retry the operation.
-    Transient,
+/// Tracks how far through the event stream the replay has progressed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReplayPosition {
+    /// Sequence number of the last successfully applied event.
+    pub last_applied_sequence: Option<u64>,
+    // Timestamp (ms) of the last successfully applied event.
+    pub last_applied_timestamp_ms: Option<u64>,
 }
 
 /// Result of replaying events through the state machine.
@@ -21,6 +19,8 @@ pub struct ReplayResult {
     pub final_state: Option<LifecycleState>,
     /// Number of events successfully applied.
     pub events_applied: usize,
+    /// Position tracking for this replay run.
+    pub position: ReplayPosition,
 }
 
 /// Errors that can occur during event replay.

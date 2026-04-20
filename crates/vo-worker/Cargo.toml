@@ -23,6 +23,7 @@ rmp-serde = { workspace = true }
 crc32fast = { workspace = true }
 
 # Utilities
+rand = { workspace = true }
 thiserror = { workspace = true }
 chrono = { workspace = true }
 tracing = { workspace = true }

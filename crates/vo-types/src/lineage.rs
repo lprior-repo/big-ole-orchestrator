@@ -2,11 +2,14 @@
 //!
 //! These types track workflow identity across epoch rollover boundaries:
 //! - [`Epoch`] identifies one execution epoch within a lineage
+//! - [`LineageId`] is a validated string identifying a workflow lineage
 //! - [`WorkflowLineage`] binds a stable lineage_id to an epoch with optional parent
 //! - [`LineageError`] enumerates construction failures
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+
+use crate::ParseError;
 
 /// Newtype wrapper for a monotonically increasing epoch counter.
 ///
@@ -32,28 +35,86 @@ impl std::fmt::Display for Epoch {
     }
 }
 
+/// Newtype wrapper for a validated lineage identifier string.
+///
+/// A lineage ID is a stable identifier that persists across epoch rollovers.
+/// It must be non-empty and contain no control characters.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(try_from = "String", into = "String")]
+pub struct LineageId(pub(crate) String);
+
+impl LineageId {
+    /// Parse a `LineageId` from a string.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ParseError::Empty` if the lineage_id is empty or whitespace-only.
+    /// Returns `ParseError::InvalidCharacters` if the lineage_id contains control characters.
+    pub fn parse(input: &str) -> Result<Self, ParseError> {
+        const TYPE_NAME: &str = "LineageId";
+        if input.trim().is_empty() {
+            return Err(ParseError::Empty {
+                type_name: TYPE_NAME,
+            });
+        }
+        if input.chars().any(|c| c.is_control()) {
+            return Err(ParseError::InvalidCharacters {
+                type_name: TYPE_NAME,
+                invalid_chars: input
+                    .chars()
+                    .filter(|c| c.is_control())
+                    .take(10)
+                    .collect::<String>(),
+            });
+        }
+        Ok(Self(input.to_string()))
+    }
+
+    /// Returns the inner string value.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl TryFrom<String> for LineageId {
+    type Error = ParseError;
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Self::parse(&value)
+    }
+}
+
+impl TryFrom<&str> for LineageId {
+    type Error = ParseError;
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        Self::parse(value)
+    }
+}
+
+impl From<LineageId> for String {
+    fn from(value: LineageId) -> String {
+        value.0
+    }
+}
+
+impl std::fmt::Display for LineageId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
 /// Immutable workflow lineage across continue-as-new boundaries.
 ///
 /// A lineage binds a stable `lineage_id` (which persists across epoch rollovers)
 /// to a specific `epoch` and optional `parent_epoch`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WorkflowLineage {
-    /// Stable UUID identifying the logical long-lived workflow.
-    pub lineage_id: String,
+    /// Stable identifier for the logical long-lived workflow.
+    pub lineage_id: LineageId,
     /// Current epoch within this lineage.
     pub epoch: Epoch,
     /// Previous epoch, present when this lineage was created via continue-as-new.
     pub parent_epoch: Option<Epoch>,
-}
-
-fn validate_lineage_id(lineage_id: &str) -> Result<(), LineageError> {
-    if lineage_id.trim().is_empty() {
-        return Err(LineageError::EmptyLineageId);
-    }
-    if lineage_id.chars().any(|c| c.is_control()) {
-        return Err(LineageError::ControlCharacters);
-    }
-    Ok(())
 }
 
 impl WorkflowLineage {
@@ -62,9 +123,11 @@ impl WorkflowLineage {
     /// # Errors
     ///
     /// Returns [`LineageError::EmptyLineageId`] if `lineage_id` is empty or whitespace-only.
-    pub fn new(lineage_id: impl Into<String>) -> Result<Self, LineageError> {
-        let lineage_id = lineage_id.into();
-        validate_lineage_id(&lineage_id)?;
+    /// Returns [`LineageError::ControlCharacters`] if `lineage_id` contains control characters.
+    pub fn new(lineage_id: impl TryInto<LineageId>) -> Result<Self, LineageError> {
+        let lineage_id = lineage_id
+            .try_into()
+            .map_err(|_| LineageError::EmptyLineageId)?;
         Ok(Self {
             lineage_id,
             epoch: Epoch::ZERO,
@@ -79,12 +142,13 @@ impl WorkflowLineage {
     /// - Returns [`LineageError::EmptyLineageId`] if `lineage_id` is empty or whitespace-only.
     /// - Returns [`LineageError::InvalidEpochTransition`] if `parent_epoch >= epoch`.
     pub fn with_parent(
-        lineage_id: impl Into<String>,
+        lineage_id: impl TryInto<LineageId>,
         epoch: Epoch,
         parent_epoch: Option<Epoch>,
     ) -> Result<Self, LineageError> {
-        let lineage_id = lineage_id.into();
-        validate_lineage_id(&lineage_id)?;
+        let lineage_id = lineage_id
+            .try_into()
+            .map_err(|_| LineageError::EmptyLineageId)?;
         if let Some(parent) = parent_epoch {
             if parent >= epoch {
                 return Err(LineageError::InvalidEpochTransition {
@@ -185,7 +249,7 @@ impl LineageState {
     /// Returns the lineage_id.
     #[must_use]
     pub fn lineage_id(&self) -> &str {
-        &self.lineage.lineage_id
+        self.lineage.lineage_id.as_str()
     }
 
     /// Returns the current epoch.
@@ -281,7 +345,7 @@ mod tests {
     #[test]
     fn lineage_new_creates_root_with_epoch_zero_and_no_parent() {
         let lineage = WorkflowLineage::new("wf-abc-123".to_string()).expect("should succeed");
-        assert_eq!(lineage.lineage_id, "wf-abc-123");
+        assert_eq!(lineage.lineage_id.as_str(), "wf-abc-123");
         assert_eq!(lineage.epoch, Epoch::ZERO);
         assert_eq!(lineage.parent_epoch, None);
     }
@@ -289,7 +353,7 @@ mod tests {
     #[test]
     fn lineage_new_with_valid_id_returns_ok() {
         let lineage = WorkflowLineage::new("lineage-root".to_string()).expect("should succeed");
-        assert_eq!(lineage.lineage_id, "lineage-root");
+        assert_eq!(lineage.lineage_id.as_str(), "lineage-root");
     }
 
     #[test]
@@ -297,7 +361,7 @@ mod tests {
         let lineage =
             WorkflowLineage::with_parent("lin-1".to_string(), Epoch::new(2), Some(Epoch::new(1)))
                 .expect("should succeed");
-        assert_eq!(lineage.lineage_id, "lin-1");
+        assert_eq!(lineage.lineage_id.as_str(), "lin-1");
         assert_eq!(lineage.epoch, Epoch::new(2));
         assert_eq!(lineage.parent_epoch, Some(Epoch::new(1)));
     }
@@ -339,7 +403,7 @@ mod tests {
         });
         let lineage: WorkflowLineage =
             serde_json::from_value(json).expect("deserialization should succeed");
-        assert_eq!(lineage.lineage_id, "lin-1");
+        assert_eq!(lineage.lineage_id.as_str(), "lin-1");
         assert_eq!(lineage.epoch, Epoch::new(3));
         assert_eq!(lineage.parent_epoch, Some(Epoch::new(2)));
     }
@@ -470,7 +534,7 @@ mod tests {
     #[test]
     fn invariant_lineage_id_never_empty() {
         let lineage = WorkflowLineage::new("non-empty".to_string()).expect("ok");
-        assert!(!lineage.lineage_id.is_empty());
+        assert!(!lineage.lineage_id.0.is_empty());
     }
 
     #[test]

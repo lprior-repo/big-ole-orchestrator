@@ -4,7 +4,9 @@ use axum::{
     extract::{Extension, Path, State},
     http::StatusCode,
     response::{sse::Event, IntoResponse, Sse},
+    Json,
 };
+use futures::Stream;
 use ractor::ActorRef;
 use tokio::sync::broadcast;
 use tokio::time::interval;
@@ -13,8 +15,8 @@ use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::StreamExt as TokioStreamExt;
 use vo_actor::OrchestratorMsg;
 
-use super::split_path_id;
 use crate::types::ApiError;
+use crate::handlers::helpers::split_path_id;
 
 const SSE_KEEPALIVE_INTERVAL: Duration = Duration::from_secs(15);
 const SSE_BROADCAST_CAPACITY: usize = 1000;
@@ -154,7 +156,7 @@ impl Default for SseState {
     }
 }
 
-fn make_sse_stream(
+struct SseStream {
     receiver: broadcast::Receiver<WorkflowSseEvent>,
 ) -> impl futures::Stream<Item = Result<Event, axum::Error>> + Send + 'static {
     TokioStreamExt::map(BroadcastStream::new(receiver), |result| match result {
@@ -165,29 +167,32 @@ fn make_sse_stream(
     })
 }
 
-fn keepalive_stream() -> impl futures::Stream<Item = Result<Event, axum::Error>> + Send + 'static {
-    async_stream::stream! {
-        let mut interval = interval(SSE_KEEPALIVE_INTERVAL);
-        loop {
-            yield Ok(Event::default()
-                .comment(":keepalive"));
-            interval.tick().await;
+impl Stream for SseStream {
+    type Item = Result<Event, axum::Error>;
+
+    fn poll_next(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Option<Self::Item>> {
+        match std::pin::Pin::new(&mut self.receiver).poll_recv(cx) {
+            std::task::Poll::Ready(Ok(event)) => {
+                std::task::Poll::Ready(Some(Ok(event.to_sse_event())))
+            }
+            std::task::Poll::Ready(Err(broadcast::error::RecvError::Closed)) => {
+                std::task::Poll::Ready(None)
+            }
+            std::task::Poll::Ready(Err(broadcast::error::RecvError::Lagged(_))) => {
+                std::task::Poll::Ready(None)
+            }
+            std::task::Poll::Pending => std::task::Poll::Pending,
         }
     }
-}
-
-fn merge_with_keepalive(
-    receiver: broadcast::Receiver<WorkflowSseEvent>,
-) -> impl futures::Stream<Item = Result<Event, axum::Error>> + Send + 'static {
-    let events = make_sse_stream(receiver);
-    let keepalive = keepalive_stream();
-    events.merge(keepalive)
 }
 
 /// GET /api/v1/watch/:instance_id — SSE stream for workflow live updates (ADR-007/024).
 ///
 /// Best-effort live tail of workflow events. Does not block the write path.
-/// Keeps connection alive with 15-second keepalive pings (`:keepalive` comment).
+/// Keeps connection alive with 15-second keepalive pings.
 /// If client falls behind by more than 1000 events, connection is dropped.
 #[tracing::instrument(skip_all)]
 pub async fn watch_workflow(
@@ -195,7 +200,7 @@ pub async fn watch_workflow(
     Path(id): Path<String>,
     State(state): State<SseState>,
 ) -> impl IntoResponse {
-    let (_namespace, _instance_id) = match split_path_id(&id) {
+    let (_, _instance_id) = match split_path_id(&id) {
         Some(pair) => pair,
         None => {
             return (
@@ -210,12 +215,18 @@ pub async fn watch_workflow(
     };
 
     let receiver = state.broadcaster.subscribe();
-    let stream = merge_with_keepalive(receiver);
 
-    Sse::new(stream).into_response()
+    let stream = SseStream {
+        receiver,
+        _phantom: std::marker::PhantomData,
+    };
+
+    Sse::new(stream)
+        .keep_alive(axum::response::sse::KeepAlive::new().interval(SSE_KEEPALIVE_INTERVAL))
+        .into_response()
 }
 
-use axum::Json;
+
 
 #[cfg(test)]
 mod tests {
@@ -229,7 +240,11 @@ mod tests {
             node_name: "build-step".to_string(),
             sequence: 42,
         };
-        let _sse_event = event.to_sse_event();
+        let sse_event = event.to_sse_event();
+        let data = sse_event.data().to_string();
+        assert!(data.contains("\"type\":\"step_completed\""));
+        assert!(data.contains("\"node_name\":\"build-step\""));
+        assert!(data.contains("\"sequence\":42"));
     }
 
     #[test]
@@ -237,22 +252,27 @@ mod tests {
         let event = WorkflowSseEvent::TimerFired {
             timer_id: "timer-123".to_string(),
         };
-        let _sse_event = event.to_sse_event();
+        let sse_event = event.to_sse_event();
+        let data = sse_event.data().to_string();
+        assert!(data.contains("\"type\":\"timer_fired\""));
+        assert!(data.contains("\"timer_id\":\"timer-123\""));
     }
 
     #[test]
     fn sse_broadcaster_creates_with_capacity() {
         let broadcaster = SseBroadcaster::new();
-        let _receiver = broadcaster.subscribe();
+        let receiver = broadcaster.subscribe();
+        assert!(receiver.is_empty());
     }
 
     #[test]
     fn split_path_id_returns_namespace_and_id_when_valid() {
         let result = split_path_id("payments/01ARZ3NDEKTSV4RRFFQ69G5FAV");
         assert!(result.is_some());
-        let (ns, id) = result.unwrap();
-        assert_eq!(ns, "payments");
-        assert_eq!(id.to_string(), "01ARZ3NDEKTSV4RRFFQ69G5FAV");
+        if let Some((ns, id)) = result {
+            assert_eq!(ns, "payments");
+            assert_eq!(id.as_str(), "01ARZ3NDEKTSV4RRFFQ69G5FAV");
+        }
     }
 
     #[test]

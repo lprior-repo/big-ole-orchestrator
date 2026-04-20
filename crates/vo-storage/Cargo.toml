@@ -28,38 +28,8 @@ aes-gcm = { workspace = true }
 rand = { workspace = true }
 generic-array = { workspace = true }
 ulid = { workspace = true }
-metrics = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
 tempfile = { workspace = true }
 rstest = { workspace = true }
-ulid = { workspace = true }
-vo-core = { workspace = true }
-criterion = { workspace = true }
-metrics-util = "0.18"
-serial_test = "3"
-
-[[bench]]
-name = "dedupe_bench"
-harness = false
-
-[[bench]]
-name = "query_bench"
-harness = false
-
-[[bench]]
-name = "checksum_crypto_bench"
-harness = false
-
-[[bench]]
-name = "merkle_bench"
-harness = false
-
-[[bench]]
-name = "load_bench"
-harness = false
-
-[[bench]]
-name = "replay_load_bench"
-harness = false

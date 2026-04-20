@@ -16,15 +16,11 @@ pub mod workflow_lifecycle;
 pub mod workflow_start;
 pub mod workflow_status;
 
-pub use workflow_lifecycle::*;
-pub use workflow_start::*;
-pub use workflow_status::*;
+pub mod signal;
+pub use signal::*;
 
 pub mod events;
 pub use events::*;
-
-pub mod signal;
-pub use signal::*;
 
 pub mod sse;
 pub use sse::*;

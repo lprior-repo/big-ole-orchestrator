@@ -60,14 +60,12 @@ impl DebouncedFileWatcher {
                     match event.kind {
                         notify::EventKind::Modify(_) => {
                             for path in event.paths {
-                                let _ = watcher_event_tx
-                                    .blocking_send(DebouncedFileEvent::Modify(path));
+                                let _ = watcher_event_tx.blocking_send(DebouncedFileEvent::Modify(path));
                             }
                         }
                         notify::EventKind::Remove(_) => {
                             for path in event.paths {
-                                let _ = watcher_event_tx
-                                    .blocking_send(DebouncedFileEvent::Delete(path));
+                                let _ = watcher_event_tx.blocking_send(DebouncedFileEvent::Delete(path));
                             }
                         }
                         _ => {}
@@ -137,14 +135,12 @@ impl DebouncedFileWatcher {
                     match event.kind {
                         notify::EventKind::Modify(_) => {
                             for path in event.paths {
-                                let _ = watcher_event_tx
-                                    .blocking_send(DebouncedFileEvent::Modify(path));
+                                let _ = watcher_event_tx.blocking_send(DebouncedFileEvent::Modify(path));
                             }
                         }
                         notify::EventKind::Remove(_) => {
                             for path in event.paths {
-                                let _ = watcher_event_tx
-                                    .blocking_send(DebouncedFileEvent::Delete(path));
+                                let _ = watcher_event_tx.blocking_send(DebouncedFileEvent::Delete(path));
                             }
                         }
                         _ => {}

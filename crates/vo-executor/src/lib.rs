@@ -22,7 +22,8 @@ pub mod types;
 // Re-export for convenience
 pub use errors::{ExecuteNodeError, RetryPolicyError};
 pub use execution::{
-    cancel_execution, execute_step, execute_step_with_retry, get_execution_status, get_last_error,
+    cancel_execution, execute_step, execute_step_with_retry, get_execution_status,
+    get_last_error,
 };
 pub use runtime::{ContextError, Runtime, RuntimeError, StepContext};
 pub use scheduler::{

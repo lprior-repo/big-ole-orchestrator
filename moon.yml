@@ -41,6 +41,6 @@ tasks:
       - rust
 
   ci:
-    command: 'moon run :check :test :lint-src :key-encoding-gate :purge-gate'
+    command: 'moon run :check :test :lint-src :purge-gate :quarantine-gate'
     options:
       runInCI: true

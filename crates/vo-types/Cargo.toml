@@ -16,12 +16,12 @@ serde_json.workspace = true
 proptest = { version = "1", optional = true }
 spqr-tree = { workspace = true }
 any-rope = { workspace = true }
+vo-common = { path = "../vo-common" }
 
 [dev-dependencies]
 rstest.workspace = true
 proptest = { version = "1", features = ["fork"] }
 tokio = { workspace = true, features = ["full"] }
-criterion = { workspace = true }
 
 [[bench]]
 name = "types_bench"

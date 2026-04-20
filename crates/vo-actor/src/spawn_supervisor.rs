@@ -135,6 +135,16 @@ impl SpawnRecord {
         }
     }
 
+    /// Transition to failed phase.
+    #[must_use]
+    pub fn transition_to_failed(&self, error: SpawnSupervisorError) -> Self {
+        Self {
+            spawn_phase: SpawnPhase::Failed,
+            last_error: Some(error),
+            ..self.clone()
+        }
+    }
+
     /// Create a new spawn record after respawn.
     #[must_use]
     pub fn respawn(&self, new_spawn_id: Option<vo_types::SpawnId>) -> Self {
@@ -659,6 +669,17 @@ impl SpawnSupervisor {
                                 error = %e,
                                 "Health check failed"
                             );
+
+                            // Transition to Failed so HealthCheck scan skips it
+                            let failed_record = new_record.transition_to_failed(e.clone());
+                            if let Err(save_err) = self.storage.save_spawn_record(&failed_record).await {
+                                self.metrics.dispatch_errors.incr();
+                                tracing::error!(
+                                    instance_id = %record.instance_id,
+                                    error = %save_err,
+                                    "Failed to save failed spawn record"
+                                );
+                            }
 
                             if record.spawn_attempts < self.max_spawn_attempts {
                                 respawns += 1;

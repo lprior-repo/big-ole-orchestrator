@@ -16,6 +16,8 @@
 //! Bulk blobs may be deferred under pressure but canonical blobs must not
 //! violate control-plane durability boundaries.
 
+pub mod budget;
+pub mod budget_ops;
 pub mod check;
 pub mod control;
 pub mod controller;
@@ -28,14 +30,23 @@ pub mod check_tests;
 #[cfg(kani)]
 pub mod check_verification;
 #[cfg(test)]
+pub mod circuit_breaker_tests;
+#[cfg(test)]
 pub mod control_tests;
 #[cfg(test)]
 pub mod controller_tests;
 #[cfg(test)]
 pub mod workload_tests;
+#[cfg(test)]
+pub mod backpressure_release_tests;
 
+pub use budget::{BudgetAllocation, WorkloadBudget};
+pub use budget_ops::{
+    acquire_slot, check_budget, compute_degraded_mode, is_class_accepted_in_mode, release_slot,
+    set_degraded_mode, BudgetCheckResult, BudgetRejectionReason,
+};
 pub use check::{check_admission, check_admission_with_thresholds};
 pub use control::{AdmissionCheck, AdmissionResult, DedupeToken, RejectionReason};
-pub use controller::AdmissionController;
+pub use controller::{AdmissionController, AdmissionControllerWithDlq};
 pub use metrics::{BoolGauge, Gauge, WritePressureMetrics};
-pub use types::{AdmissionError, AdmissionThresholds, PressureIndicator, WritePressureState};
+pub use types::{AdmissionDeadLetterQueue, AdmissionError, AdmissionThresholds, PressureIndicator, RejectedRequest, WritePressureState};

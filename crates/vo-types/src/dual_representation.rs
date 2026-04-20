@@ -49,8 +49,7 @@ impl RedactionRule {
 /// Kind of redaction to apply to a field.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RedactionKind {
-    /// Field is omitted entirely from the operator projection.
-    /// The field key and value are not present in the result.
+    /// Field is removed entirely from the operator projection.
     Remove,
     /// Field is replaced with a fixed placeholder value.
     ReplaceWith(String),
@@ -138,24 +137,6 @@ pub fn apply_redaction(
 ) -> (serde_json::Value, Vec<Vec<String>>) {
     let mut redacted_fields = Vec::new();
 
-    fn matches_rule(current_path: &[String], rule_path: &[String]) -> bool {
-        if rule_path.len() > current_path.len() {
-            return false;
-        }
-        let mut cpi = 0;
-        for rp in rule_path.iter() {
-            while cpi < current_path.len() && current_path[cpi].parse::<usize>().is_ok() {
-                cpi += 1;
-            }
-            if cpi >= current_path.len() || &current_path[cpi] != rp {
-                return false;
-            }
-            cpi += 1;
-        }
-        true
-    }
-
-    #[allow(clippy::if_same_then_else)]
     fn apply_recursive(
         value: &serde_json::Value,
         rules: &[RedactionRule],
@@ -168,26 +149,19 @@ pub fn apply_redaction(
                 for (key, val) in obj {
                     current_path.push(key.clone());
 
-                    let rule = rules
-                        .iter()
-                        .find(|r| matches_rule(current_path, &r.field_path));
+                    let rule = rules.iter().find(|r| r.field_path == *current_path);
 
-                    let (new_val, was_redacted, is_remove) = if let Some(r) = rule {
+                    let (new_val, was_redacted) = if let Some(r) = rule {
                         redacted_fields.push(r.field_path.clone());
-                        let new_val = r.redaction_kind.redact_value(key, val);
-                        let is_remove = matches!(r.redaction_kind, RedactionKind::Remove);
-                        (new_val, true, is_remove)
+                        (r.redaction_kind.redact_value(key, val), true)
                     } else {
                         (
                             apply_recursive(val, rules, current_path, redacted_fields),
                             false,
-                            false,
                         )
                     };
 
-                    if is_remove {
-                        // Remove: key is omitted entirely per ADR-025 §1
-                    } else if !was_redacted || new_val != serde_json::Value::Null {
+                    if !was_redacted || new_val != serde_json::Value::Null {
                         result.insert(key.clone(), new_val);
                     }
 
@@ -197,9 +171,11 @@ pub fn apply_redaction(
             }
             serde_json::Value::Array(arr) => {
                 let mut result = Vec::new();
-                for item in arr.iter() {
+                for (i, item) in arr.iter().enumerate() {
+                    current_path.push(i.to_string());
                     let new_item = apply_recursive(item, rules, current_path, redacted_fields);
                     result.push(new_item);
+                    current_path.pop();
                 }
                 serde_json::Value::Array(result)
             }
@@ -209,4 +185,188 @@ pub fn apply_redaction(
 
     let result = apply_recursive(value, rules, &mut Vec::new(), &mut redacted_fields);
     (result, redacted_fields)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn redaction_kind_remove_produces_null() {
+        let kind = RedactionKind::Remove;
+        let value = serde_json::json!("sensitive data");
+        let result = kind.redact_value("field", &value);
+        assert_eq!(result, serde_json::Value::Null);
+    }
+
+    #[test]
+    fn redaction_kind_replace_with_produces_replacement() {
+        let kind = RedactionKind::ReplaceWith("[REDACTED]".to_string());
+        let value = serde_json::json!("sensitive data");
+        let result = kind.redact_value("field", &value);
+        assert_eq!(result, serde_json::Value::String("[REDACTED]".to_string()));
+    }
+
+    #[test]
+    fn redaction_kind_hash_produces_deterministic_hash() {
+        let kind = RedactionKind::Hash;
+        let value1 = serde_json::json!("same input");
+        let value2 = serde_json::json!("same input");
+
+        let result1 = kind.redact_value("field", &value1);
+        let result2 = kind.redact_value("field", &value2);
+
+        assert_eq!(result1, result2);
+        assert!(result1.as_str().unwrap().starts_with("HASH"));
+    }
+
+    #[test]
+    fn redaction_kind_hash_different_for_different_inputs() {
+        let kind = RedactionKind::Hash;
+        let value1 = serde_json::json!("input A");
+        let value2 = serde_json::json!("input B");
+
+        let result1 = kind.redact_value("field", &value1);
+        let result2 = kind.redact_value("field", &value2);
+
+        assert_ne!(result1, result2);
+    }
+
+    #[test]
+    fn apply_redaction_removes_fields_at_path() {
+        let value = serde_json::json!({
+            "user": {
+                "name": "Alice",
+                "ssn": "123-45-6789"
+            }
+        });
+
+        let rules = vec![RedactionRule::new(
+            vec!["user".to_string(), "ssn".to_string()],
+            RedactionKind::Remove,
+        )];
+
+        let (result, redacted) = apply_redaction(&value, &rules);
+
+        assert_eq!(result["user"]["name"], "Alice");
+        assert_eq!(result["user"]["ssn"], serde_json::Value::Null);
+        assert_eq!(redacted.len(), 1);
+        assert_eq!(redacted[0], vec!["user".to_string(), "ssn".to_string()]);
+    }
+
+    #[test]
+    fn apply_redaction_replaces_fields_at_path() {
+        let value = serde_json::json!({
+            "password": "secret123"
+        });
+
+        let rules = vec![RedactionRule::new(
+            vec!["password".to_string()],
+            RedactionKind::ReplaceWith("[REDACTED]".to_string()),
+        )];
+
+        let (result, _) = apply_redaction(&value, &rules);
+
+        assert_eq!(result["password"], "[REDACTED]");
+    }
+
+    #[test]
+    fn apply_redaction_hashes_fields_at_path() {
+        let value = serde_json::json!({
+            "email": "user@example.com"
+        });
+
+        let rules = vec![RedactionRule::new(
+            vec!["email".to_string()],
+            RedactionKind::Hash,
+        )];
+
+        let (result, _) = apply_redaction(&value, &rules);
+
+        let hash_str = result["email"].as_str().unwrap();
+        assert!(hash_str.starts_with("HASH"));
+    }
+
+    #[test]
+    fn apply_redaction_handles_arrays_recursively() {
+        let value = serde_json::json!({
+            "users": [
+                {"name": "Alice", "ssn": "111"},
+                {"name": "Bob", "ssn": "222"}
+            ]
+        });
+
+        let rules = vec![RedactionRule::new(
+            vec!["users".to_string(), "ssn".to_string()],
+            RedactionKind::Remove,
+        )];
+
+        let (result, redacted) = apply_redaction(&value, &rules);
+
+        assert_eq!(result["users"][0]["name"], "Alice");
+        assert_eq!(result["users"][0]["ssn"], serde_json::Value::Null);
+        assert_eq!(result["users"][1]["name"], "Bob");
+        assert_eq!(result["users"][1]["ssn"], serde_json::Value::Null);
+        assert_eq!(redacted.len(), 2);
+    }
+
+    #[test]
+    fn apply_redaction_handles_nested_arrays() {
+        let value = serde_json::json!({
+            "matrix": [[1, 2], [3, 4]]
+        });
+
+        let rules = vec![RedactionRule::new(
+            vec!["matrix".to_string()],
+            RedactionKind::ReplaceWith("[REDACTED]".to_string()),
+        )];
+
+        let (result, _) = apply_redaction(&value, &rules);
+
+        assert_eq!(result["matrix"], "[REDACTED]");
+    }
+
+    #[test]
+    fn operator_projection_roundtrip() {
+        let projection = OperatorProjection::new(
+            "wf-123".to_string(),
+            "payment".to_string(),
+            serde_json::json!({"status": "completed"}),
+            vec![vec!["ssn".to_string()]],
+        );
+
+        let json = serde_json::to_string(&projection).unwrap();
+        let recovered: OperatorProjection = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(projection, recovered);
+    }
+
+    #[test]
+    fn redaction_policy_roundtrip() {
+        let policy = RedactionPolicy::new(
+            "payment".to_string(),
+            vec![RedactionRule::new(
+                vec!["ssn".to_string()],
+                RedactionKind::Remove,
+            )],
+        );
+
+        let json = serde_json::to_string(&policy).unwrap();
+        let recovered: RedactionPolicy = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(policy, recovered);
+    }
+
+    #[test]
+    fn redaction_rule_roundtrip() {
+        let rule = RedactionRule::new(
+            vec!["user".to_string(), "email".to_string()],
+            RedactionKind::Hash,
+        );
+
+        let json = serde_json::to_string(&rule).unwrap();
+        let recovered: RedactionRule = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(rule, recovered);
+    }
 }

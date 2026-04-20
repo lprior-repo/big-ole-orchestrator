@@ -9,7 +9,6 @@ pub mod graph;
 pub mod operator_action_panel;
 pub mod parallel_group_overlay;
 pub mod prototype_palette;
-pub mod simulate_mode;
 #[cfg(test)]
 pub mod template_rendering_tests;
 

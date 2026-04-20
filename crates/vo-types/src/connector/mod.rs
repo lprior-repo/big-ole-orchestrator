@@ -34,7 +34,7 @@ mod verification;
 
 // Re-export all public API items
 pub use runtime::{
-    execute_with_reconciliation, reconcile_ambiguous, Connector, ConnectorError,
+    reconcile_ambiguous, execute_with_reconciliation, Connector, ConnectorError,
     ReconciliationResult,
 };
 pub use transition::apply_connector_transition;

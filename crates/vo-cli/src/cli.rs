@@ -43,6 +43,11 @@ pub enum Command {
         workflow_id: String,
         force: bool,
     },
+    Unquarantine {
+        engine_url: String,
+        workflow_name: String,
+        operator: String,
+    },
     Gc {
         engine_url: String,
         dry_run: bool,
@@ -58,13 +63,9 @@ pub enum Command {
     Doctor {
         project_dir: PathBuf,
     },
-    Rebuild {
-        project_dir: PathBuf,
-        projection_id: Option<String>,
-        list_projections: bool,
-        force: bool,
-    },
-    Status {
+    Unquarantine {
+        workflow_name: String,
+        operator: String,
         engine_url: String,
         workflow_id: String,
     },
@@ -137,6 +138,28 @@ where
                 ),
         )
         .subcommand(
+            clap::Command::new("unquarantine")
+                .about("Unquarantine a workflow instance")
+                .arg(
+                    clap::Arg::new("workflow-name")
+                        .required(true)
+                        .index(1)
+                        .help("The workflow name to unquarantine"),
+                )
+                .arg(
+                    clap::Arg::new("engine-url")
+                        .long("engine-url")
+                        .env("VO_ENGINE_URL")
+                        .default_value("http://localhost:3000"),
+                )
+                .arg(
+                    clap::Arg::new("operator")
+                        .long("operator")
+                        .required(true)
+                        .help("Operator performing the unquarantine"),
+                ),
+        )
+        .subcommand(
             clap::Command::new("gc")
                 .arg(
                     clap::Arg::new("engine-url")
@@ -188,40 +211,20 @@ where
             ),
         )
         .subcommand(
-            clap::Command::new("rebuild")
-                .about("Rebuild projection from canonical event log")
+            clap::Command::new("unquarantine")
+                .about("Manually unquarantine a workflow (ADR-026)")
                 .arg(
-                    clap::Arg::new("project-dir")
-                        .long("project-dir")
-                        .default_value(".")
-                        .help("Project directory"),
-                )
-                .arg(
-                    clap::Arg::new("projection-id")
-                        .long("projection-id")
-                        .help("Projection ID to rebuild"),
-                )
-                .arg(
-                    clap::Arg::new("list")
-                        .long("list")
-                        .action(clap::ArgAction::SetTrue)
-                        .help("List all registered projections"),
-                )
-                .arg(
-                    clap::Arg::new("force")
-                        .long("force")
-                        .action(clap::ArgAction::SetTrue)
-                        .help("Force rebuild even if projection is not stale"),
-                ),
-        )
-        .subcommand(
-            clap::Command::new("status")
-                .about("Query workflow lineage status")
-                .arg(
-                    clap::Arg::new("instance")
+                    clap::Arg::new("workflow-name")
                         .required(true)
-                        .index(1)
-                        .help("Workflow instance ID (e.g., namespace/01ARZ3NDEKTSV4RRFFQ69G5FAV)"),
+                        .value_name("WORKFLOW_NAME")
+                        .help("The workflow name to unquarantine"),
+                )
+                .arg(
+                    clap::Arg::new("operator")
+                        .long("operator")
+                        .required(true)
+                        .value_name("OPERATOR")
+                        .help("The operator performing the unquarantine"),
                 )
                 .arg(
                     clap::Arg::new("engine-url")
@@ -316,6 +319,35 @@ where
                 },
             })
         }
+        Some(("unquarantine", sub_matches)) => {
+            let workflow_name = match sub_matches.get_one::<String>("workflow-name") {
+                Some(id) => id.clone(),
+                None => {
+                    return Err(clap::Error::new(
+                        clap::error::ErrorKind::MissingRequiredArgument,
+                    ))
+                }
+            };
+            let engine_url = match sub_matches.get_one::<String>("engine-url") {
+                Some(u) => u.clone(),
+                None => "http://localhost:3000".to_string(),
+            };
+            let operator = match sub_matches.get_one::<String>("operator") {
+                Some(o) => o.clone(),
+                None => {
+                    return Err(clap::Error::new(
+                        clap::error::ErrorKind::MissingRequiredArgument,
+                    ))
+                }
+            };
+            Ok(Cli {
+                command: Command::Unquarantine {
+                    engine_url,
+                    workflow_name,
+                    operator,
+                },
+            })
+        }
         Some(("gc", sub_matches)) => {
             let engine_url = match sub_matches.get_one::<String>("engine-url") {
                 Some(u) => u.clone(),
@@ -368,14 +400,27 @@ where
                 command: Command::Doctor { project_dir },
             })
         }
-        Some(("rebuild", sub_matches)) => {
-            let project_dir = sub_matches
-                .get_one::<String>("project-dir")
-                .map(PathBuf::from)
-                .unwrap_or_default();
-            let projection_id = sub_matches.get_one::<String>("projection-id").cloned();
-            let list_projections = sub_matches.get_flag("list");
-            let force = sub_matches.get_flag("force");
+        Some(("unquarantine", sub_matches)) => {
+            let workflow_name = match sub_matches.get_one::<String>("workflow-name") {
+                Some(w) => w.clone(),
+                None => {
+                    return Err(clap::Error::new(
+                        clap::error::ErrorKind::MissingRequiredArgument,
+                    ))
+                }
+            };
+            let operator = match sub_matches.get_one::<String>("operator") {
+                Some(o) => o.clone(),
+                None => {
+                    return Err(clap::Error::new(
+                        clap::error::ErrorKind::MissingRequiredArgument,
+                    ))
+                }
+            };
+            let engine_url = match sub_matches.get_one::<String>("engine-url") {
+                Some(u) => u.clone(),
+                None => "http://localhost:3000".to_string(),
+            };
             Ok(Cli {
                 command: Command::Rebuild {
                     project_dir,
@@ -447,6 +492,7 @@ pub fn map_error_to_exit_code(err: &CliError) -> i32 {
         CliError::Dispatch(_)
         | CliError::Check(_)
         | CliError::Compensate(_)
+        | CliError::Unquarantine(_)
         | CliError::Gc(_)
         | CliError::Init(_)
         | CliError::Lock(_)
