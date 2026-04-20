@@ -211,7 +211,7 @@ unsafe impl Sync for SchedulerQueue {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::JobPriority;
+    use crate::{JobPriority, Schedule};
 
     fn _make_job(id: u64, priority: JobPriority, fire_at_ms: u64) -> (Job, u64) {
         let job = Job::new(
@@ -397,5 +397,355 @@ mod tests {
         assert_eq!(due.len(), 2);
         assert_eq!(due[0].0.id, JobId::new(2), "Earlier fire time first");
         assert_eq!(due[1].0.id, JobId::new(1), "Later fire time second");
+    }
+
+    #[test]
+    fn qa_full_priority_chain_all_five_levels() {
+        let mut pq = PriorityQueue::new();
+        let fire = 100u64;
+
+        pq.push(
+            Job::new(JobId::new(4), "background".into(), Schedule::OneShot { fire_at_ms: fire })
+                .with_priority(JobPriority::Background),
+            fire,
+        );
+        pq.push(
+            Job::new(JobId::new(3), "low".into(), Schedule::OneShot { fire_at_ms: fire })
+                .with_priority(JobPriority::Low),
+            fire,
+        );
+        pq.push(
+            Job::new(JobId::new(2), "normal".into(), Schedule::OneShot { fire_at_ms: fire })
+                .with_priority(JobPriority::Normal),
+            fire,
+        );
+        pq.push(
+            Job::new(JobId::new(1), "high".into(), Schedule::OneShot { fire_at_ms: fire })
+                .with_priority(JobPriority::High),
+            fire,
+        );
+        pq.push(
+            Job::new(JobId::new(0), "critical".into(), Schedule::OneShot { fire_at_ms: fire })
+                .with_priority(JobPriority::Critical),
+            fire,
+        );
+
+        let ids: Vec<u64> = std::iter::from_fn(|| pq.pop().map(|(j, _)| j.id.0))
+            .collect();
+        assert_eq!(ids, vec![0, 1, 2, 3, 4], "Must dequeue Critical..Background");
+    }
+
+    #[test]
+    fn qa_fifo_tiebreak_same_priority_and_fire_time() {
+        let mut pq = PriorityQueue::new();
+        let fire = 500u64;
+        let pri = JobPriority::Normal;
+
+        for id in 10u64..=15 {
+            pq.push(
+                Job::new(JobId::new(id), format!("job-{}", id), Schedule::OneShot { fire_at_ms: fire })
+                    .with_priority(pri),
+                fire,
+            );
+        }
+
+        let first = pq.pop().unwrap().0;
+        assert_eq!(first.id, JobId::new(10), "FIFO: first inserted should pop first among ties");
+    }
+
+    #[test]
+    fn qa_pop_due_jobs_respects_max_limit() {
+        let mut pq = PriorityQueue::new();
+        let now = 1000u64;
+
+        for id in 1u64..=10 {
+            pq.push(
+                Job::new(JobId::new(id), format!("job-{}", id), Schedule::OneShot { fire_at_ms: now - 50 })
+                    .with_priority(JobPriority::Normal),
+                now - 50,
+            );
+        }
+
+        let due = pq.pop_due_jobs(now, 3);
+        assert_eq!(due.len(), 3, "Must return at most max jobs");
+        assert_eq!(pq.len(), 7, "Remaining 7 jobs must stay in queue");
+    }
+
+    #[test]
+    fn qa_pop_due_jobs_returns_priority_order() {
+        let mut pq = PriorityQueue::new();
+        let now = 1000u64;
+
+        pq.push(
+            Job::new(JobId::new(1), "low".into(), Schedule::OneShot { fire_at_ms: now - 10 })
+                .with_priority(JobPriority::Low),
+            now - 10,
+        );
+        pq.push(
+            Job::new(JobId::new(2), "critical".into(), Schedule::OneShot { fire_at_ms: now - 10 })
+                .with_priority(JobPriority::Critical),
+            now - 10,
+        );
+        pq.push(
+            Job::new(JobId::new(3), "normal".into(), Schedule::OneShot { fire_at_ms: now - 10 })
+                .with_priority(JobPriority::Normal),
+            now - 10,
+        );
+
+        let due = pq.pop_due_jobs(now, 10);
+        assert_eq!(due.len(), 3);
+        assert_eq!(due[0].id, JobId::new(2), "Critical first via pop_due_jobs");
+        assert_eq!(due[1].id, JobId::new(3), "Normal second via pop_due_jobs");
+        assert_eq!(due[2].id, JobId::new(1), "Low last via pop_due_jobs");
+    }
+
+    #[test]
+    fn qa_pop_due_jobs_does_not_return_future_jobs() {
+        let mut pq = PriorityQueue::new();
+        let now = 1000u64;
+
+        pq.push(
+            Job::new(JobId::new(1), "past".into(), Schedule::OneShot { fire_at_ms: now - 100 }),
+            now - 100,
+        );
+        pq.push(
+            Job::new(JobId::new(2), "future".into(), Schedule::OneShot { fire_at_ms: now + 9999 }),
+            now + 9999,
+        );
+        pq.push(
+            Job::new(JobId::new(3), "exact-now".into(), Schedule::OneShot { fire_at_ms: now }),
+            now,
+        );
+
+        let due = pq.pop_due_jobs(now, 10);
+        let due_ids: Vec<u64> = due.iter().map(|j| j.id.0).collect();
+        assert_eq!(due_ids, vec![1, 3], "Only past and exact-now jobs should be due");
+        assert_eq!(pq.len(), 1, "Future job must remain in queue");
+    }
+
+    #[test]
+    fn qa_pop_due_jobs_excess_due_jobs_stay_in_queue() {
+        let mut pq = PriorityQueue::new();
+        let now = 1000u64;
+
+        pq.push(
+            Job::new(JobId::new(1), "critical".into(), Schedule::OneShot { fire_at_ms: now })
+                .with_priority(JobPriority::Critical),
+            now,
+        );
+        pq.push(
+            Job::new(JobId::new(2), "high".into(), Schedule::OneShot { fire_at_ms: now })
+                .with_priority(JobPriority::High),
+            now,
+        );
+        pq.push(
+            Job::new(JobId::new(3), "normal".into(), Schedule::OneShot { fire_at_ms: now })
+                .with_priority(JobPriority::Normal),
+            now,
+        );
+
+        let due = pq.pop_due_jobs(now, 1);
+        assert_eq!(due.len(), 1);
+        assert_eq!(due[0].id, JobId::new(1), "Must get the Critical job");
+
+        assert_eq!(pq.len(), 2, "Excess due jobs must stay in queue");
+
+        let remaining = pq.pop_due_jobs(now, 10);
+        assert_eq!(remaining.len(), 2);
+        assert_eq!(remaining[0].id, JobId::new(2), "High next");
+        assert_eq!(remaining[1].id, JobId::new(3), "Normal last");
+    }
+
+    #[test]
+    fn qa_empty_queue_operations() {
+        let mut pq = PriorityQueue::new();
+        assert!(pq.is_empty());
+        assert_eq!(pq.len(), 0);
+        assert!(pq.pop().is_none());
+        assert!(pq.peek().is_none());
+        assert!(pq.due_jobs(0, 10).is_empty());
+        assert!(pq.pop_due_jobs(0, 10).is_empty());
+        assert!(pq.remove(&JobId::new(1)).is_none());
+    }
+
+    #[test]
+    fn qa_single_item_lifecycle() {
+        let mut pq = PriorityQueue::new();
+        pq.push(
+            Job::new(JobId::new(42), "only".into(), Schedule::OneShot { fire_at_ms: 100 }),
+            100,
+        );
+        assert_eq!(pq.len(), 1);
+        assert!(!pq.is_empty());
+
+        let peeked = pq.peek().unwrap();
+        assert_eq!(peeked.id, JobId::new(42));
+
+        let (job, fire) = pq.pop().unwrap();
+        assert_eq!(job.id, JobId::new(42));
+        assert_eq!(fire, 100);
+        assert!(pq.is_empty());
+    }
+
+    #[test]
+    fn qa_scheduler_queue_state_tracking() {
+        let mut sq = SchedulerQueue::new();
+
+        sq.push(
+            Job::new(JobId::new(1), "test".into(), Schedule::OneShot { fire_at_ms: 100 }),
+            100,
+        );
+        assert_eq!(sq.get_state(&JobId::new(1)), Some(JobState::Scheduled));
+
+        let (job, _) = sq.pop().unwrap();
+        assert_eq!(job.id, JobId::new(1));
+        assert_eq!(sq.get_state(&JobId::new(1)), Some(JobState::Pending));
+
+        sq.set_state(JobId::new(1), JobState::Running);
+        assert_eq!(sq.get_state(&JobId::new(1)), Some(JobState::Running));
+
+        sq.set_state(JobId::new(1), JobState::Completed);
+        assert_eq!(sq.get_state(&JobId::new(1)), Some(JobState::Completed));
+    }
+
+    #[test]
+    fn qa_scheduler_queue_remove_clears_state() {
+        let mut sq = SchedulerQueue::new();
+        sq.push(
+            Job::new(JobId::new(1), "test".into(), Schedule::OneShot { fire_at_ms: 100 }),
+            100,
+        );
+        assert_eq!(sq.get_state(&JobId::new(1)), Some(JobState::Scheduled));
+
+        let removed = sq.remove(&JobId::new(1));
+        assert!(removed.is_some());
+        assert_eq!(sq.get_state(&JobId::new(1)), None, "State must be cleared on remove");
+        assert!(sq.is_empty());
+    }
+
+    #[test]
+    fn qa_reschedule_preserves_ordering() {
+        let mut sq = SchedulerQueue::new();
+        let now = 1000u64;
+
+        sq.push(
+            Job::new(JobId::new(1), "first".into(), Schedule::OneShot { fire_at_ms: now - 100 })
+                .with_priority(JobPriority::High),
+            now - 100,
+        );
+        sq.push(
+            Job::new(JobId::new(2), "second".into(), Schedule::OneShot { fire_at_ms: now - 100 })
+                .with_priority(JobPriority::Low),
+            now - 100,
+        );
+
+        assert_eq!(sq.len(), 2, "Should have 2 jobs before pop");
+
+        let due = sq.pop_due_jobs(now, 1);
+        assert_eq!(due.len(), 1, "Should get 1 due job");
+        assert_eq!(due[0].id, JobId::new(1), "High priority first");
+
+        assert_eq!(sq.len(), 1, "1 job should remain after pop_due_jobs(max=1)");
+
+        sq.reschedule(due[0].clone(), now + 500);
+        assert_eq!(sq.len(), 2, "2 jobs after reschedule");
+
+        let remaining = sq.pop_due_jobs(now, 10);
+        assert!(!remaining.is_empty(), "Should have remaining due job: len={}", sq.len());
+        assert_eq!(remaining[0].id, JobId::new(2), "Low priority still there");
+
+        let after_reschedule = sq.pop_due_jobs(now + 600, 10);
+        assert!(!after_reschedule.is_empty(), "Should have rescheduled job");
+        assert_eq!(after_reschedule[0].id, JobId::new(1), "Rescheduled High comes back");
+    }
+
+    #[test]
+    fn qa_pop_due_jobs_drain_rebuild_correctness() {
+        let mut pq = PriorityQueue::new();
+        let now = 1000u64;
+
+        pq.push(
+            Job::new(JobId::new(1), "high".into(), Schedule::OneShot { fire_at_ms: now - 100 })
+                .with_priority(JobPriority::High),
+            now - 100,
+        );
+        pq.push(
+            Job::new(JobId::new(2), "low".into(), Schedule::OneShot { fire_at_ms: now - 100 })
+                .with_priority(JobPriority::Low),
+            now - 100,
+        );
+
+        let first = pq.pop_due_jobs(now, 1);
+        assert_eq!(first.len(), 1);
+        assert_eq!(first[0].id, JobId::new(1));
+
+        assert_eq!(pq.len(), 1, "One job should remain");
+
+        let second = pq.pop_due_jobs(now, 10);
+        assert_eq!(second.len(), 1, "Second job should be due: pq.len()={}", pq.len());
+        assert_eq!(second[0].id, JobId::new(2), "Low job should come out");
+    }
+
+    #[test]
+    fn qa_due_jobs_and_pop_due_jobs_agree() {
+        let mut pq = PriorityQueue::new();
+        let now = 1000u64;
+
+        for id in 1u64..=8 {
+            let pri = match id % 4 {
+                0 => JobPriority::Critical,
+                1 => JobPriority::High,
+                2 => JobPriority::Normal,
+                3 => JobPriority::Low,
+                _ => unreachable!(),
+            };
+            pq.push(
+                Job::new(JobId::new(id), format!("job-{}", id), Schedule::OneShot { fire_at_ms: now - 10 })
+                    .with_priority(pri),
+                now - 10,
+            );
+        }
+
+        let due_ref: Vec<u64> = pq.due_jobs(now, 8).iter().map(|(j, _)| j.id.0).collect();
+
+        let mut pq2 = PriorityQueue::new();
+        for id in 1u64..=8 {
+            let pri = match id % 4 {
+                0 => JobPriority::Critical,
+                1 => JobPriority::High,
+                2 => JobPriority::Normal,
+                3 => JobPriority::Low,
+                _ => unreachable!(),
+            };
+            pq2.push(
+                Job::new(JobId::new(id), format!("job-{}", id), Schedule::OneShot { fire_at_ms: now - 10 })
+                    .with_priority(pri),
+                now - 10,
+            );
+        }
+        let due_pop: Vec<u64> = pq2.pop_due_jobs(now, 8).iter().map(|j| j.id.0).collect();
+
+        assert_eq!(due_ref, due_pop, "due_jobs and pop_due_jobs must agree on ordering");
+    }
+
+    #[test]
+    fn qa_peek_does_not_remove() {
+        let mut pq = PriorityQueue::new();
+        pq.push(
+            Job::new(JobId::new(1), "test".into(), Schedule::OneShot { fire_at_ms: 100 })
+                .with_priority(JobPriority::Critical),
+            100,
+        );
+
+        let peeked = pq.peek().unwrap();
+        assert_eq!(peeked.id, JobId::new(1));
+        assert_eq!(pq.len(), 1, "peek must not remove");
+
+        let peeked2 = pq.peek().unwrap();
+        assert_eq!(peeked2.id, JobId::new(1));
+
+        let popped = pq.pop().unwrap().0;
+        assert_eq!(popped.id, JobId::new(1));
+        assert_eq!(pq.len(), 0);
     }
 }
