@@ -437,12 +437,10 @@ use vo_types::{CryptoAlgorithm, WrappedDek};
 fn tdd_red_014_wrapped_dek_minimum_size_is_iv_plus_tag() {
     let min_wrapped_size = CryptoAlgorithm::IV_SIZE_BYTES + CryptoAlgorithm::TAG_SIZE_BYTES; // 28
 
-    let undersized = WrappedDek::new(vec![0u8; min_wrapped_size - 1]).unwrap();
+    let result = WrappedDek::new(vec![0u8; min_wrapped_size - 1]);
     assert!(
-        undersized.as_bytes().len() >= min_wrapped_size,
-        "I-DEK-1: WrappedDek must be >= {} bytes (IV + tag overhead), got {} bytes",
-        min_wrapped_size,
-        undersized.as_bytes().len()
+        result.is_err(),
+        "I-DEK-1: WrappedDek must reject < 60 bytes"
     );
 }
 
@@ -452,7 +450,8 @@ fn tdd_red_015_wrapped_dek_expected_size_for_aes256_key() {
         + CryptoAlgorithm::KEY_SIZE_BYTES
         + CryptoAlgorithm::TAG_SIZE_BYTES; // 60
 
-    let properly_wrapped = WrappedDek::new(vec![0u8; expected_size]).unwrap();
+    let properly_wrapped =
+        WrappedDek::new(vec![0u8; expected_size]).expect("valid size should be accepted");
     assert_eq!(
         properly_wrapped.as_bytes().len(),
         expected_size,
@@ -460,9 +459,9 @@ fn tdd_red_015_wrapped_dek_expected_size_for_aes256_key() {
         expected_size
     );
 
-    let undersized = WrappedDek::new(vec![0u8; expected_size - 1]).unwrap();
+    let result = WrappedDek::new(vec![0u8; expected_size - 1]);
     assert!(
-        undersized.as_bytes().len() >= expected_size,
+        result.is_err(),
         "I-DEK-2: WrappedDek < {} bytes indicates corruption",
         expected_size
     );
@@ -470,9 +469,9 @@ fn tdd_red_015_wrapped_dek_expected_size_for_aes256_key() {
 
 #[test]
 fn tdd_red_016_empty_wrapped_dek_is_structurally_invalid() {
-    let empty = WrappedDek::new(vec![]).unwrap();
+    let result = WrappedDek::new(vec![]);
     assert!(
-        !empty.as_bytes().is_empty(),
+        result.is_err(),
         "I-DEK-1: Empty WrappedDek is structurally invalid (no IV, ciphertext, or tag)"
     );
 }
@@ -484,10 +483,10 @@ fn tdd_red_017_wrapped_dek_size_consistent_with_aes256gcm_algorithm() {
     let min_for_key = iv_tag_overhead + key_size; // 60
 
     // Only IV+tag overhead, no room for encrypted key material
-    let short_dek = WrappedDek::new(vec![0u8; iv_tag_overhead]).unwrap();
+    let result = WrappedDek::new(vec![0u8; iv_tag_overhead]);
     assert!(
-        short_dek.as_bytes().len() >= min_for_key,
+        result.is_err(),
         "I-DEK-2: {} bytes is only IV+tag overhead, no room for encrypted key material",
-        short_dek.as_bytes().len()
+        iv_tag_overhead
     );
 }

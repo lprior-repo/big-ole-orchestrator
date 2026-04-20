@@ -67,8 +67,6 @@ mod lib_tests {
             instance_id: "inst-1".to_string(),
             entries: vec![],
             total_replayed: 0,
-            replay_error_count: 0,
-            truncated: false,
         };
         let json = serde_json::to_string(&resp).unwrap();
         assert!(json.contains(r#""instance_id":"inst-1""#));

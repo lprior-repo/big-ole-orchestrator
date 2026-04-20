@@ -14,8 +14,8 @@ use std::sync::LazyLock;
 use std::sync::Mutex;
 use std::sync::MutexGuard;
 use vo_executor::{
-    cancel_execution, execute_step, execute_step_with_retry, get_execution_status,
-    get_last_error, reset_all_state, RetryPolicy, StepId, StepResult,
+    cancel_execution, execute_step, execute_step_with_retry, get_execution_status, get_last_error,
+    reset_all_state, RetryPolicy, StepId, StepResult,
 };
 
 static STATE_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
@@ -91,7 +91,10 @@ mod red_queen_pure_tests {
         let step_id = StepId::new("step-slow".to_string());
 
         let result = execute_step(step_id.clone(), 5000).await;
-        assert!(result.is_ok(), "Pure step with sufficient timeout should succeed");
+        assert!(
+            result.is_ok(),
+            "Pure step with sufficient timeout should succeed"
+        );
     }
 
     #[tokio::test]
@@ -99,9 +102,7 @@ mod red_queen_pure_tests {
         let _guard = state_guard();
 
         let handles: Vec<_> = (0..5)
-            .map(|_| {
-                tokio::spawn(execute_step(StepId::new("step-good".to_string()), 5000))
-            })
+            .map(|_| tokio::spawn(execute_step(StepId::new("step-good".to_string()), 5000)))
             .collect();
 
         let mut results = Vec::new();
@@ -110,7 +111,12 @@ mod red_queen_pure_tests {
         }
 
         for result in &results {
-            assert_eq!(result.as_ref().unwrap(), &StepResult::Success { output: "done".to_string() });
+            assert_eq!(
+                result.as_ref().unwrap(),
+                &StepResult::Success {
+                    output: "done".to_string()
+                }
+            );
         }
     }
 
@@ -149,7 +155,10 @@ mod red_queen_managed_effect_tests {
         assert!(result.is_ok());
 
         let error = get_last_error(&step_id);
-        assert!(error.is_none(), "Good step should have no error after success");
+        assert!(
+            error.is_none(),
+            "Good step should have no error after success"
+        );
     }
 
     #[tokio::test]
@@ -195,7 +204,10 @@ mod red_queen_managed_effect_tests {
         reset_all_state();
 
         let error_after = get_last_error(&step_id);
-        assert!(error_after.is_none(), "Error state should be cleared after reset");
+        assert!(
+            error_after.is_none(),
+            "Error state should be cleared after reset"
+        );
     }
 
     #[tokio::test]
@@ -247,12 +259,9 @@ mod red_queen_managed_effect_tests {
         let _guard = state_guard();
         let policy = RetryPolicy::new(3, 10, 2.0).unwrap();
 
-        let result = execute_step_with_retry(
-            StepId::new("nonexistent-step".to_string()),
-            5000,
-            policy,
-        )
-        .await;
+        let result =
+            execute_step_with_retry(StepId::new("nonexistent-step".to_string()), 5000, policy)
+                .await;
 
         assert!(matches!(
             result,
@@ -286,7 +295,10 @@ mod red_queen_wait_tests {
         let result = execute_step(step_id.clone(), 100).await;
 
         match result {
-            Err(vo_executor::ExecuteNodeError::TimeoutExceeded { elapsed_ms, limit_ms }) => {
+            Err(vo_executor::ExecuteNodeError::TimeoutExceeded {
+                elapsed_ms,
+                limit_ms,
+            }) => {
                 assert!(elapsed_ms >= 3000);
                 assert_eq!(limit_ms, 100);
             }
@@ -319,7 +331,10 @@ mod red_queen_wait_tests {
         assert!(cancel_result.is_ok());
 
         let status = get_execution_status(&step_id);
-        assert!(matches!(status, vo_executor::ExecutionStatus::Cancelled { .. }));
+        assert!(matches!(
+            status,
+            vo_executor::ExecutionStatus::Cancelled { .. }
+        ));
 
         let _ = handle.await;
     }
@@ -439,9 +454,7 @@ mod red_queen_signal_tests {
 
         let handles: Vec<_> = vec!["step-1", "step-good", "step-valid"]
             .iter()
-            .map(|id| {
-                tokio::spawn(execute_step(StepId::new(id.to_string()), 5000))
-            })
+            .map(|id| tokio::spawn(execute_step(StepId::new(id.to_string()), 5000)))
             .collect();
 
         let count = handles.len();
@@ -462,12 +475,7 @@ mod red_queen_signal_tests {
         let _guard = state_guard();
 
         let handles: Vec<_> = (0..10)
-            .map(|_| {
-                tokio::spawn(execute_step(
-                    StepId::new("step-good".to_string()),
-                    5000,
-                ))
-            })
+            .map(|_| tokio::spawn(execute_step(StepId::new("step-good".to_string()), 5000)))
             .collect();
 
         let mut success_count = 0;
@@ -541,7 +549,10 @@ mod red_queen_unsafe_tests {
         assert!(result.is_ok());
 
         let status = get_execution_status(&step_id);
-        assert!(status.is_ready(), "Status should return to Ready after execution");
+        assert!(
+            status.is_ready(),
+            "Status should return to Ready after execution"
+        );
     }
 
     #[tokio::test]
@@ -563,12 +574,7 @@ mod red_queen_unsafe_tests {
         let _guard = state_guard();
 
         let handles: Vec<_> = (0..5)
-            .map(|_| {
-                tokio::spawn(execute_step(
-                    StepId::new("step-good".to_string()),
-                    5000,
-                ))
-            })
+            .map(|_| tokio::spawn(execute_step(StepId::new("step-good".to_string()), 5000)))
             .collect();
 
         let mut results = Vec::new();
@@ -608,7 +614,10 @@ mod red_queen_unsafe_tests {
         let _ = handle.await;
 
         let status = get_execution_status(&step_id);
-        assert!(matches!(status, vo_executor::ExecutionStatus::Cancelled { .. }));
+        assert!(matches!(
+            status,
+            vo_executor::ExecutionStatus::Cancelled { .. }
+        ));
     }
 }
 
@@ -628,14 +637,8 @@ mod red_queen_retry_policy_tests {
             backoff_ms: 100,
             backoff_multiplier: 2.0,
             max_backoff_ms: u64::MAX,
-            jitter_factor: 0.1,
         };
-        let result = execute_step_with_retry(
-            StepId::new("step-1".to_string()),
-            5000,
-            policy,
-        )
-        .await;
+        let result = execute_step_with_retry(StepId::new("step-1".to_string()), 5000, policy).await;
 
         assert!(matches!(
             result,
@@ -653,7 +656,10 @@ mod red_queen_retry_policy_tests {
         let result = execute_step_with_retry(step_id.clone(), 5000, policy).await;
         let elapsed = start.elapsed().as_millis() as u64;
 
-        assert!(elapsed >= 300, "Backoff should grow: 100 + 200 + 400 = 700ms");
+        assert!(
+            elapsed >= 300,
+            "Backoff should grow: 100 + 200 + 400 = 700ms"
+        );
         assert!(result.is_err());
     }
 
@@ -760,7 +766,10 @@ mod red_queen_adversarial_edge_cases {
         let _ = handle.await;
 
         let status = get_execution_status(&step_id);
-        assert!(matches!(status, vo_executor::ExecutionStatus::Cancelled { .. }));
+        assert!(matches!(
+            status,
+            vo_executor::ExecutionStatus::Cancelled { .. }
+        ));
     }
 
     #[tokio::test]

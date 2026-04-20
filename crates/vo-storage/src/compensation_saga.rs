@@ -26,11 +26,9 @@
 //! ```
 
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use vo_types::compensation::{CompensationRecord, CompensationStatus};
-use vo_types::effects::{CompensationPolicy, EffectIntent};
-use vo_types::types::TimestampMs;
+use vo_types::{CompensationPolicy, CompensationStatus, TimestampMs};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum SagaCompensationStatus {
@@ -46,11 +44,10 @@ pub enum SagaCompensationStatus {
 impl From<CompensationStatus> for SagaCompensationStatus {
     fn from(status: CompensationStatus) -> Self {
         match status {
-            CompensationStatus::NotNeeded => SagaCompensationStatus::Succeeded,
-            CompensationStatus::Pending => SagaCompensationStatus::Pending,
-            CompensationStatus::InProgress => SagaCompensationStatus::InProgress,
-            CompensationStatus::Succeeded => SagaCompensationStatus::Succeeded,
-            CompensationStatus::Failed => SagaCompensationStatus::Failed,
+            CompensationStatus::Pending => Self::Pending,
+            CompensationStatus::InProgress => Self::InProgress,
+            CompensationStatus::NotNeeded | CompensationStatus::Succeeded => Self::Succeeded,
+            CompensationStatus::Failed => Self::Failed,
         }
     }
 }
@@ -69,6 +66,10 @@ pub struct CompensationEntry {
 }
 
 impl CompensationEntry {
+    /// # Errors
+    ///
+    /// Returns `CompensationError::AlreadyRegistered` if a compensation for this effect already exists.
+    #[must_use]
     pub fn new(effect_id: String, policy: CompensationPolicy, dependencies: Vec<String>) -> Self {
         Self {
             effect_id,
@@ -83,17 +84,20 @@ impl CompensationEntry {
         }
     }
 
-    pub fn with_timeout(mut self, timeout_ms: u64) -> Self {
+    #[must_use]
+    pub const fn with_timeout(mut self, timeout_ms: u64) -> Self {
         self.timeout_ms = Some(timeout_ms);
         self
     }
 
+    #[must_use]
     pub fn with_compensation_effect_id(mut self, compensation_effect_id: String) -> Self {
         self.compensation_effect_id = Some(compensation_effect_id);
         self
     }
 
-    pub fn is_terminal(&self) -> bool {
+    #[must_use]
+    pub const fn is_terminal(&self) -> bool {
         matches!(
             self.status,
             SagaCompensationStatus::Succeeded
@@ -102,33 +106,27 @@ impl CompensationEntry {
         )
     }
 
+    #[must_use]
     pub fn is_timed_out(&self, now: TimestampMs) -> bool {
         if let (Some(started), Some(timeout)) = (self.started_at, self.timeout_ms) {
-            let elapsed = now.as_i64() - started.as_i64();
-            return elapsed > timeout as i64;
+            let elapsed = now.as_u64().saturating_sub(started.as_u64());
+            return elapsed > timeout;
         }
         false
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CompensationManifest {
     entries: HashMap<String, CompensationEntry>,
     registration_order: Vec<String>,
     version: u64,
 }
 
-impl Default for CompensationManifest {
-    fn default() -> Self {
-        Self {
-            entries: HashMap::new(),
-            registration_order: Vec::new(),
-            version: 0,
-        }
-    }
-}
-
 impl CompensationManifest {
+    /// # Errors
+    ///
+    /// Returns `CompensationError::AlreadyRegistered` if a compensation for this effect already exists.
     pub fn register(
         &mut self,
         effect_id: String,
@@ -145,14 +143,20 @@ impl CompensationManifest {
         Ok(())
     }
 
+    #[must_use]
     pub fn get(&self, effect_id: &str) -> Option<&CompensationEntry> {
         self.entries.get(effect_id)
     }
 
+    #[must_use]
     pub fn get_mut(&mut self, effect_id: &str) -> Option<&mut CompensationEntry> {
         self.entries.get_mut(effect_id)
     }
 
+    /// # Errors
+    ///
+    /// Returns `CompensationError::NotFound` if the effect is not registered.
+    /// Returns `CompensationError::TerminalState` if the effect is in a terminal state.
     pub fn transition_to(
         &mut self,
         effect_id: &str,
@@ -187,38 +191,49 @@ impl CompensationManifest {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Returns `CompensationError` if the transition is invalid.
     pub fn set_ambiguous(&mut self, effect_id: &str) -> Result<(), CompensationError> {
         self.transition_to(effect_id, SagaCompensationStatus::Ambiguous)
     }
 
+    /// # Errors
+    ///
+    /// Returns `CompensationError` if the transition is invalid.
     pub fn set_timed_out(&mut self, effect_id: &str) -> Result<(), CompensationError> {
         self.transition_to(effect_id, SagaCompensationStatus::TimedOut)
     }
 
+    #[must_use = "iterator must be consumed"]
     pub fn pending_compensations(&self) -> impl Iterator<Item = &CompensationEntry> {
         self.entries
             .values()
             .filter(|e| e.status == SagaCompensationStatus::Pending)
     }
 
+    #[must_use = "iterator must be consumed"]
     pub fn in_progress_compensations(&self) -> impl Iterator<Item = &CompensationEntry> {
         self.entries
             .values()
             .filter(|e| e.status == SagaCompensationStatus::InProgress)
     }
 
+    #[must_use = "iterator must be consumed"]
     pub fn ambiguous_compensations(&self) -> impl Iterator<Item = &CompensationEntry> {
         self.entries
             .values()
             .filter(|e| e.status == SagaCompensationStatus::Ambiguous)
     }
 
+    #[must_use = "iterator must be consumed"]
     pub fn timed_out_compensations(&self) -> impl Iterator<Item = &CompensationEntry> {
         self.entries
             .values()
             .filter(|e| e.status == SagaCompensationStatus::TimedOut)
     }
 
+    #[must_use]
     pub fn compensations_awaiting_execution(&self) -> Vec<&CompensationEntry> {
         self.registration_order
             .iter()
@@ -234,6 +249,7 @@ impl CompensationManifest {
             .collect()
     }
 
+    #[must_use = "iterator must be consumed"]
     pub fn all_entries(&self) -> impl Iterator<Item = &CompensationEntry> {
         self.entries.values()
     }
@@ -243,6 +259,7 @@ impl CompensationManifest {
         self.version
     }
 
+    #[must_use]
     pub fn can_execute(&self, effect_id: &str) -> bool {
         if let Some(entry) = self.entries.get(effect_id) {
             if entry.status != SagaCompensationStatus::Pending {
@@ -259,60 +276,102 @@ impl CompensationManifest {
         }
         false
     }
+
+    pub fn get_reverse_dependency_order(&self) -> Result<Vec<String>, CompensationError> {
+        let pending_effects: Vec<String> = self
+            .registration_order
+            .iter()
+            .filter_map(|id| {
+                self.entries
+                    .get(id)
+                    .map(|e| e.status == SagaCompensationStatus::Pending)
+                    .unwrap_or(false)
+                    .then_some(id.clone())
+            })
+            .collect();
+
+        if pending_effects.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let pending_set: std::collections::HashSet<&String> = pending_effects.iter().collect();
+
+        let mut dependents: HashMap<&String, Vec<&String>> = HashMap::new();
+        for effect_id in &pending_effects {
+            dependents.insert(effect_id, Vec::new());
+        }
+
+        for effect_id in &pending_effects {
+            if let Some(entry) = self.entries.get(effect_id) {
+                for dep in &entry.dependencies {
+                    if pending_set.contains(dep) {
+                        if let Some(dependents_list) = dependents.get_mut(dep) {
+                            dependents_list.push(effect_id);
+                        }
+                    }
+                }
+            }
+        }
+
+        let mut emitted: std::collections::HashSet<&String> = std::collections::HashSet::new();
+        let mut result: Vec<String> = Vec::with_capacity(pending_effects.len());
+
+        for effect_id in pending_effects.iter().rev() {
+            let all_deps_emitted = dependents
+                .get(effect_id)
+                .map(|deps| deps.iter().all(|d| emitted.contains(d)))
+                .unwrap_or(true);
+
+            if all_deps_emitted {
+                result.push((*effect_id).clone());
+                emitted.insert(effect_id);
+            }
+        }
+
+        if result.len() != pending_effects.len() {
+            let cycle_nodes: Vec<String> = pending_effects
+                .iter()
+                .filter(|id| !emitted.contains(id))
+                .cloned()
+                .collect();
+            return Err(CompensationError::CycleDetected {
+                effect_ids: cycle_nodes,
+            });
+        }
+
+        Ok(result)
+    }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum CompensationError {
+    #[error("compensation already registered for: {0}")]
     AlreadyRegistered(String),
+    #[error("compensation not found for: {0}")]
     NotFound(String),
+    #[error("effect {effect_id} is in terminal state: {status:?}")]
     TerminalState {
         effect_id: String,
         status: SagaCompensationStatus,
     },
+    #[error("invalid transition for {effect_id}: {from:?} -> {to:?}")]
     InvalidTransition {
         effect_id: String,
         from: SagaCompensationStatus,
         to: SagaCompensationStatus,
     },
+    #[error("policy violation for {effect_id}: {policy:?}")]
     PolicyViolation {
         effect_id: String,
         policy: CompensationPolicy,
     },
-    Timeout {
-        effect_id: String,
-    },
-    ReconciliationRequired {
-        effect_id: String,
-    },
+    #[error("compensation timeout for: {effect_id}")]
+    Timeout { effect_id: String },
+    #[error("reconciliation required for ambiguous: {effect_id}")]
+    ReconciliationRequired { effect_id: String },
+    #[error("dependency cycle detected involving: {effect_ids:?}")]
+    CycleDetected { effect_ids: Vec<String> },
 }
-
-impl std::fmt::Display for CompensationError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::AlreadyRegistered(id) => write!(f, "compensation already registered for: {id}"),
-            Self::NotFound(id) => write!(f, "compensation not found for: {id}"),
-            Self::TerminalState { effect_id, status } => {
-                write!(f, "effect {effect_id} is in terminal state: {status:?}")
-            }
-            Self::InvalidTransition {
-                effect_id,
-                from,
-                to,
-            } => {
-                write!(f, "invalid transition for {effect_id}: {from:?} -> {to:?}")
-            }
-            Self::PolicyViolation { effect_id, policy } => {
-                write!(f, "policy violation for {effect_id}: {policy:?}")
-            }
-            Self::Timeout { effect_id } => write!(f, "compensation timeout for: {effect_id}"),
-            Self::ReconciliationRequired { effect_id } => {
-                write!(f, "reconciliation required for ambiguous: {effect_id}")
-            }
-        }
-    }
-}
-
-impl std::error::Error for CompensationError {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ReconciliationAction {
@@ -349,7 +408,7 @@ pub struct RetryReconciler {
 
 impl RetryReconciler {
     #[must_use]
-    pub fn new(max_attempts: u32) -> Self {
+    pub const fn new(max_attempts: u32) -> Self {
         Self { max_attempts }
     }
 }
@@ -383,6 +442,13 @@ impl CompensationSaga {
         }
     }
 
+    /// # Errors
+    ///
+    /// Returns `CompensationError::AlreadyRegistered` if already registered.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the manifest mutex is poisoned.
     pub fn register(
         &self,
         effect_id: String,
@@ -394,23 +460,38 @@ impl CompensationSaga {
         manifest.register(effect_id, policy, dependencies)
     }
 
+    /// # Errors
+    ///
+    /// Returns `CompensationError::AlreadyRegistered` if already registered.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the manifest mutex is poisoned.
     pub fn register_with_timeout(
         &self,
-        effect_id: String,
+        effect_id: &str,
         policy: CompensationPolicy,
         dependencies: Vec<String>,
         timeout_ms: u64,
     ) -> Result<(), CompensationError> {
         #[expect(clippy::unwrap_used)]
         let mut manifest = self.manifest.lock().unwrap();
-        manifest.register(effect_id.clone(), policy, dependencies)?;
-        manifest
-            .get_mut(&effect_id)
-            .expect("entry just inserted")
-            .timeout_ms = Some(timeout_ms);
+        manifest.register(effect_id.to_string(), policy, dependencies)?;
+        #[allow(clippy::expect_used)]
+        let entry = manifest.get_mut(effect_id).expect("entry just inserted");
+        entry.timeout_ms = Some(timeout_ms);
+        drop(manifest);
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Returns `CompensationError::NotFound` if the effect is not registered.
+    /// Returns `CompensationError::PolicyViolation` if the policy is `None`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the manifest mutex is poisoned.
     pub fn queue_pending(&self, effect_id: &str) -> Result<(), CompensationError> {
         #[expect(clippy::unwrap_used)]
         let mut manifest = self.manifest.lock().unwrap();
@@ -428,37 +509,61 @@ impl CompensationSaga {
         manifest.transition_to(effect_id, SagaCompensationStatus::Pending)
     }
 
+    /// # Errors
+    ///
+    /// Returns `CompensationError::NotFound` if the effect is not registered.
+    /// Returns `CompensationError::PolicyViolation` if the policy is `None`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the manifest mutex is poisoned.
     pub fn start_compensation(&self, effect_id: &str) -> Result<(), CompensationError> {
         #[expect(clippy::unwrap_used)]
-        let manifest = self.manifest.lock().unwrap();
+        let mut manifest = self.manifest.lock().unwrap();
         if !manifest.can_execute(effect_id) {
             return Err(CompensationError::PolicyViolation {
                 effect_id: effect_id.to_string(),
                 policy: manifest
                     .get(effect_id)
-                    .map(|e| e.policy)
-                    .unwrap_or(CompensationPolicy::None),
+                    .map_or(CompensationPolicy::None, |e| e.policy),
             });
         }
-        drop(manifest);
-
-        #[expect(clippy::unwrap_used)]
-        let mut manifest = self.manifest.lock().unwrap();
         manifest.transition_to(effect_id, SagaCompensationStatus::InProgress)
     }
 
+    /// # Errors
+    ///
+    /// Returns `CompensationError` if the transition fails.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the manifest mutex is poisoned.
     pub fn succeed(&self, effect_id: &str) -> Result<(), CompensationError> {
         #[expect(clippy::unwrap_used)]
         let mut manifest = self.manifest.lock().unwrap();
         manifest.transition_to(effect_id, SagaCompensationStatus::Succeeded)
     }
 
+    /// # Errors
+    ///
+    /// Returns `CompensationError` if the transition fails.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the manifest mutex is poisoned.
     pub fn fail(&self, effect_id: &str) -> Result<(), CompensationError> {
         #[expect(clippy::unwrap_used)]
         let mut manifest = self.manifest.lock().unwrap();
         manifest.transition_to(effect_id, SagaCompensationStatus::Failed)
     }
 
+    /// # Errors
+    ///
+    /// Returns `CompensationError` if setting ambiguous fails or reconciliation fails.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the manifest mutex is poisoned.
     pub fn mark_ambiguous(
         &self,
         effect_id: &str,
@@ -467,6 +572,7 @@ impl CompensationSaga {
         let mut manifest = self.manifest.lock().unwrap();
         manifest.set_ambiguous(effect_id)?;
 
+        #[allow(clippy::expect_used)]
         let entry = manifest.get(effect_id).expect("just set ambiguous");
         let ctx = ReconciliationContext {
             effect_id: effect_id.to_string(),
@@ -475,10 +581,18 @@ impl CompensationSaga {
             attempts: 0,
             last_attempt_at: entry.started_at,
         };
+        drop(manifest);
 
         Ok(self.reconciler.reconcile(&ctx))
     }
 
+    /// # Errors
+    ///
+    /// Returns `CompensationError` if the reconciliation action fails.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the manifest mutex is poisoned.
     pub fn handle_reconciliation(
         &self,
         effect_id: &str,
@@ -495,12 +609,8 @@ impl CompensationSaga {
                 let mut manifest = self.manifest.lock().unwrap();
                 manifest.transition_to(effect_id, SagaCompensationStatus::Pending)
             }
-            ReconciliationAction::EscalateToOperator => {
-                #[expect(clippy::unwrap_used)]
-                let mut manifest = self.manifest.lock().unwrap();
-                manifest.transition_to(effect_id, SagaCompensationStatus::Failed)
-            }
-            ReconciliationAction::AbandonCompensation => {
+            ReconciliationAction::EscalateToOperator
+            | ReconciliationAction::AbandonCompensation => {
                 #[expect(clippy::unwrap_used)]
                 let mut manifest = self.manifest.lock().unwrap();
                 manifest.transition_to(effect_id, SagaCompensationStatus::Failed)
@@ -508,6 +618,10 @@ impl CompensationSaga {
         }
     }
 
+    /// # Panics
+    ///
+    /// Panics if the manifest mutex is poisoned.
+    #[must_use]
     pub fn check_timeouts(&self) -> Vec<String> {
         #[expect(clippy::unwrap_used)]
         let manifest = self.manifest.lock().unwrap();
@@ -519,20 +633,33 @@ impl CompensationSaga {
                 timed_out.push(entry.effect_id.clone());
             }
         }
+        drop(manifest);
 
         timed_out
     }
 
+    /// # Errors
+    ///
+    /// Returns `CompensationError` if setting timed out fails.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the manifest mutex is poisoned.
     pub fn expire_timed_out(&self) -> Result<(), CompensationError> {
         let timed_out = self.check_timeouts();
         #[expect(clippy::unwrap_used)]
         let mut manifest = self.manifest.lock().unwrap();
-        for effect_id in timed_out {
-            manifest.set_timed_out(&effect_id)?;
+        for effect_id in &timed_out {
+            manifest.set_timed_out(effect_id)?;
         }
+        drop(manifest);
         Ok(())
     }
 
+    /// # Panics
+    ///
+    /// Panics if the manifest mutex is poisoned.
+    #[must_use]
     pub fn get_compensation_order(&self) -> Vec<String> {
         #[expect(clippy::unwrap_used)]
         let manifest = self.manifest.lock().unwrap();
@@ -542,14 +669,14 @@ impl CompensationSaga {
             .rev()
             .filter(|id| {
                 manifest
-                    .get(*id)
-                    .map(|e| e.status == SagaCompensationStatus::Pending)
-                    .unwrap_or(false)
+                    .get(id)
+                    .is_some_and(|e| e.status == SagaCompensationStatus::Pending)
             })
             .cloned()
             .collect()
     }
 
+    #[must_use]
     pub fn manifest(&self) -> Arc<Mutex<CompensationManifest>> {
         Arc::clone(&self.manifest)
     }
@@ -752,13 +879,8 @@ mod tests {
     #[test]
     fn timeout_detection() {
         let saga = CompensationSaga::with_reconciler(RetryReconciler::new(3));
-        saga.register_with_timeout(
-            "fx-1".to_string(),
-            CompensationPolicy::Automatic,
-            vec![],
-            100,
-        )
-        .unwrap();
+        saga.register_with_timeout("fx-1", CompensationPolicy::Automatic, vec![], 100)
+            .unwrap();
         saga.queue_pending("fx-1").unwrap();
         saga.start_compensation("fx-1").unwrap();
 
@@ -819,13 +941,8 @@ mod tests {
     #[test]
     fn expire_timed_out_marks_entries() {
         let saga = CompensationSaga::with_reconciler(RetryReconciler::new(1));
-        saga.register_with_timeout(
-            "fx-1".to_string(),
-            CompensationPolicy::Automatic,
-            vec![],
-            50,
-        )
-        .unwrap();
+        saga.register_with_timeout("fx-1", CompensationPolicy::Automatic, vec![], 50)
+            .unwrap();
         saga.queue_pending("fx-1").unwrap();
         saga.start_compensation("fx-1").unwrap();
 
@@ -871,5 +988,83 @@ mod tests {
         let guard = manifest.lock().unwrap();
         let entry = guard.get("fx-1").expect("entry exists");
         assert_eq!(entry.status, SagaCompensationStatus::Pending);
+    }
+
+    #[test]
+    fn forward_recovery_retry_requeues_ambiguous_compensation() {
+        let saga = CompensationSaga::with_reconciler(RetryReconciler::new(3));
+        saga.register("fx-1".to_string(), CompensationPolicy::Automatic, vec![])
+            .unwrap();
+        saga.queue_pending("fx-1").unwrap();
+        saga.start_compensation("fx-1").unwrap();
+
+        // Simulate ambiguous outcome (e.g., network timeout)
+        let action = saga.mark_ambiguous("fx-1").unwrap();
+        assert_eq!(action, ReconciliationAction::RetryCompensation);
+
+        // Forward-recovery: retry requeues for re-execution
+        saga.handle_reconciliation("fx-1", action).unwrap();
+
+        let manifest = saga.manifest.lock().unwrap();
+        let entry = manifest.get("fx-1").expect("entry exists");
+        assert_eq!(entry.status, SagaCompensationStatus::Pending);
+    }
+
+    #[test]
+    fn cycle_detection_in_dependency_graph() {
+        let saga = create_test_saga();
+        saga.register(
+            "fx-1".to_string(),
+            CompensationPolicy::Automatic,
+            vec!["fx-2".to_string()],
+        )
+        .unwrap();
+        saga.register(
+            "fx-2".to_string(),
+            CompensationPolicy::Automatic,
+            vec!["fx-3".to_string()],
+        )
+        .unwrap();
+        saga.register(
+            "fx-3".to_string(),
+            CompensationPolicy::Automatic,
+            vec!["fx-1".to_string()],
+        )
+        .unwrap();
+
+        saga.queue_pending("fx-1").unwrap();
+        saga.queue_pending("fx-2").unwrap();
+        saga.queue_pending("fx-3").unwrap();
+
+        let manifest = saga.manifest();
+        let guard = manifest.lock().unwrap();
+        let result = guard.get_reverse_dependency_order();
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            CompensationError::CycleDetected { .. }
+        ));
+    }
+
+    #[test]
+    fn cycle_detection_self_loop() {
+        let saga = create_test_saga();
+        saga.register(
+            "fx-1".to_string(),
+            CompensationPolicy::Automatic,
+            vec!["fx-1".to_string()],
+        )
+        .unwrap();
+
+        saga.queue_pending("fx-1").unwrap();
+
+        let manifest = saga.manifest();
+        let guard = manifest.lock().unwrap();
+        let result = guard.get_reverse_dependency_order();
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            CompensationError::CycleDetected { .. }
+        ));
     }
 }

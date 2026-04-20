@@ -3,13 +3,15 @@
 use thiserror::Error;
 use vo_types::state::LifecycleState;
 
-/// Tracks how far through the event stream the replay has progressed.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ReplayPosition {
-    /// Sequence number of the last successfully applied event.
-    pub last_applied_sequence: Option<u64>,
-    // Timestamp (ms) of the last successfully applied event.
-    pub last_applied_timestamp_ms: Option<u64>,
+/// Categorizes replay errors to determine system behavior.
+/// Deterministic errors mark state as permanently blocked/corrupt.
+/// Transient errors should be retried by the infrastructure.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReplayErrorKind {
+    /// Permanent corruption - state cannot be recovered, no retry should occur.
+    Deterministic,
+    /// Temporary failure - infrastructure should retry the operation.
+    Transient,
 }
 
 /// Result of replaying events through the state machine.
@@ -19,8 +21,6 @@ pub struct ReplayResult {
     pub final_state: Option<LifecycleState>,
     /// Number of events successfully applied.
     pub events_applied: usize,
-    /// Position tracking for this replay run.
-    pub position: ReplayPosition,
 }
 
 /// Errors that can occur during event replay.
@@ -130,26 +130,18 @@ impl std::fmt::Display for ReplayError {
 
 impl std::error::Error for ReplayError {}
 
-/// Classification of replay error kinds.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ReplayErrorKind {
-    /// Error is deterministic and will recur on replay.
-    Deterministic,
-}
-
 impl ReplayError {
     #[must_use]
-    pub fn is_deterministic(&self) -> bool {
-        matches!(
-            self,
+    pub fn kind(&self) -> ReplayErrorKind {
+        match self {
             Self::InstanceMismatch { .. }
-                | Self::SequenceGap { .. }
-                | Self::SequenceDuplicate { .. }
-                | Self::PayloadDecodeFailed { .. }
-                | Self::TransitionFailed { .. }
-                | Self::UnexpectedEventType { .. }
-                | Self::UpcastingFailed { .. }
-                | Self::BlobPublicationFailed { .. }
-        )
+            | Self::SequenceGap { .. }
+            | Self::SequenceDuplicate { .. }
+            | Self::PayloadDecodeFailed { .. }
+            | Self::TransitionFailed { .. }
+            | Self::UnexpectedEventType { .. }
+            | Self::UpcastingFailed { .. }
+            | Self::BlobPublicationFailed { .. } => ReplayErrorKind::Deterministic,
+        }
     }
 }

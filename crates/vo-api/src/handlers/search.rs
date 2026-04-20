@@ -78,4 +78,29 @@ mod tests {
         let engine = build_search_engine_from_workspace(&ws_index);
         let _ = &engine;
     }
+
+    #[test]
+    fn search_engine_type_accessible() {
+        let engine = SearchEngine::new();
+        let _ = &engine;
+    }
+
+    #[test]
+    fn query_parser_type_accessible() {
+        let parser = QueryParser::new();
+        let _ = &parser;
+    }
+
+    #[test]
+    fn search_result_type_accessible() {
+        let mut engine = SearchEngine::new();
+        let id = vo_types::workspace::WorkspaceId::generate();
+        engine.index_workspace(id, "test", &[]);
+        let query = QueryParser::new().parse("test").unwrap();
+        let results: Vec<SearchResult> = engine.search(&query).unwrap();
+        assert!(
+            results.is_empty(),
+            "SearchEngine is stubbed — returns empty until wired"
+        );
+    }
 }

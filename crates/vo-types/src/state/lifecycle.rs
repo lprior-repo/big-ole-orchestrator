@@ -125,7 +125,6 @@ impl LifecycleState {
                 TransitionEvent::ConfirmPublication,
                 TransitionEvent::PublicationFailed,
                 TransitionEvent::Cancel,
-                TransitionEvent::Fail,
             ],
             LifecycleState::Completed | LifecycleState::Cancelled => vec![],
             LifecycleState::Failed => vec![TransitionEvent::InstanceResumed],

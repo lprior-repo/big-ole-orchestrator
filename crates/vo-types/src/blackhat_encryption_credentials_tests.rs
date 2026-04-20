@@ -6,8 +6,8 @@ fn valid_dek_id() -> DekId {
     DekId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").expect("valid ULID")
 }
 
-fn valid_instance_id() -> crate::InstanceId {
-    crate::InstanceId::new("01H5JYV4XHGSR2F8KZ9BWNRFMA").expect("valid instance id")
+fn valid_instance_id() -> crate::string_types::InstanceId {
+    crate::string_types::InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").expect("valid ULID")
 }
 
 fn valid_credential_id() -> CredentialId {

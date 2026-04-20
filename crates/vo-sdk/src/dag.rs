@@ -6,9 +6,10 @@
 
 use std::any::Any;
 
+use thiserror::Error;
 use vo_types::{NodeKind, NodeName, WorkflowName};
 
-use crate::graph_args::{EdgeSpec, NodeSpec, WorkflowSpec};
+use crate::graph::{EdgeSpec, NodeSpec, WorkflowSpec};
 use crate::node_handle::NodeHandle;
 
 /// Errors that can occur when building a DAG.
@@ -18,24 +19,11 @@ pub enum DagError {
     InvalidNodeName { name: String },
     #[error("node not found: {name}")]
     NodeNotFound { name: String },
-    /// The workflow has no nodes.
+    #[error("workflow has no nodes")]
     EmptyWorkflow,
-    /// The workflow contains a cycle.
-    CycleDetected,
+    #[error("cycle detected: {cycle}")]
+    CycleDetected { cycle: String },
 }
-
-impl fmt::Display for DagError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::InvalidNodeName { name } => write!(f, "invalid node name: {name}"),
-            Self::NodeNotFound { name } => write!(f, "node not found: {name}"),
-            Self::EmptyWorkflow => write!(f, "workflow has no nodes"),
-            Self::CycleDetected => write!(f, "workflow contains a cycle"),
-        }
-    }
-}
-
-impl std::error::Error for DagError {}
 
 /// Internal node record with name and kind.
 #[derive(Debug, Clone)]
@@ -151,6 +139,56 @@ impl Dag {
             })
     }
 
+    fn find_cycle_nodes(nodes: &[DagNodeRecord], edges: &[(usize, usize)]) -> String {
+        let n = nodes.len();
+        let mut visited = vec![0u8; n];
+        let mut stack: Vec<usize> = Vec::new();
+        let mut cycle_path: Vec<usize> = Vec::new();
+
+        fn dfs(
+            node: usize,
+            edges: &[(usize, usize)],
+            visited: &mut [u8],
+            stack: &mut Vec<usize>,
+            cycle_path: &mut Vec<usize>,
+        ) -> bool {
+            visited[node] = 1;
+            stack.push(node);
+            for &(_, to) in edges.iter().filter(|&&(_from, _)| _from == node) {
+                if visited[to] == 0 {
+                    if dfs(to, edges, visited, stack, cycle_path) {
+                        return true;
+                    }
+                } else if visited[to] == 1 {
+                    if let Some(pos) = stack.iter().position(|&x| x == to) {
+                        let cycle: Vec<usize> = stack[pos..].to_vec();
+                        cycle_path.extend(cycle);
+                        return true;
+                    }
+                }
+            }
+            stack.pop();
+            visited[node] = 2;
+            false
+        }
+
+        for i in 0..n {
+            if visited[i] == 0 && dfs(i, edges, &mut visited, &mut stack, &mut cycle_path) {
+                break;
+            }
+        }
+
+        if cycle_path.is_empty() {
+            return "unknown cycle".to_string();
+        }
+
+        let cycle_names: Vec<String> = cycle_path
+            .iter()
+            .map(|&idx| nodes[idx].name.as_str().to_string())
+            .collect();
+        cycle_names.join(" -> ")
+    }
+
     /// Build a [`WorkflowSpec`] from this DAG.
     ///
     /// # Errors
@@ -160,6 +198,30 @@ impl Dag {
     pub fn build(self, workflow_name: &str) -> Result<WorkflowSpec, DagError> {
         if self.nodes.is_empty() {
             return Err(DagError::EmptyWorkflow);
+        }
+
+        // Cycle detection via Kahn's algorithm (topological sort).
+        // Failing test: dag_tests::build_detects_simple_cycle
+        let n = self.nodes.len();
+        let mut in_degree = vec![0u32; n];
+        for &(_, to) in &self.edges {
+            in_degree[to] += 1;
+        }
+        let mut queue: std::collections::VecDeque<usize> =
+            (0..n).filter(|&i| in_degree[i] == 0).collect();
+        let mut visited = 0usize;
+        while let Some(node) = queue.pop_front() {
+            visited += 1;
+            for &(_, to) in self.edges.iter().filter(|&&(_from, _)| _from == node) {
+                in_degree[to] -= 1;
+                if in_degree[to] == 0 {
+                    queue.push_back(to);
+                }
+            }
+        }
+        if visited != n {
+            let cycle_nodes = Self::find_cycle_nodes(&self.nodes, &self.edges);
+            return Err(DagError::CycleDetected { cycle: cycle_nodes });
         }
 
         let wf_name =
@@ -190,6 +252,55 @@ impl Dag {
             nodes: node_specs,
             edges: edge_specs,
         })
+    }
+
+    /// Check if the DAG contains a cycle.
+    ///
+    /// Uses DFS-based cycle detection with coloring:
+    /// - WHITE: not visited
+    /// - GRAY: currently visiting
+    /// - BLACK: finished visiting
+    ///
+    /// A back edge to a GRAY node indicates a cycle.
+    #[allow(dead_code)]
+    fn has_cycle(&self) -> bool {
+        if self.edges.is_empty() {
+            return false;
+        }
+
+        const WHITE: u8 = 0;
+        const GRAY: u8 = 1;
+        const BLACK: u8 = 2;
+
+        let mut colors = vec![WHITE; self.nodes.len()];
+
+        // Build adjacency list
+        let mut adj: Vec<Vec<usize>> = vec![Vec::new(); self.nodes.len()];
+        for (from, to) in &self.edges {
+            adj[*from].push(*to);
+        }
+
+        fn dfs(node: usize, adj: &[Vec<usize>], colors: &mut [u8]) -> bool {
+            colors[node] = GRAY;
+            for &neighbor in &adj[node] {
+                if colors[neighbor] == GRAY {
+                    return true; // Back edge found, cycle exists
+                }
+                if colors[neighbor] == WHITE && dfs(neighbor, adj, colors) {
+                    return true;
+                }
+            }
+            colors[node] = BLACK;
+            false
+        }
+
+        for i in 0..self.nodes.len() {
+            if colors[i] == WHITE && dfs(i, &adj, &mut colors) {
+                return true;
+            }
+        }
+
+        false
     }
 }
 

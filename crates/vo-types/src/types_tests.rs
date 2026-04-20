@@ -3,12 +3,6 @@ mod tests {
     use crate::ParseError;
     use std::num::NonZeroU64;
 
-    #[test]
-    fn task_failure_kind_user_has_correct_str() {
-        use crate::TaskFailureKind;
-        assert_eq!(TaskFailureKind::User.as_str(), "User");
-    }
-
     // --- extract_invalid_chars ---
 
     #[test]

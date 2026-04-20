@@ -13,7 +13,7 @@ try:
     for _ in range(100):
         os.write(FD3, chunk)
     sys.exit(0)
-except BrokenPipeError:
+except (BrokenPipeError, OSError):
     sys.exit(42)
 except Exception:
     sys.exit(1)

@@ -15,8 +15,7 @@
 //! - M7: Clone and PartialEq semantic correctness
 //! - M8: Edge-case string content (empty, unicode, control chars, max length)
 
-use vo_common::{NamespaceId, VoError, WorkflowEvent};
-use vo_types::{InstanceId, TimerId};
+use vo_common::{InstanceId, NamespaceId, TimerId, VoError, WorkflowEvent};
 
 // ============================================================================
 // M1: String type-alias boundary invariants
@@ -164,10 +163,15 @@ mod serialization_roundtrip {
         let json = r#"{"TimerFired":{"timer_id":"t1","timestamp_ms":99,"extra":"garbage"}}"#;
         let event: WorkflowEvent =
             serde_json::from_str(json).expect("extra fields must be ignored");
-        assert!(
-            matches!(event, WorkflowEvent::TimerFired { timer_id, timestamp_ms }
-            if timer_id == "t1" && timestamp_ms == 99)
-        );
+        match event {
+            WorkflowEvent::TimerFired {
+                timer_id,
+                timestamp_ms,
+            } => {
+                assert_eq!(timer_id, "t1");
+                assert_eq!(timestamp_ms, 99);
+            }
+        }
     }
 
     /// Kills: missing field returns error instead of default.
@@ -603,11 +607,11 @@ mod serialization_adversarial {
         };
         let json = serde_json::to_string(&event).expect("serialize long id");
         let back: WorkflowEvent = serde_json::from_str(&json).expect("deserialize long id");
-        assert!(
-            matches!(back, WorkflowEvent::TimerFired { timer_id, .. }
-            if timer_id.len() == 10_000),
-            "long id must not be truncated"
-        );
+        match back {
+            WorkflowEvent::TimerFired { timer_id, .. } => {
+                assert_eq!(timer_id.len(), 10_000, "long id must not be truncated");
+            }
+        }
     }
 }
 
@@ -711,7 +715,6 @@ mod clone_partial_eq_semantics {
                     "cloned timer_id must be independent"
                 );
             }
-            _ => panic!("expected TimerFired"),
         }
     }
 }

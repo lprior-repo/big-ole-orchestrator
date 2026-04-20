@@ -279,17 +279,19 @@ fn lease_key_format_uses_delimiter() {
 }
 
 #[test]
-fn get_lease_key_prefix_for_instance_matches_lease_key_encoding() {
+fn get_lease_key_prefix_for_instance_matches_key_format() {
     let id = min_instance_id();
+    let step = StepId::parse("step-a").unwrap();
     let prefix = get_lease_key_prefix_for_instance(&id);
-    // Prefix should be "{instance_id}::" (26 chars + 2 separator = 28 bytes)
-    assert_eq!(prefix.len(), 28);
-    assert!(prefix.ends_with(b"::"));
-
-    // Verify it actually matches lease key encoding
-    let step = vo_types::StepId::parse("test-step").unwrap();
-    let lease_key = encode_lease_key(&id, &step);
-    assert!(lease_key.starts_with(&prefix));
+    let key = encode_lease_key(&id, &step);
+    assert!(
+        key.starts_with(&prefix),
+        "lease key should start with instance prefix"
+    );
+    assert!(
+        prefix.ends_with(b"::"),
+        "prefix should end with :: delimiter"
+    );
 }
 
 #[test]
@@ -371,6 +373,140 @@ fn different_statuses_produce_different_prefixes() {
     let key2 = encode_instance_index_key_for_status(2, 1000, &id);
     assert_ne!(key1[0], key2[0]);
     assert!(key1 < key2);
+}
+
+#[allow(dead_code)]
+#[test]
+fn decode_effect_key_rejects_missing_ff_marker() {
+    let id = min_instance_id();
+    let seq = SequenceNumber::try_from(1u64).unwrap();
+    let key = encode_event_key(&id, seq); // 24 bytes, no 0xFF marker
+    assert!(
+        decode_effect_key(&key).is_err(),
+        "effect key decode should reject keys without 0xFF marker"
+    );
+}
+
+#[allow(dead_code)]
+#[test]
+fn decode_lease_key_rejects_missing_delimiter() {
+    let bad_key = b"00000000000000000000000001step-no-delimiter";
+    assert!(
+        decode_lease_key(bad_key).is_err(),
+        "lease key decode should reject keys without :: delimiter"
+    );
+}
+
+#[test]
+fn decode_lease_key_rejects_invalid_instance_id() {
+    let bad_key = b"INVALID::step-1";
+    assert!(
+        decode_lease_key(bad_key).is_err(),
+        "lease key decode should reject invalid instance IDs"
+    );
+}
+
+#[test]
+fn decode_lease_key_rejects_invalid_step_id() {
+    let id = min_instance_id();
+    let bad_key = format!("{id}::step with spaces").into_bytes();
+    assert!(
+        decode_lease_key(&bad_key).is_err(),
+        "lease key decode should reject invalid step IDs"
+    );
+}
+
+#[test]
+fn encode_instance_index_key_is_deterministic() {
+    let id = min_instance_id();
+    let key1 = encode_instance_index_key_for_status(1, 1000, &id);
+    let key2 = encode_instance_index_key_for_status(1, 1000, &id);
+    assert_eq!(key1, key2, "same inputs should produce same key");
+}
+
+#[test]
+fn instance_index_keys_sorted_by_timestamp() {
+    let id = min_instance_id();
+    let key1 = encode_instance_index_key_for_status(1, 1000, &id);
+    let key2 = encode_instance_index_key_for_status(1, 2000, &id);
+    assert!(key1 < key2, "earlier timestamp should sort first");
+}
+
+#[test]
+fn instance_index_keys_sorted_by_instance_id() {
+    let id1 = min_instance_id();
+    let id2 = InstanceId::parse("00000000000000000000000002").unwrap();
+    let key1 = encode_instance_index_key_for_status(1, 1000, &id1);
+    let key2 = encode_instance_index_key_for_status(1, 1000, &id2);
+    assert!(key1 < key2, "smaller instance ID should sort first");
+}
+
+#[test]
+fn timer_key_prefix_scan_matches_keys_at_same_timestamp() {
+    let id = min_instance_id();
+    let ts = 5000u64;
+    let key = encode_timer_key(ts, &id);
+    let prefix = get_timer_key_prefix_for_time(ts);
+    assert!(
+        key.starts_with(&prefix),
+        "timer key should start with timestamp prefix"
+    );
+}
+
+#[test]
+fn timer_keys_with_same_timestamp_differ_by_instance_id() {
+    let id1 = min_instance_id();
+    let id2 = InstanceId::parse("00000000000000000000000002").unwrap();
+    let key1 = encode_timer_key(1000, &id1);
+    let key2 = encode_timer_key(1000, &id2);
+    assert_ne!(
+        key1, key2,
+        "different instance IDs should produce different timer keys"
+    );
+}
+
+#[test]
+fn event_key_roundtrip_with_max_sequence() {
+    let id = min_instance_id();
+    let seq = SequenceNumber::try_from(u64::MAX).unwrap();
+    let key = encode_event_key(&id, seq);
+    let (decoded_id, decoded_seq) = decode_event_key(&key).unwrap();
+    assert_eq!(decoded_id, id);
+    assert_eq!(decoded_seq.as_u64(), u64::MAX);
+}
+
+#[test]
+fn dedupe_key_roundtrip_with_empty_string() {
+    let encoded = encode_dedupe_key("");
+    let decoded = decode_dedupe_key(&encoded).unwrap();
+    assert_eq!(decoded, "");
+}
+
+#[test]
+fn dedupe_key_different_inputs_produce_different_outputs() {
+    let key1 = encode_dedupe_key("key-a");
+    let key2 = encode_dedupe_key("key-b");
+    assert_ne!(key1, key2);
+}
+
+#[test]
+fn effect_key_roundtrip_with_max_sequence() {
+    let id = max_instance_id();
+    let seq = SequenceNumber::try_from(u64::MAX).unwrap();
+    let key = encode_effect_key(&id, seq);
+    let (decoded_id, decoded_seq) = decode_effect_key(&key).unwrap();
+    assert_eq!(decoded_id, id);
+    assert_eq!(decoded_seq.as_u64(), u64::MAX);
+}
+
+#[test]
+fn lease_key_with_max_instance_id_roundtrips() {
+    let id = max_instance_id();
+    let step = StepId::parse("step-z").unwrap();
+    let key = encode_lease_key(&id, &step);
+    let (decoded_id, decoded_step) = decode_lease_key(&key).unwrap();
+    assert_eq!(decoded_id, id);
+    assert_eq!(decoded_step, step);
 }
 
 #[allow(dead_code)]

@@ -181,7 +181,6 @@ fn execute_stop_fn_with_timeout(
 /// - **INV-3 (Count Consistency)**: `active_count()` always equals the map length.
 /// - **INV-4 (Stop-Before-Replace)**: Prior actor stopped before new one replaces it.
 /// - **INV-5 (No Partial Mutations)**: On error, registry state is unchanged.
-#[derive(Debug)]
 pub struct InstanceRegistry {
     entries: HashMap<InstanceId, InstanceActorHandle>,
     stop_timeout: Duration,
@@ -206,6 +205,9 @@ impl InstanceRegistry {
 }
 
 /// Interface for instance registry operations needed by InvariantEnforcer.
+///
+/// Note: All operations are **local** only. This interface does not provide
+/// global fencing guarantees. See ADR-029 for execution leases.
 pub trait InstanceRegistryInterface: Send + Sync {
     /// Checks if an instance is currently active.
     fn is_active(&self, instance_id: &InstanceId) -> bool;

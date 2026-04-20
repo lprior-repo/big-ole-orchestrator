@@ -5,17 +5,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
-const CRON_FIELD_COUNT: usize = 5;
-const MINUTE_MIN: u32 = 0;
-const MINUTE_MAX: u32 = 59;
-const HOUR_MIN: u32 = 0;
-const HOUR_MAX: u32 = 23;
-const DAY_OF_MONTH_MIN: u32 = 1;
-const DAY_OF_MONTH_MAX: u32 = 31;
-const MONTH_MIN: u32 = 1;
-const MONTH_MAX: u32 = 12;
-const DAY_OF_WEEK_MIN: u32 = 0;
-const DAY_OF_WEEK_MAX: u32 = 7;
+use crate::error::SchedulerError;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct JobId(pub Ulid);

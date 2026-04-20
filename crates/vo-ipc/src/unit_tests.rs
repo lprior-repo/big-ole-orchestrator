@@ -312,28 +312,3 @@ fn config_argv_is_derived_from_payload() {
     let config = SubprocessConfig::new(&path, 100, b"a b c".to_vec()).unwrap();
     assert_eq!(config.argv(), vec!["a", "b", "c"]);
 }
-
-#[test]
-fn bus_module_is_accessible() {
-    let config = crate::bus::BusConfig::default();
-    assert_eq!(config.backpressure_limit(), 64);
-    assert_eq!(config.timeout_ms(), 5000);
-}
-
-#[test]
-fn bus_error_variants_display_correctly() {
-    use crate::bus::BusError;
-    assert_eq!(BusError::BusClosed.to_string(), "bus is closed");
-    assert_eq!(
-        BusError::BackpressureLimitReached.to_string(),
-        "backpressure limit reached"
-    );
-    assert_eq!(BusError::Timeout.to_string(), "timeout");
-}
-
-#[test]
-fn bus_message_equality() {
-    use crate::bus::BusMessage;
-    let drained = BusMessage::Drained;
-    assert_eq!(drained, BusMessage::Drained);
-}

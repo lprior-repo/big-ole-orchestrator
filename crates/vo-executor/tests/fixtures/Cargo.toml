@@ -1,4 +1,3 @@
-[workspace]
 [package]
 name = "vo-executor-test-fixtures"
 version = "0.0.0"

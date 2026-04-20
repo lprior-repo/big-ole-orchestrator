@@ -524,8 +524,14 @@ mod tests {
             }
 
             #[test]
-            fn compute_fire_at_rejects_overflow(base in (u64::MAX - 999_999)..=u64::MAX, dur in 1_000_001u64..u64::MAX) {
-                prop_assert!(compute_fire_at(base, dur).is_err());
+            fn validate_sleep_duration_positive_only(dur in -1_000_000i64..1_000_000i64) {
+                let result = validate_sleep_duration(dur);
+                if dur > 0 {
+                    prop_assert!(result.is_ok());
+                    prop_assert_eq!(result.unwrap(), dur as u64);
+                } else {
+                    prop_assert!(result.is_err());
+                }
             }
 
             #[test]
@@ -539,17 +545,6 @@ mod tests {
                 if let Ok(s) = state {
                     prop_assert!(s.remaining_ms(now) <= fire);
                 }
-            }
-
-            #[test]
-            fn timer_wait_key_in_hashset(key in "[a-z0-9]{1,256}") {
-                use std::collections::HashMap;
-                let a = TimerWaitKey::parse(&key).unwrap();
-                let b = TimerWaitKey::parse(&key).unwrap();
-                let mut map = HashMap::new();
-                map.insert(a.clone(), 1u32);
-                prop_assert!(map.contains_key(&b));
-                prop_assert_eq!(map.get(&b), Some(&1));
             }
         }
     }

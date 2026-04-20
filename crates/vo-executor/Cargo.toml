@@ -12,7 +12,6 @@ dashmap = { workspace = true }
 chrono = { workspace = true }
 libc.workspace = true
 tracing.workspace = true
-rand.workspace = true
 
 [dev-dependencies]
 tokio.workspace = true

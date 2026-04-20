@@ -1,7 +1,7 @@
 error: #[task] can only be applied to functions
  --> tests/rq_ui/fail_trait_fn.rs:3:1
   |
-4 |     #[task]
-  |     ^^^^^^^
+3 | #[task]
+  | ^^^^^^^
   |
   = note: this error originates in the attribute macro `task` (in Nightly builds, run with -Z macro-backtrace for more info)

@@ -228,6 +228,7 @@ struct RebuildThrottleState {
     last_refill: Instant,
     refill_interval: Duration,
     tokens_per_refill: usize,
+    #[allow(dead_code)]
     active_rebuilds: AtomicUsize,
 }
 
@@ -334,7 +335,9 @@ pub struct ProjectionEngine {
     max_supported_version: u8,
     throttle: RebuildThrottleState,
     throttle_config: RebuildThrottleConfig,
+    #[allow(dead_code)]
     active_rebuilds: Arc<HashMap<String, Arc<RebuildContext>>>,
+    #[allow(dead_code)]
     rebuild_in_progress: AtomicBool,
 }
 
@@ -391,8 +394,8 @@ impl ProjectionEngine {
         self.rebuild_in_progress.load(Ordering::Relaxed)
     }
 
-    pub fn upcaster_registry(&self) -> Option<&Box<dyn UpcasterRegistry>> {
-        self.upcaster_registry.as_ref()
+    pub fn upcaster_registry(&self) -> Option<&dyn UpcasterRegistry> {
+        self.upcaster_registry.as_deref()
     }
 
     pub fn detect_staleness(
@@ -479,12 +482,14 @@ impl RebuildContext {
 
 use std::marker::PhantomData;
 
+#[allow(dead_code)]
 pub struct ProjectionRebuilder<'a, S, E, P>
 where
     S: Clone + Default + serde::Serialize,
     E: Clone,
     P: Projector<S, E>,
 {
+    #[allow(dead_code)]
     engine: &'a ProjectionEngine,
     projector: &'a P,
     context: Arc<RebuildContext>,
@@ -498,7 +503,7 @@ where
     P: Projector<S, E>,
 {
     pub fn new(
-        engine: &'a ProjectionEngine,
+        #[allow(dead_code)] engine: &'a ProjectionEngine,
         projector: &'a P,
         projection_id: String,
         from_sequence: u64,

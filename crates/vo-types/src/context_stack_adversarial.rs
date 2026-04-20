@@ -392,7 +392,6 @@ fn rq_lifecycle_get_valid_transitions_completeness() {
                 TransitionEvent::ConfirmPublication,
                 TransitionEvent::PublicationFailed,
                 TransitionEvent::Cancel,
-                TransitionEvent::Fail,
             ],
         ),
         (LifecycleState::Completed, vec![]),

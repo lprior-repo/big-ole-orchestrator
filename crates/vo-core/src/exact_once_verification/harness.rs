@@ -180,6 +180,8 @@ impl VerificationHarness {
                     "type": "WorkflowStarted",
                     "workflow_id": lineage_id,
                     "binary_hash": "sha256abc",
+                    "workflow_version_hash": "wvhash123",
+                    "dedupe_key_hash": null,
                     "version": 1
                 }),
                 metadata: vo_types::events::EventMetadata::default(),
@@ -234,6 +236,8 @@ mod tests {
             "type": "WorkflowStarted",
             "workflow_id": workflow_id,
             "binary_hash": "sha256abc",
+            "workflow_version_hash": "wvhash123",
+            "dedupe_key_hash": null,
             "version": 1
         })
     }

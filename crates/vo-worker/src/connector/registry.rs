@@ -1,12 +1,18 @@
 //! Connector lifecycle management (ADR-041 §5).
 
+use crate::connector::Connector;
 use std::collections::HashMap;
 use std::sync::Arc;
-use crate::connector::Connector;
 
 /// Registry for managing connector instances by type name.
 pub struct ConnectorRegistry {
     connectors: HashMap<String, Arc<dyn Connector>>,
+}
+
+impl Default for ConnectorRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ConnectorRegistry {
@@ -28,6 +34,11 @@ impl ConnectorRegistry {
         self.connectors.len()
     }
 
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.connectors.is_empty()
+    }
+
     pub fn list(&self) -> Vec<&str> {
         self.connectors.keys().map(String::as_str).collect()
     }
@@ -36,7 +47,9 @@ impl ConnectorRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::connector::{CommitOutcome, Connector, ConnectorError, PreparedEffect, ReconcileOutcome};
+    use crate::connector::{
+        CommitOutcome, Connector, ConnectorError, PreparedEffect, ReconcileOutcome,
+    };
     use async_trait::async_trait;
     use serde_json::json;
 
@@ -47,9 +60,15 @@ mod tests {
 
     #[async_trait]
     impl Connector for MockConnector {
-        fn connector_type(&self) -> &str { &self.name }
-        fn connector_version(&self) -> &str { "1.0.0" }
-        fn supports_compensation(&self) -> bool { false }
+        fn connector_type(&self) -> &str {
+            &self.name
+        }
+        fn connector_version(&self) -> &str {
+            "1.0.0"
+        }
+        fn supports_compensation(&self) -> bool {
+            false
+        }
 
         async fn prepare(
             &self,
@@ -57,20 +76,20 @@ mod tests {
             effect_id: String,
             fence: u64,
         ) -> Result<PreparedEffect, ConnectorError> {
-            Ok(PreparedEffect { effect_id, payload: json!({}), fence })
+            Ok(PreparedEffect {
+                effect_id,
+                payload: json!({}),
+                fence,
+            })
         }
 
-        async fn commit(
-            &self,
-            _prepared: PreparedEffect,
-        ) -> Result<CommitOutcome, ConnectorError> {
-            Ok(CommitOutcome::Committed { receipt: "mock".into() })
+        async fn commit(&self, _prepared: PreparedEffect) -> Result<CommitOutcome, ConnectorError> {
+            Ok(CommitOutcome::Committed {
+                receipt: "mock".into(),
+            })
         }
 
-        async fn reconcile(
-            &self,
-            _effect_id: &str,
-        ) -> Result<ReconcileOutcome, ConnectorError> {
+        async fn reconcile(&self, _effect_id: &str) -> Result<ReconcileOutcome, ConnectorError> {
             Ok(ReconcileOutcome::NotCommitted)
         }
     }
@@ -85,7 +104,12 @@ mod tests {
     #[tokio::test]
     async fn test_registry_register_single() {
         let mut registry = ConnectorRegistry::new();
-        registry.register("mock".to_string(), Box::new(MockConnector { name: "mock".to_string() }));
+        registry.register(
+            "mock".to_string(),
+            Box::new(MockConnector {
+                name: "mock".to_string(),
+            }),
+        );
 
         assert_eq!(registry.len(), 1);
         assert_eq!(registry.list(), vec!["mock"]);
@@ -94,9 +118,24 @@ mod tests {
     #[tokio::test]
     async fn test_registry_register_multiple() {
         let mut registry = ConnectorRegistry::new();
-        registry.register("http".to_string(), Box::new(MockConnector { name: "http".to_string() }));
-        registry.register("sqs".to_string(), Box::new(MockConnector { name: "sqs".to_string() }));
-        registry.register("s3".to_string(), Box::new(MockConnector { name: "s3".to_string() }));
+        registry.register(
+            "http".to_string(),
+            Box::new(MockConnector {
+                name: "http".to_string(),
+            }),
+        );
+        registry.register(
+            "sqs".to_string(),
+            Box::new(MockConnector {
+                name: "sqs".to_string(),
+            }),
+        );
+        registry.register(
+            "s3".to_string(),
+            Box::new(MockConnector {
+                name: "s3".to_string(),
+            }),
+        );
 
         assert_eq!(registry.len(), 3);
         let list = registry.list();
@@ -108,7 +147,9 @@ mod tests {
     #[tokio::test]
     async fn test_registry_get_existing() {
         let mut registry = ConnectorRegistry::new();
-        let connector = MockConnector { name: "http".to_string() };
+        let connector = MockConnector {
+            name: "http".to_string(),
+        };
         registry.register("http".to_string(), Box::new(connector.clone()));
 
         let retrieved = registry.get("http");
@@ -126,20 +167,51 @@ mod tests {
     #[tokio::test]
     async fn test_registry_get_after_register() {
         let mut registry = ConnectorRegistry::new();
-        
-        registry.register("connector1".to_string(), Box::new(MockConnector { name: "connector1".to_string() }));
-        registry.register("connector2".to_string(), Box::new(MockConnector { name: "connector2".to_string() }));
 
-        assert_eq!(registry.get("connector1").unwrap().connector_type(), "connector1");
-        assert_eq!(registry.get("connector2").unwrap().connector_type(), "connector2");
+        registry.register(
+            "connector1".to_string(),
+            Box::new(MockConnector {
+                name: "connector1".to_string(),
+            }),
+        );
+        registry.register(
+            "connector2".to_string(),
+            Box::new(MockConnector {
+                name: "connector2".to_string(),
+            }),
+        );
+
+        assert_eq!(
+            registry.get("connector1").unwrap().connector_type(),
+            "connector1"
+        );
+        assert_eq!(
+            registry.get("connector2").unwrap().connector_type(),
+            "connector2"
+        );
     }
 
     #[tokio::test]
     async fn test_registry_list_order() {
         let mut registry = ConnectorRegistry::new();
-        registry.register("z".to_string(), Box::new(MockConnector { name: "z".to_string() }));
-        registry.register("a".to_string(), Box::new(MockConnector { name: "a".to_string() }));
-        registry.register("m".to_string(), Box::new(MockConnector { name: "m".to_string() }));
+        registry.register(
+            "z".to_string(),
+            Box::new(MockConnector {
+                name: "z".to_string(),
+            }),
+        );
+        registry.register(
+            "a".to_string(),
+            Box::new(MockConnector {
+                name: "a".to_string(),
+            }),
+        );
+        registry.register(
+            "m".to_string(),
+            Box::new(MockConnector {
+                name: "m".to_string(),
+            }),
+        );
 
         let list = registry.list();
         assert_eq!(list.len(), 3);
@@ -152,9 +224,19 @@ mod tests {
     #[tokio::test]
     async fn test_registry_overwrite_connector() {
         let mut registry = ConnectorRegistry::new();
-        
-        registry.register("test".to_string(), Box::new(MockConnector { name: "original".to_string() }));
-        registry.register("test".to_string(), Box::new(MockConnector { name: "updated".to_string() }));
+
+        registry.register(
+            "test".to_string(),
+            Box::new(MockConnector {
+                name: "original".to_string(),
+            }),
+        );
+        registry.register(
+            "test".to_string(),
+            Box::new(MockConnector {
+                name: "updated".to_string(),
+            }),
+        );
 
         assert_eq!(registry.len(), 1);
         assert_eq!(registry.get("test").unwrap().connector_type(), "updated");
@@ -171,13 +253,15 @@ mod tests {
     #[tokio::test]
     async fn test_registry_register_clone() {
         let mut registry = ConnectorRegistry::new();
-        let connector = MockConnector { name: "shared".to_string() };
-        
+        let connector = MockConnector {
+            name: "shared".to_string(),
+        };
+
         registry.register("shared".to_string(), Box::new(connector.clone()));
-        
+
         let retrieved1 = registry.get("shared");
         let retrieved2 = registry.get("shared");
-        
+
         assert!(retrieved1.is_some());
         assert!(retrieved2.is_some());
         assert_eq!(retrieved1.unwrap().connector_type(), "shared");
@@ -187,9 +271,24 @@ mod tests {
     #[tokio::test]
     async fn test_registry_connector_types() {
         let mut registry = ConnectorRegistry::new();
-        registry.register("http".to_string(), Box::new(MockConnector { name: "http".to_string() }));
-        registry.register("grpc".to_string(), Box::new(MockConnector { name: "grpc".to_string() }));
-        registry.register("amqp".to_string(), Box::new(MockConnector { name: "amqp".to_string() }));
+        registry.register(
+            "http".to_string(),
+            Box::new(MockConnector {
+                name: "http".to_string(),
+            }),
+        );
+        registry.register(
+            "grpc".to_string(),
+            Box::new(MockConnector {
+                name: "grpc".to_string(),
+            }),
+        );
+        registry.register(
+            "amqp".to_string(),
+            Box::new(MockConnector {
+                name: "amqp".to_string(),
+            }),
+        );
 
         let http = registry.get("http").unwrap();
         let grpc = registry.get("grpc").unwrap();

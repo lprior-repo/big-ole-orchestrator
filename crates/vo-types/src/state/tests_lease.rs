@@ -2,9 +2,9 @@
 
 use super::*;
 
-fn make_instance_id(s: &str) -> crate::InstanceId {
+fn make_instance_id(s: &str) -> crate::string_types::InstanceId {
     // Just return a dummy InstanceId for tests by directly wrapping String (as it's pub(crate))
-    crate::InstanceId(s.to_string())
+    crate::string_types::InstanceId(s.to_string())
 }
 
 fn make_step_id(s: &str) -> crate::string_types::StepId {

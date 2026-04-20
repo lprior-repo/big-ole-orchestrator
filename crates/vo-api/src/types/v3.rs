@@ -51,6 +51,23 @@ pub struct V3SignalRequest {
     pub payload: serde_json::Value,
 }
 
+/// Generic API error response.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ApiError {
+    pub error: String,
+    pub message: String,
+}
+
+impl ApiError {
+    #[must_use]
+    pub fn new(error: impl Into<String>, message: impl Into<String>) -> Self {
+        Self {
+            error: error.into(),
+            message: message.into(),
+        }
+    }
+}
+
 /// Single entry in the timeline for a workflow instance (ADR-007).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TimelineEntry {
@@ -66,10 +83,6 @@ pub struct TimelineResponse {
     pub instance_id: String,
     pub entries: Vec<TimelineEntry>,
     pub total_replayed: usize,
-    #[serde(default)]
-    pub replay_error_count: usize,
-    #[serde(default)]
-    pub truncated: bool,
 }
 
 /// Single entry in the execution history for a step.
@@ -91,10 +104,6 @@ pub struct HistoryEntry {
 pub struct HistoryResponse {
     pub instance_id: String,
     pub entries: Vec<HistoryEntry>,
-    #[serde(default)]
-    pub replay_error_count: usize,
-    #[serde(default)]
-    pub truncated: bool,
 }
 
 /// Semantic guarantee class for an effect.
@@ -120,10 +129,6 @@ pub struct EffectJournalEntry {
 pub struct EffectJournalResponse {
     pub instance_id: String,
     pub entries: Vec<EffectJournalEntry>,
-    #[serde(default)]
-    pub replay_error_count: usize,
-    #[serde(default)]
-    pub truncated: bool,
 }
 
 /// Response to GET /api/v1/workflows/:id/version.
@@ -134,10 +139,6 @@ pub struct WorkflowVersionResponse {
     pub event_count: u64,
     pub last_sequence: Option<u64>,
     pub last_timestamp_ms: Option<u64>,
-    #[serde(default)]
-    pub replay_error_count: usize,
-    #[serde(default)]
-    pub truncated: bool,
 }
 
 /// Search request body for full-text search across workspaces.
@@ -253,6 +254,13 @@ mod tests {
     }
 
     #[test]
+    fn api_error_new() {
+        let err = ApiError::new("not_found", "workflow missing");
+        assert_eq!(err.error, "not_found");
+        assert_eq!(err.message, "workflow missing");
+    }
+
+    #[test]
     fn effect_semantics_serde() {
         let exact = EffectSemantics::Exact;
         assert_eq!(serde_json::to_string(&exact).unwrap(), "\"exact\"");
@@ -331,8 +339,6 @@ mod tests {
             event_count: 10,
             last_sequence: None,
             last_timestamp_ms: None,
-            replay_error_count: 0,
-            truncated: false,
         };
         let json = serde_json::to_string(&resp).unwrap();
         assert!(json.contains("null"));
