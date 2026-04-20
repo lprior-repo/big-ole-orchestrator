@@ -9,9 +9,10 @@ use tokio::sync::{mpsc, OwnedSemaphorePermit, Semaphore};
 use tracing::{debug, error, info, warn};
 
 use vo_types::connection_pool::{
-    AcquireResult, CircuitBreakerState, ConnectionId, ConnectionPoolError, ConnectionStatus,
-    ErrorCategory, ErrorContext, ErrorDetail, EvictionReason, HealthCheckResult,
-    PoolConfig as VoPoolConfig, PoolId, PoolStats, PooledConnection, ReleaseResult, WaitHandle,
+    AcquireResult, CircuitBreakerState, ConnectionId, ConnectionOwnerId, ConnectionPoolError,
+    ConnectionStatus, ErrorCategory, ErrorContext, ErrorDetail, EvictionReason,
+    HealthCheckResult, PoolConfig as VoPoolConfig, PoolId, PoolStats, PooledConnection,
+    ReleaseResult, WaitHandle,
 };
 use vo_types::integer_types::TimestampMs;
 
@@ -50,7 +51,7 @@ pub struct PoolState {
     pub pool_id: PoolId,
     pub connections: HashMap<ConnectionId, PooledConnection>,
     pub idle_connections: VecDeque<ConnectionId>,
-    pub checked_out_connections: HashMap<ConnectionId, ConnectionId>,
+    pub checked_out_connections: HashMap<ConnectionId, (ConnectionId, ConnectionOwnerId)>,
     pub pending_acquires: VecDeque<WaitHandle>,
     pub config: PoolConfig,
     pub circuit_breaker: CircuitBreaker,
@@ -154,15 +155,20 @@ impl ConnectionPool {
         Self::new(pool_id, nats_urls, config)
     }
 
-    pub async fn acquire(&mut self) -> AcquireResult {
-        self.acquire_with_timeout(std::time::Duration::from_millis(
-            self.state.config.connection_timeout_ms,
-        ))
+    pub async fn acquire(&mut self, owner_id: ConnectionOwnerId) -> AcquireResult {
+        self.acquire_with_timeout(
+            std::time::Duration::from_millis(self.state.config.connection_timeout_ms),
+            owner_id,
+        )
         .await
     }
 
     #[allow(clippy::unused_async)]
-    pub async fn acquire_with_timeout(&mut self, timeout: std::time::Duration) -> AcquireResult {
+    pub async fn acquire_with_timeout(
+        &mut self,
+        timeout: std::time::Duration,
+        owner_id: ConnectionOwnerId,
+    ) -> AcquireResult {
         if self.state.is_shutting_down {
             return AcquireResult::PoolClosing;
         }
@@ -206,7 +212,7 @@ impl ConnectionPool {
                     let checkout_id = ConnectionId::new();
                     self.state
                         .checked_out_connections
-                        .insert(checkout_id, conn_id);
+                        .insert(checkout_id, (conn_id, owner_id));
 
                     debug!("Acquired connection {} from pool {}", conn_id, self.pool_id);
 
@@ -229,7 +235,7 @@ impl ConnectionPool {
             let checkout_id = ConnectionId::new();
             self.state
                 .checked_out_connections
-                .insert(checkout_id, connection_id);
+                .insert(checkout_id, (connection_id, owner_id));
 
             self.state.total_acquires += 1;
 
@@ -270,21 +276,29 @@ impl ConnectionPool {
         AcquireResult::Pending { wait_handle }
     }
 
-    pub fn release(&mut self, connection_id: ConnectionId) -> ReleaseResult {
+    pub fn release(&mut self, connection_id: ConnectionId, owner_id: ConnectionOwnerId) -> ReleaseResult {
         if self.state.is_shutting_down {
             return self.evict_connection(connection_id, EvictionReason::ExplicitEviction);
         }
 
-        let checkout_id = self
+        let checkout_entry = self
             .state
             .checked_out_connections
             .iter()
-            .find(|&(_, cid)| *cid == connection_id)
-            .map(|(id, _)| *id);
+            .find(|&(_, (cid, _))| *cid == connection_id)
+            .map(|(id, (_, owner))| (*id, owner.clone()));
 
-        let Some(checkout_id) = checkout_id else {
+        let Some((checkout_id, stored_owner)) = checkout_entry else {
             return ReleaseResult::AlreadyClosed;
         };
+
+        if stored_owner != owner_id {
+            debug!(
+                "Release denied: connection {} owned by {} but released by {}",
+                connection_id, stored_owner, owner_id
+            );
+            return ReleaseResult::NotOwner;
+        }
 
         self.state.checked_out_connections.remove(&checkout_id);
 
@@ -311,7 +325,7 @@ impl ConnectionPool {
     ) -> ReleaseResult {
         self.state
             .checked_out_connections
-            .retain(|_, cid| *cid != connection_id);
+            .retain(|_, (cid, _)| *cid != connection_id);
 
         if let Some(conn) = self.state.connections.get_mut(&connection_id) {
             conn.status = ConnectionStatus::Closed;
@@ -430,6 +444,12 @@ mod pool_tests {
         ConnectionPool::new(pool_id, nats_urls, config)
     }
 
+    const TEST_OWNER: ConnectionOwnerId = ConnectionOwnerId::new("test-owner");
+
+    fn owner_id(s: &str) -> ConnectionOwnerId {
+        ConnectionOwnerId::new(s)
+    }
+
     #[test]
     fn test_pool_initialization() {
         let pool = create_test_pool();
@@ -441,7 +461,7 @@ mod pool_tests {
     #[test]
     fn test_acquire_creates_connection() {
         let mut pool = create_test_pool();
-        let result = futures::executor::block_on(pool.acquire());
+        let result = futures::executor::block_on(pool.acquire(TEST_OWNER.clone()));
         match result {
             AcquireResult::Available { connection } => {
                 assert!(connection.is_checked_out());
@@ -453,13 +473,13 @@ mod pool_tests {
     #[test]
     fn test_release_returns_connection_to_pool() {
         let mut pool = create_test_pool();
-        let acquire_result = futures::executor::block_on(pool.acquire());
+        let acquire_result = futures::executor::block_on(pool.acquire(TEST_OWNER.clone()));
         let conn_id = match acquire_result {
             AcquireResult::Available { connection } => connection.connection_id,
             _ => panic!("Expected Available result"),
         };
 
-        let release_result = pool.release(conn_id);
+        let release_result = pool.release(conn_id, TEST_OWNER.clone());
         assert_eq!(release_result, ReleaseResult::Returned);
         assert_eq!(pool.stats().idle_connections, 1);
     }
@@ -468,14 +488,14 @@ mod pool_tests {
     fn test_release_unknown_connection() {
         let mut pool = create_test_pool();
         let unknown_id = ConnectionId::new();
-        let result = pool.release(unknown_id);
+        let result = pool.release(unknown_id, TEST_OWNER.clone());
         assert_eq!(result, ReleaseResult::AlreadyClosed);
     }
 
     #[test]
     fn test_pool_stats() {
         let mut pool = create_test_pool();
-        let acquire_result = futures::executor::block_on(pool.acquire());
+        let acquire_result = futures::executor::block_on(pool.acquire(TEST_OWNER.clone()));
         let conn_id = match acquire_result {
             AcquireResult::Available { connection } => connection.connection_id,
             _ => panic!("Expected Available result"),
@@ -486,7 +506,7 @@ mod pool_tests {
         assert_eq!(stats.checked_out_connections, 1);
         assert_eq!(stats.idle_connections, 0);
 
-        pool.release(conn_id);
+        pool.release(conn_id, TEST_OWNER.clone());
 
         let stats = pool.stats();
         assert_eq!(stats.total_connections, 1);
@@ -497,7 +517,7 @@ mod pool_tests {
     #[test]
     fn test_shutdown_clears_pool() {
         let mut pool = create_test_pool();
-        futures::executor::block_on(pool.acquire());
+        futures::executor::block_on(pool.acquire(TEST_OWNER.clone()));
         pool.shutdown();
 
         assert!(pool.is_shutting_down());
@@ -516,7 +536,7 @@ mod pool_tests {
             .circuit_breaker
             .transition_to(CircuitBreakerState::Open);
 
-        let result = pool.acquire().await;
+        let result = pool.acquire(TEST_OWNER.clone()).await;
         match result {
             AcquireResult::PoolExhausted { .. } => {}
             _ => panic!("Expected PoolExhausted when circuit breaker is open"),
@@ -526,16 +546,16 @@ mod pool_tests {
     #[test]
     fn test_release_twice_returns_already_closed() {
         let mut pool = create_test_pool();
-        let acquire_result = futures::executor::block_on(pool.acquire());
+        let acquire_result = futures::executor::block_on(pool.acquire(TEST_OWNER.clone()));
         let conn_id = match acquire_result {
             AcquireResult::Available { connection } => connection.connection_id,
             _ => panic!("Expected Available result"),
         };
 
-        let first_release = pool.release(conn_id);
+        let first_release = pool.release(conn_id, TEST_OWNER.clone());
         assert_eq!(first_release, ReleaseResult::Returned);
 
-        let second_release = pool.release(conn_id);
+        let second_release = pool.release(conn_id, TEST_OWNER.clone());
         assert_eq!(second_release, ReleaseResult::AlreadyClosed);
     }
 
@@ -543,7 +563,7 @@ mod pool_tests {
     fn test_release_without_acquire_returns_already_closed() {
         let mut pool = create_test_pool();
         let never_acquired = ConnectionId::new();
-        let result = pool.release(never_acquired);
+        let result = pool.release(never_acquired, TEST_OWNER.clone());
         assert_eq!(result, ReleaseResult::AlreadyClosed);
     }
 
@@ -559,16 +579,16 @@ mod pool_tests {
         let mut pool = create_test_pool();
 
         // Create a connection and release it to idle
-        let result = futures::executor::block_on(pool.acquire());
+        let result = futures::executor::block_on(pool.acquire(TEST_OWNER.clone()));
         let conn_id = match result {
             AcquireResult::Available { connection } => connection.connection_id,
             _ => panic!("Expected Available"),
         };
-        pool.release(conn_id);
+        pool.release(conn_id, TEST_OWNER.clone());
         assert_eq!(pool.stats().idle_connections, 1);
 
         // Acquire again — connection should be healthy and returned
-        let result = futures::executor::block_on(pool.acquire());
+        let result = futures::executor::block_on(pool.acquire(TEST_OWNER.clone()));
         match result {
             AcquireResult::Available { connection } => {
                 assert_eq!(connection.connection_id, conn_id);
@@ -585,12 +605,12 @@ mod pool_tests {
         let mut pool = create_test_pool();
 
         // Create a connection and release it to idle
-        let result = futures::executor::block_on(pool.acquire());
+        let result = futures::executor::block_on(pool.acquire(TEST_OWNER.clone()));
         let conn_id = match result {
             AcquireResult::Available { connection } => connection.connection_id,
             _ => panic!("Expected Available"),
         };
-        pool.release(conn_id);
+        pool.release(conn_id, TEST_OWNER.clone());
         assert_eq!(pool.stats().idle_connections, 1);
 
         // Artificially age the connection to make it stale
@@ -601,7 +621,7 @@ mod pool_tests {
         }
 
         // Acquire should evict the stale connection and create a new one
-        let result = futures::executor::block_on(pool.acquire());
+        let result = futures::executor::block_on(pool.acquire(TEST_OWNER.clone()));
         match result {
             AcquireResult::Available { connection } => {
                 // New connection, different from the stale one
@@ -625,13 +645,13 @@ mod pool_tests {
         // Create 2 connections and release them
         let mut conn_ids = Vec::new();
         for _ in 0..2 {
-            let result = futures::executor::block_on(pool.acquire());
+            let result = futures::executor::block_on(pool.acquire(TEST_OWNER.clone()));
             if let AcquireResult::Available { connection } = result {
                 conn_ids.push(connection.connection_id);
             }
         }
         for id in &conn_ids {
-            pool.release(*id);
+            pool.release(*id, TEST_OWNER.clone());
         }
         assert_eq!(pool.stats().idle_connections, 2);
 
@@ -644,7 +664,7 @@ mod pool_tests {
         }
 
         // First acquire: evicts all stale, creates new
-        let result = futures::executor::block_on(pool.acquire());
+        let result = futures::executor::block_on(pool.acquire(TEST_OWNER.clone()));
         match result {
             AcquireResult::Available { connection } => {
                 assert!(!conn_ids.contains(&connection.connection_id));
@@ -654,128 +674,94 @@ mod pool_tests {
     }
 
     // ========================================================================
-    // BLACKHAT: Connection Hijacking Tests (ve-cby51)
-    // Tests designed to expose connection hijacking vulnerabilities
+    // Connection Theft Attack Tests (bh-014)
     // ========================================================================
 
-    /// BH-001: Connection hijacking without ownership verification
-    ///
-    /// Vulnerability: release() accepts any connection_id without verifying
-    /// that the caller actually owns the checkout. An attacker who learns
-    /// another actor's connection_id can prematurely return that connection
-    /// to the pool, causing the original owner to hold a stale reference.
+    /// Given: Actor A acquires a connection
+    /// When: Actor B tries to release Actor A's connection
+    /// Then: The release is denied with NotOwner result
     #[test]
-    fn bh_connection_hijacking_without_ownership_verification() {
-        let pool_id = PoolId::new("bh-hijack-pool");
-        let nats_urls = vec!["nats://localhost:4222".to_string()];
-        let config = PoolConfig::new(1, 3, 5000, 30000, 10000, 10).unwrap();
-        let mut pool = ConnectionPool::new(pool_id, nats_urls, config);
+    fn test_connection_theft_blocked() {
+        let mut pool = create_test_pool();
+        let actor_a = owner_id("actor-a");
+        let actor_b = owner_id("actor-b");
 
-        let result_a = futures::executor::block_on(pool.acquire());
-        let conn_a = match result_a {
+        // Actor A acquires a connection
+        let acquire_result = futures::executor::block_on(pool.acquire(actor_a.clone()));
+        let conn_id = match acquire_result {
             AcquireResult::Available { connection } => connection.connection_id,
-            _ => panic!("Actor A should acquire connection"),
+            _ => panic!("Expected Available result"),
         };
 
-        let result_b = futures::executor::block_on(pool.acquire());
-        let _conn_b = match result_b {
-            AcquireResult::Available { connection } => connection.connection_id,
-            _ => panic!("Actor B should acquire connection"),
-        };
+        // Actor B tries to release Actor A's connection - should be denied
+        let release_result = pool.release(conn_id, actor_b);
+        assert_eq!(release_result, ReleaseResult::NotOwner);
 
-        let release_result = pool.release(conn_a);
-        assert_eq!(
-            release_result,
-            ReleaseResult::Returned,
-            "Attacker can release Actor A's connection without ownership"
-        );
-
-        let stats = pool.stats();
-        assert_eq!(
-            stats.checked_out_connections, 0,
-            "After hijack: no connections checked out (Actor A's was stolen!)"
-        );
-        assert_eq!(
-            stats.idle_connections, 2,
-            "Both connections returned to idle (one was hijacked)"
-        );
+        // Verify the connection is still checked out to Actor A
+        assert_eq!(pool.stats().checked_out_connections, 1);
+        assert_eq!(pool.stats().idle_connections, 0);
     }
 
-    /// BH-002: Connection reuse after hijack creates use-after-free scenario
-    ///
-    /// After an attacker releases Actor A's connection, Actor C can acquire
-    /// the same connection_id. Both Actor A and Actor C now hold references
-    /// to the same physical connection, but only Actor C's reference is valid.
+    /// Given: Actor A acquires a connection and releases it properly
+    /// When: Actor B tries to release the now-idle connection
+    /// Then: The release is denied because the connection is not checked out to anyone
     #[test]
-    fn bh_connection_hijacking_allows_stale_reference_use() {
-        let pool_id = PoolId::new("bh-stale-ref-pool");
-        let nats_urls = vec!["nats://localhost:4222".to_string()];
-        let config = PoolConfig::new(1, 2, 5000, 30000, 10000, 10).unwrap();
-        let mut pool = ConnectionPool::new(pool_id, nats_urls, config);
+    fn test_connection_theft_on_idle_connection() {
+        let mut pool = create_test_pool();
+        let actor_a = owner_id("actor-a");
+        let actor_b = owner_id("actor-b");
 
-        let result_a = futures::executor::block_on(pool.acquire());
-        let conn_a = match result_a {
-            AcquireResult::Available { connection } => connection,
-            _ => panic!("Actor A should acquire"),
+        // Actor A acquires and releases properly
+        let acquire_result = futures::executor::block_on(pool.acquire(actor_a.clone()));
+        let conn_id = match acquire_result {
+            AcquireResult::Available { connection } => connection.connection_id,
+            _ => panic!("Expected Available result"),
         };
-        let conn_a_id = conn_a.connection_id;
+        pool.release(conn_id, actor_a.clone());
+        assert_eq!(pool.stats().idle_connections, 1);
 
-        pool.release(conn_a_id);
+        // Actor B tries to release the idle connection - should be denied
+        let release_result = pool.release(conn_id, actor_b);
+        assert_eq!(release_result, ReleaseResult::AlreadyClosed);
 
-        let result_b = futures::executor::block_on(pool.acquire());
-        let conn_b = match result_b {
-            AcquireResult::Available { connection } => connection,
-            _ => panic!("Actor B should acquire after hijack"),
-        };
-
-        assert_eq!(
-            conn_a_id, conn_b.connection_id,
-            "Actor B gets same connection_id that Actor A was using!"
-        );
-
-        assert!(
-            conn_a.is_checked_out(),
-            "Actor A's reference still shows CheckedOut even though pool returned it!"
-        );
-        assert!(
-            conn_b.is_checked_out(),
-            "Actor B's reference shows CheckedOut"
-        );
-
-        panic!("VULNERABILITY: Two actors hold references to same connection_id but only one is valid in pool");
+        // Verify the connection is still idle
+        assert_eq!(pool.stats().idle_connections, 1);
     }
 
-    /// BH-003: Premature release by concurrent actor causes ownership confusion
-    ///
-    /// When Actor B prematurely releases Actor A's connection, the pool
-    /// returns it to idle. Actor A's reference becomes stale but still
-    /// shows CheckedOut status. The next acquire() will give this
-    /// connection to another actor, creating a data race.
+    /// Given: Multiple actors acquire connections
+    /// When: Each actor releases their own connection
+    /// Then: All releases succeed and connections return to idle
     #[test]
-    fn bh_connection_hijacking_premature_release_creates_data_race() {
-        let pool_id = PoolId::new("bh-race-pool");
-        let nats_urls = vec!["nats://localhost:4222".to_string()];
-        let config = PoolConfig::new(1, 2, 5000, 30000, 10000, 10).unwrap();
-        let mut pool = ConnectionPool::new(pool_id, nats_urls, config);
+    fn test_actor_isolation_correct_ownership() {
+        let mut pool = create_test_pool();
+        let actor_a = owner_id("actor-a");
+        let actor_b = owner_id("actor-b");
 
-        let result_a = futures::executor::block_on(pool.acquire());
-        let conn_a = match result_a {
+        // Actor A acquires
+        let acquire_a = futures::executor::block_on(pool.acquire(actor_a.clone()));
+        let conn_id_a = match acquire_a {
             AcquireResult::Available { connection } => connection.connection_id,
-            _ => panic!("Actor A should acquire"),
+            _ => panic!("Expected Available for actor A"),
         };
 
-        let result_b = futures::executor::block_on(pool.acquire());
-        let _conn_b = match result_b {
+        // Actor B acquires
+        let acquire_b = futures::executor::block_on(pool.acquire(actor_b.clone()));
+        let conn_id_b = match acquire_b {
             AcquireResult::Available { connection } => connection.connection_id,
-            _ => panic!("Actor B should acquire"),
+            _ => panic!("Expected Available for actor B"),
         };
 
-        pool.release(conn_a);
+        assert_eq!(pool.stats().checked_out_connections, 2);
 
-        let stats = pool.stats();
-        assert_eq!(stats.idle_connections, 2, "Both connections now idle");
-        assert_eq!(stats.checked_out_connections, 0, "No connections checked out");
+        // Actor A releases their own connection - should succeed
+        let release_a = pool.release(conn_id_a, actor_a.clone());
+        assert_eq!(release_a, ReleaseResult::Returned);
 
-        panic!("VULNERABILITY: Actor A's connection was released by Actor B without Actor A's consent");
+        // Actor B releases their own connection - should succeed
+        let release_b = pool.release(conn_id_b, actor_b);
+        assert_eq!(release_b, ReleaseResult::Returned);
+
+        assert_eq!(pool.stats().idle_connections, 2);
+        assert_eq!(pool.stats().checked_out_connections, 0);
     }
 }
