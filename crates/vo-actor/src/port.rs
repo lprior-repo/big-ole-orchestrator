@@ -4,6 +4,7 @@
 //! Implementors must be Send + Sync.
 
 use async_trait::async_trait;
+use serde::Serialize;
 
 use crate::message_router::{
     ActorDestination, ChannelEntry, ChannelId, DeadLetterEntry, RouteError, RouterConfig,
@@ -39,19 +40,19 @@ pub trait MessageRouterPort: Send + Sync {
 
     async fn deactivate_channel(&self, channel_id: &ChannelId) -> Result<(), RouteError>;
 
-    async fn route<T: Send + Sync + 'static>(
+    async fn route<T: Send + Sync + Serialize + 'static>(
         &self,
         channel_id: &ChannelId,
         message: T,
     ) -> Result<(), RouteError>;
 
-    async fn route_unicast<T: Send + Sync + 'static>(
+    async fn route_unicast<T: Send + Sync + Serialize + 'static>(
         &self,
         channel_id: &ChannelId,
         message: T,
     ) -> Result<(), RouteError>;
 
-    async fn route_broadcast<T: Send + Sync + 'static>(
+    async fn route_broadcast<T: Send + Sync + Serialize + 'static>(
         &self,
         channel_id: &ChannelId,
         message: T,

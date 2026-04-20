@@ -4,8 +4,11 @@
 //! Actors are the fundamental units of computation in the engine.
 
 use bytes::Bytes;
-pub use vo_common::NamespaceId;
 use vo_types::InstanceId;
+use vo_types::{SequenceNumber, TimerId, WorkflowName};
+
+/// Namespace identifier for workflow isolation.
+pub type NamespaceId = String;
 
 pub mod heartbeat {
     pub fn run_heartbeat_watcher() {}
@@ -132,7 +135,7 @@ mod terminate_error_tests {
 }
 
 // Actor message types
-pub mod actor_messages;
+// pub mod actor_messages; // module file missing
 pub mod signal_messages;
 
 pub use signal_messages::mock_signal_storage;
@@ -1146,6 +1149,7 @@ pub use signal_messages::{
             assert_message::<ControlActorMessage>();
         }
     }
+<<<<<<< HEAD
 
 // =============================================================================
 // Error Types - Cancel and Resume
@@ -1677,6 +1681,8 @@ pub mod mock_signal_storage {
         }
     }
 }
+=======
+>>>>>>> 1c723c8 (polecat/overlord: completed ve-3n170)
 
 // =============================================================================
 // Workload Classes and Reserved Permit Budget (ADR-033)
@@ -3408,4 +3414,3 @@ mod accept_resume_tests {
     }
 }
 
-pub use actor_messages::{ControlActorMessage, InstanceActorMessage};

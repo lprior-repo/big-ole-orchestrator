@@ -130,6 +130,13 @@ impl std::fmt::Display for ReplayError {
 
 impl std::error::Error for ReplayError {}
 
+/// Classification of replay error kinds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReplayErrorKind {
+    /// Error is deterministic and will recur on replay.
+    Deterministic,
+}
+
 impl ReplayError {
     #[must_use]
     pub fn is_deterministic(&self) -> bool {

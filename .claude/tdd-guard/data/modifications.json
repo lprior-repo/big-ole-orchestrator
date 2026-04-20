@@ -1,0 +1,12 @@
+{
+  "session_id": "249688a3-8421-4fb2-b1be-8bff9589a823",
+  "transcript_path": "/home/lewis/.claude/projects/-home-lewis-gt-veloxide-polecats-overlord-veloxide/249688a3-8421-4fb2-b1be-8bff9589a823.jsonl",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Edit",
+  "tool_input": {
+    "file_path": "/home/lewis/gt/veloxide/polecats/overlord/veloxide/crates/vo-actor/tests/spawn_supervisor_restart_loop_dos.rs",
+    "old_string": "use vo_actor::spawn_supervisor::{\n    calculate_backoff_delay, is_zombie_state, should_respawn, Counter, ProcessHandle,\n    ProcessManager, SpawnPhase, SpawnRecord, SpawnStorage, SpawnSupervisor, SpawnSupervisorError,\n    SpawnSupervisorMetrics, WorkQueue,\n};",
+    "new_string": "use vo_actor::spawn_supervisor::{\n    calculate_backoff_delay, is_zombie_state, should_respawn, ProcessHandle,\n    ProcessManager, SpawnPhase, SpawnRecord, SpawnStorage, SpawnSupervisor, SpawnSupervisorError,\n    WorkQueue,\n};",
+    "replace_all": false
+  }
+}

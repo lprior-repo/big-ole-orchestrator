@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use serde::Serialize;
 use tokio::sync::Mutex;
 
 use crate::message_router::{
@@ -77,7 +78,7 @@ impl MessageRouterPort for AsyncMessageRouter {
         router.deactivate_channel(channel_id)
     }
 
-    async fn route<T: Send + Sync + 'static>(
+    async fn route<T: Send + Sync + Serialize + 'static>(
         &self,
         channel_id: &ChannelId,
         message: T,
@@ -86,7 +87,7 @@ impl MessageRouterPort for AsyncMessageRouter {
         router.route(channel_id, message).await
     }
 
-    async fn route_unicast<T: Send + Sync + 'static>(
+    async fn route_unicast<T: Send + Sync + Serialize + 'static>(
         &self,
         channel_id: &ChannelId,
         message: T,
@@ -95,7 +96,7 @@ impl MessageRouterPort for AsyncMessageRouter {
         router.route_unicast(channel_id, message).await
     }
 
-    async fn route_broadcast<T: Send + Sync + 'static>(
+    async fn route_broadcast<T: Send + Sync + Serialize + 'static>(
         &self,
         channel_id: &ChannelId,
         message: T,
