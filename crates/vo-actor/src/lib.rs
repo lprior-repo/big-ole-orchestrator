@@ -71,6 +71,35 @@ pub enum OrchestratorMsg {
         payload: Bytes,
         reply: ractor::port::RpcReplyPort<Result<(), SignalError>>,
     },
+    /// Start a new workflow instance
+    StartWorkflow {
+        workflow_type: String,
+        instance_id: InstanceId,
+        namespace: NamespaceId,
+        paradigm: WorkflowParadigm,
+        input: Bytes,
+        reply: ractor::port::RpcReplyPort<Result<(), StartError>>,
+    },
+    /// Get the status of a workflow instance
+    GetStatus {
+        instance_id: InstanceId,
+        reply: ractor::port::RpcReplyPort<Option<InstanceSnapshot>>,
+    },
+    /// List all active workflow instances
+    ListActive {
+        reply: ractor::port::RpcReplyPort<Vec<InstanceSnapshot>>,
+    },
+    /// Terminate a workflow instance
+    Terminate {
+        instance_id: InstanceId,
+        reason: String,
+        reply: ractor::port::RpcReplyPort<Result<(), TerminateError>>,
+    },
+    /// Compensate a workflow instance
+    Compensate {
+        instance_id: InstanceId,
+        reply: ractor::port::RpcReplyPort<Result<(), TerminateError>>,
+    },
 }
 
 /// Error type for signal operations.
