@@ -720,3 +720,7 @@ time="2026-04-20T21:05:54-05:00" level=warning msg="error running query" connect
 time="2026-04-20T21:05:54-05:00" level=warning msg="error running query" connectTime="2026-04-20 21:05:54.437248877 -0500 CDT m=+85.097965221" connectionDb=hq connectionID=3789 error="nothing to commit" queryTime="2026-04-20 21:05:54.443047 -0500 CDT m=+85.103763344"
 time="2026-04-20T21:05:54-05:00" level=warning msg="error running query" connectTime="2026-04-20 21:05:52.748373753 -0500 CDT m=+83.409090097" connectionDb=hq connectionID=3740 error="unknown push error; no common ancestor" queryTime="2026-04-20 21:05:54.470339626 -0500 CDT m=+85.131055980"
 time="2026-04-20T21:05:54-05:00" level=warning msg="error running query" connectTime="2026-04-20 21:05:54.503790792 -0500 CDT m=+85.164507126" connectionDb=hq connectionID=3792 error="nothing to commit" queryTime="2026-04-20 21:05:54.511453422 -0500 CDT m=+85.172169766"
+Starting server with Config HP="localhost:3307"|T="300000"|R="false"|L="warning"|S="/tmp/mysql.sock"
+time="2026-04-20T21:06:28-05:00" level=warning msg="secure_file_priv is set to \"\", which is insecure."
+time="2026-04-20T21:06:28-05:00" level=warning msg="Any user with GRANT FILE privileges will be able to read any file which the sql-server process can read."
+time="2026-04-20T21:06:28-05:00" level=warning msg="Please consider restarting the server with secure_file_priv set to a safe (or non-existent) directory."
