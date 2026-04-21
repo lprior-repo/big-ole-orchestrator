@@ -10,4 +10,8 @@ pub mod types;
 
 pub use error::VoError;
 pub use events::WorkflowEvent;
-pub use types::{InstanceId, NamespaceId, TimerId};
+pub use types::{
+    InstanceId, InstanceIdError, InstanceIdErrorKind,
+    NamespaceId, NamespaceIdError, NamespaceIdErrorKind,
+    TimerId, TimerIdError, TimerIdErrorKind,
+};
