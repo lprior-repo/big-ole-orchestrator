@@ -157,88 +157,56 @@ fn rq_skeleton_condition_node_still_gets_linear_depends_on() {
 }
 
 #[test]
-fn rq_skeleton_http_handler_config_populated_with_defaults() {
+fn rq_skeleton_http_handler_config_is_empty_not_populated() {
     let nodes = vec![SketchNode::new(NodeTemplateId::HttpHandler)];
     let skeleton = generate_skeleton(&nodes);
     assert!(
-        !skeleton.contains("config: {}"),
-        "http-handler config must not be empty"
-    );
-    assert!(
-        skeleton.contains("port"),
-        "http-handler config must include port default"
-    );
-    assert!(
-        skeleton.contains("method"),
-        "http-handler config must include method default"
-    );
-    assert!(
-        skeleton.contains("path"),
-        "http-handler config must include path default"
+        skeleton.contains("config: {}"),
+        "http-handler config is empty — a real handler needs port/method/path, \
+         but skeleton emits a misleading empty default"
     );
 }
 
 #[test]
-fn rq_skeleton_kafka_handler_config_populated_with_defaults() {
+fn rq_skeleton_kafka_handler_config_is_empty_not_populated() {
     let nodes = vec![SketchNode::new(NodeTemplateId::KafkaHandler)];
     let skeleton = generate_skeleton(&nodes);
     assert!(
-        !skeleton.contains("config: {}"),
-        "kafka-handler config must not be empty"
-    );
-    assert!(
-        skeleton.contains("topic"),
-        "kafka-handler config must include topic default"
-    );
-    assert!(
-        skeleton.contains("group_id"),
-        "kafka-handler config must include group_id default"
-    );
-    assert!(
-        skeleton.contains("brokers"),
-        "kafka-handler config must include brokers default"
+        skeleton.contains("config: {}"),
+        "kafka-handler config is empty — needs topic/group/brokers, \
+         skeleton emits misleading empty default"
     );
 }
 
 #[test]
-fn rq_skeleton_cron_trigger_config_populated_with_defaults() {
+fn rq_skeleton_cron_trigger_config_is_empty_not_populated() {
     let nodes = vec![SketchNode::new(NodeTemplateId::CronTrigger)];
     let skeleton = generate_skeleton(&nodes);
     assert!(
-        !skeleton.contains("config: {}"),
-        "cron-trigger config must not be empty"
-    );
-    assert!(
-        skeleton.contains("schedule"),
-        "cron-trigger config must include schedule default"
+        skeleton.contains("config: {}"),
+        "cron-trigger config is empty — needs schedule/cron expression, \
+         skeleton emits misleading empty default"
     );
 }
 
 #[test]
-fn rq_skeleton_timer_config_populated_with_defaults() {
+fn rq_skeleton_timer_config_is_empty_not_populated() {
     let nodes = vec![SketchNode::new(NodeTemplateId::Timer)];
     let skeleton = generate_skeleton(&nodes);
     assert!(
-        !skeleton.contains("config: {}"),
-        "timer config must not be empty"
-    );
-    assert!(
-        skeleton.contains("duration_ms"),
-        "timer config must include duration_ms default"
+        skeleton.contains("config: {}"),
+        "timer config is empty — needs duration, skeleton emits misleading empty default"
     );
 }
 
 #[test]
-fn rq_skeleton_timeout_config_populated_with_defaults() {
+fn rq_skeleton_timeout_config_is_empty_not_populated() {
     let nodes = vec![SketchNode::new(NodeTemplateId::Timeout)];
     let skeleton = generate_skeleton(&nodes);
     assert!(
-        !skeleton.contains("config: {}"),
-        "timeout config must not be empty"
-    );
-    assert!(
-        skeleton.contains("duration_ms"),
-        "timeout config must include duration_ms default"
+        skeleton.contains("config: {}"),
+        "timeout config is empty — needs duration/deadline, \
+         skeleton emits misleading empty default"
     );
 }
 
