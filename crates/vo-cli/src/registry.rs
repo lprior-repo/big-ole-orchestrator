@@ -21,6 +21,7 @@ impl Default for HandlerRegistry {
         registry.register(Box::new(handlers::DoctorHandler));
         registry.register(Box::new(handlers::RebuildHandler));
         registry.register(Box::new(handlers::StatusHandler));
+        registry.register(Box::new(handlers::HardlineHandler));
         registry
     }
 }
@@ -394,6 +395,45 @@ mod handlers {
             })
         }
     }
+
+    pub struct HardlineHandler;
+
+    impl CommandHandler for HardlineHandler {
+        fn name(&self) -> &'static str {
+            "hardline"
+        }
+
+        fn execute(
+            &self,
+            cli: &Cli,
+        ) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + '_>> {
+            let Command::Hardline {
+                ref target,
+                ref engine_url,
+                timeout,
+                force,
+                dry_run,
+            } = cli.command
+            else {
+                return Box::pin(async {
+                    Err(CliError::Dispatch("not a hardline command".to_string()))
+                });
+            };
+            let target = target.clone();
+            let engine_url = engine_url.clone();
+            Box::pin(async move {
+                let config = crate::commands::hardline::HardlineConfig {
+                    target,
+                    engine_url,
+                    timeout,
+                    force,
+                    dry_run,
+                };
+                crate::commands::hardline::run_hardline(&config)
+                    .map_err(|e| CliError::Dispatch(e.to_string()))
+            })
+        }
+    }
 }
 
 #[cfg(test)]
@@ -410,6 +450,7 @@ mod tests {
         assert!(names.contains(&"check"));
         assert!(names.contains(&"compensate"));
         assert!(names.contains(&"gc"));
+        assert!(names.contains(&"hardline"));
         assert!(names.contains(&"init"));
         assert!(names.contains(&"lock"));
         assert!(names.contains(&"doctor"));
@@ -455,6 +496,22 @@ mod tests {
         };
         let handler = registry.get(&cli).expect("handler found");
         assert_eq!(handler.name(), "rebuild");
+    }
+
+    #[test]
+    fn registry_lookup_hardline() {
+        let registry = HandlerRegistry::default();
+        let cli = Cli {
+            command: Command::Hardline {
+                target: "test-target".to_string(),
+                engine_url: "http://localhost:3000".to_string(),
+                timeout: 60,
+                force: false,
+                dry_run: true,
+            },
+        };
+        let handler = registry.get(&cli).expect("handler found");
+        assert_eq!(handler.name(), "hardline");
     }
 
     #[test]
