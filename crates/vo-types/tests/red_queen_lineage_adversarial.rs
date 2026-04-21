@@ -89,8 +89,8 @@ fn rq_lineage_wide_signal_routes_to_new_epoch_after_rollover() {
     // After rollover, lineage_wide signal should still have same lineage_id
     // but the routing layer should resolve to current active epoch (1)
     let lineage_after = epoch1;
-    assert_eq!(lineage_after.lineage_id, lineage_id.as_str());
-    assert_eq!(lineage_after.epoch, Epoch::new(1));
+    assert_eq!(lineage_after.lineage_id(), lineage_id.as_str());
+    assert_eq!(lineage_after.epoch(), Epoch::new(1));
 }
 
 #[test]
@@ -150,7 +150,7 @@ fn rq_lineage_wide_signal_preserves_wait_key_across_rollover() {
     assert_eq!(signal.wait_key(), &wait_key);
 
     // Epoch has advanced but lineage_id is the same
-    assert_eq!(epoch1.lineage_id, lineage_id.as_str());
+    assert_eq!(epoch1.lineage_id(), lineage_id.as_str());
 }
 
 // ========================================================================
@@ -172,17 +172,17 @@ fn rq_timer_created_in_epoch_zero_fires_in_epoch_one() {
 
     // After rollover, lineage is at epoch 1
     let epoch1 = root.continue_as_new().expect("rollover");
-    assert_eq!(epoch1.epoch, timer_epoch_1);
+    assert_eq!(epoch1.epoch(), timer_epoch_1);
 
     // The timer was bound to the lineage, not a specific epoch
     // so it should be queryable from the current epoch
     // (lineage-wide timer query would resolve to active epoch)
-    let lineage_wide_epoch = epoch1.epoch;
+    let lineage_wide_epoch = epoch1.epoch();
     assert_eq!(lineage_wide_epoch, timer_epoch_1);
 
     // Timer from epoch 0 should still be accessible via lineage-wide lookup
     // because lineage_id is stable across rollovers
-    assert_eq!(epoch1.lineage_id, lineage_id);
+    assert_eq!(epoch1.lineage_id(), lineage_id);
 }
 
 #[test]
@@ -197,17 +197,17 @@ fn rq_timer_epoch_assignment_stable_across_rollover() {
     let e2 = e1.continue_as_new().expect("e2");
 
     // Each rollover preserves the lineage_id
-    assert_eq!(e0.lineage_id, lineage_id);
-    assert_eq!(e1.lineage_id, lineage_id);
-    assert_eq!(e2.lineage_id, lineage_id);
+    assert_eq!(e0.lineage_id(), lineage_id);
+    assert_eq!(e1.lineage_id(), lineage_id);
+    assert_eq!(e2.lineage_id(), lineage_id);
 
     // Epochs are monotonically increasing
-    assert!(e0.epoch < e1.epoch);
-    assert!(e1.epoch < e2.epoch);
+    assert!(e0.epoch() < e1.epoch());
+    assert!(e1.epoch() < e2.epoch());
 
     // Timer created in epoch 0 should have metadata linking it to epoch 0
     // but lookup via lineage should return current (epoch 2)
-    assert_eq!(e2.epoch, Epoch::new(2));
+    assert_eq!(e2.epoch(), Epoch::new(2));
 }
 
 // ========================================================================
@@ -225,16 +225,16 @@ fn rq_concurrent_rollover_only_one_succeeds_atomically() {
 
     // First rollover succeeds
     let e1 = root.continue_as_new().expect("first rollover");
-    assert_eq!(e1.epoch, Epoch::new(1));
+    assert_eq!(e1.epoch(), Epoch::new(1));
 
     // Second rollover from e1 should give e2
     let e2 = e1.continue_as_new().expect("second rollover");
-    assert_eq!(e2.epoch, Epoch::new(2));
-    assert_eq!(e2.parent_epoch, Some(Epoch::new(1)));
+    assert_eq!(e2.epoch(), Epoch::new(2));
+    assert_eq!(e2.parent_epoch(), Some(Epoch::new(1)));
 
     // Third rollover would give e3
     let e3 = e2.continue_as_new().expect("third rollover");
-    assert_eq!(e3.epoch, Epoch::new(3));
+    assert_eq!(e3.epoch(), Epoch::new(3));
 
     // Concurrent calls to continue_as_new on the SAME state should be
     // handled via the lineage store's record_rollover atomic operation
@@ -255,17 +255,17 @@ fn rq_rollover_chain_preserves_parent_chain() {
 
     // Verify epoch numbers
     for (i, epoch) in epochs.iter().enumerate() {
-        assert_eq!(epoch.epoch, Epoch::new(i as u64));
+        assert_eq!(epoch.epoch(), Epoch::new(i as u64));
     }
 
     // Verify parent chain: each epoch (except 0) has parent = epoch - 1
     for i in 1..epochs.len() {
-        assert_eq!(epochs[i].parent_epoch, Some(Epoch::new((i - 1) as u64)));
+        assert_eq!(epochs[i].parent_epoch(), Some(Epoch::new((i - 1) as u64)));
     }
 
     // All share same lineage_id
     for epoch in &epochs {
-        assert_eq!(epoch.lineage_id, lineage_id);
+        assert_eq!(epoch.lineage_id(), lineage_id);
     }
 }
 
@@ -303,14 +303,14 @@ fn rq_effects_created_before_rollover_visible_in_new_epoch() {
 
     // In a real system, effects would be stored with lineage_id
     // and be queryable via lineage-wide queries
-    let epoch_0_effect_lineage_id = root.lineage_id.clone();
+    let epoch_0_effect_lineage_id = root.lineage_id().to_string();
 
     // Rollover happens
     let epoch1 = root.continue_as_new().expect("rollover");
 
     // The new epoch has same lineage_id, so lineage-wide queries
     // for effects would find effects from epoch 0
-    assert_eq!(epoch1.lineage_id, epoch_0_effect_lineage_id);
+    assert_eq!(epoch1.lineage_id(), epoch_0_effect_lineage_id);
 
     // Effects are associated with lineage, not specific epoch
     // so they remain visible after rollover
@@ -329,7 +329,7 @@ fn rq_lineage_record_previous_instance_preserved_after_rollover() {
     let instance_1 = make_instance_id(b'K');
 
     // After rollover to e1, parent_epoch is e0
-    assert_eq!(e1.parent_epoch, Some(Epoch::ZERO));
+    assert_eq!(e1.parent_epoch(), Some(Epoch::ZERO));
 
     // In a real lineage store, previous_instance_id would be instance_0
     // and active_instance_id would be instance_1
@@ -344,13 +344,13 @@ fn rq_multiple_rollovers_maintain_full_instance_chain() {
     let root = make_lineage_root(lineage_id);
 
     let mut current = root;
-    let mut epochs = vec![current.epoch];
+    let mut epochs = vec![current.epoch()];
 
     for i in 0..5 {
         current = current
             .continue_as_new()
             .expect(format!("rollover {}", i).as_str());
-        epochs.push(current.epoch);
+        epochs.push(current.epoch());
     }
 
     // All epochs should be distinct and ordered
@@ -359,7 +359,7 @@ fn rq_multiple_rollovers_maintain_full_instance_chain() {
     assert_eq!(epochs, sorted_epochs);
 
     // All lineages share the same lineage_id
-    assert_eq!(current.lineage_id, lineage_id);
+    assert_eq!(current.lineage_id(), lineage_id);
 }
 
 // ========================================================================
@@ -479,8 +479,8 @@ fn rq_epoch_zero_root_has_no_parent() {
     // Contract: Epoch 0 (root) must have parent_epoch = None.
     // Root is the beginning of the lineage - it has no predecessor.
     let root = make_lineage_root("root-test-009");
-    assert_eq!(root.epoch, Epoch::ZERO);
-    assert_eq!(root.parent_epoch, None);
+    assert_eq!(root.epoch(), Epoch::ZERO);
+    assert_eq!(root.parent_epoch(), None);
 }
 
 #[test]
@@ -489,11 +489,11 @@ fn rq_rollover_from_nonzero_root_parent_is_correct() {
     // parent_epoch = N.
     let root = make_lineage_root("parent-test-010");
     let e1 = root.continue_as_new().expect("e1");
-    assert_eq!(e1.parent_epoch, Some(Epoch::ZERO));
+    assert_eq!(e1.parent_epoch(), Some(Epoch::ZERO));
 
     let e2 = e1.continue_as_new().expect("e2");
-    assert_eq!(e2.parent_epoch, Some(Epoch::new(1)));
+    assert_eq!(e2.parent_epoch(), Some(Epoch::new(1)));
 
     let e3 = e2.continue_as_new().expect("e3");
-    assert_eq!(e3.parent_epoch, Some(Epoch::new(2)));
+    assert_eq!(e3.parent_epoch(), Some(Epoch::new(2)));
 }

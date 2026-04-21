@@ -13,7 +13,7 @@ use thiserror::Error;
 /// Epoch 0 is the initial epoch. Each continue-as-new rollover increments
 /// the epoch. Epochs are strictly ordered and comparable.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-pub struct Epoch(pub u64);
+pub struct Epoch(u64);
 
 impl Epoch {
     /// Epoch 0 — the initial epoch of any lineage.
@@ -23,6 +23,12 @@ impl Epoch {
     #[must_use]
     pub const fn new(value: u64) -> Self {
         Epoch(value)
+    }
+
+    /// Returns the raw u64 value of this epoch.
+    #[must_use]
+    pub const fn get(&self) -> u64 {
+        self.0
     }
 }
 
@@ -38,12 +44,9 @@ impl std::fmt::Display for Epoch {
 /// to a specific `epoch` and optional `parent_epoch`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WorkflowLineage {
-    /// Stable UUID identifying the logical long-lived workflow.
-    pub lineage_id: String,
-    /// Current epoch within this lineage.
-    pub epoch: Epoch,
-    /// Previous epoch, present when this lineage was created via continue-as-new.
-    pub parent_epoch: Option<Epoch>,
+    lineage_id: String,
+    epoch: Epoch,
+    parent_epoch: Option<Epoch>,
 }
 
 fn validate_lineage_id(lineage_id: &str) -> Result<(), LineageError> {
@@ -57,6 +60,23 @@ fn validate_lineage_id(lineage_id: &str) -> Result<(), LineageError> {
 }
 
 impl WorkflowLineage {
+    /// Returns the stable lineage identifier.
+    #[must_use]
+    pub fn lineage_id(&self) -> &str {
+        &self.lineage_id
+    }
+
+    /// Returns the current epoch.
+    #[must_use]
+    pub fn epoch(&self) -> Epoch {
+        self.epoch
+    }
+
+    /// Returns the parent epoch, if this lineage was created via continue-as-new.
+    #[must_use]
+    pub fn parent_epoch(&self) -> Option<Epoch> {
+        self.parent_epoch
+    }
     /// Create a root lineage (epoch 0, no parent).
     ///
     /// # Errors
@@ -88,8 +108,8 @@ impl WorkflowLineage {
         if let Some(parent) = parent_epoch {
             if parent >= epoch {
                 return Err(LineageError::InvalidEpochTransition {
-                    parent_epoch: parent.0,
-                    epoch: epoch.0,
+                    parent_epoch: parent,
+                    epoch,
                 });
             }
         }
@@ -154,10 +174,8 @@ impl LineageStatus {
 /// it has been permanently tombstoned due to a lineage-scoped failure.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LineageState {
-    /// The lineage identity and epoch information.
-    pub lineage: WorkflowLineage,
-    /// The current status of the lineage.
-    pub status: LineageStatus,
+    lineage: WorkflowLineage,
+    status: LineageStatus,
 }
 
 impl LineageState {
@@ -194,6 +212,18 @@ impl LineageState {
         self.lineage.epoch
     }
 
+    /// Returns the lineage identity.
+    #[must_use]
+    pub fn lineage(&self) -> &WorkflowLineage {
+        &self.lineage
+    }
+
+    /// Returns the current status.
+    #[must_use]
+    pub fn status(&self) -> LineageStatus {
+        self.status
+    }
+
     /// Tombstone this lineage, permanently preventing new epochs.
     #[must_use]
     pub fn tombstone(&self) -> Self {
@@ -210,7 +240,7 @@ pub enum LineageError {
     #[error("lineage_id must not be empty")]
     EmptyLineageId,
     #[error("parent_epoch ({parent_epoch}) must be less than epoch ({epoch})")]
-    InvalidEpochTransition { parent_epoch: u64, epoch: u64 },
+    InvalidEpochTransition { parent_epoch: Epoch, epoch: Epoch },
     #[error("epoch overflow: cannot advance beyond u64::MAX")]
     EpochOverflow,
     #[error("lineage_id must not contain control characters")]
@@ -228,12 +258,12 @@ mod tests {
     #[test]
     fn epoch_new_returns_expected_value() {
         let epoch = Epoch::new(42);
-        assert_eq!(epoch.0, 42);
+        assert_eq!(epoch.get(), 42);
     }
 
     #[test]
     fn epoch_zero_is_zero() {
-        assert_eq!(Epoch::ZERO.0, 0);
+        assert_eq!(Epoch::ZERO.get(), 0);
     }
 
     #[test]
@@ -258,13 +288,13 @@ mod tests {
     #[test]
     fn epoch_new_with_u64_max() {
         let epoch = Epoch::new(u64::MAX);
-        assert_eq!(epoch.0, u64::MAX);
+        assert_eq!(epoch.get(), u64::MAX);
     }
 
     #[test]
     fn epoch_new_with_zero() {
         let epoch = Epoch::new(0);
-        assert_eq!(epoch.0, 0);
+        assert_eq!(epoch.get(), 0);
         assert_eq!(epoch, Epoch::ZERO);
     }
 
@@ -398,8 +428,8 @@ mod tests {
         assert_eq!(
             result,
             Err(LineageError::InvalidEpochTransition {
-                parent_epoch: 3,
-                epoch: 3
+                parent_epoch: Epoch::new(3),
+                epoch: Epoch::new(3)
             })
         );
     }
@@ -411,10 +441,23 @@ mod tests {
         assert_eq!(
             result,
             Err(LineageError::InvalidEpochTransition {
-                parent_epoch: 5,
-                epoch: 1
+                parent_epoch: Epoch::new(5),
+                epoch: Epoch::new(1)
             })
         );
+    }
+
+    #[test]
+    fn lineage_new_returns_control_characters_error_when_id_contains_control_char() {
+        let result = WorkflowLineage::new("lineage\x00with null".to_string());
+        assert_eq!(result, Err(LineageError::ControlCharacters));
+    }
+
+    #[test]
+    fn lineage_with_parent_returns_control_characters_error_when_id_contains_ctrl() {
+        let result =
+            WorkflowLineage::with_parent("lineage\x1fwith control".to_string(), Epoch::new(1), None);
+        assert_eq!(result, Err(LineageError::ControlCharacters));
     }
 
     // -----------------------------------------------------------------------
@@ -460,8 +503,8 @@ mod tests {
             assert_eq!(
                 result,
                 Err(LineageError::InvalidEpochTransition {
-                    parent_epoch: epoch_val,
-                    epoch: epoch_val
+                    parent_epoch: Epoch::new(epoch_val),
+                    epoch: Epoch::new(epoch_val)
                 })
             );
         }
@@ -493,8 +536,8 @@ mod tests {
     #[test]
     fn lineage_error_invalid_epoch_transition_displays_correctly() {
         let err = LineageError::InvalidEpochTransition {
-            parent_epoch: 5,
-            epoch: 3,
+            parent_epoch: Epoch::new(5),
+            epoch: Epoch::new(3),
         };
         assert_eq!(
             err.to_string(),
@@ -532,7 +575,7 @@ mod tests {
     fn lineage_state_new_is_active() {
         let lineage = WorkflowLineage::new("test-lineage".to_string()).expect("ok");
         let state = LineageState::new(lineage);
-        assert_eq!(state.status, LineageStatus::Active);
+        assert_eq!(state.status(), LineageStatus::Active);
         assert!(state.can_spawn_epoch());
     }
 
@@ -540,7 +583,7 @@ mod tests {
     fn lineage_state_with_status() {
         let lineage = WorkflowLineage::new("test-lineage".to_string()).expect("ok");
         let state = LineageState::with_status(lineage, LineageStatus::Tombstoned);
-        assert_eq!(state.status, LineageStatus::Tombstoned);
+        assert_eq!(state.status(), LineageStatus::Tombstoned);
         assert!(!state.can_spawn_epoch());
     }
 
@@ -551,7 +594,7 @@ mod tests {
         assert!(state.can_spawn_epoch());
 
         let tombstoned = state.tombstone();
-        assert_eq!(tombstoned.status, LineageStatus::Tombstoned);
+        assert_eq!(tombstoned.status(), LineageStatus::Tombstoned);
         assert!(!tombstoned.can_spawn_epoch());
         assert_eq!(tombstoned.lineage_id(), "test-lineage");
     }
@@ -576,7 +619,7 @@ mod tests {
         let restored: LineageState = serde_json::from_str(&json).expect("deserialize");
 
         assert_eq!(restored.lineage_id(), "serde-test");
-        assert_eq!(restored.status, LineageStatus::Active);
+        assert_eq!(restored.status(), LineageStatus::Active);
     }
 
     #[test]
@@ -588,6 +631,6 @@ mod tests {
         let restored: LineageState = serde_json::from_str(&json).expect("deserialize");
 
         assert_eq!(restored.lineage_id(), "tombstoned-test");
-        assert_eq!(restored.status, LineageStatus::Tombstoned);
+        assert_eq!(restored.status(), LineageStatus::Tombstoned);
     }
 }

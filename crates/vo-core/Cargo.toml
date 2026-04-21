@@ -5,7 +5,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-vo-types = { path = "../vo-types" }
+vo-types.workspace = true
 thiserror.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -19,8 +19,8 @@ glob = "0.3.3"
 tokio = { workspace = true, features = ["test-util", "rt", "macros", "time", "sync"] }
 rstest.workspace = true
 proptest = "1"
-vo-ipc = { path = "../vo-ipc" }
-vo-storage = { path = "../vo-storage" }
+vo-ipc.workspace = true
+vo-storage.workspace = true
 fjall = { workspace = true }
 tempfile = { workspace = true }
 criterion = { workspace = true }
