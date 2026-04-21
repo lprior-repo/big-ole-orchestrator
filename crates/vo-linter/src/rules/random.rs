@@ -6,6 +6,7 @@
 //! # Available Rules
 //!
 //! - [`check_random_in_workflow`] — **L002**: flags non-deterministic random calls
+//! - [`RandomRule`] — implements the [`Rule`] trait for registry integration
 
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::expect_used)]
@@ -72,17 +73,17 @@ impl RandomDetector {}
 
 pub struct RandomRule;
 
-impl crate::rules::Rule for RandomRule {
+impl Rule for RandomRule {
     fn id(&self) -> &'static str {
-        "random"
+        "L002"
     }
 
     fn name(&self) -> &'static str {
-        "Random Call Detector"
+        "random-in-workflow"
     }
 
-    fn execute(&self, file: &syn::File) -> Vec<Diagnostic> {
-        check_random_in_workflow(file)
+    fn execute(&self, node: &syn::File) -> Vec<crate::Diagnostic> {
+        check_random_in_workflow(node)
     }
 }
 

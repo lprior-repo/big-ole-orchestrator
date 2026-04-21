@@ -17,7 +17,7 @@
 
 mod random;
 
-pub use random::check_random_in_workflow;
+pub use random::{check_random_in_workflow, RandomRule};
 
 /// Trait for all linting rules.
 ///
