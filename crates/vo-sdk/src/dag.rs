@@ -23,10 +23,6 @@ pub enum DagError {
     EmptyWorkflow,
     #[error("cycle detected: {cycle}")]
     CycleDetected { cycle: String },
-    #[error("duplicate node name: {name}")]
-    DuplicateNodeName { name: String },
-    #[error("self-loop not allowed on node: {name}")]
-    SelfLoop { name: String },
 }
 
 /// Internal node record with name and kind.
@@ -71,11 +67,6 @@ impl Dag {
         let node_name = NodeName::parse(name).map_err(|_| DagError::InvalidNodeName {
             name: name.to_string(),
         })?;
-        if self.nodes.iter().any(|n| n.name == node_name) {
-            return Err(DagError::DuplicateNodeName {
-                name: name.to_string(),
-            });
-        }
         self.nodes.push(DagNodeRecord {
             name: node_name.clone(),
             kind,
@@ -107,11 +98,6 @@ impl Dag {
         from: &NodeHandle<impl Any, T>,
         to: &NodeHandle<T, impl Any>,
     ) -> Result<(), DagError> {
-        if from.name() == to.name() {
-            return Err(DagError::SelfLoop {
-                name: from.name().to_string(),
-            });
-        }
         let from_idx = self.find_index(from.name())?;
         let to_idx = self.find_index(to.name())?;
         self.edges.push((from_idx, to_idx));

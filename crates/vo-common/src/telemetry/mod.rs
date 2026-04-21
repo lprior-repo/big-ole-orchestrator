@@ -8,38 +8,23 @@
 //! - [`traces`] - Span-based tracing with log correlation
 //! - [`export`] - OTLP export pipeline
 
-#[cfg(feature = "telemetry")]
 pub mod metrics;
-
-#[cfg(feature = "telemetry")]
 pub mod traces;
-
-#[cfg(feature = "telemetry")]
 pub mod export;
 
-#[cfg(feature = "telemetry")]
 pub use metrics::{Counter, Gauge, Histogram, TelemetryMetrics};
-
-#[cfg(feature = "telemetry")]
 pub use traces::TelemetryTracer;
-
-#[cfg(feature = "telemetry")]
 pub use export::{TelemetryExporter, OtlpEndpoint, TelemetryConfig};
 
-#[cfg(feature = "telemetry")]
 use std::sync::Arc;
-
-#[cfg(feature = "telemetry")]
 use std::sync::atomic::{AtomicU64, Ordering};
 
-#[cfg(feature = "telemetry")]
 #[derive(Debug, Default)]
-pub(crate) struct TelemetryState {
+pub struct TelemetryState {
     metrics: Arc<TelemetryMetrics>,
     tracer: TelemetryTracer,
 }
 
-#[cfg(feature = "telemetry")]
 impl TelemetryState {
     pub fn new() -> Self {
         Self::default()
@@ -54,7 +39,7 @@ impl TelemetryState {
     }
 }
 
-#[cfg(all(test, feature = "telemetry"))]
+#[cfg(test)]
 mod tests {
     use super::*;
 

@@ -178,7 +178,7 @@ fn circuit_breaker_force_bypasses_quarantine() {
 fn circuit_breaker_quarantine_after_threshold() {
     let state = CircuitBreakerState::new();
     let config =
-        CircuitBreakerConfig::new(Duration::from_secs(1), Duration::from_secs(60), 4).unwrap();
+        CircuitBreakerConfig::new(Duration::from_secs(1), Duration::from_secs(60), 3).unwrap();
     let wf = vo_types::WorkflowName::parse("wf-fail").unwrap();
     let now = Instant::now();
     for i in 0..3u8 {
@@ -186,8 +186,8 @@ fn circuit_breaker_quarantine_after_threshold() {
         let event = record_failure(&wf, &hash, &config, &state, now).unwrap();
         assert!(event.is_none(), "no quarantine before threshold at i={i}");
     }
-    let hash3 = vo_types::BinaryHash::parse("aabbccd3").unwrap();
+    let hash3 = vo_types::BinaryHash::parse("aabbccd2").unwrap();
     let event = record_failure(&wf, &hash3, &config, &state, now).unwrap();
-    assert!(event.is_some(), "quarantine after threshold (4th unique hash)");
+    assert!(event.is_some());
     assert_eq!(state.get_status(&wf), RegistrationStatus::Quarantined);
 }

@@ -9,24 +9,22 @@ use crate::ui::graph::{Node, NodeCategory, NodeId, Workflow};
 pub fn default_workflow() -> Workflow {
     let mut workflow = Workflow::new("default".to_string());
 
-    // Entry node - HTTP Handler
-    let entry_node = Node::new(NodeId::new(), "HTTP Handler".to_string(), NodeKind::Pure);
-    // We need to manually set category to Entry for the entry node
-    let mut entry_node = entry_node;
+    let mut entry_node = Node::new(NodeId::new(), "HTTP Handler".to_string(), NodeKind::Pure)
+        .expect("hardcoded valid name");
     entry_node.category = NodeCategory::Entry;
     entry_node.kind = NodeKind::Pure;
     workflow.add_node(entry_node);
 
-    // Durable node
     let durable_node = Node::new(
         NodeId::new(),
         "Durable Step".to_string(),
         NodeKind::ManagedEffect,
-    );
+    )
+    .expect("hardcoded valid name");
     workflow.add_node(durable_node);
 
-    // Flow node (condition)
-    let flow_node = Node::new(NodeId::new(), "If / Else".to_string(), NodeKind::Pure);
+    let flow_node = Node::new(NodeId::new(), "If / Else".to_string(), NodeKind::Pure)
+        .expect("hardcoded valid name");
     workflow.add_node(flow_node);
 
     workflow
