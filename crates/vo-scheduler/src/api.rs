@@ -81,7 +81,7 @@ mod tests {
             JobKind::OneShot,
             JobPriority::Normal,
             SchedulePolicy::At(Utc::now() + Duration::hours(1)),
-            RetryPolicy::default_policy(),
+            RetryPolicy::default(),
             bytes::Bytes::from_static(b"test payload"),
         ).unwrap()
     }
@@ -114,7 +114,7 @@ mod tests {
             JobKind::OneShot,
             JobPriority::Normal,
             SchedulePolicy::Immediate,
-            RetryPolicy::default_policy(),
+            RetryPolicy::default(),
             bytes::Bytes::from_static(b""),
         );
         let job_id = schedule_job(&mut queue, job).await.unwrap();
@@ -183,7 +183,7 @@ mod tests {
             JobKind::OneShot,
             JobPriority::Normal,
             SchedulePolicy::At(Utc::now() + Duration::hours(1)),
-            RetryPolicy::default_policy(),
+            RetryPolicy::default(),
             bytes::Bytes::from_static(b""),
         );
         let job_id = schedule_job(&mut queue, job).await.unwrap();

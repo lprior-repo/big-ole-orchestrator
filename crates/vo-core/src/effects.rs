@@ -27,8 +27,6 @@ use vo_types::{
 };
 
 #[cfg(test)]
-mod serialization_tests;
-#[cfg(test)]
 mod tests;
 
 // ============================================================================

@@ -15,7 +15,7 @@
 //! - M7: Clone and PartialEq semantic correctness
 //! - M8: Edge-case string content (empty, unicode, control chars, max length)
 
-use vo_common::{InstanceId, NamespaceId, TimerId, VoError, WorkflowEvent};
+use vo_common::{EventId, InstanceId, NamespaceId, TimerId, VoError, WorkflowEvent};
 
 // ============================================================================
 // M1: String type-alias boundary invariants
@@ -102,6 +102,7 @@ mod serialization_roundtrip {
     #[test]
     fn rq_timer_fired_json_roundtrip() {
         let event = WorkflowEvent::TimerFired {
+            event_id: "e-001".to_string(),
             timer_id: "t-001".to_string(),
             timestamp_ms: 1700000000000,
         };
@@ -114,6 +115,7 @@ mod serialization_roundtrip {
     #[test]
     fn rq_timer_fired_max_u64_timestamp() {
         let event = WorkflowEvent::TimerFired {
+            event_id: "e-max".to_string(),
             timer_id: "edge".to_string(),
             timestamp_ms: u64::MAX,
         };
@@ -126,6 +128,7 @@ mod serialization_roundtrip {
     #[test]
     fn rq_timer_fired_zero_timestamp() {
         let event = WorkflowEvent::TimerFired {
+            event_id: "e-zero".to_string(),
             timer_id: "epoch".to_string(),
             timestamp_ms: 0,
         };
@@ -138,6 +141,7 @@ mod serialization_roundtrip {
     #[test]
     fn rq_timer_fired_json_field_names() {
         let event = WorkflowEvent::TimerFired {
+            event_id: "e-field".to_string(),
             timer_id: "field-test".to_string(),
             timestamp_ms: 42,
         };
@@ -150,6 +154,7 @@ mod serialization_roundtrip {
             "variant key must be TimerFired"
         );
         let inner = obj["TimerFired"].as_object().expect("inner is object");
+        assert!(inner.contains_key("event_id"), "field must be event_id");
         assert!(inner.contains_key("timer_id"), "field must be timer_id");
         assert!(
             inner.contains_key("timestamp_ms"),
@@ -160,14 +165,16 @@ mod serialization_roundtrip {
     /// Kills: extra fields silently ignored (strict deserialization broken).
     #[test]
     fn rq_timer_fired_extra_json_fields_ignored() {
-        let json = r#"{"TimerFired":{"timer_id":"t1","timestamp_ms":99,"extra":"garbage"}}"#;
+        let json = r#"{"TimerFired":{"event_id":"e1","timer_id":"t1","timestamp_ms":99,"extra":"garbage"}}"#;
         let event: WorkflowEvent =
             serde_json::from_str(json).expect("extra fields must be ignored");
         match event {
             WorkflowEvent::TimerFired {
+                event_id,
                 timer_id,
                 timestamp_ms,
             } => {
+                assert_eq!(event_id, "e1");
                 assert_eq!(timer_id, "t1");
                 assert_eq!(timestamp_ms, 99);
             }
@@ -177,7 +184,7 @@ mod serialization_roundtrip {
     /// Kills: missing field returns error instead of default.
     #[test]
     fn rq_timer_fired_missing_field_rejects() {
-        let json = r#"{"TimerFired":{"timer_id":"t1"}}"#;
+        let json = r#"{"TimerFired":{"event_id":"e1","timer_id":"t1"}}"#;
         let result: Result<WorkflowEvent, _> = serde_json::from_str(json);
         assert!(result.is_err(), "missing timestamp_ms must fail");
     }
@@ -185,7 +192,7 @@ mod serialization_roundtrip {
     /// Kills: wrong field type silently coerced.
     #[test]
     fn rq_timer_fired_wrong_type_rejects() {
-        let json = r#"{"TimerFired":{"timer_id":"t1","timestamp_ms":"not_a_number"}}"#;
+        let json = r#"{"TimerFired":{"event_id":"e1","timer_id":"t1","timestamp_ms":"not_a_number"}}"#;
         let result: Result<WorkflowEvent, _> = serde_json::from_str(json);
         assert!(result.is_err(), "string timestamp must fail");
     }
@@ -193,7 +200,7 @@ mod serialization_roundtrip {
     /// Kills: negative timestamp accepted (u64 can't be negative).
     #[test]
     fn rq_timer_fired_negative_timestamp_rejects() {
-        let json = r#"{"TimerFired":{"timer_id":"t1","timestamp_ms":-1}}"#;
+        let json = r#"{"TimerFired":{"event_id":"e1","timer_id":"t1","timestamp_ms":-1}}"#;
         let result: Result<WorkflowEvent, _> = serde_json::from_str(json);
         assert!(result.is_err(), "negative u64 must fail");
     }
@@ -547,7 +554,7 @@ mod serialization_adversarial {
     /// Kills: duplicate fields silently accepted (serde_json rejects duplicates by default).
     #[test]
     fn rq_duplicate_fields_rejected() {
-        let json = r#"{"TimerFired":{"timer_id":"first","timer_id":"second","timestamp_ms":1}}"#;
+        let json = r#"{"TimerFired":{"event_id":"e1","timer_id":"first","timer_id":"second","timestamp_ms":1}}"#;
         let result: Result<WorkflowEvent, _> = serde_json::from_str(json);
         assert!(
             result.is_err(),
@@ -565,6 +572,7 @@ mod serialization_adversarial {
     #[test]
     fn rq_unicode_timer_id_roundtrip() {
         let event = WorkflowEvent::TimerFired {
+            event_id: "e-uni".to_string(),
             timer_id: "计时器-日本語-🚀".to_string(),
             timestamp_ms: 12345,
         };
@@ -577,6 +585,7 @@ mod serialization_adversarial {
     #[test]
     fn rq_control_char_timer_id_roundtrip() {
         let event = WorkflowEvent::TimerFired {
+            event_id: "e-ctrl".to_string(),
             timer_id: "timer\x00\x01\x1f".to_string(),
             timestamp_ms: 99,
         };
@@ -589,6 +598,7 @@ mod serialization_adversarial {
     #[test]
     fn rq_escaped_chars_timer_id_roundtrip() {
         let event = WorkflowEvent::TimerFired {
+            event_id: "e-esc".to_string(),
             timer_id: "timer\twith\nnewlines".to_string(),
             timestamp_ms: 50,
         };
@@ -602,6 +612,7 @@ mod serialization_adversarial {
     fn rq_long_timer_id_roundtrip() {
         let long_id: String = "x".repeat(10_000);
         let event = WorkflowEvent::TimerFired {
+            event_id: "e-long".to_string(),
             timer_id: long_id.clone(),
             timestamp_ms: 1,
         };
@@ -627,6 +638,7 @@ mod clone_partial_eq_semantics {
     #[test]
     fn rq_workflow_event_clone_independence() {
         let event = WorkflowEvent::TimerFired {
+            event_id: "e-clone".to_string(),
             timer_id: "t1".to_string(),
             timestamp_ms: 100,
         };
@@ -638,10 +650,12 @@ mod clone_partial_eq_semantics {
     #[test]
     fn rq_workflow_event_equality_value_based() {
         let a = WorkflowEvent::TimerFired {
+            event_id: "e-same".to_string(),
             timer_id: "same".to_string(),
             timestamp_ms: 42,
         };
         let b = WorkflowEvent::TimerFired {
+            event_id: "e-same".to_string(),
             timer_id: "same".to_string(),
             timestamp_ms: 42,
         };
@@ -652,10 +666,12 @@ mod clone_partial_eq_semantics {
     #[test]
     fn rq_workflow_event_inequality_on_timestamp() {
         let a = WorkflowEvent::TimerFired {
+            event_id: "e-ts".to_string(),
             timer_id: "t".to_string(),
             timestamp_ms: 1,
         };
         let b = WorkflowEvent::TimerFired {
+            event_id: "e-ts".to_string(),
             timer_id: "t".to_string(),
             timestamp_ms: 2,
         };
@@ -666,14 +682,32 @@ mod clone_partial_eq_semantics {
     #[test]
     fn rq_workflow_event_inequality_on_timer_id() {
         let a = WorkflowEvent::TimerFired {
+            event_id: "e-tid".to_string(),
             timer_id: "a".to_string(),
             timestamp_ms: 1,
         };
         let b = WorkflowEvent::TimerFired {
+            event_id: "e-tid".to_string(),
             timer_id: "b".to_string(),
             timestamp_ms: 1,
         };
         assert_ne!(a, b, "different timer_ids must not be equal");
+    }
+
+    /// Kills: PartialEq ignores event_id.
+    #[test]
+    fn rq_workflow_event_inequality_on_event_id() {
+        let a = WorkflowEvent::TimerFired {
+            event_id: "e-alpha".to_string(),
+            timer_id: "t".to_string(),
+            timestamp_ms: 1,
+        };
+        let b = WorkflowEvent::TimerFired {
+            event_id: "e-beta".to_string(),
+            timer_id: "t".to_string(),
+            timestamp_ms: 1,
+        };
+        assert_ne!(a, b, "different event_ids must not be equal");
     }
 
     /// Kills: VoError Clone not deep.
@@ -699,20 +733,35 @@ mod clone_partial_eq_semantics {
     #[test]
     fn rq_workflow_event_clone_deep_string() {
         let e = WorkflowEvent::TimerFired {
+            event_id: "e-ptr".to_string(),
             timer_id: "ptr-test".to_string(),
             timestamp_ms: 1,
         };
         let c = e.clone();
         match (&e, &c) {
             (
-                WorkflowEvent::TimerFired { timer_id: a, .. },
-                WorkflowEvent::TimerFired { timer_id: b, .. },
+                WorkflowEvent::TimerFired {
+                    event_id: ea,
+                    timer_id: a,
+                    ..
+                },
+                WorkflowEvent::TimerFired {
+                    event_id: eb,
+                    timer_id: b,
+                    ..
+                },
             ) => {
                 assert_eq!(a, b);
+                assert_eq!(ea, eb);
                 assert_ne!(
                     a.as_ptr(),
                     b.as_ptr(),
                     "cloned timer_id must be independent"
+                );
+                assert_ne!(
+                    ea.as_ptr(),
+                    eb.as_ptr(),
+                    "cloned event_id must be independent"
                 );
             }
         }
@@ -812,5 +861,179 @@ mod edge_case_strings {
         let err = VoError::not_found("实例🚀not found");
         let display = err.to_string();
         assert!(display.contains("实例🚀not found"));
+    }
+
+    /// Kills: EventId alias changed from String.
+    #[test]
+    fn rq_event_id_is_string() {
+        let eid: EventId = String::from("evt-42");
+        let _: String = eid;
+    }
+
+    /// Kills: EventId zero-cost abstraction broken.
+    #[test]
+    fn rq_event_id_zero_cost() {
+        assert_eq!(
+            std::mem::size_of::<EventId>(),
+            std::mem::size_of::<String>()
+        );
+    }
+}
+
+// ============================================================================
+// M9: Duplicate event ID detection (ve-zcdm9)
+// ============================================================================
+
+#[cfg(test)]
+mod duplicate_event_id {
+    use super::*;
+    use vo_common::{DuplicateResult, EventDedup};
+
+    fn make_event(event_id: &str, timer_id: &str, ts: u64) -> WorkflowEvent {
+        WorkflowEvent::TimerFired {
+            event_id: event_id.into(),
+            timer_id: timer_id.into(),
+            timestamp_ms: ts,
+        }
+    }
+
+    /// Kills: EventDedup accepts same event_id twice.
+    #[test]
+    fn rq_dedup_rejects_exact_duplicate() {
+        let mut dedup = EventDedup::new();
+        dedup.track("evt-dup-1".into());
+        let result = dedup.check_and_track("evt-dup-1".into());
+        assert_eq!(result, DuplicateResult::Duplicate("evt-dup-1".into()));
+    }
+
+    /// Kills: EventDedup treats different event_ids as duplicates.
+    #[test]
+    fn rq_dedup_accepts_different_event_ids() {
+        let mut dedup = EventDedup::new();
+        assert_eq!(dedup.check_and_track("evt-a".into()), DuplicateResult::New);
+        assert_eq!(dedup.check_and_track("evt-b".into()), DuplicateResult::New);
+        assert_eq!(dedup.check_and_track("evt-c".into()), DuplicateResult::New);
+        assert_eq!(dedup.len(), 3);
+    }
+
+    /// Kills: EventDedup is_duplicate returns wrong result.
+    #[test]
+    fn rq_dedup_is_duplicate_accurate() {
+        let mut dedup = EventDedup::new();
+        assert!(!dedup.is_duplicate(&"evt-check".into()));
+        dedup.track("evt-check".into());
+        assert!(dedup.is_duplicate(&"evt-check".into()));
+        assert!(!dedup.is_duplicate(&"evt-other".into()));
+    }
+
+    /// Kills: Empty string event_id causes panic in dedup.
+    #[test]
+    fn rq_dedup_empty_event_id() {
+        let mut dedup = EventDedup::new();
+        assert_eq!(dedup.check_and_track("".into()), DuplicateResult::New);
+        assert_eq!(dedup.check_and_track("".into()), DuplicateResult::Duplicate("".into()));
+    }
+
+    /// Kills: Unicode event_id not properly deduplicated.
+    #[test]
+    fn rq_dedup_unicode_event_id() {
+        let mut dedup = EventDedup::new();
+        let unicode_id = "事件-🎉-日本語";
+        assert_eq!(
+            dedup.check_and_track(unicode_id.into()),
+            DuplicateResult::New
+        );
+        assert_eq!(
+            dedup.check_and_track(unicode_id.into()),
+            DuplicateResult::Duplicate(unicode_id.into())
+        );
+    }
+
+    /// Kills: Very long event_id breaks dedup HashSet.
+    #[test]
+    fn rq_dedup_long_event_id() {
+        let mut dedup = EventDedup::new();
+        let long_id: String = "x".repeat(100_000);
+        assert_eq!(dedup.check_and_track(long_id.clone().into()), DuplicateResult::New);
+        assert_eq!(
+            dedup.check_and_track(long_id.into()),
+            DuplicateResult::Duplicate("x".repeat(100_000).into())
+        );
+    }
+
+    /// Kills: EventDedup len/is_empty broken after operations.
+    #[test]
+    fn rq_dedup_len_tracks_correctly() {
+        let mut dedup = EventDedup::new();
+        assert!(dedup.is_empty());
+        assert_eq!(dedup.len(), 0);
+        dedup.track("a".into());
+        assert!(!dedup.is_empty());
+        assert_eq!(dedup.len(), 1);
+        dedup.check_and_track("a".into());
+        assert_eq!(dedup.len(), 1, "duplicate must not increase len");
+        dedup.check_and_track("b".into());
+        assert_eq!(dedup.len(), 2);
+    }
+
+    /// Kills: Same timer_id different event_ids treated as duplicates.
+    #[test]
+    fn rq_same_timer_different_event_ids_not_duplicate() {
+        let mut dedup = EventDedup::new();
+        let a = make_event("evt-1", "shared-timer", 100);
+        let b = make_event("evt-2", "shared-timer", 100);
+        let WorkflowEvent::TimerFired { event_id, .. } = &a;
+        assert_eq!(dedup.check_and_track(event_id.clone()), DuplicateResult::New);
+        let WorkflowEvent::TimerFired { event_id, .. } = &b;
+        assert_eq!(dedup.check_and_track(event_id.clone()), DuplicateResult::New);
+        assert_eq!(dedup.len(), 2);
+    }
+
+    /// Kills: Different timer_id same event_id not caught as duplicate.
+    #[test]
+    fn rq_different_timer_same_event_id_is_duplicate() {
+        let mut dedup = EventDedup::new();
+        let a = make_event("evt-x", "timer-alpha", 100);
+        let b = make_event("evt-x", "timer-beta", 200);
+        let WorkflowEvent::TimerFired { event_id, .. } = &a;
+        assert_eq!(dedup.check_and_track(event_id.clone()), DuplicateResult::New);
+        let WorkflowEvent::TimerFired { event_id, .. } = &b;
+        assert_eq!(
+            dedup.check_and_track(event_id.clone()),
+            DuplicateResult::Duplicate("evt-x".into())
+        );
+        assert_eq!(dedup.len(), 1);
+    }
+
+    /// Kills: Null byte in event_id not handled in dedup.
+    #[test]
+    fn rq_dedup_null_byte_event_id() {
+        let mut dedup = EventDedup::new();
+        let null_id = "evt\0hidden";
+        assert_eq!(dedup.check_and_track(null_id.into()), DuplicateResult::New);
+        assert_eq!(
+            dedup.check_and_track(null_id.into()),
+            DuplicateResult::Duplicate("evt\0hidden".into())
+        );
+    }
+
+    /// Kills: EventDedup Default not equivalent to new().
+    #[test]
+    fn rq_dedup_default_equals_new() {
+        let mut a = EventDedup::default();
+        let mut b = EventDedup::new();
+        assert_eq!(a.check_and_track("x".into()), b.check_and_track("x".into()));
+        assert_eq!(a.len(), b.len());
+    }
+
+    /// Kills: DuplicateResult::Duplicate doesn't carry the event_id.
+    #[test]
+    fn rq_duplicate_result_carries_event_id() {
+        let mut dedup = EventDedup::new();
+        dedup.track("evt-carried".into());
+        match dedup.check_and_track("evt-carried".into()) {
+            DuplicateResult::New => panic!("expected Duplicate"),
+            DuplicateResult::Duplicate(id) => assert_eq!(id, "evt-carried"),
+        }
     }
 }

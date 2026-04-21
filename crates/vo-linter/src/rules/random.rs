@@ -603,7 +603,7 @@ mod tests {
     }
 
     #[test]
-    fn test_mixed_case_rand_Rand_not_detected() {
+    fn test_mixed_case_rand_rand_not_detected() {
         let src = quote! {
             fn workflow() {
                 let x = rAnd::random();
@@ -614,7 +614,7 @@ mod tests {
     }
 
     #[test]
-    fn test_mixed_case_uuid_Uuid_not_detected() {
+    fn test_mixed_case_uuid_uuid_not_detected() {
         let src = quote! {
             fn workflow() {
                 let id = uUid::new_v4();

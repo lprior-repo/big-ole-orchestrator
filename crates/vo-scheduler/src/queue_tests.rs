@@ -10,7 +10,7 @@ fn make_job(priority: JobPriority, policy: SchedulePolicy) -> ScheduledJob {
         JobKind::OneShot,
         priority,
         policy,
-        RetryPolicy::default_policy(),
+        RetryPolicy::default(),
         bytes::Bytes::from_static(b"test-payload"),
     )
     .unwrap()
@@ -324,7 +324,7 @@ fn recurring_job_can_transition_completed_to_scheduled() {
         JobKind::Recurring,
         JobPriority::Normal,
         SchedulePolicy::Immediate,
-        RetryPolicy::default_policy(),
+        RetryPolicy::default(),
         bytes::Bytes::from_static(b"recurring"),
     )
     .unwrap();
