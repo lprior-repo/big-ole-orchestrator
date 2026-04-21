@@ -225,3 +225,5 @@
 2026/04/20 21:05:59 Convoy: event poll error (hq): begin read tx: invalid connection
 2026/04/20 21:05:59 Convoy: poll backoff → 10s
 2026/04/20 21:06:09 Convoy: poll recovered, interval reset to 5s
+2026/04/20 21:06:29 Convoy: event poll error (hq): begin read tx: invalid connection
+2026/04/20 21:06:29 Convoy: poll backoff → 10s
