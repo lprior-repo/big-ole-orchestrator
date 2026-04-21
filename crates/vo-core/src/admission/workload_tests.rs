@@ -467,6 +467,19 @@ fn compute_degraded_mode_storage_stall_critical() {
 }
 
 #[test]
+fn compute_degraded_mode_compaction_stall_critical() {
+    let pressure = WritePressureState {
+        writer_queue_depth: 0,
+        batch_commit_latency_ms: 0,
+        blob_queue_depth: 0,
+        compaction_stall_active: true,
+        storage_stall_active: false,
+    };
+    let mode = compute_degraded_mode(&pressure);
+    assert!(matches!(mode, DegradedMode::Critical { .. }));
+}
+
+#[test]
 fn is_class_accepted_in_mode_normal() {
     for class in WorkloadClass::all_by_priority() {
         assert!(is_class_accepted_in_mode(*class, DegradedMode::Normal));
