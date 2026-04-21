@@ -5022,6 +5022,8 @@ dependencies = [
  "dashmap",
  "fjall",
  "glob",
+ "metrics",
+ "metrics-util",
  "notify",
  "proptest",
  "rstest 0.23.0",
@@ -5176,6 +5178,7 @@ dependencies = [
  "ulid",
  "vo-core",
  "vo-types",
+ "zstd",
 ]
 
 [[package]]
