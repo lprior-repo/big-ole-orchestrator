@@ -17,12 +17,6 @@ impl std::fmt::Debug for FjallEffectJournal {
     }
 }
 
-impl std::fmt::Debug for FjallEffectJournal {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("FjallEffectJournal").finish()
-    }
-}
-
 impl FjallEffectJournal {
     /// Opens a new effect journal backed by the given keyspace.
     ///

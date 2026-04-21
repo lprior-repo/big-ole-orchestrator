@@ -5194,7 +5194,6 @@ dependencies = [
  "futures",
  "proptest",
  "ractor",
- "rand 0.8.5",
  "reqwest",
  "rmp-serde",
  "serde",

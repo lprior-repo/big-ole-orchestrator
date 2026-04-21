@@ -22,7 +22,6 @@ pub use workflow_status::*;
 
 pub mod events;
 pub use events::*;
-pub use sse::*;
 
 pub mod signal;
 pub use signal::*;

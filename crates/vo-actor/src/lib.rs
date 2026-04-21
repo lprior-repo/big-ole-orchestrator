@@ -36,7 +36,6 @@ pub mod instance_registry_tests;
 pub mod timer_lifecycle;
 pub mod timer_supervisor;
 pub mod timer_supervisor_tests;
-pub mod timer_lifecycle;
 
 #[derive(Debug, thiserror::Error)]
 pub enum TerminateError {

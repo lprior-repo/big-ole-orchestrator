@@ -210,7 +210,7 @@ impl<T: Ord> BinomialHeap<T> {
 
         let mut child_heap = BinomialHeap {
             trees: children,
-            len: 0,
+            len: child_count,
         };
 
         // Merge children back — self.len is already correct (root removed).

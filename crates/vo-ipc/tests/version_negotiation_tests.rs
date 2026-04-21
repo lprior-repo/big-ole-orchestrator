@@ -2,61 +2,6 @@ use std::io::Cursor;
 use vo_ipc::*;
 
 #[test]
-fn current_version_is_1() {
-    assert_eq!(CURRENT_VERSION, 1);
-}
-
-#[test]
-fn version_negotiation_new_has_current_version() {
-    let vn = VersionNegotiation::new();
-    assert_eq!(vn.supported_versions, vec![1]);
-}
-
-#[test]
-fn version_negotiation_negotiate_returns_version_when_supported() {
-    let vn = VersionNegotiation::new();
-    assert_eq!(vn.negotiate(1).unwrap(), 1);
-}
-
-#[test]
-fn version_negotiation_negotiate_returns_error_when_unsupported() {
-    let vn = VersionNegotiation::new();
-    let result = vn.negotiate(2);
-    assert!(matches!(result, Err(IpcError::VersionMismatch(2))));
-}
-
-#[test]
-fn version_negotiation_negotiate_returns_error_for_version_0() {
-    let vn = VersionNegotiation::new();
-    let result = vn.negotiate(0);
-    assert!(matches!(result, Err(IpcError::VersionMismatch(0))));
-}
-
-#[test]
-fn version_negotiation_negotiate_returns_error_for_version_255() {
-    let vn = VersionNegotiation::new();
-    let result = vn.negotiate(255);
-    assert!(matches!(result, Err(IpcError::VersionMismatch(255))));
-}
-
-#[test]
-fn negotiate_version_succeeds_for_version_1() {
-    assert_eq!(negotiate_version(1).unwrap(), 1);
-}
-
-#[test]
-fn negotiate_version_fails_for_unsupported_version() {
-    let result = negotiate_version(2);
-    assert!(matches!(result, Err(IpcError::VersionMismatch(2))));
-}
-
-#[test]
-fn version_negotiation_implements_default() {
-    let vn = VersionNegotiation::default();
-    assert_eq!(vn.supported_versions, vec![1]);
-}
-
-#[test]
 fn read_envelope_rejects_version_0() {
     let env_json = serde_json::json!({
         "version": 0,

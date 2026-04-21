@@ -340,7 +340,7 @@ fn rq_connection_pool_error_display() {
         context: ErrorContext {
             pool_id: PoolId::new("test-pool"),
             timestamp: TimestampMs::new_unchecked(1000),
-            operation: "acquire".to_string(),
+            operation: "acquire",
             connection_id: Some(ConnectionId::new()),
         },
     };
@@ -377,7 +377,7 @@ fn rq_error_detail_all_variants_display() {
             connection_id: ConnectionId::new(),
         },
         ErrorDetail::InvalidRelease {
-            reason: "not from this pool".to_string(),
+            reason: "not from this pool",
         },
         ErrorDetail::PoolNotInitialized,
         ErrorDetail::AlreadyShutdown,
@@ -410,7 +410,7 @@ fn rq_error_category_display_all_variants() {
     ];
 
     for variant in variants {
-        let display = variant.to_string();
+        let display = format!("{}", variant);
         assert!(
             !display.is_empty(),
             "ErrorCategory variant {:?} should Display",
@@ -561,7 +561,7 @@ fn rq_pooled_connection_status_checkers() {
     assert!(!idle.is_checked_out());
     assert!(!idle.is_closed());
 
-    let checked = idle.clone().with_status(ConnectionStatus::CheckedOut);
+    let checked = idle.with_status(ConnectionStatus::CheckedOut);
     assert!(!checked.is_idle());
     assert!(checked.is_checked_out());
     assert!(!checked.is_closed());
@@ -635,7 +635,7 @@ fn rq_pool_stats_invariant_violation() {
         pool_id: PoolId::new("test-pool"),
         total_connections: 5,
         idle_connections: 5,
-        checked_out_connections: 25, // More checked out than total!
+        checked_out_connections: 10, // More checked out than total!
         pending_acquires: 5,
         total_acquires: 0,
         total_releases: 0,

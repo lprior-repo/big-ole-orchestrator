@@ -39,12 +39,6 @@ impl<'a> AccessChecker<'a> {
                 } else {
                     self.policy.allowed_principals().contains(self.caller)
                 }
-                if self.policy.require_approval()
-                    && !self.policy.approvers().contains(self.caller)
-                {
-                    return false;
-                }
-                true
             }
         }
     }
