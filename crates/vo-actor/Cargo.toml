@@ -24,7 +24,7 @@ reqwest = { workspace = true }
 proptest = { workspace = true, optional = true }
 
 [dev-dependencies]
-vo-core = { path = "../vo-core" }
+vo-core.workspace = true
 proptest.workspace = true
 criterion = { workspace = true }
 
