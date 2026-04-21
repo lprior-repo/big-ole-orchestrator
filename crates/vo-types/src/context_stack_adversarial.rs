@@ -513,7 +513,7 @@ fn rq_lineage_with_parent_accepts_valid_transitions() {
 #[test]
 fn rq_epoch_boundary_values() {
     // Epoch::ZERO is 0
-    assert_eq!(Epoch::ZERO.get(), 0);
+    assert_eq!(Epoch::ZERO.0, 0);
 
     // Epoch::new with u64::MAX
     let epoch = Epoch::new(u64::MAX);
