@@ -75,6 +75,18 @@ pub enum EffectTransitionError {
     InvalidTransition,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum EffectCompressionError {
+    #[error("Serialization failed: {0}")]
+    SerializationFailed(String),
+    #[error("Compression failed: {0}")]
+    CompressionFailed(String),
+    #[error("Decompression failed: {0}")]
+    DecompressionFailed(String),
+    #[error("Deserialization failed: {0}")]
+    DeserializationFailed(String),
+}
+
 /// Persisted record of a managed effect.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct EffectRecord {
@@ -178,6 +190,23 @@ impl EffectRecord {
     #[must_use]
     pub fn committed_at(&self) -> Option<&crate::types::TimestampMs> {
         self.committed_at.as_ref()
+    }
+
+    pub fn compress(&self) -> Result<Vec<u8>, EffectCompressionError> {
+        let json = serde_json::to_string(self)
+            .map_err(|e| EffectCompressionError::SerializationFailed(e.to_string()))?;
+        let bytes = json.as_bytes();
+        zstd::encode_all(bytes, 0)
+            .map_err(|e| EffectCompressionError::CompressionFailed(e.to_string()))
+    }
+
+    pub fn decompress(compressed: &[u8]) -> Result<Self, EffectCompressionError> {
+        let decompressed = zstd::decode_all(compressed)
+            .map_err(|e| EffectCompressionError::DecompressionFailed(e.to_string()))?;
+        let json = String::from_utf8(decompressed)
+            .map_err(|e| EffectCompressionError::DecompressionFailed(e.to_string()))?;
+        serde_json::from_str(&json)
+            .map_err(|e| EffectCompressionError::DeserializationFailed(e.to_string()))
     }
 }
 
@@ -611,6 +640,179 @@ mod tests {
             err.to_string(),
             "Cannot transition from terminal effect state"
         );
+    }
+
+    // ========================================================================
+    // EffectRecord Compression — Round-Trip Correctness
+    // ========================================================================
+
+    #[rstest]
+    #[case(EffectIntent::Prepared, None)]
+    #[case(EffectIntent::Committed, Some(crate::types::TimestampMs(1000)))]
+    #[case(EffectIntent::RolledBack, Some(crate::types::TimestampMs(2000)))]
+    fn effectrecord_compress_decompress_roundtrip_preserves_all_intents(
+        #[case] status: EffectIntent,
+        #[case] committed_at: Option<crate::types::TimestampMs>,
+    ) {
+        let record = EffectRecord::new(
+            "fx-test-intent".to_string(),
+            EffectKind::HttpCall,
+            json!({"url": "https://api.example.com"}),
+            status,
+            committed_at,
+        )
+        .unwrap();
+        let compressed = record.compress().unwrap();
+        let decompressed = EffectRecord::decompress(&compressed).unwrap();
+        assert_eq!(decompressed, record);
+    }
+
+    #[rstest]
+    #[case(EffectKind::HttpCall)]
+    #[case(EffectKind::SqlQuery)]
+    #[case(EffectKind::BlobWrite)]
+    fn effectrecord_compress_decompress_roundtrip_preserves_all_kinds(
+        #[case] kind: EffectKind,
+    ) {
+        let record = EffectRecord::new(
+            "fx-test-kind".to_string(),
+            kind,
+            json!({"query": "SELECT * FROM table"}),
+            EffectIntent::Prepared,
+            None,
+        )
+        .unwrap();
+        let compressed = record.compress().unwrap();
+        let decompressed = EffectRecord::decompress(&compressed).unwrap();
+        assert_eq!(decompressed, record);
+    }
+
+    #[test]
+    fn effectrecord_compress_decompress_roundtrip_with_complex_params() {
+        let record = EffectRecord::new(
+            "fx-complex".to_string(),
+            EffectKind::HttpCall,
+            json!({
+                "headers": {"Authorization": "Bearer token123", "Content-Type": "application/json"},
+                "body": {"items": [{"id": 1, "name": "first"}, {"id": 2, "name": "second"}]},
+                "timeout_ms": 5000
+            }),
+            EffectIntent::Committed,
+            Some(crate::types::TimestampMs(9999)),
+        )
+        .unwrap();
+        let compressed = record.compress().unwrap();
+        let decompressed = EffectRecord::decompress(&compressed).unwrap();
+        assert_eq!(decompressed, record);
+    }
+
+    // ========================================================================
+    // EffectRecord Compression — Ratio Verification
+    // ========================================================================
+
+    #[test]
+    fn effectrecord_compression_reduces_size_for_text_heavy_payload() {
+        let record = EffectRecord::new(
+            "fx-large".to_string(),
+            EffectKind::HttpCall,
+            json!({
+                "body": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. ".repeat(100)
+            }),
+            EffectIntent::Prepared,
+            None,
+        )
+        .unwrap();
+        let json_bytes = serde_json::to_vec(&record).unwrap();
+        let compressed = record.compress().unwrap();
+        assert!(
+            compressed.len() < json_bytes.len(),
+            "Compressed size ({}) should be smaller than JSON size ({})",
+            compressed.len(),
+            json_bytes.len()
+        );
+    }
+
+    #[test]
+    fn effectrecord_compression_still_smaller_for_small_records() {
+        let record = EffectRecord::new(
+            "a".to_string(),
+            EffectKind::SqlQuery,
+            json!({"q": "x"}),
+            EffectIntent::Prepared,
+            None,
+        )
+        .unwrap();
+        let json_bytes = serde_json::to_vec(&record).unwrap();
+        let compressed = record.compress().unwrap();
+        assert!(
+            compressed.len() < json_bytes.len(),
+            "Even small records should compress (compressed: {}, json: {})",
+            compressed.len(),
+            json_bytes.len()
+        );
+    }
+
+    // ========================================================================
+    // EffectRecord Compression — Decompression Error Handling
+    // ========================================================================
+
+    #[test]
+    fn effectrecord_decompress_returns_error_for_empty_input() {
+        let result = EffectRecord::decompress(&[]);
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            EffectCompressionError::DecompressionFailed(_)
+        ));
+    }
+
+    #[test]
+    fn effectrecord_decompress_returns_error_for_random_bytes() {
+        let result = EffectRecord::decompress(b"not zstd compressed data at all");
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            EffectCompressionError::DecompressionFailed(_)
+        ));
+    }
+
+    #[test]
+    fn effectrecord_decompress_returns_error_for_truncated_zstd() {
+        let record = EffectRecord::new(
+            "fx-trunc".to_string(),
+            EffectKind::BlobWrite,
+            json!({"bucket": "test"}),
+            EffectIntent::Prepared,
+            None,
+        )
+        .unwrap();
+        let compressed = record.compress().unwrap();
+        let truncated = &compressed[..compressed.len() / 2];
+        let result = EffectRecord::decompress(truncated);
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            EffectCompressionError::DecompressionFailed(_)
+        ));
+    }
+
+    #[test]
+    fn effectrecord_decompress_returns_error_for_corrupted_zstd() {
+        let mut corrupted = vec![0x28, 0xb5, 0x2f, 0xfd];
+        corrupted.extend_from_slice(b"invalid zstd frame");
+        let result = EffectRecord::decompress(&corrupted);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn effectrecord_decompress_returns_error_for_valid_zstd_invalid_utf8() {
+        let valid_zstd_magic = [0x28, 0xb5, 0x2f, 0xfd];
+        let result = EffectRecord::decompress(&valid_zstd_magic);
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            EffectCompressionError::DecompressionFailed(_)
+        ));
     }
 }
 

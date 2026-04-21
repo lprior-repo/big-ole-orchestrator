@@ -17,7 +17,8 @@ pub use connector::{
 };
 pub mod executor;
 pub use executor::{
-    ExecutionOutcome, ManagedEffectError, ManagedEffectExecutor, ManagedEffectTask,
+    CancellationReason, EffectContext, EffectId, ExecutionOutcome, ManagedEffectError,
+    ManagedEffectExecutor, ManagedEffectTask,
 };
 pub mod pool;
 mod port;

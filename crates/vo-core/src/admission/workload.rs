@@ -459,12 +459,6 @@ pub fn compute_degraded_mode(pressure: &super::types::WritePressureState) -> Deg
         indicators.push(PressureIndicator::StorageStall);
     }
 
-    if pressure.compaction_stall_active || pressure.storage_stall_active {
-        return DegradedMode::Critical {
-            triggers: indicators,
-        };
-    }
-
     match indicators.len() {
         0 => DegradedMode::Normal,
         1..=2 => DegradedMode::Degraded {

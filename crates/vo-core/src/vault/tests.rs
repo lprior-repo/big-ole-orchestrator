@@ -426,4 +426,262 @@ mod tests {
             .unwrap();
         assert_eq!(new_entry.rotated_from, Some(original_version));
     }
+
+    #[test]
+    fn vault_get_secret_with_revoked_version_returns_master_key_revoked() {
+        let mut vault = CredentialVault::new();
+        let entry = create_test_vault_entry();
+        let cred_id = entry.credential.id.clone();
+        let version_id = entry.credential.current_version.clone();
+        vault.create_credential(entry).unwrap();
+
+        let principal = vo_types::credentials::Principal::User(
+            InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMC").unwrap(),
+        );
+        vault.revoke_version(&cred_id, &version_id, &principal).unwrap();
+
+        let result = vault.get_secret(&cred_id, &principal);
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            CredentialError::MasterKeyRevoked(_)
+        ));
+    }
+
+    #[test]
+    fn vault_get_secret_after_revoke_all_returns_master_key_revoked() {
+        let mut vault = CredentialVault::new();
+        let entry = create_test_vault_entry();
+        let cred_id = entry.credential.id.clone();
+        vault.create_credential(entry).unwrap();
+        vault.rotate(&cred_id, None).unwrap();
+
+        let principal = vo_types::credentials::Principal::User(
+            InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMB").unwrap(),
+        );
+        vault.revoke_all(&cred_id, &principal).unwrap();
+
+        let result = vault.get_secret(&cred_id, &principal);
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            CredentialError::MasterKeyRevoked(_)
+        ));
+    }
+
+    #[test]
+    fn vault_revoke_version_is_idempotent() {
+        let mut vault = CredentialVault::new();
+        let entry = create_test_vault_entry();
+        let cred_id = entry.credential.id.clone();
+        let version_id = entry.credential.current_version.clone();
+        vault.create_credential(entry).unwrap();
+
+        let principal = vo_types::credentials::Principal::User(
+            InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMC").unwrap(),
+        );
+        let first_result = vault.revoke_version(&cred_id, &version_id, &principal);
+        assert!(first_result.is_ok());
+
+        let second_result = vault.revoke_version(&cred_id, &version_id, &principal);
+        assert!(second_result.is_ok(), "revoke_version should be idempotent");
+
+        let cred = vault.get_credential(&cred_id).unwrap();
+        let revoked = cred
+            .versions
+            .iter()
+            .find(|v| v.version_id == version_id)
+            .unwrap();
+        assert_eq!(revoked.status, CredentialStatus::Revoked);
+    }
+
+    #[test]
+    fn vault_revoke_version_does_not_affect_other_versions() {
+        let mut vault = CredentialVault::new();
+        let entry = create_test_vault_entry();
+        let cred_id = entry.credential.id.clone();
+        vault.create_credential(entry).unwrap();
+
+        let new_version_id = vault.rotate(&cred_id, None).unwrap();
+
+        let principal = vo_types::credentials::Principal::User(
+            InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMC").unwrap(),
+        );
+        vault.revoke_version(&cred_id, &new_version_id, &principal).unwrap();
+
+        let cred = vault.get_credential(&cred_id).unwrap();
+        let original_version = cred
+            .versions
+            .iter()
+            .find(|v| v.status == CredentialStatus::Superseded)
+            .expect("original version should still exist and be Superseded");
+        assert_eq!(original_version.status, CredentialStatus::Superseded);
+
+        let revoked_version = cred
+            .versions
+            .iter()
+            .find(|v| v.version_id == new_version_id)
+            .unwrap();
+        assert_eq!(revoked_version.status, CredentialStatus::Revoked);
+    }
+
+    #[test]
+    fn vault_revoked_data_remains_stored_for_recovery() {
+        let mut vault = CredentialVault::new();
+        let entry = create_test_vault_entry();
+        let cred_id = entry.credential.id.clone();
+        let version_id = entry.credential.current_version.clone();
+        let original_ciphertext = entry.credential.versions[0]
+            .secret_value
+            .ciphertext
+            .clone();
+        vault.create_credential(entry).unwrap();
+
+        let principal = vo_types::credentials::Principal::User(
+            InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMC").unwrap(),
+        );
+        vault.revoke_version(&cred_id, &version_id, &principal).unwrap();
+
+        let cred = vault.get_credential(&cred_id).unwrap();
+        let revoked_version = cred
+            .versions
+            .iter()
+            .find(|v| v.version_id == version_id)
+            .unwrap();
+        assert_eq!(
+            revoked_version.secret_value.ciphertext, original_ciphertext,
+            "encrypted data should remain stored even after revocation"
+        );
+    }
+
+    #[test]
+    fn vault_recovery_path_exists_for_revoked_key_data() {
+        let mut vault = CredentialVault::new();
+        let entry = create_test_vault_entry();
+        let cred_id = entry.credential.id.clone();
+        vault.create_credential(entry).unwrap();
+
+        let cred_before_revoke = vault.get_credential(&cred_id).unwrap();
+        let stored_ciphertext = cred_before_revoke.versions[0]
+            .secret_value
+            .ciphertext
+            .clone();
+
+        let principal = vo_types::credentials::Principal::User(
+            InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMC").unwrap(),
+        );
+        vault.revoke_all(&cred_id, &principal).unwrap();
+
+        let cred_after_revoke = vault.get_credential(&cred_id).unwrap();
+        assert_eq!(
+            cred_after_revoke.versions[0]
+                .secret_value
+                .ciphertext,
+            stored_ciphertext,
+            "ciphertext remains stored after revocation - data is recoverable at storage level"
+        );
+    }
+
+    #[test]
+    fn vault_revoke_version_on_nonexistent_version_returns_version_not_found() {
+        let mut vault = CredentialVault::new();
+        let entry = create_test_vault_entry();
+        vault.create_credential(entry).unwrap();
+
+        let nonexistent_version_id =
+            CredentialVersionId::parse("01H5JYV4XHGSR2F8KZ9BWNRFZZ").unwrap();
+        let principal = vo_types::credentials::Principal::User(
+            InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMC").unwrap(),
+        );
+        let result = vault.revoke_version(
+            &CredentialId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap(),
+            &nonexistent_version_id,
+            &principal,
+        );
+        assert!(matches!(
+            result.unwrap_err(),
+            CredentialError::VersionNotFound { .. }
+        ));
+    }
+
+    #[test]
+    fn vault_get_secret_valid_credential_returns_secret() {
+        let mut vault = CredentialVault::new();
+        let entry = create_test_vault_entry();
+        let cred_id = entry.credential.id.clone();
+        vault.create_credential(entry).unwrap();
+
+        let principal = vo_types::credentials::Principal::User(
+            InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMC").unwrap(),
+        );
+        let result = vault.get_secret(&cred_id, &principal);
+        assert!(result.is_ok(), "valid credential should return secret");
+        let secret = result.unwrap();
+        assert_eq!(secret.key_version(), 1);
+    }
+
+    #[test]
+    fn vault_get_secret_invalid_credential_returns_not_found() {
+        let vault = CredentialVault::new();
+        let non_existent_id = CredentialId::parse("01H5JYV4XHGSR2F8KZ9BWNRFZZ").unwrap();
+        let principal = vo_types::credentials::Principal::User(
+            InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMC").unwrap(),
+        );
+        let result = vault.get_secret(&non_existent_id, &principal);
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            CredentialError::CredentialNotFound(_)
+        ));
+    }
+
+    #[test]
+    fn vault_get_secret_expired_credential_returns_expired() {
+        let mut vault = CredentialVault::new();
+        let credential_id = CredentialId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").expect("valid ULID");
+        let version_id =
+            CredentialVersionId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMB").expect("valid ULID");
+        let entry_id = VaultEntryId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMC").expect("valid ULID");
+
+        let past_time = TimestampMs::new_unchecked(1000);
+        let version = CredentialVersion::new(
+            version_id.clone(),
+            SecretValue::new(vec![0u8; 32], [0u8; 12], 1).expect("valid ciphertext"),
+            CredentialStatus::Active,
+            past_time,
+            Some(past_time),
+        );
+
+        let credential = Credential {
+            id: credential_id.clone(),
+            kind: CredentialKind::ApiKey,
+            name: "expired-api".to_string(),
+            current_version: version_id.clone(),
+            versions: vec![version],
+            rotation_policy: RotationPolicy::Manual,
+            metadata: std::collections::HashMap::new(),
+            created_at: past_time,
+            updated_at: past_time,
+        };
+
+        let entry = VaultEntry {
+            entry_id,
+            credential,
+            access_policy: AccessPolicy::new(vec![]),
+            rotation_state: RotationState::new(),
+        };
+
+        vault.create_credential(entry).unwrap();
+
+        let principal = vo_types::credentials::Principal::User(
+            InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMC").unwrap(),
+        );
+        let result = vault.get_secret(&credential_id, &principal);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, CredentialError::CredentialExpired { .. }));
+        if let CredentialError::CredentialExpired { credential_id: _, version_id: _, expired_at } = err {
+            assert_eq!(expired_at, past_time);
+        }
+    }
 }

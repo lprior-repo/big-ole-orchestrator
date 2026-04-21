@@ -231,6 +231,18 @@ impl NodeName {
     pub fn new(name: impl Into<String>) -> Self {
         Self(name.into())
     }
+
+    pub fn parse(name: &str) -> Option<Self> {
+        if name.is_empty() {
+            None
+        } else {
+            Some(Self(name.to_string()))
+        }
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]

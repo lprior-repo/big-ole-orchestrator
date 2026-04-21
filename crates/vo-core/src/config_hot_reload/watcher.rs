@@ -86,10 +86,6 @@ impl FilteredFileWatcher {
     pub fn new<P: AsRef<Path>>(path: P, config: WatcherConfig) -> Result<Self, Error> {
         let path = path.as_ref().to_path_buf();
 
-        for pattern in &config.patterns {
-            glob::Pattern::new(pattern).map_err(|e| Error::InvalidGlobPattern(e.to_string()))?;
-        }
-
         let watcher = RecommendedWatcher::new(
             move |_res: Result<notify::Event, notify::Error>| {},
             NotifyConfig::default(),
