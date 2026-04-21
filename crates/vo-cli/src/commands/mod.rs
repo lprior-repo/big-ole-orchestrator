@@ -3,7 +3,6 @@ pub mod compensate;
 pub mod doctor;
 pub mod doctor_checks;
 pub mod gc;
-pub mod hardline;
 pub mod history;
 pub mod init;
 pub mod lock;

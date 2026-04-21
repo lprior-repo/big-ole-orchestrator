@@ -34,11 +34,12 @@ impl<'a> AccessChecker<'a> {
         match self.caller {
             Principal::System => true,
             _ => {
-                if self.policy.require_approval() {
-                    self.policy.approvers().contains(self.caller)
-                } else {
-                    self.policy.allowed_principals().contains(self.caller)
+                if self.policy.require_approval()
+                    && !self.policy.approvers().contains(self.caller)
+                {
+                    return false;
                 }
+                self.policy.allowed_principals().contains(self.caller)
             }
         }
     }

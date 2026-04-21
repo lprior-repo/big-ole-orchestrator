@@ -22,12 +22,10 @@
 
 use vo_types::TimestampMs;
 use vo_types::{
-    apply_effect_transition, CompensationPolicy, EffectIntent, EffectKind, EffectRecord,
+    CompensationPolicy, EffectIntent, EffectKind, EffectRecord,
     EffectTransitionError,
 };
 
-#[cfg(test)]
-mod serialization_tests;
 #[cfg(test)]
 mod tests;
 

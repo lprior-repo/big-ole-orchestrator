@@ -118,6 +118,11 @@ impl<T: Clone> SegmentTree<T> {
 
     /// Update the value at a single position.
     pub fn update(&mut self, index: usize, value: T) {
+        assert!(
+            index < self.len,
+            "update: index ({index}) out of bounds (len={})",
+            self.len
+        );
         let mut pos = index + self.n;
         self.tree[pos] = value;
         while pos > 1 {

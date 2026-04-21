@@ -1,0 +1,9 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 5206737c38b83112dcceee1501fe486bfeed5462d260e1dc276e630770328b73 # shrinks to available_permits = 55, total_permits = 1
+cc 03d5693daf4bde18813674d1c741518ae87e2c89c1bbc0578de936176331451b # shrinks to a = 30, b = 0, max_per_workflow = 1
+cc 389d2b26fb89cfa5a28489e4549bde4f6fbb4d07241d47e07d9b627733a1f21a # shrinks to available_permits = 137, total_permits = 1, max_waiters_for_shed = 1

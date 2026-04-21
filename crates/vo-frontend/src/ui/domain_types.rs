@@ -178,63 +178,6 @@ impl NodeTemplateId {
         }
     }
 
-    pub fn default_config(self) -> serde_json::Value {
-        match self {
-            Self::HttpHandler => serde_json::json!({
-                "port": 8080,
-                "method": "GET",
-                "path": "/"
-            }),
-            Self::KafkaHandler => serde_json::json!({
-                "topic": "my-topic",
-                "group_id": "my-group",
-                "brokers": ["localhost:9092"]
-            }),
-            Self::CronTrigger => serde_json::json!({
-                "schedule": "0 * * * *"
-            }),
-            Self::WorkflowSubmit => serde_json::json!({
-                "workflow_name": "my-workflow",
-                "input": {}
-            }),
-            Self::Run => serde_json::json!({
-                "command": "./run.sh"
-            }),
-            Self::ServiceCall => serde_json::json!({
-                "service": "my-service",
-                "method": "invoke",
-                "timeout_ms": 5000
-            }),
-            Self::ObjectCall => serde_json::json!({
-                "object_id": "my-object",
-                "operation": "handle"
-            }),
-            Self::SendMessage => serde_json::json!({
-                "channel": "my-channel",
-                "payload": {}
-            }),
-            Self::GetState => serde_json::json!({
-                "key": "my-key"
-            }),
-            Self::SetState => serde_json::json!({
-                "key": "my-key",
-                "value": null
-            }),
-            Self::Condition => serde_json::json!({
-                "expression": "true"
-            }),
-            Self::Parallel => serde_json::json!({
-                "branches": []
-            }),
-            Self::Timer => serde_json::json!({
-                "duration_ms": 1000
-            }),
-            Self::Timeout => serde_json::json!({
-                "duration_ms": 30000
-            }),
-        }
-    }
-
     pub fn parse(s: &str) -> Option<Self> {
         match s {
             "http-handler" => Some(Self::HttpHandler),
@@ -550,5 +493,324 @@ mod tests {
             assert_eq!(desc.label, id.label());
             assert_eq!(desc.hint, id.hint());
         }
+    }
+
+    // ── QA-MANUAL: ve-es45l — additional type validation coverage ──
+
+    #[test]
+    fn qa_http_method_from_str_strict_rejects_invalid() {
+        use std::str::FromStr;
+        assert!(HttpMethod::from_str("GET").is_ok());
+        assert!(HttpMethod::from_str("get").is_ok());
+        assert!(HttpMethod::from_str("invalid").is_err());
+        assert!(HttpMethod::from_str("").is_err());
+        let err = HttpMethod::from_str("bogus").unwrap_err();
+        assert!(err.contains("Invalid HTTP method"));
+    }
+
+    #[test]
+    fn qa_http_method_display_matches_as_str() {
+        for m in HttpMethod::all() {
+            assert_eq!(format!("{m}"), m.as_str());
+        }
+    }
+
+    #[test]
+    fn qa_http_method_default_is_post() {
+        assert_eq!(HttpMethod::default(), HttpMethod::Post);
+    }
+
+    #[test]
+    fn qa_http_method_parse_is_same_as_from_str_ignore_case() {
+        assert_eq!(HttpMethod::parse("GET"), HttpMethod::from_str_ignore_case("GET"));
+        assert_eq!(HttpMethod::parse("weird"), HttpMethod::from_str_ignore_case("weird"));
+    }
+
+    #[test]
+    fn qa_http_method_all_covers_all_variants() {
+        use std::collections::HashSet;
+        let all: HashSet<HttpMethod> = HttpMethod::all().iter().copied().collect();
+        assert_eq!(all.len(), 5);
+        assert!(all.contains(&HttpMethod::Get));
+        assert!(all.contains(&HttpMethod::Post));
+        assert!(all.contains(&HttpMethod::Put));
+        assert!(all.contains(&HttpMethod::Delete));
+        assert!(all.contains(&HttpMethod::Patch));
+    }
+
+    #[test]
+    fn qa_http_method_from_str_ignore_case_empty_string_defaults_post() {
+        assert_eq!(HttpMethod::from_str_ignore_case(""), HttpMethod::Post);
+    }
+
+    #[test]
+    fn qa_http_method_all_as_str_values_are_unique() {
+        use std::collections::HashSet;
+        let strs: Vec<&'static str> = HttpMethod::all().iter().map(|m| m.as_str()).collect();
+        let unique: HashSet<&str> = strs.iter().copied().collect();
+        assert_eq!(strs.len(), unique.len());
+    }
+
+    #[test]
+    fn qa_handle_kind_parse_valid_inputs() {
+        assert_eq!(HandleKind::parse("source"), Some(HandleKind::Source));
+        assert_eq!(HandleKind::parse("target"), Some(HandleKind::Target));
+    }
+
+    #[test]
+    fn qa_handle_kind_parse_invalid_returns_none() {
+        assert_eq!(HandleKind::parse(""), None);
+        assert_eq!(HandleKind::parse("Source"), None);
+        assert_eq!(HandleKind::parse("SOURCE"), None);
+        assert_eq!(HandleKind::parse("input"), None);
+        assert_eq!(HandleKind::parse("output"), None);
+    }
+
+    #[test]
+    fn qa_handle_kind_from_str_delegates_to_parse() {
+        use std::str::FromStr;
+        assert_eq!(HandleKind::from_str("source").unwrap(), HandleKind::Source);
+        let err = HandleKind::from_str("bogus").unwrap_err();
+        assert!(err.contains("Invalid handle kind"));
+    }
+
+    #[test]
+    fn qa_handle_kind_display_matches_as_str() {
+        assert_eq!(format!("{}", HandleKind::Source), "source");
+        assert_eq!(format!("{}", HandleKind::Target), "target");
+    }
+
+    #[test]
+    fn qa_node_template_labels_are_unique() {
+        use std::collections::HashSet;
+        let labels: Vec<&'static str> = NodeTemplateId::all().iter().map(|id| id.label()).collect();
+        let unique: HashSet<&str> = labels.iter().copied().collect();
+        assert_eq!(labels.len(), unique.len(), "labels must be unique");
+    }
+
+    #[test]
+    fn qa_node_template_hints_are_unique() {
+        use std::collections::HashSet;
+        let hints: Vec<&'static str> = NodeTemplateId::all().iter().map(|id| id.hint()).collect();
+        let unique: HashSet<&str> = hints.iter().copied().collect();
+        assert_eq!(hints.len(), unique.len(), "hints must be unique");
+    }
+
+    #[test]
+    fn qa_node_template_display_matches_as_str() {
+        for id in NodeTemplateId::all() {
+            assert_eq!(format!("{id}"), id.as_str());
+        }
+    }
+
+    #[test]
+    fn qa_node_template_from_str_invalid_cases() {
+        use std::str::FromStr;
+        assert!(NodeTemplateId::from_str("nonexistent").is_err());
+        assert!(NodeTemplateId::from_str("").is_err());
+        assert!(NodeTemplateId::from_str("HTTP-HANDLER").is_err());
+        let err = NodeTemplateId::from_str("xyz").unwrap_err();
+        assert!(err.contains("Unknown node template"));
+    }
+
+    #[test]
+    fn qa_template_category_all_returns_five() {
+        assert_eq!(TemplateCategory::all().len(), 5);
+    }
+
+    #[test]
+    fn qa_template_category_members_covers_all_templates() {
+        use std::collections::HashSet;
+        let all: HashSet<NodeTemplateId> = NodeTemplateId::all().into_iter().collect();
+        let categorized: HashSet<NodeTemplateId> = TemplateCategory::all()
+            .iter()
+            .flat_map(|cat| cat.members().iter().copied())
+            .collect();
+        assert_eq!(all, categorized, "every template must belong to exactly one category");
+    }
+
+    #[test]
+    fn qa_template_category_roundtrip_symmetry() {
+        for cat in TemplateCategory::all() {
+            for id in cat.members() {
+                assert_eq!(id.category(), cat, "category() must match TemplateCategory::members()");
+            }
+        }
+    }
+
+    #[test]
+    fn qa_template_category_no_duplicate_members_across_categories() {
+        use std::collections::HashSet;
+        let mut seen: HashSet<NodeTemplateId> = HashSet::new();
+        for cat in TemplateCategory::all() {
+            for id in cat.members() {
+                assert!(seen.insert(*id), "template {id:?} appears in multiple categories");
+            }
+        }
+    }
+
+    #[test]
+    fn qa_template_error_parse_error_display() {
+        let err = TemplateError::ParseError {
+            input: "bad".to_string(),
+            expected: "valid template id",
+        };
+        let s = format!("{err}");
+        assert!(s.contains("parse error"));
+        assert!(s.contains("bad"));
+        assert!(s.contains("valid template id"));
+    }
+
+    #[test]
+    fn qa_template_error_validation_error_display() {
+        let err = TemplateError::ValidationError {
+            template_id: NodeTemplateId::HttpHandler,
+            violation: ValidationViolation::MissingRequiredField("url".to_string()),
+        };
+        let s = format!("{err}");
+        assert!(s.contains("validation error"));
+        assert!(s.contains("http-handler"));
+        assert!(s.contains("missing required field"));
+        assert!(s.contains("url"));
+    }
+
+    #[test]
+    fn qa_template_error_render_error_display() {
+        let err = TemplateError::RenderError {
+            template_id: NodeTemplateId::Condition,
+            context: RenderContext::Canvas,
+        };
+        let s = format!("{err}");
+        assert!(s.contains("render error"));
+        assert!(s.contains("condition"));
+    }
+
+    #[test]
+    fn qa_template_error_serialization_error_display() {
+        let err = TemplateError::SerializationError {
+            reason: SerializationReason::EmptySketch,
+        };
+        let s = format!("{err}");
+        assert!(s.contains("serialization error"));
+        assert!(s.contains("cannot serialize empty sketch"));
+    }
+
+    #[test]
+    fn qa_validation_violation_invalid_combination_display() {
+        let v = ValidationViolation::InvalidTemplateCombination(vec![
+            NodeTemplateId::HttpHandler,
+            NodeTemplateId::Timer,
+        ]);
+        let s = format!("{v}");
+        assert!(s.contains("invalid template combination"));
+        assert!(s.contains("http-handler"));
+        assert!(s.contains("timer"));
+    }
+
+    #[test]
+    fn qa_validation_violation_circular_dependency_display() {
+        let s = format!("{}", ValidationViolation::CircularDependency);
+        assert!(s.contains("circular dependency"));
+    }
+
+    #[test]
+    fn qa_serialization_reason_yaml_and_json_display() {
+        let yaml = SerializationReason::YamlEncodeError("bad mapping".to_string());
+        assert!(format!("{yaml}").contains("yaml encode error"));
+        let json = SerializationReason::JsonEncodeError("unexpected token".to_string());
+        assert!(format!("{json}").contains("json encode error"));
+    }
+
+    #[test]
+    fn qa_hash_consistency_http_method() {
+        use std::collections::HashSet;
+        let mut set = HashSet::new();
+        for m in HttpMethod::all() {
+            assert!(set.insert(m), "duplicate hash for {m:?}");
+        }
+    }
+
+    #[test]
+    fn qa_hash_consistency_handle_kind() {
+        use std::collections::HashSet;
+        let mut set = HashSet::new();
+        assert!(set.insert(HandleKind::Source));
+        assert!(set.insert(HandleKind::Target));
+    }
+
+    #[test]
+    fn qa_hash_consistency_node_template_id() {
+        use std::collections::HashSet;
+        let mut set = HashSet::new();
+        for id in NodeTemplateId::all() {
+            assert!(set.insert(id), "duplicate hash for {id:?}");
+        }
+    }
+
+    #[test]
+    fn qa_hash_consistency_template_category() {
+        use std::collections::HashSet;
+        let mut set = HashSet::new();
+        for cat in TemplateCategory::all() {
+            assert!(set.insert(cat), "duplicate hash for {cat:?}");
+        }
+    }
+
+    #[test]
+    fn qa_clone_copy_correctness() {
+        let m = HttpMethod::Get;
+        let m2 = m;
+        assert_eq!(m, m2);
+
+        let h = HandleKind::Source;
+        let h2 = h;
+        assert_eq!(h, h2);
+
+        let n = NodeTemplateId::Run;
+        let n2 = n;
+        assert_eq!(n, n2);
+
+        let c = TemplateCategory::Ingress;
+        let c2 = c;
+        assert_eq!(c, c2);
+    }
+
+    #[test]
+    fn qa_partial_eq_negatives() {
+        assert_ne!(HttpMethod::Get, HttpMethod::Post);
+        assert_ne!(HandleKind::Source, HandleKind::Target);
+        assert_ne!(NodeTemplateId::HttpHandler, NodeTemplateId::Timer);
+        assert_ne!(TemplateCategory::Ingress, TemplateCategory::State);
+    }
+
+    #[test]
+    fn qa_template_descriptor_copy_and_eq() {
+        let d1 = NodeTemplateId::ServiceCall.descriptor();
+        let d2 = d1;
+        assert_eq!(d1, d2);
+        assert_eq!(d1.id, NodeTemplateId::ServiceCall);
+    }
+
+    #[test]
+    fn qa_node_template_parse_case_sensitive() {
+        assert_eq!(NodeTemplateId::parse("http-handler"), Some(NodeTemplateId::HttpHandler));
+        assert_eq!(NodeTemplateId::parse("Http-Handler"), None);
+        assert_eq!(NodeTemplateId::parse("HTTP-HANDLER"), None);
+        assert_eq!(NodeTemplateId::parse("Run"), None);
+        assert_eq!(NodeTemplateId::parse("run"), Some(NodeTemplateId::Run));
+    }
+
+    #[test]
+    fn qa_render_context_debug_impl_exists() {
+        let _ = format!("{:?}", RenderContext::Palette);
+        let _ = format!("{:?}", RenderContext::CommandPalette);
+        let _ = format!("{:?}", RenderContext::Canvas);
+        let _ = format!("{:?}", RenderContext::Inspector);
+    }
+
+    #[test]
+    fn qa_render_context_all_four_variants_match() {
+        let all = [RenderContext::Palette, RenderContext::CommandPalette, RenderContext::Canvas, RenderContext::Inspector];
+        assert_eq!(all.len(), 4);
     }
 }

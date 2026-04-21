@@ -16,4 +16,6 @@ pub enum Error {
     IdentParsingFailed,
     #[error("async functions cannot have a return type")]
     AsyncReturnTypeMismatch,
+    #[error("generic functions are not supported")]
+    GenericFunctionNotSupported,
 }

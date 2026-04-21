@@ -24,7 +24,7 @@
 
 listener:
   # host: localhost
-  port: 3307
+  port: 3308
   # max_connections: 1000
   # back_log: 50
   # max_connections_timeout_millis: 60000

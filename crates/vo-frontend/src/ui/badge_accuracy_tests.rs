@@ -13,31 +13,31 @@ use vo_types::NodeKind;
 
 #[test]
 fn given_pure_node_kind_when_displaying_badge_then_shows_flow_category() {
-    let node = Node::new(NodeId::new(), "test".to_string(), NodeKind::Pure).expect("valid name");
+    let node = Node::new(NodeId::new(), "test".to_string(), NodeKind::Pure);
     assert_eq!(node.category, NodeCategory::Flow);
 }
 
 #[test]
 fn given_managed_effect_kind_when_displaying_badge_then_shows_durable_category() {
-    let node = Node::new(NodeId::new(), "test".to_string(), NodeKind::ManagedEffect).expect("valid name");
+    let node = Node::new(NodeId::new(), "test".to_string(), NodeKind::ManagedEffect);
     assert_eq!(node.category, NodeCategory::Durable);
 }
 
 #[test]
 fn given_wait_kind_when_displaying_badge_then_shows_timing_category() {
-    let node = Node::new(NodeId::new(), "test".to_string(), NodeKind::Wait).expect("valid name");
+    let node = Node::new(NodeId::new(), "test".to_string(), NodeKind::Wait);
     assert_eq!(node.category, NodeCategory::Timing);
 }
 
 #[test]
 fn given_signal_kind_when_displaying_badge_then_shows_signal_category() {
-    let node = Node::new(NodeId::new(), "test".to_string(), NodeKind::Signal).expect("valid name");
+    let node = Node::new(NodeId::new(), "test".to_string(), NodeKind::Signal);
     assert_eq!(node.category, NodeCategory::Signal);
 }
 
 #[test]
 fn given_unsafe_kind_when_displaying_badge_then_shows_flow_category() {
-    let node = Node::new(NodeId::new(), "test".to_string(), NodeKind::Unsafe).expect("valid name");
+    let node = Node::new(NodeId::new(), "test".to_string(), NodeKind::Unsafe);
     assert_eq!(node.category, NodeCategory::Flow);
 }
 
@@ -47,7 +47,7 @@ fn given_unsafe_kind_when_displaying_badge_then_shows_flow_category() {
 
 #[test]
 fn given_node_when_kind_changes_from_pure_to_managed_effect_then_category_updates() {
-    let mut node = Node::new(NodeId::new(), "test".to_string(), NodeKind::Pure).expect("valid name");
+    let mut node = Node::new(NodeId::new(), "test".to_string(), NodeKind::Pure);
     assert_eq!(node.category, NodeCategory::Flow);
 
     node.set_kind(NodeKind::ManagedEffect);
@@ -56,7 +56,7 @@ fn given_node_when_kind_changes_from_pure_to_managed_effect_then_category_update
 
 #[test]
 fn given_node_when_kind_changes_from_wait_to_signal_then_category_updates() {
-    let mut node = Node::new(NodeId::new(), "test".to_string(), NodeKind::Wait).expect("valid name");
+    let mut node = Node::new(NodeId::new(), "test".to_string(), NodeKind::Wait);
     assert_eq!(node.category, NodeCategory::Timing);
 
     node.set_kind(NodeKind::Signal);
@@ -65,7 +65,7 @@ fn given_node_when_kind_changes_from_wait_to_signal_then_category_updates() {
 
 #[test]
 fn given_node_when_kind_changes_from_managed_effect_to_unsafe_then_category_updates() {
-    let mut node = Node::new(NodeId::new(), "test".to_string(), NodeKind::ManagedEffect).expect("valid name");
+    let mut node = Node::new(NodeId::new(), "test".to_string(), NodeKind::ManagedEffect);
     assert_eq!(node.category, NodeCategory::Durable);
 
     node.set_kind(NodeKind::Unsafe);
@@ -78,7 +78,7 @@ fn given_node_when_kind_changes_from_managed_effect_to_unsafe_then_category_upda
 
 #[test]
 fn given_sequential_kind_changes_then_each_category_matches_current_kind() {
-    let mut node = Node::new(NodeId::new(), "test".to_string(), NodeKind::Pure).expect("valid name");
+    let mut node = Node::new(NodeId::new(), "test".to_string(), NodeKind::Pure);
 
     // Sequential changes: Pure -> ManagedEffect -> Wait -> Signal -> Unsafe -> Pure
     let sequence = [
@@ -139,7 +139,7 @@ fn given_workflow_with_multiple_nodes_when_displaying_all_badges_then_all_catego
         (NodeKind::Signal, NodeCategory::Signal),
         (NodeKind::Unsafe, NodeCategory::Flow),
     ] {
-        let node = Node::new(NodeId::new(), "test".to_string(), kind).expect("valid name");
+        let node = Node::new(NodeId::new(), "test".to_string(), kind);
         workflow.add_node(node);
     }
 
