@@ -12,6 +12,7 @@
 
 use std::fmt;
 
+use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
 use crate::integer_types::TimestampMs;
@@ -151,7 +152,7 @@ impl PooledConnection {
 }
 
 /// Result of a connection health check.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum HealthCheckResult {
     Healthy,
     Stale,
@@ -160,7 +161,7 @@ pub enum HealthCheckResult {
 }
 
 /// Handle for a pending acquire request.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WaitHandle {
     pub request_id: u64,
     pub enqueued_at: TimestampMs,
@@ -168,7 +169,7 @@ pub struct WaitHandle {
 }
 
 /// Result of attempting to acquire a connection from the pool.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AcquireResult {
     Available { connection: PooledConnection },
     Pending { wait_handle: WaitHandle },
@@ -178,7 +179,7 @@ pub enum AcquireResult {
 }
 
 /// Result of releasing a connection back to the pool.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ReleaseResult {
     Returned,
     AlreadyClosed,
@@ -186,7 +187,7 @@ pub enum ReleaseResult {
 }
 
 /// Reason for connection eviction.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EvictionReason {
     HealthCheckFailed(HealthCheckResult),
     ExplicitEviction,
@@ -227,7 +228,7 @@ impl Default for PoolStats {
 }
 
 /// Circuit breaker state.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum CircuitBreakerState {
     #[default]
     Closed,
@@ -240,7 +241,7 @@ pub enum CircuitBreakerState {
 // ============================================================================
 
 /// Error category for connection pool errors.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ErrorCategory {
     PoolExhaustion,
     Timeout,
@@ -252,7 +253,7 @@ pub enum ErrorCategory {
 }
 
 /// Error detail for connection pool errors.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ErrorDetail {
     MaxConnectionsReached {
         max: u32,
@@ -275,7 +276,7 @@ pub enum ErrorDetail {
         connection_id: ConnectionId,
     },
     InvalidRelease {
-        reason: &'static str,
+        reason: String,
     },
     PoolNotInitialized,
     AlreadyShutdown,
@@ -285,11 +286,11 @@ pub enum ErrorDetail {
 }
 
 /// Context for connection pool errors.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ErrorContext {
     pub pool_id: PoolId,
     pub timestamp: TimestampMs,
-    pub operation: &'static str,
+    pub operation: String,
     pub connection_id: Option<ConnectionId>,
 }
 
@@ -1056,7 +1057,7 @@ mod tests {
             let context = ErrorContext {
                 pool_id,
                 timestamp,
-                operation: "acquire",
+                operation: "acquire".to_string(),
                 connection_id: Some(conn_id),
             };
 
@@ -1074,7 +1075,7 @@ mod tests {
             let context = ErrorContext {
                 pool_id,
                 timestamp,
-                operation: "shutdown",
+                operation: "shutdown".to_string(),
                 connection_id: None,
             };
 

@@ -772,6 +772,14 @@ impl<T> BudgetQueues<T> {
                 };
                 self.backpressure.set_writable(class, remaining);
             }
+
+            if was_full {
+                let remaining = match self.stats.lock() {
+                    Ok(guard) => guard.remaining(class),
+                    Err(poisoned) => poisoned.into_inner().remaining(class),
+                };
+                self.backpressure.set_writable(class, remaining);
+            }
         }
         item
     }
