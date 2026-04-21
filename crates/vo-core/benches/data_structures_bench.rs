@@ -50,7 +50,7 @@ fn bench_segment_tree_update(c: &mut Criterion) {
             },
             |mut tree| {
                 for i in 0..100 {
-                    black_box(tree.update(black_box(i), black_box(i as u64 * 2)));
+                    let _ = tree.update(black_box(i), black_box(i as u64 * 2));
                 }
                 tree
             },

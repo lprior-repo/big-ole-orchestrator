@@ -8,8 +8,10 @@
 //! - [`check_random_in_workflow`] — **L002**: flags non-deterministic random calls
 
 mod detector;
+mod rule;
 
 pub use detector::check_random_in_workflow;
+pub use rule::RandomRule;
 
 #[cfg(test)]
 mod tests;

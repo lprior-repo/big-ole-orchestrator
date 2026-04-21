@@ -117,13 +117,41 @@ impl<T: Clone> SegmentTree<T> {
     }
 
     /// Update the value at a single position.
-    pub fn update(&mut self, index: usize, value: T) {
+    ///
+    /// # Panics
+    /// Panics if `index` is out of bounds.
+    #[must_use]
+    pub fn update(&mut self, index: usize, value: T) -> Self {
+        assert!(
+            index < self.len,
+            "update: index ({index}) out of bounds (len={})",
+            self.len
+        );
         let mut pos = index + self.n;
         self.tree[pos] = value;
         while pos > 1 {
             pos /= 2;
             self.tree[pos] = (self.merge)(&self.tree[2 * pos], &self.tree[2 * pos + 1]);
         }
+        self.clone()
+    }
+
+    /// Fallible update: validates index bounds, returning an error instead of
+    /// panicking.
+    pub fn try_update(&mut self, index: usize, value: T) -> Result<(), SegmentTreeError> {
+        if index >= self.len {
+            return Err(SegmentTreeError::IndexOutOfBounds {
+                index,
+                len: self.len,
+            });
+        }
+        let mut pos = index + self.n;
+        self.tree[pos] = value;
+        while pos > 1 {
+            pos /= 2;
+            self.tree[pos] = (self.merge)(&self.tree[2 * pos], &self.tree[2 * pos + 1]);
+        }
+        Ok(())
     }
 
     #[must_use]
@@ -369,7 +397,7 @@ mod tests {
     fn segment_tree_point_update_changes_query() {
         let data = vec![1i64, 2, 3, 4, 5];
         let mut tree = SegmentTree::from_slice(&data, |a, b| a + b, 0);
-        tree.update(2, 10);
+        let _ = tree.update(2, 10);
         assert_eq!(tree.query(0, 5), 22);
     }
 
@@ -528,5 +556,18 @@ mod tests {
                 prop_assert_eq!(actual, expected);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod manual_test {
+    use super::*;
+
+    #[test]
+    #[should_panic]
+    fn test_update_panic() {
+        let data = vec![1i64, 2, 3];
+        let mut tree = SegmentTree::from_slice(&data, |a, b| a + b, 0);
+        tree.update(3, 10);
     }
 }
