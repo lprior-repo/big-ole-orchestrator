@@ -178,63 +178,6 @@ impl NodeTemplateId {
         }
     }
 
-    pub fn default_config(self) -> serde_json::Value {
-        match self {
-            Self::HttpHandler => serde_json::json!({
-                "port": 8080,
-                "method": "GET",
-                "path": "/"
-            }),
-            Self::KafkaHandler => serde_json::json!({
-                "topic": "my-topic",
-                "group_id": "my-group",
-                "brokers": ["localhost:9092"]
-            }),
-            Self::CronTrigger => serde_json::json!({
-                "schedule": "0 * * * *"
-            }),
-            Self::WorkflowSubmit => serde_json::json!({
-                "workflow_name": "my-workflow",
-                "input": {}
-            }),
-            Self::Run => serde_json::json!({
-                "command": "./run.sh"
-            }),
-            Self::ServiceCall => serde_json::json!({
-                "service": "my-service",
-                "method": "invoke",
-                "timeout_ms": 5000
-            }),
-            Self::ObjectCall => serde_json::json!({
-                "object_id": "my-object",
-                "operation": "handle"
-            }),
-            Self::SendMessage => serde_json::json!({
-                "channel": "my-channel",
-                "payload": {}
-            }),
-            Self::GetState => serde_json::json!({
-                "key": "my-key"
-            }),
-            Self::SetState => serde_json::json!({
-                "key": "my-key",
-                "value": null
-            }),
-            Self::Condition => serde_json::json!({
-                "expression": "true"
-            }),
-            Self::Parallel => serde_json::json!({
-                "branches": []
-            }),
-            Self::Timer => serde_json::json!({
-                "duration_ms": 1000
-            }),
-            Self::Timeout => serde_json::json!({
-                "duration_ms": 30000
-            }),
-        }
-    }
-
     pub fn parse(s: &str) -> Option<Self> {
         match s {
             "http-handler" => Some(Self::HttpHandler),
