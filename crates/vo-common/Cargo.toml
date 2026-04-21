@@ -8,9 +8,14 @@ license.workspace = true
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
+tracing = { workspace = true, optional = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
+
+[features]
+default = []
+telemetry = ["dep:tracing"]
 
 [lints]
 workspace = true
