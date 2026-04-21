@@ -48,7 +48,7 @@ pub struct Connection {
     pub target_port: PortName,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum ExecutionState {
     Idle,
     Running,

@@ -174,7 +174,12 @@ fn budget_allocation_can_acquire_true() {
 
 #[test]
 fn budget_allocation_can_acquire_false_when_exhausted() {
-    let alloc = BudgetAllocation::new(WorkloadClass::Live, 50, 50);
+    let alloc = BudgetAllocation {
+        class: WorkloadClass::Live,
+        max_slots: 50,
+        used_slots: 50,
+        reserved_min: 25,
+    };
     assert!(!alloc.can_acquire());
 }
 
@@ -186,7 +191,12 @@ fn budget_allocation_is_exhausted_false() {
 
 #[test]
 fn budget_allocation_is_exhausted_true() {
-    let alloc = BudgetAllocation::new(WorkloadClass::Live, 50, 50);
+    let alloc = BudgetAllocation {
+        class: WorkloadClass::Live,
+        max_slots: 50,
+        used_slots: 50,
+        reserved_min: 25,
+    };
     assert!(alloc.is_exhausted());
 }
 
