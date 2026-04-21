@@ -144,7 +144,8 @@ impl ReanimatorLoop {
     /// 1. Scans for pending timers (timers that were in-flight when crash occurred)
     /// 2. Cleans up stale pending timers (older than STALE_PENDING_THRESHOLD_MS)
     /// 3. Replays pending timers by enqueueing resume work
-    async fn run_crash_recovery<S, Q>(
+    #[cfg(test)]
+    pub async fn run_crash_recovery<S, Q>(
         storage: &Arc<S>,
         work_queue: &Arc<Q>,
     ) -> Result<(), ReanimatorError>
