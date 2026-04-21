@@ -82,7 +82,8 @@ pub fn generate_skeleton(nodes: &[SketchNode]) -> String {
             let prev_id = format!("step-{i}");
             let _val = writeln!(out, "    depends_on: [{prev_id}]");
         }
-        out.push_str("    config: {}\n");
+        let config = node.node_type.default_config();
+        let _val = writeln!(out, "    config: {config}\n");
     }
 
     out
