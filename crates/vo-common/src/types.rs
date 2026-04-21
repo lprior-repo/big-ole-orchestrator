@@ -4,15 +4,10 @@
 //! type leakage. Each type is a newtype wrapper with validation and strict
 //! interfaces that prevent accidental mixing of similar types.
 
-<<<<<<< HEAD
-pub type InstanceId = String;
-pub type NamespaceId = String;
-pub type TimerId = String;
-pub type EventId = String;
-=======
 use serde::{Deserialize, Serialize};
 use std::fmt;
->>>>>>> origin/buzzard/ve-jp00n
+
+pub type EventId = String;
 
 // ============================================================================
 // InstanceId: Strictly validated instance identifier
@@ -49,23 +44,9 @@ impl InstanceId {
         &self.0
     }
 
-<<<<<<< HEAD
-    #[test]
-    fn event_id_behaves_as_string() {
-        let eid: EventId = "evt-abc-123".into();
-        assert_eq!(eid.len(), 11);
-        assert_eq!(eid.as_str(), "evt-abc-123");
-    }
-
-    #[test]
-    fn instance_id_empty_string() {
-        let id: InstanceId = "".into();
-        assert_eq!(id.len(), 0);
-=======
     /// Consume self and return the underlying string.
     pub fn into_inner(self) -> String {
         self.0
->>>>>>> origin/buzzard/ve-jp00n
     }
 
     /// Get the length of the identifier.

@@ -18,22 +18,14 @@ mod deser_attacks {
     #[test]
     fn extra_fields_silently_accepted() {
         let r: WorkflowEvent = serde_json::from_value(json!({
-            "TimerFired": {"event_id": "e1", "timer_id": "t1", "timestamp_ms": 100, "_poison": "evil"}
+            "TimerFired": {"timer_id": "t1", "timestamp_ms": 100, "_poison": "evil"}
         }))
         .unwrap();
         let WorkflowEvent::TimerFired {
-<<<<<<< HEAD
-            event_id,
-            timer_id,
-            timestamp_ms,
-        } = r;
-        assert_eq!((event_id, timer_id, timestamp_ms), ("e1".to_string(), "t1".to_string(), 100));
-=======
             timer_id,
             timestamp_ms,
         } = r;
         assert_eq!((timer_id, timestamp_ms), ("t1".to_string(), 100));
->>>>>>> origin/buzzard/ve-jp00n
     }
 
     #[test]
@@ -46,11 +38,7 @@ mod deser_attacks {
     #[test]
     fn reject_null_timer_id() {
         assert!(serde_json::from_value::<WorkflowEvent>(
-<<<<<<< HEAD
-            json!({"TimerFired": {"event_id": "e1", "timer_id": null, "timestamp_ms": 0}})
-=======
             json!({"TimerFired": {"timer_id": null, "timestamp_ms": 0}})
->>>>>>> origin/buzzard/ve-jp00n
         )
         .is_err());
     }
@@ -63,7 +51,7 @@ mod deser_attacks {
     #[test]
     fn reject_string_timestamp() {
         assert!(serde_json::from_value::<WorkflowEvent>(
-            json!({"TimerFired": {"event_id": "e1", "timer_id": "t", "timestamp_ms": "x"}})
+            json!({"TimerFired": {"timer_id": "t", "timestamp_ms": "x"}})
         )
         .is_err());
     }
@@ -71,7 +59,7 @@ mod deser_attacks {
     #[test]
     fn reject_negative_timestamp() {
         assert!(serde_json::from_value::<WorkflowEvent>(
-            json!({"TimerFired": {"event_id": "e1", "timer_id": "t", "timestamp_ms": -1}})
+            json!({"TimerFired": {"timer_id": "t", "timestamp_ms": -1}})
         )
         .is_err());
     }
@@ -79,7 +67,7 @@ mod deser_attacks {
     #[test]
     fn reject_float_timestamp() {
         assert!(serde_json::from_value::<WorkflowEvent>(
-            json!({"TimerFired": {"event_id": "e1", "timer_id": "t", "timestamp_ms": 1.5}})
+            json!({"TimerFired": {"timer_id": "t", "timestamp_ms": 1.5}})
         )
         .is_err());
     }
@@ -87,7 +75,7 @@ mod deser_attacks {
     #[test]
     fn accept_u64_max_timestamp() {
         let val: serde_json::Value = serde_json::from_str(&format!(
-            r#"{{"TimerFired":{{"event_id":"e1","timer_id":"t","timestamp_ms":{}}}}}"#,
+            r#"{{"TimerFired":{{"timer_id":"t","timestamp_ms":{}}}}}"#,
             u64::MAX
         ))
         .unwrap();
@@ -98,11 +86,7 @@ mod deser_attacks {
     #[test]
     fn accept_zero_timestamp() {
         let WorkflowEvent::TimerFired { timestamp_ms, .. } =
-<<<<<<< HEAD
-            serde_json::from_value(json!({"TimerFired": {"event_id": "e1", "timer_id": "t", "timestamp_ms": 0}}))
-=======
             serde_json::from_value(json!({"TimerFired": {"timer_id": "t", "timestamp_ms": 0}}))
->>>>>>> origin/buzzard/ve-jp00n
                 .unwrap();
         assert_eq!(timestamp_ms, 0);
     }
@@ -136,7 +120,6 @@ mod string_attacks {
             "████████████████████████",
         ] {
             let e = WorkflowEvent::TimerFired {
-                event_id: "e-str".into(),
                 timer_id: payload.into(),
                 timestamp_ms: 42,
             };
@@ -149,7 +132,6 @@ mod string_attacks {
     fn megabyte_string_no_panic() {
         let big = "x".repeat(1_000_000);
         let e = WorkflowEvent::TimerFired {
-            event_id: "e-big".into(),
             timer_id: big.clone(),
             timestamp_ms: 0,
         };
