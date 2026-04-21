@@ -81,6 +81,12 @@ pub struct InstanceIdError {
     pub kind: InstanceIdErrorKind,
 }
 
+impl InstanceIdError {
+    pub const TooShort: Self = Self { kind: InstanceIdErrorKind::TooShort };
+    pub const TooLong: Self = Self { kind: InstanceIdErrorKind::TooLong };
+    pub const InvalidCharacters: Self = Self { kind: InstanceIdErrorKind::InvalidCharacters };
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InstanceIdErrorKind {
     TooShort,
@@ -99,6 +105,12 @@ impl fmt::Display for InstanceIdError {
 }
 
 impl std::error::Error for InstanceIdError {}
+
+impl From<InstanceIdErrorKind> for InstanceIdError {
+    fn from(kind: InstanceIdErrorKind) -> Self {
+        Self { kind }
+    }
+}
 
 // ============================================================================
 // NamespaceId: Strictly validated namespace identifier
@@ -175,6 +187,12 @@ pub struct NamespaceIdError {
     pub kind: NamespaceIdErrorKind,
 }
 
+impl NamespaceIdError {
+    pub const TooShort: Self = Self { kind: NamespaceIdErrorKind::TooShort };
+    pub const TooLong: Self = Self { kind: NamespaceIdErrorKind::TooLong };
+    pub const InvalidCharacters: Self = Self { kind: NamespaceIdErrorKind::InvalidCharacters };
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NamespaceIdErrorKind {
     TooShort,
@@ -193,6 +211,12 @@ impl fmt::Display for NamespaceIdError {
 }
 
 impl std::error::Error for NamespaceIdError {}
+
+impl From<NamespaceIdErrorKind> for NamespaceIdError {
+    fn from(kind: NamespaceIdErrorKind) -> Self {
+        Self { kind }
+    }
+}
 
 // ============================================================================
 // TimerId: Strictly validated timer identifier
@@ -269,6 +293,12 @@ pub struct TimerIdError {
     pub kind: TimerIdErrorKind,
 }
 
+impl TimerIdError {
+    pub const TooShort: Self = Self { kind: TimerIdErrorKind::TooShort };
+    pub const TooLong: Self = Self { kind: TimerIdErrorKind::TooLong };
+    pub const InvalidCharacters: Self = Self { kind: TimerIdErrorKind::InvalidCharacters };
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TimerIdErrorKind {
     TooShort,
@@ -287,6 +317,12 @@ impl fmt::Display for TimerIdError {
 }
 
 impl std::error::Error for TimerIdError {}
+
+impl From<TimerIdErrorKind> for TimerIdError {
+    fn from(kind: TimerIdErrorKind) -> Self {
+        Self { kind }
+    }
+}
 
 // ============================================================================
 // Public API re-exports
