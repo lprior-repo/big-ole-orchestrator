@@ -9,6 +9,14 @@
         "prefix": "ha"
       }
     },
+    "oya_frontend": {
+      "git_url": "",
+      "added_at": "2026-04-20T21:03:46.419608001-05:00",
+      "beads": {
+        "repo": "",
+        "prefix": "of"
+      }
+    },
     "twerk": {
       "git_url": "",
       "added_at": "2026-04-20T21:03:34.836121349-05:00",
