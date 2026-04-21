@@ -161,101 +161,114 @@ impl ConnectionPool {
         .await
     }
 
-    #[allow(clippy::unused_async)]
     pub async fn acquire_with_timeout(&mut self, timeout: std::time::Duration) -> AcquireResult {
-        if self.state.is_shutting_down {
-            return AcquireResult::PoolClosing;
-        }
+        let start = std::time::Instant::now();
+        let poll_interval = std::time::Duration::from_millis(10);
 
-        if !self.state.circuit_breaker.should_allow_request() {
-            let error = ConnectionPoolError {
-                category: ErrorCategory::PoolExhaustion,
-                detail: ErrorDetail::CircuitBreakerOpen {
-                    consecutive_failures: self.state.circuit_breaker.consecutive_failures(),
-                },
-                context: ErrorContext {
-                    pool_id: self.pool_id.clone(),
-                    timestamp: TimestampMs::now(),
-                    operation: "acquire",
-                    connection_id: None,
-                },
-            };
-            error!("Circuit breaker open: {:?}", error);
-            return AcquireResult::PoolExhausted {
-                config: self.state.config.clone().into(),
-            };
-        }
+        loop {
+            if start.elapsed() >= timeout {
+                return AcquireResult::Timeout {
+                    waited_ms: start.elapsed().as_millis() as u64,
+                };
+            }
 
-        if let Some(conn_id) = self.state.idle_connections.pop_front() {
-            if let Some(mut conn) = self.state.connections.get_mut(&conn_id) {
-                conn.status = ConnectionStatus::CheckedOut;
-                conn.increment_use_count();
-                self.state.total_acquires += 1;
+            if self.state.is_shutting_down {
+                return AcquireResult::PoolClosing;
+            }
+
+            if !self.state.circuit_breaker.should_allow_request() {
+                let error = ConnectionPoolError {
+                    category: ErrorCategory::PoolExhaustion,
+                    detail: ErrorDetail::CircuitBreakerOpen {
+                        consecutive_failures: self.state.circuit_breaker.consecutive_failures(),
+                    },
+                    context: ErrorContext {
+                        pool_id: self.pool_id.clone(),
+                        timestamp: TimestampMs::now(),
+                        operation: "acquire",
+                        connection_id: None,
+                    },
+                };
+                error!("Circuit breaker open: {:?}", error);
+                return AcquireResult::PoolExhausted {
+                    config: self.state.config.clone().into(),
+                };
+            }
+
+            if let Some(conn_id) = self.state.idle_connections.pop_front() {
+                if let Some(mut conn) = self.state.connections.get_mut(&conn_id) {
+                    conn.status = ConnectionStatus::CheckedOut;
+                    conn.increment_use_count();
+                    self.state.total_acquires += 1;
+
+                    let checkout_id = ConnectionId::new();
+                    self.state
+                        .checked_out_connections
+                        .insert(checkout_id, conn_id);
+
+                    debug!(
+                        "Acquired connection {} from pool {}",
+                        conn_id, self.pool_id
+                    );
+
+                    return AcquireResult::Available {
+                        connection: conn.clone(),
+                    };
+                }
+            }
+
+            if self.state.total_connections() < self.state.config.max_connections {
+                let connection_id = ConnectionId::new();
+                let now = TimestampMs::now();
+
+                let pooled =
+                    PooledConnection::new(connection_id, now).with_status(ConnectionStatus::CheckedOut);
+
+                self.state.connections.insert(connection_id, pooled.clone());
 
                 let checkout_id = ConnectionId::new();
                 self.state
                     .checked_out_connections
-                    .insert(checkout_id, conn_id);
+                    .insert(checkout_id, connection_id);
 
-                debug!("Acquired connection {} from pool {}", conn_id, self.pool_id);
+                self.state.total_acquires += 1;
 
-                return AcquireResult::Available {
-                    connection: conn.clone(),
+                debug!(
+                    "Created and acquired new connection {} in pool {}",
+                    connection_id, self.pool_id
+                );
+
+                return AcquireResult::Available { connection: pooled };
+            }
+
+            if self.state.pending_acquires.len() >= self.state.config.max_pending_acquires as usize {
+                let error = ConnectionPoolError {
+                    category: ErrorCategory::PoolExhaustion,
+                    detail: ErrorDetail::PendingAcquiresExceeded {
+                        max: self.state.config.max_pending_acquires,
+                    },
+                    context: ErrorContext {
+                        pool_id: self.pool_id.clone(),
+                        timestamp: TimestampMs::now(),
+                        operation: "acquire",
+                        connection_id: None,
+                    },
+                };
+                warn!("Pool exhausted: {:?}", error);
+                return AcquireResult::PoolExhausted {
+                    config: self.state.config.clone().into(),
                 };
             }
+
+            let remaining = timeout - start.elapsed();
+            if remaining.is_zero() {
+                return AcquireResult::Timeout {
+                    waited_ms: timeout.as_millis() as u64,
+                };
+            }
+
+            tokio::time::sleep(poll_interval.min(remaining)).await;
         }
-
-        if self.state.total_connections() < self.state.config.max_connections {
-            let connection_id = ConnectionId::new();
-            let now = TimestampMs::now();
-
-            let pooled =
-                PooledConnection::new(connection_id, now).with_status(ConnectionStatus::CheckedOut);
-
-            self.state.connections.insert(connection_id, pooled.clone());
-
-            let checkout_id = ConnectionId::new();
-            self.state
-                .checked_out_connections
-                .insert(checkout_id, connection_id);
-
-            self.state.total_acquires += 1;
-
-            debug!(
-                "Created and acquired new connection {} in pool {}",
-                connection_id, self.pool_id
-            );
-
-            return AcquireResult::Available { connection: pooled };
-        }
-
-        if self.state.pending_acquires.len() >= self.state.config.max_pending_acquires as usize {
-            let error = ConnectionPoolError {
-                category: ErrorCategory::PoolExhaustion,
-                detail: ErrorDetail::PendingAcquiresExceeded {
-                    max: self.state.config.max_pending_acquires,
-                },
-                context: ErrorContext {
-                    pool_id: self.pool_id.clone(),
-                    timestamp: TimestampMs::now(),
-                    operation: "acquire",
-                    connection_id: None,
-                },
-            };
-            warn!("Pool exhausted: {:?}", error);
-            return AcquireResult::PoolExhausted {
-                config: self.state.config.clone().into(),
-            };
-        }
-
-        let wait_handle = WaitHandle {
-            request_id: self.state.pending_acquires.len() as u64 + 1,
-            enqueued_at: TimestampMs::now(),
-            pool_id: self.pool_id.clone(),
-        };
-        self.state.pending_acquires.push_back(wait_handle.clone());
-
-        AcquireResult::Pending { wait_handle }
     }
 
     pub fn release(&mut self, connection_id: ConnectionId) -> ReleaseResult {

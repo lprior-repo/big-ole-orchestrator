@@ -5,7 +5,6 @@
 //! "Recovery queue ingestion rate never exceeds configured throttle"
 
 use std::time::Duration;
-use tokio::time::Instant;
 
 use super::{RecoveryError, RecoveryItem, RecoveryResult};
 

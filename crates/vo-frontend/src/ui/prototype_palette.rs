@@ -82,8 +82,7 @@ pub fn generate_skeleton(nodes: &[SketchNode]) -> String {
             let prev_id = format!("step-{i}");
             let _val = writeln!(out, "    depends_on: [{prev_id}]");
         }
-        let config = node.node_type.default_config();
-        let _val = writeln!(out, "    config: {config}\n");
+        out.push_str("    config: {}\n");
     }
 
     out
@@ -256,7 +255,7 @@ mod tests {
         assert!(result.contains("depends_on: [step-1]"));
     }
 
-    #[test]
+   #[test]
     fn given_three_nodes_when_generating_skeleton_then_linear_chain_is_correct() {
         let nodes = vec![
             node(NodeTemplateId::HttpHandler),

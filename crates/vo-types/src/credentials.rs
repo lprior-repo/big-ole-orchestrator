@@ -396,17 +396,6 @@ impl CredentialVersion {
     pub fn rotated_to(&self) -> Option<CredentialVersionId> {
         self.rotated_to.clone()
     }
-
-    #[must_use]
-    pub fn is_expired(&self, now: TimestampMs) -> bool {
-        if self.status.is_terminal() {
-            return true;
-        }
-        if let Some(expires_at) = self.expires_at {
-            return expires_at.0 < now.0;
-        }
-        false
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
