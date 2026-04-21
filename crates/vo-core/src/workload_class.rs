@@ -50,10 +50,10 @@ pub enum WorkloadClass {
     /// Default priority for normal workflow execution.
     #[default]
     Standard,
-    /// Lower priority. Capped under contention.
-    UnsafeBulk,
     /// Reserved capacity for crash recovery.
     Recovery,
+    /// Lower priority. Capped under contention.
+    UnsafeBulk,
 }
 
 impl PartialOrd for WorkloadClass {

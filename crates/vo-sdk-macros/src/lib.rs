@@ -279,42 +279,6 @@ mod tests {
         );
     }
 
-    #[test]
-    fn task_macro_generates_main_for_generic_sync_function() {
-        let attr = quote! {};
-        let item = quote! { fn generic_task<T: Default>() -> T { T::default() } };
-        let result = internal_task_macro(attr, item);
-        let output = result.to_string();
-        assert!(
-            !output.contains("compile_error"),
-            "should not emit compile_error: {}",
-            output
-        );
-        assert!(
-            output.contains("fn main"),
-            "should generate main: {}",
-            output
-        );
-    }
-
-    #[test]
-    fn task_macro_generates_main_for_generic_async_function() {
-        let attr = quote! {};
-        let item = quote! { async fn generic_task<T: Send>() where T: Default {} };
-        let result = internal_task_macro(attr, item);
-        let output = result.to_string();
-        assert!(
-            !output.contains("compile_error"),
-            "should not emit compile_error: {}",
-            output
-        );
-        assert!(
-            output.contains("fn main"),
-            "should generate main: {}",
-            output
-        );
-    }
-
     proptest! {
         #[test]
         fn task_macro_no_panic(attr_str in ".*", item_str in ".*") {

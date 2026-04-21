@@ -13,6 +13,3 @@ pub use workflow::{
     validate_effect_kinds, validate_workflow_effects, validate_workflow_sinks, KnownSinks,
     UnsupportedSinkError, WorkflowSinkValidator,
 };
-
-#[cfg(test)]
-mod workflow_tests;

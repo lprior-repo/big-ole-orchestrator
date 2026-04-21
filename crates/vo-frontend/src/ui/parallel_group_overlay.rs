@@ -1,8 +1,6 @@
 use crate::ui::edges::graph_types::{Connection, ExecutionState, Node, NodeId, WorkflowNode};
 use dioxus::prelude::*;
 use std::collections::HashMap;
-use std::str::FromStr;
-use uuid::Uuid;
 
 const NODE_WIDTH: f32 = 220.0;
 const NODE_HEIGHT: f32 = 68.0;
@@ -10,130 +8,6 @@ const PADDING_X: f32 = 24.0;
 const PADDING_Y: f32 = 32.0;
 const BADGE_OFFSET_X: f32 = 12.0;
 const BADGE_OFFSET_Y: f32 = -12.0;
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct NodeId(pub Uuid);
-
-impl From<Uuid> for NodeId {
-    fn from(uuid: Uuid) -> Self {
-        NodeId(uuid)
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
-pub enum ExecutionState {
-    Idle,
-    Queued,
-    Running,
-    Completed,
-    Failed,
-    Skipped,
-}
-
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-pub struct ParallelConfig {
-    #[serde(default)]
-    pub maxConcurrency: Option<usize>,
-}
-
-impl Default for ParallelConfig {
-    fn default() -> Self {
-        Self {
-            maxConcurrency: None,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-pub struct RunConfig {
-    #[serde(default)]
-    pub timeout_ms: Option<u64>,
-    #[serde(default)]
-    pub retry_policy: Option<RetryPolicy>,
-}
-
-impl Default for RunConfig {
-    fn default() -> Self {
-        Self {
-            timeout_ms: None,
-            retry_policy: None,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-pub enum RetryPolicy {
-    Exponential {
-        base_delay_ms: u64,
-        max_delay_ms: u64,
-        max_attempts: u32,
-    },
-    Linear {
-        delay_ms: u64,
-        max_attempts: u32,
-    },
-}
-
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-pub enum WorkflowNode {
-    Parallel(ParallelConfig),
-    Run(RunConfig),
-    ServiceCall,
-}
-
-impl FromStr for WorkflowNode {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "parallel" => Ok(WorkflowNode::Parallel(ParallelConfig::default())),
-            "run" => Ok(WorkflowNode::Run(RunConfig::default())),
-            "service-call" => Ok(WorkflowNode::ServiceCall),
-            _ => Err(format!("unknown workflow node type: {s}")),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
-pub struct PortName(pub String);
-
-impl From<&str> for PortName {
-    fn from(s: &str) -> Self {
-        PortName(s.to_string())
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
-pub struct Connection {
-    pub id: Uuid,
-    pub source: NodeId,
-    pub target: NodeId,
-    pub source_port: PortName,
-    pub target_port: PortName,
-}
-
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-pub struct Node {
-    pub id: NodeId,
-    pub name: String,
-    pub node: WorkflowNode,
-    pub execution_state: ExecutionState,
-    pub x: f32,
-    pub y: f32,
-}
-
-impl Node {
-    pub fn from_workflow_node(name: String, node: WorkflowNode, x: f32, y: f32) -> Self {
-        Self {
-            id: NodeId(Uuid::nil()),
-            name,
-            node,
-            execution_state: ExecutionState::Idle,
-            x,
-            y,
-        }
-    }
-}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParallelGroup {
@@ -345,7 +219,7 @@ pub fn ParallelGroupOverlay(
 
                     rsx! {
                         g {
-                            key: "{group.parallel_node_id.0}",
+                            key: "{group.parallel_node_id}",
                             rect {
                                 x: "{bb.x}",
                                 y: "{bb.y}",
@@ -391,11 +265,14 @@ pub fn ParallelGroupOverlay(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ui::edges::graph_types::WorkflowNode;
+    use std::str::FromStr;
     use uuid::Uuid;
 
     fn make_node(id: Uuid, node_type: &str, x: f32, y: f32) -> Node {
-        let wfn = WorkflowNode::from_str(node_type)
-            .unwrap_or_else(|_| WorkflowNode::Run(RunConfig::default()));
+        let wfn = WorkflowNode::from_str(node_type).unwrap_or_else(|_| {
+            WorkflowNode::Run(crate::ui::edges::graph_types::RunConfig::default())
+        });
         let mut node = Node::from_workflow_node(format!("{node_type} node"), wfn, x, y);
         node.id = NodeId(id);
         node
@@ -406,8 +283,8 @@ mod tests {
             id: Uuid::new_v4(),
             source: NodeId(source),
             target: NodeId(target),
-            source_port: PortName::from("main"),
-            target_port: PortName::from("main"),
+            source_port: crate::ui::edges::graph_types::PortName("main".to_string()),
+            target_port: crate::ui::edges::graph_types::PortName("main".to_string()),
         }
     }
 

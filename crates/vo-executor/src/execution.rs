@@ -223,9 +223,10 @@ async fn sleep_with_backoff(retry_policy: &RetryPolicy, attempt: u32) {
     use std::time::Duration;
     use tokio::time::sleep;
 
-    let backoff = retry_policy.calculate_backoff_delay(attempt);
-    let with_jitter = retry_policy.calculate_jitter(backoff);
-    sleep(Duration::from_millis(with_jitter)).await;
+    sleep(Duration::from_millis(
+        retry_policy.calculate_backoff_delay(attempt),
+    ))
+    .await;
 }
 
 /// Cancel an in-progress execution.

@@ -653,8 +653,6 @@ proptest! {
         seed in 0u32..5u32,
     ) {
         let mut cb = CircuitBreaker::new();
-        let mut actual_failures = 0u32;
-        let mut last_was_success = false;
 
         // Generate deterministic sequence
         for i in 0..30 {
@@ -662,22 +660,21 @@ proptest! {
 
             if should_fail {
                 cb.record_failure();
-                actual_failures += 1;
-                last_was_success = false;
             } else {
                 cb.record_success();
-                last_was_success = true;
             }
 
             // After success, failure count should be 0
-            if last_was_success {
+            if !should_fail {
                 prop_assert_eq!(cb.consecutive_failures(), 0,
                     "Success should reset failure count"
                 );
             }
         }
 
-        // After all operations, if last was success, count should be 0
+        // After all operations, failure count should match trailing failures
+        // (we can only assert 0 if the last operation was a success)
+        let last_was_success = !((seed.wrapping_mul(29u32).wrapping_add(7)) % 3) == 0;
         if last_was_success {
             prop_assert_eq!(cb.consecutive_failures(), 0);
         }

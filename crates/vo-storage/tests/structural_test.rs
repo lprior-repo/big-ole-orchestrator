@@ -92,7 +92,17 @@ impl DependencyChecker {
             "ulid",
             "vo-types",
         ];
-        let allowed_dev = ["tempfile", "thiserror", "proptest", "rstest"];
+        let allowed_dev = [
+            "tempfile",
+            "thiserror",
+            "proptest",
+            "rstest",
+            "ulid",
+            "vo-core",
+            "criterion",
+            "metrics-util",
+            "serial_test",
+        ];
 
         if let Some(missing) = required
             .iter()
@@ -962,7 +972,7 @@ fn checker_returns_error_when_validating_real_project_with_missing_module_on_dis
     let temp_dir = tempfile::tempdir().unwrap();
     std::fs::write(
         temp_dir.path().join("Cargo.toml"),
-        "[dependencies]\naes = \"0.7\"\naes-gcm = \"0.9\"\nblake3 = \"1\"\nbytes = \"1\"\ncrc32fast = \"1\"\nfjall = \"1\"\ngeneric-array = \"0.14\"\nmemmap2 = \"0.9\"\nparking_lot = \"0.12\"\nrand = \"0.8\"\nserde = \"1\"\nserde_json = \"1\"\nsha2 = \"0.10\"\nthiserror = \"1\"\ntokio = \"1\"\nulid = \"1\"\nvo-types = \"1\"",
+        "[dependencies]\naes = \"0.7\"\naes-gcm = \"0.9\"\nasync-trait = \"0.1\"\nblake3 = \"1\"\nbytes = \"1\"\ncrc32fast = \"1\"\nfjall = \"1\"\ngeneric-array = \"0.14\"\nmemmap2 = \"0.9\"\nmetrics = \"1\"\nparking_lot = \"0.12\"\nrand = \"0.8\"\nserde = \"1\"\nserde_json = \"1\"\nsha2 = \"0.10\"\nthiserror = \"1\"\ntokio = \"1\"\nulid = \"1\"\nvo-types = \"1\"",
     )
     .unwrap();
     // In a real test, setup invalid files here

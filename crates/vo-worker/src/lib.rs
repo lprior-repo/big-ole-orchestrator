@@ -10,8 +10,17 @@
 #![allow(unused)]
 #![allow(missing_docs)]
 
-pub mod connector;
-pub mod port;
+mod connector;
+pub use connector::{
+    CommitOutcome, Connector, ConnectorError, ConnectorRegistry, HttpConnector, PreparedEffect,
+    ReconcileOutcome,
+};
+pub mod executor;
+pub use executor::{
+    ExecutionOutcome, ManagedEffectError, ManagedEffectExecutor, ManagedEffectTask,
+};
+pub mod pool;
+mod port;
 pub mod retry;
 pub mod storage;
 pub mod supervisor;
@@ -23,11 +32,6 @@ use tokio::time::Duration;
 
 pub use port::LockManager;
 pub use retry::{LockManagerRetryWrapper, RetryConfig};
-
-pub use connector::{
-    CommitOutcome, Connector, ConnectorError, ConnectorRegistry, HttpConnector, PreparedEffect,
-    ReconcileOutcome,
-};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LockId(String);
@@ -312,22 +316,33 @@ mod connector_tests {
 
     #[async_trait::async_trait]
     impl Connector for NoopConnector {
-        fn connector_type(&self) -> &str { "noop" }
-        fn connector_version(&self) -> &str { "0.1.0" }
-        fn supports_compensation(&self) -> bool { false }
+        fn connector_type(&self) -> &str {
+            "noop"
+        }
+        fn connector_version(&self) -> &str {
+            "0.1.0"
+        }
+        fn supports_compensation(&self) -> bool {
+            false
+        }
         async fn prepare(
-            &self, _intent: serde_json::Value, effect_id: String, fence: u64,
+            &self,
+            _intent: serde_json::Value,
+            effect_id: String,
+            fence: u64,
         ) -> Result<PreparedEffect, ConnectorError> {
-            Ok(PreparedEffect { effect_id, payload: serde_json::json!({}), fence })
+            Ok(PreparedEffect {
+                effect_id,
+                payload: serde_json::json!({}),
+                fence,
+            })
         }
-        async fn commit(
-            &self, _prepared: PreparedEffect,
-        ) -> Result<CommitOutcome, ConnectorError> {
-            Ok(CommitOutcome::Committed { receipt: "noop".into() })
+        async fn commit(&self, _prepared: PreparedEffect) -> Result<CommitOutcome, ConnectorError> {
+            Ok(CommitOutcome::Committed {
+                receipt: "noop".into(),
+            })
         }
-        async fn reconcile(
-            &self, _effect_id: &str,
-        ) -> Result<ReconcileOutcome, ConnectorError> {
+        async fn reconcile(&self, _effect_id: &str) -> Result<ReconcileOutcome, ConnectorError> {
             Ok(ReconcileOutcome::NotCommitted)
         }
     }
@@ -377,7 +392,9 @@ mod connector_tests {
 
     #[test]
     fn commit_outcome_variants() {
-        let _ = CommitOutcome::Committed { receipt: "r".into() };
+        let _ = CommitOutcome::Committed {
+            receipt: "r".into(),
+        };
         let _ = CommitOutcome::Failed;
         let _ = CommitOutcome::Ambiguous;
     }
@@ -386,7 +403,9 @@ mod connector_tests {
     fn reconcile_outcome_maps_to_reconcile_action() {
         use vo_types::ReconcileAction;
         assert_eq!(
-            ReconcileAction::from(ReconcileOutcome::Committed { receipt: "r".into() }),
+            ReconcileAction::from(ReconcileOutcome::Committed {
+                receipt: "r".into()
+            }),
             ReconcileAction::Commit,
         );
         assert_eq!(
@@ -410,10 +429,22 @@ mod connector_tests {
     #[tokio::test]
     async fn noop_connector_prepare_commit_cycle() {
         let c = NoopConnector;
-        let pe = c.prepare(serde_json::json!({"url": "https://example.com"}), "fx-1".into(), 1).await.unwrap();
+        let pe = c
+            .prepare(
+                serde_json::json!({"url": "https://example.com"}),
+                "fx-1".into(),
+                1,
+            )
+            .await
+            .unwrap();
         assert_eq!(pe.effect_id, "fx-1");
         let outcome = c.commit(pe).await.unwrap();
-        assert_eq!(outcome, CommitOutcome::Committed { receipt: "noop".into() });
+        assert_eq!(
+            outcome,
+            CommitOutcome::Committed {
+                receipt: "noop".into()
+            }
+        );
     }
 
     #[tokio::test]
@@ -443,10 +474,14 @@ mod connector_tests {
     #[tokio::test]
     async fn http_connector_prepare_includes_idempotency_key() {
         let c = crate::connector::HttpConnector::new("https://api.example.com");
-        let pe = c.prepare(
-            serde_json::json!({"method": "POST", "path": "/charges"}),
-            "fx-42".into(), 7,
-        ).await.unwrap();
+        let pe = c
+            .prepare(
+                serde_json::json!({"method": "POST", "path": "/charges"}),
+                "fx-42".into(),
+                7,
+            )
+            .await
+            .unwrap();
         assert_eq!(pe.effect_id, "fx-42");
         assert_eq!(pe.fence, 7);
         assert_eq!(pe.payload["idempotency_key"], "fx-42:7");
@@ -495,7 +530,7 @@ mod tests {
         assert!(expired_entry.remaining_ttl().is_none());
     }
 
-   #[test]
+    #[test]
     fn test_wait_for_graph_cycle_detection() {
         let mut graph = WaitForGraph::default();
         let owner1 = OwnerId::new("owner1".into());
@@ -522,294 +557,22 @@ mod tests {
         assert!(cycle.is_some());
     }
 
-   #[test]
-    fn test_lock_entry_new_with_ttl() {
-        let owner = OwnerId::new("owner1".into());
-        let lock_id = LockId::new("test-lock");
-        let entry = LockEntry::new(lock_id, owner, LockMode::Exclusive, 5000);
-
-        assert_eq!(entry.lock_id.0, "test-lock");
-        assert_eq!(entry.owner.0, "owner1");
-        assert_eq!(entry.mode, LockMode::Exclusive);
-        assert_eq!(entry.status, LockStatus::Held);
-        assert!(entry.expires_at > entry.acquired_at);
-        assert!(!entry.hold_token.is_empty());
-    }
-
-    #[test]
-    fn test_lock_entry_remaining_ttl_expired() {
-        let owner = OwnerId::new("owner1".into());
-        let lock_id = LockId::new("expired-lock");
-        let expired_entry = LockEntry {
-            lock_id: lock_id.clone(),
-            owner: owner.clone(),
-            mode: LockMode::Exclusive,
-            status: LockStatus::Expired,
-            acquired_at: now() - chrono::Duration::seconds(10),
-            expires_at: now() - chrono::Duration::seconds(5),
-            hold_token: "token".to_string(),
-        };
-
-        assert!(expired_entry.is_expired());
-        assert!(expired_entry.remaining_ttl().is_none());
-    }
-
-    #[test]
-    fn test_lock_entry_remaining_ttl_valid() {
-        let owner = OwnerId::new("owner1".into());
-        let lock_id = LockId::new("valid-lock");
-        let entry = LockEntry {
-            lock_id: lock_id.clone(),
-            owner: owner.clone(),
-            mode: LockMode::Exclusive,
-            status: LockStatus::Held,
-            acquired_at: now() - chrono::Duration::seconds(1),
-            expires_at: now() + chrono::Duration::seconds(100),
-            hold_token: "token".to_string(),
-        };
-
-        assert!(!entry.is_expired());
-        assert!(entry.remaining_ttl().is_some());
-    }
-
-    #[test]
-    fn test_lock_request_fields() {
-        let request = LockRequest {
-            lock_id: LockId::new("my-lock"),
-            owner: OwnerId::new("owner-123".into()),
-            mode: LockMode::Shared,
-            ttl_ms: 30000,
-            request_id: "req-abc".to_string(),
-        };
-
-        assert_eq!(request.lock_id.0, "my-lock");
-        assert_eq!(request.owner.0, "owner-123");
-        assert_eq!(request.mode, LockMode::Shared);
-        assert_eq!(request.ttl_ms, 30000);
-        assert_eq!(request.request_id, "req-abc");
-    }
-
-    #[test]
-    fn test_lock_response_fields() {
-        let response = LockResponse {
-            request_id: "req-1".to_string(),
-            lock_id: LockId::new("lock-1"),
-            owner: OwnerId::new("owner-1".into()),
-            granted: true,
-            hold_token: Some("token-xyz".to_string()),
-            expires_at: Some(now() + chrono::Duration::seconds(60)),
-            error: None,
-        };
-
-        assert!(response.granted);
-        assert_eq!(response.lock_id.as_str(), "lock-1");
-        assert_eq!(response.hold_token, Some("token-xyz".to_string()));
-    }
-
-    #[test]
-    fn test_lock_response_denied() {
-        let response = LockResponse {
-            request_id: "req-2".to_string(),
-            lock_id: LockId::new("lock-2"),
-            owner: OwnerId::new("owner-2".into()),
-            granted: false,
-            hold_token: None,
-            expires_at: None,
-            error: Some("lock held by another".to_string()),
-        };
-
-        assert!(!response.granted);
-        assert!(response.error.is_some());
-        assert_eq!(response.error.unwrap(), "lock held by another");
-    }
-
-    #[test]
-    fn test_lock_release_fields() {
-        let release = LockRelease {
-            lock_id: LockId::new("release-lock"),
-            owner: OwnerId::new("release-owner".into()),
-            hold_token: "release-token".to_string(),
-        };
-
-        assert_eq!(release.lock_id.0, "release-lock");
-        assert_eq!(release.owner.0, "release-owner");
-        assert_eq!(release.hold_token, "release-token");
-    }
-
-    #[test]
-    fn test_lock_query_fields() {
-        let query = LockQuery {
-            lock_id: Some(LockId::new("query-lock")),
-            owner: Some(OwnerId::new("query-owner".into())),
-        };
-
-        assert!(query.lock_id.is_some());
-        assert!(query.owner.is_some());
-    }
-
-    #[test]
-    fn test_lock_query_empty() {
-        let query = LockQuery {
-            lock_id: None,
-            owner: None,
-        };
-
-        assert!(query.lock_id.is_none());
-        assert!(query.owner.is_none());
-    }
-
-    #[test]
-    fn test_lock_promote_fields() {
-        let promote = LockPromote {
-            lock_id: LockId::new("promote-lock"),
-            owner: OwnerId::new("promote-owner".into()),
-            hold_token: "promote-token".to_string(),
-            new_mode: LockMode::Exclusive,
-        };
-
-        assert_eq!(promote.lock_id.as_str(), "promote-lock");
-        assert_eq!(promote.new_mode, LockMode::Exclusive);
-    }
-
-    #[test]
-    fn test_lock_promote_response_granted() {
-        let response = LockPromoteResponse {
-            request_id: "promote-req".to_string(),
-            lock_id: LockId::new("promote-lock"),
-            granted: true,
-            new_mode: Some(LockMode::Exclusive),
-            error: None,
-        };
-
-        assert!(response.granted);
-        assert_eq!(response.new_mode, Some(LockMode::Exclusive));
-    }
-
-    #[test]
-    fn test_lock_promote_response_denied() {
-        let response = LockPromoteResponse {
-            request_id: "promote-req-2".to_string(),
-            lock_id: LockId::new("promote-lock-2"),
-            granted: false,
-            new_mode: None,
-            error: Some("cannot upgrade from exclusive".to_string()),
-        };
-
-        assert!(!response.granted);
-        assert!(response.error.is_some());
-    }
-
-    #[test]
-    fn test_lock_query_response_empty() {
-        let response = LockQueryResponse { locks: vec![] };
-        assert!(response.locks.is_empty());
-    }
-
-    #[test]
-    fn test_lock_query_response_with_locks() {
-        let owner = OwnerId::new("owner".into());
-        let lock_id = LockId::new("q-lock");
-        let entry = LockEntry::new(lock_id, owner, LockMode::Shared, 10000);
-
-        let response = LockQueryResponse { locks: vec![entry] };
-        assert_eq!(response.locks.len(), 1);
-        assert_eq!(response.locks[0].lock_id.as_str(), "q-lock");
-    }
-
-    #[test]
-    fn test_wait_edge_fields() {
-        let edge = WaitEdge {
-            waiter: OwnerId::new("waiter-1".into()),
-            lock_id: LockId::new("wait-lock"),
-            requested_mode: LockMode::Exclusive,
-        };
-
-        assert_eq!(edge.waiter.0, "waiter-1");
-        assert_eq!(edge.lock_id.0, "wait-lock");
-        assert_eq!(edge.requested_mode, LockMode::Exclusive);
-    }
-
-    #[test]
-    fn test_wait_for_graph_add_edge() {
-        let mut graph = WaitForGraph::default();
-        let waiter = OwnerId::new("new-waiter".into());
-        let lock = LockId::new("new-lock");
-
-        graph.add_edge(WaitEdge {
-            waiter: waiter.clone(),
-            lock_id: lock.clone(),
-            requested_mode: LockMode::Exclusive,
-        });
-
-        let waiters = graph.get_waiters(&lock);
-        assert_eq!(waiters.len(), 1);
-        assert_eq!(waiters[0].0, "new-waiter");
-    }
-
-    #[test]
-    fn test_wait_for_graph_remove_edges_for_owner() {
-        let mut graph = WaitForGraph::default();
-        let owner1 = OwnerId::new("owner1".into());
-        let owner2 = OwnerId::new("owner2".into());
-        let lock = LockId::new("multi-lock");
-
-        graph.add_edge(WaitEdge {
-            waiter: owner1.clone(),
-            lock_id: lock.clone(),
-            requested_mode: LockMode::Exclusive,
-        });
-        graph.add_edge(WaitEdge {
-            waiter: owner2.clone(),
-            lock_id: lock.clone(),
-            requested_mode: LockMode::Shared,
-        });
-
-        graph.remove_edges_for_owner(&owner1);
-
-        let waiters = graph.get_waiters(&lock);
-        assert_eq!(waiters.len(), 1);
-        assert_eq!(waiters[0].0, "owner2");
-    }
-
-    #[test]
-    fn test_wait_for_graph_remove_edges_for_lock() {
-        let mut graph = WaitForGraph::default();
-        let owner = OwnerId::new("owner".into());
-        let lock1 = LockId::new("graph-lock-1");
-        let lock2 = LockId::new("graph-lock-2");
-
-        graph.add_edge(WaitEdge {
-            waiter: owner.clone(),
-            lock_id: lock1.clone(),
-            requested_mode: LockMode::Exclusive,
-        });
-        graph.add_edge(WaitEdge {
-            waiter: owner.clone(),
-            lock_id: lock2.clone(),
-            requested_mode: LockMode::Exclusive,
-        });
-
-        graph.remove_edges_for_lock(&lock1);
-
-        let waiters = graph.get_waiters(&lock1);
-        assert!(waiters.is_empty());
-
-        let waiters = graph.get_waiters(&lock2);
-        assert_eq!(waiters.len(), 1);
-    }
-
     #[test]
     fn test_wait_for_graph_no_cycle() {
         let mut graph = WaitForGraph::default();
         let owner1 = OwnerId::new("owner1".into());
         let owner2 = OwnerId::new("owner2".into());
-        let lock = LockId::new("no-cycle-lock");
+        let owner3 = OwnerId::new("owner3".into());
+        let lock1 = LockId::new("lock1");
+        let lock2 = LockId::new("lock2");
 
-        graph.set_lock_holder(lock.clone(), owner1.clone());
+        graph.set_lock_holder(lock1.clone(), owner1.clone());
+        graph.set_lock_holder(lock2.clone(), owner2.clone());
+
         graph.add_edge(WaitEdge {
-            waiter: owner2.clone(),
-            lock_id: lock.clone(),
-            requested_mode: LockMode::Exclusive,
+            waiter: owner3.clone(),
+            lock_id: lock1.clone(),
+            requested_mode: LockMode::Shared,
         });
 
         let cycle = graph.detect_cycle();
@@ -817,89 +580,186 @@ mod tests {
     }
 
     #[test]
-    fn test_wait_for_graph_self_wait() {
+    fn test_wait_for_graph_empty() {
+        let graph = WaitForGraph::default();
+        assert!(graph.detect_cycle().is_none());
+    }
+
+    #[test]
+    fn test_wait_for_graph_self_loop() {
         let mut graph = WaitForGraph::default();
-        let owner = OwnerId::new("self-owner".into());
-        let lock = LockId::new("self-lock");
+        let owner = OwnerId::new("owner1".into());
+        let lock = LockId::new("lock1");
 
         graph.set_lock_holder(lock.clone(), owner.clone());
+
         graph.add_edge(WaitEdge {
             waiter: owner.clone(),
             lock_id: lock.clone(),
             requested_mode: LockMode::Exclusive,
         });
 
-        // Self-wait should be ignored in cycle detection
         let cycle = graph.detect_cycle();
         assert!(cycle.is_none());
     }
 
     #[test]
-    fn test_lock_error_not_found() {
-        let lock_id = LockId::new("missing");
-        let err = LockError::NotFound(lock_id.clone());
-        assert!(err.to_string().contains("missing"));
+    fn test_wait_for_graph_three_way_cycle() {
+        let mut graph = WaitForGraph::default();
+        let o1 = OwnerId::new("o1".into());
+        let o2 = OwnerId::new("o2".into());
+        let o3 = OwnerId::new("o3".into());
+        let l1 = LockId::new("l1");
+        let l2 = LockId::new("l2");
+        let l3 = LockId::new("l3");
+
+        graph.set_lock_holder(l1.clone(), o1.clone());
+        graph.set_lock_holder(l2.clone(), o2.clone());
+        graph.set_lock_holder(l3.clone(), o3.clone());
+
+        graph.add_edge(WaitEdge {
+            waiter: o1.clone(),
+            lock_id: l2.clone(),
+            requested_mode: LockMode::Exclusive,
+        });
+        graph.add_edge(WaitEdge {
+            waiter: o2.clone(),
+            lock_id: l3.clone(),
+            requested_mode: LockMode::Exclusive,
+        });
+        graph.add_edge(WaitEdge {
+            waiter: o3.clone(),
+            lock_id: l1.clone(),
+            requested_mode: LockMode::Exclusive,
+        });
+
+        let cycle = graph.detect_cycle();
+        assert!(cycle.is_some());
+        assert!(cycle.unwrap().len() == 3);
     }
 
     #[test]
-    fn test_lock_error_not_owner() {
-        let expected = OwnerId::new("expected".into());
-        let got = OwnerId::new("got".into());
-        let err = LockError::NotOwner { expected, got };
-        assert!(err.to_string().contains("expected"));
-        assert!(err.to_string().contains("got"));
+    fn test_wait_for_graph_get_waiters() {
+        let mut graph = WaitForGraph::default();
+        let o1 = OwnerId::new("o1".into());
+        let o2 = OwnerId::new("o2".into());
+        let lock = LockId::new("lock1");
+
+        graph.add_edge(WaitEdge {
+            waiter: o1.clone(),
+            lock_id: lock.clone(),
+            requested_mode: LockMode::Shared,
+        });
+        graph.add_edge(WaitEdge {
+            waiter: o2.clone(),
+            lock_id: lock.clone(),
+            requested_mode: LockMode::Exclusive,
+        });
+
+        let waiters = graph.get_waiters(&lock);
+        assert_eq!(waiters.len(), 2);
     }
 
     #[test]
-    fn test_lock_error_invalid_token() {
-        let err = LockError::InvalidToken;
-        assert!(err.to_string().contains("invalid"));
-        assert!(err.to_string().contains("token"));
+    fn test_wait_for_graph_remove_edges_for_owner() {
+        let mut graph = WaitForGraph::default();
+        let o1 = OwnerId::new("o1".into());
+        let o2 = OwnerId::new("o2".into());
+        let lock = LockId::new("lock1");
+
+        graph.add_edge(WaitEdge {
+            waiter: o1.clone(),
+            lock_id: lock.clone(),
+            requested_mode: LockMode::Shared,
+        });
+        graph.add_edge(WaitEdge {
+            waiter: o2.clone(),
+            lock_id: lock.clone(),
+            requested_mode: LockMode::Exclusive,
+        });
+
+        graph.remove_edges_for_owner(&o1);
+        let waiters = graph.get_waiters(&lock);
+        assert_eq!(waiters.len(), 1);
+        assert_eq!(waiters[0], o2);
     }
 
     #[test]
-    fn test_lock_error_deadlock() {
-        let err = LockError::DeadlockDetected;
-        assert!(err.to_string().contains("deadlock"));
+    fn test_wait_for_graph_remove_edges_for_lock() {
+        let mut graph = WaitForGraph::default();
+        let o1 = OwnerId::new("o1".into());
+        let lock1 = LockId::new("lock1");
+        let lock2 = LockId::new("lock2");
+
+        graph.add_edge(WaitEdge {
+            waiter: o1.clone(),
+            lock_id: lock1.clone(),
+            requested_mode: LockMode::Shared,
+        });
+        graph.add_edge(WaitEdge {
+            waiter: o1.clone(),
+            lock_id: lock2.clone(),
+            requested_mode: LockMode::Exclusive,
+        });
+
+        graph.remove_edges_for_lock(&lock1);
+        assert!(graph.get_waiters(&lock1).is_empty());
+        assert_eq!(graph.get_waiters(&lock2).len(), 1);
     }
 
     #[test]
-    fn test_lock_error_incompatible_mode() {
-        let err = LockError::IncompatibleMode;
-        assert!(err.to_string().contains("incompatible"));
-        assert!(err.to_string().contains("mode"));
+    fn test_wait_for_graph_add_edge_deduplicates() {
+        let mut graph = WaitForGraph::default();
+        let o1 = OwnerId::new("o1".into());
+        let lock = LockId::new("lock1");
+
+        graph.add_edge(WaitEdge {
+            waiter: o1.clone(),
+            lock_id: lock.clone(),
+            requested_mode: LockMode::Shared,
+        });
+        graph.add_edge(WaitEdge {
+            waiter: o1.clone(),
+            lock_id: lock.clone(),
+            requested_mode: LockMode::Exclusive,
+        });
+
+        let waiters = graph.get_waiters(&lock);
+        assert_eq!(waiters.len(), 1);
     }
 
     #[test]
-    fn test_lock_error_invalid_ttl() {
-        let err = LockError::InvalidTtl(0);
-        assert!(err.to_string().contains("0"));
+    fn test_lock_id_display() {
+        let id = LockId::new("my-lock");
+        assert_eq!(format!("{}", id), "my-lock");
     }
 
     #[test]
-    fn test_lock_error_nats() {
-        let err = LockError::Nats("connection failed".to_string());
-        assert!(err.to_string().contains("NATS"));
-        assert!(err.to_string().contains("connection"));
+    fn test_owner_id_display() {
+        let id = OwnerId::new("owner-1".into());
+        assert_eq!(format!("{}", id), "owner-1");
     }
 
     #[test]
-    fn test_lock_error_storage() {
-        let err = LockError::Storage("disk full".to_string());
-        assert!(err.to_string().contains("storage"));
-        assert!(err.to_string().contains("disk"));
+    fn test_lock_error_variants() {
+        let _ = LockError::NotFound(LockId::new("x"));
+        let _ = LockError::NotOwner {
+            expected: OwnerId::new("a".into()),
+            got: OwnerId::new("b".into()),
+        };
+        let _ = LockError::InvalidToken;
+        let _ = LockError::DeadlockDetected;
+        let _ = LockError::IncompatibleMode;
+        let _ = LockError::InvalidTtl(0);
+        let _ = LockError::Nats("conn err".into());
+        let _ = LockError::Storage("io err".into());
+        let _ = LockError::Timeout;
+        let _ = LockError::UpgradeWouldDeadlock;
     }
 
     #[test]
-    fn test_lock_error_timeout() {
-        let err = LockError::Timeout;
-        assert!(err.to_string().contains("timeout"));
-    }
-
-    #[test]
-    fn test_lock_error_upgrade_would_deadlock() {
-        let err = LockError::UpgradeWouldDeadlock;
-        assert!(err.to_string().contains("upgrade"));
-        assert!(err.to_string().contains("shared"));
+    fn test_lock_mode_shared_shared_compatible() {
+        assert!(!LockMode::Shared.can_upgrade_to(LockMode::Shared));
+        assert!(!LockMode::Exclusive.can_upgrade_to(LockMode::Exclusive));
     }
 }

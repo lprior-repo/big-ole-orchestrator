@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::string_newtype;
-use crate::InstanceId;
+use crate::string_types::InstanceId;
 use crate::ParseError;
 
 /// Stable dedupe key supplied by caller or derived from provider-native event ID.

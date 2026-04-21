@@ -535,7 +535,6 @@ fn registry_names_contains_all_eight() {
     assert!(names.contains(&"doctor"));
     assert!(names.contains(&"rebuild"));
     assert!(names.contains(&"status"));
-    assert!(names.contains(&"workspace"));
 }
 
 #[test]

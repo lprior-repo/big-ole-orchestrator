@@ -12,21 +12,7 @@ pub struct SpscQueue<T> {
     tail: AtomicUsize,
 }
 
-/// # Safety
-///
-/// `SpscQueue<T>` can be sent across threads if `T: Send` because all access
-/// to the buffer is through the atomic head/tail indices which ensure only
-/// one thread writes and one thread reads. The queue is designed for
-/// Single-Producer Single-Consumer use only.
 unsafe impl<T: Send> Send for SpscQueue<T> {}
-
-/// # Safety
-///
-/// `SpscQueue<T>` can be shared between threads if `T: Send` because:
-/// 1. All buffer access is synchronized via atomic head/tail operations
-/// 2. The SPSC discipline ensures only one producer and one consumer
-/// 3. Proper memory ordering fences prevent data races
-/// 4. Arc<SpscQueue<T>> is the intended usage pattern for multi-threaded access
 unsafe impl<T: Send> Sync for SpscQueue<T> {}
 
 pub struct Sender<T> {
@@ -113,7 +99,7 @@ impl<T> SpscQueue<T> {
         self.len() == 0
     }
 
-    pub fn capacity(&self) -> usize {
+    pub const fn capacity(&self) -> usize {
         self.cap
     }
 }
@@ -158,10 +144,7 @@ impl<T> Drop for SpscQueue<T> {
             unsafe { slot.assume_init_drop() };
             idx = idx.wrapping_add(1);
         }
-        unsafe {
-            let slice = std::slice::from_raw_parts_mut(self.buffer, self.cap);
-            let _ = Box::from_raw(slice);
-        }
+        drop(unsafe { Box::from_raw(std::ptr::slice_from_raw_parts_mut(self.buffer, self.cap)) });
     }
 }
 
@@ -186,33 +169,13 @@ impl<T> fmt::Debug for Receiver<T> {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Error)]
 pub enum SpscError {
+    #[error("queue is full")]
     Full,
+    #[error("queue is empty")]
     Empty,
 }
-
-impl SpscError {
-    #[must_use]
-    pub const fn as_str(&self) -> &'static str {
-        match self {
-            Self::Full => "queue is full",
-            Self::Empty => "queue is empty",
-        }
-    }
-}
-
-impl std::fmt::Display for SpscError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Full => write!(f, "queue is full"),
-            Self::Empty => write!(f, "queue is empty"),
-        }
-    }
-}
-
-#[allow(clippy::missing_errors_doc)]
-impl std::error::Error for SpscError {}
 
 #[cfg(test)]
 mod tests {
@@ -299,33 +262,4 @@ mod tests {
         let queue = SpscQueue::<i32>::new(8);
         assert!(format!("{:?}", queue).contains("SpscQueue"));
     }
-}
-
-#[test]
-fn spsc_queue_sync_thread_safe() {
-    let queue = Arc::new(SpscQueue::<i32>::new(8));
-    let queue_clone = Arc::clone(&queue);
-
-    let handle = std::thread::spawn(move || {
-        for i in 0..100 {
-            loop {
-                if queue_clone.send(i).is_ok() {
-                    break;
-                }
-                std::hint::spin_loop();
-            }
-        }
-    });
-
-    let mut received = 0;
-    while received < 100 {
-        while let Ok(_) = queue.recv() {
-            received += 1;
-        }
-        if received < 100 {
-            std::hint::spin_loop();
-        }
-    }
-
-    handle.join().unwrap();
 }

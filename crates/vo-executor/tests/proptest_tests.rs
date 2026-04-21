@@ -113,7 +113,6 @@ proptest! {
                 backoff_ms,
                 backoff_multiplier: 1.0,
                 max_backoff_ms: u64::MAX,
-                jitter_factor: 0.1,
             })
         );
     }
@@ -135,7 +134,6 @@ proptest! {
                 backoff_ms,
                 backoff_multiplier: large_multiplier,
                 max_backoff_ms: u64::MAX,
-                jitter_factor: 0.1,
             }),
             "Should accept large multiplier {}",
             large_multiplier

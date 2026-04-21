@@ -20,7 +20,7 @@ fn make_job(priority: JobPriority, policy: SchedulePolicy) -> ScheduledJob {
         RetryPolicy::default_policy(),
         bytes::Bytes::from_static(b"payload"),
     )
-    .expect("job creation should succeed with valid policy")
+    .unwrap()
 }
 
 fn past_due() -> SchedulePolicy {
@@ -137,21 +137,19 @@ proptest! {
 }
 
 // ATTACK 8: Cancelled job still in heap — cancel changes state but
-// pop_due must skip terminal-state jobs instead of returning them.
+// pop_due only checks due_at, not state. Cancelled jobs leak through.
 #[test]
-fn cancelled_job_skipped_by_pop_due() {
+fn cancelled_job_leaks_through_pop_due() {
     let mut q = SchedulerQueue::new(10);
     let id = q
         .insert(make_job(JobPriority::Critical, past_due()))
         .unwrap();
     q.cancel(&id).unwrap();
-    // FIXED: pop_due must skip cancelled jobs.
     let popped = q.pop_due(Utc::now());
     assert!(
-        popped.is_some(),
-        "BUG CONFIRMED: cancelled job leaks through pop_due (state not checked)"
+        popped.is_none(),
+        "FIXED: cancelled job should not leak through pop_due (state is checked)"
     );
-    assert_eq!(popped.unwrap().state, JobState::Cancelled);
 }
 
 // ATTACK 9: Remove-then-operate — all post-removal accesses must error (UAF).

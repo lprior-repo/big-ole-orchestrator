@@ -131,7 +131,7 @@ impl MessageBus {
 
     pub async fn send(&self, envelope: Fd3Envelope) -> Result<(), BusError> {
         let permit = self.sender.reserve().await.map_err(|_| BusError::BusClosed)?;
-        permit.send(BusMessage::Request(envelope)).await.map_err(|_| BusError::BusClosed)?;
+        permit.send(BusMessage::Request(envelope));
         Ok(())
     }
 
@@ -139,7 +139,7 @@ impl MessageBus {
         permit: OwnedPermit<'_, BusMessage>,
         envelope: Fd3Envelope,
     ) -> Result<(), BusError> {
-        permit.send(BusMessage::Request(envelope)).await.map_err(|_| BusError::BusClosed)?;
+        permit.send(BusMessage::Request(envelope));
         Ok(())
     }
 

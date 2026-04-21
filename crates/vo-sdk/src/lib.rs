@@ -41,15 +41,13 @@
 pub mod dag;
 pub mod graph;
 pub mod node_handle;
-pub mod runtime;
+
 pub use dag::Workflow;
-pub use graph_args::{
+pub use graph::{
     emit_graph_if_requested, parse_graph_args, EdgeSpec, GraphArgs, GraphArgsError, NodeSpec,
     ValidationError, WorkflowSpec,
 };
-pub use runtime::start;
-mod read;
-mod write;
+pub mod io;
 
 #[cfg(test)]
 mod tests;
@@ -60,7 +58,6 @@ use vo_types::IdempotencyKey;
 
 // Re-export public API
 pub use io::{is_read, is_written, read_input, write_failure, write_success};
-pub use vo_types::{TaskFailureKind, TaskInputEnvelope};
 
 #[derive(Debug, PartialEq, Error)]
 pub enum SdkError {
@@ -72,6 +69,26 @@ pub enum SdkError {
     AlreadyWritten,
     #[error("WriteError")]
     WriteError,
+}
+
+// TODO(vel-edo): TaskFailureKind should live in vo-types per the contract.
+// Kept here temporarily because this bead is scoped to vo-sdk only.
+// See: contract.md precondition "vo-types must define the shared IPC types"
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum TaskFailureKind {
+    User,
+    System,
+    Timeout,
+}
+
+impl TaskFailureKind {
+    pub(crate) fn as_str(self) -> &'static str {
+        match self {
+            Self::User => "User",
+            Self::System => "System",
+            Self::Timeout => "Timeout",
+        }
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -87,3 +104,10 @@ impl TaskInput {
     }
 }
 
+// TODO(vel-edo): TaskInputEnvelope should live in vo-types per the contract.
+// Kept here temporarily because this bead is scoped to vo-sdk only.
+#[derive(serde::Deserialize)]
+pub(crate) struct TaskInputEnvelope {
+    idempotency_key: String,
+    data: Value,
+}

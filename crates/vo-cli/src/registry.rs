@@ -49,7 +49,6 @@ fn command_key(command: &Command) -> Option<&'static str> {
         Command::Purge { .. } => Some("purge"),
         Command::Check { .. } => Some("check"),
         Command::Compensate { .. } => Some("compensate"),
-        Command::Unquarantine { .. } => Some("unquarantine"),
         Command::Gc { .. } => Some("gc"),
         Command::Init { .. } => Some("init"),
         Command::Lock { .. } => Some("lock"),

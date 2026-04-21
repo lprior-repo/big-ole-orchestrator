@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use thiserror::Error;
 
-#[derive(Debug, Clone, Error, PartialEq, Eq)]
+#[derive(Debug, Error, PartialEq, Eq)]
 pub enum Error {
     #[error("Config file not found: {0}")]
     ConfigFileNotFound(PathBuf),

@@ -4,7 +4,7 @@
 //! and the fence-token lease record type.
 
 use crate::integer_types::FenceToken;
-use crate::{InstanceId, StepId};
+use crate::string_types::{InstanceId, StepId};
 
 use super::lifecycle::{LifecycleState, OperationalStatus, TransitionEvent};
 
@@ -68,14 +68,8 @@ pub fn apply(
         (LifecycleState::StepExecuting, TransitionEvent::CompleteStep) => {
             Ok(LifecycleState::Completed)
         }
-        (LifecycleState::StepExecuting, TransitionEvent::YieldWithBlob) => {
-            Ok(LifecycleState::PendingPublication)
-        }
         (LifecycleState::WaitingForTimer, TransitionEvent::TimerExpired) => {
             Ok(LifecycleState::Failed)
-        }
-        (LifecycleState::PendingPublication, TransitionEvent::ConfirmPublication) => {
-            Ok(LifecycleState::Completed)
         }
 
         // Cancel from any non-terminal state
@@ -99,9 +93,20 @@ pub fn apply(
             TransitionEvent::Fail,
         ) => Ok(LifecycleState::Failed),
 
-        // Cancel from PendingPublication
-        (LifecycleState::PendingPublication, TransitionEvent::Cancel) => {
-            Ok(LifecycleState::Cancelled)
+        // Publication barrier transitions (ADR-040)
+        (LifecycleState::StepExecuting, TransitionEvent::YieldWithBlob) => {
+            Ok(LifecycleState::PendingPublication)
+        }
+        (LifecycleState::PendingPublication, TransitionEvent::ConfirmPublication) => {
+            Ok(LifecycleState::Completed)
+        }
+        (LifecycleState::PendingPublication, TransitionEvent::PublicationFailed) => {
+            Ok(LifecycleState::Failed)
+        }
+
+        // EmitOutputRef is allowed from Completed (post-publication emission)
+        (LifecycleState::Completed, TransitionEvent::EmitOutputRef) => {
+            Ok(LifecycleState::Completed)
         }
 
         // Terminal states reject all other transitions

@@ -50,7 +50,9 @@ fn arb_timestamp() -> impl Strategy<Value = u64> {
 #[test]
 fn red_queen_u64_be_no_collision_across_full_range() {
     let mut seen = std::collections::HashSet::new();
-    let samples: Vec<u64> = (0..10000).chain([u64::MAX, u64::MAX - 1]).collect();
+    let samples: Vec<u64> = (0..10000)
+        .chain([u64::MAX, u64::MAX - 1, u64::MAX - 2, u64::MAX - 3])
+        .collect();
 
     for val in samples {
         let encoded = encode_u64_be(val);
@@ -201,7 +203,7 @@ fn red_queen_instance_id_no_collision_across_ids() {
 #[test]
 fn red_queen_event_key_prefix_scan_no_collision() {
     let id1 = InstanceId::parse("00000000000000000000000001").unwrap();
-    let id2 = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+    let id2 = InstanceId::parse("00000000000000000000000002").unwrap();
 
     let seq1 = SequenceNumber::try_from(1u64).unwrap();
     let seq2 = SequenceNumber::try_from(2u64).unwrap();
@@ -241,7 +243,7 @@ fn red_queen_event_key_prefix_scan_no_collision() {
 fn red_queen_event_key_lexicographic_ordering() {
     let id = min_instance_id();
 
-    let test_cases: Vec<(u64, u64)> = vec![(1, 2), (100, 200), (u64::MAX - 1, u64::MAX)];
+    let test_cases: Vec<(u64, u64)> = vec![(1, 2), (u64::MAX - 1, u64::MAX), (100, 200)];
 
     for (seq_a, seq_b) in test_cases {
         let key_a = encode_event_key(&id, SequenceNumber::try_from(seq_a).unwrap());
@@ -300,7 +302,7 @@ fn red_queen_timer_key_prefix_scan() {
 #[test]
 fn red_queen_lease_key_prefix_scan_safety() {
     let id1 = min_instance_id();
-    let id2 = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+    let id2 = InstanceId::parse("00000000000000000000000002").unwrap();
 
     let step1 = StepId::parse("step-a").unwrap();
     let step2 = StepId::parse("step-b").unwrap();
@@ -330,7 +332,7 @@ fn red_queen_lease_key_prefix_scan_safety() {
 #[test]
 fn red_queen_lease_key_no_collision() {
     let id1 = min_instance_id();
-    let id2 = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+    let id2 = InstanceId::parse("00000000000000000000000002").unwrap();
 
     let step1 = StepId::parse("a").unwrap();
     let step2 = StepId::parse("b").unwrap();
@@ -527,7 +529,7 @@ fn red_queen_u16_be_roundtrip() {
 #[test]
 fn red_queen_prefix_scan_boundary_no_collision() {
     let id1 = InstanceId::parse("00000000000000000000000001").unwrap();
-    let id2 = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+    let id2 = InstanceId::parse("00000000000000000000000002").unwrap();
 
     let prefix1 = get_event_key_prefix(&id1);
     let prefix2 = get_event_key_prefix(&id2);
@@ -551,8 +553,8 @@ fn red_queen_lease_key_adversarial_prefix_collision() {
     let id = min_instance_id();
 
     let step1 = StepId::parse("a").unwrap();
-    let step2 = StepId::parse("aa").unwrap();
-    let _step3 = StepId::parse("b").unwrap();
+    let step2 = StepId::parse("b").unwrap();
+    let step3 = StepId::parse("c").unwrap();
 
     let key1 = encode_lease_key(&id, &step1);
     let key2 = encode_lease_key(&id, &step2);

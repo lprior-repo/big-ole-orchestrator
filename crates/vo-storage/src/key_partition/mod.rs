@@ -90,12 +90,6 @@ impl DekEntry {
     pub const fn retire(&mut self) {
         self.status = DekStatus::Retired;
     }
-
-    /// Mark this DEK as revoked.
-    /// Revoked DEKs can still be used for decryption (recovery) but not encryption.
-    pub const fn revoke(&mut self) {
-        self.status = DekStatus::Revoked;
-    }
 }
 
 /// DEK lifecycle status.
@@ -103,10 +97,7 @@ impl DekEntry {
 pub enum DekStatus {
     /// DEK is active and can be used for encryption/decryption.
     Active,
-    /// DEK has been revoked and cannot be used for NEW encryption operations,
-    /// but existing data encrypted with it can still be decrypted (recovery path).
-    Revoked,
-    /// DEK has been retired (crypto-shredded) and cannot be used for any operations.
+    /// DEK has been retired (crypto-shredded) and cannot be used.
     Retired,
 }
 
@@ -120,8 +111,6 @@ pub enum DekStatus {
 pub enum DekStoreError {
     #[error("DEK not found for instance: {instance_id}")]
     DekNotFound { instance_id: String },
-    #[error("DEK has been revoked: {dek_id}")]
-    DekRevoked { dek_id: String },
     #[error("DEK has been retired (crypto-shredded): {dek_id}")]
     DekRetired { dek_id: String },
     #[error("DEK already exists for instance: {instance_id}")]
@@ -265,32 +254,6 @@ pub trait DekStore: Send + Sync {
     ///
     /// Returns `DekStoreError::DekNotFound` if no DEK exists to retire.
     fn retire_dek(&self, instance_id: &InstanceId) -> Result<(), DekStoreError>;
-
-    /// Revoke a DEK.
-    ///
-    /// After revocation, the DEK cannot be used for NEW encryption operations,
-    /// but existing data encrypted with it CAN still be decrypted (recovery path).
-    /// This is different from retirement which makes the DEK completely unusable.
-    ///
-    /// # Errors
-    ///
-    /// Returns `DekStoreError::DekNotFound` if no DEK exists to revoke.
-    fn revoke_dek(&self, instance_id: &InstanceId) -> Result<(), DekStoreError>;
-
-    /// Retrieve a DEK for decryption/recovery purposes.
-    ///
-    /// Unlike `retrieve_dek`, this method allows retrieval of revoked DEKs
-    /// to enable recovery of data encrypted with revoked keys.
-    ///
-    /// # Errors
-    ///
-    /// Returns `DekStoreError::DekNotFound` if no DEK exists.
-    /// Returns `DekStoreError::DekRetired` if the DEK has been retired (crypto-shredded).
-    fn retrieve_dek_for_decryption(
-        &self,
-        instance_id: &InstanceId,
-        kek: &[u8; 32],
-    ) -> Result<[u8; 32], DekStoreError>;
 
     /// List all DEK IDs for a given instance.
     ///

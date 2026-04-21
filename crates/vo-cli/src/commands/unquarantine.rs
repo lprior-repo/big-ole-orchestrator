@@ -109,15 +109,15 @@ pub fn display_result(result: &UnquarantineResult) {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_invalid_workflow_name_returns_error() {
-        let result = unquarantine_workflow("http://localhost:3000", "", "operator");
+    #[tokio::test]
+    async fn test_invalid_workflow_name_returns_error() {
+        let result = unquarantine_workflow("http://localhost:3000", "", "operator").await;
         assert!(matches!(result, Err(UnquarantineError::InvalidWorkflowName(_))));
     }
 
-    #[test]
-    fn test_empty_workflow_name() {
-        let result = unquarantine_workflow("http://localhost:3000", "", "operator");
+    #[tokio::test]
+    async fn test_empty_workflow_name() {
+        let result = unquarantine_workflow("http://localhost:3000", "", "operator").await;
         assert!(matches!(result, Err(UnquarantineError::InvalidWorkflowName(msg)) if msg.contains("empty")));
     }
 }

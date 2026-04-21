@@ -3,6 +3,7 @@
 pub type InstanceId = String;
 pub type NamespaceId = String;
 pub type TimerId = String;
+pub type EventId = String;
 
 #[cfg(test)]
 mod tests {
@@ -27,6 +28,13 @@ mod tests {
         let timer: TimerId = "timer-xyz".into();
         assert_eq!(timer.len(), 9);
         assert_eq!(timer.as_str(), "timer-xyz");
+    }
+
+    #[test]
+    fn event_id_behaves_as_string() {
+        let eid: EventId = "evt-abc-123".into();
+        assert_eq!(eid.len(), 11);
+        assert_eq!(eid.as_str(), "evt-abc-123");
     }
 
     #[test]
