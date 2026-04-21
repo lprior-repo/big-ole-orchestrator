@@ -1,0 +1,17 @@
+{
+  "running": true,
+  "pid": 2979384,
+  "port": 3307,
+  "started_at": "2026-04-20T21:04:29.337370049-05:00",
+  "data_dir": "/home/lewis/gt/.dolt-data",
+  "databases": [
+    "Seshat",
+    "ha",
+    "hardline",
+    "hq",
+    "oya_frontend",
+    "tw",
+    "twerk",
+    "veloxide"
+  ]
+}

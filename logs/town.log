@@ -1,0 +1,4 @@
+2026-04-20 21:06:25 [handoff-NOPERSIST] twerk/witness handoff FAILED (Dolt persistence) (Witness: Dolt recovery + infra repair — error: creating handoff mail: Error: failed to open database: Dolt server unreachable at 127.0.0.1:3307: dial tcp 127.0.0.1:3307: connect: connection refused
+
+The Dolt server may not be running. Try:
+  bd dolt start)
