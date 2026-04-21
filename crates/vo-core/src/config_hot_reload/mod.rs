@@ -4,12 +4,14 @@ mod channel;
 mod debounced;
 mod error;
 mod hot_reload;
+mod observability;
 mod watcher;
 
 pub use channel::EventChannel;
 pub use debounced::DebouncedFileWatcher;
 pub use error::Error;
 pub use hot_reload::{ConfigValidator, HotReloadConfig};
+pub use observability::{ReloadEvent, ReloadMetrics};
 pub use watcher::{FileWatcher, FilteredFileWatcher, WatcherConfig};
 
 pub use crate::debounce::FileEvent;
