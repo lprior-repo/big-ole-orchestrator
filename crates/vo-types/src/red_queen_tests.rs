@@ -154,13 +154,11 @@ fn rq_direct_retry_policy_construction_allows_invalid_state() {
 // Tests that error messages are semantically correct
 // ===========================================================================
 
-// RQ-07: UnknownNode error when SOURCE is unknown has misleading semantics
-// The error variant says "references unknown target node '{unknown_target}'"
-// but when the SOURCE is unknown, both edge_source and unknown_target are set
-// to the source name. The message reads "edge from 'phantom' references
-// unknown target node 'phantom'" which is semantically wrong.
+// RQ-07: UnknownNode error when SOURCE is unknown
+// The error correctly identifies the unknown node (phantom) and reports it
+// via the edge_source field, with unknown_node also set to phantom.
 #[test]
-fn rq_unknown_source_error_message_is_misleading() {
+fn rq_unknown_source_error_message_is_correct() {
     let json = serde_json::json!({
         "workflow_name": "test",
         "nodes": [{"node_name": "b", "retry_policy": {"max_attempts": 1, "backoff_ms": 0, "backoff_multiplier": 1.0}}],
@@ -175,18 +173,15 @@ fn rq_unknown_source_error_message_is_misleading() {
     match &err {
         WorkflowDefinitionError::UnknownNode {
             edge_source,
-            unknown_target,
+            unknown_node,
         } => {
-            // The unknown node is the SOURCE (phantom), not the target (b)
             assert_eq!(edge_source.0, "phantom");
-            assert_eq!(unknown_target.0, "phantom");
-            // The display says "unknown target node" but the unknown is the SOURCE
+            assert_eq!(unknown_node.0, "phantom");
             let msg = err.to_string();
             assert!(
-                msg.contains("unknown target node"),
-                "message says 'target' but the unknown node is the source"
+                msg.contains("unknown node"),
+                "message should say 'unknown node'"
             );
-            // This is a MINOR defect: the error message is semantically misleading
         }
         _ => panic!("expected UnknownNode, got {:?}", err),
     }
@@ -205,10 +200,10 @@ fn rq_unknown_target_error_message_is_correct() {
     match result {
         Err(WorkflowDefinitionError::UnknownNode {
             edge_source,
-            unknown_target,
+            unknown_node,
         }) => {
             assert_eq!(edge_source.0, "a");
-            assert_eq!(unknown_target.0, "ghost");
+            assert_eq!(unknown_node.0, "ghost");
         }
         _ => panic!("expected UnknownNode with correct fields"),
     }

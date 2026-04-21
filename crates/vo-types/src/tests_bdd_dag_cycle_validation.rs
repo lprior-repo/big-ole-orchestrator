@@ -783,7 +783,7 @@ mod edge_integrity {
             result,
             Err(WorkflowDefinitionError::UnknownNode {
                 edge_source: NodeName("ghost".into()),
-                unknown_target: NodeName("ghost".into()),
+                unknown_node: NodeName("ghost".into()),
             })
         );
         Ok(())
@@ -802,7 +802,7 @@ mod edge_integrity {
             result,
             Err(WorkflowDefinitionError::UnknownNode {
                 edge_source: NodeName("A".into()),
-                unknown_target: NodeName("ghost".into()),
+                unknown_node: NodeName("ghost".into()),
             })
         );
         Ok(())
