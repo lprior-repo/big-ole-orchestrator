@@ -71,6 +71,16 @@ pub enum OrchestratorMsg {
         payload: Bytes,
         reply: ractor::port::RpcReplyPort<Result<(), SignalError>>,
     },
+
+}
+
+/// Error type for compensation operations.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum CompensateError {
+    #[error("instance not found: {0}")]
+    NotFound(String),
+    #[error("compensation failed: {0}")]
+    Failed(String),
 }
 
 /// Error type for signal operations.

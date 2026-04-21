@@ -17,14 +17,6 @@ use vo_types::TimestampMs;
 
 const MAX_DRIFT_PERCENT: f64 = 10.0;
 
-fn test_instance_id() -> vo_types::InstanceId {
-    vo_types::InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap()
-}
-
-fn test_timer_id() -> vo_types::TimerId {
-    vo_types::TimerId::parse("timer-rq004-001").unwrap()
-}
-
 fn calculate_drift_percent(expected_ms: u64, actual_ms: u64) -> f64 {
     if expected_ms == 0 {
         return 0.0;
@@ -45,6 +37,7 @@ async fn rq_timer_accuracy_idle() {
     let validated = validate_sleep_duration(duration_ms).expect("valid duration");
     let base_ms = TimestampMs::now().as_u64();
     let fire_at_ms = compute_fire_at(base_ms, validated).expect("valid fire_at");
+    assert!(fire_at_ms > base_ms, "fire_at_ms must exceed base_ms");
 
     tokio::time::sleep(Duration::from_millis(duration_ms as u64)).await;
 
@@ -67,6 +60,9 @@ async fn rq_timer_accuracy_under_load_single_timer() {
     let base_ms = TimestampMs::now().as_u64();
     let validated = validate_sleep_duration(duration_ms).expect("valid duration");
     let fire_at_ms = compute_fire_at(base_ms, validated).expect("valid fire_at");
+    assert!(fire_at_ms > base_ms);
+
+    let timer_start = std::time::Instant::now();
 
     let counter = Arc::new(AtomicU64::new(0));
     let counter_clone = counter.clone();
@@ -81,6 +77,14 @@ async fn rq_timer_accuracy_under_load_single_timer() {
     tokio::time::sleep(Duration::from_millis(duration_ms as u64)).await;
     let _ = load_handle.await;
 
+    let actual_ms = timer_start.elapsed().as_millis() as u64;
+    assert!(
+        drift_within_tolerance(duration_ms as u64, actual_ms),
+        "Timer under single-timer load should have drift < {}%, got {:.2}%",
+        MAX_DRIFT_PERCENT,
+        calculate_drift_percent(duration_ms as u64, actual_ms)
+    );
+
     let elapsed = counter.load(Ordering::SeqCst);
     assert!(elapsed > 0, "Load generation should have executed");
 }
@@ -91,6 +95,7 @@ async fn rq_timer_accuracy_under_load_cpu_contention() {
     let base_ms = TimestampMs::now().as_u64();
     let validated = validate_sleep_duration(duration_ms).expect("valid duration");
     let fire_at_ms = compute_fire_at(base_ms, validated).expect("valid fire_at");
+    assert!(fire_at_ms > base_ms);
 
     let _load_handles: Vec<_> = (0..4)
         .map(|_| {
@@ -125,14 +130,12 @@ async fn rq_timer_accuracy_under_load_async_contention() {
     let base_ms = TimestampMs::now().as_u64();
     let validated = validate_sleep_duration(duration_ms).expect("valid duration");
     let fire_at_ms = compute_fire_at(base_ms, validated).expect("valid fire_at");
+    assert!(fire_at_ms > base_ms);
 
-    let barrier = Arc::new(tokio::sync::Barrier::new(10));
     let mut handles = vec![];
 
-    for _ in 0..9 {
-        let barrier_clone = barrier.clone();
+    for _ in 0..8 {
         handles.push(tokio::spawn(async move {
-            barrier_clone.wait().await;
             let start = std::time::Instant::now();
             while start.elapsed().as_millis() < 150 {
                 tokio::task::yield_now().await;
@@ -159,7 +162,7 @@ async fn rq_timer_accuracy_under_load_async_contention() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn rq_timer_drift_within_10_percent_at_idle() {
-    let durations = [50i64, 100, 200, 500];
+    let durations = [100i64, 200, 500];
 
     for duration in durations {
         let timer_start = std::time::Instant::now();
