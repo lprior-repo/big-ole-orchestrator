@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "rigs": {
+    "twerk": {
+      "git_url": "",
+      "added_at": "2026-04-20T21:03:34.836121349-05:00",
+      "beads": {
+        "repo": "",
+        "prefix": "tw"
+      }
+    }
+  }
+}
