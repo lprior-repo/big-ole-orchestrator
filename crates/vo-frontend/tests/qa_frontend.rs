@@ -17,7 +17,7 @@ fn node_render_invariants_category_matches_kind() {
         (vo_types::NodeKind::Unsafe, NodeCategory::Flow, "zap"),
     ];
     for (kind, expected_cat, expected_icon) in kinds {
-        let node = Node::new(NodeId::new(), "test".into(), kind);
+        let node = Node::new(NodeId::new(), "test".into(), kind).expect("valid name");
         assert_eq!(
             node.category, expected_cat,
             "category mismatch for {kind:?}"
@@ -67,7 +67,7 @@ fn escape_key_detection() {
 fn workflow_mutation_add_remove_get_consistent() {
     let mut wf = Workflow::new("test".into());
     let id = NodeId::new();
-    wf.add_node(Node::new(id.clone(), "a".into(), vo_types::NodeKind::Pure));
+    wf.add_node(Node::new(id.clone(), "a".into(), vo_types::NodeKind::Pure).expect("valid name"));
     assert!(wf.get_node(id.clone()).is_some());
     wf.remove_node(id.clone());
     assert!(wf.get_node(id).is_none());
@@ -94,7 +94,7 @@ fn command_palette_empty_query_returns_all_templates() {
 
 #[test]
 fn node_set_kind_updates_category_and_icon() {
-    let mut node = Node::new(NodeId::new(), "test".into(), vo_types::NodeKind::Pure);
+    let mut node = Node::new(NodeId::new(), "test".into(), vo_types::NodeKind::Pure).expect("valid name");
     assert_eq!(node.category, NodeCategory::Flow);
     assert_eq!(node.icon, "zap");
     node.set_kind(vo_types::NodeKind::ManagedEffect);
@@ -104,7 +104,7 @@ fn node_set_kind_updates_category_and_icon() {
 
 #[test]
 fn node_config_update_merges_fields() {
-    let mut node = Node::new(NodeId::new(), "cfg".into(), vo_types::NodeKind::Pure);
+    let mut node = Node::new(NodeId::new(), "cfg".into(), vo_types::NodeKind::Pure).expect("valid name");
     node.apply_config_update(&serde_json::json!({"url": "http://localhost"}));
     assert_eq!(node.config["url"], "http://localhost");
     node.apply_config_update(&serde_json::json!({"method": "POST"}));
@@ -138,7 +138,7 @@ fn workflow_nodes_by_id_lookup_consistent() {
         id.clone(),
         "x".into(),
         vo_types::NodeKind::Signal,
-    ));
+    ).expect("valid name"));
     let map = wf.nodes_by_id();
     assert_eq!(map.len(), 1);
     assert_eq!(map[&id.0].name, "x");
