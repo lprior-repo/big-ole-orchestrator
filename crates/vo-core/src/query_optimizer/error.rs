@@ -1,26 +1,15 @@
-use std::fmt;
-
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum OptimizationError {
+    #[error("invalid plan: {0}")]
     InvalidPlan(String),
+    #[error("no valid plan found")]
     NoPlanFound,
+    #[error("cost estimate overflowed")]
     CostOverflow,
+    #[error("missing statistics for: {0}")]
     MissingStatistics(String),
+    #[error("unsupported operation: {0}")]
     UnsupportedOperation(String),
 }
-
-impl fmt::Display for OptimizationError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::InvalidPlan(msg) => write!(f, "invalid plan: {msg}"),
-            Self::NoPlanFound => write!(f, "no valid plan found"),
-            Self::CostOverflow => write!(f, "cost estimate overflowed"),
-            Self::MissingStatistics(table) => write!(f, "missing statistics for: {table}"),
-            Self::UnsupportedOperation(op) => write!(f, "unsupported operation: {op}"),
-        }
-    }
-}
-
-impl std::error::Error for OptimizationError {}
 
 pub type OptimizationResult<T> = Result<T, OptimizationError>;
