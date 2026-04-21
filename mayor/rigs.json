@@ -8,6 +8,14 @@
         "repo": "",
         "prefix": "tw"
       }
+    },
+    "veloxide": {
+      "git_url": "https://github.com/lprior-repo/veloxide.git",
+      "added_at": "2026-04-20T21:03:35.393930224-05:00",
+      "beads": {
+        "repo": "",
+        "prefix": "ve"
+      }
     }
   }
 }
