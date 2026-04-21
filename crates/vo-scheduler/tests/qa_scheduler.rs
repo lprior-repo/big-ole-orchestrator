@@ -36,7 +36,7 @@ fn exponential_backoff_caps_at_max_delay() {
 
 #[test]
 fn can_retry_respects_max_attempts() {
-    let policy = RetryPolicy::default_policy();
+    let policy = RetryPolicy::default();
     assert!(policy.can_retry(0));
     assert!(policy.can_retry(2));
     assert!(!policy.can_retry(3));
@@ -48,7 +48,7 @@ fn immediate_job_starts_as_pending() {
         JobKind::OneShot,
         JobPriority::Normal,
         SchedulePolicy::Immediate,
-        RetryPolicy::default_policy(),
+        RetryPolicy::default(),
         vec![].into(),
     )
     .unwrap();
@@ -62,7 +62,7 @@ fn future_scheduled_job_starts_as_scheduled() {
         JobKind::OneShot,
         JobPriority::Normal,
         SchedulePolicy::At(future),
-        RetryPolicy::default_policy(),
+        RetryPolicy::default(),
         vec![].into(),
     )
     .unwrap();
@@ -75,7 +75,7 @@ fn cron_schedule_accepted_and_stored() {
         JobKind::Recurring,
         JobPriority::Background,
         SchedulePolicy::Cron("*/5 * * * *".into()),
-        RetryPolicy::default_policy(),
+        RetryPolicy::default(),
         vec![].into(),
     )
     .unwrap();
@@ -89,7 +89,7 @@ fn cron_invalid_expression_rejected() {
         JobKind::Recurring,
         JobPriority::Normal,
         SchedulePolicy::Cron("invalid".to_string()),
-        RetryPolicy::default_policy(),
+        RetryPolicy::default(),
         bytes::Bytes::new(),
     );
     assert!(result.is_err());
@@ -114,7 +114,7 @@ fn retry_loop_cycles_through_retrying_state() {
         JobKind::OneShot,
         JobPriority::High,
         SchedulePolicy::Immediate,
-        RetryPolicy::default_policy(),
+        RetryPolicy::default(),
         vec![].into(),
     )
     .unwrap();
@@ -135,7 +135,7 @@ fn full_lifecycle_pending_to_completed() {
         JobKind::OneShot,
         JobPriority::Normal,
         SchedulePolicy::Immediate,
-        RetryPolicy::default_policy(),
+        RetryPolicy::default(),
         vec![].into(),
     )
     .unwrap();
@@ -154,7 +154,7 @@ fn make_job(
         JobKind::OneShot,
         priority,
         SchedulePolicy::At(due_at),
-        RetryPolicy::default_policy(),
+        RetryPolicy::default(),
         tag.as_bytes().to_vec().into(),
     )
     .unwrap();

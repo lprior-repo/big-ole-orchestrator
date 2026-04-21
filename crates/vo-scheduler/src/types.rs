@@ -202,6 +202,12 @@ impl fmt::Display for RetryPolicyError {
 
 impl std::error::Error for RetryPolicyError {}
 
+impl Default for RetryPolicy {
+    fn default() -> Self {
+        Self::default_policy()
+    }
+}
+
 impl RetryPolicy {
     pub fn try_new(
         max_attempts: u32,
