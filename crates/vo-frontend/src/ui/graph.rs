@@ -12,16 +12,8 @@ use ulid::Ulid;
 use uuid::Uuid;
 use vo_types::NodeKind;
 
-/// Execution state of a workflow node (ADR-031).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum ExecutionState {
-    Idle,
-    Queued,
-    Running,
-    Completed,
-    Failed,
-    Skipped,
-}
+/// Re-export ExecutionState from edges::graph_types for UI compatibility.
+pub use crate::ui::edges::graph_types::ExecutionState;
 
 impl ExecutionState {
     pub const fn status_badge_class(self) -> &'static str {
