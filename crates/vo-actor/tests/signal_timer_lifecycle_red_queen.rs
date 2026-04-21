@@ -1071,11 +1071,10 @@ mod timer_accuracy_under_load {
         let handle = ReanimatorLoop::spawn(config.clone(), storage.clone(), work_queue.clone())
             .expect("spawn should succeed");
 
-        let _guard = handle.clone();
         let cpu_load_handle = tokio::spawn(async move {
-            let counter = AtomicU64::new(0);
+            let counter = Arc::new(AtomicU64::new(0));
             for _ in 0..LOAD_SPIKE_TASK_COUNT {
-                let c = counter.clone();
+                let c = Arc::clone(&counter);
                 tokio::spawn(async move {
                     let mut sum: u64 = 0;
                     for i in 0..10000 {
@@ -1215,23 +1214,23 @@ mod timer_accuracy_under_load {
         let handle = ReanimatorLoop::spawn(config.clone(), storage.clone(), work_queue.clone())
             .expect("spawn should succeed");
 
-        let _guard = handle.clone();
         let combined_load = tokio::spawn(async move {
-            let mut handles = Vec::new();
+            let mut outer_handles = Vec::new();
             for _ in 0..50 {
-                handles.push(tokio::spawn(async move {
-                    let counter = AtomicU64::new(0);
+                outer_handles.push(tokio::spawn(async move {
+                    let counter = Arc::new(AtomicU64::new(0));
+                    let mut inner_handles = Vec::new();
                     for _ in 0..1000 {
-                        let c = counter.clone();
-                        tokio::spawn(async move {
+                        let c = Arc::clone(&counter);
+                        inner_handles.push(tokio::spawn(async move {
                             let mut sum: u64 = 0;
                             for i in 0..100 {
                                 sum = sum.wrapping_add(i * 17 % 31);
                             }
                             c.fetch_add(sum, Ordering::Relaxed);
-                        });
+                        }));
                     }
-                    for h in handles {
+                    for h in inner_handles {
                         let _ = h.await;
                     }
                 }));
@@ -1335,13 +1334,17 @@ mod signal_buffer_overflow {
         BufferedSignal::new(signal_id.to_string(), vo_actor::SignalPayload::empty(), TimestampMs::now())
     }
 
+    fn actor_wait_key(s: &str) -> vo_actor::WaitKey {
+        vo_actor::WaitKey::parse(s).expect("valid wait key")
+    }
+
     // RQ-SBO01: BufferMany returns Dropped when at capacity
     // EARS Ubiquitous: THE SYSTEM SHALL handle buffer overflow gracefully
     #[test]
     fn rq_buffer_many_returns_dropped_when_at_capacity() {
         let mut buffer = SignalBuffer::new(SignalBufferConfig::new(3));
         let instance_id = make_instance_id(0x01);
-        let wait_key = make_wait_key("approval");
+        let wait_key = actor_wait_key("approval");
 
         for i in 0..3 {
             let result = buffer.buffer_signal(
@@ -1368,7 +1371,7 @@ mod signal_buffer_overflow {
     fn rq_buffer_count_stays_at_max_on_overflow() {
         let mut buffer = SignalBuffer::new(SignalBufferConfig::new(3));
         let instance_id = make_instance_id(0x01);
-        let wait_key = make_wait_key("approval");
+        let wait_key = actor_wait_key("approval");
 
         for i in 0..3 {
             buffer.buffer_signal(
@@ -1399,7 +1402,7 @@ mod signal_buffer_overflow {
     fn rq_buffer_one_rejects_subsequent_signals() {
         let mut buffer = SignalBuffer::with_default_config();
         let instance_id = make_instance_id(0x01);
-        let wait_key = make_wait_key("approval");
+        let wait_key = actor_wait_key("approval");
 
         let first = buffer.buffer_signal(
             instance_id.clone(),
@@ -1444,7 +1447,7 @@ mod signal_buffer_overflow {
     fn rq_overflow_result_enables_accountability() {
         let mut buffer = SignalBuffer::new(SignalBufferConfig::new(2));
         let instance_id = make_instance_id(0x01);
-        let wait_key = make_wait_key("approval");
+        let wait_key = actor_wait_key("approval");
 
         buffer.buffer_signal(instance_id.clone(), wait_key.clone(), make_signal("sig-0"), BufferPolicy::BufferMany);
         buffer.buffer_signal(instance_id.clone(), wait_key.clone(), make_signal("sig-1"), BufferPolicy::BufferMany);
@@ -1471,8 +1474,8 @@ mod signal_buffer_overflow {
     fn rq_separate_keys_independent_overflow() {
         let mut buffer = SignalBuffer::new(SignalBufferConfig::new(2));
         let instance_id = make_instance_id(0x01);
-        let wait_key_a = make_wait_key("approval");
-        let wait_key_b = make_wait_key("authorization");
+        let wait_key_a = actor_wait_key("approval");
+        let wait_key_b = actor_wait_key("authorization");
 
         for i in 0..2 {
             buffer.buffer_signal(instance_id.clone(), wait_key_a.clone(), make_signal(&format!("sig-a-{i}")), BufferPolicy::BufferMany);
@@ -1496,7 +1499,7 @@ mod signal_buffer_overflow {
     fn rq_signals_can_be_consumed_to_allow_more() {
         let mut buffer = SignalBuffer::new(SignalBufferConfig::new(2));
         let instance_id = make_instance_id(0x01);
-        let wait_key = make_wait_key("approval");
+        let wait_key = actor_wait_key("approval");
 
         buffer.buffer_signal(instance_id.clone(), wait_key.clone(), make_signal("sig-0"), BufferPolicy::BufferMany);
         buffer.buffer_signal(instance_id.clone(), wait_key.clone(), make_signal("sig-1"), BufferPolicy::BufferMany);
