@@ -70,22 +70,6 @@ struct RandomDetector {
 
 impl RandomDetector {}
 
-pub struct RandomRule;
-
-impl crate::rules::Rule for RandomRule {
-    fn id(&self) -> &'static str {
-        "random"
-    }
-
-    fn name(&self) -> &'static str {
-        "Random Call Detector"
-    }
-
-    fn execute(&self, file: &syn::File) -> Vec<Diagnostic> {
-        check_random_in_workflow(file)
-    }
-}
-
 fn collect_use_rename(tree: &UseTree, renames: &mut HashMap<String, String>) {
     match tree {
         UseTree::Path(path) => {
