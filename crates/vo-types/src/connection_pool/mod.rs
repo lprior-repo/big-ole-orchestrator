@@ -237,6 +237,68 @@ pub enum CircuitBreakerState {
 }
 
 // ============================================================================
+// Reconnection Backoff
+// ============================================================================
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ReconnectBackoff {
+    pub initial_ms: u64,
+    pub multiplier: u64,
+    pub max_ms: u64,
+    pub jitter_ms: u64,
+    attempt: u32,
+}
+
+impl ReconnectBackoff {
+    #[must_use]
+    pub fn new(initial_ms: u64, multiplier: u64, max_ms: u64, jitter_ms: u64) -> Self {
+        Self {
+            initial_ms,
+            multiplier,
+            max_ms,
+            jitter_ms,
+            attempt: 0,
+        }
+    }
+
+    #[must_use]
+    pub fn attempt(&self) -> u32 {
+        self.attempt
+    }
+
+    #[must_use]
+    pub fn next_backoff(&mut self) -> u64 {
+        self.attempt += 1;
+        let raw = if self.attempt == 1 {
+            self.initial_ms
+        } else {
+            let prev = self.initial_ms
+                * self
+                    .multiplier
+                    .saturating_pow(self.attempt.saturating_sub(1));
+            prev.min(self.max_ms)
+        };
+        let capped = raw.min(self.max_ms);
+        let jitter = if self.jitter_ms > 0 {
+            deterministic_jitter(self.jitter_ms, self.attempt)
+        } else {
+            0
+        };
+        capped.saturating_add(jitter).min(self.max_ms)
+    }
+
+    pub fn reset(&mut self) {
+        self.attempt = 0;
+    }
+}
+
+#[must_use]
+pub fn deterministic_jitter(jitter_ms: u64, attempt: u32) -> u64 {
+    let seed = (attempt as u64).wrapping_mul(2654435761);
+    seed % jitter_ms.saturating_add(1)
+}
+
+// ============================================================================
 // Error Types
 // ============================================================================
 
@@ -1415,6 +1477,110 @@ mod tests {
                 }
                 _ => panic!("Expected CircuitBreakerOpen detail"),
             }
+        }
+    }
+
+    // ========================================================================
+    // ReconnectBackoff Tests
+    // ========================================================================
+
+    mod reconnect_backoff {
+        use super::*;
+
+        #[test]
+        fn test_backoff_sequence_grows_exponentially() {
+            let mut bo = ReconnectBackoff::new(100, 2, 10000, 0);
+            assert_eq!(bo.next_backoff(), 100);
+            assert_eq!(bo.next_backoff(), 200);
+            assert_eq!(bo.next_backoff(), 400);
+            assert_eq!(bo.next_backoff(), 800);
+            assert_eq!(bo.next_backoff(), 1600);
+        }
+
+        #[test]
+        fn test_backoff_sequence_multiplier_of_3() {
+            let mut bo = ReconnectBackoff::new(50, 3, 10000, 0);
+            assert_eq!(bo.next_backoff(), 50);
+            assert_eq!(bo.next_backoff(), 150);
+            assert_eq!(bo.next_backoff(), 450);
+            assert_eq!(bo.next_backoff(), 1350);
+        }
+
+        #[test]
+        fn test_backoff_respects_max_cap() {
+            let mut bo = ReconnectBackoff::new(100, 2, 500, 0);
+            assert_eq!(bo.next_backoff(), 100);
+            assert_eq!(bo.next_backoff(), 200);
+            assert_eq!(bo.next_backoff(), 400);
+            assert_eq!(bo.next_backoff(), 500);
+            assert_eq!(bo.next_backoff(), 500);
+            assert_eq!(bo.next_backoff(), 500);
+        }
+
+        #[test]
+        fn test_backoff_max_cap_equals_initial() {
+            let mut bo = ReconnectBackoff::new(200, 2, 200, 0);
+            assert_eq!(bo.next_backoff(), 200);
+            assert_eq!(bo.next_backoff(), 200);
+            assert_eq!(bo.next_backoff(), 200);
+        }
+
+        #[test]
+        fn test_backoff_with_jitter_within_bounds() {
+            let mut bo = ReconnectBackoff::new(100, 2, 10000, 50);
+            let b1 = bo.next_backoff();
+            assert!(b1 >= 100 && b1 <= 150, "b1={b1}");
+            let b2 = bo.next_backoff();
+            assert!(b2 >= 200 && b2 <= 250, "b2={b2}");
+            let b3 = bo.next_backoff();
+            assert!(b3 >= 400 && b3 <= 450, "b3={b3}");
+        }
+
+        #[test]
+        fn test_jitter_is_deterministic_per_attempt() {
+            let j1 = deterministic_jitter(100, 1);
+            let j2 = deterministic_jitter(100, 1);
+            assert_eq!(j1, j2, "same attempt must produce same jitter");
+
+            let j3 = deterministic_jitter(100, 2);
+            assert!(j3 <= 100);
+        }
+
+        #[test]
+        fn test_jitter_zero_range_returns_zero() {
+            assert_eq!(deterministic_jitter(0, 1), 0);
+            assert_eq!(deterministic_jitter(0, 99), 0);
+        }
+
+        #[test]
+        fn test_backoff_with_jitter_capped_at_max() {
+            let mut bo = ReconnectBackoff::new(100, 2, 300, 1000);
+            let b1 = bo.next_backoff();
+            assert!(b1 <= 300, "b1={b1} exceeds max");
+            let b2 = bo.next_backoff();
+            assert!(b2 <= 300, "b2={b2} exceeds max");
+            let b3 = bo.next_backoff();
+            assert!(b3 <= 300, "b3={b3} exceeds max");
+        }
+
+        #[test]
+        fn test_reset_clears_attempt_counter() {
+            let mut bo = ReconnectBackoff::new(100, 2, 10000, 0);
+            assert_eq!(bo.attempt(), 0);
+            let _ = bo.next_backoff();
+            let _ = bo.next_backoff();
+            assert_eq!(bo.attempt(), 2);
+            bo.reset();
+            assert_eq!(bo.attempt(), 0);
+            assert_eq!(bo.next_backoff(), 100);
+        }
+
+        #[test]
+        fn test_zero_jitter_means_no_jitter() {
+            let mut bo = ReconnectBackoff::new(100, 2, 10000, 0);
+            assert_eq!(bo.next_backoff(), 100);
+            assert_eq!(bo.next_backoff(), 200);
+            assert_eq!(bo.next_backoff(), 400);
         }
     }
 }
