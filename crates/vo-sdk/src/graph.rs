@@ -68,6 +68,8 @@ pub struct EdgeSpec {
 pub enum ValidationError {
     #[error("duplicate node name: {name}")]
     DuplicateNodeName { name: String },
+    #[error("duplicate edge: {from} -> {to}")]
+    DuplicateEdge { from: String, to: String },
     #[error("edge references non-existent source node: {name}")]
     MissingEdgeSource { name: String },
     #[error("edge references non-existent target node: {name}")]
@@ -105,6 +107,7 @@ impl<'de> serde::Deserialize<'de> for WorkflowSpec {
         let node_names: std::collections::HashSet<&str> =
             raw.nodes.iter().map(|n| n.name.as_str()).collect();
 
+        let mut seen_edges: std::collections::HashSet<(&str, &str)> = std::collections::HashSet::new();
         for edge in &raw.edges {
             if edge.from == edge.to {
                 return Err(serde::de::Error::custom(format!(
@@ -121,6 +124,13 @@ impl<'de> serde::Deserialize<'de> for WorkflowSpec {
             if !node_names.contains(edge.to.as_str()) {
                 return Err(serde::de::Error::custom(format!(
                     "edge references non-existent node: {}",
+                    edge.to.as_str()
+                )));
+            }
+            if !seen_edges.insert((edge.from.as_str(), edge.to.as_str())) {
+                return Err(serde::de::Error::custom(format!(
+                    "duplicate edge: {} -> {}",
+                    edge.from.as_str(),
                     edge.to.as_str()
                 )));
             }
@@ -196,6 +206,7 @@ impl WorkflowSpec {
 
         let node_names: std::collections::HashSet<&str> =
             self.nodes.iter().map(|n| n.name.as_str()).collect();
+        let mut seen_edges: std::collections::HashSet<(&str, &str)> = std::collections::HashSet::new();
         for edge in &self.edges {
             if !node_names.contains(edge.from.as_str()) {
                 return Err(ValidationError::MissingEdgeSource {
@@ -210,6 +221,12 @@ impl WorkflowSpec {
             if edge.from == edge.to {
                 return Err(ValidationError::SelfLoop {
                     name: edge.from.as_str().to_string(),
+                });
+            }
+            if !seen_edges.insert((edge.from.as_str(), edge.to.as_str())) {
+                return Err(ValidationError::DuplicateEdge {
+                    from: edge.from.as_str().to_string(),
+                    to: edge.to.as_str().to_string(),
                 });
             }
         }
