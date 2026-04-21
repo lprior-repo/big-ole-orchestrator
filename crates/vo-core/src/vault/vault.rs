@@ -53,6 +53,20 @@ impl CredentialVault {
             .entries
             .get(id)
             .ok_or(CredentialError::CredentialNotFound(id.clone()))?;
+
+        let current = entry
+            .credential
+            .versions
+            .iter()
+            .find(|v| v.version_id == entry.credential.current_version)
+            .ok_or(CredentialError::CredentialNotFound(id.clone()))?;
+
+        if current.status == vo_types::credentials::CredentialStatus::Revoked {
+            return Err(CredentialError::MasterKeyRevoked(
+                current.secret_value.key_version,
+            ));
+        }
+
         let active = entry
             .credential
             .active_version()
