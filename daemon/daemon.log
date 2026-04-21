@@ -1,0 +1,324 @@
+2026/04/20 21:02:33 Loaded patrol config from /home/lewis/gt/mayor/daemon.json
+2026/04/20 21:02:33 Daemon starting (PID 2876642)
+2026/04/20 21:02:33 Daemon running, recovery heartbeat interval 3m0s
+2026/04/20 21:02:33 Feed curator started
+2026/04/20 21:02:33 Convoy: hq beads store unavailable: dolt circuit breaker is open: server appears down, failing fast (cooldown 5s)
+2026/04/20 21:02:33 Convoy: no beads stores available, event polling disabled
+2026/04/20 21:02:33 Convoy manager started
+2026/04/20 21:02:33 KRC pruner started
+2026/04/20 21:02:33 Dolt backup ticker started (interval 15m0s)
+2026/04/20 21:02:33 JSONL git backup ticker started (interval 15m0s)
+2026/04/20 21:02:33 Wisp reaper ticker started (interval 30m0s)
+2026/04/20 21:02:33 Doctor dog ticker started (interval 5m0s)
+2026/04/20 21:02:33 Compactor dog ticker started (interval 24h0m0s)
+2026/04/20 21:02:33 Checkpoint dog ticker started (interval 10m0s)
+2026/04/20 21:02:33 Scheduled maintenance ticker started (check interval 5m0s, window 03:00)
+2026/04/20 21:02:33 Main branch test ticker started (interval 30m0s)
+2026/04/20 21:02:33 Heartbeat starting (recovery-focused)
+2026/04/20 21:02:33 Spawning Boot for triage...
+2026/04/20 21:02:33 Convoy: stranded scan failed: Error: listing convoys: bd list: Warning: dolt_server_port in metadata.json is deprecated (can cause cross-project data leakage).
+2026/04/20 21:02:38 Boot spawned successfully
+2026/04/20 21:02:38 Convoy: opened 1 beads store(s): [hq]
+2026/04/20 21:02:39 Heartbeat complete (#1)
+2026/04/20 21:02:43 Convoy: running startup sweep for stranded convoys
+2026/04/20 21:02:51 Convoy hq-cv-izdai: auto-closing (empty)
+2026/04/20 21:02:51 Convoy hq-cv-izdai: check failed: Error: convoy 'hq-cv-izdai' not found
+2026/04/20 21:02:51 Convoy hq-cv-m4ar2: auto-closing (empty)
+2026/04/20 21:02:51 Convoy hq-cv-m4ar2: check failed: Error: convoy 'hq-cv-m4ar2' not found
+2026/04/20 21:02:51 Convoy hq-cv-rkw62: auto-closing (empty)
+2026/04/20 21:02:51 Convoy hq-cv-rkw62: check failed: Error: convoy 'hq-cv-rkw62' not found
+2026/04/20 21:02:51 Convoy hq-cv-l7qq6: auto-closing (empty)
+2026/04/20 21:02:51 Convoy hq-cv-l7qq6: check failed: Error: convoy 'hq-cv-l7qq6' not found
+2026/04/20 21:02:51 Convoy hq-cv-zfng6: auto-closing (empty)
+2026/04/20 21:02:51 Convoy hq-cv-zfng6: check failed: Error: convoy 'hq-cv-zfng6' not found
+2026/04/20 21:02:51 Convoy hq-cv-h3g3k: auto-closing (empty)
+2026/04/20 21:02:51 Convoy hq-cv-h3g3k: check failed: Error: convoy 'hq-cv-h3g3k' not found
+2026/04/20 21:02:51 Convoy hq-cv-3urpe: auto-closing (empty)
+2026/04/20 21:02:51 Convoy hq-cv-3urpe: check failed: Error: convoy 'hq-cv-3urpe' not found
+2026/04/20 21:02:51 Convoy hq-cv-ovdru: auto-closing (empty)
+2026/04/20 21:02:51 Convoy hq-cv-ovdru: check failed: Error: convoy 'hq-cv-ovdru' not found
+2026/04/20 21:02:51 Convoy hq-cv-trx3a: auto-closing (empty)
+2026/04/20 21:02:51 Convoy hq-cv-trx3a: check failed: Error: convoy 'hq-cv-trx3a' not found
+2026/04/20 21:02:51 Convoy hq-cv-nazk2: auto-closing (empty)
+2026/04/20 21:02:51 Convoy hq-cv-nazk2: check failed: Error: convoy 'hq-cv-nazk2' not found
+2026/04/20 21:02:51 Convoy hq-cv-mxsaa: auto-closing (empty)
+2026/04/20 21:02:51 Convoy hq-cv-mxsaa: check failed: Error: convoy 'hq-cv-mxsaa' not found
+2026/04/20 21:02:51 Convoy hq-cv-m45cy: auto-closing (empty)
+2026/04/20 21:02:51 Convoy hq-cv-m45cy: check failed: Error: convoy 'hq-cv-m45cy' not found
+2026/04/20 21:02:51 Convoy hq-cv-c5oie: auto-closing (empty)
+2026/04/20 21:02:52 Convoy hq-cv-c5oie: check failed: Error: convoy 'hq-cv-c5oie' not found
+2026/04/20 21:02:52 Convoy hq-cv-kjosc: auto-closing (empty)
+2026/04/20 21:02:52 Convoy hq-cv-kjosc: check failed: Error: convoy 'hq-cv-kjosc' not found
+2026/04/20 21:02:52 Convoy hq-cv-7qwhc: auto-closing (empty)
+2026/04/20 21:02:52 Convoy hq-cv-7qwhc: check failed: Error: convoy 'hq-cv-7qwhc' not found
+2026/04/20 21:02:52 Convoy hq-cv-5tdfq: auto-closing (empty)
+2026/04/20 21:02:52 Convoy hq-cv-5tdfq: check failed: Error: convoy 'hq-cv-5tdfq' not found
+2026/04/20 21:02:52 Convoy hq-cv-3xaz6: auto-closing (empty)
+2026/04/20 21:02:52 Convoy hq-cv-3xaz6: check failed: Error: convoy 'hq-cv-3xaz6' not found
+2026/04/20 21:02:52 Convoy hq-cv-tx2y6: auto-closing (empty)
+2026/04/20 21:02:52 Convoy hq-cv-tx2y6: check failed: Error: convoy 'hq-cv-tx2y6' not found
+2026/04/20 21:02:52 Convoy hq-cv-tmnlm: auto-closing (empty)
+2026/04/20 21:02:52 Convoy hq-cv-tmnlm: check failed: Error: convoy 'hq-cv-tmnlm' not found
+2026/04/20 21:02:52 Convoy hq-cv-nmrcy: auto-closing (empty)
+2026/04/20 21:02:52 Convoy hq-cv-nmrcy: check failed: Error: convoy 'hq-cv-nmrcy' not found
+2026/04/20 21:02:52 Convoy hq-cv-pcfqm: auto-closing (empty)
+2026/04/20 21:02:52 Convoy hq-cv-pcfqm: check failed: Error: convoy 'hq-cv-pcfqm' not found
+2026/04/20 21:02:52 Convoy hq-cv-utyky: auto-closing (empty)
+2026/04/20 21:02:52 Convoy hq-cv-utyky: check failed: Error: convoy 'hq-cv-utyky' not found
+2026/04/20 21:02:52 Convoy hq-cv-ncmde: auto-closing (empty)
+2026/04/20 21:02:52 Convoy hq-cv-ncmde: check failed: Error: convoy 'hq-cv-ncmde' not found
+2026/04/20 21:02:52 Convoy hq-cv-fvqz4: auto-closing (empty)
+2026/04/20 21:02:52 Convoy hq-cv-fvqz4: check failed: Error: convoy 'hq-cv-fvqz4' not found
+2026/04/20 21:02:52 Convoy hq-cv-g7ciu: auto-closing (empty)
+2026/04/20 21:02:53 Convoy hq-cv-g7ciu: check failed: Error: convoy 'hq-cv-g7ciu' not found
+2026/04/20 21:02:53 Convoy hq-cv-44zfq: auto-closing (empty)
+2026/04/20 21:02:53 Convoy hq-cv-44zfq: check failed: Error: convoy 'hq-cv-44zfq' not found
+2026/04/20 21:02:53 Convoy hq-cv-qu66c: auto-closing (empty)
+2026/04/20 21:02:53 Convoy hq-cv-qu66c: check failed: Error: convoy 'hq-cv-qu66c' not found
+2026/04/20 21:02:53 Convoy hq-cv-wcrhk: auto-closing (empty)
+2026/04/20 21:02:53 Convoy hq-cv-wcrhk: check failed: Error: convoy 'hq-cv-wcrhk' not found
+2026/04/20 21:02:53 Convoy: event poll error (hq): begin read tx: invalid connection
+2026/04/20 21:02:53 Convoy: poll backoff → 10s
+2026/04/20 21:03:03 Convoy: poll recovered, interval reset to 5s
+2026/04/20 21:03:03 Convoy: stranded scan failed: Error: listing convoys: bd list: {
+2026/04/20 21:03:08 Convoy: stranded scan failed: Error: listing convoys: bd list: {
+2026/04/20 21:03:14 Convoy: stranded scan failed: Error: listing convoys: bd list: {
+2026/04/20 21:03:19 Convoy: stranded scan failed: Error: listing convoys: bd list: {
+2026/04/20 21:03:23 Convoy: stranded scan failed: Error: listing convoys: bd list: {
+2026/04/20 21:03:28 Convoy: stranded scan failed: Error: listing convoys: bd list: {
+2026/04/20 21:03:33 Convoy: stranded scan failed: Error: listing convoys: bd list: {
+2026/04/20 21:03:38 Convoy: stranded scan failed: Error: listing convoys: bd list: {
+2026/04/20 21:03:43 Convoy: stranded scan failed: Error: listing convoys: bd list: {
+2026/04/20 21:03:48 Convoy: event poll error (hq): begin read tx: invalid connection
+2026/04/20 21:03:48 Convoy: poll backoff → 10s
+2026/04/20 21:03:48 Convoy: stranded scan failed: Error: listing convoys: bd list: {
+2026/04/20 21:03:53 Convoy: stranded scan failed: Error: listing convoys: bd list: {
+2026/04/20 21:03:58 Convoy: event poll error (hq): begin read tx: dial tcp 127.0.0.1:3307: connect: connection refused
+2026/04/20 21:03:58 Convoy: poll backoff → 20s
+2026/04/20 21:03:59 Convoy: stranded scan failed: Error: listing convoys: bd list: {
+2026/04/20 21:04:04 Convoy: stranded scan failed: Error: listing convoys: bd list: {
+2026/04/20 21:04:08 Convoy: stranded scan failed: Error: listing convoys: bd list: 2026/04/20 21:04:08 [circuit-breaker] 127.0.0.1:3307: open → open (active probe failed, cooldown reset)
+2026/04/20 21:04:13 Convoy: stranded scan failed: Error: listing convoys: bd list: {
+2026/04/20 21:04:18 Convoy: event poll error (hq): begin read tx: dial tcp 127.0.0.1:3307: connect: connection refused
+2026/04/20 21:04:18 Convoy: poll backoff → 40s
+2026/04/20 21:04:18 Convoy: stranded scan failed: Error: listing convoys: bd list: Warning: dolt_server_port in metadata.json is deprecated (can cause cross-project data leakage).
+2026/04/20 21:04:23 Convoy: stranded scan failed: Error: listing convoys: bd list: {
+2026/04/20 21:04:28 Convoy: stranded scan failed: Error: listing convoys: bd list: {
+2026/04/20 21:04:59 Convoy: poll recovered, interval reset to 5s
+2026/04/20 21:05:24 Convoy: close detected: hq-wisp-925px (from hq)
+2026/04/20 21:05:29 Convoy: close detected: hq-wisp-z2y89 (from hq)
+2026/04/20 21:05:33 Heartbeat starting (recovery-focused)
+2026/04/20 21:05:33 Spawning Boot for triage...
+2026/04/20 21:05:34 Convoy: close detected: hq-wisp-rdi35 (from hq)
+2026/04/20 21:05:38 Boot spawned successfully
+2026/04/20 21:05:38 Warning: no wisp config for Seshat - parked state may have been lost
+2026/04/20 21:05:38 Warning: no wisp config for hardline - parked state may have been lost
+2026/04/20 21:05:38 Warning: no wisp config for oya_frontend - parked state may have been lost
+2026/04/20 21:05:38 Warning: no wisp config for twerk - parked state may have been lost
+2026/04/20 21:05:38 Warning: no wisp config for veloxide - parked state may have been lost
+2026/04/20 21:05:38 Warning: no wisp config for Seshat - parked state may have been lost
+2026/04/20 21:05:38 Witness for Seshat already running, skipping spawn
+2026/04/20 21:05:38 Warning: no wisp config for hardline - parked state may have been lost
+2026/04/20 21:05:38 Witness for hardline already running, skipping spawn
+2026/04/20 21:05:38 Warning: no wisp config for oya_frontend - parked state may have been lost
+2026/04/20 21:05:38 Witness for oya_frontend already running, skipping spawn
+2026/04/20 21:05:38 Warning: no wisp config for twerk - parked state may have been lost
+2026/04/20 21:05:38 Witness for twerk already running, skipping spawn
+2026/04/20 21:05:38 Warning: no wisp config for veloxide - parked state may have been lost
+2026/04/20 21:05:38 Witness for veloxide already running, skipping spawn
+2026/04/20 21:05:38 Warning: no wisp config for Seshat - parked state may have been lost
+2026/04/20 21:05:39 Warning: no wisp config for hardline - parked state may have been lost
+2026/04/20 21:05:39 Warning: no wisp config for oya_frontend - parked state may have been lost
+2026/04/20 21:05:39 Warning: no wisp config for twerk - parked state may have been lost
+2026/04/20 21:05:39 Convoy: close detected: hq-wisp-p7h9x (from hq)
+2026/04/20 21:05:39 Warning: no wisp config for veloxide - parked state may have been lost
+2026/04/20 21:05:39 Warning: no wisp config for Seshat - parked state may have been lost
+2026/04/20 21:05:39 No pending refinery events and no session running for Seshat, skipping spawn
+2026/04/20 21:05:39 Warning: no wisp config for hardline - parked state may have been lost
+2026/04/20 21:05:39 Refinery for hardline already running, skipping spawn
+2026/04/20 21:05:39 Warning: no wisp config for oya_frontend - parked state may have been lost
+2026/04/20 21:05:39 No pending refinery events and no session running for oya_frontend, skipping spawn
+2026/04/20 21:05:39 Warning: no wisp config for twerk - parked state may have been lost
+2026/04/20 21:05:39 No pending refinery events and no session running for twerk, skipping spawn
+2026/04/20 21:05:39 Warning: no wisp config for veloxide - parked state may have been lost
+2026/04/20 21:05:39 Refinery for veloxide already running, skipping spawn
+2026/04/20 21:05:47 Warning: no wisp config for hardline - parked state may have been lost
+2026/04/20 21:05:48 Warning: listing agent beads failed for GUPP check: no agent beads found
+2026/04/20 21:05:48 Warning: listing agent beads failed for GUPP check: no agent beads found
+2026/04/20 21:05:48 Warning: listing agent beads failed for GUPP check: no agent beads found
+2026/04/20 21:05:48 Warning: listing agent beads failed for GUPP check: no agent beads found
+2026/04/20 21:05:48 Warning: listing agent beads failed for GUPP check: no agent beads found
+2026/04/20 21:05:48 Warning: no wisp config for veloxide - parked state may have been lost
+2026/04/20 21:05:48 Warning: listing agent beads failed for orphaned work check: no agent beads found
+2026/04/20 21:05:49 Warning: listing agent beads failed for orphaned work check: no agent beads found
+2026/04/20 21:05:49 Warning: listing agent beads failed for orphaned work check: no agent beads found
+2026/04/20 21:05:49 Warning: listing agent beads failed for orphaned work check: no agent beads found
+2026/04/20 21:05:49 Warning: listing agent beads failed for orphaned work check: no agent beads found
+2026/04/20 21:05:51 Heartbeat complete (#2)
+2026/04/20 21:05:55 Convoy hq-cv-izdai: auto-closing (empty)
+2026/04/20 21:05:55 Convoy hq-cv-izdai: check failed: Error: convoy 'hq-cv-izdai' not found
+2026/04/20 21:05:55 Convoy hq-cv-m4ar2: auto-closing (empty)
+2026/04/20 21:05:56 Convoy hq-cv-m4ar2: check failed: Error: convoy 'hq-cv-m4ar2' not found
+2026/04/20 21:05:56 Convoy hq-cv-rkw62: auto-closing (empty)
+2026/04/20 21:05:56 Convoy hq-cv-rkw62: check failed: Error: convoy 'hq-cv-rkw62' not found
+2026/04/20 21:05:56 Convoy hq-cv-l7qq6: auto-closing (empty)
+2026/04/20 21:05:56 Convoy hq-cv-l7qq6: check failed: Error: convoy 'hq-cv-l7qq6' not found
+2026/04/20 21:05:56 Convoy hq-cv-zfng6: auto-closing (empty)
+2026/04/20 21:05:56 Convoy hq-cv-zfng6: check failed: Error: convoy 'hq-cv-zfng6' not found
+2026/04/20 21:05:56 Convoy hq-cv-h3g3k: auto-closing (empty)
+2026/04/20 21:05:56 Convoy hq-cv-h3g3k: check failed: Error: convoy 'hq-cv-h3g3k' not found
+2026/04/20 21:05:56 Convoy hq-cv-3urpe: auto-closing (empty)
+2026/04/20 21:05:56 Convoy hq-cv-3urpe: check failed: Error: convoy 'hq-cv-3urpe' not found
+2026/04/20 21:05:56 Convoy hq-cv-ovdru: auto-closing (empty)
+2026/04/20 21:05:56 Convoy hq-cv-ovdru: check failed: Error: convoy 'hq-cv-ovdru' not found
+2026/04/20 21:05:56 Convoy hq-cv-trx3a: auto-closing (empty)
+2026/04/20 21:05:56 Convoy hq-cv-trx3a: check failed: Error: convoy 'hq-cv-trx3a' not found
+2026/04/20 21:05:56 Convoy hq-cv-nazk2: auto-closing (empty)
+2026/04/20 21:05:56 Convoy hq-cv-nazk2: check failed: Error: convoy 'hq-cv-nazk2' not found
+2026/04/20 21:05:56 Convoy hq-cv-mxsaa: auto-closing (empty)
+2026/04/20 21:05:56 Convoy hq-cv-mxsaa: check failed: Error: convoy 'hq-cv-mxsaa' not found
+2026/04/20 21:05:56 Convoy hq-cv-m45cy: auto-closing (empty)
+2026/04/20 21:05:56 Convoy hq-cv-m45cy: check failed: Error: convoy 'hq-cv-m45cy' not found
+2026/04/20 21:05:56 Convoy hq-cv-c5oie: auto-closing (empty)
+2026/04/20 21:05:57 Convoy hq-cv-c5oie: check failed: Error: convoy 'hq-cv-c5oie' not found
+2026/04/20 21:05:57 Convoy hq-cv-kjosc: auto-closing (empty)
+2026/04/20 21:05:57 Convoy hq-cv-kjosc: check failed: Error: convoy 'hq-cv-kjosc' not found
+2026/04/20 21:05:57 Convoy hq-cv-7qwhc: auto-closing (empty)
+2026/04/20 21:05:57 Convoy hq-cv-7qwhc: check failed: Error: convoy 'hq-cv-7qwhc' not found
+2026/04/20 21:05:57 Convoy hq-cv-5tdfq: auto-closing (empty)
+2026/04/20 21:05:57 Convoy hq-cv-5tdfq: check failed: Error: convoy 'hq-cv-5tdfq' not found
+2026/04/20 21:05:57 Convoy hq-cv-3xaz6: auto-closing (empty)
+2026/04/20 21:05:57 Convoy hq-cv-3xaz6: check failed: Error: convoy 'hq-cv-3xaz6' not found
+2026/04/20 21:05:57 Convoy hq-cv-tx2y6: auto-closing (empty)
+2026/04/20 21:05:57 Convoy hq-cv-tx2y6: check failed: Error: convoy 'hq-cv-tx2y6' not found
+2026/04/20 21:05:57 Convoy hq-cv-tmnlm: auto-closing (empty)
+2026/04/20 21:05:57 Convoy hq-cv-tmnlm: check failed: Error: convoy 'hq-cv-tmnlm' not found
+2026/04/20 21:05:57 Convoy hq-cv-nmrcy: auto-closing (empty)
+2026/04/20 21:05:57 Convoy hq-cv-nmrcy: check failed: Error: convoy 'hq-cv-nmrcy' not found
+2026/04/20 21:05:57 Convoy hq-cv-pcfqm: auto-closing (empty)
+2026/04/20 21:05:57 Convoy hq-cv-pcfqm: check failed: Error: convoy 'hq-cv-pcfqm' not found
+2026/04/20 21:05:57 Convoy hq-cv-utyky: auto-closing (empty)
+2026/04/20 21:05:57 Convoy hq-cv-utyky: check failed: Error: convoy 'hq-cv-utyky' not found
+2026/04/20 21:05:57 Convoy hq-cv-ncmde: auto-closing (empty)
+2026/04/20 21:05:57 Convoy hq-cv-ncmde: check failed: Error: convoy 'hq-cv-ncmde' not found
+2026/04/20 21:05:57 Convoy hq-cv-fvqz4: auto-closing (empty)
+2026/04/20 21:05:58 Convoy hq-cv-fvqz4: check failed: Error: convoy 'hq-cv-fvqz4' not found
+2026/04/20 21:05:58 Convoy hq-cv-g7ciu: auto-closing (empty)
+2026/04/20 21:05:58 Convoy hq-cv-g7ciu: check failed: Error: convoy 'hq-cv-g7ciu' not found
+2026/04/20 21:05:58 Convoy hq-cv-44zfq: auto-closing (empty)
+2026/04/20 21:05:58 Convoy hq-cv-44zfq: check failed: Error: convoy 'hq-cv-44zfq' not found
+2026/04/20 21:05:58 Convoy hq-cv-qu66c: auto-closing (empty)
+2026/04/20 21:05:58 Convoy hq-cv-qu66c: check failed: Error: convoy 'hq-cv-qu66c' not found
+2026/04/20 21:05:58 Convoy hq-cv-wcrhk: auto-closing (empty)
+2026/04/20 21:05:58 Convoy hq-cv-wcrhk: check failed: Error: convoy 'hq-cv-wcrhk' not found
+2026/04/20 21:05:58 Convoy hq-cv-gx7rk: auto-closing (empty)
+2026/04/20 21:05:58 Convoy hq-cv-gx7rk: check failed: Error: convoy 'hq-cv-gx7rk' not found
+2026/04/20 21:05:58 Convoy hq-cv-5zsyo: auto-closing (empty)
+2026/04/20 21:05:58 Convoy hq-cv-5zsyo: check failed: Error: convoy 'hq-cv-5zsyo' not found
+2026/04/20 21:05:58 Convoy hq-cv-kj72m: auto-closing (empty)
+2026/04/20 21:05:58 Convoy hq-cv-kj72m: check failed: Error: convoy 'hq-cv-kj72m' not found
+2026/04/20 21:05:58 Convoy hq-cv-t7ves: auto-closing (empty)
+2026/04/20 21:05:58 Convoy hq-cv-t7ves: check failed: Error: convoy 'hq-cv-t7ves' not found
+2026/04/20 21:05:58 Convoy hq-cv-wywvu: auto-closing (empty)
+2026/04/20 21:05:58 Convoy hq-cv-wywvu: check failed: Error: convoy 'hq-cv-wywvu' not found
+2026/04/20 21:05:59 Convoy: stranded scan failed: Error: listing convoys: bd list: {
+2026/04/20 21:05:59 Convoy: event poll error (hq): begin read tx: invalid connection
+2026/04/20 21:05:59 Convoy: poll backoff → 10s
+2026/04/20 21:06:09 Convoy: poll recovered, interval reset to 5s
+2026/04/20 21:06:29 Convoy: event poll error (hq): begin read tx: invalid connection
+2026/04/20 21:06:29 Convoy: poll backoff → 10s
+2026/04/20 21:06:39 Convoy: event poll error (hq): begin read tx: dial tcp 127.0.0.1:3307: connect: connection refused
+2026/04/20 21:06:39 Convoy: poll backoff → 20s
+2026/04/20 21:06:39 Convoy hq-cv-izdai: auto-closing (empty)
+2026/04/20 21:06:39 Convoy hq-cv-izdai: check failed: Error: convoy 'hq-cv-izdai' not found
+2026/04/20 21:06:39 Convoy hq-cv-m4ar2: auto-closing (empty)
+2026/04/20 21:06:39 Convoy hq-cv-m4ar2: check failed: Error: convoy 'hq-cv-m4ar2' not found
+2026/04/20 21:06:39 Convoy hq-cv-rkw62: auto-closing (empty)
+2026/04/20 21:06:39 Convoy hq-cv-rkw62: check failed: Error: convoy 'hq-cv-rkw62' not found
+2026/04/20 21:06:39 Convoy hq-cv-l7qq6: auto-closing (empty)
+2026/04/20 21:06:39 Convoy hq-cv-l7qq6: check failed: Error: convoy 'hq-cv-l7qq6' not found
+2026/04/20 21:06:39 Convoy hq-cv-zfng6: auto-closing (empty)
+2026/04/20 21:06:39 Convoy hq-cv-zfng6: check failed: Error: convoy 'hq-cv-zfng6' not found
+2026/04/20 21:06:39 Convoy hq-cv-h3g3k: auto-closing (empty)
+2026/04/20 21:06:39 Convoy hq-cv-h3g3k: check failed: Error: convoy 'hq-cv-h3g3k' not found
+2026/04/20 21:06:39 Convoy hq-cv-3urpe: auto-closing (empty)
+2026/04/20 21:06:39 Convoy hq-cv-3urpe: check failed: Error: convoy 'hq-cv-3urpe' not found
+2026/04/20 21:06:39 Convoy hq-cv-ovdru: auto-closing (empty)
+2026/04/20 21:06:39 Convoy hq-cv-ovdru: check failed: Error: convoy 'hq-cv-ovdru' not found
+2026/04/20 21:06:39 Convoy hq-cv-trx3a: auto-closing (empty)
+2026/04/20 21:06:39 Convoy hq-cv-trx3a: check failed: Error: convoy 'hq-cv-trx3a' not found
+2026/04/20 21:06:39 Convoy hq-cv-nazk2: auto-closing (empty)
+2026/04/20 21:06:40 Convoy hq-cv-nazk2: check failed: Error: convoy 'hq-cv-nazk2' not found
+2026/04/20 21:06:40 Convoy hq-cv-mxsaa: auto-closing (empty)
+2026/04/20 21:06:40 Convoy hq-cv-mxsaa: check failed: Error: convoy 'hq-cv-mxsaa' not found
+2026/04/20 21:06:40 Convoy hq-cv-m45cy: auto-closing (empty)
+2026/04/20 21:06:40 Convoy hq-cv-m45cy: check failed: Error: convoy 'hq-cv-m45cy' not found
+2026/04/20 21:06:40 Convoy hq-cv-c5oie: auto-closing (empty)
+2026/04/20 21:06:40 Convoy hq-cv-c5oie: check failed: Error: convoy 'hq-cv-c5oie' not found
+2026/04/20 21:06:40 Convoy hq-cv-kjosc: auto-closing (empty)
+2026/04/20 21:06:40 Convoy hq-cv-kjosc: check failed: Error: convoy 'hq-cv-kjosc' not found
+2026/04/20 21:06:40 Convoy hq-cv-7qwhc: auto-closing (empty)
+2026/04/20 21:06:40 Convoy hq-cv-7qwhc: check failed: Error: convoy 'hq-cv-7qwhc' not found
+2026/04/20 21:06:40 Convoy hq-cv-5tdfq: auto-closing (empty)
+2026/04/20 21:06:40 Convoy hq-cv-5tdfq: check failed: Error: convoy 'hq-cv-5tdfq' not found
+2026/04/20 21:06:40 Convoy hq-cv-3xaz6: auto-closing (empty)
+2026/04/20 21:06:40 Convoy hq-cv-3xaz6: check failed: Error: convoy 'hq-cv-3xaz6' not found
+2026/04/20 21:06:40 Convoy hq-cv-tx2y6: auto-closing (empty)
+2026/04/20 21:06:40 Convoy hq-cv-tx2y6: check failed: Error: convoy 'hq-cv-tx2y6' not found
+2026/04/20 21:06:40 Convoy hq-cv-tmnlm: auto-closing (empty)
+2026/04/20 21:06:40 Convoy hq-cv-tmnlm: check failed: Error: convoy 'hq-cv-tmnlm' not found
+2026/04/20 21:06:40 Convoy hq-cv-nmrcy: auto-closing (empty)
+2026/04/20 21:06:40 Convoy hq-cv-nmrcy: check failed: Error: convoy 'hq-cv-nmrcy' not found
+2026/04/20 21:06:40 Convoy hq-cv-pcfqm: auto-closing (empty)
+2026/04/20 21:06:41 Convoy hq-cv-pcfqm: check failed: Error: convoy 'hq-cv-pcfqm' not found
+2026/04/20 21:06:41 Convoy hq-cv-utyky: auto-closing (empty)
+2026/04/20 21:06:41 Convoy hq-cv-utyky: check failed: Error: convoy 'hq-cv-utyky' not found
+2026/04/20 21:06:41 Convoy hq-cv-ncmde: auto-closing (empty)
+2026/04/20 21:06:41 Convoy hq-cv-ncmde: check failed: Error: convoy 'hq-cv-ncmde' not found
+2026/04/20 21:06:41 Convoy hq-cv-fvqz4: auto-closing (empty)
+2026/04/20 21:06:41 Convoy hq-cv-fvqz4: check failed: Error: convoy 'hq-cv-fvqz4' not found
+2026/04/20 21:06:41 Convoy hq-cv-g7ciu: auto-closing (empty)
+2026/04/20 21:06:41 Convoy hq-cv-g7ciu: check failed: Error: convoy 'hq-cv-g7ciu' not found
+2026/04/20 21:06:41 Convoy hq-cv-44zfq: auto-closing (empty)
+2026/04/20 21:06:41 Convoy hq-cv-44zfq: check failed: Error: convoy 'hq-cv-44zfq' not found
+2026/04/20 21:06:41 Convoy hq-cv-qu66c: auto-closing (empty)
+2026/04/20 21:06:41 Convoy hq-cv-qu66c: check failed: Error: convoy 'hq-cv-qu66c' not found
+2026/04/20 21:06:41 Convoy hq-cv-wcrhk: auto-closing (empty)
+2026/04/20 21:06:41 Convoy hq-cv-wcrhk: check failed: Error: convoy 'hq-cv-wcrhk' not found
+2026/04/20 21:06:41 Convoy hq-cv-gx7rk: auto-closing (empty)
+2026/04/20 21:06:41 Convoy hq-cv-gx7rk: check failed: Error: convoy 'hq-cv-gx7rk' not found
+2026/04/20 21:06:41 Convoy hq-cv-5zsyo: auto-closing (empty)
+2026/04/20 21:06:41 Convoy hq-cv-5zsyo: check failed: Error: convoy 'hq-cv-5zsyo' not found
+2026/04/20 21:06:41 Convoy hq-cv-kj72m: auto-closing (empty)
+2026/04/20 21:06:41 Convoy hq-cv-kj72m: check failed: Error: convoy 'hq-cv-kj72m' not found
+2026/04/20 21:06:41 Convoy hq-cv-t7ves: auto-closing (empty)
+2026/04/20 21:06:41 Convoy hq-cv-t7ves: check failed: Error: convoy 'hq-cv-t7ves' not found
+2026/04/20 21:06:41 Convoy hq-cv-wywvu: auto-closing (empty)
+2026/04/20 21:06:42 Convoy hq-cv-wywvu: check failed: Error: convoy 'hq-cv-wywvu' not found
+2026/04/20 21:06:42 Convoy hq-cv-pxtrc: auto-closing (empty)
+2026/04/20 21:06:42 Convoy hq-cv-pxtrc: check failed: Error: convoy 'hq-cv-pxtrc' not found
+2026/04/20 21:06:42 Convoy hq-cv-wn3og: auto-closing (empty)
+2026/04/20 21:06:42 Convoy hq-cv-wn3og: check failed: Error: convoy 'hq-cv-wn3og' not found
+2026/04/20 21:06:42 Convoy hq-cv-bipro: auto-closing (empty)
+2026/04/20 21:06:42 Convoy hq-cv-bipro: check failed: Error: convoy 'hq-cv-bipro' not found
+2026/04/20 21:06:42 Convoy hq-cv-gxg4w: auto-closing (empty)
+2026/04/20 21:06:42 Convoy hq-cv-gxg4w: check failed: Error: convoy 'hq-cv-gxg4w' not found
+2026/04/20 21:06:42 Convoy hq-cv-f4chu: auto-closing (empty)
+2026/04/20 21:06:42 Convoy hq-cv-f4chu: check failed: Error: convoy 'hq-cv-f4chu' not found
+2026/04/20 21:06:42 Convoy hq-cv-4ince: auto-closing (empty)
+2026/04/20 21:06:42 Convoy hq-cv-4ince: check failed: Error: convoy 'hq-cv-4ince' not found
+2026/04/20 21:06:42 Convoy hq-cv-y6ujk: auto-closing (empty)
+2026/04/20 21:06:42 Convoy hq-cv-y6ujk: check failed: Error: convoy 'hq-cv-y6ujk' not found
+2026/04/20 21:06:42 Convoy hq-cv-fckjo: auto-closing (empty)
+2026/04/20 21:06:42 Convoy hq-cv-fckjo: check failed: Error: convoy 'hq-cv-fckjo' not found
+2026/04/20 21:06:42 Convoy hq-cv-tjrra: auto-closing (empty)
+2026/04/20 21:06:42 Convoy hq-cv-tjrra: check failed: Error: convoy 'hq-cv-tjrra' not found
+2026/04/20 21:06:42 Convoy hq-cv-kwx5g: auto-closing (empty)
+2026/04/20 21:06:42 Convoy hq-cv-kwx5g: check failed: Error: convoy 'hq-cv-kwx5g' not found
+2026/04/20 21:06:42 Convoy hq-cv-m7r64: auto-closing (empty)
+2026/04/20 21:06:43 Convoy hq-cv-m7r64: check failed: Error: convoy 'hq-cv-m7r64' not found
+2026/04/20 21:06:43 Convoy hq-cv-yxxtu: auto-closing (empty)
+2026/04/20 21:06:43 Convoy hq-cv-yxxtu: check failed: Error: convoy 'hq-cv-yxxtu' not found
+2026/04/20 21:06:43 Convoy hq-cv-mmknc: auto-closing (empty)
+2026/04/20 21:06:43 Convoy hq-cv-mmknc: check failed: Error: convoy 'hq-cv-mmknc' not found
+2026/04/20 21:06:43 Convoy: stranded scan failed: Error: listing convoys: bd list: {

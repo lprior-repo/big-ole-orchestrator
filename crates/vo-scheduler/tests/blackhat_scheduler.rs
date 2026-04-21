@@ -17,7 +17,7 @@ fn make_job(priority: JobPriority, policy: SchedulePolicy) -> ScheduledJob {
         JobKind::OneShot,
         priority,
         policy,
-        RetryPolicy::default(),
+        RetryPolicy::default_policy(),
         bytes::Bytes::from_static(b"payload"),
     )
     .unwrap()
@@ -131,7 +131,7 @@ fn pop_empty_queue_no_panic() {
 proptest! {
     #[test]
     fn backoff_no_overflow_for_any_attempt(attempt in 0u32..1_000_000) {
-        let policy = RetryPolicy::default();
+        let policy = RetryPolicy::default_policy();
         let _ = policy.compute_backoff(attempt);
     }
 }

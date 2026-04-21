@@ -1,6 +1,6 @@
 //! QA static analysis validation tests for vo-common (ve-hf48p.2).
 
-use vo_common::{EventId, InstanceId, NamespaceId, TimerId, VoError, WorkflowEvent};
+use vo_common::{InstanceId, NamespaceId, TimerId, VoError, WorkflowEvent};
 
 #[test]
 fn type_alias_instance_id_roundtrip() {
@@ -84,7 +84,6 @@ fn error_is_std_error_send_sync_clone() {
 #[test]
 fn workflow_event_json_roundtrip() {
     let event = WorkflowEvent::TimerFired {
-        event_id: "e-rt".into(),
         timer_id: "t1".into(),
         timestamp_ms: 999,
     };
@@ -95,7 +94,6 @@ fn workflow_event_json_roundtrip() {
 #[test]
 fn workflow_event_json_structure() {
     let val = serde_json::to_value(&WorkflowEvent::TimerFired {
-        event_id: "e-s".into(),
         timer_id: "s".into(),
         timestamp_ms: 0,
     })
@@ -106,7 +104,6 @@ fn workflow_event_json_structure() {
 #[test]
 fn workflow_event_u64_max_roundtrip() {
     let e = WorkflowEvent::TimerFired {
-        event_id: "e-max".into(),
         timer_id: "x".into(),
         timestamp_ms: u64::MAX,
     };
@@ -129,7 +126,6 @@ fn workflow_event_rejects_unknown_variant() {
 #[test]
 fn workflow_event_unicode_roundtrip() {
     let e = WorkflowEvent::TimerFired {
-        event_id: "e-uni".into(),
         timer_id: "计时🚀".into(),
         timestamp_ms: 1,
     };
@@ -137,12 +133,4 @@ fn workflow_event_unicode_roundtrip() {
         e,
         serde_json::from_str(&serde_json::to_string(&e).unwrap()).unwrap()
     );
-}
-
-#[test]
-fn event_id_type_alias_roundtrip() {
-    let eid: EventId = "evt-42".into();
-    assert_eq!(eid.as_str(), "evt-42");
-    let s: String = eid;
-    assert_eq!(s, "evt-42");
 }

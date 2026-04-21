@@ -3,7 +3,7 @@ pub enum LintCode {
     L002,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct Diagnostic {
     #[allow(dead_code)]
     code: LintCode,

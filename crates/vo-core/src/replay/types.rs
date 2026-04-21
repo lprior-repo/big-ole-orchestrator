@@ -1,5 +1,6 @@
 //! Result and error types for the replay engine.
 
+use thiserror::Error;
 use vo_types::state::LifecycleState;
 
 /// Categorizes replay errors to determine system behavior.
