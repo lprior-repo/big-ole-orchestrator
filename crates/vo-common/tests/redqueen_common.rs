@@ -15,7 +15,11 @@
 //! - M7: Clone and PartialEq semantic correctness
 //! - M8: Edge-case string content (empty, unicode, control chars, max length)
 
+<<<<<<< HEAD
 use vo_common::{EventId, InstanceId, NamespaceId, TimerId, VoError, WorkflowEvent};
+=======
+use vo_common::{InstanceId, NamespaceId, TimerId, VoError, WorkflowEvent};
+>>>>>>> origin/buzzard/ve-jp00n
 
 // ============================================================================
 // M1: String type-alias boundary invariants
@@ -170,11 +174,17 @@ mod serialization_roundtrip {
             serde_json::from_str(json).expect("extra fields must be ignored");
         match event {
             WorkflowEvent::TimerFired {
+<<<<<<< HEAD
                 event_id,
                 timer_id,
                 timestamp_ms,
             } => {
                 assert_eq!(event_id, "e1");
+=======
+                timer_id,
+                timestamp_ms,
+            } => {
+>>>>>>> origin/buzzard/ve-jp00n
                 assert_eq!(timer_id, "t1");
                 assert_eq!(timestamp_ms, 99);
             }

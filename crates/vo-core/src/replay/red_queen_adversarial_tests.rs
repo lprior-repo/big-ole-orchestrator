@@ -1646,6 +1646,7 @@ mod memory_pressure_aggressive {
             .replay(&events)
             .expect("mixed large/small should not OOM");
         assert_eq!(result.final_state, Some(LifecycleState::StepScheduled));
+<<<<<<< HEAD
     }
 }
 
@@ -2117,5 +2118,7 @@ mod concurrency_adversarial {
         let r2 = h2.join().expect("thread should not panic").expect("long replay should succeed");
         assert_eq!(r2.events_applied, 201);
         assert_eq!(r2.final_state, Some(LifecycleState::RunningDecision));
+=======
+>>>>>>> origin/buzzard/ve-jp00n
     }
 }

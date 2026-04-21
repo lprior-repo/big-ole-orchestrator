@@ -23,10 +23,13 @@ pub enum DagError {
     EmptyWorkflow,
     #[error("cycle detected: {cycle}")]
     CycleDetected { cycle: String },
+<<<<<<< HEAD
     #[error("duplicate node name: {name}")]
     DuplicateNodeName { name: String },
     #[error("self-loop not allowed on node: {name}")]
     SelfLoop { name: String },
+=======
+>>>>>>> origin/buzzard/ve-jp00n
 }
 
 /// Internal node record with name and kind.

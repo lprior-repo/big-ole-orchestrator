@@ -13,7 +13,11 @@ serde.workspace = true
 serde_json.workspace = true
 ulid.workspace = true
 uuid.workspace = true
+<<<<<<< HEAD
 vo-types.workspace = true
+=======
+vo-types = { path = "../vo-types" }
+>>>>>>> origin/buzzard/ve-jp00n
 wasm-bindgen = { version = "0.2", optional = true }
 wasm-bindgen-futures = { version = "0.4", optional = true }
 web-sys = { version = "0.3", optional = true, features = ["Window"] }

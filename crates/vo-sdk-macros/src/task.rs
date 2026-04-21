@@ -431,6 +431,7 @@ mod tests {
         );
     }
 
+<<<<<<< HEAD
     #[test]
     fn parse_task_detects_async_function() {
         let input = quote! { async fn my_async_task() {} };
@@ -571,6 +572,8 @@ mod tests {
         );
     }
 
+=======
+>>>>>>> origin/buzzard/ve-jp00n
     proptest! {
         #[test]
         fn parse_task_no_panic(item_str in ".*") {

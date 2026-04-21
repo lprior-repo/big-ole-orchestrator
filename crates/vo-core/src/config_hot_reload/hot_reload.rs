@@ -1,9 +1,11 @@
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
-use std::time::Instant;
 
 use super::error::Error;
+<<<<<<< HEAD
 use super::observability::{ReloadEvent, ReloadMetrics};
+=======
+>>>>>>> origin/buzzard/ve-jp00n
 
 pub trait ConfigValidator<T: Clone + Send + Sync>: Send + Sync {
     fn validate(&self, config: &T) -> Result<(), String>;
@@ -14,8 +16,11 @@ pub struct HotReloadConfig<T: Clone + Send + Sync> {
     pending: RwLock<Option<T>>,
     path: PathBuf,
     validator: Arc<dyn ConfigValidator<T>>,
+<<<<<<< HEAD
     metrics: Option<Arc<ReloadMetrics>>,
     event_tx: Option<tokio::sync::mpsc::Sender<ReloadEvent>>,
+=======
+>>>>>>> origin/buzzard/ve-jp00n
 }
 
 impl<T: Clone + Send + Sync + 'static> HotReloadConfig<T> {
@@ -33,6 +38,7 @@ impl<T: Clone + Send + Sync + 'static> HotReloadConfig<T> {
             pending: RwLock::new(None),
             path,
             validator,
+<<<<<<< HEAD
             metrics: None,
             event_tx: None,
         })
@@ -46,6 +52,9 @@ impl<T: Clone + Send + Sync + 'static> HotReloadConfig<T> {
     pub fn with_event_channel(mut self, event_tx: tokio::sync::mpsc::Sender<ReloadEvent>) -> Self {
         self.event_tx = Some(event_tx);
         self
+=======
+        })
+>>>>>>> origin/buzzard/ve-jp00n
     }
 
     #[must_use]
@@ -106,6 +115,7 @@ impl<T: Clone + Send + Sync + 'static> HotReloadConfig<T> {
     where
         T: for<'de> serde::de::DeserializeOwned,
     {
+<<<<<<< HEAD
         let start = Instant::now();
         let path = self.path.clone();
 
@@ -129,6 +139,17 @@ impl<T: Clone + Send + Sync + 'static> HotReloadConfig<T> {
             self.emit_error(&path, &e);
             return Err(Error::ValidationFailed(e));
         }
+=======
+        let content =
+            std::fs::read_to_string(&self.path).map_err(|_| Error::ReadError(self.path.clone()))?;
+
+        let new_config: T =
+            serde_json::from_str(&content).map_err(|e| Error::ParseError(e.to_string()))?;
+
+        self.validator
+            .validate(&new_config)
+            .map_err(Error::ValidationFailed)?;
+>>>>>>> origin/buzzard/ve-jp00n
 
         let mut current = self
             .current
@@ -140,6 +161,7 @@ impl<T: Clone + Send + Sync + 'static> HotReloadConfig<T> {
         self.emit_success(&path, start);
         Ok(old)
     }
+<<<<<<< HEAD
 
     fn emit_success(&self, path: &PathBuf, start: Instant) {
         if let Some(ref metrics) = self.metrics {
@@ -160,4 +182,6 @@ impl<T: Clone + Send + Sync + 'static> HotReloadConfig<T> {
             let _ = tx.try_send(event);
         }
     }
+=======
+>>>>>>> origin/buzzard/ve-jp00n
 }

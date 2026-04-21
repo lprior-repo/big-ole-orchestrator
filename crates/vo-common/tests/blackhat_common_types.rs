@@ -22,11 +22,18 @@ mod deser_attacks {
         }))
         .unwrap();
         let WorkflowEvent::TimerFired {
+<<<<<<< HEAD
             event_id,
             timer_id,
             timestamp_ms,
         } = r;
         assert_eq!((event_id, timer_id, timestamp_ms), ("e1".to_string(), "t1".to_string(), 100));
+=======
+            timer_id,
+            timestamp_ms,
+        } = r;
+        assert_eq!((timer_id, timestamp_ms), ("t1".to_string(), 100));
+>>>>>>> origin/buzzard/ve-jp00n
     }
 
     #[test]
@@ -39,7 +46,11 @@ mod deser_attacks {
     #[test]
     fn reject_null_timer_id() {
         assert!(serde_json::from_value::<WorkflowEvent>(
+<<<<<<< HEAD
             json!({"TimerFired": {"event_id": "e1", "timer_id": null, "timestamp_ms": 0}})
+=======
+            json!({"TimerFired": {"timer_id": null, "timestamp_ms": 0}})
+>>>>>>> origin/buzzard/ve-jp00n
         )
         .is_err());
     }
@@ -87,7 +98,11 @@ mod deser_attacks {
     #[test]
     fn accept_zero_timestamp() {
         let WorkflowEvent::TimerFired { timestamp_ms, .. } =
+<<<<<<< HEAD
             serde_json::from_value(json!({"TimerFired": {"event_id": "e1", "timer_id": "t", "timestamp_ms": 0}}))
+=======
+            serde_json::from_value(json!({"TimerFired": {"timer_id": "t", "timestamp_ms": 0}}))
+>>>>>>> origin/buzzard/ve-jp00n
                 .unwrap();
         assert_eq!(timestamp_ms, 0);
     }

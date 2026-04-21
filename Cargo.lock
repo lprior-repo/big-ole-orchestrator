@@ -3339,6 +3339,19 @@ dependencies = [
 [[package]]
 name = "radix_trie"
 version = "0.2.1"
+<<<<<<< HEAD
+=======
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c069c179fcdc6a2fe24d8d18305cf085fdbd4f922c041943e203685d6a1c58fd"
+dependencies = [
+ "endian-type",
+ "nibble_vec",
+]
+
+[[package]]
+name = "rand"
+version = "0.8.5"
+>>>>>>> origin/buzzard/ve-jp00n
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c069c179fcdc6a2fe24d8d18305cf085fdbd4f922c041943e203685d6a1c58fd"
 dependencies = [
@@ -4797,6 +4810,15 @@ dependencies = [
 [[package]]
 name = "twox-hash"
 version = "2.1.2"
+<<<<<<< HEAD
+=======
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9ea3136b675547379c4bd395ca6b938e5ad3c3d20fad76e7fe85f9e0d011419c"
+
+[[package]]
+name = "typenum"
+version = "1.19.0"
+>>>>>>> origin/buzzard/ve-jp00n
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9ea3136b675547379c4bd395ca6b938e5ad3c3d20fad76e7fe85f9e0d011419c"
 
@@ -5037,8 +5059,11 @@ dependencies = [
  "dashmap",
  "fjall",
  "glob",
+<<<<<<< HEAD
  "metrics",
  "metrics-util",
+=======
+>>>>>>> origin/buzzard/ve-jp00n
  "notify",
  "proptest",
  "rstest 0.23.0",
@@ -5211,7 +5236,10 @@ dependencies = [
  "tokio",
  "ulid",
  "uuid",
+<<<<<<< HEAD
  "zstd",
+=======
+>>>>>>> origin/buzzard/ve-jp00n
 ]
 
 [[package]]

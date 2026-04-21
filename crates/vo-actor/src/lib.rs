@@ -4,14 +4,14 @@
 //! Actors are the fundamental units of computation in the engine.
 
 use bytes::Bytes;
+pub use vo_common::NamespaceId;
 use vo_types::InstanceId;
-use vo_types::{SequenceNumber, TimerId, WorkflowName};
 
-/// Namespace identifier for workflow isolation.
-pub type NamespaceId = String;
+pub mod heartbeat;
 
-pub mod heartbeat {
-    pub fn run_heartbeat_watcher() {}
+pub mod master {
+    pub struct MasterOrchestrator;
+    pub struct OrchestratorConfig;
 }
 
 pub mod async_message_router;
@@ -22,6 +22,7 @@ pub mod message_router;
 pub mod port;
 pub mod probe;
 pub mod reanimator;
+pub mod routing;
 pub mod semaphore;
 pub mod signal_buffer;
 pub mod signals;
@@ -32,11 +33,13 @@ pub mod signal_buffer_tests;
 
 #[cfg(test)]
 pub mod instance_registry_tests;
+<<<<<<< HEAD
 
 // #[cfg(test)]
 // pub mod replay_attack_tests;  // module file missing
+=======
+>>>>>>> origin/buzzard/ve-jp00n
 pub mod timer_lifecycle;
-pub mod timers;
 pub mod timer_supervisor;
 pub mod timer_supervisor_tests;
 
@@ -64,6 +67,35 @@ pub enum InstancePhaseView {
 /// Messages sent to the orchestrator actor.
 #[derive(Debug)]
 pub enum OrchestratorMsg {
+    /// Start a new workflow instance
+    StartWorkflow {
+        namespace: NamespaceId,
+        instance_id: InstanceId,
+        workflow_type: String,
+        paradigm: WorkflowParadigm,
+        input: Bytes,
+        reply: ractor::port::RpcReplyPort<Result<(), crate::StartError>>,
+    },
+    /// Get status of a workflow instance
+    GetStatus {
+        instance_id: InstanceId,
+        reply: ractor::port::RpcReplyPort<Option<crate::InstanceSnapshot>>,
+    },
+    /// Terminate a workflow instance
+    Terminate {
+        instance_id: InstanceId,
+        reason: String,
+        reply: ractor::port::RpcReplyPort<Result<(), TerminateError>>,
+    },
+    /// List all active workflow instances
+    ListActive {
+        reply: ractor::port::RpcReplyPort<Vec<crate::InstanceSnapshot>>,
+    },
+    /// Trigger compensation for a workflow instance
+    Compensate {
+        instance_id: InstanceId,
+        reply: ractor::port::RpcReplyPort<Result<(), CompensateError>>,
+    },
     /// Send a signal to a workflow instance
     Signal {
         instance_id: InstanceId,
@@ -100,6 +132,15 @@ pub enum OrchestratorMsg {
         instance_id: InstanceId,
         reply: ractor::port::RpcReplyPort<Result<(), TerminateError>>,
     },
+}
+
+/// Error type for compensation operations.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum CompensateError {
+    #[error("instance not found: {0}")]
+    NotFound(String),
+    #[error("compensation failed: {0}")]
+    Failed(String),
 }
 
 /// Error type for signal operations.
@@ -164,7 +205,7 @@ mod terminate_error_tests {
 }
 
 // Actor message types
-// pub mod actor_messages; // module file missing
+pub mod actor_messages;
 pub mod signal_messages;
 
 pub use signal_messages::mock_signal_storage;
@@ -177,6 +218,7 @@ pub use signal_messages::{
     WorkflowContinued,
 };
 
+<<<<<<< HEAD
 /// Messages sent to/from workflow instance actors.
 ///
 /// These are commands that drive the workflow instance lifecycle.
@@ -1178,6 +1220,8 @@ mod ractor_message_trait {
         assert_message::<ControlActorMessage>();
     }
 }
+=======
+>>>>>>> origin/buzzard/ve-jp00n
 // =============================================================================
 // Workload Classes and Reserved Permit Budget (ADR-033)
 // =============================================================================
@@ -2906,3 +2950,4 @@ mod accept_resume_tests {
     }
 }
 
+pub use actor_messages::{ControlActorMessage, InstanceActorMessage};

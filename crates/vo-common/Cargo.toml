@@ -13,9 +13,12 @@ tracing = { workspace = true, optional = true }
 [dev-dependencies]
 proptest = { workspace = true }
 
+<<<<<<< HEAD
 [features]
 default = []
 telemetry = ["dep:tracing"]
 
+=======
+>>>>>>> origin/buzzard/ve-jp00n
 [lints]
 workspace = true

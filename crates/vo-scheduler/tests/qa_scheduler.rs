@@ -89,7 +89,11 @@ fn cron_invalid_expression_rejected() {
         JobKind::Recurring,
         JobPriority::Normal,
         SchedulePolicy::Cron("invalid".to_string()),
+<<<<<<< HEAD
         RetryPolicy::default(),
+=======
+        RetryPolicy::default_policy(),
+>>>>>>> origin/buzzard/ve-jp00n
         bytes::Bytes::new(),
     );
     assert!(result.is_err());

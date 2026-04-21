@@ -1,6 +1,7 @@
 //! Collection of linting rules for workflow validation.
 //!
 //! Each rule module is independently testable and focuses on a specific
+<<<<<<< HEAD
 //! category of workflow issues. Rules are stateless and do not share
 //! mutable state between invocations.
 //!
@@ -14,10 +15,16 @@
 //! - Statelessness: Rules do not share mutable state between invocations
 //! - Independence: Each rule can be tested in isolation
 //! - Composability: Multiple rules can run concurrently without interference
+=======
+//! category of workflow issues:
+//!
+//! - [`random`] — L002: Detects non-deterministic random calls
+>>>>>>> origin/buzzard/ve-jp00n
 
 mod random;
 
 pub use random::check_random_in_workflow;
+<<<<<<< HEAD
 
 /// Trait for all linting rules.
 ///
@@ -134,3 +141,5 @@ mod tests {
         assert_eq!(diags2, diags3);
     }
 }
+=======
+>>>>>>> origin/buzzard/ve-jp00n

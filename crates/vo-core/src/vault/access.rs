@@ -34,12 +34,20 @@ impl<'a> AccessChecker<'a> {
         match self.caller {
             Principal::System => true,
             _ => {
+<<<<<<< HEAD
                 if self.policy.require_approval()
                     && !self.policy.approvers().contains(self.caller)
                 {
                     return false;
                 }
                 self.policy.allowed_principals().contains(self.caller)
+=======
+                if self.policy.require_approval() {
+                    self.policy.approvers().contains(self.caller)
+                } else {
+                    self.policy.allowed_principals().contains(self.caller)
+                }
+>>>>>>> origin/buzzard/ve-jp00n
             }
         }
     }
