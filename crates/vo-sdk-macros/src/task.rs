@@ -427,6 +427,146 @@ mod tests {
         );
     }
 
+    #[test]
+    fn parse_task_detects_async_function() {
+        let input = quote! { async fn my_async_task() {} };
+        let result = parse_task(&input).unwrap();
+        assert_eq!(result.ident, "my_async_task");
+        assert!(result.is_async, "async fn should have is_async = true");
+        assert!(!result.is_unsafe);
+        assert!(result.return_type.is_none());
+        assert!(result.args.is_empty());
+    }
+
+    #[test]
+    fn parse_task_detects_async_with_return_type() {
+        let input = quote! { async fn fetch() -> Result<Vec<u8>, Error> {} };
+        let expected_ty: Type = parse_quote!(Result<Vec<u8>, Error>);
+        let result = parse_task(&input).unwrap();
+        assert!(result.is_async, "async fn with return type should have is_async = true");
+        assert_eq!(result.return_type, Some(expected_ty));
+    }
+
+    #[test]
+    fn parse_task_detects_async_with_args() {
+        let input = quote! { async fn process(url: String, timeout: u64) {} };
+        let result = parse_task(&input).unwrap();
+        assert!(result.is_async);
+        assert_eq!(result.args.len(), 2);
+        assert_eq!(result.args[0].0, "url");
+        assert_eq!(result.args[1].0, "timeout");
+    }
+
+    #[test]
+    fn parse_task_detects_async_unsafe_function() {
+        let input = quote! { async unsafe fn low_level_op() {} };
+        let result = parse_task(&input).unwrap();
+        assert!(result.is_async, "async unsafe fn should have is_async = true");
+        assert!(result.is_unsafe, "async unsafe fn should have is_unsafe = true");
+    }
+
+    #[test]
+    fn parse_task_sync_function_has_is_async_false() {
+        let input = quote! { fn sync_task() {} };
+        let result = parse_task(&input).unwrap();
+        assert!(!result.is_async, "sync fn should have is_async = false");
+    }
+
+    #[test]
+    fn generate_task_entrypoint_async_no_args() {
+        let input = quote! { async fn my_async_task() {} };
+        let def = parse_task(&input).unwrap();
+        let result = generate_task_entrypoint(&def).unwrap();
+        let output = result.to_string();
+        assert!(output.contains("fn main ()"), "should generate main: {}", output);
+        assert!(
+            output.contains("tokio :: runtime :: Builder :: new_current_thread ()"),
+            "should use tokio runtime: {}",
+            output
+        );
+        assert!(output.contains("block_on"), "should call block_on: {}", output);
+        assert!(output.contains("my_async_task () . await"), "should await call: {}", output);
+    }
+
+    #[test]
+    fn generate_task_entrypoint_async_with_args() {
+        let input = quote! { async fn fetch(url: String) {} };
+        let def = parse_task(&input).unwrap();
+        let result = generate_task_entrypoint(&def).unwrap();
+        let output = result.to_string();
+        assert!(output.contains("std :: env :: var (\"URL\")"), "should read env var URL: {}", output);
+        assert!(
+            output.contains("fetch (url) . await"),
+            "should call fetch(url).await: {}",
+            output
+        );
+    }
+
+    #[test]
+    fn generate_task_entrypoint_async_with_return_type() {
+        let input = quote! { async fn work() -> Result<(), Error> {} };
+        let def = parse_task(&input).unwrap();
+        let result = generate_task_entrypoint(&def).unwrap();
+        let output = result.to_string();
+        assert!(
+            output.contains("-> Result"),
+            "should propagate return type to main: {}",
+            output
+        );
+        assert!(
+            output.contains("Error"),
+            "should contain Error type in return: {}",
+            output
+        );
+        assert!(
+            !output.contains("work () . await ;"),
+            "async fn with return type should NOT have semicolon after await: {}",
+            output
+        );
+    }
+
+    #[test]
+    fn generate_task_entrypoint_async_unsafe() {
+        let task = TaskDef {
+            ident: "low_level".to_string(),
+            is_async: true,
+            is_unsafe: true,
+            return_type: None,
+            generics: syn::Generics::default(),
+            args: vec![],
+        };
+        let result = generate_task_entrypoint(&task).unwrap();
+        let output = result.to_string();
+        assert!(
+            output.contains("unsafe"),
+            "async unsafe should generate unsafe block: {}",
+            output
+        );
+        assert!(
+            output.contains("low_level () . await"),
+            "should await the call: {}",
+            output
+        );
+    }
+
+    #[test]
+    fn generate_task_entrypoint_async_generic_uses_tokio() {
+        let input = quote! { async fn generic_async<T: Send>() where T: Default {} };
+        let def = parse_task(&input).unwrap();
+        let result = generate_task_entrypoint(&def).unwrap();
+        let output = result.to_string();
+        assert!(
+            output.contains("tokio :: runtime :: Builder :: new_current_thread ()"),
+            "async generic should use tokio runtime: {}",
+            output
+        );
+        assert!(
+            output.contains("block_on"),
+            "async generic should use block_on: {}",
+            output
+        );
+    }
+
     proptest! {
         #[test]
         fn parse_task_no_panic(item_str in ".*") {
