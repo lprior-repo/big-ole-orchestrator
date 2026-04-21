@@ -89,9 +89,7 @@ pub(crate) fn internal_task_macro(
         Err(error::Error::AsyncReturnTypeMismatch) => {
             quote::quote! { compile_error!("async functions cannot have a return type"); }
         }
-        Err(error::Error::GenericFunctionNotSupported) => {
-            quote::quote! { compile_error!("generic functions are not supported"); }
-        }
+ 
     }
 }
 

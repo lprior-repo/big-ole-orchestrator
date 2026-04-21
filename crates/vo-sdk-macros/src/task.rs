@@ -52,13 +52,9 @@ pub fn parse_task(item: &TokenStream) -> Result<TaskDef, Error> {
         syn::ReturnType::Type(_, ty) => Some(*ty),
     };
 
-    let has_generics = !parsed.sig.generics.params.is_empty()
+    let _has_generics = !parsed.sig.generics.params.is_empty()
         || parsed.sig.generics.lt_token.is_some()
         || parsed.sig.generics.where_clause.is_some();
-
-    if has_generics {
-        return Err(Error::GenericFunctionNotSupported);
-    }
 
     Ok(TaskDef {
         ident: parsed.sig.ident.to_string(),

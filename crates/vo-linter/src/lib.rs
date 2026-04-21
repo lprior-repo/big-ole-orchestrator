@@ -26,3 +26,4 @@ mod diagnostic;
 pub mod rules;
 
 pub use diagnostic::{Diagnostic, LintCode};
+pub use rules::Rule;
