@@ -187,7 +187,7 @@ fn rq_registry_deregister_unknown_errors() {
 
 #[test]
 fn rq_budget_exhaustion_then_release_allows() {
-    let mut b = vo_actor::ReservedPermitBudget::new(1);
+    let mut b = vo_actor::ReservedPermitBudget::new(1).unwrap();
     b.try_acquire(WorkloadClass::Recovery).unwrap();
     assert!(matches!(
         b.try_acquire(WorkloadClass::Recovery),
@@ -199,7 +199,7 @@ fn rq_budget_exhaustion_then_release_allows() {
 
 #[test]
 fn rq_budget_cross_class_isolation() {
-    let mut b = vo_actor::ReservedPermitBudget::new(1);
+    let mut b = vo_actor::ReservedPermitBudget::new(1).unwrap();
     b.try_acquire(WorkloadClass::Recovery).unwrap();
     assert!(b.try_acquire(WorkloadClass::NewInstance).is_ok());
     assert!(b.is_exhausted(WorkloadClass::Recovery));
