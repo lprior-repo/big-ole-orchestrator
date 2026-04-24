@@ -67,6 +67,8 @@ impl SubprocessConfig {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SubprocessOutput {
     pub fd4_bytes: Vec<u8>,
+    pub stderr_bytes: Vec<u8>,
+    pub stderr_truncated: bool,
     pub exit_code: Option<i32>,
 }
 
@@ -89,6 +91,8 @@ pub enum SubprocessError {
 }
 
 const BOUNDED_BUFFER_SIZE: usize = 65536;
+const MAX_STDERR_BYTES: usize = 1_048_576;
+const STDERR_TRUNCATION_MARKER: &[u8] = b"\n[... TRUNCATED AT 1MB ...]";
 
 fn create_pipe() -> Result<(RawFd, RawFd), SubprocessError> {
     let mut fds = [0; 2];
@@ -120,7 +124,7 @@ pub async fn run_subprocess(config: SubprocessConfig) -> Result<SubprocessOutput
     command.env_clear();
     command.stdin(std::process::Stdio::null());
     command.stdout(std::process::Stdio::null());
-    command.stderr(std::process::Stdio::null());
+    command.stderr(std::process::Stdio::piped());
 
     unsafe {
         command.pre_exec(move || {
@@ -158,8 +162,15 @@ pub async fn run_subprocess(config: SubprocessConfig) -> Result<SubprocessOutput
     let fd3_writer = unsafe { tokio::fs::File::from_std(std::fs::File::from_raw_fd(fd3_write)) };
     let fd4_reader = unsafe { tokio::fs::File::from_std(std::fs::File::from_raw_fd(fd4_read)) };
 
+    let stderr_reader = child
+        .stderr
+        .take()
+        .ok_or_else(|| SubprocessError::PipeSetupFailed("Failed to take stderr pipe".to_string()))?;
+
     let timeout_ms = config.timeout_ms();
     let fd3_payload = config.fd3_payload;
+
+    let stderr_handle = tokio::spawn(read_bounded_stderr(stderr_reader));
 
     let res = timeout(Duration::from_millis(timeout_ms), async {
         let ipc_result = perform_ipc(fd3_writer, fd4_reader, fd3_payload).await;
@@ -168,12 +179,16 @@ pub async fn run_subprocess(config: SubprocessConfig) -> Result<SubprocessOutput
     })
     .await;
 
+    let stderr_capture = stderr_handle.await.unwrap_or_else(|_| (vec![], false));
+
     match res {
         Ok((Ok(output), exit_status)) => match exit_status {
             Ok(status) => {
                 if let Some(exit_code) = status.code() {
                     Ok(SubprocessOutput {
                         fd4_bytes: output,
+                        stderr_bytes: stderr_capture.0,
+                        stderr_truncated: stderr_capture.1,
                         exit_code: Some(exit_code),
                     })
                 } else {
@@ -278,6 +293,36 @@ async fn read_bounded_fd4(reader: &mut tokio::fs::File) -> Result<Vec<u8>, Subpr
     }
 
     Ok(bytes)
+}
+
+async fn read_bounded_stderr<R>(mut reader: R) -> (Vec<u8>, bool)
+where
+    R: tokio::io::AsyncRead + Unpin,
+{
+    let mut bytes = Vec::with_capacity(4096);
+    let mut buf = [0u8; 4096];
+    let mut truncated = false;
+
+    loop {
+        match reader.read(&mut buf).await {
+            Ok(0) => break,
+            Ok(n) => {
+                let available = MAX_STDERR_BYTES.saturating_sub(bytes.len());
+                let to_copy = n.min(available);
+                bytes.extend_from_slice(&buf[..to_copy]);
+                if to_copy < n {
+                    truncated = true;
+                }
+            }
+            Err(_) => break,
+        }
+    }
+
+    if truncated && !bytes.ends_with(STDERR_TRUNCATION_MARKER) {
+        bytes.extend_from_slice(STDERR_TRUNCATION_MARKER);
+    }
+
+    (bytes, truncated)
 }
 
 #[cfg(test)]
@@ -390,5 +435,44 @@ mod tests {
             remaining -= chunk_size;
         }
         assert_eq!(total_read, large_payload_size);
+    }
+
+    #[tokio::test]
+    async fn test_read_bounded_stderr_small_input() {
+        let data = b"hello stderr\n";
+        let cursor = std::io::Cursor::new(data);
+        let (bytes, truncated) = read_bounded_stderr(cursor).await;
+        assert_eq!(bytes, b"hello stderr\n");
+        assert!(!truncated);
+    }
+
+    #[tokio::test]
+    async fn test_read_bounded_stderr_empty() {
+        let cursor = std::io::Cursor::new(b"");
+        let (bytes, truncated) = read_bounded_stderr(cursor).await;
+        assert!(bytes.is_empty());
+        assert!(!truncated);
+    }
+
+    #[tokio::test]
+    async fn test_read_bounded_stderr_truncation() {
+        let large: Vec<u8> = vec![b'x'; MAX_STDERR_BYTES + 100];
+        let cursor = std::io::Cursor::new(large);
+        let (bytes, truncated) = read_bounded_stderr(cursor).await;
+        assert!(truncated);
+        assert!(bytes.len() <= MAX_STDERR_BYTES + STDERR_TRUNCATION_MARKER.len());
+        assert!(bytes.ends_with(STDERR_TRUNCATION_MARKER));
+    }
+
+    #[test]
+    fn test_subprocess_output_has_stderr_fields() {
+        let output = SubprocessOutput {
+            fd4_bytes: vec![1, 2, 3],
+            stderr_bytes: b"error msg".to_vec(),
+            stderr_truncated: false,
+            exit_code: Some(0),
+        };
+        assert_eq!(output.stderr_bytes, b"error msg");
+        assert!(!output.stderr_truncated);
     }
 }
