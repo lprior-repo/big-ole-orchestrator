@@ -1,4 +1,5 @@
 use crate::data::{BeadId, FleetEntry, PolecatName, PolecatStatus, Rig};
+use std::collections::{HashMap, HashSet};
 
 pub fn build_prompt(rig: &Rig, name: &PolecatName, bead: &BeadId) -> String {
     format!(
@@ -104,10 +105,48 @@ pub const fn classify_status(session_exists: bool, has_children: bool) -> Poleca
     }
 }
 
+pub fn parse_tmux_session_pids(stdout: &str) -> HashMap<String, String> {
+    stdout
+        .lines()
+        .filter_map(|line| {
+            line.trim()
+                .split_once(':')
+                .map(|(name, pid)| (name.to_string(), pid.trim().to_string()))
+        })
+        .collect()
+}
+
+pub fn parse_active_parent_pids(stdout: &str) -> HashSet<String> {
+    stdout
+        .lines()
+        .filter_map(|line| {
+            let mut parts = line.split_whitespace();
+            match (parts.next(), parts.next()) {
+                (Some(ppid), Some(_pid)) if !ppid.is_empty() && ppid != "0" => {
+                    Some(ppid.to_string())
+                }
+                _ => None,
+            }
+        })
+        .collect()
+}
+
+pub fn classify_batch_status(
+    session: &str,
+    session_pids: &HashMap<String, String>,
+    active_parent_pids: &HashSet<String>,
+) -> PolecatStatus {
+    match session_pids.get(session) {
+        Some(pid) if pid.is_empty() => PolecatStatus::Idle,
+        Some(pid) => classify_status(true, active_parent_pids.contains(pid)),
+        None => PolecatStatus::Dead,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::data::{BeadCategory, BeadJson, Fleet, HARDLINE_RIG, Rig, RuntimeKind, VELOXIDE_RIG};
+    use crate::data::{BeadCategory, BeadJson, Fleet, HARDLINE_RIG, Rig, RuntimeKind, TWERK_RIG, VELOXIDE_RIG};
 
     #[test]
     fn prompt_contains_bead_and_findings_path() {
@@ -148,15 +187,55 @@ mod tests {
     }
 
     #[test]
-    fn fleet_has_34_entries() {
-        let fleet = Fleet::for_rig(&VELOXIDE_RIG);
-        assert_eq!(fleet.len(), 34);
+    fn parse_tmux_session_pids_collects_named_sessions() {
+        let sessions = parse_tmux_session_pids("ve-brahmin:101\nve-rust:202\n");
+        assert_eq!(sessions.get("ve-brahmin"), Some(&"101".to_string()));
+        assert_eq!(sessions.get("ve-rust"), Some(&"202".to_string()));
     }
 
     #[test]
-    fn hardline_fleet_has_34_entries() {
+    fn parse_active_parent_pids_collects_parent_processes() {
+        let parents = parse_active_parent_pids("101 9001\n202 9002\n202 9003\n0 1\n");
+        assert!(parents.contains("101"));
+        assert!(parents.contains("202"));
+        assert!(!parents.contains("0"));
+    }
+
+    #[test]
+    fn classify_batch_status_distinguishes_dead_idle_and_working() {
+        let sessions = parse_tmux_session_pids("ve-brahmin:101\nve-rust:\n");
+        let active = parse_active_parent_pids("101 9001\n");
+
+        assert_eq!(
+            classify_batch_status("ve-brahmin", &sessions, &active),
+            PolecatStatus::Working
+        );
+        assert_eq!(
+            classify_batch_status("ve-rust", &sessions, &active),
+            PolecatStatus::Idle
+        );
+        assert_eq!(
+            classify_batch_status("ve-missing", &sessions, &active),
+            PolecatStatus::Dead
+        );
+    }
+
+    #[test]
+    fn fleet_has_31_entries() {
+        let fleet = Fleet::for_rig(&VELOXIDE_RIG);
+        assert_eq!(fleet.len(), 31);
+    }
+
+    #[test]
+    fn hardline_fleet_has_31_entries() {
         let fleet = Fleet::for_rig(&HARDLINE_RIG);
-        assert_eq!(fleet.len(), 34);
+        assert_eq!(fleet.len(), 31);
+    }
+
+    #[test]
+    fn twerk_fleet_has_31_entries() {
+        let fleet = Fleet::for_rig(&TWERK_RIG);
+        assert_eq!(fleet.len(), 31);
     }
 
     #[test]
@@ -170,7 +249,7 @@ mod tests {
             .iter()
             .filter(|e| e.runtime.kind == RuntimeKind::Claude)
             .count();
-        assert_eq!(opencode_count, 26);
+        assert_eq!(opencode_count, 23);
         assert_eq!(claude_count, 8);
     }
 
@@ -247,8 +326,8 @@ mod tests {
     }
 
     #[test]
-    fn rig_all_returns_two() {
-        assert_eq!(Rig::all().len(), 2);
+    fn rig_all_returns_six() {
+        assert_eq!(Rig::all().len(), 6);
     }
 
     #[test]
@@ -264,5 +343,6 @@ mod tests {
         let name = PolecatName::new("brahmin");
         assert_eq!(name.tmux_session(&VELOXIDE_RIG), "ve-brahmin");
         assert_eq!(name.tmux_session(&HARDLINE_RIG), "hl-brahmin");
+        assert_eq!(name.tmux_session(&TWERK_RIG), "tw-brahmin");
     }
 }

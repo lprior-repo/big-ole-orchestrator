@@ -15,18 +15,22 @@ use std::path::PathBuf;
 pub enum RigKind {
     Veloxide,
     Hardline,
+    Twerk,
+    Seshat,
+    CentralizedDocs,
+    Clarity,
 }
 
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub struct Rig {
-    pub kind: RigKind, // reserved for future rig-type dispatch
+    pub kind: RigKind,
     pub src_dir: &'static str,
     pub gt_root: &'static str,
     pub name: &'static str,
     pub tmux_prefix: &'static str,
     pub bead_prefix: &'static str,
-    pub dolt_database: &'static str, // reserved for multi-database routing
+    pub dolt_database: &'static str,
     pub dolt_port: u16,
 }
 
@@ -48,13 +52,57 @@ pub const HARDLINE_RIG: Rig = Rig {
     name: "hardline",
     tmux_prefix: "hl-",
     bead_prefix: "ha-",
-    dolt_database: "hardline",
+    dolt_database: "ha",
+    dolt_port: 3307,
+};
+
+pub const TWERK_RIG: Rig = Rig {
+    kind: RigKind::Twerk,
+    src_dir: "/home/lewis/src/twerk",
+    gt_root: "/home/lewis/gt",
+    name: "twerk",
+    tmux_prefix: "tw-",
+    bead_prefix: "tw-",
+    dolt_database: "tw",
+    dolt_port: 3307,
+};
+
+pub const SESHAT_RIG: Rig = Rig {
+    kind: RigKind::Seshat,
+    src_dir: "/home/lewis/src/Seshat",
+    gt_root: "/home/lewis/gt",
+    name: "seshat",
+    tmux_prefix: "se-",
+    bead_prefix: "se-",
+    dolt_database: "Seshat",
+    dolt_port: 3307,
+};
+
+pub const CDOCS_RIG: Rig = Rig {
+    kind: RigKind::CentralizedDocs,
+    src_dir: "/home/lewis/src/centralized-docs",
+    gt_root: "/home/lewis/gt",
+    name: "cdocs",
+    tmux_prefix: "cd-",
+    bead_prefix: "cd-",
+    dolt_database: "cdocs",
+    dolt_port: 3307,
+};
+
+pub const CLARITY_RIG: Rig = Rig {
+    kind: RigKind::Clarity,
+    src_dir: "/home/lewis/src/clarity",
+    gt_root: "/home/lewis/gt",
+    name: "clarity",
+    tmux_prefix: "cl-",
+    bead_prefix: "cl-",
+    dolt_database: "clarity",
     dolt_port: 3307,
 };
 
 impl Rig {
     pub const fn all() -> &'static [Self] {
-        &[VELOXIDE_RIG, HARDLINE_RIG]
+        &[VELOXIDE_RIG, HARDLINE_RIG, TWERK_RIG, SESHAT_RIG, CDOCS_RIG, CLARITY_RIG]
     }
 }
 
@@ -169,7 +217,7 @@ pub struct Fleet;
 impl Fleet {
     #[allow(clippy::similar_names)]
     pub fn for_rig(rig: &'static Rig) -> Vec<FleetEntry> {
-        let mut entries = Vec::with_capacity(34);
+        let mut entries = Vec::with_capacity(31);
 
         let minimax_spec = RuntimeSpec {
             kind: RuntimeKind::OpenCode,
@@ -193,12 +241,12 @@ impl Fleet {
         };
         let qwen5090_spec = RuntimeSpec {
             kind: RuntimeKind::OpenCode,
-            model: "qwen35-5090/Qwen3.5-35B-A3B-UD-Q5_K_XL.gguf",
+            model: "qwen36-5090/Qwen3.6-35B-A3B-UD-Q5_K_XL.gguf",
             agent_flag: "opencode-qwen5090",
         };
         let qwen3090_spec = RuntimeSpec {
             kind: RuntimeKind::OpenCode,
-            model: "qwen35-3090/Qwen3.5-35B-A3B-UD-Q4_K_XL.gguf",
+            model: "qwen36-3090/Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf",
             agent_flag: "opencode-qwen3090",
         };
         let claude_opus_spec = RuntimeSpec {
@@ -212,17 +260,16 @@ impl Fleet {
             agent_flag: "claude-sonnet",
         };
 
-        let minimax_names: [&'static str; 12] = [
-            "brahmin", "chrome", "dust", "fury", "ghoul", "guzzle", "mirelurk", "mutant", "nitro",
-            "raider", "bandit", "warboy",
+        let minimax_names: [&'static str; 8] = [
+            "brahmin", "chrome", "dust", "fury", "ghoul", "guzzle", "mirelurk", "mutant",
         ];
-        let glm51_names: [&'static str; 2] = ["nuka", "pipboy"];
+        let glm51_names: [&'static str; 3] = ["nuka", "pipboy", "nitro"];
         let glm5_names: [&'static str; 2] = ["lancer", "drifter"];
         let glm5t_names: [&'static str; 2] = ["radrat", "scavenger"];
         let qwen5090_names: [&'static str; 4] = ["vault", "maximus", "immortan", "sentinel"];
         let qwen3090_names: [&'static str; 4] = ["gecko", "barrage", "turret", "citadel"];
         let claude_opus_names: [&'static str; 4] = ["rust", "deathclaw", "prime", "overlord"];
-        let claude_sonnet_names: [&'static str; 4] = ["shiny", "synth", "thunder", "maestro"];
+        let claude_sonnet_names: [&'static str; 4] = ["shiny", "synth", "trunder", "maestro"];
 
         let push = |entries: &mut Vec<FleetEntry>, name: &'static str, spec: &RuntimeSpec| {
             entries.push(FleetEntry {

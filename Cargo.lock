@@ -5123,6 +5123,7 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "chrono",
+ "metrics",
  "proptest",
  "rstest 0.23.0",
  "serde",
