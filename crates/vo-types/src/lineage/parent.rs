@@ -1,9 +1,4 @@
-//! Workflow lineage and epoch types for continue-as-new (ADR-038).
-//!
-//! These types track workflow identity across epoch rollover boundaries:
-//! - [`Epoch`] identifies one execution epoch within a lineage
-//! - [`WorkflowLineage`] binds a stable lineage_id to an epoch with optional parent
-//! - [`LineageError`] enumerates construction failures
+//! Epoch and WorkflowLineage types for continue-as-new (ADR-038).
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -38,15 +33,17 @@ impl std::fmt::Display for Epoch {
     }
 }
 
-/// Immutable workflow lineage across continue-as-new boundaries.
-///
-/// A lineage binds a stable `lineage_id` (which persists across epoch rollovers)
-/// to a specific `epoch` and optional `parent_epoch`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct WorkflowLineage {
-    lineage_id: String,
-    epoch: Epoch,
-    parent_epoch: Option<Epoch>,
+/// Errors that can occur when constructing lineage values.
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+pub enum LineageError {
+    #[error("lineage_id must not be empty")]
+    EmptyLineageId,
+    #[error("parent_epoch ({parent_epoch}) must be less than epoch ({epoch})")]
+    InvalidEpochTransition { parent_epoch: Epoch, epoch: Epoch },
+    #[error("epoch overflow: cannot advance beyond u64::MAX")]
+    EpochOverflow,
+    #[error("lineage_id must not contain control characters")]
+    ControlCharacters,
 }
 
 fn validate_lineage_id(lineage_id: &str) -> Result<(), LineageError> {
@@ -57,6 +54,17 @@ fn validate_lineage_id(lineage_id: &str) -> Result<(), LineageError> {
         return Err(LineageError::ControlCharacters);
     }
     Ok(())
+}
+
+/// Immutable workflow lineage across continue-as-new boundaries.
+///
+/// A lineage binds a stable `lineage_id` (which persists across epoch rollovers)
+/// to a specific `epoch` and optional `parent_epoch`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WorkflowLineage {
+    lineage_id: String,
+    epoch: Epoch,
+    parent_epoch: Option<Epoch>,
 }
 
 impl WorkflowLineage {
@@ -145,115 +153,9 @@ impl WorkflowLineage {
     }
 }
 
-/// Status of a lineage - tracks whether it can accept new epochs.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum LineageStatus {
-    /// Lineage is active and can spawn new epochs.
-    Active,
-    /// Lineage has been permanently tombstoned - no more epochs allowed.
-    Tombstoned,
-}
-
-impl LineageStatus {
-    /// Returns `true` if the lineage is active.
-    #[must_use]
-    pub const fn is_active(&self) -> bool {
-        matches!(self, Self::Active)
-    }
-
-    /// Returns `true` if the lineage is tombstoned.
-    #[must_use]
-    pub const fn is_tombstoned(&self) -> bool {
-        matches!(self, Self::Tombstoned)
-    }
-}
-
-/// Lineage state combines lineage identity with operational status.
-///
-/// Tracks the full lifecycle state of a lineage including whether
-/// it has been permanently tombstoned due to a lineage-scoped failure.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct LineageState {
-    lineage: WorkflowLineage,
-    status: LineageStatus,
-}
-
-impl LineageState {
-    /// Create a new active lineage state.
-    #[must_use]
-    pub fn new(lineage: WorkflowLineage) -> Self {
-        Self {
-            lineage,
-            status: LineageStatus::Active,
-        }
-    }
-
-    /// Create a lineage state with explicit status.
-    #[must_use]
-    pub fn with_status(lineage: WorkflowLineage, status: LineageStatus) -> Self {
-        Self { lineage, status }
-    }
-
-    /// Returns `true` if this lineage can spawn new epochs.
-    #[must_use]
-    pub fn can_spawn_epoch(&self) -> bool {
-        self.status == LineageStatus::Active
-    }
-
-    /// Returns the lineage_id.
-    #[must_use]
-    pub fn lineage_id(&self) -> &str {
-        &self.lineage.lineage_id
-    }
-
-    /// Returns the current epoch.
-    #[must_use]
-    pub fn epoch(&self) -> Epoch {
-        self.lineage.epoch
-    }
-
-    /// Returns the lineage identity.
-    #[must_use]
-    pub fn lineage(&self) -> &WorkflowLineage {
-        &self.lineage
-    }
-
-    /// Returns the current status.
-    #[must_use]
-    pub fn status(&self) -> LineageStatus {
-        self.status
-    }
-
-    /// Tombstone this lineage, permanently preventing new epochs.
-    #[must_use]
-    pub fn tombstone(&self) -> Self {
-        Self {
-            lineage: self.lineage.clone(),
-            status: LineageStatus::Tombstoned,
-        }
-    }
-}
-
-/// Errors that can occur when constructing lineage values.
-#[derive(Debug, Clone, PartialEq, Eq, Error)]
-pub enum LineageError {
-    #[error("lineage_id must not be empty")]
-    EmptyLineageId,
-    #[error("parent_epoch ({parent_epoch}) must be less than epoch ({epoch})")]
-    InvalidEpochTransition { parent_epoch: Epoch, epoch: Epoch },
-    #[error("epoch overflow: cannot advance beyond u64::MAX")]
-    EpochOverflow,
-    #[error("lineage_id must not contain control characters")]
-    ControlCharacters,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    // -----------------------------------------------------------------------
-    // Epoch newtype tests
-    // -----------------------------------------------------------------------
 
     #[test]
     fn epoch_new_returns_expected_value() {
@@ -303,10 +205,6 @@ mod tests {
         assert_eq!(Epoch::new(42).to_string(), "42");
         assert_eq!(Epoch::ZERO.to_string(), "0");
     }
-
-    // -----------------------------------------------------------------------
-    // WorkflowLineage happy path tests
-    // -----------------------------------------------------------------------
 
     #[test]
     fn lineage_new_creates_root_with_epoch_zero_and_no_parent() {
@@ -398,10 +296,6 @@ mod tests {
         assert_eq!(original, restored);
     }
 
-    // -----------------------------------------------------------------------
-    // WorkflowLineage error path tests
-    // -----------------------------------------------------------------------
-
     #[test]
     fn lineage_new_returns_empty_lineage_id_when_id_is_empty() {
         let result = WorkflowLineage::new(String::new());
@@ -460,10 +354,6 @@ mod tests {
         assert_eq!(result, Err(LineageError::ControlCharacters));
     }
 
-    // -----------------------------------------------------------------------
-    // Edge case tests
-    // -----------------------------------------------------------------------
-
     #[test]
     fn lineage_with_parent_epoch_1_parent_epoch_0() {
         let lineage = WorkflowLineage::with_parent(
@@ -487,10 +377,6 @@ mod tests {
         assert_eq!(lineage.epoch, Epoch::new(u64::MAX));
         assert_eq!(lineage.parent_epoch, Some(Epoch::new(u64::MAX - 1)));
     }
-
-    // -----------------------------------------------------------------------
-    // Contract verification / invariant tests
-    // -----------------------------------------------------------------------
 
     #[test]
     fn invariant_epoch_monotonic_parent_less_than_epoch() {
@@ -523,10 +409,6 @@ mod tests {
         assert_eq!(lineage.parent_epoch, None);
     }
 
-    // -----------------------------------------------------------------------
-    // LineageError display tests
-    // -----------------------------------------------------------------------
-
     #[test]
     fn lineage_error_empty_lineage_id_displays_correctly() {
         let err = LineageError::EmptyLineageId;
@@ -543,94 +425,5 @@ mod tests {
             err.to_string(),
             "parent_epoch (5) must be less than epoch (3)"
         );
-    }
-
-    // -----------------------------------------------------------------------
-    // LineageStatus tests (ADR-042 Section 5)
-    // -----------------------------------------------------------------------
-
-    #[test]
-    fn lineage_status_active_is_active() {
-        assert!(LineageStatus::Active.is_active());
-        assert!(!LineageStatus::Active.is_tombstoned());
-    }
-
-    #[test]
-    fn lineage_status_tombstoned_is_tombstoned() {
-        assert!(!LineageStatus::Tombstoned.is_active());
-        assert!(LineageStatus::Tombstoned.is_tombstoned());
-    }
-
-    #[test]
-    fn lineage_status_debug() {
-        assert_eq!(format!("{:?}", LineageStatus::Active), "Active");
-        assert_eq!(format!("{:?}", LineageStatus::Tombstoned), "Tombstoned");
-    }
-
-    // -----------------------------------------------------------------------
-    // LineageState tests (ADR-042 Section 5)
-    // -----------------------------------------------------------------------
-
-    #[test]
-    fn lineage_state_new_is_active() {
-        let lineage = WorkflowLineage::new("test-lineage".to_string()).expect("ok");
-        let state = LineageState::new(lineage);
-        assert_eq!(state.status(), LineageStatus::Active);
-        assert!(state.can_spawn_epoch());
-    }
-
-    #[test]
-    fn lineage_state_with_status() {
-        let lineage = WorkflowLineage::new("test-lineage".to_string()).expect("ok");
-        let state = LineageState::with_status(lineage, LineageStatus::Tombstoned);
-        assert_eq!(state.status(), LineageStatus::Tombstoned);
-        assert!(!state.can_spawn_epoch());
-    }
-
-    #[test]
-    fn lineage_state_tombstone() {
-        let lineage = WorkflowLineage::new("test-lineage".to_string()).expect("ok");
-        let state = LineageState::new(lineage);
-        assert!(state.can_spawn_epoch());
-
-        let tombstoned = state.tombstone();
-        assert_eq!(tombstoned.status(), LineageStatus::Tombstoned);
-        assert!(!tombstoned.can_spawn_epoch());
-        assert_eq!(tombstoned.lineage_id(), "test-lineage");
-    }
-
-    #[test]
-    fn lineage_state_epoch_accessors() {
-        let lineage = WorkflowLineage::new("test-lineage".to_string()).expect("ok");
-        let state = LineageState::new(lineage.clone());
-        assert_eq!(state.epoch(), Epoch::ZERO);
-
-        let child_lineage = lineage.continue_as_new().expect("ok");
-        let child_state = LineageState::new(child_lineage);
-        assert_eq!(child_state.epoch(), Epoch::new(1));
-    }
-
-    #[test]
-    fn lineage_state_serde_roundtrip() {
-        let lineage = WorkflowLineage::new("serde-test".to_string()).expect("ok");
-        let state = LineageState::new(lineage);
-
-        let json = serde_json::to_string(&state).expect("serialize");
-        let restored: LineageState = serde_json::from_str(&json).expect("deserialize");
-
-        assert_eq!(restored.lineage_id(), "serde-test");
-        assert_eq!(restored.status(), LineageStatus::Active);
-    }
-
-    #[test]
-    fn lineage_state_tombstoned_serde_roundtrip() {
-        let lineage = WorkflowLineage::new("tombstoned-test".to_string()).expect("ok");
-        let state = LineageState::with_status(lineage, LineageStatus::Tombstoned);
-
-        let json = serde_json::to_string(&state).expect("serialize");
-        let restored: LineageState = serde_json::from_str(&json).expect("deserialize");
-
-        assert_eq!(restored.lineage_id(), "tombstoned-test");
-        assert_eq!(restored.status(), LineageStatus::Tombstoned);
     }
 }
