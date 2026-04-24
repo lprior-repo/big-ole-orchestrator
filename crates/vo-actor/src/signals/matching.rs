@@ -3,8 +3,7 @@
 //! This module provides types and predicates for determining whether an
 //! incoming signal matches a workflow's registered wait-key.
 
-use crate::SignalPayload;
-use crate::WaitKey;
+use super::types::{SignalPayload, WaitKey};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Signal {

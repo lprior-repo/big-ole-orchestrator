@@ -25,7 +25,6 @@ pub mod reanimator;
 pub mod routing;
 pub mod semaphore;
 pub mod signal_buffer;
-pub mod signals;
 pub mod spawn_supervisor;
 
 #[cfg(test)]
@@ -171,11 +170,11 @@ mod terminate_error_tests {
 
 // Actor message types
 pub mod actor_messages;
-pub mod signal_messages;
+pub mod signals;
 
-pub use signal_messages::mock_signal_storage;
-pub use signal_messages::mock_signal_storage::{MockSignalStorage, MockSignalWorkQueue};
-pub use signal_messages::{
+pub use signals::mock_signal_storage;
+pub use signals::mock_signal_storage::{MockSignalStorage, MockSignalWorkQueue};
+pub use signals::{
     AcceptResumeError, AcceptResumeOutcome, BinaryHash, CancelError, CancelRequested,
     ContinueAsNewError, InstanceResumed, LifecycleState, NodeName, ResumeError, RolloverState,
     SecretId, SignalAccepted, SignalPayload, SignalStorage, SignalStorageError, SignalWorkQueue,
