@@ -15,3 +15,8 @@
 2026-04-24T06:35:10Z actor=twerk/polecats/maestro key=port value=3311 beads_dir=/home/lewis/gt/.beads
 2026-04-24T06:39:12Z actor=twerk/polecats/shiny key=port value=3310 beads_dir=/home/lewis/gt/.beads
 2026-04-24T06:45:40Z actor=hardline/polecats/sentinel key=port value=3308 beads_dir=/home/lewis/gt/.beads
+2026-04-24T07:02:12Z actor=twerk/polecats/shiny key=database value=twerk beads_dir=/home/lewis/gt/.beads
+2026-04-24T07:04:29Z actor=twerk/polecats/maximus key=port value=3306 beads_dir=/home/lewis/gt/.beads
+2026-04-24T07:07:16Z actor=twerk/polecats/maximus key=port value=3306 beads_dir=/home/lewis/gt/.beads
+2026-04-24T07:07:38Z actor=unknown key=port value=3399 beads_dir=/home/lewis/gt/.beads
+2026-04-24T07:09:00Z actor=hardline/polecats/barrage key=port value=3310 beads_dir=/home/lewis/gt/.beads
