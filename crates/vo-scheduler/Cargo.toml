@@ -12,6 +12,7 @@ serde_json.workspace = true
 ulid = { workspace = true, features = ["serde"] }
 chrono = { workspace = true, features = ["serde"] }
 bytes = { workspace = true, features = ["serde"] }
+metrics.workspace = true
 
 [dev-dependencies]
 rstest.workspace = true
