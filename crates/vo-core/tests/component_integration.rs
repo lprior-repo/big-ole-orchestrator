@@ -42,7 +42,7 @@ fn make_request(wf: &str, hash: &str, force: bool) -> RegistrationRequest {
     RegistrationRequest {
         workflow_name: make_wf(wf),
         binary_hash: make_hash(hash),
-        force,
+        force: if force { Some("test-operator-token".into()) } else { None },
     }
 }
 
@@ -417,6 +417,7 @@ fn circuit_breaker_force_bypasses_all_protections() {
         .rate_limiter
         .insert(make_wf("stuck-wf"), now - Duration::from_secs(30));
 
+    state.register_operator_token("test-operator-token".into());
     let force_request = make_request("stuck-wf", "abcdef01", true);
     let result = evaluate_registration(&force_request, &config, &state, now);
     assert_eq!(

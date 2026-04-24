@@ -54,7 +54,7 @@ fn bench_concurrent_registration(c: &mut Criterion) {
                                     let req = RegistrationRequest {
                                         workflow_name: wf,
                                         binary_hash: hash,
-                                        force: false,
+                                        force: None,
                                     };
                                     let now = Instant::now();
                                     match evaluate_registration(&req, &config, &state, now).unwrap()
@@ -109,7 +109,7 @@ fn bench_concurrent_rate_limited(c: &mut Criterion) {
                                     let req = RegistrationRequest {
                                         workflow_name: wf,
                                         binary_hash: hash,
-                                        force: false,
+                                        force: None,
                                     };
                                     let now = Instant::now();
                                     match evaluate_registration(&req, &config, &state, now).unwrap()
@@ -216,7 +216,7 @@ fn bench_mixed_registration_and_failure(c: &mut Criterion) {
                                     let req = RegistrationRequest {
                                         workflow_name: wf,
                                         binary_hash: hash,
-                                        force: false,
+                                        force: None,
                                     };
                                     if matches!(
                                         evaluate_registration(&req, &config, &state, now).unwrap(),

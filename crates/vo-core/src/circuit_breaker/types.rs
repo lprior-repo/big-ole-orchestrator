@@ -18,8 +18,8 @@ pub struct FailureRecord {
 pub struct RegistrationRequest {
     pub workflow_name: WorkflowName,
     pub binary_hash: BinaryHash,
-    /// True if the operator provided `--force`.
-    pub force: bool,
+    /// Operator token for force registration (ADR-026). `Some(token)` if the operator provided `--force`.
+    pub force: Option<String>,
 }
 
 /// Result of the circuit breaker evaluation.
@@ -33,6 +33,8 @@ pub enum RegistrationOutcome {
     WorkflowQuarantined { workflow_name: WorkflowName },
     /// Registration denied: workflow is deactivated.
     WorkflowDeactivated { workflow_name: WorkflowName },
+    /// Force registration attempted but operator token is invalid.
+    ForceUnauthorized,
 }
 
 /// Event emitted when a workflow is quarantined.

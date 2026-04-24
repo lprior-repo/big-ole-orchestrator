@@ -166,10 +166,11 @@ mod circuit_breaker_boundary {
         let wf = vo_types::WorkflowName::parse("force-test").unwrap();
         state.set_status(wf.clone(), RegistrationStatus::Quarantined);
 
+        state.register_operator_token("test-operator-token".into());
         let request = circuit_breaker::RegistrationRequest {
             workflow_name: wf,
             binary_hash: vo_types::BinaryHash::parse("abc12399").unwrap(),
-            force: true,
+            force: Some("test-operator-token".into()),
         };
 
         let result =
@@ -188,7 +189,7 @@ mod circuit_breaker_boundary {
         let request = circuit_breaker::RegistrationRequest {
             workflow_name: wf.clone(),
             binary_hash: vo_types::BinaryHash::parse("abc12399").unwrap(),
-            force: false,
+            force: None,
         };
 
         let result =
@@ -210,7 +211,7 @@ mod circuit_breaker_boundary {
         let request = circuit_breaker::RegistrationRequest {
             workflow_name: wf.clone(),
             binary_hash: vo_types::BinaryHash::parse("abc12399").unwrap(),
-            force: false,
+            force: None,
         };
 
         let result =
@@ -233,7 +234,7 @@ mod circuit_breaker_boundary {
         let request = circuit_breaker::RegistrationRequest {
             workflow_name: wf,
             binary_hash: vo_types::BinaryHash::parse("abc12399").unwrap(),
-            force: false,
+            force: None,
         };
 
         let result =
@@ -254,7 +255,7 @@ mod circuit_breaker_boundary {
         let request = circuit_breaker::RegistrationRequest {
             workflow_name: wf,
             binary_hash: vo_types::BinaryHash::parse("abc12399").unwrap(),
-            force: false,
+            force: None,
         };
 
         let result =
