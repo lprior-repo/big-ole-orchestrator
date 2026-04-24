@@ -63,7 +63,7 @@ pub const TWERK_RIG: Rig = Rig {
     name: "twerk",
     tmux_prefix: "tw-",
     bead_prefix: "tw-",
-    dolt_database: "tw",
+    dolt_database: "twerk",
     dolt_port: 3307,
 };
 

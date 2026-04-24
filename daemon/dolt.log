@@ -9689,3 +9689,21 @@ time="2026-04-24T00:47:27-05:00" level=warning msg="Please consider restarting t
 Starting server with Config HP="localhost:3307"|T="300000"|R="false"|L="warning"|S="/tmp/mysql.sock"
 Port 3307 already in use.
 multiple .doltcfg directories detected: '/home/lewis/gt/.dolt-data' and '/home/lewis/gt/.doltcfg'; pass one of the directories using option --doltcfg-dir
+multiple .doltcfg directories detected: '/home/lewis/gt/.dolt-data' and '/home/lewis/gt/.doltcfg'; pass one of the directories using option --doltcfg-dir
+multiple .doltcfg directories detected: '/home/lewis/gt/.dolt-data' and '/home/lewis/gt/.doltcfg'; pass one of the directories using option --doltcfg-dir
+multiple .doltcfg directories detected: '/home/lewis/gt/.dolt-data' and '/home/lewis/gt/.doltcfg'; pass one of the directories using option --doltcfg-dir
+Starting server with Config HP="localhost:3307"|T="300000"|R="false"|L="warning"|S="/tmp/mysql.sock"
+time="2026-04-24T01:27:06-05:00" level=warning msg="secure_file_priv is set to \"\", which is insecure."
+time="2026-04-24T01:27:06-05:00" level=warning msg="Any user with GRANT FILE privileges will be able to read any file which the sql-server process can read."
+time="2026-04-24T01:27:06-05:00" level=warning msg="Please consider restarting the server with secure_file_priv set to a safe (or non-existent) directory."
+Starting server with Config HP="localhost:3307"|T="300000"|R="false"|L="warning"|S="/tmp/mysql.sock"
+time="2026-04-24T01:27:19-05:00" level=warning msg="secure_file_priv is set to \"\", which is insecure."
+time="2026-04-24T01:27:19-05:00" level=warning msg="Any user with GRANT FILE privileges will be able to read any file which the sql-server process can read."
+time="2026-04-24T01:27:19-05:00" level=warning msg="Please consider restarting the server with secure_file_priv set to a safe (or non-existent) directory."
+Starting server with Config HP="localhost:3307"|T="300000"|R="false"|L="warning"|S="/tmp/mysql.sock"
+time="2026-04-24T01:27:48-05:00" level=warning msg="secure_file_priv is set to \"\", which is insecure."
+time="2026-04-24T01:27:48-05:00" level=warning msg="Any user with GRANT FILE privileges will be able to read any file which the sql-server process can read."
+time="2026-04-24T01:27:48-05:00" level=warning msg="Please consider restarting the server with secure_file_priv set to a safe (or non-existent) directory."
+time="2026-04-24T01:27:56-05:00" level=warning msg="error running query" connectTime="2026-04-24 01:27:56.87832789 -0500 CDT m=+8.259258035" connectionDb=twerk connectionID=17 error="nothing to commit" queryTime="2026-04-24 01:27:56.883320146 -0500 CDT m=+8.264250301"
+
+time="2026-04-24T01:28:01-05:00" level=warning msg="error running query" connectTime="2026-04-24 01:27:57.489825647 -0500 CDT m=+8.870755792" connectionDb=twerk connectionID=18 error="unknown push error; no common ancestor" queryTime="2026-04-24 01:28:01.371293912 -0500 CDT m=+12.752224067"

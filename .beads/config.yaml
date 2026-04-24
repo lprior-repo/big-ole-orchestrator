@@ -56,3 +56,5 @@ no-db: false
 backup.enabled: false
 
 dolt.port: 3309
+
+sync.git-remote: git+https://www.dolthub.com/priorlewis43/veloxide-database
