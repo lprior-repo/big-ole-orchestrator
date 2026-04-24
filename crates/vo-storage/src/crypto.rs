@@ -7,6 +7,35 @@ use aes_gcm::aes::Aes256;
 use aes_gcm::AesGcm;
 use aes_gcm::NewAead;
 use generic_array::{typenum::U12, GenericArray};
+use zeroize::{Zeroize, Zeroizing};
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct SecretDek([u8; DEK_SIZE_BYTES]);
+
+impl Drop for SecretDek {
+    fn drop(&mut self) {
+        self.0.zeroize();
+    }
+}
+
+impl std::ops::Deref for SecretDek {
+    type Target = [u8; DEK_SIZE_BYTES];
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl PartialEq<[u8; DEK_SIZE_BYTES]> for SecretDek {
+    fn eq(&self, other: &[u8; DEK_SIZE_BYTES]) -> bool {
+        &self.0 == other
+    }
+}
+
+impl PartialEq<SecretDek> for [u8; DEK_SIZE_BYTES] {
+    fn eq(&self, other: &SecretDek) -> bool {
+        self == &other.0
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Data layer - error enum
@@ -118,7 +147,7 @@ pub fn wrap_dek(
 pub fn unwrap_dek(
     wrapped: &[u8],
     kek: &[u8; KEK_SIZE_BYTES],
-) -> Result<[u8; DEK_SIZE_BYTES], CryptoError> {
+) -> Result<SecretDek, CryptoError> {
     use aes_gcm::aead::Aead;
 
     if wrapped.len() < IV_SIZE_BYTES + TAG_SIZE_BYTES + DEK_SIZE_BYTES {
@@ -139,12 +168,16 @@ pub fn unwrap_dek(
         .map_err(|_| CryptoError::UnwrappingFailed)?;
 
     if plaintext.len() != DEK_SIZE_BYTES {
+        let mut p = plaintext;
+        p.zeroize();
         return Err(CryptoError::InvalidKeyMaterial);
     }
 
     let mut dek = [0u8; DEK_SIZE_BYTES];
     dek.copy_from_slice(&plaintext);
-    Ok(dek)
+    let mut p = plaintext;
+    p.zeroize();
+    Ok(SecretDek(dek))
 }
 
 /// Encrypts data using AES-256-GCM with the given DEK.
@@ -190,7 +223,7 @@ pub fn encrypt_blob(
 pub fn decrypt_blob(
     blob: &vo_types::EncryptedBlob,
     dek: &[u8; DEK_SIZE_BYTES],
-) -> Result<Vec<u8>, CryptoError> {
+) -> Result<Zeroizing<Vec<u8>>, CryptoError> {
     use aes_gcm::aead::Aead;
 
     if blob.iv.len() != IV_SIZE_BYTES {
@@ -217,5 +250,7 @@ pub fn decrypt_blob(
         .decrypt(&iv, ciphertext_with_tag.as_slice())
         .map_err(|_| CryptoError::DecryptionFailed)?;
 
-    Ok(plaintext)
+    ciphertext_with_tag.zeroize();
+
+    Ok(Zeroizing::new(plaintext))
 }
