@@ -89,12 +89,6 @@ impl RetryConfig {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum RetryCircuitState {
-    Closed,
-    Open,
-}
-
 #[derive(Debug)]
 struct RetryCircuitBreaker {
     is_open: std::sync::atomic::AtomicBool,
@@ -108,14 +102,6 @@ impl RetryCircuitBreaker {
             is_open: std::sync::atomic::AtomicBool::new(false),
             consecutive_failures: AtomicU32::new(0),
             last_failure_at: std::sync::Mutex::new(None),
-        }
-    }
-
-    fn state(&self) -> RetryCircuitState {
-        if self.is_open.load(Ordering::SeqCst) {
-            RetryCircuitState::Open
-        } else {
-            RetryCircuitState::Closed
         }
     }
 

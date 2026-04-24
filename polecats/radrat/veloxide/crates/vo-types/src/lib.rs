@@ -51,6 +51,7 @@ mod plugin;
 mod proptest_targets;
 pub mod proptest_verifier;
 mod registration_status;
+mod recovery_contract;
 pub mod signal;
 pub mod state;
 mod string_types;

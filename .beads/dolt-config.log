@@ -14,3 +14,4 @@
 2026-04-24T06:35:05Z actor=twerk/polecats/maestro key=port value=3310 beads_dir=/home/lewis/gt/.beads
 2026-04-24T06:35:10Z actor=twerk/polecats/maestro key=port value=3311 beads_dir=/home/lewis/gt/.beads
 2026-04-24T06:39:12Z actor=twerk/polecats/shiny key=port value=3310 beads_dir=/home/lewis/gt/.beads
+2026-04-24T06:45:40Z actor=hardline/polecats/sentinel key=port value=3308 beads_dir=/home/lewis/gt/.beads
