@@ -59,11 +59,15 @@ pub fn apply(
             Ok(LifecycleState::StepScheduled)
         }
         (LifecycleState::StepScheduled, TransitionEvent::ExecuteStep)
-        | (LifecycleState::WaitingForTimer, TransitionEvent::TimerFired) => {
+        | (LifecycleState::WaitingForTimer, TransitionEvent::TimerFired)
+        | (LifecycleState::WaitingForSignal, TransitionEvent::SignalReceived) => {
             Ok(LifecycleState::StepExecuting)
         }
         (LifecycleState::StepExecuting, TransitionEvent::WaitForTimer) => {
             Ok(LifecycleState::WaitingForTimer)
+        }
+        (LifecycleState::StepExecuting, TransitionEvent::WaitForSignal) => {
+            Ok(LifecycleState::WaitingForSignal)
         }
         (LifecycleState::StepExecuting, TransitionEvent::CompleteStep) => {
             Ok(LifecycleState::Completed)
@@ -79,6 +83,7 @@ pub fn apply(
             | LifecycleState::StepScheduled
             | LifecycleState::StepExecuting
             | LifecycleState::WaitingForTimer
+            | LifecycleState::WaitingForSignal
             | LifecycleState::PendingPublication,
             TransitionEvent::Cancel,
         ) => Ok(LifecycleState::Cancelled),
@@ -89,6 +94,7 @@ pub fn apply(
             | LifecycleState::StepScheduled
             | LifecycleState::StepExecuting
             | LifecycleState::WaitingForTimer
+            | LifecycleState::WaitingForSignal
             | LifecycleState::PendingPublication,
             TransitionEvent::Fail,
         ) => Ok(LifecycleState::Failed),

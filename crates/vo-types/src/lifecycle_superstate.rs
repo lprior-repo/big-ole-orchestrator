@@ -126,6 +126,14 @@ mod tests {
     }
 
     #[test]
+    fn waiting_for_signal_maps_to_suspended() {
+        assert_eq!(
+            LifecycleState::WaitingForSignal.superstate(),
+            LifecycleSuperstate::Suspended
+        );
+    }
+
+    #[test]
     fn pending_publication_maps_to_suspended() {
         assert_eq!(
             LifecycleState::PendingPublication.superstate(),
@@ -205,6 +213,15 @@ mod tests {
     }
 
     #[test]
+    fn lifecycle_state_waiting_for_signal_round_trips_via_serde() {
+        let json = "\"waiting_for_signal\"";
+        let parsed: LifecycleState = serde_json::from_str(json).expect("should deserialize");
+        assert_eq!(parsed, LifecycleState::WaitingForSignal);
+        let roundtrip = serde_json::to_string(&parsed).expect("serialize");
+        assert_eq!(roundtrip, json);
+    }
+
+    #[test]
     fn lifecycle_state_completed_round_trips_via_serde() {
         let json = "\"completed\"";
         let parsed: LifecycleState = serde_json::from_str(json).expect("should deserialize");
@@ -246,6 +263,7 @@ mod tests {
             LifecycleState::StepScheduled,
             LifecycleState::StepExecuting,
             LifecycleState::WaitingForTimer,
+            LifecycleState::WaitingForSignal,
             LifecycleState::PendingPublication,
             LifecycleState::Completed,
             LifecycleState::Failed,
