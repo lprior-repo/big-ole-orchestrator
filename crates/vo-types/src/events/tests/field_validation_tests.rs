@@ -1,5 +1,5 @@
 use crate::events::error::Error;
-use crate::events::payload::EventPayload;
+use crate::events::payload::{EventPayload, StepOutput};
 use crate::WorkflowVersionHash;
 use rstest::rstest;
 
@@ -92,7 +92,7 @@ fn payload_try_from_json_defaults_output_to_null_when_absent() {
             routing_projection: serde_json::Value::Null,
             output_ref: None,
             output_hash: None,
-            output: serde_json::Value::Null,
+            output: StepOutput::Null,
         })
     );
 }

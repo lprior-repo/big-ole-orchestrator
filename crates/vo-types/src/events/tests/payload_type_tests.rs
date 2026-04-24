@@ -1,4 +1,4 @@
-use crate::events::payload::EventPayload;
+use crate::events::payload::{EventPayload, StepOutput};
 use crate::WorkflowVersionHash;
 
 #[test]
@@ -101,7 +101,7 @@ fn payload_try_from_json_returns_step_completed_when_type_is_step_completed() {
             routing_projection: serde_json::json!({}),
             output_ref: None,
             output_hash: None,
-            output: serde_json::Value::Null
+            output: StepOutput::Null
         })
     );
 }
@@ -234,7 +234,7 @@ fn payload_all_variants_round_trip_via_serde() {
             routing_projection: serde_json::json!({}),
             output_ref: None,
             output_hash: None,
-            output: serde_json::json!({"result": "ok"}),
+            output: StepOutput::Inline(serde_json::json!({"result": "ok"})),
         },
         EventPayload::StepFailed {
             workflow_id: "wf-123".to_string(),
@@ -392,7 +392,7 @@ fn payload_all_variants_round_trip_via_serde() {
                     "routing_projection": routing_projection,
                     "output_ref": output_ref,
                     "output_hash": output_hash,
-                    "output": output,
+                    "output": output.as_json().clone(),
                     "version": 1
                 })
             }

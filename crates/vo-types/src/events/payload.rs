@@ -8,6 +8,45 @@ use crate::payload_parser::{
 use crate::WorkflowVersionHash;
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum StepOutput {
+    Null,
+    Inline(serde_json::Value),
+}
+
+impl StepOutput {
+    #[must_use]
+    pub fn is_null(&self) -> bool {
+        matches!(self, Self::Null)
+    }
+
+    #[must_use]
+    pub fn as_json(&self) -> &serde_json::Value {
+        match self {
+            Self::Null => &serde_json::Value::Null,
+            Self::Inline(v) => v,
+        }
+    }
+
+    #[must_use]
+    pub fn into_json(self) -> serde_json::Value {
+        match self {
+            Self::Null => serde_json::Value::Null,
+            Self::Inline(v) => v,
+        }
+    }
+}
+
+impl From<serde_json::Value> for StepOutput {
+    fn from(value: serde_json::Value) -> Self {
+        if value.is_null() {
+            Self::Null
+        } else {
+            Self::Inline(value)
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum EventPayload {
     WorkflowStarted {
         workflow_id: String,
@@ -49,7 +88,7 @@ pub enum EventPayload {
         routing_projection: serde_json::Value,
         output_ref: Option<String>,
         output_hash: Option<String>,
-        output: serde_json::Value,
+        output: StepOutput,
     },
     StepFailed {
         workflow_id: String,
@@ -183,7 +222,8 @@ impl EventPayload {
                 output: obj
                     .get("output")
                     .cloned()
-                    .unwrap_or(serde_json::Value::Null),
+                    .unwrap_or(serde_json::Value::Null)
+                    .into(),
             }),
             "StepFailed" => Ok(EventPayload::StepFailed {
                 workflow_id: require_string_field(obj, "workflow_id")?,

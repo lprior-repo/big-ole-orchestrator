@@ -6,7 +6,7 @@
 //! bead_id: ve-4946q
 
 use vo_core::replay::{ReplayEngine, ReplayError};
-use vo_types::events::{EventEnvelope, EventMetadata, EventPayload};
+use vo_types::events::{EventEnvelope, EventMetadata, EventPayload, StepOutput};
 
 fn make_event(instance_id: &str, sequence: u64, payload: EventPayload) -> EventEnvelope {
     let json = serde_json::json!({"type": format!("{:?}", payload)});
@@ -47,7 +47,7 @@ fn single_missing_event_in_middle_of_sequence_reports_gap() {
             routing_projection: serde_json::json!({}),
             output_ref: None,
             output_hash: None,
-            output: serde_json::json!(null),
+            output: StepOutput::Null,
         }),
     ];
     let err = engine.replay(&events).expect_err("should detect missing event 3");
@@ -119,7 +119,7 @@ fn replay_succeeds_then_gap_at_end_reports_truncation() {
             routing_projection: serde_json::json!({}),
             output_ref: None,
             output_hash: None,
-            output: serde_json::json!(null),
+            output: StepOutput::Null,
         }),
     ];
     let err = engine.replay(&events).expect_err("should detect end-of-stream gap");
