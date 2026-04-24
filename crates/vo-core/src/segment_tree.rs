@@ -435,33 +435,30 @@ mod tests {
     }
 
     // ST-07: Lazy range update correctness (additive)
-    fn lazy_merge(a: &i64, b: &i64) -> i64 { a + b }
-    fn lazy_apply(val: &i64, upd: &i64, len: usize) -> i64 { val + upd * len as i64 }
-    fn lazy_compose(old: &i64, new: &i64) -> i64 { old + new }
-
     #[test]
     fn lazy_segment_tree_range_update_additive() {
         let data = vec![1i64, 2, 3, 4, 5];
         let mut tree = LazySegmentTree::from_slice(
             &data,
-            lazy_merge,
+            |a, b| a + b,
             0,
-            lazy_apply,
-            lazy_compose,
+            |val, upd, len| val + upd * len as i64,
+            |old, new| old + new,
         );
         tree.update_range(1, 4, 10);
         assert_eq!(tree.query(0, 5), 45);
     }
 
+    // ST-08: Overlapping lazy updates compose correctly
     #[test]
     fn lazy_segment_tree_overlapping_updates() {
         let data = vec![0i64; 6];
         let mut tree = LazySegmentTree::from_slice(
             &data,
-            lazy_merge,
+            |a, b| a + b,
             0,
-            lazy_apply,
-            lazy_compose,
+            |val, upd, len| val + upd * len as i64,
+            |old, new| old + new,
         );
         tree.update_range(0, 4, 1);
         tree.update_range(2, 6, 5);
@@ -474,10 +471,10 @@ mod tests {
         let data = vec![1i64, 2, 3, 4, 5];
         let mut tree = LazySegmentTree::from_slice(
             &data,
-            lazy_merge,
+            |a, b| a + b,
             0,
-            lazy_apply,
-            lazy_compose,
+            |val: &i64, upd: &i64, len: usize| val + upd * len as i64,
+            |old, new| old + new,
         );
         tree.update_point(2, 100);
         assert_eq!(tree.query(0, 5), 112);
@@ -489,10 +486,10 @@ mod tests {
         let data = vec![0i64; 8];
         let mut tree = LazySegmentTree::from_slice(
             &data,
-            lazy_merge,
+            |a, b| a + b,
             0,
-            lazy_apply,
-            lazy_compose,
+            |val: &i64, upd: &i64, len: usize| val + upd * len as i64,
+            |old, new| old + new,
         );
         tree.update_range(0, 8, 1);
         tree.update_range(0, 4, 2);
@@ -545,9 +542,9 @@ mod tests {
                 let query_left = query_left.min(query_right);
 
                 let mut tree = LazySegmentTree::from_slice(
-                    &data, lazy_merge, 0,
-                    lazy_apply,
-                    lazy_compose,
+                    &data, |a, b| a + b, 0,
+            |val: &i64, upd: &i64, len: usize| val + upd * len as i64,
+                    |old, new| old + new,
                 );
                 tree.update_range(range_left, range_right, update_val);
 
