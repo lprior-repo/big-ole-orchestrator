@@ -11,10 +11,12 @@
 //! `RejectionDetail` for load-shedding transparency.
 
 pub mod budget;
+pub mod classification;
+pub mod priority;
 pub mod proptest;
 #[cfg(test)]
 pub mod tests;
-pub mod types;
 
 pub use budget::WorkloadBudget;
-pub use types::{RejectionDetail, RejectionReason, WorkloadClass, WorkloadClassError};
+pub use classification::{WorkloadClass, WorkloadClassError};
+pub use priority::{RejectionDetail, RejectionReason};

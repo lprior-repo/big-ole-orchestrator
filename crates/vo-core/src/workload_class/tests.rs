@@ -1,7 +1,8 @@
 //! Unit tests for workload classification and budget tracking.
 
 use super::budget::WorkloadBudget;
-use super::types::{RejectionDetail, RejectionReason, WorkloadClass, WorkloadClassError};
+use super::classification::{WorkloadClass, WorkloadClassError};
+use super::priority::{RejectionDetail, RejectionReason};
 
 // ── WorkloadClass ─────────────────────────────────────────────────────────────
 

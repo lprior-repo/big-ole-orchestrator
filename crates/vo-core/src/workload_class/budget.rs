@@ -4,7 +4,7 @@
 
 use std::cell::RefCell;
 
-use super::types::{RejectionDetail, RejectionReason, WorkloadClass, WorkloadClassError};
+use super::classification::{WorkloadClass, WorkloadClassError};
 
 /// Per-class execution permit budget per ADR-033.
 ///

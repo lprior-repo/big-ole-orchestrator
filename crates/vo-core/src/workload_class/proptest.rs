@@ -4,7 +4,7 @@
 #[allow(unused_doc_comments)]
 mod proptest_workload_invariants {
     use super::super::budget::WorkloadBudget;
-    use super::super::types::WorkloadClass;
+    use super::super::classification::WorkloadClass;
 
     proptest! {
         #[test]
