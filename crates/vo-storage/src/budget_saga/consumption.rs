@@ -1,194 +1,19 @@
-//! Durable dual-write saga for `WriteBudget`.
+//! Budget consumption and persistence for the saga.
 //!
-//! This module implements ADR-034 saga compensation and reversibility for the
-//! `BudgetQueues` write path. It provides:
-//!
-//! - **Atomic staging**: Writes are first placed in a durable staging area
-//! - **Manifest update**: Commit by updating the manifest atomically
-//! - **Compensating rollback**: If commit fails, rollback the staging
-//! - **Crash recovery**: Recover consistent state after process crash mid-saga
-//!
-//! ## Saga States
-//!
-//! Each budget reservation goes through:
-//! 1. `Staged` - Written to staging, awaiting commit
-//! 2. `Committed` - Manifest updated, write is permanent
-//! 3. `RolledBack` - Compensating action completed
-//!
-//! ## Crash Safety
-//!
-//! On process crash mid-saga:
-//! - Staged writes that were not committed are recovered as rolled back
-//! - The manifest is the source of truth for committed state
+//! This module contains the persistent [`SagaStore`] (fjall-backed) and the
+//! [`DurableBudgetSaga`] that orchestrates the write path.
 
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use crate::append::{BudgetQueues, ClassifiedWrite, WriteClass};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum SagaStatus {
-    Staged,
-    Committed,
-    RolledBack,
-}
+use super::allocation::{BudgetManifest, SagaEntry, SagaError, SagaStatus};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SagaEntry {
-    pub write_key: String,
-    pub class: WriteClass,
-    pub size_bytes: u64,
-    pub status: SagaStatus,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct BudgetManifest {
-    entries: HashMap<String, SagaEntry>,
-    version: u64,
-}
-
-impl BudgetManifest {
-    /// Stage a new write entry in the manifest.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`SagaError::AlreadyExists`] if a write entry with the same key already exists.
-    pub fn stage(
-        &mut self,
-        write_key: String,
-        class: WriteClass,
-        size_bytes: u64,
-    ) -> Result<(), SagaError> {
-        if self.entries.contains_key(&write_key) {
-            return Err(SagaError::AlreadyExists(write_key));
-        }
-        self.entries.insert(
-            write_key.clone(),
-            SagaEntry {
-                write_key,
-                class,
-                size_bytes,
-                status: SagaStatus::Staged,
-            },
-        );
-        Ok(())
-    }
-
-    /// Commit a previously staged write entry.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`SagaError::NotFound`] if no entry exists for the given key.
-    /// Returns [`SagaError::InvalidState`] if the entry is not in the `Staged` state.
-    pub fn commit(&mut self, write_key: &str) -> Result<(), SagaError> {
-        let entry = self
-            .entries
-            .get_mut(write_key)
-            .ok_or_else(|| SagaError::NotFound(write_key.to_string()))?;
-        if entry.status != SagaStatus::Staged {
-            return Err(SagaError::InvalidState {
-                key: write_key.to_string(),
-                expected: SagaStatus::Staged,
-                actual: entry.status,
-            });
-        }
-        entry.status = SagaStatus::Committed;
-        self.version += 1;
-        Ok(())
-    }
-
-    /// Roll back a write entry.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`SagaError::NotFound`] if no entry exists for the given key.
-    /// Returns [`SagaError::AlreadyRolledBack`] if the entry is already rolled back.
-    pub fn rollback(&mut self, write_key: &str) -> Result<(), SagaError> {
-        let entry = self
-            .entries
-            .get_mut(write_key)
-            .ok_or_else(|| SagaError::NotFound(write_key.to_string()))?;
-        if entry.status == SagaStatus::RolledBack {
-            return Err(SagaError::AlreadyRolledBack(write_key.to_string()));
-        }
-        entry.status = SagaStatus::RolledBack;
-        self.version += 1;
-        Ok(())
-    }
-
-    #[must_use]
-    pub fn get(&self, write_key: &str) -> Option<&SagaEntry> {
-        self.entries.get(write_key)
-    }
-
-    pub fn staged_entries(&self) -> impl Iterator<Item = &SagaEntry> {
-        self.entries
-            .values()
-            .filter(|e| e.status == SagaStatus::Staged)
-    }
-
-    pub fn committed_entries(&self) -> impl Iterator<Item = &SagaEntry> {
-        self.entries
-            .values()
-            .filter(|e| e.status == SagaStatus::Committed)
-    }
-
-    #[must_use]
-    pub const fn version(&self) -> u64 {
-        self.version
-    }
-
-    pub fn recover_staged_as_rolled_back(&mut self) {
-        for entry in self.entries.values_mut() {
-            if entry.status == SagaStatus::Staged {
-                entry.status = SagaStatus::RolledBack;
-            }
-        }
-        self.version += 1;
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
-pub enum SagaError {
-    #[error("saga entry already exists: {0}")]
-    AlreadyExists(String),
-    #[error("saga entry not found: {0}")]
-    NotFound(String),
-    #[error("saga entry already rolled back: {0}")]
-    AlreadyRolledBack(String),
-    #[error("invalid state for {key}: expected {expected:?}, got {actual:?}")]
-    InvalidState {
-        key: String,
-        expected: SagaStatus,
-        actual: SagaStatus,
-    },
-    #[error("budget reserve failed: {0}")]
-    BudgetReserveFailed(String),
-    #[error("storage error: {reason}")]
-    Storage { reason: String },
-    #[error("corrupt saga entry for key {key}: {reason}")]
-    CorruptEntry { key: String, reason: String },
-}
-
-/// Fjall-backed recovery outcome.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RecoveryOutcome {
-    NothingToRecover,
-    RolledBack { count: usize },
-}
-
-/// Fjall-backed persistent store for saga entries.
 pub struct SagaStore {
     partition: fjall::Keyspace,
 }
 
 impl SagaStore {
-    /// Open a saga store backed by the given keyspace.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`SagaError::Storage`] if the `saga_manifest` partition cannot be opened.
     pub fn open(db: &fjall::Database) -> Result<Self, SagaError> {
         let partition = db
             .keyspace("saga_manifest", fjall::KeyspaceCreateOptions::default)
@@ -198,12 +23,6 @@ impl SagaStore {
         Ok(Self { partition })
     }
 
-    /// Stage a new entry in the persistent saga store.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`SagaError::AlreadyExists`] if an entry with the same key already exists.
-    /// Returns [`SagaError::Storage`] if serialization or disk write fails.
     pub fn stage_entry(
         &self,
         write_key: &str,
@@ -230,12 +49,6 @@ impl SagaStore {
             })
     }
 
-    /// Read a saga entry by write key.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`SagaError::CorruptEntry`] if the stored data cannot be deserialized.
-    /// Returns [`SagaError::Storage`] if the partition read fails.
     pub fn read_entry(&self, write_key: &str) -> Result<Option<SagaEntry>, SagaError> {
         let key = format!("entry:{write_key}").into_bytes();
         match self.partition.get(&key) {
@@ -254,13 +67,6 @@ impl SagaStore {
         }
     }
 
-    /// Commit a staged entry, transitioning it to `Committed`.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`SagaError::NotFound`] if no entry exists for the given key.
-    /// Returns [`SagaError::InvalidState`] if the entry is not in the `Staged` state.
-    /// Returns [`SagaError::Storage`] if serialization or disk write fails.
     pub fn commit_entry(&self, write_key: &str) -> Result<(), SagaError> {
         let mut entry = self
             .read_entry(write_key)?
@@ -284,13 +90,6 @@ impl SagaStore {
             })
     }
 
-    /// Roll back an entry, transitioning it to `RolledBack`.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`SagaError::NotFound`] if no entry exists for the given key.
-    /// Returns [`SagaError::AlreadyRolledBack`] if the entry is already rolled back.
-    /// Returns [`SagaError::Storage`] if serialization or disk write fails.
     pub fn rollback_entry(&self, write_key: &str) -> Result<(), SagaError> {
         let mut entry = self
             .read_entry(write_key)?
@@ -310,12 +109,6 @@ impl SagaStore {
             })
     }
 
-    /// Recover from a crash by rolling back all staged entries.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`SagaError::Storage`] if iterating or writing entries fails.
-    /// Returns [`SagaError::CorruptEntry`] if a stored entry cannot be deserialized.
     pub fn recover(&self) -> Result<RecoveryOutcome, SagaError> {
         let mut count = 0usize;
         let iter = self.partition.iter();
@@ -351,6 +144,12 @@ impl SagaStore {
             Ok(RecoveryOutcome::NothingToRecover)
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RecoveryOutcome {
+    NothingToRecover,
+    RolledBack { count: usize },
 }
 
 pub struct DurableBudgetSaga {
@@ -398,11 +197,6 @@ impl DurableBudgetSaga {
         }
     }
 
-    /// Open a durable saga with a fjall-backed persistent store.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`SagaError::Storage`] if the saga partition cannot be opened.
     pub fn open(
         db: &fjall::Database,
         queues: BudgetQueues<StagedWrite>,
@@ -428,17 +222,6 @@ impl DurableBudgetSaga {
         }
     }
 
-    /// Stage a write in the saga: create a manifest entry and enqueue it in the budget queues.
-    /// If enqueue fails, the manifest entry is rolled back automatically.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the internal manifest mutex is poisoned.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`SagaError::AlreadyExists`] if a write entry with the same key already exists.
-    /// Returns [`SagaError::BudgetReserveFailed`] if the budget queue enqueue fails.
     pub fn stage_write(
         &self,
         write_key: &str,
@@ -468,16 +251,6 @@ impl DurableBudgetSaga {
         Ok(staged)
     }
 
-    /// Commit a previously staged write entry.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the internal manifest mutex is poisoned.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`SagaError::NotFound`] if no entry exists for the given key.
-    /// Returns [`SagaError::InvalidState`] if the entry is not in the `Staged` state.
     pub fn commit(&self, write_key: &str) -> Result<(), SagaError> {
         self.store.as_ref().map_or_else(
             || {
@@ -489,16 +262,6 @@ impl DurableBudgetSaga {
         )
     }
 
-    /// Roll back a write entry and dequeue it from the budget queues.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the internal manifest mutex is poisoned.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`SagaError::NotFound`] if no entry exists for the given key.
-    /// Returns [`SagaError::AlreadyRolledBack`] if the entry is already rolled back.
     pub fn rollback(&self, write_key: &str) -> Result<(), SagaError> {
         self.queues.dequeue(self.get_class_for_key(write_key)?);
         self.store.as_ref().map_or_else(
@@ -511,11 +274,6 @@ impl DurableBudgetSaga {
         )
     }
 
-    /// Recover from a crash by rolling back all staged entries.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the internal manifest mutex is poisoned.
     pub fn recover_from_crash(&self) {
         #[expect(clippy::unwrap_used)]
         let mut manifest = self.manifest.lock().unwrap();
@@ -540,77 +298,15 @@ impl DurableBudgetSaga {
     }
 }
 
+fn create_test_queues() -> BudgetQueues<StagedWrite> {
+    let config = crate::append::QueueConfig::default();
+    let budget = crate::append::WriteBudget::new(1000, 1000, 1000);
+    BudgetQueues::new(&config, budget)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn create_test_queues() -> BudgetQueues<StagedWrite> {
-        let config = crate::append::QueueConfig::default();
-        let budget = crate::append::WriteBudget::new(1000, 1000, 1000);
-        BudgetQueues::new(&config, budget)
-    }
-
-    #[test]
-    fn manifest_stage_and_commit() {
-        let mut manifest = BudgetManifest::default();
-        manifest
-            .stage("key1".to_string(), WriteClass::CriticalControlPlane, 100)
-            .unwrap();
-
-        let entry = manifest.get("key1").unwrap();
-        assert_eq!(entry.status, SagaStatus::Staged);
-
-        manifest.commit("key1").unwrap();
-        let entry = manifest.get("key1").unwrap();
-        assert_eq!(entry.status, SagaStatus::Committed);
-    }
-
-    #[test]
-    fn manifest_stage_and_rollback() {
-        let mut manifest = BudgetManifest::default();
-        manifest
-            .stage("key1".to_string(), WriteClass::CriticalControlPlane, 100)
-            .unwrap();
-
-        manifest.rollback("key1").unwrap();
-        let entry = manifest.get("key1").unwrap();
-        assert_eq!(entry.status, SagaStatus::RolledBack);
-    }
-
-    #[test]
-    fn manifest_recover_staged_as_rolled_back() {
-        let mut manifest = BudgetManifest::default();
-        manifest
-            .stage("key1".to_string(), WriteClass::CriticalControlPlane, 100)
-            .unwrap();
-        manifest
-            .stage("key2".to_string(), WriteClass::BulkBlob, 200)
-            .unwrap();
-        manifest.commit("key1").unwrap();
-
-        manifest.recover_staged_as_rolled_back();
-
-        assert_eq!(manifest.get("key1").unwrap().status, SagaStatus::Committed);
-        assert_eq!(manifest.get("key2").unwrap().status, SagaStatus::RolledBack);
-    }
-
-    #[test]
-    fn manifest_commit_non_existent_fails() {
-        let mut manifest = BudgetManifest::default();
-        let result = manifest.commit("nonexistent");
-        assert!(matches!(result, Err(SagaError::NotFound(_))));
-    }
-
-    #[test]
-    fn manifest_double_commit_fails() {
-        let mut manifest = BudgetManifest::default();
-        manifest
-            .stage("key1".to_string(), WriteClass::CriticalControlPlane, 100)
-            .unwrap();
-        manifest.commit("key1").unwrap();
-        let result = manifest.commit("key1");
-        assert!(matches!(result, Err(SagaError::InvalidState { .. })));
-    }
 
     #[test]
     fn durable_saga_stage_and_commit() {
@@ -639,8 +335,6 @@ mod tests {
         let manifest = manifest_ref.lock().unwrap();
         assert_eq!(manifest.get("key1").unwrap().status, SagaStatus::RolledBack);
     }
-
-    // ── SagaStore: fjall-backed persistent saga ────────────────────────────────
 
     #[test]
     fn saga_store_stage_and_read_entry() {
@@ -728,7 +422,6 @@ mod tests {
         let dir = tempfile::tempdir().expect("tempdir");
         let dir_path = dir.path().to_path_buf();
 
-        // Phase 1: stage entries then "crash"
         {
             let keyspace = fjall::Database::builder(&dir_path)
                 .open()
@@ -740,10 +433,8 @@ mod tests {
             store
                 .stage_entry("key2", WriteClass::BulkBlob, 200)
                 .expect("stage");
-            // Drop without recovery — simulates crash
         }
 
-        // Phase 2: reopen and recover
         let keyspace = fjall::Database::builder(&dir_path)
             .open()
             .expect("keyspace");
