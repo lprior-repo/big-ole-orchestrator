@@ -473,7 +473,7 @@ mod tests {
             &data,
             |a, b| a + b,
             0,
-            |val, upd, len| val + upd * len as i64,
+            |val, upd: &i64, len| val + upd * len as i64,
             |old, new| old + new,
         );
         tree.update_point(2, 100);
@@ -543,7 +543,7 @@ mod tests {
 
                 let mut tree = LazySegmentTree::from_slice(
                     &data, |a, b| a + b, 0,
-                    |val, upd, len| val + upd * len as i64,
+            |val, upd: &i64, len| val + upd * len as i64,
                     |old, new| old + new,
                 );
                 tree.update_range(range_left, range_right, update_val);
