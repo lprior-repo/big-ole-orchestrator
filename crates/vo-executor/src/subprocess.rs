@@ -12,7 +12,7 @@
 //! See ADR-018 for full specification.
 
 use libc;
-use std::os::fd::{FromRawFd, RawFd};
+use std::os::fd::{FromRawFd, IntoRawFd, OwnedFd};
 #[cfg(unix)]
 use std::os::unix::process::ExitStatusExt;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -90,7 +90,7 @@ pub enum SubprocessError {
 
 const BOUNDED_BUFFER_SIZE: usize = 65536;
 
-fn create_pipe() -> Result<(RawFd, RawFd), SubprocessError> {
+fn create_pipe() -> Result<(OwnedFd, OwnedFd), SubprocessError> {
     let mut fds = [0; 2];
     let res = unsafe { libc::pipe2(fds.as_mut_ptr(), libc::O_CLOEXEC) };
     if res != 0 {
@@ -98,7 +98,9 @@ fn create_pipe() -> Result<(RawFd, RawFd), SubprocessError> {
             std::io::Error::last_os_error().to_string(),
         ));
     }
-    Ok((fds[0], fds[1]))
+    unsafe {
+        Ok((OwnedFd::from_raw_fd(fds[0]), OwnedFd::from_raw_fd(fds[1])))
+    }
 }
 
 /// Runs a subprocess with ADR-018 compliant async pipe handling.
@@ -115,6 +117,9 @@ pub async fn run_subprocess(config: SubprocessConfig) -> Result<SubprocessOutput
     let (fd3_read, fd3_write) = create_pipe()?;
     let (fd4_read, fd4_write) = create_pipe()?;
 
+    let fd3_read_raw = fd3_read.into_raw_fd();
+    let fd4_write_raw = fd4_write.into_raw_fd();
+
     let mut command = Command::new(&config.executable_path);
     command.args(&config.argv);
     command.env_clear();
@@ -130,10 +135,10 @@ pub async fn run_subprocess(config: SubprocessConfig) -> Result<SubprocessOutput
             if libc::setpgid(0, 0) != 0 {
                 return Err(std::io::Error::last_os_error());
             }
-            if libc::dup2(fd3_read, 3) == -1 {
+            if libc::dup2(fd3_read_raw, 3) == -1 {
                 return Err(std::io::Error::last_os_error());
             }
-            if libc::dup2(fd4_write, 4) == -1 {
+            if libc::dup2(fd4_write_raw, 4) == -1 {
                 return Err(std::io::Error::last_os_error());
             }
             if libc::fcntl(3, libc::F_SETFD, libc::FD_CLOEXEC) == -1 {
@@ -150,13 +155,8 @@ pub async fn run_subprocess(config: SubprocessConfig) -> Result<SubprocessOutput
         .spawn()
         .map_err(|e| SubprocessError::SpawnFailed(e.to_string()))?;
 
-    unsafe {
-        libc::close(fd3_read);
-        libc::close(fd4_write);
-    }
-
-    let fd3_writer = unsafe { tokio::fs::File::from_std(std::fs::File::from_raw_fd(fd3_write)) };
-    let fd4_reader = unsafe { tokio::fs::File::from_std(std::fs::File::from_raw_fd(fd4_read)) };
+    let fd3_writer = unsafe { tokio::fs::File::from_std(std::fs::File::from_raw_fd(fd3_write.into_raw_fd())) };
+    let fd4_reader = unsafe { tokio::fs::File::from_std(std::fs::File::from_raw_fd(fd4_read.into_raw_fd())) };
 
     let timeout_ms = config.timeout_ms();
     let fd3_payload = config.fd3_payload;
@@ -292,19 +292,21 @@ mod tests {
     #[tokio::test]
     async fn test_create_pipe_sets_cloexec() {
         let (r, w) = create_pipe().unwrap();
+        let r_raw = r.into_raw_fd();
+        let w_raw = w.into_raw_fd();
         unsafe {
-            let flags = libc::fcntl(r, libc::F_GETFD);
+            let flags = libc::fcntl(r_raw, libc::F_GETFD);
             assert!(
                 flags & libc::FD_CLOEXEC != 0,
                 "read end should have FD_CLOEXEC"
             );
-            let flags = libc::fcntl(w, libc::F_GETFD);
+            let flags = libc::fcntl(w_raw, libc::F_GETFD);
             assert!(
                 flags & libc::FD_CLOEXEC != 0,
                 "write end should have FD_CLOEXEC"
             );
-            libc::close(r);
-            libc::close(w);
+            libc::close(r_raw);
+            libc::close(w_raw);
         }
     }
 

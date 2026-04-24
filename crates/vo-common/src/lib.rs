@@ -5,6 +5,7 @@
 
 pub mod error;
 pub mod events;
+pub mod pool;
 mod structures;
 pub mod types;
 
