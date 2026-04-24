@@ -7,3 +7,15 @@
 2026-04-24T19:46:37Z actor=cdocs/polecats/chrome key=database value=cdocs beads_dir=/home/lewis/gt/.beads
 2026-04-24T19:48:20Z actor=veloxide/polecats/rust key=port value=3309 beads_dir=/home/lewis/gt/.beads
 2026-04-24T19:48:26Z actor=twerk/polecats/nuka key=port value=3309 beads_dir=/home/lewis/gt/.beads
+2026-04-24T20:07:13Z actor=hardline/polecats/immortan key=port value=3310 beads_dir=/home/lewis/gt/.beads
+2026-04-24T20:27:43Z actor=hardline/polecats/immortan key=port value=3310 beads_dir=/home/lewis/gt/.beads
+2026-04-24T20:39:05Z actor=veloxide/polecats/citadel key=port value=3311 beads_dir=/home/lewis/gt/.beads
+2026-04-24T20:39:45Z actor=twerk/polecats/radrat key=port value=3307 beads_dir=/home/lewis/gt/.beads
+2026-04-24T20:39:56Z actor=twerk/polecats/turret key=port value=3310 beads_dir=/home/lewis/gt/.beads
+2026-04-24T20:42:06Z actor=twerk/polecats/gecko key=port value=3308 beads_dir=/home/lewis/gt/.beads
+2026-04-24T20:51:06Z actor=clarity/polecats/brahmin key=port value=3310 beads_dir=/home/lewis/gt/.beads
+2026-04-24T20:54:23Z actor=twerk/polecats/sentinel key=port value=3308 beads_dir=/home/lewis/gt/.beads
+2026-04-24T20:55:11Z actor=seshat/polecats/citadel key=port value=3310 beads_dir=/home/lewis/gt/.beads
+2026-04-24T20:58:18Z actor=twerk/polecats/turret key=port value=3309 beads_dir=/home/lewis/gt/.beads
+2026-04-24T21:01:21Z actor=seshat/polecats/citadel key=port value=3309 beads_dir=/home/lewis/gt/.beads
+2026-04-24T21:02:01Z actor=seshat/polecats/drifter key=port value=3309 beads_dir=/home/lewis/gt/.beads

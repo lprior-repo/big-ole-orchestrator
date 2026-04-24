@@ -1,0 +1,8 @@
+Starting server with Config HP="localhost:3309"|T="28800000"|R="false"|L="info"|S="/tmp/mysql.sock"
+time="2026-04-24T17:40:48-05:00" level=info msg="Creating root@localhost superuser"
+time="2026-04-24T17:40:48-05:00" level=info msg="Server ready. Accepting connections."
+time="2026-04-24T17:40:48-05:00" level=warning msg="secure_file_priv is set to \"\", which is insecure."
+time="2026-04-24T17:40:48-05:00" level=warning msg="Any user with GRANT FILE privileges will be able to read any file which the sql-server process can read."
+time="2026-04-24T17:40:48-05:00" level=warning msg="Please consider restarting the server with secure_file_priv set to a safe (or non-existent) directory."
+time="2026-04-24T17:40:50-05:00" level=info msg=NewConnection DisableClientMultiStatements=false connectionID=1
+time="2026-04-24T17:40:50-05:00" level=info msg=ConnectionClosed connectionID=1
