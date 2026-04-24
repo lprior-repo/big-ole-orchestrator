@@ -14,6 +14,80 @@ use crate::{
     LockRelease, LockRequest, LockResponse, OwnerId,
 };
 
+#[derive(Debug, Clone, Copy)]
+pub struct RetryCircuitBreaker {
+    consecutive_failures: u32,
+    threshold: u32,
+    tripped: bool,
+}
+
+impl RetryCircuitBreaker {
+    pub fn new(threshold: u32) -> Self {
+        Self {
+            consecutive_failures: 0,
+            threshold,
+            tripped: false,
+        }
+    }
+
+    pub fn without_circuit_breaker() -> Self {
+        Self {
+            consecutive_failures: 0,
+            threshold: u32::MAX,
+            tripped: false,
+        }
+    }
+
+    pub fn is_tripped(&self) -> bool {
+        self.tripped
+    }
+
+    pub fn record_failure(&mut self) {
+        self.consecutive_failures += 1;
+        if self.consecutive_failures >= self.threshold {
+            self.tripped = true;
+        }
+    }
+
+    pub fn record_success(&mut self) {
+        self.consecutive_failures = 0;
+        self.tripped = false;
+    }
+
+    pub fn failures(&self) -> u32 {
+        self.consecutive_failures
+    }
+
+    pub fn threshold(&self) -> u32 {
+        self.threshold
+    }
+}
+
+impl Default for RetryCircuitBreaker {
+    fn default() -> Self {
+        Self::without_circuit_breaker()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RetryError {
+    CircuitTripped,
+    MaxAttemptsExceeded,
+    Other(String),
+}
+
+impl std::fmt::Display for RetryError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RetryError::CircuitTripped => write!(f, "retry circuit tripped"),
+            RetryError::MaxAttemptsExceeded => write!(f, "max retry attempts exceeded"),
+            RetryError::Other(msg) => write!(f, "{}", msg),
+        }
+    }
+}
+
+impl std::error::Error for RetryError {}
+
 #[derive(Debug, Clone)]
 pub struct RetryConfig {
     pub initial_backoff_ms: u64,
@@ -21,6 +95,7 @@ pub struct RetryConfig {
     pub max_backoff_ms: u64,
     pub max_attempts: u32,
     pub jitter_factor: f64,
+    circuit_breaker_threshold: Option<u32>,
 }
 
 impl RetryConfig {
@@ -31,6 +106,7 @@ impl RetryConfig {
             max_backoff_ms: u64::MAX,
             max_attempts,
             jitter_factor: 0.1,
+            circuit_breaker_threshold: None,
         }
     }
 
@@ -42,6 +118,19 @@ impl RetryConfig {
     pub fn with_jitter(mut self, jitter_factor: f64) -> Self {
         self.jitter_factor = jitter_factor;
         self
+    }
+
+    pub fn with_circuit_breaker(mut self, threshold: u32) -> Self {
+        self.circuit_breaker_threshold = Some(threshold);
+        self
+    }
+
+    pub fn circuit_breaker_enabled(&self) -> bool {
+        self.circuit_breaker_threshold.is_some()
+    }
+
+    pub fn circuit_breaker_threshold(&self) -> Option<u32> {
+        self.circuit_breaker_threshold
     }
 
     pub fn calculate_backoff(&self, attempt: u32) -> Duration {
@@ -82,13 +171,33 @@ impl<'a, T: LockManager> LockManagerRetryWrapper<'a, T> {
 #[async_trait]
 impl<'a, T: LockManager + Send + Sync> LockManager for LockManagerRetryWrapper<'a, T> {
     async fn acquire(&self, request: LockRequest) -> LockResponse {
+        let mut circuit_breaker = match self.config.circuit_breaker_threshold {
+            Some(threshold) => RetryCircuitBreaker::new(threshold),
+            None => RetryCircuitBreaker::without_circuit_breaker(),
+        };
+
+        if circuit_breaker.is_tripped() {
+            return LockResponse {
+                request_id: request.request_id,
+                lock_id: request.lock_id,
+                owner: request.owner,
+                granted: false,
+                hold_token: None,
+                expires_at: None,
+                error: Some("retry circuit tripped".to_string()),
+            };
+        }
+
         let mut attempt: u32 = 0;
         loop {
             attempt += 1;
             let response = self.inner.acquire(request.clone()).await;
             if response.granted {
+                circuit_breaker.record_success();
                 return response;
             }
+            circuit_breaker.record_failure();
+
             if attempt >= self.config.max_attempts {
                 return LockResponse {
                     request_id: response.request_id,
@@ -103,6 +212,19 @@ impl<'a, T: LockManager + Send + Sync> LockManager for LockManagerRetryWrapper<'
                     )),
                 };
             }
+
+            if circuit_breaker.is_tripped() {
+                return LockResponse {
+                    request_id: response.request_id,
+                    lock_id: response.lock_id,
+                    owner: response.owner,
+                    granted: false,
+                    hold_token: None,
+                    expires_at: None,
+                    error: Some("retry circuit tripped".to_string()),
+                };
+            }
+
             let backoff = self.config.calculate_backoff(attempt);
             let with_jitter = self.config.calculate_jitter(backoff);
             sleep(with_jitter).await;
@@ -340,5 +462,111 @@ mod tests {
             lower_bound,
             upper_bound
         );
+    }
+
+    #[test]
+    fn test_circuit_breaker_new_is_not_tripped() {
+        let cb = RetryCircuitBreaker::new(5);
+        assert!(!cb.is_tripped());
+        assert_eq!(cb.failures(), 0);
+    }
+
+    #[test]
+    fn test_circuit_breaker_trips_at_threshold() {
+        let mut cb = RetryCircuitBreaker::new(3);
+        cb.record_failure();
+        assert!(!cb.is_tripped());
+        assert_eq!(cb.failures(), 1);
+        cb.record_failure();
+        assert!(!cb.is_tripped());
+        assert_eq!(cb.failures(), 2);
+        cb.record_failure();
+        assert!(cb.is_tripped());
+        assert_eq!(cb.failures(), 3);
+    }
+
+    #[test]
+    fn test_circuit_breaker_resets_on_success() {
+        let mut cb = RetryCircuitBreaker::new(3);
+        cb.record_failure();
+        cb.record_failure();
+        cb.record_success();
+        assert!(!cb.is_tripped());
+        assert_eq!(cb.failures(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_circuit_breaker_trips_after_threshold() {
+        let mock = MockLockManager::new(10);
+        let config = RetryConfig::new(10, 2.0, 10).with_circuit_breaker(3);
+        let wrapper = LockManagerRetryWrapper::new(&mock, config);
+        let request = LockRequest {
+            lock_id: LockId::new("test-lock"),
+            owner: OwnerId::new("owner1".to_string()),
+            mode: LockMode::Exclusive,
+            ttl_ms: 1000,
+            request_id: "req1".to_string(),
+        };
+        let response = wrapper.acquire(request).await;
+        assert!(!response.granted);
+        assert!(response.error.is_some());
+        assert_eq!(mock.attempt_count(), 3);
+    }
+
+    #[tokio::test]
+    async fn test_circuit_breaker_allows_success_after_trip() {
+        let mock = MockLockManager::new(3);
+        let config = RetryConfig::new(10, 2.0, 10).with_circuit_breaker(3);
+        let wrapper = LockManagerRetryWrapper::new(&mock, config);
+        let request = LockRequest {
+            lock_id: LockId::new("test-lock"),
+            owner: OwnerId::new("owner1".to_string()),
+            mode: LockMode::Exclusive,
+            ttl_ms: 1000,
+            request_id: "req1".to_string(),
+        };
+        let response = wrapper.acquire(request).await;
+        assert!(response.granted);
+    }
+
+    #[tokio::test]
+    async fn test_circuit_breaker_does_not_amplify_traffic() {
+        let mock = MockLockManager::new(100);
+        let config = RetryConfig::new(10, 2.0, 10).with_circuit_breaker(2);
+        let wrapper = LockManagerRetryWrapper::new(&mock, config);
+        let request = LockRequest {
+            lock_id: LockId::new("test-lock"),
+            owner: OwnerId::new("owner1".to_string()),
+            mode: LockMode::Exclusive,
+            ttl_ms: 1000,
+            request_id: "req1".to_string(),
+        };
+        let response = wrapper.acquire(request).await;
+        assert!(!response.granted);
+        assert_eq!(mock.attempt_count(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_circuit_breaker_without_config_preserves_behavior() {
+        let mock = MockLockManager::new(2);
+        let config = RetryConfig::new(10, 2.0, 5);
+        let wrapper = LockManagerRetryWrapper::new(&mock, config);
+        let request = LockRequest {
+            lock_id: LockId::new("test-lock"),
+            owner: OwnerId::new("owner1".to_string()),
+            mode: LockMode::Exclusive,
+            ttl_ms: 1000,
+            request_id: "req1".to_string(),
+        };
+        let response = wrapper.acquire(request).await;
+        assert!(response.granted);
+        assert_eq!(mock.attempt_count(), 3);
+    }
+
+    #[test]
+    fn test_circuit_breaker_disabled_by_default() {
+        let cb = RetryCircuitBreaker::default();
+        assert!(!cb.is_tripped());
+        assert_eq!(cb.threshold(), u32::MAX);
     }
 }

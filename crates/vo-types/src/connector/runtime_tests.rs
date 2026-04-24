@@ -74,26 +74,18 @@ async fn execute_with_reconciliation_commits_on_success() {
     }
 
     let mut connector = SuccessConnector;
-<<<<<<< HEAD
-    let result = execute_with_reconciliation(&mut connector, true, 3).await.unwrap();
-=======
     let result = execute_with_reconciliation(&mut connector, true, 0)
         .await
         .unwrap();
->>>>>>> 7e356012 (style: apply consistent rustfmt formatting)
     assert_eq!(result, ConnectorResult::Success);
 }
 
 #[tokio::test]
 async fn execute_with_reconciliation_resolves_ambiguous() {
     let mut connector = MockConnector::new(ReconciliationResult::Committed);
-<<<<<<< HEAD
-    let result = execute_with_reconciliation(&mut connector, false, 3).await.unwrap();
-=======
     let result = execute_with_reconciliation(&mut connector, false, 0)
         .await
         .unwrap();
->>>>>>> 7e356012 (style: apply consistent rustfmt formatting)
     assert_eq!(result, ConnectorResult::Success);
 }
 
@@ -117,9 +109,6 @@ async fn reconcile_ambiguous_panics_on_non_ambiguous_state() {
     }
 
     let mut connector = DummyConnector;
-<<<<<<< HEAD
-    let _ = reconcile_ambiguous(&mut connector, ConnectorState::Executing).await;
-=======
     let result = reconcile_ambiguous(&mut connector, ConnectorState::Executing).await;
     assert!(
         result.is_err(),
@@ -132,5 +121,4 @@ async fn reconcile_ambiguous_panics_on_non_ambiguous_state() {
         }
         other => panic!("Expected InvalidState error, got {:?}", other),
     }
->>>>>>> 7e356012 (style: apply consistent rustfmt formatting)
 }

@@ -411,10 +411,8 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
         if let Some(child) = donor_child {
             node.children[idx].children.push(child);
         }
-    }
+   }
 
-<<<<<<< HEAD
-=======
     /// Insert a child back into a parent, splitting it if it exceeds max_keys.
     /// This handles the case where ensure_child_has_minimum merges two min_keys
     /// children with a separator, producing 2*min_keys+1 keys which can exceed
@@ -446,7 +444,6 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
         parent.children.insert(idx + 1, right);
     }
 
->>>>>>> 7e356012 (style: apply consistent rustfmt formatting)
     fn merge_nodes(
         left: BTreeNode<K, V>,
         parent_key: K,
@@ -558,7 +555,7 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
                 }
                 if !root.is_leaf() {
                     for child in &root.children {
-                        if !Self::verify_node(child, self.min_keys(), self.max_keys(), h - 1) {
+                        if !Self::verify_node_for_children(child, self.min_keys(), self.max_keys(), h - 1) {
                             return false;
                         }
                     }
@@ -570,6 +567,37 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
         }
     }
 
+    fn verify_node_for_children(
+        node: &BTreeNode<K, V>,
+        min_keys: usize,
+        max_keys: usize,
+        expected_height: usize,
+    ) -> bool {
+        if node.keys.len() > max_keys {
+            return false;
+        }
+        if !node.is_leaf() && node.keys.len() < min_keys {
+            return false;
+        }
+        if !node.children.is_empty() && node.children.len() != node.keys.len() + 1 {
+            return false;
+        }
+        if node.is_leaf() && expected_height != 1 {
+            return false;
+        }
+        if !node.is_leaf() && expected_height <= 1 {
+            return false;
+        }
+        if !node.is_leaf() {
+            for child in &node.children {
+                if !Self::verify_node_for_children(child, min_keys, max_keys, expected_height - 1) {
+                    return false;
+                }
+            }
+        }
+        true
+    }
+
     fn verify_node(
         node: &BTreeNode<K, V>,
         min_keys: usize,
@@ -577,36 +605,13 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
         expected_height: usize,
     ) -> bool {
         if node.keys.len() > max_keys {
-<<<<<<< HEAD
             return false;
         }
-        if node.keys.len() < min_keys {
+        if !node.is_leaf() && node.keys.len() < min_keys {
             return false;
         }
         if !node.children.is_empty() && node.children.len() != node.keys.len() + 1 {
             return false;
-=======
-            return Err(format!(
-                "keys.len {} > max_keys {}",
-                node.keys.len(),
-                max_keys
-            ));
-        }
-        // Root is exempt from minimum keys constraint (B-tree invariant)
-        if !is_root && !node.is_leaf() && node.keys.len() < min_keys {
-            return Err(format!(
-                "non-root keys.len {} < min_keys {}",
-                node.keys.len(),
-                min_keys
-            ));
-        }
-        if !node.children.is_empty() && node.children.len() != node.keys.len() + 1 {
-            return Err(format!(
-                "children {} != keys+1 {}",
-                node.children.len(),
-                node.keys.len() + 1
-            ));
->>>>>>> 7e356012 (style: apply consistent rustfmt formatting)
         }
         if node.is_leaf() && expected_height != 1 {
             return false;

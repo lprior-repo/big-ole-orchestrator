@@ -15,7 +15,7 @@ mod types;
 pub use error::{ExecutionError, JobRunError, RetryExhaustedError, SchedulerError};
 pub use queue::{PriorityQueue, SchedulerQueue};
 pub use types::{
-    Job, JobId, JobKind, JobPriority, JobResult, JobState, Schedule, SchedulePolicy, ScheduledJob,
+    Job, JobId, JobKind, JobPriority, JobResult, JobState, SchedulePolicy, ScheduledJob,
     SchedulerConfig, SchedulerRetryPolicy, SerializedPayload,
 };
 
@@ -118,7 +118,7 @@ mod tests {
         let job = Job::new(
             JobId::new(1),
             "test".to_string(),
-            Schedule::one_shot(std::time::Duration::from_millis(50)),
+            SchedulePolicy::after(std::time::Duration::from_millis(50)),
         );
         scheduler.schedule(job).unwrap();
 
@@ -141,7 +141,7 @@ mod tests {
         let job = Job::new(
             JobId::new(1),
             "test".to_string(),
-            Schedule::one_shot(std::time::Duration::from_millis(50)),
+            SchedulePolicy::after(std::time::Duration::from_millis(50)),
         );
         scheduler.schedule(job).unwrap();
 
@@ -178,7 +178,7 @@ mod tests {
         let job = Job::new(
             JobId::new(1),
             "recurring".to_string(),
-            Schedule::interval(std::time::Duration::from_millis(100)),
+            SchedulePolicy::interval(std::time::Duration::from_millis(100)),
         );
         scheduler.schedule(job).unwrap();
 
@@ -192,8 +192,8 @@ mod tests {
         let job_id = due[0].id;
         scheduler.cancel(job_id);
 
-        if let Schedule::Interval { interval_ms } = &due[0].schedule {
-            let next_fire = now_ms + 200 + interval_ms;
+        if let SchedulePolicy::Interval(interval) = &due[0].schedule {
+            let next_fire = now_ms + 200 + interval.as_millis() as u64;
             scheduler.reschedule(due[0].clone(), next_fire);
         }
 

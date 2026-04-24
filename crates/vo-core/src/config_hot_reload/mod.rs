@@ -15,6 +15,8 @@ pub use watcher::{FileWatcher, FilteredFileWatcher, WatcherConfig};
 pub use crate::debounce::FileEvent;
 
 #[cfg(test)]
+mod debounced_tests;
+#[cfg(test)]
 mod hot_reload_extended_tests;
 #[cfg(test)]
 mod hot_reload_tests;
