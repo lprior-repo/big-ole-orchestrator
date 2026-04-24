@@ -1,5 +1,6 @@
 use crate::events::error::Error;
 use crate::events::payload::EventPayload;
+use crate::WorkflowVersionHash;
 use rstest::rstest;
 
 // -------------------------------------------------------------------------
@@ -62,7 +63,7 @@ fn payload_try_from_json_returns_missing_payload_field_when_attempt_is_absent_fo
 
 #[test]
 fn payload_try_from_json_defaults_dag_topology_to_null_when_absent() {
-    let json = serde_json::json!({"type": "WorkflowStarted", "workflow_id": "w1", "binary_hash": "abc123", "workflow_version_hash": "vhash", "dedupe_key_hash": null, "version": 1});
+    let json = serde_json::json!({"type": "WorkflowStarted", "workflow_id": "w1", "binary_hash": "abc123", "workflow_version_hash": "abcdef01", "dedupe_key_hash": null, "version": 1});
     let result = EventPayload::try_from_json(&json);
     assert_eq!(
         result,
@@ -70,7 +71,7 @@ fn payload_try_from_json_defaults_dag_topology_to_null_when_absent() {
             workflow_id: "w1".into(),
             dag_topology: serde_json::Value::Null,
             binary_hash: "abc123".into(),
-            workflow_version_hash: "vhash".into(),
+            workflow_version_hash: WorkflowVersionHash::parse("abcdef01").unwrap(),
             dedupe_key_hash: None,
         })
     );

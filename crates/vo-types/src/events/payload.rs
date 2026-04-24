@@ -5,6 +5,7 @@ use crate::events::MAX_SUPPORTED_VERSION;
 use crate::payload_parser::{
     optional_string, optional_u64, require_string, require_string_field, require_u64,
 };
+use crate::WorkflowVersionHash;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum EventPayload {
@@ -12,7 +13,7 @@ pub enum EventPayload {
         workflow_id: String,
         dag_topology: serde_json::Value,
         binary_hash: String,
-        workflow_version_hash: String,
+        workflow_version_hash: WorkflowVersionHash,
         dedupe_key_hash: Option<String>,
     },
     WorkflowCompleted {
@@ -134,7 +135,11 @@ impl EventPayload {
                     .cloned()
                     .unwrap_or(serde_json::Value::Null),
                 binary_hash: require_string(obj, "binary_hash")?,
-                workflow_version_hash: require_string(obj, "workflow_version_hash")?,
+                workflow_version_hash: {
+                    let s = require_string(obj, "workflow_version_hash")?;
+                    WorkflowVersionHash::try_from(s)
+                        .map_err(|e| Error::InvalidPayloadField(e.to_string()))?
+                },
                 dedupe_key_hash: optional_string(obj, "dedupe_key_hash"),
             }),
             "WorkflowCompleted" => Ok(EventPayload::WorkflowCompleted {
