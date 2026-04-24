@@ -184,7 +184,7 @@ fn write_success_envelope_has_exact_keys() {
 
     write_success_inner(&mut buf, &output, &mut is_written).unwrap();
 
-    let written: Value = serde_json::from_slice(&buf).expect("valid JSON");
+    let written: Value = serde_json::from_slice(&buf[4..]).expect("valid JSON");
     let keys: Vec<&str> = written
         .as_object()
         .unwrap()
@@ -207,7 +207,7 @@ fn write_success_accepts_nested_json_output() {
     let result = write_success_inner(&mut buf, &output, &mut is_written);
 
     assert_eq!(result, Ok(()));
-    let written: Value = serde_json::from_slice(&buf).unwrap();
+    let written: Value = serde_json::from_slice(&buf[4..]).unwrap();
     assert_eq!(written["output"], output);
 }
 
@@ -246,7 +246,7 @@ fn write_failure_envelope_has_exact_keys() {
 
     write_failure_inner(&mut buf, TaskFailureKind::User, "err", &mut is_written).unwrap();
 
-    let written: Value = serde_json::from_slice(&buf).expect("valid JSON");
+    let written: Value = serde_json::from_slice(&buf[4..]).expect("valid JSON");
     let keys: Vec<&str> = written
         .as_object()
         .unwrap()
@@ -268,7 +268,7 @@ fn write_failure_empty_message_succeeds() {
     let result = write_failure_inner(&mut buf, TaskFailureKind::System, "", &mut is_written);
 
     assert_eq!(result, Ok(()));
-    let written: Value = serde_json::from_slice(&buf).unwrap();
+    let written: Value = serde_json::from_slice(&buf[4..]).unwrap();
     assert_eq!(written["message"], "");
 }
 
@@ -281,7 +281,7 @@ fn write_failure_newline_in_message_succeeds() {
     let result = write_failure_inner(&mut buf, TaskFailureKind::User, msg, &mut is_written);
 
     assert_eq!(result, Ok(()));
-    let written: Value = serde_json::from_slice(&buf).unwrap();
+    let written: Value = serde_json::from_slice(&buf[4..]).unwrap();
     assert_eq!(written["message"], "line1\nline2\nline3");
 }
 
@@ -294,7 +294,7 @@ fn write_failure_null_byte_in_message_succeeds() {
     let result = write_failure_inner(&mut buf, TaskFailureKind::User, msg, &mut is_written);
 
     assert_eq!(result, Ok(()));
-    let written: Value = serde_json::from_slice(&buf).unwrap();
+    let written: Value = serde_json::from_slice(&buf[4..]).unwrap();
     assert_eq!(written["message"], "before\0after");
 }
 
@@ -841,7 +841,7 @@ mod proptests {
             let result = write_success_inner(&mut buf, &val, &mut is_written);
 
             if let Ok(()) = result {
-                let parsed: serde_json::Value = serde_json::from_slice(&buf).unwrap();
+                let parsed: serde_json::Value = serde_json::from_slice(&buf[4..]).unwrap();
                 assert_eq!(parsed["status"], "success");
                 assert_eq!(parsed["output"], val);
             }
@@ -856,7 +856,7 @@ mod proptests {
             let result = write_failure_inner(&mut buf, TaskFailureKind::System, &message, &mut is_written);
 
             if let Ok(()) = result {
-                let parsed: serde_json::Value = serde_json::from_slice(&buf).unwrap();
+                let parsed: serde_json::Value = serde_json::from_slice(&buf[4..]).unwrap();
                 assert_eq!(parsed["status"], "failure");
                 assert_eq!(parsed["kind"], "System");
                 assert_eq!(parsed["message"], message);
