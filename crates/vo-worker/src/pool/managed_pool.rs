@@ -1,4 +1,4 @@
-use vo_types::connection_pool::{
+use vo_common::connection_pool::{
     AcquireResult, ConnectionId, ConnectionPoolError, PoolConfig, PoolId, PoolStats,
     PooledConnection, ReleaseResult,
 };

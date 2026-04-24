@@ -14,7 +14,7 @@ use std::fmt;
 
 use ulid::Ulid;
 
-use crate::integer_types::TimestampMs;
+use crate::types::TimestampMs;
 
 // ============================================================================
 // Type Definitions
@@ -370,7 +370,7 @@ impl fmt::Display for ErrorCategory {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::integer_types::TimestampMs;
+    use crate::types::TimestampMs;
 
     // ========================================================================
     // ConnectionId Tests
