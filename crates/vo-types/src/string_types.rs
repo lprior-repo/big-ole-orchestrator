@@ -250,7 +250,7 @@ impl TimerId {
     ///
     /// # Errors
     ///
-    /// Returns `ParseError` if the input is empty or exceeds max length.
+    /// Returns `ParseError` if the input is empty, exceeds max length, or contains invalid characters.
     pub fn parse(input: &str) -> Result<Self, ParseError> {
         const TYPE_NAME: &str = "TimerId";
         const MAX_LEN: usize = 256;
@@ -264,6 +264,13 @@ impl TimerId {
                 type_name: TYPE_NAME,
                 max: MAX_LEN,
                 actual: input.chars().count(),
+            });
+        }
+        let invalid = extract_invalid_chars(input, is_identifier_char);
+        if !invalid.is_empty() {
+            return Err(ParseError::InvalidCharacters {
+                type_name: TYPE_NAME,
+                invalid_chars: invalid,
             });
         }
         Ok(Self(input.to_string()))

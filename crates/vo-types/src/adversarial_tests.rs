@@ -276,17 +276,21 @@ fn rq_scientific_notation_rejected() {
 // --- TimerId/IdempotencyKey: opaque type behavior ---
 
 #[test]
-fn rq_timer_id_accepts_null_byte() {
+fn rq_timer_id_rejects_null_byte() {
     let result = TimerId::parse("timer\x00id");
-    let val = result.expect("TimerId is opaque and should accept null byte");
-    assert!(val.as_str().contains('\x00'));
+    assert!(
+        result.is_err(),
+        "TimerId must reject null byte (identifier chars only)"
+    );
 }
 
 #[test]
-fn rq_timer_id_accepts_newlines() {
+fn rq_timer_id_rejects_newlines() {
     let result = TimerId::parse("timer\nid");
-    let val = result.expect("TimerId is opaque and should accept newlines");
-    assert!(val.as_str().contains('\n'));
+    assert!(
+        result.is_err(),
+        "TimerId must reject newlines (identifier chars only)"
+    );
 }
 
 #[test]
@@ -299,11 +303,12 @@ fn rq_idempotency_key_rejects_null_byte() {
 }
 
 #[test]
-fn rq_timer_id_null_byte_serde_round_trip() {
-    let original = TimerId::parse("timer\x00id").expect("parse");
-    let json = serde_json::to_string(&original).expect("serialize");
-    let restored: TimerId = serde_json::from_str(&json).expect("deserialize");
-    assert_eq!(restored, original);
+fn rq_timer_id_rejects_null_byte_at_parse() {
+    let result = TimerId::parse("timer\x00id");
+    assert!(
+        result.is_err(),
+        "TimerId must reject null byte at parse time"
+    );
 }
 
 #[test]
@@ -316,12 +321,14 @@ fn rq_timer_id_rejects_257_ascii() {
 }
 
 #[test]
-fn rq_timer_id_accepts_256_multi_byte() {
+fn rq_timer_id_rejects_256_multi_byte_chars() {
     let input = "\u{1F600}".repeat(256);
     assert_eq!(input.chars().count(), 256);
     let result = TimerId::parse(&input);
-    let val = result.expect("TimerId should accept 256 multi-byte chars");
-    assert_eq!(val.as_str().chars().count(), 256);
+    assert!(
+        result.is_err(),
+        "TimerId must reject unicode chars (identifier chars only)"
+    );
 }
 
 #[test]
