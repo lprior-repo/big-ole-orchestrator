@@ -62,8 +62,38 @@ pub enum InstancePhaseView {
 }
 
 /// Messages sent to the orchestrator actor.
+/// Messages sent to the orchestrator actor.
 #[derive(Debug)]
 pub enum OrchestratorMsg {
+    /// Start a new workflow instance
+    StartWorkflow {
+        namespace: NamespaceId,
+        instance_id: InstanceId,
+        workflow_type: String,
+        paradigm: WorkflowParadigm,
+        input: Bytes,
+        reply: ractor::port::RpcReplyPort<Result<(), StartError>>,
+    },
+    /// Get status of a workflow instance
+    GetStatus {
+        instance_id: InstanceId,
+        reply: ractor::port::RpcReplyPort<Option<InstanceSnapshot>>,
+    },
+    /// Terminate a workflow instance
+    Terminate {
+        instance_id: InstanceId,
+        reason: String,
+        reply: ractor::port::RpcReplyPort<Result<(), TerminateError>>,
+    },
+    /// List all active workflow instances
+    ListActive {
+        reply: ractor::port::RpcReplyPort<Vec<InstanceSnapshot>>,
+    },
+    /// Compensate a completed workflow
+    Compensate {
+        instance_id: InstanceId,
+        reply: ractor::port::RpcReplyPort<Result<(), CompensateError>>,
+    },
     /// Send a signal to a workflow instance
     Signal {
         instance_id: InstanceId,
@@ -79,6 +109,14 @@ pub enum SignalError {
     #[error("instance not found: {0}")]
     NotFound(String),
     #[error("signal failed: {0}")]
+    Failed(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum CompensateError {
+    #[error("instance not found: {0}")]
+    NotFound(String),
+    #[error("compensation failed: {0}")]
     Failed(String),
 }
 
