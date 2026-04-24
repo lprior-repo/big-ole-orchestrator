@@ -3,7 +3,7 @@ use std::collections::{BinaryHeap, HashMap};
 use chrono::{DateTime, Utc};
 
 use crate::error::SchedulerError;
-use crate::job::ScheduledJob;
+use crate::types::job::ScheduledJob;
 use crate::types::{JobId, JobPriority, JobState, SchedulePolicy};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
