@@ -1,8 +1,8 @@
 {
   "running": true,
-  "pid": 1665771,
+  "pid": 1902148,
   "port": 3307,
-  "started_at": "2026-04-24T01:27:48.61699687-05:00",
+  "started_at": "2026-04-24T01:29:28.295068244-05:00",
   "data_dir": "/home/lewis/gt/.dolt-data",
   "databases": [
     "Seshat",
