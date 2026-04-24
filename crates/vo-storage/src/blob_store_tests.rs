@@ -790,3 +790,53 @@ fn content_address_from_bytes_invalidates_uppercase() {
         "from_bytes must produce lowercase hex"
     );
 }
+
+#[test]
+fn content_address_deserialize_valid() {
+    let addr = ContentAddress::new(VALID_SHA256).unwrap();
+    let json = serde_json::to_string(&addr).unwrap();
+    let decoded: ContentAddress = serde_json::from_str(&json).unwrap();
+    assert_eq!(decoded, addr);
+}
+
+#[test]
+fn content_address_deserialize_rejects_wrong_length() {
+    let json = "\"abcdef\"";
+    let result: Result<ContentAddress, _> = serde_json::from_str(json);
+    assert!(result.is_err());
+}
+
+#[test]
+fn content_address_deserialize_rejects_uppercase() {
+    let json = "\"ABCDEF0123456789abcdef0123456789abcdef0123456789abcdef0123456789\"";
+    let result: Result<ContentAddress, _> = serde_json::from_str(json);
+    assert!(result.is_err());
+}
+
+#[test]
+fn content_address_deserialize_rejects_non_hex() {
+    let json = "\"9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15g0f00a08\"";
+    let result: Result<ContentAddress, _> = serde_json::from_str(json);
+    assert!(result.is_err());
+}
+
+#[test]
+fn content_address_deserialize_rejects_empty() {
+    let json = "\"\"";
+    let result: Result<ContentAddress, _> = serde_json::from_str(json);
+    assert!(result.is_err());
+}
+
+#[test]
+fn pack_index_entry_deserialize_validates_content_address() {
+    let json = r#"{"content_addr":"bad","pack_file_id":"pk-1","offset_bytes":0,"size_bytes":100}"#;
+    let result: Result<PackIndexEntry, _> = serde_json::from_str(json);
+    assert!(result.is_err());
+}
+
+#[test]
+fn blob_record_deserialize_validates_content_address() {
+    let json = r#"{"content_addr":"bad","size_bytes":100,"reference_count":1,"created_at_ms":1000,"expires_at_ms":null,"status":"Active"}"#;
+    let result: Result<BlobRecord, _> = serde_json::from_str(json);
+    assert!(result.is_err());
+}
