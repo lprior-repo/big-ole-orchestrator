@@ -55,4 +55,4 @@ no-db: false
 
 backup.enabled: false
 
-dolt.port: 3307
+dolt.port: 3309
