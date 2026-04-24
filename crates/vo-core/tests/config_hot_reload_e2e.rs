@@ -27,16 +27,16 @@ impl ConfigValidator<serde_json::Value> for VersionValidator {
 
 #[test]
 fn e2e_full_hot_reload_cycle_with_file_modification() {
-    let temp_dir = TempDir::new().unwrap();
+    let temp_dir = TempDir::new().expect("temp dir creation");
     let path = temp_dir.path().join("config.json");
-    fs::write(&path, r#"{"version": 1, "name": "initial"}"#).unwrap();
+    fs::write(&path, r#"{"version": 1, "name": "initial"}"#).expect("should succeed");
 
     let config = HotReloadConfig::new(
         serde_json::json!({"version": 1, "name": "initial"}),
         path.clone(),
         Arc::new(VersionValidator),
     )
-    .unwrap();
+    .expect("should succeed");
 
     assert_eq!(
         config.current(),
@@ -45,21 +45,21 @@ fn e2e_full_hot_reload_cycle_with_file_modification() {
 
     config
         .try_update(serde_json::json!({"version": 2, "name": "updated"}))
-        .unwrap();
+        .expect("should succeed");
     assert_eq!(
         config.current(),
         serde_json::json!({"version": 1, "name": "initial"})
     );
 
-    let old = config.commit().unwrap();
+    let old = config.commit().expect("should succeed");
     assert_eq!(old, serde_json::json!({"version": 1, "name": "initial"}));
     assert_eq!(
         config.current(),
         serde_json::json!({"version": 2, "name": "updated"})
     );
 
-    fs::write(&path, r#"{"version": 3, "name": "from-file"}"#).unwrap();
-    let old2 = config.reload_from_file().unwrap();
+    fs::write(&path, r#"{"version": 3, "name": "from-file"}"#).expect("should succeed");
+    let old2 = config.reload_from_file().expect("should succeed");
     assert_eq!(old2, serde_json::json!({"version": 2, "name": "updated"}));
     assert_eq!(
         config.current(),
@@ -76,33 +76,33 @@ fn e2e_full_hot_reload_cycle_with_file_modification() {
 
 #[test]
 fn e2e_rollback_preserves_current_through_failed_update_cycle() {
-    let temp_dir = TempDir::new().unwrap();
+    let temp_dir = TempDir::new().expect("temp dir creation");
     let path = temp_dir.path().join("config.json");
-    fs::write(&path, r#"{"version": 1}"#).unwrap();
+    fs::write(&path, r#"{"version": 1}"#).expect("should succeed");
 
     let config = HotReloadConfig::new(
         serde_json::json!({"version": 1}),
         path,
         Arc::new(VersionValidator),
     )
-    .unwrap();
+    .expect("should succeed");
 
     config
         .try_update(serde_json::json!({"version": 2}))
-        .unwrap();
+        .expect("should succeed");
     config.rollback();
     assert_eq!(config.current(), serde_json::json!({"version": 1}));
 
     config
         .try_update(serde_json::json!({"version": 3}))
-        .unwrap();
-    let old = config.commit().unwrap();
+        .expect("should succeed");
+    let old = config.commit().expect("should succeed");
     assert_eq!(old, serde_json::json!({"version": 1}));
     assert_eq!(config.current(), serde_json::json!({"version": 3}));
 
     config
         .try_update(serde_json::json!({"version": 4}))
-        .unwrap();
+        .expect("should succeed");
     config.rollback();
     assert_eq!(config.current(), serde_json::json!({"version": 3}));
 
@@ -116,29 +116,29 @@ fn e2e_rollback_preserves_current_through_failed_update_cycle() {
 
 #[test]
 fn e2e_interleaved_try_update_commit_rollback_operations() {
-    let temp_dir = TempDir::new().unwrap();
+    let temp_dir = TempDir::new().expect("temp dir creation");
     let path = temp_dir.path().join("config.json");
-    fs::write(&path, r#"{"version": 1}"#).unwrap();
+    fs::write(&path, r#"{"version": 1}"#).expect("should succeed");
 
     let config = HotReloadConfig::new(
         serde_json::json!({"version": 1}),
         path,
         Arc::new(VersionValidator),
     )
-    .unwrap();
+    .expect("should succeed");
 
     config
         .try_update(serde_json::json!({"version": 2}))
-        .unwrap();
+        .expect("should succeed");
     config.rollback();
 
     config
         .try_update(serde_json::json!({"version": 3}))
-        .unwrap();
+        .expect("should succeed");
     config
         .try_update(serde_json::json!({"version": 4}))
-        .unwrap();
-    let old = config.commit().unwrap();
+        .expect("should succeed");
+    let old = config.commit().expect("should succeed");
     assert_eq!(old, serde_json::json!({"version": 1}));
     assert_eq!(config.current(), serde_json::json!({"version": 4}));
 
@@ -147,35 +147,35 @@ fn e2e_interleaved_try_update_commit_rollback_operations() {
 
     config
         .try_update(serde_json::json!({"version": 5}))
-        .unwrap();
-    let old2 = config.commit().unwrap();
+        .expect("should succeed");
+    let old2 = config.commit().expect("should succeed");
     assert_eq!(old2, serde_json::json!({"version": 4}));
     assert_eq!(config.current(), serde_json::json!({"version": 5}));
 }
 
 #[test]
 fn e2e_reload_from_file_interleaved_with_pending_state() {
-    let temp_dir = TempDir::new().unwrap();
+    let temp_dir = TempDir::new().expect("temp dir creation");
     let path = temp_dir.path().join("config.json");
-    fs::write(&path, r#"{"version": 1}"#).unwrap();
+    fs::write(&path, r#"{"version": 1}"#).expect("should succeed");
 
     let config = HotReloadConfig::new(
         serde_json::json!({"version": 1}),
         path.clone(),
         Arc::new(VersionValidator),
     )
-    .unwrap();
+    .expect("should succeed");
 
     config
         .try_update(serde_json::json!({"version": 99}))
-        .unwrap();
+        .expect("should succeed");
 
-    fs::write(&path, r#"{"version": 2}"#).unwrap();
-    let old = config.reload_from_file().unwrap();
+    fs::write(&path, r#"{"version": 2}"#).expect("should succeed");
+    let old = config.reload_from_file().expect("should succeed");
     assert_eq!(old, serde_json::json!({"version": 1}));
     assert_eq!(config.current(), serde_json::json!({"version": 2}));
 
-    let committed = config.commit().unwrap();
+    let committed = config.commit().expect("should succeed");
     assert_eq!(committed, serde_json::json!({"version": 2}));
     assert_eq!(config.current(), serde_json::json!({"version": 99}));
 }
