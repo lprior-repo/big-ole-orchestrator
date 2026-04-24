@@ -392,4 +392,30 @@ mod tests {
             .unwrap();
         assert_eq!(second.token().inner().get(), 2);
     }
+
+    #[test]
+    fn fjall_lease_acquire_after_expiry_reacquires_with_higher_fence_token() {
+        let (keyspace, _dir) = create_test_keyspace();
+        let store = FjallLeaseStore::open(&keyspace).unwrap();
+
+        let first = store
+            .acquire(&sample_instance_id(), &sample_step_id(), 1)
+            .unwrap();
+        assert_eq!(first.token().inner().get(), 1);
+
+        std::thread::sleep(std::time::Duration::from_millis(5));
+
+        let second = store
+            .acquire(&sample_instance_id(), &sample_step_id(), 5_000)
+            .unwrap();
+        assert_eq!(second.token().inner().get(), 2);
+
+        let is_stale = store.check_stale_fence(&sample_instance_id(), &sample_step_id(), first.token());
+        assert_eq!(is_stale.unwrap(), true);
+
+        let is_current = store.check_stale_fence(&sample_instance_id(), &sample_step_id(), second.token());
+        assert_eq!(is_current.unwrap(), false);
+
+        store.release(&second).unwrap();
+    }
 }
