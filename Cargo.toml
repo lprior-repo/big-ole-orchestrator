@@ -118,6 +118,7 @@ aes = "0.7"
 aes-gcm = "0.9"
 rand = "0.8"
 generic-array = "0.14"
+zeroize = "1"
 
 # Filesystem / OS
 notify = "6"

@@ -29,6 +29,7 @@ rand = { workspace = true }
 generic-array = { workspace = true }
 ulid = { workspace = true }
 metrics = { workspace = true }
+zeroize = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
