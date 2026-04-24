@@ -210,7 +210,7 @@ pub fn encrypt_blob(
 
     Ok(
         vo_types::EncryptedBlob::new(iv.to_vec(), ciphertext_without_tag, tag)
-            .map_err(|e| CryptoError::EncryptionFailed)?,
+            .map_err(|_| CryptoError::EncryptionFailed)?,
     )
 }
 

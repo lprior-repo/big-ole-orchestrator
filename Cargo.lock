@@ -5027,7 +5027,6 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.18",
  "tracing",
- "ulid",
 ]
 
 [[package]]
@@ -5147,6 +5146,7 @@ dependencies = [
  "serde_json",
  "tempfile",
  "thiserror 2.0.18",
+ "vo-ipc",
  "vo-types",
 ]
 
@@ -5194,7 +5194,7 @@ dependencies = [
  "ulid",
  "vo-core",
  "vo-types",
- "zstd",
+ "zeroize",
 ]
 
 [[package]]

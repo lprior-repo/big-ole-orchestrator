@@ -11,6 +11,7 @@ mod proptest_dag;
 mod proptest_read_write;
 mod read_tests;
 mod red_queen_workflow_spec;
+mod roundtrip_fd4_tests;
 mod type_tests;
 mod workflow_builder_tests;
 mod workflow_spec_validation_tests;
