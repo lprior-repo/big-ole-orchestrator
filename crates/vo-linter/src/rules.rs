@@ -4,6 +4,7 @@
 #![forbid(unsafe_code)]
 
 use crate::diagnostic::{Diagnostic, LintCode};
+use crate::rules::Rule;
 use std::collections::HashMap;
 use syn::{visit::Visit, ExprCall, File, ItemUse, Path, UseTree};
 
