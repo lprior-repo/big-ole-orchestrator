@@ -35,6 +35,9 @@ pub fn parse_graph_args(args: &[String]) -> Result<GraphArgs, GraphArgsError> {
     let mut found_graph = false;
     for arg in args.iter().skip(1) {
         if arg == "--graph" {
+            if found_graph {
+                return Err(GraphArgsError::UnrecognizedArgument { arg: arg.clone() });
+            }
             found_graph = true;
         } else if found_graph {
             return Err(GraphArgsError::UnrecognizedArgument { arg: arg.clone() });

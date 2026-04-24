@@ -784,42 +784,6 @@ mod tests {
     }
 
     #[test]
-    fn crash_timing_windows_are_mutually_exclusive() {
-        let timings = CrashTiming::all_variants();
-        assert_eq!(timings.len(), 3);
-
-        for timing in timings {
-            let scenario = FailoverScenario::new(
-                "test",
-                RecoveryPhase::Commit,
-                FailoverSeverity::Ambiguous,
-                *timing,
-                ExpectedRecoveryOutcome::Committed,
-            );
-            match timing {
-                CrashTiming::BeforeWrite => {
-                    assert!(!matches!(
-                        scenario.timing,
-                        CrashTiming::PartialWrite | CrashTiming::AfterCommit
-                    ));
-                }
-                CrashTiming::PartialWrite => {
-                    assert!(!matches!(
-                        scenario.timing,
-                        CrashTiming::BeforeWrite | CrashTiming::AfterCommit
-                    ));
-                }
-                CrashTiming::AfterCommit => {
-                    assert!(!matches!(
-                        scenario.timing,
-                        CrashTiming::BeforeWrite | CrashTiming::PartialWrite
-                    ));
-                }
-            }
-        }
-    }
-
-    #[test]
     fn no_skipped_prepare_invariant_holds() {
         for phase in RecoveryPhase::all_variants() {
             for severity in FailoverSeverity::all_variants() {
@@ -837,7 +801,7 @@ mod tests {
             }
         }
     }
-}
+
     #[test]
     fn crash_timing_windows_are_mutually_exclusive() {
         let timings = CrashTiming::all_variants();
