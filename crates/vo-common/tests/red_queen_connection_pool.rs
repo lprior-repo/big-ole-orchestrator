@@ -11,12 +11,12 @@
 //!   - edge-cases: Zero timeouts, max values, negative-like values
 //!   - state-corruption: Direct field manipulation to create inconsistent states
 
-use vo_types::connection_pool::{
+use vo_common::connection_pool::{
     AcquireResult, CircuitBreakerState, ConnectionId, ConnectionPoolError, ConnectionStatus,
     ErrorCategory, ErrorContext, ErrorDetail, EvictionReason, HealthCheckResult, PoolConfig,
     PoolId, PoolStats, PooledConnection, ReleaseResult, WaitHandle,
 };
-use vo_types::integer_types::TimestampMs;
+use vo_common::connection_pool::TimestampMs;
 
 // ===========================================================================
 // DIMENSION: contract-violations

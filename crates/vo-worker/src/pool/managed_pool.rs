@@ -1,4 +1,4 @@
-use vo_types::connection_pool::{
+use vo_common::connection_pool::{
     AcquireResult, ConnectionId, ConnectionPoolError, PoolConfig, PoolId, PoolStats,
     PooledConnection, ReleaseResult,
 };
@@ -71,7 +71,7 @@ mod tests {
     fn pooled_connection_type_accessible_from_vo_worker() {
         let conn = PooledConnection::new(
             ConnectionId::new(),
-            vo_types::TimestampMs::try_from(1000u64).unwrap(),
+            vo_common::connection_pool::TimestampMs::try_from(1000u64).unwrap(),
         );
         assert!(conn.is_idle());
     }

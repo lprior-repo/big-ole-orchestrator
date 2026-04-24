@@ -14,7 +14,47 @@ use std::fmt;
 
 use ulid::Ulid;
 
-use crate::integer_types::TimestampMs;
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
+pub struct TimestampMs(pub u64);
+
+impl TimestampMs {
+    #[must_use]
+    pub fn new_unchecked(value: u64) -> Self {
+        Self(value)
+    }
+
+    #[must_use]
+    pub fn as_u64(self) -> u64 {
+        self.0
+    }
+
+    #[must_use]
+    pub fn now() -> Self {
+        use std::time::{Duration, SystemTime};
+        let millis = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .map_or(0, |d| d.as_millis());
+        Self(if let Ok(v) = u64::try_from(millis) {
+            v
+        } else {
+            u64::MAX
+        })
+    }
+}
+
+impl TryFrom<u64> for TimestampMs {
+    type Error = std::convert::Infallible;
+
+    fn try_from(value: u64) -> Result<Self, Self::Error> {
+        Ok(Self(value))
+    }
+}
+
+impl From<TimestampMs> for u64 {
+    fn from(value: TimestampMs) -> u64 {
+        value.0
+    }
+}
 
 // ============================================================================
 // Type Definitions
@@ -370,7 +410,6 @@ impl fmt::Display for ErrorCategory {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::integer_types::TimestampMs;
 
     // ========================================================================
     // ConnectionId Tests

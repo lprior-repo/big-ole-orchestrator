@@ -11,7 +11,7 @@
 
 use std::collections::HashMap;
 use std::time::Duration;
-use vo_types::connection_pool::{CircuitBreakerState, PoolId};
+use vo_common::connection_pool::{CircuitBreakerState, PoolId};
 use vo_worker::pool::{
     circuit_breaker::CircuitBreaker,
     config::{PoolConfig, PoolConfigError},
@@ -494,7 +494,7 @@ fn test_lock_mode_transitions() {
 /// Edge cases: Boundary conditions
 #[test]
 fn test_health_check_stale_detection() {
-    use vo_types::integer_types::TimestampMs;
+    use vo_common::connection_pool::TimestampMs;
     use vo_worker::pool::health_check::{determine_health_check_result, HealthCheck};
 
     let hc = HealthCheck::new(5000);
@@ -503,7 +503,7 @@ fn test_health_check_stale_detection() {
     let idle_timeout_ms = 30000;
 
     let result = hc.check_connection(last_used, idle_timeout_ms, now);
-    assert_eq!(result, vo_types::connection_pool::HealthCheckResult::Stale);
+    assert_eq!(result, vo_common::connection_pool::HealthCheckResult::Stale);
 }
 
 /// Scenario: determine_health_check_result prioritizes timeout
@@ -511,7 +511,7 @@ fn test_health_check_stale_detection() {
 /// Edge cases: All combinations
 #[test]
 fn test_health_check_result_priority() {
-    use vo_types::connection_pool::HealthCheckResult;
+    use vo_common::connection_pool::HealthCheckResult;
     use vo_worker::pool::health_check::determine_health_check_result;
 
     // Timeout is highest priority
