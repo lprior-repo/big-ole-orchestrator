@@ -7,6 +7,9 @@
 //! This module defines the trait and pure encoding/decoding functions. Concrete Fjall
 //! implementations are provided separately.
 
+use crate::key_encoding::{
+    decode_instance_id, decode_length_prefixed, encode_instance_id, encode_length_prefixed,
+};
 use vo_types::{EffectRecord, InstanceId};
 
 #[cfg(all(test, feature = "proptest"))]
@@ -93,32 +96,92 @@ pub enum EffectJournalError {
 }
 
 // ---------------------------------------------------------------------------
-// Calc layer — key encoding/decoding
+// Calc layer — key encoding/decoding (ADR-020 binary format)
 // ---------------------------------------------------------------------------
+//
+// Key format: [instance_id(16)][intent_id_len_u16_be][intent_id_bytes]
+//
+// ADR-020 mandates: instance ID as fixed 16-byte binary, variable identifiers
+// length-prefixed. The intent_id is the variable component in effect keys.
 
-/// Encode an `EffectId` as UTF-8 bytes for use as a partition key.
+/// Encode an `EffectId` as binary key bytes (ADR-020).
 ///
-/// The key format is simply the UTF-8 representation of the `EffectId` string.
+/// Format: `[instance_id(16)][intent_id_len_u16_be][intent_id_bytes]`
+///
+/// Parses the `instance_id` and `intent_id` from the `EffectId` string representation.
 #[must_use]
 pub fn encode_effect_key(effect_id: &EffectId) -> Vec<u8> {
-    effect_id.as_str().as_bytes().to_vec()
+    let s = effect_id.as_str();
+    // Parse "instance_id::intent_id" from the EffectId string
+    if let Some((iid_str, intent_id)) = s.split_once("::") {
+        if let Ok(instance_id) = InstanceId::parse(iid_str) {
+            if let Ok(iid_bytes) = encode_instance_id(&instance_id) {
+                let intent_bytes = intent_id.as_bytes();
+                let mut key = Vec::with_capacity(16 + 2 + intent_bytes.len());
+                key.extend_from_slice(&iid_bytes);
+                key.extend_from_slice(&(intent_bytes.len() as u16).to_be_bytes());
+                key.extend_from_slice(intent_bytes);
+                return key;
+            }
+        }
+    }
+    // Fallback: length-prefixed raw string (for migration safety)
+    encode_length_prefixed(s.as_bytes())
 }
 
-/// Decode UTF-8 bytes into an `EffectId`.
+/// Decode binary effect key bytes into an `EffectId` (ADR-020).
+///
+/// Expects format: `[instance_id(16)][intent_id_len_u16_be][intent_id_bytes]`.
+/// Falls back to length-prefixed string for migration compatibility.
 ///
 /// # Errors
 ///
-/// Returns `EffectJournalError::Codec` if the bytes are not valid UTF-8 or empty.
+/// Returns `EffectJournalError::Codec` if the bytes are malformed or empty.
 pub fn decode_effect_key(bytes: &[u8]) -> Result<EffectId, EffectJournalError> {
-    let s = std::str::from_utf8(bytes).map_err(|e| EffectJournalError::Codec {
-        reason: e.to_string(),
-    })?;
-    if s.is_empty() {
+    if bytes.len() < 18 {
+        // Try length-prefixed fallback
+        if let Ok((decoded, _)) = decode_length_prefixed(bytes) {
+            let s = std::str::from_utf8(decoded).map_err(|e| EffectJournalError::Codec {
+                reason: e.to_string(),
+            })?;
+            if !s.is_empty() {
+                return Ok(EffectId(s.to_string()));
+            }
+        }
         return Err(EffectJournalError::Codec {
-            reason: "empty effect key".to_string(),
+            reason: format!("effect key too short: {} bytes", bytes.len()),
         });
     }
-    Ok(EffectId(s.to_string()))
+    let instance_id = decode_instance_id(&bytes[..16]).map_err(|e| EffectJournalError::Codec {
+        reason: format!("invalid instance_id in effect key: {e}"),
+    })?;
+    let intent_len = u16::from_be_bytes([bytes[16], bytes[17]]) as usize;
+    if bytes.len() < 18 + intent_len {
+        return Err(EffectJournalError::Codec {
+            reason: format!(
+                "effect key truncated: expected {} bytes, got {}",
+                18 + intent_len,
+                bytes.len()
+            ),
+        });
+    }
+    let intent_str = std::str::from_utf8(&bytes[18..18 + intent_len])
+        .map_err(|e| EffectJournalError::Codec {
+            reason: format!("invalid intent_id UTF-8: {e}"),
+        })?;
+    EffectId::new(&instance_id, intent_str).map_err(|_| EffectJournalError::Codec {
+        reason: "empty intent_id in decoded key".to_string(),
+    })
+}
+
+/// Get binary key prefix for all effects of a given instance (ADR-020).
+///
+/// Returns the 16-byte instance ID binary prefix.
+#[must_use]
+pub fn get_effect_key_prefix(instance_id: &InstanceId) -> Vec<u8> {
+    encode_instance_id(instance_id)
+        .map(|b| b.to_vec())
+        .unwrap_or_default()
 }
 
 // ---------------------------------------------------------------------------

@@ -157,36 +157,25 @@ impl LeaseEntry {
 /// Partition name for the lease store.
 pub const LEASE_PARTITION: &str = "leases";
 
-/// Encode a lease key as `<instance_id>::<step_id>` UTF-8 bytes.
+/// Encode a lease key as `[instance_id(16)][step_id_len_u16_be][step_id_bytes]` (ADR-020).
 ///
-/// Uses the Display representation of both types with `::` delimiter.
+/// Delegates to `key_encoding::encode_lease_key`.
 #[must_use]
 pub fn encode_lease_key(instance_id: &InstanceId, step_id: &StepId) -> Vec<u8> {
-    format!("{instance_id}::{step_id}").into_bytes()
+    crate::key_encoding::encode_lease_key(instance_id, step_id)
 }
 
-/// Decode UTF-8 bytes into an `instance_id` and `step_id`.
+/// Decode binary lease key into `(InstanceId, StepId)` (ADR-020).
 ///
-/// Expects format `<instance_id>::<step_id>`.
+/// Delegates to `key_encoding::decode_lease_key`.
 ///
 /// # Errors
 ///
-/// Returns `LeaseStoreError::Codec` if the bytes are not valid UTF-8,
-/// do not contain the `::` delimiter, or the parts cannot be parsed.
+/// Returns `LeaseStoreError::Codec` if the key is malformed or values cannot be parsed.
 pub fn decode_lease_key(bytes: &[u8]) -> Result<(InstanceId, StepId), LeaseStoreError> {
-    let s = std::str::from_utf8(bytes).map_err(|e| LeaseStoreError::Codec {
+    crate::key_encoding::decode_lease_key(bytes).map_err(|e| LeaseStoreError::Codec {
         reason: e.to_string(),
-    })?;
-    let (iid_str, sid_str) = s.split_once("::").ok_or_else(|| LeaseStoreError::Codec {
-        reason: "missing :: delimiter in lease key".to_string(),
-    })?;
-    let instance_id = InstanceId::parse(iid_str).map_err(|e| LeaseStoreError::Codec {
-        reason: format!("invalid instance_id: {e}"),
-    })?;
-    let step_id = StepId::parse(sid_str).map_err(|e| LeaseStoreError::Codec {
-        reason: format!("invalid step_id: {e}"),
-    })?;
-    Ok((instance_id, step_id))
+    })
 }
 
 // ---------------------------------------------------------------------------

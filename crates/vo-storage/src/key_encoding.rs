@@ -277,32 +277,56 @@ pub fn decode_timer_key(bytes: &[u8]) -> Result<(u64, InstanceId), KeyEncodingEr
     ))
 }
 
-/// Encode a lease key from instance ID and step ID.
+/// Encode a lease key as `[instance_id(16)][step_id_len_u16_be][step_id_bytes]`.
+///
+/// ADR-020: instance ID is fixed 16-byte binary, step ID is length-prefixed.
 #[must_use]
 pub fn encode_lease_key(instance_id: &InstanceId, step_id: &StepId) -> Vec<u8> {
-    format!("{instance_id}::{step_id}").into_bytes()
+    let iid_bytes = instance_id.to_bytes().unwrap_or([0u8; 16]);
+    let sid_bytes = step_id.as_str().as_bytes();
+    let mut key = Vec::with_capacity(16 + 2 + sid_bytes.len());
+    key.extend_from_slice(&iid_bytes);
+    key.extend_from_slice(&(sid_bytes.len() as u16).to_be_bytes());
+    key.extend_from_slice(sid_bytes);
+    key
 }
 
 /// Decode a lease key into instance ID and step ID.
 ///
+/// Expects format: `[instance_id(16)][step_id_len_u16_be][step_id_bytes]`.
+///
 /// # Errors
 ///
-/// Returns `KeyEncodingError::StepId` if the key is not valid UTF-8 or missing the `::` delimiter.
+/// Returns `KeyEncodingError::InvalidLength` if the key is too short.
+/// Returns `KeyEncodingError::StepId` if the step ID is not valid UTF-8 or not a valid `StepId`.
 pub fn decode_lease_key(bytes: &[u8]) -> Result<(InstanceId, StepId), KeyEncodingError> {
-    let s = std::str::from_utf8(bytes).map_err(|e| {
+    if bytes.len() < 18 {
+        return Err(KeyEncodingError::InvalidLength {
+            expected: 18,
+            actual: bytes.len(),
+        });
+    }
+    let iid_bytes: [u8; 16] = bytes[..16]
+        .try_into()
+        .map_err(|_| KeyEncodingError::InvalidLength {
+            expected: 16,
+            actual: bytes[..16].len(),
+        })?;
+    let instance_id = InstanceId::from_bytes(iid_bytes);
+    let sid_len = decode_u16_be(&bytes[16..18])? as usize;
+    if bytes.len() < 18 + sid_len {
+        return Err(KeyEncodingError::InvalidLength {
+            expected: 18 + sid_len,
+            actual: bytes.len(),
+        });
+    }
+    let s = std::str::from_utf8(&bytes[18..18 + sid_len]).map_err(|e| {
         KeyEncodingError::StepId(ParseError::InvalidFormat {
-            type_name: "LeaseKey",
+            type_name: "StepId",
             reason: e.to_string(),
         })
     })?;
-    let (iid_str, sid_str) = s.split_once("::").ok_or_else(|| {
-        KeyEncodingError::StepId(ParseError::InvalidFormat {
-            type_name: "LeaseKey",
-            reason: "missing :: delimiter".to_string(),
-        })
-    })?;
-    let instance_id = InstanceId::parse(iid_str).map_err(KeyEncodingError::from)?;
-    let step_id = StepId::parse(sid_str).map_err(KeyEncodingError::from)?;
+    let step_id = StepId::parse(s).map_err(KeyEncodingError::from)?;
     Ok((instance_id, step_id))
 }
 
@@ -403,9 +427,12 @@ pub fn get_timer_key_prefix_for_time(fire_at_ms: u64) -> Vec<u8> {
 }
 
 /// Get the key prefix for all lease entries of a given instance.
+///
+/// Returns the 16-byte instance ID prefix (all keys with this prefix belong to the instance).
 #[must_use]
 pub fn get_lease_key_prefix_for_instance(instance_id: &InstanceId) -> Vec<u8> {
-    format!("{instance_id}::").into_bytes()
+    let iid_bytes = instance_id.to_bytes().unwrap_or([0u8; 16]);
+    iid_bytes.to_vec()
 }
 
 /// Get the key prefix for a dedupe key.

@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use vo_types::{FenceToken, InstanceId, LeaseRecord, StepId};
 
-use super::{LeaseEntry, LeaseStore, LeaseStoreError, LEASE_PARTITION};
+use super::{LeaseEntry, LeaseStore, LeaseStoreError, LEASE_PARTITION, encode_lease_key};
 
 const FENCE_PARTITION: &str = "lease_fences";
 
@@ -37,11 +37,13 @@ impl FjallLeaseStore {
     }
 
     fn encode_lease_key(instance_id: &InstanceId, step_id: &StepId) -> Vec<u8> {
-        format!("{instance_id}::{step_id}").into_bytes()
+        encode_lease_key(instance_id, step_id)
     }
 
     fn encode_fence_key(instance_id: &InstanceId, step_id: &StepId) -> Vec<u8> {
-        format!("{instance_id}::{step_id}::fence").into_bytes()
+        let mut key = encode_lease_key(instance_id, step_id);
+        key.extend_from_slice(&0x01u16.to_be_bytes()); // fence suffix marker
+        key
     }
 
     fn get_current_lease(
