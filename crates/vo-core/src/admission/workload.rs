@@ -228,24 +228,6 @@ impl WorkloadBudget {
         }
     }
 
-    /// Creates a budget from raw parts.
-    ///
-    /// Used by the Calc layer to construct budgets from configuration.
-    #[must_use]
-    pub fn from_parts(
-        allocations: Vec<BudgetAllocation>,
-        total_max_slots: u32,
-        degraded_mode: DegradedMode,
-    ) -> Self {
-        let total_used_slots: u32 = allocations.iter().map(|a| a.used_slots).sum();
-        Self {
-            allocations,
-            total_max_slots,
-            total_used_slots,
-            degraded_mode,
-        }
-    }
-
     /// Creates a budget with custom allocations.
     ///
     /// The arrays must have exactly 5 elements matching the 5 WorkloadClass variants

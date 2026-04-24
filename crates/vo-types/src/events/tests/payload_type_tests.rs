@@ -1,4 +1,4 @@
-use crate::events::payload::EventPayload;
+use crate::events::payload::{EventPayload, SinkKind};
 use crate::WorkflowVersionHash;
 
 #[test]
@@ -247,7 +247,7 @@ fn payload_all_variants_round_trip_via_serde() {
             workflow_id: "wf-123".to_string(),
             step_id: "step-1".to_string(),
             effect_id: "effect-1".to_string(),
-            sink_kind: "blob".to_string(),
+            sink_kind: SinkKind::BlobWrite,
             payload_hash: "hash123".to_string(),
             fence: 42,
         },

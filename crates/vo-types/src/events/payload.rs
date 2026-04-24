@@ -7,6 +7,26 @@ use crate::payload_parser::{
 };
 use crate::WorkflowVersionHash;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub enum SinkKind {
+    HttpCall,
+    SqlQuery,
+    BlobWrite,
+}
+
+impl SinkKind {
+    pub fn from_str(s: &str) -> Result<Self, Error> {
+        match s {
+            "HttpCall" => Ok(SinkKind::HttpCall),
+            "SqlQuery" => Ok(SinkKind::SqlQuery),
+            "BlobWrite" => Ok(SinkKind::BlobWrite),
+            other => Err(Error::InvalidPayloadField(format!(
+                "invalid sink_kind: {other}"
+            ))),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum EventPayload {
     WorkflowStarted {
@@ -62,7 +82,7 @@ pub enum EventPayload {
         workflow_id: String,
         step_id: String,
         effect_id: String,
-        sink_kind: String,
+        sink_kind: SinkKind,
         payload_hash: String,
         fence: u64,
     },
@@ -197,7 +217,7 @@ impl EventPayload {
                 workflow_id: require_string_field(obj, "workflow_id")?,
                 step_id: require_string(obj, "step_id")?,
                 effect_id: require_string(obj, "effect_id")?,
-                sink_kind: require_string(obj, "sink_kind")?,
+                sink_kind: SinkKind::from_str(&require_string(obj, "sink_kind")?)?,
                 payload_hash: require_string(obj, "payload_hash")?,
                 fence: require_u64(obj, "fence")?,
             }),
