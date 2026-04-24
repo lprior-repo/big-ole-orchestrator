@@ -226,7 +226,7 @@ fn epoch_prefix_generator_returns_prefix_with_lineage_and_epoch() {
     let epoch = Epoch::new(5);
     let result = epoch_prefix_generator(lineage_id, epoch).expect("should succeed");
     let lineage_prefix = lineage_prefix_generator(lineage_id).expect("should succeed");
-    let epoch_bytes = epoch.0.to_be_bytes();
+    let epoch_bytes = epoch.get().to_be_bytes();
     assert_eq!(result.len(), lineage_prefix.len() + 8);
     assert!(result.starts_with(&lineage_prefix));
     assert_eq!(&result[lineage_prefix.len()..], &epoch_bytes);

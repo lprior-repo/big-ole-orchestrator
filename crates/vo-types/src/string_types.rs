@@ -131,7 +131,7 @@ impl WorkflowName {
             });
         }
         check_identifier_boundaries(input, TYPE_NAME)?;
-        if input.chars().next().map_or(false, |c| c.is_ascii_digit()) {
+        if input.chars().next().is_some_and(|c| c.is_ascii_digit()) {
             return Err(ParseError::BoundaryViolation {
                 type_name: TYPE_NAME,
                 reason: "must not start with digit".to_string(),
@@ -186,7 +186,7 @@ impl NodeName {
             });
         }
         check_identifier_boundaries(input, TYPE_NAME)?;
-        if input.chars().next().map_or(false, |c| c.is_ascii_digit()) {
+        if input.chars().next().is_some_and(|c| c.is_ascii_digit()) {
             return Err(ParseError::BoundaryViolation {
                 type_name: TYPE_NAME,
                 reason: "must not start with digit".to_string(),

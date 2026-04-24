@@ -657,3 +657,130 @@ fn fence_exhaustion_is_per_pair_not_global() {
     let lease_b = acquire_lease(&store, &iid_b, &sid_b, 5_000);
     assert_eq!(lease_b.token().inner().get(), 1);
 }
+
+// ---------------------------------------------------------------------------
+// Tests: Lease expiry enables re-acquisition with higher fence tokens (tw-4pzy)
+// ---------------------------------------------------------------------------
+
+/// Expired lease can be re-acquired: fence strictly increases, old token is stale,
+/// new token is current, and the re-acquired lease is releasable.
+#[test]
+fn expired_lease_reacquired_with_higher_fence_token() {
+    let store = DeterministicLeaseStore::new();
+    let iid = sample_instance_id();
+    let sid = sample_step_id();
+
+    let lease1 = acquire_lease(&store, &iid, &sid, 100);
+    assert_eq!(lease1.token().inner().get(), 1);
+
+    store.set_time(100);
+
+    let lease2 = acquire_lease(&store, &iid, &sid, 200);
+    assert_eq!(lease2.token().inner().get(), 2);
+    assert!(
+        lease2.token().inner().get() > lease1.token().inner().get(),
+        "re-acquired fence must be strictly higher"
+    );
+
+    assert!(stale_result(&store, &iid, &sid, *lease1.token()));
+    assert!(!stale_result(&store, &iid, &sid, *lease2.token()));
+
+    assert_eq!(store.release(&lease2), Ok(()));
+}
+
+/// Boundary precision: re-acquire fails 1ms before expiry, succeeds at exact expiry.
+#[test]
+fn reacquire_fails_before_expiry_succeeds_at_exact_expiry() {
+    let store = DeterministicLeaseStore::new();
+    let iid = sample_instance_id();
+    let sid = sample_step_id();
+
+    let lease1 = acquire_lease(&store, &iid, &sid, 100);
+    assert_eq!(lease1.token().inner().get(), 1);
+
+    store.set_time(99);
+    assert_eq!(
+        store.acquire(&iid, &sid, 5_000),
+        Err(LeaseStoreError::LeaseAlreadyHeld {
+            instance_id: iid.to_string(),
+            step_id: sid.to_string(),
+        })
+    );
+
+    store.set_time(100);
+    let lease2 = acquire_lease(&store, &iid, &sid, 5_000);
+    assert_eq!(lease2.token().inner().get(), 2);
+    assert!(
+        lease2.token().inner().get() > lease1.token().inner().get(),
+        "re-acquired fence must be strictly higher after expiry"
+    );
+}
+
+/// Re-acquired lease after expiry gets correct new expires_at (now_ms + new TTL).
+#[test]
+fn reacquired_lease_has_correct_new_expiry_time() {
+    let store = DeterministicLeaseStore::new();
+    let iid = sample_instance_id();
+    let sid = sample_step_id();
+    let key = DeterministicLeaseStore::key(&iid, &sid);
+
+    let _lease1 = acquire_lease(&store, &iid, &sid, 50);
+    let entry1 = store.cloned_lease(&key).unwrap();
+    assert_eq!(entry1.expires_at(), 50);
+
+    store.set_time(50);
+
+    let _lease2 = acquire_lease(&store, &iid, &sid, 200);
+    let entry2 = store.cloned_lease(&key).unwrap();
+    assert_eq!(entry2.expires_at(), 250);
+    assert!(
+        entry2.expires_at() > entry1.expires_at(),
+        "new expiry must be strictly after old expiry"
+    );
+}
+
+/// Multiple sequential expiry-reacquire cycles produce strictly increasing fence tokens.
+#[test]
+fn multiple_expiry_reacquire_cycles_produce_monotonic_fences() {
+    let store = DeterministicLeaseStore::new();
+    let iid = sample_instance_id();
+    let sid = sample_step_id();
+
+    let mut prev_token = 0u64;
+
+    for cycle in 0..5u64 {
+        let ttl_ms = 10;
+        let lease = acquire_lease(&store, &iid, &sid, ttl_ms);
+        let token = lease.token().inner().get();
+        assert!(
+            token > prev_token,
+            "cycle {cycle}: token {token} must be > prev {prev_token}"
+        );
+        prev_token = token;
+        store.set_time((cycle + 1) * ttl_ms);
+    }
+}
+
+/// Re-acquired lease after expiry is releasable and subsequent acquire restarts cleanly.
+#[test]
+fn expired_lease_reacquired_then_released_then_acquired_again() {
+    let store = DeterministicLeaseStore::new();
+    let iid = sample_instance_id();
+    let sid = sample_step_id();
+
+    let lease1 = acquire_lease(&store, &iid, &sid, 10);
+    assert_eq!(lease1.token().inner().get(), 1);
+
+    store.set_time(10);
+    let lease2 = acquire_lease(&store, &iid, &sid, 10);
+    assert_eq!(lease2.token().inner().get(), 2);
+
+    assert_eq!(store.release(&lease2), Ok(()));
+
+    let lease3 = acquire_lease(&store, &iid, &sid, 10);
+    assert_eq!(lease3.token().inner().get(), 3);
+    assert!(
+        lease3.token().inner().get() > lease2.token().inner().get(),
+        "fence must keep increasing across expiry+release+acquire"
+    );
+}
