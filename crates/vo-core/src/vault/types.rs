@@ -1,26 +1,4 @@
 use serde::{Deserialize, Serialize};
-use std::fmt;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Permission {
-    Read,
-    Write,
-    Delete,
-    Rotate,
-    Revoke,
-}
-
-impl fmt::Display for Permission {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Read => write!(f, "read"),
-            Self::Write => write!(f, "write"),
-            Self::Delete => write!(f, "delete"),
-            Self::Rotate => write!(f, "rotate"),
-            Self::Revoke => write!(f, "revoke"),
-        }
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CredentialSummary {
