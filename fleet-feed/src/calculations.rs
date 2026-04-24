@@ -146,7 +146,9 @@ pub fn classify_batch_status(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::data::{BeadCategory, BeadJson, Fleet, HARDLINE_RIG, Rig, RuntimeKind, TWERK_RIG, VELOXIDE_RIG};
+    use crate::data::{
+        BeadCategory, BeadJson, Fleet, HARDLINE_RIG, Rig, RuntimeKind, TWERK_RIG, VELOXIDE_RIG,
+    };
 
     #[test]
     fn prompt_contains_bead_and_findings_path() {
@@ -302,13 +304,23 @@ mod tests {
     #[test]
     fn find_unassigned_skips_claimed_in_batch() {
         let beads = vec![
-            BeadJson { id: "ve-abc".into(), assignee: Some("a".into()) },
-            BeadJson { id: "ve-def".into(), assignee: None },
-            BeadJson { id: "ve-ghi".into(), assignee: None },
+            BeadJson {
+                id: "ve-abc".into(),
+                assignee: Some("a".into()),
+            },
+            BeadJson {
+                id: "ve-def".into(),
+                assignee: None,
+            },
+            BeadJson {
+                id: "ve-ghi".into(),
+                assignee: None,
+            },
         ];
         let mut claimed: Vec<String> = Vec::new();
 
-        let first = beads.iter()
+        let first = beads
+            .iter()
             .find(|b| b.assignee.is_none() && !claimed.contains(&b.id))
             .map(|b| {
                 claimed.push(b.id.clone());
@@ -316,13 +328,17 @@ mod tests {
             });
         assert_eq!(first.map(|b| b.as_str().to_string()), Some("ve-def".into()));
 
-        let second = beads.iter()
+        let second = beads
+            .iter()
             .find(|b| b.assignee.is_none() && !claimed.contains(&b.id))
             .map(|b| {
                 claimed.push(b.id.clone());
                 BeadId(b.id.clone())
             });
-        assert_eq!(second.map(|b| b.as_str().to_string()), Some("ve-ghi".into()));
+        assert_eq!(
+            second.map(|b| b.as_str().to_string()),
+            Some("ve-ghi".into())
+        );
     }
 
     #[test]

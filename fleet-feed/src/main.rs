@@ -5,9 +5,9 @@
 #![warn(clippy::nursery)]
 #![forbid(unsafe_code)]
 
-mod data;
-mod calculations;
 mod actions;
+mod calculations;
+mod data;
 
 use tracing_subscriber::EnvFilter;
 

@@ -102,7 +102,14 @@ pub const CLARITY_RIG: Rig = Rig {
 
 impl Rig {
     pub const fn all() -> &'static [Self] {
-        &[VELOXIDE_RIG, HARDLINE_RIG, TWERK_RIG, SESHAT_RIG, CDOCS_RIG, CLARITY_RIG]
+        &[
+            VELOXIDE_RIG,
+            HARDLINE_RIG,
+            TWERK_RIG,
+            SESHAT_RIG,
+            CDOCS_RIG,
+            CLARITY_RIG,
+        ]
     }
 }
 
@@ -125,10 +132,7 @@ impl PolecatName {
     }
 
     pub fn worktree_path(&self, rig: &Rig) -> PathBuf {
-        PathBuf::from(format!(
-            "{}/polecats/{}/{}",
-            rig.gt_root, self.0, rig.name
-        ))
+        PathBuf::from(format!("{}/polecats/{}/{}", rig.gt_root, self.0, rig.name))
     }
 
     pub fn role(&self, rig: &Rig) -> String {
@@ -279,14 +283,30 @@ impl Fleet {
             });
         };
 
-        for &n in &minimax_names { push(&mut entries, n, &minimax_spec); }
-        for &n in &glm51_names { push(&mut entries, n, &glm51_spec); }
-        for &n in &glm5_names { push(&mut entries, n, &glm5_spec); }
-        for &n in &glm5t_names { push(&mut entries, n, &glm5t_spec); }
-        for &n in &qwen5090_names { push(&mut entries, n, &qwen5090_spec); }
-        for &n in &qwen3090_names { push(&mut entries, n, &qwen3090_spec); }
-        for &n in &claude_opus_names { push(&mut entries, n, &claude_opus_spec); }
-        for &n in &claude_sonnet_names { push(&mut entries, n, &claude_sonnet_spec); }
+        for &n in &minimax_names {
+            push(&mut entries, n, &minimax_spec);
+        }
+        for &n in &glm51_names {
+            push(&mut entries, n, &glm51_spec);
+        }
+        for &n in &glm5_names {
+            push(&mut entries, n, &glm5_spec);
+        }
+        for &n in &glm5t_names {
+            push(&mut entries, n, &glm5t_spec);
+        }
+        for &n in &qwen5090_names {
+            push(&mut entries, n, &qwen5090_spec);
+        }
+        for &n in &qwen3090_names {
+            push(&mut entries, n, &qwen3090_spec);
+        }
+        for &n in &claude_opus_names {
+            push(&mut entries, n, &claude_opus_spec);
+        }
+        for &n in &claude_sonnet_names {
+            push(&mut entries, n, &claude_sonnet_spec);
+        }
 
         entries
     }

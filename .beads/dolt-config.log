@@ -3,3 +3,8 @@
 2026-04-20T11:51:11Z actor=veloxide/polecats/thunder key=port value=3309 beads_dir=/home/lewis/gt/veloxide/polecats/thunder/veloxide/.beads
 2026-04-20T11:51:21Z actor=veloxide/polecats/thunder key=port value=3310 beads_dir=/home/lewis/gt/veloxide/polecats/thunder/veloxide/.beads
 2026-04-24T05:43:01Z actor=twerk/polecats/brahmin key=database value=veloxide-database beads_dir=/home/lewis/gt/.beads
+2026-04-24T06:06:42Z actor=twerk/polecats/pipboy key=port value=3308 beads_dir=/home/lewis/gt/.beads
+2026-04-24T06:10:25Z actor=twerk/polecats/gecko key=port value=3309 beads_dir=/home/lewis/gt/.beads
+2026-04-24T06:14:00Z actor=twerk/polecats/gecko key=port value=3309 beads_dir=/home/lewis/gt/.beads
+2026-04-24T06:14:44Z actor=twerk/polecats/pipboy key=port value=3309 beads_dir=/home/lewis/gt/.beads
+2026-04-24T06:17:45Z actor=mayor key=port value=3307 beads_dir=/home/lewis/gt/.beads
