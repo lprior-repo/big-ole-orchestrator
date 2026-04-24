@@ -1,6 +1,8 @@
 use super::*;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
+use std::sync::Arc;
+use std::thread;
 
 // ---------------------------------------------------------------------------
 // Test harness: FaultConfig
@@ -544,4 +546,47 @@ fn double_recovery_race_first_writer_wins() {
         &sample_step_id(),
         *recovery_1.token()
     ));
+}
+
+/// AQ-19: True concurrent acquisition — two threads racing on same (instance_id, step_id).
+/// Exactly one succeeds, the other gets LeaseAlreadyHeld.
+#[test]
+fn concurrent_acquire_on_same_pair_exactly_one_wins() {
+    use in_memory_lease::InMemoryLeaseStore;
+
+    let store = Arc::new(InMemoryLeaseStore::new());
+    let instance_id = sample_instance_id();
+    let step_id = sample_step_id();
+
+    let iid_clone = instance_id.clone();
+    let sid_clone = step_id.clone();
+    let store_clone = Arc::clone(&store);
+    let handle_a = thread::spawn(move || {
+        store_clone.acquire(&iid_clone, &sid_clone, 5_000)
+    });
+
+    let iid_clone = instance_id.clone();
+    let sid_clone = step_id.clone();
+    let store_clone = Arc::clone(&store);
+    let handle_b = thread::spawn(move || {
+        store_clone.acquire(&iid_clone, &sid_clone, 5_000)
+    });
+
+    let result_a = handle_a.join().unwrap();
+    let result_b = handle_b.join().unwrap();
+
+    let (winning, losing) = if result_a.is_ok() {
+        (result_a.unwrap(), result_b.unwrap_err())
+    } else {
+        (result_b.unwrap(), result_a.unwrap_err())
+    };
+
+    assert_eq!(winning.token().inner().get(), 1);
+    assert_eq!(
+        losing,
+        LeaseStoreError::LeaseAlreadyHeld {
+            instance_id: instance_id.to_string(),
+            step_id: step_id.to_string(),
+        }
+    );
 }

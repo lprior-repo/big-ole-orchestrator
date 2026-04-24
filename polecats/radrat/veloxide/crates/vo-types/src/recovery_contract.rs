@@ -832,9 +832,8 @@ mod tests {
                                 | ExpectedRecoveryOutcome::RolledBack),
                             "Prepare phase should never yield StillAmbiguous or TransactionResolved"
                         );
-                    }
-                }
-            }
+    }
+}
         }
     }
 }
