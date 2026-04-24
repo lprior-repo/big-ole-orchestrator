@@ -1,4 +1,4 @@
-use vo_types::credentials::{AccessPolicy, Principal};
+use vo_types::credentials::{AccessPolicy, Permission, Principal};
 
 pub struct AccessChecker<'a> {
     policy: &'a AccessPolicy,
@@ -11,26 +11,26 @@ impl<'a> AccessChecker<'a> {
     }
 
     pub fn can_read(&self) -> bool {
-        self.caller_is_authorized()
+        self.caller_is_authorized(Permission::Read)
     }
 
     pub fn can_write(&self) -> bool {
-        self.caller_is_authorized()
+        self.caller_is_authorized(Permission::Write)
     }
 
     pub fn can_delete(&self) -> bool {
-        self.caller_is_authorized()
+        self.caller_is_authorized(Permission::Delete)
     }
 
     pub fn can_rotate(&self) -> bool {
-        self.caller_is_authorized()
+        self.caller_is_authorized(Permission::Rotate)
     }
 
     pub fn can_revoke(&self) -> bool {
-        self.caller_is_authorized()
+        self.caller_is_authorized(Permission::Revoke)
     }
 
-    fn caller_is_authorized(&self) -> bool {
+    fn caller_is_authorized(&self, permission: Permission) -> bool {
         match self.caller {
             Principal::System => true,
             _ => {
@@ -39,7 +39,12 @@ impl<'a> AccessChecker<'a> {
                 {
                     return false;
                 }
-                self.policy.allowed_principals().contains(self.caller)
+                let allowed = self.policy.allowed_for_permission(permission);
+                if allowed.is_empty() {
+                    self.policy.allowed_principals().contains(self.caller)
+                } else {
+                    allowed.contains(self.caller)
+                }
             }
         }
     }
@@ -97,6 +102,7 @@ mod tests {
         let mut policy = AccessPolicy::new(vec![user.clone()]);
         policy = AccessPolicy {
             allowed_principals: policy.allowed_principals,
+            permission_principals: std::collections::HashMap::new(),
             require_approval: true,
             approvers: vec![user.clone()],
             audit_enabled: true,
@@ -112,6 +118,7 @@ mod tests {
         let mut policy = AccessPolicy::new(vec![user.clone()]);
         policy = AccessPolicy {
             allowed_principals: policy.allowed_principals,
+            permission_principals: std::collections::HashMap::new(),
             require_approval: true,
             approvers: vec![other.clone()],
             audit_enabled: true,

@@ -1,8 +1,30 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fmt;
 
 use crate::ParseError;
 use crate::{DurationMs, TimestampMs};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum Permission {
+    Read,
+    Write,
+    Delete,
+    Rotate,
+    Revoke,
+}
+
+impl fmt::Display for Permission {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Read => write!(f, "read"),
+            Self::Write => write!(f, "write"),
+            Self::Delete => write!(f, "delete"),
+            Self::Rotate => write!(f, "rotate"),
+            Self::Revoke => write!(f, "revoke"),
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
@@ -497,6 +519,7 @@ impl VaultEntry {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AccessPolicy {
     pub allowed_principals: Vec<Principal>,
+    pub permission_principals: HashMap<Permission, Vec<Principal>>,
     pub require_approval: bool,
     pub approvers: Vec<Principal>,
     pub audit_enabled: bool,
@@ -507,6 +530,7 @@ impl AccessPolicy {
     pub fn new(allowed_principals: Vec<Principal>) -> Self {
         Self {
             allowed_principals,
+            permission_principals: HashMap::new(),
             require_approval: false,
             approvers: Vec::new(),
             audit_enabled: true,
@@ -516,6 +540,16 @@ impl AccessPolicy {
     #[must_use]
     pub fn allowed_principals(&self) -> &[Principal] {
         &self.allowed_principals
+    }
+
+    #[must_use]
+    pub fn permission_principals(&self) -> &HashMap<Permission, Vec<Principal>> {
+        &self.permission_principals
+    }
+
+    #[must_use]
+    pub fn allowed_for_permission(&self, permission: Permission) -> &[Principal] {
+        self.permission_principals.get(&permission).map_or(&[], Vec::as_slice)
     }
 
     #[must_use]
