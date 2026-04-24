@@ -209,10 +209,17 @@ impl Default for StorageConfig {
 /// Returns `StorageError::InvalidPath` if the directory cannot be created or opened.
 pub fn create_partition_layout(path: impl AsRef<Path>) -> StorageResult<FjallPartitionLayout> {
     let path = path.as_ref();
-    if !path.exists() {
-        std::fs::create_dir_all(path).map_err(|e| StorageError::InvalidPath {
-            reason: e.to_string(),
-        })?;
+    std::fs::create_dir_all(path).map_err(|e| StorageError::InvalidPath {
+        reason: e.to_string(),
+    })?;
+
+    let metadata = std::fs::metadata(path).map_err(|e| StorageError::InvalidPath {
+        reason: e.to_string(),
+    })?;
+    if !metadata.is_dir() {
+        return Err(StorageError::InvalidPath {
+            reason: "path exists but is not a directory".to_string(),
+        });
     }
 
     let db = fjall::Database::builder(path)
@@ -290,10 +297,17 @@ pub struct StorageEngine {
 impl StorageEngine {
     pub fn open(path: impl AsRef<Path>) -> Result<Self, StorageEngineError> {
         let path = path.as_ref();
-        if !path.exists() {
-            std::fs::create_dir_all(path).map_err(|e| StorageError::InvalidPath {
-                reason: e.to_string(),
-            })?;
+        std::fs::create_dir_all(path).map_err(|e| StorageError::InvalidPath {
+            reason: e.to_string(),
+        })?;
+
+        let metadata = std::fs::metadata(path).map_err(|e| StorageError::InvalidPath {
+            reason: e.to_string(),
+        })?;
+        if !metadata.is_dir() {
+            return Err(StorageEngineError::Storage(StorageError::InvalidPath {
+                reason: "path exists but is not a directory".to_string(),
+            }));
         }
 
         let db = fjall::Database::builder(path)
