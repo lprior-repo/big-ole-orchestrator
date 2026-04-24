@@ -1,4 +1,5 @@
 use crate::events::payload::{EventPayload, RoutingProjection};
+use crate::ExternalReceipt;
 
 #[test]
 fn payload_try_from_json_returns_workflow_started_when_type_is_workflow_started() {
@@ -254,7 +255,13 @@ fn payload_all_variants_round_trip_via_serde() {
             workflow_id: "wf-123".to_string(),
             step_id: "step-1".to_string(),
             effect_id: "effect-1".to_string(),
-            external_receipt: serde_json::json!({}),
+            external_receipt: ExternalReceipt::new(
+                "test-connector".to_string(),
+                "1.0.0".to_string(),
+                crate::EffectKind::HttpCall,
+                serde_json::Value::Null,
+            )
+            .unwrap(),
             fence: 42,
         },
         EventPayload::TimerSet {

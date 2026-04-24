@@ -110,7 +110,7 @@ pub use dual_representation::{
 };
 pub use effects::{
     apply_effect_transition, CompensationPolicy, EffectIntent, EffectKind, EffectRecord,
-    EffectTransitionError, EffectTransitionEvent,
+    EffectTransitionError, EffectTransitionEvent, ExternalReceipt,
 };
 pub use encryption::{CryptoAlgorithm, DekId, EncryptedBlob, KeyMetadata, WrappedDek};
 pub use errors::ParseError;

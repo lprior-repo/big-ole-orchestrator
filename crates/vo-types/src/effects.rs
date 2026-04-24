@@ -35,6 +35,58 @@ pub enum EffectKind {
     BlobWrite,
 }
 
+/// Durable execution receipt for a committed managed connector effect (ADR-041 §4).
+///
+/// Write-once immutable record produced when a connector commit succeeds.
+/// Used for operator audit, replay, and exact-once deduplication.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub struct ExternalReceipt {
+    connector_id: String,
+    connector_version: String,
+    sink_kind: EffectKind,
+    receipt_payload: serde_json::Value,
+}
+
+impl ExternalReceipt {
+    #[must_use]
+    pub fn new(
+        connector_id: String,
+        connector_version: String,
+        sink_kind: EffectKind,
+        receipt_payload: serde_json::Value,
+    ) -> Option<Self> {
+        if connector_id.is_empty() {
+            return None;
+        }
+        Some(Self {
+            connector_id,
+            connector_version,
+            sink_kind,
+            receipt_payload,
+        })
+    }
+
+    #[must_use]
+    pub fn connector_id(&self) -> &str {
+        &self.connector_id
+    }
+
+    #[must_use]
+    pub fn connector_version(&self) -> &str {
+        &self.connector_version
+    }
+
+    #[must_use]
+    pub fn sink_kind(&self) -> EffectKind {
+        self.sink_kind
+    }
+
+    #[must_use]
+    pub fn receipt_payload(&self) -> &serde_json::Value {
+        &self.receipt_payload
+    }
+}
+
 /// Compensation policy for an effect (ADR-030 §5, ADR-034).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum CompensationPolicy {

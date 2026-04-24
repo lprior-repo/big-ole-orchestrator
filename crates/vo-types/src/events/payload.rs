@@ -5,6 +5,7 @@ use crate::events::MAX_SUPPORTED_VERSION;
 use crate::payload_parser::{
     optional_string, optional_u64, require_string, require_string_field, require_u64,
 };
+use crate::ExternalReceipt;
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct RoutingProjection {}
@@ -78,7 +79,7 @@ pub enum EventPayload {
         workflow_id: String,
         step_id: String,
         effect_id: String,
-        external_receipt: serde_json::Value,
+        external_receipt: ExternalReceipt,
         fence: u64,
     },
     TimerSet {
@@ -212,10 +213,19 @@ impl EventPayload {
                 workflow_id: require_string_field(obj, "workflow_id")?,
                 step_id: require_string(obj, "step_id")?,
                 effect_id: require_string(obj, "effect_id")?,
-                external_receipt: obj
-                    .get("external_receipt")
-                    .cloned()
-                    .unwrap_or(serde_json::Value::Null),
+                external_receipt: {
+                    let receipt_json = obj.get("external_receipt").ok_or(
+                        Error::InvalidPayloadField(
+                            "missing required field: external_receipt".to_string(),
+                        ),
+                    )?;
+                    serde_json::from_value(receipt_json.clone()).map_err(|e| {
+                        Error::InvalidPayloadField(format!(
+                            "invalid external_receipt: {}",
+                            e
+                        ))
+                    })?
+                },
                 fence: require_u64(obj, "fence")?,
             }),
             "TimerSet" => Ok(EventPayload::TimerSet {
