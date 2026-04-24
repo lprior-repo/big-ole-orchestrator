@@ -121,7 +121,9 @@ impl RetryCircuitBreaker {
 
     fn record_failure(&self) {
         let count = self.consecutive_failures.fetch_add(1, Ordering::SeqCst) + 1;
-        *self.last_failure_at.lock().unwrap() = Some(Instant::now());
+        if let Ok(mut guard) = self.last_failure_at.lock() {
+            *guard = Some(Instant::now());
+        }
         if count >= 5 {
             self.is_open.store(true, Ordering::SeqCst);
         }
@@ -136,7 +138,9 @@ impl RetryCircuitBreaker {
         if !self.is_open.load(Ordering::SeqCst) {
             return true;
         }
-        let guard = self.last_failure_at.lock().unwrap();
+        let Ok(guard) = self.last_failure_at.lock() else {
+            return false;
+        };
         if let Some(last_failure) = *guard {
             if last_failure.elapsed() >= recovery_timeout {
                 self.is_open.store(false, Ordering::SeqCst);
@@ -149,7 +153,9 @@ impl RetryCircuitBreaker {
     fn reset(&self) {
         self.consecutive_failures.store(0, Ordering::SeqCst);
         self.is_open.store(false, Ordering::SeqCst);
-        *self.last_failure_at.lock().unwrap() = None;
+        if let Ok(mut guard) = self.last_failure_at.lock() {
+            *guard = None;
+        }
     }
 }
 
@@ -160,14 +166,27 @@ impl Default for RetryCircuitBreaker {
 }
 
 pub fn rand_jitter(range: f64) -> f64 {
-    use std::time::Instant;
-    let now = Instant::now();
-    let seed = now.elapsed().as_nanos() as u64;
-    let x = ((seed.wrapping_mul(1103515245)).wrapping_add(12345) % (1 << 31)) as f64;
-    let normalized = x / (1 << 31) as f64;
-    // Return value in range [-range, +range]
+    use std::hash::{Hash, Hasher};
+    use std::time::SystemTime;
+
+    let thread_id = {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+        let mut hasher = DefaultHasher::new();
+        std::thread::current().id().hash(&mut hasher);
+        hasher.finish()
+    };
+    let seed = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .map(|d| d.as_nanos() as u64)
+        .unwrap_or(0)
+        ^ thread_id;
+
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    seed.hash(&mut hasher);
+    let h = hasher.finish();
+    let normalized = (h % (1 << 30)) as f64 / (1 << 30) as f64;
     let jitter = (normalized * 2.0 - 1.0) * range;
-    // Clamp to ensure we're within bounds
     jitter.clamp(-range, range)
 }
 

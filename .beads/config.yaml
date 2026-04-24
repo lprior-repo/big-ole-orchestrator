@@ -6,7 +6,7 @@
 # Issue prefix for this repository (used by bd init)
 # If not set, bd init will auto-detect from directory name
 # Example: issue-prefix: "myproject" creates issues like "myproject-1", "myproject-2", etc.
-issue-prefix: "tw"
+issue-prefix: "ve"
 
 # Use no-db mode: JSONL-only, no Dolt database
 # When true, bd will use .beads/issues.jsonl as the source of truth
@@ -55,6 +55,6 @@ no-db: false
 
 backup.enabled: false
 
-dolt.port: 3309
+dolt.port: 3307
 
 sync.git-remote: git+https://www.dolthub.com/priorlewis43/veloxide-database

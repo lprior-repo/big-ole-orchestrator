@@ -1,0 +1,51 @@
+[package]
+name = "vo-api"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+vo-common = { path = "../vo-common" }
+vo-types = { path = "../vo-types" }
+vo-core = { path = "../vo-core" }
+vo-storage = { path = "../vo-storage" }
+fjall = { workspace = true }
+vo-actor = { path = "../vo-actor" }
+vo-worker = { path = "../vo-worker" }
+
+ractor = { workspace = true }
+
+# Web framework
+axum = { workspace = true, features = ["ws"] }
+tower = { workspace = true }
+tower-http = { workspace = true }
+reqwest = { workspace = true }
+
+# Async
+tokio = { workspace = true }
+futures = { workspace = true }
+tokio-stream = { workspace = true }
+tokio-util = { workspace = true }
+async-stream = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Utilities
+itertools = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+chrono = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+ulid = { workspace = true }
+bytes = { workspace = true }
+
+# Regex for validation
+regex = { workspace = true }
+
+[dev-dependencies]
+rstest = { workspace = true }
+tempfile = { workspace = true }
+http-body-util = "0.1"

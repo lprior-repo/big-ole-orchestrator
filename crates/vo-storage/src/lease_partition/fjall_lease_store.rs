@@ -105,6 +105,7 @@ impl FjallLeaseStore {
         Ok(next)
     }
 
+    #[allow(dead_code)]
     fn insert_lease(&self, entry: &LeaseEntry) -> Result<(), LeaseStoreError> {
         let key = Self::encode_lease_key(
             &InstanceId::parse(entry.instance_id()).map_err(|e| LeaseStoreError::Codec {
@@ -122,6 +123,7 @@ impl FjallLeaseStore {
             })
     }
 
+    #[allow(dead_code)]
     fn delete_lease(
         &self,
         instance_id: &InstanceId,
