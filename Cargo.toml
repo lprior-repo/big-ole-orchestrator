@@ -17,6 +17,7 @@ members = [
     "crates/vo-sdk-macros",
     "crates/vo-executor",
     "crates/vo-scheduler",
+    "crates/vo-ds",
 ]
 
 [workspace.package]
@@ -69,6 +70,7 @@ vo-ipc = { path = "crates/vo-ipc" }
 vo-actor = { path = "crates/vo-actor" }
 vo-api = { path = "crates/vo-api" }
 vo-sdk = { path = "crates/vo-sdk" }
+vo-ds = { path = "crates/vo-ds" }
 chrono = { version = "0.4", features = ["serde"] }
 thiserror = "2"
 anyhow = "1"

@@ -62,6 +62,8 @@ pub struct BTree<K, V> {
 pub enum BTreeError {
     #[error("key not found")]
     KeyNotFound,
+    #[error("internal invariant violated: {0}")]
+    InvariantViolated(&'static str),
 }
 
 impl<K, V> BTree<K, V> {
@@ -125,10 +127,10 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
             return;
         }
 
-        let root = self
-            .root
-            .take()
-            .expect("btree root missing after is_none check");
+        let root = match self.root.take() {
+            Some(r) => r,
+            None => return,
+        };
         let split = self.insert_recursive(root, key, value);
 
         let is_new_key = !matches!(split, InsertResult::Updated(_));
@@ -216,20 +218,14 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
             return Err(BTreeError::KeyNotFound);
         }
 
-        // Search first to avoid losing root on KeyNotFound error.
-        // delete_recursive takes ownership of the node, so a failed
-        // call would leave self.root as None (taken but never restored).
         if self.search(key).is_none() {
             return Err(BTreeError::KeyNotFound);
         }
 
-        let root = self
-            .root
-            .take()
-            .expect("btree root missing after search check");
+        let root = self.root.take().ok_or(BTreeError::KeyNotFound)?;
         let (updated_root, removed) = self
             .delete_recursive(root, key)
-            .expect("search confirmed key exists");
+            .map_err(|_| BTreeError::InvariantViolated("delete_recursive failed on confirmed key"))?;
         self.len = self.len.saturating_sub(1);
 
         if updated_root.keys.is_empty() {
@@ -241,7 +237,7 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
                         .children
                         .into_iter()
                         .next()
-                        .expect("btree children missing despite internal node"),
+                        .ok_or(BTreeError::InvariantViolated("internal node has no children"))?,
                 );
             }
         } else {
@@ -301,7 +297,7 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
 
         let mut child_idx = idx;
         if node.children[child_idx].keys.len() <= self.min_keys() {
-            self.ensure_child_has_minimum(&mut node, child_idx);
+            self.ensure_child_has_minimum(&mut node, child_idx)?;
             child_idx = node.search_index(key);
         }
 
@@ -323,7 +319,7 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
 
         let last_idx = node.children.len() - 1;
         if node.children[last_idx].keys.len() <= self.min_keys() {
-            self.ensure_child_has_minimum(&mut node, last_idx);
+            self.ensure_child_has_minimum(&mut node, last_idx)?;
         }
         let last_idx = node.children.len() - 1;
         let child = node.children.remove(last_idx);
@@ -343,7 +339,7 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
         }
 
         if node.children[0].keys.len() <= self.min_keys() {
-            self.ensure_child_has_minimum(&mut node, 0);
+            self.ensure_child_has_minimum(&mut node, 0)?;
         }
         let child = node.children.remove(0);
         let (succ_key, succ_val, updated) = self.remove_successor(child)?;
@@ -351,13 +347,13 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
         Ok((succ_key, succ_val, node))
     }
 
-    fn ensure_child_has_minimum(&self, node: &mut BTreeNode<K, V>, idx: usize) {
+    fn ensure_child_has_minimum(&self, node: &mut BTreeNode<K, V>, idx: usize) -> Result<(), BTreeError> {
         if idx > 0 && node.children[idx - 1].keys.len() > self.min_keys() {
-            self.borrow_from_left(node, idx);
+            self.borrow_from_left(node, idx)?;
         } else if idx < node.children.len() - 1
             && node.children[idx + 1].keys.len() > self.min_keys()
         {
-            self.borrow_from_right(node, idx);
+            self.borrow_from_right(node, idx)?;
         } else if idx > 0 {
             let left = node.children.remove(idx - 1);
             let parent_key = node.keys.remove(idx - 1);
@@ -373,26 +369,27 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
             let merged = Self::merge_nodes(left, parent_key, parent_val, right);
             node.children.insert(0, merged);
         }
+        Ok(())
     }
 
-    fn borrow_from_left(&self, node: &mut BTreeNode<K, V>, idx: usize) {
+    fn borrow_from_left(&self, node: &mut BTreeNode<K, V>, idx: usize) -> Result<(), BTreeError> {
         let left_idx = idx - 1;
         let parent_key = node.keys.remove(left_idx);
         let parent_val = node.values.remove(left_idx);
         let donor_key = node.children[left_idx]
             .keys
             .pop()
-            .expect("btree donor node keys empty despite invariant");
+            .ok_or(BTreeError::InvariantViolated("donor node keys empty"))?;
         let donor_val = node.children[left_idx]
             .values
             .pop()
-            .expect("btree donor node values empty despite invariant");
+            .ok_or(BTreeError::InvariantViolated("donor node values empty"))?;
         let donor_child = if !node.children[left_idx].children.is_empty() {
             Some(
                 node.children[left_idx]
                     .children
                     .pop()
-                    .expect("btree donor children empty despite check"),
+                    .ok_or(BTreeError::InvariantViolated("donor children empty"))?,
             )
         } else {
             None
@@ -404,9 +401,10 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
         if let Some(child) = donor_child {
             node.children[idx].children.insert(0, child);
         }
+        Ok(())
     }
 
-    fn borrow_from_right(&self, node: &mut BTreeNode<K, V>, idx: usize) {
+    fn borrow_from_right(&self, node: &mut BTreeNode<K, V>, idx: usize) -> Result<(), BTreeError> {
         let right_idx = idx + 1;
         let parent_key = node.keys.remove(idx);
         let parent_val = node.values.remove(idx);
@@ -424,6 +422,7 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
         if let Some(child) = donor_child {
             node.children[idx].children.push(child);
         }
+        Ok(())
     }
 
     /// Insert a child back into a parent, splitting it if it exceeds max_keys.
@@ -448,9 +447,6 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
                 children: left.children.split_off(mid + 1),
             }
         };
-        // Parent cannot overflow here: if ensure_child_has_minimum merged (removing
-        // 1 parent key), the split puts 1 key back, netting zero change. If it
-        // borrowed, no overflow occurs in the child.
         parent.keys.insert(idx, median_key);
         parent.values.insert(idx, median_val);
         parent.children.insert(idx, left);
@@ -582,7 +578,6 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
                 max_keys
             ));
         }
-        // Root is exempt from minimum keys constraint (B-tree invariant)
         if !is_root && !node.is_leaf() && node.keys.len() < min_keys {
             return Err(format!(
                 "non-root keys.len {} < min_keys {}",
@@ -1115,8 +1110,6 @@ mod tests {
             assert_eq!(tree.search(&v), Some(&v));
         }
     }
-
-    // ── Adversarial: worst-case patterns ──
 
     #[test]
     fn adversarial_sorted_insertion_500() {

@@ -5054,6 +5054,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "vo-ds"
+version = "0.1.0"
+dependencies = [
+ "criterion",
+ "proptest",
+ "rstest 0.23.0",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+]
+
+[[package]]
 name = "vo-executor"
 version = "0.1.0"
 dependencies = [
@@ -5211,6 +5224,7 @@ dependencies = [
  "tokio",
  "ulid",
  "uuid",
+ "vo-ds",
  "zstd",
 ]
 
