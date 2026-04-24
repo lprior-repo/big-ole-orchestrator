@@ -1,5 +1,6 @@
 use crate::events::error::Error;
 use crate::events::payload::EventPayload;
+use crate::events::payload::RoutingProjection;
 use rstest::rstest;
 
 // -------------------------------------------------------------------------
@@ -88,7 +89,7 @@ fn payload_try_from_json_defaults_output_to_null_when_absent() {
             completed_at_ms: 1000,
             attempt: 1,
             fence: 0,
-            routing_projection: serde_json::Value::Null,
+            routing_projection: None,
             output_ref: None,
             output_hash: None,
             output: serde_json::Value::Null,

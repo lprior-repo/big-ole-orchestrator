@@ -18,4 +18,5 @@ pub use envelope::EventEnvelope;
 pub use error::Error;
 pub use metadata::EventMetadata;
 pub use payload::EventPayload;
+pub use payload::RoutingProjection;
 pub use upcaster::{Upcaster, UpcasterError, VersionRegistry};

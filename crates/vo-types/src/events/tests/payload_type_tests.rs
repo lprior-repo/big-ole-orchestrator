@@ -1,4 +1,4 @@
-use crate::events::payload::EventPayload;
+use crate::events::payload::{EventPayload, RoutingProjection};
 
 #[test]
 fn payload_try_from_json_returns_workflow_started_when_type_is_workflow_started() {
@@ -97,7 +97,7 @@ fn payload_try_from_json_returns_step_completed_when_type_is_step_completed() {
             completed_at_ms: 1000,
             attempt: 1,
             fence: 42,
-            routing_projection: serde_json::json!({}),
+            routing_projection: Some(RoutingProjection::default()),
             output_ref: None,
             output_hash: None,
             output: serde_json::Value::Null
@@ -230,7 +230,7 @@ fn payload_all_variants_round_trip_via_serde() {
             completed_at_ms: 2000,
             attempt: 1,
             fence: 42,
-            routing_projection: serde_json::json!({}),
+            routing_projection: Some(RoutingProjection::default()),
             output_ref: None,
             output_hash: None,
             output: serde_json::json!({"result": "ok"}),
@@ -388,7 +388,7 @@ fn payload_all_variants_round_trip_via_serde() {
                     "completed_at_ms": completed_at_ms,
                     "attempt": attempt,
                     "fence": fence,
-                    "routing_projection": routing_projection,
+                    "routing_projection": routing_projection.as_ref().map(|rp| serde_json::to_value(rp).unwrap_or(serde_json::Value::Null)).unwrap_or(serde_json::Value::Null),
                     "output_ref": output_ref,
                     "output_hash": output_hash,
                     "output": output,

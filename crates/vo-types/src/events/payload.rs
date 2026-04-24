@@ -6,6 +6,15 @@ use crate::payload_parser::{
     optional_string, optional_u64, require_string, require_string_field, require_u64,
 };
 
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct RoutingProjection {}
+
+impl Default for RoutingProjection {
+    fn default() -> Self {
+        Self {}
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum EventPayload {
     WorkflowStarted {
@@ -45,7 +54,7 @@ pub enum EventPayload {
         completed_at_ms: u64,
         attempt: u32,
         fence: u64,
-        routing_projection: serde_json::Value,
+        routing_projection: Option<RoutingProjection>,
         output_ref: Option<String>,
         output_hash: Option<String>,
         output: serde_json::Value,
@@ -169,10 +178,13 @@ impl EventPayload {
                 #[allow(clippy::cast_possible_truncation)]
                 attempt: require_u64(obj, "attempt")? as u32,
                 fence: require_u64(obj, "fence")?,
-                routing_projection: obj
-                    .get("routing_projection")
-                    .cloned()
-                    .unwrap_or(serde_json::Value::Null),
+                routing_projection: match obj.get("routing_projection") {
+                    None | Some(serde_json::Value::Null) => None,
+                    Some(v) => serde_json::from_value::<RoutingProjection>(v.clone())
+                        .ok()
+                        .map(Some)
+                        .unwrap_or(None),
+                },
                 output_ref: optional_string(obj, "output_ref"),
                 output_hash: optional_string(obj, "output_hash"),
                 output: obj
