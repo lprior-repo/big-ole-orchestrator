@@ -54,7 +54,7 @@ pub mod proptest_verifier;
 mod recovery_contract;
 mod registration_status;
 mod rope;
-pub mod search;
+
 pub mod signal;
 pub mod skew_heap;
 mod spqr_tree;
@@ -138,10 +138,7 @@ pub use recovery_contract::{
 };
 pub use registration_status::RegistrationStatus;
 pub use rope::{Measurable, Rope, RopeBuilder, RopeError, RopeSlice};
-pub use search::{
-    Bm25Scorer, InvertedIndex, Posting, PostingList, Query, QueryParser, Scorer, SearchEngine,
-    SearchError, SearchResult, TfIdfScorer,
-};
+
 pub use signal::{
     signal_match, BufferPolicy, FailureScope, LineageScope, SignalAddress, SignalDedupeKey,
     SignalDelivery, SignalMatchResult, WaitKey, WaitRecord,
