@@ -27,6 +27,14 @@ pub fn build_prompt(rig: &Rig, name: &PolecatName, bead: &BeadId) -> String {
     )
 }
 
+pub fn shell_quote(value: &str) -> String {
+    if value.is_empty() {
+        "''".to_string()
+    } else {
+        format!("'{}'", value.replace('\'', "'\"'\"'"))
+    }
+}
+
 pub fn build_env_vars(entry: &FleetEntry, branch: &str) -> String {
     let name = &entry.name;
     let rig = entry.rig;
@@ -57,8 +65,9 @@ pub fn build_env_vars(entry: &FleetEntry, branch: &str) -> String {
 }
 
 pub fn build_pre_launch(clone_path: &str) -> String {
+    let quoted_clone = shell_quote(clone_path);
     format!(
-        "cd {clone_path} && \
+        "cd {quoted_clone} && \
          git checkout main && \
          git pull origin main && \
          gt agents fix -a 2>/dev/null; \
@@ -73,11 +82,12 @@ pub fn build_opencode_launch_cmd(
     pre: &str,
     prompt: &str,
 ) -> String {
+    let quoted_prompt = shell_quote(prompt);
     format!(
         "export {env} GT_PROCESS_NAMES=opencode,node,bun \
          OPENCODE_PERMISSION='{{\"*\":\"allow\"}}' && \
          {pre} && \
-         opencode -m {model} --prompt \"{prompt}\"",
+         opencode -m {model} --prompt {quoted_prompt}",
         model = entry.runtime.model,
     )
 }
@@ -89,10 +99,11 @@ pub fn build_claude_launch_cmd(
     pre: &str,
     prompt: &str,
 ) -> String {
+    let quoted_prompt = shell_quote(prompt);
     format!(
         "export {env} GT_PROCESS_NAMES=claude && \
          {pre} && \
-         claude --model {model} --dangerously-skip-permissions \"{prompt}\"",
+         claude --model {model} --dangerously-skip-permissions {quoted_prompt}",
         model = entry.runtime.model,
     )
 }

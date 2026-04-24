@@ -6,8 +6,13 @@
 #![forbid(unsafe_code)]
 
 mod actions;
+mod bead_store;
 mod calculations;
 mod data;
+mod dolt_health;
+mod generation;
+mod launcher;
+mod polecat_status;
 
 use tracing_subscriber::EnvFilter;
 

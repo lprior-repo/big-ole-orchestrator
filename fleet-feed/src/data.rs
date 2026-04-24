@@ -178,6 +178,7 @@ pub enum FeedOutcome {
     Fed,
     SkippedWorking,
     SkippedNoBeads,
+    SkippedAlreadyClaimed,
     AssignFailed,
     LaunchFailed,
 }
@@ -187,6 +188,7 @@ pub struct FeedSummary {
     pub fed: u32,
     pub skipped_working: u32,
     pub skipped_no_beads: u32,
+    pub skipped_already_claimed: u32,
     pub assign_failed: u32,
     pub launch_failed: u32,
 }
@@ -197,6 +199,7 @@ impl FeedSummary {
             FeedOutcome::Fed => self.fed += 1,
             FeedOutcome::SkippedWorking => self.skipped_working += 1,
             FeedOutcome::SkippedNoBeads => self.skipped_no_beads += 1,
+            FeedOutcome::SkippedAlreadyClaimed => self.skipped_already_claimed += 1,
             FeedOutcome::AssignFailed => self.assign_failed += 1,
             FeedOutcome::LaunchFailed => self.launch_failed += 1,
         }
@@ -235,8 +238,8 @@ impl Fleet {
         };
         let glm5_spec = RuntimeSpec {
             kind: RuntimeKind::OpenCode,
-            model: "zai-coding-plan/glm-5",
-            agent_flag: "opencode-glm5",
+            model: "zai-coding-plan/glm-5-turbo",
+            agent_flag: "opencode-glm5t",
         };
         let glm5t_spec = RuntimeSpec {
             kind: RuntimeKind::OpenCode,
@@ -273,7 +276,7 @@ impl Fleet {
         let qwen5090_names: [&'static str; 4] = ["vault", "maximus", "immortan", "sentinel"];
         let qwen3090_names: [&'static str; 4] = ["gecko", "barrage", "turret", "citadel"];
         let claude_opus_names: [&'static str; 4] = ["rust", "deathclaw", "prime", "overlord"];
-        let claude_sonnet_names: [&'static str; 4] = ["shiny", "synth", "trunder", "maestro"];
+        let claude_sonnet_names: [&'static str; 4] = ["shiny", "synth", "thunder", "maestro"];
 
         let push = |entries: &mut Vec<FleetEntry>, name: &'static str, spec: &RuntimeSpec| {
             entries.push(FleetEntry {
@@ -375,6 +378,10 @@ pub enum FleetError {
     Bd(String),
     #[error("git command failed: {0}")]
     Git(String),
+    #[error("configuration error: {0}")]
+    Config(String),
+    #[error("bead already claimed: {0}")]
+    AlreadyClaimed(String),
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
     #[error("JSON parse error: {0}")]
