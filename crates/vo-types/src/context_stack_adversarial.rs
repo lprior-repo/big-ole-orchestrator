@@ -373,6 +373,15 @@ fn rq_lifecycle_get_valid_transitions_completeness() {
                 TransitionEvent::WaitForTimer,
                 TransitionEvent::YieldWithBlob,
                 TransitionEvent::CompleteStep,
+                TransitionEvent::PrepareEffect,
+                TransitionEvent::Cancel,
+                TransitionEvent::Fail,
+            ],
+        ),
+        (
+            LifecycleState::PreparingEffect,
+            vec![
+                TransitionEvent::EffectPrepared,
                 TransitionEvent::Cancel,
                 TransitionEvent::Fail,
             ],
@@ -422,6 +431,7 @@ fn rq_lifecycle_instance_resumed_only_from_failed() {
         LifecycleState::RunningDecision,
         LifecycleState::StepScheduled,
         LifecycleState::StepExecuting,
+        LifecycleState::PreparingEffect,
         LifecycleState::WaitingForTimer,
         LifecycleState::PendingPublication,
         LifecycleState::Completed,
