@@ -5068,6 +5068,7 @@ dependencies = [
  "thiserror 2.0.18",
  "tokio",
  "tracing",
+ "ulid",
  "uuid",
 ]
 
@@ -5193,7 +5194,6 @@ dependencies = [
  "ulid",
  "vo-core",
  "vo-types",
- "zstd",
 ]
 
 [[package]]

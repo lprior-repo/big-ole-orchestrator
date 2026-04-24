@@ -205,8 +205,7 @@ impl Default for SchedulerQueue {
     }
 }
 
-unsafe impl Send for SchedulerQueue {}
-unsafe impl Sync for SchedulerQueue {}
+
 
 #[cfg(test)]
 mod tests {

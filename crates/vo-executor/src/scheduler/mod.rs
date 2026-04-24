@@ -15,8 +15,9 @@ mod types;
 pub use error::{ExecutionError, JobRunError, RetryExhaustedError, SchedulerError};
 pub use queue::{PriorityQueue, SchedulerQueue};
 pub use types::{
-    Job, JobId, JobKind, JobPriority, JobResult, JobState, Schedule, SchedulePolicy, ScheduledJob,
-    SchedulerConfig, SchedulerRetryPolicy, SerializedPayload,
+    Job, JobId, JobKind, JobPriority, JobResult, JobState, Schedule, SchedulePolicy,
+    ScheduledJob, ScheduledJobValidationError, SchedulerConfig, SchedulerRetryPolicy,
+    SerializedPayload,
 };
 
 use std::sync::Arc;
@@ -116,7 +117,6 @@ mod tests {
         let mut scheduler = Scheduler::new(config);
 
         let job = Job::new(
-            JobId::new(1),
             "test".to_string(),
             Schedule::one_shot(std::time::Duration::from_millis(50)),
         );
@@ -130,7 +130,6 @@ mod tests {
 
         let due = scheduler.poll_due_jobs(now_ms + 100);
         assert_eq!(due.len(), 1);
-        assert_eq!(due[0].id, JobId::new(1));
     }
 
     #[tokio::test]
@@ -139,7 +138,6 @@ mod tests {
         let mut scheduler = Scheduler::new(config);
 
         let job = Job::new(
-            JobId::new(1),
             "test".to_string(),
             Schedule::one_shot(std::time::Duration::from_millis(50)),
         );
@@ -147,7 +145,8 @@ mod tests {
 
         assert_eq!(scheduler.len(), 1);
 
-        let removed = scheduler.cancel(JobId::new(1));
+        let due_id = scheduler.poll_due_jobs(u64::MAX)[0].id;
+        let removed = scheduler.cancel(due_id);
         assert!(removed.is_some());
         assert_eq!(scheduler.len(), 0);
     }
@@ -176,7 +175,6 @@ mod tests {
         let mut scheduler = Scheduler::new(config);
 
         let job = Job::new(
-            JobId::new(1),
             "recurring".to_string(),
             Schedule::interval(std::time::Duration::from_millis(100)),
         );
