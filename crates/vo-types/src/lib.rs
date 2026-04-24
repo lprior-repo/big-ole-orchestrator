@@ -54,6 +54,7 @@ pub mod proptest_verifier;
 mod recovery_contract;
 mod registration_status;
 mod rope;
+pub mod search;
 
 pub mod signal;
 pub mod skew_heap;
