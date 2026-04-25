@@ -1,6 +1,4 @@
-use crate::config::{
-    parse_fd3_payload_as_argv, validate_program_path, validate_timeout, SubprocessConfig,
-};
+use crate::config::{parse_fd3_payload_as_argv, validate_timeout, SubprocessConfig};
 use crate::error::{ConfigError, IpcError};
 use crate::stderr::{
     finalize_capture, update_capture, StderrCapture, MAX_STDERR_BYTES, TRUNCATION_MARKER,
@@ -101,12 +99,6 @@ fn validate_timeout_rejects_zero() {
         validate_timeout(0),
         Err(ConfigError::TimeoutMustBePositive { timeout_ms: 0 })
     );
-}
-
-#[test]
-fn validate_program_path_rejects_missing() {
-    let res = validate_program_path(std::path::Path::new("/missing"));
-    assert!(matches!(res, Err(ConfigError::ProgramMissing { .. })));
 }
 
 #[test]

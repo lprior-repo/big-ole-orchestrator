@@ -57,9 +57,9 @@ mod signal_buffer_many_tests {
                 BufferPolicy::BufferMany,
             );
         }
-        assert_eq!(buffer.pop_buffered(&id, &key).unwrap().signal_id, "sig-0");
-        assert_eq!(buffer.pop_buffered(&id, &key).unwrap().signal_id, "sig-1");
-        assert_eq!(buffer.pop_buffered(&id, &key).unwrap().signal_id, "sig-2");
+        assert_eq!(buffer.pop_buffered(&id, &key).unwrap().signal_id.as_str(), "sig-0");
+        assert_eq!(buffer.pop_buffered(&id, &key).unwrap().signal_id.as_str(), "sig-1");
+        assert_eq!(buffer.pop_buffered(&id, &key).unwrap().signal_id.as_str(), "sig-2");
         assert!(buffer.pop_buffered(&id, &key).is_none());
     }
 
@@ -128,11 +128,11 @@ mod signal_buffer_many_tests {
         );
         assert_eq!(buffer.buffered_count(&id, &key), 2);
         assert_eq!(
-            buffer.pop_buffered(&id, &key).unwrap().signal_id,
+            buffer.pop_buffered(&id, &key).unwrap().signal_id.as_str(),
             "sig-single"
         );
         assert_eq!(
-            buffer.pop_buffered(&id, &key).unwrap().signal_id,
+            buffer.pop_buffered(&id, &key).unwrap().signal_id.as_str(),
             "sig-many-1"
         );
     }

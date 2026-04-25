@@ -181,7 +181,7 @@ pub use signal_messages::mock_signal_storage::{MockSignalStorage, MockSignalWork
 pub use signal_messages::{
     AcceptResumeError, AcceptResumeOutcome, BinaryHash, CancelError, CancelRequested,
     ContinueAsNewError, InstanceResumed, LifecycleState, NodeName, ResumeError, RolloverState,
-    SecretId, SignalAccepted, SignalPayload, SignalStorage, SignalStorageError, SignalWorkQueue,
+    SecretId, SignalAccepted, SignalName, SignalPayload, SignalStorage, SignalStorageError, SignalWorkQueue,
     SignalWorkQueueError, StateLookup, TestStateLookup, TimestampMs, WaitKey, WorkflowCancelled,
     WorkflowContinued,
 };
@@ -232,7 +232,7 @@ pub enum ControlActorMessage {
     AcceptAndResume {
         instance_id: InstanceId,
         wait_key: crate::WaitKey,
-        signal_id: String,
+        signal_id: SignalName,
         payload: crate::SignalPayload,
     },
 }
@@ -330,7 +330,7 @@ impl ControlActorMessage {
     pub fn new_accept_and_resume(
         instance_id: InstanceId,
         wait_key: crate::WaitKey,
-        signal_id: String,
+        signal_id: SignalName,
         payload: crate::SignalPayload,
     ) -> Self {
         Self::AcceptAndResume {
@@ -522,10 +522,11 @@ mod constructor_tests_control_actor_message {
         let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
         let wait_key = crate::WaitKey::parse("approval-v2").unwrap();
         let payload = crate::SignalPayload::empty();
+        let signal_name = SignalName::parse("sig-1").unwrap();
         let message = ControlActorMessage::new_accept_and_resume(
             instance_id.clone(),
             wait_key.clone(),
-            "sig-1".to_string(),
+            signal_name.clone(),
             payload.clone(),
         );
 
@@ -538,7 +539,7 @@ mod constructor_tests_control_actor_message {
             } => {
                 assert_eq!(id.as_str(), "01H5JYV4XHGSR2F8KZ9BWNRFMA");
                 assert_eq!(wk.as_str(), "approval-v2");
-                assert_eq!(signal_id, "sig-1");
+                assert_eq!(signal_id.as_str(), "sig-1");
                 assert!(p.is_empty());
             }
             _ => panic!("Expected AcceptAndResume variant"),
@@ -675,10 +676,11 @@ mod debug_format_control_actor_message {
         let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
         let wait_key = crate::WaitKey::parse("approval-v2").unwrap();
         let payload = crate::SignalPayload::empty();
+        let signal_name = SignalName::parse("sig-1").unwrap();
         let message = ControlActorMessage::new_accept_and_resume(
             instance_id,
             wait_key,
-            "sig-1".to_string(),
+            signal_name,
             payload,
         );
 
@@ -1726,6 +1728,12 @@ impl ControlActor {
         signal_id: String,
         payload: SignalPayload,
     ) -> Result<AcceptResumeOutcome, AcceptResumeError> {
+        let signal_name = SignalName::parse(&signal_id).map_err(|e| {
+            AcceptResumeError::StorageError {
+                instance_id: instance_id.clone(),
+                reason: format!("invalid signal_id: {}", e),
+            }
+        })?;
         let id_str = instance_id.as_str();
 
         // P1: Check for non-existent actor
@@ -1753,7 +1761,7 @@ impl ControlActor {
         }
 
         // P3: Check wait_key match (signal_id starting with "mismatch-" triggers mismatch)
-        if signal_id.starts_with("mismatch-") {
+        if signal_name.as_str().starts_with("mismatch-") {
             return Err(AcceptResumeError::WaitKeyMismatch {
                 instance_id,
                 expected_key: WaitKey::new_unchecked("expected-key"),
@@ -1785,7 +1793,7 @@ impl ControlActor {
         let accepted = SignalAccepted {
             instance_id: instance_id.clone(),
             wait_key,
-            signal_id,
+            signal_id: signal_name,
             payload,
             accepted_at: now,
         };
@@ -1809,7 +1817,7 @@ impl ControlActor {
             // Step 2: Enqueue resume work
             if let Err(e) = queue.enqueue_resume(instance_id.clone()) {
                 // Step 2 failed: rollback step 1
-                let _ = storage.remove_signal_accepted(&instance_id, &accepted.signal_id);
+                let _ = storage.remove_signal_accepted(&instance_id, accepted.signal_id.as_str());
                 return Err(AcceptResumeError::StorageError {
                     instance_id,
                     reason: format!("enqueue_resume failed: {}", e),

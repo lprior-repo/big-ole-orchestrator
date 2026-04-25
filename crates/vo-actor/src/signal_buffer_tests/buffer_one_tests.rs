@@ -46,7 +46,7 @@ mod signal_buffer_one_tests {
             1
         );
         assert_eq!(
-            buffer.peek_all(&instance_id_a(), &wait_key_approval())[0].signal_id,
+            buffer.peek_all(&instance_id_a(), &wait_key_approval())[0].signal_id.as_str(),
             "sig-first"
         );
     }
@@ -82,7 +82,7 @@ mod signal_buffer_one_tests {
         );
         let popped = buffer.pop_buffered(&instance_id_a(), &wait_key_approval());
         assert!(popped.is_some());
-        assert_eq!(popped.unwrap().signal_id, "sig-pop");
+        assert_eq!(popped.unwrap().signal_id.as_str(), "sig-pop");
         assert_eq!(
             buffer.buffered_count(&instance_id_a(), &wait_key_approval()),
             0
