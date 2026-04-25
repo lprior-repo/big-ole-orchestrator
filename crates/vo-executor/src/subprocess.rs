@@ -308,7 +308,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_pipe_sets_cloexec() {
-        let (r, w) = create_pipe().unwrap();
+        let PipePair { read_fd: r, write_fd: w } = create_pipe().unwrap();
         unsafe {
             let flags = libc::fcntl(r, libc::F_GETFD);
             assert!(
