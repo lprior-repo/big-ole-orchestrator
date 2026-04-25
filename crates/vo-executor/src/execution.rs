@@ -175,13 +175,15 @@ async fn check_flaky_or_delegate(
     timeout_ms: u64,
     retry_policy: RetryPolicy,
 ) -> Result<StepResult, ExecuteNodeError> {
+    #[cfg(feature = "test-sim")]
     if step_id.as_str() == "step-flaky" {
-        simulate_flaky_retry(&step_id, &retry_policy).await
-    } else {
-        execute_step(step_id, timeout_ms).await
+        return simulate_flaky_retry(&step_id, &retry_policy).await;
     }
+    let _ = retry_policy;
+    execute_step(step_id, timeout_ms).await
 }
 
+#[cfg(feature = "test-sim")]
 async fn simulate_flaky_retry(
     step_id: &StepId,
     retry_policy: &RetryPolicy,
@@ -191,6 +193,7 @@ async fn simulate_flaky_retry(
     execute_flaky_retries(step_id, retry_policy, transient_err).await
 }
 
+#[cfg(feature = "test-sim")]
 fn build_transient_error() -> ExecuteNodeError {
     ExecuteNodeError::TransientError {
         reason: "network timeout".to_string(),
@@ -198,6 +201,7 @@ fn build_transient_error() -> ExecuteNodeError {
     }
 }
 
+#[cfg(feature = "test-sim")]
 async fn execute_flaky_retries(
     _step_id: &StepId,
     retry_policy: &RetryPolicy,
@@ -219,6 +223,7 @@ async fn execute_flaky_retries(
     })
 }
 
+#[cfg(feature = "test-sim")]
 async fn sleep_with_backoff(retry_policy: &RetryPolicy, attempt: u32) {
     use std::time::Duration;
     use tokio::time::sleep;
