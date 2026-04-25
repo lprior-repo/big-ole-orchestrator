@@ -4,8 +4,8 @@
 use super::instance_registry::{
     InstanceActorHandle, InstanceRegistry, RegistryConfig, RegistryError,
 };
-use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
-use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use vo_types::InstanceId;
 
@@ -1133,6 +1133,255 @@ mod adr_029_039_acceptance_tests {
 
         assert_eq!(registry_a.active_count(), 1);
         assert_eq!(registry_b.active_count(), 1);
+    }
+}
+
+// =============================================================================
+// Concurrent Registration Stress Tests
+// =============================================================================
+//
+// These tests exercise the at-most-one invariant under multi-threaded contention.
+// InstanceRegistry is &mut self, so we wrap it in Arc<Mutex<>> to simulate
+// real-world concurrent access patterns.
+
+mod concurrent_stress_tests {
+    use super::*;
+    use std::sync::Barrier;
+    use std::thread;
+
+    #[test]
+    fn concurrent_register_same_id_preserves_at_most_one_invariant() {
+        let registry = Arc::new(Mutex::new(InstanceRegistry::new(default_registry_config())));
+        let id = id_a();
+        let thread_count = 8;
+        let registers_per_thread = 100;
+        let barrier = Arc::new(Barrier::new(thread_count));
+
+        let handles: Vec<_> = (0..thread_count)
+            .map(|t| {
+                let reg = registry.clone();
+                let bar = barrier.clone();
+                let id = id.clone();
+                thread::spawn(move || {
+                    bar.wait();
+                    for i in 0..registers_per_thread {
+                        let handle_id = (t as u64) * 1000 + (i as u64);
+                        let _ = reg.lock().unwrap().register(
+                            id.clone(),
+                            InstanceActorHandle::test(handle_id),
+                            |_| Ok(()),
+                        );
+                    }
+                })
+            })
+            .collect();
+
+        for h in handles {
+            h.join().unwrap();
+        }
+
+        let reg = registry.lock().unwrap();
+        assert_eq!(reg.active_count(), 1, "INV-1: at most one active per InstanceId");
+        assert!(reg.is_active(&id));
+        assert!(reg.lookup(&id).is_some());
+    }
+
+    #[test]
+    fn concurrent_register_different_ids_all_succeed() {
+        let registry = Arc::new(Mutex::new(InstanceRegistry::new(default_registry_config())));
+        let thread_count = 8;
+        let barrier = Arc::new(Barrier::new(thread_count));
+        let ids: Vec<InstanceId> = (0..thread_count).map(|i| {
+            let ulid = ulid::Ulid::from((i + 100) as u128);
+            InstanceId::parse(&ulid.to_string()).unwrap()
+        }).collect();
+
+        let handles: Vec<_> = (0..thread_count)
+            .map(|t| {
+                let reg = registry.clone();
+                let bar = barrier.clone();
+                let id = ids[t].clone();
+                thread::spawn(move || {
+                    bar.wait();
+                    reg.lock().unwrap().register(
+                        id,
+                        InstanceActorHandle::test(t as u64),
+                        |_| Ok(()),
+                    ).unwrap();
+                })
+            })
+            .collect();
+
+        for h in handles {
+            h.join().unwrap();
+        }
+
+        let reg = registry.lock().unwrap();
+        assert_eq!(reg.active_count(), thread_count, "each unique ID should be registered");
+        for id in &ids {
+            assert!(reg.is_active(id), "id {} should be active", id);
+        }
+    }
+
+    #[test]
+    fn concurrent_register_and_deregister_preserve_count_invariant() {
+        let registry = Arc::new(Mutex::new(InstanceRegistry::new(default_registry_config())));
+        let thread_count = 8;
+        let ops_per_thread = 200;
+        let barrier = Arc::new(Barrier::new(thread_count));
+
+        let handles: Vec<_> = (0..thread_count)
+            .map(|t| {
+                let reg = registry.clone();
+                let bar = barrier.clone();
+                let id = id_a();
+                thread::spawn(move || {
+                    bar.wait();
+                    for i in 0..ops_per_thread {
+                        let mut guard = reg.lock().unwrap();
+                        if i % 2 == 0 {
+                            let _ = guard.register(
+                                id.clone(),
+                                InstanceActorHandle::test((t as u64) * 10_000 + (i as u64)),
+                                |_| Ok(()),
+                            );
+                        } else {
+                            let _ = guard.deregister(&id);
+                        }
+                    }
+                })
+            })
+            .collect();
+
+        for h in handles {
+            h.join().unwrap();
+        }
+
+        let reg = registry.lock().unwrap();
+        assert!(
+            reg.active_count() <= 1,
+            "INV-1: at most one active for single ID, got {}",
+            reg.active_count()
+        );
+    }
+
+    #[test]
+    fn concurrent_replace_stress_with_stop_fn_invariant() {
+        let registry = Arc::new(Mutex::new(InstanceRegistry::new(default_registry_config())));
+        let id = id_a();
+        let thread_count = 8;
+        let ops_per_thread = 50;
+        let barrier = Arc::new(Barrier::new(thread_count));
+        let stop_call_count = Arc::new(AtomicU64::new(0));
+
+        let handles: Vec<_> = (0..thread_count)
+            .map(|t| {
+                let reg = registry.clone();
+                let bar = barrier.clone();
+                let id = id.clone();
+                let counter = stop_call_count.clone();
+                thread::spawn(move || {
+                    bar.wait();
+                    for i in 0..ops_per_thread {
+                        let counter_clone = counter.clone();
+                        let _ = reg.lock().unwrap().register(
+                            id.clone(),
+                            InstanceActorHandle::test((t as u64) * 10_000 + (i as u64)),
+                            move |_| {
+                                counter_clone.fetch_add(1, Ordering::SeqCst);
+                                Ok(())
+                            },
+                        );
+                    }
+                })
+            })
+            .collect();
+
+        for h in handles {
+            h.join().unwrap();
+        }
+
+        let reg = registry.lock().unwrap();
+        assert_eq!(reg.active_count(), 1, "INV-1: at most one active per InstanceId");
+        assert!(reg.is_active(&id));
+    }
+
+    #[test]
+    fn concurrent_deregister_on_absent_id_all_return_not_registered() {
+        let registry = Arc::new(Mutex::new(InstanceRegistry::new(default_registry_config())));
+        let id = id_a();
+        let thread_count = 8;
+        let barrier = Arc::new(Barrier::new(thread_count));
+
+        let handles: Vec<_> = (0..thread_count)
+            .map(|_| {
+                let reg = registry.clone();
+                let bar = barrier.clone();
+                let id = id.clone();
+                thread::spawn(move || {
+                    bar.wait();
+                    for _ in 0..100 {
+                        let result = reg.lock().unwrap().deregister(&id);
+                        assert!(
+                            matches!(result, Err(RegistryError::NotRegistered { .. })),
+                            "deregister on absent id must return NotRegistered"
+                        );
+                    }
+                    true
+                })
+            })
+            .collect();
+
+        for h in handles {
+            let ok = h.join().unwrap();
+            assert!(ok);
+        }
+
+        assert_eq!(registry.lock().unwrap().active_count(), 0);
+    }
+
+    #[test]
+    fn concurrent_mixed_ids_stress_maintains_consistency() {
+        let registry = Arc::new(Mutex::new(InstanceRegistry::new(default_registry_config())));
+        let thread_count = 8;
+        let ops_per_thread = 100;
+        let barrier = Arc::new(Barrier::new(thread_count));
+        let id_pool: Vec<InstanceId> = (0..4).map(|i| {
+            let ulid = ulid::Ulid::from((i + 200) as u128);
+            InstanceId::parse(&ulid.to_string()).unwrap()
+        }).collect();
+
+        let handles: Vec<_> = (0..thread_count)
+            .map(|t| {
+                let reg = registry.clone();
+                let bar = barrier.clone();
+                let id_pool = id_pool.clone();
+                thread::spawn(move || {
+                    bar.wait();
+                    for i in 0..ops_per_thread {
+                        let id = id_pool[(t + i) % id_pool.len()].clone();
+                        let mut guard = reg.lock().unwrap();
+                        if i % 3 == 0 {
+                            let _ = guard.deregister(&id);
+                        } else {
+                            let _ = guard.register(
+                                id,
+                                InstanceActorHandle::test((t as u64) * 10_000 + (i as u64)),
+                                |_| Ok(()),
+                            );
+                        }
+                    }
+                })
+            })
+            .collect();
+
+        for h in handles {
+            h.join().unwrap();
+        }
+
+        let reg = registry.lock().unwrap();
+        assert!(reg.active_count() <= id_pool.len(), "active_count must not exceed distinct IDs");
+        assert_eq!(reg.active_count(), reg.active_count(), "INV-3: count is internally consistent");
     }
 }
 

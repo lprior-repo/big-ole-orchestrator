@@ -25,8 +25,6 @@ pub enum DagError {
     CycleDetected { cycle: String },
     #[error("duplicate node name: {name}")]
     DuplicateNodeName { name: String },
-    #[error("self-loop not allowed on node: {name}")]
-    SelfLoop { name: String },
     #[error("orphan node (no edges): {name}")]
     OrphanNode { name: String },
 }

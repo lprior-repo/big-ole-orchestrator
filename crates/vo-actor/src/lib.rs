@@ -62,7 +62,6 @@ pub enum InstancePhaseView {
 }
 
 /// Messages sent to the orchestrator actor.
-/// Messages sent to the orchestrator actor.
 #[derive(Debug)]
 pub enum OrchestratorMsg {
     /// Start a new workflow instance

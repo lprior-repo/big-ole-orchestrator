@@ -30,6 +30,11 @@ pub struct BudgetManifest {
 }
 
 impl BudgetManifest {
+    /// Stage a new write entry in the manifest.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SagaError::AlreadyExists`] if a write entry with the same key already exists.
     pub fn stage(
         &mut self,
         write_key: String,
@@ -51,6 +56,12 @@ impl BudgetManifest {
         Ok(())
     }
 
+    /// Commit a previously staged write entry.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SagaError::NotFound`] if no entry exists for the given key.
+    /// Returns [`SagaError::InvalidState`] if the entry is not in the `Staged` state.
     pub fn commit(&mut self, write_key: &str) -> Result<(), SagaError> {
         let entry = self
             .entries
@@ -68,6 +79,12 @@ impl BudgetManifest {
         Ok(())
     }
 
+    /// Roll back a write entry.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SagaError::NotFound`] if no entry exists for the given key.
+    /// Returns [`SagaError::AlreadyRolledBack`] if the entry is already rolled back.
     pub fn rollback(&mut self, write_key: &str) -> Result<(), SagaError> {
         let entry = self
             .entries
