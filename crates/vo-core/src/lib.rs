@@ -24,12 +24,13 @@
 //! exactly once even across system failures.
 
 pub mod admission;
+pub mod atomic_transition_committer;
 pub mod calc;
 pub mod circuit_breaker;
 pub mod compensation_order;
 pub mod config_hot_reload;
 pub mod connector;
-mod db_writer_message;
+pub mod db_writer_message;
 pub mod debounce;
 pub mod effects;
 pub mod exact_once_verification;
@@ -41,6 +42,7 @@ pub mod resource_quota;
 pub mod segment_tree;
 pub mod shedding;
 pub mod snapshot_compat;
+pub mod transaction;
 pub mod upcaster;
 pub mod validation;
 pub mod vault;

@@ -225,7 +225,7 @@ mod tests {
                 fire_at: valid_fire_at(),
             }],
             snapshot: Some(
-                SnapshotData::new(valid_sequence(), vec![0x01, 0x02]).expect("valid snapshot"),
+                SnapshotData::new(valid_sequence(), 1, vec![0x01, 0x02]).expect("valid snapshot"),
             ),
             event: valid_event_envelope(),
         }
