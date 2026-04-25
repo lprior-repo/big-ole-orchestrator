@@ -398,3 +398,140 @@ fn engine_receive_envelope_fails_on_identity_mismatch() {
     let result = engine_receive_envelope(&mut reader, "inst2", "node1");
     assert!(matches!(result, Err(IpcError::IdentityMismatch { .. })));
 }
+
+// ---------------------------------------------------------------------------
+// SEC-4: Per-field size limit tests for secrets/metadata
+// ---------------------------------------------------------------------------
+
+fn make_fd3_json_with_secrets(secrets: serde_json::Value) -> serde_json::Value {
+    serde_json::json!({
+        "version": 1,
+        "instance_id": "inst1",
+        "node_id": "node1",
+        "input": {},
+        "secrets": secrets,
+        "metadata": {}
+    })
+}
+
+fn make_fd3_json_with_metadata(metadata: serde_json::Value) -> serde_json::Value {
+    serde_json::json!({
+        "version": 1,
+        "instance_id": "inst1",
+        "node_id": "node1",
+        "input": {},
+        "secrets": {},
+        "metadata": metadata
+    })
+}
+
+fn read_fd3_from_json(json: serde_json::Value) -> Result<Fd3Envelope, IpcError> {
+    let payload = serde_json::to_vec(&json).unwrap();
+    let mut buffer = (payload.len() as u32).to_be_bytes().to_vec();
+    buffer.extend(payload);
+    let mut reader = Cursor::new(buffer);
+    read_envelope(&mut reader)
+}
+
+#[test]
+fn secrets_exceeding_max_entries_is_rejected() {
+    let mut secrets = serde_json::Map::new();
+    for i in 0..101 {
+        secrets.insert(format!("k{i}"), serde_json::Value::String(format!("v{i}")));
+    }
+    let json = make_fd3_json_with_secrets(serde_json::Value::Object(secrets));
+    let result = read_fd3_from_json(json);
+    match result {
+        Err(IpcError::FieldEntryLimitExceeded { field, actual, .. }) => {
+            assert_eq!(field, "secrets");
+            assert_eq!(actual, 101);
+        }
+        other => panic!("Expected FieldEntryLimitExceeded, got {:?}", other),
+    }
+}
+
+#[test]
+fn secrets_at_max_entries_is_accepted() {
+    let mut secrets = serde_json::Map::new();
+    for i in 0..100 {
+        secrets.insert(format!("k{i}"), serde_json::Value::String(format!("v{i}")));
+    }
+    let json = make_fd3_json_with_secrets(serde_json::Value::Object(secrets));
+    let result = read_fd3_from_json(json);
+    assert!(result.is_ok());
+}
+
+#[test]
+fn secret_value_exceeding_max_bytes_is_rejected() {
+    let mut secrets = serde_json::Map::new();
+    secrets.insert("big_key".to_string(), serde_json::Value::String("x".repeat(65_537)));
+    let json = make_fd3_json_with_secrets(serde_json::Value::Object(secrets));
+    let result = read_fd3_from_json(json);
+    match result {
+        Err(IpcError::FieldValueTooLarge {
+            field,
+            key,
+            actual,
+            ..
+        }) => {
+            assert_eq!(field, "secrets");
+            assert_eq!(key, "big_key");
+            assert_eq!(actual, 65_537);
+        }
+        other => panic!("Expected FieldValueTooLarge, got {:?}", other),
+    }
+}
+
+#[test]
+fn secret_value_at_max_bytes_is_accepted() {
+    let mut secrets = serde_json::Map::new();
+    secrets.insert("big_key".to_string(), serde_json::Value::String("x".repeat(65_536)));
+    let json = make_fd3_json_with_secrets(serde_json::Value::Object(secrets));
+    let result = read_fd3_from_json(json);
+    assert!(result.is_ok());
+}
+
+#[test]
+fn metadata_exceeding_max_entries_is_rejected() {
+    let mut metadata = serde_json::Map::new();
+    for i in 0..101 {
+        metadata.insert(format!("k{i}"), serde_json::Value::String(format!("v{i}")));
+    }
+    let json = make_fd3_json_with_metadata(serde_json::Value::Object(metadata));
+    let result = read_fd3_from_json(json);
+    match result {
+        Err(IpcError::FieldEntryLimitExceeded { field, actual, .. }) => {
+            assert_eq!(field, "metadata");
+            assert_eq!(actual, 101);
+        }
+        other => panic!("Expected FieldEntryLimitExceeded, got {:?}", other),
+    }
+}
+
+#[test]
+fn metadata_value_exceeding_max_bytes_is_rejected() {
+    let mut metadata = serde_json::Map::new();
+    metadata.insert("big_key".to_string(), serde_json::Value::String("x".repeat(65_537)));
+    let json = make_fd3_json_with_metadata(serde_json::Value::Object(metadata));
+    let result = read_fd3_from_json(json);
+    match result {
+        Err(IpcError::FieldValueTooLarge {
+            field,
+            key,
+            actual,
+            ..
+        }) => {
+            assert_eq!(field, "metadata");
+            assert_eq!(key, "big_key");
+            assert_eq!(actual, 65_537);
+        }
+        other => panic!("Expected FieldValueTooLarge, got {:?}", other),
+    }
+}
+
+#[test]
+fn empty_secrets_and_metadata_are_accepted() {
+    let json = make_fd3_json_with_secrets(serde_json::json!({}));
+    let result = read_fd3_from_json(json);
+    assert!(result.is_ok());
+}

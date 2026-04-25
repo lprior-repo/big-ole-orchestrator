@@ -51,6 +51,19 @@ pub enum IpcError {
     VersionMismatch(u8),
     #[error("Schema violation: {0}")]
     SchemaViolation(String),
+    #[error("Field '{field}' exceeds {limit} entry limit (got {actual})")]
+    FieldEntryLimitExceeded {
+        field: String,
+        limit: usize,
+        actual: usize,
+    },
+    #[error("Field '{field}.{key}' exceeds {limit} byte value limit (got {actual})")]
+    FieldValueTooLarge {
+        field: String,
+        key: String,
+        limit: usize,
+        actual: usize,
+    },
     #[error("Identity mismatch: expected {expected_instance}:{expected_node}, got {actual_instance}:{actual_node}")]
     IdentityMismatch {
         expected_instance: String,

@@ -5,6 +5,8 @@ use std::collections::BTreeMap;
 use std::io::{Read, Write};
 
 pub const MAX_PAYLOAD_SIZE: u32 = 10_485_760;
+pub const MAX_MAP_ENTRIES: usize = 100;
+pub const MAX_MAP_VALUE_BYTES: usize = 65_536;
 
 /// The envelope sent from Engine to Child over FD3.
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
@@ -169,6 +171,47 @@ fn validate_json_schema(value: &serde_json::Value) -> Result<(), IpcError> {
     // ID checks
     validate_id_field(obj, "instance_id")?;
     validate_id_field(obj, "node_id")?;
+
+    // Map field size limits (SEC-4)
+    validate_map_field(obj, "secrets")?;
+    validate_map_field(obj, "metadata")?;
+
+    Ok(())
+}
+
+fn validate_map_field(
+    obj: &serde_json::Map<String, serde_json::Value>,
+    field: &str,
+) -> Result<(), IpcError> {
+    use crate::error::IpcError::{FieldEntryLimitExceeded, FieldValueTooLarge};
+
+    let Some(map_val) = obj.get(field) else {
+        return Ok(());
+    };
+    let Some(map) = map_val.as_object() else {
+        return Ok(());
+    };
+
+    if map.len() > MAX_MAP_ENTRIES {
+        return Err(FieldEntryLimitExceeded {
+            field: field.to_string(),
+            limit: MAX_MAP_ENTRIES,
+            actual: map.len(),
+        });
+    }
+
+    for (key, val) in map {
+        if let Some(s) = val.as_str() {
+            if s.len() > MAX_MAP_VALUE_BYTES {
+                return Err(FieldValueTooLarge {
+                    field: field.to_string(),
+                    key: key.clone(),
+                    limit: MAX_MAP_VALUE_BYTES,
+                    actual: s.len(),
+                });
+            }
+        }
+    }
 
     Ok(())
 }
