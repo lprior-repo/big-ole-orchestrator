@@ -71,6 +71,8 @@ pub mod snapshot_diff;
 pub mod snapshots;
 pub mod status_store;
 pub mod timer_index;
+#[cfg(test)]
+mod timer_index_tests;
 pub mod workflow_version_partition;
 
 /// Appends an event to the storage backend.

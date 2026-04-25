@@ -982,12 +982,69 @@ mod tests {
     }
 
     #[test]
+    fn channel_id_equality() {
+        let id1 = ChannelId::new("channel-a");
+        let id2 = ChannelId::new("channel-a");
+        let id3 = ChannelId::new("channel-b");
+
+        assert_eq!(id1, id2, "Same string should create equal ChannelId");
+        assert_ne!(id1, id3, "Different strings should create unequal ChannelId");
+    }
+
+    #[test]
+    fn channel_id_clone_is_independent() {
+        let id1 = ChannelId::new("test-channel");
+        let id2 = id1.clone();
+        assert_eq!(id1, id2);
+    }
+
+    #[test]
+    fn channel_id_display_shows_inner_value() {
+        let id = ChannelId::new("display-test");
+        let display_str = format!("{}", id);
+        assert_eq!(display_str, "display-test");
+    }
+
+    #[test]
+    fn channel_id_parse_accepts_valid_string() {
+        let result = ChannelId::parse("valid-channel");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().as_str(), "valid-channel");
+    }
+
+    #[test]
+    fn channel_id_debug_format() {
+        let id = ChannelId::new("debug-channel");
+        let debug_str = format!("{:?}", id);
+        assert!(debug_str.contains("debug-channel"));
+    }
+
+    #[test]
     fn router_config_default_has_sensible_values() {
         let config = RouterConfig::default();
         assert_eq!(config.max_destinations_per_channel, 16);
         assert_eq!(config.max_dlq_size, 1000);
         assert_eq!(config.delivery_timeout, Duration::from_secs(5));
         assert!(config.broadcast_enabled);
+    }
+
+    #[test]
+    fn router_config_new_creates_custom_config() {
+        let config = RouterConfig::new(32, 500, Duration::from_secs(10), false);
+        assert_eq!(config.max_destinations_per_channel, 32);
+        assert_eq!(config.max_dlq_size, 500);
+        assert_eq!(config.delivery_timeout, Duration::from_secs(10));
+        assert!(!config.broadcast_enabled);
+    }
+
+    #[test]
+    fn router_config_equality() {
+        let config1 = RouterConfig::new(16, 1000, Duration::from_secs(5), true);
+        let config2 = RouterConfig::new(16, 1000, Duration::from_secs(5), true);
+        let config3 = RouterConfig::new(16, 1000, Duration::from_secs(5), false);
+
+        assert_eq!(config1, config2);
+        assert_ne!(config1, config3);
     }
 
     #[test]
@@ -1198,5 +1255,53 @@ mod tests {
             type_name: std::any::type_name::<i32>().to_string(),
         };
         assert!(msg.type_name().contains("i32"));
+    }
+
+    #[test]
+    fn timestamp_ms_now_returns_positive_value() {
+        let ts = TimestampMs::now();
+        assert!(ts.as_i64() > 0, "Timestamp should be positive");
+    }
+
+    #[test]
+    fn timestamp_ms_monotonic_increasing() {
+        let ts1 = TimestampMs::now();
+        std::thread::sleep(std::time::Duration::from_millis(1));
+        let ts2 = TimestampMs::now();
+        assert!(
+            ts2 > ts1,
+            "Subsequent timestamp should be greater than previous"
+        );
+    }
+
+    #[test]
+    fn timestamp_ms_ordering_consistent() {
+        let ts1 = TimestampMs::now();
+        std::thread::sleep(std::time::Duration::from_millis(1));
+        let ts2 = TimestampMs::now();
+        std::thread::sleep(std::time::Duration::from_millis(1));
+        let ts3 = TimestampMs::now();
+
+        assert!(ts1 < ts2, "ts1 should be less than ts2");
+        assert!(ts2 < ts3, "ts2 should be less than ts3");
+        assert!(ts1 < ts3, "ts1 should be less than ts3");
+    }
+
+    #[test]
+    fn timestamp_ms_as_i64_returns_inner_value() {
+        let value: i64 = 12345;
+        let ts = TimestampMs(value);
+        assert_eq!(ts.as_i64(), value);
+    }
+
+    #[test]
+    fn timestamp_ms_partial_ord_respects_inner_value() {
+        let ts1 = TimestampMs(100);
+        let ts2 = TimestampMs(200);
+        let ts3 = TimestampMs(100);
+
+        assert!(ts1 < ts2);
+        assert!(ts2 > ts1);
+        assert_eq!(ts1, ts3);
     }
 }

@@ -45,6 +45,7 @@ pub mod upcaster;
 pub mod validation;
 pub mod vault;
 pub mod workflow_version;
+pub mod workload_budget;
 pub mod workload_class;
 pub mod workspace_swap;
 pub mod write_class;
