@@ -68,33 +68,12 @@ impl FsBlobStore {
         Ok(())
     }
 
-    async fn write_blob_file(
-        &self,
-        path: &Path,
-        data: &[u8],
-        addr: Option<&ContentAddress>,
-    ) -> Result<(), BlobStoreError> {
-        let file = match fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(path)
+    async fn write_blob_file(&self, path: &Path, data: &[u8]) -> Result<(), BlobStoreError> {
+        let mut file = fs::File::create(path)
             .await
-        {
-            Ok(f) => f,
-            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
-                return Err(BlobStoreError::DuplicateContent {
-                    content_addr: addr
-                        .map(|a| a.to_string())
-                        .unwrap_or_else(|| path.to_string_lossy().into_owned()),
-                });
-            }
-            Err(e) => {
-                return Err(BlobStoreError::Storage {
-                    reason: format!("failed to create blob file: {e}"),
-                });
-            }
-        };
-        let mut file = file;
+            .map_err(|e| BlobStoreError::Storage {
+                reason: format!("failed to create blob file: {e}"),
+            })?;
         file.write_all(data)
             .await
             .map_err(|e| BlobStoreError::Storage {
@@ -232,7 +211,13 @@ impl FsBlobStore {
         let addr = Self::compute_content_address(data);
         let blob_path = self.blob_path(&addr);
 
-        self.write_blob_file(&blob_path, data, Some(&addr)).await?;
+        if blob_path.exists() {
+            return Err(BlobStoreError::DuplicateContent {
+                content_addr: addr.to_string(),
+            });
+        }
+
+        self.write_blob_file(&blob_path, data).await?;
 
         let ts = now_ms();
         let record = BlobRecord::with_status(
@@ -283,7 +268,13 @@ impl FsBlobStore {
         let addr = Self::compute_content_address(data);
         let blob_path = self.blob_path(&addr);
 
-        self.write_blob_file(&blob_path, data, Some(&addr)).await?;
+        if blob_path.exists() {
+            return Err(BlobStoreError::DuplicateContent {
+                content_addr: addr.to_string(),
+            });
+        }
+
+        self.write_blob_file(&blob_path, data).await?;
 
         let ts = now_ms();
         let record = BlobRecord::with_status(

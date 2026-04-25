@@ -5040,7 +5040,6 @@ dependencies = [
  "tokio",
  "tracing",
  "uuid",
- "vo-executor",
 ]
 
 [[package]]

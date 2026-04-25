@@ -51,7 +51,7 @@ pub enum ControlActorMessage {
     AcceptAndResume {
         instance_id: InstanceId,
         wait_key: crate::WaitKey,
-        signal_id: crate::SignalName,
+        signal_id: String,
         payload: crate::SignalPayload,
     },
     /// Request continue-as-new rollover to a new epoch (ADR-038).
@@ -155,7 +155,7 @@ impl ControlActorMessage {
     pub fn new_accept_and_resume(
         instance_id: InstanceId,
         wait_key: crate::WaitKey,
-        signal_id: crate::SignalName,
+        signal_id: String,
         payload: crate::SignalPayload,
     ) -> Self {
         Self::AcceptAndResume {
@@ -338,11 +338,10 @@ mod constructor_tests_control_actor_message {
         let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
         let wait_key = crate::WaitKey::parse("approval-v2").unwrap();
         let payload = crate::SignalPayload::empty();
-        let signal_name = crate::SignalName::parse("sig-1").unwrap();
         let message = ControlActorMessage::new_accept_and_resume(
             instance_id.clone(),
             wait_key.clone(),
-            signal_name.clone(),
+            "sig-1".to_string(),
             payload.clone(),
         );
 
@@ -355,7 +354,7 @@ mod constructor_tests_control_actor_message {
             } => {
                 assert_eq!(id.as_str(), "01H5JYV4XHGSR2F8KZ9BWNRFMA");
                 assert_eq!(wk.as_str(), "approval-v2");
-                assert_eq!(signal_id.as_str(), "sig-1");
+                assert_eq!(signal_id, "sig-1");
                 assert!(p.is_empty());
             }
             _ => panic!("Expected AcceptAndResume variant"),
@@ -483,11 +482,10 @@ mod debug_format_control_actor_message {
         let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
         let wait_key = crate::WaitKey::parse("approval-v2").unwrap();
         let payload = crate::SignalPayload::empty();
-        let signal_name = crate::SignalName::parse("sig-1").unwrap();
         let message = ControlActorMessage::new_accept_and_resume(
             instance_id,
             wait_key,
-            signal_name,
+            "sig-1".to_string(),
             payload,
         );
 

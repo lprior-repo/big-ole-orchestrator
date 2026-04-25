@@ -107,6 +107,11 @@ impl EventStore for InMemoryEventStore {
             });
         }
 
+        let expected_sequence = {
+            let sequences = self.sequences.read().unwrap();
+            sequences.get(instance_id).copied().unwrap_or(0)
+        };
+
         let first_sequence = events
             .first()
             .ok_or(EventStoreError::InvalidArgument {
@@ -114,19 +119,15 @@ impl EventStore for InMemoryEventStore {
             })?
             .sequence;
 
-        let final_sequence = events.last().unwrap().sequence;
-
-        let mut sequences = self.sequences.write().unwrap();
-        let mut events_store = self.events.write().unwrap();
-
-        let expected_sequence = sequences.get(instance_id).copied().unwrap_or(0);
-
         if first_sequence != expected_sequence + 1 {
-            let actual_sequence = events_store
-                .get(instance_id)
-                .and_then(|e| e.last())
-                .map(|e| e.sequence)
-                .unwrap_or(0);
+            let actual_sequence = {
+                let events_store = self.events.read().unwrap();
+                events_store
+                    .get(instance_id)
+                    .and_then(|e| e.last())
+                    .map(|e| e.sequence)
+                    .unwrap_or(0)
+            };
             return Err(EventStoreError::OccConflict {
                 instance_id: instance_id.to_string(),
                 expected_sequence: expected_sequence + 1,
@@ -147,12 +148,18 @@ impl EventStore for InMemoryEventStore {
             }
         }
 
-        sequences.insert(instance_id.clone(), final_sequence);
-        events_store
-            .entry(instance_id.clone())
-            .or_insert_with(Vec::new);
-        if let Some(existing) = events_store.get_mut(instance_id) {
-            existing.extend(events);
+        let final_sequence = events.last().unwrap().sequence;
+
+        {
+            let mut sequences = self.sequences.write().unwrap();
+            let mut events_store = self.events.write().unwrap();
+            sequences.insert(instance_id.clone(), final_sequence);
+            events_store
+                .entry(instance_id.clone())
+                .or_insert_with(Vec::new);
+            if let Some(existing) = events_store.get_mut(instance_id) {
+                existing.extend(events);
+            }
         }
 
         Ok(final_sequence)

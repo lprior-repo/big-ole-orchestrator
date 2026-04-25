@@ -90,21 +90,7 @@ pub enum SubprocessError {
 
 const BOUNDED_BUFFER_SIZE: usize = 65536;
 
-struct PipePair {
-    read_fd: RawFd,
-    write_fd: RawFd,
-}
-
-impl Drop for PipePair {
-    fn drop(&mut self) {
-        unsafe {
-            libc::close(self.read_fd);
-            libc::close(self.write_fd);
-        }
-    }
-}
-
-fn create_pipe() -> Result<PipePair, SubprocessError> {
+fn create_pipe() -> Result<(RawFd, RawFd), SubprocessError> {
     let mut fds = [0; 2];
     let res = unsafe { libc::pipe2(fds.as_mut_ptr(), libc::O_CLOEXEC) };
     if res != 0 {
@@ -112,10 +98,7 @@ fn create_pipe() -> Result<PipePair, SubprocessError> {
             std::io::Error::last_os_error().to_string(),
         ));
     }
-    Ok(PipePair {
-        read_fd: fds[0],
-        write_fd: fds[1],
-    })
+    Ok((fds[0], fds[1]))
 }
 
 /// Runs a subprocess with ADR-018 compliant async pipe handling.
@@ -129,8 +112,8 @@ fn create_pipe() -> Result<PipePair, SubprocessError> {
 /// - Subprocess times out
 #[tracing::instrument(skip(config))]
 pub async fn run_subprocess(config: SubprocessConfig) -> Result<SubprocessOutput, SubprocessError> {
-    let PipePair { read_fd: fd3_read, write_fd: fd3_write } = create_pipe()?;
-    let PipePair { read_fd: fd4_read, write_fd: fd4_write } = create_pipe()?;
+    let (fd3_read, fd3_write) = create_pipe()?;
+    let (fd4_read, fd4_write) = create_pipe()?;
 
     let mut command = Command::new(&config.executable_path);
     command.args(&config.argv);
@@ -308,7 +291,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_pipe_sets_cloexec() {
-        let PipePair { read_fd: r, write_fd: w } = create_pipe().unwrap();
+        let (r, w) = create_pipe().unwrap();
         unsafe {
             let flags = libc::fcntl(r, libc::F_GETFD);
             assert!(

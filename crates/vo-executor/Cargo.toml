@@ -4,10 +4,6 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 
-[features]
-default = []
-test-sim = []
-
 [dependencies]
 thiserror.workspace = true
 serde = { version = "1", features = ["derive"] }
@@ -18,7 +14,6 @@ libc.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
-vo-executor = { path = ".", features = ["test-sim"] }
 tokio.workspace = true
 proptest.workspace = true
 serde_json.workspace = true

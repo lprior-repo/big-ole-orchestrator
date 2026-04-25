@@ -173,17 +173,14 @@ impl MessageBus {
             })?;
         }
 
-        let stderr_reader = self.stderr_reader.take().ok_or_else(|| IpcError::StderrReadFailed {
-            detail: "stderr reader not available".to_string(),
-        })?;
-        let stderr_task = tokio::task::spawn(crate::stderr::read_bounded_stderr(stderr_reader));
+        let stderr_task = tokio::task::spawn(crate::stderr::read_bounded_stderr(
+            self.stderr_reader.take().unwrap(),
+        ));
 
         let mut fd4_read = self.fd4_read.take();
 
         let read_task = async {
-            let mut reader = fd4_read.take().ok_or_else(|| {
-                std::io::Error::new(std::io::ErrorKind::Other, "fd4 reader not available")
-            })?;
+            let mut reader = fd4_read.take().unwrap();
             let mut total_read = 0;
             let mut header = [0u8; 4];
             while total_read < 4 {
