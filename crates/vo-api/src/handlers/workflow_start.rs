@@ -55,12 +55,21 @@ pub async fn start_workflow(
         }
     };
 
-    let instance_id_str = match req.instance_id {
-        Some(ref id) => id.clone(),
-        None => Ulid::new().to_string(),
+    let instance_id = match req.instance_id {
+        Some(ref id) => {
+            match vo_types::InstanceId::parse(id) {
+                Ok(id) => id,
+                Err(e) => {
+                    return (
+                        StatusCode::BAD_REQUEST,
+                        Json(ApiError::new("invalid_instance_id", format!("invalid instance_id format: {e}"))),
+                    )
+                        .into_response();
+                }
+            }
+        }
+        None => vo_types::InstanceId::from_bytes(Ulid::new().0.to_be_bytes()),
     };
-    let instance_id =
-        vo_types::InstanceId::parse(&instance_id_str).expect("generated ULID should be valid");
 
     let input = match serde_json::to_vec(&req.input) {
         Ok(v) => Bytes::from(v),
