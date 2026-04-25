@@ -16,13 +16,10 @@ mod recovery_tests;
 mod tests;
 #[cfg(test)]
 mod tests_types;
-<<<<<<< Updated upstream
-=======
 #[cfg(test)]
 mod timing_attack_tests;
 #[cfg(test)]
 mod integration_tests;
->>>>>>> Stashed changes
 pub mod traits;
 pub mod types;
 #[cfg(kani)]

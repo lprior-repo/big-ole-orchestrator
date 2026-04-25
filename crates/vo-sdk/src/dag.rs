@@ -271,6 +271,7 @@ impl Dag {
             .map(|n| NodeSpec {
                 name: n.name.clone(),
                 kind: n.kind,
+                retry_policy: None,
             })
             .collect();
 

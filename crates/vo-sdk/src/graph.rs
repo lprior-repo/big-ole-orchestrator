@@ -9,7 +9,7 @@ use std::io::Write;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 pub use vo_types::NodeKind;
-use vo_types::{NodeName, WorkflowName};
+use vo_types::{NodeName, RetryPolicy, WorkflowName};
 
 /// Marker returned when `--graph` flag is present.
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -54,6 +54,8 @@ pub fn parse_graph_args(args: &[String]) -> Result<GraphArgs, GraphArgsError> {
 pub struct NodeSpec {
     pub name: NodeName,
     pub kind: NodeKind,
+    #[serde(default)]
+    pub retry_policy: Option<RetryPolicy>,
 }
 
 /// Specification of an edge between two workflow nodes.
