@@ -136,9 +136,9 @@ mod tests {
     }
 
     #[test]
-    fn fleet_has_34_entries() {
+    fn fleet_has_20_entries() {
         let fleet = Fleet::all();
-        assert_eq!(fleet.len(), 34);
+        assert_eq!(fleet.len(), 20);
     }
 
     #[test]
@@ -152,8 +152,8 @@ mod tests {
             .iter()
             .filter(|e| e.runtime.kind == RuntimeKind::Claude)
             .count();
-        assert_eq!(opencode_count, 26);
-        assert_eq!(claude_count, 8);
+        assert_eq!(opencode_count, 16);
+        assert_eq!(claude_count, 4);
     }
 
     #[test]

@@ -118,7 +118,7 @@ pub struct Fleet;
 
 impl Fleet {
     pub fn all() -> Vec<FleetEntry> {
-        let mut entries = Vec::with_capacity(34);
+        let mut entries = Vec::with_capacity(20);
 
         let minimax_spec = RuntimeSpec {
             kind: RuntimeKind::OpenCode,
@@ -130,11 +130,6 @@ impl Fleet {
             model: "zai-coding-plan/glm-5.1",
             agent_flag: "opencode-glm51",
         };
-        let glm5_spec = RuntimeSpec {
-            kind: RuntimeKind::OpenCode,
-            model: "zai-coding-plan/glm-5",
-            agent_flag: "opencode-glm5",
-        };
         let glm5t_spec = RuntimeSpec {
             kind: RuntimeKind::OpenCode,
             model: "zai-coding-plan/glm-5-turbo",
@@ -142,12 +137,12 @@ impl Fleet {
         };
         let qwen5090_spec = RuntimeSpec {
             kind: RuntimeKind::OpenCode,
-            model: "qwen35-5090/Qwen3.5-35B-A3B-UD-Q5_K_XL.gguf",
+            model: "qwen36-5090/Qwen3.6-35B-A3B-UD-Q5_K_XL.gguf",
             agent_flag: "opencode-qwen5090",
         };
         let qwen3090_spec = RuntimeSpec {
             kind: RuntimeKind::OpenCode,
-            model: "qwen35-3090/Qwen3.5-35B-A3B-UD-Q4_K_XL.gguf",
+            model: "qwen36-3090/Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf",
             agent_flag: "opencode-qwen3090",
         };
         let claude_opus_spec = RuntimeSpec {
@@ -161,17 +156,22 @@ impl Fleet {
             agent_flag: "claude-sonnet",
         };
 
-        let minimax_names: [&'static str; 12] = [
-            "brahmin", "chrome", "dust", "fury", "ghoul", "guzzle", "mirelurk", "mutant", "nitro",
-            "raider", "bandit", "warboy",
+        // 8 MiniMax
+        let minimax_names: [&'static str; 8] = [
+            "brahmin", "chrome", "dust", "fury", "ghoul", "guzzle", "mirelurk", "mutant",
         ];
+        // 2 GLM-5.1
         let glm51_names: [&'static str; 2] = ["nuka", "pipboy"];
-        let glm5_names: [&'static str; 2] = ["lancer", "drifter"];
+        // 2 GLM-5T
         let glm5t_names: [&'static str; 2] = ["radrat", "scavenger"];
-        let qwen5090_names: [&'static str; 4] = ["vault", "maximus", "immortan", "sentinel"];
-        let qwen3090_names: [&'static str; 4] = ["gecko", "barrage", "turret", "citadel"];
-        let claude_opus_names: [&'static str; 4] = ["rust", "deathclaw", "prime", "overlord"];
-        let claude_sonnet_names: [&'static str; 4] = ["shiny", "synth", "thunder", "maestro"];
+        // 2 Qwen-5090
+        let qwen5090_names: [&'static str; 2] = ["vault", "thunder"];
+        // 2 Qwen-3090
+        let qwen3090_names: [&'static str; 2] = ["gecko", "lancer"];
+        // 2 Claude Opus
+        let claude_opus_names: [&'static str; 2] = ["rust", "deathclaw"];
+        // 2 Claude Sonnet
+        let claude_sonnet_names: [&'static str; 2] = ["shiny", "synth"];
 
         let push = |entries: &mut Vec<FleetEntry>, name: &'static str, spec: &RuntimeSpec| {
             entries.push(FleetEntry {
@@ -182,7 +182,6 @@ impl Fleet {
 
         minimax_names.iter().for_each(|&n| push(&mut entries, n, &minimax_spec));
         glm51_names.iter().for_each(|&n| push(&mut entries, n, &glm51_spec));
-        glm5_names.iter().for_each(|&n| push(&mut entries, n, &glm5_spec));
         glm5t_names.iter().for_each(|&n| push(&mut entries, n, &glm5t_spec));
         qwen5090_names.iter().for_each(|&n| push(&mut entries, n, &qwen5090_spec));
         qwen3090_names.iter().for_each(|&n| push(&mut entries, n, &qwen3090_spec));
