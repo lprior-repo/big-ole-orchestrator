@@ -7,7 +7,7 @@ use std::io::{Read, Write};
 pub const MAX_PAYLOAD_SIZE: u32 = 10_485_760;
 
 /// The envelope sent from Engine to Child over FD3.
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub struct Fd3Envelope {
     pub version: u8,
     pub instance_id: String,
@@ -15,6 +15,19 @@ pub struct Fd3Envelope {
     pub input: serde_json::Value,
     pub secrets: BTreeMap<String, String>,
     pub metadata: BTreeMap<String, String>,
+}
+
+impl std::fmt::Debug for Fd3Envelope {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Fd3Envelope")
+            .field("version", &self.version)
+            .field("instance_id", &self.instance_id)
+            .field("node_id", &self.node_id)
+            .field("input", &self.input)
+            .field("secrets", &format!("[{} redacted]", self.secrets.len()))
+            .field("metadata", &self.metadata)
+            .finish()
+    }
 }
 
 /// The envelope sent from Child to Engine over FD4.
