@@ -52,7 +52,6 @@
 //! - Follows Data→Calc→Actions pattern
 //! - Fully async using tokio and async_trait
 
-use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -78,10 +77,8 @@ pub struct SpawnRecord {
     pub spawn_id: Option<vo_types::SpawnId>,
     /// The instance ID this spawn belongs to.
     pub instance_id: InstanceId,
-    /// The executable path.
-    pub executable: PathBuf,
-    /// Arguments to pass to the executable.
-    pub args: Vec<String>,
+    /// The command to execute.
+    pub command: String,
     /// Current phase of the lifecycle.
     pub spawn_phase: SpawnPhase,
     /// Number of health checks performed.
@@ -97,15 +94,13 @@ impl SpawnRecord {
     #[must_use]
     pub fn new(
         instance_id: InstanceId,
-        executable: PathBuf,
-        args: Vec<String>,
+        command: String,
         spawn_id: Option<vo_types::SpawnId>,
     ) -> Self {
         Self {
             spawn_id,
             instance_id,
-            executable,
-            args,
+            command,
             spawn_phase: SpawnPhase::Spawn,
             health_checks: 0,
             spawn_attempts: 1,
@@ -146,8 +141,7 @@ impl SpawnRecord {
         Self {
             spawn_id: new_spawn_id,
             instance_id: self.instance_id.clone(),
-            executable: self.executable.clone(),
-            args: self.args.clone(),
+            command: self.command.clone(),
             spawn_phase: SpawnPhase::Spawn,
             health_checks: 0,
             spawn_attempts: self.spawn_attempts.saturating_add(1),
@@ -218,8 +212,8 @@ pub enum SpawnSupervisorError {
     ShutdownTimeout(Duration),
     #[error("Dispatch error: {0}")]
     DispatchError(String),
-    #[error("Spawn failed for '{executable}': {error}")]
-    SpawnFailed { executable: PathBuf, error: String },
+    #[error("Spawn failed for '{command}': {error}")]
+    SpawnFailed { command: String, error: String },
     #[error("Health check {check_number} failed for {instance_id}: {error}")]
     HealthCheckFailed {
         instance_id: InstanceId,
@@ -362,11 +356,7 @@ pub trait SpawnStorage: Send + Sync {
 #[async_trait::async_trait]
 pub trait ProcessManager: Send + Sync {
     /// Spawns a new process.
-    async fn spawn_process(
-        &self,
-        executable: &Path,
-        args: &[String],
-    ) -> Result<ProcessHandle, SpawnSupervisorError>;
+    async fn spawn_process(&self, command: &str) -> Result<ProcessHandle, SpawnSupervisorError>;
 
     /// Checks if a process is healthy.
     async fn check_health(&self, pid: u32) -> Result<bool, SpawnSupervisorError>;
@@ -386,17 +376,15 @@ pub trait ProcessManager: Send + Sync {
 pub struct ProcessHandle {
     /// Process ID.
     pub pid: u32,
-    /// Executable path.
-    pub executable: PathBuf,
-    /// Arguments passed to the executable.
-    pub args: Vec<String>,
+    /// Command being executed.
+    pub command: String,
 }
 
 impl ProcessHandle {
     /// Creates a new `ProcessHandle`.
     #[must_use]
-    pub fn new(pid: u32, executable: PathBuf, args: Vec<String>) -> Self {
-        Self { pid, executable, args }
+    pub fn new(pid: u32, command: String) -> Self {
+        Self { pid, command }
     }
 }
 
@@ -407,8 +395,7 @@ pub trait WorkQueue: Send + Sync {
     async fn enqueue_spawn(
         &self,
         instance_id: InstanceId,
-        executable: PathBuf,
-        args: Vec<String>,
+        command: String,
     ) -> Result<(), SpawnSupervisorError>;
 
     /// Enqueues a resume work item for the given instance.
@@ -721,8 +708,7 @@ impl SpawnSupervisor {
                     &record.instance_id,
                     &ProcessHandle {
                         pid: 0,
-                        executable: record.executable.clone(),
-                        args: record.args.clone(),
+                        command: record.command.clone(),
                     },
                 )
                 .await
@@ -788,11 +774,7 @@ impl SpawnSupervisor {
 
                 if let Err(e) = self
                     .work_queue
-                    .enqueue_spawn(
-                        record.instance_id.clone(),
-                        record.executable.clone(),
-                        record.args.clone(),
-                    )
+                    .enqueue_spawn(record.instance_id.clone(), record.command.clone())
                     .await
                 {
                     self.metrics.dispatch_errors.incr();
@@ -823,9 +805,7 @@ impl SpawnSupervisor {
         &self,
         record: &SpawnRecord,
     ) -> Result<ProcessHandle, SpawnSupervisorError> {
-        self.process_manager
-            .spawn_process(&record.executable, &record.args)
-            .await
+        self.process_manager.spawn_process(&record.command).await
     }
 
     /// Performs health checks on a process.
@@ -1051,8 +1031,7 @@ mod tests {
         let record = SpawnRecord {
             spawn_id: None,
             instance_id: test_instance_id(),
-            executable: PathBuf::from("test"),
-            args: vec![],
+            command: "test".to_string(),
             spawn_phase: SpawnPhase::Failed,
             health_checks: 0,
             spawn_attempts: 5,
@@ -1067,8 +1046,7 @@ mod tests {
         let record = SpawnRecord {
             spawn_id: None,
             instance_id: test_instance_id(),
-            executable: PathBuf::from("test"),
-            args: vec![],
+            command: "test".to_string(),
             spawn_phase: SpawnPhase::Failed,
             health_checks: 0,
             spawn_attempts: 2,
@@ -1083,8 +1061,7 @@ mod tests {
         let record = SpawnRecord {
             spawn_id: None,
             instance_id: test_instance_id(),
-            executable: PathBuf::from("test"),
-            args: vec![],
+            command: "test".to_string(),
             spawn_phase: SpawnPhase::Failed,
             health_checks: 0,
             spawn_attempts: 2,
@@ -1099,8 +1076,7 @@ mod tests {
         let record = SpawnRecord {
             spawn_id: None,
             instance_id: test_instance_id(),
-            executable: PathBuf::from("test"),
-            args: vec![],
+            command: "test".to_string(),
             spawn_phase: SpawnPhase::Failed,
             health_checks: 0,
             spawn_attempts: 5,
@@ -1112,12 +1088,7 @@ mod tests {
 
     #[test]
     fn spawn_record_transitions_correctly() {
-        let record = SpawnRecord::new(
-            test_instance_id(),
-            PathBuf::from("test"),
-            vec![],
-            None,
-        );
+        let record = SpawnRecord::new(test_instance_id(), "test".to_string(), None);
 
         assert_eq!(record.spawn_phase, SpawnPhase::Spawn);
 
@@ -1136,8 +1107,7 @@ mod tests {
         let record = SpawnRecord {
             spawn_id: None,
             instance_id: test_instance_id(),
-            executable: PathBuf::from("test"),
-            args: vec![],
+            command: "test".to_string(),
             spawn_phase: SpawnPhase::Failed,
             health_checks: 0,
             spawn_attempts: 3,
@@ -1174,7 +1144,7 @@ mod tests {
         }
         .is_resumable());
         assert!(SpawnSupervisorError::SpawnFailed {
-            executable: PathBuf::from("test"),
+            command: "test".to_string(),
             error: "test".to_string()
         }
         .is_resumable());

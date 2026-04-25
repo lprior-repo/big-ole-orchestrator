@@ -1,1 +1,0 @@
-Use WorkflowDefinition traversal to select the next executable node from current actor state without bundling execution, retries, or result handling into the same bead.

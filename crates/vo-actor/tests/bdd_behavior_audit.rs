@@ -6,7 +6,6 @@
 //! Audit: verifies existing public API behavioral contracts.
 //! Three lenses: Liar Check, Breakage Check, Completeness Check.
 
-use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 use vo_actor::fairness::{WorkloadClass, ALL_WORKLOAD_CLASSES};
@@ -903,7 +902,7 @@ mod bdd_spawn_supervisor {
     fn given_error_when_resumable_then_correct() {
         let id = make_id("01H5JYV4XHGSR2F8KZ9B000001");
         assert!(SpawnSupervisorError::SpawnFailed {
-            executable: PathBuf::from("c"),
+            command: "c".into(),
             error: "x".into()
         }
         .is_resumable());

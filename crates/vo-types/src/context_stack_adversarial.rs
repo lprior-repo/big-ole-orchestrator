@@ -373,15 +373,6 @@ fn rq_lifecycle_get_valid_transitions_completeness() {
                 TransitionEvent::WaitForTimer,
                 TransitionEvent::YieldWithBlob,
                 TransitionEvent::CompleteStep,
-                TransitionEvent::PrepareEffect,
-                TransitionEvent::Cancel,
-                TransitionEvent::Fail,
-            ],
-        ),
-        (
-            LifecycleState::PreparingEffect,
-            vec![
-                TransitionEvent::EffectPrepared,
                 TransitionEvent::Cancel,
                 TransitionEvent::Fail,
             ],
@@ -431,7 +422,6 @@ fn rq_lifecycle_instance_resumed_only_from_failed() {
         LifecycleState::RunningDecision,
         LifecycleState::StepScheduled,
         LifecycleState::StepExecuting,
-        LifecycleState::PreparingEffect,
         LifecycleState::WaitingForTimer,
         LifecycleState::PendingPublication,
         LifecycleState::Completed,
@@ -484,8 +474,8 @@ fn rq_lineage_with_parent_rejects_invalid_epoch_transitions() {
     assert_eq!(
         result,
         Err(LineageError::InvalidEpochTransition {
-            parent_epoch: 5,
-            epoch: 5
+            parent_epoch: Epoch::new(5),
+            epoch: Epoch::new(5)
         })
     );
 
@@ -495,8 +485,8 @@ fn rq_lineage_with_parent_rejects_invalid_epoch_transitions() {
     assert_eq!(
         result,
         Err(LineageError::InvalidEpochTransition {
-            parent_epoch: 7,
-            epoch: 3
+            parent_epoch: Epoch::new(7),
+            epoch: Epoch::new(3)
         })
     );
 }
@@ -523,11 +513,11 @@ fn rq_lineage_with_parent_accepts_valid_transitions() {
 #[test]
 fn rq_epoch_boundary_values() {
     // Epoch::ZERO is 0
-    assert_eq!(Epoch::ZERO.0, 0);
+    assert_eq!(Epoch::ZERO.get(), 0);
 
     // Epoch::new with u64::MAX
     let epoch = Epoch::new(u64::MAX);
-    assert_eq!(epoch.0, u64::MAX);
+    assert_eq!(epoch.get(), u64::MAX);
 
     // Epoch comparison at boundaries
     let e0 = Epoch::new(0);
@@ -548,8 +538,8 @@ fn rq_lineage_epoch_transitions_at_boundaries() {
 
     // u64::MAX as epoch with parent = u64::MAX - 1
     let lineage = result.unwrap();
-    assert_eq!(lineage.epoch, Epoch::new(u64::MAX));
-    assert_eq!(lineage.parent_epoch, Some(Epoch::new(u64::MAX - 1)));
+    assert_eq!(lineage.epoch(), Epoch::new(u64::MAX));
+    assert_eq!(lineage.parent_epoch(), Some(Epoch::new(u64::MAX - 1)));
 
     // parent_epoch = 0, epoch = u64::MAX (should work)
     let result =
@@ -575,8 +565,8 @@ fn rq_lineage_error_display_messages() {
     assert!(err_empty.to_string().contains("empty"));
 
     let err_epoch = LineageError::InvalidEpochTransition {
-        parent_epoch: 5,
-        epoch: 3,
+        parent_epoch: Epoch::new(5),
+        epoch: Epoch::new(3),
     };
     let msg = err_epoch.to_string();
     assert!(msg.contains("5") && msg.contains("3"));

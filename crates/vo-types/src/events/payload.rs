@@ -5,14 +5,25 @@ use crate::events::MAX_SUPPORTED_VERSION;
 use crate::payload_parser::{
     optional_string, optional_u64, require_string, require_string_field, require_u64,
 };
-use crate::ExternalReceipt;
+use crate::WorkflowVersionHash;
 
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-pub struct RoutingProjection {}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub enum SinkKind {
+    HttpCall,
+    SqlQuery,
+    BlobWrite,
+}
 
-impl Default for RoutingProjection {
-    fn default() -> Self {
-        Self {}
+impl SinkKind {
+    pub fn from_str(s: &str) -> Result<Self, Error> {
+        match s {
+            "HttpCall" => Ok(SinkKind::HttpCall),
+            "SqlQuery" => Ok(SinkKind::SqlQuery),
+            "BlobWrite" => Ok(SinkKind::BlobWrite),
+            other => Err(Error::InvalidPayloadField(format!(
+                "invalid sink_kind: {other}"
+            ))),
+        }
     }
 }
 
@@ -22,7 +33,7 @@ pub enum EventPayload {
         workflow_id: String,
         dag_topology: serde_json::Value,
         binary_hash: String,
-        workflow_version_hash: String,
+        workflow_version_hash: WorkflowVersionHash,
         dedupe_key_hash: Option<String>,
     },
     WorkflowCompleted {
@@ -55,7 +66,7 @@ pub enum EventPayload {
         completed_at_ms: u64,
         attempt: u32,
         fence: u64,
-        routing_projection: Option<RoutingProjection>,
+        routing_projection: serde_json::Value,
         output_ref: Option<String>,
         output_hash: Option<String>,
         output: serde_json::Value,
@@ -71,7 +82,7 @@ pub enum EventPayload {
         workflow_id: String,
         step_id: String,
         effect_id: String,
-        sink_kind: String,
+        sink_kind: SinkKind,
         payload_hash: String,
         fence: u64,
     },
@@ -79,7 +90,7 @@ pub enum EventPayload {
         workflow_id: String,
         step_id: String,
         effect_id: String,
-        external_receipt: ExternalReceipt,
+        external_receipt: serde_json::Value,
         fence: u64,
     },
     TimerSet {
@@ -144,7 +155,11 @@ impl EventPayload {
                     .cloned()
                     .unwrap_or(serde_json::Value::Null),
                 binary_hash: require_string(obj, "binary_hash")?,
-                workflow_version_hash: require_string(obj, "workflow_version_hash")?,
+                workflow_version_hash: {
+                    let s = require_string(obj, "workflow_version_hash")?;
+                    WorkflowVersionHash::try_from(s)
+                        .map_err(|e| Error::InvalidPayloadField(e.to_string()))?
+                },
                 dedupe_key_hash: optional_string(obj, "dedupe_key_hash"),
             }),
             "WorkflowCompleted" => Ok(EventPayload::WorkflowCompleted {
@@ -179,13 +194,10 @@ impl EventPayload {
                 #[allow(clippy::cast_possible_truncation)]
                 attempt: require_u64(obj, "attempt")? as u32,
                 fence: require_u64(obj, "fence")?,
-                routing_projection: match obj.get("routing_projection") {
-                    None | Some(serde_json::Value::Null) => None,
-                    Some(v) => serde_json::from_value::<RoutingProjection>(v.clone())
-                        .ok()
-                        .map(Some)
-                        .unwrap_or(None),
-                },
+                routing_projection: obj
+                    .get("routing_projection")
+                    .cloned()
+                    .unwrap_or(serde_json::Value::Null),
                 output_ref: optional_string(obj, "output_ref"),
                 output_hash: optional_string(obj, "output_hash"),
                 output: obj
@@ -205,7 +217,7 @@ impl EventPayload {
                 workflow_id: require_string_field(obj, "workflow_id")?,
                 step_id: require_string(obj, "step_id")?,
                 effect_id: require_string(obj, "effect_id")?,
-                sink_kind: require_string(obj, "sink_kind")?,
+                sink_kind: SinkKind::from_str(&require_string(obj, "sink_kind")?)?,
                 payload_hash: require_string(obj, "payload_hash")?,
                 fence: require_u64(obj, "fence")?,
             }),
@@ -213,19 +225,10 @@ impl EventPayload {
                 workflow_id: require_string_field(obj, "workflow_id")?,
                 step_id: require_string(obj, "step_id")?,
                 effect_id: require_string(obj, "effect_id")?,
-                external_receipt: {
-                    let receipt_json = obj.get("external_receipt").ok_or(
-                        Error::InvalidPayloadField(
-                            "missing required field: external_receipt".to_string(),
-                        ),
-                    )?;
-                    serde_json::from_value(receipt_json.clone()).map_err(|e| {
-                        Error::InvalidPayloadField(format!(
-                            "invalid external_receipt: {}",
-                            e
-                        ))
-                    })?
-                },
+                external_receipt: obj
+                    .get("external_receipt")
+                    .cloned()
+                    .unwrap_or(serde_json::Value::Null),
                 fence: require_u64(obj, "fence")?,
             }),
             "TimerSet" => Ok(EventPayload::TimerSet {

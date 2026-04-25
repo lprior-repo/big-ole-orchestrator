@@ -1,1 +1,0 @@
-Gate mutating API endpoints until startup recovery finishes so callers cannot observe or mutate partially recovered state.

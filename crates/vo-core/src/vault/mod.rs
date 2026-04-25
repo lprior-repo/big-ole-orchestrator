@@ -6,5 +6,6 @@ pub mod types;
 pub mod vault;
 
 pub use error::{CredentialError, RotationFailureReason};
-pub use types::{CredentialSummary, Permission};
+pub use types::CredentialSummary;
+pub use vo_types::credentials::Permission;
 pub use vault::CredentialVault;

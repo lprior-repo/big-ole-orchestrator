@@ -11,6 +11,7 @@ mod command_envelope;
 pub mod command_history;
 pub mod command_metadata;
 mod compensation;
+pub mod connection_pool;
 mod connector;
 pub mod credentials;
 #[cfg(test)]
@@ -109,11 +110,11 @@ pub use dual_representation::{
 };
 pub use effects::{
     apply_effect_transition, CompensationPolicy, EffectIntent, EffectKind, EffectRecord,
-    EffectTransitionError, EffectTransitionEvent, ExternalReceipt,
+    EffectTransitionError, EffectTransitionEvent,
 };
 pub use encryption::{CryptoAlgorithm, DekId, EncryptedBlob, KeyMetadata, WrappedDek};
 pub use errors::ParseError;
-pub use events::{Error as EventError, EventEnvelope};
+pub use events::{Error as EventError, EventEnvelope, SinkKind};
 pub use identity::{CausationId, CommandId, CorrelationId};
 pub use instance_status::InstanceStatus;
 pub use lifecycle_superstate::LifecycleSuperstate;
@@ -159,7 +160,8 @@ pub use tx_coordinator::{
 pub use types::{
     extract_schema_version, AttemptNumber, BinaryHash, DurationMs, EventVersion, FenceToken,
     FireAtMs, IdempotencyKey, InstanceId, LeaseRecord, MaxAttempts, NodeName, SequenceNumber,
-    Snapshot, SpawnId, State, StepId, TimeoutMs, TimerId, TimestampMs, WorkflowName, WorkflowSpec,
+    Snapshot, SpawnId, State, StepId, TimeoutMs, TimerId, TimestampMs, WorkflowName,
+    WorkflowSpec, WorkflowVersionHash,
     MAX_SUPPORTED_SCHEMA_VERSION,
 };
 pub use workflow::{

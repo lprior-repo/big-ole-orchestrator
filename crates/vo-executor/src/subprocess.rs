@@ -35,6 +35,9 @@ impl SubprocessConfig {
         timeout_ms: u64,
         fd3_payload: Vec<u8>,
     ) -> Self {
+        if let Err(e) = validate_executable(&executable_path) {
+            panic!("Executable validation failed: {}", e);
+        }
         Self {
             executable_path,
             argv,
@@ -86,13 +89,61 @@ pub enum SubprocessError {
     ProcessFailed { exit_code: i32 },
     #[error("bounded buffer exceeded: max={max}, tried to read={tried}")]
     BoundedBufferExceeded { max: usize, tried: usize },
+    #[error("executable path is not absolute: {0}")]
+    ExecutableNotAbsolute(String),
+    #[error("executable does not exist: {0}")]
+    ExecutableNotFound(String),
+    #[error("executable is world-writable: {0}")]
+    ExecutableWorldWritable(String),
+    #[error("executable validation failed: {0}")]
+    ExecutableValidationFailed(String),
+}
+
+#[cfg(unix)]
+fn is_world_writable(path: &std::path::Path) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    if let Ok(metadata) = std::fs::metadata(path) {
+        let mode = metadata.permissions().mode();
+        (mode & 0o777) & libc::S_IWOTH != 0
+    } else {
+        false
+    }
+}
+
+#[cfg(not(unix))]
+fn is_world_writable(_path: &std::path::Path) -> bool {
+    false
+}
+
+fn validate_executable(path: &str) -> Result<(), SubprocessError> {
+    let p = std::path::Path::new(path);
+
+    if !p.is_absolute() {
+        return Err(SubprocessError::ExecutableNotAbsolute(path.to_string()));
+    }
+
+    if !p.exists() {
+        return Err(SubprocessError::ExecutableNotFound(path.to_string()));
+    }
+
+    if !p.is_file() {
+        return Err(SubprocessError::ExecutableValidationFailed(
+            format!("{} is not a regular file", path)
+        ));
+    }
+
+    if is_world_writable(p) {
+        return Err(SubprocessError::ExecutableWorldWritable(path.to_string()));
+    }
+
+    Ok(())
 }
 
 const BOUNDED_BUFFER_SIZE: usize = 65536;
 
 fn create_pipe() -> Result<(RawFd, RawFd), SubprocessError> {
     let mut fds = [0; 2];
-    let res = unsafe { libc::pipe2(fds.as_mut_ptr(), libc::O_CLOEXEC) };
+    let res = unsafe { libc::pipe2(fds.as_mut_ptr(), libc::O_CLOEXEC | libc::O_NONBLOCK) };
     if res != 0 {
         return Err(SubprocessError::PipeSetupFailed(
             std::io::Error::last_os_error().to_string(),
@@ -283,6 +334,7 @@ async fn read_bounded_fd4(reader: &mut tokio::fs::File) -> Result<Vec<u8>, Subpr
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tempfile::TempDir;
 
     #[tokio::test]
     async fn test_bounded_buffer_constant() {
@@ -390,5 +442,63 @@ mod tests {
             remaining -= chunk_size;
         }
         assert_eq!(total_read, large_payload_size);
+    }
+
+    #[test]
+    fn test_validate_executable_rejects_relative_path() {
+        let result = validate_executable("bin/true");
+        assert!(matches!(result, Err(SubprocessError::ExecutableNotAbsolute(_))));
+    }
+
+    #[test]
+    fn test_validate_executable_rejects_nonexistent() {
+        let result = validate_executable("/nonexistent/path/to/binary");
+        assert!(matches!(result, Err(SubprocessError::ExecutableNotFound(_))));
+    }
+
+    #[test]
+    fn test_validate_executable_accepts_valid_executable() {
+        let result = validate_executable("/bin/true");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_subprocess_config_rejects_invalid_executable() {
+        let result = std::panic::catch_unwind(|| {
+            SubprocessConfig::new(
+                "relative/path".to_string(),
+                vec!["arg1".to_string()],
+                5000,
+                vec![],
+            )
+        });
+        assert!(result.is_err(), "Should panic on relative path");
+    }
+
+    #[test]
+    fn test_subprocess_config_accepts_valid_executable() {
+        let config = SubprocessConfig::new(
+            "/bin/true".to_string(),
+            vec!["true".to_string()],
+            5000,
+            vec![],
+        );
+        assert_eq!(config.executable_path(), "/bin/true");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_world_writable_detection() {
+        use std::fs;
+        use std::os::unix::fs::PermissionsExt;
+
+        let temp_dir = TempDir::new().unwrap();
+        let world_writable_path = temp_dir.path().join("world_writable");
+        fs::write(&world_writable_path, "#!/bin/sh\necho test").unwrap();
+        let mut perms = fs::metadata(&world_writable_path).unwrap().permissions();
+        perms.set_mode(0o777);
+        fs::set_permissions(&world_writable_path, perms).unwrap();
+
+        assert!(is_world_writable(&world_writable_path));
     }
 }

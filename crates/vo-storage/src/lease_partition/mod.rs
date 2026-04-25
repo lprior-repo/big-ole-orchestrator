@@ -19,8 +19,6 @@ mod tests_integration_expiry;
 #[cfg(test)]
 mod tests_integration_release;
 #[cfg(test)]
-mod tests_adr029_lifecycle;
-#[cfg(test)]
 mod tests_integration_stale;
 #[cfg(test)]
 mod tests_lease_entry;

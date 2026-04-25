@@ -59,8 +59,7 @@ pub fn apply(
             Ok(LifecycleState::StepScheduled)
         }
         (LifecycleState::StepScheduled, TransitionEvent::ExecuteStep)
-        | (LifecycleState::WaitingForTimer, TransitionEvent::TimerFired)
-        | (LifecycleState::PreparingEffect, TransitionEvent::EffectPrepared) => {
+        | (LifecycleState::WaitingForTimer, TransitionEvent::TimerFired) => {
             Ok(LifecycleState::StepExecuting)
         }
         (LifecycleState::StepExecuting, TransitionEvent::WaitForTimer) => {
@@ -68,9 +67,6 @@ pub fn apply(
         }
         (LifecycleState::StepExecuting, TransitionEvent::CompleteStep) => {
             Ok(LifecycleState::Completed)
-        }
-        (LifecycleState::StepExecuting, TransitionEvent::PrepareEffect) => {
-            Ok(LifecycleState::PreparingEffect)
         }
         (LifecycleState::WaitingForTimer, TransitionEvent::TimerExpired) => {
             Ok(LifecycleState::Failed)
@@ -82,7 +78,6 @@ pub fn apply(
             | LifecycleState::RunningDecision
             | LifecycleState::StepScheduled
             | LifecycleState::StepExecuting
-            | LifecycleState::PreparingEffect
             | LifecycleState::WaitingForTimer
             | LifecycleState::PendingPublication,
             TransitionEvent::Cancel,
@@ -93,7 +88,6 @@ pub fn apply(
             LifecycleState::RunningDecision
             | LifecycleState::StepScheduled
             | LifecycleState::StepExecuting
-            | LifecycleState::PreparingEffect
             | LifecycleState::WaitingForTimer
             | LifecycleState::PendingPublication,
             TransitionEvent::Fail,
@@ -189,19 +183,17 @@ mod verification {
     fn verify_lifecycle_transition_exhaustiveness() {
         let state_idx: u8 = kani::any();
         let event_idx: u8 = kani::any();
-        kani::assume(state_idx < 10);
-        kani::assume(event_idx < 12);
+        kani::assume(state_idx < 8);
+        kani::assume(event_idx < 10);
 
         let state = match state_idx {
             0 => LifecycleState::Pending,
             1 => LifecycleState::RunningDecision,
             2 => LifecycleState::StepScheduled,
             3 => LifecycleState::StepExecuting,
-            4 => LifecycleState::PreparingEffect,
-            5 => LifecycleState::WaitingForTimer,
-            6 => LifecycleState::Completed,
-            7 => LifecycleState::Failed,
-            8 => LifecycleState::PendingPublication,
+            4 => LifecycleState::WaitingForTimer,
+            5 => LifecycleState::Completed,
+            6 => LifecycleState::Failed,
             _ => LifecycleState::Cancelled,
         };
 
@@ -215,8 +207,6 @@ mod verification {
             6 => TransitionEvent::CompleteStep,
             7 => TransitionEvent::TimerFired,
             8 => TransitionEvent::TimerExpired,
-            9 => TransitionEvent::PrepareEffect,
-            10 => TransitionEvent::EffectPrepared,
             _ => TransitionEvent::InstanceResumed,
         };
 

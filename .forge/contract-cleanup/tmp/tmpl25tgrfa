@@ -1,1 +1,0 @@
-Reject stale, fenced-out, or idempotency-mismatched task results before they can win durable state transitions.

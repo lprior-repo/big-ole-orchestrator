@@ -6,7 +6,6 @@
 //! TDD Red Phase: These tests document expected behavior that is NOT
 //! yet implemented correctly.
 
-use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -161,19 +160,11 @@ impl MockProcessManager {
 
 #[async_trait::async_trait]
 impl ProcessManager for MockProcessManager {
-    async fn spawn_process(
-        &self,
-        _executable: &std::path::Path,
-        _args: &[String],
-    ) -> Result<ProcessHandle, SpawnSupervisorError> {
+    async fn spawn_process(&self, _command: &str) -> Result<ProcessHandle, SpawnSupervisorError> {
         if let Some(err) = self.spawn_error.lock().unwrap().take() {
             return Err(err);
         }
-        Ok(ProcessHandle::new(
-            1234,
-            _executable.to_path_buf(),
-            _args.to_vec(),
-        ))
+        Ok(ProcessHandle::new(1234, _command.to_string()))
     }
 
     async fn check_health(&self, _pid: u32) -> Result<bool, SpawnSupervisorError> {
@@ -224,8 +215,7 @@ impl WorkQueue for MockWorkQueue {
     async fn enqueue_spawn(
         &self,
         instance_id: InstanceId,
-        _executable: PathBuf,
-        _args: Vec<String>,
+        _command: String,
     ) -> Result<(), SpawnSupervisorError> {
         if *self.should_fail.lock().unwrap() {
             return Err(SpawnSupervisorError::DispatchError(
@@ -309,7 +299,7 @@ async fn process_cycle_spawns_record_in_spawn_phase() {
     let work_queue = Arc::new(MockWorkQueue::new());
 
     let instance_id = test_instance_id();
-    let record = SpawnRecord::new(instance_id.clone(), PathBuf::from("./worker"), vec![], None);
+    let record = SpawnRecord::new(instance_id.clone(), "./worker".to_string(), None);
     storage.add_record(record);
 
     let supervisor = SpawnSupervisor::new(
@@ -356,7 +346,7 @@ async fn process_cycle_health_check_uses_correct_pid() {
     let work_queue = Arc::new(MockWorkQueue::new());
 
     let instance_id = test_instance_id();
-    let record = SpawnRecord::new(instance_id.clone(), PathBuf::from("./worker"), vec![], None);
+    let record = SpawnRecord::new(instance_id.clone(), "./worker".to_string(), None);
     storage.add_record(record);
 
     process_manager.set_health_check_result(Ok(true));
@@ -404,11 +394,11 @@ async fn process_cycle_spawn_failure_records_error() {
     let work_queue = Arc::new(MockWorkQueue::new());
 
     let instance_id = test_instance_id();
-    let record = SpawnRecord::new(instance_id.clone(), PathBuf::from("./nonexistent"), vec![], None);
+    let record = SpawnRecord::new(instance_id.clone(), "./nonexistent".to_string(), None);
     storage.add_record(record);
 
     process_manager.set_spawn_error(SpawnSupervisorError::SpawnFailed {
-        executable: PathBuf::from("./nonexistent"),
+        command: "./nonexistent".to_string(),
         error: "No such file".to_string(),
     });
 
@@ -489,7 +479,7 @@ async fn process_cycle_health_check_failure_transitions_to_failed() {
     let work_queue = Arc::new(MockWorkQueue::new());
 
     let instance_id = test_instance_id();
-    let record = SpawnRecord::new(instance_id.clone(), PathBuf::from("./worker"), vec![], None);
+    let record = SpawnRecord::new(instance_id.clone(), "./worker".to_string(), None);
     storage.add_record(record);
 
     // Health check always returns false (process not healthy)
@@ -562,7 +552,7 @@ async fn process_cycle_increments_spawns_successful_metric() {
     let work_queue = Arc::new(MockWorkQueue::new());
 
     let instance_id = test_instance_id();
-    let record = SpawnRecord::new(instance_id.clone(), PathBuf::from("./worker"), vec![], None);
+    let record = SpawnRecord::new(instance_id.clone(), "./worker".to_string(), None);
     storage.add_record(record);
 
     process_manager.set_health_check_result(Ok(true));
@@ -594,11 +584,11 @@ async fn process_cycle_increments_spawns_failed_metric() {
     let work_queue = Arc::new(MockWorkQueue::new());
 
     let instance_id = test_instance_id();
-    let record = SpawnRecord::new(instance_id.clone(), PathBuf::from("./nonexistent"), vec![], None);
+    let record = SpawnRecord::new(instance_id.clone(), "./nonexistent".to_string(), None);
     storage.add_record(record);
 
     process_manager.set_spawn_error(SpawnSupervisorError::SpawnFailed {
-        executable: PathBuf::from("./nonexistent"),
+        command: "./nonexistent".to_string(),
         error: "No such file".to_string(),
     });
 
@@ -629,7 +619,7 @@ async fn process_cycle_increments_health_checks_performed_metric() {
     let work_queue = Arc::new(MockWorkQueue::new());
 
     let instance_id = test_instance_id();
-    let record = SpawnRecord::new(instance_id.clone(), PathBuf::from("./worker"), vec![], None);
+    let record = SpawnRecord::new(instance_id.clone(), "./worker".to_string(), None);
     storage.add_record(record);
 
     process_manager.set_health_check_result(Ok(true));
@@ -666,8 +656,7 @@ async fn process_cycle_increments_zombies_detected_metric() {
     let mut record = SpawnRecord {
         spawn_id: Some(vo_types::SpawnId::new("spawn-1".to_string())),
         instance_id: instance_id.clone(),
-        executable: PathBuf::from("./zombie"),
-        args: vec![],
+        command: "./zombie".to_string(),
         spawn_phase: SpawnPhase::Failed,
         health_checks: 0,
         spawn_attempts: 5, // > 3 triggers zombie state
@@ -826,9 +815,9 @@ fn counter_increments() {
 
 #[test]
 fn process_handle_contains_pid_and_command() {
-    let handle = ProcessHandle::new(1234, PathBuf::from("./worker"), vec![]);
+    let handle = ProcessHandle::new(1234, "./worker".to_string());
     assert_eq!(handle.pid, 1234);
-    assert_eq!(handle.executable, PathBuf::from("./worker"));
+    assert_eq!(handle.command, "./worker");
 }
 
 // =============================================================================
@@ -950,7 +939,7 @@ fn supervisor_accepts_valid_config() {
 #[test]
 fn spawn_failed_error_display() {
     let error = SpawnSupervisorError::SpawnFailed {
-        executable: PathBuf::from("./worker"),
+        command: "./worker".to_string(),
         error: "ENOENT".to_string(),
     };
     let display = format!("{}", error);
@@ -1050,8 +1039,7 @@ fn is_zombie_state_true_for_failed_high_attempts() {
     let record = SpawnRecord {
         spawn_id: None,
         instance_id: test_instance_id(),
-        executable: PathBuf::from("test"),
-        args: vec![],
+        command: "test".to_string(),
         spawn_phase: SpawnPhase::Failed,
         health_checks: 0,
         spawn_attempts: 5,
@@ -1065,8 +1053,7 @@ fn is_zombie_state_false_for_low_attempts() {
     let record = SpawnRecord {
         spawn_id: None,
         instance_id: test_instance_id(),
-        executable: PathBuf::from("test"),
-        args: vec![],
+        command: "test".to_string(),
         spawn_phase: SpawnPhase::Failed,
         health_checks: 0,
         spawn_attempts: 3,
@@ -1080,8 +1067,7 @@ fn is_zombie_state_false_for_non_failed_phase() {
     let record = SpawnRecord {
         spawn_id: None,
         instance_id: test_instance_id(),
-        executable: PathBuf::from("test"),
-        args: vec![],
+        command: "test".to_string(),
         spawn_phase: SpawnPhase::Running,
         health_checks: 0,
         spawn_attempts: 10,
@@ -1095,8 +1081,7 @@ fn should_respawn_true_for_failed_within_limit() {
     let record = SpawnRecord {
         spawn_id: None,
         instance_id: test_instance_id(),
-        executable: PathBuf::from("test"),
-        args: vec![],
+        command: "test".to_string(),
         spawn_phase: SpawnPhase::Failed,
         health_checks: 0,
         spawn_attempts: 2,
@@ -1110,8 +1095,7 @@ fn should_respawn_false_at_limit() {
     let record = SpawnRecord {
         spawn_id: None,
         instance_id: test_instance_id(),
-        executable: PathBuf::from("test"),
-        args: vec![],
+        command: "test".to_string(),
         spawn_phase: SpawnPhase::Failed,
         health_checks: 0,
         spawn_attempts: 5,
@@ -1125,8 +1109,7 @@ fn should_respawn_false_for_non_failed_phase() {
     let record = SpawnRecord {
         spawn_id: None,
         instance_id: test_instance_id(),
-        executable: PathBuf::from("test"),
-        args: vec![],
+        command: "test".to_string(),
         spawn_phase: SpawnPhase::Running,
         health_checks: 0,
         spawn_attempts: 2,
@@ -1142,11 +1125,10 @@ fn should_respawn_false_for_non_failed_phase() {
 #[test]
 fn spawn_record_new_sets_correct_defaults() {
     let instance_id = test_instance_id();
-    let record = SpawnRecord::new(instance_id.clone(), PathBuf::from("./worker"), vec![], None);
+    let record = SpawnRecord::new(instance_id.clone(), "./worker".to_string(), None);
 
     assert_eq!(record.instance_id, instance_id);
-    assert_eq!(record.executable, PathBuf::from("./worker"));
-    assert_eq!(record.args, Vec::<String>::new());
+    assert_eq!(record.command, "./worker");
     assert_eq!(record.spawn_phase, SpawnPhase::Spawn);
     assert_eq!(record.spawn_attempts, 1);
     assert_eq!(record.health_checks, 0);
@@ -1156,13 +1138,13 @@ fn spawn_record_new_sets_correct_defaults() {
 #[test]
 fn spawn_record_transition_to_health_check() {
     let instance_id = test_instance_id();
-    let record = SpawnRecord::new(instance_id, PathBuf::from("./worker"), vec![], None);
+    let record = SpawnRecord::new(instance_id, "./worker".to_string(), None);
     let transitioned = record.transition_to_health_check();
 
     assert_eq!(transitioned.spawn_phase, SpawnPhase::HealthCheck);
+    // Other fields should be preserved
     assert_eq!(transitioned.instance_id, record.instance_id);
-    assert_eq!(transitioned.executable, record.executable);
-    assert_eq!(transitioned.args, record.args);
+    assert_eq!(transitioned.command, record.command);
     assert_eq!(transitioned.spawn_attempts, record.spawn_attempts);
 }
 
@@ -1170,7 +1152,7 @@ fn spawn_record_transition_to_health_check() {
 fn spawn_record_transition_to_running() {
     let instance_id = test_instance_id();
     let record =
-        SpawnRecord::new(instance_id, PathBuf::from("./worker"), vec![], None).transition_to_health_check();
+        SpawnRecord::new(instance_id, "./worker".to_string(), None).transition_to_health_check();
     let transitioned = record.transition_to_running();
 
     assert_eq!(transitioned.spawn_phase, SpawnPhase::Running);
@@ -1179,7 +1161,7 @@ fn spawn_record_transition_to_running() {
 #[test]
 fn spawn_record_transition_to_shutdown() {
     let instance_id = test_instance_id();
-    let record = SpawnRecord::new(instance_id, PathBuf::from("./worker"), vec![], None)
+    let record = SpawnRecord::new(instance_id, "./worker".to_string(), None)
         .transition_to_health_check()
         .transition_to_running();
     let transitioned = record.transition_to_shutdown();
@@ -1193,8 +1175,7 @@ fn spawn_record_respawn_increments_attempts() {
     let record = SpawnRecord {
         spawn_id: None,
         instance_id,
-        executable: PathBuf::from("./worker"),
-        args: vec![],
+        command: "./worker".to_string(),
         spawn_phase: SpawnPhase::Failed,
         health_checks: 0,
         spawn_attempts: 3,
@@ -1220,7 +1201,7 @@ fn spawn_record_respawn_increments_attempts() {
 #[test]
 fn spawn_record_respawn_saturating_at_u32_max() {
     let instance_id = test_instance_id();
-    let mut record = SpawnRecord::new(instance_id, PathBuf::from("./worker"), vec![], None);
+    let mut record = SpawnRecord::new(instance_id, "./worker".to_string(), None);
     record.spawn_phase = SpawnPhase::Failed;
     record.spawn_attempts = u32::MAX;
 
@@ -1236,8 +1217,7 @@ fn spawn_record_respawn_with_none_spawn_id() {
     let record = SpawnRecord {
         spawn_id: Some(vo_types::SpawnId::new("old-spawn".to_string())),
         instance_id,
-        executable: PathBuf::from("./worker"),
-        args: vec![],
+        command: "./worker".to_string(),
         spawn_phase: SpawnPhase::Failed,
         health_checks: 0,
         spawn_attempts: 3,
@@ -1262,7 +1242,7 @@ async fn respawn_after_health_check_failure_delays_by_backoff() {
     let work_queue = Arc::new(MockWorkQueue::new());
 
     let instance_id = test_instance_id();
-    let record = SpawnRecord::new(instance_id.clone(), PathBuf::from("./worker"), vec![], None);
+    let record = SpawnRecord::new(instance_id.clone(), "./worker".to_string(), None);
     storage.add_record(record);
 
     // Health check always returns false — triggers respawn after failure

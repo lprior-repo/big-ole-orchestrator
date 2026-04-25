@@ -5,8 +5,6 @@
 //! TDD Red Phase: These tests document expected behavior that is NOT
 //! yet implemented correctly.
 
-use std::path::PathBuf;
-
 use proptest::prelude::*;
 use vo_actor::spawn_supervisor::{
     calculate_backoff_delay, is_zombie_state, should_respawn, SpawnPhase, SpawnRecord,
@@ -220,8 +218,7 @@ proptest! {
         let record = SpawnRecord {
             spawn_id: spawn_id.clone(),
             instance_id: instance_id.clone(),
-            executable: PathBuf::from(&command),
-            args: vec![],
+            command: command.clone(),
             spawn_phase: phase,
             health_checks,
             spawn_attempts,
@@ -232,12 +229,12 @@ proptest! {
             SpawnPhase::Spawn => record.transition_to_health_check(),
             SpawnPhase::HealthCheck => record.transition_to_running(),
             SpawnPhase::Running => record.transition_to_shutdown(),
-            _ => return Ok(()),
+            _ => return Ok(()), // Other transitions may not be defined
         };
 
+        // Only phase should change
         prop_assert_eq!(transitioned.instance_id, record.instance_id);
-        prop_assert_eq!(transitioned.executable, record.executable);
-        prop_assert_eq!(transitioned.args, record.args);
+        prop_assert_eq!(transitioned.command, record.command);
         prop_assert_eq!(transitioned.spawn_id, record.spawn_id);
         prop_assert_eq!(transitioned.health_checks, record.health_checks);
         prop_assert_eq!(transitioned.spawn_attempts, record.spawn_attempts);
@@ -262,8 +259,7 @@ proptest! {
         let record = SpawnRecord {
             spawn_id: None,
             instance_id: instance_id.clone(),
-            executable: PathBuf::from(&command),
-            args: vec![],
+            command: command.clone(),
             spawn_phase: phase,
             health_checks: 0,
             spawn_attempts,
@@ -289,8 +285,7 @@ proptest! {
         let record = SpawnRecord {
             spawn_id: None,
             instance_id,
-            executable: PathBuf::from(&command),
-            args: vec![],
+            command,
             spawn_phase: SpawnPhase::Failed,
             health_checks: 0,
             spawn_attempts,
@@ -316,8 +311,7 @@ proptest! {
         let record = SpawnRecord {
             spawn_id: None,
             instance_id,
-            executable: PathBuf::from(&command),
-            args: vec![],
+            command,
             spawn_phase: SpawnPhase::Failed,
             health_checks,
             spawn_attempts: 1,
@@ -341,8 +335,7 @@ proptest! {
         let record = SpawnRecord {
             spawn_id: None,
             instance_id,
-            executable: PathBuf::from(&command),
-            args: vec![],
+            command,
             spawn_phase: SpawnPhase::Failed,
             health_checks: 0,
             spawn_attempts: 1,
@@ -410,8 +403,7 @@ proptest! {
         let record = SpawnRecord {
             spawn_id: None,
             instance_id: test_instance_id(),
-            executable: PathBuf::from("test"),
-            args: vec![],
+            command: "test".to_string(),
             spawn_phase: phase,
             health_checks: 0,
             spawn_attempts,
@@ -452,8 +444,7 @@ proptest! {
         let record = SpawnRecord {
             spawn_id: None,
             instance_id: test_instance_id(),
-            executable: PathBuf::from("test"),
-            args: vec![],
+            command: "test".to_string(),
             spawn_phase: phase,
             health_checks: 0,
             spawn_attempts,
@@ -483,15 +474,14 @@ proptest! {
     fn spawn_record_new_defaults(instance_id: ArbitraryInstanceId, command: String, spawn_id: Option<String>) {
         let instance_id = instance_id.0;
         let spawn_id = spawn_id.map(vo_types::SpawnId::new);
-        let record = SpawnRecord::new(instance_id.clone(), PathBuf::from(&command), vec![], spawn_id.clone());
+        let record = SpawnRecord::new(instance_id.clone(), command.clone(), spawn_id.clone());
 
         prop_assert_eq!(record.spawn_phase, SpawnPhase::Spawn);
         prop_assert_eq!(record.spawn_attempts, 1);
         prop_assert_eq!(record.health_checks, 0);
         prop_assert_eq!(record.last_error, None);
         prop_assert_eq!(record.instance_id, instance_id);
-        prop_assert_eq!(record.executable, PathBuf::from(&command));
-        prop_assert_eq!(record.args, Vec::<String>::new());
+        prop_assert_eq!(record.command, command);
         prop_assert_eq!(record.spawn_id, spawn_id);
     }
 }

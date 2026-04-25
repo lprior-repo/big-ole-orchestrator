@@ -9,10 +9,12 @@
 //! lock manager). Managed effects flow through the Connector prepare→commit
 //! lifecycle with automatic reconciliation for ambiguous outcomes.
 
+mod effect_context;
 mod error;
 mod port;
 mod task;
 
+pub use effect_context::{CancellationReason, EffectContext, EffectId};
 pub use error::ManagedEffectError;
 pub use port::ManagedEffectExecutor;
 pub use task::{ExecutionOutcome, ManagedEffectTask};

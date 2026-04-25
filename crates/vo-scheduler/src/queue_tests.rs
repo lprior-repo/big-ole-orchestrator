@@ -1,9 +1,7 @@
 use chrono::{DateTime, Utc};
 
 use crate::error::SchedulerError;
-use crate::job::ScheduledJob;
-use crate::queue::SchedulerQueue;
-use crate::types::{JobId, JobKind, JobPriority, JobState, RetryPolicy, SchedulePolicy};
+use crate::types::{JobId, JobKind, JobPriority, JobState, RetryPolicy, SchedulePolicy, ScheduledJob, SchedulerQueue};
 
 fn make_job(priority: JobPriority, policy: SchedulePolicy) -> ScheduledJob {
     ScheduledJob::new(

@@ -16,15 +16,15 @@ pub use hash_ring::{HashRing, HashRingConfig, RingNode};
 pub use health_check::{determine_health_check_result, HealthCheck, HealthCheckFuture};
 pub use pool::{ConnectionPool, NatsConnectionWrapper};
 
-use vo_common::connection_pool::{
+use vo_types::connection_pool::{
     AcquireResult, CircuitBreakerState, ConnectionId, ConnectionPoolError, ConnectionStatus,
     ErrorCategory, ErrorContext, ErrorDetail, EvictionReason, PoolConfig as VoPoolConfig, PoolId,
     PoolStats, PooledConnection, ReleaseResult, WaitHandle,
 };
 
-use vo_common::types::TimestampMs;
+use vo_types::integer_types::TimestampMs;
 
-pub use vo_common::connection_pool::HealthCheckResult;
+pub use vo_types::connection_pool::HealthCheckResult;
 
 pub(crate) use pool::PoolState;
 

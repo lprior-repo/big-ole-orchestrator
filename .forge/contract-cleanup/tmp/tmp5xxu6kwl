@@ -1,1 +1,0 @@
-During recovery, detect orphaned execution processes from durable execution metadata and convert them into deterministic failure/retry handling rather than silent drift.

@@ -5,6 +5,7 @@ use crate::connector::{
     CommitOutcome, Connector, ConnectorError, ConnectorRegistry, PreparedEffect, ReconcileOutcome,
 };
 use serde_json::json;
+use std::time::Duration;
 
 struct StubConnector {
     commit_result: CommitOutcome,

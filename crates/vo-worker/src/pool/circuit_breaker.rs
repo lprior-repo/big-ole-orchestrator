@@ -1,8 +1,8 @@
 //! Circuit breaker implementation for connection pool resilience.
 
 use std::collections::VecDeque;
-use vo_common::connection_pool::CircuitBreakerState;
-use vo_common::types::TimestampMs;
+use vo_types::connection_pool::CircuitBreakerState;
+use vo_types::integer_types::TimestampMs;
 
 const FAILURE_WINDOW_MS: u64 = 30000;
 

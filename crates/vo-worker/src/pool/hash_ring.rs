@@ -8,7 +8,7 @@ use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
 use crc32fast::Hasher as CrcHasher;
-use vo_common::connection_pool::PoolId;
+use vo_types::connection_pool::PoolId;
 
 #[derive(Debug, Clone)]
 pub struct HashRingConfig {

@@ -757,7 +757,7 @@ fn parse_rejects_dangling_edge_with_unknown_node_when_target_missing(
         result,
         Err(WorkflowDefinitionError::UnknownNode {
             edge_source: NodeName("a".into()),
-            unknown_target: NodeName("ghost".into()),
+            unknown_node: NodeName("ghost".into()),
         })
     );
     Ok(())
@@ -778,7 +778,7 @@ fn parse_rejects_dangling_edge_with_unknown_node_when_source_missing(
         result,
         Err(WorkflowDefinitionError::UnknownNode {
             edge_source: NodeName("phantom".into()),
-            unknown_target: NodeName("phantom".into()),
+            unknown_node: NodeName("phantom".into()),
         })
     );
     Ok(())
@@ -935,7 +935,7 @@ fn parse_returns_unknown_node_before_cycle_detected_when_both_present(
         result,
         Err(WorkflowDefinitionError::UnknownNode {
             edge_source: NodeName("a".into()),
-            unknown_target: NodeName("ghost".into()),
+            unknown_node: NodeName("ghost".into()),
         })
     );
     Ok(())
@@ -1216,12 +1216,12 @@ fn workflow_definition_error_cycle_detected_displays_node_names_when_formatted()
 fn workflow_definition_error_unknown_node_displays_names_when_formatted() {
     let err = WorkflowDefinitionError::UnknownNode {
         edge_source: NodeName("a".into()),
-        unknown_target: NodeName("ghost".into()),
+        unknown_node: NodeName("ghost".into()),
     };
     let msg = err.to_string();
     assert!(msg.contains("a"));
     assert!(msg.contains("ghost"));
-    assert!(msg.contains("unknown target node"));
+    assert!(msg.contains("unknown node"));
 }
 
 // B-62: InvalidRetryPolicy display

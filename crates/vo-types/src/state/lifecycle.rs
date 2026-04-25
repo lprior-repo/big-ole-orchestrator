@@ -23,9 +23,6 @@ pub enum LifecycleState {
     /// Step is actively executing
     StepExecuting,
 
-    /// Preparing a managed effect for commit (ADR-039)
-    PreparingEffect,
-
     /// Waiting for external timer/callback
     WaitingForTimer,
 
@@ -50,8 +47,7 @@ impl LifecycleState {
             LifecycleState::Pending
             | LifecycleState::RunningDecision
             | LifecycleState::StepScheduled
-            | LifecycleState::StepExecuting
-            | LifecycleState::PreparingEffect => OperationalStatus::Healthy,
+            | LifecycleState::StepExecuting => OperationalStatus::Healthy,
             LifecycleState::WaitingForTimer => OperationalStatus::Healthy,
             LifecycleState::PendingPublication => {
                 OperationalStatus::Blocked(BlockedReason::DependenciesPending)
@@ -79,8 +75,7 @@ impl LifecycleState {
             LifecycleState::Pending
             | LifecycleState::RunningDecision
             | LifecycleState::StepScheduled
-            | LifecycleState::StepExecuting
-            | LifecycleState::PreparingEffect => {
+            | LifecycleState::StepExecuting => {
                 crate::lifecycle_superstate::LifecycleSuperstate::Active
             }
             LifecycleState::WaitingForTimer | LifecycleState::PendingPublication => {
@@ -117,12 +112,6 @@ impl LifecycleState {
                 TransitionEvent::WaitForTimer,
                 TransitionEvent::YieldWithBlob,
                 TransitionEvent::CompleteStep,
-                TransitionEvent::PrepareEffect,
-                TransitionEvent::Cancel,
-                TransitionEvent::Fail,
-            ],
-            LifecycleState::PreparingEffect => vec![
-                TransitionEvent::EffectPrepared,
                 TransitionEvent::Cancel,
                 TransitionEvent::Fail,
             ],
@@ -188,10 +177,6 @@ pub enum TransitionEvent {
     WaitForTimer,
     CompleteStep,
     YieldWithBlob,
-    PrepareEffect,
-
-    // From PreparingEffect
-    EffectPrepared,
 
     // From WaitingForTimer
     TimerFired,
@@ -222,8 +207,6 @@ impl TransitionEvent {
             TransitionEvent::WaitForTimer,
             TransitionEvent::CompleteStep,
             TransitionEvent::YieldWithBlob,
-            TransitionEvent::PrepareEffect,
-            TransitionEvent::EffectPrepared,
             TransitionEvent::TimerFired,
             TransitionEvent::TimerExpired,
             TransitionEvent::ConfirmPublication,

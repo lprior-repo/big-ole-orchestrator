@@ -1,1 +1,0 @@
-error: invalid binary format: Cargo.toml -- magic bytes [0x5b, 0x77, 0x6f, 0x72] do not match ELF or Mach-O
