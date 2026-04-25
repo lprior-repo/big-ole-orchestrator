@@ -4,7 +4,7 @@
 
 use serde_json::{json, Value};
 
-use crate::graph::{EdgeSpec, GraphArgs, NodeSpec, WorkflowSpec};
+use crate::graph::{DedupeScope, EdgeSpec, GraphArgs, NodeSpec, WorkflowSpec};
 use vo_types::{NodeKind, NodeName, WorkflowName};
 
 #[test]
@@ -14,8 +14,11 @@ fn workflow_spec_json_uses_snake_case() {
         nodes: vec![NodeSpec {
             name: NodeName::parse("a").unwrap(),
             kind: NodeKind::Pure,
+        retry_policy: None,
+                signal_scope: None,
         }],
         edges: vec![],
+        dedupe_scope: DedupeScope::default(),
     };
     let bytes = spec.to_json_bytes();
     let json_str = String::from_utf8(bytes).unwrap();
