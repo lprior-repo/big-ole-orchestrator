@@ -1091,7 +1091,7 @@ mod bdd_reanimator {
     fn given_reanimator_error_when_fatal_then_correct() {
         assert!(ReanimatorError::CorruptKey("x".into()).is_fatal());
         assert!(ReanimatorError::AlreadyRunning.is_fatal());
-        assert!(ReanimatorError::ShutdownTimeout(Duration::from_secs(1)).is_fatal());
+        assert!(ReanimatorError::AlreadyShutdown.is_fatal());
         assert!(!ReanimatorError::StorageError("x".into()).is_fatal());
     }
 

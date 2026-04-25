@@ -16,6 +16,15 @@ impl Default for RoutingProjection {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct RoutingProjection {}
+
+impl Default for RoutingProjection {
+    fn default() -> Self {
+        Self {}
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum EventPayload {
     WorkflowStarted {

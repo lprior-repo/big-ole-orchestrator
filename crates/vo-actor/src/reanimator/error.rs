@@ -1,7 +1,5 @@
 //! Error types for the Reanimator Loop.
 
-use std::time::Duration;
-
 use thiserror::Error;
 use vo_types::InstanceId;
 
@@ -36,17 +34,8 @@ pub enum ReanimatorError {
     #[error("Reanimator is already running")]
     AlreadyRunning,
 
-    #[error("Storage initialization failed: {0}")]
-    StorageInitFailed(String),
-
-    #[error("Failed to spawn reanimator task: {0}")]
-    TaskSpawnFailed(String),
-
     #[error("Reanimator has already shut down")]
     AlreadyShutdown,
-
-    #[error("Shutdown timed out after {0:?}")]
-    ShutdownTimeout(Duration),
 }
 
 impl ReanimatorError {
@@ -59,10 +48,7 @@ impl ReanimatorError {
             Self::CorruptKey(_)
             | Self::InstanceNotFound(_)
             | Self::AlreadyRunning
-            | Self::AlreadyShutdown
-            | Self::StorageInitFailed(_)
-            | Self::TaskSpawnFailed(_)
-            | Self::ShutdownTimeout(_) => ReanimatorErrorClass::Fatal,
+            | Self::AlreadyShutdown => ReanimatorErrorClass::Fatal,
         }
     }
 
@@ -96,8 +82,5 @@ const _: () = {
         "InstanceNotFound",
         "AlreadyRunning",
         "AlreadyShutdown",
-        "StorageInitFailed",
-        "TaskSpawnFailed",
-        "ShutdownTimeout",
     ];
 };
