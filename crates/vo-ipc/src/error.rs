@@ -60,4 +60,6 @@ pub enum IpcError {
     },
     #[error("IO error: {0}")]
     IoError(#[from] std::io::Error),
+    #[error("IPC reader already consumed")]
+    AlreadyConsumed,
 }

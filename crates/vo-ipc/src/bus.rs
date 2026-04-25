@@ -174,13 +174,13 @@ impl MessageBus {
         }
 
         let stderr_task = tokio::task::spawn(crate::stderr::read_bounded_stderr(
-            self.stderr_reader.take().unwrap(),
+            self.stderr_reader.take().ok_or(BusError::AlreadyConsumed)?,
         ));
 
         let mut fd4_read = self.fd4_read.take();
 
         let read_task = async {
-            let mut reader = fd4_read.take().unwrap();
+            let mut reader = fd4_read.take().ok_or(BusError::AlreadyConsumed)?;
             let mut total_read = 0;
             let mut header = [0u8; 4];
             while total_read < 4 {
@@ -303,6 +303,8 @@ pub enum BusError {
     BackpressureLimitReached,
     #[error("timeout")]
     Timeout,
+    #[error("IPC reader already consumed")]
+    AlreadyConsumed,
     #[error("IO error: {0}")]
     IoError(#[from] std::io::Error),
 }
@@ -316,6 +318,30 @@ impl From<mpsc::error::SendError<BusMessage>> for BusError {
 impl From<mpsc::error::SendErrorOwned<BusMessage>> for BusError {
     fn from(_: mpsc::error::SendErrorOwned<BusMessage>) -> Self {
         BusError::BusClosed
+    }
+}
+
+impl From<BusError> for IpcError {
+    fn from(err: BusError) -> Self {
+        match err {
+            BusError::BusClosed => IpcError::ProcessFailed {
+                exit_code: -1,
+                stderr_bytes: vec![],
+                stderr_truncated: false,
+            },
+            BusError::BackpressureLimitReached => IpcError::ProcessFailed {
+                exit_code: -1,
+                stderr_bytes: vec![],
+                stderr_truncated: false,
+            },
+            BusError::Timeout => IpcError::Timeout {
+                elapsed_ms: 0,
+                stderr_bytes: vec![],
+                stderr_truncated: false,
+            },
+            BusError::AlreadyConsumed => IpcError::AlreadyConsumed,
+            BusError::IoError(e) => IpcError::IoError(e),
+        }
     }
 }
 
