@@ -129,8 +129,8 @@ fn create_pipe() -> Result<PipePair, SubprocessError> {
 /// - Subprocess times out
 #[tracing::instrument(skip(config))]
 pub async fn run_subprocess(config: SubprocessConfig) -> Result<SubprocessOutput, SubprocessError> {
-    let (fd3_read, fd3_write) = create_pipe()?;
-    let (fd4_read, fd4_write) = create_pipe()?;
+    let PipePair { read_fd: fd3_read, write_fd: fd3_write } = create_pipe()?;
+    let PipePair { read_fd: fd4_read, write_fd: fd4_write } = create_pipe()?;
 
     let mut command = Command::new(&config.executable_path);
     command.args(&config.argv);
