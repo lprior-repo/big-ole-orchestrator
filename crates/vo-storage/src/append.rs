@@ -4,7 +4,7 @@
 //! traffic isolation via bounded channels per write class.
 
 use serde::{Deserialize, Serialize};
-use std::cell::RefCell;
+use std::cell::Cell;
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -86,9 +86,9 @@ pub struct WriteBudget {
     critical_limit: u64,
     projection_limit: u64,
     blob_limit: u64,
-    critical_used: RefCell<u64>,
-    projection_used: RefCell<u64>,
-    blob_used: RefCell<u64>,
+    critical_used: Cell<u64>,
+    projection_used: Cell<u64>,
+    blob_used: Cell<u64>,
 }
 
 impl WriteBudget {
@@ -99,9 +99,9 @@ impl WriteBudget {
             critical_limit,
             projection_limit,
             blob_limit,
-            critical_used: RefCell::new(0),
-            projection_used: RefCell::new(0),
-            blob_used: RefCell::new(0),
+            critical_used: Cell::new(0),
+            projection_used: Cell::new(0),
+            blob_used: Cell::new(0),
         }
     }
 
@@ -111,11 +111,11 @@ impl WriteBudget {
         match class {
             WriteClass::CriticalControlPlane => self
                 .critical_limit
-                .saturating_sub(*self.critical_used.borrow()),
+                .saturating_sub(self.critical_used.get()),
             WriteClass::OperatorProjection => self
                 .projection_limit
-                .saturating_sub(*self.projection_used.borrow()),
-            WriteClass::BulkBlob => self.blob_limit.saturating_sub(*self.blob_used.borrow()),
+                .saturating_sub(self.projection_used.get()),
+            WriteClass::BulkBlob => self.blob_limit.saturating_sub(self.blob_used.get()),
         }
     }
 
@@ -140,13 +140,13 @@ impl WriteBudget {
         }
         match class {
             WriteClass::CriticalControlPlane => {
-                *self.critical_used.borrow_mut() += size_bytes;
+                self.critical_used.update(|v| v + size_bytes);
             }
             WriteClass::OperatorProjection => {
-                *self.projection_used.borrow_mut() += size_bytes;
+                self.projection_used.update(|v| v + size_bytes);
             }
             WriteClass::BulkBlob => {
-                *self.blob_used.borrow_mut() += size_bytes;
+                self.blob_used.update(|v| v + size_bytes);
             }
         }
         Ok(())
@@ -155,16 +155,16 @@ impl WriteBudget {
     pub fn release(&self, class: WriteClass, size_bytes: u64) {
         match class {
             WriteClass::CriticalControlPlane => {
-                let current = self.critical_used.borrow().saturating_sub(size_bytes);
-                *self.critical_used.borrow_mut() = current;
+                self.critical_used
+                    .set(self.critical_used.get().saturating_sub(size_bytes));
             }
             WriteClass::OperatorProjection => {
-                let current = self.projection_used.borrow().saturating_sub(size_bytes);
-                *self.projection_used.borrow_mut() = current;
+                self.projection_used
+                    .set(self.projection_used.get().saturating_sub(size_bytes));
             }
             WriteClass::BulkBlob => {
-                let current = self.blob_used.borrow().saturating_sub(size_bytes);
-                *self.blob_used.borrow_mut() = current;
+                self.blob_used
+                    .set(self.blob_used.get().saturating_sub(size_bytes));
             }
         }
     }
