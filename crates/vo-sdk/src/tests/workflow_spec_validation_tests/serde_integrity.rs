@@ -1,6 +1,6 @@
 //! Section 7: Edge spec and Node spec serde integrity
 
-use crate::{EdgeSpec, NodeSpec, WorkflowSpec};
+use crate::{DedupeScope, EdgeSpec, NodeSpec, WorkflowSpec};
 use vo_types::{NodeKind, NodeName, WorkflowName};
 
 #[test]
@@ -67,12 +67,18 @@ fn edge_spec_equality_works() {
 #[test]
 fn to_json_bytes_produces_deterministic_output() {
     let spec = WorkflowSpec {
-        workflow_name: WorkflowName::parse("json-test").expect("valid"),
+        workflow_name: WorkflowName::parse("clone-test").expect("valid"),
         nodes: vec![NodeSpec {
             name: NodeName::parse("a").expect("valid"),
             kind: NodeKind::Pure,
+        retry_policy: None,
+                signal_scope: None,
         }],
-        edges: vec![],
+        edges: vec![EdgeSpec {
+            from: NodeName::parse("a").expect("valid"),
+            to: NodeName::parse("a").expect("valid"),
+        }],
+        dedupe_scope: DedupeScope::default(),
     };
     let bytes1 = spec.to_json_bytes();
     let bytes2 = spec.to_json_bytes();
@@ -102,6 +108,7 @@ fn workflow_spec_debug_format_includes_fields() {
         workflow_name: WorkflowName::parse("debug-test").expect("valid"),
         nodes: vec![],
         edges: vec![],
+        dedupe_scope: DedupeScope::default(),
     };
     let debug = format!("{:?}", spec);
     assert!(

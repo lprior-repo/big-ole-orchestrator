@@ -10,6 +10,7 @@ pub mod workflow;
 
 pub use payload::{validate_inline_size, PayloadTooLarge};
 pub use workflow::{
-    validate_effect_kinds, validate_workflow_effects, validate_workflow_sinks, KnownSinks,
+    validate_effect_kinds, validate_exact_workflow_node_kinds, validate_workflow_effects,
+    validate_workflow_sinks, KnownSinks, NodeDescriptor, UnsafeNodeError,
     UnsupportedSinkError, WorkflowSinkValidator,
 };

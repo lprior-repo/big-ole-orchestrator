@@ -51,7 +51,8 @@ pub mod workspace_swap;
 pub mod write_class;
 
 pub use validation::{
-    validate_effect_kinds, validate_workflow_effects, validate_workflow_sinks, KnownSinks,
+    validate_effect_kinds, validate_exact_workflow_node_kinds, validate_workflow_effects,
+    validate_workflow_sinks, KnownSinks, NodeDescriptor, UnsafeNodeError,
     UnsupportedSinkError, WorkflowSinkValidator,
 };
 

@@ -1,7 +1,7 @@
 //! Section 5: Node kind constraint enforcement
 
 use crate::dag::Workflow;
-use crate::{EdgeSpec, NodeSpec, WorkflowSpec};
+use crate::{DedupeScope, EdgeSpec, NodeSpec, WorkflowSpec};
 use vo_types::{NodeKind, NodeName, WorkflowName};
 
 #[test]
@@ -87,8 +87,11 @@ fn all_node_kinds_survive_serde_round_trip_individually() {
             nodes: vec![NodeSpec {
                 name: NodeName::parse("node-a").expect("valid"),
                 kind: *kind,
+            retry_policy: None,
+                signal_scope: None,
             }],
             edges: vec![],
+            dedupe_scope: DedupeScope::default(),
         };
         let json = serde_json::to_string(&spec).expect("serialize");
         let restored: WorkflowSpec = serde_json::from_str(&json).expect("deserialize");

@@ -19,7 +19,7 @@
 use std::collections::HashSet;
 use std::fmt;
 use thiserror::Error;
-use vo_types::EffectKind;
+use vo_types::{EffectKind, GuaranteeClass, NodeKind};
 
 /// The set of known sink identifiers that are allowed in workflows.
 ///
@@ -268,6 +268,51 @@ fn effect_kind_to_sink(kind: EffectKind) -> &'static str {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+pub enum UnsafeNodeError {
+    #[error(
+        "exact-once workflow contains unsafe node '{node_name}' at index {node_index}; \
+         exact-once guarantee class does not permit unsafe nodes"
+    )]
+    UnsafeNodeInExactWorkflow {
+        node_name: String,
+        node_index: usize,
+    },
+}
+
+impl UnsafeNodeError {
+    #[must_use]
+    pub fn error_code(&self) -> &'static str {
+        match self {
+            Self::UnsafeNodeInExactWorkflow { .. } => "unsafe_node_in_exact_workflow",
+        }
+    }
+}
+
+pub fn validate_exact_workflow_node_kinds(
+    guarantee_class: GuaranteeClass,
+    nodes: &[NodeDescriptor],
+) -> Result<(), UnsafeNodeError> {
+    if guarantee_class.permits_unsafe_nodes() {
+        return Ok(());
+    }
+    for (idx, node) in nodes.iter().enumerate() {
+        if node.kind == NodeKind::Unsafe {
+            return Err(UnsafeNodeError::UnsafeNodeInExactWorkflow {
+                node_name: node.name.clone(),
+                node_index: idx,
+            });
+        }
+    }
+    Ok(())
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NodeDescriptor {
+    pub name: String,
+    pub kind: NodeKind,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -436,5 +481,38 @@ mod tests {
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert_eq!(err.error_code(), "empty_sink");
+    }
+
+    #[test]
+    fn given_exact_workflow_with_unsafe_node_when_published_then_validation_rejects() {
+        use super::{NodeDescriptor, UnsafeNodeError};
+        use vo_types::{GuaranteeClass, NodeKind};
+
+        let nodes = vec![
+            NodeDescriptor {
+                name: "safe_step".to_string(),
+                kind: NodeKind::Pure,
+            },
+            NodeDescriptor {
+                name: "dangerous_step".to_string(),
+                kind: NodeKind::Unsafe,
+            },
+        ];
+
+        let result =
+            validate_exact_workflow_node_kinds(GuaranteeClass::ExactOnce, &nodes);
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(
+            matches!(
+                &err,
+                UnsafeNodeError::UnsafeNodeInExactWorkflow { node_name, node_index }
+                if node_name == "dangerous_step" && *node_index == 1
+            ),
+            "expected UnsafeNodeInExactWorkflow with node_name='dangerous_step' index=1, got {:?}",
+            err
+        );
+        assert_eq!(err.error_code(), "unsafe_node_in_exact_workflow");
     }
 }

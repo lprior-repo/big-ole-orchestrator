@@ -3,7 +3,7 @@ use crate::envelope;
 use crate::error::IpcError;
 use crate::pipe::create_pipe;
 use crate::stderr::{read_bounded_stderr, StderrCapture};
-use std::os::fd::{FromRawFd, IntoRawFd, RawFd};
+use std::os::fd::FromRawFd;
 use std::os::unix::process::ExitStatusExt;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
@@ -77,8 +77,10 @@ pub async fn run_subprocess(config: SubprocessConfig) -> Result<SubprocessOutput
     drop(pipe3.read_fd());
     drop(pipe4.write_fd());
 
-    let fd3_writer = tokio::fs::File::from_std(std::fs::File::from(pipe3.write_fd()));
-    let fd4_reader = tokio::fs::File::from_std(std::fs::File::from(pipe4.read_fd()));
+    let fd3_writer = unsafe { std::fs::File::from_raw_fd(pipe3.write_fd()) };
+    let fd3_writer = tokio::fs::File::from_std(fd3_writer);
+    let fd4_reader = unsafe { std::fs::File::from_raw_fd(pipe4.read_fd()) };
+    let fd4_reader = tokio::fs::File::from_std(fd4_reader);
     let stderr_reader = child
         .stderr
         .take()

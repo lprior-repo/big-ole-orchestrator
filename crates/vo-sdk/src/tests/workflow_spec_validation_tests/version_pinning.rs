@@ -1,6 +1,6 @@
 //! Section 3: Version pinning enforced
 
-use crate::{EdgeSpec, NodeSpec, WorkflowSpec};
+use crate::{DedupeScope, EdgeSpec, NodeSpec, WorkflowSpec};
 use vo_types::{NodeKind, NodeName, WorkflowName};
 
 #[test]
@@ -56,6 +56,7 @@ fn sdk_workflow_spec_has_no_version_field() {
         workflow_name: WorkflowName::parse("test").expect("valid"),
         nodes: vec![],
         edges: vec![],
+        dedupe_scope: DedupeScope::default(),
     };
     let json = serde_json::to_string(&spec).expect("serialize");
     assert!(

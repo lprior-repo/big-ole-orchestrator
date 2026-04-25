@@ -57,6 +57,7 @@ fn workflow_spec_large_graph_roundtrip() {
         workflow_name: WorkflowName::parse("large_graph").unwrap(),
         nodes: nodes.clone(),
         edges: edges.clone(),
+        dedupe_scope: DedupeScope::default(),
     };
 
     let json = serde_json::to_string(&spec).unwrap();
@@ -73,6 +74,7 @@ fn workflow_spec_to_json_bytes_never_panics() {
         workflow_name: WorkflowName::parse("empty").unwrap(),
         nodes: vec![],
         edges: vec![],
+        dedupe_scope: DedupeScope::default(),
     };
     let bytes = spec.to_json_bytes();
     assert!(!bytes.is_empty(), "should produce non-empty JSON");
