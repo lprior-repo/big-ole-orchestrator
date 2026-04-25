@@ -170,6 +170,16 @@ impl MmapCache {
             }
         };
         let file = File::open(&region.file_path)?;
+        let file_len = file.metadata()?.len();
+        if file_len != region.size {
+            return Err(MmapCacheError::MmapError(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!(
+                    "file size mismatch: expected {} bytes, got {} bytes",
+                    region.size, file_len
+                ),
+            )));
+        }
         let mmap = unsafe { Mmap::map(&file) }.map_err(MmapCacheError::MmapError)?;
         Ok(mmap[..region.size as usize].to_vec())
     }
@@ -200,14 +210,26 @@ impl MmapCache {
     ///
     /// Returns `MmapCacheError::MmapError` if the memory map fails.
     pub fn prefetch(&mut self, key: &str) -> Result<(), MmapCacheError> {
-        let file_path = {
+        let Some((file_path, expected_size)) = ({
             let _guard = self.lock.lock();
-            self.entries.get(key).map(|e| e.region.file_path.clone())
+            self.entries
+                .get(key)
+                .map(|e| (e.region.file_path.clone(), e.region.size))
+        }) else {
+            return Err(MmapCacheError::RegionNotFound(key.to_string()));
         };
-        if let Some(path) = file_path {
-            let file = File::open(&path)?;
-            let _mmap = unsafe { Mmap::map(&file) }.map_err(MmapCacheError::MmapError)?;
+        let file = File::open(&file_path)?;
+        let file_len = file.metadata()?.len();
+        if file_len != expected_size {
+            return Err(MmapCacheError::MmapError(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!(
+                    "file size mismatch: expected {} bytes, got {} bytes",
+                    expected_size, file_len
+                ),
+            )));
         }
+        let _mmap = unsafe { Mmap::map(&file) }.map_err(MmapCacheError::MmapError)?;
         Ok(())
     }
 
@@ -394,6 +416,7 @@ impl MmapCacheBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs::OpenOptions;
     use tempfile::TempDir;
 
     fn create_test_cache() -> (MmapCache, TempDir) {
@@ -799,6 +822,48 @@ mod tests {
                 );
             }
             other => panic!("Expected Ok or Lagged, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn get_truncated_file_returns_error() {
+        let temp_dir = TempDir::new().unwrap();
+        let mut cache = MmapCache::new(temp_dir.path().to_path_buf(), 1024 * 1024).unwrap();
+        cache.insert("key1", b"hello world").unwrap();
+        let file_path = {
+            let _guard = cache.lock.lock();
+            cache.entries.get("key1").map(|e| e.region.file_path.clone()).unwrap()
+        };
+        let file = OpenOptions::new().write(true).open(&file_path).unwrap();
+        file.set_len(5).unwrap();
+        let result = cache.get("key1");
+        assert!(result.is_err(), "get should fail when file is truncated");
+        match result.unwrap_err() {
+            MmapCacheError::MmapError(e) => {
+                assert_eq!(e.kind(), std::io::ErrorKind::InvalidData);
+            }
+            other => panic!("Expected MmapError, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn prefetch_truncated_file_returns_error() {
+        let temp_dir = TempDir::new().unwrap();
+        let mut cache = MmapCache::new(temp_dir.path().to_path_buf(), 1024 * 1024).unwrap();
+        cache.insert("key1", b"hello world").unwrap();
+        let file_path = {
+            let _guard = cache.lock.lock();
+            cache.entries.get("key1").map(|e| e.region.file_path.clone()).unwrap()
+        };
+        let file = OpenOptions::new().write(true).open(&file_path).unwrap();
+        file.set_len(3).unwrap();
+        let result = cache.prefetch("key1");
+        assert!(result.is_err(), "prefetch should fail when file is truncated");
+        match result.unwrap_err() {
+            MmapCacheError::MmapError(e) => {
+                assert_eq!(e.kind(), std::io::ErrorKind::InvalidData);
+            }
+            other => panic!("Expected MmapError, got {:?}", other),
         }
     }
 }
