@@ -13,8 +13,14 @@ pub struct HttpConnector {
 
 impl HttpConnector {
     pub fn new(base_url: impl Into<String>) -> Self {
+        let base_url = base_url.into();
+        assert!(
+            !base_url.is_empty() && (base_url.starts_with("http://") || base_url.starts_with("https://")),
+            "HttpConnector::new: invalid base_url, must start with http:// or https://, got: '{}'",
+            base_url
+        );
         Self {
-            base_url: base_url.into(),
+            base_url,
             client: reqwest::Client::new(),
         }
     }
@@ -53,9 +59,6 @@ impl Connector for HttpConnector {
     }
 
     async fn commit(&self, prepared: PreparedEffect) -> Result<CommitOutcome, ConnectorError> {
-        let url = prepared.payload["base_url"]
-            .as_str()
-            .unwrap_or(&self.base_url);
         let idempotency_key = prepared.payload["idempotency_key"].as_str().unwrap_or("");
 
         let request_data = &prepared.payload["request"];
@@ -63,7 +66,15 @@ impl Connector for HttpConnector {
         let method = request_data["method"].as_str().unwrap_or("POST");
         let path = request_data["path"].as_str().unwrap_or("/");
 
-        let full_url = format!("{}{}", url, path);
+        if path.is_empty() {
+            return Err(ConnectorError::terminal("path must not be empty"));
+        }
+
+        if path.starts_with("//") {
+            return Err(ConnectorError::terminal("path must not start with //"));
+        }
+
+        let full_url = format!("{}{}", self.base_url, path);
 
         let req_builder = match method {
             "GET" => self.client.get(&full_url),
@@ -138,7 +149,7 @@ mod tests {
     #[test]
     fn test_http_connector_new() {
         let connector = HttpConnector::new("https://api.example.com");
-        assert_eq!(connector.base_url, "https://api.example.com");
+        assert_eq!(connector.connector_type(), "http");
     }
 
     #[test]
@@ -344,5 +355,23 @@ mod tests {
     fn test_reconcile_outcome_still_ambiguous() {
         let outcome = ReconcileOutcome::StillAmbiguous;
         assert!(matches!(outcome, ReconcileOutcome::StillAmbiguous));
+    }
+
+    #[should_panic(expected = "invalid base_url")]
+    #[test]
+    fn test_http_connector_new_rejects_empty_url() {
+        HttpConnector::new("");
+    }
+
+    #[should_panic(expected = "invalid base_url")]
+    #[test]
+    fn test_http_connector_new_rejects_invalid_scheme() {
+        HttpConnector::new("ftp://evil.com");
+    }
+
+    #[should_panic(expected = "invalid base_url")]
+    #[test]
+    fn test_http_connector_new_rejects_no_scheme() {
+        HttpConnector::new("api.example.com");
     }
 }

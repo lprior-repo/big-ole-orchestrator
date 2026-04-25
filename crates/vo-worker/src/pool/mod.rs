@@ -7,6 +7,7 @@ pub mod circuit_breaker;
 pub mod config;
 pub mod hash_ring;
 pub mod health_check;
+mod managed_pool;
 #[allow(clippy::module_inception)]
 mod pool;
 
@@ -14,6 +15,7 @@ pub use circuit_breaker::CircuitBreaker;
 pub use config::{PoolConfig, PoolConfigError};
 pub use hash_ring::{HashRing, HashRingConfig, RingNode};
 pub use health_check::{determine_health_check_result, HealthCheck, HealthCheckFuture};
+pub use managed_pool::ManagedPool;
 pub use pool::{ConnectionPool, NatsConnectionWrapper};
 
 use vo_common::connection_pool::{
