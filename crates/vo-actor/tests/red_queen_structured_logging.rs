@@ -3,6 +3,7 @@
 //! Attack vectors targeting error classification, structured logging conventions,
 //! metrics co-location, and error taxonomy across spawn supervisor and reanimator.
 
+use std::path::PathBuf;
 use std::time::Duration;
 
 use vo_actor::reanimator::ReanimatorError;
@@ -39,7 +40,7 @@ fn spawn_supervisor_error_no_unclassified_variants() {
         (
             "SpawnFailed",
             SpawnSupervisorError::SpawnFailed {
-                command: "cmd".into(),
+                executable: PathBuf::from("cmd"),
                 error: "err".into(),
             },
         ),
@@ -105,7 +106,7 @@ fn shutdown_timeout_is_classified() {
 #[test]
 fn spawn_failed_is_classified() {
     let error = SpawnSupervisorError::SpawnFailed {
-        command: "cmd".into(),
+        executable: PathBuf::from("cmd"),
         error: "err".into(),
     };
     assert!(
@@ -285,7 +286,7 @@ fn spawn_supervisor_error_display_with_empty_strings() {
         SpawnSupervisorError::AtomicityViolation(String::new()),
         SpawnSupervisorError::DispatchError(String::new()),
         SpawnSupervisorError::SpawnFailed {
-            command: String::new(),
+            executable: PathBuf::new(),
             error: String::new(),
         },
         SpawnSupervisorError::HealthCheckFailed {
@@ -354,7 +355,8 @@ fn spawn_record_transition_chain_preserves_all_fields() {
     let original = SpawnRecord {
         spawn_id: spawn_id.clone(),
         instance_id: instance_id.clone(),
-        command: "./worker --port 8080".into(),
+        executable: PathBuf::from("./worker"),
+        args: vec!["--port".to_string(), "8080".to_string()],
         spawn_phase: SpawnPhase::Spawn,
         health_checks: 0,
         spawn_attempts: 3,
@@ -364,7 +366,8 @@ fn spawn_record_transition_chain_preserves_all_fields() {
     let health_check = original.transition_to_health_check();
     assert_eq!(health_check.spawn_phase, SpawnPhase::HealthCheck);
     assert_eq!(health_check.instance_id, instance_id);
-    assert_eq!(health_check.command, "./worker --port 8080");
+    assert_eq!(health_check.executable, PathBuf::from("./worker"));
+    assert_eq!(health_check.args, vec!["--port".to_string(), "8080".to_string()]);
     assert_eq!(health_check.spawn_attempts, 3);
     assert_eq!(health_check.spawn_id, spawn_id);
 
@@ -388,7 +391,8 @@ fn spawn_record_last_error_preserved_through_transition() {
     let record = SpawnRecord {
         spawn_id: None,
         instance_id,
-        command: "./worker".into(),
+        executable: PathBuf::from("./worker"),
+        args: vec![],
         spawn_phase: vo_actor::spawn_supervisor::SpawnPhase::Spawn,
         health_checks: 0,
         spawn_attempts: 1,
@@ -411,12 +415,13 @@ fn spawn_record_respawn_clears_error() {
     let record = SpawnRecord {
         spawn_id: None,
         instance_id,
-        command: "./worker".into(),
+        executable: PathBuf::from("./worker"),
+        args: vec![],
         spawn_phase: vo_actor::spawn_supervisor::SpawnPhase::Failed,
         health_checks: 5,
         spawn_attempts: 3,
         last_error: Some(SpawnSupervisorError::SpawnFailed {
-            command: "./worker".into(),
+            executable: PathBuf::from("./worker"),
             error: "segfault".into(),
         }),
     };
