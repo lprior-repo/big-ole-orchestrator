@@ -69,7 +69,7 @@ fn open_and_validate_program(path: &Path) -> Result<PathBuf, ConfigError> {
         path: path.to_path_buf(),
     })?;
 
-    let fd = unsafe { open(path_str.as_ptr() as *const libc::c_char, O_NOFOLLOW | O_RDONLY) };
+    let fd = unsafe { open(path_str.as_ptr().cast::<libc::c_char>(), O_NOFOLLOW | O_RDONLY) };
     if fd < 0 {
         return Err(ConfigError::ProgramMissing {
             path: path.to_path_buf(),
@@ -77,7 +77,7 @@ fn open_and_validate_program(path: &Path) -> Result<PathBuf, ConfigError> {
     }
 
     let mut stat_buf: libc::stat = unsafe { std::mem::zeroed() };
-    let fstat_result = unsafe { fstat(fd, &mut stat_buf) };
+    let fstat_result = unsafe { fstat(fd, &raw mut stat_buf) };
     let close_result = unsafe { close(fd) };
 
     if fstat_result < 0 {

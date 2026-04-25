@@ -7,14 +7,8 @@ use crate::payload_parser::{
 };
 use crate::ExternalReceipt;
 
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
 pub struct RoutingProjection {}
-
-impl Default for RoutingProjection {
-    fn default() -> Self {
-        Self {}
-    }
-}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum EventPayload {

@@ -185,7 +185,10 @@ pub fn select_next_step(
     }
 
     // Select first node in definition order (deterministic tiebreaker)
-    let selected = ready_nodes.into_iter().next().unwrap();
+    let selected = ready_nodes
+        .into_iter()
+        .next()
+        .expect("ready_nodes is non-empty due to is_empty check above");
 
     // TODO: Compute attempt and fence from command history / instance state
     // For now, use default values — these should be injected by the caller
