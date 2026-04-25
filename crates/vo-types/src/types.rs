@@ -67,7 +67,8 @@ pub use crate::integer_types::{
 };
 pub use crate::state::LeaseRecord;
 pub use crate::string_types::{
-    BinaryHash, IdempotencyKey, InstanceId, NodeName, SpawnId, StepId, TimerId, WorkflowName,
+    BinaryHash, IdempotencyKey, InstanceId, NodeName, SignalName, SpawnId, StepId, TimerId,
+    WorkflowName,
 };
 
 pub const MAX_SUPPORTED_SCHEMA_VERSION: u16 = 1;

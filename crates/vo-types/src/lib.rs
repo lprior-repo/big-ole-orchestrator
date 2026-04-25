@@ -159,8 +159,8 @@ pub use tx_coordinator::{
 pub use types::{
     extract_schema_version, AttemptNumber, BinaryHash, DurationMs, EventVersion, FenceToken,
     FireAtMs, IdempotencyKey, InstanceId, LeaseRecord, MaxAttempts, NodeName, SequenceNumber,
-    Snapshot, SpawnId, State, StepId, TimeoutMs, TimerId, TimestampMs, WorkflowName, WorkflowSpec,
-    MAX_SUPPORTED_SCHEMA_VERSION,
+    SignalName, Snapshot, SpawnId, State, StepId, TimeoutMs, TimerId, TimestampMs, WorkflowName,
+    WorkflowSpec, MAX_SUPPORTED_SCHEMA_VERSION,
 };
 pub use workflow::{
     next_nodes, DagNode, Edge, EdgeCondition, RetryPolicy, RetryPolicyError, StepOutcome,

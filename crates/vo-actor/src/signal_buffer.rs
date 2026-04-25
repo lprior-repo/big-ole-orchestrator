@@ -2,19 +2,22 @@
 use crate::WaitKey;
 use std::collections::{HashMap, VecDeque};
 use vo_types::{BufferPolicy, SignalDelivery};
-use vo_types::{InstanceId, TimestampMs};
+use vo_types::{InstanceId, SignalName, TimestampMs};
 
 /// A signal that has been buffered for later delivery.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BufferedSignal {
-    pub signal_id: String,
+    pub signal_id: SignalName,
     pub payload: crate::SignalPayload,
     pub buffered_at: TimestampMs,
 }
 
 impl BufferedSignal {
-    #[must_use]
-    pub fn new(signal_id: String, payload: crate::SignalPayload, buffered_at: TimestampMs) -> Self {
+    pub fn new(
+        signal_id: SignalName,
+        payload: crate::SignalPayload,
+        buffered_at: TimestampMs,
+    ) -> Self {
         Self {
             signal_id,
             payload,
@@ -276,7 +279,7 @@ mod signal_buffer_entry_tests {
     #[test]
     fn signal_buffer_entry_single_len_is_one() {
         let signal = BufferedSignal::new(
-            "sig-1".to_string(),
+            SignalName::parse("sig1").unwrap(),
             crate::SignalPayload::empty(),
             TimestampMs::now(),
         );
@@ -286,12 +289,12 @@ mod signal_buffer_entry_tests {
     #[test]
     fn signal_buffer_entry_many_len_is_queue_len() {
         let signal1 = BufferedSignal::new(
-            "sig-1".to_string(),
+            SignalName::parse("sig1").unwrap(),
             crate::SignalPayload::empty(),
             TimestampMs::now(),
         );
         let signal2 = BufferedSignal::new(
-            "sig-2".to_string(),
+            SignalName::parse("sig2").unwrap(),
             crate::SignalPayload::empty(),
             TimestampMs::now(),
         );

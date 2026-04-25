@@ -412,3 +412,59 @@ impl StepId {
     }
 }
 string_newtype!(StepId);
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(try_from = "String", into = "String")]
+pub struct SignalName(pub(crate) String);
+
+impl SignalName {
+    pub fn parse(input: &str) -> Result<Self, ParseError> {
+        const TYPE_NAME: &str = "SignalName";
+        const MAX_LEN: usize = 256;
+
+        if input.is_empty() {
+            return Err(ParseError::Empty {
+                type_name: TYPE_NAME,
+            });
+        }
+
+        if input.len() > MAX_LEN {
+            return Err(ParseError::ExceedsMaxLength {
+                type_name: TYPE_NAME,
+                max: MAX_LEN,
+                actual: input.len(),
+            });
+        }
+
+        if input.contains('\0') {
+            return Err(ParseError::InvalidCharacters {
+                type_name: TYPE_NAME,
+                invalid_chars: "\\0".to_string(),
+            });
+        }
+
+        let re = signal_name_regex().map_err(|e| ParseError::InternalError(e.to_string()))?;
+        if !re.is_match(input) {
+            return Err(ParseError::InvalidFormat {
+                type_name: TYPE_NAME,
+                reason: "must match ^[a-z][a-z0-9_]+$".to_string(),
+            });
+        }
+
+        Ok(Self(input.to_string()))
+    }
+
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+fn signal_name_regex() -> Result<&'static regex::Regex, regex::Error> {
+    static RE: std::sync::OnceLock<Result<regex::Regex, regex::Error>> = std::sync::OnceLock::new();
+    RE.get_or_init(|| regex::Regex::new(r"^[a-z][a-z0-9_]+$"))
+        .as_ref()
+        .map_err(|e| e.clone())
+}
+
+string_newtype!(SignalName);

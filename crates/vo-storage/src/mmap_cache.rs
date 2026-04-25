@@ -170,6 +170,10 @@ impl MmapCache {
             }
         };
         let file = File::open(&region.file_path)?;
+        let metadata = file.metadata()?;
+        if metadata.len() != region.size {
+            return Err(MmapCacheError::InvalidRegion);
+        }
         let mmap = unsafe { Mmap::map(&file) }.map_err(MmapCacheError::MmapError)?;
         Ok(mmap[..region.size as usize].to_vec())
     }
@@ -200,12 +204,16 @@ impl MmapCache {
     ///
     /// Returns `MmapCacheError::MmapError` if the memory map fails.
     pub fn prefetch(&mut self, key: &str) -> Result<(), MmapCacheError> {
-        let file_path = {
+        let file_path_and_size = {
             let _guard = self.lock.lock();
-            self.entries.get(key).map(|e| e.region.file_path.clone())
+            self.entries.get(key).map(|e| (e.region.file_path.clone(), e.region.size))
         };
-        if let Some(path) = file_path {
+        if let Some((path, size)) = file_path_and_size {
             let file = File::open(&path)?;
+            let metadata = file.metadata()?;
+            if metadata.len() != size {
+                return Err(MmapCacheError::InvalidRegion);
+            }
             let _mmap = unsafe { Mmap::map(&file) }.map_err(MmapCacheError::MmapError)?;
         }
         Ok(())
