@@ -288,6 +288,7 @@ impl Dag {
             workflow_name: wf_name,
             nodes: node_specs,
             edges: edge_specs,
+            guarantee_class: GuaranteeClass::default(),
         })
     }
 

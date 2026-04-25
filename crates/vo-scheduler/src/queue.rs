@@ -201,6 +201,36 @@ impl SchedulerQueue {
         self.update_state(job_id, JobState::Cancelled)
     }
 
+    pub fn retry_transition(
+        &mut self,
+        job_id: &JobId,
+        error: String,
+    ) -> Result<(), SchedulerError> {
+        let job = self
+            .jobs
+            .get_mut(job_id)
+            .ok_or(SchedulerError::JobNotFound)?;
+        job.apply_retryable_failure(error)?;
+        let updated_due_at = job.due_at;
+        let _ = job;
+        self.rebuild_heap_entry_with_due(job_id, updated_due_at);
+        Ok(())
+    }
+
+    fn rebuild_heap_entry_with_due(&mut self, job_id: &JobId, due_at: DateTime<Utc>) {
+        self.heap.retain(|entry| &entry.job_id != job_id);
+        let job = match self.jobs.get(job_id) {
+            Some(j) => j,
+            None => return,
+        };
+        let entry = QueueEntry {
+            priority: job.priority,
+            due_at,
+            job_id: *job_id,
+        };
+        self.heap.push(entry);
+    }
+
     fn rebuild_heap_entry(&mut self, job_id: &JobId) {
         self.heap.retain(|entry| &entry.job_id != job_id);
         if let Some(job) = self.jobs.get(job_id) {

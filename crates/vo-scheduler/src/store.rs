@@ -14,7 +14,7 @@ pub trait SchedulerStore {
 }
 
 pub struct InMemorySchedulerStore {
-    pub(crate) serialized: HashMap<Vec<u8>, Vec<u8>>,
+    pub serialized: HashMap<Vec<u8>, Vec<u8>>,
 }
 
 impl InMemorySchedulerStore {

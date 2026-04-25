@@ -589,3 +589,67 @@ fn list_by_states_with_empty_slice_returns_nothing() {
     let results = queue.list_by_states(&[]);
     assert!(results.is_empty());
 }
+
+#[test]
+fn given_retryable_failure_when_transition_runs_then_retry_state_is_atomic() {
+    let retry_policy = RetryPolicy::try_new(
+        3,
+        2.0,
+        std::time::Duration::from_secs(1),
+        std::time::Duration::from_secs(300),
+    )
+    .unwrap();
+
+    let mut queue = SchedulerQueue::new(100);
+    let job = ScheduledJob::new(
+        JobKind::OneShot,
+        JobPriority::Normal,
+        SchedulePolicy::Immediate,
+        retry_policy.clone(),
+        bytes::Bytes::from_static(b"retry-atomic-test"),
+    )
+    .unwrap();
+    let job_id = job.id;
+    let original_due_at = job.due_at;
+    queue.insert(job).unwrap();
+
+    queue.update_state(&job_id, JobState::Running).unwrap();
+    {
+        let j = queue.lookup(&job_id).unwrap();
+        assert_eq!(j.attempt_count, 0);
+    }
+
+    let mut running_job = queue.remove(&job_id).unwrap();
+    running_job.attempt_count = 1;
+    running_job.state = JobState::Running;
+    queue.insert(running_job).unwrap();
+
+    let before_transition = Utc::now();
+    queue
+        .retry_transition(&job_id, "connection timed out".to_string())
+        .unwrap();
+
+    let found = queue.lookup(&job_id).unwrap();
+    assert_eq!(found.attempt_count, 2, "attempt_count must be 2 after retry from attempt 1");
+    assert_eq!(found.state, JobState::Retrying, "state must be Retrying");
+    assert!(
+        found.due_at > original_due_at,
+        "due_at must advance past original due_at"
+    );
+    let backoff = retry_policy.compute_backoff(2);
+    let expected_due_lower = before_transition
+        + chrono::Duration::from_std(backoff).unwrap_or_default()
+        - chrono::Duration::milliseconds(50);
+    let expected_due_upper = before_transition
+        + chrono::Duration::from_std(backoff).unwrap_or_default()
+        + chrono::Duration::milliseconds(50);
+    assert!(
+        found.due_at >= expected_due_lower && found.due_at <= expected_due_upper,
+        "due_at must match computed backoff from attempt 2"
+    );
+    assert_eq!(
+        found.last_error.as_deref(),
+        Some("connection timed out"),
+        "last_error must be set to the retryable error"
+    );
+}
