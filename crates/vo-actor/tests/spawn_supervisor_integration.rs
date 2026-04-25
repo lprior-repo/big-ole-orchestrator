@@ -516,6 +516,60 @@ async fn process_cycle_health_check_failure_transitions_to_failed() {
 }
 
 #[tokio::test]
+async fn given_health_checks_exhausted_when_processed_then_failed_record_is_persisted() {
+    let storage = Arc::new(MockSpawnStorage::new());
+    let process_manager = Arc::new(MockProcessManager::new());
+    let work_queue = Arc::new(MockWorkQueue::new());
+
+    let instance_id = test_instance_id();
+    let mut record = SpawnRecord::new(instance_id.clone(), PathBuf::from("./worker"), vec![], None);
+    record.spawn_phase = SpawnPhase::HealthCheck;
+    record.spawn_attempts = 5; // Already at max spawn attempts
+    storage.add_record(record);
+
+    // Health check always returns false (process not healthy)
+    process_manager.set_health_check_result(Ok(false));
+
+    let supervisor = SpawnSupervisor::new(
+        Duration::from_millis(100),
+        3, // max_health_checks = 3
+        Duration::from_millis(1000),
+        2.0,
+        5, // max_spawn_attempts = 5
+        storage.clone(),
+        process_manager.clone(),
+        work_queue.clone(),
+    )
+    .expect("Valid config");
+
+    supervisor
+        .process_cycle()
+        .await
+        .expect("Process cycle should succeed");
+
+    let records = storage.get_records();
+    assert_eq!(records.len(), 1, "Should have one record");
+
+    let failed_record = records.first().expect("Should have a record");
+    assert_eq!(
+        failed_record.spawn_phase, SpawnPhase::Failed,
+        "Record should be in Failed phase after health checks exhausted"
+    );
+
+    assert!(
+        failed_record.last_error.is_some(),
+        "Record should have last_error set"
+    );
+
+    let last_error = failed_record.last_error.as_ref().expect("last_error is Some");
+    assert!(
+        matches!(last_error, SpawnSupervisorError::HealthCheckFailed { .. }),
+        "last_error should be HealthCheckFailed, got: {:?}",
+        last_error
+    );
+}
+
+#[tokio::test]
 async fn process_cycle_respawn_uses_work_queue() {
     let storage = Arc::new(MockSpawnStorage::new());
     let process_manager = Arc::new(MockProcessManager::new());

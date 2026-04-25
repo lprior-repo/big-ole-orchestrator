@@ -15,11 +15,12 @@
 ///   on failure but does not deduplicate ingress or guarantee idempotent replay.
 /// - **BestEffort**: No delivery guarantees. Fire-and-forget semantics with no
 ///   retry or recovery. Useful for logging, telemetry, and non-critical paths.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[allow(dead_code)]
 pub enum GuaranteeClass {
     /// Exactly-once execution — deduplicated ingress, idempotent replay, crash-safe.
+    #[default]
     ExactOnce,
     /// At-least-once execution — retries possible, duplicates may occur.
     AtLeastOnce,

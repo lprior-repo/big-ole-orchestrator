@@ -49,6 +49,14 @@ impl SpawnRecord {
         }
     }
 
+    pub fn transition_to_failed(&self, error: super::SpawnSupervisorError) -> Self {
+        Self {
+            spawn_phase: SpawnPhase::Failed,
+            last_error: Some(error),
+            ..self.clone()
+        }
+    }
+
     pub fn respawn(&self, new_spawn_id: Option<SpawnId>) -> Self {
         Self {
             spawn_id: new_spawn_id,

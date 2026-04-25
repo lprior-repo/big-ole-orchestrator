@@ -9,7 +9,7 @@ use std::io::Write;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 pub use vo_types::NodeKind;
-use vo_types::{NodeName, RetryPolicy, WorkflowName};
+use vo_types::{GuaranteeClass, NodeName, RetryPolicy, WorkflowName};
 
 /// Marker returned when `--graph` flag is present.
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -50,7 +50,7 @@ pub fn parse_graph_args(args: &[String]) -> Result<GraphArgs, GraphArgsError> {
 }
 
 /// Specification of a single workflow node.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NodeSpec {
     pub name: NodeName,
     pub kind: NodeKind,
@@ -93,6 +93,8 @@ pub struct WorkflowSpec {
     pub workflow_name: WorkflowName,
     pub nodes: Vec<NodeSpec>,
     pub edges: Vec<EdgeSpec>,
+    #[serde(default)]
+    pub guarantee_class: GuaranteeClass,
 }
 
 impl<'de> serde::Deserialize<'de> for WorkflowSpec {
@@ -102,6 +104,8 @@ impl<'de> serde::Deserialize<'de> for WorkflowSpec {
             workflow_name: WorkflowName,
             nodes: Vec<NodeSpec>,
             edges: Vec<EdgeSpec>,
+            #[serde(default)]
+            guarantee_class: GuaranteeClass,
         }
 
         let raw: RawWorkflowSpec = RawWorkflowSpec::deserialize(deserializer)?;
@@ -184,6 +188,7 @@ impl<'de> serde::Deserialize<'de> for WorkflowSpec {
             workflow_name: raw.workflow_name,
             nodes: raw.nodes,
             edges: raw.edges,
+            guarantee_class: raw.guarantee_class,
         })
     }
 }
