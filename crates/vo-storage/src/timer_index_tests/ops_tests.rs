@@ -2,6 +2,7 @@
 use crate::codec::StorageError;
 use crate::timer_index::{scan_due_timers, timer_delete, timer_set, TimerKey, TimerRecord};
 use crate::timer_index_tests::{create_instance_id, create_timer_id, MockStorage};
+use vo_types::InstanceId;
 
 #[test]
 fn fn_timer_set_stores_timer_when_fire_at_ms_greater_than_now_ms() {

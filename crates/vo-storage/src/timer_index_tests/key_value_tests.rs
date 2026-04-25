@@ -1,6 +1,7 @@
 #![allow(clippy::unwrap_used, clippy::redundant_clone)]
 use crate::timer_index::{TimerKey, TimerValue};
 use crate::timer_index_tests::{create_instance_id, create_timer_id};
+use proptest::proptest;
 
 #[test]
 fn fn_timer_key_new_encodes_bytes_correctly() {
@@ -41,15 +42,6 @@ fn fn_timer_value_returns_duration_when_duration_is_non_zero() {
 fn fn_timer_value_returns_big_endian_bytes_for_duration() {
     let value = TimerValue::new(0x0102_0304_0506_0708).unwrap();
     assert_eq!(value.as_be_bytes(), [1, 2, 3, 4, 5, 6, 7, 8]);
-}
-
-#[test]
-fn fn_proptest_timer_key_ordering_preserves_lexicographic_order(a in 0u64..1000, b in 1001u64..2000) {
-    let iid = create_instance_id();
-    let tid = create_timer_id();
-    let key_a = TimerKey::new(a, iid.clone(), tid.clone()).unwrap();
-    let key_b = TimerKey::new(b, iid, tid).unwrap();
-        proptest::prop_assert!(key_a.as_bytes() < key_b.as_bytes());
 }
 
 proptest! {
