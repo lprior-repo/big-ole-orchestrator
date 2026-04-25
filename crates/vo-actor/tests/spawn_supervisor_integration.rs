@@ -1376,3 +1376,83 @@ async fn respawn_exponential_backoff_increases_with_attempts() {
         elapsed_1
     );
 }
+
+// =============================================================================
+// BDD: Single canonical module path (tw-4y6h.13.1)
+// =============================================================================
+
+#[test]
+fn given_spawn_supervisor_module_when_compiled_then_single_canonical_path_is_used() {
+    use vo_actor::spawn_supervisor::{
+        calculate_backoff_delay, is_zombie_state, should_respawn, Counter, CycleResult,
+        ProcessHandle, ProcessManager, SpawnPhase, SpawnRecord, SpawnStorage,
+        SpawnSupervisorError, SpawnSupervisorMetrics, SpawnSupervisorState, SpawnSupervisor,
+        WorkQueue,
+    };
+
+    fn _assert_spawn_record(_: SpawnRecord) {}
+    fn _assert_spawn_phase(_: SpawnPhase) {}
+    fn _assert_error(_: SpawnSupervisorError) {}
+    fn _assert_counter(_: Counter) {}
+    fn _assert_metrics(_: SpawnSupervisorMetrics) {}
+    fn _assert_handle(_: ProcessHandle) {}
+    fn _assert_state(_: SpawnSupervisorState) {}
+    fn _assert_cycle_result(_: CycleResult) {}
+    fn _assert_backoff_fn(_: fn(u64, f64, u32) -> u64) {
+        let f: fn(u64, f64, u32) -> u64 = calculate_backoff_delay;
+        let _ = f;
+    }
+    fn _assert_zombie_fn(_: fn(&SpawnRecord) -> bool) {
+        let f: fn(&SpawnRecord) -> bool = is_zombie_state;
+        let _ = f;
+    }
+    fn _assert_respawn_fn(_: fn(&SpawnRecord, u32) -> bool) {
+        let f: fn(&SpawnRecord, u32) -> bool = should_respawn;
+        let _ = f;
+    }
+
+    fn _require_storage_trait<T: SpawnStorage>() {}
+    fn _require_process_manager_trait<T: ProcessManager>() {}
+    fn _require_work_queue_trait<T: WorkQueue>() {}
+
+    fn _require_send<T: Send>() {}
+    fn _require_sync<T: Sync>() {}
+
+    _require_send::<SpawnRecord>();
+    _require_sync::<SpawnRecord>();
+    _require_send::<SpawnPhase>();
+    _require_sync::<SpawnPhase>();
+    _require_send::<SpawnSupervisorError>();
+    _require_sync::<SpawnSupervisorError>();
+    _require_send::<SpawnSupervisorState>();
+    _require_sync::<SpawnSupervisorState>();
+    _require_send::<SpawnSupervisor>();
+    _require_sync::<SpawnSupervisor>();
+
+    let phase = SpawnPhase::Spawn;
+    assert_eq!(format!("{phase}"), "spawn");
+    assert_eq!(format!("{:?}", phase), "Spawn");
+
+    let record = SpawnRecord::new(
+        test_instance_id(),
+        "echo hello".to_string(),
+        None,
+    );
+    assert_eq!(record.spawn_phase, SpawnPhase::Spawn);
+    assert_eq!(record.spawn_attempts, 1);
+    assert_eq!(record.health_checks, 0);
+
+    let backoff = calculate_backoff_delay(100, 2.0, 1);
+    assert_eq!(backoff, 100);
+
+    assert!(!is_zombie_state(&record));
+    assert!(!should_respawn(&record, 5));
+
+    let failed_record = SpawnRecord {
+        spawn_phase: SpawnPhase::Failed,
+        spawn_attempts: 1,
+        ..record.clone()
+    };
+    assert!(should_respawn(&failed_record, 5));
+    assert!(!is_zombie_state(&failed_record));
+}
