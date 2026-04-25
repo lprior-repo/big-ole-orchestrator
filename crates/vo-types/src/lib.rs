@@ -35,7 +35,31 @@ mod identity;
 mod instance_status;
 pub mod integer_types;
 #[cfg(test)]
-mod integer_types_tests;
+mod attempt_number_tests;
+#[cfg(test)]
+mod duration_ms_tests;
+#[cfg(test)]
+mod event_version_tests;
+#[cfg(test)]
+mod fence_token_tests;
+#[cfg(test)]
+mod fire_at_ms_tests;
+#[cfg(test)]
+mod integer_types_kani_proofs;
+#[cfg(test)]
+mod integer_types_proptests;
+#[cfg(test)]
+mod integer_types_serde_tests;
+#[cfg(test)]
+mod integer_types_try_from_tests;
+#[cfg(test)]
+mod max_attempts_tests;
+#[cfg(test)]
+mod sequence_number_tests;
+#[cfg(test)]
+mod timestamp_ms_tests;
+#[cfg(test)]
+mod timeout_ms_tests;
 mod lifecycle_superstate;
 mod lineage;
 mod link_cut_tree;
