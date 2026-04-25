@@ -48,7 +48,7 @@ rmp-serde = "1"
 # Web framework
 axum = "0.8"
 tower = { version = "0.4", features = ["util"] }
-tower-http = { version = "0.6", features = ["trace", "cors", "timeout"] }
+tower-http = { version = "0.6", features = ["trace", "cors", "timeout", "limit"] }
 reqwest = { version = "0.12", features = ["json"] }
 
 # CLI

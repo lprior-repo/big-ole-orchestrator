@@ -1,16 +1,30 @@
 //! Fjall-backed persistent implementation of `LeaseStore` for production use.
+//!
+//! Concurrency model: striped `parking_lot::Mutex` guards the acquire
+//! critical section per-key-shard, preventing TOCTOU races between read and
+//! insert on the same lease key while allowing independent keys to proceed
+//! in parallel.
 
 use std::sync::Arc;
 
+use parking_lot::Mutex;
 use vo_types::{FenceToken, InstanceId, LeaseRecord, StepId};
 
 use super::{LeaseEntry, LeaseStore, LeaseStoreError, LEASE_PARTITION};
 
 const FENCE_PARTITION: &str = "lease_fences";
 
+const NUM_STRIPES: usize = 64;
+
+#[expect(clippy::expect_used, clippy::cast_possible_truncation)]
+fn stripe_for_key(key_bytes: &[u8]) -> usize {
+    crc32fast::hash(key_bytes) as usize % NUM_STRIPES
+}
+
 pub struct FjallLeaseStore {
     lease_partition: Arc<fjall::Keyspace>,
     fence_partition: Arc<fjall::Keyspace>,
+    stripes: Vec<Mutex<()>>,
 }
 
 impl FjallLeaseStore {
@@ -30,9 +44,11 @@ impl FjallLeaseStore {
             .map_err(|e| LeaseStoreError::Storage {
                 reason: format!("failed to open lease_fences partition: {e}"),
             })?;
+        let stripes = (0..NUM_STRIPES).map(|_| Mutex::new(())).collect();
         Ok(Self {
             lease_partition: Arc::new(lease_partition),
             fence_partition: Arc::new(fence_partition),
+            stripes,
         })
     }
 
@@ -146,6 +162,10 @@ impl LeaseStore for FjallLeaseStore {
         if ttl_ms == 0 {
             return Err(LeaseStoreError::InvalidArgument);
         }
+
+        let key = Self::encode_lease_key(instance_id, step_id);
+        let stripe_idx = stripe_for_key(&key);
+        let _guard = self.stripes[stripe_idx].lock();
 
         #[allow(clippy::cast_possible_truncation)]
         let now_ms = std::time::SystemTime::now()

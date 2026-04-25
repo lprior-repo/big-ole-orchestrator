@@ -12,7 +12,7 @@ use vo_actor::{OrchestratorMsg, StartError};
 use vo_common::NamespaceId;
 
 use crate::handlers::helpers::parse_paradigm;
-use crate::types::{ApiError, V3StartRequest, V3StartResponse, WorkloadRejectionError};
+use crate::types::{validate_json_payload_size, ApiError, V3StartRequest, V3StartResponse, WorkloadRejectionError};
 
 const ACTOR_CALL_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -61,6 +61,17 @@ pub async fn start_workflow(
     };
     let instance_id =
         vo_types::InstanceId::parse(&instance_id_str).expect("generated ULID should be valid");
+
+    if let Some(err) = validate_json_payload_size(&req.input) {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiError::new(
+                "payload_too_large",
+                format!("input payload {}", err),
+            )),
+        )
+            .into_response();
+    }
 
     let input = match serde_json::to_vec(&req.input) {
         Ok(v) => Bytes::from(v),

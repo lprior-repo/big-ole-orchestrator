@@ -11,7 +11,7 @@ use axum::{
 };
 use std::sync::Arc;
 use std::time::Duration;
-use tower_http::{cors::CorsLayer, timeout::TimeoutLayer, trace::TraceLayer};
+use tower_http::{cors::CorsLayer, limit::RequestBodyLimitLayer, timeout::TimeoutLayer, trace::TraceLayer};
 
 use crate::handlers::query::QueryState;
 use crate::handlers::sse::SseState;
@@ -112,6 +112,7 @@ pub fn create_router(state: AppState) -> Router {
         .merge(event_routes)
         .merge(sse_routes)
         .merge(ws_routes)
+        .layer(RequestBodyLimitLayer::new(1048576))
         .layer(TimeoutLayer::new(Duration::from_secs(30)))
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())

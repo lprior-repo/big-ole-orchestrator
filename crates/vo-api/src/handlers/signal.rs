@@ -11,7 +11,7 @@ use std::time::Duration;
 use vo_actor::OrchestratorMsg;
 
 use crate::handlers::helpers::split_path_id;
-use crate::types::{ApiError, V3SignalRequest};
+use crate::types::{validate_json_payload_size, ApiError, V3SignalRequest};
 
 const ACTOR_CALL_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -35,6 +35,17 @@ pub async fn send_signal(
                 .into_response();
         }
     };
+
+    if let Some(err) = validate_json_payload_size(&req.payload) {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiError::new(
+                "payload_too_large",
+                format!("signal payload {}", err),
+            )),
+        )
+            .into_response();
+    }
 
     // Serialize signal payload to bytes.
     let payload = match serde_json::to_vec(&req.payload) {
