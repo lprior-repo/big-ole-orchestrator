@@ -90,7 +90,21 @@ pub enum SubprocessError {
 
 const BOUNDED_BUFFER_SIZE: usize = 65536;
 
-fn create_pipe() -> Result<(RawFd, RawFd), SubprocessError> {
+struct PipePair {
+    read_fd: RawFd,
+    write_fd: RawFd,
+}
+
+impl Drop for PipePair {
+    fn drop(&mut self) {
+        unsafe {
+            libc::close(self.read_fd);
+            libc::close(self.write_fd);
+        }
+    }
+}
+
+fn create_pipe() -> Result<PipePair, SubprocessError> {
     let mut fds = [0; 2];
     let res = unsafe { libc::pipe2(fds.as_mut_ptr(), libc::O_CLOEXEC) };
     if res != 0 {
@@ -98,7 +112,10 @@ fn create_pipe() -> Result<(RawFd, RawFd), SubprocessError> {
             std::io::Error::last_os_error().to_string(),
         ));
     }
-    Ok((fds[0], fds[1]))
+    Ok(PipePair {
+        read_fd: fds[0],
+        write_fd: fds[1],
+    })
 }
 
 /// Runs a subprocess with ADR-018 compliant async pipe handling.
