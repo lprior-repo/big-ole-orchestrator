@@ -457,21 +457,32 @@ impl HistoryEntry {
     /// * `snapshot_after` - State after the command
     /// * `batch_metadata` - Optional batch metadata for extension commands
     /// * `command_id` - Optional pre-generated command ID (for undo tracking)
+    ///
+    /// # Errors
+    ///
+    /// Returns `CommandHistoryError::EntryNotFound` if the command_id is empty.
+    /// Returns `CommandHistoryError::SnapshotSerializationError` if ULID parsing fails.
     pub fn new(
         kind: CommandKind,
         snapshot_before: Option<WorkflowSnapshot>,
         snapshot_after: Option<WorkflowSnapshot>,
         batch_metadata: Option<ExtensionBatchMetadata>,
         command_id: Option<CommandId>,
-    ) -> Self {
+    ) -> Result<Self, CommandHistoryError> {
         let cmd_id = command_id.unwrap_or_default();
         let metadata = crate::command_metadata::CommandMetadata {
             command_id: crate::IdempotencyKey::parse(cmd_id.as_str())
-                .expect("IdempotencyKey parsing from String should succeed"),
+                .map_err(|_| CommandHistoryError::EntryNotFound {
+                    command_id: cmd_id.as_str().to_string(),
+                })?,
             correlation_id: crate::IdempotencyKey::parse(&ulid::Ulid::new().to_string())
-                .expect("IdempotencyKey parsing from ULID string should succeed"),
+                .map_err(|e| CommandHistoryError::SnapshotSerializationError {
+                    reason: format!("IdempotencyKey parse failed: {}", e),
+                })?,
             causation_id: crate::IdempotencyKey::parse(&ulid::Ulid::new().to_string())
-                .expect("IdempotencyKey parsing from ULID string should succeed"),
+                .map_err(|e| CommandHistoryError::SnapshotSerializationError {
+                    reason: format!("IdempotencyKey parse failed: {}", e),
+                })?,
             issuer: Issuer::Operator,
             issued_at: TimestampMs::now(),
         };
@@ -479,14 +490,14 @@ impl HistoryEntry {
             schema_version: 1,
             metadata,
         };
-        Self {
+        Ok(Self {
             envelope,
             kind,
             snapshot_before,
             snapshot_after,
             batch_metadata,
             status: HistoryEntryStatus::Committed,
-        }
+        })
     }
 }
 
@@ -615,7 +626,7 @@ impl CommandHistory {
             Some(snapshot_before),
             None,
             Some(command_id.clone()),
-        );
+        )?;
 
         if self.entries.len() >= self.capacity {
             if let Some(oldest_idx) = self
@@ -744,7 +755,7 @@ impl CommandHistory {
             Some(after_snapshot),
             batch_metadata,
             Some(command_id.clone()),
-        );
+        )?;
 
         if self.entries.len() >= self.capacity {
             if let Some(oldest_idx) = self

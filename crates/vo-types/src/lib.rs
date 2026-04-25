@@ -84,7 +84,25 @@ mod spqr_tree;
 pub mod state;
 pub mod string_types;
 #[cfg(test)]
-mod string_types_tests;
+mod binary_hash_tests;
+#[cfg(test)]
+mod idempotency_key_tests;
+#[cfg(test)]
+mod instance_id_tests;
+#[cfg(test)]
+mod node_name_tests;
+#[cfg(test)]
+mod step_id_tests;
+#[cfg(test)]
+mod string_types_contract_tests;
+#[cfg(test)]
+mod string_types_proptests;
+#[cfg(test)]
+mod string_types_serde_tests;
+#[cfg(test)]
+mod timer_id_tests;
+#[cfg(test)]
+mod workflow_name_tests;
 mod topology;
 mod tx_coordinator;
 mod types;
