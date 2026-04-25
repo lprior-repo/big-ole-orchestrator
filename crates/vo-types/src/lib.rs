@@ -188,6 +188,7 @@ mod identity_bdd_tests;
 mod identity_tests;
 #[cfg(test)]
 mod red_queen_tests;
+
 #[cfg(test)]
 mod schema_evolution_bdd_tests;
 #[cfg(test)]
