@@ -40,6 +40,7 @@ impl ReplayEngine {
             return Ok(ReplayResult {
                 final_state: None,
                 events_applied: 0,
+                latest_fence: None,
             });
         }
 
@@ -81,6 +82,7 @@ impl ReplayEngine {
         // Apply events through state machine
         let mut current_state: Option<LifecycleState> = None;
         let mut events_applied: usize = 0;
+        let mut latest_fence: Option<u64> = None;
 
         for event in events {
             let payload = EventPayload::try_from_json(&event.payload).map_err(|e| {
@@ -111,6 +113,14 @@ impl ReplayEngine {
             ) {
                 events_applied += 1;
                 continue;
+            }
+
+            // Track latest fence from StepScheduled events (ADR-029).
+            // This allows replay to recover the current fence state for each step.
+            if let EventPayload::StepScheduled { fence, .. } = payload {
+                if latest_fence.map_or(true, |current| fence > current) {
+                    latest_fence = Some(fence);
+                }
             }
 
             let transition = payload_to_transition(&payload, event.sequence)?;
@@ -145,6 +155,7 @@ impl ReplayEngine {
         Ok(ReplayResult {
             final_state: current_state,
             events_applied,
+            latest_fence,
         })
     }
 
@@ -174,6 +185,7 @@ impl ReplayEngine {
             return Ok(ReplayResult {
                 final_state: None,
                 events_applied: 0,
+                latest_fence: None,
             });
         }
 

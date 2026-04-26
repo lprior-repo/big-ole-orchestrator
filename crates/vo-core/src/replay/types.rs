@@ -21,6 +21,10 @@ pub struct ReplayResult {
     pub final_state: Option<LifecycleState>,
     /// Number of events successfully applied.
     pub events_applied: usize,
+    /// Latest fence token observed from StepScheduled events during replay.
+    /// This is the fence that should be restored after restart/recovery.
+    /// `None` if no StepScheduled events were replayed.
+    pub latest_fence: Option<u64>,
 }
 
 /// Errors that can occur during event replay.
