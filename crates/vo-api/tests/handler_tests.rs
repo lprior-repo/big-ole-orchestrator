@@ -790,7 +790,16 @@ mod workflow_start {
     use ractor::Actor;
     use std::sync::Arc;
     use vo_actor::OrchestratorMsg;
+    use vo_core::admission::{PressureGuardResult, WriterPressureGuard};
     use vo_storage::dedupe_partition::InMemoryDedupeStore;
+
+    struct AlwaysAdmitPressureGuard;
+
+    impl WriterPressureGuard for AlwaysAdmitPressureGuard {
+        fn check(&self) -> PressureGuardResult {
+            PressureGuardResult::Admitted
+        }
+    }
 
     struct CapturingOrchestrator;
 
@@ -820,6 +829,20 @@ mod workflow_start {
         }
     }
 
+    fn production_app(
+        master_ref: ractor::ActorRef<OrchestratorMsg>,
+        dedupe_store: Arc<dyn vo_storage::dedupe_partition::DedupeStore>,
+    ) -> Router {
+        Router::new()
+            .route(
+                "/api/v1/workflows",
+                post(vo_api::handlers::start_workflow),
+            )
+            .layer(Extension(master_ref))
+            .layer(Extension(Arc::new(AlwaysAdmitPressureGuard) as Arc<dyn WriterPressureGuard>))
+            .layer(Extension(dedupe_store))
+    }
+
     #[tokio::test]
     async fn given_start_request_when_handler_runs_then_production_orchestrator_receives_start() {
         let (master_ref, _handle) = ractor::Actor::spawn(
@@ -833,13 +856,7 @@ mod workflow_start {
         let dedupe_store: Arc<dyn vo_storage::dedupe_partition::DedupeStore> =
             Arc::new(InMemoryDedupeStore::new());
 
-        let app = Router::new()
-            .route(
-                "/api/v1/workflows",
-                post(vo_api::handlers::start_workflow),
-            )
-            .layer(Extension(master_ref))
-            .layer(Extension(dedupe_store));
+        let app = production_app(master_ref, dedupe_store);
 
         let req = Request::builder()
             .method("POST")
@@ -863,6 +880,60 @@ mod workflow_start {
         assert_eq!(body["namespace"], "test-ns");
         assert_eq!(body["workflow_type"], "test-wf");
         assert!(body.get("instance_id").is_some());
+
+        let _ = _handle;
+    }
+
+    // ======================================================================
+    // BDD: exact workflow start without dedupe key → rejected (tw-4y6h.5.1)
+    // ======================================================================
+
+    #[tokio::test]
+    async fn given_exact_start_without_dedupe_key_when_started_then_request_is_rejected() {
+        let (master_ref, _handle) = ractor::Actor::spawn(
+            Some("test-dedupe-reject-orchestrator".to_string()),
+            CapturingOrchestrator,
+            (),
+        )
+        .await
+        .expect("spawn orchestrator");
+
+        let dedupe_store: Arc<dyn vo_storage::dedupe_partition::DedupeStore> =
+            Arc::new(InMemoryDedupeStore::new());
+
+        let app = production_app(master_ref, Arc::clone(&dedupe_store));
+
+        // Given: an exact workflow start request with no dedupe_key
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/workflows")
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(
+                r#"{"namespace":"test-ns","workflow_type":"exact-wf","paradigm":"fsm","input":{"key":"val"}}"#,
+            ))
+            .unwrap();
+
+        // When: start_workflow validates admission
+        let resp = app.oneshot(req).await.expect("oneshot");
+        let status = resp.status();
+        let (_parts, body_stream) = resp.into_parts();
+        let body_bytes = axum::body::to_bytes(body_stream, 1 << 20)
+            .await
+            .expect("read body");
+        let body_str = String::from_utf8(body_bytes.to_vec()).unwrap_or_default();
+
+        // Then: the request fails with a structured missing-dedupe error
+        assert_eq!(status, StatusCode::BAD_REQUEST, "response body: {body_str}");
+
+        let body: Value = serde_json::from_slice(&body_bytes).expect("parse json");
+        assert_eq!(body["error"], "missing_dedupe_key");
+        assert!(body["message"].as_str().unwrap_or("").contains("dedupe_key"));
+
+        // And: no durable records are written to the dedupe store
+        let contains_any = dedupe_store
+            .contains(&vo_types::DedupeKey::parse("any-key").unwrap())
+            .expect("dedupe store query");
+        assert!(!contains_any, "dedupe store must be empty — no records written");
 
         let _ = _handle;
     }
