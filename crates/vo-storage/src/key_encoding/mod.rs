@@ -248,32 +248,47 @@ pub fn decode_event_key(bytes: &[u8]) -> Result<(InstanceId, SequenceNumber), Ke
 #[must_use]
 pub fn encode_timer_key(fire_at_ms: u64, instance_id: &InstanceId) -> Vec<u8> {
     let iid_bytes = instance_id.to_bytes().unwrap_or([0u8; 16]);
-    let mut key = Vec::with_capacity(8 + 16);
+    let mut key = Vec::with_capacity(8 + 2 + iid_bytes.len());
     key.extend_from_slice(&fire_at_ms.to_be_bytes());
+    key.extend_from_slice(&encode_u16_be(iid_bytes.len() as u16));
     key.extend_from_slice(&iid_bytes);
     key
 }
 
 /// Decode a timer key into fire-at timestamp and instance ID.
 ///
+/// Expected format: `[timestamp_u64_be(8)][instance_id_len_u16_be(2)][instance_id_bytes]`
+///
 /// # Errors
 ///
-/// Returns `KeyEncodingError::InvalidLength` if the key is not exactly 24 bytes.
-///
-/// # Panics
-///
-/// Panics if the key is not exactly 24 bytes.
+/// Returns `KeyEncodingError::InvalidLength` if the key is too short for the declared length.
 pub fn decode_timer_key(bytes: &[u8]) -> Result<(u64, InstanceId), KeyEncodingError> {
-    if bytes.len() != 24 {
+    if bytes.len() < 10 {
         return Err(KeyEncodingError::InvalidLength {
-            expected: 24,
+            expected: 10,
             actual: bytes.len(),
         });
     }
-    #[expect(clippy::unwrap_used)]
-    let ts_bytes: [u8; 8] = bytes[..8].try_into().unwrap();
-    #[expect(clippy::unwrap_used)]
-    let iid_bytes: [u8; 16] = bytes[8..24].try_into().unwrap();
+    let ts_bytes: [u8; 8] = bytes[..8]
+        .try_into()
+        .map_err(|_| KeyEncodingError::InvalidLength {
+            expected: 8,
+            actual: bytes.len(),
+        })?;
+    let iid_len = decode_u16_be(&bytes[8..10])? as usize;
+    let required = 10 + iid_len;
+    if bytes.len() < required {
+        return Err(KeyEncodingError::InvalidLength {
+            expected: required,
+            actual: bytes.len(),
+        });
+    }
+    let iid_bytes: [u8; 16] = bytes[10..10 + iid_len]
+        .try_into()
+        .map_err(|_| KeyEncodingError::InvalidLength {
+            expected: 16,
+            actual: iid_len,
+        })?;
     Ok((
         u64::from_be_bytes(ts_bytes),
         InstanceId::from_bytes(iid_bytes),

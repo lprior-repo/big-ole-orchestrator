@@ -19,12 +19,15 @@
 pub mod data;
 pub mod types;
 
+pub use data::{ExtensionBatchMetadata, HistoryEntry, WorkflowSnapshot};
+pub use types::{
+    BatchId, CommandHistoryError, CommandKind, ExtensionApplyMode, HistoryEntryStatus,
+    MAX_HISTORY_DEPTH, MAX_REDO_STACK_DEPTH, MAX_UNDO_STACK_DEPTH, SnapshotId,
+};
+
 use crate::workflow::{DagNode, Edge};
 
-use self::data::{HistoryEntry, WorkflowSnapshot};
-use self::types::CommandHistoryError;
 use self::types::CommandId;
-use self::types::HistoryEntryStatus;
 
 /// The full undo/redo stack for command history tracking.
 ///
@@ -137,7 +140,7 @@ impl CommandHistory {
     /// Returns `Ok(CommandId)` on success, or an error if at capacity.
     pub fn save_undo_point(
         &mut self,
-        kind: super::types::CommandKind,
+        kind: CommandKind,
         snapshot_before: WorkflowSnapshot,
     ) -> Result<CommandId, CommandHistoryError> {
         let command_id = CommandId::new();
@@ -264,7 +267,7 @@ impl CommandHistory {
     /// Returns `Ok(CommandId)` on success, or an error if at capacity.
     pub fn apply_command(
         &mut self,
-        kind: super::types::CommandKind,
+        kind: CommandKind,
         before_snapshot: WorkflowSnapshot,
         after_snapshot: WorkflowSnapshot,
         batch_metadata: Option<self::data::ExtensionBatchMetadata>,

@@ -133,7 +133,7 @@ proptest! {
     #[test]
     fn timer_key_fixed_length(id in arb_instance_id(), fire_at_ms in any::<u64>()) {
         let key = encode_timer_key(fire_at_ms, &id);
-        prop_assert_eq!(key.len(), 24, "timer key should be 24 bytes");
+        prop_assert_eq!(key.len(), 26, "timer key should be 26 bytes");
     }
 
     /// TM-PROP-005: Same timestamp, different instances ordered by instance bytes.

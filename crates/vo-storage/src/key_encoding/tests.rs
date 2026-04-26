@@ -227,10 +227,10 @@ fn event_key_prefix_scan_works() {
 }
 
 #[test]
-fn encode_timer_key_produces_24_byte_key() {
+fn encode_timer_key_produces_length_prefixed_key() {
     let id = min_instance_id();
     let key = encode_timer_key(1000, &id);
-    assert_eq!(key.len(), 24);
+    assert_eq!(key.len(), 26);
 }
 
 #[test]
@@ -515,4 +515,43 @@ fn get_effect_key_prefix(instance_id: &InstanceId) -> Vec<u8> {
     let mut prefix = Vec::with_capacity(16);
     prefix.extend_from_slice(&iid_bytes);
     prefix
+}
+
+/// ADR-020 / ADR-005: Timer keys use length-prefixed instance IDs for unambiguous
+/// decoding. The format is [timestamp_u64_be(8)][instance_id_len_u16_be(2)]
+/// [instance_id_bytes]. This guarantees that the instance ID can be parsed without
+/// ambiguity even if instance IDs were variable length, while lexicographic ordering
+/// by due time is preserved because the timestamp is the leading component.
+#[test]
+fn given_timer_key_when_encoded_then_components_are_unambiguous_and_ordered() {
+    // Given: instance IDs of varying apparent ambiguity
+    let id_a = min_instance_id();
+    let id_b = max_instance_id();
+    let id_c = InstanceId::parse("00000000000000000000000005").unwrap();
+
+    // When: we encode timer keys at different timestamps
+    let key_a_1000 = encode_timer_key(1000, &id_a);
+    let key_a_2000 = encode_timer_key(2000, &id_a);
+    let key_b_1000 = encode_timer_key(1000, &id_b);
+    let key_c_1000 = encode_timer_key(1000, &id_c);
+
+    // Then: the timestamp is the leading 8 bytes for lexicographic ordering
+    assert!(key_a_1000 < key_a_2000, "earlier timestamps sort first");
+    assert!(key_a_1000 < key_b_1000, "same timestamp: lexicographic on instance ID");
+    assert!(key_c_1000 < key_b_1000, "middle < max for instance IDs at same timestamp");
+
+    // And: decoding recovers the original components exactly (unambiguous)
+    let (decoded_ts, decoded_id) = decode_timer_key(&key_a_1000).unwrap();
+    assert_eq!(decoded_ts, 1000);
+    assert_eq!(decoded_id, id_a);
+
+    let (decoded_ts, decoded_id) = decode_timer_key(&key_b_1000).unwrap();
+    assert_eq!(decoded_ts, 1000);
+    assert_eq!(decoded_id, id_b);
+
+    // And: the length prefix is correctly encoded and decoded
+    let expected_len_bytes = 16u16.to_be_bytes();
+    assert_eq!(&key_a_1000[8..10], &expected_len_bytes, "length prefix must be 16 for 16-byte ULID");
+    assert_eq!(&key_a_1000[..8], &1000u64.to_be_bytes(), "timestamp must be first 8 bytes");
+    assert_eq!(&key_a_1000[10..26], &id_a.to_bytes().unwrap(), "instance ID bytes start after length prefix");
 }
