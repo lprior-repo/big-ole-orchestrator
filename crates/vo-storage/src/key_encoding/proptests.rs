@@ -185,7 +185,7 @@ proptest! {
         let id2 = InstanceId::from_bytes([1u8; 16]);
         let key1 = encode_lease_key(&id1, &step);
         let key2 = encode_lease_key(&id2, &step);
-        prop_assert_ne!(key1, key2, "different instances should produce different lease keys");
+        prop_assert_ne!(key1.clone(), key2.clone(), "different instances should produce different lease keys");
         prop_assert!(key1 < key2, "id [0...] < id [1...] should give key1 < key2 for same step");
     }
 

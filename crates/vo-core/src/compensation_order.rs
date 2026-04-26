@@ -123,8 +123,15 @@ pub fn detect_cycle(nodes: &[CompensationNode]) -> Option<Vec<String>> {
             for dep in deps {
                 let dep_color = color.get(dep).copied().unwrap_or(0);
                 if dep_color == 1 {
-                    let cycle_start = path.iter().position(|n| n == dep).unwrap();
-                    return Some(path[cycle_start..].to_vec());
+                    let cycle_start = path
+                        .iter()
+                        .position(|n| n == dep)
+                        .unwrap_or_else(|| path.len());
+                    return if cycle_start < path.len() {
+                        Some(path[cycle_start..].to_vec())
+                    } else {
+                        None
+                    };
                 }
                 if dep_color == 0 {
                     if let Some(cycle) = dfs(dep, color, adjacency, path) {

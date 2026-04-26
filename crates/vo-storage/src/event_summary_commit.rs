@@ -311,8 +311,9 @@ mod tests {
 
     fn make_temp_db() -> (tempfile::TempDir, Database, PathBuf) {
         let dir = tempfile::tempdir().expect("create temp dir");
-        let db = Database::builder(dir.path()).open().expect("open db");
-        (dir, db, dir.path().to_path_buf())
+        let path = dir.path().to_path_buf();
+        let db = Database::builder(&path).open().expect("open db");
+        (dir, db, path)
     }
 
     // ========================================================================
@@ -636,7 +637,7 @@ mod tests {
 
         // Now: atomic batch commit on separate DB
         let (_dir2, batch_db, _path2) = make_temp_db();
-        let params = make_params(instance_id, 1, InstanceStatus::Running, None);
+        let params = make_params(instance_id.clone(), 1, InstanceStatus::Running, None);
 
         // The batch commit either succeeds (both visible) or fails (none visible)
         // This is the core atomicity guarantee of fjall::OwnedWriteBatch

@@ -23,6 +23,23 @@ impl Color {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RedBlackTreeError {
+    MissingRightChild,
+    MissingLeftChild,
+}
+
+impl std::fmt::Display for RedBlackTreeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RedBlackTreeError::MissingRightChild => write!(f, "missing right child"),
+            RedBlackTreeError::MissingLeftChild => write!(f, "missing left child"),
+        }
+    }
+}
+
+impl std::error::Error for RedBlackTreeError {}
+
 #[derive(Debug, Clone)]
 pub struct Node<K, V> {
     pub key: K,

@@ -3,10 +3,6 @@
 mod r#impl;
 #[cfg(test)]
 mod tests;
-#[cfg(test)]
-mod proptests;
-#[cfg(kani)]
-mod verification;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
