@@ -209,6 +209,16 @@ pub fn decode_sequence_number(bytes: &[u8]) -> Result<SequenceNumber, KeyEncodin
     SequenceNumber::try_from(val).map_err(KeyEncodingError::InstanceId)
 }
 
+/// Encode an event key: `[instance_id(16)][sequence_u64_be]` = 24 bytes.
+///
+/// The `InstanceId` component is a **fixed-width 16-byte ULID binary newtype**
+/// (see `vo_types::InstanceId::to_bytes` / `from_bytes`). Because it always
+/// serializes to exactly 16 bytes, no length prefix is needed — the boundary
+/// between the instance and sequence components is unambiguous at byte offset 16.
+///
+/// This satisfies ADR-020's framing requirement via the fixed-binary-newtype
+/// exception: variable-length identifiers are length-prefixed, but fixed-width
+/// binary types (like the 16-byte ULID) do not require a length prefix.
 #[must_use]
 pub fn encode_event_key(instance_id: &InstanceId, sequence: SequenceNumber) -> Vec<u8> {
     let iid_bytes = instance_id.to_bytes().unwrap_or([0u8; 16]);

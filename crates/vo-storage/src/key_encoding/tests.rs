@@ -509,6 +509,51 @@ fn lease_key_with_max_instance_id_roundtrips() {
     assert_eq!(decoded_step, step);
 }
 
+#[test]
+fn given_event_key_when_encoded_then_instance_component_is_unambiguous() {
+    let id = InstanceId::parse("01H5X2K3M4N5P6Q7R8S9T0VWXY").unwrap();
+    let seq = SequenceNumber::try_from(42u64).unwrap();
+    let key = encode_event_key(&id, seq);
+
+    assert_eq!(
+        key.len(),
+        24,
+        "event key must be exactly 24 bytes (16-byte instance + 8-byte sequence)"
+    );
+
+    let iid_bytes = id.to_bytes().unwrap();
+    assert_eq!(
+        iid_bytes.len(),
+        16,
+        "InstanceId::to_bytes must produce exactly 16 bytes (ULID binary)"
+    );
+    assert_eq!(
+        &key[..16], &iid_bytes,
+        "first 16 bytes of event key must be the raw ULID bytes"
+    );
+
+    let reconstructed = InstanceId::from_bytes(iid_bytes);
+    assert_eq!(
+        reconstructed, id,
+        "reconstructing InstanceId from the 16-byte slice must yield the original"
+    );
+
+    let roundtrip = decode_event_key(&key).unwrap();
+    assert_eq!(roundtrip.0, id);
+    assert_eq!(roundtrip.1, seq);
+
+    let id2 = InstanceId::parse("7ZZZZZZZZZZZZZZZZZZZZZZZZZ").unwrap();
+    let key2 = encode_event_key(&id2, seq);
+    assert_eq!(
+        key2.len(), 24,
+        "different InstanceId still produces 24-byte key (fixed width)"
+    );
+    assert_ne!(
+        key[..16], key2[..16],
+        "different InstanceIds must differ in the first 16 bytes"
+    );
+}
+
 #[allow(dead_code)]
 fn get_effect_key_prefix(instance_id: &InstanceId) -> Vec<u8> {
     let iid_bytes = instance_id.to_bytes().unwrap_or([0u8; 16]);
