@@ -262,6 +262,7 @@ impl ExecutionSemaphore {
     #[cfg(test)]
     mod tests {
         use super::*;
+        use std::time::Duration;
 
         #[tokio::test]
         async fn execution_semaphore_try_acquire_success() {

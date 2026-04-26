@@ -74,6 +74,8 @@ pub fn should_respawn(record: &SpawnRecord, max_attempts: u32) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
+    use std::time::Duration;
     use ulid::Ulid;
     use vo_types::InstanceId;
 
