@@ -7,17 +7,15 @@
 //!
 //! "If critical thresholds are crossed, the Engine enters Degraded Mode."
 
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
-use std::time::Instant;
 
 use tokio::sync::watch;
 use tokio::time::{interval, MissedTickBehavior};
 use tokio::task::JoinHandle;
-use tracing::{error, info, warn};
+use tracing::{error, warn};
 
 use super::monitor::{read_storage_metrics, FlushTimeoutTracker};
-use super::types::{StorageHealth, StorageMetrics, StorageWatchdogConfig};
+use super::types::{FlushTimeoutConfig, StorageHealth, StorageMetrics, StorageWatchdogConfig};
 use crate::admission::types::PressureIndicator;
 
 /// Handle for controlling the Storage Watchdog.
@@ -25,7 +23,7 @@ use crate::admission::types::PressureIndicator;
 pub struct StorageWatchdogHandle {
     shutdown_trigger: tokio::sync::watch::Sender<()>,
     task_handle: Option<JoinHandle<()>>,
-    state_receiver: watch::Receiver<WatchdogState>,
+    health_receiver: watch::Receiver<StorageHealth>,
 }
 
 impl StorageWatchdogHandle {
@@ -41,81 +39,37 @@ impl StorageWatchdogHandle {
     /// Gets the current health state reported by the watchdog.
     #[must_use]
     pub fn current_health(&self) -> StorageHealth {
-        self.state_receiver.borrow().clone()
+        self.health_receiver.borrow().clone()
     }
 
     /// Returns true if the watchdog considers storage healthy.
     #[must_use]
     pub fn is_healthy(&self) -> bool {
-        self.state_receiver.borrow().is_healthy()
+        self.health_receiver.borrow().is_healthy()
     }
 
     /// Returns true if the watchdog considers storage degraded or critical.
     #[must_use]
     pub fn is_degraded(&self) -> bool {
-        self.state_receiver.borrow().is_degraded()
+        self.health_receiver.borrow().is_degraded()
     }
 
     /// Returns true if the watchdog reports critical health.
     #[must_use]
     pub fn is_critical(&self) -> bool {
-        self.state_receiver.borrow().is_critical()
+        self.health_receiver.borrow().is_critical()
     }
 
     /// Returns true if the writer is stalled and the engine should shut down.
     #[must_use]
     pub fn writer_stalled(&self) -> bool {
-        self.state_receiver.borrow().writer_stalled()
+        self.health_receiver.borrow().writer_stalled()
     }
 
     /// Returns the degraded-mode triggers.
     #[must_use]
     pub fn triggers(&self) -> Vec<PressureIndicator> {
-        self.state_receiver.borrow().indicators()
-    }
-}
-
-/// Runtime state of the storage watchdog.
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum WatchdogState {
-    /// Watchdog is stopped.
-    Stopped,
-    /// Watchdog is running and monitoring.
-    Running,
-    /// Watchdog is shutting down.
-    ShuttingDown,
-    /// Watchdog has shut down.
-    ShutDown,
-}
-
-impl WatchdogState {
-    fn as_health(&self, metrics: &StorageMetrics, config: &StorageWatchdogConfig) -> StorageHealth {
-        match self {
-            WatchdogState::Stopped | WatchdogState::Running => {
-                compute_health(metrics, config)
-            }
-            WatchdogState::ShuttingDown | WatchdogState::ShutDown => StorageHealth::Healthy,
-        }
-    }
-
-    fn is_healthy(&self) -> bool {
-        matches!(self, WatchdogState::Stopped | WatchdogState::Running)
-    }
-
-    fn is_degraded(&self) -> bool {
-        matches!(self, WatchdogState::Running)
-    }
-
-    fn is_critical(&self) -> bool {
-        matches!(self, WatchdogState::Running)
-    }
-
-    fn writer_stalled(&self) -> bool {
-        matches!(self, WatchdogState::Running)
-    }
-
-    fn indicators(&self) -> Vec<PressureIndicator> {
-        Vec::new()
+        self.health_receiver.borrow().indicators()
     }
 }
 
@@ -136,9 +90,7 @@ impl StorageWatchdog {
     /// # Arguments
     /// * `config` - Watchdog configuration with thresholds.
     /// * `data_path` - Path to the storage data directory for disk space monitoring.
-    /// * `metrics_fetcher` - Async function to fetch current writer/blob queue depths
-    ///   and commit latency from the DbWriterActor.
-    /// * `flush_timeout_notifier` - A channel sender that receives flush timeout events.
+    /// * `flush_timeout_tx` - Channel sender for flush timeout events.
     /// * `health_sender` - A watch channel sender for broadcasting health state.
     /// * `health_receiver` - A watch channel receiver for the health state.
     /// * `compaction_stall_rx` - Receiver for compaction stall events.
@@ -152,27 +104,24 @@ impl StorageWatchdog {
         data_path: String,
         flush_timeout_tx: tokio::sync::mpsc::Sender<()>,
         health_sender: watch::Sender<StorageHealth>,
-        mut health_receiver: watch::Receiver<StorageHealth>,
-        compaction_stall_rx: watch::Receiver<bool>,
-        storage_stall_rx: watch::Receiver<bool>,
+        health_receiver: watch::Receiver<StorageHealth>,
+        mut compaction_stall_rx: watch::Receiver<bool>,
+        mut storage_stall_rx: watch::Receiver<bool>,
     ) -> StorageWatchdogHandle {
         let (shutdown_trigger, mut shutdown_rx) = watch::channel(());
         let config = Arc::new(config);
         let data_path = Arc::new(data_path);
 
         let task_handle = tokio::spawn(async move {
-            let mut health_state = WatchdogState::Running;
-
             let _ = health_sender.send(StorageHealth::Healthy);
-            let mut _health_sub = health_receiver.subscribe();
 
             let mut flush_tracker = FlushTimeoutTracker::new(FlushTimeoutConfig {
                 count_threshold: config.flush_timeout_count_threshold,
                 window: config.flush_timeout_window,
             });
 
-            let mut interval = interval(config.poll_interval);
-            interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
+            let mut poll = interval(config.poll_interval);
+            poll.set_missed_tick_behavior(MissedTickBehavior::Skip);
 
             let mut last_compaction_stall = false;
             let mut last_storage_stall = false;
@@ -180,42 +129,31 @@ impl StorageWatchdog {
             loop {
                 tokio::select! {
                     _ = shutdown_rx.changed() => {
-                        health_state = WatchdogState::ShuttingDown;
                         let _ = health_sender.send(StorageHealth::Healthy);
                         break;
                     }
-                    _ = interval.tick() => {
-                        let mut compaction_stall = false;
-                        let mut storage_stall = false;
-
-                        // Read compaction stall status
-                        match compaction_stall_rx.try_recv() {
-                            Ok(val) => { last_compaction_stall = val; }
-                            Err(_) => {}
+                    _ = poll.tick() => {
+                        if compaction_stall_rx.has_changed().unwrap_or(false) {
+                            last_compaction_stall = *compaction_stall_rx.borrow_and_update();
                         }
 
-                        // Read storage stall status
-                        match storage_stall_rx.try_recv() {
-                            Ok(val) => { last_storage_stall = val; }
-                            Err(_) => {}
+                        if storage_stall_rx.has_changed().unwrap_or(false) {
+                            last_storage_stall = *storage_stall_rx.borrow_and_update();
                         }
 
-                        // Read storage metrics
                         let metrics = read_storage_metrics(
                             &data_path,
-                            0,  // writer_queue_depth — not directly accessible
-                            0,  // commit_latency_ms
-                            0,  // blob_queue_depth
-                            0,  // compaction_backlog
+                            0,
+                            0,
+                            0,
+                            0,
                             last_compaction_stall,
                             last_storage_stall,
                             &flush_tracker,
                         );
 
-                        // Evaluate health
-                        let health = compute_health(&metrics, &config);
+                        let health = Self::compute_health(&metrics, &config);
 
-                        // Notify if health changed
                         let current = health_sender.borrow();
                         if *current != health {
                             if health.is_critical() {
@@ -237,7 +175,6 @@ impl StorageWatchdog {
                             let _ = health_sender.send(health.clone());
                         }
 
-                        // Check for writer stall — triggers clean engine shutdown
                         if health.writer_stalled() {
                             error!("Storage watchdog: writer stalled — engine should shut down cleanly");
                         }
@@ -251,7 +188,7 @@ impl StorageWatchdog {
         StorageWatchdogHandle {
             shutdown_trigger,
             task_handle: Some(task_handle),
-            state_receiver: health_receiver,
+            health_receiver,
         }
     }
 
@@ -268,7 +205,6 @@ impl StorageWatchdog {
             return StorageHealth::Healthy;
         }
 
-        // Check if writer is stalled (no forward progress possible)
         let writer_stalled = metrics.commit_latency_ms > config.commit_latency_ms_threshold * 5
             || metrics.writer_queue_depth > config.writer_queue_depth_threshold * 3
             || metrics.disk_space.is_critical(config.disk_space_critical_percent / 2.0);

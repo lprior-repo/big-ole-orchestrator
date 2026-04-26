@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use crate::admission::types::PressureIndicator;
 
 /// Configuration for the storage watchdog background task.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct StorageWatchdogConfig {
     /// How often the watchdog runs its health check cycle.
     pub check_interval: Duration,
@@ -55,7 +55,7 @@ impl Default for StorageWatchdogConfig {
 }
 
 /// Current filesystem disk space metrics.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct DiskSpaceMetrics {
     /// Total disk space in bytes.
     pub total_bytes: u64,
@@ -127,7 +127,7 @@ impl Default for FlushTimeoutConfig {
 }
 
 /// Aggregated storage health metrics from all monitoring sources.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct StorageMetrics {
     /// Disk space metrics from filesystem.
     pub disk_space: DiskSpaceMetrics,
@@ -214,7 +214,7 @@ impl StorageMetrics {
 }
 
 /// Overall storage health status from the watchdog's perspective.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum StorageHealth {
     /// All storage indicators within normal thresholds.
     Healthy,

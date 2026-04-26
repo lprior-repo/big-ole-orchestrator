@@ -13,6 +13,5 @@ pub mod monitor;
 pub mod types;
 pub mod watchdog;
 
-pub use monitor::StorageMonitor;
-pub use types::{FlushTimeoutConfig, StorageHealth, StorageMetrics, StorageWatchdogConfig};
+pub use types::{DiskSpaceMetrics, StorageHealth, StorageMetrics, StorageWatchdogConfig};
 pub use watchdog::StorageWatchdog;

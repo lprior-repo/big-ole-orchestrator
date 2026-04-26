@@ -1,6 +1,6 @@
 use axum::{
     extract::{Extension, Json},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::IntoResponse,
 };
 use bytes::Bytes;
@@ -11,6 +11,7 @@ use std::time::Duration;
 use ulid::Ulid;
 use vo_actor::{OrchestratorMsg, StartError};
 use vo_common::NamespaceId;
+use vo_core::admission::{PressureGuardResult, WriterPressureGuard};
 use vo_storage::dedupe_partition::DedupeStore;
 
 use crate::handlers::helpers::parse_paradigm;
@@ -32,6 +33,7 @@ const ACTOR_CALL_TIMEOUT: Duration = Duration::from_secs(5);
 pub async fn start_workflow(
     Extension(master): Extension<ActorRef<OrchestratorMsg>>,
     Extension(dedupe_store): Extension<Arc<dyn DedupeStore>>,
+    Extension(writer_pressure): Extension<Arc<dyn WriterPressureGuard>>,
     Json(req): Json<V3StartRequest>,
 ) -> impl IntoResponse {
     // Step 1: Validate dedupe key presence (ADR-028 Section 2).
@@ -134,7 +136,29 @@ pub async fn start_workflow(
     let captured_namespace = namespace.clone();
     let captured_id = instance_id.clone();
 
-    // Step 4: Proceed to start workflow via actor (ADR-028 atomic write).
+    // Step 4: Check writer pressure before submitting to orchestrator (ADR-006, ADR-015).
+    // When DbWriter mailbox is at 80% capacity, shed ingress with 429 + Retry-After.
+    match writer_pressure.check() {
+        PressureGuardResult::Admitted => {}
+        PressureGuardResult::Shed {
+            retry_after_secs,
+            reason,
+        } => {
+            let mut headers = HeaderMap::new();
+            headers.insert(
+                axum::http::header::RETRY_AFTER,
+                retry_after_secs.to_string().parse().expect("valid header value"),
+            );
+            return (
+                StatusCode::TOO_MANY_REQUESTS,
+                headers,
+                Json(ApiError::new("writer_pressure_shed", reason)),
+            )
+                .into_response();
+        }
+    }
+
+    // Step 5: Proceed to start workflow via actor (ADR-028 atomic write).
     let call_result = master
         .call(
             |tx| OrchestratorMsg::StartWorkflow {

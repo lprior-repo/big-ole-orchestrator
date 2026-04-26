@@ -18,6 +18,7 @@ use crate::handlers::sse::SseState;
 use crate::handlers::ws::WsState;
 use ractor::ActorRef;
 use vo_actor::OrchestratorMsg;
+use vo_core::admission::WriterPressureGuard;
 use vo_core::circuit_breaker::CircuitBreakerState;
 use vo_storage::dedupe_partition::DedupeStore;
 
@@ -40,6 +41,8 @@ pub struct AppState {
     pub circuit_breaker: Arc<CircuitBreakerState>,
     /// Dedupe store for ADR-028 exactly-once ingress deduplication.
     pub dedupe_store: Arc<dyn DedupeStore>,
+    /// Writer pressure guard for ADR-006/ADR-015 ingress load shedding.
+    pub writer_pressure: Arc<dyn WriterPressureGuard>,
 }
 
 // ---------------------------------------------------------------------------
@@ -70,7 +73,8 @@ pub fn create_router(state: AppState) -> Router {
         )
         .layer(Extension(state.master.clone()))
         .layer(Extension(state.circuit_breaker.clone()))
-        .layer(Extension(state.dedupe_store.clone()));
+        .layer(Extension(state.dedupe_store.clone()))
+        .layer(Extension(state.writer_pressure.clone()));
 
     // Query endpoints -- uses State<QueryState>
     let query_routes = Router::new()
@@ -200,6 +204,9 @@ mod tests {
             master: master.clone(),
             circuit_breaker: circuit_breaker.clone(),
             dedupe_store: Arc::new(vo_storage::dedupe_partition::InMemoryDedupeStore::new()),
+            writer_pressure: Arc::new(
+                vo_core::admission::WatchdogPressureGuard::permissive(),
+            ),
         };
 
         let _router = create_router(state.clone());
