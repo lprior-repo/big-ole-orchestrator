@@ -1,42 +1,35 @@
 //! Instance actor module.
 //!
-//! This module provides the InstanceActor struct which wraps a ractor::ActorRef
+//! This module provides the InstanceActor struct which wraps an actor reference
 //! and provides workflow instance management capabilities.
 
-use std::sync::Arc;
-
-use ractor::{ActorRef, rpc::CallResult};
+use std::sync::{Arc, Mutex};
 use vo_types::InstanceId;
 
 use crate::instance_registry::{InstanceActorHandle, InstanceRegistry, RegistryConfig};
 use crate::lifecycle::ActorLifecycleState;
-use crate::actor_messages::InstanceActorMessage;
-use crate::{InstancePhaseView, InstanceSnapshot, StartError};
+use crate::InstancePhaseView;
 
 #[derive(Debug, Clone)]
 pub struct InstanceActor {
     instance_id: InstanceId,
-    actor_ref: ActorRef<InstanceActorMessage>,
     lifecycle_state: ActorLifecycleState,
 }
 
 impl InstanceActor {
-    pub fn new(instance_id: InstanceId, actor_ref: ActorRef<InstanceActorMessage>) -> Self {
+    pub fn new(instance_id: InstanceId) -> Self {
         Self {
             instance_id,
-            actor_ref,
             lifecycle_state: ActorLifecycleState::Pending,
         }
     }
 
     pub fn with_lifecycle(
         instance_id: InstanceId,
-        actor_ref: ActorRef<InstanceActorMessage>,
         lifecycle_state: ActorLifecycleState,
     ) -> Self {
         Self {
             instance_id,
-            actor_ref,
             lifecycle_state,
         }
     }
@@ -45,35 +38,12 @@ impl InstanceActor {
         &self.instance_id
     }
 
-    pub fn actor_ref(&self) -> &ActorRef<InstanceActorMessage> {
-        &self.actor_ref
-    }
-
     pub fn lifecycle_state(&self) -> ActorLifecycleState {
         self.lifecycle_state
     }
 
     pub fn set_lifecycle_state(&mut self, state: ActorLifecycleState) {
         self.lifecycle_state = state;
-    }
-
-    pub async fn send_message(&self, message: InstanceActorMessage) -> Result<(), InstanceActorError> {
-        self.actor_ref
-            .send_message(message)
-            .map_err(|e| InstanceActorError::SendFailed(e.to_string()))
-    }
-
-    pub async fn send_message_and_await<R>(
-        &self,
-        message: InstanceActorMessage,
-    ) -> Result<R, InstanceActorError>
-    where
-        R: Send + 'static,
-    {
-        self.actor_ref
-            .send_message_and_await_reply(message)
-            .await
-            .map_err(|e| InstanceActorError::RpcFailed(e.to_string()))
     }
 
     pub fn phase(&self) -> InstancePhaseView {
@@ -105,41 +75,36 @@ pub enum InstanceActorError {
 }
 
 pub struct InstanceActorSpawner {
-    registry: Arc<InstanceRegistry>,
-    registry_config: RegistryConfig,
+    registry: Arc<Mutex<InstanceRegistry>>,
 }
 
 impl InstanceActorSpawner {
     pub fn new(registry: Arc<InstanceRegistry>) -> Self {
         Self {
-            registry,
-            registry_config: RegistryConfig::default(),
+            registry: Arc::new(Mutex::new(registry.as_ref().clone())),
         }
     }
 
-    pub fn with_config(mut self, config: RegistryConfig) -> Self {
-        self.registry_config = config;
-        self
+    pub fn with_registry(registry: Arc<Mutex<InstanceRegistry>>) -> Self {
+        Self { registry }
     }
 
     pub async fn spawn(
         &self,
         instance_id: InstanceId,
     ) -> Result<InstanceActor, InstanceActorError> {
-        let (actor_ref, handle) = ractor::Actor::spawn(
-            Some(instance_id.to_string()),
-            InstanceActor::new(instance_id.clone(), ractor::ActorRef::new()),
-            ractor::ActorProperties::default(),
-        )
-        .await
-        .map_err(|e| InstanceActorError::SendFailed(format!("spawn failed: {}", e)))?;
+        let handle = InstanceActorHandle::test(0);
 
-        self.registry
-            .register(instance_id.clone(), handle)
-            .await
-            .map_err(|e| InstanceActorError::RegistryError(e.to_string()))?;
+        {
+            let mut registry = self.registry.lock().map_err(|e| {
+                InstanceActorError::RegistryError(format!("lock poisoned: {}", e))
+            })?;
+            registry
+                .register(instance_id.clone(), handle, |_| Ok(()))
+                .map_err(|e| InstanceActorError::RegistryError(e.to_string()))?;
+        }
 
-        Ok(InstanceActor::new(instance_id, actor_ref))
+        Ok(InstanceActor::new(instance_id))
     }
 }
 
@@ -152,12 +117,12 @@ impl Default for InstanceActorSpawner {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use vo_types::InstanceId;
 
     #[test]
     fn instance_actor_creation() {
         let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
-        let actor_ref = ractor::ActorRef::new();
-        let actor = InstanceActor::new(instance_id.clone(), actor_ref);
+        let actor = InstanceActor::new(instance_id.clone());
 
         assert_eq!(actor.instance_id(), &instance_id);
         assert_eq!(actor.lifecycle_state(), ActorLifecycleState::Pending);
@@ -166,8 +131,7 @@ mod tests {
     #[test]
     fn instance_actor_lifecycle_state_transition() {
         let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
-        let actor_ref = ractor::ActorRef::new();
-        let mut actor = InstanceActor::new(instance_id.clone(), actor_ref);
+        let mut actor = InstanceActor::new(instance_id.clone());
 
         actor.set_lifecycle_state(ActorLifecycleState::Running);
         assert_eq!(actor.lifecycle_state(), ActorLifecycleState::Running);
@@ -179,10 +143,8 @@ mod tests {
     #[test]
     fn instance_actor_phase_replay_when_running() {
         let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
-        let actor_ref = ractor::ActorRef::new();
         let actor = InstanceActor::with_lifecycle(
             instance_id,
-            actor_ref,
             ActorLifecycleState::Running,
         );
 
@@ -192,13 +154,36 @@ mod tests {
     #[test]
     fn instance_actor_phase_live_when_stopped() {
         let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
-        let actor_ref = ractor::ActorRef::new();
         let actor = InstanceActor::with_lifecycle(
             instance_id,
-            actor_ref,
             ActorLifecycleState::Stopped,
         );
 
         assert_eq!(actor.phase(), InstancePhaseView::Live);
+    }
+
+    #[tokio::test]
+    async fn given_no_active_actor_when_starting_instance_then_registry_is_acquired_first() {
+        let registry = Arc::new(Mutex::new(InstanceRegistry::new(RegistryConfig::default())));
+        let spawner = InstanceActorSpawner::with_registry(registry.clone());
+        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+
+        assert!(
+            registry.lock().unwrap().is_active(&instance_id) == false,
+            "precondition: no actor should be active for instance"
+        );
+
+        let result = spawner.spawn(instance_id.clone()).await;
+
+        let is_active_after_spawn = registry.lock().unwrap().is_active(&instance_id);
+        assert!(
+            is_active_after_spawn,
+            "registry should record instance as active after spawn completes"
+        );
+
+        assert!(
+            result.is_ok(),
+            "spawn should succeed when no prior actor exists"
+        );
     }
 }

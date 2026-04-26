@@ -163,27 +163,18 @@ fn execute_stop_fn_with_timeout(
 /// Enforces at most one active [`InstanceActorHandle`] per [`InstanceId`] **on this node**.
 /// All mutations go through [`register`](InstanceRegistry::register) or
 /// [`deregister`](InstanceRegistry::deregister).
-///
-/// # Scope
-///
-/// This is a **local** registry. It does NOT provide:
-/// - Cross-node synchronization
-/// - Global fencing
-/// - Distributed consensus
-///
-/// For global fencing guarantees, refer to ADR-029 (execution leases with monotonic
-/// fence tokens at the `(instance_id, step_id)` level).
-///
-/// # Invariants
-///
-/// - **INV-1 (Local Single-Active)**: At most one handle per `InstanceId` in this registry.
-/// - **INV-2 (Bijection)**: No two `InstanceId`s map to the same handle (ownership).
-/// - **INV-3 (Count Consistency)**: `active_count()` always equals the map length.
-/// - **INV-4 (Stop-Before-Replace)**: Prior actor stopped before new one replaces it.
-/// - **INV-5 (No Partial Mutations)**: On error, registry state is unchanged.
 pub struct InstanceRegistry {
     entries: HashMap<InstanceId, InstanceActorHandle>,
     stop_timeout: Duration,
+}
+
+impl Clone for InstanceRegistry {
+    fn clone(&self) -> Self {
+        Self {
+            entries: self.entries.clone(),
+            stop_timeout: self.stop_timeout,
+        }
+    }
 }
 
 impl InstanceRegistry {

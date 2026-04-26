@@ -14,8 +14,10 @@ pub mod heartbeat {
     pub fn run_heartbeat_watcher() {}
 }
 
+pub mod actor_messages;
 pub mod async_message_router;
 pub mod fairness;
+pub mod instance;
 pub mod instance_registry;
 pub mod lifecycle;
 pub mod message_router;
@@ -24,6 +26,7 @@ pub mod probe;
 pub mod reanimator;
 pub mod semaphore;
 pub mod signal_buffer;
+pub mod signal_messages;
 pub mod signals;
 pub mod spawn_supervisor;
 
@@ -171,10 +174,6 @@ mod terminate_error_tests {
         assert!(matches!(err_failed, TerminateError::Failed(msg) if msg == "crashed"));
     }
 }
-
-// Actor message types
-// pub mod actor_messages; // module file missing
-pub mod signal_messages;
 
 pub use signal_messages::mock_signal_storage;
 pub use signal_messages::mock_signal_storage::{MockSignalStorage, MockSignalWorkQueue};
