@@ -9,7 +9,7 @@ use std::io::Write;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 pub use vo_types::NodeKind;
-use vo_types::{GuaranteeClass, NodeName, WorkflowName};
+use vo_types::{DedupeScope, GuaranteeClass, NodeName, RetryPolicy, WorkflowName};
 
 /// Marker returned when `--graph` flag is present.
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -54,6 +54,8 @@ pub fn parse_graph_args(args: &[String]) -> Result<GraphArgs, GraphArgsError> {
 pub struct NodeSpec {
     pub name: NodeName,
     pub kind: NodeKind,
+    #[serde(default)]
+    pub retry_policy: RetryPolicy,
 }
 
 /// Specification of an edge between two workflow nodes.
@@ -91,15 +93,23 @@ pub struct WorkflowSpec {
     pub workflow_name: WorkflowName,
     pub nodes: Vec<NodeSpec>,
     pub edges: Vec<EdgeSpec>,
+    #[serde(default)]
+    pub dedupe_scope: DedupeScope,
+}
+
+fn default_dedupe_scope() -> DedupeScope {
+    DedupeScope::Unbounded
 }
 
 impl<'de> serde::Deserialize<'de> for WorkflowSpec {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        #[derive(serde::Deserialize)]
+         #[derive(serde::Deserialize)]
         struct RawWorkflowSpec {
             workflow_name: WorkflowName,
             nodes: Vec<NodeSpec>,
             edges: Vec<EdgeSpec>,
+            #[serde(default = "default_dedupe_scope")]
+            dedupe_scope: DedupeScope,
         }
 
         let raw: RawWorkflowSpec = RawWorkflowSpec::deserialize(deserializer)?;
@@ -182,6 +192,7 @@ impl<'de> serde::Deserialize<'de> for WorkflowSpec {
             workflow_name: raw.workflow_name,
             nodes: raw.nodes,
             edges: raw.edges,
+            dedupe_scope: raw.dedupe_scope,
         })
     }
 }

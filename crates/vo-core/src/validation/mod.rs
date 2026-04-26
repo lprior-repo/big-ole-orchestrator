@@ -4,12 +4,18 @@
 //! and externalized blobs. Any payload exceeding `INLINED_MAX_BYTES`
 //! must be routed through the blob pipeline rather than admitted as
 //! inline data.
+//!
+//! Workflow publish validation (ADR-003, ADR-031):
+//! - Publish-time rejection of workflows that violate guarantee-class invariants
+//!   (e.g., Unsafe nodes in non-BestEffort workflows)
+//! - Publish-time rejection of exact-once workflows missing dedupe policy (ADR-028)
 
 pub mod payload;
 pub mod workflow;
 
 pub use payload::{validate_inline_size, PayloadTooLarge};
 pub use workflow::{
-    validate_effect_kinds, validate_workflow_effects, validate_workflow_sinks, KnownSinks,
-    UnsupportedSinkError, WorkflowSinkValidator,
+    validate_dedupe_policy, validate_effect_kinds, validate_unsafe_nodes, validate_workflow_effects,
+    validate_workflow_sinks, DedupePolicyError, KnownSinks, UnsafePublishError, WorkflowPublishSpec,
+    WorkflowSinkValidator,
 };

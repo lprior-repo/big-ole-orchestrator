@@ -100,7 +100,7 @@ pub use credentials::{
     CredentialVersionId, Principal, RotationPolicy, RotationState, RotationStatus, SecretValue,
     VaultEntry, VaultEntryId,
 };
-pub use dedupe::{DedupeKey, DedupePartitionKey};
+pub use dedupe::{DedupeKey, DedupePartitionKey, DedupeScope};
 pub use dependency_graph_resolver::DependencyGraphResolver;
 pub use discovery::{
     enforce_pin, validate_discovery_path, DiscoveryPath, DiscoveryPathError, PinEnforcementError,

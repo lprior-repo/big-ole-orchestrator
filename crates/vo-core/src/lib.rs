@@ -52,8 +52,9 @@ pub mod workspace_swap;
 pub mod write_class;
 
 pub use validation::{
-    validate_effect_kinds, validate_workflow_effects, validate_workflow_sinks, KnownSinks,
-    UnsupportedSinkError, WorkflowSinkValidator,
+    validate_dedupe_policy, validate_effect_kinds, validate_unsafe_nodes, validate_workflow_effects,
+    validate_workflow_sinks, DedupePolicyError, KnownSinks, UnsafePublishError, WorkflowPublishSpec,
+    WorkflowSinkValidator,
 };
 
 #[cfg(kani)]

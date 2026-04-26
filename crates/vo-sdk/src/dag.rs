@@ -7,7 +7,7 @@
 use std::any::Any;
 
 use thiserror::Error;
-use vo_types::{NodeKind, NodeName, WorkflowName};
+use vo_types::{DedupeScope, NodeKind, NodeName, RetryPolicy, WorkflowName};
 
 use crate::graph::{EdgeSpec, NodeSpec, WorkflowSpec};
 use crate::node_handle::NodeHandle;
@@ -31,11 +31,12 @@ pub enum DagError {
     OrphanNode { name: String },
 }
 
-/// Internal node record with name and kind.
+/// Internal node record with name, kind, and retry policy.
 #[derive(Debug, Clone)]
 struct DagNodeRecord {
     name: NodeName,
     kind: NodeKind,
+    retry_policy: RetryPolicy,
 }
 
 /// A directed acyclic graph of typed workflow nodes.
@@ -287,6 +288,7 @@ impl Dag {
             workflow_name: wf_name,
             nodes: node_specs,
             edges: edge_specs,
+            dedupe_scope: DedupeScope::default(),
         })
     }
 
