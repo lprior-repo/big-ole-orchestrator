@@ -95,14 +95,7 @@ struct PipePair {
     write_fd: RawFd,
 }
 
-impl Drop for PipePair {
-    fn drop(&mut self) {
-        unsafe {
-            libc::close(self.read_fd);
-            libc::close(self.write_fd);
-        }
-    }
-}
+
 
 fn create_pipe() -> Result<PipePair, SubprocessError> {
     let mut fds = [0; 2];
@@ -129,8 +122,8 @@ fn create_pipe() -> Result<PipePair, SubprocessError> {
 /// - Subprocess times out
 #[tracing::instrument(skip(config))]
 pub async fn run_subprocess(config: SubprocessConfig) -> Result<SubprocessOutput, SubprocessError> {
-    let (fd3_read, fd3_write) = create_pipe()?;
-    let (fd4_read, fd4_write) = create_pipe()?;
+    let fd3_pipe = create_pipe()?;
+    let fd4_pipe = create_pipe()?;
 
     let mut command = Command::new(&config.executable_path);
     command.args(&config.argv);
@@ -138,6 +131,11 @@ pub async fn run_subprocess(config: SubprocessConfig) -> Result<SubprocessOutput
     command.stdin(std::process::Stdio::null());
     command.stdout(std::process::Stdio::null());
     command.stderr(std::process::Stdio::null());
+
+    let fd3_read = fd3_pipe.read_fd;
+    let fd3_write = fd3_pipe.write_fd;
+    let fd4_read = fd4_pipe.read_fd;
+    let fd4_write = fd4_pipe.write_fd;
 
     unsafe {
         command.pre_exec(move || {

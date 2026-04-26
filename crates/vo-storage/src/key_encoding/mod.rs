@@ -19,6 +19,9 @@ use vo_types::{InstanceId, ParseError, SequenceNumber, StepId};
 mod tests;
 
 #[cfg(test)]
+mod proptests;
+
+#[cfg(test)]
 mod red_queen_adversarial;
 #[cfg(test)]
 mod red_queen_tests;
