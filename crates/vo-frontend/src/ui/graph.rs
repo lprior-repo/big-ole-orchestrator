@@ -10,6 +10,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 use uuid::Uuid;
+use vo_types::GuaranteeClass;
 use vo_types::NodeKind;
 
 /// Re-export ExecutionState from edges::graph_types for UI compatibility.
@@ -325,21 +326,23 @@ fn category_to_icon(category: NodeCategory) -> String {
 }
 
 /// A workflow containing multiple nodes.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Workflow {
     pub nodes: Vec<Node>,
     pub connections: Vec<Connection>,
     pub name: String,
+    pub guarantee_class: GuaranteeClass,
 }
 
 impl Workflow {
-    /// Create a new empty workflow.
+    /// Create a new empty workflow with the given guarantee class.
     #[must_use]
-    pub fn new(name: String) -> Self {
+    pub fn new(name: String, guarantee_class: GuaranteeClass) -> Self {
         Self {
             nodes: Vec::new(),
             connections: Vec::new(),
             name,
+            guarantee_class,
         }
     }
 
@@ -518,7 +521,7 @@ mod tests {
 
     #[test]
     fn workflow_add_and_remove_node() {
-        let mut workflow = Workflow::new("test".to_string());
+        let mut workflow = Workflow::new("test".to_string(), GuaranteeClass::BestEffort);
         let node = Node::new(NodeId::new(), "test".to_string(), NodeKind::Pure);
         let node_id = node.id.clone();
 
@@ -533,7 +536,7 @@ mod tests {
 
     #[test]
     fn workflow_nodes_by_id() {
-        let mut workflow = Workflow::new("test".to_string());
+        let mut workflow = Workflow::new("test".to_string(), GuaranteeClass::BestEffort);
         let node1 = Node::new(NodeId::new(), "test1".to_string(), NodeKind::Pure);
         let node2 = Node::new(NodeId::new(), "test2".to_string(), NodeKind::Wait);
         let node1_id = node1.id.0.clone();
@@ -546,5 +549,29 @@ mod tests {
         assert_eq!(nodes.len(), 2);
         assert!(nodes.contains_key(&node1_id));
         assert!(nodes.contains_key(&node2_id));
+    }
+
+    #[test]
+    fn guarantee_class_badge_class_returns_distinct_css() {
+        let exact = GuaranteeClass::ExactOnce.badge_class();
+        let atleast = GuaranteeClass::AtLeastOnce.badge_class();
+        let best = GuaranteeClass::BestEffort.badge_class();
+
+        assert!(exact.contains("emerald"), "exact-once should use emerald");
+        assert!(atleast.contains("amber"), "at-least-once should use amber");
+        assert!(best.contains("red"), "best-effort should use red");
+    }
+
+    #[test]
+    fn guarantee_class_icon_returns_shield_names() {
+        assert_eq!(GuaranteeClass::ExactOnce.icon(), "shield-check");
+        assert_eq!(GuaranteeClass::AtLeastOnce.icon(), "shield-alert");
+        assert_eq!(GuaranteeClass::BestEffort.icon(), "shield-off");
+    }
+
+    #[test]
+    fn workflow_stores_guarantee_class() {
+        let wf = Workflow::new("test".to_string(), GuaranteeClass::ExactOnce);
+        assert_eq!(wf.guarantee_class, GuaranteeClass::ExactOnce);
     }
 }
