@@ -12,6 +12,7 @@ use ulid::Ulid;
 use vo_actor::{OrchestratorMsg, StartError};
 use vo_common::NamespaceId;
 use vo_core::admission::{PressureGuardResult, WriterPressureGuard};
+use vo_core::circuit_breaker::CircuitBreakerState;
 use vo_storage::dedupe_partition::DedupeStore;
 
 use crate::handlers::helpers::parse_paradigm;
@@ -29,12 +30,14 @@ const ACTOR_CALL_TIMEOUT: Duration = Duration::from_secs(5);
 /// 2. Checks writer pressure — if overloaded, returns 429 + Retry-After with NO dedupe records.
 /// 3. Calls `admit_ingress` to atomically check-and-insert into the dedupe store.
 /// 4. If duplicate, returns 409 Conflict with the existing instance ID.
-/// 5. If new, proceeds to start the workflow via the orchestrator actor.
+/// 5. Checks quarantine status — if quarantined, returns 403 Forbidden.
+/// 6. If new, proceeds to start the workflow via the orchestrator actor.
 #[tracing::instrument(skip_all)]
 pub async fn start_workflow(
     Extension(master): Extension<ActorRef<OrchestratorMsg>>,
     Extension(dedupe_store): Extension<Arc<dyn DedupeStore>>,
     Extension(writer_pressure): Extension<Arc<dyn WriterPressureGuard>>,
+    Extension(circuit_breaker): Extension<Arc<CircuitBreakerState>>,
     Json(req): Json<V3StartRequest>,
 ) -> impl IntoResponse {
     // Step 1: Validate dedupe key presence (ADR-028 Section 2).
@@ -140,6 +143,53 @@ pub async fn start_workflow(
             )),
         )
             .into_response();
+    }
+
+    // Step 6: Check quarantine status (ADR-026).
+    // Quarantine must gate registration — rejected deployments while quarantined.
+    let workflow_name = match vo_types::WorkflowName::parse(&req.workflow_type) {
+        Ok(name) => name,
+        Err(e) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ApiError::new(
+                    "invalid_workflow_type",
+                    format!("invalid workflow type: {}", e),
+                )),
+            )
+                .into_response();
+        }
+    };
+    let status = circuit_breaker.get_status(&workflow_name);
+    match status {
+        vo_core::circuit_breaker::RegistrationStatus::Quarantined => {
+            return (
+                StatusCode::FORBIDDEN,
+                Json(ApiError::new(
+                    "workflow_quarantined",
+                    format!(
+                        "workflow '{}' is quarantined and cannot accept new deployments (ADR-026)",
+                        workflow_name
+                    ),
+                )),
+            )
+                .into_response();
+        }
+        vo_core::circuit_breaker::RegistrationStatus::Deactivated => {
+            return (
+                StatusCode::FORBIDDEN,
+                Json(ApiError::new(
+                    "workflow_deactivated",
+                    format!(
+                        "workflow '{}' is deactivated and cannot accept new deployments",
+                        workflow_name
+                    ),
+                )),
+            )
+                .into_response();
+        }
+        vo_core::circuit_breaker::RegistrationStatus::Active
+        | vo_core::circuit_breaker::RegistrationStatus::Deleted => {}
     }
 
     let input = match serde_json::to_vec(&req.input) {
