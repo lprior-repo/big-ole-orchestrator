@@ -2,8 +2,8 @@
 //! Integration tests for purge_expired operation.
 
 use super::*;
-use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
+use std::sync::Mutex;
 
 fn sample_instance_id() -> InstanceId {
     InstanceId::from_bytes([2u8; 16])
@@ -14,28 +14,28 @@ fn sample_instance_id() -> InstanceId {
 // ========================================================================
 
 struct PurgeTestStore {
-    entries: RefCell<HashMap<String, DedupeEntry>>,
+    entries: Mutex<HashMap<String, DedupeEntry>>,
     failure_mode: Option<String>,
 }
 
 impl PurgeTestStore {
     fn new() -> Self {
         Self {
-            entries: RefCell::new(HashMap::new()),
+            entries: Mutex::new(HashMap::new()),
             failure_mode: None,
         }
     }
 
     fn with_entries(entries: HashMap<String, DedupeEntry>) -> Self {
         Self {
-            entries: RefCell::new(entries),
+            entries: Mutex::new(entries),
             failure_mode: None,
         }
     }
 
     fn failing_purge_expired(reason: &str) -> Self {
         Self {
-            entries: RefCell::new(HashMap::new()),
+            entries: Mutex::new(HashMap::new()),
             failure_mode: Some(reason.to_string()),
         }
     }
@@ -50,7 +50,7 @@ impl DedupeStore for PurgeTestStore {
     ) -> Result<AdmissionResult, DedupeStoreError> {
         let key_str = key.as_str().to_string();
         let entry = DedupeEntry::new(key_str.clone(), format!("{instance_id}"), ttl_ms)?;
-        self.entries.borrow_mut().insert(key_str, entry);
+        self.entries.lock().unwrap().insert(key_str, entry);
         Ok(AdmissionResult::Admitted)
     }
 
@@ -60,7 +60,7 @@ impl DedupeStore for PurgeTestStore {
                 reason: reason.clone(),
             });
         }
-        let mut entries = self.entries.borrow_mut();
+        let mut entries = self.entries.lock().unwrap();
         let before = entries.len();
         entries.retain(|_, v| !v.is_expired(now_ms));
         Ok((before - entries.len()) as u64)

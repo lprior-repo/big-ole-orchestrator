@@ -646,7 +646,7 @@ fn lease_key_with_max_instance_id_roundtrips() {
 }
 
 #[test]
-fn given_event_key_when_encoded_then_instance_component_is_unambiguous() {
+fn given_event_key_when_encoded_with_ulid_then_instance_bytes_are_preserved() {
     let id = InstanceId::parse("01H5X2K3M4N5P6Q7R8S9T0VWXY").unwrap();
     let seq = SequenceNumber::try_from(42u64).unwrap();
     let key = encode_event_key(&id, seq);
