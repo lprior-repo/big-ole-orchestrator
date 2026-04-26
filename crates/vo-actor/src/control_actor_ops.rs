@@ -35,7 +35,7 @@ impl ControlActor {
                 max_size: 65536,
             });
         }
-        let state = self.state_lookup.derive_lifecycle_state(&instance_id);
+        let state = self.state_lookup().derive_lifecycle_state(&instance_id);
         if state != LifecycleState::WaitingForSignal {
             return Err(AcceptResumeError::InvalidLifecycleState {
                 instance_id,
@@ -50,7 +50,7 @@ impl ControlActor {
                 provided_key: wait_key,
             });
         }
-        if let Some(error) = self.state_lookup.derive_error_type(&instance_id) {
+        if let Some(error) = self.state_lookup().derive_error_type(&instance_id) {
             match error {
                 "lock" => {
                     return Err(AcceptResumeError::LockAcquisitionFailed {
@@ -81,7 +81,7 @@ impl ControlActor {
             resumed_binary_hash: BinaryHash::new("post-signal-hash"),
             resumed_at: now,
         };
-        if let (Some(storage), Some(queue)) = (&self.signal_storage, &self.work_queue) {
+        if let (Some(storage), Some(queue)) = (self.signal_storage(), self.work_queue()) {
             if let Err(e) = storage.persist_signal_accepted(&accepted) {
                 return Err(AcceptResumeError::StorageError {
                     instance_id,
@@ -110,14 +110,14 @@ impl ControlActor {
         if id_str.len() != 26 || id_str.starts_with("0000000000") {
             return Err(ContinueAsNewError::InstanceActorNotFound { instance_id });
         }
-        let state = self.state_lookup.derive_lifecycle_state(&instance_id);
+        let state = self.state_lookup().derive_lifecycle_state(&instance_id);
         if state.is_terminal() {
             return Err(ContinueAsNewError::AlreadyTerminal {
                 instance_id,
                 current_state: state,
             });
         }
-        if let Some(error) = self.state_lookup.derive_error_type(&instance_id) {
+        if let Some(error) = self.state_lookup().derive_error_type(&instance_id) {
             match error {
                 "lock" => {
                     return Err(ContinueAsNewError::LockAcquisitionFailed {

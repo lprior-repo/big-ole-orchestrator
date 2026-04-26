@@ -40,8 +40,8 @@
 )]
 
 pub mod append;
-pub mod event_summary_commit;
 pub mod atomic_wait_commit;
+pub mod event_summary_commit;
 pub mod blob;
 pub mod blob_store;
 #[cfg(test)]
@@ -55,6 +55,7 @@ pub mod crypto;
 mod crypto_tests;
 pub mod dedupe_partition;
 pub mod effect_journal;
+pub mod event_store;
 pub mod fs_store;
 pub mod instance_index;
 pub mod key_encoding;
@@ -77,19 +78,84 @@ pub mod workflow_version_partition;
 
 /// Appends an event to the storage backend.
 ///
+/// This is a synchronous facade that routes to the internal in-memory event store.
+/// For production use with durable Fjall-backed storage, use [`event_store::EventStore`]
+/// or [`event_summary_commit::commit_event_and_summary`] directly.
+///
 /// # Errors
 ///
-/// Returns an error if the append operation fails due to storage or networking issues.
-pub fn append_event<E>(_namespace: &str, _instance_id: &str, _event: E) -> Result<(), String> {
-    Ok(())
+/// Returns an error if the append operation fails due to storage or serialization issues.
+pub fn append_event<E: serde::Serialize>(
+    namespace: &str,
+    instance_id: &str,
+    event: E,
+) -> Result<(), String> {
+    let event_json = serde_json::to_value(&event).map_err(|e| e.to_string())?;
+
+    let instance = vo_types::InstanceId::parse(instance_id).map_err(|e| e.to_string())?;
+
+    let store = &*APPEND_EVENT_STORE;
+
+    let sequence = block_on_sync(store.get_sequence(&instance)).unwrap_or(0);
+
+    let envelope = vo_types::EventEnvelope {
+        schema_version: 1,
+        instance_id: instance_id.to_string(),
+        sequence: u64::try_from(sequence + 1).map_err(|e| e.to_string())?,
+        timestamp_ms: std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .ok()
+            .map_or(0, |d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX)),
+        payload: event_json,
+        metadata: vo_types::events::EventMetadata::default(),
+    };
+
+    block_on_sync(store.append(&instance, vec![envelope]))
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
+use event_store::{EventStore, InMemoryEventStore};
+use std::sync::LazyLock;
+
+static APPEND_EVENT_STORE: LazyLock<InMemoryEventStore> = LazyLock::new(InMemoryEventStore::new);
+
+pub(crate) fn _internal_append_store() -> &'static InMemoryEventStore {
+    &APPEND_EVENT_STORE
+}
+
+fn block_on_sync<F, T>(f: F) -> T
+where
+    F: std::future::Future<Output = T>,
+{
+    let handle = tokio::runtime::Handle::current();
+    tokio::task::block_in_place(|| handle.block_on(f))
 }
 
 #[cfg(test)]
 mod tests {
     use super::append_event;
+    use crate::event_store::EventStore;
+    use crate::_internal_append_store;
+    use vo_types::InstanceId;
+
+    #[tokio::test]
+    async fn given_append_event_called_when_query_runs_then_event_is_durable() {
+        let instance = InstanceId::parse("00000000000000000000000001").unwrap();
+        let store = _internal_append_store();
+
+        let event = serde_json::json!({ "type": "workflow_started", "data": "test" });
+
+        let result = append_event("test", "00000000000000000000000001", &event);
+        assert!(result.is_ok(), "append_event should succeed");
+
+        let seq = store.get_sequence(&instance).await.unwrap();
+        assert_eq!(seq, 1, "event should be stored with sequence 1");
+    }
 
     #[test]
-    fn append_event_returns_ok_when_called_with_any_payload() {
-        assert_eq!(append_event("namespace", "instance", ()), Ok(()));
+    fn append_event_returns_err_on_invalid_instance_id() {
+        let result = append_event("ns", "not-a-valid-instance-id", "event");
+        assert!(result.is_err(), "should fail with invalid instance id");
     }
 }

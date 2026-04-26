@@ -42,6 +42,8 @@ pub enum ActorLifecycleState {
     Stopped,
     /// Actor encountered an unrecoverable error
     Failed,
+    /// Actor has been hibernated (suspended-to-disk per ADR-005)
+    Suspended,
 }
 
 impl ActorLifecycleState {
@@ -49,6 +51,12 @@ impl ActorLifecycleState {
     #[must_use]
     pub const fn is_terminal(&self) -> bool {
         matches!(self, Self::Stopped | Self::Failed)
+    }
+
+    /// Returns true if this actor is in suspended (hibernated) state per ADR-005.
+    #[must_use]
+    pub const fn is_suspended(&self) -> bool {
+        matches!(self, Self::Suspended)
     }
 
     /// Returns true if shutdown is in progress.
@@ -74,6 +82,7 @@ impl ActorLifecycleState {
                 LifecycleTransition::AllChildrenStopped,
             ],
             Self::Stopped | Self::Failed => vec![],
+            Self::Suspended => vec![LifecycleTransition::Start],
         }
     }
 }
@@ -96,6 +105,7 @@ impl std::fmt::Display for ActorLifecycleState {
             Self::Stopping => write!(f, "stopping"),
             Self::Stopped => write!(f, "stopped"),
             Self::Failed => write!(f, "failed"),
+            Self::Suspended => write!(f, "suspended"),
         }
     }
 }

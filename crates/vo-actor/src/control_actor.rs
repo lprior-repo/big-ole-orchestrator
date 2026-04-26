@@ -78,6 +78,24 @@ impl ControlActor {
         }
     }
 
+    /// Returns a reference to the state lookup trait object.
+    #[must_use]
+    pub fn state_lookup(&self) -> &std::sync::Arc<dyn StateLookup> {
+        &self.state_lookup
+    }
+
+    /// Returns a reference to the signal storage, if present.
+    #[must_use]
+    pub fn signal_storage(&self) -> &Option<std::sync::Arc<dyn SignalStorage>> {
+        &self.signal_storage
+    }
+
+    /// Returns a reference to the work queue, if present.
+    #[must_use]
+    pub fn work_queue(&self) -> &Option<std::sync::Arc<dyn SignalWorkQueue>> {
+        &self.work_queue
+    }
+
     /// Handle Cancel command.
     ///
     /// # Errors

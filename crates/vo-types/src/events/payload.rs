@@ -87,14 +87,26 @@ pub enum EventPayload {
         timer_id: String,
         fire_at_ms: u64,
     },
+    TimerScheduled {
+        workflow_id: String,
+        timer_id: String,
+        fire_at_ms: u64,
+        instance_id: String,
+    },
     TimerFired {
         workflow_id: String,
         timer_id: String,
         fired_at_ms: u64,
     },
-    CancelRequested {
+   CancelRequested {
         workflow_id: String,
         requested_by: String,
+    },
+    SignalAwaiting {
+        workflow_id: String,
+        signal_name: String,
+        instance_id: String,
+        awaited_at_ms: u64,
     },
     InstanceResumed {
         workflow_id: String,
@@ -233,6 +245,12 @@ impl EventPayload {
                 timer_id: require_string(obj, "timer_id")?,
                 fire_at_ms: require_u64(obj, "fire_at_ms")?,
             }),
+            "TimerScheduled" => Ok(EventPayload::TimerScheduled {
+                workflow_id: require_string_field(obj, "workflow_id")?,
+                timer_id: require_string(obj, "timer_id")?,
+                fire_at_ms: require_u64(obj, "fire_at_ms")?,
+                instance_id: require_string(obj, "instance_id")?,
+            }),
             "TimerFired" => Ok(EventPayload::TimerFired {
                 workflow_id: require_string_field(obj, "workflow_id")?,
                 timer_id: require_string(obj, "timer_id")?,
@@ -241,6 +259,12 @@ impl EventPayload {
             "CancelRequested" => Ok(EventPayload::CancelRequested {
                 workflow_id: require_string_field(obj, "workflow_id")?,
                 requested_by: require_string(obj, "requested_by")?,
+            }),
+            "SignalAwaiting" => Ok(EventPayload::SignalAwaiting {
+                workflow_id: require_string_field(obj, "workflow_id")?,
+                signal_name: require_string(obj, "signal_name")?,
+                instance_id: require_string(obj, "instance_id")?,
+                awaited_at_ms: require_u64(obj, "awaited_at_ms")?,
             }),
             "InstanceResumed" => Ok(EventPayload::InstanceResumed {
                 workflow_id: require_string_field(obj, "workflow_id")?,

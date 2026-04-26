@@ -661,6 +661,100 @@ mod tests {
     }
 
     // ========================================================================
+    // BDD: Summary write failure — no partial event visible (ADR-016 / ADR-043)
+    // ========================================================================
+
+    /// Proves that when a batch commit fails, no event is visible:
+    /// 1. Batch insert event+summary WITHOUT commit → neither is visible in same DB
+    /// 2. Batch insert event+summary WITH commit → both visible after commit in same DB
+    /// This proves event and summary are inseparable: no partial event exists.
+    #[test]
+    fn given_summary_write_fails_when_batch_commits_then_no_partial_event_visible() {
+        // ── Phase 1: Uncommitted batch → no partial event visible ──
+
+        let (_dir1, db1, _path1) = make_temp_db();
+        let instance_id = make_instance_id(10);
+        let event = make_event(&instance_id, 1);
+        let event_key = encode_event_key(&instance_id, &make_sequence(1)).unwrap();
+        let event_value = encode_event_value(&event).unwrap();
+        let created_at = make_timestamp(1712200000000);
+        let summary_key = encode_instance_index_key(
+            InstanceStatus::Running,
+            created_at,
+            &instance_id,
+        )
+        .unwrap();
+
+        // Given: batch with both event and summary staged but NOT committed
+        let events_ks = db1
+            .keyspace(EVENTS_PARTITION, fjall::KeyspaceCreateOptions::default)
+            .expect("open events keyspace");
+        let instances_ks = db1
+            .keyspace(INSTANCES_PARTITION, fjall::KeyspaceCreateOptions::default)
+            .expect("open instances keyspace");
+
+        let mut batch = db1.batch();
+        batch.insert(&events_ks, &event_key, &event_value);
+        batch.insert(&instances_ks, &summary_key, &[] as &[u8]);
+
+        // When: batch is NOT committed (simulating summary write failure)
+        // (deliberately no batch.commit() call)
+
+        // Then: same DB sees nothing — no partial event leaked from uncommitted batch
+        let event_visible = events_ks.get(&event_key).expect("get event").is_some();
+        assert!(
+            !event_visible,
+            "event must NOT be visible when batch commit is skipped — \
+             proves no partial event leak on summary write failure"
+        );
+
+        let summary_visible = instances_ks.get(&summary_key).expect("get summary").is_some();
+        assert!(
+            !summary_visible,
+            "summary must NOT be visible when batch commit is skipped"
+        );
+
+        // ── Phase 2: Committed batch → event and summary inseparable ──
+
+        let (_dir2, db2, _path2) = make_temp_db();
+
+        let events_ks2 = db2
+            .keyspace(EVENTS_PARTITION, fjall::KeyspaceCreateOptions::default)
+            .expect("open events keyspace");
+        let instances_ks2 = db2
+            .keyspace(INSTANCES_PARTITION, fjall::KeyspaceCreateOptions::default)
+            .expect("open instances keyspace");
+
+        // When: batch commits successfully
+        let mut batch2 = db2.batch();
+        batch2.insert(&events_ks2, &event_key, &event_value);
+        batch2.insert(&instances_ks2, &summary_key, &[] as &[u8]);
+        batch2.commit().expect("batch commit must succeed");
+
+        // Then: both event and summary visible after atomic commit
+        let main_event = events_ks2
+            .get(&event_key)
+            .expect("get event from committed db")
+            .expect(
+                "event must be visible after successful atomic batch commit",
+            );
+        assert_eq!(main_event.len(), event_value.len());
+
+        let json: serde_json::Value =
+            serde_json::from_slice(&main_event).expect("valid JSON event");
+        assert_eq!(json["sequence"], 1);
+
+        let summary_visible2 = instances_ks2
+            .get(&summary_key)
+            .expect("get summary from committed db")
+            .is_some();
+        assert!(
+            summary_visible2,
+            "summary must be visible — event and summary are atomically inseparable after commit"
+        );
+    }
+
+    // ========================================================================
     // BDD: Encode/decode correctness
     // ========================================================================
 

@@ -32,9 +32,9 @@ impl From<EventStoreError> for vo_types::events::Error {
             EventStoreError::OccConflict { .. } => {
                 vo_types::events::Error::PayloadDecodeSkipped
             }
-            EventStoreError::Storage { .. } => vo_types::events::Error::PayloadDecodeFailed(
-                Box::new(vo_types::events::Error::InvalidEnvelopeFormat),
-            ),
+            EventStoreError::Storage { .. } => vo_types::events::Error::PayloadDecodeFailed {
+                source: Box::new(vo_types::events::Error::InvalidEnvelopeFormat),
+            },
             EventStoreError::InvalidArgument { .. } => {
                 vo_types::events::Error::InvalidEnvelopeFormat
             }
