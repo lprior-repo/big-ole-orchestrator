@@ -313,7 +313,7 @@ fn is_fd_valid(fd: std::os::unix::io::RawFd) -> bool {
 /// let input = vo_sdk::read_input()?;
 /// let stripe_key = vo_sdk::secret(&input, "STRIPE_KEY");
 /// ```
-pub fn secret(input: &vo_types::TaskInput, key: &str) -> Option<&str> {
+pub fn secret<'a>(input: &'a vo_types::TaskInput, key: &'a str) -> Option<&'a str> {
     input.secret(key)
 }
 

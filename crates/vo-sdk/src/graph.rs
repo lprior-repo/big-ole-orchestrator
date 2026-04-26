@@ -96,7 +96,13 @@ pub struct NodeSpec {
     pub retry_policy: RetryPolicy,
 }
 
-fn default_retry_policy() -> RetryPolicy {
+/// Signal node metadata for wait/signal deduplication (ADR-028, ADR-031).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SignalNodeMeta {
+    pub dedupe_key_prefix: String,
+}
+
+pub(crate) fn default_retry_policy() -> RetryPolicy {
     RetryPolicy {
         max_attempts: 1,
         backoff_ms: 0,
@@ -451,16 +457,20 @@ mod tests {
                 NodeSpec {
                     name: NodeName::parse("step_a").unwrap(),
                     kind: NodeKind::Pure,
+                    retry_policy: default_retry_policy(),
                 },
                 NodeSpec {
                     name: NodeName::parse("step_b").unwrap(),
                     kind: NodeKind::ManagedEffect,
+                    retry_policy: default_retry_policy(),
                 },
             ],
             edges: vec![EdgeSpec {
                 from: NodeName::parse("step_a").unwrap(),
                 to: NodeName::parse("step_b").unwrap(),
             }],
+            dedupe_scope: Default::default(),
+            guarantee_class: Default::default(),
         };
         assert!(spec.validate().is_ok());
     }
@@ -473,13 +483,17 @@ mod tests {
                 NodeSpec {
                     name: NodeName::parse("step_a").unwrap(),
                     kind: NodeKind::Pure,
+                    retry_policy: default_retry_policy(),
                 },
                 NodeSpec {
                     name: NodeName::parse("step_a").unwrap(),
                     kind: NodeKind::Pure,
+                    retry_policy: default_retry_policy(),
                 },
             ],
             edges: vec![],
+            dedupe_scope: Default::default(),
+            guarantee_class: Default::default(),
         };
         let err = spec.validate().unwrap_err();
         assert_eq!(
@@ -497,11 +511,14 @@ mod tests {
             nodes: vec![NodeSpec {
                 name: NodeName::parse("step_a").unwrap(),
                 kind: NodeKind::Pure,
+                retry_policy: default_retry_policy(),
             }],
             edges: vec![EdgeSpec {
                 from: NodeName::parse("ghost").unwrap(),
                 to: NodeName::parse("step_a").unwrap(),
             }],
+            dedupe_scope: Default::default(),
+            guarantee_class: Default::default(),
         };
         let err = spec.validate().unwrap_err();
         assert_eq!(
@@ -519,11 +536,14 @@ mod tests {
             nodes: vec![NodeSpec {
                 name: NodeName::parse("step_a").unwrap(),
                 kind: NodeKind::Pure,
+                retry_policy: default_retry_policy(),
             }],
             edges: vec![EdgeSpec {
                 from: NodeName::parse("step_a").unwrap(),
                 to: NodeName::parse("ghost").unwrap(),
             }],
+            dedupe_scope: Default::default(),
+            guarantee_class: Default::default(),
         };
         let err = spec.validate().unwrap_err();
         assert_eq!(
@@ -541,11 +561,14 @@ mod tests {
             nodes: vec![NodeSpec {
                 name: NodeName::parse("step_a").unwrap(),
                 kind: NodeKind::Pure,
+                retry_policy: default_retry_policy(),
             }],
             edges: vec![EdgeSpec {
                 from: NodeName::parse("step_a").unwrap(),
                 to: NodeName::parse("step_a").unwrap(),
             }],
+            dedupe_scope: Default::default(),
+            guarantee_class: Default::default(),
         };
         let err = spec.validate().unwrap_err();
         assert_eq!(
@@ -564,14 +587,17 @@ mod tests {
                 NodeSpec {
                     name: NodeName::parse("a").unwrap(),
                     kind: NodeKind::Pure,
+                    retry_policy: default_retry_policy(),
                 },
                 NodeSpec {
                     name: NodeName::parse("b").unwrap(),
                     kind: NodeKind::Pure,
+                    retry_policy: default_retry_policy(),
                 },
                 NodeSpec {
                     name: NodeName::parse("c").unwrap(),
                     kind: NodeKind::Pure,
+                    retry_policy: default_retry_policy(),
                 },
             ],
             edges: vec![
@@ -588,6 +614,8 @@ mod tests {
                     to: NodeName::parse("a").unwrap(),
                 },
             ],
+            dedupe_scope: Default::default(),
+            guarantee_class: Default::default(),
         };
         let err = spec.validate().unwrap_err();
         assert!(matches!(err, ValidationError::CycleDetected { .. }));
@@ -601,18 +629,22 @@ mod tests {
                 NodeSpec {
                     name: NodeName::parse("start").unwrap(),
                     kind: NodeKind::Pure,
+                    retry_policy: default_retry_policy(),
                 },
                 NodeSpec {
                     name: NodeName::parse("left").unwrap(),
                     kind: NodeKind::Pure,
+                    retry_policy: default_retry_policy(),
                 },
                 NodeSpec {
                     name: NodeName::parse("right").unwrap(),
                     kind: NodeKind::Pure,
+                    retry_policy: default_retry_policy(),
                 },
                 NodeSpec {
                     name: NodeName::parse("end").unwrap(),
                     kind: NodeKind::Pure,
+                    retry_policy: default_retry_policy(),
                 },
             ],
             edges: vec![
@@ -633,6 +665,8 @@ mod tests {
                     to: NodeName::parse("end").unwrap(),
                 },
             ],
+            dedupe_scope: Default::default(),
+            guarantee_class: Default::default(),
         };
         assert!(spec.validate().is_ok());
     }
@@ -644,8 +678,11 @@ mod tests {
             nodes: vec![NodeSpec {
                 name: NodeName::parse("solo").unwrap(),
                 kind: NodeKind::Pure,
+                retry_policy: default_retry_policy(),
             }],
             edges: vec![],
+            dedupe_scope: Default::default(),
+            guarantee_class: Default::default(),
         };
         assert!(spec.validate().is_ok());
     }
@@ -658,17 +695,19 @@ mod tests {
                 NodeSpec {
                     name: NodeName::parse("validate").unwrap(),
                     kind: NodeKind::Pure,
+                    retry_policy: default_retry_policy(),
                 },
                 NodeSpec {
                     name: NodeName::parse("charge").unwrap(),
                     kind: NodeKind::ManagedEffect,
+                    retry_policy: default_retry_policy(),
                 },
             ],
             edges: vec![EdgeSpec {
                 from: NodeName::parse("validate").unwrap(),
                 to: NodeName::parse("charge").unwrap(),
             }],
-            dedupe_scope: DedupeScope::WorkflowId,
+            dedupe_scope: DedupeScope::Exact,
             guarantee_class: GuaranteeClass::ExactOnce,
         };
 
@@ -678,6 +717,77 @@ mod tests {
         let deserialized: WorkflowSpec =
             serde_json::from_str(&json).expect("deserialize WorkflowSpec from JSON");
         assert_eq!(original, deserialized, "guarantee_class must round-trip through serialization");
+    }
+
+    #[test]
+    fn given_node_retry_policy_when_graph_emitted_then_policy_is_canonical() {
+        let retry = RetryPolicy {
+            max_attempts: 3,
+            backoff_ms: 100,
+            backoff_multiplier: 2.0,
+            max_backoff_ms: 5000,
+        };
+        let original = WorkflowSpec {
+            workflow_name: WorkflowName::parse("checkout").unwrap(),
+            nodes: vec![
+                NodeSpec {
+                    name: NodeName::parse("validate").unwrap(),
+                    kind: NodeKind::Pure,
+                    retry_policy: default_retry_policy(),
+                },
+                NodeSpec {
+                    name: NodeName::parse("charge").unwrap(),
+                    kind: NodeKind::ManagedEffect,
+                    retry_policy: retry,
+                },
+            ],
+            edges: vec![EdgeSpec {
+                from: NodeName::parse("validate").unwrap(),
+                to: NodeName::parse("charge").unwrap(),
+            }],
+            dedupe_scope: DedupeScope::Exact,
+            guarantee_class: GuaranteeClass::ExactOnce,
+        };
+
+        let json = serde_json::to_string(&original).expect("serialize WorkflowSpec");
+
+        assert!(
+            json.contains(r#""max_attempts":3"#),
+            "JSON must contain max_attempts from retry_policy"
+        );
+        assert!(
+            json.contains(r#""backoff_ms":100"#),
+            "JSON must contain backoff_ms from retry_policy"
+        );
+        assert!(
+            json.contains(r#""backoff_multiplier":2.0"#),
+            "JSON must contain backoff_multiplier from retry_policy"
+        );
+        assert!(
+            json.contains(r#""max_backoff_ms":5000"#),
+            "JSON must contain max_backoff_ms from retry_policy"
+        );
+
+        let deserialized: WorkflowSpec =
+            serde_json::from_str(&json).expect("deserialize WorkflowSpec from JSON");
+        assert_eq!(
+            deserialized.nodes[1].retry_policy.max_attempts, 3,
+            "max_attempts must round-trip"
+        );
+        assert_eq!(
+            deserialized.nodes[1].retry_policy.backoff_ms, 100,
+            "backoff_ms must round-trip"
+        );
+        assert_eq!(
+            deserialized.nodes[1].retry_policy.max_backoff_ms, 5000,
+            "max_backoff_ms must round-trip"
+        );
+        assert_eq!(original, deserialized, "full retry_policy must round-trip through serialization");
+
+        let json_bytes = original.to_json_bytes();
+        let from_bytes: WorkflowSpec =
+            serde_json::from_slice(&json_bytes).expect("deserialize from to_json_bytes output");
+        assert_eq!(original, from_bytes, "retry_policy preserved through to_json_bytes emission path");
     }
 }
 

@@ -12,6 +12,7 @@
 //!   - version-pin-bypass: WorkflowSpec serialization bypassing Dag validation
 
 use crate::dag::{Dag, DagError, Workflow};
+use crate::graph::default_retry_policy;
 use crate::{EdgeSpec, NodeSpec, WorkflowSpec};
 use vo_types::{NodeKind, NodeName, WorkflowName};
 
@@ -672,16 +673,20 @@ fn rq_workflow_spec_round_trip_preserves_all_fields() {
             NodeSpec {
                 name: NodeName::parse("node-a").expect("valid"),
                 kind: NodeKind::Pure,
+                retry_policy: default_retry_policy(),
             },
             NodeSpec {
                 name: NodeName::parse("node-b").expect("valid"),
                 kind: NodeKind::ManagedEffect,
+                retry_policy: default_retry_policy(),
             },
         ],
         edges: vec![EdgeSpec {
             from: NodeName::parse("node-a").expect("valid"),
             to: NodeName::parse("node-b").expect("valid"),
         }],
+        dedupe_scope: Default::default(),
+        guarantee_class: Default::default(),
     };
     let json = serde_json::to_string(&spec).expect("serialize");
     let restored: WorkflowSpec = serde_json::from_str(&json).expect("deserialize");
@@ -716,6 +721,8 @@ fn rq_workflow_spec_serde_bypasses_dag_empty_validation() {
         workflow_name: WorkflowName::parse("empty_via_serde").expect("valid"),
         nodes: vec![],
         edges: vec![],
+        dedupe_scope: Default::default(),
+        guarantee_class: Default::default(),
     };
     let json = serde_json::to_string(&spec).expect("serialize");
     let restored: WorkflowSpec = serde_json::from_str(&json).expect("deserialize");

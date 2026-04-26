@@ -213,6 +213,9 @@ impl ExecutionSemaphore {
                 handles.push(handle);
             }
 
+            // Yield to let spawned tasks enter acquire() and increment waiting_count
+            tokio::task::yield_now().await;
+
             // Verify waiters are tracked (bounded)
             let waiting = sem.waiting_count();
             assert_eq!(waiting, num_waiters, "All {num_waiters} waiters must be tracked");
@@ -228,7 +231,7 @@ impl ExecutionSemaphore {
             // the acquire_timeout before the permit could be released.
             let result = tokio::time::timeout(
                 Duration::from_secs(5),
-                futures_future::future::join_all(handles),
+                futures::future::join_all(handles),
             )
             .await;
 
@@ -238,7 +241,10 @@ impl ExecutionSemaphore {
                 "Waiters timed out — acquire() may be busy-spinning instead of suspending"
             );
 
-            let decisions = result.unwrap();
+            let decisions: Vec<_> = result.unwrap()
+                .into_iter()
+                .map(|r| r.expect("waiter task panicked"))
+                .collect();
             let admitted_count = decisions
                 .into_iter()
                 .filter(|d| matches!(d, AdmissionDecision::Admitted))

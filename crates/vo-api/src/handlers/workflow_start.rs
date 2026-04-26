@@ -13,6 +13,7 @@ use vo_actor::{OrchestratorMsg, StartError};
 use vo_common::NamespaceId;
 use vo_core::admission::{PressureGuardResult, WriterPressureGuard};
 use vo_storage::dedupe_partition::DedupeStore;
+use vo_types::CommandEnvelope;
 
 use crate::handlers::helpers::parse_paradigm;
 use crate::handlers::ingress::{
@@ -25,10 +26,11 @@ const ACTOR_CALL_TIMEOUT: Duration = Duration::from_secs(5);
 /// POST /api/v1/workflows — start a new workflow instance (bead vo-7mif).
 ///
 /// Per ADR-028, this handler enforces exactly-once ingress:
-/// 1. Validates that a `dedupe_key` is present for exact workflow ingress.
-/// 2. Calls `admit_ingress` to atomically check-and-insert into the dedupe store.
-/// 3. If duplicate, returns 409 Conflict with the existing instance ID.
-/// 4. If new, proceeds to start the workflow via the orchestrator actor.
+/// 1. Validates that a `command_envelope` is present with identity metadata (ADR-036).
+/// 2. Validates that a `dedupe_key` is present for exact workflow ingress.
+/// 3. Calls `admit_ingress` to atomically check-and-insert into the dedupe store.
+/// 4. If duplicate, returns 409 Conflict with the existing instance ID.
+/// 5. If new, proceeds to start the workflow via the orchestrator actor.
 #[tracing::instrument(skip_all)]
 pub async fn start_workflow(
     Extension(master): Extension<ActorRef<OrchestratorMsg>>,
@@ -36,7 +38,39 @@ pub async fn start_workflow(
     Extension(writer_pressure): Extension<Arc<dyn WriterPressureGuard>>,
     Json(req): Json<V3StartRequest>,
 ) -> impl IntoResponse {
-    // Step 1: Validate dedupe key presence (ADR-028 Section 2).
+    // Step 1: Validate CommandEnvelope presence (ADR-036).
+    let command_envelope = match req.command_envelope {
+        Some(ref env_json) => {
+            let json_str = serde_json::to_string(env_json).unwrap_or_default();
+            match CommandEnvelope::from_str(&json_str) {
+                Ok(env) => env,
+                Err(e) => {
+                    return (
+                        StatusCode::BAD_REQUEST,
+                        Json(ApiError::new(
+                            "invalid_command_envelope",
+                            format!("command_envelope is required (ADR-036): {e}"),
+                        )),
+                    )
+                        .into_response();
+                }
+            }
+        }
+        None => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ApiError::new(
+                    "missing_command_envelope",
+                    "command_envelope is required (ADR-036) with command_id, correlation_id, causation_id, issuer, and issued_at",
+                )),
+            )
+                .into_response();
+        }
+    };
+
+    let _command_envelope = command_envelope;
+
+    // Step 2: Validate dedupe key presence (ADR-028 Section 2).
     let dedupe_key = match req.dedupe_key {
         Some(ref key) if !key.is_empty() => key.clone(),
         _ => {

@@ -863,7 +863,7 @@ mod workflow_start {
             .uri("/api/v1/workflows")
             .header(header::CONTENT_TYPE, "application/json")
             .body(Body::from(
-                r#"{"namespace":"test-ns","workflow_type":"test-wf","paradigm":"fsm","input":{"key":"val"},"dedupe_key":"dk-prod-42"}"#,
+                r#"{"namespace":"test-ns","workflow_type":"test-wf","paradigm":"fsm","input":{"key":"val"},"dedupe_key":"dk-prod-42","command_envelope":{"version":1,"command_id":"cmd-prod-42","correlation_id":"corr-prod-42","causation_id":"cause-prod-42","issuer":"api_client","issued_at":1700000000}}"#,
             ))
             .unwrap();
 
@@ -880,6 +880,148 @@ mod workflow_start {
         assert_eq!(body["namespace"], "test-ns");
         assert_eq!(body["workflow_type"], "test-wf");
         assert!(body.get("instance_id").is_some());
+
+        let _ = _handle;
+    }
+
+    // ======================================================================
+    // BDD: command_envelope required on workflow start (tw-4y6h.17.1)
+    // ======================================================================
+
+    #[tokio::test]
+    async fn given_workflow_start_request_when_admitted_then_command_envelope_is_required() {
+        let (master_ref, _handle) = ractor::Actor::spawn(
+            Some("test-envelope-required-orchestrator".to_string()),
+            CapturingOrchestrator,
+            (),
+        )
+        .await
+        .expect("spawn orchestrator");
+
+        let dedupe_store: Arc<dyn vo_storage::dedupe_partition::DedupeStore> =
+            Arc::new(InMemoryDedupeStore::new());
+
+        let app = production_app(master_ref, Arc::clone(&dedupe_store));
+
+        // Given: a workflow start request without command_envelope
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/workflows")
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(
+                r#"{"namespace":"test-ns","workflow_type":"test-wf","paradigm":"fsm","input":{"key":"val"},"dedupe_key":"dk-no-envelope"}"#,
+            ))
+            .unwrap();
+
+        // When: start_workflow validates admission
+        let resp = app.oneshot(req).await.expect("oneshot");
+        let status = resp.status();
+        let (_parts, body_stream) = resp.into_parts();
+        let body_bytes = axum::body::to_bytes(body_stream, 1 << 20)
+            .await
+            .expect("read body");
+        let body_str = String::from_utf8(body_bytes.to_vec()).unwrap_or_default();
+
+        // Then: the request is rejected with missing_command_envelope
+        assert_eq!(status, StatusCode::BAD_REQUEST, "response body: {body_str}");
+
+        let body: Value = serde_json::from_slice(&body_bytes).expect("parse json");
+        assert_eq!(body["error"], "missing_command_envelope");
+        assert!(
+            body["message"]
+                .as_str()
+                .unwrap_or("")
+                .contains("command_envelope"),
+            "error message should mention command_envelope"
+        );
+
+        let _ = _handle;
+    }
+
+    #[tokio::test]
+    async fn given_workflow_start_request_when_admitted_then_command_envelope_with_all_fields_succeeds() {
+        let (master_ref, _handle) = ractor::Actor::spawn(
+            Some("test-envelope-valid-orchestrator".to_string()),
+            CapturingOrchestrator,
+            (),
+        )
+        .await
+        .expect("spawn orchestrator");
+
+        let dedupe_store: Arc<dyn vo_storage::dedupe_partition::DedupeStore> =
+            Arc::new(InMemoryDedupeStore::new());
+
+        let app = production_app(master_ref, Arc::clone(&dedupe_store));
+
+        // Given: a workflow start request with a valid command_envelope containing
+        // command_id, correlation_id, causation_id, issuer, and issued_at
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/workflows")
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(
+                r#"{"namespace":"test-ns","workflow_type":"test-wf","paradigm":"fsm","input":{"key":"val"},"dedupe_key":"dk-valid-envelope","command_envelope":{"version":1,"command_id":"cmd-valid-001","correlation_id":"corr-valid-001","causation_id":"cause-valid-001","issuer":"api_client","issued_at":1700000000}}"#,
+            ))
+            .unwrap();
+
+        // When: start_workflow validates admission
+        let resp = app.oneshot(req).await.expect("oneshot");
+        let status = resp.status();
+        let (_parts, body_stream) = resp.into_parts();
+        let body_bytes = axum::body::to_bytes(body_stream, 1 << 20)
+            .await
+            .expect("read body");
+        let body_str = String::from_utf8(body_bytes.to_vec()).unwrap_or_default();
+
+        // Then: the request succeeds (201) — envelope was valid
+        assert_eq!(status, StatusCode::CREATED, "response body: {body_str}");
+
+        let body: Value = serde_json::from_slice(&body_bytes).expect("parse json");
+        assert_eq!(body["namespace"], "test-ns");
+        assert!(body.get("instance_id").is_some());
+
+        let _ = _handle;
+    }
+
+    #[tokio::test]
+    async fn given_workflow_start_request_when_envelope_missing_field_then_rejected() {
+        let (master_ref, _handle) = ractor::Actor::spawn(
+            Some("test-envelope-missing-field-orchestrator".to_string()),
+            CapturingOrchestrator,
+            (),
+        )
+        .await
+        .expect("spawn orchestrator");
+
+        let dedupe_store: Arc<dyn vo_storage::dedupe_partition::DedupeStore> =
+            Arc::new(InMemoryDedupeStore::new());
+
+        let app = production_app(master_ref, Arc::clone(&dedupe_store));
+
+        // Given: a workflow start request with an envelope missing command_id
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/workflows")
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(
+                r#"{"namespace":"test-ns","workflow_type":"test-wf","paradigm":"fsm","input":{},"dedupe_key":"dk-missing-field","command_envelope":{"version":1,"correlation_id":"corr-001","causation_id":"cause-001","issuer":"api_client","issued_at":1700000000}}"#,
+            ))
+            .unwrap();
+
+        // When: start_workflow validates admission
+        let resp = app.oneshot(req).await.expect("oneshot");
+        let status = resp.status();
+        let (_parts, body_stream) = resp.into_parts();
+        let body_bytes = axum::body::to_bytes(body_stream, 1 << 20)
+            .await
+            .expect("read body");
+        let body_str = String::from_utf8(body_bytes.to_vec()).unwrap_or_default();
+
+        // Then: the request is rejected with invalid_command_envelope
+        assert_eq!(status, StatusCode::BAD_REQUEST, "response body: {body_str}");
+
+        let body: Value = serde_json::from_slice(&body_bytes).expect("parse json");
+        assert_eq!(body["error"], "invalid_command_envelope");
 
         let _ = _handle;
     }

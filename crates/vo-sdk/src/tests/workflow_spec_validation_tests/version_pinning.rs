@@ -4,6 +4,7 @@
 //!
 //! Tests schema version validation at both vo-types and SDK layers.
 
+use crate::graph::default_retry_policy;
 use crate::WorkflowSpec;
 use vo_types::{NodeKind, NodeName};
 
@@ -60,6 +61,8 @@ fn sdk_workflow_spec_has_no_version_field() {
         workflow_name: vo_types::WorkflowName::parse("test").expect("valid"),
         nodes: vec![],
         edges: vec![],
+        dedupe_scope: Default::default(),
+        guarantee_class: Default::default(),
     };
     let json = serde_json::to_string(&spec).expect("serialize");
     assert!(
@@ -76,16 +79,20 @@ fn sdk_workflow_spec_schema_is_stable_across_round_trips() {
             crate::NodeSpec {
                 name: vo_types::NodeName::parse("a").expect("valid"),
                 kind: NodeKind::Pure,
+                retry_policy: default_retry_policy(),
             },
             crate::NodeSpec {
                 name: vo_types::NodeName::parse("b").expect("valid"),
                 kind: NodeKind::ManagedEffect,
+                retry_policy: default_retry_policy(),
             },
         ],
         edges: vec![crate::EdgeSpec {
             from: vo_types::NodeName::parse("a").expect("valid"),
             to: vo_types::NodeName::parse("b").expect("valid"),
         }],
+        dedupe_scope: Default::default(),
+        guarantee_class: Default::default(),
     };
 
     let json1 = serde_json::to_string(&spec).expect("serialize");

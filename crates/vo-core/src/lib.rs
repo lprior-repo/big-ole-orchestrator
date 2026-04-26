@@ -26,6 +26,7 @@
 pub mod admission;
 pub mod calc;
 pub mod circuit_breaker;
+pub mod command_dedup;
 pub mod compensation_order;
 pub mod config_hot_reload;
 pub mod connector;
@@ -50,6 +51,7 @@ pub mod workload_class;
 pub mod workspace_swap;
 pub mod write_class;
 
+pub use command_dedup::{check_command_duplicate, is_command_duplicate, CommandDedupError, CommandDedupResult, dedupe_key_from_envelope};
 pub use validation::{
     validate_dedupe_policy, validate_effect_kinds, validate_managed_effect_sinks,
     validate_no_unsafe_in_exact_workflow, validate_unsafe_nodes, validate_workflow_effects,
