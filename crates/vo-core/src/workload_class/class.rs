@@ -97,3 +97,19 @@ impl FromStr for WorkloadClass {
         WorkloadClass::parse(s)
     }
 }
+
+impl WorkloadClass {
+    /// Returns `true` if this class is non-critical (subject to degradation).
+    ///
+    /// Non-critical classes are `Standard` and `UnsafeBulk`.
+    #[must_use]
+    pub fn is_non_critical(self) -> bool {
+        matches!(self, WorkloadClass::Standard | WorkloadClass::UnsafeBulk)
+    }
+
+    /// Returns `true` if this class is protected and always admitted during degraded mode.
+    #[must_use]
+    pub fn is_protected(self) -> bool {
+        !self.is_non_critical()
+    }
+}
