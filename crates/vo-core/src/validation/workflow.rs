@@ -261,6 +261,56 @@ pub fn validate_effect_kinds(
     Ok(())
 }
 
+/// Error returned when a ManagedEffect node targets an unsupported connector sink.
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+#[error("managed effect '{node_name}' targets unsupported connector sink: '{sink}' (known sinks: {known_sinks})")]
+pub struct UnsupportedConnectorSink {
+    pub node_name: String,
+    pub sink: String,
+    pub known_sinks: String,
+}
+
+impl UnsupportedConnectorSink {
+    #[must_use]
+    pub fn error_code() -> &'static str {
+        "unsupported_connector_sink"
+    }
+}
+
+/// Validate that all ManagedEffect nodes in a workflow target known connector sinks.
+///
+/// Non-ManagedEffect nodes are ignored. Only nodes with `NodeKind::ManagedEffect`
+/// are checked against the known sinks registry.
+///
+/// # Errors
+///
+/// Returns `UnsupportedConnectorSink` if any ManagedEffect node targets a sink
+/// not in the known set.
+pub fn validate_managed_effect_sinks(
+    nodes: &[(NodeKind, &str, &str)],
+    known_sinks: &KnownSinks,
+) -> Result<(), UnsupportedConnectorSink> {
+    for (kind, name, sink) in nodes {
+        if *kind == NodeKind::ManagedEffect {
+            if sink.is_empty() {
+                return Err(UnsupportedConnectorSink {
+                    node_name: (*name).to_string(),
+                    sink: sink.to_string(),
+                    known_sinks: known_sinks.to_string(),
+                });
+            }
+            if !known_sinks.contains(sink) {
+                return Err(UnsupportedConnectorSink {
+                    node_name: (*name).to_string(),
+                    sink: sink.to_string(),
+                    known_sinks: known_sinks.to_string(),
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
 fn effect_kind_to_sink(kind: EffectKind) -> &'static str {
     match kind {
         EffectKind::HttpCall => "http",
@@ -794,5 +844,89 @@ mod tests {
         assert!(err_msg.contains("my-workflow"));
         assert!(err_msg.contains("exact-once"));
         assert!(err_msg.contains("Unbounded"));
+    }
+
+    // ========================================================================
+    // BDD Tests: Managed Effect Connector Sink Validation (ADR-031)
+    // ========================================================================
+
+    #[test]
+    fn given_managed_effect_with_unsupported_sink_when_published_then_validation_rejects() {
+        let known_sinks = KnownSinks::default_sinks();
+        let nodes = [
+            (NodeKind::Pure, "step_a", ""),
+            (NodeKind::ManagedEffect, "send_email", "smtp"),
+            (NodeKind::Pure, "step_c", ""),
+        ];
+
+        let result = validate_managed_effect_sinks(&nodes, &known_sinks);
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert_eq!(err.node_name, "send_email");
+        assert_eq!(err.sink, "smtp");
+        assert_eq!(UnsupportedConnectorSink::error_code(), "unsupported_connector_sink");
+        let msg = err.to_string();
+        assert!(msg.contains("send_email"));
+        assert!(msg.contains("smtp"));
+        assert!(msg.contains("unsupported connector sink"));
+    }
+
+    #[test]
+    fn managed_effect_with_known_sink_passes_validation() {
+        let known_sinks = KnownSinks::default_sinks();
+        let nodes = [
+            (NodeKind::Pure, "step_a", ""),
+            (NodeKind::ManagedEffect, "write_blob", "blob"),
+            (NodeKind::ManagedEffect, "call_api", "http"),
+        ];
+
+        let result = validate_managed_effect_sinks(&nodes, &known_sinks);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn managed_effect_with_empty_sink_rejects() {
+        let known_sinks = KnownSinks::default_sinks();
+        let nodes = [(NodeKind::ManagedEffect, "no_sink", "")];
+
+        let result = validate_managed_effect_sinks(&nodes, &known_sinks);
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().node_name, "no_sink");
+    }
+
+    #[test]
+    fn non_managed_effect_nodes_are_ignored() {
+        let known_sinks = KnownSinks::default_sinks();
+        let nodes = [
+            (NodeKind::Pure, "step_a", "nonexistent"),
+            (NodeKind::Unsafe, "step_b", "garbage"),
+            (NodeKind::Signal, "step_c", "whatever"),
+        ];
+
+        let result = validate_managed_effect_sinks(&nodes, &known_sinks);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn empty_node_list_passes() {
+        let known_sinks = KnownSinks::default_sinks();
+        let nodes: [(NodeKind, &str, &str); 0] = [];
+
+        let result = validate_managed_effect_sinks(&nodes, &known_sinks);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn returns_first_unsupported_managed_effect_sink() {
+        let known_sinks = KnownSinks::default_sinks();
+        let nodes = [
+            (NodeKind::ManagedEffect, "bad_one", "kafka"),
+            (NodeKind::ManagedEffect, "bad_two", "redis"),
+        ];
+
+        let result = validate_managed_effect_sinks(&nodes, &known_sinks);
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().node_name, "bad_one");
     }
 }

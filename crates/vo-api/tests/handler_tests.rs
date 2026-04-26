@@ -8,7 +8,7 @@ use axum::{
     extract::Path,
     http::{header, Request, StatusCode},
     routing::{get, post},
-    Json, Router,
+    Extension, Json, Router,
 };
 use serde_json::{json, Value};
 use tower::ServiceExt;
@@ -781,6 +781,90 @@ mod workflow_start {
         let (status, body) = send(req).await;
         assert_eq!(status, StatusCode::BAD_REQUEST);
         assert_err(&body, "invalid_namespace");
+    }
+
+    // ======================================================================
+    // BDD: production orchestrator receives StartWorkflow (tw-4y6h.2.4)
+    // ======================================================================
+
+    use ractor::Actor;
+    use std::sync::Arc;
+    use vo_actor::OrchestratorMsg;
+    use vo_storage::dedupe_partition::InMemoryDedupeStore;
+
+    struct CapturingOrchestrator;
+
+    impl Actor for CapturingOrchestrator {
+        type Msg = OrchestratorMsg;
+        type State = ();
+        type Arguments = ();
+
+        async fn pre_start(
+            &self,
+            _myself: ractor::ActorRef<Self::Msg>,
+            _args: Self::Arguments,
+        ) -> Result<Self::State, ractor::ActorProcessingErr> {
+            Ok(())
+        }
+
+        async fn handle(
+            &self,
+            _myself: ractor::ActorRef<Self::Msg>,
+            message: Self::Msg,
+            _state: &mut Self::State,
+        ) -> Result<(), ractor::ActorProcessingErr> {
+            if let OrchestratorMsg::StartWorkflow { reply, .. } = message {
+                let _ = reply.send(Ok(()));
+            }
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn given_start_request_when_handler_runs_then_production_orchestrator_receives_start() {
+        let (master_ref, _handle) = ractor::Actor::spawn(
+            Some("test-prod-orchestrator".to_string()),
+            CapturingOrchestrator,
+            (),
+        )
+        .await
+        .expect("spawn production orchestrator");
+
+        let dedupe_store: Arc<dyn vo_storage::dedupe_partition::DedupeStore> =
+            Arc::new(InMemoryDedupeStore::new());
+
+        let app = Router::new()
+            .route(
+                "/api/v1/workflows",
+                post(vo_api::handlers::start_workflow),
+            )
+            .layer(Extension(master_ref))
+            .layer(Extension(dedupe_store));
+
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/workflows")
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(
+                r#"{"namespace":"test-ns","workflow_type":"test-wf","paradigm":"fsm","input":{"key":"val"},"dedupe_key":"dk-prod-42"}"#,
+            ))
+            .unwrap();
+
+        let resp = app.oneshot(req).await.expect("oneshot");
+        let status = resp.status();
+        let (_parts, body_stream) = resp.into_parts();
+        let body_bytes = axum::body::to_bytes(body_stream, 1 << 20)
+            .await
+            .expect("read body");
+        let body_str = String::from_utf8(body_bytes.to_vec()).unwrap_or_default();
+        assert_eq!(status, StatusCode::CREATED, "response body: {body_str}");
+
+        let body: Value = serde_json::from_slice(&body_bytes).expect("parse json");
+        assert_eq!(body["namespace"], "test-ns");
+        assert_eq!(body["workflow_type"], "test-wf");
+        assert!(body.get("instance_id").is_some());
+
+        let _ = _handle;
     }
 }
 

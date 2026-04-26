@@ -199,6 +199,7 @@ mod tests {
             ws: WsState::new(),
             master: master.clone(),
             circuit_breaker: circuit_breaker.clone(),
+            dedupe_store: Arc::new(vo_storage::dedupe_partition::InMemoryDedupeStore::new()),
         };
 
         let _router = create_router(state.clone());

@@ -17,7 +17,8 @@ pub mod workflow;
 pub use payload::{validate_inline_size, PayloadTooLarge};
 pub use unsafe_node::{validate_no_unsafe_in_exact_workflow, UnsafeNodeInExactWorkflow};
 pub use workflow::{
-    validate_dedupe_policy, validate_effect_kinds, validate_unsafe_nodes, validate_workflow_effects,
-    validate_workflow_sinks, DedupePolicyError, KnownSinks, UnsafePublishError, WorkflowPublishSpec,
-    WorkflowSinkValidator,
+    validate_dedupe_policy, validate_effect_kinds, validate_managed_effect_sinks,
+    validate_unsafe_nodes, validate_workflow_effects, validate_workflow_sinks, DedupePolicyError,
+    KnownSinks, UnsafePublishError, UnsupportedConnectorSink, UnsupportedSinkError,
+    WorkflowPublishSpec, WorkflowSinkValidator,
 };
