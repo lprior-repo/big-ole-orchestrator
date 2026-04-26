@@ -84,8 +84,8 @@ fn red_queen_config_rejects_non_executable() {
 #[test]
 fn red_queen_config_accepts_minimum_timeout() {
     let path = executable_file();
-    let config = SubprocessConfig::new(&path, 1, vec![]);
-    assert!(config.is_ok(), "timeout=1 should be accepted");
+    let config = SubprocessConfig::new(&path, 500, vec![]);
+    assert!(config.is_ok(), "timeout=500 should be accepted");
 }
 
 // ========================================================================

@@ -108,8 +108,10 @@ pub use dual_representation::{
     apply_redaction, OperatorProjection, RedactionKind, RedactionPolicy, RedactionRule,
 };
 pub use effects::{
-    apply_effect_transition, CompensationPolicy, EffectIntent, EffectKind, EffectRecord,
-    EffectTransitionError, EffectTransitionEvent, ExternalReceipt,
+    apply_effect_transition, commit_effect_record, CompensationPolicy, CommittedEffect,
+    decode_journal_entry, EffectIntent, EffectJournalEntry, EffectKind, EffectRecord,
+    EffectTransitionError, EffectTransitionEvent, ExternalReceipt, prepare_effect_record,
+    PreparedEffect, rollback_effect_record, RolledBackEffect,
 };
 pub use encryption::{CryptoAlgorithm, DekId, EncryptedBlob, KeyMetadata, WrappedDek};
 pub use errors::ParseError;

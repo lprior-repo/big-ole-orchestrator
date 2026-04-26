@@ -306,20 +306,20 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_pipe_sets_cloexec() {
-        let (r, w) = create_pipe().unwrap();
+        let pair = create_pipe().unwrap();
         unsafe {
-            let flags = libc::fcntl(r, libc::F_GETFD);
+            let flags = libc::fcntl(pair.read_fd, libc::F_GETFD);
             assert!(
                 flags & libc::FD_CLOEXEC != 0,
                 "read end should have FD_CLOEXEC"
             );
-            let flags = libc::fcntl(w, libc::F_GETFD);
+            let flags = libc::fcntl(pair.write_fd, libc::F_GETFD);
             assert!(
                 flags & libc::FD_CLOEXEC != 0,
                 "write end should have FD_CLOEXEC"
             );
-            libc::close(r);
-            libc::close(w);
+            libc::close(pair.read_fd);
+            libc::close(pair.write_fd);
         }
     }
 
