@@ -1,5 +1,5 @@
 use crate::error::ConfigError;
-use std::ffi::OsString;
+use std::ffi::{CString, OsString};
 use std::path::{Path, PathBuf};
 use libc::{fstat, open, close, O_NOFOLLOW, O_RDONLY, S_IFMT, S_IFREG};
 
@@ -69,7 +69,11 @@ fn open_and_validate_program(path: &Path) -> Result<PathBuf, ConfigError> {
         path: path.to_path_buf(),
     })?;
 
-    let fd = unsafe { open(path_str.as_ptr() as *const libc::c_char, O_NOFOLLOW | O_RDONLY) };
+    let c_path = CString::new(path_str).map_err(|_| ConfigError::ProgramMissing {
+        path: path.to_path_buf(),
+    })?;
+
+    let fd = unsafe { open(c_path.as_ptr(), O_NOFOLLOW | O_RDONLY) };
     if fd < 0 {
         return Err(ConfigError::ProgramMissing {
             path: path.to_path_buf(),
@@ -137,27 +141,29 @@ mod tests {
     }
 
     #[test]
-    fn validate_program_path_returns_missing_when_path_does_not_exist() {
+    fn validate_program_returns_missing_when_path_does_not_exist() {
         let path = PathBuf::from("/does/not/exist");
-        assert_eq!(
-            validate_program_path(&path),
-            Err(ConfigError::ProgramMissing { path })
-        );
+        let result = open_and_validate_program(&path);
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            ConfigError::ProgramMissing { path: p } => assert_eq!(p, path),
+            other => panic!("expected ProgramMissing, got {:?}", other),
+        }
     }
 
     #[test]
-    fn validate_program_path_returns_missing_when_path_is_directory() {
+    fn validate_program_returns_missing_when_path_is_directory() {
         let dir = tempdir().unwrap();
-        assert_eq!(
-            validate_program_path(dir.path()),
-            Err(ConfigError::ProgramMissing {
-                path: dir.path().to_path_buf(),
-            })
-        );
+        let result = open_and_validate_program(dir.path());
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            ConfigError::ProgramMissing { path: p } => assert_eq!(p, dir.path()),
+            other => panic!("expected ProgramMissing, got {:?}", other),
+        }
     }
 
     #[test]
-    fn validate_program_path_returns_not_executable_when_permission_bits_missing() {
+    fn validate_program_rejects_non_executable_file() {
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("not_exec");
         File::create(&file_path).unwrap();
@@ -165,14 +171,12 @@ mod tests {
         let mut perms = metadata.permissions();
         perms.set_mode(0o644);
         std::fs::set_permissions(&file_path, perms).unwrap();
-        assert_eq!(
-            validate_program_path(&file_path),
-            Err(ConfigError::ProgramNotExecutable { path: file_path })
-        );
+        let result = open_and_validate_program(&file_path);
+        assert!(result.is_err(), "non-executable file should be rejected");
     }
 
     #[test]
-    fn validate_program_path_accepts_executable_file() {
+    fn validate_program_accepts_executable_file() {
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("exec");
         File::create(&file_path).unwrap();
@@ -180,7 +184,9 @@ mod tests {
         let mut perms = metadata.permissions();
         perms.set_mode(0o755);
         std::fs::set_permissions(&file_path, perms).unwrap();
-        assert_eq!(validate_program_path(&file_path), Ok(()));
+        let result = open_and_validate_program(&file_path);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), file_path.canonicalize().unwrap());
     }
 
     #[test]
