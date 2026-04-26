@@ -55,7 +55,7 @@ mod tests;
 use thiserror::Error;
 
 // Re-export public API
-pub use io::{is_read, is_written, read_input, write_failure, write_success};
+pub use io::{is_read, is_written, read_input, secret, write_failure, write_success};
 
 #[derive(Debug, PartialEq, Error)]
 pub enum SdkError {

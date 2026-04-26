@@ -39,6 +39,8 @@ pub mod recovery;
 pub mod replay;
 pub mod resource_quota;
 pub mod segment_tree;
+// TODO: storage_watchdog module is WIP - uncomment when tracing/libc deps are wired
+// pub mod storage_watchdog;
 pub mod shedding;
 pub mod snapshot_compat;
 pub mod upcaster;

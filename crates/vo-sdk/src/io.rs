@@ -280,6 +280,22 @@ fn is_fd_valid(fd: std::os::unix::io::RawFd) -> bool {
     borrowed.try_clone_to_owned().is_ok()
 }
 
+/// Retrieve a secret by key from a deserialized [`TaskInput`].
+///
+/// Per ADR-014, secrets are injected as part of the JSON payload over FD3,
+/// never as environment variables. This function provides O(1) lookup into
+/// the in-memory secret map.
+///
+/// # Example
+///
+/// ```ignore
+/// let input = vo_sdk::read_input()?;
+/// let stripe_key = vo_sdk::secret(&input, "STRIPE_KEY");
+/// ```
+pub fn secret(input: &vo_types::TaskInput, key: &str) -> Option<&str> {
+    input.secret(key)
+}
+
 /// Parse and validate a JSON buffer into a `TaskInput`.
 fn parse_envelope(buf: &[u8]) -> Result<TaskInput, SdkError> {
     let json = std::str::from_utf8(buf).map_err(|_| SdkError::InvalidInput)?;

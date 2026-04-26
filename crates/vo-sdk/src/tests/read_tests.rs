@@ -261,3 +261,64 @@ fn read_valid_idempotency_key_with_hyphens() {
     let input = read_input_inner(&mut cursor, &mut is_read).expect("hyphenated key should work");
     assert_eq!(input.idempotency_key.as_str(), "my-key-123-abc");
 }
+
+#[test]
+fn read_input_with_secrets_returns_task_input_with_secrets() {
+    let payload = serde_json::to_vec(&json!({
+        "idempotency_key": "key-with-secrets",
+        "data": {"step": "process"},
+        "secrets": {"STRIPE_KEY": "sk_live_abc", "DB_PASS": "hunter2"},
+    }))
+    .expect("serialize");
+    let mut cursor = Cursor::new(payload);
+    let mut is_read = false;
+
+    let input = read_input_inner(&mut cursor, &mut is_read).expect("should parse with secrets");
+    assert_eq!(input.secrets().len(), 2);
+    assert_eq!(input.secret("STRIPE_KEY"), Some("sk_live_abc"));
+    assert_eq!(input.secret("DB_PASS"), Some("hunter2"));
+    assert_eq!(input.secret("NONEXISTENT"), None);
+}
+
+#[test]
+fn read_input_secrets_missing_is_empty() {
+    let payload = valid_envelope("no-secrets", &json!({"x": 1}));
+    let mut cursor = Cursor::new(payload);
+    let mut is_read = false;
+
+    let input = read_input_inner(&mut cursor, &mut is_read).expect("should parse without secrets");
+    assert!(input.secrets().is_empty());
+    assert_eq!(input.secret("ANY_KEY"), None);
+}
+
+#[test]
+fn read_input_secrets_empty_object_is_empty() {
+    let payload = serde_json::to_vec(&json!({
+        "idempotency_key": "empty-secrets",
+        "data": {"x": 1},
+        "secrets": {},
+    }))
+    .expect("serialize");
+    let mut cursor = Cursor::new(payload);
+    let mut is_read = false;
+
+    let input = read_input_inner(&mut cursor, &mut is_read).expect("should parse with empty secrets");
+    assert!(input.secrets().is_empty());
+}
+
+#[test]
+fn read_input_secret_non_string_returns_none() {
+    let payload = serde_json::to_vec(&json!({
+        "idempotency_key": "num-secret",
+        "data": {"x": 1},
+        "secrets": {"NUM_KEY": 42, "BOOL_KEY": true, "OBJ_KEY": {"nested": "val"}},
+    }))
+    .expect("serialize");
+    let mut cursor = Cursor::new(payload);
+    let mut is_read = false;
+
+    let input = read_input_inner(&mut cursor, &mut is_read).expect("should parse non-string secrets");
+    assert_eq!(input.secret("NUM_KEY"), None);
+    assert_eq!(input.secret("BOOL_KEY"), None);
+    assert_eq!(input.secret("OBJ_KEY"), None);
+}

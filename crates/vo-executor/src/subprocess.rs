@@ -12,12 +12,142 @@
 //! See ADR-018 for full specification.
 
 use libc;
+use sha2::{Digest, Sha256};
+use std::fs;
+use std::io::Read;
 use std::os::fd::{FromRawFd, RawFd};
 #[cfg(unix)]
 use std::os::unix::process::ExitStatusExt;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::process::Command;
 use tokio::time::{timeout, Duration};
+
+// ============================================================================
+// ADR-012: Execution Boundary Hardening - Constants
+// ============================================================================
+
+/// Maximum input payload size for FD3 (step input bomb protection).
+/// 10MB hard limit per ADR-012 section 3.
+pub const MAX_STEP_INPUT_BYTES: usize = 10 * 1024 * 1024;
+
+/// Maximum output payload size for FD4 (memory bomb protection).
+/// 10MB hard limit per ADR-012 section 3.
+pub const MAX_STEP_OUTPUT_BYTES: usize = 10 * 1024 * 1024;
+
+/// Bounded read buffer size matching Linux kernel pipe buffer (64KB).
+/// Prevents deadlocks when payloads exceed kernel buffer per ADR-018.
+pub const BOUNDED_READ_BUFFER_SIZE: usize = 64 * 1024;
+
+/// Version directory root for content-hashed binary storage (ADR-012 section 4).
+pub const VERSION_BASE_PATH: &str = "/var/wtf/versions";
+
+/// Size of chunks for binary hash computation.
+const HASH_CHUNK_SIZE: usize = 65536;
+
+/// Result of pinning a binary to a versioned path.
+#[derive(Debug, Clone)]
+pub struct PinnedBinary {
+    /// The original executable path.
+    pub original_path: String,
+    /// The content-hash SHA256 digest (hex).
+    pub sha256_hex: String,
+    /// The versioned path where the binary was copied.
+    pub versioned_path: String,
+}
+
+/// Pin a binary to a versioned path under `VERSION_BASE_PATH`.
+///
+/// The Engine never executes a binary directly from the user's target directory.
+/// Upon discovery, the Engine hashes the binary and copies it to
+/// `<VERSION_BASE_PATH>/<sha256>/<binary_name>`.
+///
+/// If the binary already exists at the versioned path (same hash), returns
+/// the existing pin without re-copying.
+///
+/// # Errors
+///
+/// Returns [`SubprocessError::BinaryVersioningFailed`] if:
+/// - The source binary cannot be read
+/// - The version directory cannot be created
+/// - The copy fails
+#[tracing::instrument(skip(original_path))]
+pub fn pin_binary(original_path: &str) -> Result<PinnedBinary, SubprocessError> {
+    let source = std::fs::read(original_path).map_err(|e| {
+        SubprocessError::BinaryVersioningFailed(format!(
+            "failed to read binary at {original_path}: {e}"
+        ))
+    })?;
+
+    let mut hasher = Sha256::new();
+    hasher.update(&source);
+    let digest = hasher.finalize();
+    let sha256_hex = format!("{digest:x}");
+
+    let binary_name = std::path::Path::new(original_path)
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| "unknown".to_string());
+
+    let version_dir = format!("{VERSION_BASE_PATH}/{sha256_hex}");
+    let versioned_path = format!("{version_dir}/{binary_name}");
+
+    // If already pinned, return the existing pin
+    if std::path::Path::new(&versioned_path).exists() {
+        return Ok(PinnedBinary {
+            original_path: original_path.to_string(),
+            sha256_hex,
+            versioned_path,
+        });
+    }
+
+    // Create version directory and copy binary
+    std::fs::create_dir_all(&version_dir).map_err(|e| {
+        SubprocessError::BinaryVersioningFailed(format!(
+            "failed to create version directory {version_dir}: {e}"
+        ))
+    })?;
+
+    std::fs::copy(original_path, &versioned_path).map_err(|e| {
+        SubprocessError::BinaryVersioningFailed(format!(
+            "failed to copy binary to {versioned_path}: {e}"
+        ))
+    })?;
+
+    Ok(PinnedBinary {
+        original_path: original_path.to_string(),
+        sha256_hex,
+        versioned_path,
+    })
+}
+
+/// Resolve a binary path: if already pinned, return as-is; otherwise pin it.
+///
+/// This allows callers to pass either an original path or an already-pinned
+/// versioned path transparently.
+pub fn resolve_binary_path(path: &str) -> Result<PinnedBinary, SubprocessError> {
+    if path.starts_with(VERSION_BASE_PATH) && std::path::Path::new(path).exists() {
+        // Already pinned - reconstruct pin info from path
+        let binary_name = std::path::Path::new(path)
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| "unknown".to_string());
+        // Extract hash from path: VERSION_BASE_PATH/<hash>/<binary_name>
+        let hash = path
+            .strip_prefix(VERSION_BASE_PATH)
+            .ok()
+            .split('/')
+            .next()
+            .unwrap_or("")
+            .to_string();
+        Ok(PinnedBinary {
+            original_path: path.to_string(),
+            sha256_hex: hash,
+            versioned_path: path.to_string(),
+        })
+    } else {
+        pin_binary(path)
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct SubprocessConfig {
@@ -86,9 +216,15 @@ pub enum SubprocessError {
     ProcessFailed { exit_code: i32 },
     #[error("bounded buffer exceeded: max={max}, tried to read={tried}")]
     BoundedBufferExceeded { max: usize, tried: usize },
+    #[error("input payload exceeds limit: {actual} bytes > {max} bytes (MAX_STEP_INPUT_BYTES)")]
+    InputPayloadTooLarge { actual: usize, max: usize },
+    #[error("binary hash mismatch: expected={expected}, actual={actual}")]
+    BinaryHashMismatch { expected: String, actual: String },
+    #[error("binary versioning failed: {0}")]
+    BinaryVersioningFailed(String),
 }
 
-const BOUNDED_BUFFER_SIZE: usize = 65536;
+
 
 struct PipePair {
     read_fd: RawFd,
@@ -124,6 +260,13 @@ fn create_pipe() -> Result<PipePair, SubprocessError> {
 pub async fn run_subprocess(config: SubprocessConfig) -> Result<SubprocessOutput, SubprocessError> {
     let fd3_pipe = create_pipe()?;
     let fd4_pipe = create_pipe()?;
+
+    if config.fd3_payload.len() > MAX_STEP_INPUT_BYTES {
+        return Err(SubprocessError::InputPayloadTooLarge {
+            actual: config.fd3_payload.len(),
+            max: MAX_STEP_INPUT_BYTES,
+        });
+    }
 
     let mut command = Command::new(&config.executable_path);
     command.args(&config.argv);
@@ -267,10 +410,10 @@ async fn read_bounded_fd4(reader: &mut tokio::fs::File) -> Result<Vec<u8>, Subpr
 
     let len = u32::from_be_bytes(header);
 
-    if len > 10_485_760 {
+    if len as usize > MAX_STEP_OUTPUT_BYTES {
         return Err(SubprocessError::Fd4ReadFailed(format!(
-            "payload too large: {} bytes (max 10MB)",
-            len
+            "payload too large: {len} bytes (max {} bytes, MAX_STEP_OUTPUT_BYTES)",
+            MAX_STEP_OUTPUT_BYTES
         )));
     }
 
