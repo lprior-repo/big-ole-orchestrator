@@ -21,6 +21,7 @@ impl Default for HandlerRegistry {
         registry.register(Box::new(handlers::DoctorHandler));
         registry.register(Box::new(handlers::RebuildHandler));
         registry.register(Box::new(handlers::StatusHandler));
+        registry.register(Box::new(handlers::ServeHandler));
         registry
     }
 }
@@ -56,6 +57,7 @@ fn command_key(command: &Command) -> Option<&'static str> {
         Command::Rebuild { .. } => Some("rebuild"),
         Command::Status { .. } => Some("status"),
         Command::Hardline { .. } => Some("hardline"),
+        Command::Serve { .. } => Some("serve"),
     }
 }
 
@@ -341,6 +343,42 @@ mod handlers {
                 };
                 let report = crate::commands::rebuild::run_rebuild(&config)?;
                 println!("{}", report.format_progress());
+                Ok(())
+            })
+        }
+    }
+
+    pub struct ServeHandler;
+
+    impl CommandHandler for ServeHandler {
+        fn name(&self) -> &'static str {
+            "serve"
+        }
+
+        fn execute(
+            &self,
+            cli: &Cli,
+        ) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + '_>> {
+            let Command::Serve {
+                ref host,
+                ref port,
+                ref storage_path,
+            } = cli.command
+            else {
+                return Box::pin(async {
+                    Err(CliError::Dispatch("not a serve command".to_string()))
+                });
+            };
+            let host = host.clone();
+            let port = *port;
+            let storage_path = storage_path.clone();
+            Box::pin(async move {
+                let config = crate::commands::serve::ServeConfig {
+                    host,
+                    port,
+                    storage_path,
+                };
+                crate::commands::serve::run_serve(&config).await?;
                 Ok(())
             })
         }

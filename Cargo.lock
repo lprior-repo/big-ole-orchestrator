@@ -4966,9 +4966,11 @@ name = "vo-cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "axum",
  "clap",
  "criterion",
  "fjall",
+ "http-body-util",
  "libc",
  "proptest",
  "ractor",
@@ -4981,11 +4983,14 @@ dependencies = [
  "thiserror 2.0.18",
  "tokio",
  "toml 1.1.2+spec-1.1.0",
+ "tower 0.4.13",
+ "tower-http",
  "tracing",
  "ulid",
  "uuid",
  "vo-actor",
  "vo-api",
+ "vo-core",
  "vo-storage",
  "vo-types",
 ]

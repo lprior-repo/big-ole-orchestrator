@@ -5,31 +5,36 @@ edition = "2021"
 default-run = "vo-cli"
 
 [dependencies]
-clap = { version = "4.4", features = ["derive", "env"] }
-thiserror = { workspace = true }
-tokio = { workspace = true }
-reqwest = { workspace = true }
-serde = { workspace = true }
-serde_json = { workspace = true }
-fjall.workspace = true
-vo-storage = { version = "0.1.0", path = "../vo-storage" }
-anyhow.workspace = true
-ractor.workspace = true
-vo-actor = { version = "0.1.0", path = "../vo-actor" }
-vo-api = { version = "0.1.0", path = "../vo-api" }
-vo-types = { version = "0.1.0", path = "../vo-types" }
-ulid = { workspace = true }
-uuid.workspace = true
-tracing.workspace = true
-sha2 = "0.10"
-toml = "1.1.2"
-libc = "0.2.184"
+ clap = { version = "4.4", features = ["derive", "env"] }
+ thiserror = { workspace = true }
+ tokio = { workspace = true }
+ reqwest = { workspace = true }
+ serde = { workspace = true }
+ serde_json = { workspace = true }
+ fjall.workspace = true
+ vo-storage = { version = "0.1.0", path = "../vo-storage" }
+ vo-core = { version = "0.1.0", path = "../vo-core" }
+ anyhow.workspace = true
+ ractor.workspace = true
+ vo-actor = { version = "0.1.0", path = "../vo-actor" }
+ vo-api = { version = "0.1.0", path = "../vo-api" }
+ vo-types = { version = "0.1.0", path = "../vo-types" }
+ ulid = { workspace = true }
+ uuid.workspace = true
+ tracing.workspace = true
+ axum.workspace = true
+ tower-http = { workspace = true, features = ["cors", "timeout", "trace"] }
+ sha2 = "0.10"
+ toml = "1.1.2"
+ libc = "0.2.184"
 
 [dev-dependencies]
-proptest = "1.4"
-rstest = "0.18"
-tempfile = { workspace = true }
-criterion = { workspace = true }
+ proptest = "1.4"
+ rstest = "0.18"
+ tempfile = { workspace = true }
+ criterion = { workspace = true }
+ http-body-util = "0.1"
+ tower = { workspace = true }
 
 [[bench]]
 name = "cli_bench"
