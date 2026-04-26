@@ -40,6 +40,8 @@
 )]
 
 pub mod append;
+pub mod event_summary_commit;
+pub mod atomic_wait_commit;
 pub mod blob;
 pub mod blob_store;
 #[cfg(test)]

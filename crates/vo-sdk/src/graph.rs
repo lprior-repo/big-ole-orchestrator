@@ -9,7 +9,7 @@ use std::io::Write;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 pub use vo_types::NodeKind;
-use vo_types::{NodeName, WorkflowName};
+use vo_types::{GuaranteeClass, NodeName, WorkflowName};
 
 /// Marker returned when `--graph` flag is present.
 #[derive(Debug, PartialEq, Clone, Copy)]

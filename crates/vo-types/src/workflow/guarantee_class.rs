@@ -68,6 +68,12 @@ impl GuaranteeClass {
     }
 }
 
+impl Default for GuaranteeClass {
+    fn default() -> Self {
+        GuaranteeClass::BestEffort
+    }
+}
+
 // ============================================================================
 // Unit Tests
 // ============================================================================

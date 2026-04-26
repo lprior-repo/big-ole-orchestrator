@@ -233,8 +233,9 @@ impl DurableBudgetSaga {
         if let Some(ref store) = self.store {
             store.stage_entry(write_key, class, size_bytes)?;
         } else {
-            #[expect(clippy::unwrap_used)]
-            let mut manifest = self.manifest.lock().unwrap();
+            let mut manifest = self.manifest.lock().map_err(|e| SagaError::Storage {
+                reason: e.to_string(),
+            })?;
             manifest.stage(write_key.to_string(), class, size_bytes)?;
         }
 
@@ -242,8 +243,9 @@ impl DurableBudgetSaga {
             if let Some(ref store) = self.store {
                 let _ = store.rollback_entry(write_key);
             } else {
-                #[expect(clippy::unwrap_used)]
-                let _ = self.manifest.lock().unwrap().rollback(write_key);
+                if let Ok(mut m) = self.manifest.lock() {
+                    let _ = m.rollback(write_key);
+                }
             }
             SagaError::BudgetReserveFailed(e.to_string())
         })?;
@@ -254,8 +256,9 @@ impl DurableBudgetSaga {
     pub fn commit(&self, write_key: &str) -> Result<(), SagaError> {
         self.store.as_ref().map_or_else(
             || {
-                #[expect(clippy::unwrap_used)]
-                let mut manifest = self.manifest.lock().unwrap();
+                let mut manifest = self.manifest.lock().map_err(|e| SagaError::Storage {
+                    reason: e.to_string(),
+                })?;
                 manifest.commit(write_key)
             },
             |store| store.commit_entry(write_key),
@@ -266,8 +269,9 @@ impl DurableBudgetSaga {
         self.queues.dequeue(self.get_class_for_key(write_key)?);
         self.store.as_ref().map_or_else(
             || {
-                #[expect(clippy::unwrap_used)]
-                let mut manifest = self.manifest.lock().unwrap();
+                let mut manifest = self.manifest.lock().map_err(|e| SagaError::Storage {
+                    reason: e.to_string(),
+                })?;
                 manifest.rollback(write_key)
             },
             |store| store.rollback_entry(write_key),
@@ -275,14 +279,15 @@ impl DurableBudgetSaga {
     }
 
     pub fn recover_from_crash(&self) {
-        #[expect(clippy::unwrap_used)]
-        let mut manifest = self.manifest.lock().unwrap();
-        manifest.recover_staged_as_rolled_back();
+        if let Ok(mut manifest) = self.manifest.lock() {
+            manifest.recover_staged_as_rolled_back();
+        }
     }
 
     fn get_class_for_key(&self, write_key: &str) -> Result<WriteClass, SagaError> {
-        #[expect(clippy::unwrap_used)]
-        let manifest = self.manifest.lock().unwrap();
+        let manifest = self.manifest.lock().map_err(|e| SagaError::Storage {
+            reason: e.to_string(),
+        })?;
         manifest
             .get(write_key)
             .map(|e| e.class)

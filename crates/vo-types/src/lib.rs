@@ -163,8 +163,8 @@ pub use types::{
     MAX_SUPPORTED_SCHEMA_VERSION,
 };
 pub use workflow::{
-    next_nodes, DagNode, Edge, EdgeCondition, RetryPolicy, RetryPolicyError, StepOutcome,
-    WorkflowDefinition, WorkflowDefinitionError,
+    next_nodes, DagNode, Edge, EdgeCondition, GuaranteeClass, RetryPolicy, RetryPolicyError,
+    StepOutcome, WorkflowDefinition, WorkflowDefinitionError,
 };
 
 #[cfg(kani)]
