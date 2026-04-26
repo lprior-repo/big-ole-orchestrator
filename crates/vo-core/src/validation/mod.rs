@@ -11,9 +11,11 @@
 //! - Publish-time rejection of exact-once workflows missing dedupe policy (ADR-028)
 
 pub mod payload;
+pub mod unsafe_node;
 pub mod workflow;
 
 pub use payload::{validate_inline_size, PayloadTooLarge};
+pub use unsafe_node::{validate_no_unsafe_in_exact_workflow, UnsafeNodeInExactWorkflow};
 pub use workflow::{
     validate_dedupe_policy, validate_effect_kinds, validate_unsafe_nodes, validate_workflow_effects,
     validate_workflow_sinks, DedupePolicyError, KnownSinks, UnsafePublishError, WorkflowPublishSpec,
