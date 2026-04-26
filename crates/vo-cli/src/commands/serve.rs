@@ -83,6 +83,9 @@ pub async fn run_serve(config: &ServeConfig) -> Result<(), ServeError> {
         vo_storage::dedupe_partition::InMemoryDedupeStore::new(),
     );
 
+    let writer_pressure: std::sync::Arc<dyn vo_core::admission::WriterPressureGuard> =
+        std::sync::Arc::new(vo_core::admission::WatchdogPressureGuard::permissive());
+
     let state = vo_api::router::AppState {
         query,
         sse,
@@ -90,6 +93,7 @@ pub async fn run_serve(config: &ServeConfig) -> Result<(), ServeError> {
         master,
         circuit_breaker,
         dedupe_store,
+        writer_pressure,
     };
 
     let router = vo_api::router::create_router(state);

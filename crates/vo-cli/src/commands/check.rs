@@ -36,6 +36,40 @@ impl BinaryFormat {
     }
 }
 
+/// ELF architecture detected from the machine type field.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ElfMachine {
+    X86_64,
+    AArch64,
+    Arm,
+    X86,
+    Unknown(u16),
+}
+
+impl ElfMachine {
+    #[must_use]
+    pub fn from_u16(value: u16) -> Self {
+        match value {
+            ELF_MACHINE_X86_64 => Self::X86_64,
+            ELF_MACHINE_AARCH64 => Self::AArch64,
+            ELF_MACHINE_ARM => Self::Arm,
+            ELF_MACHINE_X86 => Self::X86,
+            other => Self::Unknown(other),
+        }
+    }
+
+    #[must_use]
+    pub fn display_name(&self) -> String {
+        match self {
+            Self::X86_64 => "x86_64".to_string(),
+            Self::AArch64 => "AArch64".to_string(),
+            Self::Arm => "ARM".to_string(),
+            Self::X86 => "x86".to_string(),
+            Self::Unknown(n) => format!("unknown-machine-{n}"),
+        }
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum CheckError {
     #[error("file not found: {path}")]
@@ -162,6 +196,42 @@ pub fn validate_binary_header(path: &Path) -> Result<BinaryFormat, CheckError> {
         path: path.to_path_buf(),
         magic: buf,
     })
+}
+
+/// Detect the architecture of an ELF binary by reading the machine type field.
+///
+/// For ELF binaries, the machine type is at offset 18 (2 bytes, little-endian).
+/// For non-ELF binaries or when the machine type is not recognized, returns `None`.
+///
+/// # Errors
+/// Returns an error if the file cannot be read.
+pub fn detect_elf_architecture(path: &Path) -> Result<Option<ElfMachine>, CheckError> {
+    use std::io::Read;
+
+    let format = validate_binary_header(path)?;
+
+    if format != BinaryFormat::Elf {
+        return Ok(None);
+    }
+
+    let file = std::fs::File::open(path).map_err(|e| CheckError::Io {
+        path: path.to_path_buf(),
+        source: e,
+    })?;
+
+    let mut reader = std::io::BufReader::new(file);
+
+    // Skip to offset 18 where ELF e_machine field is located
+    let mut header = [0u8; 20];
+    reader.read_exact(&mut header).map_err(|e| CheckError::Io {
+        path: path.to_path_buf(),
+        source: e,
+    })?;
+
+    // ELF machine type is little-endian u16 at offset 18
+    let machine = u16::from_le_bytes([header[18], header[19]]);
+
+    Ok(Some(ElfMachine::from_u16(machine)))
 }
 
 pub fn validate_workflow_spec(path: &Path) -> Result<WorkflowDefinition, CheckError> {

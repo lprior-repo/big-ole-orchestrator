@@ -22,6 +22,7 @@ impl Default for HandlerRegistry {
         registry.register(Box::new(handlers::RebuildHandler));
         registry.register(Box::new(handlers::StatusHandler));
         registry.register(Box::new(handlers::ServeHandler));
+        registry.register(Box::new(handlers::HistoryHandler));
         registry
     }
 }
@@ -58,6 +59,7 @@ fn command_key(command: &Command) -> Option<&'static str> {
         Command::Status { .. } => Some("status"),
         Command::Hardline { .. } => Some("hardline"),
         Command::Serve { .. } => Some("serve"),
+        Command::History { .. } => Some("history"),
     }
 }
 
@@ -428,6 +430,61 @@ mod handlers {
                     println!("| Quarantined               | yes                          |");
                 }
                 println!("+---------------------------+-------------------------------+");
+                Ok(())
+            })
+        }
+    }
+
+    pub struct HistoryHandler;
+
+    impl CommandHandler for HistoryHandler {
+        fn name(&self) -> &'static str {
+            "history"
+        }
+
+        fn execute(
+            &self,
+            cli: &Cli,
+        ) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + '_>> {
+            let Command::History {
+                ref instance_id,
+                ref engine_url,
+                json,
+            } = cli.command
+            else {
+                return Box::pin(async {
+                    Err(CliError::Dispatch("not a history command".to_string()))
+                });
+            };
+            let instance_id = instance_id.clone();
+            let engine_url = engine_url.clone();
+            Box::pin(async move {
+                let config = crate::commands::workflow_history::WorkflowHistoryConfig {
+                    instance_id,
+                    engine_url,
+                    json,
+                };
+                let result =
+                    crate::commands::workflow_history::run_workflow_history(&config).await?;
+                if json {
+                    let json_output = serde_json::to_string_pretty(&result).map_err(|e| {
+                        CliError::Dispatch(format!("failed to serialize history: {e}"))
+                    })?;
+                    println!("{json_output}");
+                } else {
+                    for entry in &result.entries {
+                        println!(
+                            "[{}] {} step={} type={}",
+                            entry.sequence,
+                            entry.timestamp_ms,
+                            entry.step_id.as_deref().unwrap_or("-"),
+                            entry.event_type,
+                        );
+                        if let Some(ref err) = entry.error {
+                            println!("  error: {err}");
+                        }
+                    }
+                }
                 Ok(())
             })
         }

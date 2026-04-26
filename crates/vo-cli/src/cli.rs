@@ -29,6 +29,8 @@ pub enum CliError {
     Status(#[from] crate::commands::status::StatusError),
     #[error(transparent)]
     Serve(#[from] crate::commands::serve::ServeError),
+    #[error(transparent)]
+    WorkflowHistory(#[from] crate::commands::workflow_history::WorkflowHistoryError),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -81,6 +83,11 @@ pub enum Command {
         host: String,
         port: u16,
         storage_path: PathBuf,
+    },
+    History {
+        instance_id: String,
+        engine_url: String,
+        json: bool,
     },
 }
 
@@ -272,6 +279,29 @@ where
                         .long("dry-run")
                         .action(clap::ArgAction::SetTrue)
                         .help("Dry run mode"),
+                ),
+        )
+        .subcommand(
+            clap::Command::new("history")
+                .about("Show workflow instance history (ADR-008, ADR-025)")
+                .arg(
+                    clap::Arg::new("instance")
+                        .required(true)
+                        .index(1)
+                        .help("Workflow instance ID (e.g., namespace/01ARZ3NDEKTSV4RRFFQ69G5FAV)"),
+                )
+                .arg(
+                    clap::Arg::new("engine-url")
+                        .long("engine-url")
+                        .env("VO_ENGINE_URL")
+                        .default_value("http://localhost:3000")
+                        .help("Engine URL"),
+                )
+                .arg(
+                    clap::Arg::new("json")
+                        .long("json")
+                        .action(clap::ArgAction::SetTrue)
+                        .help("Output redacted workflow history as stable JSON (operator projection)"),
                 ),
         )
         .subcommand(
@@ -482,6 +512,24 @@ where
                 },
             })
         }
+        Some(("history", sub_matches)) => {
+            let instance_id = sub_matches
+                .get_one::<String>("instance")
+                .cloned()
+                .unwrap_or_default();
+            let engine_url = sub_matches
+                .get_one::<String>("engine-url")
+                .cloned()
+                .unwrap_or_else(|| "http://localhost:3000".to_string());
+            let json = sub_matches.get_flag("json");
+            Ok(Cli {
+                command: Command::History {
+                    instance_id,
+                    engine_url,
+                    json,
+                },
+            })
+        }
         _ => Err(clap::Error::new(clap::error::ErrorKind::InvalidSubcommand)),
     }
 }
@@ -504,7 +552,8 @@ pub fn map_error_to_exit_code(err: &CliError) -> i32 {
         | CliError::Doctor(_)
         | CliError::Rebuild(_)
         | CliError::Status(_)
-        | CliError::Serve(_) => 1,
+        | CliError::Serve(_)
+        | CliError::WorkflowHistory(_) => 1,
         CliError::InvalidNumeric(_) => 2,
     }
 }

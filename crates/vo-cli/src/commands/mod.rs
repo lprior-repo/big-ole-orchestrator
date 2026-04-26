@@ -9,3 +9,4 @@ pub mod lock;
 pub mod rebuild;
 pub mod serve;
 pub mod status;
+pub mod workflow_history;
