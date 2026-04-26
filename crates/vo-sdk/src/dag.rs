@@ -82,6 +82,12 @@ impl Dag {
         self.nodes.push(DagNodeRecord {
             name: node_name.clone(),
             kind,
+            retry_policy: RetryPolicy {
+                max_attempts: 1,
+                backoff_ms: 0,
+                backoff_multiplier: 1.0,
+                max_backoff_ms: u64::MAX,
+            },
         });
         Ok(NodeHandle::new(node_name))
     }
@@ -272,6 +278,7 @@ impl Dag {
             .map(|n| NodeSpec {
                 name: n.name.clone(),
                 kind: n.kind,
+                retry_policy: n.retry_policy,
             })
             .collect();
 

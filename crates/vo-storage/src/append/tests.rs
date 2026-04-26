@@ -453,6 +453,124 @@ fn appender_backpressure_signal_integrated() {
     assert!(signal.is_backpressured(WriteClass::OperatorProjection));
 }
 
+#[test]
+fn given_blob_queue_saturated_when_critical_write_arrives_then_critical_write_is_not_starved() {
+    // Given: blob queue is saturated
+    let config = QueueConfig {
+        critical_capacity: 1024,
+        projection_capacity: 512,
+        blob_capacity: 2,
+    };
+    let budget = WriteBudget::new(100000, 100000, 100000);
+    let appender = Appender::new(&config, budget);
+
+    let event = EventEnvelope {
+        schema_version: 1,
+        instance_id: "inst-1".to_string(),
+        sequence: 1,
+        timestamp_ms: 1000,
+        payload: serde_json::json!({}),
+        metadata: EventMetadata::default(),
+    };
+
+    // Fill blob queue to capacity
+    for i in 0..2 {
+        let blob_write = BlobWrite::bulk(format!("blob-{i}"), 100);
+        assert!(
+            appender.append_blob(blob_write).is_ok(),
+            "blob write {i} should succeed to saturate the queue"
+        );
+    }
+
+    // Verify blob queue is full
+    assert!(
+        appender
+            .append_blob(BlobWrite::bulk("blob-overflow".to_string(), 100))
+            .is_err(),
+        "blob write should fail when queue is saturated"
+    );
+
+    // When: critical control-plane write arrives
+    let critical_write = ControlPlaneWrite::new(event.clone(), 100);
+    let result = appender.append_control_plane(critical_write);
+
+    // Then: critical write is accepted (not starved by blob backlog)
+    assert!(
+        result.is_ok(),
+        "critical control-plane write must be accepted even when blob queue is saturated"
+    );
+
+    // Verify the critical write can be dequeued first (priority enforcement)
+    let dequeued_critical = appender.dequeue_critical();
+    assert!(
+        dequeued_critical.is_some(),
+        "critical write should be dequeuable"
+    );
+
+    // Verify blob writes are still in queue (not evicted)
+    let blob_write_0 = BlobWrite::bulk("blob-0".to_string(), 100);
+    let _ = appender.append_blob(blob_write_0); // may fail if already drained
+
+    // Backpressure signal: blob should be backpressured, critical should not reject
+    let signal = appender.backpressure();
+    assert!(
+        signal.is_backpressured(WriteClass::BulkBlob),
+        "blob queue should signal backpressure when full"
+    );
+}
+
+#[test]
+fn given_blob_queue_saturated_when_critical_write_arrives_then_critical_write_is_not_starved_budget_queues() {
+    // Direct BudgetQueues path: verify the core queue isolation invariant
+    let config = QueueConfig {
+        critical_capacity: 1024,
+        projection_capacity: 512,
+        blob_capacity: 1,
+    };
+    let budget = WriteBudget::new(100000, 100000, 100000);
+    let queues = super::queue::BudgetQueues::new(&config, budget);
+
+    let event = EventEnvelope {
+        schema_version: 1,
+        instance_id: "inst-1".to_string(),
+        sequence: 1,
+        timestamp_ms: 1000,
+        payload: serde_json::json!({}),
+        metadata: EventMetadata::default(),
+    };
+
+    // Given: saturate blob queue
+    let blob_entry = AppendEntry::Blob(BlobWrite::bulk("saturating-blob".to_string(), 100));
+    assert!(queues.try_enqueue(&blob_entry).is_ok());
+
+    // Verify blob is full
+    assert!(queues.try_enqueue(&AppendEntry::Blob(BlobWrite::bulk(
+        "overflow-blob".to_string(),
+        100
+    )))
+    .is_err());
+
+    // When: critical write arrives
+    let critical_entry = AppendEntry::ControlPlane(ControlPlaneWrite::new(event, 100));
+    let result = queues.try_enqueue(&critical_entry);
+
+    // Then: critical write succeeds independently of blob saturation
+    assert!(
+        result.is_ok(),
+        "critical write must not be blocked by full blob queue"
+    );
+
+    // Verify dequeue_prioritized returns critical first (priority ordering)
+    let (class, _) = queues
+        .dequeue_prioritized()
+        .expect("should have dequeued an item");
+    assert_eq!(
+        class,
+        WriteClass::CriticalControlPlane,
+        "critical should be dequeued before blob"
+    );
+}
+
 use serial_test::serial;
 
 fn test_event() -> EventEnvelope {

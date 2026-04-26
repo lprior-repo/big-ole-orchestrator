@@ -50,12 +50,21 @@ pub fn parse_graph_args(args: &[String]) -> Result<GraphArgs, GraphArgsError> {
 }
 
 /// Specification of a single workflow node.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NodeSpec {
     pub name: NodeName,
     pub kind: NodeKind,
-    #[serde(default)]
+    #[serde(default = "default_retry_policy")]
     pub retry_policy: RetryPolicy,
+}
+
+fn default_retry_policy() -> RetryPolicy {
+    RetryPolicy {
+        max_attempts: 1,
+        backoff_ms: 0,
+        backoff_multiplier: 1.0,
+        max_backoff_ms: u64::MAX,
+    }
 }
 
 /// Specification of an edge between two workflow nodes.
@@ -95,6 +104,8 @@ pub struct WorkflowSpec {
     pub edges: Vec<EdgeSpec>,
     #[serde(default)]
     pub dedupe_scope: DedupeScope,
+    #[serde(default)]
+    pub guarantee_class: GuaranteeClass,
 }
 
 fn default_dedupe_scope() -> DedupeScope {
@@ -110,6 +121,8 @@ impl<'de> serde::Deserialize<'de> for WorkflowSpec {
             edges: Vec<EdgeSpec>,
             #[serde(default = "default_dedupe_scope")]
             dedupe_scope: DedupeScope,
+            #[serde(default)]
+            guarantee_class: GuaranteeClass,
         }
 
         let raw: RawWorkflowSpec = RawWorkflowSpec::deserialize(deserializer)?;
@@ -193,6 +206,7 @@ impl<'de> serde::Deserialize<'de> for WorkflowSpec {
             nodes: raw.nodes,
             edges: raw.edges,
             dedupe_scope: raw.dedupe_scope,
+            guarantee_class: raw.guarantee_class,
         })
     }
 }
@@ -596,6 +610,36 @@ mod tests {
             edges: vec![],
         };
         assert!(spec.validate().is_ok());
+    }
+
+    #[test]
+    fn given_workflow_spec_when_serialized_then_guarantee_class_round_trips() {
+        let original = WorkflowSpec {
+            workflow_name: WorkflowName::parse("checkout").unwrap(),
+            nodes: vec![
+                NodeSpec {
+                    name: NodeName::parse("validate").unwrap(),
+                    kind: NodeKind::Pure,
+                },
+                NodeSpec {
+                    name: NodeName::parse("charge").unwrap(),
+                    kind: NodeKind::ManagedEffect,
+                },
+            ],
+            edges: vec![EdgeSpec {
+                from: NodeName::parse("validate").unwrap(),
+                to: NodeName::parse("charge").unwrap(),
+            }],
+            dedupe_scope: DedupeScope::WorkflowId,
+            guarantee_class: GuaranteeClass::ExactOnce,
+        };
+
+        let json = serde_json::to_string(&original).expect("serialize WorkflowSpec");
+        assert!(json.contains(r#""guarantee_class":"exact-once""#), "JSON must contain guarantee_class field");
+
+        let deserialized: WorkflowSpec =
+            serde_json::from_str(&json).expect("deserialize WorkflowSpec from JSON");
+        assert_eq!(original, deserialized, "guarantee_class must round-trip through serialization");
     }
 }
 
