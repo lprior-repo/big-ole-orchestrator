@@ -13,3 +13,6 @@ pub use registry::ConnectorRegistry;
 pub use sql::SqlConnector;
 pub use trait_def::Connector;
 pub use types::{CommitOutcome, PreparedEffect, ReconcileOutcome};
+
+#[cfg(test)]
+mod tests;
