@@ -52,9 +52,7 @@ pub mod io;
 #[cfg(test)]
 mod tests;
 
-use serde_json::Value;
 use thiserror::Error;
-use vo_types::IdempotencyKey;
 
 // Re-export public API
 pub use io::{is_read, is_written, read_input, write_failure, write_success};
@@ -91,23 +89,5 @@ impl TaskFailureKind {
     }
 }
 
-#[derive(Debug, PartialEq)]
-pub struct TaskInput {
-    pub idempotency_key: IdempotencyKey,
-    pub data: Value,
-}
-
-impl TaskInput {
-    #[must_use]
-    pub fn idempotency_key(&self) -> &IdempotencyKey {
-        &self.idempotency_key
-    }
-}
-
-// TODO(vel-edo): TaskInputEnvelope should live in vo-types per the contract.
-// Kept here temporarily because this bead is scoped to vo-sdk only.
-#[derive(serde::Deserialize)]
-pub(crate) struct TaskInputEnvelope {
-    idempotency_key: String,
-    data: Value,
-}
+// TaskInput re-exported from vo_types.
+pub use vo_types::TaskInput;

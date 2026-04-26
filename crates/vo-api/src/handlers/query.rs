@@ -13,14 +13,16 @@ use vo_types::search::{QueryParser, SearchEngine};
 
 use crate::types::v3::*;
 use crate::types::ApiError;
+use vo_types::workspace::WorkspaceIndex;
 
 use super::split_path_id;
+use super::search::build_search_engine_from_workspace;
 
 /// Shared state for query handlers.
 #[derive(Clone)]
 pub struct QueryState {
     pub db: Arc<fjall::Database>,
-    pub search_engine: Arc<std::sync::Mutex<SearchEngine>>,
+    pub workspace_index: Arc<std::sync::RwLock<WorkspaceIndex>>,
 }
 
 // ---------------------------------------------------------------------------
@@ -319,25 +321,28 @@ pub async fn search(
         }
     };
 
-    let engine = state.search_engine.lock().map_err(|e| {
-        tracing::error!(error = %e, "search engine lock poisoned");
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiError::new("search_error", "search engine unavailable")),
-        )
-    });
+    let workspace = match state.workspace_index.read() {
+        Ok(guard) => guard,
+        Err(e) => {
+            tracing::error!(error = %e, "workspace index lock poisoned");
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiError::new("search_error", "workspace index unavailable")),
+            )
+                .into_response();
+        }
+    };
+
+    let engine = build_search_engine_from_workspace(&workspace);
 
     let results: Result<Vec<vo_types::search::SearchResult>, (StatusCode, Json<ApiError>)> =
-        match engine {
-            Ok(engine) => engine.search(&parsed_query).map_err(|e| {
-                tracing::error!(error = %e, "search failed");
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ApiError::new("search_error", &e.to_string())),
-                )
-            }),
-            Err(e) => Err(e),
-        };
+        engine.search(&parsed_query).map_err(|e| {
+            tracing::error!(error = %e, "search failed");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiError::new("search_error", &e.to_string())),
+            )
+        });
 
     let results = match results {
         Ok(r) => r,

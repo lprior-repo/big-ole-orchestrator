@@ -18,6 +18,7 @@ use crate::handlers::sse::SseState;
 use crate::handlers::ws::WsState;
 use ractor::ActorRef;
 use vo_actor::OrchestratorMsg;
+use vo_core::circuit_breaker::CircuitBreakerState;
 
 // ---------------------------------------------------------------------------
 // Shared application state
@@ -35,6 +36,7 @@ pub struct AppState {
     pub sse: SseState,
     pub ws: WsState,
     pub master: Arc<ActorRef<OrchestratorMsg>>,
+    pub circuit_breaker: Arc<CircuitBreakerState>,
 }
 
 // ---------------------------------------------------------------------------
@@ -46,7 +48,7 @@ pub struct AppState {
 /// All state is provided up-front via [`AppState`]. The returned router is
 /// ready to pass to `axum::serve(listener, router)`.
 pub fn create_router(state: AppState) -> Router {
-    // Workflow CRUD — uses Extension<ActorRef<OrchestratorMsg>>
+    // Workflow CRUD — uses Extension<ActorRef<OrchestratorMsg>> and Extension<Arc<CircuitBreakerState>>
     let workflow_routes = Router::new()
         .route("/api/v1/workflows", post(crate::handlers::start_workflow))
         .route("/api/v1/workflows", get(crate::handlers::list_workflows))
@@ -55,7 +57,16 @@ pub fn create_router(state: AppState) -> Router {
             "/api/v1/workflows/{id}",
             delete(crate::handlers::terminate_workflow),
         )
-        .layer(Extension(state.master.clone()));
+        .route(
+            "/api/v1/workflows/{id}/status",
+            get(crate::handlers::get_workflow_status),
+        )
+        .route(
+            "/api/v1/workflows/{id}/unquarantine",
+            post(crate::handlers::unquarantine_workflow),
+        )
+        .layer(Extension(state.master.clone()))
+        .layer(Extension(state.circuit_breaker.clone()));
 
     // Query endpoints — uses State<QueryState>
     let query_routes = Router::new()

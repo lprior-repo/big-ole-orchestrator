@@ -14,12 +14,11 @@ use std::io::Write;
 use std::os::unix::io::FromRawFd;
 
 use serde_json::Value;
-use vo_types::IdempotencyKey;
+use vo_types::TaskInputEnvelope;
 
 use crate::SdkError;
 use crate::TaskFailureKind;
 use crate::TaskInput;
-use crate::TaskInputEnvelope;
 
 // ============================================================================
 // Single-Write Guard
@@ -283,18 +282,10 @@ fn is_fd_valid(fd: std::os::unix::io::RawFd) -> bool {
 
 /// Parse and validate a JSON buffer into a `TaskInput`.
 fn parse_envelope(buf: &[u8]) -> Result<TaskInput, SdkError> {
-    std::str::from_utf8(buf)
-        .ok()
-        .and_then(|s| serde_json::from_str::<TaskInputEnvelope>(s).ok())
-        .and_then(|env| {
-            IdempotencyKey::parse(&env.idempotency_key)
-                .ok()
-                .map(|key| TaskInput {
-                    idempotency_key: key,
-                    data: env.data,
-                })
-        })
-        .ok_or(SdkError::InvalidInput)
+    let json = std::str::from_utf8(buf).map_err(|_| SdkError::InvalidInput)?;
+    let env: TaskInputEnvelope =
+        serde_json::from_str(json).map_err(|_| SdkError::InvalidInput)?;
+    env.parse().ok_or(SdkError::InvalidInput)
 }
 
 // ============================================================================

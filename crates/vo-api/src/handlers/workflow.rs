@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::time::Duration;
 use axum::{
     extract::{Extension, Json, Path},
@@ -12,7 +13,7 @@ use ulid::Ulid;
 use vo_actor::{OrchestratorMsg, StartError};
 use vo_common::{InstanceId, NamespaceId};
 use vo_core::circuit_breaker::{unquarantine, CircuitBreakerConfig, CircuitBreakerState};
-use vo_types::{BinaryHash, WorkflowName};
+use vo_types::{BinaryHash, RegistrationStatus, WorkflowName};
 
 use crate::types::{ApiError, V3StartRequest, V3StartResponse, V3StatusResponse};
 use crate::handlers::helpers::{parse_paradigm, split_path_id, paradigm_to_str, phase_to_str};
@@ -460,6 +461,7 @@ pub async fn unquarantine_workflow(
 #[tracing::instrument(skip_all)]
 pub async fn get_workflow_status(
     Extension(master): Extension<ActorRef<OrchestratorMsg>>,
+    Extension(circuit_breaker): Extension<Arc<CircuitBreakerState>>,
     Path(id): Path<String>,
 ) -> impl IntoResponse {
     let (namespace, instance_id) = match split_path_id(&id) {
@@ -520,7 +522,32 @@ pub async fn get_workflow_status(
         )
             .into_response(),
         Ok(CallResult::Success(Some(snapshot))) => {
-            // TODO: Add quarantine status from circuit breaker
+            let workflow_name = match WorkflowName::parse(&snapshot.workflow_type) {
+                Ok(name) => name,
+                Err(_) => {
+                    return (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(ApiError::new(
+                            "invalid_workflow_type",
+                            format!(
+                                "snapshot has invalid workflow_type: {}",
+                                snapshot.workflow_type
+                            ),
+                        )),
+                    )
+                        .into_response();
+                }
+            };
+
+            let reg_status = circuit_breaker.get_status(&workflow_name);
+            let is_quarantined = reg_status == RegistrationStatus::Quarantined;
+            let registration_status_str = match reg_status {
+                RegistrationStatus::Quarantined => Some("quarantined".to_owned()),
+                RegistrationStatus::Deactivated => Some("deactivated".to_owned()),
+                RegistrationStatus::Deleted => Some("deleted".to_owned()),
+                RegistrationStatus::Active => None,
+            };
+
             let status_response = WorkflowStatusResponse {
                 instance_id: snapshot.instance_id.to_string(),
                 namespace: snapshot.namespace.to_string(),
@@ -528,8 +555,8 @@ pub async fn get_workflow_status(
                 paradigm: paradigm_to_str(snapshot.paradigm).to_owned(),
                 phase: phase_to_str(snapshot.phase).to_owned(),
                 events_applied: snapshot.events_applied,
-                registration_status: None,
-                is_quarantined: false,
+                registration_status: registration_status_str,
+                is_quarantined,
             };
             (StatusCode::OK, Json(status_response)).into_response()
         }

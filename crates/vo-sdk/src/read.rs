@@ -3,9 +3,9 @@
 use std::io::Read;
 use std::os::unix::io::FromRawFd;
 
-use vo_types::IdempotencyKey;
+use vo_types::{TaskInput, TaskInputEnvelope};
 
-use crate::{SdkError, TaskInput, TaskInputEnvelope};
+use crate::SdkError;
 
 static IS_READ: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
@@ -32,18 +32,10 @@ const MAX_INPUT_SIZE: usize = 10 * 1024 * 1024;
 
 /// Parse and validate a JSON buffer into a `TaskInput`.
 fn parse_envelope(buf: &[u8]) -> Result<TaskInput, SdkError> {
-    std::str::from_utf8(buf)
-        .ok()
-        .and_then(|s| serde_json::from_str::<TaskInputEnvelope>(s).ok())
-        .and_then(|env| {
-            IdempotencyKey::parse(&env.idempotency_key)
-                .ok()
-                .map(|key| TaskInput {
-                    idempotency_key: key,
-                    data: env.data,
-                })
-        })
-        .ok_or(SdkError::InvalidInput)
+    let json = std::str::from_utf8(buf).map_err(|_| SdkError::InvalidInput)?;
+    let env: TaskInputEnvelope =
+        serde_json::from_str(json).map_err(|_| SdkError::InvalidInput)?;
+    env.parse().ok_or(SdkError::InvalidInput)
 }
 
 pub(crate) fn read_input_inner<R: Read>(

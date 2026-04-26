@@ -61,6 +61,7 @@ pub mod state;
 pub mod string_types;
 #[cfg(test)]
 mod string_types_tests;
+mod task_input;
 mod topology;
 mod tx_coordinator;
 mod types;
@@ -156,6 +157,7 @@ pub use tx_coordinator::{
     CoordinatorTransitionError, ParticipantRecord, ParticipantStatus, ParticipantVote,
     TransactionRecord, TransactionState,
 };
+pub use task_input::{TaskInput, TaskInputEnvelope};
 pub use types::{
     extract_schema_version, AttemptNumber, BinaryHash, DurationMs, EventVersion, FenceToken,
     FireAtMs, IdempotencyKey, InstanceId, LeaseRecord, MaxAttempts, NodeName, SequenceNumber,
