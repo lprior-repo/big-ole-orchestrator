@@ -43,6 +43,8 @@ pub enum IpcError {
     },
     #[error("Payload too large: {0} bytes")]
     PayloadTooLarge(u32),
+    #[error("input exceeds cap: {size} bytes (max {cap})")]
+    InputExceedsCap { size: u32, cap: u32 },
     #[error("Incomplete read: expected {expected} bytes, got {actual}")]
     IncompleteRead { expected: usize, actual: usize },
     #[error("Invalid JSON or UTF-8: {0}")]
