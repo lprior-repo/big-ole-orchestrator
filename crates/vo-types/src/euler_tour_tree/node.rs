@@ -1,13 +1,13 @@
-use super::traits::{A, Monoid, V};
+use super::traits::Monoid;
 
 #[derive(Clone)]
 pub struct EttNode<V, A: Monoid> {
-    pub parent: Option<usize>,
-    pub children: Vec<usize>,
-    pub value: V,
-    pub agg: A,
+    pub(crate) parent: Option<usize>,
+    pub(crate) children: Vec<usize>,
+    pub(crate) value: V,
+    pub(crate) agg: A,
     #[allow(dead_code)]
-    pub entry_pos: usize,
+    pub(crate) entry_pos: usize,
     #[allow(dead_code)]
-    pub exit_pos: usize,
+    pub(crate) exit_pos: usize,
 }

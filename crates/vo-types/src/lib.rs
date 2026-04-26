@@ -27,6 +27,7 @@ pub mod effects;
 #[cfg(test)]
 mod effects_receipt_tests;
 mod encryption;
+mod euler_tour_tree;
 #[cfg(test)]
 mod encryption_tests;
 mod errors;
