@@ -1,13 +1,13 @@
-//! Dag: compile-time type-safe workflow graph construction (ADR-010).
+//! Dag: compile-time type-safe workflow graph construction (ADR-004, ADR-010).
 //!
 //! The [`Workflow`] struct provides a fluent builder API for constructing
 //! workflow graphs. After building with [`Workflow::build`], a validated
-//! [`WorkflowSpec`](crate::graph_args::WorkflowSpec) is emitted.
+//! [`WorkflowSpec`](crate::graph::WorkflowSpec) is emitted.
 
 use std::any::Any;
 
 use thiserror::Error;
-use vo_types::{BufferPolicy, LineageScope, NodeKind, NodeName, WorkflowName};
+use vo_types::{NodeKind, NodeName, WorkflowName};
 
 use crate::graph::{default_retry_policy, EdgeSpec, NodeSpec, SignalNodeMeta, WorkflowSpec};
 use crate::node_handle::NodeHandle;
@@ -476,7 +476,7 @@ impl Workflow {
         self.dag.connect(from, to)
     }
 
-    /// Build and return the validated [`WorkflowSpec`](crate::graph_args::WorkflowSpec).
+    /// Build and return the validated [`WorkflowSpec`](crate::graph::WorkflowSpec).
     ///
     /// # Errors
     ///
