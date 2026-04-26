@@ -62,8 +62,8 @@ fn red_queen_event_effect_keys_do_not_collide_in_sorted_order() {
 #[test]
 fn red_queen_dedupe_key_has_length_prefix_format() {
     let dedupe_str = "test-dedupe-key";
-    let dedupe_key = encode_dedupe_key(dedupe_str);
-    let dedupe_prefix = get_dedupe_key_prefix(dedupe_str);
+    let dedupe_key = encode_dedupe_key(dedupe_str).unwrap();
+    let dedupe_prefix = get_dedupe_key_prefix(dedupe_str).unwrap();
 
     assert_eq!(
         dedupe_prefix.len(),
@@ -111,7 +111,7 @@ fn red_queen_no_key_type_shares_prefix_with_different_key_type_unambiguously() {
     let event_key = encode_event_key(&id, seq);
     let effect_key = encode_effect_key(&id, seq);
     let timer_key = encode_timer_key(1000, &id);
-    let dedupe_key = encode_dedupe_key("test-dedupe");
+    let dedupe_key = encode_dedupe_key("test-dedupe").unwrap();
     let step_id = StepId::parse("step-1").unwrap();
     let lease_key = encode_lease_key(&id, &step_id);
 

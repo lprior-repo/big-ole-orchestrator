@@ -159,33 +159,57 @@ impl LeaseEntry {
 /// Partition name for the lease store.
 pub const LEASE_PARTITION: &str = "leases";
 
-/// Encode a lease key as `<instance_id>::<step_id>` UTF-8 bytes.
+/// Encode a lease key from instance ID and step ID.
 ///
-/// Uses the Display representation of both types with `::` delimiter.
+/// Format: `[instance_id_bytes(16)][step_id_len_u16_be(2)][step_id_bytes]`
+///
+/// This length-prefix format avoids delimiter ambiguity: instance IDs and
+/// step IDs are encoded as raw binary without any `::` separator.
 #[must_use]
 pub fn encode_lease_key(instance_id: &InstanceId, step_id: &StepId) -> Vec<u8> {
-    format!("{instance_id}::{step_id}").into_bytes()
+    let iid_bytes = instance_id.to_bytes().unwrap_or([0u8; 16]);
+    let step_bytes = step_id.as_str().as_bytes();
+    let mut key = Vec::with_capacity(16 + 2 + step_bytes.len());
+    key.extend_from_slice(&iid_bytes);
+    key.extend_from_slice(&(step_bytes.len() as u16).to_be_bytes());
+    key.extend_from_slice(step_bytes);
+    key
 }
 
-/// Decode UTF-8 bytes into an `instance_id` and `step_id`.
+/// Decode a lease key into instance ID and step ID.
 ///
-/// Expects format `<instance_id>::<step_id>`.
+/// Expected format: `[instance_id_bytes(16)][step_id_len_u16_be(2)][step_id_bytes]`
 ///
 /// # Errors
 ///
-/// Returns `LeaseStoreError::Codec` if the bytes are not valid UTF-8,
-/// do not contain the `::` delimiter, or the parts cannot be parsed.
+/// Returns `LeaseStoreError::Codec` if the key is too short or the step ID
+/// component cannot be parsed.
 pub fn decode_lease_key(bytes: &[u8]) -> Result<(InstanceId, StepId), LeaseStoreError> {
-    let s = std::str::from_utf8(bytes).map_err(|e| LeaseStoreError::Codec {
-        reason: e.to_string(),
+    if bytes.len() < 18 {
+        return Err(LeaseStoreError::Codec {
+            reason: "lease key too short, expected at least 18 bytes".to_string(),
+        });
+    }
+    let iid_bytes: [u8; 16] = bytes[..16].try_into().map_err(|_| LeaseStoreError::Codec {
+        reason: "lease key instance ID slice has wrong length".to_string(),
     })?;
-    let (iid_str, sid_str) = s.split_once("::").ok_or_else(|| LeaseStoreError::Codec {
-        reason: "missing :: delimiter in lease key".to_string(),
+    let instance_id = InstanceId::from_bytes(iid_bytes);
+    let step_id_len =
+        u16::from_be_bytes([bytes[16], bytes[17]]) as usize;
+    if bytes.len() < 18 + step_id_len {
+        return Err(LeaseStoreError::Codec {
+            reason: format!(
+                "lease key truncated: expected {} total bytes, got {}",
+                18 + step_id_len,
+                bytes.len()
+            ),
+        });
+    }
+    let step_bytes = &bytes[18..18 + step_id_len];
+    let step_str = std::str::from_utf8(step_bytes).map_err(|e| LeaseStoreError::Codec {
+        reason: format!("step_id bytes are not valid UTF-8: {e}"),
     })?;
-    let instance_id = InstanceId::parse(iid_str).map_err(|e| LeaseStoreError::Codec {
-        reason: format!("invalid instance_id: {e}"),
-    })?;
-    let step_id = StepId::parse(sid_str).map_err(|e| LeaseStoreError::Codec {
+    let step_id = StepId::parse(step_str).map_err(|e| LeaseStoreError::Codec {
         reason: format!("invalid step_id: {e}"),
     })?;
     Ok((instance_id, step_id))

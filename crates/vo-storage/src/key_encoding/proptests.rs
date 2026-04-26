@@ -196,7 +196,7 @@ proptest! {
     /// DD-PROP-001: Dedupe key encode/decode roundtrip preserves identity.
     #[test]
     fn dedupe_key_roundtrip(key in "[a-zA-Z0-9_-]{0,256}") {
-        let encoded = encode_dedupe_key(&key);
+        let encoded = encode_dedupe_key(&key).unwrap();
         let decoded = decode_dedupe_key(&encoded).unwrap();
         prop_assert_eq!(decoded, key);
     }
@@ -204,8 +204,8 @@ proptest! {
     /// DD-PROP-002: Dedupe key prefix equals full key for short keys.
     #[test]
     fn dedupe_key_prefix_equals_full_key(key in "[a-zA-Z0-9_-]{0,100}") {
-        let encoded = encode_dedupe_key(&key);
-        let prefix = get_dedupe_key_prefix(&key);
+        let encoded = encode_dedupe_key(&key).unwrap();
+        let prefix = get_dedupe_key_prefix(&key).unwrap();
         prop_assert_eq!(prefix, encoded, "dedupe prefix should equal full key");
     }
 
@@ -213,8 +213,8 @@ proptest! {
     #[test]
     fn dedupe_key_ordering_matches_string_ordering(key1 in "[a-zA-Z0-9_-]{0,100}", key2 in "[a-zA-Z0-9_-]{0,100}") {
         prop_assume!(key1 < key2);
-        let enc1 = encode_dedupe_key(&key1);
-        let enc2 = encode_dedupe_key(&key2);
+        let enc1 = encode_dedupe_key(&key1).unwrap();
+        let enc2 = encode_dedupe_key(&key2).unwrap();
         prop_assert!(enc1 < enc2, "key1 < key2 should give enc1 < enc2");
     }
 
@@ -278,7 +278,7 @@ proptest! {
         let event_key = encode_event_key(&id, seq);
         let effect_key = encode_effect_key(&id, seq);
         let timer_key = encode_timer_key(1000, &id);
-        let dedupe_key = encode_dedupe_key("test-key");
+        let dedupe_key = encode_dedupe_key("test-key").unwrap();
         let lease_key = encode_lease_key(&id, &StepId::parse("step-1").unwrap());
         let instance_key = encode_instance_index_key_for_status(1, 1000, &id);
 

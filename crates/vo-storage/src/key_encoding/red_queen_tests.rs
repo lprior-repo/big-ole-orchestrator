@@ -132,7 +132,7 @@ fn red_queen_length_prefixed_no_collision_different_lengths() {
 
     let mut seen = std::collections::HashSet::new();
     for input in inputs {
-        let encoded = encode_length_prefixed(&input);
+        let encoded = encode_length_prefixed(&input).unwrap();
         assert!(
             seen.insert(encoded.clone()),
             "Collision detected for {:?}: {:?}",
@@ -384,7 +384,7 @@ fn red_queen_dedupe_key_roundtrip() {
     ];
 
     for key_str in keys {
-        let encoded = encode_dedupe_key(key_str);
+        let encoded = encode_dedupe_key(key_str).unwrap();
         let decoded = decode_dedupe_key(&encoded).unwrap();
         assert_eq!(
             decoded, key_str,
@@ -397,8 +397,8 @@ fn red_queen_dedupe_key_roundtrip() {
 #[test]
 fn red_queen_dedupe_key_prefix_equals_full_key() {
     let key_str = "short-key";
-    let encoded = encode_dedupe_key(key_str);
-    let prefix = get_dedupe_key_prefix(key_str);
+    let encoded = encode_dedupe_key(key_str).unwrap();
+    let prefix = get_dedupe_key_prefix(key_str).unwrap();
     assert_eq!(
         prefix, encoded,
         "Dedupe prefix should equal full key for short keys"
@@ -449,7 +449,7 @@ fn red_queen_step_id_roundtrip() {
     ];
 
     for step in steps {
-        let encoded = encode_step_id(&step);
+        let encoded = encode_step_id(&step).unwrap();
         let decoded = decode_step_id(&encoded).unwrap();
         assert_eq!(decoded, step, "StepId roundtrip failed for {}", step);
     }
@@ -497,7 +497,7 @@ fn red_queen_unicode_in_dedupe_keys() {
     ];
 
     for key_str in unicode_keys {
-        let encoded = encode_dedupe_key(key_str);
+        let encoded = encode_dedupe_key(key_str).unwrap();
         let decoded = decode_dedupe_key(&encoded);
         assert!(
             decoded.is_ok(),
@@ -574,7 +574,7 @@ fn red_queen_all_partitions_have_unique_prefixes() {
     let event_key = encode_event_key(&id, seq);
     let timer_key = encode_timer_key(ts, &id);
     let lease_key = encode_lease_key(&id, &StepId::parse("step-1").unwrap());
-    let dedupe_key = encode_dedupe_key("test");
+    let dedupe_key = encode_dedupe_key("test").unwrap();
     let effect_key = encode_effect_key(&id, seq);
 
     let mut keys = vec![
@@ -598,7 +598,7 @@ fn red_queen_all_partitions_have_unique_prefixes() {
 #[test]
 fn red_queen_max_length_idempotency_key() {
     let max_key = "a".repeat(1024);
-    let encoded = encode_dedupe_key(&max_key);
+    let encoded = encode_dedupe_key(&max_key).unwrap();
     let decoded = decode_dedupe_key(&encoded).unwrap();
     assert_eq!(
         decoded, max_key,
