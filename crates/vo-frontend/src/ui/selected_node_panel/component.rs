@@ -9,6 +9,7 @@ use std::collections::HashMap;
 
 use crate::ui::graph::NodeCategory;
 use crate::ui::graph::{Node, NodeId, Workflow};
+use crate::ui::NodeGuaranteeBadge;
 
 use crate::ui::NodeConfigEditor;
 
@@ -41,14 +42,8 @@ pub fn SelectedNodePanel(
 
     if let Some(node_id) = *selected_node_id.read() {
         if let Some(selected_node) = nodes_by_id.read().get(&node_id).cloned() {
-            let badge_classes = match selected_node.category {
-                NodeCategory::Entry => "bg-emerald-50 text-emerald-700 border-emerald-200",
-                NodeCategory::Durable => "bg-indigo-50 text-indigo-700 border-indigo-200",
-                NodeCategory::State => "bg-orange-50 text-orange-700 border-orange-200",
-                NodeCategory::Flow => "bg-amber-50 text-amber-700 border-amber-200",
-                NodeCategory::Timing => "bg-pink-50 text-pink-700 border-pink-200",
-                NodeCategory::Signal => "bg-blue-50 text-blue-700 border-blue-200",
-            };
+            let badge_classes = selected_node.category.badge_class();
+            let workflow_guarantee = workflow.read().guarantee_class;
 
             return rsx! {
                 aside { class: "animate-slide-in-right z-30 flex w-[320px] shrink-0 flex-col border-l border-slate-200 bg-white/95",
@@ -74,6 +69,10 @@ pub fn SelectedNodePanel(
                     div { class: "flex-1 overflow-y-auto p-4",
                         div { class: "mb-4 flex items-center gap-2",
                             span { class: "inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-medium capitalize {badge_classes}", "{selected_node.category}" }
+                            NodeGuaranteeBadge {
+                                node_kind: selected_node.kind,
+                                workflow_guarantee,
+                            }
                             span { class: "text-[10px] font-mono text-slate-500", "ID: {selected_node.id}" }
                         }
                         div { class: "mb-4 flex flex-col gap-1.5",

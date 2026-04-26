@@ -2,12 +2,12 @@
 //!
 //! Provides default workflows and initial state setup.
 
-use vo_types::NodeKind;
+use vo_types::{GuaranteeClass, NodeKind};
 
 use crate::ui::graph::{Node, NodeCategory, NodeId, Workflow};
 
 pub fn default_workflow() -> Workflow {
-    let mut workflow = Workflow::new("default".to_string());
+    let mut workflow = Workflow::new("default".to_string(), GuaranteeClass::BestEffort);
 
     // Entry node - HTTP Handler
     let entry_node = Node::new(NodeId::new(), "HTTP Handler".to_string(), NodeKind::Pure);

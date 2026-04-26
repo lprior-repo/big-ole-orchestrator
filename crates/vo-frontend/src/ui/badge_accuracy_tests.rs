@@ -4,7 +4,7 @@
 //! variants to NodeCategory categories, and that badges update correctly
 //! when node types change during workflow modification.
 
-use super::graph::{node_kind_to_category, Node, NodeCategory, NodeId, Workflow};
+use super::graph::{node_kind_to_category, GuaranteeClass, Node, NodeCategory, NodeId, Workflow};
 use vo_types::NodeKind;
 
 // ============================================================================
@@ -130,7 +130,7 @@ fn given_entry_and_state_categories_when_node_kind_converted_then_not_mapped() {
 
 #[test]
 fn given_workflow_with_multiple_nodes_when_displaying_all_badges_then_all_categories_valid() {
-    let mut workflow = Workflow::default();
+    let mut workflow = Workflow::new("test".to_string(), GuaranteeClass::BestEffort);
 
     for (kind, _expected_category) in [
         (NodeKind::Pure, NodeCategory::Flow),
@@ -151,4 +151,61 @@ fn given_workflow_with_multiple_nodes_when_displaying_all_badges_then_all_catego
             node.name
         );
     }
+}
+
+// ============================================================================
+// Adversarial Tests: Guarantee Badge Accuracy (ADR-007)
+// ============================================================================
+
+#[test]
+fn given_exact_once_when_badge_class_then_uses_emerald_green() {
+    let cls = GuaranteeClass::ExactOnce.badge_class();
+    assert!(cls.contains("emerald"), "exact-once badge must use emerald, got: {cls}");
+    assert!(cls.contains("border-"), "badge class must include border, got: {cls}");
+}
+
+#[test]
+fn given_at_least_once_when_badge_class_then_uses_amber() {
+    let cls = GuaranteeClass::AtLeastOnce.badge_class();
+    assert!(cls.contains("amber"), "at-least-once badge must use amber, got: {cls}");
+}
+
+#[test]
+fn given_best_effort_when_badge_class_then_uses_red() {
+    let cls = GuaranteeClass::BestEffort.badge_class();
+    assert!(cls.contains("red"), "best-effort badge must use red, got: {cls}");
+}
+
+#[test]
+fn guarantee_badge_classes_are_all_distinct() {
+    let exact = GuaranteeClass::ExactOnce.badge_class();
+    let atleast = GuaranteeClass::AtLeastOnce.badge_class();
+    let best = GuaranteeClass::BestEffort.badge_class();
+
+    assert_ne!(exact, atleast, "exact-once and at-least-once badges must differ");
+    assert_ne!(exact, best, "exact-once and best-effort badges must differ");
+    assert_ne!(atleast, best, "at-least-once and best-effort badges must differ");
+}
+
+#[test]
+fn guarantee_icons_are_all_distinct_shield_variants() {
+    let exact = GuaranteeClass::ExactOnce.icon();
+    let atleast = GuaranteeClass::AtLeastOnce.icon();
+    let best = GuaranteeClass::BestEffort.icon();
+
+    assert!(exact.contains("shield"), "icon must be shield variant, got: {exact}");
+    assert_ne!(exact, atleast);
+    assert_ne!(exact, best);
+    assert_ne!(atleast, best);
+}
+
+#[test]
+fn given_workflow_when_guarantee_class_set_then_badge_reflects_it() {
+    let wf_exact = Workflow::new("test".to_string(), GuaranteeClass::ExactOnce);
+    let wf_best = Workflow::new("test".to_string(), GuaranteeClass::BestEffort);
+
+    assert_ne!(
+        wf_exact.guarantee_class.badge_class(),
+        wf_best.guarantee_class.badge_class()
+    );
 }
