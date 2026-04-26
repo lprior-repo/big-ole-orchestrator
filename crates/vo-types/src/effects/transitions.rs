@@ -59,56 +59,6 @@ impl EffectTransitionEvent {
     }
 }
 
-impl EffectRecord {
-    /// Construct a new EffectRecord.
-    ///
-    /// Returns `None` if `intent_id` is empty (INV-EFF-003).
-    #[must_use]
-    pub fn new(
-        intent_id: String,
-        kind: EffectKind,
-        params_json: serde_json::Value,
-        status: EffectIntent,
-        committed_at: Option<crate::types::TimestampMs>,
-    ) -> Option<Self> {
-        if intent_id.is_empty() {
-            return None;
-        }
-        Some(Self {
-            intent_id,
-            kind,
-            params_json,
-            status,
-            committed_at,
-        })
-    }
-
-    #[must_use]
-    pub fn intent_id(&self) -> &str {
-        &self.intent_id
-    }
-
-    #[must_use]
-    pub fn kind(&self) -> EffectKind {
-        self.kind
-    }
-
-    #[must_use]
-    pub fn params_json(&self) -> &serde_json::Value {
-        &self.params_json
-    }
-
-    #[must_use]
-    pub fn status(&self) -> EffectIntent {
-        self.status
-    }
-
-    #[must_use]
-    pub fn committed_at(&self) -> Option<&crate::types::TimestampMs> {
-        self.committed_at.as_ref()
-    }
-}
-
 /// Apply a state transition to an EffectIntent.
 ///
 /// # Errors
