@@ -6,23 +6,36 @@ use axum::{
 use bytes::Bytes;
 use ractor::rpc::CallResult;
 use ractor::ActorRef;
+use std::sync::Arc;
 use std::time::Duration;
 use ulid::Ulid;
 use vo_actor::{OrchestratorMsg, StartError};
 use vo_common::NamespaceId;
+use vo_storage::dedupe_partition::DedupeStore;
 
 use crate::handlers::helpers::parse_paradigm;
+use crate::handlers::ingress::{
+    admit_ingress, IngressAdmission, IngressAdmissionError, DEFAULT_DEDUPE_TTL_MS,
+};
 use crate::types::{ApiError, V3StartRequest, V3StartResponse, WorkloadRejectionError};
 
 const ACTOR_CALL_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// POST /api/v1/workflows — start a new workflow instance (bead vo-7mif).
+///
+/// Per ADR-028, this handler enforces exactly-once ingress:
+/// 1. Validates that a `dedupe_key` is present for exact workflow ingress.
+/// 2. Calls `admit_ingress` to atomically check-and-insert into the dedupe store.
+/// 3. If duplicate, returns 409 Conflict with the existing instance ID.
+/// 4. If new, proceeds to start the workflow via the orchestrator actor.
 #[tracing::instrument(skip_all)]
 pub async fn start_workflow(
     Extension(master): Extension<ActorRef<OrchestratorMsg>>,
+    Extension(dedupe_store): Extension<Arc<dyn DedupeStore>>,
     Json(req): Json<V3StartRequest>,
 ) -> impl IntoResponse {
-    let _dedupe_key = match req.dedupe_key {
+    // Step 1: Validate dedupe key presence (ADR-028 Section 2).
+    let dedupe_key = match req.dedupe_key {
         Some(ref key) if !key.is_empty() => key.clone(),
         _ => {
             return (
@@ -62,6 +75,47 @@ pub async fn start_workflow(
     let instance_id =
         vo_types::InstanceId::parse(&instance_id_str).expect("generated ULID should be valid");
 
+    // Step 2: Atomic admission check against dedupe store (ADR-028 Section 3).
+    let admission = match admit_ingress(
+        dedupe_store.as_ref(),
+        &dedupe_key,
+        &instance_id,
+        DEFAULT_DEDUPE_TTL_MS,
+    ) {
+        Ok(a) => a,
+        Err(IngressAdmissionError::Storage { reason }) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiError::new("dedupe_storage_error", reason)),
+            )
+                .into_response();
+        }
+        Err(IngressAdmissionError::InvalidDedupeKey { reason }) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ApiError::new("invalid_dedupe_key", reason)),
+            )
+                .into_response();
+        }
+    };
+
+    // Step 3: If duplicate, return 409 Conflict with existing instance (ADR-028).
+    if let IngressAdmission::Duplicate {
+        existing_instance_id,
+    } = admission
+    {
+        return (
+            StatusCode::CONFLICT,
+            Json(ApiError::new(
+                "duplicate_ingress",
+                format!(
+                    "dedupe_key '{dedupe_key}' already admitted as instance {existing_instance_id}"
+                ),
+            )),
+        )
+            .into_response();
+    }
+
     let input = match serde_json::to_vec(&req.input) {
         Ok(v) => Bytes::from(v),
         Err(e) => {
@@ -80,6 +134,7 @@ pub async fn start_workflow(
     let captured_namespace = namespace.clone();
     let captured_id = instance_id.clone();
 
+    // Step 4: Proceed to start workflow via actor (ADR-028 atomic write).
     let call_result = master
         .call(
             |tx| OrchestratorMsg::StartWorkflow {

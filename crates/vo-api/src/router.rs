@@ -1,8 +1,8 @@
 //! Axum Router with all endpoint wiring.
 //!
 //! Call [`create_router`] to produce a fully configured `Router` ready to serve
-//! via `axum::serve`. Shared state (query DB, SSE/WS broadcasters, actor refs)
-//! is injected through [`AppState`].
+//! via `axum::serve`. Shared state (query DB, SSE/WS broadcasters, actor refs,
+//! dedupe store) is injected through [`AppState`].
 
 use axum::{
     extract::Extension,
@@ -19,6 +19,7 @@ use crate::handlers::ws::WsState;
 use ractor::ActorRef;
 use vo_actor::OrchestratorMsg;
 use vo_core::circuit_breaker::CircuitBreakerState;
+use vo_storage::dedupe_partition::DedupeStore;
 
 // ---------------------------------------------------------------------------
 // Shared application state
@@ -27,9 +28,9 @@ use vo_core::circuit_breaker::CircuitBreakerState;
 /// Top-level state container held by every route.
 ///
 /// Individual handler groups receive their own typed sub-state (`State<T>`),
-/// while the orchestrator actor ref is injected as an `Extension` so that
-/// adding or removing actor-dependent handlers does not change the `State`
-/// type signature.
+/// while the orchestrator actor ref and dedupe store are injected as
+/// `Extension`s so that adding or removing handlers does not change the
+/// `State` type signature.
 #[derive(Clone)]
 pub struct AppState {
     pub query: QueryState,
@@ -37,6 +38,8 @@ pub struct AppState {
     pub ws: WsState,
     pub master: Arc<ActorRef<OrchestratorMsg>>,
     pub circuit_breaker: Arc<CircuitBreakerState>,
+    /// Dedupe store for ADR-028 exactly-once ingress deduplication.
+    pub dedupe_store: Arc<dyn DedupeStore>,
 }
 
 // ---------------------------------------------------------------------------
@@ -48,7 +51,7 @@ pub struct AppState {
 /// All state is provided up-front via [`AppState`]. The returned router is
 /// ready to pass to `axum::serve(listener, router)`.
 pub fn create_router(state: AppState) -> Router {
-    // Workflow CRUD — uses Extension<ActorRef<OrchestratorMsg>> and Extension<Arc<CircuitBreakerState>>
+    // Workflow CRUD -- uses Extension<ActorRef<OrchestratorMsg>> + DedupeStore + CircuitBreaker
     let workflow_routes = Router::new()
         .route("/api/v1/workflows", post(crate::handlers::start_workflow))
         .route("/api/v1/workflows", get(crate::handlers::list_workflows))
@@ -66,9 +69,10 @@ pub fn create_router(state: AppState) -> Router {
             post(crate::handlers::unquarantine_workflow),
         )
         .layer(Extension(state.master.clone()))
-        .layer(Extension(state.circuit_breaker.clone()));
+        .layer(Extension(state.circuit_breaker.clone()))
+        .layer(Extension(state.dedupe_store.clone()));
 
-    // Query endpoints — uses State<QueryState>
+    // Query endpoints -- uses State<QueryState>
     let query_routes = Router::new()
         .route(
             "/api/v1/workflows/{id}/timeline",
@@ -89,15 +93,16 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/search", get(crate::handlers::search))
         .with_state(state.query.clone());
 
-    // Signal endpoint — uses Extension<ActorRef<OrchestratorMsg>>
+    // Signal endpoint -- uses Extension<ActorRef<OrchestratorMsg>> + Extension<Arc<dyn DedupeStore>>
     let signal_routes = Router::new()
         .route(
             "/api/v1/workflows/{id}/signals",
             post(crate::handlers::send_signal),
         )
-        .layer(Extension(state.master.clone()));
+        .layer(Extension(state.master.clone()))
+        .layer(Extension(state.dedupe_store.clone()));
 
-    // Events endpoint — uses Extension<ActorRef<OrchestratorMsg>>
+    // Events endpoint -- uses Extension<ActorRef<OrchestratorMsg>>
     let event_routes = Router::new()
         .route(
             "/api/v1/workflows/{id}/events",
@@ -105,13 +110,13 @@ pub fn create_router(state: AppState) -> Router {
         )
         .layer(Extension(state.master.clone()));
 
-    // SSE streaming — uses Extension + State<SseState>
+    // SSE streaming -- uses Extension + State<SseState>
     let sse_routes = Router::new()
         .route("/api/v1/watch/{id}", get(crate::handlers::watch_workflow))
         .with_state(state.sse.clone())
         .layer(Extension(state.master.clone()));
 
-    // WebSocket streaming — uses State<WsState>
+    // WebSocket streaming -- uses State<WsState>
     let ws_routes = Router::new()
         .route("/api/v1/ws/{id}", get(crate::handlers::ws_workflow))
         .with_state(state.ws.clone());
