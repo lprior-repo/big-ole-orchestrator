@@ -9,10 +9,7 @@ use std::time::Instant;
 
 use super::{ProjectionError, ProjectionResult, Projector, RebuildContext};
 
-// ============================================================================
-// Projection Rebuilder — Handles full rebuild from event log
-// ============================================================================
-
+// =====================================================================
 #[allow(dead_code)]
 pub struct ProjectionRebuilder<'a, S, E, P>
 where

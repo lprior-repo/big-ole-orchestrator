@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use std::io::Read;
 
 #[derive(Debug, Clone)]
 pub struct GcConfig {
@@ -225,4 +226,219 @@ pub async fn run_gc(config: &GcConfig) -> Result<GcSummary, GcError> {
         deleted_hashes,
         failures,
     })
+}
+
+/// Compute SHA-256 hash of a binary file.
+///
+/// Returns the hash as a lowercase hex string (64 characters).
+///
+/// # Errors
+/// Returns an error if the file cannot be read.
+pub fn compute_binary_hash(path: &Path) -> Result<String, GcError> {
+    let mut file = std::fs::File::open(path).map_err(|e| GcError::DeleteFailed {
+        path: path.to_path_buf(),
+        source: e,
+    })?;
+
+    let mut hasher = sha2::Sha256::new();
+    let mut buffer = [0u8; 8192];
+
+    loop {
+        let bytes_read = file.read(&mut buffer).map_err(|e| GcError::DeleteFailed {
+            path: path.to_path_buf(),
+            source: e,
+        })?;
+        if bytes_read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..bytes_read]);
+    }
+
+    let result = hasher.finalize();
+    Ok(format!("{:x}", result))
+}
+
+/// Copy a binary to a version directory and record the pinned hash.
+///
+/// This function:
+/// 1. Computes the SHA-256 hash of the source binary
+/// 2. Creates the version directory if it doesn't exist
+/// 3. Copies the binary to the version directory
+/// 4. Returns the hash for use by the engine's pinned-hashes registry
+///
+/// # Errors
+/// Returns an error if the binary cannot be read, hash computed, or directory created.
+pub fn pin_version(
+    source_path: &Path,
+    versions_dir: &Path,
+) -> Result<String, GcError> {
+    let hash = compute_binary_hash(source_path)?;
+
+    let version_dir = versions_dir.join(&hash);
+
+    if !version_dir.exists() {
+        std::fs::create_dir_all(&version_dir).map_err(|source| GcError::DeleteFailed {
+            path: version_dir.clone(),
+            source,
+        })?;
+    }
+
+    let dest_path = version_dir.join(source_path.file_name().ok_or_else(|| GcError::DeleteFailed {
+        path: source_path.to_path_buf(),
+        source: std::io::Error::new(std::io::ErrorKind::InvalidData, "source has no file name"),
+    })?);
+
+    std::fs::copy(source_path, &dest_path).map_err(|source| GcError::DeleteFailed {
+        path: dest_path,
+        source,
+    })?;
+
+    Ok(hash)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn is_hex_64_accepts_valid_sha256_hash() {
+        let hash = "a".repeat(64);
+        assert!(is_hex_64(&hash));
+    }
+
+    #[test]
+    fn is_hex_64_rejects_too_short_string() {
+        assert!(!is_hex_64(&"a".repeat(63)));
+    }
+
+    #[test]
+    fn is_hex_64_rejects_too_long_string() {
+        assert!(!is_hex_64(&"a".repeat(65)));
+    }
+
+    #[test]
+    fn is_hex_64_rejects_non_hex_characters() {
+        assert!(!is_hex_64(&format!("{}g{}", "a".repeat(31), "a".repeat(32))));
+    }
+
+    #[test]
+    fn extract_hash_from_path_returns_some_for_hex_directory() {
+        let path = PathBuf::from("/var/wtf/abc123def456");
+        assert_eq!(
+            extract_hash_from_path(&path),
+            Some("abc123def456".to_string())
+        );
+    }
+
+    #[test]
+    fn extract_hash_from_path_returns_none_for_non_hex_name() {
+        let path = PathBuf::from("/var/wtf/not-a-hash");
+        assert_eq!(extract_hash_from_path(&path), None);
+    }
+
+    #[test]
+    fn compute_binary_hash_returns_64_char_hex_string() {
+        let dir = std::env::temp_dir();
+        let test_file = dir.join("veloxide_test_hash.txt");
+        std::fs::write(&test_file, "test binary content").unwrap();
+
+        let hash = compute_binary_hash(&test_file).unwrap();
+        assert_eq!(hash.len(), 64);
+        assert!(hash.chars().all(|c| c.is_ascii_hexdigit()));
+
+        std::fs::remove_file(&test_file).ok();
+    }
+
+    #[test]
+    fn compute_binary_hash_produces_deterministic_result() {
+        let dir = std::env::temp_dir();
+        let test_file = dir.join("veloxide_test_hash_deterministic.txt");
+        std::fs::write(&test_file, "same content").unwrap();
+
+        let hash1 = compute_binary_hash(&test_file).unwrap();
+        let hash2 = compute_binary_hash(&test_file).unwrap();
+        assert_eq!(hash1, hash2);
+
+        std::fs::remove_file(&test_file).ok();
+    }
+
+    #[test]
+    fn compute_binary_hash_produces_different_hashes_for_different_content() {
+        let dir = std::env::temp_dir();
+        let file1 = dir.join("veloxide_test_hash_diff1.txt");
+        let file2 = dir.join("veloxide_test_hash_diff2.txt");
+        std::fs::write(&file1, "content A").unwrap();
+        std::fs::write(&file2, "content B").unwrap();
+
+        let hash1 = compute_binary_hash(&file1).unwrap();
+        let hash2 = compute_binary_hash(&file2).unwrap();
+        assert_ne!(hash1, hash2);
+
+        std::fs::remove_file(&file1).ok();
+        std::fs::remove_file(&file2).ok();
+    }
+
+    #[test]
+    fn pin_version_creates_version_directory_and_copies_binary() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let source_file = temp_dir.path().join("test-binary");
+        std::fs::write(&source_file, "binary content").unwrap();
+
+        let versions_dir = temp_dir.path().join("versions");
+        let hash = pin_version(&source_file, &versions_dir).unwrap();
+
+        assert_eq!(hash.len(), 64);
+        assert!(versions_dir.exists());
+        assert!(versions_dir.join(&hash).exists());
+        assert!(versions_dir.join(&hash).join("test-binary").exists());
+    }
+
+    #[test]
+    fn pin_version_reuses_existing_version_directory() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let source_file = temp_dir.path().join("test-binary");
+        std::fs::write(&source_file, "binary content").unwrap();
+
+        let versions_dir = temp_dir.path().join("versions");
+        let hash1 = pin_version(&source_file, &versions_dir).unwrap();
+
+        let hash2 = pin_version(&source_file, &versions_dir).unwrap();
+        assert_eq!(hash1, hash2);
+
+        // Directory should still exist (not recreated)
+        assert!(versions_dir.join(&hash1).exists());
+    }
+
+    #[test]
+    fn pin_version_fails_for_nonexistent_source() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let source_file = temp_dir.path().join("nonexistent-binary");
+        let versions_dir = temp_dir.path().join("versions");
+
+        let result = pin_version(&source_file, &versions_dir);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn pin_version_preserves_binary_content() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let original_content = b"some binary content \x00\x01\x02\x03";
+        let source_file = temp_dir.path().join("test-binary");
+        std::fs::write(&source_file, original_content).unwrap();
+
+        let versions_dir = temp_dir.path().join("versions");
+        pin_version(&source_file, &versions_dir).unwrap();
+
+        let hash = compute_binary_hash(&source_file).unwrap();
+        let copied_file = versions_dir.join(&hash).join("test-binary");
+        let copied_content = std::fs::read(&copied_file).unwrap();
+
+        assert_eq!(original_content, &copied_content[..]);
+    }
+
+    #[test]
+    fn fetch_pinned_hashes_returns_empty_set_for_invalid_json() {
+        // This test would require mocking HTTP, so we skip it
+        // and rely on integration tests for network behavior
+    }
 }

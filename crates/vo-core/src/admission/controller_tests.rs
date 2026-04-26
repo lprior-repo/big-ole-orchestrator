@@ -4,7 +4,8 @@
 //! workflow admission to storage health state.
 
 use super::*;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+use std::sync::{Arc, Barrier, Mutex};
 use vo_types::{DedupeKey, FenceToken, InstanceId, StepId};
 
 #[derive(Debug, Clone)]
@@ -273,4 +274,103 @@ fn new_workflow_admitted_when_storage_is_healthy() {
         result.is_ok(),
         "New workflow should be admitted when storage is healthy"
     );
+}
+
+// ============================================================================
+// BDD: Concurrent duplicate starts → exactly one instance (ADR-028, ADR-043)
+// ============================================================================
+
+#[derive(Clone)]
+struct ConcurrentDedupeCheck {
+    entries: Arc<Mutex<HashMap<String, InstanceId>>>,
+}
+
+impl ConcurrentDedupeCheck {
+    fn new() -> Self {
+        Self {
+            entries: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+}
+
+impl AdmissionCheck for ConcurrentDedupeCheck {
+    fn check_deduplicate(&self, dedupe_key: &DedupeKey) -> AdmissionResult {
+        let mut entries = self.entries.lock().expect("lock poisoned");
+        if let Some(original_id) = entries.get(dedupe_key.as_str()) {
+            return AdmissionResult::Duplicate {
+                original_instance_id: original_id.clone(),
+            };
+        }
+        let instance_id = InstanceId::from_bytes([0xAB; 16]);
+        entries.insert(dedupe_key.as_str().to_string(), instance_id.clone());
+        AdmissionResult::Admitted {
+            dedupe_token: DedupeToken::new(format!("token-{}", dedupe_key.as_str())),
+        }
+    }
+
+    fn check_fence(
+        &self,
+        _instance_id: &InstanceId,
+        _step_id: &StepId,
+        _fence_token: &FenceToken,
+    ) -> AdmissionResult {
+        AdmissionResult::Admitted {
+            dedupe_token: DedupeToken::new("fence-ok".to_string()),
+        }
+    }
+}
+
+#[test]
+fn given_concurrent_duplicate_starts_when_admitted_then_only_one_instance_exists() {
+    let check = Arc::new(ConcurrentDedupeCheck::new());
+    let dedupe_key = DedupeKey::parse("concurrent-dedupe-start-bdd").expect("valid");
+    let num_threads: usize = 8;
+    let barrier = Arc::new(Barrier::new(num_threads));
+
+    let handles: Vec<_> = (0..num_threads)
+        .map(|_| {
+            let check = (*check).clone();
+            let dedupe_key = dedupe_key.clone();
+            let barrier = Arc::clone(&barrier);
+            std::thread::spawn(move || {
+                barrier.wait();
+                let controller = AdmissionController::new(check, healthy_state());
+                controller.admit_new_workflow(&dedupe_key)
+            })
+        })
+        .collect();
+
+    let results: Vec<_> = handles.into_iter().map(|h| h.join().expect("thread panicked")).collect();
+
+    let admitted: Vec<_> = results.iter().filter(|r| r.is_ok()).collect();
+    let duplicates: Vec<_> = results
+        .iter()
+        .filter_map(|r| match r {
+            Err(AdmissionError::Duplicate { original_instance_id }) => {
+                Some(original_instance_id.clone())
+            }
+            _ => None,
+        })
+        .collect();
+
+    assert_eq!(
+        admitted.len(),
+        1,
+        "Exactly one concurrent start must be admitted, got {}",
+        admitted.len()
+    );
+    assert_eq!(
+        duplicates.len(),
+        num_threads - 1,
+        "All other concurrent starts must be duplicates, got {}",
+        duplicates.len()
+    );
+
+    let winner_id = InstanceId::from_bytes([0xAB; 16]);
+    for dup_id in &duplicates {
+        assert_eq!(
+            dup_id, &winner_id,
+            "Every duplicate must reference the same winner instance_id"
+        );
+    }
 }

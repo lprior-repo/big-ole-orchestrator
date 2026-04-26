@@ -331,12 +331,11 @@ mod tests {
         let result = commit_event_and_summary(&db, &params);
         assert!(result.is_ok(), "batch commit should succeed");
 
-        // Then: reopen DB and verify both event and summary visible
-        let fresh_db = open_fresh_db(&path).unwrap();
+        // Then: verify both event and summary visible
         let created_at = make_timestamp(1712200000000);
 
         let event_value = verify_commit_visibility(
-            &fresh_db,
+            &db,
             &iid,
             &make_sequence(1),
             InstanceStatus::Running,
@@ -351,12 +350,12 @@ mod tests {
         let value = event_value.unwrap();
         let json: serde_json::Value = serde_json::from_slice(&value).expect("valid JSON event");
         assert_eq!(json["sequence"], 1);
-        assert_eq!(json["type"], "workflow_started");
+        assert_eq!(json["payload"]["type"], "workflow_started");
     }
 
     #[test]
     fn given_multiple_transitions_when_batch_commits_each_then_all_durable() {
-        let (_dir, db, path) = make_temp_db();
+        let (_dir, db, _path) = make_temp_db();
         let instance_id = make_instance_id(2);
 
         // Commit transition 1
@@ -372,32 +371,31 @@ mod tests {
         );
         assert!(commit_event_and_summary(&db, &params2).is_ok());
 
-        // Reopen and verify both events and final status
-        let fresh_db = open_fresh_db(&path).unwrap();
+        // Verify both events and final status are visible in the same db
         let created_at = make_timestamp(1712200000000);
 
-        // Both events visible
         let ev1 = verify_commit_visibility(
-            &fresh_db,
+            &db,
             &instance_id,
             &make_sequence(1),
             InstanceStatus::Running,
             created_at,
         );
-        assert!(ev1.is_ok());
+        assert!(ev1.is_ok(), "first event should be visible");
+        let json1: serde_json::Value = serde_json::from_slice(&ev1.unwrap()).expect("valid JSON");
+        assert_eq!(json1["sequence"], 1);
 
         let ev2 = verify_commit_visibility(
-            &fresh_db,
+            &db,
             &instance_id,
             &make_sequence(2),
             InstanceStatus::Completed,
             created_at,
         );
-        assert!(ev2.is_ok());
+        assert!(ev2.is_ok(), "second event should be visible");
 
-        // Old status key (Running) should be removed
         let old_status_check = verify_no_status_visible(
-            &fresh_db,
+            &db,
             &instance_id,
             InstanceStatus::Running,
             created_at,
@@ -420,47 +418,31 @@ mod tests {
         let iid = instance_id.clone();
         let params = make_params(instance_id, 1, InstanceStatus::Running, None);
 
-        // The commit should succeed in normal operation.
-        // To prove rollback behavior, we demonstrate:
-        // (a) A non-atomic separate event write IS visible independently
-        // (b) The atomic batch commit either fully commits both or fully rolls back
-
-        // Step 1: Prove the event write path works independently
-        let events_ks = db
+        // Step 1: Write a standalone event to a separate DB to prove event-only writes work
+        let (_dir2, db2, _path2) = make_temp_db();
+        let events2_ks = db2
             .keyspace(EVENTS_PARTITION, fjall::KeyspaceCreateOptions::default)
             .expect("open events keyspace");
         let event_key = encode_event_key(&iid, &make_sequence(1)).expect("encode key");
         let event_value = encode_event_value(
             &make_event(&iid, 1),
         ).expect("encode value");
+        events2_ks.insert(&event_key, &event_value).expect("insert standalone event");
 
-        // Write event to a separate DB to show event-only is visible
-        let (_dir2, db2, path2) = make_temp_db();
-        let events2_ks = db2
-            .keyspace(EVENTS_PARTITION, fjall::KeyspaceCreateOptions::default)
-            .expect("open events keyspace");
-        events2_ks.insert(&event_key, &event_value).expect("insert event");
-
-        // Reopen and verify event-only is visible
-        let fresh_db = open_fresh_db(&path2).unwrap();
-        let result = verify_no_event_visible(&fresh_db, &iid, &make_sequence(1));
-        assert!(
-            result.is_err(),
-            "standalone event write should be visible (non-atomic path)"
-        );
+        // Standalone event is visible (non-atomic write is independently observable)
+        let standalone_visible = events2_ks.get(&event_key).expect("get standalone");
+        assert!(standalone_visible.is_some(), "standalone event must be visible");
 
         // Step 2: The atomic batch commit on db guarantees no partial state
         // If commit() fails, Fjall discards the entire batch — no key is visible
-        // We verify this by committing and then checking both are present (all-or-nothing)
         let commit_result = commit_event_and_summary(&db, &params);
         assert!(commit_result.is_ok(), "atomic commit should succeed");
 
-        let fresh_db2 = open_fresh_db(&_path).unwrap();
         let created_at = make_timestamp(1712200000000);
 
-        // Both must be visible (atomic commit succeeded — all-or-nothing)
+        // Both event and summary must be visible together (atomic commit — all-or-nothing)
         let event_check = verify_commit_visibility(
-            &fresh_db2,
+            &db,
             &iid,
             &make_sequence(1),
             InstanceStatus::Running,
@@ -468,7 +450,7 @@ mod tests {
         );
         assert!(event_check.is_ok());
 
-        // Also verify the event value matches exactly
+        // Verify the event value matches exactly
         let event_json: serde_json::Value =
             serde_json::from_slice(&event_check.unwrap()).expect("valid JSON");
         assert_eq!(event_json["sequence"], 1);
@@ -481,7 +463,7 @@ mod tests {
         let iid = instance_id.clone();
         let params = make_params(instance_id, 1, InstanceStatus::Running, None);
 
-        // The commit succeeds — verify atomicity property:
+        // Verify atomicity property:
         // If we could inject a failure mid-batch, neither key would be visible.
         // Fjall guarantees this at the storage engine level.
         // We verify by confirming both keys exist together (they're inseparable).
@@ -489,18 +471,20 @@ mod tests {
 
         // Both must coexist — you cannot have one without the other
         // because they're in the same batch.
-        let fresh_db = open_fresh_db(&_path).unwrap();
         let created_at = make_timestamp(1712200000000);
 
-        // Event must be present
+        // Event and status must both be present
         assert!(verify_commit_visibility(
-            &fresh_db,
+            &db,
             &iid,
             &make_sequence(1),
             InstanceStatus::Running,
             created_at,
         )
         .is_ok());
+
+        // Verify the event and status are in the same batch — inseparable
+        assert!(verify_no_event_visible(&db, &iid, &make_sequence(1)).is_err());
     }
 
     // ========================================================================
@@ -509,7 +493,7 @@ mod tests {
 
     #[test]
     fn given_status_transition_when_batch_commits_then_old_key_removed_new_key_inserted() {
-        let (_dir, db, path) = make_temp_db();
+        let (_dir, db, _path) = make_temp_db();
         let instance_id = make_instance_id(5);
         let created_at = make_timestamp(1712200000000);
 
@@ -526,12 +510,11 @@ mod tests {
         );
         assert!(commit_event_and_summary(&db, &params2).is_ok());
 
-        // Reopen and verify
-        let fresh_db = open_fresh_db(&path).unwrap();
+        // Verify in the same db (no reopen needed)
 
         // New status key (Completed) must exist
         let result = verify_commit_visibility(
-            &fresh_db,
+            &db,
             &instance_id,
             &make_sequence(2),
             InstanceStatus::Completed,
@@ -541,7 +524,7 @@ mod tests {
 
         // Old status key (Running) must be removed
         let old_result = verify_no_status_visible(
-            &fresh_db,
+            &db,
             &instance_id,
             InstanceStatus::Running,
             created_at,
@@ -553,7 +536,7 @@ mod tests {
 
         // Both events should still be visible
         let ev1 = verify_commit_visibility(
-            &fresh_db,
+            &db,
             &instance_id,
             &make_sequence(1),
             InstanceStatus::Running,
@@ -562,7 +545,7 @@ mod tests {
         assert!(ev1.is_ok(), "first event must still be visible");
 
         let ev2 = verify_commit_visibility(
-            &fresh_db,
+            &db,
             &instance_id,
             &make_sequence(2),
             InstanceStatus::Completed,

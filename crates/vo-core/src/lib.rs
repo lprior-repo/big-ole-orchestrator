@@ -39,6 +39,7 @@ pub mod recovery;
 pub mod replay;
 pub mod resource_quota;
 pub mod segment_tree;
+pub mod storage_watchdog;
 pub mod shedding;
 pub mod snapshot_compat;
 pub mod upcaster;
@@ -50,8 +51,11 @@ pub mod workspace_swap;
 pub mod write_class;
 
 pub use validation::{
-    validate_effect_kinds, validate_workflow_effects, validate_workflow_sinks, KnownSinks,
-    UnsupportedSinkError, WorkflowSinkValidator,
+    validate_dedupe_policy, validate_effect_kinds, validate_managed_effect_sinks,
+    validate_no_unsafe_in_exact_workflow, validate_unsafe_nodes, validate_workflow_effects,
+    validate_workflow_sinks, DedupePolicyError, KnownSinks, UnsafeNodeInExactWorkflow,
+    UnsafePublishError, UnsupportedConnectorSink, UnsupportedSinkError, WorkflowPublishSpec,
+    WorkflowSinkValidator,
 };
 
 #[cfg(kani)]

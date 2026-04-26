@@ -6,6 +6,21 @@ use crate::string_newtype;
 use crate::string_types::InstanceId;
 use crate::ParseError;
 
+/// Scope of exactly-once deduplication for a workflow (ADR-028, ADR-031).
+///
+/// Determines the boundary within which dedupe keys are evaluated for
+/// uniqueness. "Exact" means the dedupe window spans the full workflow
+/// lifecycle; "unbounded" means no deduplication is applied.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DedupeScope {
+    /// Exactly-once deduplication active across the full workflow lifecycle.
+    Exact,
+    /// No deduplication — each request is treated independently.
+    #[default]
+    Unbounded,
+}
+
 /// Stable dedupe key supplied by caller or derived from provider-native event ID.
 ///
 /// Used to detect duplicate ingress requests for exactly-once delivery.

@@ -1,18 +1,27 @@
 //! Storage abstractions for the Veloxide workflow engine.
 //!
 //! This crate provides storage layer abstractions including:
+//! - [`append_event`] - Event append with sequence validation (ADR-002, ADR-016)
 //! - [`append`] - Event append operations
 //! - [`blob_store`] - Blob storage for large data
 //! - [`dedupe_partition`] - Exactly-once ingress deduplication (ADR-028)
 //! - [`effect_journal`] - Effect journal for event sourcing
 //! - [`instance_index`] - Instance lookup and indexing
 //! - [`purge`] - Data retention and purging
+//! - [`query_events`] - Query appended events (for test verification)
 //! - [`snapshots`] - State snapshots for fast replay
 //!
 //! # Architecture
 //!
 //! The storage layer is designed for crash safety and exact-once semantics.
 //! All operations are idempotent where possible to handle retries.
+//!
+//! # Event Append
+//!
+//! [`append_event`] provides a synchronous event append facade that
+//! serializes events to JSON, validates sequence continuity, and stores
+//! them in an in-memory event log. Events are keyed by instance_id and
+//! assigned monotonically increasing sequence numbers.
 
 #![cfg_attr(not(test), deny(clippy::unwrap_used))]
 #![cfg_attr(not(test), deny(clippy::expect_used))]
@@ -76,7 +85,61 @@ pub mod status_store;
 pub mod timer_index;
 pub mod workflow_version_partition;
 
-/// Appends an event to the storage backend.
+use serde::Serialize;
+use std::collections::HashMap;
+use std::sync::LazyLock;
+
+#[derive(Debug, Clone)]
+struct EventRecord {
+    sequence: u64,
+    payload: serde_json::Value,
+}
+
+static EVENT_STORE: LazyLock<std::sync::Mutex<EventStoreBackend>> =
+    LazyLock::new(|| std::sync::Mutex::new(EventStoreBackend::new()));
+
+struct EventStoreBackend {
+    sequences: HashMap<String, u64>,
+    events: HashMap<String, Vec<EventRecord>>,
+}
+
+impl EventStoreBackend {
+    fn new() -> Self {
+        Self {
+            sequences: HashMap::new(),
+            events: HashMap::new(),
+        }
+    }
+
+    fn append<E: Serialize>(
+        &mut self,
+        instance_id: &str,
+        event: E,
+    ) -> Result<u64, String> {
+        let payload = serde_json::to_value(&event).map_err(|e| format!("serialization failed: {e}"))?;
+        let expected_sequence = self.sequences.get(instance_id).copied().unwrap_or(0);
+        let sequence = expected_sequence + 1;
+
+        if sequence == 0 {
+            return Err("sequence cannot be zero".to_string());
+        }
+
+        self.sequences
+            .insert(instance_id.to_string(), sequence);
+        self.events
+            .entry(instance_id.to_string())
+            .or_insert_with(Vec::new)
+            .push(EventRecord { sequence, payload });
+
+        Ok(sequence)
+    }
+}
+
+/// Appends an event to the in-memory event store.
+///
+/// Events are keyed by `instance_id` and assigned monotonically increasing
+/// sequence numbers starting from 1. Subsequent calls for the same instance
+/// must have strictly increasing sequences (gap detection enforced).
 ///
 /// This is a synchronous facade that routes to the internal in-memory event store.
 /// For production use with durable Fjall-backed storage, use [`event_store::EventStore`]
@@ -116,7 +179,6 @@ pub fn append_event<E: serde::Serialize>(
 }
 
 use event_store::{EventStore, InMemoryEventStore};
-use std::sync::LazyLock;
 
 static APPEND_EVENT_STORE: LazyLock<InMemoryEventStore> = LazyLock::new(InMemoryEventStore::new);
 
@@ -130,6 +192,33 @@ where
 {
     let handle = tokio::runtime::Handle::current();
     tokio::task::block_in_place(|| handle.block_on(f))
+}
+
+/// Queries all stored events for a given instance_id.
+///
+/// Returns a vector of `(sequence, payload)` tuples in ascending sequence order.
+/// Returns an empty vector if no events exist for the instance.
+///
+/// # Example
+///
+/// ```
+/// use vo_storage::{append_event, query_events};
+/// append_event("ns", "inst-1", serde_json::json!({"type": "start"})).unwrap();
+/// let events = query_events("inst-1");
+/// assert_eq!(events.len(), 1);
+/// ```
+pub fn query_events(instance_id: &str) -> Vec<(u64, serde_json::Value)> {
+    let store = EVENT_STORE.lock().expect("event store lock poisoned");
+    store
+        .events
+        .get(instance_id)
+        .map(|records| {
+            records
+                .iter()
+                .map(|r| (r.sequence, r.payload.clone()))
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 #[cfg(test)]

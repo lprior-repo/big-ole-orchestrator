@@ -5,10 +5,7 @@
 
 use serde::{Deserialize, Serialize};
 
-// ============================================================================
-// ProjectionRecord — Persistent state snapshot
-// ============================================================================
-
+// =====================================================================
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProjectionRecord {
     pub projection_id: String,
@@ -42,11 +39,7 @@ impl ProjectionRecord {
     }
 }
 
-// ============================================================================
-// ProjectionResult — Rebuild outcome
-// ============================================================================
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+// =====================================================================#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProjectionResult<S> {
     pub state: S,
     pub events_applied: u64,
@@ -76,11 +69,7 @@ impl<S> ProjectionResult<S> {
     }
 }
 
-// ============================================================================
-// ProjectionState — Lifecycle state machine
-// ============================================================================
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+// =====================================================================#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ProjectionState {
     Building,
     Ready,
@@ -111,11 +100,7 @@ impl ProjectionState {
     }
 }
 
-// ============================================================================
-// StaleReason — Why a projection is stale
-// ============================================================================
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+// =====================================================================#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum StaleReason {
     SchemaVersionMismatch { expected: u8, actual: u8 },
     SequenceGapDetected { gap_at: u64 },
@@ -123,11 +108,7 @@ pub enum StaleReason {
     ManualInvalidation,
 }
 
-// ============================================================================
-// ProjectionEvent — Domain events emitted by the projection engine
-// ============================================================================
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+// =====================================================================#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ProjectionEvent {
     ProjectionStarted {
         projection_id: String,
@@ -156,11 +137,7 @@ pub enum ProjectionEvent {
     },
 }
 
-// ============================================================================
-// Projector — Trait for projecting events into state
-// ============================================================================
-
-pub trait Projector<S, E>
+// =====================================================================pub trait Projector<S, E>
 where
     S: Clone + Default + serde::Serialize,
 {

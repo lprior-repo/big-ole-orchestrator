@@ -96,14 +96,17 @@ fn red_queen_timer_key_different_instances_at_same_time_differ_only_in_last_16_b
     let key1 = encode_timer_key(ts, &id1);
     let key2 = encode_timer_key(ts, &id2);
 
+    // Format: [timestamp_u64_be][instance_id_len_u16_be][instance_id_bytes]
+    // First 10 bytes should be identical (8 timestamp + 2 length prefix)
     assert_eq!(
-        &key1[0..8],
-        &key2[0..8],
-        "BUG: timestamp bytes should be identical"
+        &key1[0..10],
+        &key2[0..10],
+        "BUG: timestamp and length prefix bytes should be identical"
     );
+    // Last 16 bytes should differ (instance_id)
     assert_ne!(
-        &key1[8..24],
-        &key2[8..24],
+        &key1[10..26],
+        &key2[10..26],
         "BUG: instance_id bytes should differ"
     );
     assert!(

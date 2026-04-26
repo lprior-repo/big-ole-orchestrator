@@ -70,6 +70,11 @@ impl Diagnostic {
     pub fn message(&self) -> &str {
         &self.message
     }
+
+    #[must_use]
+    pub fn suggestion(&self) -> Option<&str> {
+        self.suggestion.as_deref()
+    }
 }
 
 #[cfg(test)]
@@ -114,5 +119,18 @@ mod tests {
         let d = Diagnostic::new(LintCode::L002, "msg").with_suggestion("fix");
         let d2 = d.clone();
         assert_eq!(d.message(), d2.message());
+    }
+
+    #[test]
+    fn test_diagnostic_suggestion_none() {
+        let d = Diagnostic::new(LintCode::L002, "msg");
+        assert!(d.suggestion().is_none());
+    }
+
+    #[test]
+    fn test_diagnostic_suggestion_some() {
+        let d = Diagnostic::new(LintCode::L002, "msg").with_suggestion("use this instead");
+        assert!(d.suggestion().is_some());
+        assert_eq!(d.suggestion().unwrap(), "use this instead");
     }
 }

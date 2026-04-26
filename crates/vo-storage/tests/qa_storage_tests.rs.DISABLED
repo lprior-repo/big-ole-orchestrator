@@ -55,10 +55,11 @@ fn make_envelope(instance_id: &InstanceId, sequence: u64) -> EventEnvelope {
     }
 }
 
-fn encode_event_seq(id: &InstanceId, seq: u64) -> [u8; 24] {
-    let sn = vo_types::SequenceNumber::try_from(seq).unwrap();
-    encode_event_key(id, &sn).unwrap()
-}
+// TEMPORARILY DISABLED - API changed (now returns Vec<u8>, not [u8; 24])
+// fn encode_event_seq(id: &InstanceId, seq: u64) -> [u8; 24] {
+//     let sn = vo_types::SequenceNumber::try_from(seq).unwrap();
+//     encode_event_key(id, &sn).unwrap()
+// }
 
 // ══════════════════════════════════════════════════════════════════════════════
 // Section 1: Fjall Persistence — put/get/delete on raw keyspaces

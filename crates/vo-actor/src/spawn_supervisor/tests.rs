@@ -12,7 +12,7 @@ use vo_types::InstanceId;
 
 use super::actor::{SpawnSupervisor, SpawnSupervisorHandle};
 use super::types::{SpawnSupervisorError, SpawnSupervisorState};
-use super::{SpawnStorage, ProcessManager, WorkQueue, CycleResult, SpawnSupervisorMetrics, Counter, ProcessHandle, SpawnPhase, SpawnRecord};
+use super::{SpawnStorage, ProcessManager, WorkQueue, CycleResult, SpawnSupervisorMetrics, Counter, ProcessHandle, SpawnPhase, SpawnRecord, ExecutionSemaphore};
 
 fn test_instance_id() -> InstanceId {
     let ulid = Ulid::new();
@@ -38,6 +38,7 @@ fn spawn_supervisor_rejects_zero_health_check_interval() {
         Arc::new(storage),
         Arc::new(pm),
         Arc::new(wq),
+        Arc::new(ExecutionSemaphore::default()),
     );
 
     assert!(matches!(result, Err(SpawnSupervisorError::InvalidConfig(_))));
@@ -58,6 +59,7 @@ fn spawn_supervisor_rejects_zero_max_health_checks() {
         Arc::new(storage),
         Arc::new(pm),
         Arc::new(wq),
+        Arc::new(ExecutionSemaphore::default()),
     );
 
     assert!(matches!(result, Err(SpawnSupervisorError::InvalidConfig(_))));
@@ -78,6 +80,7 @@ fn spawn_supervisor_rejects_zero_initial_backoff() {
         Arc::new(storage),
         Arc::new(pm),
         Arc::new(wq),
+        Arc::new(ExecutionSemaphore::default()),
     );
 
     assert!(matches!(result, Err(SpawnSupervisorError::InvalidConfig(_))));
@@ -98,6 +101,7 @@ fn spawn_supervisor_rejects_backoff_multiplier_less_than_one() {
         Arc::new(storage),
         Arc::new(pm),
         Arc::new(wq),
+        Arc::new(ExecutionSemaphore::default()),
     );
 
     assert!(matches!(result, Err(SpawnSupervisorError::InvalidConfig(_))));
@@ -122,6 +126,7 @@ fn spawn_supervisor_constructs_with_valid_config() {
         Arc::new(storage),
         Arc::new(pm),
         Arc::new(wq),
+        Arc::new(ExecutionSemaphore::default()),
     );
 
     assert!(supervisor.is_ok());
@@ -152,6 +157,7 @@ fn spawn_supervisor_debug_format() {
         Arc::new(storage),
         Arc::new(pm),
         Arc::new(wq),
+        Arc::new(ExecutionSemaphore::default()),
     ).unwrap();
 
     let debug_str = format!("{:?}", supervisor);

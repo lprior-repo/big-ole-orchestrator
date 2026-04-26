@@ -302,3 +302,60 @@ fn replay_from_snapshot_at_terminal_state_is_still_terminal() {
         Some(LifecycleState::Completed)
     );
 }
+
+// ========================================================================
+// Property 8: Replay reconstructs latest lease fence state (ADR-029)
+// ========================================================================
+
+#[test]
+fn given_step_schedules_when_replay_runs_then_latest_fence_is_restored() {
+    let engine = ReplayEngine::new();
+
+    let events = [
+        make_event("inst-1", 1, workflow_started_payload("wf-1")),
+        make_event(
+            "inst-1",
+            2,
+            step_scheduled_payload_with_fence("wf-1", "step-1", 1),
+        ),
+        make_event("inst-1", 3, step_started_payload("wf-1", "step-1")),
+        make_event("inst-1", 4, step_failed_payload("wf-1", "step-1")),
+        make_event("inst-1", 5, instance_resumed_payload("wf-1")),
+        make_event(
+            "inst-1",
+            6,
+            step_scheduled_payload_with_fence("wf-1", "step-1", 2),
+        ),
+        make_event("inst-1", 7, step_started_payload("wf-1", "step-1")),
+        make_event("inst-1", 8, step_failed_payload("wf-1", "step-1")),
+        make_event("inst-1", 9, instance_resumed_payload("wf-1")),
+        make_event(
+            "inst-1",
+            10,
+            step_scheduled_payload_with_fence("wf-1", "step-1", 3),
+        ),
+    ];
+
+    let result = engine.replay(&events).expect("replay should succeed");
+
+    assert_eq!(
+        result.final_state,
+        Some(LifecycleState::StepScheduled),
+        "Final state should be StepScheduled after the last StepScheduled event"
+    );
+
+    assert_eq!(
+        result.latest_fence,
+        Some(3),
+        "Latest fence should be 3 (the highest fence value from StepScheduled events)"
+    );
+
+    assert!(
+        result.latest_fence.unwrap() > 1,
+        "Latest fence (3) should be greater than stale fence (1)"
+    );
+    assert!(
+        result.latest_fence.unwrap() > 2,
+        "Latest fence (3) should be greater than stale fence (2)"
+    );
+}

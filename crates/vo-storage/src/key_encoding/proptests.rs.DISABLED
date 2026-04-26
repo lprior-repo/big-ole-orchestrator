@@ -7,8 +7,27 @@
 //! - Dedupe key ordering invariants
 //! - Effect key shares prefix with event key but sorts after
 //! - Prefix scan correctness
+//! - Comprehensive roundtrip across ALL production partition key encoders
 
 #![allow(clippy::unwrap_used)]
+
+use crate::instance_index::{
+    decode_instance_index_key, encode_instance_index_key, InstanceIndexEntry,
+};
+use crate::key_partition::{
+    decode_dek_entry, decode_instance_key, encode_dek_entry, encode_instance_key, DekEntry,
+    DekStatus, DekStoreError,
+};
+use crate::receipts::{
+    decode_receipt, decode_receipt_key, encode_receipt, encode_receipt_key, ExecutionReceipt,
+    ReceiptStoreError,
+};
+use crate::workflow_version_partition::{
+    decode_workflow_version_entry, decode_workflow_version_key, encode_workflow_version_entry,
+    encode_workflow_version_key, WorkflowVersionEntry, WorkflowVersionStoreError,
+};
+use vo_types::{BinaryHash, DekId, EffectKind, InstanceStatus, KeyMetadata, TimerId, TimestampMs,
+               WorkflowName, WrappedDek};
 
 use proptest::prelude::*;
 use vo_types::{InstanceId, SequenceNumber, StepId};
@@ -87,11 +106,14 @@ proptest! {
         prop_assert!(key1 < key2, "id [0...] < id [1...] should give key1 < key2 regardless of sequences");
     }
 
-    /// EV-PROP-005: Event key length is always exactly 24 bytes.
+    /// EV-PROP-005: Event key length is always exactly 26 bytes (2-byte length prefix + 16-byte instance ID + 8-byte sequence).
     #[test]
     fn event_key_fixed_length(id in arb_instance_id(), seq in arb_sequence_number()) {
         let key = encode_event_key(&id, seq);
-        prop_assert_eq!(key.len(), 24, "event key should be 24 bytes");
+        prop_assert_eq!(key.len(), 26, "event key should be 26 bytes");
+        // Verify length prefix is 16 (ULID size)
+        let prefix_len = u16::from_be_bytes([key[0], key[1]]);
+        prop_assert_eq!(prefix_len, 16, "instance ID length prefix should be 16");
     }
 
     // ========================================================================
@@ -129,11 +151,20 @@ proptest! {
         prop_assert!(key.starts_with(&prefix), "timer key should start with timestamp prefix");
     }
 
-    /// TM-PROP-004: Timer key length is always exactly 24 bytes.
+    /// TM-PROP-004: Timer key uses length-prefixed instance ID (ADR-020).
     #[test]
-    fn timer_key_fixed_length(id in arb_instance_id(), fire_at_ms in any::<u64>()) {
+    fn timer_key_length_prefix_format(id in arb_instance_id(), fire_at_ms in any::<u64>()) {
         let key = encode_timer_key(fire_at_ms, &id);
+<<<<<<< HEAD:crates/vo-storage/src/key_encoding/proptests.rs
         prop_assert_eq!(key.len(), 26, "timer key should be 26 bytes");
+=======
+        // 8 bytes timestamp + 2 bytes length prefix + 16 bytes instance_id = 26
+        prop_assert!(key.len() == 26, "timer key should be 26 bytes (8+2+16), got {}", key.len());
+        // Length prefix should be 16 (ULID size)
+        let len_bytes: [u8; 2] = key[8..10].try_into().unwrap();
+        let len_prefix = u16::from_be_bytes(len_bytes);
+        prop_assert_eq!(len_prefix, 16, "instance ID length prefix should be 16");
+>>>>>>> origin/main:crates/vo-storage/src/key_encoding/proptests.rs.DISABLED
     }
 
     /// TM-PROP-005: Same timestamp, different instances ordered by instance bytes.
@@ -297,5 +328,229 @@ proptest! {
         prop_assert!(event_key.starts_with(&event_key[0..16]), "event key starts with 16-byte instance prefix");
         prop_assert!(effect_key.starts_with(&event_key[0..16]), "effect key shares instance prefix");
         prop_assert!(event_key < effect_key, "event key sorts before effect key");
+    }
+
+    // ========================================================================
+    // COMPREHENSIVE ALL-ENCODER ROUNDTRIP & COLLISION TEST
+    // ========================================================================
+
+    /// ALL-PROP-001: All production partition key encoders round-trip correctly.
+    /// This single test exercises every encoder in the codebase:
+    /// - Event, timer, lease, dedupe, effect, instance_index keys (key_encoding)
+    /// - Instance ID, step ID, sequence number, u16, u64 primitives
+    /// - DEK store keys and entries (key_partition)
+    /// - Workflow version keys and entries (workflow_version_partition)
+    /// - Receipt keys and entries (receipts)
+    #[test]
+    fn proptest_all_partition_key_encoders(
+        id in arb_instance_id(),
+        id2 in arb_instance_id(),
+        seq in arb_sequence_number(),
+        seq2 in arb_sequence_number(),
+        step in arb_step_id(),
+        step2 in arb_step_id(),
+        fire_at in any::<u64>(),
+        ts in any::<u64>(),
+        u16_val in any::<u16>(),
+        u64_val in any::<u64>(),
+        dedupe_key in "[a-zA-Z0-9_-]{0,256}",
+        dedupe_key2 in "[a-zA-Z0-9_-]{0,256}",
+        status_byte in 1u8..=6u8,
+        status_byte2 in 1u8..=6u8,
+        event_str in "[a-zA-Z0-9_-]{1,200}",
+        event_str2 in "[a-zA-Z0-9_-]{1,200}",
+    ) {
+        // ---- Event key roundtrip ----
+        let event_key = encode_event_key(&id, seq);
+        let (decoded_id, decoded_seq) = decode_event_key(&event_key).unwrap();
+        prop_assert_eq!(decoded_id, id);
+        prop_assert_eq!(decoded_seq, seq);
+
+        // ---- Timer key roundtrip ----
+        let timer_key = encode_timer_key(fire_at, &id);
+        let (decoded_ts, decoded_id_t) = decode_timer_key(&timer_key).unwrap();
+        prop_assert_eq!(decoded_ts, fire_at);
+        prop_assert_eq!(decoded_id_t, id);
+
+        // ---- Lease key roundtrip ----
+        let lease_key = encode_lease_key(&id, &step);
+        let (decoded_id_l, decoded_step) = decode_lease_key(&lease_key).unwrap();
+        prop_assert_eq!(decoded_id_l, id);
+        prop_assert_eq!(decoded_step, step);
+
+        // ---- Dedupe key roundtrip ----
+        let dedupe_key_enc = encode_dedupe_key(&dedupe_key);
+        let decoded_dedupe = decode_dedupe_key(&dedupe_key_enc).unwrap();
+        prop_assert_eq!(decoded_dedupe, dedupe_key);
+
+        // ---- Effect key roundtrip ----
+        let effect_key = encode_effect_key(&id, seq);
+        let (decoded_id_e, decoded_seq_e) = decode_effect_key(&effect_key).unwrap();
+        prop_assert_eq!(decoded_id_e, id);
+        prop_assert_eq!(decoded_seq_e, seq);
+
+        // ---- Instance index key (key_encoding module) roundtrip ----
+        let instance_key = encode_instance_index_key_for_status(status_byte, ts, &id);
+        prop_assert_eq!(instance_key.len(), 25);
+        prop_assert_eq!(instance_key[0], status_byte);
+
+        // ---- Instance index key (instance_index module) roundtrip ----
+        let status = InstanceStatus::from_byte(status_byte).unwrap();
+        let timestamp = TimestampMs::try_from(ts).unwrap();
+        let ii_key = encode_instance_index_key(status, timestamp, &id).unwrap();
+        prop_assert_eq!(ii_key.len(), 25);
+        let decoded_entry = decode_instance_index_key(&ii_key).unwrap();
+        prop_assert_eq!(decoded_entry.instance_id, id);
+        prop_assert_eq!(decoded_entry.status, status);
+        prop_assert_eq!(decoded_entry.created_at, timestamp);
+
+        // ---- u64 roundtrip ----
+        let encoded_u64 = encode_u64_be(u64_val);
+        let decoded_u64 = decode_u64_be(&encoded_u64).unwrap();
+        prop_assert_eq!(decoded_u64, u64_val);
+
+        // ---- u16 roundtrip ----
+        let encoded_u16 = encode_u16_be(u16_val);
+        let decoded_u16 = decode_u16_be(&encoded_u16).unwrap();
+        prop_assert_eq!(decoded_u16, u16_val);
+
+        // ---- Instance ID roundtrip ----
+        let enc_iid = encode_instance_id(&id).unwrap();
+        let dec_iid = decode_instance_id(&enc_iid).unwrap();
+        prop_assert_eq!(dec_iid, id);
+
+        // ---- Step ID roundtrip ----
+        let enc_step = encode_step_id(&step);
+        let dec_step = decode_step_id(&enc_step).unwrap();
+        prop_assert_eq!(dec_step, step);
+
+        // ---- Sequence number roundtrip ----
+        let enc_seq = encode_sequence_number(seq);
+        let dec_seq = decode_sequence_number(&enc_seq).unwrap();
+        prop_assert_eq!(dec_seq, seq);
+
+        // ---- Length-prefixed bytes roundtrip ----
+        let lp_enc = encode_length_prefixed(b"hello world");
+        let (lp_dec, lp_rest) = decode_length_prefixed(&lp_enc).unwrap();
+        prop_assert_eq!(lp_dec, b"hello world");
+        prop_assert_eq!(lp_rest.len(), 0);
+
+        // ---- DEK store instance key roundtrip ----
+        let dek_instance_key = encode_instance_key(&id);
+        let decoded_dek_iid = decode_instance_key(&dek_instance_key).unwrap();
+        prop_assert_eq!(decoded_dek_iid, id);
+
+        // ---- DEK entry serialization roundtrip ----
+        let wrapped_dek = WrappedDek::from_bytes([0xABu8; 64]);
+        let dek_id = DekId::new();
+        let metadata = KeyMetadata::new("test-kek".to_string(), "2024-01-01T00:00:00Z".to_string());
+        let dek_entry = DekEntry::new(dek_id, id, wrapped_dek, metadata).unwrap();
+        let dek_entry_enc = encode_dek_entry(&dek_entry);
+        let decoded_dek_entry = decode_dek_entry(&dek_entry_enc).unwrap();
+        prop_assert_eq!(decoded_dek_entry.dek_id, dek_id);
+        prop_assert_eq!(decoded_dek_entry.instance_id, id);
+        prop_assert_eq!(decoded_dek_entry.status, DekStatus::Active);
+
+        // ---- Workflow version key roundtrip ----
+        let version_hash = BinaryHash::parse(&"a".repeat(64)).unwrap();
+        let wv_key = encode_workflow_version_key(&version_hash);
+        let decoded_wv_key = decode_workflow_version_key(&wv_key).unwrap();
+        prop_assert_eq!(decoded_wv_key, version_hash);
+
+        // ---- Workflow version entry serialization roundtrip ----
+        let workflow_name = WorkflowName::parse("test-workflow").unwrap();
+        let wv_entry = WorkflowVersionEntry::new(
+            workflow_name.clone(),
+            version_hash.clone(),
+            1,
+            TimestampMs::try_from(1712200000000u64).unwrap(),
+            "/var/wtf/versions/test".to_string(),
+        ).unwrap();
+        let wv_entry_enc = encode_workflow_version_entry(&wv_entry).unwrap();
+        let decoded_wv_entry = decode_workflow_version_entry(&wv_entry_enc).unwrap();
+        prop_assert_eq!(decoded_wv_entry.workflow_name, workflow_name);
+        prop_assert_eq!(decoded_wv_entry.version_hash, version_hash);
+        prop_assert_eq!(decoded_wv_entry.schema_version, 1);
+
+        // ---- Receipt key roundtrip ----
+        let receipt_key = encode_receipt_key(event_str);
+        let decoded_receipt_key = decode_receipt_key(&receipt_key).unwrap();
+        prop_assert_eq!(decoded_receipt_key, event_str);
+
+        // ---- Receipt serialization roundtrip ----
+        let receipt = ExecutionReceipt::new(
+            event_str.to_string(),
+            id.to_string(),
+            EffectKind::Insert,
+            ts,
+            "success".to_string(),
+        ).unwrap();
+        let receipt_enc = encode_receipt(&receipt).unwrap();
+        let decoded_receipt = decode_receipt(&receipt_enc).unwrap();
+        prop_assert_eq!(decoded_receipt.effect_id, event_str);
+        prop_assert_eq!(decoded_receipt.instance_id, id.to_string());
+        prop_assert_eq!(decoded_receipt.kind, EffectKind::Insert);
+        prop_assert_eq!(decoded_receipt.committed_at_ms, ts);
+
+        // ---- Collision invariant: no two encoders produce same key for same entity ----
+        let all_keys = vec![
+            event_key.clone(),
+            timer_key.clone(),
+            lease_key.clone(),
+            dedupe_key_enc.clone(),
+            effect_key.clone(),
+            instance_key.clone(),
+            ii_key.clone(),
+        ];
+        for (i, ki) in all_keys.iter().enumerate() {
+            for (j, kj) in all_keys.iter().enumerate() {
+                if i != j {
+                    prop_assert_ne!(ki, kj, "key type {} collides with key type {}", i, j);
+                }
+            }
+        }
+
+        // ---- Collision invariant: different dedupe keys produce different encodings ----
+        prop_assume!(dedupe_key != dedupe_key2);
+        let enc_d1 = encode_dedupe_key(&dedupe_key);
+        let enc_d2 = encode_dedupe_key(&dedupe_key2);
+        prop_assert_ne!(enc_d1, enc_d2);
+
+        // ---- Collision invariant: different step IDs produce different lease keys ----
+        prop_assume!(step.as_str() != step2.as_str());
+        let lease_key2 = encode_lease_key(&id, &step2);
+        prop_assert_ne!(lease_key, lease_key2);
+
+        // ---- Collision invariant: different instances produce different event keys ----
+        prop_assume!(id.to_string() != id2.to_string());
+        let event_key2 = encode_event_key(&id2, seq);
+        prop_assert_ne!(event_key, event_key2);
+
+        // ---- Collision invariant: different sequences produce different event keys ----
+        prop_assume!(seq != seq2);
+        let event_key_seq2 = encode_event_key(&id, seq2);
+        prop_assert_ne!(event_key, event_key_seq2);
+
+        // ---- Collision invariant: different statuses produce different instance index keys ----
+        let ii_key2 = encode_instance_index_key(
+            InstanceStatus::from_byte(status_byte2).unwrap(),
+            timestamp,
+            &id,
+        ).unwrap();
+        prop_assume!(status_byte != status_byte2);
+        prop_assert_ne!(ii_key, ii_key2);
+
+        // ---- Prefix scan correctness for all prefix functions ----
+        let prefix_event = get_event_key_prefix(&id);
+        prop_assert!(event_key.starts_with(&prefix_event));
+
+        let prefix_lease = get_lease_key_prefix_for_instance(&id);
+        prop_assert!(lease_key.starts_with(&prefix_lease));
+
+        let prefix_timer = get_timer_key_prefix_for_time(fire_at);
+        prop_assert!(timer_key.starts_with(&prefix_timer));
+
+        let prefix_dedupe = get_dedupe_key_prefix(&dedupe_key);
+        prop_assert_eq!(prefix_dedupe, dedupe_key_enc);
     }
 }

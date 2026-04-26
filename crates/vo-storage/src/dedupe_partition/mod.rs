@@ -359,7 +359,7 @@ pub const DEDUPE_PARTITION: &str = "dedupe";
 /// Storage interface for exactly-once ingress deduplication (ADR-028).
 ///
 /// Provides atomic check-and-insert with TTL-based expiry.
-pub trait DedupeStore {
+pub trait DedupeStore: Send + Sync {
     /// Atomically check if a dedupe key exists and insert if not.
     ///
     /// If the key exists and is not expired, returns `AdmissionResult::Duplicate`.

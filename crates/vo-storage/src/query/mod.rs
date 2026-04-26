@@ -204,8 +204,19 @@ impl EventReplayIterator {
         k_bytes: &fjall::Slice,
         v_bytes: &fjall::Slice,
     ) -> Option<Result<EventEnvelope, StorageError>> {
+        // Validate key format version (first byte of key).
+        // A key with an unsupported version causes replay to fail closed.
+        if k_bytes.is_empty() {
+            self.inner = None;
+            return Some(Err(StorageError::UnsupportedVersion));
+        }
+        let key_version = k_bytes[0];
+        if key_version != crate::codec::EVENT_KEY_VERSION {
+            self.inner = None;
+            return Some(Err(StorageError::UnsupportedVersion));
+        }
         let seq_len: usize = 8;
-        if k_bytes.len() < seq_len {
+        if k_bytes.len() < seq_len + 1 {
             self.inner = None;
             return Some(Err(StorageError::Storage));
         }

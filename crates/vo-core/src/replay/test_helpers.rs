@@ -43,13 +43,21 @@ pub fn workflow_started_payload(workflow_id: &str) -> serde_json::Value {
 }
 
 pub fn step_scheduled_payload(workflow_id: &str, step_id: &str) -> serde_json::Value {
+    step_scheduled_payload_with_fence(workflow_id, step_id, 1)
+}
+
+pub fn step_scheduled_payload_with_fence(
+    workflow_id: &str,
+    step_id: &str,
+    fence: u64,
+) -> serde_json::Value {
     json!({
         "type": "StepScheduled",
         "workflow_id": workflow_id,
         "step_id": step_id,
         "attempt": 1,
-        "fence": 1,
-        "execution_id": "exec-1",
+        "fence": fence,
+        "execution_id": format!("exec-{}", fence),
         "version": 1
     })
 }

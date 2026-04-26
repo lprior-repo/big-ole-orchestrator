@@ -10,6 +10,7 @@ mod lineage_scope;
 mod signal_address;
 mod signal_delivery;
 mod signal_match;
+mod signal_scope;
 mod wait_key;
 mod wait_record;
 
@@ -20,6 +21,7 @@ pub use lineage_scope::LineageScope;
 pub use signal_address::SignalAddress;
 pub use signal_delivery::SignalDelivery;
 pub use signal_match::{signal_match, SignalMatchResult};
+pub use signal_scope::SignalScope;
 pub use wait_key::WaitKey;
 pub use wait_record::WaitRecord;
 

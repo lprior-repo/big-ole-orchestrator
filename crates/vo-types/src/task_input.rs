@@ -2,6 +2,10 @@
 //!
 //! This type is the deserialized form of the JSON payload written to FD3 by the
 //! engine. Task binaries read it and produce a [`TaskInput`](crate::task_input::TaskInput).
+//!
+//! Secrets are injected as part of the JSON payload over FD3 per ADR-014,
+//! never via environment variables. Task binaries access them via
+//! [`TaskInput::secret`].
 
 use serde::Deserialize;
 use serde_json::Value;

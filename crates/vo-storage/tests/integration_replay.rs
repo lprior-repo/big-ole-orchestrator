@@ -51,7 +51,8 @@ fn make_unsupported_version_envelope_json(instance_id: &str) -> Vec<u8> {
 }
 
 fn insert_event(partition: &fjall::Keyspace, instance_id: &str, seq: u64, value: &[u8]) {
-    let mut key = instance_id.as_bytes().to_vec();
+    let mut key = vec![vo_storage::codec::EVENT_KEY_VERSION];
+    key.extend_from_slice(instance_id.as_bytes());
     key.extend_from_slice(&seq.to_be_bytes());
     partition.insert(&key, value).unwrap();
 }

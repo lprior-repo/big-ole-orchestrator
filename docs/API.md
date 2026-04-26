@@ -1019,8 +1019,11 @@ Persistence layer backed by Fjall (LSM-tree KV store).
 ### Event Storage
 
 ```rust
-pub fn append_event<E>(namespace, instance_id, event) -> Result<(), String>  // stub
+pub fn append_event<E: Serialize>(namespace: &str, instance_id: &str, event: E) -> Result<(), String>
+pub fn query_events(instance_id: &str) -> Vec<(u64, serde_json::Value)>
 ```
+
+`append_event` persists events to an in-memory event log with sequence validation. `query_events` retrieves stored events by instance ID.
 
 ### Codec
 

@@ -7,9 +7,9 @@
 use std::any::Any;
 
 use thiserror::Error;
-use vo_types::{NodeKind, NodeName, WorkflowName};
+use vo_types::{BufferPolicy, LineageScope, NodeKind, NodeName, WorkflowName};
 
-use crate::graph::{EdgeSpec, NodeSpec, WorkflowSpec};
+use crate::graph::{EdgeSpec, NodeSpec, SignalNodeMeta, WorkflowSpec};
 use crate::node_handle::NodeHandle;
 
 /// Errors that can occur when building a DAG.
@@ -31,11 +31,12 @@ pub enum DagError {
     OrphanNode { name: String },
 }
 
-/// Internal node record with name and kind.
+/// Internal node record with name, kind, and optional signal metadata.
 #[derive(Debug, Clone)]
 struct DagNodeRecord {
     name: NodeName,
     kind: NodeKind,
+    signal_meta: Option<SignalNodeMeta>,
 }
 
 /// A directed acyclic graph of typed workflow nodes.
@@ -81,6 +82,7 @@ impl Dag {
         self.nodes.push(DagNodeRecord {
             name: node_name.clone(),
             kind,
+            signal_meta: None,
         });
         Ok(NodeHandle::new(node_name))
     }
@@ -97,6 +99,17 @@ impl Dag {
     )]
     pub fn add_node<I, O, F>(&mut self, name: &str, _f: F) -> Result<NodeHandle<I, O>, DagError> {
         self.add_node_with_kind(name, NodeKind::Pure, _f)
+    }
+
+    /// Set signal metadata on the most recently added node.
+    ///
+    /// This is a no-op for non-signal/wait nodes.
+    pub fn set_signal_meta(&mut self, meta: SignalNodeMeta) {
+        if let Some(last) = self.nodes.last_mut() {
+            if matches!(last.kind, NodeKind::Signal | NodeKind::Wait) {
+                last.signal_meta = Some(meta);
+            }
+        }
     }
 
     /// Connect two nodes with compile-time type safety.
@@ -271,6 +284,7 @@ impl Dag {
             .map(|n| NodeSpec {
                 name: n.name.clone(),
                 kind: n.kind,
+                signal_meta: n.signal_meta.clone(),
             })
             .collect();
 
@@ -401,12 +415,42 @@ impl Workflow {
         self.dag.add_node_with_kind(name, NodeKind::Wait, f)
     }
 
+    /// Add a wait node with signal metadata to the workflow.
+    pub fn wait_with_meta<I, O, F>(
+        &mut self,
+        name: &str,
+        f: F,
+        meta: SignalNodeMeta,
+    ) -> Result<NodeHandle<I, O>, DagError>
+    where
+        F: Fn(I) -> O + 'static,
+    {
+        let handle = self.dag.add_node_with_kind(name, NodeKind::Wait, f)?;
+        self.dag.set_signal_meta(meta);
+        Ok(handle)
+    }
+
     /// Add a signal node to the workflow.
     pub fn signal<I, O, F>(&mut self, name: &str, f: F) -> Result<NodeHandle<I, O>, DagError>
     where
         F: Fn(I) -> O + 'static,
     {
         self.dag.add_node_with_kind(name, NodeKind::Signal, f)
+    }
+
+    /// Add a signal node with signal metadata to the workflow.
+    pub fn signal_with_meta<I, O, F>(
+        &mut self,
+        name: &str,
+        f: F,
+        meta: SignalNodeMeta,
+    ) -> Result<NodeHandle<I, O>, DagError>
+    where
+        F: Fn(I) -> O + 'static,
+    {
+        let handle = self.dag.add_node_with_kind(name, NodeKind::Signal, f)?;
+        self.dag.set_signal_meta(meta);
+        Ok(handle)
     }
 
     /// Add an unsafe node to the workflow.

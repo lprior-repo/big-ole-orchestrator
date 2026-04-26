@@ -361,8 +361,8 @@ fn effect_key_differs_from_event_key_by_trailing_ff() {
     let seq = SequenceNumber::try_from(1u64).unwrap();
     let event_key = encode_event_key(&id, seq);
     let effect_key = encode_effect_key(&id, seq);
-    assert_eq!(&effect_key[0..24], &event_key[0..24]);
-    assert_eq!(effect_key[24], 0xFF);
+    assert_eq!(&effect_key[0..26], &event_key[0..26]);
+    assert_eq!(effect_key[26], 0xFF);
 }
 
 #[test]
@@ -387,7 +387,7 @@ fn different_statuses_produce_different_prefixes() {
 fn decode_effect_key_rejects_missing_ff_marker() {
     let id = min_instance_id();
     let seq = SequenceNumber::try_from(1u64).unwrap();
-    let key = encode_event_key(&id, seq); // 24 bytes, no 0xFF marker
+    let key = encode_event_key(&id, seq); // 26 bytes, no 0xFF marker
     assert!(
         decode_effect_key(&key).is_err(),
         "effect key decode should reject keys without 0xFF marker"
@@ -396,19 +396,26 @@ fn decode_effect_key_rejects_missing_ff_marker() {
 
 #[allow(dead_code)]
 #[test]
-fn decode_lease_key_rejects_missing_delimiter() {
-    let bad_key = b"00000000000000000000000001step-no-delimiter";
+fn decode_lease_key_rejects_too_short_key() {
+    let bad_key: [u8; 16] = *b"0000000000000000"; // Only 16 bytes, need at least 18
+    let bad_key_ref: &[u8] = &bad_key;
     assert!(
-        decode_lease_key(bad_key).is_err(),
-        "lease key decode should reject keys without :: delimiter"
+        decode_lease_key(bad_key_ref).is_err(),
+        "lease key decode should reject keys shorter than 18 bytes"
     );
 }
 
 #[test]
 fn decode_lease_key_rejects_invalid_instance_id() {
-    let bad_key = b"INVALID::step-1";
+    // All-zero instance ID is technically a valid binary ULID but fails ULID validation
+    let bad_key = [0u8; 16]
+        .into_iter()
+        .chain((3u16).to_be_bytes())
+        .chain([b'a', b'b', b'c'])
+        .collect::<Vec<_>>();
+    // This should fail because all-zeros is not a valid ULID instance ID
     assert!(
-        decode_lease_key(bad_key).is_err(),
+        decode_lease_key(&bad_key).is_err(),
         "lease key decode should reject invalid instance IDs"
     );
 }
@@ -416,7 +423,10 @@ fn decode_lease_key_rejects_invalid_instance_id() {
 #[test]
 fn decode_lease_key_rejects_invalid_step_id() {
     let id = min_instance_id();
-    let bad_key = format!("{id}::step with spaces").into_bytes();
+    let sid_bytes = b"step with spaces";
+    let mut bad_key = id.to_bytes().unwrap_or([0u8; 16]).to_vec();
+    bad_key.extend_from_slice(&(sid_bytes.len() as u16).to_be_bytes());
+    bad_key.extend_from_slice(sid_bytes);
     assert!(
         decode_lease_key(&bad_key).is_err(),
         "lease key decode should reject invalid step IDs"
@@ -458,6 +468,112 @@ fn timer_key_prefix_scan_matches_keys_at_same_timestamp() {
         key.starts_with(&prefix),
         "timer key should start with timestamp prefix"
     );
+}
+
+/// BDD: Given event key includes instance id
+/// When key is encoded
+/// Then instance id is length-prefixed with no ambiguity
+#[test]
+fn given_event_key_when_encoded_then_instance_component_is_unambiguous() {
+    // Given: instance IDs at both extremes of the ULID space
+    let id_min = min_instance_id();
+    let id_max = max_instance_id();
+
+    // And: sequence numbers at both extremes
+    let seq_first = SequenceNumber::try_from(1u64).unwrap();
+    let seq_last = SequenceNumber::try_from(u64::MAX).unwrap();
+
+    // When: event keys are encoded with length-prefixed instance IDs
+    let key_min_first = encode_event_key(&id_min, seq_first);
+    let key_min_last = encode_event_key(&id_min, seq_last);
+    let key_max_first = encode_event_key(&id_max, seq_first);
+    let key_max_last = encode_event_key(&id_max, seq_last);
+
+    // Then: all keys are exactly 26 bytes (2-byte length prefix + 16-byte instance ID + 8-byte sequence)
+    assert_eq!(key_min_first.len(), 26);
+    assert_eq!(key_min_last.len(), 26);
+    assert_eq!(key_max_first.len(), 26);
+    assert_eq!(key_max_last.len(), 26);
+
+    // Then: the length prefix (bytes 0..2) is 16 (ULID byte size) for all keys
+    assert_eq!(&key_min_first[0..2], 16u16.to_be_bytes());
+    assert_eq!(&key_min_last[0..2], 16u16.to_be_bytes());
+    assert_eq!(&key_max_first[0..2], 16u16.to_be_bytes());
+    assert_eq!(&key_max_last[0..2], 16u16.to_be_bytes());
+
+    // Then: decoding roundtrips correctly for all combinations
+    let (decoded_min_first_id, decoded_min_first_seq) = decode_event_key(&key_min_first).unwrap();
+    assert_eq!(decoded_min_first_id, id_min);
+    assert_eq!(decoded_min_first_seq, seq_first);
+
+    let (decoded_min_last_id, decoded_min_last_seq) = decode_event_key(&key_min_last).unwrap();
+    assert_eq!(decoded_min_last_id, id_min);
+    assert_eq!(decoded_min_last_seq, seq_last);
+
+    let (decoded_max_first_id, decoded_max_first_seq) = decode_event_key(&key_max_first).unwrap();
+    assert_eq!(decoded_max_first_id, id_max);
+    assert_eq!(decoded_max_first_seq, seq_first);
+
+    let (decoded_max_last_id, decoded_max_last_seq) = decode_event_key(&key_max_last).unwrap();
+    assert_eq!(decoded_max_last_id, id_max);
+    assert_eq!(decoded_max_last_seq, seq_last);
+
+    // Then: different instances produce different keys at the same sequence
+    assert_ne!(key_min_first, key_max_first, "different instance IDs must produce different keys");
+
+    // Then: different sequences produce different keys for the same instance
+    assert_ne!(key_min_first, key_min_last, "different sequences must produce different keys");
+
+    // Then: lexicographic ordering is preserved (instance dominates, then sequence)
+    assert!(key_min_first < key_min_last, "higher sequence number should sort after lower for same instance");
+    assert!(key_min_first < key_max_first, "smaller instance ID should sort before larger for same sequence");
+
+    // Then: instance prefix scan works — prefix bytes match the encoded instance ID
+    let prefix_min = get_event_key_prefix(&id_min);
+    let prefix_max = get_event_key_prefix(&id_max);
+    assert!(key_min_first.starts_with(&prefix_min));
+    assert!(key_max_first.starts_with(&prefix_max));
+}
+
+/// BDD: Given timer key includes instance id and timer id
+/// When key is encoded
+/// Then components are unambiguous and lexicographic ordering by due time is preserved
+#[test]
+fn given_timer_key_when_encoded_then_components_are_unambiguous_and_ordered() {
+    // Given: different instance IDs at different timestamps
+    let id_a = min_instance_id();
+    let id_b = max_instance_id();
+    let ts_early = 1000u64;
+    let ts_late = 9999u64;
+
+    // When: keys are encoded with length-prefixed instance IDs
+    let key_early_a = encode_timer_key(ts_early, &id_a);
+    let key_early_b = encode_timer_key(ts_early, &id_b);
+    let key_late_a = encode_timer_key(ts_late, &id_a);
+
+    // Then: components are unambiguous — decode roundtrips correctly
+    let (decoded_ts_a, decoded_id_a) = decode_timer_key(&key_early_a).unwrap();
+    assert_eq!(decoded_ts_a, ts_early);
+    assert_eq!(decoded_id_a, id_a);
+
+    let (decoded_ts_b, decoded_id_b) = decode_timer_key(&key_early_b).unwrap();
+    assert_eq!(decoded_ts_b, ts_early);
+    assert_eq!(decoded_id_b, id_b);
+
+    let (decoded_ts_late, decoded_id_late) = decode_timer_key(&key_late_a).unwrap();
+    assert_eq!(decoded_ts_late, ts_late);
+    assert_eq!(decoded_id_late, id_a);
+
+    // Then: different instance IDs produce different keys at same timestamp
+    assert_ne!(key_early_a, key_early_b);
+
+    // Then: lexicographic ordering preserves chronology (earlier timestamp < later)
+    assert!(key_early_a < key_late_a, "earlier timestamp should sort before later");
+    assert!(key_early_b < key_late_a, "earlier timestamp should sort before later");
+
+    // Then: same timestamp ordering is by instance_id bytes (length-prefixed)
+    // id_a < id_b should give key_early_a < key_early_b
+    assert!(key_early_a < key_early_b, "same timestamp: smaller instance_id should sort first");
 }
 
 #[test]
@@ -514,6 +630,51 @@ fn lease_key_with_max_instance_id_roundtrips() {
     let (decoded_id, decoded_step) = decode_lease_key(&key).unwrap();
     assert_eq!(decoded_id, id);
     assert_eq!(decoded_step, step);
+}
+
+#[test]
+fn given_event_key_when_encoded_with_ulid_then_instance_bytes_are_preserved() {
+    let id = InstanceId::parse("01H5X2K3M4N5P6Q7R8S9T0VWXY").unwrap();
+    let seq = SequenceNumber::try_from(42u64).unwrap();
+    let key = encode_event_key(&id, seq);
+
+    assert_eq!(
+        key.len(),
+        24,
+        "event key must be exactly 24 bytes (16-byte instance + 8-byte sequence)"
+    );
+
+    let iid_bytes = id.to_bytes().unwrap();
+    assert_eq!(
+        iid_bytes.len(),
+        16,
+        "InstanceId::to_bytes must produce exactly 16 bytes (ULID binary)"
+    );
+    assert_eq!(
+        &key[..16], &iid_bytes,
+        "first 16 bytes of event key must be the raw ULID bytes"
+    );
+
+    let reconstructed = InstanceId::from_bytes(iid_bytes);
+    assert_eq!(
+        reconstructed, id,
+        "reconstructing InstanceId from the 16-byte slice must yield the original"
+    );
+
+    let roundtrip = decode_event_key(&key).unwrap();
+    assert_eq!(roundtrip.0, id);
+    assert_eq!(roundtrip.1, seq);
+
+    let id2 = InstanceId::parse("7ZZZZZZZZZZZZZZZZZZZZZZZZZ").unwrap();
+    let key2 = encode_event_key(&id2, seq);
+    assert_eq!(
+        key2.len(), 24,
+        "different InstanceId still produces 24-byte key (fixed width)"
+    );
+    assert_ne!(
+        key[..16], key2[..16],
+        "different InstanceIds must differ in the first 16 bytes"
+    );
 }
 
 #[allow(dead_code)]

@@ -141,6 +141,7 @@ pub const fn apply_diff(
 
     Ok(InstanceState {
         counter: new_counter,
+        binary_hash: None,
     })
 }
 
@@ -161,24 +162,28 @@ pub const fn three_way_merge(
     if base_counter == ours_counter && base_counter == theirs_counter {
         return Ok(InstanceState {
             counter: base_counter,
+            binary_hash: None,
         });
     }
 
     if base_counter == ours_counter {
         return Ok(InstanceState {
             counter: theirs_counter,
+            binary_hash: None,
         });
     }
 
     if base_counter == theirs_counter {
         return Ok(InstanceState {
             counter: ours_counter,
+            binary_hash: None,
         });
     }
 
     if ours_counter == theirs_counter {
         return Ok(InstanceState {
             counter: ours_counter,
+            binary_hash: None,
         });
     }
 

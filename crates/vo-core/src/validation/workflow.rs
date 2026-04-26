@@ -20,6 +20,7 @@ use std::collections::HashSet;
 use std::fmt;
 use thiserror::Error;
 use vo_types::EffectKind;
+use vo_types::{DedupeScope, GuaranteeClass, NodeKind};
 
 /// The set of known sink identifiers that are allowed in workflows.
 ///
@@ -260,12 +261,198 @@ pub fn validate_effect_kinds(
     Ok(())
 }
 
+/// Error returned when a ManagedEffect node targets an unsupported connector sink.
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+#[error("managed effect '{node_name}' targets unsupported connector sink: '{sink}' (known sinks: {known_sinks})")]
+pub struct UnsupportedConnectorSink {
+    pub node_name: String,
+    pub sink: String,
+    pub known_sinks: String,
+}
+
+impl UnsupportedConnectorSink {
+    #[must_use]
+    pub fn error_code() -> &'static str {
+        "unsupported_connector_sink"
+    }
+}
+
+/// Validate that all ManagedEffect nodes in a workflow target known connector sinks.
+///
+/// Non-ManagedEffect nodes are ignored. Only nodes with `NodeKind::ManagedEffect`
+/// are checked against the known sinks registry.
+///
+/// # Errors
+///
+/// Returns `UnsupportedConnectorSink` if any ManagedEffect node targets a sink
+/// not in the known set.
+pub fn validate_managed_effect_sinks(
+    nodes: &[(NodeKind, &str, &str)],
+    known_sinks: &KnownSinks,
+) -> Result<(), UnsupportedConnectorSink> {
+    for (kind, name, sink) in nodes {
+        if *kind == NodeKind::ManagedEffect {
+            if sink.is_empty() {
+                return Err(UnsupportedConnectorSink {
+                    node_name: (*name).to_string(),
+                    sink: sink.to_string(),
+                    known_sinks: known_sinks.to_string(),
+                });
+            }
+            if !known_sinks.contains(sink) {
+                return Err(UnsupportedConnectorSink {
+                    node_name: (*name).to_string(),
+                    sink: sink.to_string(),
+                    known_sinks: known_sinks.to_string(),
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
 fn effect_kind_to_sink(kind: EffectKind) -> &'static str {
     match kind {
         EffectKind::HttpCall => "http",
         EffectKind::SqlQuery => "sql",
         EffectKind::BlobWrite => "blob",
     }
+}
+
+/// Error returned when a workflow contains `Unsafe` nodes that are not permitted
+/// by its guarantee class (ADR-003, ADR-031).
+///
+/// Only `BestEffort` workflows may contain `Unsafe` nodes, since unsafe nodes
+/// break all delivery guarantees by definition.
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+pub enum UnsafePublishError {
+    /// The workflow contains `Unsafe` nodes but its guarantee class does not permit them.
+    #[error("workflow '{workflow_name}' has guarantee class '{guarantee_class}' which does not permit Unsafe nodes, but contains {unsafe_node_count} Unsafe node(s): {unsafe_nodes}")]
+    UnsafeNotAllowed {
+        /// The workflow name.
+        workflow_name: String,
+        /// The guarantee class of the workflow.
+        guarantee_class: String,
+        /// The number of Unsafe nodes found.
+        unsafe_node_count: usize,
+        /// The names of the Unsafe nodes.
+        unsafe_nodes: String,
+    },
+}
+
+/// Specification of a workflow at publish time, carrying both its guarantee class
+/// and the full node list for validation.
+#[derive(Debug, Clone)]
+pub struct WorkflowPublishSpec {
+    /// The guarantee class determining delivery semantics.
+    pub guarantee_class: GuaranteeClass,
+    /// The nodes in the workflow.
+    pub nodes: Vec<vo_types::NodeName>,
+    /// The corresponding kind for each node (parallel to `nodes`).
+    pub node_kinds: Vec<NodeKind>,
+    /// Dedupe scope for exactly-once ingress deduplication (ADR-028, ADR-031).
+    pub dedupe_scope: DedupeScope,
+}
+
+impl WorkflowPublishSpec {
+    /// Create a new `WorkflowPublishSpec`.
+    #[must_use]
+    pub fn new(guarantee_class: GuaranteeClass, nodes: Vec<vo_types::NodeName>, node_kinds: Vec<NodeKind>) -> Self {
+        assert_eq!(
+            nodes.len(),
+            node_kinds.len(),
+            "nodes and node_kinds must have the same length"
+        );
+        Self {
+            guarantee_class,
+            nodes,
+            node_kinds,
+            dedupe_scope: DedupeScope::default(),
+        }
+    }
+
+    /// Returns the workflow name from the first node, or "unknown" if empty.
+    #[must_use]
+    pub fn workflow_name(&self) -> String {
+        self.nodes.first()
+            .map(|n| n.to_string())
+            .unwrap_or_else(|| "unknown".to_string())
+    }
+}
+
+/// Validate that a workflow does not contain `Unsafe` nodes when its guarantee
+/// class forbids them (ADR-003, ADR-031).
+///
+/// # Errors
+///
+/// Returns `UnsafePublishError::UnsafeNotAllowed` if the workflow's guarantee
+/// class does not permit unsafe nodes but the workflow contains one or more.
+pub fn validate_unsafe_nodes(spec: &WorkflowPublishSpec) -> Result<(), UnsafePublishError> {
+    if spec.guarantee_class.permits_unsafe_nodes() {
+        return Ok(());
+    }
+
+    let unsafe_nodes: Vec<String> = spec
+        .nodes
+        .iter()
+        .zip(&spec.node_kinds)
+        .filter_map(|(name, kind)| {
+            if *kind == NodeKind::Unsafe {
+                Some(name.to_string())
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    if unsafe_nodes.is_empty() {
+        return Ok(());
+    }
+
+    Err(UnsafePublishError::UnsafeNotAllowed {
+        workflow_name: spec.workflow_name(),
+        guarantee_class: spec.guarantee_class.label().to_string(),
+        unsafe_node_count: unsafe_nodes.len(),
+        unsafe_nodes: unsafe_nodes.join(", "),
+    })
+}
+
+/// Error returned when an exact-once workflow lacks required dedupe policy (ADR-028, ADR-031).
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+pub enum DedupePolicyError {
+    /// The workflow requires exact-once deduplication but has no dedupe scope configured.
+    #[error("workflow '{workflow_name}' has guarantee class '{guarantee_class}' which requires dedupe policy, but dedupe scope is '{dedupe_scope}'")]
+    Missing {
+        /// The workflow name.
+        workflow_name: String,
+        /// The guarantee class of the workflow.
+        guarantee_class: String,
+        /// The current dedupe scope value.
+        dedupe_scope: String,
+    },
+}
+
+/// Validate that a workflow with `ExactOnce` guarantee class has a dedupe scope set
+/// to `Exact` (ADR-028, ADR-031).
+///
+/// # Errors
+///
+/// Returns `DedupePolicyError::Missing` if the workflow's guarantee class requires
+/// deduplication but the dedupe scope is not set to `Exact`.
+pub fn validate_dedupe_policy(spec: &WorkflowPublishSpec) -> Result<(), DedupePolicyError> {
+    if !spec.guarantee_class.requires_deduplication() {
+        return Ok(());
+    }
+
+    if spec.dedupe_scope == DedupeScope::Exact {
+        return Ok(());
+    }
+
+    Err(DedupePolicyError::Missing {
+        workflow_name: spec.workflow_name(),
+        guarantee_class: spec.guarantee_class.label().to_string(),
+        dedupe_scope: format!("{:?}", spec.dedupe_scope),
+    })
 }
 
 #[cfg(test)]
@@ -436,5 +623,310 @@ mod tests {
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert_eq!(err.error_code(), "empty_sink");
+    }
+
+    // ========================================================================
+    // BDD Tests: Publish Validation for Unsafe Nodes (ADR-003, ADR-031)
+    // ========================================================================
+
+    #[test]
+    fn given_exact_workflow_with_unsafe_node_when_published_then_validation_rejects() {
+        // Given an exact workflow spec contains an Unsafe node
+        use vo_types::NodeName;
+        let spec = WorkflowPublishSpec::new(
+            GuaranteeClass::ExactOnce,
+            vec![
+                NodeName::parse("entry-point").unwrap(),
+                NodeName::parse("unsafe-step").unwrap(),
+            ],
+            vec![NodeKind::Pure, NodeKind::Unsafe],
+        );
+
+        // When publish validation runs
+        let result = validate_unsafe_nodes(&spec);
+
+        // Then publish fails and no workflow version is activated
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, UnsafePublishError::UnsafeNotAllowed { .. }));
+        let err_msg = err.to_string();
+        assert!(err_msg.contains("unsafe-step"));
+        assert!(err_msg.contains("exact-once"));
+        assert!(err_msg.contains("Unsafe"));
+    }
+
+    #[test]
+    fn given_at_least_once_workflow_with_unsafe_node_when_published_then_validation_rejects() {
+        // AtLeastOnce also does not permit Unsafe nodes
+        use vo_types::NodeName;
+        let spec = WorkflowPublishSpec::new(
+            GuaranteeClass::AtLeastOnce,
+            vec![NodeName::parse("unsafe-step").unwrap()],
+            vec![NodeKind::Unsafe],
+        );
+
+        let result = validate_unsafe_nodes(&spec);
+
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), UnsafePublishError::UnsafeNotAllowed { .. }));
+    }
+
+    #[test]
+    fn given_best_effort_workflow_with_unsafe_node_when_published_then_validation_accepts() {
+        // BestEffort DOES permit Unsafe nodes
+        use vo_types::NodeName;
+        let spec = WorkflowPublishSpec::new(
+            GuaranteeClass::BestEffort,
+            vec![
+                NodeName::parse("entry-point").unwrap(),
+                NodeName::parse("unsafe-step").unwrap(),
+            ],
+            vec![NodeKind::Pure, NodeKind::Unsafe],
+        );
+
+        let result = validate_unsafe_nodes(&spec);
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn given_exact_workflow_without_unsafe_node_when_published_then_validation_accepts() {
+        // ExactOnce workflow with only Pure and ManagedEffect nodes is valid
+        use vo_types::NodeName;
+        let spec = WorkflowPublishSpec::new(
+            GuaranteeClass::ExactOnce,
+            vec![
+                NodeName::parse("entry-point").unwrap(),
+                NodeName::parse("compute").unwrap(),
+                NodeName::parse("effect").unwrap(),
+            ],
+            vec![NodeKind::Pure, NodeKind::Pure, NodeKind::ManagedEffect],
+        );
+
+        let result = validate_unsafe_nodes(&spec);
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn given_empty_workflow_when_published_then_validation_accepts() {
+        // Empty workflow has no unsafe nodes regardless of guarantee class
+        let spec = WorkflowPublishSpec::new(
+            GuaranteeClass::ExactOnce,
+            vec![],
+            vec![],
+        );
+
+        let result = validate_unsafe_nodes(&spec);
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn given_multiple_unsafe_nodes_in_exact_workflow_then_validation_rejects_all() {
+        // When there are multiple Unsafe nodes, they should all be reported
+        use vo_types::NodeName;
+        let spec = WorkflowPublishSpec::new(
+            GuaranteeClass::ExactOnce,
+            vec![
+                NodeName::parse("unsafe-a").unwrap(),
+                NodeName::parse("unsafe-b").unwrap(),
+                NodeName::parse("unsafe-c").unwrap(),
+            ],
+            vec![NodeKind::Unsafe, NodeKind::Unsafe, NodeKind::Unsafe],
+        );
+
+        let result = validate_unsafe_nodes(&spec);
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        let err_msg = err.to_string();
+        assert!(err_msg.contains("unsafe-a"));
+        assert!(err_msg.contains("unsafe-b"));
+        assert!(err_msg.contains("unsafe-c"));
+        assert!(err_msg.contains("3"));
+    }
+
+    #[test]
+    fn validate_unsafe_nodes_error_contains_workflow_name() {
+        use vo_types::NodeName;
+        let spec = WorkflowPublishSpec::new(
+            GuaranteeClass::ExactOnce,
+            vec![NodeName::parse("my-workflow").unwrap()],
+            vec![NodeKind::Unsafe],
+        );
+
+        let err = validate_unsafe_nodes(&spec).unwrap_err();
+        let err_msg = err.to_string();
+        assert!(err_msg.contains("my-workflow"));
+    }
+
+    // ========================================================================
+    // BDD Tests: Dedupe Policy Validation for Exact-Once Workflows (ADR-028, ADR-031)
+    // ========================================================================
+
+    #[test]
+    fn given_exact_workflow_without_dedupe_policy_when_published_then_validation_rejects() {
+        use vo_types::{DedupeScope, NodeName};
+        let spec = WorkflowPublishSpec {
+            guarantee_class: GuaranteeClass::ExactOnce,
+            nodes: vec![NodeName::parse("entry-point").unwrap()],
+            node_kinds: vec![NodeKind::Pure],
+            dedupe_scope: DedupeScope::Unbounded,
+        };
+
+        let result = validate_dedupe_policy(&spec);
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, DedupePolicyError::Missing { .. }));
+        let err_msg = err.to_string();
+        assert!(err_msg.contains("entry-point"));
+        assert!(err_msg.contains("exact-once"));
+        assert!(err_msg.contains("Unbounded"));
+    }
+
+    #[test]
+    fn given_exact_workflow_with_dedupe_scope_exact_when_published_then_validation_accepts() {
+        use vo_types::{DedupeScope, NodeName};
+        let spec = WorkflowPublishSpec {
+            guarantee_class: GuaranteeClass::ExactOnce,
+            nodes: vec![NodeName::parse("entry-point").unwrap()],
+            node_kinds: vec![NodeKind::Pure],
+            dedupe_scope: DedupeScope::Exact,
+        };
+
+        let result = validate_dedupe_policy(&spec);
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn given_at_least_once_workflow_without_dedupe_scope_when_published_then_validation_accepts() {
+        use vo_types::DedupeScope;
+        let spec = WorkflowPublishSpec::new(
+            GuaranteeClass::AtLeastOnce,
+            vec![],
+            vec![],
+        );
+
+        let result = validate_dedupe_policy(&spec);
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn given_best_effort_workflow_without_dedupe_scope_when_published_then_validation_accepts() {
+        use vo_types::DedupeScope;
+        let spec = WorkflowPublishSpec::new(
+            GuaranteeClass::BestEffort,
+            vec![],
+            vec![],
+        );
+
+        let result = validate_dedupe_policy(&spec);
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn dedupe_policy_error_message_contains_all_details() {
+        use vo_types::{DedupeScope, NodeName};
+        let spec = WorkflowPublishSpec {
+            guarantee_class: GuaranteeClass::ExactOnce,
+            nodes: vec![NodeName::parse("my-workflow").unwrap()],
+            node_kinds: vec![NodeKind::Pure],
+            dedupe_scope: DedupeScope::Unbounded,
+        };
+
+        let err = validate_dedupe_policy(&spec).unwrap_err();
+        let err_msg = err.to_string();
+        assert!(err_msg.contains("my-workflow"));
+        assert!(err_msg.contains("exact-once"));
+        assert!(err_msg.contains("Unbounded"));
+    }
+
+    // ========================================================================
+    // BDD Tests: Managed Effect Connector Sink Validation (ADR-031)
+    // ========================================================================
+
+    #[test]
+    fn given_managed_effect_with_unsupported_sink_when_published_then_validation_rejects() {
+        let known_sinks = KnownSinks::default_sinks();
+        let nodes = [
+            (NodeKind::Pure, "step_a", ""),
+            (NodeKind::ManagedEffect, "send_email", "smtp"),
+            (NodeKind::Pure, "step_c", ""),
+        ];
+
+        let result = validate_managed_effect_sinks(&nodes, &known_sinks);
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert_eq!(err.node_name, "send_email");
+        assert_eq!(err.sink, "smtp");
+        assert_eq!(UnsupportedConnectorSink::error_code(), "unsupported_connector_sink");
+        let msg = err.to_string();
+        assert!(msg.contains("send_email"));
+        assert!(msg.contains("smtp"));
+        assert!(msg.contains("unsupported connector sink"));
+    }
+
+    #[test]
+    fn managed_effect_with_known_sink_passes_validation() {
+        let known_sinks = KnownSinks::default_sinks();
+        let nodes = [
+            (NodeKind::Pure, "step_a", ""),
+            (NodeKind::ManagedEffect, "write_blob", "blob"),
+            (NodeKind::ManagedEffect, "call_api", "http"),
+        ];
+
+        let result = validate_managed_effect_sinks(&nodes, &known_sinks);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn managed_effect_with_empty_sink_rejects() {
+        let known_sinks = KnownSinks::default_sinks();
+        let nodes = [(NodeKind::ManagedEffect, "no_sink", "")];
+
+        let result = validate_managed_effect_sinks(&nodes, &known_sinks);
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().node_name, "no_sink");
+    }
+
+    #[test]
+    fn non_managed_effect_nodes_are_ignored() {
+        let known_sinks = KnownSinks::default_sinks();
+        let nodes = [
+            (NodeKind::Pure, "step_a", "nonexistent"),
+            (NodeKind::Unsafe, "step_b", "garbage"),
+            (NodeKind::Signal, "step_c", "whatever"),
+        ];
+
+        let result = validate_managed_effect_sinks(&nodes, &known_sinks);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn empty_node_list_passes() {
+        let known_sinks = KnownSinks::default_sinks();
+        let nodes: [(NodeKind, &str, &str); 0] = [];
+
+        let result = validate_managed_effect_sinks(&nodes, &known_sinks);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn returns_first_unsupported_managed_effect_sink() {
+        let known_sinks = KnownSinks::default_sinks();
+        let nodes = [
+            (NodeKind::ManagedEffect, "bad_one", "kafka"),
+            (NodeKind::ManagedEffect, "bad_two", "redis"),
+        ];
+
+        let result = validate_managed_effect_sinks(&nodes, &known_sinks);
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().node_name, "bad_one");
     }
 }

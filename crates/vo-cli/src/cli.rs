@@ -27,6 +27,8 @@ pub enum CliError {
     Rebuild(#[from] crate::commands::rebuild::RebuildError),
     #[error(transparent)]
     Status(#[from] crate::commands::status::StatusError),
+    #[error(transparent)]
+    Serve(#[from] crate::commands::serve::ServeError),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -74,6 +76,11 @@ pub enum Command {
         timeout: u64,
         force: bool,
         dry_run: bool,
+    },
+    Serve {
+        host: String,
+        port: u16,
+        storage_path: PathBuf,
     },
 }
 
@@ -266,6 +273,28 @@ where
                         .action(clap::ArgAction::SetTrue)
                         .help("Dry run mode"),
                 ),
+        )
+        .subcommand(
+            clap::Command::new("serve")
+                .about("Start the veloxide HTTP server")
+                .arg(
+                    clap::Arg::new("host")
+                        .long("host")
+                        .default_value("127.0.0.1")
+                        .help("Bind host address"),
+                )
+                .arg(
+                    clap::Arg::new("port")
+                        .long("port")
+                        .default_value("3000")
+                        .help("Bind port"),
+                )
+                .arg(
+                    clap::Arg::new("storage-path")
+                        .long("storage-path")
+                        .default_value(".vo/storage")
+                        .help("Path to Fjall storage directory"),
+                ),
         );
 
     let matches = cmd.try_get_matches_from(args)?;
@@ -431,6 +460,28 @@ where
                 },
             })
         }
+        Some(("serve", sub_matches)) => {
+            let host = sub_matches
+                .get_one::<String>("host")
+                .cloned()
+                .unwrap_or_else(|| "127.0.0.1".to_string());
+            let port_str = sub_matches
+                .get_one::<String>("port")
+                .map(|s| s.as_str())
+                .unwrap_or("3000");
+            let port: u16 = port_str.parse().unwrap_or(3000);
+            let storage_path = sub_matches
+                .get_one::<String>("storage-path")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from(".vo/storage"));
+            Ok(Cli {
+                command: Command::Serve {
+                    host,
+                    port,
+                    storage_path,
+                },
+            })
+        }
         _ => Err(clap::Error::new(clap::error::ErrorKind::InvalidSubcommand)),
     }
 }
@@ -452,7 +503,8 @@ pub fn map_error_to_exit_code(err: &CliError) -> i32 {
         | CliError::Lock(_)
         | CliError::Doctor(_)
         | CliError::Rebuild(_)
-        | CliError::Status(_) => 1,
+        | CliError::Status(_)
+        | CliError::Serve(_) => 1,
         CliError::InvalidNumeric(_) => 2,
     }
 }

@@ -2,8 +2,9 @@
 //! Integration tests for check_and_insert and contains operations.
 
 use super::*;
-use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Mutex;
 
 fn sample_instance_id() -> InstanceId {
     InstanceId::from_bytes([2u8; 16])
@@ -14,8 +15,8 @@ fn sample_instance_id() -> InstanceId {
 // ========================================================================
 
 struct DeterministicDedupeStore {
-    entries: RefCell<HashMap<String, DedupeEntry>>,
-    now_ms: Cell<u64>,
+    entries: Mutex<HashMap<String, DedupeEntry>>,
+    now_ms: AtomicU64,
     failure_mode: Option<FailureMode>,
 }
 
@@ -28,20 +29,20 @@ enum FailureMode {
 impl DeterministicDedupeStore {
     fn new() -> Self {
         Self {
-            entries: RefCell::new(HashMap::new()),
-            now_ms: Cell::new(0),
+            entries: Mutex::new(HashMap::new()),
+            now_ms: AtomicU64::new(0),
             failure_mode: None,
         }
     }
 
     fn set_time(&self, now_ms: u64) {
-        self.now_ms.set(now_ms);
+        self.now_ms.store(now_ms, Ordering::SeqCst);
     }
 
     fn failing_check_and_insert(reason: &str) -> Self {
         Self {
-            entries: RefCell::new(HashMap::new()),
-            now_ms: Cell::new(0),
+            entries: Mutex::new(HashMap::new()),
+            now_ms: AtomicU64::new(0),
             failure_mode: Some(FailureMode::CheckAndInsert {
                 reason: reason.to_string(),
             }),
@@ -50,8 +51,8 @@ impl DeterministicDedupeStore {
 
     fn failing_contains(reason: &str) -> Self {
         Self {
-            entries: RefCell::new(HashMap::new()),
-            now_ms: Cell::new(0),
+            entries: Mutex::new(HashMap::new()),
+            now_ms: AtomicU64::new(0),
             failure_mode: Some(FailureMode::Contains {
                 reason: reason.to_string(),
             }),
@@ -75,9 +76,9 @@ impl DedupeStore for DeterministicDedupeStore {
             return Err(DedupeStoreError::InvalidArgument);
         }
         let key_str = key.as_str().to_string();
-        let now = self.now_ms.get();
+        let now = self.now_ms.load(Ordering::SeqCst);
         let admission = {
-            let entries = self.entries.borrow();
+            let entries = self.entries.lock().unwrap();
             entries.get(key_str.as_str()).and_then(|existing| {
                 if existing.is_expired(now) {
                     None
@@ -92,13 +93,13 @@ impl DedupeStore for DeterministicDedupeStore {
             return Ok(a);
         }
         let entry = DedupeEntry::new(key_str.clone(), format!("{instance_id}"), ttl_ms)?;
-        self.entries.borrow_mut().insert(key_str, entry);
+        self.entries.lock().unwrap().insert(key_str, entry);
         Ok(AdmissionResult::Admitted)
     }
 
     fn purge_expired(&self, now_ms: u64) -> Result<u64, DedupeStoreError> {
         // Stubbed - actual tests are in tests_purge.rs
-        let mut entries = self.entries.borrow_mut();
+        let mut entries = self.entries.lock().unwrap();
         let before = entries.len();
         entries.retain(|_, v| !v.is_expired(now_ms));
         Ok((before - entries.len()) as u64)
@@ -110,11 +111,11 @@ impl DedupeStore for DeterministicDedupeStore {
                 reason: reason.clone(),
             });
         }
-        let entries = self.entries.borrow();
+        let entries = self.entries.lock().unwrap();
         let key_str = key.as_str();
         Ok(entries
             .get(key_str)
-            .is_some_and(|entry| !entry.is_expired(self.now_ms.get())))
+            .is_some_and(|entry| !entry.is_expired(self.now_ms.load(Ordering::SeqCst))))
     }
 }
 
@@ -175,7 +176,8 @@ fn check_and_insert_returns_admitted_when_existing_entry_is_expired() {
         DedupeEntry::new("expired-key".to_string(), "stale-instance".to_string(), 0).unwrap();
     store
         .entries
-        .borrow_mut()
+        .lock()
+        .unwrap()
         .insert("expired-key".to_string(), expired_entry);
 
     let result = store.check_and_insert(&key, &sample_instance_id(), 5000);
@@ -191,13 +193,15 @@ fn check_and_insert_replaces_expired_entry_with_new_instance_id() {
         DedupeEntry::new("reinsert-key".to_string(), "stale-instance".to_string(), 0).unwrap();
     store
         .entries
-        .borrow_mut()
+        .lock()
+        .unwrap()
         .insert("reinsert-key".to_string(), expired_entry);
 
     let result = store.check_and_insert(&key, &sample_instance_id(), 5000);
     let stored_instance_id = store
         .entries
-        .borrow()
+        .lock()
+        .unwrap()
         .get("reinsert-key")
         .unwrap()
         .instance_id()
@@ -275,7 +279,8 @@ fn rq_expired_entry_allows_reinsert_preserves_new_instance_id() {
     .unwrap();
     store
         .entries
-        .borrow_mut()
+        .lock()
+        .unwrap()
         .insert("rq-reinsert-boundary-b2uv".to_string(), expired);
 
     // At time 0, the entry is expired — reinsert must succeed
@@ -283,7 +288,7 @@ fn rq_expired_entry_allows_reinsert_preserves_new_instance_id() {
     assert_eq!(result, AdmissionResult::Admitted);
 
     // Verify new instance_id replaced the old one
-    let entries = store.entries.borrow();
+    let entries = store.entries.lock().unwrap();
     let stored = entries.get("rq-reinsert-boundary-b2uv").unwrap();
     assert_eq!(stored.instance_id(), &new_iid.to_string());
     assert_ne!(stored.instance_id(), &old_iid.to_string());

@@ -59,4 +59,18 @@ impl AttemptNumber {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct InstanceState {
     pub counter: u64,
+    /// Pinned binary hash for this instance (ADR-017, ADR-027).
+    /// Set when the instance starts from the WorkflowStarted event.
+    /// Remains immutable even if the workflow is redeployed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub binary_hash: Option<String>,
+}
+
+impl Default for InstanceState {
+    fn default() -> Self {
+        Self {
+            counter: 0,
+            binary_hash: None,
+        }
+    }
 }
