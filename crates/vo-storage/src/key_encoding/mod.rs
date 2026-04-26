@@ -16,6 +16,9 @@
 use vo_types::{InstanceId, ParseError, SequenceNumber, StepId};
 
 #[cfg(test)]
+mod storage_contract_tests;
+
+#[cfg(test)]
 mod tests;
 
 #[cfg(test)]

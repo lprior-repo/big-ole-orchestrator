@@ -136,11 +136,103 @@ pub fn create_router(state: AppState) -> Router {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::handlers::{WorkflowSseEvent, WorkflowWsEvent};
 
     #[test]
     fn app_state_is_clone() {
-        // AppState must be Clone for axum State extraction.
         fn assert_clone<T: Clone>() {}
         assert_clone::<AppState>();
+    }
+
+    struct DummyOrchestrator;
+
+    impl ractor::Actor for DummyOrchestrator {
+        type Msg = OrchestratorMsg;
+        type State = ();
+        type Arguments = ();
+
+        async fn pre_start(
+            &self,
+            _myself: ActorRef<Self::Msg>,
+            _args: Self::Arguments,
+        ) -> Result<Self::State, ractor::ActorProcessingErr> {
+            Ok(())
+        }
+    }
+
+    /// BDD: Given a server bootstrap creates AppState,
+    ///      When workflow start and query handlers are registered,
+    ///      Then both handlers share the same storage/orchestrator handles
+    ///      instead of independent test-only state.
+    ///
+    /// Proves handle identity for: storage DB, circuit breaker, orchestrator ref.
+    /// SSE/WS broadcaster sharing verified via cross-cloned receiver receiving events.
+    #[tokio::test]
+    async fn given_server_bootstrap_when_app_state_created_then_handlers_share_runtime_handles() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let storage =
+            vo_storage::partitions::StorageEngine::open(tmp.path()).expect("StorageEngine::open");
+
+        let circuit_breaker = Arc::new(vo_core::circuit_breaker::CircuitBreakerState::new());
+        let db_handle = Arc::new(storage.db().clone());
+        let workspace_index = Arc::new(std::sync::RwLock::new(
+            vo_types::workspace::WorkspaceIndex::new(),
+        ));
+
+        let query_state = QueryState {
+            db: db_handle.clone(),
+            workspace_index,
+        };
+
+        let (master_ref, _handle) = ractor::Actor::spawn(
+            Some("test-orchestrator".to_string()),
+            DummyOrchestrator,
+            (),
+        )
+        .await
+        .expect("spawn dummy orchestrator");
+        let master = Arc::new(master_ref);
+
+        let state = AppState {
+            query: query_state,
+            sse: SseState::new(),
+            ws: WsState::new(),
+            master: master.clone(),
+            circuit_breaker: circuit_breaker.clone(),
+        };
+
+        let _router = create_router(state.clone());
+        let cloned = state.clone();
+
+        assert!(
+            Arc::ptr_eq(&cloned.query.db, &db_handle),
+            "query handler must share the same storage DB handle"
+        );
+        assert!(
+            Arc::ptr_eq(&cloned.circuit_breaker, &circuit_breaker),
+            "workflow handler must share the same circuit breaker handle"
+        );
+        assert!(
+            Arc::ptr_eq(&cloned.master, &master),
+            "workflow/signal/event handlers must share the same orchestrator actor ref"
+        );
+
+        let mut sse_rx = cloned.sse.broadcaster.subscribe();
+        state
+            .sse
+            .broadcaster
+            .send(WorkflowSseEvent::InstanceCompleted)
+            .expect("sse send");
+        let received = sse_rx.recv().await;
+        assert!(received.is_ok(), "SSE clone must share the same broadcaster channel");
+
+        let mut ws_rx = cloned.ws.broadcaster.subscribe();
+        state
+            .ws
+            .broadcaster
+            .send(WorkflowWsEvent::InstanceCompleted)
+            .expect("ws send");
+        let received = ws_rx.recv().await;
+        assert!(received.is_ok(), "WS clone must share the same broadcaster channel");
     }
 }

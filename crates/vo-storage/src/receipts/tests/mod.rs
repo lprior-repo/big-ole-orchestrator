@@ -11,6 +11,7 @@
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]
 
+mod proptests;
 mod tests_codec;
 mod tests_crash;
 mod tests_duplicate;
