@@ -39,7 +39,9 @@ impl ProjectionRecord {
     }
 }
 
-// =====================================================================#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+// =====================================================================
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProjectionResult<S> {
     pub state: S,
     pub events_applied: u64,
@@ -69,7 +71,9 @@ impl<S> ProjectionResult<S> {
     }
 }
 
-// =====================================================================#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+// =====================================================================
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ProjectionState {
     Building,
     Ready,
@@ -100,7 +104,9 @@ impl ProjectionState {
     }
 }
 
-// =====================================================================#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+// =====================================================================
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum StaleReason {
     SchemaVersionMismatch { expected: u8, actual: u8 },
     SequenceGapDetected { gap_at: u64 },
@@ -108,7 +114,9 @@ pub enum StaleReason {
     ManualInvalidation,
 }
 
-// =====================================================================#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+// =====================================================================
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ProjectionEvent {
     ProjectionStarted {
         projection_id: String,
@@ -137,7 +145,9 @@ pub enum ProjectionEvent {
     },
 }
 
-// =====================================================================pub trait Projector<S, E>
+// =====================================================================
+
+pub trait Projector<S, E>
 where
     S: Clone + Default + serde::Serialize,
 {

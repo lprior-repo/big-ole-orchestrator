@@ -22,6 +22,7 @@
 //! let result = rebuilder.rebuild_full(events)?;
 //! ```
 
+pub mod context;
 pub mod engine;
 pub mod error;
 pub mod rebuilder;
@@ -33,7 +34,8 @@ pub use engine::{ProjectionEngine, ProjectionEngineBuilder};
 pub use error::{
     ProjectionError, ProjectionStateError, ProjectionVersionError, ReplayError, StorageError,
 };
-pub use rebuilder::{ProjectionRebuilder, RebuildContext};
+pub use rebuilder::ProjectionRebuilder;
+pub use context::RebuildContext;
 pub use state_manager::ProjectionStateManager;
 pub use throttle::RebuildThrottleConfig;
 pub use types::{

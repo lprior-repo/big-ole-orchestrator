@@ -7,11 +7,9 @@
 //! - If insufficient tokens, request is denied
 //! - Sliding window: token accumulation is calculated based on elapsed time since last update
 
-#[path = "cooldown.rs"]
-mod cooldown;
+use std::time::Instant;
 
-#[path = "token_bucket.rs"]
-mod token_bucket;
+use dashmap::DashMap;
 
 /// Configuration for a token bucket rate limiter.
 #[derive(Debug, Clone, Copy)]

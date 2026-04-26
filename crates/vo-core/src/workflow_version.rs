@@ -257,6 +257,9 @@ impl std::fmt::Display for VersionPinError {
 }
 
 impl std::error::Error for VersionPinError {}
+
+#[cfg(test)]
+mod tests {
     use vo_types::{BinaryHash, TimestampMs, WorkflowName};
 
     #[test]
