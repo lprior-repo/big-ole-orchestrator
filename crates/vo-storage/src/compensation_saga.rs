@@ -371,6 +371,8 @@ pub enum CompensationError {
     ReconciliationRequired { effect_id: String },
     #[error("dependency cycle detected involving: {effect_ids:?}")]
     CycleDetected { effect_ids: Vec<String> },
+    #[error("internal error: mutex poisoned")]
+    Poisoned,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -455,8 +457,7 @@ impl CompensationSaga {
         policy: CompensationPolicy,
         dependencies: Vec<String>,
     ) -> Result<(), CompensationError> {
-        #[expect(clippy::unwrap_used)]
-        let mut manifest = self.manifest.lock().unwrap();
+        let mut manifest = self.manifest.lock().map_err(|_| CompensationError::Poisoned)?;
         manifest.register(effect_id, policy, dependencies)
     }
 
@@ -474,11 +475,10 @@ impl CompensationSaga {
         dependencies: Vec<String>,
         timeout_ms: u64,
     ) -> Result<(), CompensationError> {
-        #[expect(clippy::unwrap_used)]
-        let mut manifest = self.manifest.lock().unwrap();
+        let mut manifest = self.manifest.lock().map_err(|_| CompensationError::Poisoned)?;
         manifest.register(effect_id.to_string(), policy, dependencies)?;
-        #[allow(clippy::expect_used)]
-        let entry = manifest.get_mut(effect_id).expect("entry just inserted");
+        let entry = manifest.get_mut(effect_id)
+            .ok_or_else(|| CompensationError::NotFound(effect_id.to_string()))?;
         entry.timeout_ms = Some(timeout_ms);
         drop(manifest);
         Ok(())
@@ -493,8 +493,7 @@ impl CompensationSaga {
     ///
     /// Panics if the manifest mutex is poisoned.
     pub fn queue_pending(&self, effect_id: &str) -> Result<(), CompensationError> {
-        #[expect(clippy::unwrap_used)]
-        let mut manifest = self.manifest.lock().unwrap();
+        let mut manifest = self.manifest.lock().map_err(|_| CompensationError::Poisoned)?;
         let entry = manifest
             .get_mut(effect_id)
             .ok_or_else(|| CompensationError::NotFound(effect_id.to_string()))?;
@@ -518,8 +517,7 @@ impl CompensationSaga {
     ///
     /// Panics if the manifest mutex is poisoned.
     pub fn start_compensation(&self, effect_id: &str) -> Result<(), CompensationError> {
-        #[expect(clippy::unwrap_used)]
-        let mut manifest = self.manifest.lock().unwrap();
+        let mut manifest = self.manifest.lock().map_err(|_| CompensationError::Poisoned)?;
         if !manifest.can_execute(effect_id) {
             return Err(CompensationError::PolicyViolation {
                 effect_id: effect_id.to_string(),
@@ -539,8 +537,7 @@ impl CompensationSaga {
     ///
     /// Panics if the manifest mutex is poisoned.
     pub fn succeed(&self, effect_id: &str) -> Result<(), CompensationError> {
-        #[expect(clippy::unwrap_used)]
-        let mut manifest = self.manifest.lock().unwrap();
+        let mut manifest = self.manifest.lock().map_err(|_| CompensationError::Poisoned)?;
         manifest.transition_to(effect_id, SagaCompensationStatus::Succeeded)
     }
 
@@ -552,8 +549,7 @@ impl CompensationSaga {
     ///
     /// Panics if the manifest mutex is poisoned.
     pub fn fail(&self, effect_id: &str) -> Result<(), CompensationError> {
-        #[expect(clippy::unwrap_used)]
-        let mut manifest = self.manifest.lock().unwrap();
+        let mut manifest = self.manifest.lock().map_err(|_| CompensationError::Poisoned)?;
         manifest.transition_to(effect_id, SagaCompensationStatus::Failed)
     }
 
@@ -568,12 +564,11 @@ impl CompensationSaga {
         &self,
         effect_id: &str,
     ) -> Result<ReconciliationAction, CompensationError> {
-        #[expect(clippy::unwrap_used)]
-        let mut manifest = self.manifest.lock().unwrap();
+        let mut manifest = self.manifest.lock().map_err(|_| CompensationError::Poisoned)?;
         manifest.set_ambiguous(effect_id)?;
 
-        #[allow(clippy::expect_used)]
-        let entry = manifest.get(effect_id).expect("just set ambiguous");
+        let entry = manifest.get(effect_id)
+            .ok_or_else(|| CompensationError::NotFound(effect_id.to_string()))?;
         let ctx = ReconciliationContext {
             effect_id: effect_id.to_string(),
             compensation_effect_id: entry.compensation_effect_id.clone(),
@@ -600,19 +595,16 @@ impl CompensationSaga {
     ) -> Result<(), CompensationError> {
         match action {
             ReconciliationAction::CommitCompensation => {
-                #[expect(clippy::unwrap_used)]
-                let mut manifest = self.manifest.lock().unwrap();
+                let mut manifest = self.manifest.lock().map_err(|_| CompensationError::Poisoned)?;
                 manifest.transition_to(effect_id, SagaCompensationStatus::Succeeded)
             }
             ReconciliationAction::RetryCompensation => {
-                #[expect(clippy::unwrap_used)]
-                let mut manifest = self.manifest.lock().unwrap();
+                let mut manifest = self.manifest.lock().map_err(|_| CompensationError::Poisoned)?;
                 manifest.transition_to(effect_id, SagaCompensationStatus::Pending)
             }
             ReconciliationAction::EscalateToOperator
             | ReconciliationAction::AbandonCompensation => {
-                #[expect(clippy::unwrap_used)]
-                let mut manifest = self.manifest.lock().unwrap();
+                let mut manifest = self.manifest.lock().map_err(|_| CompensationError::Poisoned)?;
                 manifest.transition_to(effect_id, SagaCompensationStatus::Failed)
             }
         }

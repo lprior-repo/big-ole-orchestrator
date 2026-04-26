@@ -176,8 +176,8 @@ pub fn commit_event_and_summary(
 /// Open a fresh database to check whether a key is visible after reopen.
 /// This is used to verify atomicity: if a commit fails, reopening the DB
 /// should show no partial state.
-pub fn open_fresh_db(path: &std::path::Path) -> Database {
-    Database::builder(path).open().expect("open db")
+pub fn open_fresh_db(path: &std::path::Path) -> Result<Database, StorageError> {
+    Database::builder(path).open().map_err(|_| StorageError::Storage)
 }
 
 /// Verify that event and summary are both visible after a successful commit.
@@ -332,7 +332,7 @@ mod tests {
         assert!(result.is_ok(), "batch commit should succeed");
 
         // Then: reopen DB and verify both event and summary visible
-        let fresh_db = open_fresh_db(&path);
+        let fresh_db = open_fresh_db(&path).unwrap();
         let created_at = make_timestamp(1712200000000);
 
         let event_value = verify_commit_visibility(
@@ -373,7 +373,7 @@ mod tests {
         assert!(commit_event_and_summary(&db, &params2).is_ok());
 
         // Reopen and verify both events and final status
-        let fresh_db = open_fresh_db(&path);
+        let fresh_db = open_fresh_db(&path).unwrap();
         let created_at = make_timestamp(1712200000000);
 
         // Both events visible
@@ -442,7 +442,7 @@ mod tests {
         events2_ks.insert(&event_key, &event_value).expect("insert event");
 
         // Reopen and verify event-only is visible
-        let fresh_db = open_fresh_db(&path2);
+        let fresh_db = open_fresh_db(&path2).unwrap();
         let result = verify_no_event_visible(&fresh_db, &iid, &make_sequence(1));
         assert!(
             result.is_err(),
@@ -455,7 +455,7 @@ mod tests {
         let commit_result = commit_event_and_summary(&db, &params);
         assert!(commit_result.is_ok(), "atomic commit should succeed");
 
-        let fresh_db2 = open_fresh_db(&_path);
+        let fresh_db2 = open_fresh_db(&_path).unwrap();
         let created_at = make_timestamp(1712200000000);
 
         // Both must be visible (atomic commit succeeded — all-or-nothing)
@@ -489,7 +489,7 @@ mod tests {
 
         // Both must coexist — you cannot have one without the other
         // because they're in the same batch.
-        let fresh_db = open_fresh_db(&_path);
+        let fresh_db = open_fresh_db(&_path).unwrap();
         let created_at = make_timestamp(1712200000000);
 
         // Event must be present
@@ -527,7 +527,7 @@ mod tests {
         assert!(commit_event_and_summary(&db, &params2).is_ok());
 
         // Reopen and verify
-        let fresh_db = open_fresh_db(&path);
+        let fresh_db = open_fresh_db(&path).unwrap();
 
         // New status key (Completed) must exist
         let result = verify_commit_visibility(
@@ -583,7 +583,7 @@ mod tests {
         let params2 = make_params(instance_id.clone(), 2, InstanceStatus::Running, None);
         assert!(commit_event_and_summary(&db, &params2).is_ok());
 
-        let fresh_db = open_fresh_db(&path);
+        let fresh_db = open_fresh_db(&path).unwrap();
         let created_at = make_timestamp(1712200000000);
 
         // Both events visible, same status key present
@@ -629,7 +629,7 @@ mod tests {
         events_ks.insert(&event_key, &event_value).unwrap();
 
         // Standalone event IS visible
-        let _fresh = open_fresh_db(&path);
+        let _fresh = open_fresh_db(&path).unwrap();
         let standalone_visible = events_ks
             .get(&event_key)
             .unwrap();
@@ -645,7 +645,7 @@ mod tests {
         assert!(result.is_ok(), "batch commit should succeed in normal operation");
 
         // Both event and summary must be visible together
-        let fresh2 = open_fresh_db(&_path2);
+        let fresh2 = open_fresh_db(&_path2).unwrap();
         let created_at = make_timestamp(1712200000000);
         let visibility = verify_commit_visibility(
             &fresh2,

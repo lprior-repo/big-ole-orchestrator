@@ -343,12 +343,13 @@ impl BackpressureSignal {
     /// Panics if the internal mutex is poisoned.
     #[must_use]
     pub fn last_event(&self) -> Option<BackpressureEvent> {
-        #[expect(clippy::unwrap_used)]
-        self.last_event.lock().unwrap().clone()
+        match self.last_event.lock() {
+            Ok(guard) => guard.clone(),
+            Err(poisoned) => poisoned.into_inner().clone(),
+        }
     }
 
     /// Called when a queue becomes full.
-    #[allow(clippy::unwrap_used)]
     pub(crate) fn set_full(&self, class: WriteClass, depth: usize, capacity: usize) {
         let was_full = match class {
             WriteClass::CriticalControlPlane => self.critical_full.swap(true, Ordering::SeqCst),
@@ -362,15 +363,14 @@ impl BackpressureSignal {
                 depth,
                 capacity,
             };
-            #[expect(clippy::unwrap_used)]
-            {
-                *self.last_event.lock().unwrap() = Some(event);
+            match self.last_event.lock() {
+                Ok(mut guard) => *guard = Some(event),
+                Err(poisoned) => *poisoned.into_inner() = Some(event),
             }
         }
     }
 
     /// Called when a queue becomes writable (was full, now has capacity).
-    #[allow(clippy::unwrap_used)]
     pub(crate) fn set_writable(&self, class: WriteClass, remaining_capacity: usize) {
         let was_full = match class {
             WriteClass::CriticalControlPlane => self.critical_full.swap(false, Ordering::SeqCst),
@@ -383,9 +383,9 @@ impl BackpressureSignal {
                 class,
                 remaining_capacity,
             };
-            #[expect(clippy::unwrap_used)]
-            {
-                *self.last_event.lock().unwrap() = Some(event);
+            match self.last_event.lock() {
+                Ok(mut guard) => *guard = Some(event),
+                Err(poisoned) => *poisoned.into_inner() = Some(event),
             }
         }
     }
@@ -429,39 +429,35 @@ struct CommitLatencyState {
 impl CommitLatencyTracker {
     /// Records a commit completion with the given latency in milliseconds.
     ///
-    /// # Panics
-    ///
-    /// Panics if any internal mutex is poisoned.
+    /// Records a commit completion with the given latency in milliseconds.
     pub fn record_commit(&self, latency_ms: u64) {
-        #[expect(clippy::unwrap_used)]
-        let mut state = self.state.lock().unwrap();
+        let mut state = match self.state.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        };
         state.last_commit_at = Some(Instant::now());
         state.sample_count += 1;
         state.total_latency_ms += u128::from(latency_ms);
     }
 
     /// Returns the time since the last commit, if any.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the internal mutex is poisoned.
     #[must_use]
     pub fn time_since_last_commit(&self) -> Option<std::time::Duration> {
-        #[expect(clippy::unwrap_used)]
-        let state = self.state.lock().unwrap();
+        let state = match self.state.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        };
         state.last_commit_at.map(|instant| instant.elapsed())
     }
 
     /// Returns the average commit latency in milliseconds, if samples exist.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the internal mutex is poisoned.
     #[must_use]
     #[allow(clippy::cast_possible_truncation)]
     pub fn average_latency_ms(&self) -> Option<u64> {
-        #[expect(clippy::unwrap_used)]
-        let state = self.state.lock().unwrap();
+        let state = match self.state.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        };
         if state.sample_count == 0 {
             return None;
         }
@@ -472,14 +468,12 @@ impl CommitLatencyTracker {
     }
 
     /// Returns the number of commit samples recorded.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the internal mutex is poisoned.
     #[must_use]
     pub fn sample_count(&self) -> u64 {
-        #[expect(clippy::unwrap_used)]
-        let state = self.state.lock().unwrap();
+        let state = match self.state.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        };
         state.sample_count
     }
 }
