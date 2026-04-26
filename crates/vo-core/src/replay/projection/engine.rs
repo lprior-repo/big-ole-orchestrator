@@ -1,16 +1,21 @@
-//! Projection engine — coordinates projection rebuilds and manages lifecycle.
+//! Projection engine — throttle, builder, and engine core.
+//!
+//! - `RebuildThrottleConfig` — configuration data
+//! - `RebuildThrottleState` — token-bucket state machine (Calc)
+//! - `ProjectionEngineBuilder` — builder pattern (Actions)
+//! - `ProjectionEngine` — coordinates rebuilds and manages lifecycle (Actions)
+//! - `RebuildContext` — tracks individual rebuild operations
 
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::time::Instant;
 
-use crate::replay::projection::error::ProjectionError;
-use crate::replay::projection::throttle::{RebuildThrottleConfig, RebuildThrottleState};
-use crate::replay::projection::types::{ProjectionRecord, StaleReason};
+use super::{ProjectionError, ProjectionRecord, ProjectionState, RebuildContext, StaleReason};
+use super::throttle::{RebuildThrottleConfig, RebuildThrottleState};
 use crate::upcaster::UpcasterRegistry;
 
-use super::rebuilder::RebuildContext;
-
+// =====================================================================
 pub struct ProjectionEngineBuilder {
     max_supported_version: u8,
     throttle_config: RebuildThrottleConfig,
@@ -52,6 +57,7 @@ impl ProjectionEngineBuilder {
     }
 }
 
+// =====================================================================
 pub struct ProjectionEngine {
     upcaster_registry: Option<Box<dyn UpcasterRegistry>>,
     max_supported_version: u8,

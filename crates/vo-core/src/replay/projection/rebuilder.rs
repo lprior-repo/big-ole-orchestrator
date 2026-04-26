@@ -1,38 +1,35 @@
-//! Projection rebuilder — handles full rebuild from event log.
+//! Projection rebuild logic — applies events to rebuild state from scratch.
 //!
-//! - `RebuildContext` — tracks individual rebuild operation progress
-//! - `ProjectionRebuilder` — executes full projection rebuilds
+//! `ProjectionRebuilder` handles full rebuild from event log, tracking
+//! progress and supporting cancellation.
 
 use std::marker::PhantomData;
-use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::Arc;
 use std::time::Instant;
 
-use crate::replay::projection::error::ProjectionError;
-use crate::replay::projection::types::{Projector, ProjectionResult};
+use super::{ProjectionError, ProjectionResult, Projector};
 
-use super::engine::ProjectionEngine;
-
-#[derive(Debug)]
 pub struct RebuildContext {
     pub projection_id: String,
-    pub started_at: Instant,
     pub from_sequence: u64,
     pub events_total: AtomicU64,
     pub events_processed: AtomicU64,
-    pub progress_percent: AtomicU32,
-    pub cancelled: AtomicBool,
+    pub progress_percent: AtomicU64,
+    cancelled: AtomicBool,
+    started_at: Instant,
 }
 
 impl RebuildContext {
-    pub(crate) fn new(projection_id: String, from_sequence: u64) -> Self {
+    pub fn new(projection_id: String, from_sequence: u64) -> Self {
         Self {
             projection_id,
-            started_at: Instant::now(),
             from_sequence,
             events_total: AtomicU64::new(0),
             events_processed: AtomicU64::new(0),
-            progress_percent: AtomicU32::new(0),
+            progress_percent: AtomicU64::new(0),
             cancelled: AtomicBool::new(false),
+            started_at: Instant::now(),
         }
     }
 
@@ -44,18 +41,17 @@ impl RebuildContext {
         self.events_processed.store(processed, Ordering::Relaxed);
         let total = self.events_total.load(Ordering::Relaxed);
         if total > 0 {
-            let percent = ((processed as f64 / total as f64) * 100.0) as u32;
-            self.progress_percent
-                .store(percent.min(100), Ordering::Relaxed);
+            let pct = (processed as f64 / total as f64 * 100.0).min(100.0) as u64;
+            self.progress_percent.store(pct, Ordering::Relaxed);
         }
-    }
-
-    pub fn cancel(&self) {
-        self.cancelled.store(true, Ordering::Relaxed);
     }
 
     pub fn is_cancelled(&self) -> bool {
         self.cancelled.load(Ordering::Relaxed)
+    }
+
+    pub fn cancel(&self) {
+        self.cancelled.store(true, Ordering::Relaxed);
     }
 
     pub fn elapsed_ms(&self) -> u64 {
@@ -63,6 +59,7 @@ impl RebuildContext {
     }
 }
 
+// =====================================================================
 #[allow(dead_code)]
 pub struct ProjectionRebuilder<'a, S, E, P>
 where
@@ -71,9 +68,9 @@ where
     P: Projector<S, E>,
 {
     #[allow(dead_code)]
-    engine: &'a ProjectionEngine,
+    engine: &'a super::ProjectionEngine,
     projector: &'a P,
-    context: std::sync::Arc<RebuildContext>,
+    context: Arc<RebuildContext>,
     _phantom: PhantomData<(S, E)>,
 }
 
@@ -84,7 +81,7 @@ where
     P: Projector<S, E>,
 {
     pub fn new(
-        #[allow(dead_code)] engine: &'a ProjectionEngine,
+        #[allow(dead_code)] engine: &'a super::ProjectionEngine,
         projector: &'a P,
         projection_id: String,
         from_sequence: u64,
@@ -92,12 +89,12 @@ where
         Self {
             engine,
             projector,
-            context: std::sync::Arc::new(RebuildContext::new(projection_id, from_sequence)),
+            context: Arc::new(RebuildContext::new(projection_id, from_sequence)),
             _phantom: PhantomData,
         }
     }
 
-    pub fn context(&self) -> &std::sync::Arc<RebuildContext> {
+    pub fn context(&self) -> &Arc<RebuildContext> {
         &self.context
     }
 

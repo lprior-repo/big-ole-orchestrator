@@ -26,9 +26,10 @@ const ACTOR_CALL_TIMEOUT: Duration = Duration::from_secs(5);
 ///
 /// Per ADR-028, this handler enforces exactly-once ingress:
 /// 1. Validates that a `dedupe_key` is present for exact workflow ingress.
-/// 2. Calls `admit_ingress` to atomically check-and-insert into the dedupe store.
-/// 3. If duplicate, returns 409 Conflict with the existing instance ID.
-/// 4. If new, proceeds to start the workflow via the orchestrator actor.
+/// 2. Checks writer pressure — if overloaded, returns 429 + Retry-After with NO dedupe records.
+/// 3. Calls `admit_ingress` to atomically check-and-insert into the dedupe store.
+/// 4. If duplicate, returns 409 Conflict with the existing instance ID.
+/// 5. If new, proceeds to start the workflow via the orchestrator actor.
 #[tracing::instrument(skip_all)]
 pub async fn start_workflow(
     Extension(master): Extension<ActorRef<OrchestratorMsg>>,
@@ -77,7 +78,30 @@ pub async fn start_workflow(
     let instance_id =
         vo_types::InstanceId::parse(&instance_id_str).expect("generated ULID should be valid");
 
-    // Step 2: Atomic admission check against dedupe store (ADR-028 Section 3).
+    // Step 3: Check writer pressure BEFORE dedupe admission (ADR-006, ADR-015).
+    // When DbWriter mailbox is at 80% capacity, shed ingress with 429 + Retry-After.
+    // MUST happen before dedupe admission so no records are written when shed.
+    match writer_pressure.check() {
+        PressureGuardResult::Admitted => {}
+        PressureGuardResult::Shed {
+            retry_after_secs,
+            reason,
+        } => {
+            let mut headers = HeaderMap::new();
+            headers.insert(
+                axum::http::header::RETRY_AFTER,
+                retry_after_secs.to_string().parse().expect("valid header value"),
+            );
+            return (
+                StatusCode::TOO_MANY_REQUESTS,
+                headers,
+                Json(ApiError::new("writer_pressure_shed", reason)),
+            )
+                .into_response();
+        }
+    }
+
+    // Step 4: Atomic admission check against dedupe store (ADR-028 Section 3).
     let admission = match admit_ingress(
         dedupe_store.as_ref(),
         &dedupe_key,
@@ -101,7 +125,7 @@ pub async fn start_workflow(
         }
     };
 
-    // Step 3: If duplicate, return 409 Conflict with existing instance (ADR-028).
+    // Step 5: If duplicate, return 409 Conflict with existing instance (ADR-028).
     if let IngressAdmission::Duplicate {
         existing_instance_id,
     } = admission
@@ -135,28 +159,6 @@ pub async fn start_workflow(
     let workflow_type = req.workflow_type.clone();
     let captured_namespace = namespace.clone();
     let captured_id = instance_id.clone();
-
-    // Step 4: Check writer pressure before submitting to orchestrator (ADR-006, ADR-015).
-    // When DbWriter mailbox is at 80% capacity, shed ingress with 429 + Retry-After.
-    match writer_pressure.check() {
-        PressureGuardResult::Admitted => {}
-        PressureGuardResult::Shed {
-            retry_after_secs,
-            reason,
-        } => {
-            let mut headers = HeaderMap::new();
-            headers.insert(
-                axum::http::header::RETRY_AFTER,
-                retry_after_secs.to_string().parse().expect("valid header value"),
-            );
-            return (
-                StatusCode::TOO_MANY_REQUESTS,
-                headers,
-                Json(ApiError::new("writer_pressure_shed", reason)),
-            )
-                .into_response();
-        }
-    }
 
     // Step 5: Proceed to start workflow via actor (ADR-028 atomic write).
     let call_result = master

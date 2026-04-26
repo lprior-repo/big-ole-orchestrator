@@ -1,12 +1,11 @@
-//! Core projection types (ADR-037).
+//! Projection domain types and traits (ADR-037).
 //!
-//! Data types for the event sourcing projection engine — records, results,
-//! state machines, events, and the `Projector` trait.
+//! Core data types for the event sourcing projection engine — transforms
+//! immutable event sequences into materialized read models.
 
 use serde::{Deserialize, Serialize};
 
-use crate::replay::projection::error::ProjectionError;
-
+// =====================================================================
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProjectionRecord {
     pub projection_id: String,
@@ -40,6 +39,7 @@ impl ProjectionRecord {
     }
 }
 
+// =====================================================================
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProjectionResult<S> {
     pub state: S,
@@ -70,6 +70,7 @@ impl<S> ProjectionResult<S> {
     }
 }
 
+// =====================================================================
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ProjectionState {
     Building,
@@ -101,6 +102,7 @@ impl ProjectionState {
     }
 }
 
+// =====================================================================
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum StaleReason {
     SchemaVersionMismatch { expected: u8, actual: u8 },
@@ -109,6 +111,7 @@ pub enum StaleReason {
     ManualInvalidation,
 }
 
+// =====================================================================
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ProjectionEvent {
     ProjectionStarted {
@@ -138,11 +141,12 @@ pub enum ProjectionEvent {
     },
 }
 
+// =====================================================================
 pub trait Projector<S, E>
 where
     S: Clone + Default + serde::Serialize,
 {
-    type Error: Into<ProjectionError>;
+    type Error: Into<super::ProjectionError>;
 
     fn project(&self, state: S, event: &E) -> Result<S, Self::Error>;
 

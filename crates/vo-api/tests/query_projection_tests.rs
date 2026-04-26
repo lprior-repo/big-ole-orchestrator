@@ -1,12 +1,248 @@
-//! Query projection tests.
+//! BDD: Replace placeholder query projection API test with production handler test.
 //!
-//! NOTE: Full integration tests with fjall are disabled pending fjall 3.x API
-//! migration (see vo-storage). The query handler logic is tested via lib tests.
+//! ADR-037: Exercises the production query handlers (timeline, history,
+//! effect-journal, version) backed by a real fjall database, asserting
+//! actual projection data rather than `assert!(true)`.
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn query_projection_module_compiles() {
-        assert!(true, "query_projection module placeholder");
+#![allow(clippy::unwrap_used)]
+#![allow(clippy::expect_used)]
+
+use axum::{
+    body::Body,
+    http::{Request, StatusCode},
+    routing::get,
+    Router,
+};
+use fjall::{Database, KeyspaceCreateOptions};
+use std::sync::Arc;
+use tower::ServiceExt;
+use vo_api::handlers::query::QueryState;
+use vo_types::workspace::WorkspaceIndex;
+
+fn make_envelope_json(seq: u64, instance_id: &str, event_type: &str) -> Vec<u8> {
+    serde_json::json!({
+        "version": 1,
+        "instance_id": instance_id,
+        "sequence": seq,
+        "timestamp_ms": 1_000 + seq * 100,
+        "payload": {"type": event_type, "step_id": "step-1"},
+        "metadata": {}
+    })
+    .to_string()
+    .into_bytes()
+}
+
+fn make_envelope_json_with_semantics(
+    seq: u64,
+    instance_id: &str,
+    event_type: &str,
+    semantics: &str,
+) -> Vec<u8> {
+    serde_json::json!({
+        "version": 1,
+        "instance_id": instance_id,
+        "sequence": seq,
+        "timestamp_ms": 1_000 + seq * 100,
+        "payload": {"type": event_type},
+        "metadata": {"annotations": {"semantics": semantics}}
+    })
+    .to_string()
+    .into_bytes()
+}
+
+fn insert_event(partition: &fjall::Keyspace, instance_id: &str, seq: u64, value: &[u8]) {
+    let mut key = vec![vo_storage::codec::EVENT_KEY_VERSION];
+    key.extend_from_slice(instance_id.as_bytes());
+    key.extend_from_slice(&seq.to_be_bytes());
+    partition.insert(&key, value).unwrap();
+}
+
+fn setup_db() -> (tempfile::TempDir, Database) {
+    let folder = tempfile::tempdir().expect("temp dir");
+    let db = Database::builder(folder.path()).open().expect("database");
+    db.keyspace("events", || KeyspaceCreateOptions::default())
+        .expect("events keyspace");
+    (folder, db)
+}
+
+fn encode_path_id(path_id: &str) -> String {
+    path_id.replace('/', "%2F")
+}
+
+fn query_app(db: Arc<Database>) -> Router {
+    let workspace_index = Arc::new(std::sync::RwLock::new(WorkspaceIndex::new()));
+    Router::new()
+        .route(
+            "/api/v1/workflows/{id}/timeline",
+            get(vo_api::handlers::get_timeline),
+        )
+        .route(
+            "/api/v1/workflows/{id}/history",
+            get(vo_api::handlers::get_history),
+        )
+        .route(
+            "/api/v1/workflows/{id}/effect-journal",
+            get(vo_api::handlers::get_effect_journal),
+        )
+        .route(
+            "/api/v1/workflows/{id}/version",
+            get(vo_api::handlers::get_workflow_version),
+        )
+        .with_state(QueryState {
+            db,
+            workspace_index,
+        })
+}
+
+async fn send(req: Request<Body>, app: Router) -> (StatusCode, serde_json::Value) {
+    let resp = app.oneshot(req).await.expect("oneshot");
+    let status = resp.status();
+    let body = axum::body::to_bytes(resp.into_body(), 1 << 20)
+        .await
+        .expect("read body");
+    let v: serde_json::Value = serde_json::from_slice(&body).expect("parse json");
+    (status, v)
+}
+
+#[tokio::test]
+async fn given_projection_query_test_when_run_then_production_handler_is_exercised() {
+    let (_dir, db) = setup_db();
+    let db = Arc::new(db);
+    let partition = db
+        .keyspace("events", || KeyspaceCreateOptions::default())
+        .unwrap();
+
+    let instance_id = ulid::Ulid::new().to_string();
+    let path_id = format!("ns/{instance_id}");
+
+    let value1 = make_envelope_json(1, &instance_id, "WorkflowStarted");
+    let value2 = make_envelope_json(2, &instance_id, "StepCompleted");
+    let value3 = make_envelope_json(3, &instance_id, "WorkflowFinished");
+
+    insert_event(&partition, &instance_id, 1, &value1);
+    insert_event(&partition, &instance_id, 2, &value2);
+    insert_event(&partition, &instance_id, 3, &value3);
+
+    let app = query_app(Arc::clone(&db));
+
+    let encoded_id = encode_path_id(&path_id);
+
+    let req = Request::builder()
+        .uri(format!("/api/v1/workflows/{encoded_id}/timeline"))
+        .body(Body::empty())
+        .unwrap();
+    let (status, body) = send(req, app).await;
+    assert_eq!(status, StatusCode::OK, "timeline response: {body}");
+    assert_eq!(body["instance_id"], path_id);
+    let entries = body["entries"].as_array().expect("entries array");
+    assert_eq!(entries.len(), 3, "should have 3 timeline entries");
+    assert_eq!(entries[0]["event_type"], "WorkflowStarted");
+    assert_eq!(entries[0]["sequence"], 1);
+    assert_eq!(entries[1]["event_type"], "StepCompleted");
+    assert_eq!(entries[1]["payload"]["step_id"], "step-1");
+    assert_eq!(entries[2]["event_type"], "WorkflowFinished");
+    assert_eq!(body["total_replayed"], 3);
+
+    let app = query_app(Arc::clone(&db));
+    let req = Request::builder()
+        .uri(format!("/api/v1/workflows/{encoded_id}/history"))
+        .body(Body::empty())
+        .unwrap();
+    let (status, body) = send(req, app).await;
+    assert_eq!(status, StatusCode::OK, "history response: {body}");
+    assert_eq!(body["instance_id"], path_id);
+    let hist_entries = body["entries"].as_array().expect("history entries");
+    assert_eq!(hist_entries.len(), 3);
+    assert_eq!(hist_entries[1]["step_id"], "step-1");
+    assert_eq!(hist_entries[1]["event_type"], "StepCompleted");
+
+    let app = query_app(Arc::clone(&db));
+    let req = Request::builder()
+        .uri(format!("/api/v1/workflows/{encoded_id}/effect-journal"))
+        .body(Body::empty())
+        .unwrap();
+    let (status, body) = send(req, app).await;
+    assert_eq!(status, StatusCode::OK, "effect-journal response: {body}");
+    let ej_entries = body["entries"].as_array().expect("effect journal entries");
+    assert_eq!(ej_entries.len(), 3);
+    for entry in ej_entries {
+        assert!(
+            entry.get("semantics").is_some(),
+            "each entry must have semantics field"
+        );
     }
+
+    let app = query_app(db);
+    let req = Request::builder()
+        .uri(format!("/api/v1/workflows/{encoded_id}/version"))
+        .body(Body::empty())
+        .unwrap();
+    let (status, body) = send(req, app).await;
+    assert_eq!(status, StatusCode::OK, "version response: {body}");
+    assert_eq!(body["instance_id"], path_id);
+    assert_eq!(body["schema_version"], 1);
+    assert_eq!(body["event_count"], 3);
+    assert_eq!(body["last_sequence"], 3);
+    assert!(body["last_timestamp_ms"].is_number());
+}
+
+#[tokio::test]
+async fn given_invalid_id_when_timeline_queried_then_400() {
+    let (_dir, db) = setup_db();
+    let app = query_app(Arc::new(db));
+
+    let req = Request::builder()
+        .uri("/api/v1/workflows/no-slash/timeline")
+        .body(Body::empty())
+        .unwrap();
+    let (status, body) = send(req, app).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(body["error"], "invalid_id");
+}
+
+#[tokio::test]
+async fn given_empty_stream_when_version_queried_then_zero_events() {
+    let (_dir, db) = setup_db();
+    let app = query_app(Arc::new(db));
+
+    let instance_id = ulid::Ulid::new().to_string();
+    let path_id = format!("ns/{instance_id}");
+    let encoded_id = encode_path_id(&path_id);
+
+    let req = Request::builder()
+        .uri(format!("/api/v1/workflows/{encoded_id}/version"))
+        .body(Body::empty())
+        .unwrap();
+    let (status, body) = send(req, app).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["event_count"], 0);
+    assert_eq!(body["last_sequence"], serde_json::Value::Null);
+}
+
+#[tokio::test]
+async fn given_effect_with_exact_semantics_when_journal_queried_then_exact_in_response() {
+    let (_dir, db) = setup_db();
+    let db = Arc::new(db);
+    let partition = db
+        .keyspace("events", || KeyspaceCreateOptions::default())
+        .unwrap();
+
+    let instance_id = ulid::Ulid::new().to_string();
+    let path_id = format!("ns/{instance_id}");
+    let encoded_id = encode_path_id(&path_id);
+
+    let value =
+        make_envelope_json_with_semantics(1, &instance_id, "EffectCommitted", "exact");
+    insert_event(&partition, &instance_id, 1, &value);
+
+    let app = query_app(db);
+    let req = Request::builder()
+        .uri(format!("/api/v1/workflows/{encoded_id}/effect-journal"))
+        .body(Body::empty())
+        .unwrap();
+    let (status, body) = send(req, app).await;
+    assert_eq!(status, StatusCode::OK);
+    let entries = body["entries"].as_array().expect("entries");
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0]["semantics"], "exact");
 }

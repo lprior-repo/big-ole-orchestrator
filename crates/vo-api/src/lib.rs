@@ -34,11 +34,6 @@ pub mod types;
 #[cfg(test)]
 mod lib_tests {
     #[test]
-    fn crate_root_test_smoke() {
-        assert!(true);
-    }
-
-    #[test]
     fn timeline_entry_serializes_with_all_fields() {
         let entry = crate::types::v3::TimelineEntry {
             sequence: 1,

@@ -4991,6 +4991,7 @@ dependencies = [
  "vo-actor",
  "vo-api",
  "vo-core",
+ "vo-executor",
  "vo-storage",
  "vo-types",
 ]
