@@ -642,7 +642,6 @@ mod proptest_write_class_invariants {
             if result.is_ok() {
                 let remaining = budget.remaining(class);
                 // After a successful reserve, remaining should be initial - size
-                // But since our stub doesn't track usage, this will likely fail
                 prop_assert!(remaining <= initial,
                     "remaining() should be <= {} after successful reserve of {}, was {}",
                     initial, reserve_size, remaining);
