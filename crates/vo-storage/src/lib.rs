@@ -64,6 +64,7 @@ mod crypto_tests;
 pub mod dedupe_partition;
 pub mod effect_journal;
 pub mod event_log;
+pub mod event_store;
 pub mod event_summary_commit;
 pub mod fs_store;
 pub mod instance_index;

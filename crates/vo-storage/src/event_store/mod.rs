@@ -2,13 +2,12 @@
 //!
 //! Architecture: Data (`EventStoreError`) → Calc (`append_events_checked`) → Actions
 //! (`EventStore` async trait).
-//!
-//! This module defines the async trait for append-only event storage with
-//! Optimistic Concurrency Control (OCC) support.
+
+pub mod fjall_event_store;
+pub use fjall_event_store::FjallEventStore;
 
 use async_trait::async_trait;
-use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use dashmap::DashMap;
 use vo_types::events::EventEnvelope;
 use vo_types::InstanceId;
 
@@ -29,12 +28,10 @@ pub enum EventStoreError {
 impl From<EventStoreError> for vo_types::events::Error {
     fn from(e: EventStoreError) -> Self {
         match e {
-            EventStoreError::OccConflict { .. } => {
-                vo_types::events::Error::PayloadDecodeSkipped
-            }
-            EventStoreError::Storage { .. } => vo_types::events::Error::PayloadDecodeFailed(
-                Box::new(vo_types::events::Error::InvalidEnvelopeFormat),
-            ),
+            EventStoreError::OccConflict { .. } => vo_types::events::Error::PayloadDecodeSkipped,
+            EventStoreError::Storage { .. } => vo_types::events::Error::PayloadDecodeFailed {
+                source: Box::new(vo_types::events::Error::InvalidEnvelopeFormat),
+            },
             EventStoreError::InvalidArgument { .. } => {
                 vo_types::events::Error::InvalidEnvelopeFormat
             }
@@ -58,15 +55,15 @@ pub trait EventStore: Send + Sync {
 
 #[derive(Debug, Clone)]
 pub struct InMemoryEventStore {
-    sequences: Arc<RwLock<HashMap<InstanceId, u64>>>,
-    events: Arc<RwLock<HashMap<InstanceId, Vec<EventEnvelope>>>>,
+    sequences: DashMap<InstanceId, u64>,
+    events: DashMap<InstanceId, Vec<EventEnvelope>>,
 }
 
 impl InMemoryEventStore {
     pub fn new() -> Self {
         Self {
-            sequences: Arc::new(RwLock::new(HashMap::new())),
-            events: Arc::new(RwLock::new(HashMap::new())),
+            sequences: DashMap::new(),
+            events: DashMap::new(),
         }
     }
 
@@ -76,14 +73,10 @@ impl InMemoryEventStore {
         instance_id: InstanceId,
         events: Vec<EventEnvelope>,
     ) -> Self {
-        let mut seq_store = self.sequences.write().unwrap();
-        let mut event_store = self.events.write().unwrap();
         if let Some(last) = events.last() {
-            seq_store.insert(instance_id.clone(), last.sequence);
+            self.sequences.insert(instance_id.clone(), last.sequence);
         }
-        event_store.insert(instance_id, events);
-        drop(seq_store);
-        drop(event_store);
+        self.events.insert(instance_id, events);
         self
     }
 }
@@ -114,18 +107,19 @@ impl EventStore for InMemoryEventStore {
             })?
             .sequence;
 
-        let final_sequence = events.last().unwrap().sequence;
+        let final_sequence = events.last().expect("non-empty checked above").sequence;
 
-        let mut sequences = self.sequences.write().unwrap();
-        let mut events_store = self.events.write().unwrap();
-
-        let expected_sequence = sequences.get(instance_id).copied().unwrap_or(0);
+        let expected_sequence = self
+            .sequences
+            .get(instance_id)
+            .map(|r| *r)
+            .unwrap_or(0);
 
         if first_sequence != expected_sequence + 1 {
-            let actual_sequence = events_store
+            let actual_sequence = self
+                .events
                 .get(instance_id)
-                .and_then(|e| e.last())
-                .map(|e| e.sequence)
+                .and_then(|e| e.last().map(|ev| ev.sequence))
                 .unwrap_or(0);
             return Err(EventStoreError::OccConflict {
                 instance_id: instance_id.to_string(),
@@ -147,13 +141,11 @@ impl EventStore for InMemoryEventStore {
             }
         }
 
-        sequences.insert(instance_id.clone(), final_sequence);
-        events_store
+        self.sequences.insert(instance_id.clone(), final_sequence);
+        self.events
             .entry(instance_id.clone())
-            .or_insert_with(Vec::new);
-        if let Some(existing) = events_store.get_mut(instance_id) {
-            existing.extend(events);
-        }
+            .or_default()
+            .extend(events);
 
         Ok(final_sequence)
     }
@@ -162,8 +154,7 @@ impl EventStore for InMemoryEventStore {
         &self,
         instance_id: &InstanceId,
     ) -> Result<u64, EventStoreError> {
-        let sequences = self.sequences.read().unwrap();
-        Ok(sequences.get(instance_id).copied().unwrap_or(0))
+        Ok(self.sequences.get(instance_id).map(|r| *r).unwrap_or(0))
     }
 }
 
