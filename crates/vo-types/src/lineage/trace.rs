@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::lineage::parent::{Epoch, WorkflowLineage};
+use crate::lineage::{Epoch, WorkflowLineage};
 
 /// Status of a lineage - tracks whether it can accept new epochs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

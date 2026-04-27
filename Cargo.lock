@@ -5253,7 +5253,6 @@ dependencies = [
  "ulid",
  "vo-core",
  "vo-types",
- "zeroize",
 ]
 
 [[package]]
