@@ -12,6 +12,8 @@ serde_json = "1"
 [dev-dependencies]
 quote = "1"
 criterion = { workspace = true }
+proptest = { workspace = true }
+rand = { workspace = true }
 
 [[bench]]
 name = "linter_bench"

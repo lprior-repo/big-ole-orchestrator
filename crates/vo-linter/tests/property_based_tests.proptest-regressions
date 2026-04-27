@@ -1,0 +1,13 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc d306a2042794de86d9fd13d9543360f3fdccab7bbb974eae61a71d47f2374050 # shrinks to call_type = "Uuid::new_v4"
+cc ff1850951ba06e2bbb577f5456aada337585b504e98b09b84286c1563ca47c6e # shrinks to context = "_"
+cc d504ba0a62b9cea0e2be210feb597ceca07b8d11042f92145d40a5dfcf055f5e # shrinks to len = 100
+cc 42d6cea9b604b85c69d0d004066d9f9749d536674efe7627999b2071f5de9315 # shrinks to call_type = "Uuid::new_v4"
+cc 2b4ca1f639b1cca20e65e00e0854c7fbf792c05a0c2c49dd3da9e999410e4acf # shrinks to fn_name = "_", var_name = "a", type_name = "A"
+cc a2a1ef8d96a2ca196fa186386030aca1f51a2aa55c8bb831e40e450c2996ff9c # shrinks to fn_name = "aa", var_name = "if", type_name = "Aa"
+cc 7cfcdec758127d95d1c1514b4e84f3cc5d3154ec9ccea001d5f33c304ab89a7c # shrinks to name = "fn", call_count = 1
