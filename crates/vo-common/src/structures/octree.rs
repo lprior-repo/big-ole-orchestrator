@@ -386,3 +386,370 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    mod vec3 {
+        use super::*;
+
+        #[test]
+        fn vec3_new_constructs_correctly() {
+            let v = Vec3::new(1.0, 2.0, 3.0);
+            assert_eq!(v.x, 1.0);
+            assert_eq!(v.y, 2.0);
+            assert_eq!(v.z, 3.0);
+        }
+
+        #[test]
+        fn vec3_origin() {
+            let v = Vec3::new(0.0, 0.0, 0.0);
+            assert_eq!(v.x, 0.0);
+            assert_eq!(v.y, 0.0);
+            assert_eq!(v.z, 0.0);
+        }
+
+        #[test]
+        fn vec3_negative_coordinates() {
+            let v = Vec3::new(-1.5, -2.5, -3.5);
+            assert_eq!(v.x, -1.5);
+            assert_eq!(v.y, -2.5);
+            assert_eq!(v.z, -3.5);
+        }
+
+        #[test]
+        fn vec3_equality() {
+            let a = Vec3::new(1.0, 2.0, 3.0);
+            let b = Vec3::new(1.0, 2.0, 3.0);
+            assert_eq!(a, b);
+        }
+
+        #[test]
+        fn vec3_inequality() {
+            let a = Vec3::new(1.0, 2.0, 3.0);
+            let b = Vec3::new(1.0, 2.0, 4.0);
+            assert_ne!(a, b);
+        }
+
+        #[test]
+        fn vec3_debug_display() {
+            let v = Vec3::new(1.0, 2.0, 3.0);
+            let debug = format!("{:?}", v);
+            assert!(debug.contains("1"));
+            assert!(debug.contains("2"));
+            assert!(debug.contains("3"));
+        }
+
+        #[test]
+        fn vec3_clone_preserves_data() {
+            let v = Vec3::new(1.0, 2.0, 3.0);
+            let cloned = v.clone();
+            assert_eq!(v, cloned);
+        }
+
+        #[test]
+        fn vec3_large_values() {
+            let v = Vec3::new(1e100, -1e100, 0.0);
+            assert_eq!(v.x, 1e100);
+            assert_eq!(v.y, -1e100);
+            assert_eq!(v.z, 0.0);
+        }
+
+        #[test]
+        fn vec3_subnormal_values() {
+            let v = Vec3::new(1e-300, 1e-300, 1e-300);
+            assert!(v.x > 0.0);
+            assert!(v.y > 0.0);
+            assert!(v.z > 0.0);
+        }
+
+        #[test]
+        fn vec3_serialization_roundtrip() {
+            let v = Vec3::new(1.5, 2.5, 3.5);
+            let json = serde_json::to_string(&v).unwrap();
+            let deserialized: Vec3 = serde_json::from_str(&json).unwrap();
+            assert_eq!(v, deserialized);
+        }
+    }
+
+    mod bounds {
+        use super::*;
+
+        #[test]
+        fn bounds_new_constructs_correctly() {
+            let min = Vec3::new(0.0, 0.0, 0.0);
+            let max = Vec3::new(10.0, 10.0, 10.0);
+            let bounds = Bounds::new(min, max);
+            assert_eq!(bounds.min, min);
+            assert_eq!(bounds.max, max);
+        }
+
+        #[test]
+        fn bounds_contains_point_inside() {
+            let bounds = Bounds::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(10.0, 10.0, 10.0));
+            let p = Vec3::new(5.0, 5.0, 5.0);
+            assert!(bounds.contains(p));
+        }
+
+        #[test]
+        fn bounds_contains_point_on_min_boundary() {
+            let bounds = Bounds::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(10.0, 10.0, 10.0));
+            let p = Vec3::new(0.0, 0.0, 0.0);
+            assert!(bounds.contains(p));
+        }
+
+        #[test]
+        fn bounds_contains_point_on_max_boundary() {
+            let bounds = Bounds::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(10.0, 10.0, 10.0));
+            let p = Vec3::new(10.0, 10.0, 10.0);
+            assert!(bounds.contains(p));
+        }
+
+        #[test]
+        fn bounds_contains_point_outside_below() {
+            let bounds = Bounds::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(10.0, 10.0, 10.0));
+            let p = Vec3::new(-1.0, 5.0, 5.0);
+            assert!(!bounds.contains(p));
+        }
+
+        #[test]
+        fn bounds_contains_point_outside_above() {
+            let bounds = Bounds::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(10.0, 10.0, 10.0));
+            let p = Vec3::new(5.0, 5.0, 11.0);
+            assert!(!bounds.contains(p));
+        }
+
+        #[test]
+        fn bounds_contains_point_outside_x() {
+            let bounds = Bounds::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(10.0, 10.0, 10.0));
+            let p = Vec3::new(15.0, 5.0, 5.0);
+            assert!(!bounds.contains(p));
+        }
+
+        #[test]
+        fn bounds_contains_point_outside_y() {
+            let bounds = Bounds::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(10.0, 10.0, 10.0));
+            let p = Vec3::new(5.0, 15.0, 5.0);
+            assert!(!bounds.contains(p));
+        }
+
+        #[test]
+        fn bounds_contains_point_outside_z() {
+            let bounds = Bounds::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(10.0, 10.0, 10.0));
+            let p = Vec3::new(5.0, 5.0, 15.0);
+            assert!(!bounds.contains(p));
+        }
+
+        #[test]
+        fn bounds_contains_negative_range() {
+            let bounds = Bounds::new(Vec3::new(-10.0, -10.0, -10.0), Vec3::new(0.0, 0.0, 0.0));
+            let p_inside = Vec3::new(-5.0, -5.0, -5.0);
+            let p_outside = Vec3::new(-15.0, -5.0, -5.0);
+            assert!(bounds.contains(p_inside));
+            assert!(!bounds.contains(p_outside));
+        }
+
+        #[test]
+        fn bounds_debug_display() {
+            let bounds = Bounds::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(10.0, 10.0, 10.0));
+            let debug = format!("{:?}", bounds);
+            assert!(debug.contains("0"));
+            assert!(debug.contains("10"));
+        }
+
+        #[test]
+        fn bounds_serialization_roundtrip() {
+            let bounds = Bounds::new(Vec3::new(1.0, 2.0, 3.0), Vec3::new(4.0, 5.0, 6.0));
+            let json = serde_json::to_string(&bounds).unwrap();
+            let deserialized: Bounds = serde_json::from_str(&json).unwrap();
+            assert_eq!(bounds.min, deserialized.min);
+            assert_eq!(bounds.max, deserialized.max);
+        }
+
+        #[test]
+        fn bounds_clone_preserves_data() {
+            let bounds = Bounds::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(10.0, 10.0, 10.0));
+            let cloned = bounds.clone();
+            assert_eq!(bounds.min, cloned.min);
+            assert_eq!(bounds.max, cloned.max);
+        }
+    }
+
+    mod octree {
+        use super::*;
+
+        #[test]
+        fn octree_new_creates_empty_tree() {
+            let bounds = Bounds::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(10.0, 10.0, 10.0));
+            let tree = Octree::<i32>::new(bounds);
+            assert_eq!(tree.len(), 0);
+        }
+
+        #[test]
+        fn octree_capacity_is_eight() {
+            assert_eq!(Octree::<i32>::CAPACITY, 8);
+        }
+
+        #[test]
+        fn octree_insert_single_point() {
+            let bounds = Bounds::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(10.0, 10.0, 10.0));
+            let mut tree = Octree::new(bounds);
+            let p = Vec3::new(5.0, 5.0, 5.0);
+            assert!(tree.insert(p, 42));
+            assert_eq!(tree.len(), 1);
+        }
+
+        #[test]
+        fn octree_insert_rejected_outside_bounds() {
+            let bounds = Bounds::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(10.0, 10.0, 10.0));
+            let mut tree = Octree::new(bounds);
+            let p = Vec3::new(15.0, 15.0, 15.0);
+            assert!(!tree.insert(p, 42));
+            assert_eq!(tree.len(), 0);
+        }
+
+        #[test]
+        fn octree_insert_multiple_points_same_location() {
+            let bounds = Bounds::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(10.0, 10.0, 10.0));
+            let mut tree = Octree::new(bounds);
+            let p = Vec3::new(5.0, 5.0, 5.0);
+            assert!(tree.insert(p, 1));
+            assert!(tree.insert(p, 2));
+            assert!(tree.insert(p, 3));
+            assert_eq!(tree.len(), 3);
+        }
+
+        #[test]
+        fn octree_query_range_empty_tree() {
+            let bounds = Bounds::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(10.0, 10.0, 10.0));
+            let tree = Octree::<i32>::new(bounds);
+            let query = Bounds::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(10.0, 10.0, 10.0));
+            assert!(tree.query_range(&query).is_empty());
+        }
+
+        #[test]
+        fn octree_query_range_finds_inserted_point() {
+            let bounds = Bounds::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(10.0, 10.0, 10.0));
+            let mut tree = Octree::new(bounds);
+            let p = Vec3::new(5.0, 5.0, 5.0);
+            tree.insert(p, 42);
+            let query = Bounds::new(p, p);
+            let results = tree.query_range(&query);
+            assert_eq!(results.len(), 1);
+            assert_eq!(*results[0], 42);
+        }
+
+        #[test]
+        fn octree_query_range_returns_multiple() {
+            let bounds = Bounds::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(10.0, 10.0, 10.0));
+            let mut tree = Octree::new(bounds);
+            tree.insert(Vec3::new(1.0, 1.0, 1.0), 1);
+            tree.insert(Vec3::new(2.0, 2.0, 2.0), 2);
+            tree.insert(Vec3::new(3.0, 3.0, 3.0), 3);
+            let query = Bounds::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(5.0, 5.0, 5.0));
+            assert_eq!(tree.query_range(&query).len(), 3);
+        }
+
+        #[test]
+        fn octree_query_range_empty_when_no_overlap() {
+            let bounds = Bounds::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(10.0, 10.0, 10.0));
+            let mut tree = Octree::new(bounds);
+            tree.insert(Vec3::new(5.0, 5.0, 5.0), 42);
+            let query = Bounds::new(Vec3::new(100.0, 100.0, 100.0), Vec3::new(200.0, 200.0, 200.0));
+            assert!(tree.query_range(&query).is_empty());
+        }
+
+        #[test]
+        fn octree_query_range_partial_overlap() {
+            let bounds = Bounds::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(10.0, 10.0, 10.0));
+            let mut tree = Octree::new(bounds);
+            tree.insert(Vec3::new(5.0, 5.0, 5.0), 42);
+            tree.insert(Vec3::new(50.0, 50.0, 50.0), 99);
+            let query = Bounds::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(10.0, 10.0, 10.0));
+            let results = tree.query_range(&query);
+            assert_eq!(results.len(), 1);
+            assert_eq!(*results[0], 42);
+        }
+
+        #[test]
+        fn octree_insert_triggers_subdivision_eventually() {
+            let bounds = Bounds::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(100.0, 100.0, 100.0));
+            let mut tree = Octree::new(bounds);
+            for i in 0..9 {
+                tree.insert(Vec3::new(i as f64 * 10.0, i as f64 * 10.0, i as f64 * 10.0), i as i32);
+            }
+            assert_eq!(tree.len(), 9);
+        }
+
+        #[test]
+        fn octree_len_counts_all_points_across_subtrees() {
+            let bounds = Bounds::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(100.0, 100.0, 100.0));
+            let mut tree = Octree::new(bounds);
+            tree.insert(Vec3::new(10.0, 10.0, 10.0), 1);
+            tree.insert(Vec3::new(20.0, 20.0, 20.0), 2);
+            tree.insert(Vec3::new(30.0, 30.0, 30.0), 3);
+            tree.insert(Vec3::new(40.0, 40.0, 40.0), 4);
+            tree.insert(Vec3::new(50.0, 50.0, 50.0), 5);
+            assert_eq!(tree.len(), 5);
+        }
+
+        #[test]
+        fn octree_query_boundary_point() {
+            let bounds = Bounds::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(10.0, 10.0, 10.0));
+            let mut tree = Octree::new(bounds);
+            let p = Vec3::new(0.0, 0.0, 0.0);
+            tree.insert(p, 1);
+            let query = Bounds::new(p, p);
+            assert_eq!(tree.query_range(&query).len(), 1);
+        }
+
+        #[test]
+        fn octree_query_near_boundary_not_found() {
+            let bounds = Bounds::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(10.0, 10.0, 10.0));
+            let mut tree = Octree::new(bounds);
+            let p = Vec3::new(0.0, 0.0, 0.0);
+            tree.insert(p, 1);
+            let near_miss = Vec3::new(0.001, 0.0, 0.0);
+            let query = Bounds::new(near_miss, near_miss);
+            assert!(tree.query_range(&query).is_empty());
+        }
+
+        #[test]
+        fn octree_different_value_types() {
+            let bounds = Bounds::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(10.0, 10.0, 10.0));
+            let mut tree: Octree<String> = Octree::new(bounds);
+            tree.insert(Vec3::new(5.0, 5.0, 5.0), "hello".to_string());
+            assert_eq!(tree.len(), 1);
+            let query = Bounds::new(Vec3::new(5.0, 5.0, 5.0), Vec3::new(5.0, 5.0, 5.0));
+            assert_eq!(tree.query_range(&query)[0], "hello");
+        }
+
+        #[test]
+        fn octree_clone_independence() {
+            let bounds = Bounds::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(10.0, 10.0, 10.0));
+            let mut tree = Octree::new(bounds);
+            tree.insert(Vec3::new(5.0, 5.0, 5.0), 42);
+            let _cloned = tree.clone();
+            assert_eq!(tree.len(), 1);
+        }
+
+        #[test]
+        fn octree_debug_format_does_not_panic() {
+            let bounds = Bounds::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(10.0, 10.0, 10.0));
+            let tree: Octree<i32> = Octree::new(bounds);
+            let debug = format!("{:?}", tree);
+            assert!(debug.contains("Octree"));
+        }
+
+        #[test]
+        fn octree_serialization_roundtrip() {
+            let bounds = Bounds::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(10.0, 10.0, 10.0));
+            let mut tree: Octree<i32> = Octree::new(bounds);
+            tree.insert(Vec3::new(1.0, 2.0, 3.0), 42);
+            let json = serde_json::to_string(&tree).unwrap();
+            let deserialized: Octree<i32> = serde_json::from_str(&json).unwrap();
+            assert_eq!(deserialized.len(), 1);
+        }
+    }
+}
