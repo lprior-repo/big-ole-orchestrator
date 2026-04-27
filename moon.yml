@@ -40,6 +40,13 @@ tasks:
     toolchains:
       - rust
 
+  process-boundary-gate:
+    command: 'cargo test -p vo-executor --test execution_boundary_tests -- --test-threads=1 && cargo test -p vo-ipc --test spawn_edge_cases'
+    toolchains:
+      - rust
+    options:
+      runInCI: true
+
   ci:
     command: 'moon run :check :test :lint-src :key-encoding-gate :purge-gate'
     options:
